@@ -33,7 +33,7 @@ No API key is required for the local CPU path.
 
 ```bash
 cd /home/revdonz/Projects/ai-video-clipper
-uv sync --dev --extra transcribe
+uv sync --dev --extra transcribe --extra vision
 ```
 
 ## Run
@@ -47,7 +47,8 @@ uv run ai-clipper /path/to/source.mp4 \
   --max-duration 45 \
   --limit 5 \
   --width 720 \
-  --height 1280
+  --height 1280 \
+  --render-mode face-track
 ```
 
 For a CUDA machine, add `--device cuda`. The current machine has no `nvidia-smi`, so the verified demo used CPU inference and `libx264` rendering.
@@ -72,7 +73,7 @@ uv run pytest
 uv run ruff check .
 ```
 
-Current verified result: **30 tests passed; Ruff passed**.
+Current verified result: **41 tests passed; Ruff passed**.
 
 ## What is real today
 
@@ -80,7 +81,9 @@ Current verified result: **30 tests passed; Ruff passed**.
 - Configurable duration and clip count
 - Deterministic transcript-window scoring
 - Non-overlapping highlight selection
-- Portrait center crop
+- Portrait center-crop fallback
+- Selectable portrait layout: `face-track`, `fit-blur`, or `center-crop`
+- OpenCV face tracking with smoothed crop movement across speaker shots
 - Short, proportionally timed subtitle cues
 - Subtitle burn-in
 - H.264/AAC MP4 rendering
@@ -91,7 +94,8 @@ Current verified result: **30 tests passed; Ruff passed**.
 ## Important limitations
 
 - Highlight selection is currently a deterministic transcript heuristic, not an LLM or multimodal virality model.
-- Crop is centered; it does not yet track faces, speakers, or moving objects.
+- Face tracking follows the most prominent detected face; it does not yet use audio
+  diarization to prove which visible person is actively speaking.
 - Faster-whisper segment timestamps are used; word-level karaoke timing is not implemented.
 - The pipeline handles local files only.
 - There is no web dashboard, queue, database, billing, storage service, or editor yet.

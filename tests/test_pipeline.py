@@ -28,6 +28,30 @@ class EmptyWhisperModel:
         return [], SimpleNamespace(language="id")
 
 
+class RecordingWhisperModel:
+    def __init__(self):
+        self.called = False
+
+    def transcribe(self, source: str, **options):
+        self.called = True
+        return [], SimpleNamespace(language="id")
+
+
+def test_pipeline_validates_render_mode_before_transcription(tmp_path: Path):
+    source = tmp_path / "source.mp4"
+    source.touch()
+    model = RecordingWhisperModel()
+    output = tmp_path / "output"
+
+    with pytest.raises(ValueError, match="render mode"):
+        run_pipeline(source, output, model=model, render_mode="stretch")
+
+    assert model.called is False
+    manifest = json.loads((output / "manifest.json").read_text())
+    assert manifest["status"] == "failed"
+    assert manifest["render_mode"] == "stretch"
+
+
 def test_pipeline_fails_clearly_when_transcription_is_empty(tmp_path: Path):
     source = tmp_path / "source.mp4"
     source.touch()
@@ -49,6 +73,7 @@ def test_failed_run_invalidates_stale_manifest_without_publishing_partial_result
 
     manifest = json.loads(manifest_path.read_text())
     assert manifest["status"] == "failed"
+    assert manifest["render_mode"] == "center-crop"
     assert "clips" not in manifest
     assert "old.mp4" not in manifest_path.read_text()
     assert not (output / "transcript.json").exists()
@@ -100,6 +125,7 @@ def test_pipeline_transcribes_selects_renders_and_writes_manifest(tmp_path: Path
 
     manifest = json.loads(manifest_path.read_text())
     assert manifest["status"] == "completed"
+    assert manifest["render_mode"] == "center-crop"
     assert manifest["language"] == "id"
     assert manifest["source"] == str(source.resolve())
     assert len(manifest["clips"]) == 1

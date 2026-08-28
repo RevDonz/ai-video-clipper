@@ -8,6 +8,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from .pipeline import run_pipeline
+from .render import RENDER_MODES
 from .transcribe import load_whisper_model
 
 
@@ -26,6 +27,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--limit", type=int, default=5)
     parser.add_argument("--width", type=int, default=1080)
     parser.add_argument("--height", type=int, default=1920)
+    parser.add_argument(
+        "--render-mode",
+        choices=RENDER_MODES,
+        default="face-track",
+        help="portrait framing strategy",
+    )
     return parser
 
 
@@ -47,8 +54,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             limit=args.limit,
             width=args.width,
             height=args.height,
+            render_mode=args.render_mode,
         )
-    except ValueError as exc:
+    except (FileNotFoundError, RuntimeError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
     print(f"Pipeline selesai. Manifest: {manifest}")

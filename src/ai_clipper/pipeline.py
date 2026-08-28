@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from .highlight import select_highlights
-from .render import render_vertical
+from .render import render_vertical, validate_render_mode
 from .transcribe import transcribe_video
 
 
@@ -33,16 +33,18 @@ def run_pipeline(
     limit: int = 5,
     width: int = 1080,
     height: int = 1920,
+    render_mode: str = "center-crop",
 ) -> Path:
     """Transcribe, select highlights, render clips, and publish a status manifest."""
     source = Path(source).resolve()
     output_dir = Path(output_dir).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = output_dir / "manifest.json"
-    manifest_base: dict[str, object] = {"source": str(source)}
+    manifest_base: dict[str, object] = {"source": str(source), "render_mode": render_mode}
     _publish_manifest(manifest_path, {**manifest_base, "status": "processing"})
 
     try:
+        validate_render_mode(render_mode)
         transcription = transcribe_video(source, model=model, language=language)
         if not transcription.segments:
             raise ValueError("Transcription produced no usable segments")
@@ -80,6 +82,7 @@ def run_pipeline(
                 transcript=transcription.segments,
                 width=width,
                 height=height,
+                render_mode=render_mode,
             )
             clips.append(
                 {
@@ -100,6 +103,7 @@ def run_pipeline(
             "language": transcription.language,
             "transcript": str(transcript_path),
             "clips": clips,
+            "render_mode": render_mode,
         }
         _publish_manifest(manifest_path, completed_manifest)
         return manifest_path

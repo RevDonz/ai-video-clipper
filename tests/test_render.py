@@ -150,3 +150,53 @@ def test_rejects_clip_end_after_source_duration(tmp_path: Path):
         )
 
     assert not output.exists()
+
+
+def test_renders_fit_blur_layout_without_distorting_canvas(tmp_path: Path):
+    source = tmp_path / "source.mp4"
+    output = tmp_path / "fit-blur.mp4"
+    _make_source(source)
+
+    render_vertical(
+        source,
+        output,
+        start=0.5,
+        end=1.5,
+        transcript=[TranscriptSegment(0.5, 1.5, "Frame utuh tetap proporsional.")],
+        width=360,
+        height=640,
+        render_mode="fit-blur",
+    )
+
+    probe = subprocess.run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "stream=width,height,sample_aspect_ratio",
+            "-of",
+            "json",
+            str(output),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    stream = next(item for item in json.loads(probe.stdout)["streams"] if "width" in item)
+    assert stream == {"width": 360, "height": 640, "sample_aspect_ratio": "1:1"}
+
+
+def test_rejects_unknown_render_mode(tmp_path: Path):
+    source = tmp_path / "source.mp4"
+    source.touch()
+
+    with pytest.raises(ValueError, match="render mode"):
+        render_vertical(
+            source,
+            tmp_path / "clip.mp4",
+            start=0.0,
+            end=1.0,
+            transcript=[],
+            render_mode="stretch",
+        )

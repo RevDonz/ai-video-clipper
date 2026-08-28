@@ -46,7 +46,7 @@ The final frame was visually inspected: portrait orientation was correct, the im
 Quality gates:
 
 ```text
-30 tests passed
+41 tests passed
 Ruff: All checks passed
 ```
 
@@ -66,8 +66,10 @@ Ruff: All checks passed
 
 - The initial generic TTS voice produced poor Indonesian transcription even when switching from Whisper `tiny` to `small`; using a native Indonesian voice fixed the input quality problem.
 - Highlight selection is not yet semantic LLM scoring.
-- No face or active-speaker tracking exists.
-- The source visual is synthetic; a real multi-speaker podcast remains untested.
+- The initial spike had no face tracking. A follow-up now tracks the most prominent
+  detected face, but true audio-aware active-speaker selection is still pending.
+- A real Indonesian multi-speaker podcast was tested successfully, but broader evaluation
+  across camera layouts, lighting, profiles, and group conversations is still needed.
 
 ### Surprises
 

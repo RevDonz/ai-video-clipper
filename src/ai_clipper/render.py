@@ -2,13 +2,25 @@
 
 from __future__ import annotations
 
+import importlib.util
 import math
 import subprocess
 import tempfile
 from pathlib import Path
 
+from .face_tracking import build_crop_expression, detect_face_track
 from .models import TranscriptSegment
 from .subtitles import to_srt
+
+RENDER_MODES = ("face-track", "fit-blur", "center-crop")
+
+
+def validate_render_mode(render_mode: str) -> None:
+    """Fail fast for unknown modes or a missing optional vision dependency."""
+    if render_mode not in RENDER_MODES:
+        raise ValueError(f"unknown render mode: {render_mode}")
+    if render_mode == "face-track" and importlib.util.find_spec("cv2") is None:
+        raise RuntimeError("face-track mode requires the vision extra: uv sync --extra vision")
 
 
 def _probe_duration(source: Path) -> float:
@@ -33,6 +45,47 @@ def _probe_duration(source: Path) -> float:
     return duration
 
 
+def _layout_filter(
+    source: Path,
+    *,
+    start: float,
+    end: float,
+    width: int,
+    height: int,
+    render_mode: str,
+) -> str:
+    if render_mode == "fit-blur":
+        return (
+            f"[0:v]split=2[background][foreground];"
+            f"[background]scale={width}:{height}:force_original_aspect_ratio=increase,"
+            f"crop={width}:{height},gblur=sigma=35[blurred];"
+            f"[foreground]scale={width}:{height}:force_original_aspect_ratio=decrease[fit];"
+            f"[blurred][fit]overlay=(W-w)/2:(H-h)/2,setsar=1"
+        )
+    if render_mode == "face-track":
+        times, centers, source_width, source_height = detect_face_track(
+            source,
+            start=start,
+            end=end,
+        )
+        crop_x = build_crop_expression(
+            times,
+            centers,
+            source_width=source_width,
+            source_height=source_height,
+            output_width=width,
+            output_height=height,
+        )
+        return (
+            f"[0:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
+            f"crop={width}:{height}:x='{crop_x}':y=(ih-oh)/2,setsar=1"
+        )
+    return (
+        f"[0:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
+        f"crop={width}:{height},setsar=1"
+    )
+
+
 def render_vertical(
     source: Path,
     output: Path,
@@ -42,12 +95,14 @@ def render_vertical(
     transcript: list[TranscriptSegment],
     width: int = 1080,
     height: int = 1920,
+    render_mode: str = "center-crop",
 ) -> Path:
-    """Crop the source to portrait, burn subtitles, and return the output path."""
+    """Render a portrait clip using face tracking, fit-blur, or a centered crop."""
     source = Path(source).resolve()
     output = Path(output).resolve()
     if not source.is_file():
         raise FileNotFoundError(source)
+    validate_render_mode(render_mode)
     if not math.isfinite(start) or not math.isfinite(end):
         raise ValueError("timestamps must be finite")
     if start < 0 or end <= start:
@@ -63,16 +118,22 @@ def render_vertical(
     subtitle_content = to_srt(transcript, clip_start=start, clip_end=end)
     subtitle_path.write_text(subtitle_content, encoding="utf-8")
 
+    layout_filter = _layout_filter(
+        source,
+        start=start,
+        end=end,
+        width=width,
+        height=height,
+        render_mode=render_mode,
+    )
     with tempfile.TemporaryDirectory(prefix="ai-clipper-") as temporary_directory:
         filter_subtitle_path = Path(temporary_directory) / "captions.srt"
         filter_subtitle_path.write_text(subtitle_content, encoding="utf-8")
         video_filter = (
-            f"scale={width}:{height}:force_original_aspect_ratio=increase,"
-            f"crop={width}:{height},setsar=1,"
-            "subtitles=filename='captions.srt':"
+            f"{layout_filter},subtitles=filename='captions.srt':"
             "force_style='FontName=DejaVu Sans,FontSize=12,"
             "PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,"
-            "BorderStyle=1,Outline=3,Shadow=1,Alignment=2,MarginV=90'"
+            "BorderStyle=1,Outline=3,Shadow=1,Alignment=2,MarginV=90'[video]"
         )
 
         command = [
@@ -84,10 +145,10 @@ def render_vertical(
             str(source),
             "-t",
             f"{end - start:.3f}",
-            "-vf",
+            "-filter_complex",
             video_filter,
             "-map",
-            "0:v:0",
+            "[video]",
             "-map",
             "0:a?",
             "-c:v",

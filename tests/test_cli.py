@@ -20,6 +20,8 @@ def test_cli_parses_source_and_processing_options():
             "45",
             "--limit",
             "3",
+            "--render-mode",
+            "fit-blur",
         ]
     )
 
@@ -30,6 +32,11 @@ def test_cli_parses_source_and_processing_options():
     assert args.min_duration == 15
     assert args.max_duration == 45
     assert args.limit == 3
+    assert args.render_mode == "fit-blur"
+
+
+def test_cli_defaults_to_face_tracking():
+    assert parse_args(["video.mp4"]).render_mode == "face-track"
 
 
 def test_cli_returns_nonzero_and_reports_pipeline_value_error(monkeypatch, capsys):
