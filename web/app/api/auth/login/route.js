@@ -18,15 +18,17 @@ export async function POST(request) {
   const password = String(form.get("password") || "");
   const next = safeDestination(String(form.get("next") || "/"));
   if (!authenticateCredentials(username, password)) {
-    const login = new URL("/login", request.url);
-    login.searchParams.set("error", "1");
-    if (next !== "/") login.searchParams.set("next", next);
-    return Response.redirect(login, 303);
+    const query = new URLSearchParams({ error: "1" });
+    if (next !== "/") query.set("next", next);
+    return new Response(null, {
+      status: 303,
+      headers: { Location: `/login?${query}` },
+    });
   }
   return new Response(null, {
     status: 303,
     headers: {
-      Location: new URL(next, request.url).toString(),
+      Location: next,
       "Set-Cookie": sessionCookie(createSessionToken()),
       "Cache-Control": "no-store",
     },

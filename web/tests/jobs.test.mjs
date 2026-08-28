@@ -4,6 +4,8 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
+import { POST as login } from "../app/api/auth/login/route.js";
+import { POST as logout } from "../app/api/auth/logout/route.js";
 import {
   authenticateCredentials,
   createSessionToken,
@@ -72,6 +74,46 @@ test("session authentication persists with a signed cookie and fails closed", ()
   assert.equal(isAuthorized(new Request("http://local", { headers }), env, 1_001), true);
   assert.equal(isAuthorized(new Request("http://local"), env, 1_001), false);
   assert.equal(isAuthorized(new Request("http://local", { headers }), {}, 1_001), false);
+});
+
+test("auth redirects stay on the public origin behind a reverse proxy", async () => {
+  const previous = {
+    APP_USERNAME: process.env.APP_USERNAME,
+    APP_PASSWORD: process.env.APP_PASSWORD,
+    APP_SESSION_SECRET: process.env.APP_SESSION_SECRET,
+  };
+  process.env.APP_USERNAME = "admin";
+  process.env.APP_PASSWORD = "secret-value";
+  process.env.APP_SESSION_SECRET = "a-long-random-session-secret-value";
+  try {
+    const validForm = new FormData();
+    validForm.set("username", "admin");
+    validForm.set("password", "secret-value");
+    validForm.set("next", "/jobs?filter=done");
+    const valid = await login(new Request("http://0.0.0.0:3000/api/auth/login", {
+      method: "POST",
+      body: validForm,
+    }));
+    assert.equal(valid.status, 303);
+    assert.equal(valid.headers.get("location"), "/jobs?filter=done");
+
+    const invalidForm = new FormData();
+    invalidForm.set("username", "admin");
+    invalidForm.set("password", "wrong");
+    const invalid = await login(new Request("http://0.0.0.0:3000/api/auth/login", {
+      method: "POST",
+      body: invalidForm,
+    }));
+    assert.equal(invalid.headers.get("location"), "/login?error=1");
+
+    const loggedOut = await logout();
+    assert.equal(loggedOut.headers.get("location"), "/login");
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
 });
 
 test("byte ranges are validated and clamped", () => {

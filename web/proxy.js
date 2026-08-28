@@ -7,10 +7,11 @@ export function proxy(request) {
   if (request.nextUrl.pathname.startsWith("/api/")) {
     return NextResponse.json({ error: "Sesi login diperlukan" }, { status: 401 });
   }
-  const login = new URL("/login", request.url);
   const destination = `${request.nextUrl.pathname}${request.nextUrl.search}`;
-  if (destination !== "/") login.searchParams.set("next", destination);
-  return NextResponse.redirect(login);
+  const query = new URLSearchParams();
+  if (destination !== "/") query.set("next", destination);
+  const location = query.size ? `/login?${query}` : "/login";
+  return new Response(null, { status: 307, headers: { Location: location } });
 }
 
 export const config = {
