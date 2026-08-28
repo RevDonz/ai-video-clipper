@@ -10,6 +10,7 @@ import {
   authenticateCredentials,
   createSessionToken,
   isAuthorized,
+  sessionCookie,
   verifySessionToken,
 } from "../lib/auth.mjs";
 import {
@@ -122,6 +123,16 @@ test("session authentication persists with a signed cookie and fails closed", ()
   assert.equal(isAuthorized(new Request("http://local", { headers }), env, 1_001), true);
   assert.equal(isAuthorized(new Request("http://local"), env, 1_001), false);
   assert.equal(isAuthorized(new Request("http://local", { headers }), {}, 1_001), false);
+  const cookie = sessionCookie(token, Date.UTC(2026, 0, 1));
+  assert.match(cookie, /Max-Age=2592000/);
+  assert.match(cookie, /Expires=Sat, 31 Jan 2026 00:00:00 GMT/);
+});
+
+test("login form exposes password-manager compatible semantics", async () => {
+  const source = await readFile(new URL("../app/login/page.jsx", import.meta.url), "utf8");
+  assert.match(source, /autoComplete="on"/);
+  assert.match(source, /name="username"[^>]+autoComplete="username"/);
+  assert.match(source, /name="password"[^>]+autoComplete="current-password"/);
 });
 
 test("auth redirects stay on the public origin behind a reverse proxy", async () => {

@@ -13,10 +13,10 @@ export default async function LoginPage({ searchParams }) {
           <h1>Selamat datang kembali.</h1>
           <p>Masuk untuk membuat, memantau, dan mengunduh klip video.</p>
         </div>
-        <form className="loginForm" method="post" action="/api/auth/login">
+        <form className="loginForm" method="post" action="/api/auth/login" autoComplete="on">
           <input type="hidden" name="next" value={next} />
-          <label><span>Username</span><input name="username" autoComplete="username" required autoFocus /></label>
-          <label><span>Password</span><input name="password" type="password" autoComplete="current-password" required /></label>
+          <label htmlFor="username"><span>Username</span><input id="username" name="username" type="text" autoComplete="username" autoCapitalize="none" spellCheck={false} required autoFocus /></label>
+          <label htmlFor="password"><span>Password</span><input id="password" name="password" type="password" autoComplete="current-password" required /></label>
           {hasError && <div className="loginError">Username atau password tidak sesuai.</div>}
           <button type="submit">Masuk ke dashboard <b>→</b></button>
         </form>

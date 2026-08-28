@@ -69,12 +69,13 @@ export function isAuthorized(request, env = process.env, now = Math.floor(Date.n
   return verifySessionToken(cookieValue(request, SESSION_COOKIE), env, now);
 }
 
-export function sessionCookie(token) {
-  return `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_MAX_AGE}`;
+export function sessionCookie(token, now = Date.now()) {
+  const expires = new Date(now + SESSION_MAX_AGE * 1000).toUTCString();
+  return `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_MAX_AGE}; Expires=${expires}`;
 }
 
 export function clearSessionCookie() {
-  return `${SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`;
+  return `${SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT`;
 }
 
 export function requireAuth(request) {
