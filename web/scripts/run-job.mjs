@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
-import { atomicWriteJson } from "../lib/jobs.mjs";
+import { atomicWriteJson, generateSocialMetadata } from "../lib/jobs.mjs";
 
 const id = process.argv[2];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -101,6 +101,7 @@ try {
       videoUrl: `/api/jobs/${id}/files/output/${encodeURIComponent(filename)}`,
       downloadUrl: `/api/jobs/${id}/files/output/${encodeURIComponent(filename)}?download=1`,
       subtitleUrl: `/api/jobs/${id}/files/output/${encodeURIComponent(path.basename(clip.subtitles))}?download=1`,
+      ...generateSocialMetadata(clip.text),
     };
   });
   await update({ status: "completed", progress: 100, clips, completedAt: new Date().toISOString() });

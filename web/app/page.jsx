@@ -44,6 +44,7 @@ export default function Home() {
   const [activeId, setActiveId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
+  const [copiedClip, setCopiedClip] = useState(null);
 
   const activeJob = useMemo(() => jobs.find((job) => job.id === activeId), [jobs, activeId]);
 
@@ -98,6 +99,12 @@ export default function Home() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  async function copyCaption(clip) {
+    await navigator.clipboard.writeText(`${clip.title}\n\n${clip.description}`);
+    setCopiedClip(`${activeJob.id}-${clip.index}`);
+    setTimeout(() => setCopiedClip(null), 1800);
   }
 
   return (
@@ -158,7 +165,7 @@ export default function Home() {
                 {activeJob.clips?.map((clip) => (
                   <article className="clip" key={clip.index}>
                     <video controls preload="metadata" src={clip.videoUrl} />
-                    <div><small>CLIP {String(clip.index).padStart(2, "0")} · {Math.round(clip.duration)} DETIK</small><p>{clip.text}</p><a href={clip.downloadUrl}>Download MP4 ↓</a></div>
+                    <div className="clipMeta"><small>CLIP {String(clip.index).padStart(2, "0")} · {Math.round(clip.duration)} DETIK</small><h3>{clip.title}</h3><p className="socialDescription">{clip.description}</p><div className="clipActions"><a href={clip.downloadUrl}>Download MP4 ↓</a><button type="button" onClick={() => copyCaption(clip)}>{copiedClip === `${activeJob.id}-${clip.index}` ? "Tersalin ✓" : "Salin caption"}</button></div></div>
                   </article>
                 ))}
                 {!activeJob.clips?.length && activeJob.status !== "failed" && <div className="empty"><div className="pulse" /><strong>Worker sedang bekerja</strong><p>Video panjang di CPU dapat membutuhkan beberapa menit.</p></div>}

@@ -8,10 +8,11 @@ export function proxy(request) {
     return NextResponse.json({ error: "Sesi login diperlukan" }, { status: 401 });
   }
   const destination = `${request.nextUrl.pathname}${request.nextUrl.search}`;
-  const query = new URLSearchParams();
-  if (destination !== "/") query.set("next", destination);
-  const location = query.size ? `/login?${query}` : "/login";
-  return new Response(null, { status: 307, headers: { Location: location } });
+  const login = request.nextUrl.clone();
+  login.pathname = "/login";
+  login.search = "";
+  if (destination !== "/") login.searchParams.set("next", destination);
+  return NextResponse.redirect(login);
 }
 
 export const config = {

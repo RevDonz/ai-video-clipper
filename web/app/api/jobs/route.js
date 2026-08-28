@@ -7,6 +7,7 @@ import { spawn } from "node:child_process";
 import { requireAuth } from "../../../lib/auth.mjs";
 import {
   atomicWriteJson,
+  enrichJobSocialMetadata,
   parseJobOptions,
   sortJobsNewest,
   validateYouTubeUrl,
@@ -19,7 +20,7 @@ const jobsRoot = () => path.resolve(process.env.JOBS_ROOT || "/data/jobs");
 
 function publicJob(job) {
   const { sourcePath: _sourcePath, ...safe } = job;
-  return safe;
+  return enrichJobSocialMetadata(safe);
 }
 
 export async function GET(request) {

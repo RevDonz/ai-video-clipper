@@ -3,6 +3,95 @@ import path from "node:path";
 
 export const RENDER_MODES = ["face-track", "fit-blur", "center-crop"];
 
+const INDONESIAN_STOPWORDS = new Set([
+  "agar", "akan", "aku", "anda", "atau", "bagi", "bahwa", "banyak", "bisa", "buat",
+  "dalam", "dan", "dari", "dengan", "dia", "ini", "itu", "jadi", "jika", "juga",
+  "kalau", "kami", "karena", "kita", "lebih", "maka", "mereka", "namun", "orang",
+  "pada", "paling", "saja", "sangat", "saya", "sebagai", "seperti", "setiap", "sudah",
+  "supaya", "tapi", "telah", "tentang", "tersebut", "tidak", "untuk", "yang", "abis",
+  "banget", "belakang", "belum", "boleh", "boom", "baru", "cuma", "dibuat", "dong", "hasil", "info", "langsung",
+  "masih", "memang", "mungkin", "pertama", "sekarang", "sedikit", "sebelah", "selesai", "setelah", "setutu",
+  "sini", "sana", "teman", "ternyata", "terlihat", "waktu", "wow",
+]);
+
+const HOOK_WORDS = [
+  "alasan", "cara", "fakta", "harus", "jangan", "kesalahan", "kenapa", "rahasia",
+  "ternyata", "tidak sadar", "masalah", "penting", "bisa", "wajib",
+];
+
+function cleanTranscript(value) {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .replace(/^[\s.,!?;:—-]+|[\s—-]+$/g, "")
+    .trim();
+}
+
+function truncateAtWord(value, maximum) {
+  if (value.length <= maximum) return value;
+  const shortened = value.slice(0, maximum - 1);
+  const boundary = shortened.lastIndexOf(" ");
+  return `${shortened.slice(0, boundary > maximum * 0.6 ? boundary : maximum - 1).trim()}…`;
+}
+
+function topicHashtags(text) {
+  const frequencies = new Map();
+  const words = text.toLocaleLowerCase("id-ID").match(/[\p{L}\p{N}]+/gu) || [];
+  for (const [index, word] of words.entries()) {
+    if (word.length < 5 || INDONESIAN_STOPWORDS.has(word) || /^\d+$/.test(word)) continue;
+    const current = frequencies.get(word) || { count: 0, firstIndex: index };
+    frequencies.set(word, { count: current.count + 1, firstIndex: current.firstIndex });
+  }
+  return [...frequencies.entries()]
+    .sort((left, right) => right[1].count - left[1].count || left[1].firstIndex - right[1].firstIndex)
+    .slice(0, 4)
+    .map(([word]) => `#${word[0].toLocaleUpperCase("id-ID")}${word.slice(1)}`);
+}
+
+function topicWords(text) {
+  return topicHashtags(text).map((tag) => tag.slice(1));
+}
+
+export function generateSocialMetadata(transcript) {
+  const text = cleanTranscript(transcript);
+  const fallbackTitle = "Momen Pilihan dari Video Ini";
+  const sentences = text
+    ? text.split(/(?<=[.!?])\s+|\n+/).map(cleanTranscript).filter((item) => item.length >= 8)
+    : [];
+  const ranked = sentences.map((sentence, index) => {
+    const lower = sentence.toLocaleLowerCase("id-ID");
+    const hooks = HOOK_WORDS.reduce((score, word) => score + (lower.includes(word) ? 3 : 0), 0);
+    const question = sentence.includes("?") ? 2 : 0;
+    const idealLength = sentence.length >= 24 && sentence.length <= 90 ? 2 : 0;
+    return { sentence, score: hooks + question + idealLength - index * 0.15 };
+  }).sort((left, right) => right.score - left.score);
+  const strongest = ranked[0];
+  const topics = topicWords(text);
+  const useSentence = strongest && strongest.score >= 3 && strongest.sentence.length <= 110;
+  const topicTitle = topics.length
+    ? `Hal Menarik tentang ${topics[0]} yang Bikin Penasaran`
+    : fallbackTitle;
+  const selected = useSentence ? strongest.sentence : topicTitle;
+  const plainTitle = selected.replace(/[.!?,;:]+$/g, "").trim();
+  const title = truncateAtWord(
+    plainTitle ? `${plainTitle[0].toLocaleUpperCase("id-ID")}${plainTitle.slice(1)}` : fallbackTitle,
+    72,
+  );
+  const excerpt = truncateAtWord(text || "Ada insight menarik yang layak kamu simak dari video ini", 210);
+  const hashtags = ["#fyp", "#viral", "#shorts", ...topicHashtags(text)];
+  const description = `${excerpt}${/[.!?]$/.test(excerpt) ? "" : "."}\n\nSimak sampai akhir—bagian mana yang paling relate buat kamu?\n\n${hashtags.join(" ")}`;
+  return { title, description, hashtags, metadataVersion: 5 };
+}
+
+export function enrichJobSocialMetadata(job) {
+  return {
+    ...job,
+    clips: (job.clips || []).map((clip) => {
+      if (clip.metadataVersion === 5 && clip.title && clip.description && clip.hashtags?.length) return clip;
+      return { ...clip, ...generateSocialMetadata(clip.text) };
+    }),
+  };
+}
+
 export function sortJobsNewest(jobs) {
   return [...jobs].sort((left, right) => {
     const leftTime = Date.parse(left.createdAt || left.updatedAt || 0) || 0;

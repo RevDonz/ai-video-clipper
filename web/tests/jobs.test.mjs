@@ -14,6 +14,8 @@ import {
 } from "../lib/auth.mjs";
 import {
   atomicWriteJson,
+  enrichJobSocialMetadata,
+  generateSocialMetadata,
   parseByteRange,
   parseJobOptions,
   safeJobFile,
@@ -57,6 +59,41 @@ test("project history is sorted newest first without dropping old jobs", () => {
   ];
   assert.deepEqual(sortJobsNewest(jobs).map((job) => job.id), ["new", "middle", "old"]);
   assert.deepEqual(jobs.map((job) => job.id), ["old", "new", "middle"]);
+});
+
+test("AI social metadata derives a concise hook and caption from clip content", () => {
+  const metadata = generateSocialMetadata(
+    "Banyak orang tidak sadar kalau konsistensi jauh lebih penting daripada motivasi. "
+      + "Motivasi bisa hilang, tetapi kebiasaan membuat kita tetap bergerak setiap hari.",
+  );
+  assert.match(metadata.title, /konsistensi|motivasi/i);
+  assert.ok(metadata.title.length <= 72);
+  assert.match(metadata.description, /konsistensi|motivasi/i);
+  assert.match(metadata.description, /#fyp/i);
+  assert.ok(metadata.hashtags.length >= 4);
+  assert.ok(metadata.hashtags.some((tag) => /konsistensi|motivasi/i.test(tag)));
+});
+
+test("AI social metadata stays useful for empty or noisy transcripts", () => {
+  const metadata = generateSocialMetadata("  ...  ");
+  assert.equal(metadata.title, "Momen Pilihan dari Video Ini");
+  assert.match(metadata.description, /sampai akhir/i);
+});
+
+test("AI social metadata turns noisy speech into a clean topic hook", () => {
+  const metadata = generateSocialMetadata(
+    "Pip-pip boom setutu-tutu di belakang saya ini hasil dari sepeda custom yang baru selesai dibuat dan bisa digunakan untuk perjalanan jauh dengan berbagai aksesori tambahan yang sedang diperlihatkan kepada penonton.",
+  );
+  assert.match(metadata.title, /sepeda/i);
+  assert.doesNotMatch(metadata.title, /pip|setutu/i);
+});
+
+test("old social metadata is regenerated when its version is stale", () => {
+  const job = enrichJobSocialMetadata({
+    clips: [{ text: "Cerita sepeda custom yang menarik", title: "Judul lama", description: "Lama", hashtags: ["#old"] }],
+  });
+  assert.notEqual(job.clips[0].title, "Judul lama");
+  assert.equal(job.clips[0].metadataVersion, 5);
 });
 
 test("atomic JSON publication leaves readable complete state", async () => {

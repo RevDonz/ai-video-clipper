@@ -39,6 +39,7 @@ export default function ProjectsPage() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
   const [opened, setOpened] = useState(null);
+  const [copiedClip, setCopiedClip] = useState(null);
 
   async function loadJobs() {
     setLoading(true);
@@ -58,6 +59,12 @@ export default function ProjectsPage() {
   useEffect(() => {
     loadJobs();
   }, []);
+
+  async function copyCaption(job, clip) {
+    await navigator.clipboard.writeText(`${clip.title}\n\n${clip.description}`);
+    setCopiedClip(`${job.id}-${clip.index}`);
+    setTimeout(() => setCopiedClip(null), 1800);
+  }
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -135,7 +142,7 @@ export default function ProjectsPage() {
                         {job.clips.map((clip) => (
                           <article className="archiveClip" key={clip.index}>
                             <video controls preload="metadata" src={clip.videoUrl} />
-                            <div><small>CLIP {String(clip.index).padStart(2, "0")} · {Math.round(clip.duration || 0)} DETIK</small><p>{clip.text || "Klip hasil render"}</p><div><a href={clip.downloadUrl}>Download MP4 ↓</a>{clip.subtitleUrl && <a href={clip.subtitleUrl}>Subtitle SRT ↓</a>}</div></div>
+                            <div><small>CLIP {String(clip.index).padStart(2, "0")} · {Math.round(clip.duration || 0)} DETIK</small><h3>{clip.title}</h3><p className="socialDescription">{clip.description}</p><div className="archiveActions"><a href={clip.downloadUrl}>Download MP4 ↓</a>{clip.subtitleUrl && <a href={clip.subtitleUrl}>Subtitle SRT ↓</a>}<button type="button" onClick={() => copyCaption(job, clip)}>{copiedClip === `${job.id}-${clip.index}` ? "Tersalin ✓" : "Salin caption"}</button></div></div>
                           </article>
                         ))}
                       </div>

@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { requireAuth } from "../../../../lib/auth.mjs";
+import { enrichJobSocialMetadata } from "../../../../lib/jobs.mjs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -16,7 +17,7 @@ export async function GET(request, { params }) {
     const root = path.resolve(process.env.JOBS_ROOT || "/data/jobs");
     const job = JSON.parse(await readFile(path.join(root, id, "job.json"), "utf8"));
     const { sourcePath: _sourcePath, ...safe } = job;
-    return Response.json({ job: safe });
+    return Response.json({ job: enrichJobSocialMetadata(safe) });
   } catch {
     return Response.json({ error: "Job tidak ditemukan" }, { status: 404 });
   }
