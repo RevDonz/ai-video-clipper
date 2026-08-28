@@ -1,0 +1,10 @@
+.git
+.github
+.hermes
+artifacts
+**/__pycache__
+**/*.pyc
+web/.next
+web/node_modules
+web/npm-debug.log*
+.env

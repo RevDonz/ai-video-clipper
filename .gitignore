@@ -5,3 +5,6 @@ __pycache__/
 *.pyc
 artifacts/
 models/
+web/node_modules/
+web/.next/
+.env

@@ -9,6 +9,25 @@ long-form MP4 → faster-whisper transcription → transcript highlight scoring
 
 This repository is intentionally a technical spike, not yet the production SaaS.
 
+## Web dashboard (Docker)
+
+The repository now includes a self-hosted Next.js dashboard that runs the Python
+engine in background jobs. It supports YouTube URLs or uploaded files, live job
+status, selectable render layout, video preview, and MP4 download.
+
+```bash
+cp .env.example .env
+docker compose build
+docker compose up -d
+curl -fsS http://127.0.0.1:3000/api/health
+```
+
+Open `http://SERVER_IP:3000`. For VM deployment through Nginx Proxy Manager and
+Cloudflare, follow `deploy/VM_NGINX_CLOUDFLARE.md`.
+
+The web MVP is designed for one trusted self-hosted instance. Put Cloudflare
+Access or Nginx authentication in front of it before exposing it publicly.
+
 ## Verified result
 
 The included Indonesian demo was exercised end to end using `faster-whisper` model `small` on CPU. It produced two playable portrait clips:

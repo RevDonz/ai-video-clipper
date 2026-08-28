@@ -11,6 +11,7 @@ def smooth_face_track(
     cuts: list[bool] | None = None,
     alpha: float = 0.35,
     cut_threshold: float = 0.22,
+    dead_zone: float = 0.025,
     max_hold_misses: int = 2,
 ) -> list[float]:
     """Smooth detections while resetting stale positions at cuts or long misses."""
@@ -40,8 +41,11 @@ def smooth_face_track(
 
         current = min(max(value, 0.0), 1.0)
         misses = 0
-        if not has_detection or abs(current - previous) >= cut_threshold:
+        distance = abs(current - previous)
+        if not has_detection or distance >= cut_threshold:
             smoothed = current
+        elif distance <= dead_zone:
+            smoothed = previous
         else:
             smoothed = previous + alpha * (current - previous)
         filled.append(smoothed)
@@ -62,6 +66,7 @@ def build_crop_expression(
     times: list[float],
     centers: list[float],
     *,
+    cuts: list[bool] | None = None,
     source_width: int,
     source_height: int,
     output_width: int,
@@ -70,6 +75,10 @@ def build_crop_expression(
     """Build a piecewise FFmpeg crop-x expression following normalized face centers."""
     if not times or len(times) != len(centers):
         raise ValueError("face track times and centers must be non-empty and equally sized")
+    if cuts is None:
+        cuts = [False] * len(times)
+    if len(cuts) != len(times):
+        raise ValueError("cut flags must match face track length")
     if source_width <= 0 or source_height <= 0:
         raise ValueError("source dimensions must be positive")
 
@@ -84,7 +93,17 @@ def build_crop_expression(
     ]
     expression = str(positions[-1])
     for index in range(len(positions) - 2, -1, -1):
-        expression = f"if(lt(t,{times[index + 1]:.3f}),{positions[index]},{expression})"
+        duration = times[index + 1] - times[index]
+        if duration <= 0:
+            raise ValueError("face track times must be strictly increasing")
+        if cuts[index + 1] or positions[index] == positions[index + 1]:
+            segment = str(positions[index])
+        else:
+            segment = (
+                f"{positions[index]}+({positions[index + 1]}-{positions[index]})*"
+                f"(t-{times[index]:.3f})/{duration:.3f}"
+            )
+        expression = f"if(lt(t,{times[index + 1]:.3f}),{segment},{expression})"
     return expression
 
 
@@ -94,7 +113,7 @@ def detect_face_track(
     start: float,
     end: float,
     sample_interval: float = 0.75,
-) -> tuple[list[float], list[float], int, int]:
+) -> tuple[list[float], list[float], list[bool], int, int]:
     """Sample faces and scene changes, returning a safe clip-relative crop track."""
     try:
         import cv2
@@ -147,4 +166,4 @@ def detect_face_track(
         cuts.append(is_cut)
         relative_time += sample_interval
     capture.release()
-    return times, smooth_face_track(raw_centers, cuts=cuts), source_width, source_height
+    return times, smooth_face_track(raw_centers, cuts=cuts), cuts, source_width, source_height

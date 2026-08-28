@@ -63,7 +63,7 @@ def _layout_filter(
             f"[blurred][fit]overlay=(W-w)/2:(H-h)/2,setsar=1"
         )
     if render_mode == "face-track":
-        times, centers, source_width, source_height = detect_face_track(
+        times, centers, cuts, source_width, source_height = detect_face_track(
             source,
             start=start,
             end=end,
@@ -71,6 +71,7 @@ def _layout_filter(
         crop_x = build_crop_expression(
             times,
             centers,
+            cuts=cuts,
             source_width=source_width,
             source_height=source_height,
             output_width=width,

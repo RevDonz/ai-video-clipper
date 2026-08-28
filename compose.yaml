@@ -1,0 +1,28 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ai-video-clipper:latest
+    container_name: ai-video-clipper
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8100:3000"
+    environment:
+      JOBS_ROOT: /data/jobs
+      WHISPER_MODEL: ${WHISPER_MODEL:-small}
+      WHISPER_DEVICE: ${WHISPER_DEVICE:-cpu}
+      WHISPER_LANGUAGE: ${WHISPER_LANGUAGE:-id}
+      MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-524288000}
+      APP_USERNAME: ${APP_USERNAME:?APP_USERNAME is required}
+      APP_PASSWORD: ${APP_PASSWORD:?APP_PASSWORD is required}
+    volumes:
+      - clipper_data:/data
+    init: true
+    mem_limit: 10g
+    cpus: 6
+    pids_limit: 512
+    stop_grace_period: 30s
+
+volumes:
+  clipper_data:
