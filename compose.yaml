@@ -16,6 +16,7 @@ services:
       MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-524288000}
       APP_USERNAME: ${APP_USERNAME:?APP_USERNAME is required}
       APP_PASSWORD: ${APP_PASSWORD:?APP_PASSWORD is required}
+      APP_SESSION_SECRET: ${APP_SESSION_SECRET:?APP_SESSION_SECRET is required}
     volumes:
       - clipper_data:/data
     init: true

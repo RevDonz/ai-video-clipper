@@ -4,7 +4,12 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { isAuthorized } from "../lib/auth.mjs";
+import {
+  authenticateCredentials,
+  createSessionToken,
+  isAuthorized,
+  verifySessionToken,
+} from "../lib/auth.mjs";
 import {
   atomicWriteJson,
   parseByteRange,
@@ -51,12 +56,22 @@ test("atomic JSON publication leaves readable complete state", async () => {
   });
 });
 
-test("basic authentication fails closed and accepts exact credentials", () => {
-  const env = { APP_USERNAME: "admin", APP_PASSWORD: "secret-value" };
-  assert.equal(isAuthorized(new Request("http://local"), env), false);
-  const headers = { Authorization: `Basic ${Buffer.from("admin:secret-value").toString("base64")}` };
-  assert.equal(isAuthorized(new Request("http://local", { headers }), env), true);
-  assert.equal(isAuthorized(new Request("http://local", { headers }), {}), false);
+test("session authentication persists with a signed cookie and fails closed", () => {
+  const env = {
+    APP_USERNAME: "admin",
+    APP_PASSWORD: "secret-value",
+    APP_SESSION_SECRET: "a-long-random-session-secret-value",
+  };
+  assert.equal(authenticateCredentials("admin", "secret-value", env), true);
+  assert.equal(authenticateCredentials("admin", "wrong", env), false);
+  const token = createSessionToken(env, 1_000);
+  assert.equal(verifySessionToken(token, env, 1_001), true);
+  assert.equal(verifySessionToken(`${token}tampered`, env, 1_001), false);
+  assert.equal(verifySessionToken(token, env, 1_000 + 31 * 24 * 60 * 60), false);
+  const headers = { Cookie: `potongin_session=${token}` };
+  assert.equal(isAuthorized(new Request("http://local", { headers }), env, 1_001), true);
+  assert.equal(isAuthorized(new Request("http://local"), env, 1_001), false);
+  assert.equal(isAuthorized(new Request("http://local", { headers }), {}, 1_001), false);
 });
 
 test("byte ranges are validated and clamped", () => {

@@ -104,7 +104,7 @@ export default function Home() {
     <main>
       <nav className="nav shell">
         <a className="brand" href="#top"><span>P</span> Potongin AI</a>
-        <div className="navMeta"><i /> Worker lokal siap</div>
+        <div className="navActions"><div className="navMeta"><i /> Worker lokal siap</div><form method="post" action="/api/auth/logout"><button type="submit">Keluar</button></form></div>
       </nav>
 
       <section className="hero shell" id="top">

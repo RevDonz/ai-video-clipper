@@ -32,6 +32,7 @@ COPY --from=ghcr.io/astral-sh/uv:0.11.6 /uv /uvx /usr/local/bin/
 
 WORKDIR /app
 COPY pyproject.toml uv.lock README.md ./
+RUN uv sync --frozen --no-dev --no-install-project --python /usr/bin/python3 --extra transcribe --extra vision --extra web
 COPY src/ ./src/
 RUN uv sync --frozen --no-dev --python /usr/bin/python3 --extra transcribe --extra vision --extra web
 
