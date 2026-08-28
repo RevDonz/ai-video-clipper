@@ -17,6 +17,7 @@ import {
   parseByteRange,
   parseJobOptions,
   safeJobFile,
+  sortJobsNewest,
   validateYouTubeUrl,
 } from "../lib/jobs.mjs";
 
@@ -46,6 +47,16 @@ test("job file paths cannot escape their job directory", () => {
   const root = "/data/jobs/123";
   assert.equal(safeJobFile(root, "output/clip-01.mp4"), "/data/jobs/123/output/clip-01.mp4");
   assert.throws(() => safeJobFile(root, "../../etc/passwd"), /unsafe/i);
+});
+
+test("project history is sorted newest first without dropping old jobs", () => {
+  const jobs = [
+    { id: "old", createdAt: "2026-01-01T00:00:00.000Z" },
+    { id: "new", createdAt: "2026-03-01T00:00:00.000Z" },
+    { id: "middle", createdAt: "2026-02-01T00:00:00.000Z" },
+  ];
+  assert.deepEqual(sortJobsNewest(jobs).map((job) => job.id), ["new", "middle", "old"]);
+  assert.deepEqual(jobs.map((job) => job.id), ["old", "new", "middle"]);
 });
 
 test("atomic JSON publication leaves readable complete state", async () => {

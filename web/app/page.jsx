@@ -103,8 +103,8 @@ export default function Home() {
   return (
     <main>
       <nav className="nav shell">
-        <a className="brand" href="#top"><span>P</span> Potongin AI</a>
-        <div className="navActions"><div className="navMeta"><i /> Worker lokal siap</div><form method="post" action="/api/auth/logout"><button type="submit">Keluar</button></form></div>
+        <a className="brand" href="/"><span>P</span> Potongin AI</a>
+        <div className="navActions"><div className="navLinks"><a className="active" href="/">Buat Klip</a><a href="/projects">Riwayat</a></div><div className="navMeta"><i /> Worker lokal siap</div><form method="post" action="/api/auth/logout"><button type="submit">Keluar</button></form></div>
       </nav>
 
       <section className="hero shell" id="top">
@@ -165,7 +165,7 @@ export default function Home() {
               </div>
             </>
           ) : <div className="empty"><div className="emptyIcon">▶</div><strong>Belum ada job</strong><p>Buat job pertama untuk melihat progres dan preview klip di sini.</p></div>}
-          {jobs.length > 1 && <div className="history"><h3>Riwayat terbaru</h3>{jobs.slice(0, 8).map((job) => <button key={job.id} onClick={() => setActiveId(job.id)} className={job.id === activeId ? "active" : ""}><span>{job.id.slice(0, 8)}</span><b>{statusLabel[job.status] || job.status}</b></button>)}</div>}
+          {jobs.length > 1 && <div className="history"><div className="historyTitle"><h3>Riwayat terbaru</h3><a href="/projects">Lihat semua →</a></div>{jobs.slice(0, 8).map((job) => <button key={job.id} onClick={() => setActiveId(job.id)} className={job.id === activeId ? "active" : ""}><span>{job.source?.name || job.id.slice(0, 8)}</span><b>{statusLabel[job.status] || job.status}</b></button>)}</div>}
         </aside>
       </section>
       <footer className="shell">Potongin AI · Self-hosted video worker <span>Next.js · Whisper · FFmpeg</span></footer>

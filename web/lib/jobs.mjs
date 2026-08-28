@@ -3,6 +3,14 @@ import path from "node:path";
 
 export const RENDER_MODES = ["face-track", "fit-blur", "center-crop"];
 
+export function sortJobsNewest(jobs) {
+  return [...jobs].sort((left, right) => {
+    const leftTime = Date.parse(left.createdAt || left.updatedAt || 0) || 0;
+    const rightTime = Date.parse(right.createdAt || right.updatedAt || 0) || 0;
+    return rightTime - leftTime;
+  });
+}
+
 function finiteNumber(value, fallback, label) {
   const parsed = value === undefined || value === null || value === "" ? fallback : Number(value);
   if (!Number.isFinite(parsed)) throw new Error(`${label} must be finite`);

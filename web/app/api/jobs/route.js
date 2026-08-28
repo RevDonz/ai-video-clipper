@@ -8,6 +8,7 @@ import { requireAuth } from "../../../lib/auth.mjs";
 import {
   atomicWriteJson,
   parseJobOptions,
+  sortJobsNewest,
   validateYouTubeUrl,
 } from "../../../lib/jobs.mjs";
 
@@ -27,7 +28,7 @@ export async function GET(request) {
   await mkdir(jobsRoot(), { recursive: true });
   const entries = await readdir(jobsRoot(), { withFileTypes: true });
   const jobs = [];
-  for (const entry of entries.filter((item) => item.isDirectory()).slice(-25).reverse()) {
+  for (const entry of entries.filter((item) => item.isDirectory())) {
     try {
       const value = JSON.parse(await readFile(path.join(jobsRoot(), entry.name, "job.json"), "utf8"));
       jobs.push(publicJob(value));
@@ -35,7 +36,7 @@ export async function GET(request) {
       // Ignore incomplete directories; job state is published atomically.
     }
   }
-  return Response.json({ jobs });
+  return Response.json({ jobs: sortJobsNewest(jobs), total: jobs.length });
 }
 
 export async function POST(request) {
