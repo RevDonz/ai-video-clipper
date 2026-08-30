@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+import {
+  createStorageStatusRecovery,
+  recoverFailedJobSelection,
+  storageStatusView,
+} from "../../lib/dashboard-storage-status.mjs";
 
 const layouts = [
   {
@@ -47,6 +53,12 @@ const stageLabel = {
   failed: "Gagal",
 };
 
+const storageMessages = {
+  storage_quota_exhausted: "Penyimpanan server tidak cukup untuk job baru.",
+  storage_free_space_low: "Ruang kosong penyimpanan server terlalu rendah.",
+  storage_admission_unavailable: "Status penyimpanan server tidak dapat diverifikasi. Coba lagi nanti.",
+};
+
 export default function DashboardPage() {
   const [sourceType, setSourceType] = useState("youtube");
   const [youtubeUrl, setYoutubeUrl] = useState("");
@@ -62,35 +74,76 @@ export default function DashboardPage() {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
   const [copiedClip, setCopiedClip] = useState(null);
+  const [storageView, setStorageView] = useState(() => storageStatusView(null));
+  const storageRecovery = useRef(null);
+  const copiedTimer = useRef(null);
+  const mounted = useRef(false);
+  const jobsRefreshGeneration = useRef(0);
 
   const activeJob = useMemo(() => jobs.find((job) => job.id === activeId), [jobs, activeId]);
+  const storageBlocked = storageView.submitBlocked;
 
-  async function refreshJobs() {
-    const response = await fetch("/api/jobs", { cache: "no-store" });
-    if (!response.ok) return;
+  async function refreshJobs(selectedId = null, signal = undefined) {
+    jobsRefreshGeneration.current += 1;
+    const generation = jobsRefreshGeneration.current;
+    const response = await fetch("/api/jobs", { cache: "no-store", signal });
+    if (!response.ok || signal?.aborted || generation !== jobsRefreshGeneration.current) return;
     const payload = await response.json();
+    if (signal?.aborted || generation !== jobsRefreshGeneration.current) return;
     setJobs(payload.jobs || []);
-    setActiveId((current) => current || payload.jobs?.[0]?.id || null);
+    setActiveId((current) => selectedId || current || payload.jobs?.[0]?.id || null);
+  }
+
+  async function refreshStorageStatus() {
+    await storageRecovery.current?.retry();
   }
 
   useEffect(() => {
-    refreshJobs();
+    mounted.current = true;
+    const controller = new AbortController();
+    void refreshJobs(null, controller.signal).catch(() => {});
+    const recovery = createStorageStatusRecovery({ fetchImpl: fetch, onChange: setStorageView });
+    storageRecovery.current = recovery;
+    void recovery.start();
+    return () => {
+      mounted.current = false;
+      jobsRefreshGeneration.current += 1;
+      controller.abort();
+      storageRecovery.current = null;
+      recovery.dispose();
+      if (copiedTimer.current !== null) clearTimeout(copiedTimer.current);
+      copiedTimer.current = null;
+    };
   }, []);
 
   useEffect(() => {
     if (!activeId || ["completed", "failed"].includes(activeJob?.status)) return undefined;
+    const controller = new AbortController();
+    let requestInFlight = false;
     const timer = setInterval(async () => {
-      const response = await fetch(`/api/jobs/${activeId}`, { cache: "no-store" });
-      if (!response.ok) return;
-      const payload = await response.json();
-      setJobs((current) => {
-        const exists = current.some((job) => job.id === activeId);
-        return exists
-          ? current.map((job) => (job.id === activeId ? payload.job : job))
-          : [payload.job, ...current];
-      });
+      if (requestInFlight) return;
+      requestInFlight = true;
+      try {
+        const response = await fetch(`/api/jobs/${activeId}`, { cache: "no-store", signal: controller.signal });
+        if (!response.ok || controller.signal.aborted) return;
+        const payload = await response.json();
+        if (controller.signal.aborted) return;
+        setJobs((current) => {
+          const exists = current.some((job) => job.id === activeId);
+          return exists
+            ? current.map((job) => (job.id === activeId ? payload.job : job))
+            : [payload.job, ...current];
+        });
+      } catch {
+        // Transient polling failures are retried on the next interval.
+      } finally {
+        requestInFlight = false;
+      }
     }, 2500);
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      controller.abort();
+    };
   }, [activeId, activeJob?.status]);
 
   async function submit(event) {
@@ -111,7 +164,17 @@ export default function DashboardPage() {
       else if (video) data.set("video", video);
       const response = await fetch("/api/jobs", { method: "POST", body: data });
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Gagal membuat job");
+      if (!response.ok) {
+        if (payload.jobId) {
+          await recoverFailedJobSelection(payload.jobId, {
+            select: setActiveId,
+            refreshJobs,
+          });
+        }
+        if ([507, 503].includes(response.status)) await refreshStorageStatus();
+        setMessage(storageMessages[payload.code] || "Gagal membuat job");
+        return;
+      }
       setJobs((current) => [payload.job, ...current]);
       setActiveId(payload.job.id);
       setMessage("Job berhasil dibuat. Halaman akan memperbarui progres otomatis.");
@@ -124,8 +187,13 @@ export default function DashboardPage() {
 
   async function copyCaption(clip) {
     await navigator.clipboard.writeText(`${clip.title}\n\n${clip.description}`);
+    if (!mounted.current) return;
     setCopiedClip(`${activeJob.id}-${clip.index}`);
-    setTimeout(() => setCopiedClip(null), 1800);
+    if (copiedTimer.current !== null) clearTimeout(copiedTimer.current);
+    copiedTimer.current = setTimeout(() => {
+      copiedTimer.current = null;
+      setCopiedClip(null);
+    }, 1800);
   }
 
   return (
@@ -141,6 +209,16 @@ export default function DashboardPage() {
         <p>Masukkan URL YouTube atau unggah video. Engine lokal akan memilih momen, membuat subtitle, dan merender klip siap Shorts, Reels, atau TikTok.</p>
         <div className="trust"><span>✓ Data tersimpan di server sendiri</span><span>✓ FFmpeg + Whisper lokal</span><span>✓ Tanpa biaya API per video</span></div>
       </section>
+
+      {storageView.warning && (
+        <div className={`storageBanner shell ${storageView.unavailable ? "unavailable" : "blocked"}`} role="alert" aria-live="polite">
+          <div>
+            <strong>{storageBlocked ? "Job baru dihentikan sementara" : "Status penyimpanan belum tersedia"}</strong>
+            <span>{storageMessages[storageView.admission.code] || storageMessages.storage_admission_unavailable}</span>
+          </div>
+          <button type="button" onClick={refreshStorageStatus} aria-label="Coba lagi memeriksa status penyimpanan">Coba lagi</button>
+        </div>
+      )}
 
       <section className="workspace shell">
         <form className="panel creator" onSubmit={submit}>
@@ -187,7 +265,7 @@ export default function DashboardPage() {
               </label>
             )}
           </div>
-          <button className="submit" disabled={submitting}>{submitting ? "Membuat job…" : "Buat klip sekarang"}<span>→</span></button>
+          <button className="submit" disabled={submitting || storageBlocked}>{submitting ? "Membuat job…" : "Buat klip sekarang"}<span>→</span></button>
           {message && <p className="message">{message}</p>}
         </form>
 

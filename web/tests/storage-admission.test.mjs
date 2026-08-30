@@ -51,6 +51,7 @@ test("parseStorageAdmissionConfig parses strict decimal values", () => {
     scanMaxEntries: 1000,
     scanMaxDepth: 20,
     scanDeadlineMs: 30_000,
+    recheckBytes: 8 * 1024 * 1024,
     recheckIntervalMs: 5_000,
   });
 });
@@ -71,6 +72,8 @@ test("parseStorageAdmissionConfig fails closed for invalid and overflowing value
     ["JOBS_STORAGE_SCAN_MAX_DEPTH", "1025"],
     ["JOBS_STORAGE_SCAN_DEADLINE_MS", "300001"],
     ["JOBS_STORAGE_RECHECK_INTERVAL_MS", "1.5"],
+    ["JOBS_STORAGE_RECHECK_BYTES", String(8 * 1024 * 1024 - 1)],
+    ["JOBS_STORAGE_RECHECK_BYTES", String(16 * 1024 * 1024 + 1)],
   ];
 
   for (const [name, value] of invalidCases) {
@@ -470,4 +473,21 @@ test("scanJobsStorage never calls deletion APIs or changes content", async (t) =
   assert.equal(after.ino, before.ino);
   assert.equal(after.size, before.size);
   assert.equal(after.mtimeNs, before.mtimeNs);
+});
+
+test("parseStorageAdmissionConfig accepts the complete recheck byte range", () => {
+  assert.equal(parseStorageAdmissionConfig({ ...validEnv, JOBS_STORAGE_RECHECK_BYTES: String(8 * 1024 * 1024) }).recheckBytes, 8 * 1024 * 1024);
+  assert.equal(parseStorageAdmissionConfig({ ...validEnv, JOBS_STORAGE_RECHECK_BYTES: String(16 * 1024 * 1024) }).recheckBytes, 16 * 1024 * 1024);
+});
+
+test("scanJobsStorage snapshots mount metadata only at scan start and end", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "storage-mount-snapshot-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await mkdir(path.join(root, "a", "b"), { recursive: true });
+  await writeFile(path.join(root, "a", "one"), "one");
+  await writeFile(path.join(root, "a", "b", "two"), "two");
+  const mountInfo = await readFile("/proc/self/mountinfo", "utf8");
+  let reads = 0;
+  await scanJobsStorage(scanDefaults(root, { readMountInfo: async () => { reads += 1; return mountInfo; } }));
+  assert.equal(reads, 2);
 });

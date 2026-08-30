@@ -101,7 +101,7 @@ test("streaming multipart aborts closed and stops its timer when renewal fails",
   assert.equal(heartbeats, stoppedAt);
 });
 
-test("streaming multipart fails closed when an in-flight renewal rejects during finalization", async () => {
+test("streaming multipart fails closed before touching the body when the first storage recheck rejects", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "primary-upload-"));
   const boundary = "late-heartbeat-boundary";
   const body = multipart(boundary, [{ disposition: 'name="video"; filename="clip.mp4"', contentType: "video/mp4", body: "video".repeat(20) }]);
@@ -132,7 +132,7 @@ test("streaming multipart fails closed when an in-flight renewal rejects during 
     },
     heartbeatMs: 1,
   }), /late reservation loss/);
-  assert.equal(cancellations, 1);
+  assert.equal(cancellations, 0);
 });
 
 test("streaming multipart heartbeats admission while the request stalls", async () => {
@@ -161,6 +161,62 @@ test("job creation rejects cross-site mutation before body and admission work", 
     }));
     assert.equal(response.status, 403);
     assert.equal((await response.json()).code, "csrf_rejected");
+    assert.equal(response.headers.get("cache-control"), "no-store");
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
+});
+
+test("every job POST failure is non-cacheable and configuration failures are sanitized", async () => {
+  const names = [
+    ...Object.keys(AUTH_ENV), "PRIMARY_MAX_ACTIVE_JOBS", "PRIMARY_WORKER_CONCURRENCY",
+    "PRIMARY_MAX_ATTEMPTS", "PRIMARY_LEASE_MS", "MAX_UPLOAD_BYTES",
+    "JOBS_STORAGE_QUOTA_BYTES", "JOBS_STORAGE_MIN_FREE_BYTES", "JOBS_STORAGE_ACTIVE_RESERVE_BYTES",
+    "JOBS_STORAGE_SCAN_MAX_ENTRIES", "JOBS_STORAGE_SCAN_MAX_DEPTH",
+  ];
+  const previous = Object.fromEntries(names.map((key) => [key, process.env[key]]));
+  Object.assign(process.env, AUTH_ENV, {
+    PRIMARY_MAX_ACTIVE_JOBS: "2", PRIMARY_WORKER_CONCURRENCY: "1",
+    PRIMARY_MAX_ATTEMPTS: "3", PRIMARY_LEASE_MS: "60000", MAX_UPLOAD_BYTES: "1000",
+  });
+  for (const key of names.filter((key) => key.startsWith("JOBS_STORAGE_"))) delete process.env[key];
+  try {
+    const token = createSessionToken(AUTH_ENV, 2_000_000_000);
+    const response = await POST(new Request("http://clips.example/api/jobs", {
+      method: "POST",
+      headers: {
+        Cookie: `potongin_session=${token}`, Origin: "http://clips.example", Host: "clips.example",
+        "Sec-Fetch-Site": "same-origin", "Content-Length": "0",
+        "Content-Type": "multipart/form-data; boundary=x",
+      },
+      body: Buffer.alloc(0),
+    }));
+    assert.equal(response.status, 503);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    const body = await response.json();
+    assert.deepEqual(body, {
+      error: "Status penyimpanan server tidak dapat diverifikasi.",
+      code: "storage_admission_unavailable", retryable: true, jobId: null,
+    });
+    assert.doesNotMatch(JSON.stringify(body), /JOBS_STORAGE|MAX_UPLOAD|\/data\/jobs/);
+
+    Object.assign(process.env, {
+      JOBS_STORAGE_QUOTA_BYTES: "1000000", JOBS_STORAGE_MIN_FREE_BYTES: "0",
+      JOBS_STORAGE_ACTIVE_RESERVE_BYTES: "1000", JOBS_STORAGE_SCAN_MAX_ENTRIES: "100",
+      JOBS_STORAGE_SCAN_MAX_DEPTH: "10",
+    });
+    const invalid = await POST(new Request("http://clips.example/api/jobs", {
+      method: "POST",
+      headers: {
+        Cookie: `potongin_session=${token}`, Origin: "http://clips.example", Host: "clips.example",
+        "Sec-Fetch-Site": "same-origin",
+      },
+    }));
+    assert.equal(invalid.status, 411);
+    assert.equal(invalid.headers.get("cache-control"), "no-store");
+    assert.deepEqual(await invalid.json(), { error: "Permintaan job tidak valid.", code: "invalid_request" });
   } finally {
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) delete process.env[key]; else process.env[key] = value;

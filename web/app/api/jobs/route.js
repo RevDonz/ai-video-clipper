@@ -12,10 +12,12 @@ import {
   abortAdmissionStaging,
   cancelAdmission,
   parsePrimaryQueueConfig,
+  publishFailedAdmissionJob,
   publishReservedQueuedJob,
+  recheckAdmission,
   reserveAdmission,
-  renewAdmission,
 } from "../../../lib/primary-job-queue.mjs";
+import { parseStorageAdmissionConfig, StorageAdmissionError } from "../../../lib/storage-admission.mjs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -23,6 +25,10 @@ export const runtime = "nodejs";
 const jobsRoot = () => path.resolve(process.env.JOBS_ROOT || "/data/jobs");
 const MULTIPART_OVERHEAD_BYTES = 1024 * 1024;
 const VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".mkv", ".webm", ".m4v"]);
+const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
+const postJson = (body, init = {}) => Response.json(body, {
+  ...init, headers: { ...init.headers, ...NO_STORE_HEADERS },
+});
 
 function publicJob(job) {
   const safe = serializePublicJob(job);
@@ -115,9 +121,14 @@ export async function streamPrimaryMultipart(request, inputRoot, maximumUploadBy
     });
   });
 
-  const heartbeatEnabled = typeof renewal.heartbeat === "function";
+  let consumed = 0;
+  const recheck = renewal.recheck || renewal.heartbeat;
+  const heartbeatEnabled = typeof recheck === "function";
   const heartbeatMs = renewal.heartbeatMs ?? 60_000;
+  const recheckBytes = renewal.recheckBytes ?? 8 * 1024 * 1024;
   if (heartbeatEnabled && (!Number.isSafeInteger(heartbeatMs) || heartbeatMs < 1)) throw new Error("Invalid admission heartbeat interval");
+  if (heartbeatEnabled && (!Number.isSafeInteger(recheckBytes) || recheckBytes < 8 * 1024 * 1024 || recheckBytes > 16 * 1024 * 1024)) throw new Error("Invalid admission byte recheck interval");
+  if (heartbeatEnabled) await recheck(BigInt(consumed));
   const reader = request.body.getReader();
   let heartbeatStopped = false;
   let heartbeatTimer = null;
@@ -134,7 +145,7 @@ export async function streamPrimaryMultipart(request, inputRoot, maximumUploadBy
       });
       heartbeatTimer = null;
       if (heartbeatStopped) break;
-      try { await renewal.heartbeat(); }
+      try { await recheck(BigInt(consumed)); }
       catch (error) {
         heartbeatError ||= error;
         rejectHeartbeat(error);
@@ -152,7 +163,7 @@ export async function streamPrimaryMultipart(request, inputRoot, maximumUploadBy
     if (heartbeatError) throw heartbeatError;
   };
 
-  let consumed = 0;
+  let nextRecheck = recheckBytes;
   let failure = null;
   try {
     while (true) {
@@ -160,10 +171,15 @@ export async function streamPrimaryMultipart(request, inputRoot, maximumUploadBy
       if (done) break;
       consumed += value.byteLength;
       if (consumed > maximumRequestBytes) throw new Error("Request is too large");
+      if (heartbeatEnabled && consumed >= nextRecheck) {
+        await recheck(BigInt(consumed));
+        nextRecheck = consumed + recheckBytes;
+      }
       if (!parser.write(Buffer.from(value))) await awaitHeartbeatSafe(new Promise((resolve) => parser.once("drain", resolve)));
     }
     parser.end();
     await awaitHeartbeatSafe(completed);
+    if (heartbeatEnabled) await recheck(BigInt(consumed));
   } catch (error) {
     failure = error;
     parser.destroy(error);
@@ -207,16 +223,19 @@ export async function GET(request) {
 export async function POST(request) {
   const denied = requireAuth(request);
   if (denied) return denied;
-  if (!sameOriginMutation(request)) return Response.json({ error: "Origin permintaan tidak diizinkan", code: "csrf_rejected" }, { status: 403, headers: { "Cache-Control": "no-store" } });
+  if (!sameOriginMutation(request)) return postJson({ error: "Origin permintaan tidak diizinkan", code: "csrf_rejected" }, { status: 403 });
   let reservation = null;
   let jobRoot = null;
   let createdJobRoot = false;
   let published = false;
   try {
     const queueConfig = parsePrimaryQueueConfig(process.env);
-    validatePrimaryRequestLength(request.headers, process.env);
+    const storageConfig = parseStorageAdmissionConfig(process.env);
+    const requestLength = validatePrimaryRequestLength(request.headers, process.env);
     const id = crypto.randomUUID();
-    reservation = await reserveAdmission(jobsRoot(), queueConfig.maxActiveJobs, id);
+    reservation = await reserveAdmission(jobsRoot(), queueConfig.maxActiveJobs, id, {
+      declaredRequestBytes: BigInt(requestLength), storageConfig,
+    });
 
     await mkdir(jobsRoot(), { recursive: true });
     jobRoot = path.join(jobsRoot(), id);
@@ -229,9 +248,13 @@ export async function POST(request) {
 
     const maximum = Number(process.env.MAX_UPLOAD_BYTES);
     const parsed = await streamPrimaryMultipart(request, inputRoot, maximum, maximum + MULTIPART_OVERHEAD_BYTES, {
-      heartbeat: async () => {
-        if (!await renewAdmission(jobsRoot(), reservation)) throw new Error("Primary admission reservation was lost");
+      recheck: async (consumed) => {
+        if (!await recheckAdmission(jobsRoot(), reservation, consumed, storageConfig)) {
+          throw new StorageAdmissionError("storage_admission_unavailable", "Primary admission reservation was lost");
+        }
       },
+      heartbeatMs: storageConfig.recheckIntervalMs,
+      recheckBytes: storageConfig.recheckBytes,
     });
     const options = parseJobFormOptions(parsed.form);
     if (options.selectionMode === "v2-shadow" && !selectionV2Enabled(process.env)) throw new Error("Selection V2 dinonaktifkan oleh operator");
@@ -245,11 +268,33 @@ export async function POST(request) {
     const job = { id, status: "queued", progress: 0, createdAt: now, updatedAt: now, source, sourcePath, options, clips: [] };
     const queued = await publishReservedQueuedJob(jobsRoot(), job, reservation);
     published = true;
-    return Response.json({ job: publicJob(queued) }, { status: 202 });
+    return postJson({ job: publicJob(queued) }, { status: 202 });
   } catch (error) {
+    if (error instanceof StorageAdmissionError) {
+      let failedJobId = null;
+      if (reservation && createdJobRoot && !published) {
+        try {
+          const failed = await publishFailedAdmissionJob(jobsRoot(), reservation, error.code);
+          failedJobId = failed?.id || null;
+        } catch {
+          return postJson({
+            error: "Status penyimpanan server tidak dapat diverifikasi.",
+            code: "storage_admission_unavailable", retryable: true, jobId: null,
+          }, { status: 503 });
+        }
+      } else if (reservation && !createdJobRoot) {
+        await cancelAdmission(jobsRoot(), reservation).catch(() => {});
+      }
+      const messages = {
+        storage_quota_exhausted: "Penyimpanan server tidak cukup untuk job baru.",
+        storage_free_space_low: "Ruang kosong penyimpanan server terlalu rendah.",
+        storage_admission_unavailable: "Status penyimpanan server tidak dapat diverifikasi.",
+      };
+      return postJson({ error: messages[error.code], code: error.code, retryable: error.status === 503, jobId: failedJobId }, { status: error.status });
+    }
     if (reservation && !published) {
       const recovered = await abortAdmissionStaging(jobsRoot(), reservation).catch(() => null);
-      if (recovered?.published) return Response.json({ job: publicJob(recovered.job) }, { status: 202 });
+      if (recovered?.published) return postJson({ job: publicJob(recovered.job) }, { status: 202 });
       if (!createdJobRoot) await cancelAdmission(jobsRoot(), reservation).catch(() => {});
     }
     const status = error instanceof QueueCapacityError ? 429
@@ -257,6 +302,15 @@ export async function POST(request) {
         : /configuration/i.test(error.message || "") ? 503
         : /Content-Length/i.test(error.message || "") ? 411
           : /too large|melewati batas|limit exceeded/i.test(error.message || "") ? 413 : 400;
-    return Response.json({ error: error.message || "Gagal membuat pekerjaan" }, { status });
+    const response = status === 429
+      ? { error: "Antrean job sedang penuh.", code: "queue_capacity_reached" }
+      : status === 403
+        ? { error: "Selection V2 dinonaktifkan oleh operator.", code: "selection_v2_disabled" }
+        : status === 503
+          ? { error: "Layanan pembuatan job sementara tidak tersedia.", code: "job_service_unavailable" }
+          : status === 413
+            ? { error: "Ukuran permintaan job terlalu besar.", code: "request_too_large" }
+            : { error: "Permintaan job tidak valid.", code: "invalid_request" };
+    return postJson(response, { status });
   }
 }

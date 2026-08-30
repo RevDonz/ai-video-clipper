@@ -1,7 +1,7 @@
 import { requireAuth } from "../../../../../../../lib/auth.mjs";
 import {
   RenderQueueConflictError, RenderQueueInvalidError, RenderQueueNotFoundError,
-  RenderQueueUnavailableError, createRenderRequest, isRenderCandidateId,
+  RenderQueueUnavailableError, RenderStorageError, createRenderRequest, isRenderCandidateId,
   isRenderIdempotencyKey, isRenderJobId, isRenderEtag, sanitizeRenderStatus,
 } from "../../../../../../../lib/render-requests.mjs";
 
@@ -101,6 +101,10 @@ export async function POST(request, { params }) {
     if (error instanceof RenderQueueConflictError) return response({ error: "Idempotency key atau revisi edit konflik", code: "render_conflict" }, 409);
     if (error instanceof RenderQueueNotFoundError) return response({ error: "Job atau kandidat tidak ditemukan", code: "not_found" }, 404);
     if (error instanceof RenderQueueInvalidError || error instanceof SyntaxError) return response({ error: "Permintaan render tidak valid", code: "invalid_request" }, 400);
+    if (error instanceof RenderStorageError || ["storage_quota_exhausted", "storage_free_space_low", "storage_admission_unavailable"].includes(error?.code)) {
+      const status = error?.code === "storage_admission_unavailable" || error?.code === "storage_admission_lost" ? 503 : 507;
+      return response({ error: status === 507 ? "Penyimpanan server tidak cukup" : "Pemeriksaan penyimpanan tidak tersedia", code: error.code }, status);
+    }
     if (error instanceof RenderQueueUnavailableError) return response({ error: "Layanan render tidak tersedia", code: "backend_unavailable" }, 503);
     return response({ error: "Layanan render tidak tersedia", code: "backend_unavailable" }, 503);
   }

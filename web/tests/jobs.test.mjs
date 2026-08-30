@@ -263,6 +263,17 @@ test("public landing and protected dashboard use separate routes", async () => {
   assert.match(dashboard, /V1 tetap merender/);
   assert.match(dashboard, /const \[shadowSelection, setShadowSelection\] = useState\(true\)/);
   assert.match(dashboard, /data\.set\("selectionMode", "v2-shadow"\)/);
+  assert.match(dashboard, /createStorageStatusRecovery/);
+  assert.match(dashboard, /role="alert"/);
+  assert.match(dashboard, /storage_quota_exhausted/);
+  assert.match(dashboard, /storage_free_space_low/);
+  assert.match(dashboard, /storage_admission_unavailable/);
+  assert.match(dashboard, /disabled=\{submitting \|\| storageBlocked\}/);
+  assert.match(dashboard, /payload\.jobId/);
+  assert.match(dashboard, /const controller = new AbortController\(\)/);
+  assert.match(dashboard, /controller\.abort\(\)/);
+  assert.match(dashboard, /clearInterval\(timer\)/);
+  assert.match(dashboard, /clearTimeout\(copiedTimer\.current\)/);
   assert.match(proxySource, /pathname === "\/"/);
 });
 

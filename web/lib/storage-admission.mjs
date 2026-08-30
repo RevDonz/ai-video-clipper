@@ -93,14 +93,14 @@ function parseDecimalBigInt(env, name, { allowZero }) {
   return parsed;
 }
 
-function parseBoundedInteger(env, name, { max, defaultValue }) {
+function parseBoundedInteger(env, name, { min = 1, max, defaultValue }) {
   const value = env[name];
   if (value === undefined && defaultValue !== undefined) return defaultValue;
   if (typeof value !== "string" || !/^[1-9][0-9]*$/.test(value)) {
     throw unavailable(`${name} must be a positive decimal integer`);
   }
   const parsed = Number(value);
-  if (!Number.isSafeInteger(parsed) || parsed > max) {
+  if (!Number.isSafeInteger(parsed) || parsed < min || parsed > max) {
     throw unavailable(`${name} is outside the supported range`);
   }
   return parsed;
@@ -116,6 +116,11 @@ export function parseStorageAdmissionConfig(env = process.env) {
     scanDeadlineMs: parseBoundedInteger(env, "JOBS_STORAGE_SCAN_DEADLINE_MS", {
       max: MAX_SCAN_DEADLINE_MS,
       defaultValue: 30_000,
+    }),
+    recheckBytes: parseBoundedInteger(env, "JOBS_STORAGE_RECHECK_BYTES", {
+      min: 8 * 1024 * 1024,
+      max: 16 * 1024 * 1024,
+      defaultValue: 8 * 1024 * 1024,
     }),
     recheckIntervalMs: parseBoundedInteger(env, "JOBS_STORAGE_RECHECK_INTERVAL_MS", {
       max: MAX_RECHECK_INTERVAL_MS,
@@ -140,6 +145,7 @@ export function evaluateStorageAdmission({
   quotaBytes,
   availableBytes,
   minimumFreeBytes,
+  newWorkReserveBytes = activeReserveBytes,
 }) {
   const allocated = requireByteValue(allocatedBytes, "allocatedBytes");
   const reserve = requireByteValue(activeReserveBytes, "activeReserveBytes");
@@ -148,12 +154,13 @@ export function evaluateStorageAdmission({
   const quota = requireByteValue(quotaBytes, "quotaBytes");
   const available = requireByteValue(availableBytes, "availableBytes");
   const minimumFree = requireByteValue(minimumFreeBytes, "minimumFreeBytes");
+  const newWorkReserve = requireByteValue(newWorkReserveBytes, "newWorkReserveBytes");
   if (!Number.isSafeInteger(activeJobCount) || activeJobCount < 0) {
     throw unavailable("activeJobCount must be a non-negative safe integer");
   }
 
   const activeGrowth = BigInt(activeJobCount) * reserve;
-  const anticipatedWriteBytes = activeGrowth + reserved + contentLength + reserve;
+  const anticipatedWriteBytes = activeGrowth + reserved + contentLength + newWorkReserve;
   const projectedBytes = allocated + anticipatedWriteBytes;
   if (projectedBytes > quota) {
     throw new StorageAdmissionError("storage_quota_exhausted", "Storage quota exhausted");
@@ -275,10 +282,10 @@ export async function scanJobsStorage({
     const initialMounts = parseLinuxMountInfo(await readMountInfo());
     const rootMountId = initialMounts.mountIdForPath(absoluteRoot);
     if (rootMountId === undefined) throw unavailable("Jobs root mount identity is unavailable");
-    const verifyMountIdentity = async (candidatePath) => {
-      const mounts = parseLinuxMountInfo(await readMountInfo());
-      if (mounts.mountIdForPath(absoluteRoot) !== rootMountId
-        || mounts.mountIdForPath(candidatePath) !== rootMountId) {
+    const scannedPaths = new Set([absoluteRoot]);
+    const verifyInitialMountIdentity = (candidatePath) => {
+      scannedPaths.add(candidatePath);
+      if (initialMounts.mountIdForPath(candidatePath) !== rootMountId) {
         throw unavailable("Storage tree crosses a mount boundary");
       }
     };
@@ -306,7 +313,7 @@ export async function scanJobsStorage({
           }
           const anchoredPath = `${descriptorPath}/${entry.name}`;
           const logicalPath = path.join(absoluteRoot, ...relativeComponents, entry.name);
-          await verifyMountIdentity(logicalPath);
+          verifyInitialMountIdentity(logicalPath);
           let before = await ops.lstat(anchoredPath, { bigint: true });
           before = await transform("afterLstat", {
             stat: before,
@@ -336,7 +343,6 @@ export async function scanJobsStorage({
               if (!sameObject(before, after) || (after.mode & FILE_TYPE_MASK) !== REGULAR_FILE_TYPE) {
                 throw unavailable("Storage object changed during scan");
               }
-              await verifyMountIdentity(logicalPath);
               allocatedBytes += after.blocks * 512n;
               fileCount += 1;
             } finally {
@@ -357,14 +363,12 @@ export async function scanJobsStorage({
                 throw unavailable("Storage directory changed during scan");
               }
               if (after.dev !== rootDevice) throw unavailable("Storage tree crosses a mount boundary");
-              await verifyMountIdentity(logicalPath);
               const key = inodeKey(after);
               if (seenDirectories.has(key)) throw unavailable("Storage tree repeats a directory inode");
               seenDirectories.add(key);
               allocatedBytes += after.blocks * 512n;
               directoryCount += 1;
               await scanDirectory(childHandle, childDepth, [...relativeComponents, entry.name]);
-              await verifyMountIdentity(logicalPath);
               const finalChild = await ops.lstat(anchoredPath, { bigint: true });
               const finalChildFd = await childHandle.stat({ bigint: true });
               if (!sameObject(finalChild, finalChildFd)) {
@@ -390,7 +394,10 @@ export async function scanJobsStorage({
     await scanDirectory(rootHandle, 0, []);
 
     ensureWithinDeadline();
-    await verifyMountIdentity(absoluteRoot);
+    const finalMounts = parseLinuxMountInfo(await readMountInfo());
+    if ([...scannedPaths].some((candidatePath) => finalMounts.mountIdForPath(candidatePath) !== rootMountId)) {
+      throw unavailable("Storage tree crosses a mount boundary");
+    }
     const finalRoot = await ops.lstat(absoluteRoot, { bigint: true });
     const finalRootFd = await rootHandle.stat({ bigint: true });
     if (!sameObject(finalRoot, finalRootFd)) throw unavailable("Jobs root changed during scan");

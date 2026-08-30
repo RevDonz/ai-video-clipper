@@ -22,6 +22,21 @@ That narrow protocol cleanup is not a retention mechanism. Once bytes have been 
 
 Operators must monitor both application-owned allocated bytes and filesystem free space. `JOBS_STORAGE_ACTIVE_RESERVE_BYTES` is a future-growth allowance for each active job and must conservatively cover expected YouTube downloads, upload/input growth, attempt work, analysis artifacts, and rendered outputs. Sparse files are charged by allocated blocks, while all filesystem objects are inspected by the bounded scanner. On Linux, the jobs root must remain on one mount identity: nested mounts, including bind mounts backed by the same filesystem/device, cause admission to fail closed. Mount metadata must remain readable and consistent throughout the descriptor-anchored scan.
 
+A measured safe initial deployment baseline (existing jobs: `741670783` bytes; filesystem available: `40858787840` of `127776755712` bytes) is:
+
+```dotenv
+JOBS_STORAGE_QUOTA_BYTES=32212254720
+JOBS_STORAGE_MIN_FREE_BYTES=16106127360
+JOBS_STORAGE_ACTIVE_RESERVE_BYTES=2147483648
+JOBS_STORAGE_SCAN_MAX_ENTRIES=200000
+JOBS_STORAGE_SCAN_MAX_DEPTH=16
+JOBS_STORAGE_SCAN_DEADLINE_MS=30000
+JOBS_STORAGE_RECHECK_BYTES=8388608
+JOBS_STORAGE_RECHECK_INTERVAL_MS=5000
+```
+
+Compose requires every value for both the app and primary worker and intentionally fails deployment when one is omitted. Re-measure and revise these values after volume migration or workload changes; the baseline is not an unlimited default.
+
 Before capacity is exhausted:
 
 1. Back up **all** job roots and artifacts, not only successful outputs.

@@ -1,13 +1,25 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { spawn } from "node:child_process";
 
 import {
   RenderQueueConflictError,
   RenderQueueInvalidError,
+  RenderStorageError,
+  createRenderRequest,
   runRenderQueuePython,
   sanitizeRenderStatus,
   validateRenderRequest,
 } from "../lib/render-requests.mjs";
+import {
+  bindRenderStorage,
+  reserveRenderStorage,
+  releaseRenderStorage,
+  heartbeatRenderStorage,
+} from "../lib/render-storage-admission.mjs";
 import {
   PayloadTooLargeError,
   parseRenderBody,
@@ -54,6 +66,35 @@ test("Python queue bridge uses argv/stdin without shell and maps conflict", asyn
       return { stdin: { on() {}, end() {} } };
     },
   }), RenderQueueConflictError);
+});
+
+test("idempotent render replay releases only its unused new reservation", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "render-idempotent-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const job = path.join(root, ID);
+  await mkdir(job);
+  await writeFile(path.join(job, "job.json"), "{}");
+  const newReservationId = "223e4567-e89b-42d3-a456-426614174000";
+  const existing = {
+    ...request,
+    version: "render-request-v2",
+    storage_reservation_id: ID,
+    storage_reservation_token: ID,
+    storage_reserved_bytes: 100,
+  };
+  const released = [];
+  let bound = false;
+  const result = await createRenderRequest(ID, CANDIDATE, SHA, ID, root, {
+    storageConfig: {}, estimator: async () => 10n,
+    randomUUID: () => newReservationId,
+    reserve: async () => ({ reservationId: newReservationId, token: newReservationId, reservedBytes: "100" }),
+    runner: async () => existing,
+    release: async (...args) => { released.push(args); return true; },
+    bind: async () => { bound = true; return false; },
+  });
+  assert.equal(result, existing);
+  assert.equal(bound, false);
+  assert.deepEqual(released, [[root, newReservationId, newReservationId, "failed"]]);
 });
 
 test("public render status never exposes filesystem paths or source hashes", () => {
@@ -219,4 +260,133 @@ test("render body parser rejects null, consumed, aborted, malformed UTF-8, and e
     });
     await assert.rejects(parseRenderBody(invalid), RenderQueueInvalidError);
   }
+});
+
+test("render reservations serialize admission and fence heartbeat and release", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "render-storage-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const config = {
+    quotaBytes: 150n, minimumFreeBytes: 0n, activeReserveBytes: 50n,
+    scanMaxEntries: 100, scanMaxDepth: 10, scanDeadlineMs: 1000,
+    recheckBytes: 10, recheckIntervalMs: 10,
+  };
+  const storageOps = { scan: async () => ({ allocatedBytes: 0n }), available: async () => 1000n };
+  const first = await reserveRenderStorage(root, {
+    reservationId: ID, jobId: ID, declaredBytes: 50n, storageConfig: config, storageOps,
+  });
+  assert.equal(first.reservedBytes, "100");
+  await assert.rejects(reserveRenderStorage(root, {
+    reservationId: "223e4567-e89b-42d3-a456-426614174000", jobId: ID,
+    declaredBytes: 1n, storageConfig: config, storageOps,
+  }), (error) => error.code === "storage_quota_exhausted" && error.status === 507);
+  assert.equal(await heartbeatRenderStorage(root, ID, "wrong", config, storageOps), false);
+  assert.equal(await heartbeatRenderStorage(root, ID, first.token, config, storageOps), true);
+  assert.equal(await releaseRenderStorage(root, ID, "wrong", "failed"), false);
+  assert.equal(await releaseRenderStorage(root, ID, first.token, "completed"), true);
+  assert.equal(await readFile(path.join(root, ".render-reservations", `${ID}.json`), "utf8").catch((e) => e.code), "ENOENT");
+});
+
+test("render reservation restart recovery reaps abandoned admission", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "render-recovery-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const directory = path.join(root, ".render-reservations");
+  await mkdir(directory);
+  await writeFile(path.join(directory, `${ID}.json`), JSON.stringify({
+    version: 1, reservationId: ID, jobId: ID, renderId: null, state: "admitting",
+    tokenHash: "0".repeat(64), declaredBytes: "10", workReserveBytes: "20",
+    createdAt: "2020-01-01T00:00:00.000Z", heartbeatAt: "2020-01-01T00:00:00.000Z",
+    expiresAt: "2020-01-01T00:00:00.000Z",
+  }));
+  const config = {
+    quotaBytes: 100n, minimumFreeBytes: 0n, activeReserveBytes: 20n,
+    scanMaxEntries: 100, scanMaxDepth: 10, scanDeadlineMs: 1000,
+    recheckBytes: 10, recheckIntervalMs: 10,
+  };
+  const storageOps = { scan: async () => ({ allocatedBytes: 0n }), available: async () => 1000n };
+  const recovered = await reserveRenderStorage(root, {
+    reservationId: "223e4567-e89b-42d3-a456-426614174000", jobId: ID,
+    declaredBytes: 10n, storageConfig: config, storageOps, now: Date.parse("2026-01-01T00:00:00Z"),
+  });
+  assert.ok(recovered.token);
+});
+
+test("render reservation restart recovery reaps terminal bound work", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "render-terminal-recovery-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const config = {
+    quotaBytes: 1000n, minimumFreeBytes: 0n, activeReserveBytes: 20n,
+    scanMaxEntries: 100, scanMaxDepth: 10, scanDeadlineMs: 1000,
+    recheckBytes: 10, recheckIntervalMs: 10,
+  };
+  const storageOps = { scan: async () => ({ allocatedBytes: 0n }), available: async () => 1000n };
+  const reservation = await reserveRenderStorage(root, {
+    reservationId: ID, jobId: ID, declaredBytes: 10n, storageConfig: config, storageOps,
+  });
+  const renderId = "323e4567-e89b-42d3-a456-426614174000";
+  assert.equal(await bindRenderStorage(root, ID, reservation.token, renderId), true);
+  const requests = path.join(root, ID, "analysis", "render-requests");
+  await mkdir(requests, { recursive: true });
+  await writeFile(path.join(requests, `${renderId}.json`), JSON.stringify({
+    version: "render-request-v2", render_id: renderId, state: "completed",
+    storage_reservation_id: ID, storage_reservation_token: reservation.token,
+  }));
+  await reserveRenderStorage(root, {
+    reservationId: "223e4567-e89b-42d3-a456-426614174000", jobId: ID,
+    declaredBytes: 10n, storageConfig: config, storageOps,
+  });
+  assert.equal(await readFile(path.join(root, ".render-reservations", `${ID}.json`), "utf8").catch((e) => e.code), "ENOENT");
+});
+
+test("render worker storage CLI uses bounded stdin and sanitized output", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "render-storage-cli-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const config = {
+    quotaBytes: 1_000_000_000n, minimumFreeBytes: 0n, activeReserveBytes: 50n,
+    scanMaxEntries: 100, scanMaxDepth: 10, scanDeadlineMs: 1000,
+    recheckBytes: 8 * 1024 * 1024, recheckIntervalMs: 1000,
+  };
+  const reservation = await reserveRenderStorage(root, {
+    reservationId: ID, jobId: ID, declaredBytes: 10n, storageConfig: config,
+    storageOps: { scan: async () => ({ allocatedBytes: 0n }), available: async () => 1_000_000_000n },
+  });
+  const env = {
+    ...process.env, JOBS_ROOT: root,
+    JOBS_STORAGE_QUOTA_BYTES: "1000000000", JOBS_STORAGE_MIN_FREE_BYTES: "0",
+    JOBS_STORAGE_ACTIVE_RESERVE_BYTES: "50", JOBS_STORAGE_SCAN_MAX_ENTRIES: "100",
+    JOBS_STORAGE_SCAN_MAX_DEPTH: "10", JOBS_STORAGE_SCAN_DEADLINE_MS: "1000",
+    JOBS_STORAGE_RECHECK_BYTES: String(8 * 1024 * 1024),
+    JOBS_STORAGE_RECHECK_INTERVAL_MS: "1000",
+  };
+  const invoke = (command) => new Promise((resolve) => {
+    const child = spawn(process.execPath, [path.resolve("scripts/render-storage-admission.mjs")], {
+      env, stdio: ["pipe", "pipe", "pipe"],
+    });
+    const stdout = [];
+    const stderr = [];
+    child.stdout.on("data", (chunk) => stdout.push(chunk));
+    child.stderr.on("data", (chunk) => stderr.push(chunk));
+    child.on("close", (code) => resolve({
+      code, stdout: Buffer.concat(stdout).toString(), stderr: Buffer.concat(stderr).toString(),
+    }));
+    child.stdin.end(JSON.stringify(command));
+  });
+  assert.deepEqual(await invoke({ operation: "heartbeat", reservationId: ID, token: reservation.token }), {
+    code: 0, stdout: '{"ok":true}\n', stderr: "",
+  });
+  assert.deepEqual(await invoke({ operation: "release", reservationId: ID, token: reservation.token, terminalState: "completed" }), {
+    code: 0, stdout: '{"ok":true}\n', stderr: "",
+  });
+  const invalid = await invoke({ operation: "heartbeat", reservationId: ID, token: "secret" });
+  assert.equal(invalid.code, 1);
+  assert.equal(invalid.stdout, "");
+  assert.equal(invalid.stderr, "render_storage_failed\n");
+});
+
+test("render queue bridge maps sanitized storage admission failures", async () => {
+  await assert.rejects(runRenderQueuePython("/safe/job", { operation: "create" }, {
+    execFileImpl: (_b, _a, _o, callback) => {
+      callback(Object.assign(new Error("secret path"), { code: 6 }), Buffer.alloc(0), Buffer.from("secret"));
+      return { stdin: { on() {}, end() {} } };
+    },
+  }), (error) => error instanceof RenderStorageError && error.code === "storage_admission_lost");
 });

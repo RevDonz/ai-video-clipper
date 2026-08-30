@@ -1,6 +1,9 @@
 import { execFile } from "node:child_process";
+import crypto from "node:crypto";
 import { lstat, realpath } from "node:fs/promises";
 import path from "node:path";
+import { parseStorageAdmissionConfig } from "./storage-admission.mjs";
+import { bindRenderStorage, releaseRenderStorage, reserveRenderStorage } from "./render-storage-admission.mjs";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const CANDIDATE = /^cand_[0-9a-f]{64}$/;
@@ -16,12 +19,20 @@ const EXACT_KEYS = new Set([
   "updated_at", "claimed_at", "rendering_at", "completed_at", "failed_at", "attempts",
   "error_code", "lease_token", "heartbeat_at",
 ]);
+const STORAGE_KEYS = new Set(["storage_reservation_id", "storage_reservation_token", "storage_reserved_bytes"]);
 const MAX_OUTPUT = 2 * 1024 * 1024;
 
 export class RenderQueueInvalidError extends Error {}
 export class RenderQueueNotFoundError extends Error {}
 export class RenderQueueConflictError extends Error {}
 export class RenderQueueUnavailableError extends Error {}
+export class RenderStorageError extends Error {
+  constructor(code = "storage_admission_lost", status = 503) {
+    super(code);
+    this.code = code;
+    this.status = status;
+  }
+}
 
 export function isRenderId(value) { return typeof value === "string" && UUID.test(value); }
 export function isRenderJobId(value) { return isRenderId(value); }
@@ -37,12 +48,20 @@ function isTimestamp(value) {
 export function validateRenderRequest(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new RenderQueueInvalidError();
   const keys = Object.keys(value);
-  if (keys.length !== EXACT_KEYS.size || keys.some((key) => !EXACT_KEYS.has(key))) {
+  const admitted = keys.length === EXACT_KEYS.size + STORAGE_KEYS.size
+    && keys.every((key) => EXACT_KEYS.has(key) || STORAGE_KEYS.has(key));
+  if ((!admitted && (keys.length !== EXACT_KEYS.size || keys.some((key) => !EXACT_KEYS.has(key))))
+      || value.version !== (admitted ? "render-request-v2" : "render-request-v1")) {
     throw new RenderQueueInvalidError();
   }
-  if (value.version !== "render-request-v1" || !STATES.has(value.state)
+  if (!STATES.has(value.state)
       || !isRenderId(value.render_id) || !isRenderIdempotencyKey(value.idempotency_key)
       || !isRenderCandidateId(value.candidate_id)) throw new RenderQueueInvalidError();
+  if (admitted && (!isRenderId(value.storage_reservation_id)
+      || !isRenderId(value.storage_reservation_token)
+      || !Number.isSafeInteger(value.storage_reserved_bytes) || value.storage_reserved_bytes < 1)) {
+    throw new RenderQueueInvalidError();
+  }
 
   for (const key of [
     "candidate_artifact_sha256", "edit_manifest_sha256", "source_identity_sha256",
@@ -111,6 +130,7 @@ export function runRenderQueuePython(jobDir, command, options = {}) {
         if (error.code === 3) reject(new RenderQueueInvalidError());
         else if (error.code === 4) reject(new RenderQueueNotFoundError());
         else if (error.code === 5) reject(new RenderQueueConflictError());
+        else if (error.code === 6) reject(new RenderStorageError());
         else reject(new RenderQueueUnavailableError());
         return;
       }
@@ -121,6 +141,25 @@ export function runRenderQueuePython(jobDir, command, options = {}) {
     });
     child.stdin.on("error", () => {});
     child.stdin.end(raw);
+  });
+}
+
+export function estimateRenderSourceBytes(jobDir, options = {}) {
+  const runner = options.execFileImpl || execFile;
+  return new Promise((resolve, reject) => {
+    const child = runner(options.pythonBin || process.env.PYTHON_BIN || "python", [
+      "-m", "ai_clipper.render_queue", "--job-dir", jobDir,
+    ], { encoding: "buffer", maxBuffer: MAX_OUTPUT, timeout: 30_000, killSignal: "SIGKILL", windowsHide: true, shell: false },
+    (error, stdout) => {
+      if (error) { reject(error.code === 4 ? new RenderQueueNotFoundError() : new RenderQueueUnavailableError()); return; }
+      try {
+        const parsed = JSON.parse(stdout.toString("utf8"));
+        if (!parsed || Object.keys(parsed).length !== 1 || !/^(0|[1-9][0-9]*)$/.test(parsed.sourceBytes)) throw new Error();
+        resolve(BigInt(parsed.sourceBytes));
+      } catch { reject(new RenderQueueUnavailableError()); }
+    });
+    child.stdin.on("error", () => {});
+    child.stdin.end(Buffer.from('{"operation":"estimate"}'));
   });
 }
 
@@ -144,9 +183,38 @@ export async function createRenderRequest(jobId, candidateId, editEtag, key,
   jobsRoot = process.env.JOBS_ROOT || "/data/jobs", options = {}) {
   if (!isRenderCandidateId(candidateId) || !isRenderEtag(editEtag) || !isRenderIdempotencyKey(key)) throw new RenderQueueInvalidError();
   const job = await resolveJob(jobId, jobsRoot);
-  return (options.runner || runRenderQueuePython)(job, {
-    operation: "create", candidateId, editEtag, idempotencyKey: key,
+  const storageConfig = options.storageConfig || parseStorageAdmissionConfig(options.env || process.env);
+  const sourceBytes = await (options.estimator || estimateRenderSourceBytes)(job, options);
+  const reservationId = (options.randomUUID || crypto.randomUUID)();
+  const reservation = await (options.reserve || reserveRenderStorage)(jobsRoot, {
+    reservationId, jobId, declaredBytes: sourceBytes, storageConfig, storageOps: options.storageOps,
   });
+  try {
+    const reserved = BigInt(reservation.reservedBytes);
+    if (reserved > BigInt(Number.MAX_SAFE_INTEGER)) throw new RenderStorageError("storage_admission_unavailable", 503);
+    const result = await (options.runner || runRenderQueuePython)(job, {
+      operation: "create", candidateId, editEtag, idempotencyKey: key,
+      storageReservation: {
+        reservation_id: reservation.reservationId,
+        token: reservation.token,
+        reserved_bytes: Number(reserved),
+      },
+    });
+    if (result.storage_reservation_id !== reservation.reservationId) {
+      await (options.release || releaseRenderStorage)(jobsRoot, reservation.reservationId, reservation.token, "failed");
+      return result;
+    }
+    if (result.version === "render-request-v2") {
+      const bound = await (options.bind || bindRenderStorage)(
+        jobsRoot, result.storage_reservation_id, result.storage_reservation_token, result.render_id,
+      );
+      if (!bound) throw new RenderStorageError();
+    }
+    return result;
+  } catch (error) {
+    await (options.release || releaseRenderStorage)(jobsRoot, reservation.reservationId, reservation.token, "failed").catch(() => {});
+    throw error;
+  }
 }
 
 export async function readRenderRequest(jobId, renderId,

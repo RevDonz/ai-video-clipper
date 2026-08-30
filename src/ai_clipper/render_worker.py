@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import math
 import os
 import re
 import stat
+import subprocess
 import sys
 import threading
 import time
@@ -33,6 +35,48 @@ _UUID = re.compile(
     r"[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\Z",
     re.IGNORECASE,
 )
+
+
+def parse_storage_recheck_config(
+    env: dict[str, str] | os._Environ[str] = os.environ,
+) -> tuple[float, int]:
+    """Parse the worker side of the shared strict storage cadence contract."""
+    try:
+        interval_raw = env["JOBS_STORAGE_RECHECK_INTERVAL_MS"]
+        bytes_raw = env["JOBS_STORAGE_RECHECK_BYTES"]
+        if not re.fullmatch(r"[1-9][0-9]*", interval_raw) or not re.fullmatch(
+            r"[1-9][0-9]*", bytes_raw
+        ):
+            raise ValueError
+        interval_ms = int(interval_raw)
+        recheck_bytes = int(bytes_raw)
+        if interval_ms > 300_000 or not 8 * 1024 * 1024 <= recheck_bytes <= 16 * 1024 * 1024:
+            raise ValueError
+    except (KeyError, TypeError, ValueError) as error:
+        raise ValueError("invalid render storage recheck configuration") from error
+    return interval_ms / 1000, recheck_bytes
+
+
+def render_storage_operation(
+    operation: str, reservation_id: str, token: str, terminal_state: str | None = None
+) -> bool:
+    cli = os.environ.get("RENDER_STORAGE_CLI", "/app/scripts/render-storage-admission.mjs")
+    command = {"operation": operation, "reservationId": reservation_id, "token": token}
+    if terminal_state is not None:
+        command["terminalState"] = terminal_state
+    try:
+        result = subprocess.run(
+            [os.environ.get("NODE_BIN", "node"), cli],
+            input=json.dumps(command, separators=(",", ":")).encode(),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            check=False,
+            timeout=60,
+            shell=False,
+        )
+        return result.returncode == 0 and result.stdout == b'{"ok":true}\n'
+    except (OSError, subprocess.SubprocessError):
+        return False
 
 
 def _regular_directory(path: Path) -> None:
@@ -139,13 +183,57 @@ def _heartbeat_loop(
     job: Path,
     render_id: str,
     token: str,
+    storage_client: Callable[..., bool],
+    storage_reservation: tuple[str, str] | None,
+    storage_interval: float,
+    storage_recheck_bytes: int,
+    growth_path: Callable[[], Path | None],
 ) -> None:
-    while not stop.wait(interval):
+    last_queue = last_storage = time.monotonic()
+    last_bytes = 0
+    poll = min(interval, storage_interval, 0.05)
+    while not stop.wait(poll):
         try:
-            heartbeat(job, render_id, token)
-        except QueueError:
+            now = time.monotonic()
+            if now - last_queue >= interval:
+                heartbeat(job, render_id, token)
+                last_queue = now
+            if storage_reservation is not None:
+                target = growth_path()
+                current_bytes = 0
+                if target is not None:
+                    try:
+                        info = target.stat(follow_symlinks=False)
+                        if not stat.S_ISREG(info.st_mode):
+                            raise OSError
+                        current_bytes = max(info.st_size, info.st_blocks * 512)
+                    except FileNotFoundError:
+                        current_bytes = 0
+                if (
+                    now - last_storage >= storage_interval
+                    or current_bytes - last_bytes >= storage_recheck_bytes
+                ):
+                    if not storage_client("heartbeat", *storage_reservation):
+                        lost.set()
+                        return
+                    last_storage = now
+                    last_bytes = current_bytes
+        except Exception:  # noqa: BLE001 - heartbeat boundary fails closed
             lost.set()
             return
+
+
+def _storage_reservation(request: dict[str, object]) -> tuple[str, str] | None:
+    if request.get("version") != "render-request-v2":
+        return None
+    return (
+        str(request["storage_reservation_id"]),
+        str(request["storage_reservation_token"]),
+    )
+
+
+def _growth_path(reference: list[Path | None]) -> Path | None:
+    return reference[0]
 
 
 def run_one(
@@ -155,6 +243,9 @@ def run_one(
     verifier: Callable = _verify_existing,
     lease_seconds: float = 300,
     heartbeat_interval: float | None = None,
+    storage_client: Callable[..., bool] = render_storage_operation,
+    storage_recheck_interval_ms: int | None = None,
+    storage_recheck_bytes: int | None = None,
 ) -> str | None:
     """Claim and finish at most one request across all jobs."""
     root = Path(jobs_root).absolute()
@@ -183,11 +274,46 @@ def run_one(
 
         thread: threading.Thread | None = None
         staging: Path | None = None
+        terminal_state: str | None = None
+        storage_reservation = _storage_reservation(request)
+        storage_interval = 1.0
+        if storage_reservation is not None:
+            if storage_recheck_interval_ms is None or storage_recheck_bytes is None:
+                storage_interval, storage_recheck_bytes = parse_storage_recheck_config()
+            else:
+                if (
+                    not isinstance(storage_recheck_interval_ms, int)
+                    or isinstance(storage_recheck_interval_ms, bool)
+                    or storage_recheck_interval_ms < 1
+                    or not isinstance(storage_recheck_bytes, int)
+                    or isinstance(storage_recheck_bytes, bool)
+                    or storage_recheck_bytes < 1
+                ):
+                    raise ValueError("invalid render storage recheck configuration")
+                storage_interval = storage_recheck_interval_ms / 1000
+        staging_ref: list[Path | None] = [None]
+
         try:
+            if storage_reservation is not None and not storage_client(
+                "heartbeat", *storage_reservation
+            ):
+                raise QueueError()
             request = update_request(job, render_id, "rendering", lease_token=token)
             thread = threading.Thread(
                 target=_heartbeat_loop,
-                args=(stop, lost, interval, job, render_id, token),
+                args=(
+                    stop,
+                    lost,
+                    interval,
+                    job,
+                    render_id,
+                    token,
+                    storage_client,
+                    storage_reservation,
+                    storage_interval,
+                    storage_recheck_bytes or 1,
+                    lambda reference=staging_ref: _growth_path(reference),
+                ),
                 daemon=True,
             )
             thread.start()
@@ -202,13 +328,21 @@ def run_one(
                     raise ManifestRenderError("existing output is invalid")
                 verifier(job, request, source)
                 heartbeat(job, render_id, token)
+                if storage_reservation is not None and not storage_client(
+                    "heartbeat", *storage_reservation
+                ):
+                    raise QueueError()
+                if lost.is_set():
+                    raise QueueError()
                 update_request(job, render_id, "completed", lease_token=token)
+                terminal_state = "completed"
             else:
                 staging_parent = job / "analysis" / "render-staging"
                 if not staging_parent.exists():
                     staging_parent.mkdir(mode=0o700)
                 _regular_directory(staging_parent)
                 staging = staging_parent / f"{render_id}.{token}.mp4"
+                staging_ref[0] = staging
                 renderer(
                     source,
                     job / str(request["edit_manifest_relative"]),
@@ -218,9 +352,14 @@ def run_one(
                 )
                 verifier(job, request, source, staging)
                 heartbeat(job, render_id, token)
+                if storage_reservation is not None and not storage_client(
+                    "heartbeat", *storage_reservation
+                ):
+                    raise QueueError()
                 if lost.is_set():
                     raise QueueError()
                 publish_completed_output(job, render_id, token, staging)
+                terminal_state = "completed"
         except Exception:  # noqa: BLE001 - worker persists a fixed failure code
             try:
                 update_request(
@@ -230,6 +369,7 @@ def run_one(
                     lease_token=token,
                     error_code="render_failed",
                 )
+                terminal_state = "failed"
             except QueueError:
                 pass
         finally:
@@ -240,6 +380,11 @@ def run_one(
                 try:
                     staging.unlink()
                 except FileNotFoundError:
+                    pass
+            if terminal_state is not None and storage_reservation is not None:
+                try:
+                    storage_client("release", *storage_reservation, terminal_state=terminal_state)
+                except Exception:  # noqa: BLE001, S110 - terminal state is authoritative
                     pass
         return render_id
     return None

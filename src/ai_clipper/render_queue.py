@@ -60,6 +60,7 @@ _FIELDS = {
     "lease_token",
     "heartbeat_at",
 }
+_STORAGE_FIELDS = {"storage_reservation_id", "storage_reservation_token", "storage_reserved_bytes"}
 
 
 class QueueError(Exception):
@@ -183,9 +184,25 @@ def _entries(directory: Path) -> list[Path]:
 
 
 def _validate(value: object) -> dict[str, object]:
-    if type(value) is not dict or set(value) != _FIELDS:
+    if type(value) is not dict or (
+        set(value) != _FIELDS and set(value) != _FIELDS | _STORAGE_FIELDS
+    ):
         raise QueueInvalid()
-    if value["version"] != "render-request-v1" or value["state"] not in _STATES:
+    admitted = set(value) == _FIELDS | _STORAGE_FIELDS
+    if (
+        value["version"] != ("render-request-v2" if admitted else "render-request-v1")
+        or value["state"] not in _STATES
+    ):
+        raise QueueInvalid()
+    if admitted and (
+        not isinstance(value["storage_reservation_id"], str)
+        or not _UUID.fullmatch(value["storage_reservation_id"])
+        or not isinstance(value["storage_reservation_token"], str)
+        or not _UUID.fullmatch(value["storage_reservation_token"])
+        or not isinstance(value["storage_reserved_bytes"], int)
+        or isinstance(value["storage_reserved_bytes"], bool)
+        or not 0 < value["storage_reserved_bytes"] <= (1 << 64) - 1
+    ):
         raise QueueInvalid()
     if not isinstance(value["render_id"], str) or not _UUID.fullmatch(value["render_id"]):
         raise QueueInvalid()
@@ -332,6 +349,23 @@ def _job_source(job: Path) -> Path:
         raise QueueInvalid() from error
 
 
+def estimate_source_bytes(job_dir: Path) -> int:
+    job = Path(job_dir).absolute()
+    source = _job_source(job)
+    fd = None
+    try:
+        fd = os.open(source, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or info.st_size < 0:
+            raise QueueInvalid()
+        return info.st_size
+    except OSError as error:
+        raise QueueInvalid() from error
+    finally:
+        if fd is not None:
+            os.close(fd)
+
+
 def _render_inputs(analysis: Path) -> Path:
     directory = analysis / "render-inputs"
     storage._ensure_directory(directory)
@@ -386,11 +420,6 @@ def _snapshot_source(job: Path, analysis: Path) -> tuple[str, str]:
         info = os.fstat(source_fd)
         if not stat.S_ISREG(info.st_mode) or info.st_size > maximum:
             raise QueueInvalid()
-        output_fd = os.open(
-            temporary,
-            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW,
-            0o600,
-        )
         digest = __import__("hashlib").sha256()
         total = 0
         while chunk := os.read(source_fd, min(1024 * 1024, maximum + 1 - total)):
@@ -398,11 +427,26 @@ def _snapshot_source(job: Path, analysis: Path) -> tuple[str, str]:
             if total > maximum:
                 raise QueueInvalid()
             digest.update(chunk)
+        hexdigest = digest.hexdigest()
+        target = directory / f"source.{hexdigest}.{extension}"
+        if target.exists():
+            try:
+                if _stream_sha256_regular(target, "snapshot") != hexdigest:
+                    raise QueueInvalid()
+            except ManifestRenderError as error:
+                raise QueueInvalid() from error
+            return str(target.relative_to(job)), hexdigest
+        os.lseek(source_fd, 0, os.SEEK_SET)
+        output_fd = os.open(
+            temporary,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW,
+            0o600,
+        )
+        while chunk := os.read(source_fd, 1024 * 1024):
             offset = 0
             while offset < len(chunk):
                 offset += os.write(output_fd, chunk[offset:])
         os.fsync(output_fd)
-        hexdigest = digest.hexdigest()
     except OSError as error:
         raise QueueInvalid() from error
     finally:
@@ -425,6 +469,15 @@ def _snapshot_candidates(job: Path, analysis: Path, expected_digest: str) -> str
         digest = __import__("hashlib").sha256(raw).hexdigest()
         if digest != expected_digest:
             raise QueueConflict()
+        target = directory / f"candidates.{digest}.json"
+        if target.exists():
+            try:
+                if _stream_sha256_regular(target, "snapshot") != digest:
+                    raise QueueInvalid()
+                read_candidates_artifact(target)
+            except (ManifestRenderError, OSError, ValueError) as error:
+                raise QueueInvalid() from error
+            return str(target.relative_to(job))
         temporary = directory / f".candidates.{uuid.uuid4()}.tmp"
         fd = os.open(
             temporary,
@@ -448,7 +501,12 @@ def _snapshot_candidates(job: Path, analysis: Path, expected_digest: str) -> str
 
 
 def create_request(
-    job_dir: Path, candidate_id: str, edit_etag: str, idempotency_key: str
+    job_dir: Path,
+    candidate_id: str,
+    edit_etag: str,
+    idempotency_key: str,
+    *,
+    storage_reservation: dict[str, object] | None = None,
 ) -> dict[str, object]:
     job = Path(job_dir).absolute()
     if (
@@ -456,6 +514,18 @@ def create_request(
         or not _CANDIDATE.fullmatch(candidate_id)
         or not _SHA.fullmatch(edit_etag)
         or not _UUID.fullmatch(idempotency_key)
+    ):
+        raise QueueInvalid()
+    if storage_reservation is not None and (
+        type(storage_reservation) is not dict
+        or set(storage_reservation) != {"reservation_id", "token", "reserved_bytes"}
+        or not isinstance(storage_reservation["reservation_id"], str)
+        or not _UUID.fullmatch(storage_reservation["reservation_id"])
+        or not isinstance(storage_reservation["token"], str)
+        or not _UUID.fullmatch(storage_reservation["token"])
+        or not isinstance(storage_reservation["reserved_bytes"], int)
+        or isinstance(storage_reservation["reserved_bytes"], bool)
+        or not 0 < storage_reservation["reserved_bytes"] <= (1 << 64) - 1
     ):
         raise QueueInvalid()
     key = idempotency_key.lower()
@@ -485,7 +555,9 @@ def create_request(
         now = _now()
         render_id = str(uuid.uuid4())
         request = {
-            "version": "render-request-v1",
+            "version": "render-request-v2"
+            if storage_reservation is not None
+            else "render-request-v1",
             "render_id": render_id,
             "idempotency_key": key,
             "state": "queued",
@@ -510,6 +582,12 @@ def create_request(
             "lease_token": None,
             "heartbeat_at": None,
         }
+        if storage_reservation is not None:
+            request.update(
+                storage_reservation_id=storage_reservation["reservation_id"],
+                storage_reservation_token=storage_reservation["token"],
+                storage_reserved_bytes=storage_reservation["reserved_bytes"],
+            )
         return _write(directory, request)
 
 
@@ -681,17 +759,21 @@ def process(job: Path, command: object):
     if type(command) is not dict or not isinstance(command.get("operation"), str):
         raise QueueInvalid()
     op = command["operation"]
-    if op == "create" and set(command) == {
-        "operation",
-        "candidateId",
-        "editEtag",
-        "idempotencyKey",
-    }:
+    if op == "create" and set(command) in (
+        {"operation", "candidateId", "editEtag", "idempotencyKey"},
+        {"operation", "candidateId", "editEtag", "idempotencyKey", "storageReservation"},
+    ):
         return create_request(
-            job, command["candidateId"], command["editEtag"], command["idempotencyKey"]
+            job,
+            command["candidateId"],
+            command["editEtag"],
+            command["idempotencyKey"],
+            storage_reservation=command.get("storageReservation"),
         )
     if op == "get" and set(command) == {"operation", "renderId"}:
         return get_request(job, command["renderId"])
+    if op == "estimate" and set(command) == {"operation"}:
+        return {"sourceBytes": str(estimate_source_bytes(job))}
     if op == "claim" and set(command) <= {"operation", "leaseSeconds"}:
         return claim_next(job, lease_seconds=command.get("leaseSeconds", DEFAULT_LEASE_SECONDS))
     if (

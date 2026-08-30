@@ -4,6 +4,8 @@ import { constants } from "node:fs";
 import { open } from "node:fs/promises";
 import { lstat, mkdir, readdir, readFile, realpath, rename, rm, rmdir, stat, unlink } from "node:fs/promises";
 import path from "node:path";
+import { evaluateStorageAdmission, readAvailableBytes, scanJobsStorage, StorageAdmissionError } from "./storage-admission.mjs";
+import { readSharedStorageAccounting } from "./shared-storage-accounting.mjs";
 
 export const ACTIVE_PRIMARY_STATUSES = Object.freeze(["queued", "preparing", "downloading", "processing"]);
 const ACTIVE = new Set(ACTIVE_PRIMARY_STATUSES);
@@ -253,44 +255,167 @@ async function listJobs(jobsRoot) {
   return jobs;
 }
 
-async function reservationCount(root, activeIds, now = Date.now()) {
+const RESERVATION_V2_KEYS = ["consumedRequestBytes", "createdAt", "declaredRequestBytes", "expiresAt", "id", "remainingRequestBytes", "tokenHash", "version", "workReserveBytes"].sort();
+const RESERVATION_V1_KEYS = ["createdAt", "expiresAt", "id", "tokenHash", "version"].sort();
+
+function decimalReservationByte(value) {
+  if (typeof value !== "string" || !/^(0|[1-9]\d*)$/.test(value)) throw new QueueStateError("Malformed primary admission reservation");
+  const result = BigInt(value);
+  if (result > (1n << 64n) - 1n) throw new QueueStateError("Malformed primary admission reservation");
+  return result;
+}
+
+function validateReservation(value, id) {
+  if (!value || typeof value !== "object" || Array.isArray(value)
+      || JSON.stringify(Object.keys(value).sort()) !== JSON.stringify(RESERVATION_V2_KEYS)
+      || value.version !== 2 || value.id !== id || !UUID.test(value.id)
+      || !/^[0-9a-f]{64}$/.test(value.tokenHash || "")
+      || !Number.isFinite(Date.parse(value.createdAt)) || !Number.isFinite(Date.parse(value.expiresAt))) {
+    throw new QueueStateError("Unsupported or malformed primary admission reservation");
+  }
+  const declared = decimalReservationByte(value.declaredRequestBytes);
+  const consumed = decimalReservationByte(value.consumedRequestBytes);
+  const remaining = decimalReservationByte(value.remainingRequestBytes);
+  const work = decimalReservationByte(value.workReserveBytes);
+  if (consumed > declared || remaining !== declared - consumed || work === 0n) throw new QueueStateError("Malformed primary admission reservation");
+  return { value, declared, consumed, remaining, work };
+}
+
+function validateLegacyReservation(value, id) {
+  if (!value || typeof value !== "object" || Array.isArray(value)
+      || JSON.stringify(Object.keys(value).sort()) !== JSON.stringify(RESERVATION_V1_KEYS)
+      || value.version !== 1 || value.id !== id || !UUID.test(value.id)
+      || !/^[0-9a-f]{64}$/.test(value.tokenHash || "")
+      || !Number.isFinite(Date.parse(value.createdAt)) || !Number.isFinite(Date.parse(value.expiresAt))) {
+    throw new QueueStateError("Unsupported or malformed primary admission reservation");
+  }
+}
+
+async function stagedBytesExist(root, id) {
+  const jobRoot = path.join(root, id);
+  let rootInfo;
+  try { rootInfo = await lstat(jobRoot); } catch (error) { if (error.code === "ENOENT") return false; throw error; }
+  if (rootInfo.isSymbolicLink() || !rootInfo.isDirectory() || await realpath(jobRoot) !== jobRoot) {
+    throw new QueueStateError("Unsafe primary job staging directory");
+  }
+  const pending = [jobRoot];
+  while (pending.length > 0) {
+    const directory = pending.pop();
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const target = path.join(directory, entry.name);
+      const info = await lstat(target);
+      if (entry.isSymbolicLink() || info.isSymbolicLink()) throw new QueueStateError("Unsafe primary job staging entry");
+      if (info.isDirectory()) pending.push(target);
+      else if (info.isFile() && (info.size > 0 || info.blocks > 0)) return true;
+      else if (!info.isFile()) throw new QueueStateError("Unsafe primary job staging entry");
+    }
+  }
+  return false;
+}
+
+function failedAdmissionRecord(id, code, now = new Date().toISOString()) {
+  return {
+    id, status: "failed", progress: 100, stage: "failed",
+    stageDetail: "Penyimpanan server tidak cukup untuk melanjutkan job", error: code,
+    createdAt: now, updatedAt: now, source: { type: "upload", name: "upload tidak lengkap" },
+    sourcePath: null, options: {}, clips: [], queue: { version: 1, attempts: 0 },
+  };
+}
+
+async function publishRecoveredFailureWhileLocked(root, id) {
+  if (!await stagedBytesExist(root, id)) return null;
+  const failed = failedAdmissionRecord(id, "storage_admission_unavailable");
+  await durableWriteJson(path.join(root, id, "job.json"), failed);
+  return failed;
+}
+
+async function reservationState(root, activeIds, now = Date.now()) {
   const directory = path.join(root, RESERVATIONS);
   await mkdir(directory, { mode: 0o700, recursive: true });
-  let count = 0;
+  const reservations = [];
+  const reservationIds = new Set();
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     if (!entry.isFile() || entry.isSymbolicLink() || !UUID.test(entry.name.replace(/\.json$/, ""))) throw new QueueStateError("Unsafe primary admission reservation");
     const target = path.join(directory, entry.name);
     const value = await readNoFollowJson(target);
     const id = entry.name.replace(/\.json$/, "");
+    reservationIds.add(id);
     if (activeIds.has(id)) { await unlink(target); continue; }
-    const expires = Date.parse(value.expiresAt);
-    const legacyCreated = Date.parse(value.createdAt);
-    if ((Number.isFinite(expires) && expires <= now)
-        || (!Number.isFinite(expires) && Number.isFinite(legacyCreated) && now - legacyCreated > RESERVATION_STALE_MS)) {
+    if (value?.version === 1) {
+      validateLegacyReservation(value, id);
+      const expiresAt = Date.parse(value.expiresAt);
+      if (expiresAt <= now) {
+        await publishRecoveredFailureWhileLocked(root, id);
+        await unlink(target);
+        continue;
+      }
+      const error = new QueueStateError("A deployed v1 primary admission reservation is still live");
+      error.code = "legacy_reservation_live";
+      error.retryAfterMs = Math.max(1, Math.min(RESERVATION_STALE_MS, expiresAt - now));
+      throw error;
+    }
+    const parsed = validateReservation(value, id);
+    if (Date.parse(value.expiresAt) <= now) {
+      await publishRecoveredFailureWhileLocked(root, id);
       await unlink(target);
       continue;
     }
-    count += 1;
+    reservations.push(parsed);
+  }
+  for (const entry of await readdir(root, { withFileTypes: true })) {
+    if (entry.name.startsWith(".") || !UUID.test(entry.name) || reservationIds.has(entry.name)) continue;
+    if (!entry.isDirectory() || entry.isSymbolicLink()) throw new QueueStateError("Unsafe primary job staging entry");
+    try { await readNoFollowJson(path.join(root, entry.name, "job.json")); }
+    catch (error) {
+      if (error.code !== "ENOENT") throw error;
+      await publishRecoveredFailureWhileLocked(root, entry.name);
+    }
   }
   await syncDirectory(directory);
-  return count;
+  return reservations;
 }
 
-export async function reserveAdmission(jobsRoot, maxActiveJobs, requestedId = crypto.randomUUID()) {
+async function readStorageSnapshot(root, config, storageOps) {
+  const scan = storageOps?.scan || ((options) => scanJobsStorage(options));
+  const available = storageOps?.available || ((target) => readAvailableBytes(target));
+  const [{ allocatedBytes }, availableBytes] = await Promise.all([
+    scan({ jobsRoot: root, maxEntries: config.scanMaxEntries, maxDepth: config.scanMaxDepth, deadlineMs: config.scanDeadlineMs }),
+    available(root),
+  ]);
+  return { allocatedBytes, availableBytes };
+}
+
+function evaluateStorageSnapshot(snapshot, config, activeJobCount, reservedBytes, contentLengthBytes, includeNewWork = true) {
+  return evaluateStorageAdmission({ allocatedBytes: snapshot.allocatedBytes, availableBytes: snapshot.availableBytes, activeJobCount,
+    activeReserveBytes: config.activeReserveBytes, reservedBytes, contentLengthBytes,
+    quotaBytes: config.quotaBytes, minimumFreeBytes: config.minimumFreeBytes,
+    newWorkReserveBytes: includeNewWork ? config.activeReserveBytes : 0n });
+}
+
+export async function reserveAdmission(jobsRoot, maxActiveJobs, requestedId = crypto.randomUUID(), storage = undefined) {
   if (!Number.isSafeInteger(maxActiveJobs) || maxActiveJobs < 1) throw new Error("Invalid primary queue configuration: admission bound");
+  const root = await ensureJobsRoot(jobsRoot);
+  const snapshot = storage?.storageConfig ? await readStorageSnapshot(root, storage.storageConfig, storage.storageOps) : null;
   const release = await acquireQueueLock(jobsRoot);
   try {
-    const root = await ensureJobsRoot(jobsRoot);
     const jobs = await listJobs(root);
     const activeIds = new Set(jobs.filter(({ job }) => ACTIVE.has(job.status)).map(({ job }) => job.id));
-    const reserved = await reservationCount(root, activeIds);
-    if (activeIds.size + reserved >= maxActiveJobs) throw new QueueCapacityError();
+    const reservations = await reservationState(root, activeIds);
+    if (activeIds.size + reservations.length >= maxActiveJobs) throw new QueueCapacityError();
     const id = requestedId;
     if (!UUID.test(id)) throw new QueueStateError("Invalid primary admission job ID");
+    const declared = storage?.declaredRequestBytes ?? 0n;
+    if (typeof declared !== "bigint" || declared < 0n) throw new QueueStateError("Invalid primary admission byte request");
+    const work = storage?.storageConfig?.activeReserveBytes ?? 1n;
+    if (storage?.storageConfig) {
+      const accounting = await readSharedStorageAccounting(root, (message) => new QueueStateError(message));
+      evaluateStorageSnapshot(snapshot, storage.storageConfig, accounting.activePrimaryCount, accounting.reservedBytes, declared);
+    }
     const token = crypto.randomUUID();
     const now = Date.now();
     await durableWriteJson(path.join(root, RESERVATIONS, `${id}.json`), {
-      version: 1, id, tokenHash: tokenHash(token), createdAt: new Date(now).toISOString(), expiresAt: new Date(now + RESERVATION_STALE_MS).toISOString(),
+      version: 2, id, tokenHash: tokenHash(token), createdAt: new Date(now).toISOString(), expiresAt: new Date(now + RESERVATION_STALE_MS).toISOString(),
+      declaredRequestBytes: declared.toString(), consumedRequestBytes: "0", remainingRequestBytes: declared.toString(), workReserveBytes: work.toString(),
     });
     return { id, token };
   } finally { await release(); }
@@ -303,9 +428,49 @@ export async function renewAdmission(jobsRoot, reservation, now = Date.now()) {
     const target = path.join(path.resolve(jobsRoot), RESERVATIONS, `${reservation.id}.json`);
     let current;
     try { current = await readNoFollowJson(target); } catch (error) { if (error.code === "ENOENT") return false; throw error; }
+    validateReservation(current, reservation.id);
     if (current.tokenHash !== tokenHash(reservation.token)) return false;
     await durableWriteJson(target, { ...current, expiresAt: new Date(now + RESERVATION_STALE_MS).toISOString() });
     return true;
+  } finally { await release(); }
+}
+
+export async function recheckAdmission(jobsRoot, reservation, consumedRequestBytes, storageConfig, storageOps) {
+  if (!reservation || !UUID.test(reservation.id || "") || typeof reservation.token !== "string"
+      || typeof consumedRequestBytes !== "bigint" || consumedRequestBytes < 0n) return false;
+  const root = await ensureJobsRoot(jobsRoot);
+  const snapshot = await readStorageSnapshot(root, storageConfig, storageOps);
+  const release = await acquireQueueLock(jobsRoot);
+  try {
+    const jobs = await listJobs(root);
+    const activeIds = new Set(jobs.filter(({ job }) => ACTIVE.has(job.status)).map(({ job }) => job.id));
+    const reservations = await reservationState(root, activeIds);
+    const own = reservations.find((item) => item.value.id === reservation.id);
+    if (!own || own.value.tokenHash !== tokenHash(reservation.token)) return false;
+    const requestedConsumed = consumedRequestBytes > own.declared ? own.declared : consumedRequestBytes;
+    const consumed = requestedConsumed > own.consumed ? requestedConsumed : own.consumed;
+    const remaining = own.declared - consumed;
+    const accounting = await readSharedStorageAccounting(root, (message) => new QueueStateError(message));
+    const reservedBytes = accounting.reservedBytes - own.remaining + remaining;
+    evaluateStorageSnapshot(snapshot, storageConfig, accounting.activePrimaryCount, reservedBytes, 0n, false);
+    await durableWriteJson(path.join(root, RESERVATIONS, `${reservation.id}.json`), {
+      ...own.value, consumedRequestBytes: consumed.toString(), remainingRequestBytes: remaining.toString(), expiresAt: new Date(Date.now() + RESERVATION_STALE_MS).toISOString(),
+    });
+    return true;
+  } finally { await release(); }
+}
+
+export async function storageAdmissionStatus(jobsRoot, storageConfig, storageOps) {
+  const root = await ensureJobsRoot(jobsRoot);
+  const snapshot = await readStorageSnapshot(root, storageConfig, storageOps);
+  const release = await acquireQueueLock(jobsRoot);
+  try {
+    const jobs = await listJobs(root);
+    const activeIds = new Set(jobs.filter(({ job }) => ACTIVE.has(job.status)).map(({ job }) => job.id));
+    await reservationState(root, activeIds);
+    const accounting = await readSharedStorageAccounting(root, (message) => new QueueStateError(message));
+    evaluateStorageSnapshot(snapshot, storageConfig, accounting.activePrimaryCount, accounting.reservedBytes, 0n);
+    return { allowed: true, code: null };
   } finally { await release(); }
 }
 
@@ -316,6 +481,7 @@ export async function cancelAdmission(jobsRoot, reservation) {
     const target = path.join(path.resolve(jobsRoot), RESERVATIONS, `${reservation.id}.json`);
     let current;
     try { current = await readNoFollowJson(target); } catch (error) { if (error.code === "ENOENT") return false; throw error; }
+    validateReservation(current, reservation.id);
     if (current.tokenHash !== tokenHash(reservation.token)) return false;
     await unlink(target);
     await syncDirectory(path.dirname(target));
@@ -341,8 +507,16 @@ export async function publishReservedQueuedJob(jobsRoot, job, reservation) {
       if (error.code !== "ENOENT") throw error;
     }
     const reservationPath = path.join(root, RESERVATIONS, `${reservation.id}.json`);
-    const persisted = await readNoFollowJson(reservationPath);
-    if (persisted.tokenHash !== tokenHash(reservation.token)) throw new QueueStateError("Primary admission reservation was lost");
+    let persisted;
+    try { persisted = await readNoFollowJson(reservationPath); }
+    catch (error) {
+      if (error.code === "ENOENT") throw new StorageAdmissionError("storage_admission_unavailable", "Primary admission reservation was lost");
+      throw error;
+    }
+    validateReservation(persisted, reservation.id);
+    if (persisted.tokenHash !== tokenHash(reservation.token)) {
+      throw new StorageAdmissionError("storage_admission_unavailable", "Primary admission reservation was lost");
+    }
     if (!contained(root, jobRoot)) throw new QueueStateError("Unsafe primary job directory");
     try { await mkdir(jobRoot, { mode: 0o700 }); await syncDirectory(root); }
     catch (error) { if (error.code !== "EEXIST") throw error; }
@@ -365,6 +539,7 @@ async function cancelReservationWhileLocked(root, reservation) {
   const target = path.join(root, RESERVATIONS, `${reservation.id}.json`);
   let current;
   try { current = await readNoFollowJson(target); } catch (error) { if (error.code === "ENOENT") return false; throw error; }
+  validateReservation(current, reservation.id);
   if (current.tokenHash !== tokenHash(reservation.token)) return false;
   await unlink(target);
   await syncDirectory(path.dirname(target));
@@ -390,10 +565,36 @@ export async function abortAdmissionStaging(jobsRoot, reservation) {
     try {
       const info = await lstat(jobRoot);
       if (info.isSymbolicLink() || !info.isDirectory() || await realpath(jobRoot) !== jobRoot) throw new QueueStateError("Unsafe primary job staging directory");
-      await rm(jobRoot, { recursive: true, force: true });
-      await syncDirectory(root);
     } catch (error) { if (error.code !== "ENOENT") throw error; }
     return { published: false, cleaned: true };
+  } finally { await release(); }
+}
+
+export async function publishFailedAdmissionJob(jobsRoot, reservation, code) {
+  if (!reservation || !UUID.test(reservation.id || "") || typeof reservation.token !== "string"
+      || !["storage_quota_exhausted", "storage_free_space_low", "storage_admission_unavailable"].includes(code)) {
+    throw new QueueStateError("Invalid failed admission publication");
+  }
+  const release = await acquireQueueLock(jobsRoot);
+  try {
+    const root = await ensureJobsRoot(jobsRoot);
+    const target = path.join(root, RESERVATIONS, `${reservation.id}.json`);
+    const persistedReservation = await readNoFollowJson(target);
+    validateReservation(persistedReservation, reservation.id);
+    if (persistedReservation.tokenHash !== tokenHash(reservation.token)) throw new QueueStateError("Primary admission reservation was lost");
+    const jobRoot = path.join(root, reservation.id);
+    const info = await lstat(jobRoot);
+    if (info.isSymbolicLink() || !info.isDirectory() || await realpath(jobRoot) !== jobRoot) throw new QueueStateError("Unsafe primary job staging directory");
+    if (!await stagedBytesExist(root, reservation.id)) {
+      await unlink(target);
+      await syncDirectory(path.dirname(target));
+      return null;
+    }
+    const failed = failedAdmissionRecord(reservation.id, code);
+    await durableWriteJson(path.join(jobRoot, "job.json"), failed);
+    await unlink(target);
+    await syncDirectory(path.dirname(target));
+    return failed;
   } finally { await release(); }
 }
 

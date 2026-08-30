@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 
 import pytest
-from test_render_queue import KEY, fixture
+from test_render_queue import KEY, RESERVATION_ID, RESERVATION_TOKEN, fixture
 
 from ai_clipper import render_worker
 from ai_clipper.edit_manifest import manifest_sha256
@@ -245,3 +245,245 @@ def test_lost_lease_worker_cannot_publish_and_cleans_staging(tmp_path: Path):
             stale_token,
             stale_staging,
         )
+
+
+def test_admitted_worker_rechecks_heartbeats_and_releases_storage(tmp_path: Path):
+    job, _analysis, manifest, source = fixture(tmp_path)
+    request = create_request(
+        job,
+        manifest.identity.candidate_id,
+        manifest_sha256(manifest),
+        KEY,
+        storage_reservation={
+            "reservation_id": RESERVATION_ID,
+            "token": RESERVATION_TOKEN,
+            "reserved_bytes": source.stat().st_size + 4096,
+        },
+    )
+    calls = []
+
+    def storage_client(operation, reservation_id, token, terminal_state=None):
+        calls.append((operation, reservation_id, token, terminal_state))
+        return True
+
+    assert (
+        run_one(
+            tmp_path,
+            renderer=lambda _s, _m, output, _c, **_o: output.write_bytes(b"render"),
+            verifier=lambda *_a: None,
+            storage_client=storage_client,
+            heartbeat_interval=0.01,
+            storage_recheck_interval_ms=10,
+            storage_recheck_bytes=8 * 1024 * 1024,
+        )
+        == request["render_id"]
+    )
+    assert calls[0][:3] == ("heartbeat", RESERVATION_ID, RESERVATION_TOKEN)
+    assert ("release", RESERVATION_ID, RESERVATION_TOKEN, "completed") in calls
+
+
+def test_worker_fails_closed_when_storage_watermark_recheck_fails(tmp_path: Path):
+    job, _analysis, manifest, source = fixture(tmp_path)
+    request = create_request(
+        job,
+        manifest.identity.candidate_id,
+        manifest_sha256(manifest),
+        KEY,
+        storage_reservation={
+            "reservation_id": RESERVATION_ID,
+            "token": RESERVATION_TOKEN,
+            "reserved_bytes": source.stat().st_size + 4096,
+        },
+    )
+    rendered = []
+    assert (
+        run_one(
+            tmp_path,
+            renderer=lambda *_a, **_o: rendered.append(True),
+            verifier=lambda *_a: None,
+            storage_client=lambda *_a, **_o: False,
+            storage_recheck_interval_ms=1000,
+            storage_recheck_bytes=8 * 1024 * 1024,
+        )
+        == request["render_id"]
+    )
+    assert rendered == []
+    assert get_request(job, request["render_id"])["state"] == "failed"
+
+
+def test_periodic_storage_recheck_loss_prevents_publication(tmp_path: Path):
+    job, _analysis, manifest, source = fixture(tmp_path)
+    request = create_request(
+        job,
+        manifest.identity.candidate_id,
+        manifest_sha256(manifest),
+        KEY,
+        storage_reservation={
+            "reservation_id": RESERVATION_ID,
+            "token": RESERVATION_TOKEN,
+            "reserved_bytes": source.stat().st_size + 4096,
+        },
+    )
+    storage_lost = threading.Event()
+    heartbeat_calls = 0
+
+    def storage_client(operation, *_args, **_kwargs):
+        nonlocal heartbeat_calls
+        if operation == "release":
+            return True
+        heartbeat_calls += 1
+        if heartbeat_calls > 1:
+            storage_lost.set()
+            return False
+        return True
+
+    def renderer(_source, _manifest, output, _candidate, **_options):
+        assert storage_lost.wait(2)
+        output.write_bytes(b"must not publish")
+
+    assert (
+        run_one(
+            tmp_path,
+            renderer=renderer,
+            verifier=lambda *_args: None,
+            storage_client=storage_client,
+            heartbeat_interval=0.01,
+            storage_recheck_interval_ms=10,
+            storage_recheck_bytes=8 * 1024 * 1024,
+        )
+        == request["render_id"]
+    )
+    assert get_request(job, request["render_id"])["state"] == "failed"
+    assert not (job / request["output_relative"]).exists()
+
+
+def test_storage_time_cadence_is_independent_of_queue_heartbeat(tmp_path: Path):
+    job, _analysis, manifest, source = fixture(tmp_path)
+    create_request(
+        job,
+        manifest.identity.candidate_id,
+        manifest_sha256(manifest),
+        KEY,
+        storage_reservation={
+            "reservation_id": RESERVATION_ID,
+            "token": RESERVATION_TOKEN,
+            "reserved_bytes": source.stat().st_size + 4096,
+        },
+    )
+    checked = threading.Event()
+    calls = 0
+
+    def storage_client(operation, *_args, **_kwargs):
+        nonlocal calls
+        if operation == "release":
+            return True
+        calls += 1
+        if calls >= 2:
+            checked.set()
+        return True
+
+    def renderer(_source, _manifest, output, _candidate, **_options):
+        assert checked.wait(2)
+        output.write_bytes(b"render")
+
+    run_one(
+        tmp_path,
+        renderer=renderer,
+        verifier=lambda *_args: None,
+        storage_client=storage_client,
+        heartbeat_interval=10,
+        storage_recheck_interval_ms=10,
+        storage_recheck_bytes=1 << 30,
+    )
+    assert calls >= 3  # initial, periodic, and final
+
+
+def test_storage_byte_growth_triggers_recheck_while_renderer_blocks(tmp_path: Path):
+    job, _analysis, manifest, source = fixture(tmp_path)
+    create_request(
+        job,
+        manifest.identity.candidate_id,
+        manifest_sha256(manifest),
+        KEY,
+        storage_reservation={
+            "reservation_id": RESERVATION_ID,
+            "token": RESERVATION_TOKEN,
+            "reserved_bytes": source.stat().st_size + 4096,
+        },
+    )
+    checked = threading.Event()
+    calls = 0
+
+    def storage_client(operation, *_args, **_kwargs):
+        nonlocal calls
+        if operation == "release":
+            return True
+        calls += 1
+        if calls >= 2:
+            checked.set()
+        return True
+
+    def renderer(_source, _manifest, output, _candidate, **_options):
+        output.write_bytes(b"growing output")
+        assert checked.wait(2)
+
+    run_one(
+        tmp_path,
+        renderer=renderer,
+        verifier=lambda *_args: None,
+        storage_client=storage_client,
+        heartbeat_interval=10,
+        storage_recheck_interval_ms=60_000,
+        storage_recheck_bytes=1,
+    )
+    assert calls >= 3
+
+
+def test_render_storage_recheck_config_is_strict(monkeypatch):
+    valid = {
+        "JOBS_STORAGE_RECHECK_INTERVAL_MS": "100",
+        "JOBS_STORAGE_RECHECK_BYTES": str(8 * 1024 * 1024),
+    }
+    assert render_worker.parse_storage_recheck_config(valid) == (0.1, 8 * 1024 * 1024)
+    for field, value in [
+        ("JOBS_STORAGE_RECHECK_INTERVAL_MS", "0"),
+        ("JOBS_STORAGE_RECHECK_BYTES", "1.5"),
+    ]:
+        invalid = {**valid, field: value}
+        with pytest.raises(ValueError):
+            render_worker.parse_storage_recheck_config(invalid)
+    with pytest.raises(ValueError):
+        render_worker.parse_storage_recheck_config({})
+
+
+def test_release_transport_failure_does_not_undo_terminal_request(tmp_path: Path):
+    job, _analysis, manifest, source = fixture(tmp_path)
+    request = create_request(
+        job,
+        manifest.identity.candidate_id,
+        manifest_sha256(manifest),
+        KEY,
+        storage_reservation={
+            "reservation_id": RESERVATION_ID,
+            "token": RESERVATION_TOKEN,
+            "reserved_bytes": source.stat().st_size + 4096,
+        },
+    )
+
+    def storage_client(operation, *_args, **_kwargs):
+        if operation == "release":
+            raise OSError("transport failed")
+        return True
+
+    assert (
+        run_one(
+            tmp_path,
+            renderer=lambda _s, _m, output, _c, **_o: output.write_bytes(b"render"),
+            verifier=lambda *_args: None,
+            storage_client=storage_client,
+            storage_recheck_interval_ms=1000,
+            storage_recheck_bytes=8 * 1024 * 1024,
+        )
+        == request["render_id"]
+    )
+    assert get_request(job, request["render_id"])["state"] == "completed"

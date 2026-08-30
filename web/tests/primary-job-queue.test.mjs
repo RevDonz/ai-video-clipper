@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rename, stat, symlink, utimes, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rename, stat, symlink, unlink, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -19,9 +19,12 @@ import {
   publishReservedQueuedJob,
   publishQueuedJob,
   reserveAdmission,
+  recheckAdmission,
+  publishFailedAdmissionJob,
   renewAdmission,
   withPrimaryQueueLock,
 } from "../lib/primary-job-queue.mjs";
+import { heartbeatRenderStorage, reserveRenderStorage } from "../lib/render-storage-admission.mjs";
 
 async function root() {
   return mkdtemp(path.join(os.tmpdir(), "primary-queue-"));
@@ -349,7 +352,64 @@ test("abort cleanup preserves published work but removes unpublished staging", a
   const stagedReservation = await reserveAdmission(jobsRoot, 2, stagedId);
   await mkdir(path.join(jobsRoot, stagedId, "input"), { recursive: true });
   assert.equal((await abortAdmissionStaging(jobsRoot, stagedReservation)).published, false);
-  await assert.rejects(stat(path.join(jobsRoot, stagedId)), { code: "ENOENT" });
+  assert.equal((await stat(path.join(jobsRoot, stagedId))).isDirectory(), true);
+});
+
+const storageConfig = {
+  quotaBytes: 100n,
+  minimumFreeBytes: 0n,
+  activeReserveBytes: 10n,
+  scanMaxEntries: 100,
+  scanMaxDepth: 10,
+  scanDeadlineMs: 1000,
+  recheckIntervalMs: 100,
+  recheckBytes: 8 * 1024 * 1024,
+};
+const storageOps = (allocatedBytes = 0n, availableBytes = 1000n) => ({
+  scan: async () => ({ allocatedBytes }),
+  available: async () => availableBytes,
+});
+
+test("byte and queue reservations are atomic and exact quota equality is allowed", async () => {
+  const jobsRoot = await root();
+  const ops = storageOps(0n);
+  const [left, right] = await Promise.allSettled([
+    reserveAdmission(jobsRoot, 2, "70707070-7070-4070-8070-707070707070", { declaredRequestBytes: 45n, storageConfig, storageOps: ops }),
+    reserveAdmission(jobsRoot, 2, "71717171-7171-4171-8171-717171717171", { declaredRequestBytes: 45n, storageConfig, storageOps: ops }),
+  ]);
+  assert.equal([left, right].filter((value) => value.status === "fulfilled").length, 1);
+  assert.equal([left, right].find((value) => value.status === "rejected").reason.code, "storage_quota_exhausted");
+});
+
+test("reservation schema v2 is strict and consumption is token fenced", async () => {
+  const jobsRoot = await root();
+  const id = "72727272-7272-4272-8272-727272727272";
+  const reservation = await reserveAdmission(jobsRoot, 2, id, { declaredRequestBytes: 40n, storageConfig, storageOps: storageOps() });
+  const target = path.join(jobsRoot, ".primary-reservations", `${id}.json`);
+  const stored = JSON.parse(await readFile(target, "utf8"));
+  assert.deepEqual(stored, {
+    version: 2, id, tokenHash: stored.tokenHash, createdAt: stored.createdAt, expiresAt: stored.expiresAt,
+    declaredRequestBytes: "40", consumedRequestBytes: "0", remainingRequestBytes: "40", workReserveBytes: "10",
+  });
+  assert.equal(await recheckAdmission(jobsRoot, { ...reservation, token: "wrong" }, 8n, storageConfig, storageOps()), false);
+  assert.equal((JSON.parse(await readFile(target, "utf8"))).consumedRequestBytes, "0");
+  assert.equal(await recheckAdmission(jobsRoot, reservation, 8n, storageConfig, storageOps()), true);
+  assert.equal((JSON.parse(await readFile(target, "utf8"))).remainingRequestBytes, "32");
+  await writeFile(target, JSON.stringify({ ...stored, version: 99 }));
+  await assert.rejects(reserveAdmission(jobsRoot, 2, "73737373-7373-4373-8373-737373737373", { declaredRequestBytes: 1n, storageConfig, storageOps: storageOps() }), QueueStateError);
+});
+
+test("post-staging storage failure publishes a fenced terminal job and preserves bytes", async () => {
+  const jobsRoot = await root();
+  const id = "74747474-7474-4474-8474-747474747474";
+  const reservation = await reserveAdmission(jobsRoot, 2, id, { declaredRequestBytes: 40n, storageConfig, storageOps: storageOps() });
+  await mkdir(path.join(jobsRoot, id, "input"), { recursive: true });
+  await writeFile(path.join(jobsRoot, id, "input", "source.mp4"), "partial");
+  const failed = await publishFailedAdmissionJob(jobsRoot, reservation, "storage_free_space_low");
+  assert.equal(failed.status, "failed");
+  assert.equal(failed.error, "storage_free_space_low");
+  assert.equal(await readFile(path.join(jobsRoot, id, "input", "source.mp4"), "utf8"), "partial");
+  assert.equal((await persisted(jobsRoot, id)).status, "failed");
 });
 
 test("reservation renewal prevents stale cleanup during a long upload", async () => {
@@ -361,4 +421,130 @@ test("reservation renewal prevents stale cleanup during a long upload", async ()
   await writeFile(reservationPath, JSON.stringify({ ...stored, expiresAt: "2000-01-01T00:00:00.000Z" }));
   assert.equal(await renewAdmission(jobsRoot, reservation), true);
   await assert.rejects(reserveAdmission(jobsRoot, 1), QueueCapacityError);
+});
+
+test("expired deployed v1 reservations are cleaned but live v1 reservations fail closed with a bounded retry", async () => {
+  const jobsRoot = await root();
+  const directory = path.join(jobsRoot, ".primary-reservations");
+  await mkdir(directory, { recursive: true });
+  const expiredId = "75757575-7575-4575-8575-757575757575";
+  await writeFile(path.join(directory, `${expiredId}.json`), JSON.stringify({
+    version: 1, id: expiredId, tokenHash: "a".repeat(64),
+    createdAt: "2000-01-01T00:00:00.000Z", expiresAt: "2000-01-01T01:00:00.000Z",
+  }));
+  assert.ok(await reserveAdmission(jobsRoot, 2, "76767676-7676-4676-8676-767676767676"));
+
+  const liveId = "77777777-7777-4777-8777-777777777770";
+  await writeFile(path.join(directory, `${liveId}.json`), JSON.stringify({
+    version: 1, id: liveId, tokenHash: "b".repeat(64),
+    createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 60_000).toISOString(),
+  }));
+  await assert.rejects(
+    reserveAdmission(jobsRoot, 4, "78787878-7878-4878-8878-787878787878"),
+    (error) => error instanceof QueueStateError && error.code === "legacy_reservation_live"
+      && Number.isSafeInteger(error.retryAfterMs) && error.retryAfterMs >= 1 && error.retryAfterMs <= 3_600_000,
+  );
+});
+
+test("storage scans complete outside the global queue lock", async () => {
+  const jobsRoot = await root();
+  const scanStarted = Promise.withResolvers();
+  const releaseScan = Promise.withResolvers();
+  const admission = reserveAdmission(jobsRoot, 2, "79797979-7979-4979-8979-797979797979", {
+    declaredRequestBytes: 1n,
+    storageConfig,
+    storageOps: {
+      scan: async () => { scanStarted.resolve(); await releaseScan.promise; return { allocatedBytes: 0n }; },
+      available: async () => 1000n,
+    },
+  });
+  await scanStarted.promise;
+  let entered = false;
+  await withPrimaryQueueLock(jobsRoot, async () => { entered = true; });
+  assert.equal(entered, true);
+  releaseScan.resolve();
+  assert.ok(await admission);
+});
+
+test("primary and render reservations share one quota in both admission orderings", async () => {
+  for (const renderFirst of [true, false]) {
+    const jobsRoot = await root();
+    const renderId = renderFirst ? "84848484-8484-4484-8484-848484848484" : "85858585-8585-4585-8585-858585858585";
+    const primaryId = renderFirst ? "86868686-8686-4686-8686-868686868686" : "87878787-8787-4787-8787-878787878787";
+    const renderOptions = { reservationId: renderId, jobId: renderId, declaredBytes: 80n, storageConfig, storageOps: storageOps() };
+    const primaryOptions = { declaredRequestBytes: 1n, storageConfig, storageOps: storageOps() };
+    if (renderFirst) {
+      await reserveRenderStorage(jobsRoot, renderOptions);
+      await assert.rejects(reserveAdmission(jobsRoot, 2, primaryId, primaryOptions), (error) => error.code === "storage_quota_exhausted");
+    } else {
+      await reserveAdmission(jobsRoot, 2, primaryId, primaryOptions);
+      await assert.rejects(reserveRenderStorage(jobsRoot, renderOptions), (error) => error.code === "storage_quota_exhausted");
+    }
+  }
+});
+
+test("render admission includes active primary growth reserve", async () => {
+  const jobsRoot = await root();
+  const activeId = "88888888-8888-4888-8888-888888888888";
+  await seed(jobsRoot, job(activeId, "processing", { queue: { version: 1, attempts: 1 } }));
+  await assert.rejects(reserveRenderStorage(jobsRoot, {
+    reservationId: "89898989-8989-4989-8989-898989898989", jobId: activeId,
+    declaredBytes: 81n, storageConfig, storageOps: storageOps(),
+  }), (error) => error.code === "storage_quota_exhausted");
+});
+
+test("render scans and heartbeat scans complete outside the shared lock", async () => {
+  const jobsRoot = await root();
+  const scanStarted = Promise.withResolvers();
+  const releaseScan = Promise.withResolvers();
+  const reservationId = "90909090-9090-4090-8090-909090909090";
+  const admission = reserveRenderStorage(jobsRoot, {
+    reservationId, jobId: reservationId, declaredBytes: 1n, storageConfig,
+    storageOps: { scan: async () => { scanStarted.resolve(); await releaseScan.promise; return { allocatedBytes: 0n }; }, available: async () => 1000n },
+  });
+  await scanStarted.promise;
+  await withPrimaryQueueLock(jobsRoot, async () => {});
+  releaseScan.resolve();
+  const reservation = await admission;
+  const heartbeatStarted = Promise.withResolvers();
+  const releaseHeartbeat = Promise.withResolvers();
+  const checking = heartbeatRenderStorage(jobsRoot, reservationId, reservation.token, storageConfig, {
+    scan: async () => { heartbeatStarted.resolve(); await releaseHeartbeat.promise; return { allocatedBytes: 0n }; }, available: async () => 1000n,
+  });
+  await heartbeatStarted.promise;
+  await withPrimaryQueueLock(jobsRoot, async () => {});
+  releaseHeartbeat.resolve();
+  assert.equal(await checking, true);
+});
+
+test("expired reservations with staged bytes recover as visible failed jobs", async () => {
+  const jobsRoot = await root();
+  const id = "80808080-8080-4080-8080-808080808080";
+  await reserveAdmission(jobsRoot, 2, id);
+  await mkdir(path.join(jobsRoot, id, "input"), { recursive: true });
+  await writeFile(path.join(jobsRoot, id, "input", "partial.mp4"), "partial bytes");
+  const target = path.join(jobsRoot, ".primary-reservations", `${id}.json`);
+  const stored = JSON.parse(await readFile(target, "utf8"));
+  await writeFile(target, JSON.stringify({ ...stored, expiresAt: "2000-01-01T00:00:00.000Z" }));
+  await reserveAdmission(jobsRoot, 2, "81818181-8181-4181-8181-818181818181");
+  const recovered = await persisted(jobsRoot, id);
+  assert.equal(recovered.status, "failed");
+  assert.equal(recovered.error, "storage_admission_unavailable");
+  assert.equal(await readFile(path.join(jobsRoot, id, "input", "partial.mp4"), "utf8"), "partial bytes");
+});
+
+test("lost reservations leave staged bytes recoverable as a visible sanitized failure", async () => {
+  const jobsRoot = await root();
+  const id = "82828282-8282-4282-8282-828282828282";
+  await reserveAdmission(jobsRoot, 2, id);
+  await mkdir(path.join(jobsRoot, id, "input"), { recursive: true });
+  await writeFile(path.join(jobsRoot, id, "input", "partial.mp4"), "recover me");
+  await unlink(path.join(jobsRoot, ".primary-reservations", `${id}.json`));
+
+  await reserveAdmission(jobsRoot, 2, "83838383-8383-4383-8383-838383838383");
+
+  const recovered = await persisted(jobsRoot, id);
+  assert.equal(recovered.status, "failed");
+  assert.equal(recovered.error, "storage_admission_unavailable");
+  assert.doesNotMatch(JSON.stringify(recovered), /primary-reservations|\/tmp\//);
 });

@@ -40,6 +40,7 @@ COPY --from=web-builder /web/.next/standalone ./
 COPY --from=web-builder /web/.next/static ./.next/static
 COPY --from=web-builder /web/public ./public
 COPY web/scripts ./scripts
+COPY web/lib ./lib
 RUN mkdir -p /data/jobs && chown -R node:node /data
 
 USER node

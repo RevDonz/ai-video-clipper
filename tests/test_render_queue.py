@@ -19,6 +19,8 @@ from ai_clipper.render_queue import (
 )
 
 KEY = "323e4567-e89b-42d3-a456-426614174000"
+RESERVATION_ID = "423e4567-e89b-42d3-a456-426614174000"
+RESERVATION_TOKEN = "523e4567-e89b-42d3-a456-426614174000"
 
 
 def fixture(tmp_path: Path):
@@ -177,3 +179,49 @@ def test_queue_rejects_symlink_duplicate_nonfinite_and_oversize(tmp_path: Path):
     path.symlink_to(outside)
     with pytest.raises(QueueInvalid):
         get_request(job, request["render_id"])
+
+
+def test_admitted_request_durably_carries_fenced_storage_reservation(tmp_path: Path):
+    job, _analysis, manifest, source = fixture(tmp_path)
+    request = create_request(
+        job,
+        manifest.identity.candidate_id,
+        manifest_sha256(manifest),
+        KEY,
+        storage_reservation={
+            "reservation_id": RESERVATION_ID,
+            "token": RESERVATION_TOKEN,
+            "reserved_bytes": source.stat().st_size + 1024,
+        },
+    )
+
+    assert request["version"] == "render-request-v2"
+    assert request["storage_reservation_id"] == RESERVATION_ID
+    assert request["storage_reservation_token"] == RESERVATION_TOKEN
+    assert request["storage_reserved_bytes"] == source.stat().st_size + 1024
+    assert get_request(job, request["render_id"]) == request
+
+
+def test_content_addressed_snapshots_are_verified_and_reused_without_temp_copy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    job, _analysis, manifest, _source = fixture(tmp_path)
+    create_request(job, manifest.identity.candidate_id, manifest_sha256(manifest), KEY)
+    original_open = render_queue.os.open
+
+    def no_snapshot_temporary(path, flags, *args, **kwargs):
+        if Path(path).name.startswith((".source.", ".candidates.")) and Path(path).name.endswith(
+            ".tmp"
+        ):
+            pytest.fail("verified content-addressed snapshot must be reused before temp copy")
+        return original_open(path, flags, *args, **kwargs)
+
+    monkeypatch.setattr(render_queue.os, "open", no_snapshot_temporary)
+    second = create_request(
+        job,
+        manifest.identity.candidate_id,
+        manifest_sha256(manifest),
+        "623e4567-e89b-42d3-a456-426614174000",
+    )
+    assert (job / second["source_snapshot_relative"]).is_file()
+    assert (job / second["candidate_snapshot_relative"]).is_file()
