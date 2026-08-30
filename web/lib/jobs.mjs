@@ -306,19 +306,24 @@ export function safeJobFile(jobRoot, relativePath) {
 
 export function parseByteRange(header, size) {
   const match = /^bytes=(\d*)-(\d*)$/.exec(header || "");
-  if (!match || size <= 0) throw new Error("Invalid byte range");
+  if (!match || !Number.isSafeInteger(size) || size <= 0) throw new Error("Invalid byte range");
+  const integer = (raw) => {
+    const parsed = Number(raw);
+    if (!Number.isSafeInteger(parsed)) throw new Error("Invalid byte range");
+    return parsed;
+  };
   let start;
   let end;
   if (match[1] === "") {
-    const suffix = Number(match[2]);
-    if (!Number.isInteger(suffix) || suffix <= 0) throw new Error("Invalid byte range");
+    const suffix = integer(match[2]);
+    if (suffix <= 0) throw new Error("Invalid byte range");
     start = Math.max(size - suffix, 0);
     end = size - 1;
   } else {
-    start = Number(match[1]);
-    end = match[2] === "" ? size - 1 : Math.min(Number(match[2]), size - 1);
+    start = integer(match[1]);
+    end = match[2] === "" ? size - 1 : Math.min(integer(match[2]), size - 1);
   }
-  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || start >= size || end < start) {
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || start >= size || end < start) {
     throw new Error("Invalid byte range");
   }
   return { start, end };

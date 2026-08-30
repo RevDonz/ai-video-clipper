@@ -143,6 +143,12 @@ test("job file paths cannot escape their job directory", () => {
   assert.throws(() => safeJobFile(root, "../../etc/passwd"), /unsafe/i);
 });
 
+test("byte ranges reject unsafe integer overflow instead of rounding", () => {
+  assert.throws(() => parseByteRange("bytes=9007199254740992-9007199254740993", Number.MAX_SAFE_INTEGER), /invalid byte range/i);
+  assert.throws(() => parseByteRange("bytes=0-9007199254740992", 100), /invalid byte range/i);
+  assert.throws(() => parseByteRange("bytes=-9007199254740992", 100), /invalid byte range/i);
+});
+
 test("project history is sorted newest first without dropping old jobs", () => {
   const jobs = [
     { id: "old", createdAt: "2026-01-01T00:00:00.000Z" },
