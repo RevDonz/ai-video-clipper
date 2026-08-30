@@ -21,6 +21,9 @@ from ai_clipper.render_worker import run_forever, run_one
 
 
 def test_one_shot_worker_claims_renders_and_completes(tmp_path: Path):
+    legacy = tmp_path / "000-legacy-v1"
+    legacy.mkdir()
+    (legacy / "job.json").write_text('{"status":"completed"}')
     job, _analysis, manifest, _source = fixture(tmp_path)
     request = create_request(job, manifest.identity.candidate_id, manifest_sha256(manifest), KEY)
     calls = []

@@ -159,6 +159,14 @@ def run_one(
     """Claim and finish at most one request across all jobs."""
     root = Path(jobs_root).absolute()
     for job in _job_directories(root):
+        analysis = job / "analysis"
+        try:
+            analysis_info = analysis.lstat()
+        except FileNotFoundError:
+            # Legacy V1 jobs predate editor/render analysis artifacts.
+            continue
+        if stat.S_ISLNK(analysis_info.st_mode) or not stat.S_ISDIR(analysis_info.st_mode):
+            continue
         try:
             request = claim_next(job, lease_seconds=lease_seconds)
         except QueueError:
