@@ -92,7 +92,8 @@ uv run pytest
 uv run ruff check .
 ```
 
-Current verified result: **41 tests passed; Ruff passed**.
+Current verified Python result: **58 tests passed**. Targeted Ruff checks for the
+new Selection V2 domain models pass.
 
 ## What is real today
 
@@ -109,6 +110,18 @@ Current verified result: **41 tests passed; Ruff passed**.
 - Machine-readable manifest
 - Fail-closed manifest states (`processing`, `completed`, or `failed`)
 - Runnable CLI
+- Authenticated Next.js dashboard, public landing page, and persistent project history
+- YouTube and direct upload ingestion through the web worker
+- Interactive stage-based worker progress
+
+## Next phase: Selection V2 and customized editor
+
+- Evidence and design findings:
+  `docs/research/TIKTOK_CLIPPER_REFERENCE_ANALYSIS.md`
+- Task-by-task implementation plan:
+  `docs/plans/2026-08-28-clip-selection-v2-custom-editor.md`
+- Selection V2 domain models are being introduced behind the existing stable V1
+  pipeline; they are not active in production yet.
 
 ## Important limitations
 
@@ -116,8 +129,10 @@ Current verified result: **41 tests passed; Ruff passed**.
 - Face tracking follows the most prominent detected face; it does not yet use audio
   diarization to prove which visible person is actively speaking.
 - Faster-whisper segment timestamps are used; word-level karaoke timing is not implemented.
-- The pipeline handles local files only.
-- There is no web dashboard, queue, database, billing, storage service, or editor yet.
+- The web worker is single-instance and does not yet have a durable queue, database,
+  billing, quota/retention policy, or restart recovery for interrupted jobs.
+- There is no user-facing correction editor yet; the customized editor is planned in
+  the Selection V2 roadmap.
 - “Potential score” is a ranking heuristic and must never be marketed as a guarantee of virality.
 
 See `spikes/001-transcribe-highlight-render/README.md` for the evidence and verdict.
