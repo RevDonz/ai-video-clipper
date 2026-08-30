@@ -11,6 +11,7 @@ import {
   currentCaptionCue,
   isActiveRenderState,
   loadEditorWorkspace,
+  normalizeEditorEtag,
   renderPollDelay,
   renderStatusMatchesRevision,
   shouldWarnUnsaved,
@@ -164,7 +165,7 @@ function EditorWorkspace({ id, candidateId, loaded }) {
         setSaveState({ status: failure.kind, message: failure.message });
         return;
       }
-      const nextEtag = response.headers.get("etag");
+      const nextEtag = normalizeEditorEtag(response.headers.get("etag"));
       const savedValidation = validateSavedEditorResponse(payload, nextEtag, attempt.manifest);
       if (!savedValidation.valid) {
         queued.current = false;

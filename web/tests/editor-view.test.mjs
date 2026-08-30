@@ -15,6 +15,7 @@ import {
   validatePublicRenderStatus,
   loadEditorWorkspace,
   loadEditorView,
+  normalizeEditorEtag,
   shouldWarnUnsaved,
   validateEditorDocument,
   validateSavedEditorResponse,
@@ -191,6 +192,22 @@ test("editor loader returns candidate, cues, manifest and quoted ETag", async ()
   assert.equal(result.type, "loaded");
   assert.equal(result.candidate.id, CANDIDATE_ID);
   assert.equal(result.manifest.revision, 1);
+  assert.equal(result.etag, ETAG);
+});
+
+test("editor loader normalizes a proxy-weakened canonical ETag", async () => {
+  assert.equal(normalizeEditorEtag(`W/${ETAG}`), ETAG);
+  assert.equal(normalizeEditorEtag(ETAG), ETAG);
+  assert.equal(normalizeEditorEtag(`W/"${"A".repeat(64)}"`), null);
+  const data = manifest();
+  const fetchImpl = async (url) => {
+    if (url.endsWith("/candidates")) return Response.json({ available: true, selectionVersion: "selection-v2.0", candidates: [{ id: CANDIDATE_ID, start: 10, end: 20, profile: "standard", text: "Candidate" }] });
+    if (url.endsWith("/caption-cues")) return Response.json({ candidateId: CANDIDATE_ID, candidateArtifactSha256: "c".repeat(64), selectionVersion: "selection-v2.0", cues: data.captions });
+    if (url.endsWith("/edit")) return new Response(JSON.stringify(data), { headers: { ETag: `W/${ETAG}`, "Content-Type": "application/json" } });
+    return Response.json({ job: { id: "job" } });
+  };
+  const result = await loadEditorWorkspace("job", CANDIDATE_ID, { fetchImpl });
+  assert.equal(result.type, "loaded");
   assert.equal(result.etag, ETAG);
 });
 

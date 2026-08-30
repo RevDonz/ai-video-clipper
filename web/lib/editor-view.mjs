@@ -1,6 +1,7 @@
 const CONTROL_OR_SURROGATE = /[\p{Cc}\p{Cs}]/u;
 const COLOR = /^#[0-9A-F]{6}$/;
 const ETAG = /^"([0-9a-f]{64})"$/;
+const TRANSPORT_ETAG = /^(?:W\/)?"([0-9a-f]{64})"$/;
 const SHA256 = /^[0-9a-f]{64}$/;
 const CANDIDATE_ID = /^cand_[0-9a-f]{64}$/;
 const CUE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
@@ -8,6 +9,11 @@ const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 const FONTS = new Set(["Inter", "Noto Sans", "DejaVu Sans", "sans-serif"]);
 const PRESETS = new Set(["clean", "bold-keyword", "karaoke", "podcast", "minimal"]);
 const POSITIONS = new Set(["top", "center", "bottom"]);
+
+export function normalizeEditorEtag(value) {
+  const match = TRANSPORT_ETAG.exec(value || "");
+  return match ? `"${match[1]}"` : null;
+}
 
 function scalarText(value, maximum, allowEmpty = false) {
   return typeof value === "string" && (allowEmpty || value.length > 0)
@@ -292,8 +298,8 @@ export async function loadEditorWorkspace(id, candidateId, { fetchImpl = fetch, 
   if (failedIndex >= 0) throw new EditorLoadError(payloads[failedIndex]?.error || "Data editor tidak dapat dimuat.");
   const candidate = payloads[1]?.candidates?.find((item) => item?.id === candidateId);
   if (!candidate) throw new EditorLoadError("Kandidat tidak ditemukan dalam versi pilihan saat ini.", "not-found");
-  const etag = responses[3].headers.get("etag");
-  if (!ETAG.test(etag || "")) throw new EditorLoadError("Versi dokumen edit tidak valid.");
+  const etag = normalizeEditorEtag(responses[3].headers.get("etag"));
+  if (!etag) throw new EditorLoadError("Versi dokumen edit tidak valid.");
   const manifestValidation = validateEditorDocument(payloads[3]);
   if (!manifestValidation.valid) throw new EditorLoadError("Dokumen edit dari server tidak mengikuti kontrak kanonis.", "invalid-document");
   const identity = payloads[3].identity;
