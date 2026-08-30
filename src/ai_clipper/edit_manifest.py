@@ -63,6 +63,10 @@ class EditManifestNotFound(EditManifestError):
     """No current manifest exists for the candidate."""
 
 
+class EditCandidateNotFound(EditManifestNotFound, EditManifestInvalid):
+    """The candidate artifact is valid but does not contain this candidate."""
+
+
 class EditManifestConflict(EditManifestError):
     """The optimistic revision precondition does not match current state."""
 
@@ -610,7 +614,14 @@ def _candidate_context(path: Path, candidate_id: str) -> tuple[CandidatesArtifac
     try:
         raw = _read_regular(path, MAX_ARTIFACT_BYTES)
         artifact = read_candidates_artifact(path)
-        candidate = next(item for item in artifact.candidates if item.candidate_id == candidate_id)
+        try:
+            candidate = next(
+                item for item in artifact.candidates if item.candidate_id == candidate_id
+            )
+        except StopIteration:
+            raise EditCandidateNotFound() from None
+    except EditCandidateNotFound:
+        raise
     except EditManifestInvalid:
         raise
     except Exception as error:
@@ -820,6 +831,76 @@ def _archive_current(edits_dir: Path, manifest: ClipEditManifest, digest: str) -
             pass
 
 
+@contextmanager
+def _edit_transaction(analysis: Path, candidate_id: str):
+    """Hold candidate publication and manifest locks for a larger transaction."""
+    edits = analysis / "edits"
+    _ensure_directory(edits)
+    with candidate_artifact_lock(analysis, exclusive=False), _edit_lock(edits, candidate_id):
+        yield edits
+
+
+def _read_edit_manifest_locked(analysis: Path, edits: Path, candidate_id: str) -> ClipEditManifest:
+    manifest = _manifest_from_canonical_storage(
+        _read_regular(_current_path(edits, candidate_id), MAX_EDIT_MANIFEST_BYTES, missing=True)
+    )
+    if manifest.identity.candidate_id != candidate_id:
+        raise EditManifestInvalid("candidate path does not match manifest identity")
+    _verify_binding(analysis, manifest)
+    return manifest
+
+
+def _write_edit_manifest_locked(
+    analysis: Path,
+    edits: Path,
+    manifest: ClipEditManifest,
+    *,
+    expected_revision_sha256: str | None,
+) -> str:
+    """Write while the caller holds ``_edit_transaction`` locks."""
+    target = _current_path(edits, manifest.identity.candidate_id)
+    _verify_binding(analysis, manifest)
+    try:
+        current_raw = _read_regular(target, MAX_EDIT_MANIFEST_BYTES, missing=True)
+    except EditManifestNotFound:
+        if expected_revision_sha256 is not None or manifest.revision != 1:
+            raise EditManifestConflict("manifest has no current revision") from None
+    else:
+        current = _manifest_from_canonical_storage(current_raw)
+        _verify_binding(analysis, current)
+        current_digest = manifest_sha256(current)
+        if expected_revision_sha256 != current_digest:
+            raise EditManifestConflict("current revision digest changed")
+        if manifest.identity != current.identity or manifest.timeline != current.timeline:
+            raise EditManifestInvalid("revision identity and timeline are immutable")
+        if manifest.revision != current.revision + 1:
+            raise EditManifestConflict("revision must increment exactly once")
+        if manifest.parent_revision_sha256 != current_digest:
+            raise EditManifestConflict("parent revision digest does not match current")
+        if manifest.audit.created_at != current.audit.created_at:
+            raise EditManifestInvalid("created_at is immutable")
+        if manifest.audit.updated_at <= current.audit.updated_at:
+            raise EditManifestInvalid("updated_at must increase")
+        current_bindings = tuple(
+            (cue.cue_id, cue.index, cue.start, cue.end, cue.original_text_sha256)
+            for cue in current.captions
+        )
+        next_bindings = tuple(
+            (cue.cue_id, cue.index, cue.start, cue.end, cue.original_text_sha256)
+            for cue in manifest.captions
+        )
+        if next_bindings != current_bindings:
+            raise EditManifestInvalid("caption source bindings are immutable")
+        _archive_current(edits, current, current_digest)
+    raw = canonical_manifest_bytes(manifest)
+    _atomic_write(edits, target, raw)
+    verified = _manifest_from_canonical_storage(_read_regular(target, MAX_EDIT_MANIFEST_BYTES))
+    if canonical_manifest_bytes(verified) != raw:
+        raise EditManifestInvalid("manifest readback verification failed")
+    _verify_binding(analysis, verified)
+    return manifest_sha256(verified)
+
+
 def write_edit_manifest(
     analysis_dir: str | Path,
     manifest: ClipEditManifest,
@@ -838,53 +919,13 @@ def write_edit_manifest(
         _digest(expected_revision_sha256, "expected_revision_sha256")
     analysis = Path(analysis_dir)
     _validate_analysis_dir(analysis)
-    edits = analysis / "edits"
-    _ensure_directory(edits)
-    target = _current_path(edits, manifest.identity.candidate_id)
-    with (
-        candidate_artifact_lock(analysis, exclusive=False),
-        _edit_lock(edits, manifest.identity.candidate_id),
-    ):
-        _verify_binding(analysis, manifest)
-        try:
-            current_raw = _read_regular(target, MAX_EDIT_MANIFEST_BYTES, missing=True)
-        except EditManifestNotFound:
-            if expected_revision_sha256 is not None or manifest.revision != 1:
-                raise EditManifestConflict("manifest has no current revision") from None
-        else:
-            current = _manifest_from_canonical_storage(current_raw)
-            _verify_binding(analysis, current)
-            current_digest = manifest_sha256(current)
-            if expected_revision_sha256 != current_digest:
-                raise EditManifestConflict("current revision digest changed")
-            if manifest.identity != current.identity or manifest.timeline != current.timeline:
-                raise EditManifestInvalid("revision identity and timeline are immutable")
-            if manifest.revision != current.revision + 1:
-                raise EditManifestConflict("revision must increment exactly once")
-            if manifest.parent_revision_sha256 != current_digest:
-                raise EditManifestConflict("parent revision digest does not match current")
-            if manifest.audit.created_at != current.audit.created_at:
-                raise EditManifestInvalid("created_at is immutable")
-            if manifest.audit.updated_at <= current.audit.updated_at:
-                raise EditManifestInvalid("updated_at must increase")
-            current_bindings = tuple(
-                (cue.cue_id, cue.index, cue.start, cue.end, cue.original_text_sha256)
-                for cue in current.captions
-            )
-            next_bindings = tuple(
-                (cue.cue_id, cue.index, cue.start, cue.end, cue.original_text_sha256)
-                for cue in manifest.captions
-            )
-            if next_bindings != current_bindings:
-                raise EditManifestInvalid("caption source bindings are immutable")
-            _archive_current(edits, current, current_digest)
-        raw = canonical_manifest_bytes(manifest)
-        _atomic_write(edits, target, raw)
-        verified = _manifest_from_canonical_storage(_read_regular(target, MAX_EDIT_MANIFEST_BYTES))
-        if canonical_manifest_bytes(verified) != raw:
-            raise EditManifestInvalid("manifest readback verification failed")
-        _verify_binding(analysis, verified)
-        return manifest_sha256(verified)
+    with _edit_transaction(analysis, manifest.identity.candidate_id) as edits:
+        return _write_edit_manifest_locked(
+            analysis,
+            edits,
+            manifest,
+            expected_revision_sha256=expected_revision_sha256,
+        )
 
 
 def read_edit_manifest(analysis_dir: str | Path, candidate_id: str) -> ClipEditManifest:
@@ -893,13 +934,6 @@ def read_edit_manifest(analysis_dir: str | Path, candidate_id: str) -> ClipEditM
         raise EditManifestInvalid("candidate ID is invalid")
     analysis = Path(analysis_dir)
     _validate_analysis_dir(analysis)
-    edits = analysis / "edits"
-    _ensure_directory(edits)
-    with candidate_artifact_lock(analysis, exclusive=False), _edit_lock(edits, candidate_id):
-        manifest = _manifest_from_canonical_storage(
-            _read_regular(_current_path(edits, candidate_id), MAX_EDIT_MANIFEST_BYTES, missing=True)
-        )
-        if manifest.identity.candidate_id != candidate_id:
-            raise EditManifestInvalid("candidate path does not match manifest identity")
-        _verify_binding(analysis, manifest)
-        return manifest
+    with _edit_transaction(analysis, candidate_id) as edits:
+        manifest = _read_edit_manifest_locked(analysis, edits, candidate_id)
+    return manifest
