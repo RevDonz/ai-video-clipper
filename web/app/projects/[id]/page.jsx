@@ -196,7 +196,8 @@ function CandidateCard({ candidate, jobId, latestFeedback, feedbackEnabled, feed
         <span><small>Selesai</small>{formatDuration(candidate.end)}</span>
         <span><small>Durasi</small>{formatDuration(candidate.duration)}</span>
       </div>
-      <p className="boundaryNote">Batas kandidat tetap mengikuti segmen transkrip utuh. Kontrol edit batas arbitrer belum tersedia; preview video kandidat juga belum ditampilkan karena kontrak media/manifest edit belum tersedia.</p>
+      <p className="boundaryNote">Batas kandidat tetap mengikuti segmen transkrip utuh dan tidak dapat di-trim di editor.</p>
+      <a className="openEditorLink" href={`/projects/${encodeURIComponent(jobId)}/candidates/${encodeURIComponent(candidate.id)}/edit`}>Buka editor <span aria-hidden="true">→</span></a>
 
       {!!candidate.topicTerms?.length && <div className="topicTerms" aria-label="Istilah topik">{candidate.topicTerms.map((term) => <span key={term}>{term}</span>)}</div>}
 
