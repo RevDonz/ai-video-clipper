@@ -55,7 +55,7 @@ export default function DashboardPage() {
   const [limit, setLimit] = useState(3);
   const [minDuration, setMinDuration] = useState(20);
   const [maxDuration, setMaxDuration] = useState(60);
-  const [shadowSelection, setShadowSelection] = useState(false);
+  const [shadowSelection, setShadowSelection] = useState(true);
   const [clipProfile, setClipProfile] = useState("standard");
   const [jobs, setJobs] = useState([]);
   const [activeId, setActiveId] = useState(null);

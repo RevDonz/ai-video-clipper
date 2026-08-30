@@ -14,9 +14,17 @@ services:
       WHISPER_DEVICE: ${WHISPER_DEVICE:-cpu}
       WHISPER_LANGUAGE: ${WHISPER_LANGUAGE:-id}
       MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-524288000}
+      SELECTION_V2_ENABLED: ${SELECTION_V2_ENABLED:-true}
+      PRIMARY_MAX_ACTIVE_JOBS: ${PRIMARY_MAX_ACTIVE_JOBS:-4}
+      PRIMARY_WORKER_CONCURRENCY: ${PRIMARY_WORKER_CONCURRENCY:-1}
+      PRIMARY_MAX_ATTEMPTS: ${PRIMARY_MAX_ATTEMPTS:-3}
+      PRIMARY_LEASE_MS: ${PRIMARY_LEASE_MS:-60000}
       APP_USERNAME: ${APP_USERNAME:?APP_USERNAME is required}
       APP_PASSWORD: ${APP_PASSWORD:?APP_PASSWORD is required}
       APP_SESSION_SECRET: ${APP_SESSION_SECRET:?APP_SESSION_SECRET is required}
+      AUTH_RATE_LIMIT_ATTEMPTS: ${AUTH_RATE_LIMIT_ATTEMPTS:-8}
+      AUTH_RATE_LIMIT_WINDOW_MS: ${AUTH_RATE_LIMIT_WINDOW_MS:-900000}
+      AUTH_TRUSTED_CLIENT_IP_HEADER: ${AUTH_TRUSTED_CLIENT_IP_HEADER:-}
     volumes:
       - clipper_data:/data
     init: true
@@ -24,6 +32,40 @@ services:
     cpus: 6
     pids_limit: 512
     stop_grace_period: 30s
+
+  primary-worker:
+    image: ai-video-clipper:latest
+    container_name: ai-video-clipper-primary-worker
+    restart: unless-stopped
+    command:
+      - node
+      - scripts/primary-worker.mjs
+    environment:
+      JOBS_ROOT: /data/jobs
+      WHISPER_MODEL: ${WHISPER_MODEL:-small}
+      WHISPER_DEVICE: ${WHISPER_DEVICE:-cpu}
+      WHISPER_LANGUAGE: ${WHISPER_LANGUAGE:-id}
+      PRIMARY_MAX_ACTIVE_JOBS: ${PRIMARY_MAX_ACTIVE_JOBS:-4}
+      PRIMARY_WORKER_CONCURRENCY: ${PRIMARY_WORKER_CONCURRENCY:-1}
+      PRIMARY_MAX_ATTEMPTS: ${PRIMARY_MAX_ATTEMPTS:-3}
+      PRIMARY_LEASE_MS: ${PRIMARY_LEASE_MS:-60000}
+      PRIMARY_LEGACY_QUIESCENCE_MS: ${PRIMARY_LEGACY_QUIESCENCE_MS:-300000}
+      PRIMARY_WORKER_POLL_MS: ${PRIMARY_WORKER_POLL_MS:-2000}
+      PRIMARY_WORKER_HEALTH_PATH: /tmp/primary-worker-health.json
+      PRIMARY_WORKER_HEALTH_MAX_AGE_MS: ${PRIMARY_WORKER_HEALTH_MAX_AGE_MS:-15000}
+    volumes:
+      - clipper_data:/data
+    init: true
+    mem_limit: 10g
+    cpus: 6
+    pids_limit: 512
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "node", "scripts/check-primary-worker-health.mjs"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
   render-worker:
     image: ai-video-clipper:latest

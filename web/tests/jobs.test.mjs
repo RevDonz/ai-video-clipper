@@ -6,7 +6,7 @@ import test from "node:test";
 
 import { POST as login } from "../app/api/auth/login/route.js";
 import { POST as logout } from "../app/api/auth/logout/route.js";
-import { parseJobFormOptions } from "../app/api/jobs/route.js";
+import { parseJobFormOptions, selectionV2Enabled } from "../app/api/jobs/route.js";
 import { proxy } from "../proxy.js";
 import {
   authenticateCredentials,
@@ -61,6 +61,10 @@ test("V2 shadow options are strict, bounded, and default safely", () => {
     { selectionMode: "v2-shadow", mediaTimeout: 301 },
     { selectionMode: "v2-shadow", mediaTimeout: true },
   ]) assert.throws(() => parseJobOptions(input));
+  assert.equal(selectionV2Enabled({}), true);
+  assert.equal(selectionV2Enabled({ SELECTION_V2_ENABLED: "true" }), true);
+  assert.equal(selectionV2Enabled({ SELECTION_V2_ENABLED: "false" }), false);
+  assert.throws(() => selectionV2Enabled({ SELECTION_V2_ENABLED: "yes" }));
 });
 
 test("public old jobs advertise V1 without leaking sourcePath", () => {
@@ -257,6 +261,7 @@ test("public landing and protected dashboard use separate routes", async () => {
   assert.match(dashboard, /aria-live="polite"/);
   assert.match(dashboard, /Experimental Selection V2 shadow/);
   assert.match(dashboard, /V1 tetap merender/);
+  assert.match(dashboard, /const \[shadowSelection, setShadowSelection\] = useState\(true\)/);
   assert.match(dashboard, /data\.set\("selectionMode", "v2-shadow"\)/);
   assert.match(proxySource, /pathname === "\/"/);
 });
@@ -280,47 +285,51 @@ test("auth redirects stay on the public origin behind a reverse proxy", async ()
   process.env.APP_PASSWORD = "secret-value";
   process.env.APP_SESSION_SECRET = "a-long-random-session-secret-value";
   try {
-    const validForm = new FormData();
-    validForm.set("username", "admin");
-    validForm.set("password", "secret-value");
-    validForm.set("next", "/jobs?filter=done");
-    const valid = await login(new Request("http://0.0.0.0:3000/api/auth/login", {
-      method: "POST",
-      body: validForm,
-    }));
+    const loginRequest = (values) => {
+      const body = new URLSearchParams(values);
+      return new Request("http://0.0.0.0:3000/api/auth/login", {
+        method: "POST",
+        headers: {
+          Origin: "http://0.0.0.0:3000",
+          Host: "0.0.0.0:3000",
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Content-Length": String(Buffer.byteLength(body.toString())),
+        },
+        body,
+      });
+    };
+    const valid = await login(loginRequest({ username: "admin", password: "secret-value", next: "/jobs?filter=done" }));
     assert.equal(valid.status, 303);
     assert.equal(valid.headers.get("location"), "/jobs?filter=done");
 
-    const defaultForm = new FormData();
-    defaultForm.set("username", "admin");
-    defaultForm.set("password", "secret-value");
-    const defaultLogin = await login(new Request("http://0.0.0.0:3000/api/auth/login", {
-      method: "POST",
-      body: defaultForm,
-    }));
+    const defaultLogin = await login(loginRequest({ username: "admin", password: "secret-value" }));
     assert.equal(defaultLogin.headers.get("location"), "/dashboard");
 
-    const maliciousForm = new FormData();
-    maliciousForm.set("username", "admin");
-    maliciousForm.set("password", "secret-value");
-    maliciousForm.set("next", "/\\evil.example");
-    const malicious = await login(new Request("http://0.0.0.0:3000/api/auth/login", {
-      method: "POST",
-      body: maliciousForm,
-    }));
+    const malicious = await login(loginRequest({ username: "admin", password: "secret-value", next: "/\\evil.example" }));
     assert.equal(malicious.headers.get("location"), "/dashboard");
 
-    const invalidForm = new FormData();
-    invalidForm.set("username", "admin");
-    invalidForm.set("password", "wrong");
-    const invalid = await login(new Request("http://0.0.0.0:3000/api/auth/login", {
-      method: "POST",
-      body: invalidForm,
-    }));
+    const invalid = await login(loginRequest({ username: "admin", password: "wrong" }));
     assert.equal(invalid.headers.get("location"), "/login?error=1");
+    let throttled;
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      throttled = await login(loginRequest({ username: "attacker", password: "wrong" }));
+    }
+    assert.equal(throttled.status, 429);
+    assert.match(throttled.headers.get("retry-after"), /^\d+$/);
+    const validAfterAttack = await login(loginRequest({ username: "admin", password: "secret-value" }));
+    assert.equal(validAfterAttack.status, 303);
+    assert.doesNotMatch(`${await throttled.text()} ${JSON.stringify(Object.fromEntries(throttled.headers))}`, /secret-value|wrong/);
 
-    const loggedOut = await logout();
+    const crossSite = await login(new Request("http://0.0.0.0:3000/api/auth/login", {
+      method: "POST", headers: { Origin: "https://evil.example", Host: "0.0.0.0:3000", "Content-Type": "application/x-www-form-urlencoded" }, body: "username=admin",
+    }));
+    assert.equal(crossSite.status, 403);
+
+    const loggedOut = await logout(new Request("http://0.0.0.0:3000/api/auth/logout", {
+      method: "POST", headers: { Origin: "http://0.0.0.0:3000", Host: "0.0.0.0:3000" },
+    }));
     assert.equal(loggedOut.headers.get("location"), "/login");
+    assert.equal((await logout(new Request("http://0.0.0.0:3000/api/auth/logout", { method: "POST", headers: { Origin: "https://evil.example", Host: "0.0.0.0:3000" } }))).status, 403);
   } finally {
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) delete process.env[key];

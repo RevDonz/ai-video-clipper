@@ -4,7 +4,8 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { buildClipperInvocation, main, manifestJobPatch, nextWorkerProgress } from "../scripts/run-job.mjs";
+import { buildClipperInvocation, main, manifestJobPatch, nextWorkerProgress, runFencedProcess } from "../scripts/run-job.mjs";
+import { LeaseLostError, claimNextJob } from "../lib/primary-job-queue.mjs";
 
 const baseJob = { progress: 20, options: { renderMode: "fit-blur", limit: 3, minDuration: 20, maxDuration: 60 } };
 const v1Args = [
@@ -124,6 +125,31 @@ test("malformed or oversized selection_v2 summaries are omitted without leaking 
   }
 });
 
+test("run-job fencing rejects a stale lease before starting pipeline work", async () => {
+  const id = "abcdefab-cdef-4abc-8def-abcdefabcdef";
+  const root = await mkdtemp(path.join(os.tmpdir(), "clipper-worker-fence-"));
+  const jobRoot = path.join(root, id);
+  await mkdir(path.join(jobRoot, "input"), { recursive: true });
+  await writeFile(path.join(jobRoot, "input", "source.mp4"), "video");
+  await writeFile(path.join(jobRoot, "job.json"), JSON.stringify({
+    id, status: "queued", progress: 0,
+    createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
+    source: { type: "upload", name: "source.mp4" }, sourcePath: path.join(jobRoot, "input", "source.mp4"),
+    options: { renderMode: "fit-blur", limit: 1, minDuration: 20, maxDuration: 60 }, clips: [],
+  }));
+  const claim = await claimNextJob({ jobsRoot: root, workerId: "worker", leaseMs: 60_000, maxAttempts: 3 });
+  assert.ok(claim);
+  await assert.rejects(
+    main(["node", "run-job.mjs", id, "stale-token"], { ...process.env, JOBS_ROOT: root, PRIMARY_LEASE_MS: "60000", AI_CLIPPER_BIN: "/must-not-run" }),
+    /lease/i,
+  );
+  const state = JSON.parse(await readFile(path.join(jobRoot, "job.json"), "utf8"));
+  assert.equal(state.status, "preparing");
+  assert.equal(state.queue.lease.token, undefined);
+  assert.match(state.queue.lease.tokenHash, /^[0-9a-f]{64}$/);
+  assert.doesNotMatch(JSON.stringify(state), new RegExp(claim.token));
+});
+
 test("worker integration ingests pipeline selection_v2 and still completes with V1 clips", async () => {
   const id = "123e4567-e89b-42d3-a456-426614174000";
   const root = await mkdtemp(path.join(os.tmpdir(), "clipper-worker-test-"));
@@ -133,6 +159,7 @@ test("worker integration ingests pipeline selection_v2 and still completes with 
   await writeFile(sourcePath, "video");
   await writeFile(path.join(jobRoot, "job.json"), JSON.stringify({
     id, status: "queued", progress: 0,
+    createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
     source: { type: "upload", name: "source.mp4" }, sourcePath,
     options: {
       renderMode: "fit-blur", limit: 1, minDuration: 20, maxDuration: 60,
@@ -141,6 +168,8 @@ test("worker integration ingests pipeline selection_v2 and still completes with 
     },
     clips: [],
   }));
+  const claim = await claimNextJob({ jobsRoot: root, workerId: "worker", leaseMs: 60_000, maxAttempts: 3, legacyQuiescenceMs: 0 });
+  assert.ok(claim);
 
   const fakeClipper = path.join(root, "fake-ai-clipper.mjs");
   await writeFile(fakeClipper, `#!/usr/bin/env node
@@ -162,7 +191,7 @@ await writeFile(path.join(output, "manifest.json"), JSON.stringify({
 `);
   await chmod(fakeClipper, 0o755);
 
-  await main(["node", "run-job.mjs", id], { ...process.env, JOBS_ROOT: root, AI_CLIPPER_BIN: fakeClipper });
+  await main(["node", "run-job.mjs", id, claim.token], { ...process.env, JOBS_ROOT: root, PRIMARY_LEASE_MS: "60000", AI_CLIPPER_BIN: fakeClipper });
   const persisted = JSON.parse(await readFile(path.join(jobRoot, "job.json"), "utf8"));
   assert.equal(persisted.status, "completed");
   assert.equal(persisted.stage, "completed");
@@ -174,4 +203,45 @@ await writeFile(path.join(output, "manifest.json"), JSON.stringify({
     artifact: "analysis/candidates.v2.json", warnings: [],
   });
   assert.doesNotMatch(JSON.stringify(persisted), /private\/source|raw-secret/);
+  assert.equal(JSON.parse(await readFile(path.join(jobRoot, "output", ".attempt-owner.json"), "utf8")).id, id);
+});
+
+test("lease loss immediately terminates the child process group", async () => {
+  const events = [];
+  const { EventEmitter } = await import("node:events");
+  const { PassThrough } = await import("node:stream");
+  const child = new EventEmitter();
+  child.pid = 43210;
+  child.stdout = new PassThrough();
+  child.stderr = new PassThrough();
+  const promise = runFencedProcess({
+    command: "/fake", args: [], env: {}, heartbeatMs: 5, progress: false,
+    spawnImpl: () => child,
+    update: async () => { throw new LeaseLostError(); },
+    killImpl: (pid, signal) => { events.push([pid, signal]); queueMicrotask(() => child.emit("close", null, signal)); },
+  });
+  await assert.rejects(promise, LeaseLostError);
+  assert.deepEqual(events[0], [-43210, "SIGTERM"]);
+});
+
+test("child settlement disarms delayed SIGKILL before PGID reuse", async () => {
+  const events = [];
+  const { EventEmitter } = await import("node:events");
+  const { PassThrough } = await import("node:stream");
+  const child = new EventEmitter();
+  child.pid = 43211;
+  child.stdout = new PassThrough();
+  child.stderr = new PassThrough();
+  const promise = runFencedProcess({
+    command: "/fake", args: [], env: {}, heartbeatMs: 5, progress: false, escalationMs: 10,
+    spawnImpl: () => child,
+    update: async () => { throw new LeaseLostError(); },
+    killImpl: (pid, signal) => {
+      events.push([pid, signal]);
+      if (signal === "SIGTERM") queueMicrotask(() => child.emit("close", null, signal));
+    },
+  });
+  await assert.rejects(promise, LeaseLostError);
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  assert.deepEqual(events, [[-43211, "SIGTERM"]]);
 });

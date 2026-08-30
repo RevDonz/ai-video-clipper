@@ -61,8 +61,8 @@ function body(overrides = {}) {
   };
 }
 
-function request(root, method = "GET", id = JOB_ID, value = undefined, authenticated = true) {
-  const headers = {};
+function request(root, method = "GET", id = JOB_ID, value = undefined, authenticated = true, origin = "http://local") {
+  const headers = { Origin: origin, Host: "local" };
   if (authenticated) {
     headers.Cookie = `potongin_session=${createSessionToken(AUTH_ENV, 2_000_000_000)}`;
   }
@@ -72,13 +72,13 @@ function request(root, method = "GET", id = JOB_ID, value = undefined, authentic
   });
 }
 
-async function invoke(root, method, { id = JOB_ID, value, authenticated = true } = {}) {
+async function invoke(root, method, { id = JOB_ID, value, authenticated = true, origin = "http://local" } = {}) {
   const previous = {};
   for (const name of ["JOBS_ROOT", "PYTHON_BIN", ...Object.keys(AUTH_ENV)]) previous[name] = process.env[name];
   Object.assign(process.env, AUTH_ENV, { JOBS_ROOT: root, PYTHON_BIN: process.env.PYTHON_BIN || "python" });
   try {
     const handler = method === "GET" ? GET : PUT;
-    return await handler(request(root, method, id, value, authenticated), { params: Promise.resolve({ id }) });
+    return await handler(request(root, method, id, value, authenticated, origin), { params: Promise.resolve({ id }) });
   } finally {
     for (const [name, old] of Object.entries(previous)) {
       if (old === undefined) delete process.env[name]; else process.env[name] = old;
@@ -233,6 +233,9 @@ test("route authentication, UUID, body bounds, missing artifact, invalid artifac
 
   const tooLarge = await invoke(root, "PUT", { value: "x".repeat(MAX_FEEDBACK_COMMAND_BYTES + 1) });
   assert.equal(tooLarge.status, 400);
+  const crossSite = await invoke(root, "PUT", { value: JSON.stringify(body()), origin: "https://evil.example" });
+  assert.equal(crossSite.status, 403);
+  assert.equal((await crossSite.json()).code, "csrf_rejected");
 
   const conflict = feedbackErrorResponse(new FeedbackConflictError());
   const timeout = feedbackErrorResponse(new FeedbackTimeoutError());

@@ -1,39 +1,194 @@
 import crypto from "node:crypto";
-import { closeSync, openSync } from "node:fs";
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { constants, createWriteStream } from "node:fs";
+import { mkdir, open, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import Busboy from "busboy";
 
 import { requireAuth } from "../../../lib/auth.mjs";
+import { sameOriginMutation } from "../../../lib/request-security.mjs";
+import { parseJobOptions, serializePublicJob, sortJobsNewest, validateYouTubeUrl } from "../../../lib/jobs.mjs";
 import {
-  atomicWriteJson,
-  parseJobOptions,
-  serializePublicJob,
-  sortJobsNewest,
-  validateYouTubeUrl,
-} from "../../../lib/jobs.mjs";
+  QueueCapacityError,
+  abortAdmissionStaging,
+  cancelAdmission,
+  parsePrimaryQueueConfig,
+  publishReservedQueuedJob,
+  reserveAdmission,
+  renewAdmission,
+} from "../../../lib/primary-job-queue.mjs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const jobsRoot = () => path.resolve(process.env.JOBS_ROOT || "/data/jobs");
+const MULTIPART_OVERHEAD_BYTES = 1024 * 1024;
+const VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".mkv", ".webm", ".m4v"]);
 
 function publicJob(job) {
-  return serializePublicJob(job);
+  const safe = serializePublicJob(job);
+  if (!safe.queue) return safe;
+  return { ...safe, queue: { version: safe.queue.version, attempts: safe.queue.attempts } };
+}
+
+async function syncDirectory(directory) {
+  const fd = await open(directory, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+  try { await fd.sync(); } finally { await fd.close(); }
+}
+
+export function validatePrimaryRequestLength(headers, env = process.env) {
+  const configured = env.MAX_UPLOAD_BYTES;
+  if (typeof configured !== "string" || !/^[1-9]\d*$/.test(configured)) throw new Error("Invalid upload configuration: MAX_UPLOAD_BYTES");
+  const maximum = Number(configured);
+  if (!Number.isSafeInteger(maximum)) throw new Error("Invalid upload configuration: MAX_UPLOAD_BYTES");
+  const rawLength = headers.get("content-length");
+  if (typeof rawLength !== "string" || !/^(?:0|[1-9]\d*)$/.test(rawLength)) throw new Error("A valid Content-Length header is required");
+  const length = Number(rawLength);
+  if (!Number.isSafeInteger(length) || length > maximum + MULTIPART_OVERHEAD_BYTES) throw new Error("Request is too large");
+  return length;
+}
+
+export function selectionV2Enabled(env = process.env) {
+  const value = env.SELECTION_V2_ENABLED;
+  if (value === undefined || value === "true") return true;
+  if (value === "false") return false;
+  throw new Error("Invalid Selection V2 configuration");
 }
 
 export function parseJobFormOptions(form) {
   return parseJobOptions({
-    renderMode: form.get("renderMode"),
-    limit: form.get("limit"),
-    minDuration: form.get("minDuration"),
-    maxDuration: form.get("maxDuration"),
-    selectionMode: form.get("selectionMode"),
-    clipProfile: form.get("clipProfile"),
-    maxCandidates: form.get("maxCandidates"),
-    maxMediaCandidates: form.get("maxMediaCandidates"),
-    mediaTimeout: form.get("mediaTimeout"),
+    renderMode: form.get("renderMode"), limit: form.get("limit"), minDuration: form.get("minDuration"), maxDuration: form.get("maxDuration"),
+    selectionMode: form.get("selectionMode"), clipProfile: form.get("clipProfile"), maxCandidates: form.get("maxCandidates"),
+    maxMediaCandidates: form.get("maxMediaCandidates"), mediaTimeout: form.get("mediaTimeout"),
   });
+}
+
+export async function streamPrimaryMultipart(request, inputRoot, maximumUploadBytes, maximumRequestBytes = maximumUploadBytes + MULTIPART_OVERHEAD_BYTES, renewal = {}) {
+  if (!request.body) throw new Error("Multipart request body is required");
+  await mkdir(inputRoot, { recursive: true });
+  const fields = new Map();
+  let upload = null;
+  let uploadDone = Promise.resolve();
+  let parserError = null;
+  const parser = Busboy({
+    headers: Object.fromEntries(request.headers.entries()),
+    limits: { files: 1, fields: 20, parts: 21, fieldNameSize: 100, fieldSize: 10_000, fileSize: maximumUploadBytes },
+  });
+  const completed = new Promise((resolve, reject) => {
+    parser.once("error", reject);
+    parser.once("partsLimit", () => reject(new Error("Multipart part limit exceeded")));
+    parser.once("filesLimit", () => reject(new Error("Only one video upload is allowed")));
+    parser.once("fieldsLimit", () => reject(new Error("Multipart field limit exceeded")));
+    parser.once("finish", async () => {
+      try { await uploadDone; if (parserError) throw parserError; resolve(); } catch (error) { reject(error); }
+    });
+  });
+  parser.on("field", (name, value, info) => {
+    if (info.valueTruncated || fields.has(name)) { parserError ||= new Error("Invalid or duplicate multipart field"); return; }
+    fields.set(name, value);
+  });
+  parser.on("file", (name, file, info) => {
+    if (name !== "video" || upload) { parserError ||= new Error("Only one video upload is allowed"); file.resume(); return; }
+    const filename = info.filename;
+    const extension = path.extname(filename || "").toLowerCase();
+    if (!filename || filename !== path.basename(filename) || filename.length > 255 || /[\0-\x1f\x7f]/.test(filename) || !VIDEO_EXTENSIONS.has(extension)) {
+      parserError ||= new Error("Format video tidak didukung"); file.resume(); return;
+    }
+    const target = path.join(inputRoot, `source${extension}`);
+    let size = 0;
+    const output = createWriteStream(target, { flags: constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, mode: 0o600 });
+    uploadDone = new Promise((resolve, reject) => {
+      file.on("data", (chunk) => { size += chunk.length; });
+      file.once("limit", () => { parserError ||= new Error("Ukuran upload melewati batas server"); output.destroy(parserError); });
+      file.once("error", reject);
+      output.once("error", reject);
+      output.once("close", async () => {
+        if (parserError) { reject(parserError); return; }
+        try {
+          const fd = await open(target, constants.O_RDONLY | constants.O_NOFOLLOW);
+          try { await fd.sync(); } finally { await fd.close(); }
+          await syncDirectory(inputRoot);
+          upload = { name: filename, size, path: target };
+          resolve();
+        } catch (error) { reject(error); }
+      });
+      file.pipe(output);
+    });
+  });
+
+  const heartbeatEnabled = typeof renewal.heartbeat === "function";
+  const heartbeatMs = renewal.heartbeatMs ?? 60_000;
+  if (heartbeatEnabled && (!Number.isSafeInteger(heartbeatMs) || heartbeatMs < 1)) throw new Error("Invalid admission heartbeat interval");
+  const reader = request.body.getReader();
+  let heartbeatStopped = false;
+  let heartbeatTimer = null;
+  let wakeHeartbeat = null;
+  let heartbeatError = null;
+  let rejectHeartbeat;
+  const heartbeatFailure = new Promise((_, reject) => { rejectHeartbeat = reject; });
+  heartbeatFailure.catch(() => {});
+  const heartbeatTask = heartbeatEnabled ? (async () => {
+    while (!heartbeatStopped) {
+      await new Promise((resolve) => {
+        wakeHeartbeat = resolve;
+        heartbeatTimer = setTimeout(resolve, heartbeatMs);
+      });
+      heartbeatTimer = null;
+      if (heartbeatStopped) break;
+      try { await renewal.heartbeat(); }
+      catch (error) {
+        heartbeatError ||= error;
+        rejectHeartbeat(error);
+        break;
+      }
+    }
+  })() : Promise.resolve();
+  const awaitHeartbeatSafe = (promise) => heartbeatEnabled ? Promise.race([promise, heartbeatFailure]) : promise;
+  const stopHeartbeat = async () => {
+    if (heartbeatStopped) return;
+    heartbeatStopped = true;
+    if (heartbeatTimer !== null) clearTimeout(heartbeatTimer);
+    wakeHeartbeat?.();
+    await heartbeatTask;
+    if (heartbeatError) throw heartbeatError;
+  };
+
+  let consumed = 0;
+  let failure = null;
+  try {
+    while (true) {
+      const { done, value } = await awaitHeartbeatSafe(reader.read());
+      if (done) break;
+      consumed += value.byteLength;
+      if (consumed > maximumRequestBytes) throw new Error("Request is too large");
+      if (!parser.write(Buffer.from(value))) await awaitHeartbeatSafe(new Promise((resolve) => parser.once("drain", resolve)));
+    }
+    parser.end();
+    await awaitHeartbeatSafe(completed);
+  } catch (error) {
+    failure = error;
+    parser.destroy(error);
+    await completed.catch(() => {});
+    await uploadDone.catch(() => {});
+  }
+  try { await stopHeartbeat(); }
+  catch (error) {
+    if (!failure) {
+      failure = error;
+      parser.destroy(error);
+      await completed.catch(() => {});
+      await uploadDone.catch(() => {});
+    }
+  }
+  try {
+    if (failure) {
+      await reader.cancel(failure).catch(() => {});
+      throw failure;
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  return { form: { get: (name) => fields.get(name) ?? null }, upload, consumedBytes: consumed };
 }
 
 export async function GET(request) {
@@ -42,13 +197,9 @@ export async function GET(request) {
   await mkdir(jobsRoot(), { recursive: true });
   const entries = await readdir(jobsRoot(), { withFileTypes: true });
   const jobs = [];
-  for (const entry of entries.filter((item) => item.isDirectory())) {
-    try {
-      const value = JSON.parse(await readFile(path.join(jobsRoot(), entry.name, "job.json"), "utf8"));
-      jobs.push(publicJob(value));
-    } catch {
-      // Ignore incomplete directories; job state is published atomically.
-    }
+  for (const entry of entries.filter((item) => item.isDirectory() && !item.name.startsWith("."))) {
+    try { jobs.push(publicJob(JSON.parse(await readFile(path.join(jobsRoot(), entry.name, "job.json"), "utf8")))); }
+    catch { /* Ignore incomplete directories; queue validation is authoritative. */ }
   }
   return Response.json({ jobs: sortJobsNewest(jobs), total: jobs.length });
 }
@@ -56,66 +207,56 @@ export async function GET(request) {
 export async function POST(request) {
   const denied = requireAuth(request);
   if (denied) return denied;
+  if (!sameOriginMutation(request)) return Response.json({ error: "Origin permintaan tidak diizinkan", code: "csrf_rejected" }, { status: 403, headers: { "Cache-Control": "no-store" } });
+  let reservation = null;
+  let jobRoot = null;
+  let createdJobRoot = false;
+  let published = false;
   try {
-    const form = await request.formData();
-    const options = parseJobFormOptions(form);
-    const youtubeUrl = String(form.get("youtubeUrl") || "").trim();
-    const upload = form.get("video");
-    const hasUpload = upload instanceof File && upload.size > 0;
-    if ((hasUpload && youtubeUrl) || (!hasUpload && !youtubeUrl)) {
-      throw new Error("Pilih tepat satu sumber: upload video atau URL YouTube");
-    }
-    if (youtubeUrl && !validateYouTubeUrl(youtubeUrl)) {
-      throw new Error("URL harus berasal dari youtube.com atau youtu.be");
-    }
-
+    const queueConfig = parsePrimaryQueueConfig(process.env);
+    validatePrimaryRequestLength(request.headers, process.env);
     const id = crypto.randomUUID();
-    const jobRoot = path.join(jobsRoot(), id);
+    reservation = await reserveAdmission(jobsRoot(), queueConfig.maxActiveJobs, id);
+
+    await mkdir(jobsRoot(), { recursive: true });
+    jobRoot = path.join(jobsRoot(), id);
+    await mkdir(jobRoot, { mode: 0o700 });
+    createdJobRoot = true;
+    await syncDirectory(jobsRoot());
     const inputRoot = path.join(jobRoot, "input");
-    await mkdir(inputRoot, { recursive: true });
-    let source;
-    let sourcePath = null;
-    if (hasUpload) {
-      const maximum = Number(process.env.MAX_UPLOAD_BYTES || 524288000);
-      if (upload.size > maximum) throw new Error("Ukuran upload melewati batas server");
-      const extension = path.extname(upload.name).toLowerCase();
-      if (![".mp4", ".mov", ".mkv", ".webm", ".m4v"].includes(extension)) {
-        throw new Error("Format video tidak didukung");
-      }
-      sourcePath = path.join(inputRoot, `source${extension}`);
-      await writeFile(sourcePath, Buffer.from(await upload.arrayBuffer()));
-      source = { type: "upload", name: upload.name, size: upload.size };
-    } else {
-      source = { type: "youtube", url: youtubeUrl };
-    }
+    await mkdir(inputRoot, { mode: 0o700 });
+    await syncDirectory(jobRoot);
 
-    const now = new Date().toISOString();
-    const job = {
-      id,
-      status: "queued",
-      progress: 0,
-      createdAt: now,
-      updatedAt: now,
-      source,
-      sourcePath,
-      options,
-      clips: [],
-    };
-    await atomicWriteJson(path.join(jobRoot, "job.json"), job);
-
-    const logPath = path.join(jobRoot, "worker.log");
-    const logFd = openSync(logPath, "a");
-    const runner = path.join(process.cwd(), "scripts", "run-job.mjs");
-    const child = spawn(process.execPath, [runner, id], {
-      detached: true,
-      stdio: ["ignore", logFd, logFd],
-      env: { ...process.env, JOBS_ROOT: jobsRoot() },
+    const maximum = Number(process.env.MAX_UPLOAD_BYTES);
+    const parsed = await streamPrimaryMultipart(request, inputRoot, maximum, maximum + MULTIPART_OVERHEAD_BYTES, {
+      heartbeat: async () => {
+        if (!await renewAdmission(jobsRoot(), reservation)) throw new Error("Primary admission reservation was lost");
+      },
     });
-    child.unref();
-    closeSync(logFd);
-
-    return Response.json({ job: publicJob(job) }, { status: 202 });
+    const options = parseJobFormOptions(parsed.form);
+    if (options.selectionMode === "v2-shadow" && !selectionV2Enabled(process.env)) throw new Error("Selection V2 dinonaktifkan oleh operator");
+    const youtubeUrl = String(parsed.form.get("youtubeUrl") || "").trim();
+    const hasUpload = Boolean(parsed.upload && parsed.upload.size > 0);
+    if ((hasUpload && youtubeUrl) || (!hasUpload && !youtubeUrl)) throw new Error("Pilih tepat satu sumber: upload video atau URL YouTube");
+    if (youtubeUrl && !validateYouTubeUrl(youtubeUrl)) throw new Error("URL harus berasal dari youtube.com atau youtu.be");
+    const source = hasUpload ? { type: "upload", name: parsed.upload.name, size: parsed.upload.size } : { type: "youtube", url: youtubeUrl };
+    const sourcePath = hasUpload ? parsed.upload.path : null;
+    const now = new Date().toISOString();
+    const job = { id, status: "queued", progress: 0, createdAt: now, updatedAt: now, source, sourcePath, options, clips: [] };
+    const queued = await publishReservedQueuedJob(jobsRoot(), job, reservation);
+    published = true;
+    return Response.json({ job: publicJob(queued) }, { status: 202 });
   } catch (error) {
-    return Response.json({ error: error.message || "Gagal membuat pekerjaan" }, { status: 400 });
+    if (reservation && !published) {
+      const recovered = await abortAdmissionStaging(jobsRoot(), reservation).catch(() => null);
+      if (recovered?.published) return Response.json({ job: publicJob(recovered.job) }, { status: 202 });
+      if (!createdJobRoot) await cancelAdmission(jobsRoot(), reservation).catch(() => {});
+    }
+    const status = error instanceof QueueCapacityError ? 429
+      : /V2 dinonaktifkan/i.test(error.message || "") ? 403
+        : /configuration/i.test(error.message || "") ? 503
+        : /Content-Length/i.test(error.message || "") ? 411
+          : /too large|melewati batas|limit exceeded/i.test(error.message || "") ? 413 : 400;
+    return Response.json({ error: error.message || "Gagal membuat pekerjaan" }, { status });
   }
 }

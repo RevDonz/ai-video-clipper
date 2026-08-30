@@ -1,4 +1,5 @@
 import { requireAuth } from "../../../../../lib/auth.mjs";
+import { sameOriginMutation } from "../../../../../lib/request-security.mjs";
 import {
   FeedbackArtifactInvalidError,
   FeedbackBackendUnavailableError,
@@ -74,6 +75,7 @@ export async function GET(request, { params }) {
 export async function PUT(request, { params }) {
   const resolved = await identify(request, params);
   if (resolved.denied) return resolved.denied;
+  if (!sameOriginMutation(request)) return response({ error: "Origin permintaan tidak diizinkan", code: "csrf_rejected" }, 403);
   try {
     const raw = await boundedBody(request);
     const result = await readCandidateFeedback(resolved.id, "put", raw);
