@@ -1,6 +1,6 @@
 export const metadata = {
-  title: "Potongin AI",
-  description: "Ubah video panjang menjadi klip vertikal siap publikasi.",
+  title: "Potongin AI — Video Panjang Jadi Konten Siap Publish",
+  description: "Temukan highlight, buat subtitle, render vertikal, dan siapkan caption dari video panjang dalam satu workflow AI self-hosted.",
 };
 
 import "./globals.css";

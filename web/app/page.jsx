@@ -1,181 +1,72 @@
-"use client";
-
-import { useEffect, useMemo, useState } from "react";
-
-const layouts = [
-  {
-    id: "fit-blur",
-    name: "Full Frame + Blur",
-    badge: "Aman",
-    description: "Video landscape tetap utuh; area portrait diisi latar blur.",
-  },
-  {
-    id: "face-track",
-    name: "Follow Speaker",
-    badge: "AI",
-    description: "Layar 9:16 penuh dengan crop yang mengikuti wajah terbesar.",
-  },
-  {
-    id: "center-crop",
-    name: "Center Crop",
-    badge: "Cepat",
-    description: "Crop tengah sederhana untuk video dengan subjek selalu di pusat.",
-  },
+const features = [
+  ["01", "Temukan momen terbaik", "Whisper membaca percakapan dan memilih bagian yang paling layak berdiri sebagai klip."],
+  ["02", "Siap format vertikal", "Render 9:16 dengan full-frame blur, center crop, atau face tracking yang mengikuti pembicara."],
+  ["03", "Caption siap publikasi", "Setiap hasil dilengkapi judul, caption, CTA, dan hashtag berdasarkan isi klip."],
 ];
 
-const statusLabel = {
-  queued: "Menunggu worker",
-  preparing: "Menyiapkan video",
-  downloading: "Mengunduh YouTube",
-  processing: "Transkripsi dan render",
-  completed: "Selesai",
-  failed: "Gagal",
-};
+const pipeline = ["Ambil video", "Transkripsi", "Pilih highlight", "Render & subtitle"];
 
-export default function Home() {
-  const [sourceType, setSourceType] = useState("youtube");
-  const [youtubeUrl, setYoutubeUrl] = useState("");
-  const [video, setVideo] = useState(null);
-  const [renderMode, setRenderMode] = useState("fit-blur");
-  const [limit, setLimit] = useState(3);
-  const [minDuration, setMinDuration] = useState(20);
-  const [maxDuration, setMaxDuration] = useState(60);
-  const [jobs, setJobs] = useState([]);
-  const [activeId, setActiveId] = useState(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [message, setMessage] = useState("");
-  const [copiedClip, setCopiedClip] = useState(null);
-
-  const activeJob = useMemo(() => jobs.find((job) => job.id === activeId), [jobs, activeId]);
-
-  async function refreshJobs() {
-    const response = await fetch("/api/jobs", { cache: "no-store" });
-    if (!response.ok) return;
-    const payload = await response.json();
-    setJobs(payload.jobs || []);
-    setActiveId((current) => current || payload.jobs?.[0]?.id || null);
-  }
-
-  useEffect(() => {
-    refreshJobs();
-  }, []);
-
-  useEffect(() => {
-    if (!activeId || ["completed", "failed"].includes(activeJob?.status)) return undefined;
-    const timer = setInterval(async () => {
-      const response = await fetch(`/api/jobs/${activeId}`, { cache: "no-store" });
-      if (!response.ok) return;
-      const payload = await response.json();
-      setJobs((current) => {
-        const exists = current.some((job) => job.id === activeId);
-        return exists
-          ? current.map((job) => (job.id === activeId ? payload.job : job))
-          : [payload.job, ...current];
-      });
-    }, 2500);
-    return () => clearInterval(timer);
-  }, [activeId, activeJob?.status]);
-
-  async function submit(event) {
-    event.preventDefault();
-    setMessage("");
-    setSubmitting(true);
-    try {
-      const data = new FormData();
-      data.set("renderMode", renderMode);
-      data.set("limit", String(limit));
-      data.set("minDuration", String(minDuration));
-      data.set("maxDuration", String(maxDuration));
-      if (sourceType === "youtube") data.set("youtubeUrl", youtubeUrl);
-      else if (video) data.set("video", video);
-      const response = await fetch("/api/jobs", { method: "POST", body: data });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Gagal membuat job");
-      setJobs((current) => [payload.job, ...current]);
-      setActiveId(payload.job.id);
-      setMessage("Job berhasil dibuat. Halaman akan memperbarui progres otomatis.");
-    } catch (error) {
-      setMessage(error.message);
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function copyCaption(clip) {
-    await navigator.clipboard.writeText(`${clip.title}\n\n${clip.description}`);
-    setCopiedClip(`${activeJob.id}-${clip.index}`);
-    setTimeout(() => setCopiedClip(null), 1800);
-  }
-
+export default function LandingPage() {
   return (
-    <main>
-      <nav className="nav shell">
-        <a className="brand" href="/"><span>P</span> Potongin AI</a>
-        <div className="navActions"><div className="navLinks"><a className="active" href="/">Buat Klip</a><a href="/projects">Riwayat</a></div><div className="navMeta"><i /> Worker lokal siap</div><form method="post" action="/api/auth/logout"><button type="submit">Keluar</button></form></div>
+    <main className="landing">
+      <nav className="landingNav landingShell">
+        <a className="landingBrand" href="/"><span>P</span> Potongin AI</a>
+        <div className="landingNavLinks"><a href="#cara-kerja">Cara kerja</a><a href="#fitur">Fitur</a><a href="#privasi">Privasi</a></div>
+        <a className="landingNavCta" href="/dashboard">Buka dashboard <span>↗</span></a>
       </nav>
 
-      <section className="hero shell" id="top">
-        <div className="eyebrow">AI VIDEO REPURPOSING · BAHASA INDONESIA</div>
-        <h1>Satu video panjang.<br /><em>Banyak klip yang layak ditonton.</em></h1>
-        <p>Masukkan URL YouTube atau unggah video. Engine lokal akan memilih momen, membuat subtitle, dan merender klip siap Shorts, Reels, atau TikTok.</p>
-        <div className="trust"><span>✓ Data tersimpan di server sendiri</span><span>✓ FFmpeg + Whisper lokal</span><span>✓ Tanpa biaya API per video</span></div>
-      </section>
+      <section className="landingHero landingShell">
+        <div className="landingHeroCopy">
+          <div className="landingBadge"><i /> AI video repurposing · Bahasa Indonesia</div>
+          <h1>Video panjang,<br /><em>siap jadi konten.</em></h1>
+          <p>Temukan highlight, tambahkan subtitle, ubah ke format vertikal, lalu dapatkan caption—semuanya dalam satu alur kerja.</p>
+          <div className="landingActions"><a className="landingPrimary" href="/dashboard">Mulai potong video <span>→</span></a><a className="landingSecondary" href="#cara-kerja">Lihat cara kerja</a></div>
+          <div className="landingTrust"><span>Whisper lokal</span><b>•</b><span>FFmpeg</span><b>•</b><span>Data di server sendiri</span></div>
+        </div>
 
-      <section className="workspace shell">
-        <form className="panel creator" onSubmit={submit}>
-          <div className="panelHead"><span>01</span><div><h2>Sumber video</h2><p>Pilih salah satu sumber untuk diproses.</p></div></div>
-          <div className="tabs">
-            <button type="button" className={sourceType === "youtube" ? "active" : ""} onClick={() => setSourceType("youtube")}>URL YouTube</button>
-            <button type="button" className={sourceType === "upload" ? "active" : ""} onClick={() => setSourceType("upload")}>Upload file</button>
-          </div>
-          {sourceType === "youtube" ? (
-            <label className="field"><span>URL video</span><input type="url" required placeholder="https://youtube.com/watch?v=..." value={youtubeUrl} onChange={(e) => setYoutubeUrl(e.target.value)} /></label>
-          ) : (
-            <label className="drop"><input type="file" required accept="video/mp4,video/quicktime,video/webm,.mkv,.m4v" onChange={(e) => setVideo(e.target.files?.[0] || null)} /><strong>{video ? video.name : "Tarik atau pilih file video"}</strong><small>MP4, MOV, MKV, WEBM · maksimal mengikuti konfigurasi server</small></label>
-          )}
-
-          <div className="divider" />
-          <div className="panelHead compact"><span>02</span><div><h2>Layout output</h2><p>Mode bisa diganti untuk setiap job.</p></div></div>
-          <div className="layoutGrid">
-            {layouts.map((layout) => (
-              <button type="button" key={layout.id} className={`layoutCard ${renderMode === layout.id ? "selected" : ""}`} onClick={() => setRenderMode(layout.id)}>
-                <div className={`phone ${layout.id}`}><b /><i /></div>
-                <div><strong>{layout.name}</strong><small>{layout.description}</small></div><mark>{layout.badge}</mark>
-              </button>
-            ))}
-          </div>
-
-          <div className="settings">
-            <label><span>Jumlah klip</span><input type="number" min="1" max="10" value={limit} onChange={(e) => setLimit(e.target.value)} /></label>
-            <label><span>Durasi minimum</span><div><input type="number" min="5" max="180" value={minDuration} onChange={(e) => setMinDuration(e.target.value)} /><b>detik</b></div></label>
-            <label><span>Durasi maksimum</span><div><input type="number" min="5" max="180" value={maxDuration} onChange={(e) => setMaxDuration(e.target.value)} /><b>detik</b></div></label>
-          </div>
-          <button className="submit" disabled={submitting}>{submitting ? "Membuat job…" : "Buat klip sekarang"}<span>→</span></button>
-          {message && <p className="message">{message}</p>}
-        </form>
-
-        <aside className="panel monitor">
-          <div className="panelHead"><span>03</span><div><h2>Progres & hasil</h2><p>Pantau worker tanpa membuka terminal.</p></div></div>
-          {activeJob ? (
-            <>
-              <div className={`jobState ${activeJob.status}`}><div><small>JOB {activeJob.id.slice(0, 8)}</small><strong>{statusLabel[activeJob.status] || activeJob.status}</strong></div><b>{activeJob.progress || 0}%</b></div>
-              <div className="progress"><i style={{ width: `${activeJob.progress || 0}%` }} /></div>
-              {activeJob.error && <div className="error">{activeJob.error}</div>}
-              <div className="results">
-                {activeJob.clips?.map((clip) => (
-                  <article className="clip" key={clip.index}>
-                    <video controls preload="metadata" src={clip.videoUrl} />
-                    <div className="clipMeta"><small>CLIP {String(clip.index).padStart(2, "0")} · {Math.round(clip.duration)} DETIK</small><h3>{clip.title}</h3><p className="socialDescription">{clip.description}</p><div className="clipActions"><a href={clip.downloadUrl}>Download MP4 ↓</a><button type="button" onClick={() => copyCaption(clip)}>{copiedClip === `${activeJob.id}-${clip.index}` ? "Tersalin ✓" : "Salin caption"}</button></div></div>
-                  </article>
-                ))}
-                {!activeJob.clips?.length && activeJob.status !== "failed" && <div className="empty"><div className="pulse" /><strong>Worker sedang bekerja</strong><p>Video panjang di CPU dapat membutuhkan beberapa menit.</p></div>}
+        <div className="productStage" aria-hidden="true">
+          <div className="stageGlow" />
+          <div className="stageWindow">
+            <div className="stageBar"><div><i /><i /><i /></div><span>potongin.ai / workspace</span><b>ONLINE</b></div>
+            <div className="stageBody">
+              <div className="stageSidebar"><strong><span>P</span></strong><i className="selected" /><i /><i /><i /><small>AI</small></div>
+              <div className="stageContent">
+                <div className="stageHeading"><div><small>PROJECT / VIDEO PODCAST</small><h3>3 klip terbaik ditemukan</h3></div><span className="stageFakeButton">Export semua</span></div>
+                <div className="stageGrid">
+                  {["Rahasia konsisten", "Kesalahan terbesar", "Mulai dari sekarang"].map((title, index) => (
+                    <article className="stageClip" key={title}>
+                      <div className={`stageVideo stageVideo${index + 1}`}><span>{index === 1 ? "JANGAN TUNGGU\nSEMPURNA" : index === 2 ? "MULAI DARI\nHAL KECIL" : "KONSISTENSI\nITU KUNCI"}</span><b>0:{index === 0 ? "42" : index === 1 ? "35" : "51"}</b></div>
+                      <small>CLIP 0{index + 1}</small><h4>{title}</h4><div><i style={{ width: `${78 + index * 7}%` }} /></div>
+                    </article>
+                  ))}
+                </div>
               </div>
-            </>
-          ) : <div className="empty"><div className="emptyIcon">▶</div><strong>Belum ada job</strong><p>Buat job pertama untuk melihat progres dan preview klip di sini.</p></div>}
-          {jobs.length > 1 && <div className="history"><div className="historyTitle"><h3>Riwayat terbaru</h3><a href="/projects">Lihat semua →</a></div>{jobs.slice(0, 8).map((job) => <button key={job.id} onClick={() => setActiveId(job.id)} className={job.id === activeId ? "active" : ""}><span>{job.source?.name || job.id.slice(0, 8)}</span><b>{statusLabel[job.status] || job.status}</b></button>)}</div>}
-        </aside>
+            </div>
+          </div>
+          <div className="stageFloat"><span>✓</span><div><small>RENDER SELESAI</small><strong>3 klip siap publish</strong></div></div>
+        </div>
       </section>
-      <footer className="shell">Potongin AI · Self-hosted video worker <span>Next.js · Whisper · FFmpeg</span></footer>
+
+      <section className="landingProof landingShell"><p>Satu workspace untuk seluruh proses repurposing</p><div><span>YOUTUBE</span><span>WHISPER</span><span>FFMPEG</span><span>SHORTS</span><span>REELS</span><span>TIKTOK</span></div></section>
+
+      <section className="landingProcess landingShell" id="cara-kerja">
+        <div className="landingSectionHead"><small>CARA KERJA</small><h2>Dari sumber ke klip,<br />tanpa pindah-pindah alat.</h2><p>Pipeline berjalan otomatis. Anda tetap memegang kendali atas sumber, layout, durasi, dan jumlah hasil.</p></div>
+        <div className="pipelineTrack">
+          {pipeline.map((item, index) => <div key={item}><b>{String(index + 1).padStart(2, "0")}</b><span>{item}</span>{index < pipeline.length - 1 && <i>→</i>}</div>)}
+        </div>
+      </section>
+
+      <section className="landingFeatures landingShell" id="fitur">
+        {features.map(([number, title, text]) => <article key={number}><small>{number}</small><div className={`featureGlyph glyph${number}`}><i /><b /></div><h3>{title}</h3><p>{text}</p></article>)}
+      </section>
+
+      <section className="privacyBand" id="privasi">
+        <div className="landingShell"><div><small>SELF-HOSTED BY DESIGN</small><h2>Konten Anda.<br />Tetap milik Anda.</h2></div><div className="privacyCopy"><p>Proses inti berjalan di server sendiri. Video, transkrip, dan hasil render tidak perlu dikirim ke API AI berbayar pihak ketiga.</p><ul><li><span>✓</span> Penyimpanan persisten</li><li><span>✓</span> Tidak ada biaya API per menit</li><li><span>✓</span> Riwayat proyek terpusat</li></ul></div></div>
+      </section>
+
+      <section className="landingFinal landingShell"><div className="finalMark">P</div><small>SIAP MENGUBAH VIDEO BERIKUTNYA?</small><h2>Lebih sedikit editing.<br /><em>Lebih banyak publish.</em></h2><a href="/dashboard">Masuk ke dashboard <span>→</span></a></section>
+
+      <footer className="landingFooter landingShell"><a className="landingBrand" href="/"><span>P</span> Potongin AI</a><p>Self-hosted AI video repurposing.</p><div><a href="/dashboard">Dashboard</a><a href="/projects">Riwayat</a></div></footer>
     </main>
   );
 }

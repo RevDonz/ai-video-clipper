@@ -90,14 +90,14 @@ export default function ProjectsPage() {
       <nav className="nav shell">
         <a className="brand" href="/"><span>P</span> Potongin AI</a>
         <div className="navActions">
-          <div className="navLinks"><a href="/">Buat Klip</a><a className="active" href="/projects">Riwayat</a></div>
+          <div className="navLinks"><a href="/dashboard">Buat Klip</a><a className="active" href="/projects">Riwayat</a></div>
           <form method="post" action="/api/auth/logout"><button type="submit">Keluar</button></form>
         </div>
       </nav>
 
       <section className="projectsHero shell">
         <div><div className="eyebrow">ARSIP VIDEO · TERSIMPAN DI SERVER</div><h1>Riwayat proyek</h1><p>Buka kembali semua proses dan hasil klip yang pernah dibuat.</p></div>
-        <a className="newProject" href="/">+ Buat proyek baru</a>
+        <a className="newProject" href="/dashboard">+ Buat proyek baru</a>
       </section>
 
       <section className="projectStats shell">

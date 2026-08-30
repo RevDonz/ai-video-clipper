@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { isAuthorized } from "./lib/auth.mjs";
 
 export function proxy(request) {
+  if (request.nextUrl.pathname === "/") return NextResponse.next();
   if (isAuthorized(request)) return NextResponse.next();
   if (request.nextUrl.pathname.startsWith("/api/")) {
     return NextResponse.json({ error: "Sesi login diperlukan" }, { status: 401 });
@@ -11,7 +12,7 @@ export function proxy(request) {
   const login = request.nextUrl.clone();
   login.pathname = "/login";
   login.search = "";
-  if (destination !== "/") login.searchParams.set("next", destination);
+  if (destination !== "/dashboard") login.searchParams.set("next", destination);
   return NextResponse.redirect(login);
 }
 

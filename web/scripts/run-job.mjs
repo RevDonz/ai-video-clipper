@@ -1,8 +1,9 @@
 import { spawn } from "node:child_process";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
+import { createInterface } from "node:readline";
 
-import { atomicWriteJson, generateSocialMetadata } from "../lib/jobs.mjs";
+import { atomicWriteJson, generateSocialMetadata, parseWorkerProgress } from "../lib/jobs.mjs";
 
 const id = process.argv[2];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -33,6 +34,65 @@ function run(command, args) {
   });
 }
 
+function runWithProgress(command, args, initialProgress) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      stdio: ["ignore", "pipe", "pipe"],
+      shell: false,
+      env: process.env,
+    });
+    let currentProgress = initialProgress;
+    let currentStage = "analyzing";
+    let updateQueue = Promise.resolve();
+    let updateError = null;
+    const publish = (event) => {
+      currentProgress = Math.max(currentProgress, event.progress);
+      currentStage = event.stage;
+      updateQueue = updateQueue.then(() => update({
+        status: "processing",
+        progress: currentProgress,
+        stage: event.stage,
+        stageDetail: event.detail,
+        activityAt: new Date().toISOString(),
+      })).catch((error) => {
+        updateError ||= error;
+      });
+    };
+    const stdout = createInterface({ input: child.stdout });
+    stdout.on("line", (line) => {
+      const event = parseWorkerProgress(line);
+      if (event) {
+        if (event.progress > currentProgress || event.stage !== currentStage) publish(event);
+      } else {
+        process.stdout.write(`${line}\n`);
+      }
+    });
+    child.stderr.on("data", (chunk) => process.stderr.write(chunk));
+    const heartbeat = setInterval(() => {
+      publish({
+        progress: currentProgress,
+        stage: currentStage,
+        detail: "Engine AI masih aktif pada tahap ini",
+      });
+    }, 15_000);
+    child.on("error", (error) => {
+      clearInterval(heartbeat);
+      reject(error);
+    });
+    child.on("close", async (code, signal) => {
+      clearInterval(heartbeat);
+      try {
+        await updateQueue;
+        if (updateError) throw updateError;
+        if (code === 0) resolve();
+        else reject(new Error(`${command} gagal (${signal || `exit ${code}`})`));
+      } catch (error) {
+        reject(error);
+      }
+    });
+  });
+}
+
 try {
   let job = await update({ status: "preparing", progress: 5, error: null });
   let sourcePath = job.sourcePath;
@@ -55,13 +115,13 @@ try {
     const sourceFile = files.find((name) => name.startsWith("source.") && !name.endsWith(".part"));
     if (!sourceFile) throw new Error("Video YouTube selesai diunduh tetapi file sumber tidak ditemukan");
     sourcePath = path.join(jobRoot, "input", sourceFile);
-    job = await update({ sourcePath, status: "processing", progress: 25 });
+    job = await update({ sourcePath, status: "processing", progress: 25, stage: "analyzing", stageDetail: "Menyiapkan engine AI" });
   } else {
-    job = await update({ status: "processing", progress: 20 });
+    job = await update({ status: "processing", progress: 20, stage: "analyzing", stageDetail: "Menyiapkan engine AI" });
   }
 
   const outputRoot = path.join(jobRoot, "output");
-  await run("ai-clipper", [
+  await runWithProgress("ai-clipper", [
     sourcePath,
     "--output-dir",
     outputRoot,
@@ -83,7 +143,7 @@ try {
     "1280",
     "--render-mode",
     job.options.renderMode,
-  ]);
+  ], job.progress);
 
   const manifest = JSON.parse(await readFile(path.join(outputRoot, "manifest.json"), "utf8"));
   if (manifest.status !== "completed" || !manifest.clips?.length) {
@@ -104,8 +164,14 @@ try {
       ...generateSocialMetadata(clip.text),
     };
   });
-  await update({ status: "completed", progress: 100, clips, completedAt: new Date().toISOString() });
+  await update({ status: "completed", progress: 100, stage: "completed", stageDetail: "Semua klip siap digunakan", clips, completedAt: new Date().toISOString() });
 } catch (error) {
-  await update({ status: "failed", progress: 100, error: error.message || "Worker gagal" });
+  await update({
+    status: "failed",
+    progress: 100,
+    stage: "failed",
+    stageDetail: "Proses berhenti karena terjadi kesalahan",
+    error: error.message || "Worker gagal",
+  });
   process.exitCode = 1;
 }

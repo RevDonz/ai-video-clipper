@@ -2,6 +2,19 @@ import { mkdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 export const RENDER_MODES = ["face-track", "fit-blur", "center-crop"];
+const WORKER_PROGRESS_PREFIX = "POTONGIN_PROGRESS ";
+
+export function parseWorkerProgress(line) {
+  if (typeof line !== "string" || !line.startsWith(WORKER_PROGRESS_PREFIX)) return null;
+  try {
+    const event = JSON.parse(line.slice(WORKER_PROGRESS_PREFIX.length));
+    if (!Number.isInteger(event.progress) || event.progress < 0 || event.progress > 99) return null;
+    if (typeof event.stage !== "string" || typeof event.detail !== "string") return null;
+    return { progress: event.progress, stage: event.stage, detail: event.detail };
+  } catch {
+    return null;
+  }
+}
 
 const INDONESIAN_STOPWORDS = new Set([
   "agar", "akan", "aku", "anda", "atau", "bagi", "bahwa", "banyak", "bisa", "buat",

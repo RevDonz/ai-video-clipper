@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import asdict
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any
 
 from .highlight import select_highlights
@@ -34,6 +35,7 @@ def run_pipeline(
     width: int = 1080,
     height: int = 1920,
     render_mode: str = "center-crop",
+    progress: Callable[[str, int, str], None] | None = None,
 ) -> Path:
     """Transcribe, select highlights, render clips, and publish a status manifest."""
     source = Path(source).resolve()
@@ -43,12 +45,28 @@ def run_pipeline(
     manifest_base: dict[str, object] = {"source": str(source), "render_mode": render_mode}
     _publish_manifest(manifest_path, {**manifest_base, "status": "processing"})
 
+    def report(stage: str, percent: int, detail: str) -> None:
+        if progress is not None:
+            progress(stage, percent, detail)
+
     try:
+        report("analyzing", 26, "Memeriksa video dan memuat model AI")
         validate_render_mode(render_mode)
-        transcription = transcribe_video(source, model=model, language=language)
+        report("transcribing", 30, "Mendengarkan dan menulis transkrip")
+        transcription = transcribe_video(
+            source,
+            model=model,
+            language=language,
+            progress_callback=lambda fraction: report(
+                "transcribing",
+                30 + round(fraction * 27),
+                f"Transkripsi audio {round(fraction * 100)}%",
+            ),
+        )
         if not transcription.segments:
             raise ValueError("Transcription produced no usable segments")
 
+        report("selecting", 60, "Menilai dan memilih momen terbaik")
         highlights = select_highlights(
             transcription.segments,
             min_duration=min_duration,
@@ -73,6 +91,11 @@ def run_pipeline(
 
         clips: list[dict[str, object]] = []
         for index, highlight in enumerate(highlights, start=1):
+            report(
+                "rendering",
+                65 + round(((index - 1) / len(highlights)) * 29),
+                f"Merender klip {index} dari {len(highlights)}",
+            )
             clip_path = output_dir / f"clip-{index:02d}.mp4"
             render_vertical(
                 source,
@@ -97,6 +120,7 @@ def run_pipeline(
                 }
             )
 
+        report("finalizing", 96, "Menyimpan hasil, subtitle, dan metadata")
         completed_manifest: dict[str, object] = {
             **manifest_base,
             "status": "completed",

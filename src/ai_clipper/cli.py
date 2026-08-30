@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -44,6 +45,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     try:
         model = load_whisper_model(args.model, device=args.device)
+        def emit_progress(stage: str, progress: int, detail: str) -> None:
+            payload = json.dumps(
+                {"stage": stage, "progress": progress, "detail": detail},
+                ensure_ascii=False,
+            )
+            print(f"POTONGIN_PROGRESS {payload}", flush=True)
+
         manifest = run_pipeline(
             args.source,
             args.output_dir,
@@ -55,6 +63,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             width=args.width,
             height=args.height,
             render_mode=args.render_mode,
+            progress=emit_progress,
         )
     except (FileNotFoundError, RuntimeError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)

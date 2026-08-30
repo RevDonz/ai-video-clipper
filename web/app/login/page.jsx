@@ -3,7 +3,14 @@ export const dynamic = "force-dynamic";
 export default async function LoginPage({ searchParams }) {
   const params = await searchParams;
   const hasError = params?.error === "1";
-  const next = typeof params?.next === "string" && params.next.startsWith("/") ? params.next : "/";
+  const requestedNext = params?.next;
+  const next = typeof requestedNext === "string"
+    && requestedNext.startsWith("/")
+    && !requestedNext.startsWith("//")
+    && !requestedNext.includes("\\")
+    && !/[\u0000-\u001f\u007f]/.test(requestedNext)
+    ? requestedNext
+    : "/dashboard";
   return (
     <main className="loginPage">
       <section className="loginCard">

@@ -19,7 +19,7 @@ class FakeWhisperModel:
                     text="Kesalahan terbesar adalah tidak menguji produk.",
                 ),
             ],
-            SimpleNamespace(language="id"),
+            SimpleNamespace(language="id", duration=2.68),
         )
 
 
@@ -112,6 +112,7 @@ def test_pipeline_transcribes_selects_renders_and_writes_manifest(tmp_path: Path
         capture_output=True,
     )
 
+    progress_events = []
     manifest_path = run_pipeline(
         source,
         tmp_path / "output",
@@ -121,6 +122,7 @@ def test_pipeline_transcribes_selects_renders_and_writes_manifest(tmp_path: Path
         limit=1,
         width=360,
         height=640,
+        progress=lambda stage, percent, detail: progress_events.append((stage, percent, detail)),
     )
 
     manifest = json.loads(manifest_path.read_text())
@@ -132,3 +134,13 @@ def test_pipeline_transcribes_selects_renders_and_writes_manifest(tmp_path: Path
     assert manifest["clips"][0]["duration"] == 1.68
     assert Path(manifest["clips"][0]["output"]).is_file()
     assert "Kesalahan terbesar" in manifest["clips"][0]["text"]
+    assert [event[0] for event in progress_events] == [
+        "analyzing",
+        "transcribing",
+        "transcribing",
+        "transcribing",
+        "selecting",
+        "rendering",
+        "finalizing",
+    ]
+    assert progress_events[-1][1] == 96
