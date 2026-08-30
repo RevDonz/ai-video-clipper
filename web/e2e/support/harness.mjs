@@ -138,7 +138,7 @@ export function markExpectedMediaTeardownAborts(page, urls) {
     const matches = [...tracker.activeRequests].filter((request) => request.method() === "GET"
       && request.resourceType() === "media" && request.url() === url);
     for (const request of matches) tracker.expectedRequests.add(request);
-    const remaining = count;
+    const remaining = Math.max(count, matches.length);
     const key = `GET\nmedia\n${url}`;
     const expiresAt = Date.now() + MEDIA_TEARDOWN_MARK_MS;
     tracker.expectedKeys.set(key, { expiresAt, remaining });

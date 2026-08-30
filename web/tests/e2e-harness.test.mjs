@@ -112,6 +112,15 @@ test("media cleanup suppresses only its marked one-shot GET media abort", async 
   page.emit("requestfailed", request(fallbackUrl));
   page.emit("requestfailed", request(fallbackUrl));
 
+  const activeBurstUrl = "https://site/api/jobs/active-burst/preview.mp4";
+  const activeBurst = [request(activeBurstUrl), request(activeBurstUrl), request(activeBurstUrl)];
+  for (const item of activeBurst) page.emit("request", item);
+  markExpectedMediaTeardownAborts(page, [activeBurstUrl]);
+  page.emit("requestfinished", activeBurst[0]);
+  page.emit("requestfinished", activeBurst[1]);
+  page.emit("requestfailed", activeBurst[2]);
+  page.emit("requestfailed", request(activeBurstUrl));
+
   const normallyFinished = request("https://site/api/jobs/4/preview.mp4");
   page.emit("request", normallyFinished);
   markExpectedMediaTeardownAborts(page, [normallyFinished.url()]);
@@ -132,6 +141,7 @@ test("media cleanup suppresses only its marked one-shot GET media abort", async 
     `GET ${expected.url()} net::ERR_ABORTED`,
     `POST ${fallbackUrl} net::ERR_ABORTED`,
     `GET ${fallbackUrl} net::ERR_ABORTED`,
+    `GET ${activeBurstUrl} net::ERR_ABORTED`,
     `GET ${normallyFinished.url()} net::ERR_ABORTED`,
     `GET ${wrongThenAbort.url()} net::ERR_FAILED`,
     `GET ${wrongThenAbort.url()} net::ERR_ABORTED`,
