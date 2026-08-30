@@ -242,6 +242,27 @@ test("descriptor stream closes exactly once on consume, cancel, abort, and read 
     await assert.rejects(result.response.arrayBuffer(), /injected read failure/);
     assert.equal(result.closes(), 1);
   });
+  await t.test("abort and reader failure race settles only once", async () => {
+    const fx = await fixture();
+    await writeFile(fx.sourcePath, Buffer.concat([MP4, Buffer.alloc(1024 * 1024)]));
+    const unhandled = [];
+    const onUnhandled = (error) => unhandled.push(error);
+    process.on("unhandledRejection", onUnhandled);
+    try {
+      for (let index = 0; index < 20; index += 1) {
+        const controller = new AbortController();
+        const result = await responseWithCounter(fx.root, controller.signal);
+        const consuming = result.response.arrayBuffer();
+        queueMicrotask(() => controller.abort());
+        await assert.rejects(consuming, /abort/i);
+        assert.equal(result.closes(), 1);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      assert.deepEqual(unhandled, []);
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+    }
+  });
   await t.test("twenty cancellation loops", async () => {
     const fx = await fixture();
     await writeFile(fx.sourcePath, Buffer.concat([MP4, Buffer.alloc(1024 * 1024)]));

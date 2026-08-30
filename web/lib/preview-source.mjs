@@ -192,6 +192,7 @@ export function descriptorReadableStream(fd, start, end, signal, options = {}) {
   let cleanupPromise;
   let controller;
   let abortError;
+  let terminal = false;
   const cleanup = () => {
     if (!cleanupPromise) {
       signal?.removeEventListener("abort", abort);
@@ -205,9 +206,27 @@ export function descriptorReadableStream(fd, start, end, signal, options = {}) {
     }
     return cleanupPromise;
   };
+  const settleError = (error) => {
+    if (terminal) return;
+    terminal = true;
+    try {
+      controller?.error(error);
+    } catch (terminalError) {
+      if (terminalError?.code !== "ERR_INVALID_STATE") throw terminalError;
+    }
+  };
+  const settleClose = () => {
+    if (terminal) return;
+    terminal = true;
+    try {
+      controller?.close();
+    } catch (terminalError) {
+      if (terminalError?.code !== "ERR_INVALID_STATE") throw terminalError;
+    }
+  };
   const abort = () => {
     abortError = new DOMException("The operation was aborted.", "AbortError");
-    void cleanup().then(() => controller?.error(abortError), (error) => controller?.error(error));
+    void cleanup().then(() => settleError(abortError), settleError);
   };
   return new ReadableStream({
     start(streamController) {
@@ -220,21 +239,22 @@ export function descriptorReadableStream(fd, start, end, signal, options = {}) {
         const result = await iterator.next();
         if (abortError) {
           await cleanup();
-          streamController.error(abortError);
+          settleError(abortError);
           return;
         }
         if (result.done) {
           await cleanup();
-          streamController.close();
-        } else {
+          settleClose();
+        } else if (!terminal) {
           streamController.enqueue(new Uint8Array(result.value));
         }
       } catch (error) {
         await cleanup();
-        streamController.error(error);
+        settleError(error);
       }
     },
     cancel() {
+      terminal = true;
       return cleanup();
     },
   });
