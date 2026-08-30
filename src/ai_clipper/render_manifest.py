@@ -144,9 +144,16 @@ def _validate_directory(path: Path, description: str) -> Path:
 
 
 def _load_bound_manifest(manifest_path: Path, candidate_path: Path) -> ClipEditManifest:
-    if candidate_path.name != "candidates.v2.json":
+    snapshot_match = __import__("re").fullmatch(
+        r"candidates\.([0-9a-f]{64})\.json", candidate_path.name
+    )
+    if candidate_path.name == "candidates.v2.json":
+        analysis = _validate_directory(candidate_path.parent, "analysis directory")
+    elif snapshot_match is not None and candidate_path.parent.name == "render-inputs":
+        _validate_directory(candidate_path.parent, "render inputs directory")
+        analysis = _validate_directory(candidate_path.parent.parent, "analysis directory")
+    else:
         raise ManifestRenderError("candidate artifact path is invalid")
-    analysis = _validate_directory(candidate_path.parent, "analysis directory")
     edits = analysis / "edits"
     _validate_directory(edits, "edits directory")
     is_current = manifest_path.parent.absolute() == edits
@@ -176,6 +183,11 @@ def _load_bound_manifest(manifest_path: Path, candidate_path: Path) -> ClipEditM
         return current
 
     candidate_raw = _read_regular(candidate_path, MAX_ARTIFACT_BYTES, "candidate artifact")
+    if (
+        snapshot_match is not None
+        and hashlib.sha256(candidate_raw).hexdigest() != snapshot_match[1]
+    ):
+        raise ManifestRenderError("candidate snapshot content digest mismatch")
     artifact = read_candidates_artifact(candidate_path)
     candidate = next(
         (
@@ -412,7 +424,11 @@ def _verify_raster(path: Path, extension: str, *, timeout: float) -> None:
 
 
 def _execute(
-    argv: Sequence[str], *, cwd: Path | None, timeout: float
+    argv: Sequence[str],
+    *,
+    cwd: Path | None,
+    timeout: float,
+    pass_fds: tuple[int, ...] = (),
 ) -> subprocess.CompletedProcess[str]:
     """Execute argv without a shell, terminating then killing on timeout."""
     try:
@@ -423,6 +439,7 @@ def _execute(
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            pass_fds=pass_fds,
         )
     except OSError as exc:
         raise ManifestRenderError("media tool could not be started") from exc
@@ -442,7 +459,9 @@ def _execute(
     return result
 
 
-def _probe_media(path: Path, *, timeout: float) -> dict[str, Any]:
+def _probe_media(
+    path: Path | str, *, timeout: float, pass_fds: tuple[int, ...] = ()
+) -> dict[str, Any]:
     result = _execute(
         [
             "ffprobe",
@@ -456,6 +475,7 @@ def _probe_media(path: Path, *, timeout: float) -> dict[str, Any]:
         ],
         cwd=None,
         timeout=timeout,
+        pass_fds=pass_fds,
     )
     try:
         payload = json.loads(result.stdout)
@@ -505,21 +525,67 @@ def _fsync_directory(path: Path) -> None:
         os.close(fd)
 
 
-def _assert_source_binding(source: Path, candidate_path: Path, manifest: ClipEditManifest) -> None:
-    """Bind only local identities; future remote ingestion needs a content digest."""
+def _stream_sha256_regular(path: Path, description: str) -> str:
+    flags = os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK
+    try:
+        fd = os.open(path, flags)
+    except OSError as exc:
+        raise ManifestRenderError(f"{description} must be a regular non-symlink file") from exc
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise ManifestRenderError(f"{description} must be a regular non-symlink file")
+        digest = hashlib.sha256()
+        while chunk := os.read(fd, 1024 * 1024):
+            digest.update(chunk)
+        return digest.hexdigest()
+    finally:
+        os.close(fd)
+
+
+def _sha256_fd(fd: int) -> str:
+    os.lseek(fd, 0, os.SEEK_SET)
+    digest = hashlib.sha256()
+    while chunk := os.read(fd, 1024 * 1024):
+        digest.update(chunk)
+    os.lseek(fd, 0, os.SEEK_SET)
+    return digest.hexdigest()
+
+
+def _assert_source_binding(
+    source: Path,
+    source_fd: int,
+    candidate_path: Path,
+    manifest: ClipEditManifest,
+    expected_source_content_sha256: str | None,
+) -> None:
+    """Bind local identities by path and remote identities by trusted content digest."""
     artifact = read_candidates_artifact(candidate_path)
     canonical = _canonical_source(artifact.source)
     if hashlib.sha256(canonical.encode("utf-8")).hexdigest() != manifest.identity.source_sha256:
         raise EditManifestInvalid("manifest source identity hash does not match candidate artifact")
     parsed = urlsplit(canonical)
+    scheme = parsed.scheme.casefold()
+    if expected_source_content_sha256 is not None:
+        if not isinstance(expected_source_content_sha256, str) or not __import__("re").fullmatch(
+            r"[0-9a-f]{64}", expected_source_content_sha256
+        ):
+            raise ManifestRenderError("source content digest is invalid")
+        if _sha256_fd(source_fd) != expected_source_content_sha256:
+            raise ManifestRenderError("source content digest mismatch")
     try:
-        if parsed.scheme.casefold() == "file" and parsed.netloc in {"", "localhost"}:
+        if scheme == "file" and parsed.netloc in {"", "localhost"}:
             identity_path = Path(unquote(parsed.path))
         elif not parsed.scheme and Path(canonical).is_absolute():
             identity_path = Path(canonical)
+        elif scheme in {"http", "https"}:
+            if expected_source_content_sha256 is None:
+                raise RenderUnsupported("source content digest is required for remote source")
+            return
         else:
             raise ValueError
         if identity_path.resolve(strict=True) != source.resolve(strict=True):
+            if expected_source_content_sha256 is not None:
+                return
             raise ValueError
     except (OSError, ValueError):
         raise RenderUnsupported("source content binding unavailable") from None
@@ -568,6 +634,7 @@ def render_from_manifest(
     candidate_artifact_path: Path,
     logo_assets_root: Path | None = None,
     timeout: float = 120.0,
+    expected_source_content_sha256: str | None = None,
 ) -> ManifestRenderResult:
     """Render and no-clobber publish one manifest-bound H.264/AAC portrait MP4."""
     output = Path(output).absolute()
@@ -582,6 +649,7 @@ def render_from_manifest(
             candidate_artifact_path,
             logo_assets_root,
             timeout,
+            expected_source_content_sha256,
         )
 
 
@@ -592,6 +660,7 @@ def _render_from_manifest_locked(
     candidate_artifact_path: Path,
     logo_assets_root: Path | None,
     timeout: float,
+    expected_source_content_sha256: str | None,
 ) -> ManifestRenderResult:
     if not isinstance(timeout, (int, float)) or isinstance(timeout, bool):
         raise TypeError("timeout must be a positive finite number")
@@ -624,9 +693,42 @@ def _render_from_manifest_locked(
     if source == output or (output.exists() and os.path.samefile(source, output)):
         raise ManifestRenderError("source and output must be different files")
 
+    source_fd = os.open(source, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        if not stat.S_ISREG(os.fstat(source_fd).st_mode):
+            raise ManifestRenderError("source must be a regular non-symlink file")
+        return _render_opened_source(
+            source,
+            source_fd,
+            manifest,
+            candidate_path,
+            output,
+            output_parent,
+            logo_assets_root,
+            timeout,
+            expected_source_content_sha256,
+        )
+    finally:
+        os.close(source_fd)
+
+
+def _render_opened_source(
+    source: Path,
+    source_fd: int,
+    manifest: ClipEditManifest,
+    candidate_path: Path,
+    output: Path,
+    output_parent: Path,
+    logo_assets_root: Path | None,
+    timeout: float,
+    expected_source_content_sha256: str | None,
+) -> ManifestRenderResult:
     logo_data = _load_logo(manifest, None if logo_assets_root is None else Path(logo_assets_root))
-    _assert_source_binding(source, candidate_path, manifest)
-    source_metadata = _probe_media(source, timeout=timeout)
+    _assert_source_binding(
+        source, source_fd, candidate_path, manifest, expected_source_content_sha256
+    )
+    source_proc = f"/proc/self/fd/{source_fd}"
+    source_metadata = _probe_media(source_proc, timeout=timeout, pass_fds=(source_fd,))
     if not source_metadata["has_video"]:
         raise ManifestRenderError("source has no video stream")
     if manifest.timeline.end > source_metadata["duration"] + 0.001:
@@ -665,7 +767,7 @@ def _render_from_manifest_locked(
                 "-ss",
                 f"{manifest.timeline.start:.6f}",
                 "-i",
-                str(source),
+                source_proc,
             ]
             if logo_data is not None:
                 _logo, data, extension = logo_data
@@ -721,7 +823,7 @@ def _render_from_manifest_locked(
                     str(temporary_output),
                 ]
             )
-            _execute(command, cwd=work, timeout=timeout)
+            _execute(command, cwd=work, timeout=timeout, pass_fds=(source_fd,))
 
         file_fd = os.open(temporary_output, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
         try:

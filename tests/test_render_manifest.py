@@ -370,14 +370,47 @@ def test_source_binding_accepts_exact_local_file_uri_and_rejects_other_file(tmp_
         render_from_manifest(other, manifest_path, tmp_path / "out.mp4", candidate_path)
 
 
-def test_http_candidate_source_is_explicitly_unsupported(tmp_path: Path):
+def test_http_candidate_source_requires_and_verifies_content_digest(tmp_path: Path, monkeypatch):
     analysis, _manifest, manifest_path = _publish(tmp_path)
     source = tmp_path / "source.mp4"
-    source.write_bytes(b"media")
+    source.write_bytes(b"remote downloaded bytes")
 
-    with pytest.raises(RenderUnsupported, match="source content binding unavailable"):
+    with pytest.raises(RenderUnsupported, match="source content digest is required"):
         render_from_manifest(
-            source, manifest_path, tmp_path / "out.mp4", analysis / "candidates.v2.json"
+            source, manifest_path, tmp_path / "missing.mp4", analysis / "candidates.v2.json"
+        )
+    with pytest.raises(ManifestRenderError, match="source content digest is invalid"):
+        render_from_manifest(
+            source,
+            manifest_path,
+            tmp_path / "invalid.mp4",
+            analysis / "candidates.v2.json",
+            expected_source_content_sha256="not-a-digest",
+        )
+    with pytest.raises(ManifestRenderError, match="source content digest mismatch"):
+        render_from_manifest(
+            source,
+            manifest_path,
+            tmp_path / "mismatch.mp4",
+            analysis / "candidates.v2.json",
+            expected_source_content_sha256="0" * 64,
+        )
+
+    class ReachedProbe(Exception):
+        pass
+
+    monkeypatch.setattr(
+        "ai_clipper.render_manifest._probe_media",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(ReachedProbe()),
+    )
+    digest = hashlib.sha256(source.read_bytes()).hexdigest()
+    with pytest.raises(ReachedProbe):
+        render_from_manifest(
+            source,
+            manifest_path,
+            tmp_path / "bound.mp4",
+            analysis / "candidates.v2.json",
+            expected_source_content_sha256=digest,
         )
 
 
@@ -432,7 +465,7 @@ def test_title_is_clipped_to_safe_area_and_logo_uses_exact_contained_square_box(
 
 def _fake_render_tools(monkeypatch):
     source_metadata = {
-        "duration": 4.0,
+        "duration": 99.0,
         "has_video": True,
         "has_audio": True,
         "video_codec": "h264",
@@ -442,12 +475,11 @@ def _fake_render_tools(monkeypatch):
         "sar": "1:1",
     }
 
-    def probe(path, **_kwargs):
-        return (
-            source_metadata
-            if Path(path).name == "source.mp4"
-            else {**source_metadata, "duration": 3.0}
+    def probe(path, **options):
+        is_source = Path(path).name == "source.mp4" or (
+            str(path).startswith("/proc/self/fd/") and options.get("pass_fds")
         )
+        return source_metadata if is_source else {**source_metadata, "duration": 3.0}
 
     monkeypatch.setattr("ai_clipper.render_manifest._probe_media", probe)
 
@@ -539,3 +571,44 @@ def test_render_is_no_clobber_and_concurrent_calls_have_one_winner(tmp_path: Pat
     assert sorted(outcomes) == ["conflict", "ok"]
     assert output.read_bytes() == b"rendered"
     assert not list(tmp_path.glob(".out.mp4.*.tmp.mp4"))
+
+
+def test_source_fd_remains_authoritative_after_path_replacement(tmp_path: Path, monkeypatch):
+    analysis, _manifest, manifest_path = _publish(tmp_path)
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"original")
+    seen = []
+
+    def execute(argv, **options):
+        seen.append((list(argv), options.get("pass_fds", ())))
+        if argv[0] == "ffprobe" and Path(argv[-1]).read_bytes() == b"original" and source.exists():
+            source.replace(tmp_path / "old.mp4")
+            source.write_bytes(b"replacement")
+        if argv[0] == "ffmpeg":
+            assert Path(argv[argv.index("-i") + 1]).read_bytes() == b"original"
+            Path(argv[-1]).write_bytes(b"rendered")
+        payload = {
+            "format": {"duration": 99.0},
+            "streams": [
+                {
+                    "codec_type": "video",
+                    "codec_name": "h264",
+                    "width": 720,
+                    "height": 1280,
+                    "sample_aspect_ratio": "1:1",
+                }
+            ],
+        }
+        return subprocess.CompletedProcess(argv, 0, json.dumps(payload), "")
+
+    monkeypatch.setattr("ai_clipper.render_manifest._execute", execute)
+    monkeypatch.setattr("ai_clipper.render_manifest._verify_output", lambda *_args: None)
+    render_from_manifest(
+        source,
+        manifest_path,
+        tmp_path / "out.mp4",
+        analysis / "candidates.v2.json",
+        expected_source_content_sha256=hashlib.sha256(b"original").hexdigest(),
+    )
+    source_calls = [call for call in seen if "/proc/self/fd/" in " ".join(call[0])]
+    assert source_calls and all(call[1] for call in source_calls)
