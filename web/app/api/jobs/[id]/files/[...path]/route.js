@@ -1,61 +1,39 @@
-import { createReadStream } from "node:fs";
-import { stat } from "node:fs/promises";
-import { Readable } from "node:stream";
-import path from "node:path";
-
 import { requireAuth } from "../../../../../../lib/auth.mjs";
-import { parseByteRange, safeJobFile } from "../../../../../../lib/jobs.mjs";
+import {
+  FinalFileInvalidError,
+  FinalFileNotFoundError,
+  finalFileResponse,
+  isBoundedOutputPath,
+  isFinalJobId,
+} from "../../../../../../lib/final-files.mjs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const TYPES = {
-  ".mp4": "video/mp4",
-  ".srt": "application/x-subrip; charset=utf-8",
-  ".json": "application/json; charset=utf-8",
-};
+const errorResponse = (message, status) => new Response(message, {
+  status,
+  headers: { "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" },
+});
 
-export async function GET(request, { params }) {
+async function handle(request, { params }, head) {
   const denied = requireAuth(request);
   if (denied) return denied;
   const resolved = await params;
-  if (!UUID.test(resolved.id)) return new Response("Bad job ID", { status: 400 });
-  const relative = resolved.path.join("/");
-  if (!relative.startsWith("output/")) return new Response("Forbidden", { status: 403 });
+  if (!isFinalJobId(resolved.id)) return errorResponse("Bad job ID", 400);
+  if (!isBoundedOutputPath(resolved.path)) return errorResponse("Forbidden", 403);
   try {
-    const root = path.resolve(process.env.JOBS_ROOT || "/data/jobs", resolved.id);
-    const target = safeJobFile(root, relative);
-    const info = await stat(target);
-    if (!info.isFile()) throw new Error("not a file");
-    const extension = path.extname(target).toLowerCase();
-    const download = new URL(request.url).searchParams.get("download") === "1";
-    const headers = {
-      "Accept-Ranges": "bytes",
-      "Content-Type": TYPES[extension] || "application/octet-stream",
-      "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${path.basename(target)}"`,
-      "Cache-Control": "private, max-age=3600",
-    };
-    let start = 0;
-    let end = info.size - 1;
-    let status = 200;
-    const range = request.headers.get("range");
-    if (range) {
-      try {
-        ({ start, end } = parseByteRange(range, info.size));
-      } catch {
-        return new Response("Range Not Satisfiable", {
-          status: 416,
-          headers: { "Content-Range": `bytes */${info.size}` },
-        });
-      }
-      status = 206;
-      headers["Content-Range"] = `bytes ${start}-${end}/${info.size}`;
-    }
-    headers["Content-Length"] = String(end - start + 1);
-    const stream = createReadStream(target, { start, end });
-    return new Response(Readable.toWeb(stream), { status, headers });
-  } catch {
-    return new Response("File not found", { status: 404 });
+    return await finalFileResponse(request, resolved.id, resolved.path, { head });
+  } catch (error) {
+    if (error instanceof FinalFileNotFoundError) return errorResponse("File not found", 404);
+    if (error instanceof FinalFileInvalidError) return errorResponse("File is invalid", 422);
+    return errorResponse("File service unavailable", 503);
   }
+}
+
+export async function GET(request, context) {
+  return handle(request, context, false);
+}
+
+export async function HEAD(request, context) {
+  return handle(request, context, true);
 }
