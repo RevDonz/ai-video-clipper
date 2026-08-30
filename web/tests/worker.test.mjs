@@ -22,15 +22,15 @@ test("V1 worker invocation remains byte-for-byte unchanged", () => {
 
 test("V2 shadow worker invocation appends only validated selection flags", () => {
   const job = { ...baseJob, options: { ...baseJob.options, selectionMode: "v2-shadow", clipProfile: "viral-short", maxCandidates: 40, maxMediaCandidates: 6, mediaTimeout: 12.5 } };
-  assert.deepEqual(buildClipperInvocation(job, "/input.mp4", "/output", {
+  assert.deepEqual(buildClipperInvocation(job, "/input.mp4", "/data/jobs/id/output", {
     AI_CLIPPER_BIN: "/custom/ai-clipper", WHISPER_MODEL: "medium", WHISPER_DEVICE: "cuda", WHISPER_LANGUAGE: "en",
   }), {
     command: "/custom/ai-clipper",
     args: [
-      "/input.mp4", "--output-dir", "/output", "--model", "medium", "--device", "cuda", "--language", "en",
+      "/input.mp4", "--output-dir", "/data/jobs/id/output", "--model", "medium", "--device", "cuda", "--language", "en",
       "--min-duration", "20", "--max-duration", "60", "--limit", "3",
       "--width", "720", "--height", "1280", "--render-mode", "fit-blur",
-      "--selection-mode", "v2-shadow", "--clip-profile", "viral-short",
+      "--selection-mode", "v2-shadow", "--artifact-root", "/data/jobs/id", "--clip-profile", "viral-short",
       "--max-candidates", "40", "--max-media-candidates", "6", "--media-timeout", "12.5",
     ],
   });

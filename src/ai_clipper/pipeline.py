@@ -223,6 +223,7 @@ def run_pipeline(
     output_dir: Path,
     *,
     model: Any,
+    artifact_root: Path | None = None,
     language: str | None = "id",
     min_duration: float = 20.0,
     max_duration: float = 60.0,
@@ -240,6 +241,7 @@ def run_pipeline(
     """Transcribe, select highlights, render clips, and publish a status manifest."""
     source = Path(source).resolve()
     output_dir = Path(output_dir).resolve()
+    artifact_root = output_dir if artifact_root is None else Path(artifact_root).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = output_dir / "manifest.json"
     manifest_base: dict[str, object] = {"source": str(source), "render_mode": render_mode}
@@ -283,7 +285,7 @@ def run_pipeline(
         if selection_mode is SelectionMode.V2_SHADOW:
             selection_v2_summary = _run_v2_shadow(
                 source,
-                output_dir,
+                artifact_root,
                 transcription.segments,
                 profile=clip_profile,
                 max_candidates=max_candidates,

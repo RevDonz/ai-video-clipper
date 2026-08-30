@@ -45,6 +45,7 @@ export function buildClipperInvocation(job, sourcePath, outputRoot, env = proces
   if (options.selectionMode === "v2-shadow") {
     args.push(
       "--selection-mode", "v2-shadow",
+      "--artifact-root", path.dirname(outputRoot),
       "--clip-profile", options.clipProfile,
       "--max-candidates", String(options.maxCandidates),
       "--max-media-candidates", String(options.maxMediaCandidates),

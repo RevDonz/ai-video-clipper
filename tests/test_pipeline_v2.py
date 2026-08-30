@@ -124,6 +124,7 @@ def test_v2_shadow_writes_strict_artifact_but_v1_still_renders(monkeypatch, tmp_
         source,
         tmp_path / "out",
         model=object(),
+        artifact_root=tmp_path / "job",
         selection_mode="v2-shadow",
         clip_profile="standard",
         max_candidates=20,
@@ -140,7 +141,8 @@ def test_v2_shadow_writes_strict_artifact_but_v1_still_renders(monkeypatch, tmp_
     assert summary["candidate_count"] == 1
     assert summary["artifact"] == "analysis/candidates.v2.json"
     assert isinstance(summary["analysis_id"], str) and summary["analysis_id"]
-    artifact = read_candidates_artifact(tmp_path / "out" / summary["artifact"])
+    artifact = read_candidates_artifact(tmp_path / "job" / summary["artifact"])
+    assert not (tmp_path / "out" / summary["artifact"]).exists()
     assert len(artifact.candidates) == 1
     assert artifact.source == str(source.resolve())
     assert media_windows == [(0.0, 60.0)]

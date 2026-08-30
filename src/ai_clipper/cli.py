@@ -49,6 +49,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("source", type=Path)
     parser.add_argument("--output-dir", type=Path, default=Path("artifacts/output"))
+    parser.add_argument("--artifact-root", type=Path)
     parser.add_argument("--model", default="tiny", help="faster-whisper model name")
     parser.add_argument("--device", choices=("cpu", "cuda"), default="cpu")
     parser.add_argument("--language", default="id")
@@ -111,6 +112,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.source,
             args.output_dir,
             model=model,
+            artifact_root=args.artifact_root,
             language=args.language,
             min_duration=args.min_duration,
             max_duration=args.max_duration,
