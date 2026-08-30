@@ -6,7 +6,13 @@ import {
   buildNextRevision,
   classifyEditorSaveFailure,
   createEditorSaveAttempt,
+  createFinalRenderAttempt,
+  classifyFinalRenderFailure,
   currentCaptionCue,
+  isActiveRenderState,
+  renderPollDelay,
+  renderStatusMatchesRevision,
+  validatePublicRenderStatus,
   loadEditorWorkspace,
   loadEditorView,
   shouldWarnUnsaved,
@@ -79,6 +85,51 @@ test("retry attempt reuses UUID only for identical retryable payload and ETag", 
   assert.equal(retry.serialized, first.serialized);
   const changed = structuredClone(body); changed.audio.normalize = true;
   assert.notEqual(createEditorSaveAttempt({ ...first, retryable: true }, changed, ETAG, uuid).idempotencyKey, first.idempotencyKey);
+});
+
+test("render attempt sends the unquoted ETag and reuses its UUID only for retryable identical revisions", () => {
+  let count = 0;
+  const uuid = () => `423e4567-e89b-42d3-a456-42661417400${++count}`;
+  const first = createFinalRenderAttempt(null, ETAG, uuid);
+  assert.equal(first.idempotencyKey, "423e4567-e89b-42d3-a456-426614174001");
+  assert.equal(first.serialized, JSON.stringify({ editEtag: "b".repeat(64) }));
+  assert.deepEqual(first.body, { editEtag: "b".repeat(64) });
+  const retry = createFinalRenderAttempt({ ...first, retryable: true }, ETAG, uuid);
+  assert.equal(retry.idempotencyKey, first.idempotencyKey);
+  assert.notEqual(createFinalRenderAttempt({ ...first, retryable: false }, ETAG, uuid).idempotencyKey, first.idempotencyKey);
+  assert.notEqual(createFinalRenderAttempt({ ...first, retryable: true }, `"${"c".repeat(64)}"`, uuid).idempotencyKey, first.idempotencyKey);
+  assert.throws(() => createFinalRenderAttempt(null, "not-an-etag", uuid), /ETag/);
+});
+
+test("render status validator accepts exact public DTO states and rejects unsafe result URLs", () => {
+  const renderId = "123e4567-e89b-42d3-a456-426614174000";
+  const base = {
+    renderId, candidateId: CANDIDATE_ID, state: "queued", revision: 1, attempts: 0,
+    createdAt: "2026-08-30T01:02:03.456Z", updatedAt: "2026-08-30T01:02:03.456Z", errorCode: null,
+  };
+  assert.deepEqual(validatePublicRenderStatus(base, "job/id", CANDIDATE_ID), base);
+  assert.equal(isActiveRenderState("queued"), true);
+  assert.equal(isActiveRenderState("claimed"), true);
+  assert.equal(isActiveRenderState("rendering"), true);
+  assert.equal(isActiveRenderState("completed"), false);
+  const completed = { ...base, state: "completed", attempts: 1, resultUrl: `/api/jobs/job%2Fid/files/output/edits/${CANDIDATE_ID}/revision-1.mp4` };
+  assert.equal(validatePublicRenderStatus(completed, "job/id", CANDIDATE_ID).state, "completed");
+  assert.equal(renderStatusMatchesRevision(completed, renderId, 1), true);
+  assert.equal(renderStatusMatchesRevision(completed, renderId, 2), false, "a completion from an old edit revision is stale");
+  assert.equal(renderStatusMatchesRevision(completed, "223e4567-e89b-42d3-a456-426614174000", 1), false);
+  for (const resultUrl of [
+    "https://evil.example/render.mp4",
+    `/api/jobs/job%2Fid/files/output/edits/${CANDIDATE_ID}/../secret.mp4`,
+    `/api/jobs/other/files/output/edits/${CANDIDATE_ID}/revision-1.mp4?download=1`,
+  ]) assert.throws(() => validatePublicRenderStatus({ ...completed, resultUrl }, "job/id", CANDIDATE_ID), /render/i);
+  assert.throws(() => validatePublicRenderStatus({ ...base, extra: true }, "job/id", CANDIDATE_ID), /render/i);
+});
+
+test("render retry classification and bounded poll backoff preserve durable queue semantics", () => {
+  assert.deepEqual(classifyFinalRenderFailure(409, { code: "render_conflict" }), { retryable: false, kind: "conflict", message: "Permintaan render bertentangan dengan revisi atau ID sebelumnya. Buat permintaan baru setelah memuat ulang status revisi." });
+  assert.equal(classifyFinalRenderFailure(503, {}).retryable, true);
+  assert.equal(classifyFinalRenderFailure(0, {}).retryable, true);
+  assert.deepEqual([0, 1, 2, 9].map(renderPollDelay), [2000, 4000, 8000, 10000]);
 });
 
 test("draft validation rejects overlay footprints outside safe area", () => {
@@ -219,9 +270,20 @@ test("editor page source preserves preview and save semantics", async () => {
   assert.match(source, /currentCaptionCue/);
   assert.match(source, /If-Match/);
   assert.match(source, /Idempotency-Key/);
+  assert.match(source, /method: "POST"/);
+  assert.match(source, /createFinalRenderAttempt/);
+  assert.match(source, /validatePublicRenderStatus/);
+  assert.match(source, /renderStatusMatchesRevision/);
+  assert.match(source, /cache: "no-store"/);
+  assert.match(source, /renderController\.current\?\.abort\(\)/);
+  assert.match(source, /window\.setTimeout[\s\S]*renderPollDelay/);
+  assert.match(source, /diproses oleh render worker/i);
+  assert.match(source, /role="progressbar"/);
+  assert.match(source, /resultUrl/);
+  assert.match(source, /download/);
   assert.match(source, /1200/);
   assert.match(source, /Preview perkiraan/);
-  assert.match(source, /Render final segera tersedia/);
+  assert.match(source, /Render Final/);
   assert.match(source, /Face-track belum didukung/);
   assert.match(source, /aria-live="polite"/);
   assert.match(source, /<fieldset/);

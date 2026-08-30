@@ -180,6 +180,64 @@ export function createEditorSaveAttempt(previous, manifest, etag, createUuid = (
     : { manifest, etag, serialized, idempotencyKey: createUuid() };
 }
 
+const RENDER_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const RENDER_STATES = new Set(["queued", "claimed", "rendering", "completed", "failed"]);
+const ACTIVE_RENDER_STATES = new Set(["queued", "claimed", "rendering"]);
+const RENDER_ERROR_CODES = new Set(["render_failed", "verification_failed", "max_attempts_exceeded"]);
+
+export function createFinalRenderAttempt(previous, quotedEtag, createUuid = () => crypto.randomUUID()) {
+  const match = ETAG.exec(quotedEtag || "");
+  if (!match) throw new Error("ETag dokumen edit tidak valid untuk render.");
+  const etag = quotedEtag;
+  if (previous?.retryable === true && previous.etag === etag) {
+    return { etag, body: previous.body, serialized: previous.serialized, idempotencyKey: previous.idempotencyKey };
+  }
+  const body = { editEtag: match[1] };
+  return { etag, body, serialized: JSON.stringify(body), idempotencyKey: createUuid() };
+}
+
+export function classifyFinalRenderFailure(status, payload = {}) {
+  if (status === 409 && payload.code === "render_conflict") return {
+    retryable: false, kind: "conflict",
+    message: "Permintaan render bertentangan dengan revisi atau ID sebelumnya. Buat permintaan baru setelah memuat ulang status revisi.",
+  };
+  if (status === 0 || status === 503 || status >= 500) return {
+    retryable: true, kind: "retry",
+    message: "Permintaan render belum dipastikan diterima. Coba lagi; ID permintaan yang sama akan digunakan.",
+  };
+  return { retryable: false, kind: "error", message: payload.error || "Render final tidak dapat diminta." };
+}
+
+export function isActiveRenderState(state) { return ACTIVE_RENDER_STATES.has(state); }
+export function renderStatusMatchesRevision(status, renderId, revision) {
+  return status?.renderId === renderId && status?.revision === revision;
+}
+export function renderPollDelay(failureCount = 0) {
+  return Math.min(10_000, 2_000 * (2 ** Math.max(0, Number.isInteger(failureCount) ? failureCount : 0)));
+}
+
+export function validatePublicRenderStatus(payload, jobId, candidateId) {
+  const fail = () => { throw new Error("Respons status render tidak mengikuti kontrak publik."); };
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return fail();
+  const expected = ["renderId", "candidateId", "state", "revision", "attempts", "createdAt", "updatedAt", "errorCode"];
+  if (payload.state === "completed") expected.push("resultUrl");
+  if (!exactObject(payload, expected) || !RENDER_ID.test(payload.renderId || "")
+      || payload.candidateId !== candidateId || !RENDER_STATES.has(payload.state)
+      || !Number.isInteger(payload.revision) || payload.revision < 1
+      || !Number.isInteger(payload.attempts) || payload.attempts < 0 || payload.attempts > 3
+      || !TIMESTAMP.test(payload.createdAt || "") || !TIMESTAMP.test(payload.updatedAt || "")) return fail();
+  if (payload.state === "queued" && (payload.attempts !== 0 || payload.errorCode !== null)) return fail();
+  if (["claimed", "rendering", "completed"].includes(payload.state)
+      && (payload.attempts < 1 || payload.errorCode !== null)) return fail();
+  if (payload.state === "failed" && (payload.attempts < 1 || !RENDER_ERROR_CODES.has(payload.errorCode))) return fail();
+  if (payload.state === "completed") {
+    const segments = ["api", "jobs", jobId, "files", "output", "edits", candidateId, `revision-${payload.revision}.mp4`];
+    const expectedUrl = `/${segments.map((segment) => encodeURIComponent(segment)).join("/")}`;
+    if (payload.resultUrl !== expectedUrl) return fail();
+  }
+  return payload;
+}
+
 export function currentCaptionCue(cues, playbackRelativeSeconds, sourceStart) {
   const sourceTime = sourceStart + Math.max(0, Number.isFinite(playbackRelativeSeconds) ? playbackRelativeSeconds : 0);
   return (Array.isArray(cues) ? cues : []).find((cue) => sourceTime >= cue.start && sourceTime < cue.end) || null;

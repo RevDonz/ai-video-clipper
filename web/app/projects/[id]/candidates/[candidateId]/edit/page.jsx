@@ -5,11 +5,17 @@ import { use, useCallback, useEffect, useRef, useState } from "react";
 import {
   buildNextRevision,
   classifyEditorSaveFailure,
+  classifyFinalRenderFailure,
   createEditorSaveAttempt,
+  createFinalRenderAttempt,
   currentCaptionCue,
+  isActiveRenderState,
   loadEditorWorkspace,
+  renderPollDelay,
+  renderStatusMatchesRevision,
   shouldWarnUnsaved,
   validateEditorDraft,
+  validatePublicRenderStatus,
   validateSavedEditorResponse,
 } from "../../../../../../lib/editor-view.mjs";
 import { formatDuration } from "../../../../../../lib/candidate-view.mjs";
@@ -41,6 +47,7 @@ function EditorWorkspace({ id, candidateId, loaded }) {
   const [dirty, setDirty] = useState(false);
   const [locked, setLocked] = useState(false);
   const [saveState, setSaveState] = useState({ status: "idle", message: "Semua perubahan tersimpan." });
+  const [renderState, setRenderState] = useState({ status: "idle", message: "Render final belum diminta.", data: null });
   const [activeCueId, setActiveCueId] = useState("");
   const [advanced, setAdvanced] = useState(false);
   const mainVideo = useRef(null);
@@ -49,6 +56,10 @@ function EditorWorkspace({ id, candidateId, loaded }) {
   const lifecycleGeneration = useRef(0);
   const navigationApproved = useRef(false);
   const saveController = useRef(null);
+  const renderController = useRef(null);
+  const renderTimer = useRef(null);
+  const renderGeneration = useRef(0);
+  const renderAttempt = useRef(null);
   const inFlight = useRef(false);
   const queued = useRef(false);
   const retryAttempt = useRef(null);
@@ -62,7 +73,13 @@ function EditorWorkspace({ id, candidateId, loaded }) {
   useEffect(() => {
     mounted.current = true;
     lifecycleGeneration.current += 1;
-    return () => { mounted.current = false; saveController.current?.abort(); };
+    return () => {
+      mounted.current = false;
+      saveController.current?.abort();
+      renderController.current?.abort();
+      if (renderTimer.current !== null) window.clearTimeout(renderTimer.current);
+      renderGeneration.current += 1;
+    };
   }, []);
   useEffect(() => {
     const warnBeforeUnload = (event) => {
@@ -93,6 +110,15 @@ function EditorWorkspace({ id, candidateId, loaded }) {
       if (changed) setSaveState((state) => state.status === "saving" ? state : { status: "dirty", message: "Perubahan belum disimpan." });
       return next;
     });
+  }, []);
+
+  const resetRenderForRevision = useCallback((revision) => {
+    renderGeneration.current += 1;
+    renderController.current?.abort();
+    if (renderTimer.current !== null) window.clearTimeout(renderTimer.current);
+    renderTimer.current = null;
+    renderAttempt.current = null;
+    setRenderState({ status: "idle", message: `Revisi ${revision} belum diminta untuk render final.`, data: null });
   }, []);
 
   const save = useCallback(async () => {
@@ -151,6 +177,7 @@ function EditorWorkspace({ id, candidateId, loaded }) {
       etagRef.current = nextEtag;
       setSnapshot(deepCopy(payload));
       setEtag(nextEtag);
+      resetRenderForRevision(payload.revision);
       const unchangedSinceSave = editableJson(draftRef.current) === editableJson(sourceDraft);
       if (unchangedSinceSave) {
         const clean = deepCopy(payload);
@@ -180,7 +207,7 @@ function EditorWorkspace({ id, candidateId, loaded }) {
         }
       }
     }
-  }, [candidateId, id]);
+  }, [candidateId, id, resetRenderForRevision]);
   saveRef.current = save;
 
   const validation = validateEditorDraft(draft);
@@ -191,6 +218,92 @@ function EditorWorkspace({ id, candidateId, loaded }) {
     const timer = window.setTimeout(() => saveRef.current?.(), SAVE_DELAY_MS);
     return () => window.clearTimeout(timer);
   }, [dirty, locked, validation.valid, draft, saveState.status]);
+
+  const loginLocation = `/login?next=${encodeURIComponent(`/projects/${encodeURIComponent(id)}/candidates/${encodeURIComponent(candidateId)}/edit`)}`;
+  const describeRender = (status) => {
+    if (status.state === "queued") return `Render revisi ${status.revision} masuk antrean dan akan diproses oleh render worker.`;
+    if (status.state === "claimed") return `Render worker mengambil revisi ${status.revision}. Percobaan ${status.attempts}.`;
+    if (status.state === "rendering") return `Render final revisi ${status.revision} sedang diproses. Percobaan ${status.attempts}.`;
+    if (status.state === "completed") return `Render final revisi ${status.revision} selesai setelah ${status.attempts} percobaan.`;
+    return `Render revisi ${status.revision} gagal (${status.errorCode}). Percobaan ${status.attempts}.`;
+  };
+
+  const pollRender = useCallback(async (renderId, revision, generation, failureCount = 0) => {
+    if (!mounted.current || renderGeneration.current !== generation) return;
+    const controller = new AbortController();
+    renderController.current = controller;
+    try {
+      const response = await fetch(`/api/jobs/${encodeURIComponent(id)}/renders/${encodeURIComponent(renderId)}`, {
+        method: "GET", cache: "no-store", signal: controller.signal,
+      });
+      if (!mounted.current || renderGeneration.current !== generation) return;
+      if (response.status === 401) { window.location.assign(loginLocation); return; }
+      let payload = {};
+      try { payload = await response.json(); } catch { payload = {}; }
+      if (!response.ok) throw new Error(payload.error || "Status render belum dapat dibaca.");
+      const status = validatePublicRenderStatus(payload, id, candidateId);
+      if (renderGeneration.current !== generation || snapshotRef.current.revision !== revision
+          || !renderStatusMatchesRevision(status, renderId, revision)) return;
+      setRenderState({ status: status.state, message: describeRender(status), data: status });
+      if (!isActiveRenderState(status.state)) return;
+      renderTimer.current = window.setTimeout(
+        () => pollRender(renderId, revision, generation, 0),
+        renderPollDelay(0),
+      );
+    } catch (error) {
+      if (error?.name === "AbortError" || !mounted.current || renderGeneration.current !== generation) return;
+      setRenderState((current) => ({ ...current, status: "polling", message: "Status render sementara tidak dapat dijangkau; antrean tetap aktif dan akan diperiksa lagi." }));
+      renderTimer.current = window.setTimeout(
+        () => pollRender(renderId, revision, generation, failureCount + 1),
+        renderPollDelay(failureCount + 1),
+      );
+    }
+  }, [candidateId, id, loginLocation]);
+
+  const requestFinalRender = useCallback(async () => {
+    if (dirtyRef.current || inFlight.current || lockedRef.current || isActiveRenderState(renderState.status) || renderState.status === "requesting") return;
+    let attempt;
+    try { attempt = createFinalRenderAttempt(renderAttempt.current, etagRef.current, () => crypto.randomUUID()); }
+    catch (error) { setRenderState({ status: "error", message: error.message, data: null }); return; }
+    const generation = renderGeneration.current + 1;
+    renderGeneration.current = generation;
+    const revision = snapshotRef.current.revision;
+    const controller = new AbortController();
+    renderController.current?.abort();
+    renderController.current = controller;
+    setRenderState({ status: "requesting", message: `Mengirim permintaan render revisi ${revision}…`, data: null });
+    try {
+      const response = await fetch(`/api/jobs/${encodeURIComponent(id)}/candidates/${encodeURIComponent(candidateId)}/renders`, {
+        method: "POST", cache: "no-store", signal: controller.signal,
+        headers: { "Content-Type": "application/json", "Idempotency-Key": attempt.idempotencyKey },
+        body: attempt.serialized,
+      });
+      if (!mounted.current || renderGeneration.current !== generation) return;
+      if (response.status === 401) { window.location.assign(loginLocation); return; }
+      let payload = {};
+      try { payload = await response.json(); } catch { payload = {}; }
+      if (!response.ok) {
+        const failure = classifyFinalRenderFailure(response.status, payload);
+        renderAttempt.current = failure.retryable ? { ...attempt, retryable: true } : null;
+        setRenderState({ status: failure.kind, message: failure.message, data: null });
+        return;
+      }
+      const status = validatePublicRenderStatus(payload, id, candidateId);
+      if (status.revision !== revision) throw new Error("Render terikat ke revisi yang berbeda; status diabaikan.");
+      renderAttempt.current = null;
+      setRenderState({ status: status.state, message: describeRender(status), data: status });
+      if (isActiveRenderState(status.state)) {
+        renderTimer.current = window.setTimeout(
+          () => pollRender(status.renderId, revision, generation, 0),
+          renderPollDelay(0),
+        );
+      }
+    } catch (error) {
+      if (error?.name === "AbortError" || !mounted.current || renderGeneration.current !== generation) return;
+      renderAttempt.current = { ...attempt, retryable: true };
+      setRenderState({ status: "retry", message: error.message || classifyFinalRenderFailure(0).message, data: null });
+    }
+  }, [candidateId, id, loginLocation, pollRender, renderState.status]);
 
   const timeline = draft.timeline;
   const previewSrc = `/api/jobs/${encodeURIComponent(id)}/preview-source`;
@@ -281,7 +394,16 @@ function EditorWorkspace({ id, candidateId, loaded }) {
         </section>
       </div>
 
-      <div className="editorSaveBar"><div><span className={`saveDot ${saveState.status}`} aria-hidden="true" /><p role={saveState.status === "error" || saveState.status === "conflict" ? "alert" : "status"} aria-live="polite">{saveState.message}</p><small>{validation.valid ? "Autosave aktif setelah 1200 ms untuk perubahan valid." : "Penyimpanan diblokir; lihat daftar error di atas."}</small></div><div><button type="button" className="renderSoon" disabled>Render final segera tersedia</button><button type="button" className="saveEditor" disabled={locked || !dirty || !validation.valid || saveState.status === "saving"} onClick={() => saveRef.current?.()}>{saveState.status === "saving" ? "Menyimpan…" : "Simpan"}</button></div></div>
+      {renderState.status !== "idle" && <section className={`editorRenderStatus ${renderState.status}`} aria-labelledby="render-status-title" aria-live="polite">
+        <div><span className="editorPill">FINAL</span><div><h2 id="render-status-title">Status render</h2><p role={renderState.status === "failed" || renderState.status === "error" || renderState.status === "conflict" ? "alert" : "status"}>{renderState.message}</p></div></div>
+        {["requesting", "queued", "claimed", "rendering", "polling"].includes(renderState.status) && <div className="renderIndeterminate" role="progressbar" aria-label="Render final sedang antre atau diproses"><span /></div>}
+        {renderState.data && <dl><div><dt>Revisi</dt><dd>{renderState.data.revision}</dd></div><div><dt>Percobaan</dt><dd>{renderState.data.attempts}</dd></div><div><dt>Status</dt><dd>{renderState.data.state}</dd></div></dl>}
+        {renderState.status === "failed" && <button type="button" onClick={requestFinalRender}>Coba render lagi</button>}
+        {renderState.status === "retry" && <button type="button" onClick={requestFinalRender}>Kirim ulang permintaan yang sama</button>}
+        {renderState.status === "completed" && renderState.data?.resultUrl && <div className="renderResult"><video controls preload="metadata" src={renderState.data.resultUrl} aria-label={`Render final revisi ${renderState.data.revision}`} /><a href={renderState.data.resultUrl} download>Download MP4</a></div>}
+      </section>}
+
+      <div className="editorSaveBar"><div><span className={`saveDot ${saveState.status}`} aria-hidden="true" /><p role={saveState.status === "error" || saveState.status === "conflict" ? "alert" : "status"} aria-live="polite">{saveState.message}</p><small>{dirty ? "Simpan dulu sebelum meminta render final." : validation.valid ? "Render memakai revisi tersimpan saat ini; worker harus berjalan untuk memproses antrean." : "Penyimpanan diblokir; lihat daftar error di atas."}</small></div><div><button type="button" className="renderFinal" disabled={locked || dirty || inFlight.current || saveState.status === "saving" || !validation.valid || !/^"[0-9a-f]{64}"$/.test(etag) || ["requesting", "queued", "claimed", "rendering", "polling"].includes(renderState.status)} onClick={requestFinalRender}>{dirty ? "Simpan dulu" : ["requesting", "queued", "claimed", "rendering", "polling"].includes(renderState.status) ? "Render aktif…" : "Render Final"}</button><button type="button" className="saveEditor" disabled={locked || !dirty || !validation.valid || saveState.status === "saving"} onClick={() => saveRef.current?.()}>{saveState.status === "saving" ? "Menyimpan…" : "Simpan"}</button></div></div>
     </main>
   );
 }
