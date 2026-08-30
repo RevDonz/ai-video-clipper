@@ -106,8 +106,9 @@ test("media cleanup suppresses only its marked one-shot GET media abort", async 
   page.emit("requestfailed", request(expected.url()));
 
   const fallbackUrl = "https://site/api/jobs/3/preview.mp4";
-  markExpectedMediaTeardownAborts(page, [fallbackUrl]);
+  markExpectedMediaTeardownAborts(page, [fallbackUrl, fallbackUrl]);
   page.emit("requestfailed", request(fallbackUrl, "media", "POST"));
+  page.emit("requestfailed", request(fallbackUrl));
   page.emit("requestfailed", request(fallbackUrl));
   page.emit("requestfailed", request(fallbackUrl));
 

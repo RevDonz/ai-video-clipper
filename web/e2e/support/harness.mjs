@@ -120,8 +120,12 @@ function isMarkedMediaTeardownAbort(tracker, request, reason) {
   let expiresAt;
   if (!exactRequest) {
     const key = mediaRequestKey(request);
-    expiresAt = tracker.expectedKeys.get(key);
-    tracker.expectedKeys.delete(key);
+    const expected = tracker.expectedKeys.get(key);
+    if (expected) {
+      expiresAt = expected.expiresAt;
+      if (expected.remaining <= 1) tracker.expectedKeys.delete(key);
+      else tracker.expectedKeys.set(key, { ...expected, remaining: expected.remaining - 1 });
+    }
   }
   if (reason !== "net::ERR_ABORTED") return false;
   return exactRequest || (expiresAt !== undefined && expiresAt >= Date.now());
@@ -130,19 +134,19 @@ function isMarkedMediaTeardownAbort(tracker, request, reason) {
 export function markExpectedMediaTeardownAborts(page, urls) {
   const tracker = mediaTeardownTrackers.get(page);
   if (!tracker) throw new Error("captureFailures(page) must run before media teardown");
-  const uniqueUrls = new Set(urls.filter(Boolean));
-  for (const url of uniqueUrls) {
+  const urlCounts = new Map();
+  for (const url of urls.filter(Boolean)) urlCounts.set(url, (urlCounts.get(url) || 0) + 1);
+  for (const [url, count] of urlCounts) {
     const matches = [...tracker.activeRequests].filter((request) => request.method() === "GET"
       && request.resourceType() === "media" && request.url() === url);
-    if (matches.length) {
-      for (const request of matches) tracker.expectedRequests.add(request);
-      continue;
-    }
+    for (const request of matches) tracker.expectedRequests.add(request);
+    const remaining = Math.max(0, count - matches.length);
+    if (remaining === 0) continue;
     const key = `GET\nmedia\n${url}`;
     const expiresAt = Date.now() + MEDIA_TEARDOWN_MARK_MS;
-    tracker.expectedKeys.set(key, expiresAt);
+    tracker.expectedKeys.set(key, { expiresAt, remaining });
     const timer = setTimeout(() => {
-      if (tracker.expectedKeys.get(key) === expiresAt) tracker.expectedKeys.delete(key);
+      if (tracker.expectedKeys.get(key)?.expiresAt === expiresAt) tracker.expectedKeys.delete(key);
     }, MEDIA_TEARDOWN_MARK_MS);
     timer.unref?.();
   }
@@ -150,10 +154,10 @@ export function markExpectedMediaTeardownAborts(page, urls) {
 
 export async function cleanupEditorMedia(page) {
   const videos = page.locator("video");
-  const urls = await videos.evaluateAll((elements) => [...new Set(elements.flatMap((element) => {
+  const urls = await videos.evaluateAll((elements) => elements.flatMap((element) => {
     const current = element.currentSrc || element.src || element.getAttribute?.("src");
     return current ? [current] : [];
-  }))]);
+  }));
   markExpectedMediaTeardownAborts(page, urls);
   await videos.evaluateAll((elements, expectedUrls) => {
     const expected = new Set(expectedUrls);
