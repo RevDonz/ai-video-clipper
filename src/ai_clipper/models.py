@@ -54,6 +54,13 @@ class ClipProfile(str, Enum):
     DEEP_DIVE = "deep-dive"
 
 
+class SelectionMode(str, Enum):
+    """Selection rollout mode; V2 is observational and never drives rendering."""
+
+    V1 = "v1"
+    V2_SHADOW = "v2-shadow"
+
+
 @dataclass(frozen=True, slots=True)
 class CandidateFeatures:
     """Explainable 0–10 dimensions used to rank a clip candidate."""
@@ -191,9 +198,7 @@ class ClipCandidate:
         }
         if set(payload) != expected:
             raise ValueError("candidate payload has missing or unknown fields")
-        if not isinstance(payload["reasons"], list) or not isinstance(
-            payload["topic_terms"], list
-        ):
+        if not isinstance(payload["reasons"], list) or not isinstance(payload["topic_terms"], list):
             raise TypeError("candidate JSON reasons and topic_terms must be arrays")
         if not isinstance(payload["profile"], str):
             raise TypeError("candidate JSON profile must be a string")
