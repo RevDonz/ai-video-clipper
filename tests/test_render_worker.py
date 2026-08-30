@@ -17,7 +17,7 @@ from ai_clipper.render_queue import (
     publish_completed_output,
     update_request,
 )
-from ai_clipper.render_worker import run_one
+from ai_clipper.render_worker import run_forever, run_one
 
 
 def test_one_shot_worker_claims_renders_and_completes(tmp_path: Path):
@@ -40,6 +40,34 @@ def test_one_shot_worker_claims_renders_and_completes(tmp_path: Path):
     assert calls[0][4]["expected_source_content_sha256"] == request["source_content_sha256"]
     assert (job / request["output_relative"]).read_bytes() == b"verified render"
     assert run_one(tmp_path, renderer=renderer, verifier=lambda *_args: None) is None
+
+
+def test_watch_worker_sleeps_only_when_queue_is_empty(tmp_path: Path, monkeypatch):
+    calls = iter(["render-a", None, "render-b", None])
+    observed: list[float] = []
+
+    monkeypatch.setattr(
+        "ai_clipper.render_worker.run_one",
+        lambda *_args, **_kwargs: next(calls),
+    )
+
+    class StopWatch(Exception):
+        pass
+
+    def stop_after_second_idle(seconds: float) -> None:
+        observed.append(seconds)
+        if len(observed) == 2:
+            raise StopWatch
+
+    with pytest.raises(StopWatch):
+        run_forever(tmp_path, poll_seconds=0.25, sleep=stop_after_second_idle)
+    assert observed == [0.25, 0.25]
+
+
+@pytest.mark.parametrize("poll_seconds", [0, 0.09, 61, float("nan")])
+def test_watch_worker_rejects_unsafe_poll_intervals(tmp_path: Path, poll_seconds: float):
+    with pytest.raises(ValueError):
+        run_forever(tmp_path, poll_seconds=poll_seconds)
 
 
 def test_worker_recovers_already_published_output_without_clobber(tmp_path: Path):

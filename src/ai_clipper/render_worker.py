@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import math
 import os
 import re
 import stat
 import sys
 import threading
+import time
 from collections.abc import Callable
 from pathlib import Path
 
@@ -235,12 +237,37 @@ def run_one(
     return None
 
 
+def run_forever(
+    jobs_root: Path,
+    *,
+    lease_seconds: float = 300,
+    poll_seconds: float = 2,
+    sleep: Callable[[float], None] = time.sleep,
+) -> None:
+    """Continuously drain durable render requests without busy-spinning."""
+    if not math.isfinite(poll_seconds) or poll_seconds < 0.1 or poll_seconds > 60:
+        raise ValueError("poll_seconds must be between 0.1 and 60")
+    while True:
+        render_id = run_one(jobs_root, lease_seconds=lease_seconds)
+        if render_id is None:
+            sleep(poll_seconds)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--jobs-root", default=os.environ.get("JOBS_ROOT", "/data/jobs"))
     parser.add_argument("--lease-seconds", type=float, default=300)
+    parser.add_argument("--watch", action="store_true")
+    parser.add_argument("--poll-seconds", type=float, default=2)
     args = parser.parse_args(argv)
     try:
+        if args.watch:
+            run_forever(
+                Path(args.jobs_root),
+                lease_seconds=args.lease_seconds,
+                poll_seconds=args.poll_seconds,
+            )
+            return 0
         render_id = run_one(Path(args.jobs_root), lease_seconds=args.lease_seconds)
         if render_id:
             print(render_id)
