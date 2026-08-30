@@ -296,6 +296,24 @@ def _state(
     }
 
 
+def read_candidate_feedback_state(path: str | Path, candidate_raw: bytes) -> dict[str, object]:
+    """Read strictly validated feedback bound to the supplied candidate artifact bytes."""
+    try:
+        presentation = artifact_bytes_to_presentation(candidate_raw)
+        if presentation.get("selectionVersion") != SELECTION_VERSION:
+            raise ValueError("selection version")
+        candidate_ids = {item["id"] for item in presentation["candidates"]}
+        if any(_CANDIDATE_ID.fullmatch(value) is None for value in candidate_ids):
+            raise ValueError("candidate id")
+        sha256 = hashlib.sha256(candidate_raw).hexdigest()
+        raw = _open_read(Path(path), MAX_FEEDBACK_BYTES, missing=True)
+        return _state(_parse_feedback(raw, sha256, candidate_ids), sha256)
+    except FeedbackArtifactInvalid:
+        raise
+    except Exception as error:
+        raise FeedbackArtifactInvalid() from error
+
+
 def _encode(artifact: dict[str, object]) -> bytes:
     raw = (
         json.dumps(artifact, ensure_ascii=False, separators=(",", ":"), allow_nan=False) + "\n"

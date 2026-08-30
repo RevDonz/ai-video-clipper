@@ -16,6 +16,7 @@ from ai_clipper.candidate_feedback import (
     FeedbackRequestInvalid,
     SelectionChanged,
     process_feedback,
+    read_candidate_feedback_state,
     run,
 )
 from ai_clipper.ranking import candidate_artifact_lock
@@ -69,6 +70,18 @@ def test_put_appends_strict_bound_artifact_and_get_returns_sanitized_state(tmp_p
     assert state["latestByCandidate"][candidate_id]["decision"] == "accepted"
     serialized = json.dumps(state)
     assert "source" not in serialized and "provenance" not in serialized
+
+
+def test_public_feedback_reader_validates_binding_from_candidate_bytes(tmp_path):
+    analysis, candidate_id = setup_analysis(tmp_path)
+    process_feedback(analysis, put(candidate_id))
+    candidate_raw = (analysis / "candidates.v2.json").read_bytes()
+
+    state = read_candidate_feedback_state(analysis / "candidate-feedback.v1.json", candidate_raw)
+
+    assert state["latestByCandidate"][candidate_id]["decision"] == "accepted"
+    with pytest.raises(FeedbackArtifactInvalid):
+        read_candidate_feedback_state(analysis / "candidate-feedback.v1.json", candidate_raw + b" ")
 
 
 def test_same_client_request_is_idempotent_and_changed_payload_conflicts(tmp_path):
