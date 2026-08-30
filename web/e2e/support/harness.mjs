@@ -117,18 +117,16 @@ function mediaRequestKey(request) {
 function isMarkedMediaTeardownAbort(tracker, request, reason) {
   const exactRequest = tracker.expectedRequests.delete(request);
   if (request.method() !== "GET" || request.resourceType() !== "media") return false;
-  let expiresAt;
-  if (!exactRequest) {
-    const key = mediaRequestKey(request);
-    const expected = tracker.expectedKeys.get(key);
-    if (expected) {
-      expiresAt = expected.expiresAt;
-      if (expected.remaining <= 1) tracker.expectedKeys.delete(key);
-      else tracker.expectedKeys.set(key, { ...expected, remaining: expected.remaining - 1 });
-    }
+  const key = mediaRequestKey(request);
+  const expected = tracker.expectedKeys.get(key);
+  let signatureMatch = false;
+  if (expected) {
+    signatureMatch = expected.expiresAt >= Date.now();
+    if (expected.remaining <= 1) tracker.expectedKeys.delete(key);
+    else tracker.expectedKeys.set(key, { ...expected, remaining: expected.remaining - 1 });
   }
   if (reason !== "net::ERR_ABORTED") return false;
-  return exactRequest || (expiresAt !== undefined && expiresAt >= Date.now());
+  return exactRequest || signatureMatch;
 }
 
 export function markExpectedMediaTeardownAborts(page, urls) {
@@ -140,8 +138,7 @@ export function markExpectedMediaTeardownAborts(page, urls) {
     const matches = [...tracker.activeRequests].filter((request) => request.method() === "GET"
       && request.resourceType() === "media" && request.url() === url);
     for (const request of matches) tracker.expectedRequests.add(request);
-    const remaining = Math.max(0, count - matches.length);
-    if (remaining === 0) continue;
+    const remaining = count;
     const key = `GET\nmedia\n${url}`;
     const expiresAt = Date.now() + MEDIA_TEARDOWN_MARK_MS;
     tracker.expectedKeys.set(key, { expiresAt, remaining });
@@ -182,7 +179,12 @@ export function captureFailures(page) {
   page.on("request", (request) => tracker.activeRequests.add(request));
   page.on("requestfinished", (request) => {
     tracker.activeRequests.delete(request);
-    tracker.expectedRequests.delete(request);
+    if (tracker.expectedRequests.delete(request)) {
+      const key = mediaRequestKey(request);
+      const expected = tracker.expectedKeys.get(key);
+      if (expected?.remaining <= 1) tracker.expectedKeys.delete(key);
+      else if (expected) tracker.expectedKeys.set(key, { ...expected, remaining: expected.remaining - 1 });
+    }
   });
   page.on("console", (message) => {
     if (message.type() === "error") failures.console.push(message.text());
