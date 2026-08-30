@@ -36,6 +36,11 @@ const stageLabel = {
   analyzing: "Menganalisis video",
   transcribing: "Membuat transkrip",
   selecting: "Memilih highlight",
+  candidates_generating: "Membuat kandidat V2",
+  features: "Mengukur fitur kandidat V2",
+  ranking: "Menyusun shortlist V2",
+  media: "Menganalisis media kandidat V2",
+  candidates_ready: "Kandidat bayangan V2 siap",
   rendering: "Merender klip",
   finalizing: "Menyelesaikan hasil",
   completed: "Selesai",
@@ -50,6 +55,8 @@ export default function DashboardPage() {
   const [limit, setLimit] = useState(3);
   const [minDuration, setMinDuration] = useState(20);
   const [maxDuration, setMaxDuration] = useState(60);
+  const [shadowSelection, setShadowSelection] = useState(false);
+  const [clipProfile, setClipProfile] = useState("standard");
   const [jobs, setJobs] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -96,6 +103,10 @@ export default function DashboardPage() {
       data.set("limit", String(limit));
       data.set("minDuration", String(minDuration));
       data.set("maxDuration", String(maxDuration));
+      if (shadowSelection) {
+        data.set("selectionMode", "v2-shadow");
+        data.set("clipProfile", clipProfile);
+      }
       if (sourceType === "youtube") data.set("youtubeUrl", youtubeUrl);
       else if (video) data.set("video", video);
       const response = await fetch("/api/jobs", { method: "POST", body: data });
@@ -159,6 +170,22 @@ export default function DashboardPage() {
             <label><span>Jumlah klip</span><input type="number" min="1" max="10" value={limit} onChange={(e) => setLimit(e.target.value)} /></label>
             <label><span>Durasi minimum</span><div><input type="number" min="5" max="180" value={minDuration} onChange={(e) => setMinDuration(e.target.value)} /><b>detik</b></div></label>
             <label><span>Durasi maksimum</span><div><input type="number" min="5" max="180" value={maxDuration} onChange={(e) => setMaxDuration(e.target.value)} /><b>detik</b></div></label>
+          </div>
+          <div className={`shadowOptions ${shadowSelection ? "enabled" : ""}`}>
+            <label className="shadowToggle">
+              <input type="checkbox" checked={shadowSelection} onChange={(event) => setShadowSelection(event.target.checked)} />
+              <span><strong>Experimental Selection V2 shadow</strong><small>V1 tetap merender klip. V2 hanya membuat kandidat pembanding.</small></span>
+            </label>
+            {shadowSelection && (
+              <label className="profileField">
+                <span>Profil kandidat V2</span>
+                <select value={clipProfile} onChange={(event) => setClipProfile(event.target.value)}>
+                  <option value="viral-short">Klip singkat</option>
+                  <option value="standard">Standar</option>
+                  <option value="deep-dive">Pembahasan mendalam</option>
+                </select>
+              </label>
+            )}
           </div>
           <button className="submit" disabled={submitting}>{submitting ? "Membuat job…" : "Buat klip sekarang"}<span>→</span></button>
           {message && <p className="message">{message}</p>}

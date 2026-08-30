@@ -135,6 +135,7 @@ export default function ProjectsPage() {
 
                 {isOpen && (
                   <div className="projectDetail">
+                    <a className="projectDetailLink" href={`/projects/${job.id}`}>Buka detail & kandidat V2 →</a>
                     {job.source?.url && <a className="sourceLink" href={job.source.url} target="_blank" rel="noreferrer">Buka sumber YouTube ↗</a>}
                     {job.error && <div className="projectError">{job.error}</div>}
                     {job.clips?.length ? (

@@ -7,8 +7,8 @@ import { spawn } from "node:child_process";
 import { requireAuth } from "../../../lib/auth.mjs";
 import {
   atomicWriteJson,
-  enrichJobSocialMetadata,
   parseJobOptions,
+  serializePublicJob,
   sortJobsNewest,
   validateYouTubeUrl,
 } from "../../../lib/jobs.mjs";
@@ -19,8 +19,21 @@ export const runtime = "nodejs";
 const jobsRoot = () => path.resolve(process.env.JOBS_ROOT || "/data/jobs");
 
 function publicJob(job) {
-  const { sourcePath: _sourcePath, ...safe } = job;
-  return enrichJobSocialMetadata(safe);
+  return serializePublicJob(job);
+}
+
+export function parseJobFormOptions(form) {
+  return parseJobOptions({
+    renderMode: form.get("renderMode"),
+    limit: form.get("limit"),
+    minDuration: form.get("minDuration"),
+    maxDuration: form.get("maxDuration"),
+    selectionMode: form.get("selectionMode"),
+    clipProfile: form.get("clipProfile"),
+    maxCandidates: form.get("maxCandidates"),
+    maxMediaCandidates: form.get("maxMediaCandidates"),
+    mediaTimeout: form.get("mediaTimeout"),
+  });
 }
 
 export async function GET(request) {
@@ -45,12 +58,7 @@ export async function POST(request) {
   if (denied) return denied;
   try {
     const form = await request.formData();
-    const options = parseJobOptions({
-      renderMode: form.get("renderMode"),
-      limit: form.get("limit"),
-      minDuration: form.get("minDuration"),
-      maxDuration: form.get("maxDuration"),
-    });
+    const options = parseJobFormOptions(form);
     const youtubeUrl = String(form.get("youtubeUrl") || "").trim();
     const upload = form.get("video");
     const hasUpload = upload instanceof File && upload.size > 0;

@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "next/server.js";
 
 import { isAuthorized } from "./lib/auth.mjs";
 
@@ -6,7 +6,10 @@ export function proxy(request) {
   if (request.nextUrl.pathname === "/") return NextResponse.next();
   if (isAuthorized(request)) return NextResponse.next();
   if (request.nextUrl.pathname.startsWith("/api/")) {
-    return NextResponse.json({ error: "Sesi login diperlukan" }, { status: 401 });
+    return NextResponse.json(
+      { error: "Sesi login diperlukan" },
+      { status: 401, headers: { "Cache-Control": "no-store" } },
+    );
   }
   const destination = `${request.nextUrl.pathname}${request.nextUrl.search}`;
   const login = request.nextUrl.clone();

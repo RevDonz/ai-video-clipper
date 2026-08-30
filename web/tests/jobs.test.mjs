@@ -6,6 +6,8 @@ import test from "node:test";
 
 import { POST as login } from "../app/api/auth/login/route.js";
 import { POST as logout } from "../app/api/auth/logout/route.js";
+import { parseJobFormOptions } from "../app/api/jobs/route.js";
+import { proxy } from "../proxy.js";
 import {
   authenticateCredentials,
   createSessionToken,
@@ -20,6 +22,8 @@ import {
   parseByteRange,
   parseJobOptions,
   parseWorkerProgress,
+  sanitizeSelectionV2Summary,
+  serializePublicJob,
   safeJobFile,
   sortJobsNewest,
   validateYouTubeUrl,
@@ -30,6 +34,92 @@ test("accepts supported render and numeric options", () => {
     parseJobOptions({ renderMode: "fit-blur", limit: "3", minDuration: "20", maxDuration: "60" }),
     { renderMode: "fit-blur", limit: 3, minDuration: 20, maxDuration: 60 },
   );
+});
+
+test("old job requests preserve their exact V1 option shape", () => {
+  assert.deepEqual(
+    parseJobOptions({ renderMode: "fit-blur", limit: "3", minDuration: "20", maxDuration: "60" }),
+    { renderMode: "fit-blur", limit: 3, minDuration: 20, maxDuration: 60 },
+  );
+});
+
+test("V2 shadow options are strict, bounded, and default safely", () => {
+  assert.deepEqual(parseJobOptions({ selectionMode: "v2-shadow", clipProfile: "deep-dive" }), {
+    renderMode: "fit-blur", limit: 5, minDuration: 20, maxDuration: 60,
+    selectionMode: "v2-shadow", clipProfile: "deep-dive",
+    maxCandidates: 200, maxMediaCandidates: 12, mediaTimeout: 30,
+  });
+  for (const input of [
+    { selectionMode: "v2" }, { selectionMode: true },
+    { selectionMode: "v2-shadow", clipProfile: "viral" },
+    { selectionMode: "v2-shadow", clipProfile: false },
+    { selectionMode: "v2-shadow", maxCandidates: 5001 },
+    { selectionMode: "v2-shadow", maxCandidates: true },
+    { selectionMode: "v2-shadow", maxCandidates: 10, maxMediaCandidates: 11 },
+    { selectionMode: "v2-shadow", maxMediaCandidates: 101 },
+    { selectionMode: "v2-shadow", mediaTimeout: 0 },
+    { selectionMode: "v2-shadow", mediaTimeout: 301 },
+    { selectionMode: "v2-shadow", mediaTimeout: true },
+  ]) assert.throws(() => parseJobOptions(input));
+});
+
+test("public old jobs advertise V1 without leaking sourcePath", () => {
+  const result = serializePublicJob({
+    id: "old", sourcePath: "/data/jobs/old/input/source.mp4",
+    options: { renderMode: "fit-blur", limit: 3, minDuration: 20, maxDuration: 60 }, clips: [],
+  });
+  assert.equal(result.sourcePath, undefined);
+  assert.equal(result.options.selectionMode, "v1");
+  assert.equal(result.options.renderMode, "fit-blur");
+});
+
+test("public jobs re-sanitize Selection V2 summaries and omit invalid values", () => {
+  const raw = {
+    mode: "v2-shadow", status: "failed", analysis_id: "0123456789abcdef0123456789abcdef",
+    selection_version: "selection-v2.0", candidate_count: 0,
+    artifact: "analysis/candidates.v2.json", warnings: ["artifact_archive_failed"],
+    error: "shadow_failed", sourcePath: "/private/source.mp4", nested: { secret: "raw-secret" },
+  };
+  const expected = {
+    mode: "v2-shadow", status: "failed", analysis_id: "0123456789abcdef0123456789abcdef",
+    selection_version: "selection-v2.0", candidate_count: 0,
+    artifact: "analysis/candidates.v2.json", warnings: ["artifact_archive_failed"], error: "shadow_failed",
+  };
+  assert.deepEqual(sanitizeSelectionV2Summary(raw), expected);
+  const failedWithoutError = { ...raw };
+  const expectedWithoutError = { ...expected };
+  delete failedWithoutError.error;
+  delete expectedWithoutError.error;
+  assert.deepEqual(sanitizeSelectionV2Summary(failedWithoutError), expectedWithoutError);
+  const publicJob = serializePublicJob({ id: "safe", options: {}, clips: [], selectionV2: raw, selection_v2: raw });
+  assert.deepEqual(publicJob.selectionV2, expected);
+  assert.equal(publicJob.selection_v2, undefined);
+  assert.doesNotMatch(JSON.stringify(publicJob), /private|raw-secret/);
+
+  const invalid = serializePublicJob({
+    id: "invalid", options: {}, clips: [], selectionV2: { ...raw, warnings: ["secret=leak"] },
+  });
+  assert.equal(invalid.selectionV2, undefined);
+  assert.doesNotMatch(JSON.stringify(invalid), /secret|leak/);
+});
+
+test("job API form parsing leaves old payloads exact and accepts explicit shadow mode", () => {
+  const form = new FormData();
+  form.set("renderMode", "fit-blur");
+  form.set("limit", "3");
+  form.set("minDuration", "20");
+  form.set("maxDuration", "60");
+  assert.deepEqual(parseJobFormOptions(form), {
+    renderMode: "fit-blur", limit: 3, minDuration: 20, maxDuration: 60,
+  });
+
+  form.set("selectionMode", "v2-shadow");
+  form.set("clipProfile", "standard");
+  assert.deepEqual(parseJobFormOptions(form), {
+    renderMode: "fit-blur", limit: 3, minDuration: 20, maxDuration: 60,
+    selectionMode: "v2-shadow", clipProfile: "standard",
+    maxCandidates: 200, maxMediaCandidates: 12, mediaTimeout: 30,
+  });
 });
 
 test("rejects invalid render modes and duration ranges", () => {
@@ -70,6 +160,10 @@ test("worker progress events are parsed safely and reject unrelated output", () 
   );
   assert.equal(parseWorkerProgress("ffmpeg version 7"), null);
   assert.equal(parseWorkerProgress('POTONGIN_PROGRESS {"progress":999}'), null);
+  assert.deepEqual(
+    parseWorkerProgress('POTONGIN_PROGRESS {"progress":60,"stage":"candidates_ready","detail":"Kandidat bayangan V2 siap"}'),
+    { progress: 60, stage: "candidates_ready", detail: "Kandidat bayangan V2 siap" },
+  );
 });
 
 test("AI social metadata derives a concise hook and caption from clip content", () => {
@@ -155,7 +249,19 @@ test("public landing and protected dashboard use separate routes", async () => {
   assert.match(dashboard, /fetch\("\/api\/jobs"/);
   assert.match(dashboard, /role="progressbar"/);
   assert.match(dashboard, /aria-live="polite"/);
+  assert.match(dashboard, /Experimental Selection V2 shadow/);
+  assert.match(dashboard, /V1 tetap merender/);
+  assert.match(dashboard, /data\.set\("selectionMode", "v2-shadow"\)/);
   assert.match(proxySource, /pathname === "\/"/);
+});
+
+test("proxy API authentication failures are explicitly non-cacheable", async () => {
+  const response = proxy({
+    headers: new Headers(),
+    nextUrl: new URL("http://local/api/jobs/00000000-0000-4000-8000-000000000000"),
+  });
+  assert.equal(response.status, 401);
+  assert.equal(response.headers.get("cache-control"), "no-store");
 });
 
 test("auth redirects stay on the public origin behind a reverse proxy", async () => {
