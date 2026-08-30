@@ -8,6 +8,7 @@ to Task 6.
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import heapq
 import ipaddress
@@ -17,8 +18,10 @@ import os
 import re
 import stat
 import tempfile
+import threading
 import unicodedata
 from bisect import bisect_left, bisect_right
+from contextlib import contextmanager
 from dataclasses import dataclass, fields, replace
 from decimal import Decimal
 from numbers import Real
@@ -30,6 +33,11 @@ from .candidates import BoundaryCandidate
 from .features import FeatureExtractionResult
 from .media_features import MediaFeatureAnalysis
 from .models import ClipCandidate, ClipProfile
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - production artifact publication is POSIX-only
+    fcntl = None  # type: ignore[assignment]
 
 SELECTION_VERSION = "selection-v2.0"
 MAX_RANKING_INPUTS = 5000
@@ -119,6 +127,99 @@ _REASON_TEMPLATES = {
 _MEDIA_REASON_TEMPLATES = {
     name: f"Pengukuran {name} aktif dengan nilai {{value:.3f}}/10." for name in _MEDIA_DIMENSIONS
 }
+
+_candidate_lock_threads = threading.RLock()
+_candidate_lock_local = threading.local()
+_candidate_lock_fds: set[int] = set()
+
+
+def _acquire_candidate_locks_before_fork() -> None:
+    _candidate_lock_threads.acquire()
+
+
+def _release_candidate_locks_after_fork_in_parent() -> None:
+    _candidate_lock_threads.release()
+
+
+def _reset_candidate_locks_after_fork() -> None:
+    global _candidate_lock_threads, _candidate_lock_local, _candidate_lock_fds
+    try:
+        for fd in tuple(_candidate_lock_fds):
+            try:
+                os.close(fd)
+            except OSError as error:
+                if error.errno != errno.EBADF:
+                    raise
+    finally:
+        _candidate_lock_threads = threading.RLock()
+        _candidate_lock_local = threading.local()
+        _candidate_lock_fds = set()
+
+
+if hasattr(os, "register_at_fork"):
+    os.register_at_fork(
+        before=_acquire_candidate_locks_before_fork,
+        after_in_parent=_release_candidate_locks_after_fork_in_parent,
+        after_in_child=_reset_candidate_locks_after_fork,
+    )
+
+
+@contextmanager
+def candidate_artifact_lock(analysis_dir: str | Path, *, exclusive: bool):
+    """Lock candidate publication across threads/processes using a regular lock file."""
+    if fcntl is None:  # pragma: no cover
+        raise RuntimeError("candidate artifact locking requires fcntl")
+    lock_path = Path(analysis_dir) / ".candidates.v2.lock"
+    with _candidate_lock_threads:
+        states = getattr(_candidate_lock_local, "states", None)
+        if states is None:
+            states = {}
+            _candidate_lock_local.states = states
+        key = os.fspath(lock_path.absolute())
+        state = states.get(key)
+        if state is None:
+            flags = os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK
+            try:
+                fd = os.open(lock_path, flags, 0o600)
+            except OSError as error:
+                raise ValueError("candidate lock must be a regular file") from error
+            _candidate_lock_fds.add(fd)
+            try:
+                if not stat.S_ISREG(os.fstat(fd).st_mode):
+                    raise ValueError("candidate lock must be a regular file")
+                modes = [exclusive]
+                fcntl.flock(fd, fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH)
+            except BaseException:
+                try:
+                    os.close(fd)
+                finally:
+                    _candidate_lock_fds.discard(fd)
+                raise
+            state = {"fd": fd, "modes": modes, "owner_pid": os.getpid()}
+            states[key] = state
+        else:
+            modes = state["modes"]
+            modes.append(exclusive)
+            if exclusive and not any(modes[:-1]):
+                fcntl.flock(state["fd"], fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            if state["owner_pid"] == os.getpid():
+                modes = state["modes"]
+                modes.pop()
+                if modes:
+                    desired = fcntl.LOCK_EX if any(modes) else fcntl.LOCK_SH
+                    fcntl.flock(state["fd"], desired)
+                else:
+                    try:
+                        fcntl.flock(state["fd"], fcntl.LOCK_UN)
+                    finally:
+                        try:
+                            os.close(state["fd"])
+                        finally:
+                            _candidate_lock_fds.discard(state["fd"])
+                            del states[key]
 
 
 def _finite_nonnegative(value: object, name: str) -> float:
@@ -1294,28 +1395,29 @@ def write_candidates_artifact(path: str | Path, artifact: CandidatesArtifact) ->
         json.dumps(artifact.to_dict(), ensure_ascii=False, indent=2, allow_nan=False) + "\n"
     ).encode()
     pending: Path | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            "wb",
-            dir=destination.parent,
-            prefix=f".{destination.name}.",
-            suffix=".tmp",
-            delete=False,
-        ) as stream:
-            pending = Path(stream.name)
-            stream.write(encoded)
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(pending, destination)
-        descriptor = os.open(destination.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    with candidate_artifact_lock(destination.parent, exclusive=True):
         try:
-            os.fsync(descriptor)
+            with tempfile.NamedTemporaryFile(
+                "wb",
+                dir=destination.parent,
+                prefix=f".{destination.name}.",
+                suffix=".tmp",
+                delete=False,
+            ) as stream:
+                pending = Path(stream.name)
+                stream.write(encoded)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(pending, destination)
+            descriptor = os.open(destination.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+            try:
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+            pending = None
         finally:
-            os.close(descriptor)
-        pending = None
-    finally:
-        if pending is not None:
-            pending.unlink(missing_ok=True)
+            if pending is not None:
+                pending.unlink(missing_ok=True)
 
 
 def _reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:

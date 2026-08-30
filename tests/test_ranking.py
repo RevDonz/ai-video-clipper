@@ -1,8 +1,12 @@
 import dataclasses
+import errno
 import json
 import math
 import os
+import select
+import signal
 import threading
+import time
 import unicodedata
 from pathlib import Path
 
@@ -30,6 +34,7 @@ from ai_clipper.ranking import (
     ScoreBreakdown,
     ScoreContribution,
     WeightConfig,
+    candidate_artifact_lock,
     rank_candidates,
     rank_candidates_with_breakdowns,
     read_candidates_artifact,
@@ -1538,6 +1543,103 @@ def test_artifact_rejects_symlink_analysis_directory(tmp_path: Path):
                 ((0.0, 30.0),), weights(audio_energy=0.0, diversity_strength=0.0)
             ),
         )
+
+
+def test_candidate_lock_rejects_nonregular_lock_path(tmp_path: Path):
+    analysis = tmp_path / "analysis"
+    analysis.mkdir()
+    (analysis / ".candidates.v2.lock").mkdir()
+    with (
+        pytest.raises(ValueError, match="regular"),
+        candidate_artifact_lock(analysis, exclusive=True),
+    ):
+        pass
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires POSIX fork")
+@pytest.mark.parametrize("owner_exclusive", [False, True], ids=["shared", "exclusive"])
+def test_fork_child_reacquires_candidate_lock_after_abrupt_parent_exit(
+    tmp_path: Path, owner_exclusive: bool
+):
+    analysis = tmp_path / "analysis"
+    analysis.mkdir()
+    read_fd, write_fd = os.pipe()
+    lock_owner = os.fork()
+    if lock_owner == 0:  # pragma: no cover - assertions run in the parent process
+        os.close(read_fd)
+        with candidate_artifact_lock(analysis, exclusive=owner_exclusive):
+            contender = os.fork()
+            if contender == 0:
+                try:
+                    signal.alarm(3)
+                    with candidate_artifact_lock(analysis, exclusive=True):
+                        os.write(write_fd, b"acquired\n")
+                    os._exit(0)
+                except (OSError, RuntimeError, ValueError) as error:
+                    os.write(write_fd, f"error:{error!r}\n".encode())
+                    os._exit(1)
+            os.write(write_fd, f"pid:{contender}\n".encode())
+            os._exit(0)
+
+    os.close(write_fd)
+    contender_pid = None
+    output = b""
+    try:
+        waited_pid, status = os.waitpid(lock_owner, 0)
+        assert waited_pid == lock_owner
+        assert os.waitstatus_to_exitcode(status) == 0
+        deadline = time.monotonic() + 5
+        while b"acquired\n" not in output and time.monotonic() < deadline:
+            readable, _, _ = select.select([read_fd], [], [], deadline - time.monotonic())
+            if not readable:
+                break
+            chunk = os.read(read_fd, 4096)
+            if not chunk:
+                break
+            output += chunk
+        for line in output.splitlines():
+            if line.startswith(b"pid:"):
+                contender_pid = int(line.removeprefix(b"pid:"))
+        assert b"acquired\n" in output
+    finally:
+        os.close(read_fd)
+        if contender_pid is not None and b"acquired\n" not in output:
+            try:
+                os.kill(contender_pid, 9)
+            except ProcessLookupError:
+                pass
+
+
+@pytest.mark.skipif(not Path("/proc/self/fd").is_dir(), reason="requires Linux procfs")
+def test_candidate_lock_registry_is_exact_across_nested_locks_and_repeated_forks(tmp_path: Path):
+    analysis = tmp_path / "analysis"
+    analysis.mkdir()
+    initial_fd_count = len(list(Path("/proc/self/fd").iterdir()))
+
+    with candidate_artifact_lock(analysis, exclusive=False):
+        assert len(ranking_module._candidate_lock_fds) == 1
+        candidate_fd = next(iter(ranking_module._candidate_lock_fds))
+        held_fd_count = len(list(Path("/proc/self/fd").iterdir()))
+        with candidate_artifact_lock(analysis, exclusive=False):
+            assert ranking_module._candidate_lock_fds == {candidate_fd}
+            for _ in range(3):
+                child = os.fork()
+                if child == 0:  # pragma: no cover - assertions run through the exit status
+                    registry_was_reset = ranking_module._candidate_lock_fds == set()
+                    try:
+                        os.fstat(candidate_fd)
+                    except OSError as error:
+                        descriptor_was_closed = error.errno == errno.EBADF
+                    else:
+                        descriptor_was_closed = False
+                    os._exit(0 if registry_was_reset and descriptor_was_closed else 1)
+                _, status = os.waitpid(child, 0)
+                assert os.waitstatus_to_exitcode(status) == 0
+                assert ranking_module._candidate_lock_fds == {candidate_fd}
+                assert len(list(Path("/proc/self/fd").iterdir())) == held_fd_count
+
+    assert ranking_module._candidate_lock_fds == set()
+    assert len(list(Path("/proc/self/fd").iterdir())) == initial_fd_count
 
 
 def test_atomic_writer_reader_stress_never_observes_partial_json(tmp_path: Path):

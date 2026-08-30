@@ -1,15 +1,19 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 
 import {
   CONTRIBUTION_LABELS,
   FEATURE_LABELS,
   MEDIA_LABELS,
+  buildFeedbackView,
+  classifyFeedbackSaveFailure,
+  createFeedbackSaveAttempt,
   formatDuration,
   formatScore,
   loadProjectDetail,
   profileLabel,
+  validateFeedbackPayload,
 } from "../../../lib/candidate-view.mjs";
 
 const STATUS_LABELS = {
@@ -38,7 +42,132 @@ function formatDate(value) {
   return new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" }).format(date);
 }
 
-function CandidateCard({ candidate }) {
+function FeedbackEditor({ candidate, jobId, latest, enabled, disabledReason, onSaved, onReloadRequired }) {
+  const [decision, setDecision] = useState(latest?.decision || "");
+  const [note, setNote] = useState(latest?.note || "");
+  const [savedDecision, setSavedDecision] = useState(latest?.decision || "");
+  const [savedNote, setSavedNote] = useState(latest?.note || "");
+  const [saveState, setSaveState] = useState({ status: "idle", message: "" });
+  const pendingAttempt = useRef(null);
+  const requestController = useRef(null);
+  const mounted = useRef(true);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      requestController.current?.abort();
+    };
+  }, []);
+
+  const chooseDecision = (value) => {
+    setDecision(value);
+    if (saveState.status !== "saving") setSaveState({ status: "idle", message: "" });
+  };
+  const changeNote = (value) => {
+    setNote(value);
+    if (saveState.status !== "saving") setSaveState({ status: "idle", message: "" });
+  };
+  const dirty = decision !== savedDecision || note !== savedNote;
+
+  const save = async () => {
+    const attempt = createFeedbackSaveAttempt(
+      pendingAttempt.current,
+      { candidateId: candidate.id, decision, note },
+      () => crypto.randomUUID(),
+    );
+    // Validate the raw note so trimming can never hide a control character.
+    const validation = validateFeedbackPayload({ ...attempt, note });
+    if (!validation.valid) {
+      setSaveState({ status: "error", message: validation.error });
+      return;
+    }
+
+    pendingAttempt.current = attempt;
+    requestController.current?.abort();
+    const controller = new AbortController();
+    requestController.current = controller;
+    setSaveState({ status: "saving", message: "Menyimpan feedback…" });
+    try {
+      const response = await fetch(`/api/jobs/${jobId}/candidate-feedback`, {
+        method: "PUT",
+        cache: "no-store",
+        signal: controller.signal,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(attempt),
+      });
+      let payload = {};
+      try {
+        payload = await response.json();
+      } catch {
+        payload = {};
+      }
+      if (!mounted.current) return;
+      if (response.status === 401) {
+        window.location.assign(`/login?next=${encodeURIComponent(`/projects/${jobId}`)}`);
+        return;
+      }
+      if (!response.ok) {
+        const failure = classifyFeedbackSaveFailure(response.status, payload);
+        pendingAttempt.current = failure.retryable ? { ...attempt, retryable: true } : null;
+        setSaveState(failure);
+        if (failure.reloadRequired) onReloadRequired(failure.message);
+        return;
+      }
+
+      const next = buildFeedbackView(payload);
+      const saved = next.latestByCandidate[candidate.id];
+      if (!next.available || !saved) throw new Error("Respons feedback tidak valid.");
+      pendingAttempt.current = null;
+      setDecision(saved.decision);
+      setNote(saved.note);
+      setSavedDecision(saved.decision);
+      setSavedNote(saved.note);
+      onSaved(next);
+      setSaveState({ status: "success", message: "Feedback tersimpan secara durabel untuk evaluasi/kalibrasi mendatang." });
+    } catch (error) {
+      if (!mounted.current || error?.name === "AbortError") return;
+      pendingAttempt.current = { ...attempt, retryable: true };
+      setSaveState({ status: "error", message: "Jaringan terputus; feedback belum dipastikan tersimpan. Coba lagi dengan ID permintaan yang sama." });
+    }
+  };
+
+  const noteLength = Array.from(note).length;
+  const reloadRequired = saveState.reloadRequired === true;
+  const disabled = !enabled || reloadRequired || saveState.status === "saving";
+  return (
+    <section className="feedbackEditor" aria-labelledby={`feedback-title-${candidate.id}`}>
+      <div className="feedbackHeading">
+        <div><h4 id={`feedback-title-${candidate.id}`}>Feedback kandidat</h4><p>Feedback tersimpan untuk evaluasi/kalibrasi mendatang; ini tidak mengaktifkan pelatihan otomatis.</p></div>
+        {latest?.createdAt && <span>Terakhir tersimpan {formatDate(latest.createdAt)}</span>}
+      </div>
+      <fieldset disabled={disabled}>
+        <legend>Keputusan untuk kandidat ini</legend>
+        <div className="decisionSegments">
+          {[["accepted", "Accept"], ["rejected", "Tolak"], ["undecided", "Belum diputuskan"]].map(([value, label]) => (
+            <label key={value} className={decision === value ? "selected" : ""}>
+              <input type="radio" name={`decision-${candidate.id}`} value={value} checked={decision === value} onChange={() => chooseDecision(value)} />
+              <span>{label}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <label className="feedbackNote" htmlFor={`feedback-note-${candidate.id}`}>
+        <span>Catatan opsional</span>
+        <textarea id={`feedback-note-${candidate.id}`} aria-describedby={`feedback-note-help-${candidate.id}`} value={note} disabled={disabled} onChange={(event) => changeNote(event.target.value)} placeholder="Tambahkan alasan singkat (opsional)" />
+        <small id={`feedback-note-help-${candidate.id}`} className={noteLength > 500 ? "over" : ""}>{noteLength}/500 karakter Unicode. Baris baru dan karakter kontrol tidak didukung.</small>
+      </label>
+      {(!enabled || reloadRequired) && <p className="feedbackDisabled" role="status">{reloadRequired ? saveState.message : disabledReason}</p>}
+      <div className="feedbackActions">
+        <button type="button" onClick={save} disabled={disabled || !dirty || !decision}>{saveState.status === "saving" ? "Menyimpan…" : "Simpan feedback"}</button>
+        <span className={`feedbackStatus ${saveState.status}`} role={saveState.status === "error" || reloadRequired ? "alert" : "status"} aria-live="polite">{saveState.message || (dirty ? "Perubahan belum disimpan." : "Tidak ada perubahan yang belum disimpan.")}</span>
+      </div>
+      {reloadRequired && <button className="feedbackReload" type="button" onClick={() => window.location.reload()}>Muat ulang halaman</button>}
+    </section>
+  );
+}
+
+function CandidateCard({ candidate, jobId, latestFeedback, feedbackEnabled, feedbackDisabledReason, onFeedbackSaved, onFeedbackReloadRequired }) {
   const score = safePercent(candidate.score * 10);
   const features = Object.entries(candidate.features || {});
   const contributions = candidate.scoreBreakdown?.contributions || [];
@@ -67,7 +196,7 @@ function CandidateCard({ candidate }) {
         <span><small>Selesai</small>{formatDuration(candidate.end)}</span>
         <span><small>Durasi</small>{formatDuration(candidate.duration)}</span>
       </div>
-      <p className="boundaryNote">Preview menggunakan kutipan transkrip dan batas waktu. Video kandidat belum ditampilkan karena kontrak media/manifest edit belum tersedia.</p>
+      <p className="boundaryNote">Batas kandidat tetap mengikuti segmen transkrip utuh. Kontrol edit batas arbitrer belum tersedia; preview video kandidat juga belum ditampilkan karena kontrak media/manifest edit belum tersedia.</p>
 
       {!!candidate.topicTerms?.length && <div className="topicTerms" aria-label="Istilah topik">{candidate.topicTerms.map((term) => <span key={term}>{term}</span>)}</div>}
 
@@ -100,6 +229,16 @@ function CandidateCard({ candidate }) {
         </div>
         {!!contributions.length && <div className="contributions" role="list">{contributions.map((item) => <div role="listitem" key={item.name}><span>{CONTRIBUTION_LABELS[item.name] || item.name}<small>{item.source === "media" ? "sinyal media" : "sinyal teks"}</small></span><b>{formatScore(item.weightedValue)}</b></div>)}</div>}
       </details>
+
+      <FeedbackEditor
+        candidate={candidate}
+        jobId={jobId}
+        latest={latestFeedback}
+        enabled={feedbackEnabled}
+        disabledReason={feedbackDisabledReason}
+        onSaved={onFeedbackSaved}
+        onReloadRequired={onFeedbackReloadRequired}
+      />
     </article>
   );
 }
@@ -107,10 +246,13 @@ function CandidateCard({ candidate }) {
 export default function ProjectDetailPage({ params }) {
   const { id } = use(params);
   const [job, setJob] = useState(null);
-  const [candidateView, setCandidateView] = useState({ available: false, candidates: [] });
+  const [candidateView, setCandidateView] = useState({ available: false, selectionVersion: "", candidates: [] });
+  const [feedbackView, setFeedbackView] = useState({ available: false, selectionVersion: "", eventCount: 0, latestByCandidate: {} });
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState("");
   const [candidateNotice, setCandidateNotice] = useState("");
+  const [feedbackNotice, setFeedbackNotice] = useState("");
+  const [feedbackReloadRequired, setFeedbackReloadRequired] = useState("");
   const [reloadGeneration, setReloadGeneration] = useState(0);
 
   useEffect(() => {
@@ -118,9 +260,12 @@ export default function ProjectDetailPage({ params }) {
     let active = true;
     setLoading(true);
     setJob(null);
-    setCandidateView({ available: false, candidates: [] });
+    setCandidateView({ available: false, selectionVersion: "", candidates: [] });
+    setFeedbackView({ available: false, selectionVersion: "", eventCount: 0, latestByCandidate: {} });
     setPageError("");
     setCandidateNotice("");
+    setFeedbackNotice("");
+    setFeedbackReloadRequired("");
     (async () => {
       try {
         const result = await loadProjectDetail(id, { signal: controller.signal });
@@ -132,6 +277,8 @@ export default function ProjectDetailPage({ params }) {
         setJob(result.job);
         setCandidateView(result.candidateView);
         setCandidateNotice(result.candidateNotice);
+        setFeedbackView(result.feedbackView);
+        setFeedbackNotice(result.feedbackNotice);
       } catch (error) {
         if (!active || error?.name === "AbortError") return;
         setPageError(error instanceof Error ? error.message : "Terjadi gangguan jaringan saat memuat proyek.");
@@ -148,6 +295,13 @@ export default function ProjectDetailPage({ params }) {
   const clips = job?.clips || [];
   const progress = safePercent(job?.progress);
   const candidates = candidateView.candidates;
+  const selectionVersionMatches = feedbackView.available
+    && !!candidateView.selectionVersion
+    && feedbackView.selectionVersion === candidateView.selectionVersion;
+  const feedbackDisabledReason = feedbackReloadRequired || feedbackNotice
+    || (!feedbackView.available
+      ? "Penyimpanan feedback belum tersedia untuk proyek ini."
+      : "Versi pilihan kandidat berubah. Muat ulang halaman agar feedback tidak diterapkan ke versi yang salah.");
 
   return (
     <main>
@@ -180,8 +334,22 @@ export default function ProjectDetailPage({ params }) {
           </section>
 
           <section className="candidatePanel shell" aria-labelledby="candidate-title">
-            <header><div><div className="eyebrow">SELECTION V2 · SHADOW OUTPUT</div><h2 id="candidate-title">Kandidat potongan</h2><p>Analisis read-only untuk membantu meninjau batas transkrip. Kandidat ini belum diterima, dirender, atau diaktifkan untuk produksi.</p></div>{candidates.length > 0 && <strong>{candidates.length} kandidat</strong>}</header>
-            {candidateView.available && candidates.length > 0 ? <div className="candidateList">{candidates.map((candidate) => <CandidateCard key={candidate.id} candidate={candidate} />)}</div> : (
+            <header><div><div className="eyebrow">SELECTION V2 · SHADOW OUTPUT</div><h2 id="candidate-title">Kandidat potongan</h2><p>Analisis tetap read-only; keputusan dan catatan di bawah hanya disimpan sebagai feedback evaluasi. Kandidat belum dirender atau diaktifkan untuk produksi.</p></div>{candidates.length > 0 && <strong>{candidates.length} kandidat · {feedbackView.eventCount} event feedback</strong>}</header>
+            {feedbackNotice && <div className="feedbackPanelWarning" role="status" aria-live="polite"><strong>Feedback sementara tidak tersedia.</strong><span>{feedbackNotice}</span></div>}
+            {feedbackReloadRequired && <div className="feedbackPanelWarning" role="alert"><strong>Feedback dikunci sampai halaman dimuat ulang.</strong><span>{feedbackReloadRequired}</span><button className="feedbackReload" type="button" onClick={() => window.location.reload()}>Muat ulang halaman</button></div>}
+            {feedbackView.available && !selectionVersionMatches && <div className="feedbackPanelWarning" role="alert"><strong>Versi kandidat tidak cocok.</strong><span>{feedbackDisabledReason}</span></div>}
+            {candidateView.available && candidates.length > 0 ? <div className="candidateList">{candidates.map((candidate) => (
+              <CandidateCard
+                key={candidate.id}
+                candidate={candidate}
+                jobId={id}
+                latestFeedback={feedbackView.latestByCandidate[candidate.id]}
+                feedbackEnabled={selectionVersionMatches && !feedbackReloadRequired}
+                feedbackDisabledReason={feedbackDisabledReason}
+                onFeedbackSaved={setFeedbackView}
+                onFeedbackReloadRequired={setFeedbackReloadRequired}
+              />
+            ))}</div> : (
               <div className="candidateEmpty">
                 <div className="emptyIcon">◇</div><h3>Kandidat V2 belum tersedia</h3>
                 <p>{candidateNotice || "V2 shadow mungkin belum dijalankan untuk job lama, atau artifact analisis belum tersedia."}</p>
