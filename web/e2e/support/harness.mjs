@@ -9,6 +9,12 @@ export function parsePositiveMilliseconds(raw, fallback, name) {
   return value;
 }
 
+export function weakTransportEtag(etag) {
+  const match = /^(?:W\/)?("[0-9a-f]{64}")$/.exec(etag || "");
+  if (!match) throw new Error("Expected a canonical ETag: exact strong or once-weak lowercase 64hex");
+  return `W/${match[1]}`;
+}
+
 export const settings = Object.freeze({
   baseURL: (process.env.E2E_BASE_URL || "http://127.0.0.1:3000").replace(/\/$/, ""),
   username: process.env.E2E_USERNAME || "",
@@ -101,22 +107,87 @@ export function editorPath(jobId, candidateId) {
   return `/projects/${encodeURIComponent(jobId)}/candidates/${encodeURIComponent(candidateId)}/edit`;
 }
 
-export function isExpectedLifecycleAbort(request, reason) {
+const mediaTeardownTrackers = new WeakMap();
+const MEDIA_TEARDOWN_MARK_MS = 5_000;
+
+function mediaRequestKey(request) {
+  return `${request.method()}\n${request.resourceType()}\n${request.url()}`;
+}
+
+function isMarkedMediaTeardownAbort(tracker, request, reason) {
+  const exactRequest = tracker.expectedRequests.delete(request);
+  if (request.method() !== "GET" || request.resourceType() !== "media") return false;
+  let expiresAt;
+  if (!exactRequest) {
+    const key = mediaRequestKey(request);
+    expiresAt = tracker.expectedKeys.get(key);
+    tracker.expectedKeys.delete(key);
+  }
   if (reason !== "net::ERR_ABORTED") return false;
-  const url = new URL(request.url());
-  if (url.pathname.startsWith("/api/")) return false;
-  return ["document", "media"].includes(request.resourceType());
+  return exactRequest || (expiresAt !== undefined && expiresAt >= Date.now());
+}
+
+export function markExpectedMediaTeardownAborts(page, urls) {
+  const tracker = mediaTeardownTrackers.get(page);
+  if (!tracker) throw new Error("captureFailures(page) must run before media teardown");
+  const uniqueUrls = new Set(urls.filter(Boolean));
+  for (const url of uniqueUrls) {
+    const matches = [...tracker.activeRequests].filter((request) => request.method() === "GET"
+      && request.resourceType() === "media" && request.url() === url);
+    if (matches.length) {
+      for (const request of matches) tracker.expectedRequests.add(request);
+      continue;
+    }
+    const key = `GET\nmedia\n${url}`;
+    const expiresAt = Date.now() + MEDIA_TEARDOWN_MARK_MS;
+    tracker.expectedKeys.set(key, expiresAt);
+    const timer = setTimeout(() => {
+      if (tracker.expectedKeys.get(key) === expiresAt) tracker.expectedKeys.delete(key);
+    }, MEDIA_TEARDOWN_MARK_MS);
+    timer.unref?.();
+  }
+}
+
+export async function cleanupEditorMedia(page) {
+  const videos = page.locator("video");
+  const urls = await videos.evaluateAll((elements) => [...new Set(elements.flatMap((element) => {
+    const current = element.currentSrc || element.src || element.getAttribute?.("src");
+    return current ? [current] : [];
+  }))]);
+  markExpectedMediaTeardownAborts(page, urls);
+  await videos.evaluateAll((elements, expectedUrls) => {
+    const expected = new Set(expectedUrls);
+    for (const element of elements) {
+      const current = element.currentSrc || element.src || element.getAttribute?.("src");
+      if (!current || !expected.has(current)) continue;
+      element.pause();
+      element.removeAttribute("src");
+      for (const source of element.querySelectorAll("source")) source.removeAttribute("src");
+      element.load();
+    }
+  }, urls);
+  return urls;
 }
 
 export function captureFailures(page) {
   const failures = { console: [], page: [], requests: [], api: [] };
+  const tracker = {
+    activeRequests: new Set(), expectedRequests: new Set(), expectedKeys: new Map(),
+  };
+  mediaTeardownTrackers.set(page, tracker);
+  page.on("request", (request) => tracker.activeRequests.add(request));
+  page.on("requestfinished", (request) => {
+    tracker.activeRequests.delete(request);
+    tracker.expectedRequests.delete(request);
+  });
   page.on("console", (message) => {
     if (message.type() === "error") failures.console.push(message.text());
   });
   page.on("pageerror", (error) => failures.page.push(error.stack || error.message));
   page.on("requestfailed", (request) => {
+    tracker.activeRequests.delete(request);
     const reason = request.failure()?.errorText || "failed";
-    if (!isExpectedLifecycleAbort(request, reason)) {
+    if (!isMarkedMediaTeardownAbort(tracker, request, reason)) {
       failures.requests.push(`${request.method()} ${request.url()} ${reason}`);
     }
   });

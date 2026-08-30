@@ -1,8 +1,8 @@
 import { expect } from "@playwright/test";
 
 import {
-  editorPath, expectEditorReady, expectPlaybackAdvances, login, resolveTarget, settings,
-  skipWithoutCredentials, test,
+  cleanupEditorMedia, editorPath, expectEditorReady, expectPlaybackAdvances, login, resolveTarget,
+  settings, skipWithoutCredentials, test, weakTransportEtag,
 } from "./support/harness.mjs";
 
 test.describe("read-only production-safe flows", () => {
@@ -23,6 +23,7 @@ test.describe("read-only production-safe flows", () => {
       page.locator('button[type="submit"]').click(),
     ]);
     await expectEditorReady(page);
+    await cleanupEditorMedia(page);
   });
 
   test("project exposes every V2 candidate and every editor loads", async ({ page }) => {
@@ -32,10 +33,12 @@ test.describe("read-only production-safe flows", () => {
     await page.goto(`/projects/${encodeURIComponent(target.jobId)}`);
     await expect(page.locator(".candidateCard")).toHaveCount(target.availableCandidateIds.length);
     for (const [index, candidateId] of target.availableCandidateIds.entries()) {
+      if (index > 0) await cleanupEditorMedia(page);
       await page.goto(editorPath(target.jobId, candidateId));
       await expectEditorReady(page);
       if (index === 0) await expectPlaybackAdvances(page.locator("video").first());
     }
+    await cleanupEditorMedia(page);
   });
 
   test("editor accepts a weak transport ETag at runtime", async ({ page }) => {
@@ -49,13 +52,13 @@ test.describe("read-only production-safe flows", () => {
       const response = await route.fetch();
       const headers = { ...response.headers() };
       const etag = headers.etag;
-      expect(etag).toMatch(/^"[0-9a-f]{64}"$/);
-      headers.etag = `W/${etag}`;
+      headers.etag = weakTransportEtag(etag);
       transformed = true;
       await route.fulfill({ response, headers });
     });
     await page.goto(editorPath(target.jobId, candidateId));
     await expectEditorReady(page);
     expect(transformed).toBe(true);
+    await cleanupEditorMedia(page);
   });
 });

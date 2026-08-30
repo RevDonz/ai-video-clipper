@@ -26,6 +26,16 @@ import {
 } from "../lib/primary-job-queue.mjs";
 import { heartbeatRenderStorage, reserveRenderStorage } from "../lib/render-storage-admission.mjs";
 
+function deferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((onResolve, onReject) => {
+    resolve = onResolve;
+    reject = onReject;
+  });
+  return { promise, resolve, reject };
+}
+
 async function root() {
   return mkdtemp(path.join(os.tmpdir(), "primary-queue-"));
 }
@@ -226,7 +236,7 @@ test("a live lock heartbeat prevents overlap beyond the stale interval", async (
   let overlap = false;
   let releaseFirst;
   const holdFirst = new Promise((resolve) => { releaseFirst = resolve; });
-  const enteredFirst = Promise.withResolvers();
+  const enteredFirst = deferred();
 
   const first = withPrimaryQueueLock(jobsRoot, async () => {
     firstInside = true;
@@ -448,8 +458,8 @@ test("expired deployed v1 reservations are cleaned but live v1 reservations fail
 
 test("storage scans complete outside the global queue lock", async () => {
   const jobsRoot = await root();
-  const scanStarted = Promise.withResolvers();
-  const releaseScan = Promise.withResolvers();
+  const scanStarted = deferred();
+  const releaseScan = deferred();
   const admission = reserveAdmission(jobsRoot, 2, "79797979-7979-4979-8979-797979797979", {
     declaredRequestBytes: 1n,
     storageConfig,
@@ -495,8 +505,8 @@ test("render admission includes active primary growth reserve", async () => {
 
 test("render scans and heartbeat scans complete outside the shared lock", async () => {
   const jobsRoot = await root();
-  const scanStarted = Promise.withResolvers();
-  const releaseScan = Promise.withResolvers();
+  const scanStarted = deferred();
+  const releaseScan = deferred();
   const reservationId = "90909090-9090-4090-8090-909090909090";
   const admission = reserveRenderStorage(jobsRoot, {
     reservationId, jobId: reservationId, declaredBytes: 1n, storageConfig,
@@ -506,8 +516,8 @@ test("render scans and heartbeat scans complete outside the shared lock", async 
   await withPrimaryQueueLock(jobsRoot, async () => {});
   releaseScan.resolve();
   const reservation = await admission;
-  const heartbeatStarted = Promise.withResolvers();
-  const releaseHeartbeat = Promise.withResolvers();
+  const heartbeatStarted = deferred();
+  const releaseHeartbeat = deferred();
   const checking = heartbeatRenderStorage(jobsRoot, reservationId, reservation.token, storageConfig, {
     scan: async () => { heartbeatStarted.resolve(); await releaseHeartbeat.promise; return { allocatedBytes: 0n }; }, available: async () => 1000n,
   });

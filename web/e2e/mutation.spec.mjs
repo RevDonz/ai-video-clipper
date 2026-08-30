@@ -1,8 +1,8 @@
 import { expect } from "@playwright/test";
 
 import {
-  editorPath, expectEditorReady, expectPlaybackAdvances, login, resolveTarget, settings,
-  skipWithoutCredentials, skipWithoutExplicitMutationTarget, test, waitForRenderCompletion,
+  cleanupEditorMedia, editorPath, expectEditorReady, expectPlaybackAdvances, login, resolveTarget,
+  settings, skipWithoutCredentials, skipWithoutExplicitMutationTarget, test, waitForRenderCompletion,
 } from "./support/harness.mjs";
 
 test.describe("explicitly gated mutations", () => {
@@ -29,12 +29,14 @@ test.describe("explicitly gated mutations", () => {
       await normalize.setChecked(!original);
       await page.getByRole("button", { name: "Simpan", exact: true }).click();
       await expect(page.getByText(`Tersimpan sebagai revisi ${originalRevision + 1}.`)).toBeVisible();
+      await cleanupEditorMedia(page);
       await page.reload();
       await expectEditorReady(page);
       await expect(page.getByLabel("Normalisasi loudness")).toBeChecked({ checked: !original });
       await expect(page.locator(".editorHeader .eyebrow")).toContainText(`REVISI ${originalRevision + 1}`);
     } finally {
       // Best-effort rollback also runs when a persistence assertion fails. Retries are disabled.
+      await cleanupEditorMedia(page);
       await page.goto(path);
       await expectEditorReady(page);
       const current = page.getByLabel("Normalisasi loudness");
@@ -42,10 +44,12 @@ test.describe("explicitly gated mutations", () => {
         await current.setChecked(original);
         await page.getByRole("button", { name: "Simpan", exact: true }).click();
         await expect(page.locator(".editorSaveBar").getByText(/Tersimpan sebagai revisi \d+\./)).toBeVisible();
+        await cleanupEditorMedia(page);
         await page.reload();
         await expectEditorReady(page);
       }
       await expect(page.getByLabel("Normalisasi loudness")).toBeChecked({ checked: original });
+      await cleanupEditorMedia(page);
     }
   });
 
@@ -70,5 +74,6 @@ test.describe("explicitly gated mutations", () => {
     expect(download.headers()["content-type"] || "").toMatch(/^video\//);
     expect((await download.body()).byteLength).toBeGreaterThan(0);
     await expectPlaybackAdvances(video);
+    await cleanupEditorMedia(page);
   });
 });

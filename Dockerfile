@@ -1,18 +1,18 @@
 # syntax=docker/dockerfile:1.7
 
-FROM node:22-bookworm-slim AS web-deps
+FROM node:20-bookworm-slim AS web-deps
 WORKDIR /web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci
 
-FROM node:22-bookworm-slim AS web-builder
+FROM node:20-bookworm-slim AS web-builder
 WORKDIR /web
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=web-deps /web/node_modules ./node_modules
 COPY web/ ./
 RUN npm run build
 
-FROM node:22-bookworm-slim AS runner
+FROM node:20-bookworm-slim AS runner
 ENV DEBIAN_FRONTEND=noninteractive \
     NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \

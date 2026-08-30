@@ -7,6 +7,18 @@ const local = /^https?:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?$/i.test(baseURL);
 const missingCredentials = !process.env.E2E_USERNAME || !process.env.E2E_PASSWORD;
 const localSafeSkip = process.env.E2E_ALLOW_SKIP === "1" && !process.env.CI;
 
+function parseWorkers(raw) {
+  if (raw === undefined) return undefined;
+  const value = Number(raw);
+  if (raw === "" || !Number.isSafeInteger(value) || value <= 0 || value > 16) {
+    throw new Error("E2E_WORKERS must be a positive integer no greater than 16");
+  }
+  return value;
+}
+
+const configuredWorkers = parseWorkers(process.env.E2E_WORKERS);
+const workers = process.env.CI ? 1 : (configuredWorkers ?? (local ? undefined : 1));
+
 if (missingCredentials && !localSafeSkip) {
   if (process.env.CI) {
     throw new Error("E2E credentials are required in CI: set E2E_USERNAME and E2E_PASSWORD");
@@ -25,7 +37,7 @@ export default defineConfig({
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: 0,
-  workers: process.env.CI ? 1 : undefined,
+  workers,
   reporter: process.env.CI ? "line" : "list",
   timeout: 60_000,
   expect: { timeout: 15_000 },

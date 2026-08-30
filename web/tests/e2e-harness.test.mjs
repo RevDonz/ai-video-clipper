@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
@@ -8,7 +9,7 @@ async function importFresh(path, env = {}) {
   process.env = { ...originalEnv, ...env };
   for (const key of [
     "CI", "E2E_ALLOW_SKIP", "E2E_USERNAME", "E2E_PASSWORD", "E2E_CANDIDATE_ID",
-    "E2E_CANDIDATE_IDS", "E2E_RENDER_TIMEOUT_MS",
+    "E2E_CANDIDATE_IDS", "E2E_RENDER_TIMEOUT_MS", "E2E_BASE_URL", "E2E_WORKERS",
   ]) {
     if (!(key in env)) delete process.env[key];
   }
@@ -28,6 +29,19 @@ test("render timeout accepts only positive finite milliseconds", async () => {
   for (const value of ["NaN", "Infinity", "0", "-1", "", "1.5", "9007199254740992"]) {
     assert.throws(() => parsePositiveMilliseconds(value, 600_000, "E2E_RENDER_TIMEOUT_MS"), /positive finite/);
   }
+});
+
+test("weak ETag delivery accepts only canonical strong or once-weak validators", async () => {
+  const { weakTransportEtag } = await importFresh("../e2e/support/harness.mjs", {
+    E2E_USERNAME: "user", E2E_PASSWORD: "secret",
+  });
+  const canonical = `"${"a".repeat(64)}"`;
+  assert.equal(weakTransportEtag(canonical), `W/${canonical}`);
+  assert.equal(weakTransportEtag(`W/${canonical}`), `W/${canonical}`);
+  for (const malformed of [
+    `W/W/${canonical}`, `w/${canonical}`, `"${"A".repeat(64)}"`,
+    `"${"a".repeat(63)}"`, ` ${canonical}`, `${canonical} `, "not-an-etag",
+  ]) assert.throws(() => weakTransportEtag(malformed), /canonical ETag/);
 });
 
 test("candidate pins never replace the complete available candidate set", async () => {
@@ -71,16 +85,81 @@ test("candidate discovery suppresses only the documented legacy response", async
   await assert.rejects(resolveTarget(page), /returned 503.*backend unavailable/);
 });
 
-test("only non-API navigation and media lifecycle aborts are suppressed", async () => {
-  const { isExpectedLifecycleAbort } = await importFresh("../e2e/support/harness.mjs", {
+test("media cleanup suppresses only its marked one-shot GET media abort", async () => {
+  const { captureFailures, markExpectedMediaTeardownAborts } = await importFresh("../e2e/support/harness.mjs", {
     E2E_USERNAME: "user", E2E_PASSWORD: "secret",
   });
-  const request = (url, type) => ({ url: () => url, resourceType: () => type });
-  assert.equal(isExpectedLifecycleAbort(request("https://site/projects/1", "document"), "net::ERR_ABORTED"), true);
-  assert.equal(isExpectedLifecycleAbort(request("https://cdn/video.mp4", "media"), "net::ERR_ABORTED"), true);
-  assert.equal(isExpectedLifecycleAbort(request("https://site/api/jobs", "fetch"), "net::ERR_ABORTED"), false);
-  assert.equal(isExpectedLifecycleAbort(request("https://site/api/jobs/1/file.mp4", "media"), "net::ERR_ABORTED"), false);
-  assert.equal(isExpectedLifecycleAbort(request("https://site/projects/1", "document"), "net::ERR_FAILED"), false);
+  const page = new EventEmitter();
+  const request = (url, type = "media", method = "GET") => ({
+    url: () => url, resourceType: () => type, method: () => method,
+    failure: () => ({ errorText: "net::ERR_ABORTED" }),
+  });
+  const expected = request("https://site/api/jobs/1/preview.mp4");
+  const unrelatedPreview = request("https://site/api/jobs/2/preview.mp4");
+  const unrelatedApi = request("https://site/api/jobs/1/candidates", "fetch");
+  const failures = captureFailures(page);
+  page.emit("request", expected);
+  markExpectedMediaTeardownAborts(page, [expected.url()]);
+  page.emit("requestfailed", expected);
+  page.emit("requestfailed", unrelatedPreview);
+  page.emit("requestfailed", unrelatedApi);
+  page.emit("requestfailed", request(expected.url()));
+
+  const fallbackUrl = "https://site/api/jobs/3/preview.mp4";
+  markExpectedMediaTeardownAborts(page, [fallbackUrl]);
+  page.emit("requestfailed", request(fallbackUrl, "media", "POST"));
+  page.emit("requestfailed", request(fallbackUrl));
+  page.emit("requestfailed", request(fallbackUrl));
+
+  const normallyFinished = request("https://site/api/jobs/4/preview.mp4");
+  page.emit("request", normallyFinished);
+  markExpectedMediaTeardownAborts(page, [normallyFinished.url()]);
+  page.emit("requestfinished", normallyFinished);
+  page.emit("requestfailed", normallyFinished);
+
+  const wrongThenAbort = request("https://site/api/jobs/5/preview.mp4");
+  page.emit("request", wrongThenAbort);
+  markExpectedMediaTeardownAborts(page, [wrongThenAbort.url()]);
+  wrongThenAbort.failure = () => ({ errorText: "net::ERR_FAILED" });
+  page.emit("requestfailed", wrongThenAbort);
+  wrongThenAbort.failure = () => ({ errorText: "net::ERR_ABORTED" });
+  page.emit("requestfailed", wrongThenAbort);
+
+  assert.deepEqual(failures.requests, [
+    `GET ${unrelatedPreview.url()} net::ERR_ABORTED`,
+    `GET ${unrelatedApi.url()} net::ERR_ABORTED`,
+    `GET ${expected.url()} net::ERR_ABORTED`,
+    `POST ${fallbackUrl} net::ERR_ABORTED`,
+    `GET ${fallbackUrl} net::ERR_ABORTED`,
+    `GET ${normallyFinished.url()} net::ERR_ABORTED`,
+    `GET ${wrongThenAbort.url()} net::ERR_FAILED`,
+    `GET ${wrongThenAbort.url()} net::ERR_ABORTED`,
+  ]);
+});
+
+test("editor media cleanup pauses and unloads only videos with current sources", async () => {
+  const { captureFailures, cleanupEditorMedia } = await importFresh("../e2e/support/harness.mjs", {
+    E2E_USERNAME: "user", E2E_PASSWORD: "secret",
+  });
+  const page = new EventEmitter();
+  const calls = [];
+  const sourced = {
+    currentSrc: "https://site/api/jobs/1/preview.mp4",
+    pause: () => calls.push("pause"),
+    removeAttribute: (name) => calls.push(`remove:${name}`),
+    querySelectorAll: () => [],
+    load: () => calls.push("load"),
+  };
+  const empty = {
+    currentSrc: "", getAttribute: () => null,
+    pause: () => calls.push("empty:pause"),
+    removeAttribute: () => calls.push("empty:remove"),
+    querySelectorAll: () => [], load: () => calls.push("empty:load"),
+  };
+  page.locator = () => ({ evaluateAll: async (callback, argument) => callback([sourced, empty], argument) });
+  captureFailures(page);
+  assert.deepEqual(await cleanupEditorMedia(page), [sourced.currentSrc]);
+  assert.deepEqual(calls, ["pause", "remove:src", "load"]);
 });
 
 test("credential preflight fails closed except explicit local safe-skip", async () => {
@@ -111,6 +190,24 @@ test("config disables credential-bearing artifacts and gives mobile read-only co
   assert.match(String(mobile.testIgnore), /mutation/);
 });
 
+test("worker concurrency is bounded, remote-safe by default, and fixed at one in CI", async () => {
+  const credentials = { E2E_USERNAME: "user", E2E_PASSWORD: "secret" };
+  const remote = await importFresh("../playwright.config.mjs", {
+    ...credentials, E2E_BASE_URL: "https://production.example",
+  });
+  assert.equal(remote.default.workers, 1);
+  const local = await importFresh("../playwright.config.mjs", { ...credentials, E2E_WORKERS: "3" });
+  assert.equal(local.default.workers, 3);
+  const ci = await importFresh("../playwright.config.mjs", { ...credentials, CI: "1", E2E_WORKERS: "3" });
+  assert.equal(ci.default.workers, 1);
+  for (const value of ["0", "-1", "1.5", "", "17", "Infinity"]) {
+    await assert.rejects(
+      importFresh("../playwright.config.mjs", { ...credentials, E2E_WORKERS: value }),
+      /E2E_WORKERS.*positive integer.*16/i,
+    );
+  }
+});
+
 test("spec contracts include nested editor deep-link, playback, terminal failure, and diagnostics fixture", async () => {
   const [readOnly, mutation, harness] = await Promise.all([
     readFile(new URL("../e2e/read-only.spec.mjs", import.meta.url), "utf8"),
@@ -120,6 +217,8 @@ test("spec contracts include nested editor deep-link, playback, terminal failure
   assert.match(readOnly, /editorPath\(/);
   assert.match(readOnly, /clearCookies\(/);
   assert.match(readOnly, /expectPlaybackAdvances\(/);
+  assert.match(readOnly, /cleanupEditorMedia\(page\)[\s\S]*page\.goto\(editorPath/s);
+  assert.match(readOnly, /weakTransportEtag\(etag\)/);
   assert.match(mutation, /waitForRenderCompletion\(/);
   assert.match(harness, /base\.extend\(/);
   assert.doesNotMatch(harness, /testInfo\.attach\(/);

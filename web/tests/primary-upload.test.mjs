@@ -13,6 +13,16 @@ const AUTH_ENV = {
   APP_SESSION_SECRET: "a-long-random-session-secret-value",
 };
 
+function deferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((onResolve, onReject) => {
+    resolve = onResolve;
+    reject = onReject;
+  });
+  return { promise, resolve, reject };
+}
+
 function multipart(boundary, parts) {
   return Buffer.from(parts.map(({ disposition, contentType, body }) =>
     `--${boundary}\r\nContent-Disposition: form-data; ${disposition}\r\n${contentType ? `Content-Type: ${contentType}\r\n` : ""}\r\n${body}\r\n`).join("") + `--${boundary}--\r\n`);
@@ -105,7 +115,7 @@ test("streaming multipart fails closed before touching the body when the first s
   const root = await mkdtemp(path.join(os.tmpdir(), "primary-upload-"));
   const boundary = "late-heartbeat-boundary";
   const body = multipart(boundary, [{ disposition: 'name="video"; filename="clip.mp4"', contentType: "video/mp4", body: "video".repeat(20) }]);
-  const heartbeatStarted = Promise.withResolvers();
+  const heartbeatStarted = deferred();
   let cancellations = 0;
   const stream = new ReadableStream({
     async start(controller) {
