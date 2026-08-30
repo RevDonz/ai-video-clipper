@@ -28,6 +28,16 @@ Cloudflare, follow `deploy/VM_NGINX_CLOUDFLARE.md`.
 The web MVP is designed for one trusted self-hosted instance. Put Cloudflare
 Access or Nginx authentication in front of it before exposing it publicly.
 
+Candidate review requests validate `analysis/candidates.v2.json` through
+`python -m ai_clipper.candidate_api`; Python's `CandidatesArtifact` contract is
+the sole semantic validator. The authenticated Next.js route securely opens and
+bounds the artifact, passes those exact bytes over stdin, and accepts only a
+strict presentation DTO with source, raw provenance, credentials, weight config,
+and internal media IDs removed. One bounded Python subprocess per request is an
+intentional trade-off for this occasional review endpoint. `PYTHON_BIN` may select
+the interpreter (default `python`), and `CANDIDATE_VALIDATOR_TIMEOUT_MS` controls
+the timeout (default 5000 ms, capped at 30000 ms).
+
 ## Verified result
 
 The included Indonesian demo was exercised end to end using `faster-whisper` model `small` on CPU. It produced two playable portrait clips:
