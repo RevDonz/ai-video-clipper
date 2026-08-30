@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import math
-import re
 from bisect import bisect_left, bisect_right
 from collections.abc import Sequence
 from dataclasses import dataclass
 from itertools import pairwise
 from numbers import Real
 
+from .lexical import QUESTION_CLOSERS, topic_words
 from .models import ClipProfile, TranscriptSegment
 
 _PROFILE_BOUNDS: dict[ClipProfile, tuple[float, float]] = {
@@ -95,59 +95,12 @@ def _eligible_end_range(
     return first, after_last - 1
 
 
-_WORDS = re.compile(r"[\w']+")
-_TOPIC_STOP_WORDS = {
-    # Conservative bilingual filtering: transcript language is not available,
-    # so only common English and Indonesian function words are excluded.
-    "a",
-    "adalah",
-    "akan",
-    "an",
-    "and",
-    "atau",
-    "can",
-    "dalam",
-    "dan",
-    "dari",
-    "dengan",
-    "di",
-    "how",
-    "ini",
-    "in",
-    "itu",
-    "juga",
-    "karena",
-    "ke",
-    "near",
-    "tidak",
-    "now",
-    "pada",
-    "sebagai",
-    "sudah",
-    "the",
-    "to",
-    "untuk",
-    "we",
-    "yang",
-}
-
-_QUESTION_CLOSERS = frozenset("\"'”’»)]}）］｝")
-
-
 def _is_terminal_question(text: str) -> bool:
     """Recognize a question mark before optional common closing punctuation."""
     stripped = text.rstrip()
-    while stripped and stripped[-1] in _QUESTION_CLOSERS:
+    while stripped and stripped[-1] in QUESTION_CLOSERS:
         stripped = stripped[:-1].rstrip()
     return stripped.endswith(("?", "？"))
-
-
-def _topic_words(text: str) -> set[str]:
-    return {
-        word
-        for word in _WORDS.findall(text.casefold())
-        if len(word) > 2 and word not in _TOPIC_STOP_WORDS
-    }
 
 
 def _boundary_kinds(
@@ -168,8 +121,8 @@ def _boundary_kinds(
         kinds.append("pause")
     if _is_terminal_question(previous.text):
         kinds.append("question")
-    previous_words = _topic_words(previous.text)
-    following_words = _topic_words(following.text)
+    previous_words = topic_words(previous.text)
+    following_words = topic_words(following.text)
     if len(previous_words) >= 2 and len(following_words) >= 2:
         overlap = len(previous_words & following_words) / len(previous_words | following_words)
         if overlap <= 0.1:
@@ -293,17 +246,13 @@ def generate_candidates(
     ]
 
     for start_index, first in enumerate(segments):
-        eligible_range = _eligible_end_range(
-            ends, start_index, first.start, minimum, maximum
-        )
+        eligible_range = _eligible_end_range(ends, start_index, first.start, minimum, maximum)
         if eligible_range is not None:
             first_eligible, last_eligible = eligible_range
             preferred_start = bisect_left(structural_end_indices, first_eligible)
             preferred_stop = bisect_right(structural_end_indices, last_eligible)
             preferred = structural_end_indices[
-                preferred_start : min(
-                    preferred_stop, preferred_start + variants_per_anchor
-                )
+                preferred_start : min(preferred_stop, preferred_start + variants_per_anchor)
             ]
             for end_index in _variant_indices(
                 first_eligible, last_eligible, variants_per_anchor, preferred
