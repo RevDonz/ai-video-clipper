@@ -40,7 +40,10 @@ for job_dir in sorted(root.iterdir() if root.is_dir() else []):
         try:
             payload = json.loads(job_file.read_text())
             status = payload.get("status")
-            if status not in {"completed", "failed"}:
+            # "deleting" is not live work: the job's lease has already been
+            # revoked, so no worker is writing to it, and the purge is
+            # crash-safe and resumes from its tombstone after a restart.
+            if status not in {"completed", "failed", "deleting"}:
                 active.append({"kind": "primary", "id": payload.get("id", job_dir.name), "state": status})
         except Exception as error:
             errors.append({"path": str(job_file), "error": type(error).__name__})
