@@ -9,6 +9,9 @@ import {
   createFinalRenderAttempt,
   classifyFinalRenderFailure,
   currentCaptionCue,
+  BACKDROP_DRIFT_SECONDS,
+  BACKDROP_SYNC_INTERVAL_MS,
+  shouldSyncBackdrop,
   isActiveRenderState,
   renderPollDelay,
   renderStatusMatchesRevision,
@@ -276,6 +279,44 @@ test("unsaved warning covers dirty drafts and saves in flight", () => {
   assert.equal(shouldWarnUnsaved(false, false), false);
   assert.equal(shouldWarnUnsaved(true, false), true);
   assert.equal(shouldWarnUnsaved(false, true), true);
+});
+
+test("blurred backdrop never re-seeks while the main video is still seeking", () => {
+  // Root cause of the editor scrub freeze: every scrub event re-seeked the
+  // blurred backdrop decoder, and each new backdrop frame forced a fresh
+  // full-surface 22px blur. Measured: 7 frames over 50ms and a 350ms worst
+  // frame during one drag, versus zero once mid-drag syncing stopped.
+  for (const reason of ["progress", "settle"]) {
+    assert.equal(shouldSyncBackdrop({
+      reason, seeking: true, mainTime: 40, backdropTime: 0, lastSyncAt: 0, now: 10_000,
+    }), false);
+  }
+});
+
+test("backdrop syncs once the seek settles and drift exceeds the threshold", () => {
+  assert.equal(shouldSyncBackdrop({
+    reason: "settle", seeking: false, mainTime: 40, backdropTime: 0, lastSyncAt: 0, now: 10_000,
+  }), true);
+  assert.equal(shouldSyncBackdrop({
+    reason: "settle", seeking: false, mainTime: 40, backdropTime: 40 + BACKDROP_DRIFT_SECONDS / 2, lastSyncAt: 0, now: 10_000,
+  }), false);
+});
+
+test("playback drift correction is throttled instead of running every frame", () => {
+  const drifted = { reason: "progress", seeking: false, mainTime: 40, backdropTime: 0 };
+  assert.equal(shouldSyncBackdrop({ ...drifted, lastSyncAt: 9_500, now: 10_000 }), false);
+  assert.equal(shouldSyncBackdrop({ ...drifted, lastSyncAt: 10_000 - BACKDROP_SYNC_INTERVAL_MS, now: 10_000 }), true);
+});
+
+test("backdrop sync rejects non-finite media clocks instead of seeking blindly", () => {
+  for (const value of [Number.NaN, Infinity, undefined, null, "40"]) {
+    assert.equal(shouldSyncBackdrop({
+      reason: "settle", seeking: false, mainTime: value, backdropTime: 0, lastSyncAt: 0, now: 10_000,
+    }), false);
+    assert.equal(shouldSyncBackdrop({
+      reason: "settle", seeking: false, mainTime: 40, backdropTime: value, lastSyncAt: 0, now: 10_000,
+    }), false);
+  }
 });
 
 test("editor page source preserves preview and save semantics", async () => {
