@@ -33,7 +33,7 @@ test.describe("read-only production-safe flows", () => {
     await page.goto(`/projects/${encodeURIComponent(target.jobId)}`);
     await expect(page.locator(".candidateCard")).toHaveCount(target.availableCandidateIds.length);
     for (const [index, candidateId] of target.availableCandidateIds.entries()) {
-      if (index > 0) await cleanupEditorMedia(page);
+      await cleanupEditorMedia(page);
       await page.goto(editorPath(target.jobId, candidateId));
       await expectEditorReady(page);
       if (index === 0) await expectPlaybackAdvances(page.locator("video").first());

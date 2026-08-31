@@ -107,55 +107,16 @@ export function editorPath(jobId, candidateId) {
   return `/projects/${encodeURIComponent(jobId)}/candidates/${encodeURIComponent(candidateId)}/edit`;
 }
 
-const mediaTeardownTrackers = new WeakMap();
-const MEDIA_TEARDOWN_MARK_MS = 5_000;
-
-function mediaRequestKey(request) {
-  return `${request.method()}\n${request.resourceType()}\n${request.url()}`;
-}
-
-function isMarkedMediaTeardownAbort(tracker, request, reason) {
-  const exactRequest = tracker.expectedRequests.delete(request);
-  if (request.method() !== "GET" || request.resourceType() !== "media") return false;
-  const key = mediaRequestKey(request);
-  const expected = tracker.expectedKeys.get(key);
-  let signatureMatch = false;
-  if (expected) {
-    signatureMatch = expected.expiresAt >= Date.now();
-    if (expected.remaining <= 1) tracker.expectedKeys.delete(key);
-    else tracker.expectedKeys.set(key, { ...expected, remaining: expected.remaining - 1 });
-  }
-  if (reason !== "net::ERR_ABORTED") return false;
-  return exactRequest || signatureMatch;
-}
-
-export function markExpectedMediaTeardownAborts(page, urls) {
-  const tracker = mediaTeardownTrackers.get(page);
-  if (!tracker) throw new Error("captureFailures(page) must run before media teardown");
-  const urlCounts = new Map();
-  for (const url of urls.filter(Boolean)) urlCounts.set(url, (urlCounts.get(url) || 0) + 1);
-  for (const [url, count] of urlCounts) {
-    const matches = [...tracker.activeRequests].filter((request) => request.method() === "GET"
-      && request.resourceType() === "media" && request.url() === url);
-    for (const request of matches) tracker.expectedRequests.add(request);
-    const remaining = Math.max(count, matches.length);
-    const key = `GET\nmedia\n${url}`;
-    const expiresAt = Date.now() + MEDIA_TEARDOWN_MARK_MS;
-    tracker.expectedKeys.set(key, { expiresAt, remaining });
-    const timer = setTimeout(() => {
-      if (tracker.expectedKeys.get(key)?.expiresAt === expiresAt) tracker.expectedKeys.delete(key);
-    }, MEDIA_TEARDOWN_MARK_MS);
-    timer.unref?.();
-  }
+async function currentMediaUrls(page) {
+  return page.locator("video").evaluateAll((elements) => elements.flatMap((element) => {
+    const current = element.currentSrc || element.src || element.getAttribute?.("src");
+    return current ? [current] : [];
+  }));
 }
 
 export async function cleanupEditorMedia(page) {
   const videos = page.locator("video");
-  const urls = await videos.evaluateAll((elements) => elements.flatMap((element) => {
-    const current = element.currentSrc || element.src || element.getAttribute?.("src");
-    return current ? [current] : [];
-  }));
-  markExpectedMediaTeardownAborts(page, urls);
+  const urls = await currentMediaUrls(page);
   await videos.evaluateAll((elements, expectedUrls) => {
     const expected = new Set(expectedUrls);
     for (const element of elements) {
@@ -172,30 +133,15 @@ export async function cleanupEditorMedia(page) {
 
 export function captureFailures(page) {
   const failures = { console: [], page: [], requests: [], api: [] };
-  const tracker = {
-    activeRequests: new Set(), expectedRequests: new Set(), expectedKeys: new Map(),
-  };
-  mediaTeardownTrackers.set(page, tracker);
-  page.on("request", (request) => tracker.activeRequests.add(request));
-  page.on("requestfinished", (request) => {
-    tracker.activeRequests.delete(request);
-    if (tracker.expectedRequests.delete(request)) {
-      const key = mediaRequestKey(request);
-      const expected = tracker.expectedKeys.get(key);
-      if (expected?.remaining <= 1) tracker.expectedKeys.delete(key);
-      else if (expected) tracker.expectedKeys.set(key, { ...expected, remaining: expected.remaining - 1 });
-    }
-  });
   page.on("console", (message) => {
     if (message.type() === "error") failures.console.push(message.text());
   });
   page.on("pageerror", (error) => failures.page.push(error.stack || error.message));
   page.on("requestfailed", (request) => {
-    tracker.activeRequests.delete(request);
     const reason = request.failure()?.errorText || "failed";
-    if (!isMarkedMediaTeardownAbort(tracker, request, reason)) {
-      failures.requests.push(`${request.method()} ${request.url()} ${reason}`);
-    }
+    const browserCancelledMedia = request.method() === "GET"
+      && request.resourceType() === "media" && reason === "net::ERR_ABORTED";
+    if (!browserCancelledMedia) failures.requests.push(`${request.method()} ${request.url()} ${reason}`);
   });
   page.on("response", (response) => {
     if (response.url().includes("/api/") && response.status() >= 400) {
@@ -227,6 +173,9 @@ export async function expectEditorReady(page) {
   await expect(page.getByRole("heading", { name: "Poles kandidat sebelum render" })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByRole("heading", { name: "Editor tidak tersedia" })).toHaveCount(0);
   await expect(page.locator("video")).toHaveCount(2);
+  await expect.poll(() => page.locator("video").evaluateAll((elements) => (
+    elements.length === 2 && elements.every((element) => element.readyState >= 1)
+  )), { timeout: 30_000, message: "both editor videos should load metadata" }).toBe(true);
   await expect(page.getByRole("button", { name: "Render Final" })).toBeVisible();
   await expect(page.getByLabel("Normalisasi loudness")).toBeVisible();
 }

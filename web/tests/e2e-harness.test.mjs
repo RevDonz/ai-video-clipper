@@ -85,66 +85,27 @@ test("candidate discovery suppresses only the documented legacy response", async
   await assert.rejects(resolveTarget(page), /returned 503.*backend unavailable/);
 });
 
-test("media cleanup suppresses only its marked one-shot GET media abort", async () => {
-  const { captureFailures, markExpectedMediaTeardownAborts } = await importFresh("../e2e/support/harness.mjs", {
+test("media diagnostics ignore only browser-cancelled GET media requests", async () => {
+  const { captureFailures } = await importFresh("../e2e/support/harness.mjs", {
     E2E_USERNAME: "user", E2E_PASSWORD: "secret",
   });
   const page = new EventEmitter();
-  const request = (url, type = "media", method = "GET") => ({
+  const request = (url, type = "media", method = "GET", reason = "net::ERR_ABORTED") => ({
     url: () => url, resourceType: () => type, method: () => method,
-    failure: () => ({ errorText: "net::ERR_ABORTED" }),
+    failure: () => ({ errorText: reason }),
   });
-  const expected = request("https://site/api/jobs/1/preview.mp4");
-  const unrelatedPreview = request("https://site/api/jobs/2/preview.mp4");
-  const unrelatedApi = request("https://site/api/jobs/1/candidates", "fetch");
   const failures = captureFailures(page);
-  page.emit("request", expected);
-  markExpectedMediaTeardownAborts(page, [expected.url()]);
-  page.emit("requestfailed", expected);
-  page.emit("requestfailed", unrelatedPreview);
-  page.emit("requestfailed", unrelatedApi);
-  page.emit("requestfailed", request(expected.url()));
+  const mediaUrl = "https://site/api/jobs/1/preview-source";
 
-  const fallbackUrl = "https://site/api/jobs/3/preview.mp4";
-  markExpectedMediaTeardownAborts(page, [fallbackUrl, fallbackUrl]);
-  page.emit("requestfailed", request(fallbackUrl, "media", "POST"));
-  page.emit("requestfailed", request(fallbackUrl));
-  page.emit("requestfailed", request(fallbackUrl));
-  page.emit("requestfailed", request(fallbackUrl));
-
-  const activeBurstUrl = "https://site/api/jobs/active-burst/preview.mp4";
-  const activeBurst = [request(activeBurstUrl), request(activeBurstUrl), request(activeBurstUrl)];
-  for (const item of activeBurst) page.emit("request", item);
-  markExpectedMediaTeardownAborts(page, [activeBurstUrl]);
-  page.emit("requestfinished", activeBurst[0]);
-  page.emit("requestfinished", activeBurst[1]);
-  page.emit("requestfailed", activeBurst[2]);
-  page.emit("requestfailed", request(activeBurstUrl));
-
-  const normallyFinished = request("https://site/api/jobs/4/preview.mp4");
-  page.emit("request", normallyFinished);
-  markExpectedMediaTeardownAborts(page, [normallyFinished.url()]);
-  page.emit("requestfinished", normallyFinished);
-  page.emit("requestfailed", normallyFinished);
-
-  const wrongThenAbort = request("https://site/api/jobs/5/preview.mp4");
-  page.emit("request", wrongThenAbort);
-  markExpectedMediaTeardownAborts(page, [wrongThenAbort.url()]);
-  wrongThenAbort.failure = () => ({ errorText: "net::ERR_FAILED" });
-  page.emit("requestfailed", wrongThenAbort);
-  wrongThenAbort.failure = () => ({ errorText: "net::ERR_ABORTED" });
-  page.emit("requestfailed", wrongThenAbort);
+  page.emit("requestfailed", request(mediaUrl));
+  page.emit("requestfailed", request("https://site/api/jobs/1/candidates", "fetch"));
+  page.emit("requestfailed", request(mediaUrl, "media", "POST"));
+  page.emit("requestfailed", request(mediaUrl, "media", "GET", "net::ERR_FAILED"));
 
   assert.deepEqual(failures.requests, [
-    `GET ${unrelatedPreview.url()} net::ERR_ABORTED`,
-    `GET ${unrelatedApi.url()} net::ERR_ABORTED`,
-    `GET ${expected.url()} net::ERR_ABORTED`,
-    `POST ${fallbackUrl} net::ERR_ABORTED`,
-    `GET ${fallbackUrl} net::ERR_ABORTED`,
-    `GET ${activeBurstUrl} net::ERR_ABORTED`,
-    `GET ${normallyFinished.url()} net::ERR_ABORTED`,
-    `GET ${wrongThenAbort.url()} net::ERR_FAILED`,
-    `GET ${wrongThenAbort.url()} net::ERR_ABORTED`,
+    "GET https://site/api/jobs/1/candidates net::ERR_ABORTED",
+    `POST ${mediaUrl} net::ERR_ABORTED`,
+    `GET ${mediaUrl} net::ERR_FAILED`,
   ]);
 });
 
