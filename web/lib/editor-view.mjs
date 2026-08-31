@@ -244,6 +244,24 @@ export function validatePublicRenderStatus(payload, jobId, candidateId) {
   return payload;
 }
 
+export const BACKDROP_DRIFT_SECONDS = .12;
+export const BACKDROP_SYNC_INTERVAL_MS = 1_000;
+
+// The blurred backdrop is a second decoder of the same source. Seeking it while
+// the main video is still seeking makes every scrub event queue a fresh
+// full-surface blur, which starves the compositor during a drag. Sync only once
+// a seek settles, and throttle the playback drift correction.
+export function shouldSyncBackdrop({ reason, seeking, mainTime, backdropTime, lastSyncAt = 0, now = 0 }) {
+  if (seeking === true) return false;
+  if (!Number.isFinite(mainTime) || typeof mainTime !== "number") return false;
+  if (!Number.isFinite(backdropTime) || typeof backdropTime !== "number") return false;
+  if (Math.abs(backdropTime - mainTime) <= BACKDROP_DRIFT_SECONDS) return false;
+  if (reason === "settle") return true;
+  if (reason !== "progress") return false;
+  if (!Number.isFinite(lastSyncAt) || !Number.isFinite(now)) return false;
+  return now - lastSyncAt >= BACKDROP_SYNC_INTERVAL_MS;
+}
+
 export function currentCaptionCue(cues, playbackRelativeSeconds, sourceStart) {
   const sourceTime = sourceStart + Math.max(0, Number.isFinite(playbackRelativeSeconds) ? playbackRelativeSeconds : 0);
   return (Array.isArray(cues) ? cues : []).find((cue) => sourceTime >= cue.start && sourceTime < cue.end) || null;
