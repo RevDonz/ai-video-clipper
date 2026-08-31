@@ -318,3 +318,10 @@ test("the retention policy documents the deletion exception and its ordering", a
   assert.match(doc, /or automated retention cron/i);
   assert.match(doc, /must never be automated into one/i);
 });
+
+test("the production deploy guard does not treat a pending deletion as live work", async () => {
+  // The guard blocks deployment on any status outside its allow-list. A job
+  // awaiting purge would otherwise block every deploy until it finished.
+  const script = await readFile(new URL("../../deploy/production.sh", import.meta.url), "utf8");
+  assert.match(script, /\{"completed", "failed", "deleting"\}/);
+});

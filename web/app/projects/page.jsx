@@ -99,7 +99,7 @@ export default function ProjectsPage() {
     const needle = query.trim().toLowerCase();
     return jobs.filter((job) => {
       const matchesStatus = filter === "all"
-        || (filter === "active" && !["completed", "failed"].includes(job.status))
+        || (filter === "active" && !["completed", "failed", "deleting"].includes(job.status))
         || job.status === filter;
       const haystack = [
         projectName(job),
