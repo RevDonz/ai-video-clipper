@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: ai-video-clipper:latest
+    image: ai-video-clipper:${IMAGE_TAG:-latest}
     container_name: ai-video-clipper
     restart: unless-stopped
     ports:
@@ -42,7 +42,7 @@ services:
     stop_grace_period: 30s
 
   primary-worker:
-    image: ai-video-clipper:latest
+    image: ai-video-clipper:${IMAGE_TAG:-latest}
     container_name: ai-video-clipper-primary-worker
     restart: unless-stopped
     command:
@@ -84,7 +84,7 @@ services:
       start_period: 15s
 
   render-worker:
-    image: ai-video-clipper:latest
+    image: ai-video-clipper:${IMAGE_TAG:-latest}
     container_name: ai-video-clipper-render-worker
     restart: unless-stopped
     command:
