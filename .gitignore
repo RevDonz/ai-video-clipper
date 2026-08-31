@@ -10,3 +10,4 @@ web/.next/
 web/test-results/
 web/playwright-report/
 .env
+gitleaks-report.json

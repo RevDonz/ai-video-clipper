@@ -23,6 +23,9 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v4
 
+      - name: Scan Git history for secrets
+        run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.28.0 detect --source=/repo --no-banner --redact=100
+
       - name: Install FFmpeg
         run: |
           sudo apt-get update
@@ -40,7 +43,7 @@ jobs:
           enable-cache: true
 
       - name: Install Python dependencies
-        run: uv sync --frozen
+        run: uv sync --frozen --extra vision
 
       - name: Lint Python
         run: uv run ruff check src tests
