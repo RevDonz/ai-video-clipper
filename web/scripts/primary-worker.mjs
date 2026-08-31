@@ -13,6 +13,7 @@ import {
   parsePrimaryQueueConfig,
   validateClaimForExecution,
 } from "../lib/primary-job-queue.mjs";
+import { purgeDeletedJobs } from "../lib/job-deletion.mjs";
 
 const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
@@ -121,6 +122,13 @@ export async function main(env = process.env) {
       lastPollAt = new Date().toISOString();
       await writeHealth();
       if (!claim) {
+        // One slot drives the deletion purge: jobs whose lease was revoked
+        // become removable once that lease window has passed.
+        if (index === 0) {
+          await purgeDeletedJobs(jobsRoot).catch((error) => {
+            process.stderr.write(`${safeWorkerError(error, "Job purge failed")}\n`);
+          });
+        }
         await sleep(pollMs);
         continue;
       }

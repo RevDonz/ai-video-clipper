@@ -2,9 +2,24 @@
 
 ## Retention policy: never delete jobs automatically
 
-The application does **not** expire, evict, or delete jobs or their artifacts automatically. This includes completed, failed, malformed, incomplete, and old jobs. There is no oldest-first eviction, failed-job cleanup, quota-triggered deletion, application delete command, or automated retention cron.
+The application does **not** expire, evict, or delete jobs or their artifacts on its own. This includes completed, failed, malformed, incomplete, and old jobs. There is no oldest-first eviction, failed-job cleanup, quota-triggered deletion, or automated retention cron.
 
 Reaching the application quota or minimum-free-space watermark blocks admission of new jobs. It never makes room by deleting an existing job. A storage admission failure must leave existing job directories and artifacts unchanged.
+
+## The one exception: explicit user-initiated deletion
+
+An authenticated person may delete a specific project through `DELETE /api/jobs/<id>`, from the delete control on the project history page. This is the only path that removes job data, and it is deliberately the opposite of automated retention: one named job, chosen by a person, never triggered by age, quota, failure, or a schedule. Nothing in the application may call it on its own behalf.
+
+Deletion is permanent and asynchronous:
+
+1. Under the primary queue lock the job is marked `deleting`, a tombstone is written to `.deletions/<id>.json`, and any lease is revoked. The tombstone records `safeAfter`, the moment the revoked lease would have expired.
+2. Revoking the lease is what stops the workers. The primary runner's next fenced write raises `LeaseLostError` and terminates its process group; the Python render worker's heartbeat stops validating and sets its `lost` event. Neither needs a new cancellation protocol.
+3. The purge runs in the primary worker's poll loop, and once immediately in the deleting request. It refuses while `safeAfter` is in the future or while any render reservation for the job still has a fresh heartbeat, so bytes are never removed from under a live writer.
+4. When the purge does run it removes the job's render reservation records **before** the job directory, then the primary reservation record, then the directory, then the tombstone.
+
+Step 4's order matters and must not be reversed. Storage accounting resolves each `.render-reservations/<id>.json` through `analysis/render-requests/<render_id>.json` inside the job directory. A reservation record left behind after its job directory is gone can never resolve again, so `declaredBytes + workReserveBytes` would be charged against the quota permanently, and admission is fail-closed. Removing reservation records first is the conservative direction: the bytes on disk are still counted by the scanner until the directory goes.
+
+A crash between any two steps is safe. The tombstone survives, and the next purge pass finishes the work; a tombstone whose directory is already gone is simply retired.
 
 ## What is and is not retained job data
 
@@ -44,4 +59,4 @@ Before capacity is exhausted:
 3. For migration, stop admissions and workers, copy the complete jobs tree while preserving metadata, verify the copy, switch the jobs root/volume, and verify the application against the migrated data before resuming work.
 4. Keep the source volume and backup until migration and restore checks have succeeded.
 
-Manual out-of-band removal, if ever required by an operator's separate data-governance process, must happen only after a verified backup and with the application and workers stopped. It is intentionally not implemented or scheduled by this application.
+Bulk or policy-driven removal, if ever required by an operator's separate data-governance process, must happen out of band: only after a verified backup and with the application and workers stopped. It is intentionally not implemented or scheduled by this application. The per-project delete described above is a user action on a single named job, not a retention mechanism, and must never be automated into one.

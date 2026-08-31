@@ -9,6 +9,7 @@ const statusLabel = {
   processing: "Diproses",
   completed: "Selesai",
   failed: "Gagal",
+  deleting: "Menghapus",
 };
 
 function projectName(job) {
@@ -40,6 +41,9 @@ export default function ProjectsPage() {
   const [filter, setFilter] = useState("all");
   const [opened, setOpened] = useState(null);
   const [copiedClip, setCopiedClip] = useState(null);
+  const [confirmingId, setConfirmingId] = useState(null);
+  const [busyId, setBusyId] = useState(null);
+  const [actionError, setActionError] = useState("");
 
   async function loadJobs() {
     setLoading(true);
@@ -59,6 +63,31 @@ export default function ProjectsPage() {
   useEffect(() => {
     loadJobs();
   }, []);
+
+  // Deletion is permanent and covers running jobs: the server revokes the
+  // worker's lease, then reclaims the bytes once that worker has stopped.
+  async function deleteProject(job) {
+    setBusyId(job.id);
+    setActionError("");
+    try {
+      const response = await fetch(`/api/jobs/${encodeURIComponent(job.id)}`, {
+        method: "DELETE",
+        cache: "no-store",
+        headers: { "Accept": "application/json" },
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Proyek tidak dapat dihapus");
+      setConfirmingId(null);
+      setOpened((current) => (current === job.id ? null : current));
+      setJobs((current) => (payload.removed
+        ? current.filter((item) => item.id !== job.id)
+        : current.map((item) => (item.id === job.id ? { ...item, status: "deleting", progress: 0 } : item))));
+    } catch (deleteError) {
+      setActionError(deleteError.message);
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   async function copyCaption(job, clip) {
     await navigator.clipboard.writeText(`${clip.title}\n\n${clip.description}`);
@@ -118,6 +147,7 @@ export default function ProjectsPage() {
         </div>
 
         {error && <div className="projectError">{error}</div>}
+        {actionError && <div className="projectError" role="alert">{actionError}</div>}
         {loading ? <div className="projectEmpty"><div className="pulse" /><strong>Memuat seluruh riwayat…</strong></div> : null}
         {!loading && !visible.length ? <div className="projectEmpty"><div className="emptyIcon">⌕</div><strong>Tidak ada proyek yang cocok</strong><p>Ubah kata pencarian atau filter status.</p></div> : null}
 
@@ -136,6 +166,27 @@ export default function ProjectsPage() {
                 {isOpen && (
                   <div className="projectDetail">
                     <a className="projectDetailLink" href={`/projects/${job.id}`}>Buka detail & kandidat V2 →</a>
+                    <div className="projectDanger">
+                      {confirmingId === job.id ? (
+                        <>
+                          <strong>Hapus permanen?</strong>
+                          <p>Video sumber, seluruh artefak analisis, dan klip hasil render akan hilang dari server. Tindakan ini tidak dapat dibatalkan.{!["completed", "failed", "deleting"].includes(job.status) ? " Proses yang sedang berjalan akan dihentikan lebih dulu, jadi penghapusan selesai dalam waktu kurang dari satu menit." : ""}</p>
+                          <div>
+                            <button type="button" className="confirmDelete" disabled={busyId === job.id} onClick={() => deleteProject(job)}>
+                              {busyId === job.id ? "Menghapus…" : "Ya, hapus permanen"}
+                            </button>
+                            <button type="button" onClick={() => setConfirmingId(null)} disabled={busyId === job.id}>Batal</button>
+                          </div>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          className="requestDelete"
+                          disabled={job.status === "deleting"}
+                          onClick={() => { setActionError(""); setConfirmingId(job.id); }}
+                        >{job.status === "deleting" ? "Sedang dihapus…" : "Hapus proyek"}</button>
+                      )}
+                    </div>
                     {job.source?.url && <a className="sourceLink" href={job.source.url} target="_blank" rel="noreferrer">Buka sumber YouTube ↗</a>}
                     {job.error && <div className="projectError">{job.error}</div>}
                     {job.clips?.length ? (
