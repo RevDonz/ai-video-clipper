@@ -1,0 +1,121 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ai-video-clipper:${IMAGE_TAG:-latest}
+    container_name: ai-video-clipper
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8100:3000"
+    environment:
+      JOBS_ROOT: /data/jobs
+      WHISPER_MODEL: ${WHISPER_MODEL:-small}
+      WHISPER_DEVICE: ${WHISPER_DEVICE:-cpu}
+      WHISPER_LANGUAGE: ${WHISPER_LANGUAGE:-id}
+      MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-524288000}
+      SELECTION_V2_ENABLED: ${SELECTION_V2_ENABLED:-true}
+      PRIMARY_MAX_ACTIVE_JOBS: ${PRIMARY_MAX_ACTIVE_JOBS:-4}
+      PRIMARY_WORKER_CONCURRENCY: ${PRIMARY_WORKER_CONCURRENCY:-1}
+      PRIMARY_MAX_ATTEMPTS: ${PRIMARY_MAX_ATTEMPTS:-3}
+      PRIMARY_LEASE_MS: ${PRIMARY_LEASE_MS:-60000}
+      JOBS_STORAGE_QUOTA_BYTES: ${JOBS_STORAGE_QUOTA_BYTES:?required}
+      JOBS_STORAGE_MIN_FREE_BYTES: ${JOBS_STORAGE_MIN_FREE_BYTES:?required}
+      JOBS_STORAGE_ACTIVE_RESERVE_BYTES: ${JOBS_STORAGE_ACTIVE_RESERVE_BYTES:?required}
+      JOBS_STORAGE_SCAN_MAX_ENTRIES: ${JOBS_STORAGE_SCAN_MAX_ENTRIES:?required}
+      JOBS_STORAGE_SCAN_MAX_DEPTH: ${JOBS_STORAGE_SCAN_MAX_DEPTH:?required}
+      JOBS_STORAGE_SCAN_DEADLINE_MS: ${JOBS_STORAGE_SCAN_DEADLINE_MS:?required}
+      JOBS_STORAGE_RECHECK_BYTES: ${JOBS_STORAGE_RECHECK_BYTES:?required}
+      JOBS_STORAGE_RECHECK_INTERVAL_MS: ${JOBS_STORAGE_RECHECK_INTERVAL_MS:?required}
+      APP_USERNAME: ${APP_USERNAME:?APP_USERNAME is required}
+      APP_PASSWORD: ${APP_PASSWORD:?APP_PASSWORD is required}
+      APP_SESSION_SECRET: ${APP_SESSION_SECRET:?APP_SESSION_SECRET is required}
+      AUTH_RATE_LIMIT_ATTEMPTS: ${AUTH_RATE_LIMIT_ATTEMPTS:-8}
+      AUTH_RATE_LIMIT_WINDOW_MS: ${AUTH_RATE_LIMIT_WINDOW_MS:-900000}
+      AUTH_TRUSTED_CLIENT_IP_HEADER: ${AUTH_TRUSTED_CLIENT_IP_HEADER:-}
+    volumes:
+      - clipper_data:/data
+    init: true
+    mem_limit: 10g
+    cpus: 6
+    pids_limit: 512
+    stop_grace_period: 30s
+
+  primary-worker:
+    image: ai-video-clipper:${IMAGE_TAG:-latest}
+    container_name: ai-video-clipper-primary-worker
+    restart: unless-stopped
+    command:
+      - node
+      - scripts/primary-worker.mjs
+    environment:
+      JOBS_ROOT: /data/jobs
+      WHISPER_MODEL: ${WHISPER_MODEL:-small}
+      WHISPER_DEVICE: ${WHISPER_DEVICE:-cpu}
+      WHISPER_LANGUAGE: ${WHISPER_LANGUAGE:-id}
+      PRIMARY_MAX_ACTIVE_JOBS: ${PRIMARY_MAX_ACTIVE_JOBS:-4}
+      PRIMARY_WORKER_CONCURRENCY: ${PRIMARY_WORKER_CONCURRENCY:-1}
+      PRIMARY_MAX_ATTEMPTS: ${PRIMARY_MAX_ATTEMPTS:-3}
+      PRIMARY_LEASE_MS: ${PRIMARY_LEASE_MS:-60000}
+      JOBS_STORAGE_QUOTA_BYTES: ${JOBS_STORAGE_QUOTA_BYTES:?required}
+      JOBS_STORAGE_MIN_FREE_BYTES: ${JOBS_STORAGE_MIN_FREE_BYTES:?required}
+      JOBS_STORAGE_ACTIVE_RESERVE_BYTES: ${JOBS_STORAGE_ACTIVE_RESERVE_BYTES:?required}
+      JOBS_STORAGE_SCAN_MAX_ENTRIES: ${JOBS_STORAGE_SCAN_MAX_ENTRIES:?required}
+      JOBS_STORAGE_SCAN_MAX_DEPTH: ${JOBS_STORAGE_SCAN_MAX_DEPTH:?required}
+      JOBS_STORAGE_SCAN_DEADLINE_MS: ${JOBS_STORAGE_SCAN_DEADLINE_MS:?required}
+      JOBS_STORAGE_RECHECK_BYTES: ${JOBS_STORAGE_RECHECK_BYTES:?required}
+      JOBS_STORAGE_RECHECK_INTERVAL_MS: ${JOBS_STORAGE_RECHECK_INTERVAL_MS:?required}
+      PRIMARY_LEGACY_QUIESCENCE_MS: ${PRIMARY_LEGACY_QUIESCENCE_MS:-300000}
+      PRIMARY_WORKER_POLL_MS: ${PRIMARY_WORKER_POLL_MS:-2000}
+      PRIMARY_WORKER_HEALTH_PATH: /tmp/primary-worker-health.json
+      PRIMARY_WORKER_HEALTH_MAX_AGE_MS: ${PRIMARY_WORKER_HEALTH_MAX_AGE_MS:-15000}
+    volumes:
+      - clipper_data:/data
+    init: true
+    mem_limit: 10g
+    cpus: 6
+    pids_limit: 512
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "node", "scripts/check-primary-worker-health.mjs"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  render-worker:
+    image: ai-video-clipper:${IMAGE_TAG:-latest}
+    container_name: ai-video-clipper-render-worker
+    restart: unless-stopped
+    command:
+      - python
+      - -m
+      - ai_clipper.render_worker
+      - --jobs-root
+      - /data/jobs
+      - --watch
+      - --poll-seconds
+      - "2"
+    environment:
+      JOBS_ROOT: /data/jobs
+      RENDER_STORAGE_CLI: /app/scripts/render-storage-admission.mjs
+      JOBS_STORAGE_QUOTA_BYTES: ${JOBS_STORAGE_QUOTA_BYTES:?required}
+      JOBS_STORAGE_MIN_FREE_BYTES: ${JOBS_STORAGE_MIN_FREE_BYTES:?required}
+      JOBS_STORAGE_ACTIVE_RESERVE_BYTES: ${JOBS_STORAGE_ACTIVE_RESERVE_BYTES:?required}
+      JOBS_STORAGE_SCAN_MAX_ENTRIES: ${JOBS_STORAGE_SCAN_MAX_ENTRIES:?required}
+      JOBS_STORAGE_SCAN_MAX_DEPTH: ${JOBS_STORAGE_SCAN_MAX_DEPTH:?required}
+      JOBS_STORAGE_SCAN_DEADLINE_MS: ${JOBS_STORAGE_SCAN_DEADLINE_MS:?required}
+      JOBS_STORAGE_RECHECK_BYTES: ${JOBS_STORAGE_RECHECK_BYTES:?required}
+      JOBS_STORAGE_RECHECK_INTERVAL_MS: ${JOBS_STORAGE_RECHECK_INTERVAL_MS:?required}
+    volumes:
+      - clipper_data:/data
+    init: true
+    mem_limit: 6g
+    cpus: 4
+    pids_limit: 256
+    stop_grace_period: 30s
+    healthcheck:
+      disable: true
+
+volumes:
+  clipper_data:

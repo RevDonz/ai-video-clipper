@@ -8,6 +8,7 @@ dependencies = []
 [project.optional-dependencies]
 transcribe = ["faster-whisper>=1.1,<2"]
 vision = ["opencv-python-headless>=4.10,<5"]
+web = ["yt-dlp>=2026.8.19"]
 
 [dependency-groups]
 dev = ["pytest>=8,<9", "ruff>=0.9,<1"]

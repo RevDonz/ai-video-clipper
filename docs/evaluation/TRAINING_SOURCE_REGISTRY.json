@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-08-30T16:12:55+07:00",
+  "purpose": "Selection V2 candidate evaluation and rights-cleared training-source registry",
+  "policy": {
+    "license_unspecified": "reference_evaluation_only_until_permission_confirmed",
+    "creative_commons_attribution": "eligible_for_internal_training_with_attribution_and_provenance",
+    "raw_transcripts_committed": false,
+    "raw_media_committed": false
+  },
+  "summary": {
+    "video_count": 5,
+    "total_duration_seconds": 18123,
+    "total_duration_hours": 5.034,
+    "subtitle_language": "id",
+    "subtitle_cues": 9789,
+    "subtitle_words_approx": 46270,
+    "training_eligible_count": 1,
+    "reference_only_count": 4
+  },
+  "sources": [
+    {
+      "video_id": "DwTmRFyQ53E",
+      "url": "https://www.youtube.com/watch?v=DwTmRFyQ53E",
+      "title": "Selamat Ulang Tahun Dokter Tirta",
+      "channel": "Raditya Dika",
+      "duration_seconds": 3478,
+      "language": "id",
+      "license_metadata": null,
+      "rights_status": "permission_pending",
+      "dataset_use": "reference_evaluation_only",
+      "subtitle_cues": 2013,
+      "subtitle_words_approx": 9077
+    },
+    {
+      "video_id": "XAY4QYP2sIQ",
+      "url": "https://www.youtube.com/watch?v=XAY4QYP2sIQ",
+      "title": "Tepe Lagi, Tepe Lagi…",
+      "channel": "Raditya Dika",
+      "duration_seconds": 2862,
+      "language": "id",
+      "license_metadata": null,
+      "rights_status": "permission_pending",
+      "dataset_use": "reference_evaluation_only",
+      "subtitle_cues": 1604,
+      "subtitle_words_approx": 7088
+    },
+    {
+      "video_id": "0dzvz9JZFIM",
+      "url": "https://www.youtube.com/watch?v=0dzvz9JZFIM",
+      "title": "KEJAR SETORAN - DENNY SUMARGO DAN PRAZ AKAN PERTUKARAN PODCAST?!!",
+      "channel": "Tuah Kreasi",
+      "duration_seconds": 4144,
+      "language": "id",
+      "license_metadata": "Creative Commons Attribution license (reuse allowed)",
+      "rights_status": "creative_commons_attribution",
+      "dataset_use": "training_and_evaluation",
+      "attribution_required": true,
+      "subtitle_cues": 2011,
+      "subtitle_words_approx": 9738
+    },
+    {
+      "video_id": "Ive926sC6mc",
+      "url": "https://www.youtube.com/watch?v=Ive926sC6mc",
+      "title": "Sisi Lain Iqbaal Ramadhan",
+      "channel": "Raditya Dika",
+      "duration_seconds": 3923,
+      "language": "id",
+      "license_metadata": null,
+      "rights_status": "permission_pending",
+      "dataset_use": "reference_evaluation_only",
+      "subtitle_cues": 2275,
+      "subtitle_words_approx": 11367
+    },
+    {
+      "video_id": "0K37SYfox7M",
+      "url": "https://www.youtube.com/watch?v=0K37SYfox7M",
+      "title": "Ngobrol Sama Habib Industri",
+      "channel": "Raditya Dika",
+      "duration_seconds": 3716,
+      "language": "id",
+      "license_metadata": null,
+      "rights_status": "permission_pending",
+      "dataset_use": "reference_evaluation_only",
+      "subtitle_cues": 1886,
+      "subtitle_words_approx": 9000
+    }
+  ]
+}

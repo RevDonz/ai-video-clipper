@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +25,7 @@ def transcribe_video(
     *,
     model: Any,
     language: str | None = "id",
+    progress_callback: Callable[[float], None] | None = None,
 ) -> Transcription:
     source = Path(source)
     if not source.is_file():
@@ -35,10 +37,15 @@ def transcribe_video(
         vad_filter=True,
         beam_size=5,
     )
-    segments = [
-        TranscriptSegment(float(segment.start), float(segment.end), segment.text.strip())
-        for segment in raw_segments
-        if segment.text.strip() and float(segment.end) > float(segment.start)
-    ]
+    duration = float(getattr(info, "duration", 0.0) or 0.0)
+    segments = []
+    for segment in raw_segments:
+        start = float(segment.start)
+        end = float(segment.end)
+        text = segment.text.strip()
+        if text and end > start:
+            segments.append(TranscriptSegment(start, end, text))
+        if progress_callback is not None and duration > 0:
+            progress_callback(min(1.0, end / duration))
     detected_language = str(getattr(info, "language", language or "unknown"))
     return Transcription(detected_language, segments)
