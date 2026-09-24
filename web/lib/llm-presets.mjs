@@ -9,8 +9,16 @@
 // hosts are refused).
 
 export const PROVIDER_NAMES = Object.freeze([
-  "gemini", "groq", "openrouter", "cerebras", "mistral", "deepseek", "openai", "ollama", "ollama-cloud", "custom",
+  "gemini", "groq", "openrouter", "cerebras", "mistral", "deepseek", "openai", "ollama", "ollama-cloud", "custom", "custom2", "custom3",
 ]);
+
+/**
+ * Ids of the owner's own OpenAI-compatible servers (e.g. a self-hosted Hermes and
+ * a 9Router gateway), in the order a new server takes them. Each one has its own
+ * POTONGIN_LLM_CUSTOM<n>_* variables, sealed key and display name.
+ */
+export const CUSTOM_PROVIDERS = Object.freeze(["custom", "custom2", "custom3"]);
+export const MAX_DISPLAY_NAME_LENGTH = 40;
 
 function preset(fields) {
   return Object.freeze({ ...fields, fallbackModels: Object.freeze([...fields.fallbackModels]), keyEnv: Object.freeze([...fields.keyEnv]) });
@@ -107,15 +115,41 @@ export const LLM_PRESETS = Object.freeze({
     keyUrl: "https://ollama.com/settings/keys",
     description: "Paket Free untuk model starter, 1 permintaan bersamaan; prompt tidak dicatat atau dilatih.",
   }),
-  custom: preset({
-    label: "Server OpenAI-compatible lain",
+  ...Object.fromEntries(CUSTOM_PROVIDERS.map((name, index) => [name, preset({
+    label: index === 0 ? "Server OpenAI-compatible" : `Server OpenAI-compatible ${index + 1}`,
     baseUrl: null,
     defaultModel: null,
     fallbackModels: [],
     keyEnv: [],
     requiresKey: false, paidOnly: false, custom: true, contextTokens: 32_768, maxOutputTokens: 4096, timeout: 300, rpm: null,
     keyUrl: null,
-    description: "Server Anda sendiri (mis. Hermes, LM Studio, vLLM, llama.cpp). Wajib base URL dan model; key opsional.",
+    description: "Server Anda sendiri (mis. Hermes, gateway 9Router, LM Studio, vLLM, llama.cpp). Wajib base URL dan model; key opsional. Dianggap milik Anda, jadi mode hanya-gratis tidak menyaringnya.",
+  })])),
+});
+
+/**
+ * Starting points for a new custom server on the settings page. They only
+ * prefill the draft (name and base URL); nothing here is stored.
+ */
+export const SERVER_TEMPLATES = Object.freeze({
+  generic: Object.freeze({
+    title: "Server OpenAI-compatible",
+    name: "",
+    baseUrl: "",
+    docsUrl: null,
+    description: "Server Anda sendiri: Hermes, LM Studio, vLLM, llama.cpp, atau API lain yang punya /v1/chat/completions. Bisa ditambah sampai 3 server, masing-masing dengan nama sendiri.",
+    warning: null,
+  }),
+  "9router": Object.freeze({
+    title: "9Router (gateway)",
+    name: "9Router",
+    // 9Router's API listens on port 20128 (http://localhost:20128/v1, dashboard /dashboard).
+    baseUrl: "http://host.docker.internal:20128/v1",
+    docsUrl: "https://github.com/decolua/9router",
+    description: "Gateway OpenAI-compatible yang meneruskan ke banyak penyedia dengan fallback sendiri. API-nya di port 20128 (/v1); model ditulis dengan awalan penyedia atau nama combo dari dashboard 9Router.",
+    // Model prefixes 9Router uses for consumer subscriptions (Claude Code, Codex, Copilot, Cursor).
+    subscriptionPrefixes: Object.freeze(["cc/", "cx/", "gh/", "cu/"]),
+    warning: "9Router bisa meneruskan langganan konsumen (Claude Pro/Max, ChatGPT/Codex, GitHub Copilot, Cursor). Memakai langganan itu untuk layanan otomatis seperti Potongin bisa melanggar ketentuan penyedianya dan membuat akun diblokir; pakai model gratis/API resmi di 9Router untuk job.",
   }),
 });
 
@@ -168,6 +202,24 @@ export function isProviderName(value) {
   return typeof value === "string" && PROVIDER_NAMES.includes(value);
 }
 
+export function isCustomProvider(value) {
+  return typeof value === "string" && CUSTOM_PROVIDERS.includes(value);
+}
+
+/**
+ * Why `raw` cannot be a server's display name, or null when it can: 1–40
+ * characters, no leading/trailing space, and no control, format (bidi,
+ * zero-width) or line-break characters. Never echoes the name.
+ */
+export function displayNameProblem(raw) {
+  if (typeof raw !== "string") return "harus berupa teks";
+  if (!raw || [...raw].length > MAX_DISPLAY_NAME_LENGTH || raw !== raw.trim() || /[\p{C}]|[^\S ]/u.test(raw)) {
+    return `harus 1–${MAX_DISPLAY_NAME_LENGTH} karakter tanpa karakter kontrol atau baris baru`;
+  }
+  return null;
+}
+
+// Custom servers are the owner's own: POTONGIN_LLM_FREE_ONLY never filters them.
 export function isFreeModel(provider, model) {
   if (LLM_PRESETS[provider]?.paidOnly) return false;
   if (provider === "openrouter") return model.endsWith(":free") || model === "openrouter/free";

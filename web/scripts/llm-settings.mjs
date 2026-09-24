@@ -55,7 +55,9 @@ export function parseDotenv(text) {
 
 function providerLine(provider) {
   const key = provider.apiKeySet ? (provider.apiKeyUnreadable ? "key tidak bisa dibuka" : "key ✓") : "tanpa key";
-  return `${provider.provider} (${provider.enabled ? "aktif" : "nonaktif"}, ${key})`;
+  // Names are validated (no control characters), so they are safe to print.
+  const name = provider.name ? ` "${provider.name}"` : "";
+  return `${provider.provider}${name} (${provider.enabled ? "aktif" : "nonaktif"}, ${key})`;
 }
 
 export async function main(argv = process.argv.slice(2), { env = process.env, stdout = process.stdout, stderr = process.stderr } = {}) {
@@ -89,7 +91,7 @@ export async function main(argv = process.argv.slice(2), { env = process.env, st
       }
       const { settings, warnings } = await importEnvToFile({ env, sourceEnv, force });
       const { file } = resolveSettingsPaths(env);
-      const providers = settings.providers.map((entry) => providerLine({ provider: entry.provider, enabled: entry.enabled, apiKeySet: Boolean(entry.apiKey), apiKeyUnreadable: false }));
+      const providers = settings.providers.map((entry) => providerLine({ provider: entry.provider, name: entry.name, enabled: entry.enabled, apiKeySet: Boolean(entry.apiKey), apiKeyUnreadable: false }));
       stdout.write(`Pengaturan AI diimpor ke ${file}\n`);
       stdout.write(`AI ${settings.enabled ? "aktif" : "dimatikan"}; hanya model gratis: ${settings.freeOnly ? "ya" : "tidak"}.\n`);
       stdout.write(`Urutan penyedia: ${providers.length ? providers.join(" → ") : "(kosong)"}\n`);

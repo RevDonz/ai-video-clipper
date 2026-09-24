@@ -3,6 +3,10 @@
 // length, base URL or other secret-bearing value ever leaves this module. It
 // mirrors the provider resolution in src/ai_clipper/llm.py (_resolve_configs)
 // closely enough to tell the operator which providers the worker will try.
+// Custom servers may carry a display name (POTONGIN_LLM_<CUSTOM>_NAME, e.g.
+// "Hermes" or "9Router"); the engine ignores it, the badge shows it.
+
+import { CUSTOM_PROVIDERS, displayNameProblem } from "./llm-presets.mjs";
 
 export const LLM_PROVIDERS = Object.freeze({
   gemini: { keyEnv: ["GEMINI_API_KEY", "GOOGLE_API_KEY"], requiresKey: true, paidOnly: false },
@@ -14,7 +18,7 @@ export const LLM_PROVIDERS = Object.freeze({
   openai: { keyEnv: ["OPENAI_API_KEY"], requiresKey: true, paidOnly: true },
   ollama: { keyEnv: [], requiresKey: false, paidOnly: false, local: true },
   "ollama-cloud": { keyEnv: ["OLLAMA_API_KEY"], requiresKey: true, paidOnly: false },
-  custom: { keyEnv: [], requiresKey: false, paidOnly: false, custom: true },
+  ...Object.fromEntries(CUSTOM_PROVIDERS.map((name) => [name, { keyEnv: [], requiresKey: false, paidOnly: false, custom: true }])),
 });
 
 const OFF_VALUES = new Set(["off", "0", "false", "no", "disabled", "disable", "none"]);
@@ -126,10 +130,21 @@ function tuningValid(env, provider, primary) {
   });
 }
 
+// A custom server's display name, or null (unnamed, invalid, or not a custom server).
+function displayName(env, name) {
+  if (!LLM_PROVIDERS[name]?.custom) return null;
+  const value = envText(env, scopedName(name, "NAME"));
+  return value !== null && !displayNameProblem(value) ? value : null;
+}
+
+function shownName(item) {
+  return item.displayName ?? item.name;
+}
+
 function describeProvider(env, name, primary, freeOnly, unreadableKeys = null) {
   const preset = LLM_PROVIDERS[name];
   if (!preset) {
-    return { name, known: false, keySet: false, usable: false, reason: "unknown_provider", paid: false, local: false, modelOverride: null, fallbackOverride: null };
+    return { name, displayName: null, known: false, keySet: false, usable: false, reason: "unknown_provider", paid: false, local: false, custom: false, modelOverride: null, fallbackOverride: null };
   }
   let key = setting(env, name, "API_KEY", primary);
   for (const variable of preset.keyEnv) {
@@ -142,12 +157,14 @@ function describeProvider(env, name, primary, freeOnly, unreadableKeys = null) {
   const fallbacks = modelList(fallbackRaw);
   const described = {
     name,
+    displayName: displayName(env, name),
     known: true,
     keySet,
     usable: false,
     reason: null,
     paid: preset.paidOnly,
     local: Boolean(preset.local),
+    custom: Boolean(preset.custom),
     modelOverride: modelRaw === null ? null : publicModel(modelRaw),
     fallbackOverride: fallbacks === null ? null : fallbacks.map(publicModel).filter(Boolean).slice(0, MAX_LISTED_MODELS),
   };
@@ -189,6 +206,11 @@ export function llmReasonText(reason) {
   return REASON_TEXT[reason] || "tidak siap";
 }
 
+// FREE_ONLY never filters the owner's own servers; say so when one is in the chain.
+function freeOnlyNote(usable) {
+  return usable.some((item) => item.custom) ? " (hanya model gratis; server sendiri tidak disaring)" : " (hanya model gratis)";
+}
+
 /**
  * The dashboard's view of the LLM configuration.
  *
@@ -224,15 +246,16 @@ export function readLlmStatus(env = process.env, { unreadableKeys = null } = {})
       freeOnly,
       providers: described,
       problems: [`config_invalid:${broken.name}`],
-      label: `Konfigurasi LLM tidak valid (${broken.name}) — memakai heuristik`,
+      label: `Konfigurasi LLM tidak valid (${shownName(broken)}) — memakai heuristik`,
     };
   }
-  const order = described.filter((item) => item.usable).map((item) => item.name);
+  const usable = described.filter((item) => item.usable);
+  const order = usable.map((item) => item.name);
   // A single listed provider is not skipped when unusable: the worker rejects it.
   const single = described.length === 1;
   if (!order.length) {
     const first = described[0];
-    const detail = single ? ` (${first.name}: ${llmReasonText(first.reason)})` : "";
+    const detail = single ? ` (${shownName(first)}: ${llmReasonText(first.reason)})` : "";
     return {
       ...base,
       state: "unusable",
@@ -247,6 +270,6 @@ export function readLlmStatus(env = process.env, { unreadableKeys = null } = {})
     freeOnly,
     order,
     providers: described,
-    label: `LLM aktif: ${order.join(" → ")}${freeOnly ? " (hanya model gratis)" : ""}`,
+    label: `LLM aktif: ${usable.map(shownName).join(" → ")}${freeOnly ? freeOnlyNote(usable) : ""}`,
   };
 }

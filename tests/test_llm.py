@@ -822,12 +822,20 @@ KEY_VARS = {
 }
 
 
+CUSTOM_SERVERS = ("custom", "custom2", "custom3")
+
+
 def test_presets_cover_every_provider() -> None:
     assert set(PROVIDERS) == set(PRESETS)
-    assert set(PROVIDERS) == set(KEY_VARS) | {"ollama", "custom"}
+    assert set(PROVIDERS) == set(KEY_VARS) | {"ollama", *CUSTOM_SERVERS}
+    assert PROVIDERS[-3:] == CUSTOM_SERVERS
     for name, preset in PRESETS.items():
-        if name == "custom":
+        if name in CUSTOM_SERVERS:
             assert preset.base_url is None and preset.default_model is None
+            assert preset.key_env == () and not preset.requires_key and not preset.paid_only
+            assert dataclasses.replace(preset, name="custom", label="") == dataclasses.replace(
+                PRESETS["custom"], label=""
+            )
             continue
         assert preset.base_url and preset.default_model
         if name != "ollama":
@@ -921,6 +929,118 @@ def test_custom_requires_base_url_and_model() -> None:
                               "POTONGIN_LLM_BASE_URL": "https://llm.example.com/v1",
                               "POTONGIN_LLM_MODEL": "my-model"})
     assert config is not None and config.api_key is None and config.model == "my-model"
+
+
+HERMES_KEY = "hermes-key-AAAA1111zz"
+ROUTER_KEY = "9router-key-BBBB2222yy"
+THIRD_KEY = "third-key-CCCC3333xx"
+THREE_SERVERS = {
+    "POTONGIN_LLM_PROVIDERS": "custom,custom2,CUSTOM3",
+    "POTONGIN_LLM_CUSTOM_NAME": "Hermes",
+    "POTONGIN_LLM_CUSTOM_BASE_URL": "https://hermes.example/v1",
+    "POTONGIN_LLM_CUSTOM_MODEL": "LJNAI-FAST",
+    "POTONGIN_LLM_CUSTOM_API_KEY": HERMES_KEY,
+    "POTONGIN_LLM_CUSTOM_REASONING_EFFORT": "none",
+    "POTONGIN_LLM_CUSTOM2_NAME": "9Router",
+    "POTONGIN_LLM_CUSTOM2_BASE_URL": "http://host.docker.internal:20128/v1",
+    "POTONGIN_LLM_CUSTOM2_MODEL": "kr/glm-5",
+    "POTONGIN_LLM_CUSTOM2_FALLBACK_MODELS": "combo-free, kr/claude-sonnet-4.5",
+    "POTONGIN_LLM_CUSTOM2_API_KEY": ROUTER_KEY,
+    "POTONGIN_LLM_CUSTOM2_REASONING_EFFORT": "LOW",
+    "POTONGIN_LLM_CUSTOM2_CONTEXT_TOKENS": "65536",
+    "POTONGIN_LLM_CUSTOM2_TIMEOUT": "240",
+    "POTONGIN_LLM_CUSTOM3_BASE_URL": "http://localhost:1234/v1",
+    "POTONGIN_LLM_CUSTOM3_MODEL": "qwen3.5:9b",
+    "POTONGIN_LLM_CUSTOM3_API_KEY": THIRD_KEY,
+}
+
+
+def test_three_custom_servers_load_from_their_own_variables() -> None:
+    hermes, router, third = load_llm_configs(THREE_SERVERS)
+
+    assert (hermes.provider, router.provider, third.provider) == CUSTOM_SERVERS
+    assert (hermes.base_url, hermes.model, hermes.api_key, hermes.reasoning_effort) == (
+        "https://hermes.example/v1", "LJNAI-FAST", HERMES_KEY, "none")
+    assert (router.base_url, router.model, router.api_key) == (
+        "http://host.docker.internal:20128/v1", "kr/glm-5", ROUTER_KEY)
+    assert router.fallback_models == ("combo-free", "kr/claude-sonnet-4.5")
+    assert (router.reasoning_effort, router.context_tokens, router.timeout) == ("low", 65536, 240.0)
+    assert (third.base_url, third.model, third.api_key) == (
+        "http://localhost:1234/v1", "qwen3.5:9b", THIRD_KEY)
+    assert third.context_tokens == PRESETS["custom3"].context_tokens
+    assert third.reasoning_effort is None, "tuning of one server never leaks into another"
+    for config in (hermes, router, third):
+        shown = repr(config) + json.dumps(config.public_dict())
+        assert all(key not in shown for key in (HERMES_KEY, ROUTER_KEY, THIRD_KEY))
+
+
+def test_extra_custom_servers_never_take_the_shared_identity_variables() -> None:
+    env = {
+        "POTONGIN_LLM_PROVIDERS": "custom,custom2",
+        "POTONGIN_LLM_BASE_URL": "https://hermes.example/v1",
+        "POTONGIN_LLM_MODEL": "LJNAI-FAST",
+        "POTONGIN_LLM_API_KEY": HERMES_KEY,
+        "POTONGIN_LLM_CUSTOM2_BASE_URL": "https://router.example/v1",
+        "POTONGIN_LLM_CUSTOM2_MODEL": "m2",
+        "POTONGIN_LLM_TIMEOUT": "90",
+    }
+
+    hermes, router = load_llm_configs(env)
+
+    assert (hermes.base_url, hermes.api_key) == ("https://hermes.example/v1", HERMES_KEY)
+    assert (router.base_url, router.model, router.api_key) == ("https://router.example/v1", "m2",
+                                                               None)
+    assert hermes.timeout == router.timeout == 90.0, "shared tuning still applies to every server"
+
+
+def test_a_listed_extra_server_without_its_url_or_model_names_its_own_variable() -> None:
+    for missing, variable in (("BASE_URL", "POTONGIN_LLM_CUSTOM2_BASE_URL"),
+                              ("MODEL", "POTONGIN_LLM_CUSTOM2_MODEL")):
+        env = {name: value for name, value in THREE_SERVERS.items()
+               if name != f"POTONGIN_LLM_CUSTOM2_{missing}"}
+        with pytest.raises(LLMUnavailable) as caught:
+            load_llm_configs(env)
+        assert caught.value.code == "config_invalid"
+        assert caught.value.provider == "custom2"
+        assert variable in caught.value.message
+        assert ROUTER_KEY not in caught.value.message
+    with pytest.raises(LLMUnavailable) as caught:
+        load_llm_config({"POTONGIN_LLM_PROVIDER": "custom3", "POTONGIN_LLM_CUSTOM3_MODEL": "m"})
+    assert caught.value.code == "config_invalid"
+    assert "POTONGIN_LLM_CUSTOM3_BASE_URL" in caught.value.message
+
+
+def test_free_only_treats_every_custom_server_as_the_owners_own() -> None:
+    configs = load_llm_configs({**THREE_SERVERS, "POTONGIN_LLM_FREE_ONLY": "1",
+                                "POTONGIN_LLM_CUSTOM2_MODEL": "cx/gpt-5.5"})
+    assert [config.provider for config in configs] == list(CUSTOM_SERVERS)
+    assert configs[1].model_chain == ("cx/gpt-5.5", "combo-free", "kr/claude-sonnet-4.5")
+    assert all(llm.is_free_model(name, "any/model") for name in CUSTOM_SERVERS)
+
+
+def test_failover_runs_through_custom_servers_with_each_servers_own_key(
+    server: FakeServer,
+) -> None:
+    server.reply(error_reply(401, "bad key"), chat('{"ok": true}'))
+    env = {
+        "POTONGIN_LLM_PROVIDERS": "custom,custom2",
+        "POTONGIN_LLM_CUSTOM_BASE_URL": f"{server.base_url}/hermes",
+        "POTONGIN_LLM_CUSTOM_MODEL": "LJNAI-FAST",
+        "POTONGIN_LLM_CUSTOM_API_KEY": HERMES_KEY,
+        "POTONGIN_LLM_CUSTOM2_BASE_URL": f"{server.base_url}/router",
+        "POTONGIN_LLM_CUSTOM2_MODEL": "kr/glm-5",
+        "POTONGIN_LLM_CUSTOM2_API_KEY": ROUTER_KEY,
+        "POTONGIN_LLM_MAX_RETRIES": "0",
+    }
+    client = create_llm_client_from_env(env)
+    assert isinstance(client, FailoverLLMClient)
+
+    response = call(client)
+
+    assert (response.provider, response.data) == ("custom2", {"ok": True})
+    seen = [(request["path"], request["headers"]["authorization"]) for request in server.requests]
+    assert seen == [("/v1/hermes/chat/completions", f"Bearer {HERMES_KEY}"),
+                    ("/v1/router/chat/completions", f"Bearer {ROUTER_KEY}")]
 
 
 @pytest.mark.parametrize("value", ["off", "OFF", "0", "false", "disabled"])
@@ -1399,6 +1519,14 @@ def test_cli_show_presets_lists_every_provider() -> None:
     for provider in PROVIDERS:
         assert provider in output
     assert "GEMINI_API_KEY" in output
+
+
+def test_cli_show_presets_names_each_custom_servers_own_variables() -> None:
+    code, output = run_cli(["--show-presets"], {})
+    assert code == 0
+    for name in ("CUSTOM", "CUSTOM2", "CUSTOM3"):
+        assert f"POTONGIN_LLM_{name}_BASE_URL" in output
+        assert f"POTONGIN_LLM_{name}_MODEL" in output
 
 
 def test_cli_show_presets_json() -> None:

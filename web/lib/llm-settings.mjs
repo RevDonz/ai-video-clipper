@@ -7,6 +7,9 @@
 // AES-256-GCM under a key derived (HKDF-SHA256) from POTONGIN_SETTINGS_SECRET or
 // APP_SESSION_SECRET and bound to their provider name. A key that can no longer
 // be opened (the secret changed) is reported as unreadable, never guessed.
+// Up to three custom OpenAI-compatible servers (custom, custom2, custom3) may
+// carry a display name; each one's key is sealed for its own id and is only
+// ever sent to the scheme://host:port it was entered for (keyOrigin).
 //
 // The Python engine still reads only environment variables: buildLlmEnv turns
 // the document into POTONGIN_LLM_* variables for the engine child process and
@@ -31,8 +34,10 @@ import {
   apiKeyProblem,
   appTitleProblem,
   baseUrlProblem,
+  displayNameProblem,
   fallbackModelProblem,
   httpRefererProblem,
+  isCustomProvider,
   isProviderName,
   modelProblem,
   numberProblem,
@@ -62,7 +67,10 @@ const ISO_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
 const TOP_LEVEL_INPUT = new Set(["version", "enabled", "freeOnly", "providers", "baseUpdatedAt"]);
 const TOP_LEVEL_STORED = ["version", "enabled", "freeOnly", "providers", "updatedAt"];
-const PROVIDER_KEYS = new Set(["provider", "enabled", "apiKey", ...Object.keys(PROVIDER_FIELDS)]);
+const PROVIDER_KEYS = new Set(["provider", "enabled", "name", "apiKey", ...Object.keys(PROVIDER_FIELDS)]);
+// Display name of a custom server (Hermes, 9Router, ...): dashboard-only, the
+// engine ignores POTONGIN_LLM_<CUSTOM>_NAME.
+const NAME_SUFFIX = "NAME";
 const DISABLED_SETTINGS = Object.freeze({ version: SETTINGS_VERSION, enabled: false, freeOnly: false, providers: Object.freeze([]), updatedAt: "1970-01-01T00:00:00.000Z" });
 
 const FIELD_LABELS = Object.freeze({
@@ -266,6 +274,15 @@ function providerEntry(entry, prefix, issues, seen, { stored }) {
   seen.add(entry.provider);
   if (typeof entry.enabled !== "boolean") issues.push({ field: `${prefix}.enabled`, message: "Status aktif penyedia harus true atau false." });
   const out = { provider: entry.provider, enabled: entry.enabled === true };
+  let name = entry.name;
+  if (!stored && typeof name === "string") name = name.trim();
+  if (name !== undefined && name !== null && (stored || name !== "")) {
+    const problem = isCustomProvider(entry.provider) ? displayNameProblem(name) : "hanya bisa diisi untuk server OpenAI-compatible";
+    if (problem) issues.push({ field: `${prefix}.name`, message: `Nama ${problem}.` });
+    else out.name = name;
+  } else if (stored && name === null) {
+    issues.push({ field: `${prefix}.name`, message: "Nama harus berupa teks." });
+  }
   for (const field of Object.keys(PROVIDER_FIELDS)) {
     let value = entry[field];
     if (!stored) {
@@ -302,7 +319,17 @@ function providerList(raw, issues, options) {
     return [];
   }
   const seen = new Set();
-  return raw.map((entry, index) => providerEntry(entry, `providers[${index}]`, issues, seen, options)).filter(Boolean);
+  const names = new Set();
+  return raw.map((entry, index) => {
+    const result = providerEntry(entry, `providers[${index}]`, issues, seen, options);
+    const name = result?.out.name?.toLocaleLowerCase("id");
+    if (name !== undefined) {
+      // The failover chain and badge show these names: two servers must not look alike.
+      if (names.has(name)) issues.push({ field: `providers[${index}].name`, message: "Nama ini sudah dipakai server lain." });
+      names.add(name);
+    }
+    return result;
+  }).filter(Boolean);
 }
 
 export const KEY_ORIGIN_MESSAGE = "Base URL pindah ke server lain: isi ulang API key (key lama tidak dikirim ke alamat baru).";
@@ -611,9 +638,16 @@ function envSetting(env, provider, suffix, primary) {
   return [shared, envText(env, shared)];
 }
 
-function importProvider(env, provider, primary) {
+function importProvider(env, provider, primary, warnings) {
   const preset = LLM_PRESETS[provider];
   const out = { provider, enabled: true };
+  if (isCustomProvider(provider)) {
+    // Scoped only: a shared POTONGIN_LLM_NAME would give every server the same name.
+    const variable = scopedEnvName(provider, NAME_SUFFIX);
+    const name = envText(env, variable);
+    if (name !== null && displayNameProblem(name)) warnings.push(`${variable} tidak valid (maks. 40 karakter, tanpa karakter kontrol) dan diabaikan.`);
+    else if (name !== null) out.name = name;
+  }
   for (const [field, suffix] of Object.entries(PROVIDER_FIELDS)) {
     const [name, raw] = envSetting(env, provider, suffix, primary);
     if (raw !== null) out[field] = parseEnvField(field, name, raw);
@@ -667,7 +701,7 @@ export function importFromEnv(env = process.env) {
       warnings.push(`Penyedia '${name}' tidak dikenal dan dilewati.`);
       return;
     }
-    settings.providers.push(importProvider(env, name, index === 0));
+    settings.providers.push(importProvider(env, name, index === 0, warnings));
   });
   return { settings, warnings };
 }
@@ -708,6 +742,7 @@ export function buildLlmEnv(settings, baseEnv = process.env, { only = null, secr
   next.POTONGIN_LLM_PROVIDERS = chain.map(({ entry }) => entry.provider).join(",");
   for (const { entry, key } of chain) {
     const set = (suffix, value) => { next[scopedEnvName(entry.provider, suffix)] = String(value); };
+    if (entry.name !== undefined) set(NAME_SUFFIX, entry.name);
     for (const [field, suffix] of Object.entries(PROVIDER_FIELDS)) {
       const value = entry[field];
       if (value === undefined || value === null) continue;
