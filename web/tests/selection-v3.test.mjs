@@ -585,7 +585,7 @@ test("LLM status reports order, keys, FREE_ONLY and model names without leaking 
   const serialized = JSON.stringify(status);
   for (const secret of ["secret", "pass@", "proxy.example", "23", "456", "789"]) assert.ok(!serialized.includes(secret), secret);
   for (const item of status.providers) {
-    assert.deepEqual(Object.keys(item).sort(), ["fallbackOverride", "keySet", "known", "local", "modelOverride", "name", "paid", "reason", "usable"]);
+    assert.deepEqual(Object.keys(item).sort(), ["custom", "displayName", "fallbackOverride", "keySet", "known", "local", "modelOverride", "name", "paid", "reason", "usable"]);
   }
 });
 

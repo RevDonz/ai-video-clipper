@@ -634,3 +634,250 @@ test("the CLI imports the environment (or a dotenv file) once and prints no secr
   streams = io();
   assert.equal(await main(["import-env", "--nope"], streams), 2);
 });
+
+// --- Several custom OpenAI-compatible servers ---------------------------------------------
+
+const SERVER_KEYS = Object.freeze({ custom: "hermes-srv-key-AAAA1111", custom2: "router-srv-key-BBBB2222", custom3: "third-srv-key-CCCC3333" });
+
+function serversInput(overrides = {}) {
+  return {
+    enabled: true,
+    freeOnly: true,
+    providers: [
+      { provider: "custom", enabled: true, name: " Hermes ", baseUrl: "https://hermes.example/v1", model: "LJNAI-FAST", reasoningEffort: "none", contextTokens: 65536, timeout: 600, apiKey: { action: "replace", value: SERVER_KEYS.custom } },
+      { provider: "custom2", enabled: true, name: "9Router", baseUrl: "http://host.docker.internal:20128/v1", model: "kr/glm-5", fallbackModels: ["combo-free"], reasoningEffort: "low", timeout: 240, apiKey: { action: "replace", value: SERVER_KEYS.custom2 } },
+      { provider: "ollama-cloud", enabled: true, apiKey: { action: "replace", value: KEYS["ollama-cloud"] } },
+      { provider: "custom3", enabled: true, baseUrl: "http://localhost:1234/v1", model: "qwen3.5:9b", apiKey: { action: "replace", value: SERVER_KEYS.custom3 } },
+    ],
+    ...overrides,
+  };
+}
+
+function assertNoServerKeys(text, label) {
+  for (const key of Object.values(SERVER_KEYS)) assert.ok(!text.includes(key), `${label} must not contain a server key`);
+}
+
+test("up to three custom servers each keep their own name, URL, model, tuning and sealed key", async () => {
+  assert.deepEqual(PROVIDER_NAMES.filter((name) => LLM_PRESETS[name].custom), ["custom", "custom2", "custom3"]);
+  const { env } = await sandbox();
+  const saved = await saveLlmSettings(serversInput(), { env });
+  assert.deepEqual(saved.providers.map((item) => [item.provider, item.name]), [["custom", "Hermes"], ["custom2", "9Router"], ["ollama-cloud", undefined], ["custom3", undefined]]);
+  assert.deepEqual((await readLlmSettings({ env })).settings, saved, "names survive the strict stored-file validation");
+  for (const [provider, key] of Object.entries(SERVER_KEYS)) {
+    const entry = saved.providers.find((item) => item.provider === provider);
+    assert.equal(decryptApiKey(entry.apiKey, provider, SECRET), key);
+    for (const other of Object.keys(SERVER_KEYS).filter((name) => name !== provider)) {
+      assert.equal(decryptApiKey(entry.apiKey, other, SECRET), null, `a key sealed for ${provider} cannot be opened as ${other}`);
+    }
+  }
+  assertNoServerKeys(await readFile(resolveSettingsPaths(env).file, "utf8"), "settings file");
+
+  const view = publicSettingsView(saved, { secret: SECRET, source: "ui" });
+  assert.deepEqual(view.providers[1], {
+    provider: "custom2", enabled: true, name: "9Router", baseUrl: "http://host.docker.internal:20128/v1", model: "kr/glm-5",
+    fallbackModels: ["combo-free"], reasoningEffort: "low", timeout: 240, apiKeySet: true, apiKeyUnreadable: false, source: "ui",
+  });
+  assertNoServerKeys(JSON.stringify(view), "public view");
+
+  const overlay = buildLlmEnv(saved, { PATH: "/bin", APP_SESSION_SECRET: SECRET });
+  assert.equal(overlay.POTONGIN_LLM_PROVIDERS, "custom,custom2,ollama-cloud,custom3");
+  assert.equal(overlay.POTONGIN_LLM_CUSTOM_NAME, "Hermes");
+  assert.equal(overlay.POTONGIN_LLM_CUSTOM2_NAME, "9Router");
+  assert.equal(overlay.POTONGIN_LLM_CUSTOM3_NAME, undefined);
+  assert.equal(overlay.POTONGIN_LLM_CUSTOM2_BASE_URL, "http://host.docker.internal:20128/v1");
+  assert.equal(overlay.POTONGIN_LLM_CUSTOM2_FALLBACK_MODELS, "combo-free");
+  assert.equal(overlay.POTONGIN_LLM_CUSTOM2_API_KEY, SERVER_KEYS.custom2);
+  assert.equal(overlay.POTONGIN_LLM_CUSTOM3_API_KEY, SERVER_KEYS.custom3);
+  assert.equal(overlay.POTONGIN_LLM_CUSTOM3_REASONING_EFFORT, undefined);
+
+  // The connection test of one server hands the engine that server's key only.
+  const only = buildLlmEnv(saved, { PATH: "/bin", APP_SESSION_SECRET: SECRET }, { only: "custom2" });
+  assert.equal(only.POTONGIN_LLM_PROVIDERS, "custom2");
+  assert.deepEqual(Object.keys(only).filter((name) => name.endsWith("_API_KEY")), ["POTONGIN_LLM_CUSTOM2_API_KEY"]);
+
+  // The engine resolves the overlay into three distinct servers with their own keys, and
+  // Selection V3 sizes its prompt for the whole chain (smallest context over all servers).
+  const script = [
+    "import json, sys",
+    "from ai_clipper.llm import load_llm_configs",
+    "from ai_clipper.selection_v3 import llm_request_budget",
+    "env = json.loads(sys.stdin.read())",
+    "rows = [[c.provider, c.base_url, c.model, list(c.fallback_models), c.reasoning_effort, c.timeout, c.api_key] for c in load_llm_configs(env)]",
+    "print(json.dumps({'rows': rows, 'budget': llm_request_budget(env)}))",
+  ].join("\n");
+  const { rows, budget } = await new Promise((resolve, reject) => {
+    const child = execFile(pythonBin(), ["-c", script], { env: { PATH: process.env.PATH } }, (error, stdout) => (error ? reject(error) : resolve(JSON.parse(stdout))));
+    child.stdin.end(JSON.stringify(engineProcessEnv(overlay)));
+  });
+  assert.deepEqual(budget, [32768, 4096], "custom (65536) is capped by custom2/custom3 (32768); output from the primary custom preset");
+  assert.deepEqual(rows.filter((row) => row[0].startsWith("custom")), [
+    ["custom", "https://hermes.example/v1", "LJNAI-FAST", [], "none", 600, SERVER_KEYS.custom],
+    ["custom2", "http://host.docker.internal:20128/v1", "kr/glm-5", ["combo-free"], "low", 240, SERVER_KEYS.custom2],
+    ["custom3", "http://localhost:1234/v1", "qwen3.5:9b", [], null, 300, SERVER_KEYS.custom3],
+  ]);
+});
+
+test("a server name is validated strictly and only custom servers carry one", () => {
+  const withProvider = (index, patch) => {
+    const copy = structuredClone(serversInput());
+    copy.providers[index] = { ...copy.providers[index], ...patch };
+    return copy;
+  };
+  for (const [input, field] of [
+    [withProvider(0, { name: "x".repeat(41) }), "providers[0].name"],
+    [withProvider(0, { name: "Her\u0000mes" }), "providers[0].name"],
+    [withProvider(0, { name: "Hermes‮-secret" }), "providers[0].name"],
+    [withProvider(0, { name: "Two\nLines" }), "providers[0].name"],
+    [withProvider(0, { name: 42 }), "providers[0].name"],
+    [withProvider(1, { name: "hermes" }), "providers[1].name"],
+    [withProvider(2, { name: "Awan" }), "providers[2].name"],
+  ]) {
+    const error = invalid(() => normalizeSettingsInput(input, { secret: SECRET }), field);
+    assert.doesNotMatch(JSON.stringify(error.issues), /secret/);
+  }
+  const unnamed = normalizeSettingsInput(withProvider(0, { name: "   " }), { secret: SECRET });
+  assert.equal(unnamed.providers[0].name, undefined, "a blank name means the default label");
+  assert.equal(normalizeSettingsInput(withProvider(0, { name: "Hermes · kantor (GPU)" }), { secret: SECRET }).providers[0].name, "Hermes · kantor (GPU)");
+  // Only three custom ids exist; a fourth server cannot be smuggled in.
+  invalid(() => normalizeSettingsInput({ ...serversInput(), providers: [...serversInput().providers, { provider: "custom4", enabled: false }] }, { secret: SECRET }), "providers[4].provider");
+});
+
+test("each server's key stays bound to its own origin, even between custom servers", async () => {
+  const { env } = await sandbox();
+  const first = await saveLlmSettings(serversInput(), { env });
+  const keepAll = (mutate) => {
+    const input = serversInput({ baseUpdatedAt: first.updatedAt });
+    input.providers = input.providers.map((item) => ({ ...item, apiKey: { action: "keep" } }));
+    mutate(input.providers);
+    return input;
+  };
+  const refused = (...indexes) => (error) => error instanceof LlmSettingsError && error.code === "invalid"
+    && indexes.every((index) => error.issues.some((issue) => issue.field === `providers[${index}].apiKey`))
+    && error.issues.length === indexes.length;
+
+  // 9Router's key never follows its URL to another host, not even to Hermes' host.
+  await assert.rejects(saveLlmSettings(keepAll((list) => { list[1].baseUrl = "https://collector.example/v1"; }), { env }), refused(1));
+  await assert.rejects(saveLlmSettings(keepAll((list) => { list[1].baseUrl = "https://hermes.example/v1"; }), { env }), refused(1));
+  await assert.rejects(saveLlmSettings(keepAll((list) => { list[1].baseUrl = "http://host.docker.internal:20129/v1"; }), { env }), refused(1));
+  // Swapping two servers' URLs (or their ids) while keeping keys is refused for both.
+  await assert.rejects(saveLlmSettings(keepAll((list) => {
+    [list[0].baseUrl, list[1].baseUrl] = [list[1].baseUrl, list[0].baseUrl];
+  }), { env }), refused(0, 1));
+  await assert.rejects(saveLlmSettings(keepAll((list) => {
+    [list[0].provider, list[1].provider] = [list[1].provider, list[0].provider];
+  }), { env }), refused(0, 1));
+  assert.equal((await readLlmSettings({ env })).settings.updatedAt, first.updatedAt, "a refused save writes nothing");
+
+  // Renaming, reordering or changing the path on the same server keeps every key.
+  const renamed = await saveLlmSettings(keepAll((list) => {
+    list[0].name = "Hermes GPU";
+    list[1].baseUrl = "http://host.docker.internal:20128/api/v1";
+    list.reverse();
+  }), { env });
+  assert.deepEqual(renamed.providers.map((item) => item.provider), ["custom3", "ollama-cloud", "custom2", "custom"]);
+  assert.deepEqual(renamed.providers[2].apiKey, first.providers[1].apiKey);
+  assert.equal(renamed.providers[3].name, "Hermes GPU");
+
+  // A sealed key copied onto another server in the file cannot be opened there.
+  const tampered = structuredClone(renamed);
+  [tampered.providers[2].apiKey, tampered.providers[3].apiKey] = [tampered.providers[3].apiKey, tampered.providers[2].apiKey];
+  const status = await readEffectiveLlmStatus(env, { read: { exists: true, settings: tampered } });
+  assert.deepEqual(status.providers.filter((item) => item.name.startsWith("custom2") || item.name === "custom").map((item) => item.reason), ["key_unreadable", "key_unreadable"]);
+  const engineEnv = buildLlmEnv(tampered, env);
+  assert.equal(engineEnv.POTONGIN_LLM_PROVIDERS, "custom3,ollama-cloud");
+});
+
+const SERVERS_ENV = Object.freeze({
+  POTONGIN_LLM_PROVIDERS: "custom,custom2,ollama-cloud,custom3",
+  POTONGIN_LLM_FREE_ONLY: "1",
+  POTONGIN_LLM_CUSTOM_NAME: "Hermes",
+  POTONGIN_LLM_CUSTOM_BASE_URL: "https://hermes.example/v1",
+  POTONGIN_LLM_CUSTOM_MODEL: "LJNAI-FAST",
+  POTONGIN_LLM_CUSTOM_API_KEY: SERVER_KEYS.custom,
+  POTONGIN_LLM_CUSTOM_REASONING_EFFORT: "none",
+  POTONGIN_LLM_CUSTOM2_NAME: " 9Router ",
+  POTONGIN_LLM_CUSTOM2_BASE_URL: "http://host.docker.internal:20128/v1",
+  POTONGIN_LLM_CUSTOM2_MODEL: "kr/glm-5",
+  POTONGIN_LLM_CUSTOM2_FALLBACK_MODELS: "combo-free",
+  POTONGIN_LLM_CUSTOM2_API_KEY: SERVER_KEYS.custom2,
+  POTONGIN_LLM_CUSTOM2_TIMEOUT: "240",
+  POTONGIN_LLM_CUSTOM3_BASE_URL: "http://localhost:1234/v1",
+  POTONGIN_LLM_CUSTOM3_MODEL: "qwen3.5:9b",
+  POTONGIN_LLM_CUSTOM3_API_KEY: SERVER_KEYS.custom3,
+  OLLAMA_API_KEY: KEYS["ollama-cloud"],
+  // A shared name is not a thing: names are per server only.
+  POTONGIN_LLM_NAME: "Ignored",
+});
+
+test("importFromEnv picks up CUSTOM2 and CUSTOM3 with their names, and the engine agrees", async () => {
+  const { settings, warnings } = importFromEnv(SERVERS_ENV);
+  assert.deepEqual(warnings, []);
+  assert.deepEqual(settings.providers.map((item) => [item.provider, item.name]), [["custom", "Hermes"], ["custom2", "9Router"], ["ollama-cloud", undefined], ["custom3", undefined]]);
+  assert.deepEqual(settings.providers[1], {
+    provider: "custom2", enabled: true, name: "9Router", baseUrl: "http://host.docker.internal:20128/v1", model: "kr/glm-5",
+    fallbackModels: ["combo-free"], timeout: 240, apiKey: { value: SERVER_KEYS.custom2 },
+  });
+
+  // A bad name is dropped with a warning (the engine never reads names), never echoed.
+  const badName = importFromEnv({ ...SERVERS_ENV, POTONGIN_LLM_CUSTOM2_NAME: "bad‮name-secret" });
+  assert.equal(badName.settings.providers[1].name, undefined);
+  assert.deepEqual(badName.warnings, ["POTONGIN_LLM_CUSTOM2_NAME tidak valid (maks. 40 karakter, tanpa karakter kontrol) dan diabaikan."]);
+  // A second server listed without its URL is an error that names its own variable.
+  assert.throws(() => importFromEnv({ ...SERVERS_ENV, POTONGIN_LLM_CUSTOM3_BASE_URL: "" }), /POTONGIN_LLM_CUSTOM3_BASE_URL/);
+
+  const { env } = await sandbox({ ...SERVERS_ENV, PATH: process.env.PATH });
+  await importEnvToFile({ env });
+  const saved = (await readLlmSettings({ env })).settings;
+  assert.equal(decryptApiKey(saved.providers[1].apiKey, "custom2", SECRET), SERVER_KEYS.custom2);
+  assert.equal(decryptApiKey(saved.providers[3].apiKey, "custom3", SECRET), SERVER_KEYS.custom3);
+  const overlay = (await loadLlmEnv(env)).env;
+  const script = [
+    "import json, sys",
+    "from ai_clipper.llm import load_llm_configs",
+    "print(json.dumps([dict(c.public_dict(), key=c.api_key) for c in load_llm_configs(json.loads(sys.stdin.read()))]))",
+  ].join("\n");
+  const engine = (input) => new Promise((resolve, reject) => {
+    const child = execFile(pythonBin(), ["-c", script], { env: { PATH: process.env.PATH } }, (error, stdout) => (error ? reject(error) : resolve(JSON.parse(stdout))));
+    child.stdin.end(JSON.stringify(input));
+  });
+  const before = await engine(SERVERS_ENV);
+  assert.deepEqual(await engine(overlay), before);
+  assert.deepEqual(before.map((row) => row.provider), ["custom", "custom2", "ollama-cloud", "custom3"]);
+});
+
+test("the status badge names custom servers and says FREE_ONLY does not filter them", async () => {
+  const fromEnv = readLlmStatus(SERVERS_ENV);
+  assert.equal(fromEnv.state, "active");
+  assert.deepEqual(fromEnv.order, ["custom", "custom2", "ollama-cloud", "custom3"]);
+  assert.deepEqual(fromEnv.providers.map((item) => item.displayName), ["Hermes", "9Router", null, null]);
+  assert.equal(fromEnv.label, "LLM aktif: Hermes → 9Router → ollama-cloud → custom3 (hanya model gratis; server sendiri tidak disaring)");
+  assert.equal(readLlmStatus({ ...SERVERS_ENV, POTONGIN_LLM_FREE_ONLY: "0" }).label, "LLM aktif: Hermes → 9Router → ollama-cloud → custom3");
+  assert.equal(readLlmStatus({ ...SERVERS_ENV, POTONGIN_LLM_CUSTOM2_NAME: "bad\u0000name" }).providers[1].displayName, null, "an invalid name falls back to the id");
+  const broken = readLlmStatus({ ...SERVERS_ENV, POTONGIN_LLM_CUSTOM2_BASE_URL: "http://remote.example/v1" });
+  assert.equal(broken.state, "invalid");
+  assert.equal(broken.label, "Konfigurasi LLM tidak valid (9Router) — memakai heuristik");
+  assert.equal(readLlmStatus({ POTONGIN_LLM_PROVIDERS: "custom2" }).state, "invalid", "custom2 needs its own URL and model");
+  assertNoServerKeys(JSON.stringify(fromEnv), "status");
+
+  const { env } = await sandbox();
+  await saveLlmSettings(serversInput(), { env });
+  const ui = await readEffectiveLlmStatus(env);
+  assert.equal(ui.source, "ui");
+  assert.equal(ui.label, "LLM aktif: Hermes → 9Router → ollama-cloud → custom3 (hanya model gratis; server sendiri tidak disaring)");
+  const single = await sandbox();
+  await saveLlmSettings({ enabled: true, freeOnly: false, providers: [serversInput().providers[1]] }, { env: single.env });
+  const unreadable = await readEffectiveLlmStatus({ ...single.env, APP_SESSION_SECRET: OTHER_SECRET });
+  assert.match(unreadable.label, /9Router: key tersimpan tidak bisa dibuka/);
+  assertNoServerKeys(JSON.stringify(ui), "status");
+});
+
+test("the CLI shows each server's name without printing keys", async () => {
+  const { main } = await import("../scripts/llm-settings.mjs");
+  const { env } = await sandbox({ ...SERVERS_ENV, PATH: process.env.PATH });
+  const chunks = [];
+  const stdout = { write: (chunk) => { chunks.push(String(chunk)); return true; } };
+  assert.equal(await main(["import-env"], { env, stdout, stderr: stdout }), 0, chunks.join(""));
+  const text = chunks.join("");
+  assert.match(text, /custom "Hermes" \(aktif, key ✓\) → custom2 "9Router" \(aktif, key ✓\) → ollama-cloud \(aktif, key ✓\) → custom3 \(aktif, key ✓\)/);
+  assertNoServerKeys(text, "CLI output");
+});

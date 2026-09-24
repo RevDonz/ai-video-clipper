@@ -94,11 +94,14 @@
 .addProvider summary{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;font:700 13px 'Manrope';cursor:pointer}
 .addProvider summary small{color:var(--muted);font:600 11px 'DM Sans'}
 .presetGrid{list-style:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0;padding:0 14px 14px}
-.presetCard{display:grid;align-content:space-between;gap:8px;padding:13px;border:1px solid var(--line);border-radius:12px;background:#fff}
+.presetCard{display:flex;flex-direction:column;gap:8px;padding:13px;border:1px solid var(--line);border-radius:12px;background:#fff}
 .presetHead{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .presetHead strong{margin-right:4px;font:700 13px 'Manrope'}
 .presetCard p{margin:0;color:var(--muted);font-size:12px;line-height:1.5}
-.presetActions{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px}
+.presetCard p.presetWarning{padding:8px 10px;border:1px solid #e3cd7a;border-radius:9px;background:#fff9df;color:#5d4f12;font-size:11px}
+.addProviderNote{margin:0;padding:0 16px 14px;color:var(--muted);font-size:12px;line-height:1.5}
+.presetGrid+.presetGrid{padding-top:0}
+.presetActions{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto;font-size:12px}
 .presetActions button{min-height:36px;border:0;border-radius:9px;background:var(--ink);color:#fff;padding:7px 12px;font:700 11px 'Manrope';cursor:pointer}
 .presetActions button:hover{background:var(--blue)}
 

@@ -3,14 +3,18 @@
 // same rules the server applies (lib/llm-presets.mjs). No Node built-ins.
 
 import {
+  CUSTOM_PROVIDERS,
   LLM_PRESETS,
   NUMBER_RULES,
   PROVIDER_NAMES,
+  SERVER_TEMPLATES,
   apiKeyProblem,
   appTitleProblem,
   baseUrlProblem,
+  displayNameProblem,
   fallbackModelProblem,
   httpRefererProblem,
+  isCustomProvider,
   modelProblem,
   numberProblem,
 } from "./llm-presets.mjs";
@@ -27,6 +31,7 @@ export function providerDraft(provider, source = {}) {
   const draft = {
     provider,
     enabled: source.enabled !== false,
+    name: text(source.name),
     baseUrl: text(source.baseUrl),
     model: text(source.model),
     fallbackText: Array.isArray(source.fallbackModels) ? (source.fallbackModels.length ? source.fallbackModels.join(", ") : "none") : "",
@@ -71,9 +76,54 @@ export function moveProvider(providers, index, delta) {
   return next;
 }
 
+/** Presets not yet in the list. Custom servers are added from SERVER_TEMPLATES instead. */
 export function availableProviders(draft) {
   const used = new Set(draft.providers.map((item) => item.provider));
-  return PROVIDER_NAMES.filter((name) => !used.has(name));
+  return PROVIDER_NAMES.filter((name) => !used.has(name) && !isCustomProvider(name));
+}
+
+/** The id a new custom server gets (the first free of custom, custom2, custom3), or null. */
+export function nextCustomProvider(draft) {
+  const used = new Set(draft.providers.map((item) => item.provider));
+  return CUSTOM_PROVIDERS.find((name) => !used.has(name)) ?? null;
+}
+
+/** A fresh draft for a new custom server prefilled from a template, or null when none is free. */
+export function customServerDraft(draft, templateId) {
+  const template = Object.hasOwn(SERVER_TEMPLATES, templateId) ? SERVER_TEMPLATES[templateId] : null;
+  const provider = nextCustomProvider(draft);
+  if (!template || !provider) return null;
+  return providerDraft(provider, { name: template.name, baseUrl: template.baseUrl });
+}
+
+/** What the page calls a provider: a custom server's own name, else the preset label. */
+export function providerLabel(item) {
+  const name = isCustomProvider(item.provider) && typeof item.name === "string" ? item.name.trim() : "";
+  return name || LLM_PRESETS[item.provider].label;
+}
+
+/**
+ * Models of a 9Router-like server (primary and fallbacks) that go through a
+ * consumer subscription (cc/, cx/, gh/, cu/): the page warns before they are
+ * used for automated jobs.
+ */
+export function subscriptionModels(item) {
+  const template = SERVER_TEMPLATES[serverTemplateFor(item)];
+  if (!template?.subscriptionPrefixes) return [];
+  const models = [item.model.trim(), ...(parseModelList(item.fallbackText) || [])].filter(Boolean);
+  return [...new Set(models.filter((model) => template.subscriptionPrefixes.some((prefix) => model.toLowerCase().startsWith(prefix))))];
+}
+
+/** The template a custom server looks like (for its hints), or null. */
+export function serverTemplateFor(item) {
+  if (!isCustomProvider(item?.provider)) return null;
+  if (/9\s*router/i.test(item.name || "")) return "9router";
+  try {
+    if (item.baseUrl && new URL(item.baseUrl.trim()).port === "20128") return "9router";
+  } catch {
+    // Not a URL yet (still typing).
+  }
+  return null;
 }
 
 /** Model ids typed as "a, b" or one per line; null means "use the preset default". */
@@ -90,10 +140,20 @@ export function parseModelList(raw) {
  */
 export function draftToPayload(draft, baseUpdatedAt = null) {
   const errors = {};
+  const names = new Set();
   const providers = draft.providers.map((item, index) => {
     const prefix = `providers[${index}]`;
     const preset = LLM_PRESETS[item.provider];
     const out = { provider: item.provider, enabled: item.enabled };
+    const name = isCustomProvider(item.provider) ? (item.name || "").trim() : "";
+    if (name) {
+      const problem = displayNameProblem(name);
+      const folded = name.toLocaleLowerCase("id");
+      if (problem) errors[`${prefix}.name`] = `Nama ${problem}.`;
+      else if (names.has(folded)) errors[`${prefix}.name`] = "Nama ini sudah dipakai server lain.";
+      else out.name = name;
+      names.add(folded);
+    }
     for (const field of TEXT_FIELDS) {
       const value = item[field].trim();
       if (!value) continue;

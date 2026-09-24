@@ -2,18 +2,23 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { LLM_PRESETS, REASONING_EFFORTS, isFreeModel } from "../../lib/llm-presets.mjs";
+import { CUSTOM_PROVIDERS, LLM_PRESETS, MAX_DISPLAY_NAME_LENGTH, REASONING_EFFORTS, SERVER_TEMPLATES, isFreeModel } from "../../lib/llm-presets.mjs";
 import {
   availableProviders,
   baseUrlHost,
+  customServerDraft,
   draftFromSettings,
   draftSignature,
   draftToPayload,
   moveProvider,
+  nextCustomProvider,
   parseModelList,
   providerDraft,
+  providerLabel,
   providerSignatures,
   providerStatusLine,
+  serverTemplateFor,
+  subscriptionModels,
 } from "../../lib/llm-settings-view.mjs";
 import { llmStatusView } from "../../lib/selection-v3-view.mjs";
 import "./settings.css";
@@ -79,7 +84,7 @@ function FieldError({ id, message }) {
   return message ? <small className="fieldError" id={id}>{message}</small> : null;
 }
 
-function TextField({ item, field, label, placeholder, help, errors, onChange, wide = false, type = "text" }) {
+function TextField({ item, field, label, placeholder, help, errors, onChange, wide = false, type = "text", maxLength }) {
   const id = `${item.provider}-${field}`;
   const error = errors[`${item.provider}.${field}`];
   const describedBy = [help ? `${id}-help` : null, error ? `${id}-error` : null].filter(Boolean).join(" ") || undefined;
@@ -94,6 +99,7 @@ function TextField({ item, field, label, placeholder, help, errors, onChange, wi
         spellCheck={false}
         autoCapitalize="off"
         autoComplete="off"
+        maxLength={maxLength}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy}
         onChange={(event) => onChange({ [field]: event.target.value })}
@@ -191,7 +197,7 @@ function KeyField({ item, preset, errors, onChange }) {
   );
 }
 
-function ModelField({ item, preset, errors, onChange, models, onFetchModels, freeOnly, locked }) {
+function ModelField({ item, preset, label, errors, onChange, models, onFetchModels, freeOnly, locked }) {
   const id = `${item.provider}-model`;
   const error = errors[`${item.provider}.model`];
   const listing = models[item.provider];
@@ -204,7 +210,7 @@ function ModelField({ item, preset, errors, onChange, models, onFetchModels, fre
         <input
           id={id}
           value={item.model}
-          placeholder={preset.defaultModel ? `bawaan: ${preset.defaultModel}` : "mis. LJNAI-FAST"}
+          placeholder={preset.defaultModel ? `bawaan: ${preset.defaultModel}` : serverTemplateFor(item) === "9router" ? "mis. nama combo atau kr/glm-5" : "mis. LJNAI-FAST"}
           spellCheck={false}
           autoCapitalize="off"
           autoComplete="off"
@@ -220,12 +226,12 @@ function ModelField({ item, preset, errors, onChange, models, onFetchModels, fre
       {shown.length > 0 && <datalist id={`${id}-options`}>{shown.map((model) => <option key={model} value={model} />)}</datalist>}
       {listing?.state === "done" && (shown.length ? (
         <div className="modelPickers">
-          <select aria-label={`Pilih model ${preset.label} dari daftar`} value="" onChange={(event) => event.target.value && onChange({ model: event.target.value })}>
+          <select aria-label={`Pilih model ${label} dari daftar`} value="" onChange={(event) => event.target.value && onChange({ model: event.target.value })}>
             <option value="">Pilih model utama ({shown.length}{listing.truncated ? "+" : ""})…</option>
             {shown.map((model) => <option key={model} value={model}>{model}</option>)}
           </select>
           <select
-            aria-label={`Tambah model cadangan ${preset.label} dari daftar`}
+            aria-label={`Tambah model cadangan ${label} dari daftar`}
             value=""
             onChange={(event) => {
               const picked = event.target.value;
@@ -248,6 +254,8 @@ function ModelField({ item, preset, errors, onChange, models, onFetchModels, fre
 
 function ProviderCard({ item, index, count, freeOnly, errors, statusLine, locked, test, models, onChange, onMove, onRemove, onTest, onFetchModels }) {
   const preset = LLM_PRESETS[item.provider];
+  const label = providerLabel(item);
+  const template = serverTemplateFor(item) ? SERVER_TEMPLATES[serverTemplateFor(item)] : null;
   const titleId = `provider-${item.provider}-title`;
   const host = baseUrlHost(item.baseUrl.trim());
   const baseUrlUpFront = Boolean(preset.custom || preset.local);
@@ -263,7 +271,7 @@ function ProviderCard({ item, index, count, freeOnly, errors, statusLine, locked
       <header className="providerHead">
         <span className="providerRank" aria-label={`Urutan ${index + 1}`}>{index + 1}</span>
         <div className="providerIdentity">
-          <h3 id={titleId}>{preset.label}</h3>
+          <h3 id={titleId}>{label}</h3>
           <small>
             <code>{item.provider}</code>
             {host && <span>{host}</span>}
@@ -276,18 +284,39 @@ function ProviderCard({ item, index, count, freeOnly, errors, statusLine, locked
             <input type="checkbox" role="switch" checked={item.enabled} onChange={(event) => onChange({ enabled: event.target.checked })} />
             <span>{item.enabled ? "Aktif" : "Nonaktif"}</span>
           </label>
-          <button type="button" className="iconButton" onClick={() => onMove(-1)} disabled={index === 0} aria-label={`Naikkan ${preset.label}`} title="Naikkan">↑</button>
-          <button type="button" className="iconButton" onClick={() => onMove(1)} disabled={index === count - 1} aria-label={`Turunkan ${preset.label}`} title="Turunkan">↓</button>
-          <button type="button" className="iconButton danger" onClick={onRemove} aria-label={`Hapus ${preset.label} dari daftar`}>Hapus</button>
+          <button type="button" className="iconButton" onClick={() => onMove(-1)} disabled={index === 0} aria-label={`Naikkan ${label}`} title="Naikkan">↑</button>
+          <button type="button" className="iconButton" onClick={() => onMove(1)} disabled={index === count - 1} aria-label={`Turunkan ${label}`} title="Turunkan">↓</button>
+          <button type="button" className="iconButton danger" onClick={onRemove} aria-label={`Hapus ${label} dari daftar`}>Hapus</button>
         </div>
       </header>
       <p className="providerDescription">
-        {preset.description}{" "}
+        {template ? template.description : preset.description}{" "}
         {preset.keyUrl && <a href={preset.keyUrl} target="_blank" rel="noopener noreferrer">Ambil API key ↗</a>}
+        {template?.docsUrl && <a href={template.docsUrl} target="_blank" rel="noopener noreferrer">Dokumentasi ↗</a>}
       </p>
+      {template?.warning && <p className="settingsAlert warning">{template.warning}</p>}
+      {subscriptionModels(item).length > 0 && (
+        <p className="settingsAlert error" role="alert">
+          <strong>Model langganan konsumen dipilih</strong>
+          <span>{subscriptionModels(item).join(", ")} diteruskan lewat langganan pribadi (Claude/ChatGPT/Copilot/Cursor). Job otomatis Potongin sebaiknya memakai model gratis atau API key resmi.</span>
+        </p>
+      )}
       {freeOnly && preset.paidOnly && item.enabled && <p className="settingsAlert warning">Mode hanya-gratis aktif: penyedia berbayar ini akan dilewati.</p>}
 
       <div className="providerFields">
+        {preset.custom && (
+          <TextField
+            item={item}
+            field="name"
+            label="Nama server"
+            placeholder={`mis. Hermes atau 9Router (kosong: ${preset.label})`}
+            help="Tampil di daftar failover dan status AI. Tidak dikirim ke server."
+            maxLength={MAX_DISPLAY_NAME_LENGTH}
+            errors={errors}
+            onChange={onChange}
+            wide
+          />
+        )}
         <KeyField item={item} preset={preset} errors={errors} onChange={onChange} />
         {baseUrlUpFront && (
           <TextField
@@ -297,13 +326,13 @@ function ProviderCard({ item, index, count, freeOnly, errors, statusLine, locked
             type="url"
             placeholder={preset.baseUrl ? `bawaan: ${preset.baseUrl}` : "https://server-anda.example/v1"}
             help={preset.custom
-              ? "Alamat API OpenAI-compatible, tanpa /chat/completions. http:// hanya untuk localhost atau host.docker.internal."
+              ? `Alamat API OpenAI-compatible, tanpa /chat/completions. http:// hanya untuk localhost atau host.docker.internal (server di host Docker).${template === SERVER_TEMPLATES["9router"] ? " 9Router: port 20128, mis. http://host.docker.internal:20128/v1." : ""} API key hanya dikirim ke server ini; ganti ke server lain berarti isi ulang key.`
               : "Dari Docker, server Ollama di host: http://host.docker.internal:11434/v1"}
             errors={errors}
             onChange={onChange}
           />
         )}
-        <ModelField item={item} preset={preset} errors={errors} onChange={onChange} models={models} onFetchModels={onFetchModels} freeOnly={freeOnly} locked={locked} />
+        <ModelField item={item} preset={preset} label={label} errors={errors} onChange={onChange} models={models} onFetchModels={onFetchModels} freeOnly={freeOnly} locked={locked} />
         <TextField
           item={item}
           field="fallbackText"
@@ -376,12 +405,34 @@ function ProviderCard({ item, index, count, freeOnly, errors, statusLine, locked
   );
 }
 
-function AddProvider({ available, freeOnly, open, onAdd }) {
-  if (!available.length) return null;
+function AddProvider({ available, serversUsed, serverSlot, freeOnly, open, onAdd, onAddServer }) {
+  if (!available.length && !serverSlot) return null;
+  const serverLimit = CUSTOM_PROVIDERS.length;
   return (
     <details className="addProvider" open={open || undefined}>
-      <summary>Tambah penyedia <small>{available.length} tersedia</small></summary>
-      <ul className="presetGrid">
+      <summary>Tambah penyedia <small>{available.length} preset · server sendiri {serversUsed}/{serverLimit}</small></summary>
+      {serverSlot ? (
+        <ul className="presetGrid">
+          {Object.entries(SERVER_TEMPLATES).map(([id, template]) => (
+            <li key={id} className="presetCard">
+              <div className="presetHead">
+                <strong>{template.title}</strong>
+                <span className="chip">Server sendiri</span>
+                <span className="chip">Key opsional</span>
+              </div>
+              <p>{template.description}</p>
+              {template.warning && <p className="presetWarning">{template.warning}</p>}
+              <div className="presetActions">
+                {template.docsUrl ? <a href={template.docsUrl} target="_blank" rel="noopener noreferrer">Dokumentasi ↗</a> : <span />}
+                <button type="button" onClick={() => onAddServer(id)} aria-label={`Tambah ${template.title}`}>+ Tambah</button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="addProviderNote">Sudah {serverLimit} server OpenAI-compatible (batas maksimal). Hapus salah satu untuk menambah yang lain.</p>
+      )}
+      {available.length > 0 && <ul className="presetGrid">
         {available.map((name) => {
           const preset = LLM_PRESETS[name];
           return (
@@ -398,7 +449,7 @@ function AddProvider({ available, freeOnly, open, onAdd }) {
             </li>
           );
         })}
-      </ul>
+      </ul>}
     </details>
   );
 }
@@ -491,19 +542,44 @@ export default function SettingsPage() {
     setDraft((current) => ({ ...current, providers: moveProvider(current.providers, index, delta) }));
   }
 
-  function remove(item) {
-    const label = LLM_PRESETS[item.provider].label;
-    if (item.apiKeySet && !window.confirm(`Hapus ${label} dari daftar? API key-nya ikut dihapus saat Anda menyimpan.`)) return;
-    setDraft((current) => ({ ...current, providers: current.providers.filter((entry) => entry.provider !== item.provider) }));
+  // Test results and model lists belong to one entry: a server removed and
+  // added again under the same id starts clean.
+  function forget(name) {
+    const drop = (current) => {
+      if (!(name in current)) return current;
+      const next = { ...current };
+      delete next[name];
+      return next;
+    };
+    setTests(drop);
+    setModels(drop);
+    setErrors((current) => Object.fromEntries(Object.entries(current).filter(([field]) => !field.startsWith(`${name}.`))));
   }
 
-  function add(name) {
-    setDraft((current) => ({ ...current, providers: [...current.providers, providerDraft(name)] }));
+  function remove(item) {
+    const label = providerLabel(item);
+    if (item.apiKeySet && !window.confirm(`Hapus ${label} dari daftar? API key-nya ikut dihapus saat Anda menyimpan.`)) return;
+    setDraft((current) => ({ ...current, providers: current.providers.filter((entry) => entry.provider !== item.provider) }));
+    forget(item.provider);
+  }
+
+  function append(entry) {
+    forget(entry.provider);
+    setDraft((current) => ({ ...current, providers: [...current.providers, entry] }));
     requestAnimationFrame(() => {
-      const card = document.getElementById(`provider-${name}`);
+      const card = document.getElementById(`provider-${entry.provider}`);
       card?.scrollIntoView({ behavior: "smooth", block: "center" });
       card?.querySelector("input:not([type=checkbox])")?.focus({ preventScroll: true });
     });
+  }
+
+  function add(name) {
+    append(providerDraft(name));
+  }
+
+  function addServer(templateId) {
+    const entry = customServerDraft(draft, templateId);
+    if (entry) append(entry);
   }
 
   function discard() {
@@ -679,7 +755,7 @@ export default function SettingsPage() {
                 </label>
                 <label className="shadowToggle">
                   <input type="checkbox" checked={draft.freeOnly} onChange={(event) => updateGeneral({ freeOnly: event.target.checked })} />
-                  <span><strong>Hanya model gratis</strong><small>Penyedia berbayar (DeepSeek, OpenAI) dilewati dan OpenRouter hanya memakai model “:free”. Server sendiri (custom) dan Ollama tetap dipakai.</small></span>
+                  <span><strong>Hanya model gratis</strong><small>Penyedia berbayar (DeepSeek, OpenAI) dilewati dan OpenRouter hanya memakai model “:free”. Server OpenAI-compatible Anda sendiri (mis. Hermes, 9Router) dan Ollama dianggap milik Anda dan tidak disaring, jadi pastikan model yang dipilih di sana memang boleh dipakai.</small></span>
                 </label>
               </div>
             </section>
@@ -715,7 +791,15 @@ export default function SettingsPage() {
                 ))}
               </ol>
             )}
-            <AddProvider available={availableProviders(draft)} freeOnly={draft.freeOnly} open={draft.providers.length === 0} onAdd={add} />
+            <AddProvider
+              available={availableProviders(draft)}
+              serversUsed={draft.providers.filter((item) => LLM_PRESETS[item.provider].custom).length}
+              serverSlot={nextCustomProvider(draft) !== null}
+              freeOnly={draft.freeOnly}
+              open={draft.providers.length === 0}
+              onAdd={add}
+              onAddServer={addServer}
+            />
           </section>
         </div>
       )}

@@ -58,7 +58,12 @@ PROVIDERS = (
     "ollama",
     "ollama-cloud",
     "custom",
+    "custom2",
+    "custom3",
 )
+# Up to three OpenAI-compatible servers of the owner's own (e.g. a self-hosted Hermes and a
+# 9Router gateway), each configured with its own POTONGIN_LLM_CUSTOM<n>_* variables.
+CUSTOM_PROVIDERS = ("custom", "custom2", "custom3")
 
 REASONING_EFFORTS = ("none", "minimal", "low", "medium", "high")
 _OFF_VALUES = frozenset({"off", "0", "false", "no", "disabled", "disable", "none"})
@@ -234,6 +239,27 @@ class ProviderPreset:
     paid_only: bool = False
 
 
+def _custom_preset(name: str, label: str) -> ProviderPreset:
+    """A server of the owner's own: base URL and model are required, the key is optional."""
+    return ProviderPreset(
+        name=name,
+        label=label,
+        base_url=None,
+        default_model=None,
+        fallback_models=(),
+        key_env=(),
+        requires_key=False,
+        json_mode=True,
+        requests_per_minute=None,
+        context_tokens=32_768,
+        max_output_tokens=4096,
+        timeout=300.0,
+        max_tokens_param="max_tokens",
+        free_tier="tergantung server (Hermes, 9Router, LM Studio, vLLM, llama.cpp, dll.)",
+        docs_url="docs/operations/LLM_PROVIDERS.md",
+    )
+
+
 PRESETS: Mapping[str, ProviderPreset] = MappingProxyType(
     {
         "gemini": ProviderPreset(
@@ -398,23 +424,18 @@ PRESETS: Mapping[str, ProviderPreset] = MappingProxyType(
             "prompt tidak dicatat/dilatih",
             docs_url="https://docs.ollama.com/cloud",
         ),
-        "custom": ProviderPreset(
-            name="custom",
-            label="Server OpenAI-compatible lain",
-            base_url=None,
-            default_model=None,
-            fallback_models=(),
-            key_env=(),
-            requires_key=False,
-            json_mode=True,
-            requests_per_minute=None,
-            context_tokens=32_768,
-            max_output_tokens=4096,
-            timeout=300.0,
-            max_tokens_param="max_tokens",
-            free_tier="tergantung server (LM Studio, vLLM, llama.cpp, Together, dll.)",
-            docs_url="docs/operations/LLM_PROVIDERS.md",
-        ),
+        **{
+            name: _custom_preset(name, label)
+            for name, label in zip(
+                CUSTOM_PROVIDERS,
+                (
+                    "Server OpenAI-compatible lain",
+                    "Server OpenAI-compatible lain (2)",
+                    "Server OpenAI-compatible lain (3)",
+                ),
+                strict=True,
+            )
+        },
     }
 )
 
@@ -669,7 +690,11 @@ def _parse_models(name: str, raw: str | None) -> tuple[str, ...] | None:
 
 
 def is_free_model(provider: str, model: str) -> bool:
-    """Whether ``model`` is a zero-price model ID; only OpenRouter marks this in the ID."""
+    """Whether ``model`` is a zero-price model ID; only OpenRouter marks this in the ID.
+
+    Custom servers (``custom``, ``custom2``, ``custom3``) are the owner's own, so
+    ``POTONGIN_LLM_FREE_ONLY`` never filters them, even when they are a gateway to paid models.
+    """
     if PRESETS[provider].paid_only:
         return False
     if provider == "openrouter":
@@ -733,6 +758,13 @@ class _Settings:
             return scoped, None
         return shared, _env_text(self._env, shared)
 
+    def required(self, suffix: str) -> str:
+        """The variable(s) to name when a required setting is missing."""
+        scoped = f"{self._scope}{suffix}"
+        if suffix in self._PRIMARY_ONLY and not self._primary:
+            return scoped
+        return f"{scoped} (atau POTONGIN_LLM_{suffix})"
+
 
 def _provider_config(
     env: Mapping[str, str], provider: str, *, primary: bool, free_only: bool
@@ -749,7 +781,9 @@ def _provider_config(
     base_name, base_raw = settings.get("BASE_URL")
     base_url = base_raw or preset.base_url
     if base_url is None:
-        raise _config_error(f"Penyedia {provider} wajib mengisi {base_name}.", provider=provider)
+        raise _config_error(
+            f"Penyedia {provider} wajib mengisi {settings.required('BASE_URL')}.", provider=provider
+        )
     problem = _base_url_problem(base_url)
     if problem:
         raise _config_error(f"{base_name} {problem}.", provider=provider)
@@ -757,7 +791,9 @@ def _provider_config(
     model_name, model_raw = settings.get("MODEL")
     model = model_raw or preset.default_model
     if model is None:
-        raise _config_error(f"Penyedia {provider} wajib mengisi {model_name}.", provider=provider)
+        raise _config_error(
+            f"Penyedia {provider} wajib mengisi {settings.required('MODEL')}.", provider=provider
+        )
     if _model_problem(model):
         raise _config_error(f"{model_name} tidak valid (ID model tanpa spasi).", provider=provider)
 
@@ -2046,10 +2082,11 @@ def _show_presets(out: TextIO, as_json: bool) -> int:
             keys += " (opsional)"
         fallbacks = ", ".join(preset.fallback_models) or "-"
         rpm = preset.requests_per_minute
+        scope = f"POTONGIN_LLM_{name.upper().replace('-', '_')}"
         out.write(
             f"\n{name:<13}{preset.label}\n"
-            f"  base_url : {preset.base_url or '(wajib POTONGIN_LLM_BASE_URL)'}\n"
-            f"  model    : {preset.default_model or '(wajib POTONGIN_LLM_MODEL)'}\n"
+            f"  base_url : {preset.base_url or f'(wajib {scope}_BASE_URL)'}\n"
+            f"  model    : {preset.default_model or f'(wajib {scope}_MODEL)'}\n"
             f"  cadangan : {fallbacks}\n"
             f"  API key  : {keys}\n"
             f"  json_mode: {'ya' if preset.json_mode else 'tidak'}   "

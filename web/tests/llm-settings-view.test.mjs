@@ -1,17 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { SERVER_TEMPLATES } from "../lib/llm-presets.mjs";
 import { normalizeSettingsInput, publicSettingsView } from "../lib/llm-settings.mjs";
 import {
   availableProviders,
   baseUrlHost,
+  customServerDraft,
   draftFromSettings,
   draftSignature,
   draftToPayload,
   moveProvider,
+  nextCustomProvider,
   parseModelList,
   providerDraft,
+  providerLabel,
   providerStatusLine,
+  serverTemplateFor,
+  subscriptionModels,
 } from "../lib/llm-settings-view.mjs";
 
 const SECRET = "view-secret-".padEnd(40, "v");
@@ -98,4 +104,86 @@ test("list helpers keep the failover order explicit", () => {
   assert.equal(providerStatusLine(null), null);
   assert.equal(baseUrlHost("https://hermes.example:8443/v1"), "hermes.example:8443");
   assert.equal(baseUrlHost("http://remote.example/v1"), null);
+});
+
+function servers() {
+  return normalizeSettingsInput({
+    enabled: true, freeOnly: true,
+    providers: [
+      { provider: "custom", enabled: true, name: "Hermes", baseUrl: "https://hermes.example/v1", model: "LJNAI-FAST", reasoningEffort: "none", apiKey: { action: "replace", value: "hermes-key-1" } },
+      { provider: "ollama-cloud", enabled: true, apiKey: { action: "replace", value: "cloud-key-2" } },
+      { provider: "custom2", enabled: true, name: "9Router", baseUrl: "http://host.docker.internal:20128/v1", model: "kr/glm-5", fallbackModels: ["combo-free"], timeout: 240, apiKey: { action: "replace", value: "router-key-3" } },
+      { provider: "custom3", enabled: false, baseUrl: "http://localhost:1234/v1", model: "local" },
+    ],
+  }, { secret: SECRET, now: new Date("2026-09-24T02:00:00Z") });
+}
+
+test("several named custom servers round-trip through the page draft unchanged", () => {
+  const saved = servers();
+  const view = publicSettingsView(saved, { secret: SECRET, source: "ui" });
+  const draft = draftFromSettings(view);
+  assert.deepEqual(draft.providers.map((item) => [item.provider, item.name]), [["custom", "Hermes"], ["ollama-cloud", ""], ["custom2", "9Router"], ["custom3", ""]]);
+  assert.deepEqual(draft.providers.map(providerLabel), ["Hermes", "Ollama Cloud", "9Router", "Server OpenAI-compatible 3"]);
+  const { payload, errors } = draftToPayload(draft, view.updatedAt);
+  assert.deepEqual(errors, {});
+  assert.equal(payload.providers[2].name, "9Router");
+  assert.equal(payload.providers[1].name, undefined, "only custom servers send a name");
+  assert.deepEqual(payload.providers.map((item) => item.apiKey.action), ["keep", "keep", "keep", "clear"]);
+  assert.deepEqual(normalizeSettingsInput(payload, { base: saved, secret: SECRET, now: new Date("2026-09-24T02:00:00Z") }), saved);
+
+  // Renaming is an edit like any other; blank goes back to the default label.
+  draft.providers[0] = { ...draft.providers[0], name: "  Hermes GPU  " };
+  draft.providers[2] = { ...draft.providers[2], name: "" };
+  const renamed = draftToPayload(draft, view.updatedAt);
+  assert.deepEqual(renamed.errors, {});
+  assert.equal(renamed.payload.providers[0].name, "Hermes GPU");
+  assert.equal(renamed.payload.providers[2].name, undefined);
+  assert.equal(providerLabel(draft.providers[2]), "Server OpenAI-compatible 2");
+});
+
+test("the draft checks server names like the server does", () => {
+  const draft = draftFromSettings(publicSettingsView(servers(), { secret: SECRET, source: "ui" }));
+  draft.providers[2] = { ...draft.providers[2], name: "hermes" };
+  draft.providers[3] = { ...draft.providers[3], name: "x".repeat(41) };
+  const { errors } = draftToPayload(draft);
+  assert.match(errors["providers[2].name"], /sudah dipakai/);
+  assert.match(errors["providers[3].name"], /1–40 karakter/);
+  draft.providers[1] = { ...draft.providers[1], name: "ignored for presets" };
+  assert.equal(draftToPayload(draft).payload.providers[1].name, undefined);
+});
+
+test("new servers take the next free custom id, up to three, from a template", () => {
+  const empty = draftFromSettings(null);
+  assert.equal(nextCustomProvider(empty), "custom");
+  const router = customServerDraft(empty, "9router");
+  assert.equal(router.provider, "custom");
+  assert.equal(router.name, "9Router");
+  assert.equal(router.baseUrl, "http://host.docker.internal:20128/v1");
+  assert.equal(router.model, "");
+  assert.equal(router.apiKeySet, false);
+  assert.equal(SERVER_TEMPLATES["9router"].baseUrl, router.baseUrl);
+  assert.match(SERVER_TEMPLATES["9router"].warning, /langganan/);
+  assert.match(SERVER_TEMPLATES["9router"].warning, /ketentuan/);
+
+  const draft = { enabled: true, freeOnly: false, providers: [{ ...providerDraft("custom2"), name: "9Router" }, providerDraft("gemini")] };
+  assert.equal(nextCustomProvider(draft), "custom", "a gap is filled first");
+  const generic = customServerDraft(draft, "generic");
+  assert.deepEqual([generic.provider, generic.name, generic.baseUrl], ["custom", "", ""]);
+  draft.providers.push(generic, providerDraft("custom3"));
+  assert.equal(nextCustomProvider(draft), null);
+  assert.equal(customServerDraft(draft, "generic"), null, "at most three servers");
+  assert.equal(customServerDraft(empty, "nope"), null);
+  assert.ok(!availableProviders(draft).some((name) => name.startsWith("custom")), "servers are added from templates, not the preset list");
+
+  assert.equal(serverTemplateFor({ provider: "custom", name: "9Router", baseUrl: "" }), "9router");
+  assert.equal(serverTemplateFor({ provider: "custom2", name: "Gateway", baseUrl: "http://host.docker.internal:20128/v1" }), "9router");
+  assert.equal(serverTemplateFor({ provider: "custom", name: "Hermes", baseUrl: "https://hermes.example/v1" }), null);
+  assert.equal(serverTemplateFor({ provider: "openrouter", name: "", baseUrl: "https://x.example:20128/v1" }), null);
+});
+
+test("a 9Router server warns about models that go through a consumer subscription", () => {
+  const router = { ...providerDraft("custom2", { name: "9Router", baseUrl: "http://host.docker.internal:20128/v1" }), model: "cc/claude-sonnet-5", fallbackText: "ollama/gpt-oss:120b, CX/gpt-5.5, cc/claude-sonnet-5" };
+  assert.deepEqual(subscriptionModels(router), ["cc/claude-sonnet-5", "CX/gpt-5.5"]);
+  assert.deepEqual(subscriptionModels({ ...router, model: "ollama/gpt-oss:120b", fallbackText: "none" }), []);
+  assert.deepEqual(subscriptionModels({ ...providerDraft("custom"), name: "Hermes", baseUrl: "https://hermes.example/v1", model: "cc/looks-like-a-prefix" }), [], "only 9Router uses these prefixes");
 });

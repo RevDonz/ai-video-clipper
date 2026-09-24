@@ -18,9 +18,13 @@ mengedit `.env` dan tanpa restart container. Job berikutnya langsung memakai pen
 - **Aktifkan AI (LLM)** dan **Hanya model gratis**: saklar global (setara `POTONGIN_LLM=off` dan
   `POTONGIN_LLM_FREE_ONLY=1`).
 - **Daftar penyedia**: urutan failover (tombol ↑/↓), saklar aktif per penyedia, hapus, dan
-  "Tambah penyedia" dari preset (dengan tautan ke halaman pembuatan API key).
-- Per penyedia: **API key** (hanya bisa diisi/diganti/dihapus, tidak pernah ditampilkan lagi;
-  statusnya "Belum diisi" atau "Tersimpan ✓"), **Base URL** (wajib untuk `custom`), **Model**
+  "Tambah penyedia" dari preset (dengan tautan ke halaman pembuatan API key). Di bagian yang
+  sama ada **Server OpenAI-compatible** dan **9Router (gateway)** untuk menambah server sendiri,
+  sampai 3 server (lihat [Beberapa server sendiri](#beberapa-server-sendiri-hermes-9router)).
+- Per penyedia: **Nama server** (hanya server sendiri, mis. "Hermes" atau "9Router"; tampil di
+  daftar dan badge status), **API key** (hanya bisa diisi/diganti/dihapus, tidak pernah
+  ditampilkan lagi; statusnya "Belum diisi" atau "Tersimpan ✓"), **Base URL** (wajib untuk
+  server sendiri), **Model**
   plus tombol **Ambil daftar model** (server mengambil `{base_url}/models` dengan key tersimpan),
   **Model cadangan**, dan **Pengaturan lanjutan** (reasoning effort, konteks token, token output,
   timeout, batas permintaan/menit, percobaan ulang, temperature, mode JSON).
@@ -31,6 +35,75 @@ mengedit `.env` dan tanpa restart container. Job berikutnya langsung memakai pen
 > **Reasoning effort `none`** mematikan fase "berpikir" model reasoning. Untuk Hermes
 > (server `custom` milik sendiri) ini membuat jawaban ±0,4 detik, bukan ±20 detik, dan jawaban
 > tidak terpotong pada transkrip panjang.
+
+### Beberapa server sendiri (Hermes, 9Router)
+
+Rantai failover boleh berisi sampai **3 server OpenAI-compatible milik sendiri** sekaligus,
+misalnya Hermes yang di-host sendiri **dan** gateway 9Router. Masing-masing punya ID tetap
+(`custom`, `custom2`, `custom3`), nama tampilan sendiri, base URL, API key, model, model
+cadangan, reasoning effort, konteks, dan timeout sendiri. Server baru mendapat ID pertama yang
+masih kosong; konfigurasi `custom` lama tetap jalan tanpa diubah.
+
+- **Nama** hanya untuk tampilan (daftar, badge "LLM aktif: ollama-cloud → Hermes → 9Router",
+  CLI). Engine tidak membacanya dan nama tidak dikirim ke server mana pun. Maksimal 40 karakter,
+  tanpa karakter kontrol, dan tidak boleh sama dengan nama server lain.
+- **Key terikat ke servernya sendiri.** Key setiap server disegel untuk ID-nya (key `custom2`
+  tidak bisa dibuka sebagai `custom`) dan hanya dikirim ke skema + host + port tempat key itu
+  diisi. Memindahkan base URL 9Router ke host lain, ke port lain, atau ke alamat Hermes (dan
+  sebaliknya) ditolak sampai key diisi ulang. Mengganti nama, urutan, atau path di server yang
+  sama tetap memakai key lama.
+- **Hanya model gratis** tidak menyaring server sendiri: server itu dianggap milik Anda. Kalau
+  gateway meneruskan ke model berbayar, itu tanggung jawab pengaturan di gateway. Badge
+  menambahkan "(hanya model gratis; server sendiri tidak disaring)" selama ada server sendiri
+  di rantai.
+- **Konteks token**: bawaan server sendiri 32.768. Pipeline memakai konteks **terkecil** di
+  seluruh rantai (lihat di bawah), jadi isi "Konteks token" setiap server sesuai model di
+  belakangnya (Hermes misalnya 65.536), supaya satu server tidak memotong semua permintaan.
+- Dari `.env`: `POTONGIN_LLM_PROVIDERS=custom,custom2,...` plus
+  `POTONGIN_LLM_CUSTOM_*`, `POTONGIN_LLM_CUSTOM2_*`, `POTONGIN_LLM_CUSTOM3_*` (akhiran sama
+  dengan penyedia lain: `BASE_URL`, `MODEL`, `API_KEY`, `FALLBACK_MODELS`,
+  `REASONING_EFFORT`, `CONTEXT_TOKENS`, `MAX_OUTPUT_TOKENS`, `TIMEOUT`, ... ditambah `NAME`).
+  Tombol impor membawa semuanya, termasuk nama.
+
+#### 9Router
+
+[9Router](https://github.com/decolua/9router) adalah gateway OpenAI-compatible yang meneruskan
+ke banyak penyedia dengan fallback sendiri. API-nya di **port 20128**
+(`http://localhost:20128/v1`, dashboard di `http://localhost:20128/dashboard`), model ditulis
+dengan awalan penyedia (mis. `kr/glm-5`) atau nama *combo* yang Anda buat di dashboard 9Router.
+Tombol **Ambil daftar model** membaca `GET /v1/models` 9Router (model + combo).
+
+1. Di Pengaturan, **Tambah penyedia → 9Router (gateway)**. Nama "9Router" dan base URL
+   `http://host.docker.internal:20128/v1` sudah terisi; isi model (atau pilih dari daftar) dan
+   key, simpan, lalu **Tes koneksi**.
+2. Service `app` dan `primary-worker` di `compose.yaml` sudah punya
+   `extra_hosts: ["host.docker.internal:host-gateway"]`, jadi gateway yang jalan di host Docker
+   terjangkau lewat `host.docker.internal`. Di luar Docker (dev lokal) pakai
+   `http://localhost:20128/v1`.
+3. 9Router harus mendengarkan di alamat yang bisa dicapai container, bukan hanya `127.0.0.1`
+   (`HOSTNAME=0.0.0.0`; image Docker 9Router sudah begitu, publish dengan `-p 20128:20128`).
+   Cek dari container, hanya kode status yang dicetak (401 berarti terjangkau tapi butuh key):
+
+   ```bash
+   docker compose exec app node -e "fetch('http://host.docker.internal:20128/v1/models').then(r=>console.log(r.status))"
+   ```
+
+   Base URL `http://` hanya diizinkan untuk `localhost` dan `host.docker.internal`, jadi nama
+   container seperti `http://9router:20128/v1` ditolak; pakai `host.docker.internal` atau
+   `https://`.
+4. Port 20128 yang terbuka di `0.0.0.0` bisa terjangkau dari internet (port yang di-publish
+   Docker tidak diblokir `ufw`). Aktifkan `REQUIRE_API_KEY=true` di 9Router, buat API key di
+   dashboard-nya dan isi di Pengaturan, lalu tutup port 20128 di firewall penyedia VM. Bawaan
+   9Router tidak mewajibkan key, jadi port yang terbuka tanpa key berarti siapa pun bisa
+   memakai akun-akun yang terhubung ke 9Router.
+
+> **Peringatan langganan.** 9Router bisa meneruskan **langganan konsumen** (Claude Pro/Max
+> lewat Claude Code, ChatGPT/Codex, GitHub Copilot, Cursor). Memakai langganan itu untuk
+> layanan otomatis seperti Potongin (setiap job mengirim transkrip tanpa interaksi manusia)
+> kemungkinan besar **melanggar ketentuan penyedianya** dan bisa membuat akun dibatasi atau
+> diblokir. Untuk job, arahkan 9Router ke model gratis atau API key resmi, bukan ke
+> langganan pribadi. Halaman Pengaturan menandai merah model utama/cadangan berawalan `cc/`,
+> `cx/`, `gh/`, atau `cu/` pada server 9Router (peringatan, tidak diblokir).
 
 ### Pindah dari `.env` (sekali saja)
 
@@ -164,8 +237,8 @@ Cukup satu penyedia? Pakai `POTONGIN_LLM_PROVIDER=gemini` (tunggal) plus key-nya
 ### 3. Teruskan variabel ke container (Docker Compose)
 
 Tidak perlu kalau Anda memakai halaman Pengaturan. Untuk cadangan/impor: `compose.yaml` hanya
-meneruskan variabel yang ditulis di bagian `environment:` (termasuk `POTONGIN_LLM_CUSTOM_*`
-untuk server sendiri). Pipeline LLM
+meneruskan variabel yang ditulis di bagian `environment:` (termasuk `POTONGIN_LLM_CUSTOM_*`,
+`POTONGIN_LLM_CUSTOM2_*`, dan `POTONGIN_LLM_CUSTOM3_*` untuk server sendiri). Pipeline LLM
 berjalan di service **`primary-worker`** (dan `app` kalau dashboard ingin menampilkan status
 LLM), jadi dua service itu perlu blok seperti ini. Nilai kosong dianggap "pakai default":
 
@@ -192,8 +265,10 @@ LLM), jadi dua service itu perlu blok seperti ini. Nilai kosong dianggap "pakai 
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
 ```
 
-Tambahkan juga variabel `POTONGIN_LLM_<PENYEDIA>_*` yang Anda pakai. Untuk Ollama lokal di
-host, tambahkan `extra_hosts: ["host.docker.internal:host-gateway"]` pada service tersebut.
+Tambahkan juga variabel `POTONGIN_LLM_<PENYEDIA>_*` yang Anda pakai. Service `app` dan
+`primary-worker` sudah punya `extra_hosts: ["host.docker.internal:host-gateway"]`, jadi
+Ollama lokal, 9Router, atau server lain di host Docker terjangkau lewat
+`http://host.docker.internal:<port>/v1`.
 
 ### 4. Cek koneksi
 
@@ -238,7 +313,7 @@ juga tetap terbaca.
 | `deepseek` | `https://api.deepseek.com` | `deepseek-flash` → `deepseek-v4-pro` | `DEEPSEEK_API_KEY` | – / 131.072 |
 | `openai` | `https://api.openai.com/v1` | `gpt-6-luna` | `OPENAI_API_KEY` | – / 131.072 |
 | `ollama` (lokal) | `http://localhost:11434/v1` | `qwen3.5:9b` | tidak perlu | – / 8.192 |
-| `custom` | wajib `POTONGIN_LLM_BASE_URL` | wajib `POTONGIN_LLM_MODEL` | opsional | – / 32.768 |
+| `custom`, `custom2`, `custom3` | wajib `POTONGIN_LLM_CUSTOM<n>_BASE_URL` | wajib `POTONGIN_LLM_CUSTOM<n>_MODEL` | opsional | – / 32.768 |
 
 "Konteks" di sini adalah **anggaran total satu permintaan** (prompt + output) yang dipakai
 `llm_selection` untuk memotong transkrip. Transkrip podcast 65 menit sekitar 20–25 ribu token,
@@ -344,11 +419,15 @@ mengizinkan.
 - Dari dalam Docker: `POTONGIN_LLM_BASE_URL=http://host.docker.internal:11434/v1` plus
   `extra_hosts` di compose.
 
-### Server lain (`custom`)
+### Server lain (`custom`, `custom2`, `custom3`)
 
-LM Studio, vLLM, llama.cpp server, Together, Fireworks, dan server OpenAI-compatible lain.
-Wajib `POTONGIN_LLM_BASE_URL` (tanpa `/chat/completions`) dan `POTONGIN_LLM_MODEL`. Key
-opsional lewat `POTONGIN_LLM_API_KEY`.
+Hermes, 9Router, LM Studio, vLLM, llama.cpp server, Together, Fireworks, dan server
+OpenAI-compatible lain; sampai tiga sekaligus. Wajib base URL (tanpa `/chat/completions`) dan
+model: `POTONGIN_LLM_CUSTOM_BASE_URL` / `POTONGIN_LLM_CUSTOM_MODEL` (atau
+`POTONGIN_LLM_BASE_URL` / `POTONGIN_LLM_MODEL` kalau servernya penyedia pertama), dan
+`POTONGIN_LLM_CUSTOM2_*` / `POTONGIN_LLM_CUSTOM3_*` untuk server kedua dan ketiga. Key opsional
+lewat `POTONGIN_LLM_CUSTOM<n>_API_KEY`. Lihat
+[Beberapa server sendiri](#beberapa-server-sendiri-hermes-9router).
 
 ## Referensi variabel
 
@@ -359,7 +438,7 @@ Nilai kosong selalu berarti "pakai default".
 | `POTONGIN_LLM` | `off` (atau `0`/`false`) mematikan LLM walau sudah dikonfigurasi |
 | `POTONGIN_LLM_PROVIDER` | satu penyedia, atau daftar dipisah koma; menang atas `..._PROVIDERS` |
 | `POTONGIN_LLM_PROVIDERS` | daftar penyedia berurutan untuk failover |
-| `POTONGIN_LLM_FREE_ONLY` | `1`: hanya model gratis. OpenRouter disaring ke `:free`/`openrouter/free`; DeepSeek/OpenAI dilewati |
+| `POTONGIN_LLM_FREE_ONLY` | `1`: hanya model gratis. OpenRouter disaring ke `:free`/`openrouter/free`; DeepSeek/OpenAI dilewati; server sendiri (`custom`, `custom2`, `custom3`) tidak disaring |
 | `POTONGIN_LLM_API_KEY` | key untuk penyedia **pertama**; kalau kosong dipakai variabel khas penyedia (`GEMINI_API_KEY`, …) |
 | `POTONGIN_LLM_BASE_URL` | override URL penyedia pertama (wajib untuk `custom`). `http://` hanya untuk `localhost`, `127.0.0.1`, `::1`, `host.docker.internal` |
 | `POTONGIN_LLM_MODEL` | override model penyedia **pertama** |
@@ -373,7 +452,8 @@ Nilai kosong selalu berarti "pakai default".
 | `POTONGIN_LLM_TEMPERATURE` | 0–2, default 0,2 |
 | `POTONGIN_LLM_REASONING_EFFORT` | `none`/`minimal`/`low`/`medium`/`high`. Opsional; `low` menghemat kuota token model reasoning (gpt-oss, Gemini 3, Qwen) |
 | `POTONGIN_LLM_HTTP_REFERER`, `POTONGIN_LLM_APP_TITLE` | header atribusi OpenRouter |
-| `POTONGIN_LLM_<PENYEDIA>_<NAMA>` | override khusus satu penyedia, mis. `POTONGIN_LLM_GROQ_MODEL`, `POTONGIN_LLM_OLLAMA_CLOUD_API_KEY`, `POTONGIN_LLM_GEMINI_CONTEXT_TOKENS` |
+| `POTONGIN_LLM_<PENYEDIA>_<NAMA>` | override khusus satu penyedia, mis. `POTONGIN_LLM_GROQ_MODEL`, `POTONGIN_LLM_OLLAMA_CLOUD_API_KEY`, `POTONGIN_LLM_GEMINI_CONTEXT_TOKENS`, `POTONGIN_LLM_CUSTOM2_BASE_URL` |
+| `POTONGIN_LLM_CUSTOM_NAME`, `..._CUSTOM2_NAME`, `..._CUSTOM3_NAME` | nama tampilan server sendiri di dashboard (maks. 40 karakter); hanya dibaca dashboard, tidak ada versi tanpa nama penyedia |
 
 Variabel tanpa nama penyedia untuk key, URL, model, dan cadangan hanya berlaku untuk
 **penyedia pertama di daftar**. Variabel tuning (timeout, RPM, konteks, dll.) berlaku untuk
@@ -434,6 +514,8 @@ kuota lagi. File cache tidak berisi prompt maupun API key.
   privasi: https://cdn.deepseek.com/policies/en-US/deepseek-privacy-policy.html
 - OpenAI models: https://developers.openai.com/api/docs/models ·
   `gpt-6-luna`: https://developers.openai.com/api/docs/models/gpt-6-luna
+- 9Router (port 20128, `/v1`, `REQUIRE_API_KEY`, awalan model, langganan yang diteruskan):
+  https://github.com/decolua/9router
 - Ollama OpenAI compatibility: https://docs.ollama.com/api/openai-compatibility ·
   cloud: https://docs.ollama.com/cloud · pricing/privasi: https://ollama.com/pricing ·
   context length: https://docs.ollama.com/context-length · library: https://ollama.com/library

@@ -165,7 +165,7 @@ writeFileSync(process.env.FAKE_PY_LOG, JSON.stringify({ argv: process.argv.slice
 const mode = process.env.FAKE_PY_MODE;
 const key = process.env.POTONGIN_LLM_CUSTOM_API_KEY;
 if (mode === "sleep") setTimeout(() => {}, 60_000);
-else if (mode === "ok") console.log(JSON.stringify({ ok: true, model: "LJNAI-FAST", latency_s: 0.4123, providers: [{ provider: "custom", status: "ok", model: "LJNAI-FAST", latency_s: 0.4123, usage: null, error: null }] }));
+else if (mode === "ok") console.log(JSON.stringify({ ok: true, model: "LJNAI-FAST", latency_s: 0.4123, providers: [{ provider: process.env.POTONGIN_LLM_PROVIDERS, status: "ok", model: "LJNAI-FAST", latency_s: 0.4123, usage: null, error: null }] }));
 else if (mode === "leak") {
   console.log(JSON.stringify({ ok: false, error: { code: "auth", message: "key " + key }, providers: [{ provider: "custom", status: "failed", model: "evil model " + key, latency_s: null, error: { code: "auth", message: "Bearer " + key } }] }));
   process.exit(1);
@@ -316,6 +316,39 @@ test("the model list is fetched server-side with the stored key, without followi
   for (const response of [ok, moved, denied, big, slow, missing]) assertNoSecrets(response.text);
   const unknown = await read(await createLlmModelsRoute({ authorize, env, limiter }).POST(request("/api/settings/llm/models", { method: "POST", body: { provider: "groq" } })));
   assert.equal(unknown.status, 422);
+});
+
+test("each custom server is tested and listed with its own key and URL only", async (t) => {
+  const upstream = await modelServer();
+  t.after(() => upstream.server.close());
+  const fake = await fakePython();
+  const routerKey = "router-route-key-3456mnop";
+  const { env } = await sandbox({ FAKE_PY_LOG: fake.log });
+  const settings = hermes(`${upstream.base}/denied`);
+  settings.providers.push({ provider: "custom2", enabled: true, name: "9Router", baseUrl: `${upstream.base}/v1`, model: "kr/glm-5", apiKey: { action: "replace", value: routerKey } });
+  await saveLlmSettings(settings, { env });
+  const limiter = new AuthRateLimiter({ attempts: 100, windowMs: 60_000 });
+
+  const listed = await read(await createLlmModelsRoute({ authorize, env, limiter, timeoutMs: 1_000 }).POST(request("/api/settings/llm/models", { method: "POST", body: { provider: "custom2" } })));
+  assert.equal(listed.status, 200, listed.text);
+  assert.deepEqual(listed.body.models, ["alpha", "zeta"]);
+  assert.deepEqual(upstream.seen.at(-1), { url: "/v1/models", authorization: `Bearer ${routerKey}` });
+
+  const tested = await read(await createLlmTestRoute({ authorize, env: { ...env, FAKE_PY_MODE: "ok" }, pythonBin: fake.python, limiter }).POST(request("/api/settings/llm/test", { method: "POST", body: { provider: "custom2" } })));
+  assert.equal(tested.status, 200, tested.text);
+  assert.equal(tested.body.result.provider, "custom2");
+  const seen = JSON.parse(await readFile(fake.log, "utf8"));
+  assert.equal(seen.env.POTONGIN_LLM_PROVIDERS, "custom2");
+  assert.equal(seen.env.POTONGIN_LLM_CUSTOM2_API_KEY, routerKey);
+  assert.equal(seen.env.POTONGIN_LLM_CUSTOM2_NAME, "9Router");
+  assert.equal(seen.env.POTONGIN_LLM_CUSTOM_API_KEY, undefined, "Hermes' key stays out of the 9Router test");
+  assert.ok(!tested.text.includes(routerKey) && !listed.text.includes(routerKey));
+
+  const status = await read(await createLlmStatusHandler({ authorize, env })(request("/api/llm/status")));
+  assert.deepEqual(status.body.llm.order, ["custom", "openrouter", "custom2"]);
+  assert.match(status.body.llm.label, /custom → openrouter → 9Router/);
+  assertNoSecrets(status.text);
+  assert.ok(!status.text.includes(routerKey));
 });
 
 // --- Status -------------------------------------------------------------------------------
