@@ -476,6 +476,8 @@ test("attempt output must be exactly .attempts/<attempt>/output inside the job",
 });
 
 test("a live lock heartbeat prevents overlap beyond the stale interval", async () => {
+  // Timings are scaled (heartbeat every staleMs/3 = 50 ms) so shared CI runners and busy
+  // machines do not miss a 10 ms heartbeat; the waiter still waits 3x past the stale interval.
   const jobsRoot = await root();
   let firstInside = false;
   let overlap = false;
@@ -488,13 +490,13 @@ test("a live lock heartbeat prevents overlap beyond the stale interval", async (
     enteredFirst.resolve();
     await holdFirst;
     firstInside = false;
-  }, { staleMs: 30, timeoutMs: 500, retryDelayMs: 2 });
+  }, { staleMs: 150, timeoutMs: 3000, retryDelayMs: 2 });
   await enteredFirst.promise;
 
   const second = withPrimaryQueueLock(jobsRoot, async () => {
     overlap = firstInside;
-  }, { staleMs: 30, timeoutMs: 500, retryDelayMs: 2 });
-  await new Promise((resolve) => setTimeout(resolve, 90));
+  }, { staleMs: 150, timeoutMs: 3000, retryDelayMs: 2 });
+  await new Promise((resolve) => setTimeout(resolve, 450));
   releaseFirst();
   await Promise.all([first, second]);
   assert.equal(overlap, false);
