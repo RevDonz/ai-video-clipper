@@ -392,6 +392,35 @@ def test_credential_only_registry_changes_do_not_change_report(tmp_path: Path):
     ).read_bytes()
 
 
+def test_transcript_segments_may_carry_validated_word_timings(tmp_path: Path):
+    from ai_clipper.evaluation import EvaluationError, evaluate_jobs
+
+    job = _job(tmp_path, "job-a")
+    _write_candidates(job, "source.mp4", [(0, 0, 30, "secret", ("alpha",), 6, 5, False)])
+    registry = _registry(tmp_path, [job])
+    transcript = job / "transcript.json"
+    payload = json.loads(transcript.read_text(encoding="utf-8"))
+    payload["segments"][0]["words"] = [
+        {"start": 0.0, "end": 0.4, "text": "private", "probability": 0.9},
+        {"start": 0.4, "end": 0.9, "text": "transcript"},
+    ]
+    _json(transcript, payload)
+
+    report = evaluate_jobs(registry, [job], tmp_path / "worded")
+    assert report["sources"][0]["transcript_cue_count"] == 3
+
+    payload["segments"][0]["words"] = [{"start": 0.5, "end": 0.1, "text": "private"}]
+    _json(transcript, payload)
+    with pytest.raises(EvaluationError, match="words are invalid"):
+        evaluate_jobs(registry, [job], tmp_path / "bad-words")
+
+    del payload["segments"][0]["words"]
+    payload["segments"][0]["speaker"] = "A"
+    _json(transcript, payload)
+    with pytest.raises(EvaluationError, match="missing or unknown"):
+        evaluate_jobs(registry, [job], tmp_path / "unknown-field")
+
+
 def test_aggregate_macro_and_micro_math_use_their_declared_denominators(tmp_path: Path):
     from ai_clipper.evaluation import evaluate_jobs
 
