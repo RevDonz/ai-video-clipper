@@ -1,0 +1,263 @@
+# Standar Klip AI: cara pakai, cara mengubah, cara menguji
+
+Panduan ini untuk pemilik Potongin. Isinya: bagaimana AI memilih klip, bagian mana dari standar
+yang boleh Anda ubah, dan cara membuktikan bahwa model atau standar baru memang lebih baik.
+
+## Letak file
+
+| File | Isi |
+|---|---|
+| `src/ai_clipper/prompts/standar_klip_ai.md` | **Standar Klip AI.** Satu-satunya sumber aturan editorial. Dikirim apa adanya sebagai pesan sistem ke model mana pun (Ollama Cloud, OpenRouter, Gemini, Groq, dll.). |
+| `src/ai_clipper/llm_selection.py` | Kode yang menyusun prompt, memeriksa dan memperbaiki jawaban model, lalu mengurutkan hasilnya. |
+| `docs/operations/LLM_PROVIDERS.md` | Cara memilih penyedia dan model gratis di `.env`. |
+| `docs/evaluation/SELECTION_BENCHMARK.md` | Cara menjalankan benchmark. |
+
+Jadi dokumen standar yang Anda baca sama persis dengan instruksi yang dibaca model. Kalau Anda
+mengubah standar, perilaku AI ikut berubah.
+
+## Cara kerjanya
+
+1. **Baris transkrip.** Kalimat-kalimat transkrip dikelompokkan menjadi baris sepanjang kira-kira
+   4–15 detik, dengan format `L0042 [03:37] teks`. Pertanyaan selalu dimulai di baris baru. Tag
+   suara dari caption ditempel di baris itu, misalnya `(tertawa)` atau `(tertawa x2)`. Baris yang
+   ditandai rusak oleh pemeriksa kualitas transkrip diberi tanda `[RUSAK]`.
+2. **Usulan momen.** Model menerima standar sebagai pesan sistem. Pesan tugasnya berisi jumlah
+   momen yang diminta (dua kali jumlah klip, minimal 8), batas durasi beserta durasi ideal, dan
+   transkrip. Kalau transkrip muat di anggaran konteks, semuanya dikirim dalam **satu
+   permintaan**. Episode 65 menit kira-kira 29 ribu token, jadi di Ollama Cloud dan OpenRouter
+   (konteks 131.072 token) cukup satu permintaan. Kalau tidak muat, transkrip dipotong menjadi
+   beberapa bagian yang saling tumpang tindih 90 detik.
+3. **Pemeriksaan kode.** Model gratis sering keliru, jadi setiap momen diperiksa:
+   - ID baris harus ada. Rentang yang terbalik dibalik lagi.
+   - `hook_quote` sebaiknya cocok dengan teks salah satu baris di dalam rentang. Baris yang
+     paling cocok menjadi hook, yaitu kalimat yang bisa diputar duluan sebagai cold open.
+   - Model besar kadang **menebak ID dari waktu** (pada uji coba, gpt-oss sering memberi ID
+     sekitar 1,2 kali ID aslinya) padahal kutipannya benar. Kalau kutipan itu jelas menunjuk
+     satu baris, seluruh rentang digeser ke sana. ID di luar transkrip yang tidak bisa digeser
+     membuat momen dibuang.
+   - **Kutipan hook yang kosong atau tidak cocok tidak lagi membuang momen** yang rentangnya
+     valid (gemma sering tidak mengisi `hook_quote`). Hook dipindah ke baris yang paling mirip
+     dengan kutipannya, atau ke `hook_id` kalau ada di dalam rentang, atau ke baris terkuat
+     menurut aturan sederhana: ada tawa, jawaban tepat setelah pertanyaan, kata kontras atau
+     pengungkapan ("tapi", "ternyata", "justru"), atau angka. Baris `[RUSAK]` tidak pernah
+     dipilih.
+   - Durasi dihitung dari waktu baris. Momen yang sedikit terlalu pendek diperpanjang dan yang
+     sedikit terlalu panjang dipangkas di batas baris, tanpa membuang hook atau payoff. Momen
+     yang jauh terlalu pendek dibuang. Momen yang **jauh terlalu panjang** tetap dipakai: awal
+     (setup) dan hook dipertahankan, lalu jawabannya dipotong di batas durasi maksimal. Momen
+     itu baru dibuang kalau hook-nya sendiri sudah lewat batas maksimal.
+   - Momen yang lebih pendek dari 60% durasi maksimal diperpanjang sampai **akhir alami
+     jawabannya** (baris sebelum pertanyaan berikutnya atau baris `[RUSAK]`), asalkan seluruh
+     jawaban muat dalam durasi maksimal.
+   - Awal klip dimundurkan ke pertanyaan setup terdekat (paling jauh 30 detik, minimal 4 kata),
+     karena momen terbaik hampir selalu dimulai dari pertanyaan host.
+   - Klip tidak boleh berakhir di pertanyaan baru. Kalau jawabannya muat, jawabannya ikut
+     dimasukkan. Kalau tidak, pertanyaannya dipotong.
+   - Kelima skor wajib ada dan dibatasi 0–10. **Skor gabungan dihitung sistem**, bukan diambil
+     dari model: 0,35 hook + 0,20 payoff + 0,15 standalone + 0,15 emotion + 0,15 shareability.
+     Skor yang tampil di aplikasi selalu hasil rumus ini dari kelima skor yang tampil di
+     sebelahnya, untuk klip AI maupun klip heuristik.
+   - Teks dirapikan dan dipotong: judul 70, teks hook 60, dan deskripsi 300 karakter, dengan
+     maksimal 6 hashtag. Arketipe yang tidak dikenal menjadi `other`.
+   - **Kemasan yang masih berupa transkrip mentah diperbaiki.** Judul atau teks hook ditolak
+     kalau berisi kata pengisi atau pengulangan ("ee", "gua gua", "yang yang"), kalau berupa
+     kutipan transkrip yang dipotong dengan "…" atau di tengah kata, atau (khusus judul) kalau
+     6 kata atau lebih disalin hampir persis dari transkrip. Penggantinya diambil dari field
+     lain: kalimat pertama deskripsi, teks hook atau judul, lalu kutipan hook yang sudah
+     dirapikan. Emoji dibuang dari teks hook karena font video (DejaVu) tidak punya emoji;
+     judul unggahan tetap boleh memakai emoji.
+4. **Minta ulang sekali.** Kalau momen yang lolos pemeriksaan kurang dari separuh jumlah klip
+   (termasuk nol), sistem mengirim satu permintaan lagi: ke model berikutnya di rantai
+   failover kalau ada, atau ke model yang sama dengan catatan berapa momen yang lolos dan
+   rentang mana yang jangan diulang. Momen hasilnya digabung. Kalau AI tetap memberi kurang
+   dari jumlah klip, sisanya diisi pemilih heuristik seperti biasa.
+5. **Buang duplikat.** Dari dua momen yang banyak tumpang tindihnya, termasuk momen pendek yang
+   berada di dalam momen lain, yang skornya lebih tinggi dipertahankan.
+6. **Peringkat ulang (opsional).** Kalau kandidat lebih banyak dari jumlah klip yang dibutuhkan,
+   kandidat ditampilkan sebagai kartu ringkas. Kartu disusun dalam urutan acak yang tetap, supaya
+   model tidak memihak kartu pertama. Model memberi skor akhir 0–10. **Hasilnya hanya menentukan
+   urutan** (gabungan 50:50 dengan skor usulan); skor klip tetap skor rubrik, dan nilai
+   peringkat ulang dicatat di alasan klip ("Peringkat ulang LLM: 4,8/10"). Kalau jawabannya
+   rusak, urutan usulan yang dipakai.
+7. Hasilnya diteruskan ke orkestrator Selection V3, yang merapikan batas klip ke kata dan jeda,
+   lalu merender.
+
+### Kode peringatan
+
+Kode-kode ini tercatat di artefak `analysis/selection.v3.json`:
+
+| Kode | Arti | Yang perlu dilakukan |
+|---|---|---|
+| `llm_chunked:<n>` | Transkrip dikirim dalam n bagian | Normal untuk konteks kecil (misalnya Groq) |
+| `llm_retry:<cara>:<n>` | Momen valid kurang dari separuh jumlah klip, jadi sistem minta ulang sekali (`next_model` = model berikutnya di rantai, `follow_up` = model yang sama dengan catatan) dan mendapat n momen tambahan | Normal sesekali. Kalau selalu muncul, model utama kurang cocok |
+| `llm_retry_failed:<kode>` | Permintaan ulang gagal; hasil pertama tetap dipakai | Lihat kode error di `LLM_PROVIDERS.md` |
+| `llm_relocated:<n>` | n momen digeser memakai kutipannya karena ID dari model melenceng | Normal. Kalau sangat sering, pertimbangkan model lain |
+| `llm_hook_relocated:<n>` | n momen dipertahankan walaupun `hook_quote` kosong atau tidak cocok; hook-nya dipilih sistem | Normal untuk gemma. Periksa cold open klip itu |
+| `llm_extended:<n>` | n momen pendek diperpanjang sampai akhir alami jawabannya | Normal |
+| `llm_trimmed:<n>` | n momen yang jauh terlalu panjang dipotong di batas maksimal setelah hook-nya | Normal. Payoff momen itu bisa terpotong; cek akhir klipnya |
+| `llm_packaging_repaired:<n>` | Judul atau teks hook n momen masih berupa transkrip mentah dan diganti dari field lain | Kalau sering, model kurang patuh pada bagian 8 standar |
+| `llm_dropped:<n>:<alasan>` | n momen dibuang. Alasan: `unknown_id`, `missing_id`, `scores`, `too_short`, `too_long`, `ends_on_question`, `suspect`, `duplicate`, `not_object` | Kalau lebih dari sepertiga momen dibuang, model itu kurang cocok |
+| `llm_no_moments:<bagian>` | Jawaban model tidak berisi daftar momen | Kalau sering, ganti model |
+| `llm_chunk_failed:<bagian>:<kode>` | Satu bagian gagal, bagian lain tetap dipakai | Lihat kode error di `LLM_PROVIDERS.md` |
+| `llm_rerank_failed:<kode>` | Peringkat ulang gagal, urutan usulan dipakai | Tidak fatal |
+| `llm_budget_exhausted`, `llm_deadline` | Batas jumlah permintaan atau waktu habis (untuk bagian transkrip, permintaan ulang, atau peringkat ulang) | Naikkan batasnya, atau pakai model yang lebih cepat |
+| `llm_partial` | Sebagian transkrip tidak sempat dinilai | Hasil mungkin melewatkan momen bagus |
+
+Kalau anggaran konteks bahkan tidak cukup untuk standar ditambah sedikit transkrip, permintaan
+gagal dengan kode `context_too_small`, dan sistem memakai pemilih heuristik.
+
+## Mengubah standar dengan aman
+
+**Boleh diubah bebas:** bagian 1–10, yaitu peran, cara membaca transkrip, awal dan akhir klip,
+durasi, deskripsi dan contoh arketipe, hal yang harus dihindari, cara menulis kemasan, rubrik
+skor, dan keberagaman. Tulis dalam bahasa Indonesia yang lugas.
+
+**Jangan diubah tanpa mengubah kode:**
+
+- Bagian **"11. Kontrak JSON"**: nama field, bentuk JSON, format ID `L0001`, dan kartu `K01`.
+- Kode arketipe (`curiosity_gap`, `humor`, dll.). Kode ini harus sama dengan `ARCHETYPES` di
+  `src/ai_clipper/selection_types.py`. Deskripsi dan contohnya boleh diubah.
+- Nama lima skor: `hook`, `standalone`, `payoff`, `emotion`, `shareability`.
+- Judul `# Standar Klip AI` dan `## 11. Kontrak JSON`, serta kata "JSON" di dalam dokumen.
+
+**Contoh jangan diambil dari episode uji.** Kalau contoh di standar mirip momen di episode
+benchmark, model jadi "menyontek" dan hasil uji terlihat lebih bagus dari kenyataan. Pakai contoh
+karangan dengan topik lain.
+
+**Setelah mengubah:**
+
+1. Jalankan test. Test memeriksa bahwa semua arketipe, skor, dan field JSON masih tertulis:
+
+   ```
+   .venv/bin/python -m pytest -q tests/test_llm_selection.py
+   ```
+
+2. Kalau arti standar berubah (bukan sekadar salah ketik), naikkan `PROMPT_VERSION` di
+   `llm_selection.py`, misalnya dari `llm-select-v2` ke `llm-select-v3` (versi sekarang:
+   `llm-select-v2`). Versi ini tercatat di
+   artefak, sehingga hasil lama dan baru bisa dibedakan. `standard_sha256()` memberi sidik jari
+   isi standar yang sedang dipakai.
+3. Uji dengan benchmark (lihat bagian berikut) sebelum dipakai untuk pekerjaan pelanggan.
+
+**Efek ke kuota.** Cache LLM dikunci dengan isi prompt lengkap. Mengubah satu huruf standar
+membuat semua episode dinilai ulang, dengan permintaan baru yang memakan kuota gratis. Standar
+juga ikut di setiap permintaan (sekarang sekitar 4.200 token). Makin panjang standar, makin
+sedikit ruang untuk transkrip.
+
+## Mengganti model atau standar: uji dengan benchmark
+
+Prinsipnya: ukur dulu, baru ganti.
+
+**Episode:**
+
+- Penyetelan: `Ive926sC6mc` dan `0dzvz9JZFIM`. Boleh dipakai berulang kali untuk menyetel
+  standar.
+- Held-out: `DwTmRFyQ53E` dan `rBg0ZcwjVKQ`. Jangan pernah dipakai untuk menyetel standar atau
+  prompt. Jalankan sekali saja di akhir, sebagai verifikasi.
+
+**Langkah:**
+
+1. Pilih model di `.env`, misalnya `POTONGIN_LLM_OLLAMA_CLOUD_MODEL=qwen3.5:397b`. Cek
+   koneksinya:
+
+   ```
+   .venv/bin/python -m ai_clipper.llm --check
+   ```
+
+2. Jalankan benchmark pada episode penyetelan. Bandingkan dengan pemilih heuristik dan V1.
+   Selector `v3-llm` dan `v3-heuristic` baru tersedia setelah modul `selection_v3` terpasang.
+
+   ```
+   .venv/bin/python -m ai_clipper.benchmark --compare \
+     --gold docs/evaluation/gold/Ive926sC6mc.gold.json \
+     --transcript artifacts/eval/Ive926sC6mc/transcript.yt.json \
+     --gold docs/evaluation/gold/0dzvz9JZFIM.gold.json \
+     --transcript artifacts/eval/0dzvz9JZFIM/transcript.yt.json \
+     --selector v3-llm --selector v3-heuristic --selector v1 \
+     --min-duration 20 --max-duration 90
+   ```
+
+3. **Syarat lulus:**
+   - R@5 dan P@5 gabungan tidak lebih rendah dari model yang sekarang dan dari `v3-heuristic`.
+   - Tingkat trap tidak naik.
+   - Tidak banyak `llm_dropped` (kurang dari sepertiga momen) dan tidak ada
+     `llm_rerank_failed` yang berulang.
+   - Waktu dan jumlah permintaan per episode muat di kuota gratis.
+4. Hasil LLM bervariasi antarpercobaan. Dengan suhu 0,2, satu percobaan bisa berbeda 1–2 hit.
+   Jangan mengganti model hanya karena selisih satu hit. Ulangi di episode lain, atau tunggu data
+   retensi nyata.
+5. Kalau lulus di episode penyetelan, jalankan sekali di episode held-out dan catat hasilnya.
+   Jangan menyetel ulang berdasarkan hasil held-out.
+6. Label buatan Anda sendiri dan data retensi nyata (misalnya "viewed vs swiped away" di YouTube
+   Studio atau analitik TikTok) selalu lebih penting daripada gold proxy. Gold saat ini dibuat
+   oleh LLM yang berperan sebagai editor.
+
+**Kuota.** Satu episode memakai 1–3 permintaan: usulan, lalu permintaan ulang (hanya kalau
+momen valid kurang dari separuh) dan peringkat ulang (hanya kalau kandidat lebih banyak dari
+jumlah klip). OpenRouter
+gratis hanya 50 permintaan per hari untuk semua pemakaian, jadi jadikan cadangan saja. Untuk uji
+ulang yang gratis, simpan cache di `artifacts/eval/<id>/llm-cache/`.
+
+## Hasil uji awal (24 September 2026, episode penyetelan)
+
+Model yang dipakai adalah `gpt-oss:120b` lewat Ollama Cloud, dengan klip 20–90 detik dan K = 5.
+
+| | Ive926sC6mc | 0dzvz9JZFIM |
+|---|---|---|
+| Permintaan | 2 | 2 |
+| Waktu | ±23 detik | ±26 detik |
+| Token masuk / keluar | 31 ribu / 6 ribu | 29 ribu / 8 ribu |
+| Hit gold di 5 teratas | 2 dari 12 | 2 dari 12 (+1 trap: promo target penonton) |
+| Hit gold di 10 teratas | 2 dari 12 (hanya 5 usulan) | 4 dari 12 |
+
+Angka ini memakai kode akhir dan jawaban yang tersimpan di cache. Sebagai pembanding, pada
+transkrip yang sama V1 mendapat 2 dari 24 hit di 5 teratas (dengan 3 trap), V2 standard 3 dari 24,
+dan V2 viral 4 dari 24. Jadi AI baru setara dengan pembanding terbaik di 5 teratas dan unggul di 10
+teratas. Kesimpulannya belum "jelas lebih baik". Masalah terbesar yang teramati:
+
+- Model menebak ID dari waktu. Masalah ini sudah ditangani dengan pencocokan kutipan.
+- Model masih kadang memilih promo, walaupun standar melarangnya.
+- Peringkat ulang membantu di satu episode tetapi merugikan di episode lain, jadi dampaknya belum
+  terbukti.
+
+## Hasil polish (24 September 2026, episode penyetelan)
+
+Perubahan: kutipan hook yang gagal tidak lagi membuang momen, kemasan mentah diperbaiki, momen
+pendek diperpanjang sampai akhir jawaban, momen yang jauh terlalu panjang dipotong setelah
+hook, permintaan ulang sekali kalau momen valid kurang, skor klip selalu skor rubrik, dan
+standar `llm-select-v2` (aturan kemasan dengan contoh salah/benar, `end_id` = akhir jawaban,
+`hook_quote` wajib, durasi ideal 50–75 detik untuk batas 20–90).
+
+Transkrip YouTube, klip 20–90 detik, k = 10. "Sebelum" memutar ulang jawaban model yang sama
+dari cache dengan kode dan standar lama. "Kode baru" memakai jawaban yang sama (standar lama)
+dengan kode baru. "Sesudah" memakai kode dan standar baru.
+
+| Model | Tahap | Ive926sC6mc hits@5 / @10 | 0dzvz9JZFIM hits@5 / @10 | Trap@10 (gabungan) | Durasi median (Ive / 0dz) | Klip AI (Ive / 0dz) |
+|---|---|---|---|---|---|---|
+| gemma4:31b | Sebelum | 2 / 5 | 2 / 4 | 1 | 64 / 63 detik | 9 / 1 |
+| gemma4:31b | Kode baru | 2 / 5 | 5 / 7 | 1 | 64 / 62 detik | 9 / 8 |
+| gemma4:31b | Sesudah | **3 / 6** | **5 / 7** | 1 | 54 / 77 detik | 10 / 9 |
+| gpt-oss:120b | Sebelum | 1 / 2 | 1 / 2 | 1 | 46 / 38 detik | 9 / 4 |
+| gpt-oss:120b | Sesudah | **3 / 4** | 1 / 2 | 2 | 63 / 43 detik | 8 / 5 |
+
+- Gabungan gemma: hits@5 dari 4 menjadi 8, hits@10 dari 9 menjadi 13 (dari 24 gold), trap
+  tetap 1. Di `0dzvz9JZFIM` gemma dulu kehilangan 9 dari 10 momen karena `hook_quote` kosong;
+  sekarang momen itu dipakai.
+- Momen yang jauh terlalu panjang: gemma dua kali mengusulkan momen terbaik episode
+  `0dzvz9JZFIM` sebagai rentang 133–137 detik. Dulu dibuang, sekarang dipotong setelah hook
+  dan kena gold (hits@10 +1).
+- Perpanjangan sampai akhir jawaban membantu gpt-oss (klipnya pendek): dengan jawaban yang
+  sama, hits@10 naik 2→3 di kedua episode dan median `0dzvz9JZFIM` 37→45 detik. Pada gemma
+  hampir tidak berpengaruh karena klipnya sudah panjang.
+- Permintaan ulang diuji sekali secara live (gpt-oss, `0dzvz9JZFIM`, 4 momen valid): model
+  menambah 9 momen, tetapi hits@10 turun 3→2 dan satu trap masuk karena momen tambahan itu
+  menggeser klip heuristik yang tepat. Satu kasus ini masih dalam batas noise. Manfaat
+  utamanya ada pada jawaban kosong (`{"moments": []}`), yang dulu langsung jatuh ke heuristik.
+- Skor: dulu semua klip gemma dan 16 dari 19 klip gpt-oss menampilkan skor yang tidak sama
+  dengan rumus sub-skornya. Sekarang tidak ada.
+- Emoji: gemma menaruh emoji di 8 dari 10 teks hook `Ive926sC6mc`. Sekarang emoji dibuang
+  dari teks hook.
+- Total permintaan live untuk evaluasi ini: 6 (4 usulan, 1 permintaan ulang, 1 percobaan ulang
+  HTTP). Sisanya dari cache `artifacts/eval/<id>/llm-cache-polish/`.
+- Semua angka ini dari episode penyetelan. Selisih 1–2 hit per episode masih noise. Episode
+  held-out belum dijalankan.
