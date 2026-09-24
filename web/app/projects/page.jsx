@@ -119,7 +119,7 @@ export default function ProjectsPage() {
       <nav className="nav shell">
         <a className="brand" href="/"><span>P</span> Potongin AI</a>
         <div className="navActions">
-          <div className="navLinks"><a href="/dashboard">Buat Klip</a><a className="active" href="/projects">Riwayat</a></div>
+          <div className="navLinks"><a href="/dashboard">Buat Klip</a><a className="active" href="/projects">Riwayat</a><a href="/settings">Pengaturan</a></div>
           <form method="post" action="/api/auth/logout"><button type="submit">Keluar</button></form>
         </div>
       </nav>

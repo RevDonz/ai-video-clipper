@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
-import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import crypto from "node:crypto";
+import { closeSync } from "node:fs";
+import { chmod, lstat, mkdir, mkdtemp, readFile, realpath, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
 import { buildClipperInvocation, main, manifestJobPatch, nextWorkerProgress, runFencedProcess } from "../scripts/run-job.mjs";
+import { readCandidateFeedback } from "../lib/candidate-feedback.mjs";
+import { openPreviewSource } from "../lib/preview-source.mjs";
 import { LeaseLostError, claimNextJob } from "../lib/primary-job-queue.mjs";
 
 const baseJob = { progress: 20, options: { renderMode: "fit-blur", limit: 3, minDuration: 20, maxDuration: 60 } };
@@ -13,12 +17,23 @@ const v1Args = [
   "--model", "small", "--device", "cpu", "--language", "id",
   "--min-duration", "20", "--max-duration", "60", "--limit", "3",
   "--width", "720", "--height", "1280", "--render-mode", "fit-blur",
+  "--artifact-root", "/data/jobs/id",
 ];
 
-test("V1 worker invocation remains byte-for-byte unchanged", () => {
+test("V1 worker invocation keeps its flags and always names the job artifact root", () => {
   assert.deepEqual(buildClipperInvocation(baseJob, "/data/jobs/id/input/source.mp4", "/data/jobs/id/output", {}), {
     command: "/app/.venv/bin/ai-clipper", args: v1Args,
   });
+});
+
+test("every selection mode writes analysis beside the output it will be published with", () => {
+  const attemptOutput = "/data/jobs/id/.attempts/0123abcd/output";
+  const v2 = { ...baseJob.options, selectionMode: "v2-shadow", clipProfile: "standard", maxCandidates: 40, maxMediaCandidates: 6, mediaTimeout: 12.5 };
+  for (const options of [baseJob.options, { ...baseJob.options, selectionMode: "v1" }, v2]) {
+    const { args } = buildClipperInvocation({ ...baseJob, options }, "/input.mp4", attemptOutput, {});
+    assert.equal(args.filter((value) => value === "--artifact-root").length, 1, JSON.stringify(options));
+    assert.equal(args[args.indexOf("--artifact-root") + 1], "/data/jobs/id/.attempts/0123abcd");
+  }
 });
 
 test("V2 shadow worker invocation appends only validated selection flags", () => {
@@ -30,8 +45,8 @@ test("V2 shadow worker invocation appends only validated selection flags", () =>
     args: [
       "/input.mp4", "--output-dir", "/data/jobs/id/output", "--model", "medium", "--device", "cuda", "--language", "en",
       "--min-duration", "20", "--max-duration", "60", "--limit", "3",
-      "--width", "720", "--height", "1280", "--render-mode", "fit-blur",
-      "--selection-mode", "v2-shadow", "--artifact-root", "/data/jobs/id", "--clip-profile", "viral-short",
+      "--width", "720", "--height", "1280", "--render-mode", "fit-blur", "--artifact-root", "/data/jobs/id",
+      "--selection-mode", "v2-shadow", "--clip-profile", "viral-short",
       "--max-candidates", "40", "--max-media-candidates", "6", "--media-timeout", "12.5",
     ],
   });
@@ -204,6 +219,126 @@ await writeFile(path.join(output, "manifest.json"), JSON.stringify({
   });
   assert.doesNotMatch(JSON.stringify(persisted), /private\/source|raw-secret/);
   assert.equal(JSON.parse(await readFile(path.join(jobRoot, "output", ".attempt-owner.json"), "utf8")).id, id);
+});
+
+// A stand-in for the Python engine that behaves like run_pipeline: analysis goes
+// under --artifact-root, which defaults to the output directory when omitted.
+const FAKE_ENGINE = `#!/usr/bin/env node
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
+const arg = (name) => process.argv[process.argv.indexOf(name) + 1];
+const output = arg("--output-dir");
+const artifactRoot = process.argv.includes("--artifact-root") ? arg("--artifact-root") : output;
+await mkdir(output, { recursive: true });
+await mkdir(path.join(artifactRoot, "analysis"), { recursive: true });
+await writeFile(path.join(artifactRoot, "analysis", "candidates.v2.json"), '{"fake":"candidates"}');
+await writeFile(path.join(artifactRoot, "analysis", "selection.v3.json"), '{"fake":"selection"}');
+if (process.env.FAKE_ENGINE_FAIL === "1") {
+  await writeFile(path.join(output, "manifest.json"), JSON.stringify({ status: "failed", error: "engine failed on purpose" }));
+  process.exit(1);
+}
+await writeFile(path.join(output, "manifest.json"), JSON.stringify({
+  status: "completed",
+  clips: [{ index: 1, score: 9, start: 0, end: 30, duration: 30, text: "Klip uji", output: path.join(output, "clip-01.mp4"), subtitles: path.join(output, "clip-01.srt") }],
+}));
+`;
+
+const FAKE_YT_DLP = `#!/usr/bin/env node
+import { writeFile } from "node:fs/promises";
+const template = process.argv[process.argv.indexOf("--output") + 1];
+await writeFile(template.replace("%(ext)s", "mp4"), Buffer.concat([Buffer.from([0, 0, 0, 0x18]), Buffer.from("ftypisom"), Buffer.alloc(20)]));
+`;
+
+async function engineFixture(prefix, { id, source, sourcePath, queued = true, options = {} }) {
+  const root = await mkdtemp(path.join(os.tmpdir(), prefix));
+  const jobRoot = path.join(root, id);
+  await mkdir(path.join(jobRoot, "input"), { recursive: true });
+  const resolvedSource = sourcePath === undefined ? path.join(jobRoot, "input", "source.mp4") : sourcePath;
+  if (resolvedSource) await writeFile(resolvedSource, "video");
+  await writeFile(path.join(jobRoot, "job.json"), JSON.stringify({
+    id, status: queued ? "queued" : "processing", progress: 0,
+    createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
+    source: source || { type: "upload", name: "source.mp4" }, sourcePath: resolvedSource,
+    options: { renderMode: "fit-blur", limit: 1, minDuration: 20, maxDuration: 60, ...options },
+    clips: [],
+  }));
+  const bin = await mkdtemp(path.join(os.tmpdir(), "clipper-worker-bin-"));
+  const engine = path.join(bin, "fake-ai-clipper.mjs");
+  await writeFile(engine, FAKE_ENGINE);
+  await writeFile(path.join(bin, "yt-dlp"), FAKE_YT_DLP);
+  await chmod(engine, 0o755);
+  await chmod(path.join(bin, "yt-dlp"), 0o755);
+  const env = { ...process.env, JOBS_ROOT: root, PRIMARY_LEASE_MS: "60000", AI_CLIPPER_BIN: engine, PATH: `${bin}${path.delimiter}${process.env.PATH}` };
+  return { root, jobRoot, env };
+}
+
+const V2_OPTIONS = { selectionMode: "v2-shadow", clipProfile: "standard", maxCandidates: 200, maxMediaCandidates: 12, mediaTimeout: 30 };
+const attemptRootFor = (jobRoot, token) => path.join(jobRoot, ".attempts", crypto.createHash("sha256").update(token).digest("hex"));
+
+test("queue-managed runs publish the attempt analysis where every web reader looks", async () => {
+  for (const options of [V2_OPTIONS, {}]) {
+    const id = "423e4567-e89b-42d3-a456-426614174000";
+    const { root, jobRoot, env } = await engineFixture("clipper-worker-analysis-", { id, options });
+    const claim = await claimNextJob({ jobsRoot: root, workerId: "worker", leaseMs: 60_000, maxAttempts: 3, legacyQuiescenceMs: 0 });
+    await main(["node", "run-job.mjs", id, claim.token], env);
+
+    const persisted = JSON.parse(await readFile(path.join(jobRoot, "job.json"), "utf8"));
+    assert.equal(persisted.status, "completed", JSON.stringify(options));
+    assert.equal(await readFile(path.join(jobRoot, "analysis", "candidates.v2.json"), "utf8"), '{"fake":"candidates"}');
+    assert.equal(await readFile(path.join(jobRoot, "analysis", "selection.v3.json"), "utf8"), '{"fake":"selection"}');
+    await assert.rejects(lstat(path.join(jobRoot, "output", "analysis")), { code: "ENOENT" });
+    await assert.rejects(lstat(path.join(attemptRootFor(jobRoot, claim.token), "analysis")), { code: "ENOENT" });
+    const analysisSeenByRoutes = await readCandidateFeedback(id, "get", Buffer.alloc(0), root, { runner: async (analysis) => analysis });
+    assert.equal(analysisSeenByRoutes, path.join(await realpath(root), id, "analysis"));
+  }
+});
+
+test("a failed queue attempt publishes neither output nor analysis", async () => {
+  const id = "523e4567-e89b-42d3-a456-426614174000";
+  const { root, jobRoot, env } = await engineFixture("clipper-worker-failed-", { id, options: V2_OPTIONS });
+  const claim = await claimNextJob({ jobsRoot: root, workerId: "worker", leaseMs: 60_000, maxAttempts: 3, legacyQuiescenceMs: 0 });
+  const previousExitCode = process.exitCode;
+  try {
+    await main(["node", "run-job.mjs", id, claim.token], { ...env, FAKE_ENGINE_FAIL: "1" });
+  } finally {
+    process.exitCode = previousExitCode;
+  }
+  const persisted = JSON.parse(await readFile(path.join(jobRoot, "job.json"), "utf8"));
+  assert.equal(persisted.status, "failed");
+  for (const name of ["analysis", "output"]) await assert.rejects(lstat(path.join(jobRoot, name)), { code: "ENOENT" });
+});
+
+test("legacy runs keep writing analysis directly into the job directory", async () => {
+  const id = "623e4567-e89b-42d3-a456-426614174000";
+  const { jobRoot, env } = await engineFixture("clipper-worker-legacy-", { id, queued: false, options: V2_OPTIONS });
+  await main(["node", "run-job.mjs", id], env);
+  const persisted = JSON.parse(await readFile(path.join(jobRoot, "job.json"), "utf8"));
+  assert.equal(persisted.status, "completed");
+  assert.equal(await readFile(path.join(jobRoot, "analysis", "candidates.v2.json"), "utf8"), '{"fake":"candidates"}');
+  await assert.rejects(lstat(path.join(jobRoot, ".attempts")), { code: "ENOENT" });
+  await assert.rejects(lstat(path.join(jobRoot, "analysis", ".attempt-owner.json")), { code: "ENOENT" });
+});
+
+test("a queue-managed YouTube run leaves its source where preview and re-render look", async () => {
+  const id = "723e4567-e89b-42d3-a456-426614174000";
+  const { root, jobRoot, env } = await engineFixture("clipper-worker-youtube-", {
+    id, source: { type: "youtube", url: "https://youtu.be/abc" }, sourcePath: null, options: V2_OPTIONS,
+  });
+  const claim = await claimNextJob({ jobsRoot: root, workerId: "worker", leaseMs: 60_000, maxAttempts: 3, legacyQuiescenceMs: 0 });
+  await main(["node", "run-job.mjs", id, claim.token], env);
+
+  const persisted = JSON.parse(await readFile(path.join(jobRoot, "job.json"), "utf8"));
+  assert.equal(persisted.status, "completed");
+  assert.equal(persisted.sourcePath, path.join(jobRoot, "input", "source.mp4"));
+  assert.equal(await readFile(path.join(jobRoot, "analysis", "candidates.v2.json"), "utf8"), '{"fake":"candidates"}');
+  await assert.rejects(lstat(path.join(attemptRootFor(jobRoot, claim.token), "input")), { code: "ENOENT" });
+  const preview = await openPreviewSource(id, root);
+  try {
+    assert.equal(preview.contentType, "video/mp4");
+    assert.equal(preview.size, 32);
+  } finally {
+    closeSync(preview.fd);
+  }
 });
 
 test("lease loss immediately terminates the child process group", async () => {

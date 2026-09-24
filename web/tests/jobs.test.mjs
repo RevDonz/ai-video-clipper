@@ -259,10 +259,11 @@ test("public landing and protected dashboard use separate routes", async () => {
   assert.match(dashboard, /fetch\("\/api\/jobs"/);
   assert.match(dashboard, /role="progressbar"/);
   assert.match(dashboard, /aria-live="polite"/);
-  assert.match(dashboard, /Experimental Selection V2 shadow/);
+  // Selection V3 is the default; V1 and V2 shadow stay selectable under "Mode lama".
+  assert.match(dashboard, /V2 shadow/);
   assert.match(dashboard, /V1 tetap merender/);
-  assert.match(dashboard, /const \[shadowSelection, setShadowSelection\] = useState\(true\)/);
-  assert.match(dashboard, /data\.set\("selectionMode", "v2-shadow"\)/);
+  assert.match(dashboard, /const \[selectionMode, setSelectionMode\] = useState\("v3"\)/);
+  assert.match(dashboard, /data\.set\("selectionMode", selectionMode\)/);
   assert.match(dashboard, /createStorageStatusRecovery/);
   assert.match(dashboard, /role="alert"/);
   assert.match(dashboard, /storage_quota_exhausted/);

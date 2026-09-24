@@ -65,6 +65,7 @@ export function parseJobFormOptions(form) {
     renderMode: form.get("renderMode"), limit: form.get("limit"), minDuration: form.get("minDuration"), maxDuration: form.get("maxDuration"),
     selectionMode: form.get("selectionMode"), clipProfile: form.get("clipProfile"), maxCandidates: form.get("maxCandidates"),
     maxMediaCandidates: form.get("maxMediaCandidates"), mediaTimeout: form.get("mediaTimeout"),
+    llmMode: form.get("llmMode"), coldOpen: form.get("coldOpen"), hookOverlay: form.get("hookOverlay"), captionStyle: form.get("captionStyle"),
   });
 }
 

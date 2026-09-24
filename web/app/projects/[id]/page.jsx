@@ -15,6 +15,18 @@ import {
   profileLabel,
   validateFeedbackPayload,
 } from "../../../lib/candidate-view.mjs";
+import {
+  archetypeLabel,
+  captionParts,
+  clipCaptionText,
+  coldOpenLength,
+  formatTenths,
+  isV3Job,
+  scoreRows,
+  selectionSourceLabel,
+  selectionV3SummaryView,
+  tenPointScore,
+} from "../../../lib/selection-v3-view.mjs";
 
 const STATUS_LABELS = {
   queued: "Menunggu",
@@ -244,6 +256,93 @@ function CandidateCard({ candidate, jobId, latestFeedback, feedbackEnabled, feed
   );
 }
 
+function SelectionV3Summary({ summary }) {
+  const view = selectionV3SummaryView(summary);
+  if (!view) return null;
+  return (
+    <div className={`v3Summary ${view.tone}`} role={view.tone === "ok" ? "status" : "alert"}>
+      <div>
+        <strong>{view.headline}</strong>
+        <p>{view.detail}</p>
+      </div>
+      <dl>
+        {view.engine && <div><dt>Penyedia / model</dt><dd>{view.engine}</dd></div>}
+        {view.transcript && <div><dt>Transkrip</dt><dd>{view.transcript}</dd></div>}
+        {view.promptVersion && <div><dt>Versi prompt</dt><dd>{view.promptVersion}</dd></div>}
+      </dl>
+      {view.warnings.length > 0 && (
+        <details>
+          <summary>Kode peringatan teknis ({view.warnings.length})</summary>
+          <ul>{view.warnings.map((code) => <li key={code}><code>{code}</code></li>)}</ul>
+        </details>
+      )}
+    </div>
+  );
+}
+
+function V3ClipCard({ clip, copied, onCopy }) {
+  const index = String(clip.index).padStart(2, "0");
+  const titleId = `v3-clip-${index}`;
+  const score = tenPointScore(clip.score);
+  const rows = scoreRows(clip.scores);
+  const source = selectionSourceLabel(clip.selectionSource);
+  const archetype = archetypeLabel(clip.archetype);
+  const coldOpen = coldOpenLength(clip);
+  const caption = captionParts(clip);
+  const reasons = Array.isArray(clip.reasons) ? clip.reasons : [];
+  const sourceRange = typeof clip.sourceStart === "number" && typeof clip.sourceEnd === "number";
+
+  return (
+    <article className="v3Clip" aria-labelledby={titleId}>
+      <video controls preload="metadata" src={clip.videoUrl} />
+      <div className="v3ClipBody">
+        <div className="v3ClipTags">
+          <small>CLIP {index} · {Math.round(clip.duration || 0)} DETIK</small>
+          {source && <span className={`sourceBadge ${clip.selectionSource}`}>{source}</span>}
+          {archetype && <span className="archetypeBadge">{archetype}</span>}
+          {coldOpen !== null && <span className="coldOpenBadge" title="Kalimat hook diputar lebih dulu sebelum klip dimulai">Cold open {formatTenths(coldOpen)} dtk</span>}
+        </div>
+        <h3 id={titleId}>{clip.title}</h3>
+        {clip.hookText && <p className="hookLine"><span>Teks hook</span>{clip.hookText}</p>}
+
+        {(score !== null || rows.length > 0) && (
+          <div className="v3Scores">
+            {score !== null && <p className="v3ScoreTotal"><span>Skor</span><strong>{formatTenths(score)}<small>/10</small></strong></p>}
+            {rows.length > 0 && (
+              <dl>
+                {rows.map((row) => (
+                  <div key={row.name}>
+                    <dt>{row.label}</dt>
+                    <dd><span className="miniBar" aria-hidden="true"><i style={{ width: `${Math.max(0, Math.min(100, row.percent))}%` }} /></span><b>{formatTenths(row.value)}</b></dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+          </div>
+        )}
+
+        {reasons.length > 0 && (
+          <section className="v3Reasons" aria-label="Alasan dipilih">
+            <h4>Kenapa dipilih</h4>
+            <ul>{reasons.map((reason, position) => <li key={`${index}-reason-${position}`}>{reason}</li>)}</ul>
+          </section>
+        )}
+
+        <section className="v3Caption" aria-label="Caption untuk diunggah">
+          <h4>Caption</h4>
+          {caption.body && <p className="captionBody">{caption.body}</p>}
+          {caption.hashtags.length > 0 && <p className="hashtagList">{caption.hashtags.map((tag) => <span key={tag}>{tag}</span>)}</p>}
+          <button type="button" className="copyCaption" onClick={() => onCopy(clip)}>{copied === "copied" ? "Tersalin ✓" : copied === "failed" ? "Gagal menyalin — pilih teks manual" : "Salin caption"}</button>
+          <span className="visuallyHidden" role="status" aria-live="polite">{copied === "copied" ? "Caption tersalin ke clipboard" : ""}</span>
+        </section>
+
+        {sourceRange && <p className="v3SourceRange">Dari video sumber {formatDuration(clip.sourceStart)} → {formatDuration(clip.sourceEnd)}</p>}
+        <div className="archiveActions"><a href={clip.downloadUrl}>Download MP4 ↓</a>{clip.subtitleUrl && <a href={clip.subtitleUrl} aria-label={`Subtitle SRT klip ${index}`}>Subtitle SRT ↓</a>}</div>
+      </div>
+    </article>
+  );
+}
+
 export default function ProjectDetailPage({ params }) {
   const { id } = use(params);
   const [job, setJob] = useState(null);
@@ -255,6 +354,27 @@ export default function ProjectDetailPage({ params }) {
   const [feedbackNotice, setFeedbackNotice] = useState("");
   const [feedbackReloadRequired, setFeedbackReloadRequired] = useState("");
   const [reloadGeneration, setReloadGeneration] = useState(0);
+  const [copyState, setCopyState] = useState({ index: null, status: "" });
+  const copyTimer = useRef(null);
+
+  useEffect(() => () => {
+    if (copyTimer.current !== null) clearTimeout(copyTimer.current);
+  }, []);
+
+  const copyCaption = async (clip) => {
+    let status = "copied";
+    try {
+      await navigator.clipboard.writeText(clipCaptionText(clip));
+    } catch {
+      status = "failed";
+    }
+    setCopyState({ index: clip.index, status });
+    if (copyTimer.current !== null) clearTimeout(copyTimer.current);
+    copyTimer.current = setTimeout(() => {
+      copyTimer.current = null;
+      setCopyState({ index: null, status: "" });
+    }, 2200);
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -294,6 +414,7 @@ export default function ProjectDetailPage({ params }) {
   }, [id, reloadGeneration]);
 
   const clips = job?.clips || [];
+  const v3 = isV3Job(job);
   const progress = safePercent(job?.progress);
   const candidates = candidateView.candidates;
   const selectionVersionMatches = feedbackView.available
@@ -308,7 +429,7 @@ export default function ProjectDetailPage({ params }) {
     <main>
       <nav className="nav shell">
         <a className="brand" href="/"><span>P</span> Potongin AI</a>
-        <div className="navActions"><div className="navLinks"><a href="/dashboard">Buat Klip</a><a className="active" href="/projects">Riwayat</a></div><form method="post" action="/api/auth/logout"><button type="submit">Keluar</button></form></div>
+        <div className="navActions"><div className="navLinks"><a href="/dashboard">Buat Klip</a><a className="active" href="/projects">Riwayat</a><a href="/settings">Pengaturan</a></div><form method="post" action="/api/auth/logout"><button type="submit">Keluar</button></form></div>
       </nav>
 
       {loading && <section className="detailState shell" role="status" aria-live="polite"><div className="pulse" /><h1>Memuat detail proyek…</h1><p>Ringkasan job dan kandidat V2 sedang diambil.</p></section>}
@@ -326,7 +447,7 @@ export default function ProjectDetailPage({ params }) {
           <section className="jobOverview shell" aria-labelledby="job-summary-title">
             <div className="jobSummaryCard">
               <div><span>JOB</span><h2 id="job-summary-title">Ringkasan pemrosesan</h2></div>
-              <dl><div><dt>Status</dt><dd>{STATUS_LABELS[job.status] || job.status}</dd></div><div><dt>Mode render</dt><dd>{job.options?.renderMode || "—"}</dd></div><div><dt>Klip lama</dt><dd>{clips.length}</dd></div><div><dt>Diperbarui</dt><dd>{formatDate(job.updatedAt)}</dd></div></dl>
+              <dl><div><dt>Status</dt><dd>{STATUS_LABELS[job.status] || job.status}</dd></div><div><dt>Mode render</dt><dd>{job.options?.renderMode || "—"}</dd></div><div><dt>{v3 ? "Klip" : "Klip lama"}</dt><dd>{clips.length}</dd></div><div><dt>Diperbarui</dt><dd>{formatDate(job.updatedAt)}</dd></div></dl>
               <div className="progress" role="progressbar" aria-label="Progres pemrosesan proyek" aria-valuemin="0" aria-valuemax="100" aria-valuenow={progress}><i style={{ width: `${progress}%` }} /></div>
               <p>{job.stageDetail || `Progres ${progress}%`}</p>
               {job.error && <div className="projectError" role="alert">{job.error}</div>}
@@ -334,7 +455,17 @@ export default function ProjectDetailPage({ params }) {
             </div>
           </section>
 
-          <section className="candidatePanel shell" aria-labelledby="candidate-title">
+          {v3 && (
+            <section className="legacySection v3Section shell" aria-labelledby="v3-clips-title">
+              <header><div className="eyebrow">SELECTION V3 · AI HOOK</div><h2 id="v3-clips-title">Klip siap posting</h2><p>Judul, teks hook, deskripsi, dan hashtag dibuat bersamaan dengan pemilihan momen. Salin caption, unduh MP4, lalu unggah.</p></header>
+              <SelectionV3Summary summary={job.selectionV3} />
+              {clips.length ? <div className="v3Clips">{clips.map((clip) => (
+                <V3ClipCard key={clip.index} clip={clip} copied={copyState.index === clip.index ? copyState.status : ""} onCopy={copyCaption} />
+              ))}</div> : <div className="noClips"><strong>{job.status === "failed" ? "Proses ini gagal" : "Klip belum tersedia"}</strong><p>{STATUS_LABELS[job.status] || job.status} · progres {progress}%</p></div>}
+            </section>
+          )}
+
+          {(!v3 || (candidateView.available && candidates.length > 0)) && <section className="candidatePanel shell" aria-labelledby="candidate-title">
             <header><div><div className="eyebrow">SELECTION V2 · SHADOW OUTPUT</div><h2 id="candidate-title">Kandidat potongan</h2><p>Analisis tetap read-only; keputusan dan catatan di bawah hanya disimpan sebagai feedback evaluasi. Kandidat belum dirender atau diaktifkan untuk produksi.</p></div>{candidates.length > 0 && <strong>{candidates.length} kandidat · {feedbackView.eventCount} event feedback</strong>}</header>
             {feedbackNotice && <div className="feedbackPanelWarning" role="status" aria-live="polite"><strong>Feedback sementara tidak tersedia.</strong><span>{feedbackNotice}</span></div>}
             {feedbackReloadRequired && <div className="feedbackPanelWarning" role="alert"><strong>Feedback dikunci sampai halaman dimuat ulang.</strong><span>{feedbackReloadRequired}</span><button className="feedbackReload" type="button" onClick={() => window.location.reload()}>Muat ulang halaman</button></div>}
@@ -357,15 +488,17 @@ export default function ProjectDetailPage({ params }) {
                 <p>Klip hasil job lama tetap dapat diputar dan diunduh di bagian “Klip yang sudah dirender” di bawah.</p>
               </div>
             )}
-          </section>
+          </section>}
 
-          <section className="legacySection shell" aria-labelledby="legacy-title">
+          {!v3 && <section className="legacySection shell" aria-labelledby="legacy-title">
             <header><div className="eyebrow">HASIL JOB LAMA</div><h2 id="legacy-title">Klip yang sudah dirender</h2><p>Hasil lama tetap tersedia terlepas dari ketersediaan kandidat V2.</p></header>
             {clips.length ? <div className="archiveClips">{clips.map((clip) => <article className="archiveClip" key={clip.index}><video controls preload="metadata" src={clip.videoUrl} /><div><small>CLIP {String(clip.index).padStart(2, "0")} · {Math.round(clip.duration || 0)} DETIK</small><h3>{clip.title}</h3><p className="socialDescription">{clip.description}</p>{clip.subtitleUrl && <p className="subtitleNote">Subtitle SRT tersedia sebagai file unduhan dan tidak dimuat sebagai track browser.</p>}<div className="archiveActions"><a href={clip.downloadUrl}>Download MP4 ↓</a>{clip.subtitleUrl && <a href={clip.subtitleUrl}>Subtitle SRT ↓</a>}</div></div></article>)}</div> : <div className="noClips"><strong>{job.status === "failed" ? "Proses ini gagal" : "Klip belum tersedia"}</strong><p>{STATUS_LABELS[job.status] || job.status} · progres {progress}%</p></div>}
-          </section>
+          </section>}
         </>
       )}
-      <footer className="shell">Potongin AI · Peninjau kandidat read-only <span>Selection V2 shadow</span></footer>
+      {v3
+        ? <footer className="shell">Potongin AI · Hasil klip AI hook <span>Selection V3</span></footer>
+        : <footer className="shell">Potongin AI · Peninjau kandidat read-only <span>Selection V2 shadow</span></footer>}
     </main>
   );
 }
