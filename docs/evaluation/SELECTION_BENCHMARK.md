@@ -258,6 +258,37 @@ alih.
 - Gold masih label proksi dari LLM. Label pemilik sendiri dan data retensi nyata tetap menjadi
   hakim akhir.
 
+## Heuristik v3.1 (2026-09-24, susulan)
+
+Perubahan: tawa tertulis ("Hahaha", "Wkwk", "lucu banget") dihitung sebagai tawa bila transkrip
+sama sekali tidak punya tag tawa; reaksi host ("Hah? Serius?", "Masa sih?") tidak memotong
+jawaban dan tidak pernah menjadi awal klip; label humor butuh tawa jauh di atas rata-rata
+episode; teks hook (≤60) dan judul (≤70 karakter) dari kalimat bersih tanpa "…".
+
+**Tuning** (8 konfigurasi: YT/Whisper × 20–60/20–90 × 2 episode, top-10):
+
+| | Sebelum | Sesudah |
+|---|---|---|
+| Hits@5 / Hits@10 | 21 / 36 | 23 / 37 |
+| Jebakan @5 / @10 | 2 / 2 | 2 / 3 |
+| Momen humor gold @5 / @10 | 2 / 4 | 4 / 6 |
+| Proposal berisi "…" (dari 80) | 36 | 0 |
+| Judul > 70 karakter | 41 | 0 |
+| Judul gagal cek `packaging_problem` | 28 | 0 |
+
+**Held-out, dijalankan sekali setelah dibekukan** (5 episode, 60 gold): hits @5 27→27, @10
+38→38, jebakan @5 9→6, @10 15→15. Seleksi dari subtitle YouTube identik dengan sebelumnya;
+perubahan hanya di jalur Whisper.
+
+**Banter tetap 0/12** (VINDES `FxQDATkYHtk`). Track YouTube-nya hanya punya 1 tag tawa dalam
+78 menit, dan satu tag itu mematikan fallback tawa tertulis. Ambang "jarang ditandai" (mis. <1
+tag per 10 menit) adalah kandidat, tetapi menyetelnya di episode ini berarti menyetel di
+held-out; perlu episode banter baru ber-gold. Semua ide hadiah-tawa lain (kata roasting,
+callback, tawa awal, setup→punchline) menambah jebakan di tuning dan ditolak. Kemungkinan butuh
+sinyal lain: giliran bicara (`speaker-changes.json`) atau deteksi tawa dari audio.
+
+Skrip dan keluaran mentah: `scratchpad/followups/taskC/` (ablations, heldout-base/new).
+
 ## Evaluasi Selection V3 (2026-09-24)
 
 Evaluasi pertama V3: 4 episode × 2 sumber transkrip × 7 selector, K=5 dan K=10. Set **tuning**

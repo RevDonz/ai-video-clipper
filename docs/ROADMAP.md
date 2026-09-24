@@ -1,13 +1,16 @@
 # Roadmap & status Potongin
 
 Terakhir diperbarui: 2026-09-24. Legenda: ✅ selesai · 🔄 sedang dikerjakan · ⬜ belum · ⏸️ ditunda
-(menunggu keputusan). Semua pekerjaan ada di branch `feat/selection-v3-llm` dan **belum di-commit**.
+(menunggu keputusan). Selection V3 dan halaman Pengaturan AI sudah di `main` dan live di
+https://potongin.revdonz.dev sejak 2026-09-24. Empat tugas susulan (server LLM sendiri + 9Router,
+thumbnail + upgrade Next/React, Whisper, heuristik v3.1) ada di branch `feat/v3-followups`.
 
 Dokumen rujukan:
 - Rencana teknis: [`docs/plans/2026-09-24-selection-v3-llm-hooks.md`](plans/2026-09-24-selection-v3-llm-hooks.md)
 - Hasil benchmark: [`docs/evaluation/SELECTION_BENCHMARK.md`](evaluation/SELECTION_BENCHMARK.md)
 - Standar editorial AI: [`docs/operations/STANDAR_KLIP_AI.md`](operations/STANDAR_KLIP_AI.md)
 - Penyedia LLM gratis: [`docs/operations/LLM_PROVIDERS.md`](operations/LLM_PROVIDERS.md)
+- Transkripsi Whisper: [`docs/operations/TRANSCRIPTION.md`](operations/TRANSCRIPTION.md)
 
 ## 1. Analisis & evaluasi
 
@@ -45,8 +48,15 @@ Dokumen rujukan:
   timestamp terkuantisasi.
 - ✅ Peringatan `no_punctuation` saat seluruh file tanpa tanda baca (terbukti menangkap episode
   Deddy × dr. Gia, 1,2% bertanda baca).
-- ⬜ Whisper `small` kehilangan tanda baca di 3 dari 5 episode: uji `large-v3-turbo` atau
-  pemulihan tanda baca untuk video tanpa subtitle YouTube.
+- ✅ Tanda baca Whisper `small` tidak lagi hilang: `condition_on_previous_text` dimatikan dan
+  prompt pendek bertanda baca dipasang di tiap jendela 30 detik. Segmen bertanda baca di 3
+  episode penuh 2% / 1% / 59% → 91% / 93% / 96%, akurasi kata sama, 21% lebih cepat. Bisa
+  diatur lewat `WHISPER_*` atau flag CLI. `large-v3-turbo` ~30% lebih akurat tapi 1,9× lebih
+  lambat, jadi `small` tetap default.
+- ⬜ Whisper kadang menerjemahkan sisipan bahasa Inggris ("however" → "bagaimanapun") dan
+  sesekali membuat loop pendek ("Bukan gue." ×8).
+- ⬜ Simpan cache model Whisper di `/data` (`HF_HOME`) agar tidak diunduh ulang tiap deploy;
+  setelan jumlah thread CPU.
 - ✅ Unit kalimat yang tidak bergantung pada tanda baca (memakai jeda antar-kata).
 - ✅ Jalur cepat subtitle YouTube (json3): timing per kata, tanda baca, dan penanda
   `[tertawa]`/`[tepuk tangan]`, dengan cek kualitas. Terbukti lebih andal daripada Whisper
@@ -59,7 +69,11 @@ Dokumen rujukan:
 ## 3. AI / LLM gratis
 
 - ✅ Klien LLM universal OpenAI-compatible: Gemini, Groq, OpenRouter, Cerebras, Mistral,
-  DeepSeek, OpenAI, Ollama lokal, Ollama Cloud, custom.
+  DeepSeek, OpenAI, Ollama lokal, Ollama Cloud, dan sampai 3 server sendiri (custom, custom2,
+  custom3).
+- ✅ Server sendiri bisa diberi nama (mis. Hermes, 9Router), key disegel per server, kartu
+  "9Router (gateway)" dengan peringatan ketentuan layanan dan alarm untuk rute langganan
+  (`cc/`, `cx/`, `gh/`, `cu/`). `compose.yaml` memetakan `host.docker.internal`.
 - ✅ Rantai fallback antar-provider dan antar-model, mode `FREE_ONLY`, cache respons, retry,
   rate limit, dan key tidak pernah bocor.
 - ✅ `STANDAR_KLIP_AI.md`: standar editorial yang sekaligus menjadi prompt sistem untuk model
@@ -78,9 +92,11 @@ Dokumen rujukan:
   - worker memakai pengaturan UI dan mengabaikan `.env`;
   - tersedia "Tes koneksi", "Ambil daftar model", dan impor dari `.env`;
   - review keamanan memperbaiki 2 celah; 396 test web lolos.
-- ⬜ **Wajib sebelum produksi:** ganti `APP_SESSION_SECRET` dan `APP_PASSWORD` di `.env` produksi
-  dengan nilai acak (`openssl rand -hex 32`), lalu buka `/settings` dan klik impor sekali.
-- ⬜ Ganti API key Hermes yang sempat tertempel di chat.
+- ✅ Produksi: `APP_SESSION_SECRET` sudah acak; key LLM diimpor ke `/settings` (terenkripsi di
+  `/data/settings`). Tes dari worker: ollama-cloud `gemma4:31b` 0,7 dtk, Hermes 0,2 dtk,
+  OpenRouter `:free` 22 dtk; Gemini/Groq belum punya key.
+- ⬜ Ganti semua key yang sempat tertempel di chat (Hermes, OpenRouter, Ollama) lalu isi yang
+  baru di `/settings`.
 - ✅ Perbaikan hasil sweep (tuning: top-5 4→8, top-10 9→13):
   - jangan buang momen saat kutipan hook tidak persis (Gemma kehilangan 9 dari 10 momen);
   - judul jangan menyalin mentah transkrip;
@@ -89,7 +105,6 @@ Dokumen rujukan:
 - ✅ Skor gabungan konsisten dengan sub-skor; rerank hanya menentukan urutan.
 - ⬜ Perbarui `LLM_PROVIDERS.md` dengan hasil sweep: model gratis vs berbayar di Ollama Cloud,
   dan kredit awal paket Free.
-- ⬜ Ganti API key OpenRouter dan Ollama yang sempat tertempel di chat.
 
 ## 4. Pemilihan klip V3
 
@@ -104,8 +119,14 @@ Dokumen rujukan:
   - fallback otomatis ke heuristik;
   - artefak `selection.v3.json`.
 - ✅ Setel ulang heuristik (tuning: top-5 17→21, top-10 30→36, jebakan 5→2).
-- ⬜ Heuristik untuk episode banter/komedi (0 hit di VINDES): perlu sinyal humor yang lebih baik.
-- ⬜ Judul pada klip pengisi dari heuristik masih menyalin transkrip mentah.
+- ✅ Heuristik v3.1: tawa tertulis untuk transkrip tanpa tag, reaksi host, label humor yang
+  lebih ketat. Tuning top-5 21→23, top-10 36→37; held-out hits sama, jebakan @5 9→6.
+- ✅ Teks hook (≤60) dan judul (≤70 karakter) heuristik dari kalimat bersih, tanpa "…":
+  dari 80 proposal tuning, elipsis 36→0 dan judul bermasalah 28→0.
+- ⬜ Heuristik untuk episode banter/komedi: VINDES tetap 0/12 setelah v3.1 (episode itu hanya
+  punya 1 tag tawa dalam 78 menit). Butuh sinyal lain (giliran bicara, tawa dari audio) dan
+  episode banter baru ber-gold untuk validasi. Sementara ini momen komedi mengandalkan LLM.
+- ⬜ Kata hasil ASR yang rusak (mis. "kuulu") masih bisa lolos ke judul heuristik.
 - ⬜ Uji end-to-end V3 di episode tanpa subtitle YouTube (Deddy × dr. Gia, jalur Whisper).
 
 ## 5. Render & kemasan klip
@@ -115,7 +136,8 @@ Dokumen rujukan:
 - ✅ Caption karaoke per kata (ASS/libass). File `.srt` unduhan sama persis dengan yang
   di-burn.
 - ✅ Kata di tepi segmen tidak lagi hilang dari caption.
-- ⬜ Thumbnail/poster tiap klip (sekarang pemutar hitam sebelum diputar).
+- ✅ Thumbnail tiap klip (`clip-XX.jpg`, frame detik ke-1, lebar 720) dipakai sebagai poster
+  video di dashboard dan halaman proyek. Job lama tetap tanpa poster.
 - ⬜ Face-track memakai active speaker (sekarang mengikuti wajah terbesar).
 
 ## 6. Pipeline & CLI
@@ -129,6 +151,8 @@ Dokumen rujukan:
 - ✅ Review adversarial dan uji end-to-end sungguhan (jalur subtitle + LLM, dan jalur Whisper
   tanpa LLM). 1.533 test Python + 361 test web lolos.
 - ⬜ Timeout render disesuaikan dengan panjang klip; batas FFmpeg 300 detik untuk klip panjang.
+- ⬜ Perkuat test berbasis waktu yang kadang gagal di runner CI:
+  `tests/test_render_worker.py::test_worker_heartbeats_during_long_render_and_prevents_reclaim`.
 
 ## 7. Web, dashboard & deploy
 
@@ -147,8 +171,11 @@ Dokumen rujukan:
 - ✅ Jalan lokal lengkap (web + worker), generate sungguhan dari dashboard: `bash
   artifacts/local/start-local.sh`, lalu buka http://127.0.0.1:3000. Video Ferry × Reza 66 menit
   selesai dalam ~2 menit (subtitle YouTube → Gemma → render 3 klip).
-- ⬜ Upgrade Next.js 16.3.3 → 16.3.6 dan React 19.2.8 → 19.3.0, lalu jalankan test dan build.
-- ⬜ `next.config`: `agentRules: false` (dev server membuat `AGENTS.md`/`CLAUDE.md` otomatis).
+- ✅ Deploy produksi 2026-09-24 lewat GitHub Actions (PR #4 dan #5): semua kontainer di image
+  `3169ab0`, `/api/health` 200.
+- ✅ Upgrade Next.js 16.3.3 → 16.3.6 (perbaikan RCE `next/og`) dan React 19.2.8 → 19.3.0; test
+  dan build lolos, image Docker memakai versi baru.
+- ✅ `next.config`: `agentRules: false` (dev server tidak lagi membuat `AGENTS.md`/`CLAUDE.md`).
 - ⬜ Backfill job dashboard lama yang artefaknya tersangkut sebelum perbaikan.
 - ⬜ `.env.example`: tambahkan `JOBS_STORAGE_*`; README: port 8100 vs 3000.
 
@@ -211,6 +238,7 @@ Keputusan: esensial dulu, lalu bertahap. Desain final ada di scratchpad sesi
 
 ## 10. Rilis & operasional
 
-- ⬜ Review kode akhir menyeluruh (bug, keamanan, performa) sebelum commit.
-- ⬜ Commit bertahap dan PR ke `main` (menunggu persetujuan pemilik).
-- ⬜ Rollout: V3 jadi default di produksi setelah benchmark final dan uji di server.
+- ✅ Review kode akhir (bug, keamanan, performa) dan uji integrasi sebelum commit.
+- ✅ Commit bertahap dan PR ke `main` (PR #4 Selection V3 + Pengaturan AI, PR #5 CI).
+- ✅ Rollout: V3 default di produksi (2026-09-24).
+- ⬜ Ganti password SSH VM dan pindah ke login dengan SSH key.
