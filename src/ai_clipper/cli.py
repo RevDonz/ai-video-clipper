@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import sys
 from collections.abc import Callable, Sequence
 from pathlib import Path
@@ -26,7 +27,13 @@ from .pipeline import (
 from .ranking import MAX_RANKING_INPUTS
 from .render import HOOK_DURATION_MAX_SECONDS, RENDER_MODES
 from .selection_v3 import LLM_MODES
-from .transcribe import load_whisper_model
+from .transcribe import (
+    ENV_CONDITION_ON_PREVIOUS_TEXT,
+    ENV_INITIAL_PROMPT,
+    ENV_PROMPT_EVERY_WINDOW,
+    load_whisper_model,
+    whisper_decoding_from_env,
+)
 
 
 def _bounded_int(name: str, maximum: int):
@@ -160,6 +167,31 @@ def build_parser() -> argparse.ArgumentParser:
         default=True,
         help="ask Whisper for word timestamps (default: on)",
     )
+    parser.add_argument(
+        "--initial-prompt",
+        help=(
+            f"Whisper style prompt, 'off' for none (default: ${ENV_INITIAL_PROMPT} "
+            "or a short punctuated casual Indonesian prompt)"
+        ),
+    )
+    parser.add_argument(
+        "--condition-on-previous-text",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help=(
+            "let Whisper condition each window on the previous text "
+            f"(default: ${ENV_CONDITION_ON_PREVIOUS_TEXT} or off)"
+        ),
+    )
+    parser.add_argument(
+        "--prompt-every-window",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help=(
+            "put the prompt in front of every 30 s window, not only the first "
+            f"(default: ${ENV_PROMPT_EVERY_WINDOW} or on)"
+        ),
+    )
     return parser
 
 
@@ -170,12 +202,18 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     try:
+        decoding = whisper_decoding_from_env(
+            os.environ,
+            initial_prompt=args.initial_prompt,
+            condition_on_previous_text=args.condition_on_previous_text,
+            prompt_every_window=args.prompt_every_window,
+        )
         if args.selection_mode == SelectionMode.V3.value:
             model: Any = _LazyWhisperModel(
-                lambda: load_whisper_model(args.model, device=args.device)
+                lambda: load_whisper_model(args.model, device=args.device, decoding=decoding)
             )
         else:
-            model = load_whisper_model(args.model, device=args.device)
+            model = load_whisper_model(args.model, device=args.device, decoding=decoding)
 
         def emit_progress(stage: str, progress: int, detail: str) -> None:
             payload = json.dumps(

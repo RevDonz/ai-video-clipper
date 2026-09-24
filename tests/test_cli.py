@@ -4,6 +4,20 @@ import pytest
 
 from ai_clipper import cli
 from ai_clipper.cli import parse_args
+from ai_clipper.transcribe import (
+    ENV_CONDITION_ON_PREVIOUS_TEXT,
+    ENV_INITIAL_PROMPT,
+    ENV_PROMPT_EVERY_WINDOW,
+    WhisperDecoding,
+)
+
+
+@pytest.fixture(autouse=True)
+def _no_whisper_env(monkeypatch):
+    """The developer's shell must not leak Whisper decoding settings into these tests."""
+    monkeypatch.delenv(ENV_INITIAL_PROMPT, raising=False)
+    monkeypatch.delenv(ENV_CONDITION_ON_PREVIOUS_TEXT, raising=False)
+    monkeypatch.delenv(ENV_PROMPT_EVERY_WINDOW, raising=False)
 
 
 def test_cli_parses_source_and_processing_options():
@@ -243,7 +257,7 @@ def test_cli_legacy_web_v1_command_keeps_v1_defaults(monkeypatch, tmp_path: Path
 
     assert cli.main(WEB_V1_ARGS) == 0
 
-    assert loaded == [(("small",), {"device": "cpu"})]
+    assert loaded == [(("small",), {"device": "cpu", "decoding": WhisperDecoding()})]
     assert received["model"] == "M"
     assert received["args"] == (Path("/data/jobs/j/input/source.mp4"), Path("/data/jobs/j/output"))
     assert received["artifact_root"] == Path("/data/jobs/j")
@@ -279,7 +293,7 @@ def test_cli_forwards_web_v3_command_and_loads_whisper_lazily(monkeypatch, tmp_p
     model = received["model"]
     assert model.transcribe("a.mp4", language="id") == ("segments", "a.mp4", {"language": "id"})
     model.transcribe("b.mp4")
-    assert loaded == [(("small",), {"device": "cpu"})]
+    assert loaded == [(("small",), {"device": "cpu", "decoding": WhisperDecoding()})]
 
 
 def test_cli_reports_llm_errors_without_traceback(monkeypatch, capsys):
@@ -294,3 +308,99 @@ def test_cli_reports_llm_errors_without_traceback(monkeypatch, capsys):
 
     assert cli.main(["video.mp4", "--selection-mode", "v3", "--llm", "required"]) == 1
     assert "Error: not_configured: LLM belum dikonfigurasi." in capsys.readouterr().err
+
+
+# --- Whisper decoding (docs/operations/TRANSCRIPTION.md) ------------------------------------
+
+
+def test_cli_whisper_decoding_flags_default_to_the_environment():
+    args = parse_args(["video.mp4"])
+    assert args.initial_prompt is None
+    assert args.condition_on_previous_text is None
+    assert args.prompt_every_window is None
+
+
+@pytest.mark.parametrize(
+    ("arguments", "expected"),
+    [
+        (["--initial-prompt", "Halo, apa kabar?"], {"initial_prompt": "Halo, apa kabar?"}),
+        (["--initial-prompt", "off"], {"initial_prompt": "off"}),
+        (["--condition-on-previous-text"], {"condition_on_previous_text": True}),
+        (["--no-condition-on-previous-text"], {"condition_on_previous_text": False}),
+        (["--prompt-every-window"], {"prompt_every_window": True}),
+        (["--no-prompt-every-window"], {"prompt_every_window": False}),
+    ],
+)
+def test_cli_parses_whisper_decoding_flags(arguments: list[str], expected: dict):
+    args = parse_args(["video.mp4", *arguments])
+    assert {name: getattr(args, name) for name in expected} == expected
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [["--initial-prompt"], ["--condition-on-previous-text=yes"], ["--prompt-every-window=0"]],
+)
+def test_cli_rejects_invalid_whisper_decoding_flags(arguments: list[str]):
+    with pytest.raises(SystemExit, match="2"):
+        parse_args(["video.mp4", *arguments])
+
+
+@pytest.mark.parametrize("extra", [[], ["--selection-mode", "v3"]])
+def test_cli_loads_whisper_with_env_decoding_and_flags_win(monkeypatch, tmp_path, extra):
+    loaded = []
+
+    class Model:
+        def transcribe(self, source, **options):
+            return None
+
+    monkeypatch.setattr(cli, "load_whisper_model", lambda *a, **k: loaded.append((a, k)) or Model())
+    received = _capture_pipeline(monkeypatch, tmp_path)
+    monkeypatch.setenv(ENV_INITIAL_PROMPT, "  Dari env,\n ya? ")
+    monkeypatch.setenv(ENV_CONDITION_ON_PREVIOUS_TEXT, "1")
+    monkeypatch.setenv(ENV_PROMPT_EVERY_WINDOW, "no")
+
+    assert cli.main(["video.mp4", "--model", "large-v3-turbo", *extra]) == 0
+    received["model"].transcribe("a.mp4")
+    assert loaded[-1] == (
+        ("large-v3-turbo",),
+        {"device": "cpu", "decoding": WhisperDecoding("Dari env, ya?", True, False)},
+    )
+
+    command = [
+        "video.mp4",
+        "--initial-prompt", "off",
+        "--no-condition-on-previous-text",
+        "--prompt-every-window",
+        *extra,
+    ]  # fmt: skip
+    assert cli.main(command) == 0
+    received["model"].transcribe("a.mp4")
+    assert loaded[-1][1]["decoding"] == WhisperDecoding(None, False, True)
+
+
+@pytest.mark.parametrize(
+    ("variable", "value", "argv"),
+    [
+        (ENV_CONDITION_ON_PREVIOUS_TEXT, "kadang-kadang", []),
+        (ENV_PROMPT_EVERY_WINDOW, "kadang-kadang", []),
+        (ENV_INITIAL_PROMPT, "rahasia " * 100, []),
+        (ENV_INITIAL_PROMPT, "", ["--initial-prompt", "rahasia\x07"]),
+    ],
+    ids=["env-condition", "env-every-window", "env-long-prompt", "flag-control-character"],
+)
+def test_cli_rejects_invalid_whisper_decoding_before_any_work(
+    monkeypatch, capsys, variable, value, argv
+):
+    calls = []
+    monkeypatch.setattr(cli, "load_whisper_model", lambda *a, **k: calls.append("load"))
+    monkeypatch.setattr(cli, "run_pipeline", lambda *a, **k: calls.append("pipeline"))
+    monkeypatch.setenv(variable, value)
+
+    assert cli.main(["video.mp4", *argv]) == 1
+
+    err = capsys.readouterr().err
+    assert err.startswith("Error: ")
+    assert "WHISPER_" in err or "--initial-prompt" in err
+    assert "rahasia" not in err and "kadang" not in err
+    assert "Traceback" not in err
+    assert calls == []
