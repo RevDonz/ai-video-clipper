@@ -281,6 +281,9 @@ test("an authenticated delete of a finished project removes it within the reques
 test("deleting a running project answers before the bytes are gone", async (t) => {
   const root = await jobsRoot(t);
   const job = runningJob();
+  // The route reads the wall clock, not the fixed NOW above, so the lease must be
+  // live in real time or the immediate purge (correctly) reclaims the job.
+  job.queue.lease.expiresAt = new Date(Date.now() + 45_000).toISOString();
   const jobRoot = await writeJob(root, job);
 
   const response = await callDelete(root, job.id);

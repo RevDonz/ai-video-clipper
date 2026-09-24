@@ -666,6 +666,48 @@ export async function withFencedLease({ jobsRoot, id, token }, callback) {
   } finally { await release(); }
 }
 
+const ATTEMPT_MARKER = ".attempt-owner.json";
+
+// False when absent; a QueueStateError unless it is a real directory at its canonical path.
+async function plainDirectory(target, message) {
+  let info;
+  try { info = await lstat(target); } catch (error) { if (error.code === "ENOENT") return false; throw error; }
+  if (info.isSymbolicLink() || !info.isDirectory() || await realpath(target) !== target) throw new QueueStateError(message);
+  return true;
+}
+
+async function assertPlainFile(target, message) {
+  let info;
+  try { info = await lstat(target); } catch (error) { throw new QueueStateError(message, { cause: error }); }
+  if (info.isSymbolicLink() || !info.isFile() || await realpath(target) !== target) throw new QueueStateError(message);
+}
+
+// "absent", "ours" (stamped by this lease), or "foreign" (another attempt, or no marker at all).
+async function publishedOwner(target, name, id, ownerHash) {
+  if (!await plainDirectory(target, `Unsafe published ${name} directory`)) return "absent";
+  let marker;
+  try { marker = await readNoFollowJson(path.join(target, ATTEMPT_MARKER)); }
+  catch (error) {
+    if (error.code === "ENOENT") return "foreign";
+    throw new QueueStateError(`Unsafe published ${name} ownership marker`, { cause: error });
+  }
+  return marker?.version === 1 && marker.id === id && marker.tokenHash === ownerHash ? "ours" : "foreign";
+}
+
+// Foreign bytes are moved aside, never deleted; an empty directory holds nothing to keep.
+async function retirePublished(target, attemptsRoot, name) {
+  try { await rmdir(target); return; }
+  catch (error) { if (error.code !== "ENOTEMPTY" && error.code !== "EEXIST") throw error; }
+  await rename(target, path.join(attemptsRoot, `orphan.${name}.${crypto.randomUUID()}`));
+}
+
+// An attempt stages everything under .attempts/<attempt>/ and is published here,
+// under the queue lock and only while it still owns the lease: analysis/ whenever
+// the pipeline wrote one, input/ for a YouTube download (sourcePath is rewritten
+// to the published file), and output/. Every directory is validated and stamped
+// with the owner marker before the first rename, a directory already stamped by
+// this lease is left in place (re-publication after a crash is idempotent), and
+// job.json is the commit point, written last. Legacy jobs never come through here.
 export async function publishAttemptAndComplete({ jobsRoot, id, token, attemptOutput, patch, now = Date.now() }) {
   if (!UUID.test(id || "") || typeof token !== "string" || patch?.status !== "completed") {
     throw new QueueStateError("Attempt publication requires a valid completed claim");
@@ -680,34 +722,64 @@ export async function publishAttemptAndComplete({ jobsRoot, id, token, attemptOu
     if (current.queue?.version !== 1 || current.queue.lease?.tokenHash !== ownerHash) throw new LeaseLostError();
 
     const attemptsRoot = path.join(jobRoot, ".attempts");
-    const staged = path.resolve(attemptOutput);
-    if (!contained(attemptsRoot, staged) || path.basename(staged) !== "output") throw new QueueStateError("Unsafe attempt output path");
-    const stagedInfo = await lstat(staged);
-    if (stagedInfo.isSymbolicLink() || !stagedInfo.isDirectory() || await realpath(staged) !== staged) throw new QueueStateError("Unsafe attempt output directory");
-    await durableWriteJson(path.join(staged, ".attempt-owner.json"), { version: 1, id, tokenHash: ownerHash });
-    await syncDirectory(staged);
+    const stagedOutput = path.resolve(attemptOutput);
+    const attemptRoot = path.dirname(stagedOutput);
+    if (path.basename(stagedOutput) !== "output" || path.dirname(attemptRoot) !== attemptsRoot) throw new QueueStateError("Unsafe attempt output path");
+    if (!await plainDirectory(attemptsRoot, "Unsafe attempts directory") || !await plainDirectory(attemptRoot, "Unsafe attempt directory")) {
+      throw new QueueStateError("Attempt output is missing");
+    }
 
-    const output = path.join(jobRoot, "output");
-    let alreadyPublished = false;
-    try {
-      const outputInfo = await lstat(output);
-      if (outputInfo.isSymbolicLink() || !outputInfo.isDirectory() || await realpath(output) !== output) throw new QueueStateError("Unsafe published output directory");
-      const marker = await readNoFollowJson(path.join(output, ".attempt-owner.json"));
-      alreadyPublished = marker.version === 1 && marker.id === id && marker.tokenHash === ownerHash;
-      if (!alreadyPublished) {
-        const orphan = path.join(attemptsRoot, `orphan.${crypto.randomUUID()}`);
-        await rename(output, orphan);
-        await syncDirectory(attemptsRoot);
+    const entries = [{ name: "analysis", required: false }];
+    const stagedInput = path.join(attemptRoot, "input");
+    const stagedSource = typeof current.sourcePath === "string" ? path.resolve(current.sourcePath) : null;
+    let sourcePath;
+    if (current.source?.type === "youtube" && stagedSource && stagedSource !== stagedInput && contained(stagedInput, stagedSource)) {
+      entries.push({ name: "input", required: true });
+      sourcePath = path.join(jobRoot, "input", path.relative(stagedInput, stagedSource));
+    }
+    entries.push({ name: "output", required: true });
+
+    for (const entry of entries) {
+      entry.staged = path.join(attemptRoot, entry.name);
+      entry.published = path.join(jobRoot, entry.name);
+      entry.hasStaged = await plainDirectory(entry.staged, `Unsafe attempt ${entry.name} directory`);
+      entry.owner = await publishedOwner(entry.published, entry.name, id, ownerHash);
+      if (entry.required && !entry.hasStaged && entry.owner !== "ours") throw new QueueStateError(`Attempt ${entry.name} is missing`);
+    }
+    if (sourcePath !== undefined) {
+      const input = entries.find((entry) => entry.name === "input");
+      await assertPlainFile(input.owner === "ours" ? sourcePath : stagedSource, "Unsafe attempt source file");
+    }
+
+    for (const entry of entries) {
+      if (entry.hasStaged && entry.owner !== "ours") {
+        await durableWriteJson(path.join(entry.staged, ATTEMPT_MARKER), { version: 1, id, tokenHash: ownerHash });
       }
-    } catch (error) {
-      if (error.code !== "ENOENT") throw error;
-    }
-    if (!alreadyPublished) {
-      await rename(staged, output);
-      await syncDirectory(jobRoot);
     }
 
-    const next = { ...current, ...patch, queue: { version: 1, attempts: queueAttempts(current) }, updatedAt: new Date(now).toISOString() };
+    let retired = false;
+    let moved = false;
+    for (const entry of entries) {
+      if (entry.owner === "ours") continue;
+      // Analysis without a staged successor is retired too, so every published
+      // artifact comes from the attempt that completes the job.
+      if (entry.owner === "foreign") {
+        await retirePublished(entry.published, attemptsRoot, entry.name);
+        retired = true;
+      }
+      if (entry.hasStaged) {
+        await rename(entry.staged, entry.published);
+        moved = true;
+      }
+    }
+    if (retired) await syncDirectory(attemptsRoot);
+    if (moved) await syncDirectory(attemptRoot);
+    if (retired || moved) await syncDirectory(jobRoot);
+
+    const next = {
+      ...current, ...patch, ...(sourcePath === undefined ? {} : { sourcePath }),
+      queue: { version: 1, attempts: queueAttempts(current) }, updatedAt: new Date(now).toISOString(),
+    };
     await durableWriteJson(path.join(jobRoot, "job.json"), next);
     return next;
   } finally { await release(); }

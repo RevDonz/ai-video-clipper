@@ -21,6 +21,15 @@ import {
 } from "../lib/candidate-feedback.mjs";
 
 const execFile = promisify(execFileCallback);
+
+// Same default as the caption-cues and edit-document suites: the repository venv,
+// unless CI or the developer names an interpreter. A bare "python" is often absent
+// (Debian/Ubuntu ship only python3), which turns validator results into 503s.
+function configuredPython() {
+  const value = process.env.PYTHON_BIN || "../.venv/bin/python";
+  return value.includes(path.sep) ? path.resolve(value) : value;
+}
+
 const JOB_ID = "123e4567-e89b-42d3-a456-426614174000";
 const OTHER_ID = "223e4567-e89b-42d3-a456-426614174000";
 const CANDIDATE_ID = `cand_${"a".repeat(64)}`;
@@ -75,7 +84,7 @@ function request(root, method = "GET", id = JOB_ID, value = undefined, authentic
 async function invoke(root, method, { id = JOB_ID, value, authenticated = true, origin = "http://local" } = {}) {
   const previous = {};
   for (const name of ["JOBS_ROOT", "PYTHON_BIN", ...Object.keys(AUTH_ENV)]) previous[name] = process.env[name];
-  Object.assign(process.env, AUTH_ENV, { JOBS_ROOT: root, PYTHON_BIN: process.env.PYTHON_BIN || "python" });
+  Object.assign(process.env, AUTH_ENV, { JOBS_ROOT: root, PYTHON_BIN: configuredPython() });
   try {
     const handler = method === "GET" ? GET : PUT;
     return await handler(request(root, method, id, value, authenticated, origin), { params: Promise.resolve({ id }) });
@@ -246,8 +255,7 @@ test("route authentication, UUID, body bounds, missing artifact, invalid artifac
 });
 
 test("real Python GET/PUT integration is append-only and idempotent", async (t) => {
-  const configuredPython = process.env.PYTHON_BIN || "python";
-  const python = configuredPython.includes(path.sep) ? path.resolve(configuredPython) : configuredPython;
+  const python = configuredPython();
   try {
     await execFile(python, ["-c", "import ai_clipper.candidate_feedback"]);
   } catch {
