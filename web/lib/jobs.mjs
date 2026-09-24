@@ -1,6 +1,8 @@
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+import { CLIP_THUMBNAIL_URL } from "./selection-v3-view.mjs";
+
 export const RENDER_MODES = ["face-track", "fit-blur", "center-crop"];
 export const SELECTION_MODES = ["v1", "v2-shadow", "v3"];
 export const CLIP_PROFILES = ["viral-short", "standard", "deep-dive"];
@@ -531,12 +533,40 @@ export function sanitizeManifestClipFields(raw) {
   return sanitizeV3ClipFields(raw, MANIFEST_V3_NAMES, CLIP_TEXT_LIMITS.description);
 }
 
+// --- Clip posters ---------------------------------------------------------
+
+// The engine writes each poster beside its clip: clip-01.mp4 -> clip-01.jpg.
+const THUMBNAIL_FILE = /^clip-\d{1,4}\.jpg$/;
+const MAX_MANIFEST_PATH = 4096;
+export const MAX_THUMBNAIL_BYTES = 8 * 1024 * 1024;
+
+/** The poster file name from a manifest clip's `thumbnail` path, or null when it is not a clip poster. */
+export function manifestThumbnailName(value) {
+  if (typeof value !== "string" || value.length > MAX_MANIFEST_PATH || value.includes("\0")) return null;
+  const name = path.basename(value);
+  return THUMBNAIL_FILE.test(name) ? name : null;
+}
+
+export function clipThumbnailUrl(jobId, name) {
+  return `/api/jobs/${jobId}/files/output/${name}`;
+}
+
+function isOwnThumbnailUrl(value, jobId) {
+  const match = typeof value === "string" ? CLIP_THUMBNAIL_URL.exec(value) : null;
+  return Boolean(match) && (jobId === undefined || match[1] === jobId);
+}
+
 /**
  * Re-validates a persisted clip before it is served. Clips without any V3
- * field (every job created before Selection V3) are returned untouched.
+ * field (every job created before Selection V3) are returned untouched,
+ * except that a poster URL is only kept when it names this job's clip-XX.jpg.
  */
-export function sanitizeStoredClip(clip) {
+export function sanitizeStoredClip(clip, jobId) {
   if (!clip || typeof clip !== "object" || Array.isArray(clip)) return clip;
+  if ("thumbnailUrl" in clip && !isOwnThumbnailUrl(clip.thumbnailUrl, jobId)) {
+    const { thumbnailUrl: _unsafe, ...rest } = clip;
+    clip = rest;
+  }
   if (!JOB_V3_ONLY_KEYS.some((key) => clip[key] !== undefined)) return clip;
   const rest = { ...clip };
   for (const key of [...JOB_V3_ONLY_KEYS]) delete rest[key];
@@ -628,7 +658,7 @@ export function serializePublicJob(job) {
     : { selectionMode: "v1" };
   const selectionV2 = sanitizeSelectionV2Summary(rawSelectionV2);
   const selectionV3 = sanitizeSelectionV3Summary(rawSelectionV3);
-  if (Array.isArray(safe.clips)) safe.clips = safe.clips.map(sanitizeStoredClip);
+  if (Array.isArray(safe.clips)) safe.clips = safe.clips.map((clip) => sanitizeStoredClip(clip, safe.id));
   return enrichJobSocialMetadata({
     ...safe,
     options,

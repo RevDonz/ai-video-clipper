@@ -18,6 +18,7 @@ const TYPES = new Map([
   [".mp4", "video/mp4"],
   [".srt", "application/x-subrip; charset=utf-8"],
   [".json", "application/json; charset=utf-8"],
+  [".jpg", "image/jpeg"],
 ]);
 
 export class FinalFileNotFoundError extends Error {}

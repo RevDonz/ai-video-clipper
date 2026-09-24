@@ -60,6 +60,7 @@ CLIP_KEYS = {
     "cold_open",
     "source_start",
     "source_end",
+    "thumbnail",
 }
 SCORES = {"hook": 8.0, "standalone": 7.0, "payoff": 6.0, "emotion": 5.0, "shareability": 4.0}
 
@@ -213,6 +214,7 @@ def env(monkeypatch, tmp_path: Path):
         source=tmp_path / "input" / "source.mp4",
         job=tmp_path / "job",
         renders=[],
+        thumbnails=[],
         audio_calls=[],
         llm_factory_calls=[],
         progress=[],
@@ -240,6 +242,12 @@ def env(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(
         pipeline_module, "render_vertical", lambda *args, **kwargs: state.renders.append(kwargs)
     )
+
+    def thumbnail(clip, *, duration):
+        state.thumbnails.append((clip, duration))
+        return clip.with_suffix(".jpg")
+
+    monkeypatch.setattr(pipeline_module, "write_clip_thumbnail", thumbnail)
     return state
 
 
@@ -323,6 +331,9 @@ def assert_web_clip(clip: dict) -> None:
     assert all(0 <= value <= 10 for value in clip["scores"].values())
     assert 0 <= clip["score"] <= 10
     assert clip["source_start"] == clip["start"] and clip["source_end"] == clip["end"]
+    assert clip["thumbnail"] is None or clip["thumbnail"] == str(
+        Path(clip["output"]).with_suffix(".jpg")
+    )
     main = clip["end"] - clip["start"]
     teaser = clip["cold_open"]
     if teaser is None:
@@ -759,6 +770,11 @@ def test_real_selection_renders_packaged_clips_with_full_manifest(env):
         assert clip["index"] == index
         assert clip["output"] == str(env.output.resolve() / f"clip-{index:02d}.mp4")
         assert clip["subtitles"] == str(env.output.resolve() / f"clip-{index:02d}.srt")
+        assert clip["thumbnail"] == str(env.output.resolve() / f"clip-{index:02d}.jpg")
+        assert env.thumbnails[index - 1] == (
+            Path(clip["output"]),
+            pytest.approx(clip["duration"], abs=1e-3),
+        )
         assert (clip["start"], clip["end"]) == (chosen.start, chosen.end)
         assert render["start"] == chosen.start and render["end"] == chosen.end
         assert render["cold_open"] == chosen.cold_open
@@ -799,6 +815,7 @@ def test_manifest_maps_every_clip_field_and_cold_open_duration(env, monkeypatch)
     assert second["archetype"] == "practical_tip"
     assert env.renders[0]["cold_open"] == (118.2, 121.7)
     assert env.renders[0]["hook_duration"] == 2.5
+    assert [duration for _clip, duration in env.thumbnails] == [pytest.approx(34.0), 25.0]
 
 
 def test_cold_open_and_hook_overlay_can_be_disabled(env, monkeypatch):
@@ -927,6 +944,55 @@ def test_render_failure_publishes_failed_summary(env, monkeypatch):
     assert_web_summary(summary)
 
 
+@pytest.mark.parametrize("mode", ["v3", "v1"])
+def test_thumbnail_failure_keeps_the_clip_without_a_poster(env, monkeypatch, mode):
+    monkeypatch.setattr(
+        pipeline_module,
+        "select_clips_v3",
+        lambda *a, **k: result(selected(1, 100.0, 130.0), selected(2, 200.0, 230.0)),
+    )
+    calls = []
+
+    def flaky(clip, *, duration):
+        calls.append(clip.name)
+        if clip.name == "clip-01.mp4":
+            raise pipeline_module.ThumbnailError("FFmpeg thumbnail failed")
+        return clip.with_suffix(".jpg")
+
+    monkeypatch.setattr(pipeline_module, "write_clip_thumbnail", flaky)
+
+    manifest = manifest_of(run(env, selection_mode=mode, max_duration=60.0, limit=2))
+
+    assert manifest["status"] == "completed"
+    first, second = manifest["clips"]
+    assert second["thumbnail"] == str(env.output.resolve() / "clip-02.jpg")
+    assert calls == ["clip-01.mp4", "clip-02.mp4"]
+    if mode == "v3":
+        assert first["thumbnail"] is None  # every V3 field is always present
+        assert "thumbnail_failed:1" in manifest["selection_v3"]["warnings"]
+        assert_web_summary(manifest["selection_v3"])
+    else:
+        assert "thumbnail" not in first  # the historical V1 clip shape
+        assert "selection_v3" not in manifest
+
+
+def test_unexpected_thumbnail_errors_still_fail_the_job(env, monkeypatch):
+    monkeypatch.setattr(
+        pipeline_module, "select_clips_v3", lambda *a, **k: result(selected(1, 100.0, 130.0))
+    )
+
+    def broken(clip, *, duration):
+        raise TypeError("programming error")
+
+    monkeypatch.setattr(pipeline_module, "write_clip_thumbnail", broken)
+
+    with pytest.raises(TypeError):
+        run(env)
+
+    summary = manifest_of(env.output / "manifest.json")["selection_v3"]
+    assert summary["warnings"][0] == "pipeline_failed:rendering"
+
+
 def test_v3_progress_stage_order_with_whisper_and_llm(env, monkeypatch):
     env.llm_client = ScriptedLLMClient([])  # exhausted -> auto fallback, still the LLM stage
     manifest = manifest_of(run(env, llm_mode="auto"))
@@ -999,6 +1065,193 @@ def test_v3_renders_real_clips_with_ffmpeg(tmp_path: Path, monkeypatch):
     assert float(rendered) == pytest.approx(clip["duration"], abs=0.25)
     assert Path(clip["subtitles"]).read_text(encoding="utf-8").startswith("1\n")
     assert (tmp_path / "job" / "analysis" / "audio-timeline.json").is_file()
+    thumbnail = Path(clip["thumbnail"])
+    assert thumbnail == Path(clip["output"]).with_suffix(".jpg")
+    assert thumbnail.read_bytes()[:3] == b"\xff\xd8\xff"
+    assert jpeg_size(thumbnail) == (180, 320)  # never upscaled past the rendered width
+
+
+# --- thumbnails -------------------------------------------------------------------------------
+
+needs_ffmpeg = pytest.mark.skipif(
+    shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None, reason="needs FFmpeg"
+)
+
+
+def make_clip(path: Path, *, seconds: float, size: str = "180x320", blue_after: float = 0.8):
+    """A red clip that turns blue after ``blue_after`` seconds, with an audio track."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        ["ffmpeg", "-y", "-v", "error", "-f", "lavfi",
+         "-i", f"color=c=red:size={size}:rate=12:duration={seconds}",
+         "-f", "lavfi", "-i", f"sine=frequency=440:duration={seconds}",
+         "-vf", f"drawbox=x=0:y=0:w=iw:h=ih:color=blue:t=fill:enable='gte(t,{blue_after})'",
+         "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac",
+         "-shortest", str(path)],
+        check=True,
+        capture_output=True,
+    )  # fmt: skip
+    return path
+
+
+def jpeg_size(path: Path) -> tuple[int, int]:
+    probed = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "stream=codec_name,width,height",
+         "-of", "json", str(path)],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout  # fmt: skip
+    (stream,) = json.loads(probed)["streams"]
+    assert stream["codec_name"] == "mjpeg"
+    return stream["width"], stream["height"]
+
+
+def dominant_color(path: Path) -> str:
+    red, _green, blue = subprocess.run(
+        ["ffmpeg", "-v", "error", "-i", str(path), "-vf", "scale=1:1:flags=area,format=rgb24",
+         "-f", "rawvideo", "-"],
+        check=True,
+        capture_output=True,
+    ).stdout[:3]  # fmt: skip
+    return "red" if red > blue else "blue"
+
+
+def leftovers(directory: Path) -> list[str]:
+    return sorted(path.name for path in directory.iterdir() if path.name.startswith("."))
+
+
+@pytest.mark.parametrize(
+    ("duration", "expected"),
+    [(20.0, 1.0), (2.0, 1.0), (1.99, 0.3), (1.0, 0.3), (0.4, 0.2), (0.0, 0.0)],
+)
+def test_thumbnail_time_shows_the_hook_but_stays_inside_short_clips(duration, expected):
+    assert pipeline_module.thumbnail_time(duration) == pytest.approx(expected)
+
+
+@pytest.mark.parametrize("duration", [float("nan"), float("inf"), -1.0, True, "2"])
+def test_thumbnail_rejects_invalid_durations(tmp_path: Path, duration):
+    with pytest.raises((TypeError, ValueError)):
+        pipeline_module.write_clip_thumbnail(tmp_path / "clip-01.mp4", duration=duration)
+
+
+@needs_ffmpeg
+def test_thumbnail_is_a_720_wide_jpeg_taken_after_the_first_second(tmp_path: Path):
+    clip = make_clip(tmp_path / "output" / "clip-01.mp4", seconds=3.0, size="1080x1920")
+
+    thumbnail = pipeline_module.write_clip_thumbnail(clip, duration=3.0)
+
+    assert thumbnail == clip.with_suffix(".jpg")
+    data = thumbnail.read_bytes()
+    assert data[:3] == b"\xff\xd8\xff" and data[-2:] == b"\xff\xd9"
+    assert jpeg_size(thumbnail) == (720, 1280)
+    assert dominant_color(thumbnail) == "blue"  # 1.0 s, past the red first 0.8 s
+    assert thumbnail.stat().st_mode & 0o777 == 0o600
+    assert leftovers(clip.parent) == []
+
+
+@needs_ffmpeg
+def test_short_clip_thumbnail_is_taken_early(tmp_path: Path):
+    clip = make_clip(tmp_path / "clip-01.mp4", seconds=1.5)
+
+    thumbnail = pipeline_module.write_clip_thumbnail(clip, duration=1.5)
+
+    assert dominant_color(thumbnail) == "red"  # 0.3 s
+    assert jpeg_size(thumbnail) == (180, 320)
+
+
+@needs_ffmpeg
+def test_thumbnail_never_clobbers_an_existing_file_or_symlink(tmp_path: Path):
+    clip = make_clip(tmp_path / "clip-01.mp4", seconds=2.0)
+    existing = clip.with_suffix(".jpg")
+    existing.write_bytes(b"keep me")
+
+    with pytest.raises(pipeline_module.ThumbnailError, match="already exists"):
+        pipeline_module.write_clip_thumbnail(clip, duration=2.0)
+
+    assert existing.read_bytes() == b"keep me"
+    existing.unlink()
+    victim = tmp_path / "victim.txt"
+    victim.write_text("secret")
+    existing.symlink_to(victim)
+
+    with pytest.raises(pipeline_module.ThumbnailError):
+        pipeline_module.write_clip_thumbnail(clip, duration=2.0)
+
+    assert victim.read_text() == "secret" and existing.is_symlink()
+    assert leftovers(tmp_path) == []
+
+
+@needs_ffmpeg
+def test_thumbnail_refuses_a_symlinked_clip_or_directory(tmp_path: Path):
+    real = make_clip(tmp_path / "real" / "clip-01.mp4", seconds=2.0)
+    linked_clip = tmp_path / "out" / "clip-01.mp4"
+    linked_clip.parent.mkdir()
+    linked_clip.symlink_to(real)
+    (tmp_path / "linked-dir").symlink_to(real.parent)
+
+    for clip in (linked_clip, tmp_path / "linked-dir" / "clip-01.mp4"):
+        with pytest.raises(pipeline_module.ThumbnailError):
+            pipeline_module.write_clip_thumbnail(clip, duration=2.0)
+
+    assert not (tmp_path / "out" / "clip-01.jpg").exists()
+    assert not (real.parent / "clip-01.jpg").exists()
+
+
+@needs_ffmpeg
+def test_thumbnail_errors_are_sanitized_and_leave_nothing_behind(tmp_path: Path):
+    secret_dir = tmp_path / "rahasia-klien"
+    secret_dir.mkdir()
+    clip = secret_dir / "clip-01.mp4"
+    clip.write_bytes(b"not a video at all")
+
+    with pytest.raises(pipeline_module.ThumbnailError) as caught:
+        pipeline_module.write_clip_thumbnail(clip, duration=20.0)
+
+    assert "rahasia" not in str(caught.value) and str(caught.value) == "FFmpeg thumbnail failed"
+    assert not clip.with_suffix(".jpg").exists()
+    assert leftovers(secret_dir) == []
+    with pytest.raises(pipeline_module.ThumbnailError, match="clip is missing"):
+        pipeline_module.write_clip_thumbnail(secret_dir / "clip-02.mp4", duration=20.0)
+
+
+def test_thumbnail_timeout_is_reported_without_leftovers(tmp_path: Path, monkeypatch):
+    clip = tmp_path / "clip-01.mp4"
+    clip.write_bytes(b"video")
+
+    def slow(command, **options):
+        raise subprocess.TimeoutExpired(command, options["timeout"])
+
+    monkeypatch.setattr(pipeline_module.subprocess, "run", slow)
+
+    with pytest.raises(pipeline_module.ThumbnailError, match="timed out"):
+        pipeline_module.write_clip_thumbnail(clip, duration=20.0)
+
+    assert leftovers(tmp_path) == [] and not clip.with_suffix(".jpg").exists()
+
+
+def test_thumbnail_rejects_output_that_is_not_a_jpeg(tmp_path: Path, monkeypatch):
+    clip = tmp_path / "clip-01.mp4"
+    clip.write_bytes(b"video")
+    commands = []
+
+    def fake(command, **options):
+        commands.append(command)
+        fd = int(command[-1].rsplit("/", 1)[1])
+        os.write(fd, b"GIF89a not a jpeg")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(pipeline_module.subprocess, "run", fake)
+
+    with pytest.raises(pipeline_module.ThumbnailError, match="not a JPEG"):
+        pipeline_module.write_clip_thumbnail(clip, duration=20.0)
+
+    assert leftovers(tmp_path) == [] and not clip.with_suffix(".jpg").exists()
+    (command,) = commands
+    assert command[command.index("-ss") + 1] == "1.000"
+    assert command[command.index("-q:v") + 1] == "4"
+    assert command[command.index("-frames:v") + 1] == "1"
+    assert all(str(tmp_path) not in part for part in command)  # fds only, never paths
 
 
 # --- V1 stays V1 ------------------------------------------------------------------------------
@@ -1033,7 +1286,13 @@ def test_v1_never_touches_v3_stages_and_writes_strict_transcript(env, monkeypatc
         "text",
         "output",
         "subtitles",
+        "thumbnail",
     }
+    assert manifest["clips"][0]["thumbnail"] == str(env.output.resolve() / "clip-01.jpg")
+    assert env.thumbnails[0] == (
+        Path(manifest["clips"][0]["output"]),
+        pytest.approx(manifest["clips"][0]["duration"], abs=1e-3),
+    )
     assert env.llm_factory_calls == []
     assert env.renders[0]["caption_style"] == "classic"
     assert "cold_open" not in env.renders[0] and "hook_text" not in env.renders[0]

@@ -84,6 +84,16 @@ export function clipCaptionText(clip) {
   return `${title}\n\n${body}`;
 }
 
+// A poster the engine wrote beside the clip (clip-XX.jpg), served by the job
+// files route. The public job API only keeps URLs of this exact shape.
+export const CLIP_THUMBNAIL_URL = /^\/api\/jobs\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/files\/output\/(clip-\d{1,4}\.jpg)$/i;
+
+/** The `<video poster>` for a clip, or undefined (old jobs) so the attribute is omitted. */
+export function clipPosterUrl(clip) {
+  const url = clip?.thumbnailUrl;
+  return typeof url === "string" && CLIP_THUMBNAIL_URL.test(url) ? url : undefined;
+}
+
 export function coldOpenLength(clip) {
   const coldOpen = clip?.coldOpen;
   if (!coldOpen || typeof coldOpen.start !== "number" || typeof coldOpen.end !== "number") return null;
