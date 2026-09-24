@@ -29,6 +29,7 @@ from urllib.parse import quote, unquote_to_bytes, urlsplit, urlunsplit
 from .candidate_feedback import FeedbackArtifactInvalid, read_candidate_feedback_state
 from .models import TranscriptSegment
 from .ranking import MAX_ARTIFACT_BYTES, CandidatesArtifact
+from .transcript_io import words_from_payload
 
 SCHEMA_VERSION = "evaluation-v1.0"
 REGISTRY_VERSION = "source-registry-v1.0"
@@ -223,13 +224,20 @@ def _read_transcript(job: Path) -> tuple[list[TranscriptSegment], str, bytes]:
     segments: list[TranscriptSegment] = []
     previous_end = 0.0
     for index, raw_segment in enumerate(raw_segments):
-        item = _exact(raw_segment, {"start", "end", "text"}, f"transcript cue {index}")
+        fields = {"start", "end", "text"}
+        if type(raw_segment) is dict and "words" in raw_segment:
+            fields.add("words")
+        item = _exact(raw_segment, fields, f"transcript cue {index}")
         start = _number(item["start"], f"transcript cue {index} start")
         end = _number(item["end"], f"transcript cue {index} end")
         if not isinstance(item["text"], str):
             raise EvaluationError(f"transcript cue {index} text must be a string")
         try:
-            segment = TranscriptSegment(start, end, item["text"])
+            words = words_from_payload(item["words"]) if "words" in item else ()
+        except ValueError as error:
+            raise EvaluationError(f"transcript cue {index} words are invalid") from error
+        try:
+            segment = TranscriptSegment(start, end, item["text"], words)
         except (TypeError, ValueError) as error:
             raise EvaluationError(f"transcript cue {index} is invalid") from error
         if index and start < previous_end:

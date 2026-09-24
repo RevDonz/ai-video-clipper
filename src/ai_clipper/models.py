@@ -12,18 +12,55 @@ def _is_number(value: object) -> bool:
 
 
 @dataclass(frozen=True, slots=True)
+class TranscriptWord:
+    """One recognized word with its own timing; probability is the ASR confidence."""
+
+    start: float
+    end: float
+    text: str
+    probability: float | None = None
+
+    def __post_init__(self) -> None:
+        if not _is_number(self.start) or not _is_number(self.end):
+            raise TypeError("word timestamps must be numbers")
+        if not math.isfinite(self.start) or not math.isfinite(self.end):
+            raise ValueError("word timestamps must be finite")
+        if self.start < 0 or self.end < self.start:
+            raise ValueError("word timestamps must satisfy 0 <= start <= end")
+        if not isinstance(self.text, str) or not self.text.strip():
+            raise ValueError("word text cannot be empty")
+        if self.probability is not None and (
+            not _is_number(self.probability)
+            or not math.isfinite(self.probability)
+            or not 0.0 <= self.probability <= 1.0
+        ):
+            raise ValueError("word probability must be between 0 and 1")
+
+
+@dataclass(frozen=True, slots=True)
 class TranscriptSegment:
     start: float
     end: float
     text: str
+    words: tuple[TranscriptWord, ...] = ()
 
     def __post_init__(self) -> None:
+        if not _is_number(self.start) or not _is_number(self.end):
+            raise TypeError("segment timestamps must be numbers")
         if not math.isfinite(self.start) or not math.isfinite(self.end):
             raise ValueError("segment timestamps must be finite")
         if self.start < 0 or self.end <= self.start:
             raise ValueError("segment timestamps must satisfy 0 <= start < end")
+        if not isinstance(self.text, str):
+            raise TypeError("segment text must be a string")
         if not self.text.strip():
             raise ValueError("segment text cannot be empty")
+        if not isinstance(self.words, tuple) or any(
+            not isinstance(word, TranscriptWord) for word in self.words
+        ):
+            raise TypeError("segment words must be a tuple of TranscriptWord values")
+        if any(later.start < earlier.start for earlier, later in zip(self.words, self.words[1:])):
+            raise ValueError("segment words must be chronological")
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,10 +92,11 @@ class ClipProfile(str, Enum):
 
 
 class SelectionMode(str, Enum):
-    """Selection rollout mode; V2 is observational and never drives rendering."""
+    """Selection rollout mode; V2 is observational only, V1 and V3 drive rendering."""
 
     V1 = "v1"
     V2_SHADOW = "v2-shadow"
+    V3 = "v3"
 
 
 @dataclass(frozen=True, slots=True)

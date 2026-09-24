@@ -105,6 +105,30 @@ def test_transcript_is_exact_strict_utf8_ordered_nonoverlapping_and_control_free
         cues_from_bytes(encoded(), raw, task5_artifact().candidates[0].candidate_id)
 
 
+def test_segments_with_word_timings_are_accepted_and_validated():
+    candidate_id = task5_artifact().candidates[0].candidate_id
+    plain = json.loads(transcript())
+    worded = json.loads(transcript())
+    worded["segments"][0]["words"] = [
+        {"start": 0.0, "end": 1.2, "text": "Pembuka", "probability": 0.91},
+        {"start": 1.2, "end": 3.9, "text": "penting."},
+    ]
+
+    expected = cues_from_bytes(encoded(), json.dumps(plain).encode(), candidate_id)
+    assert cues_from_bytes(encoded(), json.dumps(worded).encode(), candidate_id) == expected
+
+    for bad_words in (
+        {},
+        [{"start": 0.0, "end": 1.2}],
+        [{"start": 1.0, "end": 0.5, "text": "x"}],
+        [{"start": 0.0, "end": 1.0, "text": "x", "probability": 2}],
+        [{"start": 0.0, "end": 1.0, "text": "bad\u0000word"}],
+    ):
+        worded["segments"][0]["words"] = bad_words
+        with pytest.raises(ValueError):
+            cues_from_bytes(encoded(), json.dumps(worded).encode(), candidate_id)
+
+
 def test_transcript_size_and_segment_count_are_bounded():
     candidate_id = task5_artifact().candidates[0].candidate_id
     with pytest.raises(ValueError, match="size"):

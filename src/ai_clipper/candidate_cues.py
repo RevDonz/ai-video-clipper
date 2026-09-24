@@ -14,6 +14,7 @@ from typing import BinaryIO, TextIO
 
 from .candidate_api import _strict_payload
 from .ranking import MAX_ARTIFACT_BYTES, CandidatesArtifact
+from .transcript_io import words_from_payload
 
 MAX_TRANSCRIPT_BYTES = 16 * 1024 * 1024
 MAX_SEGMENTS = 100_000
@@ -21,6 +22,8 @@ MAX_TEXT_LENGTH = 100_000
 MAX_LANGUAGE_LENGTH = 64
 BOUNDARY_TOLERANCE_SECONDS = 1e-6
 _CANDIDATE_ID = re.compile(r"^cand_[0-9a-f]{64}$")
+_SEGMENT_FIELDS = frozenset({"start", "end", "text"})
+_OPTIONAL_SEGMENT_FIELDS = frozenset({"words"})
 _HEADER = struct.Struct(">QQH")
 _INVALID = "candidate_cues_invalid\n"
 _NOT_FOUND = "candidate_cues_not_found\n"
@@ -60,11 +63,17 @@ def _parse_transcript(encoded: bytes) -> list[tuple[int, float, float, str]]:
     parsed: list[tuple[int, float, float, str]] = []
     previous_end = 0.0
     for index, segment in enumerate(segments):
-        if type(segment) is not dict or set(segment) != {"start", "end", "text"}:
+        if type(segment) is not dict or not (
+            _SEGMENT_FIELDS <= set(segment) <= _SEGMENT_FIELDS | _OPTIONAL_SEGMENT_FIELDS
+        ):
             raise ValueError("transcript segment must contain exact fields")
         start = _number(segment["start"])
         end = _number(segment["end"])
         text = _clean_text(segment["text"], maximum=MAX_TEXT_LENGTH)
+        if "words" in segment:
+            # Validated for integrity only; cues stay segment-timed ("segment-v1").
+            for word in words_from_payload(segment["words"]):
+                _clean_text(word.text, maximum=MAX_TEXT_LENGTH)
         if start < 0 or end <= start or (index and start < previous_end):
             raise ValueError("transcript segments must be ordered and non-overlapping")
         parsed.append((index, start, end, text))
