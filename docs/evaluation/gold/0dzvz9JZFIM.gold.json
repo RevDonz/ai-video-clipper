@@ -1,0 +1,140 @@
+{
+  "schema_version": 1,
+  "source_id": "0dzvz9JZFIM",
+  "title": "Kejar Setoran 69 menit: Denny Sumargo dan Praz Teguh soal podcast kasus, film Baby Udon, dan anak",
+  "duration_seconds": 4144.02,
+  "labeler": "llm-editor-proxy (Claude subagent), 2026-09-24, from YouTube auto-captions",
+  "caveats": [
+    "Label dibuat oleh LLM yang berperan sebagai editor (proxy), bukan editor manusia. Label pemilik dan data retensi nyata selalu lebih diutamakan.",
+    "Episode tuning (bersama Ive926sC6mc): heuristik dan prompt boleh disetel di sini, jadi hasil di episode ini tidak membuktikan generalisasi. Verifikasi akhir memakai episode held-out DwTmRFyQ53E dan rBg0ZcwjVKQ.",
+    "Dibuat hanya dari teks caption YouTube (termasuk tag suara seperti [tertawa]) tanpa menonton video. Gag visual (layar AdSense di HP, ekspresi wajah) tidak bisa dinilai.",
+    "Teaser pembuka 0:00-1:19 mengulang materi dari 7:17-9:51 dan 54:19-54:54. Gold memakai versi aslinya; teaser dijadikan trap.",
+    "Urutan moments adalah peringkat editorial (G1 paling kuat). Archetype hanya label kasar dan memakai kosakata gold Ive926sC6mc.",
+    "Rentang mengikuti batas segmen caption YouTube, bukan segmen ASR lokal. Aturan hit (IoU >= 0.3 atau cakupan >= 50%) menampung selisihnya.",
+    "Nama di caption sering salah eja (Kodensu = Koh Densu/Denny Sumargo; Pras/Pres = Praz Teguh). Judul bersifat deskriptif, bukan judul resmi video."
+  ],
+  "moments": [
+    {
+      "id": "G1",
+      "start": 3651.319,
+      "end": 3720.68,
+      "archetype": "confession",
+      "label": "Denny takut putrinya bertemu pria sebejat dirinya waktu muda dulu"
+    },
+    {
+      "id": "G2",
+      "start": 2571.28,
+      "end": 2621.44,
+      "archetype": "confession",
+      "label": "Denny ke tim: kalau datang cuma untuk kerja, besok berhenti; harus belajar"
+    },
+    {
+      "id": "G3",
+      "start": 278.28,
+      "end": 366.44,
+      "archetype": "humor",
+      "label": "Praz menolak tamu yang mau curhat sambil menangis: takut malah dibikin lucu"
+    },
+    {
+      "id": "G4",
+      "start": 522.76,
+      "end": 608.2,
+      "archetype": "insider_secret",
+      "label": "Membantu korban kasus sensitif bikin channel Denny kena teguran, nyaris ditutup"
+    },
+    {
+      "id": "G5",
+      "start": 1111.48,
+      "end": 1199.08,
+      "archetype": "emotional",
+      "label": "Denny bayangkan ditanya Tuhan kenapa tak menolong; Praz membaliknya jadi lucu"
+    },
+    {
+      "id": "G6",
+      "start": 1809.399,
+      "end": 1869.719,
+      "archetype": "story_twist",
+      "label": "Curiga dibohongi soal dana masjid, ternyata masjidnya jadi; pahala dua agama"
+    },
+    {
+      "id": "G7",
+      "start": 3546.839,
+      "end": 3607.76,
+      "archetype": "emotional",
+      "label": "Tetap baik meski masa lalu kelam: jangan tunggu orang lain baik duluan"
+    },
+    {
+      "id": "G8",
+      "start": 3950.44,
+      "end": 4038.16,
+      "archetype": "humor",
+      "label": "Anak Denny lebih mencari suster, lalu malah khawatir nenek sihir belum makan"
+    },
+    {
+      "id": "G9",
+      "start": 437.319,
+      "end": 511.759,
+      "archetype": "confession",
+      "label": "Denny buka AdSense di depan Praz: podcast kasus ramai tapi cuannya hilang"
+    },
+    {
+      "id": "G10",
+      "start": 1513.559,
+      "end": 1588.32,
+      "archetype": "curiosity_gap",
+      "label": "Studio Denny terasa 'keramat': belasan kasus pembunuhan terbongkar di sana"
+    },
+    {
+      "id": "G11",
+      "start": 1366.24,
+      "end": 1417.6,
+      "archetype": "humor",
+      "label": "Ide tukar narasumber: yang mau menangis ke Denny, yang mau tertawa ke Praz"
+    },
+    {
+      "id": "G12",
+      "start": 2978.04,
+      "end": 3021.119,
+      "archetype": "emotional",
+      "label": "Kalau film tembus 2 juta: bonus kru, nazar, dan ikhtiar terakhir anak kedua"
+    }
+  ],
+  "traps": [
+    {
+      "id": "T1",
+      "start": 0.199,
+      "end": 79.08,
+      "label": "Teaser pembuka: potongan acak dari tengah episode, tawa padat tapi tak utuh"
+    },
+    {
+      "id": "T2",
+      "start": 1268.32,
+      "end": 1347.08,
+      "label": "Telepon pesan makanan: kata 'masalah' dan tanda tanya banyak, isinya remeh"
+    },
+    {
+      "id": "T3",
+      "start": 3428.559,
+      "end": 3491.2,
+      "label": "Pitch film 'badut' spontan memuat kata 'rahasia' tapi terpotong tanpa payoff"
+    },
+    {
+      "id": "T4",
+      "start": 3382.599,
+      "end": 3417.559,
+      "label": "Target penonton: angka dan rupiah padat, tapi ASR rusak dan leluconnya kabur"
+    },
+    {
+      "id": "T5",
+      "start": 2858.8,
+      "end": 2878.16,
+      "label": "Tagline promo 'film kaya raya' plus 'potong TikTok': umpan klip tanpa isi"
+    },
+    {
+      "id": "T6",
+      "start": 2816.92,
+      "end": 2846.48,
+      "label": "Tanya 'banyak perdebatan?' dijawab normatif; kata konflik tanpa konflik"
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "source_id": "DwTmRFyQ53E",
+  "title": "Podcast 58 menit: ulang tahun dr. Tirta bersama Raditya Dika dan Oki Rengga (emosi, medsos, flu, stand-up, AI)",
+  "duration_seconds": 3478.421,
+  "labeler": "llm-editor-proxy (Claude subagent), 2026-09-24, from YouTube auto-captions",
+  "caveats": [
+    "Label dibuat oleh LLM yang berperan sebagai editor (proxy), bukan editor manusia. Label pemilik dan data retensi nyata selalu lebih diutamakan.",
+    "Episode held-out: dilabeli secara independen tanpa melihat kode selector, tes, atau hasil selector. Jangan dipakai untuk tuning.",
+    "Sumber label adalah caption otomatis YouTube (bahasa Indonesia) yang sudah diberi tanda baca dan tag suara ([tertawa], [bernyanyi], dll). Pembicara tidak diberi label, jadi atribusi siapa bicara disimpulkan dari konteks.",
+    "Urutan moments adalah peringkat editorial (G1 paling kuat). Archetype hanya label kasar.",
+    "Rentang mengikuti batas segmen caption. Beberapa segmen caption adalah run-on panjang (10-15 detik), jadi batas bisa meleset beberapa detik. Aturan hit (IoU >= 0.3 atau cakupan >= 50%) menampung selisih ini.",
+    "Segmen iklan (Neozep, sekitar 23:20-26:50) dan momen yang hanya terlihat lewat visual (tiup lilin, bunga, gestur stetoskop 44:03-44:16) tidak dimasukkan sebagai gold.",
+    "Judul bersifat deskriptif, bukan judul resmi video. Transkrip mentah tidak disimpan di repo; hanya rentang waktu dan label pendek."
+  ],
+  "moments": [
+    {"id": "G1", "start": 458.24, "end": 530.76, "archetype": "controversial_claim", "label": "Gaji dokter umum kecil: harus praktik 3 tempat; Tirta akui dirinya outlier"},
+    {"id": "G2", "start": 690.88, "end": 769.199, "archetype": "confession", "label": "Tirta ribut dengan akun anonim sampai jam 3 pagi, besoknya semua jadwal batal"},
+    {"id": "G3", "start": 2404.8, "end": 2493.079, "archetype": "story_twist", "label": "Oki tarik penonton pengganggu ke panggung, berita malah bilang dia baper"},
+    {"id": "G4", "start": 599.0, "end": 688.72, "archetype": "confession", "label": "Pertanyaan anak magang soal Oki pemarah; Oki akui hampir turunkan anak di jalan"},
+    {"id": "G5", "start": 2255.8, "end": 2315.4, "archetype": "confession", "label": "Tirta akui pernah star syndrome; like dan komen medsos itu racun"},
+    {"id": "G6", "start": 2562.599, "end": 2596.4, "archetype": "humor", "label": "Tirta kesal ditanya dokter berobat ke siapa, Radit malah ulang pertanyaannya"},
+    {"id": "G7", "start": 1193.2, "end": 1229.2, "archetype": "relatable_pain", "label": "Sinusitis kambuh saat terbang, Tirta menangis sendirian di pesawat"},
+    {"id": "G8", "start": 2682.04, "end": 2760.559, "archetype": "practical_tip", "label": "Saran kesehatan dari AI: boleh jika dipersonalisasi, tapi tetap tanya ahli"},
+    {"id": "G9", "start": 1356.4, "end": 1395.84, "archetype": "insider_secret", "label": "Hari pertama syuting Agak Laen bising pesta kampung, tapi tanpa dubbing"},
+    {"id": "G10", "start": 2366.16, "end": 2395.48, "archetype": "humor", "label": "Manggung di acara korporat: bos tidak ketawa, seisi ruangan ikut diam"},
+    {"id": "G11", "start": 369.68, "end": 437.319, "archetype": "conflict", "label": "Oki kesal Tirta kampanye produk lokal tapi kasih Nike; ternyata soal ukuran"},
+    {"id": "G12", "start": 914.839, "end": 954.199, "archetype": "emotional", "label": "Nasihat Guntur: jangan habiskan waktu berantem dengan orang asing di medsos"}
+  ],
+  "traps": [
+    {"id": "T1", "start": 1488.48, "end": 1553.12, "label": "Istilah obat, efek samping, dosis, usia anak: tampak tips, padahal naskah iklan"},
+    {"id": "T2", "start": 803.12, "end": 836.44, "label": "Kata jujur, pertanyaan lokasi dan tarif terapis, tapi tidak pernah dijawab"},
+    {"id": "T3", "start": 130.84, "end": 183.64, "label": "Ada kata polisi dan tawa padat, tapi cuma selingan yang butuh konteks dan gestur"},
+    {"id": "T4", "start": 1770.559, "end": 1794.16, "label": "Pertanyaan soal ketakutan dan caranya terpotong lagu ulang tahun, tanpa jawaban"},
+    {"id": "T5", "start": 3202.44, "end": 3282.44, "label": "Tanda tanya, kata masalah/ternyata, tawa padat; obrolan Kindle ngalor-ngidul"},
+    {"id": "T6", "start": 2122.56, "end": 2172.04, "label": "Kata kenapa, faktanya, kompetitor; kalimat run-on panjang tanpa punchline"}
+  ]
+}

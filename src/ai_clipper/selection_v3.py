@@ -1,0 +1,904 @@
+"""Selection V3 orchestration: sentence units -> (LLM or heuristic) proposals -> snapped clips.
+
+:func:`select_clips_v3` is the single entry point used by the pipeline and the benchmark:
+
+1. **Units.** ``quality`` defaults to :func:`assess_transcript`; units come from
+   :func:`build_sentence_units` with that quality, so garbled units are marked ``suspect``.
+2. **Proposals.** The deterministic heuristic (:func:`propose_heuristic`) always runs. With a
+   usable LLM (``llm_mode`` ``auto`` or ``required``) the LLM proposals lead and the heuristic
+   only fills the remaining slots. ``LLMError``/``LLMUnavailable`` (and an LLM answer without a
+   single valid moment) re-raise in ``required`` mode; in ``auto`` mode the heuristic result is
+   returned with ``status="fallback"``.
+3. **Boundary snapping** (source seconds, see :class:`_Snapper`):
+
+   - *Start*: the first word of the start unit minus a pre-roll of at most
+     :data:`PRE_ROLL_SECONDS`, never into the previous word. With an audio timeline the nearest
+     quiet point within :data:`QUIET_SEARCH_SECONDS` is used instead, but never after the first
+     word.
+   - *End*: the last word plus a tail. When laughter, applause or cheering is tagged within
+     :data:`LAUGH_WINDOW_SECONDS` after the last word the end covers it (tag time +
+     :data:`LAUGH_TAIL_SECONDS`), including a short backchannel spoken into the laugh, but never
+     the next real sentence. Otherwise the tail is ``min(TAIL_SECONDS, half the following
+     gap)``.
+   - Times are clamped to ``[0, media end]`` (the audio duration when known, otherwise the end
+     of the transcript). The duration must satisfy ``[min_duration, max_duration]`` after
+     snapping: tails and pre-rolls shrink first, then trailing units (never the hook or payoff)
+     are dropped, short spans grow into the surrounding silence or take a neighbouring unit.
+     A proposal that still does not fit is dropped (``snap_dropped:<n>``).
+
+4. **Cold open.** When the hook unit starts at least :data:`COLD_OPEN_MIN_OFFSET` seconds
+   after the clip start, is not suspect, and lasts 1-8 s (extended to its sentence end when that
+   stays within 8 s), the clip gets ``cold_open = (hook start - 0.08, hook end + 0.12)``,
+   clamped to the neighbouring words, the media, and the renderer's 0.5-8 s rule.
+5. **Ranking.** Clips never share a sentence unit. Candidates are taken in order (LLM first,
+   in the model's rank order, then the heuristic in its own diversity-aware order). A candidate
+   whose content words nearly repeat an accepted clip (Jaccard >=
+   :data:`NEAR_DUPLICATE_SIMILARITY`) moves to the end of its own source's list. When the LLM
+   gives fewer than ``k`` clips (after its single retry), heuristic clips fill the rest.
+6. **Score.** Every clip's ``score`` is :func:`combined_score` of its five sub-scores
+   (``SCORE_WEIGHTS``), for LLM and heuristic clips alike, so the number shown next to the
+   sub-scores always matches them. Ranks come from the order above (the LLM rerank and the
+   heuristic's diversity-adjusted score), never from this number.
+
+Warning codes (in this order): the LLM's own ``llm_*`` codes, ``llm_unavailable`` or
+``llm_failed:<code>`` (auto-mode fallback), ``llm_filled:<n>`` (heuristic clips added after
+LLM clips), ``snap_dropped:<n>``, ``few_clips:<n>`` (fewer than ``k`` clips), and
+``no_transcript``.
+
+The artifact (``analysis/selection.v3.json``) is :meth:`SelectionResult.to_dict`, written
+atomically by :func:`write_selection_artifact` and read back strictly by
+:func:`read_selection_artifact`.
+"""
+
+from __future__ import annotations
+
+import json
+import math
+import re
+from bisect import bisect_left
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
+from numbers import Real
+from pathlib import Path
+
+from .audio_timeline import AudioTimeline
+from .hook_heuristics import HEURISTIC_VERSION, propose_heuristic
+from .llm import (
+    LLMClient,
+    LLMError,
+    LLMUnavailable,
+    create_llm_client_from_env,
+    load_llm_configs,
+)
+from .llm_selection import PROMPT_VERSION, combined_score, propose_with_llm, standard_sha256
+from .models import TranscriptSegment
+from .selection_types import (
+    SELECTION_V3_VERSION,
+    ClipProposal,
+    SelectedClip,
+    SelectionResult,
+)
+from .sentences import SentenceUnit, build_sentence_units
+from .sound_events import SoundEvent, sort_events
+from .transcript_io import atomic_write_bytes
+from .transcript_quality import TranscriptQuality, assess_transcript, ends_with_terminal_punctuation
+
+LLM_MODES = ("auto", "off", "required")
+SELECTION_ARTIFACT_RELATIVE_PATH = Path("analysis") / "selection.v3.json"
+MAX_SELECTION_ARTIFACT_BYTES = 8 * 1024 * 1024
+
+PRE_ROLL_SECONDS = 0.15
+QUIET_SEARCH_SECONDS = 0.25
+TAIL_SECONDS = 0.4
+NEXT_WORD_MARGIN_SECONDS = 0.05
+LAUGH_KINDS = frozenset({"laughter", "applause", "cheer"})
+LAUGH_LEAD_SECONDS = 0.5  # a tag this far before the last word end still belongs to it
+LAUGH_WINDOW_SECONDS = 2.5
+LAUGH_TAIL_SECONDS = 0.8
+BACKCHANNEL_MAX_WORDS = 3
+BACKCHANNEL_MAX_SECONDS = 1.5
+
+COLD_OPEN_MIN_OFFSET = 5.0
+COLD_OPEN_MIN_HOOK_SECONDS = 1.0
+COLD_OPEN_MAX_HOOK_SECONDS = 8.0
+COLD_OPEN_PRE_ROLL = 0.08
+COLD_OPEN_TAIL = 0.12
+# Mirrors render.COLD_OPEN_MIN_SECONDS / COLD_OPEN_MAX_SECONDS (the renderer rejects others).
+COLD_OPEN_MIN_SECONDS = 0.5
+COLD_OPEN_MAX_SECONDS = 8.0
+
+NEAR_DUPLICATE_SIMILARITY = 0.25  # distinct clips score 0.05-0.09, teaser re-uses 0.2-0.5
+MIN_SIMILARITY_WORDS = 5
+_TOLERANCE = 1e-6
+_TIME_DIGITS = 3
+_WORD = re.compile(r"[^\W\d_]+", re.UNICODE)
+# Frequent colloquial words of five letters or more that say nothing about the topic.
+_COMMON_WORDS = frozenset(
+    {
+        "kayak", "banget", "emang", "memang", "sebenarnya", "sebenernya", "soalnya", "terus",
+        "sampai", "sampe", "karena", "gitu", "begitu", "orang", "semua", "pokoknya", "kalian",
+        "dengan", "untuk", "bilang", "ngomong", "kemarin", "sekarang", "pernah", "kalau",
+        "misalnya", "gimana", "bagaimana", "kenapa", "mereka", "sendiri", "enggak", "nggak",
+        "ngga", "tadi", "udah", "sudah", "belum", "harus", "bisa", "jadi", "tuh", "yang",
+        "maksudnya", "berarti", "akhirnya", "makanya", "seperti", "kayaknya", "katanya",
+    }
+)  # fmt: skip
+
+
+class SelectionArtifactError(ValueError):
+    """A selection artifact is missing, malformed, or not a Selection V3 result."""
+
+
+# --- validation -------------------------------------------------------------------------------
+
+
+def _is_number(value: object) -> bool:
+    return isinstance(value, Real) and not isinstance(value, bool)
+
+
+def _positive(value: object, name: str) -> float:
+    if not _is_number(value):
+        raise TypeError(f"{name} must be a number")
+    result = float(value)
+    if not math.isfinite(result) or result <= 0:
+        raise ValueError(f"{name} must be finite and positive")
+    return result
+
+
+def _integer(value: object, name: str, low: int) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise TypeError(f"{name} must be an integer")
+    if value < low:
+        raise ValueError(f"{name} must be at least {low}")
+    return value
+
+
+def _check_segments(segments: object) -> list[TranscriptSegment]:
+    if isinstance(segments, (str, bytes)) or not isinstance(segments, Sequence):
+        raise TypeError("segments must be a sequence of TranscriptSegment values")
+    items = list(segments)
+    if any(not isinstance(item, TranscriptSegment) for item in items):
+        raise TypeError("segments must be TranscriptSegment values")
+    return items
+
+
+def _check_events(events: object) -> tuple[SoundEvent, ...]:
+    if isinstance(events, (str, bytes)) or not isinstance(events, Sequence):
+        raise TypeError("events must be a sequence of SoundEvent values")
+    return sort_events(events)
+
+
+# --- snapping ---------------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class _Span:
+    start_unit: int
+    end_unit: int
+    start: float
+    end: float
+
+
+class _Snapper:
+    """Turns unit ranges into source-second spans that respect the duration bounds."""
+
+    def __init__(
+        self,
+        units: Sequence[SentenceUnit],
+        *,
+        events: Sequence[SoundEvent],
+        audio: AudioTimeline | None,
+        media_end: float,
+        min_duration: float,
+        max_duration: float,
+    ) -> None:
+        self.units = units
+        self.laughs = tuple(event for event in events if event.kind in LAUGH_KINDS)
+        self.laugh_times = [event.time for event in self.laughs]
+        self.audio = audio
+        self.media_end = media_end
+        self.min_duration = min_duration
+        self.max_duration = max_duration
+
+    # unit-level helpers
+
+    def _span(self, first: int, last: int) -> float:
+        return self.units[last].end - self.units[first].start
+
+    def _next_start(self, index: int) -> float:
+        if index + 1 < len(self.units):
+            return max(self.units[index + 1].start, self.units[index].end)
+        return max(self.media_end, self.units[index].end)
+
+    def _extendable(self, index: int) -> bool:
+        unit = self.units[index]
+        return not unit.suspect and not unit.is_question
+
+    def _backchannel(self, index: int) -> bool:
+        unit = self.units[index]
+        return (
+            unit.word_count <= BACKCHANNEL_MAX_WORDS
+            and unit.duration <= BACKCHANNEL_MAX_SECONDS
+            and self._extendable(index)
+        )
+
+    # time-level helpers
+
+    def snap_start(self, index: int) -> float:
+        first = self.units[index].start
+        floor = 0.0 if index == 0 else min(first, self.units[index - 1].end)
+        candidate = first - PRE_ROLL_SECONDS
+        if self.audio is not None:
+            quiet = self.audio.nearest_quiet_point(first, QUIET_SEARCH_SECONDS)
+            if quiet < first:
+                candidate = quiet
+        return max(0.0, floor, candidate)
+
+    def _laugh_before(self, low: float, high: float) -> SoundEvent | None:
+        """The latest laugh-type event with ``low <= time < high``."""
+        position = bisect_left(self.laugh_times, high) - 1
+        if position >= 0 and self.laugh_times[position] >= low:
+            return self.laughs[position]
+        return None
+
+    def _tail(self, index: int) -> float:
+        last = self.units[index].end
+        return last + min(TAIL_SECONDS, max(0.0, self._next_start(index) - last) / 2.0)
+
+    def snap_end(self, index: int, *, backchannel: bool = True) -> tuple[float, int]:
+        """The snapped end time and the last unit (a backchannel may be appended)."""
+        units = self.units
+        last = units[index].end
+        window_high = last + LAUGH_WINDOW_SECONDS
+        end_unit = index
+        next_start = self._next_start(index)
+        laugh = self._laugh_before(
+            last - LAUGH_LEAD_SECONDS, min(window_high, next_start) + _TOLERANCE
+        )
+        following = index + 1
+        if (
+            backchannel
+            and following < len(units)
+            and units[following].start <= window_high
+            and self._backchannel(following)
+        ):
+            # A short "Anjir." / "Iya." spoken into the laugh belongs to the payoff.
+            after = self._next_start(following)
+            later = self._laugh_before(units[following].start, min(window_high, after))
+            if later is not None or (
+                laugh is not None and laugh.time + LAUGH_TAIL_SECONDS > units[following].start
+            ):
+                laugh = later or laugh
+                end_unit, next_start = following, after
+        end = self._tail(end_unit)
+        if laugh is not None:
+            limit = next_start
+            if end_unit + 1 < len(units):
+                limit -= NEXT_WORD_MARGIN_SECONDS
+            end = max(end, min(laugh.time + LAUGH_TAIL_SECONDS, limit))
+        return end, end_unit
+
+    def snap(self, first: int, last: int, protect: tuple[int, int]) -> _Span | None:
+        """Snap ``units[first..last]``; ``protect`` is the (first, last) unit range to keep."""
+        protect_first, protect_last = protect
+        low, high = self.min_duration, self.max_duration
+        # 1. Unit-level repair, before any padding.
+        while self._span(first, last) > high + _TOLERANCE and last > max(first, protect_last):
+            last -= 1
+        while self._span(first, last) > high + _TOLERANCE and first < min(last, protect_first):
+            first += 1
+        if self._span(first, last) > high + _TOLERANCE:
+            return None
+        while self._span(first, last) < low - _TOLERANCE:
+            if (
+                last + 1 < len(self.units)
+                and self._extendable(last + 1)
+                and self._span(first, last + 1) <= high + _TOLERANCE
+            ):
+                last += 1
+            elif (
+                first > 0
+                and not self.units[first - 1].suspect
+                and self._span(first - 1, last) <= high + _TOLERANCE
+            ):
+                first -= 1
+            else:
+                break
+        # 2. Padding: pre-roll, tail, laughter.
+        start = self.snap_start(first)
+        end, extended = self.snap_end(last)
+        if extended != last and self.units[extended].end - start > high + _TOLERANCE:
+            end, extended = self.snap_end(last, backchannel=False)
+        last = extended
+        first_start = self.units[first].start
+        # 3. Too long: shrink the tail, then the pre-roll.
+        if end - start > high:
+            end = max(self.units[last].end, start + high)
+        if end - start > high:
+            start = min(first_start, end - high)
+        # 4. Too short: grow into the surrounding silence.
+        if end - start < low:
+            limit = self._next_start(last)
+            if last + 1 < len(self.units):
+                limit -= NEXT_WORD_MARGIN_SECONDS
+            end = max(end, min(limit, start + low))
+        if end - start < low:
+            floor = 0.0 if first == 0 else min(first_start, self.units[first - 1].end)
+            start = min(start, max(floor, end - low))
+        start = round(max(0.0, start), _TIME_DIGITS)
+        end = round(min(end, self.media_end), _TIME_DIGITS)
+        if end <= start or not low - _TOLERANCE <= end - start <= high + _TOLERANCE:
+            return None
+        return _Span(first, last, start, end)
+
+    # cold open
+
+    def cold_open(self, span: _Span, hook: int) -> tuple[float, float] | None:
+        units = self.units
+        unit = units[hook]
+        if unit.suspect or unit.start - span.start < COLD_OPEN_MIN_OFFSET - _TOLERANCE:
+            return None
+        budget = COLD_OPEN_MAX_HOOK_SECONDS - COLD_OPEN_TAIL
+        last = hook
+        if not ends_with_terminal_punctuation(unit.text):
+            probe = hook
+            while (
+                probe + 1 <= span.end_unit
+                and not units[probe + 1].suspect
+                and units[probe + 1].end - unit.start <= budget + _TOLERANCE
+            ):
+                probe += 1
+                if ends_with_terminal_punctuation(units[probe].text):
+                    last = probe
+                    break
+        length = units[last].end - unit.start
+        if (
+            not COLD_OPEN_MIN_HOOK_SECONDS - _TOLERANCE
+            <= length
+            <= (COLD_OPEN_MAX_HOOK_SECONDS + _TOLERANCE)
+        ):
+            return None
+        floor = 0.0 if hook == 0 else min(unit.start, units[hook - 1].end)
+        start = max(0.0, floor, unit.start - COLD_OPEN_PRE_ROLL)
+        ceiling = self._next_start(last)
+        end = min(units[last].end + COLD_OPEN_TAIL, max(ceiling, units[last].end), self.media_end)
+        end = min(end, start + COLD_OPEN_MAX_SECONDS)
+        start, end = round(start, _TIME_DIGITS), round(end, _TIME_DIGITS)
+        if not COLD_OPEN_MIN_SECONDS <= end - start <= COLD_OPEN_MAX_SECONDS + _TOLERANCE:
+            return None
+        if abs(start - span.start) < 0.01:
+            return None
+        return start, end
+
+
+# --- ranking ----------------------------------------------------------------------------------
+
+
+def _topic_words(text: str) -> frozenset[str]:
+    words = (word for word in _WORD.findall(text.casefold()) if len(word) >= 5)
+    return frozenset(word for word in words if word not in _COMMON_WORDS)
+
+
+def _similarity(first: frozenset[str], second: frozenset[str]) -> float:
+    if len(first) < MIN_SIMILARITY_WORDS or len(second) < MIN_SIMILARITY_WORDS:
+        return 0.0
+    return len(first & second) / len(first | second)
+
+
+@dataclass(frozen=True, slots=True)
+class _Candidate:
+    proposal: ClipProposal
+    span: _Span
+    topic: frozenset[str]
+
+
+def _rank(candidates: Sequence[_Candidate], k: int) -> list[_Candidate]:
+    """Up to ``k`` candidates that share no unit, near-duplicates deferred within their source.
+
+    Candidates arrive LLM first, then heuristic, each in its own rank order. A near-duplicate
+    of an accepted clip moves to the end of its own source's list, so a distinct LLM moment
+    goes first but a repeated LLM topic still beats a heuristic filler.
+    """
+    accepted: list[_Candidate] = []
+
+    def overlaps(item: _Candidate) -> bool:
+        return any(
+            item.span.start_unit <= other.span.end_unit
+            and other.span.start_unit <= item.span.end_unit
+            for other in accepted
+        )
+
+    groups: dict[str, list[_Candidate]] = {}
+    for item in candidates:
+        groups.setdefault(item.proposal.source, []).append(item)
+    for group in groups.values():
+        deferred: list[_Candidate] = []
+        for item in group:
+            if len(accepted) >= k:
+                return accepted
+            if overlaps(item):
+                continue
+            if any(
+                _similarity(item.topic, other.topic) >= NEAR_DUPLICATE_SIMILARITY
+                for other in accepted
+            ):
+                deferred.append(item)
+                continue
+            accepted.append(item)
+        for item in deferred:
+            if len(accepted) >= k:
+                return accepted
+            if not overlaps(item):
+                accepted.append(item)
+    return accepted
+
+
+def _clock(seconds: float) -> str:
+    total = int(max(0.0, seconds))
+    return f"{total // 60:02d}:{total % 60:02d}"
+
+
+def _with_reason(reasons: tuple[str, ...], reason: str) -> tuple[str, ...]:
+    return reasons if len(reasons) >= 8 else (*reasons, reason)
+
+
+def _selected(
+    rank: int,
+    item: _Candidate,
+    units: Sequence[SentenceUnit],
+    cold_open: tuple[float, float] | None,
+    *,
+    filler: bool,
+) -> SelectedClip:
+    proposal = item.proposal
+    span = item.span
+    hook = min(max(proposal.hook_unit, span.start_unit), span.end_unit)
+    reasons = proposal.reasons
+    if cold_open is not None:
+        length = f"{cold_open[1] - cold_open[0]:.1f}".replace(".", ",")
+        reasons = _with_reason(
+            reasons, f"Cold open: kalimat hook ({length} detik) diputar lebih dulu."
+        )
+    if filler:
+        reasons = _with_reason(reasons, "Pengisi dari heuristik karena momen LLM kurang.")
+    text = " ".join(
+        " ".join(unit.text.split()) for unit in units[span.start_unit : span.end_unit + 1]
+    )
+    return SelectedClip(
+        rank=rank,
+        start=span.start,
+        end=span.end,
+        cold_open=cold_open,
+        unit_ids=(units[span.start_unit].unit_id, units[span.end_unit].unit_id),
+        hook_unit_id=units[hook].unit_id,
+        title=proposal.title,
+        hook_text=proposal.hook_text,
+        description=proposal.description,
+        hashtags=proposal.hashtags,
+        archetype=proposal.archetype,
+        score=combined_score(proposal.scores),  # always consistent with the sub-scores
+        scores=proposal.scores,
+        reasons=reasons,
+        source=proposal.source,
+        text=text,
+    )
+
+
+# --- entry point ------------------------------------------------------------------------------
+
+
+def _media_end(segments: Sequence[TranscriptSegment], audio: AudioTimeline | None) -> float:
+    if audio is not None:
+        return float(audio.duration)
+    ends = [segment.end for segment in segments]
+    ends.extend(word.end for segment in segments for word in segment.words)
+    return max(ends, default=0.0)
+
+
+def _llm_prompt_version() -> str:
+    return f"{PROMPT_VERSION}+std.{standard_sha256()[:12]}"
+
+
+def select_clips_v3(
+    segments: Sequence[TranscriptSegment],
+    *,
+    k: int,
+    min_duration: float,
+    max_duration: float,
+    llm_client: LLMClient | None = None,
+    llm_mode: str = "auto",
+    events: Sequence[SoundEvent] = (),
+    audio: AudioTimeline | None = None,
+    quality: TranscriptQuality | None = None,
+    cold_open: bool = True,
+    context_tokens: int = 32768,
+    max_output_tokens: int = 4096,
+    max_requests: int = 3,
+    deadline_s: float = 300.0,
+    rerank: bool = True,
+    retry: bool = True,
+    clock: Callable[[], float] | None = None,
+) -> SelectionResult:
+    """Select up to ``k`` snapped, packaged clips; see the module docstring for the rules.
+
+    ``llm_mode``: ``off`` never calls the LLM; ``auto`` falls back to the heuristic on any
+    ``LLMError`` (``status="fallback"``); ``required`` re-raises it (also when no client is
+    given, or when the LLM returns no valid moment). ``context_tokens``/``max_output_tokens``
+    size each request (pass the provider config values); ``max_requests`` and ``deadline_s``
+    bound the LLM phase. ``rerank`` enables the listwise LLM rerank of
+    :func:`propose_with_llm` and ``retry`` its single follow-up request when fewer than ``k / 2``
+    moments are valid; ``clock`` exists for tests.
+    """
+    items = _check_segments(segments)
+    k = _integer(k, "k", 1)
+    low = _positive(min_duration, "min_duration")
+    high = _positive(max_duration, "max_duration")
+    if high < low:
+        raise ValueError("max_duration must not be below min_duration")
+    if llm_mode not in LLM_MODES:
+        raise ValueError(f"llm_mode must be one of {', '.join(LLM_MODES)}")
+    ordered_events = _check_events(events)
+    if audio is not None and not isinstance(audio, AudioTimeline):
+        raise TypeError("audio must be an AudioTimeline or None")
+    if quality is not None and not isinstance(quality, TranscriptQuality):
+        raise TypeError("quality must be a TranscriptQuality or None")
+    if not all(isinstance(flag, bool) for flag in (cold_open, rerank, retry)):
+        raise TypeError("cold_open, rerank and retry must be booleans")
+    _integer(context_tokens, "context_tokens", 1)
+    _integer(max_output_tokens, "max_output_tokens", 1)
+    _integer(max_requests, "max_requests", 1)
+    _positive(deadline_s, "deadline_s")
+
+    if quality is None:
+        quality = assess_transcript(items)
+    units = build_sentence_units(items, quality=quality)
+    if not units:
+        return SelectionResult(
+            clips=(),
+            source="heuristic",
+            status="completed",
+            provider=None,
+            model=None,
+            prompt_version=HEURISTIC_VERSION,
+            warnings=("no_transcript",),
+        )
+    heuristic = propose_heuristic(
+        units, min_duration=low, max_duration=high, k=k, events=ordered_events, audio=audio
+    )
+
+    warnings: list[str] = []
+    llm_proposals: tuple[ClipProposal, ...] = ()
+    provider = model = None
+    usage: Mapping[str, int] = {}
+    status = "completed"
+    if llm_mode != "off":
+        try:
+            if llm_client is None:
+                raise LLMUnavailable(
+                    "not_configured",
+                    "LLM belum dikonfigurasi; atur POTONGIN_LLM_PROVIDER dan API key-nya.",
+                )
+            outcome = propose_with_llm(
+                units,
+                client=llm_client,
+                min_duration=low,
+                max_duration=high,
+                k=k,
+                events=ordered_events,
+                context_tokens=context_tokens,
+                max_output_tokens=max_output_tokens,
+                max_requests=max_requests,
+                deadline_s=deadline_s,
+                rerank=rerank,
+                retry=retry,
+                clock=clock,
+            )
+            warnings.extend(outcome.warnings)
+            usage = outcome.usage  # spent even when no moment survives
+            if not outcome.proposals:
+                raise LLMError(
+                    "no_moments",
+                    "LLM tidak memberi satu pun momen yang valid.",
+                    provider=outcome.provider,
+                    model=outcome.model,
+                )
+            llm_proposals = outcome.proposals
+            provider, model = outcome.provider, outcome.model
+        except LLMUnavailable:
+            if llm_mode == "required":
+                raise
+            warnings.append("llm_unavailable")
+            status = "fallback"
+        except LLMError as error:
+            if llm_mode == "required":
+                raise
+            warnings.append(f"llm_failed:{error.code}")
+            status = "fallback"
+
+    snapper = _Snapper(
+        units,
+        events=ordered_events,
+        audio=audio,
+        media_end=_media_end(items, audio),
+        min_duration=low,
+        max_duration=high,
+    )
+    candidates: list[_Candidate] = []
+    dropped = 0
+    for proposal in (*llm_proposals, *heuristic):
+        payoff = proposal.hook_unit if proposal.payoff_unit is None else proposal.payoff_unit
+        protect = (min(proposal.hook_unit, payoff), max(proposal.hook_unit, payoff))
+        span = snapper.snap(proposal.start_unit, proposal.end_unit, protect)
+        if span is None:
+            dropped += 1
+            continue
+        text = " ".join(unit.text for unit in units[span.start_unit : span.end_unit + 1])
+        candidates.append(_Candidate(proposal, span, _topic_words(text)))
+
+    chosen = _rank(candidates, k)
+    llm_led = bool(chosen) and chosen[0].proposal.source == "llm"
+    if not llm_led and llm_proposals and status == "completed":
+        # Every LLM moment was lost to snapping.
+        if llm_mode == "required":
+            raise LLMError(
+                "no_moments",
+                "Tidak ada momen LLM yang muat dalam batas durasi setelah dirapikan.",
+                provider=provider,
+                model=model,
+            )
+        status = "fallback"
+        warnings.append("llm_failed:no_moments")
+    fillers = sum(item.proposal.source == "heuristic" for item in chosen) if llm_led else 0
+    clips = tuple(
+        _selected(
+            rank,
+            item,
+            units,
+            snapper.cold_open(item.span, item.proposal.hook_unit) if cold_open else None,
+            filler=llm_led and item.proposal.source == "heuristic",
+        )
+        for rank, item in enumerate(chosen, 1)
+    )
+    if fillers:
+        warnings.append(f"llm_filled:{fillers}")
+    if dropped:
+        warnings.append(f"snap_dropped:{dropped}")
+    if len(clips) < k:
+        warnings.append(f"few_clips:{len(clips)}")
+    source = "llm" if llm_led else "heuristic"
+    return SelectionResult(
+        clips=clips,
+        source=source,
+        status=status,
+        provider=provider if source == "llm" else None,
+        model=model if source == "llm" else None,
+        prompt_version=_llm_prompt_version() if source == "llm" else HEURISTIC_VERSION,
+        warnings=tuple(dict.fromkeys(warnings)),
+        usage=dict(usage),
+    )
+
+
+# --- artifact ---------------------------------------------------------------------------------
+
+_RESULT_FIELDS = frozenset(
+    {
+        "selection_version",
+        "source",
+        "status",
+        "provider",
+        "model",
+        "prompt_version",
+        "warnings",
+        "usage",
+        "clips",
+    }
+)
+_CLIP_FIELDS = frozenset(
+    {
+        "rank",
+        "start",
+        "end",
+        "cold_open",
+        "unit_ids",
+        "hook_unit_id",
+        "title",
+        "hook_text",
+        "description",
+        "hashtags",
+        "archetype",
+        "score",
+        "scores",
+        "reasons",
+        "source",
+        "text",
+    }
+)
+
+
+def _exact(value: object, fields: frozenset[str], name: str) -> dict[str, object]:
+    if type(value) is not dict or set(value) != fields:
+        raise SelectionArtifactError(f"{name} must contain exactly {', '.join(sorted(fields))}")
+    return value
+
+
+def _string_tuple(value: object, name: str) -> tuple[str, ...]:
+    if type(value) is not list or any(not isinstance(item, str) for item in value):
+        raise SelectionArtifactError(f"{name} must be a list of strings")
+    return tuple(value)
+
+
+def _clip_from_dict(payload: object, index: int) -> SelectedClip:
+    value = _exact(payload, _CLIP_FIELDS, f"clip {index}")
+    cold = value["cold_open"]
+    cold_open = None
+    if cold is not None:
+        cold_value = _exact(cold, frozenset({"start", "end"}), f"clip {index} cold_open")
+        cold_open = (cold_value["start"], cold_value["end"])
+    unit_ids = _string_tuple(value["unit_ids"], f"clip {index} unit_ids")
+    if type(value["scores"]) is not dict:
+        raise SelectionArtifactError(f"clip {index} scores must be an object")
+    return SelectedClip(
+        rank=value["rank"],
+        start=value["start"],
+        end=value["end"],
+        cold_open=cold_open,
+        unit_ids=unit_ids,
+        hook_unit_id=value["hook_unit_id"],
+        title=value["title"],
+        hook_text=value["hook_text"],
+        description=value["description"],
+        hashtags=_string_tuple(value["hashtags"], f"clip {index} hashtags"),
+        archetype=value["archetype"],
+        score=value["score"],
+        scores=value["scores"],
+        reasons=_string_tuple(value["reasons"], f"clip {index} reasons"),
+        source=value["source"],
+        text=value["text"],
+    )
+
+
+def selection_from_dict(payload: object) -> SelectionResult:
+    """Strictly rebuild a :class:`SelectionResult` from :meth:`SelectionResult.to_dict`."""
+    value = _exact(payload, _RESULT_FIELDS, "selection artifact")
+    if value["selection_version"] != SELECTION_V3_VERSION:
+        raise SelectionArtifactError("unsupported selection_version")
+    if type(value["clips"]) is not list:
+        raise SelectionArtifactError("clips must be a list")
+    if type(value["usage"]) is not dict:
+        raise SelectionArtifactError("usage must be an object")
+    try:
+        clips = tuple(_clip_from_dict(item, index) for index, item in enumerate(value["clips"]))
+        return SelectionResult(
+            clips=clips,
+            source=value["source"],
+            status=value["status"],
+            provider=value["provider"],
+            model=value["model"],
+            prompt_version=value["prompt_version"],
+            warnings=_string_tuple(value["warnings"], "warnings"),
+            usage=value["usage"],
+            selection_version=value["selection_version"],
+        )
+    except SelectionArtifactError:
+        raise
+    except (TypeError, ValueError) as error:
+        raise SelectionArtifactError(f"invalid selection artifact: {error}") from None
+
+
+def _reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise SelectionArtifactError("selection artifact has a duplicate JSON key")
+        result[key] = value
+    return result
+
+
+def _reject_constant(_value: str) -> object:
+    raise SelectionArtifactError("selection artifact contains a non-finite number")
+
+
+def write_selection_artifact(path: str | Path, result: SelectionResult) -> Path:
+    """Atomically write ``result`` (e.g. to ``analysis/selection.v3.json``)."""
+    if not isinstance(result, SelectionResult):
+        raise TypeError("result must be a SelectionResult")
+    encoded = json.dumps(result.to_dict(), ensure_ascii=False, indent=2, allow_nan=False) + "\n"
+    destination = Path(path)
+    atomic_write_bytes(destination, encoded.encode("utf-8"))
+    return destination
+
+
+def read_selection_artifact(path: str | Path) -> SelectionResult:
+    """Read and strictly validate a selection artifact; errors never echo clip text."""
+    source = Path(path)
+    if not source.is_file():
+        raise FileNotFoundError("selection artifact not found")
+    with source.open("rb") as stream:
+        raw = stream.read(MAX_SELECTION_ARTIFACT_BYTES + 1)
+    if len(raw) > MAX_SELECTION_ARTIFACT_BYTES:
+        raise SelectionArtifactError("selection artifact is too large")
+    try:
+        payload = json.loads(
+            raw.decode("utf-8"),
+            object_pairs_hook=_reject_duplicate_keys,
+            parse_constant=_reject_constant,
+        )
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        raise SelectionArtifactError("selection artifact is not valid UTF-8 JSON") from None
+    return selection_from_dict(payload)
+
+
+# --- benchmark plugin -------------------------------------------------------------------------
+
+
+def llm_request_budget(env: Mapping[str, str] | None = None) -> tuple[int, int] | None:
+    """``(context_tokens, max_output_tokens)`` for the configured providers, or ``None``.
+
+    The context is the smallest over the failover chain, so every provider can take the
+    prompt; the output budget is the primary provider's, capped at half the context.
+    """
+    configs = load_llm_configs(env)
+    if not configs:
+        return None
+    context = min(config.context_tokens for config in configs)
+    return context, min(configs[0].max_output_tokens, context // 2)
+
+
+def _context_events(context: object) -> tuple[SoundEvent, ...]:
+    return tuple(getattr(context, "sound_events", ()) or ())
+
+
+def _v3_heuristic(
+    segments: list[TranscriptSegment],
+    *,
+    k: int,
+    min_duration: float,
+    max_duration: float,
+    audio_timeline: object | None = None,
+    context: object | None = None,
+) -> SelectionResult:
+    return select_clips_v3(
+        segments,
+        k=k,
+        min_duration=min_duration,
+        max_duration=max_duration,
+        llm_mode="off",
+        events=_context_events(context),
+        audio=audio_timeline if isinstance(audio_timeline, AudioTimeline) else None,
+    )
+
+
+def _v3_llm(
+    segments: list[TranscriptSegment],
+    *,
+    k: int,
+    min_duration: float,
+    max_duration: float,
+    audio_timeline: object | None = None,
+    context: object | None = None,
+) -> SelectionResult:
+    budget = llm_request_budget()
+    cache_dir = getattr(context, "llm_cache_dir", None)
+    client = create_llm_client_from_env(cache_dir=cache_dir)
+    if budget is None or client is None:
+        raise LLMUnavailable(
+            "not_configured", "LLM belum dikonfigurasi; atur POTONGIN_LLM_PROVIDER dan API key."
+        )
+    context_tokens, max_output_tokens = budget
+    return select_clips_v3(
+        segments,
+        k=k,
+        min_duration=min_duration,
+        max_duration=max_duration,
+        llm_client=client,
+        llm_mode="required",
+        events=_context_events(context),
+        audio=audio_timeline if isinstance(audio_timeline, AudioTimeline) else None,
+        context_tokens=context_tokens,
+        max_output_tokens=max_output_tokens,
+    )
+
+
+def benchmark_selectors() -> Mapping[str, Callable[..., SelectionResult]]:
+    """Selectors registered by ``ai_clipper.benchmark``: heuristic-only and LLM-required."""
+    return {"v3-heuristic": _v3_heuristic, "v3-llm": _v3_llm}

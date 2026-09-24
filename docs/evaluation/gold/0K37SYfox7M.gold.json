@@ -1,0 +1,141 @@
+{
+  "schema_version": 1,
+  "source_id": "0K37SYfox7M",
+  "title": "Podcast 62 menit: Raditya Dika ngobrol dengan Habib Jafar soal jadi \"habib industri\"",
+  "duration_seconds": 3716,
+  "labeler": "llm-editor-proxy (Claude subagent), 2026-09-24, from YouTube auto-captions — HELD-OUT set 2",
+  "caveats": [
+    "Label dibuat oleh LLM yang berperan sebagai editor (proxy), bukan editor manusia. Label pemilik dan data retensi nyata selalu lebih diutamakan.",
+    "Set held-out kedua: dilabeli secara independen dari transkrip saja, tanpa melihat kode selektor, hasil selektor, atau gold/catatan episode lain. Jangan dipakai untuk tuning.",
+    "Urutan moments adalah peringkat editorial (G1 paling kuat). Archetype hanya label kasar; banyak momen campuran humor dan pengakuan.",
+    "Sumber transkrip adalah auto-caption YouTube berbahasa Indonesia dengan tanda baca otomatis. Batas segmen sering tumpang tindih dan terkuantisasi sekitar 1-2 detik; aturan hit (IoU >= 0.3 atau cakupan >= 50%) menampung selisih ini.",
+    "Caption banyak salah dengar (mis. \"red card\" = rate card, \"dokter string\" = Doctor Strange, \"beda server\" = beda agama). Label memakai makna yang benar.",
+    "G7 dan G9 bersebelahan (batas 56:25.9) tapi sengaja dipisah karena dua lelucon berbeda dengan setup masing-masing.",
+    "Momen yang lucunya bergantung visual (gerakan jubah Doctor Strange sekitar 28:10-28:37) tidak dijadikan gold.",
+    "Judul bersifat deskriptif, bukan judul resmi video. File ini hanya berisi rentang waktu dan label pendek, bukan transkrip."
+  ],
+  "moments": [
+    {
+      "id": "G1",
+      "start": 2820.7,
+      "end": 2900.6,
+      "archetype": "humor",
+      "label": "Ngajar ngaji dibayar Rp800 ribu, guru les anjing Rp8 juta sebulan"
+    },
+    {
+      "id": "G2",
+      "start": 3594.6,
+      "end": 3644.8,
+      "archetype": "emotional",
+      "label": "Jemaah baru pertama berkerudung wafat, ayahnya: \"Alhamdulillah bukan innalillah\""
+    },
+    {
+      "id": "G3",
+      "start": 1215.9,
+      "end": 1300.8,
+      "archetype": "confession",
+      "label": "Pegang duit banyak malah merasa dosa: cuma ngomong ke kamera kok dapat segini"
+    },
+    {
+      "id": "G4",
+      "start": 339.2,
+      "end": 423.1,
+      "archetype": "relatable_pain",
+      "label": "Teman yang asyik di dunia nyata bisa jadi monster di grup WhatsApp"
+    },
+    {
+      "id": "G5",
+      "start": 546.0,
+      "end": 632.6,
+      "archetype": "confession",
+      "label": "Nangis dengar lagu Yura Yunita karena takut istidraj: nikmat yang menjebak"
+    },
+    {
+      "id": "G6",
+      "start": 1938.8,
+      "end": 1974.9,
+      "archetype": "humor",
+      "label": "Jangankan cinta beda server, beda volume AC sama istri saja sudah berat"
+    },
+    {
+      "id": "G7",
+      "start": 3359.0,
+      "end": 3385.9,
+      "archetype": "humor",
+      "label": "Kerja itu jihad: mati di depan laptop sebagai budak korporat dihitung syahid"
+    },
+    {
+      "id": "G8",
+      "start": 2246.0,
+      "end": 2292.2,
+      "archetype": "relatable_pain",
+      "label": "Ucapan Lebaran puitis dicopas balik, nama Husein Jafar masih tertinggal"
+    },
+    {
+      "id": "G9",
+      "start": 3385.9,
+      "end": 3458.3,
+      "archetype": "humor",
+      "label": "Pembuka ceramah kantor: grup WA ada bos bilang \"noted\", tanpa bos \"bos bacot\""
+    },
+    {
+      "id": "G10",
+      "start": 728.0,
+      "end": 796.7,
+      "archetype": "confession",
+      "label": "Terkenal terlalu cepat sampai stres; psikolog: front end dan back end berjarak"
+    },
+    {
+      "id": "G11",
+      "start": 690.4,
+      "end": 726.6,
+      "archetype": "controversial_claim",
+      "label": "YouTube sejak 2018 tanpa AdSense agar tak dituduh jualan kontroversi"
+    },
+    {
+      "id": "G12",
+      "start": 498.1,
+      "end": 545.0,
+      "archetype": "curiosity_gap",
+      "label": "Halal bihalal cuma ada di Indonesia: minta maaf tanpa menyebut salahnya"
+    }
+  ],
+  "traps": [
+    {
+      "id": "T1",
+      "start": 9.5,
+      "end": 56.6,
+      "label": "Pembuka penuh tawa dan tanya, tapi isinya lelucon internal (Choki, Suci) samar"
+    },
+    {
+      "id": "T2",
+      "start": 925.1,
+      "end": 958.2,
+      "label": "Callback Panji dan musala: tawa dan tanya padat, tapi butuh konteks awal episode"
+    },
+    {
+      "id": "T3",
+      "start": 1092.6,
+      "end": 1127.3,
+      "label": "Salah paham \"Habib enggak boleh turun\": tawa padat, host sendiri tak menangkap"
+    },
+    {
+      "id": "T4",
+      "start": 2005.6,
+      "end": 2024.1,
+      "label": "Obrolan draf film dan jerawat: tawa dan tanya, caption kacau, tanpa payoff"
+    },
+    {
+      "id": "T5",
+      "start": 3459.8,
+      "end": 3504.6,
+      "label": "Rentetan tanya \"lampu bioskop menyala\", berhenti sebelum jawabannya dijelaskan"
+    },
+    {
+      "id": "T6",
+      "start": 3196.1,
+      "end": 3219.0,
+      "label": "\"Itu lucu ya, bukan beneran?\": tawa meta soal bercanda atau tidak, membingungkan"
+    }
+  ]
+}

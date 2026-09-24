@@ -1,0 +1,143 @@
+{
+  "schema_version": 1,
+  "source_id": "WRxJGz-TA44",
+  "title": "Suara Berkelas #209 (68 menit): psikolog Analisa soal burnout, ekspektasi, trauma, dan kesepian",
+  "duration_seconds": 4070,
+  "labeler": "llm-editor-proxy (Claude subagent), 2026-09-24, from YouTube auto-captions — HELD-OUT set 2",
+  "caveats": [
+    "Label dibuat oleh LLM yang berperan sebagai editor (proxy), bukan editor manusia. Label pemilik dan data retensi nyata selalu lebih diutamakan.",
+    "Set HELD-OUT kedua: dilabeli secara independen tanpa melihat kode, output, atau hasil sweep selector. Jangan dipakai untuk tuning.",
+    "Urutan moments adalah peringkat editorial (G1 paling kuat). Archetype hanya label kasar.",
+    "Rentang mengikuti batas segmen auto-caption YouTube (kira-kira 1-10 detik per segmen). Aturan hit (IoU >= 0.3 atau cakupan >= 50%) menampung selisih ini.",
+    "Transkrip dari auto-caption YouTube dengan tanda baca otomatis: ada salah dengar (nama tamu, nama sponsor) dan penutur host/tamu tidak dibedakan.",
+    "00:00-01:13 adalah teaser montase yang mengulang kalimat dari 11:31, 20:24, 32:56, dan 43:51. Gold memakai kemunculan aslinya; teaser dijadikan trap T1.",
+    "Episode edukatif bernada tenang dan tawa jarang, sehingga sinyal tawa kurang informatif. Kekuatan klip ada di kalimat quotable dan analogi.",
+    "G2 satu-satunya rentang di atas 90 detik (deep-dive) supaya setup pertanyaan host ikut masuk.",
+    "Kandidat kuat di luar 12 besar (analogi lutut berdarah 33:31-34:52, kaca spion 40:08-41:09, 3 cara saat hilang arah 59:04-60:33) tetap layak klip; memilihnya bukan kesalahan berat.",
+    "Judul bersifat deskriptif, bukan judul resmi video. Label hanya berisi rentang waktu dan parafrase pendek, bukan transkrip."
+  ],
+  "moments": [
+    {
+      "id": "G1",
+      "start": 2934.9,
+      "end": 3019.9,
+      "archetype": "emotional",
+      "label": "Definisi kesepian: banyak followers, tapi bingung mau telepon siapa saat sedih"
+    },
+    {
+      "id": "G2",
+      "start": 3195.9,
+      "end": 3292.1,
+      "archetype": "controversial_claim",
+      "label": "Selingkuh berawal dari insecurity: yang dicintai versi dirinya, bukan orangnya"
+    },
+    {
+      "id": "G3",
+      "start": 3857.4,
+      "end": 3946.4,
+      "archetype": "practical_tip",
+      "label": "Jenuh kerja? Jangan buru-buru resign; resign tiap 3 bulan itu \"tipikal Gen Z\""
+    },
+    {
+      "id": "G4",
+      "start": 673.2,
+      "end": 758.3,
+      "archetype": "relatable_pain",
+      "label": "Keluhan nomor satu klien: burnout karena ekspektasi orang tua, bukan pekerjaan"
+    },
+    {
+      "id": "G5",
+      "start": 1932.1,
+      "end": 1991.5,
+      "archetype": "controversial_claim",
+      "label": "Memulihkan trauma masa kecil tanggung jawabmu, bukan orang tua atau psikolog"
+    },
+    {
+      "id": "G6",
+      "start": 2606.9,
+      "end": 2674.0,
+      "archetype": "confession",
+      "label": "Umur 20-an lelah mengejar validasi dan membandingkan pencapaian orang lain"
+    },
+    {
+      "id": "G7",
+      "start": 1064.6,
+      "end": 1135.6,
+      "archetype": "number_proof",
+      "label": "90% capek kerja dari luar jobdesc: macet 3 jam, burnout sebelum sampai kantor"
+    },
+    {
+      "id": "G8",
+      "start": 1704.3,
+      "end": 1746.2,
+      "archetype": "relatable_pain",
+      "label": "Jangan menghakimi yang bertahan di kantor keras: \"mungkin dia Big Mac\""
+    },
+    {
+      "id": "G9",
+      "start": 1615.8,
+      "end": 1699.2,
+      "archetype": "humor",
+      "label": "Jadi follower yang baik itu sulit; host resign lalu sadar \"kitanya toksik\""
+    },
+    {
+      "id": "G10",
+      "start": 3449.1,
+      "end": 3516.5,
+      "archetype": "emotional",
+      "label": "Ibu bekerja lelah memasang KPI sendiri; anak bilang tak perlu jadi ibu sempurna"
+    },
+    {
+      "id": "G11",
+      "start": 4021.3,
+      "end": 4065.4,
+      "archetype": "curiosity_gap",
+      "label": "Nasihat terburuk yang pernah diterima sang psikolog: \"harus selalu all out\""
+    },
+    {
+      "id": "G12",
+      "start": 1213.1,
+      "end": 1280.6,
+      "archetype": "insider_secret",
+      "label": "Temuan disertasi: pekerja hilang harapan \"selain gajian\", tinggal tunggu pensiun"
+    }
+  ],
+  "traps": [
+    {
+      "id": "T1",
+      "start": 0.1,
+      "end": 73.0,
+      "label": "Teaser pembuka: montase potongan kalimat padat kata kunci, duplikat momen asli"
+    },
+    {
+      "id": "T2",
+      "start": 1781.5,
+      "end": 1843.6,
+      "label": "Iklan sponsor booking konsultasi: kata \"capek, pusing\" dan tanya, isinya promosi"
+    },
+    {
+      "id": "T3",
+      "start": 3644.8,
+      "end": 3730.8,
+      "label": "Iklan sponsor fitur e-course: banyak kalimat tanya, bukan isi obrolan"
+    },
+    {
+      "id": "T4",
+      "start": 122.7,
+      "end": 190.2,
+      "label": "Perkenalan tamu: tawa beruntun soal jumlah peran, basa-basi tanpa payoff"
+    },
+    {
+      "id": "T5",
+      "start": 2162.8,
+      "end": 2232.8,
+      "label": "Rentetan tanya host soal trauma finansial dan rupiah melemah, tanpa jawaban"
+    },
+    {
+      "id": "T6",
+      "start": 466.5,
+      "end": 514.4,
+      "label": "Tawa \"psikolog ke siapa?\" lalu berakhir di pertanyaan baru, jawaban belum datang"
+    }
+  ]
+}
