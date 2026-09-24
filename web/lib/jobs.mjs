@@ -2,14 +2,24 @@ import { mkdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 export const RENDER_MODES = ["face-track", "fit-blur", "center-crop"];
-export const SELECTION_MODES = ["v1", "v2-shadow"];
+export const SELECTION_MODES = ["v1", "v2-shadow", "v3"];
 export const CLIP_PROFILES = ["viral-short", "standard", "deep-dive"];
+export const LLM_MODES = ["auto", "off"];
+export const CAPTION_STYLES = ["karaoke", "classic"];
 export const DEFAULT_SHADOW_OPTIONS = Object.freeze({
   clipProfile: "standard",
   maxCandidates: 200,
   maxMediaCandidates: 12,
   mediaTimeout: 30,
 });
+export const DEFAULT_V3_OPTIONS = Object.freeze({
+  llmMode: "auto",
+  coldOpen: true,
+  hookOverlay: true,
+  captionStyle: "karaoke",
+});
+const V2_OPTION_KEYS = ["clipProfile", "maxCandidates", "maxMediaCandidates", "mediaTimeout"];
+const V3_OPTION_KEYS = ["llmMode", "coldOpen", "hookOverlay", "captionStyle"];
 const WORKER_PROGRESS_PREFIX = "POTONGIN_PROGRESS ";
 
 export function parseWorkerProgress(line) {
@@ -103,10 +113,46 @@ export function generateSocialMetadata(transcript) {
   return { title, description, hashtags, metadataVersion: 5 };
 }
 
+// Clips selected by Selection V3 arrive with the engine's own packaging (title,
+// description and hashtags). They are kept; only a missing description or
+// hashtag list is filled from the transcript. The description keeps the
+// established convention of ending with the hashtag line, so every "Salin
+// caption" button copies `${title}\n\n${description}` unchanged.
+const PACKAGED_SOURCES = new Set(["llm", "heuristic"]);
+
+export function hasEnginePackaging(clip) {
+  return Boolean(clip) && PACKAGED_SOURCES.has(clip.selectionSource)
+    && typeof clip.title === "string" && clip.title.trim() !== "";
+}
+
+function hashtagLine(hashtags) {
+  return hashtags.join(" ");
+}
+
+function withHashtagLine(body, hashtags) {
+  if (!hashtags.length) return body;
+  const lower = body.toLocaleLowerCase("id-ID");
+  if (hashtags.every((tag) => lower.includes(tag.toLocaleLowerCase("id-ID")))) return body;
+  return body ? `${body}\n\n${hashtagLine(hashtags)}` : hashtagLine(hashtags);
+}
+
+export function clipSocialMetadata(clip) {
+  if (!hasEnginePackaging(clip)) return generateSocialMetadata(clip?.text);
+  const hashtags = Array.isArray(clip.hashtags) && clip.hashtags.length ? clip.hashtags : null;
+  const description = typeof clip.description === "string" && clip.description.trim() ? clip.description : null;
+  const generated = hashtags && description ? null : generateSocialMetadata(clip.text);
+  const tags = hashtags || generated.hashtags;
+  const body = description || (generated.description.endsWith(hashtagLine(generated.hashtags))
+    ? generated.description.slice(0, -hashtagLine(generated.hashtags).length).trimEnd()
+    : generated.description);
+  return { title: clip.title, description: withHashtagLine(body, tags), hashtags: [...tags], metadataVersion: 5 };
+}
+
 export function enrichJobSocialMetadata(job) {
   return {
     ...job,
     clips: (job.clips || []).map((clip) => {
+      if (hasEnginePackaging(clip)) return { ...clip, ...clipSocialMetadata(clip) };
       if (clip.metadataVersion === 5 && clip.title && clip.description && clip.hashtags?.length) return clip;
       return { ...clip, ...generateSocialMetadata(clip.text) };
     }),
@@ -137,6 +183,14 @@ function formNumber(value, fallback, label) {
   return parsed;
 }
 
+function formBoolean(value, fallback, label) {
+  if (value === undefined || value === null || value === "") return fallback;
+  if (typeof value === "boolean") return value;
+  if (value === "true") return true;
+  if (value === "false") return false;
+  throw new Error(`${label} must be true or false`);
+}
+
 function persistedNumber(value, label, integer = false) {
   if (typeof value !== "number" || !Number.isFinite(value) || (integer && !Number.isInteger(value))) {
     throw new Error(`Invalid persisted job options: ${label} must be ${integer ? "a finite integer" : "a finite number"}`);
@@ -165,11 +219,30 @@ export function validatePersistedJobOptions(input) {
     throw new Error("Invalid persisted job options: unsupported selection mode");
   }
   options.selectionMode = input.selectionMode;
-  if (input.selectionMode === "v1") {
-    if (["clipProfile", "maxCandidates", "maxMediaCandidates", "mediaTimeout"].some((key) => input[key] !== undefined)) {
-      throw new Error("Invalid persisted job options: V2 options require v2-shadow mode");
+  const persisted = (keys) => keys.some((key) => input[key] !== undefined);
+  if (input.selectionMode !== "v2-shadow" && persisted(V2_OPTION_KEYS)) {
+    throw new Error("Invalid persisted job options: V2 options require v2-shadow mode");
+  }
+  if (input.selectionMode !== "v3" && persisted(V3_OPTION_KEYS)) {
+    throw new Error("Invalid persisted job options: V3 options require v3 mode");
+  }
+  if (input.selectionMode === "v1") return options;
+  if (input.selectionMode === "v3") {
+    if (typeof input.llmMode !== "string" || !LLM_MODES.includes(input.llmMode)) {
+      throw new Error("Invalid persisted job options: unsupported LLM mode");
     }
-    return options;
+    if (typeof input.coldOpen !== "boolean") throw new Error("Invalid persisted job options: cold open must be a boolean");
+    if (typeof input.hookOverlay !== "boolean") throw new Error("Invalid persisted job options: hook overlay must be a boolean");
+    if (typeof input.captionStyle !== "string" || !CAPTION_STYLES.includes(input.captionStyle)) {
+      throw new Error("Invalid persisted job options: unsupported caption style");
+    }
+    return {
+      ...options,
+      llmMode: input.llmMode,
+      coldOpen: input.coldOpen,
+      hookOverlay: input.hookOverlay,
+      captionStyle: input.captionStyle,
+    };
   }
   const clipProfile = input.clipProfile;
   if (typeof clipProfile !== "string" || !CLIP_PROFILES.includes(clipProfile)) {
@@ -203,19 +276,33 @@ export function parseJobOptions(input = {}) {
     throw new Error("duration range must satisfy 5 <= min <= max <= 180");
   }
   const options = { renderMode, limit, minDuration, maxDuration };
-  const selectionFields = ["selectionMode", "clipProfile", "maxCandidates", "maxMediaCandidates", "mediaTimeout"];
-  const hasSelectionOptions = selectionFields.some((key) => input[key] !== undefined && input[key] !== null && input[key] !== "");
+  const provided = (key) => input[key] !== undefined && input[key] !== null && input[key] !== "";
+  const hasSelectionOptions = ["selectionMode", ...V2_OPTION_KEYS, ...V3_OPTION_KEYS].some(provided);
   if (!hasSelectionOptions) return options;
 
   if (typeof input.selectionMode !== "string" || !SELECTION_MODES.includes(input.selectionMode)) {
     throw new Error("Unsupported selection mode");
   }
   options.selectionMode = input.selectionMode;
-  if (input.selectionMode === "v1") {
-    if (selectionFields.slice(1).some((key) => input[key] !== undefined && input[key] !== null && input[key] !== "")) {
-      throw new Error("V2 selection options require v2-shadow mode");
-    }
-    return options;
+  if (input.selectionMode !== "v2-shadow" && V2_OPTION_KEYS.some(provided)) {
+    throw new Error("V2 selection options require v2-shadow mode");
+  }
+  if (input.selectionMode !== "v3" && V3_OPTION_KEYS.some(provided)) {
+    throw new Error("V3 selection options require v3 mode");
+  }
+  if (input.selectionMode === "v1") return options;
+  if (input.selectionMode === "v3") {
+    const llmMode = provided("llmMode") ? input.llmMode : DEFAULT_V3_OPTIONS.llmMode;
+    if (typeof llmMode !== "string" || !LLM_MODES.includes(llmMode)) throw new Error("Unsupported LLM mode");
+    const captionStyle = provided("captionStyle") ? input.captionStyle : DEFAULT_V3_OPTIONS.captionStyle;
+    if (typeof captionStyle !== "string" || !CAPTION_STYLES.includes(captionStyle)) throw new Error("Unsupported caption style");
+    return {
+      ...options,
+      llmMode,
+      coldOpen: formBoolean(input.coldOpen, DEFAULT_V3_OPTIONS.coldOpen, "cold open"),
+      hookOverlay: formBoolean(input.hookOverlay, DEFAULT_V3_OPTIONS.hookOverlay, "hook overlay"),
+      captionStyle,
+    };
   }
 
   const clipProfile = input.clipProfile ?? DEFAULT_SHADOW_OPTIONS.clipProfile;
@@ -270,18 +357,284 @@ export function sanitizeSelectionV2Summary(raw) {
   return summary;
 }
 
+// --- Manifest-derived text -------------------------------------------------
+// Everything below comes from the engine's manifest, which in turn carries LLM
+// output. Strings are length-capped (in code points) and stripped of control
+// and bidi-override characters before they are persisted or served.
+
+const INVISIBLE_CHARACTERS = /[\p{Cc}\u00ad\u061c\u180e\u200b\u200e\u200f\u202a-\u202e\u2060-\u2064\u2066-\u206f\ufeff\ufff9-\ufffb]/gu;
+const HORIZONTAL_SPACE = /[^\S\n]+/g;
+
+function wellFormed(value) {
+  return typeof value.toWellFormed === "function" ? value.toWellFormed() : value;
+}
+
+function truncateCodePoints(value, maximum) {
+  const characters = Array.from(value);
+  if (characters.length <= maximum) return value;
+  const shortened = characters.slice(0, maximum - 1).join("");
+  const boundary = Math.max(shortened.lastIndexOf(" "), shortened.lastIndexOf("\n"));
+  const cut = boundary > shortened.length * 0.6 ? shortened.slice(0, boundary) : shortened;
+  return `${cut.trimEnd()}…`;
+}
+
+/** One line of display text, or null when nothing printable is left. */
+export function sanitizeLine(value, maximum) {
+  if (typeof value !== "string") return null;
+  const cleaned = wellFormed(value).replace(/\s+/gu, " ").replace(INVISIBLE_CHARACTERS, "").trim();
+  return cleaned ? truncateCodePoints(cleaned, maximum) : null;
+}
+
+/** Multi-line display text: newlines survive (at most one blank line in a row). */
+export function sanitizeMultiline(value, maximum) {
+  if (typeof value !== "string") return null;
+  const cleaned = wellFormed(value)
+    .replace(/\r\n?|[\u2028\u2029\v\f]/g, "\n")
+    .replace(/\t/g, " ")
+    .replace(INVISIBLE_CHARACTERS, (character) => (character === "\n" ? "\n" : ""))
+    .split("\n")
+    .map((line) => line.replace(HORIZONTAL_SPACE, " ").trim())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return cleaned ? truncateCodePoints(cleaned, maximum) : null;
+}
+
+export const CLIP_TEXT_LIMITS = Object.freeze({
+  title: 100,
+  hookText: 90,
+  description: 600,
+  storedDescription: 1200,
+  hashtag: 40,
+  hashtags: 10,
+  reason: 300,
+  reasons: 8,
+  text: 8000,
+});
+export const SCORE_DIMENSIONS = Object.freeze(["hook", "standalone", "payoff", "emotion", "shareability"]);
+export const SELECTION_SOURCES = Object.freeze(["v1", "llm", "heuristic"]);
+const ARCHETYPE_CODE = /^[a-z][a-z0-9_]{0,39}$/;
+const HASHTAG_BODY = /^[\p{L}\p{N}_]+$/u;
+const MAX_COLD_OPEN_SECONDS = 30;
+
+function finiteNumber(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function round(value, digits) {
+  const factor = 10 ** digits;
+  return Math.round(value * factor) / factor;
+}
+
+function sanitizeHashtags(value) {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set();
+  const tags = [];
+  for (const item of value) {
+    if (tags.length >= CLIP_TEXT_LIMITS.hashtags) break;
+    const line = sanitizeLine(item, 200);
+    if (!line) continue;
+    const body = line.replace(/^#+/, "").replace(/\s+/g, "");
+    if (!body || Array.from(body).length > CLIP_TEXT_LIMITS.hashtag || !HASHTAG_BODY.test(body)) continue;
+    const key = body.toLocaleLowerCase("id-ID");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    tags.push(`#${body}`);
+  }
+  return tags;
+}
+
+function sanitizeReasons(value) {
+  if (!Array.isArray(value)) return [];
+  const reasons = [];
+  for (const item of value) {
+    if (reasons.length >= CLIP_TEXT_LIMITS.reasons) break;
+    const reason = sanitizeLine(item, CLIP_TEXT_LIMITS.reason);
+    if (reason) reasons.push(reason);
+  }
+  return reasons;
+}
+
+function sanitizeScores(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const scores = {};
+  for (const name of SCORE_DIMENSIONS) {
+    const score = finiteNumber(value[name]);
+    if (score !== null && score >= 0 && score <= 10) scores[name] = round(score, 2);
+  }
+  return Object.keys(scores).length ? scores : null;
+}
+
+function sanitizeColdOpen(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const start = finiteNumber(value.start);
+  const end = finiteNumber(value.end);
+  if (start === null || end === null || start < 0 || end <= start || end - start > MAX_COLD_OPEN_SECONDS) return null;
+  return { start: round(start, 3), end: round(end, 3) };
+}
+
+function sanitizeArchetype(value) {
+  if (typeof value !== "string") return null;
+  const code = value.trim().toLowerCase().replace(/-/g, "_");
+  return ARCHETYPE_CODE.test(code) ? code : null;
+}
+
+/**
+ * The Selection V3 fields of one clip, validated field by field. `names` maps
+ * each field to its key in `raw`, so the same rules read a manifest clip
+ * (snake_case) and a persisted job clip (camelCase). Invalid values are
+ * dropped, never coerced from another type.
+ */
+function sanitizeV3ClipFields(raw, names, descriptionLimit) {
+  const fields = {};
+  const title = sanitizeLine(raw[names.title], CLIP_TEXT_LIMITS.title);
+  if (title) fields.title = title;
+  const hookText = sanitizeLine(raw[names.hookText], CLIP_TEXT_LIMITS.hookText);
+  if (hookText) fields.hookText = hookText;
+  const description = sanitizeMultiline(raw[names.description], descriptionLimit);
+  if (description) fields.description = description;
+  const hashtags = sanitizeHashtags(raw[names.hashtags]);
+  if (hashtags.length) fields.hashtags = hashtags;
+  const archetype = sanitizeArchetype(raw[names.archetype]);
+  if (archetype) fields.archetype = archetype;
+  if (SELECTION_SOURCES.includes(raw[names.selectionSource])) fields.selectionSource = raw[names.selectionSource];
+  const reasons = sanitizeReasons(raw[names.reasons]);
+  if (reasons.length) fields.reasons = reasons;
+  const scores = sanitizeScores(raw[names.scores]);
+  if (scores) fields.scores = scores;
+  const coldOpen = sanitizeColdOpen(raw[names.coldOpen]);
+  if (coldOpen) fields.coldOpen = coldOpen;
+  const sourceStart = finiteNumber(raw[names.sourceStart]);
+  const sourceEnd = finiteNumber(raw[names.sourceEnd]);
+  if (sourceStart !== null && sourceEnd !== null && sourceStart >= 0 && sourceEnd > sourceStart) {
+    fields.sourceStart = round(sourceStart, 3);
+    fields.sourceEnd = round(sourceEnd, 3);
+  }
+  return fields;
+}
+
+const MANIFEST_V3_NAMES = Object.freeze({
+  title: "title", hookText: "hook_text", description: "description", hashtags: "hashtags",
+  archetype: "archetype", selectionSource: "selection_source", reasons: "reasons", scores: "scores",
+  coldOpen: "cold_open", sourceStart: "source_start", sourceEnd: "source_end",
+});
+const JOB_V3_NAMES = Object.freeze({
+  title: "title", hookText: "hookText", description: "description", hashtags: "hashtags",
+  archetype: "archetype", selectionSource: "selectionSource", reasons: "reasons", scores: "scores",
+  coldOpen: "coldOpen", sourceStart: "sourceStart", sourceEnd: "sourceEnd",
+});
+const JOB_V3_ONLY_KEYS = ["hookText", "archetype", "selectionSource", "reasons", "scores", "coldOpen", "sourceStart", "sourceEnd"];
+
+/** A manifest clip's Selection V3 packaging, sanitized, as camelCase job-clip fields. */
+export function sanitizeManifestClipFields(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  return sanitizeV3ClipFields(raw, MANIFEST_V3_NAMES, CLIP_TEXT_LIMITS.description);
+}
+
+/**
+ * Re-validates a persisted clip before it is served. Clips without any V3
+ * field (every job created before Selection V3) are returned untouched.
+ */
+export function sanitizeStoredClip(clip) {
+  if (!clip || typeof clip !== "object" || Array.isArray(clip)) return clip;
+  if (!JOB_V3_ONLY_KEYS.some((key) => clip[key] !== undefined)) return clip;
+  const rest = { ...clip };
+  for (const key of [...JOB_V3_ONLY_KEYS]) delete rest[key];
+  const fields = sanitizeV3ClipFields(clip, JOB_V3_NAMES, CLIP_TEXT_LIMITS.storedDescription);
+  const next = { ...rest };
+  for (const key of JOB_V3_ONLY_KEYS) if (fields[key] !== undefined) next[key] = fields[key];
+  if (hasEnginePackaging(fields)) {
+    next.title = fields.title;
+    if (fields.description) next.description = fields.description;
+    else delete next.description;
+    if (fields.hashtags) next.hashtags = fields.hashtags;
+    else delete next.hashtags;
+  } else if (PACKAGED_SOURCES.has(clip.selectionSource)) {
+    // Claimed engine packaging that no longer validates is not served as-is:
+    // without a title the transcript-derived metadata is regenerated.
+    delete next.title;
+    delete next.description;
+    delete next.hashtags;
+    delete next.metadataVersion;
+  }
+  return next;
+}
+
+// --- Selection V3 summary --------------------------------------------------
+
+const SELECTION_V3_STATUSES = ["completed", "fallback", "failed"];
+const SELECTION_V3_SOURCES = ["llm", "heuristic"];
+const SELECTION_V3_TRANSCRIPT_SOURCES = ["youtube-captions", "whisper"];
+const SELECTION_V3_ARTIFACT = "analysis/selection.v3.json";
+const SELECTION_V3_PROVIDER = /^[a-z0-9][a-z0-9_-]{0,39}$/;
+const SELECTION_V3_MODEL = /^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,119}$/;
+const SELECTION_V3_PROMPT_VERSION = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+// Short stable codes such as "llm_unavailable", "llm_error:rate_limited" or
+// "punctuation_collapse:120-420". No spaces, "=" or quotes, so free text such
+// as an error message (or a secret inside one) can never pass.
+const SELECTION_V3_WARNING = /^[a-z][a-z0-9_]{0,63}(?::[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,95})?$/;
+const MAX_SELECTION_V3_WARNINGS = 50;
+
+function safeCode(value, pattern) {
+  return typeof value === "string" && pattern.test(value) ? value : null;
+}
+
+/**
+ * Strict allowlist for the manifest's top-level `selection_v3`. The structural
+ * fields must be valid or the whole summary is dropped; descriptive fields
+ * (provider, model, prompt version) become null when invalid, and warnings
+ * that are not short codes are left out one by one.
+ */
+export function sanitizeSelectionV3Summary(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  if (raw.mode !== "v3" || !SELECTION_V3_STATUSES.includes(raw.status)) return null;
+  let source = null;
+  if (SELECTION_V3_SOURCES.includes(raw.source)) source = raw.source;
+  else if (raw.status !== "failed" || (raw.source !== undefined && raw.source !== null)) return null;
+  if (raw.status === "fallback" && source !== "heuristic") return null;
+  if (raw.artifact !== undefined && raw.artifact !== null && raw.artifact !== SELECTION_V3_ARTIFACT) return null;
+  if (raw.warnings !== undefined && raw.warnings !== null && !Array.isArray(raw.warnings)) return null;
+  const warnings = [];
+  for (const warning of raw.warnings || []) {
+    if (warnings.length >= MAX_SELECTION_V3_WARNINGS) break;
+    if (typeof warning === "string" && warning.length <= 160 && SELECTION_V3_WARNING.test(warning) && !warnings.includes(warning)) {
+      warnings.push(warning);
+    }
+  }
+  return {
+    mode: "v3",
+    status: raw.status,
+    source,
+    provider: safeCode(raw.provider, SELECTION_V3_PROVIDER),
+    model: safeCode(raw.model, SELECTION_V3_MODEL),
+    prompt_version: safeCode(raw.prompt_version, SELECTION_V3_PROMPT_VERSION),
+    warnings,
+    artifact: raw.artifact === SELECTION_V3_ARTIFACT ? SELECTION_V3_ARTIFACT : null,
+    transcript_source: SELECTION_V3_TRANSCRIPT_SOURCES.includes(raw.transcript_source) ? raw.transcript_source : null,
+  };
+}
+
 export function serializePublicJob(job) {
   const {
     sourcePath: _sourcePath,
     selectionV2: rawSelectionV2,
     selection_v2: _legacyRawSelectionV2,
+    selectionV3: rawSelectionV3,
+    selection_v3: _legacyRawSelectionV3,
     ...safe
   } = job;
   const options = safe.options && typeof safe.options === "object" && !Array.isArray(safe.options)
     ? { ...safe.options, selectionMode: safe.options.selectionMode || "v1" }
     : { selectionMode: "v1" };
   const selectionV2 = sanitizeSelectionV2Summary(rawSelectionV2);
-  return enrichJobSocialMetadata({ ...safe, options, ...(selectionV2 ? { selectionV2 } : {}) });
+  const selectionV3 = sanitizeSelectionV3Summary(rawSelectionV3);
+  if (Array.isArray(safe.clips)) safe.clips = safe.clips.map(sanitizeStoredClip);
+  return enrichJobSocialMetadata({
+    ...safe,
+    options,
+    ...(selectionV2 ? { selectionV2 } : {}),
+    ...(selectionV3 ? { selectionV3 } : {}),
+  });
 }
 
 export function validateYouTubeUrl(value) {

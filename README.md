@@ -82,6 +82,12 @@ uv run ai-clipper /path/to/source.mp4 \
 
 For a CUDA machine, add `--device cuda`. The current machine has no `nvidia-smi`, so the verified demo used CPU inference and `libx264` rendering.
 
+The CLI still defaults to `--selection-mode v1` for compatibility. For Selection V3, add
+`--selection-mode v3`. The optional flags are `--llm auto|off|required`,
+`--no-cold-open`, `--no-hook-overlay`, `--caption-style classic|karaoke`, and
+`--captions-dir DIR`, where `DIR` holds YouTube json3 captions in `manual/` and `auto/`.
+The dashboard sends `v3` by default.
+
 ## Outputs
 
 Each run writes:
@@ -105,44 +111,90 @@ uv run ruff check .
 Current verified Python result: **58 tests passed**. Targeted Ruff checks for the
 new Selection V2 domain models pass.
 
+## Selection V3: AI hook clips (default di dashboard)
+
+**Bahasa Indonesia.** Mode bawaan dashboard sekarang **AI Hook (V3)**:
+
+- **LLM gratis dulu.** Transkrip (bukan video) dikirim ke penyedia LLM yang kompatibel
+  OpenAI. Urutan yang disarankan: `ollama-cloud → openrouter → gemini → groq`, dengan
+  `POTONGIN_LLM_FREE_ONLY=1`. Penyedia yang gagal atau key-nya kosong dilewati. Kalau semua
+  gagal atau LLM dimatikan, pemilih **heuristik lokal** (tanpa internet) dipakai, dan job
+  tetap selesai. Dashboard menampilkan status LLM tanpa pernah menampilkan key. Penyedia,
+  API key, URL, dan model diatur di halaman **Pengaturan** (`/settings`), jadi `.env` tidak
+  perlu diedit (key disimpan terenkripsi di `/data/settings`; `.env` bisa diimpor sekali klik).
+  Setup: [`docs/operations/LLM_PROVIDERS.md`](docs/operations/LLM_PROVIDERS.md).
+- **Jalur cepat subtitle YouTube.** Untuk URL YouTube, worker mencoba mengunduh subtitle
+  manual dan otomatis (json3) setelah videonya. Kalau kualitasnya cukup, engine melewati
+  Whisper. Kalau tidak ada atau kualitasnya buruk, Whisper lokal tetap dipakai.
+- **Cold open.** Kalimat terkuat bisa diputar lebih dulu, lalu klip berjalan dari awal.
+- **Teks hook.** Kalimat pemancing singkat tampil di atas layar selama 4 detik pertama.
+- **Subtitle karaoke.** Subtitle mengikuti waktu per kata, dan kata yang sedang diucapkan
+  menyala. Gaya klasik masih tersedia.
+- **Kemasan siap posting.** Setiap klip punya judul, teks hook, deskripsi, hashtag,
+  arketipe, alasan dipilih, dan skor 0–10 (hook, berdiri sendiri, payoff, emosi, layak
+  dibagikan). Semua tampil di halaman detail proyek dan bisa disalin sekali klik.
+- **Benchmark.** Pemilihan diukur terhadap label emas (Recall@K, Precision@K, trap):
+  [`docs/evaluation/SELECTION_BENCHMARK.md`](docs/evaluation/SELECTION_BENCHMARK.md).
+  Angka hasil benchmark V3 belum dipublikasikan.
+- Standar kualitas klip: [`docs/operations/STANDAR_KLIP_AI.md`](docs/operations/STANDAR_KLIP_AI.md).
+- Mode lama **Klasik V1** dan **V2 shadow** tetap ada di bawah "Mode lama". Job lama
+  tampil persis seperti sebelumnya.
+
+**English.** The dashboard now defaults to **AI Hook (V3)**:
+
+- **Free-first LLM selection.** Only transcript text is sent, to any OpenAI-compatible
+  provider, tried in order (recommended `ollama-cloud, openrouter, gemini, groq` with
+  `POTONGIN_LLM_FREE_ONLY=1`). When every provider fails, or the LLM is off, a local
+  heuristic selector (no network) picks the moments and the job still completes. The
+  status is reported as `selection_v3.status = "fallback"`. Providers, API keys, base URLs
+  and models are managed on the **Pengaturan** page (`/settings`, `/api/settings/llm`); keys
+  are sealed with AES-256-GCM in `/data/settings` and the worker hands them only to the
+  engine process. Without a settings file the environment is used (one-click import).
+  `GET /api/llm/status` (authenticated) reports the effective configuration: no network
+  calls, and never key values.
+- **YouTube captions fast path.** After the video download, two best-effort `yt-dlp` runs
+  fetch manual and automatic json3 captions into `input/captions/{manual,auto}`. The engine
+  gets `--captions-dir` only when a caption file exists, uses the captions when they pass
+  its quality gate, and otherwise runs Whisper. Caption failures never fail a job.
+- **Hook packaging.** An optional cold open (`--cold-open`), a 4-second on-screen hook
+  (`--hook-overlay`), and word-timed karaoke captions (`--caption-style karaoke`). Clip
+  length follows the dashboard's minimum and maximum duration.
+- **Manifest.** Each clip gains `title`, `hook_text`, `description`, `hashtags`,
+  `archetype`, `selection_source`, `reasons`, `scores`, `cold_open`, `source_start` and
+  `source_end`. The top level gains `selection_v3`. The web worker sanitizes every string
+  (length caps, control and bidi characters stripped) and allowlists the summary before it
+  persists anything.
+- **Benchmark.** Gold-label evaluation is described in
+  `docs/evaluation/SELECTION_BENCHMARK.md`. No V3 numbers are claimed yet.
+- The contracts are in `docs/plans/2026-09-24-selection-v3-llm-hooks.md`.
+
 ## What is real today
 
-- Local Indonesian transcription with faster-whisper
-- Configurable duration and clip count
-- Deterministic transcript-window scoring
-- Non-overlapping highlight selection
-- Portrait center-crop fallback
+- Local Indonesian transcription with faster-whisper, word timestamps, and a transcript
+  quality gate; YouTube captions can replace Whisper when their quality is good enough
+- Selection V3 (dashboard default): LLM moment selection with ordered provider failover
+  and a deterministic heuristic fallback; V1 and V2 shadow remain selectable
+- Cold open, on-screen hook text, and karaoke or classic burned-in captions
 - Selectable portrait layout: `face-track`, `fit-blur`, or `center-crop`
 - OpenCV face tracking with smoothed crop movement across speaker shots
-- Short, proportionally timed subtitle cues
-- Subtitle burn-in
-- H.264/AAC MP4 rendering
-- Machine-readable manifest
-- Fail-closed manifest states (`processing`, `completed`, or `failed`)
-- Runnable CLI
-- Authenticated Next.js dashboard, public landing page, and persistent project history
-- YouTube and direct upload ingestion through the web worker
-- Interactive stage-based worker progress
-
-## Next phase: Selection V2 and customized editor
-
-- Evidence and design findings:
-  `docs/research/TIKTOK_CLIPPER_REFERENCE_ANALYSIS.md`
-- Task-by-task implementation plan:
-  `docs/plans/2026-08-28-clip-selection-v2-custom-editor.md`
-- Selection V2 domain models are being introduced behind the existing stable V1
-  pipeline; they are not active in production yet.
+- H.264/AAC MP4 rendering with downloadable SRT that matches the burned captions
+- Machine-readable, fail-closed manifest (`processing`, `completed`, or `failed`)
+- Authenticated Next.js dashboard, durable job queue with fenced leases, persistent
+  project history, candidate editor for V2 shadow candidates, and project deletion
+- YouTube and direct upload ingestion through the web worker, with stage-based progress
 
 ## Important limitations
 
-- Highlight selection is currently a deterministic transcript heuristic, not an LLM or multimodal virality model.
-- Face tracking follows the most prominent detected face; it does not yet use audio
-  diarization to prove which visible person is actively speaking.
-- Faster-whisper segment timestamps are used; word-level karaoke timing is not implemented.
-- The web worker is single-instance and does not yet have a durable queue, database,
-  billing, quota/retention policy, or restart recovery for interrupted jobs.
-- There is no user-facing correction editor yet; the customized editor is planned in
-  the Selection V2 roadmap.
-- “Potential score” is a ranking heuristic and must never be marketed as a guarantee of virality.
+- LLM selection depends on free tiers whose quotas and model IDs change often. Fallback to
+  the heuristic selector keeps jobs working, but its picks are weaker. The dashboard says
+  when this happened.
+- The benchmark gold labels were written by an LLM acting as an editor. They are a proxy
+  until owner labels and real retention analytics exist.
+- Face tracking follows the most prominent detected face; there is no audio diarization,
+  so it cannot prove which visible person is speaking.
+- Scores rank moments against each other. They are not a prediction or guarantee of
+  virality and must never be marketed as one.
+- The worker is designed for one trusted self-hosted instance. There is no database,
+  billing, or multi-tenant isolation.
 
 See `spikes/001-transcribe-highlight-render/README.md` for the evidence and verdict.

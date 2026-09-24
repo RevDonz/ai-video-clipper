@@ -7,6 +7,7 @@ import {
   recoverFailedJobSelection,
   storageStatusView,
 } from "../../lib/dashboard-storage-status.mjs";
+import { clipCaptionText, llmStatusView, selectionSourceLabel } from "../../lib/selection-v3-view.mjs";
 
 const layouts = [
   {
@@ -29,6 +30,21 @@ const layouts = [
   },
 ];
 
+const legacyModes = [
+  {
+    id: "v1",
+    name: "Klasik V1",
+    description: "Pemilih kata kunci lama. Klip dirender tanpa teks hook, cold open, atau judul AI.",
+  },
+  {
+    id: "v2-shadow",
+    name: "V2 shadow",
+    description: "V1 tetap merender klip; V2 hanya membuat kandidat pembanding untuk ditinjau di detail proyek.",
+  },
+];
+
+const LLM_STATUS_UNREADABLE = { state: "invalid", label: "Status LLM tidak dapat dibaca — job tetap jalan, dengan heuristik bila perlu" };
+
 const statusLabel = {
   queued: "Menunggu worker",
   preparing: "Menyiapkan video",
@@ -47,6 +63,10 @@ const stageLabel = {
   ranking: "Menyusun shortlist V2",
   media: "Menganalisis media kandidat V2",
   candidates_ready: "Kandidat bayangan V2 siap",
+  captions: "Mengambil subtitle YouTube",
+  audio: "Menganalisis audio",
+  llm: "AI memilih momen",
+  packaging: "Menyiapkan judul dan hook",
   rendering: "Merender klip",
   finalizing: "Menyelesaikan hasil",
   completed: "Selesai",
@@ -59,6 +79,16 @@ const storageMessages = {
   storage_admission_unavailable: "Status penyimpanan server tidak dapat diverifikasi. Coba lagi nanti.",
 };
 
+function LlmBadge({ status, llmMode }) {
+  const view = llmStatusView(status, llmMode);
+  return (
+    <p className={`llmBadge ${view.tone}`} role="status" aria-live="polite">
+      <i aria-hidden="true" />
+      <span>{view.label}</span>
+    </p>
+  );
+}
+
 export default function DashboardPage() {
   const [sourceType, setSourceType] = useState("youtube");
   const [youtubeUrl, setYoutubeUrl] = useState("");
@@ -67,8 +97,13 @@ export default function DashboardPage() {
   const [limit, setLimit] = useState(3);
   const [minDuration, setMinDuration] = useState(20);
   const [maxDuration, setMaxDuration] = useState(60);
-  const [shadowSelection, setShadowSelection] = useState(true);
+  const [selectionMode, setSelectionMode] = useState("v3");
+  const [llmMode, setLlmMode] = useState("auto");
+  const [coldOpen, setColdOpen] = useState(true);
+  const [hookOverlay, setHookOverlay] = useState(true);
+  const [captionStyle, setCaptionStyle] = useState("karaoke");
   const [clipProfile, setClipProfile] = useState("standard");
+  const [llmStatus, setLlmStatus] = useState(null);
   const [jobs, setJobs] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -102,6 +137,18 @@ export default function DashboardPage() {
     mounted.current = true;
     const controller = new AbortController();
     void refreshJobs(null, controller.signal).catch(() => {});
+    void (async () => {
+      // The badge is informative only; the worker decides at run time.
+      let next = LLM_STATUS_UNREADABLE;
+      try {
+        const response = await fetch("/api/llm/status", { cache: "no-store", signal: controller.signal });
+        const payload = await response.json();
+        if (payload?.llm && typeof payload.llm.label === "string") next = payload.llm;
+      } catch {
+        // Fall through to the "unreadable" badge unless the page is gone.
+      }
+      if (!controller.signal.aborted) setLlmStatus(next);
+    })();
     const recovery = createStorageStatusRecovery({ fetchImpl: fetch, onChange: setStorageView });
     storageRecovery.current = recovery;
     void recovery.start();
@@ -156,8 +203,13 @@ export default function DashboardPage() {
       data.set("limit", String(limit));
       data.set("minDuration", String(minDuration));
       data.set("maxDuration", String(maxDuration));
-      if (shadowSelection) {
-        data.set("selectionMode", "v2-shadow");
+      data.set("selectionMode", selectionMode);
+      if (selectionMode === "v3") {
+        data.set("llmMode", llmMode);
+        data.set("coldOpen", String(coldOpen));
+        data.set("hookOverlay", String(hookOverlay));
+        data.set("captionStyle", captionStyle);
+      } else if (selectionMode === "v2-shadow") {
         data.set("clipProfile", clipProfile);
       }
       if (sourceType === "youtube") data.set("youtubeUrl", youtubeUrl);
@@ -186,7 +238,7 @@ export default function DashboardPage() {
   }
 
   async function copyCaption(clip) {
-    await navigator.clipboard.writeText(`${clip.title}\n\n${clip.description}`);
+    await navigator.clipboard.writeText(clipCaptionText(clip));
     if (!mounted.current) return;
     setCopiedClip(`${activeJob.id}-${clip.index}`);
     if (copiedTimer.current !== null) clearTimeout(copiedTimer.current);
@@ -200,13 +252,13 @@ export default function DashboardPage() {
     <main>
       <nav className="nav shell">
         <a className="brand" href="/"><span>P</span> Potongin AI</a>
-        <div className="navActions"><div className="navLinks"><a className="active" href="/dashboard">Buat Klip</a><a href="/projects">Riwayat</a></div><div className="navMeta"><i /> Worker lokal siap</div><form method="post" action="/api/auth/logout"><button type="submit">Keluar</button></form></div>
+        <div className="navActions"><div className="navLinks"><a className="active" href="/dashboard">Buat Klip</a><a href="/projects">Riwayat</a><a href="/settings">Pengaturan</a></div><div className="navMeta"><i /> Worker lokal siap</div><form method="post" action="/api/auth/logout"><button type="submit">Keluar</button></form></div>
       </nav>
 
       <section className="hero shell" id="top">
         <div className="eyebrow">AI VIDEO REPURPOSING · BAHASA INDONESIA</div>
         <h1>Satu video panjang.<br /><em>Banyak klip yang layak ditonton.</em></h1>
-        <p>Masukkan URL YouTube atau unggah video. Engine lokal akan memilih momen, membuat subtitle, dan merender klip siap Shorts, Reels, atau TikTok.</p>
+        <p>Masukkan URL YouTube atau unggah video. Engine memilih momen dengan hook terkuat, menulis judul dan teks hook, membuat subtitle karaoke, lalu merender klip siap Shorts, Reels, atau TikTok.</p>
         <div className="trust"><span>✓ Data tersimpan di server sendiri</span><span>✓ FFmpeg + Whisper lokal</span><span>✓ Tanpa biaya API per video</span></div>
       </section>
 
@@ -249,22 +301,78 @@ export default function DashboardPage() {
             <label><span>Durasi minimum</span><div><input type="number" min="5" max="180" value={minDuration} onChange={(e) => setMinDuration(e.target.value)} /><b>detik</b></div></label>
             <label><span>Durasi maksimum</span><div><input type="number" min="5" max="180" value={maxDuration} onChange={(e) => setMaxDuration(e.target.value)} /><b>detik</b></div></label>
           </div>
-          <div className={`shadowOptions ${shadowSelection ? "enabled" : ""}`}>
-            <label className="shadowToggle">
-              <input type="checkbox" checked={shadowSelection} onChange={(event) => setShadowSelection(event.target.checked)} />
-              <span><strong>Experimental Selection V2 shadow</strong><small>V1 tetap merender klip. V2 hanya membuat kandidat pembanding.</small></span>
+          <div className="divider" />
+          <section className="modePanel" aria-labelledby="selection-mode-title">
+            <div className="panelHead compact"><span>03</span><div><h2 id="selection-mode-title">Pemilihan momen</h2><p>Cara engine memilih dan mengemas setiap klip.</p></div></div>
+            <label className={`modeCard ${selectionMode === "v3" ? "selected" : ""}`}>
+              <input type="radio" name="selectionMode" value="v3" checked={selectionMode === "v3"} onChange={() => setSelectionMode("v3")} />
+              <span>
+                <strong>AI Hook (V3) <mark>Disarankan</mark></strong>
+                <small>AI membaca transkrip, memilih momen yang langsung menarik di detik pertama, lalu menulis judul, teks hook, deskripsi, dan hashtag. Kalau LLM gratis sedang tidak tersedia, pemilih heuristik lokal otomatis dipakai, jadi klip tetap jadi.</small>
+              </span>
             </label>
-            {shadowSelection && (
-              <label className="profileField">
-                <span>Profil kandidat V2</span>
-                <select value={clipProfile} onChange={(event) => setClipProfile(event.target.value)}>
-                  <option value="viral-short">Klip singkat</option>
-                  <option value="standard">Standar</option>
-                  <option value="deep-dive">Pembahasan mendalam</option>
-                </select>
-              </label>
+
+            {selectionMode === "v3" && (
+              <div className="v3Options">
+                <LlmBadge status={llmStatus} llmMode={llmMode} />
+                <a className="llmSettingsLink" href="/settings">Atur penyedia AI, API key, dan model di Pengaturan →</a>
+                <fieldset className="choiceGroup">
+                  <legend>Pemilihan momen</legend>
+                  <label className={llmMode === "auto" ? "selected" : ""}>
+                    <input type="radio" name="llmMode" value="auto" checked={llmMode === "auto"} onChange={() => setLlmMode("auto")} />
+                    <span><strong>AI (LLM gratis)</strong><small>Otomatis cadangan heuristik bila LLM gagal.</small></span>
+                  </label>
+                  <label className={llmMode === "off" ? "selected" : ""}>
+                    <input type="radio" name="llmMode" value="off" checked={llmMode === "off"} onChange={() => setLlmMode("off")} />
+                    <span><strong>Tanpa LLM (heuristik)</strong><small>Tanpa internet; transkrip tidak dikirim ke mana pun.</small></span>
+                  </label>
+                </fieldset>
+                <div className="toggleList">
+                  <label className="shadowToggle">
+                    <input type="checkbox" checked={coldOpen} onChange={(event) => setColdOpen(event.target.checked)} />
+                    <span><strong>Buka dengan kalimat terkuat</strong><small>Kalimat hook diputar dulu beberapa detik (cold open), lalu klip berjalan dari awal.</small></span>
+                  </label>
+                  <label className="shadowToggle">
+                    <input type="checkbox" checked={hookOverlay} onChange={(event) => setHookOverlay(event.target.checked)} />
+                    <span><strong>Teks hook 4 detik pertama</strong><small>Kalimat pemancing singkat tampil di bagian atas layar.</small></span>
+                  </label>
+                </div>
+                <fieldset className="choiceGroup">
+                  <legend>Gaya subtitle</legend>
+                  <label className={captionStyle === "karaoke" ? "selected" : ""}>
+                    <input type="radio" name="captionStyle" value="karaoke" checked={captionStyle === "karaoke"} onChange={() => setCaptionStyle("karaoke")} />
+                    <span><strong>Karaoke</strong><small>Kata yang sedang diucapkan menyala kuning.</small></span>
+                  </label>
+                  <label className={captionStyle === "classic" ? "selected" : ""}>
+                    <input type="radio" name="captionStyle" value="classic" checked={captionStyle === "classic"} onChange={() => setCaptionStyle("classic")} />
+                    <span><strong>Klasik</strong><small>Subtitle putih biasa, beberapa kata per baris.</small></span>
+                  </label>
+                </fieldset>
+              </div>
             )}
-          </div>
+
+            <details className="legacyModes" open={selectionMode !== "v3" || undefined}>
+              <summary>Mode lama</summary>
+              <div>
+                {legacyModes.map((mode) => (
+                  <label key={mode.id} className={`modeCard compactMode ${selectionMode === mode.id ? "selected" : ""}`}>
+                    <input type="radio" name="selectionMode" value={mode.id} checked={selectionMode === mode.id} onChange={() => setSelectionMode(mode.id)} />
+                    <span><strong>{mode.name}</strong><small>{mode.description}</small></span>
+                  </label>
+                ))}
+                {selectionMode === "v2-shadow" && (
+                  <label className="profileField">
+                    <span>Profil kandidat V2</span>
+                    <select value={clipProfile} onChange={(event) => setClipProfile(event.target.value)}>
+                      <option value="viral-short">Klip singkat</option>
+                      <option value="standard">Standar</option>
+                      <option value="deep-dive">Pembahasan mendalam</option>
+                    </select>
+                  </label>
+                )}
+              </div>
+            </details>
+          </section>
           <button className="submit" disabled={submitting || storageBlocked}>{submitting ? "Membuat job…" : "Buat klip sekarang"}<span>→</span></button>
           {message && <p className="message">{message}</p>}
         </form>
@@ -281,7 +389,7 @@ export default function DashboardPage() {
                 {activeJob.clips?.map((clip) => (
                   <article className="clip" key={clip.index}>
                     <video controls preload="metadata" src={clip.videoUrl} />
-                    <div className="clipMeta"><small>CLIP {String(clip.index).padStart(2, "0")} · {Math.round(clip.duration)} DETIK</small><h3>{clip.title}</h3><p className="socialDescription">{clip.description}</p><div className="clipActions"><a href={clip.downloadUrl}>Download MP4 ↓</a><button type="button" onClick={() => copyCaption(clip)}>{copiedClip === `${activeJob.id}-${clip.index}` ? "Tersalin ✓" : "Salin caption"}</button></div></div>
+                    <div className="clipMeta"><small>CLIP {String(clip.index).padStart(2, "0")} · {Math.round(clip.duration)} DETIK{selectionSourceLabel(clip.selectionSource) && clip.selectionSource !== "v1" ? ` · ${selectionSourceLabel(clip.selectionSource).toUpperCase()}` : ""}</small><h3>{clip.title}</h3>{clip.hookText && <p className="hookLine"><span>Hook</span>{clip.hookText}</p>}<p className="socialDescription">{clip.description}</p><div className="clipActions"><a href={clip.downloadUrl}>Download MP4 ↓</a><button type="button" onClick={() => copyCaption(clip)}>{copiedClip === `${activeJob.id}-${clip.index}` ? "Tersalin ✓" : "Salin caption"}</button></div></div>
                   </article>
                 ))}
                 {!activeJob.clips?.length && activeJob.status !== "failed" && <div className="empty"><div className="pulse" /><strong>{activeJob.stageDetail || "Worker sedang bekerja"}</strong><p>Progres diperbarui otomatis selama engine bekerja.</p></div>}
