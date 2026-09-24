@@ -11,6 +11,7 @@ from ai_clipper.hook_heuristics import (
     _clean_line,
     propose_heuristic,
 )
+from ai_clipper.llm_selection import packaging_problem
 from ai_clipper.selection_types import ARCHETYPES, SCORE_DIMENSIONS, ClipProposal
 from ai_clipper.sentences import SentenceUnit, looks_like_question
 from ai_clipper.sound_events import SoundEvent
@@ -115,7 +116,7 @@ def covers(units, proposal, index):
 
 
 def test_version_is_published():
-    assert HEURISTIC_VERSION == "heuristic-v3.0"
+    assert HEURISTIC_VERSION == "heuristic-v3.1"
 
 
 def test_returns_valid_ranked_non_overlapping_heuristic_proposals():
@@ -674,7 +675,9 @@ def test_clean_line_trims_to_the_limit_on_a_word_boundary():
     text = "ee jadi gini sebenernya gua itu udah lama banget pengen cerita soal kejadian di kantor"
     cleaned = _clean_line(text, 40)
     assert len(cleaned) <= 40
-    assert cleaned.endswith("…")
+    assert "…" not in cleaned
+    assert cleaned.casefold() in text
+    assert cleaned.split()[-1] not in {"soal", "di", "yang", "gua", "itu", "pengen"}
     assert cleaned[0].isupper()
     assert "ee" not in cleaned.split()
     assert _clean_line("  ", 40) == ""
@@ -1118,7 +1121,9 @@ def test_random_episodes_always_satisfy_the_contract(seed):
         indices = set(range(item.start_unit, item.end_unit + 1))
         assert not indices & taken
         taken |= indices
-        assert len(item.hook_text) <= 60
+        assert 0 < len(item.hook_text) <= 60
+        assert 0 < len(item.title) <= 70
+        assert "…" not in item.hook_text + item.title
         assert 3 <= len(item.hashtags) <= 6
     assert [item.score for item in proposals] == sorted(
         (item.score for item in proposals), reverse=True
@@ -1127,3 +1132,242 @@ def test_random_episodes_always_satisfy_the_contract(seed):
         units, min_duration=low, max_duration=high, k=k, events=events, audio=audio
     )
     assert again == proposals
+
+
+# --- banter and comedy ------------------------------------------------------------------------
+
+
+def _answer_lines(topic="copet", count=6):
+    lines = [
+        f"Jujur gua pernah ketangkap polisi waktu {topic} di festival musik.",
+        f"Ternyata yang nangkep gua itu korban {topic} gua sendiri tahun lalu.",
+        f"Gua bukan jambret, tapi tetap aja rasanya malu banget soal {topic}.",
+        f"Dia bilang ke gua jangan pernah balik lagi ke dunia {topic} itu.",
+        f"Sejak itu gua insaf dan kerja jadi tukang parkir buat {topic} konser.",
+        "Akhirnya gua malah dikasih hadiah tiket nonton gratis sama dia.",
+    ]
+    return [L(text, seconds=4.5) for text in lines[:count]]
+
+
+@pytest.mark.parametrize("reaction", ["Hah? Serius?", "Masa sih?", "Serius lu?", "Gila!"])
+def test_a_host_reaction_does_not_end_the_answer(reaction):
+    answer = _answer_lines()
+    lines = (
+        neutral(12)
+        + [L("Kenapa lu akhirnya berhenti nyopet di konser?", gap=0.8)]
+        + answer[:2]
+        + [L(reaction, seconds=1.0, gap=0.2)]
+        + answer[2:]
+        + neutral(12, offset=40)
+    )
+    units, events = build(lines)
+
+    best = propose_heuristic(units, min_duration=20, max_duration=45, k=3, events=events)[0]
+
+    assert best.start_unit == 12
+    assert best.end_unit >= 17
+    assert any("pertanyaan" in reason.casefold() for reason in best.reasons)
+
+
+def test_a_clip_never_starts_on_a_host_reaction():
+    lines = (
+        neutral(12)
+        + [L("dan gua kerja jadi tukang parkir di konser gede", gap=0.0)]
+        + [L("Serius lu?", seconds=1.0, gap=0.9)]
+        + _answer_lines()
+        + neutral(12, offset=40)
+    )
+    units, events = build(lines)
+
+    proposals = propose_heuristic(units, min_duration=20, max_duration=45, k=3, events=events)
+
+    assert all(item.start_unit != 13 for item in proposals)
+    assert proposals[0].start_unit == 14
+
+
+def test_host_reactions_do_not_make_banter_small_talk():
+    banter = [
+        L("Gua pernah disangka maling sama satpam kompleks sendiri.", gap=0.8),
+        L("Hah? Serius?", seconds=1.0, gap=0.2),
+        L("Sumpah, gara-gara gua pakai sarung.", seconds=2.0, gap=0.2),
+        L("Masa sih?", seconds=1.0, gap=0.2),
+        L("Iya, dikejar sampai pos.", seconds=1.6, gap=0.2),
+        L("Gila!", seconds=0.8, gap=0.2),
+        L("Terus dia minta maaf.", seconds=1.6, gap=0.2),
+        L("Serius lu?", seconds=1.0, gap=0.2),
+        L("Dia ngasih gua kopi gratis tiap pagi sampai sekarang.", seconds=4.0),
+        L("Sejak itu gua malah jadi temen deket sama satpam itu.", seconds=4.0),
+        L("Akhirnya tiap malam kita ronda bareng keliling kompleks.", seconds=4.0),
+    ]
+    units, events = build(neutral(12) + banter + neutral(12, offset=40))
+
+    best = propose_heuristic(units, min_duration=15, max_duration=40, k=3, events=events)[0]
+
+    assert covers(units, best, 14) and covers(units, best, 20)
+    assert not any("basa-basi" in reason for reason in best.reasons)
+
+
+def _whisper_joke(laugh_text):
+    return [
+        L("Kenapa lu dipanggil si raja telat sama temen-temen?", gap=0.8),
+        L("Gua pernah telat ke nikahan gua sendiri satu jam lebih.", seconds=4.0),
+        L("Penghulunya sampai ketiduran di kursi nungguin gua dateng.", seconds=4.0),
+        L("Pas gua dateng dia bangun terus nanya gua ini siapa.", seconds=4.0),
+        L(laugh_text, seconds=1.2, gap=0.3),
+        L("terus kita lanjut ngobrolin soal kerjaan kantor yang biasa aja", seconds=4.5, gap=0.0),
+        L("dan kerjaannya lumayan banyak juga setiap minggu di kantor", seconds=4.5, gap=0.0),
+    ]
+
+
+@pytest.mark.parametrize("laugh_text", ["Hahaha", "Wkwkwk", "Lucu banget."])
+def test_spelled_out_laughter_counts_without_laugh_tags(laugh_text):
+    lines = neutral(12) + _whisper_joke(laugh_text) + neutral(12, offset=40)
+    units, _events = build(lines)
+
+    best = propose_heuristic(units, min_duration=15, max_duration=40, k=3)[0]
+
+    assert best.start_unit == 12
+    assert best.end_unit in (15, 16)
+    assert best.payoff_unit == 15
+    assert any("tawa" in reason.casefold() for reason in best.reasons)
+
+
+def test_spelled_out_laughter_is_ignored_when_the_track_tags_laughter():
+    lines = neutral(12) + _whisper_joke("Hahaha") + neutral(12, offset=40)
+    units, _events = build(lines)
+    tagged = (SoundEvent.from_label(units[-1].end + 0.2, "tertawa"),)
+
+    proposals = propose_heuristic(units, min_duration=15, max_duration=40, k=3, events=tagged)
+    joke = next(item for item in proposals if covers(units, item, 15))
+
+    assert not any("tawa" in reason.casefold() for reason in joke.reasons)
+
+
+def test_humor_needs_more_laughter_than_the_episode_usually_has():
+    chatty = [L(line.text, seconds=line.seconds, laugh=True) for line in neutral(24)]
+    answer = [
+        L("Gua kerja jadi tukang parkir di konser gede tiap minggu.", seconds=4.5),
+        L("Tiap malam gua pegang karcis sama peluit di pintu masuk.", 4.5, laugh=True),
+        L("Mobil yang masuk bisa sampai ratusan kalau lagi rame.", seconds=4.5),
+        L("Kadang gua juga bantuin panitia angkat kursi ke panggung.", 4.5, laugh=True),
+        L("Pulangnya gua naik ojek bareng temen-temen parkir yang lain.", seconds=4.5),
+    ]
+    lines = chatty[:12] + [L("Kenapa lu kerja jadi tukang parkir di konser?", gap=0.8)] + answer
+    units, events = build(lines + chatty[12:])
+
+    proposals = propose_heuristic(units, min_duration=20, max_duration=40, k=3, events=events)
+
+    assert covers(units, proposals[0], 14)
+    assert all(item.archetype != "humor" for item in proposals)
+    assert not any(item.title.startswith("Momen lucu") for item in proposals)
+
+
+# --- packaging (titles and hook texts) --------------------------------------------------------
+
+
+def _packaged(line, *, question="Kenapa lu keluar dari band lama lu?", seconds=6.0):
+    lines = (
+        neutral(12)
+        + [
+            L(question, gap=0.8),
+            L(line, seconds=seconds),
+            L("Waktu itu kita main di acara kampus di Bandung.", seconds=5.0),
+            L("Semua personel udah siap di atas panggung dari sore.", seconds=5.0),
+            L("Gua masih di jalan kena macet di tol dalam kota.", seconds=5.0),
+            L("Pas gua sampai, acaranya udah selesai dan penonton pulang.", 5.0, laugh=True),
+        ]
+        + neutral(12, offset=40)
+    )
+    units, events = build(lines)
+    best = propose_heuristic(units, min_duration=20, max_duration=45, k=3, events=events)[0]
+    return units, best
+
+
+_TICS = {"ya", "sih", "deh", "dong", "nih", "ee", "eh", "gitu"}
+
+
+def _assert_clean(text, limit):
+    assert text and len(text) <= limit
+    assert "…" not in text and "..." not in text
+    assert text[0].isupper()
+    words = [word.strip(".,?!").casefold() for word in text.split()]
+    assert not _TICS & set(words[1:])
+    assert all(first != second for first, second in itertools.pairwise(words))
+
+
+def test_packaging_drops_filler_runs_and_never_ends_on_an_ellipsis():
+    run_on = (
+        "Sumpah gua gua awalnya yang yang pertama ya gua kaget ya ya lama-lama gua coba cek "
+        "adsense gitu terus ternyata duitnya dibalikin semua sama YouTube"
+    )
+    _units, best = _packaged(run_on, seconds=9.0)
+
+    assert best.hook_unit == 13
+    _assert_clean(best.hook_text, 60)
+    _assert_clean(best.title, 70)
+    last = best.hook_text.rstrip(".?!").split()[-1].casefold()
+    assert last not in {"yang", "gua", "dan", "ke", "di", "ya", "terus", "coba"}
+
+
+def test_title_is_the_archetype_label_and_a_headline_from_the_hook_line():
+    _units, best = _packaged(
+        "Eh gua gua jujur ee pernah dipecat gara-gara gara-gara telat manggung."
+    )
+
+    assert best.hook_text == "Gua jujur pernah dipecat gara-gara telat manggung."
+    assert best.archetype == "confession"
+    assert best.title == "Pengakuan: Pernah dipecat gara-gara telat manggung."
+
+
+def test_a_question_led_clip_without_other_evidence_is_titled_with_the_question():
+    answer = [
+        L("Kita main di acara kampus di Bandung dari sore sampai malam.", seconds=3.5),
+        L("Semua personel udah siap di atas panggung dari sore.", seconds=3.5),
+        L("Gua masih di jalan kena macet di tol dalam kota.", seconds=3.5),
+        L("Personel yang lain milih lanjut manggung tanpa gua.", seconds=3.5, laugh=True),
+    ]
+    lines = neutral(12) + [L("Kenapa lu keluar dari band lama lu?", gap=0.8)] + answer
+    units, events = build(lines + neutral(12, offset=40))
+
+    best = propose_heuristic(units, min_duration=20, max_duration=45, k=3, events=events)[0]
+
+    assert best.start_unit == 12
+    assert best.archetype == "curiosity_gap"
+    assert best.title == "Kenapa lu keluar dari band lama?"
+    assert best.hook_text == "Personel yang lain milih lanjut manggung tanpa gua."
+
+
+def test_a_garbled_hook_line_falls_back_to_a_line_with_content():
+    units, best = _packaged("Yakin gue gua banget itu, jujur jujur.", seconds=3.0)
+
+    assert "banget itu" not in best.hook_text
+    _assert_clean(best.hook_text, 60)
+    assert units[best.hook_unit].text.casefold().split()[0] != "yakin"
+
+
+def test_clean_line_repairs_caption_and_whisper_artifacts():
+    assert (
+        _clean_line("Jarang yang ada dipecat di sini. Jujur") == "Jarang yang ada dipecat di sini."
+    )
+    assert (
+        _clean_line("K lu kayak anjing kok dia baik banget ya")
+        == "Lu kayak anjing kok dia baik banget"
+    )
+    assert _clean_line("gua kaget lama -lama Terus gua coba cek adsense") == (
+        "Gua kaget lama-lama terus gua coba cek adsense"
+    )
+    assert (
+        _clean_line("ekstrasnya dibuat sedemikian rupa...") == "Ekstrasnya dibuat sedemikian rupa"
+    )
+    assert _clean_line("iya iya oke") == ""
+
+
+def test_heuristic_packaging_passes_the_llm_packaging_check():
+    lines = neutral(12) + qa_moment() + neutral(12, offset=40) + kitchen_moment()
+    units, events = build(lines + neutral(12, offset=80))
+    proposals = propose_heuristic(units, min_duration=20, max_duration=45, k=5, events=events)
+
+    for item in proposals:
+        source = " ".join(unit.text for unit in units[item.start_unit : item.end_unit + 1])
+        assert packaging_problem(item.hook_text, source, title=False) is None
+        assert packaging_problem(item.title, source, title=False) is None
