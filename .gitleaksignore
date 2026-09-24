@@ -8,3 +8,5 @@ cf6d846e6b3f670afbf5299c7bc521504c115b82:tests/test_render_queue.py:generic-api-
 cf6d846e6b3f670afbf5299c7bc521504c115b82:tests/test_render_queue.py:generic-api-key:23
 cf6d846e6b3f670afbf5299c7bc521504c115b82:web/tests/edit-document.test.mjs:generic-api-key:24
 cf6d846e6b3f670afbf5299c7bc521504c115b82:web/tests/editor-view.test.mjs:generic-api-key:95
+b97596bfd28aaf6b7df1ba788cb0ae9adf2f082d:tests/test_benchmark.py:generic-api-key:799
+ca61cf76abd57dcaae83f76762933e0f0f9f948c:tests/test_llm.py:generic-api-key:36
