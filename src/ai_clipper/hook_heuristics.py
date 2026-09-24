@@ -41,7 +41,17 @@ thresholds and "topic-shift" boundaries were at chance level):
   the audio timeline is a mild positive.
 * **Laughter** decides where to cut more than what to pick: the payoff dimension keeps the
   full laugh-end credit and chooses the end, but only :data:`LAUGH_RANK_SHARE` of it counts
-  when different moments are ranked, because banter is full of laughs.
+  when different moments are ranked, because banter is full of laughs. A track without any
+  laughter tag (Whisper, automatic captions) still marks laughs in text: a spelled-out laugh
+  (``Hahaha``, ``Wkwk``) or a short remark (``Lucu banget.``) counts as one laugh after the
+  line it follows. A track that tags laughter is trusted as it is.
+* **Banter.** Host reactions (``Hah? Serius?``, ``Masa sih?``, ``Serius lu?``, ``Gila!``)
+  react to the line before: they do not end an answer, do not count as small-talk questions
+  and never start a clip, and a unit that opens with one is reply-led. Rewarding laughter or
+  banter words when ranking (roast words, reaction density, callbacks, laughs early in the
+  clip or after a setup line, bursts of short turns before a laugh, laughing runs exempt from
+  the small-talk penalty) was measured on the tuning episodes and rejected: every variant
+  added traps or lost gold moments.
 * **Penalties:** suspect (garbled) units, sponsor reads, segues inside the clip (including a
   host moving to the next viewer question: ``Oke, terakhir dari X``, ``Satu pertanyaan dari
   X``; a unit that reads the viewer's question itself may still open a clip), channel
@@ -53,6 +63,17 @@ thresholds and "topic-shift" boundaries were at chance level):
   and each pick is penalised by its content-word similarity to earlier picks. Among
   near-duplicates of the picked moment the best cut wins. Proposal scores are these
   diversity-adjusted scores, so they never increase down the list.
+* **Packaging.** The hook text (at most :data:`HOOK_TEXT_MAX_CHARS`) is the best clean
+  sentence of the hook line: fillers, verbal tics (``ya``, ``sih``, a stray ``gitu``),
+  vocatives, stutters (``gua gua``, ``yang yang``) and Whisper artifacts (``lama -lama``)
+  are removed, and a long sentence is cut to its hookiest stretch on a word boundary that
+  closes a phrase, never with an ellipsis. A garbled or filler-only hook line falls back to
+  the next strongest line of the hook zone (the proposal's ``hook_unit`` follows it). The
+  title (at most :data:`TITLE_MAX_CHARS`) is the host question for a question-led clip with
+  no stronger archetype, otherwise an archetype prefix (``Pengakuan: …``) and a headline:
+  the hook sentence without its leading pronoun, marker, connector or ``gua bilang``.
+  ``humor`` needs laughter well above the episode's own rate
+  (:data:`HUMOR_LAUGH_EXCESS`), so a banter-heavy episode does not call everything funny.
 
 The weights were set on the two tuning episodes only (``Ive926sC6mc``, ``0dzvz9JZFIM``); the
 comments on the constants note the few choices the benchmark moved. The split-line, question
@@ -75,9 +96,10 @@ from .selection_types import ClipProposal
 from .sentences import SentenceUnit
 from .sound_events import SoundEvent, sort_events
 
-HEURISTIC_VERSION = "heuristic-v3.0"
+HEURISTIC_VERSION = "heuristic-v3.1"
 MIN_PROPOSALS = 15
 HOOK_TEXT_MAX_CHARS = 60
+TITLE_MAX_CHARS = 70
 ANSWER_RUN_SECONDS = 12.0
 HOOK_ZONE_SHARE = 0.4
 HOOK_ZONE_MIN_SECONDS = 8.0
@@ -117,6 +139,9 @@ SMALL_TALK_SHARE = 0.5
 SUSPECT_PENALTY = 4.0
 FILLER_PENALTY_MAX = 1.5
 DENSE_LAUGH_PENALTY = 0.8
+# "Humor" needs this many times the laughter the episode has on average (plus one laugh):
+# banter-heavy episodes laugh everywhere, and a title must stay faithful to the moment.
+HUMOR_LAUGH_EXCESS = 1.5
 
 _EPSILON = 1e-6
 _PAUSE_SECONDS = 0.6
@@ -164,6 +189,20 @@ _BACKCHANNEL = _set(
     "nih tuh haha hahaha hehe wkwk wkwkwk enggak nggak gak kagak bang bro kak mas setuju "
     "sepakat masuk aja banget juga iyaa yaudah iyalah"
 )
+# Host reactions ("Hah? Serius?", "Masa sih?", "Serius lu?", "Gila!"): surprise or disbelief at
+# the line before, never a new topic. A reaction is a short unit made only of these words and
+# backchannels, with at least one word from the core set.
+_REACTION = _set(
+    "hah serius seriusan masa masak mosok beneran yakin sumpah demi apa anjir anjay njir anjrit "
+    "anjing buset busyet gila astaga astagfirullah waduh wadaw aduh ampun gimana terus trus kok "
+    "bisa bener benar lu lo elu gue gua ha he"
+)
+_REACTION_CORE = _set(
+    "hah serius seriusan masa masak mosok beneran yakin sumpah demi anjir anjay njir anjrit "
+    "buset busyet gila astaga astagfirullah waduh wadaw"
+)
+# Laughter spelled out by Whisper ("Hahaha", "Wkwk") and short remarks that a line was funny.
+_LAUGH_TOKEN = re.compile(r"(?:ha){2,}h?|(?:he){2,}|(?:hi){2,}|(?:wk){2,}\w*")
 _STOPWORDS = (
     _FILLERS
     | _SOFT_FILLERS
@@ -302,6 +341,7 @@ _CONNECTORS = _set(
     "sambil biar supaya di ke dari nya dengan tanpa bahwa kayak seperti padahal sehingga"
 )
 _DANGLING = _alternation(r"jadi gini|gini|begini|yaitu|contohnya|misalnya")
+_HUMOR_REMARK = _alternation(r"lucu|ngakak|kocak|ngelawak|jayus")
 _EMOTIONAL = _alternation(
     r"gila|anjir|anjing|bangsat|nangis|menangis|sedih|marah|kesel|kesal|takut|seneng|senang|"
     r"bahagia|kaget|syok|shock|merinding|parah|sakit|cinta|kangen|bangga|terharu|kecewa|stres|"
@@ -388,6 +428,10 @@ class _Unit:
     question: bool
     breaks_answer: bool
     backchannel: bool
+    reaction: bool
+    text_laughs: int  # spelled-out laughs ("Hahaha")
+    laugh_first: bool  # the unit opens with one, so it follows the unit before
+    remark: bool  # a short "Lucu banget." about the unit before
     tags: frozenset[str]
     strength: float
     opener: str | None
@@ -430,7 +474,8 @@ def _reply_led(text: str, tokens: Sequence[str]) -> bool:
     sentences = [words for words in sentences if words]
     if len(sentences) < 2:
         return False
-    return all(word in _BACKCHANNEL for word in sentences[0]) and len(tokens) > len(sentences[0])
+    replies = _BACKCHANNEL | _REACTION_CORE
+    return all(word in replies for word in sentences[0]) and len(tokens) > len(sentences[0])
 
 
 def _analyse_unit(unit: SentenceUnit) -> _Unit:
@@ -465,6 +510,11 @@ def _analyse_unit(unit: SentenceUnit) -> _Unit:
         opener = "number"
     first = tokens[0] if tokens else ""
     backchannel = len(tokens) <= 4 and all(token in _BACKCHANNEL for token in tokens)
+    reaction = (
+        0 < len(tokens) <= 5
+        and all(token in _REACTION or token in _BACKCHANNEL for token in tokens)
+        and any(token in _REACTION_CORE for token in tokens)
+    )
     return _Unit(
         start=float(unit.start),
         end=float(unit.end),
@@ -477,8 +527,13 @@ def _analyse_unit(unit: SentenceUnit) -> _Unit:
         question=unit.is_question,
         # A tag question without content ("Lu ngerti kan?", "Siapa coba?") is rhetorical and
         # does not interrupt an answer.
-        breaks_answer=unit.is_question and bool(content),
+        # A host reaction ("Hah? Serius?") does not either.
+        breaks_answer=unit.is_question and bool(content) and not reaction,
         backchannel=backchannel,
+        reaction=reaction,
+        text_laughs=sum(1 for token in raw if _LAUGH_TOKEN.fullmatch(token)),
+        laugh_first=bool(raw) and bool(_LAUGH_TOKEN.fullmatch(raw[0])),
+        remark=len(tokens) <= 5 and bool(_HUMOR_REMARK.search(joined)),
         tags=tags,
         strength=strength,
         opener=opener,
@@ -579,6 +634,15 @@ def _laughter(units: list[_Unit], events: Sequence[SoundEvent]) -> tuple[list[in
             laughs[owner] += 1
         else:
             cheers[owner] += 1
+    if not any(laughs):
+        # Without laughter tags (Whisper, automatic captions) the transcript may still spell a
+        # laugh out ("Hahaha") or remark on the joke ("Lucu banget."). Either counts as one laugh
+        # after the line it follows. A track that tags laughter is trusted as it is.
+        for index, unit in enumerate(units):
+            if not unit.text_laughs and not unit.remark:
+                continue
+            follows = unit.laugh_first or not unit.text_laughs
+            laughs[index - 1 if follows and index > 0 else index] = 1
     return laughs, cheers
 
 
@@ -600,9 +664,13 @@ def _small_talk(units: list[_Unit]) -> list[bool]:
     flags = [False] * len(units)
     index = 0
 
+    def asks(unit: _Unit) -> bool:
+        # A host reaction ("Hah? Serius?") is banter, not a small-talk question.
+        return not unit.reaction and (unit.question or "?" in unit.text)
+
     def member(unit: _Unit) -> bool:
-        asks = unit.question or "?" in unit.text
-        short = _choppy(unit) or (asks and len(unit.tokens) <= 10)
+        asking = asks(unit)
+        short = _choppy(unit) or (asking and len(unit.tokens) <= 10)
         return short and unit.strength < 1.5
 
     while index < len(units):
@@ -610,7 +678,7 @@ def _small_talk(units: list[_Unit]) -> list[bool]:
         while stop < len(units) and member(units[stop]):
             stop += 1
         run = units[index:stop]
-        questions = sum(unit.question or "?" in unit.text for unit in run)
+        questions = sum(asks(unit) for unit in run)
         if len(run) >= _SMALL_TALK_RUN and questions >= _SMALL_TALK_QUESTIONS:
             for position in range(index, stop):
                 flags[position] = True
@@ -821,6 +889,8 @@ def _starts(ctx: _Context) -> list[tuple[int, str]]:
     for index, unit in enumerate(units):
         if unit.suspect or unit.backchannel or not unit.tokens:
             continue
+        if unit.reaction:
+            continue  # "Hah? Serius?" reacts to the line before it
         if (
             unit.question
             and len(unit.content) >= QUESTION_MIN_CONTENT
@@ -959,6 +1029,7 @@ class _Window:
     penalties: dict[str, float]
     silence: float | None
     choice: float  # the score used to pick the end for one start (full laugh-end credit)
+    zone_end: int = -1  # last unit of the hook zone (for packaging fallbacks)
 
 
 def _assess(
@@ -1079,6 +1150,7 @@ def _search(ctx: _Context, min_duration: float, max_duration: float) -> list[_Wi
             if duration < min_duration - _EPSILON:
                 continue
             window = _assess(ctx, start, end, kind, hook_unit, hook_value)
+            window.zone_end = zone - 1
             bucket = min(
                 DURATION_BUCKETS - 1, int(DURATION_BUCKETS * (duration - min_duration) / span)
             )
@@ -1196,51 +1268,71 @@ _COMMON = _set(
 )
 
 
-def _clean_words(text: str) -> list[str]:
-    """Words of one line without fillers, stutters and leading/trailing backchannels."""
-    kept: list[str] = []
-    previous = ""
-    for word in text.split():
-        norm = "".join(_words(word))
-        if not norm or norm in _FILLERS:
-            continue
-        if norm == "gitu" and previous == "ya" and kept:
-            kept.pop()
-            previous = "".join(_words(kept[-1])) if kept else ""
-            continue
-        if norm == previous:
-            if word[-1:] in ".!?," and kept:
-                kept[-1] = kept[-1].rstrip(".!?,") + word[-1]
-            continue
-        kept.append(word)
-        previous = norm
-    while len(kept) > 1 and "".join(_words(kept[0])) in _LEADING_NOISE:
-        kept.pop(0)
-    while len(kept) > 3 and "".join(_words(kept[-1])) in _TRAILING_NOISE:
-        removed = kept.pop()
-        if removed[-1:] in ".!?" and kept[-1][-1:] not in ".!?":
-            kept[-1] = kept[-1].rstrip(",;:") + removed[-1]
-    if kept:
-        kept[0] = kept[0].lstrip("\"'“‘-–—,.")
-    return [word for word in kept if word]
+_PARTICLES = _set("ya yah sih deh dong nih tuh loh lho")
+_VOCATIVES = _set("bang bro brader cuy guys gaes gais bosku")
+_TAIL_VOCATIVES = _set("kak mas mbak om pak bu bos")
+_SELF = _set("gua gue gw aku saya lu lo loe elu kamu")
+# "Kayak gitu" means "like that"; any other "gitu"/"gini" is a verbal tic.
+_GITU_KEEP = _set("kayak kaya kek seperti kalau kalo udah emang memang bukan enggak nggak gak ga")
+_QUOTE_LEAD = _LEADING_NOISE | _set("karena soalnya jadi makanya nah pas")
+_MARKER_LEADS = _set(
+    "jujur sumpah ternyata sebenernya sebenarnya faktanya aslinya padahal justru malah katanya "
+    "pokoknya intinya"
+)
+_HEADLINE_LEAD = (
+    _QUOTE_LEAD | _MARKER_LEADS | _set("kalau kalo terus trus dan tapi yang adalah bahwa")
+)
+# A pronoun right after these is a clause subject, so a headline can drop it.
+_SUBJECT_AFTER = _set(
+    "dan terus trus tapi jadi pas waktu karena soalnya kalau kalo makanya padahal sehingga biar "
+    "supaya"
+)
+_REPORTED_LEAD = re.compile(
+    r"^(?:(?:gua|gue|gw|aku|saya|dia|beliau|mereka|lu|lo|elu|kamu) (?:bilang|ngomong)|"
+    r"kata (?:dia|gua|gue|orang|mereka|beliau)|katanya) "
+)
+_SPAN_BAD_START = (
+    _CONNECTORS
+    | _QUOTE_LEAD
+    | _set("adalah yaitu yakni bahwa oleh bagi agar pun juga kan kok sih tuh nih nya")
+)
+# A cut line must not end on a word that needs a continuation ("…dicopet karena", "…gua enggak").
+_OPEN_END = (
+    _CONNECTORS
+    | _SELF
+    | _set(
+        "itu ini ada dia kita kami mereka jadi pas waktu lagi mau udah sudah akan bakal harus emang "
+        "memang adalah yaitu bahwa si sang para agar oleh bagi antara juga pun paling lebih sangat "
+        "cuma cuman kan kok apa mana gimana kenapa enggak nggak gak ga engga tidak bukan belum "
+        "sih tuh nih ya the a an of to and or coba bikin kasih cek pakai pake bisa pengen pengin "
+        "bilang ngomong tanya nanya ambil cari nyari liat lihat denger dengar ngajak ajak tahu tau "
+        "punya dapat dapet buka beli jual minta"
+    )
+    | _MARKER_LEADS
+)
+_QUOTE_MARKS = "\"'“”‘’«»"
+_FUNCTION = _STOPWORDS | _CONNECTORS | _SELF
+_WHISPER_HYPHEN = re.compile(r"(?<=[^\W_]) -(?=[^\W\d_])")
+_TERMINALS = ".?!…"
+
+_TITLE_PREFIX = {
+    "curiosity_gap": "Obrolan",
+    "controversial_claim": "Pendapat berani",
+    "confession": "Pengakuan",
+    "insider_secret": "Rahasia",
+    "story_twist": "Cerita tak terduga",
+    "number_proof": "Fakta angka",
+    "conflict": "Beda pendapat",
+    "humor": "Momen lucu",
+    "relatable_pain": "Curhat",
+    "emotional": "Momen haru",
+    "practical_tip": "Tips",
+    "other": "Obrolan",
+}
 
 
-def _fit(words: Sequence[str], max_chars: int, *, truncated: bool = False) -> str:
-    line = " ".join(words).strip(" ,;:-–—")
-    if not line:
-        return ""
-    line = line[0].upper() + line[1:]
-    if len(line) <= max_chars and not truncated:
-        return line
-    cut = line[: max_chars - 1]
-    if len(line) > max_chars - 1 and " " in cut:
-        cut = cut[: cut.rfind(" ")]
-    return cut.rstrip(" ,;:-–—.") + "…"
-
-
-def _clean_line(text: str, max_chars: int = HOOK_TEXT_MAX_CHARS) -> str:
-    """Remove fillers and stutters from one transcript line and fit it to ``max_chars``."""
-    return _fit(_clean_words(text), max_chars)
+def _norm(word: str) -> str:
+    return "".join(_words(word))
 
 
 def _span_weight(words: Sequence[str]) -> float:
@@ -1248,33 +1340,215 @@ def _span_weight(words: Sequence[str]) -> float:
     return sum(weight for weight, pattern in _HOOK_LEXICON.values() if pattern.search(joined))
 
 
-def _excerpt(text: str, max_chars: int = HOOK_TEXT_MAX_CHARS) -> str:
-    """The hookiest stretch of a long line (ASR run-ons have no punctuation to split on)."""
-    words = _clean_words(text)
-    if len(" ".join(words)) <= max_chars:
-        return _fit(words, max_chars)
-    best: tuple[float, int, int] | None = None
+def _content_count(words: Sequence[str]) -> int:
+    tokens = [token for word in words for token in _words(word)]
+    return sum(
+        1 for token in tokens if token not in _STOPWORDS and len(token) >= 3 and token.isalpha()
+    )
+
+
+def _move_end(kept: list[str], removed: str) -> None:
+    """Carry the terminal punctuation of a removed word over to the word before it."""
+    mark = removed[-1:]
+    if kept and mark in _TERMINALS + "," and kept[-1][-1:] not in _TERMINALS:
+        kept[-1] = kept[-1].rstrip(",;:") + mark
+
+
+def _drop_repeats(words: Sequence[str]) -> list[str]:
+    """Remove stutters: one to three words said again right away ("gua gua", "yang yang")."""
+    kept = list(words)
+    changed = True
+    while changed:
+        changed = False
+        for size in (3, 2, 1):
+            index = 0
+            while index + 2 * size <= len(kept):
+                first = [_norm(word) for word in kept[index : index + size]]
+                second = [_norm(word) for word in kept[index + size : index + 2 * size]]
+                if first != second:
+                    index += 1
+                    continue
+                mark = kept[index + 2 * size - 1][-1:]
+                del kept[index + size : index + 2 * size]
+                last = kept[index + size - 1]
+                if mark in _TERMINALS + "," and last[-1:] not in _TERMINALS:
+                    kept[index + size - 1] = last.rstrip(",;:") + mark
+                changed = True
+    return kept
+
+
+def _tidy(words: Sequence[str]) -> list[str]:
+    """One sentence without fillers, verbal tics, vocatives, stutters and edge backchannels."""
+    kept: list[str] = []
+    for word in words:
+        norm = _norm(word)
+        if not norm:
+            continue
+        like = bool(kept) and _norm(kept[-1]) in _GITU_KEEP
+        if (
+            norm in _FILLERS
+            or norm in _PARTICLES
+            or norm in _VOCATIVES
+            or (norm in ("gitu", "gini") and not like)
+        ):
+            _move_end(kept, word)
+            continue
+        if len(norm) == 1 and not norm.isdigit():
+            continue  # a stray caption letter ("K lu kayak …")
+        if kept and word[:1].isupper() and word[1:] == word[1:].lower() and norm in _FUNCTION:
+            word = word[:1].lower() + word[1:]  # a Whisper segment start inside the sentence
+        kept.append(word)
+    kept = _drop_repeats(kept)
+    while len(kept) > 1 and _norm(kept[0]) in _LEADING_NOISE:
+        kept.pop(0)
+    while len(kept) > 1 and _norm(kept[-1]) in _TRAILING_NOISE | _TAIL_VOCATIVES:
+        removed = kept.pop()
+        _move_end(kept, removed)
+    if kept:
+        kept[0] = kept[0].lstrip("-–—,.;:")
+    return [word for word in kept if _norm(word)]
+
+
+def _clauses(text: str) -> list[tuple[list[str], bool]]:
+    """Tidied sentences of one line, each with whether it ends on terminal punctuation."""
+    text = _WHISPER_HYPHEN.sub("-", text.replace("...", "…"))
+    sentences: list[tuple[list[str], bool]] = []
+    current: list[str] = []
+    for raw in text.split():
+        word = raw.strip(_QUOTE_MARKS)
+        if word.startswith(("-", "–")) and not current:
+            word = word.lstrip("-–")
+        if not word:
+            continue
+        current.append(word)
+        stripped = word.rstrip(_CLOSERS)
+        if stripped[-1:] in _TERMINALS:
+            sentences.append((current, True))
+            current = []
+    if current:
+        sentences.append((current, False))
+    result = []
+    for words, closed in sentences:
+        tidy = _tidy(words)
+        if not tidy:
+            continue
+        if tidy[-1].endswith("…"):  # trailing off is not a sentence end
+            tidy[-1] = tidy[-1].rstrip("…. ")
+            closed = False
+        if tidy[-1]:
+            result.append((tidy, closed and tidy[-1][-1:] in _TERMINALS))
+    return result
+
+
+def _finish(words: Sequence[str], closed: bool, max_chars: int) -> str:
+    """Join, cut on a word boundary within ``max_chars`` and end on a word that closes a phrase.
+
+    A cut or unfinished line never gets an ellipsis: it ends on its last complete phrase.
+    """
+    kept = list(words)
+    cut = False
+    while kept and len(" ".join(kept)) > max_chars:
+        kept.pop()
+        cut = True
+    if kept and (cut or not closed):
+        kept[-1] = kept[-1].rstrip(_TERMINALS + ",;:")
+        while len(kept) > 1 and _norm(kept[-1]) in _OPEN_END:
+            kept.pop()
+            kept[-1] = kept[-1].rstrip(_TERMINALS + ",;:")
+    line = " ".join(kept).strip(" ,;:-–—")
+    if not line:
+        return ""
+    return line[0].upper() + line[1:]
+
+
+def _fit_span(words: Sequence[str], closed: bool, max_chars: int) -> str:
+    """The hookiest stretch of a sentence that fits ``max_chars``, finished on a whole phrase.
+
+    Caption run-ons have no punctuation to split on, so every stretch that fits is scored by
+    its hook words and content; stretches that open on a hook word, at a clause start or at
+    the sentence end are preferred. The first finished stretch with two content words wins.
+    """
+    candidates: list[tuple[float, int, int]] = []
     for first in range(len(words)):
         last, length = first, len(words[first])
-        while last + 1 < len(words) and length + 1 + len(words[last + 1]) <= max_chars - 1:
+        while last + 1 < len(words) and length + 1 + len(words[last + 1]) <= max_chars:
             last += 1
             length += 1 + len(words[last])
-        clause = first == 0 or words[first - 1][-1:] in ".!?,;:"
+        clause = first == 0 or words[first - 1][-1:] in ",;:"
         # The span opens on the hook words themselves (not one word before them).
         leads = _span_weight(words[first : first + 2]) > _span_weight(words[first + 1 : first + 2])
         value = _span_weight(words[first : last + 1]) - 0.01 * first
+        value += 0.1 * min(_content_count(words[first : last + 1]), 6)
         value += (0.5 if clause else 0.0) + (0.8 if leads else 0.0)
-        if best is None or value > best[0] + _EPSILON:
-            best = (value, first, last)
+        value += 0.3 if last == len(words) - 1 else 0.0
+        if _norm(words[first]) in _SPAN_BAD_START:
+            value -= 1.0
+        candidates.append((value, first, last))
         if last == len(words) - 1:
             break
+    for _value, first, last in sorted(candidates, key=lambda item: (-item[0], item[1])):
+        line = _finish(words[first : last + 1], closed and last == len(words) - 1, max_chars)
+        if _content_count(line.split()) >= 2:
+            return line
+    return ""
+
+
+def _quote(text: str, max_chars: int = HOOK_TEXT_MAX_CHARS) -> tuple[str, list[str]]:
+    """The best clean sentence of one line as on-screen text, plus that sentence's words.
+
+    Sentences need at least three words and two content words, so a garbled or filler-only
+    line gives ``("", [])`` and the caller falls back to another line.
+    """
+    best: tuple[float, list[str], bool] | None = None
+    for words, closed in _clauses(text):
+        while len(words) > 1 and _norm(words[0]) in _QUOTE_LEAD:
+            words = words[1:]
+        content = _content_count(words)
+        if len(words) < 3 or content < 2:
+            continue
+        value = _span_weight(words) + 0.3 * min(content, 6) + (0.3 if closed else 0.0)
+        if best is None or value > best[0] + _EPSILON:
+            best = (value, words, closed)
     if best is None:
-        return _fit(words, max_chars)
-    _value, first, last = best
-    span = [word.lstrip("\"'“‘") for word in words[first : last + 1]]
-    while len(span) > 1 and "".join(_words(span[0])) in _LEADING_NOISE | _CONNECTORS:
-        span.pop(0)
-    return _fit(span, max_chars, truncated=last < len(words) - 1)
+        return "", []
+    _value, words, closed = best
+    line = _fit_span(words, closed, max_chars)
+    return (line, words) if line else ("", [])
+
+
+def _clean_line(text: str, max_chars: int = HOOK_TEXT_MAX_CHARS) -> str:
+    """One transcript line as clean on-screen text within ``max_chars`` (``""`` when unusable)."""
+    return _quote(text, max_chars)[0]
+
+
+def _headline(words: Sequence[str], max_chars: int) -> str:
+    """A title phrase from one sentence: no leading pronoun, marker, connector or "gua bilang"."""
+    kept = list(words)
+    closed = bool(kept) and kept[-1][-1:] in _TERMINALS
+    changed = True
+    while changed and len(kept) > 2:
+        changed = False
+        reported = _REPORTED_LEAD.match(" ".join(_norm(word) for word in kept[:3]) + " ")
+        if reported:
+            del kept[: len(reported.group(0).split())]
+            changed = True
+        elif _norm(kept[0]) in _HEADLINE_LEAD | _SELF:
+            kept.pop(0)
+            changed = True
+    result: list[str] = []
+    for index, word in enumerate(kept):
+        previous = kept[index - 1] if index else ""
+        subject = previous[-1:] == "," or _norm(previous) in _SUBJECT_AFTER
+        if _norm(word) in _SELF and subject and index + 1 < len(kept):
+            continue
+        result.append(word)
+    # A trailing possessive ("band lama lu?") goes; an object ("tanpa gua") stays.
+    while len(result) > 2 and _norm(result[-1]) in _SELF and _norm(result[-2]) not in _OPEN_END:
+        removed = result.pop()
+        _move_end(result, removed)
+    if _content_count(result) < 2:
+        return ""
+    return _fit_span(result, closed, max_chars)
 
 
 def _keywords(ctx: _Context, window: _Window, limit: int) -> list[str]:
@@ -1295,6 +1569,13 @@ def _keywords(ctx: _Context, window: _Window, limit: int) -> list[str]:
     return sorted(counts, key=weight)[:limit]
 
 
+def _funny(ctx: _Context, window: _Window, strong: float) -> bool:
+    """Laughter well above the episode's own rate: banter-heavy episodes laugh everywhere."""
+    minutes = (ctx.units[window.end].end - ctx.units[window.start].start) / 60.0
+    expected = ctx.p_strong[-1] / max(ctx.duration / 60.0, _EPSILON) * minutes
+    return strong >= 2 and strong >= HUMOR_LAUGH_EXCESS * expected + 1.0
+
+
 def _archetype(ctx: _Context, window: _Window) -> str:
     units = ctx.units[window.start : window.end + 1]
     joined = " ".join(" ".join(unit.tokens) for unit in units)
@@ -1310,7 +1591,7 @@ def _archetype(ctx: _Context, window: _Window) -> str:
         "number_proof": 1.2 * (tagged("number") - 1),
         "controversial_claim": 1.5 * tagged("contrast"),
         "conflict": 1.5 * _count(_CONFLICT, joined),
-        "humor": 1.3 * strong if strong >= 2 else 0.0,
+        "humor": 1.3 * strong if _funny(ctx, window, strong) else 0.0,
         "relatable_pain": 0.8 * _count(_PAIN, joined),
         "emotional": 1.0 * _count(_SAD, joined),
         "practical_tip": 0.8 * _count(_TIPS, joined),
@@ -1348,7 +1629,9 @@ def _clock(seconds: float) -> str:
     return f"{minutes:02d}:{rest:02d}"
 
 
-def _reasons(ctx: _Context, window: _Window, hook_text: str, similarity: float) -> list[str]:
+def _reasons(
+    ctx: _Context, window: _Window, hook_unit: int, hook_text: str, similarity: float
+) -> list[str]:
     units = ctx.units
     first, last = units[window.start], units[window.end]
     # The anchoring question is the first one at or just after the start (setup, split line).
@@ -1358,12 +1641,12 @@ def _reasons(ctx: _Context, window: _Window, hook_text: str, similarity: float) 
         ctx.answer_run[window.start],
     )
     reasons = [_OPENER_REASONS[window.kind].format(run=run)]
-    hook = units[window.hook_unit]
+    hook = units[hook_unit]
     labels = [_TAG_LABELS[name] for name in _HOOK_LEXICON if name in hook.tags]
     offset = hook.start - first.start
     detail = f" ({', '.join(labels)})" if labels else ""
     reasons.append(f"Kalimat hook terkuat di detik ke-{offset:.0f}: “{hook_text}”{detail}.")
-    if ctx.echo[window.hook_unit] or ctx.between(ctx.p_echo, window.start, window.end) > 0:
+    if ctx.echo[hook_unit] or ctx.between(ctx.p_echo, window.start, window.end) > 0:
         reasons.append("Kalimatnya juga dipakai di teaser pembuka video (dipilih editor kanal).")
     laughed = _laugh_end(ctx, window.start, window.end)
     gap_after = ctx.pause_after[window.end]
@@ -1399,15 +1682,81 @@ def _reasons(ctx: _Context, window: _Window, hook_text: str, similarity: float) 
     return [reason[:300] for reason in reasons[:8]]
 
 
+def _question_headline(ctx: _Context, window: _Window) -> str:
+    """The anchoring host question as a title ("Kenapa lu keluar dari band lama?"), or ``""``.
+
+    The question is the first one at or just after the start (a setup line or a split caption
+    line may come first); its last asked sentence that still ends on "?" once fitted wins.
+    """
+    units = ctx.units
+    last = min(window.start + _SENTENCE_WALK_BACK, window.end)
+    for index in range(window.start, last + 1):
+        if not units[index].question:
+            continue
+        text = " ".join(unit.text for unit in units[window.start : index + 1])
+        asked = [words for words, _closed in _clauses(text) if words[-1].endswith("?")]
+        for words in reversed(asked):
+            headline = _headline(words, TITLE_MAX_CHARS)
+            if headline.endswith("?"):
+                return headline
+        return ""
+    return ""
+
+
+def _packaging(
+    ctx: _Context, window: _Window, archetype: str, keywords: Sequence[str]
+) -> tuple[str, str, int]:
+    """Title, on-screen hook text and the unit the hook text quotes.
+
+    The hook text is the best clean sentence of the hook line, or of the next strongest line in
+    the hook zone when that line is garbled or filler only. The title is the archetype prefix
+    plus a headline: the host question for question-led curiosity clips, otherwise the hook
+    sentence without its leading pronoun, marker or connector (keywords as a last resort).
+    Nothing is cut with an ellipsis, the hook text stays within HOOK_TEXT_MAX_CHARS and the
+    title within TITLE_MAX_CHARS.
+    """
+    units = ctx.units
+    label = _ARCHETYPE_LABELS[archetype]
+    zone_end = min(max(window.zone_end, window.hook_unit), window.end)
+    others = sorted(
+        (
+            index
+            for index in range(window.start, zone_end + 1)
+            if index != window.hook_unit and not units[index].suspect
+        ),
+        key=lambda index: (-ctx.line_value[index], index),
+    )
+    hook_text, hook_words, hook_unit = "", [], window.hook_unit
+    for index in [window.hook_unit, *others]:
+        text, words = _quote(units[index].text)
+        if text:
+            hook_text, hook_words, hook_unit = text, words, index
+            break
+    if archetype in ("curiosity_gap", "other") and window.kind in ("question", "setup"):
+        question = _question_headline(ctx, window)
+        if question:
+            return question, hook_text or label, hook_unit
+    prefix = _TITLE_PREFIX[archetype]
+    budget = TITLE_MAX_CHARS - len(prefix) - 2
+    headline = ""
+    if hook_words:
+        headline = _headline(hook_words, budget)
+    for index in others:
+        if headline:
+            break
+        headline = _headline(_quote(units[index].text)[1], budget)
+    if not headline and keywords:
+        headline = _finish(", ".join(keywords[:3]).split(), False, budget)
+    title = f"{prefix}: {headline}" if headline else label
+    return title, hook_text or label, hook_unit
+
+
 def _proposal(ctx: _Context, window: _Window, adjusted: float, similarity: float) -> ClipProposal:
     units = ctx.units
-    hook_text = _excerpt(units[window.hook_unit].text) or _excerpt(units[window.start].text)
     archetype = _archetype(ctx, window)
     label = _ARCHETYPE_LABELS[archetype]
     keywords = _keywords(ctx, window, MAX_HASHTAGS - 1)
-    if not hook_text:
-        hook_text = label
-    title = f"{label}: {hook_text}"
+    title, hook_text, hook_unit = _packaging(ctx, window, archetype, keywords)
     hashtags = [f"#{word}" for word in keywords]
     for extra in ("#podcastindonesia", "#fyp", "#podcast"):
         if len(hashtags) >= MIN_HASHTAGS:
@@ -1431,14 +1780,14 @@ def _proposal(ctx: _Context, window: _Window, adjusted: float, similarity: float
     return ClipProposal(
         start_unit=window.start,
         end_unit=window.end,
-        hook_unit=window.hook_unit,
+        hook_unit=hook_unit,
         payoff_unit=payoff_unit,
         archetype=archetype,
-        title=title[:100],
+        title=title,
         hook_text=hook_text,
         description=description[:600],
         hashtags=tuple(hashtags[:MAX_HASHTAGS]),
-        reasons=tuple(_reasons(ctx, window, hook_text, similarity)),
+        reasons=tuple(_reasons(ctx, window, hook_unit, hook_text, similarity)),
         scores={name: round(value, 3) for name, value in window.dims.items()},
         score=round(adjusted, 3),
         source="heuristic",

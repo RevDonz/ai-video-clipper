@@ -569,7 +569,7 @@ def test_llm_off_never_builds_a_client(env):
     summary = manifest["selection_v3"]
     assert summary["status"] == "completed" and summary["source"] == "heuristic"
     assert summary["provider"] is None and summary["model"] is None
-    assert summary["prompt_version"] == "heuristic-v3.0"
+    assert summary["prompt_version"] == "heuristic-v3.1"
     assert "llm" not in stages(env)
     assert all(clip["selection_source"] == "heuristic" for clip in manifest["clips"])
 
@@ -888,7 +888,7 @@ def test_clips_are_kept_inside_the_probed_video(env, monkeypatch):
 
 
 def test_no_selected_clips_fails_in_indonesian(env, monkeypatch):
-    empty = result(source="heuristic", provider=None, model=None, prompt_version="heuristic-v3.0")
+    empty = result(source="heuristic", provider=None, model=None, prompt_version="heuristic-v3.1")
     empty = replace(empty, warnings=("few_clips:0",))
     monkeypatch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: empty)
 
