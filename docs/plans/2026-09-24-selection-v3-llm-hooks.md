@@ -408,8 +408,9 @@ As implemented (`selection_v3.py`, the orchestration):
   start. `cold_open=False` disables it.
 - **Ranking.** Clips never share a sentence unit. A near-duplicate of an accepted clip
   (content-word Jaccard ≥ 0.25) moves to the end of its own source's list.
-- **Provenance.** `prompt_version` is `llm-select-v1+std.<sha12>` for LLM-led results and
-  `heuristic-v3.0` otherwise. `provider`/`model` are `None` unless the LLM led, and are
+- **Provenance.** `prompt_version` is `llm-select-v2+std.<sha12>` for LLM-led results and
+  `heuristic-v3.1` otherwise (`heuristic-v3.0` before the 2026-09-24 follow-up: text laughter
+  for untagged tracks, host reactions, clean hook text and titles). `provider`/`model` are `None` unless the LLM led, and are
   joined with `+` (`ollama-cloud+openrouter`) when several engines answered.
 - **Warnings**, in order: the LLM's own `llm_*` codes, `llm_unavailable` or
   `llm_failed:<code>`, `llm_filled:<n>`, `snap_dropped:<n>`, `few_clips:<n>`,
@@ -495,6 +496,7 @@ Each clip adds these fields:
 | `scores` | object or null |
 | `cold_open` | `{start, end}` or null |
 | `source_start`, `source_end` | numbers |
+| `thumbnail` | path to `clip-XX.jpg`; V3 writes null if it failed, V1/v2-shadow omit the key |
 
 `duration` is the rendered duration.
 
