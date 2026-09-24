@@ -6,11 +6,16 @@ import argparse
 import json
 import math
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
+from typing import Any
 
+from .captions_ass import CAPTION_STYLES
+from .llm import LLMError
 from .models import ClipProfile, SelectionMode
 from .pipeline import (
+    DEFAULT_HOOK_DURATION,
+    DEFAULT_LLM_MODE,
     DEFAULT_MAX_CANDIDATES,
     DEFAULT_MAX_MEDIA_CANDIDATES,
     DEFAULT_MEDIA_TIMEOUT,
@@ -19,7 +24,8 @@ from .pipeline import (
     run_pipeline,
 )
 from .ranking import MAX_RANKING_INPUTS
-from .render import RENDER_MODES
+from .render import HOOK_DURATION_MAX_SECONDS, RENDER_MODES
+from .selection_v3 import LLM_MODES
 from .transcribe import load_whisper_model
 
 
@@ -40,6 +46,28 @@ def _media_timeout(value: str) -> float:
             f"media timeout must be finite and between 0 and {MAX_MEDIA_TIMEOUT}"
         )
     return result
+
+
+def _hook_duration(value: str) -> float:
+    result = float(value)
+    if not math.isfinite(result) or not 0 < result <= HOOK_DURATION_MAX_SECONDS:
+        raise argparse.ArgumentTypeError(
+            f"hook duration must be finite, above 0 and at most {HOOK_DURATION_MAX_SECONDS:g}"
+        )
+    return result
+
+
+class _LazyWhisperModel:
+    """Loads Whisper on the first ``transcribe`` call, so usable captions skip the load."""
+
+    def __init__(self, load: Callable[[], Any]) -> None:
+        self._load = load
+        self._model: Any = None
+
+    def transcribe(self, *args: Any, **kwargs: Any) -> Any:
+        if self._model is None:
+            self._model = self._load()
+        return self._model.transcribe(*args, **kwargs)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -89,6 +117,49 @@ def build_parser() -> argparse.ArgumentParser:
         type=_media_timeout,
         default=DEFAULT_MEDIA_TIMEOUT,
     )
+    v3 = parser.add_argument_group("Selection V3 (--selection-mode v3)")
+    v3.add_argument(
+        "--llm",
+        dest="llm_mode",
+        choices=LLM_MODES,
+        default=DEFAULT_LLM_MODE,
+        help="LLM moment selection: auto falls back to the local heuristic (default: auto)",
+    )
+    v3.add_argument(
+        "--cold-open",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="play the hook line before the clip (default: on)",
+    )
+    v3.add_argument(
+        "--hook-overlay",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="show the hook text at the top for the first seconds (default: on)",
+    )
+    v3.add_argument(
+        "--hook-duration",
+        type=_hook_duration,
+        default=DEFAULT_HOOK_DURATION,
+        help=f"hook overlay seconds (default: {DEFAULT_HOOK_DURATION:g})",
+    )
+    v3.add_argument(
+        "--captions-dir",
+        type=Path,
+        help="read-only YouTube json3 captions in manual/ and auto/; usable ones skip Whisper",
+    )
+    parser.add_argument(
+        "--caption-style",
+        choices=CAPTION_STYLES,
+        default=None,
+        help="burned captions (default: karaoke for v3, classic otherwise)",
+    )
+    parser.add_argument(
+        "--word-timestamps",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="ask Whisper for word timestamps (default: on)",
+    )
     return parser
 
 
@@ -99,7 +170,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     try:
-        model = load_whisper_model(args.model, device=args.device)
+        if args.selection_mode == SelectionMode.V3.value:
+            model: Any = _LazyWhisperModel(
+                lambda: load_whisper_model(args.model, device=args.device)
+            )
+        else:
+            model = load_whisper_model(args.model, device=args.device)
 
         def emit_progress(stage: str, progress: int, detail: str) -> None:
             payload = json.dumps(
@@ -125,9 +201,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             max_candidates=args.max_candidates,
             max_media_candidates=args.max_media_candidates,
             media_timeout=args.media_timeout,
+            llm_mode=args.llm_mode,
+            cold_open=args.cold_open,
+            hook_overlay=args.hook_overlay,
+            caption_style=args.caption_style,
+            captions_dir=args.captions_dir,
+            word_timestamps=args.word_timestamps,
+            hook_duration=args.hook_duration,
             progress=emit_progress,
         )
-    except (FileNotFoundError, RuntimeError, ValueError) as exc:
+    except (FileNotFoundError, RuntimeError, ValueError, LLMError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
     print(f"Pipeline selesai. Manifest: {manifest}")
