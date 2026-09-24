@@ -10,3 +10,5 @@ cf6d846e6b3f670afbf5299c7bc521504c115b82:web/tests/edit-document.test.mjs:generi
 cf6d846e6b3f670afbf5299c7bc521504c115b82:web/tests/editor-view.test.mjs:generic-api-key:95
 b97596bfd28aaf6b7df1ba788cb0ae9adf2f082d:tests/test_benchmark.py:generic-api-key:799
 ca61cf76abd57dcaae83f76762933e0f0f9f948c:tests/test_llm.py:generic-api-key:36
+7a6208ac32f683d59392a59fd38190b670c36ebe:tests/test_benchmark.py:generic-api-key:799
+c325f38499b1702deaabadc0f65e449a1a0c5033:tests/test_llm.py:generic-api-key:36
