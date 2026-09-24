@@ -248,7 +248,8 @@ test("route enforces authentication, UUID, job status, and no-store", async () =
 });
 
 test("actual Python validator integration", async (t) => {
-  const python = process.env.PYTHON_BIN || "python";
+  const configured = process.env.PYTHON_BIN || "../.venv/bin/python";
+  const python = configured.includes(path.sep) ? path.resolve(configured) : configured;
   try {
     await execFile(python, ["-c", "import ai_clipper.candidate_api"]);
   } catch {

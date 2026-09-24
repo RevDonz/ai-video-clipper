@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rename, stat, symlink, unlink, utimes, writeFile } from "node:fs/promises";
+import crypto from "node:crypto";
+import { lstat, mkdir, mkdtemp, readdir, readFile, rename, stat, symlink, unlink, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -228,6 +229,250 @@ test("only the current lease can atomically publish an isolated attempt", async 
   assert.equal(completed.status, "completed");
   assert.equal(await readFile(path.join(jobsRoot, id, "output", "manifest.json"), "utf8"), "new");
   assert.equal(await readFile(path.join(firstOutput, "manifest.json"), "utf8"), "old");
+});
+
+const ownerHash = (token) => crypto.createHash("sha256").update(token).digest("hex");
+const CLAIM_AT = Date.parse("2026-01-01T00:01:00.000Z");
+
+async function claimedAttempt(jobsRoot, value, { attempt = "attempt", now = CLAIM_AT } = {}) {
+  await seed(jobsRoot, value);
+  const claim = await claimNextJob({ jobsRoot, workerId: "w", leaseMs: 60_000, maxAttempts: 3, legacyQuiescenceMs: 0, now });
+  const jobRoot = path.join(jobsRoot, value.id);
+  const attemptRoot = path.join(jobRoot, ".attempts", attempt);
+  const output = path.join(attemptRoot, "output");
+  await mkdir(output, { recursive: true });
+  await writeFile(path.join(output, "manifest.json"), `manifest-${attempt}`);
+  return { claim, jobRoot, attemptRoot, output };
+}
+
+async function writeTree(directory, files) {
+  await mkdir(directory, { recursive: true });
+  for (const [name, content] of Object.entries(files)) {
+    await writeFile(path.join(directory, name), typeof content === "string" ? content : `${JSON.stringify(content)}\n`);
+  }
+}
+
+async function orphans(jobRoot, prefix) {
+  return (await readdir(path.join(jobRoot, ".attempts"))).filter((name) => name.startsWith(prefix));
+}
+
+test("attempt publication moves analysis next to output under the same ownership marker", async () => {
+  const jobsRoot = await root();
+  const id = "51515151-5151-4151-8151-515151515151";
+  const { claim, jobRoot, attemptRoot, output } = await claimedAttempt(jobsRoot, job(id));
+  await writeTree(path.join(attemptRoot, "analysis"), {
+    "candidates.v2.json": "candidates",
+    "selection.v3.json": "selection",
+    "audio-timeline.json": "timeline",
+    "transcript-quality.json": "quality",
+  });
+
+  const completed = await publishAttemptAndComplete({ jobsRoot, id, token: claim.token, attemptOutput: output, patch: { status: "completed", progress: 100 } });
+
+  assert.equal(completed.status, "completed");
+  assert.deepEqual(completed.queue, { version: 1, attempts: 1 });
+  for (const [name, content] of [["candidates.v2.json", "candidates"], ["selection.v3.json", "selection"], ["audio-timeline.json", "timeline"], ["transcript-quality.json", "quality"]]) {
+    assert.equal(await readFile(path.join(jobRoot, "analysis", name), "utf8"), content);
+  }
+  assert.equal(await readFile(path.join(jobRoot, "output", "manifest.json"), "utf8"), "manifest-attempt");
+  for (const name of ["analysis", "output"]) {
+    assert.deepEqual(JSON.parse(await readFile(path.join(jobRoot, name, ".attempt-owner.json"), "utf8")), { version: 1, id, tokenHash: ownerHash(claim.token) });
+    await assert.rejects(lstat(path.join(attemptRoot, name)), { code: "ENOENT" });
+  }
+  assert.equal((await persisted(jobsRoot, id)).status, "completed");
+});
+
+test("a superseded attempt's published analysis and output are orphaned, never merged or deleted", async () => {
+  const jobsRoot = await root();
+  const id = "52525252-5252-4252-8252-525252525252";
+  const { claim: first, jobRoot } = await claimedAttempt(jobsRoot, job(id), { attempt: "old" });
+  // The old attempt renamed its directories into place and crashed before committing job.json.
+  const oldMarker = { version: 1, id, tokenHash: ownerHash(first.token) };
+  await writeTree(path.join(jobRoot, "analysis"), { ".attempt-owner.json": oldMarker, "candidates.v2.json": "old candidates", "stale-only.json": "stale" });
+  await writeTree(path.join(jobRoot, "output"), { ".attempt-owner.json": oldMarker, "manifest.json": "old manifest" });
+  const second = await claimNextJob({ jobsRoot, workerId: "new", leaseMs: 60_000, maxAttempts: 3, now: CLAIM_AT + 61_000 });
+  const attemptRoot = path.join(jobRoot, ".attempts", "new");
+  await writeTree(path.join(attemptRoot, "output"), { "manifest.json": "new manifest" });
+  await writeTree(path.join(attemptRoot, "analysis"), { "candidates.v2.json": "new candidates" });
+
+  await publishAttemptAndComplete({ jobsRoot, id, token: second.token, attemptOutput: path.join(attemptRoot, "output"), patch: { status: "completed" } });
+
+  assert.equal(await readFile(path.join(jobRoot, "analysis", "candidates.v2.json"), "utf8"), "new candidates");
+  await assert.rejects(lstat(path.join(jobRoot, "analysis", "stale-only.json")), { code: "ENOENT" });
+  assert.equal(await readFile(path.join(jobRoot, "output", "manifest.json"), "utf8"), "new manifest");
+  const [analysisOrphan] = await orphans(jobRoot, "orphan.analysis.");
+  const [outputOrphan] = await orphans(jobRoot, "orphan.output.");
+  assert.equal(await readFile(path.join(jobRoot, ".attempts", analysisOrphan, "stale-only.json"), "utf8"), "stale");
+  assert.equal(await readFile(path.join(jobRoot, ".attempts", outputOrphan, "manifest.json"), "utf8"), "old manifest");
+});
+
+test("an attempt without analysis retires stale published analysis so artifacts come from one attempt", async () => {
+  const jobsRoot = await root();
+  const foreignId = "53535353-5353-4353-8353-535353535353";
+  const foreign = await claimedAttempt(jobsRoot, job(foreignId));
+  await writeTree(path.join(foreign.jobRoot, "analysis"), {
+    ".attempt-owner.json": { version: 1, id: foreignId, tokenHash: "f".repeat(64) }, "candidates.v2.json": "stale",
+  });
+  await publishAttemptAndComplete({ jobsRoot, id: foreignId, token: foreign.claim.token, attemptOutput: foreign.output, patch: { status: "completed" } });
+  await assert.rejects(lstat(path.join(foreign.jobRoot, "analysis")), { code: "ENOENT" });
+  const [orphan] = await orphans(foreign.jobRoot, "orphan.analysis.");
+  assert.equal(await readFile(path.join(foreign.jobRoot, ".attempts", orphan, "candidates.v2.json"), "utf8"), "stale");
+
+  const emptyId = "54545454-5454-4454-8454-545454545454";
+  const empty = await claimedAttempt(jobsRoot, job(emptyId));
+  await mkdir(path.join(empty.jobRoot, "analysis"));
+  await publishAttemptAndComplete({ jobsRoot, id: emptyId, token: empty.claim.token, attemptOutput: empty.output, patch: { status: "completed" } });
+  await assert.rejects(lstat(path.join(empty.jobRoot, "analysis")), { code: "ENOENT" });
+  assert.deepEqual(await orphans(empty.jobRoot, "orphan."), [], "an empty directory holds no bytes worth preserving");
+});
+
+test("unsafe staged or published analysis aborts before anything is published", async (t) => {
+  const outside = await mkdtemp(path.join(os.tmpdir(), "primary-queue-outside-"));
+  await writeFile(path.join(outside, "candidates.v2.json"), "outside");
+  const cases = [
+    ["staged analysis symlink", "55555555-5555-4555-8555-555555555501", async ({ attemptRoot }) => symlink(outside, path.join(attemptRoot, "analysis"))],
+    ["published analysis symlink", "55555555-5555-4555-8555-555555555502", async ({ jobRoot }) => symlink(outside, path.join(jobRoot, "analysis"))],
+    ["staged analysis file", "55555555-5555-4555-8555-555555555503", async ({ attemptRoot }) => writeFile(path.join(attemptRoot, "analysis"), "not a directory")],
+    ["published marker symlink", "55555555-5555-4555-8555-555555555504", async ({ jobRoot }) => {
+      await mkdir(path.join(jobRoot, "analysis"));
+      await symlink(path.join(outside, "candidates.v2.json"), path.join(jobRoot, "analysis", ".attempt-owner.json"));
+    }],
+  ];
+  for (const [name, id, arrange] of cases) {
+    await t.test(name, async () => {
+      const jobsRoot = await root();
+      const attempt = await claimedAttempt(jobsRoot, job(id));
+      await arrange(attempt);
+      await assert.rejects(
+        publishAttemptAndComplete({ jobsRoot, id, token: attempt.claim.token, attemptOutput: attempt.output, patch: { status: "completed" } }),
+        QueueStateError,
+      );
+      await assert.rejects(lstat(path.join(attempt.jobRoot, "output")), { code: "ENOENT" });
+      await assert.rejects(lstat(path.join(outside, ".attempt-owner.json")), { code: "ENOENT" });
+      const current = await persisted(jobsRoot, id);
+      assert.equal(current.status, "preparing");
+      assert.equal(current.queue.lease.tokenHash, ownerHash(attempt.claim.token));
+      assert.equal(await readFile(path.join(outside, "candidates.v2.json"), "utf8"), "outside");
+    });
+  }
+});
+
+test("re-publication after a crash between directory renames completes idempotently", async () => {
+  const jobsRoot = await root();
+  const id = "56565656-5656-4656-8656-565656565656";
+  const { claim, jobRoot, attemptRoot, output } = await claimedAttempt(jobsRoot, job(id));
+  const marker = { version: 1, id, tokenHash: ownerHash(claim.token) };
+  await writeTree(path.join(attemptRoot, "analysis"), { ".attempt-owner.json": marker, "candidates.v2.json": "ours" });
+  await rename(path.join(attemptRoot, "analysis"), path.join(jobRoot, "analysis"));
+
+  const completed = await publishAttemptAndComplete({ jobsRoot, id, token: claim.token, attemptOutput: output, patch: { status: "completed" } });
+
+  assert.equal(completed.status, "completed");
+  assert.equal(await readFile(path.join(jobRoot, "analysis", "candidates.v2.json"), "utf8"), "ours");
+  assert.equal(await readFile(path.join(jobRoot, "output", "manifest.json"), "utf8"), "manifest-attempt");
+  assert.deepEqual(await orphans(jobRoot, "orphan."), []);
+});
+
+test("a completed attempt whose directories were all renamed before the crash still commits", async () => {
+  const jobsRoot = await root();
+  const id = "57575757-5757-4757-8757-575757575757";
+  const { claim, jobRoot, attemptRoot, output } = await claimedAttempt(jobsRoot, job(id));
+  const marker = { version: 1, id, tokenHash: ownerHash(claim.token) };
+  await writeFile(path.join(output, ".attempt-owner.json"), JSON.stringify(marker));
+  await rename(output, path.join(jobRoot, "output"));
+  const completed = await publishAttemptAndComplete({ jobsRoot, id, token: claim.token, attemptOutput: output, patch: { status: "completed" } });
+  assert.equal(completed.status, "completed");
+  assert.equal(await readFile(path.join(jobRoot, "output", "manifest.json"), "utf8"), "manifest-attempt");
+  await assert.rejects(lstat(path.join(attemptRoot, "output")), { code: "ENOENT" });
+
+  const missingId = "58585858-5858-4858-8858-585858585858";
+  const missing = await claimedAttempt(jobsRoot, job(missingId));
+  await (await import("node:fs/promises")).rm(missing.output, { recursive: true });
+  await assert.rejects(
+    publishAttemptAndComplete({ jobsRoot, id: missingId, token: missing.claim.token, attemptOutput: missing.output, patch: { status: "completed" } }),
+    QueueStateError,
+  );
+  assert.equal((await persisted(jobsRoot, missingId)).status, "preparing");
+});
+
+test("a markerless leftover output directory is orphaned instead of blocking publication", async () => {
+  const jobsRoot = await root();
+  const id = "59595959-5959-4959-8959-595959595959";
+  const { claim, jobRoot, output } = await claimedAttempt(jobsRoot, job(id));
+  await writeTree(path.join(jobRoot, "output"), { "clip-01.mp4": "legacy partial" });
+  await publishAttemptAndComplete({ jobsRoot, id, token: claim.token, attemptOutput: output, patch: { status: "completed" } });
+  assert.equal(await readFile(path.join(jobRoot, "output", "manifest.json"), "utf8"), "manifest-attempt");
+  const [orphan] = await orphans(jobRoot, "orphan.output.");
+  assert.equal(await readFile(path.join(jobRoot, ".attempts", orphan, "clip-01.mp4"), "utf8"), "legacy partial");
+});
+
+test("a YouTube attempt publishes its downloaded source and rewrites sourcePath; uploads keep their input", async () => {
+  const jobsRoot = await root();
+  const id = "5a5a5a5a-5a5a-4a5a-8a5a-5a5a5a5a5a5a";
+  const youtube = job(id, "queued", { source: { type: "youtube", url: "https://youtu.be/abc" }, sourcePath: null });
+  const { claim, jobRoot, attemptRoot, output } = await claimedAttempt(jobsRoot, youtube);
+  await mkdir(path.join(jobRoot, "input"));
+  const stagedSource = path.join(attemptRoot, "input", "source.mp4");
+  await writeTree(path.join(attemptRoot, "input"), { "source.mp4": "downloaded video" });
+  await fencedUpdateJob({ jobsRoot, id, token: claim.token, leaseMs: 60_000, now: CLAIM_AT, patch: { sourcePath: stagedSource } });
+
+  const completed = await publishAttemptAndComplete({ jobsRoot, id, token: claim.token, attemptOutput: output, patch: { status: "completed" } });
+
+  const publishedSource = path.join(jobRoot, "input", "source.mp4");
+  assert.equal(completed.sourcePath, publishedSource);
+  assert.equal((await persisted(jobsRoot, id)).sourcePath, publishedSource);
+  assert.equal(await readFile(publishedSource, "utf8"), "downloaded video");
+  await assert.rejects(lstat(path.join(attemptRoot, "input")), { code: "ENOENT" });
+  assert.deepEqual(await orphans(jobRoot, "orphan."), [], "the empty route-created input directory is replaced, not orphaned");
+
+  const uploadId = "5b5b5b5b-5b5b-4b5b-8b5b-5b5b5b5b5b5b";
+  const uploadSource = path.join(jobsRoot, uploadId, "input", "source.mp4");
+  const upload = await claimedAttempt(jobsRoot, job(uploadId, "queued", { sourcePath: uploadSource }));
+  await writeTree(path.join(upload.jobRoot, "input"), { "source.mp4": "uploaded video" });
+  const uploaded = await publishAttemptAndComplete({ jobsRoot, id: uploadId, token: upload.claim.token, attemptOutput: upload.output, patch: { status: "completed" } });
+  assert.equal(uploaded.sourcePath, uploadSource);
+  assert.equal(await readFile(uploadSource, "utf8"), "uploaded video");
+  await assert.rejects(lstat(path.join(upload.jobRoot, "input", ".attempt-owner.json")), { code: "ENOENT" });
+});
+
+test("a YouTube source that is not a regular file inside the attempt input is refused", async () => {
+  const jobsRoot = await root();
+  const id = "5c5c5c5c-5c5c-4c5c-8c5c-5c5c5c5c5c5c";
+  const outside = await mkdtemp(path.join(os.tmpdir(), "primary-queue-source-"));
+  await writeFile(path.join(outside, "secret.mp4"), "outside");
+  const youtube = job(id, "queued", { source: { type: "youtube", url: "https://youtu.be/abc" }, sourcePath: null });
+  const { claim, jobRoot, attemptRoot, output } = await claimedAttempt(jobsRoot, youtube);
+  await mkdir(path.join(attemptRoot, "input"));
+  const stagedSource = path.join(attemptRoot, "input", "source.mp4");
+  await symlink(path.join(outside, "secret.mp4"), stagedSource);
+  await fencedUpdateJob({ jobsRoot, id, token: claim.token, leaseMs: 60_000, now: CLAIM_AT, patch: { sourcePath: stagedSource } });
+  await assert.rejects(
+    publishAttemptAndComplete({ jobsRoot, id, token: claim.token, attemptOutput: output, patch: { status: "completed" } }),
+    QueueStateError,
+  );
+  await assert.rejects(lstat(path.join(jobRoot, "output")), { code: "ENOENT" });
+  assert.equal((await persisted(jobsRoot, id)).sourcePath, stagedSource);
+});
+
+test("attempt output must be exactly .attempts/<attempt>/output inside the job", async () => {
+  const jobsRoot = await root();
+  const id = "5d5d5d5d-5d5d-4d5d-8d5d-5d5d5d5d5d5d";
+  const { claim, jobRoot } = await claimedAttempt(jobsRoot, job(id));
+  for (const attemptOutput of [
+    path.join(jobRoot, ".attempts", "attempt", "nested", "output"),
+    path.join(jobRoot, ".attempts", "output"),
+    path.join(jobRoot, ".attempts", "attempt", "analysis"),
+    path.join(jobRoot, "output"),
+    path.join(jobsRoot, "elsewhere", ".attempts", "attempt", "output"),
+  ]) {
+    await mkdir(attemptOutput, { recursive: true });
+    await assert.rejects(
+      publishAttemptAndComplete({ jobsRoot, id, token: claim.token, attemptOutput, patch: { status: "completed" } }),
+      QueueStateError,
+      attemptOutput,
+    );
+  }
+  assert.equal((await persisted(jobsRoot, id)).status, "preparing");
 });
 
 test("a live lock heartbeat prevents overlap beyond the stale interval", async () => {
