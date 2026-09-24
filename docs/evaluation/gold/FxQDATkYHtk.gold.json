@@ -1,0 +1,142 @@
+{
+  "schema_version": 1,
+  "source_id": "FxQDATkYHtk",
+  "title": "Vindes 78 menit: Panji Pragiwaksono dengan Desta dan Vincent soal politik, New York, dan isu musuhan",
+  "duration_seconds": 4685,
+  "labeler": "llm-editor-proxy (Claude subagent), 2026-09-24, from YouTube auto-captions — HELD-OUT set 2",
+  "caveats": [
+    "Label dibuat oleh LLM yang berperan sebagai editor (proxy), bukan editor manusia. Label pemilik dan data retensi nyata selalu lebih diutamakan.",
+    "Set HELD-OUT kedua: dilabeli dari transkrip saja tanpa melihat kode, output selector, atau hasil sweep. Jangan dipakai untuk tuning; hanya untuk evaluasi akhir.",
+    "Urutan moments adalah peringkat editorial (G1 paling kuat). Archetype hanya label kasar; episode ini didominasi politik sehingga controversial_claim muncul beberapa kali.",
+    "Sumber transkrip adalah auto-caption YouTube: satu segmen kadang menggabungkan dua pembicara dan batas waktunya kasar (sekitar 1-2 detik). Aturan hit (IoU >= 0.3 atau cakupan >= 50%) menampung selisih ini.",
+    "G3 adalah satu-satunya deep-dive di atas 90 detik (sekitar 146 detik) karena pengakuan Desta dan jawaban Panji tidak bisa dipisah tanpa kehilangan konteks.",
+    "Teaser pembuka 0:05-1:24 berisi potongan momen yang muncul lagi di badan episode; gold memakai versi lengkapnya, teaser dijadikan trap.",
+    "Segmen iklan (Oronamin sekitar 42:00-46:40) dan promo tur/show dikecualikan dari gold.",
+    "Label menyebut tokoh publik secara deskriptif sesuai isi obrolan, bukan klaim fakta dari pelabel.",
+    "Judul bersifat deskriptif, bukan judul resmi video. Transkrip mentah tidak disimpan di repo; hanya rentang waktu dan label pendek."
+  ],
+  "moments": [
+    {
+      "id": "G1",
+      "start": 3064.4,
+      "end": 3145.8,
+      "archetype": "controversial_claim",
+      "label": "Panji roasting Marshel maju Pilkada Tangsel: \"Goblok lu, Marcel\""
+    },
+    {
+      "id": "G2",
+      "start": 767.0,
+      "end": 808.0,
+      "archetype": "confession",
+      "label": "Panji ngaku jadi jubir Anies karena terpaksa, alternatifnya Fadli Zon"
+    },
+    {
+      "id": "G3",
+      "start": 620.4,
+      "end": 766.7,
+      "archetype": "conflict",
+      "label": "Desta ngaku pernah sebel Panji soal politik; Panji: \"dunia yang berubah\""
+    },
+    {
+      "id": "G4",
+      "start": 1119.9,
+      "end": 1150.5,
+      "archetype": "controversial_claim",
+      "label": "Masalahnya bukan politisi, tapi \"rakyatnya tolol\", lalu dibelokkan ke Andi"
+    },
+    {
+      "id": "G5",
+      "start": 3745.7,
+      "end": 3817.6,
+      "archetype": "controversial_claim",
+      "label": "Internet Papua sering putus, alasan aparat: fiber optik digigit hiu"
+    },
+    {
+      "id": "G6",
+      "start": 1500.6,
+      "end": 1554.1,
+      "archetype": "humor",
+      "label": "Diajari doa biar dijaga malaikat, Panji malah kasihan sama malaikatnya"
+    },
+    {
+      "id": "G7",
+      "start": 4561.4,
+      "end": 4627.1,
+      "archetype": "emotional",
+      "label": "Penutup: Panji minta maaf, Desta ngaku cuma \"agak sebel\", akhirnya akur"
+    },
+    {
+      "id": "G8",
+      "start": 1808.6,
+      "end": 1881.6,
+      "archetype": "number_proof",
+      "label": "5 bulan, 300 kali open mic di New York tanpa tawa sampai menangis"
+    },
+    {
+      "id": "G9",
+      "start": 977.6,
+      "end": 1044.2,
+      "archetype": "insider_secret",
+      "label": "Zaman nge-rap Panji dicurigai BIN dan diteror email ancaman mati"
+    },
+    {
+      "id": "G10",
+      "start": 2439.2,
+      "end": 2492.7,
+      "archetype": "humor",
+      "label": "Orang Indonesia di New York saling gengsi: \"kenapa ada di mimpi saya?\""
+    },
+    {
+      "id": "G11",
+      "start": 3280.3,
+      "end": 3370.3,
+      "archetype": "controversial_claim",
+      "label": "Panji sindir Menko: tak siap dikritik rakyat, jangan kerja untuk rakyat"
+    },
+    {
+      "id": "G12",
+      "start": 1260.6,
+      "end": 1326.3,
+      "archetype": "humor",
+      "label": "Istri kira tinggal di Manhattan, ternyata pinggiran kayak Pamulang"
+    }
+  ],
+  "traps": [
+    {
+      "id": "T1",
+      "start": 5.0,
+      "end": 84.0,
+      "label": "Teaser pembuka: potongan momen lain, dobel dan terputus di tengah kalimat"
+    },
+    {
+      "id": "T2",
+      "start": 2641.6,
+      "end": 2716.5,
+      "label": "Iklan Oronamin: tanya-jawab, angka 1965 dan tawa, tapi segmen berbayar"
+    },
+    {
+      "id": "T3",
+      "start": 2846.9,
+      "end": 2919.0,
+      "label": "Desta lupa pertanyaannya: kata kunci politik dan tanda tanya, tanpa isi"
+    },
+    {
+      "id": "T4",
+      "start": 3195.3,
+      "end": 3227.0,
+      "label": "Ekor topik Marcel: tanya KTP Tangsel bertubi-tubi, payoff sudah lewat"
+    },
+    {
+      "id": "T5",
+      "start": 4151.2,
+      "end": 4206.2,
+      "label": "\"Lucu banget\" diulang-ulang, Panji lupa bit-nya; padat reaksi tapi kosong"
+    },
+    {
+      "id": "T6",
+      "start": 3722.6,
+      "end": 3745.7,
+      "label": "Promo tur 10 kota: daftar kota dan angka, bukan momen konten"
+    }
+  ]
+}

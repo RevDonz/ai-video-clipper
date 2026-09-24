@@ -1,0 +1,139 @@
+{
+  "schema_version": 1,
+  "source_id": "Ive926sC6mc",
+  "title": "Podcast 65 menit: mantan copet (Ijal) dan Iqbaal Ramadhan soal film copet",
+  "duration_seconds": 3922.15,
+  "labeler": "llm-editor-proxy (Claude subagent), 2026-09-24",
+  "caveats": [
+    "Label dibuat oleh LLM yang berperan sebagai editor (proxy), bukan editor manusia. Label pemilik dan data retensi nyata selalu lebih diutamakan.",
+    "Hanya satu episode dan dipakai sebagai set tuning. Hasil di episode ini saja tidak membuktikan generalisasi; pakai juga episode held-out.",
+    "Urutan moments adalah peringkat editorial (G1 paling kuat). Archetype hanya label kasar.",
+    "Rentang mengikuti batas segmen ASR yang terkuantisasi sekitar 1-2 detik. Aturan hit (IoU >= 0.3 atau cakupan >= 50%) menampung selisih ini.",
+    "Momen yang hanya terlihat lewat visual (mis. demo copet dua jari 13:22-14:04) tidak dimasukkan sebagai gold.",
+    "Judul bersifat deskriptif, bukan judul resmi video. Transkrip mentah tidak disimpan di repo; hanya rentang waktu dan label pendek."
+  ],
+  "moments": [
+    {
+      "id": "G1",
+      "start": 1241.9,
+      "end": 1310.9,
+      "archetype": "story_twist",
+      "label": "Iqbaal menyamar jadi Ijal sampai ditahan security di lokasi syutingnya sendiri"
+    },
+    {
+      "id": "G2",
+      "start": 650.75,
+      "end": 726.0,
+      "archetype": "insider_secret",
+      "label": "Mantan copet bilang host gampang dicopet; ciri calon korban: tatapan kosong"
+    },
+    {
+      "id": "G3",
+      "start": 726.0,
+      "end": 764.0,
+      "archetype": "insider_secret",
+      "label": "Modus pengalihan: cewek cakep ajak ngobrol cowok sendirian, HP-nya diambil"
+    },
+    {
+      "id": "G4",
+      "start": 0.0,
+      "end": 39.96,
+      "archetype": "curiosity_gap",
+      "label": "Pembuka: podcast pertama yang mengundang copet, dikoreksi \"Mantan, Bang\""
+    },
+    {
+      "id": "G5",
+      "start": 1811.9,
+      "end": 1839.53,
+      "archetype": "humor",
+      "label": "Iqbaal membantah Capricorn keras kepala, host langsung menangkap ironinya"
+    },
+    {
+      "id": "G6",
+      "start": 2581.08,
+      "end": 2653.08,
+      "archetype": "emotional",
+      "label": "Aktor cilik sejak 9 tahun terbiasa dibohongi orang dewasa di lokasi syuting"
+    },
+    {
+      "id": "G7",
+      "start": 423.13,
+      "end": 459.13,
+      "archetype": "confession",
+      "label": "Copet menarik batas moral: bukan jambret, bukan begal, tidak melukai orang"
+    },
+    {
+      "id": "G8",
+      "start": 2261.08,
+      "end": 2307.08,
+      "archetype": "relatable_pain",
+      "label": "Pekerja 9-5 bergantung pada dating app; banyak akun palsu mengaku Iqbaal"
+    },
+    {
+      "id": "G9",
+      "start": 165.52,
+      "end": 250.66,
+      "archetype": "insider_secret",
+      "label": "Kode rahasia copet di keramaian (\"mutus\", \"ngambang\") lalu debat artinya"
+    },
+    {
+      "id": "G10",
+      "start": 3332.75,
+      "end": 3390.75,
+      "archetype": "relatable_pain",
+      "label": "Doom-scrolling sepulang kerja dibingkai sebagai merebut kembali waktu sendiri"
+    },
+    {
+      "id": "G11",
+      "start": 3715.84,
+      "end": 3790.84,
+      "archetype": "insider_secret",
+      "label": "Balik layar: tanpa stuntman atau trik editing, aktor belajar copet dari pesulap"
+    },
+    {
+      "id": "G12",
+      "start": 2829.08,
+      "end": 2963.08,
+      "archetype": "emotional",
+      "label": "Trust issue anak industri: tak punya teman dekat, micromanage sampai burnout"
+    }
+  ],
+  "traps": [
+    {
+      "id": "T1",
+      "start": 3278.75,
+      "end": 3304.75,
+      "label": "Kata kunci (takut, trauma) padat, tapi mulai di tengah topik dan tanpa payoff"
+    },
+    {
+      "id": "T2",
+      "start": 39.96,
+      "end": 69.52,
+      "label": "Basa-basi nama dan asal: banyak tanda tanya, jawaban satu kata"
+    },
+    {
+      "id": "T3",
+      "start": 1671.9,
+      "end": 1700.9,
+      "label": "Tampak seperti konflik, tapi tamu menyangkal; hanya setup tanpa cerita"
+    },
+    {
+      "id": "T4",
+      "start": 562.13,
+      "end": 586.13,
+      "label": "Loop halusinasi ASR (satu kalimat berulang 9 kali) plus daftar panggung"
+    },
+    {
+      "id": "T5",
+      "start": 3518.16,
+      "end": 3564.76,
+      "label": "Tuduhan \"sombong\" dari fans dengan ASR rusak; jawabannya di luar potongan"
+    },
+    {
+      "id": "T6",
+      "start": 3597.84,
+      "end": 3652.84,
+      "label": "Magnet kontroversi (fitnah, agama) yang berisiko brand safety bila dipotong"
+    }
+  ]
+}

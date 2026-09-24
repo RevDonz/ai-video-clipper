@@ -1,0 +1,916 @@
+from __future__ import annotations
+
+import json
+import math
+
+import pytest
+
+from ai_clipper import benchmark, selection_v3
+from ai_clipper.audio_timeline import build_audio_timeline
+from ai_clipper.hook_heuristics import HEURISTIC_VERSION
+from ai_clipper.llm import LLMError, LLMUnavailable, ScriptedLLMClient
+from ai_clipper.llm_selection import PROMPT_VERSION, combined_score, standard_sha256
+from ai_clipper.models import TranscriptSegment, TranscriptWord
+from ai_clipper.selection_types import SelectedClip, SelectionResult
+from ai_clipper.selection_v3 import (
+    COLD_OPEN_MAX_SECONDS,
+    COLD_OPEN_MIN_SECONDS,
+    LAUGH_TAIL_SECONDS,
+    PRE_ROLL_SECONDS,
+    SELECTION_ARTIFACT_RELATIVE_PATH,
+    TAIL_SECONDS,
+    SelectionArtifactError,
+    _Snapper,
+    _Span,
+    benchmark_selectors,
+    read_selection_artifact,
+    select_clips_v3,
+    selection_from_dict,
+    write_selection_artifact,
+)
+from ai_clipper.sentences import SentenceUnit, looks_like_question
+from ai_clipper.sound_events import SoundEvent
+
+SCORES = {"hook": 8, "standalone": 7, "payoff": 6, "emotion": 5, "shareability": 4}
+TOLERANCE = 1e-6
+
+
+# --- fixtures ---------------------------------------------------------------------------------
+
+
+def statement(index: int) -> str:
+    return f"Gue cerita soal kisah{index} bareng teman{index} di kota{index} waktu itu."
+
+
+def question(index: int) -> str:
+    return f"Kenapa kamu pilih jalan{index} itu dulu?"
+
+
+def segment(start: float, text: str, seconds: float) -> TranscriptSegment:
+    tokens = text.split()
+    step = seconds / len(tokens)
+    words = tuple(
+        TranscriptWord(round(start + i * step, 3), round(start + (i + 1) * step, 3), token)
+        for i, token in enumerate(tokens)
+    )
+    return TranscriptSegment(words[0].start, words[-1].end, text, words)
+
+
+def episode(count: int = 40, *, seconds: float = 7.0, gap: float = 0.0, questions=()):
+    """One sentence per segment; every segment becomes one unit and one prompt line."""
+    segments = []
+    for index in range(count):
+        start = index * (seconds + gap)
+        text = question(index) if index in questions else statement(index)
+        segments.append(segment(start, text, seconds))
+    return segments
+
+
+def lid(index: int) -> str:
+    return f"L{index + 1:04d}"
+
+
+def moment(start: int, end: int, hook: int | None = None, **overrides) -> dict:
+    hook = start + 1 if hook is None else hook
+    data = {
+        "start_id": lid(start),
+        "end_id": lid(end),
+        "hook_id": lid(hook),
+        "payoff_id": None,
+        "archetype": "humor",
+        "hook_quote": f"kisah{hook} bareng teman{hook} di kota{hook}",
+        "title": "Judul klip LLM",
+        "hook_text": "Hook dari LLM",
+        "description": "Deskripsi singkat.",
+        "hashtags": ["#podcastindonesia", "#fyp"],
+        "scores": dict(SCORES),
+        "reason": "Alasan kuat.",
+    }
+    data.update(overrides)
+    return data
+
+
+def make_units(rows: list[tuple]) -> list[SentenceUnit]:
+    units: list[SentenceUnit] = []
+    previous_end: float | None = None
+    for index, row in enumerate(rows):
+        start, end, text, *rest = row
+        options = rest[0] if rest else {}
+        gap = 0.0 if previous_end is None else round(max(0.0, start - previous_end), 3)
+        units.append(
+            SentenceUnit(
+                unit_id=f"S{index + 1:04d}",
+                index=index,
+                start=float(start),
+                end=float(end),
+                text=text,
+                segment_start=index,
+                segment_end=index,
+                word_count=len(text.split()),
+                is_question=options.get("question", looks_like_question(text)),
+                gap_before=gap,
+                suspect=options.get("suspect", False),
+                words=(),
+            )
+        )
+        previous_end = end
+    return units
+
+
+def snapper(units, *, events=(), audio=None, media_end=None, low=20.0, high=60.0) -> _Snapper:
+    return _Snapper(
+        units,
+        events=tuple(sorted(events, key=lambda event: event.time)),
+        audio=audio,
+        media_end=units[-1].end if media_end is None else media_end,
+        min_duration=low,
+        max_duration=high,
+    )
+
+
+def laugh(time: float) -> SoundEvent:
+    return SoundEvent.from_label(time, "tertawa")
+
+
+def check_result(result: SelectionResult, *, k: int, low: float, high: float) -> None:
+    assert isinstance(result, SelectionResult)
+    assert len(result.clips) <= k
+    assert [clip.rank for clip in result.clips] == list(range(1, len(result.clips) + 1))
+    spans = []
+    for clip in result.clips:
+        assert low - TOLERANCE <= clip.end - clip.start <= high + TOLERANCE
+        first, last = (int(unit_id[1:]) for unit_id in clip.unit_ids)
+        assert first <= int(clip.hook_unit_id[1:]) <= last
+        spans.append((first, last))
+        if clip.cold_open is not None:
+            length = clip.cold_open[1] - clip.cold_open[0]
+            assert COLD_OPEN_MIN_SECONDS <= length <= COLD_OPEN_MAX_SECONDS + TOLERANCE
+            assert abs(clip.cold_open[0] - clip.start) >= 0.01
+    for index, (first, last) in enumerate(spans):
+        for other_first, other_last in spans[index + 1 :]:
+            assert last < other_first or other_last < first
+
+
+# --- heuristic path ---------------------------------------------------------------------------
+
+
+def test_llm_off_returns_snapped_heuristic_clips():
+    segments = episode(40, gap=0.5)
+
+    result = select_clips_v3(segments, k=4, min_duration=20.0, max_duration=40.0, llm_mode="off")
+
+    check_result(result, k=4, low=20.0, high=40.0)
+    assert result.clips
+    assert result.source == "heuristic" and result.status == "completed"
+    assert result.provider is None and result.model is None
+    assert result.prompt_version == HEURISTIC_VERSION
+    assert all(clip.source == "heuristic" for clip in result.clips)
+    assert "few_clips" not in " ".join(result.warnings)
+
+
+def test_clip_text_and_unit_ids_describe_the_snapped_span():
+    segments = episode(30, gap=0.5)
+
+    result = select_clips_v3(segments, k=3, min_duration=20.0, max_duration=40.0, llm_mode="off")
+
+    for clip in result.clips:
+        first, last = (int(unit_id[1:]) - 1 for unit_id in clip.unit_ids)
+        assert clip.text == " ".join(statement(index) for index in range(first, last + 1))
+        assert segments[first].start - PRE_ROLL_SECONDS - TOLERANCE <= clip.start
+        assert clip.start <= segments[first].start
+        assert segments[last].end <= clip.end <= segments[last].end + TAIL_SECONDS + TOLERANCE
+
+
+def test_selection_is_deterministic():
+    segments = episode(40, gap=0.5)
+    events = (laugh(70.5), laugh(150.2))
+
+    first = select_clips_v3(
+        segments, k=5, min_duration=20.0, max_duration=60.0, llm_mode="off", events=events
+    )
+    second = select_clips_v3(
+        segments, k=5, min_duration=20.0, max_duration=60.0, llm_mode="off", events=events[::-1]
+    )
+
+    assert first == second
+
+
+def test_empty_transcript_returns_no_clips():
+    result = select_clips_v3([], k=5, min_duration=20.0, max_duration=60.0, llm_mode="required")
+
+    assert result.clips == ()
+    assert result.warnings == ("no_transcript",)
+    assert result.status == "completed"
+
+
+# --- LLM path and fallbacks -------------------------------------------------------------------
+
+
+def test_llm_proposals_lead_and_record_provenance():
+    segments = episode(40)
+    client = ScriptedLLMClient(
+        [{"moments": [moment(10, 13, hook=12), moment(20, 23, hook=21)]}],
+        provider="ollama-cloud",
+        model="gpt-oss:120b",
+    )
+
+    result = select_clips_v3(
+        segments, k=2, min_duration=20.0, max_duration=40.0, llm_client=client, rerank=False
+    )
+
+    check_result(result, k=2, low=20.0, high=40.0)
+    assert result.source == "llm" and result.status == "completed"
+    assert result.provider == "ollama-cloud" and result.model == "gpt-oss:120b"
+    assert result.prompt_version == f"{PROMPT_VERSION}+std.{standard_sha256()[:12]}"
+    assert result.usage["requests"] == 1
+    assert [clip.unit_ids for clip in result.clips] == [("S0011", "S0014"), ("S0021", "S0024")]
+    assert [clip.hook_unit_id for clip in result.clips] == ["S0013", "S0022"]
+    assert all(clip.source == "llm" and clip.title == "Judul klip LLM" for clip in result.clips)
+    assert len(client.calls) == 1
+
+
+def test_llm_short_list_is_filled_from_non_overlapping_heuristic_clips():
+    segments = episode(60, gap=0.5)
+    client = ScriptedLLMClient([{"moments": [moment(10, 13, hook=12)]}])
+
+    result = select_clips_v3(
+        segments,
+        k=4,
+        min_duration=20.0,
+        max_duration=40.0,
+        llm_client=client,
+        rerank=False,
+        retry=False,
+    )
+
+    check_result(result, k=4, low=20.0, high=40.0)
+    assert result.source == "llm"
+    assert result.clips[0].source == "llm"
+    assert [clip.source for clip in result.clips[1:]] == ["heuristic"] * 3
+    assert "llm_filled:3" in result.warnings
+    assert any("heuristik" in reason for reason in result.clips[1].reasons)
+    assert len(client.calls) == 1
+
+
+def test_too_few_llm_moments_are_retried_once_then_filled_from_the_heuristic():
+    segments = episode(60, gap=0.5)
+    client = ScriptedLLMClient(
+        [{"moments": [moment(10, 13, hook=12)]}, {"moments": [moment(30, 33, hook=31)]}]
+    )
+
+    result = select_clips_v3(
+        segments, k=4, min_duration=20.0, max_duration=40.0, llm_client=client, rerank=False
+    )
+
+    check_result(result, k=4, low=20.0, high=40.0)
+    assert len(client.calls) == 2 and result.usage["requests"] == 2
+    assert [clip.source for clip in result.clips] == ["llm", "llm", "heuristic", "heuristic"]
+    assert result.warnings[:1] == ("llm_retry:follow_up:1",)
+    assert "llm_filled:2" in result.warnings
+
+
+def test_clip_scores_are_the_rubric_combination_of_their_sub_scores():
+    segments = episode(60, gap=0.5)
+    strong = dict.fromkeys(SCORES, 9)
+    client = ScriptedLLMClient(
+        [
+            {"moments": [moment(10, 13, hook=12), moment(30, 33, hook=31, scores=strong)]},
+            {"ranking": [{"id": "K01", "score": 1}, {"id": "K02", "score": 1}]},
+        ]
+    )
+
+    result = select_clips_v3(
+        segments, k=1, min_duration=20.0, max_duration=40.0, llm_client=client, retry=False
+    )
+    heuristic = select_clips_v3(
+        segments, k=4, min_duration=20.0, max_duration=40.0, llm_mode="off"
+    )
+
+    assert len(client.calls) == 2  # the rerank ran and only decided the order
+    assert result.clips[0].score == pytest.approx(combined_score(result.clips[0].scores))
+    assert result.clips[0].score in (pytest.approx(9.0), pytest.approx(6.4))
+    for clip in heuristic.clips:
+        assert clip.score == pytest.approx(combined_score(clip.scores), abs=1e-3)
+
+
+@pytest.mark.parametrize(
+    ("client", "warning"),
+    [
+        (None, "llm_unavailable"),
+        (ScriptedLLMClient([LLMError("rate_limited", "Kuota habis.")]), "llm_failed:rate_limited"),
+        (ScriptedLLMClient([LLMUnavailable("missing_api_key", "Tanpa key.")]), "llm_unavailable"),
+        (ScriptedLLMClient([{"moments": []}]), "llm_failed:no_moments"),
+    ],
+)
+def test_auto_mode_falls_back_to_the_heuristic(client, warning):
+    segments = episode(40, gap=0.5)
+
+    result = select_clips_v3(
+        segments, k=3, min_duration=20.0, max_duration=40.0, llm_client=client, rerank=False
+    )
+
+    check_result(result, k=3, low=20.0, high=40.0)
+    assert result.status == "fallback" and result.source == "heuristic"
+    assert warning in result.warnings
+    assert result.prompt_version == HEURISTIC_VERSION
+    assert result.provider is None and result.model is None
+    assert result.clips
+    # A request that was answered is still accounted for, even when nothing was usable; an
+    # empty answer is retried once (the scripted client then has nothing left).
+    assert result.usage.get("requests", 0) == (2 if warning.endswith("no_moments") else 0)
+    if warning.endswith("no_moments"):
+        assert result.warnings[:2] == ("llm_retry_failed:script_exhausted", warning)
+
+
+@pytest.mark.parametrize(
+    ("client", "error", "code"),
+    [
+        (None, LLMUnavailable, "not_configured"),
+        (ScriptedLLMClient([LLMError("timeout", "Lambat.")]), LLMError, "timeout"),
+        (ScriptedLLMClient([{"moments": []}]), LLMError, "no_moments"),
+    ],
+)
+def test_required_mode_reraises(client, error, code):
+    with pytest.raises(error) as raised:
+        select_clips_v3(
+            episode(40),
+            k=3,
+            min_duration=20.0,
+            max_duration=40.0,
+            llm_client=client,
+            llm_mode="required",
+            rerank=False,
+        )
+    assert raised.value.code == code
+
+
+def test_llm_moments_lost_to_snapping_fall_back_or_raise(monkeypatch):
+    segments = episode(40, gap=0.5)
+    original = _Snapper.snap
+
+    def drop_llm_span(self, first, last, protect):
+        return None if first == 10 else original(self, first, last, protect)
+
+    def fresh():
+        return ScriptedLLMClient([{"moments": [moment(10, 13, hook=12)]}])
+
+    monkeypatch.setattr(_Snapper, "snap", drop_llm_span)
+
+    fallback = select_clips_v3(
+        segments, k=2, min_duration=20.0, max_duration=40.0, llm_client=fresh(), rerank=False
+    )
+
+    assert fallback.status == "fallback" and fallback.source == "heuristic"
+    assert fallback.warnings[0] == "llm_failed:no_moments"
+    assert any(warning.startswith("snap_dropped:") for warning in fallback.warnings)
+    assert fallback.clips and all(clip.source == "heuristic" for clip in fallback.clips)
+    with pytest.raises(LLMError) as raised:
+        select_clips_v3(
+            segments,
+            k=2,
+            min_duration=20.0,
+            max_duration=40.0,
+            llm_client=fresh(),
+            llm_mode="required",
+            rerank=False,
+        )
+    assert raised.value.code == "no_moments"
+
+
+def test_llm_off_never_calls_the_client():
+    client = ScriptedLLMClient([])
+
+    select_clips_v3(
+        episode(30), k=2, min_duration=20.0, max_duration=40.0, llm_client=client, llm_mode="off"
+    )
+
+    assert client.calls == []
+
+
+def test_overlapping_llm_moment_is_skipped_for_the_next_one():
+    segments = episode(60)
+    client = ScriptedLLMClient(
+        [{"moments": [moment(10, 13, hook=12), moment(13, 16, hook=15), moment(30, 33)]}]
+    )
+
+    result = select_clips_v3(
+        segments, k=2, min_duration=20.0, max_duration=40.0, llm_client=client, rerank=False
+    )
+
+    assert [clip.unit_ids for clip in result.clips] == [("S0011", "S0014"), ("S0031", "S0034")]
+
+
+def letters(index: int) -> str:
+    return "".join("abcdefghij"[int(digit)] for digit in f"{index:03d}")
+
+
+def test_near_duplicate_topic_is_deferred():
+    topic = "copet dompet pasar tangan korban polisi kereta stasiun gerbong penumpang"
+    rows = []
+    for index in range(40):
+        extra = f" {topic}" if index in (10, 11, 12, 20, 21, 22) else ""
+        text = (
+            f"Gue cerita soal kisah{letters(index)} bareng teman{letters(index)}{extra} waktu itu."
+        )
+        rows.append(segment(index * 7.0, text, 7.0))
+
+    def quoted(start: int, end: int, hook: int) -> dict:
+        return moment(
+            start, end, hook, hook_quote=f"kisah{letters(hook)} bareng teman{letters(hook)}"
+        )
+
+    client = ScriptedLLMClient(
+        [{"moments": [quoted(10, 12, 11), quoted(20, 22, 21), quoted(30, 32, 31)]}]
+    )
+
+    result = select_clips_v3(
+        rows, k=3, min_duration=20.0, max_duration=40.0, llm_client=client, rerank=False
+    )
+
+    # The near-duplicate LLM pick moves behind the distinct one, still ahead of any filler.
+    assert [clip.unit_ids[0] for clip in result.clips] == ["S0011", "S0031", "S0021"]
+
+
+# --- snapping ---------------------------------------------------------------------------------
+
+
+def spaced_units(count: int = 12, *, seconds: float = 4.0, gap: float = 1.0):
+    return make_units(
+        [
+            (index * (seconds + gap), index * (seconds + gap) + seconds, statement(index))
+            for index in range(count)
+        ]
+    )
+
+
+def test_start_has_a_small_pre_roll_that_never_enters_the_previous_word():
+    units = make_units(
+        [
+            (0.0, 4.0, statement(0)),
+            (5.0, 9.0, statement(1)),
+            (9.05, 13.0, statement(2)),
+        ]
+    )
+    snap = snapper(units, low=1.0, high=30.0)
+
+    assert snap.snap_start(0) == 0.0
+    assert snap.snap_start(1) == pytest.approx(5.0 - PRE_ROLL_SECONDS)
+    assert snap.snap_start(2) == pytest.approx(9.0)
+
+
+def quiet_frames(frames: range) -> list[float]:
+    rms = [-20.0] * 120 + [-60.0] * 80  # a long quiet tail sets the noise floor
+    for frame in range(30, 47):
+        rms[frame] = -60.0  # a silence from 3.0 to 4.7 s
+    for frame in frames:
+        rms[frame] = -35.0
+    return rms
+
+
+def test_start_uses_the_audio_quiet_point_before_the_first_word():
+    units = make_units([(0.0, 3.0, statement(0)), (5.0, 9.0, statement(1))])
+    audio = build_audio_timeline(quiet_frames(range(47, 50)), duration=20.0)
+    snap = snapper(units, audio=audio, low=1.0, high=30.0)
+
+    assert snap.snap_start(1) == pytest.approx(4.95)
+
+
+def test_start_never_moves_after_the_first_word():
+    units = make_units([(0.0, 3.0, statement(0)), (5.0, 9.0, statement(1))])
+    audio = build_audio_timeline(quiet_frames(range(50, 53)), duration=20.0)
+    snap = snapper(units, audio=audio, low=1.0, high=30.0)
+
+    assert snap.snap_start(1) == pytest.approx(5.0 - PRE_ROLL_SECONDS)
+
+
+def test_start_inside_a_silence_keeps_the_default_pre_roll():
+    units = make_units([(0.0, 3.0, statement(0)), (4.5, 9.0, statement(1))])
+    audio = build_audio_timeline(quiet_frames(range(0)), duration=20.0)
+    snap = snapper(units, audio=audio, low=1.0, high=30.0)
+
+    assert snap.snap_start(1) == pytest.approx(4.5 - PRE_ROLL_SECONDS)
+
+
+def test_end_tail_is_capped_by_half_the_following_gap():
+    units = make_units([(0.0, 10.0, statement(0)), (10.3, 20.0, statement(1))])
+    snap = snapper(units, low=1.0, high=30.0)
+
+    end, last = snap.snap_end(0)
+
+    assert last == 0
+    assert end == pytest.approx(10.15)
+    wide = snapper(spaced_units(3), low=1.0, high=30.0)
+    assert wide.snap_end(0)[0] == pytest.approx(4.0 + TAIL_SECONDS)
+
+
+def test_end_extends_over_laughter_after_the_last_word():
+    units = spaced_units(4, seconds=4.0, gap=3.0)
+    snap = snapper(units, events=[laugh(5.0)], low=1.0, high=30.0)
+
+    end, last = snap.snap_end(0)
+
+    assert last == 0
+    assert end == pytest.approx(5.0 + LAUGH_TAIL_SECONDS)
+
+
+def test_laughter_extension_stops_before_the_next_sentence():
+    units = make_units([(0.0, 4.0, statement(0)), (5.5, 9.0, statement(1))])
+    snap = snapper(units, events=[laugh(5.2)], low=1.0, high=30.0)
+
+    end, last = snap.snap_end(0)
+
+    assert last == 0
+    assert end == pytest.approx(5.5 - 0.05)
+
+
+def test_laughter_far_after_the_last_word_is_ignored():
+    units = spaced_units(3, seconds=4.0, gap=5.0)
+    snap = snapper(units, events=[laugh(7.0)], low=1.0, high=30.0)
+
+    assert snap.snap_end(0)[0] == pytest.approx(4.0 + TAIL_SECONDS)
+
+
+def test_short_backchannel_spoken_into_the_laugh_is_kept():
+    units = make_units(
+        [
+            (0.0, 4.0, statement(0)),
+            (4.3, 4.9, "Anjir parah."),
+            (8.0, 12.0, statement(2)),
+        ]
+    )
+    snap = snapper(units, events=[laugh(5.0)], low=1.0, high=30.0)
+
+    end, last = snap.snap_end(0)
+
+    assert last == 1
+    assert end == pytest.approx(5.0 + LAUGH_TAIL_SECONDS)
+
+
+def test_a_real_sentence_is_never_swallowed_by_the_laugh_tail():
+    units = make_units(
+        [
+            (0.0, 4.0, statement(0)),
+            (4.3, 7.9, statement(1)),
+            (9.0, 12.0, statement(2)),
+        ]
+    )
+    snap = snapper(units, events=[laugh(5.0)], low=1.0, high=30.0)
+
+    end, last = snap.snap_end(0)
+
+    assert last == 0
+    assert end == pytest.approx(4.0 + 0.15)  # the laugh is under the next sentence
+
+
+def test_laugh_extension_respects_max_duration():
+    units = spaced_units(8, seconds=4.0, gap=3.0)
+    # Units 0..2 span 18 s; the laugh would push the end to 19.8 s.
+    snap = snapper(units, events=[laugh(19.0)], low=10.0, high=19.0)
+
+    span = snap.snap(0, 2, (1, 1))
+
+    assert span is not None
+    assert span.end - span.start == pytest.approx(19.0)
+    assert span.end >= units[2].end
+
+
+def test_too_long_span_drops_trailing_units_but_keeps_hook_and_payoff():
+    units = spaced_units(10, seconds=4.0, gap=1.0)
+    snap = snapper(units, low=10.0, high=20.0)
+
+    span = snap.snap(0, 6, (0, 2))
+
+    assert span is not None
+    assert (span.start_unit, span.end_unit) == (0, 3)
+    assert span.end - span.start <= 20.0 + TOLERANCE
+    assert snap.snap(0, 6, (0, 6)) is None
+
+
+def test_short_span_takes_a_neighbouring_unit():
+    units = spaced_units(10, seconds=4.0, gap=1.0)
+    snap = snapper(units, low=12.0, high=30.0)
+
+    span = snap.snap(2, 2, (2, 2))
+
+    assert span is not None
+    assert span.end - span.start >= 12.0 - TOLERANCE
+    assert span.start_unit <= 2 <= span.end_unit
+
+
+def test_span_is_clamped_to_the_media_end():
+    units = spaced_units(4, seconds=4.0, gap=1.0)
+    snap = snapper(units, media_end=units[-1].end, low=5.0, high=30.0)
+
+    span = snap.snap(2, 3, (2, 2))
+
+    assert span is not None and span.end == pytest.approx(units[-1].end)
+
+
+# --- cold open --------------------------------------------------------------------------------
+
+
+def test_cold_open_replays_the_hook_line_when_it_starts_late_enough():
+    units = spaced_units(10, seconds=4.0, gap=1.0)
+    snap = snapper(units, low=10.0, high=40.0)
+    span = _Span(0, 5, 0.0, 29.4)
+
+    cold = snap.cold_open(span, 2)
+
+    assert cold == pytest.approx((10.0 - 0.08, 14.0 + 0.12))
+
+
+@pytest.mark.parametrize(
+    ("rows", "hook"),
+    [
+        ([(0.0, 4.0, statement(0)), (4.5, 8.0, statement(1))], 1),  # starts < 5 s in
+        ([(0.0, 4.0, statement(0)), (6.0, 6.5, "Iya."), (7.0, 20.0, statement(2))], 1),  # <1 s
+        ([(0.0, 4.0, statement(0)), (6.0, 15.0, statement(1))], 1),  # > 8 s
+        ([(0.0, 4.0, statement(0)), (6.0, 9.0, statement(1), {"suspect": True})], 1),
+    ],
+)
+def test_cold_open_is_skipped_when_the_hook_is_unsuitable(rows, hook):
+    units = make_units(rows)
+    snap = snapper(units, low=1.0, high=40.0)
+
+    assert snap.cold_open(_Span(0, len(units) - 1, 0.0, units[-1].end), hook) is None
+
+
+def test_cold_open_extends_a_fragment_to_its_sentence_end():
+    units = make_units(
+        [
+            (0.0, 6.0, statement(0)),
+            (7.0, 9.0, "Dan ternyata yang nyopet itu"),
+            (9.7, 11.5, "polisinya sendiri."),
+            (12.5, 20.0, statement(3)),
+        ]
+    )
+    snap = snapper(units, low=1.0, high=40.0)
+
+    cold = snap.cold_open(_Span(0, 3, 0.0, 20.0), 1)
+
+    assert cold == pytest.approx((7.0 - 0.08, 11.5 + 0.12))
+
+
+def test_cold_open_never_enters_neighbouring_words():
+    units = make_units(
+        [
+            (0.0, 6.0, statement(0)),
+            (6.02, 9.0, statement(1)),
+            (9.05, 14.0, statement(2)),
+        ]
+    )
+    snap = snapper(units, low=1.0, high=40.0)
+
+    assert snap.cold_open(_Span(0, 2, 0.0, 14.0), 1) == pytest.approx((6.0, 9.05))
+    assert snap.cold_open(_Span(0, 2, 1.5, 14.0), 1) is None  # only 4.52 s after the start
+
+
+def test_cold_open_can_be_disabled_and_is_render_safe():
+    segments = episode(40, gap=0.5)
+    client = ScriptedLLMClient([{"moments": [moment(10, 14, hook=12)]}] * 2)
+
+    enabled = select_clips_v3(
+        segments, k=1, min_duration=20.0, max_duration=40.0, llm_client=client, rerank=False
+    )
+    disabled = select_clips_v3(
+        segments,
+        k=1,
+        min_duration=20.0,
+        max_duration=40.0,
+        llm_client=client,
+        rerank=False,
+        cold_open=False,
+    )
+
+    clip = enabled.clips[0]
+    assert clip.cold_open is not None
+    assert clip.cold_open[0] == pytest.approx(segments[12].start - 0.08)
+    assert any(reason.startswith("Cold open") for reason in clip.reasons)
+    assert disabled.clips[0].cold_open is None
+    check_result(enabled, k=1, low=20.0, high=40.0)
+
+
+# --- validation -------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("options", "error"),
+    [
+        ({"k": 0}, ValueError),
+        ({"k": True}, TypeError),
+        ({"min_duration": 0.0}, ValueError),
+        ({"min_duration": 50.0}, ValueError),
+        ({"max_duration": math.nan}, ValueError),
+        ({"llm_mode": "maybe"}, ValueError),
+        ({"events": "tertawa"}, TypeError),
+        ({"audio": "timeline"}, TypeError),
+        ({"quality": {}}, TypeError),
+        ({"cold_open": 1}, TypeError),
+        ({"max_requests": 0}, ValueError),
+        ({"deadline_s": -1.0}, ValueError),
+    ],
+)
+def test_invalid_arguments_are_rejected(options, error):
+    arguments = {"k": 3, "min_duration": 20.0, "max_duration": 40.0, "llm_mode": "off"}
+    arguments.update(options)
+    with pytest.raises(error):
+        select_clips_v3(episode(10), **arguments)
+
+
+def test_segments_must_be_transcript_segments():
+    with pytest.raises(TypeError):
+        select_clips_v3(["halo"], k=1, min_duration=1.0, max_duration=2.0, llm_mode="off")
+
+
+# --- artifact ---------------------------------------------------------------------------------
+
+
+def selection_result() -> SelectionResult:
+    client = ScriptedLLMClient([{"moments": [moment(10, 14, hook=12)]}])
+    return select_clips_v3(
+        episode(40, gap=0.5),
+        k=3,
+        min_duration=20.0,
+        max_duration=40.0,
+        llm_client=client,
+        rerank=False,
+    )
+
+
+def test_artifact_round_trips_atomically(tmp_path):
+    result = selection_result()
+    path = tmp_path / SELECTION_ARTIFACT_RELATIVE_PATH
+
+    written = write_selection_artifact(path, result)
+
+    assert written == path
+    assert read_selection_artifact(path) == result
+    assert sorted(item.name for item in path.parent.iterdir()) == ["selection.v3.json"]
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["selection_version"] == "selection-v3.0"
+    assert payload["clips"][0]["cold_open"] is None or set(payload["clips"][0]["cold_open"]) == {
+        "start",
+        "end",
+    }
+
+
+def mutated(change) -> dict:
+    payload = selection_result().to_dict()
+    change(payload)
+    return payload
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        mutated(lambda p: p.update(extra=1)),
+        mutated(lambda p: p.pop("usage")),
+        mutated(lambda p: p.update(selection_version="selection-v2")),
+        mutated(lambda p: p.update(clips={})),
+        mutated(lambda p: p["clips"][0].update(extra=1)),
+        mutated(lambda p: p["clips"][0].update(start=-1.0)),
+        mutated(lambda p: p["clips"][0].update(rank=2)),
+        mutated(lambda p: p["clips"][0].update(hashtags="#fyp")),
+        mutated(lambda p: p["clips"][0].update(cold_open={"start": 1.0})),
+        mutated(lambda p: p["clips"][0].update(archetype="viral")),
+        mutated(lambda p: p.update(status="failed")),
+        [],
+    ],
+)
+def test_artifact_reader_is_strict(payload):
+    with pytest.raises(SelectionArtifactError):
+        selection_from_dict(payload)
+
+
+def test_artifact_reader_rejects_bad_json(tmp_path):
+    path = tmp_path / "selection.v3.json"
+    path.write_text('{"a": 1, "a": 2}', encoding="utf-8")
+    with pytest.raises(SelectionArtifactError):
+        read_selection_artifact(path)
+    path.write_text('{"a": NaN}', encoding="utf-8")
+    with pytest.raises(SelectionArtifactError):
+        read_selection_artifact(path)
+    path.write_bytes(b"\xff\xfe")
+    with pytest.raises(SelectionArtifactError):
+        read_selection_artifact(path)
+    with pytest.raises(FileNotFoundError):
+        read_selection_artifact(tmp_path / "missing.json")
+
+
+def test_artifact_errors_never_echo_clip_text():
+    payload = selection_result().to_dict()
+    payload["clips"][0]["title"] = "RAHASIA " * 30
+    with pytest.raises(SelectionArtifactError) as raised:
+        selection_from_dict(payload)
+    assert "RAHASIA" not in str(raised.value)
+
+
+def test_write_rejects_other_values(tmp_path):
+    with pytest.raises(TypeError):
+        write_selection_artifact(tmp_path / "x.json", {"clips": []})
+
+
+# --- benchmark plugin -------------------------------------------------------------------------
+
+
+@pytest.fixture
+def isolated_registry(monkeypatch):
+    monkeypatch.setattr(benchmark, "_SELECTORS", dict(benchmark._SELECTORS))
+
+
+def test_benchmark_selectors_are_registered(isolated_registry):
+    selectors = benchmark_selectors()
+
+    assert set(selectors) == {"v3-heuristic", "v3-llm"}
+    benchmark.load_optional_selectors()
+    assert benchmark.get_selector("v3-heuristic").fn is selectors["v3-heuristic"]
+
+
+def test_v3_heuristic_selector_uses_context_events(isolated_registry):
+    benchmark.load_optional_selectors()
+    gold = benchmark.parse_gold(
+        {
+            "schema_version": 1,
+            "source_id": "synthetic01",
+            "title": "Synthetic",
+            "duration_seconds": 400.0,
+            "labeler": "test",
+            "caveats": [],
+            "moments": [
+                {"id": "G1", "start": 70.0, "end": 100.0, "archetype": "humor", "label": "x"}
+            ],
+            "traps": [],
+        }
+    )
+    context = benchmark.SelectorContext(source_id="synthetic01", sound_events=(laugh(98.4),))
+
+    run = benchmark.run_benchmark(
+        gold, episode(40, gap=0.5), "v3-heuristic", ks=(5,), context=context
+    )
+
+    assert run.status == "completed"
+    assert run.selections
+    assert run.selector_info is not None
+    assert run.selector_info["source"] == "heuristic"
+    assert run.metrics[0].cold_open_share is not None
+
+
+def test_v3_llm_selector_requires_a_configured_llm(monkeypatch, isolated_registry):
+    for name in list(__import__("os").environ):
+        if name.startswith("POTONGIN_LLM"):
+            monkeypatch.delenv(name)
+    selector = benchmark_selectors()["v3-llm"]
+
+    with pytest.raises(LLMUnavailable):
+        selector(episode(10), k=3, min_duration=20.0, max_duration=40.0)
+
+
+def test_v3_llm_selector_passes_budget_cache_and_events(monkeypatch, tmp_path):
+    seen: dict[str, object] = {}
+    client = ScriptedLLMClient([{"moments": [moment(10, 14, hook=12)]}])
+
+    def fake_client(env=None, *, cache_dir=None):
+        seen["cache_dir"] = cache_dir
+        return client
+
+    def fake_select(segments, **options):
+        seen.update(options)
+        return "result"
+
+    monkeypatch.setattr(selection_v3, "llm_request_budget", lambda env=None: (131072, 16384))
+    monkeypatch.setattr(selection_v3, "create_llm_client_from_env", fake_client)
+    monkeypatch.setattr(selection_v3, "select_clips_v3", fake_select)
+    context = benchmark.SelectorContext(
+        source_id="x", sound_events=(laugh(3.0),), llm_cache_dir=tmp_path
+    )
+
+    result = benchmark_selectors()["v3-llm"](
+        episode(10), k=3, min_duration=20.0, max_duration=40.0, context=context
+    )
+
+    assert result == "result"
+    assert seen["cache_dir"] == tmp_path
+    assert seen["llm_mode"] == "required" and seen["llm_client"] is client
+    assert seen["context_tokens"] == 131072 and seen["max_output_tokens"] == 16384
+    assert seen["events"] == (laugh(3.0),)
+
+
+def test_llm_request_budget_uses_smallest_context(monkeypatch):
+    env = {
+        "POTONGIN_LLM_PROVIDERS": "groq,ollama-cloud",
+        "GROQ_API_KEY": "gsk-test-value-000000",
+        "OLLAMA_API_KEY": "ollama-test-value-000000",
+    }
+
+    context, output = selection_v3.llm_request_budget(env)
+
+    assert context == 8000
+    assert output <= context // 2
+    assert selection_v3.llm_request_budget({}) is None
+
+
+def test_selected_clips_are_benchmark_spans():
+    result = selection_result()
+    spans = benchmark._validate_spans(result.clips)
+    assert spans == tuple((clip.start, clip.end) for clip in result.clips)
+    assert all(isinstance(clip, SelectedClip) for clip in result.clips)

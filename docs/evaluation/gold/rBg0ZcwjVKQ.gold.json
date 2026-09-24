@@ -1,0 +1,139 @@
+{
+  "schema_version": 1,
+  "source_id": "rBg0ZcwjVKQ",
+  "title": "Kajian Kitab Rongawi Bersama Reza Auditore (Ferry Irwandi)",
+  "duration_seconds": 3989.061,
+  "labeler": "llm-editor-proxy (Claude subagent), 2026-09-24, from YouTube auto-captions",
+  "caveats": [
+    "Labeled from YouTube Indonesian captions with inline sound-event tags only; the video was not watched, so on-screen memes and visual gags were not assessed.",
+    "Caption text garbles names and numbers (e.g. '4 juta' appears as 'R juta', Reza as 'Eja Auditori'); boundaries snap to caption segments, not exact words.",
+    "Speaker turns (host Ferry Irwandi vs guest Reza 'Eja' Auditore) are inferred from context; some caption segments merge both speakers.",
+    "G4 is the single allowed deep-dive (>90 s); a tighter cut from about 641 s to 726 s is an acceptable alternative.",
+    "Content is crude adult humor (jomok, genital references); FYP appeal assumes a platform-safe edit with bleeps or blur.",
+    "Single subjective labeler; adjacent spans (G2/G3, G7/G11, G9/T5) are deliberately separate clips to test boundary precision."
+  ],
+  "moments": [
+    {
+      "id": "G1",
+      "start": 3794.0,
+      "end": 3842.08,
+      "archetype": "humor",
+      "label": "Imagining explaining his jomok streaming job to his future kid"
+    },
+    {
+      "id": "G2",
+      "start": 1360.919,
+      "end": 1420.479,
+      "archetype": "humor",
+      "label": "Donation price list for staged fights; a 4-million tip forces 'cinematic' drama"
+    },
+    {
+      "id": "G3",
+      "start": 1424.279,
+      "end": 1488.8,
+      "archetype": "insider_secret",
+      "label": "The viral gym-fight meme sound was really their staged donation drama"
+    },
+    {
+      "id": "G4",
+      "start": 617.64,
+      "end": 750.76,
+      "archetype": "emotional",
+      "label": "Orphaned teen learns funeral wreaths were flattery, ends up begging for rice"
+    },
+    {
+      "id": "G5",
+      "start": 2931.96,
+      "end": 3005.44,
+      "archetype": "controversial_claim",
+      "label": "Ferry told Bigmo to accept corruptor's-kid insults as his father's consequence"
+    },
+    {
+      "id": "G6",
+      "start": 2519.52,
+      "end": 2564.44,
+      "archetype": "confession",
+      "label": "Even his late father's face became a meme, and he just shrugs it off"
+    },
+    {
+      "id": "G7",
+      "start": 1067.24,
+      "end": 1152.36,
+      "archetype": "story_twist",
+      "label": "Sidekick Lades: unpaid, no ID card, fake illegal-immigrant gimmick got doxxed"
+    },
+    {
+      "id": "G8",
+      "start": 232.84,
+      "end": 278.44,
+      "archetype": "story_twist",
+      "label": "Fans' explicit submissions got his YouTube channel killed; fans follow via VPN"
+    },
+    {
+      "id": "G9",
+      "start": 2264.88,
+      "end": 2348.48,
+      "archetype": "emotional",
+      "label": "From official's son to waiter: why he never snaps at restaurant staff"
+    },
+    {
+      "id": "G10",
+      "start": 1612.72,
+      "end": 1682.64,
+      "archetype": "insider_secret",
+      "label": "Ferry's meme playbook: block sticker senders so the meme spreads further"
+    },
+    {
+      "id": "G11",
+      "start": 1161.2,
+      "end": 1240.52,
+      "archetype": "humor",
+      "label": "Kids ask for selfies while adult viewers pay tiny donations to get roasted"
+    },
+    {
+      "id": "G12",
+      "start": 1943.96,
+      "end": 2021.519,
+      "archetype": "humor",
+      "label": "Rongawi lore borrowed from Ngawi jokes, yet he has never been to Ngawi"
+    }
+  ],
+  "traps": [
+    {
+      "id": "T1",
+      "start": 0.32,
+      "end": 61.719,
+      "label": "Cold-open greetings, applause and laugh tags; no story or payoff yet"
+    },
+    {
+      "id": "T2",
+      "start": 3152.559,
+      "end": 3170.319,
+      "label": "Asks Rusdi's real name but guest forgets; curiosity gap never pays off"
+    },
+    {
+      "id": "T3",
+      "start": 2447.4,
+      "end": 2519.52,
+      "label": "Future-plans question gets a vague 'hard to explain' dodge; nothing revealed"
+    },
+    {
+      "id": "T4",
+      "start": 2119.8,
+      "end": 2159.319,
+      "label": "Laugh-dense reaction to an off-screen meme; garbled captions, needs visuals"
+    },
+    {
+      "id": "T5",
+      "start": 2348.56,
+      "end": 2391.48,
+      "label": "Swiss/nuclear-engineering running gag; laugh tags but no setup for outsiders"
+    },
+    {
+      "id": "T6",
+      "start": 3191.72,
+      "end": 3248.92,
+      "label": "Barbershop-song/Coach tangent; double laugh tags, garbled, no clear payoff"
+    }
+  ]
+}
