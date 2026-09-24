@@ -7,8 +7,11 @@ import { pathToFileURL } from "node:url";
 
 import {
   CLIP_TEXT_LIMITS,
+  MAX_THUMBNAIL_BYTES,
   atomicWriteJson,
   clipSocialMetadata,
+  clipThumbnailUrl,
+  manifestThumbnailName,
   parseWorkerProgress,
   sanitizeLine,
   sanitizeManifestClipFields,
@@ -175,10 +178,34 @@ function manifestNumber(value) {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-export function jobClipFromManifest(clip, id, position = 0) {
+/**
+ * The poster names (clip-XX.jpg) of `manifestClips` that exist in `outputRoot`
+ * as non-empty regular files. Checked before the attempt is published, which
+ * moves the whole output directory, so the names stay valid afterwards.
+ */
+export async function existingThumbnails(outputRoot, manifestClips) {
+  const names = new Set();
+  if (!Array.isArray(manifestClips)) return names;
+  for (const clip of manifestClips) {
+    const name = manifestThumbnailName(clip && typeof clip === "object" ? clip.thumbnail : null);
+    if (!name || names.has(name)) continue;
+    try {
+      const info = await lstat(path.join(outputRoot, name));
+      if (info.isFile() && info.size > 0 && info.size <= MAX_THUMBNAIL_BYTES) names.add(name);
+    } catch {
+      // A missing or unreadable poster is simply not shown; the clip still plays.
+    }
+  }
+  return names;
+}
+
+export function jobClipFromManifest(clip, id, position = 0, { thumbnails = null } = {}) {
   if (!clip || typeof clip !== "object" || Array.isArray(clip)) throw new Error("Manifest klip tidak valid");
   const filename = path.basename(clip.output);
   const text = sanitizeLine(clip.text, CLIP_TEXT_LIMITS.text) || "";
+  // Only the clip's own poster (clip-01.mp4 -> clip-01.jpg), and only when it exists.
+  const thumbnail = manifestThumbnailName(clip.thumbnail);
+  const hasPoster = thumbnail !== null && thumbnail === filename.replace(/\.mp4$/, ".jpg") && thumbnails?.has(thumbnail) === true;
   const base = {
     index: Number.isSafeInteger(clip.index) && clip.index > 0 ? clip.index : position + 1,
     score: manifestNumber(clip.score),
@@ -189,6 +216,7 @@ export function jobClipFromManifest(clip, id, position = 0) {
     videoUrl: `/api/jobs/${id}/files/output/${encodeURIComponent(filename)}`,
     downloadUrl: `/api/jobs/${id}/files/output/${encodeURIComponent(filename)}?download=1`,
     subtitleUrl: `/api/jobs/${id}/files/output/${encodeURIComponent(path.basename(clip.subtitles))}?download=1`,
+    ...(hasPoster ? { thumbnailUrl: clipThumbnailUrl(id, thumbnail) } : {}),
   };
   const packaging = sanitizeManifestClipFields(clip);
   const merged = { ...base, ...packaging };
@@ -357,7 +385,8 @@ export async function main(argv = process.argv, env = process.env) {
     if (manifest.status !== "completed" || !manifest.clips?.length) {
       throw new Error(sanitizeLine(manifest.error, 500) || "Engine tidak menghasilkan klip");
     }
-    const clips = manifest.clips.map((clip, position) => jobClipFromManifest(clip, id, position));
+    const thumbnails = await existingThumbnails(outputRoot, manifest.clips);
+    const clips = manifest.clips.map((clip, position) => jobClipFromManifest(clip, id, position, { thumbnails }));
     const completedPatch = {
       status: "completed",
       progress: 100,

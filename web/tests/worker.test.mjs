@@ -237,9 +237,14 @@ if (process.env.FAKE_ENGINE_FAIL === "1") {
   await writeFile(path.join(output, "manifest.json"), JSON.stringify({ status: "failed", error: "engine failed on purpose" }));
   process.exit(1);
 }
+const poster = process.env.FAKE_ENGINE_THUMBNAIL;
+if (poster === "write") await writeFile(path.join(output, "clip-01.jpg"), Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
 await writeFile(path.join(output, "manifest.json"), JSON.stringify({
   status: "completed",
-  clips: [{ index: 1, score: 9, start: 0, end: 30, duration: 30, text: "Klip uji", output: path.join(output, "clip-01.mp4"), subtitles: path.join(output, "clip-01.srt") }],
+  clips: [{
+    index: 1, score: 9, start: 0, end: 30, duration: 30, text: "Klip uji", output: path.join(output, "clip-01.mp4"), subtitles: path.join(output, "clip-01.srt"),
+    ...(poster ? { thumbnail: path.join(output, "clip-01.jpg") } : {}),
+  }],
 }));
 `;
 
@@ -290,6 +295,23 @@ test("queue-managed runs publish the attempt analysis where every web reader loo
     await assert.rejects(lstat(path.join(attemptRootFor(jobRoot, claim.token), "analysis")), { code: "ENOENT" });
     const analysisSeenByRoutes = await readCandidateFeedback(id, "get", Buffer.alloc(0), root, { runner: async (analysis) => analysis });
     assert.equal(analysisSeenByRoutes, path.join(await realpath(root), id, "analysis"));
+  }
+});
+
+test("clip posters written by the engine are published and advertised; missing ones are not", async () => {
+  const expected = { write: "/files/output/clip-01.jpg", missing: undefined, "": undefined };
+  for (const [poster, suffix] of Object.entries(expected)) {
+    const id = "a23e4567-e89b-42d3-a456-426614174000";
+    const { root, jobRoot, env } = await engineFixture("clipper-worker-poster-", { id });
+    const claim = await claimNextJob({ jobsRoot: root, workerId: "worker", leaseMs: 60_000, maxAttempts: 3, legacyQuiescenceMs: 0 });
+    await main(["node", "run-job.mjs", id, claim.token], { ...env, FAKE_ENGINE_THUMBNAIL: poster });
+
+    const persisted = JSON.parse(await readFile(path.join(jobRoot, "job.json"), "utf8"));
+    assert.equal(persisted.status, "completed", poster);
+    const [clip] = persisted.clips;
+    assert.equal(clip.thumbnailUrl, suffix && `/api/jobs/${id}${suffix}`, poster);
+    assert.equal(clip.videoUrl, `/api/jobs/${id}/files/output/clip-01.mp4`);
+    if (suffix) assert.equal((await lstat(path.join(jobRoot, "output", "clip-01.jpg"))).size, 4);
   }
 });
 

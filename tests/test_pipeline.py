@@ -133,6 +133,9 @@ def test_pipeline_transcribes_selects_renders_and_writes_manifest(tmp_path: Path
     assert len(manifest["clips"]) == 1
     assert manifest["clips"][0]["duration"] == 1.68
     assert Path(manifest["clips"][0]["output"]).is_file()
+    thumbnail = Path(manifest["clips"][0]["thumbnail"])
+    assert thumbnail == Path(manifest["clips"][0]["output"]).with_suffix(".jpg")
+    assert thumbnail.read_bytes()[:3] == b"\xff\xd8\xff"
     assert "Kesalahan terbesar" in manifest["clips"][0]["text"]
     assert [event[0] for event in progress_events] == [
         "analyzing",

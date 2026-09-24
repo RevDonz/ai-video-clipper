@@ -19,6 +19,7 @@ import {
   archetypeLabel,
   captionParts,
   clipCaptionText,
+  clipPosterUrl,
   coldOpenLength,
   formatTenths,
   isV3Job,
@@ -294,7 +295,7 @@ function V3ClipCard({ clip, copied, onCopy }) {
 
   return (
     <article className="v3Clip" aria-labelledby={titleId}>
-      <video controls preload="metadata" src={clip.videoUrl} />
+      <video controls preload="metadata" src={clip.videoUrl} poster={clipPosterUrl(clip)} />
       <div className="v3ClipBody">
         <div className="v3ClipTags">
           <small>CLIP {index} · {Math.round(clip.duration || 0)} DETIK</small>
@@ -492,7 +493,7 @@ export default function ProjectDetailPage({ params }) {
 
           {!v3 && <section className="legacySection shell" aria-labelledby="legacy-title">
             <header><div className="eyebrow">HASIL JOB LAMA</div><h2 id="legacy-title">Klip yang sudah dirender</h2><p>Hasil lama tetap tersedia terlepas dari ketersediaan kandidat V2.</p></header>
-            {clips.length ? <div className="archiveClips">{clips.map((clip) => <article className="archiveClip" key={clip.index}><video controls preload="metadata" src={clip.videoUrl} /><div><small>CLIP {String(clip.index).padStart(2, "0")} · {Math.round(clip.duration || 0)} DETIK</small><h3>{clip.title}</h3><p className="socialDescription">{clip.description}</p>{clip.subtitleUrl && <p className="subtitleNote">Subtitle SRT tersedia sebagai file unduhan dan tidak dimuat sebagai track browser.</p>}<div className="archiveActions"><a href={clip.downloadUrl}>Download MP4 ↓</a>{clip.subtitleUrl && <a href={clip.subtitleUrl}>Subtitle SRT ↓</a>}</div></div></article>)}</div> : <div className="noClips"><strong>{job.status === "failed" ? "Proses ini gagal" : "Klip belum tersedia"}</strong><p>{STATUS_LABELS[job.status] || job.status} · progres {progress}%</p></div>}
+            {clips.length ? <div className="archiveClips">{clips.map((clip) => <article className="archiveClip" key={clip.index}><video controls preload="metadata" src={clip.videoUrl} poster={clipPosterUrl(clip)} /><div><small>CLIP {String(clip.index).padStart(2, "0")} · {Math.round(clip.duration || 0)} DETIK</small><h3>{clip.title}</h3><p className="socialDescription">{clip.description}</p>{clip.subtitleUrl && <p className="subtitleNote">Subtitle SRT tersedia sebagai file unduhan dan tidak dimuat sebagai track browser.</p>}<div className="archiveActions"><a href={clip.downloadUrl}>Download MP4 ↓</a>{clip.subtitleUrl && <a href={clip.subtitleUrl}>Subtitle SRT ↓</a>}</div></div></article>)}</div> : <div className="noClips"><strong>{job.status === "failed" ? "Proses ini gagal" : "Klip belum tersedia"}</strong><p>{STATUS_LABELS[job.status] || job.status} · progres {progress}%</p></div>}
           </section>}
         </>
       )}

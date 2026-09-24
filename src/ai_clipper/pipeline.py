@@ -21,6 +21,15 @@ shadow keep their historical behaviour. Selection V3 (``selection_mode="v3"``) r
 4. **Packaging and rendering** (stages ``packaging``, ``rendering``): cold open, hook overlay,
    and caption style per clip; the manifest gets every packaging field.
 
+Every mode writes a poster next to each rendered clip: :func:`write_clip_thumbnail` grabs one
+frame of ``clip-XX.mp4`` at :func:`thumbnail_time` (1.0 s, so the hook text and the first
+captions are on it; earlier for very short clips) into ``clip-XX.jpg``, at most
+``THUMBNAIL_WIDTH`` pixels wide, with the same no-clobber publication as the render. The clip's
+manifest entry gets ``"thumbnail": "<path>"``. A poster that could not be written never fails
+the job: a V3 clip then has ``"thumbnail": null`` (its contract lists every field) and the
+summary warning ``thumbnail_failed:<index>``; a V1/V2-shadow clip keeps its historical shape
+without the key.
+
 Always written by V3: ``<output>/transcript.json``, ``analysis/transcript-quality.json``,
 ``analysis/selection.v3.json`` (once selection ran), ``analysis/audio-timeline.json`` and
 ``analysis/sound-events.json`` when available. The manifest's ``selection_v3`` summary holds
@@ -34,8 +43,8 @@ caption quality code), the transcript-quality file codes (``no_word_timestamps``
 ``llm_not_configured``, ``llm_failed:<code>`` (``deadline`` when the wall-clock bound ran out).
 After the selector's codes: ``clip_trimmed_to_media:<rank>``, ``cold_open_beyond_media:<rank>``,
 ``clip_beyond_media:<rank>``, then ``llm_providers:<n>`` and ``llm_models:<n>`` (several
-engines answered; the summary names the first). A failed run starts with
-``pipeline_failed:<stage>``.
+engines answered; the summary names the first), then ``thumbnail_failed:<index>``. A failed run
+starts with ``pipeline_failed:<stage>``.
 """
 
 from __future__ import annotations
@@ -45,6 +54,7 @@ import math
 import os
 import re
 import stat
+import subprocess
 import threading
 import uuid
 from collections.abc import Callable, Iterable
@@ -76,7 +86,15 @@ from .ranking import (
     rank_candidates_with_breakdowns,
     write_candidates_artifact,
 )
-from .render import HOOK_DURATION_MAX_SECONDS, _probe_source, render_vertical, validate_render_mode
+from .render import (
+    HOOK_DURATION_MAX_SECONDS,
+    _create_sibling_temp,
+    _probe_source,
+    _unlink_if_same,
+    _unlink_quietly,
+    render_vertical,
+    validate_render_mode,
+)
 from .selection_types import SelectedClip, SelectionResult
 from .selection_v3 import (
     LLM_MODES,
@@ -141,6 +159,176 @@ _ARCHETYPE_CODE = re.compile(r"[a-z][a-z0-9_]{0,39}")
 MAX_SUMMARY_WARNINGS = 50
 MAX_SUMMARY_WARNING_CHARS = 160
 MAX_MANIFEST_HASHTAGS = 10
+
+THUMBNAIL_SUFFIX = ".jpg"
+THUMBNAIL_WIDTH = 720  # never upscaled: a narrower render keeps its own width
+THUMBNAIL_QUALITY = 4  # FFmpeg -q:v for MJPEG (2 is best, 31 worst)
+THUMBNAIL_AT_SECONDS = 1.0  # the hook overlay and the first caption are on screen by now
+THUMBNAIL_SHORT_AT_SECONDS = 0.3
+THUMBNAIL_SHORT_CLIP_SECONDS = 2.0
+THUMBNAIL_TIMEOUT_SECONDS = 60
+MAX_THUMBNAIL_BYTES = 8 * 1024 * 1024
+_JPEG_START = b"\xff\xd8\xff"
+_JPEG_END = b"\xff\xd9"
+
+
+class ThumbnailError(RuntimeError):
+    """A clip poster could not be written. Messages never contain a path."""
+
+
+def thumbnail_time(duration: float) -> float:
+    """Where the poster frame is taken in a clip of ``duration`` rendered seconds."""
+    if duration >= THUMBNAIL_SHORT_CLIP_SECONDS:
+        return THUMBNAIL_AT_SECONDS
+    return max(0.0, min(THUMBNAIL_SHORT_AT_SECONDS, duration / 2))
+
+
+def _require_thumbnail_absent(directory_fd: int, name: str) -> None:
+    try:
+        info = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+    except FileNotFoundError:
+        return
+    except OSError as exc:
+        raise ThumbnailError("thumbnail destination could not be inspected") from exc
+    if stat.S_ISLNK(info.st_mode):
+        raise ThumbnailError("thumbnail destination is not a regular file")
+    raise ThumbnailError("thumbnail destination already exists")
+
+
+def _require_jpeg(fd: int) -> None:
+    size = os.fstat(fd).st_size
+    if not len(_JPEG_START) + len(_JPEG_END) <= size <= MAX_THUMBNAIL_BYTES:
+        raise ThumbnailError("thumbnail is not a JPEG")
+    if (
+        os.pread(fd, len(_JPEG_START), 0) != _JPEG_START
+        or os.pread(fd, len(_JPEG_END), size - len(_JPEG_END)) != _JPEG_END
+    ):
+        raise ThumbnailError("thumbnail is not a JPEG")
+
+
+def _thumbnail_command(clip_fd: int, image_fd: int, at: float) -> list[str]:
+    return [
+        "ffmpeg",
+        "-nostdin",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-ss",
+        f"{at:.3f}",
+        "-i",
+        f"/proc/self/fd/{clip_fd}",
+        "-map",
+        "0:v:0",
+        "-frames:v",
+        "1",
+        "-vf",
+        f"scale='min({THUMBNAIL_WIDTH},iw)':-2",
+        "-q:v",
+        str(THUMBNAIL_QUALITY),
+        "-map_metadata",
+        "-1",
+        "-f",
+        "image2",
+        "-update",
+        "1",
+        "-c:v",
+        "mjpeg",
+        f"/proc/self/fd/{image_fd}",
+    ]
+
+
+def write_clip_thumbnail(clip: Path, *, duration: float) -> Path:
+    """Write ``clip``'s poster frame to ``clip-XX.jpg`` beside it and return that path.
+
+    The rendered clip is opened without following symlinks and FFmpeg only sees file
+    descriptors. The JPEG goes to a private sibling temporary file, is checked, and is then
+    hard-linked into place, so an existing file or symlink is never replaced and a failure
+    leaves nothing behind. Raises :class:`ThumbnailError` (or ``OSError``) on failure.
+    """
+    if not isinstance(duration, Real) or isinstance(duration, bool):
+        raise TypeError("duration must be a number")
+    duration = float(duration)
+    if not math.isfinite(duration) or duration <= 0:
+        raise ValueError("duration must be finite and positive")
+    clip = Path(clip).absolute()
+    destination = clip.with_suffix(THUMBNAIL_SUFFIX)
+    if destination.name == clip.name:
+        raise ValueError("clip and thumbnail destinations must be distinct")
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    try:
+        directory_fd = os.open(clip.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | nofollow)
+    except OSError as exc:
+        raise ThumbnailError("thumbnail directory is not safe") from exc
+
+    clip_fd = image_fd = -1
+    temporary = ""
+    published: os.stat_result | None = None
+    try:
+        try:
+            clip_fd = os.open(clip.name, os.O_RDONLY | os.O_CLOEXEC | nofollow, dir_fd=directory_fd)
+        except FileNotFoundError as exc:
+            raise ThumbnailError("thumbnail clip is missing") from exc
+        except OSError as exc:
+            raise ThumbnailError("thumbnail clip is not a regular file") from exc
+        if not stat.S_ISREG(os.fstat(clip_fd).st_mode):
+            raise ThumbnailError("thumbnail clip is not a regular file")
+        _require_thumbnail_absent(directory_fd, destination.name)
+        try:
+            image_fd, temporary = _create_sibling_temp(directory_fd, THUMBNAIL_SUFFIX)
+        except (OSError, RuntimeError) as exc:
+            raise ThumbnailError("could not create a thumbnail temporary file") from exc
+        command = _thumbnail_command(clip_fd, image_fd, thumbnail_time(duration))
+        try:
+            subprocess.run(
+                command,
+                check=True,
+                capture_output=True,
+                timeout=THUMBNAIL_TIMEOUT_SECONDS,
+                pass_fds=(clip_fd, image_fd),
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise ThumbnailError("FFmpeg thumbnail timed out") from exc
+        except (subprocess.CalledProcessError, OSError) as exc:
+            raise ThumbnailError("FFmpeg thumbnail failed") from exc
+        _require_jpeg(image_fd)
+        os.fsync(image_fd)
+        _require_thumbnail_absent(directory_fd, destination.name)
+        os.link(
+            temporary,
+            destination.name,
+            src_dir_fd=directory_fd,
+            dst_dir_fd=directory_fd,
+            follow_symlinks=False,
+        )
+        published = os.fstat(image_fd)
+        os.fsync(directory_fd)
+        return destination
+    except FileExistsError as exc:
+        raise ThumbnailError("thumbnail destination already exists") from exc
+    except BaseException:
+        if published is not None:
+            _unlink_if_same(directory_fd, destination.name, published)
+        raise
+    finally:
+        for fd in (clip_fd, image_fd):
+            if fd >= 0:
+                os.close(fd)
+        if temporary:
+            _unlink_quietly(directory_fd, temporary)
+        os.close(directory_fd)
+
+
+def _clip_thumbnail(
+    clip_path: Path, duration: float, index: int, warnings: list[str] | None
+) -> str | None:
+    """The poster path for the manifest, or ``None``: a missing poster never fails a job."""
+    try:
+        return str(write_clip_thumbnail(clip_path, duration=duration))
+    except (ThumbnailError, OSError):
+        if warnings is not None:
+            warnings.append(f"thumbnail_failed:{index}")
+        return None
 
 
 def _publish_manifest(path: Path, payload: dict[str, object]) -> None:
@@ -638,13 +826,22 @@ def _manifest_hashtags(hashtags: Iterable[str]) -> list[str]:
     return tags
 
 
-def _v3_manifest_clip(
-    index: int, clip: SelectedClip, cold_open: tuple[float, float] | None, clip_path: Path
-) -> dict[str, object]:
-    """V1-compatible clip fields plus the Selection V3 packaging (the web contract)."""
+def _rendered_seconds(clip: SelectedClip, cold_open: tuple[float, float] | None) -> float:
     rendered = clip.end - clip.start
     if cold_open is not None:
         rendered += cold_open[1] - cold_open[0]
+    return rendered
+
+
+def _v3_manifest_clip(
+    index: int,
+    clip: SelectedClip,
+    cold_open: tuple[float, float] | None,
+    clip_path: Path,
+    thumbnail: str | None,
+) -> dict[str, object]:
+    """V1-compatible clip fields plus the Selection V3 packaging (the web contract)."""
+    rendered = _rendered_seconds(clip, cold_open)
     return {
         "index": index,
         "start": round(clip.start, 3),
@@ -667,6 +864,7 @@ def _v3_manifest_clip(
         else {"start": round(cold_open[0], 3), "end": round(cold_open[1], 3)},
         "source_start": round(clip.start, 3),
         "source_end": round(clip.end, 3),
+        "thumbnail": thumbnail,
     }
 
 
@@ -870,7 +1068,10 @@ def _run_v3(
             hook_duration=hook_duration,
             caption_style=caption_style,
         )
-        clips.append(_v3_manifest_clip(index, clip, teaser, clip_path))
+        thumbnail = _clip_thumbnail(
+            clip_path, _rendered_seconds(clip, teaser), index, state.warnings
+        )
+        clips.append(_v3_manifest_clip(index, clip, teaser, clip_path, thumbnail))
     state.stage = "finalizing"
     return transcription, transcript_path, clips
 
@@ -1050,18 +1251,20 @@ def run_pipeline(
                 render_mode=render_mode,
                 caption_style=caption_style,
             )
-            clips.append(
-                {
-                    "index": index,
-                    "start": round(highlight.start, 3),
-                    "end": round(highlight.end, 3),
-                    "duration": round(highlight.end - highlight.start, 3),
-                    "score": highlight.score,
-                    "text": highlight.text,
-                    "output": str(clip_path),
-                    "subtitles": str(clip_path.with_suffix(".srt")),
-                }
-            )
+            thumbnail = _clip_thumbnail(clip_path, highlight.end - highlight.start, index, None)
+            clip_entry: dict[str, object] = {
+                "index": index,
+                "start": round(highlight.start, 3),
+                "end": round(highlight.end, 3),
+                "duration": round(highlight.end - highlight.start, 3),
+                "score": highlight.score,
+                "text": highlight.text,
+                "output": str(clip_path),
+                "subtitles": str(clip_path.with_suffix(".srt")),
+            }
+            if thumbnail is not None:
+                clip_entry["thumbnail"] = thumbnail
+            clips.append(clip_entry)
 
         report("finalizing", 96, "Menyimpan hasil, subtitle, dan metadata")
         completed_manifest: dict[str, object] = {

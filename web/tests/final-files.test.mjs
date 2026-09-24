@@ -89,16 +89,18 @@ test("HEAD ignores Range and mirrors full GET headers without a body", async () 
   }
 });
 
-test("MIME and disposition are safe for MP4, SRT, JSON, unknown, and downloads", async () => {
+test("MIME and disposition are safe for MP4, SRT, JSON, JPEG thumbnails, unknown, and downloads", async () => {
   const fx = await fixture();
   const cases = [
     ["clip.mp4", "video/mp4", "inline"],
     ["captions.srt", "application/x-subrip; charset=utf-8", "inline"],
     ["manifest.json", "application/json; charset=utf-8", "inline"],
+    ["clip-01.jpg", "image/jpeg", "inline"],
     ["payload.bin", "application/octet-stream", "attachment"],
   ];
   await writeFile(path.join(fx.edits, "captions.srt"), "captions");
   await writeFile(path.join(fx.edits, "manifest.json"), "{}");
+  await writeFile(path.join(fx.edits, "clip-01.jpg"), Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
   await writeFile(path.join(fx.edits, "payload.bin"), "unknown");
   for (const [filename, contentType, disposition] of cases) {
     const response = await invoke(fx.root, { segments: ["output", "edits", filename] });

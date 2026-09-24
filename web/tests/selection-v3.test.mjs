@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
-import { chmod, lstat, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { PassThrough } from "node:stream";
@@ -11,8 +11,10 @@ import { createLlmStatusHandler } from "../app/api/llm/status/route.js";
 import {
   DEFAULT_V3_OPTIONS,
   clipSocialMetadata,
+  clipThumbnailUrl,
   enrichJobSocialMetadata,
   generateSocialMetadata,
+  manifestThumbnailName,
   parseJobOptions,
   sanitizeLine,
   sanitizeManifestClipFields,
@@ -28,6 +30,7 @@ import {
   archetypeLabel,
   captionParts,
   clipCaptionText,
+  clipPosterUrl,
   isV3Job,
   llmStatusView,
   scoreRows,
@@ -42,6 +45,7 @@ import {
   buildClipperInvocation,
   captionsTimeoutMs,
   downloaderEnv,
+  existingThumbnails,
   fetchYouTubeCaptions,
   findCaptionsDir,
   jobClipFromManifest,
@@ -376,6 +380,89 @@ test("packaged clips missing a description or hashtags are filled from the trans
   assert.deepEqual(clipSocialMetadata(noTags), { title: noTags.title, description: noTags.description, hashtags: noTags.hashtags, metadataVersion: 5 });
 });
 
+// --- Clip posters -----------------------------------------------------------------
+
+const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0x10, 0x4a, 0x46, 0x49, 0x46, 0xff, 0xd9]);
+const POSTER_URL = `/api/jobs/${JOB_ID}/files/output/clip-01.jpg`;
+
+test("manifest thumbnails become a poster URL only for an existing clip-XX.jpg", () => {
+  const withPoster = { ...MANIFEST_CLIP, output: "/x/output/clip-01.mp4", thumbnail: "/x/output/clip-01.jpg" };
+  const thumbnails = new Set(["clip-01.jpg"]);
+  const clip = jobClipFromManifest(withPoster, JOB_ID, 0, { thumbnails });
+  assert.equal(clip.thumbnailUrl, POSTER_URL);
+  assert.equal(clipThumbnailUrl(JOB_ID, "clip-01.jpg"), POSTER_URL);
+  const { thumbnailUrl, ...rest } = clip;
+  assert.equal(thumbnailUrl, POSTER_URL);
+  assert.deepEqual(rest, jobClipFromManifest(MANIFEST_CLIP, JOB_ID));
+
+  // Missing file, no existence information, or an old manifest: no poster at all.
+  assert.equal(jobClipFromManifest(withPoster, JOB_ID, 0, { thumbnails: new Set() }).thumbnailUrl, undefined);
+  assert.equal(jobClipFromManifest(withPoster, JOB_ID).thumbnailUrl, undefined);
+  assert.equal("thumbnailUrl" in jobClipFromManifest(MANIFEST_CLIP, JOB_ID, 0, { thumbnails }), false);
+  assert.equal(jobClipFromManifest({ ...withPoster, thumbnail: null }, JOB_ID, 0, { thumbnails }).thumbnailUrl, undefined);
+
+  // Only the clip's own poster name is accepted, never another file in output/.
+  for (const thumbnail of [
+    "/x/output/clip-02.jpg", "/x/output/clip-01.png", "/x/output/clip-01.JPG", "/x/output/../../etc/passwd",
+    "/x/output/clip-01.jpg?download=1", "/x/output/manifest.json", "clip-01.jpg\u0000.png", 7, {}, [],
+  ]) {
+    const hostile = jobClipFromManifest({ ...withPoster, thumbnail }, JOB_ID, 0, {
+      thumbnails: new Set(["clip-01.jpg", "clip-02.jpg", "clip-01.png", "passwd", "manifest.json"]),
+    });
+    assert.equal(hostile.thumbnailUrl, undefined, JSON.stringify(thumbnail));
+  }
+});
+
+test("manifest thumbnail names are strict clip poster file names", () => {
+  assert.equal(manifestThumbnailName("/data/jobs/x/.attempts/y/output/clip-01.jpg"), "clip-01.jpg");
+  assert.equal(manifestThumbnailName("clip-120.jpg"), "clip-120.jpg");
+  for (const value of [
+    null, undefined, 1, "", "clip-01.jpeg", "clip-1a.jpg", "Clip-01.jpg", ".clip-01.jpg", "clip-01.jpg.mp4",
+    "clip-12345.jpg", "clip-01.jpg\u0000", `/${"a".repeat(5000)}/clip-01.jpg`,
+  ]) assert.equal(manifestThumbnailName(value), null, JSON.stringify(value));
+});
+
+test("existingThumbnails keeps only non-empty regular poster files in the output directory", async () => {
+  const output = await mkdtemp(path.join(os.tmpdir(), "clipper-thumbnails-"));
+  await writeFile(path.join(output, "clip-01.jpg"), JPEG);
+  await writeFile(path.join(output, "clip-03.jpg"), "");
+  await mkdir(path.join(output, "clip-04.jpg"));
+  await writeFile(path.join(output, "target.jpg"), JPEG);
+  await symlink(path.join(output, "target.jpg"), path.join(output, "clip-05.jpg"));
+  const clips = [1, 2, 3, 4, 5].map((index) => ({
+    output: path.join(output, `clip-0${index}.mp4`), thumbnail: path.join("/elsewhere", `clip-0${index}.jpg`),
+  }));
+  clips.push({ output: "x", thumbnail: "../target.jpg" }, null, "clip-01.jpg");
+
+  assert.deepEqual([...await existingThumbnails(output, clips)], ["clip-01.jpg"]);
+  assert.deepEqual([...await existingThumbnails(output, null)], []);
+  assert.deepEqual([...await existingThumbnails(path.join(output, "missing"), clips)], []);
+});
+
+test("public jobs serve only well-formed poster URLs of their own job", () => {
+  const clip = { ...jobClipFromManifest(MANIFEST_CLIP, JOB_ID), thumbnailUrl: POSTER_URL };
+  assert.deepEqual(serializePublicJob({ id: JOB_ID, options: V3, clips: [clip] }).clips[0], clip);
+  const legacy = { index: 1, text: "Klip lama", videoUrl: "/v", thumbnailUrl: `/api/jobs/${JOB_ID}/files/output/clip-07.jpg`, ...generateSocialMetadata("Klip lama") };
+  assert.deepEqual(serializePublicJob({ id: JOB_ID, options: BASE, clips: [legacy] }).clips[0], legacy);
+  for (const thumbnailUrl of [
+    "javascript:alert(1)", "https://evil.example/clip-01.jpg", `/api/jobs/${JOB_ID}/files/output/../job.json`,
+    `/api/jobs/${JOB_ID}/files/output/clip-01.mp4`, "/api/jobs/023e4567-e89b-42d3-a456-426614174000/files/output/clip-01.jpg",
+    `${POSTER_URL}?x=1`, `//evil/${POSTER_URL}`, 42, null,
+  ]) {
+    const served = serializePublicJob({ id: JOB_ID, options: BASE, clips: [{ ...legacy, thumbnailUrl }] }).clips[0];
+    assert.equal("thumbnailUrl" in served, false, String(thumbnailUrl));
+    assert.equal(served.videoUrl, "/v");
+  }
+});
+
+test("clipPosterUrl hands the video element a poster only for a same-origin clip poster", () => {
+  assert.equal(clipPosterUrl({ thumbnailUrl: POSTER_URL }), POSTER_URL);
+  for (const thumbnailUrl of [undefined, null, "", "javascript:alert(1)", "https://x/clip-01.jpg", `${POSTER_URL}#x`, `/api/jobs/x/files/output/clip-01.jpg`]) {
+    assert.equal(clipPosterUrl({ thumbnailUrl }), undefined, String(thumbnailUrl));
+  }
+  assert.equal(clipPosterUrl(null), undefined);
+});
+
 // --- Selection V3 summary --------------------------------------------------------
 
 const SUMMARY = {
@@ -548,6 +635,15 @@ test("dashboard defaults to V3, keeps V1 and V2 shadow under Mode lama, and read
   assert.match(source, /else if \(selectionMode === "v2-shadow"\) \{\s*data\.set\("clipProfile"/);
 });
 
+test("every result video on the dashboard and project page uses the clip poster", async () => {
+  for (const page of ["../app/dashboard/page.jsx", "../app/projects/[id]/page.jsx"]) {
+    const source = await readFile(new URL(page, import.meta.url), "utf8");
+    const videos = source.match(/<video [^>]*src=\{clip\.videoUrl\}[^>]*\/>/g) || [];
+    assert.ok(videos.length > 0, page);
+    for (const video of videos) assert.match(video, /poster=\{clipPosterUrl\(clip\)\}/, `${page}: ${video}`);
+  }
+});
+
 test("project page shows V3 packaging only for V3 jobs and keeps the legacy layout for old jobs", async () => {
   const source = await readFile(new URL("../app/projects/[id]/page.jsx", import.meta.url), "utf8");
   assert.match(source, /const v3 = isV3Job\(job\)/);
@@ -692,8 +788,10 @@ await writeFile(path.join(output, "manifest.json"), JSON.stringify({
   selection_v3: ${JSON.stringify({ ...SUMMARY, status: "fallback", source: "heuristic", secret: "do-not-copy" })},
   clips: [${JSON.stringify({ ...MANIFEST_CLIP, title: "Judul\u0007 hook", selection_source: "heuristic" })}].map((clip) => ({
     ...clip, output: path.join(output, "clip-01.mp4"), subtitles: path.join(output, "clip-01.srt"),
+    thumbnail: path.join(output, "clip-01.jpg"),
   })),
 }));
+await writeFile(path.join(output, "clip-01.jpg"), Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
 `;
 
 // Writes the video for the download run; the caption runs record their env and
@@ -765,6 +863,9 @@ test("a V3 YouTube job fetches captions, passes --captions-dir, and persists san
   assert.equal(clip.selectionSource, "heuristic");
   assert.equal(clip.hookText, "Gaji lo habis duluan karena ini");
   assert.deepEqual(clip.coldOpen, { start: 120.5, end: 124 });
+  // The poster was checked in the attempt output and published with it.
+  assert.equal(clip.thumbnailUrl, POSTER_URL);
+  assert.deepEqual(await readFile(path.join(jobRoot, "output", "clip-01.jpg")), Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
   assert.doesNotMatch(JSON.stringify(persisted), /do-not-copy|gemini-secret/);
 });
 

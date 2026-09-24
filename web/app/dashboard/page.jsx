@@ -7,7 +7,7 @@ import {
   recoverFailedJobSelection,
   storageStatusView,
 } from "../../lib/dashboard-storage-status.mjs";
-import { clipCaptionText, llmStatusView, selectionSourceLabel } from "../../lib/selection-v3-view.mjs";
+import { clipCaptionText, clipPosterUrl, llmStatusView, selectionSourceLabel } from "../../lib/selection-v3-view.mjs";
 
 const layouts = [
   {
@@ -388,7 +388,7 @@ export default function DashboardPage() {
               <div className="results">
                 {activeJob.clips?.map((clip) => (
                   <article className="clip" key={clip.index}>
-                    <video controls preload="metadata" src={clip.videoUrl} />
+                    <video controls preload="metadata" src={clip.videoUrl} poster={clipPosterUrl(clip)} />
                     <div className="clipMeta"><small>CLIP {String(clip.index).padStart(2, "0")} · {Math.round(clip.duration)} DETIK{selectionSourceLabel(clip.selectionSource) && clip.selectionSource !== "v1" ? ` · ${selectionSourceLabel(clip.selectionSource).toUpperCase()}` : ""}</small><h3>{clip.title}</h3>{clip.hookText && <p className="hookLine"><span>Hook</span>{clip.hookText}</p>}<p className="socialDescription">{clip.description}</p><div className="clipActions"><a href={clip.downloadUrl}>Download MP4 ↓</a><button type="button" onClick={() => copyCaption(clip)}>{copiedClip === `${activeJob.id}-${clip.index}` ? "Tersalin ✓" : "Salin caption"}</button></div></div>
                   </article>
                 ))}
