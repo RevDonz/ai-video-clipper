@@ -1,0 +1,18 @@
+{
+  "schema": "potongin.caption-pack/1",
+  "id": "karaoke",
+  "v": 1,
+  "name": "Karaoke",
+  "style_name": "Karaoke",
+  "font": {"family": "DejaVu Sans", "file": "DejaVuSans-Bold.ttf", "bold": true},
+  "size": {"num": 12, "den": 288, "scale_pm": 1000},
+  "outline": {"num": 1, "den": 150},
+  "shadow": {"num": 1, "den": 288},
+  "border_style": 1,
+  "colours": {"text": "#FFFFFF", "outline": "#000000", "outline_alpha": 0, "back": "#000000", "back_alpha": 0},
+  "margin_side_pm": 60,
+  "reveal": "karaoke",
+  "words_per_cue": 4,
+  "max_width_pm": null,
+  "defaults": {"y_e5": 83000, "size_pm": 1000, "case": "asis", "highlight": "#FFE14D", "emphasis": "#FF5C8A"}
+}
