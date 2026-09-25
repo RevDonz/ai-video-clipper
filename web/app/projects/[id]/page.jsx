@@ -438,7 +438,7 @@ export default function ProjectDetailPage({ params }) {
     <main>
       <nav className="nav shell">
         <a className="brand" href="/"><span>P</span> Potongin AI</a>
-        <div className="navActions"><div className="navLinks"><a href="/dashboard">Buat Klip</a><a className="active" href="/projects">Riwayat</a><a href="/settings">Pengaturan</a></div><form method="post" action="/api/auth/logout"><button type="submit">Keluar</button></form></div>
+        <div className="navActions"><div className="navLinks"><a href="/dashboard">Buat Klip</a><a className="active" href="/projects">Riwayat</a><a href="/trends">Konteks Tren</a><a href="/settings">Pengaturan</a></div><form method="post" action="/api/auth/logout"><button type="submit">Keluar</button></form></div>
       </nav>
 
       {loading && <section className="detailState shell" role="status" aria-live="polite"><div className="pulse" /><h1>Memuat detail proyek…</h1><p>Ringkasan job dan kandidat V2 sedang diambil.</p></section>}
