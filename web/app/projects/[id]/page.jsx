@@ -15,11 +15,13 @@ import {
   profileLabel,
   validateFeedbackPayload,
 } from "../../../lib/candidate-view.mjs";
+import TrendChips from "../../../components/trends/TrendChips.jsx";
 import {
   archetypeLabel,
   captionParts,
   clipCaptionText,
   clipPosterUrl,
+  clipTrendChips,
   coldOpenLength,
   formatTenths,
   isV3Job,
@@ -292,6 +294,7 @@ function V3ClipCard({ clip, copied, onCopy }) {
   const caption = captionParts(clip);
   const reasons = Array.isArray(clip.reasons) ? clip.reasons : [];
   const sourceRange = typeof clip.sourceStart === "number" && typeof clip.sourceEnd === "number";
+  const trendChips = clipTrendChips(clip);
 
   return (
     <article className="v3Clip" aria-labelledby={titleId}>
@@ -305,6 +308,7 @@ function V3ClipCard({ clip, copied, onCopy }) {
         </div>
         <h3 id={titleId}>{clip.title}</h3>
         {clip.hookText && <p className="hookLine"><span>Teks hook</span>{clip.hookText}</p>}
+        {trendChips.length > 0 && <TrendChips chips={trendChips} />}
 
         {(score !== null || rows.length > 0) && (
           <div className="v3Scores">
