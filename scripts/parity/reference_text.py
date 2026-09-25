@@ -747,19 +747,24 @@ def timebase_graph(fps: Fps) -> str:
     return f"settb={fps.den}/{fps.num},setpts=N"
 
 
+def fit_blur_graph() -> str:
+    """R4 ``fit_blur`` at 720×1280 on a BT.709 input, to yuv444p (plate and final alike)."""
+    sigma = 35 * HEIGHT // 1280
+    return (f"split=2[s0][s1];"
+            f"[s0]scale={WIDTH}:{HEIGHT}:force_original_aspect_ratio=increase:"
+            f"in_color_matrix=bt709:out_color_matrix=bt709,crop={WIDTH}:{HEIGHT},"
+            f"gblur=sigma={sigma},format=yuv444p[bg];"
+            f"[s1]scale={WIDTH}:{HEIGHT}:force_original_aspect_ratio=decrease:"
+            f"in_color_matrix=bt709:out_color_matrix=bt709,format=yuv444p[fg];"
+            f"[bg][fg]overlay=(W-w)/2:(H-h)/2:format=yuv444,format=yuv444p")
+
+
 def plate_source(name: str, fps: Fps, frames: int) -> str:
     """Lavfi graph of a plate: ``fitblur`` (R4 ``fit_blur`` of ``testsrc2``) or ``flat``."""
     rate = f"{fps.num}/{fps.den}"
     if name == "fitblur":
-        sigma = 35 * HEIGHT // 1280
         return (f"testsrc2=size=1280x720:rate={rate},trim=end_frame={frames},format=yuv420p,"
-                f"split=2[s0][s1];"
-                f"[s0]scale={WIDTH}:{HEIGHT}:force_original_aspect_ratio=increase:"
-                f"in_color_matrix=bt709:out_color_matrix=bt709,crop={WIDTH}:{HEIGHT},"
-                f"gblur=sigma={sigma},format=yuv444p[bg];"
-                f"[s1]scale={WIDTH}:{HEIGHT}:force_original_aspect_ratio=decrease:"
-                f"in_color_matrix=bt709:out_color_matrix=bt709,format=yuv444p[fg];"
-                f"[bg][fg]overlay=(W-w)/2:(H-h)/2:format=yuv444,format=yuv444p")
+                + fit_blur_graph())
     if name == "flat":
         r, g, b = FLAT_PLATE_RGB
         return (f"color=c=0x{r:02X}{g:02X}{b:02X}:size={WIDTH}x{HEIGHT}:rate={rate},"
@@ -877,9 +882,13 @@ def _fallback_char(fonts: Path) -> str:
 
 def generate(out: Path, *, fonts_dir: Path, formats: Sequence[str] = CANDIDATES,
              only: Sequence[str] | None = None, export: bool = True, timing: bool = True,
-             ffmpeg: str = "ffmpeg", threads: int = 4,
-             log: Callable[[str], None] = lambda line: None) -> dict:
-    """Write the fixtures to ``out`` and return the manifest (also written as manifest.json)."""
+             ffmpeg: str = "ffmpeg", threads: int = 4, plate_video: Path | None = None,
+             plate_start_s: int = 0, log: Callable[[str], None] = lambda line: None) -> dict:
+    """Write the fixtures to ``out`` and return the manifest (also written as manifest.json).
+
+    ``plate_video`` (a BT.709 video, read only) replaces ``testsrc2`` under the ``fitblur``
+    layout from ``plate_start_s`` on: a supplementary P-ENC run on natural content.
+    """
     out = Path(out).resolve()
     out.mkdir(parents=True, exist_ok=True)
     for fmt in formats:
@@ -909,8 +918,15 @@ def generate(out: Path, *, fonts_dir: Path, formats: Sequence[str] = CANDIDATES,
         path = out / "plate" / f"{name}.mkv"
         path.parent.mkdir(exist_ok=True)
         log(f"plate {name}: {frames} frames")
-        runner.run(["-f", "lavfi", "-i", plate_source(name, fps, frames), "-c:v", "ffv1",
-                    "-level", "3", "-g", "1", str(path)])
+        if name == "fitblur" and plate_video is not None:
+            runner.run(["-ss", str(plate_start_s), "-i", str(Path(plate_video).resolve()),
+                        "-filter_complex", (f"[0:v]fps={fps.num}/{fps.den},"
+                                            f"trim=end_frame={frames},{fit_blur_graph()}"),
+                        "-an", "-c:v", "ffv1",
+                        "-level", "3", "-g", "1", str(path)])
+        else:
+            runner.run(["-f", "lavfi", "-i", plate_source(name, fps, frames), "-c:v", "ffv1",
+                        "-level", "3", "-g", "1", str(path)])
         plates[name] = str(path.relative_to(out))
     head = timebase_graph(fps)
     # Plate frames (shared by every clip on the same plate) and the references.
@@ -977,6 +993,8 @@ def generate(out: Path, *, fonts_dir: Path, formats: Sequence[str] = CANDIDATES,
                          "final": final_graph(fmt)} for fmt in formats},
         "x264": x264_args(fps),
         "plates": plates,
+        "plate_sources": {name: ("video" if name == "fitblur" and plate_video is not None
+                                 else "lavfi") for name in plates},
         "toolchain": _toolchain(ffmpeg),
         "clips": entries,
     }
@@ -997,11 +1015,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--no-timing", action="store_true")
     parser.add_argument("--ffmpeg", default="ffmpeg")
     parser.add_argument("--threads", type=int, default=4)
+    parser.add_argument("--plate-video", type=Path,
+                        help="natural BT.709 video for the fitblur plate (supplementary P-ENC)")
+    parser.add_argument("--plate-start", type=int, default=0, help="seconds into --plate-video")
     args = parser.parse_args(argv)
     manifest = generate(args.out, fonts_dir=args.fonts, formats=tuple(args.formats.split(",")),
                         only=tuple(args.only.split(",")) if args.only else None,
                         export=not args.no_export, timing=not args.no_timing,
                         ffmpeg=args.ffmpeg, threads=args.threads,
+                        plate_video=args.plate_video, plate_start_s=args.plate_start,
                         log=lambda line: print(line, file=sys.stderr, flush=True))
     counts: dict[str, int] = {}
     for clip in manifest["clips"]:
