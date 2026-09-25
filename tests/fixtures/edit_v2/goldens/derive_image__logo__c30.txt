@@ -1,0 +1,55 @@
+## argv
+ffmpeg
+-nostdin
+-y
+-hide_banner
+-nostats
+-loglevel
+error
+-progress
+@progress
+-threads
+2
+-protocol_whitelist
+file,pipe
+-f
+png_pipe
+-i
+@in:0
+-filter_complex_script
+filter_graph.txt
+-map
+[out]
+-frames:v
+1
+-fflags
++bitexact
+-flags:v
++bitexact
+-f
+image2
+-c:v
+png
+-pix_fmt
+rgba
+derived.png
+## inputs
+asset sha256:036ce0c8d1bbde9427d03c28388f2f48cf1b4a1061869b334f0be2adee588148 -f png_pipe
+## sidecars
+## expected
+{
+ "assets_root": "/jobs/job-1/analysis/assets",
+ "mode": "derive_image",
+ "output": "png",
+ "paths": {
+  "sha256:036ce0c8d1bbde9427d03c28388f2f48cf1b4a1061869b334f0be2adee588148": "/jobs/job-1/analysis/assets/036ce0c8d1bbde9427d03c28388f2f48cf1b4a1061869b334f0be2adee588148.png"
+ },
+ "result": "derived.png",
+ "size": [
+  115,
+  115
+ ]
+}
+## filter_script
+[0:v]scale=115:115:flags=lanczos,format=rgba,colorchannelmixer=aa=0.850[out]
+
