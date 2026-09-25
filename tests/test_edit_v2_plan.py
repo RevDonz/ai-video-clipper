@@ -325,7 +325,8 @@ def test_build_plan_is_deterministic_across_processes(harness, resources):
         "import json, sys, importlib.util\n"
         "from pathlib import Path\n"
         "spec = importlib.util.spec_from_file_location('h', sys.argv[1])\n"
-        "h = importlib.util.module_from_spec(spec); spec.loader.exec_module(h)\n"
+        "h = importlib.util.module_from_spec(spec); sys.modules['h'] = h\n"
+        "spec.loader.exec_module(h)\n"
         "h.install_harness()\n"
         "from support import edit_v2_fixtures as f\n"
         "from ai_clipper.edit_v2.plan import Resources, build_plan\n"
@@ -438,7 +439,7 @@ def test_srt_text_uses_frame_times():
     )
     assert srt_text(cues, fps) == (
         "1\n00:00:00,000 --> 00:00:01,502\nHalo semua\n\n"
-        "2\n01:00:00,000 --> 01:00:00,267\nakhir\n"
+        "2\n00:59:59,996 --> 01:00:00,263\nakhir\n"  # 107892·1001/30 = 3599996.4 ms
     )
     assert srt_text((), fps) == ""
 
