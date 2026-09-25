@@ -367,9 +367,14 @@ test.describe("Konteks Tren against the live API", () => {
     const box = page.getByRole("region", { name: new RegExp(`Token “e2e-${stamp}” dibuat`) });
     const token = await box.getByLabel("Token", { exact: true }).inputValue();
     expect(token).toMatch(/^ptk_[A-Za-z0-9_-]{43}$/);
-    const listed = await page.request.get("/api/context/tokens");
-    expect(listed.ok()).toBe(true);
-    const listedText = await listed.text();
+    // From the page itself: the session cookie is Secure, which the browser sends to a local
+    // http origin but Playwright's request context does not.
+    const listed = await page.evaluate(async () => {
+      const response = await fetch("/api/context/tokens", { cache: "no-store" });
+      return { ok: response.ok, text: await response.text() };
+    });
+    expect(listed.ok).toBe(true);
+    const listedText = listed.text;
     expect(listedText).not.toContain(token);
     expect(listedText).not.toMatch(/sha256|"hash"/);
     await box.getByRole("button", { name: /Sudah saya simpan/ }).click();

@@ -509,17 +509,36 @@ function mockFetch(responses) {
     const next = queue.shift();
     if (next instanceof Error) throw next;
     const { status = 200, body } = next || {};
+    const call = calls.at(-1);
+    call.bodyRead = false;
+    const raw = body === undefined ? "" : typeof body === "string" ? body : JSON.stringify(body);
     return {
       ok: status >= 200 && status < 300,
       status,
       json: async () => {
-        if (body === undefined) throw new SyntaxError("Unexpected end of JSON input");
-        return typeof body === "string" ? JSON.parse(body) : body;
+        call.bodyRead = true;
+        if (!raw) throw new SyntaxError("Unexpected end of JSON input");
+        return JSON.parse(raw);
+      },
+      text: async () => {
+        call.bodyRead = true;
+        return raw;
       },
     };
   };
   return { calls, fetchImpl };
 }
+
+test("the client reads every response body, 204 included (Chromium reports an unread 204 as aborted)", async () => {
+  const { calls, fetchImpl } = mockFetch([{ status: 204 }, { status: 204 }, { status: 200, body: { token: { id: "t1" } } }, { status: 404, body: "not json" }]);
+  const api = createTrendApi(fetchImpl);
+  assert.equal((await api.deleteTrend("a")).ok, true);
+  assert.equal((await api.deleteTrend("b")).ok, true);
+  assert.equal((await api.revokeToken("t1")).ok, true);
+  const missing = await api.deleteTrend("c");
+  assert.equal(missing.status, 404);
+  assert.deepEqual(calls.map((call) => call.bodyRead), [true, true, true, true]);
+});
 
 test("the client calls the spec §3.2 routes with the right methods and bodies", async () => {
   const { calls, fetchImpl } = mockFetch([
