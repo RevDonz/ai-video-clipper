@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "generatedAt": "2026-09-25T06:00:00.000Z",
+  "items": [
+    {
+      "id": "edb97268-f782-487b-af02-fb4d8bc46951",
+      "externalId": "tiktok:tag:kabur-aja-dulu",
+      "kind": "topic",
+      "title": "Kabur Aja Dulu",
+      "summary": "Tagar ajakan merantau ke luar negeri.\nRamai di TikTok dan X.",
+      "keywords": [
+        "kabur aja dulu",
+        "#KaburAjaDulu"
+      ],
+      "hashtags": [
+        "#KaburAjaDulu"
+      ],
+      "platforms": [
+        "tiktok",
+        "x"
+      ],
+      "region": "ID",
+      "score": 72,
+      "sensitivity": "normal",
+      "firstSeenAt": "2026-09-24T08:00:00.000Z",
+      "expiresAt": "2026-10-05T00:00:00.000Z",
+      "enabled": true
+    },
+    {
+      "id": "d6ccfe6e-5069-4358-9a38-c2739718caf4",
+      "kind": "meme",
+      "title": "Café Gaul",
+      "summary": "",
+      "keywords": [
+        "café gaul"
+      ],
+      "hashtags": [
+        "#CaféGaul"
+      ],
+      "platforms": [],
+      "region": "ID",
+      "score": 64,
+      "sensitivity": "normal",
+      "firstSeenAt": "2026-09-24T08:00:00.000Z",
+      "expiresAt": "2026-10-04T08:00:00.000Z",
+      "enabled": true
+    },
+    {
+      "id": "6bbf217c-412d-4025-bafc-182d092e56a2",
+      "kind": "person",
+      "title": "Tokoh Bencana",
+      "summary": "",
+      "keywords": [
+        "tokoh bencana"
+      ],
+      "hashtags": [],
+      "platforms": [],
+      "region": "ID",
+      "score": 50,
+      "sensitivity": "sensitive",
+      "firstSeenAt": "2026-09-24T08:00:00.000Z",
+      "expiresAt": "2026-10-04T08:00:00.000Z",
+      "enabled": true
+    }
+  ]
+}
