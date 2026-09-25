@@ -62,7 +62,7 @@ Run it against a production build (`npm run build` then `next start`). Under `ne
 
 ## Fokus klip
 
-`e2e/focus.spec.mjs` covers the focus chip input and note on the dashboard and the focus line and per-clip labels on the project page. It fakes `/api/jobs`, `/api/llm/status` and `/api/storage/status` inside the browser, so it creates no job and changes no server data; only the login is real. It checks that commas and Enter make chips, that invalid text stays in the input with a message, that chips are removable by keyboard, that the job POST carries `focusTerms`/`focusNote` only when a focus is set (and nothing new otherwise), that hostile term text stays text, and that nothing scrolls sideways at 390 px.
+`e2e/focus.spec.mjs` covers the focus chip input and note on the dashboard and the focus line and per-clip labels on the project page. It fakes `/api/jobs`, `/api/llm/status` and `/api/storage/status` inside the browser, so it creates no job and changes no server data; only the login is real. It checks that commas and Enter make chips, that a pasted list becomes one chip per line, that a term the transcript can never say literally gets a hint, that invalid text stays in the input with a message, that chips are removable by keyboard, that the job POST carries `focusTerms`/`focusNote` only when a focus is set (and nothing new otherwise), that hostile term text stays text, and that nothing scrolls sideways at 390 px.
 
 ```bash
 E2E_BASE_URL=http://127.0.0.1:3417 E2E_NO_WEB_SERVER=1 \

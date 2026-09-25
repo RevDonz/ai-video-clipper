@@ -3,7 +3,9 @@
 // (§2) is faked here with the manifest shape it writes.
 
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import test from "node:test";
+import { promisify } from "node:util";
 
 import { parseJobFormOptions } from "../app/api/jobs/route.js";
 import {
@@ -17,18 +19,28 @@ import {
 } from "../lib/jobs.mjs";
 import {
   FOCUS_LIMITS,
+  FOCUS_STOPWORDS,
   addFocusTerms,
   clipFocusChip,
   focusFormFields,
   focusSummaryLine,
   focusTermKey,
+  focusTermMatchable,
+  focusTermsHint,
   formatTimestamp,
   normalizeFocusText,
+  pastedFocusTerms,
   removeFocusTerm,
   selectionV3SummaryView,
   selectionWarningLabel,
   splitFocusTerms,
 } from "../lib/selection-v3-view.mjs";
+
+const run = promisify(execFile);
+
+function pythonBin() {
+  return process.env.PYTHON_BIN || "../.venv/bin/python";
+}
 
 const BASE = { renderMode: "fit-blur", limit: 3, minDuration: 20, maxDuration: 60 };
 const V3 = { ...BASE, selectionMode: "v3", llmMode: "auto", coldOpen: true, hookOverlay: true, captionStyle: "karaoke" };
@@ -110,6 +122,58 @@ test("the dashboard sends nothing when focus is empty, and only well-formed fiel
   const noteOnly = focusFormFields({ terms: [], pending: "", note: "momen lucu" });
   assert.equal(noteOnly.fields, null);
   assert.match(noteOnly.error, /minimal satu kata kunci/);
+});
+
+test("a pasted list becomes one chip per line; a single pasted term stays in the input", () => {
+  // A single-line <input> turns pasted line breaks into spaces, so the paste is read first.
+  assert.equal(pastedFocusTerms("", "jomok\njomokers\nreza", 0, 0), "jomok,jomokers,reza");
+  assert.equal(pastedFocusTerms("", "jomok\r\njomokers\t prank; reza", 0, 0), "jomok,jomokers, prank, reza");
+  assert.equal(pastedFocusTerms("pre", "\njomok", 3, 3), "pre,jomok");
+  assert.equal(pastedFocusTerms("ab", "x\ny", 1, 2), "ax,y");
+  assert.equal(pastedFocusTerms("", "jomok", 0, 0), null);
+  assert.equal(pastedFocusTerms("", "reza auditore", 0, 0), null);
+  assert.deepEqual(addFocusTerms([], pastedFocusTerms("", "jomok\njomokers\nreza", 0, 0)).terms, ["jomok", "jomokers", "reza"]);
+});
+
+test("terms that tokenise alike are one term, like the engine's", () => {
+  assert.equal(focusTermKey("Jomok!"), focusTermKey("jomok"));
+  assert.equal(focusTermKey("K pop"), focusTermKey("k-pop"));
+  assert.notEqual(focusTermKey("kpop"), focusTermKey("k-pop"));
+  assert.notEqual(focusTermKey("!!"), focusTermKey("??"));  // no words: the text itself
+  assert.deepEqual(addFocusTerms(["jomok"], "Jomok!").terms, ["jomok"]);
+  assert.deepEqual(parseJobOptions({ ...FORM_V3, focusTerms: "jomok,Jomok!,k-pop,K pop" }).focus.terms, ["jomok", "k-pop"]);
+});
+
+test("terms that can never match the transcript literally get a hint at entry", () => {
+  assert.equal(focusTermMatchable("jomok"), true);
+  assert.equal(focusTermMatchable("anak kuliah"), true);
+  assert.equal(focusTermMatchable("tiktok"), true);
+  for (const term of ["AI", "5G", "apa aja", "yang", "wkwk"]) assert.equal(focusTermMatchable(term), false, term);
+  assert.equal(focusTermsHint(["jomok", "tiktok"], "auto"), null);
+  assert.match(focusTermsHint(["AI", "jomok"], "auto"), /“AI”.*terlalu pendek atau terlalu umum.*AI \(LLM\)/);
+  assert.match(focusTermsHint(["AI", "apa aja"], "auto"), /“AI”, “apa aja”/);
+  assert.match(focusTermsHint(["AI"], "off"), /Tanpa LLM.*tidak berpengaruh/);
+  // Plain text: React renders it escaped.
+  assert.equal(focusTermsHint(["<b>AI</b>"], "auto"), "“<b>AI</b>” terlalu pendek atau terlalu umum untuk dicari langsung di transkrip; hanya AI (LLM) yang bisa mengenalinya dari maknanya.");
+});
+
+test("the matchable check, the stopwords and the term key agree with the engine", async () => {
+  const terms = ["AI", "5G", "jomok", "Jomok!", "apa aja", "anak kuliah", "anak-anak", "tiktok", "yang", "k-pop", "K pop", "ÉTÉ", "ﬁlm", "wkwk", "abc", "!!", "Straße", "ﬀ", "ｊｏｍｏｋ"];
+  const script = [
+    "import json, sys",
+    "from ai_clipper.focus import FOCUS_STOPWORDS, _term_key, focus_term_matchable",
+    "terms = json.loads(sys.argv[1])",
+    "print(json.dumps({'stopwords': sorted(FOCUS_STOPWORDS),",
+    "    'matchable': [focus_term_matchable(t) for t in terms],",
+    "    'words': [list(_term_key(t)) for t in terms]}))",
+  ].join("\n");
+  const { stdout } = await run(pythonBin(), ["-c", script, JSON.stringify(terms)], { env: { PATH: process.env.PATH } });
+  const engine = JSON.parse(stdout);
+  assert.deepEqual([...FOCUS_STOPWORDS].sort(), engine.stopwords);
+  assert.deepEqual(terms.map(focusTermMatchable), engine.matchable);
+  terms.forEach((term, index) => {
+    if (engine.words[index].length) assert.equal(focusTermKey(term), engine.words[index].join(" "), term);
+  });
 });
 
 // --- Job options (§1) ---------------------------------------------------------------------
@@ -282,6 +346,7 @@ test("focus warning codes are explained in Indonesian", () => {
   assert.match(selectionWarningLabel("focus_few_matches:2"), /Hanya 2 klip yang cocok dengan fokus.*Di luar fokus/);
   assert.match(selectionWarningLabel("focus_few_matches:0"), /Tidak ada momen yang cocok dengan fokus/);
   assert.match(selectionWarningLabel("focus_literal_ungrounded:3"), /3 klip.*tidak ditemukan di transkrip/);
+  assert.match(selectionWarningLabel("focus_terms_unmatchable:2"), /^2 kata kunci fokus terlalu pendek atau terlalu umum.*hanya pembacaan AI/);
   assert.equal(selectionWarningLabel("focus_literal_ungrounded:0"), null);
   assert.equal(selectionWarningLabel("focus_few_matches:x"), null);
   // Konteks Tren labels are unchanged.
@@ -316,26 +381,20 @@ test("terms the engine would fold together (Python casefold) are one term here t
 });
 
 test("every focus warning code the engine writes has an Indonesian label", () => {
-  assert.match(selectionWarningLabel("focus_packaging_ungrounded:2"), /^2 klip di luar fokus/);
-  assert.match(selectionWarningLabel("focus_llm_outranked:4"), /^4 momen usulan AI/);
-  assert.equal(selectionWarningLabel("focus_llm_outranked:0"), null);
+  assert.match(selectionWarningLabel("focus_packaging_ungrounded:2"), /^2 klip .*judul, hook atau deskripsinya/);
+  assert.match(selectionWarningLabel("focus_terms_unmatchable:1"), /^1 kata kunci fokus/);
+  // The engine no longer lets heuristic focus matches outrank the LLM: no such code or wording.
+  assert.equal(selectionWarningLabel("focus_llm_outranked:4"), null);
 });
 
-test("an LLM outranked by focus matches is neither a failure nor 'LLM not used'", () => {
+test("a heuristic run keeps its wording with a focus", () => {
   const summary = {
     mode: "v3", status: "completed", source: "heuristic", provider: null, model: null,
-    prompt_version: "heuristic-v1", warnings: ["focus_llm_outranked:6"], artifact: null,
-    transcript_source: "youtube-captions", focus: { terms: ["jomok"], matched: 8, requested: 8 },
+    prompt_version: "heuristic-v1", warnings: ["focus_few_matches:3"], artifact: null,
+    transcript_source: "youtube-captions", focus: { terms: ["jomok"], matched: 3, requested: 8 },
   };
-  const view = selectionV3SummaryView(summary);
-  assert.equal(view.tone, "ok");
-  assert.match(view.headline, /fokus/i);
-  assert.doesNotMatch(`${view.headline} ${view.detail}`, /gagal|tidak dipakai|belum dikonfigurasi|cadangan/);
-  assert.match(view.detail, /AI/);
-  // Without that code a heuristic run keeps its old wording, focus or not.
-  const plain = { ...summary, warnings: [] };
-  assert.deepEqual(selectionV3SummaryView(plain), selectionV3SummaryView({ ...plain, focus: undefined }));
-  assert.match(selectionV3SummaryView(plain).detail, /LLM tidak dipakai/);
+  assert.deepEqual(selectionV3SummaryView(summary), selectionV3SummaryView({ ...summary, focus: undefined }));
+  assert.match(selectionV3SummaryView(summary).detail, /LLM tidak dipakai/);
 });
 
 test("POST /api/jobs stores the focus of a V3 YouTube job; without focus the job has none", async () => {

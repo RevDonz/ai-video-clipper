@@ -13,8 +13,11 @@ import {
   clipCaptionText,
   clipPosterUrl,
   focusFormFields,
+  focusTermMatchable,
+  focusTermsHint,
   llmStatusView,
   normalizeFocusText,
+  pastedFocusTerms,
   selectionSourceLabel,
 } from "../../lib/selection-v3-view.mjs";
 import focusStyles from "./focus.module.css";
@@ -101,7 +104,8 @@ function LlmBadge({ status, llmMode }) {
 
 /**
  * Fokus klip (docs/plans/2026-09-25-fokus-klip.md §3): focus terms as removable chips (a comma
- * or Enter makes a chip) plus a free note for the AI. Empty means no focus: nothing is sent.
+ * or Enter makes a chip, a pasted list one chip per line) plus a free note for the AI. Empty
+ * means no focus: nothing is sent. Chips the transcript can never say literally get a hint.
  */
 function FocusField({ terms, draft, note, error, llmMode, onTermsChange, onDraftChange, onNoteChange, onErrorChange }) {
   const inputRef = useRef(null);
@@ -109,6 +113,7 @@ function FocusField({ terms, draft, note, error, llmMode, onTermsChange, onDraft
   const refocusIndex = useRef(null);
   const noteLength = Array.from(normalizeFocusText(note)).length;
   const full = terms.length >= FOCUS_LIMITS.terms;
+  const hint = focusTermsHint(terms, llmMode);
 
   // After a chip is removed, keyboard focus moves to the next chip's button, else the input.
   useEffect(() => {
@@ -139,6 +144,15 @@ function FocusField({ terms, draft, note, error, llmMode, onTermsChange, onDraft
     if (normalizeFocusText(draft)) apply(addFocusTerms(terms, draft));
   }
 
+  // A single-line input turns pasted line breaks into spaces: read the paste itself.
+  function pasteList(event) {
+    const input = event.currentTarget;
+    const text = pastedFocusTerms(draft, event.clipboardData?.getData("text"), input.selectionStart, input.selectionEnd);
+    if (text === null) return;
+    event.preventDefault();
+    apply(addFocusTerms(terms, text));
+  }
+
   function remove(index) {
     refocusIndex.current = index;
     onTermsChange(terms.filter((_, position) => position !== index));
@@ -155,7 +169,7 @@ function FocusField({ terms, draft, note, error, llmMode, onTermsChange, onDraft
         {terms.length > 0 && (
           <ul className={focusStyles.chips} aria-label="Kata kunci fokus">
             {terms.map((term, index) => (
-              <li key={term}>
+              <li key={term} className={focusTermMatchable(term) ? undefined : focusStyles.unmatchable}>
                 <span>{term}</span>
                 <button type="button" ref={(node) => { removeButtons.current[index] = node; }} aria-label={`Hapus kata kunci ${term}`} onClick={() => remove(index)}>×</button>
               </li>
@@ -171,9 +185,10 @@ function FocusField({ terms, draft, note, error, llmMode, onTermsChange, onDraft
           enterKeyHint="enter"
           value={draft}
           placeholder={full ? `Maksimal ${FOCUS_LIMITS.terms} kata kunci` : terms.length ? "Tambah kata kunci…" : "contoh: jomok, prank, tips kerja"}
-          aria-describedby="focus-terms-help"
+          aria-describedby={hint ? "focus-terms-help focus-terms-hint" : "focus-terms-help"}
           aria-invalid={error ? "true" : undefined}
           onChange={(event) => changeDraft(event.target.value)}
+          onPaste={pasteList}
           onKeyDown={(event) => {
             if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
             event.preventDefault();
@@ -182,7 +197,8 @@ function FocusField({ terms, draft, note, error, llmMode, onTermsChange, onDraft
           onBlur={commitDraft}
         />
       </div>
-      <p id="focus-terms-help" className={focusStyles.help}>Momen yang membahas kata kunci ini diutamakan; sisa slot diisi momen terbaik lain berlabel “Di luar fokus”. Pisahkan dengan koma atau Enter, maksimal {FOCUS_LIMITS.terms}.</p>
+      <p id="focus-terms-help" className={focusStyles.help}>Momen yang membahas kata kunci ini diutamakan; sisa slot diisi momen terbaik lain berlabel “Di luar fokus”. Pisahkan dengan koma atau Enter (daftar per baris bisa ditempel), maksimal {FOCUS_LIMITS.terms}.</p>
+      {hint && <p id="focus-terms-hint" className={focusStyles.hint}>{hint}</p>}
       {error && <p className={focusStyles.error} role="alert">{error}</p>}
       <label className={focusStyles.noteLabel} htmlFor="focus-note">Catatan untuk AI (opsional)</label>
       <textarea id="focus-note" className={focusStyles.note} rows={2} value={note} placeholder="contoh: momen jomok yang lucu" aria-describedby="focus-note-help" onChange={(event) => onNoteChange(event.target.value)} />

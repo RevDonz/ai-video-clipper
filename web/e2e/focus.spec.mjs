@@ -129,6 +129,37 @@ test.describe("Fokus klip on the dashboard (faked job API)", () => {
     await expect(chipTexts(page)).toHaveText(["jomok", "jomokers", "reza auditore"]);
   });
 
+  test("a pasted list becomes one chip per line; a term the transcript can never say gets a hint", async ({ page }) => {
+    const posts = await fakeDashboardApi(page);
+    await openDashboard(page);
+    const input = page.getByLabel("Cari momen tentang… (opsional)");
+    const paste = (text) => input.evaluate((element, value) => {
+      const data = new DataTransfer();
+      data.setData("text/plain", value);
+      element.focus();
+      element.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+    }, text);
+
+    await paste("jomok\njomokers\r\nreza");
+    await expect(chipTexts(page)).toHaveText(["jomok", "jomokers", "reza"]);
+    await expect(input).toHaveValue("");
+
+    const hint = page.locator("#focus-terms-hint");
+    await expect(hint).toHaveCount(0);
+    await input.fill("AI");
+    await input.press("Enter");
+    await expect(chipTexts(page)).toHaveText(["jomok", "jomokers", "reza", "AI"]);
+    await expect(hint).toHaveText("“AI” terlalu pendek atau terlalu umum untuk dicari langsung di transkrip; hanya AI (LLM) yang bisa mengenalinya dari maknanya.");
+    await expect(input).toHaveAttribute("aria-describedby", "focus-terms-help focus-terms-hint");
+    await page.getByText("Tanpa LLM (heuristik)", { exact: true }).click();
+    await expect(hint).toContainText("Tanpa LLM kata kunci itu tidak berpengaruh.");
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(await overflow(page)).toBe(0);
+    await page.getByRole("button", { name: "Hapus kata kunci AI", exact: true }).click();
+    await expect(hint).toHaveCount(0);
+    expect(posts).toHaveLength(0);
+  });
+
   test("without focus the job form sends exactly the fields it sent before; other modes never send focus", async ({ page }) => {
     const posts = await fakeDashboardApi(page);
     await openDashboard(page);

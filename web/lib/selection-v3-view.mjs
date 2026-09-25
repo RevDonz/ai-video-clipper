@@ -131,8 +131,8 @@ const WARNING_LABELS = Object.freeze({
   trend_sensitive_humor: (count) => `${count} klip lucu menyinggung tren sensitif; periksa judul dan hook-nya sebelum diunggah.`,
   focus_few_matches: (count) => `Hanya ${count} klip yang cocok dengan fokus; sisa slot diisi momen terbaik lain dengan label “Di luar fokus”.`,
   focus_literal_ungrounded: (count) => `${count} klip yang menurut AI menyebut fokus ternyata istilahnya tidak ditemukan di transkrip klip itu; labelnya diturunkan dari “Menyebut”.`,
-  focus_packaging_ungrounded: (count) => `${count} klip di luar fokus memakai kata kunci fokus di judul, hook atau deskripsinya; teks itu diganti dari isi klipnya sendiri.`,
-  focus_llm_outranked: (count) => `${count} momen usulan AI kalah prioritas dari momen yang menyebut kata kunci fokus, jadi semua slot diisi momen fokus dari pemilih heuristik.`,
+  focus_packaging_ungrounded: (count) => `${count} klip memakai kata kunci fokus di judul, hook atau deskripsinya padahal klip itu tidak menyebutnya; teks itu diganti dari isi klipnya sendiri.`,
+  focus_terms_unmatchable: (count) => `${count} kata kunci fokus terlalu pendek atau terlalu umum untuk dicari langsung di transkrip; untuk kata kunci itu hanya pembacaan AI yang berlaku.`,
 });
 
 /** An Indonesian explanation of a trend or focus warning code of the V3 summary, or null. */
@@ -172,14 +172,78 @@ export function normalizeFocusText(value) {
     .normalize("NFC");
 }
 
+// The engine's function words and fillers (src/ai_clipper/focus.py FOCUS_STOPWORDS): a term
+// made only of these, or of words under three letters, never matches a transcript literally.
+// web/tests/focus.test.mjs checks the list against the engine.
+export const FOCUS_STOPWORDS = Object.freeze([
+  "yang", "dan", "di", "ke", "dari", "ini", "itu", "aja", "saja", "dulu", "udah", "sudah",
+  "lagi", "juga", "ada", "apa", "gak", "nggak", "enggak", "ngga", "tidak", "bukan",
+  "kita", "kami", "kamu", "lu", "lo", "gue", "gua", "aku", "dia", "mereka", "banget",
+  "sama", "buat", "untuk", "dengan", "pada", "jadi", "kalau", "kalo", "tapi", "atau",
+  "karena", "soal", "masih", "bisa", "mau", "akan", "sih", "dong", "deh", "kok", "nih",
+  "tuh", "yah", "gitu", "begitu", "kayak", "seperti", "emang", "memang", "terus", "sampai",
+  "sampe", "semua", "lebih", "paling", "sangat", "satu", "dua", "tiga", "gimana", "kenapa",
+  "mana", "siapa", "kapan", "cuma", "cuman", "doang", "sekarang", "nanti", "tadi", "the",
+  "and", "for", "you", "with", "this", "that",
+  "ayo", "yuk", "nah", "kan", "loh", "lho", "wah", "wow", "oke", "okay", "yes", "halo",
+  "guys", "gaes", "wkwk", "wkwkwk", "haha", "hahaha",
+]);
+const FOCUS_STOPWORD_SET = new Set(FOCUS_STOPWORDS);
+const FOCUS_MIN_LETTERS = 3;
+
+// Folds like Python's str.casefold(): the lower-upper-lower round trip ("Straße" = "STRASSE",
+// "ﬁlm" = "FILM", final sigma).
+function foldFocusText(value) {
+  return normalizeFocusText(value).toLowerCase().toUpperCase().toLowerCase();
+}
+
+/** The words a focus term matches as, like the engine's tokens: folded, accent-free letters and digits. */
+export function focusTermWords(value) {
+  return foldFocusText(value).normalize("NFKD").replace(/\p{M}+/gu, "").match(/[\p{L}\p{N}]+/gu) ?? [];
+}
+
 /**
- * Terms are the same term when this key is equal (case and accents do not count). The
- * lower-upper-lower round trip folds like Python's str.casefold() ("Straße" = "STRASSE",
- * "ﬁlm" = "FILM", final sigma), so terms the engine would reject as repeated are one term here.
+ * Terms are the same term when this key is equal: the words they match as, so case, accents and
+ * punctuation do not count ("Jomok!" = "jomok", "K pop" = "k-pop"). Terms the engine would reject
+ * as repeated (Python casefold) are always one term here. A term without words keys by its text.
  */
 export function focusTermKey(value) {
-  return normalizeFocusText(value).toLowerCase().toUpperCase().toLowerCase()
-    .normalize("NFD").replace(/\p{M}+/gu, "").normalize("NFC");
+  const words = focusTermWords(value);
+  if (words.length) return words.join(" ");
+  return foldFocusText(value).normalize("NFD").replace(/\p{M}+/gu, "").normalize("NFC");
+}
+
+/** Whether the engine can ever find `term` in a transcript literally (a word of three letters or more that is no stopword). */
+export function focusTermMatchable(term) {
+  return focusTermWords(term).some((word) => (word.match(/\p{L}/gu)?.length ?? 0) >= FOCUS_MIN_LETTERS && !FOCUS_STOPWORD_SET.has(word));
+}
+
+/** The dashboard's note for chips the transcript can never say literally, or null. */
+export function focusTermsHint(terms, llmMode) {
+  const unmatchable = (Array.isArray(terms) ? terms : []).filter((term) => !focusTermMatchable(term));
+  if (!unmatchable.length) return null;
+  const names = unmatchable.map((term) => `“${term}”`).join(", ");
+  const text = `${names} terlalu pendek atau terlalu umum untuk dicari langsung di transkrip`;
+  return llmMode === "off"
+    ? `${text}. Tanpa LLM kata kunci itu tidak berpengaruh.`
+    : `${text}; hanya AI (LLM) yang bisa mengenalinya dari maknanya.`;
+}
+
+// Pasted separators that become commas: line breaks (a single-line input would turn them into
+// spaces), tabs and semicolons. A paste with commas alone is split on them as well.
+const FOCUS_PASTE_SEPARATORS = /[\t\n\v\f\r\u0085\u2028\u2029;]+/g;
+
+/**
+ * The chip text for a paste into the chip input: the draft with the pasted text in place of the
+ * selection, separators as commas, or null for a paste without a separator (it is typed as is).
+ */
+export function pastedFocusTerms(draft, pasted, start, end) {
+  const text = String(pasted ?? "");
+  if (!/[\t\n\v\f\r\u0085\u2028\u2029;,]/.test(text)) return null;
+  const value = String(draft ?? "");
+  const from = Number.isSafeInteger(start) ? start : value.length;
+  const to = Number.isSafeInteger(end) ? end : from;
+  return `${value.slice(0, from)}${text}${value.slice(to)}`.replace(FOCUS_PASTE_SEPARATORS, ",");
 }
 
 /** Focus terms as typed: separated by commas or line breaks, cleaned, blanks dropped. */
@@ -341,10 +405,6 @@ const TRANSCRIPT_SOURCE_TEXT = {
   whisper: "Transkrip dari Whisper lokal",
 };
 
-function llmOutrankedByFocus(warnings) {
-  return Array.isArray(warnings) && warnings.some((code) => typeof code === "string" && /^focus_llm_outranked:[1-9]\d{0,5}$/.test(code));
-}
-
 /** Plain-Indonesian presentation of a sanitized selectionV3 summary, or null. */
 export function selectionV3SummaryView(summary) {
   if (!summary || summary.mode !== "v3") return null;
@@ -360,10 +420,6 @@ export function selectionV3SummaryView(summary) {
     tone = "warning";
     headline = "Momen dipilih heuristik (cadangan)";
     detail = "LLM gagal atau tidak tersedia saat job berjalan, jadi pemilih heuristik lokal dipakai. Klip tetap dibuat, tetapi kualitas pemilihan bisa lebih rendah. Cek API key atau kuota penyedia LLM.";
-  } else if (summary.source === "heuristic" && llmOutrankedByFocus(summary.warnings)) {
-    // Fokus klip: the LLM answered, but every slot went to a moment that says a focus term.
-    headline = "Semua slot diisi momen yang menyebut fokus";
-    detail = "AI (LLM) sudah memberi usulan, tetapi setiap slot terisi momen yang menyebut kata kunci fokus di transkrip. Momen itu ditemukan pemilih heuristik lokal, jadi judul dan kemasannya juga dari heuristik.";
   } else if (summary.source === "llm") {
     headline = "Momen dipilih AI (LLM)";
     detail = engine ? `Dipilih dan diberi judul oleh ${engine}.` : "Dipilih dan diberi judul oleh LLM.";
