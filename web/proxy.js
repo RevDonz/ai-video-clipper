@@ -22,6 +22,9 @@ export function proxy(request) {
 // POST /api/jobs streams video uploads to disk. A proxy in front of it makes Next buffer the
 // body up to proxyClientMaxBodySize (10 MB) and hand the route a truncated body, so the upload
 // route is excluded here; it checks the session itself (requireAuth + sameOriginMutation).
+// /api/ingest/trends is the endpoint of the owner's agent (Hermes), which has no session
+// cookie: it is excluded too and authenticates every request itself with a ptk_ bearer token
+// (cookies are refused there), reading its body with a 256 KiB cap.
 export const config = {
-  matcher: ["/((?!api/health|api/auth/login|api/jobs/?$|login|_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!api/health|api/auth/login|api/jobs/?$|api/ingest/trends/?$|login|_next/static|_next/image|favicon.ico).*)"],
 };
