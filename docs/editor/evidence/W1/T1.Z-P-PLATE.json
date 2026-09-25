@@ -12,12 +12,12 @@
           "plate_cells": 13,
           "removals": 10,
           "ssim_final_vs_reference": {
-            "All": 0.998428,
-            "U": 0.999985,
-            "V": 0.999985,
-            "Y": 0.99765
+            "All": 0.998856,
+            "U": 0.999987,
+            "V": 0.999987,
+            "Y": 0.99829
           },
-          "ssim_margin": 0.002429,
+          "ssim_margin": 0.002001,
           "ssim_plate_vs_reference": {
             "All": 0.998857,
             "U": 0.999988,
@@ -43,12 +43,12 @@
           "plate_cells": 13,
           "removals": 10,
           "ssim_final_vs_reference": {
-            "All": 0.999406,
-            "U": 0.999993,
-            "V": 0.999993,
-            "Y": 0.999113
+            "All": 0.999617,
+            "U": 0.999994,
+            "V": 0.999994,
+            "Y": 0.999428
           },
-          "ssim_margin": 0.002208,
+          "ssim_margin": 0.001997,
           "ssim_plate_vs_reference": {
             "All": 0.999614,
             "U": 0.999995,
@@ -74,12 +74,12 @@
           "plate_cells": 13,
           "removals": 10,
           "ssim_final_vs_reference": {
-            "All": 0.999288,
-            "U": 0.999996,
-            "V": 0.999996,
-            "Y": 0.998934
+            "All": 0.99957,
+            "U": 0.999998,
+            "V": 0.999998,
+            "Y": 0.999356
           },
-          "ssim_margin": 0.002269,
+          "ssim_margin": 0.001987,
           "ssim_plate_vs_reference": {
             "All": 0.999557,
             "U": 0.999998,
@@ -88,7 +88,7 @@
           }
         }
       ],
-      "gate_wall_s": 65.7,
+      "gate_wall_s": 67.6,
       "modules": "real",
       "pass": true,
       "threshold": {

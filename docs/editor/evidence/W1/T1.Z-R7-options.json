@@ -1,0 +1,427 @@
+{
+  "chosen": "lanczos_crf18_cqo-12",
+  "gate": "R7 options against P-ENC (whole >= 0.990, text >= 0.980), gbrp composite",
+  "method": "the 14 gated clips' lossless gbrp composites (reference_text.py fixtures, editor-w1, FFmpeg 5.1.9) re-encoded per option and scored with enc_check.measure (BT.709 4:4:4 planes); the base option reproduces the recorded whole-frame numbers exactly. Natural plate: fit_blur of a real 640x360 source (read only). bytes are the summed exports relative to veryfast crf 21; encode_s is the summed encode wall time on a shared machine (indicative only)",
+  "options": {
+    "area": {
+      "encode": "crf 21, full-chroma area",
+      "synthetic": {
+        "bytes_vs_crf21": 1.03,
+        "encode_s": 11.98,
+        "min_ssim_all": 0.986717,
+        "min_ssim_text": 0.972793,
+        "pass": false
+      }
+    },
+    "area_qp0": {
+      "encode": "area_qp0",
+      "synthetic": {
+        "bytes_vs_crf21": 10.46,
+        "encode_s": 12.95,
+        "min_ssim_all": 0.991299,
+        "min_ssim_text": 0.988946,
+        "pass": true
+      }
+    },
+    "base": {
+      "encode": "veryfast crf 21 (R7 before)",
+      "natural": {
+        "bytes_vs_crf21": 1.0,
+        "encode_s": 17.24,
+        "min_ssim_all": 0.994076,
+        "min_ssim_text": 0.974419,
+        "pass": false
+      },
+      "synthetic": {
+        "bytes_vs_crf21": 1.0,
+        "encode_s": 13.48,
+        "min_ssim_all": 0.986603,
+        "min_ssim_text": 0.973018,
+        "pass": false
+      }
+    },
+    "bilin_qp0": {
+      "encode": "bilin_qp0",
+      "synthetic": {
+        "bytes_vs_crf21": 10.36,
+        "encode_s": 12.78,
+        "min_ssim_all": 0.989538,
+        "min_ssim_text": 0.985387,
+        "pass": false
+      }
+    },
+    "cqo-12": {
+      "encode": "crf 21, chroma-qp-offset -12",
+      "synthetic": {
+        "bytes_vs_crf21": 2.41,
+        "encode_s": 14.0,
+        "min_ssim_all": 0.989287,
+        "min_ssim_text": 0.985181,
+        "pass": false
+      }
+    },
+    "cqo-4": {
+      "encode": "crf 21, chroma-qp-offset -4",
+      "synthetic": {
+        "bytes_vs_crf21": 1.32,
+        "encode_s": 13.0,
+        "min_ssim_all": 0.987857,
+        "min_ssim_text": 0.979866,
+        "pass": false
+      }
+    },
+    "crf14_cqo-12": {
+      "encode": "crf14_cqo-12",
+      "synthetic": {
+        "bytes_vs_crf21": 4.92,
+        "encode_s": 14.67,
+        "min_ssim_all": 0.99042,
+        "min_ssim_text": 0.987422,
+        "pass": true
+      }
+    },
+    "crf15_cqo-12": {
+      "encode": "crf15_cqo-12",
+      "synthetic": {
+        "bytes_vs_crf21": 4.46,
+        "encode_s": 14.11,
+        "min_ssim_all": 0.990313,
+        "min_ssim_text": 0.987193,
+        "pass": true
+      }
+    },
+    "crf16_cqo-12": {
+      "encode": "crf 16, chroma-qp-offset -12",
+      "synthetic": {
+        "bytes_vs_crf21": 4.02,
+        "encode_s": 15.47,
+        "min_ssim_all": 0.990191,
+        "min_ssim_text": 0.986946,
+        "pass": true
+      }
+    },
+    "crf16_cqo-6": {
+      "encode": "crf 16, chroma-qp-offset -6",
+      "synthetic": {
+        "bytes_vs_crf21": 2.72,
+        "encode_s": 14.08,
+        "min_ssim_all": 0.989719,
+        "min_ssim_text": 0.985735,
+        "pass": false
+      }
+    },
+    "crf16_cqo-9": {
+      "encode": "crf 16, chroma-qp-offset -9",
+      "synthetic": {
+        "bytes_vs_crf21": 3.25,
+        "encode_s": 13.63,
+        "min_ssim_all": 0.990004,
+        "min_ssim_text": 0.986482,
+        "pass": true
+      }
+    },
+    "crf17_cqo-12": {
+      "encode": "crf 17, chroma-qp-offset -12",
+      "natural": {
+        "bytes_vs_crf21": 3.02,
+        "encode_s": 18.63,
+        "min_ssim_all": 0.997064,
+        "min_ssim_text": 0.989864,
+        "pass": true
+      },
+      "synthetic": {
+        "bytes_vs_crf21": 3.62,
+        "encode_s": 14.81,
+        "min_ssim_all": 0.990052,
+        "min_ssim_text": 0.986721,
+        "pass": true
+      }
+    },
+    "crf18": {
+      "encode": "crf 18",
+      "synthetic": {
+        "bytes_vs_crf21": 1.49,
+        "encode_s": 14.04,
+        "min_ssim_all": 0.987965,
+        "min_ssim_text": 0.97921,
+        "pass": false
+      }
+    },
+    "crf18_cqo-12": {
+      "encode": "crf 18, chroma-qp-offset -12",
+      "natural": {
+        "bytes_vs_crf21": 2.62,
+        "encode_s": 18.98,
+        "min_ssim_all": 0.996911,
+        "min_ssim_text": 0.989561,
+        "pass": true
+      },
+      "synthetic": {
+        "bytes_vs_crf21": 3.26,
+        "encode_s": 13.82,
+        "min_ssim_all": 0.989887,
+        "min_ssim_text": 0.986488,
+        "pass": false
+      }
+    },
+    "crf18_cqo-6": {
+      "encode": "crf 18, chroma-qp-offset -6",
+      "synthetic": {
+        "bytes_vs_crf21": 2.2,
+        "encode_s": 13.7,
+        "min_ssim_all": 0.989267,
+        "min_ssim_text": 0.984637,
+        "pass": false
+      }
+    },
+    "fast_cqo-6": {
+      "encode": "fast_cqo-6",
+      "synthetic": {
+        "bytes_vs_crf21": 1.88,
+        "encode_s": 18.31,
+        "min_ssim_all": 0.989201,
+        "min_ssim_text": 0.985672,
+        "pass": false
+      }
+    },
+    "fast_crf18_cqo-12": {
+      "encode": "preset fast, crf 18, chroma-qp-offset -12",
+      "synthetic": {
+        "bytes_vs_crf21": 3.27,
+        "encode_s": 19.22,
+        "min_ssim_all": 0.990115,
+        "min_ssim_text": 0.987382,
+        "pass": true
+      }
+    },
+    "flags": {
+      "encode": "crf 21, accurate_rnd+full_chroma_int+full_chroma_inp (bicubic)",
+      "synthetic": {
+        "bytes_vs_crf21": 0.99,
+        "encode_s": 12.61,
+        "min_ssim_all": 0.986602,
+        "min_ssim_text": 0.973258,
+        "pass": false
+      }
+    },
+    "flags_cqo-4": {
+      "encode": "flags_cqo-4",
+      "synthetic": {
+        "bytes_vs_crf21": 1.29,
+        "encode_s": 12.72,
+        "min_ssim_all": 0.987881,
+        "min_ssim_text": 0.979998,
+        "pass": false
+      }
+    },
+    "flags_crf18": {
+      "encode": "flags_crf18",
+      "synthetic": {
+        "bytes_vs_crf21": 1.47,
+        "encode_s": 12.66,
+        "min_ssim_all": 0.987962,
+        "min_ssim_text": 0.979349,
+        "pass": false
+      }
+    },
+    "flags_qp0": {
+      "encode": "flags_qp0",
+      "synthetic": {
+        "bytes_vs_crf21": 10.85,
+        "encode_s": 13.19,
+        "min_ssim_all": 0.99114,
+        "min_ssim_text": 0.988707,
+        "pass": true
+      }
+    },
+    "lanczos": {
+      "encode": "crf 21, full-chroma lanczos",
+      "synthetic": {
+        "bytes_vs_crf21": 1.02,
+        "encode_s": 13.34,
+        "min_ssim_all": 0.986882,
+        "min_ssim_text": 0.973954,
+        "pass": false
+      }
+    },
+    "lanczos_crf17_cqo-12": {
+      "encode": "crf 17, chroma-qp-offset -12, lanczos full-chroma",
+      "natural": {
+        "bytes_vs_crf21": 2.89,
+        "encode_s": 20.16,
+        "min_ssim_all": 0.997196,
+        "min_ssim_text": 0.990315,
+        "pass": true
+      },
+      "synthetic": {
+        "bytes_vs_crf21": 3.76,
+        "encode_s": 15.73,
+        "min_ssim_all": 0.990329,
+        "min_ssim_text": 0.987044,
+        "pass": true
+      }
+    },
+    "lanczos_crf18_cqo-12": {
+      "encode": "crf 18, chroma-qp-offset -12, lanczos full-chroma (chosen)",
+      "natural": {
+        "bytes_vs_crf21": 2.51,
+        "encode_s": 18.41,
+        "min_ssim_all": 0.99704,
+        "min_ssim_text": 0.990012,
+        "pass": true
+      },
+      "synthetic": {
+        "bytes_vs_crf21": 3.37,
+        "encode_s": 15.91,
+        "min_ssim_all": 0.990166,
+        "min_ssim_text": 0.986817,
+        "pass": true
+      }
+    },
+    "lanczos_crf19_cqo-12": {
+      "encode": "crf 19, chroma-qp-offset -12, lanczos full-chroma",
+      "synthetic": {
+        "bytes_vs_crf21": 3.04,
+        "encode_s": 15.98,
+        "min_ssim_all": 0.989986,
+        "min_ssim_text": 0.986407,
+        "pass": false
+      }
+    },
+    "lanczos_crf21_cqo-12": {
+      "encode": "crf 21, chroma-qp-offset -12, lanczos full-chroma",
+      "natural": {
+        "bytes_vs_crf21": 1.68,
+        "encode_s": 16.86,
+        "min_ssim_all": 0.99643,
+        "min_ssim_text": 0.988428,
+        "pass": true
+      }
+    },
+    "lanczos_qp0": {
+      "encode": "lanczos_qp0",
+      "synthetic": {
+        "bytes_vs_crf21": 11.15,
+        "encode_s": 14.49,
+        "min_ssim_all": 0.991359,
+        "min_ssim_text": 0.98911,
+        "pass": true
+      }
+    },
+    "lanczos_qp0x": {
+      "encode": "lossless 4:2:0 with the lanczos full-chroma step",
+      "synthetic": {
+        "bytes_vs_crf21": 11.15,
+        "encode_s": 16.07,
+        "min_ssim_all": 0.991359,
+        "min_ssim_text": 0.98911,
+        "pass": true
+      }
+    },
+    "medium_crf18_cqo-12": {
+      "encode": "preset medium, crf 18, chroma-qp-offset -12",
+      "natural": {
+        "bytes_vs_crf21": 2.56,
+        "encode_s": 25.76,
+        "min_ssim_all": 0.997297,
+        "min_ssim_text": 0.990681,
+        "pass": true
+      },
+      "synthetic": {
+        "bytes_vs_crf21": 3.12,
+        "encode_s": 20.38,
+        "min_ssim_all": 0.990151,
+        "min_ssim_text": 0.987391,
+        "pass": true
+      }
+    },
+    "medium_tssim_cqo-6": {
+      "encode": "medium_tssim_cqo-6",
+      "synthetic": {
+        "bytes_vs_crf21": 1.6,
+        "encode_s": 19.93,
+        "min_ssim_all": 0.988967,
+        "min_ssim_text": 0.985486,
+        "pass": false
+      }
+    },
+    "qp0": {
+      "encode": "lossless 4:2:0 (x264 qp 0): the 4:2:0 ceiling",
+      "natural": {
+        "bytes_vs_crf21": 16.88,
+        "encode_s": 19.06,
+        "min_ssim_all": 0.998504,
+        "min_ssim_text": 0.992233,
+        "pass": true
+      },
+      "synthetic": {
+        "bytes_vs_crf21": 10.76,
+        "encode_s": 13.68,
+        "min_ssim_all": 0.991082,
+        "min_ssim_text": 0.988698,
+        "pass": true
+      }
+    },
+    "tssim": {
+      "encode": "crf 21, psy off, aq-mode 2",
+      "synthetic": {
+        "bytes_vs_crf21": 1.17,
+        "encode_s": 14.25,
+        "min_ssim_all": 0.987124,
+        "min_ssim_text": 0.977212,
+        "pass": false
+      }
+    },
+    "tssim_cqo-12": {
+      "encode": "crf 21, psy off, aq 2, chroma-qp-offset -12",
+      "synthetic": {
+        "bytes_vs_crf21": 2.59,
+        "encode_s": 13.56,
+        "min_ssim_all": 0.989431,
+        "min_ssim_text": 0.985936,
+        "pass": false
+      }
+    },
+    "tssim_cqo-6": {
+      "encode": "crf 21, psy off, aq 2, chroma-qp-offset -6",
+      "synthetic": {
+        "bytes_vs_crf21": 1.78,
+        "encode_s": 14.12,
+        "min_ssim_all": 0.988672,
+        "min_ssim_text": 0.983778,
+        "pass": false
+      }
+    },
+    "tssim_crf18_cqo-12": {
+      "encode": "tssim_crf18_cqo-12",
+      "synthetic": {
+        "bytes_vs_crf21": 3.38,
+        "encode_s": 14.07,
+        "min_ssim_all": 0.989974,
+        "min_ssim_text": 0.986833,
+        "pass": false
+      }
+    },
+    "tssim_crf18_cqo-6": {
+      "encode": "tssim_crf18_cqo-6",
+      "synthetic": {
+        "bytes_vs_crf21": 2.45,
+        "encode_s": 13.52,
+        "min_ssim_all": 0.989468,
+        "min_ssim_text": 0.985481,
+        "pass": false
+      }
+    },
+    "tssim_crf19_cqo-6": {
+      "encode": "tssim_crf19_cqo-6",
+      "synthetic": {
+        "bytes_vs_crf21": 2.22,
+        "encode_s": 13.22,
+        "min_ssim_all": 0.989222,
+        "min_ssim_text": 0.985048,
+        "pass": false
+      }
+    }
+  },
+  "task": "T1.Z"
+}
