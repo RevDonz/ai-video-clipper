@@ -284,6 +284,11 @@ _TREND_BLOCK_RULES = (
     ),
     'Jangan mengarang hubungan. Tren "sensitive": jangan dijadikan lelucon/judul sensasional.',
     "Penilaian momen tetap berdasarkan standar; tren bukan alasan memilih momen yang lemah.",
+    # Without this line real models (Gemma 0/10 moments, Hermes 0/20) never filled trend_refs.
+    (
+        'Format: di setiap momen isi "trend_refs" dengan id tren yang dipakai, misalnya '
+        '["T1"]; isi [] bila tidak ada.'
+    ),
 )
 
 

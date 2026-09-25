@@ -134,6 +134,7 @@ Aturan tren: pakai tren HANYA bila baris transkrip momen itu benar-benar menyebu
 Boleh dipakai untuk judul, teks hook, deskripsi dan hashtag, dan sebutkan id-nya di "trend_refs".
 Jangan mengarang hubungan. Tren "sensitive": jangan dijadikan lelucon/judul sensasional.
 Penilaian momen tetap berdasarkan standar; tren bukan alasan memilih momen yang lemah.
+Format: di setiap momen isi "trend_refs" dengan id tren yang dipakai, misalnya ["T1"]; isi [] bila tidak ada.
 ```
 
 Teks tren berasal dari internet, jadi selalu diperlakukan sebagai **data, bukan instruksi**:
@@ -187,9 +188,11 @@ dikirim; tanpa blok tetap `llm-select-v2+std.<sidik jari>`.
 | `trend_items_skipped:<n>` | n item tren rusak dilewati; item lain tetap dipakai | Periksa data yang dikirim agen |
 
 Hasil ukur fitur ini ada di `docs/evaluation/SELECTION_BENCHMARK.md`, bagian "Konteks Tren".
-Catatan penting dari pengukuran: dengan blok persis seperti di atas, Gemma dan Hermes memakai tren
-di judul tetapi **tidak mengisi `"trend_refs"`**, sehingga klip AI belum mendapat "Nyambung tren",
-hashtag tren, atau dorongan. Klip heuristik tidak bergantung pada model.
+Catatan penting dari pengukuran: tanpa baris `Format:` terakhir, Gemma dan Hermes memakai tren di
+judul tetapi **tidak mengisi `"trend_refs"`**, sehingga klip AI tidak mendapat "Nyambung tren",
+hashtag tren, atau dorongan. Baris itu ditambahkan karena alasan ini; kalau model tetap tidak
+mengisinya, klip AI hanya tidak mendapat tren (tidak ada efek lain). Klip heuristik tidak
+bergantung pada model.
 
 ## Mengubah standar dengan aman
 
