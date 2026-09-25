@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """P-ENC: the delivered MP4 against the lossless reference of the same frames (plan §10.1).
 
-The exported MP4 is decoded as tagged BT.709 (limited range) to planar RGB and compared, frame
-by frame, with the lossless ``reference`` (the composite before the final 4:2:0 conversion, in
-RGB) using FFmpeg's ``ssim`` filter:
+The exported MP4 is decoded as tagged BT.709 (limited range) and compared, frame by frame, with
+the lossless ``reference`` (the composite before the final 4:2:0 conversion, stored as RGB) using
+FFmpeg's ``ssim`` filter on BT.709 limited-range 4:4:4 planes (the delivered chroma upsampled, so
+the 4:2:0 loss is measured; RGB channels are reported as a diagnostic):
 
 * **whole frame**: the mean over frames of FFmpeg's ``All`` value;
 * **text regions**: the plan's caption/hook boxes, each snapped outwards to a 4-pixel grid
@@ -35,9 +36,21 @@ from pathlib import Path
 
 P_ENC_THRESHOLDS = {"ssim_all": 0.990, "ssim_text": 0.980}
 BASELINE_TOLERANCE = 0.002
-DECODE_709_GBRP = ("scale=in_color_matrix=bt709:in_range=tv:"
-                   "flags=accurate_rnd+full_chroma_int+bitexact,format=gbrp")
-RGB_GBRP = "format=gbrp"
+# The gate is scored on BT.709 limited-range 4:4:4 planes (FFmpeg's ssim filter on Y, Cb, Cr;
+# the delivered chroma is upsampled, so the 4:2:0 loss is part of the measurement); RGB (the
+# channels a viewer's screen gets) is reported as a diagnostic.
+DOMAINS = ("yuv444p", "rgb")
+_FLAGS = "flags=accurate_rnd+full_chroma_int+bitexact"
+
+
+def to_domain(domain: str, *, rgb: bool) -> str:
+    """Filter chain that brings one input (BT.709 YUV, or RGB when ``rgb``) into ``domain``."""
+    if domain == "yuv444p":
+        source = "" if rgb else "in_color_matrix=bt709:in_range=tv:"
+        return f"scale={source}out_color_matrix=bt709:out_range=tv:{_FLAGS},format=yuv444p"
+    if domain == "rgb":
+        return "format=gbrp" if rgb else f"scale=in_color_matrix=bt709:in_range=tv:{_FLAGS},format=gbrp"
+    raise ValueError(f"unknown domain {domain!r}")
 _FRAME = re.compile(r"^n:(\d+)\s+(.*)$")
 _VALUE = re.compile(r"([A-Za-z]+):([0-9.]+|inf)")
 
@@ -106,12 +119,15 @@ def _probe_size(path: Path, ffprobe: str) -> tuple[int, int]:
 
 
 def measure(delivered: Path, reference: Path, *, boxes: Sequence[Sequence[int]] = (),
-            ffmpeg: str = "ffmpeg", delivered_graph: str = DECODE_709_GBRP,
-            reference_graph: str = DECODE_709_GBRP, threads: int = 4) -> dict:
-    """SSIM of ``delivered`` against ``reference``, whole frame and over ``boxes``.
+            ffmpeg: str = "ffmpeg", domain: str = "yuv444p", reference_rgb: bool = False,
+            threads: int = 4) -> dict:
+    """SSIM of ``delivered`` (BT.709 YUV) against ``reference`` (BT.709 YUV, or RGB when
+    ``reference_rgb``) in ``domain``, whole frame and over ``boxes``.
 
     Both inputs are renumbered (``setpts=N`` in one time base), so frames pair by index.
     """
+    delivered_graph = to_domain(domain, rgb=False)
+    reference_graph = to_domain(domain, rgb=reference_rgb)
     ffprobe = str(Path(ffmpeg).with_name("ffprobe")) if "/" in ffmpeg else "ffprobe"
     width, height = _probe_size(Path(reference), ffprobe)
     snapped = [snap_box(box, width, height) for box in boxes]
@@ -140,9 +156,13 @@ def measure(delivered: Path, reference: Path, *, boxes: Sequence[Sequence[int]] 
     box_results = []
     for box, frames in zip(snapped, stats[1:], strict=True):
         values = [frame["all"] for frame in frames]
-        box_results.append({"box": list(box), "windows": box_weight(box),
-                            "ssim": sum(values) / len(values), "min_frame_ssim": min(values)})
-    return {
+        entry = {"box": list(box), "windows": box_weight(box),
+                 "ssim": sum(values) / len(values), "min_frame_ssim": min(values)}
+        if domain == "yuv444p":
+            entry["ssim_y"] = sum(frame["y"] for frame in frames) / len(frames)
+        box_results.append(entry)
+    result = {
+        "domain": domain,
         "frames": len(whole),
         "ssim_all": sum(whole) / len(whole),
         "min_frame_ssim_all": min(whole),
@@ -150,15 +170,21 @@ def measure(delivered: Path, reference: Path, *, boxes: Sequence[Sequence[int]] 
         "min_frame_ssim_text": min((b["min_frame_ssim"] for b in box_results), default=None),
         "boxes": box_results,
     }
+    if domain == "yuv444p":
+        result["ssim_y"] = sum(frame["y"] for frame in stats[0]) / len(stats[0])
+        result["ssim_text_y"] = combine((b["ssim_y"], b["windows"]) for b in box_results)
+    return result
 
 
 def measure_fixtures(fixtures: Path, *, formats: Sequence[str] | None = None,
-                     ffmpeg: str = "ffmpeg", baseline: dict | None = None) -> dict:
+                     ffmpeg: str = "ffmpeg", baseline: dict | None = None,
+                     rgb_diagnostic: bool = True) -> dict:
     """P-ENC for every export in a ``reference_text.py`` fixture directory."""
     manifest = json.loads((fixtures / "manifest.json").read_text(encoding="utf-8"))
     wanted = list(formats or manifest["formats"])
-    result: dict = {"schema": "potongin.p-enc/1", "thresholds": P_ENC_THRESHOLDS,
-                    "baseline_tolerance": BASELINE_TOLERANCE, "formats": {}}
+    result: dict = {"schema": "potongin.p-enc/1", "domain": "yuv444p", "diagnostic": "rgb",
+                    "thresholds": P_ENC_THRESHOLDS, "baseline_tolerance": BASELINE_TOLERANCE,
+                    "formats": {}}
     for fmt in wanted:
         clips: dict = {}
         pooled_all: list[tuple[float, int]] = []
@@ -169,8 +195,12 @@ def measure_fixtures(fixtures: Path, *, formats: Sequence[str] | None = None,
             if fmt not in files.get("export", {}):
                 continue
             metrics = measure(fixtures / files["export"][fmt], fixtures / files["lossless"][fmt],
-                              boxes=[clip["text_region"]], ffmpeg=ffmpeg,
-                              reference_graph=RGB_GBRP)
+                              boxes=[clip["text_region"]], ffmpeg=ffmpeg, reference_rgb=True)
+            if rgb_diagnostic:
+                rgb = measure(fixtures / files["export"][fmt], fixtures / files["lossless"][fmt],
+                              boxes=[clip["text_region"]], ffmpeg=ffmpeg, reference_rgb=True,
+                              domain="rgb")
+                metrics["rgb"] = {"ssim_all": rgb["ssim_all"], "ssim_text": rgb["ssim_text"]}
             base = (baseline or {}).get("formats", {}).get(fmt, {}).get("clips", {}).get(clip["id"])
             metrics["pass"] = p_enc_pass(metrics, base)
             clips[clip["id"]] = {"pack": clip["pack"], "variant": clip.get("variant"),
@@ -209,6 +239,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     one.add_argument("--box", type=_parse_box, action="append", default=[])
     one.add_argument("--reference-rgb", action="store_true",
                      help="the reference is stored as RGB (gbrp/rgb24), not BT.709 YUV")
+    one.add_argument("--domain", default="yuv444p", choices=DOMAINS)
     one.add_argument("--ffmpeg", default="ffmpeg")
     many = commands.add_parser("fixtures")
     many.add_argument("--fixtures", type=Path, required=True)
@@ -219,7 +250,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.command == "measure":
         result = measure(args.delivered, args.reference, boxes=args.box, ffmpeg=args.ffmpeg,
-                         reference_graph=RGB_GBRP if args.reference_rgb else DECODE_709_GBRP)
+                         domain=args.domain, reference_rgb=args.reference_rgb)
         result["pass"] = p_enc_pass(result) if result["ssim_text"] is not None else None
         print(json.dumps(result, indent=2))
         return 0
