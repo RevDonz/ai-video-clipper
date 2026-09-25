@@ -430,3 +430,96 @@ def test_assets_must_stay_inside_the_asset_root(fake, tmp_path):
                         expected={"output": "null", "assets_root": str(root),
                                   "paths": {"sha256:" + "b" * 64: str(elsewhere)}}),
                     output_fd=None, timeout_s=30)
+
+
+# --- run_piped: a producer's output is a consumer's input (the preview mix, PF-AUDIO) -------------
+
+_RAW = ("-f", "f32le", "-ar", "48000", "-ac", "1")
+
+
+def _tone_producer(seconds: float = 2.0, **expected) -> FfmpegJob:
+    return job(["ffmpeg", "-nostdin", "-y", "-hide_banner", "-loglevel", "error", "-progress",
+                "@progress", "-f", "lavfi", "-i", f"sine=f=440:d={seconds}:sample_rate=48000",
+                "-filter_complex_script", "filter_graph.txt", "-map", "[a]", "-c:a", "pcm_f32le",
+                "-f", "f32le", "@out"],
+               script="[0:a]anull[a]", expected={"output": "pipe", **expected})
+
+
+def _copy_consumer(script: str = "[0:a]anull[b]", **expected) -> FfmpegJob:
+    return job(["ffmpeg", "-nostdin", "-y", "-hide_banner", "-loglevel", "error", "-progress",
+                "@progress", *_RAW, "-i", "@in:0", "-filter_complex_script", "filter_graph.txt",
+                "-map", "[b]", "-c:a", "pcm_f32le", "-f", "f32le", "@out"],
+               inputs=(InputSpec("pipe", "pipe", _RAW),), script=script,
+               expected={"output": "fd", **expected})
+
+
+def test_run_piped_streams_the_producer_into_the_consumer(tmp_path):
+    fd = output_file(tmp_path, "copy.f32")
+    try:
+        produced, consumed = execute.run_piped(_tone_producer(), _copy_consumer(),
+                                               output_fd=fd, timeout_s=60)
+    finally:
+        os.close(fd)
+    assert produced.returncode == 0 and consumed.returncode == 0
+    direct = tmp_path / "direct.f32"
+    out = os.open(direct, os.O_RDWR | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        execute.run(job(["ffmpeg", "-nostdin", "-y", "-hide_banner", "-loglevel", "error",
+                         "-f", "lavfi", "-i", "sine=f=440:d=2.0:sample_rate=48000",
+                         "-filter_complex_script", "filter_graph.txt", "-map", "[a]",
+                         "-c:a", "pcm_f32le", "-f", "f32le", "@out"],
+                        script="[0:a]anull[a]", expected={"output": "fd"}),
+                    output_fd=out, timeout_s=60)
+    finally:
+        os.close(out)
+    data = (tmp_path / "copy.f32").read_bytes()
+    assert len(data) == 2 * 48_000 * 4
+    assert data == direct.read_bytes()
+
+
+def test_a_pipe_input_needs_its_descriptor():
+    with pytest.raises(ValueError):
+        execute.run(_copy_consumer(), output_fd=None, timeout_s=30)
+
+
+def test_a_failing_consumer_stops_the_producer_at_once(tmp_path):
+    """The consumer dies at start (an invalid graph): the producer must not wait for its
+    stall window with a full pipe; the consumer's failure is reported."""
+    fd = output_file(tmp_path, "copy.f32")
+    started = time.monotonic()
+    try:
+        with pytest.raises(errors.RenderFailed) as caught:
+            execute.run_piped(_tone_producer(600.0, stall_s=30.0),
+                              _copy_consumer("[0:a]no_such_filter[b]"), output_fd=fd,
+                              timeout_s=60)
+    finally:
+        os.close(fd)
+    assert caught.value.code == "render_failed"
+    assert time.monotonic() - started < 10
+
+
+def test_a_failing_producer_fails_the_pair(tmp_path, fake):
+    fd = output_file(tmp_path, "copy.f32")
+    try:
+        with pytest.raises(errors.RenderFailed) as caught:
+            execute.run_piped(job([fake, "-progress", "@progress", "--behave", "fail", "@out"],
+                                  expected={"output": "pipe"}),
+                              _copy_consumer(), output_fd=fd, timeout_s=60)
+    finally:
+        os.close(fd)
+    assert caught.value.code == "render_failed"
+    assert "boom" in caught.value.stderr_tail
+
+
+def test_cancel_stops_both_sides_of_a_pipe(tmp_path):
+    cancel = threading.Event()
+    threading.Timer(0.5, cancel.set).start()
+    fd = output_file(tmp_path, "copy.f32")
+    started = time.monotonic()
+    try:
+        with pytest.raises(errors.Cancelled):
+            execute.run_piped(_tone_producer(3600.0), _copy_consumer("[0:a]anull,arealtime[b]"),
+                              output_fd=fd, timeout_s=60, cancel=cancel)
+    finally:
+        os.close(fd)
+    assert time.monotonic() - started < 0.5 + 2.0
