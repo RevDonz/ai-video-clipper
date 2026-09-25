@@ -73,6 +73,15 @@ test("single-line text is NFC with control, bidi and zero-width characters and n
   assert.equal(normalizeTrendLine(42), null);
 });
 
+test("hidden variation selectors, tag characters and fillers are removed too", () => {
+  const hidden = "\ufe0f".repeat(3) + String.fromCodePoint(0xe0100, 0xe0101, 0xe0041) + "\u034f\u115f\u3164\uffa0\u180b";
+  assert.equal(normalizeTrendLine(`Kucing oren${hidden}`), "Kucing oren");
+  assert.equal(normalizeTrendSummary(`baris${hidden}\nkedua\ufe0f`), "baris\nkedua");
+  const parsed = parseTrendInput({ kind: "meme", title: `Kucing oren${"\ufe00".repeat(32)}`, keywords: ["kucing oren"] });
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.value.title, "Kucing oren");
+});
+
 test("summaries keep at most five lines, normalised to \\n", () => {
   assert.equal(normalizeTrendSummary("satu\r\ndua\n\n\ntiga\u2028empat\rlima\nenam\ntujuh"), "satu\ndua\ntiga\nempat\nlima enam tujuh");
   assert.equal(normalizeTrendSummary("  baris\u202e  satu \n\u200b\n"), "baris satu");
