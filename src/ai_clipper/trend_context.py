@@ -33,9 +33,12 @@ keywords and its hashtags without ``#`` (a hashtag also matches split at case an
 changes, so ``#KaburAjaDulu`` matches "kabur aja dulu"). Text and terms are casefolded,
 accent-free and tokenized into Unicode letters and digits, so a term matches only whole words
 and a multi-word term only as a phrase, whatever the punctuation or spacing between its words.
-A term needs at least one content word: :data:`MIN_TERM_LETTERS` letters or more and not in
-:data:`TREND_STOPWORDS`; "AI", "aja dulu" or "viral" never match on their own. Occurrences of
-one trend that overlap count once.
+The last word of a mention may carry a spoken clitic (:data:`TREND_CLITICS`: "prabowonya",
+"bjorkalah") when what is left still has :data:`MIN_TERM_LETTERS` letters. A term needs at least
+one content word: :data:`MIN_TERM_LETTERS` letters or more and not in :data:`TREND_STOPWORDS`
+(function words, fillers, everyday podcast words such as "gas", "tahun" or "jakarta", platform
+words); "AI", "aja dulu" or "viral" never match on their own. Occurrences of one trend that
+overlap count once.
 """
 
 from __future__ import annotations
@@ -72,7 +75,8 @@ MIN_TERM_LETTERS = 3
 DEFAULT_TREND_SCORE = 50.0
 DEFAULT_TREND_LIFETIME = timedelta(days=10)
 # Words too common to say that a transcript talks about a trend: Indonesian function words and
-# chat fillers, plus generic platform words. A term needs one word outside this list.
+# chat fillers, everyday podcast words (people, time, places, reactions), plus generic platform
+# words. A term needs one word outside this list: "gas" alone never matches, "gas melon" does.
 TREND_STOPWORDS = frozenset(
     {
         "yang", "dan", "di", "ke", "dari", "ini", "itu", "aja", "saja", "dulu", "udah", "sudah",
@@ -85,8 +89,23 @@ TREND_STOPWORDS = frozenset(
         "tiga", "the", "and", "for", "you", "with", "this", "that", "viral", "trending",
         "trend", "tren", "fyp", "foryou", "foryoupage", "video", "konten", "content", "reels",
         "shorts", "tiktok", "instagram", "youtube", "podcast", "live",
+        # everyday podcast words
+        "gas", "ayo", "yuk", "nah", "kan", "loh", "lho", "wah", "wow", "oke", "okay", "yes",
+        "halo", "guys", "gaes", "bro", "bang", "abang", "kak", "kakak", "mas", "mbak", "pak",
+        "bapak", "ibu", "adik", "anak", "teman", "temen", "keluarga", "cewek", "cowok",
+        "tahun", "bulan", "minggu", "jam", "menit", "detik", "waktu", "kali", "sekarang",
+        "nanti", "tadi", "kemarin", "besok", "pagi", "siang", "sore", "malam",
+        "indonesia", "jakarta", "negara", "dunia", "rumah", "kantor", "sekolah", "kuliah",
+        "kerja", "kerjaan", "uang", "duit", "makan", "minum", "main", "jalan", "cerita",
+        "hidup", "gimana", "kenapa", "mana", "siapa", "kapan", "banyak", "besar", "kecil",
+        "bagus", "baik", "enak", "benar", "bener", "salah", "beda", "pernah", "bilang",
+        "ngomong", "tahu", "tau", "lihat", "liat", "nonton", "suka", "cuma", "cuman", "doang",
+        "lucu", "keren", "gila", "anjir", "wkwk", "wkwkwk", "haha", "hahaha", "ngakak",
+        "berita", "media", "sosmed", "internet", "online", "netizen", "channel", "episode",
     }
 )  # fmt: skip
+# Spoken clitics glued to the last word of a mention: "prabowonya", "bjorkalah", "siapapun".
+TREND_CLITICS = ("nya", "lah", "kah", "pun")
 
 _EXTERNAL_ID = re.compile(r"[A-Za-z0-9._:/#@-]{1,120}")
 _HASHTAG = re.compile(r"#\w{1,50}")
@@ -386,6 +405,17 @@ def _tokens(text: str) -> list[str]:
     return _TOKEN.findall("".join(ch for ch in folded if not unicodedata.combining(ch)))
 
 
+def _stem(token: str) -> str:
+    """``token`` without one spoken clitic (:data:`TREND_CLITICS`), when a content-sized word is
+    left: ``prabowonya`` -> ``prabowo``, but ``punya`` stays ``punya``."""
+    for suffix in TREND_CLITICS:
+        if token.endswith(suffix):
+            stem = token[: -len(suffix)]
+            if sum(character.isalpha() for character in stem) >= MIN_TERM_LETTERS:
+                return stem
+    return token
+
+
 def _content(token: str) -> bool:
     return sum(character.isalpha() for character in token) >= MIN_TERM_LETTERS and (
         token not in TREND_STOPWORDS
@@ -439,26 +469,49 @@ def trend_tag_keys(item: TrendItem) -> frozenset[str]:
     return frozenset(key for key in keys if key)
 
 
-def _positions(tokens: Sequence[str]) -> dict[str, list[int]]:
-    index: dict[str, list[int]] = {}
-    for position, token in enumerate(tokens):
-        index.setdefault(token, []).append(position)
-    return index
+@dataclass(frozen=True, slots=True)
+class _Text:
+    """Tokens of a text, their clitic-free stems, and where each token and stem occurs."""
+
+    tokens: tuple[str, ...]
+    stems: tuple[str, ...]
+    index: dict[str, list[int]]
+    stem_index: dict[str, list[int]]
+
+    @classmethod
+    def of(cls, tokens: Sequence[str]) -> _Text:
+        stems = tuple(_stem(token) for token in tokens)
+        index: dict[str, list[int]] = {}
+        stem_index: dict[str, list[int]] = {}
+        for position, (token, stem) in enumerate(zip(tokens, stems, strict=True)):
+            index.setdefault(token, []).append(position)
+            if stem != token:
+                stem_index.setdefault(stem, []).append(position)
+        return cls(tuple(tokens), stems, index, stem_index)
+
+    def hits(self, term: tuple[str, ...]) -> list[int]:
+        """Starts of ``term``: every word as written, the last one maybe with a clitic."""
+        size = len(term)
+        last = size - 1
+        starts = set(self.index.get(term[0], ()))
+        if size == 1:
+            starts.update(self.stem_index.get(term[0], ()))
+        return [
+            start
+            for start in sorted(starts)
+            if start + size <= len(self.tokens)
+            and self.tokens[start : start + last] == term[:last]
+            and term[last] in (self.tokens[start + last], self.stems[start + last])
+        ]
 
 
-def _find(
-    item: TrendItem, tokens: Sequence[str], index: dict[str, list[int]]
-) -> tuple[list[tuple[int, int]], list[str]]:
+def _find(item: TrendItem, text: _Text) -> tuple[list[tuple[int, int]], list[str]]:
     """Merged ``(start, end)`` token spans where ``item`` is mentioned, and the terms found."""
     spans: list[tuple[int, int]] = []
     found: list[str] = []
     for term in _terms(item):
         size = len(term)
-        hits = [
-            start
-            for start in index.get(term[0], ())
-            if tuple(tokens[start : start + size]) == term
-        ]
+        hits = text.hits(term)
         if hits:
             found.append(" ".join(term))
             spans.extend((start, start + size) for start in hits)
@@ -497,10 +550,10 @@ def match_trends(items: Iterable[TrendItem], text: str) -> tuple[TrendMatch, ...
     tokens = _tokens(text)
     if not tokens or not checked:
         return ()
-    index = _positions(tokens)
+    indexed = _Text.of(tokens)
     found: list[tuple[int, int, TrendMatch]] = []
     for order, item in enumerate(checked):
-        spans, terms = _find(item, tokens, index)
+        spans, terms = _find(item, indexed)
         if spans:
             found.append((len(spans), order, TrendMatch(item, len(spans), tuple(terms))))
     found.sort(key=lambda entry: (-entry[0], -entry[2].item.score, entry[1]))
@@ -540,10 +593,10 @@ def relevant_trends(
         owners.extend([position] * len(unit_tokens))
     if not tokens or not checked:
         return ()
-    index = _positions(tokens)
+    indexed = _Text.of(tokens)
     found: list[tuple[int, int, TrendItem, tuple[float, ...]]] = []
     for order, item in enumerate(checked):
-        spans, _terms_found = _find(item, tokens, index)
+        spans, _terms_found = _find(item, indexed)
         if not spans:
             continue
         starts = dict.fromkeys(
