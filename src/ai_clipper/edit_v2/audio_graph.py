@@ -18,11 +18,14 @@ resolutions"):
 The graph (every number is an integer computed from the document; no user string, path or
 asset name ever appears in it):
 
-* per piece ``i``: ``[sa<i>]aresample=48000,pan=stereo|FL=FL+FC|FR=FR+FC,asettb=1/48000,apad,
-  atrim=start_pts=<a>:end_pts=<b>,asetpts=PTS-STARTPTS`` with ``a = smp(in_sf)`` and
+* per piece ``i``: ``[sa<i>]aresample=48000,asettb=1/48000,apad,atrim=start_pts=<a>:end_pts=<b>,
+  pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS`` with ``a = smp(in_sf)`` and
   ``b = a + smp(out_f0 + frames) − smp(out_f0)`` (§5.3). The explicit ``pan`` maps a mono
   source (``FC``) to both channels at full gain and keeps stereo unchanged (the implicit upmix
-  is −3 dB); ``apad`` makes a source whose audio ends early still yield the exact count;
+  is −3 dB); ``apad`` makes a source whose audio ends early still yield the exact count. The
+  ``pan`` comes **after** the trim (W1 integration, requested by T1.3): every ``[sa<i>]``
+  carries its whole decoder run, and a ``pan`` before the trim kept that audio queued in every
+  finished piece (FFmpeg 6.1, 150 pieces over 133 s: 2.3 GiB resident against 67 MiB);
 * ``concat`` of the pieces, then ``amultiply`` with the speech envelope (micro-fades × source
   gain) when it is not 1.0 everywhere; without source audio, ``anullsrc`` trimmed to the exact
   sample count;
@@ -111,9 +114,9 @@ def _build(plan: RenderPlan) -> tuple[str, tuple[InputSpec, ...], dict[str, byte
             start = smp(piece.in_sf, fps)
             end = start + smp(piece.out_f0 + piece.frames, fps) - smp(piece.out_f0, fps)
             texts.append(
-                f"[{SOURCE_AUDIO_LABEL.format(i=piece.i)}]{_RESAMPLE},{_PAN_ANY},"
+                f"[{SOURCE_AUDIO_LABEL.format(i=piece.i)}]{_RESAMPLE},"
                 f"asettb=1/{SAMPLE_RATE},apad,atrim=start_pts={start}:end_pts={end},"
-                "asetpts=PTS-STARTPTS"
+                f"{_PAN_ANY},asetpts=PTS-STARTPTS"
             )
         if len(texts) == 1:
             speech = texts[0]
