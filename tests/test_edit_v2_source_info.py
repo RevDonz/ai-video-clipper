@@ -191,6 +191,26 @@ def test_probe_records_the_grid_that_exists_at_every_document_rate(edit_v2_media
         assert probe["duration_ms"] == 30097  # sf_ceil(30097) would be 903
 
 
+def test_the_grid_end_is_found_when_the_video_ends_early(edit_v2_media_factory, monkeypatch):
+    """``duration_ms`` can come from the container (Matroska), so the video may end more than
+    3 s before it: an empty tail decode falls back to decoding from the start."""
+    path = edit_v2_media_factory(_small((30000, 1001), 90))
+    expected = probe_source(path)["grid_sf"]
+    real = source_info._grid_pts
+    seeks = []
+
+    def late(ffmpeg, source, stream, seek_ms, *, first_only):
+        seeks.append(seek_ms)
+        if not first_only and seek_ms > 0:
+            return [[] for _rate in DOC_FPS]  # the seek landed after the last video frame
+        return real(ffmpeg, source, stream, seek_ms, first_only=first_only)
+
+    monkeypatch.setattr(source_info, "_grid_pts", late)
+    grid = source_info.measure_grid(path, video_stream=0, duration_ms=60_000)
+    assert grid == expected
+    assert seeks == [0, 57_000, 0]
+
+
 def test_grid_range_needs_a_recorded_rate():
     probe = {"grid_sf": [[30000, 1001, 0, 902]]}
     assert source_info.grid_range(probe, Fps(30000, 1001)) == (0, 902)
