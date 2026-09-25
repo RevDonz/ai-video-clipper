@@ -329,6 +329,16 @@ def test_cli_parses_repeatable_focus_terms_and_a_note():
     assert args.focus == FocusSpec(("jomok", "Reza Auditore"), "momen jomok yang lucu")
 
 
+def test_cli_reads_the_workers_flag_equals_value_form():
+    # web/scripts/run-job.mjs always sends "--flag=value", so a value that starts with "-"
+    # stays a value and never becomes a flag.
+    args = parse_args([
+        "video.mp4", "--selection-mode", "v3", "--focus-term=jomok", "--focus-term=-rm -rf",
+        "--focus-note=--help; momen jomok",
+    ])  # fmt: skip
+    assert args.focus == FocusSpec(("jomok", "-rm -rf"), "--help; momen jomok")
+
+
 @pytest.mark.parametrize(
     "arguments",
     [
