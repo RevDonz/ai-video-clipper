@@ -155,6 +155,14 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="read-only YouTube json3 captions in manual/ and auto/; usable ones skip Whisper",
     )
+    v3.add_argument(
+        "--trend-context",
+        type=Path,
+        help=(
+            "Konteks Tren snapshot (analysis/trend-context.json, version 1); an invalid file "
+            "only adds the warning trend_context_invalid"
+        ),
+    )
     parser.add_argument(
         "--caption-style",
         choices=CAPTION_STYLES,
@@ -247,6 +255,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             word_timestamps=args.word_timestamps,
             hook_duration=args.hook_duration,
             progress=emit_progress,
+            trend_context=args.trend_context,
         )
     except (FileNotFoundError, RuntimeError, ValueError, LLMError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
