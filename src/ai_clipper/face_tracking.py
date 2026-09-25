@@ -114,12 +114,20 @@ def detect_face_track(
     end: float,
     sample_interval: float = 0.75,
     smooth: bool = True,
+    sequential: bool = False,
 ) -> tuple[list[float], list[float | None], list[bool], int, int]:
     """Sample faces and scene changes, returning a safe clip-relative crop track.
 
     ``smooth=False`` returns the raw centres instead (``None`` where no face was found), so the
     Editor V3 camera plan can smooth them itself and report the no-face runs (plan §5.7); the
     legacy render path keeps the default.
+
+    ``sequential=True`` seeks once and decodes the window front to back, keeping for each
+    sample the frame that the per-sample seek would land on (OpenCV's own rounding,
+    ``int(seconds·fps + 0.5)``). A seek decodes from the previous keyframe, so on a long-GOP
+    source the per-sample seeks decode most frames many times (a 3 min AV1 720p window: 10.2 s
+    of seeking against 1.7 s decoded once). The Editor V3 camera plan uses it; the legacy render
+    keeps the per-sample seeks, so its crop track cannot change.
     """
     try:
         import cv2
@@ -146,9 +154,27 @@ def detect_face_track(
     relative_time = 0.0
     previous_thumbnail = None
     minimum_face = max(round(min(source_width, source_height) * 0.08), 24)
+    fps = capture.get(cv2.CAP_PROP_FPS)
+    sequential = sequential and fps > 0
+    exhausted = False
+    current = -1  # index of the frame last grabbed in sequential mode
+    if sequential:
+        capture.set(cv2.CAP_PROP_POS_MSEC, start * 1000)
     while relative_time < end - start:
-        capture.set(cv2.CAP_PROP_POS_MSEC, (start + relative_time) * 1000)
-        ok, frame = capture.read()
+        if sequential:
+            seconds = ((start + relative_time) * 1000) / 1000.0
+            target = int(seconds * fps + 0.5)  # the frame CAP_PROP_POS_MSEC would seek to
+            ok, frame = False, None
+            while not exhausted and current < target:
+                if not capture.grab():
+                    exhausted = True
+                    break
+                current = round(capture.get(cv2.CAP_PROP_POS_FRAMES)) - 1
+            if not exhausted and current >= target:
+                ok, frame = capture.retrieve()
+        else:
+            capture.set(cv2.CAP_PROP_POS_MSEC, (start + relative_time) * 1000)
+            ok, frame = capture.read()
         center: float | None = None
         is_cut = False
         if ok:
