@@ -10,6 +10,7 @@ from ai_clipper.hook_heuristics import (
     _analyse_unit,
     _clean_line,
     propose_heuristic,
+    teaser_end,
 )
 from ai_clipper.llm_selection import packaging_problem
 from ai_clipper.selection_types import ARCHETYPES, SCORE_DIMENSIONS, ClipProposal
@@ -574,6 +575,18 @@ def test_teaser_montage_is_skipped_and_its_originals_are_credited():
     assert all(item.start_unit >= 4 for item in proposals[:3])
     original = next(item for item in proposals if covers(units, item, 38))
     assert any("teaser" in reason for reason in original.reasons)
+
+
+def test_teaser_end_tells_where_a_teaser_montage_ends():
+    moment = qa_moment(topic="adsense")
+    teaser = [L(line.text, seconds=line.seconds, gap=0.3) for line in moment[1:5]]
+    lines = teaser + [L("Kejar setoran bersama kita semua.", gap=3.0)] + neutral(30)
+    units, _ = build(lines + moment + neutral(30, offset=50))
+    assert teaser_end(units) == units[3].end
+
+    plain, _ = build(neutral(30) + moment + neutral(30, offset=50))
+    assert teaser_end(plain) is None
+    assert teaser_end([]) is None
 
 
 # --- scores, audio, diversity -----------------------------------------------------------------

@@ -85,6 +85,13 @@
 
    - the LLM gets the FOKUS PENGGUNA block in its propose requests and every moment claims
      ``"focus"``; the prompt version becomes ``llm-select-v2[+trends.v1]+focus.v1+std.<sha>``;
+   - **top-up** (``focus_topup``): when fewer than ``k`` of the LLM's valid moments are about
+     the focus and some mentions lie in none of them, :func:`propose_with_llm` sends one more
+     request around those mentions (see its docstring) and adds the moments that say a term.
+     They are LLM proposals like the others: snapped, labelled and ranked in their part below,
+     behind the moments of the first propose requests in that part, so they displace LLM
+     moments outside the focus, which then only fill the slots left (``focus_topup:<n>``,
+     ``focus_topup_failed:<code>`` or ``focus_topup_skipped:<reason>`` among the LLM's codes);
    - **labels, checked in code** (:class:`ai_clipper.selection_types.ClipFocus`): a clip whose
      snapped units say a focus term (:class:`ai_clipper.focus.FocusMatcher`, with the
      Indonesian affix rules) before the clip's end is ``literal``, whatever its source or
@@ -97,11 +104,13 @@
      each source a stable partition ``literal``, ``semantic``, ``none`` comes first; each part
      keeps its own order (the trend boost only inside the part) and near-duplicates are
      deferred inside their part. **Quality floor**: a focus match only ranks in its part when
-     its ranking value is at most :data:`FOCUS_QUALITY_GAP` below the weakest clip its
-     source's own ranking would give for ``k`` slots without the focus; otherwise it ranks in
-     ``none`` (it keeps its label if it is chosen there). ``score`` and the sub-scores never
-     change. A heuristic filler taken for the focus in an LLM-led selection gets
-     :data:`FOCUS_FILL_REASON` instead of the filler reason;
+     its moment score (``proposal.score``) is at most :data:`FOCUS_QUALITY_GAP` below the
+     weakest score among the clips its source's own ranking would give for ``k`` slots without
+     the focus; otherwise it ranks in ``none`` (it keeps its label if it is chosen there). For
+     the heuristic the score is its ranking value; for the LLM it is the rubric score of the
+     request that saw the focus, never the rerank blend (the rerank never sees the focus).
+     ``score`` and the sub-scores never change. A heuristic filler taken for the focus in an
+     LLM-led selection gets :data:`FOCUS_FILL_REASON` instead of the filler reason;
    - **extra candidates**: when some mention lies in no chosen clip and some slot may still
      change (an empty one, or one of a heuristic clip outside the ``literal`` part), the
      heuristic's own best windows around each such mention, searched between the chosen clips
@@ -237,7 +246,7 @@ _GENERIC_HASHTAGS = frozenset(
 )
 _TREND_HASHTAG = re.compile(r"#\w{1,39}")
 # Fokus klip: the reason of a heuristic filler taken first because it says a focus term; how
-# many heuristic windows are tried around a mention nobody covered; and how far (ranking value,
+# many heuristic windows are tried around a mention nobody covered; and how far (moment score,
 # 0-10) a focus match may sit below the weakest clip its source would give without the focus
 # and still be moved up. Further down it is only chosen on its own merit.
 FOCUS_FILL_REASON = "Pengisi dari heuristik karena momen LLM kurang; menyebut fokus yang dicari."
@@ -814,21 +823,25 @@ def _focus_match(proposal: ClipProposal, span: _Span, focus: _Focus) -> str:
 
 
 def _focus_floors(candidates: Sequence[_Candidate], k: int) -> dict[str, float]:
-    """Per source, the lowest ranking value that still ranks in a focus part: the weakest clip
-    the source's own ranking would give for ``k`` slots without the focus, minus
-    :data:`FOCUS_QUALITY_GAP`."""
+    """Per source, the lowest moment score (``proposal.score``) that still ranks in a focus
+    part: the weakest score among the clips the source's own ranking would give for ``k``
+    slots without the focus, minus :data:`FOCUS_QUALITY_GAP`.
+
+    The score, not the ranking value: an LLM's ranking value blends in the rerank, which never
+    sees the focus, while its score is the rubric of the request that did (the heuristic's two
+    values are the same)."""
     floors: dict[str, float] = {}
     for source in dict.fromkeys(item.proposal.source for item in candidates):
         own = [item for item in candidates if item.proposal.source == source]
-        weakest = min(item.rank_value for item in _rank(_boosted(own), k))
+        weakest = min(item.proposal.score for item in _rank(_boosted(own), k))
         floors[source] = weakest - FOCUS_QUALITY_GAP
     return floors
 
 
 def _with_part(item: _Candidate, floors: Mapping[str, float]) -> _Candidate:
-    """``item`` in its focus part, or in ``none`` when it ranks too low to be moved up."""
+    """``item`` in its focus part, or in ``none`` when it scores too low to be moved up."""
     floor = floors.get(item.proposal.source, -math.inf)
-    moved = item.focus != "none" and item.rank_value >= floor - _TOLERANCE
+    moved = item.focus != "none" and item.proposal.score >= floor - _TOLERANCE
     return replace(item, part=item.focus if moved else "none")
 
 
@@ -1027,6 +1040,7 @@ def select_clips_v3(
     clock: Callable[[], float] | None = None,
     trends: Sequence[TrendItem] = (),
     focus: FocusSpec | None = None,
+    focus_topup: bool = True,
 ) -> SelectionResult:
     """Select up to ``k`` snapped, packaged clips; see the module docstring for the rules.
 
@@ -1038,7 +1052,8 @@ def select_clips_v3(
     :func:`propose_with_llm` and ``retry`` its single follow-up request when fewer than ``k / 2``
     moments are valid; ``clock`` exists for tests. ``trends`` are the job's active trend items
     (:func:`ai_clipper.trend_context.read_trend_context`); only those the transcript mentions
-    are used. ``focus`` is the job's Fokus klip option (:func:`ai_clipper.focus.parse_focus`).
+    are used. ``focus`` is the job's Fokus klip option (:func:`ai_clipper.focus.parse_focus`);
+    ``focus_topup`` allows its single top-up request to the LLM (never without a focus).
     """
     trend_items = _check_trends(trends)
     focus = _check_focus(focus)
@@ -1055,8 +1070,8 @@ def select_clips_v3(
         raise TypeError("audio must be an AudioTimeline or None")
     if quality is not None and not isinstance(quality, TranscriptQuality):
         raise TypeError("quality must be a TranscriptQuality or None")
-    if not all(isinstance(flag, bool) for flag in (cold_open, rerank, retry)):
-        raise TypeError("cold_open, rerank and retry must be booleans")
+    if not all(isinstance(flag, bool) for flag in (cold_open, rerank, retry, focus_topup)):
+        raise TypeError("cold_open, rerank, retry and focus_topup must be booleans")
     _integer(context_tokens, "context_tokens", 1)
     _integer(max_output_tokens, "max_output_tokens", 1)
     _integer(max_requests, "max_requests", 1)
@@ -1119,7 +1134,7 @@ def select_clips_v3(
                 retry=retry,
                 clock=clock,
                 **({"trends": shown} if shown else {}),
-                **({"focus": focus} if focus is not None else {}),
+                **({"focus": focus, "focus_topup": focus_topup} if focus is not None else {}),
             )
             warnings.extend(outcome.warnings)
             usage = outcome.usage  # spent even when no moment survives

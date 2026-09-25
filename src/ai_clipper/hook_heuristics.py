@@ -725,6 +725,15 @@ def _teaser(units: list[_Unit], duration: float) -> tuple[float | None, list[boo
     return units[echoes[-1]].end, flags
 
 
+def teaser_end(units: Sequence[SentenceUnit]) -> float | None:
+    """Where the pre-roll teaser montage the heuristic skips ends (early lines that recur
+    verbatim later in the video), or ``None`` when the episode opens without one."""
+    analysed = [_analyse_unit(unit) for unit in units]
+    if not analysed:
+        return None
+    return _teaser(analysed, analysed[-1].end)[0]
+
+
 def _pauses(units: list[_Unit], audio: AudioTimeline | None) -> list[float]:
     """Pause after each unit: the word gap, or a silence from the audio timeline.
 
