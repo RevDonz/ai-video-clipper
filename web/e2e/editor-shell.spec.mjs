@@ -370,7 +370,7 @@ async function openEditor(page, config = null, { path: target = EDITOR } = {}) {
 
 const editorState = (page) => page.evaluate(() => {
   const state = window.__potonginEditor.store.getState();
-  return { status: state.status, save: state.save, doc: state.doc, commands: state.commands ?? [], plan: state.plan };
+  return { status: state.status, save: state.save, doc: state.doc, revision: state.revision, commands: state.commands ?? [], plan: state.plan };
 });
 const playerFrame = (page) => page.evaluate(() => window.__potonginEditor.player.frame());
 const scenarioCalls = (page) => page.evaluate(() => window.__scenarioCalls ?? []);
@@ -955,7 +955,7 @@ test("QG-UX U1 (scripted): fix a clipped first word in ≤ 20 s", async ({ page,
   await expect.poll(async () => (await editorState(page)).doc.main.segments[0].in_sf).toBe(37220);
   await expect.poll(async () => {
     const state = await editorState(page);
-    return [state.doc.revision, state.save];
+    return [state.revision, state.save]; // the saved revision (the store's `doc` keeps the loaded one)
   }, { timeout: 10_000 }).toEqual([1, "saved"]);
   await expect(page.getByTestId("save-status")).toHaveText(/^Tersimpan/);
   await expect(badge(page)).toHaveText("● Sesuai hasil akhir");

@@ -67,7 +67,7 @@ export default function ExportDialog({
 
   const phase = flow?.phase ?? "idle";
   const active = ACTIVE.has(phase);
-  const steps = useMemo(() => exportStepView(flow?.render ?? null), [flow?.render]);
+  const steps = useMemo(() => exportStepView(flow?.render ?? null, flow?.lastRunning ?? null), [flow?.render, flow?.lastRunning]);
   const warnings = checks.filter((check) => check.severity !== "error");
   const blocking = checks.filter((check) => check.severity === "error");
   const ready = canStartExport(checks, acked) && !readOnly;
@@ -141,7 +141,7 @@ export default function ExportDialog({
               <h3 id="export-progress">Progres</h3>
               <ol className={styles.steps} aria-label="Tahap ekspor">
                 {steps.steps.map((step) => (
-                  <li key={step.id} className={styles.step} data-step-status={step.status} aria-current={step.status === "current" ? "step" : undefined}>
+                  <li key={step.id} className={styles.step} data-step-status={step.status} aria-current={step.status === "current" || step.status === "stopped" ? "step" : undefined}>
                     {step.text}
                   </li>
                 ))}
