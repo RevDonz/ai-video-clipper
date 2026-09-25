@@ -606,6 +606,24 @@ test("the client reports failures as messages and tolerates odd bodies", async (
   await assert.rejects(aborted.loadTrends(), { name: "AbortError" });
 });
 
+test("the client marks the field named by the server's 422 issues and token label errors", async () => {
+  const { fetchImpl } = mockFetch([
+    { status: 422, body: { error: "Item tren belum valid.", code: "invalid_item", issues: [{ field: "keywords[1]", code: "invalid_length" }, { field: "title", code: "missing_field" }] } },
+    { status: 422, body: { error: "Item tren belum valid.", code: "invalid_item", issues: [{ field: "examples[0].url", code: "invalid_value" }, { field: "hashtags[2]", code: "invalid_value" }] } },
+    { status: 422, body: { error: "Item tren belum valid.", code: "invalid_item", issues: [{ field: null, code: "invalid_item" }] } },
+    { status: 422, body: { error: "Label token wajib diisi.", code: "invalid_label" } },
+    { status: 409, body: { error: "Label ini sudah dipakai token aktif lain.", code: "label_taken" } },
+  ]);
+  const api = createTrendApi(fetchImpl);
+  assert.equal((await api.createTrend({})).field, "keywords");
+  assert.equal((await api.updateTrend("a", {})).field, "hashtags", "the first issue on a field the form shows");
+  assert.equal((await api.createTrend({})).field, null);
+  assert.equal((await api.createToken("")).field, "label");
+  const taken = await api.createToken("Hermes");
+  assert.equal(taken.field, "label");
+  assert.equal(taken.error, "Label ini sudah dipakai token aktif lain.");
+});
+
 // --- "Nyambung tren" chips on V3 clips ------------------------------------------------------
 
 test("clips without trends get no chips (nothing changes for them)", () => {
