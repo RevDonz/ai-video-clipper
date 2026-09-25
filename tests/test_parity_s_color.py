@@ -94,3 +94,31 @@ def test_cost_graphs_use_the_candidate_and_r7_encode() -> None:
     assert "gblur" not in s_color.cost_graph("yuv420p", layout="fill_center", ass="ass=x")
     with pytest.raises(ValueError):
         s_color.cost_graph("gbrp", layout="camera", ass="ass=x")
+
+
+def test_recommendation_when_p_enc_fails_for_every_candidate() -> None:
+    # The final 4:2:0 + H.264 step is common to every candidate, so a P-ENC failure shared by
+    # all of them cannot rank them: the recommendation falls back to P-TXT and P-COLOR and
+    # names P-ENC as open. It never overrides the rule when a candidate passes everything.
+    candidates = {
+        "yuv420p": _candidate(cost=10.0, ptxt=False, pcolor=False, penc=False),
+        "yuv444p": _candidate(cost=10.1, ptxt=False, pcolor=False, penc=False),
+        "gbrp": _candidate(cost=11.2, penc=False),
+    }
+    decision = s_color.decide(candidates)
+    assert decision["format"] is None
+    assert s_color.recommend(candidates, decision) == {
+        "format": "gbrp", "basis": "p_enc_fails_for_every_candidate", "open_gates": ["p_enc"]}
+    candidates["gbrp"]["p_color_pass"] = False
+    decision = s_color.decide(candidates)
+    assert s_color.recommend(candidates, decision) == {
+        "format": None, "basis": "none_passed", "open_gates": ["p_txt", "p_color", "p_enc"]}
+    candidates["yuv444p"] = _candidate(cost=10.1)
+    decision = s_color.decide(candidates)
+    assert s_color.recommend(candidates, decision) == {
+        "format": "yuv444p", "basis": "cheapest_passing", "open_gates": []}
+    # One candidate passes P-ENC but fails another gate: P-ENC can rank, so nothing is chosen.
+    candidates = {"yuv420p": _candidate(cost=10.0, ptxt=False),
+                  "gbrp": _candidate(cost=11.0, penc=False)}
+    decision = s_color.decide(candidates)
+    assert s_color.recommend(candidates, decision)["format"] is None
