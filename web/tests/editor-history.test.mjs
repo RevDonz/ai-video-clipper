@@ -146,6 +146,27 @@ test("undo past a save is logged as a part restore; redo pops it", () => {
   assert.equal(canonicalJson(session.doc), canonicalJson(saved));
 });
 
+test("after a reset with a part restore, undo and redo keep the log replayable", () => {
+  let t = 0;
+  const session = createEditSession({ doc: C30.seed, ctx: C30.ctx, now: () => (t += 1000) });
+  session.dispatch("SetLayout", { mode: "camera" });
+  session.seal();
+  const saved = session.doc;
+  session.saved(session.pending.length);
+  session.undo();
+  session.dispatch("SetHookY", { y_e5: 22000 });
+  const steps = session.pending;
+  assert.deepEqual(steps.map((step) => step.type), ["__parts", "SetHookY"]);
+  session.reset({ base: saved, steps });
+  assert.equal(session.pending[0].undo, undefined, "a replayed restore is an ordinary step");
+  const final = contentJson(session.doc);
+  while (session.undo()) { /* back to the base */ }
+  assert.equal(contentJson(session.doc), contentJson(saved));
+  while (session.redo()) { /* forward again */ }
+  assert.equal(contentJson(session.doc), final);
+  assert.equal(contentJson(replaySteps(saved, session.pending, C30.ctx).doc), final);
+});
+
 test("QG-UNDO: 10,000 random sequences, undo-all = initial and redo-all = final", () => {
   const contexts = [loadContext("c30"), loadContext("c25"), loadContext("c24")];
   const summary = runUndoProperty({ contexts, sequences: 10000, seed: 20260925 });
