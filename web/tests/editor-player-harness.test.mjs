@@ -137,3 +137,38 @@ test("the fixtures route serves plate cells, mixes, reference PCM and the player
     rmSync(root, { recursive: true });
   }
 });
+
+test("the fixtures route answers byte ranges, so a <video> of the auto render can seek", async () => {
+  const root = mkdtempSync(path.join(tmpdir(), "player-fixtures-"));
+  try {
+    mkdirSync(path.join(root, "player", "cfr"), { recursive: true });
+    writeFileSync(path.join(root, "player", "cfr", "auto.mp4"), Buffer.from("0123456789"));
+    await withEnv({ ...SECRET_ENV, POTONGIN_PARITY_FIXTURES: root, POTONGIN_PARITY_HARNESS: "1" }, async () => {
+      const file = "player/cfr/auto.mp4";
+      const whole = await GET(request(file), context(file));
+      assert.equal(whole.status, 200);
+      assert.equal(whole.headers.get("accept-ranges"), "bytes");
+      const ranged = (range) => {
+        const req = request(file);
+        const headers = new Headers(req.headers);
+        headers.set("range", range);
+        return GET(new Request(req.url, { headers }), context(file));
+      };
+      const part = await ranged("bytes=2-5");
+      assert.equal(part.status, 206);
+      assert.equal(part.headers.get("content-range"), "bytes 2-5/10");
+      assert.equal(part.headers.get("content-length"), "4");
+      assert.equal(await part.text(), "2345");
+      const open = await ranged("bytes=7-");
+      assert.equal(open.status, 206);
+      assert.equal(await open.text(), "789");
+      const suffix = await ranged("bytes=-3");
+      assert.equal(await suffix.text(), "789");
+      const outside = await ranged("bytes=20-30");
+      assert.equal(outside.status, 416);
+      assert.equal(outside.headers.get("content-range"), "bytes */10");
+    });
+  } finally {
+    rmSync(root, { recursive: true });
+  }
+});

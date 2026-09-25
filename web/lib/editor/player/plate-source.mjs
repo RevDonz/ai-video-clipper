@@ -4,14 +4,16 @@
 // * A plate cell is one MP4 (H.264, IDR at the cell start, no B-frames) holding source-grid
 //   frames [k·C, (k+1)·C) of the layout graph at the output size, timestamps from 0. Frame j of
 //   cell k is the sample at (j + 0.5)·den/num.
-// * Frames are decoded sequentially (VideoSampleSink.samples from the first needed frame; a
-//   random getSample re-decodes from the IDR on every call) and kept as ImageBitmaps in an LRU of
-//   `capacity` (90) frames; the VideoFrames go back to the decoder at once, so a hardware decoder
-//   never runs out of output buffers.
+// * Decode-ahead decodes sequentially (VideoSampleSink.samples from the first needed frame; a
+//   getSample per frame would re-decode from the IDR every time). Frames are kept as owned I420
+//   copies (copyFrame) in an LRU of `capacity` (90) frames; the decoder's frames go back at once.
 // * `ensure(schedule)` takes the decode-ahead schedule (frame-map.decodeSchedule): cells in
 //   first-need order, each decoded in one pass over the union of its needed frames; the frames of
 //   the schedule are protected from eviction. At most `maxDecoders` cells decode at once; a
 //   decoder already past a newly needed frame leaves it to a follow-up pass.
+// * `need(k, j)` is a frame the stage waits for: it starts at once (a lone frame with getSample,
+//   which decodes from the IDR and flushes), promotes a pass already heading for it, and with
+//   `exclusive` (a paused seek) stops the decode-ahead of the previous position.
 // * A new plate key (a layout change) flushes every frame and ignores decodes still running.
 
 import { cellFramesFor, sampleIndex, sampleTimestamp } from "./frame-map.mjs";
@@ -70,8 +72,54 @@ export function createFrameCache({ capacity = 90, onEvict = () => {} } = {}) {
   };
 }
 
-function defaultCreateBitmap(frame) {
-  return createImageBitmap(frame);
+/**
+ * An owned copy of a decoded frame: the visible I420 planes copied into our own buffer
+ * (1.4 MB at 720×1280, against 3.7 MB for an RGBA ImageBitmap) with the same colour space. The
+ * decoder's frame can then be closed at once, so a hardware decoder never runs out of output
+ * buffers while 90 frames are cached. Canvas2D draws the copy with the same pixels as an
+ * ImageBitmap of the original (measured: 60 of 60 frames identical in Chrome 147); converting
+ * at draw time costs ≈ 8 ms per shown frame instead of ≈ 10 ms per decoded frame in
+ * createImageBitmap.
+ */
+export async function copyFrame(frame, VideoFrameImpl = globalThis.VideoFrame, pool = null) {
+  const rect = frame.visibleRect;
+  const size = frame.allocationSize();
+  const data = pool ? pool.acquire(size) : new Uint8Array(size);
+  try {
+    const layout = await frame.copyTo(data);
+    const colorSpace = typeof frame.colorSpace?.toJSON === "function" ? frame.colorSpace.toJSON() : frame.colorSpace;
+    // The VideoFrame constructor copies the planes (WebCodecs), so the scratch can be reused.
+    return new VideoFrameImpl(data, {
+      format: frame.format, codedWidth: rect.width, codedHeight: rect.height, timestamp: frame.timestamp,
+      layout, colorSpace,
+    });
+  } finally {
+    pool?.release(data);
+  }
+}
+
+/**
+ * Scratch buffers for copyFrame: a copy used to allocate a fresh 1.4 MB ArrayBuffer per decoded
+ * frame (≈ 45 MB/s while playing), garbage that can stop the main thread for a GC.
+ */
+export function createScratchPool({ limit = 4 } = {}) {
+  const free = [];
+  const pool = {
+    created: 0,
+    acquire(size) {
+      const index = free.findIndex((buffer) => buffer.byteLength === size);
+      if (index >= 0) return free.splice(index, 1)[0];
+      pool.created += 1;
+      return new Uint8Array(size);
+    },
+    release(buffer) {
+      if (free.length < limit) free.push(buffer);
+    },
+    get size() {
+      return free.length;
+    },
+  };
+  return pool;
 }
 
 // Decoded samples arrive in bursts; converting them back to back in one microtask run made
@@ -89,7 +137,7 @@ const frameKey = (k, j) => `${k}:${j}`;
 export function createPlateSource({
   fetchImpl = globalThis.fetch?.bind(globalThis),
   loadMediabunny = () => import("mediabunny"),
-  createBitmap = defaultCreateBitmap,
+  retainFrame = null,
   yieldTask = defaultYield,
   now = () => (globalThis.performance ? globalThis.performance.now() : Date.now()),
   fps,
@@ -103,6 +151,8 @@ export function createPlateSource({
   let destroyed = false;
   let mediabunny = null;
   const cache = createFrameCache({ capacity, onEvict: (_key, bitmap) => bitmap?.close?.() });
+  const scratch = createScratchPool({ limit: maxDecoders + 1 });
+  const retain = retainFrame ?? ((frame) => copyFrame(frame, globalThis.VideoFrame, scratch));
   const buffers = new Map(); // k → Promise<ArrayBuffer>, oldest first
   const jobs = new Map(); // k → the latest pass over cell k (queued or running)
   const active = new Set(); // running passes
@@ -177,12 +227,12 @@ export function createPlateSource({
     return promise;
   }
 
-  /** Converts sample j of the job's cell to a bitmap and caches it; false when the plate changed. */
+  /** Keeps sample j of the job's cell (an owned copy) in the cache; false when the plate changed. */
   async function keep(job, j, sample) {
     const frame = sample.toVideoFrame();
     let bitmap;
     try {
-      bitmap = await createBitmap(frame);
+      bitmap = await retain(frame);
     } finally {
       frame.close?.();
     }
