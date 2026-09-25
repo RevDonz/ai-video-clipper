@@ -12,6 +12,8 @@ import {
   MEDIA_KINDS,
   RESOURCE_KINDS,
   clipMediaResponse,
+  fileHandleStream,
+  openClipFile,
   mediaFile,
   resourceFile,
   resourceResponse,
@@ -137,6 +139,39 @@ test("a plate cell is served with immutable caching, nosniff, CORP and ranges", 
     assert.equal(head.status, 200);
     assert.equal(head.headers.get("content-length"), String(bytes.length));
     assert.equal(await head.text(), "");
+  } finally {
+    cleanup();
+  }
+});
+
+test("a streamed file is closed exactly once: at the end, on cancel and on abort", async () => {
+  const { root, bytes, cleanup } = jobsRoot();
+  const spec = MEDIA_KINDS.plates;
+  const name = `${KEY16}-c0000620.mp4`;
+  try {
+    const whole = await openClipFile(root, JOB, CLIP, spec, name);
+    const read = Buffer.from(await new Response(fileHandleStream(whole.handle, 0, bytes.length - 1)).arrayBuffer());
+    assert.deepEqual(read, bytes);
+    assert.equal(whole.handle.fd, -1, "closed after the last byte");
+
+    const part = await openClipFile(root, JOB, CLIP, spec, name);
+    const middle = Buffer.from(await new Response(fileHandleStream(part.handle, 100, 199)).arrayBuffer());
+    assert.deepEqual(middle, bytes.subarray(100, 200));
+    assert.equal(part.handle.fd, -1);
+
+    const cancelled = await openClipFile(root, JOB, CLIP, spec, name);
+    const reader = fileHandleStream(cancelled.handle, 0, bytes.length - 1).getReader();
+    await reader.read();
+    await reader.cancel();
+    assert.equal(cancelled.handle.fd, -1, "closed on cancel");
+
+    const aborted = await openClipFile(root, JOB, CLIP, spec, name);
+    const controller = new AbortController();
+    const stream = fileHandleStream(aborted.handle, 0, bytes.length - 1, controller.signal);
+    controller.abort();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(aborted.handle.fd, -1, "closed on abort");
+    await assert.rejects(new Response(stream).arrayBuffer());
   } finally {
     cleanup();
   }
