@@ -19,6 +19,9 @@ no face was found) and ``cuts`` the scene-change flags.
   today's ``face_tracking.detect_face_track``: it smooths internally and never reports a miss,
   so its centres are stored as returned and ``no_face`` stays empty until it accepts
   ``smooth=False`` (requested from the integrator; T3.6 owns the detector in W3).
+* A detector that accepts a ``sequential`` keyword is called with ``sequential=True``: it
+  decodes the window once instead of seeking per sample (W1 integration: a 3 min window of a
+  long-GOP AV1 720p source took 16.35 s with per-sample seeks, budget 15 s).
 
 ``samples`` are ``[t_ms, centre_pm]`` with ``t_ms = a + ms_from_seconds(time)`` and
 ``centre_pm = round_half_up(centre · 1000)``; ``source_content_sha256`` is the sha256 of the
@@ -59,12 +62,12 @@ def camera_file_name(raw: bytes) -> str:
     return f"camera.{hashlib.sha256(raw).hexdigest()[:16]}.json"
 
 
-def _accepts_smooth(detector: Callable) -> bool:
+def _accepts(detector: Callable, keyword: str) -> bool:
     try:
         parameters = inspect.signature(detector).parameters
     except (TypeError, ValueError):
         return False
-    return "smooth" in parameters
+    return keyword in parameters
 
 
 def _checked(result: object) -> tuple[list[float], list[float | None], list[bool], int, int]:
@@ -135,8 +138,10 @@ def build_camera_plan(
     fps = Fps.from_json(fps)
     source = Path(source)
     content_sha = file_sha256(source)
-    raw_capable = _accepts_smooth(detector)
+    raw_capable = _accepts(detector, "smooth")
     options: dict[str, Any] = {"smooth": False} if raw_capable else {}
+    if _accepts(detector, "sequential"):
+        options["sequential"] = True
     result = detector(source, start=a / 1000, end=b / 1000, sample_interval=SAMPLE_MS / 1000,
                       **options)
     times, centres, cuts, width, height = _checked(result)

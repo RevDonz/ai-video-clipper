@@ -133,22 +133,23 @@ def test_a_detector_that_can_decode_sequentially_is_asked_to(source):
     assert seen == {"smooth": False, "sequential": True}
 
 
-class CountingCapture:
-    """Wraps ``cv2.VideoCapture`` and counts the seeks."""
+def counting_capture(real):
+    """A stand-in for ``cv2.VideoCapture`` that wraps ``real`` and counts the seeks."""
 
-    seeks = 0
+    class Capture:
+        seeks = 0
 
-    def __init__(self, *args):
-        import cv2
+        def __init__(self, *args):
+            self._inner = real(*args)
 
-        self._inner = cv2.VideoCapture(*args)
+        def set(self, prop, value):
+            type(self).seeks += 1
+            return self._inner.set(prop, value)
 
-    def set(self, prop, value):
-        type(self).seeks += 1
-        return self._inner.set(prop, value)
+        def __getattr__(self, name):
+            return getattr(self._inner, name)
 
-    def __getattr__(self, name):
-        return getattr(self._inner, name)
+    return Capture
 
 
 def test_todays_detector_decodes_the_window_once_in_sequential_mode(tmp_path, edit_v2_ffmpeg,
@@ -159,7 +160,7 @@ def test_todays_detector_decodes_the_window_once_in_sequential_mode(tmp_path, ed
     cv2 = pytest.importorskip("cv2")
     from support import edit_v2_media as media
 
-    import ai_clipper.face_tracking as face_tracking
+    from ai_clipper import face_tracking
 
     path = media.make_barcode_video(
         tmp_path / "cuts.mp4",
@@ -167,9 +168,7 @@ def test_todays_detector_decodes_the_window_once_in_sequential_mode(tmp_path, ed
                         gop=250, audio=None),
     )
 
-    class Capture(CountingCapture):
-        seeks = 0
-
+    Capture = counting_capture(cv2.VideoCapture)
     monkeypatch.setattr(cv2, "VideoCapture", Capture)
     sequential = face_tracking.detect_face_track(path, start=0.4, end=5.4, smooth=False,
                                                  sequential=True)
