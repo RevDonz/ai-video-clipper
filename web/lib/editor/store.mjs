@@ -518,6 +518,10 @@ export function createEditorStore({
         revision: current.doc.revision, readOnlyReason: current.readOnlyReason, notices: current.notices,
         engine: current.engine, ...docState(), save: "saved",
       });
+      // Destroyed while loading (React StrictMode's mount/unmount/mount in development, or a
+      // quick navigation): joining the channel now would answer the live store as a ghost
+      // "other tab" (T2.Z).
+      if (destroyed) return;
       openChannel();
       attachLifecycle();
       if (!current.readOnly) await restoreDrafts(current.doc, current.etag);

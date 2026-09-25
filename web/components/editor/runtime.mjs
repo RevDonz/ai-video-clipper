@@ -156,6 +156,7 @@ export function createPlayerFacade(bus, { onError = () => {} } = {}) {
     step: (delta) => guard("step", (target) => target.step(delta)),
     showTruthFrame: (frame) => guard("showTruthFrame", (target) => target.showTruthFrame(frame)),
     state() { return player ? player.state() : null; },
+    stats() { return typeof player?.stats === "function" ? player.stats() : null; },
     frame: () => bus.get(),
     subscribeFrame: (listener) => bus.subscribe(listener),
   };
