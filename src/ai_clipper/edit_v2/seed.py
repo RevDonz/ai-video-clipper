@@ -29,6 +29,14 @@ take the dashboard's V3 defaults) plus optional seed-context keys that never occ
   without it.
 * The hook text is ``clean_caption_text`` in NFC, shortened to 90 characters like the renderer;
   ``dur_f`` is clamped to the document's 15 … ``⌊30·F⌋`` frames.
+* Segment edges and the window stay inside the source-grid frames that exist
+  (``source_info.grid_range``, measured once per source): a clip that starts before the
+  video's first grid frame (a video that starts at 0.041 s has no frame 0) starts at it, and one
+  that ends at the end of the source stops at the last grid frame (``sf_ceil`` of the rounded-up
+  ``duration_ms`` can be one frame past it). The window is narrowed to
+  ``[⌈first·1000·den/num⌉, ⌊end·1000·den/num⌋]`` ms, so the validator's frame-covering window
+  (``[sf_floor(a), sf_ceil(b)]``) is exactly the frames that exist at the edges and a document
+  that validates renders every planned frame. A cold open is clamped the same way.
 * A body shorter than 3 s, longer than 300 s or beyond the source raises :class:`SeedError`.
 
 :func:`prepare_legacy_job` persists ``analysis/source.json``, then per clip the peaks, the words
@@ -87,6 +95,7 @@ from .source_info import (
     canonical_json,
     ensure_private_dir,
     ensure_source_info,
+    grid_range,
     read_regular,
     sha256_hex,
     write_immutable,
@@ -166,9 +175,31 @@ def seed_window_ms(
     return max(0, low - WINDOW_MARGIN_MS), min(duration_ms, high + WINDOW_MARGIN_MS)
 
 
+def grid_window_ms(window_ms: tuple[int, int], grid: tuple[int, int],
+                   fps: Fps) -> tuple[int, int]:
+    """``window_ms`` narrowed to the source-grid frames ``[first, end)`` that exist: the start
+    of frame ``first`` rounded up to whole ms and the start of frame ``end`` rounded down, so
+    ``sf_floor(a) >= first`` and ``sf_ceil(b) <= end`` (exactly those at the edges)."""
+    first, end = grid
+    low = -(-first * 1000 * fps.den // fps.num)
+    high = end * 1000 * fps.den // fps.num
+    a, b = max(window_ms[0], low), min(window_ms[1], high)
+    if a >= b:
+        raise SeedError("the clip lies outside the frames of the source")
+    return a, b
+
+
 def encode_seed(seed: Mapping[str, Any]) -> bytes:
     """The seed file bytes (plan §3.1 canonical JSON)."""
     return canonical_json(seed)
+
+
+def seed_sha256(seed: Mapping[str, Any]) -> str:
+    """``base.seed_sha256``: sha256 of the seed's canonical bytes with that field null
+    (CONTRACTS §5.6)."""
+    content = dict(seed)
+    content["base"] = {**seed["base"], "seed_sha256": None}
+    return sha256_hex(encode_seed(content))
 
 
 @dataclass(frozen=True)
@@ -243,6 +274,13 @@ def _source(source_info: Mapping) -> dict[str, Any]:
     return {"content_sha256": sha, **fields, "fps_native": [fps[0], fps[1]]}
 
 
+def _grid(source_info: Mapping, fps: Fps) -> tuple[int, int]:
+    try:
+        return grid_range(source_info["probe"], fps)
+    except (SourceInfoError, KeyError, TypeError):
+        raise SeedError("source_info must hold the source frame grid (probe.grid_sf)") from None
+
+
 @dataclass(frozen=True)
 class _ClipPlan:
     clip_id: str
@@ -253,8 +291,9 @@ class _ClipPlan:
 
 
 def _teaser_frames(teaser_ms: tuple[int, int], body_in: int, fps: Fps,
-                   duration_ms: int) -> tuple[int, int] | None:
-    co_in, co_out = tm.sf_floor(teaser_ms[0], fps), tm.sf_ceil(teaser_ms[1], fps)
+                   duration_ms: int, grid: tuple[int, int]) -> tuple[int, int] | None:
+    co_in = max(tm.sf_floor(teaser_ms[0], fps), grid[0])
+    co_out = min(tm.sf_ceil(teaser_ms[1], fps), grid[1])
     longest, shortest = tm.sf_floor(8000, fps), tm.sf_ceil(500, fps)
     co_out = min(co_out, co_in + longest)
     length = co_out - co_in
@@ -267,26 +306,29 @@ def _teaser_frames(teaser_ms: tuple[int, int], body_in: int, fps: Fps,
     return co_in, co_out
 
 
-def _clip_plan(clip: SelectedClip, context: _Context, source: Mapping[str, Any]) -> _ClipPlan:
+def _clip_plan(clip: SelectedClip, context: _Context, source: Mapping[str, Any],
+               source_info: Mapping) -> _ClipPlan:
     fps = output_fps(source)
+    grid = _grid(source_info, fps)
     start_ms, end_ms = ms_from_seconds(clip.start), ms_from_seconds(clip.end)
     duration_ms = source["duration_ms"]
     if end_ms > duration_ms:
         raise SeedError("the clip ends after the source")
-    body_in, body_out = tm.sf_floor(start_ms, fps), tm.sf_ceil(end_ms, fps)
+    body_in = max(tm.sf_floor(start_ms, fps), grid[0])
+    body_out = min(tm.sf_ceil(end_ms, fps), grid[1])
     if not tm.sf_ceil(3000, fps) <= body_out - body_in <= tm.sf_floor(300_000, fps):
         raise SeedError("the body must last 3 s to 300 s")
     teaser_ms = None
     segments: list[dict[str, Any]] = []
     if context.cold_open and clip.cold_open is not None:
         candidate = (ms_from_seconds(clip.cold_open[0]), ms_from_seconds(clip.cold_open[1]))
-        frames = _teaser_frames(candidate, body_in, fps, duration_ms)
+        frames = _teaser_frames(candidate, body_in, fps, duration_ms, grid)
         if frames is not None:
             teaser_ms = candidate
             segments.append({"id": "seg_co", "role": "cold_open", "in_sf": frames[0],
                              "out_sf": frames[1]})
     segments.append({"id": "seg_b1", "role": "body", "in_sf": body_in, "out_sf": body_out})
-    window = seed_window_ms(start_ms, end_ms, teaser_ms, duration_ms)
+    window = grid_window_ms(seed_window_ms(start_ms, end_ms, teaser_ms, duration_ms), grid, fps)
     low, high = tm.sf_floor(window[0], fps), tm.sf_ceil(window[1], fps)
     if any(not low <= segment["in_sf"] < segment["out_sf"] <= high for segment in segments):
         raise SeedError("the clip lies outside its analysis window")
@@ -329,7 +371,7 @@ def build_seed(
         raise SeedError("words_count must be a non-negative integer")
     if (context.layout == "camera") != (camera_sha is not None):
         raise SeedError("a camera plan is required for, and only for, the face-track layout")
-    plan = _clip_plan(clip, context, source)
+    plan = _clip_plan(clip, context, source, source_info)
     fps = plan.fps
     tracks: list[dict[str, Any]] = []
     text = _hook_text(clip.hook_text) if context.hook else ""
@@ -389,7 +431,7 @@ def build_seed(
         "audit": {"created_at_ms": context.seed_at_ms, "updated_at_ms": context.seed_at_ms,
                   "editor": EDITORS[context.by], "last_command": "Seed"},
     }
-    seed["base"]["seed_sha256"] = sha256_hex(encode_seed(seed))
+    seed["base"]["seed_sha256"] = seed_sha256(seed)
     return seed
 
 
@@ -591,7 +633,7 @@ def inspect_job(job_dir: Path) -> list[dict]:
     entries = []
     for clip in state.selection.clips:
         try:
-            plan = _clip_plan(clip, state.context, source)
+            plan = _clip_plan(clip, state.context, source, info)
         except SeedError:
             entries.append(_entry(None, clip.rank, "selection_unreadable"))
             continue
@@ -639,7 +681,7 @@ def _prepare_clip(job_dir: Path, state: _JobState, clip: SelectedClip, source_in
                   transcription: Any, audio: Any, events: Any) -> dict[str, Any]:
     context = state.context
     try:
-        plan = _clip_plan(clip, context, _source(source_info))
+        plan = _clip_plan(clip, context, _source(source_info), source_info)
     except SeedError:
         return _entry(None, clip.rank, "selection_unreadable")
     clip_dir = job_dir / CLIPS_RELATIVE_PATH / plan.clip_id
@@ -715,8 +757,10 @@ __all__ = [
     "SeedError",
     "build_seed",
     "encode_seed",
+    "grid_window_ms",
     "inspect_job",
     "output_fps",
     "prepare_legacy_job",
+    "seed_sha256",
     "seed_window_ms",
 ]

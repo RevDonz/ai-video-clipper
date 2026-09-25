@@ -4,7 +4,7 @@ Owner: T1.5 (plan §4.1, §2.5, §3.5). The file is ``{content_sha256, probe}`` 
 (plan §3.1 encoding), 0600, and is never rewritten: a later code change cannot move a clip id
 (clip ids hash the content sha) or the seed's ``base.source``.
 
-``probe`` (``version`` 1) summarises the selected video stream (the default-disposition video
+``probe`` (``version`` 2) summarises the selected video stream (the default-disposition video
 stream that is not cover art, else the first) and audio stream (default, else the first):
 
 * ``w``, ``h``: display size (swapped for a ±90° rotation); ``rotation`` in degrees;
@@ -14,9 +14,22 @@ stream that is not cover art, else the first) and audio stream (default, else th
   ``fps_native`` by more than one time-base tick and 0.5 ms. Matroska files report their nominal
   rate even after frames were dropped, so the rates alone cannot tell;
 * ``duration_ms``: the video stream duration (else the container's), rounded up to whole ms;
+* ``grid_sf``: ``[[num, den, first_sf, end_sf], …]`` for every document rate (``DOC_FPS``
+  order): the source-grid frames ``[first_sf, end_sf)`` that exist, measured with the compiler's
+  own decode (plan §5.2 R1: ``-ss``, ``-copyts``, ``fps=num/den``) at the start and the end of
+  the video. ``duration_ms`` cannot tell: it is rounded up (``sf_ceil`` of it can point one frame
+  past the last frame) and says nothing about a video that starts after t = 0 (a download whose
+  video starts at 0.041 s has no grid frame 0). The seed keeps every segment and its window
+  inside this range (:func:`grid_range`; ``seed.py``);
 * ``has_audio``, ``video_stream``, ``audio_stream``, ``video_codec``, ``pix_fmt``, the four
   ``color_*`` tags (or null), ``audio_sample_rate``, ``audio_channels``, ``size_bytes``,
   ``frame_steps`` and ``irregular_frame_steps``.
+
+A version-1 file (no ``grid_sf``) is refused, not trusted: none was written outside W1
+development, and its seeds could reach past the frames that exist.
+
+FFmpeg and ffprobe run with ``-protocol_whitelist file,pipe`` and an allowlisted environment
+(plan §5.2 R8, §9.1).
 
 This module also holds the small file helpers every T1.5 artifact uses: canonical JSON,
 bounded no-follow reads, and immutable no-clobber publication (temporary file, fsync, ``link``,
@@ -35,6 +48,7 @@ import secrets
 import shutil
 import stat
 import subprocess
+import tempfile
 from collections.abc import Mapping, Sequence
 from decimal import ROUND_CEILING, Decimal, InvalidOperation
 from fractions import Fraction
@@ -42,18 +56,24 @@ from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
+from . import DOC_FPS
+
 SOURCE_INFO_RELATIVE_PATH = Path("analysis") / "source.json"
 MAX_SOURCE_INFO_BYTES = 64 * 1024
-PROBE_VERSION = 1
+PROBE_VERSION = 2
 FFPROBE_TIMEOUT_S = 120.0
+GRID_TIMEOUT_S = 300.0
+GRID_TAIL_MS = 3000  # the end of the grid is measured over the last 3 s of the video
+GRID_THREADS = 4
 VFR_IRREGULAR_RATIO = Fraction(1, 200)  # more than 0.5 % irregular frame steps
+PROTOCOL_WHITELIST = ("-protocol_whitelist", "file,pipe")
 _HASH_CHUNK = 1 << 20
 _PROBE_KEYS = frozenset(
     {
         "version", "w", "h", "fps_native", "vfr", "duration_ms", "has_audio", "video_stream",
         "audio_stream", "video_codec", "pix_fmt", "color_space", "color_primaries",
         "color_transfer", "color_range", "rotation", "audio_sample_rate", "audio_channels",
-        "size_bytes", "frame_steps", "irregular_frame_steps",
+        "size_bytes", "frame_steps", "irregular_frame_steps", "grid_sf",
     }
 )  # fmt: skip
 _STREAM_ENTRIES = (
@@ -256,15 +276,108 @@ def _tool(name: str) -> str:
     return path
 
 
+def child_env() -> dict[str, str]:
+    """The environment of an FFmpeg/ffprobe child that reads a job source: an allowlist
+    (plan §9.1, E11), nothing else of the parent's environment."""
+    return {"PATH": os.environ.get("PATH", os.defpath), "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8"}
+
+
 def _run_probe(argv: list[str]) -> str:
     try:
         result = subprocess.run(argv, capture_output=True, text=True, check=False,
-                                timeout=FFPROBE_TIMEOUT_S, stdin=subprocess.DEVNULL)
+                                timeout=FFPROBE_TIMEOUT_S, stdin=subprocess.DEVNULL,
+                                env=child_env())
     except subprocess.TimeoutExpired:
         raise SourceInfoError("ffprobe timed out") from None
     if result.returncode != 0:
         raise SourceInfoError("ffprobe could not read the source")
     return result.stdout
+
+
+def _grid_pts(ffmpeg: str, source: Path, video_stream: int, seek_ms: int, *,
+              first_only: bool) -> list[list[int]]:
+    """Grid indices (``pts`` after ``fps=num/den`` with ``-copyts``) per document rate, from
+    ``seek_ms`` on: only the first one, or all of them to the end of the video."""
+    labels = "".join(f"[s{i}]" for i in range(len(DOC_FPS)))
+    graph = [f"[0:{video_stream}]scale=16:16,format=gray,split={len(DOC_FPS)}{labels}"]
+    graph += [f"[s{i}]fps={num}/{den}[o{i}]" for i, (num, den) in enumerate(DOC_FPS)]
+    seek = f"{seek_ms // 1000}.{seek_ms % 1000:03d}"
+    with tempfile.TemporaryDirectory(prefix="edit-v2-grid-") as scratch:
+        argv = [ffmpeg, "-nostdin", "-hide_banner", "-loglevel", "error", "-threads",
+                str(GRID_THREADS), *PROTOCOL_WHITELIST, "-ss", seek, "-copyts", "-i", str(source),
+                "-filter_complex_threads", str(GRID_THREADS), "-filter_complex", ";".join(graph)]
+        for i in range(len(DOC_FPS)):
+            argv += ["-map", f"[o{i}]", *(("-frames:v", "1") if first_only else ()),
+                     "-f", "framemd5", os.path.join(scratch, f"grid{i}.txt")]
+        try:
+            result = subprocess.run(argv, capture_output=True, check=False, cwd=scratch,
+                                    timeout=GRID_TIMEOUT_S, stdin=subprocess.DEVNULL,
+                                    env=child_env())
+        except subprocess.TimeoutExpired:
+            raise SourceInfoError("the frame grid could not be measured in time") from None
+        if result.returncode != 0:
+            raise SourceInfoError("the frame grid could not be measured")
+        grids = []
+        for i in range(len(DOC_FPS)):
+            text = Path(scratch, f"grid{i}.txt").read_text(encoding="ascii", errors="replace")
+            pts = []
+            for line in text.splitlines():
+                fields = [field.strip() for field in line.split(",")]
+                if line.startswith("#") or len(fields) < 3:
+                    continue
+                value = _int_or_none(fields[2])
+                if value is None:
+                    raise SourceInfoError("the frame grid could not be measured")
+                pts.append(value)
+            grids.append(pts)
+    return grids
+
+
+def measure_grid(source: Path, *, video_stream: int, duration_ms: int) -> list[list[int]]:
+    """``[[num, den, first_sf, end_sf], …]``: the source-grid frames that exist at every
+    document rate (see the module docstring).
+
+    The first frame is decoded like a piece that starts near t = 0 (R1's ``-ss 0``, which
+    also drops frames an edit list puts before t = 0); the last frames like a piece that runs
+    to the end (the ``fps`` filter's end-of-stream rounding decides whether the last source
+    frame fills one more grid frame). Both runs use ``-copyts``, as every decoder run does.
+    """
+    ffmpeg = _tool("ffmpeg")
+    heads = _grid_pts(ffmpeg, source, video_stream, 0, first_only=True)
+    tails = _grid_pts(ffmpeg, source, video_stream, max(0, duration_ms - GRID_TAIL_MS),
+                      first_only=False)
+    grid = []
+    for (num, den), head, tail in zip(DOC_FPS, heads, tails, strict=True):
+        if not head or not tail:
+            raise SourceInfoError("the source has no decodable video frames")
+        first, end = max(0, head[0]), tail[-1] + 1
+        if end <= first or any(b != a + 1 for a, b in pairwise(tail)):
+            raise SourceInfoError("the frame grid is not contiguous")
+        grid.append([num, den, first, end])
+    return grid
+
+
+def _valid_grid(value: object) -> bool:
+    if type(value) is not list or len(value) != len(DOC_FPS):
+        return False
+    for entry, (num, den) in zip(value, DOC_FPS, strict=True):
+        if (type(entry) is not list or len(entry) != 4
+                or not all(type(item) is int for item in entry)
+                or entry[:2] != [num, den] or not 0 <= entry[2] < entry[3]):
+            return False
+    return True
+
+
+def grid_range(probe: Mapping[str, Any], fps: Any) -> tuple[int, int]:
+    """``(first_sf, end_sf)`` of the source-grid frames that exist at ``fps`` (``Fps`` or
+    ``[num, den]``), from ``probe["grid_sf"]``; :class:`SourceInfoError` when not recorded."""
+    num, den = (fps.num, fps.den) if hasattr(fps, "num") else (fps[0], fps[1])
+    for entry in probe.get("grid_sf") or ():
+        if (isinstance(entry, (list, tuple)) and len(entry) == 4
+                and all(type(item) is int for item in entry) and entry[0] == num
+                and entry[1] == den and 0 <= entry[2] < entry[3]):
+            return entry[2], entry[3]
+    raise SourceInfoError(f"no frame grid recorded at {num}/{den}")
 
 
 def _rate(value: object) -> tuple[int, int] | None:
@@ -343,8 +456,8 @@ def _duration_ms(stream: Mapping[str, Any], container: Mapping[str, Any]) -> int
 
 def _packet_pts(ffprobe: str, source: Path, index: int) -> list[int]:
     output = _run_probe([
-        ffprobe, "-v", "error", "-select_streams", str(index), "-show_entries",
-        "packet=pts,dts", "-of", "csv=p=0", str(source),
+        ffprobe, "-v", "error", *PROTOCOL_WHITELIST, "-select_streams", str(index),
+        "-show_entries", "packet=pts,dts", "-of", "csv=p=0", str(source),
     ])
     values: list[int] = []
     for line in output.splitlines():
@@ -369,7 +482,8 @@ def probe_source(source: Path) -> dict[str, Any]:
     ffprobe = _tool("ffprobe")
     try:
         document = json.loads(_run_probe([
-            ffprobe, "-v", "error", "-show_entries", _STREAM_ENTRIES, "-of", "json", str(source),
+            ffprobe, "-v", "error", *PROTOCOL_WHITELIST, "-show_entries", _STREAM_ENTRIES,
+            "-of", "json", str(source),
         ]))
     except json.JSONDecodeError:
         raise SourceInfoError("ffprobe output is not JSON") from None
@@ -397,13 +511,14 @@ def probe_source(source: Path) -> dict[str, Any]:
             if other[1] < irregular:
                 rate, (steps, irregular) = average, other
     vfr = steps > 0 and Fraction(irregular, steps) > VFR_IRREGULAR_RATIO
+    duration_ms = _duration_ms(video, document.get("format") or {})
     return {
         "version": PROBE_VERSION,
         "w": width,
         "h": height,
         "fps_native": [rate[0], rate[1]],
         "vfr": vfr,
-        "duration_ms": _duration_ms(video, document.get("format") or {}),
+        "duration_ms": duration_ms,
         "has_audio": audio is not None,
         "video_stream": int(video["index"]),
         "audio_stream": None if audio is None else int(audio["index"]),
@@ -419,6 +534,8 @@ def probe_source(source: Path) -> dict[str, Any]:
         "size_bytes": info.st_size,
         "frame_steps": steps,
         "irregular_frame_steps": irregular,
+        "grid_sf": measure_grid(source, video_stream=int(video["index"]),
+                                duration_ms=duration_ms),
     }
 
 
@@ -436,7 +553,9 @@ def _valid_info(value: object) -> bool:
         return False
     fps = probe["fps_native"]
     return (
-        all(type(probe[key]) is int and probe[key] > 0 for key in ("w", "h", "duration_ms"))
+        probe["version"] == PROBE_VERSION
+        and _valid_grid(probe["grid_sf"])
+        and all(type(probe[key]) is int and probe[key] > 0 for key in ("w", "h", "duration_ms"))
         and type(probe["vfr"]) is bool
         and type(probe["has_audio"]) is bool
         and type(fps) is list and len(fps) == 2
@@ -483,10 +602,13 @@ __all__ = [
     "SOURCE_INFO_RELATIVE_PATH",
     "SourceInfoError",
     "canonical_json",
+    "child_env",
     "ensure_private_dir",
     "ensure_source_info",
     "file_sha256",
     "frame_step_irregularity",
+    "grid_range",
+    "measure_grid",
     "probe_source",
     "read_regular",
     "sha256_hex",
