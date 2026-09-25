@@ -87,6 +87,7 @@ export function createEditSession({ doc, ctx, now = () => Date.now(), limit = HI
   let current = doc;
   let history = createHistory({ limit, mergeWindowMs });
   let pending = [];
+  let protectedCount = 0; // leading steps of a PUT in flight: an undo never pops them
 
   return {
     get doc() {
@@ -126,7 +127,7 @@ export function createEditSession({ doc, ctx, now = () => Date.now(), limit = HI
       const entry = history.undo();
       if (!entry) return false;
       let tail = 0;
-      while (tail < pending.length) {
+      while (tail < pending.length - protectedCount) {
         const step = pending[pending.length - 1 - tail];
         if (step.entryId !== entry.id || step.undo) break;
         tail += 1;
@@ -143,7 +144,7 @@ export function createEditSession({ doc, ctx, now = () => Date.now(), limit = HI
       const entry = history.redo();
       if (!entry) return false;
       const last = pending.at(-1);
-      if (last && last.undo && last.entryId === entry.id) pending.pop();
+      if (last && last.undo && last.entryId === entry.id && pending.length > protectedCount) pending.pop();
       else for (const step of entry.steps) pending.push({ type: step.type, args: step.args, parts: step.parts, entryId: entry.id });
       current = entry.after;
       return true;
@@ -154,9 +155,15 @@ export function createEditSession({ doc, ctx, now = () => Date.now(), limit = HI
       history.seal();
     },
 
+    /** The first `count` pending steps are being saved: undo appends a restore instead of popping them. */
+    protect(count) {
+      protectedCount = Math.max(0, Math.min(count, pending.length));
+    },
+
     /** The first `count` pending steps are now part of the saved base. */
     saved(count) {
       pending.splice(0, count);
+      protectedCount = 0;
     },
 
     /**
@@ -167,6 +174,7 @@ export function createEditSession({ doc, ctx, now = () => Date.now(), limit = HI
     reset({ base, steps = [] }) {
       history = createHistory({ limit, mergeWindowMs });
       pending = [];
+      protectedCount = 0;
       current = base;
       let lastKey = null;
       for (const step of steps) {

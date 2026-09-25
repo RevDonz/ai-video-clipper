@@ -220,18 +220,6 @@ function setPart(doc, part, value, assets) {
     else delete edits[id];
     return { ...doc, captions: { ...doc.captions, word_edits: edits } };
   }
-  if (part.startsWith("removals:")) {
-    const segment = segmentOf(doc, part.slice(9));
-    if (!segment) return value.length ? reject("removal_outside_segment") : doc;
-    const others = doc.main.removals.filter((removal) => removal.seg !== segment.id);
-    const used = documentIds({ ...doc, main: { ...doc.main, removals: others } });
-    const added = value.map((removal) => {
-      const id = used.has(removal.id) ? nextId(used, "rm") : removal.id;
-      used.add(id);
-      return { ...removal, id, seg: segment.id };
-    });
-    return { ...doc, main: { ...doc.main, removals: [...others, ...added] } };
-  }
   if (part.startsWith("captions.override.")) {
     return { ...doc, captions: { ...doc.captions, overrides: { ...doc.captions.overrides, [part.slice(18)]: value } } };
   }
@@ -326,13 +314,46 @@ function normalize(doc, assets) {
 }
 
 /**
+ * Replaces the removal lists of whole segments (`{ role: removals }`) at once, so an id is only
+ * renamed when it collides with something that stays (never with a list being replaced).
+ */
+function setRemovalLists(doc, lists) {
+  const replaced = new Map();
+  for (const [role, value] of Object.entries(lists)) {
+    const segment = segmentOf(doc, role);
+    if (!segment) {
+      if (value.length) reject("removal_outside_segment");
+      continue;
+    }
+    replaced.set(segment.id, value);
+  }
+  if (!replaced.size) return doc;
+  const kept = doc.main.removals.filter((removal) => !replaced.has(removal.seg));
+  const used = documentIds({ ...doc, main: { ...doc.main, removals: kept } });
+  const added = [];
+  for (const [segId, value] of replaced) {
+    for (const removal of value) {
+      const id = used.has(removal.id) ? nextId(used, "rm") : removal.id;
+      used.add(id);
+      added.push({ ...removal, id, seg: segId });
+    }
+  }
+  return { ...doc, main: { ...doc.main, removals: [...kept, ...added] } };
+}
+
+/**
  * Sets whole part values (a "__parts" step), then fixes removals and assets and checks the
  * document rules; throws CommandRejected when the result would be invalid.
  */
 export function applyParts(doc, values, ctx) {
   const assets = {};
+  const lists = {};
   let next = doc;
-  for (const part of Object.keys(values).sort((a, b) => orderOf(a) - orderOf(b))) next = setPart(next, part, values[part], assets);
+  for (const part of Object.keys(values).sort((a, b) => orderOf(a) - orderOf(b))) {
+    if (part.startsWith("removals:")) lists[part.slice(9)] = values[part];
+    else next = setPart(next, part, values[part], assets);
+  }
+  next = setRemovalLists(next, lists);
   next = normalize(next, assets);
   const issues = checkDoc(next, ctx);
   if (issues.length) throw new CommandRejected(issues[0].code, { path: issues[0].path });

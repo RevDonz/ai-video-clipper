@@ -586,6 +586,7 @@ export function createFakeServer(context, { jobId = "8f0c2a1e-5b7d-4c3a-9e21-6d4
     loseResponse: false,
     analysisMissing: false,
     readOnly: false,
+    seedInline: true,
     get doc() {
       return current;
     },
@@ -606,8 +607,10 @@ export function createFakeServer(context, { jobId = "8f0c2a1e-5b7d-4c3a-9e21-6d4
       return server.commit({ ...doc, revision: current.revision + 1, parent_sha256: etag });
     },
   };
+  // `seedInline` false gives the shape of __dev__/fakes.mjs (`seed` is a boolean, no `isSeed`).
   const edit = (doc, docEtag) => ({
-    doc, etag: docEtag, isSeed: docEtag === seedEtag, seed, seedEtag, engine: seed.base.engine.compiler, notices: [],
+    doc, etag: docEtag, ...(server.seedInline ? { isSeed: docEtag === seedEtag, seed, seedEtag } : { seed: docEtag === seedEtag }),
+    engine: seed.base.engine.compiler, notices: [],
     words: { sha256: seed.base.words.sha256, url: `/api/jobs/${jobId}/clips/${seed.clip_id}/words` },
     readOnly: server.readOnly, readOnlyReason: server.readOnly ? "transcript_changed" : null,
   });
