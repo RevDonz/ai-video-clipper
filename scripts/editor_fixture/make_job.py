@@ -642,9 +642,10 @@ def _toolchain() -> dict[str, Any]:
     ffmpeg = shutil.which("ffmpeg")
     line = subprocess.run([ffmpeg, "-version"], capture_output=True, text=True,
                           check=False).stdout.splitlines()[0] if ffmpeg else None
+    # The reference machine is shared with other agents: the load average says how quiet it was.
     return {"ffmpeg": line, "python": platform.python_version(),
             "reference_toolchain_problem": media.reference_toolchain_problem(),
-            "cpu_count": os.cpu_count()}
+            "cpu_count": os.cpu_count(), "load_avg_1m": round(os.getloadavg()[0], 2)}
 
 
 def _long_transcript(fixture: FixtureScript, copies: int) -> Transcription:
