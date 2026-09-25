@@ -137,7 +137,8 @@ def test_crop_x_is_recovered_exactly_from_the_column_ruler(cfr_clip, edit_v2_ffm
 def test_audio_file_generator_and_logo(tmp_path, edit_v2_ffmpeg):
     wav = media.make_audio(tmp_path / "music.wav", media.AudioSpec(
         sample_rate=44100, channels=1,
-        bursts=(media.ToneBurst(0, 900, freq_hz=441, level_cdb=-600),)), duration_ms=1000)
+        bursts=(media.ToneBurst(0, 900, freq_hz=441, level_cdb=-600),), clicks_ms=()),
+        duration_ms=1000)
     info = media.probe(wav)
     assert info["audio"]["sample_rate"] == "44100" and info["audio"]["channels"] == 1
     samples = media.read_pcm(wav, sample_rate=44100, channels=1)

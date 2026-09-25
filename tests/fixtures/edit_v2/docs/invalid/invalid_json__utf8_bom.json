@@ -1,0 +1,148 @@
+﻿{
+  "schema": "clip-edit-v2",
+  "schema_minor": 0,
+  "clip_id": "clip_62654c2c2fa04f125391464a",
+  "revision": 1,
+  "parent_sha256": "50bd916ca60595e6fcde99621910a6fa419f76a635b9120969556ed595ce6d4a",
+  "base": {
+    "job_id": "8f0c2a1e-5b7d-4c3a-9e21-6d4f0b8a7c55",
+    "source": {
+      "content_sha256": "be3101494c6d82fce71df1d5dca946333b100b7dc6a7bd438270d440820ee5f8",
+      "w": 1280,
+      "h": 720,
+      "fps_native": [
+        30000,
+        1001
+      ],
+      "vfr": false,
+      "duration_ms": 3901120,
+      "has_audio": true
+    },
+    "origin": {
+      "kind": "v3_clip",
+      "selection_artifact_sha256": "78cec87809b2308b5784ef29d4c526e5d6307740ce06e99095b0d2a3706db166",
+      "selection_version": "selection-v3.0",
+      "rank_at_seed": 3,
+      "hook_unit_id": "S0428",
+      "selection_source": "llm"
+    },
+    "window_ms": [
+      1181930,
+      1369400
+    ],
+    "words": {
+      "sha256": "5f0cad1a59f7ae36e5c6a1869bc4e7b2a52ec339ff0cac67c2d2023b93944194",
+      "count": 376
+    },
+    "camera": {
+      "sha256": null
+    },
+    "seed_sha256": "aec859b5195207fd3793380c1ea387b160596c3f060acf323f3e3967043d0b6c",
+    "engine": {
+      "compiler": "edit-v2/1",
+      "render_semantics": 1
+    }
+  },
+  "output": {
+    "w": 720,
+    "h": 1280,
+    "fps": [
+      30000,
+      1001
+    ],
+    "sample_rate": 48000,
+    "channels": 2
+  },
+  "main": {
+    "segments": [
+      {
+        "id": "seg_co",
+        "role": "cold_open",
+        "in_sf": 38217,
+        "out_sf": 38353
+      },
+      {
+        "id": "seg_b1",
+        "role": "body",
+        "in_sf": 37220,
+        "out_sf": 39243
+      }
+    ],
+    "removals": [],
+    "joins": [
+      {
+        "after": "seg_co",
+        "style": "cut",
+        "audio_fade_ms": 30
+      }
+    ],
+    "cut_fade_ms": 8
+  },
+  "captions": {
+    "enabled": true,
+    "pack": {
+      "id": "karaoke",
+      "v": 1
+    },
+    "overrides": {
+      "y_e5": 83000,
+      "size_pm": 1000,
+      "case": "asis",
+      "highlight": "#FFE14D",
+      "emphasis": "#FF5C8A"
+    },
+    "word_edits": {}
+  },
+  "layout": {
+    "default": {
+      "mode": "fit_blur",
+      "no_face": "center"
+    }
+  },
+  "tracks": [
+    {
+      "id": "tr_hook",
+      "kind": "hook",
+      "items": [
+        {
+          "id": "it_hook",
+          "type": "hook",
+          "start": {
+            "at": "out",
+            "f": 0
+          },
+          "dur_f": 120,
+          "transform": {
+            "x_e5": 50000,
+            "y_e5": 13000
+          },
+          "payload": {
+            "text": "Dia ditahan security di film-nya sendiri",
+            "design": {
+              "id": "legacy-bar",
+              "v": 1
+            }
+          },
+          "origin": "seed"
+        }
+      ]
+    }
+  ],
+  "audio": {
+    "source": {
+      "gain_cdb": 0
+    },
+    "master": {
+      "mode": "off",
+      "target_clufs": -1400,
+      "tp_cdb": -100
+    }
+  },
+  "assets": {},
+  "audit": {
+    "created_at_ms": 1790000000000,
+    "updated_at_ms": 1790000060000,
+    "editor": "editor-v3/1.0.0",
+    "last_command": "ResetToSeed"
+  }
+}
