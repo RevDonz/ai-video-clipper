@@ -31,7 +31,7 @@ export default function TrendAgentPanel({ origin, tokensState, now, onCreateToke
   const [revokingId, setRevokingId] = useState(null);
   const [notice, setNotice] = useState(null);
   const createdBox = useRef(null);
-  const createButton = useRef(null);
+  const labelInput = useRef(null);
   const listHeading = useRef(null);
 
   const endpoint = ingestEndpoint(origin) || INGEST_PATH;
@@ -67,7 +67,7 @@ export default function TrendAgentPanel({ origin, tokensState, now, onCreateToke
 
   function dismissCreated() {
     setCreated(null);
-    createButton.current?.focus();
+    labelInput.current?.focus();
   }
 
   async function revoke(token) {
@@ -111,6 +111,7 @@ export default function TrendAgentPanel({ origin, tokensState, now, onCreateToke
           <div className="trInlineRow">
             <input
               id="token-label"
+              ref={labelInput}
               value={label}
               maxLength={TREND_LIMITS.tokenLabel + 10}
               placeholder="mis. Hermes VPS"
@@ -119,7 +120,7 @@ export default function TrendAgentPanel({ origin, tokensState, now, onCreateToke
               aria-describedby={describedBy("token-label", true, labelError)}
               onChange={(event) => { setLabel(event.target.value); setLabelError(""); }}
             />
-            <button type="submit" ref={createButton} className="trPrimary" disabled={creating || full || tokensState.state !== "ready"}>
+            <button type="submit" className="trPrimary" disabled={creating || full || tokensState.state !== "ready"}>
               {creating ? "Membuat…" : "Buat token"}
             </button>
           </div>
