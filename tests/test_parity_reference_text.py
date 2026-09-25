@@ -24,6 +24,7 @@ sys.path.insert(0, str(ROOT / "scripts" / "parity"))
 import compare
 import reference_text as rt
 
+from ai_clipper.edit_v2 import compile_ffmpeg
 from ai_clipper.edit_v2.timemap import Fps, now_ms, safe_cs
 
 _DIALOGUE = re.compile(r"^Dialogue: (\d+),(\d+):(\d\d):(\d\d)\.(\d\d),(\d+):(\d\d):(\d\d)\.(\d\d),"
@@ -238,7 +239,11 @@ def test_candidate_graphs_are_pinned() -> None:
         assert "out_color_matrix=bt709" in rt.final_graph(name)
     # swscale treats untagged YUV as BT.601 and converts YUV→YUV when the matrices differ, so a
     # YUV composite must name its own matrix in the final step (only chroma is resampled).
-    assert rt.final_graph("gbrp") == "scale=out_color_matrix=bt709:out_range=tv,format=yuv420p"
+    assert rt.final_graph("gbrp") == ("scale=out_color_matrix=bt709:out_range=tv:"
+                                      "flags=accurate_rnd+full_chroma_int+full_chroma_inp+"
+                                      "lanczos,format=yuv420p")
+    for name in rt.CANDIDATES:  # the harness exports with the compiler's own R5 final step
+        assert rt.final_graph(name) == compile_ffmpeg.final_conversion(name)
     for name in ("yuv420p", "yuv444p"):
         assert "in_color_matrix=bt709:in_range=tv" in rt.final_graph(name)
         assert rt.view_graph(name).endswith("format=rgb24")
@@ -250,13 +255,15 @@ def test_candidate_graphs_are_pinned() -> None:
 def test_encode_arguments_follow_r7() -> None:
     args = rt.x264_args(Fps(30000, 1001))
     joined = " ".join(args)
-    for part in ("-c:v libx264", "-preset veryfast", "-crf 21", "-profile:v high",
-                 "-pix_fmt yuv420p", "-g 60", "-x264-params threads=4",
+    for part in ("-c:v libx264", "-preset veryfast", "-crf 18", "-profile:v high",
+                 "-pix_fmt yuv420p", "-g 60", "-x264-params threads=4:chroma-qp-offset=-12",
                  "-color_primaries bt709", "-color_trc bt709", "-colorspace bt709",
                  "-color_range tv", "-map_metadata -1", "-fflags +bitexact",
                  "-flags:v +bitexact", "-movflags +faststart"):
         assert part in joined
     assert rt.x264_args(Fps(24, 1))[rt.x264_args(Fps(24, 1)).index("-g") + 1] == "48"
+    video = compile_ffmpeg.encode_video_args(60)  # the harness encodes like the compiler
+    assert " ".join(video) in joined
 
 
 # --- the clip matrix ----------------------------------------------------------------------------
