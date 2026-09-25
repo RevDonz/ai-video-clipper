@@ -15,7 +15,10 @@ Toolchain of record: `ai-video-clipper:editor-w1z`, built from this branch's `Do
 the verifier fixes (base `node:20-bookworm-slim@sha256:2cf067cf…`, uv `0.11.6@sha256:b1e69936…`,
 Debian snapshot `20260924T000000Z`, FFmpeg 5.1.9, libass 0.17.1, freetype 2.12.1, harfbuzz 6.0.0,
 fribidi 1.0.8, fontconfig 2.14.1, Python 3.11.2); `/app/resources/toolchain.json` sha
-`4fefb754…85f0`, unchanged from `editor-w1`; `docker run --cpus 4`. Browser: Chrome for Testing
+`4fefb754…85f0`, unchanged from `editor-w1`; `docker run --cpus 4`. The gates ran on the image
+built at `b7d034f`; the image was rebuilt at the final code commit (later code changes: a
+spacing fix and the grid fallback of patch 11, whose source-info, seed, integration and execute
+tests pass inside it, 120/120). Browser: Chrome for Testing
 147.0.7727.15 (Playwright 1.62.1), JASSUB 2.5.16, on a private server at 127.0.0.1:3217. Machine:
 the K15 reference PC (Ryzen 7 5700G, 16 threads), shared with other agents while measuring (load
 averages are in the evidence files, 4–8 during these runs).
@@ -42,8 +45,8 @@ not met. Each finding, the fix, and the number after it:
 
 | Gate | Threshold | Measured (W1 exit after the verifier fixes, real modules, `editor-w1z`) | Evidence | Result |
 |---|---|---|---|---|
-| pytest (Python 3.13.13, FFmpeg 6.1.1) | green | 3,053 passed, 1 skipped (the opt-in PUT timing gate) | — | **pass** |
-| pytest (Python 3.11.15) | green | 3,053 passed, 1 skipped (the opt-in PUT timing gate) | — | **pass** |
+| pytest (Python 3.13.13, FFmpeg 6.1.1) | green | 3,054 passed, 1 skipped (the opt-in PUT timing gate) | — | **pass** |
+| pytest (Python 3.11.15) | green | 3,054 passed, 1 skipped (the opt-in PUT timing gate) | — | **pass** |
 | pytest inside `editor-w1z` (Python 3.11.2, FFmpeg 5.1.9) | green | 3,051 passed, 3 skipped (the PUT timing gate; no C compiler for the `vf_subtitles` reference; no git), 0 failed (the verifier had 1 failure: git) | — | **pass** |
 | ruff `src tests` | 0 findings | 0 | — | **pass** |
 | `npm test` / `npm run build` | green | 457/457; build OK | — | **pass** |
@@ -80,11 +83,13 @@ with byte-identical results).
 
 ### Suites
 
-- `uv run pytest` (Python 3.13.13, local FFmpeg 6.1.1): 3,053 passed, 1 skipped at the final code commit.
+- `uv run pytest` (Python 3.13.13, local FFmpeg 6.1.1): 3,054 passed, 1 skipped at the final code commit.
 - `uv run --python 3.11 --isolated --with-editable . --extra vision --with "pytest>=8,<9"
-  pytest` (Python 3.11.15): 3,053 passed, 1 skipped (the opt-in PUT timing gate, `POTONGIN_GATES=1`).
+  pytest` (Python 3.11.15): 3,054 passed, 1 skipped (the opt-in PUT timing gate, `POTONGIN_GATES=1`).
 - Inside `editor-w1z` (Python 3.11.2, FFmpeg 5.1.9, pytest 8.4.2 in a scratch target on
-  `PYTHONPATH`): 3,051 passed, 3 skipped (PUT timing gate, no C compiler, no git).
+  `PYTHONPATH`): 3,051 passed, 3 skipped (PUT timing gate, no C compiler, no git), run before the grid-fallback test was added; the
+  image rebuilt at the final code commit passes the source-info, seed, integration and execute
+  files 120/120.
 - `uv run ruff check src tests`: 0 findings. `npm test`: 457/457. `npm run build`: OK.
 - `npm run test:parity` against fixtures made in `editor-w1z`: 3/3.
 
@@ -143,9 +148,11 @@ After the W1 verifier (T1.Z re-run, 2026-09-25; each fix test-first):
     `grid_sf` (the source-grid frames `[first_sf, end_sf)` at every document rate, measured with
     the compiler's own decode); seeds clamp body and cold-open edges to it and narrow
     `window_ms` to `[⌈first·1000·den/num⌉, ⌊end·1000·den/num⌋]` (`seed.grid_window_ms`); a
-    version-1 file is refused. Before: a 902-frame 29.97 source seeded to its end rendered 150
-    of 151 planned frames (G2); a video starting at 0.041 s lost frame 0 of the first piece.
-    After: 855/855 and 480/480 frames in the image, P-FRAME 0 mismatches on both edges.
+    version-1 file is refused; when the video ends more than 3 s before `duration_ms` (a
+    container duration), the grid end is decoded from the start. Before: a 902-frame 29.97
+    source seeded to its end rendered 150 of 151 planned frames (G2); a video starting at
+    0.041 s lost frame 0 of the first piece. After: 855/855 and 480/480 frames in the image,
+    P-FRAME 0 mismatches on both edges.
     `tests/support/edit_v2_media.py` (T1.0) can delay the video stream (`video_delay_ms`) and
     reads the whole-file grid range (`grid_range`).
 12. `edit_v2/compile_ffmpeg.py` (T1.3): a plate cell starting below the window decodes from the
