@@ -310,6 +310,24 @@ test("the active word follows the output frame through cuts", () => {
   assert.equal(activeWordAt(model, 10_000_000), -1);
 });
 
+test("in a short pause the last word stays active; after a long one nothing is", () => {
+  // Words of 300 ms, a 100 ms gap after word 0 and a 2 s pause after word 1.
+  const words = makeWords(3);
+  words.words[2] = { ...words.words[2], s: words.words[2].s + 2000, e: words.words[2].e + 2000 };
+  words.bounds[2] = { ...words.bounds[2], sf: sfFloor(words.words[1].e + 1000, FPS) };
+  words.bounds[3] = { ...words.bounds[3], sf: sfFloor(words.words[2].e, FPS) + 1 };
+  const doc = makeDoc(words, 0, 2);
+  doc.base.window_ms = [words.window_ms[0], words.words[2].e + 1000];
+  const model = buildTranscriptModel(words, doc);
+  const [, off0] = wordFrames(words.words[0].s, words.words[0].e, model.pieces, FPS);
+  const [on1, off1] = wordFrames(words.words[1].s, words.words[1].e, model.pieces, FPS);
+  assert.ok(on1 > off0, "a gap frame exists between words 0 and 1");
+  assert.equal(activeWordAt(model, off0), 0);
+  assert.equal(activeWordAt(model, on1), 1);
+  assert.equal(activeWordAt(model, off1 + 3), 1);
+  assert.equal(activeWordAt(model, off1 + 30), -1);
+});
+
 // --- selection → commands ---------------------------------------------------------------------
 
 test("delete removes each visible run of the selection and skips removed words", () => {
