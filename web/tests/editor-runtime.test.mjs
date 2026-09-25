@@ -69,6 +69,21 @@ test("the frame bus notifies on change and replays the current frame to new subs
   assert.equal(bus.get(), 9);
 });
 
+test("a failing player call is reported, never an unhandled rejection", async () => {
+  const errors = [];
+  const facade = createPlayerFacade(createFrameBus(), { onError: (error, action) => errors.push([action, error.message]) });
+  facade.attach({
+    load() { throw new Error("bad plan"); }, play: async () => { throw new Error("autoplay"); }, pause() {},
+    seek: async () => { throw new Error("decode"); }, step: async () => {}, showTruthFrame: async () => { throw new Error("503"); },
+    state: () => null, destroy() {},
+  });
+  facade.load({});
+  await facade.play();
+  await facade.seek(3);
+  await facade.showTruthFrame(3);
+  assert.deepEqual(errors, [["load", "bad plan"], ["play", "autoplay"], ["seek", "decode"], ["showTruthFrame", "503"]]);
+});
+
 test("the player facade is stable before and after the player exists", async () => {
   const bus = createFrameBus();
   const facade = createPlayerFacade(bus);
