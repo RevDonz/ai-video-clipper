@@ -18,7 +18,7 @@ from ai_clipper.focus import parse_focus
 from ai_clipper.llm import LLMError, LLMUnavailable, ScriptedLLMClient
 from ai_clipper.llm_selection import PROMPT_VERSION
 from ai_clipper.models import SelectionMode, TranscriptSegment, TranscriptWord
-from ai_clipper.selection_types import SelectedClip, SelectionResult
+from ai_clipper.selection_types import ClipFocus, FocusSummary, SelectedClip, SelectionResult
 from ai_clipper.selection_v3 import read_selection_artifact
 from ai_clipper.sound_events import read_sound_events
 from ai_clipper.transcript_io import read_transcript_json
@@ -1521,6 +1521,28 @@ def test_the_heuristic_fallback_of_a_slow_llm_keeps_the_focus(env, monkeypatch):
     assert summary["status"] == "fallback"
     assert summary["focus"] == {"terms": ["kisah25"], "matched": 1, "requested": 3}
     assert manifest["clips"][0]["focus"]["match"] == "literal"
+
+
+def test_a_literal_mention_cut_off_by_the_video_end_is_no_longer_a_literal_match(
+    env, monkeypatch
+):
+    env.media_duration = 129.4567
+    clips = (
+        selected(1, 100.0, 130.0, focus=ClipFocus("literal", ("kisah25",), 129.6)),
+        selected(2, 90.0, 99.0, focus=ClipFocus("literal", ("kisah25",), 95.0)),
+        selected(3, 50.0, 80.0, focus=ClipFocus("semantic", ("kisah25",))),
+    )
+    chosen = result(*clips, focus=FocusSummary(terms=("kisah25",), requested=3))
+    monkeypatch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: chosen)
+
+    manifest = manifest_of(run(env, focus=FOCUS))
+
+    assert [clip["focus"]["match"] for clip in manifest["clips"]] == [
+        "none", "literal", "semantic",
+    ]
+    assert manifest["selection_v3"]["focus"] == {
+        "terms": ["kisah25"], "matched": 2, "requested": 3,
+    }
 
 
 def test_focus_must_be_a_focus_spec(env):
