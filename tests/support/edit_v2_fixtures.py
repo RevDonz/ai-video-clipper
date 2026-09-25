@@ -162,13 +162,12 @@ VOCAB = (
 )
 
 
-def _frame_ms(k: int, fps: Fps) -> float:
-    return k * 1000 * fps.den / fps.num
-
-
 def _nearest_boundary(ms_twice: int, fps: Fps) -> int:
-    """Frame boundary nearest ``ms_twice / 2`` ms (ties go to the earlier boundary)."""
-    return tm.div_round_half_up(ms_twice * fps.num - 1000 * fps.den, 2000 * fps.den)
+    """Frame boundary nearest ``ms_twice / 2`` ms (ties go to the earlier boundary).
+
+    With ``x = ms·num / (1000·den)`` that is ``⌈x − ½⌉ = −round_half_up(−x)``.
+    """
+    return -tm.div_round_half_up(-ms_twice * fps.num, 2000 * fps.den)
 
 
 def _bound(a_end: int, b_start: int, fps: Fps, clamp: tuple[int, int]) -> tuple[int, bool]:
@@ -235,7 +234,7 @@ def build_words(spec: ContextSpec) -> dict[str, Any]:
     raw[zero]["e"] = raw[zero]["s"]
     tight = first_body + 10
     boundary = tm.sf_ceil(raw[tight]["e"], fps)
-    raw[tight]["e"] = int(_frame_ms(boundary, fps)) + 3
+    raw[tight]["e"] = boundary * 1000 * fps.den // fps.num + 3  # 3 ms after a frame start
     raw[tight + 1]["s"] = raw[tight]["e"] + 12
     raw[tight + 1]["e"] = max(raw[tight + 1]["e"], raw[tight + 1]["s"] + 150)
     overlap = first_body + 17
