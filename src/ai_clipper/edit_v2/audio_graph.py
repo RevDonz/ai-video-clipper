@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
@@ -51,6 +52,7 @@ from .envelope import (
     music_item,
     speech_envelope,
 )
+from .loudness import format_centi
 from .plan import RenderPlan
 from .timemap import SAMPLE_RATE, smp
 
@@ -69,6 +71,7 @@ _PAN_ANY = "pan=stereo|FL=FL+FC|FR=FR+FC"  # mono (FC) → both channels at 1.0;
 _PAN_MONO = "pan=stereo|c0=c0|c1=c0"  # envelope sidecars (mono f32) → stereo, exact copy
 _RESAMPLE = f"aresample={SAMPLE_RATE}"
 _FORMAT = f"aformat=sample_fmts=fltp:sample_rates={SAMPLE_RATE}:channel_layouts=stereo"
+_OWN_INPUT = re.compile(r"\[#(\d+):a\]")  # placeholder of the k-th own input in the template
 
 
 @dataclass(frozen=True)
@@ -88,8 +91,8 @@ class _Graph:
         return f"[{label}]"
 
 
-def _build(plan: RenderPlan, first_input_index: int) -> tuple[str, tuple[InputSpec, ...],
-                                                               dict[str, bytes]]:
+def _build(plan: RenderPlan) -> tuple[str, tuple[InputSpec, ...], dict[str, bytes]]:
+    """The graph template (own inputs written ``[#k:a]``), the own inputs and the sidecars."""
     doc = plan.doc
     fps = plan.fps
     total = plan.total_samples
@@ -99,7 +102,7 @@ def _build(plan: RenderPlan, first_input_index: int) -> tuple[str, tuple[InputSp
 
     def own_input(spec: InputSpec) -> str:
         inputs.append(spec)
-        return f"[{first_input_index + len(inputs) - 1}:a]"
+        return f"[#{len(inputs) - 1}:a]"
 
     # Speech ---------------------------------------------------------------------------------
     if doc["base"]["source"]["has_audio"]:
@@ -156,6 +159,10 @@ def _build(plan: RenderPlan, first_input_index: int) -> tuple[str, tuple[InputSp
     return ";".join(graph.chains), tuple(inputs), sidecars
 
 
+def _numbered(template: str, first_input_index: int) -> str:
+    return _OWN_INPUT.sub(lambda m: f"[{first_input_index + int(m.group(1))}:a]", template)
+
+
 def _mix_sha256(plan: RenderPlan, graph: str, inputs: tuple[InputSpec, ...],
                 sidecars: Mapping[str, bytes]) -> str:
     source = plan.doc["base"]["source"]
@@ -185,19 +192,13 @@ def audio_fragment(plan: RenderPlan, *, mode: str, first_input_index: int) -> Au
         raise ValueError(f"audio mode must be one of {AUDIO_MODES}")
     if type(first_input_index) is not int or first_input_index < 0:
         raise ValueError("first_input_index must be a non-negative integer")
-    graph, inputs, sidecars = _build(plan, first_input_index)
-    canonical_graph = graph if first_input_index == 0 else _build(plan, 0)[0]
+    template, inputs, sidecars = _build(plan)
     return AudioFragment(
-        graph=graph,
+        graph=_numbered(template, first_input_index),
         inputs=inputs,
         sidecars=sidecars,
-        mix_sha256=_mix_sha256(plan, canonical_graph, inputs, sidecars),
+        mix_sha256=_mix_sha256(plan, _numbered(template, 0), inputs, sidecars),
     )
-
-
-def _decibels(cdb: int) -> str:
-    sign = "-" if cdb < 0 else ""
-    return f"{sign}{abs(cdb) // 100}.{abs(cdb) % 100:02d}"
 
 
 def master_filter(mode: str, gain_cdb: int) -> str:
@@ -216,7 +217,7 @@ def master_filter(mode: str, gain_cdb: int) -> str:
         return MEASURE_FILTER
     if gain_cdb == 0:
         return _RESAMPLE
-    return f"volume={_decibels(gain_cdb)}dB,{_RESAMPLE}"
+    return f"volume={format_centi(gain_cdb)}dB,{_RESAMPLE}"
 
 
 __all__ = [
