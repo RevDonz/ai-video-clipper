@@ -9,11 +9,16 @@ from ai_clipper.focus import (
     FOCUS_PARTICLES,
     FOCUS_POSSESSIVES,
     FOCUS_PREFIXES,
+    FOCUS_STOPWORDS,
     FOCUS_SUFFIXES,
+    FOCUS_WORD_ROOTS,
     MAX_FOCUS_NOTE_CHARS,
+    MIN_PREFIX_TERM_LETTERS,
+    MIN_SUFFIX_TERM_LETTERS,
     FocusHit,
     FocusMatcher,
     FocusSpec,
+    focus_term_matchable,
     parse_focus,
 )
 from ai_clipper.models import TranscriptWord
@@ -33,6 +38,7 @@ def test_the_affix_lists_follow_the_spec():
     assert FOCUS_PARTICLES == ("lah", "kah", "pun", "tah")
     assert FOCUS_MODES == ("prefer",)
     assert (MAX_FOCUS_TERMS, MAX_FOCUS_TERM_CHARS, MAX_FOCUS_NOTE_CHARS) == (8, 40, 200)
+    assert (MIN_PREFIX_TERM_LETTERS, MIN_SUFFIX_TERM_LETTERS) == (4, 5)
 
 
 def test_parse_focus_cleans_terms_and_note_like_trend_text():
@@ -138,17 +144,126 @@ def test_other_words_that_contain_the_letters_never_match(text):
     assert mentions(["jomok"], text) == ()
 
 
-def test_short_terms_take_suffixes_but_no_prefix():
+def test_short_terms_take_clitics_but_no_prefix():
     assert mentions(["ban"], "bannya bocor") == ("ban",)
     assert mentions(["ban"], "diban dari grup") == ()
     assert mentions(["reza"], "direza terus") == ("reza",)  # four letters: prefixes allowed
 
 
-def test_short_or_stopword_terms_never_match_on_their_own():
+@pytest.mark.parametrize(
+    ("term", "text"),
+    [
+        # A derivational suffix (-an, -kan, -i, -in) needs five letters, or a prefix with it.
+        ("rap", "Kamarnya rapi banget."),
+        ("sen", "Belajar seni tiap hari senin."),
+        ("mak", "Makin lama makin enak makan di sana."),
+        ("tem", "Ini teman lama gue."),
+        ("bul", "Bulan depan kita ke sana."),
+        ("bad", "Badannya gede banget."),
+        ("dep", "Duduk di depan."),
+        ("kir", "Belok kiri."),
+        ("per", "Perannya penting."),
+        ("sin", "Sini dong."),
+        ("din", "Masih dini hari."),
+        ("tan", "Hasil tani warga."),
+        ("ban", "Bani Israil."),
+        ("pas", "Mukanya pucat pasi."),
+        ("bus", "Busi motornya mati."),
+        ("tang", "Tangannya gemetar."),
+        ("Rama", "Pasarnya ramai sekali."),
+        ("sela", "Selain itu gue juga main."),
+        ("gula", "Makan gulai kambing."),
+        # Common words that only look like a prefix + the term (+ an ending).
+        ("tang", "Sudah petang."),
+        ("rang", "Perang dunia, serang balik, jadi berang."),
+        ("tara", "Setara dan ketara."),
+        ("panda", "Anaknya pandai banget."),
+        ("santa", "Santai aja."),
+        ("masa", "Itu masalahnya, dia bermasalah."),
+        ("karang", "Sekarang giliran lu."),
+        ("rubah", "Dia berubah total, perubahannya besar."),
+        ("alam", "Gue pernah mengalami itu, pengalaman pahit."),
+        ("buah", "Sebuah cerita."),
+        ("lalu", "Selalu begitu, terlalu sering."),
+    ],
+)
+def test_affixes_never_reach_other_common_words(term, text):
+    assert mentions([term], text) == ()
+
+
+@pytest.mark.parametrize(
+    ("term", "text"),
+    [
+        ("rasa", "Perasaannya campur aduk."),  # a confix on a four-letter term
+        ("rasa", "Dirasakan banget."),
+        ("uang", "Masalah keuangan."),
+        ("kerja", "Pekerjaan gue, bekerja tiap hari, dikerjakan bareng."),
+        ("lucu", "Lucunya di situ, kelucuan dia."),
+        ("drama", "Dramanya panjang."),
+        ("ubah", "Dia berubah total, perubahannya besar."),
+        ("lain", "Selain itu gue juga main."),
+        ("jomok", "jomokan"),  # five letters: a bare suffix is fine
+        ("masalah", "Itu masalahnya."),
+    ],
+)
+def test_real_derived_words_still_match(term, text):
+    assert mentions([term], text) == (term,)
+
+
+def test_the_root_words_follow_the_rules_they_override():
+    for word, roots in FOCUS_WORD_ROOTS.items():
+        assert word.isalpha() and word == word.casefold()
+        for root in roots:
+            assert mentions([root], word) == (root,), (word, root)
+
+
+def test_short_or_function_word_terms_never_match_on_their_own():
     assert mentions(["ai"], "pakai ai buat kerja") == ()
-    assert mentions(["orang"], "orang itu") == ()
-    assert mentions(["gas"], "ayo gas") == ()
+    assert mentions(["5G"], "sinyal 5G kenceng") == ()
+    assert mentions(["yang"], "yang itu") == ()
+    assert mentions(["apa aja"], "apa aja boleh") == ()
     assert mentions(["orang tua"], "Orang tua gue bilang") == ("orang tua",)
+
+
+@pytest.mark.parametrize(
+    "term",
+    [
+        "tiktok", "sosmed", "uang", "kuliah", "keluarga", "lucu", "netizen", "podcast",
+        "Indonesia", "kerja", "orang", "gas", "anak kuliah", "anak-anak",
+    ],
+)  # fmt: skip
+def test_owner_terms_that_are_everyday_trend_words_still_match(term):
+    text = (
+        "Tiktok dan sosmed, uang kuliah, keluarga yang lucu, netizen podcast Indonesia, "
+        "kerja orang, ayo gas, anak kuliah, anak-anak."
+    )
+    assert mentions([term], text) == (term,)
+
+
+def test_the_focus_stopwords_are_function_words_and_fillers_only():
+    from ai_clipper.trend_context import TREND_STOPWORDS
+
+    assert FOCUS_STOPWORDS < TREND_STOPWORDS
+    assert {"yang", "dan", "sih", "wkwk", "the"} <= FOCUS_STOPWORDS
+    owner_topics = {"tiktok", "uang", "kuliah", "keluarga", "lucu", "netizen", "indonesia"}
+    assert not owner_topics & FOCUS_STOPWORDS
+
+
+def test_terms_that_can_never_match_literally_are_known():
+    matcher = FocusMatcher(parse_focus(["AI", "jomok", "apa aja", "5G", "anak kuliah"]))
+    assert matcher.unmatchable == ("AI", "apa aja", "5G")
+    assert [focus_term_matchable(term) for term in ("AI", "jomok", "apa aja", "5G")] == [
+        False, True, False, False,
+    ]  # fmt: skip
+    assert FocusMatcher(parse_focus(["jomok"])).unmatchable == ()
+
+
+def test_terms_that_tokenise_alike_are_one_term():
+    assert parse_focus(["jomok", "Jomok!", "k-pop", "K pop", "kpop"]).terms == (
+        "jomok", "k-pop", "kpop",
+    )  # fmt: skip
+    with pytest.raises(ValueError):
+        FocusSpec(terms=("jomok", "Jomok!"))  # the checked form never holds both
 
 
 def test_multi_word_terms_match_as_phrases_with_a_clitic_on_the_last_word():

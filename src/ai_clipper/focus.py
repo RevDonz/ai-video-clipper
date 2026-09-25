@@ -16,16 +16,24 @@ and never reaches FFmpeg.
 **Literal matching** (:class:`FocusMatcher`) reuses the Konteks Tren tokens: casefolded,
 accent-free Unicode letters and digits, so a term matches whole words only and a multi-word
 term only as a phrase (its last word may carry a spoken clitic, as for trends). A term needs a
-content word (at least three letters, not an everyday word of
-:data:`ai_clipper.trend_context.TREND_STOPWORDS`); "AI" or "orang" never match on their own.
+content word: at least three letters and not one of :data:`FOCUS_STOPWORDS`, the function words
+and fillers of the trend stopword list (everyday topics the owner may well choose, such as
+"tiktok", "uang" or "keluarga", are content words here). "AI", "5G" or "apa aja" never match
+on their own: :attr:`FocusMatcher.unmatchable` and :func:`focus_term_matchable` name them, so
+the owner can be told that only the AI's reading applies to them.
+
 A **one-word** term also matches its Indonesian derived words, which trend matching does not:
 one prefix of :data:`FOCUS_PREFIXES`, then the term, then at most one suffix of
 :data:`FOCUS_SUFFIXES`, one possessive of :data:`FOCUS_POSSESSIVES` and one particle of
 :data:`FOCUS_PARTICLES`, in that order (so the confixes ``per-…-an``, ``ke-…-an`` and
-``pe-…-an`` too). What is left once they are removed must be exactly the term, and a term of
-fewer than :data:`MIN_PREFIX_TERM_LETTERS` letters takes no prefix. "jomok" matches
-"perjomokan", "jomoknya", "kejomok", "kejomokan" and both halves of "jomok-jomok", never
-"dramok" or "jomokers".
+``pe-…-an`` too). What is left once they are removed must be exactly the term. Short terms
+reach other words easily ("rap" in "rapi", "rang" in "perang"), so a term of fewer than
+:data:`MIN_PREFIX_TERM_LETTERS` letters takes no prefix, and a suffix (``-an``, ``-kan``, ``-i``,
+``-in``) needs :data:`MIN_SUFFIX_TERM_LETTERS` letters unless it comes with a prefix; the
+possessives and particles fit any term ("bannya"). Common words that still look derived are
+listed in :data:`FOCUS_WORD_ROOTS` with the only terms they belong to ("berubah" is a word of
+"ubah", never of "rubah"; "sekarang" of no term). "jomok" matches "perjomokan", "jomoknya",
+"kejomok", "kejomokan" and both halves of "jomok-jomok", never "dramok" or "jomokers".
 
 :class:`HeuristicWindows` finds the heuristic's own windows around a mention, for the extra
 candidates of the selector (:func:`ai_clipper.selection_v3.select_clips_v3`).
@@ -36,6 +44,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from itertools import product
+from types import MappingProxyType
 from typing import Any
 
 from .audio_timeline import AudioTimeline
@@ -58,7 +67,13 @@ from .selection_types import (
 )
 from .sentences import SentenceUnit
 from .sound_events import SoundEvent, sort_events
-from .trend_context import _content, _stem, _tokens, clean_trend_text, fold_hashtag
+from .trend_context import (
+    MIN_TERM_LETTERS,
+    _stem,
+    _tokens,
+    clean_trend_text,
+    fold_hashtag,
+)
 
 FOCUS_MODES = ("prefer",)  # "only" is planned, not accepted yet
 MAX_FOCUS_NOTE_CHARS = 200
@@ -70,26 +85,78 @@ FOCUS_SUFFIXES = ("an", "kan", "i", "in")
 FOCUS_POSSESSIVES = ("nya", "ku", "mu")
 FOCUS_PARTICLES = ("lah", "kah", "pun", "tah")
 MIN_PREFIX_TERM_LETTERS = 4
-# Every ending a derived word may add after the term: suffix, then possessive, then particle.
+MIN_SUFFIX_TERM_LETTERS = 5  # without a prefix; "-nya", "-ku", "-lah", ... fit any term
+# Every ending a derived word may add after the term: suffix, then possessive, then particle;
+# and those without a suffix, for terms too short to take one on its own.
 _ENDINGS = frozenset(
     "".join(parts)
     for parts in product(("", *FOCUS_SUFFIXES), ("", *FOCUS_POSSESSIVES), ("", *FOCUS_PARTICLES))
 )
+_CLITIC_ENDINGS = frozenset(
+    "".join(parts) for parts in product(("", *FOCUS_POSSESSIVES), ("", *FOCUS_PARTICLES))
+)
+# The trend stopwords a focus term may not rely on: function words, question words, fillers
+# and laughter. The trend list's everyday topics (people, places, money, platforms) were chosen
+# for noisy harvested trends; an owner who types "tiktok" or "keluarga" means it.
+FOCUS_STOPWORDS = frozenset(
+    {
+        "yang", "dan", "di", "ke", "dari", "ini", "itu", "aja", "saja", "dulu", "udah", "sudah",
+        "lagi", "juga", "ada", "apa", "gak", "nggak", "enggak", "ngga", "tidak", "bukan",
+        "kita", "kami", "kamu", "lu", "lo", "gue", "gua", "aku", "dia", "mereka", "banget",
+        "sama", "buat", "untuk", "dengan", "pada", "jadi", "kalau", "kalo", "tapi", "atau",
+        "karena", "soal", "masih", "bisa", "mau", "akan", "sih", "dong", "deh", "kok", "nih",
+        "tuh", "yah", "gitu", "begitu", "kayak", "seperti", "emang", "memang", "terus", "sampai",
+        "sampe", "semua", "lebih", "paling", "sangat", "satu", "dua", "tiga", "gimana", "kenapa",
+        "mana", "siapa", "kapan", "cuma", "cuman", "doang", "sekarang", "nanti", "tadi", "the",
+        "and", "for", "you", "with", "this", "that",
+        # fillers and laughter
+        "ayo", "yuk", "nah", "kan", "loh", "lho", "wah", "wow", "oke", "okay", "yes", "halo",
+        "guys", "gaes", "wkwk", "wkwkwk", "haha", "hahaha",
+    }
+)  # fmt: skip
+# Common words that look like a prefix + a term + an ending but are not derived from it, each
+# with the only terms it is a derived word of (none: a root word of its own). Checked on the
+# word as said and without its particle and possessive ("tangannya" -> "tangan").
+FOCUS_WORD_ROOTS = MappingProxyType(
+    {
+        # root words
+        "badan": (), "bani": (), "begini": (), "berang": (), "berangkat": (), "berdiri": (),
+        "bulan": (), "busi": (), "depan": (), "dialami": (), "dini": (), "gulai": (), "jalan": (),
+        "kasihan": (), "kebetulan": (), "kepala": (), "ketara": (), "ketika": (), "kiri": (),
+        "makan": (), "makin": (), "masalah": (), "melalui": (), "memang": (), "menanti": (),
+        "mengalami": (), "menurut": (), "merubah": (), "pandai": (), "pasi": (), "peluang": (),
+        "penanti": (), "pendiri": (), "pengalaman": (), "peran": (), "perang": (), "perangkat": (),
+        "perhatian": (), "perhatiin": (), "perhatikan": (), "perlahan": (), "pertama": (),
+        "petang": (), "ramai": (), "rapi": (), "santai": (), "sebuah": (), "sedang": (),
+        "sedangkan": (), "segala": (), "sekarang": (), "sekutu": (), "selalu": (), "selama": (),
+        "selamanya": (), "semata": (), "seni": (), "senin": (), "seolah": (), "serang": (),
+        "sering": (), "setara": (), "setelah": (), "setelan": (), "setuju": (), "sini": (),
+        "tangan": (), "tani": (), "teman": (), "terlalu": (), "termasuk": (), "ternyata": (),
+        "tersebut": (),
+        # derived words of one term only
+        "berubah": ("ubah",), "perubahan": ("ubah",), "selain": ("lain",),
+        "bermasalah": ("masalah",),
+    }
+)  # fmt: skip
 
 __all__ = [
     "FOCUS_MODES",
     "FOCUS_PARTICLES",
     "FOCUS_POSSESSIVES",
     "FOCUS_PREFIXES",
+    "FOCUS_STOPWORDS",
     "FOCUS_SUFFIXES",
+    "FOCUS_WORD_ROOTS",
     "MAX_FOCUS_NOTE_CHARS",
     "MAX_FOCUS_TERMS",
     "MAX_FOCUS_TERM_CHARS",
     "MIN_PREFIX_TERM_LETTERS",
+    "MIN_SUFFIX_TERM_LETTERS",
     "FocusHit",
     "FocusMatcher",
     "FocusSpec",
     "HeuristicWindows",
+    "focus_term_matchable",
     "parse_focus",
 ]
 
@@ -109,6 +176,9 @@ class FocusSpec:
         focus_terms(self.terms)
         if any(term != clean_trend_text(term) for term in self.terms):
             raise ValueError("focus terms must be clean single-line text")
+        keys = [key for key in map(_term_key, self.terms) if key]
+        if len(set(keys)) != len(keys):
+            raise ValueError("focus terms must be unique once tokenised")
         if not isinstance(self.note, str):
             raise TypeError("focus note must be a string")
         if self.note != clean_trend_text(self.note):
@@ -119,15 +189,22 @@ class FocusSpec:
             raise ValueError(f"focus mode must be one of {', '.join(FOCUS_MODES)}")
 
 
+def _term_key(term: str) -> tuple[str, ...]:
+    """What a term matches as: its tokens (``"Jomok!"`` and ``"jomok"`` are one term)."""
+    return tuple(_tokens(term))
+
+
 def parse_focus(
     terms: Iterable[str] | None, note: str | None = None, mode: str = "prefer"
 ) -> FocusSpec | None:
     """The :class:`FocusSpec` for raw terms and note (CLI or job options), ``None`` without terms.
 
-    Terms and note are cleaned first (see the module docstring); empty terms are dropped. A note
-    without any term, and anything the spec forbids (more than :data:`MAX_FOCUS_TERMS` terms, a
-    term outside 2-:data:`MAX_FOCUS_TERM_CHARS` characters, a repeated term, a note over
-    :data:`MAX_FOCUS_NOTE_CHARS` characters, another mode), raise ``ValueError``.
+    Terms and note are cleaned first (see the module docstring); empty terms are dropped, and so
+    is a term that tokenises like an earlier one (``"Jomok!"`` after ``"jomok"``, ``"K pop"``
+    after ``"k-pop"``). A note without any term, and anything the spec forbids (more than
+    :data:`MAX_FOCUS_TERMS` terms, a term outside 2-:data:`MAX_FOCUS_TERM_CHARS` characters, a
+    term repeated by casefold, a note over :data:`MAX_FOCUS_NOTE_CHARS` characters, another
+    mode), raise ``ValueError``.
     """
     if terms is None:
         terms = []
@@ -146,7 +223,17 @@ def parse_focus(
         if clean_note:
             raise ValueError("a focus note needs at least one focus term")
         return None
-    return FocusSpec(terms=cleaned, note=clean_note, mode=mode)
+    if len({term.casefold() for term in cleaned}) != len(cleaned):
+        raise ValueError("focus terms must be unique")
+    kept: list[str] = []
+    seen: set[tuple[str, ...]] = set()
+    for term in cleaned:
+        key = _term_key(term)
+        if key and key in seen:
+            continue  # the same words: the matcher would record every mention twice
+        seen.add(key)
+        kept.append(term)
+    return FocusSpec(terms=tuple(kept), note=clean_note, mode=mode)
 
 
 # --- literal matching -------------------------------------------------------------------------
@@ -156,18 +243,44 @@ def _letters(text: str) -> int:
     return sum(character.isalpha() for character in text)
 
 
-def _derived(token: str, word: str, prefixes: bool) -> bool:
+def _content(token: str) -> bool:
+    """A word a focus term may match by: three letters or more, not a focus stopword."""
+    return _letters(token) >= MIN_TERM_LETTERS and token not in FOCUS_STOPWORDS
+
+
+def focus_term_matchable(term: str) -> bool:
+    """Whether ``term`` can ever match a transcript literally (see the module docstring)."""
+    if not isinstance(term, str):
+        raise TypeError("term must be a string")
+    return any(_content(word) for word in _term_key(term))
+
+
+def _without_clitics(token: str) -> str:
+    """``token`` without a final particle and then a possessive: ``tangannyalah`` -> ``tangan``."""
+    for endings in (FOCUS_PARTICLES, FOCUS_POSSESSIVES):
+        for ending in endings:
+            if token.endswith(ending) and len(token) > len(ending):
+                token = token[: -len(ending)]
+                break
+    return token
+
+
+def _derived(token: str, word: str, *, prefixes: bool, suffixes: bool) -> bool:
     """``token`` is ``word`` or a derived word of it (see the module docstring)."""
     if token == word:
         return True
     if len(token) <= len(word):
         return False
-    return any(
-        token.startswith(head)
-        and token.startswith(word, len(head))
-        and token[len(head) + len(word) :] in _ENDINGS
-        for head in (("", *FOCUS_PREFIXES) if prefixes else ("",))
-    )
+    for form in (token, _without_clitics(token)):
+        roots = FOCUS_WORD_ROOTS.get(form)
+        if roots is not None and form != word and word not in roots:
+            return False  # a common word of its own, or another term's derived word
+    for head in ("", *FOCUS_PREFIXES) if prefixes else ("",):
+        if token.startswith(head) and token.startswith(word, len(head)):
+            endings = _ENDINGS if suffixes or head else _CLITIC_ENDINGS
+            if token[len(head) + len(word) :] in endings:
+                return True
+    return False
 
 
 @dataclass(frozen=True, slots=True)
@@ -176,23 +289,26 @@ class _Term:
     words: tuple[str, ...]
     usable: bool  # has a content word, so it may match on its own
     prefixes: bool  # a one-word term long enough to take a prefix
+    suffixes: bool  # ... and a suffix without a prefix
 
     @classmethod
     def of(cls, text: str) -> _Term:
-        words = tuple(_tokens(text))
-        usable = bool(words) and any(_content(word) for word in words)
-        prefixes = len(words) == 1 and _letters(words[0]) >= MIN_PREFIX_TERM_LETTERS
-        return cls(text, words, usable, prefixes)
+        words = _term_key(text)
+        usable = any(_content(word) for word in words)
+        letters = _letters(words[0]) if len(words) == 1 else 0
+        prefixes = letters >= MIN_PREFIX_TERM_LETTERS
+        return cls(text, words, usable, prefixes, letters >= MIN_SUFFIX_TERM_LETTERS)
+
+    def derives(self, token: str) -> bool:
+        """``token`` is this one-word term or one of its derived words."""
+        return _derived(token, self.words[0], prefixes=self.prefixes, suffixes=self.suffixes)
 
     def starts(self, tokens: Sequence[str]) -> list[int]:
         """Where this term is said in ``tokens`` (see the module docstring)."""
         if not self.usable:
             return []
         if len(self.words) == 1:
-            word = self.words[0]
-            return [
-                index for index, token in enumerate(tokens) if _derived(token, word, self.prefixes)
-            ]
+            return [index for index, token in enumerate(tokens) if self.derives(token)]
         size = len(self.words)
         head, last = self.words[:-1], self.words[-1]
         return [
@@ -236,9 +352,12 @@ class FocusMatcher:
             raise TypeError("focus must be a FocusSpec")
         self.focus = focus
         self._terms = tuple(_Term.of(term) for term in focus.terms)
-        self._joined = {
-            "".join(term.words): term for term in self._terms if term.usable and term.words
-        }
+        self._joined = {"".join(term.words): term for term in self._terms if term.usable}
+
+    @property
+    def unmatchable(self) -> tuple[str, ...]:
+        """The terms that can never match literally (too short, or function words only)."""
+        return tuple(term.text for term in self._terms if not term.usable)
 
     def mentions(self, text: str) -> tuple[str, ...]:
         """The focus terms ``text`` says, in the owner's order and spelling."""
@@ -260,8 +379,7 @@ class FocusMatcher:
         if folded in self._joined:
             return True
         return any(
-            len(term.words) == 1 and term.usable and _derived(folded, term.words[0], term.prefixes)
-            for term in self._terms
+            len(term.words) == 1 and term.usable and term.derives(folded) for term in self._terms
         )
 
     def hits(self, units: Sequence[SentenceUnit]) -> tuple[FocusHit, ...]:
