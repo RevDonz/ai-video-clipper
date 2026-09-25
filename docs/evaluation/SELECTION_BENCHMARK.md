@@ -195,6 +195,85 @@ provenance-nya dicatat). Nama bawaan tidak bisa ditimpa oleh plugin.
 - **Bukan prediksi viral.** Benchmark ini mengukur kecocokan dengan pilihan editor, bukan
   peluang sebuah klip menjadi viral.
 
+## Konteks Tren (2026-09-25)
+
+Mengukur engine Konteks Tren (`trend_context.py`, grounding dan dorongan ringan di
+`selection_v3.py`; aturannya di `docs/operations/STANDAR_KLIP_AI.md`, bagian "Konteks Tren").
+Semua run memakai K=10, durasi 20–90 detik, `yt/transcript.json`, sound events, dan timeline
+audio. Skrip pengukurnya sementara (scratchpad, tidak di-commit). Tidak ada model berbayar:
+pemutaran ulang memakai cache lama tanpa jaringan (klien HTTP dimatikan, cache miss = error),
+dan hanya 5 permintaan baru ke rantai gratis lokal.
+
+**Gerbang 1: tanpa tren hasilnya identik.** Hasil setiap run dibandingkan byte demi byte dengan
+kode dasar `59fbb9a`, lengkap dengan sha256 setiap prompt yang dikirim:
+
+| Run | Episode | Hasil |
+|---|---|---|
+| `v3-heuristic` | 7 | 7/7 identik |
+| Cache Hermes `llm-cache-final` (rantai custom → ollama-cloud → openrouter), diputar ulang | 5 | 5/5 identik, 10/10 permintaan kena cache |
+| Cache Gemma `llm-cache-final-gemma`, diputar ulang | 5 | 5/5 identik, 5/5 permintaan kena cache |
+| Prompt usulan `Ive926sC6mc` dan `0dzvz9JZFIM` (belum ada cache untuk rantai sekarang) | 2 | sha256 identik |
+| Sama seperti di atas, tetapi dengan file tren yang itemnya tidak disebut episode mana pun (termasuk item yang hanya berisi "viral"/"fyp") | 7 | 21/21 catatan identik |
+
+Test unit juga mengunci sha256 permintaan empat skenario fixture (tunggal, permintaan ulang,
+dipotong per bagian dengan permintaan ulang, peringkat ulang) pada nilai dari `59fbb9a`.
+
+**Gerbang 2: tren sintetis yang benar-benar disebut episode.** File 1 untuk `0K37SYfox7M`
+(8 item: 6 disebut, yaitu "beda server" 5×, "noted" 3×, "istidraj" 3×, "halal bihalal" 2×,
+"Yura Yunita" 1×, dan "innalillah" 1× sebagai tren **sensitif**; 2 item tidak disebut). File 2
+untuk `FxQDATkYHtk` (6 item: pilkada/Tangsel, Marcel, fiber optik, open mic, Pamulang, dan Papua
+sebagai tren sensitif). Untuk mengukur grounding terhadap model yang mengarang, jawaban cache
+diputar ulang dengan **semua** ID tren ditempelkan ke **setiap** momen.
+
+| Episode, run | Momen sama (dari 10) | Pindah peringkat | Hits@5 | Hits@10 | Trap@10 | Tren ter-grounding | Salah | Ref karangan dibuang |
+|---|---|---|---|---|---|---|---|---|
+| `0K37SYfox7M` heuristik | 9 | 0 | 4 → 4 | 4 → 5 | 2 → 2 | 2 | 0 | – |
+| `0K37SYfox7M` cache Hermes + ref karangan | 10 | 2 | 3 → 3 | 4 → 4 | 0 → 0 | 3 | 0 | 98 |
+| `0K37SYfox7M` cache Gemma + ref karangan | 10 | 2 | 4 → 4 | 6 → 6 | 0 → 0 | 3 | 0 | 57 |
+| `FxQDATkYHtk` heuristik | 9 | 6 | 0 → 0 | 0 → 1 | 1 → 0 | 2 | 0 | – |
+| `FxQDATkYHtk` cache Hermes + ref karangan | 10 | 5 | 2 → 2 | 3 → 3 | 0 → 0 | 4 | 0 | 108 |
+| `FxQDATkYHtk` cache Gemma + ref karangan | 9 | 3 | 3 → 3 | 4 → 4 | 1 → 1 | 3 | 0 | 52 |
+
+"Momen sama" = IoU ≥ 0,5 dengan klip run tanpa tren; semua klip yang sama juga punya rentang
+yang persis sama. Satu item file 2 juga disebut di `DwTmRFyQ53E` dan `0K37SYfox7M` (1 + 1
+ter-grounding, 0 salah, 16 + 6 + 17 + 10 ref karangan dibuang); episode lain tidak menyebut item
+mana pun dan hasilnya identik. Setiap tren ter-grounding diperiksa ulang dengan cara lain
+(pencarian substring tanpa aksen pada batas kata, bukan pencocok token engine): **24 dari 24
+benar, 0 salah**, dan **364 ref karangan dibuang** (tercatat sebagai `trend_ref_ungrounded:<n>`).
+Tren sensitif ter-grounding (duka "innalillah", Papua) tidak memberi dorongan dan tidak
+menyumbang hashtag.
+
+Yang berubah hanya kemasan (`hashtags`, `reasons`, `trends`) dan urutan; judul, skor, dan
+sub-skor tidak berubah. Karena dorongan bekerja sebelum K teratas diambil, kandidat ke-11 yang
+nyambung tren bisa masuk ke 10 besar menggantikan klip ke-10 yang selisih nilainya < 0,3 (3 dari
+6 run di atas; di `0K37SYfox7M` klip pengganti itu gold G12, di `FxQDATkYHtk` klip yang tergeser
+adalah trap). Nilai heuristik rapat, jadi satu klip bisa naik beberapa peringkat: di
+`FxQDATkYHtk` klip "open mic" (5,404 + 0,3) naik dari peringkat 6 ke 2 melewati empat klip
+bernilai 5,41–5,68.
+
+**Model sungguhan dengan blok tren** (`0K37SYfox7M`, file 1, 5 permintaan baru ke rantai gratis
+lokal; cache di scratchpad):
+
+| Run | `trend_refs` diisi model | Tren ter-grounding | Momen sama dengan cache tanpa tren | Hits@5 | Hits@10 | Trap@10 |
+|---|---|---|---|---|---|---|
+| Gemma tanpa tren, diulang (ukuran variasi model) | – | – | 9/10 | 4 | 6 | 0 |
+| Gemma + blok tren sesuai spesifikasi | 0 dari 10 momen | 0 | 8/10 | 5 | 8 | 0 |
+| Hermes `LJNAI-FAST` + blok tren sesuai spesifikasi | 0 dari 20 momen | 0 | 5/10 (variasi Hermes belum diukur) | 4 | 5 | 0 |
+| Gemma + blok tren + satu baris format (eksperimen, tidak di-commit) | 5 dari 10 momen | 5 (0 salah) | 7/10 | 4 | 7 | 0 |
+
+Temuan:
+- Dengan blok persis sesuai spesifikasi, **kedua model tidak mengisi `trend_refs`** (standar
+  sistem tidak menyebut field itu, dan blok tidak memberi contoh bentuknya). Model tetap memakai
+  tren di judul ("Definisi cinta beda server versi Habib Jafar", "Kenapa Halal Bihalal itu
+  tradisi yang jenius?"), tetapi klip AI tidak mendapat tren ter-grounding, hashtag tren, atau
+  dorongan. Satu baris tambahan
+  `Format: di setiap momen isi "trend_refs" dengan id tren yang dipakai, misalnya ["T1"]; isi [] bila tidak ada.`
+  membuat Gemma mengisi 5 ref yang kelimanya benar.
+- Blok tren ikut memengaruhi **momen yang dipilih model**, bukan hanya kemasan: dengan tren,
+  Gemma memilih dua momen tren yang tidak ada di run tanpa tren (beda server dan halal bihalal;
+  keduanya gold, G6 dan G12), sehingga Hits@10 naik dari 6 ke 8, dan trap tetap 0. Satu episode
+  belum cukup untuk menyimpulkan efeknya secara umum.
+
 ## Hasil final V3 setelah poles (2026-09-24, kode dibekukan)
 
 Dijalankan **sekali** setelah semua poles (LLM `llm-select-v2`, heuristik hasil setel ulang).
