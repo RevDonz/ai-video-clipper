@@ -197,6 +197,20 @@ test("the hourly limit holds across minutes and denied requests do not count", (
   assert.equal(limiter.consume("token", start + 3_600_000).allowed, true);
 });
 
+test("peek tells whether a key would be allowed without counting it", () => {
+  const limiter = new IngestRateLimiter({ perMinute: 2, perHour: 10 });
+  const start = NOW.getTime();
+  assert.deepEqual(limiter.peek("client", start), { allowed: true, retryAfterSeconds: 0 });
+  for (let index = 0; index < 5; index += 1) assert.equal(limiter.peek("client", start + index).allowed, true);
+  limiter.consume("client", start);
+  limiter.consume("client", start + 1);
+  const blocked = limiter.peek("client", start + 2);
+  assert.equal(blocked.allowed, false);
+  assert.ok(blocked.retryAfterSeconds >= 59 && blocked.retryAfterSeconds <= 60, String(blocked.retryAfterSeconds));
+  assert.equal(limiter.peek("client", start + 60_000).allowed, true, "the window ends");
+  assert.throws(() => limiter.peek("", start));
+});
+
 test("the limiter validates its configuration and keys", () => {
   assert.throws(() => new IngestRateLimiter({ perMinute: 0 }));
   assert.throws(() => new IngestRateLimiter({ perHour: 1.5 }));

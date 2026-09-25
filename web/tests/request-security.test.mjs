@@ -7,6 +7,7 @@ import {
   parseAuthRateLimitConfig,
   readBoundedUrlEncodedForm,
   sameOriginMutation,
+  trustedClientIp,
 } from "../lib/request-security.mjs";
 
 function request(url = "https://potongin.example/api", headers = {}) {
@@ -63,4 +64,14 @@ test("auth rate-limit config fails closed and limiter bounds username and client
   const spoofed = new Request("https://clips.example/login", { headers: { "cf-connecting-ip": "1.2.3.4", "x-real-ip": "5.6.7.8" } });
   assert.equal(authRateLimitKeys(spoofed, "admin", {})[0], authRateLimitKeys(new Request("https://clips.example/login"), "admin", {})[0]);
   assert.notEqual(authRateLimitKeys(spoofed, "admin", { AUTH_TRUSTED_CLIENT_IP_HEADER: "cloudflare" })[0], authRateLimitKeys(new Request("https://clips.example/login"), "admin", {})[0]);
+});
+
+test("the client IP comes only from the configured trusted proxy header", () => {
+  const headers = { "cf-connecting-ip": "203.0.113.9", "x-real-ip": "198.51.100.4" };
+  const both = new Request("https://clips.example/api/ingest/trends", { headers });
+  assert.equal(trustedClientIp(both, {}), null, "no header is trusted by default");
+  assert.equal(trustedClientIp(both, { AUTH_TRUSTED_CLIENT_IP_HEADER: "cloudflare" }), "203.0.113.9");
+  assert.equal(trustedClientIp(both, { AUTH_TRUSTED_CLIENT_IP_HEADER: "nginx" }), "198.51.100.4");
+  const junk = new Request("https://clips.example/", { headers: { "cf-connecting-ip": "not an ip" } });
+  assert.equal(trustedClientIp(junk, { AUTH_TRUSTED_CLIENT_IP_HEADER: "cloudflare" }), null);
 });
