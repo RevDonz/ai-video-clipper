@@ -59,9 +59,15 @@ export function createTrendApi(fetchImpl = (...args) => globalThis.fetch(...args
       if (error?.name === "AbortError") throw error;
       return { ok: false, status: 0, payload: null };
     }
+    // Always read the body, even an empty 204 one: Chromium reports a response whose body is
+    // never read as an aborted request.
     let payload = null;
-    if (response.status !== 204) {
-      try { payload = await response.json(); } catch { payload = null; }
+    try {
+      const text = await response.text();
+      payload = response.status !== 204 && text ? JSON.parse(text) : null;
+    } catch (error) {
+      if (error?.name === "AbortError") throw error;
+      payload = null;
     }
     return { ok: response.ok, status: response.status, payload };
   }
