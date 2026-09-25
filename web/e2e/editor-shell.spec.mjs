@@ -1027,6 +1027,7 @@ async function mockProject(page, { clipsStatus = 200, prepared = false } = {}) {
   await page.route(`**/api/jobs/${PROJECT_JOB}/clips`, async (route) => {
     if (route.request().method() === "POST") {
       posts.push(route.request().postData());
+      await new Promise((resolve) => setTimeout(resolve, 600)); // camera plans take a while
       preparedNow = true;
       return route.fulfill({ status: 202, json: { state: "done" } });
     }
@@ -1065,8 +1066,16 @@ test("project page: an older job is prepared once, then its clips open", async (
   const posts = await mockProject(page);
   await page.goto(`/projects/${PROJECT_JOB}`);
   const card = page.locator("article.v3Clip").nth(3);
-  await card.getByRole("button", { name: "Siapkan untuk editor" }).click();
+  await expect(card.getByText("Klip perlu disiapkan dulu")).toBeVisible();
+  // one job-level action (the prepare covers every clip of the job), not one per card
+  const prepare = page.getByRole("button", { name: /Siapkan untuk editor/ });
+  await expect(prepare).toHaveCount(1);
+  await expect(page.locator("article.v3Clip").getByRole("button", { name: /Siapkan untuk editor/ })).toHaveCount(0);
+  await prepare.click();
+  // Appendix C.6 wording while it runs
+  await expect(page.getByRole("status").filter({ hasText: "Menyiapkan analisis klip (kata, waveform, wajah)…" })).toBeVisible();
   await expect(card.getByRole("link", { name: "Edit klip" })).toHaveAttribute("href", `/projects/${PROJECT_JOB}/clips/clip_${"d".repeat(24)}/edit`);
+  await expect(page.getByRole("button", { name: /Siapkan untuk editor/ })).toHaveCount(0);
   expect(posts).toEqual(["{}"]);
 });
 

@@ -19,6 +19,7 @@ import { createSessionToken, isAuthorized } from "../lib/auth.mjs";
 import {
   EDIT_API_MODULE,
   MAX_DOC_BODY_BYTES,
+  PREPARE_RATE,
   createClipsRoute,
   createEditRoute,
   createWordsRoute,
@@ -246,6 +247,36 @@ test("POST clips prepares the job (202) with an empty or {} body only", async ()
   }
   const big = await read(await route.POST(request(CLIPS_URL, { method: "POST", body: " ".repeat(2048) }), context({ id: JOB_ID })));
   assert.equal(big.status, 413);
+});
+
+test("job prepares share one run per job, run one at a time and are rate limited (W2 verifier)", async () => {
+  // The camera plans of a face-track job take ~50 s: two clicks share one run, two jobs do not
+  // prepare at the same time (the preview lane keeps its CPU), and a job is prepared at most
+  // PREPARE_RATE times in a burst.
+  const OTHER_JOB = "5b7c1d2e-3f40-4a5b-8c6d-7e8f9a0b1c2d";
+  const prepared = { state: "done", clips: [] };
+  const log = [];
+  let release = null;
+  const runCli = async (_module, op, payload) => {
+    log.push(["start", payload.jobId]);
+    await new Promise((resolve) => { release = resolve; setTimeout(resolve, 150); });
+    log.push(["end", payload.jobId]);
+    return { exitCode: 0, json: prepared };
+  };
+  const route = createClipsRoute({ authorize, env: env(), runCli });
+  const post = (id) => route.POST(request(`/api/jobs/${id}/clips`, { method: "POST", body: "{}" }), context({ id }));
+  const [a, b, c] = await Promise.all([post(JOB_ID), post(JOB_ID), post(OTHER_JOB)]);
+  assert.deepEqual([a.status, b.status, c.status], [202, 202, 202]);
+  assert.deepEqual(log, [["start", JOB_ID], ["end", JOB_ID], ["start", OTHER_JOB], ["end", OTHER_JOB]]);
+  const statuses = [];
+  for (let i = 0; i < PREPARE_RATE.capacity + 1; i += 1) statuses.push((await post(OTHER_JOB)).status);
+  // the burst above already used one token of OTHER_JOB
+  assert.deepEqual(statuses, [...Array(PREPARE_RATE.capacity - 1).fill(202), 429, 429]);
+  const limited = await read(await post(OTHER_JOB));
+  assert.equal(limited.status, 429);
+  assert.equal(limited.body.code, "rate_limited");
+  assert.ok(Number(limited.headers.get("retry-after")) >= 1);
+  assert.equal(typeof release, "function");
 });
 
 // --- GET/PUT edit -----------------------------------------------------------------------------------
