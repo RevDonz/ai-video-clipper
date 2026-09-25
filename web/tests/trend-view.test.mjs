@@ -154,6 +154,10 @@ test("a server item is normalized for display without trusting its shape", () =>
   assert.equal(hostile.enabled, true, "only an explicit false disables");
   assert.equal(hostile.expiresAt, null);
 
+  const repeated = normalizeTrendItem({
+    id: "x", title: "Ulang", examples: [{ url: "https://a.example/v/1" }, { url: "https://a.example/v/1", note: "lagi" }],
+  });
+  assert.deepEqual(repeated.examples.map((example) => example.url), ["https://a.example/v/1"], "one list key per url");
   assert.equal(normalizeTrendItem({ title: "no id" }), null);
   assert.equal(normalizeTrendItem(null), null);
   assert.equal(normalizeTrendItem({ id: "a", enabled: false }).enabled, false);
