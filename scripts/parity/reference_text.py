@@ -709,10 +709,18 @@ def composite_graph(fmt: str, ass: str | None) -> str:
 
 
 def final_graph(fmt: str) -> str:
-    """R5's last step, the same for every candidate: BT.709/tv 4:2:0."""
-    if fmt not in CANDIDATES:
-        raise ValueError(f"unknown candidate {fmt!r}")
-    return FINAL_GRAPH
+    """R5's last step: BT.709/tv 4:2:0.
+
+    From RGB (``gbrp``) this is R5's string. A YUV composite must also name its own matrix:
+    swscale treats untagged YUV as BT.601 and, when the two matrices differ, converts YUV→YUV
+    through RGB, which would shift every plate colour (measured in the S-COLOR run: luma SSIM
+    0.977 against the composite). With both matrices BT.709 only the chroma is resampled.
+    """
+    if fmt == "gbrp":
+        return FINAL_GRAPH
+    if fmt in ("yuv420p", "yuv444p"):
+        return f"scale=in_color_matrix=bt709:in_range=tv:{FINAL_GRAPH.removeprefix('scale=')}"
+    raise ValueError(f"unknown candidate {fmt!r}")
 
 
 def view_graph(fmt: str) -> str:
