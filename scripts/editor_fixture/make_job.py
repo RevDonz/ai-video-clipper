@@ -28,10 +28,18 @@ open (a question). Every artifact is deterministic; only the H.264 bits depend o
 ``gates`` measures the T1.5 performance gates and merges them into the evidence files
 ``docs/editor/evidence/W1/T1.5-words_peaks.json`` and ``T1.5-camera.json``.
 
+``build --render`` (T2.1) then renders the auto clips of every V3 job through the pipeline's
+rendering stage (``pipeline.render_v3_job``): ``old`` with the legacy engine (a job rendered
+before the engine switch), the others with the edit-v2 compiler, so they carry ``seed.json``
+(engine ``edit-v2/1``), words, peaks, camera plan (face-track, stubbed with ``--stub-camera``)
+and ``output/clip-NN.mp4`` + ``.srt`` + ``.jpg``; the manifest and ``job.json`` clips gain
+``clip_id``/``clipId`` and ``render_engine``/``renderEngine``. ``--prepare`` runs after it
+(it then seeds only the legacy-engine job).
+
 Usage::
 
     python scripts/editor_fixture/make_job.py build OUT [--size 1280x720] [--only main,old]
-        [--force] [--prepare] [--stub-camera]
+        [--force] [--render] [--prepare] [--stub-camera]
     python scripts/editor_fixture/make_job.py gates EVIDENCE_DIR --label NAME [--work DIR]
         [--size 1280x720] [--repeat 5]
 """
@@ -468,6 +476,10 @@ def _job_clip(job: str, clip: dict[str, Any]) -> dict[str, Any]:
         "downloadUrl": f"/api/jobs/{job}/files/output/{name}?download=1",
         "subtitleUrl": f"/api/jobs/{job}/files/output/{Path(clip['subtitles']).name}?download=1",
     }
+    if clip.get("clip_id"):
+        entry["clipId"] = clip["clip_id"]
+    if clip.get("render_engine"):
+        entry["renderEngine"] = clip["render_engine"]
     if "title" in clip:
         entry.update({
             "title": clip["title"], "hookText": clip["hook_text"],
@@ -607,6 +619,44 @@ def prepare_all(out: Path, index: dict[str, Any], *, stub_camera: bool) -> dict[
         camera.detect_face_track = _stub_detector
     return {name: seed.prepare_legacy_job(out / entry["dir"])
             for name, entry in index["jobs"].items()}
+
+
+def render_all(out: Path, index: dict[str, Any], *, stub_camera: bool) -> dict[str, Any]:
+    """Render the auto clips of every V3 job through ``pipeline.render_v3_job`` (``old``
+    with the legacy engine, the others with edit-v2) and record them in the manifest,
+    ``job.json`` and the index."""
+    from ai_clipper import pipeline
+    from ai_clipper.edit_v2 import camera
+
+    if stub_camera:
+        camera.detect_face_track = _stub_detector
+    report: dict[str, Any] = {}
+    for name, entry in index["jobs"].items():
+        variant = VARIANTS[name]
+        if variant.selection_mode != "v3" or variant.layout == "stranded":
+            continue
+        engine = "legacy" if name == "old" else "edit-v2"
+        job_dir = out / entry["dir"]
+        run = pipeline.render_v3_job(job_dir, render_engine=engine)
+        manifest_path = job_dir / "output" / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["clips"] = run.clips
+        manifest["selection_v3"]["warnings"] = [*manifest["selection_v3"]["warnings"],
+                                                *run.warnings]
+        _write_json(manifest_path, manifest)
+        job_path = job_dir / "job.json"
+        job = json.loads(job_path.read_text(encoding="utf-8"))
+        job["clips"] = [_job_clip(job["id"], clip) for clip in run.clips]
+        job["selectionV3"] = manifest["selection_v3"]
+        _write_json(job_path, job)
+        entry["rendered"] = engine
+        report[name] = {"engine": engine, "seconds": round(run.seconds, 2),
+                        "warnings": run.warnings,
+                        "clips": [{"index": clip["index"], "clip_id": clip.get("clip_id"),
+                                   "render_engine": clip.get("render_engine", "legacy")}
+                                  for clip in run.clips]}
+    _write_json(out / "fixture.json", index)
+    return report
 
 
 def _stub_detector(source: Path, *, start: float, end: float, sample_interval: float = 0.75):
@@ -779,9 +829,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     make.add_argument("--size", type=_size, default=DEFAULT_SIZE)
     make.add_argument("--only", default=None, help="comma-separated job names")
     make.add_argument("--force", action="store_true", help="replace existing fixture jobs")
+    make.add_argument("--render", action="store_true",
+                      help="render the auto clips (old: legacy engine, others: edit-v2)")
     make.add_argument("--prepare", action="store_true", help="also run prepare_legacy_job")
     make.add_argument("--stub-camera", action="store_true",
-                      help="with --prepare: a deterministic face track instead of OpenCV")
+                      help="with --render/--prepare: a deterministic face track, not OpenCV")
     gate = commands.add_parser("gates", help="measure the T1.5 gates")
     gate.add_argument("evidence_dir", type=Path)
     gate.add_argument("--label", required=True)
@@ -794,6 +846,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         index = build(args.out, size=args.size, only=only, force=args.force)
         report: dict[str, Any] = {"jobs": {name: entry["dir"]
                                            for name, entry in index["jobs"].items()}}
+        if args.render:
+            report["render"] = render_all(args.out, index, stub_camera=args.stub_camera)
         if args.prepare:
             report["prepare"] = prepare_all(args.out, index, stub_camera=args.stub_camera)
         print(json.dumps(report, indent=2))
