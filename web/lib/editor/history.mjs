@@ -38,20 +38,24 @@ export function createHistory({ limit = HISTORY_LIMIT, mergeWindowMs = MERGE_WIN
     get canRedo() {
       return position < entries.length;
     },
-    /** Adds (or merges into the last entry) one applied command. Returns `{ entry, merged }`. */
-    record({ type, args, mergeKey = null, at, before, after, parts = [] }) {
+    /**
+     * Adds (or merges into the last entry) one applied step: a command `{ type, args }` or a part
+     * restore `{ type: "__parts", values }`. Returns `{ entry, merged }`.
+     */
+    record({ type, args, values, mergeKey = null, at, before, after, parts = [] }) {
+      const step = values === undefined ? { type, args, at, parts } : { type, values, at, parts };
       const last = position > 0 && position === entries.length ? entries[position - 1] : null;
       if (last && mergeKey !== null && mergeKey !== undefined && last.mergeKey === mergeKey && !last.sealed
         && at - last.lastAt <= mergeWindowMs) {
         last.after = after;
         last.lastAt = at;
-        last.steps.push({ type, args, at, parts });
+        last.steps.push(step);
         last.parts = [...new Set([...last.parts, ...parts])];
         return { entry: last, merged: true };
       }
       entries.length = position;
       const entry = { id: nextEntryId++, mergeKey: mergeKey ?? null, firstAt: at, lastAt: at, before, after,
-        steps: [{ type, args, at, parts }], parts: [...parts], sealed: false };
+        steps: [step], parts: [...parts], sealed: false };
       entries.push(entry);
       if (entries.length > limit) entries = entries.slice(entries.length - limit);
       position = entries.length;
@@ -81,6 +85,13 @@ export function createHistory({ limit = HISTORY_LIMIT, mergeWindowMs = MERGE_WIN
       position = 0;
     },
   };
+}
+
+/** The pending-log form of a history step. */
+function logStep(step, entryId) {
+  return step.type === "__parts"
+    ? { type: "__parts", values: step.values, parts: step.parts, entryId }
+    : { type: step.type, args: step.args, parts: step.parts, entryId };
 }
 
 export function createEditSession({ doc, ctx, now = () => Date.now(), limit = HISTORY_LIMIT, mergeWindowMs = MERGE_WINDOW_MS }) {
@@ -145,7 +156,7 @@ export function createEditSession({ doc, ctx, now = () => Date.now(), limit = HI
       if (!entry) return false;
       const last = pending.at(-1);
       if (last && last.undo && last.entryId === entry.id && pending.length > protectedCount) pending.pop();
-      else for (const step of entry.steps) pending.push({ type: step.type, args: step.args, parts: step.parts, entryId: entry.id });
+      else for (const step of entry.steps) pending.push(logStep(step, entry.id));
       current = entry.after;
       return true;
     },
@@ -186,9 +197,10 @@ export function createEditSession({ doc, ctx, now = () => Date.now(), limit = HI
         if (!parts.length) continue;
         const key = `__replay:${step.entryId ?? pending.length}`;
         if (key !== lastKey) history.seal();
-        const { entry } = history.record({ type: step.type, args: result.args, mergeKey: key, at: 0, before, after: result.doc, parts });
+        const replayed = step.type === "__parts" ? { type: "__parts", values: step.values, parts } : { type: step.type, args: result.args, parts };
+        const { entry } = history.record({ ...replayed, mergeKey: key, at: 0, before, after: result.doc });
         lastKey = key;
-        pending.push(step.type === "__parts" ? { ...step, parts, entryId: entry.id } : { type: step.type, args: result.args, parts, entryId: entry.id });
+        pending.push({ ...replayed, entryId: entry.id });
         current = result.doc;
       }
       history.seal();
