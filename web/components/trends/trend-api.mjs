@@ -22,6 +22,20 @@ export const TREND_ROUTES = Object.freeze({
 const UNRECOGNIZED = "Respons server tidak dikenali. Muat ulang halaman.";
 const EDITABLE_FIELDS = new Set(["kind", "title", "summary", "keywords", "hashtags", "platforms", "score", "sensitivity", "expiresAt", "enabled", "label"]);
 
+const LABEL_CODES = new Set(["invalid_label", "label_taken"]);
+
+// The form field to mark: `field`, else the first 422 issue on a field the form shows
+// (the API names list entries as "keywords[1]"), else "label" for a token label error.
+function failedField(payload) {
+  if (!payload || typeof payload !== "object") return null;
+  if (EDITABLE_FIELDS.has(payload.field)) return payload.field;
+  for (const issue of Array.isArray(payload.issues) ? payload.issues : []) {
+    const name = typeof issue?.field === "string" ? issue.field.replace(/[[.].*$/, "") : "";
+    if (EDITABLE_FIELDS.has(name)) return name;
+  }
+  return LABEL_CODES.has(payload.code) ? "label" : null;
+}
+
 function itemFrom(payload) {
   if (!payload || typeof payload !== "object") return null;
   return normalizeTrendItem(payload.item && typeof payload.item === "object" ? payload.item : payload);
@@ -53,10 +67,7 @@ export function createTrendApi(fetchImpl = (...args) => globalThis.fetch(...args
   }
 
   function failure(result, fallback) {
-    const field = result.payload && typeof result.payload === "object" && EDITABLE_FIELDS.has(result.payload.field)
-      ? result.payload.field
-      : null;
-    return { ok: false, status: result.status, data: null, error: apiErrorMessage(result, fallback), field };
+    return { ok: false, status: result.status, data: null, error: apiErrorMessage(result, fallback), field: failedField(result.payload) };
   }
 
   function success(result, data) {
