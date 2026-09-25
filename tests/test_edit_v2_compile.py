@@ -336,7 +336,7 @@ def test_seek_is_one_second_before_the_first_frame():
     assert seek_arg(15, Fps(30000, 1001)) == "0.000000"
     assert seek_arg(30, Fps(30, 1)) == "0.000000"
     assert seek_arg(31, Fps(30, 1)) == "0.033333"
-    assert seek_arg(38210, Fps(30000, 1001)) == "1273.972333"
+    assert seek_arg(38210, Fps(30000, 1001)) == "1273.940333"  # 38210·1001/30000 − 1
     assert seek_arg(100, Fps(24000, 1001)) == "3.170833"
 
 
@@ -474,8 +474,10 @@ def test_audio_modes_decode_like_the_final(harness, probe_stub):
 def test_every_format_change_is_an_explicit_scale(harness, probe_stub, monkeypatch, composite):
     monkeypatch.setattr(compile_ffmpeg, "COMPOSITE_FORMAT", composite)
     for name in ("logo__c30", "seed__c25", "seed__c24"):
+        plan = fixture_plan(name)
+        first_cell = plan.pieces[0].in_sf // tm.cell_frames(plan.fps)
         for mode, extra in (("final", {}), ("frame", {"frame": 5}),
-                            ("plate_cells", {"cells": (620,) if "c30" in name else (300,)})):
+                            ("plate_cells", {"cells": (first_cell,)})):
             _plan, job = compiled(name, probe_stub, mode=mode, **extra)
             for chain in re.split(r";\s*", job.filter_script):
                 filters = re.sub(r"\[[^\]]*\]", "\x00", chain).split(",")
@@ -525,9 +527,14 @@ def test_layout_chains_keep_the_legacy_render_operations():
                                      output=(720, 1280), source=(1280, 720), matrix="bt709",
                                      in_range="tv")
         conversion = ":in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv"
+        # the fit-blur foreground converts to yuva444p: overlay's yuv444 mode takes its second
+        # input only with alpha, so the conversion is explicit instead of an auto-inserted scale
         simplified = (chain.replace(conversion + ",format=yuv444p", "")
+                      .replace(conversion + ",format=yuva444p", "")
                       .replace(":format=yuv444", ""))
         assert simplified == legacy + "[out]"
+        if mode == "fit_blur":
+            assert "force_original_aspect_ratio=decrease" + conversion + ",format=yuva444p[" in chain
     camera = layouts.layout_chain("camera", label_in="[in]", label_out="[out]", suffix="_1",
                                   output=(720, 1280), source=(1280, 720), matrix="bt601",
                                   in_range="pc", crop=(0, 0, 2, 4))
@@ -637,7 +644,7 @@ def test_camera_crop_holds_across_a_cut_and_outside_the_samples():
     p0 = 778  # round_half_up(0.5 · 2276 − 360), even
     assert values[0] == values[24] == values[25] == p0  # before the first sample: held
     assert values[50] != values[25] and values[37] not in (values[25], values[50])  # linear
-    assert values[50:75] == [values[50]] * 25  # the next sample is a cut: held
+    assert values[50:75] == (values[50],) * 25  # the next sample is a cut: held
     assert values[75] == values[99] == 0  # last sample (clamped at 0) is held
 
 
@@ -937,6 +944,7 @@ def test_no_implicit_video_conversions(harness, tmp_path, monkeypatch, edit_v2_l
         result = run_to_file(verbose, tmp_path / f"final-{layout}-{composite}.mp4")
         assert result.returncode == 0
         assert "auto_scale" not in result.stderr, (layout, composite)
+        assert "auto-inserting" not in result.stderr, (layout, composite)
 
 
 def test_execution_is_deterministic(harness, tmp_path, edit_v2_ffmpeg):

@@ -1,0 +1,134 @@
+## argv
+ffmpeg
+-nostdin
+-y
+-hide_banner
+-nostats
+-loglevel
+error
+-progress
+@progress
+-copyts
+-protocol_whitelist
+file,pipe
+-threads
+4
+-ss
+1241.374466
+-i
+@in:0
+-protocol_whitelist
+file,pipe
+-f
+png_pipe
+-i
+@in:1
+-filter_complex_script
+filter_graph.txt
+-filter_complex_threads
+4
+-map
+[vout]
+-frames:v
+1
+-c:v
+libx264
+-preset
+veryfast
+-crf
+21
+-profile:v
+high
+-pix_fmt
+yuv420p
+-g
+60
+-x264-params
+threads=4
+-color_primaries
+bt709
+-color_trc
+bt709
+-colorspace
+bt709
+-color_range
+tv
+-fps_mode
+passthrough
+-map_metadata
+-1
+-fflags
++bitexact
+-flags:v
++bitexact
+-flags:a
++bitexact
+-f
+h264
+frame.h264
+## inputs
+source source -threads 4 -ss 1241.374466
+asset sha256:036ce0c8d1bbde9427d03c28388f2f48cf1b4a1061869b334f0be2adee588148 -f png_pipe
+## sidecars
+captions.ass 12ee7e6b059299a7b8fd6c71f945fa514185efd6ec9317cc5d4ef260d1651db4
+## expected
+{
+ "assets_root": "/jobs/job-1/analysis/assets",
+ "fontconfig_file": "/app/resources/fontconfig/fonts.conf",
+ "fonts_dir": "/app/resources/fonts",
+ "fps": [
+  30000,
+  1001
+ ],
+ "frame": 150,
+ "frames": 1,
+ "mode": "frame",
+ "output": "png",
+ "paths": {
+  "sha256:036ce0c8d1bbde9427d03c28388f2f48cf1b4a1061869b334f0be2adee588148": "/jobs/job-1/analysis/assets/036ce0c8d1bbde9427d03c28388f2f48cf1b4a1061869b334f0be2adee588148.png",
+  "source": "/jobs/job-1/source.mp4"
+ },
+ "post": [
+  "ffmpeg",
+  "-nostdin",
+  "-y",
+  "-hide_banner",
+  "-nostats",
+  "-loglevel",
+  "error",
+  "-protocol_whitelist",
+  "file,pipe",
+  "-f",
+  "h264",
+  "-i",
+  "frame.h264",
+  "-frames:v",
+  "1",
+  "-vf",
+  "scale=in_color_matrix=bt709:in_range=tv,format=rgb24",
+  "-fflags",
+  "+bitexact",
+  "-flags:v",
+  "+bitexact",
+  "-f",
+  "image2",
+  "-c:v",
+  "png",
+  "frame.png"
+ ],
+ "result": "frame.png",
+ "size": [
+  720,
+  1280
+ ],
+ "source_frame": 37234
+}
+## filter_script
+[0:0]null[vd0];
+[vd0]fps=30000/1001,trim=start_pts=37234:end_pts=37235,setpts=PTS-STARTPTS+150,split=2[background_0][foreground_0];[background_0]scale=720:1280:force_original_aspect_ratio=increase:in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuv444p,crop=720:1280,gblur=sigma=35[blurred_0];[foreground_0]scale=720:1280:force_original_aspect_ratio=decrease:in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuva444p[fit_0];[blurred_0][fit_0]overlay=(W-w)/2:(H-h)/2:format=yuv444,setsar=1[vp0];
+[vp0]settb=1001/30000[vcat];
+[vcat]scale=in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuv444p,ass=filename=captions.ass:fontsdir=fonts:shaping=complex[vtext];
+[1:v]scale=115:115:flags=lanczos,format=rgba,colorchannelmixer=aa=0.850,scale=out_color_matrix=bt709:out_range=tv,format=yuva444p[lg];
+[vtext][lg]overlay=x=576:y=32:format=yuv444[vlogo];
+[vlogo]scale=in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuv420p[vout]
+
