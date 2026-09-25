@@ -1,0 +1,36 @@
+{
+  "browser": "147.0.7727.15",
+  "gate": "W1-TEXT-RECHECK",
+  "jassub": "2.5.16",
+  "note": "web/e2e/parity-text.spec.mjs (W1) re-run after the T2.4 changes to text-layer.mjs (banded compositing, keepBitmaps, split); numbers equal the W1 exit (T1.Z-P-TXT, T1.Z-P-TIME-jassub)",
+  "p_time_jassub": {
+    "clips": 5,
+    "hazard_transitions": 44,
+    "mismatches": 0,
+    "transitions": 231
+  },
+  "p_txt_gbrp": {
+    "failures": 0,
+    "frames": 120,
+    "worst": {
+      "max": 14,
+      "psnr": 62.49980039190294,
+      "px_over_16": 0,
+      "ssim": 0.9999476742982829,
+      "ssim_text": 0.9994890817555159
+    }
+  },
+  "pass": true,
+  "task": "T2.4",
+  "toolchain": {
+    "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "packages": {
+      "ffmpeg": "7:5.1.9-0+deb12u1",
+      "fontconfig": "2.14.1-4",
+      "libass9": "1:0.17.1-1+deb12u1",
+      "libfreetype6": "2.12.1+dfsg-5+deb12u4",
+      "libfribidi0": "1.0.8-2.1",
+      "libharfbuzz0b": "6.0.0+dfsg-3"
+    }
+  }
+}
