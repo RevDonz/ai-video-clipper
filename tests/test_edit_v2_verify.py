@@ -60,7 +60,9 @@ def encode(path: Path, *, size=(720, 1280), rate="30000/1001", frames=FRAMES, sa
     argv += ["-filter_complex", graph, "-map", "[v]"]
     if audio:
         argv += ["-map", "[a]", "-c:a", "aac", "-b:a", "192k"]
-    argv += ["-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", pix_fmt, "-threads", "4"]
+    # veryfast as in R7: ultrafast drops CABAC and 8x8dct, so x264 would signal Constrained
+    # Baseline whatever -profile:v says
+    argv += ["-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", pix_fmt, "-threads", "4"]
     if pix_fmt == "yuv420p":
         argv += ["-profile:v", profile]
     if tags:
