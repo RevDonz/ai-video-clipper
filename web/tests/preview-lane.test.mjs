@@ -88,6 +88,17 @@ function fakeCli({ auto = false, results = {} } = {}) {
   return { run, calls, pending: (op) => calls.filter((c) => !c.done && (!op || c.op === op)) };
 }
 
+// The lane trusts the disk: a mix or a cell that the plan reports ready must exist.
+function readyAudio(clip, key = AUDIO) {
+  mkdirSync(path.join(clip, "preview", "audio"), { recursive: true });
+  writeFileSync(path.join(clip, "preview", "audio", `${key.slice(0, 16)}.flac`), "fLaC");
+}
+
+function readyCell(clip, k, key = KEY) {
+  mkdirSync(path.join(clip, "preview", "plates"), { recursive: true });
+  writeFileSync(path.join(clip, "preview", "plates", `${key.slice(0, 16)}-c${String(k).padStart(7, "0")}.mp4`), "cell");
+}
+
 function cellsResult(payload) {
   return { exitCode: 0, json: { plateKey: KEY, built: payload.cells, present: [] } };
 }
@@ -253,6 +264,7 @@ test("a new plate key cancels the old cells through a cancel marker", async () =
   const { dir, clip, cleanup } = root();
   const cli = fakeCli();
   const lane = createPreviewLane({ jobsRoot: dir, runCli: cli.run, heavySlots: 2 });
+  readyAudio(clip);
   try {
     const one = lane.plan({ jobId: JOB, clipId: CLIP, body: planBody({ playhead: 1 }) });
     await settle();
@@ -293,6 +305,7 @@ test("an interactive job preempts the newest cell job when every slot is busy", 
   const { dir, clip, cleanup } = root();
   const cli = fakeCli();
   const lane = createPreviewLane({ jobsRoot: dir, runCli: cli.run, heavySlots: 2 });
+  readyAudio(clip);
   try {
     const planned = lane.plan({ jobId: JOB, clipId: CLIP, body: planBody() });
     await settle();
@@ -333,6 +346,7 @@ test("a new audio mix for the clip replaces the one being built", async () => {
   const { dir, clip, cleanup } = root();
   const cli = fakeCli();
   const lane = createPreviewLane({ jobsRoot: dir, runCli: cli.run, heavySlots: 2 });
+  readyCell(clip, 10);
   try {
     const first = lane.plan({ jobId: JOB, clipId: CLIP, body: planBody({ playhead: 1 }) });
     await settle();
@@ -425,9 +439,10 @@ test("at most two heavy processes run, whatever is queued", async () => {
     await planned;
     let peak = 0;
     let built = [];
-    for (let round = 0; round < 60 && cli.pending().length; round += 1) {
+    for (let round = 0; round < 60; round += 1) {
       await settle();
       const running = cli.pending();
+      if (!running.length) break;
       peak = Math.max(peak, running.length);
       for (const c of running) {
         if (c.op === "cells") built = built.concat(c.payload.cells);
