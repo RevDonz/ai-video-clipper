@@ -128,6 +128,46 @@ def test_the_default_detector_is_todays_face_tracker():
     assert camera.detect_face_track is detect_face_track
 
 
+class BoolLike:
+    """Stands in for ``numpy.bool_``, which today's detector returns as cut flags."""
+
+    def __init__(self, value):
+        self.value = value
+
+    def __bool__(self):
+        return self.value
+
+    def __eq__(self, other):
+        return self.value == other
+
+    __hash__ = None
+
+
+def test_bool_like_cut_flags_are_accepted(source):
+    def detector(source, *, start, end, sample_interval=0.75):
+        return [0.0, 0.75], [0.5, 0.5], [BoolLike(False), BoolLike(True)], 640, 360
+
+    plan = build_camera_plan(source, (0, 1500), Fps(25, 1), out_w=720, out_h=1280,
+                             detector=detector)
+    assert plan["cuts"] == [False, True]
+    assert all(type(flag) is bool for flag in plan["cuts"])
+
+
+def test_todays_detector_runs_over_a_synthetic_window(tmp_path, edit_v2_ffmpeg):
+    pytest.importorskip("cv2")
+    from support import edit_v2_media as media
+
+    path = media.make_barcode_video(
+        tmp_path / "faceless.mp4",
+        media.VideoSpec(width=320, height=180, fps=(25, 1), frames=100, audio=None),
+    )
+    plan = build_camera_plan(path, (0, 4000), Fps(25, 1), out_w=720, out_h=1280)
+    assert [t for t, _centre in plan["samples"]] == [0, 750, 1500, 2250, 3000, 3750]
+    assert plan["source"] == {"w": 320, "h": 180}
+    assert all(centre == 500 for _t, centre in plan["samples"])  # no face: centred
+    assert plan["no_face"] == []  # unknown until the detector can skip smoothing
+
+
 @pytest.mark.parametrize(
     "result",
     [
@@ -135,6 +175,7 @@ def test_the_default_detector_is_todays_face_tracker():
         ([0.0, 0.0], [0.5, 0.5], [False, False], 1280, 720),  # times not increasing
         ([0.0, 0.75], [0.5, 1.5], [False, False], 1280, 720),  # centre outside [0, 1]
         ([0.0, 0.75], [0.5, 0.5], [False, False], 0, 720),  # no source size
+        ([0.0, 0.75], [0.5, 0.5], [False, "yes"], 1280, 720),  # not a flag
     ],
 )
 def test_rejects_a_malformed_detector_result(source, result):
