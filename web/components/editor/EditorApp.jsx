@@ -36,6 +36,13 @@ function lazyComponent(entry) {
   return components.get(entry.file);
 }
 
+const PLAYER_ERRORS = Object.freeze({
+  load: "Pratinjau gagal dimuat; perubahan tetap tersimpan",
+  play: "Pratinjau tidak bisa diputar di browser ini",
+  seek: "Frame ini belum bisa ditampilkan",
+  step: "Frame ini belum bisa ditampilkan",
+  showTruthFrame: "Frame akhir gagal dimuat; coba lagi",
+});
 const EMPTY_STATE = Object.freeze({ status: "loading", doc: null, plan: null, pending: [], warnings: [], save: "saved" });
 const TERMINAL_EXPORT = new Set(["completed", "failed", "cancelled", "error"]);
 const BUSY_EXPORT = new Set(["saving", "submitting", "running"]);
@@ -111,7 +118,10 @@ function EditorShell({ runtime, jobId, clipId, initialPanel }) {
   const snapshot = useCallback(() => store.getState(), [store]);
   const state = useSyncExternalStore(subscribe, snapshot, () => EMPTY_STATE);
   const frameBus = useMemo(() => createFrameBus(), []);
-  const player = useMemo(() => createPlayerFacade(frameBus), [frameBus]);
+  const notifyRef = useRef(() => {});
+  const player = useMemo(() => createPlayerFacade(frameBus, {
+    onError: (_error, action) => notifyRef.current(PLAYER_ERRORS[action] ?? PLAYER_ERRORS.load),
+  }), [frameBus]);
   const [playerState, setPlayerState] = useState(null);
   const [media, setMedia] = useState(null);
   const [panelId, setPanelId] = useState(initialPanel ?? PANELS[0].id);
@@ -138,6 +148,7 @@ function EditorShell({ runtime, jobId, clipId, initialPanel }) {
   const modalOpen = exportOpen || helpOpen || Boolean(conflict);
 
   const notify = useCallback((text) => setToast({ text, id: Date.now() }), []);
+  notifyRef.current = notify;
   useEffect(() => {
     if (!toast) return undefined;
     const timer = setTimeout(() => setToast(null), 4000);
