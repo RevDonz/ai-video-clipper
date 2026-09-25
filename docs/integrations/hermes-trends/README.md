@@ -110,6 +110,12 @@ Kode keluar: `0` semua diterima, `1` sebagian ditolak atau tidak terkirim, `2` s
 file tidak valid, `3` token ditolak (buat token baru). Bila domain dilindungi Cloudflare
 Access, isi juga `CF_ACCESS_CLIENT_ID` dan `CF_ACCESS_CLIENT_SECRET` (service token).
 
+Item yang ditolak muncul di `rejected` sebagai `{"index", "code", "field"}` (`index` mulai dari
+0; `field` misalnya `keywords[1]` atau `examples[0].url`). Kode: `invalid_item` (bukan objek),
+`unknown_field`, `missing_field`, `invalid_type`, `invalid_value` (pola, pilihan, rentang atau
+tanggal), `invalid_length`, `expired` (`expiresAt` sudah lewat), `store_full` (penyimpanan
+1.000 item penuh).
+
 ## Item
 
 File berisi `{"items": [...]}` (atau array langsung). Wajib: `kind`, `title`, `keywords`.

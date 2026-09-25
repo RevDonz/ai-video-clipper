@@ -91,8 +91,8 @@
                       "rejected": [
                         {
                           "index": 2,
-                          "code": "invalid_field",
-                          "field": "keywords"
+                          "code": "invalid_length",
+                          "field": "keywords[0]"
                         }
                       ]
                     }
@@ -518,11 +518,12 @@
           },
           "code": {
             "type": "string",
-            "description": "Stable machine code for the reason."
+            "enum": ["invalid_item", "unknown_field", "missing_field", "invalid_type", "invalid_value", "invalid_length", "expired", "store_full"],
+            "description": "Why the item was refused: invalid_item (not an object), unknown_field, missing_field, invalid_type, invalid_value (pattern, enum, range or date), invalid_length, expired (expiresAt already passed), store_full (the 1000-item store had no room left for it)."
           },
           "field": {
             "type": ["string", "null"],
-            "description": "The offending field, when there is one."
+            "description": "The offending field when there is one, with list positions and sub-fields as in keywords[1] or examples[0].url; null for invalid_item and store_full."
           }
         }
       },
