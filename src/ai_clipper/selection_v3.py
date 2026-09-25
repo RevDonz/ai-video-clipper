@@ -114,14 +114,15 @@
      ``matched`` counted from the clips); ``focus_few_matches:<n>`` when fewer than ``k``
      clips are ``literal`` or ``semantic``. An LLM whose moments were all outranked by focus
      matches is no fallback: the result is ``completed``, with ``source="heuristic"`` when
-     no LLM clip is left.
+     no LLM clip is left, and ``focus_llm_outranked:<n>`` (``n`` snapped LLM moments) says
+     that the LLM did answer.
 
 Warning codes (in this order): the LLM's own ``llm_*`` codes, ``llm_unavailable`` or
 ``llm_failed:<code>`` (auto-mode fallback), ``llm_filled:<n>`` (heuristic clips added after
 LLM clips), ``snap_dropped:<n>``, ``trend_ref_ungrounded:<n>``,
 ``trend_packaging_ungrounded:<n>``, ``trend_sensitive_humor:<n>``,
 ``focus_literal_ungrounded:<n>``, ``focus_packaging_ungrounded:<n>``, ``focus_few_matches:<n>``,
-``few_clips:<n>`` (fewer than ``k`` clips), and ``no_transcript``.
+``focus_llm_outranked:<n>``, ``few_clips:<n>`` (fewer than ``k`` clips), and ``no_transcript``.
 
 The artifact (``analysis/selection.v3.json``) is :meth:`SelectionResult.to_dict`, written
 atomically by :func:`write_selection_artifact` and read back strictly by
@@ -1206,6 +1207,10 @@ def select_clips_v3(
         matched = sum(item.focus != "none" for item in chosen)
         if matched < k:
             warnings.append(f"focus_few_matches:{matched}")
+        if status == "completed" and llm_survived and not llm_led:
+            # The LLM answered, but every slot went to a focus match found by the heuristic.
+            outranked = sum(item.proposal.source == "llm" for item in candidates)
+            warnings.append(f"focus_llm_outranked:{outranked}")
     if len(clips) < k:
         warnings.append(f"few_clips:{len(clips)}")
     source = "llm" if llm_led else "heuristic"
