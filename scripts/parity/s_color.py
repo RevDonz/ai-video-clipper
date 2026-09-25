@@ -429,7 +429,11 @@ def decide_from_files(fixtures: Path, browser: Path, *, cost: Mapping, p_txt: Ma
             "p_enc_pass": enc["gate"]["pass"],
             "p_enc_min_ssim_all": enc["min_ssim_all"],
             "p_enc_min_ssim_text": enc["min_ssim_text"],
-            "delivered_ssim_text": enc["mean_ssim_text"],
+            # Delivered text quality against the one composite that matches the preview.
+            "delivered_ssim_text": (enc["mean_ssim_text_vs_common"]
+                                    if enc.get("mean_ssim_text_vs_common") is not None
+                                    else enc["mean_ssim_text"]),
+            "p_enc_mean_ssim_text_own": enc["mean_ssim_text"],
             "pack_variants": variants,
         }
     decision = decide(candidates)
