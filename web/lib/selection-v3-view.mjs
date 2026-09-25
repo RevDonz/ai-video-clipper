@@ -127,6 +127,8 @@ export function clipTrendChips(clip) {
 const TREND_WARNING_LABELS = Object.freeze({
   trend_items_skipped: (count) => `${count} item tren rusak dilewati.`,
   trend_ref_ungrounded: (count) => `${count} tren yang disebut AI dibuang karena tidak disebut di transkrip klipnya.`,
+  trend_packaging_ungrounded: (count) => `${count} klip AI menyebut tren yang tidak ada di transkripnya; judul, hook atau deskripsinya diganti dari klip itu sendiri.`,
+  trend_sensitive_humor: (count) => `${count} klip lucu menyinggung tren sensitif; periksa judul dan hook-nya sebelum diunggah.`,
 });
 
 /** An Indonesian explanation of a trend warning code of the V3 summary, or null. */
