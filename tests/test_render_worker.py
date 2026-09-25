@@ -649,6 +649,28 @@ def test_v3_liveness_kills_a_render_without_heartbeats(tmp_path):
     assert (final["state"], final["error_code"]) == ("failed", "render_stalled")
 
 
+def test_v3_the_backstops_start_with_the_render_not_with_the_snapshot_check(tmp_path,
+                                                                          monkeypatch):
+    """Hashing a large source snapshot (seconds under load) is not a stalled render."""
+    job, request = v3_queued(tmp_path)
+    original = render_worker._verify_snapshot
+
+    def slow_verify(job_dir, current):
+        time.sleep(0.6)
+        original(job_dir, current)
+
+    def render_request(job_dir, current, *, heartbeat, cancel):
+        if cancel.is_set():  # a real render stops at once
+            raise edit_errors.Cancelled()
+        heartbeat("merender", 500)
+        v3_publish(job, current)
+
+    monkeypatch.setattr(render_worker, "_verify_snapshot", slow_verify)
+    v3_worker(job, renderer_v3=render_request, liveness_seconds=0.2, timeout_seconds=0.4)
+    final = get_request(job.job, request["render_id"])
+    assert (final["state"], final["error_code"]) == ("completed", None)
+
+
 def test_v3_liveness_applies_while_rendering_not_while_verifying(tmp_path):
     job, request = v3_queued(tmp_path)
 
