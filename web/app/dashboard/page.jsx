@@ -252,7 +252,7 @@ export default function DashboardPage() {
     <main>
       <nav className="nav shell">
         <a className="brand" href="/"><span>P</span> Potongin AI</a>
-        <div className="navActions"><div className="navLinks"><a className="active" href="/dashboard">Buat Klip</a><a href="/projects">Riwayat</a><a href="/settings">Pengaturan</a></div><div className="navMeta"><i /> Worker lokal siap</div><form method="post" action="/api/auth/logout"><button type="submit">Keluar</button></form></div>
+        <div className="navActions"><div className="navLinks"><a className="active" href="/dashboard">Buat Klip</a><a href="/projects">Riwayat</a><a href="/trends">Konteks Tren</a><a href="/settings">Pengaturan</a></div><div className="navMeta"><i /> Worker lokal siap</div><form method="post" action="/api/auth/logout"><button type="submit">Keluar</button></form></div>
       </nav>
 
       <section className="hero shell" id="top">
