@@ -12,17 +12,13 @@
 //   hook-design JSON: the same bytes libass reads on the server (R6). A font is served only
 //   when it is listed in `resources/fonts/fonts.json` and its bytes hash to the listed sha256.
 import { createHash } from "node:crypto";
-import { close, constants, existsSync, fstat, lstatSync, open, readFileSync, statSync } from "node:fs";
-import { lstat, readFile, realpath } from "node:fs/promises";
+import { constants, existsSync, lstatSync, readFileSync, statSync } from "node:fs";
+import { lstat, open, readFile, realpath } from "node:fs/promises";
 import path from "node:path";
-import { promisify } from "node:util";
 
 import { parseByteRange } from "./jobs.mjs";
-import { descriptorReadableStream } from "./preview-source.mjs";
 
-const openFd = promisify(open);
-const closeFd = promisify(close);
-const statFd = promisify(fstat);
+const CHUNK_BYTES = 256 * 1024;
 
 export const JOB_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export const CLIP_ID = /^clip_[0-9a-f]{24}$/;
@@ -74,7 +70,8 @@ async function realDirectory(target) {
 
 /**
  * Open `<jobsRoot>/<jobId>/analysis/clips/<clipId>/<spec.dir>/<name>` without following any
- * symlink: `{fd, size, file}`. Throws MediaNotFound for anything else.
+ * symlink: `{handle, size, file}` (a FileHandle, closed exactly once by whoever consumes it).
+ * Throws MediaNotFound for anything else.
  */
 export async function openClipFile(jobsRoot, jobId, clipId, spec, name, options = {}) {
   if (!JOB_ID.test(jobId || "") || !CLIP_ID.test(clipId || "") || !spec?.pattern.test(name || "")) throw new MediaNotFound();
@@ -89,17 +86,71 @@ export async function openClipFile(jobsRoot, jobId, clipId, spec, name, options 
     await realDirectory(directory);
   }
   const file = path.join(directory, name);
-  let fd;
+  let handle;
   try {
-    fd = await openFd(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
-    const info = await statFd(fd);
-    const opened = await resolveFdPath(fd);
+    handle = await open(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+    const info = await handle.stat();
+    const opened = await resolveFdPath(handle.fd);
     if (!info.isFile() || !Number.isSafeInteger(info.size) || !contained(directory, opened)) throw new MediaNotFound();
-    return { fd, size: info.size, file };
+    return { handle, size: info.size, file };
   } catch {
-    if (Number.isInteger(fd)) await closeFd(fd).catch(() => {});
+    await handle?.close().catch(() => {});
     throw new MediaNotFound();
   }
+}
+
+/**
+ * The bytes `[start, end]` of an open FileHandle as a web stream; the handle is closed exactly
+ * once, at the end, on an error, on cancel or when `signal` aborts. (Node's fs ReadStream
+ * closes a borrowed fd on destroy even with autoClose: false, so closing that fd again, as
+ * preview-source's descriptorReadableStream does, can close a reused descriptor.)
+ */
+export function fileHandleStream(handle, start, end, signal) {
+  let position = start;
+  let closing = null;
+  let stream = null;
+  const release = () => {
+    closing ??= handle.close().catch(() => {});
+    return closing;
+  };
+  const onAbort = () => {
+    void release();
+    try {
+      stream?.error(new DOMException("The operation was aborted.", "AbortError"));
+    } catch { /* already closed or errored */ }
+  };
+  return new ReadableStream({
+    start(controller) {
+      stream = controller;
+      if (signal?.aborted) onAbort();
+      else signal?.addEventListener("abort", onAbort, { once: true });
+    },
+    async pull(controller) {
+      try {
+        if (closing) return;
+        const length = Math.min(CHUNK_BYTES, end - position + 1);
+        if (length <= 0) {
+          signal?.removeEventListener("abort", onAbort);
+          await release();
+          controller.close();
+          return;
+        }
+        const buffer = Buffer.allocUnsafe(length);
+        const { bytesRead } = await handle.read(buffer, 0, length, position);
+        if (bytesRead === 0) throw new Error("file shorter than expected");
+        position += bytesRead;
+        controller.enqueue(new Uint8Array(buffer.buffer, buffer.byteOffset, bytesRead));
+      } catch (error) {
+        signal?.removeEventListener("abort", onAbort);
+        await release();
+        controller.error(error);
+      }
+    },
+    cancel() {
+      signal?.removeEventListener("abort", onAbort);
+      return release();
+    },
+  });
 }
 
 function plain(status, message, extra = {}) {
@@ -127,7 +178,7 @@ export async function openedFileResponse(request, opened, { type, cacheControl, 
     try {
       ({ start, end } = parseByteRange(range.replace(/^bytes=/i, "bytes="), opened.size));
     } catch {
-      await closeFd(opened.fd).catch(() => {});
+      await opened.handle.close().catch(() => {});
       return new Response(null, { status: 416, headers: { ...headers, "Content-Range": `bytes */${opened.size}`, "Content-Length": "0" } });
     }
     status = 206;
@@ -135,17 +186,10 @@ export async function openedFileResponse(request, opened, { type, cacheControl, 
   }
   headers["Content-Length"] = String(Math.max(0, end - start + 1));
   if (head || opened.size === 0) {
-    await closeFd(opened.fd).catch(() => {});
+    await opened.handle.close().catch(() => {});
     return new Response(null, { status, headers });
   }
-  let stream;
-  try {
-    stream = descriptorReadableStream(opened.fd, start, end, request.signal);
-  } catch (error) {
-    await closeFd(opened.fd).catch(() => {});
-    throw error;
-  }
-  return new Response(stream, { status, headers });
+  return new Response(fileHandleStream(opened.handle, start, end, request.signal), { status, headers });
 }
 
 /** The media response of `kind/name` for a clip (404 for anything that is not served). */
