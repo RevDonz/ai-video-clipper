@@ -1,0 +1,83 @@
+{
+  "gate": "P-RT",
+  "pass": true,
+  "sets": [
+    {
+      "r10": {
+        "by_case": {
+          "edit-v2/1:changed_toolchain": {
+            "cases": 20,
+            "linked": 20
+          },
+          "edit-v2/1:seed": {
+            "cases": 20,
+            "linked": 20
+          },
+          "edit-v2/1:undone_edit": {
+            "cases": 20,
+            "linked": 20
+          }
+        },
+        "cases": 60,
+        "environment": {
+          "affinity": 4,
+          "cpu_count": 16,
+          "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+          "loadavg": [
+            3.43,
+            5.23,
+            4.73
+          ],
+          "python": "3.11.2",
+          "toolchain_sha256": null
+        },
+        "linked": 60,
+        "linked_pct": 100.0,
+        "pass": true
+      },
+      "rerender": {
+        "bytes_identical": 20,
+        "clips": 20,
+        "environment": {
+          "affinity": 4,
+          "cpu_count": 16,
+          "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+          "loadavg": [
+            4.7,
+            5.97,
+            4.9
+          ],
+          "python": "3.11.2",
+          "toolchain_sha256": null
+        },
+        "fps": [
+          "24000/1001",
+          "25/1",
+          "30/1"
+        ],
+        "frames": 29807,
+        "layouts": [
+          "camera",
+          "fill_center",
+          "fit_blur"
+        ],
+        "pass": true,
+        "pcm_identical": 20,
+        "plan_sha256_equal": 20,
+        "render_key_equal": 20,
+        "srt_identical": 20,
+        "video_identical": 20
+      },
+      "set": "real"
+    }
+  ],
+  "setup": {
+    "run": "W2 re-exit: the 20 P-LOOK clips re-rendered by the pipeline path with the Open 11 cue rule (look_report render new2); revision 0 re-rendered in another container (cpuset 8-11); R10 on the same copies"
+  },
+  "task": "T2.Z2",
+  "threshold": {
+    "pcm_md5": "identical",
+    "r10_hard_link_pct": 100,
+    "video_framemd5": "identical"
+  }
+}

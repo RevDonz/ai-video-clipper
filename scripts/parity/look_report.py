@@ -702,10 +702,10 @@ def index_markdown(measured: dict[str, Any], sheets: list[str], pairs: list[str]
     if cues is not None:
         lines.append(
             f"- **Caption:** {cues['same_words']} dari {cues['new']} cue berisi kata yang sama "
-            "persis. Sisanya dikelompokkan berbeda: jeda antarkata sedikit di atas 0,6 s "
-            "(0,61–0,62 s) dibulatkan mesin baru ke frame (tepat 0,60 s), jadi caption tidak "
-            "dipecah di situ seperti di mesin lama. Ini temuan yang akan diperbaiki sebelum "
-            "mesin baru dinyalakan (revisi 0 harus sama dengan hari ini).")
+            "persis. Jeda antarkata diukur dalam waktu sumber seperti mesin lama (perbaikan "
+            "Open 11 di W2), jadi caption dipecah di tempat yang sama. Sisanya: batas segmen "
+            "dibulatkan ke frame, sehingga kata tanpa durasi yang jatuh tepat di ujung cold "
+            "open ikut tampil di mesin baru (lihat kolom kotak caption).")
     lines += [
         "",
         "## Isi folder",

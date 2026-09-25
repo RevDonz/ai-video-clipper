@@ -1,0 +1,100 @@
+{
+  "gate": "P-AUD",
+  "runs": {
+    "image": {
+      "cases": [
+        {
+          "md5_equal": true,
+          "measured": false,
+          "pass": true,
+          "pieces": 2,
+          "plan_samples": 3022080,
+          "preview_samples": 3022080,
+          "reference_samples": 3022080,
+          "role": "fit_blur_2",
+          "source_codec": "opus",
+          "variant": "seed"
+        },
+        {
+          "md5_equal": true,
+          "measured": false,
+          "pass": true,
+          "pieces": 6,
+          "plan_samples": 2795520,
+          "preview_samples": 2795520,
+          "reference_samples": 2795520,
+          "role": "fit_blur_2",
+          "source_codec": "opus",
+          "variant": "edited"
+        },
+        {
+          "md5_equal": true,
+          "measured": true,
+          "pass": true,
+          "pieces": 6,
+          "plan_samples": 2795520,
+          "preview_samples": 2795520,
+          "reference_samples": 2795520,
+          "role": "fit_blur_2",
+          "source_codec": "opus",
+          "variant": "music"
+        },
+        {
+          "md5_equal": true,
+          "measured": false,
+          "pass": true,
+          "pieces": 1,
+          "plan_samples": 2988800,
+          "preview_samples": 2988800,
+          "reference_samples": 2988800,
+          "role": "fill_center",
+          "source_codec": "opus",
+          "variant": "seed"
+        },
+        {
+          "md5_equal": true,
+          "measured": false,
+          "pass": true,
+          "pieces": 5,
+          "plan_samples": 2753600,
+          "preview_samples": 2753600,
+          "reference_samples": 2753600,
+          "role": "fit_blur",
+          "source_codec": "opus",
+          "variant": "edited"
+        },
+        {
+          "md5_equal": true,
+          "measured": false,
+          "pass": true,
+          "pieces": 5,
+          "plan_samples": 2653440,
+          "preview_samples": 2653440,
+          "reference_samples": 2653440,
+          "role": "camera",
+          "source_codec": "opus",
+          "variant": "edited"
+        }
+      ],
+      "environment": {
+        "cpu_quota": 4.0,
+        "cpus_visible": 16,
+        "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+        "loadavg": [
+          3.59,
+          3.88,
+          4.23
+        ],
+        "python": "3.11.2"
+      },
+      "gate_wall_s": 111.2,
+      "pass": true,
+      "threshold": {
+        "pcm_md5": "equal",
+        "samples": "== plan"
+      }
+    }
+  },
+  "server": "ai-video-clipper:editor-w2r2 (the re-exit branch; FFmpeg 5.1.9, Python 3.11.2, toolchain.json sha 4fefb754\u202685f0): app container --cpus 6 with the persistent preview worker; the harness (scripts/parity/preview_lane_gates.py) inside the same image, --cpus 4, on the host network; 'load5' = the same run with five busy CPU loops on the host",
+  "task": "T2.Z2"
+}

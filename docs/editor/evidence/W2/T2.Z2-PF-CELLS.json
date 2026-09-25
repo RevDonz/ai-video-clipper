@@ -1,0 +1,82 @@
+{
+  "gate": "PF-CELLS",
+  "runs": {
+    "image": {
+      "cases": [
+        {
+          "all_cells_s": 11.62,
+          "budget_s": 15.0,
+          "camera_plan_built": false,
+          "cells": 31,
+          "clip_seconds": 60.2,
+          "first_cell_s": 0.8,
+          "layout": "fit_blur",
+          "pass": true,
+          "plan_ms": 27.2,
+          "prepare_ms": 9.8,
+          "role": "fit_blur"
+        },
+        {
+          "all_cells_s": 7.71,
+          "budget_s": 15.0,
+          "camera_plan_built": false,
+          "cells": 32,
+          "clip_seconds": 62.27,
+          "first_cell_s": 0.48,
+          "layout": "fill_center",
+          "pass": true,
+          "plan_ms": 26.8,
+          "prepare_ms": 10.6,
+          "role": "fill_center"
+        },
+        {
+          "all_cells_s": 14.1,
+          "budget_s": 25.0,
+          "camera_plan_built": true,
+          "cells": 31,
+          "clip_seconds": 62.96,
+          "first_cell_s": 7.12,
+          "layout": "camera",
+          "pass": true,
+          "plan_ms": 25.6,
+          "prepare_ms": 6635.1,
+          "role": "fit_blur_2"
+        },
+        {
+          "all_cells_s": 6.77,
+          "budget_s": 25.0,
+          "camera_plan_built": false,
+          "cells": 30,
+          "clip_seconds": 57.92,
+          "first_cell_s": 0.44,
+          "layout": "camera",
+          "pass": true,
+          "plan_ms": 24.9,
+          "prepare_ms": 10.3,
+          "role": "camera"
+        }
+      ],
+      "environment": {
+        "cpu_quota": 4.0,
+        "cpus_visible": 16,
+        "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+        "loadavg": [
+          3.35,
+          4.03,
+          4.32
+        ],
+        "python": "3.11.2"
+      },
+      "gate_wall_s": 60.2,
+      "heavy_slots": 2,
+      "pass": true,
+      "threshold_s": {
+        "camera": 25.0,
+        "fill_center": 15.0,
+        "fit_blur": 15.0
+      }
+    }
+  },
+  "server": "ai-video-clipper:editor-w2r2 (the re-exit branch; FFmpeg 5.1.9, Python 3.11.2, toolchain.json sha 4fefb754\u202685f0): app container --cpus 6 with the persistent preview worker; the harness (scripts/parity/preview_lane_gates.py) inside the same image, --cpus 4, on the host network; 'load5' = the same run with five busy CPU loops on the host",
+  "task": "T2.Z2"
+}
