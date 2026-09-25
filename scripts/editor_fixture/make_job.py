@@ -610,13 +610,15 @@ def prepare_all(out: Path, index: dict[str, Any], *, stub_camera: bool) -> dict[
 
 
 def _stub_detector(source: Path, *, start: float, end: float, sample_interval: float = 0.75):
-    """A deterministic face track: centre drifting 0.40 → 0.60, no face every 11th sample."""
+    """A deterministic face track: centre drifting 0.40 → 0.60, no face every 11th sample and
+    for samples 20–23 (a 3 s run from 15 s into the window, listed as ``no_face``)."""
     times = []
     t = 0.0
     while t < end - start:
         times.append(t)
         t += sample_interval
-    centres = [None if i % 11 == 10 else 0.4 + 0.2 * i / max(1, len(times) - 1)
+    centres = [None if i % 11 == 10 or 20 <= i <= 23
+               else 0.4 + 0.2 * i / max(1, len(times) - 1)
                for i in range(len(times))]
     probe = media.probe(source)["video"]
     return times, centres, [False] * len(times), int(probe["width"]), int(probe["height"])
