@@ -19,6 +19,7 @@ import path from "node:path";
 
 import { requireAuth } from "./auth.mjs";
 import { PythonCliError, runPythonCli } from "./python-cli.mjs";
+import { TokenBucketLimiter } from "./rate-limit.mjs";
 import { sameOriginMutation } from "./request-security.mjs";
 
 export const EDIT_API_MODULE = "ai_clipper.edit_v2.api";
@@ -47,6 +48,7 @@ export const MESSAGES = Object.freeze({
   schema_too_new: "Dokumen ini dibuat versi editor yang lebih baru; muat ulang editor",
   document_invalid: "Dokumen edit tidak valid",
   source_missing: "Video sumber sudah tidak ada",
+  rate_limited: "Terlalu banyak permintaan; tunggu sebentar lalu coba lagi",
 });
 
 export function isEditorEnabled(env = process.env) {
@@ -228,8 +230,48 @@ export function sanitizeClip(entry, latestRender = null) {
   };
 }
 
+/**
+ * The job-level prepare (words, peaks and, for face-track, camera plans: ~50 s for eight clips):
+ * concurrent requests for one job share one run, jobs are prepared one at a time (the preview
+ * lane keeps its CPU; the process also runs at nice 5), and each job has a token bucket of
+ * PREPARE_RATE (W2 verifier). One gate per route instance, i.e. per app process.
+ */
+export const PREPARE_RATE = Object.freeze({ capacity: 3, refillPerSecond: 1 / 20 });
+
+export function createPrepareGate({ slots = 1, rate = PREPARE_RATE, now = Date.now } = {}) {
+  const inflight = new Map();
+  const limiter = new TokenBucketLimiter({ capacity: rate.capacity, refillPerSecond: rate.refillPerSecond, now });
+  const waiters = [];
+  let running = 0;
+  const acquire = async () => {
+    if (running >= slots) await new Promise((resolve) => waiters.push(resolve));
+    running += 1;
+  };
+  const release = () => {
+    running -= 1;
+    waiters.shift()?.();
+  };
+  return {
+    /** `{promise}` of the job's run (a new one, or the one in flight), or `{limited}`. */
+    run(jobId, task) {
+      const current = inflight.get(jobId);
+      if (current) return { promise: current };
+      const verdict = limiter.take(`job:${jobId}`);
+      if (!verdict.allowed) return { limited: verdict };
+      const promise = (async () => {
+        await acquire();
+        try { return await task(); } finally { release(); }
+      })();
+      const tracked = promise.finally(() => { if (inflight.get(jobId) === tracked) inflight.delete(jobId); });
+      inflight.set(jobId, tracked);
+      return { promise: tracked };
+    },
+  };
+}
+
 export function createClipsRoute(options = {}) {
   const deps = editorDeps(options);
+  const prepareGate = options.prepareGate ?? createPrepareGate();
   const latest = options.latestRenders ?? (async (jobId) => {
     const { latestRenders } = await import("./clip-renders.mjs");
     return latestRenders(jobId, deps.jobsRoot);
@@ -258,7 +300,14 @@ export function createClipsRoute(options = {}) {
       const text = Buffer.from(raw).toString("utf8");
       if (text.trim() !== "" && !/^\s*\{\s*\}\s*$/.test(text)) return editorError("invalid_request", 400);
       const jobId = checked.params.id;
-      const result = await callCli(deps, EDIT_API_MODULE, "prepare_job", { jobId }, { timeoutMs: PREPARE_TIMEOUT_MS });
+      const gated = prepareGate.run(jobId, () => callCli(deps, EDIT_API_MODULE, "prepare_job", { jobId },
+        { timeoutMs: PREPARE_TIMEOUT_MS }));
+      if (gated.limited) {
+        return editorError("rate_limited", 429, {}, {
+          "Retry-After": String(Math.max(1, Math.ceil(gated.limited.retryAfterMs / 1000))),
+        });
+      }
+      const result = await gated.promise;
       if (result?.exitCode !== 0) return apiFailure(result);
       const clips = Array.isArray(result.json.clips) ? result.json.clips.map((clip) => ({
         clipId: isClipId(clip?.clipId) ? clip.clipId : null,
