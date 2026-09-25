@@ -81,10 +81,16 @@ const INPUT_FIELDS = new Set([
 // Server-owned fields an agent may echo back from a GET; they are ignored, never trusted.
 const IGNORED_INPUT_FIELDS = new Set(["id", "source", "createdAt", "updatedAt", "enabled"]);
 const PATCH_FIELDS = ["title", "summary", "keywords", "hashtags", "sensitivity", "expiresAt", "enabled"];
+// Content fields an agent refresh would replace; once the owner changes one on an agent item it
+// is listed in the item's ownerEdited and the agent no longer touches it. (enabled and a
+// "sensitive" mark are the owner's anyway.)
+const OWNER_FIELDS = ["title", "summary", "keywords", "hashtags", "expiresAt"];
 const ITEM_KEYS = [
   "id", "externalId", "kind", "title", "summary", "keywords", "hashtags", "platforms", "region", "examples",
-  "score", "sensitivity", "firstSeenAt", "expiresAt", "source", "enabled", "createdAt", "updatedAt",
+  "score", "sensitivity", "firstSeenAt", "expiresAt", "source", "enabled", "createdAt", "updatedAt", "ownerEdited",
 ];
+// Stores written before ownerEdited existed are read as if it were empty.
+const OPTIONAL_ITEM_KEYS = new Set(["ownerEdited"]);
 const DOCUMENT_KEYS = ["version", "enabled", "updatedAt", "lastIngestAt", "items"];
 
 // --- Errors ---------------------------------------------------------------------------------
@@ -437,13 +443,23 @@ function canonicalItem(item) {
     enabled: item.enabled,
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
+    ownerEdited: OWNER_FIELDS.filter((field) => (item.ownerEdited || []).includes(field)),
   };
+}
+
+function parseOwnerEdited(raw) {
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw) || raw.some((field) => !OWNER_FIELDS.includes(field)) || new Set(raw).size !== raw.length) {
+    reject("invalid_value", "ownerEdited");
+  }
+  return raw;
 }
 
 function parseStoredItem(raw) {
   if (!isPlainObject(raw)) reject("invalid_item", null);
   const names = Object.keys(raw);
-  if (names.length !== ITEM_KEYS.length || !ITEM_KEYS.every((key) => names.includes(key))) reject("invalid_item", null);
+  if (names.some((key) => !ITEM_KEYS.includes(key))
+    || !ITEM_KEYS.every((key) => OPTIONAL_ITEM_KEYS.has(key) || names.includes(key))) reject("invalid_item", null);
   if (typeof raw.id !== "string" || !UUID.test(raw.id)) reject("invalid_value", "id");
   if (raw.externalId !== null) parseExternalId(raw.externalId);
   const item = {
@@ -465,6 +481,7 @@ function parseStoredItem(raw) {
     enabled: raw.enabled,
     createdAt: raw.createdAt,
     updatedAt: raw.updatedAt,
+    ownerEdited: parseOwnerEdited(raw.ownerEdited),
   };
   for (const key of ["firstSeenAt", "expiresAt", "createdAt", "updatedAt"]) {
     if (!isStoredInstant(item[key])) reject("invalid_value", key);
@@ -565,37 +582,46 @@ class ItemIndex {
     else this.byKey.delete(key);
   }
 
-  // An externalId finds its own item, or adopts an item with the same key that has none yet;
-  // without externalId, the first item with the same key.
-  find(value) {
+  // What an upsert from the agent labelled `source` updates: { item } (null: create one) or
+  // { conflict: field } when the trend belongs to the owner (a manual item) or to another
+  // agent. An externalId finds its own item, or adopts one of this source's items with the
+  // same key that has no externalId yet; without externalId, this source's first item with
+  // the same key.
+  find(value, source) {
     const candidates = this.byKey.get(trendMatchKey(value.kind, value.title)) || [];
     if (value.externalId !== null) {
-      return this.byExternal.get(value.externalId) || candidates.find((item) => item.externalId === null) || null;
+      const known = this.byExternal.get(value.externalId);
+      if (known) return known.source === source ? { item: known } : { conflict: "externalId" };
     }
-    return candidates[0] || null;
+    const own = candidates.filter((item) => item.source === source);
+    const adopted = value.externalId !== null ? own.find((item) => item.externalId === null) : own[0];
+    if (adopted) return { item: adopted };
+    if (candidates.some((item) => item.source !== source)) return { conflict: "title" };
+    return { item: null };
   }
 }
 
 function newItem(value, { source, enabled = true, stamp }) {
-  return canonicalItem({ id: crypto.randomUUID(), ...value, source, enabled, createdAt: stamp, updatedAt: stamp });
+  return canonicalItem({ id: crypto.randomUUID(), ...value, source, enabled, createdAt: stamp, updatedAt: stamp, ownerEdited: [] });
 }
 
-// An agent refresh replaces the agent's content but keeps what the owner decided: the item
-// stays disabled if it was, a "sensitive" mark is never lifted by an agent, the source and
-// the first sighting stay.
+// An agent refresh replaces the agent's content but keeps what the owner decided: every field
+// the owner changed on the page (ownerEdited), the item stays disabled if it was, a
+// "sensitive" mark is never lifted by an agent, the source and the first sighting stay.
 function applyAgentUpdate(item, value, stamp) {
+  const keep = new Set(item.ownerEdited);
   item.kind = value.kind;
-  item.title = value.title;
-  item.summary = value.summary;
-  item.keywords = [...value.keywords];
-  item.hashtags = [...value.hashtags];
+  if (!keep.has("title")) item.title = value.title;
+  if (!keep.has("summary")) item.summary = value.summary;
+  if (!keep.has("keywords")) item.keywords = [...value.keywords];
+  if (!keep.has("hashtags")) item.hashtags = [...value.hashtags];
   item.platforms = [...value.platforms];
   item.region = value.region;
   item.examples = value.examples.map((example) => ({ ...example }));
   item.score = value.score;
   item.sensitivity = item.sensitivity === "sensitive" || value.sensitivity === "sensitive" ? "sensitive" : "normal";
   item.firstSeenAt = Date.parse(value.firstSeenAt) < Date.parse(item.firstSeenAt) ? value.firstSeenAt : item.firstSeenAt;
-  item.expiresAt = value.expiresAt;
+  if (!keep.has("expiresAt")) item.expiresAt = value.expiresAt;
   if (value.externalId !== null) item.externalId = value.externalId;
   item.updatedAt = stamp;
 }
@@ -873,7 +899,11 @@ export async function ingestTrendItems(rawItems, { env = process.env, source, no
         rejected.push({ index: position, code: parsed.code, field: parsed.field });
         return;
       }
-      const existing = index.find(parsed.value);
+      const { item: existing, conflict } = index.find(parsed.value, source);
+      if (conflict) {
+        rejected.push({ index: position, code: "owned_by_other_source", field: conflict });
+        return;
+      }
       if (existing) {
         index.remove(existing);
         applyAgentUpdate(existing, parsed.value, stamp);
@@ -1026,6 +1056,11 @@ export async function updateTrendItem(id, patch, { env = process.env, now = new 
     if (changes.title !== undefined) {
       const key = trendMatchKey(item.kind, changes.title);
       if (document.items.some((entry) => entry !== item && trendMatchKey(entry.kind, entry.title) === key)) throw duplicateError();
+    }
+    if (item.source !== MANUAL_SOURCE) {
+      const edited = OWNER_FIELDS.filter((field) => changes[field] !== undefined
+        && JSON.stringify(changes[field]) !== JSON.stringify(item[field]));
+      item.ownerEdited = OWNER_FIELDS.filter((field) => item.ownerEdited.includes(field) || edited.includes(field));
     }
     Object.assign(item, changes, { updatedAt: stamp });
     return { changed: true, result: canonicalItem(item) };

@@ -177,6 +177,9 @@ export default function TrendItemCard({ item, now, onUpdate, onDelete }) {
               <span>{draft.enabled ? "Aktif — dipakai job berikutnya" : "Nonaktif — tidak dipakai"}</span>
             </label>
           </div>
+          {item.source !== "manual" && (
+            <p className="trFootnote">Item dari agen: bagian yang kamu ubah di sini tetap dipakai walau agen mengirim ulang item ini.</p>
+          )}
           {errors.general && <p className="trAlert error" role="alert">{errors.general}</p>}
           {Object.keys(errors).length > 0 && !errors.general && <p className="trAlert error" role="alert">Periksa isian yang ditandai.</p>}
           <div className="trActions">
