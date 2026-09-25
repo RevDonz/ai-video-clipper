@@ -3,7 +3,7 @@
 // trends the engine writes into the manifest pass the job API sanitizer unchanged.
 // Regenerate the shared fixture with UPDATE_TREND_FIXTURE=1 npm test (ids are random).
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -33,15 +33,19 @@ const AGENT_ITEMS = [
 
 async function workerSnapshot() {
   const root = await mkdtemp(path.join(os.tmpdir(), "trend-contract-"));
-  const env = { JOBS_ROOT: path.join(root, "jobs"), POTONGIN_SETTINGS_DIR: path.join(root, "settings") };
-  const result = await ingestTrendItems(AGENT_ITEMS, { env, source: "hermes", now: INGEST_AT });
-  assert.equal(result.accepted, AGENT_ITEMS.length);
-  const { document } = await readTrendContext({ env });
-  const disabled = document.items.find((item) => item.externalId === "yt:sound:nonaktif");
-  await updateTrendItem(disabled.id, { enabled: false }, { env, now: INGEST_AT });
-  const target = await writeTrendSnapshot(path.join(root, "attempt"), { env, now: SNAPSHOT_AT });
-  assert.equal(target, path.join(root, "attempt", "analysis", "trend-context.json"));
-  return readFile(target, "utf8");
+  try {
+    const env = { JOBS_ROOT: path.join(root, "jobs"), POTONGIN_SETTINGS_DIR: path.join(root, "settings") };
+    const result = await ingestTrendItems(AGENT_ITEMS, { env, source: "hermes", now: INGEST_AT });
+    assert.equal(result.accepted, AGENT_ITEMS.length);
+    const { document } = await readTrendContext({ env });
+    const disabled = document.items.find((item) => item.externalId === "yt:sound:nonaktif");
+    await updateTrendItem(disabled.id, { enabled: false }, { env, now: INGEST_AT });
+    const target = await writeTrendSnapshot(path.join(root, "attempt"), { env, now: SNAPSHOT_AT });
+    assert.equal(target, path.join(root, "attempt", "analysis", "trend-context.json"));
+    return await readFile(target, "utf8");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 }
 
 test("the worker snapshot is byte for byte the fixture the engine test reads (ids aside)", async () => {
