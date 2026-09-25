@@ -41,6 +41,19 @@ export function selectionSourceLabel(source) {
   return SELECTION_SOURCE_LABELS[source] || null;
 }
 
+// The engine that rendered a clip's auto file (Editor V3, plan §5.8 and K1).
+const RENDER_ENGINE_LABELS = Object.freeze({
+  "edit-v2/1": { label: "Mesin baru", legacy: false },
+  legacy: { label: "Mesin lama", legacy: true },
+});
+
+/** `{engine, label, legacy}` for a clip's `renderEngine`, or null when the clip names none. */
+export function renderEngineView(clip) {
+  const engine = clip?.renderEngine;
+  const view = typeof engine === "string" && Object.hasOwn(RENDER_ENGINE_LABELS, engine) ? RENDER_ENGINE_LABELS[engine] : null;
+  return view ? { engine, label: view.label, legacy: view.legacy } : null;
+}
+
 export function isV3Job(job) {
   return job?.options?.selectionMode === "v3" || Boolean(job?.selectionV3);
 }

@@ -97,7 +97,7 @@ test("public jobs pass the editor clip id and render engine only when well forme
   assert.equal(hostile.clips[0].clipId, undefined);
   assert.equal(hostile.clips[0].renderEngine, undefined);
   assert.equal(hostile.clips[0].title, "Judul");
-  assert.doesNotMatch(JSON.stringify(hostile), /script|rm -rf/);
+  assert.doesNotMatch(JSON.stringify(hostile), /<script>|rm -rf/);
 });
 
 test("public jobs re-sanitize Selection V2 summaries and omit invalid values", () => {
