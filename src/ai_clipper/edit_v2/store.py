@@ -54,6 +54,7 @@ from __future__ import annotations
 import copy
 import errno
 import fcntl
+import gc
 import gzip
 import hashlib
 import json
@@ -63,7 +64,7 @@ import stat
 import threading
 import uuid
 import zlib
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -201,26 +202,29 @@ class _Staged:
         _unlink(self.temp)
 
 
-def _fsync_directories(paths: Iterable[Path]) -> None:
-    """fsync several directories concurrently (one journal commit on ext4/XFS)."""
-    unique = list(dict.fromkeys(paths))
+def _fsync_directories(paths: Iterable[Path]) -> Callable[[], None]:
+    """Start fsyncing several directories concurrently (one journal commit on ext4/XFS); the
+    returned function waits for all of them and raises the first error. Idempotent."""
     errors: list[BaseException] = []
 
     def sync(path: Path) -> None:
         try:
             _v1._fsync_directory(path)
-        except BaseException as error:  # noqa: BLE001 - re-raised below
+        except BaseException as error:  # noqa: BLE001 - re-raised by wait()
             errors.append(error)
 
-    threads = [threading.Thread(target=sync, args=(path,), daemon=True) for path in unique[1:]]
+    threads = [threading.Thread(target=sync, args=(path,), daemon=True)
+               for path in dict.fromkeys(paths)]
     for thread in threads:
         thread.start()
-    if unique:
-        sync(unique[0])
-    for thread in threads:
-        thread.join()
-    if errors:
-        raise errors[0]
+
+    def wait() -> None:
+        for thread in threads:
+            thread.join()
+        if errors:
+            raise errors[0]
+
+    return wait
 
 
 def _clip(clip_dir: Path | str) -> Path:
@@ -249,6 +253,35 @@ def _ensure_dir(path: Path) -> Path:
     if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
         raise _corrupt()
     return path
+
+
+_collector_lock = threading.Lock()
+_collector_holds = 0
+_collector_was_enabled = False
+
+
+@contextmanager
+def _collector_paused() -> Iterator[None]:
+    """Pause the cyclic garbage collector while a save runs, then restore its state.
+
+    A save allocates tens of thousands of short-lived JSON containers (the client document, the
+    current revision, the words artifact); they are acyclic and freed by reference counting, so
+    collections during the save only add pauses (a full one over a large heap costs tens of ms).
+    Nested and concurrent saves share one pause; a collector the caller disabled stays so.
+    """
+    global _collector_holds, _collector_was_enabled
+    with _collector_lock:
+        if _collector_holds == 0:
+            _collector_was_enabled = gc.isenabled()
+            gc.disable()
+        _collector_holds += 1
+    try:
+        yield
+    finally:
+        with _collector_lock:
+            _collector_holds -= 1
+            if _collector_holds == 0 and _collector_was_enabled:
+                gc.enable()
 
 
 @contextmanager
@@ -613,16 +646,18 @@ def prune_receipts(clip_dir: Path, *, keep: int = 200) -> int:
 # --- PUT -------------------------------------------------------------------------------------------
 
 
-def _publish(clip_dir: Path, document: _Staged, archive: tuple[_Staged, str] | None) -> None:
+def _publish(clip_dir: Path, document: _Staged,
+             archive: tuple[_Staged, str] | None) -> Callable[[], None]:
     """Publish a save: the archive ``(staged file, etag)`` of the superseded revision, then
-    ``edit/doc.json``, each after its fsync; then fsync the directories of the three renames."""
+    ``edit/doc.json``, each after its fsync; then start fsyncing the directories of the three
+    renames. Returns the function that waits for those fsyncs (the save is durable after it)."""
     directories = [document.target.parent, clip_dir / RECEIPTS_DIR]
     if archive is not None:
         staged, etag = archive
         _link_archive(staged.wait(), staged.target, etag)
         directories.append(staged.target.parent)
     os.replace(document.wait(), document.target)
-    _fsync_directories(directories)
+    return _fsync_directories(directories)
 
 
 def _stamp(client: dict, at_ms: int) -> dict:
@@ -717,12 +752,15 @@ def _save(clip_dir: Path, *, key: str, payload: str, client: dict, client_raw: b
         if pending is None or document is None:  # unreachable: the checks above reject it
             raise _corrupt()
         _write_receipt(clip_dir, receipt, staged=pending)
-        _publish(clip_dir, document, archive)
+        durable = _publish(clip_dir, document, archive)
     finally:
         for item in staged:
             item.discard()
-    _write_receipt(clip_dir, {**receipt, "state": "committed"}, durable=False)
-    _prune_locked(clip_dir, RECEIPTS_KEEP)
+    try:  # while the directory fsyncs run; PUT returns only once they are done
+        _write_receipt(clip_dir, {**receipt, "state": "committed"}, durable=False)
+        _prune_locked(clip_dir, RECEIPTS_KEEP)
+    finally:
+        durable()
     return stamped, result, warnings
 
 
@@ -776,10 +814,16 @@ def put(
     ``If-Match`` = ``expected_etag``; ``revision == current + 1``; ``parent_sha256 == current
     etag``; ``base`` unchanged; the server stamps ``audit.updated_at_ms = max(now_ms, previous
     + 1)``; digest-only idempotency receipts; the superseded revision is archived. Parse errors
-    (``DocInvalid``, ``SchemaTooNew``) are raised before the lock and write nothing.
+    (``DocInvalid``, ``SchemaTooNew``) are raised before the lock and write nothing. The cyclic
+    garbage collector is paused while it runs (``_collector_paused``).
     """
-    key = _put_arguments(expected_etag, idempotency_key, now_ms)
-    clip = _clip(clip_dir)
+    with _collector_paused():
+        key = _put_arguments(expected_etag, idempotency_key, now_ms)
+        return _put(_clip(clip_dir), key, expected_etag, raw, now_ms)
+
+
+def _put(clip: Path, key: str, expected_etag: str, raw: bytes,
+         now_ms: int) -> tuple[dict, str, tuple[Issue, ...]]:
     client = parse_doc(raw)
     client_raw = canonical_bytes(client)
     payload = hashlib.sha256(expected_etag.encode("ascii") + b"\0" + client_raw).hexdigest()

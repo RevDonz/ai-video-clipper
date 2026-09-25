@@ -294,6 +294,11 @@ class _Obj:
         self.children = {key: _compile(sub) for key, sub in spec.items() if sub is not None}
 
 
+def _leaf_allowed(spec: Any) -> frozenset[str] | None:
+    """The key set of an object spec without nested specs (removals, word edits), else None."""
+    return spec.allowed if type(spec) is _Obj and not spec.children else None
+
+
 def _compile(spec: Any) -> Any:
     if isinstance(spec, dict):
         return _Obj(spec)
@@ -372,12 +377,19 @@ def _has_unknown_key(value: object, spec: Any) -> bool:
             return True
         return any(key in value and _has_unknown_key(value[key], child)
                    for key, child in spec.children.items())
-    if type(spec) is _List:
-        return isinstance(value, list) and any(_has_unknown_key(item, spec.spec)
-                                               for item in value)
-    if type(spec) is _Map:
-        return isinstance(value, dict) and any(_has_unknown_key(item, spec.spec)
-                                               for item in value.values())
+    if type(spec) is _List or type(spec) is _Map:
+        if type(spec) is _List:
+            if not isinstance(value, list):
+                return False
+            items = value
+        elif isinstance(value, dict):
+            items = value.values()
+        else:
+            return False
+        allowed = _leaf_allowed(spec.spec)
+        if allowed is not None:  # the long lists: one set test per element
+            return not all(type(item) is not dict or allowed.issuperset(item) for item in items)
+        return any(_has_unknown_key(item, spec.spec) for item in items)
     return False
 
 
