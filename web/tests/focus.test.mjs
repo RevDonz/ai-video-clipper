@@ -337,3 +337,55 @@ test("an LLM outranked by focus matches is neither a failure nor 'LLM not used'"
   assert.deepEqual(selectionV3SummaryView(plain), selectionV3SummaryView({ ...plain, focus: undefined }));
   assert.match(selectionV3SummaryView(plain).detail, /LLM tidak dipakai/);
 });
+
+test("POST /api/jobs stores the focus of a V3 YouTube job; without focus the job has none", async () => {
+  const { mkdtemp, readFile, rm } = await import("node:fs/promises");
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const { POST } = await import("../app/api/jobs/route.js");
+  const { createSessionToken } = await import("../lib/auth.mjs");
+  const root = await mkdtemp(path.join(os.tmpdir(), "focus-post-"));
+  const auth = { APP_USERNAME: "admin", APP_PASSWORD: "secret-value", APP_SESSION_SECRET: "a-long-random-session-secret-value" };
+  const env = {
+    ...auth, JOBS_ROOT: root, PRIMARY_MAX_ACTIVE_JOBS: "4", PRIMARY_WORKER_CONCURRENCY: "1",
+    PRIMARY_MAX_ATTEMPTS: "3", PRIMARY_LEASE_MS: "60000", MAX_UPLOAD_BYTES: "100000",
+    JOBS_STORAGE_QUOTA_BYTES: "100000000", JOBS_STORAGE_MIN_FREE_BYTES: "0",
+    JOBS_STORAGE_ACTIVE_RESERVE_BYTES: "1000", JOBS_STORAGE_SCAN_MAX_ENTRIES: "1000", JOBS_STORAGE_SCAN_MAX_DEPTH: "10",
+  };
+  const previous = Object.fromEntries(Object.keys(env).map((key) => [key, process.env[key]]));
+  Object.assign(process.env, env);
+  const token = createSessionToken(auth, 2_000_000_000);
+  const create = async (fields) => {
+    const boundary = "focus-post-boundary";
+    const body = Buffer.from(Object.entries(fields).map(([name, value]) =>
+      `--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`).join("") + `--${boundary}--\r\n`);
+    const response = await POST(new Request("http://clips.example/api/jobs", {
+      method: "POST",
+      headers: {
+        Cookie: `potongin_session=${token}`, Origin: "http://clips.example", Host: "clips.example",
+        "Sec-Fetch-Site": "same-origin", "Content-Length": String(body.length),
+        "Content-Type": `multipart/form-data; boundary=${boundary}`,
+      },
+      body,
+    }));
+    const payload = await response.json();
+    assert.equal(response.status, 202, JSON.stringify(payload));
+    return { payload, stored: JSON.parse(await readFile(path.join(root, payload.job.id, "job.json"), "utf8")) };
+  };
+  try {
+    const fields = { ...FORM_V3, limit: "8", maxDuration: "90", youtubeUrl: "https://youtu.be/rBg0ZcwjVKQ" };
+    const focused = await create({ ...fields, focusTerms: "jomok", focusNote: "momen jomok yang lucu" });
+    const focus = { terms: ["jomok"], note: "momen jomok yang lucu", mode: "prefer" };
+    assert.deepEqual(focused.stored.options.focus, focus);
+    assert.deepEqual(focused.payload.job.options.focus, focus);
+    const plain = await create(fields);
+    assert.equal("focus" in plain.stored.options, false);
+    assert.equal("focus" in plain.payload.job.options, false);
+    assert.deepEqual({ ...focused.stored.options, focus: undefined }, { ...plain.stored.options, focus: undefined });
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+    await rm(root, { recursive: true, force: true });
+  }
+});
