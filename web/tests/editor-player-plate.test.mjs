@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createFrameCache, createPlateSource } from "../lib/editor/player/plate-source.mjs";
+import { copyFrame, createFrameCache, createPlateSource, createScratchPool } from "../lib/editor/player/plate-source.mjs";
 
 const FPS = [30, 1];
 
@@ -75,7 +75,7 @@ function harness({ frames = 60, capacity = 90, maxDecoders = 3 } = {}) {
       return { ok: true, status: 200, arrayBuffer: async () => ({ cell }) };
     },
     loadMediabunny: async () => mb.module,
-    createBitmap: async (frame) => {
+    retainFrame: async (frame) => {
       converted.push(`${frame.cell}:${frame.j}`);
       return { cell: frame.cell, j: frame.j, close() { closed.push(`${frame.cell}:${frame.j}`); } };
     },
@@ -85,6 +85,53 @@ function harness({ frames = 60, capacity = 90, maxDecoders = 3 } = {}) {
   });
   return { source, mb, fetches, closed, converted };
 }
+
+test("a decoded frame is kept as an owned I420 copy (1.4 MB, not 3.7 MB RGBA; the decoder's frame goes back)", async () => {
+  const created = [];
+  class FakeVideoFrame {
+    constructor(data, init) { this.data = data; this.init = init; created.push(this); }
+  }
+  const source = {
+    format: "I420", codedWidth: 720, codedHeight: 1282, timestamp: 33_367,
+    visibleRect: { x: 0, y: 0, width: 720, height: 1280 },
+    colorSpace: { toJSON: () => ({ primaries: "bt709", transfer: "bt709", matrix: "bt709", fullRange: false }) },
+    allocationSize: () => 1_382_400,
+    async copyTo(buffer) {
+      buffer[0] = 7;
+      return [{ offset: 0, stride: 720 }, { offset: 921_600, stride: 360 }, { offset: 1_152_000, stride: 360 }];
+    },
+  };
+  const copy = await copyFrame(source, FakeVideoFrame);
+  assert.equal(created.length, 1);
+  assert.equal(copy.data.byteLength, 1_382_400);
+  assert.equal(copy.data[0], 7);
+  assert.deepEqual(copy.init, {
+    format: "I420", codedWidth: 720, codedHeight: 1280, timestamp: 33_367,
+    layout: [{ offset: 0, stride: 720 }, { offset: 921_600, stride: 360 }, { offset: 1_152_000, stride: 360 }],
+    colorSpace: { primaries: "bt709", transfer: "bt709", matrix: "bt709", fullRange: false },
+  });
+});
+
+test("copies reuse scratch buffers (VideoFrame copies its data), so playback allocates no garbage", async () => {
+  class FakeVideoFrame {
+    constructor(data, init) { this.copied = Uint8Array.from(data); this.init = init; }
+  }
+  const frame = (value) => ({
+    format: "I420", timestamp: 0, visibleRect: { width: 2, height: 2 },
+    colorSpace: { primaries: "bt709" }, allocationSize: () => 6,
+    async copyTo(buffer) { buffer.fill(value); return [{ offset: 0, stride: 2 }]; },
+  });
+  const pool = createScratchPool({ limit: 2 });
+  const first = await copyFrame(frame(1), FakeVideoFrame, pool);
+  const second = await copyFrame(frame(2), FakeVideoFrame, pool);
+  assert.deepEqual([...first.copied], [1, 1, 1, 1, 1, 1]);
+  assert.deepEqual([...second.copied], [2, 2, 2, 2, 2, 2]);
+  assert.equal(pool.created, 1, "one scratch buffer served both sequential copies");
+  const [a, b, c] = await Promise.all([copyFrame(frame(3), FakeVideoFrame, pool),
+    copyFrame(frame(4), FakeVideoFrame, pool), copyFrame(frame(5), FakeVideoFrame, pool)]);
+  assert.deepEqual([a.copied[0], b.copied[0], c.copied[0]], [3, 4, 5], "concurrent copies never share a buffer");
+  assert.ok(pool.size <= 2);
+});
 
 test("the frame cache is an LRU that never evicts protected frames", () => {
   const evicted = [];
@@ -227,7 +274,7 @@ function gatedHarness({ maxDecoders = 1, gateCell = 0 } = {}) {
   const source = createPlateSource({
     fetchImpl: async (url) => ({ ok: true, status: 200, arrayBuffer: async () => ({ cell: Number(/-(\d+)\.mp4$/.exec(url)[1]) }) }),
     loadMediabunny: async () => mb.module,
-    createBitmap: async (frame) => {
+    retainFrame: async (frame) => {
       if (frame.cell === gateCell) await gate;
       converted.push(`${frame.cell}:${frame.j}`);
       return { cell: frame.cell, j: frame.j, close() {} };
@@ -285,7 +332,7 @@ test("a lone frame the stage waits for is decoded with getSample; decode-ahead s
   const source = createPlateSource({
     fetchImpl: async (url) => ({ ok: true, status: 200, arrayBuffer: async () => ({ cell: Number(/-(\d+)\.mp4$/.exec(url)[1]) }) }),
     loadMediabunny: async () => mb.module,
-    createBitmap: async (frame) => { converted.push(`${frame.cell}:${frame.j}`); return { cell: frame.cell, j: frame.j, close() {} }; },
+    retainFrame: async (frame) => { converted.push(`${frame.cell}:${frame.j}`); return { cell: frame.cell, j: frame.j, close() {} }; },
     yieldTask: () => Promise.resolve(),
     fps: FPS,
   });
@@ -304,7 +351,7 @@ test("a failed cell fetch rejects its waiters and a later request retries", asyn
   const source = createPlateSource({
     fetchImpl: async () => (fail ? { ok: false, status: 503 } : { ok: true, status: 200, arrayBuffer: async () => ({ cell: 0 }) }),
     loadMediabunny: async () => mb.module,
-    createBitmap: async (frame) => ({ cell: frame.cell, j: frame.j, close() {} }),
+    retainFrame: async (frame) => ({ cell: frame.cell, j: frame.j, close() {} }),
     fps: FPS,
   });
   source.setPlate(plateDto("p1", [0]));

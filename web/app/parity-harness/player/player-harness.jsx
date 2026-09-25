@@ -365,6 +365,20 @@ function createHarness(manifest, stage) {
       return { mode, frames: out, liveAfterCells: player.state().mode };
     },
 
+    // Diagnostics (not gates).
+    debugState() {
+      const { mode, frame, presentedFrame, pending, error, current } = player.state();
+      return { case: item?.id, mode, frame, presentedFrame, pending, error, current, audio: player.stats().audio };
+    },
+    debugVideo() {
+      const v = stage.video;
+      return { readyState: v.readyState, currentTime: v.currentTime, videoWidth: v.videoWidth, paused: v.paused,
+        seeking: v.seeking, error: v.error ? v.error.code : null, src: v.currentSrc, mode: player.state().mode };
+    },
+    async seekOnly(n) {
+      return player.seek(n);
+    },
+
     destroy() {
       player?.destroy();
       canvas?.remove();
@@ -395,7 +409,7 @@ export default function PlayerHarness() {
       }),
     };
     for (const name of ["open", "readFrames", "laneStates", "composite", "audioCheck", "playProbe", "seekBench",
-      "memoryWorkout", "truthCheck", "fallbackCheck"]) {
+      "memoryWorkout", "truthCheck", "fallbackCheck", "debugState", "debugVideo", "seekOnly"]) {
       api[name] = (...args) => harness[name](...args);
     }
     window.__player = api;

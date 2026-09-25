@@ -96,21 +96,55 @@ async function readContained({ root, file }) {
   }
 }
 
+// One "bytes=a-b", "bytes=a-" or "bytes=-n" range (what a <video> asks for); null when absent,
+// "invalid" when it cannot be satisfied.
+export function parseRange(header, size) {
+  if (!header) return null;
+  const match = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
+  if (!match || (match[1] === "" && match[2] === "")) return "invalid";
+  let start;
+  let end;
+  if (match[1] === "") {
+    const count = Number(match[2]);
+    if (!count) return "invalid";
+    start = Math.max(0, size - count);
+    end = size - 1;
+  } else {
+    start = Number(match[1]);
+    end = match[2] === "" ? size - 1 : Math.min(Number(match[2]), size - 1);
+  }
+  if (!Number.isSafeInteger(start) || start >= size || end < start) return "invalid";
+  return { start, end };
+}
+
 async function handle(request, { params }, head) {
   if (!parityHarnessAllowed(sessionToken(request))) return notFound();
   const target = await resolveFile((await params).path, process.env);
   if (!target) return notFound();
   const body = await readContained(target);
   if (!body) return notFound();
+  const headers = {
+    "Content-Type": target.type,
+    "Accept-Ranges": "bytes",
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+    "Cross-Origin-Resource-Policy": "same-origin",
+  };
+  const range = parseRange(request.headers.get("range"), body.length);
+  if (range === "invalid") {
+    return new Response(null, { status: 416, headers: { ...headers, "Content-Range": `bytes */${body.length}` } });
+  }
+  if (range) {
+    const part = body.subarray(range.start, range.end + 1);
+    return new Response(head ? null : part, {
+      status: 206,
+      headers: { ...headers, "Content-Length": String(part.length),
+        "Content-Range": `bytes ${range.start}-${range.end}/${body.length}` },
+    });
+  }
   return new Response(head ? null : body, {
     status: 200,
-    headers: {
-      "Content-Type": target.type,
-      "Content-Length": String(body.length),
-      "Cache-Control": "no-store",
-      "X-Content-Type-Options": "nosniff",
-      "Cross-Origin-Resource-Policy": "same-origin",
-    },
+    headers: { ...headers, "Content-Length": String(body.length) },
   });
 }
 

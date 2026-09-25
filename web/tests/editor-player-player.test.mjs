@@ -57,12 +57,14 @@ function makeDeps({ plateBlocked = false, textDelayMs = 0, textTotalMs = 2 } = {
   let plateDto = null;
   const createTextLayer = (options) => {
     const layer = {
-      options, destroyed: false, tracks: [], renders: [], ready: Promise.resolve({ fonts: options.fonts.length }),
+      options, destroyed: false, tracks: [], renders: [], bitmaps: [], ready: Promise.resolve({ fonts: options.fonts.length }),
       async setTrack(ass) { layer.tracks.push(ass); log.push(["setTrack", ass]); },
       async render(n) {
         layer.renders.push(n);
         if (textDelayMs) await new Promise((resolve) => setTimeout(resolve, textDelayMs));
-        return { frame: n, changed: true, bitmap: { layer: "text", n }, x: 10, y: 20, w: 5, h: 5, libassMs: 1, totalMs: textTotalMs };
+        const bitmap = { layer: "text", n, closed: false, close() { bitmap.closed = true; } };
+        layer.bitmaps.push(bitmap);
+        return { frame: n, changed: true, bitmap, x: 10, y: 20, w: 5, h: 5, libassMs: 1, totalMs: textTotalMs };
       },
       destroy() { layer.destroyed = true; },
     };
@@ -188,6 +190,7 @@ test("load sizes the canvas and loads text, plate, logo and audio of the plan", 
   assert.equal(layer.options.jassubUrl, DEFAULT_JASSUB_URL);
   assert.deepEqual(layer.options.fonts, ["/fonts/DejaVuSans.ttf"]);
   assert.equal(layer.options.fallbackFamily, "DejaVu Sans");
+  assert.equal(layer.options.split, true, "one bitmap per band of text rows");
   assert.deepEqual(layer.tracks, ["[Script Info]\n; a1\n"]);
   assert.deepEqual(env.log.find(([kind]) => kind === "setPlate"), ["setPlate", "p1"]);
   assert.deepEqual(env.audio.loads, ["m1"]);
@@ -346,32 +349,26 @@ test("playback follows the audio clock, pre-renders text one frame ahead and cou
   assert.equal(env.audio.started, null);
 });
 
-test("playback renders the text of the next frames ahead and releases the copies once shown", async () => {
+test("playback renders the text of the next frames ahead and releases each bitmap once shown", async () => {
   const env = makeDeps();
-  const copies = [];
-  env.deps.cloneBitmap = async (bitmap) => {
-    const copy = { layer: "text", n: bitmap.n, closed: false, close() { copy.closed = true; } };
-    copies.push(copy);
-    return copy;
-  };
   const { instance, draws } = player(env);
   await instance.load(planDto());
   await tick();
+  assert.equal(env.textLayers[0].options.keepBitmaps, true, "the player owns the bitmaps it renders ahead");
   await instance.play();
   await env.frameTick(0.5 / 30);
   await tick();
-  const renders = env.textLayers[0].renders;
-  for (const n of [1, 2, 3, 4]) assert.ok(renders.includes(n), `text ${n} rendered ahead`);
+  const layer = env.textLayers[0];
+  for (const n of [1, 2, 3, 4]) assert.ok(layer.renders.includes(n), `text ${n} rendered ahead`);
   await env.frameTick(1.5 / 30);
   await env.frameTick(2.5 / 30);
   const drawnText = draws.filter((draw) => draw.image.layer === "text").map((draw) => draw.image);
   assert.deepEqual(drawnText.slice(-2).map((image) => image.n), [1, 2]);
-  assert.ok(drawnText.slice(-2).every((image) => copies.includes(image)), "the player draws its own copies");
   // Frames already shown are released; the ones ahead are kept.
-  assert.equal(copies.find((copy) => copy.n === 1).closed, true);
-  assert.equal(copies.find((copy) => copy.n === 4).closed, false);
+  assert.equal(layer.bitmaps.find((bitmap) => bitmap.n === 1).closed, true);
+  assert.equal(layer.bitmaps.find((bitmap) => bitmap.n === 4).closed, false);
   instance.destroy();
-  assert.ok(copies.every((copy) => copy.closed), "destroy releases every copy");
+  assert.ok(layer.bitmaps.every((bitmap) => bitmap.closed), "destroy releases every bitmap");
 });
 
 test("play waits for the mix; play without sound runs on the wall clock", async () => {
@@ -511,6 +508,20 @@ test("revision 0 plays the auto render in <video> until the cells at the playhea
   // Cells ready: back to the canvas.
   await instance.load(planDto({ ready: [0, 1, 2], rev0 }));
   assert.equal(instance.state().mode, "live");
+});
+
+test("a <video> that cannot seek (no byte ranges) is not reported as showing the frame", async () => {
+  const env = makeDeps();
+  const video = fakeVideo();
+  let time = 0;
+  Object.defineProperty(video, "currentTime", { get: () => time, set: () => { time = 0; } });
+  const { instance } = player(env, { video });
+  const rev0 = { planSha256: "rev0", autoRenderUrl: "/files/output/clip-01.mp4", exact: true };
+  await instance.load(planDto({ ready: [], rev0 }));
+  const seek = instance.seek(90);
+  await tick();
+  video.dispatch("seeked");
+  assert.deepEqual(await seek, { frame: 90, presented: false, pending: "video" });
 });
 
 test("the device check flags a slow device from the text render times", async () => {

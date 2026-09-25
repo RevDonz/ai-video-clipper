@@ -351,10 +351,13 @@ def _gate_p_time(r: dict) -> tuple[dict, bool]:
 
 
 def _gate_p_aud(r: dict) -> tuple[dict, bool]:
+    # Browser half: the AudioBuffer against the final graph's PCM (same count, ≤ 1 LSB). The
+    # reference's own count against plan.samples is the server half's (T2.3), recorded apart.
     ok = len(r["cases"]) >= 4 and all(
-        c["contextRate"] == 48000 and c["bufferRate"] == 48000 and c["length"] == c["referenceLength"]
-        == c["planSamples"] and c["maxDiffLsb"] <= 1 for c in r["cases"])
-    return {"threshold": {"max_diff_lsb": 1, "sample_rate": 48000}, **r}, ok
+        c["contextRate"] == 48000 and c["bufferRate"] == 48000
+        and c["length"] == c["referenceLength"] and c["maxDiffLsb"] <= 1 for c in r["cases"])
+    return {"threshold": {"max_diff_lsb": 1, "sample_rate": 48000, "same_count_as": "reference"},
+            **r}, ok
 
 
 def _gate_p_sync(r: dict) -> tuple[dict, bool]:
@@ -368,9 +371,11 @@ def _gate_p_sync(r: dict) -> tuple[dict, bool]:
 
 
 def _gate_pf_play(r: dict) -> tuple[dict, bool]:
-    cases = [{k: c[k] for k in ("case", "fps", "cuts", "presented", "drops", "drops_at_cuts",
-                                "dropped", "seconds", "drops_per_10s", "holds")}
-             for c in r["cases"]]
+    # The drops of the plain run (the editor as it plays, no read-back of the canvas); the
+    # instrumented run's drops are kept alongside.
+    keys = ("case", "fps", "cuts", "presented_plain", "drops", "drops_at_cuts", "dropped",
+            "seconds", "drops_per_10s", "holds", "hold_reasons", "present_gap_ms", "instrumented")
+    cases = [{k: c.get(k) for k in keys} for c in r["cases"]]
     ok = len(cases) >= 3 and all(c["drops_at_cuts"] == 0 and c["drops_per_10s"] is not None
                                  and c["drops_per_10s"] <= 1 for c in cases)
     return {"threshold": {"drops_at_cuts": 0, "drops_per_10s": 1}, "browser": r["browser"],
@@ -420,8 +425,11 @@ EVIDENCE = (
 )
 
 
-def write_evidence(fixtures: Path, browser: Path, out_dir: Path, *, task: str = "T2.4") -> list[Path]:
-    """One ``<task>-<gate>.json`` per gate whose results exist (numbers only: no paths)."""
+def write_evidence(fixtures: Path, browser: Path, out_dir: Path, *, task: str = "T2.4",
+                   supplementary: Mapping[str, Mapping[str, Any]] | None = None) -> list[Path]:
+    """One ``<task>-<gate>.json`` per gate whose results exist (numbers only: no paths).
+    ``supplementary`` adds non-gating measurements to a gate's file (e.g. PF-SEEK with another
+    plate GOP)."""
     manifest = json.loads((fixtures / "player" / "manifest.json").read_text(encoding="utf-8"))
     written = []
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -433,6 +441,8 @@ def write_evidence(fixtures: Path, browser: Path, out_dir: Path, *, task: str = 
         data = {"gate": gate, "task": task, "pass": ok,
                 "browser": body.get("browser") if isinstance(body, dict) else None,
                 "toolchain": manifest.get("toolchain"), **_numbers_only(body)}
+        if supplementary and gate in supplementary:
+            data["supplementary"] = _numbers_only(dict(supplementary[gate]))
         path = out_dir / f"{task}-{gate}.json"
         path.write_text(json.dumps(data, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
                         encoding="utf-8")
@@ -874,6 +884,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     ev.add_argument("--browser", type=Path, required=True)
     ev.add_argument("--out-dir", type=Path, required=True)
     ev.add_argument("--task", default="T2.4")
+    ev.add_argument("--seek-gop", nargs=2, metavar=("GOP", "PF_SEEK_JSON"),
+                    help="a pf_seek.json measured on plate cells with another GOP (supplementary)")
     args = parser.parse_args(argv)
     if args.command == "generate":
         manifest = generate(args.out, only=args.only.split(",") if args.only else None,
@@ -892,7 +904,18 @@ def main(argv: Sequence[str] | None = None) -> int:
                           "p_logo_failures": len(result["p_logo"]["failures"])},
                          default=str))
         return 0 if not result["p_txt"]["failures"] and not result["p_logo"]["failures"] else 1
-    written = write_evidence(args.fixtures, args.browser, args.out_dir, task=args.task)
+    supplementary = None
+    if args.seek_gop:
+        gop, path = int(args.seek_gop[0]), Path(args.seek_gop[1])
+        seek = json.loads(path.read_text(encoding="utf-8"))
+        supplementary = {"PF-SEEK": {f"plate_gop_{gop}": {
+            "note": "measurement only: plate cells encoded with this x264 GOP (IDR still at "
+                    "every cell start); the compiler's cells use one GOP per cell",
+            "loadavg": seek.get("loadavg"), "summary": seek["summary"],
+            "cases": [{k: c.get(k) for k in ("case", "seeks", "p50", "p95", "max", "plate_ms",
+                                            "text_ms")} for c in seek["cases"]]}}}
+    written = write_evidence(args.fixtures, args.browser, args.out_dir, task=args.task,
+                             supplementary=supplementary)
     for path in written:
         data = json.loads(path.read_text(encoding="utf-8"))
         print(f"{path.name}: {'pass' if data['pass'] else 'FAIL'}")
