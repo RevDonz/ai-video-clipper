@@ -457,6 +457,32 @@ function sanitizeReasons(value) {
   return reasons;
 }
 
+// Konteks Tren: the trends a clip is grounded in (the engine checked that the clip's own
+// transcript mentions them). Only { id, title, kind } is kept; ids are the store's UUIDs.
+// Mirrors TREND_KINDS in trend-context.mjs (kept equal by a test; this module stays light).
+export const CLIP_TREND_KINDS = Object.freeze(["topic", "person", "joke", "meme", "sound", "hashtag", "format", "event"]);
+export const MAX_CLIP_TRENDS = 5;
+const CLIP_TREND_TITLE_LIMIT = 80;
+const TREND_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function sanitizeTrendRefs(value) {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set();
+  const refs = [];
+  for (const entry of value) {
+    if (refs.length >= MAX_CLIP_TRENDS) break;
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
+    if (typeof entry.id !== "string" || !TREND_ID.test(entry.id)) continue;
+    const id = entry.id.toLowerCase();
+    if (seen.has(id) || !CLIP_TREND_KINDS.includes(entry.kind)) continue;
+    const title = sanitizeLine(entry.title, CLIP_TREND_TITLE_LIMIT);
+    if (!title) continue;
+    seen.add(id);
+    refs.push({ id, title, kind: entry.kind });
+  }
+  return refs;
+}
+
 function sanitizeScores(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const scores = {};
@@ -512,20 +538,22 @@ function sanitizeV3ClipFields(raw, names, descriptionLimit) {
     fields.sourceStart = round(sourceStart, 3);
     fields.sourceEnd = round(sourceEnd, 3);
   }
+  const trends = sanitizeTrendRefs(raw[names.trends]);
+  if (trends.length) fields.trends = trends;
   return fields;
 }
 
 const MANIFEST_V3_NAMES = Object.freeze({
   title: "title", hookText: "hook_text", description: "description", hashtags: "hashtags",
   archetype: "archetype", selectionSource: "selection_source", reasons: "reasons", scores: "scores",
-  coldOpen: "cold_open", sourceStart: "source_start", sourceEnd: "source_end",
+  coldOpen: "cold_open", sourceStart: "source_start", sourceEnd: "source_end", trends: "trends",
 });
 const JOB_V3_NAMES = Object.freeze({
   title: "title", hookText: "hookText", description: "description", hashtags: "hashtags",
   archetype: "archetype", selectionSource: "selectionSource", reasons: "reasons", scores: "scores",
-  coldOpen: "coldOpen", sourceStart: "sourceStart", sourceEnd: "sourceEnd",
+  coldOpen: "coldOpen", sourceStart: "sourceStart", sourceEnd: "sourceEnd", trends: "trends",
 });
-const JOB_V3_ONLY_KEYS = ["hookText", "archetype", "selectionSource", "reasons", "scores", "coldOpen", "sourceStart", "sourceEnd"];
+const JOB_V3_ONLY_KEYS = ["hookText", "archetype", "selectionSource", "reasons", "scores", "coldOpen", "sourceStart", "sourceEnd", "trends"];
 
 /** A manifest clip's Selection V3 packaging, sanitized, as camelCase job-clip fields. */
 export function sanitizeManifestClipFields(raw) {
