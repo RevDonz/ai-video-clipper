@@ -23,7 +23,9 @@ Prinsip:
 3. **Isi dari luar adalah data, bukan instruksi.** Teks item bisa berisi upaya *prompt
    injection*; ia dibatasi, dibersihkan dan ditandai sebagai data.
 4. **Topik sensitif** (tragedi, bencana, SARA, kekerasan, kesehatan) ditandai `sensitive` dan
-   tidak pernah dibuat bahan lelucon atau judul sensasional.
+   tidak dibuat bahan lelucon atau judul sensasional. Itu diminta ke model; kode menjamin tanpa
+   dorongan dan tanpa hashtag, dan menandai klip `humor` yang menyinggungnya
+   (`trend_sensitive_humor:<n>`) untuk diperiksa pemilik.
 
 ## 1. Model data: item tren
 
@@ -45,15 +47,20 @@ Prinsip:
   "expiresAt": "2026-10-05T00:00:00Z",   // default firstSeenAt + 10 hari; maksimum 60 hari dari sekarang
   "source": "hermes",               // server: label token pengirim, atau "manual" dari UI
   "enabled": true,                  // pemilik bisa menonaktifkan per item
-  "createdAt": "…", "updatedAt": "…" // server
+  "createdAt": "…", "updatedAt": "…", // server
+  "ownerEdited": ["keywords"]       // server: field yang diubah pemilik di item agen (judul,
+                                    // ringkasan, kata kunci, hashtag, kedaluwarsa); tidak ditimpa agen
 }
 ```
 
-Aturan teks (server dan engine): NFC; buang karakter kontrol, bidi (U+202A–U+202E,
-U+2066–U+2069), zero-width, dan baris baru di field satu baris; `summary` boleh baris baru
+Aturan teks (server dan engine): NFC; buang karakter kontrol (Cc), format (Cf: bidi
+U+202A–U+202E dan U+2066–U+2069, zero-width, tag) dan karakter tak terlihat lain yang
+*default ignorable* (variation selector, filler Hangul), dan baris baru di field satu baris; `summary` boleh baris baru
 (dinormalisasi ke `\n`, maks 5 baris). Panjang dihitung dalam code point setelah normalisasi.
 Item dengan `title` yang sama (casefold + tanpa aksen + spasi dirapikan) dan `kind` sama dianggap
-item yang sama bila `externalId` tidak ada.
+item yang sama bila `externalId` tidak ada. Sebuah token hanya memperbarui item sumbernya
+sendiri: item manual atau milik sumber lain dengan `externalId` atau `kind`+judul yang sama
+ditolak per item (`owned_by_other_source`).
 
 Batas penyimpanan: maks **1.000** item aktif; saat penuh, item kedaluwarsa dipangkas dulu, lalu
 yang `score` terendah dan tertua. Item kedaluwarsa disimpan maks 7 hari lagi untuk riwayat, lalu
@@ -72,7 +79,9 @@ dihapus. Satu permintaan ingest maks **100** item dan **256 KiB**.
 ## 3. API
 
 Semua respons `Cache-Control: no-store`, error berbentuk `{"error": "<pesan Indonesia>",
-"code": "<kode_tetap>"}` tanpa path/nilai rahasia.
+"code": "<kode_tetap>"}` tanpa path/nilai rahasia (401 dari `proxy.js`: `unauthorized`; metode
+lain di rute ingest: `405 method_not_allowed`). Pengecualian: redirect 308 bawaan Next untuk
+garis miring di akhir URL.
 
 ### 3.1 Mesin (untuk agen luar): `Authorization: Bearer ptk_…`
 
@@ -89,7 +98,8 @@ Token: `ptk_` + 43 karakter base64url (32 byte acak). Cek dengan `timingSafeEqua
 Kode: `401 missing_token | invalid_token | revoked_token`, `403 insufficient_scope`,
 `400 invalid_json | invalid_body`, `413 body_too_large | too_many_items`, `415 unsupported_media_type`
 (harus `application/json`), `429 rate_limited` (+ `Retry-After`; 60 permintaan/menit per token dan
-600/jam), `503 storage_unavailable`. `lastUsedAt` diperbarui paling sering 1×/menit.
+600/jam; bila IP klien dari header proxy tepercaya, juga 30 cek token gagal/menit atau 300/jam
+per IP), `503 storage_unavailable`. `lastUsedAt` diperbarui paling sering 1×/menit.
 
 ### 3.2 UI (sesi login + same-origin untuk mutasi)
 
@@ -122,8 +132,10 @@ dipublikasikan bersama `analysis/`.
   warning `trend_context_invalid`).
 - `match_trends(items, text) -> tuple[TrendMatch, ...]`: pencocokan kata kunci/judul/hashtag
   (tanpa `#`) pada teks: casefold, tanpa aksen, spasi dirapikan, **batas kata** (`\b` versi
-  Unicode), frasa multi-kata cocok sebagai frasa. Kata kunci < 3 huruf atau kata umum (daftar
-  stopword Indonesia kecil di modul) tidak pernah cocok sendirian.
+  Unicode), frasa multi-kata cocok sebagai frasa; kata terakhir boleh berakhiran klitik ucapan
+  `-nya`, `-lah`, `-kah`, `-pun` bila sisanya ≥ 3 huruf. Kata kunci < 3 huruf atau kata umum
+  (daftar stopword Indonesia di modul, termasuk kata sehari-hari podcast seperti "gas", "tahun",
+  "jakarta") tidak pernah cocok sendirian.
 - `relevant_trends(items, transcript_units, limit=20)`: item yang cocok di transkrip episode,
   diurutkan (jumlah kecocokan, `score`), maks 20, dengan waktu kemunculan.
 
@@ -155,6 +167,13 @@ dipublikasikan bersama `analysis/`.
   itu pada teks unit-unit klip final (setelah snapping). Ref yang tidak ter-grounding dibuang
   dan dicatat (`trend_ref_ungrounded:<n>`). Hashtag tren yang dipakai hanya dari item yang
   ter-grounding.
+- **Kemasan juga diperiksa di kode:** judul, teks hook dan deskripsi klip LLM hanya boleh
+  menyebut tren relevan yang disebut transkrip klip itu (dengan atau tanpa `trend_refs`).
+  Kalimat deskripsi yang menyebut tren lain dibuang; judul/teks hook seperti itu diganti dari
+  field model yang bersih atau dari kalimat bersih transkrip klip, dan dicatat
+  (`trend_packaging_ungrounded:<n>`). Hashtag klip yang menyebut tren relevan yang tidak disebut
+  transkripnya (hashtag tren itu, atau judul/kata kuncinya sebagai satu kata) atau tren sensitif
+  dibuang.
 - Klip heuristik juga mendapat tren ter-grounding (dari pencocokan langsung) untuk hashtag dan
   alasan, tanpa mengubah judul heuristik.
 

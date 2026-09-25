@@ -149,8 +149,10 @@ Keputusan akhirnya ada di kode, bukan di model:
 - Sebuah tren cocok dengan teks bila judul, salah satu kata kunci, atau hashtag-nya (tanpa `#`,
   dan juga dipisah per kata: `#KaburAjaDulu` cocok dengan "kabur aja dulu") muncul sebagai kata
   utuh. Huruf besar-kecil dan aksen diabaikan; frasa harus muncul berurutan ("makan siang
-  gratis" tidak cocok dengan "makan gratis siang"). Kata kunci kurang dari 3 huruf dan kata
-  umum ("aja", "dulu", "viral", "fyp", "orang", ...) tidak pernah cocok sendirian.
+  gratis" tidak cocok dengan "makan gratis siang"). Kata terakhir boleh berakhiran `-nya`,
+  `-lah`, `-kah` atau `-pun` ("prabowonya" cocok dengan "prabowo"). Kata kunci kurang dari 3
+  huruf dan kata umum ("aja", "dulu", "viral", "fyp", "orang", "gas", "tahun", "jakarta", ...)
+  tidak pernah cocok sendirian.
 - **Klip AI:** tren yang disebut model di `"trend_refs"` hanya diterima kalau transkrip klip
   itu sendiri (setelah batasnya dirapikan) menyebut tren tersebut. Ref yang tidak nyambung,
   atau ID yang tidak pernah ditampilkan, dibuang dan dihitung (`trend_ref_ungrounded:<n>`).
@@ -162,10 +164,18 @@ Keputusan akhirnya ada di kode, bukan di model:
 - **Alasan:** `tren: <judul tren>` untuk paling banyak 2 tren (ditambah `(sensitif)` untuk tren
   sensitif). Kalau 8 alasan sudah penuh, alasan paling akhir diganti.
 - **Hashtag:** hashtag tren (maksimal 3) ditaruh paling depan, lalu hashtag klip itu sendiri
-  (maksimal 8 total, tanpa duplikat). Tren sensitif tidak menyumbang hashtag. Klip AI kehilangan
-  hashtag tren yang **tidak** nyambung dengan transkripnya (hashtag umum seperti `#fyp` tetap).
-- **Judul, teks hook, dan deskripsi tidak ditulis ulang oleh kode.** Judul klip heuristik tidak
-  pernah berubah; judul klip AI adalah tulisan model sendiri.
+  (maksimal 8 total, tanpa duplikat). Tren sensitif tidak menyumbang hashtag. Hashtag klip yang
+  menyebut tren yang **tidak** disebut transkripnya dibuang (hashtag milik tren itu, atau judul
+  dan kata kuncinya ditulis sebagai satu kata, mis. `#kaburajadulu`), begitu juga hashtag yang
+  menyebut tren sensitif; hashtag umum seperti `#fyp` tetap. Hashtag tren yang lebih dari 40
+  karakter (termasuk `#`) dilewati karena klip hanya boleh memuat hashtag sampai 40 karakter.
+- **Judul, teks hook, dan deskripsi klip AI hanya boleh menyebut tren yang disebut
+  transkripnya.** Kode memeriksanya dengan pencocokan yang sama, dengan atau tanpa
+  `trend_refs`. Kalimat deskripsi yang menyebut tren lain dibuang; judul atau teks hook seperti
+  itu diganti dengan bagian tulisan model yang bersih (kalimat pertama deskripsi, teks hook,
+  atau judul), atau kalau tidak ada, dengan kalimat bersih dari transkrip klip itu sendiri
+  (kalimat hook dulu). Klip seperti ini dihitung (`trend_packaging_ungrounded:<n>`). Judul klip
+  heuristik tidak pernah berubah.
 - **Dorongan ringan peringkat:** klip yang nyambung dengan minimal satu tren yang tidak sensitif
   mendapat tambahan **3 poin dari skala 100** (0,3 pada nilai peringkat 0–10), sekali saja
   walaupun nyambung dengan banyak tren. Tambahan ini hanya dipakai untuk mengurutkan: nilai
@@ -174,7 +184,9 @@ Keputusan akhirnya ada di kode, bukan di model:
   di atasnya. **Skor dan kelima sub-skor yang tampil tidak pernah berubah.** Contoh: klip bernilai
   6,8 yang nyambung tren naik melewati klip bernilai 7,0; klip bernilai 6,6 tidak.
 - Tren sensitif (tragedi, bencana, SARA, kekerasan, kesehatan) tidak memberi dorongan dan tidak
-  menyumbang hashtag; model diminta tidak menjadikannya lelucon atau judul sensasional.
+  mendapat hashtag. Model diminta tidak menjadikannya lelucon atau judul sensasional; itu tidak
+  bisa diperiksa kode, jadi setiap klip `humor` yang transkripnya menyebut tren sensitif dihitung
+  (`trend_sensitive_humor:<n>`) supaya diperiksa sebelum diunggah.
 
 Versi prompt di artefak menjadi `llm-select-v2+trends.v1+std.<sidik jari>` kalau blok tren
 dikirim; tanpa blok tetap `llm-select-v2+std.<sidik jari>`.
@@ -184,6 +196,8 @@ dikirim; tanpa blok tetap `llm-select-v2+std.<sidik jari>`.
 | Kode | Arti | Yang perlu dilakukan |
 |---|---|---|
 | `trend_ref_ungrounded:<n>` | n ref tren dari model dibuang karena transkrip klipnya tidak menyebut tren itu, atau ID-nya tidak pernah ditampilkan | Normal sesekali. Kalau besar sekali, model mengarang hubungan tren; klipnya sendiri tidak terpengaruh |
+| `trend_packaging_ungrounded:<n>` | n klip AI menyebut tren yang tidak ada di transkripnya pada judul, teks hook atau deskripsi; bagian itu diganti | Periksa judul dan hook klip itu; kalau sering, model mengarang hubungan tren |
+| `trend_sensitive_humor:<n>` | n klip bertipe humor menyinggung tren sensitif | Periksa judul dan hook-nya sebelum diunggah |
 | `trend_context_invalid` | File konteks tren job hilang atau rusak; job jalan terus tanpa tren | Periksa pengiriman tren di halaman Konteks Tren atau log worker |
 | `trend_items_skipped:<n>` | n item tren rusak dilewati; item lain tetap dipakai | Periksa data yang dikirim agen |
 

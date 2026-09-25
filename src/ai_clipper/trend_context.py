@@ -20,9 +20,9 @@ Reading (:func:`load_trend_context`, :func:`read_trend_context`) is strict about
 JSON object of at most :data:`MAX_TREND_CONTEXT_BYTES`, version 1, an ISO 8601 ``generatedAt``
 with a time zone, an ``items`` list, no duplicate keys or ``NaN``): anything else raises
 :class:`TrendContextError`, whose message never contains a path or item text. Items are read
-one by one with the server's text rules (:func:`clean_trend_text`: NFC; control, bidi and
-zero-width characters removed; single-line fields on one line; a summary of at most five
-lines) and length limits counted in code points after cleaning. A malformed item, a duplicate
+one by one with the server's text rules (:func:`clean_trend_text`: NFC; control, format
+(bidi, zero-width, tag) and other invisible characters removed; single-line fields on one
+line; a summary of at most five lines) and length limits counted in code points after cleaning. A malformed item, a duplicate
 ``id`` and anything past the first :data:`MAX_TREND_ITEMS` kept items is skipped and counted
 (``TrendContext.skipped``). Disabled items and items that expired by ``generatedAt`` are
 inactive and skipped without counting. Unknown fields (``examples``, ``source``, ...) are

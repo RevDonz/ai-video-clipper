@@ -4,7 +4,7 @@
     "title": "Potongin Konteks Tren - ingest API",
     "version": "1.0.0",
     "summary": "Machine endpoint for an external agent (e.g. Hermes) to push trend context into Potongin.",
-    "description": "Routes for an external agent. Contract: docs/plans/2026-09-25-konteks-tren.md, sections 1 and 3.1.\n\n- Authentication is a bearer ingest token (`ptk_` + 43 base64url characters) created on the Konteks Tren page (`/trends`). Session cookies are not accepted on these routes.\n- Every response carries `Cache-Control: no-store`. Errors are `{\"error\": \"<pesan Indonesia>\", \"code\": \"<kode_tetap>\"}` and never contain paths or secret values.\n- Rate limit per token: 60 requests per minute and 600 per hour (`429 rate_limited` with `Retry-After`).\n- One POST holds at most 100 items and 256 KiB. Potongin keeps at most 1,000 active items; when full it prunes expired items first, then the lowest `score` and oldest.\n- Item text is untrusted data. Potongin normalises it (NFC; control, bidi and zero-width characters removed; newlines only in `summary`, at most 5 lines) and never treats it as an instruction.",
+    "description": "Routes for an external agent. Contract: docs/plans/2026-09-25-konteks-tren.md, sections 1 and 3.1.\n\n- Authentication is a bearer ingest token (`ptk_` + 43 base64url characters) created on the Konteks Tren page (`/trends`). Session cookies are not accepted on these routes.\n- Every response carries `Cache-Control: no-store` (except the automatic 308 redirect the web framework sends for a trailing slash; use the URL without one). Errors are `{\"error\": \"<pesan Indonesia>\", \"code\": \"<kode_tetap>\"}` and never contain paths or secret values.\n- Rate limit per token: 60 requests per minute and 600 per hour (`429 rate_limited` with `Retry-After`). When the deployment trusts a client IP header, a client IP with 30 failed token checks in a minute (300 in an hour) also gets `429 rate_limited` until the window ends.\n- A token only updates items of its own source (its label). An item whose `externalId`, or whose `kind` and normalised title, belongs to the owner (a manual item) or to another token's source is refused per item with `owned_by_other_source`. Fields the owner edited on the Konteks Tren page (title, summary, keywords, hashtags, expiry) are kept on later refreshes.\n- One POST holds at most 100 items and 256 KiB. Potongin keeps at most 1,000 active items; when full it prunes expired items first, then the lowest `score` and oldest.\n- Item text is untrusted data. Potongin normalises it (NFC; control, format (bidi, zero-width, tag) and other invisible default-ignorable characters such as variation selectors removed; newlines only in `summary`, at most 5 lines) and never treats it as an instruction.",
     "license": {
       "name": "Proprietary"
     }
@@ -322,7 +322,7 @@
         }
       },
       "RateLimited": {
-        "description": "`rate_limited`: over 60 requests per minute or 600 per hour for this token. Wait `Retry-After` seconds.",
+        "description": "`rate_limited`: over 60 requests per minute or 600 per hour for this token, or (with a trusted client IP header) over 30 failed token checks per minute or 300 per hour from this IP. Wait `Retry-After` seconds.",
         "headers": {
           "Retry-After": {
             "$ref": "#/components/headers/RetryAfter"
@@ -397,7 +397,7 @@
             "type": "array",
             "minItems": 0,
             "maxItems": 10,
-            "description": "Real hashtags as used on the platforms: `#` then 1-50 letters, digits or underscores (any script). The pattern is ECMA-262 with Unicode property escapes; Python's `re` has no `\\p{L}`, so there use `^#[^\\W]{1,50}$` as a close equivalent.",
+            "description": "Real hashtags as used on the platforms: `#` then 1-50 letters, digits or underscores (any script). The pattern is ECMA-262 with Unicode property escapes; Python's `re` has no `\\p{L}`, so there use `^#[^\\W]{1,50}$` as a close equivalent. A clip gets at most 3 hashtags of a trend it mentions, and only those of at most 39 characters after `#` (a clip hashtag holds 40 characters); longer ones are stored but never added to clips.",
             "items": {
               "type": "string",
               "pattern": "^#[\\p{L}\\p{N}_]{1,50}$"
@@ -518,12 +518,12 @@
           },
           "code": {
             "type": "string",
-            "enum": ["invalid_item", "unknown_field", "missing_field", "invalid_type", "invalid_value", "invalid_length", "expired", "store_full"],
-            "description": "Why the item was refused: invalid_item (not an object), unknown_field, missing_field, invalid_type, invalid_value (pattern, enum, range or date), invalid_length, expired (expiresAt already passed), store_full (the 1000-item store had no room left for it)."
+            "enum": ["invalid_item", "unknown_field", "missing_field", "invalid_type", "invalid_value", "invalid_length", "expired", "store_full", "owned_by_other_source"],
+            "description": "Why the item was refused: invalid_item (not an object), unknown_field, missing_field, invalid_type, invalid_value (pattern, enum, range or date), invalid_length, expired (expiresAt already passed), store_full (the 1000-item store had no room left for it), owned_by_other_source (the item with this externalId, or with this kind and normalised title, belongs to the owner or to another token's source)."
           },
           "field": {
             "type": ["string", "null"],
-            "description": "The offending field when there is one, with list positions and sub-fields as in keywords[1] or examples[0].url; null for invalid_item and store_full."
+            "description": "The offending field when there is one, with list positions and sub-fields as in keywords[1] or examples[0].url; null for invalid_item and store_full; externalId or title for owned_by_other_source."
           }
         }
       },
@@ -576,7 +576,7 @@
           },
           "code": {
             "type": "string",
-            "description": "Fixed machine code, for example missing_token, invalid_token, revoked_token, insufficient_scope, invalid_json, invalid_body, body_too_large, too_many_items, unsupported_media_type, rate_limited, storage_unavailable.",
+            "description": "Fixed machine code, for example missing_token, invalid_token, revoked_token, insufficient_scope, invalid_json, invalid_body, body_too_large, too_many_items, unsupported_media_type, rate_limited, storage_unavailable, method_not_allowed.",
             "examples": ["rate_limited"]
           }
         }
