@@ -1,0 +1,91 @@
+{
+  "gate": "PF-TRUTH",
+  "task": "T2.Z",
+  "server": "ai-video-clipper:editor-w2 (app container --cpus 6, the integrated branch: glyphs memo, supervisor exit wake-up); harness on the host (its 'environment' is the harness's)",
+  "cases": [
+    {
+      "failures": 0,
+      "http_ms": {
+        "max": 501.5,
+        "min": 465.2,
+        "n": 12,
+        "p50": 481.7,
+        "p95": 489.1
+      },
+      "layout": "fit_blur",
+      "role": "fit_blur",
+      "stages_ms": {
+        "compile_incl_ffprobe": 52.9,
+        "ffmpeg_encode_and_png": 208.2,
+        "imports": 53.1,
+        "plan": 11.0,
+        "process_other": 55.3,
+        "total": 388.0,
+        "validate": 1.5
+      }
+    },
+    {
+      "failures": 0,
+      "http_ms": {
+        "max": 517.2,
+        "min": 484.0,
+        "n": 12,
+        "p50": 490.0,
+        "p95": 499.5
+      },
+      "layout": "fill_center",
+      "role": "fill_center",
+      "stages_ms": {
+        "compile_incl_ffprobe": 49.6,
+        "ffmpeg_encode_and_png": 225.9,
+        "imports": 55.1,
+        "plan": 11.4,
+        "process_other": 57.1,
+        "total": 401.1,
+        "validate": 1.4
+      }
+    },
+    {
+      "failures": 0,
+      "http_ms": {
+        "max": 493.3,
+        "min": 461.0,
+        "n": 12,
+        "p50": 474.4,
+        "p95": 488.2
+      },
+      "layout": "camera",
+      "role": "camera",
+      "stages_ms": {
+        "compile_incl_ffprobe": 44.9,
+        "ffmpeg_encode_and_png": 219.6,
+        "imports": 54.1,
+        "plan": 11.1,
+        "process_other": 57.6,
+        "total": 394.1,
+        "validate": 1.4
+      }
+    }
+  ],
+  "environment": {
+    "cpu_quota": null,
+    "cpus_visible": 16,
+    "ffmpeg": "ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023 the FFmpeg developers",
+    "loadavg": [
+      2.98,
+      3.59,
+      4.8
+    ],
+    "python": "3.13.13"
+  },
+  "gate_wall_s": 22.4,
+  "http_ms": {
+    "max": 517.2,
+    "min": 461.0,
+    "n": 36,
+    "p50": 484.8,
+    "p95": 499.5
+  },
+  "pass": true,
+  "threshold_ms": 600
+}

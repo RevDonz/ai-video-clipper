@@ -1,0 +1,24 @@
+{
+  "schema": "potongin.gate/1",
+  "gate": "QG-SEC (routes + child env, integrated branch)",
+  "task": "T2.Z",
+  "httpChecks": 47,
+  "httpFailures": 0,
+  "failures": [],
+  "editorHeaders": {
+    "coop": true,
+    "coep": true,
+    "nosniff": true,
+    "frameAncestors": true
+  },
+  "children": 57,
+  "childrenByModule": {
+    "ai_clipper.edit_v2.api": 30,
+    "ai_clipper.render_queue": 8,
+    "ai_clipper.edit_v2.preview_cli": 19
+  },
+  "childEnvNamesOutsideAllowlist": [],
+  "secretLeaks": 0,
+  "plantedSecrets": 6,
+  "pass": true
+}
