@@ -67,6 +67,11 @@
      replacing trailing reasons when all 8 are taken; the hashtags of grounded, non-sensitive
      trends come first (at most :data:`MAX_TREND_HASHTAGS`; a trend hashtag longer than the
      40 characters a clip hashtag may have is skipped);
+   - **sensitive trends** (tragedy, disaster, SARA, violence, health) never get a hashtag: none
+     is added, and a clip's own hashtags naming one (as above) are removed. The prompt asks the
+     model not to joke about them or write sensational titles; that part cannot be checked in
+     code, so every ``humor`` clip whose transcript mentions a sensitive trend is counted
+     (``trend_sensitive_humor:<n>``) for the owner to review before posting;
    - **boost**: a clip grounded in at least one non-sensitive trend gets :data:`TREND_BOOST`
      points (0-100 scale, so 0.3 on the 0-10 ranking values; :data:`TREND_BOOST_CAP` per clip
      however many trends) on its ranking value only: the LLM's rerank blend (or propose score)
@@ -77,8 +82,8 @@
 Warning codes (in this order): the LLM's own ``llm_*`` codes, ``llm_unavailable`` or
 ``llm_failed:<code>`` (auto-mode fallback), ``llm_filled:<n>`` (heuristic clips added after
 LLM clips), ``snap_dropped:<n>``, ``trend_ref_ungrounded:<n>``,
-``trend_packaging_ungrounded:<n>``, ``few_clips:<n>`` (fewer than ``k`` clips), and
-``no_transcript``.
+``trend_packaging_ungrounded:<n>``, ``trend_sensitive_humor:<n>``, ``few_clips:<n>`` (fewer
+than ``k`` clips), and ``no_transcript``.
 
 The artifact (``analysis/selection.v3.json``) is :meth:`SelectionResult.to_dict`, written
 atomically by :func:`write_selection_artifact` and read back strictly by
@@ -601,7 +606,7 @@ def _trend_hashtags(
     shown: Sequence[TrendItem],
 ) -> tuple[str, ...]:
     """Grounded trends' hashtags first, then the moment's own (see the module docstring)."""
-    barred = [item for item in shown if item not in mentioned]
+    barred = [item for item in shown if item not in mentioned or item.sensitive]
     foreign = {key for item in barred for key in trend_tag_keys(item)} - _GENERIC_HASHTAGS
     own = [tag for tag in proposal.hashtags if fold_hashtag(tag) not in foreign]
     added = [
@@ -926,6 +931,12 @@ def select_clips_v3(
     )
     if repackaged:
         warnings.append(f"trend_packaging_ungrounded:{repackaged}")
+    sensitive_humor = sum(
+        item.proposal.archetype == "humor" and any(trend.sensitive for trend in item.mentioned)
+        for item in chosen
+    )
+    if sensitive_humor:
+        warnings.append(f"trend_sensitive_humor:{sensitive_humor}")
     if len(clips) < k:
         warnings.append(f"few_clips:{len(clips)}")
     source = "llm" if llm_led else "heuristic"
