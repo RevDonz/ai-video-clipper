@@ -171,7 +171,7 @@ export function normalizeTrendItem(raw) {
     if (examples.length >= 5) break;
     if (!example || typeof example !== "object") continue;
     const url = safeExampleUrl(example.url);
-    if (!url) continue;
+    if (!url || examples.some((kept) => kept.url === url)) continue;
     examples.push({ url, note: truncate(cleanLine(example.note), TREND_LIMITS.exampleNote), host: new URL(url).host });
   }
   return {
