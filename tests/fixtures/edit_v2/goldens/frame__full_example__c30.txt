@@ -36,7 +36,7 @@ libx264
 -preset
 veryfast
 -crf
-21
+18
 -profile:v
 high
 -pix_fmt
@@ -44,7 +44,7 @@ yuv420p
 -g
 60
 -x264-params
-threads=4
+threads=4:chroma-qp-offset=-12
 -color_primaries
 bt709
 -color_trc
@@ -130,5 +130,5 @@ captions.ass 12ee7e6b059299a7b8fd6c71f945fa514185efd6ec9317cc5d4ef260d1651db4
 [vlay]scale=in_color_matrix=bt709:in_range=tv,format=gbrp,ass=filename=captions.ass:fontsdir=fonts:shaping=complex[vtext];
 [1:v]scale=115:115:flags=lanczos,format=rgba,colorchannelmixer=aa=0.850,scale,format=gbrap[lg];
 [vtext][lg]overlay=x=576:y=32:format=gbrp[vlogo];
-[vlogo]scale=out_color_matrix=bt709:out_range=tv,format=yuv420p[vout]
+[vlogo]scale=out_color_matrix=bt709:out_range=tv:flags=accurate_rnd+full_chroma_int+full_chroma_inp+lanczos,format=yuv420p[vout]
 
