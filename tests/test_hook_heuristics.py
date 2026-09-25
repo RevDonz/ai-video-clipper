@@ -6,9 +6,11 @@ import pytest
 
 from ai_clipper.audio_timeline import build_audio_timeline
 from ai_clipper.hook_heuristics import (
+    GREETING_REACH_SECONDS,
     HEURISTIC_VERSION,
     _analyse_unit,
     _clean_line,
+    opening_end,
     propose_heuristic,
     teaser_end,
 )
@@ -587,6 +589,35 @@ def test_teaser_end_tells_where_a_teaser_montage_ends():
     plain, _ = build(neutral(30) + moment + neutral(30, offset=50))
     assert teaser_end(plain) is None
     assert teaser_end([]) is None
+
+
+GREETING = L("Halo semuanya, selamat datang lagi di obrolan kita malam ini.")
+
+
+def test_opening_end_covers_the_teaser_montage_and_the_opening_greeting():
+    # A greeting said in the intro: the opening runs GREETING_REACH_SECONDS from its start.
+    units, _ = build(neutral(3) + [GREETING] + neutral(60, offset=10))
+    assert _analyse_unit(units[3]).greeting
+    assert opening_end(units) == pytest.approx(units[3].start + GREETING_REACH_SECONDS)
+
+    # A teaser montage alone ends the opening where it ends; nothing at all: no opening.
+    moment = kitchen_moment()
+    teaser = [L(line.text, seconds=line.seconds, gap=0.3) for line in moment[1:5]]
+    rest = [L("Kejar setoran bersama kita semua.", gap=3.0)] + neutral(30)
+    units, _ = build(teaser + rest + moment + neutral(30, offset=50))
+    assert opening_end(units) == teaser_end(units) == units[3].end
+    plain, _ = build(neutral(30) + moment + neutral(30, offset=50))
+    assert opening_end(plain) is None
+    assert opening_end([]) is None
+
+    # A greeting after the intro (a segment coming back from a break) opens nothing.
+    late, _ = build(neutral(40) + [GREETING] + neutral(20, offset=60))
+    assert late[40].start > 90.0 and opening_end(late) is None
+
+    # A teaser, then the show's greeting: the later of the two.
+    units, _ = build(teaser + [GREETING] + rest + moment + neutral(30, offset=50))
+    assert teaser_end(units) < units[4].start
+    assert opening_end(units) == pytest.approx(units[4].start + GREETING_REACH_SECONDS)
 
 
 # --- scores, audio, diversity -----------------------------------------------------------------
