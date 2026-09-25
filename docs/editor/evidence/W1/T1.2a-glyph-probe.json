@@ -1,0 +1,40 @@
+{
+  "faces": [
+    "DejaVuSans",
+    "DejaVuSans-Bold",
+    "Montserrat-ExtraBold"
+  ],
+  "failures": 0,
+  "fallback_faces": [
+    "DejaVuSans",
+    "DejaVuSans-Bold"
+  ],
+  "fontconfig_files": [
+    "DejaVuSans-Bold.ttf",
+    "DejaVuSans.ttf"
+  ],
+  "montserrat_used_for_other_families": 0,
+  "non_dejavu_fallbacks": [],
+  "not_found": [
+    "U+1F525 DejaVu Sans",
+    "U+20BF DejaVu Sans"
+  ],
+  "paths_outside_fonts_dir": 0,
+  "probe_texts": [
+    "bold: HALO ‱ SEMUA 😂",
+    "box: BOX ‱",
+    "classic: halo ₿ 🔥 😂",
+    "karaoke: halo ‱ ₿"
+  ],
+  "toolchain": {
+    "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "fontconfig": "2.14.1-4",
+    "libass9": "1:0.17.1-1+deb12u1",
+    "libfreetype6": "2.12.1+dfsg-5+deb12u4",
+    "libfribidi0": "1.0.8-2.1",
+    "libharfbuzz0b": "6.0.0+dfsg-3",
+    "python": "3.11.2",
+    "reference_toolchain_problem": null
+  },
+  "unexpected_faces": []
+}

@@ -1,0 +1,116 @@
+{
+  "check": "box pack: BorderStyle 3 vs \\p rectangle",
+  "failures": 0,
+  "play_res": [
+    720,
+    1280
+  ],
+  "samples": [
+    {
+      "border_bbox": [
+        103,
+        985,
+        616,
+        1074
+      ],
+      "differing_px": 1402,
+      "interior_differing_px": 0,
+      "interior_max_diff": 0,
+      "max_edge_shift_px": 0,
+      "text": "gue bukan jambret.",
+      "vector_bbox": [
+        103,
+        985,
+        616,
+        1074
+      ]
+    },
+    {
+      "border_bbox": [
+        157,
+        985,
+        562,
+        1074
+      ],
+      "differing_px": 1756,
+      "interior_differing_px": 0,
+      "interior_max_diff": 0,
+      "max_edge_shift_px": 0,
+      "text": "AVATAR TAWA",
+      "vector_bbox": [
+        157,
+        985,
+        562,
+        1074
+      ]
+    },
+    {
+      "border_bbox": [
+        190,
+        985,
+        529,
+        1074
+      ],
+      "differing_px": 404,
+      "interior_differing_px": 0,
+      "interior_max_diff": 0,
+      "max_edge_shift_px": 1,
+      "text": "SEPERTINYA",
+      "vector_bbox": [
+        191,
+        985,
+        528,
+        1074
+      ]
+    },
+    {
+      "border_bbox": [
+        32,
+        1000,
+        687,
+        1074
+      ],
+      "differing_px": 232,
+      "interior_differing_px": 0,
+      "interior_max_diff": 0,
+      "max_edge_shift_px": 0,
+      "text": "Supercalifragilisticexpialidocious",
+      "vector_bbox": [
+        32,
+        1000,
+        687,
+        1074
+      ]
+    },
+    {
+      "border_bbox": [
+        182,
+        985,
+        537,
+        1074
+      ],
+      "differing_px": 378,
+      "interior_differing_px": 0,
+      "interior_max_diff": 0,
+      "max_edge_shift_px": 0,
+      "text": "Halo {semua}",
+      "vector_bbox": [
+        182,
+        985,
+        537,
+        1074
+      ]
+    }
+  ],
+  "task": "T1.2a",
+  "toolchain": {
+    "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "fontconfig": "2.14.1-4",
+    "libass9": "1:0.17.1-1+deb12u1",
+    "libfreetype6": "2.12.1+dfsg-5+deb12u4",
+    "libfribidi0": "1.0.8-2.1",
+    "libharfbuzz0b": "6.0.0+dfsg-3",
+    "python": "3.11.2",
+    "reference_toolchain_problem": null
+  }
+}
