@@ -98,6 +98,27 @@ anything else is ``none``); it becomes ``ClipProposal.focus`` unchecked and the 
 ``literal`` only when the clip really says a term. Without focus the requests are
 byte-identical to the builder without this feature and ``"focus"`` in an answer is ignored.
 
+**Focus top-up** (``focus`` and ``focus_topup``; never without a focus): after the propose
+requests and the retry, when fewer than ``k`` valid moments are about the focus (their lines
+say a term, or they claim ``literal``/``semantic``) and some literal mentions lie in no valid
+moment, one more request goes to the client, before the rerank, within ``max_requests`` and
+``deadline_s`` (skipped otherwise). Mentions inside an opening teaser montage
+(:func:`ai_clipper.hook_heuristics.teaser_end`) are left out: they repeat a later moment. The
+others are clustered (a gap of at most :data:`FOCUS_TOPUP_CLUSTER_SECONDS`), and the clusters no
+valid moment touches, the most mentions first (at most :data:`MAX_FOCUS_TOPUP_EXCERPTS`; the
+weakest are left out while the request would not fit ``context_tokens``), are shown as excerpts
+``P1``, ``P2``, ... in episode order: every line within :data:`FOCUS_TOPUP_CONTEXT_SECONDS` of
+the cluster's mentions, with the usual line IDs, overlapping excerpts merged. The request asks
+for at most one moment per excerpt that holds a mention line and has the focus at its core, and
+to skip weak excerpts (greetings, intros, opening teasers, outros, sponsors, passing mentions);
+it ends with the focus block and its top-up rules. Its moments are validated like propose
+answers against the excerpt their IDs name (a strong quote may re-anchor them in any excerpt).
+A moment whose lines say no term (outside a teaser) is dropped (``off_focus``) whatever it
+claims; a second moment for its excerpt, a repeat of a valid moment (the dedupe rule), and a
+moment that overlaps a valid moment about the focus or another top-up moment are dropped
+(``duplicate``). The rest follow the ranked moments, best score first, with their score as
+their ranking value: the rerank never sees them.
+
 Warning codes (stable, in this order):
 
 - ``llm_chunked:<n>``: the transcript needed n propose requests.
@@ -105,6 +126,10 @@ Warning codes (stable, in this order):
 - ``llm_chunk_failed:<chunk>:<code>``: a later chunk failed after an earlier one succeeded.
 - ``llm_retry:<mode>:<n>``: the retry ran (``next_model`` or ``follow_up``) and added n
   moments; ``llm_retry_failed:<code>``: the retry request failed.
+- ``focus_topup:<n>``: the focus top-up ran and added n moments;
+  ``focus_topup_failed:<code>``: its request failed (``invalid``: no list of moments);
+  ``focus_topup_skipped:<reason>``: it was needed but not sent (``budget``: ``max_requests``
+  ran out, ``deadline``, or ``context``: not even one excerpt fits).
 - ``llm_relocated:<n>``: n kept moments were re-anchored by their quote (drifted IDs).
 - ``llm_hook_relocated:<n>``: n kept moments got a hook that ``hook_quote`` did not confirm.
 - ``llm_extended:<n>``: n short moments grew to the natural end of their answer.
@@ -112,7 +137,7 @@ Warning codes (stable, in this order):
 - ``llm_packaging_repaired:<n>``: n moments had a raw-transcript title or hook text rebuilt.
 - ``llm_dropped:<n>:<reason>``: n moments were discarded. Reasons: ``not_object``,
   ``missing_id``, ``unknown_id``, ``scores``, ``suspect``, ``too_short``, ``too_long``,
-  ``ends_on_question``, ``duplicate``.
+  ``ends_on_question``, ``duplicate``, ``off_focus`` (a top-up moment that says no term).
 - ``llm_rerank_failed:<code>``: the rerank failed (``invalid`` = unusable answer,
   ``context_too_small`` = the cards did not fit); the propose order is kept.
 - ``llm_budget_exhausted`` / ``llm_deadline``: a planned request (a chunk, the retry, or the
@@ -138,7 +163,8 @@ from importlib import resources
 from numbers import Real
 from types import MappingProxyType
 
-from .focus import MAX_FOCUS_NOTE_CHARS, FocusMatcher, FocusSpec
+from .focus import MAX_FOCUS_NOTE_CHARS, FocusHit, FocusMatcher, FocusSpec
+from .hook_heuristics import teaser_end
 from .llm import (
     CachedLLMClient,
     FailoverLLMClient,
@@ -166,6 +192,11 @@ FOCUS_PROMPT_VERSION = "focus.v1"  # provenance suffix when the focus block was 
 MAX_PROMPT_TRENDS = 20
 TREND_LINE_CHARS = 300
 MAX_FOCUS_LINE_IDS = 60
+# Fokus klip top-up: mentions this close form one cluster; each cluster is shown with this much
+# transcript on either side; at most this many clusters per request.
+FOCUS_TOPUP_CLUSTER_SECONDS = 45.0
+FOCUS_TOPUP_CONTEXT_SECONDS = 75.0
+MAX_FOCUS_TOPUP_EXCERPTS = 10
 STANDARD_RESOURCE = ("prompts", "standar_klip_ai.md")
 
 SCORE_WEIGHTS: Mapping[str, float] = MappingProxyType(
@@ -334,6 +365,18 @@ _FOCUS_BLOCK_RULES = (
         'istilahnya), "semantic" (membahas fokus tanpa menyebut istilahnya) atau "none"; '
         'misalnya "focus": "literal".'
     ),
+)
+# The rules of the top-up request's focus block: only moments whose core is the focus.
+_FOCUS_TOPUP_RULES = (
+    (
+        "Aturan fokus: usulkan hanya momen yang membahas fokus di atas sebagai inti, bukan "
+        "sekadar menyebutnya sekilas."
+    ),
+    *_FOCUS_BLOCK_RULES[2:],  # quality first, then the Format line
+)
+_TOPUP_TASK = (
+    "TUGAS: cari momen klip tentang FOKUS PENGGUNA (blok di bawah) di potongan transkrip "
+    "berikut, sesuai Standar Klip AI (pesan sistem)."
 )
 # Lenient readings of a moment's "focus" answer (after casefold and trimming).
 _FOCUS_CLAIMS = MappingProxyType(
@@ -815,6 +858,11 @@ def render_focus_block(focus: FocusSpec, line_ids: Sequence[str]) -> str:
     shown as a hint, at most :data:`MAX_FOCUS_LINE_IDS` spread evenly over them. The rules
     that follow end with the ``Format:`` line that asks every moment for ``"focus"``.
     """
+    return _focus_block(focus, line_ids, _FOCUS_BLOCK_RULES)
+
+
+def _focus_block(focus: FocusSpec, line_ids: Sequence[str], rules: Sequence[str]) -> str:
+    """The FOKUS PENGGUNA block with ``rules`` after its fence (see :func:`render_focus_block`)."""
     if not isinstance(focus, FocusSpec):
         raise TypeError("focus must be a FocusSpec")
     if isinstance(line_ids, (str, bytes)) or not isinstance(line_ids, Sequence):
@@ -833,7 +881,7 @@ def render_focus_block(focus: FocusSpec, line_ids: Sequence[str]) -> str:
             f'catatan: "{note}"' if note else "catatan: -",
             f"baris yang menyebut istilah: {shown or '-'}",
             _FOCUS_BLOCK_CLOSE,
-            *_FOCUS_BLOCK_RULES,
+            *rules,
         ]
     )
 
@@ -996,6 +1044,18 @@ def _ideal_range(min_duration: float, max_duration: float) -> tuple[float, float
     return (low, high) if low < high else (min_duration, max_duration)
 
 
+def _duration_row(min_duration: float, max_duration: float) -> str:
+    """The duration rule of a moment request: the bounds, the ideal range, how IDs count."""
+    ideal_low, ideal_high = _ideal_range(min_duration, max_duration)
+    return (
+        f"- Durasi tiap momen {_format_seconds(min_duration)}–{_format_seconds(max_duration)} "
+        f"detik, idealnya {_format_seconds(ideal_low)}–{_format_seconds(ideal_high)} detik "
+        "supaya setup, isi, dan payoff utuh. Sistem menghitung durasi dari ID: mulai pada "
+        "waktu start_id, selesai saat baris end_id berakhir (yaitu waktu baris sesudahnya). "
+        "Momen di luar batas dibuang."
+    )
+
+
 def _propose_header(
     *,
     count: int,
@@ -1004,7 +1064,6 @@ def _propose_header(
     chunk: tuple[int, int, str, str, str] | None,
     follow_up: Sequence[str] = (),
 ) -> str:
-    ideal_low, ideal_high = _ideal_range(min_duration, max_duration)
     rows = [
         (
             "TUGAS: pilih momen klip terbaik dari transkrip di bawah sesuai Standar Klip AI "
@@ -1014,13 +1073,7 @@ def _propose_header(
             f"- Kirim sekitar {count} momen, urut dari yang terbaik. Kalau yang layak lebih "
             "sedikit, kirim lebih sedikit; jangan mengarang."
         ),
-        (
-            f"- Durasi tiap momen {_format_seconds(min_duration)}–{_format_seconds(max_duration)} "
-            f"detik, idealnya {_format_seconds(ideal_low)}–{_format_seconds(ideal_high)} detik "
-            "supaya setup, isi, dan payoff utuh. Sistem menghitung durasi dari ID: mulai pada "
-            "waktu start_id, selesai saat baris end_id berakhir (yaitu waktu baris sesudahnya). "
-            "Momen di luar batas dibuang."
-        ),
+        _duration_row(min_duration, max_duration),
         (
             "- Salin ID persis dari awal baris (L0001, L0002, ...). Jangan menebak ID dari "
             "waktu. Isi semua field; hook_quote wajib dikutip persis dari baris hook_id."
@@ -1867,6 +1920,238 @@ def _retry(
     return f"llm_retry:{mode}:{max(0, count_kept() - before)}"
 
 
+# --- focus top-up -----------------------------------------------------------------------------
+
+
+def _says(candidate: _Candidate, hit: FocusHit, lines: Sequence[PromptLine]) -> bool:
+    """The candidate's lines hold the mention's units and the mention starts before its end."""
+    return (
+        lines[candidate.start_line].first_unit <= hit.first_unit
+        and hit.last_unit <= lines[candidate.end_line].last_unit
+        and hit.time < candidate.end
+    )
+
+
+def _lines_overlap(first: _Candidate, second: _Candidate) -> bool:
+    return first.start_line <= second.end_line and second.start_line <= first.end_line
+
+
+def _mention_clusters(hits: Sequence[FocusHit]) -> list[list[FocusHit]]:
+    """Mentions in time order, split where two follow each other more than
+    :data:`FOCUS_TOPUP_CLUSTER_SECONDS` apart."""
+    clusters: list[list[FocusHit]] = []
+    for hit in sorted(hits, key=lambda item: (item.time, item.first_unit)):
+        if clusters and hit.time - clusters[-1][-1].time <= FOCUS_TOPUP_CLUSTER_SECONDS + _EPSILON:
+            clusters[-1].append(hit)
+        else:
+            clusters.append([hit])
+    return clusters
+
+
+def _excerpt_ranges(
+    lines: Sequence[PromptLine], line_of: Mapping[int, int], clusters: Sequence[list[FocusHit]]
+) -> list[tuple[int, int]]:
+    """The line ranges shown for ``clusters``: every line within
+    :data:`FOCUS_TOPUP_CONTEXT_SECONDS` of a cluster's mentions (their own lines always),
+    overlapping ranges merged, in episode order."""
+    ranges: list[tuple[int, int]] = []
+    for cluster in clusters:
+        low = cluster[0].time - FOCUS_TOPUP_CONTEXT_SECONDS
+        high = cluster[-1].time + FOCUS_TOPUP_CONTEXT_SECONDS
+        first = line_of[cluster[0].first_unit]
+        last = line_of[cluster[-1].last_unit]
+        while first > 0 and lines[first - 1].end > low:
+            first -= 1
+        while last + 1 < len(lines) and lines[last + 1].start < high:
+            last += 1
+        ranges.append((first, last))
+    merged: list[tuple[int, int]] = []
+    for first, last in sorted(ranges):
+        if merged and first <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], last))
+        else:
+            merged.append((first, last))
+    return merged
+
+
+def _topup_prompt(
+    lines: Sequence[PromptLine],
+    rendered: Sequence[str],
+    ranges: Sequence[tuple[int, int]],
+    *,
+    min_duration: float,
+    max_duration: float,
+    block: str,
+) -> str:
+    """The top-up request: its rules, the excerpts ``P1``, ``P2``, ... with their usual line
+    IDs, then the focus block of the top-up (``block``)."""
+    rows = [
+        _TOPUP_TASK,
+        (
+            "- Setiap potongan (P1, P2, ...) berisi baris di sekitar tempat istilah fokus "
+            "disebut. Untuk setiap potongan usulkan satu momen terbaik yang membahas fokus itu, "
+            "kecuali potongannya lemah; paling banyak satu momen per potongan."
+        ),
+        (
+            "- Momen harus memuat baris yang menyebut istilahnya (daftar baris di blok FOKUS "
+            "PENGGUNA), menjadikan fokus sebagai inti ceritanya, utuh, dan bisa berdiri sendiri."
+        ),
+        (
+            "- Potongan lemah: sapaan, perkenalan, atau pembuka video; cuplikan teaser di "
+            "menit-menit awal video (kalimat-kalimat yang diulang dari bagian lain); penutup; "
+            "sponsor; atau istilah yang hanya disebut sambil lalu tanpa dibahas. Kalau semua "
+            'potongan lemah, balas {"moments": []}; jangan mengarang.'
+        ),
+        _duration_row(min_duration, max_duration),
+        (
+            "- Salin ID persis dari awal baris (L0001, L0002, ...); start_id, hook_id dan end_id "
+            "dari potongan yang sama. Jangan menebak ID dari waktu. Isi semua field; hook_quote "
+            "wajib dikutip persis dari baris hook_id."
+        ),
+        "- start_id biasanya beberapa baris sebelum hook_id: mulai dari pertanyaan atau setup-nya.",
+        "- end_id adalah baris terakhir jawaban setelah payoff utuh, bukan baris hook.",
+        '- Balas hanya satu objek JSON sesuai "Kontrak JSON", "Usulan momen".',
+    ]
+    for number, (first, last) in enumerate(ranges, 1):
+        rows.append("")
+        rows.append(f"POTONGAN P{number} ({_clock(lines[first].start)}–{_clock(lines[last].end)}):")
+        rows.extend(rendered[first : last + 1])
+    rows.append("")
+    rows.append(block)
+    return "\n".join(rows)
+
+
+def _validate_in_excerpt(
+    validator: _Validator, item: object, excerpts: Sequence[_Chunk], order: int
+) -> tuple[_Candidate, int]:
+    """``item`` validated like a propose answer against the excerpt its IDs name, else against
+    each excerpt in turn (a strong quote may re-anchor drifted IDs); the moment and the
+    excerpt's position. The first reason to drop it is raised when no excerpt takes it."""
+    named: list[int] = []
+    if isinstance(item, Mapping):
+        numbers = [_line_number(item.get(name)) for name in ("start_id", "hook_id", "end_id")]
+        named = [
+            position
+            for position, excerpt in enumerate(excerpts)
+            if any(number and excerpt.first <= number - 1 <= excerpt.last for number in numbers)
+        ]
+    failure: _Drop | None = None
+    for position in named or range(len(excerpts)):
+        try:
+            return validator.validate(item, excerpts[position], order), position
+        except _Drop as drop:
+            failure = failure or drop
+    assert failure is not None  # there is always at least one excerpt
+    raise failure
+
+
+def _focus_topup(
+    session: _Session,
+    *,
+    focus: FocusSpec,
+    hits: Sequence[FocusHit],
+    units: Sequence[SentenceUnit],
+    lines: Sequence[PromptLine],
+    rendered: Sequence[str],
+    line_of: Mapping[int, int],
+    validator: _Validator,
+    kept: Sequence[_Candidate],
+    k: int,
+    context_tokens: int,
+    min_duration: float,
+    max_duration: float,
+    drops: Counter[str],
+    order: int,
+) -> tuple[list[_Candidate], str | None]:
+    """The focus top-up (see the module docstring): the moments it adds and its warning code,
+    or ``([], None)`` when it is not needed. ``kept`` are the valid moments so far."""
+
+    def about_focus(candidate: _Candidate) -> bool:
+        return candidate.focus in ("literal", "semantic") or any(
+            _says(candidate, hit, lines) for hit in hits
+        )
+
+    if sum(about_focus(candidate) for candidate in kept) >= k:
+        return [], None
+    # Mentions inside an opening teaser montage repeat a later moment: never asked about.
+    teaser = teaser_end(units)
+    open_hits = [hit for hit in hits if teaser is None or hit.time >= teaser]
+
+    def says_a_term(candidate: _Candidate) -> bool:
+        return any(_says(candidate, hit, lines) for hit in open_hits)
+
+    uncovered = [
+        cluster
+        for cluster in _mention_clusters(open_hits)
+        if not any(_says(candidate, hit, lines) for candidate in kept for hit in cluster)
+    ]
+    if not uncovered:
+        return [], None
+    blocked = session.blocked()
+    if blocked is not None:
+        reason = "budget" if blocked == "llm_budget_exhausted" else "deadline"
+        return [], f"focus_topup_skipped:{reason}"
+    # The densest clusters first; the weakest go when the request would not fit the context.
+    asked = sorted(uncovered, key=lambda cluster: (-len(cluster), cluster[0].time))
+    asked = asked[:MAX_FOCUS_TOPUP_EXCERPTS]
+    mention_lines = sorted({line_of[hit.first_unit] for hit in open_hits})
+    fixed = estimate_tokens(session.system) + REQUEST_OVERHEAD_TOKENS + session.max_output_tokens
+    while True:
+        ranges = _excerpt_ranges(lines, line_of, asked)
+        ids = [
+            lines[index].line_id
+            for index in mention_lines
+            if any(first <= index <= last for first, last in ranges)
+        ]
+        prompt = _topup_prompt(
+            lines,
+            rendered,
+            ranges,
+            min_duration=min_duration,
+            max_duration=max_duration,
+            block=_focus_block(focus, ids, _FOCUS_TOPUP_RULES),
+        )
+        if fixed + estimate_tokens(prompt) <= context_tokens:
+            break
+        asked = asked[:-1]
+        if not asked:
+            return [], "focus_topup_skipped:context"
+    try:
+        response = session.request(prompt)
+    except LLMError as error:
+        return [], f"focus_topup_failed:{error.code}"
+    moments = _moments_list(response.data)
+    if moments is None:
+        return [], "focus_topup_failed:invalid"
+    excerpts = [
+        _Chunk(number, len(ranges), first, last, 1)
+        for number, (first, last) in enumerate(ranges, 1)
+    ]
+    focus_moments = [candidate for candidate in kept if about_focus(candidate)]
+    taken: set[int] = set()
+    found: list[_Candidate] = []
+    for offset, item in enumerate(moments[: 3 * len(excerpts)]):
+        try:
+            candidate, position = _validate_in_excerpt(validator, item, excerpts, order + offset)
+        except _Drop as drop:
+            drops[drop.reason] += 1
+            continue
+        if not says_a_term(candidate):  # it was asked about a mention: it must hold one
+            drops["off_focus"] += 1
+            continue
+        span = (candidate.start, candidate.end)
+        if (
+            position in taken
+            or any(_duplicates(span, (other.start, other.end)) for other in kept)
+            or any(_lines_overlap(candidate, other) for other in (*focus_moments, *found))
+        ):
+            drops["duplicate"] += 1
+            continue
+        taken.add(position)
+        found.append(candidate)
+    return found, f"focus_topup:{len(found)}"
+
+
 # --- entry point ------------------------------------------------------------------------------
 
 
@@ -1947,6 +2232,7 @@ def propose_with_llm(
     clock: Callable[[], float] | None = None,
     trends: Sequence[TrendItem] = (),
     focus: FocusSpec | None = None,
+    focus_topup: bool = True,
 ) -> LLMSelectionOutcome:
     """Ask the LLM for ranked moments over ``units``; see the module docstring for the rules.
 
@@ -1956,7 +2242,8 @@ def propose_with_llm(
     ``clock`` (default ``time.monotonic``) exists for tests. ``trends`` (the first
     :data:`MAX_PROMPT_TRENDS` are shown as ``T1``, ...) add the trend block to every propose
     request and let moments name them in ``trend_refs``. ``focus`` (the job's focus terms) adds
-    the focus block after it and lets moments claim ``"focus"``.
+    the focus block after it and lets moments claim ``"focus"``; ``focus_topup`` then allows
+    the single focus top-up request (never without a focus).
     """
     shown_trends = _check_trends(trends)
     trend_suffix = render_trend_block(shown_trends)
@@ -1979,13 +2266,16 @@ def propose_with_llm(
     rendered = [render_prompt_line(line) for line in lines]
     system = load_editorial_standard()
     focus_lines: list[int] = []  # prompt lines where a literal focus mention starts
+    focus_hits: tuple[FocusHit, ...] = ()
+    line_of: dict[int, int] = {}
     if focus is not None:
         line_of = {
             unit: line.index
             for line in lines
             for unit in range(line.first_unit, line.last_unit + 1)
         }
-        focus_lines = sorted({line_of[hit.first_unit] for hit in FocusMatcher(focus).hits(items)})
+        focus_hits = FocusMatcher(focus).hits(items)
+        focus_lines = sorted({line_of[hit.first_unit] for hit in focus_hits})
 
     def suffix_for(first: int, last: int) -> str:
         """What follows the transcript of a propose request showing lines ``first..last``."""
@@ -2095,6 +2385,29 @@ def propose_with_llm(
                     )
                 )
 
+    # Fokus klip: one more request, before the rerank, for mentions no moment covers.
+    topup: list[_Candidate] = []
+    if focus is not None and focus_topup and answered is not None:
+        topup, code = _focus_topup(
+            session,
+            focus=focus,
+            hits=focus_hits,
+            units=items,
+            lines=lines,
+            rendered=rendered,
+            line_of=line_of,
+            validator=validator,
+            kept=_dedupe(candidates)[0],
+            k=k,
+            context_tokens=context_tokens,
+            min_duration=min_duration,
+            max_duration=max_duration,
+            drops=drops,
+            order=len(candidates),
+        )
+        if code is not None:
+            notes.append(code)
+
     kept, duplicates = _dedupe(candidates)
     if duplicates:
         drops["duplicate"] += duplicates
@@ -2116,6 +2429,11 @@ def propose_with_llm(
             )
     if ranked is None:
         ranked = [_Ranked(candidate, candidate.score, None) for candidate in kept]
+    # The top-up moments follow, by their own score: the rerank never saw them.
+    ranked.extend(
+        _Ranked(candidate, candidate.score, None)
+        for candidate in sorted(topup, key=lambda item: (-item.score, item.order))
+    )
 
     counts = {
         "llm_relocated": sum(item.candidate.relocated for item in ranked),

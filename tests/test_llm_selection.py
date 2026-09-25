@@ -138,6 +138,7 @@ def run(units, moments, *, k=5, min_duration=20.0, max_duration=60.0, **options)
     )
     options.setdefault("rerank", False)
     options.setdefault("retry", False)
+    options.setdefault("focus_topup", False)
     outcome = propose_with_llm(
         units, client=client, min_duration=min_duration, max_duration=max_duration, k=k,
         **options,
@@ -1647,3 +1648,261 @@ def test_focus_must_be_a_focus_spec() -> None:
         run(flat_units(), [moment(2, 6)], focus="jomok")
     with pytest.raises(TypeError):
         render_focus_block("jomok", [])
+
+
+# --- Fokus klip: focus top-up -----------------------------------------------------------------
+
+TOPUP_TASK = "TUGAS: cari momen klip tentang FOKUS PENGGUNA"
+
+
+def topup_run(units, first, *answers, **options):
+    """:func:`run` with a focus and the top-up on: ``first`` (moments) answers the propose
+    request and ``answers`` (dicts, exceptions or callables) the requests after it."""
+    options.setdefault("focus", jomok())
+    options.setdefault("focus_topup", True)
+    return run(units, [], responses=[{"moments": first}, *answers], **options)
+
+
+def excerpt_lines(prompt: str) -> dict[str, list[str]]:
+    """The line IDs of every excerpt of a top-up request, by excerpt label (P1, P2, ...)."""
+    found: dict[str, list[str]] = {}
+    current = None
+    for line in prompt.split("\n"):
+        header = re.match(r"^POTONGAN (P\d+) \(\d+:\d\d–\d+:\d\d\):$", line)
+        if header:
+            current = found.setdefault(header.group(1), [])
+        elif not line:
+            current = None
+        elif current is not None:
+            current.append(line.split(" ", 1)[0])
+    return found
+
+
+def test_a_focus_topup_asks_once_about_the_mentions_no_moment_covers() -> None:
+    units = jomok_units(60, mentions=(12, 45))  # 84 s and 315 s
+
+    outcome, client = topup_run(units, [moment(2, 6)],
+                                {"moments": [moment(43, 47, focus="literal")]}, k=2)
+
+    assert len(client.calls) == 2 and outcome.requests == 2
+    request = client.calls[1]
+    assert request["system"] == load_editorial_standard()
+    prompt = request["user"]
+    assert prompt.startswith(TOPUP_TASK + " ")
+    # One excerpt per mention, 75 s either side of it, with the usual line IDs.
+    assert excerpt_lines(prompt) == {
+        "P1": [lid(index) for index in range(1, 23)],
+        "P2": [lid(index) for index in range(34, 56)],
+    }
+    assert "L0013 [01:24] Terus soal perjomokan itu gimana kisah12 deh." in prompt.split("\n")
+    assert "paling banyak satu momen per potongan" in prompt
+    assert "memuat baris yang menyebut istilahnya" in prompt
+    assert any(
+        all(word in line for word in ("sapaan", "teaser", "menit-menit awal", "sponsor",
+                                      "sambil lalu"))
+        for line in prompt.split("\n")
+    )
+    assert focus_block_lines(prompt) == [
+        'istilah: "jomok"; "jomokers"',
+        'catatan: "momen jomok yang lucu"',
+        "baris yang menyebut istilah: L0013, L0046",
+    ]
+    assert prompt.endswith(render_focus_block(jomok(), ["L0013", "L0046"]).split("\n")[-1])
+    # The top-up moments follow the first ones, ordered by their own score.
+    assert spans(outcome) == [(2, 6), (43, 47)]
+    assert [item.focus for item in outcome.proposals] == ["none", "literal"]
+    assert outcome.rank_values == tuple(item.score for item in outcome.proposals)
+    assert "focus_topup:1" in outcome.warnings
+
+
+def test_without_focus_the_topup_never_runs_and_requests_stay_byte_identical() -> None:
+    units = jomok_units(60, mentions=(12, 45))
+    outcome, client = run(units, [moment(2, 6)], k=2, focus_topup=True)
+
+    assert len(client.calls) == 1
+    assert not any(code.startswith("focus_topup") for code in outcome.warnings)
+    assert request_scenarios(focus_topup=True) == PRE_TREND_REQUESTS
+    assert request_scenarios(trends=[kabur(), tokoh()], focus_topup=True) == (
+        PRE_FOCUS_TREND_REQUESTS
+    )
+
+
+def test_no_topup_when_enough_moments_match_the_focus() -> None:
+    units = jomok_units(60, mentions=(12, 45))
+    # 10-14 says the term; the other one claims the focus (a literal claim counts too).
+    for claim in ("semantic", "literal"):
+        outcome, client = topup_run(units, [moment(10, 14), moment(20, 24, focus=claim)], k=2)
+        assert len(client.calls) == 1
+        assert not any(code.startswith("focus_topup") for code in outcome.warnings)
+
+
+def test_no_topup_when_every_mention_lies_in_a_proposed_moment() -> None:
+    outcome, client = topup_run(jomok_units(60, mentions=(12,)), [moment(10, 14)], k=3)
+
+    assert len(client.calls) == 1
+    assert not any(code.startswith("focus_topup") for code in outcome.warnings)
+
+
+def test_close_mentions_share_an_excerpt_and_the_ten_densest_are_asked() -> None:
+    units = jomok_units(60, mentions=(12, 15, 18, 45))  # 84, 105, 126 s: gaps of 21 s
+    _, client = topup_run(units, [moment(2, 6)], {"moments": []}, k=2)
+    assert excerpt_lines(client.calls[1]["user"]) == {
+        "P1": [lid(index) for index in range(1, 29)],
+        "P2": [lid(index) for index in range(34, 56)],
+    }
+
+    # Twelve clusters 175 s apart; two of them say the term twice. The two densest and then
+    # the earliest single mentions are asked about, in episode order.
+    mentions = [index * 25 + 12 for index in range(12)]
+    dense = (mentions[3], mentions[9])
+    units = jomok_units(300, mentions=(*mentions, *(unit + 2 for unit in dense)))
+    outcome, client = topup_run(units, [moment(2, 6)], {"moments": []}, k=2)
+
+    shown = excerpt_lines(client.calls[1]["user"])
+    assert list(shown) == [f"P{number}" for number in range(1, 11)]
+    covered = {int(line_id[1:]) - 1 for ids in shown.values() for line_id in ids}
+    assert set(mentions[:10]) <= covered
+    assert not {mentions[10], mentions[11]} & covered
+    assert "focus_topup:0" in outcome.warnings
+
+
+def test_the_topup_keeps_the_densest_excerpts_that_fit_the_context() -> None:
+    mentions = [index * 25 + 12 for index in range(8)]
+    units = jomok_units(200, mentions=mentions)
+    responses = [{"moments": [moment(2, 6)]}] + [{"moments": []}] * 5
+    outcome, client = run(units, [], responses=responses, focus=jomok(), focus_topup=True,
+                          k=2, max_requests=6, **chunk_options())
+
+    chunks = [call for call in client.calls if not call["user"].startswith(TOPUP_TASK)]
+    assert len(chunks) >= 2 and len(client.calls) == len(chunks) + 1  # the top-up comes last
+    request = client.calls[-1]
+    assert request["user"].startswith(TOPUP_TASK)
+    assert 1 <= len(excerpt_lines(request["user"])) < 8
+    used = estimate_tokens(request["system"]) + estimate_tokens(request["user"])
+    assert used + REQUEST_OVERHEAD_TOKENS + 1000 <= chunk_options()["context_tokens"]
+
+    # A context the propose request fits exactly but no excerpt does: skipped.
+    units = jomok_units(24, mentions=(12,))
+    _, probe = topup_run(units, [moment(2, 6)], {"moments": []}, k=2)
+    propose, topup = (estimate_tokens(call["user"]) for call in probe.calls)
+    assert topup > propose
+    tight = estimate_tokens(load_editorial_standard()) + REQUEST_OVERHEAD_TOKENS + 1000 + propose
+    outcome, client = topup_run(units, [moment(2, 6)], k=2, context_tokens=tight,
+                                max_output_tokens=1000)
+    assert len(client.calls) == 1
+    assert "focus_topup_skipped:context" in outcome.warnings
+
+
+def test_the_topup_is_skipped_when_the_budget_or_the_deadline_is_spent() -> None:
+    units = jomok_units(60, mentions=(12, 45))
+    outcome, client = topup_run(units, [moment(2, 6)], k=2, max_requests=1)
+    assert len(client.calls) == 1
+    assert "focus_topup_skipped:budget" in outcome.warnings
+    assert spans(outcome) == [(2, 6)]
+
+    now = [0.0]
+
+    def slow(**_):
+        now[0] += 400.0
+        return {"moments": [moment(2, 6)]}
+
+    outcome, client = run(units, [], responses=[slow], focus=jomok(), focus_topup=True, k=2,
+                          deadline_s=300.0, clock=lambda: now[0])
+    assert len(client.calls) == 1
+    assert "focus_topup_skipped:deadline" in outcome.warnings
+
+
+def test_the_topup_goes_before_the_rerank_and_its_moments_are_not_reranked() -> None:
+    units = jomok_units(60, mentions=(45,))
+    topup = {"moments": [moment(43, 47, focus="literal",
+                                scores=dict.fromkeys(SCORE_DIMENSIONS, 5))]}
+    ranking = ranking_by_start([26, 18, 10, 2], [10, 8, 4, 1])
+    outcome, client = run(units, [], responses=[{"moments": RERANK_ITEMS}, topup, ranking],
+                          k=2, rerank=True, focus=jomok(), focus_topup=True)
+
+    assert len(client.calls) == 3
+    assert client.calls[1]["user"].startswith(TOPUP_TASK)
+    assert sorted(cards(client.calls[2]["user"]).values()) == [2, 10, 18, 26]
+    assert spans(outcome) == [(26, 30), (18, 22), (10, 14), (2, 6), (43, 47)]
+    assert outcome.rank_values == (8.0, 7.5, 6.0, 5.0, 5.0)
+    assert "focus_topup:1" in outcome.warnings
+
+    # With one request left the top-up goes first and the rerank is skipped.
+    outcome, client = run(units, [], responses=[{"moments": RERANK_ITEMS}, topup], k=2,
+                          rerank=True, focus=jomok(), focus_topup=True, max_requests=2)
+    assert len(client.calls) == 2 and client.calls[1]["user"].startswith(TOPUP_TASK)
+    assert "llm_budget_exhausted" in outcome.warnings and "focus_topup:1" in outcome.warnings
+
+
+def test_a_failed_topup_keeps_the_first_moments() -> None:
+    units = jomok_units(60, mentions=(12, 45))
+    plain, _ = run(units, [moment(2, 6)], k=2, focus=jomok())
+    for answer, code in (
+        (LLMError("rate_limited", "Pelan-pelan."), "rate_limited"),
+        ({"jawaban": "tidak ada"}, "invalid"),
+    ):
+        outcome, client = topup_run(units, [moment(2, 6)], answer, k=2)
+        assert len(client.calls) == 2
+        assert outcome.proposals == plain.proposals
+        assert f"focus_topup_failed:{code}" in outcome.warnings
+
+
+def test_topup_moments_are_validated_like_proposals_and_one_per_excerpt() -> None:
+    answer = {
+        "moments": [
+            moment(30, 34, focus="literal"),  # between the excerpts: IDs that were not shown
+            moment(36, 40, focus="semantic"),  # inside P2 but says no term: whatever it claims
+            moment(43, 47, focus="literal"),
+            moment(44, 48, focus="literal"),  # a second moment for P2
+            moment(44, 44, focus="literal"),  # 7 s: too short
+        ]
+    }
+    outcome, _ = topup_run(jomok_units(60, mentions=(12, 45)), [moment(2, 6)], answer, k=2)
+
+    assert spans(outcome) == [(2, 6), (43, 47)]
+    assert "focus_topup:1" in outcome.warnings
+    for code in ("llm_dropped:1:duplicate", "llm_dropped:1:off_focus", "llm_dropped:1:too_short",
+                 "llm_dropped:1:unknown_id"):
+        assert code in outcome.warnings
+
+
+def test_a_topup_moment_that_says_a_term_needs_no_claim() -> None:
+    outcome, _ = topup_run(jomok_units(60, mentions=(12, 45)), [moment(2, 6)],
+                           {"moments": [moment(43, 47)]}, k=2)
+    assert spans(outcome) == [(2, 6), (43, 47)]
+    assert outcome.proposals[1].focus == "none"  # the selector labels it from the transcript
+
+
+def test_topup_moments_that_repeat_or_overlap_a_focus_moment_are_dropped() -> None:
+    first = [moment(5, 11), moment(14, 18, focus="semantic")]  # neither says the term
+    answer = {
+        "moments": [
+            moment(6, 12, focus="literal"),  # nearly the same moment as 5-11
+            moment(12, 16, focus="literal"),  # overlaps the focus moment 14-18
+            moment(9, 13, focus="literal"),  # touches 5-11, a moment outside the focus: kept
+            moment(44, 48, focus="literal"),
+        ]
+    }
+    outcome, _ = topup_run(jomok_units(60, mentions=(12, 45)), first, answer, k=3)
+
+    assert spans(outcome) == [(5, 11), (14, 18), (9, 13), (44, 48)]
+    assert "focus_topup:2" in outcome.warnings
+    assert "llm_dropped:2:duplicate" in outcome.warnings
+
+
+def test_mentions_inside_an_opening_teaser_montage_are_never_asked_about() -> None:
+    # Units 0-3 repeat units 30-33 word for word (a teaser); unit 1 therefore says the term too.
+    units = jomok_units(60, mentions=(1, 31, 45))
+    for index in range(4):
+        units[index] = dataclasses.replace(units[index], text=units[30 + index].text)
+
+    _, client = topup_run(units, [moment(10, 14)], {"moments": []}, k=2)
+
+    prompt = client.calls[1]["user"]
+    assert excerpt_lines(prompt) == {"P1": [lid(index) for index in range(20, 56)]}
+    assert focus_block_lines(prompt)[2] == "baris yang menyebut istilah: L0032, L0046"
+
+    # Without the teaser the same early mention gets its own excerpt.
+    _, client = topup_run(jomok_units(60, mentions=(1, 31, 45)), [moment(10, 14)],
+                          {"moments": []}, k=2)
+    assert list(excerpt_lines(client.calls[1]["user"])) == ["P1", "P2"]

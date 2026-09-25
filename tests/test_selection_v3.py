@@ -4,6 +4,7 @@ import dataclasses
 import hashlib
 import json
 import math
+import re
 
 import pytest
 
@@ -958,6 +959,7 @@ def trend(unit: int, name: str, *, score: float = 50.0, **overrides) -> TrendIte
 def llm_run(moments, *, trends=(), k=2, segments=None, **options):
     client = ScriptedLLMClient([{"moments": moments}])
     options.setdefault("rerank", False)
+    options.setdefault("focus_topup", False)
     result = select_clips_v3(
         episode(40) if segments is None else segments,
         k=k,
@@ -1776,3 +1778,111 @@ def focus_mutated(change) -> dict:
 def test_artifact_reader_is_strict_about_the_focus(payload):
     with pytest.raises(SelectionArtifactError):
         selection_from_dict(payload)
+
+
+# --- Fokus klip: focus top-up -----------------------------------------------------------------
+
+NONE_PICKS = [
+    moment(2, 5, hook=3, scores=flat(9.0)),
+    moment(10, 13, hook=12, scores=flat(8.5)),
+    moment(20, 23, hook=21, scores=flat(8.0)),
+]
+
+
+def topup_run(first, topup, *, segments, k, **options):
+    """A focus selection whose LLM answers ``first`` and then, for the top-up, ``topup``."""
+    client = ScriptedLLMClient([{"moments": first}, *([] if topup is None else [topup])])
+    options.setdefault("rerank", False)
+    result = select_clips_v3(segments, k=k, min_duration=20.0, max_duration=40.0,
+                             llm_client=client, focus=JOMOK, focus_topup=True, **options)
+    return result, client
+
+
+def test_topup_moments_displace_the_llm_moments_outside_the_focus():
+    topup = {"moments": [moment(28, 31, hook=29, focus="literal", scores=flat(7.5))]}
+
+    result, client = topup_run(NONE_PICKS, topup, segments=jomok_episode(30), k=3)
+
+    assert len(client.calls) == 2
+    check_result(result, k=3, low=20.0, high=40.0)
+    assert starts(result) == ["S0029", "S0003", "S0011"]
+    assert [clip.source for clip in result.clips] == ["llm"] * 3
+    assert result.clips[0].focus == ClipFocus("literal", ("jomok",), 210.7)
+    assert [clip.focus.match for clip in result.clips[1:]] == ["none", "none"]
+    assert result.source == "llm" and result.status == "completed"
+    assert "focus_topup:1" in result.warnings and "focus_few_matches:1" in result.warnings
+    assert result.to_dict()["focus"] == {"terms": ["jomok"], "matched": 1, "requested": 3}
+    assert not any(code.startswith("llm_filled") for code in result.warnings)
+
+
+def test_a_weak_topup_moment_is_not_moved_up():
+    topup = {"moments": [moment(28, 31, hook=29, focus="literal", scores=flat(2.0))]}
+
+    result, _ = topup_run(NONE_PICKS, topup, segments=jomok_episode(30), k=3)
+
+    assert starts(result) == ["S0003", "S0011", "S0021"]
+    assert "focus_topup:1" in result.warnings and "focus_few_matches:0" in result.warnings
+
+
+def test_a_topup_moment_must_say_a_term_whatever_it_claims():
+    # In the excerpt around unit 30, but without it: dropped, however sure the model is.
+    claimed = {"moments": [moment(24, 27, hook=25, focus="literal", scores=flat(8.0))]}
+    result, _ = topup_run(NONE_PICKS, claimed, segments=jomok_episode(30), k=3)
+    assert starts(result) == ["S0003", "S0011", "S0021"]
+    assert "focus_topup:0" in result.warnings and "llm_dropped:1:off_focus" in result.warnings
+
+    # Saying the term is enough, with no claim at all: the label comes from the transcript.
+    unclaimed = {"moments": [moment(28, 31, hook=29, scores=flat(8.0))]}
+    result, _ = topup_run(NONE_PICKS, unclaimed, segments=jomok_episode(30), k=3)
+    assert starts(result) == ["S0029", "S0003", "S0011"]
+    assert result.clips[0].focus == ClipFocus("literal", ("jomok",), 210.7)
+
+
+def test_a_greeting_the_model_skips_never_becomes_a_clip():
+    topup = {"moments": [moment(28, 31, hook=29, focus="literal", scores=flat(7.5))]}
+
+    result, client = topup_run(NONE_PICKS, topup, segments=jomok_episode(1, 30), k=3)
+
+    prompt = client.calls[1]["user"]
+    assert "sapaan" in prompt and "teaser" in prompt
+    assert len(re.findall(r"^POTONGAN P\d+ ", prompt, flags=re.MULTILINE)) == 2
+    assert starts(result) == ["S0029", "S0003", "S0011"]
+    assert not any(1 in unit_range(clip) for clip in result.clips)
+
+
+def test_without_focus_the_topup_never_runs():
+    assert selection_scenarios(focus_topup=True) == PRE_FOCUS_SELECTIONS
+    plain, _ = llm_run(NONE_PICKS, k=3, segments=jomok_episode(30))
+
+    result, client = llm_run(NONE_PICKS, k=3, segments=jomok_episode(30), focus_topup=True)
+
+    assert len(client.calls) == 1
+    assert result == plain
+
+
+def rank_by_start(scores: dict[int, float]):
+    """A rerank answer that scores each card by the unit its first line is."""
+
+    def answer(*, system: str, user: str) -> dict:
+        found = re.findall(r"^(K\d{2}) \|.*\n\s+awal: \"Gue cerita soal kisah(\d+)", user,
+                           flags=re.MULTILINE)
+        return {"ranking": [{"id": card, "score": scores[int(unit)]} for card, unit in found]}
+
+    return answer
+
+
+def test_the_llm_quality_floor_reads_the_moment_score_not_the_focus_blind_rerank():
+    moments = [
+        moment(2, 5, hook=3, scores=flat(9.0)),
+        moment(10, 13, hook=12, scores=flat(8.5)),
+        moment(20, 23, hook=21, scores=flat(8.0)),  # unit 22 says "perjomokan"
+    ]
+    # The rerank never sees the focus: it ranks the focus moment last (blend 4.5).
+    client = ScriptedLLMClient([{"moments": moments}, rank_by_start({2: 9.0, 10: 9.0, 20: 1.0})])
+
+    result = select_clips_v3(jomok_episode(22), k=2, min_duration=20.0, max_duration=40.0,
+                             llm_client=client, focus=JOMOK)
+
+    assert len(client.calls) == 2  # every mention is covered: no top-up
+    assert starts(result) == ["S0021", "S0003"]
+    assert result.clips[0].focus.match == "literal"
