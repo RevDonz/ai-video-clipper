@@ -109,6 +109,9 @@ def test_every_fixture_is_classified_with_its_exact_code(case, contexts):
 
 
 def test_valid_fixtures_have_no_unexpected_warnings(contexts):
+    # 2,000 one-frame cuts over the body's first 160 s: some edges land on tight bounds and
+    # near laughter, legitimately (the index lists the warnings a result must at least have).
+    busy = {"valid/removals_max_2000__c25.json": {"tight_cut", "laughter_cut"}}
     for case in CASES:
         if case.code is not None:
             continue
@@ -116,7 +119,9 @@ def test_valid_fixtures_have_no_unexpected_warnings(contexts):
         validation = validate_doc(parse_doc(case.raw()), words=context.words,
                                   assets=context.assets,
                                   seed=None if case.check == "validate" else context.seed)
-        assert {issue.code for issue in validation.warnings} == set(case.warnings), case.file
+        found = {issue.code for issue in validation.warnings}
+        assert set(case.warnings) <= found <= set(case.warnings) | busy.get(case.file, set()), \
+            case.file
 
 
 # --- parse level ----------------------------------------------------------------------------------
@@ -468,13 +473,13 @@ RULES = [
     ("c30", lambda d: d["output"].update(sample_rate=44100), "range_invalid",
      "/output/sample_rate"),
     ("c30", lambda d: d["output"].update(channels=1), "range_invalid", "/output/channels"),
-    # segments
+    # segments (an empty list never cascades into the cold-open join rule)
     ("c30", lambda d: d["main"].update(segments=[]), "range_invalid", "/main/segments"),
-    ("c30", lambda d: d["main"]["segments"].append(dict(_body(d), id="seg_b2")),
-     "range_invalid", "/main/segments/2"),
+    ("c25", lambda d: d["main"].update(segments=[]), "range_invalid", "/main/segments"),
     ("c25", lambda d: d["main"]["segments"].append(dict(_body(d), id="seg_b2")),
      "range_invalid", "/main/segments/1"),
-    ("c25", lambda d: _body(d).update(role="cold_open"), "range_invalid", "/main/segments"),
+    # A cold open alone (its join intact) lacks the body.
+    ("c30", lambda d: d["main"]["segments"].pop(1), "range_invalid", "/main/segments"),
     ("c25", lambda d: _body(d).update(role="intro"), "range_invalid", "/main/segments/0/role"),
     ("c25", lambda d: _body(d).update(out_sf=_body(d)["in_sf"]), "range_invalid",
      "/main/segments/0"),
@@ -492,7 +497,7 @@ RULES = [
      "/main/removals/0/origin"),
     ("c30", lambda d: _removal(d, origin="suggestion:cl_9"), None, None),
     ("c30", lambda d: _removal(d, in_sf="1"), "range_invalid", "/main/removals/0/in_sf"),
-    ("c30", lambda d: _removal(d, seg=7), "range_invalid", "/main/removals/0/seg"),
+    ("c30", lambda d: _removal(d).update(seg=7), "range_invalid", "/main/removals/0/seg"),
     ("c30", lambda d: _removal(d, id="RM-1"), "range_invalid", "/main/removals/0/id"),
     ("c30", lambda d: (_removal(d, offset=60), _removal(d, offset=70)), None, None),
     ("c30", lambda d: (_removal(d, offset=60), _removal(d, offset=69)), "removal_overlap",
@@ -513,6 +518,9 @@ RULES = [
     ("c30", lambda d: d["captions"].update(enabled=1), "range_invalid", "/captions/enabled"),
     ("c30", lambda d: d["captions"]["pack"].update(v="1"), "range_invalid", "/captions/pack/v"),
     ("c30", lambda d: d["captions"]["pack"].update(id=3), "range_invalid", "/captions/pack/id"),
+    # Any integer v other than 1 is an unknown pack version (CONTRACTS §5.4).
+    ("c30", lambda d: d["captions"]["pack"].update(v=-1), "pack_unknown", "/captions/pack"),
+    ("c30", lambda d: d["captions"]["pack"].update(v=0), "pack_unknown", "/captions/pack"),
     ("c30", lambda d: d["captions"]["overrides"].update(case="sentence"), "op_disabled",
      "/captions/overrides/case"),
     ("c30", lambda d: d["captions"].update(word_edits={f"w{n:06d}": {"hidden": True}
@@ -553,6 +561,8 @@ RULES = [
      "/tracks/0/items/0/payload/design"),
     ("c30", lambda d: d["tracks"][0]["items"][0]["payload"]["design"].update(v="1"),
      "range_invalid", "/tracks/0/items/0/payload/design/v"),
+    ("c30", lambda d: d["tracks"][0]["items"][0]["payload"]["design"].update(v=-2), "op_disabled",
+     "/tracks/0/items/0/payload/design"),
     ("c30", lambda d: d["tracks"][0]["items"][0]["transform"].update(y_e5=40001),
      "range_invalid", "/tracks/0/items/0/transform/y_e5"),
     ("c30", lambda d: d["tracks"][0].update(items=[]), None, None),
@@ -759,6 +769,47 @@ def test_hostile_values_never_crash_the_validator(contexts):
             target[tokens[-1]] = value
             validation = check(mutated, context)
             assert all(isinstance(issue, Issue) for issue in validation.errors)
+
+
+def test_the_fast_paths_agree_with_the_generic_checks(contexts, monkeypatch):
+    """Removals and word edits are first tried on a fast path (doc._FAST); every hostile value
+    in them must give exactly the generic path's result."""
+    context = contexts["c30"]
+    base = rev1(context)
+    body_words = [w["id"] for w in context.words["words"]
+                  if _body(base)["in_sf"] * 1001 * 1000 <= w["s"] * 30000][:6]
+    _removal(base, offset=40, words=body_words[:2])
+    _removal(base, offset=80, reason="filler", origin="suggestion:cl_1")
+    base["captions"]["word_edits"] = {body_words[3]: {"text": "Ijal"},
+                                      body_words[4]: {"hidden": True, "emphasis": False}}
+    assert check(base, context).errors == ()
+    hostile = [None, True, False, 0, -1, 1, 2**53, "", " x", "x" * 41, "rm_2", "seg_b1",
+               "w999999", body_words[0], "user", "gap_voiced", "suggestion:cl_2", [], {},
+               [body_words[0]], ["x"], {"text": "a"}]
+    variants = [base]
+    for removal_index in range(2):
+        for key in ("id", "seg", "in_sf", "out_sf", "words", "reason", "origin", "extra"):
+            for value in hostile:
+                doc = copy.deepcopy(base)
+                doc["main"]["removals"][removal_index][key] = value
+                variants.append(doc)
+            doc = copy.deepcopy(base)
+            doc["main"]["removals"][removal_index].pop(key, None)
+            variants.append(doc)
+    for word_id in (body_words[3], body_words[4], "w999999", "bad"):
+        for key in ("text", "hidden", "emphasis", "extra"):
+            for value in hostile:
+                doc = copy.deepcopy(base)
+                doc["captions"]["word_edits"].setdefault(word_id, {})[key] = value
+                variants.append(doc)
+        doc = copy.deepcopy(base)
+        doc["captions"]["word_edits"][word_id] = {}
+        variants.append(doc)
+    for doc in variants:
+        monkeypatch.setattr(docmod, "_FAST", True)
+        fast = check(doc, context)
+        monkeypatch.setattr(docmod, "_FAST", False)
+        assert check(doc, context) == fast
 
 
 def test_base_changed_compares_base_output_clip_id_and_created_at(contexts):

@@ -287,6 +287,24 @@ def test_client_updated_at_must_still_be_an_integer(clip, contexts, seed_etag):
     with pytest.raises(DocSemanticInvalid) as caught:
         put(clip, doc, seed_etag)
     assert (caught.value.code, caught.value.path) == ("range_invalid", "/audit/updated_at_ms")
+    # Required like every other key: the server stamps it, it never adds it.
+    del doc["audit"]["updated_at_ms"]
+    with pytest.raises(DocSemanticInvalid) as caught:
+        put(clip, doc, seed_etag)
+    assert {(i.code, i.path) for i in caught.value.issues} == {
+        ("range_invalid", "/audit/updated_at_ms")}
+    assert not (clip / store.DOC_FILE).exists()
+
+
+def test_stamping_a_document_whose_text_mentions_the_audit_key(clip, contexts, seed_etag):
+    """The stamped bytes are the canonical bytes of the stamped document, whatever the text."""
+    doc = next_doc(contexts["c30"].seed, seed_etag, audit__updated_at_ms=1)
+    doc["tracks"][0]["items"][0]["payload"]["text"] = 'Kata "updated_at_ms":1 di hook'
+    saved, etag, _ = put(clip, doc, seed_etag)
+    assert saved["audit"]["updated_at_ms"] == NOW
+    assert saved["tracks"][0]["items"][0]["payload"]["text"] == 'Kata "updated_at_ms":1 di hook'
+    assert (clip / store.DOC_FILE).read_bytes() == canonical_bytes(saved)
+    assert etag == sha(canonical_bytes(saved))
 
 
 def test_parse_errors_come_before_the_lock_and_publish_nothing(clip, seed_etag):
@@ -371,7 +389,8 @@ def test_superseded_revisions_are_archived_as_deterministic_gzip(clip, contexts,
     assert entry.name == f"r1.{etag1}.json.gz"
     data = entry.read_bytes()
     assert gzip.decompress(data) == canonical_bytes(doc1)
-    assert data == gzip.compress(canonical_bytes(doc1), compresslevel=6, mtime=0)
+    assert data == gzip.compress(canonical_bytes(doc1), compresslevel=store.ARCHIVE_GZIP_LEVEL,
+                                 mtime=0)
     assert data[4:8] == b"\0\0\0\0"  # gzip MTIME
     assert stat.S_IMODE(entry.stat().st_mode) == 0o600
     assert stat.S_IMODE(archive.stat().st_mode) == 0o700
@@ -544,6 +563,33 @@ def test_a_corrupt_receipt_is_an_internal_error_not_a_replay(clip, contexts, see
     with pytest.raises(EditV2Error) as caught:
         put(clip, doc, seed_etag, idem=idem)
     assert caught.value.code == "internal_error"
+
+
+def test_an_empty_receipt_file_reads_as_absent(clip, contexts, seed_etag):
+    """A receipt is never written empty; an empty file is a lost unsynced rewrite (power loss):
+    the retry is treated like one whose receipt was pruned."""
+    idem = key()
+    doc = next_doc(contexts["c30"].seed, seed_etag)
+    saved, etag, _ = put(clip, doc, seed_etag, idem=idem)
+    (clip / store.RECEIPTS_DIR / f"{idem}.json").write_bytes(b"")
+    with pytest.raises(RevisionConflict) as caught:
+        put(clip, doc, seed_etag, idem=idem)
+    assert caught.value.etag == etag
+    fresh = key()
+    (clip / store.RECEIPTS_DIR / f"{fresh}.json").write_bytes(b"")
+    second, _etag2, _ = put(clip, next_doc(saved, etag), etag, idem=fresh)
+    assert second["revision"] == 2
+
+
+def test_a_rejected_save_leaves_no_temporary_file(clip, contexts, seed_etag):
+    doc1, etag1, _ = put(clip, next_doc(contexts["c30"].seed, seed_etag), seed_etag)
+    before = {p.relative_to(clip).as_posix() for p in clip.rglob("*") if p.is_file()}
+    for changes in ({"main__cut_fade_ms": 51}, {"revision": 9}, {"revision": "2"}):
+        with pytest.raises(DocSemanticInvalid):
+            put(clip, next_doc(doc1, etag1, **changes), etag1)
+    after = {p.relative_to(clip).as_posix() for p in clip.rglob("*") if p.is_file()}
+    assert after == before
+    assert store.get(clip)[1] == etag1
 
 
 def _write_receipts(clip: Path, count: int, *, state: str, start_ms: int) -> list[str]:
