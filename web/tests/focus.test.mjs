@@ -392,7 +392,7 @@ test("the focus top-up codes are explained in Indonesian", () => {
   assert.match(selectionWarningLabel("focus_topup:0"), /^AI diminta sekali lagi .*tidak ada momen fokus tambahan yang layak/);
   assert.match(selectionWarningLabel("focus_topup_failed:rate_limited"), /^Permintaan tambahan .*gagal \(rate_limited\)/);
   assert.match(selectionWarningLabel("focus_topup_failed:invalid"), /gagal \(invalid\)/);
-  assert.match(selectionWarningLabel("focus_topup_skipped:budget"), /dilewati .*batas jumlah permintaan AI/);
+  assert.match(selectionWarningLabel("focus_topup_skipped:budget"), /dilewati.*peringkat ulang.*batas jumlah permintaan AI/);
   assert.match(selectionWarningLabel("focus_topup_skipped:deadline"), /dilewati .*batas waktu AI/);
   assert.match(selectionWarningLabel("focus_topup_skipped:context"), /dilewati .*tidak muat/);
   assert.equal(selectionWarningLabel("focus_topup_skipped:later"), null);
