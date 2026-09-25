@@ -10,6 +10,7 @@ import { buildClipperInvocation, main, manifestJobPatch, nextWorkerProgress, run
 import { readCandidateFeedback } from "../lib/candidate-feedback.mjs";
 import { openPreviewSource } from "../lib/preview-source.mjs";
 import { LeaseLostError, claimNextJob } from "../lib/primary-job-queue.mjs";
+import { createManualTrend, ingestTrendItems, setTrendContextEnabled, updateTrendItem } from "../lib/trend-context.mjs";
 
 const baseJob = { progress: 20, options: { renderMode: "fit-blur", limit: 3, minDuration: 20, maxDuration: 60 } };
 const v1Args = [
@@ -401,4 +402,140 @@ test("child settlement disarms delayed SIGKILL before PGID reuse", async () => {
   await assert.rejects(promise, LeaseLostError);
   await new Promise((resolve) => setTimeout(resolve, 30));
   assert.deepEqual(events, [[-43211, "SIGTERM"]]);
+});
+
+// --- Konteks Tren: per-job trend snapshot -----------------------------------------------------
+
+const V3_OPTIONS = { selectionMode: "v3", llmMode: "auto", coldOpen: true, hookOverlay: true, captionStyle: "karaoke" };
+const V3_TAIL = ["--selection-mode", "v3", "--llm", "auto", "--cold-open", "--hook-overlay", "--caption-style", "karaoke"];
+
+test("V3 invocation passes --trend-context last, only for V3 and only with an absolute path", () => {
+  const job = { ...baseJob, options: { ...baseJob.options, ...V3_OPTIONS } };
+  const snapshot = "/data/jobs/id/.attempts/abc/analysis/trend-context.json";
+  const withTrends = buildClipperInvocation(job, "/in", "/data/jobs/id/.attempts/abc/output", {}, { captionsDir: "/c", trendContext: snapshot }).args;
+  assert.deepEqual(withTrends.slice(-4), ["--captions-dir", "/c", "--trend-context", snapshot]);
+  const plain = buildClipperInvocation(job, "/in", "/data/jobs/id/.attempts/abc/output", {}).args;
+  assert.deepEqual(plain.slice(-V3_TAIL.length), V3_TAIL);
+  for (const trendContext of [null, undefined, "", "analysis/trend-context.json", 42]) {
+    assert.deepEqual(buildClipperInvocation(job, "/in", "/data/jobs/id/.attempts/abc/output", {}, { trendContext }).args, plain);
+  }
+  for (const options of [baseJob.options, { ...baseJob.options, ...V2_OPTIONS }]) {
+    const args = buildClipperInvocation({ ...baseJob, options }, "/in", "/o/output", {}, { trendContext: snapshot }).args;
+    assert.ok(!args.includes("--trend-context"), JSON.stringify(options));
+  }
+});
+
+// Records its argv and reports the first snapshot item as a grounded trend of its clip.
+const FAKE_TREND_ENGINE = `#!/usr/bin/env node
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
+const arg = (name) => process.argv[process.argv.indexOf(name) + 1];
+const output = arg("--output-dir");
+await mkdir(output, { recursive: true });
+await mkdir(path.join(arg("--artifact-root"), "analysis"), { recursive: true });
+await writeFile(path.join(output, "argv.json"), JSON.stringify(process.argv.slice(2)));
+const snapshot = process.argv.includes("--trend-context") ? JSON.parse(await readFile(arg("--trend-context"), "utf8")) : null;
+await writeFile(path.join(output, "manifest.json"), JSON.stringify({
+  status: "completed",
+  clips: [{
+    index: 1, score: 9, start: 0, end: 30, duration: 30, text: "Kabur aja dulu katanya", title: "Kabur Aja Dulu?", selection_source: "llm",
+    output: path.join(output, "clip-01.mp4"), subtitles: path.join(output, "clip-01.srt"),
+    ...(snapshot ? { trends: snapshot.items.slice(0, 1).map(({ id, title, kind }) => ({ id, title, kind })) } : {}),
+  }],
+}));
+`;
+
+async function trendJob(prefix, options = V3_OPTIONS, { queued = true } = {}) {
+  const id = "823e4567-e89b-42d3-a456-426614174000";
+  const fixture = await engineFixture(prefix, { id, options, queued });
+  await writeFile(fixture.env.AI_CLIPPER_BIN, FAKE_TREND_ENGINE);
+  const env = { ...fixture.env, POTONGIN_SETTINGS_DIR: `${fixture.root}-settings` };
+  return { ...fixture, id, env };
+}
+
+async function runTrendJob({ root, jobRoot, id, env }, { queued = true } = {}) {
+  let token = null;
+  if (queued) token = (await claimNextJob({ jobsRoot: root, workerId: "worker", leaseMs: 60_000, maxAttempts: 3, legacyQuiescenceMs: 0 })).token;
+  await main(["node", "run-job.mjs", id, ...(token ? [token] : [])], env);
+  const persisted = JSON.parse(await readFile(path.join(jobRoot, "job.json"), "utf8"));
+  const argv = JSON.parse(await readFile(path.join(jobRoot, "output", "argv.json"), "utf8"));
+  return { persisted, argv, token };
+}
+
+const TREND_ITEM = { kind: "topic", title: "Kabur Aja Dulu", keywords: ["kabur aja dulu"], hashtags: ["#KaburAjaDulu"], score: 80 };
+
+test("a V3 job snapshots enabled trends into analysis/, passes --trend-context and keeps grounded clip trends", async () => {
+  const job = await trendJob("clipper-worker-trends-");
+  await ingestTrendItems([TREND_ITEM, { ...TREND_ITEM, title: "Mati", keywords: ["mati mati"], score: 99 }], { env: job.env, source: "hermes-label" });
+  await createManualTrend({ kind: "person", title: "Pak Budi", keywords: ["pak budi"], score: 10 }, { env: job.env });
+  const { items } = JSON.parse(await readFile(path.join(job.env.POTONGIN_SETTINGS_DIR, "trend-context.json"), "utf8"));
+  await updateTrendItem(items[1].id, { enabled: false }, { env: job.env });
+
+  const { persisted, argv, token } = await runTrendJob(job);
+  assert.equal(persisted.status, "completed", persisted.error);
+  const attemptSnapshot = path.join(attemptRootFor(job.jobRoot, token), "analysis", "trend-context.json");
+  assert.deepEqual(argv.slice(-2), ["--trend-context", attemptSnapshot]);
+  assert.deepEqual(argv.slice(-2 - V3_TAIL.length, -2), V3_TAIL);
+
+  // Published with the rest of analysis/, private, and free of source data.
+  const published = path.join(job.jobRoot, "analysis", "trend-context.json");
+  assert.equal((await lstat(published)).mode & 0o777, 0o600);
+  const snapshot = JSON.parse(await readFile(published, "utf8"));
+  assert.deepEqual(snapshot.items.map((item) => item.title), ["Kabur Aja Dulu", "Pak Budi"]);
+  assert.doesNotMatch(JSON.stringify(snapshot), /hermes-label|manual|"source"|examples/);
+
+  assert.deepEqual(persisted.clips[0].trends, [{ id: items[0].id, title: "Kabur Aja Dulu", kind: "topic" }]);
+});
+
+test("without enabled active trends a V3 job runs exactly as before: no snapshot, no flag, no clip trends", async () => {
+  const setups = {
+    "no store": async () => {},
+    "switched off": async (env) => {
+      await ingestTrendItems([TREND_ITEM], { env, source: "hermes" });
+      await setTrendContextEnabled(false, { env });
+    },
+    "all items disabled": async (env) => {
+      const created = await createManualTrend(TREND_ITEM, { env });
+      await updateTrendItem(created.id, { enabled: false }, { env });
+    },
+    "all items expired": async (env) => {
+      const created = await createManualTrend(TREND_ITEM, { env });
+      await updateTrendItem(created.id, { expiresAt: new Date(Date.now() - 60_000).toISOString() }, { env });
+    },
+    "corrupt store": async (env) => {
+      await mkdir(env.POTONGIN_SETTINGS_DIR, { recursive: true });
+      await writeFile(path.join(env.POTONGIN_SETTINGS_DIR, "trend-context.json"), "{ rusak");
+    },
+  };
+  for (const [label, setup] of Object.entries(setups)) {
+    const job = await trendJob("clipper-worker-notrends-");
+    await setup(job.env);
+    const { persisted, argv } = await runTrendJob(job);
+    assert.equal(persisted.status, "completed", `${label}: ${persisted.error}`);
+    assert.ok(!argv.includes("--trend-context"), label);
+    assert.deepEqual(argv.slice(-V3_TAIL.length), V3_TAIL, label);
+    await assert.rejects(lstat(path.join(job.jobRoot, "analysis", "trend-context.json")), { code: "ENOENT" }, label);
+    assert.equal("trends" in persisted.clips[0], false, label);
+  }
+});
+
+test("V1 and V2 jobs never get a trend snapshot, even with enabled trends", async () => {
+  for (const options of [{}, V2_OPTIONS]) {
+    const job = await trendJob("clipper-worker-legacy-trends-", options);
+    await ingestTrendItems([TREND_ITEM], { env: job.env, source: "hermes" });
+    const { persisted, argv } = await runTrendJob(job);
+    assert.equal(persisted.status, "completed", JSON.stringify(options));
+    assert.ok(!argv.includes("--trend-context"));
+    await assert.rejects(lstat(path.join(job.jobRoot, "analysis", "trend-context.json")), { code: "ENOENT" });
+  }
+});
+
+test("a legacy (unqueued) V3 run writes its snapshot straight into the job's analysis/", async () => {
+  const job = await trendJob("clipper-worker-legacy-v3-trends-", V3_OPTIONS, { queued: false });
+  await ingestTrendItems([TREND_ITEM], { env: job.env, source: "hermes" });
+  const { persisted, argv } = await runTrendJob(job, { queued: false });
+  assert.equal(persisted.status, "completed", persisted.error);
+  const snapshot = path.join(job.jobRoot, "analysis", "trend-context.json");
+  assert.deepEqual(argv.slice(-2), ["--trend-context", snapshot]);
+  assert.equal(JSON.parse(await readFile(snapshot, "utf8")).items.length, 1);
 });

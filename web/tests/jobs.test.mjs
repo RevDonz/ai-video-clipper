@@ -22,12 +22,18 @@ import {
   parseByteRange,
   parseJobOptions,
   parseWorkerProgress,
+  CLIP_TREND_KINDS,
+  MAX_CLIP_TRENDS,
+  sanitizeManifestClipFields,
   sanitizeSelectionV2Summary,
+  sanitizeStoredClip,
   serializePublicJob,
   safeJobFile,
   sortJobsNewest,
   validateYouTubeUrl,
 } from "../lib/jobs.mjs";
+import { TREND_KINDS } from "../lib/trend-context.mjs";
+import { jobClipFromManifest } from "../scripts/run-job.mjs";
 
 test("accepts supported render and numeric options", () => {
   assert.deepEqual(
@@ -355,4 +361,72 @@ test("byte ranges are validated and clamped", () => {
   assert.deepEqual(parseByteRange("bytes=900-", 1000), { start: 900, end: 999 });
   assert.deepEqual(parseByteRange("bytes=-100", 1000), { start: 900, end: 999 });
   assert.throws(() => parseByteRange("bytes=1000-1200", 1000), /range/i);
+});
+
+// --- Konteks Tren: grounded trends per clip ---------------------------------------------------
+
+const TREND_JOB_ID = "923e4567-e89b-42d3-a456-426614174000";
+const TREND_A = "0b6f2c1e-8d7a-4c3b-9f21-6a5e4d3c2b1a";
+const TREND_B = "1c7a3d2f-9e8b-4d4c-8a32-7b6f5e4d3c2b";
+const TRENDED_CLIP = {
+  index: 1, score: 8, start: 10, end: 40, duration: 30, text: "Kabur aja dulu katanya",
+  output: "/o/clip-01.mp4", subtitles: "/o/clip-01.srt", title: "Kabur Aja Dulu?", selection_source: "llm",
+  hashtags: ["#KaburAjaDulu"], description: "Deskripsi",
+};
+
+test("clip trends mirror the trend store's kinds", () => {
+  assert.deepEqual(CLIP_TREND_KINDS, TREND_KINDS);
+  assert.equal(MAX_CLIP_TRENDS, 5);
+});
+
+test("manifest clip trends pass through as strict { id, title, kind } entries", () => {
+  const fields = sanitizeManifestClipFields({
+    ...TRENDED_CLIP,
+    trends: [
+      { id: TREND_A, title: "Kabur\u202e Aja\u0000 Dulu", kind: "topic", summary: "tidak ikut", source: "hermes", score: 99 },
+      { id: TREND_A.toUpperCase(), title: "Duplikat", kind: "topic" },
+      { id: "t1", title: "Bukan UUID", kind: "topic" },
+      { id: TREND_B, title: "Jenis aneh", kind: "rumor" },
+      { id: TREND_B, title: "", kind: "person" },
+      { id: TREND_B, title: 42, kind: "person" },
+      "string", null, [TREND_B],
+      { id: TREND_B, title: `Pak Budi ${"panjang ".repeat(20)}`, kind: "person" },
+    ],
+  });
+  assert.equal(fields.trends.length, 2);
+  assert.deepEqual(fields.trends[0], { id: TREND_A, title: "Kabur Aja Dulu", kind: "topic" });
+  assert.deepEqual(Object.keys(fields.trends[1]), ["id", "title", "kind"]);
+  assert.equal(fields.trends[1].id, TREND_B);
+  assert.ok(Array.from(fields.trends[1].title).length <= 80);
+  assert.doesNotMatch(JSON.stringify(fields.trends), /hermes|tidak ikut|99/);
+
+  const many = Array.from({ length: 8 }, (_, index) => ({ id: `${index}b6f2c1e-8d7a-4c3b-9f21-6a5e4d3c2b1a`, title: `Tren ${index}`, kind: "meme" }));
+  assert.equal(sanitizeManifestClipFields({ trends: many }).trends.length, MAX_CLIP_TRENDS);
+});
+
+test("clips without grounded trends keep exactly their previous shape", () => {
+  const baseline = jobClipFromManifest(TRENDED_CLIP, TREND_JOB_ID);
+  assert.equal("trends" in baseline, false);
+  for (const trends of [[], null, "abc", {}, [{ id: "x", title: "y", kind: "topic" }]]) {
+    assert.deepEqual(jobClipFromManifest({ ...TRENDED_CLIP, trends }, TREND_JOB_ID), baseline, JSON.stringify(trends));
+  }
+  const trended = jobClipFromManifest({ ...TRENDED_CLIP, trends: [{ id: TREND_A, title: "Kabur Aja Dulu", kind: "topic" }] }, TREND_JOB_ID);
+  assert.deepEqual(trended, { ...baseline, trends: [{ id: TREND_A, title: "Kabur Aja Dulu", kind: "topic" }] });
+});
+
+test("the public job API re-sanitises stored clip trends", () => {
+  const stored = jobClipFromManifest({ ...TRENDED_CLIP, trends: [{ id: TREND_A, title: "Kabur Aja Dulu", kind: "topic" }] }, TREND_JOB_ID);
+  const job = { id: TREND_JOB_ID, options: {}, clips: [stored] };
+  assert.deepEqual(serializePublicJob(job).clips[0].trends, [{ id: TREND_A, title: "Kabur Aja Dulu", kind: "topic" }]);
+
+  const tampered = serializePublicJob({ ...job, clips: [{ ...stored, trends: [{ id: TREND_A, title: "<b>x</b>\u202e", kind: "topic", url: "javascript:alert(1)" }, { id: "../x", title: "y", kind: "topic" }] }] });
+  assert.deepEqual(tampered.clips[0].trends, [{ id: TREND_A, title: "<b>x</b>", kind: "topic" }]);
+  assert.doesNotMatch(JSON.stringify(tampered), /javascript/);
+
+  const broken = serializePublicJob({ ...job, clips: [{ ...stored, trends: "semua" }] });
+  assert.equal("trends" in broken.clips[0], false);
+
+  // A clip whose only V3 field is its trend list is still re-validated.
+  const bare = sanitizeStoredClip({ index: 1, text: "x", trends: [{ id: "bad", title: "y", kind: "topic" }] }, TREND_JOB_ID);
+  assert.equal("trends" in bare, false);
 });
