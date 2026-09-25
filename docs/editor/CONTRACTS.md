@@ -11,7 +11,8 @@ Phase-B tasks: read §5.1 (where each name lives), §5.2 (additional signatures)
 of Part 5 your module touches; the tests `tests/test_edit_v2_contracts.py` pin the signatures.
 
 Contents: Part 1 (Appendix A) · Part 2 (§3) · Part 3 (§4.1–§4.2) · Part 4 (§4.3) ·
-Part 5 (T1.0 resolutions, §5.15 the W1 integration resolutions of T1.Z).
+Part 5 (T1.0 resolutions, §5.15 the W1 integration resolutions of T1.Z, §5.16 the W1 verifier
+fixes).
 
 # Part 1. Module contracts (plan Appendix A, verbatim)
 
@@ -757,7 +758,9 @@ yields `range_invalid` only, with no duration or window issue).
   `parent_sha256 == current etag` else `parent_mismatch` (both 422).
 - **`outside_window`**: with `window_sf = [sf_floor(window_ms[0]), sf_ceil(window_ms[1])]`, every
   segment needs `window_sf[0] ≤ in_sf` and `out_sf ≤ window_sf[1]` (frame-covering, so a seed
-  that ends at the end of the source is inside).
+  that ends at the end of the source is inside). The seed narrows `window_ms` to the source-grid
+  frames that exist (§5.6, §5.16), so `window_sf` never reaches a frame the compiler cannot
+  decode.
 - **Segments**: 1–2 items, exactly one `body` (zero or two bodies → `range_invalid`),
   `in_sf < out_sf` (`range_invalid`).
 - **`duration_out_of_bounds`**: the body's frames after removals and dropped slivers (Σ of its
@@ -844,13 +847,19 @@ in W1. Canonical bytes, hashes and the document size limit are as in §3.1.
 ## 5.6 Seed specifics (T1.5)
 
 - `base.seed_sha256` = sha256 of the canonical bytes of the seed with `base.seed_sha256` set to
-  `null` (a document cannot contain its own hash; revision ≥ 1 copies `base` unchanged).
+  `null` **and without `audit`** (a document cannot contain its own hash; revision ≥ 1 copies
+  `base` unchanged). W1 integration: the seed time is not content (R9), so identical content
+  gets the same `plan_sha256` and render key whenever it was seeded (`seed.seed_sha256`).
 - Revision 0, `parent_sha256` null; `audit` = `{created_at_ms = updated_at_ms = seed time,
   editor "pipeline/edit-v2/1" (prepare of an older job: "prepare/edit-v2/1"),
   last_command "Seed"}`.
 - Segment ids `seg_co` (cold open) and `seg_b1` (body), edges `sf_floor(start_ms)` and
-  `sf_ceil(end_ms)` with `start_ms = ms_from_seconds(start)`; join
+  `sf_ceil(end_ms)` with `start_ms = ms_from_seconds(start)`, **clamped to the source grid**
+  `[first_sf, end_sf)` of `source.json` (§5.16); join
   `{"after": "seg_co", "style": "cut", "audio_fade_ms": 30}`; `cut_fade_ms` 8; `removals` [].
+- `base.window_ms` = §3.5's window, then narrowed to the grid:
+  `[max(a, ⌈first_sf·1000·den/num⌉), min(b, ⌊end_sf·1000·den/num⌋)]`
+  (`seed.grid_window_ms`), so `window_sf` is exactly the frames that exist at the source edges.
 - `captions`: `enabled` true, `pack {id, v: 1}`, `overrides = PACK_DEFAULT_OVERRIDES[pack]`
   (every pack: `y_e5` 83000, `size_pm` 1000, `case` `asis` (`upper` for `bold`),
   `highlight` `#FFE14D`, `emphasis` `#FF5C8A`), `word_edits` {}.
@@ -1080,3 +1089,43 @@ Recorded by the W1 integrator; each is logged with its evidence in `docs/editor/
   (explicit names, no prefixes); the module must be one of the Appendix A.1 CLIs; exit codes
   0 and 3–12 resolve `{exitCode, json}`, anything else rejects `PythonCliError`
   (`backend_failed`); `httpStatusForExit` is the §5.3 table.
+
+## 5.16 W1 verifier fixes (T1.Z, 2026-09-25)
+
+Approved by the W1 integrator after the W1 verifier's findings; each is logged with its numbers
+in `docs/editor/GATES.md` ("Patches" 11–18).
+
+- **`source.json` probe version 2: `grid_sf`.** `[[num, den, first_sf, end_sf], …]` for every
+  rate of `DOC_FPS`, in that order: the source-grid frames `[first_sf, end_sf)` that the
+  compiler's own decode yields (R1: `-ss 0` / `-ss (duration − 3 s)`, `-copyts`,
+  `fps=num/den`), measured once per source (`source_info.measure_grid`; read with
+  `source_info.grid_range(probe, fps)`). `duration_ms` (rounded up) cannot tell: `sf_ceil` of it
+  can be one frame past the last frame, and a video that starts after t = 0 (0.041 s in two real
+  downloads) has no grid frame 0. A version-1 `source.json` is refused (`SourceInfoError`); none
+  existed outside W1 development.
+- **Seeds stay inside the grid** (§5.6): body and cold-open edges are clamped to `[first_sf,
+  end_sf)` and `window_ms` narrowed as in §5.6; clip ids still hash the clip's own ms, so they do
+  not move. `seed.build_seed` raises `SeedError` for a `source_info` without the grid.
+- **Plate cells below the window.** A cell that starts below `sf_floor(window_ms[0])` decodes
+  from that frame and repeats it (`tpad=start=<n>:start_mode=clone`) for the frames below, so
+  frame `i` of cell `k` stays grid frame `k·C + i` for every frame a document can show; a cell
+  wholly below the window is a `ValueError`.
+- **R7 "Standar"** is `libx264 -preset veryfast -crf 18 -x264-params
+  threads=4:chroma-qp-offset=-12` (`compile_ffmpeg.encode_video_args`; `final` and `frame`), and
+  R5's last step is `scale=…:flags=accurate_rnd+full_chroma_int+full_chroma_inp+lanczos,
+  format=yuv420p` (`compile_ffmpeg.final_conversion`; `FINAL_SCALE_FLAGS`) for final, frame,
+  reference and plate cells. Plate cells keep `veryfast` crf 18 without the chroma offset. The
+  parity harness exports with these strings. Reason: P-ENC (§10.1) failed for every S-COLOR
+  candidate at crf 21; the thresholds are unchanged. `RENDER_SEMANTICS` stays 1: no render
+  with semantics 1 exists outside W1 tests.
+- **`execute.run`**: a job that declares `fonts_dir` or `fontconfig_file` fails with
+  `render_failed` (ref `fonts` / `fontconfig`) before FFmpeg starts when either is missing;
+  `RLIMIT_AS` is set by util-linux `prlimit --as=<n>:<n> --`, which execs FFmpeg (same pid and
+  process group), so FFmpeg never runs without the limit (`render_failed`, ref `prlimit`, when
+  the tool is missing).
+- **R8 outside the compiler**: `source_info`, `peaks` and `compile_ffmpeg.probe_source` pass
+  `-protocol_whitelist file,pipe` and `source_info.child_env()` (`PATH`, `LANG`, `LC_ALL`).
+- **`face_tracking.detect_face_track(…, sequential=False)`** gained `sequential=True`: one seek,
+  then the window decoded front to back, keeping for each sample the frame the per-sample seek
+  lands on (`int(seconds·fps + 0.5)`). `camera.build_camera_plan` passes it to a detector that
+  accepts the keyword; the legacy render keeps the per-sample seeks.
