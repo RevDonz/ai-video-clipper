@@ -186,6 +186,25 @@ hasilnya identik. Item dan token dikelola di halaman **Konteks Tren** (`/trends`
 endpoint; Selection V3 uses them only for packaging and a capped ranking boost when a clip's
 transcript actually mentions them, with no change at all when no trend items are active.
 
+## Fokus klip: cari momen tentang kata kunci tertentu
+
+**Bahasa Indonesia.** Di dashboard (mode V3) pemilik bisa mengisi kata kunci yang dicari
+(misalnya "jomok") dan catatan untuk AI. Klip yang cocok diutamakan, sisa slot diisi momen
+terbaik lain berlabel "Di luar fokus". Setiap klip berlabel "Menyebut 'jomok' · 12:34" (dicek
+kode pada transkrip, termasuk kata berimbuhan seperti "perjomokan"), "Terkait 'jomok' (menurut
+AI)", atau "Di luar fokus"; halaman proyek menampilkan "n dari k klip cocok". Tanpa kata kunci,
+hasilnya identik dengan sebelumnya.
+
+- Aturan, batas, kode peringatan:
+  [`docs/operations/STANDAR_KLIP_AI.md`](docs/operations/STANDAR_KLIP_AI.md), bagian "Fokus klip".
+- Spesifikasi: [`docs/plans/2026-09-25-fokus-klip.md`](docs/plans/2026-09-25-fokus-klip.md).
+
+**English.** A V3 job may carry 1-8 focus terms and a note (`focusTerms`/`focusNote` form
+fields, `options.focus`, CLI `--focus-term`/`--focus-note`). Matching clips (literal, checked
+in code with Indonesian affixes; or semantic, the LLM's claim) rank first; each clip gets
+`focus: {match, terms, at}` and the summary `focus: {terms, matched, requested}`. Without
+focus terms every output is unchanged.
+
 ## What is real today
 
 - Local Indonesian transcription with faster-whisper, word timestamps, and a transcript
