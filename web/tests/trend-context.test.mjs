@@ -66,16 +66,16 @@ async function ingestAll(items, options) {
 // --- Text rules -----------------------------------------------------------------------------
 
 test("single-line text is NFC with control, bidi and zero-width characters and newlines removed", () => {
-  assert.equal(normalizeTrendLine("  Kábur‮ aja​\n\tdulu\u0000⁦!⁩ "), "Kábur aja dulu!");
-  assert.equal(normalizeTrendLine("a‍b﻿c­d"), "abcd");
-  assert.equal(normalizeTrendLine("\u0000​"), "");
-  assert.equal(normalizeTrendLine(normalizeTrendLine("x‪y")), "xy");
+  assert.equal(normalizeTrendLine("  Ka\u0301bur\u202e aja\u200b\n\tdulu\u0000\u2066!\u2069 "), "Kábur aja dulu!");
+  assert.equal(normalizeTrendLine("a\u200db\ufeffc\u00add"), "abcd");
+  assert.equal(normalizeTrendLine("\u0000\u200b"), "");
+  assert.equal(normalizeTrendLine(normalizeTrendLine("x\u202ay")), "xy");
   assert.equal(normalizeTrendLine(42), null);
 });
 
 test("summaries keep at most five lines, normalised to \\n", () => {
-  assert.equal(normalizeTrendSummary("satu\r\ndua\n\n\ntiga empat\rlima\nenam\ntujuh"), "satu\ndua\ntiga\nempat\nlima enam tujuh");
-  assert.equal(normalizeTrendSummary("  baris‮  satu \n​\n"), "baris satu");
+  assert.equal(normalizeTrendSummary("satu\r\ndua\n\n\ntiga\u2028empat\rlima\nenam\ntujuh"), "satu\ndua\ntiga\nempat\nlima enam tujuh");
+  assert.equal(normalizeTrendSummary("  baris\u202e  satu \n\u200b\n"), "baris satu");
   assert.equal(normalizeTrendSummary(""), "");
 });
 
@@ -107,9 +107,9 @@ test("a minimal item gets the documented defaults", () => {
 
 test("every field is normalised and de-duplicated", () => {
   const parsed = parseTrendInput(item({
-    externalId: "tiktok:tag:kabur-aja-dulu", title: " Kabur​  Aja Dulu ", keywords: ["kabur aja dulu", "KABUR AJA DULU", "#KaburAjaDulu"],
+    externalId: "tiktok:tag:kabur-aja-dulu", title: " Kabur\u200b  Aja Dulu ", keywords: ["kabur aja dulu", "KABUR AJA DULU", "#KaburAjaDulu"],
     hashtags: ["#KaburAjaDulu", "#kaburajadulu"], platforms: ["tiktok", "tiktok", "x"], region: "id", score: 72.456,
-    examples: [{ url: "https://www.tiktok.com/@a/video/1", note: " contoh‮ " }, { url: "http://example.com" }],
+    examples: [{ url: "https://www.tiktok.com/@a/video/1", note: " contoh\u202e " }, { url: "http://example.com" }],
     sensitivity: "sensitive", firstSeenAt: "2026-09-24T08:00:00Z", expiresAt: "2026-10-05",
     id: "ignored", source: "ignored", createdAt: "ignored", updatedAt: "ignored", enabled: false,
   }), { now: NOW });
@@ -134,7 +134,7 @@ test("invalid items are rejected with a stable code and field, never with the va
     [{ ...item(), keywords: undefined }, "missing_field", "keywords"],
     [item({ kind: "rumor" }), "invalid_value", "kind"],
     [item({ title: 42 }), "invalid_type", "title"],
-    [item({ title: "​\u0000" }), "invalid_length", "title"],
+    [item({ title: "\u200b\u0000" }), "invalid_length", "title"],
     [item({ title: long(81) }), "invalid_length", "title"],
     [item({ summary: long(501) }), "invalid_length", "summary"],
     [item({ summary: ["a"] }), "invalid_type", "summary"],
