@@ -33,6 +33,7 @@ import {
   clipPosterUrl,
   isV3Job,
   llmStatusView,
+  renderEngineView,
   scoreRows,
   selectionSourceLabel,
   selectionV3SummaryView,
@@ -900,6 +901,76 @@ test("a V3 YouTube job without any captions runs Whisper (no --captions-dir) and
   assert.equal(persisted.status, "completed");
   const argv = JSON.parse(await readFile(path.join(jobRoot, "output", "argv.json"), "utf8"));
   assert.ok(!argv.includes("--captions-dir"));
+});
+
+// --- Render engine (Editor V3 T2.1, plan §5.8) ------------------------------------
+
+const CLIP_ID = "clip_0123456789abcdef01234567";
+
+test("manifest clip_id and render_engine pass through as clipId and renderEngine", () => {
+  const clip = jobClipFromManifest({
+    ...MANIFEST_CLIP, clip_id: CLIP_ID, render_engine: "edit-v2/1", render_key: "a".repeat(64), plan_sha256: "b".repeat(64),
+  }, JOB_ID);
+  assert.equal(clip.clipId, CLIP_ID);
+  assert.equal(clip.renderEngine, "edit-v2/1");
+  // The render key and plan sha stay on the server (the editor reads them from the engine).
+  assert.equal(clip.renderKey, undefined);
+  assert.equal(clip.planSha256, undefined);
+  assert.equal(clip.render_key, undefined);
+  const fallback = jobClipFromManifest({ ...MANIFEST_CLIP, clip_id: CLIP_ID, render_engine: "legacy", render_key: null }, JOB_ID);
+  assert.equal(fallback.renderEngine, "legacy");
+  assert.equal(fallback.clipId, CLIP_ID);
+  const unseeded = jobClipFromManifest({ ...MANIFEST_CLIP, clip_id: null, render_engine: "legacy" }, JOB_ID);
+  assert.equal(unseeded.clipId, undefined);
+  assert.equal(unseeded.renderEngine, "legacy");
+  // Today's manifests (legacy engine) keep exactly the historical job clip shape.
+  assert.deepEqual(jobClipFromManifest(MANIFEST_CLIP, JOB_ID), jobClipFromManifest({ ...MANIFEST_CLIP }, JOB_ID));
+  assert.equal("clipId" in jobClipFromManifest(MANIFEST_CLIP, JOB_ID), false);
+  assert.equal("renderEngine" in jobClipFromManifest(MANIFEST_CLIP, JOB_ID), false);
+});
+
+test("malformed clip ids and render engines are dropped, never coerced", () => {
+  const cases = [
+    ["clip_XYZ", "edit-v2/2"],
+    ["clip_0123456789ABCDEF01234567", "Legacy"],
+    [`${CLIP_ID}0`, "edit-v2"],
+    [`../${CLIP_ID}`, "edit-v2/1 "],
+    [` ${CLIP_ID}`, " legacy"],
+    [42, ["legacy"]],
+    [{ id: CLIP_ID }, { engine: "legacy" }],
+    [`${CLIP_ID}\n`, "legacy\u0000"],
+  ];
+  for (const [clipId, engine] of cases) {
+    const clip = jobClipFromManifest({ ...MANIFEST_CLIP, clip_id: clipId, render_engine: engine }, JOB_ID);
+    assert.equal(clip.clipId, undefined, JSON.stringify(clipId));
+    assert.equal(clip.renderEngine, undefined, JSON.stringify(engine));
+    assert.deepEqual(sanitizeManifestClipFields({ clip_id: clipId, render_engine: engine }), {});
+  }
+  assert.deepEqual(sanitizeManifestClipFields({ clip_id: CLIP_ID, render_engine: "edit-v2/1" }), {
+    clipId: CLIP_ID, renderEngine: "edit-v2/1",
+  });
+});
+
+test("stored clips re-validate clipId and renderEngine before they are served", () => {
+  const packaged = jobClipFromManifest({ ...MANIFEST_CLIP, clip_id: CLIP_ID, render_engine: "edit-v2/1" }, JOB_ID);
+  const publicJob = serializePublicJob({
+    id: JOB_ID, options: V3,
+    clips: [packaged, { ...packaged, clipId: "clip_bad", renderEngine: "edit-v9/1" }, { ...packaged, clipId: undefined, renderEngine: "legacy" }],
+  });
+  assert.deepEqual(publicJob.clips[0], packaged);
+  assert.equal(publicJob.clips[1].clipId, undefined);
+  assert.equal(publicJob.clips[1].renderEngine, undefined);
+  assert.equal(publicJob.clips[1].title, packaged.title);
+  assert.equal(publicJob.clips[2].renderEngine, "legacy");
+  assert.equal(sanitizeStoredClip({ index: 1, text: "Klip lama", clipId: "clip_bad" }, JOB_ID).clipId, undefined);
+});
+
+test("the engine view names the new and the old render engine", () => {
+  assert.deepEqual(renderEngineView({ renderEngine: "edit-v2/1" }), { engine: "edit-v2/1", label: "Mesin baru", legacy: false });
+  assert.deepEqual(renderEngineView({ renderEngine: "legacy" }), { engine: "legacy", label: "Mesin lama", legacy: true });
+  assert.equal(renderEngineView({ renderEngine: "edit-v9/1" }), null);
+  assert.equal(renderEngineView({}), null);
+  assert.equal(renderEngineView(null), null);
 });
 
 test("V1 and V2 YouTube jobs never fetch captions", async () => {
