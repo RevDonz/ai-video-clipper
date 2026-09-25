@@ -12,13 +12,14 @@ import importlib
 import inspect
 import json
 import sys
+import unicodedata
 from pathlib import Path
 
 import pytest
-from ai_clipper.edit_v2 import errors
 from support import edit_v2_fixtures as fixtures
 
 from ai_clipper import edit_v2
+from ai_clipper.edit_v2 import errors
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "src" / "ai_clipper" / "edit_v2"
@@ -524,6 +525,70 @@ def test_valid_fixtures_are_integer_json_that_the_time_map_accepts():
 
 def _no_float(value: str):
     raise AssertionError(f"float in a valid fixture: {value}")
+
+
+class _JsonProblem(Exception):
+    def __init__(self, code: str):
+        super().__init__(code)
+        self.code = code
+
+
+def _json_level_code(raw: bytes) -> str | None:
+    """The JSON-level parse code of raw bytes (the part of parse_doc that needs no schema)."""
+    if len(raw) > fixtures.MAX_DOC_BYTES:
+        return "too_large"
+    try:
+        text = raw.decode("utf-8")  # strict: a BOM is not stripped, invalid UTF-8 fails
+    except UnicodeDecodeError:
+        return "invalid_json"
+
+    def pairs(items):
+        keys = [key for key, _value in items]
+        if len(keys) != len(set(keys)):
+            raise _JsonProblem("duplicate_key")
+        return dict(items)
+
+    def reject(_value):
+        raise _JsonProblem("float_not_allowed")
+
+    try:
+        value = json.loads(text, object_pairs_hook=pairs, parse_float=reject,
+                           parse_constant=reject)
+    except _JsonProblem as problem:
+        return problem.code
+    except ValueError:
+        return "invalid_json"
+    if not isinstance(value, dict):
+        return "invalid_json"
+
+    def strings(node):
+        if isinstance(node, str):
+            yield node
+        elif isinstance(node, dict):
+            for key, item in node.items():
+                yield key
+                yield from strings(item)
+        elif isinstance(node, list):
+            for item in node:
+                yield from strings(item)
+
+    for string in strings(value):
+        if any(unicodedata.category(char) in ("Cc", "Cs") for char in string):
+            return "control_char"
+        if unicodedata.normalize("NFC", string) != string:
+            return "not_nfc"
+    return None
+
+
+def test_json_level_fixtures_fail_exactly_as_named_and_all_others_parse():
+    json_codes = {"invalid_json", "float_not_allowed", "duplicate_key", "too_large", "not_nfc",
+                  "control_char"}
+    for case in fixtures.load_cases():
+        found = _json_level_code(case.raw())
+        if case.code in json_codes:
+            assert found == case.code, case.file
+        else:
+            assert found is None, case.file
 
 
 def test_contexts_are_self_consistent():

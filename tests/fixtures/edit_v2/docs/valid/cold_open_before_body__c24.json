@@ -1,0 +1,148 @@
+{
+  "schema": "clip-edit-v2",
+  "schema_minor": 0,
+  "clip_id": "clip_984322a8fd13d516c0ad89ba",
+  "revision": 1,
+  "parent_sha256": "e048d4aef2d0556dff514e5dd5cb350fbe8560931c0a3926e290c4b0db1a2375",
+  "base": {
+    "job_id": "5c9e1d2f-3a4b-4c5d-9e6f-7a8b9c0d1e2f",
+    "source": {
+      "content_sha256": "d9ddaee3a28b8f33017db1c25a396d8211c36429802812b933af95b5caa953c6",
+      "w": 1280,
+      "h": 720,
+      "fps_native": [
+        24000,
+        1001
+      ],
+      "vfr": false,
+      "duration_ms": 100000,
+      "has_audio": true
+    },
+    "origin": {
+      "kind": "v3_clip",
+      "selection_artifact_sha256": "b5b61ca34a17708bfab0b8624422b52c6f5ac10b5f3aed316005887bbe06a015",
+      "selection_version": "selection-v3.0",
+      "rank_at_seed": 2,
+      "hook_unit_id": "S0031",
+      "selection_source": "llm"
+    },
+    "window_ms": [
+      0,
+      100000
+    ],
+    "words": {
+      "sha256": "b3d1d38bff80975cfcef62cec80911c3a9337596be31760de0a4155a8d973f92",
+      "count": 201
+    },
+    "camera": {
+      "sha256": null
+    },
+    "seed_sha256": "f611f2960580a400cec3c96b3173429e2f7cc58265890a80008b8dff463be126",
+    "engine": {
+      "compiler": "edit-v2/1",
+      "render_semantics": 1
+    }
+  },
+  "output": {
+    "w": 1080,
+    "h": 1920,
+    "fps": [
+      24000,
+      1001
+    ],
+    "sample_rate": 48000,
+    "channels": 2
+  },
+  "main": {
+    "segments": [
+      {
+        "id": "seg_co",
+        "role": "cold_open",
+        "in_sf": 200,
+        "out_sf": 290
+      },
+      {
+        "id": "seg_b1",
+        "role": "body",
+        "in_sf": 1081,
+        "out_sf": 2158
+      }
+    ],
+    "removals": [],
+    "joins": [
+      {
+        "after": "seg_co",
+        "style": "cut",
+        "audio_fade_ms": 30
+      }
+    ],
+    "cut_fade_ms": 8
+  },
+  "captions": {
+    "enabled": true,
+    "pack": {
+      "id": "karaoke",
+      "v": 1
+    },
+    "overrides": {
+      "y_e5": 83000,
+      "size_pm": 1000,
+      "case": "asis",
+      "highlight": "#FFE14D",
+      "emphasis": "#FF5C8A"
+    },
+    "word_edits": {}
+  },
+  "layout": {
+    "default": {
+      "mode": "fill_center",
+      "no_face": "center"
+    }
+  },
+  "tracks": [
+    {
+      "id": "tr_hook",
+      "kind": "hook",
+      "items": [
+        {
+          "id": "it_hook",
+          "type": "hook",
+          "start": {
+            "at": "out",
+            "f": 0
+          },
+          "dur_f": 84,
+          "transform": {
+            "x_e5": 50000,
+            "y_e5": 13000
+          },
+          "payload": {
+            "text": "Kenapa semua orang ketawa?",
+            "design": {
+              "id": "legacy-bar",
+              "v": 1
+            }
+          },
+          "origin": "seed"
+        }
+      ]
+    }
+  ],
+  "audio": {
+    "source": {
+      "gain_cdb": 0
+    },
+    "master": {
+      "mode": "off",
+      "target_clufs": -1400,
+      "tp_cdb": -100
+    }
+  },
+  "assets": {},
+  "audit": {
+    "created_at_ms": 1790000000000,
+    "updated_at_ms": 1790000060000,
+    "editor": "editor-v3/1.0.0",
+    "last_command": "SetColdOpen"
+  }
+}

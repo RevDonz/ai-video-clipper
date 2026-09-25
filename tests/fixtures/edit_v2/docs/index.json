@@ -1,0 +1,1253 @@
+{
+ "schema": "potongin.edit-v2-doc-fixtures/1",
+ "generator": "tests/support/edit_v2_fixtures.py",
+ "put_now_ms": 1790000120000,
+ "assets": "contexts/assets.json",
+ "contexts": {
+  "c30": {
+   "words": "contexts/c30.words.json",
+   "seed": "contexts/c30.seed.json"
+  },
+  "c25": {
+   "words": "contexts/c25.words.json",
+   "seed": "contexts/c25.seed.json"
+  },
+  "c24": {
+   "words": "contexts/c24.words.json",
+   "seed": "contexts/c24.seed.json"
+  }
+ },
+ "fixtures": [
+  {
+   "file": "valid/seed__c30.json",
+   "context": "c30",
+   "check": "validate",
+   "warnings": []
+  },
+  {
+   "file": "valid/rev1_unchanged__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/seed__c25.json",
+   "context": "c25",
+   "check": "validate",
+   "warnings": []
+  },
+  {
+   "file": "valid/rev1_unchanged__c25.json",
+   "context": "c25",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/seed__c24.json",
+   "context": "c24",
+   "check": "validate",
+   "warnings": []
+  },
+  {
+   "file": "valid/rev1_unchanged__c24.json",
+   "context": "c24",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/trim_start_later__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/trim_end_earlier__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/body_min_3s__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/body_max_300s__c25.json",
+   "context": "c25",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/cold_open_min__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/cold_open_max__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/cold_open_removed__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/cold_open_added__c25.json",
+   "context": "c25",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/cold_open_before_body__c24.json",
+   "context": "c24",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/join_fade_0__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/join_fade_250__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/cut_fade_0__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/cut_fade_50__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/removal_single__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/removals_many__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/removal_at_body_start__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/removal_at_body_end__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/removal_in_cold_open__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/removal_leaves_sliver__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/removals_gap_silent__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/removals_max_2000__c25.json",
+   "context": "c25",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/captions_disabled__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/pack_classic__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/pack_bold__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/pack_box__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/overrides_min__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/overrides_max__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/swatches_green_blue__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/swatches_white_orange__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/word_edits__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/word_edit_unicode__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/layout_camera__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/layout_fill_center__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/hook_removed__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/hook_min_dur__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/hook_max_dur__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/hook_y_min__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/hook_y_max__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/hook_text_90__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/hook_added__c25.json",
+   "context": "c25",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/logo__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/logo_edge__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/logo_min_size__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/logo_wide__c24.json",
+   "context": "c24",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/music__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/music_no_loop_long_asset__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/music_extremes__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/music_duck_off__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/music_shorter_than_clip__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": [
+    "music_shorter_than_clip"
+   ]
+  },
+  {
+   "file": "valid/logo_and_music__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/source_gain_min__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/source_gain_max__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/master_normalize_min__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/master_normalize_max__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/full_example__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/tight_cut__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": [
+    "tight_cut"
+   ]
+  },
+  {
+   "file": "valid/laughter_cut__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": [
+    "laughter_cut"
+   ]
+  },
+  {
+   "file": "invalid/invalid_json__truncated.json",
+   "context": "c30",
+   "check": "put",
+   "code": "invalid_json",
+   "path": ""
+  },
+  {
+   "file": "invalid/invalid_json__not_utf8.json",
+   "context": "c30",
+   "check": "put",
+   "code": "invalid_json",
+   "path": ""
+  },
+  {
+   "file": "invalid/invalid_json__top_level_array.json",
+   "context": "c30",
+   "check": "put",
+   "code": "invalid_json",
+   "path": ""
+  },
+  {
+   "file": "invalid/invalid_json__trailing_data.json",
+   "context": "c30",
+   "check": "put",
+   "code": "invalid_json",
+   "path": ""
+  },
+  {
+   "file": "invalid/invalid_json__utf8_bom.json",
+   "context": "c30",
+   "check": "put",
+   "code": "invalid_json",
+   "path": ""
+  },
+  {
+   "file": "invalid/float_not_allowed__decimal.json",
+   "context": "c30",
+   "check": "put",
+   "code": "float_not_allowed",
+   "path": "/revision"
+  },
+  {
+   "file": "invalid/float_not_allowed__exponent.json",
+   "context": "c30",
+   "check": "put",
+   "code": "float_not_allowed",
+   "path": "/main/cut_fade_ms"
+  },
+  {
+   "file": "invalid/float_not_allowed__nan.json",
+   "context": "c30",
+   "check": "put",
+   "code": "float_not_allowed",
+   "path": "/audio/source/gain_cdb"
+  },
+  {
+   "file": "invalid/float_not_allowed__infinity.json",
+   "context": "c30",
+   "check": "put",
+   "code": "float_not_allowed",
+   "path": "/audio/master/tp_cdb"
+  },
+  {
+   "file": "invalid/duplicate_key__root.json",
+   "context": "c30",
+   "check": "put",
+   "code": "duplicate_key",
+   "path": "/revision"
+  },
+  {
+   "file": "invalid/duplicate_key__nested.json",
+   "context": "c30",
+   "check": "put",
+   "code": "duplicate_key",
+   "path": "/captions/overrides/size_pm"
+  },
+  {
+   "file": "invalid/unknown_key__root.json",
+   "context": "c30",
+   "check": "put",
+   "code": "unknown_key",
+   "path": "/markers"
+  },
+  {
+   "file": "invalid/unknown_key__segment.json",
+   "context": "c30",
+   "check": "put",
+   "code": "unknown_key",
+   "path": "/main/segments/1/src"
+  },
+  {
+   "file": "invalid/unknown_key__layout_ranges.json",
+   "context": "c30",
+   "check": "put",
+   "code": "unknown_key",
+   "path": "/layout/ranges"
+  },
+  {
+   "file": "invalid/unknown_key__overrides.json",
+   "context": "c30",
+   "check": "put",
+   "code": "unknown_key",
+   "path": "/captions/overrides/words_per_chunk"
+  },
+  {
+   "file": "invalid/unknown_key__word_edit.json",
+   "context": "c30",
+   "check": "put",
+   "code": "unknown_key",
+   "path": "/captions/word_edits/w048244/emoji_after"
+  },
+  {
+   "file": "invalid/unknown_key__audio_source_mute.json",
+   "context": "c30",
+   "check": "put",
+   "code": "unknown_key",
+   "path": "/audio/source/mute"
+  },
+  {
+   "file": "invalid/unknown_key__hook_payload.json",
+   "context": "c30",
+   "check": "put",
+   "code": "unknown_key",
+   "path": "/tracks/0/items/0/payload/params"
+  },
+  {
+   "file": "invalid/too_large.json",
+   "context": "c30",
+   "check": "put",
+   "code": "too_large",
+   "path": ""
+  },
+  {
+   "file": "invalid/not_nfc__hook_text.json",
+   "context": "c30",
+   "check": "put",
+   "code": "not_nfc",
+   "path": "/tracks/0/items/0/payload/text"
+  },
+  {
+   "file": "invalid/not_nfc__word_edit.json",
+   "context": "c30",
+   "check": "put",
+   "code": "not_nfc",
+   "path": "/captions/word_edits/w048244/text"
+  },
+  {
+   "file": "invalid/control_char__hook_text.json",
+   "context": "c30",
+   "check": "put",
+   "code": "control_char",
+   "path": "/tracks/0/items/0/payload/text"
+  },
+  {
+   "file": "invalid/control_char__editor.json",
+   "context": "c30",
+   "check": "put",
+   "code": "control_char",
+   "path": "/audit/editor"
+  },
+  {
+   "file": "invalid/control_char__lone_surrogate.json",
+   "context": "c30",
+   "check": "put",
+   "code": "control_char",
+   "path": "/captions/word_edits/w048244/text"
+  },
+  {
+   "file": "invalid/schema_too_new.json",
+   "context": "c30",
+   "check": "put",
+   "code": "schema_too_new",
+   "path": "/schema_minor"
+  },
+  {
+   "file": "invalid/base_changed__window.json",
+   "context": "c30",
+   "check": "put",
+   "code": "base_changed",
+   "path": "/base/window_ms/0"
+  },
+  {
+   "file": "invalid/base_changed__source.json",
+   "context": "c30",
+   "check": "put",
+   "code": "base_changed",
+   "path": "/base/source/w"
+  },
+  {
+   "file": "invalid/base_changed__output_fps.json",
+   "context": "c30",
+   "check": "put",
+   "code": "base_changed",
+   "path": "/output/fps"
+  },
+  {
+   "file": "invalid/base_changed__created_at.json",
+   "context": "c30",
+   "check": "put",
+   "code": "base_changed",
+   "path": "/audit/created_at_ms"
+  },
+  {
+   "file": "invalid/base_changed__clip_id.json",
+   "context": "c30",
+   "check": "put",
+   "code": "base_changed",
+   "path": "/clip_id"
+  },
+  {
+   "file": "invalid/base_changed__words_sha.json",
+   "context": "c30",
+   "check": "put",
+   "code": "base_changed",
+   "path": "/base/words/sha256"
+  },
+  {
+   "file": "invalid/outside_window__body_in.json",
+   "context": "c30",
+   "check": "put",
+   "code": "outside_window",
+   "path": "/main/segments/1/in_sf"
+  },
+  {
+   "file": "invalid/outside_window__body_out.json",
+   "context": "c30",
+   "check": "put",
+   "code": "outside_window",
+   "path": "/main/segments/1/out_sf"
+  },
+  {
+   "file": "invalid/outside_window__cold_open.json",
+   "context": "c30",
+   "check": "put",
+   "code": "outside_window",
+   "path": "/main/segments/0/in_sf"
+  },
+  {
+   "file": "invalid/range_invalid__empty_removal.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/main/removals/0"
+  },
+  {
+   "file": "invalid/range_invalid__hook_text_too_long.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/tracks/0/items/0/payload/text"
+  },
+  {
+   "file": "invalid/range_invalid__hook_text_whitespace.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/tracks/0/items/0/payload/text"
+  },
+  {
+   "file": "invalid/range_invalid__word_edit_empty.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/captions/word_edits/w048244/text"
+  },
+  {
+   "file": "invalid/range_invalid__word_edit_too_long.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/captions/word_edits/w048244/text"
+  },
+  {
+   "file": "invalid/range_invalid__word_edit_no_keys.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/captions/word_edits/w048244"
+  },
+  {
+   "file": "invalid/range_invalid__word_edit_whitespace.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/captions/word_edits/w048244/text"
+  },
+  {
+   "file": "invalid/range_invalid__word_edit_hidden_type.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/captions/word_edits/w048244/hidden"
+  },
+  {
+   "file": "invalid/range_invalid__y_e5_low.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/captions/overrides/y_e5"
+  },
+  {
+   "file": "invalid/range_invalid__y_e5_high.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/captions/overrides/y_e5"
+  },
+  {
+   "file": "invalid/range_invalid__size_pm_low.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/captions/overrides/size_pm"
+  },
+  {
+   "file": "invalid/range_invalid__size_pm_high.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/captions/overrides/size_pm"
+  },
+  {
+   "file": "invalid/range_invalid__case_value.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/captions/overrides/case"
+  },
+  {
+   "file": "invalid/range_invalid__highlight_not_swatch.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/captions/overrides/highlight"
+  },
+  {
+   "file": "invalid/range_invalid__highlight_lowercase.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/captions/overrides/highlight"
+  },
+  {
+   "file": "invalid/range_invalid__emphasis_not_string.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/captions/overrides/emphasis"
+  },
+  {
+   "file": "invalid/range_invalid__cut_fade_high.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/main/cut_fade_ms"
+  },
+  {
+   "file": "invalid/range_invalid__join_fade_high.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/main/joins/0/audio_fade_ms"
+  },
+  {
+   "file": "invalid/range_invalid__source_gain_high.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/audio/source/gain_cdb"
+  },
+  {
+   "file": "invalid/range_invalid__target_clufs.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/audio/master/target_clufs"
+  },
+  {
+   "file": "invalid/range_invalid__tp_positive.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/audio/master/tp_cdb"
+  },
+  {
+   "file": "invalid/range_invalid__master_mode.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/audio/master/mode"
+  },
+  {
+   "file": "invalid/range_invalid__hook_dur_short.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/tracks/0/items/0/dur_f"
+  },
+  {
+   "file": "invalid/range_invalid__hook_dur_long.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/tracks/0/items/0/dur_f"
+  },
+  {
+   "file": "invalid/range_invalid__hook_y_low.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/tracks/0/items/0/transform/y_e5"
+  },
+  {
+   "file": "invalid/range_invalid__hook_x.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/tracks/0/items/0/transform/x_e5"
+  },
+  {
+   "file": "invalid/range_invalid__logo_w_small.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/tracks/1/items/0/transform/w_e5"
+  },
+  {
+   "file": "invalid/range_invalid__logo_opacity.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/tracks/1/items/0/transform/opacity_pm"
+  },
+  {
+   "file": "invalid/range_invalid__music_gain.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/tracks/1/items/0/payload/gain_cdb"
+  },
+  {
+   "file": "invalid/range_invalid__duck_depth.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/tracks/1/items/0/payload/duck/depth_cdb"
+  },
+  {
+   "file": "invalid/range_invalid__duck_attack.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/tracks/1/items/0/payload/duck/attack_ms"
+  },
+  {
+   "file": "invalid/range_invalid__music_fade.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/tracks/1/items/0/payload/fade_in_f"
+  },
+  {
+   "file": "invalid/range_invalid__src_in_smp.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/tracks/1/items/0/payload/src_in_smp"
+  },
+  {
+   "file": "invalid/range_invalid__removal_reason.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/main/removals/0/reason"
+  },
+  {
+   "file": "invalid/range_invalid__removal_origin.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/main/removals/0/origin"
+  },
+  {
+   "file": "invalid/range_invalid__word_id_format.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/main/removals/0/words/0"
+  },
+  {
+   "file": "invalid/range_invalid__segment_id.json",
+   "context": "c25",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/main/segments/0/id"
+  },
+  {
+   "file": "invalid/range_invalid__type_string.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/main/segments/1/in_sf"
+  },
+  {
+   "file": "invalid/range_invalid__missing_key.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/captions/enabled"
+  },
+  {
+   "file": "invalid/range_invalid__schema_name.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/schema"
+  },
+  {
+   "file": "invalid/range_invalid__last_command.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/audit/last_command"
+  },
+  {
+   "file": "invalid/range_invalid__duplicate_id.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/main/removals/1/id"
+  },
+  {
+   "file": "invalid/range_invalid__removal_count.json",
+   "context": "c25",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/main/removals"
+  },
+  {
+   "file": "invalid/range_invalid__asset_mime.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/assets/sha256:036ce0c8d1bbde9427d03c28388f2f48cf1b4a1061869b334f0be2adee588148/mime"
+  },
+  {
+   "file": "invalid/range_invalid__asset_unreferenced.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/assets/sha256:f4eff9f785f6f6b1f32185191b7b66edb3cad91a7313650de54ea5cfdbb56472"
+  },
+  {
+   "file": "invalid/range_invalid__no_face.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/layout/default/no_face"
+  },
+  {
+   "file": "invalid/range_invalid__layout_mode.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/layout/default/mode"
+  },
+  {
+   "file": "invalid/range_invalid__item_type_mismatch.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/tracks/0/items/0/type"
+  },
+  {
+   "file": "invalid/cold_open_invalid__too_short.json",
+   "context": "c30",
+   "check": "put",
+   "code": "cold_open_invalid",
+   "path": "/main/segments/0"
+  },
+  {
+   "file": "invalid/cold_open_invalid__too_long.json",
+   "context": "c30",
+   "check": "put",
+   "code": "cold_open_invalid",
+   "path": "/main/segments/0"
+  },
+  {
+   "file": "invalid/cold_open_invalid__same_start.json",
+   "context": "c30",
+   "check": "put",
+   "code": "cold_open_invalid",
+   "path": "/main/segments/0"
+  },
+  {
+   "file": "invalid/cold_open_invalid__repeats_opening.json",
+   "context": "c30",
+   "check": "put",
+   "code": "cold_open_invalid",
+   "path": "/main/segments/0"
+  },
+  {
+   "file": "invalid/cold_open_invalid__not_first.json",
+   "context": "c30",
+   "check": "put",
+   "code": "cold_open_invalid",
+   "path": "/main/segments/1"
+  },
+  {
+   "file": "invalid/cold_open_invalid__missing_join.json",
+   "context": "c30",
+   "check": "put",
+   "code": "cold_open_invalid",
+   "path": "/main/joins"
+  },
+  {
+   "file": "invalid/cold_open_invalid__join_without_cold_open.json",
+   "context": "c25",
+   "check": "put",
+   "code": "cold_open_invalid",
+   "path": "/main/joins/0"
+  },
+  {
+   "file": "invalid/duration_out_of_bounds__short.json",
+   "context": "c30",
+   "check": "put",
+   "code": "duration_out_of_bounds",
+   "path": "/main/segments/1"
+  },
+  {
+   "file": "invalid/duration_out_of_bounds__removals.json",
+   "context": "c30",
+   "check": "put",
+   "code": "duration_out_of_bounds",
+   "path": "/main/segments/1"
+  },
+  {
+   "file": "invalid/duration_out_of_bounds__long.json",
+   "context": "c25",
+   "check": "put",
+   "code": "duration_out_of_bounds",
+   "path": "/main/segments/0"
+  },
+  {
+   "file": "invalid/removal_outside_segment__past_end.json",
+   "context": "c30",
+   "check": "put",
+   "code": "removal_outside_segment",
+   "path": "/main/removals/0"
+  },
+  {
+   "file": "invalid/removal_outside_segment__before_start.json",
+   "context": "c30",
+   "check": "put",
+   "code": "removal_outside_segment",
+   "path": "/main/removals/0"
+  },
+  {
+   "file": "invalid/removal_outside_segment__unknown_segment.json",
+   "context": "c30",
+   "check": "put",
+   "code": "removal_outside_segment",
+   "path": "/main/removals/0/seg"
+  },
+  {
+   "file": "invalid/removal_overlap__overlapping.json",
+   "context": "c30",
+   "check": "put",
+   "code": "removal_overlap",
+   "path": "/main/removals/1"
+  },
+  {
+   "file": "invalid/removal_overlap__unsorted.json",
+   "context": "c30",
+   "check": "put",
+   "code": "removal_overlap",
+   "path": "/main/removals/1"
+  },
+  {
+   "file": "invalid/unknown_word__removal.json",
+   "context": "c30",
+   "check": "put",
+   "code": "unknown_word",
+   "path": "/main/removals/0/words/1"
+  },
+  {
+   "file": "invalid/unknown_word__word_edit.json",
+   "context": "c30",
+   "check": "put",
+   "code": "unknown_word",
+   "path": "/captions/word_edits/w999998"
+  },
+  {
+   "file": "invalid/asset_missing__not_in_store.json",
+   "context": "c30",
+   "check": "put",
+   "code": "asset_missing",
+   "path": "/tracks/1/items/0/payload/asset"
+  },
+  {
+   "file": "invalid/asset_missing__not_in_doc_assets.json",
+   "context": "c30",
+   "check": "put",
+   "code": "asset_missing",
+   "path": "/tracks/1/items/0/payload/asset"
+  },
+  {
+   "file": "invalid/pack_unknown__id.json",
+   "context": "c30",
+   "check": "put",
+   "code": "pack_unknown",
+   "path": "/captions/pack"
+  },
+  {
+   "file": "invalid/pack_unknown__version.json",
+   "context": "c30",
+   "check": "put",
+   "code": "pack_unknown",
+   "path": "/captions/pack"
+  },
+  {
+   "file": "invalid/op_disabled__join_style.json",
+   "context": "c30",
+   "check": "put",
+   "code": "op_disabled",
+   "path": "/main/joins/0/style"
+  },
+  {
+   "file": "invalid/op_disabled__second_hook_track.json",
+   "context": "c30",
+   "check": "put",
+   "code": "op_disabled",
+   "path": "/tracks/1"
+  },
+  {
+   "file": "invalid/op_disabled__two_items.json",
+   "context": "c30",
+   "check": "put",
+   "code": "op_disabled",
+   "path": "/tracks/1/items/1"
+  },
+  {
+   "file": "invalid/op_disabled__text_track.json",
+   "context": "c30",
+   "check": "put",
+   "code": "op_disabled",
+   "path": "/tracks/1"
+  },
+  {
+   "file": "invalid/op_disabled__hook_design.json",
+   "context": "c30",
+   "check": "put",
+   "code": "op_disabled",
+   "path": "/tracks/0/items/0/payload/design"
+  },
+  {
+   "file": "invalid/op_disabled__duck_detector.json",
+   "context": "c30",
+   "check": "put",
+   "code": "op_disabled",
+   "path": "/tracks/1/items/0/payload/duck/detector"
+  },
+  {
+   "file": "invalid/op_disabled__layout_split.json",
+   "context": "c30",
+   "check": "put",
+   "code": "op_disabled",
+   "path": "/layout/default/mode"
+  },
+  {
+   "file": "invalid/op_disabled__removal_reason_gap_voiced.json",
+   "context": "c30",
+   "check": "put",
+   "code": "op_disabled",
+   "path": "/main/removals/0/reason"
+  },
+  {
+   "file": "invalid/op_disabled__case_lower.json",
+   "context": "c30",
+   "check": "put",
+   "code": "op_disabled",
+   "path": "/captions/overrides/case"
+  },
+  {
+   "file": "invalid/op_disabled__hook_start_offset.json",
+   "context": "c30",
+   "check": "put",
+   "code": "op_disabled",
+   "path": "/tracks/0/items/0/start"
+  },
+  {
+   "file": "invalid/op_disabled__insert_segment.json",
+   "context": "c25",
+   "check": "put",
+   "code": "op_disabled",
+   "path": "/main/segments/1/role"
+  },
+  {
+   "file": "invalid/op_disabled__logo_word_anchor.json",
+   "context": "c30",
+   "check": "put",
+   "code": "op_disabled",
+   "path": "/tracks/1/items/0/start"
+  },
+  {
+   "file": "invalid/item_out_of_frame__right.json",
+   "context": "c30",
+   "check": "put",
+   "code": "item_out_of_frame",
+   "path": "/tracks/1/items/0"
+  },
+  {
+   "file": "invalid/item_out_of_frame__top.json",
+   "context": "c30",
+   "check": "put",
+   "code": "item_out_of_frame",
+   "path": "/tracks/1/items/0"
+  },
+  {
+   "file": "invalid/revision_mismatch__skip.json",
+   "context": "c30",
+   "check": "put",
+   "code": "revision_mismatch",
+   "path": "/revision"
+  },
+  {
+   "file": "invalid/revision_mismatch__large.json",
+   "context": "c30",
+   "check": "put",
+   "code": "revision_mismatch",
+   "path": "/revision"
+  },
+  {
+   "file": "invalid/parent_mismatch__other_sha.json",
+   "context": "c30",
+   "check": "put",
+   "code": "parent_mismatch",
+   "path": "/parent_sha256"
+  },
+  {
+   "file": "invalid/parent_mismatch__null.json",
+   "context": "c30",
+   "check": "put",
+   "code": "parent_mismatch",
+   "path": "/parent_sha256"
+  }
+ ]
+}
