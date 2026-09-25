@@ -223,12 +223,15 @@ keputusan pemilik 2026-09-25). Spesifikasi lengkapnya ada di
 ### Cara mengisi
 
 - **Dashboard (mode V3):** "Cari momen tentang… (opsional)": ketik kata kunci lalu koma atau
-  Enter untuk menjadikannya chip; "Catatan untuk AI (opsional)": kalimat bebas, misalnya "momen
-  jomok yang lucu". Kosong berarti tanpa fokus, dan form tidak mengirim apa pun.
-- **Batas:** 1–8 kata kunci, masing-masing 2–40 karakter, tidak boleh kembar (huruf besar-kecil
-  dan aksen diabaikan; kata kunci kembar dibuang); catatan paling panjang 200 karakter dan hanya
-  boleh diisi bersama minimal satu kata kunci. Teks dirapikan seperti item tren (NFC, tanpa
-  karakter kontrol, bidi, atau zero-width; spasi dirapatkan).
+  Enter untuk menjadikannya chip (daftar yang ditempel, satu per baris, langsung menjadi chip);
+  "Catatan untuk AI (opsional)": kalimat bebas, misalnya "momen jomok yang lucu". Kosong berarti
+  tanpa fokus, dan form tidak mengirim apa pun. Chip yang tidak mungkin ditemukan langsung di
+  transkrip (lihat di bawah) diberi warna lain dan catatan "terlalu pendek atau terlalu umum".
+- **Batas:** 1–8 kata kunci, masing-masing 2–40 karakter, tidak boleh kembar (huruf besar-kecil,
+  aksen, dan tanda baca diabaikan: "jomok" dan "Jomok!", atau "k-pop" dan "K pop", adalah satu
+  kata kunci; yang kembar dibuang); catatan paling panjang 200 karakter dan hanya boleh diisi
+  bersama minimal satu kata kunci. Teks dirapikan seperti item tren (NFC, tanpa karakter
+  kontrol, bidi, atau zero-width; spasi dirapatkan).
 - **Job API:** field form `focusTerms` (dipisah koma atau baris baru) dan `focusNote`, hanya
   untuk `selectionMode: "v3"`; disimpan sebagai `options.focus = {terms, note?, mode: "prefer"}`.
 - **CLI:** `--focus-term TERM` (boleh diulang, maks 8) dan `--focus-note TEXT`, hanya bersama
@@ -266,39 +269,63 @@ sebagai pengganti `+`).
 
 - **"Menyebut 'jomok' · 12:34" (`literal`):** transkrip klip final sendiri menyebut kata
   kuncinya, apa pun sumber atau klaim klipnya. `12:34` adalah waktu sebutan pertama di dalam
-  klip, dihitung dari awal video sumber. Pencocokannya memakai mesin Konteks Tren (kata utuh,
-  tanpa beda huruf besar-kecil dan aksen, frasa harus berurutan; kata kunci kurang dari 3 huruf
-  atau kata umum tidak cocok sendirian), ditambah **imbuhan bahasa Indonesia** khusus untuk
-  kata kunci satu kata: satu awalan (`di-, ke-, se-, ber-, be-, per-, pe-, ter-, me-, mem-, men-,
-  meng-, meny-, peng-, pen-, pem-, peny-`), lalu kata kuncinya, lalu paling banyak satu akhiran
-  (`-an, -kan, -i, -in`), satu kata ganti (`-nya, -ku, -mu`), dan satu partikel (`-lah, -kah,
-  -pun, -tah`), termasuk konfiks dan pengulangan. Sisa kata setelah imbuhan dilepas harus persis
-  kata kuncinya; kata kunci kurang dari 4 huruf tidak memakai awalan. Contoh: "jomok" cocok dengan
-  "perjomokan", "jomoknya", "kejomok", "kejomokan", "jomok-jomok", tetapi tidak dengan "dramok"
-  atau "jomokers". Pencocokan Konteks Tren sendiri tidak berubah.
+  klip, dihitung dari awal video sumber, dan harus sebelum akhir klip. Pencocokannya memakai
+  mesin Konteks Tren (kata utuh, tanpa beda huruf besar-kecil dan aksen, frasa harus berurutan),
+  ditambah **imbuhan bahasa Indonesia** khusus untuk kata kunci satu kata: satu awalan (`di-,
+  ke-, se-, ber-, be-, per-, pe-, ter-, me-, mem-, men-, meng-, meny-, peng-, pen-, pem-,
+  peny-`), lalu kata kuncinya, lalu paling banyak satu akhiran (`-an, -kan, -i, -in`), satu kata
+  ganti (`-nya, -ku, -mu`), dan satu partikel (`-lah, -kah, -pun, -tah`), termasuk konfiks dan
+  pengulangan. Sisa kata setelah imbuhan dilepas harus persis kata kuncinya. Kata kunci pendek
+  gampang "tertangkap" di kata lain ("rap" di "rapi", "rang" di "perang"), jadi: kata kunci kurang
+  dari 4 huruf tidak memakai awalan, akhiran `-an, -kan, -i, -in` tanpa awalan butuh kata kunci
+  minimal 5 huruf (dengan awalan cukup 4: "perasaan" untuk "rasa"), sedangkan `-nya, -ku, -mu`
+  dan partikel boleh untuk semua ("bannya"). Kata umum yang tetap tampak seperti kata turunan
+  ("sekarang", "perang", "pandai", "masalah", "berubah" untuk "rubah", ...) ada di daftar
+  `FOCUS_WORD_ROOTS` di `src/ai_clipper/focus.py` dan tidak pernah dianggap turunan kata kunci
+  lain. Contoh: "jomok" cocok dengan "perjomokan", "jomoknya", "kejomok", "kejomokan",
+  "jomok-jomok", tetapi tidak dengan "dramok" atau "jomokers". Pencocokan Konteks Tren sendiri
+  tidak berubah.
+- **Kata kunci yang tidak mungkin cocok langsung:** kata kunci butuh satu kata minimal 3 huruf
+  yang bukan kata fungsi atau pengisi (`FOCUS_STOPWORDS`: "yang", "di", "sih", "wkwk", ...).
+  Kata sehari-hari yang di Konteks Tren dianggap terlalu umum ("tiktok", "uang", "kuliah",
+  "keluarga", "lucu", "netizen", "Indonesia") tetap dicari, karena pemilik sengaja memilihnya.
+  "AI", "5G", atau "apa aja" tidak pernah cocok sendirian: dashboard memberi catatan saat chip
+  dibuat, dan job mencatat `focus_terms_unmatchable:<n>`. Untuk kata kunci itu hanya pembacaan
+  model (`semantic`) yang berlaku; tanpa LLM kata kunci itu tidak berpengaruh.
 - **"Terkait 'jomok' (menurut AI)" (`semantic`):** klip AI yang tidak menyebut kata kuncinya,
   tetapi model menyatakan klip itu membahas fokus. Ini klaim model dan ditandai begitu. Klaim
   `literal` yang tidak terbukti di transkrip turun menjadi `semantic` dan dihitung
-  (`focus_literal_ungrounded:<n>`).
+  (`focus_literal_ungrounded:<n>`, hanya klip yang terpilih).
 - **"Di luar fokus" (`none`):** semua klip lain, termasuk klip heuristik yang tidak menyebut
   kata kuncinya.
 
 ### Urutan, kandidat tambahan, dan kemasan
 
-- **Urutan:** klip `literal` dulu, lalu `semantic`, lalu `none`; di dalam tiap kelompok urutan
-  kualitasnya sendiri tetap (klip AI dulu, lalu heuristik; dorongan Konteks Tren hanya di dalam
-  kelompok). **Skor dan kelima sub-skor tidak berubah.** Klip heuristik yang naik di atas klip AI
-  karena menyebut kata kunci mendapat alasan "Dari heuristik: menyebut fokus yang dicari."
-- **Kandidat tambahan:** kalau masih ada slot dan ada sebutan kata kunci yang belum tercakup
-  klip terpilih, pemilih heuristik mencari jendelanya sendiri di sekitar sebutan itu (di antara
-  klip `literal` yang sudah terpilih, tetap lewat snapping dan aturan durasi, tanpa tumpang
-  tindih). Jendela yang mencakup lebih banyak sebutan didahulukan.
-- **Kemasan:** hanya klip `literal` dan `semantic` yang boleh memakai tema fokus. Judul, teks
-  hook, dan deskripsi klip AI berlabel `none` yang menyebut kata kunci diganti dari isi klip itu
-  sendiri, dan hashtag-nya yang menyebut kata kunci dibuang (`focus_packaging_ungrounded:<n>`).
-- **Kalau semua slot terisi momen fokus heuristik,** job tetap `completed` (bukan cadangan),
-  dengan sumber `heuristic` walaupun model sudah menjawab; kode `focus_llm_outranked:<n>`
-  mencatatnya dan halaman proyek menjelaskannya ("Semua slot diisi momen yang menyebut fokus").
+- **Urutan:** klip AI tetap di depan klip heuristik; heuristik hanya mengisi slot yang tidak
+  diisi AI. Model sudah melihat baris yang menyebut kata kunci dan diminta mengusulkan semua
+  momen fokus yang layak, jadi momen yang tidak diusulkannya tidak menggeser pilihannya. Di
+  dalam klip AI, lalu di dalam klip heuristik: `literal` dulu, lalu `semantic`, lalu `none`, tiap
+  kelompok dengan urutan kualitasnya sendiri (dorongan Konteks Tren hanya di dalam kelompok).
+  **Skor dan kelima sub-skor tidak berubah.** Klip heuristik pengisi yang didahulukan karena
+  menyebut kata kunci mendapat alasan "Pengisi dari heuristik karena momen LLM kurang; menyebut
+  fokus yang dicari."
+- **Batas kualitas:** momen fokus hanya didahulukan kalau nilai peringkatnya paling banyak 1,0
+  poin (skala 0–10, `FOCUS_QUALITY_GAP`) di bawah klip terlemah yang akan dipilih sumbernya (AI
+  atau heuristik) tanpa fokus. Momen fokus yang jauh lebih lemah tidak didahulukan; kalau tetap
+  terpilih karena kualitasnya sendiri, labelnya tetap benar. Fokus menentukan urutan, bukan
+  alasan memilih momen yang lemah.
+- **Kandidat tambahan:** kalau masih ada slot yang boleh diisi (slot kosong atau slot klip
+  heuristik di luar fokus) dan ada sebutan kata kunci yang belum tercakup klip terpilih, pemilih
+  heuristik mencari jendelanya sendiri di sekitar sebutan itu (di antara klip yang tetap
+  terpilih, tetap lewat snapping, aturan durasi, dan batas kualitas, tanpa tumpang tindih).
+  Jendela yang mencakup lebih banyak sebutan didahulukan.
+- **Kemasan:** hanya klip `literal` dan `semantic` yang boleh memakai tema fokus, dan hanya klip
+  yang benar-benar menyebut kata kuncinya yang boleh mengutipnya. Judul, teks hook, dan deskripsi
+  klip AI berlabel `none`, atau yang mengaku `literal` tanpa menyebut kata kuncinya, diganti dari
+  isi klip itu sendiri bila menyebut kata kunci (`focus_packaging_ungrounded:<n>`). Hashtag klip
+  AI berlabel `none` yang menyebut kata kunci dibuang.
+- **Provenance:** selama ada klip AI yang terpilih, sumber, penyedia, model, dan versi prompt
+  (`…+focus.v1…`) tetap dari AI.
 
 ### Yang tercatat
 
@@ -306,22 +333,22 @@ sebagai pengganti `+`).
   "none", "terms": [...], "at": <detik video sumber atau null>}` (`at` hanya untuk `literal`).
 - Ringkasan job (`selection_v3.focus`): `{"terms": [...], "matched": n, "requested": k}`,
   ditampilkan sebagai "Fokus: jomok — n dari k klip cocok". `matched` dihitung dari klip yang
-  tersisa setelah dipotong ke panjang video; klip yang sebutan pertamanya terpotong di ujung
-  video tidak lagi `literal`.
+  tersisa setelah dipotong ke panjang video; klip yang sebutan pertamanya berada di atau
+  setelah akhir klip (terpotong di ujung video atau audio) tidak lagi `literal`.
 - Job tanpa fokus tidak punya kunci-kunci ini sama sekali.
 
 ### Kode peringatan fokus
 
 | Kode | Arti | Yang perlu dilakukan |
 |---|---|---|
+| `focus_terms_unmatchable:<n>` | n kata kunci terlalu pendek atau hanya kata fungsi, jadi tidak pernah cocok langsung | Ganti dengan kata yang benar-benar diucapkan, atau andalkan pembacaan AI |
 | `focus_few_matches:<n>` | Hanya n klip yang cocok (`literal` + `semantic`) dari k yang diminta; sisanya "Di luar fokus" | Normal kalau video memang jarang membahas fokusnya |
-| `focus_literal_ungrounded:<n>` | n momen AI mengaku menyebut kata kunci tetapi transkripnya tidak; labelnya diturunkan | Normal sesekali |
-| `focus_packaging_ungrounded:<n>` | n klip di luar fokus memakai kata kunci di judul, hook, atau deskripsi; teksnya diganti | Periksa judul klip itu sebelum diunggah |
-| `focus_llm_outranked:<n>` | Model menjawab, tetapi n momennya kalah prioritas dari momen fokus heuristik | Bukan kegagalan; bandingkan dengan job tanpa fokus bila kualitas terasa turun |
+| `focus_literal_ungrounded:<n>` | n klip AI terpilih mengaku menyebut kata kunci tetapi transkripnya tidak; labelnya diturunkan | Normal sesekali |
+| `focus_packaging_ungrounded:<n>` | n klip memakai kata kunci di judul, hook, atau deskripsi padahal tidak menyebutnya; teksnya diganti | Periksa judul klip itu sebelum diunggah |
 
-**Catatan kualitas.** Mode `prefer` menaruh setiap momen yang menyebut kata kunci di atas momen
-lain, termasuk momen AI yang lebih kuat. Di benchmark, jumlah trap di 10 besar naik (sapaan
-pembuka, teaser, atau kata kunci tanpa isi ikut terangkat). Hasil ukurnya ada di
+**Catatan kualitas.** Aturan urutan dan batas kualitas di atas adalah keputusan setelah review
+(2026-09-25): versi pertama menaruh setiap jendela heuristik yang menyebut kata kunci di atas
+momen AI yang lebih kuat, dan trap di 10 besar naik. Hasil ukur keduanya ada di
 `docs/evaluation/SELECTION_BENCHMARK.md`, bagian "Fokus klip".
 
 ## Mengubah standar dengan aman

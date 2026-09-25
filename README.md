@@ -201,9 +201,10 @@ hasilnya identik dengan sebelumnya.
 
 **English.** A V3 job may carry 1-8 focus terms and a note (`focusTerms`/`focusNote` form
 fields, `options.focus`, CLI `--focus-term`/`--focus-note`). Matching clips (literal, checked
-in code with Indonesian affixes; or semantic, the LLM's claim) rank first; each clip gets
-`focus: {match, terms, at}` and the summary `focus: {terms, matched, requested}`. Without
-focus terms every output is unchanged.
+in code with Indonesian affixes; or semantic, the LLM's claim) rank first within their source
+(LLM clips still lead; heuristic matches only fill slots the LLM leaves), unless they score
+well below the clips they would displace; each clip gets `focus: {match, terms, at}` and the
+summary `focus: {terms, matched, requested}`. Without focus terms every output is unchanged.
 
 ## What is real today
 

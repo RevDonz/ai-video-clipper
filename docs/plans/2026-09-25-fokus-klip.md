@@ -96,3 +96,30 @@ Prinsip:
   lucu") → klip teratas adalah momen jomok yang layak, label literal benar (termasuk
   kemunculan "perjomokan"/"jomoknya"), ringkasan "n dari k klip cocok", dan sisa slot berlabel
   "di luar fokus". Bandingkan dengan job yang sama tanpa fokus.
+
+## 5. Keputusan setelah review (2026-09-25, menunggu konfirmasi pemilik)
+
+Review adversarial menemukan label `literal` yang salah dan momen lemah yang terangkat. Yang
+diterapkan, dengan alasannya (hasil ukur di `docs/evaluation/SELECTION_BENCHMARK.md`, bagian
+"Fokus klip"):
+
+- **Imbuhan lebih ketat** (gerbang "0 label literal yang salah"): akhiran `-an, -kan, -i, -in`
+  tanpa awalan butuh istilah minimal 5 huruf (dengan awalan, konfiks, cukup 4); `-nya, -ku,
+  -mu` dan partikel boleh untuk semua istilah. Kata umum yang tetap tampak seperti turunan
+  ("sekarang", "perang", "pandai", "masalah", "berubah" untuk "rubah") ada di daftar
+  `FOCUS_WORD_ROOTS` dan tidak pernah dianggap turunan istilah lain.
+- **Stopword khusus fokus:** hanya kata fungsi dan pengisi dari daftar Konteks Tren. Topik
+  sehari-hari yang sengaja dipilih pemilik ("tiktok", "uang", "keluarga") tetap dicari. Istilah
+  yang tetap tidak mungkin cocok ("AI", "5G") diberi catatan di dashboard dan dicatat
+  `focus_terms_unmatchable:<n>`.
+- **Urutan mode `prefer`** (prinsip 3): partisi `literal`, `semantic`, `none` berlaku di dalam
+  tiap sumber. Klip AI tetap di depan; heuristik, termasuk kandidat tambahan di sekitar sebutan,
+  hanya mengisi slot yang tidak diisi AI (butir "Heuristik fallback"). Momen fokus hanya
+  didahulukan bila nilainya paling banyak `FOCUS_QUALITY_GAP` = 1,0 di bawah klip terlemah
+  pilihan sumbernya tanpa fokus. Gerbang 2 dibaca dengan "layak" = lolos durasi dan batas
+  kualitas, dan di run AI juga diusulkan model. `focus_llm_outranked` tidak lagi mungkin terjadi
+  dan dihapus; provenance tetap dari AI selama ada klip AI.
+- **Label dan kemasan:** sebutan harus mulai sebelum akhir klip untuk label `literal`; klaim
+  `literal` yang turun ke `semantic` tidak boleh mengutip istilah di judul, teks hook, atau
+  deskripsi; `focus_literal_ungrounded:<n>` menghitung klip terpilih saja.
+- **Istilah kembar:** istilah yang sama setelah tokenisasi ("jomok" dan "Jomok!") dianggap satu.
