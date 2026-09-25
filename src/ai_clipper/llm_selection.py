@@ -77,8 +77,9 @@ warns. :attr:`LLMSelectionOutcome.rank_values` holds the value each proposal was
 **Konteks Tren** (``trends``, at most :data:`MAX_PROMPT_TRENDS` items, normally the episode's
 :func:`ai_clipper.trend_context.relevant_trends`): only then, every propose request (chunks and
 the retry, never the rerank) ends with the fenced block of :func:`render_trend_block` after a
-blank line; the system prompt never changes. Item text is data: quotes become ``'``, runs of
-``<``/``>`` and line breaks are removed, ``|`` becomes ``/``, and each item line is cut at
+blank line; the system prompt never changes. Item text is data: it is NFKC-normalised (so
+look-alikes such as ``＞`` count as ``>``), quotes become ``'``, runs of ``<``/``>`` and line
+breaks are removed, ``|`` becomes ``/``, and each item line is cut at
 :data:`TREND_LINE_CHARS` characters. Moments may name trends in ``"trend_refs"``
 (``["T1", ...]``; ``t1``, ``1`` and ``"T1, T2"`` are accepted); they become
 ``ClipProposal.trend_refs`` unchecked, and the caller keeps only the refs the clip's transcript
@@ -653,8 +654,12 @@ def _check_trends(trends: object) -> tuple[TrendItem, ...]:
 
 
 def _trend_field(text: str) -> str:
-    """Trend text as inert data on one line: no fence, field separator or double quote."""
-    text = _ANGLE_RUN.sub("", " ".join(text.split()))
+    """Trend text as inert data on one line: no fence, field separator or double quote.
+
+    NFKC first, so fullwidth or small look-alikes (``＞``, ``﹤``, ``｜``, ``＂``) are escaped
+    like the ASCII characters they imitate.
+    """
+    text = _ANGLE_RUN.sub("", " ".join(unicodedata.normalize("NFKC", text).split()))
     return " ".join(text.replace('"', "'").replace("|", "/").split())
 
 

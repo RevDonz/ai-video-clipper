@@ -66,9 +66,12 @@ const HASHTAG = /^#[\p{L}\p{N}_]{1,50}$/u;
 const REGION = /^[A-Za-z]{2}$/;
 const STORED_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 const INPUT_INSTANT = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,9}))?)?(Z|[+-]\d{2}:\d{2}))?$/;
-// Controls (Cc) and format characters (Cf): bidi overrides and isolates, zero-width
-// characters, BOM, soft hyphen. Line breaks are turned into spaces or \n before this runs.
-const INVISIBLE = /[\p{Cc}\p{Cf}]/gu;
+// Controls (Cc), format characters (Cf: bidi overrides and isolates, zero-width characters,
+// BOM, soft hyphen, tag characters) and every other default-ignorable code point (variation
+// selectors, Hangul fillers, the combining grapheme joiner): text nobody sees on /trends must
+// not reach the LLM either. Line breaks are turned into spaces or \n before this runs. The
+// engine (src/ai_clipper/trend_context.py) strips at least the same set.
+const INVISIBLE = /[\p{Cc}\p{Cf}\p{Default_Ignorable_Code_Point}]/gu;
 const LINE_BREAK = /\r\n|[\r\n\v\f\u0085\u2028\u2029]/g;
 
 const INPUT_FIELDS = new Set([
