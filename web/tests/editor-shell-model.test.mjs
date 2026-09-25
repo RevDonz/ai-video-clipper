@@ -9,15 +9,19 @@ import { fileURLToPath } from "node:url";
 import { fakeDoc, fakePlan } from "../components/editor/__dev__/fakes.mjs";
 import {
   BADGE_HELP,
+  LIVE_WAVES,
   MESSAGES,
+  badgeHelp,
   badgeView,
   checksView,
   contentEqualsSeed,
   editorPageMode,
   exportMatchesSeed,
+  exportRevision,
   formatClock,
   formatSeconds,
   frameToMs,
+  liveEntries,
   messageFor,
   noticesView,
   rejectionText,
@@ -217,4 +221,38 @@ test("page ids are validated before anything runs", () => {
   assert.equal(validEditorIds("../etc", "clip_9b2e41c07d3a5f18e6c2a0b4"), false);
   assert.equal(validEditorIds("8f0c2a1e-5b7d-4c3a-9e21-6d4f0b8a7c55", "clip_9b2e41c07d3a5f18e6c2a0b"), false);
   assert.equal(validEditorIds(undefined, undefined), false);
+});
+
+test("the export dialog names the saved revision, not the loaded document's (W2 verifier)", () => {
+  // the real store keeps the loaded document's revision in `doc` and the saved one in `revision`
+  assert.equal(exportRevision({ revision: 3, doc: { revision: 0 } }), 3);
+  assert.equal(exportRevision({ revision: null, doc: { revision: 2 } }), 2);
+  assert.equal(exportRevision({ doc: null }), 0);
+  assert.equal(exportRevision(null), 0);
+});
+
+test("the badge help explains the badge it belongs to (§6.1, W2 verifier)", () => {
+  assert.equal(badgeHelp({ tone: "exact" }), BADGE_HELP);
+  const pending = badgeHelp({ tone: "pending" });
+  assert.notEqual(pending, BADGE_HELP);
+  assert.match(pending, /belum/);
+  assert.doesNotMatch(pending, /^Frame, teks, logo dan audio sama dengan hasil akhir/);
+  const legacy = badgeHelp({ tone: "legacy" });
+  assert.match(legacy, /mesin lama/);
+  assert.match(legacy, /file klip otomatis/);
+  assert.doesNotMatch(legacy, /^Frame, teks, logo dan audio sama dengan hasil akhir/);
+  assert.match(badgeHelp({ tone: "truth" }), /Frame akhir/);
+  for (const tone of ["loading", "unsupported"]) {
+    assert.equal(typeof badgeHelp({ tone }), "string");
+    assert.notEqual(badgeHelp({ tone }), BADGE_HELP);
+  }
+  assert.notEqual(badgeHelp(null), BADGE_HELP);
+});
+
+test("panels and lanes of a wave that has not landed are hidden in the app, shown on the fakes", () => {
+  const entries = [{ id: "a", wave: "W2" }, { id: "b", wave: "W3" }, { id: "c", wave: "W2" }];
+  assert.deepEqual([...LIVE_WAVES], ["W1", "W2"]);
+  assert.deepEqual(liveEntries(entries, "real").map((entry) => entry.id), ["a", "c"]);
+  assert.deepEqual(liveEntries(entries, "fake").map((entry) => entry.id), ["a", "b", "c"]);
+  assert.deepEqual(liveEntries(entries, "real", ["W2", "W3"]).map((entry) => entry.id), ["a", "b", "c"]);
 });
