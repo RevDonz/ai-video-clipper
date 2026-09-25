@@ -55,9 +55,6 @@ const TEXT_AHEAD = 4;
 // a seek elsewhere stops that work at once (plate-source need({ exclusive })).
 const PAUSED_LOOKAHEAD_MS = 300;
 
-function defaultCloneBitmap(bitmap) {
-  return typeof globalThis.createImageBitmap === "function" ? globalThis.createImageBitmap(bitmap) : bitmap;
-}
 
 function defaultSupports() {
   const g = globalThis;
@@ -126,7 +123,6 @@ export function createPlayer({
     now: defaultNow,
     supports: defaultSupports,
     createImageBitmap: (blob, options) => globalThis.createImageBitmap(blob, options),
-    cloneBitmap: defaultCloneBitmap,
     ...deps,
   };
   const live = Boolean(d.supports().live);
@@ -160,9 +156,10 @@ export function createPlayer({
   const seekLog = []; // the last 256 paused presentations: plate and text times (diagnostics)
 
   // Text layer state. Every render goes through one chain (the layer compares each frame with
-  // the one rendered before it); rendered frames are kept as entries { sha, bitmap, x, y } with
-  // the player's own copy of the bitmap, so playback can render TEXT_AHEAD frames ahead (the
-  // adapter keeps only its last bitmap). An unchanged frame shares the previous frame's entry.
+  // the one rendered before it); rendered frames are kept as entries { sha, parts: [{ bitmap,
+  // x, y }] } (split: one bitmap per band of text rows). The player owns every bitmap, so
+  // playback can render TEXT_AHEAD frames ahead; an unchanged frame shares the previous frame's
+  // entry.
   let textLayer = null;
   let textKey = null;
   let loadedFonts = [];
@@ -270,7 +267,7 @@ export function createPlayer({
     const alive = new Set(textEntries.values());
     if (lastText) alive.add(lastText);
     for (const entry of entries) {
-      if (!alive.has(entry)) entry.bitmap?.close?.();
+      if (!alive.has(entry)) for (const part of entry.parts) part.bitmap?.close?.();
     }
   }
 
@@ -312,8 +309,9 @@ export function createPlayer({
       recordText(reply);
       let entry = lastText;
       if (reply.changed || !entry || entry.sha !== sha) {
-        const bitmap = reply.bitmap ? await d.cloneBitmap(reply.bitmap) : null;
-        entry = { sha, bitmap, x: reply.x ?? 0, y: reply.y ?? 0 };
+        // One bitmap per band of text rows (split), or a single layer.
+        const parts = reply.parts ?? (reply.bitmap ? [{ bitmap: reply.bitmap, x: reply.x ?? 0, y: reply.y ?? 0 }] : []);
+        entry = { sha, parts };
       }
       const previous = lastText;
       lastText = entry;
@@ -367,7 +365,7 @@ export function createPlayer({
       const old = textLayer;
       const layer = d.createTextLayer({
         width: dto.output.w, height: dto.output.h, fps: dto.fps, jassubUrl, fonts: list,
-        fallbackFamily: FALLBACK_FAMILY,
+        fallbackFamily: FALLBACK_FAMILY, keepBitmaps: true, split: true,
       });
       textLayer = layer;
       textKey = key;
@@ -408,7 +406,7 @@ export function createPlayer({
     c.globalCompositeOperation = "copy";
     c.drawImage(bitmap, 0, 0);
     c.globalCompositeOperation = "source-over";
-    if (textAt?.bitmap) c.drawImage(textAt.bitmap, textAt.x, textAt.y);
+    for (const part of textAt?.parts ?? []) c.drawImage(part.bitmap, part.x, part.y);
     logo.draw(c);
     shown = { planSha: plan.planSha256, frame: n };
     truthShown = null;
@@ -651,6 +649,8 @@ export function createPlayer({
       video.currentTime = target;
       ok = await waited;
     }
+    // A media resource served without byte ranges is not seekable: currentTime falls back.
+    if (Math.abs(video.currentTime - target) * fps[0] > 0.5 * fps[1]) ok = false;
     if (token !== seekToken) return superseded(n);
     shown = null;
     presenter.invalidate();

@@ -58,10 +58,13 @@ export function jassubRenderMs(seconds) {
 export const WORKER_SOURCE = String.raw`
 "use strict";
 
-// libass images → one straight-alpha RGBA layer over the bounding box of the covered pixels.
-// Images are composited in libass order (shadow, border, fill) with the "over" operator in
-// premultiplied floating point; alpha = (255 − colour alpha) · mask / 255².
-function compositeImages(images, heap, width, height) {
+// libass images → straight-alpha RGBA over the bounding box of the covered pixels, as bands of
+// rows: images whose rows overlap form one band. Images are composited in libass order
+// (shadow, border, fill) with the "over" operator in premultiplied floating point;
+// alpha = (255 − colour alpha) · mask / 255². Images in different bands share no pixel, so
+// compositing band by band gives the same bytes as one pass over the whole box, while the
+// empty rows between the hook and the captions cost nothing (T2.4, PF-LIBASS).
+function compositeBands(images, heap, width, height) {
   let x0 = width, y0 = height, x1 = 0, y1 = 0;
   const parts = [];
   for (const img of images) {
@@ -71,49 +74,79 @@ function compositeImages(images, heap, width, height) {
     if (opacity === 0 || ix1 <= ix0 || iy1 <= iy0) continue;
     let covered = false;
     for (let y = iy0; y < iy1; y++) {
+      // The row's first and last covered pixel, scanning in from both ends (the same box as a
+      // test of every pixel, with far fewer reads).
       const row = img.bitmap + (y - img.dst_y) * img.stride - img.dst_x;
-      for (let x = ix0; x < ix1; x++) {
-        if (heap[row + x] !== 0) {
-          covered = true;
-          if (x < x0) x0 = x;
-          if (x >= x1) x1 = x + 1;
-          if (y < y0) y0 = y;
-          if (y >= y1) y1 = y + 1;
-        }
-      }
+      let first = ix0;
+      while (first < ix1 && heap[row + first] === 0) first++;
+      if (first === ix1) continue;
+      let last = ix1 - 1;
+      while (heap[row + last] === 0) last--;
+      covered = true;
+      if (first < x0) x0 = first;
+      if (last >= x1) x1 = last + 1;
+      if (y < y0) y0 = y;
+      if (y >= y1) y1 = y + 1;
     }
     if (covered) parts.push({ img, opacity, ix0, iy0, ix1, iy1 });
   }
   if (!parts.length) return null;
   const w = x1 - x0, h = y1 - y0;
-  const acc = new Float32Array(w * h * 4);
-  for (const { img, opacity, ix0, iy0, ix1, iy1 } of parts) {
-    const r = (img.color >>> 24) & 255, g = (img.color >>> 16) & 255, b = (img.color >>> 8) & 255;
-    const scale = opacity / 65025;
-    for (let y = iy0; y < iy1; y++) {
-      const row = img.bitmap + (y - img.dst_y) * img.stride - img.dst_x;
-      let o = ((y - y0) * w + (ix0 - x0)) * 4;
-      for (let x = ix0; x < ix1; x++, o += 4) {
-        const m = heap[row + x];
-        if (m === 0) continue;
-        const a = m * scale, keep = 1 - a;
-        acc[o] = r * a + acc[o] * keep;
-        acc[o + 1] = g * a + acc[o + 1] * keep;
-        acc[o + 2] = b * a + acc[o + 2] * keep;
-        acc[o + 3] = a + acc[o + 3] * keep;
-      }
+  const spans = parts.map((part, index) => ({ part, index, top: Math.max(part.iy0, y0), bottom: Math.min(part.iy1, y1) }))
+    .sort((a, b) => a.top - b.top || a.index - b.index);
+  let band = null;
+  const bands = [];
+  for (const span of spans) {
+    if (band && span.top < band.bottom) {
+      band.members.push(span);
+      if (span.bottom > band.bottom) band.bottom = span.bottom;
+    } else {
+      band = { top: span.top, bottom: span.bottom, members: [span] };
+      bands.push(band);
     }
   }
-  const rgba = new Uint8ClampedArray(w * h * 4);
-  for (let o = 0; o < rgba.length; o += 4) {
-    const alpha = acc[o + 3];
-    if (alpha <= 0) continue;
-    rgba[o] = Math.round(acc[o] / alpha);
-    rgba[o + 1] = Math.round(acc[o + 1] / alpha);
-    rgba[o + 2] = Math.round(acc[o + 2] / alpha);
-    rgba[o + 3] = Math.round(alpha * 255);
+  const out = [];
+  for (const { top, bottom, members } of bands) {
+    members.sort((a, b) => a.index - b.index);
+    const acc = new Float32Array((bottom - top) * w * 4);
+    for (const { part: { img, opacity, ix0, iy0, ix1, iy1 } } of members) {
+      const r = (img.color >>> 24) & 255, g = (img.color >>> 16) & 255, b = (img.color >>> 8) & 255;
+      const scale = opacity / 65025;
+      for (let y = Math.max(iy0, top); y < Math.min(iy1, bottom); y++) {
+        const row = img.bitmap + (y - img.dst_y) * img.stride - img.dst_x;
+        let o = ((y - top) * w + (ix0 - x0)) * 4;
+        for (let x = ix0; x < ix1; x++, o += 4) {
+          const m = heap[row + x];
+          if (m === 0) continue;
+          const a = m * scale, keep = 1 - a;
+          acc[o] = r * a + acc[o] * keep;
+          acc[o + 1] = g * a + acc[o + 1] * keep;
+          acc[o + 2] = b * a + acc[o + 2] * keep;
+          acc[o + 3] = a + acc[o + 3] * keep;
+        }
+      }
+    }
+    const rgba = new Uint8ClampedArray(acc.length);
+    for (let o = 0; o < acc.length; o += 4) {
+      const alpha = acc[o + 3];
+      if (alpha <= 0) continue;
+      rgba[o] = Math.round(acc[o] / alpha);
+      rgba[o + 1] = Math.round(acc[o + 1] / alpha);
+      rgba[o + 2] = Math.round(acc[o + 2] / alpha);
+      rgba[o + 3] = Math.round(alpha * 255);
+    }
+    out.push({ top, bottom, rgba });
   }
-  return { x: x0, y: y0, w, h, rgba };
+  return { x: x0, y: y0, w, h, bands: out };
+}
+
+// The whole box as one layer (the W1 output: the bands' rows, the rows between them empty).
+function compositeImages(images, heap, width, height) {
+  const layer = compositeBands(images, heap, width, height);
+  if (!layer) return null;
+  const rgba = new Uint8ClampedArray(layer.w * layer.h * 4);
+  for (const band of layer.bands) rgba.set(band.rgba, (band.top - layer.y) * layer.w * 4);
+  return { x: layer.x, y: layer.y, w: layer.w, h: layer.h, rgba };
 }
 
 // Coverage per RGB colour: covered pixel count, the libass alpha range and the pixel box.
@@ -195,6 +228,20 @@ async function textLayerWorker(scope) {
       const heap = scope.HEAPU8RAW;
       const summary = args.summary ? summarizeImages(images, heap) : null;
       if (args.bitmap === false) return { changed: true, libassMs, summary };
+      if (args.split) {
+        // One bitmap per band (the rows between the hook and the captions are never built).
+        const banded = compositeBands(images, heap, width, height);
+        const parts = [];
+        for (const band of banded ? banded.bands : []) {
+          const h = band.bottom - band.top;
+          const bitmap = await createImageBitmap(new ImageData(band.rgba, banded.w, h), {
+            premultiplyAlpha: "premultiply", colorSpaceConversion: "none",
+          });
+          parts.push({ bitmap, x: banded.x, y: band.top, w: banded.w, h });
+        }
+        return { changed: true, libassMs, summary, parts, totalMs: performance.now() - started,
+          transfer: parts.map((part) => part.bitmap) };
+      }
       const layer = compositeImages(images, heap, width, height);
       if (!layer) return { changed: true, libassMs, summary, bitmap: null, x: 0, y: 0, w: 0, h: 0 };
       const bitmap = await createImageBitmap(new ImageData(layer.rgba, layer.w, layer.h), {
@@ -229,7 +276,7 @@ if (typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScop
 // The worker's pure helpers, evaluated from the exact worker text (for tests and tools).
 export function workerHelpers() {
   // eslint-disable-next-line no-new-func
-  return new Function(`${WORKER_SOURCE}\nreturn { compositeImages, summarizeImages };`)();
+  return new Function(`${WORKER_SOURCE}\nreturn { compositeBands, compositeImages, summarizeImages };`)();
 }
 
 function defaultWorkerFactory(source) {
@@ -240,19 +287,25 @@ function defaultWorkerFactory(source) {
 }
 
 /**
- * createTextLayer({ width, height, fps, jassubUrl, fonts, fallbackFamily, workerFactory })
+ * createTextLayer({ width, height, fps, jassubUrl, fonts, fallbackFamily, workerFactory,
+ *   keepBitmaps, split })
  * → { ready, setTrack(ass), render(n), probe(n), logs(), destroy() }
  *
  * render(n) resolves to { frame, changed, bitmap, x, y, w, h, libassMs, totalMs }: draw with
  * ctx.drawImage(bitmap, x, y) (bitmap is null when nothing is visible). The layer owns the
- * bitmaps: the previous one is closed when libass produces a new one.
+ * bitmaps: the previous one is closed when libass produces a new one. With keepBitmaps (the
+ * player, which renders frames ahead of the one on screen) the caller owns every bitmap and
+ * closes it; the layer never does. With split (which implies keepBitmaps) render(n) resolves to
+ * { frame, changed, parts: [{ bitmap, x, y, w, h }], … }, one bitmap per band of rows: the same
+ * pixels as the single layer, whose rows between the bands are empty, at a fraction of the cost.
  * probe(n) returns libass's coverage summary for frame n without building a bitmap.
  * Calls are serialised; setTrack swaps the ASS between frames and forces the next render.
  */
 export function createTextLayer({
   width, height, fps, jassubUrl, fonts = [], fallbackFamily = DEFAULT_FALLBACK_FAMILY,
-  workerFactory = defaultWorkerFactory,
+  workerFactory = defaultWorkerFactory, keepBitmaps = false, split = false,
 }) {
+  const ownsBitmaps = !keepBitmaps && !split;
   if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width <= 0 || height <= 0) {
     throw new TypeError("width and height must be positive integers");
   }
@@ -320,12 +373,14 @@ export function createTextLayer({
     },
     async render(n) {
       const force = forceNext;
-      const reply = await call("render", { seconds: libassSeconds(n, fps), force, summary: false });
+      const reply = await call("render", { seconds: libassSeconds(n, fps), force, summary: false, split });
       forceNext = false;
-      if (reply.changed) {
+      if (reply.changed && split) {
+        last = { parts: reply.parts ?? [] };
+      } else if (reply.changed) {
         const previous = last.bitmap;
         last = { bitmap: reply.bitmap ?? null, x: reply.x ?? 0, y: reply.y ?? 0, w: reply.w ?? 0, h: reply.h ?? 0 };
-        if (previous && previous !== last.bitmap && typeof previous.close === "function") previous.close();
+        if (ownsBitmaps && previous && previous !== last.bitmap && typeof previous.close === "function") previous.close();
       }
       return { frame: n, changed: reply.changed, ...last, libassMs: reply.libassMs, totalMs: reply.totalMs ?? reply.libassMs };
     },
@@ -341,7 +396,7 @@ export function createTextLayer({
     destroy() {
       if (destroyed) return;
       destroyed = true;
-      if (last.bitmap && typeof last.bitmap.close === "function") last.bitmap.close();
+      if (ownsBitmaps && last.bitmap && typeof last.bitmap.close === "function") last.bitmap.close();
       last = { bitmap: null, x: 0, y: 0, w: 0, h: 0 };
       for (const entry of pending.values()) entry.reject(new Error("text layer destroyed"));
       pending.clear();

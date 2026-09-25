@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  MAX_MIX_LENGTH_DELTA,
   MIX_SAMPLE_RATE,
   createAudioClock,
   createWallClock,
@@ -97,13 +98,21 @@ test("the mix is decoded in a 48 kHz context and checked against the plan's samp
   assert.deepEqual(calls, ["/mix.flac"]);
 });
 
-test("a mix that would be resampled or has the wrong length is refused", async () => {
+test("a mix that would be resampled or is far from the plan's length is refused", async () => {
   const resampled = createAudioClock({ fetchImpl: fetchBytes([]), AudioContextImpl: fakeAudioContext({ decodedRate: 44100 }) });
   await assert.rejects(resampled.load({ mixSha256: "m1", state: "ready", url: "/a.flac", samples: 4800 }), /48000/);
   assert.equal(resampled.ready, false);
-  const short = createAudioClock({ fetchImpl: fetchBytes([]), AudioContextImpl: fakeAudioContext({ decodedLength: 4799 }) });
-  await assert.rejects(short.load({ mixSha256: "m1", state: "ready", url: "/a.flac", samples: 4800 }), /4800/);
+  const short = createAudioClock({ fetchImpl: fetchBytes([]), AudioContextImpl: fakeAudioContext({ decodedLength: 4800 }) });
+  await assert.rejects(short.load({ mixSha256: "m1", state: "ready", url: "/a.flac", samples: 4800 + MAX_MIX_LENGTH_DELTA + 1 }), /samples/);
   assert.equal(short.ready, false);
+});
+
+test("a mix within G2's tolerance of the plan's length plays, and the delta is reported", async () => {
+  assert.equal(MAX_MIX_LENGTH_DELTA, 1024);
+  const clock = createAudioClock({ fetchImpl: fetchBytes([]), AudioContextImpl: fakeAudioContext({ decodedLength: 975_992 }) });
+  await clock.load({ mixSha256: "m1", state: "ready", url: "/a.flac", samples: 976_000 });
+  assert.equal(clock.ready, true);
+  assert.equal(clock.lengthDelta, -8);
 });
 
 test("a mix that is not ready yet leaves the clock without audio", async () => {

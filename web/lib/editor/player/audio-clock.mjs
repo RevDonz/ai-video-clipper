@@ -16,6 +16,10 @@
 import { smp } from "./frame-map.mjs";
 
 export const MIX_SAMPLE_RATE = 48_000;
+// A mix whose length differs from the plan's `audio.samples` by more than G2's tolerance
+// (plan §5.9: samples == plan.samples ± 1,024) is refused; within it, it plays and the delta is
+// reported (the VFR barcode source of the W2 fixtures mixes 8 samples short).
+export const MAX_MIX_LENGTH_DELTA = 1024;
 const START_LEAD_S = 0.05; // schedule the start slightly ahead so it is sample-exact
 
 /**
@@ -45,6 +49,7 @@ export function createAudioClock({
   let source = null;
   let startWhen = 0;
   let startOffset = 0;
+  let lengthDelta = 0;
   let destroyed = false;
 
   function ensureContext() {
@@ -64,7 +69,7 @@ export function createAudioClock({
     if (decoded.sampleRate !== MIX_SAMPLE_RATE || ctx.sampleRate !== MIX_SAMPLE_RATE) {
       throw new Error(`audio_resampled: the mix must decode at ${MIX_SAMPLE_RATE} Hz (got ${decoded.sampleRate})`);
     }
-    if (Number.isInteger(dto.samples) && decoded.length !== dto.samples) {
+    if (Number.isInteger(dto.samples) && Math.abs(decoded.length - dto.samples) > MAX_MIX_LENGTH_DELTA) {
       throw new Error(`audio_length: ${decoded.length} samples, the plan has ${dto.samples}`);
     }
     return decoded;
@@ -85,6 +90,10 @@ export function createAudioClock({
     },
     get startInfo() {
       return source ? { when: startWhen, offset: startOffset } : null;
+    },
+    /** Decoded mix length minus the plan's `audio.samples` (0 when they agree). */
+    get lengthDelta() {
+      return lengthDelta;
     },
     /** Loads (fetch + decode) the plan's mix; a mix that is not ready leaves the clock silent. */
     async load(dto) {
@@ -108,6 +117,7 @@ export function createAudioClock({
         clock.stop();
         buffer = decoded;
         mixSha256 = dto.mixSha256;
+        lengthDelta = Number.isInteger(dto.samples) ? decoded.length - dto.samples : 0;
       } catch (error) {
         if (loading?.promise === promise) {
           buffer = null;
