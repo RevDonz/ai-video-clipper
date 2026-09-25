@@ -538,6 +538,13 @@ def _plate_cells(compiler: _Compiler, cells: Sequence[int]) -> FfmpegJob:
     full = tm.sf_floor(duration_ms, fps)
     if wanted[-1] * size >= first_missing:
         raise ValueError("cell beyond the end of the source")
+    # The first source-grid frame of the document's window. The seed keeps the window inside the
+    # frames that exist (a video starting at 0.041 s has no grid frame 0), so a cell that starts
+    # below it decodes from it and repeats it for the frames below: frame i of cell k stays grid
+    # frame k·C + i for every frame the document can show (none below the window).
+    low = tm.sf_floor(plan.doc["base"]["window_ms"][0], fps)
+    if (wanted[0] + 1) * size <= low:
+        raise ValueError("cell before the document's window")
     runs: list[list[int]] = []
     for k in wanted:
         if runs and runs[-1][-1] == k - 1:
@@ -547,10 +554,12 @@ def _plate_cells(compiler: _Compiler, cells: Sequence[int]) -> FfmpegJob:
     outputs: list[str] = []
     for r, run in enumerate(runs):
         in_sf, out_sf = run[0] * size, (run[-1] + 1) * size
-        k = compiler.source_input(in_sf)
+        start = max(in_sf, low)
+        k = compiler.source_input(start)
         compiler.graph.append(compiler.trim(f"[{k}:{compiler.streams.video_index}]",
-                                            in_sf, out_sf, 0, f"[pt{r}]"))
-        compiler.graph.append(compiler.layout(f"[pt{r}]settb={fps.den}/{fps.num},",
+                                            start, out_sf, 0, f"[pt{r}]"))
+        pad = f"tpad=start={start - in_sf}:start_mode=clone," if start > in_sf else ""
+        compiler.graph.append(compiler.layout(f"[pt{r}]{pad}settb={fps.den}/{fps.num},",
                                               [(in_sf, out_sf)], f"[pl{r}]", suffix=f"_{r}"))
         # The same conversions as the final picture without text and logo (R5): with the gbrp
         # composite the final's video passes through planar RGB, which clips the few YUV values
