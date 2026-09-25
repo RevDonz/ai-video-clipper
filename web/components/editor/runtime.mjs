@@ -82,20 +82,35 @@ export function createFrameBus() {
 /**
  * The player as panels and lanes see it (the `player` prop of panels/index.mjs and
  * timeline/lanes.mjs): the createPlayer methods, safe to call before the player exists, plus
- * `subscribeFrame(fn)` and `frame()` from the frame bus.
+ * `subscribeFrame(fn)` and `frame()` from the frame bus. A failing call goes to `onError` (the
+ * shell shows it) instead of becoming an unhandled rejection in a click handler.
  */
-export function createPlayerFacade(bus) {
+export function createPlayerFacade(bus, { onError = () => {} } = {}) {
   let player = null;
+  const guard = async (action, run) => {
+    if (!player) return;
+    try {
+      await run(player);
+    } catch (error) {
+      onError(error, action);
+    }
+  };
   return {
     attach(next) { player = next; },
     detach() { player = null; },
     get attached() { return Boolean(player); },
-    load(plan) { player?.load(plan); },
-    async play() { if (player) await player.play(); },
+    load(plan) {
+      try {
+        player?.load(plan);
+      } catch (error) {
+        onError(error, "load");
+      }
+    },
+    play: () => guard("play", (target) => target.play()),
     pause() { player?.pause(); },
-    async seek(frame) { if (player) await player.seek(frame); },
-    async step(delta) { if (player) await player.step(delta); },
-    async showTruthFrame(frame) { if (player) await player.showTruthFrame(frame); },
+    seek: (frame) => guard("seek", (target) => target.seek(frame)),
+    step: (delta) => guard("step", (target) => target.step(delta)),
+    showTruthFrame: (frame) => guard("showTruthFrame", (target) => target.showTruthFrame(frame)),
     state() { return player ? player.state() : null; },
     frame: () => bus.get(),
     subscribeFrame: (listener) => bus.subscribe(listener),
