@@ -275,6 +275,92 @@ Temuan:
   keduanya gold, G6 dan G12), sehingga Hits@10 naik dari 6 ke 8, dan trap tetap 0. Satu episode
   belum cukup untuk menyimpulkan efeknya secara umum.
 
+## Fokus klip (2026-09-25)
+
+Mengukur Fokus klip (`focus.py`, blok FOKUS PENGGUNA di `llm_selection.py`, label dan urutan di
+`selection_v3.py`; aturannya di `docs/operations/STANDAR_KLIP_AI.md`, bagian "Fokus klip").
+Setup sama dengan Konteks Tren: K=10, durasi 20–90 detik, `yt/transcript.json`, sound events,
+timeline audio. Pemutaran ulang memakai cache Hermes lama tanpa jaringan; model sungguhan hanya
+rantai gratis. Skrip pengukurnya sementara (scratchpad, tidak di-commit).
+
+**Gerbang 1: tanpa fokus hasilnya identik** (dibandingkan dengan kode dasar `54a360a`):
+
+| Run | Hasil |
+|---|---|
+| `v3-heuristic`, 7 episode | 7/7 identik byte demi byte |
+| Cache Hermes diputar ulang, 5 episode | 5/5 identik, termasuk sha256 setiap permintaan |
+| Hanya tren (tanpa fokus), 2 episode, heuristik dan putar ulang | identik |
+| sha256 permintaan 4 skenario fixture, dengan dan tanpa tren | sama dengan `54a360a` (dikunci di test unit) |
+| E2E `rBg0ZcwjVKQ`, heuristik dan permintaan usulan pertama | identik (lihat E2E di bawah) |
+
+**Gerbang 2: fokus sintetis yang benar-benar diucapkan** (satu istilah per episode; `L/S/N` =
+jumlah klip `literal`/`semantic`/`none` di 10 besar; gold = Hits@5, Hits@10, Trap@10 sebelum →
+sesudah):
+
+| Episode | Istilah | Run | Unit yang menyebut | L/S/N | Label literal salah | Momen sama dengan tanpa fokus | Hits@5 | Hits@10 | Trap@10 |
+|---|---|---|---|---|---|---|---|---|---|
+| `0dzvz9JZFIM` | kasus | heuristik | 12 | 7/0/3 | 0 | 4/10 | 3 → 2 | 5 → 4 | 0 → 0 |
+| `0K37SYfox7M` | whatsapp, grup wa | heuristik | 10 | 4/0/6 | 0 | 7/10 | 4 → 4 | 4 → 5 | 2 → 2 |
+| `0K37SYfox7M` | whatsapp, grup wa | putar ulang | 10 | 4/0/6 | 0 | 6/10 | 3 → 4 | 4 → 6 | 0 → 0 |
+| `DwTmRFyQ53E` | medsos, akun anonim | heuristik | 7 | 6/0/4 | 0 | 5/10 | 4 → 3 | 4 → 7 | 1 → 1 |
+| `DwTmRFyQ53E` | medsos, akun anonim | putar ulang | 7 | 6/0/4 | 0 | 7/10 | 3 → 4 | 7 → 6 | 0 → 0 |
+| `FxQDATkYHtk` | politik | heuristik | 17 | 10/0/0 | 0 | 0/10 | 0 → 3 | 0 → 4 | 1 → 2 |
+| `FxQDATkYHtk` | politik | putar ulang | 17 | 10/0/0 | 0 | 2/10 | 2 → 2 | 3 → 3 | 0 → 2 |
+| `Ive926sC6mc` | copet | heuristik | 41 | 10/0/0 | 0 | 3/10 | 3 → 2 | 5 → 3 | 1 → 1 |
+| `rBg0ZcwjVKQ` | jomok | heuristik | 14 | 9/0/1 | 0 | 3/10 | 1 → 3 | 2 → 4 | 0 → 1 |
+| `rBg0ZcwjVKQ` | jomok | putar ulang | 14 | 10/0/0 | 0 | 3/10 | 1 → 3 | 2 → 4 | 0 → 1 |
+| `WRxJGz-TA44` | burnout | heuristik | 3 | 3/0/7 | 0 | 8/10 | 3 → 2 | 3 → 2 | 1 → 2 |
+| `WRxJGz-TA44` | burnout | putar ulang | 3 | 3/0/7 | 0 | 8/10 | 3 → 3 | 4 → 4 | 1 → 1 |
+| **Total 12 run** | | | | 82 literal | **0** | | 30 → 35 | 43 → 52 | 7 → 13 |
+
+- **0 label literal salah dari 82**, diperiksa ulang dengan regex terpisah (bukan pencocok
+  engine) yang juga memastikan `at` ada di dalam klipnya. Urutan `literal`, `semantic`, `none`
+  benar di semua run. Tidak ada sebutan yang tertinggal selama masih ada klip `none`.
+- **36 run tambahan** (3 istilah lain yang diucapkan per episode): 0 label salah dari 169.
+  8 sebutan tertinggal padahal ada klip `none`: 6 berada di celah 9 detik di antara dua klip
+  literal terpilih (tidak muat jendela 20 detik), 2 ("meme" di 3357 dtk `rBg0ZcwjVKQ`) hanya bisa
+  dicakup jendela yang dimulai di baris jawaban ("Iya K dia tahunya meme ..."), yang tidak pernah
+  dipakai heuristik sebagai awal klip.
+- **Kualitas vs cakupan (perlu keputusan pemilik).** Di mode `prefer`, jendela heuristik di
+  sekitar setiap sebutan naik di atas pilihan `semantic` dan `none` milik LLM, persis seperti
+  aturan partisi di spesifikasi. Hits naik (30 → 35 di 5 besar, 43 → 52 di 10 besar) tetapi trap
+  di 10 besar juga naik (7 → 13). Trap yang ikut terangkat: `FxQDATkYHtk` T3 (kata "politik"
+  tanpa isi), `rBg0ZcwjVKQ` T1 (sapaan kanal 00:53 "belajar perjomokan di sini"), `WRxJGz-TA44`
+  T1 (teaser pembuka yang mengulang "Burnout-nya ..."), `Ive926sC6mc` T1. Pilihan lanjutan: skor
+  minimum untuk jendela heuristik yang diangkat fokus, mengecualikan teaser dan sapaan pembuka,
+  atau membaca butir "Heuristik fallback" di spesifikasi hanya untuk run tanpa LLM.
+
+**Model sungguhan dengan blok fokus** (Ollama Cloud gratis, `gemma4:31b`, 6 permintaan):
+
+| Episode | Istilah | L/S/N | Label literal salah | Momen sama dengan tanpa fokus | Momen yang diisi `"focus"` oleh model |
+|---|---|---|---|---|---|
+| `rBg0ZcwjVKQ` | jomok | 10/0/0 (4 AI + 6 heuristik) | 0 | 0/10 | 10 dari 10 |
+| `0K37SYfox7M` | whatsapp, grup wa | 4/1/5 | 0 | 4/10 | 3 dari 10 |
+| `WRxJGz-TA44` | burnout | 2/1/7 | 0 | 3/10 | 10 dari 10 |
+
+Di `rBg0ZcwjVKQ`, 1 momen `semantic` dan 5 momen `none` pilihan model tergeser oleh jendela
+heuristik yang menyebut "jomok"; gold di 10 besar turun dari 5 ke 4. Baris `Format:` membuat
+model mengisi `"focus"` hampir selalu, tetapi tidak selalu (jawaban kosong dibaca `none`, dan
+label `literal` tetap diputuskan kode).
+
+**E2E kasus pemilik** (build produksi dan worker, job YouTube `rBg0ZcwjVKQ` dari form
+dashboard, 8 klip, 20–90 detik, subtitle YouTube, rantai LLM gratis):
+
+| Job | Model | Ringkasan | Label | Label literal salah (regex terpisah) |
+|---|---|---|---|---|
+| Fokus "jomok" (catatan "momen jomok yang lucu") | `gemma4:31b` | 8 dari 8 klip cocok | 8 literal (5 AI, 3 heuristik) | 0 |
+| Fokus "drama" (istilah yang lebih jarang) | `gemma4:31b` | 2 dari 8 klip cocok, `focus_few_matches:2` | 2 literal, 6 "Di luar fokus" | 0 |
+| Tanpa fokus | `gpt-oss:120b` | – | tanpa kunci `focus` | – |
+
+- Bentuk turunan yang terbukti di klip: `perjomokan`, `jomoknya`, `berjomok`, dan `dramanya`
+  untuk "drama". `dramok` dan varian subtitle `jombok` tidak ikut cocok.
+- Tanpa fokus, pada transkrip, sound events, dan timeline audio job ini, seleksi heuristik dan
+  permintaan usulan LLM pertama identik byte demi byte dengan `54a360a`. Kunci job, manifest,
+  dan `selection.v3.json` sama dengan job V3 yang dibuat kode lama.
+- Dengan fokus "jomok", 3 dari 8 klip adalah jendela heuristik dengan judul lemah, termasuk
+  sapaan pembuka kanal (0:06–1:19, trap T1). Di job "drama", satu jendela heuristik (skor 5,6)
+  naik di atas klip AI bernilai 8,x. Ini trade-off `prefer` yang dijelaskan di atas.
+
 ## Hasil final V3 setelah poles (2026-09-24, kode dibekukan)
 
 Dijalankan **sekali** setelah semua poles (LLM `llm-select-v2`, heuristik hasil setel ulang).
