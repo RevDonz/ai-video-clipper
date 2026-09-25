@@ -21,10 +21,11 @@ import {
 } from "../lib/jobs.mjs";
 import { engineProcessEnv, loadLlmEnv } from "../lib/llm-settings.mjs";
 import { LeaseLostError, fencedUpdateJob, publishAttemptAndComplete, validateClaimForExecution } from "../lib/primary-job-queue.mjs";
+import { writeTrendSnapshot } from "../lib/trend-context.mjs";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export function buildClipperInvocation(job, sourcePath, outputRoot, env = process.env, { captionsDir = null } = {}) {
+export function buildClipperInvocation(job, sourcePath, outputRoot, env = process.env, { captionsDir = null, trendContext = null } = {}) {
   if (!job || typeof job !== "object" || !job.options || typeof job.options !== "object" || Array.isArray(job.options)) {
     throw new Error("Invalid persisted job options");
   }
@@ -76,8 +77,26 @@ export function buildClipperInvocation(job, sourcePath, outputRoot, env = proces
       "--caption-style", options.captionStyle,
     );
     if (typeof captionsDir === "string" && path.isAbsolute(captionsDir)) args.push("--captions-dir", captionsDir);
+    // Only a snapshot path the worker wrote; the trend text itself never enters argv.
+    if (typeof trendContext === "string" && path.isAbsolute(trendContext)) args.push("--trend-context", trendContext);
   }
   return { command: env.AI_CLIPPER_BIN || "/app/.venv/bin/ai-clipper", args };
+}
+
+// --- Konteks Tren (Selection V3) ------------------------------------------------
+// A V3 job reads a snapshot of the enabled, active trend items taken when it starts:
+// <attempt>/analysis/trend-context.json, published with the rest of analysis/. Without such
+// items (or with the feature switched off) there is no file and no flag, so the job runs
+// exactly as it did before trends existed. An unreadable store never fails the job.
+
+export async function prepareTrendContext(attemptRoot, env, { now = new Date(), log = console.warn } = {}) {
+  try {
+    return await writeTrendSnapshot(attemptRoot, { env, now });
+  } catch (error) {
+    if (error instanceof LeaseLostError) throw error;
+    log(`Konteks tren dilewati (${error?.code || "snapshot_failed"}); job berjalan tanpa tren.`);
+    return null;
+  }
 }
 
 // --- YouTube captions (Selection V3 fast path) --------------------------------
@@ -378,7 +397,8 @@ export async function main(argv = process.argv, env = process.env) {
       job = await update({ status: "processing", progress: 20, stage: "analyzing", stageDetail: "Menyiapkan engine AI" });
     }
 
-    const invocation = buildClipperInvocation(job, sourcePath, outputRoot, env, { captionsDir });
+    const trendContext = job.options?.selectionMode === "v3" ? await prepareTrendContext(attemptRoot, env) : null;
+    const invocation = buildClipperInvocation(job, sourcePath, outputRoot, env, { captionsDir, trendContext });
     await runWithProgress(invocation.command, invocation.args, job.progress, await engineEnvironment(env));
 
     const manifest = JSON.parse(await readFile(path.join(outputRoot, "manifest.json"), "utf8"));
