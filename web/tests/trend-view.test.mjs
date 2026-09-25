@@ -100,6 +100,7 @@ test("every kind and platform of the spec has an Indonesian label", () => {
 test("single-line text drops control, bidi and zero-width characters and newlines", () => {
   assert.equal(cleanLine("  Ka\u200Bbur\u202E aja\n\tdulu \u2066x\u2069\u0000 "), "Kabur aja dulu x");
   assert.equal(cleanLine("Cafe\u0301"), "Café", "NFC");
+  assert.equal(cleanLine(`Kucing\ufe0f oren${String.fromCodePoint(0xe0041, 0xe0100)}\u00ad\u3164`), "Kucing oren", "like the server");
   assert.equal(cleanLine(42), "");
   assert.equal(cleanLine(null), "");
 });
