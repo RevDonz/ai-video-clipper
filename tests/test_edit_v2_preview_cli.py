@@ -859,13 +859,13 @@ def test_the_source_probe_is_kept_on_disk_for_the_next_process(job, monkeypatch)
     case = job_case(job, 1)
     probe = case["clip"] / "preview" / "probe.json"
     probe.unlink(missing_ok=True)
-    compile_ffmpeg._probe_cached.cache_clear()
+    compile_ffmpeg.clear_probe_cache()
     lane = ok(plan(case))["lane"]
     ok(op(case, "cells", layout="fit_blur", cells=lane["cells"][:1], cancelToken=None))
     assert probe.is_file()
     stored = json.loads(probe.read_text())
     assert set(stored) == {"identity", "streams"}
-    compile_ffmpeg._probe_cached.cache_clear()
+    compile_ffmpeg.clear_probe_cache()
     calls = []
     real = subprocess.run
 
@@ -879,7 +879,7 @@ def test_the_source_probe_is_kept_on_disk_for_the_next_process(job, monkeypatch)
     assert calls == []
     stored["identity"][2] += 1  # another file (size differs): probed again
     probe.write_text(json.dumps(stored))
-    compile_ffmpeg._probe_cached.cache_clear()
+    compile_ffmpeg.clear_probe_cache()
     ok(op(case, "cells", layout="fit_blur", cells=lane["cells"][2:3], cancelToken=None))
     assert len(calls) == 1
 

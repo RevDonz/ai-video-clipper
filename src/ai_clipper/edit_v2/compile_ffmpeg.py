@@ -147,9 +147,10 @@ _PNG_DECODE = "scale=in_color_matrix=bt709:in_range=tv,format=rgb24"
 class InputSpec:
     """One FFmpeg input, opened by ``execute.run`` and passed as ``/proc/self/fd/N``.
 
-    ``kind`` is ``"source"`` (the job's source video; ``name`` = ``"source"``), ``"asset"``
-    (``name`` = ``"sha256:<hex>"`` in the job asset store) or ``"sidecar"`` (``name`` = a key of
-    the job's or fragment's ``sidecars``). ``options`` are input options placed before ``-i``
+    ``kind`` is ``"source"`` (the job's source video; ``name`` = ``"source"``, or a file of
+    ``expected["paths"]`` such as the lane's stored pre-master mix), ``"asset"`` (``name`` =
+    ``"sha256:<hex>"`` in the job asset store), ``"sidecar"`` (``name`` = a key of the job's or
+    fragment's ``sidecars``) or ``"pipe"`` (the read end ``execute.run_piped`` provides). ``options`` are input options placed before ``-i``
     (e.g. ``("-f", "f32le", "-ar", "48000", "-ac", "1")`` or ``("-stream_loop", "-1")``).
     """
 
@@ -221,12 +222,62 @@ def _probe_cached(path: str, _identity: tuple[int, int, int, int]) -> SourceStre
                          video.get("color_range"), duration)
 
 
+# Probe results a caller kept across processes (the preview lane's ``preview/probe.json``, W2
+# integration: every lane op is a new process), by path and file identity.
+_SEEDED: dict[tuple[str, tuple[int, int, int, int]], SourceStreams] = {}
+_STREAM_FIELDS = ("video_index", "audio_index", "width", "height", "color_space",
+                  "color_range", "duration_s")
+
+
+def source_identity(source: Path) -> tuple[int, int, int, int]:
+    """(device, inode, size, mtime ns) of ``source``: the key of its probe result."""
+    info = os.stat(source)
+    return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns)
+
+
+def streams_to_json(streams: SourceStreams) -> dict[str, Any]:
+    return {name: getattr(streams, name) for name in _STREAM_FIELDS}
+
+
+def streams_from_json(value: object) -> SourceStreams | None:
+    """The ``SourceStreams`` of ``streams_to_json``, or None when ``value`` is not one."""
+    if not isinstance(value, dict) or set(value) != set(_STREAM_FIELDS):
+        return None
+
+    def whole(item: object, low: int, allow_none: bool = False) -> bool:
+        return (allow_none and item is None) or (type(item) is int and item >= low)
+
+    def text(item: object) -> bool:
+        return item is None or (isinstance(item, str) and len(item) <= 64)
+
+    duration = value["duration_s"]
+    if not (whole(value["video_index"], 0) and whole(value["audio_index"], 0, True)
+            and whole(value["width"], 1) and whole(value["height"], 1)
+            and text(value["color_space"]) and text(value["color_range"])
+            and (duration is None or (type(duration) in (int, float) and duration >= 0))):
+        return None
+    return SourceStreams(**{name: value[name] for name in _STREAM_FIELDS})
+
+
+def seed_probe(source: Path, identity: Sequence[int], streams: SourceStreams) -> None:
+    """Use ``streams`` as the probe of ``source`` while it has ``identity``."""
+    _SEEDED[(str(source), tuple(int(part) for part in identity))] = streams
+
+
+def clear_probe_cache() -> None:
+    _SEEDED.clear()
+    _probe_cached.cache_clear()
+
+
 def probe_source(source: Path) -> SourceStreams:
     """Probe ``source`` once per file identity (inode, size, mtime); failures are
-    ``RenderFailed`` (``render_failed``)."""
+    ``RenderFailed`` (``render_failed``). A result given to ``seed_probe`` for the current
+    identity is used without running ffprobe."""
     try:
-        info = os.stat(source)
-        identity = (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns)
+        identity = source_identity(source)
+        seeded = _SEEDED.get((str(source), identity))
+        if seeded is not None:
+            return seeded
         return _probe_cached(str(source), identity)
     except (OSError, RuntimeError, subprocess.SubprocessError, KeyError, IndexError, TypeError,
             ValueError) as exc:
@@ -446,7 +497,6 @@ class _Compiler:
     def sound(self, loudness: Loudness | None, sample_fmt: str | None) -> None:
         """The T1.4 fragment (``[sa<i>]`` → ``[apre]``) and the master stage (§5.8)."""
         from . import audio_graph
-        from . import loudness as _loudness
 
         fragment = audio_graph.audio_fragment(self.plan, mode=self.mode,
                                               first_input_index=len(self.inputs))
@@ -467,16 +517,8 @@ class _Compiler:
             measure = audio_graph.master_filter("audio_measure", 0)
             self.graph.append(f"[apre]aformat=sample_fmts=dbl,{measure}[ameas]")
             return
-        needs = _loudness.needs_measurement(self.plan.doc)
-        if needs and loudness is None:
-            raise ValueError("this document needs a loudness/peak measurement (audio_measure) "
-                             "before it can be rendered")
-        if not needs and loudness is not None:
-            raise ValueError("this document must not be measured (revision-0 audio)")
-        gain, issues = _loudness.output_gain(self.plan.doc, loudness)
-        master = audio_graph.master_filter(self.mode, gain)  # [volume=<g>dB,]aresample=48000
-        self.graph.append(f"[apre]{master},aformat=sample_fmts={sample_fmt}:sample_rates="
-                          f"{SAMPLE_RATE}:channel_layouts=stereo[aout]")
+        chain, gain, issues = _master_chain(self.plan, loudness, self.mode, sample_fmt)
+        self.graph.append(chain)
         self.expected["gain_cdb"] = gain
         self.expected["warnings"] = [issue.to_json() for issue in issues]
 
@@ -484,6 +526,26 @@ class _Compiler:
         return FfmpegJob(argv=tuple(argv), filter_script=";\n".join(self.graph) + "\n",
                          inputs=tuple(self.inputs), sidecars=dict(self.sidecars),
                          expected=self.expected)
+
+
+def _master_chain(plan: RenderPlan, loudness: Loudness | None, mode: str,
+                  sample_fmt: str) -> tuple[str, int, tuple]:
+    """The master stage ``[apre]`` → ``[aout]`` (§5.8) with its gain and warnings: shared by
+    the compiled modes and the lane's stored pre-master (``master_job``), so both are the
+    same text."""
+    from . import audio_graph
+    from . import loudness as _loudness
+
+    needs = _loudness.needs_measurement(plan.doc)
+    if needs and loudness is None:
+        raise ValueError("this document needs a loudness/peak measurement (audio_measure) "
+                         "before it can be rendered")
+    if not needs and loudness is not None:
+        raise ValueError("this document must not be measured (revision-0 audio)")
+    gain, issues = _loudness.output_gain(plan.doc, loudness)
+    master = audio_graph.master_filter(mode, gain)  # [volume=<g>dB,]aresample=48000
+    return (f"[apre]{master},aformat=sample_fmts={sample_fmt}:sample_rates={SAMPLE_RATE}:"
+            f"channel_layouts=stereo[aout]"), gain, issues
 
 
 def select_expression(ranges: Sequence[tuple[int, int]]) -> str:
@@ -649,6 +711,69 @@ def _derive_logo(plan: RenderPlan, assets_root: Path) -> FfmpegJob:
                                 "assets_root": str(assets_root)})
 
 
+# --- the lane's measured mix in one decode (W2 integration, PF-AUDIO) ---------------------------
+#
+# ``audio_measure`` followed by ``audio_preview`` decodes and mixes the source twice. The lane
+# instead runs ``premaster_jobs`` (``execute.run_piped``): the producer decodes and mixes once
+# and streams the pre-master mix (``[apre]``, f32le) into the consumer, which measures it with
+# the ``audio_measure`` stage text and keeps a copy; ``master_job`` then applies the master
+# stage (``_master_chain``, the text every mode uses) to that copy. f32 carries ``[apre]``
+# exactly, so the loudness is the export's and the PCM the reference's (P-AUD, md5).
+
+PREMASTER_INPUT = ("-f", "f32le", "-ar", str(SAMPLE_RATE), "-ac", "2")
+_PREMASTER_FORMAT = f"aformat=sample_fmts=fltp:sample_rates={SAMPLE_RATE}:channel_layouts=stereo"
+
+
+def premaster_jobs(plan: RenderPlan, *, source: Path,
+                   assets_root: Path) -> tuple[FfmpegJob, FfmpegJob]:
+    """(producer, consumer) for ``execute.run_piped``: the producer (output ``pipe``) is the
+    ``audio_measure`` job up to ``[apre]``; the consumer reads that stream (input
+    ``InputSpec("pipe", "premaster")``), runs the ``audio_measure`` stage on it (its stderr
+    holds the ebur128 summary) and writes the stream unchanged (f32le) to its ``@out``."""
+    measure = compile_job(plan, mode="audio_measure", source=source, assets_root=assets_root)
+    *mix, stage = measure.filter_script.rstrip("\n").split(";\n")
+    if not mix or not stage.startswith("[apre]") or not stage.endswith("[ameas]"):
+        raise ValueError("unexpected audio_measure graph")
+    argv = list(measure.argv)
+    inputs_argv = argv[argv.index(_WHITELIST[0]):argv.index("-filter_complex_script")]
+    producer = FfmpegJob(
+        argv=(*_head("error", copyts=True), *inputs_argv, "-filter_complex_script", GRAPH_FILE,
+              "-filter_complex_threads", str(FFMPEG_THREADS), "-map", "[apre]",
+              "-c:a", "pcm_f32le", "-f", "f32le", OUTPUT_TOKEN),
+        filter_script=";\n".join(mix) + "\n", inputs=measure.inputs,
+        sidecars=dict(measure.sidecars),
+        expected={**measure.expected, "mode": "audio_premaster", "output": "pipe"})
+    consumer = FfmpegJob(
+        argv=(*_head("info", copyts=False), *_WHITELIST, *PREMASTER_INPUT, "-i",
+              INPUT_TOKEN.format(0), "-filter_complex_script", GRAPH_FILE,
+              "-filter_complex_threads", str(FFMPEG_THREADS), "-map", "[ameas]", "-f", "null",
+              "-", "-map", "[apm]", "-c:a", "pcm_f32le", "-f", "f32le", OUTPUT_TOKEN),
+        filter_script=f"[0:a]asplit=2[apre][apm];\n{stage}\n",
+        inputs=(InputSpec("pipe", "premaster", PREMASTER_INPUT),), sidecars={},
+        expected={"mode": "audio_measure", "output": "fd", "paths": {},
+                  "assets_root": str(assets_root), "samples": plan.total_samples,
+                  "mix_sha256": measure.expected["mix_sha256"]})
+    return producer, consumer
+
+
+def master_job(plan: RenderPlan, *, premaster: Path, assets_root: Path,
+               loudness: Loudness | None, mix_sha256: str) -> FfmpegJob:
+    """``audio_preview`` over a stored pre-master mix (``premaster_jobs``' copy, f32le): the
+    master stage and the FLAC s16 output of ``audio_preview``, no decode."""
+    chain, gain, issues = _master_chain(plan, loudness, "audio_preview", "s16")
+    return FfmpegJob(
+        argv=(*_head("error", copyts=False), *_WHITELIST, *PREMASTER_INPUT, "-i",
+              INPUT_TOKEN.format(0), "-filter_complex_script", GRAPH_FILE,
+              "-filter_complex_threads", str(FFMPEG_THREADS), "-map", "[aout]",
+              "-c:a", "flac", "-sample_fmt", "s16", *_BITEXACT, "-f", "flac", OUTPUT_TOKEN),
+        filter_script=f"[0:a]{_PREMASTER_FORMAT}[apre];\n{chain}\n",
+        inputs=(InputSpec("source", "premaster", PREMASTER_INPUT),), sidecars={},
+        expected={"mode": "audio_preview", "output": "fd",
+                  "paths": {"premaster": str(premaster)}, "assets_root": str(assets_root),
+                  "samples": plan.total_samples, "gain_cdb": gain,
+                  "warnings": [issue.to_json() for issue in issues], "mix_sha256": mix_sha256})
+
+
 def compile_job(
     plan: RenderPlan,
     *,
@@ -700,11 +825,18 @@ __all__ = [
     "FfmpegJob",
     "InputSpec",
     "SourceStreams",
+    "clear_probe_cache",
     "compile_job",
     "decoder_runs",
     "encode_video_args",
     "final_conversion",
+    "master_job",
+    "premaster_jobs",
     "probe_source",
+    "seed_probe",
     "seek_arg",
     "select_expression",
+    "source_identity",
+    "streams_from_json",
+    "streams_to_json",
 ]

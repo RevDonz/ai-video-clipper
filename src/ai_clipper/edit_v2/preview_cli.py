@@ -99,6 +99,7 @@ NICE = 5
 CANCEL_POLL_S = 0.05
 LAYOUTS = ("fit_blur", "camera", "fill_center")
 PREVIEW_DIR = "preview"
+PROBE_FILE = "probe.json"  # the source's ffprobe result under its file identity (_use_probe)
 CANCEL_DIR = ".cancel"
 AUDIO_SCHEMA = "potongin.preview-audio/1"
 FRAME_SCHEMA = "potongin.truth-frame/1"
@@ -875,6 +876,7 @@ def _cells(ctx: _Context, envelope: Mapping[str, Any]) -> dict[str, Any]:
     missing = [k for k in wanted if k not in present]
     if missing:
         plan = plates.plate_plan(doc, camera=camera, resources=_resources())
+        _use_probe(ctx, plates.source_path(ctx.job))
         built = plates.build_cells(plan, source=plates.source_path(ctx.job),
                                    assets_root=ctx.job / "analysis" / "assets", cells=missing,
                                    cancel=ctx.cancel, timeout_s=60.0 + 15.0 * len(missing))
@@ -883,31 +885,104 @@ def _cells(ctx: _Context, envelope: Mapping[str, Any]) -> dict[str, Any]:
     return {"plateKey": key, "built": missing, "present": present}
 
 
-def _measure(ctx: _Context, plan: Any, source: Path, assets_root: Path):
-    """The pre-master loudness and true peak, cached by the pre-master mix sha."""
-    from . import execute, plates
-    from .compile_ffmpeg import compile_job
+def _replace(path: Path, data: bytes) -> None:
+    """Write ``path`` atomically (0600 in a private directory), replacing an older version."""
+    from .source_info import ensure_private_dir
+
+    ensure_private_dir(path.parent)
+    temp = path.parent / f".{path.name}.{secrets.token_hex(8)}.tmp"
+    fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+                 0o600)
+    try:
+        try:
+            view = memoryview(data)
+            while view:
+                view = view[os.write(fd, view):]
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        os.replace(temp, path)
+    finally:
+        try:
+            os.unlink(temp)
+        except FileNotFoundError:
+            pass
+
+
+def _use_probe(ctx: _Context, source: Path) -> None:
+    """The source's probe for this process: ``preview/probe.json`` when it names the file's
+    current identity (device, inode, size, mtime), else ffprobe once and keep the result there
+    (W2 integration: every lane op is a new process, and each paid ~70 ms of ffprobe)."""
+    from . import compile_ffmpeg
+
+    try:
+        identity = list(compile_ffmpeg.source_identity(source))
+    except OSError:
+        return  # compile_job reports the missing source with its own code
+    path = ctx.preview / PROBE_FILE
+    stored = _read_json(path, MAX_META_BYTES)
+    if isinstance(stored, dict) and stored.get("identity") == identity:
+        streams = compile_ffmpeg.streams_from_json(stored.get("streams"))
+        if streams is not None:
+            compile_ffmpeg.seed_probe(source, identity, streams)
+            return
+    try:
+        streams = compile_ffmpeg.probe_source(source)
+    except EditV2Error:
+        return  # raised again, with its code, where the job is compiled
+    try:
+        _replace(path, _canonical({"identity": identity,
+                                   "streams": compile_ffmpeg.streams_to_json(streams)}))
+    except OSError:
+        pass  # a cache only
+
+
+def _measured(ctx: _Context, plan: Any, source: Path,
+              assets_root: Path) -> tuple[Any, Path | None, str]:
+    """(pre-master loudness and true peak, the kept pre-master mix or None, its mix sha).
+
+    Cached by the pre-master mix sha (``<mix16>.loudness.json``): no decode. Otherwise the mix
+    is decoded once (``compile_ffmpeg.premaster_jobs`` through ``execute.run_piped``): the
+    ebur128 measurement reads the stream while a copy is written to a private temporary file,
+    which the caller masters and removes (PF-AUDIO; before, the source was decoded again)."""
+    import shutil
+    import tempfile
+
+    from . import compile_ffmpeg, execute, plates
     from .loudness import Loudness, parse_ebur128
 
-    job = plates.lane_threads(compile_job(plan, mode="audio_measure", source=source,
-                                          assets_root=assets_root))
-    mix = job.expected["mix_sha256"]
+    producer, consumer = compile_ffmpeg.premaster_jobs(plan, source=source,
+                                                       assets_root=assets_root)
+    mix = consumer.expected["mix_sha256"]
     path = ctx.preview / "audio" / f"{mix[:16]}.loudness.json"
     cached = _read_json(path, MAX_META_BYTES)
     if (isinstance(cached, dict) and cached.get("mixSha256") == mix
             and type(cached.get("i_clufs")) is int and type(cached.get("tp_cdb")) is int):
-        return Loudness(cached["i_clufs"], cached["tp_cdb"])
-    timeout = 60.0 + plan.total_samples / 48_000
-    result = execute.run(job, output_fd=None, timeout_s=timeout, cancel=ctx.cancel)
-    measured = parse_ebur128(result.stderr)
+        return Loudness(cached["i_clufs"], cached["tp_cdb"]), None, mix
+    work = Path(tempfile.mkdtemp(prefix="edit-v2-premaster-"))
+    premaster = work / "premaster.f32"
+    try:
+        fd = os.open(premaster, os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+                     | os.O_CLOEXEC, 0o600)
+        try:
+            _produced, consumed = execute.run_piped(
+                plates.lane_threads(producer), plates.lane_threads(consumer), output_fd=fd,
+                timeout_s=60.0 + plan.total_samples / 48_000, cancel=ctx.cancel)
+        finally:
+            os.close(fd)
+        measured = parse_ebur128(consumed.stderr)
+    except BaseException:
+        shutil.rmtree(work, ignore_errors=True)
+        raise
     _publish(path, _canonical({"mixSha256": mix, "i_clufs": measured.i_clufs,
                                "tp_cdb": measured.tp_cdb}))
-    return measured
+    return measured, premaster, mix
 
 
 def _audio(ctx: _Context, envelope: Mapping[str, Any]) -> dict[str, Any]:
-    from . import execute, plates
-    from .compile_ffmpeg import compile_job
+    import shutil
+
+    from . import compile_ffmpeg, execute, plates
     from .loudness import needs_measurement
 
     request = _request(envelope["requestRaw"], allowed=_PLAN_FIELDS,
@@ -929,13 +1004,26 @@ def _audio(ctx: _Context, envelope: Mapping[str, Any]) -> dict[str, Any]:
         return {"audioKey": key, "name": name, "built": False, "samples": meta["samples"],
                 "gainCdb": meta["gainCdb"], "warnings": meta["warnings"]}
     source = plates.source_path(ctx.job)
+    _use_probe(ctx, source)
     assets_root = ctx.job / "analysis" / "assets"
-    measured = _measure(ctx, plan, source, assets_root) if needs_measurement(plan.doc) else None
-    job = lane_audio(compile_job(plan, mode="audio_preview", source=source,
-                                 assets_root=assets_root, loudness=measured))
-    timeout = 60.0 + plan.total_samples / 48_000
-    _publish_run(directory, name, lambda fd: execute.run(job, output_fd=fd, timeout_s=timeout,
-                                                          cancel=ctx.cancel))
+    measured, premaster, mix = (_measured(ctx, plan, source, assets_root)
+                                if needs_measurement(plan.doc) else (None, None, None))
+    try:
+        if premaster is None:
+            job = lane_audio(compile_ffmpeg.compile_job(
+                plan, mode="audio_preview", source=source, assets_root=assets_root,
+                loudness=measured))
+        else:
+            job = lane_audio(compile_ffmpeg.master_job(
+                plan, premaster=premaster, assets_root=assets_root, loudness=measured,
+                mix_sha256=mix))
+        timeout = 60.0 + plan.total_samples / 48_000
+        _publish_run(directory, name, lambda fd: execute.run(job, output_fd=fd,
+                                                              timeout_s=timeout,
+                                                              cancel=ctx.cancel))
+    finally:
+        if premaster is not None:
+            shutil.rmtree(premaster.parent, ignore_errors=True)
     warnings = list(job.expected.get("warnings", []))
     meta = {"samples": plan.total_samples, "gainCdb": job.expected["gain_cdb"],
             "warnings": warnings, "mixSha256": job.expected["mix_sha256"]}
@@ -958,6 +1046,7 @@ def _frame(ctx: _Context, envelope: Mapping[str, Any]) -> dict[str, Any]:
     path = ctx.preview / "frames" / name
     if _is_file(path):
         return {"name": name, "planSha256": plan.plan_sha256, "built": False}
+    _use_probe(ctx, plates.source_path(ctx.job))
     job = compile_job(plan, mode="frame", frame=frame, source=plates.source_path(ctx.job),
                       assets_root=ctx.job / "analysis" / "assets")
     result = execute.run(job, output_fd=None, timeout_s=60.0, cancel=ctx.cancel)
