@@ -169,8 +169,8 @@ source source -threads 4 -ss 2483.482000
 ## filter_script
 [0:0]fps=30000/1001,trim=start_pts=37200:end_pts=37380,setpts=PTS-STARTPTS[pt0];
 [pt0]settb=1001/30000,split=2[background_0][foreground_0];[background_0]scale=720:1280:force_original_aspect_ratio=increase:in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuv444p,crop=720:1280,gblur=sigma=35[blurred_0];[foreground_0]scale=720:1280:force_original_aspect_ratio=decrease:in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuva444p[fit_0];[blurred_0][fit_0]overlay=(W-w)/2:(H-h)/2:format=yuv444,setsar=1[pl0];
-[pl0]scale=in_color_matrix=bt709:in_range=tv,format=gbrp,scale=out_color_matrix=bt709:out_range=tv,format=yuv420p[cell0];
+[pl0]scale=in_color_matrix=bt709:in_range=tv,format=gbrp,scale=out_color_matrix=bt709:out_range=tv:flags=accurate_rnd+full_chroma_int+full_chroma_inp+lanczos,format=yuv420p[cell0];
 [1:0]fps=30000/1001,trim=start_pts=74460:end_pts=74580,setpts=PTS-STARTPTS[pt1];
 [pt1]settb=1001/30000,split=2[background_1][foreground_1];[background_1]scale=720:1280:force_original_aspect_ratio=increase:in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuv444p,crop=720:1280,gblur=sigma=35[blurred_1];[foreground_1]scale=720:1280:force_original_aspect_ratio=decrease:in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuva444p[fit_1];[blurred_1][fit_1]overlay=(W-w)/2:(H-h)/2:format=yuv444,setsar=1[pl1];
-[pl1]scale=in_color_matrix=bt709:in_range=tv,format=gbrp,scale=out_color_matrix=bt709:out_range=tv,format=yuv420p[cell1]
+[pl1]scale=in_color_matrix=bt709:in_range=tv,format=gbrp,scale=out_color_matrix=bt709:out_range=tv:flags=accurate_rnd+full_chroma_int+full_chroma_inp+lanczos,format=yuv420p[cell1]
 
