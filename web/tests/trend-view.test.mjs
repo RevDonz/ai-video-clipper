@@ -680,6 +680,14 @@ test("the trend warning codes of a V3 summary get an Indonesian explanation", ()
   assert.equal(selectionWarningLabel("trend_context_invalid"), "File konteks tren job rusak atau hilang; job jalan tanpa tren.");
   assert.equal(selectionWarningLabel("trend_items_skipped:3"), "3 item tren rusak dilewati.");
   assert.equal(selectionWarningLabel("trend_ref_ungrounded:2"), "2 tren yang disebut AI dibuang karena tidak disebut di transkrip klipnya.");
+  assert.equal(
+    selectionWarningLabel("trend_packaging_ungrounded:1"),
+    "1 klip AI menyebut tren yang tidak ada di transkripnya; judul, hook atau deskripsinya diganti dari klip itu sendiri.",
+  );
+  assert.equal(
+    selectionWarningLabel("trend_sensitive_humor:2"),
+    "2 klip lucu menyinggung tren sensitif; periksa judul dan hook-nya sebelum diunggah.",
+  );
   for (const code of ["llm_disabled", "trend_items_skipped", "trend_items_skipped:x", "trend_ref_ungrounded:0x", "suspect_segments:4", "", null, 7]) {
     assert.equal(selectionWarningLabel(code), null, String(code));
   }
