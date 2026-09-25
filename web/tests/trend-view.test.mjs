@@ -10,7 +10,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { createTrendApi } from "../components/trends/trend-api.mjs";
-import { clipTrendChips } from "../lib/selection-v3-view.mjs";
+import { clipTrendChips, selectionWarningLabel } from "../lib/selection-v3-view.mjs";
 import {
   GUIDE_URL,
   SESSION_TEXT,
@@ -653,6 +653,15 @@ test("grounded trends become 'Nyambung tren: <judul>' chips, sanitized and bound
   assert.equal(Array.from(chips[2].title).length, 80);
   assert.equal(chips[2].kindLabel, null);
   assert.deepEqual(chips.map((chip) => chip.key), ["T1", "T2", "T5", "T6", "T7"], "at most five chips per clip");
+});
+
+test("the trend warning codes of a V3 summary get an Indonesian explanation", () => {
+  assert.equal(selectionWarningLabel("trend_context_invalid"), "File konteks tren job rusak atau hilang; job jalan tanpa tren.");
+  assert.equal(selectionWarningLabel("trend_items_skipped:3"), "3 item tren rusak dilewati.");
+  assert.equal(selectionWarningLabel("trend_ref_ungrounded:2"), "2 tren yang disebut AI dibuang karena tidak disebut di transkrip klipnya.");
+  for (const code of ["llm_disabled", "trend_items_skipped", "trend_items_skipped:x", "trend_ref_ungrounded:0x", "suspect_segments:4", "", null, 7]) {
+    assert.equal(selectionWarningLabel(code), null, String(code));
+  }
 });
 
 // --- Source guards -------------------------------------------------------------------------
