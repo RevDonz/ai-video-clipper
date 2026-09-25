@@ -846,12 +846,43 @@ def _fit_to_media(result: SelectionResult, duration: float | None) -> SelectionR
         focus = clip.focus
         if focus is not None and focus.match == "literal" and (focus.at or 0.0) >= end:
             focus = ClipFocus("none")  # its first mention (so every mention) was cut off
-        clips.append(
-            replace(clip, rank=len(clips) + 1, end=end, cold_open=teaser, focus=focus)
-        )
+        clips.append(replace(clip, rank=len(clips) + 1, end=end, cold_open=teaser, focus=focus))
     if not notes:
         return result
-    return replace(result, clips=tuple(clips), warnings=(*result.warnings, *notes)[:200])
+    warnings = _recount_focus_matches(result, clips)
+    return replace(result, clips=tuple(clips), warnings=(*warnings, *notes)[:200])
+
+
+_FOCUS_FEW_MATCHES = "focus_few_matches:"
+_AFTER_FOCUS_FEW_MATCHES = ("focus_llm_outranked:", "few_clips:", "no_transcript")
+
+
+def _recount_focus_matches(result: SelectionResult, clips: list[SelectedClip]) -> list[str]:
+    """``result.warnings`` with ``focus_few_matches:<n>`` counted from ``clips``, the clips kept
+    inside the video (so it agrees with the summary's ``matched``); unchanged without focus."""
+    warnings = list(result.warnings)
+    if result.focus is None:
+        return warnings
+    matched = sum(clip.focus is not None and clip.focus.match != "none" for clip in clips)
+    code = f"{_FOCUS_FEW_MATCHES}{matched}" if matched < result.focus.requested else None
+    at = next(
+        (index for index, item in enumerate(warnings) if item.startswith(_FOCUS_FEW_MATCHES)),
+        None,
+    )
+    if at is not None:
+        del warnings[at]
+    else:
+        at = next(
+            (
+                index
+                for index, item in enumerate(warnings)
+                if item.startswith(_AFTER_FOCUS_FEW_MATCHES)
+            ),
+            len(warnings),
+        )
+    if code is not None:
+        warnings.insert(at, code)
+    return warnings
 
 
 def _manifest_hashtags(hashtags: Iterable[str]) -> list[str]:
