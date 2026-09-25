@@ -43,6 +43,13 @@ MAX_CLIP_TRENDS = 5
 MAX_TREND_REFS = 20
 TREND_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,63}")
 TREND_REF_PATTERN = re.compile(r"T[1-9][0-9]{0,2}")
+# Fokus klip (docs/plans/2026-09-25-fokus-klip.md): how a clip relates to the job's focus terms.
+# "literal": its own transcript says a term (checked in code); "semantic": the LLM says it is
+# about the focus; "none": outside the focus. A job has 1-8 terms of 2-40 characters.
+FOCUS_MATCHES = ("literal", "semantic", "none")
+MAX_FOCUS_TERMS = 8
+MIN_FOCUS_TERM_CHARS = 2
+MAX_FOCUS_TERM_CHARS = 40
 
 
 def _is_number(value: object) -> bool:
@@ -123,6 +130,76 @@ def _trends(value: object) -> tuple[TrendRef, ...]:
     return value
 
 
+def focus_terms(value: object, name: str = "focus terms", *, minimum: int = 1) -> tuple[str, ...]:
+    """``value`` checked as focus terms: a tuple of ``minimum``-:data:`MAX_FOCUS_TERMS` single,
+    trimmed lines of :data:`MIN_FOCUS_TERM_CHARS`-:data:`MAX_FOCUS_TERM_CHARS` characters,
+    unique by casefold."""
+    if not isinstance(value, tuple):
+        raise TypeError(f"{name} must be a tuple")
+    if not minimum <= len(value) <= MAX_FOCUS_TERMS:
+        raise ValueError(f"{name} must hold {minimum}-{MAX_FOCUS_TERMS} terms")
+    for term in value:
+        if not isinstance(term, str):
+            raise TypeError(f"{name} must be strings")
+        if not MIN_FOCUS_TERM_CHARS <= len(term) <= MAX_FOCUS_TERM_CHARS:
+            raise ValueError(
+                f"{name} must have {MIN_FOCUS_TERM_CHARS}-{MAX_FOCUS_TERM_CHARS} characters each"
+            )
+        if term != " ".join(term.split()) or any(
+            ord(character) < 32 or 0x7F <= ord(character) < 0xA0 for character in term
+        ):
+            raise ValueError(f"{name} must be single trimmed lines")
+    if len({term.casefold() for term in value}) != len(value):
+        raise ValueError(f"{name} must be unique")
+    return value
+
+
+@dataclass(frozen=True, slots=True)
+class ClipFocus:
+    """How a clip relates to the job's focus (see :data:`FOCUS_MATCHES`).
+
+    ``literal``: ``terms`` are the focus terms the clip's own transcript says and ``at`` is the
+    source time (seconds) of the first mention inside the clip. ``semantic``: ``terms`` are the
+    job's terms the LLM says the clip is about, with no time. ``none``: no terms, no time.
+    """
+
+    match: str
+    terms: tuple[str, ...] = ()
+    at: float | None = None
+
+    def __post_init__(self) -> None:
+        if self.match not in FOCUS_MATCHES:
+            raise ValueError(f"focus match must be one of {', '.join(FOCUS_MATCHES)}")
+        focus_terms(self.terms, "focus terms", minimum=0 if self.match == "none" else 1)
+        if self.match == "none" and self.terms:
+            raise ValueError("a clip outside the focus names no terms")
+        if self.match == "literal":
+            at = _finite(self.at, "focus at")
+            if at < 0:
+                raise ValueError("focus at must be non-negative")
+            object.__setattr__(self, "at", at)
+        elif self.at is not None:
+            raise ValueError("only a literal focus match has a time")
+
+    def to_dict(self) -> dict[str, object]:
+        return {"match": self.match, "terms": list(self.terms), "at": self.at}
+
+
+@dataclass(frozen=True, slots=True)
+class FocusSummary:
+    """The job's focus terms and how many clips were asked for (``k``)."""
+
+    terms: tuple[str, ...]
+    requested: int
+
+    def __post_init__(self) -> None:
+        focus_terms(self.terms)
+        if not isinstance(self.requested, int) or isinstance(self.requested, bool):
+            raise TypeError("requested must be an integer")
+        if self.requested < 1:
+            raise ValueError("requested must be positive")
+
+
 @dataclass(frozen=True, slots=True)
 class TrendRef:
     """A trend a clip is grounded in: its own transcript mentions one of the trend's terms."""
@@ -164,6 +241,8 @@ class ClipProposal:
 
     ``trend_refs`` are the prompt trend IDs (``T1``, ...) an LLM moment claims to use; the
     selector keeps only those its transcript really mentions. Heuristic proposals have none.
+    ``focus`` is what an LLM moment claims about the job's focus (one of
+    :data:`FOCUS_MATCHES`), ``None`` when it was not asked; the selector checks ``literal``.
     """
 
     start_unit: int
@@ -180,6 +259,7 @@ class ClipProposal:
     score: float
     source: str
     trend_refs: tuple[str, ...] = ()
+    focus: str | None = None
 
     def __post_init__(self) -> None:
         start = _index(self.start_unit, "start_unit")
@@ -195,6 +275,8 @@ class ClipProposal:
                 raise ValueError("payoff_unit must lie inside the proposal")
         _common_packaging(self)
         _trend_refs(self.trend_refs)
+        if self.focus is not None and self.focus not in FOCUS_MATCHES:
+            raise ValueError(f"focus must be one of {', '.join(FOCUS_MATCHES)} or None")
 
 
 @dataclass(frozen=True, slots=True)
@@ -202,7 +284,8 @@ class SelectedClip:
     """A final, snapped clip in source seconds with everything needed to render and post.
 
     ``trends`` are the trends the clip's own transcript mentions (empty without a trend
-    context); :meth:`to_dict` writes the key only when there is at least one.
+    context); :meth:`to_dict` writes the key only when there is at least one. ``focus`` is the
+    clip's relation to the job's focus terms, ``None`` (and no key) for a job without focus.
     """
 
     rank: int
@@ -222,6 +305,7 @@ class SelectedClip:
     source: str
     text: str
     trends: tuple[TrendRef, ...] = ()
+    focus: ClipFocus | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.rank, int) or isinstance(self.rank, bool) or self.rank <= 0:
@@ -251,6 +335,8 @@ class SelectedClip:
         _text(self.text, "text", 200_000)
         _common_packaging(self)
         _trends(self.trends)
+        if self.focus is not None and not isinstance(self.focus, ClipFocus):
+            raise TypeError("focus must be a ClipFocus or None")
 
     @property
     def duration(self) -> float:
@@ -279,12 +365,19 @@ class SelectedClip:
         }
         if self.trends:  # optional: a clip without trends keeps its historical shape
             payload["trends"] = [item.to_dict() for item in self.trends]
+        if self.focus is not None:  # optional: only a job with focus terms has it
+            payload["focus"] = self.focus.to_dict()
         return payload
 
 
 @dataclass(frozen=True, slots=True)
 class SelectionResult:
-    """The outcome of one V3 selection run, including provenance for the artifact."""
+    """The outcome of one V3 selection run, including provenance for the artifact.
+
+    ``focus`` is set for a job with focus terms, and then every clip has its ``focus`` label;
+    :meth:`to_dict` writes ``"focus": {"terms", "matched", "requested"}`` only then, with
+    ``matched`` counted from the clips (:attr:`focus_matched`).
+    """
 
     clips: tuple[SelectedClip, ...]
     source: str
@@ -295,6 +388,7 @@ class SelectionResult:
     warnings: tuple[str, ...] = ()
     usage: Mapping[str, int] = field(default_factory=dict)
     selection_version: str = SELECTION_V3_VERSION
+    focus: FocusSummary | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.clips, tuple) or any(
@@ -326,9 +420,18 @@ class SelectionResult:
         object.__setattr__(self, "usage", MappingProxyType(dict(self.usage)))
         if self.selection_version != SELECTION_V3_VERSION:
             raise ValueError(f"selection_version must be {SELECTION_V3_VERSION}")
+        if self.focus is not None and not isinstance(self.focus, FocusSummary):
+            raise TypeError("focus must be a FocusSummary or None")
+        if any((clip.focus is None) != (self.focus is None) for clip in self.clips):
+            raise ValueError("every clip has a focus label exactly when the job has a focus")
+
+    @property
+    def focus_matched(self) -> int:
+        """How many clips match the focus, literally or by the LLM's word."""
+        return sum(clip.focus is not None and clip.focus.match != "none" for clip in self.clips)
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        payload: dict[str, object] = {
             "selection_version": self.selection_version,
             "source": self.source,
             "status": self.status,
@@ -339,3 +442,10 @@ class SelectionResult:
             "usage": dict(self.usage),
             "clips": [item.to_dict() for item in self.clips],
         }
+        if self.focus is not None:  # optional: a job without focus keeps its historical shape
+            payload["focus"] = {
+                "terms": list(self.focus.terms),
+                "matched": self.focus_matched,
+                "requested": self.focus.requested,
+            }
+        return payload
