@@ -344,8 +344,12 @@ def measure_grid(source: Path, *, video_stream: int, duration_ms: int) -> list[l
     """
     ffmpeg = _tool("ffmpeg")
     heads = _grid_pts(ffmpeg, source, video_stream, 0, first_only=True)
-    tails = _grid_pts(ffmpeg, source, video_stream, max(0, duration_ms - GRID_TAIL_MS),
-                      first_only=False)
+    seek_ms = max(0, duration_ms - GRID_TAIL_MS)
+    tails = _grid_pts(ffmpeg, source, video_stream, seek_ms, first_only=False)
+    if seek_ms and not all(tails):
+        # duration_ms can be the container's (Matroska): the video may end before the seek
+        # point. Decode from the start instead (slow, but only for such sources).
+        tails = _grid_pts(ffmpeg, source, video_stream, 0, first_only=False)
     grid = []
     for (num, den), head, tail in zip(DOC_FPS, heads, tails, strict=True):
         if not head or not tail:
