@@ -75,11 +75,10 @@ if (mode === "echo") {
 `;
 
 async function fakePython() {
+  // An executable ES module run by node itself (no shell in between, which would add PWD).
   const dir = await mkdtemp(path.join(os.tmpdir(), "python-cli-"));
-  const script = path.join(dir, "fake.mjs");
-  const python = path.join(dir, "python");
-  await writeFile(script, FAKE);
-  await writeFile(python, `#!/bin/sh\nexec "${process.execPath}" "${script}" "$@"\n`);
+  const python = path.join(dir, "python.mjs");
+  await writeFile(python, `#!${process.execPath}\n${FAKE}`);
   await chmod(python, 0o755);
   return { dir, python };
 }

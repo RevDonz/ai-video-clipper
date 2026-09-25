@@ -1,0 +1,55 @@
+/* Editor V3 design tokens (landed by T1.Z; T2.6 owns this file in W2 and adds the layout
+   rules). Tokens only: every value is a custom property on `.tokens`, the class EditorApp puts
+   on its root. Sizes follow plan Appendix C.1 at 1920×1080 and, below 1500 px wide, at
+   1366×768. Colours match the dashboard (dark stage, light panels) with visible focus rings. */
+
+.tokens {
+  --ed-font-ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --ed-font-mono: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --ed-font-size-xs: 11px;
+  --ed-font-size-sm: 12px;
+  --ed-font-size-md: 14px;
+  --ed-font-size-lg: 16px;
+  --ed-line-height: 1.45;
+
+  --ed-space-1: 4px;
+  --ed-space-2: 8px;
+  --ed-space-3: 12px;
+  --ed-space-4: 16px;
+  --ed-space-5: 24px;
+  --ed-radius-sm: 4px;
+  --ed-radius-md: 8px;
+
+  --ed-topbar-height: 56px;
+  --ed-panel-width: 380px;
+  --ed-timeline-height: 240px;
+  --ed-lane-height: 36px;
+  --ed-min-width: 1024px;
+
+  --ed-color-bg: #f6f7f9;
+  --ed-color-surface: #ffffff;
+  --ed-color-border: #d9dde3;
+  --ed-color-text: #16181d;
+  --ed-color-text-muted: #5b6270;
+  --ed-color-stage: #0f1115;
+  --ed-color-accent: #2f6fed;
+  --ed-color-accent-text: #ffffff;
+  --ed-color-danger: #c62f2f;
+  --ed-color-warning: #b26a00;
+  --ed-color-success: #1f7a3f;
+  --ed-color-cold-open: #7a3ff2;
+  --ed-color-removed: #9aa1ad;
+  --ed-color-pending-hatch: rgba(47, 111, 237, 0.18);
+  --ed-color-playhead: #e5484d;
+  --ed-focus-ring: 0 0 0 2px #ffffff, 0 0 0 4px #2f6fed;
+
+  --ed-duration-fast: 120ms;
+  --ed-duration-slow: 240ms;
+}
+
+@media (max-width: 1500px) {
+  .tokens {
+    --ed-panel-width: 320px;
+    --ed-timeline-height: 200px;
+  }
+}
