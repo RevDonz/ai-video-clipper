@@ -12,6 +12,10 @@
 // - Exit codes are the fixed map of docs/editor/CONTRACTS.md §5.3: a mapped code resolves with
 //   `{exitCode, json}`; 1 (unexpected), 2 (usage: our bug) and anything else reject.
 import { spawn } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import net from "node:net";
+import os from "node:os";
+import path from "node:path";
 import { TextDecoder } from "node:util";
 
 import { engineProcessEnv, isLlmVariable, loadLlmEnv } from "./llm-settings.mjs";
@@ -206,4 +210,260 @@ export async function runPythonCli(module, op, payload, options = {}) {
     });
     child.stdin.end(stdin);
   });
+}
+
+// --- the persistent preview worker (plan §10.3; W2 integration for PF-PLAN and PF-AUDIO) ------
+//
+// `createPythonServer` starts `python -m ai_clipper.edit_v2.preview_server` once, with the same
+// allowlisted environment (E11), and runs requests on it: the server forks one child per
+// connection on a Unix socket in a private directory (mkdtemp, 0700), and the child is exactly
+// one CLI process as before (its own process group; SIGTERM cancels it) without the interpreter
+// start-up and imports. `run` has runPythonCli's contract (exit codes, bounded output, timeout
+// and abort stop the child's group with SIGTERM, then SIGKILL after `killGraceMs`). While the
+// server is not up (starting, crashed, inside the restart back-off) or when a connection ends
+// before the child named itself, the request runs as a spawned CLI (`fallback`) instead.
+export const PYTHON_SERVER_MODULES = Object.freeze(["ai_clipper.edit_v2.preview_server"]);
+export const DEFAULT_READY_TIMEOUT_MS = 15_000;
+export const DEFAULT_RESTART_DELAY_MS = 5_000;
+const MAX_READY_BYTES = 4096;
+const MAX_PID_LINE_BYTES = 256;
+const EXIT_LINE = /^\d{1,3}$/;
+
+function signalProcessGroup(pid, signal) {
+  if (!Number.isSafeInteger(pid) || pid < 2 || pid === process.pid) return;
+  try { process.kill(-pid, signal); } catch {
+    try { process.kill(pid, signal); } catch { /* already gone */ }
+  }
+}
+
+export function createPythonServer(module, options = {}) {
+  const {
+    cliModule, env = process.env, pythonBin = process.env.PYTHON_BIN || "python", spawnImpl = spawn,
+    fallback = runPythonCli, readyTimeoutMs = DEFAULT_READY_TIMEOUT_MS,
+    restartDelayMs = DEFAULT_RESTART_DELAY_MS, tmpdir = os.tmpdir(), now = Date.now,
+  } = options;
+  if (!PYTHON_SERVER_MODULES.includes(module) || !PYTHON_CLI_MODULES.includes(cliModule)) {
+    throw new PythonCliError("invalid_request");
+  }
+  let state = "idle"; // idle | starting | ready | down | closed
+  let server = null;
+  let directory = null;
+  let failedAt = -Infinity;
+  let starting = null;
+
+  function stop() {
+    const current = server;
+    server = null;
+    if (current?.pid) {
+      signalProcessGroup(current.pid, "SIGTERM");
+      setTimeout(() => signalProcessGroup(current.pid, "SIGKILL"), 2_000).unref?.();
+    }
+    try { current?.stdin?.destroy(); } catch { /* closed */ }
+    if (directory) rmSync(directory, { recursive: true, force: true });
+    directory = null;
+  }
+
+  function down() {
+    if (state === "closed") return;
+    state = "down";
+    failedAt = now();
+    stop();
+  }
+
+  /** Start the server (once, or again after the back-off); resolves true when it is ready. */
+  function start() {
+    if (state === "ready") return Promise.resolve(true);
+    if (state === "starting") return starting;
+    if (state === "closed" || now() - failedAt < restartDelayMs) return Promise.resolve(false);
+    state = "starting";
+    starting = new Promise((resolve) => {
+      let settled = false;
+      let timer = null;
+      const done = (ok) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        if (ok && state === "starting") state = "ready";
+        else if (state !== "closed") down();
+        // Held while starting (a caller may await start()); afterwards the app never waits for
+        // its worker, which exits when its stdin closes.
+        if (child) {
+          child.unref();
+          for (const stream of [child.stdin, child.stdout, child.stderr]) stream?.unref?.();
+        }
+        resolve(ok && state === "ready");
+      };
+      let child = null;
+      try {
+        directory = mkdtempSync(path.join(tmpdir, "potongin-preview-"));
+        child = spawnImpl(/* turbopackIgnore: true */ pythonBin, ["-m", module], {
+          env: childEnv(env), stdio: ["pipe", "pipe", "pipe"], detached: true, shell: false,
+          windowsHide: true,
+        });
+      } catch {
+        done(false);
+        return;
+      }
+      server = child;
+      let ready = "";
+      child.stdout.on("data", (chunk) => {
+        if (settled) return;
+        ready += chunk.toString("utf8");
+        const at = ready.indexOf("\n");
+        if (at < 0) {
+          if (ready.length > MAX_READY_BYTES) done(false);
+          return;
+        }
+        let line = null;
+        try { line = JSON.parse(ready.slice(0, at)); } catch { /* not a ready line */ }
+        done(line?.ready === true && line.pid === child.pid);
+      });
+      child.stderr.on("data", () => {}); // drained, never returned (no path or text leaks)
+      child.stdin.on("error", () => {});
+      child.on("error", () => { if (server === child) done(false); });
+      child.on("exit", () => {
+        if (server !== child) return;
+        if (settled) down();
+        else done(false);
+      });
+      timer = setTimeout(() => done(false), readyTimeoutMs);
+      child.stdin.write(`${JSON.stringify({ op: "serve", dir: directory })}\n`);
+    });
+    return starting;
+  }
+
+  function request(stdin, { timeout, stdoutLimit, signal, killGraceMs }) {
+    return new Promise((resolve) => {
+      const conn = net.createConnection(path.join(directory, "preview.sock"));
+      let pid = null;
+      let head = Buffer.alloc(0);
+      const chunks = [];
+      let bytes = 0;
+      let failure = null;
+      let settled = false;
+      let killTimer = null;
+      let refused = false;
+      let timer = null;
+      const onAbort = () => fail("aborted");
+      const settle = (outcome) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        signal?.removeEventListener("abort", onAbort);
+        if (killTimer) {
+          clearTimeout(killTimer);
+          signalProcessGroup(pid, "SIGKILL"); // whatever of the group outlived its leader
+        }
+        conn.destroy();
+        resolve(outcome);
+      };
+      function fail(code) {
+        if (failure || settled) return;
+        failure = code;
+        if (pid === null) {
+          settle({ error: new PythonCliError(code) });
+          return;
+        }
+        signalProcessGroup(pid, "SIGTERM");
+        killTimer = setTimeout(() => settle({ error: new PythonCliError(failure) }), Math.max(0, killGraceMs));
+      }
+      timer = setTimeout(() => fail("timeout"), timeout);
+      signal?.addEventListener("abort", onAbort, { once: true });
+      const keep = (chunk) => {
+        bytes += chunk.length;
+        if (bytes > stdoutLimit + 16) fail("output_too_large");
+        else chunks.push(chunk);
+      };
+      conn.on("connect", () => conn.end(stdin));
+      conn.on("data", (chunk) => {
+        if (failure) return;
+        if (pid !== null) {
+          keep(chunk);
+          return;
+        }
+        head = Buffer.concat([head, chunk]);
+        const at = head.indexOf(0x0a);
+        if (at < 0) {
+          if (head.length > MAX_PID_LINE_BYTES) fail("invalid_output");
+          return;
+        }
+        let line = null;
+        try { line = JSON.parse(head.subarray(0, at).toString("utf8")); } catch { /* checked below */ }
+        if (!Number.isSafeInteger(line?.pid) || line.pid < 2 || line.pid === process.pid) {
+          fail("invalid_output");
+          return;
+        }
+        pid = line.pid;
+        if (head.length > at + 1) keep(head.subarray(at + 1));
+      });
+      conn.on("error", (error) => {
+        refused = pid === null && ["ENOENT", "ECONNREFUSED"].includes(error?.code);
+      });
+      conn.on("close", () => {
+        if (settled) return;
+        if (failure) {
+          settle({ error: new PythonCliError(failure) });
+          return;
+        }
+        if (pid === null) {
+          settle({ retry: true, refused }); // no child named itself: nothing ran the envelope
+          return;
+        }
+        const output = Buffer.concat(chunks);
+        const at = output.indexOf(0x0a);
+        const codeText = at < 0 ? "" : output.subarray(0, at).toString("ascii");
+        if (!EXIT_LINE.test(codeText)) {
+          settle({ error: new PythonCliError("invalid_output") });
+          return;
+        }
+        if (!(Number(codeText) in EXIT_CODES)) {
+          settle({ error: new PythonCliError("backend_failed") });
+          return;
+        }
+        let json;
+        try {
+          json = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(output.subarray(at + 1)));
+        } catch {
+          settle({ error: new PythonCliError("invalid_output") });
+          return;
+        }
+        if (json === null || typeof json !== "object" || Array.isArray(json)) {
+          settle({ error: new PythonCliError("invalid_output") });
+          return;
+        }
+        settle({ value: { exitCode: Number(codeText), json } });
+      });
+    });
+  }
+
+  async function run(op, payload, runOptions = {}) {
+    const { timeoutMs, maxStdoutBytes, maxStdinBytes, signal, killGraceMs = DEFAULT_KILL_GRACE_MS } = runOptions;
+    if (typeof op !== "string" || !OP.test(op)) throw new PythonCliError("invalid_request");
+    const timeout = positiveInteger(timeoutMs, DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS);
+    const stdoutLimit = positiveInteger(maxStdoutBytes, DEFAULT_MAX_STDOUT_BYTES);
+    const stdin = envelopeBytes(op, payload, positiveInteger(maxStdinBytes, DEFAULT_MAX_STDIN_BYTES));
+    if (signal?.aborted) throw new PythonCliError("aborted");
+    if (state !== "ready") {
+      start();
+      return fallback(cliModule, op, payload, runOptions);
+    }
+    const outcome = await request(stdin, { timeout, stdoutLimit, signal, killGraceMs });
+    if (outcome.retry) {
+      if (outcome.refused) down();
+      return fallback(cliModule, op, payload, runOptions);
+    }
+    if (outcome.error) throw outcome.error;
+    return outcome.value;
+  }
+
+  return {
+    run,
+    start,
+    state: () => state,
+    pid: () => server?.pid ?? null,
+    async close() {
+      state = "closed";
+      stop();
+    },
+  };
 }
