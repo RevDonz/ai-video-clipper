@@ -74,8 +74,9 @@ const DAY = 24 * HOUR;
 
 // --- Text ---------------------------------------------------------------------
 
-// Bidi embeddings/overrides/isolates and marks, zero-width characters and the BOM.
-const INVISIBLE = /[\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g;
+// Format characters (bidi, zero-width, BOM, soft hyphen, tags) and every other invisible
+// default-ignorable code point (variation selectors, fillers), as the server strips them.
+const INVISIBLE = /[\p{Cf}\p{Default_Ignorable_Code_Point}]/gu;
 const WHITESPACE_CONTROLS = /[\t\n\v\f\r\u0085\u2028\u2029]/g;
 const OTHER_CONTROLS = /\p{Cc}/gu;
 
@@ -88,7 +89,7 @@ function truncate(value, maximum) {
   return points.length > maximum ? points.slice(0, maximum).join("") : value;
 }
 
-/** One line of display text: NFC, no controls, no bidi or zero-width characters, spaces collapsed. */
+/** One line of display text: NFC, no controls or invisible characters, spaces collapsed. */
 export function cleanLine(value) {
   if (typeof value !== "string") return "";
   return value
