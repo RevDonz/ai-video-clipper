@@ -308,6 +308,11 @@ test("POST renders replay releases only its own unused reservation", async () =>
   assert.equal(result.body.state, "rendering");
   assert.deepEqual(events.at(-1), ["release", RESERVATION_ID, RESERVATION_TOKEN, "failed"]);
   assert.ok(!events.some(([name]) => name === "bind"));
+  const finished = v3Request({ state: "cancelled", cancelled_at: T1, error_code: "cancelled", updated_at: T1 });
+  const { runCli: replayRunner } = recorder({ estimate: { exitCode: 0, json: { bytes: "1" } }, create: { exitCode: 0, json: { request: finished } } });
+  const again = await post(createClipRendersRoute({ authorize, env: env(), runCli: replayRunner, ...storage([]) }));
+  assert.equal(again.status, 200);  // a replay of a finished export queues nothing
+  assert.equal(again.body.state, "cancelled");
 });
 
 test("POST renders maps estimate, storage, create and bind failures to fixed codes", async () => {
