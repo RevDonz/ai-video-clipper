@@ -329,3 +329,30 @@ def test_quick_ptime_is_a_subset_with_hazard_frames():
     counts = edit_v2_text.ptime_counts(cases)
     assert counts["hazard_boundaries"] > 0
     assert counts["events"] < edit_v2_text.ptime_counts(edit_v2_text.ptime_cases())["events"]
+
+
+# --- the \p box variant (plan §5.4: the fallback if BorderStyle 3 fails P-TXT) ---------------
+
+
+def test_ptime_measures_the_vector_box_variant_too():
+    for quick, rates in ((False, 5), (True, 2)):
+        cases = [case for case in edit_v2_text.ptime_cases(quick) if case.box_style == "vector"]
+        assert len(cases) == rates
+        for case in cases:
+            assert (case.pack, case.background) == ("box", "gray")
+            texts = [fields[9] for fields in _dialogues(edit_v2_text.case_ass(case))
+                     if fields[3] == "Box"]
+            rectangles = [text for text in texts if "\\p1}m 0 0 l " in text]
+            assert rectangles and len(texts) == 2 * len(rectangles)
+
+
+def test_vector_box_covers_the_same_pixels_as_the_border_style_3_box(edit_v2_libass):
+    # Inside the BorderStyle 3 box (text and fill) the two variants are identical; the edges
+    # move by at most one pixel (padding H/100 rounded to whole pixels, crisp rectangle edges).
+    report = edit_v2_text.box_vector_geometry()
+
+    assert len(report["samples"]) == len(edit_v2_text.BOX_GEOMETRY_TEXTS)
+    for sample in report["samples"]:
+        assert sample["interior_differing_px"] == 0, sample
+        assert sample["max_edge_shift_px"] <= 1, sample
+    assert report["failures"] == 0

@@ -6,6 +6,7 @@ Stdlib only, so the gates run in the reference image (which has no pytest)::
     PYTHONPATH=src:tests python -m support.edit_v2_text glyph-probe OUT.json
     PYTHONPATH=src:tests python -m support.edit_v2_text goldens --write | --check
     PYTHONPATH=src:tests python -m support.edit_v2_text golden-evidence OUT.json
+    PYTHONPATH=src:tests python -m support.edit_v2_text box-vector OUT.json
 
 **P-TIME, FFmpeg side (plan §10.1).** For each rate of the gate (24, 25, 30, 24000/1001,
 30000/1001) and each pack, caption cues and a hook are placed with their boundaries on *hazard*
@@ -18,6 +19,14 @@ around its plan window ``[a, b)``. Expected: invisible at ``a − 1``, visible f
 ``b − 1``, invisible at ``b``; each karaoke onset ``k`` changes the picture between ``k − 1`` and
 ``k`` and not next to it. The one designed exception is a ``\\fad`` fade-in at ``now == Start``
 (frame 0 of a hook that starts at frame 0), which is fully transparent in libass and JASSUB alike.
+The ``box`` pack is measured twice: as shipped (BorderStyle 3) and as its ``\\p`` vector variant
+(plan §5.4), whose box events are rendered on grey (a translucent black box on black is not
+visible).
+
+**Box variants.** ``box_vector_geometry`` renders the same ``box`` lines with both box styles over
+grey and compares them: the pixels more than one pixel inside the BorderStyle 3 box must be
+identical, and each box edge may move by at most one pixel (its padding is ``H/100`` rounded to
+a whole pixel, and the rectangle has crisp edges).
 
 **Missing-glyph probe (plan §5.2 R6).** Pack text with characters that only DejaVu has, that
 only Montserrat has, and that no font has, rendered with ``FONTCONFIG_FILE`` =
@@ -41,10 +50,18 @@ import sys
 import tempfile
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
+from dataclasses import replace as dataclass_replace
 from pathlib import Path
 from typing import Any
 
-from ai_clipper.captions_ass import HookSpec, build_ass_v2, fit_cues, layout_hook, load_pack
+from ai_clipper.captions_ass import (
+    CaptionPack,
+    HookSpec,
+    build_ass_v2,
+    fit_cues,
+    layout_hook,
+    load_pack,
+)
 from ai_clipper.edit_v2 import PACK_DEFAULT_OVERRIDES, PACK_IDS
 from ai_clipper.edit_v2 import timemap as tm
 from ai_clipper.edit_v2.captions import caption_track
@@ -146,6 +163,12 @@ class PtimeCase:
     hook: HookSpec | None
     total_frames: int
     play_res: tuple[int, int] = PLAY_RES
+    box_style: str = "border"
+
+    @property
+    def background(self) -> str:
+        """FFmpeg colour behind the text: grey for the vector box (black on black is not seen)."""
+        return "gray" if self.box_style == "vector" else "black"
 
 
 @dataclass(frozen=True)
@@ -181,20 +204,28 @@ def ptime_cases(quick: bool = False) -> tuple[PtimeCase, ...]:
         label = f"{fps.num}/{fps.den}"
         packs = PACK_IDS
         cases += [PtimeCase(f"{label}/{pack}", fps, pack, cues, hook, total) for pack in packs]
+        cases.append(PtimeCase(f"{label}/box-vector", fps, "box", cues, hook, total,
+                               box_style="vector"))
         cases.append(PtimeCase(f"{label}/hook0", fps, "classic", (),
                                HookSpec(HOOK_TEXT, 0, 120, 13000), 180))
     return tuple(cases)
 
 
+def case_pack(case: PtimeCase) -> CaptionPack:
+    pack = load_pack(case.pack, 1)
+    return pack if pack.box_style == case.box_style else dataclass_replace(
+        pack, box_style=case.box_style)
+
+
 def case_ass(case: PtimeCase) -> str:
     return build_ass_v2(case.cues, play_res=case.play_res, fps=case.fps,
-                        total_frames=case.total_frames, pack=load_pack(case.pack, 1),
+                        total_frames=case.total_frames, pack=case_pack(case),
                         overrides=PACK_DEFAULT_OVERRIDES[case.pack], hook=case.hook)
 
 
 def expected_events(case: PtimeCase) -> list[ExpectedEvent]:
     """Plan windows of every Dialogue line of ``case_ass(case)``, in emission order."""
-    pack = load_pack(case.pack, 1)
+    pack = case_pack(case)
     overrides = PACK_DEFAULT_OVERRIDES[case.pack]
     events: list[ExpectedEvent] = []
     for cue in fit_cues(case.cues, pack=pack, play_res=case.play_res, overrides=overrides):
@@ -210,7 +241,9 @@ def expected_events(case: PtimeCase) -> list[ExpectedEvent]:
                              if cue.f0 < w.f0 < cue.f1 and not w.emphasis})
             events.append(ExpectedEvent(cue.f0, cue.f1, tuple(onsets), False, "caption"))
         else:
-            events.append(ExpectedEvent(cue.f0, cue.f1, (), False, "caption"))
+            # The vector box is its own event (the rectangle) right before the line.
+            copies = 2 if pack.box_style == "vector" else 1
+            events += [ExpectedEvent(cue.f0, cue.f1, (), False, "caption")] * copies
     if case.hook is not None:
         end = min(case.hook.f1, case.total_frames)
         lines = layout_hook(case.hook.text, play_res=case.play_res, y_e5=case.hook.y_e5).lines
@@ -298,14 +331,14 @@ def _pts_expression(frames: Sequence[int]) -> str:
 
 
 def render_frames(ass: str, fps: Fps, size: tuple[int, int], frames: Sequence[int], *,
-                  loglevel: str = "error") -> tuple[list[str], str]:
+                  loglevel: str = "error", background: str = "black") -> tuple[list[str], str]:
     """MD5 of each output frame (RGB) of ``ass`` at output frames ``frames``, and the stderr."""
     frames = sorted(set(frames))
     with tempfile.TemporaryDirectory(prefix="edit-v2-text-") as tmp:
         work = _workdir(tmp)
         (work / "probe.ass").write_text(ass, encoding="utf-8")
         graph = (
-            f"color=c=black:s={size[0]}x{size[1]}:r={fps.num}/{fps.den},"
+            f"color=c={background}:s={size[0]}x{size[1]}:r={fps.num}/{fps.den},"
             f"trim=end_frame={len(frames)},settb={fps.den}/{fps.num},"
             f"setpts='{_pts_expression(frames)}',"
             "ass=filename=probe.ass:fontsdir=fonts:shaping=complex,format=rgb24[v]"
@@ -362,7 +395,8 @@ def _check_event(case: PtimeCase, header: str, line: str, event: ExpectedEvent,
                  blank: str) -> dict[str, Any]:
     start_cs = event_start_cs(line)
     frames = _probe_frames(event, case.fps, start_cs)
-    digests, _stderr = render_frames(header + line + "\n", case.fps, case.play_res, frames)
+    digests, _stderr = render_frames(header + line + "\n", case.fps, case.play_res, frames,
+                                     background=case.background)
     by_frame = dict(zip(frames, digests, strict=True))
     problems: list[dict[str, Any]] = []
     for frame in frames:
@@ -391,16 +425,17 @@ def run_ptime(*, quick: bool = False, jobs: int = 2) -> dict[str, Any]:
     """Render every event of every P-TIME case in FFmpeg and compare with the plan frames."""
     cases = ptime_cases(quick)
     tasks = []
-    blanks: dict[tuple[int, int, tuple[int, int]], str] = {}
+    blanks: dict[tuple[int, int, tuple[int, int], str], str] = {}
     for case in cases:
         ass = case_ass(case)
         header, lines = split_events(ass)
         events = expected_events(case)
         if len(lines) != len(events):
             raise GateError(f"{case.name}: {len(lines)} events, expected {len(events)}")
-        key = (case.fps.num, case.fps.den, case.play_res)
+        key = (case.fps.num, case.fps.den, case.play_res, case.background)
         if key not in blanks:
-            blanks[key] = render_frames(header, case.fps, case.play_res, [0])[0][0]
+            blanks[key] = render_frames(header, case.fps, case.play_res, [0],
+                                        background=case.background)[0][0]
         tasks += [(case, header, line, event, blanks[key])
                   for line, event in zip(lines, events, strict=True)]
     with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, jobs)) as pool:
@@ -525,6 +560,102 @@ def glyph_probe() -> dict[str, Any]:
     return report
 
 
+# --- box variants: BorderStyle 3 vs the \p rectangle ------------------------------------------
+
+BOX_GEOMETRY_TEXTS = (
+    "gue bukan jambret.",
+    "AVATAR TAWA",  # kerning pairs (libass shapes without kerning, as the hmtx widths assume)
+    "SEPERTINYA",
+    "Supercalifragilisticexpialidocious",  # one word shrunk with \fs
+    "Halo {semua}",  # escaped text
+)
+_GREY = 128
+
+
+def render_rgb(ass: str, size: tuple[int, int], *, background: str = "gray") -> bytes:
+    """Frame 0 of ``ass`` (25 fps) over ``background`` as packed RGB24 bytes."""
+    with tempfile.TemporaryDirectory(prefix="edit-v2-text-") as tmp:
+        work = _workdir(tmp)
+        (work / "probe.ass").write_text(ass, encoding="utf-8")
+        graph = (f"color=c={background}:s={size[0]}x{size[1]}:r=25,trim=end_frame=1,"
+                 "ass=filename=probe.ass:fontsdir=fonts:shaping=complex,format=rgb24[v]")
+        (work / "graph.txt").write_text(graph, encoding="utf-8")
+        argv = [_ffmpeg(), "-nostdin", "-hide_banner", "-loglevel", "error", "-threads", "1",
+                "-filter_complex_threads", "1", "-filter_complex_script", "graph.txt",
+                "-map", "[v]", "-frames:v", "1", "-f", "rawvideo", "-"]
+        result = subprocess.run(argv, cwd=work, env=_env(), capture_output=True, check=False,
+                                timeout=120)
+    if result.returncode != 0 or len(result.stdout) != 3 * size[0] * size[1]:
+        stderr = result.stderr.decode("utf-8", "replace").strip().splitlines()
+        raise GateError("ffmpeg failed: " + " | ".join(stderr[-4:]))
+    return result.stdout
+
+
+def _box_ass(text: str, box_style: str) -> str:
+    pack = dataclass_replace(load_pack("box", 1), box_style=box_style)
+    words = tuple(FrameWord(f"w{i:06d}", 0, 10, word, False)
+                  for i, word in enumerate(text.split()))
+    return build_ass_v2((FrameCue(0, 10, "seg_b1", words),), play_res=PLAY_RES,
+                        fps=Fps(25, 1), total_frames=20, pack=pack,
+                        overrides=PACK_DEFAULT_OVERRIDES["box"], hook=None)
+
+
+def _bbox(image: bytes, width: int, *, level: int) -> tuple[int, int, int, int] | None:
+    """Bounding box (x0, y0, x1, y1 inclusive) of pixels with a channel more than ``level``
+    away from grey."""
+    table = bytes(0 if abs(value - _GREY) <= level else 1 for value in range(256))
+    marks = image.translate(table)
+    stride = 3 * width
+    rows = [y for y in range(len(marks) // stride) if 1 in marks[y * stride:(y + 1) * stride]]
+    if not rows:
+        return None
+    lefts, rights = [], []
+    for y in rows:
+        row = marks[y * stride:(y + 1) * stride]
+        lefts.append(row.find(1) // 3)
+        rights.append(row.rfind(1) // 3)
+    return min(lefts), rows[0], max(rights), rows[-1]
+
+
+def box_vector_geometry() -> dict[str, Any]:
+    """Compare the ``box`` pack's BorderStyle 3 box with its ``\\p`` rectangle variant."""
+    width = PLAY_RES[0]
+    stride = 3 * width
+    samples = []
+    failures = 0
+    for text in BOX_GEOMETRY_TEXTS:
+        border = render_rgb(_box_ass(text, "border"), PLAY_RES)
+        vector = render_rgb(_box_ass(text, "vector"), PLAY_RES)
+        # level 2 ignores libass' 1-level antialiasing fringe around a crisp rectangle
+        box_b, box_v = _bbox(border, width, level=2), _bbox(vector, width, level=2)
+        if box_b is None or box_v is None:
+            samples.append({"text": text, "border_bbox": box_b, "vector_bbox": box_v})
+            failures += 1
+            continue
+        x0, y0, x1, y1 = box_b
+        interior_px = interior_max = differing_px = 0
+        for y in range(len(border) // stride):
+            row_b = border[y * stride:(y + 1) * stride]
+            row_v = vector[y * stride:(y + 1) * stride]
+            if row_b == row_v:
+                continue
+            for x in range(width):
+                diff = max(abs(row_b[3 * x + k] - row_v[3 * x + k]) for k in range(3))
+                if not diff:
+                    continue
+                differing_px += 1
+                if x0 + 1 < x < x1 - 1 and y0 + 1 < y < y1 - 1:
+                    interior_px += 1
+                    interior_max = max(interior_max, diff)
+        edge_px = max(abs(a - b) for a, b in zip(box_b, box_v, strict=True))
+        failures += (interior_px > 0) + (edge_px > 1)
+        samples.append({"text": text, "border_bbox": list(box_b), "vector_bbox": list(box_v),
+                        "max_edge_shift_px": edge_px, "interior_differing_px": interior_px,
+                        "interior_max_diff": interior_max, "differing_px": differing_px})
+    return {"task": "T1.2a", "check": "box pack: BorderStyle 3 vs \\p rectangle",
+            "play_res": list(PLAY_RES), "samples": samples, "failures": failures}
+
+
 # --- ASS goldens -----------------------------------------------------------------------------------
 
 GOLDEN_CASES = (
@@ -573,9 +704,12 @@ def golden_evidence() -> dict[str, Any]:
         styles = sorted({line.split(",", 4)[3] for line in lines})
         fps = Fps.from_json(doc["output"]["fps"])
         size = (doc["output"]["w"], doc["output"]["h"])
-        probe = sorted({result.cues[0].f0 if result.cues else 0,
-                        (result.cues[len(result.cues) // 2].f0 if result.cues else 30),
-                        10})
+        # Frames inside events: the first and a middle cue, and the hook past its fade-in
+        # start (its first frame is transparent by design, \fad at now == Start).
+        probe = {cue.f0 for cue in result.cues[:1] + result.cues[len(result.cues) // 2:][:1]}
+        if result.hook_lines:
+            probe.add(5)
+        probe = sorted(probe)
         digests, log = render_frames(result.ass, fps, size, probe, loglevel="info")
         logs.append(log)
         blank = render_frames(header, fps, size, [0])[0][0]
@@ -627,6 +761,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     group.add_argument("--check", action="store_true")
     evidence = commands.add_parser("golden-evidence")
     evidence.add_argument("output", type=Path)
+    box = commands.add_parser("box-vector")
+    box.add_argument("output", type=Path)
     args = parser.parse_args(argv)
 
     if args.command == "goldens":
@@ -640,8 +776,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         report["toolchain"] = _toolchain()
         _write(args.output, report)
         return 1 if report["mismatches"] else 0
-    if args.command == "glyph-probe":
-        report = glyph_probe()
+    if args.command in ("glyph-probe", "box-vector"):
+        report = glyph_probe() if args.command == "glyph-probe" else box_vector_geometry()
         report["toolchain"] = _toolchain()
         _write(args.output, report)
         return 1 if report["failures"] else 0
