@@ -141,6 +141,19 @@ def test_probe_frames_include_hook_fades_cue_edges_and_cuts():
     assert cuts & set(frames)
 
 
+def test_with_gop_changes_only_the_plate_gop(tmp_path):
+    from ai_clipper.edit_v2.compile_ffmpeg import FfmpegJob
+
+    job = FfmpegJob(argv=("ffmpeg", "-g", "60", "-force_key_frames", "expr:eq(mod(n,60),0)",
+                          "-segment_frames", "60"),
+                    filter_script="", inputs=(), sidecars={}, expected={})
+    short = pf.with_gop(job, 60, 15)
+    assert short.argv == ("ffmpeg", "-g", "15", "-force_key_frames", "expr:eq(mod(n,60),0)",
+                          "-segment_frames", "60")
+    with pytest.raises(ValueError):
+        pf.with_gop(job, 60, 0)
+
+
 def test_set_pack_uses_the_pack_defaults():
     plan = _plan(pack="box")
     assert plan.doc["captions"]["pack"] == {"id": "box", "v": 1}
@@ -192,10 +205,10 @@ def test_logo_thresholds_are_the_plan_numbers():
 def test_evidence_files_hold_numbers_only(tmp_path):
     results = {
         "p_frame.json": {"browser": "147.0.7727.15", "executable": "/home/x/chrome",
-                         "cases": [{"case": "cfr_29.97", "frames": 610, "mismatches": 0,
+                         "cases": [{"case": "cfr_29.97", "frames": 2400, "mismatches": 0,
                                     "details": [], "crop_x_mismatches": 0, "unpresented": 0,
                                     "crop_x_checked": 0}],
-                         "totals": {"frames": 610, "mismatches": 0}},
+                         "totals": {"frames": 2400, "mismatches": 0}},
     }
     browser = tmp_path / "browser"
     browser.mkdir()

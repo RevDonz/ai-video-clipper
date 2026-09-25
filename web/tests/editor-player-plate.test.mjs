@@ -10,7 +10,7 @@ import { createFrameCache, createPlateSource } from "../lib/editor/player/plate-
 
 const FPS = [30, 1];
 
-function fakeMediabunny({ frames = 60 } = {}) {
+function fakeMediabunny({ frames = 60, getSample = false } = {}) {
   const log = [];
   class BufferSource {
     constructor(buffer) { this.buffer = buffer; }
@@ -21,7 +21,18 @@ function fakeMediabunny({ frames = 60 } = {}) {
     dispose() { log.push(["dispose", this.source.buffer.cell]); }
   }
   class VideoSampleSink {
-    constructor(track) { this.track = track; }
+    constructor(track) {
+      this.track = track;
+      if (getSample) {
+        this.getSample = async (timestamp) => {
+          const cell = this.track.cell;
+          const j = Math.floor((timestamp * FPS[0]) / FPS[1] + 1e-9);
+          log.push(["getSample", cell, j]);
+          if (j >= frames) return null;
+          return { timestamp: (j * FPS[1]) / FPS[0], toVideoFrame: () => ({ cell, j, close() {} }), close() {} };
+        };
+      }
+    }
     async* samples(startTimestamp = 0) {
       const cell = this.track.cell;
       // Like Mediabunny: the first sample yielded is the one whose interval contains the start.
@@ -120,7 +131,9 @@ test("need(k, j) decodes the cell from j, converts only the needed frame, and ca
   assert.deepEqual(fetches, ["/cells/p1-1.mp4"]);
   assert.deepEqual(converted, ["1:17"]);
   assert.deepEqual(mb.log.filter(([kind]) => kind === "open"), [["open", 1, 17]]);
+  await new Promise((resolve) => setImmediate(resolve));
   assert.ok(mb.log.some(([kind, cell]) => kind === "close" && cell === 1), "the decoder is closed after the last needed frame");
+  assert.equal(mb.log.filter(([kind, cell, j]) => kind === "decode" && cell === 1 && j > 17).length, 0);
   assert.equal(source.frame(1, 17), bitmap);
   assert.equal(await source.need(1, 17), bitmap);
   assert.equal(mb.log.filter(([kind]) => kind === "open").length, 1);
@@ -140,7 +153,10 @@ test("ensure decodes the schedule in order, one pass per cell, keeping the neede
     { k: 6, js: [20, 21, 22], firstN: 50 },
     { k: 0, js: [30, 31], firstN: 60 },
   ]);
-  assert.deepEqual(converted, ["6:20", "6:21", "6:22", "0:30", "0:31"]);
+  // Cells decode in parallel (up to maxDecoders), each in frame order; cell 6 is needed first.
+  assert.deepEqual(converted.filter((key) => key.startsWith("6:")), ["6:20", "6:21", "6:22"]);
+  assert.deepEqual(converted.filter((key) => key.startsWith("0:")), ["0:30", "0:31"]);
+  assert.deepEqual(mb.log.filter(([kind]) => kind === "open").map(([, cell]) => cell), [6, 0]);
   assert.deepEqual(fetches, ["/cells/p1-6.mp4", "/cells/p1-0.mp4"]);
   // No frame after the last needed one is decoded.
   assert.equal(mb.log.filter(([kind, cell, j]) => kind === "decode" && cell === 6 && j > 22).length, 0);
@@ -201,6 +217,85 @@ test("at most maxDecoders cells decode at once", async () => {
     if (kind === "close") open -= 1;
   }
   assert.equal(peak, 1);
+});
+
+function gatedHarness({ maxDecoders = 1, gateCell = 0 } = {}) {
+  const mb = fakeMediabunny();
+  const converted = [];
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const source = createPlateSource({
+    fetchImpl: async (url) => ({ ok: true, status: 200, arrayBuffer: async () => ({ cell: Number(/-(\d+)\.mp4$/.exec(url)[1]) }) }),
+    loadMediabunny: async () => mb.module,
+    createBitmap: async (frame) => {
+      if (frame.cell === gateCell) await gate;
+      converted.push(`${frame.cell}:${frame.j}`);
+      return { cell: frame.cell, j: frame.j, close() {} };
+    },
+    yieldTask: () => Promise.resolve(),
+    fps: FPS,
+    maxDecoders,
+  });
+  return { source, mb, converted, release };
+}
+
+test("a frame the stage waits for starts at once, even with every decoder busy decoding ahead", async () => {
+  const { source, converted, release } = gatedHarness({ maxDecoders: 1 });
+  source.setPlate(plateDto("p1", [0, 2]));
+  const ahead = source.ensure([{ k: 0, js: [0, 1, 2, 3], firstN: 0 }]);
+  await new Promise((resolve) => setImmediate(resolve));
+  const bitmap = await source.need(2, 5);
+  assert.deepEqual([bitmap.cell, bitmap.j], [2, 5]);
+  assert.deepEqual(converted, ["2:5"], "the decode-ahead of cell 0 is still blocked");
+  release();
+  await ahead;
+  assert.deepEqual(converted.slice(1), ["0:0", "0:1", "0:2", "0:3"]);
+});
+
+test("an exclusive need (a paused seek) stops the decode-ahead of the previous position", async () => {
+  const { source, converted, release } = gatedHarness({ maxDecoders: 3 });
+  source.setPlate(plateDto("p1", [0, 2]));
+  const ahead = source.ensure([{ k: 0, js: [0, 1, 2, 3, 4, 5], firstN: 0 }]);
+  await new Promise((resolve) => setImmediate(resolve));
+  const bitmap = await source.need(2, 5, { exclusive: true });
+  assert.deepEqual([bitmap.cell, bitmap.j], [2, 5]);
+  release();
+  await ahead; // the cancelled frames resolve (to null) instead of hanging
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.ok(converted.filter((key) => key.startsWith("0:")).length <= 1, converted.join(","));
+  assert.equal(source.frame(0, 5), null);
+});
+
+test("a need for a frame a pass is already heading for promotes that pass", async () => {
+  const { source, mb, release } = gatedHarness({ maxDecoders: 3, gateCell: 1 });
+  source.setPlate(plateDto("p1", [1]));
+  const ahead = source.ensure([{ k: 1, js: [0, 1, 2, 3, 4, 5, 6], firstN: 0 }]);
+  await new Promise((resolve) => setImmediate(resolve));
+  const waiting = source.need(1, 5);
+  release();
+  const bitmap = await waiting;
+  await ahead;
+  assert.deepEqual([bitmap.cell, bitmap.j], [1, 5]);
+  assert.equal(mb.log.filter(([kind]) => kind === "open").length, 1, "no second pass over cell 1");
+});
+
+test("a lone frame the stage waits for is decoded with getSample; decode-ahead streams", async () => {
+  const mb = fakeMediabunny({ getSample: true });
+  const converted = [];
+  const source = createPlateSource({
+    fetchImpl: async (url) => ({ ok: true, status: 200, arrayBuffer: async () => ({ cell: Number(/-(\d+)\.mp4$/.exec(url)[1]) }) }),
+    loadMediabunny: async () => mb.module,
+    createBitmap: async (frame) => { converted.push(`${frame.cell}:${frame.j}`); return { cell: frame.cell, j: frame.j, close() {} }; },
+    yieldTask: () => Promise.resolve(),
+    fps: FPS,
+  });
+  source.setPlate(plateDto("p1", [0, 1]));
+  const bitmap = await source.need(1, 42, { exclusive: true });
+  assert.deepEqual([bitmap.cell, bitmap.j], [1, 42]);
+  assert.deepEqual(mb.log.filter(([kind]) => kind === "getSample" || kind === "open"), [["getSample", 1, 42]]);
+  await source.ensure([{ k: 0, js: [3, 4, 5], firstN: 0 }]);
+  assert.deepEqual(mb.log.filter(([kind]) => kind === "open"), [["open", 0, 3]]);
+  assert.deepEqual(converted, ["1:42", "0:3", "0:4", "0:5"]);
 });
 
 test("a failed cell fetch rejects its waiters and a later request retries", async () => {

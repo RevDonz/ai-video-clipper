@@ -346,6 +346,34 @@ test("playback follows the audio clock, pre-renders text one frame ahead and cou
   assert.equal(env.audio.started, null);
 });
 
+test("playback renders the text of the next frames ahead and releases the copies once shown", async () => {
+  const env = makeDeps();
+  const copies = [];
+  env.deps.cloneBitmap = async (bitmap) => {
+    const copy = { layer: "text", n: bitmap.n, closed: false, close() { copy.closed = true; } };
+    copies.push(copy);
+    return copy;
+  };
+  const { instance, draws } = player(env);
+  await instance.load(planDto());
+  await tick();
+  await instance.play();
+  await env.frameTick(0.5 / 30);
+  await tick();
+  const renders = env.textLayers[0].renders;
+  for (const n of [1, 2, 3, 4]) assert.ok(renders.includes(n), `text ${n} rendered ahead`);
+  await env.frameTick(1.5 / 30);
+  await env.frameTick(2.5 / 30);
+  const drawnText = draws.filter((draw) => draw.image.layer === "text").map((draw) => draw.image);
+  assert.deepEqual(drawnText.slice(-2).map((image) => image.n), [1, 2]);
+  assert.ok(drawnText.slice(-2).every((image) => copies.includes(image)), "the player draws its own copies");
+  // Frames already shown are released; the ones ahead are kept.
+  assert.equal(copies.find((copy) => copy.n === 1).closed, true);
+  assert.equal(copies.find((copy) => copy.n === 4).closed, false);
+  instance.destroy();
+  assert.ok(copies.every((copy) => copy.closed), "destroy releases every copy");
+});
+
 test("play waits for the mix; play without sound runs on the wall clock", async () => {
   const env = makeDeps();
   const { instance } = player(env);

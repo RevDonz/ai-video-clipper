@@ -1,7 +1,8 @@
-// Fixtures for the text parity harness (plan §11.1 T1.2b): the manifest, ASS samples, fonts,
-// plate frames and FFmpeg references written by scripts/parity/reference_text.py, plus the pinned
-// JASSUB worker glue and wasm (served byte for byte from the installed package, because the
-// adapter loads them unbundled: see web/lib/editor/player/text-layer.mjs).
+// Fixtures for the parity harnesses (plan §11.1 T1.2b text, §11.2 T2.4 player): the manifests,
+// ASS samples, fonts, plate frames and FFmpeg references written by
+// scripts/parity/reference_text.py and scripts/parity/player_fixtures.py (player/...), plus the
+// pinned JASSUB worker glue and wasm (served byte for byte from the installed package, because
+// the adapter loads them unbundled: see web/lib/editor/player/text-layer.mjs).
 //
 // Dev and CI only: every request is a 404 unless POTONGIN_PARITY_HARNESS=1 and the session is
 // valid, and files are served only from POTONGIN_PARITY_FIXTURES (absolute path, realpath
@@ -21,6 +22,11 @@ const FIXTURE_TYPES = {
   ".png": "image/png",
   ".ttf": "font/ttf",
   ".otf": "font/otf",
+  // The player harness (T2.4, scripts/parity/player_fixtures.py): plate cells and the auto
+  // render, preview mixes, and the reference PCM (s16le) of P-AUD's browser half.
+  ".mp4": "video/mp4",
+  ".flac": "audio/flac",
+  ".pcm": "application/octet-stream",
 };
 const JASSUB_FILES = {
   "jassub-worker.js": "text/javascript; charset=utf-8",
