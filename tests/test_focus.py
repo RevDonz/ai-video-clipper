@@ -36,7 +36,9 @@ def test_the_affix_lists_follow_the_spec():
 
 
 def test_parse_focus_cleans_terms_and_note_like_trend_text():
-    focus = parse_focus(["  jomok ", "Jomok\u200bers", "reza\u202e  auditore"], " momen\njomok  lucu ")
+    focus = parse_focus(
+        ["  jomok ", "Jomok\u200bers", "reza\u202e  auditore"], " momen\njomok  lucu "
+    )
 
     assert focus == FocusSpec(
         terms=("jomok", "Jomokers", "reza auditore"), note="momen jomok lucu", mode="prefer"

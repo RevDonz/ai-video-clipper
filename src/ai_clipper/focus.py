@@ -191,9 +191,7 @@ class _Term:
         if len(self.words) == 1:
             word = self.words[0]
             return [
-                index
-                for index, token in enumerate(tokens)
-                if _derived(token, word, self.prefixes)
+                index for index, token in enumerate(tokens) if _derived(token, word, self.prefixes)
             ]
         size = len(self.words)
         head, last = self.words[:-1], self.words[-1]
@@ -286,8 +284,9 @@ class FocusMatcher:
             for start in term.starts(tokens):
                 key = (order, owners[start], owners[start + size - 1])
                 found[key] = min(found.get(key, times[start]), times[start])
-        ordered = sorted(found.items(), key=lambda entry: (entry[0][1], entry[0][2], entry[1],
-                                                           entry[0][0]))
+        ordered = sorted(
+            found.items(), key=lambda entry: (entry[0][1], entry[0][2], entry[1], entry[0][0])
+        )
         return tuple(
             FocusHit(self._terms[order].text, first, last, time)
             for (order, first, last), time in ordered
@@ -328,9 +327,7 @@ class HeuristicWindows:
 
     def _prepared(self) -> tuple[Any, list[tuple[int, str]]]:
         if self._state is None:
-            ctx = _context(
-                [_analyse_unit(unit) for unit in self._units], self._events, self._audio
-            )
+            ctx = _context([_analyse_unit(unit) for unit in self._units], self._events, self._audio)
             self._state = (ctx, _starts(ctx))
         return self._state
 
@@ -348,9 +345,7 @@ class HeuristicWindows:
             return []
         ctx, starts = self._prepared()
         units = ctx.units
-        reach = min(
-            HOOK_ZONE_MAX_SECONDS, max(HOOK_ZONE_MIN_SECONDS, HOOK_ZONE_SHARE * self._high)
-        )
+        reach = min(HOOK_ZONE_MAX_SECONDS, max(HOOK_ZONE_MIN_SECONDS, HOOK_ZONE_SHARE * self._high))
         found = []
         for start, kind in starts:
             if start < low_unit or units[last].end - units[start].start > self._high + _EPSILON:

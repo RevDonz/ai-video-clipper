@@ -1473,9 +1473,9 @@ def test_a_focus_leads_the_clips_and_the_manifest_records_it(env, monkeypatch):
     first, *others = manifest["clips"]
     assert first["focus"] == {"match": "literal", "terms": ["kisah25"], "at": kisah25_time()}
     assert first["start"] <= kisah25_time() < first["end"]
-    assert [clip["focus"] for clip in others] == [
-        {"match": "none", "terms": [], "at": None}
-    ] * len(others)
+    assert [clip["focus"] for clip in others] == [{"match": "none", "terms": [], "at": None}] * len(
+        others
+    )
     for clip in manifest["clips"]:
         assert set(clip) == CLIP_KEYS | {"focus"}
     summary = manifest["selection_v3"]
@@ -1523,9 +1523,7 @@ def test_the_heuristic_fallback_of_a_slow_llm_keeps_the_focus(env, monkeypatch):
     assert manifest["clips"][0]["focus"]["match"] == "literal"
 
 
-def test_a_literal_mention_cut_off_by_the_video_end_is_no_longer_a_literal_match(
-    env, monkeypatch
-):
+def test_a_literal_mention_cut_off_by_the_video_end_is_no_longer_a_literal_match(env, monkeypatch):
     env.media_duration = 129.4567
     clips = (
         selected(1, 100.0, 130.0, focus=ClipFocus("literal", ("kisah25",), 129.6)),
@@ -1538,10 +1536,14 @@ def test_a_literal_mention_cut_off_by_the_video_end_is_no_longer_a_literal_match
     manifest = manifest_of(run(env, focus=FOCUS))
 
     assert [clip["focus"]["match"] for clip in manifest["clips"]] == [
-        "none", "literal", "semantic",
+        "none",
+        "literal",
+        "semantic",
     ]
     assert manifest["selection_v3"]["focus"] == {
-        "terms": ["kisah25"], "matched": 2, "requested": 3,
+        "terms": ["kisah25"],
+        "matched": 2,
+        "requested": 3,
     }
 
 
@@ -1582,7 +1584,8 @@ def test_a_focus_few_matches_code_is_updated_in_place_after_the_video_end(env, m
 
     assert "clip_beyond_media:2" in warnings
     assert [code for code in warnings if code.startswith(("focus_", "few_"))] == [
-        "focus_few_matches:1", "few_clips:2",
+        "focus_few_matches:1",
+        "few_clips:2",
     ]
 
 

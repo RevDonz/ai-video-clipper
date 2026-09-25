@@ -368,8 +368,8 @@ def test_cli_forwards_the_focus_to_the_pipeline(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(cli, "load_whisper_model", lambda *a, **k: "M")
     received = _capture_pipeline(monkeypatch, tmp_path)
 
-    assert cli.main([*WEB_V3_ARGS, "--focus-term", "jomok", "--focus-term", "jomokers",
-                     "--focus-note", "momen jomok yang lucu"]) == 0
+    focus = ["--focus-term", "jomok", "--focus-term", "jomokers"]
+    assert cli.main([*WEB_V3_ARGS, *focus, "--focus-note", "momen jomok yang lucu"]) == 0
 
     assert received["focus"] == FocusSpec(("jomok", "jomokers"), "momen jomok yang lucu")
     assert received["selection_mode"] == "v3"
