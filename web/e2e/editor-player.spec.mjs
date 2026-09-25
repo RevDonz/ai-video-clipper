@@ -55,7 +55,7 @@ test.use({
   viewport: { width: 1280, height: 900 },
   deviceScaleFactor: 1,
 });
-test.describe.configure({ mode: "serial" });
+// One worker, in file order, but not serial: every gate is measured even when another fails.
 test.skip(!manifest, "POTONGIN_PARITY_FIXTURES must hold player/manifest.json (scripts/parity/player_fixtures.py generate)");
 test.skip(!settings.username || !settings.password, "E2E_USERNAME and E2E_PASSWORD are required");
 
@@ -176,7 +176,10 @@ test("P-TXT and P-LOGO: the player's canvas against the server composite of the 
   writeJson("composite_run.json", { browser: info.browserVersion, files: written.length });
   const scoreFile = path.join(outDir, "scores.json");
   execFileSync(python, [path.join(repoRoot, "scripts", "parity", "player_fixtures.py"), "score",
-    "--fixtures", fixturesDir, "--browser", outDir, "--out", scoreFile], { stdio: "inherit" });
+    "--fixtures", fixturesDir, "--browser", outDir, "--out", scoreFile], {
+    stdio: "inherit",
+    env: { ...process.env, PYTHONPATH: [path.join(repoRoot, "src"), path.join(repoRoot, "tests")].join(path.delimiter) },
+  });
   const scores = JSON.parse(readFileSync(scoreFile, "utf8"));
   expect(scores.p_txt.frames).toBeGreaterThanOrEqual(30);
   expect(scores.p_txt.failures).toEqual([]);
@@ -203,12 +206,19 @@ test("P-AUD (browser half): the AudioBuffer of the mix equals the reference PCM"
   }
 });
 
+function gaps(samples) {
+  const out = [];
+  for (let i = 1; i < samples.length; i += 1) out.push(samples[i].at - samples[i - 1].at);
+  return { p50: percentile(out, 50), p99: percentile(out, 99), max: out.length ? Math.max(...out) : null };
+}
+
 test("P-SYNC and PF-PLAY: instrumented playback on 20-cut clips", async ({ page }) => {
-  test.setTimeout(600_000);
+  test.setTimeout(900_000);
   const info = await openHarness(page);
   const results = [];
   for (const item of cases("pframe").filter((entry) => entry.play)) {
     await page.evaluate((id) => window.__player.open(id), item.id);
+    // Run 1, instrumented: the barcode on the canvas and the audio heard, at every presentation.
     const run = await page.evaluate(() => window.__player.playProbe({ fromFrame: 0 }));
     const errors = [];
     let pixelMismatches = 0;
@@ -217,12 +227,19 @@ test("P-SYNC and PF-PLAY: instrumented playback on 20-cut clips", async ({ page 
       // Audio heard at presentation vs the frame on screen: distance from the frame's centre.
       errors.push(Math.abs(sample.audioFrames - (sample.frame + 0.5)));
     }
-    const seconds = run.samples.length ? (run.lastFrame - run.firstFrame + 1) / (item.fps[0] / item.fps[1]) : 0;
+    // Run 2, as the editor plays (no read-back of the canvas): the drops of PF-PLAY.
+    const plain = await page.evaluate(() => window.__player.playProbe({ fromFrame: 0, pixels: false }));
+    const span = (r) => (r.samples.length ? (r.lastFrame - r.firstFrame + 1) / (item.fps[0] / item.fps[1]) : 0);
+    const seconds = span(plain);
     results.push({ case: item.id, fps: item.fps, cuts: item.pieces - 1, presented: run.samples.length,
-      pixel_mismatches: pixelMismatches, drops: run.stats.drops, drops_at_cuts: run.stats.dropsAtCuts,
-      dropped: run.stats.dropped.slice(0, 20), seconds, drops_per_10s: seconds ? (run.stats.drops * 10) / seconds : null,
+      pixel_mismatches: pixelMismatches,
       sync_error_frames: { p50: percentile(errors, 50), p99: percentile(errors, 99), max: Math.max(...errors) },
-      clock: run.clock, holds: run.stats.holds, first_frame: run.firstFrame, last_frame: run.lastFrame });
+      clock: run.clock, first_frame: run.firstFrame, last_frame: run.lastFrame,
+      instrumented: { drops: run.stats.drops, drops_at_cuts: run.stats.dropsAtCuts, dropped: run.stats.dropped.slice(0, 20),
+        holds: run.stats.holds, hold_reasons: run.stats.holdReasons, present_gap_ms: gaps(run.samples), seconds: span(run) },
+      drops: plain.stats.drops, drops_at_cuts: plain.stats.dropsAtCuts, dropped: plain.stats.dropped.slice(0, 20),
+      seconds, drops_per_10s: seconds ? (plain.stats.drops * 10) / seconds : null, holds: plain.stats.holds,
+      hold_reasons: plain.stats.holdReasons, present_gap_ms: gaps(plain.samples), presented_plain: plain.samples.length });
   }
   writeJson("p_sync_pf_play.json", { browser: info.browserVersion, loadavg: os.loadavg(), cases: results });
   expect(results.length).toBeGreaterThanOrEqual(3);
@@ -244,8 +261,16 @@ test("PF-SEEK: a paused seek puts the frame on screen within 50 ms p95", async (
     await page.evaluate((id) => window.__player.open(id), item.id);
     const run = await page.evaluate((total) => window.__player.seekBench({ count: 60, total, seed: 7 }), item.total_frames);
     all.push(...run.ms);
+    const part = (key) => run.seeks.map((entry) => entry[key]).filter((value) => typeof value === "number");
+    const pass = (key) => run.passes.map((entry) => entry[key]).filter((value) => typeof value === "number");
     results.push({ case: item.id, seeks: run.ms.length, p50: percentile(run.ms, 50), p95: percentile(run.ms, 95),
-      max: Math.max(...run.ms), cold: run.cold });
+      max: Math.max(...run.ms), cold: run.cold,
+      plate_ms: { p50: percentile(part("plateMs"), 50), p95: percentile(part("plateMs"), 95) },
+      text_ms: { p50: percentile(part("textMs"), 50), p95: percentile(part("textMs"), 95) },
+      pass_fetch_ms: { p50: percentile(pass("fetched"), 50), p95: percentile(pass("fetched"), 95) },
+      pass_open_ms: { p50: percentile(pass("opened"), 50), p95: percentile(pass("opened"), 95) },
+      pass_first_sample_ms: { p50: percentile(pass("firstSample"), 50), p95: percentile(pass("firstSample"), 95) },
+      pass_total_ms: { p50: percentile(pass("total"), 50), p95: percentile(pass("total"), 95) } });
   }
   const summary = { seeks: all.length, p50: percentile(all, 50), p95: percentile(all, 95), max: Math.max(...all) };
   writeJson("pf_seek.json", { browser: info.browserVersion, loadavg: os.loadavg(), summary, cases: results });
