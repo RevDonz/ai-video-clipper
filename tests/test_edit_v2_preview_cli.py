@@ -608,6 +608,62 @@ def test_a_cancel_marker_stops_a_build_and_publishes_nothing(job):
                                                                         k)).exists()
 
 
+def test_sigterm_stops_ffmpeg_and_exits_cancelled(job):
+    """A lane process told to stop (SIGTERM) kills FFmpeg's own process group and exits 12,
+    publishing nothing: python-cli's SIGKILL of the Python group would leave FFmpeg running."""
+    import signal
+    import time
+
+    case = job_case(job)
+    lane = ok(plan(case))["lane"]
+    wanted = [k for k in lane["cells"] if not (
+        case["clip"] / "preview" / "plates" / plates.cell_name(lane["plateKey"], k)).exists()][:4]
+    envelope = {"op": "cells", "jobId": case["jobId"], "clipId": case["clipId"],
+                "layout": "fit_blur", "cells": wanted, "cancelToken": None}
+    env = {"PATH": os.environ.get("PATH", ""), "JOBS_ROOT": str(case["root"]),
+           "PYTHONPATH": str(ROOT / "src")}
+    process = subprocess.Popen([sys.executable, "-m", "ai_clipper.edit_v2.preview_cli"],
+                               stdin=subprocess.PIPE, stdout=subprocess.PIPE, env=env,
+                               start_new_session=True)
+    process.stdin.write(json.dumps(envelope).encode())
+    process.stdin.close()
+    deadline = time.monotonic() + 30
+    ffmpeg = []
+    while time.monotonic() < deadline and not ffmpeg:  # wait until FFmpeg runs
+        time.sleep(0.05)
+        ffmpeg = [pid for pid in os.listdir("/proc") if pid.isdigit()
+                  and _is_child_ffmpeg(int(pid), process.pid)]
+    assert ffmpeg, "FFmpeg never started"
+    started = time.monotonic()
+    os.kill(process.pid, signal.SIGTERM)
+    output = process.stdout.read()
+    assert process.wait(timeout=10) == 12
+    assert time.monotonic() - started < 2.0
+    assert json.loads(output)["error"]["code"] == "cancelled"
+    time.sleep(0.2)
+    assert not any(os.path.exists(f"/proc/{pid}") and _state(int(pid)) != "Z"
+                   for pid in ffmpeg), "FFmpeg outlived its lane process"
+    for k in wanted:
+        assert not (case["clip"] / "preview" / "plates" / plates.cell_name(
+            lane["plateKey"], k)).exists()
+
+
+def _state(pid: int) -> str:
+    try:
+        return Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0]
+    except OSError:
+        return "Z"
+
+
+def _is_child_ffmpeg(pid: int, parent: int) -> bool:
+    try:
+        stat_fields = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()
+        comm = Path(f"/proc/{pid}/comm").read_text().strip()
+    except OSError:
+        return False
+    return int(stat_fields[1]) == parent and comm in ("ffmpeg", "prlimit")
+
+
 def reference_pcm(case: dict, doc: dict, tmp_path: Path, loudness=None) -> bytes:
     """The ``reference`` render's s16 PCM of ``doc`` (the final graph before encoding)."""
     words = case["words"]
@@ -711,6 +767,26 @@ def test_a_mix_with_music_is_measured_once_and_protected(job, tmp_path):
     assert hashlib.md5(pcm).hexdigest() == hashlib.md5(reference).hexdigest()
     warnings = ok(plan(case, doc))["dto"]["warnings"]
     assert any(w["code"].startswith("peak_reduced:") for w in warnings)
+    # another mix of the same pre-master audio (a master setting that mode "off" ignores)
+    # reuses the measurement: no second measure pass
+    same_premaster = copy.deepcopy(doc)
+    same_premaster["audio"]["master"]["target_clufs"] = -1600
+    modes = []
+    real_run = execute.run
+
+    def counting_run(job_, **kwargs):
+        modes.append(job_.expected.get("mode"))
+        return real_run(job_, **kwargs)
+
+    execute.run = counting_run
+    try:
+        again = ok(op(case, "audio", requestRaw=b64(body(same_premaster)), cancelToken=None))
+    finally:
+        execute.run = real_run
+    assert again["built"] is True and again["audioKey"] != result["audioKey"]
+    assert modes == ["audio_preview"]
+    assert len(sorted((case["clip"] / "preview" / "audio").glob("*.loudness.json"))) == 1
+    assert again["gainCdb"] == result["gainCdb"]
 
 
 def test_the_truth_frame_is_the_compilers_frame_mode_output(job, tmp_path):
