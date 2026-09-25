@@ -17,6 +17,7 @@ from test_edit_v2_plan import HARNESS
 from ai_clipper.edit_v2 import errors, loudness, verify
 from ai_clipper.edit_v2 import timemap as tm
 from ai_clipper.edit_v2.compile_ffmpeg import compile_job
+from ai_clipper.edit_v2.glyphs import RESOURCES_DIR
 from ai_clipper.edit_v2.loudness import Loudness
 from ai_clipper.edit_v2.plan import Resources, build_plan
 
@@ -156,7 +157,7 @@ def test_a_compiled_render_passes(harness, tmp_path, edit_v2_libass):
     clip = synthetic_clip(tmp_path, frames=240, cold_open=(180, 200), body=(20, 160),
                           removals=((60, 70), (100, 101)))
     plan = build_plan(clip.doc, words=clip.words, camera=None, assets={},
-                      resources=Resources(tmp_path / "resources"))
+                      resources=Resources(RESOURCES_DIR))
     job = compile_job(plan, mode="final", source=clip.source, assets_root=tmp_path)
     run_to_file(job, tmp_path / "final.mp4")
     report = run_verify(tmp_path / "final.mp4", plan)

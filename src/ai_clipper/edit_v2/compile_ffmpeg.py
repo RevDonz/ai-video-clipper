@@ -58,6 +58,7 @@ from .. import render as _render
 from . import errors, layouts
 from . import timemap as tm
 from .plan import RenderPlan
+from .source_info import PROTOCOL_WHITELIST, child_env
 from .timemap import Fps, Piece
 
 if TYPE_CHECKING:
@@ -110,7 +111,7 @@ SIDECAR_NAME = re.compile(r"audio-[a-z0-9-]+\.[a-z0-9]+")  # §5.8: fragment sid
 _ASSET_ID = re.compile(r"sha256:([0-9a-f]{64})")
 _ASSET_EXTENSION = {"image": ".png", "audio": ".m4a"}  # §4.1 analysis/assets/<sha>.{png,m4a}
 
-_WHITELIST = ("-protocol_whitelist", "file,pipe")
+_WHITELIST = PROTOCOL_WHITELIST  # ("-protocol_whitelist", "file,pipe")
 _COLOR_TAGS = ("-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709",
                "-color_range", "tv")
 _BITEXACT = ("-map_metadata", "-1", "-fflags", "+bitexact", "-flags:v", "+bitexact",
@@ -198,8 +199,9 @@ _PROBE_ENTRIES = ("stream=index,codec_type,duration,duration_ts,time_base,width,
 @functools.lru_cache(maxsize=32)
 def _probe_cached(path: str, _identity: tuple[int, int, int, int]) -> SourceStreams:
     result = subprocess.run(
-        ["ffprobe", "-v", "error", "-show_entries", _PROBE_ENTRIES, "-of", "json", path],
-        capture_output=True, text=True, timeout=_render.FFPROBE_TIMEOUT_SECONDS, check=True)
+        ["ffprobe", "-v", "error", *_WHITELIST, "-show_entries", _PROBE_ENTRIES, "-of", "json",
+         path], capture_output=True, text=True, timeout=_render.FFPROBE_TIMEOUT_SECONDS,
+        check=True, stdin=subprocess.DEVNULL, env=child_env())
     info = json.loads(result.stdout)
     streams = info["streams"]
     video = _default_first([item for item in streams if item.get("codec_type") == "video"

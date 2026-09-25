@@ -8,8 +8,11 @@ Plan §5.1, §5.2 R8 and §4.6:
   with constant names into a private 0700 directory, which is FFmpeg's working directory and is
   removed afterwards; ``fonts`` there links to the pinned fonts directory.
 * **Environment**: an allowlist (``PATH``, locale, ``HOME``/``TMPDIR`` = the private directory,
-  ``FONTCONFIG_FILE`` when present). Nothing of the parent's environment leaks (E11).
-* **Limits**: ``RLIMIT_AS`` 3 GiB, set on the child right after it starts; a wall-clock
+  ``FONTCONFIG_FILE`` when the job declares it). Nothing of the parent's environment leaks
+  (E11). A declared fonts directory or ``fonts.conf`` that is missing is ``render_failed``
+  before FFmpeg starts: it would otherwise draw the text with the system's fonts (G-FAIL).
+* **Limits**: ``RLIMIT_AS`` 3 GiB, set before FFmpeg runs (util-linux ``prlimit`` execs it);
+  a wall-clock
   ``timeout_s``; the ``-progress`` stream must advance (frame, time or size) within
   ``expected["stall_s"]`` (default 20 s), else ``render_stalled``; ``cancel`` kills the process
   group within the 50 ms poll.
@@ -25,7 +28,6 @@ from __future__ import annotations
 
 import os
 import re
-import resource
 import secrets
 import shutil
 import signal
@@ -160,9 +162,20 @@ def _env(expected: Mapping[str, Any], work: Path) -> dict[str, str]:
     env = {"PATH": os.environ.get("PATH", os.defpath), "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8",
            "HOME": str(work), "TMPDIR": str(work)}
     fontconfig = expected.get("fontconfig_file")
-    if fontconfig and os.path.isfile(fontconfig):
+    if fontconfig:  # checked by run(): a declared file exists
         env["FONTCONFIG_FILE"] = str(fontconfig)
     return env
+
+
+def _limited(argv: Sequence[str], env: Mapping[str, str]) -> list[str]:
+    """``argv`` under util-linux ``prlimit``, which sets RLIMIT_AS on itself and then execs the
+    command (same pid, same process group): FFmpeg starts with the limit, without Python code
+    between fork and exec in a threaded worker (``preexec_fn``) and without an unlimited
+    window (``prlimit`` on the pid after the start)."""
+    tool = shutil.which("prlimit", path=env.get("PATH"))
+    if tool is None:
+        raise _fail("render_failed", ref="prlimit")
+    return [tool, f"--as={RLIMIT_AS_BYTES}:{RLIMIT_AS_BYTES}", "--", *argv]
 
 
 def _fail(code: str, stderr: _Stderr | None = None, ref: str | None = None) -> errors.RenderFailed:
@@ -197,27 +210,18 @@ def _supervise(
             raise errors.Cancelled("cancelled")
         try:
             process = subprocess.Popen(
-                list(argv), cwd=cwd, env=dict(env), stdin=subprocess.DEVNULL,
+                _limited(argv, env), cwd=cwd, env=dict(env), stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
                 pass_fds=tuple(pass_fds) + ((write_fd,) if write_fd is not None else ()),
                 start_new_session=True, close_fds=True)
-        except OSError as exc:
+        except (OSError, subprocess.SubprocessError) as exc:
             raise _fail("render_failed") from exc
     finally:
         if write_fd is not None:
             os.close(write_fd)
         if read_fd is not None and process is None:
             os.close(read_fd)
-    try:
-        resource.prlimit(process.pid, resource.RLIMIT_AS, (RLIMIT_AS_BYTES, RLIMIT_AS_BYTES))
-    except ProcessLookupError:
-        pass
-    except OSError as exc:
-        _kill_group(process)
-        if read_fd is not None:
-            os.close(read_fd)
-        raise _fail("render_failed") from exc
-    readers = [threading.Thread(target=_drain, args=(process.stderr, stderr.feed), daemon=True)]
+    readers =[threading.Thread(target=_drain, args=(process.stderr, stderr.feed), daemon=True)]
     if read_fd is not None:
         readers.append(threading.Thread(target=_drain_progress, args=(read_fd, progress),
                                         daemon=True))
@@ -353,9 +357,16 @@ def run(
         for name, data in job.sidecars.items():
             _write_new(work, name, bytes(data))
         _write_new(work, GRAPH_FILE, job.filter_script.encode("utf-8"))
+        # The pinned fonts and the fontconfig lockdown (R6): a job that declares them never
+        # runs without them, since FFmpeg would draw the text with the system's fonts (G-FAIL).
         fonts = expected.get("fonts_dir")
-        if fonts and os.path.isdir(fonts):
+        if fonts:
+            if not os.path.isdir(fonts):
+                raise _fail("render_failed", ref="fonts")
             os.symlink(fonts, work / FONTS_DIR)
+        fontconfig = expected.get("fontconfig_file")
+        if fontconfig and not os.path.isfile(fontconfig):
+            raise _fail("render_failed", ref="fontconfig")
         paths = expected.get("paths", {})
         for spec in job.inputs:
             if spec.kind == "sidecar":

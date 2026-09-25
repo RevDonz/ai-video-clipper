@@ -6,6 +6,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import resource
 import stat
 import sys
 import threading
@@ -221,7 +222,7 @@ def test_the_address_space_limit_is_set_before_ffmpeg_runs(fake, tmp_path, monke
     def after_start(*_args):
         raise AssertionError("the limit was set after FFmpeg started")
 
-    monkeypatch.setattr(execute.resource, "prlimit", after_start)
+    monkeypatch.setattr(resource, "prlimit", after_start)
     report = tmp_path / "report.json"
     execute.run(job([fake, "-progress", "@progress", "--report", str(report)],
                     expected={"output": "null"}), output_fd=None, timeout_s=30)
