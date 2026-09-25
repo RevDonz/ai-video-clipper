@@ -1,0 +1,109 @@
+{
+  "browser": "147.0.7727.15",
+  "cases": [
+    {
+      "case": "cfr_29.97",
+      "clock": {
+        "baseLatency": 0.010666666666666666,
+        "outputLatency": 0.032,
+        "sampleRate": 48000
+      },
+      "cuts": 21,
+      "first_frame": 1,
+      "fps": [
+        30000,
+        1001
+      ],
+      "last_frame": 609,
+      "pixel_mismatches": 0,
+      "presented": 609,
+      "sync_error_frames": {
+        "max": 0.5267532438950582,
+        "p50": 0.13505494648404692,
+        "p99": 0.3426073868910464
+      }
+    },
+    {
+      "case": "cfr_25",
+      "clock": {
+        "baseLatency": 0.010666666666666666,
+        "outputLatency": 0.032,
+        "sampleRate": 48000
+      },
+      "cuts": 21,
+      "first_frame": 1,
+      "fps": [
+        25,
+        1
+      ],
+      "last_frame": 459,
+      "pixel_mismatches": 0,
+      "presented": 459,
+      "sync_error_frames": {
+        "max": 0.3699999988078986,
+        "p50": 0.12719999761583267,
+        "p99": 0.3539916642825176
+      }
+    },
+    {
+      "case": "cfr_30",
+      "clock": {
+        "baseLatency": 0.010666666666666666,
+        "outputLatency": 0.032,
+        "sampleRate": 48000
+      },
+      "cuts": 21,
+      "first_frame": 1,
+      "fps": [
+        30,
+        1
+      ],
+      "last_frame": 609,
+      "pixel_mismatches": 0,
+      "presented": 609,
+      "sync_error_frames": {
+        "max": 0.3540300014304876,
+        "p50": 0.15042999713898553,
+        "p99": 0.3379699985694913
+      }
+    },
+    {
+      "case": "vfr_30",
+      "clock": {
+        "baseLatency": 0.010666666666666666,
+        "outputLatency": 0.032,
+        "sampleRate": 48000
+      },
+      "cuts": 21,
+      "first_frame": 1,
+      "fps": [
+        30,
+        1
+      ],
+      "last_frame": 609,
+      "pixel_mismatches": 0,
+      "presented": 609,
+      "sync_error_frames": {
+        "max": 0.368540004291539,
+        "p50": 0.07878999713898338,
+        "p99": 0.3602000042915421
+      }
+    }
+  ],
+  "gate": "P-SYNC",
+  "loadavg": [
+    6.23,
+    8.27,
+    5.98
+  ],
+  "pass": true,
+  "task": "T2.Z",
+  "threshold": {
+    "p99_frames": 1
+  },
+  "toolchain": {
+    "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "python": "3.11.2",
+    "reference_toolchain_problem": null
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "schema": "potongin.gate/1",
+  "gate": "QG-UX U6 (scripted, real stack, real render)",
+  "browser": "Chrome for Testing 147.0.7727.15",
+  "executable": "chromium-1217",
+  "viewport": "1366x768",
+  "clipDurationMs": 89256,
+  "renderMs": 34198,
+  "elapsedMs": 34374,
+  "limitMs": 119256,
+  "load": [
+    7.7,
+    7.5,
+    6.2
+  ],
+  "pass": true
+}

@@ -1,0 +1,96 @@
+{
+  "browser": "147.0.7727.15",
+  "cases": [
+    {
+      "bufferRate": 48000,
+      "case": "cfr_29.97",
+      "channels": 2,
+      "contextRate": 48000,
+      "differingSamples": 494876,
+      "length": 976976,
+      "maxDiffLsb": 0.6171875,
+      "notExactUnderInt16Scaling": 0,
+      "planSamples": 976976,
+      "planSamplesDelta": 0,
+      "referenceLength": 976976
+    },
+    {
+      "bufferRate": 48000,
+      "case": "cfr_25",
+      "channels": 2,
+      "contextRate": 48000,
+      "differingSamples": 442026,
+      "length": 883200,
+      "maxDiffLsb": 0.6171875,
+      "notExactUnderInt16Scaling": 0,
+      "planSamples": 883200,
+      "planSamplesDelta": 0,
+      "referenceLength": 883200
+    },
+    {
+      "bufferRate": 48000,
+      "case": "cfr_30",
+      "channels": 2,
+      "contextRate": 48000,
+      "differingSamples": 497370,
+      "length": 976000,
+      "maxDiffLsb": 0.6171875,
+      "notExactUnderInt16Scaling": 0,
+      "planSamples": 976000,
+      "planSamplesDelta": 0,
+      "referenceLength": 976000
+    },
+    {
+      "bufferRate": 48000,
+      "case": "vfr_30",
+      "channels": 2,
+      "contextRate": 48000,
+      "differingSamples": 459922,
+      "length": 975992,
+      "maxDiffLsb": 0.70703125,
+      "notExactUnderInt16Scaling": 0,
+      "planSamples": 976000,
+      "planSamplesDelta": -8,
+      "referenceLength": 975992
+    },
+    {
+      "bufferRate": 48000,
+      "case": "edge_end_29.97",
+      "channels": 2,
+      "contextRate": 48000,
+      "differingSamples": 701600,
+      "length": 1369368,
+      "maxDiffLsb": 0.6171875,
+      "notExactUnderInt16Scaling": 0,
+      "planSamples": 1369368,
+      "planSamplesDelta": 0,
+      "referenceLength": 1369368
+    },
+    {
+      "bufferRate": 48000,
+      "case": "edge_start_23.976",
+      "channels": 2,
+      "contextRate": 48000,
+      "differingSamples": 493746,
+      "length": 960960,
+      "maxDiffLsb": 0.6171875,
+      "notExactUnderInt16Scaling": 0,
+      "planSamples": 960960,
+      "planSamplesDelta": 0,
+      "referenceLength": 960960
+    }
+  ],
+  "gate": "P-AUD",
+  "pass": true,
+  "task": "T2.Z",
+  "threshold": {
+    "max_diff_lsb": 1,
+    "same_count_as": "reference",
+    "sample_rate": 48000
+  },
+  "toolchain": {
+    "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "python": "3.11.2",
+    "reference_toolchain_problem": null
+  }
+}

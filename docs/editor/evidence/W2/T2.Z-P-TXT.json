@@ -1,0 +1,26 @@
+{
+  "browser": "147.0.7727.15",
+  "failures": [],
+  "frames": 48,
+  "gate": "P-TXT",
+  "pass": true,
+  "task": "T2.Z",
+  "thresholds": {
+    "max": 16,
+    "psnr": 45.0,
+    "px_over_16": 0,
+    "ssim": 0.999
+  },
+  "toolchain": {
+    "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "python": "3.11.2",
+    "reference_toolchain_problem": null
+  },
+  "worst": {
+    "max": 13,
+    "psnr": 60.57143779940788,
+    "px_over_16": 0,
+    "ssim": 0.9998813428704963,
+    "ssim_text": 0.999855486923818
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "schema": "potongin.gate/1",
+  "gate": "PF-OPEN (real stack)",
+  "browser": "Chrome for Testing 147.0.7727.15",
+  "executable": "chromium-1217",
+  "viewport": "1366x768",
+  "runs": 10,
+  "firstMs": {
+    "p50": 973,
+    "p95": 984,
+    "max": 984
+  },
+  "repeatMs": {
+    "p50": 896,
+    "p95": 913,
+    "max": 913
+  },
+  "repeatFrameOnStageMs": {
+    "p50": 904,
+    "p95": 920
+  },
+  "firstCellAfterPrepareMs": 1318,
+  "prepareMs": 168,
+  "cellsReadyBeforePlan": 0,
+  "limits": {
+    "firstMs": 3000,
+    "repeatMs": 2000,
+    "cellMs": 2000
+  },
+  "load": [
+    8,
+    7.5,
+    6.2
+  ],
+  "pass": true
+}
