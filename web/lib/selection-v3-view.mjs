@@ -131,6 +131,8 @@ const WARNING_LABELS = Object.freeze({
   trend_sensitive_humor: (count) => `${count} klip lucu menyinggung tren sensitif; periksa judul dan hook-nya sebelum diunggah.`,
   focus_few_matches: (count) => `Hanya ${count} klip yang cocok dengan fokus; sisa slot diisi momen terbaik lain dengan label “Di luar fokus”.`,
   focus_literal_ungrounded: (count) => `${count} klip yang menurut AI menyebut fokus ternyata istilahnya tidak ditemukan di transkrip klip itu; labelnya diturunkan dari “Menyebut”.`,
+  focus_packaging_ungrounded: (count) => `${count} klip di luar fokus memakai kata kunci fokus di judul, hook atau deskripsinya; teks itu diganti dari isi klipnya sendiri.`,
+  focus_llm_outranked: (count) => `${count} momen usulan AI kalah prioritas dari momen yang menyebut kata kunci fokus, jadi semua slot diisi momen fokus dari pemilih heuristik.`,
 });
 
 /** An Indonesian explanation of a trend or focus warning code of the V3 summary, or null. */
@@ -339,6 +341,10 @@ const TRANSCRIPT_SOURCE_TEXT = {
   whisper: "Transkrip dari Whisper lokal",
 };
 
+function llmOutrankedByFocus(warnings) {
+  return Array.isArray(warnings) && warnings.some((code) => typeof code === "string" && /^focus_llm_outranked:[1-9]\d{0,5}$/.test(code));
+}
+
 /** Plain-Indonesian presentation of a sanitized selectionV3 summary, or null. */
 export function selectionV3SummaryView(summary) {
   if (!summary || summary.mode !== "v3") return null;
@@ -354,6 +360,10 @@ export function selectionV3SummaryView(summary) {
     tone = "warning";
     headline = "Momen dipilih heuristik (cadangan)";
     detail = "LLM gagal atau tidak tersedia saat job berjalan, jadi pemilih heuristik lokal dipakai. Klip tetap dibuat, tetapi kualitas pemilihan bisa lebih rendah. Cek API key atau kuota penyedia LLM.";
+  } else if (summary.source === "heuristic" && llmOutrankedByFocus(summary.warnings)) {
+    // Fokus klip: the LLM answered, but every slot went to a moment that says a focus term.
+    headline = "Semua slot diisi momen yang menyebut fokus";
+    detail = "AI (LLM) sudah memberi usulan, tetapi setiap slot terisi momen yang menyebut kata kunci fokus di transkrip. Momen itu ditemukan pemilih heuristik lokal, jadi judul dan kemasannya juga dari heuristik.";
   } else if (summary.source === "llm") {
     headline = "Momen dipilih AI (LLM)";
     detail = engine ? `Dipilih dan diberi judul oleh ${engine}.` : "Dipilih dan diberi judul oleh LLM.";
