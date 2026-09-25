@@ -64,7 +64,7 @@ export const MESSAGES = Object.freeze({
   not_v3: "Job ini bukan job V3",
   // Read-only reason and notices.
   transcript_changed: "Transkrip berubah sejak klip diedit",
-  legacy_engine: "Klip ini dibuat dengan mesin lama; ekspor dari editor memakai mesin baru (tampilan teks bisa sedikit berbeda)",
+  legacy_engine: "Klip ini dibuat dengan mesin lama; setelah diubah, ekspor dari editor memakai mesin baru (tampilan teks bisa sedikit berbeda)",
   markers_unavailable: "Penanda tawa/jeda tidak tersedia untuk job ini",
 });
 
@@ -170,6 +170,7 @@ const PENDING_TEXT = {
 };
 
 export const EXACT_TEXT = "● Sesuai hasil akhir";
+export const LEGACY_UNCHANGED_TEXT = "● Belum diubah: ekspor = klip otomatis (mesin lama)";
 
 /**
  * The stage badge (plan §6.1): "● Sesuai hasil akhir" only when every layer is current (or the
@@ -190,6 +191,13 @@ export function badgeView({ status, plan, storePending = [], player = null }) {
   // `exact` is false: a seek still decoding): no claim until it is on screen (T2.4, §6.1).
   if (!pending.length && player?.exact === false && !player?.playing) {
     return { tone: "pending", text: "Menyiapkan frame…", detail: null };
+  }
+  // An unchanged clip exports its auto file itself (R10). When that file is not the new
+  // engine's (rev0.exact false: a legacy-engine clip), the stage shows the new engine and the
+  // export is the old file, so the badge says so instead of claiming exactness (T2.Z).
+  if (!pending.length && plan.rev0 && plan.rev0.exact === false && plan.rev0.autoRenderUrl
+    && plan.rev0.planSha256 === plan.planSha256) {
+    return { tone: "legacy", text: LEGACY_UNCHANGED_TEXT, detail: "Ubah apa saja agar ekspor memakai mesin baru seperti pratinjau ini" };
   }
   if (!pending.length) return { tone: "exact", text: EXACT_TEXT, detail: null };
   return { tone: "pending", text: pending.map((layer) => PENDING_TEXT[layer](plan)).join(" · "), detail: null };
