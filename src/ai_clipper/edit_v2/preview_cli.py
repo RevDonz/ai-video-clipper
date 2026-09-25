@@ -1047,8 +1047,11 @@ def _frame(ctx: _Context, envelope: Mapping[str, Any]) -> dict[str, Any]:
     if _is_file(path):
         return {"name": name, "planSha256": plan.plan_sha256, "built": False}
     _use_probe(ctx, plates.source_path(ctx.job))
-    job = compile_job(plan, mode="frame", frame=frame, source=plates.source_path(ctx.job),
-                      assets_root=ctx.job / "analysis" / "assets")
+    # plan §2.6: two threads, like every lane process (the four of the export give the same
+    # bytes; W2 verifier finding)
+    job = plates.lane_threads(compile_job(plan, mode="frame", frame=frame,
+                                          source=plates.source_path(ctx.job),
+                                          assets_root=ctx.job / "analysis" / "assets"))
     result = execute.run(job, output_fd=None, timeout_s=60.0, cancel=ctx.cancel)
     assert result.output is not None
     _publish(path, result.output)
