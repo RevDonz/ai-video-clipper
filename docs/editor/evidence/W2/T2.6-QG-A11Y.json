@@ -1,0 +1,188 @@
+{
+  "axe_core": "4.13.0",
+  "axe_source": "axe-core 4.13.0 axe.min.js via AXE_CORE_PATH (not a web dependency yet; see the T2.6 request)",
+  "browser": "Chrome for Testing 147.0.7727.15 (Playwright 1.62.1, build 1217)",
+  "commit": "30d7e79",
+  "critical": 0,
+  "gate": "QG-A11Y",
+  "keyboard_reach_test": "every action is reachable by keyboard with a visible focus ring: passed (19 named controls, ring on each)",
+  "load_average_1m_before_after": [
+    8.98,
+    12.88
+  ],
+  "machine": "K15 reference PC (Ryzen 7 5700G, 16 threads), shared with other agents",
+  "pass": true,
+  "per_state": [
+    {
+      "critical": 0,
+      "serious": 0,
+      "state": "editor (revision 0, auto render)",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "violations_any_impact": 0
+    },
+    {
+      "critical": 0,
+      "serious": 0,
+      "state": "badge help open",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "violations_any_impact": 0
+    },
+    {
+      "critical": 0,
+      "serious": 0,
+      "state": "checks panel open",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "violations_any_impact": 0
+    },
+    {
+      "critical": 0,
+      "serious": 0,
+      "state": "shortcut help open",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "violations_any_impact": 0
+    },
+    {
+      "critical": 0,
+      "serious": 0,
+      "state": "safe zone on",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "violations_any_impact": 0
+    },
+    {
+      "critical": 0,
+      "serious": 0,
+      "state": "export dialog",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "violations_any_impact": 0
+    },
+    {
+      "critical": 0,
+      "serious": 0,
+      "state": "export completed",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "violations_any_impact": 0
+    },
+    {
+      "critical": 0,
+      "serious": 0,
+      "state": "editor (revision 0, auto render)",
+      "viewport": [
+        1366,
+        768
+      ],
+      "violations_any_impact": 0
+    },
+    {
+      "critical": 0,
+      "serious": 0,
+      "state": "badge help open",
+      "viewport": [
+        1366,
+        768
+      ],
+      "violations_any_impact": 0
+    },
+    {
+      "critical": 0,
+      "serious": 0,
+      "state": "checks panel open",
+      "viewport": [
+        1366,
+        768
+      ],
+      "violations_any_impact": 0
+    },
+    {
+      "critical": 0,
+      "serious": 0,
+      "state": "shortcut help open",
+      "viewport": [
+        1366,
+        768
+      ],
+      "violations_any_impact": 0
+    },
+    {
+      "critical": 0,
+      "serious": 0,
+      "state": "safe zone on",
+      "viewport": [
+        1366,
+        768
+      ],
+      "violations_any_impact": 0
+    },
+    {
+      "critical": 0,
+      "serious": 0,
+      "state": "export dialog",
+      "viewport": [
+        1366,
+        768
+      ],
+      "violations_any_impact": 0
+    },
+    {
+      "critical": 0,
+      "serious": 0,
+      "state": "export completed",
+      "viewport": [
+        1366,
+        768
+      ],
+      "violations_any_impact": 0
+    },
+    {
+      "critical": 0,
+      "serious": 0,
+      "state": "conflict dialog",
+      "viewport": [
+        1366,
+        768
+      ],
+      "violations_any_impact": 0
+    },
+    {
+      "critical": 0,
+      "serious": 0,
+      "state": "read-only + legacy notice",
+      "viewport": [
+        1366,
+        768
+      ],
+      "violations_any_impact": 0
+    }
+  ],
+  "serious": 0,
+  "server": "next build + next start (production), private 127.0.0.1 port, POTONGIN_EDITOR_V3=on, POTONGIN_EDITOR_FAKES=1",
+  "spec": "web/e2e/editor-shell.spec.mjs",
+  "states": 16,
+  "task": "T2.6",
+  "threshold": {
+    "critical": 0,
+    "keyboard": "every action reachable by keyboard, focus ring visible",
+    "serious": 0
+  },
+  "violations_any_impact": 0
+}

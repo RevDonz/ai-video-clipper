@@ -1,0 +1,30 @@
+{
+  "browser": "Chrome for Testing 147.0.7727.15 (Playwright 1.62.1, build 1217)",
+  "clip_ms": 10010,
+  "commit": "30d7e79",
+  "elapsed_ms": 5572,
+  "gate": "QG-UX U6 (scripted): export and download",
+  "load_average_1m_before_after": [
+    8.98,
+    12.88
+  ],
+  "machine": "K15 reference PC (Ryzen 7 5700G, 16 threads), shared with other agents",
+  "not_measured_here": [
+    "the real render worker and render-request-v3 (T2.1/T2.2); W2 exit at T2.Z"
+  ],
+  "pass": true,
+  "poll_ms": 1000,
+  "scenario": "edited revision; Ekspor, acknowledge 1 check, Mulai ekspor, autosave flush, queue 500 ms, render at the W1 PF-RENDER p95 (0.347x clip length), verify 400 ms, Unduh MP4 until the download starts",
+  "server": "next build + next start (production), private 127.0.0.1 port, POTONGIN_EDITOR_V3=on, POTONGIN_EDITOR_FAKES=1",
+  "simulated_render_ms": 4373,
+  "spec": "web/e2e/editor-shell.spec.mjs",
+  "task": "T2.6",
+  "threshold": {
+    "limit_ms": 40010,
+    "rule": "clip length + 30 s"
+  },
+  "viewport": [
+    1366,
+    768
+  ]
+}
