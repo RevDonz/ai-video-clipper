@@ -448,6 +448,17 @@ def test_clips_that_cannot_be_opened_say_why(tmp_path, contexts, options, reason
     assert reason in MESSAGES
 
 
+def test_a_corrupt_stored_seed_is_an_internal_error_not_a_usage_error(tmp_path, contexts):
+    job_id, job = make_job(tmp_path, contexts, seeds=(1,))
+    seed_path = job / "analysis" / "clips" / _clip_id(CLIPS[0]) / "seed.json"
+    broken = json.loads(seed_path.read_bytes())
+    body = next(s for s in broken["main"]["segments"] if s["role"] == "body")
+    body["out_sf"] = body["in_sf"] - 1  # canonical bytes, impossible geometry
+    seed_path.write_bytes(canonical_bytes(broken))
+    status, payload = call(tmp_path, op="clips", jobId=job_id)
+    assert status == 1 and payload["error"]["code"] == "internal_error"
+
+
 def test_an_unreadable_selection_artifact(tmp_path, contexts):
     job_id, job = make_job(tmp_path, contexts)
     (job / "analysis" / "selection.v3.json").write_text("{broken")
