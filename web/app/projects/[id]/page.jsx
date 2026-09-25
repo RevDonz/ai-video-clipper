@@ -305,7 +305,7 @@ function FocusSummary({ job }) {
 
 // Editor V3 entry (behind POTONGIN_EDITOR_V3: the listing route answers only when it is on):
 // "Edit klip", the edit badge, the latest export and the reason a clip cannot open.
-function ClipEditorEntry({ entry, index, preparing, prepareMessage, onPrepare }) {
+function ClipEditorEntry({ entry, index }) {
   if (!entry) return null;
   const latest = entry.latestExport;
   return (
@@ -326,17 +326,38 @@ function ClipEditorEntry({ entry, index, preparing, prepareMessage, onPrepare })
       {!entry.openable && entry.reasonText && (
         <p role="note" style={{ margin: 0, color: "var(--muted)", fontSize: 13 }}>{entry.reasonText}</p>
       )}
-      {entry.needsPrepare && (
-        <button type="button" className="copyCaption" onClick={onPrepare} disabled={preparing}>
-          {preparing ? "Menyiapkan…" : "Siapkan untuk editor"}
-        </button>
-      )}
-      {entry.needsPrepare && prepareMessage && <span role="alert" style={{ fontSize: 13 }}>{prepareMessage}</span>}
     </div>
   );
 }
 
-function V3ClipCard({ clip, job, copied, onCopy, editorEntry = null, preparing = false, prepareMessage = "", onPrepare = () => {} }) {
+// The job-level prepare (Appendix C.6): one action for the whole job (it prepares every clip),
+// with the running wording and the seconds it has taken, since face-track camera plans can take
+// about a minute (W2 verifier).
+function JobPrepare({ count, preparing, startedAt, message, onPrepare }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!preparing) return undefined;
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [preparing]);
+  const seconds = preparing && startedAt ? Math.max(0, Math.floor((now - startedAt) / 1000)) : 0;
+  return (
+    <div className="clipEditorPrepare" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px 12px", margin: "0 0 16px" }}>
+      {preparing
+        ? <p role="status" aria-live="polite" style={{ margin: 0 }}>{`Menyiapkan analisis klip (kata, waveform, wajah)… ${seconds} d`}</p>
+        : (
+          <>
+            <span style={{ fontSize: 14 }}>{`${count} klip perlu disiapkan dulu sebelum bisa diedit.`}</span>
+            <button type="button" className="copyCaption" onClick={onPrepare}>Siapkan untuk editor</button>
+          </>
+        )}
+      {message && <span role="alert" style={{ fontSize: 13 }}>{message}</span>}
+    </div>
+  );
+}
+
+function V3ClipCard({ clip, job, copied, onCopy, editorEntry = null }) {
   const index = String(clip.index).padStart(2, "0");
   const titleId = `v3-clip-${index}`;
   const score = tenPointScore(clip.score);
@@ -364,7 +385,7 @@ function V3ClipCard({ clip, job, copied, onCopy, editorEntry = null, preparing =
         <h3 id={titleId}>{clip.title}</h3>
         {clip.hookText && <p className="hookLine"><span>Teks hook</span>{clip.hookText}</p>}
         {trendChips.length > 0 && <TrendChips chips={trendChips} />}
-        <ClipEditorEntry entry={editorEntry} index={index} preparing={preparing} prepareMessage={prepareMessage} onPrepare={onPrepare} />
+        <ClipEditorEntry entry={editorEntry} index={index} />
 
         {(score !== null || rows.length > 0) && (
           <div className="v3Scores">
@@ -419,6 +440,7 @@ export default function ProjectDetailPage({ params }) {
   const [clipEntries, setClipEntries] = useState({ state: "idle", byIndex: new Map() });
   const [entriesGeneration, setEntriesGeneration] = useState(0);
   const [preparing, setPreparing] = useState(false);
+  const [prepareStartedAt, setPrepareStartedAt] = useState(null);
   const [prepareMessage, setPrepareMessage] = useState("");
   const copyTimer = useRef(null);
 
@@ -501,13 +523,17 @@ export default function ProjectDetailPage({ params }) {
 
   const prepareForEditor = async () => {
     setPreparing(true);
+    setPrepareStartedAt(Date.now());
     setPrepareMessage("");
     const result = await prepareClipEntries(id);
     setPreparing(false);
+    setPrepareStartedAt(null);
     if (result.ok) setEntriesGeneration((value) => value + 1);
     else setPrepareMessage(result.message);
   };
 
+  const needsPrepare = clipEntries.state === "available"
+    ? [...clipEntries.byIndex.values()].filter((entry) => entry?.needsPrepare).length : 0;
   const candidates = candidateView.candidates;
   const selectionVersionMatches = feedbackView.available
     && !!candidateView.selectionVersion
@@ -558,14 +584,15 @@ export default function ProjectDetailPage({ params }) {
                   <button className="feedbackReload" type="button" onClick={() => setEntriesGeneration((value) => value + 1)}>Coba lagi</button>
                 </div>
               )}
+              {needsPrepare > 0 && (
+                <JobPrepare count={needsPrepare} preparing={preparing} startedAt={prepareStartedAt}
+                  message={prepareMessage} onPrepare={prepareForEditor} />
+              )}
               {clips.length ? <div className="v3Clips">{clips.map((clip) => (
                 <V3ClipCard key={clip.index} clip={clip} job={job}
                   copied={copyState.index === clip.index ? copyState.status : ""}
                   onCopy={copyCaption}
                   editorEntry={clipEntries.state === "available" ? clipEntries.byIndex.get(clip.index) ?? null : null}
-                  preparing={preparing}
-                  prepareMessage={prepareMessage}
-                  onPrepare={prepareForEditor}
                 />
               ))}</div> : <div className="noClips"><strong>{job.status === "failed" ? "Proses ini gagal" : "Klip belum tersedia"}</strong><p>{STATUS_LABELS[job.status] || job.status} · progres {progress}%</p></div>}
             </section>

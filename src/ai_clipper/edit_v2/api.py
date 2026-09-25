@@ -87,6 +87,7 @@ from .errors import (
 )
 
 OPS = ("clips", "prepare_job", "get", "put", "seed", "archive")
+NICE = 5  # prepare_job, as the preview lane's heavy ops (plan §2.6; W2 verifier)
 
 MAX_ENVELOPE_BYTES = 2 << 20
 MAX_JOB_BYTES = 2 << 20
@@ -429,12 +430,17 @@ def _error(error: EditV2Error) -> dict:
 
 
 def _dispatch(envelope: Mapping[str, str], jobs_root: str | os.PathLike | None,
-              now_ms: int | None) -> dict:
+              now_ms: int | None, renice: bool = False) -> dict:
     op = envelope["op"]
     job = _job_dir(jobs_root, envelope["jobId"])
     if op == "clips":
         return _clips(job)
     if op == "prepare_job":
+        if renice:  # words, peaks and camera plans: the lane's heavy priority (plan §2.6)
+            try:
+                os.nice(NICE)
+            except OSError:
+                pass
         return _prepare_job(job)
     clip = _clip_dir(job, envelope["clipId"])
     handlers: dict[str, Callable[[], dict]] = {
@@ -447,14 +453,15 @@ def _dispatch(envelope: Mapping[str, str], jobs_root: str | os.PathLike | None,
 
 
 def handle(raw: bytes, *, jobs_root: str | os.PathLike | None,
-           now_ms: int | None = None) -> tuple[int, dict]:
+           now_ms: int | None = None, renice: bool = False) -> tuple[int, dict]:
     """Run one envelope; (exit code, stdout object). Never raises and never echoes paths,
-    user text or exception messages (only fixed codes)."""
+    user text or exception messages (only fixed codes). ``renice`` (the process entry point)
+    lowers the priority of ``prepare_job`` to nice ``NICE``; in-process callers keep theirs."""
     usage = {"error": {"code": "internal_error", "path": None, "ref": None,
                        "messageId": message_id("internal_error")}}
     try:
         envelope = _envelope(raw)
-        return EXIT_OK, _dispatch(envelope, jobs_root, now_ms)
+        return EXIT_OK, _dispatch(envelope, jobs_root, now_ms, renice)
     except _Usage:
         return EXIT_USAGE, usage
     except EditV2Error as error:
@@ -471,7 +478,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         code, payload = EXIT_USAGE, handle(b"", jobs_root=None)[1]
     else:
         raw = sys.stdin.buffer.read(MAX_ENVELOPE_BYTES + 1)
-        code, payload = handle(raw, jobs_root=os.environ.get("JOBS_ROOT"))
+        code, payload = handle(raw, jobs_root=os.environ.get("JOBS_ROOT"), renice=True)
     sys.stdout.buffer.write(json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
                             .encode("utf-8") + b"\n")
     sys.stdout.buffer.flush()
