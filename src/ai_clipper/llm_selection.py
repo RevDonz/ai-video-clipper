@@ -102,22 +102,26 @@ byte-identical to the builder without this feature and ``"focus"`` in an answer 
 requests and the retry, when fewer than ``k`` valid moments are about the focus (their lines
 say a term, or they claim ``literal``/``semantic``) and some literal mentions lie in no valid
 moment, one more request goes to the client, before the rerank, within ``max_requests`` and
-``deadline_s`` (skipped otherwise). Mentions inside an opening teaser montage
-(:func:`ai_clipper.hook_heuristics.teaser_end`) are left out: they repeat a later moment. The
-others are clustered (a gap of at most :data:`FOCUS_TOPUP_CLUSTER_SECONDS`), and the clusters no
-valid moment touches, the most mentions first (at most :data:`MAX_FOCUS_TOPUP_EXCERPTS`; the
-weakest are left out while the request would not fit ``context_tokens``), are shown as excerpts
-``P1``, ``P2``, ... in episode order: every line within :data:`FOCUS_TOPUP_CONTEXT_SECONDS` of
-the cluster's mentions, with the usual line IDs, overlapping excerpts merged. The request asks
-for at most one moment per excerpt that holds a mention line and has the focus at its core, and
-to skip weak excerpts (greetings, intros, opening teasers, outros, sponsors, passing mentions);
-it ends with the focus block and its top-up rules. Its moments are validated like propose
-answers against the excerpt their IDs name (a strong quote may re-anchor them in any excerpt).
-A moment whose lines say no term (outside a teaser) is dropped (``off_focus``) whatever it
-claims; a second moment for its excerpt, a repeat of a valid moment (the dedupe rule), and a
-moment that overlaps a valid moment about the focus or another top-up moment are dropped
-(``duplicate``). The rest follow the ranked moments, best score first, with their score as
-their ranking value: the rerank never sees them.
+``deadline_s`` (skipped otherwise), and never with the last request when the rerank will run
+(more valid moments than ``k``): the selector's own windows cover what the top-up would have
+asked about, and the rerank keeps the check on ``semantic`` claims. Mentions in the episode's
+opening (:func:`ai_clipper.hook_heuristics.opening_end`: an opening teaser montage, which
+repeats a later moment, and the channel greeting) are left out. The others are clustered
+(:func:`ai_clipper.focus.mention_clusters`), and the clusters no valid moment touches, the most
+mentions first (at most :data:`MAX_FOCUS_TOPUP_EXCERPTS`; the weakest are left out while the
+request would not fit ``context_tokens``), are shown as excerpts ``P1``, ``P2``, ... in episode
+order: every line within :data:`FOCUS_TOPUP_CONTEXT_SECONDS` of the cluster's mentions, with
+the usual line IDs, overlapping excerpts merged. The request says the owner wants these moments
+first, asks the model to look at every excerpt for at most one moment that holds a mention line
+and discusses the focus, to score an ordinary one honestly instead of leaving it out, and to
+skip weak excerpts (greetings, intros, opening teasers, outros, sponsors, passing mentions); it
+ends with the focus block and its top-up rules. Its moments are validated like propose answers
+against the excerpt their IDs name (a strong quote may re-anchor them in any excerpt). A moment
+that starts in the opening is dropped (``opening``); a moment whose lines say no term after the
+opening is dropped (``off_focus``) whatever it claims; a second moment for its excerpt, a
+repeat of a valid moment (the dedupe rule), and a moment that overlaps a valid moment about the
+focus or another top-up moment are dropped (``duplicate``). The rest follow the ranked moments,
+best score first, with their score as their ranking value: the rerank never sees them.
 
 Warning codes (stable, in this order):
 
@@ -129,7 +133,8 @@ Warning codes (stable, in this order):
 - ``focus_topup:<n>``: the focus top-up ran and added n moments;
   ``focus_topup_failed:<code>``: its request failed (``invalid``: no list of moments);
   ``focus_topup_skipped:<reason>``: it was needed but not sent (``budget``: ``max_requests``
-  ran out, ``deadline``, or ``context``: not even one excerpt fits).
+  ran out or its last request is the rerank's, ``deadline``, or ``context``: not even one
+  excerpt fits).
 - ``llm_relocated:<n>``: n kept moments were re-anchored by their quote (drifted IDs).
 - ``llm_hook_relocated:<n>``: n kept moments got a hook that ``hook_quote`` did not confirm.
 - ``llm_extended:<n>``: n short moments grew to the natural end of their answer.
@@ -137,7 +142,8 @@ Warning codes (stable, in this order):
 - ``llm_packaging_repaired:<n>``: n moments had a raw-transcript title or hook text rebuilt.
 - ``llm_dropped:<n>:<reason>``: n moments were discarded. Reasons: ``not_object``,
   ``missing_id``, ``unknown_id``, ``scores``, ``suspect``, ``too_short``, ``too_long``,
-  ``ends_on_question``, ``duplicate``, ``off_focus`` (a top-up moment that says no term).
+  ``ends_on_question``, ``duplicate``, ``off_focus`` (a top-up moment that says no term),
+  ``opening`` (a top-up moment that starts in the episode's opening).
 - ``llm_rerank_failed:<code>``: the rerank failed (``invalid`` = unusable answer,
   ``context_too_small`` = the cards did not fit); the propose order is kept.
 - ``llm_budget_exhausted`` / ``llm_deadline``: a planned request (a chunk, the retry, or the
@@ -163,8 +169,8 @@ from importlib import resources
 from numbers import Real
 from types import MappingProxyType
 
-from .focus import MAX_FOCUS_NOTE_CHARS, FocusHit, FocusMatcher, FocusSpec
-from .hook_heuristics import teaser_end
+from .focus import MAX_FOCUS_NOTE_CHARS, FocusHit, FocusMatcher, FocusSpec, mention_clusters
+from .hook_heuristics import opening_end
 from .llm import (
     CachedLLMClient,
     FailoverLLMClient,
@@ -192,9 +198,8 @@ FOCUS_PROMPT_VERSION = "focus.v1"  # provenance suffix when the focus block was 
 MAX_PROMPT_TRENDS = 20
 TREND_LINE_CHARS = 300
 MAX_FOCUS_LINE_IDS = 60
-# Fokus klip top-up: mentions this close form one cluster; each cluster is shown with this much
-# transcript on either side; at most this many clusters per request.
-FOCUS_TOPUP_CLUSTER_SECONDS = 45.0
+# Fokus klip top-up: each mention cluster (ai_clipper.focus.mention_clusters) is shown with this
+# much transcript on either side; at most this many clusters per request.
 FOCUS_TOPUP_CONTEXT_SECONDS = 75.0
 MAX_FOCUS_TOPUP_EXCERPTS = 10
 STANDARD_RESOURCE = ("prompts", "standar_klip_ai.md")
@@ -369,8 +374,8 @@ _FOCUS_BLOCK_RULES = (
 # The rules of the top-up request's focus block: only moments whose core is the focus.
 _FOCUS_TOPUP_RULES = (
     (
-        "Aturan fokus: usulkan hanya momen yang membahas fokus di atas sebagai inti, bukan "
-        "sekadar menyebutnya sekilas."
+        "Aturan fokus: usulkan momen yang membahas fokus di atas, bukan yang sekadar "
+        "menyebutnya sekilas."
     ),
     *_FOCUS_BLOCK_RULES[2:],  # quality first, then the Format line
 )
@@ -1936,20 +1941,10 @@ def _lines_overlap(first: _Candidate, second: _Candidate) -> bool:
     return first.start_line <= second.end_line and second.start_line <= first.end_line
 
 
-def _mention_clusters(hits: Sequence[FocusHit]) -> list[list[FocusHit]]:
-    """Mentions in time order, split where two follow each other more than
-    :data:`FOCUS_TOPUP_CLUSTER_SECONDS` apart."""
-    clusters: list[list[FocusHit]] = []
-    for hit in sorted(hits, key=lambda item: (item.time, item.first_unit)):
-        if clusters and hit.time - clusters[-1][-1].time <= FOCUS_TOPUP_CLUSTER_SECONDS + _EPSILON:
-            clusters[-1].append(hit)
-        else:
-            clusters.append([hit])
-    return clusters
-
-
 def _excerpt_ranges(
-    lines: Sequence[PromptLine], line_of: Mapping[int, int], clusters: Sequence[list[FocusHit]]
+    lines: Sequence[PromptLine],
+    line_of: Mapping[int, int],
+    clusters: Sequence[Sequence[FocusHit]],
 ) -> list[tuple[int, int]]:
     """The line ranges shown for ``clusters``: every line within
     :data:`FOCUS_TOPUP_CONTEXT_SECONDS` of a cluster's mentions (their own lines always),
@@ -1987,20 +1982,26 @@ def _topup_prompt(
     IDs, then the focus block of the top-up (``block``)."""
     rows = [
         _TOPUP_TASK,
+        # Asked for the focus "as the core" and to skip weak excerpts, Gemma gave no valid moment
+        # for the owner case's five excerpts (rBg0ZcwjVKQ); asked to look at every excerpt and
+        # to score an ordinary moment honestly instead of leaving it out, it added 34:03 (and 7
+        # moments instead of 5 over five benchmark replays).
         (
-            "- Setiap potongan (P1, P2, ...) berisi baris di sekitar tempat istilah fokus "
-            "disebut. Untuk setiap potongan usulkan satu momen terbaik yang membahas fokus itu, "
-            "kecuali potongannya lemah; paling banyak satu momen per potongan."
+            "- Pemilik job ini meminta klip tentang fokus itu dan mendahulukannya dari klip lain. "
+            "Setiap potongan (P1, P2, ...) berisi baris di sekitar tempat istilah fokus disebut. "
+            "Periksa SETIAP potongan dan usulkan satu momen terbaik dari tiap potongan yang "
+            "layak; paling banyak satu momen per potongan."
         ),
         (
             "- Momen harus memuat baris yang menyebut istilahnya (daftar baris di blok FOKUS "
-            "PENGGUNA), menjadikan fokus sebagai inti ceritanya, utuh, dan bisa berdiri sendiri."
+            "PENGGUNA), membahas fokus itu, utuh, dan bisa berdiri sendiri."
         ),
         (
-            "- Potongan lemah: sapaan, perkenalan, atau pembuka video; cuplikan teaser di "
-            "menit-menit awal video (kalimat-kalimat yang diulang dari bagian lain); penutup; "
-            "sponsor; atau istilah yang hanya disebut sambil lalu tanpa dibahas. Kalau semua "
-            'potongan lemah, balas {"moments": []}; jangan mengarang.'
+            "- Lewati hanya potongan yang lemah: sapaan, perkenalan, atau pembuka video; "
+            "cuplikan teaser di menit-menit awal video (kalimat-kalimat yang diulang dari bagian "
+            "lain); penutup; sponsor; atau istilah yang hanya disebut sambil lalu tanpa dibahas. "
+            "Momen yang layak tetapi biasa saja tetap diusulkan dengan skor yang jujur; sistem "
+            'yang memutuskan. Kalau semua potongan lemah, balas {"moments": []}; jangan mengarang.'
         ),
         _duration_row(min_duration, max_duration),
         (
@@ -2062,9 +2063,11 @@ def _focus_topup(
     max_duration: float,
     drops: Counter[str],
     order: int,
+    reserve: int = 0,
 ) -> tuple[list[_Candidate], str | None]:
     """The focus top-up (see the module docstring): the moments it adds and its warning code,
-    or ``([], None)`` when it is not needed. ``kept`` are the valid moments so far."""
+    or ``([], None)`` when it is not needed. ``kept`` are the valid moments so far; ``reserve``
+    requests of the budget stay for the rerank."""
 
     def about_focus(candidate: _Candidate) -> bool:
         return candidate.focus in ("literal", "semantic") or any(
@@ -2073,16 +2076,17 @@ def _focus_topup(
 
     if sum(about_focus(candidate) for candidate in kept) >= k:
         return [], None
-    # Mentions inside an opening teaser montage repeat a later moment: never asked about.
-    teaser = teaser_end(units)
-    open_hits = [hit for hit in hits if teaser is None or hit.time >= teaser]
+    # Mentions in the opening (a teaser montage repeating a later moment, the channel greeting)
+    # are never asked about, and a moment may not start there.
+    opening = opening_end(units)
+    open_hits = [hit for hit in hits if opening is None or hit.time >= opening]
 
     def says_a_term(candidate: _Candidate) -> bool:
         return any(_says(candidate, hit, lines) for hit in open_hits)
 
     uncovered = [
         cluster
-        for cluster in _mention_clusters(open_hits)
+        for cluster in mention_clusters(open_hits)
         if not any(_says(candidate, hit, lines) for candidate in kept for hit in cluster)
     ]
     if not uncovered:
@@ -2091,6 +2095,8 @@ def _focus_topup(
     if blocked is not None:
         reason = "budget" if blocked == "llm_budget_exhausted" else "deadline"
         return [], f"focus_topup_skipped:{reason}"
+    if session.max_requests - session.requests <= reserve:
+        return [], "focus_topup_skipped:budget"  # the last request is the rerank's
     # The densest clusters first; the weakest go when the request would not fit the context.
     asked = sorted(uncovered, key=lambda cluster: (-len(cluster), cluster[0].time))
     asked = asked[:MAX_FOCUS_TOPUP_EXCERPTS]
@@ -2135,6 +2141,9 @@ def _focus_topup(
             candidate, position = _validate_in_excerpt(validator, item, excerpts, order + offset)
         except _Drop as drop:
             drops[drop.reason] += 1
+            continue
+        if opening is not None and candidate.start < opening - _EPSILON:
+            drops["opening"] += 1
             continue
         if not says_a_term(candidate):  # it was asked about a mention: it must hold one
             drops["off_focus"] += 1
@@ -2385,9 +2394,11 @@ def propose_with_llm(
                     )
                 )
 
-    # Fokus klip: one more request, before the rerank, for mentions no moment covers.
+    # Fokus klip: one more request, before the rerank, for mentions no moment covers; it never
+    # takes the last request from a rerank that will run.
     topup: list[_Candidate] = []
     if focus is not None and focus_topup and answered is not None:
+        pool = _dedupe(candidates)[0]
         topup, code = _focus_topup(
             session,
             focus=focus,
@@ -2397,13 +2408,14 @@ def propose_with_llm(
             rendered=rendered,
             line_of=line_of,
             validator=validator,
-            kept=_dedupe(candidates)[0],
+            kept=pool,
             k=k,
             context_tokens=context_tokens,
             min_duration=min_duration,
             max_duration=max_duration,
             drops=drops,
             order=len(candidates),
+            reserve=int(rerank and len(pool) > k),
         )
         if code is not None:
             notes.append(code)
