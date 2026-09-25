@@ -283,8 +283,11 @@ def test_r7_encode_arguments(harness, probe_stub):
     for name, gop in (("seed__c30", 60), ("seed__c25", 50), ("seed__c24", 48)):
         _plan, job = compiled(name, probe_stub, mode="final")
         argv = "\x00".join(job.argv)
-        video = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-profile:v", "high",
-                 "-pix_fmt", "yuv420p", "-g", str(gop), "-x264-params", "threads=4",
+        # R7 "Standar" after the W1 integration (P-ENC, docs/editor/GATES.md): veryfast crf 18
+        # with the chroma QP 12 below luma; crf 21 left coloured text at 0.973 text SSIM.
+        video = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-profile:v", "high",
+                 "-pix_fmt", "yuv420p", "-g", str(gop), "-x264-params",
+                 "threads=4:chroma-qp-offset=-12",
                  "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709",
                  "-color_range", "tv"]
         audio = ["-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2"]
@@ -598,7 +601,10 @@ def test_text_compositing_order(harness, probe_stub):
             "ass=filename=captions.ass:fontsdir=fonts:shaping=complex[vtext]") in graph
     logo = plan.logo
     assert f"overlay=x={logo.x}:y={logo.y}:format=gbrp" in graph
-    assert "[vlogo]scale=out_color_matrix=bt709:out_range=tv,format=yuv420p[vout]" in graph
+    # the 4:2:0 step computes chroma at full resolution and downsamples it with lanczos
+    assert ("[vlogo]scale=out_color_matrix=bt709:out_range=tv:"
+            "flags=accurate_rnd+full_chroma_int+full_chroma_inp+lanczos,format=yuv420p[vout]"
+            in graph)
     assert (f"scale={logo.w}:{logo.h}:flags=lanczos,format=rgba,colorchannelmixer=aa=0.850"
             in graph)
 
@@ -790,7 +796,8 @@ def test_frame_mode_shifts_pts_so_ass_sees_now_ms(harness, probe_stub):
     assert "concat" not in job.filter_script
     argv = list(job.argv)
     assert argv[argv.index("-frames:v") + 1] == "1"
-    assert argv[argv.index("-crf") + 1] == "21"
+    assert argv[argv.index("-crf") + 1] == "18"  # the export's encode (R7)
+    assert argv[argv.index("-x264-params") + 1] == "threads=4:chroma-qp-offset=-12"
     assert "[aout]" not in argv
     assert job.expected["output"] == "png"
     post = job.expected["post"]
