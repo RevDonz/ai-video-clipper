@@ -90,6 +90,11 @@ export function createHarnessStore({ words, doc, readOnly = false, planDelayMs =
     plan.hook = hookItem ? { f0: 0, f1: Math.min(hookItem.dur_f, plan.totalFrames), lines: [hookItem.payload.text],
       overflow: [...hookItem.payload.text].length > 70 } : null;
     plan.warnings = plan.hook?.overflow ? [{ code: "hook_overflow", ref: hookItem.id, f: 0 }] : [];
+    // Stand-in for the glyph check: pictographs are missing from the hook font.
+    for (const char of new Set(hookItem ? [...hookItem.payload.text].filter((c) => /\p{Extended_Pictographic}/u.test(c)) : [])) {
+      const code = `U+${char.codePointAt(0).toString(16).toUpperCase().padStart(4, "0")}`;
+      plan.warnings.push({ code: `glyph_unsupported:${code}`, ref: hookItem.id, f: 0 });
+    }
     return plan;
   }
 

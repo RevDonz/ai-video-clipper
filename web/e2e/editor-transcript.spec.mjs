@@ -394,9 +394,12 @@ test.describe("text panel", () => {
     await expect(page.locator("[data-hook-counter]")).toHaveText("90/90");
     await expect(page.locator("[data-hook-fit]")).toHaveText("Akan terpotong");
     expect(await lastCommand(page)).toMatchObject({ type: "SetHookText", args: { text: long, origin: "user" }, mergeKey: "hook:text" });
+    await text.fill("Dia ditahan security 😂");
+    await expect(page.locator("[data-hook-glyphs]")).toContainText("😂 (U+1F602)");
     await text.fill("Dia ditahan security ");
     await expect(page.locator("[data-hook-counter]")).toHaveText("20/90");
     await expect(page.locator("[data-hook-fit]")).toHaveText("Muat");
+    await expect(page.locator("[data-hook-glyphs]")).toHaveCount(0);
     expect((await currentDoc(page)).tracks[0].items[0].payload.text).toBe("Dia ditahan security");
     const duration = page.getByRole("slider", { name: "Durasi hook" });
     await duration.focus();
