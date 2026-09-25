@@ -199,6 +199,11 @@ async function exportClip(page, { timeout = 600_000 } = {}) {
   const doneMs = Date.now() - started;
   const polled = await api(page, "GET", `/api/jobs/${JOB_ID}/renders/${first.renderId}`);
   const final = polled.status === 200 ? polled.body : first;
+  // The dialog names the revision that was exported, i.e. the store's last saved one (the store
+  // keeps the loaded revision in `doc`; W2 verifier: it read "Revisi 0" after edits).
+  expect(Number.isInteger(final.revision)).toBeTruthy();
+  await expect(dialog.getByText(`Revisi ${final.revision} · tersimpan`)).toBeVisible();
+  expect((await inspect(page)).revision).toBe(final.revision);
   return { dialog, render: final, created: first, createdStatus: createdResponse.status(), doneMs };
 }
 
@@ -277,6 +282,9 @@ test("the W2 flow: edit, undo/redo, reload, export, G1–G3, back to the AI vers
   await resetToSeed(page);
   const seedState = await inspect(page);
   expect(await page.evaluate(() => globalThis.crossOriginIsolated)).toBe(true);
+  // the W3 placeholders (Tata letak, Logo, Musik; Audio, Penanda, Musik) are not shown yet
+  await expect(page.getByRole("tab")).toHaveText(["Transkrip", "Teks", "Cold open"]);
+  await expect(page.locator("[data-lane-row]")).toHaveCount(3);
   let body = await bodyWordIndexes(page);
   expect(body.length).toBeGreaterThan(20);
 
@@ -588,9 +596,32 @@ test("QG-UX U7 (scripted): reload mid-edit loses nothing; 'Kembali ke versi AI' 
   expect(elapsed).toBeLessThanOrEqual(U7_RESET_MS);
 });
 
+/** The job's clips that were never opened in the editor (no `preview/` directory yet). */
+function coldClips() {
+  if (!JOBS_ROOT) return [];
+  return clips.filter((clip) => !existsSync(path.join(JOBS_ROOT, JOB_ID, "analysis", "clips", clip.clipId, "preview")));
+}
+
 test("PF-OPEN on the real stack: first visit ≤ 3.0 s, repeat ≤ 2.0 s (p95); first playhead cell ≤ 2.0 s after prepare", async ({ browser }) => {
   test.setTimeout(10 * 60_000);
   const runs = Number(process.env.EDITOR_PF_OPEN_RUNS || 10);
+  // The first visit as the owner has it (W2 verifier): a clip never opened before (no cells, no
+  // mix, no plan cached), a fresh browser context, until the stage presents its first frame.
+  const cold = coldClips().slice(0, Math.max(1, runs)).slice(0, -1);
+  const coldFirst = [];
+  const coldReady = [];
+  for (const clip of cold) {
+    const context = await browser.newContext({ viewport: { width: 1366, height: 768 } });
+    const page = await context.newPage();
+    await login(page);
+    const started = Date.now();
+    await page.goto(editorUrl(clip.clipId));
+    await expect(page.locator('[data-editor-ready="true"]')).toBeVisible({ timeout: 60_000 });
+    coldReady.push(Date.now() - started);
+    await expect.poll(async () => (await inspect(page))?.player?.presentedFrame ?? null, { timeout: 60_000, intervals: [20] }).not.toBeNull();
+    coldFirst.push(Date.now() - started);
+    await context.close();
+  }
   const clip = clips[0];
   const first = [];
   const repeat = [];
@@ -612,7 +643,7 @@ test("PF-OPEN on the real stack: first visit ≤ 3.0 s, repeat ≤ 2.0 s (p95); 
   const context = await browser.newContext();
   const page = await context.newPage();
   await login(page);
-  const fresh = clips.at(-1);
+  const fresh = coldClips().at(-1) ?? clips.at(-1);
   const edit = (await api(page, "GET", `/api/jobs/${JOB_ID}/clips/${fresh.clipId}/edit`)).body;
   const prepareStarted = Date.now();
   const prepared = await api(page, "POST", `/api/jobs/${JOB_ID}/clips/${fresh.clipId}/prepare`, {});
@@ -631,6 +662,9 @@ test("PF-OPEN on the real stack: first visit ≤ 3.0 s, repeat ≤ 2.0 s (p95); 
   await context.close();
   const result = {
     schema: "potongin.gate/1", gate: "PF-OPEN (real stack)", ...browserInfo(browser), viewport: "1366x768", runs,
+    firstVisitColdToFrameMs: coldFirst.length ? { clips: coldFirst.length, p50: percentile(coldFirst, 50),
+      p95: percentile(coldFirst, 95), max: Math.max(...coldFirst) } : null,
+    firstVisitColdToReadyMs: coldReady.length ? { p50: percentile(coldReady, 50), p95: percentile(coldReady, 95) } : null,
     firstMs: { p50: percentile(first, 50), p95: percentile(first, 95), max: Math.max(...first) },
     repeatMs: { p50: percentile(repeat, 50), p95: percentile(repeat, 95), max: Math.max(...repeat) },
     repeatFrameOnStageMs: { p50: percentile(shown, 50), p95: percentile(shown, 95) },
@@ -638,8 +672,11 @@ test("PF-OPEN on the real stack: first visit ≤ 3.0 s, repeat ≤ 2.0 s (p95); 
     limits: { firstMs: PF_OPEN_FIRST_MS, repeatMs: PF_OPEN_REPEAT_MS, cellMs: PF_OPEN_CELL_MS },
     load: os.loadavg().map((value) => Math.round(value * 10) / 10),
   };
-  result.pass = result.firstMs.p95 <= PF_OPEN_FIRST_MS && result.repeatMs.p95 <= PF_OPEN_REPEAT_MS && cellMs !== null && cellMs <= PF_OPEN_CELL_MS;
-  writeEvidence("T2.Z-PF-OPEN", result);
+  const firstVisit = result.firstVisitColdToFrameMs?.p95 ?? result.firstMs.p95;
+  result.pass = firstVisit <= PF_OPEN_FIRST_MS && result.firstMs.p95 <= PF_OPEN_FIRST_MS
+    && result.repeatMs.p95 <= PF_OPEN_REPEAT_MS && cellMs !== null && cellMs <= PF_OPEN_CELL_MS;
+  writeEvidence(process.env.EDITOR_PF_OPEN_NAME || "T2.Z-PF-OPEN", result);
+  expect(firstVisit).toBeLessThanOrEqual(PF_OPEN_FIRST_MS);
   expect(result.firstMs.p95).toBeLessThanOrEqual(PF_OPEN_FIRST_MS);
   expect(result.repeatMs.p95).toBeLessThanOrEqual(PF_OPEN_REPEAT_MS);
   expect(cellMs).not.toBeNull();
