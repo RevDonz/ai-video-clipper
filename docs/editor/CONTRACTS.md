@@ -11,7 +11,7 @@ Phase-B tasks: read §5.1 (where each name lives), §5.2 (additional signatures)
 of Part 5 your module touches; the tests `tests/test_edit_v2_contracts.py` pin the signatures.
 
 Contents: Part 1 (Appendix A) · Part 2 (§3) · Part 3 (§4.1–§4.2) · Part 4 (§4.3) ·
-Part 5 (T1.0 resolutions).
+Part 5 (T1.0 resolutions, §5.15 the W1 integration resolutions of T1.Z).
 
 # Part 1. Module contracts (plan Appendix A, verbatim)
 
@@ -912,6 +912,24 @@ frame.
   `aresample=48000`; in `audio_measure` it appends `ebur128=peak=true` instead.
   `measured` is `None` exactly when `loudness.needs_measurement(doc)` is false (revision 0 is
   never measured).
+  - *W1 integration (T1.Z):* the stage text comes from `audio_graph.master_filter(mode, g)`:
+    `volume=<g>dB,aresample=48000` (`aresample=48000` when `g == 0`), and in `audio_measure`
+    `aformat=sample_fmts=dbl,ebur128=peak=true:framelog=verbose`, run at `-loglevel info` and
+    parsed by `loudness.parse_ebur128` (`framelog=verbose` keeps the per-frame lines out of
+    the info log).
+  - *Encode headroom (approved at W1):* `loudness.ENCODE_HEADROOM_CDB = 100`. Both true-peak
+    ceilings (the document's `tp_cdb` and the −1.0 dBTP of peak protection) are applied 1.0 dB
+    lower on the pre-encode mix, because G3/G3b check the decoded AAC export and the AAC-LC
+    192k encode adds +0.4 to +0.6 dB of true peak. `output_gain` still never exceeds
+    `−100 − TP`; a protected mix is mastered to −2.0 dBTP.
+  - *Warnings carry their value after the colon:* `loudness_clamped:-16.30 LUFS` (the loudness
+    reached, path `/audio/master`) and `peak_reduced:-3.80 dB` (the reduction, path
+    `/audio`); `errors.message()` renders them as `<message> (-3.80 dB)`.
+- **Piece chain (W1 integration).** Each piece is
+  `[sa<i>]aresample=48000,asettb=1/48000,apad,atrim=start_pts=<a>:end_pts=<b>,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS`:
+  the `pan` follows the trim (plan §5.3 lists it first). Every `[sa<i>]` carries its whole
+  decoder run, and a `pan` before the trim kept that audio queued in every finished piece
+  (FFmpeg 6.1, 150 pieces over 108 s: 2.47 GiB and a stalled render against 100 MiB).
 - Observation for T1.4 (FFmpeg 6.1.1): `pan=stereo|FL=FL+FC|FR=FR+FC` maps a mono source to
   both channels at full gain and keeps a stereo source unchanged, with no channel count needed.
   Whether it is used is T1.4's decision.
@@ -925,6 +943,25 @@ never accepted: the job directory is `$JOBS_ROOT/<jobId>`; document bytes travel
 `{"error": {"code", "path", "ref", "messageId"}}` (plus `current` and `etag` for a revision
 conflict) and exits with the §5.3 code. T1.1 writes the per-op argument and result tables in
 the `api.py` docstring; the integrator copies them here.
+
+**`python -m ai_clipper.edit_v2.api` (T1.1, copied at the W1 integration).** The envelope is
+≤ 2 MiB with no duplicate keys and exactly the keys of its op. Exit 2 is used **only** for a
+malformed envelope (error code `internal_error`); anything unexpected after a valid envelope
+(corrupt stored data included) is exit 1. `JOBS_ROOT` unset is exit 1.
+
+| Op | Arguments | Result |
+|---|---|---|
+| `clips` | `{jobId}` | `{clips: [{clipId, index, title, hookText, description, hashtags, durationMs, engine, edit, latestRender, openable, reason}]}`. Read-only. V3 clips come from `analysis/selection.v3.json` in rank order (`index` = rank = the `clip-NN` number); without a readable selection, or for a non-V3 job, the manifest's clips are listed. `clipId` needs `analysis/source.json`; `engine` is the seed's `base.engine.compiler`; `edit` is `{state: "seed"\|"edited", revision, etag, updatedAtMs}` when `seed.json` exists, else null; `durationMs` is the current document's length (else the selection's); `latestRender` is null until T2.2; `openable` is true exactly when the seed and the source file exist. `reason`, first match: `not_v3`, `analysis_incomplete`, `selection_unreadable`, `source_missing`, `transcript_missing`, `needs_prepare` |
+| `prepare_job` | `{jobId}` | `{state: "done", clips: [{clipId, index, openable, reason}]}` through `seed.prepare_legacy_job(job_dir)`; idempotent |
+| `get` | `{jobId, clipId}` | `{doc, etag, isSeed, seed, seedEtag, engine ("edit-v2/1"\|"legacy"), notices (["legacy_engine"] for a prepared older job), words: {sha256, url}, readOnly, readOnlyReason}`. Writes nothing. `readOnly` with `readOnlyReason: "transcript_changed"` when the document's `base.words.sha256` is not the seed's. Exit 8 (`analysis_missing`) without the words artifact |
+| `seed` | `{jobId, clipId}` | the same shape for the seed itself (`?seed=1`) |
+| `put` | `{jobId, clipId, expectedEtag, idempotencyKey, docRaw}` | `{doc, etag, warnings: [{code, path, ref?, f?}]}`; `expectedEtag` is the `If-Match` value (64 lowercase hex), `idempotencyKey` a UUID, `docRaw` the body in base64 |
+| `archive` | `{jobId, clipId, etag}` | `{relative, revision}`: the job-relative path of that revision for a render request (`seed.json` for revision 0), archiving the current revision when needed |
+
+**Job asset-store metadata (pinned for T3.1).** `store.load_assets` reads
+`analysis/assets/<hex>.json` in document form, snake_case, extra keys ignored:
+`{kind: "image", mime, w, h}` or `{kind: "audio", mime, duration_ms, lufs_c}`. It is not the
+camelCase shape of the `POST /assets` response.
 
 ## 5.10 Time map semantics
 
@@ -1008,3 +1045,38 @@ speech_words [[s, e]], speech_spans [[a, b]]}`; scalar lists `smp` (`in [num, de
   ai-video-clipper:editor-ref /app/.venv/bin/python -m <module>` (the image has no pytest; gate
   scripts are stdlib-only modules).
 - Evidence files: `docs/editor/evidence/W<n>/<task>-<gate>.json`, numbers only.
+
+## 5.15 W1 integration resolutions (T1.Z, 2026-09-25)
+
+Recorded by the W1 integrator; each is logged with its evidence in `docs/editor/GATES.md`.
+
+- **S-COLOR = `gbrp`** (T1.2b, `docs/editor/SPIKES.md` §1). `compile_ffmpeg.COMPOSITE_FORMAT`
+  is `"gbrp"`; R5 is `scale=in_color_matrix=bt709:in_range=tv,format=gbrp,` →
+  `ass=filename=captions.ass:fontsdir=fonts:shaping=complex` → the logo overlay in `gbrp`
+  (`format=gbrap` logo, `overlay=…:format=gbrp`) → `scale=out_color_matrix=bt709:out_range=tv,
+  format=yuv420p`. `RENDER_SEMANTICS` stays 1: no render with semantics 1 existed before.
+- **Plate cells take the final's colour path** without text and logo (the same `format=gbrp`
+  round trip), so a plate frame equals the final's pixels under the text (P-PLATE).
+- **Graph shape** (T1.3, plan §5.2–§5.3 are not frozen): the layout is applied once after
+  `concat` (once per plate run); a decoder run with several pieces is one
+  `fps=num/den,select='<balanced between(pts,…) tree>',setpts=N` chain instead of `split` plus
+  a `trim` per piece; a run of one piece keeps R1's `trim` string verbatim. The source audio
+  keeps one `asplit` label per piece (§5.8). `SourceStreams.duration_s` is `Optional`
+  (Matroska states no stream duration).
+- **`resources/toolchain.json`** (E10) is written by the image build with
+  `python -m ai_clipper.edit_v2.toolchain write … --base-image <name>@sha256:<64 hex>
+  --apt-snapshot <YYYYMMDDTHHMMSSZ>`: canonical bytes (sorted keys, two-space indent,
+  newline) of `{schema: "potongin.toolchain/1", base_image, apt_snapshot, packages: {ffmpeg,
+  libass9, libfreetype6, libharfbuzz0b, libfribidi0, fontconfig}}` from `dpkg-query -W`. It is
+  never committed. `plan.toolchain_sha256(Resources(glyphs.RESOURCES_DIR))` is the
+  `toolchain_sha` of `plan.render_key`; a missing file raises `FileNotFoundError` (no key
+  without a pinned toolchain).
+- **`face_tracking.detect_face_track(…, smooth=True)`** gained `smooth=False` (raw centres,
+  `None` without a face), which `camera.build_camera_plan` uses so `no_face` spans are reported
+  for today's detector too (plan §5.7). The legacy render path keeps the default.
+- **Editor routes spawn Python only through `web/lib/python-cli.mjs`** (`runPythonCli`):
+  `CHILD_ENV_ALLOWLIST` = `PATH HOME LANG TZ TMPDIR JOBS_ROOT FONTCONFIG_FILE
+  POTONGIN_RENDER_ENGINE POTONGIN_EDITOR_V3 POTONGIN_EDITOR_UPLOADS POTONGIN_EDITOR_LLM`
+  (explicit names, no prefixes); the module must be one of the Appendix A.1 CLIs; exit codes
+  0 and 3–12 resolve `{exitCode, json}`, anything else rejects `PythonCliError`
+  (`backend_failed`); `httpStatusForExit` is the §5.3 table.
