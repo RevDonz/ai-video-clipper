@@ -117,3 +117,21 @@ export async function POST(request) {
 export async function DELETE(request) {
   return route.DELETE(request);
 }
+
+// Explicit 405s, so these carry { error, code } and no-store like every other answer here
+// (Next's automatic 405 has neither).
+function methodNotAllowed() {
+  return jsonNoStore(
+    { error: "Metode ini tidak didukung. Pakai GET, POST atau DELETE.", code: "method_not_allowed" },
+    405,
+    { Allow: "GET, POST, DELETE" },
+  );
+}
+
+export async function PUT() {
+  return methodNotAllowed();
+}
+
+export async function PATCH() {
+  return methodNotAllowed();
+}
