@@ -719,11 +719,18 @@ the integrator).
    newer minor adds keys.
 5. A key not in §5.5 at any level → `unknown_key` (Stage 2 keys such as `markers`,
    `layout.ranges`, `audio.source.mute`, `captions.offset_ms`, `payload.params` are unknown at
-   minor 0).
+   minor 0). The key sets of a track, of its items and of their `transform` and `payload` are
+   chosen by the **track's `kind`** (`hook` → the hook shapes, `visual` → the image shapes,
+   `audio` → the audio shapes; any other kind → the union of the three), never by the item's
+   `type`, so a wrong `type` is a semantic `range_invalid`. An anchor (`start`, `end`) allows the
+   union `{at, f, word, edge, offset_f, seg}`; which combination is valid is semantic. An
+   `assets` entry's keys are chosen by its `kind` (`image` or `audio`; otherwise the union).
 6. Any string (keys included) with a Cc or Cs character → `control_char`; not NFC →
    `not_nfc`.
 
-**`validate_doc` (semantic level, reports every issue):**
+**`validate_doc` (semantic level, reports every issue):** checks that depend on an invalid value
+are skipped, so one violation never cascades into issues with other codes (e.g. a string `in_sf`
+yields `range_invalid` only, with no duration or window issue).
 
 - **`range_invalid`** is the catch-all: wrong JSON type, missing required key, pattern mismatch
   (ids, sha, colours, UUID), value out of range, enum value that no stage defines, text length or
@@ -951,9 +958,10 @@ the `api.py` docstring; the integrator copies them here.
 - `check: "put"`: `store.put` onto a clip directory whose only document is the context's
   `seed.json` (virtual revision 0), with `expected_etag = sha256(canonical(seed))`, any
   idempotency key and `now_ms = put_now_ms`. Valid → saved; `warnings` lists codes the result
-  must include (it may include more). Invalid → the raised error's code (and, for semantic
-  errors, one reported issue) equals `code`; `path` is the JSON pointer of that issue (`""` for
-  document-level parse errors).
+  must include (it may include more). Invalid → the raised error's code equals `code`, every
+  reported issue has that code, and one of them has `path` as its JSON pointer (`""` for
+  document-level parse errors). Each invalid fixture breaks exactly one rule, so no other code
+  may appear; a disagreement with a fixture goes to the integrator, not into the validator.
 - `check: "validate"`: `parse_doc` then `validate_doc(doc, words=…, assets=…, seed=None)`
   (used for the seeds themselves).
 - Regenerate with `PYTHONPATH=src:tests python -m support.edit_v2_fixtures --write`; the tests fail
