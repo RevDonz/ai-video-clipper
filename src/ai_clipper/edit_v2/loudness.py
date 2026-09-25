@@ -106,9 +106,10 @@ def needs_measurement(doc: Mapping) -> bool:
     )
 
 
-def _decibels(cdb: int) -> str:
-    sign = "-" if cdb < 0 else ""
-    return f"{sign}{abs(cdb) // 100}.{abs(cdb) % 100:02d}"
+def format_centi(value: int) -> str:
+    """A centi-unit integer as an exact decimal string: ``-380`` → ``"-3.80"``."""
+    sign = "-" if value < 0 else ""
+    return f"{sign}{abs(value) // 100}.{abs(value) % 100:02d}"
 
 
 def output_gain(doc: Mapping, measured: Loudness | None) -> tuple[int, tuple[Issue, ...]]:
@@ -145,9 +146,9 @@ def output_gain(doc: Mapping, measured: Loudness | None) -> tuple[int, tuple[Iss
         gain += reduction
     if normalize and desired - gain > CLAMP_WARNING_CDB:
         achieved = measured.i_clufs + gain
-        warnings.append(Issue(f"loudness_clamped:{_decibels(achieved)} LUFS", "/audio/master"))
+        warnings.append(Issue(f"loudness_clamped:{format_centi(achieved)} LUFS", "/audio/master"))
     if reduction:
-        warnings.append(Issue(f"peak_reduced:{_decibels(reduction)} dB", "/audio"))
+        warnings.append(Issue(f"peak_reduced:{format_centi(reduction)} dB", "/audio"))
     return gain, tuple(warnings)
 
 
@@ -158,6 +159,7 @@ __all__ = [
     "PEAK_CEILING_CDB",
     "SILENCE_TP_CDB",
     "Loudness",
+    "format_centi",
     "master_gain",
     "needs_measurement",
     "output_gain",
