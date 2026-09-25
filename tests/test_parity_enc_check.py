@@ -57,6 +57,20 @@ def test_thresholds_and_baseline_rule() -> None:
     assert not enc_check.p_enc_pass(ok, baseline={"ssim_all": 0.9975, "ssim_text": 0.985})
 
 
+def test_measurement_domains_are_pinned() -> None:
+    # Primary: FFmpeg ssim on BT.709 limited-range 4:4:4 planes (the delivered chroma upsampled,
+    # so the 4:2:0 loss is measured); RGB is reported as a diagnostic.
+    assert enc_check.DOMAINS == ("yuv444p", "rgb")
+    assert enc_check.to_domain("yuv444p", rgb=False).endswith("format=yuv444p")
+    assert "in_color_matrix=bt709:in_range=tv" in enc_check.to_domain("yuv444p", rgb=False)
+    assert "in_color_matrix" not in enc_check.to_domain("yuv444p", rgb=True)
+    assert "out_color_matrix=bt709:out_range=tv" in enc_check.to_domain("yuv444p", rgb=True)
+    assert enc_check.to_domain("rgb", rgb=True) == "format=gbrp"
+    assert enc_check.to_domain("rgb", rgb=False).endswith("format=gbrp")
+    with pytest.raises(ValueError):
+        enc_check.to_domain("yuv420p", rgb=False)
+
+
 def _video(path: Path, ffmpeg: str, *, codec: list[str], noise: int) -> Path:
     subprocess.run(
         [ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", "-y", "-f", "lavfi", "-i",
@@ -82,3 +96,8 @@ def test_measure_whole_and_text_regions(tmp_path: Path, edit_v2_ffmpeg: str) -> 
     assert 0.5 < result["ssim_text"] < 1.0
     assert len(result["boxes"]) == 2
     assert result["min_frame_ssim_all"] <= result["ssim_all"]
+    assert result["domain"] == "yuv444p"
+    assert 0.5 < result["ssim_y"] < 1.0
+    rgb = enc_check.measure(lossy, reference, boxes=[(0, 0, 32, 16)], ffmpeg=edit_v2_ffmpeg,
+                            domain="rgb")
+    assert rgb["domain"] == "rgb" and 0.5 < rgb["ssim_all"] < 1.0 and "ssim_y" not in rgb
