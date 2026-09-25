@@ -216,7 +216,8 @@ test.describe("Konteks Tren page (faked API)", () => {
     expect(curl).toContain("read -rs POTONGIN_INGEST_TOKEN && export POTONGIN_INGEST_TOKEN");
     expect(curl).not.toContain(token);
     expect(curl).toContain(`curl -sS -X POST '${origin}/api/ingest/trends'`);
-    expect(curl).toContain('-H "Authorization: Bearer $POTONGIN_INGEST_TOKEN"');
+    expect(curl).toContain(`printf 'Authorization: Bearer %s\\n' "$POTONGIN_INGEST_TOKEN" | curl -sS -H @- '${origin}/api/ingest/trends'`);
+    expect(curl).not.toContain('-H "Authorization');
     await box.getByRole("button", { name: "Salin token" }).click();
     await expect(box.getByRole("button", { name: "Tersalin ✓" })).toBeVisible();
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(token);
