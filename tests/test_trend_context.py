@@ -232,6 +232,33 @@ def test_a_broken_file_is_a_clear_error(tmp_path, payload):
         read_trend_context(write(tmp_path, payload))
 
 
+def test_extreme_dates_are_malformed_items_not_crashes(tmp_path):
+    payload = snapshot(
+        raw_item(1, firstSeenAt="9999-12-31T23:59:59Z", expiresAt=None),
+        raw_item(2, firstSeenAt="0001-01-01T00:00:00+05:00"),
+        raw_item(3),
+    )
+    context = load_trend_context(write(tmp_path, payload))
+    assert [entry.id[-1] for entry in context.items] == ["3"]
+    assert context.skipped == 2
+    with pytest.raises(TrendContextError):
+        trend_context_from_dict(snapshot(generatedAt="0001-01-01T00:00:00+05:00"))
+    early = trend_context_from_dict(
+        snapshot(raw_item(4, firstSeenAt="0999-01-01T00:00:00Z", expiresAt="9999-01-01T00:00:00Z"),
+                 generatedAt="0999-06-01T00:00:00Z")
+    )
+    assert early.generated_at == "0999-06-01T00:00:00Z"
+    assert early.items[0].first_seen_at == "0999-01-01T00:00:00Z"
+
+
+def test_unparseable_numbers_are_a_trend_context_error(tmp_path):
+    huge = '{"version": 1, "generatedAt": "2026-09-25T06:00:00Z", "items": [{"score": ' + (
+        "9" * 5000
+    ) + "}]}"
+    with pytest.raises(TrendContextError):
+        read_trend_context(write(tmp_path, huge))
+
+
 def test_errors_never_echo_item_text(tmp_path):
     secret = "RAHASIA-TIDAK-BOLEH-MUNCUL"
     path = write(tmp_path, '{"version": 1, "items": ["' + secret + '"], ')
