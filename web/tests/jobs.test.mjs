@@ -19,6 +19,7 @@ import {
   atomicWriteJson,
   enrichJobSocialMetadata,
   generateSocialMetadata,
+  jobOptionInputFromForm,
   parseByteRange,
   parseJobOptions,
   parseWorkerProgress,
@@ -429,4 +430,32 @@ test("the public job API re-sanitises stored clip trends", () => {
   // A clip whose only V3 field is its trend list is still re-validated.
   const bare = sanitizeStoredClip({ index: 1, text: "x", trends: [{ id: "bad", title: "y", kind: "topic" }] }, TREND_JOB_ID);
   assert.equal("trends" in bare, false);
+});
+
+// --- Fokus klip (docs/plans/2026-09-25-fokus-klip.md §1) ------------------------------------
+
+test("job forms without focus parse exactly as the job API does today", () => {
+  const fields = {
+    renderMode: "face-track", limit: "4", minDuration: "15", maxDuration: "45", selectionMode: "v3",
+    llmMode: "off", coldOpen: "false", hookOverlay: "true", captionStyle: "classic",
+  };
+  const form = new FormData();
+  for (const [name, value] of Object.entries(fields)) form.set(name, value);
+  assert.deepEqual(parseJobOptions(jobOptionInputFromForm(form)), parseJobFormOptions(form));
+  form.set("youtubeUrl", "https://youtu.be/rBg0ZcwjVKQ");
+  assert.deepEqual(parseJobOptions(jobOptionInputFromForm(form)), parseJobFormOptions(form));
+  assert.equal("focus" in parseJobOptions(jobOptionInputFromForm(form)), false);
+});
+
+test("clips without focus keep exactly their previous shape; focused clips only gain the label", () => {
+  const baseline = jobClipFromManifest(TRENDED_CLIP, TREND_JOB_ID);
+  assert.equal("focus" in baseline, false);
+  for (const focus of [null, "literal", {}, { match: "kuat" }]) {
+    assert.deepEqual(jobClipFromManifest({ ...TRENDED_CLIP, focus }, TREND_JOB_ID), baseline, JSON.stringify(focus));
+  }
+  const focused = jobClipFromManifest({ ...TRENDED_CLIP, focus: { match: "literal", terms: ["kabur"], at: 12.5 } }, TREND_JOB_ID);
+  assert.deepEqual(focused, { ...baseline, focus: { match: "literal", terms: ["kabur"], at: 12.5 } });
+  // Focus and trends side by side.
+  const both = jobClipFromManifest({ ...TRENDED_CLIP, focus: { match: "none", terms: [] }, trends: [{ id: TREND_A, title: "Kabur Aja Dulu", kind: "topic" }] }, TREND_JOB_ID);
+  assert.deepEqual(both, { ...baseline, focus: { match: "none", terms: [], at: null }, trends: [{ id: TREND_A, title: "Kabur Aja Dulu", kind: "topic" }] });
 });

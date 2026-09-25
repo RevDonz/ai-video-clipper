@@ -540,3 +540,107 @@ test("a legacy (unqueued) V3 run writes its snapshot straight into the job's ana
   assert.deepEqual(argv.slice(-2), ["--trend-context", snapshot]);
   assert.equal(JSON.parse(await readFile(snapshot, "utf8")).items.length, 1);
 });
+
+// --- Fokus klip: per-job focus terms (docs/plans/2026-09-25-fokus-klip.md §1) -------------------
+
+const FOCUS = { terms: ["jomok", "jomokers"], note: "momen jomok yang lucu", mode: "prefer" };
+const FOCUS_FLAGS = ["--focus-term=jomok", "--focus-term=jomokers", "--focus-note=momen jomok yang lucu"];
+
+test("V3 invocation passes each focus term and the note as single argv entries after the V3 flags", () => {
+  const job = { ...baseJob, options: { ...baseJob.options, ...V3_OPTIONS, focus: FOCUS } };
+  const plain = buildClipperInvocation({ ...baseJob, options: { ...baseJob.options, ...V3_OPTIONS } }, "/in", "/o/output", {}).args;
+  const focused = buildClipperInvocation(job, "/in", "/o/output", {}).args;
+  assert.deepEqual(focused, [...plain, ...FOCUS_FLAGS]);
+  // "--flag=value": a term or note that starts with a dash can never be read as an option.
+  const dashes = buildClipperInvocation({ ...job, options: { ...job.options, focus: { terms: ["--help", "-x"], note: "--output-dir /tmp", mode: "prefer" } } }, "/in", "/o/output", {}).args;
+  assert.deepEqual(dashes.slice(-3), ["--focus-term=--help", "--focus-term=-x", "--focus-note=--output-dir /tmp"]);
+  // Without a note only the terms.
+  const termsOnly = buildClipperInvocation({ ...job, options: { ...job.options, focus: { terms: ["jomok"], mode: "prefer" } } }, "/in", "/o/output", {}).args;
+  assert.deepEqual(termsOnly.slice(plain.length), ["--focus-term=jomok"]);
+});
+
+test("focus and trends together: both flags; without focus the trend invocation is unchanged", () => {
+  const snapshot = "/data/jobs/id/.attempts/abc/analysis/trend-context.json";
+  const v3 = { ...baseJob, options: { ...baseJob.options, ...V3_OPTIONS } };
+  const trendsOnly = buildClipperInvocation(v3, "/in", "/o/output", {}, { captionsDir: "/c", trendContext: snapshot }).args;
+  assert.deepEqual(trendsOnly.slice(-4), ["--captions-dir", "/c", "--trend-context", snapshot]);
+  assert.ok(!trendsOnly.some((arg) => arg.startsWith("--focus")));
+  const both = buildClipperInvocation({ ...v3, options: { ...v3.options, focus: FOCUS } }, "/in", "/o/output", {}, { captionsDir: "/c", trendContext: snapshot }).args;
+  assert.deepEqual(both, [...trendsOnly, ...FOCUS_FLAGS]);
+});
+
+test("a hostile persisted focus fails before any argv is built", () => {
+  for (const focus of [
+    { terms: ["a"], mode: "prefer" },
+    { terms: ["jomok"], mode: "only" },
+    { terms: ["jo\nmok"], mode: "prefer" },
+    { terms: "jomok", mode: "prefer" },
+    { terms: ["jomok"], note: "x".repeat(201), mode: "prefer" },
+  ]) {
+    assert.throws(() => buildClipperInvocation({ ...baseJob, options: { ...baseJob.options, ...V3_OPTIONS, focus } }, "/in", "/o", {}), /persisted job options/i, JSON.stringify(focus));
+  }
+  for (const options of [baseJob.options, { ...baseJob.options, ...V2_OPTIONS }]) {
+    assert.throws(() => buildClipperInvocation({ ...baseJob, options: { ...options, focus: FOCUS } }, "/in", "/o", {}), /persisted job options/i);
+  }
+});
+
+// Records its argv; labels its clips from --focus-term the way the engine contract (§2) does.
+const FAKE_FOCUS_ENGINE = `#!/usr/bin/env node
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
+const arg = (name) => process.argv[process.argv.indexOf(name) + 1];
+const output = arg("--output-dir");
+await mkdir(output, { recursive: true });
+await mkdir(path.join(arg("--artifact-root"), "analysis"), { recursive: true });
+await writeFile(path.join(output, "argv.json"), JSON.stringify(process.argv.slice(2)));
+const terms = process.argv.filter((value) => value.startsWith("--focus-term=")).map((value) => value.slice("--focus-term=".length));
+const clip = (index, extra) => ({
+  index, score: 9 - index, start: 60 * index, end: 60 * index + 30, duration: 30, text: "ada perjomokan di sini", title: "Judul " + index, selection_source: "llm",
+  output: path.join(output, "clip-0" + index + ".mp4"), subtitles: path.join(output, "clip-0" + index + ".srt"), ...extra,
+});
+const clips = terms.length
+  ? [clip(1, { focus: { match: "literal", terms: [terms[0]], at: 75.5 } }), clip(2, { focus: { match: "semantic", terms: [terms[0]], at: null } }), clip(3, { focus: { match: "none", terms: [], at: null } })]
+  : [clip(1, {}), clip(2, {}), clip(3, {})];
+await writeFile(path.join(output, "manifest.json"), JSON.stringify({
+  status: "completed",
+  selection_v3: {
+    mode: "v3", status: "completed", source: "llm", provider: "groq", model: "m", prompt_version: terms.length ? "llm-select-v2.focus.v1" : "llm-select-v2",
+    warnings: terms.length ? ["focus_few_matches:2"] : [], artifact: null, transcript_source: "whisper",
+    ...(terms.length ? { focus: { terms, matched: 2, requested: 3 } } : {}),
+  },
+  clips,
+}));
+`;
+
+async function focusJob(prefix, options) {
+  const job = await trendJob(prefix, options);
+  await writeFile(job.env.AI_CLIPPER_BIN, FAKE_FOCUS_ENGINE);
+  return job;
+}
+
+test("a V3 job with focus passes the terms to the engine and persists the clip labels and the summary", async () => {
+  const job = await focusJob("clipper-worker-focus-", { ...V3_OPTIONS, focus: FOCUS });
+  const { persisted, argv } = await runTrendJob(job);
+  assert.equal(persisted.status, "completed", persisted.error);
+  assert.deepEqual(argv.slice(-3), FOCUS_FLAGS);
+  assert.deepEqual(argv.slice(-3 - V3_TAIL.length, -3), V3_TAIL);
+  assert.deepEqual(persisted.options.focus, FOCUS);
+  assert.deepEqual(persisted.clips.map((clip) => clip.focus), [
+    { match: "literal", terms: ["jomok"], at: 75.5 },
+    { match: "semantic", terms: ["jomok"], at: null },
+    { match: "none", terms: [], at: null },
+  ]);
+  assert.deepEqual(persisted.selectionV3.focus, { terms: ["jomok", "jomokers"], matched: 2, requested: 3 });
+  assert.deepEqual(persisted.selectionV3.warnings, ["focus_few_matches:2"]);
+});
+
+test("without focus a V3 job runs exactly as before: no focus flags, no clip labels, no focus summary", async () => {
+  const job = await focusJob("clipper-worker-nofocus-", V3_OPTIONS);
+  const { persisted, argv } = await runTrendJob(job);
+  assert.equal(persisted.status, "completed", persisted.error);
+  assert.deepEqual(argv.slice(-V3_TAIL.length), V3_TAIL);
+  assert.ok(!argv.some((value) => value.startsWith("--focus")));
+  assert.equal("focus" in persisted.options, false);
+  for (const clip of persisted.clips) assert.equal("focus" in clip, false);
+  assert.equal("focus" in persisted.selectionV3, false);
+});

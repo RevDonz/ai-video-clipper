@@ -79,6 +79,12 @@ export function buildClipperInvocation(job, sourcePath, outputRoot, env = proces
     if (typeof captionsDir === "string" && path.isAbsolute(captionsDir)) args.push("--captions-dir", captionsDir);
     // Only a snapshot path the worker wrote; the trend text itself never enters argv.
     if (typeof trendContext === "string" && path.isAbsolute(trendContext)) args.push("--trend-context", trendContext);
+    // Fokus klip: the owner's validated terms and note go to our own CLI as single argv entries
+    // (spawn without a shell). "--flag=value" keeps a value that starts with "-" a value.
+    if (options.focus) {
+      for (const term of options.focus.terms) args.push(`--focus-term=${term}`);
+      if (options.focus.note) args.push(`--focus-note=${options.focus.note}`);
+    }
   }
   return { command: env.AI_CLIPPER_BIN || "/app/.venv/bin/ai-clipper", args };
 }
