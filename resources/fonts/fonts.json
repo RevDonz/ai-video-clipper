@@ -1,0 +1,72 @@
+{
+  "schema": "potongin.fonts/1",
+  "note": "Pinned caption fonts (plan §5.2 R6, §5.4). FFmpeg (fontconfig lockdown + fontsdir) and JASSUB load these exact bytes; DejaVu Sans is the only fallback.",
+  "fallback": "DejaVuSans.ttf",
+  "fonts": [
+    {
+      "file": "DejaVuSans.ttf",
+      "family": "DejaVu Sans",
+      "style": "Book",
+      "weight": 400,
+      "sha256": "abdc775b21b1bc470d50c97e790d276f2054b7504e56e5bd3e64f48d68582322",
+      "bytes": 759720,
+      "license": "Bitstream-Vera",
+      "license_file": "LICENSE-DejaVu.txt",
+      "source": {
+        "kind": "debian-package",
+        "distribution": "bookworm",
+        "package": "fonts-dejavu-core",
+        "version": "2.37-6",
+        "deb_sha256": "8892669e51aab4dc56682c8e39d8ddb7d70fad83c369344e1e240bf3ca22bb76",
+        "path": "usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+      }
+    },
+    {
+      "file": "DejaVuSans-Bold.ttf",
+      "family": "DejaVu Sans",
+      "style": "Bold",
+      "weight": 700,
+      "sha256": "0d977336a6d5fba34eab8e3199eb218327161b5143749f802982c2bc34df0c96",
+      "bytes": 708920,
+      "license": "Bitstream-Vera",
+      "license_file": "LICENSE-DejaVu.txt",
+      "source": {
+        "kind": "debian-package",
+        "distribution": "bookworm",
+        "package": "fonts-dejavu-core",
+        "version": "2.37-6",
+        "deb_sha256": "8892669e51aab4dc56682c8e39d8ddb7d70fad83c369344e1e240bf3ca22bb76",
+        "path": "usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+      }
+    },
+    {
+      "file": "Montserrat-ExtraBold.ttf",
+      "family": "Montserrat ExtraBold",
+      "style": "ExtraBold",
+      "weight": 800,
+      "sha256": "1b364c3400bf7b1cc2c47a25dd0d3edd8331da451412aa5539080f78f8f70b63",
+      "bytes": 281920,
+      "license": "OFL-1.1",
+      "license_file": "OFL.txt",
+      "source": {
+        "kind": "upstream-release",
+        "repository": "https://github.com/JulietaUla/Montserrat",
+        "release": "v7.222",
+        "commit": "5dae7a4ef9c0bf9fe48dc54fd1076eefaa0a8c7e",
+        "url": "https://raw.githubusercontent.com/JulietaUla/Montserrat/5dae7a4ef9c0bf9fe48dc54fd1076eefaa0a8c7e/fonts/ttf/Montserrat-ExtraBold.ttf"
+      }
+    }
+  ],
+  "licenses": [
+    {
+      "file": "LICENSE-DejaVu.txt",
+      "sha256": "7a083b136e64d064794c3419751e5c7dd10d2f64c108fe5ba161eae5e5958a93",
+      "source": "https://raw.githubusercontent.com/dejavu-fonts/dejavu-fonts/0eda8a319c08835009849583cd090bb5b141ce25/LICENSE"
+    },
+    {
+      "file": "OFL.txt",
+      "sha256": "41f82bb4d24b304f30f7136bc47abdd083782e4265c984160f5649d1e78ea49c",
+      "source": "https://raw.githubusercontent.com/JulietaUla/Montserrat/5dae7a4ef9c0bf9fe48dc54fd1076eefaa0a8c7e/OFL.txt"
+    }
+  ]
+}
