@@ -170,9 +170,14 @@ export function normalizeFocusText(value) {
     .normalize("NFC");
 }
 
-/** Terms are the same term when this key is equal (case and accents do not count). */
+/**
+ * Terms are the same term when this key is equal (case and accents do not count). The
+ * lower-upper-lower round trip folds like Python's str.casefold() ("Straße" = "STRASSE",
+ * "ﬁlm" = "FILM", final sigma), so terms the engine would reject as repeated are one term here.
+ */
 export function focusTermKey(value) {
-  return normalizeFocusText(value).normalize("NFD").replace(/\p{M}+/gu, "").toLowerCase().normalize("NFC");
+  return normalizeFocusText(value).toLowerCase().toUpperCase().toLowerCase()
+    .normalize("NFD").replace(/\p{M}+/gu, "").normalize("NFC");
 }
 
 /** Focus terms as typed: separated by commas or line breaks, cleaned, blanks dropped. */
