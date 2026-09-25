@@ -110,7 +110,16 @@ TREND_CLITICS = ("nya", "lah", "kah", "pun")
 _EXTERNAL_ID = re.compile(r"[A-Za-z0-9._:/#@-]{1,120}")
 _HASHTAG = re.compile(r"#\w{1,50}")
 _REGION = re.compile(r"[A-Z]{2}")
-_INVISIBLE = re.compile("[\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]")
+# Default-ignorable code points that are not format characters (Cf): the combining grapheme
+# joiner, Hangul fillers, Khmer and Mongolian invisible vowels and selectors, variation
+# selectors (VS1-VS256), reserved ignorables and the whole tag block; plus format characters
+# newer than Python 3.11's Unicode 14 (Egyptian hieroglyph controls). With every Cc and Cf this
+# is at least what the web server strips (\p{Cc}, \p{Cf}, \p{Default_Ignorable_Code_Point}).
+_INVISIBLE = re.compile(
+    "[\u034f\u115f\u1160\u17b4\u17b5\u180b-\u180f\u200b-\u200f\u202a-\u202e\u2060-\u206f"
+    "\u3164\ufe00-\ufe0f\ufeff\uffa0\ufff0-\ufff8\U00013430-\U0001343f\U0001bca0-\U0001bca3"
+    "\U0001d173-\U0001d17a\U000e0000-\U000e0fff]"
+)
 _LINE_BREAK = re.compile("\r\n|[\r\n\x0b\x0c\x1c-\x1e\x85\u2028\u2029]")
 _TOKEN = re.compile(r"[^\W_]+")
 _MAX_TIMESTAMP_CHARS = 40
@@ -126,9 +135,11 @@ class TrendContextError(ValueError):
 def clean_trend_text(value: str, *, multiline: bool = False) -> str:
     """``value`` under the server's text rules (see the module docstring).
 
-    Control, bidi and zero-width characters are removed and runs of spaces collapse. A
-    single-line field loses its line breaks; a multi-line one keeps at most
-    :data:`MAX_SUMMARY_LINES` non-empty lines joined by ``\\n``. The result is NFC.
+    Control (Cc) and format (Cf) characters, which include bidi and zero-width ones, and the
+    other invisible default-ignorable characters (variation selectors, tags, fillers) are
+    removed and runs of spaces collapse. A single-line field loses its line breaks; a
+    multi-line one keeps at most :data:`MAX_SUMMARY_LINES` non-empty lines joined by ``\\n``.
+    The result is NFC.
     """
     if not isinstance(value, str):
         raise TypeError("trend text must be a string")
@@ -136,7 +147,7 @@ def clean_trend_text(value: str, *, multiline: bool = False) -> str:
     text = "".join(
         character
         for character in text
-        if character in "\n\t" or unicodedata.category(character) != "Cc"
+        if character in "\n\t" or unicodedata.category(character) not in ("Cc", "Cf")
     )
     if multiline:
         lines = (" ".join(line.split()) for line in text.split("\n"))
