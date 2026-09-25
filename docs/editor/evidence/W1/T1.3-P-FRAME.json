@@ -100,7 +100,7 @@
           "vfr": true
         }
       ],
-      "gate_wall_s": 47.9,
+      "gate_wall_s": 41.0,
       "pass": true,
       "threshold": {
         "min_frames": 2000,
@@ -221,7 +221,7 @@
           "vfr": true
         }
       ],
-      "gate_wall_s": 58.0,
+      "gate_wall_s": 46.0,
       "pass": true,
       "threshold": {
         "min_frames": 2000,

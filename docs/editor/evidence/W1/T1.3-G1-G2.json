@@ -269,7 +269,7 @@
           ]
         }
       ],
-      "gate_wall_s": 16.5,
+      "gate_wall_s": 13.4,
       "pass": true,
       "renders": 6,
       "toolchain": {
@@ -546,7 +546,7 @@
           ]
         }
       ],
-      "gate_wall_s": 16.7,
+      "gate_wall_s": 14.9,
       "pass": true,
       "renders": 6,
       "toolchain": {
