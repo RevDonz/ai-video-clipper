@@ -122,6 +122,65 @@ def test_a_detector_that_can_skip_smoothing_is_asked_for_raw_centres(source):
         (0, 750, 1500), smooth_face_track([None, 0.4, 0.6], cuts=[False] * 3))]
 
 
+def test_a_detector_that_can_decode_sequentially_is_asked_to(source):
+    seen = {}
+
+    def detector(source, *, start, end, sample_interval=0.75, smooth=True, sequential=False):
+        seen.update(smooth=smooth, sequential=sequential)
+        return [0.0, 0.75], [0.5, 0.5], [False, False], 640, 360
+
+    build_camera_plan(source, (0, 1500), Fps(25, 1), out_w=720, out_h=1280, detector=detector)
+    assert seen == {"smooth": False, "sequential": True}
+
+
+class CountingCapture:
+    """Wraps ``cv2.VideoCapture`` and counts the seeks."""
+
+    seeks = 0
+
+    def __init__(self, *args):
+        import cv2
+
+        self._inner = cv2.VideoCapture(*args)
+
+    def set(self, prop, value):
+        type(self).seeks += 1
+        return self._inner.set(prop, value)
+
+    def __getattr__(self, name):
+        return getattr(self._inner, name)
+
+
+def test_todays_detector_decodes_the_window_once_in_sequential_mode(tmp_path, edit_v2_ffmpeg,
+                                                                     monkeypatch):
+    """W1 verifier: a 3 min window of a long-GOP AV1 720p source took 16.35 s (budget 15 s),
+    most of it one seek per 0.75 s sample. The camera plan decodes the window once and keeps
+    the frame at each sample time; the legacy render keeps its per-sample seeks."""
+    cv2 = pytest.importorskip("cv2")
+    from support import edit_v2_media as media
+
+    import ai_clipper.face_tracking as face_tracking
+
+    path = media.make_barcode_video(
+        tmp_path / "cuts.mp4",
+        media.VideoSpec(width=320, height=180, fps=(25, 1), frames=150, scene_cut_every=20,
+                        gop=250, audio=None),
+    )
+
+    class Capture(CountingCapture):
+        seeks = 0
+
+    monkeypatch.setattr(cv2, "VideoCapture", Capture)
+    sequential = face_tracking.detect_face_track(path, start=0.4, end=5.4, smooth=False,
+                                                 sequential=True)
+    assert Capture.seeks == 1
+    Capture.seeks = 0
+    seeking = face_tracking.detect_face_track(path, start=0.4, end=5.4, smooth=False)
+    assert Capture.seeks == len(seeking[0]) == 7
+    assert sequential == seeking  # same sample times, cut flags (scene cuts), no faces, size
+    assert any(seeking[2])
+
+
 def test_the_default_detector_is_todays_face_tracker():
     default = inspect.signature(build_camera_plan).parameters["detector"].default
     assert default is detect_face_track
