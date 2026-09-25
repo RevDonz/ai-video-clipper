@@ -1,0 +1,81 @@
+{
+  "gate": "PF-CELLS",
+  "runs": {
+    "image-ffmpeg-5.1.9": {
+      "cases": [
+        {
+          "all_cells_s": 13.38,
+          "budget_s": 15.0,
+          "camera_plan_built": false,
+          "cells": 31,
+          "clip_seconds": 60.2,
+          "first_cell_s": 0.95,
+          "layout": "fit_blur",
+          "pass": true,
+          "plan_ms": 129.5,
+          "prepare_ms": 116.5,
+          "role": "fit_blur"
+        },
+        {
+          "all_cells_s": 9.12,
+          "budget_s": 15.0,
+          "camera_plan_built": false,
+          "cells": 32,
+          "clip_seconds": 62.27,
+          "first_cell_s": 0.64,
+          "layout": "fill_center",
+          "pass": true,
+          "plan_ms": 126.8,
+          "prepare_ms": 104.9,
+          "role": "fill_center"
+        },
+        {
+          "all_cells_s": 16.01,
+          "budget_s": 25.0,
+          "camera_plan_built": true,
+          "cells": 31,
+          "clip_seconds": 62.96,
+          "first_cell_s": 7.74,
+          "layout": "camera",
+          "pass": true,
+          "plan_ms": 127.9,
+          "prepare_ms": 7152.3,
+          "role": "fit_blur_2"
+        },
+        {
+          "all_cells_s": 8.09,
+          "budget_s": 25.0,
+          "camera_plan_built": false,
+          "cells": 30,
+          "clip_seconds": 57.92,
+          "first_cell_s": 0.63,
+          "layout": "camera",
+          "pass": true,
+          "plan_ms": 122.9,
+          "prepare_ms": 102.0,
+          "role": "camera"
+        }
+      ],
+      "environment": {
+        "cpu_quota": 6.0,
+        "cpus_visible": 16,
+        "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+        "loadavg": [
+          4.7,
+          11.03,
+          15.43
+        ],
+        "python": "3.11.2"
+      },
+      "gate_wall_s": 66.6,
+      "heavy_slots": 2,
+      "pass": true,
+      "threshold_s": {
+        "camera": 25.0,
+        "fill_center": 15.0,
+        "fit_blur": 15.0
+      }
+    }
+  },
+  "task": "T2.3"
+}
