@@ -84,11 +84,12 @@ def _checked(result: object) -> tuple[list[float], list[float | None], list[bool
             raise TypeError("detector centres must be numbers or None")
         if not math.isfinite(value) or not 0.0 <= value <= 1.0:
             raise ValueError("detector centres must lie in [0, 1]")
-    if any(not isinstance(flag, bool) for flag in cuts):
+    # Today's detector returns numpy.bool_ flags; anything equal to True or False is a flag.
+    if any(isinstance(flag, str) or flag not in (True, False) for flag in cuts):
         raise ValueError("detector cut flags must be booleans")
     if type(width) is not int or type(height) is not int or width <= 0 or height <= 0:
         raise ValueError("detector must report a positive source size")
-    return times, centres, cuts, width, height
+    return times, centres, [bool(flag) for flag in cuts], width, height
 
 
 def _no_face(times_ms: list[int], centres: list[float | None], end_ms: int) -> list[list[int]]:
