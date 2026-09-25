@@ -182,7 +182,15 @@ function EditorShell({ runtime, jobId, clipId, initialPanel }) {
 
   // Dev and e2e hook (fake runtime only): the specs read the store and the player through it.
   useEffect(() => {
-    if (runtime.kind !== "fake") return undefined;
+    if (runtime.kind !== "fake") {
+      // Read-only inspection for the e2e flow and support (T2.Z): state, never a command.
+      window.__potonginEditorInspect = Object.freeze({
+        state: () => store.getState(),
+        player: () => player.state(),
+        stats: () => player.stats(),
+      });
+      return () => { delete window.__potonginEditorInspect; };
+    }
     window.__potonginEditor = { store, player, api };
     return () => { delete window.__potonginEditor; };
   }, [runtime, store, player, api]);
