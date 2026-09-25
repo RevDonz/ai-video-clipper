@@ -87,6 +87,13 @@ def _manifest(job_dir: Path) -> dict[str, Any]:
     return json.loads((job_dir / "output" / "manifest.json").read_text(encoding="utf-8"))
 
 
+def _rendered(job_dir: Path) -> list[dict[str, Any]]:
+    """The manifest's clips whose auto file exists in the job (a tool's copy may hold only
+    some of them)."""
+    return [entry for entry in _manifest(job_dir).get("clips", [])
+            if (job_dir / "output" / Path(entry["output"]).name).is_file()]
+
+
 def _environment() -> dict[str, Any]:
     version = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True,
                              check=False).stdout.splitlines()[0]
@@ -105,7 +112,7 @@ def _environment() -> dict[str, Any]:
 def rerender(root: Path, *, only: list[str] | None, work: Path) -> dict[str, Any]:
     rows = []
     for job_dir in _jobs(root, only):
-        for entry in _manifest(job_dir).get("clips", []):
+        for entry in _rendered(job_dir):
             if entry.get("render_engine") != COMPILER_ID:
                 continue
             clip_dir = job_dir / "analysis" / "clips" / entry["clip_id"]
@@ -225,7 +232,7 @@ def r10(root: Path, *, only: list[str] | None, work: Path) -> dict[str, Any]:
     changed = _changed_resources(work)
     rows = []
     for job_dir in _jobs(root, only):
-        entries = _manifest(job_dir).get("clips", [])
+        entries = _rendered(job_dir)
         if any("render_engine" not in entry for entry in entries):
             seed_module.prepare_legacy_job(job_dir)  # a job rendered by the legacy engine
         for entry in entries:

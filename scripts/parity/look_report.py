@@ -159,6 +159,16 @@ def _copy_job(pristine: Path, target: Path) -> None:
         os.link(item, target / "input" / item.name)  # our copy; never written
 
 
+def record_manifest(job_dir: Path, clips: list[dict[str, Any]]) -> None:
+    """Put the rendered clips' entries into the copy's ``output/manifest.json`` (by index), as
+    the pipeline publishes them: the R10 and P-RT tools find the auto files through it."""
+    path = job_dir / "output" / "manifest.json"
+    manifest = _read_json(path)
+    rendered = {clip["index"]: clip for clip in clips}
+    manifest["clips"] = [rendered.get(entry["index"], entry) for entry in manifest["clips"]]
+    _write_json(path, manifest)
+
+
 def render(work: Path, engine: str, label: str, only: list[str] | None) -> dict[str, Any]:
     selection = _selection(work)
     report = {"engine": engine, "label": label, "jobs": [], "environment": _environment()}
@@ -172,6 +182,7 @@ def render(work: Path, engine: str, label: str, only: list[str] | None) -> dict[
         _copy_job(work / "pristine" / job["id"], job_dir)
         load_before = os.getloadavg()
         run = pipeline.render_v3_job(job_dir, render_engine=engine, ranks=job["ranks"])
+        record_manifest(job_dir, run.clips)
         entry = {
             "id": job["id"], "render_mode": job["render_mode"],
             "seconds": round(run.seconds, 3),
