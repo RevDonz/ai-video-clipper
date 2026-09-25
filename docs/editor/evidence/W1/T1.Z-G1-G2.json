@@ -187,6 +187,94 @@
             "problems": [],
             "values": {
               "channels": 2,
+              "height": 1280,
+              "pix_fmt": "yuv420p",
+              "profile": "High",
+              "sample_rate": "48000",
+              "width": 720
+            }
+          },
+          "G2": {
+            "blocking": true,
+            "name": "G2",
+            "ok": true,
+            "problems": [],
+            "values": {
+              "expected_frames": 855,
+              "expected_samples": 1369368,
+              "frames": 855,
+              "samples": 1370112
+            }
+          },
+          "G5_warnings": [
+            "unsafe_zone"
+          ],
+          "audio": true,
+          "case": "edge_end_29.97",
+          "fps": [
+            30000,
+            1001
+          ],
+          "layout": "fill_center",
+          "logo": false,
+          "ok": true,
+          "output": [
+            720,
+            1280
+          ]
+        },
+        {
+          "G1": {
+            "blocking": true,
+            "name": "G1",
+            "ok": true,
+            "problems": [],
+            "values": {
+              "channels": 2,
+              "height": 1280,
+              "pix_fmt": "yuv420p",
+              "profile": "High",
+              "sample_rate": "48000",
+              "width": 720
+            }
+          },
+          "G2": {
+            "blocking": true,
+            "name": "G2",
+            "ok": true,
+            "problems": [],
+            "values": {
+              "expected_frames": 480,
+              "expected_samples": 960960,
+              "frames": 480,
+              "samples": 961536
+            }
+          },
+          "G5_warnings": [
+            "unsafe_zone"
+          ],
+          "audio": true,
+          "case": "edge_start_23.976",
+          "fps": [
+            24000,
+            1001
+          ],
+          "layout": "fit_blur",
+          "logo": false,
+          "ok": true,
+          "output": [
+            720,
+            1280
+          ]
+        },
+        {
+          "G1": {
+            "blocking": true,
+            "name": "G1",
+            "ok": true,
+            "problems": [],
+            "values": {
+              "channels": 2,
               "height": 1920,
               "pix_fmt": "yuv420p",
               "profile": "High",
@@ -269,10 +357,10 @@
           ]
         }
       ],
-      "gate_wall_s": 16.6,
+      "gate_wall_s": 20.3,
       "modules": "real",
       "pass": true,
-      "renders": 6,
+      "renders": 8,
       "toolchain": {
         "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
         "python": "3.11.2",
