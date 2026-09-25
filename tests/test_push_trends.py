@@ -66,7 +66,8 @@ class FakeIngest:
             self.replies.extend(items)
 
     def posted_items(self) -> list[list[dict[str, object]]]:
-        return [r["json"]["items"] for r in self.requests if r["method"] == "POST"]  # type: ignore[index]
+        posts = [r for r in self.requests if r["method"] == "POST"]
+        return [r["json"]["items"] for r in posts]  # type: ignore[index]
 
 
 class _QuietServer(ThreadingHTTPServer):
@@ -226,7 +227,9 @@ def test_reads_items_from_stdin_dash(push: ModuleType, ingest: FakeIngest, monke
     assert ingest.posted_items() == [[item(7)]]
 
 
-def test_url_can_come_from_environment(push: ModuleType, ingest: FakeIngest, tmp_path: Path) -> None:
+def test_url_can_come_from_environment(
+    push: ModuleType, ingest: FakeIngest, tmp_path: Path
+) -> None:
     path = write_items(tmp_path, [item(1)])
 
     result = run(push, [str(path)], env={"POTONGIN_INGEST_URL": ingest.url})
@@ -323,7 +326,9 @@ def test_invalid_input_file_exits_2_without_request(
     assert ingest.requests == []
 
 
-def test_more_than_1000_items_is_refused(push: ModuleType, ingest: FakeIngest, tmp_path: Path) -> None:
+def test_more_than_1000_items_is_refused(
+    push: ModuleType, ingest: FakeIngest, tmp_path: Path
+) -> None:
     path = write_items(tmp_path, [item(n) for n in range(1001)])
 
     result = run(push, ["--url", ingest.url, str(path)])
@@ -405,7 +410,9 @@ def test_sends_cloudflare_access_service_token_when_configured(
     assert headers["cf-access-client-secret"] == CF_SECRET  # type: ignore[index]
 
 
-def test_no_cloudflare_headers_by_default(push: ModuleType, ingest: FakeIngest, tmp_path: Path) -> None:
+def test_no_cloudflare_headers_by_default(
+    push: ModuleType, ingest: FakeIngest, tmp_path: Path
+) -> None:
     path = write_items(tmp_path, [item(1)])
 
     run(push, ["--url", ingest.url, str(path)])
@@ -445,7 +452,9 @@ def test_prints_per_item_results_with_input_positions(
     assert "1 ditolak" in summary
 
 
-def test_json_output_is_machine_readable(push: ModuleType, ingest: FakeIngest, tmp_path: Path) -> None:
+def test_json_output_is_machine_readable(
+    push: ModuleType, ingest: FakeIngest, tmp_path: Path
+) -> None:
     ingest.reply(
         (200, {}, {"accepted": 1, "created": 0, "updated": 1,
                    "rejected": [{"index": 1, "code": "invalid_field", "field": "hashtags"}]}),
@@ -602,7 +611,9 @@ def test_auth_errors_stop_immediately_with_exit_3(
     assert code in result.out + result.err
 
 
-def test_client_errors_are_not_retried(push: ModuleType, ingest: FakeIngest, tmp_path: Path) -> None:
+def test_client_errors_are_not_retried(
+    push: ModuleType, ingest: FakeIngest, tmp_path: Path
+) -> None:
     ingest.reply((400, {}, {"error": "Body tidak valid", "code": "invalid_body"}))
     path = write_items(tmp_path, [item(1)])
 
@@ -629,7 +640,9 @@ def test_413_splits_the_batch_and_resends(
     assert batches[1] + batches[2] == items
 
 
-def test_invalid_success_body_is_a_failure(push: ModuleType, ingest: FakeIngest, tmp_path: Path) -> None:
+def test_invalid_success_body_is_a_failure(
+    push: ModuleType, ingest: FakeIngest, tmp_path: Path
+) -> None:
     ingest.reply((200, {}, b"<html>login</html>"))
     path = write_items(tmp_path, [item(1)])
 
@@ -656,14 +669,16 @@ def test_dry_run_sends_nothing_and_needs_no_token(
 
 def test_list_mode_gets_active_items(push: ModuleType, ingest: FakeIngest) -> None:
     listing = {"items": [{"id": "1", "externalId": "x:y", "kind": "topic", "title": "A\x1b[2J",
-                          "expiresAt": "2026-10-01T00:00:00Z", "updatedAt": "2026-09-25T00:00:00Z"}]}
+                          "expiresAt": "2026-10-01T00:00:00Z",
+                          "updatedAt": "2026-09-25T00:00:00Z"}]}
     ingest.reply((200, {}, listing))
 
     result = run(push, ["--list", "--url", ingest.url])
 
     assert result.code == 0
     assert ingest.requests[0]["method"] == "GET"
-    assert ingest.requests[0]["headers"]["authorization"] == f"Bearer {TOKEN}"  # type: ignore[index]
+    headers = ingest.requests[0]["headers"]
+    assert headers["authorization"] == f"Bearer {TOKEN}"  # type: ignore[index]
     assert json.loads(result.out) == listing
     assert "\x1b" not in result.out
 
