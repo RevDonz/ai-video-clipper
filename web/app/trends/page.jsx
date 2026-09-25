@@ -28,7 +28,7 @@ export default function TrendsPage() {
   const [items, setItems] = useState([]);
   const [enabled, setEnabled] = useState(true);
   const [lastIngestAt, setLastIngestAt] = useState(null);
-  const [savingToggle, setSavingToggle] = useState(false);
+  const [pendingEnabled, setPendingEnabled] = useState(null); // optimistic while the PUT is in flight
   const [tokensState, setTokensState] = useState({ state: "loading", tokens: [], error: "" });
   const [origin, setOrigin] = useState("");
   const [now, setNow] = useState(() => Date.now());
@@ -36,6 +36,7 @@ export default function TrendsPage() {
   const [kind, setKind] = useState("all");
   const [status, setStatus] = useState("all");
   const [notice, setNotice] = useState(null);
+  const [addOpen, setAddOpen] = useState(false);
   const mounted = useRef(true);
   const listHeading = useRef(null);
 
@@ -52,6 +53,7 @@ export default function TrendsPage() {
       return;
     }
     setItems(result.data.items);
+    if (!quiet && result.data.items.length === 0) setAddOpen(true);
     setEnabled(result.data.enabled);
     setLastIngestAt(result.data.lastIngestAt);
     setNow(Date.now());
@@ -79,13 +81,16 @@ export default function TrendsPage() {
     };
   }, []);
 
+  // Shows the new state at once and reverts on failure; never disabled, so
+  // keyboard focus stays on the switch.
   async function toggleEnabled(event) {
+    if (pendingEnabled !== null) return;
     const next = event.target.checked;
-    setSavingToggle(true);
+    setPendingEnabled(next);
     setNotice(null);
     const result = await api.setEnabled(next);
     if (!mounted.current) return;
-    setSavingToggle(false);
+    setPendingEnabled(null);
     if (result.ok) {
       setEnabled(result.data.enabled);
       setNotice({
@@ -138,16 +143,17 @@ export default function TrendsPage() {
 
   async function createToken(label) {
     const result = await api.createToken(label);
-    if (mounted.current && (result.ok || result.status === 409)) void loadTokens({ quiet: true });
+    if (mounted.current && (result.ok || result.status === 409)) await loadTokens({ quiet: true });
     return result;
   }
 
   async function revokeToken(id) {
     const result = await api.revokeToken(id);
-    if (mounted.current && (result.ok || result.status === 404)) void loadTokens({ quiet: true });
+    if (mounted.current && (result.ok || result.status === 404)) await loadTokens({ quiet: true });
     return result;
   }
 
+  const switchOn = pendingEnabled ?? enabled;
   const counts = trendCounts(items, now);
   const visible = filterTrendItems(items, { query, kind, status }, now);
   const groups = groupTrendItems(visible, now);
@@ -195,15 +201,15 @@ export default function TrendsPage() {
 
       {loadState === "ready" && (
         <div className="trLayout shell">
-          <div className="trTop">
-            <section className="panel trCard" aria-labelledby="tr-status-title">
-              <div className="panelHead compact"><span>01</span><div><h2 id="tr-status-title">Pemakaian</h2><p>Berlaku untuk job V3 berikutnya.</p></div></div>
+          <section className="panel trCard" aria-labelledby="tr-status-title">
+            <div className="panelHead compact"><span>01</span><div><h2 id="tr-status-title">Pemakaian</h2><p>Berlaku untuk job V3 berikutnya.</p></div></div>
+            <div className="trUsage">
               <label className="trMainSwitch">
-                <input type="checkbox" role="switch" checked={enabled} onChange={toggleEnabled} disabled={savingToggle} aria-describedby="tr-switch-help" />
+                <input type="checkbox" role="switch" checked={switchOn} onChange={toggleEnabled} aria-busy={pendingEnabled !== null || undefined} aria-describedby="tr-switch-help" />
                 <span>
                   <strong>Pakai konteks tren di pemilihan klip</strong>
                   <small id="tr-switch-help">
-                    {enabled
+                    {switchOn
                       ? "Aktif. Tren hanya dipakai kalau transkrip klip menyebut kata kuncinya; tanpa tren aktif, hasil job sama persis seperti biasa."
                       : "Mati. Job berjalan persis seperti tanpa tren. Item tetap tersimpan dan agen tetap bisa mengirim."}
                   </small>
@@ -215,28 +221,31 @@ export default function TrendsPage() {
                 <div><dt>Kedaluwarsa</dt><dd>{counts.expired}</dd></div>
                 <div><dt>Sensitif</dt><dd>{counts.sensitive}</dd></div>
               </dl>
-              <p className="trFootnote">
-                {lastIngestAt
-                  ? <>Kiriman agen terakhir <span title={formatDateTime(lastIngestAt) || undefined}>{lastIngestRelative}</span>.</>
-                  : "Belum ada kiriman dari agen. Hubungkan agen di bagian Integrasi agen di bawah."}
-                {" "}Item kedaluwarsa tidak dipakai dan dihapus otomatis 7 hari kemudian.
-              </p>
-            </section>
-
-            <section className="panel trCard" aria-labelledby="tr-manual-title">
-              <div className="panelHead compact"><span>02</span><div><h2 id="tr-manual-title">Tambah tren manual</h2><p>Untuk tren yang Anda tahu tapi belum dikirim agen.</p></div></div>
-              <TrendManualForm now={now} onCreate={createItem} />
-            </section>
-          </div>
+            </div>
+            <p className="trFootnote">
+              {lastIngestAt
+                ? <>Kiriman agen terakhir <span title={formatDateTime(lastIngestAt) || undefined}>{lastIngestRelative}</span>.</>
+                : "Belum ada kiriman dari agen. Hubungkan agen di bagian Integrasi agen di bawah."}
+              {" "}Item kedaluwarsa tidak dipakai dan dihapus otomatis 7 hari kemudian.
+            </p>
+          </section>
 
           <section className="panel trCard" aria-labelledby="tr-list-title">
             <div className="panelHead compact">
-              <span>03</span>
+              <span>02</span>
               <div>
                 <h2 id="tr-list-title" ref={listHeading} tabIndex={-1}>Daftar tren</h2>
                 <p>{counts.all} item · aktif dan kedaluwarsa ≤ 7 hari. Teks dari agen hanya data: tidak pernah dijalankan sebagai perintah.</p>
               </div>
             </div>
+
+            <details className="trAdd" open={addOpen} onToggle={(event) => setAddOpen(event.currentTarget.open)}>
+              <summary>
+                <span>+ Tambah tren manual</span>
+                <small>Untuk tren yang Anda tahu tapi belum dikirim agen</small>
+              </summary>
+              <TrendManualForm now={now} onCreate={createItem} />
+            </details>
 
             <div className="trFilters" role="search">
               <div className="trField trSearch">
@@ -293,7 +302,7 @@ export default function TrendsPage() {
           </section>
 
           <section className="panel trCard" aria-labelledby="tr-agent-title">
-            <div className="panelHead compact"><span>04</span><div><h2 id="tr-agent-title">Integrasi agen (Hermes)</h2><p>Endpoint dan token supaya agen luar mengisi konteks tren otomatis.</p></div></div>
+            <div className="panelHead compact"><span>03</span><div><h2 id="tr-agent-title">Integrasi agen (Hermes)</h2><p>Endpoint dan token supaya agen luar mengisi konteks tren otomatis.</p></div></div>
             <TrendAgentPanel
               origin={origin}
               tokensState={tokensState}
