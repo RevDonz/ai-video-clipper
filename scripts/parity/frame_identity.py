@@ -6,16 +6,20 @@ The spike compared one seeked range with the whole-file ``fps=F`` grid. Here eve
 of a compiled render (plate cells and final) is decoded, its barcode frame index read back
 (``support.edit_v2_media``) and compared with the grid frame the time map says it must show.
 
-**Harness.** Until the W1 integrator connects T1.2a (captions) and T1.4 (audio), the compiler is
-driven with the deterministic stand-ins below (``HARNESS_PATCHES``), which honour the Appendix A
-contracts: a caption track whose ASS has one bottom event per piece, and an audio fragment that
-turns ``[sa<i>]`` into ``[apre]`` with the exact sample count (plan §5.3). The unit tests use the
-same stand-ins, so the string goldens do not move when the real modules land.
+**Modules.** The gates run the real chain: ``captions.caption_track`` (T1.2a), the envelopes
+and ``audio_graph.audio_fragment`` (T1.4) and the pinned resources (fonts, packs, fontconfig
+lockdown, ``toolchain.json`` when the image wrote it), wired together by the W1 integrator.
+``--harness`` restores the deterministic stand-ins below (``HARNESS_PATCHES``), which honour
+the Appendix A contracts: a caption track whose ASS has one bottom event per piece, and an audio
+fragment that turns ``[sa<i>]`` into ``[apre]`` with the exact sample count (plan §5.3). T1.3's
+unit tests keep using the stand-ins, so its string goldens pin only the compiler's own part;
+``tests/test_edit_v2_integration.py`` pins the joined graph.
 
 Run (stdlib only; the reference image has no pytest); each gate writes
 ``T1.3-<gate>.json`` under ``--evidence``, merged per run (reference image or local FFmpeg)::
 
-    PYTHONPATH=src:tests python scripts/parity/frame_identity.py all --evidence docs/editor/evidence/W1
+    PYTHONPATH=src:tests python scripts/parity/frame_identity.py all --evidence docs/editor/evidence/W1 \
+        [--task T1.Z] [--harness]
 
     docker run --rm --cpus 4 --user 1000:1000 -v "$PWD":/w -w /w -e PYTHONPATH=/w/src:/w/tests \\
         ai-video-clipper:editor-ref /app/.venv/bin/python scripts/parity/frame_identity.py all \\
@@ -495,8 +499,9 @@ def case_edges(case: Case) -> dict[str, Any]:
 class Workspace:
     """Sources, documents and renders shared by the gates of one run (in a temp directory)."""
 
-    def __init__(self, root: Path) -> None:
+    def __init__(self, root: Path, *, harness: bool = False) -> None:
         self.root = root
+        self.harness = harness
         self.clips: dict[str, dict[str, Any]] = {}
         self.sources: dict[Any, Path] = {}
         self.grids: dict[tuple[Path, tuple[int, int]], list[int | None]] = {}
@@ -505,9 +510,12 @@ class Workspace:
 
     @property
     def resources(self):
+        from ai_clipper.edit_v2.glyphs import RESOURCES_DIR
         from ai_clipper.edit_v2.plan import Resources
 
-        return Resources(self.root / "resources")  # absent: FFmpeg uses the system fonts
+        if self.harness:
+            return Resources(self.root / "resources")  # absent: FFmpeg uses the system fonts
+        return Resources(RESOURCES_DIR)  # the pinned fonts, packs and fontconfig lockdown
 
     def logo_asset(self) -> tuple[str, dict[str, Any]]:
         media = _media()
@@ -953,9 +961,9 @@ def g_det(ws: Workspace, cases: Sequence[Case] = P_FRAME_CASES + EXTRA_RENDER_CA
     runs = {"in_process": here}
     for seed in DET_SEEDS:
         env = dict(os.environ, PYTHONHASHSEED=seed)
-        output = subprocess.run([sys.executable, str(Path(__file__).resolve()), "gdet-child",
-                                 str(spec_path)], capture_output=True, text=True, env=env,
-                                check=True).stdout
+        child = [sys.executable, str(Path(__file__).resolve()), "gdet-child", str(spec_path)]
+        output = subprocess.run(child + (["--harness"] if ws.harness else []),
+                                capture_output=True, text=True, env=env, check=True).stdout
         runs[f"hash_seed_{seed}"] = json.loads(output)
     differing = sorted({f"{run}:{name}" for run, digests in runs.items()
                         for name in digests if digests[name] != here[name]})
@@ -1016,9 +1024,11 @@ def pf_render(ws: Workspace, cases: Sequence[Case] = PF_RENDER_CASES) -> dict[st
     ratios = [r["ratio"] for r in results]
     summary = {"p50": _nearest_rank(ratios, 50), "p95": _nearest_rank(ratios, 95)}
     return {"report_only": True, "budget": PF_RENDER_BUDGET, "cases": results,
-            "note": ("synthetic barcode source (flat bands, harness captions): encoding costs "
-                     "less than real footage, so these ratios are a lower bound; the real-clip "
-                     "measurement comes with W2"),
+            "note": ("synthetic barcode source (flat bands, "
+                     + ("harness captions" if ws.harness else "real captions, hook and audio")
+                     + "): encoding costs less than real footage, so these ratios are a lower "
+                     "bound; the real-clip measurement comes with W2"),
+            "composite": _composite(),
             "summary": summary,
             "within_budget": {key: summary[key] <= PF_RENDER_BUDGET[key] for key in summary},
             "cpus": {"os_cpu_count": os.cpu_count(),
@@ -1039,14 +1049,21 @@ GATES: dict[str, tuple[str, Callable[[Workspace], dict[str, Any]]]] = {
 }
 
 
-def write_evidence(directory: Path, gate: str, result: Mapping[str, Any]) -> Path:
-    """Merge this run into ``<directory>/T1.3-<gate>.json`` under ``runs[<run id>]``."""
-    path = directory / f"{TASK}-{gate}.json"
+def _composite() -> str:
+    from ai_clipper.edit_v2 import compile_ffmpeg
+
+    return compile_ffmpeg.COMPOSITE_FORMAT
+
+
+def write_evidence(directory: Path, gate: str, result: Mapping[str, Any], *,
+                   task: str = TASK) -> Path:
+    """Merge this run into ``<directory>/<task>-<gate>.json`` under ``runs[<run id>]``."""
+    path = directory / f"{task}-{gate}.json"
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         data = {}
-    data.update(gate=gate, task=TASK)
+    data.update(gate=gate, task=task)
     data.setdefault("runs", {})[run_id()] = {**result, "toolchain": _toolchain()}
     directory.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -1061,9 +1078,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="T1.3 server-side parity gates")
     parser.add_argument("gate", choices=("all", *GATES, "gdet-child"))
     parser.add_argument("spec", nargs="?", type=Path, help="gdet-child: the spec file")
-    parser.add_argument("--evidence", type=Path, help="directory for T1.3-<gate>.json")
+    parser.add_argument("--evidence", type=Path, help="directory for <task>-<gate>.json")
+    parser.add_argument("--task", default=TASK, help="evidence file prefix (default T1.3)")
+    parser.add_argument("--harness", action="store_true",
+                        help="use the caption/audio stand-ins instead of the real modules")
     args = parser.parse_args(argv)
-    install_harness()
+    if args.harness:
+        install_harness()
     if args.gate == "gdet-child":
         spec = json.loads(args.spec.read_text(encoding="utf-8"))
         print(json.dumps(plan_digests(spec), sort_keys=True))
@@ -1071,14 +1092,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     names = list(GATES) if args.gate == "all" else [args.gate]
     failed = []
     with tempfile.TemporaryDirectory(prefix="edit-v2-gates-") as tmp:
-        ws = Workspace(Path(tmp))
+        ws = Workspace(Path(tmp), harness=args.harness)
         for name in names:
             gate, function = GATES[name]
             started = time.monotonic()
             result = function(ws)
             result["gate_wall_s"] = round(time.monotonic() - started, 1)
+            result["modules"] = "harness" if args.harness else "real"
             if args.evidence is not None:
-                write_evidence(args.evidence, gate, result)
+                write_evidence(args.evidence, gate, result, task=args.task)
             status = result.get("pass", "report")
             print(f"{gate}: {status} ({result['gate_wall_s']} s)", flush=True)
             if result.get("pass") is False:
