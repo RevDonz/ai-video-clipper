@@ -387,6 +387,20 @@ test("every focus warning code the engine writes has an Indonesian label", () =>
   assert.equal(selectionWarningLabel("focus_llm_outranked:4"), null);
 });
 
+test("the focus top-up codes are explained in Indonesian", () => {
+  assert.match(selectionWarningLabel("focus_topup:3"), /^AI diminta sekali lagi .*sebutan fokus.*3 momen fokus tambahan/);
+  assert.match(selectionWarningLabel("focus_topup:0"), /^AI diminta sekali lagi .*tidak ada momen fokus tambahan yang layak/);
+  assert.match(selectionWarningLabel("focus_topup_failed:rate_limited"), /^Permintaan tambahan .*gagal \(rate_limited\)/);
+  assert.match(selectionWarningLabel("focus_topup_failed:invalid"), /gagal \(invalid\)/);
+  assert.match(selectionWarningLabel("focus_topup_skipped:budget"), /dilewati .*batas jumlah permintaan AI/);
+  assert.match(selectionWarningLabel("focus_topup_skipped:deadline"), /dilewati .*batas waktu AI/);
+  assert.match(selectionWarningLabel("focus_topup_skipped:context"), /dilewati .*tidak muat/);
+  assert.equal(selectionWarningLabel("focus_topup_skipped:later"), null);
+  assert.equal(selectionWarningLabel("focus_topup_failed:"), null);
+  assert.equal(selectionWarningLabel("focus_topup_failed:Bad Code"), null);
+  assert.equal(selectionWarningLabel("focus_topup:x"), null);
+});
+
 test("a heuristic run keeps its wording with a focus", () => {
   const summary = {
     mode: "v3", status: "completed", source: "heuristic", provider: null, model: null,

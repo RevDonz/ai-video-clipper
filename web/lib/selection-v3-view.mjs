@@ -133,12 +133,24 @@ const WARNING_LABELS = Object.freeze({
   focus_literal_ungrounded: (count) => `${count} klip yang menurut AI menyebut fokus ternyata istilahnya tidak ditemukan di transkrip klip itu; labelnya diturunkan dari “Menyebut”.`,
   focus_packaging_ungrounded: (count) => `${count} klip memakai kata kunci fokus di judul, hook atau deskripsinya padahal klip itu tidak menyebutnya; teks itu diganti dari isi klipnya sendiri.`,
   focus_terms_unmatchable: (count) => `${count} kata kunci fokus terlalu pendek atau terlalu umum untuk dicari langsung di transkrip; untuk kata kunci itu hanya pembacaan AI yang berlaku.`,
+  focus_topup: (count) => `AI diminta sekali lagi mencari momen di sekitar sebutan fokus yang belum tercakup, dan mengusulkan ${count} momen fokus tambahan.`,
+});
+
+// Fokus klip top-up (engine: llm_selection.py): why the one extra request was not used.
+const FOCUS_TOPUP_SKIPPED = Object.freeze({
+  budget: "Permintaan tambahan ke AI untuk momen fokus dilewati karena batas jumlah permintaan AI job ini sudah habis.",
+  deadline: "Permintaan tambahan ke AI untuk momen fokus dilewati karena batas waktu AI job ini sudah habis.",
+  context: "Permintaan tambahan ke AI untuk momen fokus dilewati karena potongan transkripnya tidak muat di konteks model.",
 });
 
 /** An Indonesian explanation of a trend or focus warning code of the V3 summary, or null. */
 export function selectionWarningLabel(code) {
   if (code === "trend_context_invalid") return "File konteks tren job rusak atau hilang; job jalan tanpa tren.";
   if (code === "focus_few_matches:0") return "Tidak ada momen yang cocok dengan fokus; semua klip adalah momen terbaik lain dan diberi label “Di luar fokus”.";
+  if (code === "focus_topup:0") return "AI diminta sekali lagi mencari momen di sekitar sebutan fokus yang belum tercakup, tetapi tidak ada momen fokus tambahan yang layak.";
+  const topup = typeof code === "string" ? /^focus_topup_(failed|skipped):([a-z][a-z0-9_]{0,63})$/.exec(code) : null;
+  if (topup?.[1] === "failed") return `Permintaan tambahan ke AI untuk momen fokus gagal (${topup[2]}); klip dipilih dari usulan pertama AI.`;
+  if (topup?.[1] === "skipped") return Object.hasOwn(FOCUS_TOPUP_SKIPPED, topup[2]) ? FOCUS_TOPUP_SKIPPED[topup[2]] : null;
   const match = typeof code === "string" ? /^([a-z_]+):([1-9]\d{0,5})$/.exec(code) : null;
   const label = match && Object.hasOwn(WARNING_LABELS, match[1]) ? WARNING_LABELS[match[1]] : null;
   return label ? label(match[2]) : null;
