@@ -307,10 +307,9 @@ runs).
 ### W2 verifier findings and what changed (T2.Z2 re-exit, 2026-09-26)
 
 The W2 verifier re-ran every gate at `1ba6d80` and found the exit gate not met (PF-AUDIO) plus
-four majors and ten minors. The re-exit (`0ea1929` … this commit, 20 commits: failing tests
-first, then each fix) addresses each one; the gates it touches were measured again on
-`ai-video-clipper:editor-w2r2`, built at `e13c351` (later commits: evidence, this document and a
-docstring; `toolchain.json` sha
+four majors and ten minors. The re-exit (`0ea1929` onward: failing tests first, then each fix)
+addresses each one; the gates it touches were measured again on `ai-video-clipper:editor-w2r2`,
+built at `e13c351` (later commits: evidence, this document and a docstring; `toolchain.json` sha
 `4fefb754…85f0`, unchanged, so every render key stays valid), with copies of the owner's P3 jobs
 in a scratch `JOBS_ROOT` (app `--cpus 6`, render worker `--cpus 4`, 127.0.0.1:3495), Chrome for
 Testing 147.0.7727.15, on the K15 reference PC shared with other agents (loads in the evidence).
