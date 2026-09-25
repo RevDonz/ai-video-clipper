@@ -18,6 +18,7 @@ import ConflictDialog from "./ConflictDialog.jsx";
 import tokens from "./editor.module.css";
 import ExportDialog from "./ExportDialog.jsx";
 import { createExportFlow } from "./export-flow.mjs";
+import { GIZMOS } from "./gizmos/index.mjs";
 import { PANELS } from "./panels/index.mjs";
 import ReadOnlyBanner from "./ReadOnlyBanner.jsx";
 import { createEditorRuntime, createFrameBus, createPlayerFacade } from "./runtime.mjs";
@@ -449,7 +450,22 @@ function EditorShell({ runtime, jobId, clipId, initialPanel }) {
             ))}
           </div>
         )}
-        <Stage output={state.doc?.output ?? plan?.output} plan={plan} playerMode={playerState?.mode} safeZone={safeZone} onMedia={onMedia} />
+        <Stage
+          output={state.doc?.output ?? plan?.output}
+          plan={plan}
+          playerMode={playerState?.mode}
+          safeZone={safeZone}
+          onMedia={onMedia}
+          gizmos={GIZMOS.map((entry) => {
+            // W3 gizmos (T3.2's LogoGizmo) mount here from their registry (gizmos/index.mjs).
+            const Gizmo = lazyComponent(entry);
+            return (
+              <Suspense key={entry.id} fallback={null}>
+                <Gizmo plan={plan} state={state} dispatch={dispatch} player={player} output={state.doc?.output ?? plan?.output} readOnly={readOnly} />
+              </Suspense>
+            );
+          })}
+        />
         <StageControls
           fps={fps}
           totalFrames={plan?.totalFrames ?? 0}
