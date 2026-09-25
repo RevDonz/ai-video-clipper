@@ -1,0 +1,30 @@
+{
+  "browser": "147.0.7727.15",
+  "case": "cfr_29.97",
+  "gate": "PF-LIBASS",
+  "loadavg": [
+    4.96,
+    7.78,
+    5.89
+  ],
+  "pass": true,
+  "summary": {
+    "changed_frames": 450,
+    "libass_p95": 0.40000009536743164,
+    "max": 21.40000009536743,
+    "p50": 3.700000047683716,
+    "p95": 6.299999952316284,
+    "slow_device": false,
+    "unchanged_frames": 159
+  },
+  "task": "T2.Z",
+  "threshold": {
+    "p95_ms": 12
+  },
+  "toolchain": {
+    "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "python": "3.11.2",
+    "reference_toolchain_problem": null
+  },
+  "variant": "bold"
+}

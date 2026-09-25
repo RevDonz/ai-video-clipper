@@ -1,0 +1,17 @@
+{
+  "schema": "potongin.gate/1",
+  "gate": "QG-CONFLICT (two-tab e2e)",
+  "browser": "Chrome for Testing 147.0.7727.15",
+  "executable": "chromium-1217",
+  "differentParts": {
+    "merged": true,
+    "bothSurvive": true
+  },
+  "samePart": {
+    "dialog": true,
+    "chosen": "mine",
+    "finalIsMine": true,
+    "otherEditKept": true
+  },
+  "pass": true
+}

@@ -1,0 +1,45 @@
+{
+  "browser": "147.0.7727.15",
+  "case": "long_300s",
+  "gate": "PF-MEM",
+  "pass": true,
+  "peak_bytes": 1069746176,
+  "peak_phase": "workout",
+  "processes": [
+    {
+      "pss": 19098624,
+      "rss": 69533696,
+      "type": "renderer"
+    },
+    {
+      "pss": 961990656,
+      "rss": 1041833984,
+      "type": "renderer"
+    },
+    {
+      "pss": 88656896,
+      "rss": 150560768,
+      "type": "GPU"
+    }
+  ],
+  "samples": 40,
+  "seconds": 300,
+  "task": "T2.Z",
+  "threshold": {
+    "max_bytes": 1200000000
+  },
+  "toolchain": {
+    "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "python": "3.11.2",
+    "reference_toolchain_problem": null
+  },
+  "workout": {
+    "audioSeconds": 300,
+    "cachedFrames": 90,
+    "cellFetches": 55,
+    "framesDecoded": 704,
+    "playSeconds": 20,
+    "presented": 637,
+    "seeks": 40
+  }
+}

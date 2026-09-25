@@ -1,0 +1,54 @@
+{
+  "schema": "potongin.gate/1",
+  "gate": "QG-A11Y (real stack)",
+  "browser": "Chrome for Testing 147.0.7727.15",
+  "executable": "chromium-1217",
+  "axe": "4.13.0",
+  "states": 8,
+  "critical": 0,
+  "serious": 0,
+  "anyImpact": 0,
+  "results": [
+    {
+      "viewport": "1366x768",
+      "state": "ready",
+      "violations": []
+    },
+    {
+      "viewport": "1366x768",
+      "state": "export dialog",
+      "violations": []
+    },
+    {
+      "viewport": "1366x768",
+      "state": "text panel",
+      "violations": []
+    },
+    {
+      "viewport": "1366x768",
+      "state": "cold-open panel",
+      "violations": []
+    },
+    {
+      "viewport": "1920x1080",
+      "state": "ready",
+      "violations": []
+    },
+    {
+      "viewport": "1920x1080",
+      "state": "export dialog",
+      "violations": []
+    },
+    {
+      "viewport": "1920x1080",
+      "state": "text panel",
+      "violations": []
+    },
+    {
+      "viewport": "1920x1080",
+      "state": "cold-open panel",
+      "violations": []
+    }
+  ],
+  "pass": true
+}

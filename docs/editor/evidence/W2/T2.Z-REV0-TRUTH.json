@@ -1,0 +1,98 @@
+{
+  "browser": "147.0.7727.15",
+  "fallback": {
+    "frames": [
+      {
+        "frame": 0,
+        "index": 330,
+        "presented": true
+      },
+      {
+        "frame": 50,
+        "index": 380,
+        "presented": true
+      },
+      {
+        "frame": 100,
+        "index": 71,
+        "presented": true
+      },
+      {
+        "frame": 150,
+        "index": 124,
+        "presented": true
+      },
+      {
+        "frame": 200,
+        "index": 217,
+        "presented": true
+      },
+      {
+        "frame": 250,
+        "index": 286,
+        "presented": true
+      },
+      {
+        "frame": 300,
+        "index": 361,
+        "presented": true
+      },
+      {
+        "frame": 350,
+        "index": 421,
+        "presented": true
+      },
+      {
+        "frame": 400,
+        "index": 474,
+        "presented": true
+      },
+      {
+        "frame": 450,
+        "index": 567,
+        "presented": true
+      },
+      {
+        "frame": 500,
+        "index": 636,
+        "presented": true
+      },
+      {
+        "frame": 550,
+        "index": 711,
+        "presented": true
+      }
+    ],
+    "liveAfterCells": "live",
+    "mismatches": 0,
+    "mode": "auto_render"
+  },
+  "gate": "REV0-TRUTH",
+  "pass": true,
+  "task": "T2.Z",
+  "toolchain": {
+    "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "python": "3.11.2",
+    "reference_toolchain_problem": null
+  },
+  "truth": [
+    {
+      "frame": 0,
+      "maxDiff": 0,
+      "mode": "truth",
+      "presented": true
+    },
+    {
+      "frame": 150,
+      "maxDiff": 0,
+      "mode": "truth",
+      "presented": true
+    },
+    {
+      "frame": 400,
+      "maxDiff": 0,
+      "mode": "truth",
+      "presented": true
+    }
+  ]
+}
