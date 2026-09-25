@@ -721,7 +721,8 @@ def test_a_face_track_clip_gets_a_camera_plan_and_renders(source, tmp_path):
         return times, centres, [False] * len(times), 320, 180
 
     job_dir = make_job(tmp_path, str(uuid.uuid4()), source, render_mode="face-track")
-    manifest = run_job(job_dir, engine="edit-v2", render_mode="face-track", clips=CLIPS[1:],
+    manifest = run_job(job_dir, engine="edit-v2", render_mode="face-track",
+                       clips=(clip(1, 12.3, 17.95),),
                        patches=[(camera, "detect_face_track", detector)])
     (entry,) = manifest["clips"]
     assert entry["render_engine"] == COMPILER_ID

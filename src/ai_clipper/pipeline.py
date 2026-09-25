@@ -74,6 +74,7 @@ import os
 import re
 import stat
 import subprocess
+import sys
 import threading
 import uuid
 from collections.abc import Callable, Iterable
@@ -91,6 +92,7 @@ from .audio_timeline import (
 )
 from .candidates import generate_candidates
 from .captions_ass import CAPTION_STYLES
+from .edit_v2 import render_edit
 from .features import extract_features
 from .focus import FocusSpec
 from .highlight import select_highlights
@@ -1038,6 +1040,7 @@ def _run_v3(
     word_timestamps: bool,
     trend_context: Path | None = None,
     focus: FocusSpec | None = None,
+    render_engine: str = render_edit.ENGINE_LEGACY,
 ) -> tuple[Transcription, Path, list[dict[str, object]]]:
     """Transcript, audio, selection, and rendering for Selection V3 (see the module docstring)."""
     media_duration = _probe_video_duration(source)
@@ -1136,6 +1139,22 @@ def _run_v3(
     plans = [(clip, clip.cold_open if cold_open else None) for clip in result.clips]
 
     state.stage = "rendering"
+    renderer = None
+    if render_engine == render_edit.ENGINE_EDIT_V2:
+        renderer = _edit_v2_renderer(
+            source,
+            output_dir,
+            artifact_root,
+            render_edit.AutoOptions(
+                render_mode=render_mode,
+                caption_style=caption_style,
+                cold_open=cold_open,
+                hook_overlay=hook_overlay,
+                hook_duration=hook_duration,
+                width=width,
+                height=height,
+            ),
+        )
     clips: list[dict[str, object]] = []
     for index, (clip, teaser) in enumerate(plans, start=1):
         report(
@@ -1144,26 +1163,83 @@ def _run_v3(
             f"Merender klip {index} dari {len(plans)}",
         )
         clip_path = output_dir / f"clip-{index:02d}.mp4"
-        render_vertical(
-            source,
-            clip_path,
-            start=clip.start,
-            end=clip.end,
-            transcript=transcription.segments,
-            width=width,
-            height=height,
-            render_mode=render_mode,
-            cold_open=teaser,
-            hook_text=clip.hook_text if hook_overlay else None,
-            hook_duration=hook_duration,
-            caption_style=caption_style,
-        )
+        engine_fields: dict[str, object] | None = None
+        if render_engine == render_edit.ENGINE_EDIT_V2:
+            auto = _render_edit_v2(renderer, clip.rank, clip_path, index)
+            if auto is None:
+                state.warnings.append(f"engine_fallback:{index}")
+                engine_fields = {
+                    "clip_id": None if renderer is None else renderer.fallback(clip.rank),
+                    "render_engine": render_edit.LEGACY_ENGINE_ID,
+                    "render_key": None,
+                    "plan_sha256": None,
+                }
+            else:
+                engine_fields = {
+                    "clip_id": auto.clip_id,
+                    "render_engine": auto.render_engine,
+                    "render_key": auto.render_key,
+                    "plan_sha256": auto.plan_sha256,
+                }
+                if not auto.cold_open:  # the seed left an invalid teaser out (plan §3.4)
+                    teaser = None
+        if engine_fields is None or engine_fields["render_engine"] == "legacy":
+            render_vertical(
+                source,
+                clip_path,
+                start=clip.start,
+                end=clip.end,
+                transcript=transcription.segments,
+                width=width,
+                height=height,
+                render_mode=render_mode,
+                cold_open=teaser,
+                hook_text=clip.hook_text if hook_overlay else None,
+                hook_duration=hook_duration,
+                caption_style=caption_style,
+            )
         thumbnail = _clip_thumbnail(
             clip_path, _rendered_seconds(clip, teaser), index, state.warnings
         )
-        clips.append(_v3_manifest_clip(index, clip, teaser, clip_path, thumbnail))
+        entry = _v3_manifest_clip(index, clip, teaser, clip_path, thumbnail)
+        if engine_fields is not None:
+            entry.update(engine_fields)
+        clips.append(entry)
     state.stage = "finalizing"
     return transcription, transcript_path, clips
+
+
+def _engine_note(what: str, error: BaseException) -> None:
+    """One line on stderr (the worker log) naming why the new engine was not used: the
+    exception type and its fixed code only, never a path or user text."""
+    code = getattr(error, "code", None)
+    detail = code if isinstance(code, str) and _SUMMARY_CODE.fullmatch(code) else "-"
+    print(f"potongin: {what}: {type(error).__name__} {detail}", file=sys.stderr, flush=True)
+
+
+def _edit_v2_renderer(
+    source: Path, output_dir: Path, artifact_root: Path, options: Any
+) -> Any | None:
+    """The job's ``render_edit.AutoRenderer``, or ``None`` when the job context cannot be
+    read (every clip then falls back to the legacy engine)."""
+    try:
+        return render_edit.AutoRenderer(
+            job_dir=artifact_root, source=source, output_dir=output_dir, options=options
+        )
+    except Exception as error:  # noqa: BLE001 - the job never fails because of the editor path
+        _engine_note("edit-v2 unavailable", error)
+        return None
+
+
+def _render_edit_v2(renderer: Any | None, rank: int, clip_path: Path, index: int) -> Any | None:
+    """Seed and render one clip with the new engine; ``None`` means: use the legacy engine."""
+    if renderer is None:
+        return None
+    try:
+        return renderer.render(rank, clip_path)
+    except Exception as error:  # noqa: BLE001 - per-clip fallback (plan §11.2 T2.1)
+        _engine_note(f"engine_fallback:{index}", error)
+        return None
 
 
 def run_pipeline(
@@ -1194,13 +1270,17 @@ def run_pipeline(
     progress: Callable[[str, int, str], None] | None = None,
     trend_context: Path | str | None = None,
     focus: FocusSpec | None = None,
+    render_engine: str | None = None,
 ) -> Path:
     """Transcribe, select highlights, render clips, and publish a status manifest.
 
     ``llm_mode``, ``cold_open``, ``hook_overlay``, ``hook_duration``, ``captions_dir``,
-    ``trend_context`` (a Konteks Tren snapshot) and ``focus`` (the Fokus klip option) only
-    apply to ``selection_mode="v3"``. ``caption_style`` defaults to ``"karaoke"`` for V3 and
-    ``"classic"`` otherwise; ``word_timestamps`` applies to every Whisper run.
+    ``trend_context`` (a Konteks Tren snapshot), ``focus`` (the Fokus klip option) and
+    ``render_engine`` only apply to ``selection_mode="v3"``. ``caption_style`` defaults to
+    ``"karaoke"`` for V3 and ``"classic"`` otherwise; ``word_timestamps`` applies to every
+    Whisper run. ``render_engine`` is ``"legacy"`` or ``"edit-v2"``; ``None`` reads
+    ``POTONGIN_RENDER_ENGINE`` (``render_edit.engine_from_env``: legacy unless exactly
+    ``edit-v2``).
     """
     source = Path(source).resolve()
     output_dir = Path(output_dir).resolve()
@@ -1237,6 +1317,9 @@ def run_pipeline(
         hook_overlay = _boolean(hook_overlay, "hook_overlay")
         word_timestamps = _boolean(word_timestamps, "word_timestamps")
         hook_duration = _hook_duration(hook_duration)
+        if render_engine is None:
+            render_engine = render_edit.engine_from_env()
+        render_engine = _choice(render_engine, "render_engine", render_edit.ENGINES)
         if caption_style is None:
             caption_style = "karaoke" if selection_mode is SelectionMode.V3 else "classic"
         caption_style = _choice(caption_style, "caption_style", CAPTION_STYLES)
@@ -1273,6 +1356,7 @@ def run_pipeline(
                 word_timestamps=word_timestamps,
                 trend_context=trend_context,
                 focus=focus,
+                render_engine=render_engine,
             )
             report("finalizing", 96, "Menyimpan hasil, subtitle, dan metadata")
             _publish_manifest(
