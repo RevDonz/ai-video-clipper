@@ -1,0 +1,115 @@
+## argv
+ffmpeg
+-nostdin
+-y
+-hide_banner
+-nostats
+-loglevel
+error
+-progress
+@progress
+-copyts
+-protocol_whitelist
+file,pipe
+-threads
+4
+-ss
+1274.173900
+-i
+@in:0
+-protocol_whitelist
+file,pipe
+-threads
+4
+-ss
+1240.907333
+-i
+@in:1
+-protocol_whitelist
+file,pipe
+-f
+f32le
+-ar
+48000
+-ac
+1
+-i
+@in:2
+-protocol_whitelist
+file,pipe
+-stream_loop
+-1
+-f
+mov
+-i
+@in:3
+-protocol_whitelist
+file,pipe
+-f
+f32le
+-ar
+48000
+-ac
+1
+-i
+@in:4
+-filter_complex_script
+filter_graph.txt
+-filter_complex_threads
+4
+-map
+[aout]
+-c:a
+flac
+-sample_fmt
+s16
+-map_metadata
+-1
+-fflags
++bitexact
+-flags:v
++bitexact
+-flags:a
++bitexact
+-f
+flac
+@out
+## inputs
+source source -threads 4 -ss 1274.173900
+source source -threads 4 -ss 1240.907333
+sidecar audio-speech.f32 -f f32le -ar 48000 -ac 1
+asset sha256:f4eff9f785f6f6b1f32185191b7b66edb3cad91a7313650de54ea5cfdbb56472 -stream_loop -1 -f mov
+sidecar audio-music.f32 -f f32le -ar 48000 -ac 1
+## sidecars
+audio-music.f32 4af7a571abdbc0b58018465622fa61948c8dfdbc710804de7cc6d33451456b0c
+audio-speech.f32 507963d35ed227c78791627b884005f6f5956a47c5f627dfeb0c794fdf5ca619
+## expected
+{
+ "assets_root": "/jobs/job-1/analysis/assets",
+ "fontconfig_file": "/app/resources/fontconfig/fonts.conf",
+ "fonts_dir": "/app/resources/fonts",
+ "fps": [
+  30000,
+  1001
+ ],
+ "gain_cdb": 0,
+ "mix_sha256": "18ea4e9f50403a887c1c5fbc77597605fc886e4e7b32b04fc39851dc42b6e0e8",
+ "mode": "audio_preview",
+ "output": "fd",
+ "paths": {
+  "sha256:f4eff9f785f6f6b1f32185191b7b66edb3cad91a7313650de54ea5cfdbb56472": "/jobs/job-1/analysis/assets/f4eff9f785f6f6b1f32185191b7b66edb3cad91a7313650de54ea5cfdbb56472.m4a",
+  "source": "/jobs/job-1/source.mp4"
+ },
+ "samples": 3385782,
+ "size": [
+  720,
+  1280
+ ],
+ "warnings": []
+}
+## filter_script
+[0:1]anull[sa0];
+[1:1]asplit=3[sa1][sa2][sa3];
+[sa0]aresample=48000,asettb=1/48000,apad,atrim=start_pts=61208347:end_pts=61426164,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS[au_p0];[sa1]aresample=48000,asettb=1/48000,apad,atrim=start_pts=59611552:end_pts=60646186,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS[au_p1];[sa2]aresample=48000,asettb=1/48000,apad,atrim=start_pts=60683022:end_pts=61357295,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS[au_p2];[sa3]aresample=48000,asettb=1/48000,apad,atrim=start_pts=61392531:end_pts=62851589,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS[au_p3];[au_p0][au_p1][au_p2][au_p3]concat=n=4:v=0:a=1[au_sc];[2:a]pan=stereo|c0=c0|c1=c0[au_se];[au_sc][au_se]amultiply[au_s];[3:a]aresample=48000,pan=stereo|FL=FL+FC|FR=FR+FC,atrim=start_sample=0:end_sample=3385782,asetpts=PTS-STARTPTS[au_mr];[4:a]pan=stereo|c0=c0|c1=c0[au_me];[au_mr][au_me]amultiply[au_m];[au_s][au_m]amix=inputs=2:normalize=0:duration=first,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[apre];
+[apre]aresample=48000,aformat=sample_fmts=s16:sample_rates=48000:channel_layouts=stereo[aout]
+
