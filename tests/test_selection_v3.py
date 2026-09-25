@@ -1169,13 +1169,39 @@ def test_the_boost_is_capped_per_clip():
 
 def test_sensitive_trends_give_no_boost_and_no_hashtags():
     trends = [trend(13, "X", score=80, sensitivity="sensitive"), trend(23, "Y", score=70)]
-    result, _ = llm_run(boost_moments(6.8), k=3, trends=trends)
+    moments = boost_moments(6.8)
+    moments[1]["hashtags"] = ["#TrenX", "#kisah13bareng", "#podcast"]  # the model's own tags
+    result, _ = llm_run(moments, k=3, trends=trends)
 
     assert starts(result) == ["S0003", "S0013", "S0023"]
     sensitive = result.clips[1]
     assert sensitive.trends == (trends[0].ref(),)
     assert sensitive.reasons[-1] == "tren: Tren X (sensitif)"
-    assert "#TrenX" not in sensitive.hashtags
+    assert sensitive.hashtags == ("#podcast",)  # neither added nor kept from the model
+
+
+def test_a_humor_clip_on_a_sensitive_trend_is_flagged_for_review():
+    segments = episode(40)
+    segments[21] = segment(segments[21].start, "Terus soal gempa cianjur itu kita ketawa aja deh.", 7.0)
+    quake = TrendItem(id="trend-quake", kind="event", title="Gempa Cianjur",
+                      keywords=("gempa cianjur",), sensitivity="sensitive", score=95)
+    moments = [
+        moment(20, 23, hook=21, archetype="humor", trend_refs=["T1"],
+               title="Gempa Cianjur malah jadi bahan ketawa", hook_text="Gempa? Ketawa aja!",
+               hashtags=["#GempaCianjur", "#lucu"]),
+        moment(2, 5, hook=3, archetype="confession"),
+    ]
+
+    result, _ = llm_run(moments, trends=[quake], segments=segments)
+
+    clip = next(clip for clip in result.clips if clip.unit_ids[0] == "S0021")
+    assert clip.trends == (quake.ref(),)
+    assert clip.hashtags == ("#lucu",)
+    assert "trend_sensitive_humor:1" in result.warnings
+
+    serious = [dict(moments[0], archetype="emotional"), moments[1]]
+    calm, _ = llm_run(serious, trends=[quake], segments=segments)
+    assert not any(code.startswith("trend_sensitive_humor") for code in calm.warnings)
 
 
 def test_trends_must_be_trend_items():
