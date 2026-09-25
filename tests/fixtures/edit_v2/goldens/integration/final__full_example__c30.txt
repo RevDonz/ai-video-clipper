@@ -1,0 +1,166 @@
+## argv
+ffmpeg
+-nostdin
+-y
+-hide_banner
+-nostats
+-loglevel
+error
+-progress
+@progress
+-copyts
+-protocol_whitelist
+file,pipe
+-threads
+4
+-ss
+1274.173900
+-i
+@in:0
+-protocol_whitelist
+file,pipe
+-threads
+4
+-ss
+1240.907333
+-i
+@in:1
+-protocol_whitelist
+file,pipe
+-f
+png_pipe
+-i
+@in:2
+-protocol_whitelist
+file,pipe
+-f
+f32le
+-ar
+48000
+-ac
+1
+-i
+@in:3
+-protocol_whitelist
+file,pipe
+-stream_loop
+-1
+-f
+mov
+-i
+@in:4
+-protocol_whitelist
+file,pipe
+-f
+f32le
+-ar
+48000
+-ac
+1
+-i
+@in:5
+-filter_complex_script
+filter_graph.txt
+-filter_complex_threads
+4
+-map
+[vout]
+-map
+[aout]
+-c:v
+libx264
+-preset
+veryfast
+-crf
+21
+-profile:v
+high
+-pix_fmt
+yuv420p
+-g
+60
+-x264-params
+threads=4
+-color_primaries
+bt709
+-color_trc
+bt709
+-colorspace
+bt709
+-color_range
+tv
+-c:a
+aac
+-b:a
+192k
+-ar
+48000
+-ac
+2
+-fps_mode
+passthrough
+-map_metadata
+-1
+-fflags
++bitexact
+-flags:v
++bitexact
+-flags:a
++bitexact
+-movflags
++faststart
+-f
+mp4
+@out
+## inputs
+source source -threads 4 -ss 1274.173900
+source source -threads 4 -ss 1240.907333
+asset sha256:036ce0c8d1bbde9427d03c28388f2f48cf1b4a1061869b334f0be2adee588148 -f png_pipe
+sidecar audio-speech.f32 -f f32le -ar 48000 -ac 1
+asset sha256:f4eff9f785f6f6b1f32185191b7b66edb3cad91a7313650de54ea5cfdbb56472 -stream_loop -1 -f mov
+sidecar audio-music.f32 -f f32le -ar 48000 -ac 1
+## sidecars
+audio-music.f32 4af7a571abdbc0b58018465622fa61948c8dfdbc710804de7cc6d33451456b0c
+audio-speech.f32 507963d35ed227c78791627b884005f6f5956a47c5f627dfeb0c794fdf5ca619
+captions.ass 34f90449bd536f2476d0d2e716f8ec3e9ba302b439d2f645c6dd4a7fb9d6ad61
+## expected
+{
+ "assets_root": "/jobs/job-1/analysis/assets",
+ "fontconfig_file": "/app/resources/fontconfig/fonts.conf",
+ "fonts_dir": "/app/resources/fonts",
+ "fps": [
+  30000,
+  1001
+ ],
+ "frames": 2114,
+ "gain_cdb": 0,
+ "mix_sha256": "18ea4e9f50403a887c1c5fbc77597605fc886e4e7b32b04fc39851dc42b6e0e8",
+ "mode": "final",
+ "output": "fd",
+ "paths": {
+  "sha256:036ce0c8d1bbde9427d03c28388f2f48cf1b4a1061869b334f0be2adee588148": "/jobs/job-1/analysis/assets/036ce0c8d1bbde9427d03c28388f2f48cf1b4a1061869b334f0be2adee588148.png",
+  "sha256:f4eff9f785f6f6b1f32185191b7b66edb3cad91a7313650de54ea5cfdbb56472": "/jobs/job-1/analysis/assets/f4eff9f785f6f6b1f32185191b7b66edb3cad91a7313650de54ea5cfdbb56472.m4a",
+  "source": "/jobs/job-1/source.mp4"
+ },
+ "samples": 3385782,
+ "size": [
+  720,
+  1280
+ ],
+ "srt": "1\n00:00:00,267 --> 00:00:01,335\nkopi katanya sumpah\n\n2\n00:00:01,468 --> 00:00:02,536\nlagi dong dong\n\n3\n00:00:02,603 --> 00:00:02,903\nmah.\n\n4\n00:00:03,437 --> 00:00:04,538\nnahan langsung ketawa\n\n5\n00:00:06,139 --> 00:00:07,474\nanu anu sumpah\n\n6\n00:00:07,541 --> 00:00:08,675\nsumpah katanya film.\n\n7\n00:00:09,142 --> 00:00:10,277\norang kenapa pelan\n\n8\n00:00:10,377 --> 00:00:11,378\npokoknya kru waktu\n\n9\n00:00:11,512 --> 00:00:12,646\neh sih orang.\n\n10\n00:00:13,080 --> 00:00:14,147\nanu mau waktu\n\n11\n00:00:14,147 --> 00:00:14,848\neh dong?\n\n12\n00:00:16,283 --> 00:00:17,384\nIjal eh pulang\n\n13\n00:00:17,518 --> 00:00:18,685\nsyuting anu nggak\n\n14\n00:00:18,719 --> 00:00:19,019\nsendiri.\n\n15\n00:00:19,920 --> 00:00:21,188\njadi sendiri nggak\n\n16\n00:00:21,255 --> 00:00:22,122\nnahan wkwk mah\n\n17\n00:00:22,222 --> 00:00:22,956\nsih masuk.\n\n18\n00:00:23,724 --> 00:00:24,925\njuga dong anu\n\n19\n00:00:25,025 --> 00:00:25,325\ngue.\n\n20\n00:00:25,759 --> 00:00:26,827\nsemua orang ketawa?\n\n21\n00:00:27,227 --> 00:00:28,996\npadahal hati mau.\n\n22\n00:00:29,229 --> 00:00:30,497\nhati masuk sih\n\n23\n00:00:30,664 --> 00:00:30,964\nsendiri.\n\n24\n00:00:32,332 --> 00:00:33,634\npulang juga ternyata\n\n25\n00:00:33,767 --> 00:00:34,668\npas hati pelan\n\n26\n00:00:34,768 --> 00:00:36,136\nkatanya pas security.\n\n27\n00:00:36,436 --> 00:00:37,671\nsih nggak kopi\n\n28\n00:00:37,704 --> 00:00:38,839\nkatanya sumpah lagi\n\n29\n00:00:38,872 --> 00:00:39,806\ndong dong mah.\n\n30\n00:00:40,173 --> 00:00:41,441\nlangsung ketawa kok\n\n31\n00:00:41,542 --> 00:00:41,875\nternyata.\n\n32\n00:00:42,209 --> 00:00:43,343\nsemua katanya masuk\n\n33\n00:00:43,410 --> 00:00:44,378\naja masuk eh\n\n34\n00:00:44,545 --> 00:00:44,845\nsumpah.\n\n35\n00:00:45,112 --> 00:00:46,146\ndong semua sih\n\n36\n00:00:46,313 --> 00:00:47,014\nsendiri waktu.\n\n37\n00:00:48,248 --> 00:00:49,416\nlangsung sih security\n\n38\n00:00:49,483 --> 00:00:50,684\nterus itu semua\n\n39\n00:00:50,784 --> 00:00:51,184\norang.\n\n40\n00:00:51,485 --> 00:00:52,486\nlangsung kenapa padahal\n\n41\n00:00:52,653 --> 00:00:53,654\naja syuting dia\n\n42\n00:00:53,720 --> 00:00:54,121\nambil.\n\n43\n00:00:54,788 --> 00:00:55,956\nkatanya jadi abis\n\n44\n00:00:56,056 --> 00:00:56,857\nsecurity katanya.\n\n45\n00:00:57,190 --> 00:00:58,258\nitu ternyata film\n\n46\n00:00:58,392 --> 00:00:59,259\ndong dong?\n\n47\n00:00:59,760 --> 00:01:01,028\ndia nggak kru\n\n48\n00:01:01,094 --> 00:01:01,461\npelan.\n\n49\n00:01:02,829 --> 00:01:03,797\npokoknya semua ternyata\n\n50\n00:01:03,897 --> 00:01:04,765\ndong waktu ternyata\n\n51\n00:01:04,831 --> 00:01:05,566\nnggak film.\n\n52\n00:01:05,933 --> 00:01:07,134\nabis bukan kok\n\n53\n00:01:07,234 --> 00:01:08,302\neh masuk hati\n\n54\n00:01:08,368 --> 00:01:08,735\nsih.\n\n55\n00:01:10,170 --> 00:01:10,537\naja\n",
+ "warnings": []
+}
+## filter_script
+[0:0]fps=30000/1001,trim=start_pts=38217:end_pts=38353,setpts=PTS-STARTPTS[vr0];
+[0:1]anull[sa0];
+[1:0]fps=30000/1001,select='if(lt(pts,37889),between(pts,37220,37865),if(lt(pts,38332),between(pts,37889,38309),between(pts,38332,39242)))',setpts=N[vr1];
+[1:1]asplit=3[sa1][sa2][sa3];
+[vr0][vr1]concat=n=2:v=1:a=0,settb=1001/30000[vcat];
+[vcat]split=2[background_0][foreground_0];[background_0]scale=720:1280:force_original_aspect_ratio=increase:in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuv444p,crop=720:1280,gblur=sigma=35[blurred_0];[foreground_0]scale=720:1280:force_original_aspect_ratio=decrease:in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuva444p[fit_0];[blurred_0][fit_0]overlay=(W-w)/2:(H-h)/2:format=yuv444,setsar=1[vlay];
+[vlay]scale=in_color_matrix=bt709:in_range=tv,format=gbrp,ass=filename=captions.ass:fontsdir=fonts:shaping=complex[vtext];
+[2:v]scale=115:115:flags=lanczos,format=rgba,colorchannelmixer=aa=0.850,scale,format=gbrap[lg];
+[vtext][lg]overlay=x=576:y=32:format=gbrp[vlogo];
+[vlogo]scale=out_color_matrix=bt709:out_range=tv,format=yuv420p[vout];
+[sa0]aresample=48000,asettb=1/48000,apad,atrim=start_pts=61208347:end_pts=61426164,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS[au_p0];[sa1]aresample=48000,asettb=1/48000,apad,atrim=start_pts=59611552:end_pts=60646186,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS[au_p1];[sa2]aresample=48000,asettb=1/48000,apad,atrim=start_pts=60683022:end_pts=61357295,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS[au_p2];[sa3]aresample=48000,asettb=1/48000,apad,atrim=start_pts=61392531:end_pts=62851589,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS[au_p3];[au_p0][au_p1][au_p2][au_p3]concat=n=4:v=0:a=1[au_sc];[3:a]pan=stereo|c0=c0|c1=c0[au_se];[au_sc][au_se]amultiply[au_s];[4:a]aresample=48000,pan=stereo|FL=FL+FC|FR=FR+FC,atrim=start_sample=0:end_sample=3385782,asetpts=PTS-STARTPTS[au_mr];[5:a]pan=stereo|c0=c0|c1=c0[au_me];[au_mr][au_me]amultiply[au_m];[au_s][au_m]amix=inputs=2:normalize=0:duration=first,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[apre];
+[apre]aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[aout]
+
