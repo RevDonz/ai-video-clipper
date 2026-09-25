@@ -1462,6 +1462,19 @@ def test_a_mention_right_before_a_literal_clip_still_gets_its_own_window(monkeyp
     assert before.source == "heuristic" and max(unit_range(before)) == 19
 
 
+def test_an_extra_window_that_covers_more_mentions_is_preferred(monkeypatch):
+    monkeypatch.setattr(selection_v3, "propose_heuristic", lambda *args, **kwargs: ())
+    moments = [moment(2, 5, hook=3), moment(10, 13, hook=12)]
+
+    result, _ = llm_run(moments, k=3, segments=jomok_episode(30, 33), focus=JOMOK)
+
+    check_result(result, k=3, low=20.0, high=40.0)
+    literal = [clip for clip in result.clips if clip.focus.match == "literal"]
+    assert len(literal) == 1  # one window says both, the other slots keep the LLM clips
+    assert {30, 33} <= set(unit_range(literal[0]))
+    assert [clip.source for clip in result.clips] == ["heuristic", "llm", "llm"]
+
+
 def test_heuristic_windows_stay_inside_the_free_units():
     units = build_sentence_units(jomok_episode(19))
     windows = HeuristicWindows(units, min_duration=20.0, max_duration=40.0)
