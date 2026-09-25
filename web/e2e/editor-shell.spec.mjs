@@ -659,7 +659,7 @@ test("a changed transcript opens read-only with 'Mulai dari versi AI'", async ({
 
 test("a legacy-engine clip says so; save errors offer a retry", async ({ page }) => {
   await openEditor(page, { scenarioStore: true, saveFails: true, autosaveMs: 50, docPatch: { "base.engine.compiler": "legacy" } });
-  await expect(page.getByText("Klip ini dibuat dengan mesin lama; ekspor dari editor memakai mesin baru (tampilan teks bisa sedikit berbeda)")).toBeVisible();
+  await expect(page.getByText("Klip ini dibuat dengan mesin lama; setelah diubah, ekspor dari editor memakai mesin baru (tampilan teks bisa sedikit berbeda)")).toBeVisible();
   await page.evaluate(() => window.__potonginEditor.store.dispatch("SetCaptionsEnabled", { on: false }));
   await expect(page.getByRole("status").filter({ hasText: "Gagal menyimpan; perubahan aman di browser ini" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Coba simpan lagi" })).toBeVisible();

@@ -210,7 +210,7 @@ _MESSAGES = {
     # Read-only reasons and notices.
     "transcript_changed": "Transkrip berubah sejak klip diedit",
     "legacy_engine": (
-        "Klip ini dibuat dengan mesin lama; ekspor dari editor memakai mesin baru "
+        "Klip ini dibuat dengan mesin lama; setelah diubah, ekspor dari editor memakai mesin baru "
         "(tampilan teks bisa sedikit berbeda)"
     ),
     "markers_unavailable": "Penanda tawa/jeda tidak tersedia untuk job ini",
