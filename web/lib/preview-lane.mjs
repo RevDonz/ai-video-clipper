@@ -1,7 +1,9 @@
 // The server preview lane (plan §2.6, §4.2, §4.3, §6; T2.3).
 //
 // Every piece of preview work is a call of `python -m ai_clipper.edit_v2.preview_cli` through
-// web/lib/python-cli.mjs (allowlisted env, bounded IO, process-group kill; E11):
+// web/lib/python-cli.mjs (allowlisted env, bounded IO, process-group kill; E11), run by the
+// persistent preview worker (`previewCliRunner`: a forked child of `preview_server` instead of a
+// new interpreter; W2 integration, plan §10.3) or, while it is not up, as a spawned process:
 //
 // * plan: one light process per request (at most PLAN_SLOTS at once). A newer document for the
 //   same clip aborts the plan in flight (409 `superseded`); the same document (the exact bytes of
@@ -30,11 +32,12 @@ import { TextDecoder } from "node:util";
 
 import { SESSION_COOKIE, requireAuth } from "./auth.mjs";
 import { CLIP_ID, FRAME_FILE, JOB_ID, openClipFile, openedFileResponse } from "./clip-media.mjs";
-import { PythonCliError, httpStatusForExit, runPythonCli } from "./python-cli.mjs";
+import { PythonCliError, createPythonServer, httpStatusForExit, runPythonCli } from "./python-cli.mjs";
 import { createEditorRateLimits } from "./rate-limit.mjs";
 import { sameOriginMutation } from "./request-security.mjs";
 
 export const PREVIEW_MODULE = "ai_clipper.edit_v2.preview_cli";
+export const PREVIEW_SERVER_MODULE = "ai_clipper.edit_v2.preview_server";
 export const LAYOUTS = Object.freeze(["fit_blur", "camera", "fill_center"]);
 export const DEFAULT_CACHE_CAP_BYTES = 1024 * 1024 * 1024; // K11
 export const HEAVY_SLOTS = 2;
@@ -793,8 +796,38 @@ export function createPreviewLane({
 const LANE = Symbol.for("potongin.previewLane");
 const LIMITS = Symbol.for("potongin.editorRateLimits");
 
+/** Whether preview work runs on the persistent worker (default) or as spawned CLI processes. */
+export function previewServerEnabled(env = process.env) {
+  return env.POTONGIN_PREVIEW_SERVER !== "off";
+}
+
+/**
+ * The lane's `runCli`: preview ops run on the persistent worker (plan §10.3, one per process,
+ * started on first use; python-cli.mjs `createPythonServer`, which falls back to a spawned CLI
+ * while the worker is not up), everything else, and everything when
+ * `POTONGIN_PREVIEW_SERVER=off`, as a spawned CLI.
+ */
+export function previewCliRunner({
+  env = process.env,
+  createServer = (options) => createPythonServer(PREVIEW_SERVER_MODULE, options),
+  spawnCli = runPythonCli,
+} = {}) {
+  let server = null;
+  let serverBin = null;
+  return (module, op, payload, options = {}) => {
+    if (module !== PREVIEW_MODULE || !previewServerEnabled(env)) return spawnCli(module, op, payload, options);
+    const pythonBin = env.PYTHON_BIN || "python";
+    if (!server || serverBin !== pythonBin) {
+      server?.close();
+      serverBin = pythonBin;
+      server = createServer({ cliModule: PREVIEW_MODULE, env, pythonBin, fallback: spawnCli });
+    }
+    return server.run(op, payload, options);
+  };
+}
+
 export function getPreviewLane() {
-  globalThis[LANE] ??= createPreviewLane();
+  globalThis[LANE] ??= createPreviewLane({ runCli: previewCliRunner() });
   return globalThis[LANE];
 }
 
