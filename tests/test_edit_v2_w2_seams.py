@@ -25,8 +25,9 @@ from test_render_worker import _make_job_module
 
 from ai_clipper import render_worker
 from ai_clipper.edit_v2 import api as edit_api
-from ai_clipper.edit_v2 import errors, glyphs
+from ai_clipper.edit_v2 import compile_ffmpeg, errors, glyphs
 from ai_clipper.edit_v2 import store as edit_store
+from ai_clipper.edit_v2.compile_ffmpeg import decoder_runs, select_expression
 from ai_clipper.edit_v2.doc import canonical_bytes
 from ai_clipper.edit_v2.glyphs import RESOURCES_DIR
 from ai_clipper.edit_v2.plan import Resources
@@ -111,3 +112,25 @@ def test_an_edited_revision_exports_through_the_default_renderer(edit_v2_libass,
     output = job_dir / final["output_relative"]
     assert output.stat().st_size > 0
     assert output.with_suffix(".srt").read_text().startswith("1\n")
+
+
+def test_a_decoder_run_of_several_pieces_ends_at_its_last_frame(monkeypatch):
+    """R2's ``select`` never ends a stream by itself: without a bound FFmpeg decodes the whole
+    rest of the source (a 66 min real source after a removal: ``render_stalled`` at 98 %, the
+    W2 e2e flow). The run is bounded by ``trim`` to ``[first in_sf, last out_sf)`` before
+    ``select``, which keeps the same grid frames (``pts`` is the grid index after ``fps``)."""
+    import test_edit_v2_compile as compile_tests
+
+    for module, name, function in compile_tests.HARNESS.HARNESS_PATCHES:
+        monkeypatch.setattr(module, name, function)
+    probe = {}
+    monkeypatch.setattr(compile_ffmpeg, "probe_source", lambda _path: probe["streams"])
+    plan, job = compile_tests.compiled("removals_many__c30", probe, mode="final")
+    num, den = plan.fps.num, plan.fps.den
+    runs = [run for run in decoder_runs(plan.pieces, plan.fps) if len(run) > 1]
+    assert runs
+    for run in runs:
+        ranges = [(plan.pieces[i].in_sf, plan.pieces[i].out_sf) for i in run]
+        bounded = (f"fps={num}/{den},trim=start_pts={ranges[0][0]}:end_pts={ranges[-1][1]},"
+                   f"select='{select_expression(ranges)}',setpts=N")
+        assert bounded in job.filter_script, run
