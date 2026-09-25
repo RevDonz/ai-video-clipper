@@ -39,7 +39,7 @@ from ai_clipper.selection_v3 import (
 )
 from ai_clipper.sentences import SentenceUnit, looks_like_question
 from ai_clipper.sound_events import SoundEvent
-from ai_clipper.trend_context import TrendItem
+from ai_clipper.trend_context import TrendItem, match_trends
 
 SCORES = {"hook": 8, "standalone": 7, "payoff": 6, "emotion": 5, "shareability": 4}
 TOLERANCE = 1e-6
@@ -966,8 +966,14 @@ def test_without_relevant_trends_every_output_is_unchanged():
     segments = episode(40, gap=0.5)
     absent = TrendItem(id="trend-absent", kind="event", title="Gunung Meletus",
                        keywords=("gunung meletus",), hashtags=("#GunungMeletus",))
-    moments = [moment(10, 13, hook=12, trend_refs=["T1"]), moment(20, 23, hook=21)]
+    # Packaging that names a trend the episode never mentions is left alone: it was never shown.
+    moments = [
+        moment(10, 13, hook=12, trend_refs=["T1"], title="Gunung Meletus lagi",
+               hashtags=["#GunungMeletus"]),
+        moment(20, 23, hook=21),
+    ]
     baseline, base_client = llm_run(moments, segments=segments)
+    assert baseline.clips[0].title == "Gunung Meletus lagi"
     for trends in ((), [absent]):
         result, client = llm_run(moments, segments=segments, trends=trends)
         assert result == baseline
@@ -1006,6 +1012,94 @@ def test_llm_trend_refs_are_kept_only_when_the_clip_transcript_mentions_them():
     assert grounded.to_dict()["trends"] == [
         {"id": "trend-a", "title": "Tren A", "kind": "topic"}
     ]
+
+
+def kabur_episode(unit: int = 12) -> list[TranscriptSegment]:
+    """:func:`episode` where only unit ``unit`` talks about "kabur aja dulu"."""
+    segments = episode(40)
+    segments[unit] = segment(
+        segments[unit].start, "Terus soal kabur aja dulu itu gimana menurut lu.", 7.0
+    )
+    return segments
+
+
+KABUR = TrendItem(id="trend-kabur", kind="topic", title="Kabur Aja Dulu",
+                  keywords=("kabur aja dulu",), score=90)
+
+
+def names_kabur(text: str) -> bool:
+    return bool(match_trends([KABUR], text))
+
+
+def test_llm_packaging_naming_a_trend_the_clip_never_mentions_is_rebuilt_from_the_clip():
+    moments = [
+        # Units 20-23 never mention the trend; unit 12 does, so the trend is shown as T1.
+        moment(20, 23, hook=21, trend_refs=["T1"], title="Kabur Aja Dulu versi podcast",
+               hook_text="Kabur aja dulu katanya",
+               description="Soal tren Kabur Aja Dulu yang lagi ramai.",
+               hashtags=["#KaburAjaDulu", "#fyp"]),
+        moment(2, 5, hook=3),
+    ]
+    plain, _ = llm_run(moments, segments=kabur_episode())
+
+    result, client = llm_run(moments, trends=[KABUR], segments=kabur_episode())
+
+    assert "KONTEKS TREN" in client.calls[0]["user"]
+    invented = next(clip for clip in result.clips if clip.unit_ids[0] == "S0021")
+    assert not names_kabur(invented.text)
+    assert not names_kabur(invented.title) and not names_kabur(invented.hook_text)
+    assert invented.description == ""  # its only sentence named the trend
+    # Title and hook text fall back to a clean line of the clip's own hook unit.
+    assert invented.hook_text and "kisah21" in invented.hook_text
+    assert invented.title == invented.hook_text
+    # The trend lists no hashtag of its own; the model's tag for its title goes all the same.
+    assert invented.hashtags == ("#fyp",)
+    assert invented.trends == ()
+    assert "trend_ref_ungrounded:1" in result.warnings
+    assert "trend_packaging_ungrounded:1" in result.warnings
+    other = next(clip for clip in result.clips if clip.unit_ids[0] == "S0003")
+    assert other == next(clip for clip in plain.clips if clip.unit_ids[0] == "S0003")
+
+
+def test_llm_packaging_keeps_its_clean_parts_and_needs_no_trend_ref_to_be_checked():
+    moments = [
+        moment(20, 23, hook=21, trend_refs=[], title="Kabur Aja Dulu versi podcast",
+               hook_text="Kisah21 yang bikin kaget",
+               description="Kabur aja dulu katanya. Obrolan santai soal teman lama di kota.",
+               hashtags=["#kabur_aja_dulu", "#podcast"]),
+        moment(2, 5, hook=3),
+    ]
+
+    result, _ = llm_run(moments, trends=[KABUR], segments=kabur_episode())
+
+    clip = next(clip for clip in result.clips if clip.unit_ids[0] == "S0021")
+    assert clip.description == "Obrolan santai soal teman lama di kota."
+    assert clip.title == "Obrolan santai soal teman lama di kota"
+    assert clip.hook_text == "Kisah21 yang bikin kaget"
+    assert clip.hashtags == ("#podcast",)
+    assert "trend_packaging_ungrounded:1" in result.warnings
+    assert not any(code.startswith("trend_ref_ungrounded") for code in result.warnings)
+
+
+def test_llm_packaging_may_name_a_trend_its_own_clip_mentions():
+    moments = [
+        moment(10, 13, hook=12, trend_refs=[], title="Kabur Aja Dulu versi podcast",
+               hook_text="Kabur aja dulu katanya",
+               description="Soal tren Kabur Aja Dulu yang lagi ramai.",
+               hashtags=["#KaburAjaDulu", "#fyp"]),
+        moment(20, 23, hook=21),
+    ]
+
+    result, _ = llm_run(moments, trends=[KABUR], segments=kabur_episode())
+
+    clip = next(clip for clip in result.clips if clip.unit_ids[0] == "S0011")
+    assert names_kabur(clip.text)
+    assert clip.title == "Kabur Aja Dulu versi podcast"
+    assert clip.hook_text == "Kabur aja dulu katanya"
+    assert clip.description == "Soal tren Kabur Aja Dulu yang lagi ramai."
+    assert clip.hashtags == ("#kaburajadulu", "#fyp")  # true of this clip, so kept
+    assert clip.trends == ()  # the model named no ref, so no link, chip or boost
+    assert not any(code.startswith("trend_packaging") for code in result.warnings)
 
 
 def test_heuristic_clips_get_trends_by_direct_matching_without_new_titles():
