@@ -138,7 +138,7 @@ const WARNING_LABELS = Object.freeze({
 
 // Fokus klip top-up (engine: llm_selection.py): why the one extra request was not used.
 const FOCUS_TOPUP_SKIPPED = Object.freeze({
-  budget: "Permintaan tambahan ke AI untuk momen fokus dilewati karena batas jumlah permintaan AI job ini sudah habis.",
+  budget: "Permintaan tambahan ke AI untuk momen fokus dilewati: sisa permintaan AI dipakai untuk peringkat ulang, atau batas jumlah permintaan AI job ini sudah habis.",
   deadline: "Permintaan tambahan ke AI untuk momen fokus dilewati karena batas waktu AI job ini sudah habis.",
   context: "Permintaan tambahan ke AI untuk momen fokus dilewati karena potongan transkripnya tidak muat di konteks model.",
 });
