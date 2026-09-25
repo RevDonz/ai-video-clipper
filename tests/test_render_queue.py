@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import time
 import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -273,6 +274,7 @@ def test_content_addressed_snapshots_are_verified_and_reused_without_temp_copy(
 # directory built from the c30 document context (tests/support/edit_v2_fixtures.py), with a
 # test resources/ tree that carries a toolchain.json (the image writes the real one, E10).
 
+EVIDENCE_W2 = Path(__file__).resolve().parents[1] / "docs" / "editor" / "evidence" / "W2"
 V3_SOURCE_BYTES = b"editor v3 downloaded source bytes"
 V3_NOW = datetime(2026, 9, 25, 12, 0, 0, tzinfo=UTC)
 V3_FRAMES = 2023 + 136  # c30: body + cold open at 30000/1001
@@ -950,12 +952,25 @@ def test_v3_1500_requests_created_over_time_never_hit_a_ceiling(tmp_path, monkey
 
     monkeypatch.setattr(render_queue, "_prepare_v3", instant)
     peak = 0
+    started = time.monotonic()
     for index in range(1500):
         request = job.create(etag, now=V3_NOW + timedelta(hours=index))
         assert (request["state"], request["completed_by"]) == ("completed", "key")
         peak = max(peak, len(list(job.queue.glob("*.json"))))
+    elapsed = time.monotonic() - started
     assert peak <= RETENTION_KEEP + 1  # one per hour: 168 per week, under the newest 200
     assert template["render_id"] not in {path.stem for path in job.queue.glob("*.json")}
+    if os.environ.get("POTONGIN_GATE_EVIDENCE") == "1":
+        EVIDENCE_W2.mkdir(parents=True, exist_ok=True)
+        (EVIDENCE_W2 / "T2.2-requests-1500.json").write_text(json.dumps({
+            "task": "T2.2", "gate": "1,500 requests created over time never hit a ceiling",
+            "requests_created": 1500, "creates_refused": 0, "spacing_hours": 1,
+            "peak_request_files": peak,
+            "final_request_files": len(list(job.queue.glob("*.json"))),
+            "max_requests_ceiling": render_queue.MAX_REQUESTS,
+            "retention": {"days": RETENTION_DAYS, "keep_newest_terminal": RETENTION_KEEP},
+            "elapsed_s": round(elapsed, 1), "python": sys.version.split()[0],
+        }, indent=1, sort_keys=True) + "\n")
 
 
 def test_v3_list_is_newest_first_and_scoped_to_the_clip(tmp_path):
