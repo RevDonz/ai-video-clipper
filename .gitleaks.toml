@@ -1,0 +1,19 @@
+# Gitleaks config: the default rules plus narrow, content-based allowlists for values that are
+# known not to be secrets. Content-based (path + line) instead of fingerprints, because
+# fingerprints carry commit SHAs and break when main rebase-merges a branch.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Editor V3 gate evidence: SHA-256/MD5 digests of public render inputs, not secrets"
+condition = "AND"
+paths = ['''^docs/editor/evidence/''']
+regexTarget = "line"
+regexes = ['''^\s*"[a-z0-9_]*(key|sha256|md5|digest|hash)[a-z0-9_]*"\s*:\s*"[0-9a-f]{32,64}",?\s*$''']
+
+[[allowlists]]
+description = "Fake session token in the rate-limit unit test"
+condition = "AND"
+paths = ['''^web/tests/rate-limit\.test\.mjs$''']
+regexTarget = "line"
+regexes = ['''const token = "v1\.eyJzdWIiOiJhZG1pbiJ9\.signature";''']

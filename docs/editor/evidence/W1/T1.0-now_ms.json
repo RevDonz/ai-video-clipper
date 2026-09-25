@@ -1,0 +1,228 @@
+{
+  "gate": "now_ms/safe_cs",
+  "runs": {
+    "local-ffmpeg-6.1.1": {
+      "ffmpeg_ass_probe": {
+        "24/1": {
+          "control_frames_probed": 3,
+          "hazard_frames_probed": 0,
+          "mismatches": 0
+        },
+        "24000/1001": {
+          "control_frames_probed": 3,
+          "hazard_frames_probed": 6,
+          "mismatches": 0
+        },
+        "25/1": {
+          "control_frames_probed": 3,
+          "hazard_frames_probed": 6,
+          "mismatches": 0
+        },
+        "30/1": {
+          "control_frames_probed": 3,
+          "hazard_frames_probed": 6,
+          "mismatches": 0
+        },
+        "30000/1001": {
+          "control_frames_probed": 3,
+          "hazard_frames_probed": 0,
+          "mismatches": 0
+        },
+        "50/1": {
+          "control_frames_probed": 3,
+          "hazard_frames_probed": 6,
+          "mismatches": 0
+        },
+        "60/1": {
+          "control_frames_probed": 3,
+          "hazard_frames_probed": 6,
+          "mismatches": 0
+        },
+        "60000/1001": {
+          "control_frames_probed": 3,
+          "hazard_frames_probed": 0,
+          "mismatches": 0
+        }
+      },
+      "safe_cs_3h": {
+        "24/1": {
+          "failures": 0,
+          "frames": 259201,
+          "hazards": 0,
+          "min_margin_after_previous_frame_ms": 10,
+          "min_margin_before_frame_ms": 3
+        },
+        "24000/1001": {
+          "failures": 0,
+          "frames": 258942,
+          "hazards": 107,
+          "min_margin_after_previous_frame_ms": 10,
+          "min_margin_before_frame_ms": 2
+        },
+        "25/1": {
+          "failures": 0,
+          "frames": 270001,
+          "hazards": 1569,
+          "min_margin_after_previous_frame_ms": 10,
+          "min_margin_before_frame_ms": 9
+        },
+        "30/1": {
+          "failures": 0,
+          "frames": 324001,
+          "hazards": 7328,
+          "min_margin_after_previous_frame_ms": 10,
+          "min_margin_before_frame_ms": 3
+        },
+        "30000/1001": {
+          "failures": 0,
+          "frames": 323677,
+          "hazards": 0,
+          "min_margin_after_previous_frame_ms": 10,
+          "min_margin_before_frame_ms": 2
+        },
+        "50/1": {
+          "failures": 0,
+          "frames": 540001,
+          "hazards": 3142,
+          "min_margin_after_previous_frame_ms": 10,
+          "min_margin_before_frame_ms": 9
+        },
+        "60/1": {
+          "failures": 0,
+          "frames": 648001,
+          "hazards": 14668,
+          "min_margin_after_previous_frame_ms": 7,
+          "min_margin_before_frame_ms": 3
+        },
+        "60000/1001": {
+          "failures": 0,
+          "frames": 647353,
+          "hazards": 0,
+          "min_margin_after_previous_frame_ms": 5,
+          "min_margin_before_frame_ms": 2
+        }
+      },
+      "toolchain": {
+        "ffmpeg": "ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023 the FFmpeg developers",
+        "fontconfig": "2.15.0-1.1ubuntu2",
+        "libass9": "1:0.17.1-2build1",
+        "libfreetype6": "2.13.2+dfsg-1ubuntu0.1",
+        "libfribidi0": "1.0.13-3build1",
+        "libharfbuzz0b": "8.3.0-2build2",
+        "python": "3.13.13"
+      }
+    },
+    "reference-image-ffmpeg-5.1.9": {
+      "ffmpeg_ass_probe": {
+        "24/1": {
+          "control_frames_probed": 3,
+          "hazard_frames_probed": 0,
+          "mismatches": 0
+        },
+        "24000/1001": {
+          "control_frames_probed": 3,
+          "hazard_frames_probed": 6,
+          "mismatches": 0
+        },
+        "25/1": {
+          "control_frames_probed": 3,
+          "hazard_frames_probed": 6,
+          "mismatches": 0
+        },
+        "30/1": {
+          "control_frames_probed": 3,
+          "hazard_frames_probed": 6,
+          "mismatches": 0
+        },
+        "30000/1001": {
+          "control_frames_probed": 3,
+          "hazard_frames_probed": 0,
+          "mismatches": 0
+        },
+        "50/1": {
+          "control_frames_probed": 3,
+          "hazard_frames_probed": 6,
+          "mismatches": 0
+        },
+        "60/1": {
+          "control_frames_probed": 3,
+          "hazard_frames_probed": 6,
+          "mismatches": 0
+        },
+        "60000/1001": {
+          "control_frames_probed": 3,
+          "hazard_frames_probed": 0,
+          "mismatches": 0
+        }
+      },
+      "safe_cs_3h": {
+        "24/1": {
+          "failures": 0,
+          "frames": 259201,
+          "hazards": 0,
+          "min_margin_after_previous_frame_ms": 10,
+          "min_margin_before_frame_ms": 3
+        },
+        "24000/1001": {
+          "failures": 0,
+          "frames": 258942,
+          "hazards": 107,
+          "min_margin_after_previous_frame_ms": 10,
+          "min_margin_before_frame_ms": 2
+        },
+        "25/1": {
+          "failures": 0,
+          "frames": 270001,
+          "hazards": 1569,
+          "min_margin_after_previous_frame_ms": 10,
+          "min_margin_before_frame_ms": 9
+        },
+        "30/1": {
+          "failures": 0,
+          "frames": 324001,
+          "hazards": 7328,
+          "min_margin_after_previous_frame_ms": 10,
+          "min_margin_before_frame_ms": 3
+        },
+        "30000/1001": {
+          "failures": 0,
+          "frames": 323677,
+          "hazards": 0,
+          "min_margin_after_previous_frame_ms": 10,
+          "min_margin_before_frame_ms": 2
+        },
+        "50/1": {
+          "failures": 0,
+          "frames": 540001,
+          "hazards": 3142,
+          "min_margin_after_previous_frame_ms": 10,
+          "min_margin_before_frame_ms": 9
+        },
+        "60/1": {
+          "failures": 0,
+          "frames": 648001,
+          "hazards": 14668,
+          "min_margin_after_previous_frame_ms": 7,
+          "min_margin_before_frame_ms": 3
+        },
+        "60000/1001": {
+          "failures": 0,
+          "frames": 647353,
+          "hazards": 0,
+          "min_margin_after_previous_frame_ms": 5,
+          "min_margin_before_frame_ms": 2
+        }
+      },
+      "toolchain": {
+        "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+        "fontconfig": "2.14.1-4",
+        "libass9": "1:0.17.1-1+deb12u1",
+        "libfreetype6": "2.12.1+dfsg-5+deb12u4",
+        "libfribidi0": "1.0.8-2.1",
+        "libharfbuzz0b": "6.0.0+dfsg-3",
+        "python": "3.11.2"
+      }
+    }
+  },
+  "task": "T1.0"
+}

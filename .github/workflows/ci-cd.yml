@@ -6,6 +6,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      parity:
+        description: "Also run the Editor V3 text parity harness (npm run test:parity)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -79,6 +84,11 @@ jobs:
       - name: Validate production image
         run: docker build --tag ai-video-clipper:ci-${{ github.sha }} .
 
+      - name: Check the pinned rendering toolchain of the image
+        run: |
+          docker run --rm ai-video-clipper:ci-${GITHUB_SHA} \
+            /app/.venv/bin/python -m ai_clipper.edit_v2.toolchain check /app/resources/toolchain.json
+
       - name: Validate deployment script and Compose config
         env:
           APP_USERNAME: ci-user
@@ -95,6 +105,97 @@ jobs:
         run: |
           bash -n deploy/production.sh
           IMAGE_TAG=ci-${GITHUB_SHA} docker compose -p ai-video-clipper config --quiet
+
+  parity:
+    # Editor V3 text parity (plan §10.1 P-TIME JASSUB side, P-TXT; docs/editor/SPIKES.md §5).
+    # Manual only: the FFmpeg references are made in the pinned production image, then the
+    # harness page runs JASSUB in Chrome for Testing and compares.
+    name: Text parity (manual)
+    if: github.event_name == 'workflow_dispatch' && inputs.parity
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      CHROME_FOR_TESTING: "147.0.7727.15"
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+
+      - name: Scratch directory
+        run: echo "PARITY_ROOT=$RUNNER_TEMP/parity" >> "$GITHUB_ENV"
+
+      - name: Build the pinned image
+        run: docker build --tag ai-video-clipper:parity .
+
+      - name: FFmpeg references in the pinned image
+        run: |
+          mkdir -p "$PARITY_ROOT/fonts-in" "$PARITY_ROOT/fixtures" "$PARITY_ROOT/browser"
+          cp resources/fonts/*.ttf "$PARITY_ROOT/fonts-in/"
+          docker run --rm --user "$(id -u):$(id -g)" --cpus 4 \
+            -v "$PWD":/w -v "$PARITY_ROOT":/out -w /w -e PYTHONPATH=/w/src -e HOME=/tmp \
+            ai-video-clipper:parity /app/.venv/bin/python scripts/parity/reference_text.py \
+            --out /out/fixtures --fonts /out/fonts-in
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Install Chrome for Testing (Playwright)
+        working-directory: web
+        run: |
+          npx playwright install --with-deps chromium
+          version=$(node -e 'import("@playwright/test").then(async ({ chromium }) => { const b = await chromium.launch(); console.log(b.version()); await b.close(); })')
+          echo "Chrome for Testing $version"
+          test "$version" = "$CHROME_FOR_TESTING"
+
+      - name: Build web
+        working-directory: web
+        run: npm run build
+
+      - name: Start the harness server
+        working-directory: web
+        run: |
+          user=parity-ci
+          password=$(openssl rand -hex 24)
+          secret=$(openssl rand -hex 32)
+          echo "::add-mask::$password"
+          echo "::add-mask::$secret"
+          echo "E2E_USERNAME=$user" >> "$GITHUB_ENV"
+          echo "E2E_PASSWORD=$password" >> "$GITHUB_ENV"
+          POTONGIN_PARITY_HARNESS=1 POTONGIN_PARITY_FIXTURES="$PARITY_ROOT/fixtures" \
+            APP_USERNAME="$user" APP_PASSWORD="$password" APP_SESSION_SECRET="$secret" \
+            JOBS_ROOT="$RUNNER_TEMP/jobs" nohup npx next start -p 3217 -H 127.0.0.1 \
+            > "$RUNNER_TEMP/parity-server.log" 2>&1 &
+          for attempt in $(seq 1 60); do
+            curl -fsS http://127.0.0.1:3217/api/health >/dev/null && exit 0
+            sleep 2
+          done
+          cat "$RUNNER_TEMP/parity-server.log"
+          exit 1
+
+      - name: Run the text parity harness
+        working-directory: web
+        env:
+          E2E_BASE_URL: http://127.0.0.1:3217
+          E2E_NO_WEB_SERVER: "1"
+          PARITY_PYTHON: python3
+        run: |
+          POTONGIN_PARITY_FIXTURES="$PARITY_ROOT/fixtures" PARITY_OUT_DIR="$PARITY_ROOT/browser" \
+            npm run test:parity
+
+      - name: Keep the parity numbers
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: parity-numbers
+          path: ${{ runner.temp }}/parity/browser/*.json
+          if-no-files-found: ignore
 
   deploy:
     name: Deploy production

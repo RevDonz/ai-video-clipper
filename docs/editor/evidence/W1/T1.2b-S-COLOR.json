@@ -1,0 +1,379 @@
+{
+  "ass_color_matrix_probe": {
+    "gbrp": {
+      "deltas": {
+        "#3DF5A6": [
+          0,
+          0,
+          0
+        ],
+        "#52C7FF": [
+          0,
+          0,
+          0
+        ],
+        "#FF5C8A": [
+          0,
+          0,
+          0
+        ],
+        "#FF9F1C": [
+          0,
+          0,
+          0
+        ],
+        "#FFE14D": [
+          0,
+          0,
+          0
+        ],
+        "#FFFFFF": [
+          0,
+          0,
+          0
+        ]
+      },
+      "worst_max_abs": 0
+    },
+    "yuv420p": {
+      "deltas": {
+        "#3DF5A6": [
+          -15,
+          -23,
+          0
+        ],
+        "#52C7FF": [
+          -11,
+          -9,
+          0
+        ],
+        "#FF5C8A": [
+          0,
+          18,
+          -1
+        ],
+        "#FF9F1C": [
+          0,
+          1,
+          -8
+        ],
+        "#FFE14D": [
+          0,
+          -6,
+          -6
+        ],
+        "#FFFFFF": [
+          0,
+          0,
+          0
+        ]
+      },
+      "worst_max_abs": 23
+    },
+    "yuv444p": {
+      "deltas": {
+        "#3DF5A6": [
+          -15,
+          -23,
+          0
+        ],
+        "#52C7FF": [
+          -11,
+          -9,
+          0
+        ],
+        "#FF5C8A": [
+          0,
+          18,
+          -1
+        ],
+        "#FF9F1C": [
+          0,
+          1,
+          -8
+        ],
+        "#FFE14D": [
+          0,
+          -6,
+          -6
+        ],
+        "#FFFFFF": [
+          0,
+          0,
+          0
+        ]
+      },
+      "worst_max_abs": 23
+    },
+    "yuv444p+setparams_bt709": {
+      "deltas": {
+        "#3DF5A6": [
+          -15,
+          -23,
+          0
+        ],
+        "#52C7FF": [
+          -11,
+          -9,
+          0
+        ],
+        "#FF5C8A": [
+          0,
+          18,
+          -1
+        ],
+        "#FF9F1C": [
+          0,
+          1,
+          -8
+        ],
+        "#FFE14D": [
+          0,
+          -6,
+          -6
+        ],
+        "#FFFFFF": [
+          0,
+          0,
+          0
+        ]
+      },
+      "worst_max_abs": 23
+    },
+    "yuv444p_read_as_bt601": {
+      "deltas": {
+        "#3DF5A6": [
+          0,
+          -1,
+          0
+        ],
+        "#52C7FF": [
+          0,
+          -1,
+          0
+        ],
+        "#FF5C8A": [
+          -1,
+          0,
+          -1
+        ],
+        "#FF9F1C": [
+          0,
+          -1,
+          -1
+        ],
+        "#FFE14D": [
+          0,
+          -1,
+          0
+        ],
+        "#FFFFFF": [
+          0,
+          0,
+          0
+        ]
+      },
+      "worst_max_abs": 1
+    }
+  },
+  "browser": "147.0.7727.15",
+  "candidates": {
+    "gbrp": {
+      "cost_s": 9.042,
+      "delivered_ssim_text": 0.981929,
+      "p_color_pass": true,
+      "p_color_worst": 2.183,
+      "p_enc_mean_ssim_text_own": 0.981929,
+      "p_enc_min_ssim_all": 0.986603,
+      "p_enc_min_ssim_text": 0.97455,
+      "p_enc_pass": false,
+      "p_txt_failing": [],
+      "p_txt_pass": true,
+      "p_txt_worst_gated": {
+        "max": 14,
+        "psnr": 62.4998,
+        "px_over_16": 0,
+        "ssim": 0.999942,
+        "ssim_text": 0.999442
+      }
+    },
+    "yuv420p": {
+      "cost_s": 8.094,
+      "delivered_ssim_text": 0.980637,
+      "p_color_pass": false,
+      "p_color_worst": 23.81,
+      "p_enc_mean_ssim_text_own": 0.986216,
+      "p_enc_min_ssim_all": 0.988171,
+      "p_enc_min_ssim_text": 0.980492,
+      "p_enc_pass": false,
+      "p_txt_failing": [
+        "classic-10",
+        "classic-40",
+        "classic-90",
+        "fallback",
+        "hook",
+        "karaoke-10",
+        "karaoke-40",
+        "karaoke-90",
+        "bold_font",
+        "box_background",
+        "box_font"
+      ],
+      "p_txt_pass": false,
+      "p_txt_worst_gated": {
+        "max": 106,
+        "psnr": 42.983463,
+        "px_over_16": 5564,
+        "ssim": 0.990808,
+        "ssim_text": 0.919593
+      }
+    },
+    "yuv444p": {
+      "cost_s": 8.183,
+      "delivered_ssim_text": 0.980657,
+      "p_color_pass": false,
+      "p_color_worst": 23.165,
+      "p_enc_mean_ssim_text_own": 0.980243,
+      "p_enc_min_ssim_all": 0.98168,
+      "p_enc_min_ssim_text": 0.972676,
+      "p_enc_pass": false,
+      "p_txt_failing": [
+        "karaoke-40",
+        "bold_font"
+      ],
+      "p_txt_pass": false,
+      "p_txt_worst_gated": {
+        "max": 18,
+        "psnr": 53.409954,
+        "px_over_16": 4,
+        "ssim": 0.999376,
+        "ssim_text": 0.992745
+      }
+    }
+  },
+  "cost": {
+    "best_s": {
+      "gbrp": 9.042,
+      "yuv420p": 8.094,
+      "yuv444p": 8.183
+    },
+    "fps": [
+      30000,
+      1001
+    ],
+    "layout": "fit_blur",
+    "relative_to_yuv420p": {
+      "gbrp": 1.117,
+      "yuv420p": 1.0,
+      "yuv444p": 1.011
+    },
+    "runs": 5,
+    "seconds": 30,
+    "size": [
+      720,
+      1280
+    ],
+    "speed_x_realtime": {
+      "gbrp": 0.301,
+      "yuv420p": 0.27,
+      "yuv444p": 0.273
+    },
+    "threads": 4,
+    "times_s": {
+      "gbrp": [
+        9.042,
+        10.431,
+        11.062,
+        10.877,
+        11.359
+      ],
+      "yuv420p": [
+        9.53,
+        8.094,
+        9.798,
+        9.598,
+        9.617
+      ],
+      "yuv444p": [
+        8.912,
+        8.183,
+        10.128,
+        9.852,
+        9.899
+      ]
+    }
+  },
+  "decision": {
+    "format": null,
+    "rejected": {
+      "gbrp": [
+        "p_enc"
+      ],
+      "yuv420p": [
+        "p_txt",
+        "p_color",
+        "p_enc"
+      ],
+      "yuv444p": [
+        "p_txt",
+        "p_color",
+        "p_enc"
+      ]
+    },
+    "rule": "none_passed"
+  },
+  "jassub": "2.5.16",
+  "jassub_libass_ms_probe_frames": {
+    "frames": 120,
+    "max": 13.6,
+    "p50": 0.4,
+    "p95": 2.1
+  },
+  "pack_variants": {
+    "bold_font": {
+      "choice": "montserrat",
+      "reason": "passes P-TXT",
+      "results": {
+        "dejavu": true,
+        "montserrat": true
+      }
+    },
+    "box_background": {
+      "choice": "border3",
+      "reason": "passes P-TXT",
+      "results": {
+        "border3": true,
+        "pbox": true
+      }
+    },
+    "box_font": {
+      "choice": "montserrat",
+      "reason": "passes P-TXT",
+      "results": {
+        "dejavu": true,
+        "montserrat": true
+      }
+    }
+  },
+  "recommendation": {
+    "basis": "p_enc_fails_for_every_candidate",
+    "format": "gbrp",
+    "open_gates": [
+      "p_enc"
+    ]
+  },
+  "spike": "S-COLOR",
+  "task": "T1.2b",
+  "toolchain": {
+    "ffmpeg_version": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "packages": {
+      "ffmpeg": "7:5.1.9-0+deb12u1",
+      "fontconfig": "2.14.1-4",
+      "libass9": "1:0.17.1-1+deb12u1",
+      "libfreetype6": "2.12.1+dfsg-5+deb12u4",
+      "libfribidi0": "1.0.8-2.1",
+      "libharfbuzz0b": "6.0.0+dfsg-3"
+    }
+  },
+  "wasm": "jassub-worker.wasm"
+}

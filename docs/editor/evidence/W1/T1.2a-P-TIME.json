@@ -1,0 +1,305 @@
+{
+  "aligned_boundaries": 633,
+  "boundaries": 1223,
+  "events": 570,
+  "frames_rendered": 2612,
+  "gate": "P-TIME (FFmpeg side)",
+  "hazard_boundaries": 247,
+  "mismatch_details": [],
+  "mismatches": 0,
+  "onsets": 83,
+  "quick": false,
+  "rates": {
+    "24/1": {
+      "bold": {
+        "aligned_boundaries": 10,
+        "boundaries": 34,
+        "events": 17,
+        "frames_rendered": 68,
+        "hazard_boundaries": 0,
+        "mismatches": 0,
+        "onsets": 0
+      },
+      "box": {
+        "aligned_boundaries": 10,
+        "boundaries": 22,
+        "events": 11,
+        "frames_rendered": 44,
+        "hazard_boundaries": 0,
+        "mismatches": 0,
+        "onsets": 0
+      },
+      "box-vector": {
+        "aligned_boundaries": 16,
+        "boundaries": 40,
+        "events": 20,
+        "frames_rendered": 80,
+        "hazard_boundaries": 0,
+        "mismatches": 0,
+        "onsets": 0
+      },
+      "classic": {
+        "aligned_boundaries": 6,
+        "boundaries": 14,
+        "events": 7,
+        "frames_rendered": 28,
+        "hazard_boundaries": 0,
+        "mismatches": 0,
+        "onsets": 0
+      },
+      "hook0": {
+        "aligned_boundaries": 4,
+        "boundaries": 4,
+        "events": 2,
+        "frames_rendered": 8,
+        "hazard_boundaries": 0,
+        "mismatches": 0,
+        "onsets": 0
+      },
+      "karaoke": {
+        "aligned_boundaries": 8,
+        "boundaries": 22,
+        "events": 7,
+        "frames_rendered": 60,
+        "hazard_boundaries": 0,
+        "mismatches": 0,
+        "onsets": 8
+      }
+    },
+    "24000/1001": {
+      "bold": {
+        "aligned_boundaries": 9,
+        "boundaries": 88,
+        "events": 44,
+        "frames_rendered": 176,
+        "hazard_boundaries": 10,
+        "mismatches": 0,
+        "onsets": 0
+      },
+      "box": {
+        "aligned_boundaries": 9,
+        "boundaries": 52,
+        "events": 26,
+        "frames_rendered": 104,
+        "hazard_boundaries": 10,
+        "mismatches": 0,
+        "onsets": 0
+      },
+      "box-vector": {
+        "aligned_boundaries": 16,
+        "boundaries": 100,
+        "events": 50,
+        "frames_rendered": 200,
+        "hazard_boundaries": 20,
+        "mismatches": 0,
+        "onsets": 0
+      },
+      "classic": {
+        "aligned_boundaries": 5,
+        "boundaries": 32,
+        "events": 16,
+        "frames_rendered": 64,
+        "hazard_boundaries": 6,
+        "mismatches": 0,
+        "onsets": 0
+      },
+      "hook0": {
+        "aligned_boundaries": 2,
+        "boundaries": 4,
+        "events": 2,
+        "frames_rendered": 8,
+        "hazard_boundaries": 0,
+        "mismatches": 0,
+        "onsets": 0
+      },
+      "karaoke": {
+        "aligned_boundaries": 7,
+        "boundaries": 55,
+        "events": 16,
+        "frames_rendered": 156,
+        "hazard_boundaries": 8,
+        "mismatches": 0,
+        "onsets": 23
+      }
+    },
+    "25/1": {
+      "bold": {
+        "aligned_boundaries": 82,
+        "boundaries": 82,
+        "events": 41,
+        "frames_rendered": 164,
+        "hazard_boundaries": 15,
+        "mismatches": 0,
+        "onsets": 0
+      },
+      "box": {
+        "aligned_boundaries": 46,
+        "boundaries": 46,
+        "events": 23,
+        "frames_rendered": 92,
+        "hazard_boundaries": 15,
+        "mismatches": 0,
+        "onsets": 0
+      },
+      "box-vector": {
+        "aligned_boundaries": 88,
+        "boundaries": 88,
+        "events": 44,
+        "frames_rendered": 176,
+        "hazard_boundaries": 28,
+        "mismatches": 0,
+        "onsets": 0
+      },
+      "classic": {
+        "aligned_boundaries": 30,
+        "boundaries": 30,
+        "events": 15,
+        "frames_rendered": 60,
+        "hazard_boundaries": 7,
+        "mismatches": 0,
+        "onsets": 0
+      },
+      "hook0": {
+        "aligned_boundaries": 4,
+        "boundaries": 4,
+        "events": 2,
+        "frames_rendered": 8,
+        "hazard_boundaries": 0,
+        "mismatches": 0,
+        "onsets": 0
+      },
+      "karaoke": {
+        "aligned_boundaries": 51,
+        "boundaries": 51,
+        "events": 15,
+        "frames_rendered": 144,
+        "hazard_boundaries": 11,
+        "mismatches": 0,
+        "onsets": 21
+      }
+    },
+    "30/1": {
+      "bold": {
+        "aligned_boundaries": 46,
+        "boundaries": 82,
+        "events": 41,
+        "frames_rendered": 164,
+        "hazard_boundaries": 21,
+        "mismatches": 0,
+        "onsets": 0
+      },
+      "box": {
+        "aligned_boundaries": 32,
+        "boundaries": 46,
+        "events": 23,
+        "frames_rendered": 92,
+        "hazard_boundaries": 21,
+        "mismatches": 0,
+        "onsets": 0
+      },
+      "box-vector": {
+        "aligned_boundaries": 60,
+        "boundaries": 88,
+        "events": 44,
+        "frames_rendered": 176,
+        "hazard_boundaries": 42,
+        "mismatches": 0,
+        "onsets": 0
+      },
+      "classic": {
+        "aligned_boundaries": 24,
+        "boundaries": 30,
+        "events": 15,
+        "frames_rendered": 60,
+        "hazard_boundaries": 15,
+        "mismatches": 0,
+        "onsets": 0
+      },
+      "hook0": {
+        "aligned_boundaries": 4,
+        "boundaries": 4,
+        "events": 2,
+        "frames_rendered": 8,
+        "hazard_boundaries": 0,
+        "mismatches": 0,
+        "onsets": 0
+      },
+      "karaoke": {
+        "aligned_boundaries": 31,
+        "boundaries": 51,
+        "events": 15,
+        "frames_rendered": 144,
+        "hazard_boundaries": 18,
+        "mismatches": 0,
+        "onsets": 21
+      }
+    },
+    "30000/1001": {
+      "bold": {
+        "aligned_boundaries": 6,
+        "boundaries": 40,
+        "events": 20,
+        "frames_rendered": 80,
+        "hazard_boundaries": 0,
+        "mismatches": 0,
+        "onsets": 0
+      },
+      "box": {
+        "aligned_boundaries": 6,
+        "boundaries": 24,
+        "events": 12,
+        "frames_rendered": 48,
+        "hazard_boundaries": 0,
+        "mismatches": 0,
+        "onsets": 0
+      },
+      "box-vector": {
+        "aligned_boundaries": 10,
+        "boundaries": 44,
+        "events": 22,
+        "frames_rendered": 88,
+        "hazard_boundaries": 0,
+        "mismatches": 0,
+        "onsets": 0
+      },
+      "classic": {
+        "aligned_boundaries": 4,
+        "boundaries": 16,
+        "events": 8,
+        "frames_rendered": 32,
+        "hazard_boundaries": 0,
+        "mismatches": 0,
+        "onsets": 0
+      },
+      "hook0": {
+        "aligned_boundaries": 2,
+        "boundaries": 4,
+        "events": 2,
+        "frames_rendered": 8,
+        "hazard_boundaries": 0,
+        "mismatches": 0,
+        "onsets": 0
+      },
+      "karaoke": {
+        "aligned_boundaries": 5,
+        "boundaries": 26,
+        "events": 8,
+        "frames_rendered": 72,
+        "hazard_boundaries": 0,
+        "mismatches": 0,
+        "onsets": 10
+      }
+    }
+  },
+  "task": "T1.2a",
+  "toolchain": {
+    "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "fontconfig": "2.14.1-4",
+    "libass9": "1:0.17.1-1+deb12u1",
+    "libfreetype6": "2.12.1+dfsg-5+deb12u4",
+    "libfribidi0": "1.0.8-2.1",
+    "libharfbuzz0b": "6.0.0+dfsg-3",
+    "python": "3.11.2",
+    "reference_toolchain_problem": null
+  }
+}

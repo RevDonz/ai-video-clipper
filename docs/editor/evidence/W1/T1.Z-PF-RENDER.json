@@ -1,0 +1,93 @@
+{
+  "gate": "PF-RENDER",
+  "runs": {
+    "reference-image-ffmpeg-5.1.9": {
+      "budget": {
+        "p50": 0.4,
+        "p95": 0.6
+      },
+      "cases": [
+        {
+          "case": "pf_60s_fit_blur",
+          "clip_s": 62.162,
+          "layout": "fit_blur",
+          "output": [
+            720,
+            1280
+          ],
+          "ratio": 0.3465,
+          "render_s": 21.542,
+          "source": [
+            1280,
+            720
+          ]
+        },
+        {
+          "case": "pf_60s_fill_center",
+          "clip_s": 62.162,
+          "layout": "fill_center",
+          "output": [
+            720,
+            1280
+          ],
+          "ratio": 0.2007,
+          "render_s": 12.478,
+          "source": [
+            1280,
+            720
+          ]
+        },
+        {
+          "case": "pf_60s_camera",
+          "clip_s": 62.162,
+          "layout": "camera",
+          "output": [
+            720,
+            1280
+          ],
+          "ratio": 0.2055,
+          "render_s": 12.777,
+          "source": [
+            1280,
+            720
+          ]
+        }
+      ],
+      "composite": "gbrp",
+      "cpus": {
+        "affinity": 16,
+        "cgroup_quota": 4.0,
+        "os_cpu_count": 16
+      },
+      "ffmpeg_threads": 4,
+      "gate_wall_s": 55.2,
+      "loadavg_after": [
+        7.15,
+        6.22,
+        5.3
+      ],
+      "loadavg_before": [
+        7.13,
+        6.04,
+        5.19
+      ],
+      "modules": "real",
+      "note": "synthetic barcode source (flat bands, real captions, hook and audio): encoding costs less than real footage, so these ratios are a lower bound; the real-clip measurement comes with W2",
+      "report_only": true,
+      "summary": {
+        "p50": 0.2055,
+        "p95": 0.3465
+      },
+      "toolchain": {
+        "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+        "python": "3.11.2",
+        "reference_toolchain_problem": null
+      },
+      "within_budget": {
+        "p50": true,
+        "p95": true
+      }
+    }
+  },
+  "task": "T1.Z"
+}

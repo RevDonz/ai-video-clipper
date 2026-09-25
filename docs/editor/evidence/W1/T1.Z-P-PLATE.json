@@ -1,0 +1,106 @@
+{
+  "gate": "P-PLATE",
+  "runs": {
+    "reference-image-ffmpeg-5.1.9": {
+      "cases": [
+        {
+          "case": "plate_fit_blur",
+          "joins": 11,
+          "layout": "fit_blur",
+          "output_frames": 710,
+          "pass": true,
+          "plate_cells": 13,
+          "removals": 10,
+          "ssim_final_vs_reference": {
+            "All": 0.998856,
+            "U": 0.999987,
+            "V": 0.999987,
+            "Y": 0.99829
+          },
+          "ssim_margin": 0.002001,
+          "ssim_plate_vs_reference": {
+            "All": 0.998857,
+            "U": 0.999988,
+            "V": 0.999988,
+            "Y": 0.998292
+          }
+        },
+        {
+          "case": "plate_fill_center",
+          "cell_edge_frames": 23,
+          "crop_x_frames_checked": 710,
+          "crop_x_mismatches": {
+            "final": 0,
+            "plate": 0,
+            "reference": 0
+          },
+          "cut_frames": 24,
+          "distinct_crop_x": 1,
+          "joins": 11,
+          "layout": "fill_center",
+          "output_frames": 710,
+          "pass": true,
+          "plate_cells": 13,
+          "removals": 10,
+          "ssim_final_vs_reference": {
+            "All": 0.999617,
+            "U": 0.999994,
+            "V": 0.999994,
+            "Y": 0.999428
+          },
+          "ssim_margin": 0.001997,
+          "ssim_plate_vs_reference": {
+            "All": 0.999614,
+            "U": 0.999995,
+            "V": 0.999995,
+            "Y": 0.999424
+          }
+        },
+        {
+          "case": "plate_camera",
+          "cell_edge_frames": 23,
+          "crop_x_frames_checked": 710,
+          "crop_x_mismatches": {
+            "final": 0,
+            "plate": 0,
+            "reference": 0
+          },
+          "cut_frames": 24,
+          "distinct_crop_x": 514,
+          "joins": 11,
+          "layout": "camera",
+          "output_frames": 710,
+          "pass": true,
+          "plate_cells": 13,
+          "removals": 10,
+          "ssim_final_vs_reference": {
+            "All": 0.99957,
+            "U": 0.999998,
+            "V": 0.999998,
+            "Y": 0.999356
+          },
+          "ssim_margin": 0.001987,
+          "ssim_plate_vs_reference": {
+            "All": 0.999557,
+            "U": 0.999998,
+            "V": 0.999998,
+            "Y": 0.999336
+          }
+        }
+      ],
+      "gate_wall_s": 67.6,
+      "modules": "real",
+      "pass": true,
+      "threshold": {
+        "crop_x_px": 0,
+        "ssim_margin": 0.002
+      },
+      "toolchain": {
+        "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+        "python": "3.11.2",
+        "reference_toolchain_problem": null
+      }
+    }
+  },
+  "task": "T1.Z"
+}

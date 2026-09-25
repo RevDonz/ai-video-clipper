@@ -1,0 +1,71 @@
+{
+  "gate": "R9 content keys reproduce: plan_sha256 and render key of the same content across two chain runs",
+  "image": "ai-video-clipper:editor-w1z",
+  "layouts": 9,
+  "layouts_identical": 9,
+  "note": "each run builds the synthetic job and prepares it afresh through the api CLI, so the seeds carry different audit times (prepare stamps the wall clock)",
+  "pass": true,
+  "rows": [
+    {
+      "clip": 1,
+      "layout": "camera",
+      "plan_sha256_equal": true,
+      "render_key_equal": true
+    },
+    {
+      "clip": 1,
+      "layout": "fill_center",
+      "plan_sha256_equal": true,
+      "render_key_equal": true
+    },
+    {
+      "clip": 1,
+      "layout": "fit_blur",
+      "plan_sha256_equal": true,
+      "render_key_equal": true
+    },
+    {
+      "clip": 2,
+      "layout": "camera",
+      "plan_sha256_equal": true,
+      "render_key_equal": true
+    },
+    {
+      "clip": 2,
+      "layout": "fill_center",
+      "plan_sha256_equal": true,
+      "render_key_equal": true
+    },
+    {
+      "clip": 2,
+      "layout": "fit_blur",
+      "plan_sha256_equal": true,
+      "render_key_equal": true
+    },
+    {
+      "clip": 3,
+      "layout": "camera",
+      "plan_sha256_equal": true,
+      "render_key_equal": true
+    },
+    {
+      "clip": 3,
+      "layout": "fill_center",
+      "plan_sha256_equal": true,
+      "render_key_equal": true
+    },
+    {
+      "clip": 3,
+      "layout": "fit_blur",
+      "plan_sha256_equal": true,
+      "render_key_equal": true
+    }
+  ],
+  "runs": 2,
+  "task": "T1.Z",
+  "values_compared": 18,
+  "wall_s": [
+    365.0,
+    297.9
+  ]
+}

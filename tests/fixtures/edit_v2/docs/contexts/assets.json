@@ -1,0 +1,26 @@
+{
+  "sha256:036ce0c8d1bbde9427d03c28388f2f48cf1b4a1061869b334f0be2adee588148": {
+    "kind": "image",
+    "mime": "image/png",
+    "w": 512,
+    "h": 512
+  },
+  "sha256:0736a9232e8ad3fdadacf971380804b79da31541b80f890636cda9b0ef7b9872": {
+    "kind": "image",
+    "mime": "image/png",
+    "w": 800,
+    "h": 200
+  },
+  "sha256:f4eff9f785f6f6b1f32185191b7b66edb3cad91a7313650de54ea5cfdbb56472": {
+    "kind": "audio",
+    "mime": "audio/mp4",
+    "duration_ms": 142000,
+    "lufs_c": -1620
+  },
+  "sha256:1a2f0fb83c7c024249189e5bbabe991a28296cb0824405c5988cfaf7201e33d1": {
+    "kind": "audio",
+    "mime": "audio/mp4",
+    "duration_ms": 20000,
+    "lufs_c": -1400
+  }
+}

@@ -1,0 +1,108 @@
+{
+  "schema": "clip-edit-v2",
+  "schema_minor": 0,
+  "clip_id": "clip_e626cf3d40f3e95b0911decf",
+  "revision": 1,
+  "parent_sha256": "7435eaaed815077ae5b3a0fbc95e5a43acf840e4f62e16ec912af0c8053dc2eb",
+  "base": {
+    "job_id": "2b7d4c1a-9e0f-4a6b-8c3d-5e7f9a1b2c3d",
+    "source": {
+      "content_sha256": "04389e7322457672051c6a5bb0de634349f6abaa41ea044895b0442c56ce72dc",
+      "w": 1920,
+      "h": 1080,
+      "fps_native": [
+        50,
+        1
+      ],
+      "vfr": false,
+      "duration_ms": 2400000,
+      "has_audio": true
+    },
+    "origin": {
+      "kind": "v3_clip",
+      "selection_artifact_sha256": "ff94d07ba6ff2a3e16ac1ede4134430f5a04d9be5e9733467d46a6a40419deb7",
+      "selection_version": "selection-v3.0",
+      "rank_at_seed": 1,
+      "hook_unit_id": "S0167",
+      "selection_source": "heuristic"
+    },
+    "window_ms": [
+      540000,
+      860000
+    ],
+    "words": {
+      "sha256": "3189319e7ec846fc86273d01a12e8c2ea8a9224db8d57b82ca66b20eac1158d5",
+      "count": 636
+    },
+    "camera": {
+      "sha256": "91b623890aba0fe41397d4ad6051f5b3512f26f4485e101c16baa2064134ef03"
+    },
+    "seed_sha256": "44049bc26f452718dc1c932a084df05f0e7a033f29374315643113738d17d6b6",
+    "engine": {
+      "compiler": "edit-v2/1",
+      "render_semantics": 1
+    }
+  },
+  "output": {
+    "w": 720,
+    "h": 1280,
+    "fps": [
+      25,
+      1
+    ],
+    "sample_rate": 48000,
+    "channels": 2
+  },
+  "main": {
+    "segments": [
+      {
+        "id": "seg_b1",
+        "role": "body",
+        "in_sf": 14000,
+        "out_sf": 21500
+      }
+    ],
+    "removals": [],
+    "joins": [],
+    "cut_fade_ms": 8
+  },
+  "captions": {
+    "enabled": true,
+    "pack": {
+      "id": "classic",
+      "v": 1
+    },
+    "overrides": {
+      "y_e5": 83000,
+      "size_pm": 1000,
+      "case": "asis",
+      "highlight": "#FFE14D",
+      "emphasis": "#FF5C8A"
+    },
+    "word_edits": {}
+  },
+  "layout": {
+    "default": {
+      "mode": "camera",
+      "no_face": "center"
+    }
+  },
+  "tracks": [],
+  "audio": {
+    "source": {
+      "gain_cdb": 0
+    },
+    "master": {
+      "mode": "off",
+      "target_clufs": -1400,
+      "tp_cdb": -100
+    }
+  },
+  "assets": {},
+  "audit": {
+    "created_at_ms": 1790000000000,
+    "updated_at_ms": 1790000060000,
+    "editor": "editor-v3/1.0.0",
+    "last_command": "TrimStart"
+  }
+}

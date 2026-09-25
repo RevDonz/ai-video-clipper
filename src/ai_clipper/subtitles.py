@@ -3,6 +3,9 @@
 A rendered clip plays one or more source ranges back to back (an optional cold open followed
 by the main range). Cues are expressed in clip-relative seconds on that concatenated timeline,
 quantized to centiseconds so the SRT sidecar and the burned ASS captions share exact timings.
+
+Editor V3 (plan §3.4, §5.4) adds :func:`build_frame_cues`, the same cue rules in integer
+milliseconds and output frames over the pieces of a ``clip-edit-v2`` document.
 """
 
 from __future__ import annotations
@@ -10,10 +13,11 @@ from __future__ import annotations
 import math
 import unicodedata
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from itertools import pairwise
 from numbers import Real
 
+from .edit_v2.timemap import Fps, Piece, word_frames
 from .models import TranscriptSegment
 
 CUE_MAX_WORDS = 4
@@ -354,3 +358,209 @@ def to_srt(
                 f"{' '.join(chunk)}"
             )
     return "\n\n".join(cues) + ("\n" if cues else "")
+
+
+# --- Editor V3: integer frame cues (plan §3.4, §5.4) --------------------------------------------
+
+# The frame form of _DEGENERATE_CUE_CENTISECONDS: a cue with less room than this is merged.
+_DEGENERATE_CUE_MS = 50
+
+
+def _require_int(value: object, name: str) -> int:
+    if type(value) is not int:
+        raise TypeError(f"{name} must be an integer")
+    return value
+
+
+@dataclass(frozen=True, slots=True)
+class SourceWord:
+    """A caption word in source milliseconds with the document's word edits applied.
+
+    ``text`` is the display text before case transforms; hidden words are never passed in.
+    """
+
+    id: str
+    s_ms: int
+    e_ms: int
+    text: str
+    emphasis: bool
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.id, str) or not isinstance(self.text, str):
+            raise TypeError("source word id and text must be strings")
+        if _require_int(self.s_ms, "s_ms") < 0 or _require_int(self.e_ms, "e_ms") < self.s_ms:
+            raise ValueError("source word must satisfy 0 <= s_ms <= e_ms")
+        if not isinstance(self.emphasis, bool):
+            raise TypeError("source word emphasis must be a boolean")
+
+
+@dataclass(frozen=True, slots=True)
+class FrameWord:
+    """One caption word on output frames ``[f0, f1)`` (``f1 == f0`` for a zero-length word)."""
+
+    id: str
+    f0: int
+    f1: int
+    text: str
+    emphasis: bool
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.id, str) or not isinstance(self.text, str):
+            raise TypeError("frame word id and text must be strings")
+        if not self.text:
+            raise ValueError("frame word text cannot be empty")
+        if _require_int(self.f0, "f0") < 0 or _require_int(self.f1, "f1") < self.f0:
+            raise ValueError("frame word must satisfy 0 <= f0 <= f1")
+        if not isinstance(self.emphasis, bool):
+            raise TypeError("frame word emphasis must be a boolean")
+
+
+@dataclass(frozen=True, slots=True)
+class FrameCue:
+    """One caption shown on output frames ``[f0, f1)`` inside segment ``seg``."""
+
+    f0: int
+    f1: int
+    seg: str
+    words: tuple[FrameWord, ...]
+
+    def __post_init__(self) -> None:
+        if _require_int(self.f0, "f0") < 0 or _require_int(self.f1, "f1") <= self.f0:
+            raise ValueError("frame cue must satisfy 0 <= f0 < f1")
+        if not isinstance(self.seg, str):
+            raise TypeError("frame cue segment must be a string")
+        if not isinstance(self.words, tuple) or any(
+            not isinstance(word, FrameWord) for word in self.words
+        ):
+            raise TypeError("frame cue words must be a tuple of FrameWord values")
+        if not self.words:
+            raise ValueError("frame cue needs at least one word")
+        if any(word.f0 < self.f0 or word.f1 > self.f1 for word in self.words):
+            raise ValueError("frame cue words must lie inside the cue")
+        if any(later.f0 < earlier.f0 for earlier, later in pairwise(self.words)):
+            raise ValueError("frame cue words must be chronological")
+
+    @property
+    def text(self) -> str:
+        return " ".join(word.text for word in self.words)
+
+
+def _group_frame_words(
+    words: list[FrameWord], *, max_words: int, max_gap_ms: int, fps: Fps
+) -> list[list[FrameWord]]:
+    scale = 1000 * fps.den  # frames · scale = milliseconds · num
+    groups: list[list[FrameWord]] = []
+    current: list[FrameWord] = []
+    for word in words:
+        if current and (
+            len(current) >= max_words
+            or (word.f0 - current[-1].f1) * scale > max_gap_ms * fps.num
+            or _ends_sentence(current[-1].text)
+        ):
+            groups.append(current)
+            current = []
+        current.append(word)
+    if current:
+        groups.append(current)
+    return groups
+
+
+def _merge_degenerate_frame_groups(
+    groups: list[list[FrameWord]], segment_end: int, fps: Fps
+) -> list[list[FrameWord]]:
+    """Fold groups with less than ``_DEGENERATE_CUE_MS`` of room into a neighbour."""
+    kept: list[list[FrameWord]] = []
+    carry: list[FrameWord] = []
+    for index, group in enumerate(groups):
+        words = carry + group
+        carry = []
+        limit = groups[index + 1][0].f0 if index + 1 < len(groups) else segment_end
+        if (limit - words[0].f0) * 1000 * fps.den < _DEGENERATE_CUE_MS * fps.num:
+            if index + 1 < len(groups):
+                carry = words
+                continue
+            if kept:
+                kept[-1] = kept[-1] + words
+                continue
+            if limit <= words[0].f0:
+                continue
+        kept.append(words)
+    return kept
+
+
+def _segment_frame_cues(
+    groups: list[list[FrameWord]], *, seg: str, segment_end: int, min_display: int
+) -> list[FrameCue]:
+    cues = []
+    for index, words in enumerate(groups):
+        start = words[0].f0
+        limit = groups[index + 1][0].f0 if index + 1 < len(groups) else segment_end
+        natural_end = max(word.f1 for word in words)
+        end = min(max(natural_end, start + min_display), limit)
+        end = max(end, min(start + 1, limit))  # never empty while there is room
+        if end <= start:
+            continue
+        cues.append(
+            FrameCue(start, end, seg,
+                     tuple(replace(word, f1=min(word.f1, end)) for word in words))
+        )
+    return cues
+
+
+def build_frame_cues(
+    words: Sequence[SourceWord],
+    pieces: Sequence[Piece],
+    fps: Fps,
+    *,
+    max_words: int = CUE_MAX_WORDS,
+    max_gap_ms: int = 600,
+    min_display_ms: int = 300,
+) -> tuple[FrameCue, ...]:
+    """Caption cues on output frames for a document's ``pieces`` (plan §3.4, §5.4).
+
+    The rules of :func:`build_caption_cues`, in integers: a word is shown when its midpoint lies
+    in a piece (``timemap.word_frames``: rounded to frames, clamped to its piece, so a word never
+    spans a cut). Cues hold up to ``max_words`` words, break on a gap over ``max_gap_ms`` measured
+    in **output** time (after cuts) and on sentence ends, start at their first word, last at
+    least ``min_display_ms`` (rounded up to frames) unless the next cue starts, and never
+    overlap. They may span jump cuts inside a segment but never the join between segments (the
+    cold-open join). A word shown in two segments (a cold open repeats body words) is captioned
+    in both. Nothing is truncated: every visible word lands in exactly one cue per segment.
+    """
+    if type(max_words) is not int or max_words <= 0:
+        raise ValueError("max_words must be a positive integer")
+    for name, value in (("max_gap_ms", max_gap_ms), ("min_display_ms", min_display_ms)):
+        if _require_int(value, name) < 0:
+            raise ValueError(f"{name} must be non-negative")
+    if not isinstance(fps, Fps):
+        raise TypeError("fps must be a timemap.Fps")
+    min_display = -(-min_display_ms * fps.num // (1000 * fps.den))
+    segments: dict[str, list[Piece]] = {}
+    for piece in pieces:
+        segments.setdefault(piece.seg, []).append(piece)
+    cleaned = [(word, clean_caption_text(word.text)) for word in words]
+
+    cues: list[FrameCue] = []
+    for seg, group in segments.items():
+        scope = tuple(group)
+        segment_end = scope[-1].out_f0 + scope[-1].frames
+        placed = []
+        for word, text in cleaned:
+            if not text:
+                continue
+            frames = word_frames(word.s_ms, word.e_ms, scope, fps)
+            if frames is not None:
+                placed.append(FrameWord(word.id, frames[0], frames[1], text, word.emphasis))
+        placed.sort(key=lambda word: word.f0)
+        normalized = [
+            replace(word, f1=max(min(word.f1, placed[index + 1].f0), word.f0))
+            if index + 1 < len(placed) else word
+            for index, word in enumerate(placed)
+        ]
+        groups = _group_frame_words(normalized, max_words=max_words, max_gap_ms=max_gap_ms,
+                                    fps=fps)
+        cues += _segment_frame_cues(
+            _merge_degenerate_frame_groups(groups, segment_end, fps),
+            seg=seg, segment_end=segment_end, min_display=min_display,
+        )
+    return tuple(cues)
