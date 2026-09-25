@@ -221,7 +221,7 @@ def _supervise(
             os.close(write_fd)
         if read_fd is not None and process is None:
             os.close(read_fd)
-    readers =[threading.Thread(target=_drain, args=(process.stderr, stderr.feed), daemon=True)]
+    readers = [threading.Thread(target=_drain, args=(process.stderr, stderr.feed), daemon=True)]
     if read_fd is not None:
         readers.append(threading.Thread(target=_drain_progress, args=(read_fd, progress),
                                         daemon=True))
