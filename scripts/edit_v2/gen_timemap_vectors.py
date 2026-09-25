@@ -519,9 +519,10 @@ def _toolchain(ffmpeg: str | None) -> dict:
     dpkg = shutil.which("dpkg-query")
     if dpkg:
         for package in ("libass9", "libfreetype6", "libharfbuzz0b", "libfribidi0", "fontconfig"):
-            result = subprocess.run([dpkg, "-W", "-f=${Version}", package], capture_output=True,
-                                    text=True, check=False)
-            info[package] = result.stdout.strip() or None
+            result = subprocess.run([dpkg, "-W", "-f=${Version}\n", package],
+                                    capture_output=True, text=True, check=False)
+            versions = result.stdout.split()
+            info[package] = versions[0] if versions else None
     return info
 
 
