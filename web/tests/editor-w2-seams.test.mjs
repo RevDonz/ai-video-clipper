@@ -235,6 +235,25 @@ test("the store re-requests the plan while cells or the mix are building, and st
   store.destroy();
 });
 
+test("a store destroyed while it loads never joins the tab channel (no ghost 'other tab')", async () => {
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const api = createFakeApiClient();
+  const slowApi = { ...api, getEdit: async (options) => { await gate; return api.getEdit(options); } };
+  const opened = [];
+  const store = createEditorStore({
+    jobId: FAKE_JOB_ID, clipId: FAKE_CLIP_ID, api: slowApi, previewClient: null,
+    draftStore: { list: async () => [], put: async () => {}, delete: async () => {} },
+    channel: (name) => { opened.push(name); return { postMessage() {}, close() {}, onmessage: null }; },
+    lifecycle: null, tabStorage: null,
+  });
+  store.destroy(); // React StrictMode mounts, unmounts and mounts the editor in development
+  release();
+  await store.ready;
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.deepEqual(opened, []);
+});
+
 // --- the real runtime (T2.6 → T2.Z wiring) -----------------------------------------------------------
 
 test("the real runtime wires the A.2 modules: API client, preview client, store and player", async () => {
