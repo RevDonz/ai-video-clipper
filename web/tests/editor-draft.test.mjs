@@ -364,6 +364,8 @@ test("a closed tab whose last PUT was committed but not confirmed is recognised 
   assert.notEqual(state.notice?.code, "draft_conflict");
   assert.equal(state.doc.main.removals.length, 1, "the saved removal is there once");
   assert.equal(state.doc.layout.default.mode, "camera");
-  assert.deepEqual((await drafts.list(server.clipId)).map((draft) => draft.key), [again.store.draftKey]);
+  assert.deepEqual(await drafts.list(server.clipId), [], "merged work is saved at once, then no draft is left");
+  assert.equal(server.doc.main.removals.length, 1);
+  assert.equal(server.doc.layout.default.mode, "camera");
   again.store.destroy();
 });
