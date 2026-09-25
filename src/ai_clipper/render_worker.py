@@ -536,6 +536,7 @@ class _V3Monitor:
         self._lock = threading.Lock()
         self._stage, self._progress = "merender", 0
         self._beat_at = self._started = clock()
+        self._armed = False  # the timeout and liveness count from the renderer's start
 
     def beat(self, stage: str, progress_pm: int) -> None:
         with self._lock:
@@ -544,9 +545,11 @@ class _V3Monitor:
                     and 0 <= progress_pm <= 1000:
                 self._stage, self._progress = stage, progress_pm
 
-    def restart_clocks(self) -> None:
+    def arm(self) -> None:
+        """Start the timeout and liveness clocks (just before the renderer is called)."""
         with self._lock:
             self._beat_at = self._started = self.clock()
+            self._armed = True
 
     def _stop(self, reason: str) -> None:
         if self.reason is None:
@@ -564,6 +567,7 @@ class _V3Monitor:
                 with self._lock:
                     current, beat_at, started = (self._stage, self._progress), self._beat_at, \
                         self._started
+                    armed = self._armed
                 seen = None
                 if current != written and now - last_write >= PROGRESS_WRITE_SECONDS:
                     seen = progress_v3(self.job, self.render_id, self.token, *current)
@@ -578,9 +582,9 @@ class _V3Monitor:
                         raise QueueConflict()
                     if seen["cancel_requested_at"] is not None:
                         self._stop("cancelled")
-                if now - started > self.timeout_s:
+                if armed and now - started > self.timeout_s:
                     self._stop("render_timeout")
-                elif current[0] == "merender" and now - beat_at > self.liveness_s:
+                elif armed and current[0] == "merender" and now - beat_at > self.liveness_s:
                     self._stop("render_stalled")
                 if self.storage_reservation is not None:
                     grown = _directory_bytes(self.growth_dir)
@@ -681,7 +685,7 @@ def _run_v3(
             terminal_state = "completed"
             return render_id
         _verify_snapshot(job, request)
-        monitor.restart_clocks()
+        monitor.arm()
         result = renderer(job, dict(request), heartbeat=monitor.beat, cancel=monitor.cancel)
         if monitor.lost.is_set():
             raise QueueError()
