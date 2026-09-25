@@ -204,7 +204,10 @@ def expected_events(case: PtimeCase) -> list[ExpectedEvent]:
             events += [ExpectedEvent(a, b, (), False, "caption")
                        for a, b in zip(starts, ends, strict=True) if a < b]
         elif case.pack == "karaoke":
-            onsets = sorted({w.f0 for w in cue.words[1:] if cue.f0 < w.f0 < cue.f1})
+            # An emphasised word keeps the emphasis colour before and after its switch, so only
+            # the other words change the picture at their onset.
+            onsets = sorted({w.f0 for w in cue.words[1:]
+                             if cue.f0 < w.f0 < cue.f1 and not w.emphasis})
             events.append(ExpectedEvent(cue.f0, cue.f1, tuple(onsets), False, "caption"))
         else:
             events.append(ExpectedEvent(cue.f0, cue.f1, (), False, "caption"))

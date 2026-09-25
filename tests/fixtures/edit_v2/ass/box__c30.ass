@@ -1,0 +1,76 @@
+[Script Info]
+ScriptType: v4.00+
+WrapStyle: 0
+ScaledBorderAndShadow: yes
+YCbCr Matrix: None
+PlayResX: 720
+PlayResY: 1280
+
+[V4+ Styles]
+Format: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding
+Style: Box,Montserrat ExtraBold,64,&H00FFFFFF,&H00FFFFFF,&H40000000,&H40000000,0,0,0,0,100,100,0,0,3,12.8,0,2,43,43,218,1
+Style: Hook,DejaVu Sans,59,&H00FFFFFF,&H00FFFFFF,&H59000000,&H59000000,-1,0,0,0,100,100,0,0,3,14,0,8,43,43,166,1
+
+[Events]
+Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text
+Dialogue: 0,0:00:00.26,0:00:01.33,Box,,0,0,0,,{\q2}kopi katanya sumpah
+Dialogue: 0,0:00:01.46,0:00:02.53,Box,,0,0,0,,{\q2}lagi dong dong
+Dialogue: 0,0:00:02.60,0:00:02.90,Box,,0,0,0,,{\q2}mah.
+Dialogue: 0,0:00:03.43,0:00:04.53,Box,,0,0,0,,{\q2}nahan langsung ketawa
+Dialogue: 0,0:00:06.13,0:00:07.47,Box,,0,0,0,,{\q2}anu anu sumpah
+Dialogue: 0,0:00:07.53,0:00:08.67,Box,,0,0,0,,{\q2}sumpah katanya film.
+Dialogue: 0,0:00:09.14,0:00:10.27,Box,,0,0,0,,{\q2}orang kenapa pelan
+Dialogue: 0,0:00:10.37,0:00:11.37,Box,,0,0,0,,{\q2}pokoknya kru waktu
+Dialogue: 0,0:00:11.50,0:00:12.64,Box,,0,0,0,,{\q2}eh sih orang.
+Dialogue: 0,0:00:13.07,0:00:14.14,Box,,0,0,0,,{\q2}anu mau waktu
+Dialogue: 0,0:00:14.14,0:00:14.84,Box,,0,0,0,,{\q2}eh dong?
+Dialogue: 0,0:00:16.28,0:00:17.38,Box,,0,0,0,,{\q2}dong eh pulang
+Dialogue: 0,0:00:17.51,0:00:18.68,Box,,0,0,0,,{\q2}syuting anu nggak
+Dialogue: 0,0:00:18.71,0:00:19.01,Box,,0,0,0,,{\q2}sendiri.
+Dialogue: 0,0:00:19.91,0:00:21.18,Box,,0,0,0,,{\q2}jadi sendiri nggak
+Dialogue: 0,0:00:21.25,0:00:22.12,Box,,0,0,0,,{\q2}nahan wkwk mah
+Dialogue: 0,0:00:22.22,0:00:22.95,Box,,0,0,0,,{\q2}sih masuk.
+Dialogue: 0,0:00:23.72,0:00:24.92,Box,,0,0,0,,{\q2}juga dong anu
+Dialogue: 0,0:00:25.02,0:00:25.32,Box,,0,0,0,,{\q2}gue.
+Dialogue: 0,0:00:25.75,0:00:26.82,Box,,0,0,0,,{\q2}semua waktu kita
+Dialogue: 0,0:00:26.92,0:00:27.59,Box,,0,0,0,,{\q2}orang ketawa?
+Dialogue: 0,0:00:27.99,0:00:29.29,Box,,0,0,0,,{\q2}padahal hati mah
+Dialogue: 0,0:00:29.39,0:00:29.76,Box,,0,0,0,,{\q2}mau.
+Dialogue: 0,0:00:29.99,0:00:31.26,Box,,0,0,0,,{\q2}hati masuk sih
+Dialogue: 0,0:00:31.42,0:00:31.72,Box,,0,0,0,,{\q2}sendiri.
+Dialogue: 0,0:00:33.09,0:00:34.39,Box,,0,0,0,,{\q2}pulang juga ternyata
+Dialogue: 0,0:00:34.53,0:00:35.43,Box,,0,0,0,,{\q2}pas hati pelan
+Dialogue: 0,0:00:35.53,0:00:36.90,Box,,0,0,0,,{\q2}katanya pas security.
+Dialogue: 0,0:00:37.20,0:00:38.43,Box,,0,0,0,,{\q2}sih nggak kopi
+Dialogue: 0,0:00:38.46,0:00:39.60,Box,,0,0,0,,{\q2}katanya sumpah lagi
+Dialogue: 0,0:00:39.63,0:00:40.57,Box,,0,0,0,,{\q2}dong dong mah.
+Dialogue: 0,0:00:41.23,0:00:42.44,Box,,0,0,0,,{\q2}nahan langsung ketawa
+Dialogue: 0,0:00:42.57,0:00:43.37,Box,,0,0,0,,{\q2}kok ternyata.
+Dialogue: 0,0:00:43.70,0:00:44.84,Box,,0,0,0,,{\q2}semua katanya masuk
+Dialogue: 0,0:00:44.90,0:00:45.87,Box,,0,0,0,,{\q2}aja masuk eh
+Dialogue: 0,0:00:46.04,0:00:46.34,Box,,0,0,0,,{\q2}sumpah.
+Dialogue: 0,0:00:46.61,0:00:47.64,Box,,0,0,0,,{\q2}dong semua sih
+Dialogue: 0,0:00:47.81,0:00:48.51,Box,,0,0,0,,{\q2}sendiri waktu.
+Dialogue: 0,0:00:49.74,0:00:50.91,Box,,0,0,0,,{\q2}langsung sih security
+Dialogue: 0,0:00:50.98,0:00:52.18,Box,,0,0,0,,{\q2}terus itu semua
+Dialogue: 0,0:00:52.28,0:00:52.68,Box,,0,0,0,,{\q2}orang.
+Dialogue: 0,0:00:52.98,0:00:53.65,Box,,0,0,0,,{\q2}langsung kenapa
+Dialogue: 0,0:00:53.65,0:00:53.98,Box,,0,0,0,,{\q2}padahal
+Dialogue: 0,0:00:54.15,0:00:55.15,Box,,0,0,0,,{\q2}aja syuting dia
+Dialogue: 0,0:00:55.21,0:00:55.62,Box,,0,0,0,,{\q2}ambil.
+Dialogue: 0,0:00:56.28,0:00:57.45,Box,,0,0,0,,{\q2}katanya jadi abis
+Dialogue: 0,0:00:57.55,0:00:58.35,Box,,0,0,0,,{\q2}security katanya.
+Dialogue: 0,0:00:58.68,0:00:59.75,Box,,0,0,0,,{\q2}itu ternyata film
+Dialogue: 0,0:00:59.89,0:01:00.75,Box,,0,0,0,,{\q2}dong dong?
+Dialogue: 0,0:01:01.25,0:01:02.52,Box,,0,0,0,,{\q2}dia nggak kru
+Dialogue: 0,0:01:02.59,0:01:02.96,Box,,0,0,0,,{\q2}pelan.
+Dialogue: 0,0:01:04.32,0:01:04.92,Box,,0,0,0,,{\q2}pokoknya semua
+Dialogue: 0,0:01:04.92,0:01:05.29,Box,,0,0,0,,{\q2}ternyata
+Dialogue: 0,0:01:05.39,0:01:06.26,Box,,0,0,0,,{\q2}dong waktu ternyata
+Dialogue: 0,0:01:06.33,0:01:07.06,Box,,0,0,0,,{\q2}nggak film.
+Dialogue: 0,0:01:07.43,0:01:08.63,Box,,0,0,0,,{\q2}abis bukan kok
+Dialogue: 0,0:01:08.73,0:01:09.80,Box,,0,0,0,,{\q2}eh masuk hati
+Dialogue: 0,0:01:09.86,0:01:10.23,Box,,0,0,0,,{\q2}sih.
+Dialogue: 0,0:01:11.66,0:01:12.03,Box,,0,0,0,,{\q2}aja
+Dialogue: 1,0:00:00.00,0:00:04.00,Hook,,0,0,0,,{\fad(150,250)\an8\q2\pos(360,180)}Dia ditahan security
+Dialogue: 1,0:00:00.00,0:00:04.00,Hook,,0,0,0,,{\fad(150,250)\an8\q2\pos(360,267)}di film-nya sendiri
