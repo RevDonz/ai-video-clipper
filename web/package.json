@@ -10,10 +10,13 @@
     "test:e2e": "playwright test",
     "test:e2e:list": "E2E_ALLOW_SKIP=1 playwright test --list",
     "test:e2e:safe-skip": "E2E_ALLOW_SKIP=1 E2E_NO_WEB_SERVER=1 playwright test",
-    "test:e2e:read-only": "playwright test e2e/read-only.spec.mjs e2e/smoke.spec.mjs"
+    "test:e2e:read-only": "playwright test e2e/read-only.spec.mjs e2e/smoke.spec.mjs",
+    "test:parity": "playwright test e2e/parity-text.spec.mjs --project=desktop-chromium"
   },
   "dependencies": {
     "busboy": "^1.6.0",
+    "jassub": "2.5.16",
+    "mediabunny": "1.59.1",
     "next": "16.3.6",
     "react": "19.3.0",
     "react-dom": "19.3.0"

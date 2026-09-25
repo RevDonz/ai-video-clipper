@@ -55,7 +55,8 @@ async function openHarness(page) {
     null, { timeout: 60_000 });
   const info = await page.evaluate(() => window.__parity.info());
   expect(info.error ?? null).toBeNull();
-  return info;
+  // navigator.userAgent is the device descriptor's; record the browser actually driven.
+  return { ...info, browserVersion: page.context().browser()?.version() ?? null, executable: chrome ?? null };
 }
 
 // One lane's state: the coverage summary restricted to the lane's colours (fading lanes use
@@ -96,11 +97,14 @@ test("P-TIME (JASSUB side): every event edge and word onset switches on the plan
   const info = await openHarness(page);
   const results = [];
   for (const clip of manifest.clips.filter((item) => item.kind === "ptime")) {
-    const frames = [...new Set(clip.transitions.flatMap(({ frame }) => [frame - 2, frame - 1, frame, frame + 1]))]
-      .sort((a, b) => a - b);
+    const frames = [...new Set(clip.transitions.flatMap(({ frame }) => [frame - 3, frame - 2, frame - 1, frame, frame + 1]))]
+      .filter((frame) => frame >= 0).sort((a, b) => a - b);
     const summaries = await page.evaluate(({ id, frames: list }) => window.__parity.probe(id, list),
       { id: clip.id, frames });
     const mismatches = timingMismatches(clip, summaries);
+    // Negative control: the same check on the libass output one frame late must flag every edge.
+    const late = Object.fromEntries(frames.map((frame) => [frame, summaries[frame - 1] ?? summaries[frame]]));
+    const lateMismatches = timingMismatches(clip, late).length;
     results.push({
       clip: clip.id,
       fps: clip.fps,
@@ -108,12 +112,16 @@ test("P-TIME (JASSUB side): every event edge and word onset switches on the plan
       hazard_transitions: clip.transitions.filter((transition) => transition.hazard).length,
       frames_rendered: frames.length,
       mismatches: mismatches.length,
+      control_one_frame_late_mismatches: lateMismatches,
       details: mismatches.slice(0, 10),
     });
   }
-  writeJson("p_time_jassub.json", { browser: info.browser, jassub: info.jassub, clips: results });
+  writeJson("p_time_jassub.json", {
+    browser: info.browser, browserVersion: info.browserVersion, jassub: info.jassub, clips: results,
+  });
   expect(results.length).toBe(5);
   expect(results.reduce((sum, result) => sum + result.mismatches, 0)).toBe(0);
+  for (const result of results) expect(result.control_one_frame_late_mismatches).toBe(result.transitions);
 });
 
 test("P-TXT: JASSUB composites match the FFmpeg references (plus S-COLOR candidates)", async ({ page }) => {
@@ -136,7 +144,9 @@ test("P-TXT: JASSUB composites match the FFmpeg references (plus S-COLOR candida
       }
     }
   }
-  writeJson("render_timing.json", { browser: info.browser, jassub: info.jassub, wasm: info.wasm, frames: timings });
+  writeJson("render_timing.json", {
+    browser: info.browser, browserVersion: info.browserVersion, jassub: info.jassub, wasm: info.wasm, frames: timings,
+  });
   // Outside the text region the composite must be the plate itself; otherwise the region that
   // the metrics look at would hide a difference.
   expect(leaks).toEqual([]);
