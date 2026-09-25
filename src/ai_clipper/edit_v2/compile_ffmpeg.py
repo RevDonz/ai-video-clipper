@@ -662,4 +662,5 @@ __all__ = [
     "decoder_runs",
     "probe_source",
     "seek_arg",
+    "select_expression",
 ]

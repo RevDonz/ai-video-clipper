@@ -1,17 +1,18 @@
 """Verify a rendered file against its plan: G1–G3, G3b block, G5 warns (plan §5.9).
 
-| Gate | Check | On failure |
-|---|---|---|
-| G1 container | MP4 (``ftyp``, ``faststart``: ``moov`` before ``mdat``), one H.264 High yuv420p video
-  stream at ``size`` with SAR 1:1, CFR ``num/den`` (every packet step is one frame) and
-  BT.709/tv tags, one AAC-LC 48 kHz stereo audio stream | blocks |
-| G2 A/V | decoded video frames == ``plan.total_frames`` (``-count_frames``); decoded audio
-  samples == ``plan.total_samples`` ± ``SAMPLE_TOLERANCE`` | blocks |
-| G3 loudness | only with ``normalize``: integrated loudness at the document's target ± 1 LU
-  (or the recorded ``loudness_clamped`` value ± 0.5 LU), true peak ≤ −1.0 dBTP | blocks |
-| G3b peak | with music or ``audio.source.gain_cdb > 0``: true peak ≤ −1.0 dBTP on the decoded
-  export (§5.6 step 5); revision-0 audio is never measured | blocks |
-| G5 text-safe | caption, hook and logo geometry vs the TikTok UI zone | warning ``unsafe_zone`` |
+* **G1 container** (blocks): an MP4 (``ftyp`` first, not QuickTime; ``faststart``: ``moov``
+  before ``mdat``) with exactly one H.264 High yuv420p video stream at ``size``, SAR 1:1, CFR
+  at the document rate (every packet step is one frame) and BT.709/tv tags, and exactly one
+  AAC-LC 48 kHz stereo audio stream.
+* **G2 A/V** (blocks): decoded video frames == ``plan.total_frames`` (``-count_frames``) and
+  decoded audio samples == ``plan.total_samples`` ± ``SAMPLE_TOLERANCE``.
+* **G3 loudness** (blocks; only with ``normalize``): integrated loudness at the document's
+  target ± 1 LU, or at the recorded ``loudness_clamped`` value ± 0.5 LU, and a true peak of at
+  most −1.0 dBTP.
+* **G3b peak** (blocks; with music or ``audio.source.gain_cdb > 0``): true peak ≤ −1.0 dBTP on
+  the decoded export (§5.6 step 5). Revision-0 audio is never measured.
+* **G5 text-safe** (warns): caption, hook and logo geometry against the TikTok UI zone
+  (``unsafe_zone``).
 
 The file is read through its descriptor (``/proc/self/fd/N`` for FFmpeg); nothing is written. A
 blocking failure raises ``VerificationFailed`` (``verification_failed``, Indonesian message
