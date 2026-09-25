@@ -59,13 +59,13 @@
 .reason {
   margin: 0;
   font-size: var(--ed-font-size-sm, 12px);
-  color: var(--ed-color-warning, #b26a00);
+  color: #8a5200; /* the warning hue at ≥ 4.5:1 for small text */
 }
 
 .warning {
   margin: 0;
   font-size: var(--ed-font-size-xs, 11px);
-  color: var(--ed-color-warning, #b26a00);
+  color: #8a5200; /* the warning hue at ≥ 4.5:1 for small text */
 }
 
 /* A native radio laid invisibly over its whole card or swatch: the click target, the focus and
@@ -333,7 +333,7 @@
 
 .badge[data-fit="overflow"] {
   background: #fdf1dc;
-  color: var(--ed-color-warning, #b26a00);
+  color: #8a5200; /* the warning hue at ≥ 4.5:1 for small text */
 }
 
 /* Cold open. */
