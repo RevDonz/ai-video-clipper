@@ -8,6 +8,8 @@
 // based on and how many pending steps it contains) and `put(doc, { etag, key })`. Timers and the
 // clock are injectable for tests.
 
+import { randomUuid } from "./api-client.mjs";
+
 export const AUTOSAVE_DEBOUNCE_MS = 1500;
 export const AUTOSAVE_MAX_INTERVAL_MS = 10000;
 const RETRYABLE = new Set([0, 408, 425, 429, 500, 502, 503, 504]);
@@ -27,7 +29,7 @@ export function createAutosave({
   onSaved = () => {},
   onConflict = () => {},
   onError = () => {},
-  newKey = () => globalThis.crypto.randomUUID(),
+  newKey = () => randomUuid(),
   now = () => Date.now(),
   setTimer = (fn, ms) => setTimeout(fn, ms),
   clearTimer = (id) => clearTimeout(id),

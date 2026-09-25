@@ -19,6 +19,7 @@
 // revision, save "saved"|"dirty"|"saving"|"conflict"|"error", savedAtMs, canUndo, canRedo, plan,
 // pending (layers not current: "text"|"audio"|"plate"|"logo"), warnings, selection, commands (the
 // pending log), conflict, notice, error, readOnlyReason, notices, engine, otherTab, previewError.
+import { randomUuid } from "./api-client.mjs";
 import { createAutosave } from "./autosave.mjs";
 import { CommandRejected } from "./commands.mjs";
 import { createContext } from "./doc-model.mjs";
@@ -71,7 +72,7 @@ export function createEditorStore({
   previewClient = null,
   draftStore = createDraftStore(),
   now = () => Date.now(),
-  newKey = () => globalThis.crypto.randomUUID(),
+  newKey = () => randomUuid(),
   timers = { setTimeout: (fn, ms) => setTimeout(fn, ms), clearTimeout: (id) => clearTimeout(id) },
   autosave: autosaveOptions = {},
   channel = defaultChannel(),
@@ -95,7 +96,7 @@ export function createEditorStore({
   let destroyed = false;
   let port = null;
   let detach = null;
-  const tabId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+  const tabId = randomUuid();
   const others = new Set();
   const draftWriter = createDraftWriter({ store: draftStore, now });
 

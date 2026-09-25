@@ -14,6 +14,8 @@
 //   node scripts/edit_v2/crosscheck_commands.mjs conflict --scenarios 2000 --seed 20260925
 //       QG-CONFLICT (unit level): two tabs edit the same clip; both edits survive (merge) or
 //       the per-part dialog lists exactly the parts both changed differently.
+//   node scripts/edit_v2/crosscheck_commands.mjs timemap
+//       timemap.mjs against tests/fixtures/edit_v2/timemap-vectors.json (every check).
 //
 // Everything is deterministic for a seed (mulberry32); nothing touches the network.
 import { createHash } from "node:crypto";
@@ -39,6 +41,7 @@ import {
 } from "../../web/lib/editor/doc-model.mjs";
 import { createEditSession } from "../../web/lib/editor/history.mjs";
 import { diffParts, partGroup, partValue, rebase } from "../../web/lib/editor/rebase.mjs";
+import * as timemap from "../../web/lib/editor/timemap.mjs";
 import { pieces, sfCeil, sfFloor } from "../../web/lib/editor/timemap.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -686,6 +689,48 @@ export function generateDocs({ contexts, sequences, seed, write }) {
   write(`${JSON.stringify({ summary: true, sequences, seed, emitted, rebases, ...stats })}\n`);
 }
 
+/** Every check of the shared time-map vectors against timemap.mjs (CONTRACTS §5.12). */
+export function runTimemapVectors() {
+  const vectors = JSON.parse(readFileSync(path.join(ROOT, "tests", "fixtures", "edit_v2", "timemap-vectors.json"), "utf8"));
+  let checks = 0;
+  let mismatches = 0;
+  const check = (got, expect) => {
+    checks += 1;
+    if (canonicalJson(got) !== canonicalJson(expect)) mismatches += 1;
+  };
+  for (const vector of vectors.cases) {
+    const list = timemap.pieces(vector.doc);
+    check(list, vector.pieces);
+    check(timemap.totalFrames(list), vector.total_frames);
+    for (const [n, index, sf] of vector.out_to_src) {
+      const [piece, got] = timemap.outToSrc(n, list);
+      check([piece.i, got], [index, sf]);
+    }
+    for (const entry of vector.word_frames) {
+      const scope = entry.scope === null ? list : list.filter((piece) => piece.seg === entry.scope);
+      check(timemap.wordFrames(entry.s_ms, entry.e_ms, scope, vector.fps), entry.expect);
+    }
+    check(timemap.speechSpans(vector.speech_words, list, vector.fps), vector.speech_spans);
+  }
+  const scalar = {
+    smp: (v) => timemap.smp(v[2], [v[0], v[1]], v[3]),
+    sf_floor: (v) => timemap.sfFloor(v[2], [v[0], v[1]]),
+    sf_ceil: (v) => timemap.sfCeil(v[2], [v[0], v[1]]),
+    now_ms: (v) => timemap.nowMs(v[2], [v[0], v[1]]),
+    safe_cs: (v) => timemap.safeCs(v[2], [v[0], v[1]]),
+    cell_frames: (v) => timemap.cellFrames([v[0], v[1]]),
+    div_round_half_up: (v) => timemap.divRoundHalfUp(v[0], v[1]),
+    logo_box: (v) => timemap.logoBox(v),
+  };
+  const byKind = {};
+  for (const [name, fn] of Object.entries(scalar)) {
+    byKind[name] = vectors[name].length;
+    for (const entry of vectors[name]) check(fn(entry.in), entry.expect);
+  }
+  return { gate: "timemap.mjs = vectors", vectors: "tests/fixtures/edit_v2/timemap-vectors.json", cases: vectors.cases.length,
+    checks, expectedChecks: vectors.counts.total, mismatches, scalarChecks: byKind };
+}
+
 function parseArgs(argv) {
   const [mode, ...rest] = argv;
   const options = { mode, sequences: 1000, scenarios: 2000, seed: 20260925, evidence: null };
@@ -717,14 +762,17 @@ function main(argv) {
   let summary;
   if (options.mode === "undo") summary = runUndoProperty({ contexts, sequences: options.sequences, seed: options.seed });
   else if (options.mode === "conflict") summary = runConflictProperty({ contexts, scenarios: options.scenarios, seed: options.seed });
+  else if (options.mode === "timemap") summary = runTimemapVectors();
   else {
-    process.stderr.write("usage: crosscheck_commands.mjs docs|undo|conflict [--sequences N] [--scenarios N] [--seed S] [--evidence FILE]\n");
+    process.stderr.write("usage: crosscheck_commands.mjs docs|undo|conflict|timemap [--sequences N] [--scenarios N] [--seed S] [--evidence FILE]\n");
     return 2;
   }
+  summary = { ...summary, tool: `scripts/edit_v2/crosscheck_commands.mjs ${options.mode}`, node: process.version };
   const text = `${JSON.stringify(summary, null, 2)}\n`;
   if (options.evidence) writeFileSync(options.evidence, text);
   process.stdout.write(text);
-  const failed = options.mode === "undo" ? summary.undoMismatches + summary.redoMismatches + summary.stepMismatches : summary.problems;
+  const failed = options.mode === "undo" ? summary.undoMismatches + summary.redoMismatches + summary.stepMismatches
+    : options.mode === "timemap" ? summary.mismatches + (summary.checks === summary.expectedChecks ? 0 : 1) : summary.problems;
   return failed === 0 ? 0 : 1;
 }
 
