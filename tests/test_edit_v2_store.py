@@ -354,6 +354,10 @@ def test_assets_come_from_the_job_asset_store(tmp_path, contexts):
         (store_dir / f"{asset_id[7:]}.json").write_text(json.dumps({**meta, "extra": 1}))
     doc, _, _ = store.put(clip, expected_etag=etag, idempotency_key=key(), raw=raw, now_ms=NOW)
     assert doc["tracks"][1]["items"][0]["type"] == "image"
+    # Unreadable or malformed metadata is an absent asset, never a crash.
+    for content in ("{broken", '{"kind": ["image"]}', "[]", '{"kind": "image", "mime": "image/png"}'):
+        (store_dir / f"{fixtures.LOGO[7:]}.json").write_text(content)
+        assert store.load_assets(clip, [fixtures.LOGO]) == {}
 
 
 def test_the_cyclic_collector_is_paused_during_a_save_and_restored(clip, contexts, seed_etag,
