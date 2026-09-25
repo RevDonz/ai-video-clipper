@@ -13,12 +13,14 @@ from ai_clipper.focus import (
     FOCUS_SUFFIXES,
     FOCUS_WORD_ROOTS,
     MAX_FOCUS_NOTE_CHARS,
+    MENTION_CLUSTER_SECONDS,
     MIN_PREFIX_TERM_LETTERS,
     MIN_SUFFIX_TERM_LETTERS,
     FocusHit,
     FocusMatcher,
     FocusSpec,
     focus_term_matchable,
+    mention_clusters,
     parse_focus,
 )
 from ai_clipper.models import TranscriptWord
@@ -332,6 +334,17 @@ def test_hits_are_per_unit_with_the_word_time_when_words_are_known():
 def test_hits_of_a_reduplication_count_once_per_unit():
     hits = FocusMatcher(parse_focus(["jomok"])).hits([unit(0, 0.0, "jomok-jomok jomok")])
     assert hits == (FocusHit(term="jomok", first_unit=0, last_unit=0, time=0.0),)
+
+
+def test_mentions_close_together_form_one_cluster():
+    def hit(time: float, unit: int) -> FocusHit:
+        return FocusHit("jomok", unit, unit, time)
+
+    first, close = hit(10.0, 1), hit(10.0 + MENTION_CLUSTER_SECONDS, 3)
+    far, late = hit(10.0 + 2 * MENTION_CLUSTER_SECONDS + 0.1, 5), hit(200.0, 9)
+
+    assert mention_clusters([late, far, close, first]) == [(first, close), (far,), (late,)]
+    assert mention_clusters([]) == []
 
 
 def test_hits_need_units():

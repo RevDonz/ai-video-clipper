@@ -134,6 +134,10 @@ SPONSOR_PENALTY = 3.0
 SEGUE_PENALTY = 2.5
 OUTRO_PENALTY = 3.0
 GREETING_PENALTY = 1.5
+# How long an opening greeting lasts for :func:`opening_end`: the welcome, the guest's
+# introduction and the topic of the day (rBg0ZcwjVKQ: "selamat datang" at 00:00, "belajar
+# perjomokan di sini" at 00:54, the first real question at 01:02).
+GREETING_REACH_SECONDS = 60.0
 SMALL_TALK_PENALTY = 2.5
 SMALL_TALK_SHARE = 0.5
 SUSPECT_PENALTY = 4.0
@@ -732,6 +736,24 @@ def teaser_end(units: Sequence[SentenceUnit]) -> float | None:
     if not analysed:
         return None
     return _teaser(analysed, analysed[-1].end)[0]
+
+
+def opening_end(units: Sequence[SentenceUnit]) -> float | None:
+    """Where the episode's opening ends: the later of the teaser montage's end
+    (:func:`teaser_end`) and :data:`GREETING_REACH_SECONDS` after the last channel greeting
+    said in the intro (the greetings the heuristic penalises: ``selamat datang``, ``halo
+    semuanya``, ``kembali lagi di``, ... in the first ``max(90 s, 3%)`` of the episode), or
+    ``None`` when the episode opens with neither."""
+    analysed = [_analyse_unit(unit) for unit in units]
+    if not analysed:
+        return None
+    duration = analysed[-1].end
+    intro_end = max(_INTRO_SECONDS, _INTRO_SHARE * duration)
+    ends = [end for end in (_teaser(analysed, duration)[0],) if end is not None]
+    greetings = [unit.start for unit in analysed if unit.greeting and unit.start < intro_end]
+    if greetings:
+        ends.append(max(greetings) + GREETING_REACH_SECONDS)
+    return max(ends, default=None)
 
 
 def _pauses(units: list[_Unit], audio: AudioTimeline | None) -> list[float]:

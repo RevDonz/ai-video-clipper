@@ -35,8 +35,11 @@ listed in :data:`FOCUS_WORD_ROOTS` with the only terms they belong to ("berubah"
 "ubah", never of "rubah"; "sekarang" of no term). "jomok" matches "perjomokan", "jomoknya",
 "kejomok", "kejomokan" and both halves of "jomok-jomok", never "dramok" or "jomokers".
 
-:class:`HeuristicWindows` finds the heuristic's own windows around a mention, for the extra
-candidates of the selector (:func:`ai_clipper.selection_v3.select_clips_v3`).
+:func:`mention_clusters` groups mentions at most :data:`MENTION_CLUSTER_SECONDS` apart into one
+conversation about the focus: the focus top-up asks about clusters, and the selector gives an
+extra candidate to at most one per cluster. :class:`HeuristicWindows` finds the heuristic's own
+windows around a mention, for those extra candidates
+(:func:`ai_clipper.selection_v3.select_clips_v3`).
 """
 
 from __future__ import annotations
@@ -77,6 +80,8 @@ from .trend_context import (
 
 FOCUS_MODES = ("prefer",)  # "only" is planned, not accepted yet
 MAX_FOCUS_NOTE_CHARS = 200
+# Mentions at most this far apart belong to one conversation about the focus (one cluster).
+MENTION_CLUSTER_SECONDS = 45.0
 FOCUS_PREFIXES = (
     "di", "ke", "se", "ber", "be", "per", "pe", "ter", "me", "mem", "men", "meng", "meny", "peng",
     "pen", "pem", "peny",
@@ -150,6 +155,7 @@ __all__ = [
     "MAX_FOCUS_NOTE_CHARS",
     "MAX_FOCUS_TERMS",
     "MAX_FOCUS_TERM_CHARS",
+    "MENTION_CLUSTER_SECONDS",
     "MIN_PREFIX_TERM_LETTERS",
     "MIN_SUFFIX_TERM_LETTERS",
     "FocusHit",
@@ -157,6 +163,7 @@ __all__ = [
     "FocusSpec",
     "HeuristicWindows",
     "focus_term_matchable",
+    "mention_clusters",
     "parse_focus",
 ]
 
@@ -409,6 +416,18 @@ class FocusMatcher:
             FocusHit(self._terms[order].text, first, last, time)
             for (order, first, last), time in ordered
         )
+
+
+def mention_clusters(hits: Iterable[FocusHit]) -> list[tuple[FocusHit, ...]]:
+    """``hits`` in time order, split where two follow each other more than
+    :data:`MENTION_CLUSTER_SECONDS` apart: one cluster per conversation about the focus."""
+    clusters: list[list[FocusHit]] = []
+    for hit in sorted(hits, key=lambda item: (item.time, item.first_unit)):
+        if clusters and hit.time - clusters[-1][-1].time <= MENTION_CLUSTER_SECONDS + 1e-6:
+            clusters[-1].append(hit)
+        else:
+            clusters.append([hit])
+    return [tuple(cluster) for cluster in clusters]
 
 
 # --- heuristic windows around a mention ------------------------------------------------------
