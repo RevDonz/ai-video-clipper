@@ -216,8 +216,9 @@ test("ingest creates items, then upserts them by externalId or by kind and norma
   assert.match(kabur.id, UUID_V4);
   assert.deepEqual(Object.keys(kabur), [
     "id", "externalId", "kind", "title", "summary", "keywords", "hashtags", "platforms", "region", "examples",
-    "score", "sensitivity", "firstSeenAt", "expiresAt", "source", "enabled", "createdAt", "updatedAt",
+    "score", "sensitivity", "firstSeenAt", "expiresAt", "source", "enabled", "createdAt", "updatedAt", "ownerEdited",
   ]);
+  assert.deepEqual(kabur.ownerEdited, []);
   assert.equal(kabur.source, "hermes");
   assert.equal(kabur.enabled, true);
   assert.equal(kabur.createdAt, iso());
@@ -257,13 +258,60 @@ test("an agent update keeps the owner's choices: enabled, sensitive, source and 
   await ingestTrendItems([item({ externalId: "k1", firstSeenAt: iso(-2 * DAY) })], { env, source: "hermes", now: NOW });
   const [stored] = (await readTrendContext({ env })).document.items;
   await updateTrendItem(stored.id, { enabled: false, sensitivity: "sensitive" }, { env, now: NOW });
-  await ingestTrendItems([item({ externalId: "k1", sensitivity: "normal", firstSeenAt: iso(-HOUR), enabled: true })], { env, source: "other-agent", now: at(HOUR) });
+  await ingestTrendItems([item({ externalId: "k1", sensitivity: "normal", firstSeenAt: iso(-HOUR), enabled: true })], { env, source: "hermes", now: at(HOUR) });
   const [after] = (await readTrendContext({ env })).document.items;
   assert.equal(after.enabled, false);
   assert.equal(after.sensitivity, "sensitive");
   assert.equal(after.source, "hermes");
   assert.equal(after.firstSeenAt, iso(-2 * DAY));
   assert.equal(after.expiresAt, iso(-HOUR + 10 * DAY));
+});
+
+test("an agent refresh keeps every field the owner changed on the page", async () => {
+  const { env } = await sandbox();
+  await ingestTrendItems([item({ externalId: "k1", keywords: ["day one"], expiresAt: iso(10 * DAY) })], { env, source: "hermes", now: NOW });
+  const [stored] = (await readTrendContext({ env })).document.items;
+  const edited = await updateTrendItem(stored.id, {
+    title: stored.title, summary: stored.summary, keywords: ["owner fixed keyword"], expiresAt: iso(3 * DAY),
+  }, { env, now: at(HOUR) });
+  assert.deepEqual(edited.ownerEdited, ["keywords", "expiresAt"], "fields sent back unchanged do not count");
+
+  await ingestTrendItems([item({
+    externalId: "k1", title: "Kabur Aja Dulu (baru)", summary: "Ringkasan baru.", keywords: ["day nine"], hashtags: ["#Baru"],
+    expiresAt: iso(20 * DAY), score: 88,
+  })], { env, source: "hermes", now: at(2 * HOUR) });
+  const [after] = (await readTrendContext({ env })).document.items;
+  assert.deepEqual(after.keywords, ["owner fixed keyword"]);
+  assert.equal(after.expiresAt, iso(3 * DAY));
+  assert.equal(after.title, "Kabur Aja Dulu (baru)", "what the owner left alone still follows the agent");
+  assert.equal(after.summary, "Ringkasan baru.");
+  assert.deepEqual(after.hashtags, ["#Baru"]);
+  assert.equal(after.score, 88);
+  assert.deepEqual(after.ownerEdited, ["keywords", "expiresAt"]);
+});
+
+test("an agent never takes over the owner's manual items or another agent's items", async () => {
+  const { env } = await sandbox();
+  const manual = await createManualTrend(item({ kind: "event", title: "Konser Besar", keywords: ["konser besar"], summary: "Punya pemilik." }), { env, now: NOW });
+  await ingestTrendItems([item({ externalId: "a:1", title: "Punya A", keywords: ["punya a"] })], { env, source: "agent-a", now: NOW });
+  const result = await ingestTrendItems([
+    item({ kind: "event", title: "konser BESAR", keywords: ["konser besar"], externalId: "x:konser", summary: "Dari agen." }),
+    item({ kind: "event", title: "Konser  Besar", keywords: ["konser besar"], summary: "Dari agen." }),
+    item({ externalId: "a:1", title: "Punya A", keywords: ["taken over"] }),
+    item({ title: "punya a", keywords: ["taken over"] }),
+  ], { env, source: "agent-b", now: at(HOUR) });
+  assert.deepEqual(result, { accepted: 0, created: 0, updated: 0, rejected: [
+    { index: 0, code: "owned_by_other_source", field: "title" },
+    { index: 1, code: "owned_by_other_source", field: "title" },
+    { index: 2, code: "owned_by_other_source", field: "externalId" },
+    { index: 3, code: "owned_by_other_source", field: "title" },
+  ] });
+  const items = (await readTrendContext({ env })).document.items;
+  assert.equal(items.length, 2);
+  const kept = items.find((entry) => entry.id === manual.id);
+  assert.deepEqual([kept.source, kept.externalId, kept.title, kept.summary], ["manual", null, "Konser Besar", "Punya pemilik."]);
+  const owned = items.find((entry) => entry.externalId === "a:1");
+  assert.deepEqual([owned.source, owned.keywords], ["agent-a", ["punya a"]]);
 });
 
 test("one bad item never blocks the others and rejections carry index, code and field only", async () => {
@@ -490,6 +538,7 @@ test("manual items: created as manual, duplicates refused, only editable fields 
   assert.equal(patched.expiresAt, iso(-HOUR), "the owner may expire an item right away");
   assert.equal(patched.enabled, true);
   assert.equal(patched.updatedAt, iso(HOUR));
+  assert.deepEqual(patched.ownerEdited, [], "no agent refreshes a manual item, so nothing to protect");
   assert.equal((await updateTrendItem(created.id, { expiresAt: iso(200 * DAY) }, { env, now: NOW })).expiresAt, iso(60 * DAY));
 
   for (const patch of [{ kind: "meme" }, { source: "hermes" }, { platforms: ["x"] }, { title: "" }, { keywords: [] }, { enabled: "ya" }, [], null]) {
