@@ -94,7 +94,7 @@ captions.ass a24e1ac2698a950c7f76568e1160557472ca84bc6bce2aae54788c16fe061bfe
  ],
  "frames": 1972,
  "gain_cdb": 0,
- "mix_sha256": "0295a9482fbe54160c046e7bcf899f54fe29c51d732263185e09a8c19e125b2f",
+ "mix_sha256": "edb6f4ba2b2d10c4d02527e22db923e1a789c4f6bfc7a3587951c0c605931c84",
  "mode": "final",
  "output": "fd",
  "paths": {
@@ -109,27 +109,21 @@ captions.ass a24e1ac2698a950c7f76568e1160557472ca84bc6bce2aae54788c16fe061bfe
  "warnings": []
 }
 ## filter_script
-[0:0]null[vd0];
+[0:0]fps=30000/1001,trim=start_pts=38217:end_pts=38353,setpts=PTS-STARTPTS[vr0];
 [0:1]anull[sa0];
-[1:0]split=6[vd1][vd2][vd3][vd4][vd5][vd6];
+[1:0]fps=30000/1001,select='if(lt(pts,38358),if(lt(pts,37900),between(pts,37220,37865),if(lt(pts,38147),between(pts,37900,38116),between(pts,38147,38309))),if(lt(pts,38650),between(pts,38358,38610),if(lt(pts,39099),between(pts,38650,39062),between(pts,39099,39242))))',setpts=N[vr1];
 [1:1]asplit=6[sa1][sa2][sa3][sa4][sa5][sa6];
-[vd0]fps=30000/1001,trim=start_pts=38217:end_pts=38353,setpts=PTS-STARTPTS,split=2[background_0][foreground_0];[background_0]scale=720:1280:force_original_aspect_ratio=increase:in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuv444p,crop=720:1280,gblur=sigma=35[blurred_0];[foreground_0]scale=720:1280:force_original_aspect_ratio=decrease:in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuva444p[fit_0];[blurred_0][fit_0]overlay=(W-w)/2:(H-h)/2:format=yuv444,setsar=1[vp0];
-[vd1]fps=30000/1001,trim=start_pts=37220:end_pts=37866,setpts=PTS-STARTPTS,split=2[background_1][foreground_1];[background_1]scale=720:1280:force_original_aspect_ratio=increase:in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuv444p,crop=720:1280,gblur=sigma=35[blurred_1];[foreground_1]scale=720:1280:force_original_aspect_ratio=decrease:in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuva444p[fit_1];[blurred_1][fit_1]overlay=(W-w)/2:(H-h)/2:format=yuv444,setsar=1[vp1];
-[vd2]fps=30000/1001,trim=start_pts=37900:end_pts=38117,setpts=PTS-STARTPTS,split=2[background_2][foreground_2];[background_2]scale=720:1280:force_original_aspect_ratio=increase:in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuv444p,crop=720:1280,gblur=sigma=35[blurred_2];[foreground_2]scale=720:1280:force_original_aspect_ratio=decrease:in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuva444p[fit_2];[blurred_2][fit_2]overlay=(W-w)/2:(H-h)/2:format=yuv444,setsar=1[vp2];
-[vd3]fps=30000/1001,trim=start_pts=38147:end_pts=38310,setpts=PTS-STARTPTS,split=2[background_3][foreground_3];[background_3]scale=720:1280:force_original_aspect_ratio=increase:in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuv444p,crop=720:1280,gblur=sigma=35[blurred_3];[foreground_3]scale=720:1280:force_original_aspect_ratio=decrease:in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuva444p[fit_3];[blurred_3][fit_3]overlay=(W-w)/2:(H-h)/2:format=yuv444,setsar=1[vp3];
-[vd4]fps=30000/1001,trim=start_pts=38358:end_pts=38611,setpts=PTS-STARTPTS,split=2[background_4][foreground_4];[background_4]scale=720:1280:force_original_aspect_ratio=increase:in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuv444p,crop=720:1280,gblur=sigma=35[blurred_4];[foreground_4]scale=720:1280:force_original_aspect_ratio=decrease:in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuva444p[fit_4];[blurred_4][fit_4]overlay=(W-w)/2:(H-h)/2:format=yuv444,setsar=1[vp4];
-[vd5]fps=30000/1001,trim=start_pts=38650:end_pts=39063,setpts=PTS-STARTPTS,split=2[background_5][foreground_5];[background_5]scale=720:1280:force_original_aspect_ratio=increase:in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuv444p,crop=720:1280,gblur=sigma=35[blurred_5];[foreground_5]scale=720:1280:force_original_aspect_ratio=decrease:in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuva444p[fit_5];[blurred_5][fit_5]overlay=(W-w)/2:(H-h)/2:format=yuv444,setsar=1[vp5];
-[vd6]fps=30000/1001,trim=start_pts=39099:end_pts=39243,setpts=PTS-STARTPTS,split=2[background_6][foreground_6];[background_6]scale=720:1280:force_original_aspect_ratio=increase:in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuv444p,crop=720:1280,gblur=sigma=35[blurred_6];[foreground_6]scale=720:1280:force_original_aspect_ratio=decrease:in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuva444p[fit_6];[blurred_6][fit_6]overlay=(W-w)/2:(H-h)/2:format=yuv444,setsar=1[vp6];
-[vp0][vp1][vp2][vp3][vp4][vp5][vp6]concat=n=7:v=1:a=0,settb=1001/30000[vcat];
-[vcat]scale=in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuv444p,ass=filename=captions.ass:fontsdir=fonts:shaping=complex[vtext];
+[vr0][vr1]concat=n=2:v=1:a=0,settb=1001/30000[vcat];
+[vcat]split=2[background_0][foreground_0];[background_0]scale=720:1280:force_original_aspect_ratio=increase:in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuv444p,crop=720:1280,gblur=sigma=35[blurred_0];[foreground_0]scale=720:1280:force_original_aspect_ratio=decrease:in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuva444p[fit_0];[blurred_0][fit_0]overlay=(W-w)/2:(H-h)/2:format=yuv444,setsar=1[vlay];
+[vlay]scale=in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuv444p,ass=filename=captions.ass:fontsdir=fonts:shaping=complex[vtext];
 [vtext]scale=in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuv420p[vout];
-[sa0]aresample=48000,pan=stereo|FL=FL+FC|FR=FR+FC,asettb=1/48000,atrim=start_pts=61208347:end_pts=61426164,asetpts=PTS-STARTPTS[au_p0];
-[sa1]aresample=48000,pan=stereo|FL=FL+FC|FR=FR+FC,asettb=1/48000,atrim=start_pts=59611552:end_pts=60646186,asetpts=PTS-STARTPTS[au_p1];
-[sa2]aresample=48000,pan=stereo|FL=FL+FC|FR=FR+FC,asettb=1/48000,atrim=start_pts=60700640:end_pts=61048187,asetpts=PTS-STARTPTS[au_p2];
-[sa3]aresample=48000,pan=stereo|FL=FL+FC|FR=FR+FC,asettb=1/48000,atrim=start_pts=61096235:end_pts=61357296,asetpts=PTS-STARTPTS[au_p3];
-[sa4]aresample=48000,pan=stereo|FL=FL+FC|FR=FR+FC,asettb=1/48000,atrim=start_pts=61434172:end_pts=61839377,asetpts=PTS-STARTPTS[au_p4];
-[sa5]aresample=48000,pan=stereo|FL=FL+FC|FR=FR+FC,asettb=1/48000,atrim=start_pts=61901840:end_pts=62563300,asetpts=PTS-STARTPTS[au_p5];
-[sa6]aresample=48000,pan=stereo|FL=FL+FC|FR=FR+FC,asettb=1/48000,atrim=start_pts=62620958:end_pts=62851589,asetpts=PTS-STARTPTS[au_p6];
+[sa0]aresample=48000,asettb=1/48000,atrim=start_pts=61208347:end_pts=61426164,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS[au_p0];
+[sa1]aresample=48000,asettb=1/48000,atrim=start_pts=59611552:end_pts=60646186,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS[au_p1];
+[sa2]aresample=48000,asettb=1/48000,atrim=start_pts=60700640:end_pts=61048187,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS[au_p2];
+[sa3]aresample=48000,asettb=1/48000,atrim=start_pts=61096235:end_pts=61357296,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS[au_p3];
+[sa4]aresample=48000,asettb=1/48000,atrim=start_pts=61434172:end_pts=61839377,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS[au_p4];
+[sa5]aresample=48000,asettb=1/48000,atrim=start_pts=61901840:end_pts=62563300,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS[au_p5];
+[sa6]aresample=48000,asettb=1/48000,atrim=start_pts=62620958:end_pts=62851589,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS[au_p6];
 [au_p0][au_p1][au_p2][au_p3][au_p4][au_p5][au_p6]concat=n=7:v=0:a=1[apre];
 [apre]aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[aout]
 
