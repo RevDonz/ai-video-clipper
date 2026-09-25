@@ -430,6 +430,49 @@ def _first_sentence(text: str) -> str:
     return _SENTENCE_END.split(stripped, maxsplit=1)[0].rstrip(" .").strip()
 
 
+def repair_trend_packaging(
+    title: str,
+    hook_text: str,
+    description: str,
+    *,
+    invented: Callable[[str], bool],
+    source: str,
+    fallback: str,
+) -> tuple[str, str, str]:
+    """An LLM moment's title, hook text and description without the text ``invented`` flags.
+
+    Konteks Tren: packaging may only name trends the clip's own transcript (``source``)
+    mentions; ``invented`` says whether a text names another one. Flagged description sentences
+    are removed. A flagged title becomes the first remaining description sentence (when it fits
+    :data:`MAX_TITLE_CHARS`) or the hook text; a flagged hook text becomes the title or that
+    sentence (when it fits :data:`MAX_HOOK_TEXT_CHARS`, emoji removed). A candidate must not be
+    flagged and must pass :func:`packaging_problem` against ``source``; ``fallback`` (a clean
+    line of the clip, never flagged) is the last resort. Unflagged fields come back unchanged.
+    """
+    if description and invented(description):
+        sentences = _SENTENCE_END.split(description.strip())
+        description = " ".join(part for part in sentences if part and not invented(part))
+    summary = _first_sentence(description)
+
+    def pick(current: str, candidates: Sequence[str], limit: int, *, title: bool) -> str:
+        if current and not invented(current):
+            return current
+        for candidate in candidates:
+            text = candidate if title else _without_emoji(candidate)
+            if (
+                text
+                and len(text) <= limit
+                and not invented(text)
+                and packaging_problem(text, source, title=title) is None
+            ):
+                return text
+        return fallback
+
+    title = pick(title, [summary, hook_text], MAX_TITLE_CHARS, title=True)
+    hook_text = pick(hook_text, [title, summary], MAX_HOOK_TEXT_CHARS, title=False)
+    return title, hook_text, description
+
+
 def next_model_client(
     client: LLMClient, provider: str | None, model: str | None
 ) -> LLMClient | None:

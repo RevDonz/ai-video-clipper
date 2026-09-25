@@ -37,6 +37,7 @@ from ai_clipper.llm_selection import (
     quote_overlap,
     render_prompt_line,
     render_trend_block,
+    repair_trend_packaging,
     standard_sha256,
     tidy_packaging_text,
 )
@@ -1384,3 +1385,29 @@ def test_the_outcome_reports_each_proposal_ranking_value() -> None:
     outcome, _ = run(flat_units(), [], responses=responses, k=2, rerank=True)
     assert outcome.rank_values == (8.0, 7.5, 6.0, 5.0)  # 0.5 * propose + 0.5 * rerank
     assert [item.score for item in outcome.proposals] == [6.0, 7.0, 8.0, 9.0]
+
+
+def test_repair_trend_packaging_replaces_only_the_flagged_fields():
+    def invented(text: str) -> bool:
+        return "kabur" in text.casefold()
+
+    source = "Gue cerita soal teman lama di kota waktu itu."
+    kept = repair_trend_packaging(
+        "Judul bersih", "Hook bersih", "Deskripsi bersih.", invented=invented, source=source,
+        fallback="Cadangan",
+    )
+    assert kept == ("Judul bersih", "Hook bersih", "Deskripsi bersih.")
+
+    title, hook, description = repair_trend_packaging(
+        "Kabur Aja Dulu versi podcast", "Kabur aja dulu 🔥", "Tren kabur aja dulu. Teman lama pulang kampung!",
+        invented=invented, source=source, fallback="Cadangan",
+    )
+    assert description == "Teman lama pulang kampung!"
+    assert title == "Teman lama pulang kampung!"
+    assert hook == "Teman lama pulang kampung!"
+
+    title, hook, description = repair_trend_packaging(
+        "Kabur Aja Dulu", "Kabur!", "Kabur aja dulu.", invented=invented, source=source,
+        fallback="Cadangan",
+    )
+    assert (title, hook, description) == ("Cadangan", "Cadangan", "")
