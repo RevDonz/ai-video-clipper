@@ -369,6 +369,33 @@ test("a lock held by another process delays the write; a stale one is reclaimed"
   await assert.rejects(lstat(lock), { code: "ENOENT" });
 });
 
+test("only one waiter at a time may reclaim a stale lock, so two can never both take it", async () => {
+  const { dir, env } = await sandbox();
+  await mkdir(dir, { recursive: true, mode: 0o700 });
+  const lock = path.join(dir, ".trend-context.json.lock");
+  const breaker = `${lock}.break`;
+  const old = new Date(Date.now() - 120_000);
+  await mkdir(lock);
+  await utimes(lock, old, old);
+  await mkdir(breaker); // another process is reclaiming right now
+  let finished = false;
+  const pending = ingestTrendItems([item()], { env, source: "hermes", now: NOW }).then((result) => { finished = true; return result; });
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  assert.equal(finished, false, "the stale lock is left to the reclaimer that holds the breaker");
+  const { rm } = await import("node:fs/promises");
+  await rm(breaker, { recursive: true });
+  assert.equal((await pending).created, 1);
+  assert.deepEqual((await readdir(dir)).sort(), ["trend-context.json"]);
+
+  // A reclaimer that died while holding the breaker does not block anyone for long.
+  await mkdir(lock);
+  await utimes(lock, old, old);
+  await mkdir(breaker);
+  await utimes(breaker, old, old);
+  assert.equal((await ingestTrendItems([item({ title: "Lain", keywords: ["lain lain"] })], { env, source: "hermes", now: NOW })).created, 1);
+  assert.deepEqual((await readdir(dir)).sort(), ["trend-context.json"]);
+});
+
 test("a corrupt store is reported on read and set aside, not lost, on the next write", async () => {
   const { dir, file, env } = await sandbox();
   await mkdir(dir, { recursive: true, mode: 0o700 });
