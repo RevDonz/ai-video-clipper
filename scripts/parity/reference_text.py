@@ -4,11 +4,12 @@
 Writes everything the browser harness (``web/app/parity-harness``) and the scoring scripts
 (``compare.py``, ``enc_check.py``, ``s_color.py``) need, into one directory:
 
-* ``ass/<clip>.ass``: the ASS samples. Classic, karaoke and the hook come from today's
-  ``captions_ass.build_ass`` with frame-safe times; Bold and Box are hand-written from plan §5.4
-  until T1.2a's ``build_ass_v2`` lands (same style numbers as its pack files), including the
-  pack variants of the spike (DejaVu Sans Bold instead of Montserrat ExtraBold; a ``\\p``
-  vector box instead of ``BorderStyle 3``), a fallback-glyph sample and a P-COLOR swatch sheet.
+* ``ass/<clip>.ass``: the ASS samples. Every gated clip (the 4 packs × 3 lengths, the hook and
+  the fallback glyph) is the shipped bytes: ``captions_ass.fit_cues`` + ``build_ass_v2`` with
+  the pack files and their default overrides (W1 integration; T1.2b first measured hand-written
+  samples with T1.2a's pack numbers). The pack variants of the spike (DejaVu Sans Bold instead
+  of Montserrat ExtraBold; a ``\\p`` vector box instead of ``BorderStyle 3``) and the P-COLOR
+  swatch sheet stay hand-written.
 * the P-TIME timing fixtures (one per document frame rate): five lanes of events whose edges
   sit on chosen frames, hazard frames included (JASSUB side of P-TIME).
 * ``plate/<name>.mkv``: the lossless plate (a ``fit_blur`` layout of ``testsrc2``, or a flat
@@ -54,8 +55,9 @@ import compare
 from compare import Box
 
 from ai_clipper import captions_ass
+from ai_clipper.edit_v2 import PACK_DEFAULT_OVERRIDES
 from ai_clipper.edit_v2.timemap import Fps, now_ms, safe_cs
-from ai_clipper.subtitles import CaptionCue, CaptionWord
+from ai_clipper.subtitles import CaptionCue, CaptionWord, FrameCue, FrameWord
 
 SCHEMA = "potongin.parity-text/1"
 WIDTH, HEIGHT = 720, 1280
@@ -359,6 +361,38 @@ def hook_ass(text: str, *, fps: Fps, total_frames: int) -> str:
                                   hook_text=text, hook_duration=duration)
 
 
+HOOK_Y_E5 = 13000  # the seed's hook position (plan §3.5)
+
+
+def frame_cues(cues: Sequence[Cue]) -> tuple[FrameCue, ...]:
+    """The harness cues as ``subtitles.FrameCue`` (word ids in order, no emphasis)."""
+    result, index = [], 0
+    for cue in cues:
+        words = []
+        for word in cue.words:
+            words.append(FrameWord(f"w{index:06d}", word.f0, word.f1, word.text, False))
+            index += 1
+        result.append(FrameCue(cue.f0, cue.f1, "seg_b1", tuple(words)))
+    return tuple(result)
+
+
+def shipped_ass(cues: Sequence[Cue], *, pack: str, fps: Fps, total_frames: int,
+                hook_text: str | None = None) -> tuple[str, tuple[FrameCue, ...]]:
+    """The production ASS of ``cues`` in ``pack`` (``fit_cues`` + ``build_ass_v2``, the pack's
+    default overrides) and the cues as the pack shows them; ``hook_text`` adds the legacy-bar
+    hook over the whole clip."""
+    pack_file = captions_ass.load_pack(pack, 1)
+    overrides = PACK_DEFAULT_OVERRIDES[pack]
+    fitted = captions_ass.fit_cues(frame_cues(cues), pack=pack_file, play_res=(WIDTH, HEIGHT),
+                                   overrides=overrides)
+    hook = (None if hook_text is None
+            else captions_ass.HookSpec(hook_text, 0, total_frames, HOOK_Y_E5))
+    ass = captions_ass.build_ass_v2(fitted, play_res=(WIDTH, HEIGHT), fps=fps,
+                                    total_frames=total_frames, pack=pack_file,
+                                    overrides=overrides, hook=hook)
+    return ass, fitted
+
+
 def bold_ass(cues: Sequence[Cue], *, fps: Fps, family: str) -> str:
     """Bold pack sample: one event per word window with the whole cue in each, UPPERCASE; only
     the ``\\1c`` of the active word differs, so the glyphs never reflow (plan §5.4)."""
@@ -612,15 +646,20 @@ def _caption_clip(pack: str, length: int, *, variant: str | None, family: str,
                   measure: Callable[[str], float] | None) -> Clip:
     fps = PTXT_FPS
     words = sample_words(SAMPLE_TEXTS[length], fps=fps, start_f=6)
-    cues = group_cues(words, pack=pack, measure=measure if pack == "box" else None)
-    total = cues[-1].f1 + 12
-    if pack in ("classic", "karaoke"):
-        ass = legacy_ass(cues, fps=fps, style=pack, total_frames=total)
-    elif pack == "bold":
-        ass = bold_ass(cues, fps=fps, family=family)
-    else:
-        ass = box_ass(cues, fps=fps, family=family,
-                      variant="pbox" if variant == "pbox" else "border3", measure=measure)
+    if variant is None:  # the shipped bytes (gated)
+        cues = group_cues(words, pack=pack)
+        total = cues[-1].f1 + 12
+        ass, fitted = shipped_ass(cues, pack=pack, fps=fps, total_frames=total)
+        cues = [Cue(tuple(Word(w.text, w.f0, w.f1) for w in cue.words), cue.f0, cue.f1)
+                for cue in fitted]
+    else:  # the spike's hand-written pack variants (recorded, not gated)
+        cues = group_cues(words, pack=pack, measure=measure if pack == "box" else None)
+        total = cues[-1].f1 + 12
+        if pack == "bold":
+            ass = bold_ass(cues, fps=fps, family=family)
+        else:
+            ass = box_ass(cues, fps=fps, family=family,
+                          variant="pbox" if variant == "pbox" else "border3", measure=measure)
     edges = _cue_edges(cues, words=pack in ("karaoke", "bold")) | {0, total}
     probes = choose_probes(edges, (cues[0].f0, cues[-1].f1))
     suffix = f"-{variant}" if variant else ""
@@ -658,18 +697,22 @@ def build_clips(*, fallback_char: str,
     clips.append(Clip(id="hook", kind="ptxt", pack="hook", chars=len(HOOK_TEXT), variant=None,
                       fps=(fps.num, fps.den), total_frames=total,
                       probe_frames=choose_probes(edges, (fade_in, fade_out)),
-                      edges=tuple(sorted(edges)), ass=hook_ass(HOOK_TEXT, fps=fps,
-                                                                total_frames=total),
+                      edges=tuple(sorted(edges)),
+                      ass=shipped_ass((), pack="karaoke", fps=fps, total_frames=total,
+                                      hook_text=HOOK_TEXT)[0],
                       plate="fitblur", family=DEJAVU))
-    # Fallback glyph: a character Montserrat lacks, drawn from DejaVu Sans on both sides.
+    # Fallback glyph: a character Montserrat lacks, drawn from DejaVu Sans on both sides (the
+    # shipped Bold pack, so the active-word colour changes at each word too).
     total = 60
-    edges = {0, 6, total - 6, total}
     text = FALLBACK_TEXT.format(fallback_char)
+    fallback_words = sample_words(text, fps=fps, start_f=6)
+    fallback_cue = Cue(tuple(fallback_words), 6, total - 6)
+    fallback, _fitted = shipped_ass([fallback_cue], pack="bold", fps=fps, total_frames=total)
+    edges = {0, 6, total - 6, total} | {word.f0 for word in fallback_words}
     clips.append(Clip(id="fallback", kind="ptxt", pack="fallback", chars=len(text), variant=None,
                       fps=(fps.num, fps.den), total_frames=total,
                       probe_frames=choose_probes(edges, (6, total - 6)), edges=tuple(sorted(edges)),
-                      ass=fallback_ass(fallback_char, fps=fps, start_f=6, end_f=total - 6),
-                      plate="fitblur", family=MONTSERRAT))
+                      ass=fallback, plate="fitblur", family=MONTSERRAT))
     # P-COLOR sheet over a flat plate: static for the whole clip.
     total = 45
     edges = {0, total}
