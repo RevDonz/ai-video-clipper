@@ -16,16 +16,19 @@
 //       the per-part dialog lists exactly the parts both changed differently.
 //
 // Everything is deterministic for a seed (mulberry32); nothing touches the network.
+import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { COMMANDS, CommandRejected } from "../../web/lib/editor/commands.mjs";
+import { ApiError } from "../../web/lib/editor/api-client.mjs";
+import { COMMANDS, CommandRejected, applyCommand } from "../../web/lib/editor/commands.mjs";
 import {
   PACK_IDS,
   SWATCHES,
   body,
   canonicalJson,
+  checkDoc,
   coldOpen,
   contentJson,
   createContext,
@@ -550,6 +553,103 @@ export function runConflictProperty({ contexts, scenarios, seed }) {
   }
   summary.seconds = Math.round(performance.now() - started) / 1000;
   return summary;
+}
+
+// --- a fake edit server for the store tests ----------------------------------------------------
+
+const sha256 = (text) => createHash("sha256").update(text, "utf8").digest("hex");
+
+/**
+ * An in-memory `PUT/GET …/edit` backend with the rules of edit_v2.store (plan §4.4): virtual
+ * revision 0, `If-Match` + revision + parent checks, server-stamped `updated_at_ms`, digest-only
+ * idempotency receipts (a replay returns the recorded result), `base` immutable, 422 for an
+ * invalid document (checkDoc). `failures` queues errors for the next PUTs; `loseResponse` makes
+ * the next PUT commit but fail on the way back (a lost response). `otherTab(commands)` commits an
+ * edit the way a second tab would.
+ */
+export function createFakeServer(context, { jobId = "8f0c2a1e-5b7d-4c3a-9e21-6d4f0b8a7c55", startMs = 1_790_000_100_000 } = {}) {
+  const seed = context.seed;
+  const seedEtag = sha256(canonicalJson(seed));
+  const docs = new Map([[seedEtag, seed]]);
+  const receipts = new Map();
+  let current = seed;
+  let etag = seedEtag;
+  let clock = startMs;
+  const server = {
+    jobId,
+    clipId: seed.clip_id,
+    seedEtag,
+    puts: [],
+    gets: [],
+    prepares: 0,
+    failures: [],
+    loseResponse: false,
+    analysisMissing: false,
+    readOnly: false,
+    get doc() {
+      return current;
+    },
+    get etag() {
+      return etag;
+    },
+    commit(doc) {
+      const stamped = { ...doc, audit: { ...doc.audit, updated_at_ms: Math.max((clock += 1000), current.audit.updated_at_ms + 1) } };
+      current = stamped;
+      etag = sha256(canonicalJson(stamped));
+      docs.set(etag, stamped);
+      return { doc: stamped, etag };
+    },
+    /** Another tab saves `commands` ([type, args] pairs) on top of the current revision. */
+    otherTab(commands) {
+      let doc = current;
+      for (const [type, args] of commands) doc = applyCommand(doc, type, args, context.ctx).doc;
+      return server.commit({ ...doc, revision: current.revision + 1, parent_sha256: etag });
+    },
+  };
+  const edit = (doc, docEtag) => ({
+    doc, etag: docEtag, isSeed: docEtag === seedEtag, seed, seedEtag, engine: seed.base.engine.compiler, notices: [],
+    words: { sha256: seed.base.words.sha256, url: `/api/jobs/${jobId}/clips/${seed.clip_id}/words` },
+    readOnly: server.readOnly, readOnlyReason: server.readOnly ? "transcript_changed" : null,
+  });
+  server.api = {
+    async getEdit({ seed: wantSeed = false } = {}) {
+      server.gets.push({ seed: wantSeed });
+      if (server.analysisMissing) throw new ApiError(409, "analysis_missing", { code: "analysis_missing" });
+      return structuredClone(wantSeed ? { ...edit(seed, seedEtag), readOnly: false, readOnlyReason: null } : edit(current, etag));
+    },
+    async putEdit(doc, { etag: expected, key }) {
+      server.puts.push({ doc: structuredClone(doc), etag: expected, key });
+      if (server.failures.length) throw server.failures.shift();
+      const raw = canonicalJson(doc);
+      const payload = sha256(`${expected}\0${raw}`);
+      const receipt = receipts.get(key);
+      if (receipt) {
+        if (receipt.payload !== payload) throw new ApiError(409, "idempotency_conflict", { code: "idempotency_conflict" });
+        return structuredClone({ doc: docs.get(receipt.etag), etag: receipt.etag, warnings: [] });
+      }
+      if (expected !== etag) throw new ApiError(409, "revision_conflict", { code: "revision_conflict", current: structuredClone(current), etag });
+      if (doc.revision !== current.revision + 1) throw new ApiError(422, "revision_mismatch", { errors: [{ code: "revision_mismatch", path: "/revision" }] });
+      if (doc.parent_sha256 !== etag) throw new ApiError(422, "parent_mismatch", { errors: [{ code: "parent_mismatch", path: "/parent_sha256" }] });
+      const issues = checkDoc(doc, context.ctx);
+      if (issues.length) throw new ApiError(422, issues[0].code, { errors: issues });
+      const result = server.commit(doc);
+      receipts.set(key, { payload, etag: result.etag });
+      if (server.loseResponse) {
+        server.loseResponse = false;
+        throw new ApiError(0, "network_error", {});
+      }
+      return structuredClone({ ...result, warnings: [] });
+    },
+    async words() {
+      return structuredClone(context.words);
+    },
+    async prepare() {
+      server.prepares += 1;
+      server.analysisMissing = false;
+      return { words: "ready", camera: "not_needed", plate: { state: "queued", ready: 0, total: 1 } };
+    },
+  };
+  return server;
 }
 
 function header(context, seq, step, op, doc) {
