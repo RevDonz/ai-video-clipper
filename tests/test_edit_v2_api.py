@@ -461,9 +461,10 @@ def test_a_corrupt_stored_seed_is_an_internal_error_not_a_usage_error(tmp_path, 
 
 def test_an_unreadable_selection_artifact(tmp_path, contexts):
     job_id, job = make_job(tmp_path, contexts)
-    (job / "analysis" / "selection.v3.json").write_text("{broken")
-    payload = call(tmp_path, op="clips", jobId=job_id)[1]
-    assert {e["reason"] for e in payload["clips"]} == {"selection_unreadable"}
+    for content in ("{broken", "[" * 100_000 + "]" * 100_000, '{"clips": []}'):
+        (job / "analysis" / "selection.v3.json").write_text(content)
+        payload = call(tmp_path, op="clips", jobId=job_id)[1]
+        assert {e["reason"] for e in payload["clips"]} == {"selection_unreadable"}
     (job / "analysis" / "selection.v3.json").unlink()
     (job / "analysis" / "selection.v3.json").symlink_to(job / "job.json")
     payload = call(tmp_path, op="clips", jobId=job_id)[1]
