@@ -15,8 +15,8 @@
             720,
             1280
           ],
-          "ratio": 0.3433,
-          "render_s": 21.343,
+          "ratio": 0.3465,
+          "render_s": 21.542,
           "source": [
             1280,
             720
@@ -45,8 +45,8 @@
             720,
             1280
           ],
-          "ratio": 0.1943,
-          "render_s": 12.076,
+          "ratio": 0.2055,
+          "render_s": 12.777,
           "source": [
             1280,
             720
@@ -60,23 +60,23 @@
         "os_cpu_count": 16
       },
       "ffmpeg_threads": 4,
-      "gate_wall_s": 53.5,
+      "gate_wall_s": 55.2,
       "loadavg_after": [
-        4.67,
-        3.17,
-        2.52
+        7.15,
+        6.22,
+        5.3
       ],
       "loadavg_before": [
-        3.59,
-        2.77,
-        2.36
+        7.13,
+        6.04,
+        5.19
       ],
       "modules": "real",
       "note": "synthetic barcode source (flat bands, real captions, hook and audio): encoding costs less than real footage, so these ratios are a lower bound; the real-clip measurement comes with W2",
       "report_only": true,
       "summary": {
-        "p50": 0.2007,
-        "p95": 0.3433
+        "p50": 0.2055,
+        "p95": 0.3465
       },
       "toolchain": {
         "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
