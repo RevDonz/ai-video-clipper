@@ -266,11 +266,11 @@ def gap_transcript():
 
 def test_gap_classes():
     audio = timeline(12.0, silences=[(4.0, 4.8), (5.6, 6.3)])
-    events = [SoundEvent(3.7, "laughter", "tertawa")]
+    events = [SoundEvent(1.95, "laughter", "tertawa")]
     artifact = build(gap_transcript(), (0, 12_000), audio=audio, events=events)
     classes = [(gap["after"], gap["s"], gap["e"], gap["class"]) for gap in artifact["gaps"]]
     assert classes == [
-        ("w000001", 2400, 3400, "laughter"),  # a tag at 3700 ms is within +500 ms
+        ("w000001", 2400, 3400, "laughter"),  # a tag at 1950 ms is within -500 ms
         ("w000002", 4000, 5000, "silent"),  # 800 of 1000 ms silent: exactly 80 %
         ("w000003", 5500, 6500, "voiced"),  # 700 of 1000 ms silent
         ("w000004", 7000, 8000, "laughter"),  # the "wkwk" token starts at 8000
