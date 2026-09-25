@@ -7,7 +7,7 @@ export function proxy(request) {
   if (isAuthorized(request)) return NextResponse.next();
   if (request.nextUrl.pathname.startsWith("/api/")) {
     return NextResponse.json(
-      { error: "Sesi login diperlukan" },
+      { error: "Sesi login diperlukan", code: "unauthorized" },
       { status: 401, headers: { "Cache-Control": "no-store" } },
     );
   }
