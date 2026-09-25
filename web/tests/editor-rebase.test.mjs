@@ -206,6 +206,37 @@ test("ResetToSeed replays as the parts it changed, not as a wipe of theirs' edit
   assert.equal(result.status, "merged");
   assert.equal(result.doc.layout.default.mode, "camera");
   assert.equal(hookItem(result.doc).payload.text, hookItem(C30.seed).payload.text);
+  assert.equal(contentJson(replaySteps(theirs.doc, result.steps, C30.ctx).doc), contentJson(result.doc),
+    "the rebased log replays to the merged document");
+});
+
+test("choosing 'mine' for a field of an item the other tab removed brings the item back", () => {
+  const mine = tab(C30);
+  mine.dispatch("SetHookDuration", { dur_f: 200 });
+  const theirs = tab(C30);
+  theirs.dispatch("SetHookEnabled", { on: false });
+  const result = rebaseTabs(C30, mine, theirs);
+  assert.equal(result.status, "conflict");
+  assert.deepEqual(result.conflicts.map((group) => group.id), ["hook"]);
+  assert.ok(result.conflicts[0].parts.includes("hook.on"));
+  const mineWins = result.resolve({});
+  assert.equal(hookItem(mineWins.doc).dur_f, 200);
+  assert.equal(hookItem(result.resolve({ hook: "theirs" }).doc), null);
+  const words = bodyWords(C30);
+  const co = coldOpen(C30.seed);
+  const coWords = C30.ctx.wordList.filter((_word, index) => C30.ctx.midSf(index) >= co.in_sf && C30.ctx.midSf(index) < co.out_sf);
+  const cutter = tab(C30);
+  cutter.dispatch("RemoveWords", { wordIds: [coWords[2].id], seg: co.id });
+  const remover = tab(C30);
+  remover.dispatch("SetColdOpen", null);
+  remover.dispatch("RemoveWords", { wordIds: [words[40].id] });
+  const second = rebaseTabs(C30, cutter, remover);
+  assert.equal(second.status, "conflict");
+  assert.deepEqual(second.conflicts.map((group) => [group.id, group.label]), [["coldopen", "Cold open"]]);
+  const keep = second.resolve({ coldopen: "mine" });
+  assert.equal(coldOpen(keep.doc).id, co.id);
+  assert.equal(keep.doc.main.removals.length, 2);
+  assert.equal(contentJson(replaySteps(remover.doc, keep.steps, C30.ctx).doc), contentJson(keep.doc));
 });
 
 test("QG-CONFLICT (unit): 2,000 random two-tab scenarios lose no edit and always resolve", () => {

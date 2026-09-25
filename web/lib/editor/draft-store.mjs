@@ -98,31 +98,39 @@ export function createDraftWriter({ store, now = () => Date.now(), onError = () 
   let active = null;
   const stats = { requested: 0, writes: 0, errors: 0, lastWrittenAt: null, maxLagMs: 0 };
 
-  const pump = async () => {
-    while (queue.size) {
-      const [key, job] = queue.entries().next().value;
-      queue.delete(key);
-      try {
-        if (job.remove) await store.delete(key);
-        else await store.put(job.draft);
-        stats.writes += 1;
-        stats.lastWrittenAt = now();
-        stats.maxLagMs = Math.max(stats.maxLagMs, stats.lastWrittenAt - job.at);
-      } catch (error) {
-        stats.errors += 1;
-        onError(error);
+  // The pump clears `active` itself, in the same microtask in which it sees the queue empty, so a
+  // write queued a moment later always starts a new pump (never waits on a finished one).
+  const pump = (token) => (async () => {
+    try {
+      while (queue.size) {
+        const [key, job] = queue.entries().next().value;
+        queue.delete(key);
+        try {
+          if (job.remove) await store.delete(key);
+          else await store.put(job.draft);
+          stats.writes += 1;
+          stats.lastWrittenAt = now();
+          stats.maxLagMs = Math.max(stats.maxLagMs, stats.lastWrittenAt - job.at);
+        } catch (error) {
+          stats.errors += 1;
+          onError(error);
+        }
       }
+    } finally {
+      if (active === token) active = null;
     }
-  };
+  })();
 
   const enqueue = (key, job) => {
     stats.requested += 1;
     queue.delete(key);
     queue.set(key, { ...job, at: now() });
-    if (!active) active = pump().finally(() => {
-      active = null;
-    });
-    return active;
+    if (!active) {
+      const token = {};
+      active = token;
+      token.promise = pump(token);
+    }
+    return active?.promise ?? Promise.resolve();
   };
 
   return {
@@ -134,7 +142,7 @@ export function createDraftWriter({ store, now = () => Date.now(), onError = () 
       return enqueue(key, { remove: true });
     },
     async flush() {
-      while (active) await active;
+      while (active) await active.promise;
     },
   };
 }
