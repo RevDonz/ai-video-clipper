@@ -342,3 +342,28 @@ test("a duplicated tab (copied sessionStorage) takes a new id instead of sharing
   a.store.destroy();
   c.store.destroy();
 });
+
+test("a closed tab whose last PUT was committed but not confirmed is recognised as saved", async () => {
+  const server = createFakeServer(C30);
+  const drafts = createMemoryDraftStore();
+  const storageA = sessionStorageLike();
+  const a = await opened(openTab({ server, drafts, tabStorage: storageA }));
+  a.store.dispatch("SetLayout", { mode: "camera" });
+  await a.store.draftWriter.flush();
+  const clockB = fakeClock();
+  const b = await opened(openTab({ server, drafts, clock: clockB, autosave: true }));
+  b.store.dispatch("RemoveWords", { wordIds: [WORDS[12].id] });
+  server.loseResponse = true;
+  await clockB.advance(1500);
+  assert.equal(server.puts.length, 1, "committed on the server, response lost");
+  await b.store.draftWriter.flush();
+  b.store.destroy();
+  a.store.destroy();
+  const again = await opened(openTab({ server, drafts, tabStorage: storageA }));
+  const state = again.store.getState();
+  assert.notEqual(state.notice?.code, "draft_conflict");
+  assert.equal(state.doc.main.removals.length, 1, "the saved removal is there once");
+  assert.equal(state.doc.layout.default.mode, "camera");
+  assert.deepEqual((await drafts.list(server.clipId)).map((draft) => draft.key), [again.store.draftKey]);
+  again.store.destroy();
+});
