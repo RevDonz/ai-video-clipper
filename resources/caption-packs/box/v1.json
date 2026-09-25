@@ -1,0 +1,18 @@
+{
+  "schema": "potongin.caption-pack/1",
+  "id": "box",
+  "v": 1,
+  "name": "Box",
+  "style_name": "Box",
+  "font": {"family": "Montserrat ExtraBold", "file": "Montserrat-ExtraBold.ttf", "bold": false},
+  "size": {"num": 12, "den": 288, "scale_pm": 1200},
+  "outline": {"num": 1, "den": 100},
+  "shadow": {"num": 0, "den": 1},
+  "border_style": 3,
+  "colours": {"text": "#FFFFFF", "outline": "#000000", "outline_alpha": 64, "back": "#000000", "back_alpha": 64},
+  "margin_side_pm": 60,
+  "reveal": "static",
+  "words_per_cue": 3,
+  "max_width_pm": 880,
+  "defaults": {"y_e5": 83000, "size_pm": 1000, "case": "asis", "highlight": "#FFE14D", "emphasis": "#FF5C8A"}
+}
