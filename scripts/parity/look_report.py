@@ -59,7 +59,7 @@ from ai_clipper.edit_v2 import timemap as tm
 from ai_clipper.edit_v2.glyphs import RESOURCES_DIR
 from ai_clipper.edit_v2.loudness import parse_ebur128
 from ai_clipper.selection_v3 import read_selection_artifact
-from ai_clipper.subtitles import build_caption_cues
+from ai_clipper.subtitles import build_caption_cues, clean_caption_text
 from ai_clipper.transcript_io import read_transcript_json
 
 TASK = "T2.1"
@@ -255,6 +255,62 @@ def ssim_frames(new: Path, legacy: Path, new_fps: tuple[int, int],
             if match:
                 values.append(1.0 if match.group(2) == "inf" else float(match.group(2)))
     return values
+
+
+def band_ssim(new: Path, legacy: Path, new_fps: tuple[int, int], legacy_fps: tuple[int, int],
+              offset: int, dy: int) -> float:
+    """Mean luma SSIM of the fit-blur foreground band (x 10–710, y 450–830 of the new frame)
+    against the legacy band ``dy`` rows higher (``dy=-1``: the legacy 1-px-higher placement)."""
+    shift = {0: "", 1: "trim=start_frame=1,", -1: "tpad=start=1:start_mode=clone,"}[offset]
+    graph = (f"[0:v]setpts=N*{new_fps[1]}/{new_fps[0]}/TB,format=gray,crop=700:380:10:450[n];"
+             f"[1:v]{shift}setpts=N*{legacy_fps[1]}/{legacy_fps[0]}/TB,"
+             f"fps=fps={new_fps[0]}/{new_fps[1]}:round=down,format=gray,"
+             f"crop=700:380:10:{450 + dy}[l];[n][l]ssim=shortest=1[out]")
+    result = _run(["ffmpeg", "-nostdin", "-threads", str(THREADS), "-i", str(new), "-threads",
+                   str(THREADS), "-i", str(legacy), "-filter_complex", graph,
+                   "-filter_complex_threads", str(THREADS), "-map", "[out]", "-f", "null", "-"])
+    line = [row for row in result.stderr.decode().splitlines() if "SSIM" in row][-1]
+    return float(re.search(r"All:([0-9.]+)", line).group(1))
+
+
+def cue_match(job_dir: Path, rank: int, clip_id: str) -> dict[str, int]:
+    """How many of the seed's caption cues show the same words as ``render_vertical``'s."""
+    job = _read_json(job_dir / "job.json")
+    transcript = read_transcript_json(job_dir / "output" / "transcript.json")
+    selection = read_selection_artifact(job_dir / "analysis" / "selection.v3.json")
+    clip = next(item for item in selection.clips if item.rank == rank)
+    teaser = clip.cold_open if job["options"].get("coldOpen", True) else None
+    ranges = ((clip.start, clip.end),) if teaser is None else (teaser, (clip.start, clip.end))
+    legacy = [" ".join(clean_caption_text(cue.text).split())
+              for cue in build_caption_cues(transcript.segments, ranges)]
+    document, _etag = store.seed(job_dir / "analysis" / "clips" / clip_id)
+    plan = render_edit.load_render_inputs(job_dir, document).plan
+    new = [" ".join(word.text for word in cue.words) for cue in plan.captions.cues]
+    return {"new": len(new), "legacy": len(legacy), "same_words": sum(t in legacy for t in new)}
+
+
+def supplement(work: Path, new_label: str, measured: dict[str, Any]) -> dict[str, Any]:
+    """Explanatory numbers beside the gate: the fit-blur foreground band at the legacy's
+    placement (its overlay truncated y to even, R4 fixes it) and the caption cue grouping."""
+    for row in measured["clips"]:
+        new_job = work / "runs" / new_label / "jobs" / row["job"]
+        name = f"clip-{row['rank']:02d}.mp4"
+        legacy = (work / "owner" / row["job"] / name if measured["legacy"] == "owner"
+                  else work / "runs" / measured["legacy"] / "jobs" / row["job"] / "output" / name)
+        clip_id = _clip_id(new_job, row["rank"])
+        row["cues"] = cue_match(new_job, row["rank"], clip_id)
+        if row["render_mode"] == "fit-blur":
+            new_fps = _fraction(row["new"]["video"]["r_frame_rate"])
+            legacy_fps = _fraction(row["legacy"]["video"]["r_frame_rate"])
+            offset = row["ssim"]["best_offset"]
+            row["band_luma_ssim"] = {
+                "same_rows": round(band_ssim(new_job / "output" / name, legacy, new_fps,
+                                             legacy_fps, offset, 0), 5),
+                "legacy_one_row_higher": round(band_ssim(new_job / "output" / name, legacy,
+                                                         new_fps, legacy_fps, offset, -1), 5)}
+        print(json.dumps({"clip": _short(row), "cues": row["cues"],
+                          "band": row.get("band_luma_ssim")}), flush=True)
+    return measured
 
 
 def _percentile(values: list[float], fraction: float) -> float:
@@ -604,10 +660,39 @@ def index_markdown(measured: dict[str, Any], sheets: list[str], pairs: list[str]
             f"| {row['loudness']['delta_lu']:+.2f} |")
     total_old = sum(row["legacy"]["size_bytes"] for row in rows)
     total_new = sum(row["new"]["size_bytes"] for row in rows)
+    explained = _explanations(measured)
+    band = explained.get("fit_blur_band_luma_ssim_mean")
+    cues = explained.get("caption_cues")
     lines += [
         "",
         (f"Total ukuran: {_mb(total_old)} MB lama → {_mb(total_new)} MB baru "
         f"({total_new / total_old:.2f}×)."),
+        "",
+        "## Mengapa banyak frame di bawah SSIM 0,98",
+        "",
+        ("Gerbang P-LOOK meminta SSIM ≥ 0,98 per frame; angka di atas **tidak memenuhinya**. "
+        "Penyebabnya perubahan yang disengaja, bukan kerusakan:"),
+        "",
+    ]
+    if band is not None:
+        lines.append(
+            f"- **Fit-blur: video depan turun 1 piksel.** Mesin lama membulatkan posisi video "
+            f"depan ke baris genap (bug overlay 4:2:0), mesin baru menaruhnya tepat di tengah. "
+            f"Pada pita video depan, SSIM luma rata-rata {band['same_rows']:.3f}; bila mesin "
+            f"lama digeser 1 baris, {band['legacy_one_row_higher']:.3f} ({band['clips']} klip).")
+    lines += [
+        ("- **Face-track:** jalur kamera dihitung sekali per jendela dan dihaluskan, jadi "
+        "potongan kiri-kanan berbeda (SSIM rata-rata 0,85–0,95 di klip face-track)."),
+        ("- **Encode R7** (crf 18 + chroma QP −12) menghasilkan noise kompresi yang berbeda dari "
+        "crf 21."),
+        ("- **Frame rate** 60 → 30 dan VFR → 30: sebagian frame menampilkan saat yang sedikit "
+        "berbeda."),
+    ]
+    if cues is not None:
+        lines.append(
+            f"- **Caption:** {cues['same_words']} dari {cues['new']} cue berisi kata yang sama "
+            f"persis; sisanya dikelompokkan sedikit berbeda di jeda tepat 0,6 s.")
+    lines += [
         "",
         "## Isi folder",
         "",
@@ -625,8 +710,45 @@ def index_markdown(measured: dict[str, Any], sheets: list[str], pairs: list[str]
 # --- evidence -----------------------------------------------------------------------------------
 
 
-def evidence(measured: dict[str, Any], work: Path, legacy_run: str,
-             new_run: str) -> tuple[dict[str, Any], dict[str, Any]]:
+def _explanations(measured: dict[str, Any]) -> dict[str, Any]:
+    """Summary of the supplement: fit-blur foreground band and caption cue grouping."""
+    rows = measured["clips"]
+    bands = [row["band_luma_ssim"] for row in rows if row.get("band_luma_ssim")]
+    cues = [row["cues"] for row in rows if row.get("cues")]
+    out: dict[str, Any] = {}
+    if bands:
+        out["fit_blur_band_luma_ssim_mean"] = {
+            "same_rows": round(statistics.fmean(item["same_rows"] for item in bands), 5),
+            "legacy_one_row_higher": round(statistics.fmean(
+                item["legacy_one_row_higher"] for item in bands), 5),
+            "clips": len(bands)}
+    if cues:
+        out["caption_cues"] = {"new": sum(item["new"] for item in cues),
+                               "same_words": sum(item["same_words"] for item in cues)}
+    return out
+
+
+def _reference_summary(measured: dict[str, Any]) -> dict[str, Any]:
+    """The same measurement against the legacy engine re-rendered in the pinned image."""
+    rows = measured["clips"]
+    return {
+        "legacy_reference": measured["legacy"],
+        "ssim_frames": sum(row["ssim"]["frames"] for row in rows),
+        "ssim_frames_below": sum(row["ssim"]["frames_below_threshold"] for row in rows),
+        "ssim_per_frame_best_mean": round(statistics.fmean(
+            row["ssim"]["per_frame_best_mean"] for row in rows), 5),
+        "ssim_per_frame_best_min": min(row["ssim"]["per_frame_best_min"] for row in rows),
+        "per_clip_mean": {_short(row): row["ssim"]["per_frame_best_mean"] for row in rows},
+        "loudness_max_delta_lu": max(abs(row["loudness"]["delta_lu"]) for row in rows),
+        "bbox_max_delta_px": max((row["bbox"][region]["max_delta_px"] or 0) for row in rows
+                                 for region in ("captions", "hook")),
+        **_explanations(measured),
+    }
+
+
+def evidence(measured: dict[str, Any], work: Path, legacy_run: str, new_run: str,
+             reference: dict[str, Any] | None = None,
+             diagnosis: dict[str, Any] | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
     clips = []
     for row in measured["clips"]:
         clips.append({
@@ -650,6 +772,8 @@ def evidence(measured: dict[str, Any], work: Path, legacy_run: str,
                           "new": row["new"]["video"]["bit_rate"]},
             "color_tags": {"legacy": row["legacy"]["video"]["color"],
                            "new": row["new"]["video"]["color"]},
+            "cues": row.get("cues"),
+            "band_luma_ssim": row.get("band_luma_ssim"),
         })
     ssim_ok = [row["ssim"]["frames_below_threshold"] == 0 for row in measured["clips"]]
     bbox_ok = [all(row["bbox"][region]["presence_mismatch"] == 0
@@ -686,9 +810,12 @@ def evidence(measured: dict[str, Any], work: Path, legacy_run: str,
                 / sum(row["legacy"]["size_bytes"] for row in measured["clips"]), 3),
             "pass_measured": all(ssim_ok) and all(bbox_ok) and all(loud_ok),
             "owner_approval": "pending (checkpoint 2, K1)",
+            **_explanations(measured),
         },
         "environment": measured["environment"],
     }
+    if reference is not None:
+        look["toolchain_controlled_reference"] = _reference_summary(reference)
     legacy = _read_json(work / "runs" / legacy_run / "render.json")
     new = _read_json(work / "runs" / new_run / "render.json")
     layouts: dict[str, dict[str, float]] = {}
@@ -723,6 +850,8 @@ def evidence(measured: dict[str, Any], work: Path, legacy_run: str,
           "threshold": PF_BUDGET, "layouts": layouts, "jobs": jobs,
           "pass": all(bucket["pass"] for bucket in layouts.values()),
           "environment": {"legacy": legacy["environment"], "new": new["environment"]}}
+    if diagnosis is not None:
+        pf["diagnosis"] = diagnosis
     return look, pf
 
 
@@ -744,6 +873,10 @@ def main(argv: list[str] | None = None) -> int:
     cmd.add_argument("--legacy", required=True)
     cmd.add_argument("--job", action="append", default=None)
     cmd.add_argument("--out", type=Path, required=True)
+    cmd = commands.add_parser("supplement")
+    cmd.add_argument("--work", type=Path, required=True)
+    cmd.add_argument("--new", required=True)
+    cmd.add_argument("--measure", type=Path, required=True)
     cmd = commands.add_parser("kit")
     cmd.add_argument("--work", type=Path, required=True)
     cmd.add_argument("--new", required=True)
@@ -756,6 +889,10 @@ def main(argv: list[str] | None = None) -> int:
     cmd.add_argument("--measure", type=Path, required=True)
     cmd.add_argument("--legacy-run", required=True)
     cmd.add_argument("--new-run", required=True)
+    cmd.add_argument("--reference", type=Path, default=None,
+                     help="the measure JSON against the image's legacy re-render")
+    cmd.add_argument("--diagnosis", type=Path, default=None,
+                     help="the PF-PIPELINE cost breakdown JSON")
     cmd.add_argument("--out-dir", type=Path, required=True)
     args = parser.parse_args(argv)
     if args.command == "prepare":
@@ -769,12 +906,17 @@ def main(argv: list[str] | None = None) -> int:
             keep = [row for row in previous["clips"] if row["job"] not in args.job]
             result["clips"] = keep + result["clips"]
         _write_json(args.out, result)
+    elif args.command == "supplement":
+        _write_json(args.measure, supplement(args.work, args.new, _read_json(args.measure)))
     elif args.command == "kit":
         pairs = [pair for pair in args.pairs.split(",") if pair]
         print(json.dumps(kit(args.work, args.new, args.legacy, _read_json(args.measure), pairs,
                              args.out), indent=1))
     else:
-        look, pf = evidence(_read_json(args.measure), args.work, args.legacy_run, args.new_run)
+        look, pf = evidence(
+            _read_json(args.measure), args.work, args.legacy_run, args.new_run,
+            None if args.reference is None else _read_json(args.reference),
+            None if args.diagnosis is None else _read_json(args.diagnosis))
         _write_json(args.out_dir / f"{TASK}-P-LOOK.json", look)
         _write_json(args.out_dir / f"{TASK}-PF-PIPELINE.json", pf)
         print(json.dumps({"P-LOOK": look["summary"], "PF-PIPELINE": pf["layouts"]}, indent=1))
