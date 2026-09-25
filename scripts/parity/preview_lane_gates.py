@@ -35,7 +35,6 @@ import json
 import os
 import platform
 import random
-import re
 import shutil
 import statistics
 import subprocess
@@ -53,11 +52,11 @@ for _path in (ROOT / "src", ROOT / "tests"):
     if str(_path) not in sys.path:
         sys.path.insert(0, str(_path))
 
-from ai_clipper.edit_v2 import compile_ffmpeg, execute, plates, store  # noqa: E402
-from ai_clipper.edit_v2 import timemap as tm  # noqa: E402
-from ai_clipper.edit_v2.glyphs import RESOURCES_DIR  # noqa: E402
-from ai_clipper.edit_v2.loudness import needs_measurement, parse_ebur128  # noqa: E402
-from ai_clipper.edit_v2.plan import Resources, build_plan  # noqa: E402
+from ai_clipper.edit_v2 import compile_ffmpeg, execute, plates, store
+from ai_clipper.edit_v2 import timemap as tm
+from ai_clipper.edit_v2.glyphs import RESOURCES_DIR
+from ai_clipper.edit_v2.loudness import needs_measurement, parse_ebur128
+from ai_clipper.edit_v2.plan import Resources, build_plan
 
 TASK = "T2.3"
 BUDGETS = {"pf_plan_ms": 200, "pf_truth_ms": 600, "pf_audio_ms": 1000,
@@ -539,7 +538,7 @@ class Gates:
         doc = clip.revision()
         doc["layout"]["default"]["mode"] = layout
         started = time.perf_counter()
-        status, prepared, prepare_ms = self.app.prepare(clip.job_id, clip.id, layout)
+        status, _prepared, prepare_ms = self.app.prepare(clip.job_id, clip.id, layout)
         if status != 202:
             return {"error": f"prepare {status}", "pass": False}
         status, dto, plan_ms = self.app.plan(clip.job_id, clip.id, doc, playhead=0)
@@ -619,7 +618,7 @@ class Gates:
                      "source_codec": subprocess.run(
                          ["ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries",
                           "stream=codec_name", "-of", "csv=p=0", str(clip.source)],
-                         capture_output=True, text=True).stdout.strip(),
+                         capture_output=True, text=True, check=False).stdout.strip(),
                      "pieces": len(plan.pieces), "plan_samples": plan.total_samples,
                      "preview_samples": len(preview_pcm) // 4,
                      "reference_samples": len(reference_pcm) // 4,
