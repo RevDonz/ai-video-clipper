@@ -280,3 +280,272 @@ Appendix A.2) and `editor.module.css` (tokens only). Unit tests: `web/tests/pyth
 10. **P-PLATE margin**: with R7 at crf 18 the final's SSIM equals the plate's (+0.000001 to
     −0.000013); the gate keeps its 0.002 margin. A later change to the plate encode must keep
     the plate within it.
+
+---
+
+## W2 "Editor bisa dipakai": exit gate (T2.Z, 2026-09-25)
+
+Branch `editor-w2-integration`: the W2 base `44b4437`, then T2.1 → T2.2 → T2.3 → T2.5 → T2.4 →
+T2.6 → T2.7 cherry-picked in that order (60 commits, no conflicts), then the integration commits
+(`4c4fd67` onward: failing tests first, then each fix; patches 20–38 below). Flags stay off by
+default: `POTONGIN_RENDER_ENGINE=legacy` (K1 pending), `POTONGIN_EDITOR_V3=off`,
+`POTONGIN_EDITOR_UPLOADS=off`, `POTONGIN_EDITOR_LLM=off`; `compose.yaml` already passes
+`POTONGIN_EDITOR_V3` (default `off`) to the app since W1, so it needs no change.
+
+Toolchain of record: `ai-video-clipper:editor-w2`, built from this branch at `55629e6` (the last
+code commit; later commits are evidence and documents): the W1 pins unchanged,
+`/app/resources/toolchain.json` sha `4fefb754…85f0` (the same as `editor-w1z`, so every W1 render
+key is still valid), FFmpeg 5.1.9, libass 0.17.1, Python 3.11.2, and the JASSUB worker glue and
+wasm traced into the standalone build. Browser: Chrome for Testing 147.0.7727.15 (Playwright
+1.62.1, build 1217) for every browser gate. Real jobs: copies of the owner's P3 jobs in scratch
+`JOBS_ROOT`s (the originals were only read); the e2e ran against the image's app and render-worker
+containers (`--cpus 6` and `4`) on 127.0.0.1:3481, the QG-SEC and browser-gate runs against a
+production build of the branch on 127.0.0.1:3471. Machine: the K15 reference PC (Ryzen 7 5700G, 16
+threads), shared with other agents; load averages are in the evidence files (2–8 during these
+runs).
+
+### Summary table
+
+| Gate | Threshold | Measured (W2 exit, integrated branch) | Evidence | Result |
+|---|---|---|---|---|
+| pytest (Python 3.13.13, FFmpeg 6.1.1) | green | 3,283 passed, 2 skipped (the opt-in PUT timing gate; the pack-thumbnail reproduction, toolchain-only) | — | **pass** |
+| pytest (Python 3.11.15) | green | 3,283 passed, 2 skipped (the same two) | — | **pass** |
+| pytest inside `editor-w2` (Python 3.11.2, FFmpeg 5.1.9) | green | 3,282 passed, 3 skipped (the PUT timing gate; no C compiler for the `vf_subtitles` reference; no git metadata in the container), 0 failed | — | **pass** |
+| ruff `src tests` | 0 findings | 0 | — | **pass** |
+| `npm test` / `npm run build` | green | 828/828 (T2.2's child-env test of the render-queue routes runs now that patch 20 landed); build OK (13 Turbopack warnings, all in routes that predate W2) | — | **pass** |
+| `docker build -t ai-video-clipper:editor-w2 .` | builds | OK at `55629e6`; `toolchain.json` sha `4fefb754…`; `/app/node_modules/jassub/dist/wasm/jassub-worker.{js,wasm}` present | — | **pass** |
+| **W1 gates still green** (re-run in `editor-w2` after the R2 fix, patch 34) | as W1 | P-FRAME (server) 0 mismatches: 3,625 final + 3,625 plate output + 4,371 plate-cell frames (6 cases); P-PLATE margins +0.00200 / +0.00200 / +0.00199, crop x 0 px on 710 frames × 3 streams (514 distinct x); G1/G2 8/8; G-DET 0 digest differences over 8 cases and 3 processes, 0 preview/export ASS mismatches; PF-RENDER p50 0.171×, p95 0.299× (report). P-TIME, P-TXT, P-COLOR, P-ENC, P-AUD (server), G-CLICK, duck, G3, G3b: their code is unchanged since W1 (text, audio graph, encode); their unit tests are in the suites above and T2.4 re-ran P-TXT/P-TIME on the changed text adapter with W1's numbers | `T2.Z-P-FRAME-server.json`, `T2.Z-P-PLATE-server.json`, `T2.Z-G1-G2.json`, `T2.Z-G-DET.json`, `T2.Z-PF-RENDER.json`, `T2.4-W1-TEXT-RECHECK.json` | **pass** |
+| **e2e flow** (open → trim → delete words → fix a word → switch pack → edit the hook → change the cold open → undo/redo → reload → export → download → G1–G3 → back to the AI version → export → R10) | every step; G1–G3 on the file; R10 = the auto file | image stack, a real 48.8 s legacy-engine clip: every step passes; the edited export renders in 22.1 s and passes G1 and G2 on the downloaded file (G3 applies only to `normalize` documents; this seed is `off`; G5 warns `unsafe_zone`); the AI version exports the auto file itself (same inode, bytes equal, `completedBy: seed`, 200 at create) | `T2.Z-e2e-flow.json` | **pass** |
+| Open any V3 clip | every real clip opens | 32/32 real clips of the five P3 jobs (fit-blur, center-crop, face-track; 30, 25, 24000/1001 fps) open and show a frame; first open p50 2.4 s, max 3.4 s (cells built on demand); 0 page errors | `T2.Z-open-all-clips.json` | **pass** |
+| P-RT (incl. R10) | framemd5 + PCM md5 identical; R10 100 % | T2.1: 26/26 revision-0 re-renders identical in video, PCM and bytes (6 synthetic incl. cold open and face-track, 20 real, 32,620 frames); R10 147/147 by inode. T2.Z: R10 through the UI on a real clip (row above) | `T2.1-P-RT.json`, `T2.Z-e2e-flow.json` | **pass** |
+| P-FRAME (browser) | 0 mismatches, ≥ 2,000 frames | 0 / 3,625 frames (6 barcode cases: 29.97, 25, 30, VFR, two source edges; 20 cuts + cold open); crop x 0 / 1,925 | `T2.Z-P-FRAME.json` (T2.4's `T2.4-P-FRAME.json`) | **pass** |
+| P-TIME (browser) | 0 mismatches | 0 / 231 transitions (44 on hazard frames); the one-frame-late control flags 231/231 | `T2.Z-P-TIME.json` | **pass** |
+| P-TXT (browser) | SSIM ≥ 0.999, PSNR ≥ 45 dB, max ≤ 16, 0 px > 16 | 48 frames (4 packs, logo, fallback glyph): worst SSIM 0.99988, text 0.99986, PSNR 60.57 dB, max 13, 0 px > 16 | `T2.Z-P-TXT.json` | **pass** |
+| P-LOGO (fixture asset) | box 0 px; mean ≤ 2; max ≤ 8 | 8 frames: box exact, mean 1.20, max 2 | `T2.Z-P-LOGO.json` | **pass** |
+| P-AUD | server md5 equal, samples = plan; browser ≤ 1 LSB, same count | server (T2.3, through the lane): 6/6 real cases md5 equal, samples = plan; browser: 6 mixes, 48 kHz, max 0.707 LSB against x/32768 (0 samples differ under Chrome's int16 scaling), sample count = the reference PCM. The VFR barcode source's mix is 8 samples short of `plan.samples` on both sides (Open 12) | `T2.3-P-AUD.json`, `T2.Z-P-AUD.json` | **pass** (VFR note) |
+| P-SYNC | ≤ 1 frame p99 | 4 clips (21 joins each), 2,286 frames, 0 pixel mismatches, p99 0.34–0.36 frames | `T2.Z-P-SYNC.json` | **pass** |
+| P-PLATE (through the lane) | plate SSIM ≥ final − 0.002; crop x 0 px | T2.3: crop x 0 mismatches on 924 frames per layout; margins 0.00196 / 0.00198 / 0.00200 synthetic, 0.00143 / 0.00148 / 0.00092 real | `T2.3-P-PLATE.json` | **pass** |
+| P-LOOK kit delivered (K1) | kit + owner approval | 20 real clips (60 fps × 5, VFR × 4, face-track × 5, fit-blur 24/25 fps × 6), 20 sheets, 3 MP4 pairs, `index.md` in the scratchpad (`editor-w2/p-look/`). Its thresholds are **not met**: SSIM ≥ 0.98 per frame on 0/20 clips (13,394 of 29,767 frames below; mean of the per-frame best 0.963; min 0.443 face-track); caption/hook boxes 0 px on 17/20 clips (3 probes off 40, 89, 229 px; hook 0 px 20/20); loudness 20/20 within 0.1 LU. The causes are deliberate (fit-blur row rounding, the face-track camera plan, R7, 60/VFR → 30 fps) plus the cue grouping of Open 11 | `T2.1-P-LOOK.json` | **kit delivered**; thresholds **fail** → owner (K1) |
+| PF-PIPELINE (T2.1) | fit-blur, center-crop ≤ 1.35×; face-track ≤ 1.6× | fit-blur 1.206× overall (1.48× and 1.51× on the 23.976 and 25 fps jobs, 0.99× on 60 fps); center-crop 2.51×; face-track 2.16× | `T2.1-PF-PIPELINE.json` | **fail** (center-crop, face-track) |
+| PF-OPEN | first ≤ 3.0 s p95, repeat ≤ 2.0 s p95; first playhead cell ≤ 2.0 s after `prepare` | image stack, a real clip, 10 runs at 1366×768: first p95 932 ms, repeat p95 873 ms (frame on the stage p95 878 ms); first playhead cell 1,034 ms after `prepare` on a clip with no cells | `T2.Z-PF-OPEN.json` | **pass** |
+| PF-SEEK | ≤ 50 ms p95 | 360 cold paused seeks: p50 24.0 ms, p95 38.6 ms, max 54.6 ms (T2.4: 71–91 ms p95 at load 14–23, Open 13) | `T2.Z-PF-SEEK.json` | **pass** (at the measured load) |
+| PF-PLAY | 0 drops at cuts; ≤ 1 per 10 s | 0 drops, 0 at cuts, 4 clips (plain and instrumented) | `T2.Z-PF-PLAY.json` | **pass** |
+| PF-PLAN (server part) | ≤ 200 ms p95 warm | image, 120 distinct documents per run: p95 226.0 ms at load 3.98, 180.6 ms at load 2.85 (T2.3: 196.4 ms at 4.5); Python start-up per request is the cost | `T2.Z-PF-PLAN.json`, `T2.3-PF-PLAN.json` | **fail** at load ≥ 4 (pass at 2.9) |
+| PF-AUDIO | ≤ 1.0 s p95 (90 s clip with music) | image: with music p95 1,911 ms, speech only 959 ms (T2.3: 2,086 / 929 ms); two full decodes (the ebur128 measurement 892 ms, the preview FLAC 664 ms) | `T2.Z-PF-AUDIO.json` | **fail** (music) |
+| PF-CELLS | ≤ 15 s (fit-blur, center-crop), ≤ 25 s (face-track) | T2.3: fit-blur 60 fps 13.38 s, center-crop VFR 9.12 s, face-track 16.01 s with the camera plan (8.09 s with it); 16.75 s for fit-blur at load ~12 | `T2.3-PF-CELLS.json` | **pass** (thin under load) |
+| PF-TRUTH | ≤ 0.6 s p95 | image, 36 frames over 3 layouts: p95 499.5 ms (T2.3: 669 ms before patch 35) | `T2.Z-PF-TRUTH.json` | **pass** |
+| PF-SAVE | PUT ≤ 300 ms p95 | image, 1,000 sequential PUTs of a real clip: p50 124.4 ms, p95 137.9 ms, 0 failures (T2.2: 390.8 ms p95 before patch 30, at load 11–20) | `T2.Z-PF-SAVE.json`, `T2.2-PF-SAVE.json` | **pass** |
+| PF-LIBASS | ≤ 12 ms p95 per changed frame | Bold, 450 changed frames: p50 3.7 ms, p95 6.3 ms (libass alone 0.4 ms); 159 unchanged reused | `T2.Z-PF-LIBASS.json` | **pass** |
+| PF-MEM | ≤ 1.2 GB (300 s clip) | peak 1.070 GB PSS | `T2.Z-PF-MEM.json` | **pass** |
+| Truth frames and the revision-0 `<video>` | exact | truth frames max diff 0; the fallback shows the right source frame 12/12 | `T2.Z-REV0-TRUTH.json` | **pass** |
+| QG-UNDO | 10,000 sequences; 1,000 cross-checked | T2.5: 10,000 sequences, 134,398 commands, 0 mismatches (undo-all, redo-all, stepwise); 1,000 sequences = 23,258 documents accepted by the Python validator (3.13 and the image's 3.11.2) | `T2.5-QG-UNDO.json`, `T2.5-crosscheck.json` | **pass** |
+| QG-CONFLICT | both edits survive or the dialog asks; no draft lost | unit (T2.5): 10,000 rebase scenarios and 500 two-tab store runs, 0 problems; **two-tab e2e** (image): different parts (hook in A, a caption word in B) merge, both on the server; the same part asks per part, "Pakai punyaku" wins and B's other edit stays | `T2.5-QG-CONFLICT.json`, `T2.Z-QG-CONFLICT-e2e.json` | **pass** |
+| QG-PERSIST (HTTP) | 5,000 saves, no lockout, receipts ≤ 200, reload ≤ 2 s lost | T2.2: 5,000/5,000 saves, 0 lockouts, 200 receipt files, 20/20 replays same etag, stale If-Match 409; T2.5: the draft is durable 3.6 ms p95 after each command, 0 commands lost on reload; U7 below | `T2.2-QG-PERSIST-http.json`, `T2.5-draft.json` | **pass** |
+| QG-SEC (routes + child env) | CSRF/auth/id matrix on every mutation; editor headers; no secret in any child | T2.Z, every new route (T2.2 and T2.3): 47/47 checks (anonymous 401; foreign Origin, cross-site `Sec-Fetch-Site` and missing Origin 403 on every mutation; malformed or unknown ids 4xx); editor page COOP, COEP, nosniff, `frame-ancestors 'none'` 4/4 and `crossOriginIsolated` true; 57 Python children of the flow and conflict e2e (30 api, 19 preview_cli, 8 render_queue): 0 names outside the allowlist, 0 of 6 planted secret canaries. T2.2: 33/33 and 5,095 children | `T2.Z-QG-SEC.json`, `T2.2-QG-SEC.json` | **pass** |
+| QG-A11Y | axe: no critical/serious; all by keyboard | real editor (image): 8 states (ready, export dialog, text and cold-open panels at 1366×768 and 1920×1080), 0 critical, 0 serious (1 moderate `heading-order` on the cold-open panel at both sizes); T2.6 on the fakes: 16 states 0 violations, 19 controls reached by keyboard | `T2.Z-QG-A11Y.json`, `T2.6-QG-A11Y.json` | **pass** |
+| QG-UX U1 (scripted) | ≤ 20 s | 2.87 s (reload, "Perpanjang ke sini" on the clipped word, saved) | `T2.Z-QG-UX-U1.json` | **pass** |
+| QG-UX U2 (scripted) | ≤ 20 s | 2.91 s (14 words, 5.28 s removed via the transcript, saved) | `T2.Z-QG-UX-U2.json` | **pass** |
+| QG-UX U3 (scripted) | ≤ 45 s | 2.91 s (a 2.08 s cold open from the transcript, saved) | `T2.Z-QG-UX-U3.json` | **pass** |
+| QG-UX U6 (scripted, real render) | ≤ clip length + 30 s | 28.1 s for an 89.3 s clip (limit 119.3 s; render 28.0 s) | `T2.Z-QG-UX-U6.json` | **pass** |
+| QG-UX U7 (scripted) | lose nothing; "Kembali ke versi AI" ≤ 20 s | 2 unsaved commands at reload, 0 lost; reset reached in 1.9 s | `T2.Z-QG-UX-U7.json` | **pass** |
+| Scripted times are automation speed | — | the owner times U1, U6 and U7 at checkpoint 2 (the pack lists the steps) | — | owner |
+
+The phase-B evidence (`T2.1-*` … `T2.7-*`) stays as each task measured it; the `T2.Z-*` files
+are the gates re-measured on the integrated branch (browser gates, W1 frame gates, lane and save
+timings) or measured for the first time with the real modules (e2e flow, two-tab conflict, the
+scripted U tasks, PF-OPEN, QG-SEC over every route, open-all).
+
+### Suites
+
+- `uv run pytest` (Python 3.13.13, local FFmpeg 6.1.1): 3,283 passed, 2 skipped, at the final
+  code commit.
+- `uv run --python 3.11 --isolated --with-editable . --extra vision --with "pytest>=8,<9"
+  pytest` (Python 3.11.15): 3,283 passed, 2 skipped.
+- Inside `editor-w2` (Python 3.11.2, FFmpeg 5.1.9, `--cpus 4`, the W1 scratch pytest target on
+  `PYTHONPATH`): 3,282 passed, 3 skipped, 0 failed.
+- `uv run ruff check src tests`: 0 findings. `npm test`: 828/828. `npm run build`: OK.
+- Browser specs in Chrome for Testing 147.0.7727.15: `e2e/editor-flow.spec.mjs` 10/10 against
+  the image stack; `e2e/editor-player.spec.mjs` 10/10 (fixtures made in `editor-w1z`);
+  `e2e/editor-shell.spec.mjs` 31/31 on the fakes (with `EDITOR_GATES=1` and axe) and
+  `e2e/editor-transcript.spec.mjs` 20/20 + 1 optional skipped (the real-clip budget run) on the
+  final branch.
+- `docker build -t ai-video-clipper:editor-w2 .`: OK.
+
+### Patches by the W2 integrator (logged per plan §11.0)
+
+Numbering continues from W1. Each patch has a failing test committed first.
+
+20. `web/lib/python-cli.mjs` (T1.Z scaffolding): `ai_clipper.render_queue` in `PYTHON_CLI_MODULES`
+    (T2.2 R1; before it every export route answered 503); a timeout or abort sends SIGTERM to the
+    group and SIGKILL after `killGraceMs` (2 s), so `preview_cli` stops FFmpeg's own session first
+    (T2.3). Tests: `web/tests/editor-w2-seams.test.mjs`.
+21. `web/lib/render-storage-admission.mjs`: a terminal `render-request-v3` (completed, failed or
+    cancelled) releases its reservation (T2.2 R2).
+22. `web/lib/storage-admission.mjs`: the scan counts a file with several links once (T2.2 R3:
+    source snapshots and R10 exports are hard links).
+23. `web/lib/preview-source.mjs`: the read stream never closes the borrowed descriptor
+    (`fs.close` no-op override); its owner closes it once. Before, `destroy()` closed it and the
+    owner closed the same number again, which under concurrent requests closed a reused socket
+    and aborted the Next server (T2.3's finding; `/api/jobs/:id/preview-source` and
+    `/api/jobs/:id/files/*`).
+24. `web/lib/clip-media.mjs` (+ `web/tests/clip-media.test.mjs` expectation): resource kind
+    `jassub` (the worker glue and wasm, COEP `require-corp`), the default `jassubUrl` of the
+    player (T2.4). `web/next.config.mjs`: `outputFileTracingIncludes` carries them into the
+    standalone build (checked in the image), and the editor page gets COOP, COEP, nosniff,
+    `frame-ancestors 'none'` and `X-Frame-Options: DENY`.
+25. `web/lib/editor/preview-client.mjs`: the playhead in every plan request; a 409 `superseded`
+    is an abandoned request (T2.3 → T2.5).
+26. `web/lib/editor/store.mjs`: readiness polling (`planPollMs` 750: the same document again
+    while a layer builds; an abandoned or failed plan retried), without which the stage never saw
+    a cell become ready; the store joins the tab channel only after it has loaded (a store
+    destroyed while loading, as React StrictMode does in development, answered the live store as
+    a ghost "other tab").
+27. `web/components/editor/runtime.mjs`: the real runtime (API client, preview client, store with
+    the IndexedDB draft, player with truth frames from the preview client), `setPlayhead`, the
+    facade's `stats()`; `web/tests/editor-runtime.test.mjs` no longer expects
+    `runtime_unavailable` for `real`.
+28. `web/components/editor/EditorApp.jsx`: the playhead to the lane; `otherTab`, the notice and
+    the conflict groups from the store (its own BroadcastChannel removed: its messages looked like
+    another tab to the store); keys a panel already handled are skipped; the player's `exact`
+    reaches the badge; the gizmo registry mounts in the Stage slot; the read-only
+    `window.__potonginEditorInspect` on the real page. `ConflictDialog.jsx` reads the store's
+    `groups` and shows `conflict.error`. `Stage.jsx` no longer sets the `<video>` `src` the player
+    owns; `player/player.mjs` compares the `src` attribute, so a relative auto-render URL does not
+    reload the element on every return to that mode.
+29. `web/components/editor/shell-model.mjs` + `shell.module.css`: the badge waits for the paused
+    player's `exact`; an unchanged legacy-engine clip reads "● Belum diubah: ekspor = klip
+    otomatis (mesin lama)" (R10 exports the old file there, so "Sesuai hasil akhir" would be
+    false); `conflictParts`; the route-code messages; the tab row wraps (six tabs).
+    `errors.py` `legacy_engine`: "…; setelah diubah, ekspor dari editor memakai mesin baru …"
+    (mirrored in `shell-model.mjs`, `web/tests/editor-shell-model.test.mjs`,
+    `web/e2e/editor-shell.spec.mjs`).
+30. `src/ai_clipper/edit_v2/api.py` (T1.1): `seed` and `selection_v3` imported where used
+    (T2.2 R5): import 120 → 65 ms locally; PF-SAVE p95 137.9 ms in the image.
+31. `src/ai_clipper/edit_v2/glyphs.py` (T1.2a): `fonts.json` read once per process, keyed by its
+    size and mtime (T2.3: per-word re-reads in every plan).
+32. `src/ai_clipper/edit_v2/errors.py` (T1.1): `ROUTE_CODES` with Indonesian messages for the
+    codes the Node routes answer with (T2.3), mirrored in the shell.
+33. `src/ai_clipper/render_worker.py` (T2.2): `completed_by` from T2.1's `RenderResult.reused`
+    (`auto_file` → `seed`, `existing` → `key`); the worker's default renderer is exercised end to
+    end by `tests/test_edit_v2_w2_seams.py`.
+34. `src/ai_clipper/edit_v2/compile_ffmpeg.py` (T1.3) + string goldens +
+    `tests/test_edit_v2_compile.py` expectation: **R2 bounded**: `trim=start_pts=<first>:
+    end_pts=<last>` before `select` in a multi-piece decoder run. `select` never ends its stream,
+    so FFmpeg decoded the rest of the source after the last piece: on the owner's 66 min source a
+    single removal stalled the export at 98 % (`render_stalled`, found by the e2e flow). After:
+    that clip renders in 12.7 s; W1's P-FRAME, P-PLATE, G1/G2 and G-DET re-run in the image pass
+    (table). `RENDER_SEMANTICS` stays 1 (same frames).
+35. `src/ai_clipper/edit_v2/execute.py` (T1.3): the supervisor wakes on the process's exit (a
+    waiter thread) instead of sleeping 50 ms after it (T2.3; PF-TRUTH 669 → 499.5 ms p95).
+36. `web/components/editor/__dev__/fakes.mjs`: the real `CommandRejected`; the fake store has the
+    real store's surface (T2.5); W3 fakes for uploads, Rapikan, cold-open candidates and AI hooks.
+37. W3 scaffolding (below) and `web/tests/editor-scaffold.test.mjs` (asserts the W2 entries; the
+    W3 ones are in `web/tests/editor-w3-scaffold.test.mjs`).
+38. New integrator files: `web/e2e/editor-flow.spec.mjs`, `scripts/editor/verify_export.py`,
+    `tests/test_edit_v2_w2_seams.py`, `web/tests/editor-w2-seams.test.mjs`,
+    `web/tests/editor-w3-scaffold.test.mjs`; `web/package.json` scripts `test:player` and
+    `test:editor-flow` (no dependency change).
+
+### Phase-B requests
+
+| From | Request | Decision |
+|---|---|---|
+| T2.1 | record the `render_edit` surface in CONTRACTS | **applied** (§5.17) |
+| T2.1 | T2.2 builds requests `render_request` accepts | **verified**: `tests/test_edit_v2_w2_seams.py` runs a queued request through the worker's default renderer; the e2e flow exports through it |
+| T2.1 | T2.3's `rev0.exact` rule | **confirmed** (`preview_cli._rev0`: plan sha = the manifest's, engine `edit-v2/1`, seed compiler `edit-v2/1`) |
+| T2.1 | T2.6 may use `renderEngineView` | **noted**; the project page shows the edit state, the engine appears in the editor notice |
+| T2.1 | record the evidence, the kit and K1/R7 in GATES | **applied** (table, Open 1, 11) |
+| T2.1 | `subtitles._group_frame_words` measures word gaps after frame rounding | **deferred** to W5/T4 before the K1 flip (Open 11): it changes revision 0 of 2 of 20 P-LOOK clips and the ASS goldens; with the flag at `legacy` nothing ships |
+| T2.1 | T4.3 performance candidates (PF-PIPELINE) | **handed to T4.3** (Open 14) |
+| T2.2 R1 | `render_queue` in `PYTHON_CLI_MODULES` | **applied** (patch 20) |
+| T2.2 R2 | v3 reservations reclaimed | **applied** (patch 21) |
+| T2.2 R3 | hard links counted once | **applied** (patch 22) |
+| T2.2 R4 | the `render_request` seam | **verified**; (h) not applied: `render_edit` keeps its own R10 check, which runs only when the create-time check failed; the create-time rule is authoritative (CONTRACTS §5.17) |
+| T2.2 R5 | lazy imports in `api.py` | **applied** (patch 30) |
+| T2.2 R6 | CONTRACTS additions (a)–(k) | **approved**, incl. (d) the legacy R10 duration rule (32/32 real clips) (§5.17) |
+| T2.2 R7 | the UI follows R6(f)–(j) | **applied** where it matters: the store reads `seed` as a boolean and uses `words.url`; the export flow handles 200 and 202; "Ekspor sebelumnya" still comes from the flow and the listing's `latestRender`, not `GET /clips/:clipId/renders` (Open 16) |
+| T2.2 R8 | G5 boxes | **open** (Open 8 of W1, owner T4.2) |
+| T2.3 | the double close in `preview-source.mjs` | **applied** (patch 23) |
+| T2.3 | SIGTERM before SIGKILL in `python-cli` | **applied** (patch 20) |
+| T2.3 | memoise `fonts_manifest`/`font_path` | **applied** (patch 31) |
+| T2.3 | `execute._supervise` polling | **applied** (patch 35) |
+| T2.3 | a disk cache for `probe_source` | **handed to T4.3** (Open 14) |
+| T2.3 | CONTRACTS §4.1–§4.3 additions (a)–(i) | **approved** (§5.17) |
+| T2.3 | Indonesian messages for the Node codes | **applied** (patch 32) |
+| T2.3 | `render_edit` resolves the camera plan like the lane when the layout was switched | **handed to T3.6** (the layout switch arrives in W3; no W2 document can switch layout) |
+| T2.3 | the preview client sends the playhead, polls, treats 409 as abandoned | **applied** (patches 25, 26) |
+| T2.3 / T2.4 | a production route for JASSUB's files | **applied** (patch 24) |
+| T2.3 | the persistent preview worker | **handed to T4.3** (plan §10.3 contingency; PF-PLAN, PF-AUDIO) |
+| T2.4 | `text.fonts` always lists DejaVu Sans | **already true** (`fonts.json` `fallback`) |
+| T2.4 | plate cells with `-g ceil(F/3)` | **handed to T4.3**: PF-SEEK passes at the measured load; the change needs the server P-FRAME/P-PLATE re-run (Open 13) |
+| T2.4 | one cell job per contiguous run | **kept as is**: the lane batches at most 4 cells (≤ 4 runs); PF-CELLS passes; T4.3 checks `RLIMIT_AS` with 4 non-contiguous runs |
+| T2.4 | the VFR mix is 8 samples short | **open** (Open 12, with W1 Open 4) |
+| T2.4 | the wiring of `createPlayer` | **applied** (patches 27, 28) |
+| T2.4 | ownership of `scripts/parity/player_fixtures.py` and its test; the `text-layer.mjs` change | **confirmed** (T2.4 owns both; the adapter change is logged here: banded compositing, byte-identical, and the opt-in `keepBitmaps`/`split`) |
+| T2.4 | `test:player` script and a manual CI job | script **applied** (patch 38); the CI job is **handed to T4.4** |
+| T2.5 | CONTRACTS W2 client section | **applied** (§5.17) |
+| T2.5 | T3.5 / T3.1–T3.3 notes | **recorded** in CONTRACTS §5.17 for W3 |
+| T2.5 | GET edit shapes | **confirmed** by the e2e flow |
+| T2.5 | fakes: the real `CommandRejected`, the store surface | **applied** (patch 36) |
+| T2.5 / T2.6 | conflict groups, notice, `otherTab`, `startFromSeed`, `flush` | **applied** (patches 28, 29) |
+| T2.5 | wiring | **applied** (patch 27) |
+| T2.6 | `axe-core` as a devDependency | **declined**: the W2 rule allows only the jassub and mediabunny pins; `AXE_CORE_PATH` stays (T4.4 decides for CI) |
+| T2.6 | the real runtime | **applied** (patch 27) |
+| T2.6 | the `video` element and `playing`/`frame` in `onState` | **confirmed**; the Stage no longer sets `src` (patch 28) |
+| T2.6 | store fields | **applied** (patches 26–29) |
+| T2.6 | `gapWord` convention | **confirmed** (T2.5's `TrimStart`/`TrimEnd` and T2.7's I/O use the same reading; U1 passes through both) |
+| T2.6 / T2.7 | transcript keys not handled globally | **applied** (`defaultPrevented`, patch 28) |
+| T2.6 | the clips route 404 with the flag off | **confirmed** (T2.2's routes answer `editor_disabled` 404) |
+| T2.6 | new files and the CI note | **recorded** |
+| T2.7 | `playing` in `player.state()` | **already true** (T2.4) |
+| T2.7 | merge by `mergeKey` whatever the type; `pending` "text"; `state.seed`; rejection messages; `RemoveWords` by ids | **confirmed** by T2.5's store and the e2e flow |
+| T2.7 | fold the harness store into the fakes; re-run the 16 ms budget on the real store | **declined** (the harness store stays for T2.7's self-contained spec); the budget on the real store is **not re-measured** (Open 21) |
+| T2.7 | `playwright.config.mjs` without credentials for self-contained specs | **handed to T4.4** (CI) |
+| T2.7 | `transcript/model.mjs` imports `timemap.mjs` | **handed to T3.5** (it takes over `transcript/**`); both copies pass the same vectors |
+| T2.7 | T3.4 / T3.7 notes | **recorded** in the W3 scaffolding comments |
+
+### W3 scaffolding (landed by T2.Z)
+
+`panels/index.mjs` lists Tata letak (T3.6), Logo (T3.2) and Musik (T3.3) after the W2 tabs, and
+`timeline/lanes.mjs` lists Audio (T3.7), Penanda (T3.7) and Musik (T3.3) under the W2 lanes, each
+with a placeholder file (`panels/{LayoutPanel,LogoPanel,MusicPanel}.jsx`,
+`timeline/lanes/{AudioLane,MarkerLane,MusicLane}.jsx`). `gizmos/index.mjs` lists the logo gizmo
+(`gizmos/LogoGizmo.jsx`), which `EditorApp` mounts in the Stage's gizmo slot;
+`suggestions/index.jsx` is the hook-suggestions slot (T3.4). `__dev__/fakes.mjs` adds
+`createFakeUploadClient` (Appendix A.2 `uploadAsset`) and Rapikan, cold-open and AI-hook data.
+Tests: `web/tests/editor-w3-scaffold.test.mjs`. In the owner's beta the W3 tabs and lanes are
+visible and say the feature comes next.
+
+### Open (W2 additions; W1's list above stays)
+
+11. **Cue grouping** (T2.1 finding, T1.2a module): `_group_frame_words` compares the word gap after
+    rounding to frames, so real gaps of 0.611–0.620 s become 0.600 s and a cue does not break
+    where the legacy engine breaks (5 of 894 real cues, 2 of 20 P-LOOK clips). Fix before the K1
+    flip (W5/T4): measure the gap in source ms inside a piece; re-run P-LOOK and P-RT.
+12. **VFR mix 8 samples short** (T2.4): on the VFR barcode source the final graph's PCM and the
+    lane's FLAC both hold 975,992 samples against `plan.samples` 976,000; G2 (±1,024) passes.
+    Likely W1 Open 4 (audio start > 0).
+13. **PF-SEEK under load**: 38.6 ms p95 at the measured load, 71–91 ms at load 14–23 (T2.4). The
+    10-frame plate GOP (T2.4: 20.2 / 54 ms) is T4.3's, with the server P-FRAME/P-PLATE re-run.
+14. **Server timings** (T4.3): PF-PLAN p95 226 ms at load ≥ 4 (one Python process per plan:
+    start-up and imports; `store` → `edit_manifest` → `ranking` is the next import to cut);
+    PF-AUDIO 1.9 s p95 with music (two full decodes); PF-PIPELINE center-crop 2.51× and face-track
+    2.16×; `probe_source` re-run per process. The persistent preview worker of plan §10.3 is the
+    planned answer.
+15. **R10 has two legacy rules** (CONTRACTS §5.17): the queue's duration rule at create
+    (authoritative) and `render_edit`'s 0.25 s contract at render time. Both pass the 32 real
+    clips; T4.2 may unify them.
+16. **"Ekspor sebelumnya"** lists this session's exports and the clip's latest one, not
+    `GET /clips/:clipId/renders` (T2.2's listing route): T4.5.
+17. **A copied job exports only after its `job.json` names the copy's source** (the legacy
+    snapshot rule, unchanged): the e2e copies are rehomed; a restored backup in another
+    `JOBS_ROOT` would need the same. T4.2 decides whether v3 may use the `input/` basename rule
+    that `prepare` and `render_edit` use.
+18. **Local runs need `resources/toolchain.json`** for exports (render keys); the image writes
+    it. `docs/editor/PANDUAN-EDITOR.md` gives the one-line local command.
+19. **QG-A11Y moderate**: `heading-order` on the cold-open panel (T4.5).
+20. **Face-track prepare** of an older job takes ~50 s for 8 clips (camera plans; the button
+    shows "Menyiapkan…").
+21. **The 16 ms transcript budget on the real store** was measured with T2.7's harness store
+    (p95 4.0 ms, max 11.7 ms on 1,500 words); T2.5 measured the real store's dispatch alone
+    (p95 ≤ 1.94 ms). The two together are not measured on the integrated page (T4.5).
