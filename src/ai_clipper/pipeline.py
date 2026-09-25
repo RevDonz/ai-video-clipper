@@ -21,6 +21,15 @@ shadow keep their historical behaviour. Selection V3 (``selection_mode="v3"``) r
 4. **Packaging and rendering** (stages ``packaging``, ``rendering``): cold open, hook overlay,
    and caption style per clip; the manifest gets every packaging field.
 
+**Konteks Tren.** With ``trend_context`` (the worker's ``analysis/trend-context.json``
+snapshot, CLI ``--trend-context``), the active trend items are read with
+:func:`load_trend_context` right before selection and passed to :func:`select_clips_v3`. Only
+the path is ever handled here: trend text never reaches argv or FFmpeg. A missing or invalid
+file only adds ``trend_context_invalid`` and the job runs without trends; malformed items add
+``trend_items_skipped:<n>``. A clip grounded in trends gets ``"trends": [{"id", "title",
+"kind"}]`` in the manifest; clips without trends keep the exact historical shape, so a job
+without relevant trends writes the same manifest and ``selection.v3.json`` as before.
+
 Every mode writes a poster next to each rendered clip: :func:`write_clip_thumbnail` grabs one
 frame of ``clip-XX.mp4`` at :func:`thumbnail_time` (1.0 s, so the hook text and the first
 captions are on it; earlier for very short clips) into ``clip-XX.jpg``, at most
@@ -39,7 +48,8 @@ V3 summary warning codes added here, before the selector's own codes: ``media_pr
 ``captions_missing``, ``captions_rejected:<reason>`` (``invalid``, ``no_language`` or a
 caption quality code), the transcript-quality file codes (``no_word_timestamps``,
 ``quantized_timestamps``, ``punctuation_collapse:<a>-<b>``) and ``suspect_segments:<n>``,
-``audio_unavailable`` (``:timeout``/``:error``), ``llm_unavailable:<code>``, ``llm_disabled``,
+``audio_unavailable`` (``:timeout``/``:error``), ``trend_context_invalid``,
+``trend_items_skipped:<n>``, ``llm_unavailable:<code>``, ``llm_disabled``,
 ``llm_not_configured``, ``llm_failed:<code>`` (``deadline`` when the wall-clock bound ran out).
 After the selector's codes: ``clip_trimmed_to_media:<rank>``, ``cold_open_beyond_media:<rank>``,
 ``clip_beyond_media:<rank>``, then ``llm_providers:<n>`` and ``llm_models:<n>`` (several
@@ -111,6 +121,7 @@ from .transcript_quality import (
     assess_transcript,
     write_transcript_quality_json,
 )
+from .trend_context import TrendContextError, TrendItem, load_trend_context
 from .youtube_captions import (
     SOUND_EVENTS_RELATIVE_PATH,
     CaptionFormatError,
@@ -404,12 +415,26 @@ def _clip_bounds(min_duration: object, max_duration: object) -> tuple[float, flo
     return values[0], values[1]
 
 
-def _optional_directory(value: object, name: str) -> Path | None:
+def _optional_path(value: object, name: str) -> Path | None:
     if value is None:
         return None
     if not isinstance(value, (str, os.PathLike)):
         raise TypeError(f"{name} must be a path or None")
     return Path(value).resolve()
+
+
+def _job_trends(path: Path | None, warnings: list[str]) -> tuple[TrendItem, ...]:
+    """The snapshot's active items; a missing or invalid snapshot only adds a warning."""
+    if path is None:
+        return ()
+    try:
+        context = load_trend_context(path)
+    except (TrendContextError, ValueError, OSError):
+        warnings.append("trend_context_invalid")
+        return ()
+    if context.skipped:
+        warnings.append(f"trend_items_skipped:{context.skipped}")
+    return context.items
 
 
 def _safe_candidate_key(input_key: str, ordinal: int) -> str:
@@ -842,7 +867,7 @@ def _v3_manifest_clip(
 ) -> dict[str, object]:
     """V1-compatible clip fields plus the Selection V3 packaging (the web contract)."""
     rendered = _rendered_seconds(clip, cold_open)
-    return {
+    entry: dict[str, object] = {
         "index": index,
         "start": round(clip.start, 3),
         "end": round(clip.end, 3),
@@ -866,6 +891,9 @@ def _v3_manifest_clip(
         "source_end": round(clip.end, 3),
         "thumbnail": thumbnail,
     }
+    if clip.trends:  # optional: clips without trends keep the historical contract
+        entry["trends"] = [item.to_dict() for item in clip.trends]
+    return entry
 
 
 def _summary_warnings(codes: Iterable[str]) -> list[str]:
@@ -953,6 +981,7 @@ def _run_v3(
     caption_style: str,
     captions_dir: Path | None,
     word_timestamps: bool,
+    trend_context: Path | None = None,
 ) -> tuple[Transcription, Path, list[dict[str, object]]]:
     """Transcript, audio, selection, and rendering for Selection V3 (see the module docstring)."""
     media_duration = _probe_video_duration(source)
@@ -990,6 +1019,8 @@ def _run_v3(
     if audio is not None:
         write_audio_timeline(audio, artifact_root / AUDIO_TIMELINE_RELATIVE_PATH)
 
+    trends = _job_trends(trend_context, state.warnings)
+    trend_options = {"trends": trends} if trends else {}
     state.stage = "llm"
     client, budget, selector_mode = _v3_llm_client(llm_mode, artifact_root, state.warnings)
     if client is not None:
@@ -1016,6 +1047,7 @@ def _run_v3(
             max_requests=LLM_MAX_REQUESTS,
             deadline_s=LLM_DEADLINE_SECONDS,
             **budget_options,
+            **trend_options,
         )
 
     try:
@@ -1102,12 +1134,14 @@ def run_pipeline(
     word_timestamps: bool = True,
     hook_duration: float = DEFAULT_HOOK_DURATION,
     progress: Callable[[str, int, str], None] | None = None,
+    trend_context: Path | str | None = None,
 ) -> Path:
     """Transcribe, select highlights, render clips, and publish a status manifest.
 
-    ``llm_mode``, ``cold_open``, ``hook_overlay``, ``hook_duration`` and ``captions_dir`` only
-    apply to ``selection_mode="v3"``. ``caption_style`` defaults to ``"karaoke"`` for V3 and
-    ``"classic"`` otherwise; ``word_timestamps`` applies to every Whisper run.
+    ``llm_mode``, ``cold_open``, ``hook_overlay``, ``hook_duration``, ``captions_dir`` and
+    ``trend_context`` (a Konteks Tren snapshot) only apply to ``selection_mode="v3"``.
+    ``caption_style`` defaults to ``"karaoke"`` for V3 and ``"classic"`` otherwise;
+    ``word_timestamps`` applies to every Whisper run.
     """
     source = Path(source).resolve()
     output_dir = Path(output_dir).resolve()
@@ -1147,7 +1181,8 @@ def run_pipeline(
         if caption_style is None:
             caption_style = "karaoke" if selection_mode is SelectionMode.V3 else "classic"
         caption_style = _choice(caption_style, "caption_style", CAPTION_STYLES)
-        captions_dir = _optional_directory(captions_dir, "captions_dir")
+        captions_dir = _optional_path(captions_dir, "captions_dir")
+        trend_context = _optional_path(trend_context, "trend_context")
         if selection_mode is SelectionMode.V3:
             min_duration, max_duration = _clip_bounds(min_duration, max_duration)
         report("analyzing", 26, "Memeriksa video dan memuat model AI")
@@ -1175,6 +1210,7 @@ def run_pipeline(
                 caption_style=caption_style,
                 captions_dir=captions_dir,
                 word_timestamps=word_timestamps,
+                trend_context=trend_context,
             )
             report("finalizing", 96, "Menyimpan hasil, subtitle, dan metadata")
             _publish_manifest(
