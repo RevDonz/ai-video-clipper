@@ -72,7 +72,7 @@ libx264
 -preset
 veryfast
 -crf
-21
+18
 -profile:v
 high
 -pix_fmt
@@ -80,7 +80,7 @@ yuv420p
 -g
 60
 -x264-params
-threads=4
+threads=4:chroma-qp-offset=-12
 -color_primaries
 bt709
 -color_trc
@@ -160,7 +160,7 @@ captions.ass 34f90449bd536f2476d0d2e716f8ec3e9ba302b439d2f645c6dd4a7fb9d6ad61
 [vlay]scale=in_color_matrix=bt709:in_range=tv,format=gbrp,ass=filename=captions.ass:fontsdir=fonts:shaping=complex[vtext];
 [2:v]scale=115:115:flags=lanczos,format=rgba,colorchannelmixer=aa=0.850,scale,format=gbrap[lg];
 [vtext][lg]overlay=x=576:y=32:format=gbrp[vlogo];
-[vlogo]scale=out_color_matrix=bt709:out_range=tv,format=yuv420p[vout];
+[vlogo]scale=out_color_matrix=bt709:out_range=tv:flags=accurate_rnd+full_chroma_int+full_chroma_inp+lanczos,format=yuv420p[vout];
 [sa0]aresample=48000,asettb=1/48000,apad,atrim=start_pts=61208347:end_pts=61426164,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS[au_p0];[sa1]aresample=48000,asettb=1/48000,apad,atrim=start_pts=59611552:end_pts=60646186,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS[au_p1];[sa2]aresample=48000,asettb=1/48000,apad,atrim=start_pts=60683022:end_pts=61357295,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS[au_p2];[sa3]aresample=48000,asettb=1/48000,apad,atrim=start_pts=61392531:end_pts=62851589,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS[au_p3];[au_p0][au_p1][au_p2][au_p3]concat=n=4:v=0:a=1[au_sc];[3:a]pan=stereo|c0=c0|c1=c0[au_se];[au_sc][au_se]amultiply[au_s];[4:a]aresample=48000,pan=stereo|FL=FL+FC|FR=FR+FC,atrim=start_sample=0:end_sample=3385782,asetpts=PTS-STARTPTS[au_mr];[5:a]pan=stereo|c0=c0|c1=c0[au_me];[au_mr][au_me]amultiply[au_m];[au_s][au_m]amix=inputs=2:normalize=0:duration=first,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[apre];
 [apre]aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[aout]
 

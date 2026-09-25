@@ -85,7 +85,13 @@ COMPOSITE_FORMAT = "gbrp"
 FFMPEG_THREADS = 4
 DECODER_RUN_GAP_S = 10  # R2
 PREROLL_S = 1  # R1
-STANDAR = ("veryfast", 21)  # R7 (preset, crf)
+# R7 "Standar" (preset, crf) and its chroma QP offset. W1 integration (docs/editor/GATES.md,
+# P-ENC): today's veryfast crf 21 left the delivered MP4 at 0.9866 whole-frame / 0.9730 text
+# SSIM against the lossless composite (thresholds 0.990 / 0.980) on the synthetic plate; 4:2:0
+# alone keeps 0.9914, the rest was x264's chroma quantisation. crf 18 with the chroma QP 12
+# below luma (x264's limit) passes on the synthetic and the natural plate; the preset stays.
+STANDAR = ("veryfast", 18)
+STANDAR_CHROMA_QP_OFFSET = -12
 PLATE = ("veryfast", 18)  # §5.1 plate_cells
 AAC_BITRATE = "192k"  # K4
 SAMPLE_RATE = 48_000
@@ -110,6 +116,9 @@ _COLOR_TAGS = ("-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace"
 _BITEXACT = ("-map_metadata", "-1", "-fflags", "+bitexact", "-flags:v", "+bitexact",
              "-flags:a", "+bitexact")
 _YUV_TO_709 = "scale=in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv"
+# R5's 4:2:0 step computes chroma at full resolution and downsamples it with lanczos (W1
+# integration, P-ENC: +0.0003 whole-frame SSIM over the default at no encode cost).
+FINAL_SCALE_FLAGS = "accurate_rnd+full_chroma_int+full_chroma_inp+lanczos"
 # R5: into the composite format, after the text and logo back to BT.709/tv 4:2:0.
 _TEXT_IN = {
     "yuv420p": f"{_YUV_TO_709},format=yuv420p",
@@ -117,9 +126,9 @@ _TEXT_IN = {
     "gbrp": "scale=in_color_matrix=bt709:in_range=tv,format=gbrp",
 }
 _TO_OUTPUT = {
-    "yuv420p": f"{_YUV_TO_709},format=yuv420p",
-    "yuv444p": f"{_YUV_TO_709},format=yuv420p",
-    "gbrp": "scale=out_color_matrix=bt709:out_range=tv,format=yuv420p",
+    "yuv420p": f"{_YUV_TO_709}:flags={FINAL_SCALE_FLAGS},format=yuv420p",
+    "yuv444p": f"{_YUV_TO_709}:flags={FINAL_SCALE_FLAGS},format=yuv420p",
+    "gbrp": f"scale=out_color_matrix=bt709:out_range=tv:flags={FINAL_SCALE_FLAGS},format=yuv420p",
 }
 _LOGO_FORMAT = {
     "yuv420p": "scale=out_color_matrix=bt709:out_range=tv,format=yuva420p",
@@ -245,10 +254,23 @@ def seek_arg(first_sf: int, fps: Fps) -> str:
     return f"{micro // 1_000_000}.{micro % 1_000_000:06d}"
 
 
-def _x264(preset: str, crf: int, gop: int) -> tuple[str, ...]:
+def _x264(preset: str, crf: int, gop: int, *, chroma_qp_offset: int = 0) -> tuple[str, ...]:
+    params = f"threads={FFMPEG_THREADS}"
+    if chroma_qp_offset:
+        params += f":chroma-qp-offset={chroma_qp_offset}"
     return ("-c:v", "libx264", "-preset", preset, "-crf", str(crf), "-profile:v", "high",
-            "-pix_fmt", "yuv420p", "-g", str(gop), "-x264-params", f"threads={FFMPEG_THREADS}",
-            *_COLOR_TAGS)
+            "-pix_fmt", "yuv420p", "-g", str(gop), "-x264-params", params, *_COLOR_TAGS)
+
+
+def encode_video_args(gop: int) -> tuple[str, ...]:
+    """R7 "Standar" video encoder arguments (``final`` and ``frame``; the parity harness
+    exports with the same strings)."""
+    return _x264(*STANDAR, gop, chroma_qp_offset=STANDAR_CHROMA_QP_OFFSET)
+
+
+def final_conversion(composite: str) -> str:
+    """R5's last step from the ``composite`` format to BT.709/tv 4:2:0."""
+    return _TO_OUTPUT[composite]
 
 
 def _head(loglevel: str, *, copyts: bool) -> list[str]:
@@ -497,7 +519,7 @@ def _final_like(compiler: _Compiler, loudness: Loudness | None, *, reference: bo
                  "-f", "matroska", OUTPUT_TOKEN]
     else:
         compiler.expected["srt"] = plan.srt()
-        argv += [*_x264(*STANDAR, tm.cell_frames(plan.fps)),
+        argv += [*encode_video_args(tm.cell_frames(plan.fps)),
                  "-c:a", "aac", "-b:a", AAC_BITRATE, "-ar", str(SAMPLE_RATE), "-ac", "2",
                  "-fps_mode", "passthrough", *_BITEXACT, "-movflags", "+faststart",
                  "-f", "mp4", OUTPUT_TOKEN]
@@ -521,7 +543,7 @@ def _frame(compiler: _Compiler, frame: int | None) -> FfmpegJob:
     argv = [*_head("error", copyts=True), *compiler.argv_inputs(),
             "-filter_complex_script", GRAPH_FILE,
             "-filter_complex_threads", str(FFMPEG_THREADS), "-map", "[vout]", "-frames:v", "1",
-            *_x264(*STANDAR, tm.cell_frames(plan.fps)), "-fps_mode", "passthrough", *_BITEXACT,
+            *encode_video_args(tm.cell_frames(plan.fps)), "-fps_mode", "passthrough", *_BITEXACT,
             "-f", "h264", FRAME_H264]
     return compiler.job(argv)
 
@@ -672,6 +694,8 @@ __all__ = [
     "SourceStreams",
     "compile_job",
     "decoder_runs",
+    "encode_video_args",
+    "final_conversion",
     "probe_source",
     "seek_arg",
     "select_expression",

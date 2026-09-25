@@ -55,7 +55,7 @@ import compare
 from compare import Box
 
 from ai_clipper import captions_ass
-from ai_clipper.edit_v2 import PACK_DEFAULT_OVERRIDES
+from ai_clipper.edit_v2 import PACK_DEFAULT_OVERRIDES, compile_ffmpeg
 from ai_clipper.edit_v2.timemap import Fps, now_ms, safe_cs
 from ai_clipper.subtitles import CaptionCue, CaptionWord, FrameCue, FrameWord
 
@@ -109,7 +109,7 @@ _EVENT_FORMAT = "Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effe
 # S-COLOR (plan §5.2 R5): YUV ↔ RGB conversions pinned to BT.709, limited range.
 DECODE_709 = ("scale=in_color_matrix=bt709:in_range=tv:"
               "flags=accurate_rnd+full_chroma_int+bitexact")
-FINAL_GRAPH = "scale=out_color_matrix=bt709:out_range=tv,format=yuv420p"
+FINAL_GRAPH = compile_ffmpeg.final_conversion("gbrp")  # R5's last step, the compiler's string
 
 
 # --- small helpers ------------------------------------------------------------------------------
@@ -759,10 +759,8 @@ def final_graph(fmt: str) -> str:
     through RGB, which would shift every plate colour (measured in the S-COLOR run: luma SSIM
     0.977 against the composite). With both matrices BT.709 only the chroma is resampled.
     """
-    if fmt == "gbrp":
-        return FINAL_GRAPH
-    if fmt in ("yuv420p", "yuv444p"):
-        return f"scale=in_color_matrix=bt709:in_range=tv:{FINAL_GRAPH.removeprefix('scale=')}"
+    if fmt in CANDIDATES:
+        return compile_ffmpeg.final_conversion(fmt)
     raise ValueError(f"unknown candidate {fmt!r}")
 
 
@@ -776,13 +774,10 @@ def view_graph(fmt: str) -> str:
 
 
 def x264_args(fps: Fps) -> list[str]:
-    """R7 "Standar" encode (video only)."""
+    """R7 "Standar" encode (video only): the compiler's own encoder arguments."""
     gop = 2 * -(-fps.num // fps.den)
-    return ["-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-profile:v", "high",
-            "-pix_fmt", "yuv420p", "-g", str(gop), "-x264-params", "threads=4",
-            "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709",
-            "-color_range", "tv", "-map_metadata", "-1", "-fflags", "+bitexact",
-            "-flags:v", "+bitexact", "-movflags", "+faststart"]
+    return [*compile_ffmpeg.encode_video_args(gop), "-map_metadata", "-1", "-fflags",
+            "+bitexact", "-flags:v", "+bitexact", "-movflags", "+faststart"]
 
 
 def timebase_graph(fps: Fps) -> str:
