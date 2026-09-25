@@ -111,7 +111,7 @@ captions.ass a24e1ac2698a950c7f76568e1160557472ca84bc6bce2aae54788c16fe061bfe
 ## filter_script
 [0:0]fps=30000/1001,trim=start_pts=38217:end_pts=38353,setpts=PTS-STARTPTS[vr0];
 [0:1]anull[sa0];
-[1:0]fps=30000/1001,select='if(lt(pts,38358),if(lt(pts,37900),between(pts,37220,37865),if(lt(pts,38147),between(pts,37900,38116),between(pts,38147,38309))),if(lt(pts,38650),between(pts,38358,38610),if(lt(pts,39099),between(pts,38650,39062),between(pts,39099,39242))))',setpts=N[vr1];
+[1:0]fps=30000/1001,trim=start_pts=37220:end_pts=39243,select='if(lt(pts,38358),if(lt(pts,37900),between(pts,37220,37865),if(lt(pts,38147),between(pts,37900,38116),between(pts,38147,38309))),if(lt(pts,38650),between(pts,38358,38610),if(lt(pts,39099),between(pts,38650,39062),between(pts,39099,39242))))',setpts=N[vr1];
 [1:1]asplit=6[sa1][sa2][sa3][sa4][sa5][sa6];
 [vr0][vr1]concat=n=2:v=1:a=0,settb=1001/30000[vcat];
 [vcat]split=2[background_0][foreground_0];[background_0]scale=720:1280:force_original_aspect_ratio=increase:in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuv444p,crop=720:1280,gblur=sigma=35[blurred_0];[foreground_0]scale=720:1280:force_original_aspect_ratio=decrease:in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuva444p[fit_0];[blurred_0][fit_0]overlay=(W-w)/2:(H-h)/2:format=yuv444,setsar=1[vlay];

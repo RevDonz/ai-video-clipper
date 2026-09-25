@@ -393,7 +393,9 @@ def test_every_piece_uses_the_measured_grid_rule(harness, probe_stub):
             chain = (f"[{r}:0]fps={num}/{den},trim=start_pts={ranges[0][0]}:"
                      f"end_pts={ranges[0][1]},setpts=PTS-STARTPTS[vr{r}]")
         else:
-            chain = (f"[{r}:0]fps={num}/{den},select='{select_expression(ranges)}',"
+            # T2.Z: the run ends at its last frame (trim before select; W2 GATES patch)
+            chain = (f"[{r}:0]fps={num}/{den},trim=start_pts={ranges[0][0]}:"
+                     f"end_pts={ranges[-1][1]},select='{select_expression(ranges)}',"
                      f"setpts=N[vr{r}]")
         assert job.filter_script.count(chain) == 1, run
     assert "split=" not in job.filter_script.replace("asplit=", "").replace(
