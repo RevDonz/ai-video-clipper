@@ -57,13 +57,15 @@ Needs web access (search and page/RSS fetching) and a terminal with `python3` 3.
 | Limits | 100 items and 256 KiB per request (the script batches), 60 requests/minute and 600/hour per token, 1,000 active items in Potongin |
 | Script exit codes | 0 all accepted; 1 some rejected or not sent; 2 bad input; 3 token refused (stop) |
 
-Without the script, use curl (never `-v`, it prints the Authorization header). Each command is
-self-contained because shell variables may not survive between terminal calls:
+Without the script, use curl (never `-v`, it prints the Authorization header). The header goes
+to curl on stdin (`-H @-`) from the `printf` builtin, so the token never appears in a process's
+arguments. Each command is self-contained because shell variables may not survive between
+terminal calls:
 
 ```bash
-curl -sS -H "Authorization: Bearer $POTONGIN_INGEST_TOKEN" \
+printf 'Authorization: Bearer %s\n' "$POTONGIN_INGEST_TOKEN" | curl -sS -H @- \
   "${POTONGIN_INGEST_URL:-https://potongin.revdonz.dev/api/ingest/trends}"   # list active
-curl -sS -X POST -H "Authorization: Bearer $POTONGIN_INGEST_TOKEN" \
+printf 'Authorization: Bearer %s\n' "$POTONGIN_INGEST_TOKEN" | curl -sS -X POST -H @- \
   -H "Content-Type: application/json" --data-binary @/tmp/potongin-trends.json \
   "${POTONGIN_INGEST_URL:-https://potongin.revdonz.dev/api/ingest/trends}"   # send <= 100 items
 ```

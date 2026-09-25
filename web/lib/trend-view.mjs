@@ -623,15 +623,18 @@ const CURL_SAMPLE = Object.freeze({
  * A copy-paste curl example, as in the Hermes kit: the token is pasted into a
  * hidden prompt into the environment variable push_trends.py reads (never
  * written into a command, so never in shell history or in this text), the
- * active items are listed first, then one sample item is posted.
+ * active items are listed first, then one sample item is posted. The header
+ * goes to curl on stdin (-H @-) from the printf builtin, so the token never
+ * appears in a process's arguments, where ps would show it.
  */
 export function curlExample({ origin } = {}) {
   const endpoint = shellQuote(ingestEndpoint(origin) || INGEST_PATH);
+  const header = `printf 'Authorization: Bearer %s\\n' "$${TOKEN_ENV}" |`;
   return [
     `read -rs ${TOKEN_ENV} && export ${TOKEN_ENV}`,
-    `curl -sS -H "Authorization: Bearer $${TOKEN_ENV}" ${endpoint}`,
-    `curl -sS -X POST ${endpoint} \\`,
-    `  -H "Authorization: Bearer $${TOKEN_ENV}" \\`,
+    `${header} curl -sS -H @- ${endpoint}`,
+    `${header} curl -sS -X POST ${endpoint} \\`,
+    "  -H @- \\",
     "  -H 'Content-Type: application/json' \\",
     `  --data ${shellQuote(JSON.stringify(CURL_SAMPLE))}`,
   ].join("\n");

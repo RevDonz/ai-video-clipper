@@ -72,24 +72,26 @@ Panduan operator (file penyimpanan, batas, keamanan, cara mematikan):
 ### Contoh `curl`
 
 Token diambil dari variabel lingkungan, jangan ditulis langsung di perintah (masuk riwayat
-shell). Jangan pakai `curl -v`: opsi itu mencetak header `Authorization`.
+shell). Header-nya dikirim ke `curl` lewat stdin (`-H @-`, curl 7.55+) dari `printf` bawaan
+shell, jadi token juga tidak muncul di argumen proses yang bisa dilihat pengguna lain lewat
+`ps`. Jangan pakai `curl -v`: opsi itu mencetak header `Authorization`.
 
 ```bash
 URL=https://potongin.revdonz.dev/api/ingest/trends
+auth() { printf 'Authorization: Bearer %s\n' "$POTONGIN_INGEST_TOKEN"; }
 
 # 1) Lihat item aktif dulu (dedupe)
-curl -sS -H "Authorization: Bearer $POTONGIN_INGEST_TOKEN" "$URL"
+auth | curl -sS -H @- "$URL"
 
 # 2) Kirim item (maks 100 per permintaan)
-curl -sS -X POST "$URL" \
-  -H "Authorization: Bearer $POTONGIN_INGEST_TOKEN" \
+auth | curl -sS -X POST "$URL" \
+  -H @- \
   -H "Content-Type: application/json" \
   --data-binary @items.json
 # → {"accepted":2,"created":1,"updated":1,"rejected":[]}
 
 # 3) Hapus satu item yang dikirim token ini
-curl -sS -X DELETE -H "Authorization: Bearer $POTONGIN_INGEST_TOKEN" \
-  "$URL?externalId=tiktok-cc:hashtag:kabur-aja-dulu"
+auth | curl -sS -X DELETE -H @- "$URL?externalId=tiktok-cc:hashtag:kabur-aja-dulu"
 ```
 
 ### `push_trends.py`
@@ -114,7 +116,11 @@ Item yang ditolak muncul di `rejected` sebagai `{"index", "code", "field"}` (`in
 0; `field` misalnya `keywords[1]` atau `examples[0].url`). Kode: `invalid_item` (bukan objek),
 `unknown_field`, `missing_field`, `invalid_type`, `invalid_value` (pola, pilihan, rentang atau
 tanggal), `invalid_length`, `expired` (`expiresAt` sudah lewat), `store_full` (penyimpanan
-1.000 item penuh).
+1.000 item penuh), `owned_by_other_source` (item dengan `externalId` itu, atau dengan jenis dan
+judul yang sama, milik pemilik (item manual) atau agen lain; `field` berisi `externalId` atau
+`title`). Sebuah token hanya memperbarui item sumbernya sendiri. Bagian yang diubah pemilik di
+halaman Konteks Tren (judul, ringkasan, kata kunci, hashtag, kedaluwarsa) tidak ditimpa
+kiriman berikutnya; field lain tetap mengikuti agen.
 
 ## Item
 
