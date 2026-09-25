@@ -1500,6 +1500,18 @@ def test_llm_clips_outranked_by_focus_matches_are_not_a_fallback():
         assert result.clips[0].source == "heuristic"
         assert result.clips[0].focus.match == "literal"
         assert not any(code.startswith("llm_failed") for code in result.warnings)
+        # The LLM did answer: say so, so the owner does not read "LLM not used".
+        assert "focus_llm_outranked:1" in result.warnings
+
+
+def test_the_outranked_code_is_only_written_when_no_llm_clip_is_left():
+    led, _ = llm_run([moment(2, 5, hook=3)], k=2, segments=jomok_episode(30), focus=JOMOK)
+    assert led.source == "llm"
+    assert not any(code.startswith("focus_llm_outranked") for code in led.warnings)
+
+    off = select_clips_v3(jomok_episode(30), k=1, min_duration=20.0, max_duration=40.0,
+                          llm_mode="off", focus=JOMOK)
+    assert not any(code.startswith("focus_llm_outranked") for code in off.warnings)
 
 
 def test_packaging_outside_the_focus_may_not_use_the_focus_theme():

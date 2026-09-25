@@ -5,6 +5,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { parseJobFormOptions } from "../app/api/jobs/route.js";
 import {
   jobOptionInputFromForm,
   parseJobOptions,
@@ -24,6 +25,7 @@ import {
   formatTimestamp,
   normalizeFocusText,
   removeFocusTerm,
+  selectionV3SummaryView,
   selectionWarningLabel,
   splitFocusTerms,
 } from "../lib/selection-v3-view.mjs";
@@ -284,4 +286,54 @@ test("focus warning codes are explained in Indonesian", () => {
   assert.equal(selectionWarningLabel("focus_few_matches:x"), null);
   // Konteks Tren labels are unchanged.
   assert.match(selectionWarningLabel("trend_ref_ungrounded:2"), /^2 tren yang disebut AI dibuang/);
+});
+
+// --- Integration seams ----------------------------------------------------------------------
+
+test("the job API route reads focusTerms and focusNote from the form", () => {
+  const form = new FormData();
+  for (const [name, value] of Object.entries(FORM_V3)) form.set(name, value);
+  form.set("youtubeUrl", "https://youtu.be/rBg0ZcwjVKQ");
+  assert.deepEqual(parseJobFormOptions(form), V3);
+  form.set("focusTerms", "jomok");
+  form.set("focusNote", "momen jomok yang lucu");
+  assert.deepEqual(parseJobFormOptions(form), { ...V3, focus: { terms: ["jomok"], note: "momen jomok yang lucu", mode: "prefer" } });
+  const v1 = new FormData();
+  for (const [name, value] of Object.entries({ ...FORM_V3, selectionMode: "v1", llmMode: "", coldOpen: "", hookOverlay: "", captionStyle: "" })) v1.set(name, value);
+  v1.set("focusTerms", "jomok");
+  assert.throws(() => parseJobFormOptions(v1), /focus/i);
+});
+
+test("terms the engine would fold together (Python casefold) are one term here too", () => {
+  // The CLI rejects terms that are equal under str.casefold(); the web must never send them.
+  for (const [a, b] of [["Straße", "STRASSE"], ["ﬁlm", "FILM"], ["ὈΔΥΣΣΕΎΣ", "ὀδυσσεύς"], ["Σίσυφος", "σίσυφοσ"]]) {
+    assert.equal(focusTermKey(a), focusTermKey(b), `${a} / ${b}`);
+    assert.deepEqual(addFocusTerms([a], b).terms, [a]);
+    assert.deepEqual(parseJobOptions({ ...FORM_V3, focusTerms: `${a},${b}` }).focus.terms, [a]);
+    assert.throws(() => validatePersistedJobOptions({ ...V3, focus: { terms: [a, b], mode: "prefer" } }), /focus/);
+  }
+  assert.notEqual(focusTermKey("jomok"), focusTermKey("jomokers"));
+});
+
+test("every focus warning code the engine writes has an Indonesian label", () => {
+  assert.match(selectionWarningLabel("focus_packaging_ungrounded:2"), /^2 klip di luar fokus/);
+  assert.match(selectionWarningLabel("focus_llm_outranked:4"), /^4 momen usulan AI/);
+  assert.equal(selectionWarningLabel("focus_llm_outranked:0"), null);
+});
+
+test("an LLM outranked by focus matches is neither a failure nor 'LLM not used'", () => {
+  const summary = {
+    mode: "v3", status: "completed", source: "heuristic", provider: null, model: null,
+    prompt_version: "heuristic-v1", warnings: ["focus_llm_outranked:6"], artifact: null,
+    transcript_source: "youtube-captions", focus: { terms: ["jomok"], matched: 8, requested: 8 },
+  };
+  const view = selectionV3SummaryView(summary);
+  assert.equal(view.tone, "ok");
+  assert.match(view.headline, /fokus/i);
+  assert.doesNotMatch(`${view.headline} ${view.detail}`, /gagal|tidak dipakai|belum dikonfigurasi|cadangan/);
+  assert.match(view.detail, /AI/);
+  // Without that code a heuristic run keeps its old wording, focus or not.
+  const plain = { ...summary, warnings: [] };
+  assert.deepEqual(selectionV3SummaryView(plain), selectionV3SummaryView({ ...plain, focus: undefined }));
+  assert.match(selectionV3SummaryView(plain).detail, /LLM tidak dipakai/);
 });

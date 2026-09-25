@@ -1545,6 +1545,47 @@ def test_a_literal_mention_cut_off_by_the_video_end_is_no_longer_a_literal_match
     }
 
 
+def test_focus_few_matches_is_recounted_after_the_video_end(env, monkeypatch):
+    env.media_duration = 129.4567
+    summary = FocusSummary(terms=("kisah25",), requested=3)
+    labels = (
+        ClipFocus("literal", ("kisah25",), 129.6),  # its mention is cut off
+        ClipFocus("literal", ("kisah25",), 95.0),
+        ClipFocus("semantic", ("kisah25",)),
+    )
+    clips = (
+        selected(1, 100.0, 130.0, focus=labels[0]),
+        selected(2, 90.0, 99.0, focus=labels[1]),
+        selected(3, 50.0, 80.0, focus=labels[2]),
+    )
+    # The selector saw 3 of 3; after the trim only 2 match, as the summary says.
+    chosen = result(*clips, focus=summary)
+    monkeypatch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: chosen)
+    warnings = manifest_of(run(env, focus=FOCUS))["selection_v3"]["warnings"]
+    assert "focus_few_matches:2" in warnings
+
+
+def test_a_focus_few_matches_code_is_updated_in_place_after_the_video_end(env, monkeypatch):
+    env.media_duration = 129.4567
+    beyond = (
+        selected(1, 50.0, 80.0, focus=ClipFocus("semantic", ("kisah25",))),
+        selected(2, 129.0, 140.0, focus=ClipFocus("literal", ("kisah25",), 131.0)),
+    )
+    chosen = result(
+        *beyond,
+        focus=FocusSummary(terms=("kisah25",), requested=3),
+        warnings=("focus_few_matches:2", "few_clips:2"),
+    )
+    monkeypatch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: chosen)
+
+    warnings = manifest_of(run(env, focus=FOCUS))["selection_v3"]["warnings"]
+
+    assert "clip_beyond_media:2" in warnings
+    assert [code for code in warnings if code.startswith(("focus_", "few_"))] == [
+        "focus_few_matches:1", "few_clips:2",
+    ]
+
+
 def test_focus_must_be_a_focus_spec(env):
     with pytest.raises(TypeError):
         run(env, focus=["kisah25"])
