@@ -1,7 +1,15 @@
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { CLIP_THUMBNAIL_URL } from "./selection-v3-view.mjs";
+import {
+  CLIP_THUMBNAIL_URL,
+  FOCUS_LIMITS,
+  FOCUS_MATCHES,
+  FOCUS_MODES,
+  cleanFocusTerms,
+  focusTermKey,
+  normalizeFocusText,
+} from "./selection-v3-view.mjs";
 
 export const RENDER_MODES = ["face-track", "fit-blur", "center-crop"];
 export const SELECTION_MODES = ["v1", "v2-shadow", "v3"];
@@ -22,7 +30,24 @@ export const DEFAULT_V3_OPTIONS = Object.freeze({
 });
 const V2_OPTION_KEYS = ["clipProfile", "maxCandidates", "maxMediaCandidates", "mediaTimeout"];
 const V3_OPTION_KEYS = ["llmMode", "coldOpen", "hookOverlay", "captionStyle"];
+// Fokus klip (docs/plans/2026-09-25-fokus-klip.md §1): V3 only, persisted as options.focus.
+const FOCUS_FORM_KEYS = ["focusTerms", "focusNote"];
+const FOCUS_KEYS = ["terms", "note", "mode"];
+// Bounds on what the job API reads before normalising: form text, or a list of terms.
+const MAX_FOCUS_TERMS_INPUT = 4096;
+const MAX_FOCUS_TERMS_ENTRIES = 64;
 const WORKER_PROGRESS_PREFIX = "POTONGIN_PROGRESS ";
+
+/** Every field of the job creation form that parseJobOptions reads. */
+export const JOB_FORM_FIELDS = Object.freeze([
+  "renderMode", "limit", "minDuration", "maxDuration", "selectionMode",
+  ...V2_OPTION_KEYS, ...V3_OPTION_KEYS, ...FOCUS_FORM_KEYS,
+]);
+
+/** The parseJobOptions input of a job creation form (FormData): each field or null. */
+export function jobOptionInputFromForm(form) {
+  return Object.fromEntries(JOB_FORM_FIELDS.map((name) => [name, form.get(name)]));
+}
 
 export function parseWorkerProgress(line) {
   if (typeof line !== "string" || !line.startsWith(WORKER_PROGRESS_PREFIX)) return null;
@@ -200,6 +225,84 @@ function persistedNumber(value, label, integer = false) {
   return value;
 }
 
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function codePointLength(value) {
+  return Array.from(value).length;
+}
+
+function validFocusTermLength(term) {
+  const length = codePointLength(term);
+  return length >= FOCUS_LIMITS.termMin && length <= FOCUS_LIMITS.termMax;
+}
+
+/**
+ * The focus of a new job from the form's focusTerms (comma or line separated text, or a list)
+ * and focusNote, or null when no term was given. Terms and note are normalised like trend items
+ * and bounded; duplicate terms (case and accents) are dropped.
+ */
+function parseFocusOption(termsInput, noteInput) {
+  const given = (value) => value !== undefined && value !== null && value !== "";
+  let entries = [];
+  if (typeof termsInput === "string") {
+    if (termsInput.length > MAX_FOCUS_TERMS_INPUT) throw new Error("focus terms are too long");
+    entries = termsInput.split(/[,\n\r]/);
+  } else if (Array.isArray(termsInput)) {
+    if (!termsInput.every((entry) => typeof entry === "string")) throw new Error("focus terms must be text");
+    if (termsInput.length > MAX_FOCUS_TERMS_ENTRIES) throw new Error("focus terms are too long");
+    entries = termsInput;
+  } else if (given(termsInput)) {
+    throw new Error("focus terms must be text");
+  }
+  const seen = new Set();
+  const terms = [];
+  for (const entry of entries) {
+    const term = normalizeFocusText(entry);
+    if (!term) continue;
+    if (!validFocusTermLength(term)) {
+      throw new Error(`each focus term must be ${FOCUS_LIMITS.termMin}-${FOCUS_LIMITS.termMax} characters`);
+    }
+    const key = focusTermKey(term);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    terms.push(term);
+  }
+  if (terms.length > FOCUS_LIMITS.terms) throw new Error(`at most ${FOCUS_LIMITS.terms} focus terms are allowed`);
+  let note = "";
+  if (given(noteInput)) {
+    if (typeof noteInput !== "string") throw new Error("focus note must be text");
+    note = normalizeFocusText(noteInput);
+    if (codePointLength(note) > FOCUS_LIMITS.note) throw new Error(`focus note must be at most ${FOCUS_LIMITS.note} characters`);
+  }
+  if (!terms.length) {
+    if (note) throw new Error("a focus note needs at least one focus term");
+    return null;
+  }
+  return { terms, ...(note ? { note } : {}), mode: FOCUS_MODES[0] };
+}
+
+/** A persisted options.focus exactly as parseFocusOption writes it, or an error. */
+function persistedFocus(value) {
+  const invalid = () => new Error("Invalid persisted job options: invalid focus");
+  if (!isPlainObject(value) || Object.keys(value).some((key) => !FOCUS_KEYS.includes(key))) throw invalid();
+  if (!FOCUS_MODES.includes(value.mode)) throw invalid();
+  const { terms, note } = value;
+  if (!Array.isArray(terms) || terms.length < 1 || terms.length > FOCUS_LIMITS.terms) throw invalid();
+  const seen = new Set();
+  for (const term of terms) {
+    if (typeof term !== "string" || normalizeFocusText(term) !== term || !validFocusTermLength(term)) throw invalid();
+    const key = focusTermKey(term);
+    if (seen.has(key)) throw invalid();
+    seen.add(key);
+  }
+  if (note !== undefined && (typeof note !== "string" || !note || normalizeFocusText(note) !== note || codePointLength(note) > FOCUS_LIMITS.note)) {
+    throw invalid();
+  }
+  return { terms: [...terms], ...(note !== undefined ? { note } : {}), mode: value.mode };
+}
+
 export function validatePersistedJobOptions(input) {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     throw new Error("Invalid persisted job options");
@@ -216,6 +319,9 @@ export function validatePersistedJobOptions(input) {
     throw new Error("Invalid persisted job options: duration range out of range");
   }
   const options = { renderMode, limit, minDuration, maxDuration };
+  if (input.focus !== undefined && input.selectionMode !== "v3") {
+    throw new Error("Invalid persisted job options: focus requires v3 mode");
+  }
   if (input.selectionMode === undefined) return options;
   if (typeof input.selectionMode !== "string" || !SELECTION_MODES.includes(input.selectionMode)) {
     throw new Error("Invalid persisted job options: unsupported selection mode");
@@ -238,12 +344,14 @@ export function validatePersistedJobOptions(input) {
     if (typeof input.captionStyle !== "string" || !CAPTION_STYLES.includes(input.captionStyle)) {
       throw new Error("Invalid persisted job options: unsupported caption style");
     }
+    const focus = input.focus === undefined ? null : persistedFocus(input.focus);
     return {
       ...options,
       llmMode: input.llmMode,
       coldOpen: input.coldOpen,
       hookOverlay: input.hookOverlay,
       captionStyle: input.captionStyle,
+      ...(focus ? { focus } : {}),
     };
   }
   const clipProfile = input.clipProfile;
@@ -279,7 +387,7 @@ export function parseJobOptions(input = {}) {
   }
   const options = { renderMode, limit, minDuration, maxDuration };
   const provided = (key) => input[key] !== undefined && input[key] !== null && input[key] !== "";
-  const hasSelectionOptions = ["selectionMode", ...V2_OPTION_KEYS, ...V3_OPTION_KEYS].some(provided);
+  const hasSelectionOptions = ["selectionMode", ...V2_OPTION_KEYS, ...V3_OPTION_KEYS, ...FOCUS_FORM_KEYS].some(provided);
   if (!hasSelectionOptions) return options;
 
   if (typeof input.selectionMode !== "string" || !SELECTION_MODES.includes(input.selectionMode)) {
@@ -292,18 +400,23 @@ export function parseJobOptions(input = {}) {
   if (input.selectionMode !== "v3" && V3_OPTION_KEYS.some(provided)) {
     throw new Error("V3 selection options require v3 mode");
   }
+  if (input.selectionMode !== "v3" && FOCUS_FORM_KEYS.some(provided)) {
+    throw new Error("Focus options require v3 mode");
+  }
   if (input.selectionMode === "v1") return options;
   if (input.selectionMode === "v3") {
     const llmMode = provided("llmMode") ? input.llmMode : DEFAULT_V3_OPTIONS.llmMode;
     if (typeof llmMode !== "string" || !LLM_MODES.includes(llmMode)) throw new Error("Unsupported LLM mode");
     const captionStyle = provided("captionStyle") ? input.captionStyle : DEFAULT_V3_OPTIONS.captionStyle;
     if (typeof captionStyle !== "string" || !CAPTION_STYLES.includes(captionStyle)) throw new Error("Unsupported caption style");
+    const focus = parseFocusOption(input.focusTerms, input.focusNote);
     return {
       ...options,
       llmMode,
       coldOpen: formBoolean(input.coldOpen, DEFAULT_V3_OPTIONS.coldOpen, "cold open"),
       hookOverlay: formBoolean(input.hookOverlay, DEFAULT_V3_OPTIONS.hookOverlay, "hook overlay"),
       captionStyle,
+      ...(focus ? { focus } : {}),
     };
   }
 
@@ -483,6 +596,22 @@ function sanitizeTrendRefs(value) {
   return refs;
 }
 
+// Fokus klip: { match, terms, at } per clip. "literal" was checked by the engine against the
+// clip's transcript and carries the source-video second of the first mention; "semantic" is
+// the model's claim; "none" fills a remaining slot. Terms are the owner's own, re-cleaned.
+const MAX_FOCUS_TIMES = 100;
+
+function sanitizeClipFocus(value) {
+  if (!isPlainObject(value) || !FOCUS_MATCHES.includes(value.match)) return null;
+  let at = null;
+  if (value.match === "literal") {
+    const times = (Array.isArray(value.at) ? value.at.slice(0, MAX_FOCUS_TIMES) : [value.at])
+      .filter((time) => typeof time === "number" && Number.isFinite(time) && time >= 0);
+    if (times.length) at = round(Math.min(...times), 3);
+  }
+  return { match: value.match, terms: cleanFocusTerms(value.terms), at };
+}
+
 function sanitizeScores(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const scores = {};
@@ -540,20 +669,22 @@ function sanitizeV3ClipFields(raw, names, descriptionLimit) {
   }
   const trends = sanitizeTrendRefs(raw[names.trends]);
   if (trends.length) fields.trends = trends;
+  const focus = sanitizeClipFocus(raw[names.focus]);
+  if (focus) fields.focus = focus;
   return fields;
 }
 
 const MANIFEST_V3_NAMES = Object.freeze({
   title: "title", hookText: "hook_text", description: "description", hashtags: "hashtags",
   archetype: "archetype", selectionSource: "selection_source", reasons: "reasons", scores: "scores",
-  coldOpen: "cold_open", sourceStart: "source_start", sourceEnd: "source_end", trends: "trends",
+  coldOpen: "cold_open", sourceStart: "source_start", sourceEnd: "source_end", trends: "trends", focus: "focus",
 });
 const JOB_V3_NAMES = Object.freeze({
   title: "title", hookText: "hookText", description: "description", hashtags: "hashtags",
   archetype: "archetype", selectionSource: "selectionSource", reasons: "reasons", scores: "scores",
-  coldOpen: "coldOpen", sourceStart: "sourceStart", sourceEnd: "sourceEnd", trends: "trends",
+  coldOpen: "coldOpen", sourceStart: "sourceStart", sourceEnd: "sourceEnd", trends: "trends", focus: "focus",
 });
-const JOB_V3_ONLY_KEYS = ["hookText", "archetype", "selectionSource", "reasons", "scores", "coldOpen", "sourceStart", "sourceEnd", "trends"];
+const JOB_V3_ONLY_KEYS = ["hookText", "archetype", "selectionSource", "reasons", "scores", "coldOpen", "sourceStart", "sourceEnd", "trends", "focus"];
 
 /** A manifest clip's Selection V3 packaging, sanitized, as camelCase job-clip fields. */
 export function sanitizeManifestClipFields(raw) {
@@ -637,6 +768,32 @@ function safeCode(value, pattern) {
   return typeof value === "string" && pattern.test(value) ? value : null;
 }
 
+const MAX_FOCUS_REQUESTED = 1000;
+
+/** The summary's `focus: { terms, matched, requested }`, or null. Counts that do not add up become null. */
+function sanitizeSummaryFocus(value) {
+  if (!isPlainObject(value)) return null;
+  const terms = cleanFocusTerms(value.terms);
+  if (!terms.length) return null;
+  const { matched, requested } = value;
+  const counted = Number.isSafeInteger(matched) && Number.isSafeInteger(requested)
+    && matched >= 0 && requested >= 1 && requested <= MAX_FOCUS_REQUESTED && matched <= requested;
+  return { terms, matched: counted ? matched : null, requested: counted ? requested : null };
+}
+
+/** options.focus as served by the job API: re-cleaned, or null when nothing usable is left. */
+function publicFocusOption(value) {
+  if (!isPlainObject(value)) return null;
+  const terms = cleanFocusTerms(value.terms);
+  if (!terms.length) return null;
+  const note = normalizeFocusText(value.note);
+  return {
+    terms,
+    ...(note ? { note: Array.from(note).slice(0, FOCUS_LIMITS.note).join("") } : {}),
+    mode: FOCUS_MODES.includes(value.mode) ? value.mode : FOCUS_MODES[0],
+  };
+}
+
 /**
  * Strict allowlist for the manifest's top-level `selection_v3`. The structural
  * fields must be valid or the whole summary is dropped; descriptive fields
@@ -659,6 +816,7 @@ export function sanitizeSelectionV3Summary(raw) {
       warnings.push(warning);
     }
   }
+  const focus = sanitizeSummaryFocus(raw.focus);
   return {
     mode: "v3",
     status: raw.status,
@@ -669,6 +827,7 @@ export function sanitizeSelectionV3Summary(raw) {
     warnings,
     artifact: raw.artifact === SELECTION_V3_ARTIFACT ? SELECTION_V3_ARTIFACT : null,
     transcript_source: SELECTION_V3_TRANSCRIPT_SOURCES.includes(raw.transcript_source) ? raw.transcript_source : null,
+    ...(focus ? { focus } : {}),
   };
 }
 
@@ -684,6 +843,11 @@ export function serializePublicJob(job) {
   const options = safe.options && typeof safe.options === "object" && !Array.isArray(safe.options)
     ? { ...safe.options, selectionMode: safe.options.selectionMode || "v1" }
     : { selectionMode: "v1" };
+  if (options.focus !== undefined) {
+    const focus = publicFocusOption(options.focus);
+    if (focus) options.focus = focus;
+    else delete options.focus;
+  }
   const selectionV2 = sanitizeSelectionV2Summary(rawSelectionV2);
   const selectionV3 = sanitizeSelectionV3Summary(rawSelectionV3);
   if (Array.isArray(safe.clips)) safe.clips = safe.clips.map((clip) => sanitizeStoredClip(clip, safe.id));

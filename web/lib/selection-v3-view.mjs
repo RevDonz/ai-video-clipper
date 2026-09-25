@@ -122,21 +122,204 @@ export function clipTrendChips(clip) {
   return chips;
 }
 
-// Konteks Tren summary codes (engine: pipeline.py and selection_v3.py). Other codes stay
-// technical and get no label.
-const TREND_WARNING_LABELS = Object.freeze({
+// Konteks Tren and Fokus klip summary codes (engine: pipeline.py and selection_v3.py). Other
+// codes stay technical and get no label.
+const WARNING_LABELS = Object.freeze({
   trend_items_skipped: (count) => `${count} item tren rusak dilewati.`,
   trend_ref_ungrounded: (count) => `${count} tren yang disebut AI dibuang karena tidak disebut di transkrip klipnya.`,
   trend_packaging_ungrounded: (count) => `${count} klip AI menyebut tren yang tidak ada di transkripnya; judul, hook atau deskripsinya diganti dari klip itu sendiri.`,
   trend_sensitive_humor: (count) => `${count} klip lucu menyinggung tren sensitif; periksa judul dan hook-nya sebelum diunggah.`,
+  focus_few_matches: (count) => `Hanya ${count} klip yang cocok dengan fokus; sisa slot diisi momen terbaik lain dengan label “Di luar fokus”.`,
+  focus_literal_ungrounded: (count) => `${count} klip yang menurut AI menyebut fokus ternyata istilahnya tidak ditemukan di transkrip klip itu; labelnya diturunkan dari “Menyebut”.`,
 });
 
-/** An Indonesian explanation of a trend warning code of the V3 summary, or null. */
+/** An Indonesian explanation of a trend or focus warning code of the V3 summary, or null. */
 export function selectionWarningLabel(code) {
   if (code === "trend_context_invalid") return "File konteks tren job rusak atau hilang; job jalan tanpa tren.";
+  if (code === "focus_few_matches:0") return "Tidak ada momen yang cocok dengan fokus; semua klip adalah momen terbaik lain dan diberi label “Di luar fokus”.";
   const match = typeof code === "string" ? /^([a-z_]+):([1-9]\d{0,5})$/.exec(code) : null;
-  const label = match && Object.hasOwn(TREND_WARNING_LABELS, match[1]) ? TREND_WARNING_LABELS[match[1]] : null;
+  const label = match && Object.hasOwn(WARNING_LABELS, match[1]) ? WARNING_LABELS[match[1]] : null;
   return label ? label(match[2]) : null;
+}
+
+// --- Fokus klip (docs/plans/2026-09-25-fokus-klip.md §1, §3) ------------------------------------
+// The owner's focus terms and note are still untrusted text for the engine's prompt: the
+// dashboard and the job API normalise and bound them the same way trend items are (NFC; no
+// control, format or other invisible characters; spaces collapsed; code-point lengths).
+
+export const FOCUS_LIMITS = Object.freeze({ terms: 8, termMin: 2, termMax: 40, note: 200 });
+export const FOCUS_MATCHES = Object.freeze(["literal", "semantic", "none"]);
+export const FOCUS_MODES = Object.freeze(["prefer"]);
+
+const FOCUS_LINE_BREAKS = /[\t\n\v\f\r\u0085\u2028\u2029]/g;
+const FOCUS_INVISIBLE = /[\p{Cc}\p{Cf}\p{Default_Ignorable_Code_Point}]/gu;
+
+function focusCodePoints(value) {
+  return Array.from(value).length;
+}
+
+/** One line of focus text as the engine will see it, or "" for anything that is not a string. */
+export function normalizeFocusText(value) {
+  if (typeof value !== "string") return "";
+  const wellFormed = typeof value.toWellFormed === "function" ? value.toWellFormed() : value;
+  return wellFormed
+    .replace(FOCUS_LINE_BREAKS, " ")
+    .replace(FOCUS_INVISIBLE, "")
+    .replace(/\s+/gu, " ")
+    .trim()
+    .normalize("NFC");
+}
+
+/** Terms are the same term when this key is equal (case and accents do not count). */
+export function focusTermKey(value) {
+  return normalizeFocusText(value).normalize("NFD").replace(/\p{M}+/gu, "").toLowerCase().normalize("NFC");
+}
+
+/** Focus terms as typed: separated by commas or line breaks, cleaned, blanks dropped. */
+export function splitFocusTerms(text) {
+  return String(text ?? "").split(/[,\n\r]/).map(normalizeFocusText).filter(Boolean);
+}
+
+function focusTermPreview(term) {
+  const points = Array.from(term);
+  return points.length > 20 ? `${points.slice(0, 20).join("")}…` : term;
+}
+
+/**
+ * Adds the typed text to the chips. Valid terms (2–40 characters, new, at most 8 in all) become
+ * chips; a duplicate is dropped; anything else stays in the input (`pending`) with `error`.
+ */
+export function addFocusTerms(terms, text) {
+  const next = [...terms];
+  const keys = new Set(next.map(focusTermKey));
+  const rejected = [];
+  let error = "";
+  for (const term of splitFocusTerms(text)) {
+    const length = focusCodePoints(term);
+    const key = focusTermKey(term);
+    let problem = "";
+    if (length < FOCUS_LIMITS.termMin) problem = `Kata kunci “${term}” terlalu pendek (minimal ${FOCUS_LIMITS.termMin} karakter).`;
+    else if (length > FOCUS_LIMITS.termMax) problem = `Kata kunci “${focusTermPreview(term)}” terlalu panjang (maksimal ${FOCUS_LIMITS.termMax} karakter).`;
+    else if (keys.has(key)) {
+      error ||= `“${term}” sudah ada.`;
+      continue;
+    } else if (next.length >= FOCUS_LIMITS.terms) problem = `Maksimal ${FOCUS_LIMITS.terms} kata kunci.`;
+    if (problem) {
+      error ||= problem;
+      rejected.push(term);
+      continue;
+    }
+    keys.add(key);
+    next.push(term);
+  }
+  return { terms: next, pending: rejected.join(", "), error };
+}
+
+export function removeFocusTerm(terms, term) {
+  return terms.filter((entry) => entry !== term);
+}
+
+/**
+ * What the dashboard sends for the focus: `fields` is {} without focus (nothing is sent), the
+ * `focusTerms`/`focusNote` form fields otherwise, or null with `error` when the job must not be
+ * created yet. Text still in the chip input is committed first.
+ */
+export function focusFormFields({ terms = [], pending = "", note = "" } = {}) {
+  const committed = normalizeFocusText(pending) ? addFocusTerms(terms, pending) : { terms: [...terms], pending: "", error: "" };
+  if (committed.pending) return { ...committed, fields: null };
+  const cleanNote = normalizeFocusText(note);
+  if (focusCodePoints(cleanNote) > FOCUS_LIMITS.note) {
+    return { ...committed, fields: null, error: `Catatan untuk AI maksimal ${FOCUS_LIMITS.note} karakter.` };
+  }
+  if (!committed.terms.length) {
+    return cleanNote
+      ? { ...committed, fields: null, error: "Isi minimal satu kata kunci fokus, atau kosongkan catatan untuk AI." }
+      : { terms: [], pending: "", error: "", fields: {} };
+  }
+  return {
+    terms: committed.terms,
+    pending: "",
+    error: "",
+    fields: { focusTerms: committed.terms.join(","), ...(cleanNote ? { focusNote: cleanNote } : {}) },
+  };
+}
+
+/** A list of focus terms read leniently: cleaned, 2–40 characters, unique, at most 8. */
+export function cleanFocusTerms(value) {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set();
+  const terms = [];
+  for (const entry of value) {
+    if (terms.length >= FOCUS_LIMITS.terms) break;
+    const term = normalizeFocusText(entry);
+    const length = focusCodePoints(term);
+    const key = focusTermKey(term);
+    if (length < FOCUS_LIMITS.termMin || length > FOCUS_LIMITS.termMax || seen.has(key)) continue;
+    seen.add(key);
+    terms.push(term);
+  }
+  return terms;
+}
+
+function jobFocusTerms(job) {
+  const fromSummary = cleanFocusTerms(job?.selectionV3?.focus?.terms);
+  return fromSummary.length ? fromSummary : cleanFocusTerms(job?.options?.focus?.terms);
+}
+
+function focusCount(value) {
+  return Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
+
+/** A source-video time as m:ss or h:mm:ss, or null. */
+export function formatTimestamp(seconds) {
+  if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds < 0) return null;
+  const total = Math.floor(seconds);
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const rest = String(total % 60).padStart(2, "0");
+  return hours ? `${hours}:${String(minutes).padStart(2, "0")}:${rest}` : `${minutes}:${rest}`;
+}
+
+/**
+ * "Fokus: jomok, jomokers — 5 dari 8 klip cocok" for a job with focus terms, or null (every job
+ * without focus). The counts come from the engine's summary; without them only the terms.
+ */
+export function focusSummaryLine(job) {
+  const terms = jobFocusTerms(job);
+  if (!terms.length) return null;
+  const summary = job?.selectionV3?.focus;
+  const matched = focusCount(summary?.matched);
+  const requested = focusCount(summary?.requested);
+  const countText = matched !== null && requested !== null && requested > 0 && matched <= requested
+    ? `${matched} dari ${requested} klip cocok`
+    : null;
+  const termsText = terms.join(", ");
+  return { terms, termsText, countText, text: `Fokus: ${termsText}${countText ? ` — ${countText}` : ""}` };
+}
+
+function quotedTerms(terms) {
+  const shown = terms.slice(0, 2).map((term) => `'${term}'`).join(", ");
+  return terms.length > 2 ? `${shown} +${terms.length - 2}` : shown;
+}
+
+/**
+ * The focus label of one V3 clip: "Menyebut 'jomok' · 12:34" (checked in code against the
+ * transcript), "Terkait 'jomok' (menurut AI)" (the model's claim) or "Di luar fokus". Null for
+ * clips of jobs without focus, so they render exactly as before.
+ */
+export function clipFocusChip(clip, job) {
+  const focus = clip?.focus;
+  const match = focus && typeof focus === "object" && FOCUS_MATCHES.includes(focus.match) ? focus.match : null;
+  if (!match) return job?.selectionV3?.focus && typeof job.selectionV3.focus === "object" ? { tone: "none", label: "Di luar fokus" } : null;
+  if (match === "none") return { tone: "none", label: "Di luar fokus" };
+  const own = cleanFocusTerms(focus.terms);
+  const terms = own.length ? own : jobFocusTerms(job);
+  if (match === "semantic") {
+    return { tone: "semantic", label: terms.length ? `Terkait ${quotedTerms(terms)} (menurut AI)` : "Terkait fokus (menurut AI)" };
+  }
+  const at = formatTimestamp(focus.at);
+  const named = terms.length ? `Menyebut ${quotedTerms(terms)}` : "Menyebut fokus";
+  return { tone: "literal", label: at ? `${named} · ${at}` : named };
 }
 
 export function coldOpenLength(clip) {
