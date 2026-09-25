@@ -1289,3 +1289,99 @@ signatures stay; everything below is additive unless marked **changed**.
 - `SetLogo`/`SetMusic` take `{asset, meta}`: `asset` is `"sha256:<hex>"` or bare hex; `meta`
   in document form or the `POST /assets` DTO; `mime` `image/png` or `audio/mp4` (the normalised
   job asset store metadata), compared byte for byte by the validator.
+
+## 5.18 W2 re-exit resolutions (T2.Z2, 2026-09-25)
+
+Approved by the W2 integrator after the W2 verifier (docs/editor/GATES.md, "W2 re-exit").
+Everything here is additive: no frozen signature, mode, DTO field or route changed.
+
+### Preview audio in one decode (PF-AUDIO)
+
+- `execute.run_piped(producer, consumer, *, output_fd, timeout_s, cancel=None)` → `(producer
+  result, consumer result)`: the producer's `expected["output"]` is `"pipe"` (its `@out` is the
+  write end of a pipe; no size check), the consumer has exactly one `InputSpec("pipe", name)`
+  input (the read end, dup'ed; a FIFO is required). Both run at the same time, each a `run` with
+  its own limits, timeout and stall window; the parent closes its pipe ends as soon as a side
+  ends, so a dead consumer stops the producer at once (broken pipe). A cancel wins; otherwise
+  the first failure is raised. `execute.run` keeps its frozen signature (a private `_run` takes
+  the pipes).
+- `compile_ffmpeg.premaster_jobs(plan, *, source, assets_root)` → `(producer, consumer)`: the
+  producer is the `audio_measure` job up to `[apre]` (f32le out); the consumer runs the
+  `audio_measure` stage text on that stream (stderr: the ebur128 summary) and writes the stream
+  unchanged (f32le) to its `@out`. `compile_ffmpeg.master_job(plan, *, premaster, assets_root,
+  loudness, mix_sha256)`: the `audio_preview` master stage and FLAC output over a stored
+  pre-master (`InputSpec("source", "premaster", PREMASTER_INPUT)`). The master stage text of
+  every mode comes from one function (`_master_chain`). `MODES` is unchanged.
+- `preview_cli audio`: when a measurement is needed and not cached, the source is decoded once
+  (`run_piped`), the measurement is cached as before (`<mix16>.loudness.json`) and the master
+  stage runs on the kept pre-master (a private temp file, removed after). f32 carries `[apre]`
+  exactly: the loudness equals `audio_measure`'s and the FLAC's PCM the reference's (tests; the
+  server P-AUD re-run, 6/6 md5).
+- `preview/probe.json` (per clip): the source's `compile_ffmpeg` probe under its file identity
+  (device, inode, size, mtime ns), written atomically (replaced when the identity changes);
+  `compile_ffmpeg.seed_probe` / `source_identity` / `streams_to_json` / `streams_from_json` /
+  `clear_probe_cache`. Used by the `audio`, `cells` and `frame` ops.
+- The truth frame (`frame` op) runs at the lane's two threads (plan §2.6), byte-identical to
+  the four-thread compiler output (test).
+
+### The persistent preview worker (plan §10.3 contingency; PF-PLAN, PF-AUDIO)
+
+- `python -m ai_clipper.edit_v2.preview_server`: stdin line 1 is `{"op": "serve", "dir": <abs
+  path>}` (an existing directory, not a symlink, owned by the user, mode 0700); it listens on
+  `<dir>/preview.sock` (0600), prints `{"ready": true, "pid": <pid>}`, imports the lane's modules
+  once (`PRELOAD`; not `camera`/`seed`) and forks one child per connection. A connection sends
+  one envelope and shuts its write side; the child answers `{"pid": <pid>}\n` at once, then
+  `<exit code>\n<result JSON>\n`. The child is one `preview_cli.handle` run (`renice=True`, its
+  own session via `setsid`, SIGTERM → cancel → 12). stdin EOF or SIGTERM stops the server (the
+  socket is removed); running children finish on their own. The server never starts a thread;
+  SIGCHLD is ignored in it and restored in each child.
+- `web/lib/python-cli.mjs`: `PYTHON_SERVER_MODULES = ["ai_clipper.edit_v2.preview_server"]`,
+  `createPythonServer(module, {cliModule, env, pythonBin, spawnImpl, fallback, readyTimeoutMs,
+  restartDelayMs, tmpdir, now})` → `{run(op, payload, options), start(), state(), pid(),
+  close()}`. The server is spawned with `childEnv` (E11); `run` has `runPythonCli`'s contract
+  (exit codes, bounded output, timeout/abort: SIGTERM to the child's group, SIGKILL after
+  `killGraceMs`). While the server is starting, down (restart after `restartDelayMs`, default
+  5 s) or when a connection ends before the pid line, the request runs through `fallback`
+  (`runPythonCli`): nothing ran it yet.
+- `web/lib/preview-lane.mjs`: `PREVIEW_SERVER_MODULE`, `previewServerEnabled(env)`,
+  `previewCliRunner({env, createServer, spawnCli})`; `getPreviewLane()` runs preview ops on the
+  worker. Server-only env `POTONGIN_PREVIEW_SERVER=off` turns it off (every op spawned).
+
+### Captions (Open 11)
+
+- `subtitles.build_frame_cues`: between two words of the **same piece** the gap is measured in
+  source milliseconds (`next.s_ms − min(prev.e_ms, next.s_ms) > max_gap_ms`), as
+  `build_caption_cues` measures it; across a cut it stays in output frames. Inside a piece the
+  frame cues group words exactly as the legacy cues (property test at the five document rates).
+  `RENDER_SEMANTICS` stays 1: `plan_sha256` covers the ASS, so render keys follow, and no
+  production render with the new engine exists (the engine flag is `legacy`).
+
+### Job-level prepare and the older helpers
+
+- `POST /api/jobs/:id/clips` (`clip-edit.createPrepareGate`, `PREPARE_RATE` capacity 3, one
+  more per 20 s per job): concurrent requests for a job share one `prepare_job` run, jobs are
+  prepared one at a time, a burst answers 429 `rate_limited` with `Retry-After`. The
+  `prepare_job` process runs at nice 5 (`api.NICE`; `api.handle(..., renice=False)` for
+  in-process callers). The lane's own semaphore is not shared (a different CLI module); T4.3 may
+  merge them.
+- `CHILD_ENV_ALLOWLIST` adds `MAX_UPLOAD_BYTES` (not a secret; `render_queue` reads it for the
+  source snapshot limit). `render-requests`, `edit-document`, `candidates`, `caption-cues` and
+  `candidate-feedback` spawn Python with `childEnv(options.env || process.env)`.
+
+### Editor client
+
+- Export dialog: the revision shown is `shell-model.exportRevision(state)` (the store's saved
+  `revision`; `doc.revision` is the loaded one). `createExportFlow` state adds `lastRunning`
+  (the last running RenderDTO); `exportStepView(render, lastRunning)` keeps a cancelled or
+  failed render on the step it reached with the status `"stopped"` (`aria-current="step"`).
+  `export-flow.earlierExports({history, current, latest})` leaves out the export the dialog is
+  running.
+- `shell-model.badgeHelp(view)`: the §6.1 statement (`BADGE_HELP`) for the exact badge only;
+  the pending, legacy, truth, unsupported and loading badges explain themselves.
+- `shell-model.LIVE_WAVES = ["W1", "W2"]` and `liveEntries(entries, runtimeKind, liveWaves)`:
+  the real editor shows only the panels and lanes of landed waves; the fakes show every entry.
+  **The W3 integrator adds `"W3"`.** `Timeline` takes a `lanes` prop.
+- `POTONGIN_EDITOR_FAKES` is a CI/development switch only: the shell specs run it on a
+  production build, so it is not tied to `NODE_ENV`; `compose.yaml` never passes it; the fake
+  runtime makes no API call. `window.__potonginEditorInspect` stays (read-only state, player
+  state and stats; the e2e flow and support read it).
