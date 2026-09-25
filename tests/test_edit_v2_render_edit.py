@@ -342,6 +342,35 @@ def test_measurements_hash_to_a_stable_render_key_part():
     assert first != render_edit.measure_sha256(Loudness(-1650, -121))
 
 
+def test_a_clamped_normalisation_is_recorded_for_g3():
+    from support import edit_v2_fixtures as fixtures
+
+    from ai_clipper.edit_v2.loudness import Loudness
+
+    context = fixtures.load_context("c30")
+    normalized = copy.deepcopy(context.seed)
+    normalized["audio"]["master"]["mode"] = "normalize"
+    plan = fixtures.make_render_plan(normalized, context.words)
+    assert render_edit._with_measurement(plan, None) is plan
+    # -30 LUFS with a -3 dBTP peak cannot reach -14 LUFS under the -2 dBTP ceiling: the master
+    # gain stops at +1.0 dB and G3 checks the -29.0 LUFS reached.
+    clamped = render_edit._with_measurement(plan, Loudness(-3000, -300))
+    assert clamped.loudness_clamped_clufs == -2900
+    reachable = render_edit._with_measurement(plan, Loudness(-1800, -900))
+    assert reachable.loudness_clamped_clufs is None
+
+
+def test_the_render_timeout_scales_with_the_clip_and_its_layout():
+    from support import edit_v2_fixtures as fixtures
+
+    seed_doc = copy.deepcopy(fixtures.load_context("c25").seed)  # 200 s body, camera, 25 fps
+    frames = sum(segment["out_sf"] - segment["in_sf"] for segment in seed_doc["main"]["segments"])
+    assert render_edit.render_timeout_s(seed_doc) == pytest.approx(
+        max(120.0, 3 * frames / 25 * render_edit.PREDICTED_X["camera"]))
+    seed_doc["main"]["segments"][-1]["out_sf"] = seed_doc["main"]["segments"][-1]["in_sf"] + 100
+    assert render_edit.render_timeout_s(seed_doc) == 120.0  # a short clip keeps the floor
+
+
 # --- the pipeline path (revision 0) ---------------------------------------------------------------
 
 
