@@ -102,6 +102,7 @@ PREVIEW_DIR = "preview"
 CANCEL_DIR = ".cancel"
 AUDIO_SCHEMA = "potongin.preview-audio/1"
 FRAME_SCHEMA = "potongin.truth-frame/1"
+REV0_SCHEMA = "potongin.rev0-plan/1"
 DERIVED_SCHEMA = "potongin.derived-logo/1"
 HOOK_FONT_FALLBACK = "DejaVuSans-Bold.ttf"
 
@@ -448,6 +449,7 @@ def _font_entries(doc: Mapping[str, Any]) -> list[dict[str, str]]:
 class _Validated:
     doc: dict
     seed: dict
+    seed_etag: str
     reference: dict  # the seed, or the stored revision of a read-only document
     words: dict
     assets: dict
@@ -459,7 +461,7 @@ def _validated(clip: Path, doc_raw: bytes) -> _Validated:
     from .doc import iter_asset_ids, parse_doc, validate_doc
 
     doc = parse_doc(doc_raw)
-    seed_doc, _etag = store.seed(clip)
+    seed_doc, seed_etag = store.seed(clip)
     reference = seed_doc
     if doc.get("base") != seed_doc["base"]:
         current, _current_etag, _is_seed = store.get(clip)
@@ -472,7 +474,7 @@ def _validated(clip: Path, doc_raw: bytes) -> _Validated:
         first = validation.errors[0]
         raise DocSemanticInvalid(first.code, path=first.path, ref=first.ref,
                                  issues=validation.errors)
-    return _Validated(doc, seed_doc, reference, words, assets, validation.warnings)
+    return _Validated(doc, seed_doc, seed_etag, reference, words, assets, validation.warnings)
 
 
 def _with_layout(doc: Mapping[str, Any], layout: str) -> dict:
@@ -596,25 +598,73 @@ def _auto_render(ctx: _Context, seed_doc: Mapping[str, Any]) -> tuple[str | None
     return f"/api/jobs/{ctx.job_id}/files/output/{name}", entry
 
 
-def _rev0(ctx: _Context, validated: _Validated, plan: Any) -> dict[str, Any]:
+def _file_sha(path: Path) -> str | None:
+    from .source_info import read_regular
+
+    try:
+        return hashlib.sha256(read_regular(path, 1 << 20)).hexdigest()
+    except (OSError, ValueError):
+        return None
+
+
+def _rev0_identity(validated: _Validated) -> dict[str, Any]:
+    """What the seed's plan sha depends on besides the seed itself (its words and camera are
+    named by the seed): the compiler and the resource files the seed's captions read."""
+    seed_doc = validated.seed
+    resources = _resources()
+    pack = seed_doc["captions"]["pack"]
+    hook = _hook_item(seed_doc)
+    design = hook["payload"]["design"] if hook is not None else None
+    return {
+        "schema": REV0_SCHEMA,
+        "seed": validated.seed_etag,
+        "compiler": COMPILER_VERSION,
+        "render_semantics": RENDER_SEMANTICS,
+        "fonts": _file_sha(resources.fonts_dir / "fonts.json"),
+        "pack": _file_sha(resources.pack_file(pack["id"], pack["v"])),
+        "hook_design": None if design is None
+        else _file_sha(resources.hook_design_file(design["id"], design["v"])),
+    }
+
+
+def _rev0_plan_sha(ctx: _Context, validated: _Validated) -> str | None:
+    """The seed's plan sha, computed once per seed, compiler and resources and kept in
+    ``preview/rev0.<key16>.json`` (a second ``build_plan`` per edit otherwise)."""
     from . import plates, store
-    from .doc import content_equals_seed, iter_asset_ids
+    from .doc import iter_asset_ids
     from .plan import build_plan
+
+    identity = _rev0_identity(validated)
+    key = _sha(identity)
+    path = ctx.preview / f"rev0.{key[:16]}.json"
+    cached = _read_json(path, MAX_META_BYTES)
+    if (isinstance(cached, dict) and cached.get("key") == key
+            and isinstance(cached.get("planSha256"), str)
+            and _HEX64.fullmatch(cached["planSha256"])):
+        return cached["planSha256"]
+    seed_doc = validated.seed
+    try:
+        words = (validated.words if validated.reference is seed_doc
+                 else store.load_words(ctx.clip, seed_doc["base"]["words"]["sha256"]))
+        camera, _camera_sha = plates.camera_for(ctx.clip, seed_doc)
+        plan_sha = build_plan(seed_doc, words=words, camera=camera,
+                              assets=store.load_assets(ctx.clip, iter_asset_ids(seed_doc)),
+                              resources=_resources()).plan_sha256
+    except EditV2Error:
+        return None
+    _publish(path, _canonical({"key": key, "planSha256": plan_sha}))
+    return plan_sha
+
+
+def _rev0(ctx: _Context, validated: _Validated, plan: Any) -> dict[str, Any]:
+    from .doc import content_equals_seed
 
     seed_doc = validated.seed
     rev0_sha: str | None
     if content_equals_seed(validated.doc, seed_doc):
         rev0_sha = plan.plan_sha256
     else:
-        try:
-            words = (validated.words if validated.reference is seed_doc
-                     else store.load_words(ctx.clip, seed_doc["base"]["words"]["sha256"]))
-            camera, _camera_sha = plates.camera_for(ctx.clip, seed_doc)
-            rev0_sha = build_plan(seed_doc, words=words, camera=camera,
-                                  assets=store.load_assets(ctx.clip, iter_asset_ids(seed_doc)),
-                                  resources=_resources()).plan_sha256
-        except EditV2Error:
-            rev0_sha = None
+        rev0_sha = _rev0_plan_sha(ctx, validated)
     url, entry = _auto_render(ctx, seed_doc)
     exact = bool(url is not None and rev0_sha is not None and plan.plan_sha256 == rev0_sha
                  and seed_doc["base"]["engine"]["compiler"] == COMPILER_ID

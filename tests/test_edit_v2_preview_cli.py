@@ -291,6 +291,23 @@ def test_an_edited_document_names_the_seed_plan_as_revision_0(c30):
     assert unchanged["planSha256"] == unchanged["rev0"]["planSha256"]
 
 
+def test_the_seed_plan_is_built_once_and_kept_under_its_identity(c30):
+    seed_sha = expected_plan(c30, c30["seed"]).plan_sha256
+    assert ok(plan(c30, valid("removal_single__c30")))["dto"]["rev0"]["planSha256"] == seed_sha
+    cached = sorted((c30["clip"] / "preview").glob("rev0.*.json"))
+    assert len(cached) == 1
+    entry = json.loads(cached[0].read_text())
+    assert set(entry) == {"key", "planSha256"} and entry["planSha256"] == seed_sha
+    assert cached[0].name == f"rev0.{entry['key'][:16]}.json"
+    # the second edit reads the file instead of planning the seed again
+    cached[0].chmod(0o600)
+    cached[0].write_text(json.dumps({"key": entry["key"], "planSha256": "e" * 64}))
+    assert ok(plan(c30, valid("pack_bold__c30")))["dto"]["rev0"]["planSha256"] == "e" * 64
+    # a file under another identity (another compiler or resources) is not used
+    cached[0].write_text(json.dumps({"key": "0" * 64, "planSha256": "e" * 64}))
+    assert ok(plan(c30, valid("pack_bold__c30")))["dto"]["rev0"]["planSha256"] == seed_sha
+
+
 def test_the_audio_key_follows_the_sound_and_the_plate_key_the_pixels(c30):
     seed = ok(plan(c30))["dto"]
     bold = ok(plan(c30, valid("pack_bold__c30")))["dto"]
