@@ -165,7 +165,9 @@ def test_todays_detector_runs_over_a_synthetic_window(tmp_path, edit_v2_ffmpeg):
     assert [t for t, _centre in plan["samples"]] == [0, 750, 1500, 2250, 3000, 3750]
     assert plan["source"] == {"w": 320, "h": 180}
     assert all(centre == 500 for _t, centre in plan["samples"])  # no face: centred
-    assert plan["no_face"] == []  # unknown until the detector can skip smoothing
+    # today's detector returns raw centres (smooth=False, W1 integration), so the faceless
+    # window is reported instead of a silent centre (plan §5.7)
+    assert plan["no_face"] == [[0, 4000]]
 
 
 @pytest.mark.parametrize(
