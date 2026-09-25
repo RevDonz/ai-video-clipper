@@ -1,0 +1,95 @@
+{
+  "schema": "potongin.gate/1",
+  "gate": "e2e flow (plan §11.2 T2.Z)",
+  "browser": "Chrome for Testing 147.0.7727.15",
+  "executable": "chromium-1217",
+  "clipDurationMs": 45712,
+  "steps": [
+    {
+      "name": "open",
+      "ms": 973
+    },
+    {
+      "name": "trim",
+      "ms": 98
+    },
+    {
+      "name": "delete words",
+      "ms": 190
+    },
+    {
+      "name": "fix a word",
+      "ms": 89
+    },
+    {
+      "name": "switch pack",
+      "ms": 364
+    },
+    {
+      "name": "edit the hook",
+      "ms": 28
+    },
+    {
+      "name": "change the cold open",
+      "ms": 256
+    },
+    {
+      "name": "undo/redo",
+      "ms": 28
+    },
+    {
+      "name": "reload",
+      "ms": 893
+    },
+    {
+      "name": "export",
+      "ms": 21068
+    },
+    {
+      "name": "download",
+      "ms": 83
+    },
+    {
+      "name": "undo everything (back to the AI version)",
+      "ms": 1932
+    },
+    {
+      "name": "export the AI version",
+      "ms": 1555
+    }
+  ],
+  "edited": {
+    "revision": 7,
+    "renderMs": 20872,
+    "completedBy": "render",
+    "verify": {
+      "ok": true,
+      "frames": 1096,
+      "samples": 2194192,
+      "gates": [
+        {
+          "name": "G1",
+          "ok": true,
+          "blocking": true
+        },
+        {
+          "name": "G2",
+          "ok": true,
+          "blocking": true
+        },
+        {
+          "name": "G5",
+          "ok": false,
+          "blocking": false
+        }
+      ]
+    }
+  },
+  "r10": {
+    "sameInode": true,
+    "bytesEqual": true,
+    "completedBy": "seed",
+    "createdStatus": 200
+  },
+  "pass": true
+}

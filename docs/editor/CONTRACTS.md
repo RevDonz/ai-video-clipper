@@ -166,6 +166,7 @@ CLIs (stdin JSON envelope → stdout JSON, bounded; exit codes as in T1.1):
 | `python -m ai_clipper.edit_v2.assets` | `ingest`, `meta` |
 | `python -m ai_clipper.edit_v2.cleanup` / `coldopen` | `list` |
 | `python -m ai_clipper.editor_ai` | `heuristic`, `run-task` |
+| `python -m ai_clipper.render_queue` (added in W2, T2.2; §5.17) | `estimate`, `create`, `get`, `cancel`, `list` (no arguments: the Editor V3 envelope; `--job-dir` keeps the legacy protocol) |
 
 ### A.2 JavaScript (browser; ESM; no new dependency except jassub and mediabunny)
 
@@ -1129,3 +1130,162 @@ in `docs/editor/GATES.md` ("Patches" 11–18).
   then the window decoded front to back, keeping for each sample the frame the per-sample seek
   lands on (`int(seconds·fps + 0.5)`). `camera.build_camera_plan` passes it to a detector that
   accepts the keyword; the legacy render keeps the per-sample seeks.
+
+## 5.17 W2 integration resolutions (T2.Z, 2026-09-25)
+
+Approved by the W2 integrator; each change and its evidence is logged in
+`docs/editor/GATES.md` (W2, "Patches by the W2 integrator" and "Phase-B requests"). Appendix A's
+signatures stay; everything below is additive unless marked **changed**.
+
+### render_edit (T2.1)
+
+- `render_document(..., source=None, resources=None, timeout_s=None)` and
+  `render_request(..., resources=None, timeout_s=None)`: extra keyword-only arguments with
+  defaults. `render_document`'s `progress` receives per-mille of the frames written. Default
+  timeout `max(120 s, 3 × output seconds × k)`, k = fit_blur 0.5, camera 0.5, fill_center 0.4.
+- `RenderResult`: `clip_id, output, srt, render_engine, plan_sha256, render_key` (None without
+  `resources/toolchain.json`), `reused` (None, `"auto_file"`, `"existing"`), `frames, samples,
+  elapsed_s, warnings, verify`; `to_json()` is camelCase. The render worker maps `reused` to the
+  request's `completed_by` (`auto_file` → `seed`, `existing` → `key`, else `render`).
+- `heartbeat(stage, progress_pm)`: `("merender", 0…1000)`, `("memverifikasi", 1000)`,
+  `("selesai", 1000)`. Failures raise `RenderFailed` with ref `request`, `document`, `source` or
+  `output`; `Cancelled`, `VerificationFailed`, `AnalysisMissing`, `DocSemanticInvalid` propagate.
+- Helpers: `engine_from_env, load_render_inputs, render_key_for, measure_sha256` (sha256 of the
+  canonical `{schema: "potongin.loudness/1", i_clufs, tp_cdb}`), `auto_file, verify_file,
+  job_source, job_id_for, AutoRenderer, AutoOptions, AutoClip`.
+- Pipeline: `run_pipeline(render_engine=None)` and `pipeline.render_v3_job`. With `edit-v2` a
+  manifest clip gains `clip_id`, `render_engine` (`"edit-v2/1"` or `"legacy"`), `render_key`,
+  `plan_sha256`; the summary warning `engine_fallback:<index>` marks a per-clip fallback.
+  `POTONGIN_RENDER_ENGINE` stays `legacy` by default (K1 pending).
+
+### render-request-v3 and its routes (T2.2)
+
+- Fields and states as documented at the top of the v3 section of `render_queue.py`
+  (`version, render_id, idempotency_key, state, stage, progress_pm, clip_id, doc_sha256,
+  doc_revision, doc_relative, render_key, size "output", quality "standar", output_relative
+  (output/edits/<clip_id>/<render_key16>.mp4), source_content_sha256,
+  source_snapshot_relative, timeout_ms`, the times, `attempts, error_code, warnings,
+  completed_by, lease_token, heartbeat_at` and the three `storage_reservation_*`).
+- CLI: `python -m ai_clipper.render_queue` with no arguments reads the envelope `{op, …}` with
+  ops `estimate {jobId, clipId, editEtag}`, `create {jobId, clipId, editEtag, idempotencyKey,
+  storageReservation?}`, `get {jobId, renderId}`, `cancel {jobId, renderId}`,
+  `list {jobId, clipId}`, with the §5.3 exit codes. It is in `PYTHON_CLI_MODULES`.
+- The render key is computed at create with `measure_sha=None`: the measurement depends only on
+  inputs the key already holds. Without `resources/toolchain.json` create answers 503
+  `backend_unavailable` (a local run writes the file, see `docs/editor/PANDUAN-EDITOR.md`).
+- **R10 has two checks; the create-time one is authoritative.** At create (the queue): an
+  edit-v2 auto file passes G1–G2 against the seed's plan; a legacy-engine auto file passes G1
+  except the document frame rate (constant rate at its own rate) and G2 by duration within 4
+  output frames (32/32 real clips; strict G1–G2 passes 5/32). At render time (`render_edit`,
+  reached only when the create-time check failed): the legacy contract (H.264/AAC, size, SAR
+  1:1, duration within 0.25 s of the manifest). A failing auto file renders with the warning
+  `auto_file_unavailable`.
+- Retention: a terminal v3 request is pruned when older than 7 days and not among the newest
+  200 terminal requests; legacy requests are never pruned.
+- `GET …/edit`: `seed` is a boolean, plus `seedEtag`, `engine`, `notices`; `words.url` carries
+  `?sha=<sha>` and is cached immutably; the bare words URL is revalidated (no-cache + ETag, 304)
+  because it changes after "Mulai dari versi AI" (a deviation from §4.2's immutable words).
+- `RenderDTO` adds `warnings, completedBy, cancelRequested, createdAt, updatedAt`. `POST
+  …/renders` answers 200 for a terminal result and 202 otherwise. `DELETE /renders/:id`
+  answers 200 cancelled, 202 when a cancel is requested, 409 `render_finished` or
+  `not_cancellable`. `GET /clips/:clipId/renders` lists a clip's exports (additive).
+- Every new route answers 404 `editor_disabled` while `POTONGIN_EDITOR_V3` is not `on`; the
+  legacy render status GET is not gated. A job's `sourcePath` must lie in its own `input/` for
+  the source snapshot (the legacy rule, unchanged): a job copied to another `JOBS_ROOT` exports
+  only after its `job.json` names the copy's file.
+- Storage: a terminal v3 request (completed, failed or cancelled) releases its reservation like a
+  v2 one; the admission scan counts a hard-linked file (source snapshots, R10 exports) once.
+
+### Preview lane (T2.3)
+
+- `preview/plan` body `{doc, known?: {assSha256?}, playhead?}`: `playhead` is the output frame
+  to build first. A repeated document is answered from the lane's cache (cell, audio and logo
+  states refreshed from disk) without a new process, whatever its `known` or `playhead`.
+- DTO: cell and audio states `ready|building|queued`; `logo` gains `state` (and `url` when
+  ready); `rev0.planSha256` may be null when the seed cannot be planned (camera plan missing).
+  `rev0.exact` is true only when the plan sha equals the manifest clip's `plan_sha256`, the
+  manifest `render_engine` is `edit-v2/1` and the seed's compiler is `edit-v2/1`.
+- Names: derived logo `<key16>@<w>x<h>a<opacity_pm>.png` (opacity baked in), truth frame
+  `<key16>-<f>-<w>.png`; `key16` covers the plan or asset, `COMPILER_VERSION` and the toolchain
+  sha. New files under `preview/`: `rev0.<key16>.json`, `audio/<key16>.json`,
+  `audio/<mix16>.loudness.json`, `.cancel/`. Font URLs carry `?v=<sha16>`; `text.fonts` always
+  lists the fallback font (`fonts.json` `fallback`, DejaVu Sans).
+- `prepare` answers `plate.state` `ready|building`. Server-only env:
+  `POTONGIN_PREVIEW_CACHE_BYTES` (cap override, default 1 GiB), `POTONGIN_RESOURCES_DIR`.
+- `GET /api/resources/:kind/:name` **changed**: `kind` may also be `jassub`
+  (`jassub-worker.js`, `jassub-worker.wasm`, byte for byte from the installed package, with COEP
+  `require-corp`); `createPlayer`'s default `jassubUrl` is `/api/resources/jassub/`.
+- The Node routes answer with the codes of `errors.ROUTE_CODES` (`invalid_request`,
+  `csrf_rejected`, `rate_limited`, `backend_unavailable`, `superseded`, `editor_disabled`,
+  `precondition_required`, `payload_too_large`, the storage codes, `render_finished`,
+  `not_cancellable`), each with an Indonesian message (`messageId` `edit.<code>`).
+- `python-cli` **changed**: a timeout or an abort sends SIGTERM to the child's process group,
+  then SIGKILL after `killGraceMs` (default 2 s); `preview_cli` stops FFmpeg on SIGTERM and exits
+  12.
+
+### Client (T2.5, T2.4, T2.6)
+
+- `createEditorStore` returns, beyond Appendix A.2: `ready, context, draftKey, draftWriter,
+  resolveConflict(choices), startFromSeed(), retrySave(), setSelection(), dismissNotice()`;
+  `flush()` resolves with the saved etag. Extra state: `revision, conflict {groups: [{id,
+  label, parts, mine, theirs}], error}, notice {code, message}, error {code, message,
+  retrying}, readOnlyReason, notices, engine, otherTab, previewError, phase`. Options:
+  `timers`, `autosave`, `channel`, `lifecycle`, `tabStorage`, `planPollMs` (default 750: while
+  a plan names a layer that is not ready, the same document is asked for again; an abandoned or
+  failed plan request is retried).
+- Command choices where Appendix B leaves room: `RemoveWords` merges overlapping or touching
+  removals and splits runs over 400 words; `SetCaptionPack` switches `case` to the new pack's
+  default only when it was the old pack's default; `SetHookText`/`SetHookEnabled` restore the
+  seed origin when the text equals the seed text; `EditWordText` drops an edit equal to the ASR
+  text; `MoveLogo`/`ResizeLogo` reject a box outside the frame while `SetLogo`/`SnapLogo` fit it
+  (`clampLogoPosition()` for drags). Commands with the same `mergeKey` inside 500 ms merge into
+  one undo step whatever their type.
+- Drafts are per tab: key `<clipId>#<tabId>`, sessionStorage `potongin-editor-tab`,
+  BroadcastChannel `potongin-editor` with `{type: open|here|closed, clipId, tab, instance}` and
+  a 150 ms discovery wait. The store joins the channel only after it has loaded (a store
+  destroyed while loading never joins).
+- `createPreviewClient({…, playhead})`: `playhead()` is sent with every plan request; a 409
+  `superseded` rejects as an `AbortError`.
+- `createPlayer({canvas, fetchImpl, onState, onFrame, video?, requestTruthFrame?, jassubUrl?,
+  lookaheadMs?, capacity?, deps?})`: options additive. `state()` also returns `playing, ended,
+  waitingFor, exact, pending, slow, error, presentedFrame, plate {ready, total}`;
+  `play({silent})` plays without the mix; `stats()` serves the gates. The player owns the
+  `<video>` element's `src`.
+- Runtime (`web/components/editor/runtime.mjs`): `createEditorRuntime({kind: "real"})` builds
+  the API client, the preview client, the store (IndexedDB draft, channel, lifecycle) and the
+  player (truth frames from the preview client for the current document); `setPlayhead(frame)`;
+  `window.__potonginEditorInspect` (state, player state and stats; read-only) on the real page.
+- Stage badge: besides §6.1, an unchanged legacy-engine clip (plan sha = `rev0.planSha256`,
+  `rev0.exact` false) reads "● Belum diubah: ekspor = klip otomatis (mesin lama)", because R10
+  exports the old auto file there. While paused the badge waits for the player's `exact`.
+- The editor page carries `Cross-Origin-Opener-Policy: same-origin`,
+  `Cross-Origin-Embedder-Policy: require-corp`, `X-Content-Type-Options: nosniff`,
+  `Content-Security-Policy: frame-ancestors 'none'` and `X-Frame-Options: DENY`
+  (`crossOriginIsolated` is true).
+
+### Compiler (W1 modules, fixed at the W2 integration)
+
+- **R2 changed**: a decoder run of several pieces is `fps=num/den,trim=start_pts=<first
+  in_sf>:end_pts=<last out_sf>,select='<ranges>',setpts=N`. `select` alone never ends its
+  stream, so FFmpeg decoded the rest of the source after the last piece (a removal on a 66 min
+  source: `render_stalled`). Same frames kept; `RENDER_SEMANTICS` stays 1 (pixels unchanged).
+- `execute._supervise` wakes on the process's exit (a waiter thread) instead of sleeping 50 ms.
+
+### W3 seams (scaffolding landed by T2.Z)
+
+- Registries: `panels/index.mjs` adds `layout` (Tata letak, T3.6), `logo` (Logo, T3.2) and
+  `music` (Musik, T3.3); `timeline/lanes.mjs` adds `audio` (Audio, T3.7), `markers` (Penanda,
+  T3.7) and `music` (Musik, T3.3), with files under `timeline/lanes/`; `gizmos/index.mjs` lists
+  `logo` (`gizmos/LogoGizmo.jsx`, T3.2), mounted by `EditorApp` in the Stage's gizmo slot with
+  props `{plan, state, dispatch, player, output, readOnly}`; `suggestions/index.jsx`
+  (`HookSuggestions`, T3.4). W3 tasks replace these files, never the registries.
+- Fakes: `createFakeUploadClient().uploadAsset(jobId, file, kind, {onProgress, signal})` (the
+  §9.2 type allowlist and caps, the `POST /assets` DTO); Rapikan items, cold-open candidates and
+  instant hook suggestions from the fake API; `CommandRejected` is the real one.
+- `ApplyCleanup` items: `{id, kind: "filler"|"repeat", wordIds}` or `{id, kind: "gap_silent",
+  afterWord, inSf, outSf}`, `id` matching `^[a-z]{2,3}_[0-9a-z]{1,16}$`; the origin becomes
+  `suggestion:<id>`. `RemoveGap` rejects a `laughter` gap (or laughter within 500 ms) with
+  `laughter_locked`.
+- `SetLogo`/`SetMusic` take `{asset, meta}`: `asset` is `"sha256:<hex>"` or bare hex; `meta`
+  in document form or the `POST /assets` DTO; `mime` `image/png` or `audio/mp4` (the normalised
+  job asset store metadata), compared byte for byte by the validator.

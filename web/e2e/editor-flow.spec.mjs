@@ -264,6 +264,9 @@ test("the editor page is cross-origin isolated, nosniff and never framed", async
 test("the W2 flow: edit, undo/redo, reload, export, G1–G3, back to the AI version, R10", async ({ page, browser }) => {
   test.setTimeout(20 * 60_000);
   const clip = clips[1] ?? clips[0];
+  // A hook text of this run: new content, so the export renders (a repeated run would reuse the
+  // earlier export of the same render key, completedBy "key").
+  const HOOK_TEXT = `Hook alur ${Date.now() % 1_000_000}`;
   const steps = [];
   const step = async (name, run) => {
     const started = Date.now();
@@ -305,7 +308,7 @@ test("the W2 flow: edit, undo/redo, reload, export, G1–G3, back to the AI vers
   });
   await step("edit the hook", async () => {
     const hook = page.getByRole("textbox", { name: "Teks hook" });
-    await hook.fill("Hook baru dari tes alur");
+    await hook.fill(HOOK_TEXT);
     await blur(page);
   });
   await step("change the cold open", async () => {
@@ -326,7 +329,7 @@ test("the W2 flow: edit, undo/redo, reload, export, G1–G3, back to the AI vers
   const edited = await inspect(page);
   expect(contentOf(edited.doc)).not.toBe(contentOf(seedState.seed));
   expect(edited.doc.captions.pack.id).toBe("bold");
-  expect(edited.doc.tracks.find((track) => track.kind === "hook").items[0].payload.text).toBe("Hook baru dari tes alur");
+  expect(edited.doc.tracks.find((track) => track.kind === "hook").items[0].payload.text).toBe(HOOK_TEXT);
 
   await step("undo/redo", async () => {
     await blur(page);
