@@ -10,7 +10,9 @@ Every caller (pipeline, render-worker, preview lane, gates) goes through ``compi
   cells use the same rule over ``[k·C, (k+1)·C)``, so a plate frame and a final frame for the
   same source frame are the same decoded frame.
 * **R2 decoder runs**: consecutive pieces whose source gap is below 10 s (forward) share one
-  seeked input. Their video is **one** chain, ``fps=num/den,select='<ranges>',setpts=N``: after
+  seeked input. Their video is **one** chain, ``fps=num/den,trim=start_pts=<first in_sf>:
+  end_pts=<last out_sf>,select='<ranges>',setpts=N`` (the ``trim`` ends the run at its last
+  frame; ``select`` alone never ends, so FFmpeg would decode the rest of the source): after
   ``fps`` the ``pts`` is the grid index, so ``select`` on the pieces' ``[in_sf, out_sf)`` keeps
   exactly the frames the per-piece ``trim`` keeps, in the same order (P-FRAME re-measured), and
   a document with up to 2,000 removals needs no ``split`` into one ``fps`` per piece (measured,
@@ -364,8 +366,12 @@ class _Compiler:
         if shift:
             raise ValueError("only a single range can be shifted")
         fps = self.fps
-        return (f"{label_in}fps={fps.num}/{fps.den},select='{select_expression(ranges)}',"
-                f"setpts=N{label_out}")
+        # `select` never ends its stream: the `trim` (pts untouched, still the grid index) ends
+        # the run at its last frame, or FFmpeg would decode the rest of the source (T2.Z: a
+        # removal on a 66 min source stalled the render at 98 %). Same frames kept.
+        return (f"{label_in}fps={fps.num}/{fps.den},"
+                f"trim=start_pts={ranges[0][0]}:end_pts={ranges[-1][1]},"
+                f"select='{select_expression(ranges)}',setpts=N{label_out}")
 
     def layout(self, label_in: str, ranges: Sequence[tuple[int, int]], label_out: str,
                suffix: str = "_0") -> str:
