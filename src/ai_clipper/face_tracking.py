@@ -113,8 +113,14 @@ def detect_face_track(
     start: float,
     end: float,
     sample_interval: float = 0.75,
-) -> tuple[list[float], list[float], list[bool], int, int]:
-    """Sample faces and scene changes, returning a safe clip-relative crop track."""
+    smooth: bool = True,
+) -> tuple[list[float], list[float | None], list[bool], int, int]:
+    """Sample faces and scene changes, returning a safe clip-relative crop track.
+
+    ``smooth=False`` returns the raw centres instead (``None`` where no face was found), so the
+    Editor V3 camera plan can smooth them itself and report the no-face runs (plan §5.7); the
+    legacy render path keeps the default.
+    """
     try:
         import cv2
     except ImportError as exc:  # pragma: no cover - exercised without optional extra
@@ -166,4 +172,5 @@ def detect_face_track(
         cuts.append(is_cut)
         relative_time += sample_interval
     capture.release()
-    return times, smooth_face_track(raw_centers, cuts=cuts), cuts, source_width, source_height
+    centers = smooth_face_track(raw_centers, cuts=cuts) if smooth else raw_centers
+    return times, centers, cuts, source_width, source_height
