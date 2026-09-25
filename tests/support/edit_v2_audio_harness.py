@@ -407,12 +407,13 @@ def duck_gate(work: Path, sources: Sources | None = None) -> dict[str, Any]:
     flat = {**music, "duck": {"on": False}}
     flat_plan = plan_for(audio_doc(segments=segments, has_audio=False, music=flat),
                          DUCK_WORDS_MS)
+    # One measurement for both stems: the master stage (peak protection) then applies the same
+    # gain to both, so their ratio is the duck envelope alone.
+    measured = measure(flat_plan, sources=stem, work=work, name="unducked-m")
     ducked = pcm(run(ducked_plan, mode="reference", sources=stem, work=work, name="ducked",
-                     measured=measure(ducked_plan, sources=stem, work=work,
-                                      name="ducked-m")).output)
+                     measured=measured).output)
     unducked = pcm(run(flat_plan, mode="reference", sources=stem, work=work, name="unducked",
-                       measured=measure(flat_plan, sources=stem, work=work,
-                                        name="unducked-m")).output)
+                       measured=measured).output)
     duck = ducked_plan.doc["tracks"][0]["items"][0]["payload"]["duck"]
     depth_db = duck["depth_cdb"] / 100
     attack, hold, release = (duck[k] * RATE // 1000 for k in ("attack_ms", "hold_ms",
