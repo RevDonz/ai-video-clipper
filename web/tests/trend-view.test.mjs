@@ -471,13 +471,16 @@ test("the endpoint and curl example use the page origin and never a fixed host",
   assert.equal(ingestEndpoint(undefined), null);
 
   // Like the Hermes kit: the token is typed into a hidden prompt, never written into a command
-  // (shell history), and the agent lists the active items before it posts.
+  // (shell history), and the agent lists the active items before it posts. The header reaches
+  // curl on stdin from the printf builtin, so the token is never in a process's argv (ps).
   const withToken = curlExample({ origin: "https://potongin.example", token: TOKEN });
   const lines = withToken.split("\n");
+  const header = `printf 'Authorization: Bearer %s\\n' "$POTONGIN_INGEST_TOKEN" |`;
   assert.equal(lines[0], "read -rs POTONGIN_INGEST_TOKEN && export POTONGIN_INGEST_TOKEN");
-  assert.equal(lines[1], `curl -sS -H "Authorization: Bearer $POTONGIN_INGEST_TOKEN" 'https://potongin.example/api/ingest/trends'`);
-  assert.match(withToken, /curl -sS -X POST 'https:\/\/potongin\.example\/api\/ingest\/trends'/);
-  assert.match(withToken, /-H "Authorization: Bearer \$POTONGIN_INGEST_TOKEN"/);
+  assert.equal(lines[1], `${header} curl -sS -H @- 'https://potongin.example/api/ingest/trends'`);
+  assert.equal(lines[2], `${header} curl -sS -X POST 'https://potongin.example/api/ingest/trends' \\`);
+  assert.equal(lines[3], "  -H @- \\");
+  for (const line of lines) assert.doesNotMatch(line, /curl.*Authorization/, "never a token header in curl's arguments");
   assert.match(withToken, /-H 'Content-Type: application\/json'/);
   assert.doesNotMatch(withToken, /curl[^\n]* -v\b|--verbose/);
   const body = /--data '(.*)'$/m.exec(withToken)[1];
