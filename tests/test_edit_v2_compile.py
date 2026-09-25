@@ -37,6 +37,7 @@ from ai_clipper.edit_v2.compile_ffmpeg import (
     seek_arg,
     select_expression,
 )
+from ai_clipper.edit_v2.glyphs import RESOURCES_DIR
 from ai_clipper.edit_v2.loudness import Loudness
 from ai_clipper.edit_v2.plan import Resources, build_plan
 from ai_clipper.edit_v2.timemap import Fps, Piece
@@ -890,7 +891,7 @@ def test_final_and_plate_frames_are_the_grid_frames(harness, tmp_path, edit_v2_l
         clip = synthetic_clip(tmp_path)
     assert None not in clip.grid
     plan = build_plan(clip.doc, words=clip.words, camera=None, assets={},
-                      resources=Resources(tmp_path / "resources"))
+                      resources=Resources(RESOURCES_DIR))
     final = compile_job(plan, mode="final", source=clip.source, assets_root=tmp_path)
     result = run_to_file(final, tmp_path / "final.mp4")
     assert result.returncode == 0
@@ -949,7 +950,7 @@ def test_plate_cells_have_exact_frames_and_an_idr_at_every_start(harness, tmp_pa
     clip = synthetic_clip(tmp_path, frames=420, layout=layout, scene_cut_every=7,
                           cold_open=None, body=(30, 400), removals=())
     plan = build_plan(clip.doc, words=clip.words, camera=None, assets={},
-                      resources=Resources(tmp_path / "resources"))
+                      resources=Resources(RESOURCES_DIR))
     job = compile_job(plan, mode="plate_cells", cells=(1, 2, 3, 5), source=clip.source,
                       assets_root=tmp_path)
     result = run_cells(job, tmp_path / "cells")
@@ -986,7 +987,7 @@ def test_plate_cells_of_a_video_that_starts_late_keep_their_frame_positions(
                            layout="fill_center")
     doc["base"]["window_ms"] = list(grid_window_ms((0, duration_ms), (first, end), Fps(*fps)))
     plan = build_plan(doc, words=HARNESS.make_words(duration_ms), camera=None, assets={},
-                      resources=Resources(tmp_path / "resources"))
+                      resources=Resources(RESOURCES_DIR))
     job = compile_job(plan, mode="plate_cells", cells=(0, 1), source=source,
                       assets_root=tmp_path)
     run_cells(job, tmp_path / "cells")
@@ -1032,7 +1033,7 @@ def test_frame_mode_matches_the_final_at_ass_hazard_frames(harness, tmp_path, mo
 
     monkeypatch.setattr(captions, "caption_track", box_track)
     plan = build_plan(clip.doc, words=clip.words, camera=None, assets={},
-                      resources=Resources(tmp_path / "resources"))
+                      resources=Resources(RESOURCES_DIR))
 
     def box_on(plane: bytes, width=720) -> bool:
         rows = [plane[y * width + 360] for y in range(1110, 1190, 10)]
@@ -1057,7 +1058,7 @@ def test_camera_crop_decoded_from_the_ruler_matches_the_plan(harness, tmp_path, 
     camera = HARNESS.make_camera(clip.doc["base"]["source"]["duration_ms"], (30000, 1001),
                                  (640, 360), (720, 1280))
     plan = build_plan(clip.doc, words=clip.words, camera=camera, assets={},
-                      resources=Resources(tmp_path / "resources"))
+                      resources=Resources(RESOURCES_DIR))
     reference = compile_job(plan, mode="reference", source=clip.source, assets_root=tmp_path)
     run_to_file(reference, tmp_path / "reference.mkv")
     cells = sorted({sf // 60 for p in plan.pieces for sf in range(p.in_sf, p.out_sf)})
@@ -1108,7 +1109,7 @@ def test_no_implicit_video_conversions(harness, tmp_path, monkeypatch, edit_v2_l
         clip.doc["assets"] = meta
         monkeypatch.setattr(compile_ffmpeg, "COMPOSITE_FORMAT", composite)
         plan = build_plan(clip.doc, words=clip.words, camera=None, assets=meta,
-                          resources=Resources(tmp_path / "resources"))
+                          resources=Resources(RESOURCES_DIR))
         job = compile_job(plan, mode="final", source=clip.source,
                           assets_root=tmp_path / "assets")
         argv = list(job.argv)
@@ -1125,7 +1126,7 @@ def test_execution_is_deterministic(harness, tmp_path, edit_v2_ffmpeg):
     clip = synthetic_clip(tmp_path, frames=150, cold_open=None, body=(10, 120),
                           removals=((40, 44),))
     plan = build_plan(clip.doc, words=clip.words, camera=None, assets={},
-                      resources=Resources(tmp_path / "resources"))
+                      resources=Resources(RESOURCES_DIR))
     job = compile_job(plan, mode="final", source=clip.source, assets_root=tmp_path)
     run_to_file(job, tmp_path / "a.mp4")
     run_to_file(job, tmp_path / "b.mp4")
