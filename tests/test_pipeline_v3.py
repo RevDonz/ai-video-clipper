@@ -9,6 +9,7 @@ import threading
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
+from typing import ClassVar
 
 import pytest
 
@@ -211,6 +212,7 @@ def env(monkeypatch, tmp_path: Path):
     for name in list(os.environ):
         if name.startswith("POTONGIN_LLM") or name.endswith("_API_KEY"):
             monkeypatch.delenv(name, raising=False)
+    monkeypatch.delenv("POTONGIN_RENDER_ENGINE", raising=False)  # the default: legacy
     state = SimpleNamespace(
         tmp=tmp_path,
         source=tmp_path / "input" / "source.mp4",
@@ -1618,3 +1620,183 @@ def test_v1_ignores_the_focus(env):
     manifest = manifest_of(run(env, selection_mode="v1", focus=FOCUS, max_duration=60.0))
     assert manifest["status"] == "completed"
     assert all("focus" not in clip for clip in manifest["clips"])
+
+
+# --- the render engine switch (Editor V3 T2.1, plan §5.8) --------------------------------------
+
+ENGINE_KEYS = {"clip_id", "render_engine", "render_key", "plan_sha256"}
+
+
+class FakeAutoRenderer:
+    """Stands in for ``render_edit.AutoRenderer``: records its use, fails where told to."""
+
+    instances: ClassVar[list] = []
+    fail_init = False
+    fail_ranks: ClassVar[set] = set()
+    drop_cold_open: ClassVar[set] = set()
+
+    def __init__(self, **options):
+        if FakeAutoRenderer.fail_init:
+            raise RuntimeError("no job context")
+        self.options = options
+        self.rendered: list = []
+        self.fallbacks: list = []
+        FakeAutoRenderer.instances.append(self)
+
+    def render(self, rank, output):
+        self.rendered.append((rank, output))
+        if rank in FakeAutoRenderer.fail_ranks:
+            from ai_clipper.edit_v2.errors import RenderFailed
+
+            raise RenderFailed("render_failed")
+        return SimpleNamespace(
+            clip_id=f"clip_{rank:024x}", render_engine="edit-v2/1", render_key=None,
+            plan_sha256=f"{rank:064x}", cold_open=rank not in FakeAutoRenderer.drop_cold_open)
+
+    def fallback(self, rank):
+        self.fallbacks.append(rank)
+        return f"clip_{rank:024x}"
+
+
+@pytest.fixture
+def fake_engine(monkeypatch):
+    from ai_clipper.edit_v2 import render_edit
+
+    FakeAutoRenderer.instances = []
+    FakeAutoRenderer.fail_init = False
+    FakeAutoRenderer.fail_ranks = set()
+    FakeAutoRenderer.drop_cold_open = set()
+    monkeypatch.setattr(render_edit, "AutoRenderer", FakeAutoRenderer)
+    return FakeAutoRenderer
+
+
+TWO_CLIPS = (selected(1, 100.0, 130.0, cold_open=(118.0, 121.0)), selected(2, 200.0, 230.0))
+
+
+def legacy_render_kwargs(clip, teaser, *, width=1080, height=1920):
+    return {"start": clip.start, "end": clip.end, "width": width, "height": height,
+            "render_mode": "center-crop", "cold_open": teaser, "hook_text": clip.hook_text,
+            "hook_duration": 4.0, "caption_style": "karaoke"}
+
+
+@pytest.mark.parametrize("flag", [None, "legacy", "EDIT-V2", "yes"])
+def test_the_legacy_engine_keeps_todays_render_call_and_manifest(env, monkeypatch, fake_engine,
+                                                                 flag):
+    if flag is not None:
+        monkeypatch.setenv("POTONGIN_RENDER_ENGINE", flag)
+    monkeypatch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: result(*TWO_CLIPS))
+
+    manifest = manifest_of(run(env, max_duration=60.0))
+
+    assert fake_engine.instances == []
+    assert len(env.renders) == 2
+    for render, clip in zip(env.renders, TWO_CLIPS, strict=True):
+        teaser = clip.cold_open
+        assert {key: render[key] for key in legacy_render_kwargs(clip, teaser)} == \
+            legacy_render_kwargs(clip, teaser)
+        assert render["transcript"][0].words
+    for clip in manifest["clips"]:
+        assert_web_clip(clip)  # exactly today's keys: no engine fields
+    assert "engine_fallback" not in " ".join(manifest["selection_v3"]["warnings"])
+    assert not (env.job / "analysis" / "clips").exists()
+
+
+@pytest.mark.parametrize("how", ["env", "argument"])
+def test_the_edit_v2_engine_renders_every_clip_through_the_compiler(env, monkeypatch,
+                                                                    fake_engine, how):
+    monkeypatch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: result(*TWO_CLIPS))
+    options = {}
+    if how == "env":
+        monkeypatch.setenv("POTONGIN_RENDER_ENGINE", "edit-v2")
+    else:
+        options["render_engine"] = "edit-v2"
+
+    manifest = manifest_of(run(env, max_duration=60.0, width=720, height=1280,
+                               hook_duration=2.5, **options))
+
+    assert env.renders == []  # render_vertical is never called
+    (renderer,) = fake_engine.instances
+    assert renderer.options["job_dir"] == env.job.resolve()
+    assert renderer.options["source"] == env.source.resolve()
+    assert renderer.options["output_dir"] == env.output.resolve()
+    assert renderer.options["options"] == pipeline_module.render_edit.AutoOptions(
+        render_mode="center-crop", caption_style="karaoke", cold_open=True, hook_overlay=True,
+        hook_duration=2.5, width=720, height=1280)
+    assert renderer.rendered == [(1, env.output.resolve() / "clip-01.mp4"),
+                                 (2, env.output.resolve() / "clip-02.mp4")]
+    for index, clip in enumerate(manifest["clips"], start=1):
+        assert set(clip) == CLIP_KEYS | ENGINE_KEYS
+        assert clip["clip_id"] == f"clip_{index:024x}"
+        assert clip["render_engine"] == "edit-v2/1"
+        assert clip["render_key"] is None and clip["plan_sha256"] == f"{index:064x}"
+    assert manifest["clips"][0]["cold_open"] == {"start": 118.0, "end": 121.0}
+    assert [duration for _clip, duration in env.thumbnails] == [pytest.approx(33.0), 30.0]
+    assert_web_summary(manifest["selection_v3"])
+
+
+def test_a_cold_open_the_seed_leaves_out_is_not_in_the_manifest(env, monkeypatch, fake_engine):
+    monkeypatch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: result(*TWO_CLIPS))
+    fake_engine.drop_cold_open = {1}
+
+    manifest = manifest_of(run(env, max_duration=60.0, render_engine="edit-v2"))
+
+    first = manifest["clips"][0]
+    assert first["cold_open"] is None and first["duration"] == pytest.approx(30.0)
+
+
+def test_a_failing_clip_falls_back_to_the_legacy_engine(env, monkeypatch, fake_engine):
+    monkeypatch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: result(*TWO_CLIPS))
+    fake_engine.fail_ranks = {2}
+
+    manifest = manifest_of(run(env, max_duration=60.0, render_engine="edit-v2"))
+
+    assert manifest["status"] == "completed"
+    (renderer,) = fake_engine.instances
+    assert renderer.fallbacks == [2]
+    (legacy,) = env.renders
+    clip = TWO_CLIPS[1]
+    assert {key: legacy[key] for key in legacy_render_kwargs(clip, None)} == \
+        legacy_render_kwargs(clip, None)
+    first, second = manifest["clips"]
+    assert first["render_engine"] == "edit-v2/1"
+    assert second["render_engine"] == "legacy" and second["clip_id"] == f"clip_{2:024x}"
+    assert second["render_key"] is None and second["plan_sha256"] is None
+    assert "engine_fallback:2" in manifest["selection_v3"]["warnings"]
+    assert_web_summary(manifest["selection_v3"])
+
+
+def test_without_a_usable_job_context_every_clip_falls_back(env, monkeypatch, fake_engine):
+    monkeypatch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: result(*TWO_CLIPS))
+    fake_engine.fail_init = True
+
+    manifest = manifest_of(run(env, max_duration=60.0, render_engine="edit-v2"))
+
+    assert manifest["status"] == "completed" and len(env.renders) == 2
+    assert [clip["render_engine"] for clip in manifest["clips"]] == ["legacy", "legacy"]
+    assert [clip["clip_id"] for clip in manifest["clips"]] == [None, None]
+    warnings = manifest["selection_v3"]["warnings"]
+    assert "engine_fallback:1" in warnings and "engine_fallback:2" in warnings
+
+
+def test_the_legacy_fallback_failing_still_fails_the_job(env, monkeypatch, fake_engine):
+    monkeypatch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: result(*TWO_CLIPS))
+    fake_engine.fail_ranks = {1}
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("FFmpeg render failed")
+
+    monkeypatch.setattr(pipeline_module, "render_vertical", broken)
+
+    with pytest.raises(RuntimeError, match="FFmpeg render failed"):
+        run(env, max_duration=60.0, render_engine="edit-v2")
+
+    summary = manifest_of(env.output / "manifest.json")["selection_v3"]
+    assert summary["warnings"][0] == "pipeline_failed:rendering"
+    assert "engine_fallback:1" in summary["warnings"]
+
+
+def test_an_unknown_render_engine_argument_is_refused_before_any_work(env):
+    model = FakeWhisper()
+    with pytest.raises(ValueError):
+        run(env, model=model, render_engine="edit-v3")
+    assert model.calls == [] and env.renders == []
