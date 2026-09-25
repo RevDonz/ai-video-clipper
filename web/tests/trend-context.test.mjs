@@ -118,7 +118,10 @@ test("every field is normalised and de-duplicated", () => {
   const parsed = parseTrendInput(item({
     externalId: "tiktok:tag:kabur-aja-dulu", title: " Kabur\u200b  Aja Dulu ", keywords: ["kabur aja dulu", "KABUR AJA DULU", "#KaburAjaDulu"],
     hashtags: ["#KaburAjaDulu", "#kaburajadulu"], platforms: ["tiktok", "tiktok", "x"], region: "id", score: 72.456,
-    examples: [{ url: "https://www.tiktok.com/@a/video/1", note: " contoh\u202e " }, { url: "http://example.com" }],
+    examples: [
+      { url: "https://www.tiktok.com/@a/video/1", note: " contoh\u202e " }, { url: "http://example.com" },
+      { url: "HTTPS://WWW.TIKTOK.COM/@a/video/1", note: "sama" }, { url: "http://example.com/", note: "lagi" },
+    ],
     sensitivity: "sensitive", firstSeenAt: "2026-09-24T08:00:00Z", expiresAt: "2026-10-05",
     id: "ignored", source: "ignored", createdAt: "ignored", updatedAt: "ignored", enabled: false,
   }), { now: NOW });
