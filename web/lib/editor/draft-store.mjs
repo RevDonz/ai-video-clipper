@@ -1,37 +1,50 @@
-// The editor draft in IndexedDB (plan §4.5): `{ clipId, baseEtag, baseDoc, commands, doc,
-// savedAtMs, inflight }` per clip, written after every command, so a reload restores the work
-// (same etag: silently; older etag: through rebase). A raw IndexedDB wrapper, no dependency;
-// without IndexedDB (private windows of some browsers, Node) the draft lives in memory.
+// The editor draft in IndexedDB (plan §4.5): `{ key, clipId, tabId, baseEtag, baseDoc, commands,
+// doc, savedAtMs, inflight }`, written after every command, so a reload restores the work (same
+// etag: silently; older etag: through rebase). Drafts are kept per tab (`key` =
+// `<clipId>#<tabId>`), so two tabs of one clip never overwrite each other's draft; the store
+// adopts the drafts of closed tabs (`list(clipId)`). A raw IndexedDB wrapper, no dependency;
+// without IndexedDB (some private windows, Node) the drafts live in memory.
 
 export const DRAFT_DB = "potongin-editor";
 export const DRAFT_STORE = "drafts";
+
+export function draftKey(clipId, tabId) {
+  return `${clipId}#${tabId}`;
+}
+
+const prefixOf = (clipId) => `${clipId}#`;
 
 export function createMemoryDraftStore() {
   const records = new Map();
   return {
     records,
-    async get(clipId) {
-      return records.has(clipId) ? structuredClone(records.get(clipId)) : null;
+    async get(key) {
+      return records.has(key) ? structuredClone(records.get(key)) : null;
+    },
+    async list(clipId) {
+      return [...records.keys()].filter((key) => key.startsWith(prefixOf(clipId))).sort()
+        .map((key) => structuredClone(records.get(key)));
     },
     async put(draft) {
-      records.set(draft.clipId, structuredClone(draft));
+      records.set(draft.key, structuredClone(draft));
     },
-    async delete(clipId) {
-      records.delete(clipId);
+    async delete(key) {
+      records.delete(key);
     },
     close() {},
   };
 }
 
-export function createDraftStore({ indexedDB = globalThis.indexedDB, dbName = DRAFT_DB, storeName = DRAFT_STORE } = {}) {
-  if (!indexedDB) return createMemoryDraftStore();
+export function createDraftStore({ indexedDB = globalThis.indexedDB, keyRange = globalThis.IDBKeyRange, dbName = DRAFT_DB,
+  storeName = DRAFT_STORE } = {}) {
+  if (!indexedDB || !keyRange) return createMemoryDraftStore();
   let opened = null;
   const open = () => {
     opened ??= new Promise((resolve, reject) => {
       const request = indexedDB.open(dbName, 1);
       request.onupgradeneeded = () => {
         const db = request.result;
-        if (!db.objectStoreNames.contains(storeName)) db.createObjectStore(storeName, { keyPath: "clipId" });
+        if (!db.objectStoreNames.contains(storeName)) db.createObjectStore(storeName, { keyPath: "key" });
       };
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
@@ -54,14 +67,18 @@ export function createDraftStore({ indexedDB = globalThis.indexedDB, dbName = DR
     });
   };
   return {
-    async get(clipId) {
-      return (await transact("readonly", (store) => store.get(clipId))) ?? null;
+    async get(key) {
+      return (await transact("readonly", (store) => store.get(key))) ?? null;
+    },
+    async list(clipId) {
+      const range = keyRange.bound(prefixOf(clipId), `${prefixOf(clipId)}￿`);
+      return (await transact("readonly", (store) => store.getAll(range))) ?? [];
     },
     async put(draft) {
       await transact("readwrite", (store) => store.put(draft));
     },
-    async delete(clipId) {
-      await transact("readwrite", (store) => store.delete(clipId));
+    async delete(key) {
+      await transact("readwrite", (store) => store.delete(key));
     },
     close() {
       opened?.then((db) => db.close(), () => {});
@@ -71,22 +88,22 @@ export function createDraftStore({ indexedDB = globalThis.indexedDB, dbName = DR
 }
 
 /**
- * Serialises draft writes: while one write is in flight only the newest requested draft waits
- * (older ones are superseded), so the stored draft is at most one write behind the editor.
- * `flush()` resolves when the newest request is stored. Write errors are counted, never thrown
- * (the editor keeps working; the server save is the durable copy).
+ * Serialises draft writes per key: while one write is in flight only the newest request of each
+ * draft waits (older ones are superseded), so a stored draft is at most one write behind the
+ * editor. `flush()` resolves when every request is stored. Write errors are counted, never
+ * thrown (the editor keeps working; the server save is the durable copy).
  */
 export function createDraftWriter({ store, now = () => Date.now(), onError = () => {} }) {
-  let next = null;
+  const queue = new Map();
   let active = null;
   const stats = { requested: 0, writes: 0, errors: 0, lastWrittenAt: null, maxLagMs: 0 };
 
   const pump = async () => {
-    while (next) {
-      const job = next;
-      next = null;
+    while (queue.size) {
+      const [key, job] = queue.entries().next().value;
+      queue.delete(key);
       try {
-        if (job.remove) await store.delete(job.clipId);
+        if (job.remove) await store.delete(key);
         else await store.put(job.draft);
         stats.writes += 1;
         stats.lastWrittenAt = now();
@@ -98,9 +115,10 @@ export function createDraftWriter({ store, now = () => Date.now(), onError = () 
     }
   };
 
-  const enqueue = (job) => {
+  const enqueue = (key, job) => {
     stats.requested += 1;
-    next = { ...job, at: now() };
+    queue.delete(key);
+    queue.set(key, { ...job, at: now() });
     if (!active) active = pump().finally(() => {
       active = null;
     });
@@ -110,10 +128,10 @@ export function createDraftWriter({ store, now = () => Date.now(), onError = () 
   return {
     stats,
     write(draft) {
-      return enqueue({ draft, clipId: draft.clipId });
+      return enqueue(draft.key, { draft });
     },
-    remove(clipId) {
-      return enqueue({ remove: true, clipId });
+    remove(key) {
+      return enqueue(key, { remove: true });
     },
     async flush() {
       while (active) await active;
