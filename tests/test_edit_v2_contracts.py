@@ -601,6 +601,7 @@ def test_contexts_are_self_consistent():
         }
         blank = json.loads(json.dumps(seed))
         blank["base"]["seed_sha256"] = None
+        del blank["audit"]  # CONTRACTS §5.6: the seed time is not content
         assert seed["base"]["seed_sha256"] == fixtures.sha256_hex(fixtures.canonical_bytes(blank))
         assert seed["revision"] == 0 and seed["parent_sha256"] is None
         assert context.words["clip_id"] == seed["clip_id"]

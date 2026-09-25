@@ -409,6 +409,9 @@ class VideoSpec:
     crf: int = 18
     container: str = "mp4"  # "mp4" (AAC) or "mkv" (PCM, exact samples)
     audio: AudioSpec | None = AudioSpec()
+    # The video stream starts this late (the audio still at 0), like a download whose video
+    # has a B-frame delay (ffprobe start_time 0.041 s): mp4 only, set by a stream-copy remux.
+    video_delay_ms: int = 0
 
 
 def _drawboxes(spec: VideoSpec, pattern: Pattern) -> list[str]:
@@ -447,6 +450,8 @@ def make_barcode_video(path: Path, spec: VideoSpec = VideoSpec()) -> Path:  # no
         raise ValueError("VFR sources are written as mkv (ms timestamps)")
     if spec.frames <= 0 or spec.frames >= 1 << INDEX_BITS:
         raise ValueError("frames must be between 1 and 2^24 - 1")
+    if spec.video_delay_ms and (spec.container != "mp4" or spec.video_delay_ms < 0):
+        raise ValueError("a video delay needs an mp4 container and a positive delay")
     pattern = Pattern.for_size(spec.width, spec.height)
     num, den = spec.fps
     path = Path(path)
@@ -491,9 +496,20 @@ def make_barcode_video(path: Path, spec: VideoSpec = VideoSpec()) -> Path:  # no
             "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709",
             "-color_range", "tv", "-fps_mode", "passthrough" if spec.vfr else "cfr",
             "-map_metadata", "-1", "-fflags", "+bitexact", "-flags:v", "+bitexact",
-            "-flags:a", "+bitexact", str(path),
+            "-flags:a", "+bitexact",
+            str(work / "undelayed.mp4") if spec.video_delay_ms else str(path),
         ]
         _run(argv)
+        if spec.video_delay_ms:
+            undelayed = str(work / "undelayed.mp4")
+            remux = [ffmpeg, "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
+                     "-itsoffset", f"{spec.video_delay_ms / 1000:.3f}", "-i", undelayed]
+            maps = ["-map", "0:v"]
+            if spec.audio is not None:
+                remux += ["-i", undelayed]
+                maps += ["-map", "1:a"]
+            _run(remux + maps + ["-c", "copy", "-map_metadata", "-1", "-fflags", "+bitexact",
+                                 str(path)])
     return path
 
 
@@ -598,6 +614,23 @@ def frame_times_ms(path: Path) -> list[float]:
                    "frame=best_effort_timestamp_time", "-of", "csv=p=0", str(path)])
     return [float(line.strip().rstrip(",")) * 1000 for line in output.decode().splitlines()
             if line.strip()]
+
+
+def grid_range(path: Path, fps: tuple[int, int]) -> tuple[int, int]:
+    """``(first, end)``: the source-grid indices ``[first, end)`` that the whole-file ``fps``
+    grid holds, from the decoded frame timestamps with ``-copyts`` (independent of
+    ``edit_v2.source_info``). A source whose video starts after t = 0 has ``first > 0``."""
+    ffmpeg = _require(ffmpeg_path(), "ffmpeg")
+    output = _run([ffmpeg, "-nostdin", "-hide_banner", "-loglevel", "error", "-threads",
+                   str(FFMPEG_THREADS), "-copyts", "-i", str(path), "-map", "0:v:0", "-vf",
+                   f"fps={fps[0]}/{fps[1]},scale=16:16", "-f", "framemd5", "-"])
+    pts = [int(line.split(",")[2]) for line in output.decode().splitlines()
+           if line.strip() and not line.startswith("#")]
+    if not pts:
+        raise MediaError("no video frames")
+    if pts != list(range(pts[0], pts[0] + len(pts))):
+        raise MediaError("the fps grid is not contiguous")
+    return pts[0], pts[-1] + 1
 
 
 def grid_indices(path: Path, fps: tuple[int, int]) -> list[int | None]:

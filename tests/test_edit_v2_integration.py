@@ -233,3 +233,84 @@ def test_a_prepared_clip_renders_verifies_and_has_a_render_key(synthetic_jobs, t
     gates = {gate.name: gate.to_json() for gate in report.gates}
     assert gates["G1"]["ok"] and gates["G2"]["ok"]
     assert hashlib.sha256(job.sidecars["captions.ass"]).hexdigest() == plan.ass_sha256
+
+
+# --- source edges ---------------------------------------------------------------------------------
+# A document that validates must render every planned frame, also at the first and the last
+# frame of the source (W1 verifier: a body ending at sf_ceil(duration_ms) rendered 150 of 151
+# frames; a video starting at 0.041 s has no grid frame 0).
+
+EDGE_WORDS = {"schema": "potongin.words/1", "words": [], "units": [], "bounds": [], "gaps": [],
+              "events": [], "silences": [], "scene_cuts_ms": [], "missing": []}
+EDGE_JOB = {"id": "8f0c2a1e-5b7d-4c3a-9e21-6d4f0b8a7c55", "seedAtMs": 0,
+            "options": {"renderMode": "center-crop", "captionStyle": "classic",
+                        "coldOpen": False, "hookOverlay": False, "selectionMode": "v3"}}
+EDGE_CASES = {
+    # 902 frames at 29.97 (30,096.73 ms): the clip runs to the end of the source
+    "end_29.97": (dict(fps=(30000, 1001), frames=902), "end"),
+    # the video starts 41 ms after the audio: the clip starts at t = 0
+    "delayed_23.976": (dict(fps=(24000, 1001), frames=240, video_delay_ms=41), "start"),
+}
+
+
+def _edge_clip(start_s: float, end_s: float):
+    from ai_clipper.selection_types import SCORE_DIMENSIONS, SelectedClip
+
+    return SelectedClip(
+        rank=1, start=start_s, end=end_s, cold_open=None, unit_ids=("S0001", "S0002"),
+        hook_unit_id="S0001", title="Tepi", hook_text="Tepi sumber", description="",
+        hashtags=(), archetype="story_twist", score=7.0,
+        scores={name: 7.0 for name in SCORE_DIMENSIONS}, reasons=("tepi",), source="heuristic",
+        text="tepi sumber")
+
+
+@pytest.mark.parametrize("case", sorted(EDGE_CASES))
+def test_a_seed_at_the_source_edges_renders_every_planned_frame(case, edit_v2_media_factory,
+                                                                tmp_path):
+    from support import edit_v2_media as media
+
+    from ai_clipper.edit_v2 import seed, source_info
+
+    options, edge = EDGE_CASES[case]
+    path = edit_v2_media_factory(media.VideoSpec(width=320, height=180, **options))
+    probe = source_info.probe_source(path)
+    info = {"content_sha256": source_info.file_sha256(path), "probe": probe}
+    start_s = 25.0 if edge == "end" else 0.0
+    seed_doc = seed.build_seed(
+        clip=_edge_clip(start_s, probe["duration_ms"] / 1000), job=EDGE_JOB, source_info=info,
+        words_sha=hashlib.sha256(fixtures.canonical_bytes(EDGE_WORDS)).hexdigest(),
+        words_count=0, camera_sha=None, selection_sha="c" * 64)
+    fps = tm.Fps.from_json(seed_doc["output"]["fps"])
+    first, end = source_info.grid_range(probe, fps)
+    body = seed_doc["main"]["segments"][-1]
+    if edge == "end":
+        assert body["out_sf"] == end == options["frames"]
+    else:
+        assert body["in_sf"] == first == 1
+    assert doc.validate_doc(seed_doc, words=EDGE_WORDS, assets={}, seed=None).ok
+    beyond = json.loads(json.dumps(seed_doc))
+    if edge == "end":
+        beyond["main"]["segments"][-1]["out_sf"] = end + 1
+    else:
+        beyond["main"]["segments"][-1]["in_sf"] = first - 1
+    codes = {issue.code for issue in doc.validate_doc(beyond, words=EDGE_WORDS, assets={},
+                                                       seed=None).errors}
+    assert "outside_window" in codes
+    plan = build_plan(seed_doc, words=EDGE_WORDS, camera=None, assets={},
+                      resources=Resources(RESOURCES_DIR))
+    job = compile_ffmpeg.compile_job(plan, mode="final", source=path,
+                                     assets_root=tmp_path / "assets")
+    output = tmp_path / "edge.mp4"
+    fd = os.open(output, os.O_RDWR | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        execute.run(job, output_fd=fd, timeout_s=600)
+    finally:
+        os.close(fd)
+    fd = os.open(output, os.O_RDONLY)
+    try:
+        report = verify.verify_output(fd, plan, size=plan.output, normalize=False)
+    finally:
+        os.close(fd)
+    gates = {gate.name: gate.to_json() for gate in report.gates}
+    assert gates["G2"]["ok"], gates["G2"]
+    assert report.ok

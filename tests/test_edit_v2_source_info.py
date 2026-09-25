@@ -16,7 +16,7 @@ import stat
 import pytest
 from support import edit_v2_media as media
 
-from ai_clipper.edit_v2 import source_info
+from ai_clipper.edit_v2 import DOC_FPS, source_info
 from ai_clipper.edit_v2.source_info import (
     SOURCE_INFO_RELATIVE_PATH,
     SourceInfoError,
@@ -28,6 +28,7 @@ from ai_clipper.edit_v2.source_info import (
     read_regular,
     write_immutable,
 )
+from ai_clipper.edit_v2.timemap import Fps
 
 PROBE_KEYS = {
     "version",
@@ -51,6 +52,7 @@ PROBE_KEYS = {
     "size_bytes",
     "frame_steps",
     "irregular_frame_steps",
+    "grid_sf",
 }
 
 
@@ -157,6 +159,60 @@ def test_probe_reports_the_native_rate(edit_v2_media_factory, fps, frames, conta
     assert probe["size_bytes"] == path.stat().st_size
     assert probe["video_codec"] == "h264" and probe["pix_fmt"] == "yuv420p"
     assert probe["rotation"] == 0
+
+
+@pytest.mark.parametrize(
+    "spec",
+    [
+        # 902 frames at 29.97: 30,096.73 ms, so duration_ms (30,097, rounded up) points one grid
+        # frame past the last frame at 30000/1001 (the verifier's end-of-source case).
+        _small((30000, 1001), 902),
+        # the video starts 41 ms after the audio (ffprobe start_time 0.041 s, like two of the
+        # real downloads): the grid has no frame 0 at any document rate.
+        _small((24000, 1001), 120, video_delay_ms=41),
+        _small((25, 1), 75, video_delay_ms=41),
+        _small((30000, 1001), 90, vfr=True, drop_every=9, container="mkv"),
+    ],
+    ids=["end_29.97", "delayed_23.976", "delayed_25", "vfr_mkv"],
+)
+def test_probe_records_the_grid_that_exists_at_every_document_rate(edit_v2_media_factory, spec):
+    path = edit_v2_media_factory(spec)
+    probe = probe_source(path)
+    assert probe["version"] == 2
+    assert [entry[:2] for entry in probe["grid_sf"]] == [list(rate) for rate in DOC_FPS]
+    for num, den, first, end in probe["grid_sf"]:
+        # the independent whole-file fps grid (decoded frame timestamps with -copyts)
+        assert (first, end) == media.grid_range(path, (num, den)), (num, den)
+        assert source_info.grid_range(probe, Fps(num, den)) == (first, end)
+    if spec.video_delay_ms:
+        assert all(first == 1 for _num, _den, first, _end in probe["grid_sf"])
+    if spec.frames == 902:
+        assert source_info.grid_range(probe, Fps(30000, 1001)) == (0, 902)
+        assert probe["duration_ms"] == 30097  # sf_ceil(30097) would be 903
+
+
+def test_grid_range_needs_a_recorded_rate():
+    probe = {"grid_sf": [[30000, 1001, 0, 902]]}
+    assert source_info.grid_range(probe, Fps(30000, 1001)) == (0, 902)
+    with pytest.raises(SourceInfoError):
+        source_info.grid_range(probe, Fps(25, 1))
+    with pytest.raises(SourceInfoError):
+        source_info.grid_range({}, Fps(30000, 1001))
+
+
+def test_ensure_source_info_refuses_a_probe_without_the_grid(tmp_path, edit_v2_media_factory):
+    """A version-1 file (no ``grid_sf``) was never written outside W1 development; it is refused
+    rather than trusted, because its seeds could reach past the frames that exist."""
+    source = edit_v2_media_factory(_small())
+    job_dir = tmp_path / "job"
+    (job_dir / "analysis").mkdir(parents=True)
+    probe = probe_source(source)
+    old = {key: value for key, value in probe.items() if key != "grid_sf"}
+    old["version"] = 1
+    path = job_dir / SOURCE_INFO_RELATIVE_PATH
+    path.write_bytes(canonical_json({"content_sha256": file_sha256(source), "probe": old}))
+    with pytest.raises(SourceInfoError):
+        ensure_source_info(job_dir, source)
 
 
 def test_probe_flags_vfr_from_packet_timestamps(edit_v2_media_factory):
