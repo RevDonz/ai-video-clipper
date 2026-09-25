@@ -15,6 +15,7 @@ from itertools import pairwise
 from pathlib import Path
 
 import pytest
+
 from ai_clipper.edit_v2 import timemap as tm
 from ai_clipper.edit_v2.timemap import Fps, Piece
 
