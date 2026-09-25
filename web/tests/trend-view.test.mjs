@@ -465,22 +465,24 @@ test("the endpoint and curl example use the page origin and never a fixed host",
   assert.equal(ingestEndpoint("null"), null);
   assert.equal(ingestEndpoint(undefined), null);
 
+  // Like the Hermes kit: the token is typed into a hidden prompt, never written into a command
+  // (shell history), and the agent lists the active items before it posts.
   const withToken = curlExample({ origin: "https://potongin.example", token: TOKEN });
   const lines = withToken.split("\n");
-  assert.equal(lines[0], `export POTONGIN_INGEST_TOKEN='${TOKEN}'`);
+  assert.equal(lines[0], "read -rs POTONGIN_INGEST_TOKEN && export POTONGIN_INGEST_TOKEN");
+  assert.equal(lines[1], `curl -sS -H "Authorization: Bearer $POTONGIN_INGEST_TOKEN" 'https://potongin.example/api/ingest/trends'`);
   assert.match(withToken, /curl -sS -X POST 'https:\/\/potongin\.example\/api\/ingest\/trends'/);
   assert.match(withToken, /-H "Authorization: Bearer \$POTONGIN_INGEST_TOKEN"/);
   assert.match(withToken, /-H 'Content-Type: application\/json'/);
+  assert.doesNotMatch(withToken, /curl[^\n]* -v\b|--verbose/);
   const body = /--data '(.*)'$/m.exec(withToken)[1];
   const parsed = JSON.parse(body);
   assert.equal(parsed.items.length, 1);
   assert.equal(typeof parsed.items[0].externalId, "string");
   assert.ok(TREND_KINDS.includes(parsed.items[0].kind));
   assert.ok(parsed.items[0].keywords.length >= 1);
-  assert.equal(withToken.split(TOKEN).length - 1, 1, "the token appears exactly once");
-
-  const placeholder = curlExample({ origin: "https://potongin.example" });
-  assert.match(placeholder.split("\n")[0], /^export POTONGIN_INGEST_TOKEN='ptk_…'$/);
+  assert.equal(withToken.includes(TOKEN), false, "the token value is never part of the example");
+  assert.equal(curlExample({ origin: "https://potongin.example" }), withToken);
   assert.match(curlExample({ origin: "bogus" }), /'\/api\/ingest\/trends'/);
   assert.equal(shellQuote("it's"), `'it'\\''s'`);
 });
