@@ -3,10 +3,13 @@ import math
 import pytest
 
 from ai_clipper.selection_types import (
+    FOCUS_MATCHES,
     MAX_CLIP_TRENDS,
     SCORE_DIMENSIONS,
     TREND_KINDS,
+    ClipFocus,
     ClipProposal,
+    FocusSummary,
     SelectedClip,
     SelectionResult,
     TrendRef,
@@ -228,3 +231,111 @@ def test_proposal_trend_refs_default_to_none_and_are_validated():
                  tuple(f"T{index}" for index in range(1, 22))):
         with pytest.raises((TypeError, ValueError)):
             proposal(trend_refs=refs)
+
+
+# --- Fokus klip -------------------------------------------------------------------------------
+
+
+def test_focus_matches_follow_the_spec():
+    assert FOCUS_MATCHES == ("literal", "semantic", "none")
+
+
+def test_clip_focus_round_trips_to_a_plain_dict():
+    assert ClipFocus("literal", ("jomok",), 754.2).to_dict() == {
+        "match": "literal", "terms": ["jomok"], "at": 754.2,
+    }
+    assert ClipFocus("semantic", ("jomok", "jomokers")).to_dict() == {
+        "match": "semantic", "terms": ["jomok", "jomokers"], "at": None,
+    }
+    assert ClipFocus("none").to_dict() == {"match": "none", "terms": [], "at": None}
+
+
+@pytest.mark.parametrize(
+    ("match", "terms", "at"),
+    [
+        ("maybe", ("jomok",), None),
+        ("literal", ("jomok",), None),  # a literal match says where
+        ("literal", (), 5.0),
+        ("literal", ("jomok",), -1.0),
+        ("literal", ("jomok",), math.inf),
+        ("literal", ("jomok",), True),
+        ("semantic", (), None),
+        ("semantic", ("jomok",), 5.0),  # only a literal match has a time
+        ("none", ("jomok",), None),
+        ("none", (), 5.0),
+        ("literal", ["jomok"], 5.0),
+        ("literal", ("jomok", "jomok"), 5.0),
+        ("literal", ("x" * 41,), 5.0),
+        ("literal", ("",), 5.0),
+        ("literal", ("baris\nbaru",), 5.0),
+        ("semantic", tuple(f"t{index}" for index in range(9)), None),
+    ],
+)
+def test_clip_focus_rejects_invalid_values(match, terms, at):
+    with pytest.raises((TypeError, ValueError)):
+        ClipFocus(match, terms, at)
+
+
+def test_clips_with_a_focus_record_it_last_and_others_keep_their_shape():
+    assert "focus" not in selected().to_dict()
+    assert selected().focus is None
+    item = selected(trends=(trend(1),), focus=ClipFocus("literal", ("jomok",), 220.0))
+    payload = item.to_dict()
+    assert list(payload)[-2:] == ["trends", "focus"]
+    assert payload["focus"] == {"match": "literal", "terms": ["jomok"], "at": 220.0}
+    with pytest.raises(TypeError):
+        selected(focus={"match": "none"})
+
+
+def test_proposal_focus_claims_are_validated():
+    assert proposal().focus is None
+    for claim in FOCUS_MATCHES:
+        assert proposal(focus=claim).focus == claim
+    for claim in ("", "Literal", "ya", 1):
+        with pytest.raises((TypeError, ValueError)):
+            proposal(focus=claim)
+
+
+def focus_result(*clips, focus=None) -> SelectionResult:
+    return SelectionResult(
+        clips=tuple(clips),
+        source="heuristic",
+        status="completed",
+        provider=None,
+        model=None,
+        prompt_version="heuristic-v3.1",
+        focus=focus,
+    )
+
+
+def test_the_selection_summary_counts_matching_clips():
+    clips = (
+        selected(focus=ClipFocus("literal", ("jomok",), 220.0)),
+        selected(rank=2, start=400.0, end=430.0, cold_open=None,
+                 focus=ClipFocus("semantic", ("jomok",))),
+        selected(rank=3, start=500.0, end=530.0, cold_open=None, focus=ClipFocus("none")),
+    )
+    result = focus_result(*clips, focus=FocusSummary(terms=("jomok",), requested=5))
+
+    assert result.focus_matched == 2
+    payload = result.to_dict()
+    assert list(payload)[-1] == "focus"
+    assert payload["focus"] == {"terms": ["jomok"], "matched": 2, "requested": 5}
+    assert "focus" not in focus_result(selected()).to_dict()
+
+
+def test_the_selection_focus_and_the_clip_focus_go_together():
+    summary = FocusSummary(terms=("jomok",), requested=1)
+    with pytest.raises(ValueError):
+        focus_result(selected(), focus=summary)  # a clip without its focus label
+    with pytest.raises(ValueError):
+        focus_result(selected(focus=ClipFocus("none")))  # a label without a job focus
+    for bad in (
+        {"terms": (), "requested": 1},
+        {"terms": ["jomok"], "requested": 1},
+        {"terms": ("jomok",), "requested": 0},
+        {"terms": ("jomok",), "requested": True},
+        {"terms": ("jomok", "Jomok"), "requested": 1},
+    ):
+        with pytest.raises((TypeError, ValueError)):
+            FocusSummary(**bad)
