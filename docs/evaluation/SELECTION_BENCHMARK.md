@@ -464,12 +464,14 @@ tergeser; trap tidak bertambah. 0 label `literal` yang salah.
 **E2E kasus pemilik** (`run.sh`: CLI sungguhan, `rBg0ZcwjVKQ`, subtitle YouTube, fokus "jomok"
 dengan catatan "momen jomok yang lucu", 8 klip, 20–90 detik, rantai gratis `.env`). Supaya
 bedanya hanya dari perubahan ini, cache LLM job sebelumnya dipakai lagi: usulan dan peringkat
-ulang Gemma sama persis, hanya top-up yang baru.
+ulang Gemma sama persis. *Koreksi (review kedua):* di run final ketiga permintaan dilayani cache
+(`cached_requests: 3`); jawaban top-up disalin dari panggilan sebelumnya dengan prompt yang sama
+persis (kunci cache cocok), jadi hasilnya sah, tetapi top-up itu tidak dikirim ulang di run ini.
 
 | Job | Ringkasan | Label | Permintaan AI |
 |---|---|---|---|
 | Fokus, `32cec7b` | 2 dari 8 klip cocok, `focus_few_matches:2` | 2 `literal`, 6 "Di luar fokus" | 2 (usulan, peringkat ulang) |
-| Fokus, dengan top-up | 7 dari 8 klip cocok, `focus_topup:1`, `focus_few_matches:7` | 5 `literal`, 2 `semantic`, 1 "Di luar fokus" | 3 (+ top-up, `gemma4:31b`, 10 rb token masuk) |
+| Fokus, dengan top-up | 7 dari 8 klip cocok, `focus_topup:1`, `focus_few_matches:7` | 5 `literal`, 2 `semantic`, 1 "Di luar fokus" | 3 (+ top-up `gemma4:31b` dari panggilan sebelumnya, 10 rb token masuk; ketiganya dari cache di run ini) |
 | Tanpa fokus | – | – | manifest dan 8 subtitle identik byte demi byte; `selection.v3.json` hanya beda `cached_requests` |
 
 Klip dengan top-up (urutan akhir; baris dasar = segmen transkrip pada sebutan pertama):
@@ -497,6 +499,121 @@ dan enam slot diisi momen di luar fokus (04:49, 36:36, 46:19, 49:08, 60:07, dan 
   19:21–20:27 "Eja merasa bersalah penonton stream-nya banyak bocah" berlabel `semantic`, klip
   tentang umur penonton yang tidak menyebut jomok. Karena itu momen top-up kini wajib memuat
   sebutan (dicek kode).
+
+### Setelah review kedua (2026-09-25): batas per label, pembuka, dan heuristik lintas sumber
+
+Review atas top-up menemukan batas kualitas AI yang hampir tidak pernah menahan klaim fokus, sapaan
+pembuka yang hanya ditahan prompt, dan sebutan yang tidak pernah diisi setelah AI melewatinya.
+Perubahannya ada di spesifikasi §7: `semantic` harus lolos skor momen dan nilai peringkat (dengan
+peringkat ulang), `literal` cukup skor momen; pembuka episode (teaser, dan 60 detik setelah sapaan
+kanal di intro) dijaga kode; kelompok fokus semua sumber di depan klip di luar fokus, dengan satu
+jendela heuristik per kelompok sebutan yang belum dinilai AI; prompt top-up meminta setiap potongan
+diperiksa; top-up tidak mengambil permintaan terakhir dari peringkat ulang.
+
+**Tanpa fokus: identik.** Skrip invarian review (klien palsu deterministik, 7 episode × 6 setup:
+biasa, tren, dipotong per bagian, permintaan ulang, heuristik, heuristik + tren): digest setiap
+permintaan dan seluruh `selection.v3.json` sama byte demi byte dengan `cdd94df`. Test unit
+`PRE_FOCUS_SELECTIONS` dan `PRE_FOCUS_TREND_REQUESTS` (dari `54a360a`) tetap lulus.
+
+**12 run** (setup tabel "Top-up fokus"; jawaban top-up adalah jawaban prompt §6 yang tersimpan, jadi
+tabel ini hanya mengukur perubahan di pemilih). Format sel: `L/S/N · Hits@5/Hits@10/Trap@10`;
+"Sama" = momen yang sama dengan tanpa fokus.
+
+| Episode | Run | Tanpa fokus | Top-up (`cdd94df`) | Setelah review kedua | Sama |
+|---|---|---|---|---|---|
+| `0dzvz9JZFIM` | heuristik | 3/5/0 | 5/0/5 · 2/4/0 | 5/0/5 · 2/4/0 | 6/10 |
+| `0K37SYfox7M` | heuristik | 4/4/2 | 5/0/5 · 2/4/2 | 4/0/6 · 3/4/2 | 7/10 |
+| `DwTmRFyQ53E` | heuristik | 4/4/1 | 6/0/4 · 3/7/1 | 6/0/4 · 3/7/1 | 5/10 |
+| `FxQDATkYHtk` | heuristik | 0/0/1 | 10/0/0 · 3/4/1 | 10/0/0 · 3/4/1 | 0/10 |
+| `Ive926sC6mc` | heuristik | 3/5/1 | 10/0/0 · 2/3/1 | 10/0/0 · 2/3/1 | 3/10 |
+| `rBg0ZcwjVKQ` | heuristik | 1/2/0 | 10/0/0 · 3/4/1 | 9/0/1 · 3/4/0 | 3/10 |
+| `WRxJGz-TA44` | heuristik | 3/3/1 | 2/0/8 · 3/3/1 | 2/0/8 · 3/3/1 | 9/10 |
+| `0K37SYfox7M` | putar ulang | 3/4/0 | 2/0/8 · 4/5/0 | 3/0/7 · 4/5/0 | 7/10 |
+| `DwTmRFyQ53E` | putar ulang | 3/7/0 | 4/0/6 · 4/6/0 | 6/0/4 · 4/6/0 | 7/10 |
+| `FxQDATkYHtk` | putar ulang | 2/3/0 | 3/0/7 · 3/3/0 | 10/0/0 · 3/3/1 | 2/10 |
+| `rBg0ZcwjVKQ` | putar ulang | 1/2/0 | 5/0/5 · 2/3/0 | 9/0/1 · 2/4/0 | 4/10 |
+| `WRxJGz-TA44` | putar ulang | 3/4/1 | 1/0/9 · 3/4/1 | 1/0/9 · 3/4/1 | 10/10 |
+| **Total 12 run** | | **30/43/7** | **34/50/8** | **35/51/8** | |
+
+- **Hits@5 34 → 35, Hits@10 50 → 51, Trap@10 8 → 8.** 0 label `literal` yang salah (regex
+  terpisah, `at` di dalam klip), tidak ada sebutan yang terlewat dilabeli `literal`.
+- `rBg0ZcwjVKQ` heuristik: sapaan kanal 00:06–01:19 (trap T1) tidak lagi terangkat (pembuka).
+- `0K37SYfox7M` heuristik: satu jendela per kelompok sebutan, Hits@5 2 → 3.
+- `FxQDATkYHtk` putar ulang: harga *utamakan* untuk kata yang sering diucapkan. Jawaban Hermes
+  diputar ulang tanpa blok fokus, jadi hanya 3 momennya menyebut "politik"; tujuh jendela heuristik
+  "politik" dengan judul lemah menggeser pilihan Hermes di luar fokus, dan satu di antaranya
+  (47:56, T3 "Desta lupa pertanyaannya ... tanpa isi") masuk 10 besar. Dengan model sungguhan
+  blok fokus membuat model mengusulkan momen fokusnya sendiri, dan kelompok yang disebut momen AI
+  tidak diberi jendela heuristik.
+
+**Prompt top-up baru, model sungguhan** (5 run putar ulang yang sama; usulan dan peringkat ulang
+Hermes dari cache, top-up dikirim ke Ollama Cloud `gemma4:31b`, 4 permintaan):
+
+| Episode | Setelah review kedua | Top-up |
+|---|---|---|
+| `0K37SYfox7M` | 3/0/7 · 4/5/0 | `focus_topup:2` |
+| `DwTmRFyQ53E` | 6/0/4 · 4/6/0 | `focus_topup:1` |
+| `FxQDATkYHtk` | 10/0/0 · 2/3/1 | `focus_topup:3` |
+| `rBg0ZcwjVKQ` | 9/0/1 · 2/4/0 | `focus_topup:1` (34:03 "tren jomok nggak akan pernah mati") |
+| `WRxJGz-TA44` | 1/0/9 · 3/4/1 | tidak dikirim (sebutan tersisa di teaser) |
+| **Total** | **15/22/2** | 7 momen (prompt §6: 5) |
+
+Dibanding jawaban prompt §6 pada kode yang sama (16/22/2): Hits@5 turun satu di `FxQDATkYHtk`
+karena top-up menambah dua momen "politik" ke 5 besar. 0 label `literal` yang salah.
+
+**Tabel Gemma** (3 episode tabel "Model sungguhan" di atas, rantai yang sama: Ollama Cloud lalu
+OpenRouter; usulan Gemma yang tercatat dari cache, top-up dengan prompt baru dikirim; K=10):
+
+| Episode | Tanpa fokus | Top-up (`cdd94df`) | Setelah review kedua | Top-up |
+|---|---|---|---|---|
+| `rBg0ZcwjVKQ` | 3/5/1 | 6/1/3 · 2/4/1 | 9/1/0 · 2/4/1 | `focus_topup:1`: 33:38 "tren 'Jomok' nggak bakal mati" |
+| `0K37SYfox7M` | 5/8/0 | 2/1/7 · 4/7/0 | 3/1/6 · 3/7/0 | `focus_topup:1`: 48:31 grup WhatsApp bareng komika |
+| `WRxJGz-TA44` | 4/5/0 | 1/1/8 · 3/5/0 | 1/1/8 · 3/5/0 | tidak dikirim |
+| **Total** | **12/18/1** | **9/16/1** | **8/16/1** | |
+
+Di `rBg0ZcwjVKQ` trap T6 tetap ada: momen `semantic` 52:54 "Kocinya kena gocek jokes jomok".
+Di run ini Gemma memberi tidak lebih dari 10 momen valid, jadi peringkat ulang tidak berjalan dan
+nilai peringkat sama dengan skornya: tanpa peringkat ulang, batas `semantic` hanya skor momen
+(spesifikasi §7.1). 0 label `literal` yang salah.
+
+**E2E kasus pemilik** (`scratchpad/fix-topup/e2e/run.sh`: CLI sungguhan, `rBg0ZcwjVKQ`, subtitle
+YouTube, fokus "jomok" + "momen jomok yang lucu", 8 klip, 20–90 detik, rantai gratis `.env`):
+
+| Job | Permintaan AI | Ringkasan | Label |
+|---|---|---|---|
+| Fokus, cache job pemilik disalin (usulan dan peringkat ulang sama dengan run `cdd94df`) | 3: usulan dan peringkat ulang dari cache, **top-up dikirim** (`cached_requests: 2`) | 8 dari 8 klip cocok, `focus_topup:1` | 8 `literal` (5 AI, 3 heuristik) |
+| Fokus, cache kosong | 3, **semuanya dikirim** (`cached_requests: 0`); usulan Gemma berbeda dari run sebelumnya | 8 dari 8 klip cocok, `focus_topup:1` | 8 `literal` (5 AI, 3 heuristik) |
+
+Klip job pertama (urutan akhir; baris dasar = segmen transkrip pada sebutan pertama):
+
+| # | Waktu | Sumber | Baris dasar | Judul |
+|---|---|---|---|---|
+| 1 | 63:23–64:06 | AI | [63:52] "Bapak harus berjomok ria." | Cara Eja jelasin jejak digital jomok ke anaknya nanti |
+| 2 | 28:43–29:36 | AI | [28:50] "Panduan-panduan perjomokan, panduan hal-hal kayak gini." | Rahasia isi Kitab Rawi panduan jomok |
+| 3 | 01:40–02:59 | AI | [01:40] "Terus kapan lu bersentuhan dengan dunia jomok ini?" | Awal mula Eja terjun ke dunia jomok |
+| 4 | 22:45–24:11 | AI | [22:53] "dramok drama jomok gitu" | Saweran 4 Juta cuma buat minta drama jomok |
+| 5 | 34:03–34:51 | AI (top-up) | [34:13] "untuk si jomok ini, Bang, gua yakin kayaknya sulit untuk redup" | Kenapa tren 'Jomok' nggak akan pernah mati |
+| 6 | 06:27–07:51 | heuristik | [07:20] "orang-orang yang jomok gitu" (JMK 48, pelesetan JKT48) | Cerita tak terduga: Wah JMK 48 apalagi ini. |
+| 7 | 41:40–43:10 | heuristik | [41:51] "Tapi si jomok ini pasti masih ada sih." (lalu bapaknya dijadikan meme) | Curhat: Pernah tersinggung enggak misalnya muka lu ditempelin mem |
+| 8 | 54:56–56:19 | heuristik | [55:50] "Rusdi itu ya jok jomok." (komunitas, meme Rusdi) | Momen lucu: Nanya ke langannya. |
+
+- Kedua momen `semantic` yang lemah dari run `cdd94df` (53:01 dan 57:11) tetap ada di jawaban
+  usulan yang sama, tetapi tidak didahulukan: nilai peringkatnya 5,175 dan 4,925, di bawah batas
+  5,925 (skor momennya 6,85 lolos batas skor 6,35, seperti di `cdd94df`).
+- Job dengan cache kosong menunjukkan penjaga pembuka bekerja: Gemma mengusulkan 00:53–01:40
+  "Belajar 'Ilmu Jomok' bareng Reza Auditori" (sapaan kanal, trap T1) sebagai `literal` dengan skor
+  6,3, tepat di batas skor 6,3; karena dimulai di pembuka (sampai 01:00), klip itu tidak
+  didahulukan dan tidak terpilih.
+- Tiga jendela heuristik mengisi kelompok sebutan yang tidak disebut momen AI mana pun; judulnya
+  judul heuristik (lebih lemah dari judul AI) dan dua di antaranya dimulai di tengah obrolan
+  (41:40 "Susah ya, Bang kalau dijelasin.", 54:56 "Aduh panjang ceritanya kok."). Kelompok 19:12
+  ("gimnya kejomok", sebutan sambil lalu di ujung cerita Lades) tidak terpakai: slotnya habis.
+- Waktu AI: tiga permintaan berurutan, latensi total 29,8 detik (job pertama) dan 29,6 detik
+  (job kedua), jauh di bawah batas AI 300 detik; waktu job 4,5 menit, hampir semuanya render.
+- Job ketiga, **tanpa fokus** (cache job tanpa fokus sebelumnya disalin, tidak ada permintaan yang
+  dikirim): `selection.v3.json` sama byte demi byte dengan job tanpa fokus di `cdd94df`, manifest
+  sama kecuali folder keluarannya, dan kedelapan subtitle sama byte demi byte.
+- 0 label `literal` yang salah di kedua job fokus (regex terpisah, `at` di dalam klip).
 
 ## Hasil final V3 setelah poles (2026-09-24, kode dibekukan)
 

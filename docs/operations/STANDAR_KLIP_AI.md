@@ -96,7 +96,7 @@ Kode-kode ini tercatat di artefak `analysis/selection.v3.json`:
 | `llm_extended:<n>` | n momen pendek diperpanjang sampai akhir alami jawabannya | Normal |
 | `llm_trimmed:<n>` | n momen yang jauh terlalu panjang dipotong di batas maksimal setelah hook-nya | Normal. Payoff momen itu bisa terpotong; cek akhir klipnya |
 | `llm_packaging_repaired:<n>` | Judul atau teks hook n momen masih berupa transkrip mentah dan diganti dari field lain | Kalau sering, model kurang patuh pada bagian 8 standar |
-| `llm_dropped:<n>:<alasan>` | n momen dibuang. Alasan: `unknown_id`, `missing_id`, `scores`, `too_short`, `too_long`, `ends_on_question`, `suspect`, `duplicate`, `not_object`, `off_focus` (momen top-up fokus tanpa sebutan kata kunci) | Kalau lebih dari sepertiga momen dibuang, model itu kurang cocok |
+| `llm_dropped:<n>:<alasan>` | n momen dibuang. Alasan: `unknown_id`, `missing_id`, `scores`, `too_short`, `too_long`, `ends_on_question`, `suspect`, `duplicate`, `not_object`, `off_focus` (momen top-up fokus tanpa sebutan kata kunci), `opening` (momen top-up fokus yang dimulai di pembuka episode) | Kalau lebih dari sepertiga momen dibuang, model itu kurang cocok |
 | `llm_no_moments:<bagian>` | Jawaban model tidak berisi daftar momen | Kalau sering, ganti model |
 | `llm_chunk_failed:<bagian>:<kode>` | Satu bagian gagal, bagian lain tetap dipakai | Lihat kode error di `LLM_PROVIDERS.md` |
 | `llm_rerank_failed:<kode>` | Peringkat ulang gagal, urutan usulan dipakai | Tidak fatal |
@@ -278,21 +278,30 @@ yang diminta, dan ada sebutan kata kunci yang tidak tercakup momen AI mana pun.
   paling banyak 45 detik dianggap satu kelompok; potongan yang bertumpang tindih digabung).
   Paling banyak 10 kelompok, yang sebutannya paling banyak lebih dulu; kalau tidak muat di
   konteks model, kelompok terlemah dibuang. Di akhir ada blok FOKUS PENGGUNA dengan aturan
-  top-up. Model diminta mengusulkan paling banyak satu momen per potongan yang memuat baris
-  sebutan dan menjadikan fokus sebagai inti, dengan standar dan kontrak JSON yang sama, dan
-  melewati potongan lemah: sapaan atau pembuka, teaser di menit-menit awal, penutup, sponsor, dan
-  sebutan sambil lalu.
-- **Teaser pembuka tidak pernah ditanyakan:** sebutan di dalam montase teaser yang dideteksi
-  pemilih heuristik (kalimat awal yang terulang kata per kata di bagian lain video) dilewati,
-  karena model tidak selalu mengenali teaser (terukur di `WRxJGz-TA44`).
+  top-up. Model diberi tahu bahwa pemilik mendahulukan klip fokus, diminta memeriksa setiap
+  potongan dan mengusulkan paling banyak satu momen per potongan yang memuat baris sebutan dan
+  membahas fokusnya, dengan standar dan kontrak JSON yang sama. Momen yang biasa saja tetap
+  diusulkan dengan skor yang jujur (batas kualitas di kode yang memutuskan); potongan lemah
+  dilewati: sapaan atau pembuka, teaser di menit-menit awal, penutup, sponsor, dan sebutan
+  sambil lalu.
+- **Pembuka episode tidak pernah ditanyakan:** sebutan sebelum akhir pembuka dilewati. Pembuka
+  adalah montase teaser yang dideteksi pemilih heuristik (kalimat awal yang terulang kata per
+  kata di bagian lain video) dan sapaan kanal: 60 detik sejak sapaan terakhir yang diucapkan di
+  intro ("selamat datang", "halo semuanya", "kembali lagi di", ...; intro = 90 detik pertama,
+  atau 3% video bila lebih panjang). Model tidak selalu mengenali keduanya (terukur di
+  `WRxJGz-TA44` untuk teaser), jadi kode yang menjaganya.
 - **Anggaran:** permintaan ini dihitung dalam batas permintaan AI job (3) dan batas waktunya, dan
-  dikirim sebelum peringkat ulang. Kalau anggaran tinggal satu, peringkat ulang yang dilewati;
-  kalau sudah habis, top-up dilewati (`focus_topup_skipped:budget` atau `:deadline`).
+  dikirim sebelum peringkat ulang, tetapi tidak pernah memakai permintaan terakhir kalau
+  peringkat ulang akan berjalan (lebih banyak momen valid daripada klip yang diminta): peringkat
+  ulang yang tetap menjaga klaim `semantic`, dan sebutan yang tidak ditanyakan diisi jendela
+  heuristik (di bawah). Kalau anggaran tidak cukup, top-up dilewati
+  (`focus_topup_skipped:budget` atau `:deadline`).
 - **Pemeriksaan kode:** jawaban divalidasi seperti usulan biasa (ID harus dari potongannya,
-  aturan durasi, snapping). Momen top-up wajib benar-benar memuat sebutan kata kunci, apa pun
-  klaimnya (selain itu dibuang, `llm_dropped:<n>:off_focus`). Momen kedua untuk satu potongan,
-  momen yang mengulang usulan yang sudah ada, dan momen yang bertumpang tindih dengan momen fokus
-  yang sudah ada dibuang (`llm_dropped:<n>:duplicate`).
+  aturan durasi, snapping). Momen top-up yang dimulai di pembuka dibuang
+  (`llm_dropped:<n>:opening`), dan momen top-up wajib benar-benar memuat sebutan kata kunci
+  setelah pembuka, apa pun klaimnya (selain itu dibuang, `llm_dropped:<n>:off_focus`). Momen
+  kedua untuk satu potongan, momen yang mengulang usulan yang sudah ada, dan momen yang
+  bertumpang tindih dengan momen fokus yang sudah ada dibuang (`llm_dropped:<n>:duplicate`).
 - **Tanpa fokus permintaan ini tidak pernah dikirim**, dan tanpa LLM (heuristik) juga tidak.
 
 ### Label klip: diputuskan kode, bukan model
@@ -331,36 +340,46 @@ yang diminta, dan ada sebutan kata kunci yang tidak tercakup momen AI mana pun.
 
 ### Urutan, kandidat tambahan, dan kemasan
 
-- **Urutan (utamakan, sisanya diisi):** klip AI tetap di depan klip heuristik; heuristik hanya
-  mengisi slot yang tidak diisi AI. Model sudah melihat baris yang menyebut kata kunci dan
+- **Urutan (utamakan, sisanya diisi):** klip yang cocok dari sumber mana pun di depan klip di
+  luar fokus: `literal` dari AI, `semantic` dari AI, `literal` dari heuristik, lalu `none` dari
+  AI, lalu `none` dari heuristik, tiap kelompok dengan urutan kualitasnya sendiri (dorongan
+  Konteks Tren hanya di dalam kelompok). Model sudah melihat baris yang menyebut kata kunci dan
   diminta mengusulkan semua momen fokus yang layak; sebutan yang tidak diusulkannya ditanyakan
-  sekali lagi lewat top-up fokus (di atas). Di dalam klip AI, lalu di dalam klip heuristik:
-  `literal` dulu, lalu `semantic`, lalu `none`, tiap kelompok dengan urutan kualitasnya sendiri
-  (dorongan Konteks Tren hanya di dalam kelompok). Momen top-up masuk kelompoknya di belakang
-  momen dari usulan pertama pada kelompok yang sama, jadi menggeser momen AI di luar fokus; momen
-  di luar fokus hanya mengisi slot sisa. **Skor dan kelima sub-skor tidak berubah.** Klip heuristik pengisi yang
-  didahulukan karena menyebut kata kunci mendapat alasan "Pengisi dari heuristik karena momen LLM
-  kurang; menyebut fokus yang dicari."
-- **Batas kualitas:** momen fokus hanya didahulukan kalau skor momennya paling banyak 1,0 poin
-  (skala 0–10, `FOCUS_QUALITY_GAP`) di bawah skor terlemah di antara klip yang akan dipilih
-  sumbernya (AI atau heuristik) tanpa fokus. Untuk AI dipakai skor rubrik dari permintaan yang
-  melihat blok fokus, bukan campuran dengan peringkat ulang: peringkat ulang tidak pernah melihat
-  fokus, dan di kasus pemilik campuran itu menjatuhkan 4 momen jomok yang diusulkan model sendiri.
-  Untuk heuristik skornya sama dengan nilai peringkatnya (tidak berubah). Momen fokus yang jauh
-  lebih lemah tidak didahulukan; kalau tetap terpilih karena kualitasnya sendiri, labelnya tetap
-  benar. Fokus menentukan urutan, bukan alasan memilih momen yang lemah.
-- **Kandidat tambahan:** kalau masih ada slot yang boleh diisi (slot kosong atau slot klip
-  heuristik di luar fokus) dan ada sebutan kata kunci yang belum tercakup klip terpilih, pemilih
-  heuristik mencari jendelanya sendiri di sekitar sebutan itu (di antara klip yang tetap
-  terpilih, tetap lewat snapping, aturan durasi, dan batas kualitas, tanpa tumpang tindih).
-  Jendela yang mencakup lebih banyak sebutan didahulukan.
+  sekali lagi lewat top-up fokus (di atas), dan yang tetap tidak diambil boleh diisi jendela
+  heuristik (kandidat tambahan, di bawah). Momen top-up masuk kelompoknya di belakang momen dari
+  usulan pertama pada kelompok yang sama. Jadi momen di luar fokus hanya mengisi slot sisa, yang
+  terlemah tergeser lebih dulu. **Skor dan kelima sub-skor tidak berubah.** Klip heuristik yang
+  diambil karena menyebut kata kunci mendapat alasan "Dari heuristik: menyebut fokus yang dicari,
+  di bagian video yang tidak dipilih LLM."
+- **Batas kualitas:** momen fokus hanya didahulukan kalau paling banyak 1,0 poin (skala 0–10,
+  `FOCUS_QUALITY_GAP`) di bawah klip terlemah yang akan dipilih sumbernya (AI atau heuristik)
+  tanpa fokus. Untuk `literal` yang dibandingkan skor momennya; untuk AI itu skor rubrik dari
+  permintaan yang melihat blok fokus, karena peringkat ulang tidak pernah melihat fokus (di kasus
+  pemilik ia menilai "Saweran 4 Juta cuma buat minta drama jomok" 2,5/10). `semantic` hanya klaim
+  AI, jadi harus lolos dua-duanya: skor momen **dan** nilai peringkatnya (campuran dengan
+  peringkat ulang, penilaian independen atas kualitasnya); tanpa peringkat ulang nilai itu sama
+  dengan skornya. Untuk heuristik skor dan nilai peringkatnya sama. Momen fokus yang jauh lebih
+  lemah tidak didahulukan; kalau tetap terpilih karena kualitasnya sendiri, labelnya tetap benar.
+  Fokus menentukan urutan, bukan alasan memilih momen yang lemah.
+- **Pembuka episode:** klip dari sumber mana pun yang dimulai di pembuka (teaser atau sapaan
+  kanal, lihat top-up) tidak pernah didahulukan karena fokus; kalau terpilih karena kualitasnya
+  sendiri, labelnya tetap benar.
+- **Kandidat tambahan:** sebutan yang berjarak paling banyak 45 detik adalah satu kelompok (satu
+  obrolan tentang fokus). Kelompok yang disebut momen AI mana pun, terpilih atau tidak, adalah
+  keputusan AI: di situ tidak ada jendela heuristik yang didahulukan. Untuk kelompok lain yang
+  belum disebut klip terpilih, kalau masih ada slot yang boleh diisi (slot kosong atau slot klip
+  di luar fokus), pemilih heuristik mencari jendelanya sendiri di sekitar sebutannya: tidak di
+  pembuka, tidak memotong klip AI yang terpilih atau klip fokus, tetap lewat snapping, aturan
+  durasi, dan batas kualitas heuristik. Paling banyak satu jendela per kelompok; jendela yang
+  mencakup lebih banyak sebutan didahulukan, lalu yang skornya lebih tinggi.
 - **Kemasan:** hanya klip `literal` dan `semantic` yang boleh memakai tema fokus, dan hanya klip
   yang benar-benar menyebut kata kuncinya yang boleh mengutipnya. Judul, teks hook, dan deskripsi
   klip AI berlabel `none`, atau yang mengaku `literal` tanpa menyebut kata kuncinya, diganti dari
   isi klip itu sendiri bila menyebut kata kunci (`focus_packaging_ungrounded:<n>`). Hashtag klip
   AI berlabel `none` yang menyebut kata kunci dibuang.
-- **Provenance:** selama ada klip AI yang terpilih, sumber, penyedia, model, dan versi prompt
-  (`…+focus.v1…`) tetap dari AI.
+- **Provenance:** selama ada momen AI yang lolos snapping, sumber, penyedia, model, dan versi
+  prompt (`…+focus.v1…`) tetap dari AI (`llm_filled:<n>` menghitung klip heuristiknya), juga
+  kalau semua slot diambil jendela fokus.
 
 ### Yang tercatat
 
@@ -382,15 +401,20 @@ yang diminta, dan ada sebutan kata kunci yang tidak tercakup momen AI mana pun.
 | `focus_packaging_ungrounded:<n>` | n klip memakai kata kunci di judul, hook, atau deskripsi padahal tidak menyebutnya; teksnya diganti | Periksa judul klip itu sebelum diunggah |
 | `focus_topup:<n>` | Top-up fokus dikirim dan menambah n momen fokus (0 = model tidak menemukan yang layak) | Tidak ada |
 | `focus_topup_failed:<kode>` | Permintaan top-up gagal (kode galat LLM, atau `invalid` bila jawaban tanpa daftar momen); klip dipilih dari usulan pertama | Normal sesekali (kuota, jaringan) |
-| `focus_topup_skipped:<alasan>` | Top-up perlu tetapi tidak dikirim: `budget` (batas permintaan AI habis), `deadline` (batas waktu AI habis), atau `context` (satu potongan pun tidak muat) | Normal sesekali; kalau sering `context`, naikkan konteks model |
+| `focus_topup_skipped:<alasan>` | Top-up perlu tetapi tidak dikirim: `budget` (batas permintaan AI habis, atau permintaan terakhir dipakai peringkat ulang), `deadline` (batas waktu AI habis), atau `context` (satu potongan pun tidak muat) | Normal sesekali; sebutan yang tidak ditanyakan diisi jendela heuristik; kalau sering `context`, naikkan konteks model |
 | `llm_dropped:<n>:off_focus` | n momen top-up dibuang karena tidak memuat sebutan kata kunci | Normal sesekali |
+| `llm_dropped:<n>:opening` | n momen top-up dibuang karena dimulai di pembuka episode (teaser atau sapaan kanal) | Normal sesekali |
 
-**Catatan kualitas.** Aturan urutan dan batas kualitas di atas adalah keputusan setelah review
-(2026-09-25): versi pertama menaruh setiap jendela heuristik yang menyebut kata kunci di atas
-momen AI yang lebih kuat, dan trap di 10 besar naik. Top-up fokus dan batas kualitas berbasis
-skor momen menyusul keputusan pemilik *utamakan, sisanya diisi* (kasus pemilik: 2 → 7 dari 8
-klip cocok, tanpa trap tambahan di benchmark). Hasil ukurnya ada di
-`docs/evaluation/SELECTION_BENCHMARK.md`, bagian "Fokus klip" dan "Top-up fokus".
+**Catatan kualitas.** Versi pertama menaruh setiap jendela heuristik yang menyebut kata kunci di
+atas momen AI yang lebih kuat, dan trap di 10 besar naik; review pertama lalu membatasi
+heuristik pada slot yang tidak diisi AI. Keputusan pemilik *utamakan, sisanya diisi* membalik
+itu dengan penjaga: batas kualitas per sumber (untuk `semantic` juga lewat peringkat ulang),
+pembuka episode yang dijaga kode, satu jendela per kelompok sebutan, dan kelompok yang sudah
+dinilai AI tetap keputusan AI. Kasus pemilik: 2 → 8 dari 8 klip cocok, semuanya momen jomok yang
+sungguhan. Harganya: pada kata kunci yang sering diucapkan tetapi jarang dibahas (di benchmark:
+"politik" di `FxQDATkYHtk`), jendela heuristik dengan judul lemah bisa menggeser momen AI kuat
+yang di luar fokus. Hasil ukurnya ada di `docs/evaluation/SELECTION_BENCHMARK.md`, bagian "Fokus
+klip", "Top-up fokus", dan "Setelah review kedua".
 
 ## Mengubah standar dengan aman
 
