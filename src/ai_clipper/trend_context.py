@@ -146,11 +146,15 @@ def _timestamp(value: object, name: str) -> datetime:
         raise ValueError(f"{name} must be an ISO 8601 timestamp") from None
     if moment.tzinfo is None or moment.utcoffset() is None:
         raise ValueError(f"{name} must name its time zone")
-    return moment.astimezone(UTC)
+    try:
+        return moment.astimezone(UTC)
+    except OverflowError:
+        raise ValueError(f"{name} is out of range") from None
 
 
 def _iso(moment: datetime) -> str:
-    return moment.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    text = moment.astimezone(UTC).replace(microsecond=0, tzinfo=None).isoformat()
+    return f"{text}Z"
 
 
 # --- items ------------------------------------------------------------------------------------
@@ -257,7 +261,12 @@ def _item_from_dict(raw: object, now: datetime) -> TrendItem | None:
     first_seen = raw.get("firstSeenAt")
     seen = now if first_seen is None else _timestamp(first_seen, "firstSeenAt")
     expires = raw.get("expiresAt")
-    until = seen + DEFAULT_TREND_LIFETIME if expires is None else _timestamp(expires, "expiresAt")
+    if expires is not None:
+        until = _timestamp(expires, "expiresAt")
+    elif seen <= datetime.max.replace(tzinfo=UTC) - DEFAULT_TREND_LIFETIME:
+        until = seen + DEFAULT_TREND_LIFETIME
+    else:
+        raise ValueError("firstSeenAt is out of range")
     title = raw.get("title")
     if not isinstance(title, str):
         raise TypeError("title must be a string")
@@ -357,7 +366,9 @@ def load_trend_context(path: str | Path) -> TrendContext:
             object_pairs_hook=_reject_duplicate_keys,
             parse_constant=_reject_constant,
         )
-    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError):
+    except TrendContextError:
+        raise
+    except (ValueError, RecursionError):  # also over-long integer literals
         raise TrendContextError("trend context is not valid UTF-8 JSON") from None
     return trend_context_from_dict(payload)
 
