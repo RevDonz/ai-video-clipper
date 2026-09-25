@@ -513,9 +513,9 @@ class Workspace:
         from ai_clipper.edit_v2.glyphs import RESOURCES_DIR
         from ai_clipper.edit_v2.plan import Resources
 
-        if self.harness:
-            return Resources(self.root / "resources")  # absent: FFmpeg uses the system fonts
-        return Resources(RESOURCES_DIR)  # the pinned fonts, packs and fontconfig lockdown
+        # The pinned fonts, packs and fontconfig lockdown, with the stand-ins too: execute.run
+        # refuses a job whose declared fonts.conf is missing (W1 integration, G-FAIL).
+        return Resources(RESOURCES_DIR)
 
     def logo_asset(self) -> tuple[str, dict[str, Any]]:
         media = _media()

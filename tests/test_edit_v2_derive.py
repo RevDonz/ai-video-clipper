@@ -23,6 +23,7 @@ from ai_clipper.edit_v2.derive import (
     png_size,
     strip_png,
 )
+from ai_clipper.edit_v2.glyphs import RESOURCES_DIR
 from ai_clipper.edit_v2.plan import Resources, build_plan
 
 
@@ -146,7 +147,7 @@ def test_compile_job_derives_the_plans_logo(tmp_path, monkeypatch, edit_v2_ffmpe
     logo.rename(stored)
     context = context_for("logo__c30")
     plan = build_plan(load_doc("logo__c30"), words=context.words, camera=None,
-                      assets=context.assets, resources=Resources(tmp_path / "resources"))
+                      assets=context.assets, resources=Resources(RESOURCES_DIR))
     job = compile_ffmpeg.compile_job(plan, mode="derive_image", source=Path("/unused"),
                                      assets_root=tmp_path / "assets")
     assert [spec.kind for spec in job.inputs] == ["asset"]

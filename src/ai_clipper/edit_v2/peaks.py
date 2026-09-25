@@ -26,6 +26,8 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+from .source_info import PROTOCOL_WHITELIST, child_env
+
 PEAKS_SAMPLE_RATE = 8000
 DEFAULT_PER_SEC = 100
 FLOOR_CDB = -9000  # level of an all-zero bin (the audio timeline's -90 dB floor)
@@ -103,10 +105,10 @@ def peaks_file_name(raw: bytes) -> str:
 
 def _audio_stream(ffprobe: str, source: Path) -> int | None:
     result = subprocess.run(
-        [ffprobe, "-v", "error", "-select_streams", "a", "-show_entries",
+        [ffprobe, "-v", "error", *PROTOCOL_WHITELIST, "-select_streams", "a", "-show_entries",
          "stream=index:stream_disposition=default,attached_pic", "-of", "json", str(source)],
         capture_output=True, text=True, check=False, timeout=_TIMEOUT_BASE_S,
-        stdin=subprocess.DEVNULL,
+        stdin=subprocess.DEVNULL, env=child_env(),
     )
     if result.returncode != 0:
         raise PeaksError("ffprobe could not read the source")
@@ -142,14 +144,14 @@ def build_peaks(source: Path, window_ms: tuple[int, int], *, per_sec: int = 100)
         return bytes(2 * bins)
     argv = [
         ffmpeg, "-nostdin", "-hide_banner", "-loglevel", "error", "-threads", str(FFMPEG_THREADS),
-        "-ss", _seconds(a), "-t", _seconds(b - a), "-i", str(source),
+        *PROTOCOL_WHITELIST, "-ss", _seconds(a), "-t", _seconds(b - a), "-i", str(source),
         "-map", f"0:{stream}", "-vn", "-sn", "-dn", "-ac", "1", "-ar", str(PEAKS_SAMPLE_RATE),
         "-c:a", "pcm_s16le", "-f", "s16le", "pipe:1",
     ]
     timeout = _TIMEOUT_BASE_S + (b - a) / 1000 / 10
     try:
         result = subprocess.run(argv, capture_output=True, check=False, timeout=timeout,
-                                stdin=subprocess.DEVNULL)
+                                stdin=subprocess.DEVNULL, env=child_env())
     except subprocess.TimeoutExpired:
         raise PeaksError("peaks decode timed out") from None
     if result.returncode != 0:
