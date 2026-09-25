@@ -1,0 +1,509 @@
+// createPlayer (Appendix A.2; plan §6.2) with every layer injected: the presenter barrier across
+// plate, text and logo; superseded seeks; playback on the audio clock with text pre-rendered one
+// frame ahead; the swap rules; truth frames; the revision-0 <video> fallback; unsupported
+// browsers; the device check.
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import { DEFAULT_JASSUB_URL, createPlayer } from "../lib/editor/player/player.mjs";
+
+const FPS = [30, 1];
+
+function deferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
+  return { promise, resolve, reject };
+}
+
+const tick = () => new Promise((resolve) => setImmediate(resolve));
+
+function planDto({
+  doc = "d1", ass = "a1", mix = "m1", plateKey = "p1", ready = [0, 1, 2, 3, 4], logo = null, rev0 = null,
+  pieces = [{ i: 0, seg: "seg_b1", role: "body", inSf: 30, outSf: 180, outF0: 0, frames: 150 }], audioState = "ready",
+  fonts = [{ family: "DejaVu Sans", url: "/fonts/DejaVuSans.ttf", sha256: "f".repeat(64) }],
+} = {}) {
+  const total = pieces.reduce((sum, piece) => sum + piece.frames, 0);
+  return {
+    planSha256: `plan-${doc}-${ass}-${plateKey}-${mix}`, docSha256: doc, compiler: "edit-v2/1", renderSemantics: 1,
+    fps: FPS, totalFrames: total, output: { w: 720, h: 1280 }, pieces, cues: [], hook: null,
+    text: { assSha256: ass, ass: `[Script Info]\n; ${ass}\n`, url: `/ass/${ass}.ass`, fonts },
+    plate: { plateKey, cellFrames: 60, w: 720, h: 1280,
+      cells: ready.map((k) => ({ k, state: "ready", url: `/cells/${plateKey}-${k}.mp4` })) },
+    logo,
+    audio: { mixSha256: mix, state: audioState, url: audioState === "ready" ? `/mix/${mix}.flac` : null,
+      samples: Math.floor((total * 48000 * FPS[1]) / FPS[0]), musicGainPoints: [], speechSpans: [] },
+    rev0: rev0 ?? { planSha256: "rev0", autoRenderUrl: null, exact: false },
+    warnings: [], errors: [],
+  };
+}
+
+function fakeCanvas() {
+  const draws = [];
+  const ctx = {
+    globalCompositeOperation: "source-over",
+    imageSmoothingEnabled: true,
+    drawImage(image, x, y) { draws.push({ image, x, y, op: this.globalCompositeOperation }); },
+  };
+  const canvas = { width: 300, height: 150, contextOptions: null, getContext(kind, options) { canvas.contextOptions = options; return ctx; } };
+  return { canvas, ctx, draws };
+}
+
+function makeDeps({ plateBlocked = false, textDelayMs = 0, textTotalMs = 2 } = {}) {
+  const log = [];
+  const textLayers = [];
+  const gates = new Map(); // "k:j" → deferred, when plateBlocked
+  const decoded = new Set();
+  let plateDto = null;
+  const createTextLayer = (options) => {
+    const layer = {
+      options, destroyed: false, tracks: [], renders: [], ready: Promise.resolve({ fonts: options.fonts.length }),
+      async setTrack(ass) { layer.tracks.push(ass); log.push(["setTrack", ass]); },
+      async render(n) {
+        layer.renders.push(n);
+        if (textDelayMs) await new Promise((resolve) => setTimeout(resolve, textDelayMs));
+        return { frame: n, changed: true, bitmap: { layer: "text", n }, x: 10, y: 20, w: 5, h: 5, libassMs: 1, totalMs: textTotalMs };
+      },
+      destroy() { layer.destroyed = true; },
+    };
+    textLayers.push(layer);
+    return layer;
+  };
+  const plate = {
+    setPlate(dto) { plateDto = dto; log.push(["setPlate", dto.plateKey]); },
+    cellState(k) {
+      const cell = plateDto?.cells.find((item) => item.k === k);
+      return cell ? (cell.state === "ready" && cell.url ? "ready" : "queued") : "missing";
+    },
+    readyCells() { return { ready: plateDto.cells.filter((cell) => cell.state === "ready").length, total: plateDto.cells.length }; },
+    frame(k, j) { return decoded.has(`${plateDto.plateKey}:${k}:${j}`) ? { layer: "plate", key: plateDto.plateKey, k, j } : null; },
+    async need(k, j) {
+      if (plate.cellState(k) !== "ready") return null;
+      const key = `${plateDto.plateKey}:${k}:${j}`;
+      if (plateBlocked && !decoded.has(key)) {
+        if (!gates.has(key)) gates.set(key, deferred());
+        await gates.get(key).promise;
+      }
+      decoded.add(key);
+      return plate.frame(k, j);
+    },
+    ensure(schedule) {
+      log.push(["ensure", schedule.map((entry) => entry.k)]);
+      if (!plateBlocked) for (const entry of schedule) for (const j of entry.js) decoded.add(`${plateDto.plateKey}:${entry.k}:${j}`);
+      return Promise.resolve();
+    },
+    stats() { return { cached: decoded.size }; },
+    destroy() { log.push(["plateDestroy"]); },
+  };
+  const release = (k, j, key = plateDto.plateKey) => {
+    const full = `${key}:${k}:${j}`;
+    if (!gates.has(full)) gates.set(full, deferred());
+    gates.get(full).resolve();
+  };
+  const audio = {
+    ready: false, mixSha256: null, started: null, pos: null, loads: [],
+    async load(dto) {
+      audio.loads.push(dto.mixSha256);
+      if (dto.state !== "ready" || !dto.url) { audio.ready = false; audio.mixSha256 = null; return; }
+      audio.ready = true;
+      audio.mixSha256 = dto.mixSha256;
+    },
+    async start(frame, fps) { if (!audio.ready) throw new Error("audio_not_ready"); audio.started = { frame, fps }; audio.pos = (frame * fps[1]) / fps[0]; },
+    stop() { audio.started = null; audio.pos = null; },
+    position() { return audio.pos; },
+    destroy() { log.push(["audioDestroy"]); },
+    buffer: null, context: null,
+  };
+  const wall = {
+    started: null, pos: null,
+    start(frame, fps) { wall.started = { frame, fps }; wall.pos = (frame * fps[1]) / fps[0]; },
+    stop() { wall.started = null; wall.pos = null; },
+    position() { return wall.pos; },
+  };
+  const logos = [];
+  const logo = {
+    dto: null, gate: null,
+    async load(dto) {
+      logo.dto = dto;
+      logos.push(dto?.url ?? null);
+      if (logo.gate) await logo.gate.promise;
+    },
+    readyFor(dto) { return !dto || (logo.dto?.url === dto.url && !logo.gate); },
+    draw(ctx) { if (logo.dto) ctx.drawImage({ layer: "logo", url: logo.dto.url }, logo.dto.box.x, logo.dto.box.y); },
+    destroy() {},
+  };
+  const frames = [];
+  const raf = { queue: [], next: 1 };
+  const deps = {
+    createTextLayer,
+    createPlateSource: () => plate,
+    createAudioClock: () => audio,
+    createWallClock: () => wall,
+    createLogoLayer: () => logo,
+    requestAnimationFrame: (callback) => { raf.queue.push(callback); return raf.next++; },
+    cancelAnimationFrame: () => { raf.queue = []; },
+    now: () => 0,
+    supports: () => ({ live: true }),
+    createImageBitmap: async (blob) => ({ layer: "truth", blob }),
+  };
+  async function frameTick(position) {
+    if (position !== undefined) { audio.pos = position; wall.pos = position; }
+    const callbacks = raf.queue;
+    raf.queue = [];
+    for (const callback of callbacks) callback(0);
+    await tick();
+    await tick();
+  }
+  return { deps, log, textLayers, plate, release, audio, wall, logo, logos, frames, raf, frameTick };
+}
+
+function player(env, extra = {}) {
+  const { canvas, ctx, draws } = fakeCanvas();
+  const states = [];
+  const frames = [];
+  const instance = createPlayer({
+    canvas, fetchImpl: async (url) => ({ ok: true, status: 200, text: async () => `fetched ${url}`, blob: async () => ({ url }) }),
+    onState: (state) => states.push(state), onFrame: (info) => frames.push(info), deps: env.deps, ...extra,
+  });
+  return { instance, canvas, ctx, draws, states, frames };
+}
+
+test("the default JASSUB directory is served by the resources route", () => {
+  assert.equal(DEFAULT_JASSUB_URL, "/api/resources/jassub/");
+});
+
+test("load sizes the canvas and loads text, plate, logo and audio of the plan", async () => {
+  const env = makeDeps();
+  const { instance, canvas } = player(env);
+  assert.equal(instance.state().mode, "live");
+  await instance.load(planDto());
+  assert.equal(canvas.width, 720);
+  assert.equal(canvas.height, 1280);
+  assert.deepEqual(canvas.contextOptions, { alpha: false, colorSpace: "srgb" });
+  assert.equal(env.textLayers.length, 1);
+  const layer = env.textLayers[0];
+  assert.equal(layer.options.width, 720);
+  assert.equal(layer.options.height, 1280);
+  assert.deepEqual(layer.options.fps, FPS);
+  assert.equal(layer.options.jassubUrl, DEFAULT_JASSUB_URL);
+  assert.deepEqual(layer.options.fonts, ["/fonts/DejaVuSans.ttf"]);
+  assert.equal(layer.options.fallbackFamily, "DejaVu Sans");
+  assert.deepEqual(layer.tracks, ["[Script Info]\n; a1\n"]);
+  assert.deepEqual(env.log.find(([kind]) => kind === "setPlate"), ["setPlate", "p1"]);
+  assert.deepEqual(env.audio.loads, ["m1"]);
+  const state = instance.state();
+  assert.deepEqual(state.current, { text: true, plate: true, audio: true, logo: true });
+  assert.equal(state.frame, 0);
+});
+
+test("the current frame is presented after load: plate, then text, then logo, never in part", async () => {
+  const env = makeDeps();
+  const logo = { box: { x: 560, y: 26, w: 115, h: 115 }, opacityPm: 850, url: "/derived/logo@115x115.png" };
+  const { instance, draws, frames } = player(env);
+  await instance.load(planDto({ logo }));
+  await tick();
+  // Frame 0 → piece 0, sf 30 → cell 0, j 30.
+  assert.deepEqual(draws.map((draw) => [draw.image.layer, draw.op, draw.x, draw.y]), [
+    ["plate", "copy", 0, 0], ["text", "source-over", 10, 20], ["logo", "source-over", 560, 26],
+  ]);
+  assert.deepEqual([draws[0].image.k, draws[0].image.j], [0, 30]);
+  assert.equal(draws[1].image.n, 0);
+  assert.equal(frames.at(-1).frame, 0);
+  assert.equal(frames.at(-1).sf, 30);
+  assert.equal(instance.state().exact, true);
+});
+
+test("a seek holds the last frame until the plate frame is decoded, then draws it whole", async () => {
+  const env = makeDeps({ plateBlocked: true });
+  const { instance, draws } = player(env);
+  const loaded = instance.load(planDto());
+  env.release(0, 30);
+  await loaded;
+  await tick();
+  const before = draws.length;
+  const seek = instance.seek(100); // sf 130 → cell 2, j 10
+  await tick();
+  assert.equal(draws.length, before, "nothing is drawn while the plate frame is missing");
+  assert.equal(instance.state().exact, false);
+  env.release(2, 10);
+  const result = await seek;
+  assert.deepEqual(result, { frame: 100, presented: true });
+  assert.deepEqual(draws.slice(before).map((draw) => draw.image.layer), ["plate", "text"]);
+  assert.deepEqual([draws[before].image.k, draws[before].image.j], [2, 10]);
+  assert.equal(env.textLayers[0].renders.at(-1), 100);
+});
+
+test("a newer seek supersedes an older one; only the newest frame is drawn", async () => {
+  const env = makeDeps({ plateBlocked: true });
+  const { instance, draws } = player(env);
+  const loaded = instance.load(planDto());
+  env.release(0, 30);
+  await loaded;
+  await tick();
+  const before = draws.length;
+  const first = instance.seek(40);
+  const second = instance.seek(41);
+  env.release(1, 11);
+  assert.deepEqual(await second, { frame: 41, presented: true });
+  env.release(1, 10);
+  assert.deepEqual(await first, { frame: 40, presented: false, superseded: true });
+  assert.deepEqual(draws.slice(before).map((draw) => [draw.image.layer, draw.image.j ?? draw.image.n]),
+    [["plate", 11], ["text", 41]]);
+});
+
+test("a frame in a cell that is not ready is held and reported as pending plate", async () => {
+  const env = makeDeps();
+  const { instance, draws } = player(env);
+  await instance.load(planDto({ ready: [0] }));
+  await tick();
+  const before = draws.length;
+  const result = await instance.seek(120); // cell 2
+  assert.deepEqual(result, { frame: 120, presented: false, pending: "plate" });
+  assert.equal(draws.length, before);
+  const state = instance.state();
+  assert.equal(state.current.plate, false);
+  assert.ok(state.pending.includes("plate"));
+  assert.deepEqual(state.plate, { ready: 1, total: 1 });
+  // The cell arrives in a later plan DTO: the held frame is presented.
+  await instance.load(planDto({ ready: [0, 1, 2] }));
+  await tick();
+  await tick();
+  assert.equal(draws.at(-2).image.layer, "plate");
+  assert.equal(draws.at(-2).image.k, 2);
+});
+
+test("a new ASS is swapped in between frames; the text is not current until it is set", async () => {
+  const env = makeDeps();
+  const { instance } = player(env);
+  await instance.load(planDto());
+  await tick();
+  await instance.load(planDto({ doc: "d2", ass: "a2" }));
+  assert.deepEqual(env.textLayers[0].tracks, ["[Script Info]\n; a1\n", "[Script Info]\n; a2\n"]);
+  assert.equal(env.textLayers.length, 1, "the same fonts keep the text layer");
+  // text.ass omitted (known sha): nothing is swapped.
+  const known = planDto({ doc: "d3", ass: "a2" });
+  delete known.text.ass;
+  await instance.load(known);
+  assert.equal(env.textLayers[0].tracks.length, 2);
+  // An unknown sha without inline ASS is fetched from text.url.
+  const fetched = planDto({ doc: "d4", ass: "a3" });
+  delete fetched.text.ass;
+  await instance.load(fetched);
+  assert.equal(env.textLayers[0].tracks.at(-1), "fetched /ass/a3.ass");
+});
+
+test("a font the text layer lacks recreates it with the union of fonts", async () => {
+  const env = makeDeps();
+  const { instance } = player(env);
+  await instance.load(planDto());
+  const bold = { family: "Montserrat ExtraBold", url: "/fonts/Montserrat-ExtraBold.ttf", sha256: "e".repeat(64) };
+  await instance.load(planDto({ doc: "d2", ass: "a2", fonts: [bold] }));
+  assert.equal(env.textLayers.length, 2);
+  assert.equal(env.textLayers[0].destroyed, true);
+  assert.deepEqual(env.textLayers[1].options.fonts, ["/fonts/DejaVuSans.ttf", "/fonts/Montserrat-ExtraBold.ttf"]);
+  assert.deepEqual(env.textLayers[1].tracks, ["[Script Info]\n; a2\n"]);
+});
+
+test("the logo layer holds presentation until its bitmap is loaded", async () => {
+  const env = makeDeps();
+  const { instance, draws } = player(env);
+  await instance.load(planDto());
+  await tick();
+  const before = draws.length;
+  env.logo.gate = deferred();
+  const logo = { box: { x: 1, y: 2, w: 3, h: 4 }, opacityPm: 850, url: "/derived/x@3x4.png" };
+  const loading = instance.load(planDto({ doc: "d2", logo }));
+  await tick();
+  assert.equal(draws.length, before);
+  assert.equal(instance.state().current.logo, false);
+  const gate = env.logo.gate;
+  env.logo.gate = null;
+  gate.resolve();
+  await loading;
+  await tick();
+  assert.deepEqual(draws.slice(before).map((draw) => draw.image.layer), ["plate", "text", "logo"]);
+});
+
+test("playback follows the audio clock, pre-renders text one frame ahead and counts drops", async () => {
+  const env = makeDeps();
+  const { instance, frames } = player(env);
+  await instance.load(planDto());
+  await tick();
+  await instance.play();
+  assert.deepEqual(env.audio.started, { frame: 0, fps: FPS });
+  assert.equal(instance.state().playing, true);
+  for (const n of [0, 1, 2, 3, 5, 6]) await env.frameTick((n + 0.5) / 30);
+  const shown = frames.filter((info) => info.playing).map((info) => info.frame);
+  assert.deepEqual(shown, [1, 2, 3, 5, 6]);
+  const renders = env.textLayers[0].renders;
+  assert.ok(renders.includes(4), "the text for 4 was pre-rendered after 3 was shown");
+  const stats = instance.stats();
+  assert.equal(stats.presenter.drops, 1);
+  assert.deepEqual(stats.presenter.dropped, [4]);
+  assert.ok(env.log.some(([kind]) => kind === "ensure"), "the decode-ahead schedule is requested");
+  instance.pause();
+  assert.equal(instance.state().playing, false);
+  assert.equal(env.audio.started, null);
+});
+
+test("play waits for the mix; play without sound runs on the wall clock", async () => {
+  const env = makeDeps();
+  const { instance } = player(env);
+  await instance.load(planDto({ audioState: "queued" }));
+  await tick();
+  assert.equal(instance.state().current.audio, false);
+  assert.ok(instance.state().pending.includes("audio"));
+  let started = false;
+  const waiting = instance.play().then(() => { started = true; });
+  await tick();
+  assert.equal(started, false);
+  assert.equal(instance.state().playing, false);
+  assert.equal(instance.state().waitingFor, "audio");
+  await instance.load(planDto({ audioState: "ready" }));
+  await waiting;
+  assert.equal(started, true);
+  assert.deepEqual(env.audio.started, { frame: 0, fps: FPS });
+  instance.pause();
+  await instance.load(planDto({ mix: "m9", audioState: "queued" }));
+  await instance.play({ silent: true });
+  assert.deepEqual(env.wall.started, { frame: 0, fps: FPS });
+  assert.equal(instance.state().playing, true);
+  instance.pause();
+});
+
+test("an edit during playback pauses; the new mix is loaded after the pause", async () => {
+  const env = makeDeps();
+  const { instance } = player(env);
+  await instance.load(planDto());
+  await instance.play();
+  await env.frameTick(0.5 / 30);
+  await instance.load(planDto({ doc: "d2", mix: "m2" }));
+  assert.equal(instance.state().playing, false);
+  assert.equal(env.audio.started, null);
+  assert.deepEqual(env.audio.loads, ["m1", "m2"]);
+  // A new DTO of the same document (more cells ready) keeps playing.
+  await instance.play();
+  await instance.load(planDto({ doc: "d2", mix: "m2", ready: [0, 1, 2, 3, 4, 5] }));
+  assert.equal(instance.state().playing, true);
+  instance.pause();
+});
+
+test("playback stops on the last frame", async () => {
+  const env = makeDeps();
+  const { instance, frames } = player(env);
+  await instance.load(planDto());
+  await instance.play();
+  await env.frameTick(148.5 / 30);
+  await env.frameTick(151 / 30);
+  await tick();
+  const state = instance.state();
+  assert.equal(state.playing, false);
+  assert.equal(state.frame, 149);
+  assert.equal(state.ended, true);
+  assert.equal(frames.at(-1).frame, 149);
+});
+
+test("step pauses and clamps; seek clamps to the clip", async () => {
+  const env = makeDeps();
+  const { instance } = player(env);
+  await instance.load(planDto());
+  await instance.play();
+  await instance.step(2);
+  assert.equal(instance.state().playing, false);
+  assert.equal(instance.state().frame, 2);
+  await instance.step(-100);
+  assert.equal(instance.state().frame, 0);
+  const result = await instance.seek(10_000);
+  assert.equal(result.frame, 149);
+});
+
+test("a truth frame is drawn as-is and leaves truth mode on the next seek", async () => {
+  const env = makeDeps();
+  const calls = [];
+  const { instance, draws } = player(env, { requestTruthFrame: async (frame) => { calls.push(frame); return { png: frame }; } });
+  await instance.load(planDto());
+  await tick();
+  await instance.showTruthFrame(42);
+  assert.deepEqual(calls, [42]);
+  assert.equal(instance.state().mode, "truth");
+  assert.equal(instance.state().frame, 42);
+  assert.deepEqual([draws.at(-1).image.layer, draws.at(-1).op, draws.at(-1).x, draws.at(-1).y], ["truth", "copy", 0, 0]);
+  await instance.seek(43);
+  assert.equal(instance.state().mode, "live");
+});
+
+test("an unsupported browser shows truth frames at the playhead and never plays", async () => {
+  const env = makeDeps();
+  env.deps.supports = () => ({ live: false });
+  const calls = [];
+  const { instance, draws } = player(env, { requestTruthFrame: async (frame) => { calls.push(frame); return { png: frame }; } });
+  assert.equal(instance.state().mode, "unsupported");
+  await instance.load(planDto());
+  await instance.seek(7);
+  assert.deepEqual(calls, [0, 7]);
+  assert.equal(draws.at(-1).image.layer, "truth");
+  await instance.play();
+  assert.equal(instance.state().playing, false);
+  assert.equal(instance.state().mode, "unsupported");
+  assert.equal(env.textLayers.length, 0);
+});
+
+function fakeVideo() {
+  const listeners = new Map();
+  const video = {
+    src: "", currentTime: 0, paused: true, preload: "", playsInline: false, crossOrigin: null,
+    addEventListener(type, fn) { listeners.set(type, [...(listeners.get(type) || []), fn]); },
+    removeEventListener(type, fn) { listeners.set(type, (listeners.get(type) || []).filter((item) => item !== fn)); },
+    dispatch(type) { for (const fn of listeners.get(type) || []) fn({ type }); },
+    async play() { video.paused = false; },
+    pause() { video.paused = true; },
+    removeAttribute(name) { if (name === "src") video.src = ""; },
+    load() {},
+  };
+  return video;
+}
+
+test("revision 0 plays the auto render in <video> until the cells at the playhead are ready", async () => {
+  const env = makeDeps();
+  const video = fakeVideo();
+  const { instance } = player(env, { video });
+  const rev0 = { planSha256: "rev0", autoRenderUrl: "/files/output/clip-01.mp4", exact: true };
+  await instance.load(planDto({ ready: [], rev0 }));
+  assert.equal(instance.state().mode, "auto_render");
+  assert.equal(video.src, "/files/output/clip-01.mp4");
+  assert.deepEqual(instance.state().current, { text: true, plate: true, audio: true, logo: true });
+  const seek = instance.seek(90);
+  await tick();
+  assert.ok(Math.abs(video.currentTime - 90.5 / 30) < 1e-9);
+  video.dispatch("seeked");
+  assert.deepEqual(await seek, { frame: 90, presented: true });
+  // Not exact (a different plan): no fallback.
+  await instance.load(planDto({ doc: "d2", ready: [], rev0: { ...rev0, exact: false } }));
+  assert.equal(instance.state().mode, "live");
+  // Cells ready: back to the canvas.
+  await instance.load(planDto({ ready: [0, 1, 2], rev0 }));
+  assert.equal(instance.state().mode, "live");
+});
+
+test("the device check flags a slow device from the text render times", async () => {
+  const env = makeDeps({ textTotalMs: 35 });
+  const { instance } = player(env);
+  await instance.load(planDto());
+  await instance.play();
+  for (let n = 0; n < 70; n += 1) await env.frameTick((n + 0.5) / 30);
+  assert.equal(instance.state().slow, true);
+  instance.pause();
+});
+
+test("destroy stops everything and releases the layers", async () => {
+  const env = makeDeps();
+  const { instance } = player(env);
+  await instance.load(planDto());
+  await instance.play();
+  instance.destroy();
+  assert.equal(env.textLayers[0].destroyed, true);
+  assert.ok(env.log.some(([kind]) => kind === "plateDestroy"));
+  assert.ok(env.log.some(([kind]) => kind === "audioDestroy"));
+  assert.equal(env.raf.queue.length, 0);
+  await assert.rejects(instance.seek(1), /destroyed/);
+});
