@@ -387,7 +387,7 @@ test.describe("text panel", () => {
   test("hook text with counter and fit badge; duration, position and on/off", async ({ page }) => {
     await openHarness(page, { panel: "text" });
     const text = page.getByRole("textbox", { name: "Teks hook" });
-    const long = "Ini hook yang sengaja dibuat sangat panjang supaya tidak muat di tiga baris layar ponsel ya";
+    const long = "Ini hook yang sengaja dibuat sangat panjang supaya tidak muat di tiga baris layar ponselmu";
     expect([...long].length).toBe(90);
     await text.fill(long);
     await expect(page.locator("[data-hook-counter]")).toHaveText("90/90");
@@ -490,9 +490,9 @@ test.describe("gates: command budget", () => {
   test("a command on a 1,500-word window updates the transcript in ≤ 16 ms", async ({ page, browser }) => {
     test.setTimeout(180_000);
     await openHarness(page, { dataset: "long1500" });
-    for (const name of [/kalimat sebelumnya/, /kalimat sesudahnya/]) {
-      const toggle = transcript(page).getByRole("button", { name });
-      if (await toggle.count()) await toggle.click();
+    await expect(transcript(page).locator('[data-zone="body"]').first()).toBeVisible();
+    for (const name of [/Tampilkan \d+ kalimat sebelumnya/, /Tampilkan \d+ kalimat sesudahnya/]) {
+      await transcript(page).getByRole("button", { name }).click();
     }
     await expect(transcript(page).locator("[data-w]")).toHaveCount(1500);
     const results = await page.evaluate(async () => {
@@ -511,12 +511,13 @@ test.describe("gates: command budget", () => {
       const mouse = (target, type, init = {}) => target.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, button: 0, ...init }));
       const click = (i, init = {}) => {
         const target = span(i);
+        if (!target) throw new Error(`word ${i} is not rendered (${list.querySelectorAll("[data-w]").length} words shown)`);
         mouse(target, "mousedown", { buttons: 1, ...init });
         mouse(target, "mouseup", init);
         mouse(target, "click", init);
       };
       const key = (k, init = {}) => list.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true, cancelable: true, ...init }));
-      const bodyWords = [...list.querySelectorAll('[data-zone="body"]')].map((node) => Number(node.dataset.w));
+      const bodyWords = [...list.querySelectorAll('[data-w][data-zone="body"]')].map((node) => Number(node.dataset.w));
       const out = { RemoveWords: [], RestoreRemoval: [], SetWordEmphasis: [], SetWordHidden: [], EditWordText: [], TrimStart: [], Undo: [] };
       const ok = { count: 0, failed: 0 };
       const time = async (name, act, check) => {
