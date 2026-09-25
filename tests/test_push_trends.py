@@ -1,8 +1,10 @@
-"""Tests for scripts/trends/push_trends.py, the stdlib client of POST /api/ingest/trends.
+"""Tests for the Hermes trend integration kit.
 
-A local ThreadingHTTPServer plays the Potongin ingest route. Nothing here touches the network
+Most tests cover scripts/trends/push_trends.py, the stdlib client of POST /api/ingest/trends:
+a local ThreadingHTTPServer plays the Potongin ingest route, nothing touches the network
 beyond 127.0.0.1, and every test checks, directly or through ``run``, that the token never
-reaches stdout or stderr.
+reaches stdout or stderr. The last section pins the kit documents (OpenAPI, SKILL.md, cron
+prompt, operator doc) to the contract in docs/plans/2026-09-25-konteks-tren.md.
 """
 
 from __future__ import annotations
@@ -11,6 +13,7 @@ import importlib.util
 import io
 import json
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -25,6 +28,8 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "trends" / "push_trends.py"
+KIT = ROOT / "docs" / "integrations" / "hermes-trends"
+OPERATIONS_DOC = ROOT / "docs" / "operations" / "TREND_CONTEXT.md"
 PROD_URL = "https://potongin.revdonz.dev/api/ingest/trends"
 TOKEN = "ptk_" + ("SECRETtoken0123456789-_" * 2)[:43]
 CF_SECRET = "cf-access-secret-DO-NOT-PRINT-0123456789"
@@ -719,3 +724,176 @@ def test_cli_help_works_without_token() -> None:
     assert completed.returncode == 0
     assert "POTONGIN_INGEST_TOKEN" in completed.stdout
     assert PROD_URL in completed.stdout
+
+
+# --- Integration kit documents ------------------------------------------------------------
+
+KINDS = {"topic", "person", "joke", "meme", "sound", "hashtag", "format", "event"}
+PLATFORMS = {"tiktok", "instagram", "youtube", "x", "facebook", "news", "other"}
+ERROR_CODES = (
+    "missing_token", "invalid_token", "revoked_token", "insufficient_scope", "invalid_json",
+    "invalid_body", "body_too_large", "too_many_items", "unsupported_media_type",
+    "rate_limited", "storage_unavailable",
+)
+REAL_TOKEN = re.compile(r"ptk_[A-Za-z0-9_-]{43}")
+KIT_FILES = ("README.md", "SKILL.md", "cron-prompt.md", "openapi.json")
+MARKDOWN_DOCS = (
+    KIT / "README.md", KIT / "SKILL.md", KIT / "cron-prompt.md", OPERATIONS_DOC,
+    ROOT / "README.md",
+)
+
+
+@pytest.fixture(scope="module")
+def openapi() -> dict[str, object]:
+    return json.loads((KIT / "openapi.json").read_text(encoding="utf-8"))
+
+
+def resolve(document: dict[str, object], node: dict[str, object]) -> dict[str, object]:
+    while "$ref" in node:
+        ref = node["$ref"]
+        assert isinstance(ref, str) and ref.startswith("#/")
+        target: object = document
+        for part in ref[2:].split("/"):
+            target = target[part]  # type: ignore[index]
+        node = target  # type: ignore[assignment]
+    return node
+
+
+def frontmatter(text: str) -> dict[str, str]:
+    match = re.match(r"---\n(.*?)\n---\n", text, re.DOTALL)
+    assert match, "SKILL.md must start with YAML frontmatter"
+    fields = {"_raw": match.group(1)}
+    for line in match.group(1).splitlines():
+        top = re.match(r"([A-Za-z_][\w-]*):\s*(.*)$", line)
+        if top:
+            fields[top.group(1)] = top.group(2).strip().strip("\"'")
+    return fields
+
+
+def skill_name() -> str:
+    return frontmatter((KIT / "SKILL.md").read_text(encoding="utf-8"))["name"]
+
+
+def test_openapi_describes_the_machine_routes(openapi: dict) -> None:
+    assert openapi["openapi"].startswith("3.1")
+    assert any("potongin.revdonz.dev" in server["url"] for server in openapi["servers"])
+    route = openapi["paths"]["/api/ingest/trends"]
+    assert {"get", "post", "delete"} <= set(route)
+    schemes = openapi["components"]["securitySchemes"].values()
+    assert any(s.get("type") == "http" and s.get("scheme") == "bearer" for s in schemes)
+    assert openapi.get("security") or all(route[m].get("security") for m in ("get", "post"))
+
+
+def test_openapi_item_schema_matches_the_contract(openapi: dict, push: ModuleType) -> None:
+    item = resolve(openapi, {"$ref": "#/components/schemas/TrendItemInput"})
+    props = item["properties"]
+    assert set(item["required"]) == {"kind", "title", "keywords"}
+    assert set(props["kind"]["enum"]) == KINDS
+    assert (props["title"]["minLength"], props["title"]["maxLength"]) == (1, 80)
+    assert props["summary"]["maxLength"] == 500
+    assert (props["keywords"]["minItems"], props["keywords"]["maxItems"]) == (1, 12)
+    keyword = props["keywords"]["items"]
+    assert (keyword["minLength"], keyword["maxLength"]) == (2, 40)
+    assert props["hashtags"]["maxItems"] == 10
+    assert props["hashtags"]["items"]["pattern"] == "^#[\\p{L}\\p{N}_]{1,50}$"
+    assert set(props["platforms"]["items"]["enum"]) == PLATFORMS
+    assert props["examples"]["maxItems"] == 5
+    assert (props["score"]["minimum"], props["score"]["maximum"]) == (0, 100)
+    assert set(props["sensitivity"]["enum"]) == {"normal", "sensitive"}
+    assert props["externalId"]["pattern"] == "^[A-Za-z0-9._:/#@-]{1,120}$"
+    for server_field in push.SERVER_FIELDS:
+        assert server_field not in props
+    post = openapi["paths"]["/api/ingest/trends"]["post"]
+    body = resolve(openapi, post["requestBody"]["content"]["application/json"]["schema"])
+    assert body["properties"]["items"]["maxItems"] == push.MAX_BATCH_ITEMS
+
+
+def test_openapi_lists_every_status_and_error_code(openapi: dict) -> None:
+    route = openapi["paths"]["/api/ingest/trends"]
+    post_statuses = set(route["post"]["responses"])
+    assert {"200", "400", "401", "403", "413", "415", "429", "503"} <= post_statuses
+    assert "Retry-After" in resolve(openapi, route["post"]["responses"]["429"])["headers"]
+    delete = route["delete"]
+    assert {"204", "404"} <= set(delete["responses"])
+    parameters = [resolve(openapi, parameter) for parameter in delete["parameters"]]
+    assert any(p["name"] == "externalId" and p["in"] == "query" for p in parameters)
+    text = json.dumps(openapi)
+    for code in ERROR_CODES:
+        assert code in text
+
+
+def test_skill_frontmatter_follows_hermes_and_agentskills_rules() -> None:
+    fields = frontmatter((KIT / "SKILL.md").read_text(encoding="utf-8"))
+    assert re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", fields["name"])
+    assert len(fields["name"]) <= 64
+    # agentskills.io allows 1024 characters; the Hermes skill linter asks for <= 60.
+    assert 0 < len(fields["description"]) <= 60
+    assert "required_environment_variables" in fields["_raw"]
+    assert "POTONGIN_INGEST_TOKEN" in fields["_raw"]
+
+
+@pytest.mark.parametrize(
+    "phrase",
+    [
+        "--list", "externalId", "expiresAt", "sensitive", "TikTok Creative Center",
+        "Google Trends", "Terms of Service", "personal data", "copyright", "push_trends.py",
+        "Indonesia", "keywords", "not instructions",
+    ],
+)
+def test_skill_covers_the_collection_rules(phrase: str) -> None:
+    assert phrase.lower() in (KIT / "SKILL.md").read_text(encoding="utf-8").lower()
+
+
+def test_cron_prompt_is_ready_for_hermes() -> None:
+    text = (KIT / "cron-prompt.md").read_text(encoding="utf-8")
+    assert "hermes cron create" in text
+    assert f"--skill {skill_name()}" in text
+    assert "0 */6 * * *" in text
+    assert "POTONGIN_INGEST_TOKEN" in text
+    assert "--list" in text
+
+
+@pytest.mark.parametrize(
+    "phrase",
+    [
+        PROD_URL, "curl", "externalId", "expiresAt", "sensitive", "TikTok Creative Center",
+        "Google Trends", "ketentuan layanan", "SKILL.md", "cron-prompt.md", "openapi.json",
+        "push_trends.py", "~/.hermes/skills",
+    ],
+)
+def test_kit_readme_covers_the_owner_topics(phrase: str) -> None:
+    assert phrase in (KIT / "README.md").read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    "phrase",
+    [
+        "trend-context.json", "ingest-tokens.json", "POTONGIN_SETTINGS_DIR", "0600", "1.000",
+        "256 KiB", "Retry-After", "TREND_BOOST", "trend_ref_ungrounded", "proxy.js",
+        "Pakai konteks tren di pemilihan klip", "/api/ingest/trends", "trend_context_invalid",
+    ],
+)
+def test_operations_doc_covers_the_operator_topics(phrase: str) -> None:
+    assert phrase in OPERATIONS_DOC.read_text(encoding="utf-8")
+
+
+def test_readme_links_the_kit_and_the_operations_doc() -> None:
+    text = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "docs/integrations/hermes-trends/README.md" in text
+    assert "docs/operations/TREND_CONTEXT.md" in text
+
+
+@pytest.mark.parametrize("name", KIT_FILES)
+def test_kit_files_hold_no_real_token(name: str) -> None:
+    assert not REAL_TOKEN.search((KIT / name).read_text(encoding="utf-8"))
+    assert not REAL_TOKEN.search(OPERATIONS_DOC.read_text(encoding="utf-8"))
+
+
+@pytest.mark.parametrize("path", MARKDOWN_DOCS, ids=lambda p: str(p.relative_to(ROOT)))
+def test_relative_links_resolve(path: Path) -> None:
+    text = path.read_text(encoding="utf-8")
+    for target in re.findall(r"\]\(([^)\s]+)\)", text):
+        if re.match(r"[a-z][a-z0-9+.-]*:", target) or target.startswith("#"):
+            continue
+        file_part = target.split("#", 1)[0]
+        assert (path.parent / file_part).exists(), f"{path.name}: broken link {target}"
