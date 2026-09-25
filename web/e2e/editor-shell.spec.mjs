@@ -310,7 +310,7 @@ function installScenario(config) {
 
 const test = base.extend({
   workerStorageState: [async ({ browser }, use) => {
-    const context = await browser.newContext();
+    const context = await browser.newContext({ baseURL: settings.baseURL });
     const page = await context.newPage();
     await login(page, "/projects");
     const state = await context.storageState();
@@ -409,12 +409,18 @@ test("opening revision 0 shows the auto render and '● Sesuai hasil akhir'; the
 });
 
 test("a pending layer replaces the badge with what is pending, never an approximate claim", async ({ page }) => {
-  const cells = [...Array.from({ length: 7 }, (_, k) => ({ k: 620 + k, state: "ready", url: `/c${k}.mp4` })),
-    ...Array.from({ length: 23 }, (_, k) => ({ k: 627 + k, state: "queued" }))];
+  // The body covers source-grid frames [37215, 37515): cells 620–625 of 60 frames.
+  const cells = [{ k: 620, state: "ready", url: "/c620.mp4" }, { k: 621, state: "ready", url: "/c621.mp4" },
+    { k: 622, state: "building" }, { k: 623, state: "queued" }, { k: 624, state: "queued" }, { k: 625, state: "queued" }];
   await openEditor(page, { scenarioStore: true, pending: ["text", "plate"], cells });
-  await expect(badge(page)).toHaveText("Memperbarui teks… · Menyiapkan video (7/30)…");
+  await expect(badge(page)).toHaveText("Memperbarui teks… · Menyiapkan video (2/6)…");
   await expect(page.getByText("● Sesuai hasil akhir")).toHaveCount(0);
-  await expect(page.locator("[data-pending-band]").first()).toBeVisible();
+  const px = await pxPerFrame(page);
+  const band = await page.locator("[data-pending-band]").evaluateAll((elements) => elements.map((element) => [element.offsetLeft, element.offsetWidth]));
+  expect(band).toHaveLength(1);
+  // Cells 622–625 cover [37320, 37560): output frames [105, 300) of the 300-frame body.
+  expect(Math.abs(band[0][0] - 105 * px)).toBeLessThanOrEqual(1);
+  expect(Math.abs(band[0][1] - 195 * px)).toBeLessThanOrEqual(1);
 });
 
 test("an unsupported browser keeps editing and export, with the §C.6 notice", async ({ page }) => {
@@ -899,7 +905,7 @@ test("PF-OPEN: interactive ≤ 3.0 s p95 on a first visit and ≤ 2.0 s p95 on a
     const first = [];
     const repeat = [];
     for (let run = 0; run < runs; run += 1) {
-      const context = await browser.newContext({ storageState: workerStorageState, viewport: { width: 1366, height: 768 } });
+      const context = await browser.newContext({ baseURL: settings.baseURL, storageState: workerStorageState, viewport: { width: 1366, height: 768 } });
       const page = await context.newPage();
       await page.addInitScript(installScenario, variant.config);
       await page.route(`**${AUTO_RENDER}`, (route) => route.fulfill({ status: 200, contentType: "video/mp4", body: tinyMp4 }));
