@@ -143,10 +143,10 @@ export default function TrendAgentPanel({ origin, tokensState, now, onCreateToke
             <CopyButton text={created.token} label="Salin token" announce="Token" className="trPrimary" />
           </div>
           <div className="trCurlHead">
-            <span id="curl-title">Contoh kirim satu item (curl)</span>
-            <CopyButton text={curlExample({ origin, token: created.token })} label="Salin contoh curl" announce="Contoh curl" />
+            <span id="curl-title">Contoh uji coba (curl): tempel token saat diminta, lalu Enter</span>
+            <CopyButton text={curlExample({ origin })} label="Salin contoh curl" announce="Contoh curl" />
           </div>
-          <pre className="trCurl" aria-labelledby="curl-title" tabIndex={0}><code>{curlExample({ origin, token: created.token })}</code></pre>
+          <pre className="trCurl" aria-labelledby="curl-title" tabIndex={0}><code>{curlExample({ origin })}</code></pre>
           <small>Contoh ini membuat item “Tren uji coba” dengan <code>externalId</code> contoh; hapus dari daftar setelah uji coba.</small>
           <div className="trActions">
             <button type="button" className="trSecondary" onClick={dismissCreated}>Sudah saya simpan — sembunyikan token</button>

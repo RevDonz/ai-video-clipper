@@ -619,16 +619,17 @@ const CURL_SAMPLE = Object.freeze({
 });
 
 /**
- * A copy-paste curl example: the token goes in an environment variable (the
- * one push_trends.py reads), the body is one sample item. Without a token the
- * export line holds a placeholder.
+ * A copy-paste curl example, as in the Hermes kit: the token is pasted into a
+ * hidden prompt into the environment variable push_trends.py reads (never
+ * written into a command, so never in shell history or in this text), the
+ * active items are listed first, then one sample item is posted.
  */
-export function curlExample({ origin, token } = {}) {
-  const endpoint = ingestEndpoint(origin) || INGEST_PATH;
-  const value = typeof token === "string" && TOKEN_PATTERN.test(token) ? token : "ptk_…";
+export function curlExample({ origin } = {}) {
+  const endpoint = shellQuote(ingestEndpoint(origin) || INGEST_PATH);
   return [
-    `export ${TOKEN_ENV}=${shellQuote(value)}`,
-    `curl -sS -X POST ${shellQuote(endpoint)} \\`,
+    `read -rs ${TOKEN_ENV} && export ${TOKEN_ENV}`,
+    `curl -sS -H "Authorization: Bearer $${TOKEN_ENV}" ${endpoint}`,
+    `curl -sS -X POST ${endpoint} \\`,
     `  -H "Authorization: Bearer $${TOKEN_ENV}" \\`,
     "  -H 'Content-Type: application/json' \\",
     `  --data ${shellQuote(JSON.stringify(CURL_SAMPLE))}`,
