@@ -476,6 +476,7 @@ test("a V3 job snapshots enabled trends into analysis/, passes --trend-context a
   const attemptSnapshot = path.join(attemptRootFor(job.jobRoot, token), "analysis", "trend-context.json");
   assert.deepEqual(argv.slice(-2), ["--trend-context", attemptSnapshot]);
   assert.deepEqual(argv.slice(-2 - V3_TAIL.length, -2), V3_TAIL);
+  assert.doesNotMatch(JSON.stringify(argv), /Kabur|Budi|kabur aja dulu|KaburAjaDulu/, "trend text never enters argv");
 
   // Published with the rest of analysis/, private, and free of source data.
   const published = path.join(job.jobRoot, "analysis", "trend-context.json");
