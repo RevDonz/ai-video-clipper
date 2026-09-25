@@ -148,13 +148,13 @@ def test_a_measurement_is_ignored_when_none_is_needed(edit_v2_doc_contexts):
 # --- peak protection (step 5) --------------------------------------------------------------------------
 
 
-CEILING = -150  # pre-encode true-peak ceiling: -1.0 dBTP (G3b) minus 0.5 dB encode headroom
+CEILING = -200  # pre-encode true-peak ceiling: -1.0 dBTP (G3b) minus 1.0 dB encode headroom
 
 
 def test_peak_constants():
     # G3b threshold (plan §5.6 step 5) and the measured AAC-LC 192k overshoot allowance.
     assert ld.PEAK_CEILING_CDB == -100
-    assert ld.ENCODE_HEADROOM_CDB == 50
+    assert ld.ENCODE_HEADROOM_CDB == 100
     assert ld.PEAK_CEILING_CDB - ld.ENCODE_HEADROOM_CDB == CEILING
 
 
@@ -167,16 +167,16 @@ def test_peak_protection_off_mode_below_the_ceiling_does_nothing(edit_v2_doc_con
 def test_peak_protection_applies_ceiling_minus_tp_and_names_the_reduction(edit_v2_doc_contexts):
     doc = _with_music(_seed(edit_v2_doc_contexts))
     gain, warnings = ld.output_gain(doc, Loudness(-620, 230))
-    assert gain == CEILING - 230 == -380
-    assert warnings == (Issue("peak_reduced:-3.80 dB", "/audio"),)
-    assert errors.message(warnings[0].code).endswith("(-3.80 dB)")
+    assert gain == CEILING - 230 == -430
+    assert warnings == (Issue("peak_reduced:-4.30 dB", "/audio"),)
+    assert errors.message(warnings[0].code).endswith("(-4.30 dB)")
 
 
 def test_peak_protection_with_positive_source_gain(edit_v2_doc_contexts):
     doc = _with_gain(_seed(edit_v2_doc_contexts), 1200)
     gain, warnings = ld.output_gain(doc, Loudness(-900, -120))
-    assert gain == -30
-    assert [w.code for w in warnings] == ["peak_reduced:-0.30 dB"]
+    assert gain == -80
+    assert [w.code for w in warnings] == ["peak_reduced:-0.80 dB"]
 
 
 def test_normalize_unclamped(edit_v2_doc_contexts):
@@ -186,32 +186,32 @@ def test_normalize_unclamped(edit_v2_doc_contexts):
 
 def test_normalize_clamped_within_one_lu_has_no_warning(edit_v2_doc_contexts):
     doc = _with_master(_seed(edit_v2_doc_contexts), "normalize")
-    # desired +600; the true-peak clamp allows CEILING - (-700) = 550: costs 0.5 LU.
-    assert ld.output_gain(doc, Loudness(-2000, -700)) == (550, ())
+    # desired +600; the true-peak clamp allows CEILING - (-700) = 500: costs exactly 1 LU.
+    assert ld.output_gain(doc, Loudness(-2000, -700)) == (500, ())
 
 
 def test_normalize_clamped_by_more_than_one_lu_warns_with_the_achieved_value(edit_v2_doc_contexts):
     doc = _with_master(_seed(edit_v2_doc_contexts), "normalize")
     gain, warnings = ld.output_gain(doc, Loudness(-1600, -50))
-    assert gain == CEILING + 50 == -100
-    assert warnings == (Issue("loudness_clamped:-17.00 LUFS", "/audio/master"),)
+    assert gain == CEILING + 50 == -150
+    assert warnings == (Issue("loudness_clamped:-17.50 LUFS", "/audio/master"),)
 
 
 def test_normalize_uses_the_document_target_and_tp(edit_v2_doc_contexts):
     doc = _with_master(_seed(edit_v2_doc_contexts), "normalize", target=-1600, tp=-300)
-    # desired -1600 - (-2400) = 800; tp ceiling -300 - 50 → allowed -350 - (-1000) = 650.
+    # desired -1600 - (-2400) = 800; tp ceiling -300 - 100 → allowed -400 - (-1000) = 600.
     gain, warnings = ld.output_gain(doc, Loudness(-2400, -1000))
-    assert gain == 650
-    assert [w.code for w in warnings] == ["loudness_clamped:-17.50 LUFS"]
+    assert gain == 600
+    assert [w.code for w in warnings] == ["loudness_clamped:-18.00 LUFS"]
 
 
 def test_normalize_with_tp_0_is_still_peak_protected(edit_v2_doc_contexts):
     doc = _with_master(_seed(edit_v2_doc_contexts), "normalize", tp=0)
-    # desired +400; the document allows TP up to 0 dBTP (-0.5 with headroom) → +300; peak
-    # protection (-1.0 dBTP, -1.5 with headroom) lowers it by 1 dB to +200.
+    # desired +400; the document allows TP up to 0 dBTP (-1.0 with headroom) → +250; peak
+    # protection (-1.0 dBTP, -2.0 with headroom) lowers it by 1 dB to +150.
     gain, warnings = ld.output_gain(doc, Loudness(-1800, -350))
-    assert gain == CEILING + 350 == 200
-    assert [w.code for w in warnings] == ["loudness_clamped:-16.00 LUFS", "peak_reduced:-1.00 dB"]
+    assert gain == CEILING + 350 == 150
+    assert [w.code for w in warnings] == ["loudness_clamped:-16.50 LUFS", "peak_reduced:-1.00 dB"]
 
 
 def test_normalize_of_a_silent_mix_does_not_amplify(edit_v2_doc_contexts):
