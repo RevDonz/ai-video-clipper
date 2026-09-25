@@ -207,6 +207,47 @@ export function badgeView({ status, plan, storePending = [], player = null }) {
 export const BADGE_HELP = "Frame, teks, logo dan audio sama dengan hasil akhir. File MP4 akhir dikompresi (H.264, warna 4:2:0), "
   + "jadi tepi teks berwarna sedikit lebih lembut. Tekan 'Frame akhir' untuk melihat piksel persisnya.";
 
+const BADGE_HELP_BY_TONE = Object.freeze({
+  exact: BADGE_HELP,
+  pending: "Pratinjau belum selesai disiapkan: bagian yang disebut di lencana belum sama dengan hasil akhir. "
+    + "Setelah semuanya siap, lencana berubah menjadi '● Sesuai hasil akhir'. Tekan 'Frame akhir' untuk melihat "
+    + "piksel persis hasil akhir sekarang juga.",
+  legacy: "Klip ini belum diubah, jadi ekspor memakai file klip otomatis yang dibuat mesin lama. Pratinjau di sini "
+    + "digambar mesin baru, jadi bisa sedikit berbeda dari file itu (misalnya posisi video, warna teks). Setelah "
+    + "Anda mengubah apa saja, ekspor memakai mesin baru dan hasilnya sama dengan pratinjau ini.",
+  truth: "Ini 'Frame akhir': piksel persis hasil render di posisi ini, termasuk kompresi H.264 dan warna 4:2:0. "
+    + "Putar atau geser playhead untuk kembali ke pratinjau.",
+  unsupported: "Browser ini tidak bisa menampilkan pratinjau langsung, jadi tidak ada yang bisa dibandingkan dengan "
+    + "hasil akhir di sini. Anda tetap bisa mengedit dan mengekspor; hasil ekspor tidak terpengaruh.",
+  loading: "Klip sedang dibuka. Lencana ini memberi tahu kapan pratinjau sama dengan hasil akhir.",
+});
+
+/** The help popover of a badge (§6.1): "sama dengan hasil akhir" only for the exact badge. */
+export function badgeHelp(view) {
+  return BADGE_HELP_BY_TONE[view?.tone] ?? BADGE_HELP_BY_TONE.loading;
+}
+
+/**
+ * The revision an export is made from: the store's last saved revision (`state.revision`); the
+ * store's `doc` keeps the revision it was loaded at (T2.5), so it is only the fallback.
+ */
+export function exportRevision(state) {
+  if (Number.isInteger(state?.revision)) return state.revision;
+  return Number.isInteger(state?.doc?.revision) ? state.doc.revision : 0;
+}
+
+/**
+ * The waves whose panels and lanes the app shows. The registries list the next wave's entries
+ * with placeholder files before it lands (plan §11.0); the owner's beta hides them until the
+ * wave's integrator adds its name here. The fakes (e2e specs, W3 development) show every entry.
+ */
+export const LIVE_WAVES = Object.freeze(["W1", "W2"]);
+
+export function liveEntries(entries, runtimeKind, liveWaves = LIVE_WAVES) {
+  if (runtimeKind === "fake") return entries;
+  return entries.filter((entry) => liveWaves.includes(entry.wave));
+}
+
 /**
  * "Perlu dicek": store warnings (save results) and plan warnings, deduplicated, sorted by
  * frame (items without a frame last); plan errors come first as blocking items.
@@ -279,6 +320,11 @@ export function noticesView({ doc, playerMode, otherTab }) {
 /**
  * The editor page gate: "off" (404) unless POTONGIN_EDITOR_V3=on; "fake" when the dev/CI flag
  * POTONGIN_EDITOR_FAKES=1 is also set (the T1.Z fakes, for the e2e specs); otherwise "real".
+ *
+ * POTONGIN_EDITOR_FAKES is a CI/development switch only (docs/editor/CONTRACTS.md §5.18): the
+ * shell specs run it on a production build (`next start`), so it is not tied to NODE_ENV, and
+ * compose.yaml never passes it to the app container. The fake runtime makes no API call: a
+ * misconfigured server would show the fake clip, never a job's data.
  */
 export function editorPageMode(env = {}) {
   if (env.POTONGIN_EDITOR_V3 !== "on") return "off";

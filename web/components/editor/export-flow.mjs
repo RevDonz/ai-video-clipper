@@ -37,18 +37,40 @@ function stepOf(render) {
   return 0;
 }
 
-/** Steps with done/current/todo and the current step's text ("Merender (45%)"). */
-export function exportStepView(render) {
-  const index = stepOf(render);
+const STOPPED = new Set(["cancelled", "failed"]);
+
+/**
+ * Steps with done/current/todo and the current step's text ("Merender (45%)"). A cancelled or
+ * failed render keeps the step it had reached (`lastRunning`, the flow's last running render;
+ * the server's terminal request no longer says) with the status "stopped" (W2 verifier).
+ */
+export function exportStepView(render, lastRunning = null) {
+  const stopped = STOPPED.has(render?.state);
+  const shown = stopped ? (lastRunning?.renderId === render.renderId ? lastRunning : { ...render, state: "queued", stage: "antre" }) : render;
+  const index = stepOf(shown);
   const steps = EXPORT_STEPS.map((step, position) => ({
     ...step,
-    status: position < index ? "done" : position === index ? "current" : "todo",
+    status: position < index ? "done" : position === index ? (stopped ? "stopped" : "current") : "todo",
     text: step.id === "merender" && position === index
-      ? `Merender (${Math.max(0, Math.min(99, Math.floor((render?.progressPm ?? 0) / 10)))}%)`
+      ? `Merender (${Math.max(0, Math.min(99, Math.floor((shown?.progressPm ?? 0) / 10)))}%)`
       : step.label,
   }));
-  const current = steps.find((step) => step.status === "current");
+  const current = steps.find((step) => step.status === "current" || step.status === "stopped");
   return { steps, text: index < 0 ? "" : current ? current.text : EXPORT_STEPS.at(-1).label };
+}
+
+/**
+ * "Ekspor sebelumnya": this session's exports and the clip's latest one (Open 16), without the
+ * export the dialog is running (it has its own progress row; W2 verifier). A finished one stays.
+ */
+export function earlierExports({ history = [], current = null, latest = null } = {}) {
+  const running = current?.renderId && !TERMINAL.has(current.state) ? current.renderId : null;
+  const items = history.filter((item) => item.renderId !== running);
+  if (latest?.renderId && latest.renderId !== running && !items.some((item) => item.renderId === latest.renderId)) {
+    items.push({ renderId: latest.renderId, revision: latest.revision, atMs: null, state: latest.state,
+      resultUrl: latest.url ?? null, srtUrl: latest.srtUrl ?? null });
+  }
+  return items;
 }
 
 /** Export may start only when every warning is acknowledged and nothing blocks it. */
@@ -70,7 +92,7 @@ export function createExportFlow({
   api, store, newKey, pollMs = 1000, setTimer = setTimeout, clearTimer = clearTimeout, now = Date.now,
   onChange = () => {},
 }) {
-  let state = { phase: "idle", render: null, errorCode: null, errorText: null, key: null, cancelling: false, history: [] };
+  let state = { phase: "idle", render: null, lastRunning: null, errorCode: null, errorText: null, key: null, cancelling: false, history: [] };
   let timer = null;
   let destroyed = false;
   let generation = 0;
@@ -119,7 +141,7 @@ export function createExportFlow({
       const code = render.errorCode || "render_failed";
       set({ phase: "failed", render, history, cancelling: false, errorCode: code, errorText: messageFor(code) });
     } else {
-      set({ phase: "running", render, history });
+      set({ phase: "running", render, lastRunning: render, history });
       schedule(id);
     }
   };
@@ -161,7 +183,7 @@ export function createExportFlow({
     stopTimer();
     const key = reuseKey && state.key ? state.key : newKey();
     reuseKey = false;
-    set({ phase: "saving", render: null, errorCode: null, errorText: null, key, cancelling: false });
+    set({ phase: "saving", render: null, lastRunning: null, errorCode: null, errorText: null, key, cancelling: false });
     try {
       await store.flush();
     } catch {
@@ -218,7 +240,7 @@ export function createExportFlow({
       stopTimer();
       generation += 1;
       reuseKey = false;
-      set({ phase: "idle", render: null, errorCode: null, errorText: null, key: null, cancelling: false });
+      set({ phase: "idle", render: null, lastRunning: null, errorCode: null, errorText: null, key: null, cancelling: false });
     },
     destroy() {
       destroyed = true;

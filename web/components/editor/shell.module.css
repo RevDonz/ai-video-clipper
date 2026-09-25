@@ -868,6 +868,12 @@
   color: var(--ed-color-accent-strong);
 }
 
+.step[data-step-status="stopped"] {
+  border-color: var(--ed-color-danger);
+  background: var(--ed-color-danger-soft);
+  color: var(--ed-color-danger);
+}
+
 .alert {
   padding: 10px 12px;
   border: 1px solid var(--ed-color-danger);

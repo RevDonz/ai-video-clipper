@@ -22,7 +22,7 @@ function laneComponent(entry) {
 
 const useIsoLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
-export default function Timeline({ plan, state, dispatch, player, frameBus, notify, readOnly }) {
+export default function Timeline({ plan, state, dispatch, player, frameBus, notify, readOnly, lanes = LANES }) {
   const scrollerRef = useRef(null);
   const playheadRef = useRef(null);
   const [zoom, setZoom] = useState({ px: 1, fitted: true });
@@ -86,13 +86,13 @@ export default function Timeline({ plan, state, dispatch, player, frameBus, noti
       <div className={styles.timelineBody}>
         <div className={styles.laneLabels} aria-hidden="true">
           <div className={styles.rulerSpacer} />
-          {LANES.map((entry) => <div key={entry.id} className={styles.laneLabel}>{entry.label}</div>)}
+          {lanes.map((entry) => <div key={entry.id} className={styles.laneLabel}>{entry.label}</div>)}
         </div>
         <div ref={scrollerRef} className={styles.scroller}>
           <div className={styles.content} style={{ width: totalFrames * px + 2 * TRACK_PADDING, paddingLeft: TRACK_PADDING }}>
             <div style={{ position: "relative", width: totalFrames * px }} data-track="">
               <Ruler totalFrames={totalFrames} fps={fps} pxPerFrame={px} frameBus={frameBus} onSeek={seek} />
-              {LANES.map((entry) => {
+              {lanes.map((entry) => {
                 const Lane = laneComponent(entry);
                 return (
                   <div key={entry.id} className={styles.laneRow} data-lane-row={entry.id}>
