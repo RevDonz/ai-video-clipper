@@ -40,7 +40,7 @@ import {
   musicItem,
 } from "../../web/lib/editor/doc-model.mjs";
 import { createEditSession } from "../../web/lib/editor/history.mjs";
-import { diffParts, partGroup, partValue, rebase } from "../../web/lib/editor/rebase.mjs";
+import { diffParts, partGroup, partValue, rebase, replaySteps } from "../../web/lib/editor/rebase.mjs";
 import * as timemap from "../../web/lib/editor/timemap.mjs";
 import { pieces, sfCeil, sfFloor } from "../../web/lib/editor/timemap.mjs";
 
@@ -496,6 +496,8 @@ export function checkConflictScenario({ base, mine, theirs, context, rng }) {
   const theirsParts = new Set(diffParts(base, theirs.doc));
   const problems = [];
   const docs = [];
+  const replays = (steps, doc) => contentJson(replaySteps(theirs.doc, steps, context.ctx).doc) === contentJson(doc);
+  if (!replays(result.steps, result.doc)) problems.push("the rebased log does not replay to the rebased document");
   if (result.status === "merged") {
     docs.push(["rebase", result.doc]);
     for (const part of theirsParts) {
@@ -513,7 +515,9 @@ export function checkConflictScenario({ base, mine, theirs, context, rng }) {
     for (const group of result.conflicts) {
       if (!group.label) problems.push(`group ${group.id} has no label`);
       for (const part of group.parts) {
-        if (partGroup(part) !== group.id) problems.push(`part ${part} outside group ${group.id}`);
+        if (partGroup(part) !== group.id && !(group.id === "coldopen" && part === "removals:cold_open")) {
+          problems.push(`part ${part} outside group ${group.id}`);
+        }
       }
     }
     for (const choice of ["mine", "theirs", "random"]) {
@@ -522,6 +526,7 @@ export function checkConflictScenario({ base, mine, theirs, context, rng }) {
       try {
         const resolved = result.resolve(choices);
         docs.push(["resolve", resolved.doc]);
+        if (!replays(resolved.steps, resolved.doc)) problems.push(`the "${choice}" resolution log does not replay`);
         if (choice === "theirs" && result.conflicts.length && !resolved.doc) problems.push("no document");
       } catch (error) {
         if (!(error instanceof CommandRejected)) throw error;

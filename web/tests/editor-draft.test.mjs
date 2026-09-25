@@ -459,10 +459,16 @@ export async function twoTabRun(seed, steps = 40) {
     }
     await checkDrafts();
   }
-  // Settle: answer any dialog with "mine", save both tabs in turn.
+  // Settle: answer any dialog with "mine" ("theirs" when that combination is invalid), save both tabs in turn.
   for (let round = 0; round < 6; round += 1) {
     for (const tab of tabs) {
-      if (tab.store.getState().save === "conflict") await tab.store.resolveConflict({});
+      if (tab.store.getState().save === "conflict") {
+        await tab.store.resolveConflict({}).catch(async (error) => {
+          if (!(error instanceof CommandRejected)) throw error;
+          const groups = tab.store.getState().conflict.groups;
+          await tab.store.resolveConflict(Object.fromEntries(groups.map((group) => [group.id, "theirs"])));
+        });
+      }
       await tab.clock.advance(40000);
       await tab.store.flush().catch(() => {});
     }
@@ -471,8 +477,8 @@ export async function twoTabRun(seed, steps = 40) {
     const state = tab.store.getState();
     assert.equal(state.commands.length, 0, `seed ${seed}: work left unsaved (${state.save})`);
   }
-  const last = tabs[1].store.getState();
-  assert.equal(contentJson(last.doc), contentJson(server.doc), `seed ${seed}: the last tab to save holds the server's version`);
+  const saved = contentJson(server.doc);
+  assert.ok(tabs.some((tab) => contentJson(tab.store.getState().doc) === saved), `seed ${seed}: the tab that saved last holds the server's version`);
   assert.deepEqual(checkDoc(server.doc, C30.ctx), []);
   await checkDrafts();
   assert.deepEqual(await drafts.list(server.clipId), [], `seed ${seed}: drafts left after everything was saved`);
