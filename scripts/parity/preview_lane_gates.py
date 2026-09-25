@@ -372,8 +372,10 @@ class Gates:
         def edit(i: int) -> dict:
             kind = i % 4
             doc = clip.revision()
+            # every document is new (the lane answers a repeated one from its cache)
+            doc["captions"]["overrides"]["y_e5"] = 60000 + i % 30000
             if kind == 0:
-                doc["captions"]["overrides"]["y_e5"] = 60000 + (i * 137) % 30000
+                doc["captions"]["overrides"]["size_pm"] = 800 + (i * 37) % 500
             elif kind == 1 and hook is not None:
                 text = hook["items"][0]["payload"]["text"][:70].rstrip()
                 next(t for t in doc["tracks"] if t["kind"] == "hook")["items"][0]["payload"][
@@ -381,8 +383,9 @@ class Gates:
             elif kind == 2:
                 clip.with_removals(doc, 1 + i % 3, offset=i % 5)
             else:
-                doc["captions"]["pack"] = {"id": packs[i % 4], "v": 1}
-                doc["captions"]["overrides"]["case"] = "upper" if packs[i % 4] == "bold" else "asis"
+                pack = packs[(i // 4) % 4]
+                doc["captions"]["pack"] = {"id": pack, "v": 1}
+                doc["captions"]["overrides"]["case"] = "upper" if pack == "bold" else "asis"
             return doc
 
         return edit
@@ -399,8 +402,9 @@ class Gates:
             for i in range(6):  # warm-up: page cache, pyc, the lane's first cells and mix
                 status, dto, _ms = self.app.plan(clip.job_id, clip.id, edit(1000 + i))
                 known = dto.get("text", {}).get("assSha256")
-            times, sizes, failures = [], [], 0
+            times, sizes, failures, bodies = [], [], 0, set()
             for i in range(40):
+                bodies.add(canonical(edit(i)))
                 fields = {"known": {"assSha256": known}} if known else {}
                 status, dto, ms = self.app.plan(clip.job_id, clip.id, edit(i), **fields)
                 if status != 200:
@@ -410,6 +414,8 @@ class Gates:
                 times.append(ms)
                 sizes.append(len(canonical(dto)))
             cli = self._cli_plan(clip, edit)
+            if len(bodies) != 40:
+                raise RuntimeError("PF-PLAN documents must all differ")
             all_ms += times
             cases.append({"role": role, "frames": clip.plan(clip.seed).total_frames,
                           "words": len(clip.words["words"]), "http_ms": summary(times),

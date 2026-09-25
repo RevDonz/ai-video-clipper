@@ -1,0 +1,175 @@
+{
+  "gate": "P-PLATE",
+  "runs": {
+    "image-ffmpeg-5.1.9": {
+      "cases": [
+        {
+          "cell_frames": 60,
+          "layout": "fit_blur",
+          "output_frames": 924,
+          "pass": true,
+          "pieces": 12,
+          "plate_cells": 19,
+          "ruler": true,
+          "ssim_final_vs_reference": {
+            "All": 0.998883,
+            "U": 0.999987,
+            "V": 0.999987,
+            "Y": 0.99833
+          },
+          "ssim_margin": 0.001957,
+          "ssim_plate_vs_reference": {
+            "All": 0.99884,
+            "U": 0.999987,
+            "V": 0.999987,
+            "Y": 0.998266
+          }
+        },
+        {
+          "cell_frames": 60,
+          "crop_x_frames_checked": 924,
+          "crop_x_mismatches": {
+            "final": 0,
+            "plate": 0,
+            "reference": 0
+          },
+          "crop_x_undecodable": 0,
+          "distinct_crop_x": 1,
+          "layout": "fill_center",
+          "output_frames": 924,
+          "pass": true,
+          "pieces": 12,
+          "plate_cells": 19,
+          "ruler": true,
+          "ssim_final_vs_reference": {
+            "All": 0.999617,
+            "U": 0.999992,
+            "V": 0.999992,
+            "Y": 0.99943
+          },
+          "ssim_margin": 0.001982,
+          "ssim_plate_vs_reference": {
+            "All": 0.999599,
+            "U": 0.999991,
+            "V": 0.999991,
+            "Y": 0.999403
+          }
+        },
+        {
+          "cell_frames": 60,
+          "crop_x_frames_checked": 924,
+          "crop_x_mismatches": {
+            "final": 0,
+            "plate": 0,
+            "reference": 0
+          },
+          "crop_x_undecodable": 0,
+          "distinct_crop_x": 615,
+          "layout": "camera",
+          "output_frames": 924,
+          "pass": true,
+          "pieces": 12,
+          "plate_cells": 19,
+          "ruler": true,
+          "ssim_final_vs_reference": {
+            "All": 0.99955,
+            "U": 0.999996,
+            "V": 0.999996,
+            "Y": 0.999327
+          },
+          "ssim_margin": 0.002,
+          "ssim_plate_vs_reference": {
+            "All": 0.99955,
+            "U": 0.999997,
+            "V": 0.999997,
+            "Y": 0.999326
+          }
+        },
+        {
+          "cell_frames": 60,
+          "layout": "fit_blur",
+          "output_frames": 1641,
+          "pass": true,
+          "pieces": 11,
+          "plate_cells": 31,
+          "ruler": false,
+          "ssim_final_vs_reference": {
+            "All": 0.997984,
+            "U": 0.999173,
+            "V": 0.999154,
+            "Y": 0.997395
+          },
+          "ssim_margin": 0.00143,
+          "ssim_plate_vs_reference": {
+            "All": 0.997414,
+            "U": 0.997885,
+            "V": 0.997798,
+            "Y": 0.9972
+          }
+        },
+        {
+          "cell_frames": 60,
+          "layout": "fill_center",
+          "output_frames": 1535,
+          "pass": true,
+          "pieces": 11,
+          "plate_cells": 32,
+          "ruler": false,
+          "ssim_final_vs_reference": {
+            "All": 0.995135,
+            "U": 0.998386,
+            "V": 0.998116,
+            "Y": 0.993577
+          },
+          "ssim_margin": 0.001483,
+          "ssim_plate_vs_reference": {
+            "All": 0.994618,
+            "U": 0.996869,
+            "V": 0.996335,
+            "Y": 0.993627
+          }
+        },
+        {
+          "cell_frames": 50,
+          "layout": "camera",
+          "output_frames": 1276,
+          "pass": true,
+          "pieces": 11,
+          "plate_cells": 30,
+          "ruler": false,
+          "ssim_final_vs_reference": {
+            "All": 0.995367,
+            "U": 0.997982,
+            "V": 0.99775,
+            "Y": 0.994117
+          },
+          "ssim_margin": 0.000921,
+          "ssim_plate_vs_reference": {
+            "All": 0.994288,
+            "U": 0.994909,
+            "V": 0.994317,
+            "Y": 0.994126
+          }
+        }
+      ],
+      "environment": {
+        "cpu_quota": 6.0,
+        "cpus_visible": 16,
+        "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+        "loadavg": [
+          26.91,
+          24.86,
+          19.49
+        ],
+        "python": "3.11.2"
+      },
+      "gate_wall_s": 650.3,
+      "pass": true,
+      "threshold": {
+        "crop_x_px": 0,
+        "ssim_margin": 0.002
+      }
+    }
+  },
+  "task": "T2.3"
+}

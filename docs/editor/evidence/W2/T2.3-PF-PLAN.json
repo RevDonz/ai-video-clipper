@@ -1,0 +1,94 @@
+{
+  "gate": "PF-PLAN",
+  "runs": {
+    "image-ffmpeg-5.1.9": {
+      "cases": [
+        {
+          "cli_process_ms": {
+            "max": 176.9,
+            "min": 126.6,
+            "n": 20,
+            "p50": 145.9,
+            "p95": 174.8
+          },
+          "dto_bytes_max": 37123,
+          "failures": 0,
+          "frames": 2404,
+          "http_ms": {
+            "max": 193.7,
+            "min": 129.9,
+            "n": 40,
+            "p50": 139.0,
+            "p95": 160.2
+          },
+          "role": "fit_blur_long",
+          "words": 472
+        },
+        {
+          "cli_process_ms": {
+            "max": 139.6,
+            "min": 120.9,
+            "n": 20,
+            "p50": 128.8,
+            "p95": 135.7
+          },
+          "dto_bytes_max": 40181,
+          "failures": 0,
+          "frames": 2440,
+          "http_ms": {
+            "max": 163.5,
+            "min": 130.2,
+            "n": 40,
+            "p50": 144.7,
+            "p95": 154.4
+          },
+          "role": "fill_center_long",
+          "words": 505
+        },
+        {
+          "cli_process_ms": {
+            "max": 275.6,
+            "min": 132.0,
+            "n": 20,
+            "p50": 196.9,
+            "p95": 265.9
+          },
+          "dto_bytes_max": 23186,
+          "failures": 0,
+          "frames": 1574,
+          "http_ms": {
+            "max": 287.4,
+            "min": 126.4,
+            "n": 40,
+            "p50": 158.7,
+            "p95": 274.2
+          },
+          "role": "fit_blur_2",
+          "words": 426
+        }
+      ],
+      "environment": {
+        "cpu_quota": 6.0,
+        "cpus_visible": 16,
+        "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+        "loadavg": [
+          4.49,
+          9.47,
+          14.52
+        ],
+        "python": "3.11.2"
+      },
+      "gate_wall_s": 31.1,
+      "http_ms": {
+        "max": 287.4,
+        "min": 126.4,
+        "n": 120,
+        "p50": 146.1,
+        "p95": 196.4
+      },
+      "pass": true,
+      "threshold_ms": 200
+    }
+  },
+  "task": "T2.3"
+}
