@@ -40,6 +40,8 @@ import statistics
 import subprocess
 import sys
 import time
+
+_T0 = time.perf_counter()  # before the ai_clipper imports (stage breakdowns)
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -459,7 +461,9 @@ class Gates:
                 times.append(ms)
             all_ms += times
             cases.append({"role": role, "layout": clip.seed["layout"]["default"]["mode"],
-                          "http_ms": summary(times), "failures": bad})
+                          "http_ms": summary(times), "failures": bad,
+                          "stages_ms": stage_breakdown("frame", clip, doc, self.work,
+                                                       rng.sample(range(1, total), 3))})
         overall = summary(all_ms)
         return {"threshold_ms": BUDGETS["pf_truth_ms"], "cases": cases, "http_ms": overall,
                 "pass": overall["p95"] <= BUDGETS["pf_truth_ms"]
@@ -520,10 +524,13 @@ class Gates:
             doc["audio"]["source"]["gain_cdb"] = -10 * (i + 1)
             speech_docs.append(doc)
         speech_ms, speech_failures = self._mix_latency(clip, speech_docs)
+        music_stages = stage_breakdown("audio", clip, with_music_docs[0], self.work, [])
+        speech_stages = stage_breakdown("audio", clip, speech_docs[0], self.work, [])
         result = {"threshold_ms": BUDGETS["pf_audio_ms"],
                   "clip_seconds": round(total * clip.fps.den / clip.fps.num, 2),
                   "with_music_ms": summary(music_ms), "with_music_failures": music_failures,
-                  "speech_only_ms": summary(speech_ms), "speech_only_failures": speech_failures}
+                  "speech_only_ms": summary(speech_ms), "speech_only_failures": speech_failures,
+                  "with_music_stages_ms": music_stages, "speech_only_stages_ms": speech_stages}
         result["pass"] = (music_failures == 0
                           and result["with_music_ms"]["p95"] <= BUDGETS["pf_audio_ms"])
         return result
@@ -764,6 +771,90 @@ class Gates:
         return entry
 
 
+# --- stage breakdowns (a fresh interpreter each, like one lane process) -----------------------------
+
+
+def _stages(kind: str, jobs_root: Path, job_id: str, clip_id: str, doc_file: Path,
+            frame: int | None) -> dict[str, float]:
+    """Milliseconds per stage of one truth frame (``kind="frame"``) or one preview mix
+    (``kind="audio"``), inside a fresh process; run by ``stages`` (below)."""
+    marks = [("start", _T0)]  # "imports" includes this script's own module-level imports
+    from ai_clipper.edit_v2 import compile_ffmpeg as cf
+    from ai_clipper.edit_v2 import execute as ex
+    from ai_clipper.edit_v2 import plates as pl
+    from ai_clipper.edit_v2 import preview_cli
+    from ai_clipper.edit_v2 import store as st
+    from ai_clipper.edit_v2.doc import iter_asset_ids, parse_doc, validate_doc
+    from ai_clipper.edit_v2.glyphs import RESOURCES_DIR as resources_dir
+    from ai_clipper.edit_v2.loudness import needs_measurement as needs
+    from ai_clipper.edit_v2.loudness import parse_ebur128 as ebur
+    from ai_clipper.edit_v2.plan import Resources as Res
+    from ai_clipper.edit_v2.plan import build_plan as plan_of
+
+    marks.append(("imports", time.perf_counter()))
+    clip_dir = jobs_root / job_id / "analysis" / "clips" / clip_id
+    doc = parse_doc(doc_file.read_bytes())
+    seed, _etag = st.seed(clip_dir)
+    words = st.load_words(clip_dir, seed["base"]["words"]["sha256"])
+    assets = st.load_assets(clip_dir, iter_asset_ids(doc))
+    validate_doc(doc, words=words, assets=assets, seed=seed)
+    marks.append(("validate", time.perf_counter()))
+    camera = pl.camera_for(clip_dir, doc)[0]
+    built = plan_of(doc, words=words, camera=camera, assets=assets,
+                    resources=Res(resources_dir))
+    marks.append(("plan", time.perf_counter()))
+    source = pl.source_path(jobs_root / job_id)
+    assets_root = jobs_root / job_id / "analysis" / "assets"
+    if kind == "frame":
+        job = cf.compile_job(built, mode="frame", frame=frame, source=source,
+                             assets_root=assets_root)
+        marks.append(("compile_incl_ffprobe", time.perf_counter()))
+        ex.run(job, output_fd=None, timeout_s=120)
+        marks.append(("ffmpeg_encode_and_png", time.perf_counter()))
+    else:
+        loudness = None
+        if needs(built.doc):
+            job = pl.lane_threads(cf.compile_job(built, mode="audio_measure", source=source,
+                                                 assets_root=assets_root))
+            marks.append(("compile_measure_incl_ffprobe", time.perf_counter()))
+            loudness = ebur(ex.run(job, output_fd=None, timeout_s=600).stderr)
+            marks.append(("ffmpeg_measure", time.perf_counter()))
+        job = preview_cli.lane_audio(cf.compile_job(built, mode="audio_preview", source=source,
+                                                    assets_root=assets_root, loudness=loudness))
+        marks.append(("compile_preview", time.perf_counter()))
+        fd = os.open(doc_file.with_suffix(".flac"), os.O_RDWR | os.O_CREAT | os.O_TRUNC, 0o600)
+        try:
+            ex.run(job, output_fd=fd, timeout_s=600)
+        finally:
+            os.close(fd)
+        marks.append(("ffmpeg_preview_flac", time.perf_counter()))
+    return {name: round(1000 * (at - marks[i][1]), 1)
+            for i, (name, at) in enumerate(marks[1:])}
+
+
+def stage_breakdown(kind: str, clip: Clip, doc: Mapping, work: Path, frames: Sequence[int],
+                    runs: int = 3) -> dict[str, Any]:
+    """Median stage times over ``runs`` fresh processes; ``process_other`` is the rest of the
+    process time (interpreter start and exit, and compiling this script, which the lane's
+    CLI does not pay: an upper bound of its start-up)."""
+    work.mkdir(parents=True, exist_ok=True)
+    doc_file = work / f"stages-{clip.id}.json"
+    doc_file.write_bytes(canonical(doc))
+    rows = []
+    for index in range(runs):
+        frame = frames[index % len(frames)] if frames else None
+        argv = [sys.executable, str(Path(__file__).resolve()), "stages", kind,
+                str(clip.jobs_root), clip.job_id, clip.id, str(doc_file), str(frame)]
+        started = time.perf_counter()
+        result = subprocess.run(argv, capture_output=True, check=True)
+        total = 1000 * (time.perf_counter() - started)
+        row = json.loads(result.stdout)
+        row["process_other"] = round(total - sum(row.values()), 1)  # start, exit, script compile
+        row["total"] = round(total, 1)
+        rows.append(row)
+    return {name: round(statistics.median(r[name] for r in rows), 1) for name in rows[0]}
+
+
 # --- evidence --------------------------------------------------------------------------------------
 
 
@@ -810,6 +901,12 @@ GATES = {"pf-plan": ("PF-PLAN", "pf_plan"), "pf-truth": ("PF-TRUTH", "pf_truth")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    arguments = sys.argv[1:] if argv is None else list(argv)
+    if arguments[:1] == ["stages"]:
+        kind, jobs_root, job_id, clip_id, doc_file, frame = arguments[1:7]
+        print(json.dumps(_stages(kind, Path(jobs_root), job_id, clip_id, Path(doc_file),
+                                 None if frame == "None" else int(frame))))
+        return 0
     parser = argparse.ArgumentParser(description="T2.3 preview lane gates")
     parser.add_argument("gate", choices=("all", *GATES))
     parser.add_argument("--base-url", required=True)
@@ -817,7 +914,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--work", type=Path, default=Path("/tmp/preview-lane-gates"))
     parser.add_argument("--evidence", type=Path)
     parser.add_argument("--label", default="run")
-    args = parser.parse_args(argv)
+    args = parser.parse_args(arguments)
     app = App(args.base_url, os.environ.get("E2E_USERNAME", ""),
               os.environ.get("E2E_PASSWORD", ""))
     gates = Gates(app, args.jobs_root, args.work)
