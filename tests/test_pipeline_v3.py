@@ -21,6 +21,7 @@ from ai_clipper.selection_types import SelectedClip, SelectionResult
 from ai_clipper.selection_v3 import read_selection_artifact
 from ai_clipper.sound_events import read_sound_events
 from ai_clipper.transcript_io import read_transcript_json
+from ai_clipper.trend_context import TREND_CONTEXT_RELATIVE_PATH
 
 # Mirrors of the web sanitizers in web/lib/jobs.mjs (anything else is dropped there).
 WEB_PROVIDER = re.compile(r"[a-z0-9][a-z0-9_-]{0,39}")
@@ -1300,3 +1301,145 @@ def test_v1_never_touches_v3_stages_and_writes_strict_transcript(env, monkeypatc
     transcript = read_transcript_json(env.output / "transcript.json")
     assert transcript.segments[0].words
     assert '"words": []' not in (env.output / "transcript.json").read_text()
+
+
+# --- Konteks Tren -----------------------------------------------------------------------------
+
+
+def trend_item(unit: int, name: str, **overrides) -> dict:
+    """A snapshot item mentioned only by sentence ``unit`` ("kisah<unit> bareng")."""
+    item = {
+        "id": f"trend-{name.lower()}",
+        "kind": "topic",
+        "title": f"Tren {name}",
+        "keywords": [f"kisah{unit} bareng"],
+        "hashtags": [f"#Tren{name}"],
+        "score": 60,
+        "firstSeenAt": "2026-09-24T08:00:00Z",
+        "expiresAt": "2026-10-05T00:00:00Z",
+    }
+    item.update(overrides)
+    return item
+
+
+def trend_snapshot(env, *items, **overrides) -> Path:
+    path = env.job / TREND_CONTEXT_RELATIVE_PATH
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {"version": 1, "generatedAt": "2026-09-25T06:00:00Z", "items": list(items)}
+    payload.update(overrides)
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return path
+
+
+def statement_inside(clip: dict) -> int:
+    """A statement sentence (not a question) inside a manifest clip's source span."""
+    for index, (start, end, _text) in enumerate(rows()):
+        if clip["start"] <= start and end <= clip["end"] and index % 6 != 3:
+            return index
+    raise AssertionError("no statement inside the clip")
+
+
+def selection_bytes(env) -> bytes:
+    return (env.job / "analysis" / "selection.v3.json").read_bytes()
+
+
+def test_a_trend_context_grounds_clips_and_the_manifest_records_it(env, monkeypatch):
+    baseline = manifest_of(run(env))
+    unit = statement_inside(baseline["clips"][0])
+    path = trend_snapshot(env, trend_item(unit, "A"), trend_item(999, "Absen"))
+    seen = {}
+    real_select = pipeline_module.select_clips_v3
+
+    def select(segments, **options):
+        seen.update(options)
+        return real_select(segments, **options)
+
+    monkeypatch.setattr(pipeline_module, "select_clips_v3", select)
+
+    manifest = manifest_of(run(env, trend_context=path))
+
+    assert [item.id for item in seen["trends"]] == ["trend-a", "trend-absen"]
+    trended = [clip for clip in manifest["clips"] if "trends" in clip]
+    assert len(trended) == 1
+    clip = trended[0]
+    assert clip["trends"] == [{"id": "trend-a", "title": "Tren A", "kind": "topic"}]
+    assert set(clip) == CLIP_KEYS | {"trends"}
+    assert clip["hashtags"][0] == "#TrenA"
+    assert clip["reasons"][-1] == "tren: Tren A"
+    for other in manifest["clips"]:
+        if other is not clip:
+            assert_web_clip(other)
+    assert_web_summary(manifest["selection_v3"])
+    assert not any(code.startswith("trend") for code in manifest["selection_v3"]["warnings"])
+    artifact = read_selection_artifact(env.job / "analysis" / "selection.v3.json")
+    assert [len(item.trends) for item in artifact.clips].count(1) == 1
+    assert "Tren A" not in repr(env.renders)  # trend text never reaches the renderer
+
+
+def test_without_relevant_trends_the_outputs_are_unchanged(env):
+    baseline = manifest_of(run(env))
+    baseline_selection = selection_bytes(env)
+    path = trend_snapshot(env, trend_item(999, "Absen"))
+
+    manifest = manifest_of(run(env, trend_context=path))
+
+    assert manifest == baseline
+    assert selection_bytes(env) == baseline_selection
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"version": 2},
+        {"items": "semua"},
+        {"generatedAt": "kemarin"},
+    ],
+)
+def test_an_invalid_trend_context_is_a_warning_and_the_job_continues(env, payload):
+    baseline = manifest_of(run(env))
+    path = trend_snapshot(env, trend_item(1, "A"), **payload)
+
+    manifest = manifest_of(run(env, trend_context=path))
+
+    assert manifest["status"] == "completed"
+    assert manifest["clips"] == baseline["clips"]
+    warnings = manifest["selection_v3"]["warnings"]
+    assert "trend_context_invalid" in warnings
+    assert [code for code in warnings if code != "trend_context_invalid"] == (
+        baseline["selection_v3"]["warnings"]
+    )
+    assert_web_summary(manifest["selection_v3"])
+
+
+def test_a_missing_or_broken_trend_file_is_a_warning(env):
+    missing = manifest_of(run(env, trend_context=env.tmp / "tidak-ada.json"))
+    assert "trend_context_invalid" in missing["selection_v3"]["warnings"]
+    broken = env.job / "analysis" / "trend-context.json"
+    broken.write_text("{bukan json", encoding="utf-8")
+    manifest = manifest_of(run(env, trend_context=broken))
+    assert manifest["status"] == "completed"
+    assert "trend_context_invalid" in manifest["selection_v3"]["warnings"]
+
+
+def test_skipped_trend_items_are_counted(env):
+    path = trend_snapshot(env, trend_item(1, "A"), trend_item(2, "B", kind="gosip"), "teks")
+    manifest = manifest_of(run(env, trend_context=path))
+    assert "trend_items_skipped:2" in manifest["selection_v3"]["warnings"]
+    assert_web_summary(manifest["selection_v3"])
+
+
+def test_trend_context_must_be_a_path(env):
+    with pytest.raises(TypeError):
+        run(env, trend_context=5)
+
+
+def test_v1_ignores_the_trend_context(env, monkeypatch):
+    monkeypatch.setattr(
+        pipeline_module,
+        "load_trend_context",
+        lambda *a, **k: pytest.fail("trend context read in v1 mode"),
+    )
+    manifest = manifest_of(
+        run(env, selection_mode="v1", trend_context=env.tmp / "x.json", max_duration=60.0)
+    )
+    assert manifest["status"] == "completed"

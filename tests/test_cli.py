@@ -202,6 +202,7 @@ def test_cli_v3_defaults():
     assert args.hook_overlay is True
     assert args.caption_style is None  # karaoke for v3, classic otherwise (run_pipeline)
     assert args.captions_dir is None
+    assert args.trend_context is None
     assert args.word_timestamps is True
     assert args.hook_duration == 4.0
 
@@ -218,6 +219,7 @@ def test_cli_v3_defaults():
         (["--caption-style", "karaoke"], {"caption_style": "karaoke"}),
         (["--caption-style", "classic"], {"caption_style": "classic"}),
         (["--captions-dir", "caps"], {"captions_dir": Path("caps")}),
+        (["--trend-context", "tc.json"], {"trend_context": Path("tc.json")}),
         (["--no-word-timestamps"], {"word_timestamps": False}),
         (["--hook-duration", "2.5"], {"hook_duration": 2.5}),
         (["--hook-duration", "30"], {"hook_duration": 30.0}),
@@ -243,6 +245,7 @@ def test_cli_parses_v3_options(arguments: list[str], expected: dict):
         ["--hook-duration", "soon"],
         ["--cold-open=yes"],
         ["--captions-dir"],
+        ["--trend-context"],
     ],
 )
 def test_cli_rejects_invalid_v3_options(arguments: list[str]):
@@ -266,6 +269,7 @@ def test_cli_legacy_web_v1_command_keeps_v1_defaults(monkeypatch, tmp_path: Path
     assert received["selection_mode"] == "v1"
     assert received["caption_style"] is None
     assert received["captions_dir"] is None
+    assert received["trend_context"] is None
     assert received["word_timestamps"] is True
 
 
@@ -294,6 +298,17 @@ def test_cli_forwards_web_v3_command_and_loads_whisper_lazily(monkeypatch, tmp_p
     assert model.transcribe("a.mp4", language="id") == ("segments", "a.mp4", {"language": "id"})
     model.transcribe("b.mp4")
     assert loaded == [(("small",), {"device": "cpu", "decoding": WhisperDecoding()})]
+
+
+def test_cli_forwards_the_trend_context_path_only(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(cli, "load_whisper_model", lambda *a, **k: "M")
+    received = _capture_pipeline(monkeypatch, tmp_path)
+    snapshot = "/data/jobs/j/attempts/2/analysis/trend-context.json"
+
+    assert cli.main([*WEB_V3_ARGS, "--trend-context", snapshot]) == 0
+
+    assert received["trend_context"] == Path(snapshot)
+    assert received["selection_mode"] == "v3"
 
 
 def test_cli_reports_llm_errors_without_traceback(monkeypatch, capsys):
