@@ -1,0 +1,84 @@
+{
+  "gate": "G-DET",
+  "runs": {
+    "local-ffmpeg-6.1.1": {
+      "bitstream": [
+        {
+          "case": "cfr_29.97",
+          "final_identical": true,
+          "plate_cells": 13,
+          "plate_cells_differing": 0
+        },
+        {
+          "case": "vfr_30",
+          "final_identical": true,
+          "plate_cells": 13,
+          "plate_cells_differing": 0
+        }
+      ],
+      "cases": 6,
+      "digest_differences": 0,
+      "digests_per_case": {
+        "cfr_25": 12,
+        "cfr_29.97": 12,
+        "cfr_30": 12,
+        "fhd_23.976_logo": 13,
+        "no_audio_29.97": 12,
+        "vfr_30": 12
+      },
+      "gate_wall_s": 23.0,
+      "hash_seeds": [
+        11,
+        4242
+      ],
+      "pass": true,
+      "preview_export_ass_mismatches": 0,
+      "processes": 3,
+      "toolchain": {
+        "ffmpeg": "ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023 the FFmpeg developers",
+        "python": "3.13.13",
+        "reference_toolchain_problem": "ffmpeg 6.1.1-3ubuntu5 (reference 5.1.9)"
+      }
+    },
+    "reference-image-ffmpeg-5.1.9": {
+      "bitstream": [
+        {
+          "case": "cfr_29.97",
+          "final_identical": true,
+          "plate_cells": 13,
+          "plate_cells_differing": 0
+        },
+        {
+          "case": "vfr_30",
+          "final_identical": true,
+          "plate_cells": 13,
+          "plate_cells_differing": 0
+        }
+      ],
+      "cases": 6,
+      "digest_differences": 0,
+      "digests_per_case": {
+        "cfr_25": 12,
+        "cfr_29.97": 12,
+        "cfr_30": 12,
+        "fhd_23.976_logo": 13,
+        "no_audio_29.97": 12,
+        "vfr_30": 12
+      },
+      "gate_wall_s": 23.8,
+      "hash_seeds": [
+        11,
+        4242
+      ],
+      "pass": true,
+      "preview_export_ass_mismatches": 0,
+      "processes": 3,
+      "toolchain": {
+        "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+        "python": "3.11.2",
+        "reference_toolchain_problem": null
+      }
+    }
+  },
+  "task": "T1.3"
+}
