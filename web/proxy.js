@@ -19,6 +19,9 @@ export function proxy(request) {
   return NextResponse.redirect(login);
 }
 
+// POST /api/jobs streams video uploads to disk. A proxy in front of it makes Next buffer the
+// body up to proxyClientMaxBodySize (10 MB) and hand the route a truncated body, so the upload
+// route is excluded here; it checks the session itself (requireAuth + sameOriginMutation).
 export const config = {
-  matcher: ["/((?!api/health|api/auth/login|login|_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!api/health|api/auth/login|api/jobs/?$|login|_next/static|_next/image|favicon.ico).*)"],
 };
