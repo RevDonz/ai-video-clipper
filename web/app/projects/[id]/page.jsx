@@ -34,6 +34,7 @@ import {
   tenPointScore,
 } from "../../../lib/selection-v3-view.mjs";
 import focusStyles from "./focus.module.css";
+import { loadClipEntries, prepareClipEntries } from "../../../lib/clip-entry-view.mjs";
 
 const STATUS_LABELS = {
   queued: "Menunggu",
@@ -302,7 +303,40 @@ function FocusSummary({ job }) {
   );
 }
 
-function V3ClipCard({ clip, job, copied, onCopy }) {
+// Editor V3 entry (behind POTONGIN_EDITOR_V3: the listing route answers only when it is on):
+// "Edit klip", the edit badge, the latest export and the reason a clip cannot open.
+function ClipEditorEntry({ entry, index, preparing, prepareMessage, onPrepare }) {
+  if (!entry) return null;
+  const latest = entry.latestExport;
+  return (
+    <div className="clipEditorEntry" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px 12px" }}>
+      {entry.editHref && (
+        <a className="openEditorLink" style={{ margin: 0 }} href={entry.editHref}>Edit klip <span aria-hidden="true">→</span></a>
+      )}
+      {entry.editBadge && <span className={`sourceBadge ${entry.editBadge.tone === "edited" ? "llm" : ""}`}>{entry.editBadge.text}</span>}
+      {entry.openable && entry.engineLegacy && <small style={{ color: "var(--muted)" }}>Dibuat dengan mesin lama</small>}
+      {latest && (latest.href
+        ? (
+          <span className="archiveActions" style={{ margin: 0 }}>
+            <a href={latest.href} download aria-label={`${latest.label}, unduh MP4 klip ${index}`}>{latest.label} ↓</a>
+            {latest.srtHref && <a href={latest.srtHref} download aria-label={`SRT ekspor klip ${index}`}>SRT ↓</a>}
+          </span>
+        )
+        : <small style={{ color: "var(--muted)" }}>{latest.label}</small>)}
+      {!entry.openable && entry.reasonText && (
+        <p role="note" style={{ margin: 0, color: "var(--muted)", fontSize: 13 }}>{entry.reasonText}</p>
+      )}
+      {entry.needsPrepare && (
+        <button type="button" className="copyCaption" onClick={onPrepare} disabled={preparing}>
+          {preparing ? "Menyiapkan…" : "Siapkan untuk editor"}
+        </button>
+      )}
+      {entry.needsPrepare && prepareMessage && <span role="alert" style={{ fontSize: 13 }}>{prepareMessage}</span>}
+    </div>
+  );
+}
+
+function V3ClipCard({ clip, job, copied, onCopy, editorEntry = null, preparing = false, prepareMessage = "", onPrepare = () => {} }) {
   const index = String(clip.index).padStart(2, "0");
   const titleId = `v3-clip-${index}`;
   const score = tenPointScore(clip.score);
@@ -330,6 +364,7 @@ function V3ClipCard({ clip, job, copied, onCopy }) {
         <h3 id={titleId}>{clip.title}</h3>
         {clip.hookText && <p className="hookLine"><span>Teks hook</span>{clip.hookText}</p>}
         {trendChips.length > 0 && <TrendChips chips={trendChips} />}
+        <ClipEditorEntry entry={editorEntry} index={index} preparing={preparing} prepareMessage={prepareMessage} onPrepare={onPrepare} />
 
         {(score !== null || rows.length > 0) && (
           <div className="v3Scores">
@@ -381,6 +416,10 @@ export default function ProjectDetailPage({ params }) {
   const [feedbackReloadRequired, setFeedbackReloadRequired] = useState("");
   const [reloadGeneration, setReloadGeneration] = useState(0);
   const [copyState, setCopyState] = useState({ index: null, status: "" });
+  const [clipEntries, setClipEntries] = useState({ state: "idle", byIndex: new Map() });
+  const [entriesGeneration, setEntriesGeneration] = useState(0);
+  const [preparing, setPreparing] = useState(false);
+  const [prepareMessage, setPrepareMessage] = useState("");
   const copyTimer = useRef(null);
 
   useEffect(() => () => {
@@ -442,6 +481,33 @@ export default function ProjectDetailPage({ params }) {
   const clips = job?.clips || [];
   const v3 = isV3Job(job);
   const progress = safePercent(job?.progress);
+  useEffect(() => {
+    if (!v3) return undefined;
+    const controller = new AbortController();
+    let active = true;
+    loadClipEntries(id, { signal: controller.signal }).then((result) => {
+      if (!active) return;
+      if (result.state === "redirect") {
+        window.location.assign(result.location);
+        return;
+      }
+      setClipEntries(result);
+    }).catch(() => {});
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [id, v3, entriesGeneration]);
+
+  const prepareForEditor = async () => {
+    setPreparing(true);
+    setPrepareMessage("");
+    const result = await prepareClipEntries(id);
+    setPreparing(false);
+    if (result.ok) setEntriesGeneration((value) => value + 1);
+    else setPrepareMessage(result.message);
+  };
+
   const candidates = candidateView.candidates;
   const selectionVersionMatches = feedbackView.available
     && !!candidateView.selectionVersion
@@ -486,8 +552,21 @@ export default function ProjectDetailPage({ params }) {
               <header><div className="eyebrow">SELECTION V3 · AI HOOK</div><h2 id="v3-clips-title">Klip siap posting</h2><p>Judul, teks hook, deskripsi, dan hashtag dibuat bersamaan dengan pemilihan momen. Salin caption, unduh MP4, lalu unggah.</p></header>
               <SelectionV3Summary summary={job.selectionV3} />
               <FocusSummary job={job} />
+              {clipEntries.state === "error" && (
+                <div className="feedbackPanelWarning" role="status">
+                  <strong>Editor klip belum bisa dimuat.</strong><span>{clipEntries.message}</span>
+                  <button className="feedbackReload" type="button" onClick={() => setEntriesGeneration((value) => value + 1)}>Coba lagi</button>
+                </div>
+              )}
               {clips.length ? <div className="v3Clips">{clips.map((clip) => (
-                <V3ClipCard key={clip.index} clip={clip} job={job} copied={copyState.index === clip.index ? copyState.status : ""} onCopy={copyCaption} />
+                <V3ClipCard key={clip.index} clip={clip} job={job}
+                  copied={copyState.index === clip.index ? copyState.status : ""}
+                  onCopy={copyCaption}
+                  editorEntry={clipEntries.state === "available" ? clipEntries.byIndex.get(clip.index) ?? null : null}
+                  preparing={preparing}
+                  prepareMessage={prepareMessage}
+                  onPrepare={prepareForEditor}
+                />
               ))}</div> : <div className="noClips"><strong>{job.status === "failed" ? "Proses ini gagal" : "Klip belum tersedia"}</strong><p>{STATUS_LABELS[job.status] || job.status} · progres {progress}%</p></div>}
             </section>
           )}
