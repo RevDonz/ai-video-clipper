@@ -4,7 +4,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { MESSAGES } from "../components/editor/shell-model.mjs";
-import { EXPORT_STEPS, canStartExport, createExportFlow, exportStepView } from "../components/editor/export-flow.mjs";
+import {
+  EXPORT_STEPS,
+  canStartExport,
+  createExportFlow,
+  earlierExports,
+  exportStepView,
+} from "../components/editor/export-flow.mjs";
 
 const ETAG = "e".repeat(64);
 
@@ -265,4 +271,41 @@ test("export starts only when every check is acknowledged and nothing blocks", (
   assert.equal(canStartExport(checks, new Set(["a", "b"])), true);
   assert.equal(canStartExport([], new Set()), true);
   assert.equal(canStartExport([{ key: "x", severity: "error" }], new Set(["x"])), false);
+});
+
+test("after a cancel or a failure the steps stay where the render stopped (W2 verifier)", async () => {
+  const timers = manualTimers();
+  const api = scriptedApi([dto({ state: "rendering", stage: "merender", progressPm: 450 })]);
+  const { flow } = flowWith(api, fakeStore(), timers);
+  await flow.start();
+  await timers.fire();
+  await flow.cancel();
+  const state = flow.getState();
+  assert.equal(state.phase, "cancelled");
+  assert.equal(state.render.stage, "antre"); // the server's cancelled request
+  const view = exportStepView(state.render, state.lastRunning);
+  assert.deepEqual(view.steps.map((step) => step.status), ["done", "stopped", "todo", "todo"]);
+  assert.equal(view.text, "Merender (45%)");
+  assert.equal(view.steps[1].text, "Merender (45%)");
+  // a request cancelled before it ran stays at Antre
+  assert.deepEqual(exportStepView(dto({ state: "cancelled", stage: "antre" }), null).steps.map((step) => step.status),
+    ["stopped", "todo", "todo", "todo"]);
+  // a completed render is never "stopped"
+  assert.deepEqual(exportStepView(dto({ state: "completed", stage: "selesai", progressPm: 1000 }), state.lastRunning)
+    .steps.map((step) => step.status), ["done", "done", "done", "done"]);
+});
+
+test("the running export is not listed under earlier exports; a finished one is", () => {
+  const running = { renderId: "r2", revision: 4, state: "rendering", atMs: 2, resultUrl: null, srtUrl: null };
+  const done = { renderId: "r1", revision: 3, state: "completed", atMs: 1, resultUrl: "/api/x.mp4", srtUrl: null };
+  const latest = { renderId: "r0", revision: 1, state: "completed", url: "/api/y.mp4", srtUrl: null };
+  assert.deepEqual(earlierExports({ history: [running, done], current: { renderId: "r2", state: "rendering" }, latest })
+    .map((item) => item.renderId), ["r1", "r0"]);
+  assert.deepEqual(earlierExports({ history: [{ ...running, state: "completed" }, done],
+    current: { renderId: "r2", state: "completed" }, latest: null }).map((item) => item.renderId), ["r2", "r1"]);
+  assert.deepEqual(earlierExports({ history: [], current: null, latest: { ...latest, renderId: "r0", state: "rendering" } })
+    .map((item) => [item.renderId, item.state]), [["r0", "rendering"]]);
+  assert.deepEqual(earlierExports({ history: [done], current: null, latest: { ...latest, renderId: "r1" } })
+    .map((item) => item.renderId), ["r1"]);
+  assert.deepEqual(earlierExports({ history: [], current: { renderId: "r0", state: "queued" }, latest }), []);
 });
