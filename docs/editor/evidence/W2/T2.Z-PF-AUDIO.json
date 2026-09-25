@@ -1,0 +1,56 @@
+{
+  "gate": "PF-AUDIO",
+  "task": "T2.Z",
+  "server": "ai-video-clipper:editor-w2 (app container --cpus 6, the integrated branch: glyphs memo, supervisor exit wake-up); harness on the host (its 'environment' is the harness's)",
+  "clip_seconds": 90.0,
+  "environment": {
+    "cpu_quota": null,
+    "cpus_visible": 16,
+    "ffmpeg": "ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023 the FFmpeg developers",
+    "loadavg": [
+      3.02,
+      3.43,
+      4.63
+    ],
+    "python": "3.13.13"
+  },
+  "gate_wall_s": 76.7,
+  "pass": false,
+  "speech_only_failures": 0,
+  "speech_only_ms": {
+    "max": 959.0,
+    "min": 937.9,
+    "n": 10,
+    "p50": 945.2,
+    "p95": 959.0
+  },
+  "speech_only_stages_ms": {
+    "compile_preview": 92.0,
+    "ffmpeg_preview_flac": 458.1,
+    "imports": 53.3,
+    "plan": 13.3,
+    "process_other": 56.4,
+    "total": 673.8,
+    "validate": 1.4
+  },
+  "threshold_ms": 1000,
+  "with_music_failures": 0,
+  "with_music_ms": {
+    "max": 1931.2,
+    "min": 1822.8,
+    "n": 16,
+    "p50": 1863.8,
+    "p95": 1910.9
+  },
+  "with_music_stages_ms": {
+    "compile_measure_incl_ffprobe": 125.1,
+    "compile_preview": 48.3,
+    "ffmpeg_measure": 892.3,
+    "ffmpeg_preview_flac": 663.9,
+    "imports": 53.9,
+    "plan": 15.2,
+    "process_other": 60.5,
+    "total": 1858.6,
+    "validate": 1.5
+  }
+}
