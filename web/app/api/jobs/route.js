@@ -6,7 +6,7 @@ import Busboy from "busboy";
 
 import { requireAuth } from "../../../lib/auth.mjs";
 import { sameOriginMutation } from "../../../lib/request-security.mjs";
-import { parseJobOptions, serializePublicJob, sortJobsNewest, validateYouTubeUrl } from "../../../lib/jobs.mjs";
+import { jobOptionInputFromForm, parseJobOptions, serializePublicJob, sortJobsNewest, validateYouTubeUrl } from "../../../lib/jobs.mjs";
 import {
   QueueCapacityError,
   abortAdmissionStaging,
@@ -61,12 +61,8 @@ export function selectionV2Enabled(env = process.env) {
 }
 
 export function parseJobFormOptions(form) {
-  return parseJobOptions({
-    renderMode: form.get("renderMode"), limit: form.get("limit"), minDuration: form.get("minDuration"), maxDuration: form.get("maxDuration"),
-    selectionMode: form.get("selectionMode"), clipProfile: form.get("clipProfile"), maxCandidates: form.get("maxCandidates"),
-    maxMediaCandidates: form.get("maxMediaCandidates"), mediaTimeout: form.get("mediaTimeout"),
-    llmMode: form.get("llmMode"), coldOpen: form.get("coldOpen"), hookOverlay: form.get("hookOverlay"), captionStyle: form.get("captionStyle"),
-  });
+  // Every job form field parseJobOptions reads, including the Fokus klip focusTerms/focusNote.
+  return parseJobOptions(jobOptionInputFromForm(form));
 }
 
 export async function streamPrimaryMultipart(request, inputRoot, maximumUploadBytes, maximumRequestBytes = maximumUploadBytes + MULTIPART_OVERHEAD_BYTES, renewal = {}) {
