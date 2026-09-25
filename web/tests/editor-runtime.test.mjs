@@ -49,11 +49,11 @@ test("scenario hooks wrap each object in order and may change the poll interval"
   runtime.destroy();
 });
 
-test("the real runtime is not wired in phase B and says so", async () => {
-  await assert.rejects(createEditorRuntime({ kind: "real", jobId: FAKE_JOB_ID, clipId: FAKE_CLIP_ID }),
-    (error) => error instanceof RuntimeUnavailable && error.code === "runtime_unavailable");
+// T2.Z wired the "real" runtime (web/tests/editor-w2-seams.test.mjs covers it); any other kind
+// still says the editor is not available.
+test("an unknown runtime kind reports runtime_unavailable", async () => {
   await assert.rejects(createEditorRuntime({ kind: "other", jobId: FAKE_JOB_ID, clipId: FAKE_CLIP_ID }),
-    (error) => error instanceof RuntimeUnavailable);
+    (error) => error instanceof RuntimeUnavailable && error.code === "runtime_unavailable");
 });
 
 test("the frame bus notifies on change and replays the current frame to new subscribers", () => {

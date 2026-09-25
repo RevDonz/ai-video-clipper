@@ -184,10 +184,16 @@ export async function openPreviewSource(jobId, jobsRoot = process.env.JOBS_ROOT 
   }
 }
 
+// The read stream borrows the caller's descriptor: `destroy()` closes a stream's fd even with
+// `autoClose: false` (Node 22), and the owner closes it again below, which under load closed a
+// reused descriptor (a socket) and aborted the server (T2.3). The stream's own close is a no-op,
+// so the owner's close is the only one.
+const BORROWED_FD = Object.freeze({ open, read, close: (_fd, callback) => callback(null) });
+
 export function descriptorReadableStream(fd, start, end, signal, options = {}) {
   const makeReadStream = options.createReadStream || createReadStream;
   const closeDescriptor = options.closeFd || closeFd;
-  const nodeStream = makeReadStream("", { fd, autoClose: false, start, end });
+  const nodeStream = makeReadStream("", { fd, autoClose: false, start, end, fs: BORROWED_FD });
   const iterator = nodeStream[Symbol.asyncIterator]();
   let cleanupPromise;
   let controller;

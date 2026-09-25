@@ -7,6 +7,9 @@
 // unchanged, the cached bytes are put back, so a resolved plan always carries `text.ass`.
 // A 429 is retried after `Retry-After` (at most 2 s, three times); a 422 rejects with a
 // `PreviewError` of code "invalid" and the validator's issues (a client bug by contract).
+// Each plan request carries the playhead (`playhead()`, the output frame the lane builds first;
+// T2.3). A 409 `superseded` (another request for the clip replaced this one on the server) is an
+// abandoned request like a local supersede: it rejects with an `AbortError`.
 
 export const PREVIEW_DEBOUNCE_MS = 120;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -36,7 +39,8 @@ function serverCode(data, status) {
 }
 
 export function createPreviewClient({ jobId, clipId, fetchImpl = globalThis.fetch?.bind(globalThis), debounceMs = PREVIEW_DEBOUNCE_MS,
-  base = "", setTimer = (fn, ms) => setTimeout(fn, ms), clearTimer = (id) => clearTimeout(id), maxRetryMs = 2000 }) {
+  base = "", setTimer = (fn, ms) => setTimeout(fn, ms), clearTimer = (id) => clearTimeout(id), maxRetryMs = 2000,
+  playhead = null }) {
   if (typeof jobId !== "string" || !UUID.test(jobId)) throw new TypeError("jobId is invalid");
   if (typeof clipId !== "string" || !CLIP_ID.test(clipId)) throw new TypeError("clipId is invalid");
   const clipRoot = `${base}/api/jobs/${jobId}/clips/${clipId}`;
@@ -45,6 +49,11 @@ export function createPreviewClient({ jobId, clipId, fetchImpl = globalThis.fetc
   let inflight = null;
   let frameInflight = null;
   let cache = null;
+  const currentPlayhead = () => {
+    let value = 0;
+    try { value = Math.trunc(Number(playhead())); } catch { value = 0; }
+    return Number.isSafeInteger(value) && value >= 0 ? value : 0;
+  };
 
   const post = (url, body, signal) => fetchImpl(url, {
     method: "POST", credentials: "same-origin", cache: "no-store", signal,
@@ -63,7 +72,9 @@ export function createPreviewClient({ jobId, clipId, fetchImpl = globalThis.fetc
     for (let tries = 0; ; tries += 1) {
       let response;
       try {
-        response = await post(`${clipRoot}/preview/plan`, { doc, known: cache ? { assSha256: cache.sha } : {} }, signal);
+        const body = { doc, known: cache ? { assSha256: cache.sha } : {} };
+        if (typeof playhead === "function") body.playhead = currentPlayhead();
+        response = await post(`${clipRoot}/preview/plan`, body, signal);
       } catch (error) {
         if (error?.name === "AbortError" || signal.aborted) throw superseded();
         throw new PreviewError("network_error", 0);
@@ -82,6 +93,7 @@ export function createPreviewClient({ jobId, clipId, fetchImpl = globalThis.fetc
       }
       if (signal.aborted) throw superseded();
       if (response.status === 422) throw new PreviewError("invalid", 422, Array.isArray(data?.errors) ? data.errors : []);
+      if (response.status === 409 && serverCode(data, 409) === "superseded") throw superseded();
       if (!response.ok || !data || typeof data !== "object") throw new PreviewError(serverCode(data, response.status), response.status);
       if (data.text && typeof data.text === "object") {
         if (typeof data.text.ass === "string") cache = { sha: data.text.assSha256, ass: data.text.ass };

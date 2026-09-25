@@ -58,10 +58,11 @@ export default function Stage({ output, plan, playerMode, safeZone = false, onMe
           hidden={showAuto}
           data-stage="canvas"
         />
+        {/* The player owns this element's `src` (it loads, seeks and steps the auto render;
+            T2.4): setting it here too would restart the load and lose the seek (T2.Z). */}
         <video
           ref={videoRef}
           className={styles.stageMedia}
-          src={showAuto ? autoUrl : undefined}
           hidden={!showAuto}
           playsInline
           preload="auto"

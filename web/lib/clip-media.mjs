@@ -38,7 +38,14 @@ export const MEDIA_KINDS = Object.freeze({
 // Truth frames are not a media kind: the frame route streams them to the request that asked.
 export const FRAME_FILE = Object.freeze({ dir: "preview/frames", pattern: /^[0-9a-f]{16}-[0-9]{1,9}-[0-9]{3,4}\.png$/, type: "image/png" });
 
-export const RESOURCE_KINDS = Object.freeze(["fonts", "caption-packs", "hook-designs"]);
+export const RESOURCE_KINDS = Object.freeze(["fonts", "caption-packs", "hook-designs", "jassub"]);
+// The pinned JASSUB worker glue and its baseline wasm (T2.4's text layer loads them unbundled
+// from `/api/resources/jassub/`), byte for byte from the installed package. The standalone build
+// carries them through `outputFileTracingIncludes` (web/next.config.mjs).
+export const JASSUB_FILES = Object.freeze({
+  "jassub-worker.js": "text/javascript; charset=utf-8",
+  "jassub-worker.wasm": "application/wasm",
+});
 const FONT_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}\.(ttf|otf)$/;
 const VERSIONED_NAME = /^([a-z0-9][a-z0-9-]{0,39})\.v([1-9][0-9]{0,3})\.json$/;
 const FONT_TYPES = { ttf: "font/ttf", otf: "font/otf" };
@@ -223,9 +230,18 @@ export function resourcesDir(env = process.env, cwd = process.cwd()) {
   return path.resolve(cwd, "..", "resources");
 }
 
+/** `node_modules/jassub/dist/wasm` of the running app (web/ in development, /app in the image). */
+export function jassubDir(cwd = process.cwd()) {
+  return path.join(cwd, "node_modules", "jassub", "dist", "wasm");
+}
+
 /** `{file, type, sha256?}` of a resource, or null when `kind/name` is not a served resource. */
-export function resourceFile(kind, name, dir = resourcesDir()) {
+export function resourceFile(kind, name, dir = resourcesDir(), { jassubDir: jassubRoot = jassubDir() } = {}) {
   if (typeof kind !== "string" || typeof name !== "string" || !RESOURCE_KINDS.includes(kind)) return null;
+  if (kind === "jassub") {
+    if (!Object.hasOwn(JASSUB_FILES, name)) return null;
+    return { file: path.join(jassubRoot, name), root: jassubRoot, type: JASSUB_FILES[name] };
+  }
   if (kind === "fonts") {
     const match = FONT_NAME.exec(name);
     if (!match) return null;
@@ -259,8 +275,8 @@ function readFileSyncBounded(file, limit = MAX_JSON_RESOURCE_BYTES) {
 const verifiedFonts = new Map(); // file → "size:mtime:sha" of bytes already hashed
 
 /** The resource response (404 unless it is a pinned font or a pack / hook-design file). */
-export async function resourceResponse(request, { kind, name, dir = resourcesDir(), head = false } = {}) {
-  const target = resourceFile(kind, name, dir);
+export async function resourceResponse(request, { kind, name, dir = resourcesDir(), head = false, jassubDir: jassubRoot = jassubDir() } = {}) {
+  const target = resourceFile(kind, name, dir, { jassubDir: jassubRoot });
   if (!target) return plain(404, "Not found");
   let bytes;
   try {
@@ -268,7 +284,7 @@ export async function resourceResponse(request, { kind, name, dir = resourcesDir
       realpath(/* turbopackIgnore: true */ target.file), realpath(/* turbopackIgnore: true */ target.root)]);
     if (!contained(realRoot, realFile)) return plain(404, "Not found");
     const info = await lstat(/* turbopackIgnore: true */ target.file);
-    const limit = kind === "fonts" ? MAX_RESOURCE_BYTES : MAX_JSON_RESOURCE_BYTES;
+    const limit = kind === "fonts" || kind === "jassub" ? MAX_RESOURCE_BYTES : MAX_JSON_RESOURCE_BYTES;
     if (info.isSymbolicLink() || !info.isFile() || info.size > limit) return plain(404, "Not found");
     bytes = await readFile(/* turbopackIgnore: true */ target.file);
     if (target.sha256) {
@@ -288,5 +304,7 @@ export async function resourceResponse(request, { kind, name, dir = resourcesDir
     "Cross-Origin-Resource-Policy": "same-origin",
     "Content-Length": String(bytes.length),
   };
+  // The glue runs in the text layer's worker under the editor page's COEP (next.config.mjs).
+  if (kind === "jassub") headers["Cross-Origin-Embedder-Policy"] = "require-corp";
   return new Response(head ? null : bytes, { status: 200, headers });
 }

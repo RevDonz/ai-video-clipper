@@ -292,6 +292,7 @@ export async function scanJobsStorage({
 
     const rootDevice = rootStat.dev;
     const seenDirectories = new Set([inodeKey(rootStat)]);
+    const seenFiles = new Set();
     let allocatedBytes = 0n;
     let entryCount = 0;
     let fileCount = 0;
@@ -343,7 +344,17 @@ export async function scanJobsStorage({
               if (!sameObject(before, after) || (after.mode & FILE_TYPE_MASK) !== REGULAR_FILE_TYPE) {
                 throw unavailable("Storage object changed during scan");
               }
-              allocatedBytes += after.blocks * 512n;
+              // A file with several names (the hard-linked source snapshots and R10 exports of
+              // Editor V3) occupies its blocks once.
+              if (after.nlink <= 1n) {
+                allocatedBytes += after.blocks * 512n;
+              } else {
+                const key = inodeKey(after);
+                if (!seenFiles.has(key)) {
+                  seenFiles.add(key);
+                  allocatedBytes += after.blocks * 512n;
+                }
+              }
               fileCount += 1;
             } finally {
               await fileHandle.close();
