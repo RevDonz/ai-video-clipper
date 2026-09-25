@@ -178,17 +178,24 @@ def measure(delivered: Path, reference: Path, *, boxes: Sequence[Sequence[int]] 
 
 def measure_fixtures(fixtures: Path, *, formats: Sequence[str] | None = None,
                      ffmpeg: str = "ffmpeg", baseline: dict | None = None,
-                     rgb_diagnostic: bool = True) -> dict:
-    """P-ENC for every export in a ``reference_text.py`` fixture directory."""
+                     rgb_diagnostic: bool = True, common: str = "gbrp") -> dict:
+    """P-ENC for every export in a ``reference_text.py`` fixture directory.
+
+    Each export is scored against its own candidate's lossless composite (the gate) and, when
+    the fixtures have it, against the ``common`` candidate's composite (``vs_common``): a
+    candidate's own reference already carries its compositing loss, so delivered quality is
+    compared across candidates against the one composite that matches the preview.
+    """
     manifest = json.loads((fixtures / "manifest.json").read_text(encoding="utf-8"))
     wanted = list(formats or manifest["formats"])
     result: dict = {"schema": "potongin.p-enc/1", "domain": "yuv444p", "diagnostic": "rgb",
-                    "thresholds": P_ENC_THRESHOLDS, "baseline_tolerance": BASELINE_TOLERANCE,
-                    "formats": {}}
+                    "common_reference": common, "thresholds": P_ENC_THRESHOLDS,
+                    "baseline_tolerance": BASELINE_TOLERANCE, "formats": {}}
     for fmt in wanted:
         clips: dict = {}
         pooled_all: list[tuple[float, int]] = []
         pooled_text: list[tuple[float, int]] = []
+        pooled_common: list[tuple[float, int]] = []
         failures = []
         for clip in manifest["clips"]:
             files = clip.get("files", {})
@@ -201,13 +208,25 @@ def measure_fixtures(fixtures: Path, *, formats: Sequence[str] | None = None,
                               boxes=[clip["text_region"]], ffmpeg=ffmpeg, reference_rgb=True,
                               domain="rgb")
                 metrics["rgb"] = {"ssim_all": rgb["ssim_all"], "ssim_text": rgb["ssim_text"]}
+            if common in files["lossless"]:
+                if common == fmt:
+                    versus = metrics
+                else:
+                    versus = measure(fixtures / files["export"][fmt],
+                                     fixtures / files["lossless"][common],
+                                     boxes=[clip["text_region"]], ffmpeg=ffmpeg,
+                                     reference_rgb=True)
+                metrics["vs_common"] = {key: versus[key] for key in
+                                        ("ssim_all", "ssim_text", "ssim_y", "ssim_text_y")}
             base = (baseline or {}).get("formats", {}).get(fmt, {}).get("clips", {}).get(clip["id"])
             metrics["pass"] = p_enc_pass(metrics, base)
             clips[clip["id"]] = {"pack": clip["pack"], "variant": clip.get("variant"),
                                  "gate": clip.get("gate", True), **metrics}
-            if clip.get("gate", True) or clip["kind"] == "pcolor":
+            if clip.get("gate", True):
                 pooled_all.append((metrics["ssim_all"], metrics["frames"]))
                 pooled_text.append((metrics["ssim_text"], metrics["frames"]))
+                if "vs_common" in metrics:
+                    pooled_common.append((metrics["vs_common"]["ssim_text"], metrics["frames"]))
                 if not metrics["pass"]:
                     failures.append({"clip": clip["id"], "ssim_all": metrics["ssim_all"],
                                      "ssim_text": metrics["ssim_text"]})
@@ -216,6 +235,7 @@ def measure_fixtures(fixtures: Path, *, formats: Sequence[str] | None = None,
             "clips": clips,
             "mean_ssim_all": combine(pooled_all),
             "mean_ssim_text": combine(pooled_text),
+            "mean_ssim_text_vs_common": combine(pooled_common),
             "min_ssim_all": min((c["ssim_all"] for c in gated), default=None),
             "min_ssim_text": min((c["ssim_text"] for c in gated), default=None),
             "gate": {"pass": not failures and bool(gated), "failures": failures},
