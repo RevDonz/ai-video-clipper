@@ -9,11 +9,14 @@
 //   merged → saved at once with the notice "Digabung dengan perubahan dari tab lain"; otherwise
 //   `state.conflict.groups` feeds the per-part dialog and `resolveConflict(choices)` finishes it.
 //   The editor never locks and the draft is kept until everything is saved.
-// - On open a draft with the server's etag is restored silently; a draft on an older etag is
-//   rebased; a draft whose PUT was in flight re-sends that PUT with the same Idempotency-Key, so
-//   a save whose response was lost is recognised instead of applied twice.
-// - `BroadcastChannel("potongin-editor")` sets `otherTab` ("Klip ini terbuka di tab lain");
-//   `beforeunload` is guarded while work is unsaved; blur and a hidden page flush the save.
+// - Drafts are per tab (`<clipId>#<tabId>`; the tab id lives in sessionStorage, so it survives a
+//   reload, and a duplicated tab takes a new one). On open, this tab's draft is restored (same
+//   etag: silently; older etag: rebased; a PUT that was in flight is re-sent with its
+//   Idempotency-Key, so a save whose response was lost is recognised, not applied twice); drafts
+//   of closed tabs of the clip are merged in; drafts of live tabs are left to them.
+// - `BroadcastChannel("potongin-editor")` sets `otherTab` ("Klip ini terbuka di tab lain") and
+//   tells live tabs apart from closed ones; `beforeunload` is guarded while work is unsaved; blur
+//   and a hidden page flush the save.
 //
 // State (Appendix A.2 plus): status "loading"|"ready"|"readOnly"|"error", doc, seed, words, etag,
 // revision, save "saved"|"dirty"|"saving"|"conflict"|"error", savedAtMs, canUndo, canRedo, plan,
@@ -23,11 +26,14 @@ import { randomUuid } from "./api-client.mjs";
 import { createAutosave } from "./autosave.mjs";
 import { CommandRejected } from "./commands.mjs";
 import { createContext } from "./doc-model.mjs";
-import { createDraftStore, createDraftWriter } from "./draft-store.mjs";
+import { createDraftStore, createDraftWriter, draftKey } from "./draft-store.mjs";
 import { createEditSession } from "./history.mjs";
 import { rebase, replaySteps } from "./rebase.mjs";
 
 export const EDITOR_CHANNEL = "potongin-editor";
+export const TAB_ID_KEY = "potongin-editor-tab";
+/** How long an opening tab waits for live tabs to answer before it adopts other tabs' drafts. */
+export const DISCOVERY_MS = 150;
 export const STORE_MESSAGES = Object.freeze({
   merged: "Digabung dengan perubahan dari tab lain",
   save_error: "Gagal menyimpan; perubahan aman di browser ini",
@@ -35,7 +41,9 @@ export const STORE_MESSAGES = Object.freeze({
   load_error: "Klip tidak bisa dibuka",
   conflict: "Klip ini diubah di tab lain",
   other_tab: "Klip ini terbuka di tab lain",
+  draft_conflict: "Perubahan dari tab lain yang belum tersimpan tidak bisa digabung otomatis; drafnya tetap disimpan",
 });
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 function defaultChannel() {
   return typeof window !== "undefined" && typeof BroadcastChannel === "function" ? (name) => new BroadcastChannel(name) : null;
@@ -43,6 +51,34 @@ function defaultChannel() {
 
 function defaultLifecycle() {
   return typeof window !== "undefined" && typeof document !== "undefined" ? { window, document } : null;
+}
+
+function defaultTabStorage() {
+  try {
+    return typeof window !== "undefined" ? window.sessionStorage : null;
+  } catch {
+    return null;
+  }
+}
+
+function readTabId(storage) {
+  try {
+    const value = storage?.getItem(TAB_ID_KEY);
+    if (typeof value === "string" && UUID.test(value)) return value;
+  } catch {
+    // sessionStorage can throw (disabled storage): the tab gets a fresh id per load.
+  }
+  return newTabId(storage);
+}
+
+function newTabId(storage) {
+  const id = randomUuid();
+  try {
+    storage?.setItem(TAB_ID_KEY, id);
+  } catch {
+    // Not persisted: a reload of this tab then adopts its own draft as a closed tab's.
+  }
+  return id;
 }
 
 /** GET …/edit in either shape: the CLI's `{seed: <doc>, isSeed}` or `{seed: <bool>}`. */
@@ -77,6 +113,7 @@ export function createEditorStore({
   autosave: autosaveOptions = {},
   channel = defaultChannel(),
   lifecycle = defaultLifecycle(),
+  tabStorage = defaultTabStorage(),
 }) {
   const listeners = new Set();
   let state = Object.freeze({
@@ -96,9 +133,11 @@ export function createEditorStore({
   let destroyed = false;
   let port = null;
   let detach = null;
-  const tabId = randomUuid();
-  const others = new Set();
+  let tabId = readTabId(tabStorage);
+  const instance = randomUuid();
+  const others = new Map(); // live instances of this clip in other tabs → their tab ids
   const draftWriter = createDraftWriter({ store: draftStore, now });
+  const ownKey = () => draftKey(clipId, tabId);
 
   const set = (patch) => {
     if (destroyed) return;
@@ -122,10 +161,11 @@ export function createEditorStore({
     if (!session || !base || destroyed) return;
     const pending = session.pending;
     if (!pending.length && !inflight && !conflictState) {
-      draftWriter.remove(clipId);
+      draftWriter.remove(ownKey());
       return;
     }
-    draftWriter.write({ clipId, baseEtag: base.etag, baseDoc: base.doc, commands: pending, doc: session.doc, savedAtMs: now(), inflight });
+    draftWriter.write({ key: ownKey(), clipId, tabId, baseEtag: base.etag, baseDoc: base.doc, commands: pending, doc: session.doc,
+      savedAtMs: now(), inflight });
   };
 
   const requestPlan = () => {
@@ -152,6 +192,10 @@ export function createEditorStore({
   const flushQuietly = () => {
     autosave.flush().catch(() => {});
   };
+
+  const sleep = (ms) => new Promise((resolve) => {
+    timers.setTimeout(resolve, ms);
+  });
 
   function snapshot() {
     if (!session || !base || conflictState || state.status !== "ready") return null;
@@ -215,14 +259,17 @@ export function createEditorStore({
     rebaseOnto(theirs, etag);
   }
 
-  /** Rebases the session (base → current, pending log) onto the server's document. */
-  function rebaseOnto(theirs, etag, { fromDraft = false } = {}) {
+  /**
+   * Rebases the session (base → current, pending log) onto the server's document. Merged work is
+   * saved at once, except while drafts are being restored (the caller saves when it is done).
+   */
+  function rebaseOnto(theirs, etag, { restoring = false } = {}) {
     const result = rebase({ base: base.doc, mine: session.doc, theirs, steps: session.pending, ctx });
     if (result.status === "merged") {
       acceptBase(theirs, etag, result.steps);
-      if (result.steps.length || !fromDraft) set({ notice: { code: "merged", message: STORE_MESSAGES.merged } });
-      if (session.pending.length) flushQuietly();
-      return;
+      if (result.steps.length) set({ notice: { code: "merged", message: STORE_MESSAGES.merged } });
+      if (session.pending.length && !restoring) flushQuietly();
+      return true;
     }
     conflictState = { theirs, etag };
     autosave.pause();
@@ -231,6 +278,7 @@ export function createEditorStore({
       conflict: { groups: result.conflicts.map(({ id, label, parts, mine, theirs: saved }) => ({ id, label, parts, mine, theirs: saved })), error: null },
     });
     writeDraft();
+    return false;
   }
 
   function acceptBase(theirs, etag, steps) {
@@ -244,14 +292,8 @@ export function createEditorStore({
     autosave.resume();
   }
 
-  async function restoreDraft(serverDoc, serverEtag) {
-    let draft = null;
-    try {
-      draft = await draftStore.get(clipId);
-    } catch {
-      return;
-    }
-    if (!draft || draft.clipId !== clipId || !Array.isArray(draft.commands)) return;
+  /** Restores one draft as this tab's work. Returns "none", "restored" or "rebased". */
+  async function restoreDraft(draft, serverDoc, serverEtag) {
     let baseDoc = draft.baseDoc ?? null;
     let baseEtag = draft.baseEtag;
     let steps = draft.commands;
@@ -273,37 +315,85 @@ export function createEditorStore({
     }
     if (theirsEtag !== serverEtag) {
       base = { doc: theirs, etag: theirsEtag };
-      set({ etag: theirsEtag, revision: theirs.revision });
-    }
-    if (!steps.length) {
       session.reset({ base: theirs, steps: [] });
-      set({ ...docState(), save: saveState() });
-      writeDraft();
-      return;
+      set({ ...docState(), etag: theirsEtag, revision: theirs.revision, save: saveState() });
     }
+    if (!steps.length) return "none";
     if (baseEtag === theirsEtag) {
       try {
         session.reset({ base: theirs, steps });
       } catch (error) {
         if (!(error instanceof CommandRejected)) throw error;
-        return;
+        return "none";
       }
       set({ ...docState(), save: saveState() });
-      writeDraft();
-      autosave.notify();
-      return;
+      return "restored";
     }
-    if (!baseDoc) return;
+    if (!baseDoc) return "none";
     try {
       replaySteps(baseDoc, steps, ctx);
     } catch (error) {
       if (!(error instanceof CommandRejected)) throw error;
-      return;
+      return "none";
     }
     base = { doc: baseDoc, etag: baseEtag };
     session.reset({ base: baseDoc, steps });
     set({ ...docState() });
-    rebaseOnto(theirs, theirsEtag, { fromDraft: true });
+    rebaseOnto(theirs, theirsEtag, { restoring: true });
+    return "rebased";
+  }
+
+  /** Merges a closed tab's draft into the current work; false keeps that draft for later. */
+  function adoptDraft(draft) {
+    if (!draft.baseDoc || conflictState) return false;
+    let mine;
+    try {
+      mine = replaySteps(draft.baseDoc, draft.commands, ctx).doc;
+    } catch (error) {
+      if (!(error instanceof CommandRejected)) throw error;
+      return false;
+    }
+    const result = rebase({ base: draft.baseDoc, mine, theirs: session.doc, steps: draft.commands, ctx });
+    if (result.status !== "merged") {
+      set({ notice: { code: "draft_conflict", message: STORE_MESSAGES.draft_conflict } });
+      return false;
+    }
+    if (result.steps.length) {
+      session.reset({ base: base.doc, steps: [...session.pending, ...result.steps] });
+      set({ ...docState(), save: saveState(), notice: { code: "merged", message: STORE_MESSAGES.merged } });
+    }
+    return true;
+  }
+
+  /** This tab's draft first, then the drafts of closed tabs; live tabs keep theirs. */
+  async function restoreDrafts(serverDoc, serverEtag) {
+    let drafts;
+    try {
+      drafts = (await draftStore.list(clipId)) ?? [];
+    } catch {
+      return;
+    }
+    drafts = drafts.filter((draft) => draft && draft.clipId === clipId && Array.isArray(draft.commands));
+    if (!drafts.length) return;
+    if (port) await sleep(DISCOVERY_MS);
+    const live = new Set(others.values());
+    const key = ownKey();
+    const own = drafts.find((draft) => draft.key === key && draft.commands.length) ?? null;
+    const orphans = drafts.filter((draft) => draft.key !== key && !live.has(draft.tabId) && draft.commands.length)
+      .sort((a, b) => (b.savedAtMs ?? 0) - (a.savedAtMs ?? 0));
+    const primary = own ?? orphans.shift() ?? null;
+    let outcome = "none";
+    if (primary) {
+      outcome = await restoreDraft(primary, serverDoc, serverEtag);
+      if (primary !== own) draftWriter.remove(primary.key);
+    }
+    for (const orphan of orphans) {
+      if (adoptDraft(orphan)) draftWriter.remove(orphan.key);
+    }
+    writeDraft();
+    if (!session.pending.length || conflictState) return;
+    if (outcome === "rebased") flushQuietly();
+    else autosave.notify();
   }
 
   function openChannel() {
@@ -314,17 +404,24 @@ export function createEditorStore({
       port = null;
       return;
     }
+    const post = (type) => port?.postMessage({ type, clipId, tab: tabId, instance });
     port.onmessage = (event) => {
       const message = event?.data;
-      if (!message || message.clipId !== clipId || message.tab === tabId) return;
+      if (!message || message.clipId !== clipId || message.instance === instance) return;
       if (message.type === "open") {
-        others.add(message.tab);
-        port?.postMessage({ type: "here", clipId, tab: tabId });
-      } else if (message.type === "here") others.add(message.tab);
-      else if (message.type === "closed") others.delete(message.tab);
+        others.set(message.instance, message.tab);
+        post("here");
+      } else if (message.type === "here") {
+        others.set(message.instance, message.tab);
+        if (message.tab === tabId) {
+          // A duplicated tab (copied sessionStorage) answered with our id: this newer tab moves.
+          tabId = newTabId(tabStorage);
+          post("here");
+        }
+      } else if (message.type === "closed") others.delete(message.instance);
       set({ otherTab: others.size > 0 });
     };
-    port.postMessage({ type: "open", clipId, tab: tabId });
+    post("open");
   }
 
   function attachLifecycle() {
@@ -375,7 +472,7 @@ export function createEditorStore({
       });
       openChannel();
       attachLifecycle();
-      if (!current.readOnly) await restoreDraft(current.doc, current.etag);
+      if (!current.readOnly) await restoreDrafts(current.doc, current.etag);
       requestPlan();
     } catch (error) {
       const code = error?.code ?? "load_failed";
@@ -388,6 +485,10 @@ export function createEditorStore({
     draftWriter,
     get context() {
       return ctx;
+    },
+    /** This tab's draft key (`<clipId>#<tabId>`). */
+    get draftKey() {
+      return ownKey();
     },
     getState: () => state,
     subscribe(listener) {
@@ -464,7 +565,7 @@ export function createEditorStore({
       detach = null;
       if (port) {
         try {
-          port.postMessage({ type: "closed", clipId, tab: tabId });
+          port.postMessage({ type: "closed", clipId, tab: tabId, instance });
         } catch {
           // The channel is already gone.
         }
