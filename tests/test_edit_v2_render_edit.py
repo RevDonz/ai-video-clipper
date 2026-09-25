@@ -680,6 +680,82 @@ def test_a_snapshot_with_another_content_is_refused(auto_job, tmp_path):
     assert raised.value.ref == "source"
 
 
+# --- the rendering stage over an existing job (tools: P-LOOK, PF-PIPELINE, fixtures) ----------------
+
+
+def test_an_existing_legacy_job_renders_again_with_the_new_engine(legacy_job, tmp_path):
+    job_dir = copy_job(legacy_job, tmp_path)
+    for name in ("clip-02.mp4", "clip-02.srt", "clip-02.jpg"):
+        (job_dir / "output" / name).rename(tmp_path / name)  # the legacy render, kept aside
+    run = pipeline_module.render_v3_job(job_dir, render_engine="edit-v2", ranks=[2])
+    (entry,) = run.clips
+    assert run.warnings == [] and set(run.timings) == {2} and run.seconds >= run.timings[2]
+    assert entry["index"] == 2 and entry["render_engine"] == COMPILER_ID
+    assert entry["output"] == str(job_dir / "output" / "clip-02.mp4")
+    seed_doc, _etag = store.seed(clip_dir(job_dir, entry["clip_id"]))
+    assert seed_doc["base"]["job_id"] == legacy_job.job_id
+    assert render_edit.verify_file(Path(entry["output"]),
+                                   render_edit.load_render_inputs(job_dir, seed_doc).plan).ok
+    assert (job_dir / "output" / "clip-02.jpg").is_file()  # a new poster of the new render
+    assert (job_dir / "output" / "clip-01.mp4").is_file()  # the other clip is untouched
+    with pytest.raises(ValueError):
+        pipeline_module.render_v3_job(job_dir, render_engine="edit-v3")
+
+
+def _make_job_module():
+    import importlib.util
+    import sys
+
+    name = "editor_fixture_make_job"
+    if name not in sys.modules:
+        spec = importlib.util.spec_from_file_location(
+            name, Path(__file__).resolve().parents[1] / "scripts" / "editor_fixture" / "make_job.py")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+    return sys.modules[name]
+
+
+def test_the_synthetic_job_render_option_records_engines(tmp_path, monkeypatch):
+    make_job_module = _make_job_module()
+    root = tmp_path / "fixture"
+    jobs = {}
+    for name in ("main", "old", "stranded", "v1"):
+        job_dir = root / "jobs" / name
+        (job_dir / "output").mkdir(parents=True)
+        manifest = {"clips": [{"index": 1, "output": "x"}],
+                    "selection_v3": {"warnings": ["few_clips:1"]}}
+        (job_dir / "output" / "manifest.json").write_text(json.dumps(manifest))
+        (job_dir / "job.json").write_text(json.dumps({"id": name, "clips": []}))
+        jobs[name] = {"dir": f"jobs/{name}"}
+    calls = []
+
+    def fake(job_dir, *, render_engine):
+        calls.append((Path(job_dir).name, render_engine))
+        engine = {"edit-v2": COMPILER_ID}.get(render_engine)
+        entry = {"index": 1, "score": 1.0, "start": 1.0, "end": 9.0, "duration": 8.0,
+                 "text": "t", "output": str(Path(job_dir) / "output" / "clip-01.mp4"),
+                 "subtitles": str(Path(job_dir) / "output" / "clip-01.srt")}
+        if engine:
+            entry.update(clip_id="clip_" + "a" * 24, render_engine=engine, render_key=None,
+                         plan_sha256="b" * 64)
+        return pipeline_module.V3RenderRun([entry], [], {1: 1.0}, 1.0)
+
+    monkeypatch.setattr(pipeline_module, "render_v3_job", fake)
+    report = make_job_module.render_all(root, {"jobs": jobs}, stub_camera=False)
+    assert calls == [("main", "edit-v2"), ("old", "legacy")]
+    assert report["main"]["clips"][0]["render_engine"] == COMPILER_ID
+    assert report["old"]["clips"][0]["render_engine"] == "legacy"
+    main_job = json.loads((root / "jobs" / "main" / "job.json").read_text())
+    assert main_job["clips"][0]["clipId"] == "clip_" + "a" * 24
+    assert main_job["clips"][0]["renderEngine"] == COMPILER_ID
+    old_job = json.loads((root / "jobs" / "old" / "job.json").read_text())
+    assert "clipId" not in old_job["clips"][0] and "renderEngine" not in old_job["clips"][0]
+    index = json.loads((root / "fixture.json").read_text())
+    assert index["jobs"]["main"]["rendered"] == "edit-v2"
+    assert "rendered" not in index["jobs"]["v1"]
+
+
 # --- engine fallback and face-track ---------------------------------------------------------------
 
 

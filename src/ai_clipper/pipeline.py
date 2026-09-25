@@ -19,7 +19,18 @@ shadow keep their historical behaviour. Selection V3 (``selection_mode="v3"``) r
    deadline); after that ``auto`` uses the heuristic and ``required`` fails. Clips are kept
    inside the probed video, then ``analysis/selection.v3.json`` is written.
 4. **Packaging and rendering** (stages ``packaging``, ``rendering``): cold open, hook overlay,
-   and caption style per clip; the manifest gets every packaging field.
+   and caption style per clip; the manifest gets every packaging field. The render engine is
+   ``render_engine`` (default: ``POTONGIN_RENDER_ENGINE``; anything but ``edit-v2`` is
+   ``legacy``). ``legacy`` calls ``render_vertical`` exactly as before and the manifest keeps its
+   shape. ``edit-v2`` (Editor V3, plan §5.8) seeds every clip and renders revision 0 through the
+   edit-v2 compiler (``edit_v2.render_edit.AutoRenderer``: ``analysis/source.json``, the clip's
+   peaks, words, camera plan for face-track and ``seed.json`` under
+   ``analysis/clips/<clip_id>/``); each clip entry then also carries ``clip_id``,
+   ``render_engine`` (``edit-v2/1``), ``render_key`` (null without ``resources/toolchain.json``)
+   and ``plan_sha256``. A clip the new engine cannot render (or every clip, when the job context
+   cannot be read) is rendered by ``render_vertical`` instead, with ``render_engine: "legacy"``
+   and the summary warning ``engine_fallback:<index>``: the job never fails because of the
+   editor path.
 
 **Konteks Tren.** With ``trend_context`` (the worker's ``analysis/trend-context.json``
 snapshot, CLI ``--trend-context``), the active trend items are read with
@@ -76,6 +87,7 @@ import stat
 import subprocess
 import sys
 import threading
+import time
 import uuid
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field, replace
@@ -122,12 +134,13 @@ from .selection_v3 import (
     LLM_MODES,
     SELECTION_ARTIFACT_RELATIVE_PATH,
     llm_request_budget,
+    read_selection_artifact,
     select_clips_v3,
     write_selection_artifact,
 )
 from .sound_events import SoundEvent, write_sound_events
 from .transcribe import transcribe_video
-from .transcript_io import write_transcript_json
+from .transcript_io import read_transcript_json, write_transcript_json
 from .transcript_quality import (
     TranscriptQuality,
     assess_transcript,
@@ -1139,6 +1152,49 @@ def _run_v3(
     plans = [(clip, clip.cold_open if cold_open else None) for clip in result.clips]
 
     state.stage = "rendering"
+    clips = _render_v3_clips(
+        source,
+        output_dir,
+        artifact_root,
+        plans=plans,
+        transcription=transcription,
+        width=width,
+        height=height,
+        render_mode=render_mode,
+        cold_open=cold_open,
+        hook_overlay=hook_overlay,
+        hook_duration=hook_duration,
+        caption_style=caption_style,
+        render_engine=render_engine,
+        report=report,
+        warnings=state.warnings,
+    )
+    state.stage = "finalizing"
+    return transcription, transcript_path, clips
+
+
+def _render_v3_clips(
+    source: Path,
+    output_dir: Path,
+    artifact_root: Path,
+    *,
+    plans: list[tuple[SelectedClip, tuple[float, float] | None]],
+    transcription: Transcription,
+    width: int,
+    height: int,
+    render_mode: str,
+    cold_open: bool,
+    hook_overlay: bool,
+    hook_duration: float,
+    caption_style: str,
+    render_engine: str,
+    report: Callable[[str, int, str], None],
+    warnings: list[str],
+    ranks: Iterable[int] | None = None,
+    timings: dict[int, float] | None = None,
+) -> list[dict[str, object]]:
+    """The V3 rendering stage: every clip (or the given ``ranks``) with ``render_engine``,
+    the manifest entry of each, its poster and, per clip, the wall time in ``timings``."""
     renderer = None
     if render_engine == render_edit.ENGINE_EDIT_V2:
         renderer = _edit_v2_renderer(
@@ -1155,8 +1211,12 @@ def _run_v3(
                 height=height,
             ),
         )
+    wanted = None if ranks is None else set(ranks)
     clips: list[dict[str, object]] = []
     for index, (clip, teaser) in enumerate(plans, start=1):
+        if wanted is not None and clip.rank not in wanted:
+            continue
+        started = time.monotonic()
         report(
             "rendering",
             65 + round(((index - 1) / len(plans)) * 29),
@@ -1167,7 +1227,7 @@ def _run_v3(
         if render_engine == render_edit.ENGINE_EDIT_V2:
             auto = _render_edit_v2(renderer, clip.rank, clip_path, index)
             if auto is None:
-                state.warnings.append(f"engine_fallback:{index}")
+                warnings.append(f"engine_fallback:{index}")
                 engine_fields = {
                     "clip_id": None if renderer is None else renderer.fallback(clip.rank),
                     "render_engine": render_edit.LEGACY_ENGINE_ID,
@@ -1198,15 +1258,14 @@ def _run_v3(
                 hook_duration=hook_duration,
                 caption_style=caption_style,
             )
-        thumbnail = _clip_thumbnail(
-            clip_path, _rendered_seconds(clip, teaser), index, state.warnings
-        )
+        thumbnail = _clip_thumbnail(clip_path, _rendered_seconds(clip, teaser), index, warnings)
         entry = _v3_manifest_clip(index, clip, teaser, clip_path, thumbnail)
         if engine_fields is not None:
             entry.update(engine_fields)
         clips.append(entry)
-    state.stage = "finalizing"
-    return transcription, transcript_path, clips
+        if timings is not None:
+            timings[clip.rank] = time.monotonic() - started
+    return clips
 
 
 def _engine_note(what: str, error: BaseException) -> None:
@@ -1240,6 +1299,72 @@ def _render_edit_v2(renderer: Any | None, rank: int, clip_path: Path, index: int
     except Exception as error:  # noqa: BLE001 - per-clip fallback (plan §11.2 T2.1)
         _engine_note(f"engine_fallback:{index}", error)
         return None
+
+
+@dataclass(frozen=True)
+class V3RenderRun:
+    """One run of the V3 rendering stage over an existing job (``render_v3_job``)."""
+
+    clips: list[dict[str, object]]  # manifest clip entries, in rank order
+    warnings: list[str]  # engine_fallback:<index>, thumbnail_failed:<index>
+    timings: dict[int, float]  # wall seconds per rank (seed + render + poster)
+    seconds: float  # the whole stage, including the per-job source info of edit-v2
+
+
+def render_v3_job(
+    job_dir: Path,
+    *,
+    render_engine: str,
+    ranks: Iterable[int] | None = None,
+    width: int = 720,
+    height: int = 1280,
+    hook_duration: float = DEFAULT_HOOK_DURATION,
+) -> V3RenderRun:
+    """The V3 rendering stage again, over an existing job's own ``output/transcript.json``,
+    ``analysis/selection.v3.json`` and ``job.json`` options, into ``job_dir/output``.
+
+    For tools and fixtures only (the P-LOOK kit and PF-PIPELINE, the synthetic job's
+    ``--render``): it renders exactly what the pipeline renders after selection (the dashboard's
+    720×1280 by default), so a comparison of the two engines needs no Whisper or LLM run. The
+    clip files must not exist yet; the manifest is left to the caller.
+    """
+    job_dir = Path(job_dir).resolve()
+    job = json.loads((job_dir / "job.json").read_text(encoding="utf-8"))
+    options = job.get("options") if isinstance(job, dict) else None
+    options = options if isinstance(options, dict) else {}
+    render_mode = options.get("renderMode", "fit-blur")
+    validate_render_mode(render_mode)
+    caption_style = _choice(options.get("captionStyle", "karaoke"), "caption_style",
+                            CAPTION_STYLES)
+    cold_open = _boolean(options.get("coldOpen", True), "cold_open")
+    hook_overlay = _boolean(options.get("hookOverlay", True), "hook_overlay")
+    render_engine = _choice(render_engine, "render_engine", render_edit.ENGINES)
+    transcription = read_transcript_json(job_dir / "output" / "transcript.json")
+    result = read_selection_artifact(job_dir / SELECTION_ARTIFACT_RELATIVE_PATH)
+    source = render_edit.job_source(job_dir).resolve()
+    warnings: list[str] = []
+    timings: dict[int, float] = {}
+    started = time.monotonic()
+    clips = _render_v3_clips(
+        source,
+        job_dir / "output",
+        job_dir,
+        plans=[(clip, clip.cold_open if cold_open else None) for clip in result.clips],
+        transcription=transcription,
+        width=width,
+        height=height,
+        render_mode=render_mode,
+        cold_open=cold_open,
+        hook_overlay=hook_overlay,
+        hook_duration=_hook_duration(hook_duration),
+        caption_style=caption_style,
+        render_engine=render_engine,
+        report=lambda _stage, _percent, _detail: None,
+        warnings=warnings,
+        ranks=ranks,
+        timings=timings,
+    )
+    return V3RenderRun(clips, warnings, timings, time.monotonic() - started)
 
 
 def run_pipeline(
