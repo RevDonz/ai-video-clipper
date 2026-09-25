@@ -688,7 +688,7 @@ export default function SettingsPage() {
       <nav className="nav shell">
         <a className="brand" href="/"><span>P</span> Potongin AI</a>
         <div className="navActions">
-          <div className="navLinks"><a href="/dashboard">Buat Klip</a><a href="/projects">Riwayat</a><a className="active" href="/settings" aria-current="page">Pengaturan</a></div>
+          <div className="navLinks"><a href="/dashboard">Buat Klip</a><a href="/projects">Riwayat</a><a href="/trends">Konteks Tren</a><a className="active" href="/settings" aria-current="page">Pengaturan</a></div>
           <form method="post" action="/api/auth/logout"><button type="submit">Keluar</button></form>
         </div>
       </nav>
