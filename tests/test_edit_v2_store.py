@@ -356,6 +356,35 @@ def test_assets_come_from_the_job_asset_store(tmp_path, contexts):
     assert doc["tracks"][1]["items"][0]["type"] == "image"
 
 
+def test_the_cyclic_collector_is_paused_during_a_save_and_restored(clip, contexts, seed_etag,
+                                                                    monkeypatch):
+    """A save allocates tens of thousands of acyclic JSON containers: the collector is paused
+    while it runs (a full collection over a large heap costs tens of ms) and restored after,
+    also when the save fails."""
+    import gc
+
+    seen = []
+    real = store.validate_doc
+
+    def spy(*args, **kwargs):
+        seen.append(gc.isenabled())
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(store, "validate_doc", spy)
+    assert gc.isenabled()
+    doc, etag, _ = put(clip, next_doc(contexts["c30"].seed, seed_etag), seed_etag)
+    assert seen == [False] and gc.isenabled()
+    with pytest.raises(DocSemanticInvalid):
+        put(clip, next_doc(doc, etag, main__cut_fade_ms=99), etag)
+    assert gc.isenabled()
+    gc.disable()
+    try:  # a caller that disabled it keeps it disabled
+        put(clip, next_doc(doc, etag), etag)
+        assert not gc.isenabled()
+    finally:
+        gc.enable()
+
+
 def test_concurrent_puts_on_one_etag_have_exactly_one_winner(clip, contexts, seed_etag):
     seed = contexts["c30"].seed
     results: list[object] = []
@@ -659,8 +688,13 @@ def _filesystem(path: Path) -> str:
 
 
 def _environment(path: Path) -> dict:
+    """Where a timing ran; the load average tells a quiet machine from a shared, busy one."""
+    try:
+        load = [round(value, 2) for value in os.getloadavg()]
+    except OSError:
+        load = None
     return {"python": platform.python_version(), "machine": platform.machine(),
-            "cpus": os.cpu_count(), "filesystem": _filesystem(path)}
+            "cpus": os.cpu_count(), "filesystem": _filesystem(path), "loadavg_1_5_15": load}
 
 
 def _percentile(values: list[float], fraction: float) -> float:
@@ -750,8 +784,9 @@ def test_gate_put_p95_at_most_30_ms_for_a_100_kb_document(tmp_path, contexts):
     doc, etag, _ = put(clip, doc, etag)
     for index in range(store.RECEIPTS_KEEP + 10):  # warm up past the pruning threshold
         doc, etag, _ = put(clip, next_doc(doc, etag, main__cut_fade_ms=index % 51), etag)
+    environment = _environment(clip)
     timings = []
-    for index in range(400):
+    for index in range(1000):
         payload = next_doc(doc, etag, main__cut_fade_ms=index % 51)
         raw = canonical_bytes(payload)
         begin = time.perf_counter()
@@ -767,8 +802,10 @@ def test_gate_put_p95_at_most_30_ms_for_a_100_kb_document(tmp_path, contexts):
         "receipt_files": len(os.listdir(clip / store.RECEIPTS_DIR)),
         "put_ms_p50": round(_percentile(timings, 0.50), 3),
         "put_ms_p95": round(p95, 3),
+        "put_ms_p99": round(_percentile(timings, 0.99), 3),
         "put_ms_max": round(max(timings), 3),
-        "environment": _environment(clip),
+        "environment": environment,
+        "environment_after": _environment(clip),
         "python_executable_is_311": sys.version_info[:2] == (3, 11),
         "pass": p95 <= 30,
     })
