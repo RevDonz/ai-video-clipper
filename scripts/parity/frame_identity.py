@@ -5,6 +5,11 @@ G-DET; §10.3 PF-RENDER). A port of the PF spike ``frame_identity.py`` against
 The spike compared one seeked range with the whole-file ``fps=F`` grid. Here every output frame
 of a compiled render (plate cells and final) is decoded, its barcode frame index read back
 (``support.edit_v2_media``) and compared with the grid frame the time map says it must show.
+Two cases put the body on the source edges with the production rule (``source_info`` grid,
+``seed.grid_window_ms``): a 29.97 source whose last frame ends between two ms, and a 23.976
+video that starts 41 ms late (no grid frame 0). Plate-cell frames below the document's window
+(the cloned head of a late-starting source's cell 0) are counted, never compared: no document
+can show them.
 
 **Modules.** The gates run the real chain: ``captions.caption_track`` (T1.2a), the envelopes
 and ``audio_graph.audio_fragment`` (T1.4) and the pinned resources (fonts, packs, fontconfig
@@ -444,6 +449,10 @@ class Case:
     captions: bool = True
     logo: bool = False
     audio: bool = True
+    video_delay_ms: int = 0  # the video starts this late (support.edit_v2_media)
+    # "inner": the body runs from frame 30 to 120 frames before the end; "source": the body is
+    # every frame the seed allows, from the source's first to its last grid frame (W1 verifier).
+    edges: str = "inner"
 
 
 P_FRAME_CASES = (
@@ -451,6 +460,12 @@ P_FRAME_CASES = (
     Case("cfr_25", (25, 1), 760, "fill_center"),
     Case("cfr_30", (30, 1), 900, "camera"),
     Case("vfr_30", (30, 1), 900, "fit_blur", vfr=True, drop_every=11),
+    # the source edges: 902 frames at 29.97 end at 30,096.73 ms (duration_ms 30,097 rounds up),
+    # and a 23.976 video that starts 41 ms after the audio has no grid frame 0
+    Case("edge_end_29.97", (30000, 1001), 902, "fill_center", cuts=5, cold_open=False,
+         edges="source"),
+    Case("edge_start_23.976", (24000, 1001), 480, "fit_blur", cuts=5, video_delay_ms=41,
+         edges="source"),
 )
 EXTRA_RENDER_CASES = (
     Case("fhd_23.976_logo", (24000, 1001), 700, "fit_blur", output=(1080, 1920), cuts=5,
@@ -475,16 +490,16 @@ def _media():
     return edit_v2_media
 
 
-def case_edges(case: Case) -> dict[str, Any]:
+def case_edges(case: Case, body: tuple[int, int] | None = None) -> dict[str, Any]:
     """Body, cold open and removals in source-grid frames of the document fps.
 
-    The body runs from frame 30 to 120 frames before the end; ``cuts`` removals are spread
-    evenly over it with lengths cycling through ``REMOVAL_LENGTHS``; the cold open is two
-    seconds taken 300 frames into the body (a new decoder run, since it comes first).
+    The body runs from frame 30 to 120 frames before the end (or ``body``); ``cuts`` removals
+    are spread evenly over it with lengths cycling through ``REMOVAL_LENGTHS``; the cold open is
+    two seconds taken 300 frames into the body (a new decoder run, since it comes first).
     """
     num, den = case.fps
     rate = -(-num // den)
-    body = (30, case.frames - 120)
+    body = (30, case.frames - 120) if body is None else body
     removals = []
     if case.cuts:
         spacing = (body[1] - body[0]) // (case.cuts + 1)
@@ -505,6 +520,7 @@ class Workspace:
         self.clips: dict[str, dict[str, Any]] = {}
         self.sources: dict[Any, Path] = {}
         self.grids: dict[tuple[Path, tuple[int, int]], list[int | None]] = {}
+        self.grid_starts: dict[tuple[Path, tuple[int, int]], int] = {}
         self.renders: dict[tuple[str, str], dict[str, Any]] = {}
         (root / "assets").mkdir(parents=True, exist_ok=True)
 
@@ -535,16 +551,29 @@ class Workspace:
             width=case.source_size[0], height=case.source_size[1], fps=source_fps,
             frames=case.frames, vfr=case.vfr, drop_every=case.drop_every,
             container="mkv" if case.vfr else "mp4",
-            audio=media.AudioSpec() if case.audio else None)
+            audio=media.AudioSpec() if case.audio else None, video_delay_ms=case.video_delay_ms)
         if spec not in self.sources:  # cases with the same source share one file
             suffix = "mkv" if case.vfr else "mp4"
             path = self.root / f"source-{len(self.sources):02d}.{suffix}"
             self.sources[spec] = media.make_barcode_video(path, spec)
         source = self.sources[spec]
         duration_ms = case.frames * 1000 * source_fps[1] // source_fps[0]
+        window_ms = [0, duration_ms]
+        body = None
+        if case.edges == "source":
+            # the production rule: source.json's grid and the seed's window clamp
+            from ai_clipper.edit_v2 import source_info
+            from ai_clipper.edit_v2.seed import grid_window_ms
+
+            probe = source_info.probe_source(source)
+            duration_ms = probe["duration_ms"]
+            grid = source_info.grid_range(probe, Fps(*case.fps))
+            window_ms = list(grid_window_ms((0, duration_ms), grid, Fps(*case.fps)))
+            body = (max(grid[0], tm.sf_floor(window_ms[0], Fps(*case.fps))),
+                    min(grid[1], tm.sf_ceil(window_ms[1], Fps(*case.fps))))
         info = SourceInfo(case.source_size[0], case.source_size[1], source_fps, case.vfr,
                           duration_ms, case.audio)
-        edges = case_edges(case)
+        edges = case_edges(case, body)
         assets: dict[str, dict[str, Any]] = {}
         logo = None
         if case.logo:
@@ -556,6 +585,7 @@ class Workspace:
                        captions_enabled=case.captions,
                        hook=("Hook sintetis", 45) if case.hook else None, logo=logo,
                        assets=assets)
+        doc["base"]["window_ms"] = window_ms
         camera = (make_camera(duration_ms, case.fps, case.source_size, case.output)
                   if case.layout == "camera" else None)
         self.clips[case.name] = {"case": case, "source": source, "doc": doc,
@@ -571,10 +601,18 @@ class Workspace:
                           assets=clip["assets"], resources=self.resources)
 
     def grid(self, case: Case) -> list[int | None]:
+        """The whole-file ``fps`` grid; entry ``i`` is grid frame ``grid_start(case) + i``."""
         key = (self.clip(case)["source"], case.fps)
         if key not in self.grids:
             self.grids[key] = _media().grid_indices(key[0], case.fps)
         return self.grids[key]
+
+    def grid_start(self, case: Case) -> int:
+        """The first grid frame of the source (> 0 when the video starts after t = 0)."""
+        key = (self.clip(case)["source"], case.fps)
+        if key not in self.grid_starts:
+            self.grid_starts[key] = _media().grid_range(key[0], case.fps)[0]
+        return self.grid_starts[key]
 
     def compile(self, case: Case, mode: str, **kwargs: Any):
         from ai_clipper.edit_v2.compile_ffmpeg import compile_job
@@ -690,22 +728,32 @@ def p_frame(ws: Workspace, cases: Sequence[Case] = P_FRAME_CASES) -> dict[str, A
     for case in cases:
         plan = ws.plan(case)
         grid = ws.grid(case)
+        first = ws.grid_start(case)
+        end = first + len(grid)
+        low = tm.sf_floor(plan.doc["base"]["window_ms"][0], plan.fps)
+
+        def at(sf: int, grid=grid, first=first, end=end) -> int | None:
+            return grid[sf - first] if first <= sf < end else None
+
         index_of = index_decoder(case)
-        expected = [grid[tm.out_to_src(n, plan.pieces)[1]] for n in range(plan.total_frames)]
+        expected = [at(tm.out_to_src(n, plan.pieces)[1]) for n in range(plan.total_frames)]
         final = [index_of(p) for p in iter_gray_frames(ws.render(case, "final")["path"],
                                                         case.output)]
         cells = ws.cells(case)
         size = cells["cell_frames"]
         decoded: dict[int, list[int | None]] = {}
-        cell_frames = cell_mismatches = short_cells = 0
+        cell_frames = cell_mismatches = short_cells = padded = 0
         for k in cells["cells"]:
             path = cells["dir"] / f"c{k:07d}.mp4"
             decoded[k] = [index_of(p) for p in iter_gray_frames(path, case.output)]
-            within = max(0, min(size, len(grid) - k * size))
+            within = max(0, min(size, end - k * size))
             short_cells += len(decoded[k]) != within
             for i, value in enumerate(decoded[k][:within]):
+                if k * size + i < low:  # below the document's window: never shown
+                    padded += 1
+                    continue
                 cell_frames += 1
-                cell_mismatches += value is None or value != grid[k * size + i]
+                cell_mismatches += value is None or value != at(k * size + i)
         plate_mismatches = 0
         for n in range(plan.total_frames):
             sf = tm.out_to_src(n, plan.pieces)[1]
@@ -734,6 +782,12 @@ def p_frame(ws: Workspace, cases: Sequence[Case] = P_FRAME_CASES) -> dict[str, A
             "plate_cell_frames_checked": cell_frames,
             "plate_cell_mismatches": cell_mismatches,
             "plate_cells_with_wrong_length": short_cells,
+            "grid_first": first,
+            "grid_end": end,
+            "edges": case.edges,
+            "body": [plan.doc["main"]["segments"][-1]["in_sf"],
+                     plan.doc["main"]["segments"][-1]["out_sf"]],
+            "plate_frames_below_window": padded,
         })
     totals = {
         "final_frames": sum(r["final_frames"] for r in results),
