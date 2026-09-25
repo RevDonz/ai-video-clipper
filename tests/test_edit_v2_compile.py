@@ -149,6 +149,35 @@ def test_string_goldens_for_the_composite_candidates(harness, probe_stub, monkey
     check_golden(f"final__logo__c30__{composite}", render_golden(job))
 
 
+def graph_labels(job: FfmpegJob) -> tuple[dict[str, int], dict[str, int]]:
+    """How often each link label is produced and consumed (``-map`` counts as consuming)."""
+    produced: dict[str, int] = {}
+    consumed: dict[str, int] = {}
+    for statement in re.split(r";\s*", job.filter_script.strip()):
+        head = re.match(r"^((?:\[[^\]]+\])*)", statement).group(1)
+        tail = re.search(r"((?:\[[^\]]+\])*)$", statement).group(1)
+        for label in re.findall(r"\[([^\]]+)\]", head):
+            if not re.fullmatch(r"\d+:[av0-9]+", label):  # stream specifiers are inputs
+                consumed[label] = consumed.get(label, 0) + 1
+        for label in re.findall(r"\[([^\]]+)\]", tail):
+            produced[label] = produced.get(label, 0) + 1
+    argv = list(job.argv)
+    for position, token in enumerate(argv[:-1]):
+        if token == "-map" and argv[position + 1].startswith("["):
+            label = argv[position + 1][1:-1]
+            consumed[label] = consumed.get(label, 0) + 1
+    return produced, consumed
+
+
+@pytest.mark.parametrize("golden", sorted(GOLDEN_CASES))
+def test_every_label_is_produced_once_and_consumed_once(harness, probe_stub, golden):
+    name, kwargs = GOLDEN_CASES[golden]
+    _plan, job = compiled(name, probe_stub, **kwargs)
+    produced, consumed = graph_labels(job)
+    assert produced and set(produced.values()) == {1}, golden
+    assert produced == consumed, golden
+
+
 def test_every_golden_file_has_a_case():
     names = {path.stem for path in GOLDENS.glob("*.txt")}
     expected = set(GOLDEN_CASES) | {f"final__logo__c30__{c}" for c in COMPOSITE_CASES}
@@ -899,9 +928,10 @@ def keyframes(path: Path) -> list[int]:
     return [i for i, row in enumerate(out) if row.startswith("1")]
 
 
+@pytest.mark.parametrize("layout", ["fill_center", "fit_blur"])
 def test_plate_cells_have_exact_frames_and_an_idr_at_every_start(harness, tmp_path,
-                                                                  edit_v2_ffmpeg):
-    clip = synthetic_clip(tmp_path, frames=420, layout="fill_center", scene_cut_every=7,
+                                                                  edit_v2_ffmpeg, layout):
+    clip = synthetic_clip(tmp_path, frames=420, layout=layout, scene_cut_every=7,
                           cold_open=None, body=(30, 400), removals=())
     plan = build_plan(clip.doc, words=clip.words, camera=None, assets={},
                       resources=Resources(tmp_path / "resources"))
@@ -912,7 +942,8 @@ def test_plate_cells_have_exact_frames_and_an_idr_at_every_start(harness, tmp_pa
     for k in (1, 2, 3, 5):
         path = tmp_path / "cells" / f"c{k:07d}.mp4"
         assert keyframes(path) == [0]
-        indices = decoded_indices(path, **CROP_GEOMETRY)
+        geometry = CROP_GEOMETRY if layout == "fill_center" else FIT_BLUR_GEOMETRY
+        indices = decoded_indices(path, **geometry)  # cells 1-3 and 5 are two plate runs
         assert indices == clip.grid[k * 60:(k + 1) * 60]
         nal = subprocess.run(["ffmpeg", "-v", "error", "-i", str(path), "-map", "0:v",
                               "-c", "copy", "-bsf:v", "h264_mp4toannexb", "-frames:v", "1",
