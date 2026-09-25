@@ -23,10 +23,20 @@ test("the job upload route bypasses the proxy so its body is streamed, not buffe
   assert.equal(proxyRuns("/api/jobs/"), false);
 });
 
+test("the agent ingest route bypasses the proxy: it authenticates with its own bearer token", () => {
+  // The proxy only knows the session cookie; the ingest route refuses cookies and checks a
+  // ptk_ token itself, and reads its (256 KiB) body unbuffered.
+  assert.equal(proxyRuns("/api/ingest/trends"), false);
+  assert.equal(proxyRuns("/api/ingest/trends/"), false);
+});
+
 test("every other protected path still runs the proxy", () => {
   for (const pathname of [
     "/dashboard", "/settings", "/projects/abc", "/api/jobs/abc", "/api/jobs/abc/files/output/clip-01.mp4",
     "/api/jobsx", "/api/settings/llm", "/api/llm/status", "/api/storage/status",
+    "/trends", "/api/ingest", "/api/ingest/", "/api/ingest/trendsx", "/api/ingest/trends/abc", "/api/ingest/other",
+    "/api/context/trends", "/api/context/trends/abc", "/api/context/trends/settings", "/api/context/tokens",
+    "/api/context/tokens/abc", "/api/ingest/trends.json",
   ]) assert.equal(proxyRuns(pathname), true, pathname);
   for (const pathname of ["/api/health", "/api/auth/login", "/login"]) assert.equal(proxyRuns(pathname), false, pathname);
 });
