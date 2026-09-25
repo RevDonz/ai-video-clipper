@@ -1,0 +1,1800 @@
+{
+  "clips": [
+    {
+      "audio": {
+        "legacy_bps": 143271,
+        "legacy_hz": 48000,
+        "new_bps": 216421,
+        "new_hz": 48000
+      },
+      "band_luma_ssim": {
+        "legacy_one_row_higher": 0.98413,
+        "same_rows": 0.90338
+      },
+      "bbox": {
+        "captions": {
+          "compared": 15,
+          "max_delta_px": 0,
+          "presence_mismatch": 0,
+          "within_tolerance": 15
+        },
+        "hook": {
+          "compared": 2,
+          "max_delta_px": 0,
+          "presence_mismatch": 0,
+          "within_tolerance": 2
+        },
+        "probes": 15
+      },
+      "clip": "fit-blur-e7f0d37b-klip01",
+      "color_tags": {
+        "legacy": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ],
+        "new": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ]
+      },
+      "cues": {
+        "legacy": 83,
+        "new": 83,
+        "same_words": 83
+      },
+      "fps": {
+        "legacy": "24000/1001",
+        "new": "24000/1001",
+        "source": "24000/1001"
+      },
+      "frames": {
+        "legacy": 2139,
+        "new": 2140
+      },
+      "loudness": {
+        "delta_lu": 0.0,
+        "legacy": {
+          "i_lufs": -22.7,
+          "tp_dbtp": 0.3
+        },
+        "new": {
+          "i_lufs": -22.7,
+          "tp_dbtp": -0.5
+        }
+      },
+      "render_mode": "fit-blur",
+      "size_bytes": {
+        "legacy": 7437607,
+        "new": 19159086
+      },
+      "ssim": {
+        "best_offset": -1,
+        "best_offset_mean": 0.97426,
+        "best_offset_min": 0.66523,
+        "frames": 2138,
+        "frames_below_threshold": 1951,
+        "per_frame_best_mean": 0.97483,
+        "per_frame_best_min": 0.94868,
+        "per_frame_best_p1": 0.95242,
+        "per_frame_best_p5": 0.95297
+      },
+      "video_bps": {
+        "legacy": 517999,
+        "new": 1495099
+      }
+    },
+    {
+      "audio": {
+        "legacy_bps": 142469,
+        "legacy_hz": 48000,
+        "new_bps": 214761,
+        "new_hz": 48000
+      },
+      "band_luma_ssim": {
+        "legacy_one_row_higher": 0.96846,
+        "same_rows": 0.91079
+      },
+      "bbox": {
+        "captions": {
+          "compared": 15,
+          "max_delta_px": 0,
+          "presence_mismatch": 0,
+          "within_tolerance": 15
+        },
+        "hook": {
+          "compared": 2,
+          "max_delta_px": 0,
+          "presence_mismatch": 0,
+          "within_tolerance": 2
+        },
+        "probes": 15
+      },
+      "clip": "fit-blur-e7f0d37b-klip02",
+      "color_tags": {
+        "legacy": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ],
+        "new": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ]
+      },
+      "cues": {
+        "legacy": 42,
+        "new": 42,
+        "same_words": 42
+      },
+      "fps": {
+        "legacy": "24000/1001",
+        "new": "24000/1001",
+        "source": "24000/1001"
+      },
+      "frames": {
+        "legacy": 1169,
+        "new": 1170
+      },
+      "loudness": {
+        "delta_lu": 0.0,
+        "legacy": {
+          "i_lufs": -24.4,
+          "tp_dbtp": -2.9
+        },
+        "new": {
+          "i_lufs": -24.4,
+          "tp_dbtp": -2.8
+        }
+      },
+      "render_mode": "fit-blur",
+      "size_bytes": {
+        "legacy": 4271365,
+        "new": 11037195
+      },
+      "ssim": {
+        "best_offset": -1,
+        "best_offset_mean": 0.97514,
+        "best_offset_min": 0.6632,
+        "frames": 1168,
+        "frames_below_threshold": 949,
+        "per_frame_best_mean": 0.97548,
+        "per_frame_best_min": 0.6632,
+        "per_frame_best_p1": 0.96063,
+        "per_frame_best_p5": 0.96792
+      },
+      "video_bps": {
+        "legacy": 552591,
+        "new": 1588804
+      }
+    },
+    {
+      "audio": {
+        "legacy_bps": 137746,
+        "legacy_hz": 48000,
+        "new_bps": 209201,
+        "new_hz": 48000
+      },
+      "band_luma_ssim": {
+        "legacy_one_row_higher": 0.97415,
+        "same_rows": 0.91069
+      },
+      "bbox": {
+        "captions": {
+          "compared": 15,
+          "max_delta_px": 0,
+          "presence_mismatch": 0,
+          "within_tolerance": 15
+        },
+        "hook": {
+          "compared": 2,
+          "max_delta_px": 0,
+          "presence_mismatch": 0,
+          "within_tolerance": 2
+        },
+        "probes": 16
+      },
+      "clip": "fit-blur-e7f0d37b-klip03",
+      "color_tags": {
+        "legacy": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ],
+        "new": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ]
+      },
+      "cues": {
+        "legacy": 58,
+        "new": 58,
+        "same_words": 58
+      },
+      "fps": {
+        "legacy": "24000/1001",
+        "new": "24000/1001",
+        "source": "24000/1001"
+      },
+      "frames": {
+        "legacy": 1904,
+        "new": 1906
+      },
+      "loudness": {
+        "delta_lu": 0.0,
+        "legacy": {
+          "i_lufs": -27.5,
+          "tp_dbtp": -6.6
+        },
+        "new": {
+          "i_lufs": -27.5,
+          "tp_dbtp": -6.6
+        }
+      },
+      "render_mode": "fit-blur",
+      "size_bytes": {
+        "legacy": 5370649,
+        "new": 15318631
+      },
+      "ssim": {
+        "best_offset": -1,
+        "best_offset_mean": 0.97451,
+        "best_offset_min": 0.66153,
+        "frames": 1903,
+        "frames_below_threshold": 1702,
+        "per_frame_best_mean": 0.97467,
+        "per_frame_best_min": 0.66158,
+        "per_frame_best_p1": 0.94823,
+        "per_frame_best_p5": 0.96936
+      },
+      "video_bps": {
+        "legacy": 397577,
+        "new": 1326642
+      }
+    },
+    {
+      "audio": {
+        "legacy_bps": 127893,
+        "legacy_hz": 48000,
+        "new_bps": 191729,
+        "new_hz": 48000
+      },
+      "band_luma_ssim": {
+        "legacy_one_row_higher": 0.98844,
+        "same_rows": 0.93977
+      },
+      "bbox": {
+        "captions": {
+          "compared": 17,
+          "max_delta_px": 0,
+          "presence_mismatch": 0,
+          "within_tolerance": 17
+        },
+        "hook": {
+          "compared": 3,
+          "max_delta_px": 0,
+          "presence_mismatch": 0,
+          "within_tolerance": 3
+        },
+        "probes": 17
+      },
+      "clip": "fit-blur-899226f8-klip01",
+      "color_tags": {
+        "legacy": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ],
+        "new": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ]
+      },
+      "cues": {
+        "legacy": 32,
+        "new": 32,
+        "same_words": 32
+      },
+      "fps": {
+        "legacy": "25/1",
+        "new": "25/1",
+        "source": "25/1"
+      },
+      "frames": {
+        "legacy": 816,
+        "new": 816
+      },
+      "loudness": {
+        "delta_lu": 0.1,
+        "legacy": {
+          "i_lufs": -14.2,
+          "tp_dbtp": -0.6
+        },
+        "new": {
+          "i_lufs": -14.1,
+          "tp_dbtp": -0.5
+        }
+      },
+      "render_mode": "fit-blur",
+      "size_bytes": {
+        "legacy": 3194392,
+        "new": 7458270
+      },
+      "ssim": {
+        "best_offset": 0,
+        "best_offset_mean": 0.98316,
+        "best_offset_min": 0.80202,
+        "frames": 815,
+        "frames_below_threshold": 2,
+        "per_frame_best_mean": 0.98407,
+        "per_frame_best_min": 0.97888,
+        "per_frame_best_p1": 0.98156,
+        "per_frame_best_p5": 0.98219
+      },
+      "video_bps": {
+        "legacy": 648582,
+        "new": 1629710
+      }
+    },
+    {
+      "audio": {
+        "legacy_bps": 127157,
+        "legacy_hz": 48000,
+        "new_bps": 191296,
+        "new_hz": 48000
+      },
+      "band_luma_ssim": {
+        "legacy_one_row_higher": 0.98873,
+        "same_rows": 0.93987
+      },
+      "bbox": {
+        "captions": {
+          "compared": 15,
+          "max_delta_px": 0,
+          "presence_mismatch": 0,
+          "within_tolerance": 15
+        },
+        "hook": {
+          "compared": 2,
+          "max_delta_px": 0,
+          "presence_mismatch": 0,
+          "within_tolerance": 2
+        },
+        "probes": 15
+      },
+      "clip": "fit-blur-899226f8-klip02",
+      "color_tags": {
+        "legacy": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ],
+        "new": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ]
+      },
+      "cues": {
+        "legacy": 55,
+        "new": 55,
+        "same_words": 55
+      },
+      "fps": {
+        "legacy": "25/1",
+        "new": "25/1",
+        "source": "25/1"
+      },
+      "frames": {
+        "legacy": 1519,
+        "new": 1520
+      },
+      "loudness": {
+        "delta_lu": 0.0,
+        "legacy": {
+          "i_lufs": -16.8,
+          "tp_dbtp": -1.3
+        },
+        "new": {
+          "i_lufs": -16.8,
+          "tp_dbtp": -1.2
+        }
+      },
+      "render_mode": "fit-blur",
+      "size_bytes": {
+        "legacy": 5372979,
+        "new": 12363252
+      },
+      "ssim": {
+        "best_offset": -1,
+        "best_offset_mean": 0.98284,
+        "best_offset_min": 0.76326,
+        "frames": 1518,
+        "frames_below_threshold": 35,
+        "per_frame_best_mean": 0.98368,
+        "per_frame_best_min": 0.9467,
+        "per_frame_best_p1": 0.97389,
+        "per_frame_best_p5": 0.98169
+      },
+      "video_bps": {
+        "legacy": 573945,
+        "new": 1429109
+      }
+    },
+    {
+      "audio": {
+        "legacy_bps": 127148,
+        "legacy_hz": 48000,
+        "new_bps": 191310,
+        "new_hz": 48000
+      },
+      "band_luma_ssim": {
+        "legacy_one_row_higher": 0.98672,
+        "same_rows": 0.93495
+      },
+      "bbox": {
+        "captions": {
+          "compared": 17,
+          "max_delta_px": 40,
+          "presence_mismatch": 0,
+          "within_tolerance": 16
+        },
+        "hook": {
+          "compared": 2,
+          "max_delta_px": 0,
+          "presence_mismatch": 0,
+          "within_tolerance": 2
+        },
+        "probes": 17
+      },
+      "clip": "fit-blur-899226f8-klip04",
+      "color_tags": {
+        "legacy": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ],
+        "new": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ]
+      },
+      "cues": {
+        "legacy": 47,
+        "new": 47,
+        "same_words": 45
+      },
+      "fps": {
+        "legacy": "25/1",
+        "new": "25/1",
+        "source": "25/1"
+      },
+      "frames": {
+        "legacy": 1411,
+        "new": 1411
+      },
+      "loudness": {
+        "delta_lu": 0.0,
+        "legacy": {
+          "i_lufs": -17.0,
+          "tp_dbtp": -0.6
+        },
+        "new": {
+          "i_lufs": -17.0,
+          "tp_dbtp": -0.5
+        }
+      },
+      "render_mode": "fit-blur",
+      "size_bytes": {
+        "legacy": 6044521,
+        "new": 12972968
+      },
+      "ssim": {
+        "best_offset": 0,
+        "best_offset_mean": 0.98195,
+        "best_offset_min": 0.9344,
+        "frames": 1410,
+        "frames_below_threshold": 75,
+        "per_frame_best_mean": 0.98257,
+        "per_frame_best_min": 0.93442,
+        "per_frame_best_p1": 0.96032,
+        "per_frame_best_p5": 0.97935
+      },
+      "video_bps": {
+        "legacy": 723292,
+        "new": 1641160
+      }
+    },
+    {
+      "audio": {
+        "legacy_bps": 127559,
+        "legacy_hz": 48000,
+        "new_bps": 192558,
+        "new_hz": 48000
+      },
+      "band_luma_ssim": null,
+      "bbox": {
+        "captions": {
+          "compared": 12,
+          "max_delta_px": 0,
+          "presence_mismatch": 0,
+          "within_tolerance": 12
+        },
+        "hook": {
+          "compared": 2,
+          "max_delta_px": 0,
+          "presence_mismatch": 0,
+          "within_tolerance": 2
+        },
+        "probes": 12
+      },
+      "clip": "face-track-860fef1a-klip01",
+      "color_tags": {
+        "legacy": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ],
+        "new": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ]
+      },
+      "cues": {
+        "legacy": 33,
+        "new": 33,
+        "same_words": 33
+      },
+      "fps": {
+        "legacy": "25/1",
+        "new": "25/1",
+        "source": "25/1"
+      },
+      "frames": {
+        "legacy": 1150,
+        "new": 1151
+      },
+      "loudness": {
+        "delta_lu": 0.0,
+        "legacy": {
+          "i_lufs": -12.4,
+          "tp_dbtp": -0.1
+        },
+        "new": {
+          "i_lufs": -12.4,
+          "tp_dbtp": 0.1
+        }
+      },
+      "render_mode": "face-track",
+      "size_bytes": {
+        "legacy": 8851911,
+        "new": 18507642
+      },
+      "ssim": {
+        "best_offset": -1,
+        "best_offset_mean": 0.85075,
+        "best_offset_min": 0.55337,
+        "frames": 1149,
+        "frames_below_threshold": 1077,
+        "per_frame_best_mean": 0.85707,
+        "per_frame_best_min": 0.55476,
+        "per_frame_best_p1": 0.6042,
+        "per_frame_best_p5": 0.62655
+      },
+      "video_bps": {
+        "legacy": 1405580,
+        "new": 3016939
+      }
+    },
+    {
+      "audio": {
+        "legacy_bps": 127377,
+        "legacy_hz": 48000,
+        "new_bps": 191907,
+        "new_hz": 48000
+      },
+      "band_luma_ssim": null,
+      "bbox": {
+        "captions": {
+          "compared": 12,
+          "max_delta_px": 0,
+          "presence_mismatch": 0,
+          "within_tolerance": 12
+        },
+        "hook": {
+          "compared": 3,
+          "max_delta_px": 0,
+          "presence_mismatch": 0,
+          "within_tolerance": 3
+        },
+        "probes": 13
+      },
+      "clip": "face-track-860fef1a-klip02",
+      "color_tags": {
+        "legacy": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ],
+        "new": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ]
+      },
+      "cues": {
+        "legacy": 24,
+        "new": 24,
+        "same_words": 24
+      },
+      "fps": {
+        "legacy": "25/1",
+        "new": "25/1",
+        "source": "25/1"
+      },
+      "frames": {
+        "legacy": 795,
+        "new": 796
+      },
+      "loudness": {
+        "delta_lu": -0.1,
+        "legacy": {
+          "i_lufs": -11.3,
+          "tp_dbtp": -0.6
+        },
+        "new": {
+          "i_lufs": -11.4,
+          "tp_dbtp": -0.4
+        }
+      },
+      "render_mode": "face-track",
+      "size_bytes": {
+        "legacy": 5051059,
+        "new": 10853351
+      },
+      "ssim": {
+        "best_offset": -1,
+        "best_offset_mean": 0.91992,
+        "best_offset_min": 0.54579,
+        "frames": 794,
+        "frames_below_threshold": 717,
+        "per_frame_best_mean": 0.92366,
+        "per_frame_best_min": 0.54611,
+        "per_frame_best_p1": 0.83885,
+        "per_frame_best_p5": 0.85635
+      },
+      "video_bps": {
+        "legacy": 1136851,
+        "new": 2528510
+      }
+    },
+    {
+      "audio": {
+        "legacy_bps": 127689,
+        "legacy_hz": 48000,
+        "new_bps": 192436,
+        "new_hz": 48000
+      },
+      "band_luma_ssim": null,
+      "bbox": {
+        "captions": {
+          "compared": 17,
+          "max_delta_px": 0,
+          "presence_mismatch": 0,
+          "within_tolerance": 17
+        },
+        "hook": {
+          "compared": 2,
+          "max_delta_px": 0,
+          "presence_mismatch": 0,
+          "within_tolerance": 2
+        },
+        "probes": 17
+      },
+      "clip": "face-track-860fef1a-klip04",
+      "color_tags": {
+        "legacy": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ],
+        "new": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ]
+      },
+      "cues": {
+        "legacy": 46,
+        "new": 46,
+        "same_words": 46
+      },
+      "fps": {
+        "legacy": "25/1",
+        "new": "25/1",
+        "source": "25/1"
+      },
+      "frames": {
+        "legacy": 1447,
+        "new": 1448
+      },
+      "loudness": {
+        "delta_lu": 0.0,
+        "legacy": {
+          "i_lufs": -12.3,
+          "tp_dbtp": 0.1
+        },
+        "new": {
+          "i_lufs": -12.3,
+          "tp_dbtp": 0.0
+        }
+      },
+      "render_mode": "face-track",
+      "size_bytes": {
+        "legacy": 11662743,
+        "new": 24117483
+      },
+      "ssim": {
+        "best_offset": -1,
+        "best_offset_mean": 0.95268,
+        "best_offset_min": 0.55543,
+        "frames": 1446,
+        "frames_below_threshold": 795,
+        "per_frame_best_mean": 0.95306,
+        "per_frame_best_min": 0.55543,
+        "per_frame_best_p1": 0.83539,
+        "per_frame_best_p5": 0.85826
+      },
+      "video_bps": {
+        "legacy": 1478054,
+        "new": 3132360
+      }
+    },
+    {
+      "audio": {
+        "legacy_bps": 127976,
+        "legacy_hz": 48000,
+        "new_bps": 192329,
+        "new_hz": 48000
+      },
+      "band_luma_ssim": null,
+      "bbox": {
+        "captions": {
+          "compared": 17,
+          "max_delta_px": 0,
+          "presence_mismatch": 0,
+          "within_tolerance": 17
+        },
+        "hook": {
+          "compared": 3,
+          "max_delta_px": 0,
+          "presence_mismatch": 0,
+          "within_tolerance": 3
+        },
+        "probes": 17
+      },
+      "clip": "face-track-860fef1a-klip06",
+      "color_tags": {
+        "legacy": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ],
+        "new": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ]
+      },
+      "cues": {
+        "legacy": 31,
+        "new": 31,
+        "same_words": 31
+      },
+      "fps": {
+        "legacy": "25/1",
+        "new": "25/1",
+        "source": "25/1"
+      },
+      "frames": {
+        "legacy": 1104,
+        "new": 1104
+      },
+      "loudness": {
+        "delta_lu": 0.1,
+        "legacy": {
+          "i_lufs": -10.4,
+          "tp_dbtp": -0.1
+        },
+        "new": {
+          "i_lufs": -10.3,
+          "tp_dbtp": -0.1
+        }
+      },
+      "render_mode": "face-track",
+      "size_bytes": {
+        "legacy": 10267404,
+        "new": 21107811
+      },
+      "ssim": {
+        "best_offset": -1,
+        "best_offset_mean": 0.90657,
+        "best_offset_min": 0.44283,
+        "frames": 1103,
+        "frames_below_threshold": 643,
+        "per_frame_best_mean": 0.91255,
+        "per_frame_best_min": 0.44283,
+        "per_frame_best_p1": 0.62204,
+        "per_frame_best_p5": 0.67206
+      },
+      "video_bps": {
+        "legacy": 1725813,
+        "new": 3625164
+      }
+    },
+    {
+      "audio": {
+        "legacy_bps": 127583,
+        "legacy_hz": 48000,
+        "new_bps": 192889,
+        "new_hz": 48000
+      },
+      "band_luma_ssim": null,
+      "bbox": {
+        "captions": {
+          "compared": 17,
+          "max_delta_px": 0,
+          "presence_mismatch": 0,
+          "within_tolerance": 17
+        },
+        "hook": {
+          "compared": 3,
+          "max_delta_px": 0,
+          "presence_mismatch": 0,
+          "within_tolerance": 3
+        },
+        "probes": 17
+      },
+      "clip": "face-track-860fef1a-klip08",
+      "color_tags": {
+        "legacy": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ],
+        "new": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ]
+      },
+      "cues": {
+        "legacy": 16,
+        "new": 16,
+        "same_words": 16
+      },
+      "fps": {
+        "legacy": "25/1",
+        "new": "25/1",
+        "source": "25/1"
+      },
+      "frames": {
+        "legacy": 526,
+        "new": 527
+      },
+      "loudness": {
+        "delta_lu": 0.1,
+        "legacy": {
+          "i_lufs": -13.5,
+          "tp_dbtp": -2.7
+        },
+        "new": {
+          "i_lufs": -13.4,
+          "tp_dbtp": -2.6
+        }
+      },
+      "render_mode": "face-track",
+      "size_bytes": {
+        "legacy": 4461384,
+        "new": 9339885
+      },
+      "ssim": {
+        "best_offset": -1,
+        "best_offset_mean": 0.94304,
+        "best_offset_min": 0.55478,
+        "frames": 525,
+        "frames_below_threshold": 335,
+        "per_frame_best_mean": 0.94392,
+        "per_frame_best_min": 0.55478,
+        "per_frame_best_p1": 0.87392,
+        "per_frame_best_p5": 0.90204
+      },
+      "video_bps": {
+        "legacy": 1562035,
+        "new": 3344840
+      }
+    },
+    {
+      "audio": {
+        "legacy_bps": 127770,
+        "legacy_hz": 48000,
+        "new_bps": 191669,
+        "new_hz": 48000
+      },
+      "band_luma_ssim": {
+        "legacy_one_row_higher": 0.94908,
+        "same_rows": 0.92469
+      },
+      "bbox": {
+        "captions": {
+          "compared": 14,
+          "max_delta_px": 0,
+          "presence_mismatch": 0,
+          "within_tolerance": 14
+        },
+        "hook": {
+          "compared": 2,
+          "max_delta_px": 0,
+          "presence_mismatch": 0,
+          "within_tolerance": 2
+        },
+        "probes": 15
+      },
+      "clip": "60fps-3c7d024c-klip01",
+      "color_tags": {
+        "legacy": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ],
+        "new": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ]
+      },
+      "cues": {
+        "legacy": 66,
+        "new": 66,
+        "same_words": 66
+      },
+      "fps": {
+        "legacy": "60/1",
+        "new": "30/1",
+        "source": "60/1"
+      },
+      "frames": {
+        "legacy": 4804,
+        "new": 2404
+      },
+      "loudness": {
+        "delta_lu": 0.0,
+        "legacy": {
+          "i_lufs": -13.4,
+          "tp_dbtp": -0.4
+        },
+        "new": {
+          "i_lufs": -13.4,
+          "tp_dbtp": 0.4
+        }
+      },
+      "render_mode": "fit-blur",
+      "size_bytes": {
+        "legacy": 7287369,
+        "new": 18087601
+      },
+      "ssim": {
+        "best_offset": -1,
+        "best_offset_mean": 0.97471,
+        "best_offset_min": 0.74379,
+        "frames": 2401,
+        "frames_below_threshold": 1002,
+        "per_frame_best_mean": 0.97476,
+        "per_frame_best_min": 0.74379,
+        "per_frame_best_p1": 0.82386,
+        "per_frame_best_p5": 0.955
+      },
+      "video_bps": {
+        "legacy": 587424,
+        "new": 1605082
+      }
+    },
+    {
+      "audio": {
+        "legacy_bps": 127473,
+        "legacy_hz": 48000,
+        "new_bps": 191250,
+        "new_hz": 48000
+      },
+      "band_luma_ssim": {
+        "legacy_one_row_higher": 0.99026,
+        "same_rows": 0.95783
+      },
+      "bbox": {
+        "captions": {
+          "compared": 17,
+          "max_delta_px": 0,
+          "presence_mismatch": 0,
+          "within_tolerance": 17
+        },
+        "hook": {
+          "compared": 3,
+          "max_delta_px": 0,
+          "presence_mismatch": 0,
+          "within_tolerance": 3
+        },
+        "probes": 17
+      },
+      "clip": "60fps-3c7d024c-klip02",
+      "color_tags": {
+        "legacy": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ],
+        "new": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ]
+      },
+      "cues": {
+        "legacy": 47,
+        "new": 47,
+        "same_words": 47
+      },
+      "fps": {
+        "legacy": "60/1",
+        "new": "30/1",
+        "source": "60/1"
+      },
+      "frames": {
+        "legacy": 3612,
+        "new": 1806
+      },
+      "loudness": {
+        "delta_lu": 0.0,
+        "legacy": {
+          "i_lufs": -15.0,
+          "tp_dbtp": -0.2
+        },
+        "new": {
+          "i_lufs": -15.0,
+          "tp_dbtp": -0.5
+        }
+      },
+      "render_mode": "fit-blur",
+      "size_bytes": {
+        "legacy": 4397732,
+        "new": 10981010
+      },
+      "ssim": {
+        "best_offset": -1,
+        "best_offset_mean": 0.986,
+        "best_offset_min": 0.94275,
+        "frames": 1805,
+        "frames_below_threshold": 5,
+        "per_frame_best_mean": 0.98655,
+        "per_frame_best_min": 0.96142,
+        "per_frame_best_p1": 0.98288,
+        "per_frame_best_p5": 0.98425
+      },
+      "video_bps": {
+        "legacy": 443954,
+        "new": 1258963
+      }
+    },
+    {
+      "audio": {
+        "legacy_bps": 125111,
+        "legacy_hz": 48000,
+        "new_bps": 188508,
+        "new_hz": 48000
+      },
+      "band_luma_ssim": {
+        "legacy_one_row_higher": 0.96049,
+        "same_rows": 0.93637
+      },
+      "bbox": {
+        "captions": {
+          "compared": 17,
+          "max_delta_px": 0,
+          "presence_mismatch": 0,
+          "within_tolerance": 17
+        },
+        "hook": {
+          "compared": 3,
+          "max_delta_px": 0,
+          "presence_mismatch": 0,
+          "within_tolerance": 3
+        },
+        "probes": 17
+      },
+      "clip": "60fps-3c7d024c-klip04",
+      "color_tags": {
+        "legacy": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ],
+        "new": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ]
+      },
+      "cues": {
+        "legacy": 31,
+        "new": 31,
+        "same_words": 31
+      },
+      "fps": {
+        "legacy": "60/1",
+        "new": "30/1",
+        "source": "60/1"
+      },
+      "frames": {
+        "legacy": 2346,
+        "new": 1174
+      },
+      "loudness": {
+        "delta_lu": 0.0,
+        "legacy": {
+          "i_lufs": -16.0,
+          "tp_dbtp": -0.8
+        },
+        "new": {
+          "i_lufs": -16.0,
+          "tp_dbtp": -0.5
+        }
+      },
+      "render_mode": "fit-blur",
+      "size_bytes": {
+        "legacy": 3732883,
+        "new": 9163590
+      },
+      "ssim": {
+        "best_offset": -1,
+        "best_offset_mean": 0.97836,
+        "best_offset_min": 0.81234,
+        "frames": 1172,
+        "frames_below_threshold": 392,
+        "per_frame_best_mean": 0.97837,
+        "per_frame_best_min": 0.81237,
+        "per_frame_best_p1": 0.82675,
+        "per_frame_best_p5": 0.96762
+      },
+      "video_bps": {
+        "legacy": 625549,
+        "new": 1675603
+      }
+    },
+    {
+      "audio": {
+        "legacy_bps": 127694,
+        "legacy_hz": 48000,
+        "new_bps": 191650,
+        "new_hz": 48000
+      },
+      "band_luma_ssim": {
+        "legacy_one_row_higher": 0.97178,
+        "same_rows": 0.94257
+      },
+      "bbox": {
+        "captions": {
+          "compared": 16,
+          "max_delta_px": 0,
+          "presence_mismatch": 0,
+          "within_tolerance": 16
+        },
+        "hook": {
+          "compared": 3,
+          "max_delta_px": 0,
+          "presence_mismatch": 0,
+          "within_tolerance": 3
+        },
+        "probes": 16
+      },
+      "clip": "60fps-3c7d024c-klip06",
+      "color_tags": {
+        "legacy": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ],
+        "new": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ]
+      },
+      "cues": {
+        "legacy": 30,
+        "new": 30,
+        "same_words": 30
+      },
+      "fps": {
+        "legacy": "60/1",
+        "new": "30/1",
+        "source": "60/1"
+      },
+      "frames": {
+        "legacy": 2599,
+        "new": 1301
+      },
+      "loudness": {
+        "delta_lu": 0.0,
+        "legacy": {
+          "i_lufs": -14.0,
+          "tp_dbtp": -0.6
+        },
+        "new": {
+          "i_lufs": -14.0,
+          "tp_dbtp": -0.6
+        }
+      },
+      "render_mode": "fit-blur",
+      "size_bytes": {
+        "legacy": 3364215,
+        "new": 8575896
+      },
+      "ssim": {
+        "best_offset": -1,
+        "best_offset_mean": 0.98111,
+        "best_offset_min": 0.78403,
+        "frames": 1299,
+        "frames_below_threshold": 216,
+        "per_frame_best_mean": 0.98114,
+        "per_frame_best_min": 0.78404,
+        "per_frame_best_p1": 0.83686,
+        "per_frame_best_p5": 0.97113
+      },
+      "video_bps": {
+        "legacy": 480539,
+        "new": 1381214
+      }
+    },
+    {
+      "audio": {
+        "legacy_bps": 127238,
+        "legacy_hz": 48000,
+        "new_bps": 191601,
+        "new_hz": 48000
+      },
+      "band_luma_ssim": {
+        "legacy_one_row_higher": 0.95374,
+        "same_rows": 0.92994
+      },
+      "bbox": {
+        "captions": {
+          "compared": 14,
+          "max_delta_px": 89,
+          "presence_mismatch": 0,
+          "within_tolerance": 13
+        },
+        "hook": {
+          "compared": 2,
+          "max_delta_px": 0,
+          "presence_mismatch": 0,
+          "within_tolerance": 2
+        },
+        "probes": 14
+      },
+      "clip": "60fps-3c7d024c-klip08",
+      "color_tags": {
+        "legacy": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ],
+        "new": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ]
+      },
+      "cues": {
+        "legacy": 52,
+        "new": 52,
+        "same_words": 52
+      },
+      "fps": {
+        "legacy": "60/1",
+        "new": "30/1",
+        "source": "60/1"
+      },
+      "frames": {
+        "legacy": 3379,
+        "new": 1692
+      },
+      "loudness": {
+        "delta_lu": 0.0,
+        "legacy": {
+          "i_lufs": -15.3,
+          "tp_dbtp": 0.4
+        },
+        "new": {
+          "i_lufs": -15.3,
+          "tp_dbtp": 0.3
+        }
+      },
+      "render_mode": "fit-blur",
+      "size_bytes": {
+        "legacy": 5041884,
+        "new": 13116731
+      },
+      "ssim": {
+        "best_offset": -1,
+        "best_offset_mean": 0.97385,
+        "best_offset_min": 0.77498,
+        "frames": 1689,
+        "frames_below_threshold": 728,
+        "per_frame_best_mean": 0.97387,
+        "per_frame_best_min": 0.77498,
+        "per_frame_best_p1": 0.82479,
+        "per_frame_best_p5": 0.94743
+      },
+      "video_bps": {
+        "legacy": 575981,
+        "new": 1659846
+      }
+    },
+    {
+      "audio": {
+        "legacy_bps": 139807,
+        "legacy_hz": 48000,
+        "new_bps": 209746,
+        "new_hz": 48000
+      },
+      "band_luma_ssim": null,
+      "bbox": {
+        "captions": {
+          "compared": 15,
+          "max_delta_px": 0,
+          "presence_mismatch": 0,
+          "within_tolerance": 15
+        },
+        "hook": {
+          "compared": 2,
+          "max_delta_px": 0,
+          "presence_mismatch": 0,
+          "within_tolerance": 2
+        },
+        "probes": 15
+      },
+      "clip": "vfr-990f3f37-klip01",
+      "color_tags": {
+        "legacy": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ],
+        "new": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ]
+      },
+      "cues": {
+        "legacy": 70,
+        "new": 70,
+        "same_words": 70
+      },
+      "fps": {
+        "legacy": "24000/1001",
+        "new": "30/1",
+        "source": "24000/1001"
+      },
+      "frames": {
+        "legacy": 1950,
+        "new": 2440
+      },
+      "loudness": {
+        "delta_lu": 0.0,
+        "legacy": {
+          "i_lufs": -19.3,
+          "tp_dbtp": -0.1
+        },
+        "new": {
+          "i_lufs": -19.3,
+          "tp_dbtp": 0.3
+        }
+      },
+      "render_mode": "center-crop",
+      "size_bytes": {
+        "legacy": 12681356,
+        "new": 26437088
+      },
+      "ssim": {
+        "best_offset": -1,
+        "best_offset_mean": 0.96449,
+        "best_offset_min": 0.5771,
+        "frames": 2438,
+        "frames_below_threshold": 1518,
+        "per_frame_best_mean": 0.96467,
+        "per_frame_best_min": 0.57717,
+        "per_frame_best_p1": 0.88388,
+        "per_frame_best_p5": 0.91759
+      },
+      "video_bps": {
+        "legacy": 1101910,
+        "new": 2381634
+      }
+    },
+    {
+      "audio": {
+        "legacy_bps": 141777,
+        "legacy_hz": 48000,
+        "new_bps": 212546,
+        "new_hz": 48000
+      },
+      "band_luma_ssim": null,
+      "bbox": {
+        "captions": {
+          "compared": 17,
+          "max_delta_px": 0,
+          "presence_mismatch": 0,
+          "within_tolerance": 17
+        },
+        "hook": {
+          "compared": 2,
+          "max_delta_px": 0,
+          "presence_mismatch": 0,
+          "within_tolerance": 2
+        },
+        "probes": 17
+      },
+      "clip": "vfr-990f3f37-klip02",
+      "color_tags": {
+        "legacy": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ],
+        "new": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ]
+      },
+      "cues": {
+        "legacy": 46,
+        "new": 46,
+        "same_words": 46
+      },
+      "fps": {
+        "legacy": "24000/1001",
+        "new": "30/1",
+        "source": "24000/1001"
+      },
+      "frames": {
+        "legacy": 1493,
+        "new": 1868
+      },
+      "loudness": {
+        "delta_lu": 0.0,
+        "legacy": {
+          "i_lufs": -19.3,
+          "tp_dbtp": -0.5
+        },
+        "new": {
+          "i_lufs": -19.3,
+          "tp_dbtp": -0.4
+        }
+      },
+      "render_mode": "center-crop",
+      "size_bytes": {
+        "legacy": 9366742,
+        "new": 20406181
+      },
+      "ssim": {
+        "best_offset": -1,
+        "best_offset_mean": 0.98805,
+        "best_offset_min": 0.8813,
+        "frames": 1866,
+        "frames_below_threshold": 158,
+        "per_frame_best_mean": 0.98844,
+        "per_frame_best_min": 0.8813,
+        "per_frame_best_p1": 0.93325,
+        "per_frame_best_p5": 0.96797
+      },
+      "video_bps": {
+        "legacy": 1055906,
+        "new": 2400197
+      }
+    },
+    {
+      "audio": {
+        "legacy_bps": 142538,
+        "legacy_hz": 48000,
+        "new_bps": 215101,
+        "new_hz": 48000
+      },
+      "band_luma_ssim": null,
+      "bbox": {
+        "captions": {
+          "compared": 15,
+          "max_delta_px": 0,
+          "presence_mismatch": 0,
+          "within_tolerance": 15
+        },
+        "hook": {
+          "compared": 2,
+          "max_delta_px": 0,
+          "presence_mismatch": 0,
+          "within_tolerance": 2
+        },
+        "probes": 15
+      },
+      "clip": "vfr-990f3f37-klip03",
+      "color_tags": {
+        "legacy": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ],
+        "new": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ]
+      },
+      "cues": {
+        "legacy": 40,
+        "new": 40,
+        "same_words": 40
+      },
+      "fps": {
+        "legacy": "24000/1001",
+        "new": "30/1",
+        "source": "24000/1001"
+      },
+      "frames": {
+        "legacy": 1206,
+        "new": 1510
+      },
+      "loudness": {
+        "delta_lu": 0.1,
+        "legacy": {
+          "i_lufs": -20.9,
+          "tp_dbtp": -1.1
+        },
+        "new": {
+          "i_lufs": -20.8,
+          "tp_dbtp": -1.2
+        }
+      },
+      "render_mode": "center-crop",
+      "size_bytes": {
+        "legacy": 7948993,
+        "new": 16709813
+      },
+      "ssim": {
+        "best_offset": -1,
+        "best_offset_mean": 0.9774,
+        "best_offset_min": 0.59495,
+        "frames": 1507,
+        "frames_below_threshold": 518,
+        "per_frame_best_mean": 0.97745,
+        "per_frame_best_min": 0.59668,
+        "per_frame_best_p1": 0.9088,
+        "per_frame_best_p5": 0.93409
+      },
+      "video_bps": {
+        "legacy": 1115973,
+        "new": 2431664
+      }
+    },
+    {
+      "audio": {
+        "legacy_bps": 140980,
+        "legacy_hz": 48000,
+        "new_bps": 213354,
+        "new_hz": 48000
+      },
+      "band_luma_ssim": null,
+      "bbox": {
+        "captions": {
+          "compared": 16,
+          "max_delta_px": 229,
+          "presence_mismatch": 0,
+          "within_tolerance": 15
+        },
+        "hook": {
+          "compared": 2,
+          "max_delta_px": 0,
+          "presence_mismatch": 0,
+          "within_tolerance": 2
+        },
+        "probes": 16
+      },
+      "clip": "vfr-990f3f37-klip05",
+      "color_tags": {
+        "legacy": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ],
+        "new": [
+          "bt709",
+          "bt709",
+          "bt709",
+          "tv"
+        ]
+      },
+      "cues": {
+        "legacy": 45,
+        "new": 45,
+        "same_words": 42
+      },
+      "fps": {
+        "legacy": "24000/1001",
+        "new": "30/1",
+        "source": "24000/1001"
+      },
+      "frames": {
+        "legacy": 1297,
+        "new": 1623
+      },
+      "loudness": {
+        "delta_lu": 0.0,
+        "legacy": {
+          "i_lufs": -20.0,
+          "tp_dbtp": -0.7
+        },
+        "new": {
+          "i_lufs": -20.0,
+          "tp_dbtp": -0.4
+        }
+      },
+      "render_mode": "center-crop",
+      "size_bytes": {
+        "legacy": 9628042,
+        "new": 21223527
+      },
+      "ssim": {
+        "best_offset": -1,
+        "best_offset_mean": 0.97198,
+        "best_offset_min": 0.57063,
+        "frames": 1621,
+        "frames_below_threshold": 576,
+        "per_frame_best_mean": 0.97252,
+        "per_frame_best_min": 0.83702,
+        "per_frame_best_p1": 0.86851,
+        "per_frame_best_p5": 0.90597
+      },
+      "video_bps": {
+        "legacy": 1277142,
+        "new": 2915973
+      }
+    }
+  ],
+  "environment": {
+    "affinity": 4,
+    "cpu_count": 16,
+    "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "python": "3.11.2"
+  },
+  "gate": "P-LOOK",
+  "legacy_reference": "owner",
+  "summary": {
+    "bbox_clips_pass": 17,
+    "bbox_max_delta_px": 229,
+    "caption_cues": {
+      "new": 894,
+      "same_words": 889
+    },
+    "clips": 20,
+    "fit_blur_band_luma_ssim_mean": {
+      "clips": 11,
+      "legacy_one_row_higher": 0.97418,
+      "same_rows": 0.93008
+    },
+    "layouts": [
+      "center-crop",
+      "face-track",
+      "fit-blur"
+    ],
+    "loudness_clips_pass": 20,
+    "loudness_max_delta_lu": 0.1,
+    "owner_approval": "pending (checkpoint 2, K1)",
+    "pass_measured": false,
+    "size_ratio_new_over_legacy": 2.266,
+    "ssim_clips_pass": 0,
+    "ssim_frames": 29767,
+    "ssim_frames_below": 13394,
+    "ssim_per_frame_best_mean": 0.96317,
+    "ssim_per_frame_best_min": 0.44283
+  },
+  "task": "T2.1",
+  "threshold": {
+    "bbox_px": 2,
+    "loudness_lu": 0.5,
+    "ssim_per_frame_best_offset": 0.98
+  },
+  "toolchain_controlled_reference": {
+    "bbox_max_delta_px": 229,
+    "caption_cues": {
+      "new": 894,
+      "same_words": 889
+    },
+    "fit_blur_band_luma_ssim_mean": {
+      "clips": 11,
+      "legacy_one_row_higher": 0.97419,
+      "same_rows": 0.93008
+    },
+    "legacy_reference": "legacy",
+    "loudness_max_delta_lu": 0.1,
+    "per_clip_mean": {
+      "60fps-3c7d024c-klip01": 0.97474,
+      "60fps-3c7d024c-klip02": 0.98654,
+      "60fps-3c7d024c-klip04": 0.97836,
+      "60fps-3c7d024c-klip06": 0.98114,
+      "60fps-3c7d024c-klip08": 0.97387,
+      "face-track-860fef1a-klip01": 0.8571,
+      "face-track-860fef1a-klip02": 0.92371,
+      "face-track-860fef1a-klip04": 0.95301,
+      "face-track-860fef1a-klip06": 0.91266,
+      "face-track-860fef1a-klip08": 0.9439,
+      "fit-blur-899226f8-klip01": 0.98405,
+      "fit-blur-899226f8-klip02": 0.98367,
+      "fit-blur-899226f8-klip04": 0.98258,
+      "fit-blur-e7f0d37b-klip01": 0.97481,
+      "fit-blur-e7f0d37b-klip02": 0.97548,
+      "fit-blur-e7f0d37b-klip03": 0.97467,
+      "vfr-990f3f37-klip01": 0.96467,
+      "vfr-990f3f37-klip02": 0.98844,
+      "vfr-990f3f37-klip03": 0.97742,
+      "vfr-990f3f37-klip05": 0.97249
+    },
+    "ssim_frames": 29767,
+    "ssim_frames_below": 13406,
+    "ssim_per_frame_best_mean": 0.96317,
+    "ssim_per_frame_best_min": 0.44291
+  }
+}

@@ -287,7 +287,7 @@ def r10(root: Path, *, only: list[str] | None, work: Path) -> dict[str, Any]:
 
 
 def evidence(reruns: list[dict[str, Any]], checks: list[dict[str, Any]],
-             labels: list[str]) -> dict[str, Any]:
+             labels: list[str], setup: dict[str, str] | None = None) -> dict[str, Any]:
     sets = []
     for label, rerun, check in zip(labels, reruns, checks, strict=True):
         clips = rerun["clips"]
@@ -305,6 +305,7 @@ def evidence(reruns: list[dict[str, Any]], checks: list[dict[str, Any]],
     return {"gate": GATE, "task": TASK,
             "threshold": {"video_framemd5": "identical", "pcm_md5": "identical",
                           "r10_hard_link_pct": 100},
+            "setup": setup or {},
             "sets": sets,
             "pass": bool(sets) and all(item["rerender"]["pass"] and item["r10"]["pass"]
                                        for item in sets)}
@@ -324,10 +325,13 @@ def main(argv: list[str] | None = None) -> int:
     merge.add_argument("--r10", type=Path, action="append", required=True)
     merge.add_argument("--label", action="append", required=True)
     merge.add_argument("--out", type=Path, required=True)
+    merge.add_argument("--note", action="append", default=[],
+                       help="KEY=VALUE describing the containers (numbers and short codes)")
     args = parser.parse_args(argv)
     if args.command == "evidence":
         report = evidence([json.loads(path.read_text()) for path in args.rerender],
-                          [json.loads(path.read_text()) for path in args.r10], args.label)
+                          [json.loads(path.read_text()) for path in args.r10], args.label,
+                          dict(note.split("=", 1) for note in args.note))
     else:
         with tempfile.TemporaryDirectory(prefix="rt-check-") as scratch:
             work = Path(scratch) if args.work is None else args.work

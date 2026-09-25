@@ -1,0 +1,292 @@
+{
+  "diagnosis": {
+    "clips": [
+      {
+        "analysis_s": {
+          "peaks": 1.13,
+          "verify": 2.19,
+          "words": 0.07
+        },
+        "bytes": {
+          "all_three_reverted": 9152956,
+          "crf21_no_chroma_offset": 9111423,
+          "default_scale_flags": 17289383,
+          "legacy": 7920297,
+          "shipped": 16709813,
+          "yuv420p_composite": 16573552
+        },
+        "clip": "990f3f37-3",
+        "frames": 1510,
+        "layout": "fill_center",
+        "loadavg_1min": [
+          15.0,
+          19.5
+        ],
+        "ratio_to_legacy": {
+          "all_three_reverted": 1.599,
+          "crf21_no_chroma_offset": 1.846,
+          "default_scale_flags": 1.666,
+          "legacy": 1.0,
+          "shipped": 1.946,
+          "yuv420p_composite": 1.532
+        },
+        "render_best_of_2_s": {
+          "all_three_reverted": 12.98,
+          "crf21_no_chroma_offset": 14.99,
+          "default_scale_flags": 13.53,
+          "legacy": 8.12,
+          "shipped": 15.8,
+          "yuv420p_composite": 12.44
+        }
+      },
+      {
+        "analysis_s": {
+          "peaks": 0.74,
+          "verify": 1.33,
+          "words": 0.18
+        },
+        "bytes": {
+          "all_three_reverted": 3805485,
+          "crf21_no_chroma_offset": 3795163,
+          "default_scale_flags": 7707675,
+          "legacy": 3181623,
+          "shipped": 7458270,
+          "yuv420p_composite": 7365142
+        },
+        "clip": "899226f8-1",
+        "frames": 816,
+        "layout": "fit_blur",
+        "loadavg_1min": [
+          18.7,
+          27.1
+        ],
+        "ratio_to_legacy": {
+          "all_three_reverted": 0.975,
+          "crf21_no_chroma_offset": 1.944,
+          "default_scale_flags": 1.448,
+          "legacy": 1.0,
+          "shipped": 1.421,
+          "yuv420p_composite": 1.095
+        },
+        "render_best_of_2_s": {
+          "all_three_reverted": 11.14,
+          "crf21_no_chroma_offset": 22.2,
+          "default_scale_flags": 16.54,
+          "legacy": 11.42,
+          "shipped": 16.23,
+          "yuv420p_composite": 12.5
+        }
+      },
+      {
+        "analysis_s": {
+          "camera_plan": 8.27,
+          "peaks": 0.56,
+          "verify": 0.79,
+          "words": 0.04
+        },
+        "bytes": {
+          "all_three_reverted": 5190788,
+          "crf21_no_chroma_offset": 5114113,
+          "default_scale_flags": 9325791,
+          "legacy": 4453095,
+          "shipped": 9339885,
+          "yuv420p_composite": 9152859
+        },
+        "clip": "860fef1a-8",
+        "frames": 527,
+        "layout": "camera",
+        "loadavg_1min": [
+          13.3,
+          18.0
+        ],
+        "ratio_to_legacy": {
+          "all_three_reverted": 0.84,
+          "crf21_no_chroma_offset": 0.851,
+          "default_scale_flags": 1.105,
+          "legacy": 1.0,
+          "shipped": 0.901,
+          "yuv420p_composite": 0.853
+        },
+        "render_best_of_2_s": {
+          "all_three_reverted": 4.16,
+          "crf21_no_chroma_offset": 4.21,
+          "default_scale_flags": 5.47,
+          "legacy": 4.95,
+          "shipped": 4.46,
+          "yuv420p_composite": 4.22
+        }
+      }
+    ],
+    "what": "final render of one clip per layout, legacy render_vertical vs the compiler as shipped and with R7 crf 21 (no chroma offset), default 4:2:0 scale flags, a yuv420p composite, or all three reverted; best of 2 interleaved runs, same container (cpuset 0-7, 4 CPUs); face-track legacy includes its per-range detection, the new engine's camera plan is in analysis_s"
+  },
+  "environment": {
+    "legacy": {
+      "affinity": 8,
+      "cpu_count": 16,
+      "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+      "python": "3.11.2"
+    },
+    "new": {
+      "affinity": 8,
+      "cpu_count": 16,
+      "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+      "python": "3.11.2"
+    }
+  },
+  "gate": "PF-PIPELINE",
+  "jobs": [
+    {
+      "clips": 3,
+      "job": "e7f0d37b",
+      "layout": "fit_blur",
+      "legacy_s": 71.218,
+      "loadavg": {
+        "legacy": [
+          22.86,
+          11.91,
+          6.98
+        ],
+        "new": [
+          20.32,
+          13.76,
+          8.0
+        ]
+      },
+      "new_s": 105.682,
+      "new_warnings": [],
+      "output_s": 217.3,
+      "ratio": 1.484
+    },
+    {
+      "clips": 3,
+      "job": "899226f8",
+      "layout": "fit_blur",
+      "legacy_s": 34.504,
+      "loadavg": {
+        "legacy": [
+          15.11,
+          14.21,
+          8.82
+        ],
+        "new": [
+          14.38,
+          14.12,
+          9.0
+        ]
+      },
+      "new_s": 52.11,
+      "new_warnings": [],
+      "output_s": 149.8,
+      "ratio": 1.51
+    },
+    {
+      "clips": 5,
+      "job": "860fef1a",
+      "layout": "camera",
+      "legacy_s": 46.693,
+      "loadavg": {
+        "legacy": [
+          11.57,
+          13.38,
+          9.01
+        ],
+        "new": [
+          9.59,
+          12.61,
+          8.98
+        ]
+      },
+      "new_s": 101.035,
+      "new_warnings": [],
+      "output_s": 200.7,
+      "ratio": 2.164
+    },
+    {
+      "clips": 5,
+      "job": "3c7d024c",
+      "layout": "fit_blur",
+      "legacy_s": 142.598,
+      "loadavg": {
+        "legacy": [
+          11.74,
+          12.17,
+          9.17
+        ],
+        "new": [
+          15.17,
+          12.86,
+          9.84
+        ]
+      },
+      "new_s": 141.568,
+      "new_warnings": [],
+      "output_s": 278.9,
+      "ratio": 0.993
+    },
+    {
+      "clips": 4,
+      "job": "990f3f37",
+      "layout": "fill_center",
+      "legacy_s": 34.936,
+      "loadavg": {
+        "legacy": [
+          15.21,
+          14.54,
+          10.94
+        ],
+        "new": [
+          16.28,
+          14.97,
+          11.24
+        ]
+      },
+      "new_s": 87.52,
+      "new_warnings": [],
+      "output_s": 247.8,
+      "ratio": 2.505
+    }
+  ],
+  "layouts": {
+    "camera": {
+      "budget": 1.6,
+      "clips": 5,
+      "legacy_s": 46.7,
+      "legacy_x_realtime": 0.233,
+      "new_s": 101.0,
+      "new_x_realtime": 0.503,
+      "output_s": 200.7,
+      "pass": false,
+      "ratio": 2.164
+    },
+    "fill_center": {
+      "budget": 1.35,
+      "clips": 4,
+      "legacy_s": 34.9,
+      "legacy_x_realtime": 0.141,
+      "new_s": 87.5,
+      "new_x_realtime": 0.353,
+      "output_s": 247.8,
+      "pass": false,
+      "ratio": 2.505
+    },
+    "fit_blur": {
+      "budget": 1.35,
+      "clips": 11,
+      "legacy_s": 248.3,
+      "legacy_x_realtime": 0.384,
+      "new_s": 299.4,
+      "new_x_realtime": 0.463,
+      "output_s": 646.0,
+      "pass": true,
+      "ratio": 1.206
+    }
+  },
+  "pass": false,
+  "scope": "the V3 rendering stage (per clip: seed artifacts + render + verify + poster; per job: source.json), same container and clips for both engines; transcription and selection are shared and excluded",
+  "task": "T2.1",
+  "threshold": {
+    "camera": 1.6,
+    "fill_center": 1.35,
+    "fit_blur": 1.35
+  }
+}
