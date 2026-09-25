@@ -3,10 +3,13 @@ import math
 import pytest
 
 from ai_clipper.selection_types import (
+    MAX_CLIP_TRENDS,
     SCORE_DIMENSIONS,
+    TREND_KINDS,
     ClipProposal,
     SelectedClip,
     SelectionResult,
+    TrendRef,
 )
 
 SCORES = {name: 7.0 for name in SCORE_DIMENSIONS}
@@ -143,3 +146,85 @@ def test_selection_result_requires_contiguous_ranks_and_consistent_status():
             model="m",
             prompt_version="p",
         )
+
+
+# --- trends -----------------------------------------------------------------------------------
+
+
+def trend(index: int = 1, **overrides) -> TrendRef:
+    values = {"id": f"0b6f2c1e-{index:04d}", "title": "Kabur Aja Dulu", "kind": "topic"}
+    values.update(overrides)
+    return TrendRef(**values)
+
+
+def test_trend_kinds_follow_the_spec():
+    assert TREND_KINDS == (
+        "topic", "person", "joke", "meme", "sound", "hashtag", "format", "event",
+    )
+
+
+def test_trend_ref_round_trips_to_a_plain_dict():
+    assert trend().to_dict() == {
+        "id": "0b6f2c1e-0001", "title": "Kabur Aja Dulu", "kind": "topic",
+    }
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"id": ""},
+        {"id": "../x"},
+        {"id": "a" * 65},
+        {"title": ""},
+        {"title": "x" * 81},
+        {"title": "baris\nbaru"},
+        {"kind": "rumor"},
+        {"kind": 1},
+    ],
+)
+def test_trend_ref_rejects_invalid_values(overrides):
+    with pytest.raises((TypeError, ValueError)):
+        trend(**overrides)
+
+
+def test_clips_without_trends_keep_their_historical_dict_shape():
+    payload = selected().to_dict()
+    assert "trends" not in payload
+    assert list(payload) == [
+        "rank", "start", "end", "cold_open", "unit_ids", "hook_unit_id", "title", "hook_text",
+        "description", "hashtags", "archetype", "score", "scores", "reasons", "source", "text",
+    ]
+    assert selected().trends == ()
+
+
+def test_clips_with_trends_record_them_last():
+    item = selected(trends=(trend(1), trend(2, title="Timnas", kind="event")))
+    payload = item.to_dict()
+    assert list(payload)[-1] == "trends"
+    assert payload["trends"] == [
+        {"id": "0b6f2c1e-0001", "title": "Kabur Aja Dulu", "kind": "topic"},
+        {"id": "0b6f2c1e-0002", "title": "Timnas", "kind": "event"},
+    ]
+
+
+@pytest.mark.parametrize(
+    "trends",
+    [
+        [trend()],
+        ({"id": "a", "title": "b", "kind": "topic"},),
+        tuple(trend(index) for index in range(MAX_CLIP_TRENDS + 1)),
+        (trend(1), trend(1)),
+    ],
+)
+def test_selected_clip_rejects_invalid_trends(trends):
+    with pytest.raises((TypeError, ValueError)):
+        selected(trends=trends)
+
+
+def test_proposal_trend_refs_default_to_none_and_are_validated():
+    assert proposal().trend_refs == ()
+    assert proposal(trend_refs=("T1", "T20")).trend_refs == ("T1", "T20")
+    for refs in (["T1"], ("T0",), ("t1",), ("T1", "T1"), ("K1",),
+                 tuple(f"T{index}" for index in range(1, 22))):
+        with pytest.raises((TypeError, ValueError)):
+            proposal(trend_refs=refs)
