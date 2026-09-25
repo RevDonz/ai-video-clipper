@@ -12,6 +12,7 @@ import * as settingsModule from "../app/api/context/trends/settings/route.js";
 import * as tokensModule from "../app/api/context/tokens/route.js";
 import * as tokenItemModule from "../app/api/context/tokens/[id]/route.js";
 import { createSessionToken, isAuthorized } from "../lib/auth.mjs";
+import { proxy } from "../proxy.js";
 import { IngestRateLimiter } from "../lib/ingest-rate-limit.mjs";
 import { createIngestToken, revokeIngestToken } from "../lib/ingest-tokens.mjs";
 import { readTrendContext } from "../lib/trend-context.mjs";
@@ -258,6 +259,25 @@ test("ingest: the default route export uses the real environment and refuses coo
   assert.equal(typeof ingestModule.DELETE, "function");
   assert.equal(ingestModule.dynamic, "force-dynamic");
   assert.equal(ingestModule.runtime, "nodejs");
+});
+
+test("ingest: other methods get 405 with Allow, a stable code and no-store", async () => {
+  for (const method of ["PUT", "PATCH"]) {
+    const response = await read(await ingestModule[method](ingestRequest({ method, token: "x", body: { items: [] } })));
+    assert.equal(response.status, 405, method);
+    assert.deepEqual(Object.keys(response.body), ["error", "code"]);
+    assert.equal(response.body.code, "method_not_allowed");
+    assert.equal(response.headers.get("allow"), "GET, POST, DELETE");
+    assert.equal(response.cacheControl, "no-store");
+  }
+});
+
+test("the session proxy's API 401 carries a stable code like every Konteks Tren error", async () => {
+  const response = await read(proxy({ headers: new Headers(), nextUrl: new URL("http://local/api/context/tokens") }));
+  assert.equal(response.status, 401);
+  assert.deepEqual(Object.keys(response.body), ["error", "code"]);
+  assert.equal(response.body.code, "unauthorized");
+  assert.equal(response.cacheControl, "no-store");
 });
 
 // --- Dashboard routes: /api/context/* -------------------------------------------------------
