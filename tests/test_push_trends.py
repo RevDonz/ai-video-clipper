@@ -380,6 +380,8 @@ def test_malformed_token_exits_2_and_is_not_echoed(
         "ftp://potongin.revdonz.dev/api/ingest/trends",
         "https://user:pass@potongin.revdonz.dev/api/ingest/trends",
         "not a url",
+        "https://potongin.revdonz.dev/api/ingest/trends\x1b[2J",
+        "https://potongin.revdonz.dev/api/ingest/trends\r\nX-Evil: 1",
     ],
 )
 def test_refuses_unsafe_urls(push: ModuleType, tmp_path: Path, url: str) -> None:
@@ -388,6 +390,7 @@ def test_refuses_unsafe_urls(push: ModuleType, tmp_path: Path, url: str) -> None
     result = run(push, ["--url", url, str(path)])
 
     assert result.code == 2
+    assert "\x1b" not in result.out + result.err
 
 
 def test_does_not_follow_redirects(push: ModuleType, ingest: FakeIngest, tmp_path: Path) -> None:
