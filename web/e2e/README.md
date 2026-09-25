@@ -44,3 +44,16 @@ The edit test toggles only `audio.normalize`, verifies the new revision after re
 Every page fixture records console errors, uncaught page errors, failed requests, and API responses with status 400 or higher. Before editor navigation/reload/exit, the harness explicitly pauses and unloads only the current video sources. It then suppresses only the bounded, one-shot `GET` media `net::ERR_ABORTED` lifecycle events marked for those exact request objects or source URLs. Marks are consumed or expired; unrelated preview aborts and every other API abort remain failures. Collected diagnostics are printed on failures rather than attached to a report.
 
 Tracing, screenshots, videos, and HTML reports are disabled, and Playwright output is never preserved. This avoids retaining browser views, typed credentials, or account-identifying UI by default and in CI. Terminal output can still contain application-generated error text and URLs, so handle CI logs according to the deployment's data policy. Generated result/report directories are ignored by git.
+
+## Konteks Tren
+
+`e2e/trends.spec.mjs` covers the `/trends` page and the "Nyambung tren" chips on V3 clips. By default it fakes the `/api/context/*` routes inside the browser (and the job API for the chip test), so it changes no server data and runs against any target. It checks that hostile item text stays text, that mutations are same-origin with no browser dialogs, that a new token is shown once and gone after hiding and after a reload, keyboard reach, and no horizontal scroll at 390 px.
+
+The live block talks to the real routes and runs only with `E2E_ALLOW_MUTATION=1` and `E2E_TRENDS_LIVE=1`. It creates and deletes one manual item, creates and revokes one token, asserts that the token list never contains the token value or a hash, and that the revoked token gets 401 on `GET /api/ingest/trends`.
+
+```bash
+E2E_BASE_URL=http://127.0.0.1:3417 E2E_NO_WEB_SERVER=1 \
+E2E_USERNAME=... E2E_PASSWORD=... \
+E2E_ALLOW_MUTATION=1 E2E_TRENDS_LIVE=1 \
+npx playwright test --project=desktop-chromium e2e/trends.spec.mjs
+```
