@@ -60,7 +60,7 @@ from ai_clipper.edit_v2.glyphs import RESOURCES_DIR
 from ai_clipper.edit_v2.loudness import needs_measurement, parse_ebur128
 from ai_clipper.edit_v2.plan import Resources, build_plan
 
-TASK = "T2.3"
+TASK = os.environ.get("LANE_GATES_TASK", "T2.3")  # the W2 re-exit writes T2.Z2-*
 BUDGETS = {"pf_plan_ms": 200, "pf_truth_ms": 600, "pf_audio_ms": 1000,
            "pf_cells_s": {"fit_blur": 15.0, "fill_center": 15.0, "camera": 25.0}}
 P_PLATE_SSIM_MARGIN = 0.002
@@ -519,6 +519,9 @@ class Gates:
         # warm-up: the first plan of the clip also queues its cells; let them finish
         self.app.plan(clip.job_id, clip.id, base)
         time.sleep(20)
+        # every timed mix is new: the documents are the same in every run, so an earlier run's
+        # mixes (and loudness measurements) would be answered from the lane's cache
+        clear_preview(clip, ("audio",))
         with_music_docs = []
         for i in range(16):
             doc = with_music(copy.deepcopy(base), asset, meta, -1000 + 7 * i)
@@ -817,16 +820,34 @@ def _stages(kind: str, jobs_root: Path, job_id: str, clip_id: str, doc_file: Pat
         marks.append(("compile_incl_ffprobe", time.perf_counter()))
         ex.run(job, output_fd=None, timeout_s=120)
         marks.append(("ffmpeg_encode_and_png", time.perf_counter()))
+    elif needs(built.doc):
+        # the lane's measured mix (W2 integration): one decode streamed into the measurement,
+        # which keeps the pre-master mix; then only the master stage and the FLAC
+        producer, consumer = cf.premaster_jobs(built, source=source, assets_root=assets_root)
+        marks.append(("compile_premaster_incl_ffprobe", time.perf_counter()))
+        premaster = doc_file.with_suffix(".f32")
+        fd = os.open(premaster, os.O_RDWR | os.O_CREAT | os.O_TRUNC, 0o600)
+        try:
+            _produced, consumed = ex.run_piped(pl.lane_threads(producer), pl.lane_threads(consumer),
+                                               output_fd=fd, timeout_s=600)
+        finally:
+            os.close(fd)
+        loudness = ebur(consumed.stderr)
+        marks.append(("ffmpeg_decode_mix_and_measure", time.perf_counter()))
+        job = preview_cli.lane_audio(cf.master_job(
+            built, premaster=premaster, assets_root=assets_root, loudness=loudness,
+            mix_sha256=consumer.expected["mix_sha256"]))
+        marks.append(("compile_master", time.perf_counter()))
+        fd = os.open(doc_file.with_suffix(".flac"), os.O_RDWR | os.O_CREAT | os.O_TRUNC, 0o600)
+        try:
+            ex.run(job, output_fd=fd, timeout_s=600)
+        finally:
+            os.close(fd)
+            premaster.unlink(missing_ok=True)
+        marks.append(("ffmpeg_master_flac", time.perf_counter()))
     else:
-        loudness = None
-        if needs(built.doc):
-            job = pl.lane_threads(cf.compile_job(built, mode="audio_measure", source=source,
-                                                 assets_root=assets_root))
-            marks.append(("compile_measure_incl_ffprobe", time.perf_counter()))
-            loudness = ebur(ex.run(job, output_fd=None, timeout_s=600).stderr)
-            marks.append(("ffmpeg_measure", time.perf_counter()))
         job = preview_cli.lane_audio(cf.compile_job(built, mode="audio_preview", source=source,
-                                                    assets_root=assets_root, loudness=loudness))
+                                                    assets_root=assets_root))
         marks.append(("compile_preview", time.perf_counter()))
         fd = os.open(doc_file.with_suffix(".flac"), os.O_RDWR | os.O_CREAT | os.O_TRUNC, 0o600)
         try:

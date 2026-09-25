@@ -62,7 +62,7 @@ from ai_clipper.selection_v3 import read_selection_artifact
 from ai_clipper.subtitles import build_caption_cues, clean_caption_text
 from ai_clipper.transcript_io import read_transcript_json
 
-TASK = "T2.1"
+TASK = os.environ.get("LOOK_TASK", "T2.1")  # the W2 re-exit writes T2.Z2-*
 W, H = 720, 1280
 SSIM_THRESHOLD = 0.98
 BBOX_TOLERANCE_PX = 2
@@ -832,6 +832,7 @@ def evidence(measured: dict[str, Any], work: Path, legacy_run: str, new_run: str
         look["toolchain_controlled_reference"] = _reference_summary(reference)
     legacy = _read_json(work / "runs" / legacy_run / "render.json")
     new = _read_json(work / "runs" / new_run / "render.json")
+    source_fps = {job["id"]: job["source"]["r_frame_rate"] for job in _selection(work)["jobs"]}
     layouts: dict[str, dict[str, float]] = {}
     jobs = []
     for job in new["jobs"]:
@@ -843,8 +844,10 @@ def evidence(measured: dict[str, Any], work: Path, legacy_run: str, new_run: str
         bucket["new_s"] += job["seconds"]
         bucket["output_s"] += sum(job["output_seconds"].values())
         bucket["clips"] += len(job["clip_seconds"])
+        ratio = round(job["seconds"] / old["seconds"], 3)
         jobs.append({"job": job["id"][:8], "layout": layout, "legacy_s": old["seconds"],
-                     "new_s": job["seconds"], "ratio": round(job["seconds"] / old["seconds"], 3),
+                     "new_s": job["seconds"], "ratio": ratio, "budget": PF_BUDGET[layout],
+                     "pass": ratio <= PF_BUDGET[layout], "source_fps": source_fps.get(job["id"]),
                      "clips": len(job["clip_seconds"]),
                      "output_s": round(sum(job["output_seconds"].values()), 1),
                      "new_warnings": job["warnings"],
@@ -852,7 +855,14 @@ def evidence(measured: dict[str, Any], work: Path, legacy_run: str, new_run: str
     for layout, bucket in layouts.items():
         bucket["ratio"] = round(bucket["new_s"] / bucket["legacy_s"], 3)
         bucket["budget"] = PF_BUDGET[layout]
-        bucket["pass"] = bucket["ratio"] <= PF_BUDGET[layout]
+        # W2 verifier: a layout passes only when every job of it passes (a 60 fps job, which
+        # renders half the frames, must not hide the 24 and 25 fps jobs in the aggregate)
+        layout_jobs = [item for item in jobs if item["layout"] == layout]
+        bucket["jobs_pass"] = sum(item["pass"] for item in layout_jobs)
+        bucket["jobs"] = len(layout_jobs)
+        bucket["worst_job_ratio"] = max(item["ratio"] for item in layout_jobs)
+        bucket["pass"] = bucket["ratio"] <= PF_BUDGET[layout] and all(
+            item["pass"] for item in layout_jobs)
         bucket["legacy_x_realtime"] = round(bucket["legacy_s"] / bucket["output_s"], 3)
         bucket["new_x_realtime"] = round(bucket["new_s"] / bucket["output_s"], 3)
         for key in ("legacy_s", "new_s", "output_s"):
@@ -862,7 +872,8 @@ def evidence(measured: dict[str, Any], work: Path, legacy_run: str, new_run: str
                    "per job: source.json), same container and clips for both engines; "
                    "transcription and selection are shared and excluded",
           "threshold": PF_BUDGET, "layouts": layouts, "jobs": jobs,
-          "pass": all(bucket["pass"] for bucket in layouts.values()),
+          "pass": all(bucket["pass"] for bucket in layouts.values())
+          and all(item["pass"] for item in jobs),
           "environment": {"legacy": legacy["environment"], "new": new["environment"]}}
     if diagnosis is not None:
         pf["diagnosis"] = diagnosis
