@@ -653,6 +653,25 @@ def test_the_preview_mix_is_the_reference_pcm(job, tmp_path):
     assert ok(plan(case, doc))["dto"]["audio"]["state"] == "ready"
 
 
+def test_the_lane_encodes_its_flac_at_the_fastest_level(job):
+    """FLAC is lossless: level 0 changes the bytes, never the PCM (P-AUD compares PCM)."""
+    case = job_case(job)
+    plan_ = build_plan(case["seed"], words=case["words"], camera=None, assets={},
+                       resources=Resources(RESOURCES_DIR))
+    compiled = compile_ffmpeg.compile_job(plan_, mode="audio_preview", source=case["source"],
+                                          assets_root=case["job_dir"] / "analysis" / "assets")
+    lane = preview_cli.lane_audio(compiled)
+    at = lane.argv.index("flac")
+    assert lane.argv[at - 1] == "-c:a" and lane.argv[at + 1:at + 3] == ("-compression_level",
+                                                                          "0")
+    threads = plates.lane_threads(compiled).argv
+    assert lane.argv == threads[:at + 1] + ("-compression_level", "0") + threads[at + 1:]
+    with pytest.raises(ValueError):
+        preview_cli.lane_audio(compile_ffmpeg.compile_job(
+            plan_, mode="audio_measure", source=case["source"],
+            assets_root=case["job_dir"] / "analysis" / "assets"))
+
+
 def test_a_mix_with_music_is_measured_once_and_protected(job, tmp_path):
     case = job_case(job)
     assets = case["job_dir"] / "analysis" / "assets"
