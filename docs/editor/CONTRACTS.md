@@ -1097,8 +1097,8 @@ in `docs/editor/GATES.md` ("Patches" 11–18).
 
 - **`source.json` probe version 2: `grid_sf`.** `[[num, den, first_sf, end_sf], …]` for every
   rate of `DOC_FPS`, in that order: the source-grid frames `[first_sf, end_sf)` that the
-  compiler's own decode yields (R1: `-ss 0` / `-ss (duration − 3 s)`, `-copyts`,
-  `fps=num/den`), measured once per source (`source_info.measure_grid`; read with
+  compiler's own decode yields (R1: `-ss 0` / `-ss (duration − 3 s)`, or from the start when
+  that finds no frame, `-copyts`, `fps=num/den`), measured once per source (`source_info.measure_grid`; read with
   `source_info.grid_range(probe, fps)`). `duration_ms` (rounded up) cannot tell: `sf_ceil` of it
   can be one frame past the last frame, and a video that starts after t = 0 (0.041 s in two real
   downloads) has no grid frame 0. A version-1 `source.json` is refused (`SourceInfoError`); none
