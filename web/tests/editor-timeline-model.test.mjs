@@ -127,6 +127,8 @@ test("ruler ticks keep at least 64 px apart and label source-accurate seconds", 
   assert.ok(wide.length >= 2);
   assert.equal(wide[1].label, "01:00");
   assert.deepEqual(rulerTicks({ totalFrames: 0, fps: F30, pxPerFrame: 1 }), []);
+  const fine = rulerTicks({ totalFrames: 90, fps: F30, pxPerFrame: 8 });
+  assert.deepEqual(fine.slice(0, 3).map((tick) => tick.label), ["00:00,0", "00:00,5", "00:01,0"], "sub-second steps keep the tenths");
 });
 
 test("zoom fits the clip and keeps the frame under the pointer", () => {
