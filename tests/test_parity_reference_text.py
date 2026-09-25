@@ -236,6 +236,11 @@ def test_candidate_graphs_are_pinned() -> None:
     for name in rt.CANDIDATES:
         assert rt.final_graph(name).endswith("format=yuv420p")
         assert "out_color_matrix=bt709" in rt.final_graph(name)
+    # swscale treats untagged YUV as BT.601 and converts YUV→YUV when the matrices differ, so a
+    # YUV composite must name its own matrix in the final step (only chroma is resampled).
+    assert rt.final_graph("gbrp") == "scale=out_color_matrix=bt709:out_range=tv,format=yuv420p"
+    for name in ("yuv420p", "yuv444p"):
+        assert "in_color_matrix=bt709:in_range=tv" in rt.final_graph(name)
         assert rt.view_graph(name).endswith("format=rgb24")
     assert rt.view_graph("gbrp") == "format=rgb24"
     assert "in_color_matrix=bt709" in rt.view_graph("yuv444p")
