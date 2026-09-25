@@ -283,6 +283,7 @@ class _Compiler:
         self.inputs: list[InputSpec] = []
         self.graph: list[str] = []
         self.sidecars: dict[str, bytes] = {}
+        self.video_runs = 0  # [vr<r>] labels made by decoded()
         self.expected: dict[str, Any] = {
             "mode": mode,
             "fps": plan.fps.to_json(),
@@ -345,14 +346,16 @@ class _Compiler:
         return (f"{label_in}fps={fps.num}/{fps.den},select='{select_expression(ranges)}',"
                 f"setpts=N{label_out}")
 
-    def layout(self, label_in: str, ranges: Sequence[tuple[int, int]], label_out: str) -> str:
+    def layout(self, label_in: str, ranges: Sequence[tuple[int, int]], label_out: str,
+               suffix: str = "_0") -> str:
         """R4: one layout chain over frames that show the source-grid ``ranges`` in order.
 
         The layout is per frame (scale, crop, blur, overlay), so applying it once after the
         pieces are joined gives the same pixels as one chain per piece, with one set of
         filter contexts however many cuts there are. The camera crop x of output frame ``n``
         is the plan's value at the source frame it shows, so a plate cell and a final render
-        crop any source frame at the same x.
+        crop any source frame at the same x. ``suffix`` keeps fit_blur's internal labels unique
+        when a job holds several chains (plate runs).
         """
         crop = None
         if self.plan.layout == "camera":
@@ -364,7 +367,7 @@ class _Compiler:
                     self.plan.camera, self.fps, source=(self.streams.width, self.streams.height),
                     output=self.plan.output, first_sf=in_sf, count=out_sf - in_sf))
         return layouts.layout_chain(
-            self.plan.layout, label_in=label_in, label_out=label_out, suffix="_0",
+            self.plan.layout, label_in=label_in, label_out=label_out, suffix=suffix,
             output=self.plan.output, source=(self.streams.width, self.streams.height),
             matrix=self.matrix, in_range=self.in_range, crop=crop)
 
@@ -550,7 +553,7 @@ def _plate_cells(compiler: _Compiler, cells: Sequence[int]) -> FfmpegJob:
         compiler.graph.append(compiler.trim(f"[{k}:{compiler.streams.video_index}]",
                                             in_sf, out_sf, 0, f"[pt{r}]"))
         compiler.graph.append(compiler.layout(f"[pt{r}]settb={fps.den}/{fps.num},",
-                                              [(in_sf, out_sf)], f"[pl{r}]"))
+                                              [(in_sf, out_sf)], f"[pl{r}]", suffix=f"_{r}"))
         compiler.graph.append(f"[pl{r}]{_YUV_TO_709},format=yuv420p[cell{r}]")
         split_at = ",".join(str(size * (i + 1)) for i in range(len(run)))
         outputs += ["-map", f"[cell{r}]", *_x264(*PLATE, size), "-bf", "0", "-forced-idr", "1",
