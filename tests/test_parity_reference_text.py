@@ -115,7 +115,7 @@ def test_box_samples_use_one_line_translucent_boxes() -> None:
     border = rt.box_ass(cues, fps=fps, family="Montserrat ExtraBold", variant="border3")
     style = _style(border, "Box")
     assert style[2] == "64"  # 1.2 × 12/288 × 1280
-    assert style[15] == "3" and style[16] == "13"  # BorderStyle 3, padding H/100
+    assert style[15] == "3" and style[16] == "12.8"  # BorderStyle 3, padding H/100
     assert style[5] == "&H40000000"  # black at 75% opacity on OutlineColour (defect #1 fix)
     assert len(_events(border)) == len(cues)
     pbox = rt.box_ass(cues, fps=fps, family="Montserrat ExtraBold", variant="pbox")
