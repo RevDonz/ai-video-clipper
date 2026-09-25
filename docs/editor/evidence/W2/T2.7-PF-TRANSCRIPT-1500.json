@@ -1,0 +1,77 @@
+{
+  "gate": "a command on a 1,500-word window updates the transcript",
+  "threshold_ms": 16,
+  "statistic": "p95 per command and overall",
+  "measured": "keydown/click dispatch → store command → React commit → forced style and layout of the transcript (in-page performance.now)",
+  "words": 1500,
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "overall": {
+    "n": 140,
+    "p50_ms": 2.3,
+    "p95_ms": 4,
+    "max_ms": 11.7
+  },
+  "per_command": {
+    "RemoveWords": {
+      "n": 20,
+      "p50_ms": 2.8,
+      "p95_ms": 3.4,
+      "max_ms": 10
+    },
+    "RestoreRemoval": {
+      "n": 20,
+      "p50_ms": 1.9,
+      "p95_ms": 3.1,
+      "max_ms": 4
+    },
+    "SetWordEmphasis": {
+      "n": 20,
+      "p50_ms": 2.6,
+      "p95_ms": 3.4,
+      "max_ms": 9.1
+    },
+    "SetWordHidden": {
+      "n": 20,
+      "p50_ms": 2,
+      "p95_ms": 3.2,
+      "max_ms": 3.8
+    },
+    "EditWordText": {
+      "n": 20,
+      "p50_ms": 3.4,
+      "p95_ms": 5.3,
+      "max_ms": 11.7
+    },
+    "TrimStart": {
+      "n": 20,
+      "p50_ms": 1.9,
+      "p95_ms": 2.5,
+      "max_ms": 3.1
+    },
+    "Undo": {
+      "n": 20,
+      "p50_ms": 1.2,
+      "p95_ms": 1.6,
+      "max_ms": 2.5
+    }
+  },
+  "unsettled": 0,
+  "pass": true,
+  "browser": "chromium",
+  "browserVersion": "147.0.7727.15",
+  "executable": "chromium-1217 (Chrome for Testing)",
+  "machine": {
+    "cpus": 16,
+    "cpuModel": "AMD Ryzen 7 5700G with Radeon Graphics",
+    "loadavg": [
+      16.09,
+      14.7,
+      10.9
+    ]
+  },
+  "commit": "8477f0d55af64e4d82797c72a80253991ef28ce3",
+  "harness": "web/components/editor/transcript/__dev__ (production React, harness store)"
+}
