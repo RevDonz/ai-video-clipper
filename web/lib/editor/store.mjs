@@ -343,17 +343,34 @@ export function createEditorStore({
     return "rebased";
   }
 
-  /** Merges a closed tab's draft into the current work; false keeps that draft for later. */
-  function adoptDraft(draft) {
+  /**
+   * Merges a closed tab's draft into the current work; false keeps that draft for later. A PUT
+   * the closed tab had in flight on an older version is replayed with its Idempotency-Key first:
+   * if it was committed, those steps are already on the server and are not merged again (the
+   * replay cannot create a new commit, because its If-Match is not the current etag).
+   */
+  async function adoptDraft(draft) {
     if (!draft.baseDoc || conflictState) return false;
+    let baseDoc = draft.baseDoc;
+    let steps = draft.commands;
+    if (draft.inflight && draft.inflight.etag !== base.etag && draft.inflight.count <= steps.length) {
+      try {
+        const replayed = await api.putEdit(draft.inflight.doc, { etag: draft.inflight.etag, key: draft.inflight.key });
+        baseDoc = replayed.doc;
+        steps = steps.slice(draft.inflight.count);
+      } catch {
+        // Not committed (or its receipt is gone): merged as it is below.
+      }
+    }
+    if (!steps.length) return true;
     let mine;
     try {
-      mine = replaySteps(draft.baseDoc, draft.commands, ctx).doc;
+      mine = replaySteps(baseDoc, steps, ctx).doc;
     } catch (error) {
       if (!(error instanceof CommandRejected)) throw error;
       return false;
     }
-    const result = rebase({ base: draft.baseDoc, mine, theirs: session.doc, steps: draft.commands, ctx });
+    const result = rebase({ base: baseDoc, mine, theirs: session.doc, steps, ctx });
     if (result.status !== "merged") {
       set({ notice: { code: "draft_conflict", message: STORE_MESSAGES.draft_conflict } });
       return false;
@@ -388,7 +405,7 @@ export function createEditorStore({
       if (primary !== own) draftWriter.remove(primary.key);
     }
     for (const orphan of orphans) {
-      if (adoptDraft(orphan)) draftWriter.remove(orphan.key);
+      if (await adoptDraft(orphan)) draftWriter.remove(orphan.key);
     }
     writeDraft();
     if (!session.pending.length || conflictState) return;
