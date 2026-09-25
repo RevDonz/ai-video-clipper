@@ -86,6 +86,28 @@ def decide(candidates: Mapping[str, Mapping]) -> dict:
             "best_delivered_ssim_text": best}
 
 
+def recommend(candidates: Mapping[str, Mapping], decision: Mapping) -> dict:
+    """The format to use, given ``decide``'s outcome.
+
+    When the rule chose a candidate, that one. When P-ENC fails for every candidate, it cannot
+    rank them (the final 4:2:0 + H.264 step is the same in all of them), so the cheapest
+    candidate passing P-TXT and P-COLOR is recommended with P-ENC left open. Otherwise none.
+    """
+    if decision["format"] is not None:
+        return {"format": decision["format"], "basis": decision["rule"], "open_gates": []}
+    rejected = decision["rejected"]
+    if all("p_enc" in rejected.get(fmt, ()) for fmt in candidates):
+        eligible = [fmt for fmt, entry in candidates.items()
+                    if entry["p_txt_pass"] and entry["p_color_pass"]]
+        if eligible:
+            winner = min(eligible, key=lambda fmt: (candidates[fmt]["cost_s"], fmt))
+            return {"format": winner, "basis": "p_enc_fails_for_every_candidate",
+                    "open_gates": ["p_enc"]}
+    failing = {gate for reasons in rejected.values() for gate in reasons}
+    return {"format": None, "basis": "none_passed",
+            "open_gates": [gate for gate, _ in _GATES if gate in failing]}
+
+
 def choose_variant(results: Mapping[str, bool], *, preferred: str,
                    fallback: str) -> tuple[str, str]:
     """The planned variant when it passes P-TXT, else the fallback when that passes."""
@@ -437,10 +459,12 @@ def decide_from_files(fixtures: Path, browser: Path, *, cost: Mapping, p_txt: Ma
             "pack_variants": variants,
         }
     decision = decide(candidates)
-    chosen = decision["format"]
+    recommendation = recommend(candidates, decision)
+    chosen = recommendation["format"]
     return {
         "schema": "potongin.s-color/1",
         "decision": decision,
+        "recommendation": recommendation,
         "pack_variants": candidates[chosen]["pack_variants"] if chosen else None,
         "candidates": candidates,
         "cost": cost,
@@ -479,13 +503,40 @@ def _percentile(values: Sequence[float], q: float) -> float:
     return ordered[min(len(ordered) - 1, math.ceil(q * len(ordered)) - 1)]
 
 
+def _p_enc_formats(p_enc: Mapping, detail: str | None) -> dict:
+    """Summaries per candidate; per-clip detail (the baseline) for ``detail`` only."""
+    formats = {}
+    for fmt, entry in p_enc["formats"].items():
+        clips = {}
+        for cid, c in entry["clips"].items():
+            row = {"ssim_all": c["ssim_all"], "ssim_text": c["ssim_text"], "pass": c["pass"]}
+            if fmt == detail:
+                row.update({"ssim_y": c.get("ssim_y"), "ssim_text_y": c.get("ssim_text_y"),
+                            "min_frame_ssim_all": c["min_frame_ssim_all"],
+                            "min_frame_ssim_text": c["min_frame_ssim_text"],
+                            "rgb_diagnostic": c.get("rgb"), "gate": c["gate"]})
+            elif c.get("vs_common"):
+                row["vs_common_ssim_text"] = c["vs_common"]["ssim_text"]
+            clips[cid] = row
+        formats[fmt] = {"pass": entry["gate"]["pass"], "min_ssim_all": entry["min_ssim_all"],
+                        "min_ssim_text": entry["min_ssim_text"],
+                        "mean_ssim_all": entry["mean_ssim_all"],
+                        "mean_ssim_text": entry["mean_ssim_text"],
+                        "mean_ssim_text_vs_common": entry.get("mean_ssim_text_vs_common"),
+                        "clips": clips}
+    return formats
+
+
 def write_evidence(*, decision: Mapping, browser: Path, matrix: Mapping | None, out_dir: Path,
-                   task: str = "T1.2b") -> list[Path]:
-    """The gate evidence of T1.2b (numbers only) from one harness run and one decision."""
+                   natural_p_enc: Mapping | None = None, task: str = "T1.2b") -> list[Path]:
+    """The gate evidence of T1.2b (numbers only) from one harness run and one decision.
+
+    ``natural_p_enc`` is an ``enc_check.py fixtures`` result on a natural-video plate, recorded
+    next to the synthetic baseline."""
     p_time = json.loads((browser / "p_time_jassub.json").read_text())
     p_txt = json.loads((browser / "p_txt.json").read_text())
     timing = json.loads((browser / "render_timing.json").read_text())
-    chosen = decision["decision"]["format"]
+    chosen = decision["recommendation"]["format"]
     toolchain = decision.get("toolchain")
     browser_info = {"browser": p_time.get("browserVersion"), "jassub": p_time.get("jassub"),
                     "wasm": timing.get("wasm")}
@@ -520,20 +571,12 @@ def write_evidence(*, decision: Mapping, browser: Path, matrix: Mapping | None, 
         "domain": p_enc.get("domain"), "diagnostic": p_enc.get("diagnostic"),
         "baseline_tolerance": p_enc["baseline_tolerance"], "encode": "R7 Standar (x264 veryfast "
         "crf 21, yuv420p, BT.709 tags)", "toolchain": toolchain, "baseline_format": chosen,
-        "formats": {fmt: {"pass": entry["gate"]["pass"], "min_ssim_all": entry["min_ssim_all"],
-                          "min_ssim_text": entry["min_ssim_text"],
-                          "mean_ssim_all": entry["mean_ssim_all"],
-                          "mean_ssim_text": entry["mean_ssim_text"],
-                          "clips": {cid: {"ssim_all": c["ssim_all"], "ssim_text": c["ssim_text"],
-                                          "ssim_y": c.get("ssim_y"),
-                                          "ssim_text_y": c.get("ssim_text_y"),
-                                          "min_frame_ssim_all": c["min_frame_ssim_all"],
-                                          "min_frame_ssim_text": c["min_frame_ssim_text"],
-                                          "rgb_diagnostic": c.get("rgb"),
-                                          "frames": c["frames"], "gate": c["gate"],
-                                          "pass": c["pass"]}
-                                    for cid, c in entry["clips"].items()}}
-                    for fmt, entry in p_enc["formats"].items()},
+        "plate": "fit_blur of testsrc2 (synthetic, saturated)",
+        "common_reference": p_enc.get("common_reference"),
+        "formats": _p_enc_formats(p_enc, chosen),
+        "natural_plate": ({"plate": "fit_blur of a real 640x360 BT.709 source (read only)",
+                           "formats": _p_enc_formats(natural_p_enc, chosen)}
+                          if natural_p_enc else None),
         "pass": bool(chosen) and decision["candidates"][chosen]["p_enc_pass"],
     }
     p_color = decision["p_color"]
@@ -555,6 +598,7 @@ def write_evidence(*, decision: Mapping, browser: Path, matrix: Mapping | None, 
     changed = [f["libassMs"] for f in timing["frames"]]
     files["S-COLOR"] = {
         "task": task, "spike": "S-COLOR", "decision": decision["decision"],
+        "recommendation": decision["recommendation"],
         "pack_variants": decision["pack_variants"],
         "candidates": {fmt: {key: value for key, value in c.items() if key != "pack_variants"}
                        for fmt, c in decision["candidates"].items()},
@@ -610,6 +654,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     evidence.add_argument("--decision", type=Path, required=True)
     evidence.add_argument("--browser", type=Path, required=True)
     evidence.add_argument("--matrix", type=Path)
+    evidence.add_argument("--p-enc-natural", type=Path)
     evidence.add_argument("--out-dir", type=Path, required=True)
     both = commands.add_parser("decide")
     both.add_argument("--fixtures", type=Path, required=True)
@@ -634,6 +679,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         written = write_evidence(decision=json.loads(args.decision.read_text()),
                                  browser=args.browser,
                                  matrix=json.loads(args.matrix.read_text()) if args.matrix else None,
+                                 natural_p_enc=(json.loads(args.p_enc_natural.read_text())
+                                                if args.p_enc_natural else None),
                                  out_dir=args.out_dir)
         print("\n".join(str(path) for path in written))
         return 0
@@ -652,6 +699,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args.out.write_text(json.dumps(_finite(result), indent=2, sort_keys=True) + "\n",
                         encoding="utf-8")
     print(json.dumps(_finite({"decision": result["decision"],
+                              "recommendation": result["recommendation"],
                               "pack_variants": result["pack_variants"]}), indent=2))
     return 0
 
