@@ -141,9 +141,32 @@ def test_cli_write_and_check(tmp_path):
     assert bad.returncode == 1 and "digest" in bad.stderr
 
 
+def test_every_image_the_build_pulls_is_pinned_by_digest():
+    """E10: a rebuild must not change the toolchain behind a tag (W1 verifier: the uv stage
+    was pinned by tag only)."""
+    import re
+
+    dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+    arguments = dict(re.findall(r"^ARG (\w+)=(\S+)$", dockerfile, re.MULTILINE))
+    images = re.findall(r"^FROM (\S+)", dockerfile, re.MULTILINE)
+    images += re.findall(r"^COPY --from=(\S+)", dockerfile, re.MULTILINE)
+    stages = set(re.findall(r"^FROM \S+ AS (\S+)$", dockerfile, re.MULTILINE))
+    pulled = []
+    for image in images:
+        name = re.sub(r"\$\{(\w+)\}", lambda match: arguments[match.group(1)], image)
+        if name not in stages:
+            pulled.append(name)
+    assert pulled, "the Dockerfile pulls no image?"
+    for name in pulled:
+        assert re.fullmatch(r"[a-z0-9][a-z0-9._/:-]*@sha256:[0-9a-f]{64}", name), name
+
+
 def test_the_repository_never_ships_a_toolchain_json():
     """The file describes one image; it is written by the build, never committed."""
     assert not (ROOT / "resources" / "toolchain.json").exists()
-    ignored = subprocess.run(["git", "check-ignore", "-q", "resources/toolchain.json"],
+    vcs = shutil.which("git")
+    if vcs is None or not (ROOT / ".git").exists():  # e.g. the suite inside the pinned image
+        pytest.skip("git or the repository metadata is not available here")
+    ignored = subprocess.run([vcs, "check-ignore", "-q", "resources/toolchain.json"],
                              cwd=ROOT, check=False)
     assert ignored.returncode == 0

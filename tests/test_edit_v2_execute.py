@@ -201,13 +201,33 @@ def test_environment_is_an_allowlist(fake, tmp_path, monkeypatch):
     assert "secret-value" not in json.dumps(env)
 
 
-def test_missing_fontconfig_file_is_not_passed(fake, tmp_path):
+def test_a_declared_but_missing_fontconfig_file_fails(fake, tmp_path):
+    """G-FAIL: nothing falls back silently. Without its fonts.conf FFmpeg would draw the
+    captions with whatever fonts the system has (W1 verifier)."""
+    report = tmp_path / "report.json"
+    with pytest.raises(errors.RenderFailed) as caught:
+        execute.run(job([fake, "-progress", "@progress", "--report", str(report)],
+                        expected={"output": "null",
+                                  "fontconfig_file": str(tmp_path / "missing.conf")}),
+                    output_fd=None, timeout_s=30)
+    assert caught.value.code == "render_failed"
+    assert not report.exists()  # FFmpeg never started
+
+
+def test_the_address_space_limit_is_set_before_ffmpeg_runs(fake, tmp_path, monkeypatch):
+    """RLIMIT_AS is set in the child before exec, not with prlimit after the start (W1
+    verifier: a short unlimited window)."""
+
+    def after_start(*_args):
+        raise AssertionError("the limit was set after FFmpeg started")
+
+    monkeypatch.setattr(execute.resource, "prlimit", after_start)
     report = tmp_path / "report.json"
     execute.run(job([fake, "-progress", "@progress", "--report", str(report)],
-                    expected={"output": "null",
-                              "fontconfig_file": str(tmp_path / "missing.conf")}),
-                output_fd=None, timeout_s=30)
-    assert "FONTCONFIG_FILE" not in json.loads(report.read_text())["env"]
+                    expected={"output": "null"}), output_fd=None, timeout_s=30)
+    limits = json.loads(report.read_text())["limits"]
+    line = next(line for line in limits.splitlines() if line.startswith("Max address space"))
+    assert line.split()[3:5] == [str(execute.RLIMIT_AS_BYTES)] * 2
 
 
 def test_address_space_is_limited(fake, tmp_path):
