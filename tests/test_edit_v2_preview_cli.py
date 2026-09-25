@@ -888,7 +888,26 @@ def test_the_truth_frame_is_the_compilers_frame_mode_output(job, tmp_path):
     case = job_case(job)
     doc = case["seed"]
     f = 45
-    result = ok(op(case, "frame", requestRaw=b64(body(doc, f=f)), cancelToken=None))
+    jobs = []
+    real_run = execute.run
+
+    def recording_run(job_, **kwargs):
+        jobs.append(job_)
+        return real_run(job_, **kwargs)
+
+    execute.run = recording_run
+    try:
+        result = ok(op(case, "frame", requestRaw=b64(body(doc, f=f)), cancelToken=None))
+    finally:
+        execute.run = real_run
+    # plan §2.6: the lane's FFmpeg runs at two threads (the export's four give the same bytes)
+    assert len(jobs) == 1
+    argv = jobs[0].argv
+    threads = [argv[i + 1] for i, token in enumerate(argv[:-1])
+               if token in ("-threads", "-filter_complex_threads")]
+    assert threads and set(threads) == {str(plates.LANE_THREADS)}
+    assert all(f"threads={plates.LANE_THREADS}" in token for token in argv
+               if token.startswith("threads=") or ":threads=" in token)
     path = case["clip"] / "preview" / "frames" / result["name"]
     assert re.fullmatch(rf"[0-9a-f]{{16}}-{f}-720\.png", result["name"])
     expected_plan_ = build_plan(doc, words=case["words"], camera=None, assets={},
