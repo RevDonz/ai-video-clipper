@@ -6,8 +6,9 @@
 // - The child gets an allowlisted environment: `CHILD_ENV_ALLOWLIST`, never APP_*,
 //   POTONGIN_SETTINGS_*, POTONGIN_LLM* or *_API_KEY. Only the AI task (`withLlmEnv`) adds the
 //   LLM variables of `engineProcessEnv(await loadLlmEnv())`, as run-job.mjs does for the engine.
-// - The child leads its own process group; a timeout or an abort kills the whole group
-//   (FFmpeg included) with SIGKILL.
+// - The child leads its own process group; a timeout or an abort sends SIGTERM to the whole
+//   group, then SIGKILL after `killGraceMs` (2 s). SIGTERM first lets `preview_cli` kill FFmpeg,
+//   which runs in a session of its own (execute.run), before it exits with 12 (T2.3).
 // - Exit codes are the fixed map of docs/editor/CONTRACTS.md §5.3: a mapped code resolves with
 //   `{exitCode, json}`; 1 (unexpected), 2 (usage: our bug) and anything else reject.
 import { spawn } from "node:child_process";
@@ -29,6 +30,8 @@ export const PYTHON_CLI_MODULES = Object.freeze([
   "ai_clipper.edit_v2.cleanup",
   "ai_clipper.edit_v2.coldopen",
   "ai_clipper.editor_ai",
+  // Editor V3 exports: the render-request-v3 envelope (CONTRACTS §5.17; T2.2 request R1).
+  "ai_clipper.render_queue",
 ]);
 
 // CONTRACTS §5.3: CLI exit code → [code name, HTTP status].
@@ -47,6 +50,7 @@ export const EXIT_CODES = Object.freeze({
 });
 
 export const DEFAULT_TIMEOUT_MS = 30_000;
+export const DEFAULT_KILL_GRACE_MS = 2_000;
 export const MAX_TIMEOUT_MS = 30 * 60_000;
 export const DEFAULT_MAX_STDIN_BYTES = 3 * 1024 * 1024; // a 1 MiB document travels base64-encoded
 export const DEFAULT_MAX_STDOUT_BYTES = 4 * 1024 * 1024;
@@ -99,10 +103,10 @@ function envelopeBytes(op, payload, maxStdinBytes) {
   return raw;
 }
 
-function killGroup(child) {
+function signalGroup(child, signal) {
   if (!child.pid) return;
-  try { process.kill(-child.pid, "SIGKILL"); } catch {
-    try { child.kill("SIGKILL"); } catch { /* already gone */ }
+  try { process.kill(-child.pid, signal); } catch {
+    try { child.kill(signal); } catch { /* already gone */ }
   }
 }
 
@@ -112,7 +116,7 @@ function killGroup(child) {
  */
 export async function runPythonCli(module, op, payload, options = {}) {
   const {
-    timeoutMs, maxStdoutBytes, maxStdinBytes, withLlmEnv = false, signal,
+    timeoutMs, maxStdoutBytes, maxStdinBytes, withLlmEnv = false, signal, killGraceMs = DEFAULT_KILL_GRACE_MS,
     env = process.env, pythonBin = process.env.PYTHON_BIN || "python",
     spawnImpl = spawn, loadLlmEnvImpl = loadLlmEnv,
   } = options;
@@ -143,10 +147,12 @@ export async function runPythonCli(module, op, payload, options = {}) {
     let failure = null;
     let settled = false;
 
+    let killTimer = null;
     const fail = (code) => {
       if (failure) return;
       failure = code;
-      killGroup(child);
+      signalGroup(child, "SIGTERM");
+      killTimer = setTimeout(() => signalGroup(child, "SIGKILL"), Math.max(0, killGraceMs));
     };
     const timer = setTimeout(() => fail("timeout"), timeout);
     const onAbort = () => fail("aborted");
@@ -155,6 +161,10 @@ export async function runPythonCli(module, op, payload, options = {}) {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      if (killTimer) {
+        clearTimeout(killTimer);
+        signalGroup(child, "SIGKILL"); // whatever of the group outlived its leader
+      }
       signal?.removeEventListener("abort", onAbort);
       settle();
     };

@@ -41,6 +41,20 @@ export const MESSAGES = Object.freeze({
   cancelled: "Render dibatalkan",
   auto_file_unavailable: "File klip otomatis tidak tersedia; klip dirender ulang",
   engine_fallback: "Klip dirender dengan mesin lama",
+  // Answered by the Node routes (errors.ROUTE_CODES; T2.Z).
+  invalid_request: "Permintaan tidak valid",
+  csrf_rejected: "Permintaan ditolak karena tidak berasal dari halaman ini; muat ulang halaman",
+  rate_limited: "Terlalu banyak permintaan; tunggu sebentar lalu coba lagi",
+  backend_unavailable: "Layanan editor sedang tidak tersedia; coba lagi sebentar lagi",
+  superseded: "Permintaan ini digantikan oleh perubahan yang lebih baru",
+  editor_disabled: "Editor V3 belum diaktifkan",
+  precondition_required: "Versi dokumen tidak disertakan; muat ulang editor",
+  payload_too_large: "Permintaan terlalu besar",
+  storage_quota_exhausted: "Penyimpanan server tidak cukup",
+  storage_free_space_low: "Penyimpanan server tidak cukup",
+  storage_admission_unavailable: "Pemeriksaan penyimpanan tidak tersedia",
+  render_finished: "Render sudah selesai sehingga tidak bisa dibatalkan",
+  not_cancellable: "Render ini tidak bisa dibatalkan",
   // Clip reasons (Appendix C.6).
   needs_prepare: "Klip perlu disiapkan dulu",
   source_missing: "Video sumber sudah tidak ada",
@@ -172,6 +186,11 @@ export function badgeView({ status, plan, storePending = [], player = null }) {
   }
   if (!mode) return { tone: "pending", text: "Menyiapkan pratinjau…", detail: null };
   const pending = pendingLayers({ plan, storePending, playerCurrent: player?.current });
+  // Every layer is current, but the paused player has not drawn the playhead frame yet (its
+  // `exact` is false: a seek still decoding): no claim until it is on screen (T2.4, §6.1).
+  if (!pending.length && player?.exact === false && !player?.playing) {
+    return { tone: "pending", text: "Menyiapkan frame…", detail: null };
+  }
   if (!pending.length) return { tone: "exact", text: EXACT_TEXT, detail: null };
   return { tone: "pending", text: pending.map((layer) => PENDING_TEXT[layer](plan)).join(" · "), detail: null };
 }
@@ -227,6 +246,17 @@ export function contentEqualsSeed(doc, seed) {
 export function exportMatchesSeed({ plan, doc, seed }) {
   if (doc && seed) return contentEqualsSeed(doc, seed);
   return Boolean(plan?.planSha256) && plan.planSha256 === plan?.rev0?.planSha256;
+}
+
+/**
+ * The parts of the per-part conflict dialog, `[{id, label}]`, from the store's
+ * `state.conflict`: the real store's `{groups: [{id, label, parts, mine, theirs}], error}` (T2.5)
+ * or the older `{parts: [{id, label}]}` shape of the T2.6 specs.
+ */
+export function conflictParts(conflict) {
+  const list = Array.isArray(conflict?.groups) ? conflict.groups : Array.isArray(conflict?.parts) ? conflict.parts : [];
+  return list.filter((part) => part && typeof part.id === "string" && typeof part.label === "string")
+    .map(({ id, label }) => ({ id, label }));
 }
 
 /** Informational notices above the stage (Appendix C.6). */

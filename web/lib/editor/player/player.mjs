@@ -612,7 +612,10 @@ export function createPlayer({
     mode = next;
     if (mode === "auto_render") {
       const url = plan.rev0.autoRenderUrl;
-      if (video.src !== url) {
+      // `video.src` reads back absolute; the attribute keeps the path as set (T2.Z: a relative
+      // autoRenderUrl must not reload the element on every return to this mode).
+      const current = typeof video.getAttribute === "function" ? video.getAttribute("src") : video.src;
+      if (current !== url && video.src !== url) {
         video.preload = "auto";
         video.playsInline = true;
         video.src = url;
