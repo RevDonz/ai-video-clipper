@@ -14,7 +14,8 @@ as computed in JavaScript. Every document must
 * agree with ``content_equals_seed`` (R10).
 
 Run ``PYTHONPATH=src:tests python tests/test_edit_v2_crosscheck.py [--sequences N]`` to print
-the summary (the gate evidence ``docs/editor/evidence/W2/T2.5-crosscheck.json``).
+the summary (the gate evidence ``docs/editor/evidence/W2/T2.5-crosscheck.json``); the module
+needs no pytest, so it also runs inside the toolchain image.
 """
 
 from __future__ import annotations
@@ -30,7 +31,6 @@ import time
 from pathlib import Path
 from typing import Any
 
-import pytest
 from support import edit_v2_fixtures as fixtures
 
 from ai_clipper.edit_v2 import timemap as tm
@@ -125,6 +125,8 @@ def check_document(raw: bytes, header: dict[str, Any], context: fixtures.Context
 
 
 def test_every_document_of_1000_random_command_sequences_passes_the_python_validator():
+    import pytest  # here, so that the module also runs as a script where pytest is absent
+
     if node_executable() is None:
         pytest.skip("node is not installed (the web toolchain runs this cross-check)")
     summary = run_crosscheck()
@@ -143,6 +145,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--seed", type=int, default=SEED)
     args = parser.parse_args(argv)
     summary = run_crosscheck(sequences=args.sequences, seed=args.seed)
+    summary["python"] = sys.version.split()[0]
     json.dump(summary, sys.stdout, indent=2, sort_keys=True)
     sys.stdout.write("\n")
     return 0 if summary["failure_count"] == 0 and summary["returncode"] == 0 else 1

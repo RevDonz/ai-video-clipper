@@ -10,6 +10,21 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const CLIP_ID = /^clip_[0-9a-f]{24}$/;
 const ETAG = /^[0-9a-f]{64}$/;
 
+/**
+ * A random UUID v4 for Idempotency-Keys: `crypto.randomUUID` where the page is a secure context,
+ * otherwise built from `crypto.getRandomValues` (available everywhere), so saving never depends
+ * on how the app is reached.
+ */
+export function randomUuid(cryptoImpl = globalThis.crypto) {
+  if (typeof cryptoImpl?.randomUUID === "function") return cryptoImpl.randomUUID();
+  const bytes = new Uint8Array(16);
+  cryptoImpl.getRandomValues(bytes);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 export class ApiError extends Error {
   constructor(status, code, body = {}) {
     super(`editor api ${status} ${code}`);
