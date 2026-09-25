@@ -344,7 +344,9 @@ test.describe("Konteks Tren against the live API", () => {
     await login(page, "/trends");
     await expect(page.getByRole("heading", { name: "Daftar tren" })).toBeVisible();
 
-    await page.locator("summary", { hasText: "Tambah tren manual" }).click();
+    // On an empty store the page opens the manual form by itself; a click would close it.
+    const adder = page.locator("details.trAdd");
+    if (!(await adder.evaluate((node) => node.open))) await page.locator("summary", { hasText: "Tambah tren manual" }).click();
     const manual = page.getByRole("form", { name: "Tambah tren manual" });
     await manual.getByLabel("Judul").fill(title);
     await manual.getByLabel("Kata kunci").fill(`e2e ${stamp}`);
