@@ -656,6 +656,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     evidence.add_argument("--matrix", type=Path)
     evidence.add_argument("--p-enc-natural", type=Path)
     evidence.add_argument("--out-dir", type=Path, required=True)
+    evidence.add_argument("--task", default="T1.2b", help="evidence file prefix")
     both = commands.add_parser("decide")
     both.add_argument("--fixtures", type=Path, required=True)
     both.add_argument("--browser", type=Path, required=True)
@@ -681,7 +682,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                                  matrix=json.loads(args.matrix.read_text()) if args.matrix else None,
                                  natural_p_enc=(json.loads(args.p_enc_natural.read_text())
                                                 if args.p_enc_natural else None),
-                                 out_dir=args.out_dir)
+                                 out_dir=args.out_dir, task=args.task)
         print("\n".join(str(path) for path in written))
         return 0
     if args.command == "matrix-probe":
