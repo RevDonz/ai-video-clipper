@@ -169,8 +169,9 @@ class _Staged:
         self.fd = os.open(self.temp, _NEW_FILE, 0o600)
         try:
             _write_all(self.fd, data)
-            self.thread = threading.Thread(target=self._sync, daemon=True)
-            self.thread.start()
+            thread = threading.Thread(target=self._sync, daemon=True)
+            thread.start()
+            self.thread = thread  # only a started thread is ever joined
         except BaseException:
             self.discard()
             raise
@@ -213,10 +214,7 @@ def _fsync_directories(paths: Iterable[Path]) -> Callable[[], None]:
         except BaseException as error:  # noqa: BLE001 - re-raised by wait()
             errors.append(error)
 
-    threads = [threading.Thread(target=sync, args=(path,), daemon=True)
-               for path in dict.fromkeys(paths)]
-    for thread in threads:
-        thread.start()
+    threads: list[threading.Thread] = []
 
     def wait() -> None:
         for thread in threads:
@@ -224,6 +222,15 @@ def _fsync_directories(paths: Iterable[Path]) -> Callable[[], None]:
         if errors:
             raise errors[0]
 
+    try:
+        for path in dict.fromkeys(paths):
+            thread = threading.Thread(target=sync, args=(path,), daemon=True)
+            thread.start()
+            threads.append(thread)
+    except BaseException:
+        for thread in threads:  # join the started ones; the start failure is what is raised
+            thread.join()
+        raise
     return wait
 
 
@@ -402,7 +409,8 @@ def load_assets(clip_dir: Path, asset_ids: Iterable[str]) -> dict[str, dict]:
             meta = json.loads(raw)
         except ValueError:
             continue
-        fields = _ASSET_FIELDS.get(meta.get("kind")) if isinstance(meta, dict) else None
+        kind = meta.get("kind") if isinstance(meta, dict) else None
+        fields = _ASSET_FIELDS.get(kind) if isinstance(kind, str) else None
         if fields is not None and all(key in meta for key in fields):
             result[asset_id] = {key: meta[key] for key in fields}
     return result
