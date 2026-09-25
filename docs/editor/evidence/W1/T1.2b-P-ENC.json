@@ -1,0 +1,1082 @@
+{
+  "baseline_format": "gbrp",
+  "baseline_tolerance": 0.002,
+  "common_reference": "gbrp",
+  "diagnostic": "rgb",
+  "domain": "yuv444p",
+  "encode": "R7 Standar (x264 veryfast crf 21, yuv420p, BT.709 tags)",
+  "formats": {
+    "gbrp": {
+      "clips": {
+        "bold-10": {
+          "gate": true,
+          "min_frame_ssim_all": 0.987874,
+          "min_frame_ssim_text": 0.958161,
+          "pass": false,
+          "rgb_diagnostic": {
+            "ssim_all": 0.90971,
+            "ssim_text": 0.887514
+          },
+          "ssim_all": 0.988893,
+          "ssim_text": 0.981178,
+          "ssim_text_y": 0.996384,
+          "ssim_y": 0.99675
+        },
+        "bold-40": {
+          "gate": true,
+          "min_frame_ssim_all": 0.985125,
+          "min_frame_ssim_text": 0.953579,
+          "pass": false,
+          "rgb_diagnostic": {
+            "ssim_all": 0.910159,
+            "ssim_text": 0.904318
+          },
+          "ssim_all": 0.988044,
+          "ssim_text": 0.98394,
+          "ssim_text_y": 0.996699,
+          "ssim_y": 0.996547
+        },
+        "bold-90": {
+          "gate": true,
+          "min_frame_ssim_all": 0.984687,
+          "min_frame_ssim_text": 0.963675,
+          "pass": false,
+          "rgb_diagnostic": {
+            "ssim_all": 0.906394,
+            "ssim_text": 0.867054
+          },
+          "ssim_all": 0.987253,
+          "ssim_text": 0.977286,
+          "ssim_text_y": 0.995828,
+          "ssim_y": 0.996557
+        },
+        "bold-dejavu-10": {
+          "gate": false,
+          "min_frame_ssim_all": 0.987609,
+          "min_frame_ssim_text": 0.961098,
+          "pass": false,
+          "rgb_diagnostic": {
+            "ssim_all": 0.90793,
+            "ssim_text": 0.867181
+          },
+          "ssim_all": 0.988718,
+          "ssim_text": 0.981304,
+          "ssim_text_y": 0.996229,
+          "ssim_y": 0.996697
+        },
+        "bold-dejavu-40": {
+          "gate": false,
+          "min_frame_ssim_all": 0.98469,
+          "min_frame_ssim_text": 0.953541,
+          "pass": false,
+          "rgb_diagnostic": {
+            "ssim_all": 0.907187,
+            "ssim_text": 0.885673
+          },
+          "ssim_all": 0.98778,
+          "ssim_text": 0.982917,
+          "ssim_text_y": 0.996669,
+          "ssim_y": 0.99656
+        },
+        "bold-dejavu-90": {
+          "gate": false,
+          "min_frame_ssim_all": 0.98432,
+          "min_frame_ssim_text": 0.965397,
+          "pass": false,
+          "rgb_diagnostic": {
+            "ssim_all": 0.90433,
+            "ssim_text": 0.861206
+          },
+          "ssim_all": 0.987016,
+          "ssim_text": 0.978231,
+          "ssim_text_y": 0.995995,
+          "ssim_y": 0.996558
+        },
+        "box-10": {
+          "gate": true,
+          "min_frame_ssim_all": 0.988694,
+          "min_frame_ssim_text": 0.976962,
+          "pass": false,
+          "rgb_diagnostic": {
+            "ssim_all": 0.91231,
+            "ssim_text": 0.935641
+          },
+          "ssim_all": 0.989197,
+          "ssim_text": 0.986565,
+          "ssim_text_y": 0.997285,
+          "ssim_y": 0.996812
+        },
+        "box-40": {
+          "gate": true,
+          "min_frame_ssim_all": 0.98701,
+          "min_frame_ssim_text": 0.972252,
+          "pass": false,
+          "rgb_diagnostic": {
+            "ssim_all": 0.913456,
+            "ssim_text": 0.92788
+          },
+          "ssim_all": 0.988308,
+          "ssim_text": 0.984081,
+          "ssim_text_y": 0.997161,
+          "ssim_y": 0.99664
+        },
+        "box-90": {
+          "gate": true,
+          "min_frame_ssim_all": 0.986494,
+          "min_frame_ssim_text": 0.970916,
+          "pass": false,
+          "rgb_diagnostic": {
+            "ssim_all": 0.913448,
+            "ssim_text": 0.918523
+          },
+          "ssim_all": 0.987937,
+          "ssim_text": 0.981801,
+          "ssim_text_y": 0.996737,
+          "ssim_y": 0.996692
+        },
+        "box-dejavu-10": {
+          "gate": false,
+          "min_frame_ssim_all": 0.988433,
+          "min_frame_ssim_text": 0.973991,
+          "pass": false,
+          "rgb_diagnostic": {
+            "ssim_all": 0.911983,
+            "ssim_text": 0.938069
+          },
+          "ssim_all": 0.989023,
+          "ssim_text": 0.985098,
+          "ssim_text_y": 0.99714,
+          "ssim_y": 0.996747
+        },
+        "box-dejavu-40": {
+          "gate": false,
+          "min_frame_ssim_all": 0.987411,
+          "min_frame_ssim_text": 0.973416,
+          "pass": false,
+          "rgb_diagnostic": {
+            "ssim_all": 0.913801,
+            "ssim_text": 0.927751
+          },
+          "ssim_all": 0.988408,
+          "ssim_text": 0.983022,
+          "ssim_text_y": 0.996941,
+          "ssim_y": 0.996611
+        },
+        "box-dejavu-90": {
+          "gate": false,
+          "min_frame_ssim_all": 0.986565,
+          "min_frame_ssim_text": 0.970631,
+          "pass": false,
+          "rgb_diagnostic": {
+            "ssim_all": 0.913613,
+            "ssim_text": 0.916067
+          },
+          "ssim_all": 0.988071,
+          "ssim_text": 0.979969,
+          "ssim_text_y": 0.996375,
+          "ssim_y": 0.996666
+        },
+        "box-pbox-10": {
+          "gate": false,
+          "min_frame_ssim_all": 0.988606,
+          "min_frame_ssim_text": 0.975946,
+          "pass": false,
+          "rgb_diagnostic": {
+            "ssim_all": 0.912434,
+            "ssim_text": 0.940517
+          },
+          "ssim_all": 0.989163,
+          "ssim_text": 0.985551,
+          "ssim_text_y": 0.997215,
+          "ssim_y": 0.996806
+        },
+        "box-pbox-40": {
+          "gate": false,
+          "min_frame_ssim_all": 0.986689,
+          "min_frame_ssim_text": 0.969398,
+          "pass": false,
+          "rgb_diagnostic": {
+            "ssim_all": 0.913655,
+            "ssim_text": 0.926911
+          },
+          "ssim_all": 0.988159,
+          "ssim_text": 0.982214,
+          "ssim_text_y": 0.997101,
+          "ssim_y": 0.996643
+        },
+        "box-pbox-90": {
+          "gate": false,
+          "min_frame_ssim_all": 0.986381,
+          "min_frame_ssim_text": 0.969523,
+          "pass": false,
+          "rgb_diagnostic": {
+            "ssim_all": 0.913405,
+            "ssim_text": 0.918987
+          },
+          "ssim_all": 0.987836,
+          "ssim_text": 0.980765,
+          "ssim_text_y": 0.99672,
+          "ssim_y": 0.996677
+        },
+        "classic-10": {
+          "gate": true,
+          "min_frame_ssim_all": 0.988831,
+          "min_frame_ssim_text": 0.979564,
+          "pass": false,
+          "rgb_diagnostic": {
+            "ssim_all": 0.912607,
+            "ssim_text": 0.921568
+          },
+          "ssim_all": 0.989466,
+          "ssim_text": 0.98956,
+          "ssim_text_y": 0.996202,
+          "ssim_y": 0.996762
+        },
+        "classic-40": {
+          "gate": true,
+          "min_frame_ssim_all": 0.987848,
+          "min_frame_ssim_text": 0.981795,
+          "pass": false,
+          "rgb_diagnostic": {
+            "ssim_all": 0.912585,
+            "ssim_text": 0.896859
+          },
+          "ssim_all": 0.988818,
+          "ssim_text": 0.987461,
+          "ssim_text_y": 0.995967,
+          "ssim_y": 0.996572
+        },
+        "classic-90": {
+          "gate": true,
+          "min_frame_ssim_all": 0.986967,
+          "min_frame_ssim_text": 0.98467,
+          "pass": false,
+          "rgb_diagnostic": {
+            "ssim_all": 0.911725,
+            "ssim_text": 0.91269
+          },
+          "ssim_all": 0.988508,
+          "ssim_text": 0.989687,
+          "ssim_text_y": 0.995652,
+          "ssim_y": 0.996526
+        },
+        "fallback": {
+          "gate": true,
+          "min_frame_ssim_all": 0.987908,
+          "min_frame_ssim_text": 0.979923,
+          "pass": false,
+          "rgb_diagnostic": {
+            "ssim_all": 0.908353,
+            "ssim_text": 0.875097
+          },
+          "ssim_all": 0.988889,
+          "ssim_text": 0.985976,
+          "ssim_text_y": 0.995777,
+          "ssim_y": 0.996629
+        },
+        "hook": {
+          "gate": true,
+          "min_frame_ssim_all": 0.985367,
+          "min_frame_ssim_text": 0.9725,
+          "pass": false,
+          "rgb_diagnostic": {
+            "ssim_all": 0.905524,
+            "ssim_text": 0.897166
+          },
+          "ssim_all": 0.986603,
+          "ssim_text": 0.978559,
+          "ssim_text_y": 0.996546,
+          "ssim_y": 0.996502
+        },
+        "karaoke-10": {
+          "gate": true,
+          "min_frame_ssim_all": 0.988458,
+          "min_frame_ssim_text": 0.96227,
+          "pass": false,
+          "rgb_diagnostic": {
+            "ssim_all": 0.91215,
+            "ssim_text": 0.915154
+          },
+          "ssim_all": 0.989186,
+          "ssim_text": 0.982563,
+          "ssim_text_y": 0.99618,
+          "ssim_y": 0.996766
+        },
+        "karaoke-40": {
+          "gate": true,
+          "min_frame_ssim_all": 0.986381,
+          "min_frame_ssim_text": 0.962521,
+          "pass": false,
+          "rgb_diagnostic": {
+            "ssim_all": 0.91187,
+            "ssim_text": 0.888026
+          },
+          "ssim_all": 0.988069,
+          "ssim_text": 0.977897,
+          "ssim_text_y": 0.995976,
+          "ssim_y": 0.996573
+        },
+        "karaoke-90": {
+          "gate": true,
+          "min_frame_ssim_all": 0.985263,
+          "min_frame_ssim_text": 0.964966,
+          "pass": false,
+          "rgb_diagnostic": {
+            "ssim_all": 0.910788,
+            "ssim_text": 0.896983
+          },
+          "ssim_all": 0.987075,
+          "ssim_text": 0.97455,
+          "ssim_text_y": 0.995539,
+          "ssim_y": 0.996562
+        },
+        "pcolor": {
+          "gate": false,
+          "min_frame_ssim_all": 0.995765,
+          "min_frame_ssim_text": 0.984321,
+          "pass": true,
+          "rgb_diagnostic": {
+            "ssim_all": 0.98171,
+            "ssim_text": 0.932287
+          },
+          "ssim_all": 0.995788,
+          "ssim_text": 0.984407,
+          "ssim_text_y": 0.998433,
+          "ssim_y": 0.999577
+        }
+      },
+      "mean_ssim_all": 0.987964,
+      "mean_ssim_text": 0.981929,
+      "mean_ssim_text_vs_common": 0.981929,
+      "min_ssim_all": 0.986603,
+      "min_ssim_text": 0.97455,
+      "pass": false
+    },
+    "yuv420p": {
+      "clips": {
+        "bold-10": {
+          "pass": false,
+          "ssim_all": 0.989114,
+          "ssim_text": 0.986236,
+          "vs_common_ssim_text": 0.981132
+        },
+        "bold-40": {
+          "pass": false,
+          "ssim_all": 0.988775,
+          "ssim_text": 0.986232,
+          "vs_common_ssim_text": 0.982185
+        },
+        "bold-90": {
+          "pass": false,
+          "ssim_all": 0.988328,
+          "ssim_text": 0.982731,
+          "vs_common_ssim_text": 0.977081
+        },
+        "bold-dejavu-10": {
+          "pass": false,
+          "ssim_all": 0.989023,
+          "ssim_text": 0.986868,
+          "vs_common_ssim_text": 0.981551
+        },
+        "bold-dejavu-40": {
+          "pass": false,
+          "ssim_all": 0.988707,
+          "ssim_text": 0.986757,
+          "vs_common_ssim_text": 0.981797
+        },
+        "bold-dejavu-90": {
+          "pass": false,
+          "ssim_all": 0.988307,
+          "ssim_text": 0.984199,
+          "vs_common_ssim_text": 0.978217
+        },
+        "box-10": {
+          "pass": false,
+          "ssim_all": 0.989264,
+          "ssim_text": 0.989792,
+          "vs_common_ssim_text": 0.984739
+        },
+        "box-40": {
+          "pass": false,
+          "ssim_all": 0.989084,
+          "ssim_text": 0.988355,
+          "vs_common_ssim_text": 0.98193
+        },
+        "box-90": {
+          "pass": false,
+          "ssim_all": 0.988925,
+          "ssim_text": 0.987092,
+          "vs_common_ssim_text": 0.980115
+        },
+        "box-dejavu-10": {
+          "pass": false,
+          "ssim_all": 0.989204,
+          "ssim_text": 0.989669,
+          "vs_common_ssim_text": 0.984025
+        },
+        "box-dejavu-40": {
+          "pass": false,
+          "ssim_all": 0.989101,
+          "ssim_text": 0.987651,
+          "vs_common_ssim_text": 0.981005
+        },
+        "box-dejavu-90": {
+          "pass": false,
+          "ssim_all": 0.98897,
+          "ssim_text": 0.98648,
+          "vs_common_ssim_text": 0.978563
+        },
+        "box-pbox-10": {
+          "pass": false,
+          "ssim_all": 0.989256,
+          "ssim_text": 0.989655,
+          "vs_common_ssim_text": 0.983647
+        },
+        "box-pbox-40": {
+          "pass": false,
+          "ssim_all": 0.98908,
+          "ssim_text": 0.988139,
+          "vs_common_ssim_text": 0.980153
+        },
+        "box-pbox-90": {
+          "pass": false,
+          "ssim_all": 0.988903,
+          "ssim_text": 0.986957,
+          "vs_common_ssim_text": 0.978802
+        },
+        "classic-10": {
+          "pass": false,
+          "ssim_all": 0.989386,
+          "ssim_text": 0.991243,
+          "vs_common_ssim_text": 0.988756
+        },
+        "classic-40": {
+          "pass": false,
+          "ssim_all": 0.989296,
+          "ssim_text": 0.989392,
+          "vs_common_ssim_text": 0.985924
+        },
+        "classic-90": {
+          "pass": false,
+          "ssim_all": 0.989054,
+          "ssim_text": 0.989741,
+          "vs_common_ssim_text": 0.987261
+        },
+        "fallback": {
+          "pass": false,
+          "ssim_all": 0.989186,
+          "ssim_text": 0.989155,
+          "vs_common_ssim_text": 0.984752
+        },
+        "hook": {
+          "pass": false,
+          "ssim_all": 0.988359,
+          "ssim_text": 0.986031,
+          "vs_common_ssim_text": 0.976511
+        },
+        "karaoke-10": {
+          "pass": false,
+          "ssim_all": 0.98926,
+          "ssim_text": 0.987493,
+          "vs_common_ssim_text": 0.982569
+        },
+        "karaoke-40": {
+          "pass": false,
+          "ssim_all": 0.98892,
+          "ssim_text": 0.984631,
+          "vs_common_ssim_text": 0.97797
+        },
+        "karaoke-90": {
+          "pass": false,
+          "ssim_all": 0.988171,
+          "ssim_text": 0.980492,
+          "vs_common_ssim_text": 0.973791
+        },
+        "pcolor": {
+          "pass": true,
+          "ssim_all": 0.997955,
+          "ssim_text": 0.992431,
+          "vs_common_ssim_text": 0.982641
+        }
+      },
+      "mean_ssim_all": 0.988792,
+      "mean_ssim_text": 0.986216,
+      "mean_ssim_text_vs_common": 0.980637,
+      "min_ssim_all": 0.988171,
+      "min_ssim_text": 0.980492,
+      "pass": false
+    },
+    "yuv444p": {
+      "clips": {
+        "bold-10": {
+          "pass": false,
+          "ssim_all": 0.983533,
+          "ssim_text": 0.980151,
+          "vs_common_ssim_text": 0.980831
+        },
+        "bold-40": {
+          "pass": false,
+          "ssim_all": 0.982833,
+          "ssim_text": 0.981749,
+          "vs_common_ssim_text": 0.982153
+        },
+        "bold-90": {
+          "pass": false,
+          "ssim_all": 0.982089,
+          "ssim_text": 0.976314,
+          "vs_common_ssim_text": 0.976905
+        },
+        "bold-dejavu-10": {
+          "pass": false,
+          "ssim_all": 0.983381,
+          "ssim_text": 0.980735,
+          "vs_common_ssim_text": 0.981313
+        },
+        "bold-dejavu-40": {
+          "pass": false,
+          "ssim_all": 0.982583,
+          "ssim_text": 0.981168,
+          "vs_common_ssim_text": 0.981552
+        },
+        "bold-dejavu-90": {
+          "pass": false,
+          "ssim_all": 0.981882,
+          "ssim_text": 0.977245,
+          "vs_common_ssim_text": 0.977794
+        },
+        "box-10": {
+          "pass": false,
+          "ssim_all": 0.983736,
+          "ssim_text": 0.984794,
+          "vs_common_ssim_text": 0.9848
+        },
+        "box-40": {
+          "pass": false,
+          "ssim_all": 0.983074,
+          "ssim_text": 0.982003,
+          "vs_common_ssim_text": 0.982151
+        },
+        "box-90": {
+          "pass": false,
+          "ssim_all": 0.982725,
+          "ssim_text": 0.980269,
+          "vs_common_ssim_text": 0.980447
+        },
+        "box-dejavu-10": {
+          "pass": false,
+          "ssim_all": 0.98363,
+          "ssim_text": 0.984171,
+          "vs_common_ssim_text": 0.984153
+        },
+        "box-dejavu-40": {
+          "pass": false,
+          "ssim_all": 0.98318,
+          "ssim_text": 0.981212,
+          "vs_common_ssim_text": 0.981362
+        },
+        "box-dejavu-90": {
+          "pass": false,
+          "ssim_all": 0.982828,
+          "ssim_text": 0.978757,
+          "vs_common_ssim_text": 0.978946
+        },
+        "box-pbox-10": {
+          "pass": false,
+          "ssim_all": 0.983693,
+          "ssim_text": 0.983953,
+          "vs_common_ssim_text": 0.983912
+        },
+        "box-pbox-40": {
+          "pass": false,
+          "ssim_all": 0.982934,
+          "ssim_text": 0.980184,
+          "vs_common_ssim_text": 0.980288
+        },
+        "box-pbox-90": {
+          "pass": false,
+          "ssim_all": 0.982607,
+          "ssim_text": 0.979165,
+          "vs_common_ssim_text": 0.97932
+        },
+        "classic-10": {
+          "pass": false,
+          "ssim_all": 0.984025,
+          "ssim_text": 0.988548,
+          "vs_common_ssim_text": 0.988703
+        },
+        "classic-40": {
+          "pass": false,
+          "ssim_all": 0.983574,
+          "ssim_text": 0.985206,
+          "vs_common_ssim_text": 0.985473
+        },
+        "classic-90": {
+          "pass": false,
+          "ssim_all": 0.983175,
+          "ssim_text": 0.986936,
+          "vs_common_ssim_text": 0.987073
+        },
+        "fallback": {
+          "pass": false,
+          "ssim_all": 0.983584,
+          "ssim_text": 0.984563,
+          "vs_common_ssim_text": 0.98465
+        },
+        "hook": {
+          "pass": false,
+          "ssim_all": 0.98168,
+          "ssim_text": 0.977902,
+          "vs_common_ssim_text": 0.977868
+        },
+        "karaoke-10": {
+          "pass": false,
+          "ssim_all": 0.983766,
+          "ssim_text": 0.981449,
+          "vs_common_ssim_text": 0.98229
+        },
+        "karaoke-40": {
+          "pass": false,
+          "ssim_all": 0.982857,
+          "ssim_text": 0.97619,
+          "vs_common_ssim_text": 0.977239
+        },
+        "karaoke-90": {
+          "pass": false,
+          "ssim_all": 0.981825,
+          "ssim_text": 0.972676,
+          "vs_common_ssim_text": 0.973712
+        },
+        "pcolor": {
+          "pass": true,
+          "ssim_all": 0.99579,
+          "ssim_text": 0.984415,
+          "vs_common_ssim_text": 0.982215
+        }
+      },
+      "mean_ssim_all": 0.982735,
+      "mean_ssim_text": 0.980243,
+      "mean_ssim_text_vs_common": 0.980657,
+      "min_ssim_all": 0.98168,
+      "min_ssim_text": 0.972676,
+      "pass": false
+    }
+  },
+  "gate": "P-ENC (baseline)",
+  "natural_plate": {
+    "formats": {
+      "gbrp": {
+        "clips": {
+          "bold-10": {
+            "gate": true,
+            "min_frame_ssim_all": 0.989052,
+            "min_frame_ssim_text": 0.969479,
+            "pass": true,
+            "rgb_diagnostic": {
+              "ssim_all": 0.980369,
+              "ssim_text": 0.929211
+            },
+            "ssim_all": 0.990682,
+            "ssim_text": 0.984403,
+            "ssim_text_y": 0.994439,
+            "ssim_y": 0.993145
+          },
+          "bold-40": {
+            "gate": true,
+            "min_frame_ssim_all": 0.988089,
+            "min_frame_ssim_text": 0.964895,
+            "pass": true,
+            "rgb_diagnostic": {
+              "ssim_all": 0.979735,
+              "ssim_text": 0.943845
+            },
+            "ssim_all": 0.990972,
+            "ssim_text": 0.986778,
+            "ssim_text_y": 0.994936,
+            "ssim_y": 0.993692
+          },
+          "bold-90": {
+            "gate": true,
+            "min_frame_ssim_all": 0.985653,
+            "min_frame_ssim_text": 0.956531,
+            "pass": false,
+            "rgb_diagnostic": {
+              "ssim_all": 0.976668,
+              "ssim_text": 0.914577
+            },
+            "ssim_all": 0.989897,
+            "ssim_text": 0.979734,
+            "ssim_text_y": 0.994934,
+            "ssim_y": 0.99407
+          },
+          "box-10": {
+            "gate": true,
+            "min_frame_ssim_all": 0.989055,
+            "min_frame_ssim_text": 0.991131,
+            "pass": true,
+            "rgb_diagnostic": {
+              "ssim_all": 0.983296,
+              "ssim_text": 0.988251
+            },
+            "ssim_all": 0.991155,
+            "ssim_text": 0.993987,
+            "ssim_text_y": 0.995536,
+            "ssim_y": 0.993186
+          },
+          "box-40": {
+            "gate": true,
+            "min_frame_ssim_all": 0.98933,
+            "min_frame_ssim_text": 0.985161,
+            "pass": true,
+            "rgb_diagnostic": {
+              "ssim_all": 0.984136,
+              "ssim_text": 0.986679
+            },
+            "ssim_all": 0.991695,
+            "ssim_text": 0.993271,
+            "ssim_text_y": 0.995252,
+            "ssim_y": 0.993723
+          },
+          "box-90": {
+            "gate": true,
+            "min_frame_ssim_all": 0.989227,
+            "min_frame_ssim_text": 0.976585,
+            "pass": true,
+            "rgb_diagnostic": {
+              "ssim_all": 0.984565,
+              "ssim_text": 0.984327
+            },
+            "ssim_all": 0.991139,
+            "ssim_text": 0.988059,
+            "ssim_text_y": 0.995869,
+            "ssim_y": 0.994341
+          },
+          "classic-10": {
+            "gate": true,
+            "min_frame_ssim_all": 0.989098,
+            "min_frame_ssim_text": 0.99022,
+            "pass": true,
+            "rgb_diagnostic": {
+              "ssim_all": 0.982538,
+              "ssim_text": 0.965562
+            },
+            "ssim_all": 0.991185,
+            "ssim_text": 0.993261,
+            "ssim_text_y": 0.994713,
+            "ssim_y": 0.993169
+          },
+          "classic-40": {
+            "gate": true,
+            "min_frame_ssim_all": 0.989485,
+            "min_frame_ssim_text": 0.986134,
+            "pass": true,
+            "rgb_diagnostic": {
+              "ssim_all": 0.982646,
+              "ssim_text": 0.963441
+            },
+            "ssim_all": 0.991704,
+            "ssim_text": 0.992239,
+            "ssim_text_y": 0.994492,
+            "ssim_y": 0.993683
+          },
+          "classic-90": {
+            "gate": true,
+            "min_frame_ssim_all": 0.988984,
+            "min_frame_ssim_text": 0.987007,
+            "pass": true,
+            "rgb_diagnostic": {
+              "ssim_all": 0.982119,
+              "ssim_text": 0.96485
+            },
+            "ssim_all": 0.991419,
+            "ssim_text": 0.992092,
+            "ssim_text_y": 0.995235,
+            "ssim_y": 0.994253
+          },
+          "fallback": {
+            "gate": true,
+            "min_frame_ssim_all": 0.989504,
+            "min_frame_ssim_text": 0.992398,
+            "pass": true,
+            "rgb_diagnostic": {
+              "ssim_all": 0.980584,
+              "ssim_text": 0.944179
+            },
+            "ssim_all": 0.991283,
+            "ssim_text": 0.993881,
+            "ssim_text_y": 0.99462,
+            "ssim_y": 0.993222
+          },
+          "hook": {
+            "gate": true,
+            "min_frame_ssim_all": 0.989101,
+            "min_frame_ssim_text": 0.986966,
+            "pass": true,
+            "rgb_diagnostic": {
+              "ssim_all": 0.98435,
+              "ssim_text": 0.987356
+            },
+            "ssim_all": 0.991351,
+            "ssim_text": 0.992786,
+            "ssim_text_y": 0.995544,
+            "ssim_y": 0.993943
+          },
+          "karaoke-10": {
+            "gate": true,
+            "min_frame_ssim_all": 0.989109,
+            "min_frame_ssim_text": 0.967853,
+            "pass": true,
+            "rgb_diagnostic": {
+              "ssim_all": 0.982241,
+              "ssim_text": 0.959479
+            },
+            "ssim_all": 0.990832,
+            "ssim_text": 0.984029,
+            "ssim_text_y": 0.995062,
+            "ssim_y": 0.993179
+          },
+          "karaoke-40": {
+            "gate": true,
+            "min_frame_ssim_all": 0.98847,
+            "min_frame_ssim_text": 0.957086,
+            "pass": true,
+            "rgb_diagnostic": {
+              "ssim_all": 0.981745,
+              "ssim_text": 0.953176
+            },
+            "ssim_all": 0.990931,
+            "ssim_text": 0.981909,
+            "ssim_text_y": 0.994621,
+            "ssim_y": 0.993681
+          },
+          "karaoke-90": {
+            "gate": true,
+            "min_frame_ssim_all": 0.986733,
+            "min_frame_ssim_text": 0.964102,
+            "pass": false,
+            "rgb_diagnostic": {
+              "ssim_all": 0.980374,
+              "ssim_text": 0.946759
+            },
+            "ssim_all": 0.989674,
+            "ssim_text": 0.976696,
+            "ssim_text_y": 0.994764,
+            "ssim_y": 0.99406
+          }
+        },
+        "mean_ssim_all": 0.990891,
+        "mean_ssim_text": 0.986945,
+        "mean_ssim_text_vs_common": 0.986945,
+        "min_ssim_all": 0.989674,
+        "min_ssim_text": 0.976696,
+        "pass": false
+      },
+      "yuv420p": {
+        "clips": {
+          "bold-10": {
+            "pass": true,
+            "ssim_all": 0.991335,
+            "ssim_text": 0.9887,
+            "vs_common_ssim_text": 0.985392
+          },
+          "bold-40": {
+            "pass": true,
+            "ssim_all": 0.991521,
+            "ssim_text": 0.989962,
+            "vs_common_ssim_text": 0.987478
+          },
+          "bold-90": {
+            "pass": true,
+            "ssim_all": 0.990664,
+            "ssim_text": 0.985204,
+            "vs_common_ssim_text": 0.980458
+          },
+          "box-10": {
+            "pass": true,
+            "ssim_all": 0.991659,
+            "ssim_text": 0.995021,
+            "vs_common_ssim_text": 0.993934
+          },
+          "box-40": {
+            "pass": true,
+            "ssim_all": 0.992042,
+            "ssim_text": 0.994632,
+            "vs_common_ssim_text": 0.993154
+          },
+          "box-90": {
+            "pass": true,
+            "ssim_all": 0.991745,
+            "ssim_text": 0.992665,
+            "vs_common_ssim_text": 0.987682
+          },
+          "classic-10": {
+            "pass": true,
+            "ssim_all": 0.991667,
+            "ssim_text": 0.994332,
+            "vs_common_ssim_text": 0.993652
+          },
+          "classic-40": {
+            "pass": true,
+            "ssim_all": 0.992006,
+            "ssim_text": 0.993351,
+            "vs_common_ssim_text": 0.992316
+          },
+          "classic-90": {
+            "pass": true,
+            "ssim_all": 0.991798,
+            "ssim_text": 0.993831,
+            "vs_common_ssim_text": 0.99216
+          },
+          "fallback": {
+            "pass": true,
+            "ssim_all": 0.991721,
+            "ssim_text": 0.994478,
+            "vs_common_ssim_text": 0.993948
+          },
+          "hook": {
+            "pass": true,
+            "ssim_all": 0.991743,
+            "ssim_text": 0.994149,
+            "vs_common_ssim_text": 0.992846
+          },
+          "karaoke-10": {
+            "pass": true,
+            "ssim_all": 0.991483,
+            "ssim_text": 0.989554,
+            "vs_common_ssim_text": 0.986055
+          },
+          "karaoke-40": {
+            "pass": true,
+            "ssim_all": 0.991558,
+            "ssim_text": 0.987627,
+            "vs_common_ssim_text": 0.983072
+          },
+          "karaoke-90": {
+            "pass": true,
+            "ssim_all": 0.990541,
+            "ssim_text": 0.983509,
+            "vs_common_ssim_text": 0.97798
+          }
+        },
+        "mean_ssim_all": 0.991452,
+        "mean_ssim_text": 0.990502,
+        "mean_ssim_text_vs_common": 0.987377,
+        "min_ssim_all": 0.990541,
+        "min_ssim_text": 0.983509,
+        "pass": true
+      },
+      "yuv444p": {
+        "clips": {
+          "bold-10": {
+            "pass": true,
+            "ssim_all": 0.99049,
+            "ssim_text": 0.984769,
+            "vs_common_ssim_text": 0.985377
+          },
+          "bold-40": {
+            "pass": true,
+            "ssim_all": 0.990696,
+            "ssim_text": 0.987207,
+            "vs_common_ssim_text": 0.987501
+          },
+          "bold-90": {
+            "pass": false,
+            "ssim_all": 0.989468,
+            "ssim_text": 0.979877,
+            "vs_common_ssim_text": 0.980358
+          },
+          "box-10": {
+            "pass": true,
+            "ssim_all": 0.990972,
+            "ssim_text": 0.994326,
+            "vs_common_ssim_text": 0.99418
+          },
+          "box-40": {
+            "pass": true,
+            "ssim_all": 0.991401,
+            "ssim_text": 0.993429,
+            "vs_common_ssim_text": 0.993229
+          },
+          "box-90": {
+            "pass": true,
+            "ssim_all": 0.990711,
+            "ssim_text": 0.988283,
+            "vs_common_ssim_text": 0.988069
+          },
+          "classic-10": {
+            "pass": true,
+            "ssim_all": 0.99099,
+            "ssim_text": 0.993525,
+            "vs_common_ssim_text": 0.993521
+          },
+          "classic-40": {
+            "pass": true,
+            "ssim_all": 0.991404,
+            "ssim_text": 0.99231,
+            "vs_common_ssim_text": 0.992304
+          },
+          "classic-90": {
+            "pass": true,
+            "ssim_all": 0.990987,
+            "ssim_text": 0.99217,
+            "vs_common_ssim_text": 0.992167
+          },
+          "fallback": {
+            "pass": true,
+            "ssim_all": 0.991093,
+            "ssim_text": 0.993951,
+            "vs_common_ssim_text": 0.993947
+          },
+          "hook": {
+            "pass": true,
+            "ssim_all": 0.991024,
+            "ssim_text": 0.993175,
+            "vs_common_ssim_text": 0.992763
+          },
+          "karaoke-10": {
+            "pass": true,
+            "ssim_all": 0.990689,
+            "ssim_text": 0.985701,
+            "vs_common_ssim_text": 0.986424
+          },
+          "karaoke-40": {
+            "pass": true,
+            "ssim_all": 0.99064,
+            "ssim_text": 0.982277,
+            "vs_common_ssim_text": 0.98301
+          },
+          "karaoke-90": {
+            "pass": false,
+            "ssim_all": 0.989266,
+            "ssim_text": 0.977204,
+            "vs_common_ssim_text": 0.978057
+          }
+        },
+        "mean_ssim_all": 0.990546,
+        "mean_ssim_text": 0.98724,
+        "mean_ssim_text_vs_common": 0.98743,
+        "min_ssim_all": 0.989266,
+        "min_ssim_text": 0.977204,
+        "pass": false
+      }
+    },
+    "plate": "fit_blur of a real 640x360 BT.709 source (read only)"
+  },
+  "pass": false,
+  "plate": "fit_blur of testsrc2 (synthetic, saturated)",
+  "task": "T1.2b",
+  "thresholds": {
+    "ssim_all": 0.99,
+    "ssim_text": 0.98
+  },
+  "toolchain": {
+    "ffmpeg_version": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "packages": {
+      "ffmpeg": "7:5.1.9-0+deb12u1",
+      "fontconfig": "2.14.1-4",
+      "libass9": "1:0.17.1-1+deb12u1",
+      "libfreetype6": "2.12.1+dfsg-5+deb12u4",
+      "libfribidi0": "1.0.8-2.1",
+      "libharfbuzz0b": "6.0.0+dfsg-3"
+    }
+  }
+}
