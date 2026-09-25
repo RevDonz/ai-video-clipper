@@ -43,6 +43,10 @@ from .timemap import Fps
 
 SAMPLE_MS = 750
 NO_FACE_MIN_MS = 1500  # runs strictly longer than this are listed
+# Today's tracker, captured at import: callers (prepare, the fixture script, tests) may replace
+# the module attribute ``detect_face_track`` with another detector, which must then be treated
+# as a raw detector.
+_TODAYS_TRACKER = detect_face_track
 
 
 def encode_camera_plan(plan: dict[str, Any]) -> bytes:
@@ -137,7 +141,7 @@ def build_camera_plan(
                       **options)
     times, centres, cuts, width, height = _checked(result)
     times_ms = [a + ms_from_seconds(float(t)) for t in times]
-    if detector is detect_face_track and not raw_capable:
+    if detector is _TODAYS_TRACKER and not raw_capable:
         smoothed = [0.5 if value is None else float(value) for value in centres]
         no_face: list[list[int]] = []
     else:
