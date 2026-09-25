@@ -1,0 +1,58 @@
+{
+ "ab_400_puts": [
+  {
+   "load1": 11.7,
+   "p50_ms": 241.2,
+   "p95_ms": 312.2,
+   "variant": "A branch api.py"
+  },
+  {
+   "load1": 9.6,
+   "p50_ms": 175.1,
+   "p95_ms": 217.0,
+   "variant": "B lazy imports (request R5)"
+  },
+  {
+   "load1": 13.1,
+   "p50_ms": 252.5,
+   "p95_ms": 310.6,
+   "variant": "A branch api.py"
+  },
+  {
+   "load1": 14.0,
+   "p50_ms": 148.7,
+   "p95_ms": 198.1,
+   "variant": "B lazy imports (request R5)"
+  }
+ ],
+ "budget_p95_ms": 300,
+ "gate": "PF-SAVE (PUT edit over HTTP, p95 <= 300 ms)",
+ "load_during_soak": "load average 11-20 on 16 threads (other agents)",
+ "max_ms": 1216.6,
+ "n": 5000,
+ "p50_ms": 272.2,
+ "p95_ms": 390.8,
+ "p99_ms": 546.3,
+ "python_import_ms": {
+  "edit_v2.api": 153,
+  "edit_v2.api_with_lazy_selection_v3_and_seed": 80,
+  "edit_v2.store": 108
+ },
+ "result": "fail (p95 over 300 ms under shared load)",
+ "setup": {
+  "machine": {
+   "cpus": 16,
+   "load": [
+    11.1,
+    14.8,
+    15.1
+   ],
+   "model": "AMD Ryzen 7 5700G with Radeon Graphics"
+  },
+  "node": "v22.23.2",
+  "python": "the worktree venv (Python 3.13), PYTHON_BIN = a wrapper that records each child's /proc/self/environ",
+  "server": "next start (production standalone build) on 127.0.0.1:3291, T2.2 routes; web/lib/python-cli.mjs of the gate copy lists ai_clipper.render_queue (request R1)",
+  "worker": "render_worker.run_one with the reference render_request of tests/test_render_worker.py (W1 compiler + verify; T2.1's module is not in this branch)"
+ },
+ "task": "T2.2"
+}

@@ -1,0 +1,100 @@
+{
+ "cancel": {
+  "delete_status": 202,
+  "delete_to_cancelled_s": 0.2,
+  "error": "cancelled",
+  "final_state": "cancelled",
+  "progress_at_delete_pm": 18
+ },
+ "clips_latest_render": {
+  "revision": 2,
+  "state": "cancelled"
+ },
+ "gate": "export path end to end (R10, render, replay, key reuse, cancel)",
+ "history_count": 5,
+ "r10": {
+  "completedBy": "seed",
+  "download_equals_auto": true,
+  "download_status": 200,
+  "ms": 2576.8,
+  "same_inode": true,
+  "state": "completed",
+  "status": 200
+ },
+ "render": {
+  "audio": {
+   "channels": 2,
+   "codec_name": "aac",
+   "codec_type": "audio",
+   "nb_read_frames": "1705",
+   "profile": "LC",
+   "sample_rate": "48000"
+  },
+  "error": null,
+  "final_state": "completed",
+  "key_reuse": {
+   "completedBy": "key",
+   "status": 200
+  },
+  "mp4_bytes": 1896419,
+  "mp4_status": 200,
+  "post_state": "queued",
+  "post_status": 202,
+  "post_to_completed_s": 22.8,
+  "replay_same_render": true,
+  "replay_status": 200,
+  "srt_status": 200,
+  "stages": [
+   [
+    "queued",
+    "antre",
+    0
+   ],
+   [
+    "claimed",
+    "antre",
+    0
+   ],
+   [
+    "rendering",
+    "merender",
+    0
+   ],
+   [
+    "rendering",
+    "memverifikasi",
+    0
+   ],
+   [
+    "completed",
+    "selesai",
+    1000
+   ]
+  ],
+  "video": {
+   "codec_name": "h264",
+   "codec_type": "video",
+   "height": 1280,
+   "nb_read_frames": "1090",
+   "profile": "High",
+   "width": 720
+  }
+ },
+ "setup": {
+  "machine": {
+   "cpus": 16,
+   "load": [
+    11.1,
+    14.8,
+    15.1
+   ],
+   "model": "AMD Ryzen 7 5700G with Radeon Graphics"
+  },
+  "node": "v22.23.2",
+  "python": "the worktree venv (Python 3.13), PYTHON_BIN = a wrapper that records each child's /proc/self/environ",
+  "server": "next start (production standalone build) on 127.0.0.1:3291, T2.2 routes; web/lib/python-cli.mjs of the gate copy lists ai_clipper.render_queue (request R1)",
+  "worker": "render_worker.run_one with the reference render_request of tests/test_render_worker.py (W1 compiler + verify; T2.1's module is not in this branch)"
+ },
+ "storage_reservations_left": 0,
+ "task": "T2.2"
+}

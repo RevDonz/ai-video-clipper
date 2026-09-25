@@ -1,0 +1,34 @@
+{
+ "child_env": {
+  "children_checked": 5095,
+  "leaks": 0,
+  "variable_names": [
+   "HOME",
+   "JOBS_ROOT",
+   "LANG",
+   "PATH",
+   "POTONGIN_EDITOR_V3",
+   "POTONGIN_RENDER_ENGINE"
+  ]
+ },
+ "gate": "QG-SEC: session/CSRF/id matrix and child env of the T2.2 routes",
+ "http_matrix_checks": 33,
+ "http_matrix_passed": 33,
+ "setup": {
+  "machine": {
+   "cpus": 16,
+   "load": [
+    11.1,
+    14.8,
+    15.1
+   ],
+   "model": "AMD Ryzen 7 5700G with Radeon Graphics"
+  },
+  "node": "v22.23.2",
+  "python": "the worktree venv (Python 3.13), PYTHON_BIN = a wrapper that records each child's /proc/self/environ",
+  "server": "next start (production standalone build) on 127.0.0.1:3291, T2.2 routes; web/lib/python-cli.mjs of the gate copy lists ai_clipper.render_queue (request R1)",
+  "worker": "render_worker.run_one with the reference render_request of tests/test_render_worker.py (W1 compiler + verify; T2.1's module is not in this branch)"
+ },
+ "task": "T2.2",
+ "unit_tests": "web/tests/clip-edit.test.mjs and clip-renders.test.mjs: 401/404 flag/403 x3/400 on every route; the render-queue child env test skips until request R1"
+}
