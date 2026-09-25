@@ -1144,9 +1144,14 @@ def test_fraction_free_seek_matches_the_rational_value():
 
 def test_the_gate_cases_meet_the_p_frame_size_by_construction():
     """P-FRAME (scripts/parity/frame_identity.py): 4 sources, each with a cold open and 20
-    removals, ≥ 2,000 output frames in total (plate and final are each checked on all)."""
+    removals, ≥ 2,000 output frames in total (plate and final are each checked on all), plus
+    the two source-edge cases of the W1 verifier (their body comes from the measured grid)."""
     total = 0
-    for case in HARNESS.P_FRAME_CASES:
+    inner = [case for case in HARNESS.P_FRAME_CASES if case.edges == "inner"]
+    edge = [case for case in HARNESS.P_FRAME_CASES if case.edges == "source"]
+    assert [case.video_delay_ms > 0 for case in edge] == [False, True]
+    assert (edge[0].fps, edge[0].frames) == ((30000, 1001), 902)
+    for case in inner:
         edges = HARNESS.case_edges(case)
         duration_ms = case.frames * 1000 * case.fps[1] // case.fps[0]
         info = HARNESS.SourceInfo(640, 360, case.fps, case.vfr, duration_ms, True)
@@ -1158,6 +1163,6 @@ def test_the_gate_cases_meet_the_p_frame_size_by_construction():
         assert len(pieces) == 22  # no removal leaves a sliver: every cut is a join
         assert decoder_runs(pieces, Fps(*case.fps)) == ((0,), tuple(range(1, 22)))
         total += tm.total_frames(pieces)
-    assert {case.fps for case in HARNESS.P_FRAME_CASES} == {(30000, 1001), (25, 1), (30, 1)}
-    assert [case.vfr for case in HARNESS.P_FRAME_CASES].count(True) == 1
+    assert {case.fps for case in inner} == {(30000, 1001), (25, 1), (30, 1)}
+    assert [case.vfr for case in inner].count(True) == 1
     assert total >= HARNESS.P_FRAME_MIN_FRAMES
