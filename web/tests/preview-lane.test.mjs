@@ -21,6 +21,7 @@ import {
   parsePrepareBody,
   planResponse,
   prepareResponse,
+  previewCliRunner,
 } from "../lib/preview-lane.mjs";
 import { createEditorRateLimits } from "../lib/rate-limit.mjs";
 
@@ -653,7 +654,9 @@ writeFileSync(${JSON.stringify(envOut)}, JSON.stringify({ argv: process.argv.sli
 process.stdout.write(JSON.stringify(${JSON.stringify(planResult({ cells: [1], missing: [] }))}));
 `, { mode: 0o755 });
   try {
-    await withEnv({ ...SECRET_ENV, POTONGIN_EDITOR_V3: "on", JOBS_ROOT: dir, PYTHON_BIN: bin, OPENROUTER_API_KEY: "sk-secret" }, async () => {
+    // The spawn path (the persistent worker's kill switch; the worker is tested below and in
+    // python-server.test.mjs).
+    await withEnv({ ...SECRET_ENV, POTONGIN_EDITOR_V3: "on", POTONGIN_PREVIEW_SERVER: "off", JOBS_ROOT: dir, PYTHON_BIN: bin, OPENROUTER_API_KEY: "sk-secret" }, async () => {
       const { POST } = await import("../app/api/jobs/[id]/clips/[clipId]/preview/plan/route.js");
       const response = await POST(mutation(`/api/jobs/${JOB}/clips/${CLIP}/preview/plan`, planBody()), { params: Promise.resolve({ id: JOB, clipId: CLIP }) });
       assert.equal(response.status, 200);
@@ -668,4 +671,32 @@ process.stdout.write(JSON.stringify(${JSON.stringify(planResult({ cells: [1], mi
   } finally {
     cleanup();
   }
+});
+
+test("preview ops go to the persistent worker; other modules and the kill switch spawn", async () => {
+  const served = [];
+  const spawned = [];
+  const created = [];
+  const server = {
+    run: async (op, payload, options) => { served.push({ op, payload, options }); return { exitCode: 0, json: { via: "server" } }; },
+    close: async () => {},
+  };
+  const env = { PYTHON_BIN: "/usr/bin/python3" };
+  const run = previewCliRunner({
+    env,
+    createServer: (options) => { created.push(options); return server; },
+    spawnCli: async (module, op) => { spawned.push({ module, op }); return { exitCode: 0, json: { via: "spawn" } }; },
+  });
+  const signal = new AbortController().signal;
+  assert.deepEqual(await run(PREVIEW_MODULE, "plan", { jobId: JOB }, { timeoutMs: 5, signal }), { exitCode: 0, json: { via: "server" } });
+  assert.deepEqual(await run(PREVIEW_MODULE, "audio", { jobId: JOB }), { exitCode: 0, json: { via: "server" } });
+  assert.equal(created.length, 1, "one worker per process");
+  assert.equal(created[0].pythonBin, "/usr/bin/python3");
+  assert.deepEqual(served.map((call) => call.op), ["plan", "audio"]);
+  assert.equal(served[0].options.signal, signal);
+  assert.deepEqual(await run("ai_clipper.edit_v2.api", "get", {}), { exitCode: 0, json: { via: "spawn" } });
+  env.POTONGIN_PREVIEW_SERVER = "off";
+  assert.deepEqual(await run(PREVIEW_MODULE, "plan", {}), { exitCode: 0, json: { via: "spawn" } });
+  assert.deepEqual(spawned.map((call) => [call.module, call.op]), [["ai_clipper.edit_v2.api", "get"], [PREVIEW_MODULE, "plan"]]);
+  assert.equal(created.length, 1);
 });
