@@ -845,16 +845,16 @@ def _fit_to_media(result: SelectionResult, duration: float | None) -> SelectionR
             teaser = None
         focus = clip.focus
         if focus is not None and focus.match == "literal" and (focus.at or 0.0) >= end:
-            focus = ClipFocus("none")  # its first mention (so every mention) was cut off
+            focus = ClipFocus("none")  # its first mention (so every mention) is not in the clip
         clips.append(replace(clip, rank=len(clips) + 1, end=end, cold_open=teaser, focus=focus))
-    if not notes:
+    if not notes and all(kept.focus == clip.focus for kept, clip in zip(clips, result.clips)):
         return result
     warnings = _recount_focus_matches(result, clips)
     return replace(result, clips=tuple(clips), warnings=(*warnings, *notes)[:200])
 
 
 _FOCUS_FEW_MATCHES = "focus_few_matches:"
-_AFTER_FOCUS_FEW_MATCHES = ("focus_llm_outranked:", "few_clips:", "no_transcript")
+_AFTER_FOCUS_FEW_MATCHES = ("few_clips:", "no_transcript")
 
 
 def _recount_focus_matches(result: SelectionResult, clips: list[SelectedClip]) -> list[str]:

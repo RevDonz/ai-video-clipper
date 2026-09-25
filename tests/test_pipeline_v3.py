@@ -1589,6 +1589,26 @@ def test_a_focus_few_matches_code_is_updated_in_place_after_the_video_end(env, m
     ]
 
 
+def test_a_mention_after_the_clip_end_loses_its_literal_label_without_a_trim():
+    # The clip already ends inside the video, so nothing is trimmed, but its only mention
+    # starts after that end (an audio stream a hair shorter than the captions).
+    summary = FocusSummary(terms=("kisah25",), requested=2)
+    chosen = result(
+        selected(1, 35.0, 66.0, focus=ClipFocus("literal", ("kisah25",), 66.5)),
+        selected(2, 10.0, 30.0, focus=ClipFocus("literal", ("kisah25",), 12.0)),
+        focus=summary,
+    )
+
+    fitted = pipeline_module._fit_to_media(chosen, 66.0004)
+
+    assert [clip.focus for clip in fitted.clips] == [
+        ClipFocus("none"),
+        ClipFocus("literal", ("kisah25",), 12.0),
+    ]
+    assert fitted.warnings == ("focus_few_matches:1",)
+    assert pipeline_module._fit_to_media(fitted, 66.0004) == fitted
+
+
 def test_focus_must_be_a_focus_spec(env):
     with pytest.raises(TypeError):
         run(env, focus=["kisah25"])
