@@ -23,8 +23,9 @@ import { LANES, laneById } from "../components/editor/timeline/lanes.mjs";
 
 const editorDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "components", "editor");
 
+// T2.Z added the W3 entries after these (web/tests/editor-w3-scaffold.test.mjs).
 test("the panel registry lists the W2 panels in tab order", () => {
-  assert.deepEqual(PANELS.map((panel) => [panel.id, panel.label, panel.wave, panel.owner]), [
+  assert.deepEqual(PANELS.filter((panel) => panel.wave === "W2").map((panel) => [panel.id, panel.label, panel.wave, panel.owner]), [
     ["transcript", "Transkrip", "W2", "T2.7"],
     ["text", "Teks", "W2", "T2.7"],
     ["coldopen", "Cold open", "W2", "T2.7"],
@@ -35,7 +36,7 @@ test("the panel registry lists the W2 panels in tab order", () => {
 });
 
 test("the lane registry lists the W2 lanes top to bottom", () => {
-  assert.deepEqual(LANES.map((lane) => [lane.id, lane.label, lane.wave, lane.owner]), [
+  assert.deepEqual(LANES.filter((lane) => lane.wave === "W2").map((lane) => [lane.id, lane.label, lane.wave, lane.owner]), [
     ["video", "Video", "W2", "T2.6"],
     ["captions", "Teks", "W2", "T2.6"],
     ["hook", "Hook", "W2", "T2.6"],

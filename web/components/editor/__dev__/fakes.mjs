@@ -158,6 +158,57 @@ export function fakePlan(doc = fakeDoc()) {
   };
 }
 
+const GRID = (ms) => Math.floor((ms * FPS[0]) / (1000 * FPS[1]));
+const FAKE_CLEANUP = Object.freeze({
+  items: [
+    { id: "fl_1", kind: "filler", wordIds: ["w048127"], label: "Jadi", defaultOn: false },
+    { id: "rp_1", kind: "repeat", wordIds: ["w048129"], label: "itu", defaultOn: true },
+    { id: "gp_1", kind: "gap_silent", afterWord: "w048126", inSf: GRID(1244600), outSf: GRID(1245200), label: "jeda 0,6 dtk", defaultOn: true },
+  ],
+});
+const FAKE_COLD_OPEN = Object.freeze({
+  candidates: [{ id: "co_1", firstWord: "w048121", lastWord: "w048126", durMs: 2470, reason: "pertanyaan pembuka" }],
+});
+const FAKE_HOOKS = Object.freeze([
+  { id: "hk_1", text: "Kenapa sutradara ditahan?", source: "ai_selection", fits: true },
+  { id: "hk_2", text: "Sutradara ditahan di film sendiri", source: "heuristic", fits: true },
+]);
+const UPLOAD_TYPES = Object.freeze({
+  logo: Object.freeze({ types: ["image/png", "image/jpeg", "image/webp"], maxBytes: 10 * 1024 * 1024 }),
+  music: Object.freeze({ types: ["audio/mpeg", "audio/mp4", "audio/wav", "audio/ogg", "audio/flac"], maxBytes: 50 * 1024 * 1024 }),
+});
+
+/**
+ * `uploadAsset(jobId, file, kind, { onProgress, signal })` of `web/lib/editor/upload-client.mjs`
+ * (Appendix A.2, T3.1): the §9.2 transport rules (type allowlist and caps) and the POST /assets
+ * DTO `{sha256, kind, mime, w, h, durationMs, lufsC, peaksUrl}`. Every asset is normalised the way
+ * the server does it: a logo becomes a PNG, music AAC in MP4. `calls` records every upload.
+ */
+export function createFakeUploadClient() {
+  const calls = [];
+  return {
+    calls,
+    async uploadAsset(jobId, file, kind, { onProgress = () => {}, signal } = {}) {
+      calls.push({ jobId, name: file?.name ?? null, size: file?.size ?? null, type: file?.type ?? null, kind });
+      if (signal?.aborted) {
+        const error = new Error("upload aborted");
+        error.name = "AbortError";
+        throw error;
+      }
+      const rules = UPLOAD_TYPES[kind];
+      if (!rules) throw new FakeApiError(400, "invalid_request");
+      if (!rules.types.includes(file?.type)) throw new FakeApiError(415, "asset_type_unsupported");
+      if (!Number.isSafeInteger(file?.size) || file.size <= 0 || file.size > rules.maxBytes) throw new FakeApiError(413, "asset_too_large");
+      for (const part of [0.25, 0.5, 1]) onProgress(part);
+      const sha256 = fakeSha256(`asset:${kind}:${file.name}:${file.size}`);
+      return kind === "logo"
+        ? { sha256, kind, mime: "image/png", w: 512, h: 512, durationMs: null, lufsC: null, peaksUrl: null }
+        : { sha256, kind, mime: "audio/mp4", w: null, h: null, durationMs: 95_000, lufsC: -1620,
+          peaksUrl: `/api/jobs/${jobId}/assets/${sha256}?part=peaks` };
+    },
+  };
+}
+
 /** `createApiClient` (Appendix A.2) over an in-memory clip; `calls` records every call. */
 export function createFakeApiClient({ doc = fakeDoc(), words = fakeWords(), now = () => 1790000200000 } = {}) {
   const seed = clone(doc);
@@ -220,13 +271,15 @@ export function createFakeApiClient({ doc = fakeDoc(), words = fakeWords(), now 
       renders.set(renderId, { ...renders.get(renderId), state: "cancelled" });
       return clone(renders.get(renderId));
     },
-    async cleanup() { record("cleanup", []); return { items: [] }; },
-    async coldOpenSuggestions() { record("coldOpenSuggestions", []); return { candidates: [] }; },
+    // W3 (T2.Z scaffolding): Rapikan items in the shapes ApplyCleanup takes (T2.5's note), §7.2
+    // cold-open candidates and §7.1 instant hook variants; the LLM part is off in the fakes.
+    async cleanup() { record("cleanup", []); return clone(FAKE_CLEANUP); },
+    async coldOpenSuggestions() { record("coldOpenSuggestions", []); return clone(FAKE_COLD_OPEN); },
     async aiHooks(aiDoc) {
       record("aiHooks", [aiDoc]);
-      return { taskId: "00000000-0000-4000-8000-000000000001", heuristic: [], llm: { state: "disabled" } };
+      return { taskId: "00000000-0000-4000-8000-000000000001", heuristic: clone(FAKE_HOOKS), llm: { state: "disabled" } };
     },
-    async aiTask(taskId) { record("aiTask", [taskId]); return { state: "done", suggestions: [], error: null }; },
+    async aiTask(taskId) { record("aiTask", [taskId]); return { state: "done", suggestions: clone(FAKE_HOOKS), error: null }; },
   };
 }
 
