@@ -8,8 +8,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createFakeServer, loadContext } from "../../scripts/edit_v2/crosscheck_commands.mjs";
-import { body, contentJson, hookItem } from "../lib/editor/doc-model.mjs";
+import { createFakeServer, loadContext, mulberry32, randomCommand } from "../../scripts/edit_v2/crosscheck_commands.mjs";
+import { ApiError } from "../lib/editor/api-client.mjs";
+import { CommandRejected } from "../lib/editor/commands.mjs";
+import { body, checkDoc, contentJson, hookItem } from "../lib/editor/doc-model.mjs";
+import { replaySteps } from "../lib/editor/rebase.mjs";
 import {
   DRAFT_DB,
   DRAFT_STORE,
@@ -229,6 +232,18 @@ test("the writer coalesces writes per draft while one is in flight and never los
   assert.equal(await store.get("clip_x#me"), null);
 });
 
+test("a write queued just as the previous one finishes is never stranded", async () => {
+  for (let delay = 0; delay < 12; delay += 1) {
+    const store = createMemoryDraftStore();
+    const writer = createDraftWriter({ store });
+    writer.write({ key: "clip_x#t", clipId: "clip_x", commands: [1] });
+    for (let i = 0; i < delay; i += 1) await Promise.resolve();
+    writer.write({ key: "clip_x#t", clipId: "clip_x", commands: [1, 2] });
+    await writer.flush();
+    assert.deepEqual((await store.get("clip_x#t")).commands, [1, 2], `after ${delay} microtasks`);
+  }
+});
+
 test("a draft is written after every command and a reload of the tab restores all of them", async () => {
   const server = createFakeServer(C30);
   const drafts = createDraftStore({ indexedDB: fakeIndexedDB(), keyRange });
@@ -368,4 +383,112 @@ test("a closed tab whose last PUT was committed but not confirmed is recognised 
   assert.equal(server.doc.main.removals.length, 1);
   assert.equal(server.doc.layout.default.mode, "camera");
   again.store.destroy();
+});
+
+/**
+ * QG-CONFLICT at store level: two live tabs of one clip edit at random with autosave, 409 merges
+ * and dialogs (answered at random), failed PUTs and reloads. After every operation each tab's
+ * unsaved work must be recoverable from its own draft; at the end everything is saved and valid.
+ */
+export async function twoTabRun(seed, steps = 40) {
+  const rng = mulberry32(seed);
+  const server = createFakeServer(C30);
+  const drafts = createMemoryDraftStore();
+  const channel = busChannel();
+  const tabs = [];
+  const stats = { dispatched: 0, rejected: 0, conflicts: 0, resolved: 0, reloads: 0, failures: 0, merges: 0, draftChecks: 0 };
+  const open = async (storage = sessionStorageLike()) => {
+    const tab = await opened(openTab({ server, drafts, channel, tabStorage: storage, autosave: true }));
+    tab.store.subscribe((state) => {
+      if (state.notice?.code === "merged") stats.merges += 1;
+    });
+    return tab;
+  };
+  tabs.push(await open(), await open());
+  const checkDrafts = async () => {
+    for (const tab of tabs) {
+      await tab.store.draftWriter.flush();
+      const state = tab.store.getState();
+      if (!state.commands.length) continue;
+      const draft = await drafts.get(tab.store.draftKey);
+      assert.ok(draft, `seed ${seed}: unsaved work without a draft`);
+      assert.equal(contentJson(replaySteps(draft.baseDoc, draft.commands, C30.ctx).doc), contentJson(state.doc),
+        `seed ${seed}: the draft does not rebuild the tab's document`);
+      stats.draftChecks += 1;
+    }
+  };
+  for (let step = 0; step < steps; step += 1) {
+    const index = rng() < 0.5 ? 0 : 1;
+    const tab = tabs[index];
+    const roll = rng();
+    if (roll < 0.45) {
+      const command = randomCommand(rng, tab.store.getState().doc, C30);
+      try {
+        tab.store.dispatch(command.type, command.args, command.options);
+        stats.dispatched += 1;
+      } catch (error) {
+        if (!(error instanceof CommandRejected)) throw error;
+        stats.rejected += 1;
+      }
+    } else if (roll < 0.65) {
+      await tab.clock.advance(200 + Math.floor(rng() * 2800));
+    } else if (roll < 0.73) {
+      if (tab.store.getState().save === "conflict") {
+        stats.conflicts += 1;
+        const choices = Object.fromEntries(tab.store.getState().conflict.groups.map((group) => [group.id, rng() < 0.5 ? "mine" : "theirs"]));
+        try {
+          await tab.store.resolveConflict(choices);
+        } catch (error) {
+          if (!(error instanceof CommandRejected)) throw error;
+          await tab.store.resolveConflict(Object.fromEntries(Object.keys(choices).map((id) => [id, "theirs"])));
+        }
+        stats.resolved += 1;
+      }
+    } else if (roll < 0.8) {
+      if (rng() < 0.5) tab.store.undo();
+      else tab.store.redo();
+    } else if (roll < 0.86) {
+      tab.store.destroy();
+      tabs[index] = await open(tab.tabStorage);
+      stats.reloads += 1;
+    } else if (roll < 0.9) {
+      server.failures.push(new ApiError(503, "backend_unavailable", {}));
+      stats.failures += 1;
+    } else {
+      await tab.store.flush().catch(() => {});
+    }
+    await checkDrafts();
+  }
+  // Settle: answer any dialog with "mine", save both tabs in turn.
+  for (let round = 0; round < 6; round += 1) {
+    for (const tab of tabs) {
+      if (tab.store.getState().save === "conflict") await tab.store.resolveConflict({});
+      await tab.clock.advance(40000);
+      await tab.store.flush().catch(() => {});
+    }
+  }
+  for (const tab of tabs) {
+    const state = tab.store.getState();
+    assert.equal(state.commands.length, 0, `seed ${seed}: work left unsaved (${state.save})`);
+  }
+  const last = tabs[1].store.getState();
+  assert.equal(contentJson(last.doc), contentJson(server.doc), `seed ${seed}: the last tab to save holds the server's version`);
+  assert.deepEqual(checkDoc(server.doc, C30.ctx), []);
+  await checkDrafts();
+  assert.deepEqual(await drafts.list(server.clipId), [], `seed ${seed}: drafts left after everything was saved`);
+  for (const tab of tabs) tab.store.destroy();
+  return stats;
+}
+
+test("QG-CONFLICT (store): two live tabs, random edits, saves, conflicts and reloads lose nothing", async () => {
+  const total = { runs: 0, dispatched: 0, conflicts: 0, reloads: 0, merges: 0, draftChecks: 0 };
+  for (let run = 0; run < 60; run += 1) {
+    const stats = await twoTabRun(9000 + run);
+    total.runs += 1;
+    for (const key of ["dispatched", "conflicts", "reloads", "merges", "draftChecks"]) total[key] += stats[key];
+  }
+  assert.ok(total.conflicts > 5, `only ${total.conflicts} dialogs`);
+  assert.ok(total.merges > 5, `only ${total.merges} merges`);
+  assert.ok(total.reloads > 20, `only ${total.reloads} reloads`);
+  assert.ok(total.draftChecks > 500, `only ${total.draftChecks} draft checks`);
 });
