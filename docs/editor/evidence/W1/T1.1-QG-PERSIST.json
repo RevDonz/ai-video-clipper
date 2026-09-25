@@ -1,0 +1,27 @@
+{
+ "archived_revisions": 4999,
+ "doc_bytes": 1998,
+ "elapsed_s": 37.89,
+ "environment": {
+  "cpus": 16,
+  "filesystem": "ext4",
+  "loadavg_1_5_15": [
+   4.17,
+   4.48,
+   5.41
+  ],
+  "machine": "x86_64",
+  "python": "3.11.15"
+ },
+ "failures": 0,
+ "final_revision": 5000,
+ "gate": "QG-PERSIST (in process)",
+ "pass": true,
+ "put_ms_max": 57.566,
+ "put_ms_p50": 4.671,
+ "put_ms_p95": 19.172,
+ "receipt_files_final": 200,
+ "receipt_files_max_sampled": 200,
+ "receipt_limit": 200,
+ "saves": 5000
+}
