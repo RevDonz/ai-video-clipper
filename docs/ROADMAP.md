@@ -3,7 +3,8 @@
 Terakhir diperbarui: 2026-10-01. Legenda: ✅ selesai · 🔄 sedang dikerjakan · ⬜ belum · ⏸️ ditunda
 (menunggu keputusan). Selection V3 dan halaman Pengaturan AI sudah di `main` dan live di
 https://potongin.revdonz.dev sejak 2026-09-24. Empat tugas susulan (server LLM sendiri + 9Router,
-thumbnail + upgrade Next/React, Whisper, heuristik v3.1) ada di branch `feat/v3-followups`.
+thumbnail + upgrade Next/React, Whisper, heuristik v3.1) live sejak 2026-09-24 (PR #6).
+Editor V3 Esensial dikerjakan di branch `feat/editor-v3-esensial` mulai 2026-09-25.
 
 Keputusan pemilik 2026-09-30 berlaku untuk semua bagian di bawah (rinciannya di
 [`docs/HANDOFF.md`](HANDOFF.md) §2): tampilan selalu terbaru tanpa label versi atau mode lama,
