@@ -359,7 +359,7 @@ def _clips(job: Path) -> dict:
     if _regular(selection_path):
         try:
             selection = read_selection_artifact(selection_path)
-        except (OSError, ValueError):
+        except (OSError, ValueError, RecursionError):
             selection = None
     if selection is None:
         attempts = job / ".attempts"
