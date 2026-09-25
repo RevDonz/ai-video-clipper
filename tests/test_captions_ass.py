@@ -1,3 +1,4 @@
+import dataclasses
 import hashlib
 import json
 import random
@@ -700,6 +701,80 @@ def test_box_shrinks_a_single_word_that_is_too_wide_for_one_line():
     size = int(re.match(r"\{\\q2\\fs(\d+)\}", event["Text"]).group(1))
     assert size < 64
     assert advance_px(word, font, size) <= 0.88 * 720 < advance_px(word, font, size + 1)
+
+
+def test_box_vector_variant_draws_a_p_rectangle_behind_each_line():
+    # The fallback if P-TXT fails for BorderStyle 3 (plan §5.4): same text, the box drawn as a
+    # \p vector rectangle event right before it, on the same layer and frames.
+    pack = dataclasses.replace(load_pack("box", 1), box_style="vector")
+    assert load_pack("box", 1).box_style == "border"
+    cue = _fcue((0, 10, "gue"), (10, 20, "bukan", True), (20, 30, "jambret."))
+    word = "Supercalifragilisticexpialidocious"
+
+    document = build_ass_v2((cue, _fcue((40, 60, word))), play_res=(720, 1280), fps=NTSC,
+                            total_frames=90, pack=pack, overrides=OVERRIDES["box"], hook=None)
+
+    style = _styles(document)["Box"]
+    assert (style["BorderStyle"], style["Outline"], style["Shadow"]) == ("1", "0", "0")
+    box, text, wide_box, wide_text = _events(document)
+    for drawing, line in ((box, text), (wide_box, wide_text)):
+        assert (drawing["Start"], drawing["End"], drawing["Layer"]) == (
+            line["Start"], line["End"], line["Layer"])
+    wrapped = "{\\1c" + PINK + "}bukan{\\1c" + WHITE + "}"
+    assert text["Text"] == "{\\q2}gue " + wrapped + " jambret."
+    font = font_path(pack.font_file)
+    pad = _rhu(1280, 100)
+    for drawing, shown, size in ((box, "gue bukan jambret.", 64), (wide_box, word, None)):
+        match = re.fullmatch(r"\{\\an2\\pos\(360,(\d+)\)\\bord0\\shad0\\1c&H000000&\\1a&H40&"
+                             r"\\p1\}m 0 0 l (\d+) 0 \2 (\d+) 0 \3\{\\p0\}", drawing["Text"])
+        assert match, drawing["Text"]
+        y, w, h = map(int, match.groups())
+        if size is None:
+            size = int(re.match(r"\{\\q2\\fs(\d+)\}", wide_text["Text"]).group(1))
+        assert y == 1280 - 218 + pad
+        assert h == size + 2 * pad
+        assert abs(w - (advance_px(shown, font, size) + 2 * pad)) <= 0.5
+
+
+def test_box_style_is_a_pack_file_field_that_only_boxed_packs_carry(tmp_path, monkeypatch):
+    # Switching box to the \p variant is a data change (the pack file), recorded in SPIKES.md.
+    box = json.loads((PACKS_DIR / "box" / "v1.json").read_bytes())
+    assert box["box_style"] == "border"
+    assert all("box_style" not in json.loads((PACKS_DIR / p / "v1.json").read_bytes())
+               for p in ("classic", "karaoke", "bold"))
+    classic = json.loads((PACKS_DIR / "classic" / "v1.json").read_bytes())
+    files = {("box", 7): {**box, "v": 7, "box_style": "vector"},
+             ("box", 8): {**box, "v": 8, "box_style": "circle"},
+             ("classic", 9): {**classic, "v": 9, "box_style": "vector"},
+             ("box", 10): {key: value for key, value in {**box, "v": 10}.items()
+                           if key != "box_style"}}
+    for (pack_id, version), data in files.items():
+        (tmp_path / pack_id).mkdir(exist_ok=True)
+        (tmp_path / pack_id / f"v{version}.json").write_text(json.dumps(data), encoding="utf-8")
+    monkeypatch.setattr(captions_ass, "PACKS_DIR", tmp_path)
+    captions_ass._load_pack.cache_clear()
+    try:
+        assert load_pack("box", 7).box_style == "vector"
+        assert load_pack("box", 10).box_style == "border"
+        for pack_id, version in (("box", 8), ("classic", 9)):
+            with pytest.raises(ValueError, match="box_style"):
+                load_pack(pack_id, version)
+    finally:
+        monkeypatch.undo()
+        captions_ass._load_pack.cache_clear()
+    assert load_pack("classic", 1).box_style == "border"
+
+
+@pytest.mark.parametrize("pack_id", ["classic", "karaoke", "bold"])
+def test_the_vector_box_needs_a_one_line_boxed_pack(pack_id):
+    pack = dataclasses.replace(load_pack(pack_id, 1), box_style="vector")
+    with pytest.raises(ValueError, match="box_style"):
+        build_ass_v2((), play_res=(720, 1280), fps=NTSC, total_frames=30, pack=pack,
+                     overrides=OVERRIDES[pack_id], hook=None)
+    with pytest.raises(ValueError, match="box_style"):
+        build_ass_v2((), play_res=(720, 1280), fps=NTSC, total_frames=30,
+                     pack=dataclasses.replace(load_pack("box", 1), box_style="round"),
+                     overrides=OVERRIDES["box"], hook=None)
 
 
 def test_emphasis_colour_wraps_the_word_and_is_reset_after_it():
