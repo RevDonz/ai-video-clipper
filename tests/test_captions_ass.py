@@ -736,6 +736,23 @@ def test_box_vector_variant_draws_a_p_rectangle_behind_each_line():
         assert abs(w - (advance_px(shown, font, size) + 2 * pad)) <= 0.5
 
 
+def test_box_vector_rectangle_measures_the_characters_libass_draws():
+    # ass_escape turns line breaks into spaces and drops control characters; "{" stays visible.
+    pack = dataclasses.replace(load_pack("box", 1), box_style="vector")
+    font = font_path(pack.font_file)
+
+    def rectangle_width(text):
+        document = build_ass_v2((_fcue((0, 30, text)),), play_res=(720, 1280), fps=NTSC,
+                                total_frames=60, pack=pack, overrides=OVERRIDES["box"],
+                                hook=None)
+        drawing = _events(document)[0]["Text"]
+        return int(re.search(r"\\p1\}m 0 0 l (\d+) 0 ", drawing).group(1))
+
+    pad = _rhu(1280, 100)
+    for text, shown in (("a\tb", "a b"), ("ok\x07!", "ok!"), ("{hai}", "{hai}")):
+        assert abs(rectangle_width(text) - (advance_px(shown, font, 64) + 2 * pad)) <= 0.5
+
+
 def test_box_style_is_a_pack_file_field_that_only_boxed_packs_carry(tmp_path, monkeypatch):
     # Switching box to the \p variant is a data change (the pack file), recorded in SPIKES.md.
     box = json.loads((PACKS_DIR / "box" / "v1.json").read_bytes())
