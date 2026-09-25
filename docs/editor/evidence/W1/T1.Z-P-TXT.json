@@ -1,0 +1,791 @@
+{
+  "browser": "147.0.7727.15",
+  "formats": {
+    "gbrp": {
+      "clips": {
+        "bold-10": {
+          "frames": 5,
+          "gate": true,
+          "max": 14,
+          "max_px_over_16": 0,
+          "min_psnr": 65.901021,
+          "min_ssim": 0.999995,
+          "min_ssim_text": 0.999918,
+          "pass": true
+        },
+        "bold-40": {
+          "frames": 5,
+          "gate": true,
+          "max": 13,
+          "max_px_over_16": 0,
+          "min_psnr": 63.443065,
+          "min_ssim": 0.999989,
+          "min_ssim_text": 0.999903,
+          "pass": true
+        },
+        "bold-90": {
+          "frames": 5,
+          "gate": true,
+          "max": 13,
+          "max_px_over_16": 0,
+          "min_psnr": 62.4998,
+          "min_ssim": 0.999979,
+          "min_ssim_text": 0.999815,
+          "pass": true
+        },
+        "bold-dejavu-10": {
+          "frames": 5,
+          "gate": false,
+          "max": 14,
+          "max_px_over_16": 0,
+          "min_psnr": 66.771029,
+          "min_ssim": 0.999994,
+          "min_ssim_text": 0.999913,
+          "pass": true
+        },
+        "bold-dejavu-40": {
+          "frames": 5,
+          "gate": false,
+          "max": 13,
+          "max_px_over_16": 0,
+          "min_psnr": 64.747294,
+          "min_ssim": 0.999991,
+          "min_ssim_text": 0.999928,
+          "pass": true
+        },
+        "bold-dejavu-90": {
+          "frames": 5,
+          "gate": false,
+          "max": 13,
+          "max_px_over_16": 0,
+          "min_psnr": 63.815223,
+          "min_ssim": 0.999971,
+          "min_ssim_text": 0.999784,
+          "pass": true
+        },
+        "box-10": {
+          "frames": 5,
+          "gate": true,
+          "max": 9,
+          "max_px_over_16": 0,
+          "min_psnr": 67.256861,
+          "min_ssim": 0.999976,
+          "min_ssim_text": 0.999565,
+          "pass": true
+        },
+        "box-40": {
+          "frames": 5,
+          "gate": true,
+          "max": 11,
+          "max_px_over_16": 0,
+          "min_psnr": 65.173606,
+          "min_ssim": 0.999967,
+          "min_ssim_text": 0.999644,
+          "pass": true
+        },
+        "box-90": {
+          "frames": 5,
+          "gate": true,
+          "max": 12,
+          "max_px_over_16": 0,
+          "min_psnr": 64.70084,
+          "min_ssim": 0.999948,
+          "min_ssim_text": 0.999489,
+          "pass": true
+        },
+        "box-dejavu-10": {
+          "frames": 5,
+          "gate": false,
+          "max": 12,
+          "max_px_over_16": 0,
+          "min_psnr": 65.93689,
+          "min_ssim": 0.999976,
+          "min_ssim_text": 0.999586,
+          "pass": true
+        },
+        "box-dejavu-40": {
+          "frames": 5,
+          "gate": false,
+          "max": 14,
+          "max_px_over_16": 0,
+          "min_psnr": 65.395014,
+          "min_ssim": 0.99997,
+          "min_ssim_text": 0.999604,
+          "pass": true
+        },
+        "box-dejavu-90": {
+          "frames": 5,
+          "gate": false,
+          "max": 13,
+          "max_px_over_16": 0,
+          "min_psnr": 64.384232,
+          "min_ssim": 0.999952,
+          "min_ssim_text": 0.99943,
+          "pass": true
+        },
+        "box-pbox-10": {
+          "frames": 5,
+          "gate": false,
+          "max": 9,
+          "max_px_over_16": 0,
+          "min_psnr": 67.378519,
+          "min_ssim": 0.999974,
+          "min_ssim_text": 0.999518,
+          "pass": true
+        },
+        "box-pbox-40": {
+          "frames": 5,
+          "gate": false,
+          "max": 11,
+          "max_px_over_16": 0,
+          "min_psnr": 64.480351,
+          "min_ssim": 0.999955,
+          "min_ssim_text": 0.999504,
+          "pass": true
+        },
+        "box-pbox-90": {
+          "frames": 5,
+          "gate": false,
+          "max": 12,
+          "max_px_over_16": 0,
+          "min_psnr": 63.843811,
+          "min_ssim": 0.999942,
+          "min_ssim_text": 0.999438,
+          "pass": true
+        },
+        "classic-10": {
+          "frames": 5,
+          "gate": true,
+          "max": 10,
+          "max_px_over_16": 0,
+          "min_psnr": 67.763652,
+          "min_ssim": 0.999997,
+          "min_ssim_text": 0.999924,
+          "pass": true
+        },
+        "classic-40": {
+          "frames": 5,
+          "gate": true,
+          "max": 12,
+          "max_px_over_16": 0,
+          "min_psnr": 65.395684,
+          "min_ssim": 0.999994,
+          "min_ssim_text": 0.999911,
+          "pass": true
+        },
+        "classic-90": {
+          "frames": 5,
+          "gate": true,
+          "max": 12,
+          "max_px_over_16": 0,
+          "min_psnr": 63.333594,
+          "min_ssim": 0.999989,
+          "min_ssim_text": 0.999914,
+          "pass": true
+        },
+        "fallback": {
+          "frames": 5,
+          "gate": true,
+          "max": 13,
+          "max_px_over_16": 0,
+          "min_psnr": 65.384151,
+          "min_ssim": 0.999989,
+          "min_ssim_text": 0.99985,
+          "pass": true
+        },
+        "hook": {
+          "frames": 5,
+          "gate": true,
+          "max": 11,
+          "max_px_over_16": 0,
+          "min_psnr": 62.771073,
+          "min_ssim": 0.999948,
+          "min_ssim_text": 0.999669,
+          "pass": true
+        },
+        "karaoke-10": {
+          "frames": 5,
+          "gate": true,
+          "max": 11,
+          "max_px_over_16": 0,
+          "min_psnr": 68.380869,
+          "min_ssim": 0.999993,
+          "min_ssim_text": 0.99984,
+          "pass": true
+        },
+        "karaoke-40": {
+          "frames": 5,
+          "gate": true,
+          "max": 11,
+          "max_px_over_16": 0,
+          "min_psnr": 65.770185,
+          "min_ssim": 0.999994,
+          "min_ssim_text": 0.999926,
+          "pass": true
+        },
+        "karaoke-90": {
+          "frames": 5,
+          "gate": true,
+          "max": 12,
+          "max_px_over_16": 0,
+          "min_psnr": 64.332764,
+          "min_ssim": 0.999983,
+          "min_ssim_text": 0.999843,
+          "pass": true
+        },
+        "pcolor": {
+          "frames": 5,
+          "gate": false,
+          "max": 13,
+          "max_px_over_16": 0,
+          "min_psnr": 63.871352,
+          "min_ssim": 0.999986,
+          "min_ssim_text": 0.999951,
+          "pass": true
+        }
+      },
+      "failing_frames": 0,
+      "frames": 120,
+      "pass": true,
+      "worst_gated": {
+        "max": 14,
+        "psnr": 62.4998,
+        "px_over_16": 0,
+        "ssim": 0.999948,
+        "ssim_text": 0.999489
+      }
+    },
+    "yuv420p": {
+      "clips": {
+        "bold-10": {
+          "frames": 5,
+          "gate": true,
+          "max": 104,
+          "max_px_over_16": 2469,
+          "min_psnr": 46.73556,
+          "min_ssim": 0.996178,
+          "min_ssim_text": 0.930402,
+          "pass": false
+        },
+        "bold-40": {
+          "frames": 5,
+          "gate": true,
+          "max": 100,
+          "max_px_over_16": 3342,
+          "min_psnr": 44.937288,
+          "min_ssim": 0.99439,
+          "min_ssim_text": 0.948669,
+          "pass": false
+        },
+        "bold-90": {
+          "frames": 5,
+          "gate": true,
+          "max": 101,
+          "max_px_over_16": 5564,
+          "min_psnr": 42.983463,
+          "min_ssim": 0.990808,
+          "min_ssim_text": 0.919593,
+          "pass": false
+        },
+        "bold-dejavu-10": {
+          "frames": 5,
+          "gate": false,
+          "max": 105,
+          "max_px_over_16": 2645,
+          "min_psnr": 46.85317,
+          "min_ssim": 0.995125,
+          "min_ssim_text": 0.925164,
+          "pass": false
+        },
+        "bold-dejavu-40": {
+          "frames": 5,
+          "gate": false,
+          "max": 111,
+          "max_px_over_16": 3593,
+          "min_psnr": 45.276762,
+          "min_ssim": 0.993943,
+          "min_ssim_text": 0.949873,
+          "pass": false
+        },
+        "bold-dejavu-90": {
+          "frames": 5,
+          "gate": false,
+          "max": 135,
+          "max_px_over_16": 5328,
+          "min_psnr": 43.416863,
+          "min_ssim": 0.990528,
+          "min_ssim_text": 0.928762,
+          "pass": false
+        },
+        "box-10": {
+          "frames": 5,
+          "gate": true,
+          "max": 70,
+          "max_px_over_16": 1412,
+          "min_psnr": 48.244943,
+          "min_ssim": 0.997827,
+          "min_ssim_text": 0.9599,
+          "pass": false
+        },
+        "box-40": {
+          "frames": 5,
+          "gate": true,
+          "max": 71,
+          "max_px_over_16": 2670,
+          "min_psnr": 45.246846,
+          "min_ssim": 0.995782,
+          "min_ssim_text": 0.954294,
+          "pass": false
+        },
+        "box-90": {
+          "frames": 5,
+          "gate": true,
+          "max": 71,
+          "max_px_over_16": 3068,
+          "min_psnr": 44.579332,
+          "min_ssim": 0.99512,
+          "min_ssim_text": 0.95235,
+          "pass": false
+        },
+        "box-dejavu-10": {
+          "frames": 5,
+          "gate": false,
+          "max": 68,
+          "max_px_over_16": 1744,
+          "min_psnr": 47.752523,
+          "min_ssim": 0.997453,
+          "min_ssim_text": 0.95679,
+          "pass": false
+        },
+        "box-dejavu-40": {
+          "frames": 5,
+          "gate": false,
+          "max": 71,
+          "max_px_over_16": 2376,
+          "min_psnr": 46.437213,
+          "min_ssim": 0.997303,
+          "min_ssim_text": 0.96489,
+          "pass": false
+        },
+        "box-dejavu-90": {
+          "frames": 5,
+          "gate": false,
+          "max": 77,
+          "max_px_over_16": 2639,
+          "min_psnr": 45.132037,
+          "min_ssim": 0.995887,
+          "min_ssim_text": 0.951006,
+          "pass": false
+        },
+        "box-pbox-10": {
+          "frames": 5,
+          "gate": false,
+          "max": 89,
+          "max_px_over_16": 1544,
+          "min_psnr": 47.331847,
+          "min_ssim": 0.997524,
+          "min_ssim_text": 0.954313,
+          "pass": false
+        },
+        "box-pbox-40": {
+          "frames": 5,
+          "gate": false,
+          "max": 89,
+          "max_px_over_16": 2764,
+          "min_psnr": 44.671538,
+          "min_ssim": 0.995337,
+          "min_ssim_text": 0.948813,
+          "pass": false
+        },
+        "box-pbox-90": {
+          "frames": 5,
+          "gate": false,
+          "max": 97,
+          "max_px_over_16": 2971,
+          "min_psnr": 43.935118,
+          "min_ssim": 0.994765,
+          "min_ssim_text": 0.94947,
+          "pass": false
+        },
+        "classic-10": {
+          "frames": 5,
+          "gate": true,
+          "max": 88,
+          "max_px_over_16": 737,
+          "min_psnr": 52.131497,
+          "min_ssim": 0.998555,
+          "min_ssim_text": 0.961303,
+          "pass": false
+        },
+        "classic-40": {
+          "frames": 5,
+          "gate": true,
+          "max": 99,
+          "max_px_over_16": 1503,
+          "min_psnr": 49.451857,
+          "min_ssim": 0.996956,
+          "min_ssim_text": 0.956895,
+          "pass": false
+        },
+        "classic-90": {
+          "frames": 5,
+          "gate": true,
+          "max": 106,
+          "max_px_over_16": 2119,
+          "min_psnr": 47.851693,
+          "min_ssim": 0.995964,
+          "min_ssim_text": 0.968643,
+          "pass": false
+        },
+        "fallback": {
+          "frames": 5,
+          "gate": true,
+          "max": 92,
+          "max_px_over_16": 3219,
+          "min_psnr": 45.96196,
+          "min_ssim": 0.99473,
+          "min_ssim_text": 0.926782,
+          "pass": false
+        },
+        "hook": {
+          "frames": 5,
+          "gate": true,
+          "max": 73,
+          "max_px_over_16": 4637,
+          "min_psnr": 45.735535,
+          "min_ssim": 0.994725,
+          "min_ssim_text": 0.966403,
+          "pass": false
+        },
+        "karaoke-10": {
+          "frames": 5,
+          "gate": true,
+          "max": 95,
+          "max_px_over_16": 2149,
+          "min_psnr": 48.533496,
+          "min_ssim": 0.997479,
+          "min_ssim_text": 0.938489,
+          "pass": false
+        },
+        "karaoke-40": {
+          "frames": 5,
+          "gate": true,
+          "max": 98,
+          "max_px_over_16": 3884,
+          "min_psnr": 45.559634,
+          "min_ssim": 0.994747,
+          "min_ssim_text": 0.93305,
+          "pass": false
+        },
+        "karaoke-90": {
+          "frames": 5,
+          "gate": true,
+          "max": 97,
+          "max_px_over_16": 5085,
+          "min_psnr": 44.468516,
+          "min_ssim": 0.994419,
+          "min_ssim_text": 0.949419,
+          "pass": false
+        },
+        "pcolor": {
+          "frames": 5,
+          "gate": false,
+          "max": 65,
+          "max_px_over_16": 11002,
+          "min_psnr": 42.277117,
+          "min_ssim": 0.992546,
+          "min_ssim_text": 0.973462,
+          "pass": false
+        }
+      },
+      "failing_frames": 70,
+      "frames": 120,
+      "pass": false,
+      "worst_gated": {
+        "max": 106,
+        "psnr": 42.983463,
+        "px_over_16": 5564,
+        "ssim": 0.990808,
+        "ssim_text": 0.919593
+      }
+    },
+    "yuv444p": {
+      "clips": {
+        "bold-10": {
+          "frames": 5,
+          "gate": true,
+          "max": 18,
+          "max_px_over_16": 4,
+          "min_psnr": 57.008962,
+          "min_ssim": 0.999969,
+          "min_ssim_text": 0.999427,
+          "pass": false
+        },
+        "bold-40": {
+          "frames": 5,
+          "gate": true,
+          "max": 17,
+          "max_px_over_16": 1,
+          "min_psnr": 56.654336,
+          "min_ssim": 0.999963,
+          "min_ssim_text": 0.999662,
+          "pass": false
+        },
+        "bold-90": {
+          "frames": 5,
+          "gate": true,
+          "max": 18,
+          "max_px_over_16": 2,
+          "min_psnr": 53.414119,
+          "min_ssim": 0.99991,
+          "min_ssim_text": 0.999212,
+          "pass": false
+        },
+        "bold-dejavu-10": {
+          "frames": 5,
+          "gate": false,
+          "max": 21,
+          "max_px_over_16": 1,
+          "min_psnr": 57.910631,
+          "min_ssim": 0.999961,
+          "min_ssim_text": 0.999407,
+          "pass": false
+        },
+        "bold-dejavu-40": {
+          "frames": 5,
+          "gate": false,
+          "max": 22,
+          "max_px_over_16": 3,
+          "min_psnr": 57.819058,
+          "min_ssim": 0.999959,
+          "min_ssim_text": 0.999659,
+          "pass": false
+        },
+        "bold-dejavu-90": {
+          "frames": 5,
+          "gate": false,
+          "max": 20,
+          "max_px_over_16": 2,
+          "min_psnr": 54.429888,
+          "min_ssim": 0.999919,
+          "min_ssim_text": 0.99939,
+          "pass": false
+        },
+        "box-10": {
+          "frames": 5,
+          "gate": true,
+          "max": 15,
+          "max_px_over_16": 0,
+          "min_psnr": 62.76276,
+          "min_ssim": 0.999607,
+          "min_ssim_text": 0.992745,
+          "pass": true
+        },
+        "box-40": {
+          "frames": 5,
+          "gate": true,
+          "max": 13,
+          "max_px_over_16": 0,
+          "min_psnr": 60.777302,
+          "min_ssim": 0.999497,
+          "min_ssim_text": 0.994547,
+          "pass": true
+        },
+        "box-90": {
+          "frames": 5,
+          "gate": true,
+          "max": 14,
+          "max_px_over_16": 0,
+          "min_psnr": 60.04307,
+          "min_ssim": 0.999378,
+          "min_ssim_text": 0.993928,
+          "pass": true
+        },
+        "box-dejavu-10": {
+          "frames": 5,
+          "gate": false,
+          "max": 13,
+          "max_px_over_16": 0,
+          "min_psnr": 61.990791,
+          "min_ssim": 0.999586,
+          "min_ssim_text": 0.992974,
+          "pass": true
+        },
+        "box-dejavu-40": {
+          "frames": 5,
+          "gate": false,
+          "max": 14,
+          "max_px_over_16": 0,
+          "min_psnr": 61.243492,
+          "min_ssim": 0.999623,
+          "min_ssim_text": 0.995095,
+          "pass": true
+        },
+        "box-dejavu-90": {
+          "frames": 5,
+          "gate": false,
+          "max": 13,
+          "max_px_over_16": 0,
+          "min_psnr": 60.361639,
+          "min_ssim": 0.999499,
+          "min_ssim_text": 0.994027,
+          "pass": true
+        },
+        "box-pbox-10": {
+          "frames": 5,
+          "gate": false,
+          "max": 9,
+          "max_px_over_16": 0,
+          "min_psnr": 63.660424,
+          "min_ssim": 0.9996,
+          "min_ssim_text": 0.99261,
+          "pass": true
+        },
+        "box-pbox-40": {
+          "frames": 5,
+          "gate": false,
+          "max": 12,
+          "max_px_over_16": 0,
+          "min_psnr": 60.558672,
+          "min_ssim": 0.999482,
+          "min_ssim_text": 0.994318,
+          "pass": true
+        },
+        "box-pbox-90": {
+          "frames": 5,
+          "gate": false,
+          "max": 14,
+          "max_px_over_16": 0,
+          "min_psnr": 60.228975,
+          "min_ssim": 0.999426,
+          "min_ssim_text": 0.99446,
+          "pass": true
+        },
+        "classic-10": {
+          "frames": 5,
+          "gate": true,
+          "max": 14,
+          "max_px_over_16": 0,
+          "min_psnr": 66.296787,
+          "min_ssim": 0.999988,
+          "min_ssim_text": 0.999692,
+          "pass": true
+        },
+        "classic-40": {
+          "frames": 5,
+          "gate": true,
+          "max": 14,
+          "max_px_over_16": 0,
+          "min_psnr": 63.374382,
+          "min_ssim": 0.99998,
+          "min_ssim_text": 0.999719,
+          "pass": true
+        },
+        "classic-90": {
+          "frames": 5,
+          "gate": true,
+          "max": 14,
+          "max_px_over_16": 0,
+          "min_psnr": 61.891345,
+          "min_ssim": 0.999978,
+          "min_ssim_text": 0.999828,
+          "pass": true
+        },
+        "fallback": {
+          "frames": 5,
+          "gate": true,
+          "max": 16,
+          "max_px_over_16": 0,
+          "min_psnr": 56.413516,
+          "min_ssim": 0.999959,
+          "min_ssim_text": 0.999432,
+          "pass": true
+        },
+        "hook": {
+          "frames": 5,
+          "gate": true,
+          "max": 14,
+          "max_px_over_16": 0,
+          "min_psnr": 55.807018,
+          "min_ssim": 0.999376,
+          "min_ssim_text": 0.996023,
+          "pass": true
+        },
+        "karaoke-10": {
+          "frames": 5,
+          "gate": true,
+          "max": 14,
+          "max_px_over_16": 0,
+          "min_psnr": 57.184862,
+          "min_ssim": 0.999963,
+          "min_ssim_text": 0.999092,
+          "pass": true
+        },
+        "karaoke-40": {
+          "frames": 5,
+          "gate": true,
+          "max": 17,
+          "max_px_over_16": 1,
+          "min_psnr": 54.38347,
+          "min_ssim": 0.999932,
+          "min_ssim_text": 0.999134,
+          "pass": false
+        },
+        "karaoke-90": {
+          "frames": 5,
+          "gate": true,
+          "max": 16,
+          "max_px_over_16": 0,
+          "min_psnr": 53.409954,
+          "min_ssim": 0.999907,
+          "min_ssim_text": 0.999156,
+          "pass": true
+        },
+        "pcolor": {
+          "frames": 5,
+          "gate": false,
+          "max": 30,
+          "max_px_over_16": 7365,
+          "min_psnr": 45.03247,
+          "min_ssim": 0.999321,
+          "min_ssim_text": 0.997584,
+          "pass": false
+        }
+      },
+      "failing_frames": 12,
+      "frames": 120,
+      "pass": false,
+      "worst_gated": {
+        "max": 18,
+        "psnr": 53.409954,
+        "px_over_16": 4,
+        "ssim": 0.999376,
+        "ssim_text": 0.992745
+      }
+    }
+  },
+  "gate": "P-TXT",
+  "gate_format": "gbrp",
+  "jassub": "2.5.16",
+  "pass": true,
+  "reference": "FFmpeg composite before 4:2:0, BT.709 to RGB",
+  "task": "T1.Z",
+  "thresholds": {
+    "max": 16,
+    "psnr": 45.0,
+    "px_over_16": 0,
+    "ssim": 0.999
+  },
+  "toolchain": {
+    "ffmpeg_version": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "packages": {
+      "ffmpeg": "7:5.1.9-0+deb12u1",
+      "fontconfig": "2.14.1-4",
+      "libass9": "1:0.17.1-1+deb12u1",
+      "libfreetype6": "2.12.1+dfsg-5+deb12u4",
+      "libfribidi0": "1.0.8-2.1",
+      "libharfbuzz0b": "6.0.0+dfsg-3"
+    }
+  },
+  "wasm": "jassub-worker.wasm"
+}

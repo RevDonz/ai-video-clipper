@@ -184,3 +184,21 @@ R7 (for example a negative x264 chroma QP offset, or crf 18) is for the integrat
    The supplementary natural-video P-ENC: `reference_text.py … --plate-video SRC --plate-start S
    --no-timing --only …` then `enc_check.py fixtures --fixtures … --out …`, passed to
    `evidence` as `--p-enc-natural`.
+
+## 6. Re-run at the W1 integration (T1.Z, 2026-09-25)
+
+After T1.2a merged, the harness was re-run on the shipped bytes: every gated P-TXT clip is
+`captions_ass.fit_cues` + `build_ass_v2` with the pack files and their default overrides (the
+spike's pack variants and the P-COLOR sheet stay hand-written). References, exports and cost
+ran in `ai-video-clipper:editor-w1` (the pinned image, same package versions as `editor-ref`),
+the browser in Chrome for Testing 147.0.7727.15. Evidence: `T1.Z-{P-TIME-jassub,P-TXT,P-COLOR,
+P-ENC,S-COLOR}.json`.
+
+- P-TIME (JASSUB side): 0 of 231 transitions, 44 on hazard frames.
+- P-TXT (gbrp): worst SSIM 0.999948, text 0.999489, PSNR 62.50 dB, max 14, 0 px > 16.
+- P-COLOR (gbrp): worst mean |Δ| 2.18 (yuv420p 23.81, yuv444p 23.17).
+- P-ENC (gbrp): whole 0.98660–0.98947, text 0.97455–0.98969, luma ≥ 0.99650: the absolute
+  thresholds still fail for every candidate; the baseline is recorded.
+- S-COLOR: the rule still selects none; the recommendation stays **gbrp**, +12.4 % over yuv420p
+  (9.04 s vs 8.05 s per 30 s, best of 5). Applied in `compile_ffmpeg.COMPOSITE_FORMAT`.
+- Pack variants unchanged: Bold = Montserrat ExtraBold, Box = Montserrat + `BorderStyle 3`.
