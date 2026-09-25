@@ -347,6 +347,20 @@ test("delete removes each visible run of the selection and skips removed words",
   assert.equal(selectionActions(model, selectOne(0), { readOnly: true }).remove.enabled, false);
 });
 
+test("words shown only in the cold open are cut there, in their own run", () => {
+  const words = makeWords(40);
+  const doc = makeDoc(words, 4, 25);
+  const list = words.words;
+  // A cold open after the body end: its words are outside the body.
+  doc.main.segments.unshift({ id: "seg_co", role: "cold_open", in_sf: bound(words, "before", list[30].id), out_sf: bound(words, "after", list[33].id) });
+  doc.main.joins = [{ after: "seg_co", style: "cut", audio_fade_ms: 30 }];
+  const model = buildTranscriptModel(words, doc);
+  assert.equal(model.states[31].zone, "after");
+  assert.equal(model.states[31].cold, true);
+  const actions = selectionActions(model, extendTo(selectOne(24), 32), { readOnly: false });
+  assert.deepEqual(actions.remove.runs, [["w000024", "w000025"], ["w000030", "w000031", "w000032"]]);
+});
+
 test("hide and emphasis toggle the whole selection", () => {
   const words = fakeWords();
   const doc = fakeDoc();
