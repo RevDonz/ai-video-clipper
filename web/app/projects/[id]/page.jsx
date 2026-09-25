@@ -28,6 +28,7 @@ import {
   scoreRows,
   selectionSourceLabel,
   selectionV3SummaryView,
+  selectionWarningLabel,
   tenPointScore,
 } from "../../../lib/selection-v3-view.mjs";
 
@@ -276,7 +277,10 @@ function SelectionV3Summary({ summary }) {
       {view.warnings.length > 0 && (
         <details>
           <summary>Kode peringatan teknis ({view.warnings.length})</summary>
-          <ul>{view.warnings.map((code) => <li key={code}><code>{code}</code></li>)}</ul>
+          <ul>{view.warnings.map((code) => {
+            const label = selectionWarningLabel(code);
+            return <li key={code}><code>{code}</code>{label && <> · {label}</>}</li>;
+          })}</ul>
         </details>
       )}
     </div>
