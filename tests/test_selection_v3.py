@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import json
 import math
 
@@ -8,9 +9,11 @@ import pytest
 
 from ai_clipper import benchmark, selection_v3
 from ai_clipper.audio_timeline import build_audio_timeline
+from ai_clipper.focus import FocusMatcher, parse_focus
 from ai_clipper.hook_heuristics import HEURISTIC_VERSION
 from ai_clipper.llm import LLMError, LLMUnavailable, ScriptedLLMClient
 from ai_clipper.llm_selection import (
+    FOCUS_PROMPT_VERSION,
     PROMPT_VERSION,
     TREND_PROMPT_VERSION,
     combined_score,
@@ -18,10 +21,17 @@ from ai_clipper.llm_selection import (
     standard_sha256,
 )
 from ai_clipper.models import TranscriptSegment, TranscriptWord
-from ai_clipper.selection_types import SelectedClip, SelectionResult, TrendRef
+from ai_clipper.selection_types import (
+    ClipFocus,
+    FocusSummary,
+    SelectedClip,
+    SelectionResult,
+    TrendRef,
+)
 from ai_clipper.selection_v3 import (
     COLD_OPEN_MAX_SECONDS,
     COLD_OPEN_MIN_SECONDS,
+    FOCUS_FILL_REASON,
     LAUGH_TAIL_SECONDS,
     PRE_ROLL_SECONDS,
     SELECTION_ARTIFACT_RELATIVE_PATH,
@@ -1245,5 +1255,300 @@ def trend_mutated(change) -> dict:
     ],
 )
 def test_artifact_reader_is_strict_about_trends(payload):
+    with pytest.raises(SelectionArtifactError):
+        selection_from_dict(payload)
+
+
+# --- Fokus klip -------------------------------------------------------------------------------
+
+JOMOK = parse_focus(["jomok"], "momen jomok yang lucu")
+
+# sha256 of three fixture selections (heuristic; LLM; LLM with a relevant trend) computed before
+# Fokus klip changed the selector (base commit 54a360a). Without focus they must not move.
+PRE_FOCUS_SELECTIONS = {
+    "heuristic": "43596d32fe4d9e188bac7af908b10c82ec7c595f53df80b20eca75d8a574e6a3",
+    "llm": "2ce19c170437028c102fe48d3643af42e7912f3d8ca832051d7968e76c473f6e",
+    "llm_trends": "c4c73ed1788a2a9a88d681a7ebb9cee78517ef7633def2bc6a05342ccd3ac4de",
+}
+
+
+def digest(value) -> str:
+    return hashlib.sha256(json.dumps(value, ensure_ascii=False).encode("utf-8")).hexdigest()
+
+
+def selection_scenarios(**options) -> dict[str, str]:
+    found = {}
+    result = select_clips_v3(
+        episode(40, gap=0.5), k=4, min_duration=20.0, max_duration=40.0, llm_mode="off",
+        events=(laugh(70.5), laugh(150.2)), **options,
+    )
+    found["heuristic"] = digest(result.to_dict())
+    moments = [
+        moment(10, 13, hook=12, trend_refs=["T1"], title="Kabur Aja Dulu versi podcast"),
+        moment(20, 23, hook=21, scores=flat(6.0)),
+        moment(2, 5, hook=3, scores=flat(5.0)),
+    ]
+    result, client = llm_run(moments, k=4, segments=kabur_episode(), **options)
+    found["llm"] = digest([result.to_dict(), client.calls])
+    result, client = llm_run(moments, k=4, segments=kabur_episode(), trends=[KABUR], **options)
+    found["llm_trends"] = digest([result.to_dict(), client.calls])
+    return found
+
+
+def jomok_episode(*units: int, word: str = "perjomokan", count: int = 40):
+    """:func:`episode` where units ``units`` say ``word`` (its second word, at +0.7 s)."""
+    segments = episode(count)
+    for unit in units:
+        text = f"Soal {word} itu kisah{unit} bareng teman{unit} di kota{unit} waktu itu."
+        segments[unit] = segment(segments[unit].start, text, 7.0)
+    return segments
+
+
+def unit_range(clip: SelectedClip) -> range:
+    first, last = (int(unit_id[1:]) - 1 for unit_id in clip.unit_ids)
+    return range(first, last + 1)
+
+
+def test_without_focus_selections_are_identical_to_before_fokus_klip():
+    assert selection_scenarios() == PRE_FOCUS_SELECTIONS
+    assert selection_scenarios(focus=None) == PRE_FOCUS_SELECTIONS
+
+
+def test_matching_clips_come_first_literal_then_semantic_then_none():
+    moments = [
+        moment(2, 5, hook=3, scores=flat(9.0), focus="none"),
+        moment(10, 13, hook=12, scores=flat(7.0), focus="semantic"),
+        moment(20, 23, hook=21, scores=flat(5.0), focus="none"),  # unit 22 says "perjomokan"
+    ]
+    plain, _ = llm_run(moments, k=3, segments=jomok_episode(22))
+
+    result, client = llm_run(moments, k=3, segments=jomok_episode(22), focus=JOMOK)
+
+    assert "<<<FOKUS" in client.calls[0]["user"]
+    assert starts(plain) == ["S0003", "S0011", "S0021"]
+    assert starts(result) == ["S0021", "S0011", "S0003"]
+    literal, semantic, outside = result.clips
+    assert literal.focus == ClipFocus("literal", ("jomok",), 154.7)
+    assert semantic.focus == ClipFocus("semantic", ("jomok",))
+    assert outside.focus == ClipFocus("none")
+    for clip in result.clips:  # only the order and the label change
+        before = next(item for item in plain.clips if item.unit_ids == clip.unit_ids)
+        assert dataclasses.replace(clip, rank=before.rank, focus=None) == before
+    assert result.prompt_version == (
+        f"{PROMPT_VERSION}+{FOCUS_PROMPT_VERSION}+std.{standard_sha256()[:12]}"
+    )
+    assert result.focus == FocusSummary(terms=("jomok",), requested=3)
+    assert result.to_dict()["focus"] == {"terms": ["jomok"], "matched": 2, "requested": 3}
+    assert "focus_few_matches:2" in result.warnings
+    assert not any(code.startswith("focus_literal") for code in result.warnings)
+
+
+def test_a_clip_that_says_a_term_is_literal_and_an_unfounded_literal_claim_is_semantic():
+    moments = [moment(2, 5, hook=3, focus="literal"), moment(20, 23, hook=21, focus="none")]
+
+    result, _ = llm_run(moments, k=2, segments=jomok_episode(22), focus=JOMOK)
+
+    assert starts(result) == ["S0021", "S0003"]
+    said, claimed = result.clips
+    assert said.focus == ClipFocus("literal", ("jomok",), 154.7)  # whatever the model said
+    assert claimed.focus == ClipFocus("semantic", ("jomok",))
+    assert "focus_literal_ungrounded:1" in result.warnings
+    assert not any(code.startswith("focus_few_matches") for code in result.warnings)
+
+
+def test_literal_terms_and_time_are_the_first_mention_inside_the_clip():
+    focus = parse_focus(["jomok", "rusdi", "kisah99"])
+    segments = jomok_episode(21, 22)
+    segments[23] = segment(segments[23].start, "Terus rusdinya kisah23 bareng teman23 di kota23.",
+                           7.0)
+    result, _ = llm_run([moment(20, 23, hook=21)], k=1, segments=segments, focus=focus)
+    assert result.clips[0].focus == ClipFocus("literal", ("jomok", "rusdi"), 147.7)
+
+
+def test_the_trend_boost_stays_inside_each_focus_partition():
+    outside = [
+        moment(2, 5, hook=3, scores=flat(5.1), trend_refs=["T1"]),  # 5.1 + 0.3 > 5.0
+        moment(12, 15, hook=13, scores=flat(5.0)),  # literal
+    ]
+    result, _ = llm_run(outside, k=2, segments=jomok_episode(13),
+                        trends=[trend(3, "X", score=80)], focus=JOMOK)
+    assert starts(result) == ["S0013", "S0003"]
+
+    inside = [
+        moment(12, 15, hook=13, scores=flat(7.0)),
+        moment(22, 25, hook=23, scores=flat(6.8), trend_refs=["T1"]),
+    ]
+    result, _ = llm_run(inside, k=2, segments=jomok_episode(13, 23),
+                        trends=[trend(24, "Y", score=70)], focus=JOMOK)
+    assert starts(result) == ["S0023", "S0013"]  # 6.8 + 0.3 passes 7.0 among literal clips
+    assert [clip.focus.match for clip in result.clips] == ["literal", "literal"]
+
+
+def test_heuristic_clips_that_say_a_term_come_first():
+    segments = jomok_episode(30, word="jomoknya")
+    options = {"k": 3, "min_duration": 20.0, "max_duration": 40.0, "llm_mode": "off"}
+
+    result = select_clips_v3(segments, focus=JOMOK, **options)
+
+    check_result(result, k=3, low=20.0, high=40.0)
+    assert result.prompt_version == HEURISTIC_VERSION
+    first = result.clips[0]
+    assert first.focus == ClipFocus("literal", ("jomok",), 210.7)
+    assert 30 in unit_range(first)
+    assert [clip.focus.match for clip in result.clips[1:]] == ["none", "none"]
+    assert "focus_few_matches:1" in result.warnings
+
+
+def test_a_focus_nobody_mentions_keeps_the_order_and_labels_every_clip_outside():
+    segments = episode(40, gap=0.5)
+    options = {"k": 4, "min_duration": 20.0, "max_duration": 40.0, "llm_mode": "off"}
+    plain = select_clips_v3(segments, **options)
+
+    result = select_clips_v3(segments, focus=JOMOK, **options)
+
+    assert [dataclasses.replace(clip, focus=None) for clip in result.clips] == list(plain.clips)
+    assert all(clip.focus == ClipFocus("none") for clip in result.clips)
+    assert [code for code in result.warnings if code != "focus_few_matches:0"] == list(
+        plain.warnings
+    )
+    assert "focus_few_matches:0" in result.warnings
+
+
+def test_an_extra_heuristic_candidate_covers_a_mention_nobody_proposed(monkeypatch):
+    monkeypatch.setattr(selection_v3, "propose_heuristic", lambda *args, **kwargs: ())
+    moments = [moment(2, 5, hook=3), moment(10, 13, hook=12)]
+
+    result, _ = llm_run(moments, k=3, segments=jomok_episode(30), focus=JOMOK)
+
+    check_result(result, k=3, low=20.0, high=40.0)
+    extra = result.clips[0]
+    assert extra.source == "heuristic"
+    assert extra.focus == ClipFocus("literal", ("jomok",), 210.7)
+    assert 30 in unit_range(extra)
+    assert extra.reasons[-1] == FOCUS_FILL_REASON
+    assert [clip.source for clip in result.clips[1:]] == ["llm", "llm"]
+    assert result.source == "llm" and "llm_filled:1" in result.warnings
+
+
+def test_no_extra_candidate_when_every_slot_already_matches(monkeypatch):
+    monkeypatch.setattr(selection_v3, "propose_heuristic", lambda *args, **kwargs: ())
+    result, _ = llm_run([moment(20, 23, hook=21)], k=1, segments=jomok_episode(22, 35),
+                        focus=JOMOK)
+    assert [clip.source for clip in result.clips] == ["llm"]
+    assert result.clips[0].focus.match == "literal"
+
+
+def test_extra_candidates_never_overlap_the_literal_clips(monkeypatch):
+    monkeypatch.setattr(selection_v3, "propose_heuristic", lambda *args, **kwargs: ())
+    moments = [moment(20, 23, hook=21), moment(2, 5, hook=3)]
+
+    result, _ = llm_run(moments, k=3, segments=jomok_episode(22, 25), focus=JOMOK)
+
+    check_result(result, k=3, low=20.0, high=40.0)  # no two clips share a unit
+    assert [clip.focus.match for clip in result.clips] == ["literal", "literal", "none"]
+    assert starts(result)[0] == "S0021" and 25 in unit_range(result.clips[1])
+    assert result.clips[1].source == "heuristic" and result.clips[2].source == "llm"
+
+
+def test_llm_clips_outranked_by_focus_matches_are_not_a_fallback():
+    for mode in ("auto", "required"):
+        result, _ = llm_run([moment(2, 5, hook=3)], k=1, segments=jomok_episode(30),
+                            focus=JOMOK, llm_mode=mode)
+        assert result.status == "completed"
+        assert result.source == "heuristic" and result.prompt_version == HEURISTIC_VERSION
+        assert result.clips[0].source == "heuristic"
+        assert result.clips[0].focus.match == "literal"
+        assert not any(code.startswith("llm_failed") for code in result.warnings)
+
+
+def test_packaging_outside_the_focus_may_not_use_the_focus_theme():
+    moments = [
+        moment(2, 5, hook=3, focus="none", title="Momen jomok paling lucu",
+               hook_text="Jomok banget sih",
+               description="Soal jomok yang lagi ramai. Obrolan santai soal teman lama.",
+               hashtags=["#jomok", "#perjomokan", "#fyp"]),
+        moment(10, 13, hook=12, focus="semantic", title="Sisi jomok obrolan ini",
+               hashtags=["#jomok"]),
+        moment(20, 23, hook=21, title="Perjomokan dimulai", hashtags=["#jomok"]),
+    ]
+
+    result, _ = llm_run(moments, k=3, segments=jomok_episode(22), focus=JOMOK)
+
+    by_start = {clip.unit_ids[0]: clip for clip in result.clips}
+    outside = by_start["S0003"]
+    matcher = FocusMatcher(JOMOK)
+    assert outside.focus.match == "none"
+    assert not matcher.mentions(outside.title) and not matcher.mentions(outside.hook_text)
+    assert outside.description == "Obrolan santai soal teman lama."
+    assert outside.title == "Obrolan santai soal teman lama"
+    assert outside.hashtags == ("#fyp",)
+    assert by_start["S0011"].title == "Sisi jomok obrolan ini"
+    assert by_start["S0011"].hashtags == ("#jomok",)
+    assert by_start["S0021"].title == "Perjomokan dimulai"
+    assert "focus_packaging_ungrounded:1" in result.warnings
+    assert not any(code.startswith("trend_packaging") for code in result.warnings)
+
+
+def test_the_heuristic_fallback_keeps_the_focus():
+    client = ScriptedLLMClient([LLMError("rate_limited", "Kuota habis.")])
+
+    result = select_clips_v3(jomok_episode(30), k=2, min_duration=20.0, max_duration=40.0,
+                             llm_client=client, focus=JOMOK)
+
+    assert result.status == "fallback" and result.prompt_version == HEURISTIC_VERSION
+    assert result.clips[0].focus.match == "literal"
+    assert result.focus == FocusSummary(terms=("jomok",), requested=2)
+
+
+def test_focus_must_be_a_focus_spec():
+    with pytest.raises(TypeError):
+        select_clips_v3(episode(10), k=1, min_duration=20.0, max_duration=40.0,
+                        llm_mode="off", focus="jomok")
+
+
+def focus_selection() -> SelectionResult:
+    moments = [moment(10, 13, hook=12, focus="semantic"), moment(20, 23, hook=21)]
+    return llm_run(moments, k=3, segments=jomok_episode(22), focus=JOMOK)[0]
+
+
+def test_artifact_round_trips_the_focus(tmp_path):
+    result = focus_selection()
+    path = tmp_path / SELECTION_ARTIFACT_RELATIVE_PATH
+
+    write_selection_artifact(path, result)
+
+    assert read_selection_artifact(path) == result
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["focus"] == {"terms": ["jomok"], "matched": 2, "requested": 3}
+    assert payload["clips"][0]["focus"] == {"match": "literal", "terms": ["jomok"], "at": 154.7}
+    assert [clip["focus"]["match"] for clip in payload["clips"]] == [
+        "literal", "semantic", "none",
+    ]
+
+
+def focus_mutated(change) -> dict:
+    payload = focus_selection().to_dict()
+    change(payload)
+    return payload
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        focus_mutated(lambda p: p["focus"].update(matched=3)),  # must agree with the clips
+        focus_mutated(lambda p: p["focus"].update(extra=1)),
+        focus_mutated(lambda p: p.update(focus="jomok")),
+        focus_mutated(lambda p: p["focus"].update(terms=[])),
+        focus_mutated(lambda p: p["focus"].update(requested="3")),
+        focus_mutated(lambda p: p.pop("focus")),
+        focus_mutated(lambda p: p["clips"][0].pop("focus")),
+        focus_mutated(lambda p: p["clips"][0].update(focus=None)),
+        focus_mutated(lambda p: p["clips"][0]["focus"].update(match="maybe")),
+        focus_mutated(lambda p: p["clips"][0]["focus"].update(at="02:34")),
+        focus_mutated(lambda p: p["clips"][0]["focus"].pop("at")),
+        focus_mutated(lambda p: p["clips"][0]["focus"].update(terms="jomok")),
+    ],
+)
+def test_artifact_reader_is_strict_about_the_focus(payload):
     with pytest.raises(SelectionArtifactError):
         selection_from_dict(payload)
