@@ -84,12 +84,15 @@ export function selectionActions(model, selection, { readOnly = false } = {}) {
     ids.push(state.id);
     allHidden &&= state.hidden;
     allEmphasis &&= state.emphasis;
-    if (state.zone === "body" && state.removal === null) {
+    // A word shown in the body is cut there; a word shown only in the cold open is cut there.
+    const kind = state.zone === "body" ? (state.removal === null ? "body" : null)
+      : state.cold ? "cold" : null;
+    if (kind) {
       const previous = runs.at(-1);
-      if (previous && previous.last === i - 1) {
+      if (previous && previous.last === i - 1 && previous.kind === kind) {
         previous.ids.push(state.id);
         previous.last = i;
-      } else runs.push({ ids: [state.id], last: i });
+      } else runs.push({ ids: [state.id], last: i, kind });
     }
     for (const id of [state.removal, state.coRemoval]) {
       if (id !== null && id !== "sliver" && !removalIds.includes(id)) removalIds.push(id);

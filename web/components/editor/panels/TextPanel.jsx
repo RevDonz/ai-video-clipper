@@ -108,6 +108,12 @@ function TextPanelBody({ state, dispatch }) {
   const unsafeCaption = unsafe.some((warning) => (warning.path ? warning.path.startsWith("/captions") : !warning.ref));
   const unsafeHook = hook !== null && unsafe.some((warning) => (warning.path ? warning.path.startsWith("/tracks") : warning.ref === hook.id));
   const hookEnableText = draftText || seedHook?.payload.text || "";
+  // glyph_unsupported:U+XXXX on the hook (plan §3.7): characters the hook font lacks.
+  const missingGlyphs = hook === null ? [] : (plan?.warnings ?? [])
+    .filter((warning) => typeof warning.code === "string" && warning.code.startsWith("glyph_unsupported:") && warning.ref === hook.id)
+    .map((warning) => warning.code.slice("glyph_unsupported:".length))
+    .filter((code, index, all) => /^U\+[0-9A-F]{4,6}$/.test(code) && all.indexOf(code) === index)
+    .map((code) => `${String.fromCodePoint(Number.parseInt(code.slice(2), 16))} (${code})`);
 
   return (
     <section data-panel="text" className={styles.panel} aria-busy={false}>
@@ -178,6 +184,11 @@ function TextPanelBody({ state, dispatch }) {
           {fit ? <span className={styles.badge} data-fit={fit} data-hook-fit="" role="status">{fitLabel}</span> : null}
         </div>
         {fit === "overflow" ? <p className={styles.note}>Hook tidak muat 3 baris; ujungnya akan diganti “…”. Persingkat teksnya.</p> : null}
+        {missingGlyphs.length ? (
+          <p className={styles.warning} data-hook-glyphs="">
+            Font hook tidak punya {missingGlyphs.join(", ")}; karakter ini tidak akan tampil di video.
+          </p>
+        ) : null}
         <label className={styles.field}>
           <span>Durasi hook</span>
           <span className={styles.value}>{hook ? `${SECONDS.format((hook.dur_f * fps[1]) / fps[0])} dtk` : "—"}</span>
