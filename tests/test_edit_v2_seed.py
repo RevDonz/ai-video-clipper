@@ -622,8 +622,9 @@ def test_a_face_track_job_gets_a_camera_plan(synthetic, tmp_path, monkeypatch):
         calls.append((start, end))
         times = [i * sample_interval for i in range(int((end - start) / sample_interval) + 1)
                  if i * sample_interval < end - start]
-        return times, [0.5 if i % 7 else None for i in range(len(times))], [False] * len(
-            times), 256, 144
+        # three misses in a row every 20 samples: a 2.25 s run without a face
+        return times, [None if i % 20 in (5, 6, 7) else 0.5 for i in range(len(times))], [
+            False] * len(times), 256, 144
 
     monkeypatch.setattr(camera, "detect_face_track", stub)
     results = prepare_legacy_job(job_dir)
@@ -638,6 +639,10 @@ def test_a_face_track_job_gets_a_camera_plan(synthetic, tmp_path, monkeypatch):
         plan = json.loads(raw)
         assert plan["window_ms"] == seed["base"]["window_ms"]
         assert plan["output"] == {"w": 720, "h": 1280}
+        # A replaced detector is treated as a raw detector (misses reported), never as today's
+        # smoothing tracker, even though it was patched in under the same module name.
+        start = plan["window_ms"][0]
+        assert plan["no_face"][0] == [start + 3750, start + 6000]
 
 
 def test_prepared_seeds_have_the_documented_shape(prepared):
