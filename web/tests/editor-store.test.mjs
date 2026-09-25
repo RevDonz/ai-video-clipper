@@ -35,13 +35,13 @@ function fakeClock(start = 0) {
     async advance(ms) {
       const end = now + ms;
       for (;;) {
+        for (let i = 0; i < 5; i += 1) await settle();
         const due = [...timers.entries()].filter(([, timer]) => timer.at <= end)
           .sort((a, b) => a[1].at - b[1].at || a[0] - b[0])[0];
         if (!due) break;
         timers.delete(due[0]);
         now = due[1].at;
         due[1].fn();
-        for (let i = 0; i < 5; i += 1) await settle();
       }
       now = end;
       for (let i = 0; i < 5; i += 1) await settle();
@@ -49,9 +49,10 @@ function fakeClock(start = 0) {
   };
 }
 
+let keys = 0; // one counter for every store of the file: Idempotency-Keys are unique like UUIDs
+
 function setup({ context = C30, server = createFakeServer(context), draftStore = createMemoryDraftStore(), previewClient = null,
   channel = null, lifecycle = null, clock = fakeClock(1_000_000) } = {}) {
-  let keys = 0;
   const options = {
     jobId: server.jobId, clipId: server.clipId, api: server.api, previewClient, draftStore, now: clock.now,
     newKey: () => `00000000-0000-4000-8000-${String((keys += 1)).padStart(12, "0")}`,
@@ -100,6 +101,7 @@ test("analysis_missing prepares the clip, then opens it", async () => {
 
 test("an edited clip also loads its seed (?seed=1) for 'Kembali ke versi AI'", async () => {
   const server = createFakeServer(C30);
+  server.seedInline = false;
   server.otherTab([["SetLayout", { mode: "camera" }]]);
   const { store } = setup({ server });
   await store.ready;
@@ -602,15 +604,17 @@ test("the preview client fills the omitted ASS from its cache", async () => {
   const fetchImpl = async () => responses.shift();
   const preview = createPreviewClient({ jobId: JOB, clipId: C30.seed.clip_id, fetchImpl, setTimer: clock.setTimer, clearTimer: clock.clearTimer });
   const run = async (doc) => {
-    const promise = preview.plan(doc);
+    const outcome = preview.plan(doc).then((value) => ({ value }), (error) => ({ error }));
     await clock.advance(120);
     await clock.advance(1500);
-    return promise;
+    return outcome;
   };
-  assert.equal((await run({ v: 1 })).text.ass, "[Script Info]A");
-  assert.equal((await run({ v: 2 })).text.ass, "[Script Info]A", "omitted ASS filled from the cache");
-  await assert.rejects(run({ v: 3 }), (error) => error.code === "invalid" && error.errors[0].path === "/main");
-  assert.equal((await run({ v: 4 })).planSha256, "p5", "429 is retried after Retry-After");
+  assert.equal((await run({ v: 1 })).value.text.ass, "[Script Info]A");
+  assert.equal((await run({ v: 2 })).value.text.ass, "[Script Info]A", "omitted ASS filled from the cache");
+  const invalid = (await run({ v: 3 })).error;
+  assert.equal(invalid.code, "invalid");
+  assert.equal(invalid.errors[0].path, "/main");
+  assert.equal((await run({ v: 4 })).value.planSha256, "p5", "429 is retried after Retry-After");
 });
 
 test("truth frames are POSTed with the document and frame number", async () => {
