@@ -315,6 +315,21 @@ test("the badge claims 'Sesuai hasil akhir' only when the player shows the playh
   assert.equal(badgeView({ status: "ready", plan, player: { mode: "live", current, playing: false } }).tone, "exact");
 });
 
+test("an unchanged legacy-engine clip never claims 'Sesuai hasil akhir': its export is the old auto file (R10)", () => {
+  const plan = fakePlan();
+  const current = { text: true, plate: true, audio: true, logo: true };
+  const player = { mode: "live", current, playing: false, exact: true };
+  // T2.3: rev0.planSha256 is the new engine's plan of the seed; exact is false for a legacy file.
+  const legacyUnchanged = { ...plan, rev0: { planSha256: plan.planSha256, autoRenderUrl: "/api/jobs/x/files/output/clip-01.mp4", exact: false } };
+  const view = badgeView({ status: "ready", plan: legacyUnchanged, player });
+  assert.equal(view.tone, "legacy");
+  assert.equal(view.text, "● Belum diubah: ekspor = klip otomatis (mesin lama)");
+  const edited = { ...legacyUnchanged, rev0: { ...legacyUnchanged.rev0, planSha256: "f".repeat(64) } };
+  assert.equal(badgeView({ status: "ready", plan: edited, player }).tone, "exact");
+  const newEngine = { ...legacyUnchanged, rev0: { ...legacyUnchanged.rev0, exact: true } };
+  assert.equal(badgeView({ status: "ready", plan: newEngine, player }).tone, "exact");
+});
+
 test("the fakes use the real CommandRejected, so instanceof holds after wiring (T2.5)", () => {
   assert.equal(fakes.CommandRejected, CommandRejected);
 });
