@@ -87,42 +87,49 @@
      ``"focus"``; the prompt version becomes ``llm-select-v2[+trends.v1]+focus.v1+std.<sha>``;
    - **labels, checked in code** (:class:`ai_clipper.selection_types.ClipFocus`): a clip whose
      snapped units say a focus term (:class:`ai_clipper.focus.FocusMatcher`, with the
-     Indonesian affix rules) is ``literal``, whatever its source or claim, with the terms it
-     says and the source time of the first mention (``at``). Otherwise an LLM clip that claims
-     ``literal`` or ``semantic`` is ``semantic`` (the LLM's word, labelled as such); a literal
-     claim the units do not back is counted (``focus_literal_ungrounded:<n>`` over the snapped
-     LLM moments). Everything else is ``none``;
-   - **order**: a stable partition ``literal``, ``semantic``, ``none`` on top of the ranking
-     above; each part keeps its own order (LLM first, then heuristic, the trend boost only
-     inside the part), and near-duplicates are deferred inside their part and source.
-     ``score`` and the sub-scores never change. A heuristic clip placed in an LLM-led selection
-     because it is ``literal`` gets :data:`FOCUS_FILL_REASON` instead of the filler reason;
-   - **extra candidates**: when fewer than ``k`` chosen clips are ``literal`` and some mention
-     lies in no chosen clip, the heuristic's own best windows around each such mention,
-     searched between the chosen literal clips (:class:`ai_clipper.focus.HeuristicWindows`,
-     :data:`FOCUS_WINDOW_OPTIONS` per mention), are snapped like any proposal (duration rules
-     included); those that keep the mention and touch no chosen literal clip join the
-     ``literal`` part after its other candidates, those covering the most uncovered mentions
-     first, then the best score, no two sharing a unit, at most one per free slot, and the
-     ranking runs again;
-   - **packaging**: only ``literal`` and ``semantic`` clips may use the focus theme. The title,
-     hook text and description of an LLM clip labelled ``none`` that name a focus term are
-     rebuilt like trend packaging (:func:`ai_clipper.llm_selection.repair_trend_packaging`),
-     counted as ``focus_packaging_ungrounded:<n>``, and its hashtags naming a term are removed;
+     Indonesian affix rules) before the clip's end is ``literal``, whatever its source or
+     claim, with the terms it says and the source time of the first mention (``at``).
+     Otherwise an LLM clip that claims ``literal`` or ``semantic`` is ``semantic`` (the LLM's
+     word, labelled as such); a chosen clip whose literal claim the units do not back is
+     counted (``focus_literal_ungrounded:<n>``). Everything else is ``none``;
+   - **order**: each source keeps its place (LLM clips first, the heuristic only fills the
+     slots the LLM leaves: the LLM saw the lines that say a term, so its choice stands). Inside
+     each source a stable partition ``literal``, ``semantic``, ``none`` comes first; each part
+     keeps its own order (the trend boost only inside the part) and near-duplicates are
+     deferred inside their part. **Quality floor**: a focus match only ranks in its part when
+     its ranking value is at most :data:`FOCUS_QUALITY_GAP` below the weakest clip its
+     source's own ranking would give for ``k`` slots without the focus; otherwise it ranks in
+     ``none`` (it keeps its label if it is chosen there). ``score`` and the sub-scores never
+     change. A heuristic filler taken for the focus in an LLM-led selection gets
+     :data:`FOCUS_FILL_REASON` instead of the filler reason;
+   - **extra candidates**: when some mention lies in no chosen clip and some slot may still
+     change (an empty one, or one of a heuristic clip outside the ``literal`` part), the
+     heuristic's own best windows around each such mention, searched between the chosen clips
+     that stay (:class:`ai_clipper.focus.HeuristicWindows`, :data:`FOCUS_WINDOW_OPTIONS` per
+     mention), are snapped like any proposal (duration rules included); those that keep the
+     mention, touch no clip that stays and pass the heuristic's quality floor join the
+     heuristic's ``literal`` part after its other candidates, those covering the most uncovered
+     mentions first, then the best score, no two sharing a unit, at most one per free slot,
+     and the ranking runs again;
+   - **packaging**: only ``literal`` and ``semantic`` clips may use the focus theme, and only a
+     clip that says a term may quote it. The title, hook text and description of an LLM clip
+     labelled ``none``, or claimed ``literal`` without saying a term, that name a focus term
+     are rebuilt like trend packaging (:func:`ai_clipper.llm_selection.repair_trend_packaging`),
+     counted as ``focus_packaging_ungrounded:<n>``; the hashtags of an LLM clip labelled
+     ``none`` that name a term are removed;
    - **outputs**: every clip has ``focus`` and the result has
      :class:`ai_clipper.selection_types.FocusSummary` (``terms``, ``requested`` = ``k``, and
-     ``matched`` counted from the clips); ``focus_few_matches:<n>`` when fewer than ``k``
-     clips are ``literal`` or ``semantic``. An LLM whose moments were all outranked by focus
-     matches is no fallback: the result is ``completed``, with ``source="heuristic"`` when
-     no LLM clip is left, and ``focus_llm_outranked:<n>`` (``n`` snapped LLM moments) says
-     that the LLM did answer.
+     ``matched`` counted from the clips); ``focus_terms_unmatchable:<n>`` when ``n`` terms
+     can never match literally (see :mod:`ai_clipper.focus`), and ``focus_few_matches:<n>``
+     when fewer than ``k`` clips are ``literal`` or ``semantic``.
 
 Warning codes (in this order): the LLM's own ``llm_*`` codes, ``llm_unavailable`` or
 ``llm_failed:<code>`` (auto-mode fallback), ``llm_filled:<n>`` (heuristic clips added after
 LLM clips), ``snap_dropped:<n>``, ``trend_ref_ungrounded:<n>``,
 ``trend_packaging_ungrounded:<n>``, ``trend_sensitive_humor:<n>``,
-``focus_literal_ungrounded:<n>``, ``focus_packaging_ungrounded:<n>``, ``focus_few_matches:<n>``,
-``focus_llm_outranked:<n>``, ``few_clips:<n>`` (fewer than ``k`` clips), and ``no_transcript``.
+``focus_terms_unmatchable:<n>``, ``focus_literal_ungrounded:<n>``,
+``focus_packaging_ungrounded:<n>``, ``focus_few_matches:<n>``, ``few_clips:<n>`` (fewer than
+``k`` clips), and ``no_transcript``.
 
 The artifact (``analysis/selection.v3.json``) is :meth:`SelectionResult.to_dict`, written
 atomically by :func:`write_selection_artifact` and read back strictly by
@@ -136,7 +143,7 @@ import math
 import re
 from bisect import bisect_left
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from numbers import Real
 from pathlib import Path
 
@@ -229,10 +236,13 @@ _GENERIC_HASHTAGS = frozenset(
      "reels"}
 )
 _TREND_HASHTAG = re.compile(r"#\w{1,39}")
-# Fokus klip: the reason of a heuristic clip that ranks above LLM clips because it says a focus
-# term, and how many heuristic windows are tried around a mention nobody covered.
-FOCUS_FILL_REASON = "Dari heuristik: menyebut fokus yang dicari."
+# Fokus klip: the reason of a heuristic filler taken first because it says a focus term; how
+# many heuristic windows are tried around a mention nobody covered; and how far (ranking value,
+# 0-10) a focus match may sit below the weakest clip its source would give without the focus
+# and still be moved up. Further down it is only chosen on its own merit.
+FOCUS_FILL_REASON = "Pengisi dari heuristik karena momen LLM kurang; menyebut fokus yang dicari."
 FOCUS_WINDOW_OPTIONS = 6
+FOCUS_QUALITY_GAP = 1.0
 _TOLERANCE = 1e-6
 _TIME_DIGITS = 3
 _WORD = re.compile(r"[^\W\d_]+", re.UNICODE)
@@ -518,6 +528,7 @@ class _Candidate:
     rank_value: float = 0.0  # the value its source ordered it by (0-10)
     mentioned: tuple[TrendItem, ...] = ()  # every relevant trend this span's transcript names
     focus: str | None = None  # one of FOCUS_MATCHES for a job with focus terms
+    part: str | None = None  # the focus part it ranks in: its match, or "none" (quality floor)
 
     @property
     def boost(self) -> float:
@@ -562,19 +573,24 @@ def _by_source(item: _Candidate) -> object:
     return item.proposal.source
 
 
-def _by_focus_and_source(item: _Candidate) -> object:
-    return item.focus, item.proposal.source
+def _by_source_and_part(item: _Candidate) -> object:
+    return item.proposal.source, item.part
 
 
 def _ordered(candidates: list[_Candidate], focused: bool) -> list[_Candidate]:
-    """Candidates in ranking order (see :func:`_boosted`); with a focus, the stable partition
-    ``literal``, ``semantic``, ``none`` comes first and the boost stays inside each part."""
+    """Candidates in ranking order (see :func:`_boosted`); with a focus, each source (LLM first)
+    is split into the stable partition ``literal``, ``semantic``, ``none`` by ``part``, and the
+    boost stays inside each part."""
     if not focused:
         return _boosted(candidates)
+    sources = dict.fromkeys(item.proposal.source for item in candidates)
     return [
         item
-        for match in FOCUS_MATCHES
-        for item in _boosted([candidate for candidate in candidates if candidate.focus == match])
+        for source in sources
+        for part in FOCUS_MATCHES
+        for item in _boosted(
+            [one for one in candidates if one.proposal.source == source and one.part == part]
+        )
     ]
 
 
@@ -586,9 +602,9 @@ def _rank(
     """Up to ``k`` candidates that share no unit, near-duplicates deferred within their group.
 
     Candidates arrive LLM first, then heuristic, each in its own rank order (with a focus, per
-    focus partition; ``key`` then groups by partition and source). A near-duplicate of an
-    accepted clip moves to the end of its own group, so a distinct LLM moment goes first but a
-    repeated LLM topic still beats a heuristic filler.
+    focus part; ``key`` then groups by source and part). A near-duplicate of an accepted clip
+    moves to the end of its own group, so a distinct LLM moment goes first but a repeated LLM
+    topic still beats a heuristic filler.
     """
     accepted: list[_Candidate] = []
 
@@ -776,7 +792,11 @@ def _check_focus(focus: object) -> FocusSpec | None:
 
 
 def _covers(span: _Span, hit: FocusHit) -> bool:
-    return span.start_unit <= hit.first_unit and hit.last_unit <= span.end_unit
+    """The span holds the mention's units and its start: a span clamped to the audio end may
+    keep a unit whose mention is past that end."""
+    return span.start_unit <= hit.first_unit and hit.last_unit <= span.end_unit and (
+        hit.time < span.end
+    )
 
 
 def _overlap(first: _Span, second: _Span) -> bool:
@@ -791,6 +811,34 @@ def _focus_match(proposal: ClipProposal, span: _Span, focus: _Focus) -> str:
     if proposal.source == "llm" and proposal.focus in ("literal", "semantic"):
         return "semantic"
     return "none"
+
+
+def _focus_floors(candidates: Sequence[_Candidate], k: int) -> dict[str, float]:
+    """Per source, the lowest ranking value that still ranks in a focus part: the weakest clip
+    the source's own ranking would give for ``k`` slots without the focus, minus
+    :data:`FOCUS_QUALITY_GAP`."""
+    floors: dict[str, float] = {}
+    for source in dict.fromkeys(item.proposal.source for item in candidates):
+        own = [item for item in candidates if item.proposal.source == source]
+        weakest = min(item.rank_value for item in _rank(_boosted(own), k))
+        floors[source] = weakest - FOCUS_QUALITY_GAP
+    return floors
+
+
+def _with_part(item: _Candidate, floors: Mapping[str, float]) -> _Candidate:
+    """``item`` in its focus part, or in ``none`` when it ranks too low to be moved up."""
+    floor = floors.get(item.proposal.source, -math.inf)
+    moved = item.focus != "none" and item.rank_value >= floor - _TOLERANCE
+    return replace(item, part=item.focus if moved else "none")
+
+
+def _unquotable(item: _Candidate) -> bool:
+    """An LLM clip whose title, hook text and description may not name a focus term: one
+    outside the focus, and one that claimed to say a term its units do not say."""
+    proposal = item.proposal
+    return proposal.source == "llm" and (
+        item.focus == "none" or (proposal.focus == "literal" and item.focus != "literal")
+    )
 
 
 def _clip_focus(item: _Candidate, focus: _Focus) -> ClipFocus:
@@ -809,20 +857,25 @@ def _focus_extras(
     focus: _Focus,
     *,
     k: int,
+    floor: float,
     windows: HeuristicWindows,
     snapper: _Snapper,
     build: Callable[[ClipProposal, float, _Span], tuple[_Candidate, int]],
 ) -> list[_Candidate]:
-    """Heuristic candidates around mentions no chosen clip covers, while slots remain.
+    """Heuristic candidates around mentions no chosen clip covers, for the slots they may take.
 
-    For every uncovered mention the best :data:`FOCUS_WINDOW_OPTIONS` heuristic windows around
-    it that stay between the chosen literal clips are snapped like any proposal; a window whose
-    snapped span loses the mention or touches a chosen literal clip is skipped. The survivors
-    are taken covering the most uncovered mentions first, then best score first, never two that
-    share a unit, at most one per free slot (``k`` minus the literal clips chosen).
+    Those slots are the empty ones and those of chosen heuristic clips outside the ``literal``
+    part: LLM clips and literal clips stay. For every uncovered mention the best
+    :data:`FOCUS_WINDOW_OPTIONS` heuristic windows around it that stay between the clips that
+    stay are snapped like any proposal; a window whose snapped span loses the mention, touches
+    a clip that stays, or scores below ``floor`` (see :func:`_focus_floors`) is skipped. The
+    survivors are taken covering the most uncovered mentions first, then best score first,
+    never two that share a unit, at most one per free slot.
     """
-    literal = [item for item in chosen if item.focus == "literal"]
-    room = k - len(literal)
+    fixed = [
+        item for item in chosen if item.proposal.source != "heuristic" or item.part == "literal"
+    ]
+    room = k - len(fixed)
     uncovered = [
         hit for hit in focus.hits if not any(_covers(item.span, hit) for item in chosen)
     ]
@@ -833,14 +886,16 @@ def _focus_extras(
     last_unit = len(snapper.units) - 1
     for hit in uncovered:
         free = (
-            max((item.span.end_unit + 1 for item in literal
+            max((item.span.end_unit + 1 for item in fixed
                  if item.span.end_unit < hit.first_unit), default=0),
-            min((item.span.start_unit - 1 for item in literal
+            min((item.span.start_unit - 1 for item in fixed
                  if item.span.start_unit > hit.last_unit), default=last_unit),
         )
         for proposal in windows.around(
             hit.first_unit, hit.last_unit, FOCUS_WINDOW_OPTIONS, within=free
         ):
+            if proposal.score < floor - _TOLERANCE:
+                continue
             payoff = proposal.hook_unit if proposal.payoff_unit is None else proposal.payoff_unit
             protect = (min(proposal.hook_unit, payoff), max(proposal.hook_unit, payoff))
             span = snapper.snap(proposal.start_unit, proposal.end_unit, protect)
@@ -848,7 +903,7 @@ def _focus_extras(
                 continue
             if (span.start_unit, span.end_unit) in seen:
                 continue
-            if any(_overlap(span, item.span) for item in literal):
+            if any(_overlap(span, item.span) for item in fixed):
                 continue
             seen.add((span.start_unit, span.end_unit))
             options.append((proposal, span))
@@ -865,7 +920,7 @@ def _focus_extras(
             break
         if any(_overlap(span, item.span) for item in extras):
             continue
-        extras.append(build(proposal, proposal.score, span)[0])
+        extras.append(replace(build(proposal, proposal.score, span)[0], part="literal"))
     return extras
 
 
@@ -888,8 +943,8 @@ def _selected(
         reasons = _with_reason(
             reasons, f"Cold open: kalimat hook ({length} detik) diputar lebih dulu."
         )
-    if filler and focus is not None and item.focus == "literal":
-        reasons = _with_reason(reasons, FOCUS_FILL_REASON)  # ranked up by the focus
+    if filler and focus is not None and item.part == "literal":
+        reasons = _with_reason(reasons, FOCUS_FILL_REASON)  # taken first for the focus
     elif filler:
         reasons = _with_reason(reasons, "Pengisi dari heuristik karena momen LLM kurang.")
     text = " ".join(
@@ -898,18 +953,19 @@ def _selected(
     title, hook_text, description = proposal.title, proposal.hook_text, proposal.description
     hashtags = proposal.hashtags
     trends: tuple[TrendRef, ...] = ()
-    # Only a clip that matches may use the focus theme in its packaging.
-    outside = focus is not None and item.focus == "none" and proposal.source == "llm"
+    # Only a clip that matches may use the focus theme in its packaging, and only one that
+    # says a term may quote it (a literal claim the units do not back becomes semantic).
+    unquotable = focus is not None and _unquotable(item)
     if shown:
         reasons = _trend_reasons(reasons, item.trends)
         hashtags = _trend_hashtags(proposal, item.trends, item.mentioned, shown)
         trends = tuple(trend.ref() for trend in item.trends)
-    if proposal.source == "llm" and (shown or outside):
-        names_focus = focus.matcher.mentions if outside and focus is not None else None
+    if proposal.source == "llm" and (shown or unquotable):
+        names_focus = focus.matcher.mentions if unquotable and focus is not None else None
         title, hook_text, description = _grounded_packaging(
             item, units, hook, text, shown, names_focus
         )
-    if outside and focus is not None:
+    if focus is not None and proposal.source == "llm" and item.focus == "none":
         hashtags = tuple(tag for tag in hashtags if not focus.matcher.names_tag(tag))
     return SelectedClip(
         rank=rank,
@@ -1010,6 +1066,9 @@ def select_clips_v3(
         quality = assess_transcript(items)
     units = build_sentence_units(items, quality=quality)
     summary = None if focus is None else FocusSummary(terms=focus.terms, requested=k)
+    matcher = None if focus is None else FocusMatcher(focus)
+    unmatchable = 0 if matcher is None else len(matcher.unmatchable)
+    focus_notes = (f"focus_terms_unmatchable:{unmatchable}",) if unmatchable else ()
     if not units:
         return SelectionResult(
             clips=(),
@@ -1018,7 +1077,7 @@ def select_clips_v3(
             provider=None,
             model=None,
             prompt_version=HEURISTIC_VERSION,
-            warnings=("no_transcript",),
+            warnings=(*focus_notes, "no_transcript"),
             focus=summary,
         )
     heuristic = propose_heuristic(
@@ -1029,9 +1088,8 @@ def select_clips_v3(
     if trend_items:
         shown = tuple(entry.item for entry in relevant_trends(trend_items, units))
     focused: _Focus | None = None
-    if focus is not None:
-        matcher = FocusMatcher(focus)
-        focused = _Focus(focus, matcher, matcher.hits(units))
+    if matcher is not None:
+        focused = _Focus(matcher.focus, matcher, matcher.hits(units))
 
     warnings: list[str] = []
     llm_proposals: tuple[ClipProposal, ...] = ()
@@ -1122,25 +1180,30 @@ def select_clips_v3(
         ungrounded += refused
         candidates.append(candidate)
 
-    group = _by_source if focused is None else _by_focus_and_source
+    group = _by_source
+    floors: dict[str, float] = {}
+    if focused is not None:
+        group = _by_source_and_part
+        floors = _focus_floors(candidates, k)
+        candidates = [_with_part(item, floors) for item in candidates]
     chosen = _rank(_ordered(candidates, focused is not None), k, group)
     if focused is not None and focused.hits:
         extras = _focus_extras(
             chosen,
             focused,
             k=k,
+            floor=floors.get("heuristic", -math.inf),
             windows=HeuristicWindows(
                 units, min_duration=low, max_duration=high, events=ordered_events, audio=audio
             ),
             snapper=snapper,
             build=build,
         )
-        if extras:  # after every literal candidate, before semantic and none clips
+        if extras:  # after the heuristic's other literal candidates, before its other ones
             candidates.extend(extras)
             chosen = _rank(_ordered(candidates, True), k, group)
-    llm_led = any(item.proposal.source == "llm" for item in chosen)
-    llm_survived = any(item.proposal.source == "llm" for item in candidates)
-    if not llm_survived and llm_proposals and status == "completed":
+    llm_led = bool(chosen) and chosen[0].proposal.source == "llm"
+    if not llm_led and llm_proposals and status == "completed":
         # Every LLM moment was lost to snapping.
         if llm_mode == "required":
             raise LLMError(
@@ -1177,7 +1240,7 @@ def select_clips_v3(
             continue
         if (
             focused is not None
-            and item.focus == "none"
+            and _unquotable(item)
             and any(focused.matcher.mentions(value) for value in packaging)
         ):
             focus_repackaged += 1
@@ -1194,11 +1257,12 @@ def select_clips_v3(
     if sensitive_humor:
         warnings.append(f"trend_sensitive_humor:{sensitive_humor}")
     if focused is not None:
+        warnings.extend(focus_notes)
         claimed = sum(
             item.proposal.source == "llm"
             and item.proposal.focus == "literal"
             and item.focus != "literal"
-            for item in candidates
+            for item in chosen
         )
         if claimed:
             warnings.append(f"focus_literal_ungrounded:{claimed}")
@@ -1207,23 +1271,20 @@ def select_clips_v3(
         matched = sum(item.focus != "none" for item in chosen)
         if matched < k:
             warnings.append(f"focus_few_matches:{matched}")
-        if status == "completed" and llm_survived and not llm_led:
-            # The LLM answered, but every slot went to a focus match found by the heuristic.
-            outranked = sum(item.proposal.source == "llm" for item in candidates)
-            warnings.append(f"focus_llm_outranked:{outranked}")
     if len(clips) < k:
         warnings.append(f"few_clips:{len(clips)}")
     source = "llm" if llm_led else "heuristic"
-    prompt_version = HEURISTIC_VERSION
-    if source == "llm":
-        prompt_version = _llm_prompt_version(bool(shown), focused is not None)
     return SelectionResult(
         clips=clips,
         source=source,
         status=status,
         provider=provider if source == "llm" else None,
         model=model if source == "llm" else None,
-        prompt_version=prompt_version,
+        prompt_version=(
+            _llm_prompt_version(bool(shown), focused is not None)
+            if source == "llm"
+            else HEURISTIC_VERSION
+        ),
         warnings=tuple(dict.fromkeys(warnings)),
         usage=dict(usage),
         focus=summary,
