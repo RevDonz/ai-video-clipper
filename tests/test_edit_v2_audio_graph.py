@@ -29,8 +29,8 @@ SOURCE_MS = harness.SOURCE_MS
 
 
 def _piece(i: int, a: int, b: int) -> str:
-    return (f"[sa{i}]aresample=48000,{PAN},asettb=1/48000,apad,"
-            f"atrim=start_pts={a}:end_pts={b},asetpts=PTS-STARTPTS")
+    return (f"[sa{i}]aresample=48000,asettb=1/48000,apad,"
+            f"atrim=start_pts={a}:end_pts={b},{PAN},asetpts=PTS-STARTPTS")
 
 
 def _plan(doc, words=None):

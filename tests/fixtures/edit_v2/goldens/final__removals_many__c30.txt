@@ -115,8 +115,8 @@ captions.ass a24e1ac2698a950c7f76568e1160557472ca84bc6bce2aae54788c16fe061bfe
 [1:1]asplit=6[sa1][sa2][sa3][sa4][sa5][sa6];
 [vr0][vr1]concat=n=2:v=1:a=0,settb=1001/30000[vcat];
 [vcat]split=2[background_0][foreground_0];[background_0]scale=720:1280:force_original_aspect_ratio=increase:in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuv444p,crop=720:1280,gblur=sigma=35[blurred_0];[foreground_0]scale=720:1280:force_original_aspect_ratio=decrease:in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuva444p[fit_0];[blurred_0][fit_0]overlay=(W-w)/2:(H-h)/2:format=yuv444,setsar=1[vlay];
-[vlay]scale=in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuv444p,ass=filename=captions.ass:fontsdir=fonts:shaping=complex[vtext];
-[vtext]scale=in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuv420p[vout];
+[vlay]scale=in_color_matrix=bt709:in_range=tv,format=gbrp,ass=filename=captions.ass:fontsdir=fonts:shaping=complex[vtext];
+[vtext]scale=out_color_matrix=bt709:out_range=tv,format=yuv420p[vout];
 [sa0]aresample=48000,asettb=1/48000,atrim=start_pts=61208347:end_pts=61426164,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS[au_p0];
 [sa1]aresample=48000,asettb=1/48000,atrim=start_pts=59611552:end_pts=60646186,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS[au_p1];
 [sa2]aresample=48000,asettb=1/48000,atrim=start_pts=60700640:end_pts=61048187,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS[au_p2];
