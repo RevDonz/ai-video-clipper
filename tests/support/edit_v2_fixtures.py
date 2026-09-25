@@ -415,8 +415,10 @@ def build_seed(spec: ContextSpec, words: Mapping[str, Any]) -> dict[str, Any]:
         "audit": {"created_at_ms": CREATED_AT_MS, "updated_at_ms": CREATED_AT_MS,
                   "editor": "pipeline/edit-v2/1", "last_command": "Seed"},
     }
-    # base.seed_sha256: sha256 of the seed's canonical bytes with this field set to null.
-    seed["base"]["seed_sha256"] = sha256_hex(canonical_bytes(seed))
+    # base.seed_sha256: sha256 of the seed's canonical bytes with this field set to null and
+    # without audit (the seed time is not content; CONTRACTS §5.6, W1 integration).
+    content = {key: value for key, value in seed.items() if key != "audit"}
+    seed["base"]["seed_sha256"] = sha256_hex(canonical_bytes(content))
     return seed
 
 

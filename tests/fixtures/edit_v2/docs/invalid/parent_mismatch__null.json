@@ -37,7 +37,7 @@
     "camera": {
       "sha256": null
     },
-    "seed_sha256": "a65be013199aaa6913674061f2c5a11fff1be76a318f8c3309cd49126f4a53e4",
+    "seed_sha256": "6bdff0ab01436ce40bed2795e9a4b0ec4019c484ca2ea4cd14412ffa4a9f04b9",
     "engine": {
       "compiler": "edit-v2/1",
       "render_semantics": 1

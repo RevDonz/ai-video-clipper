@@ -2,8 +2,9 @@
 
 Owner: T1.5 (T4.1 adds ``seed_from_candidate``). The seed is written once as
 ``analysis/clips/<clip_id>/seed.json`` (canonical, immutable, 0600); ``base.seed_sha256`` is the
-sha256 of the seed's canonical bytes with that field set to null (docs/editor/CONTRACTS.md
-§5.6).
+sha256 of the seed's canonical bytes with that field set to null and without ``audit``
+(docs/editor/CONTRACTS.md §5.6): the seed time is not content, so identical content gets the
+same plan and render keys whenever it was seeded (plan §5.2 R9).
 
 **The ``job`` mapping of** :func:`build_seed` is the web's ``job.json`` object (``id`` and
 ``options``: ``renderMode``, ``captionStyle``, ``coldOpen``, ``hookOverlay``; missing options
@@ -195,9 +196,9 @@ def encode_seed(seed: Mapping[str, Any]) -> bytes:
 
 
 def seed_sha256(seed: Mapping[str, Any]) -> str:
-    """``base.seed_sha256``: sha256 of the seed's canonical bytes with that field null
-    (CONTRACTS §5.6)."""
-    content = dict(seed)
+    """``base.seed_sha256``: sha256 of the seed's canonical bytes with that field null and
+    without ``audit`` (CONTRACTS §5.6)."""
+    content = {key: value for key, value in seed.items() if key != "audit"}
     content["base"] = {**seed["base"], "seed_sha256": None}
     return sha256_hex(encode_seed(content))
 

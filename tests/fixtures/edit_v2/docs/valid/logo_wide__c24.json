@@ -3,7 +3,7 @@
   "schema_minor": 0,
   "clip_id": "clip_984322a8fd13d516c0ad89ba",
   "revision": 1,
-  "parent_sha256": "2a50c6bb7fdf08bdfe074147cd48a676e67126e3d476c8b5a5a2486678cf4c1e",
+  "parent_sha256": "73e301ce830afa0acec77693bf213697768893ef37d444584374feff3caec44a",
   "base": {
     "job_id": "5c9e1d2f-3a4b-4c5d-9e6f-7a8b9c0d1e2f",
     "source": {
@@ -37,7 +37,7 @@
     "camera": {
       "sha256": null
     },
-    "seed_sha256": "ff93f94911f7c0317fdaad6f047d61b995d2f4ddf43a5e52068050d8b0f77dbd",
+    "seed_sha256": "a227a79d93e2a310e0b257ded6f43b927b9042d1c4537a7b062614ea5bdc3009",
     "engine": {
       "compiler": "edit-v2/1",
       "render_semantics": 1
