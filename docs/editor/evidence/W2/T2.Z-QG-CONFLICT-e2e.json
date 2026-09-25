@@ -13,5 +13,6 @@
     "finalIsMine": true,
     "otherEditKept": true
   },
-  "pass": true
+  "pass": true,
+  "server": "ai-video-clipper:editor-w2 (app and render-worker containers, --cpus 6 and 4; JOBS_ROOT: a copy of the owner's job e7f0d37b, 23.976 fps, legacy engine)"
 }

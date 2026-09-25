@@ -1,66 +1,66 @@
 {
   "schema": "potongin.gate/1",
-  "gate": "e2e flow (plan §11.2 T2.Z)",
+  "gate": "e2e flow (plan \u00a711.2 T2.Z)",
   "browser": "Chrome for Testing 147.0.7727.15",
   "executable": "chromium-1217",
-  "clipDurationMs": 45712,
+  "clipDurationMs": 48799,
   "steps": [
     {
       "name": "open",
-      "ms": 973
+      "ms": 969
     },
     {
       "name": "trim",
-      "ms": 98
+      "ms": 93
     },
     {
       "name": "delete words",
-      "ms": 190
+      "ms": 145
     },
     {
       "name": "fix a word",
-      "ms": 89
+      "ms": 79
     },
     {
       "name": "switch pack",
-      "ms": 364
+      "ms": 353
     },
     {
       "name": "edit the hook",
-      "ms": 28
+      "ms": 10
     },
     {
       "name": "change the cold open",
-      "ms": 256
+      "ms": 259
     },
     {
       "name": "undo/redo",
-      "ms": 28
+      "ms": 27
     },
     {
       "name": "reload",
-      "ms": 893
+      "ms": 909
     },
     {
       "name": "export",
-      "ms": 21068
+      "ms": 22302
     },
     {
       "name": "download",
-      "ms": 83
+      "ms": 92
     },
     {
       "name": "undo everything (back to the AI version)",
-      "ms": 1932
+      "ms": 1948
     },
     {
       "name": "export the AI version",
-      "ms": 1555
+      "ms": 1903
     }
   ],
   "edited": {
-    "revision": 7,
-    "renderMs": 20872,
+    "revision": 1,
+    "renderMs": 22102,
     "completedBy": "render",
     "verify": {
       "ok": true,
@@ -91,5 +91,6 @@
     "completedBy": "seed",
     "createdStatus": 200
   },
-  "pass": true
+  "pass": true,
+  "server": "ai-video-clipper:editor-w2 (app and render-worker containers, --cpus 6 and 4; JOBS_ROOT: a copy of the owner's job e7f0d37b, 23.976 fps, legacy engine)"
 }

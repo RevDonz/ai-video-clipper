@@ -6,21 +6,21 @@
   "viewport": "1366x768",
   "runs": 10,
   "firstMs": {
-    "p50": 973,
-    "p95": 984,
-    "max": 984
+    "p50": 919,
+    "p95": 932,
+    "max": 932
   },
   "repeatMs": {
-    "p50": 896,
-    "p95": 913,
-    "max": 913
+    "p50": 864,
+    "p95": 873,
+    "max": 873
   },
   "repeatFrameOnStageMs": {
-    "p50": 904,
-    "p95": 920
+    "p50": 869,
+    "p95": 878
   },
-  "firstCellAfterPrepareMs": 1318,
-  "prepareMs": 168,
+  "firstCellAfterPrepareMs": 1034,
+  "prepareMs": 167,
   "cellsReadyBeforePlan": 0,
   "limits": {
     "firstMs": 3000,
@@ -28,9 +28,10 @@
     "cellMs": 2000
   },
   "load": [
-    8,
-    7.5,
-    6.2
+    3.4,
+    5.1,
+    5.8
   ],
-  "pass": true
+  "pass": true,
+  "server": "ai-video-clipper:editor-w2 (app and render-worker containers, --cpus 6 and 4; JOBS_ROOT: a copy of the owner's job e7f0d37b, 23.976 fps, legacy engine)"
 }

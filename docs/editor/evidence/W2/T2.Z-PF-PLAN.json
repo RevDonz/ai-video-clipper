@@ -1,0 +1,201 @@
+{
+  "gate": "PF-PLAN (server part, HTTP, warm; p95 <= 200 ms)",
+  "task": "T2.Z",
+  "server": "ai-video-clipper:editor-w2 (app container --cpus 6, the integrated branch: glyphs memo, supervisor exit wake-up); harness on the host (its 'environment' is the harness's)",
+  "runs": {
+    "load_3.98": {
+      "cases": [
+        {
+          "cli_process_ms": {
+            "max": 167.4,
+            "min": 128.4,
+            "n": 20,
+            "p50": 136.3,
+            "p95": 165.8
+          },
+          "dto_bytes_max": 32077,
+          "failures": 0,
+          "frames": 2404,
+          "http_ms": {
+            "max": 246.1,
+            "min": 180.1,
+            "n": 40,
+            "p50": 210.5,
+            "p95": 226.0
+          },
+          "role": "fit_blur_long",
+          "words": 472
+        },
+        {
+          "cli_process_ms": {
+            "max": 173.9,
+            "min": 117.0,
+            "n": 20,
+            "p50": 137.4,
+            "p95": 169.6
+          },
+          "dto_bytes_max": 35135,
+          "failures": 0,
+          "frames": 2440,
+          "http_ms": {
+            "max": 233.8,
+            "min": 187.8,
+            "n": 40,
+            "p50": 213.1,
+            "p95": 227.1
+          },
+          "role": "fill_center_long",
+          "words": 505
+        },
+        {
+          "cli_process_ms": {
+            "max": 178.5,
+            "min": 108.6,
+            "n": 20,
+            "p50": 153.7,
+            "p95": 166.9
+          },
+          "dto_bytes_max": 23464,
+          "failures": 0,
+          "frames": 1574,
+          "http_ms": {
+            "max": 215.8,
+            "min": 178.8,
+            "n": 40,
+            "p50": 206.4,
+            "p95": 214.3
+          },
+          "role": "fit_blur_2",
+          "words": 426
+        }
+      ],
+      "environment": {
+        "cpu_quota": null,
+        "cpus_visible": 16,
+        "ffmpeg": "ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023 the FFmpeg developers",
+        "loadavg": [
+          3.98,
+          3.85,
+          5.05
+        ],
+        "python": "3.13.13"
+      },
+      "gate_wall_s": 37.3,
+      "http_ms": {
+        "max": 246.1,
+        "min": 178.8,
+        "n": 120,
+        "p50": 209.3,
+        "p95": 226.0
+      },
+      "pass": false,
+      "threshold_ms": 200
+    },
+    "load_2.85": {
+      "cases": [
+        {
+          "cli_process_ms": {
+            "max": 112.5,
+            "min": 99.6,
+            "n": 20,
+            "p50": 102.2,
+            "p95": 106.2
+          },
+          "dto_bytes_max": 37123,
+          "failures": 0,
+          "frames": 2404,
+          "http_ms": {
+            "max": 182.2,
+            "min": 166.3,
+            "n": 40,
+            "p50": 171.8,
+            "p95": 181.4
+          },
+          "role": "fit_blur_long",
+          "words": 472
+        },
+        {
+          "cli_process_ms": {
+            "max": 116.4,
+            "min": 101.5,
+            "n": 20,
+            "p50": 103.9,
+            "p95": 113.5
+          },
+          "dto_bytes_max": 40181,
+          "failures": 0,
+          "frames": 2440,
+          "http_ms": {
+            "max": 181.1,
+            "min": 167.3,
+            "n": 40,
+            "p50": 171.8,
+            "p95": 176.4
+          },
+          "role": "fill_center_long",
+          "words": 505
+        },
+        {
+          "cli_process_ms": {
+            "max": 108.5,
+            "min": 96.7,
+            "n": 20,
+            "p50": 99.5,
+            "p95": 108.0
+          },
+          "dto_bytes_max": 27172,
+          "failures": 0,
+          "frames": 1574,
+          "http_ms": {
+            "max": 187.2,
+            "min": 163.0,
+            "n": 40,
+            "p50": 167.5,
+            "p95": 179.4
+          },
+          "role": "fit_blur_2",
+          "words": 426
+        }
+      ],
+      "environment": {
+        "cpu_quota": null,
+        "cpus_visible": 16,
+        "ffmpeg": "ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023 the FFmpeg developers",
+        "loadavg": [
+          2.85,
+          3.33,
+          4.55
+        ],
+        "python": "3.13.13"
+      },
+      "gate_wall_s": 30.1,
+      "http_ms": {
+        "max": 187.2,
+        "min": 163.0,
+        "n": 120,
+        "p50": 170.7,
+        "p95": 180.6
+      },
+      "pass": true,
+      "threshold_ms": 200
+    }
+  },
+  "summary": {
+    "load_3.98": {
+      "max": 246.1,
+      "min": 178.8,
+      "n": 120,
+      "p50": 209.3,
+      "p95": 226.0
+    },
+    "load_2.85": {
+      "max": 187.2,
+      "min": 163.0,
+      "n": 120,
+      "p50": 170.7,
+      "p95": 180.6
+    }
+  },
+  "pass": false,
+  "note": "one run of 120 distinct documents per load; the p95 moves with the host load (other agents)"
+}
