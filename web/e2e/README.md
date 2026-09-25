@@ -57,3 +57,5 @@ E2E_USERNAME=... E2E_PASSWORD=... \
 E2E_ALLOW_MUTATION=1 E2E_TRENDS_LIVE=1 \
 npx playwright test --project=desktop-chromium e2e/trends.spec.mjs
 ```
+
+Run it against a production build (`npm run build` then `next start`). Under `next dev`, React StrictMode mounts the project page twice and aborts its first job requests, which the harness counts as failed requests in the chip test.
