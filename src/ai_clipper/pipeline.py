@@ -34,7 +34,8 @@ without relevant trends writes the same manifest and ``selection.v3.json`` as be
 ``--focus-note``) the option is passed to :func:`select_clips_v3`, including the heuristic
 fallback after the LLM deadline. Every clip then gets ``"focus": {"match", "terms", "at"}`` in
 the manifest and the ``selection_v3`` summary gets ``"focus": {"terms", "matched",
-"requested"}`` (``matched`` counted from the clips kept inside the video). The focus text is
+"requested"}`` (``matched`` counted from the clips kept inside the video; a clip trimmed to
+the video before its first mention is no longer ``literal`` but ``none``). The focus text is
 only data for the selector: it never reaches argv, FFmpeg or the renderer. Without ``focus``
 the manifest and ``selection.v3.json`` are exactly as before.
 
@@ -114,7 +115,7 @@ from .render import (
     render_vertical,
     validate_render_mode,
 )
-from .selection_types import SelectedClip, SelectionResult
+from .selection_types import ClipFocus, SelectedClip, SelectionResult
 from .selection_v3 import (
     LLM_MODES,
     SELECTION_ARTIFACT_RELATIVE_PATH,
@@ -842,7 +843,12 @@ def _fit_to_media(result: SelectionResult, duration: float | None) -> SelectionR
         if teaser is not None and teaser[1] > duration:
             notes.append(f"cold_open_beyond_media:{clip.rank}")
             teaser = None
-        clips.append(replace(clip, rank=len(clips) + 1, end=end, cold_open=teaser))
+        focus = clip.focus
+        if focus is not None and focus.match == "literal" and (focus.at or 0.0) >= end:
+            focus = ClipFocus("none")  # its first mention (so every mention) was cut off
+        clips.append(
+            replace(clip, rank=len(clips) + 1, end=end, cold_open=teaser, focus=focus)
+        )
     if not notes:
         return result
     return replace(result, clips=tuple(clips), warnings=(*result.warnings, *notes)[:200])
