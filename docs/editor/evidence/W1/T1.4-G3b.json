@@ -1,0 +1,108 @@
+{
+  "encode": "aac 192k 48 kHz stereo",
+  "encode_headroom_db": 1.0,
+  "failures": 0,
+  "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+  "gate": "G3b",
+  "harness": "support.edit_v2_audio_harness (audio-only graph, until compile_job)",
+  "mixes": [
+    {
+      "achieved_lufs": -14.0,
+      "export_i_lufs": -14.1,
+      "export_tp_dbtp": -7.3,
+      "gain_db": 0.9,
+      "mode": "normalize",
+      "name": "music_ducked",
+      "pass": true,
+      "pre_master_i_lufs": -14.9,
+      "pre_master_tp_dbtp": -8.2,
+      "target_lufs": -14.0,
+      "warning_details": [],
+      "warnings": []
+    },
+    {
+      "achieved_lufs": -14.0,
+      "export_i_lufs": -14.0,
+      "export_tp_dbtp": -5.9,
+      "gain_db": -12.2,
+      "mode": "normalize",
+      "name": "hot",
+      "pass": true,
+      "pre_master_i_lufs": -1.8,
+      "pre_master_tp_dbtp": 6.3,
+      "target_lufs": -14.0,
+      "warning_details": [],
+      "warnings": []
+    },
+    {
+      "achieved_lufs": -10.1,
+      "export_i_lufs": -10.1,
+      "export_tp_dbtp": -2.1,
+      "gain_db": -8.3,
+      "mode": "off",
+      "name": "hot",
+      "pass": true,
+      "pre_master_i_lufs": -1.8,
+      "pre_master_tp_dbtp": 6.3,
+      "target_lufs": -14.0,
+      "warning_details": [
+        "peak_reduced:-8.30 dB"
+      ],
+      "warnings": [
+        "peak_reduced"
+      ]
+    },
+    {
+      "achieved_lufs": -5.3,
+      "export_i_lufs": -5.3,
+      "export_tp_dbtp": -1.5,
+      "gain_db": -2.2,
+      "mode": "off",
+      "name": "speech_gain_12db",
+      "pass": true,
+      "pre_master_i_lufs": -3.1,
+      "pre_master_tp_dbtp": 0.2,
+      "target_lufs": -14.0,
+      "warning_details": [
+        "peak_reduced:-2.20 dB"
+      ],
+      "warnings": [
+        "peak_reduced"
+      ]
+    },
+    {
+      "achieved_lufs": -14.9,
+      "export_i_lufs": -15.0,
+      "export_tp_dbtp": -8.3,
+      "gain_db": 0.0,
+      "mode": "off",
+      "name": "music_ducked",
+      "pass": true,
+      "pre_master_i_lufs": -14.9,
+      "pre_master_tp_dbtp": -8.2,
+      "target_lufs": -14.0,
+      "warning_details": [],
+      "warnings": []
+    }
+  ],
+  "peak_ceiling_dbtp": -1.0,
+  "reference_toolchain_problem": null,
+  "stress_probe_informational": {
+    "achieved_lufs": -7.0,
+    "export_i_lufs": -7.1,
+    "export_tp_dbtp": -1.7,
+    "gain_db": -12.6,
+    "mode": "off",
+    "name": "square_stress",
+    "pre_master_i_lufs": 5.6,
+    "pre_master_tp_dbtp": 10.6,
+    "target_lufs": -14.0,
+    "warning_details": [
+      "peak_reduced:-12.60 dB"
+    ],
+    "warnings": [
+      "peak_reduced"
+    ]
+  },
+  "tp_max_dbtp": -1.0
+}
