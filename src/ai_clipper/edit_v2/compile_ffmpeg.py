@@ -4,16 +4,29 @@ Every caller (pipeline, render-worker, preview lane, gates) goes through ``compi
 ``execute.run``. The graph rules, each pinned by a string golden
 (``tests/fixtures/edit_v2/goldens``):
 
-* **R1 frame identity** (the PF grid rule, verbatim): each decoder run is
-  ``-ss (first_sf/F − 1) -copyts -i`` and each piece
-  ``fps=num/den,trim=start_pts=<in_sf>:end_pts=<out_sf>,setpts=PTS-STARTPTS``. Plate cells use
-  the same rule over ``[k·C, (k+1)·C)``, so a plate frame and a final frame for the same source
-  frame are the same decoded frame.
+* **R1 frame identity** (the PF grid rule): each decoder run is
+  ``-ss (first_sf/F − 1) -copyts -i``; a run of one piece is
+  ``fps=num/den,trim=start_pts=<in_sf>:end_pts=<out_sf>,setpts=PTS-STARTPTS`` verbatim. Plate
+  cells use the same rule over ``[k·C, (k+1)·C)``, so a plate frame and a final frame for the
+  same source frame are the same decoded frame.
 * **R2 decoder runs**: consecutive pieces whose source gap is below 10 s (forward) share one
-  seeked input through ``split`` / ``asplit``.
-* **R3** every branch is ``setsar=1``, every format change is an explicit ``scale`` with its
+  seeked input. Their video is **one** chain, ``fps=num/den,select='<ranges>',setpts=N``: after
+  ``fps`` the ``pts`` is the grid index, so ``select`` on the pieces' ``[in_sf, out_sf)`` keeps
+  exactly the frames the per-piece ``trim`` keeps, in the same order (P-FRAME re-measured), and
+  a document with up to 2,000 removals needs no ``split`` into one ``fps`` per piece (measured,
+  150 pieces: 89 MiB and 0.6 s against 196 MiB and 1.2 s; 1,000 removals render in 10.5 s
+  without audio). The source audio keeps one ``asplit`` label per piece (the §5.8 seam).
+* **R3** the layout output is ``setsar=1``, every format change is an explicit ``scale`` with its
   matrices, and ``settb=den/num`` follows ``concat`` (the frame-safe ASS rule, §3.4).
-* **R4** layouts from ``layouts.py``; **R5** text composited in ``COMPOSITE_FORMAT``
+* **R4** layouts from ``layouts.py``, applied **once, after the pieces are joined** (a plate
+  run is one piece). The layout is per frame, so the pixels equal one chain per piece, but the
+  graph keeps one set of scale/blur contexts however many cuts there are: measured with 22
+  pieces (20 cuts + cold open, fit_blur, FFmpeg 6.1), a chain per piece peaked at 4.0 GiB of
+  address space and 162 threads (each ``scale`` starts its own slice threads) and failed under
+  the 3 GiB ``RLIMIT_AS`` of R8, while a document may hold up to 2,000 removals. The camera
+  crop x is a table indexed by the output frame (values = the plan's x at the source frame
+  shown), identical per source frame in plate cells and final renders.
+* **R5** text composited in ``COMPOSITE_FORMAT``
   (``ass`` with ``shaping=complex``), then the logo, then BT.709/tv 4:2:0; **R7** the Standar
   encode; **R8** no user string in argv or the graph (text reaches FFmpeg only inside the ASS
   sidecar), inputs as ``/proc/self/fd/N`` tokens, ``-protocol_whitelist file,pipe``,
@@ -37,6 +50,7 @@ import re
 import subprocess
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from itertools import pairwise
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -143,7 +157,13 @@ class FfmpegJob:
 
 @dataclass(frozen=True)
 class SourceStreams:
-    """The selected streams of a source (``render._probe_source``) and the video's geometry."""
+    """The selected streams of a source and the video's geometry.
+
+    Stream selection is ``render._probe_source``'s rule (the default-disposition video that is
+    not an attached picture, else the first; the default audio, else the first), so both
+    engines render the same streams. ``duration_s`` is informational (``None`` when neither the
+    stream nor the container states one).
+    """
 
     video_index: int
     audio_index: int | None
@@ -151,19 +171,38 @@ class SourceStreams:
     height: int
     color_space: str | None
     color_range: str | None
-    duration_s: float
+    duration_s: float | None
+
+
+def _default_first(streams: Sequence[Mapping[str, Any]]) -> Mapping[str, Any] | None:
+    return next((item for item in streams if item.get("disposition", {}).get("default", 0)),
+                streams[0] if streams else None)
+
+
+_PROBE_ENTRIES = ("stream=index,codec_type,duration,duration_ts,time_base,width,height,color_space,"
+                  "color_range:stream_disposition=attached_pic,default:format=duration")
 
 
 @functools.lru_cache(maxsize=32)
 def _probe_cached(path: str, _identity: tuple[int, int, int, int]) -> SourceStreams:
-    duration, video_index, audio_index = _render._probe_source(Path(path))
     result = subprocess.run(
-        ["ffprobe", "-v", "error", "-select_streams", str(video_index), "-show_entries",
-         "stream=width,height,color_space,color_range", "-of", "json", path],
+        ["ffprobe", "-v", "error", "-show_entries", _PROBE_ENTRIES, "-of", "json", path],
         capture_output=True, text=True, timeout=_render.FFPROBE_TIMEOUT_SECONDS, check=True)
-    stream = json.loads(result.stdout)["streams"][0]
-    return SourceStreams(video_index, audio_index, int(stream["width"]), int(stream["height"]),
-                         stream.get("color_space"), stream.get("color_range"), duration)
+    info = json.loads(result.stdout)
+    streams = info["streams"]
+    video = _default_first([item for item in streams if item.get("codec_type") == "video"
+                            and not item.get("disposition", {}).get("attached_pic", 0)])
+    audio = _default_first([item for item in streams if item.get("codec_type") == "audio"])
+    if video is None:
+        raise ValueError("the source has no video stream")
+    try:
+        duration: float | None = _render._stream_duration(dict(video))
+    except (KeyError, ValueError):  # e.g. Matroska: only the container states a duration
+        container = info.get("format", {}).get("duration")
+        duration = None if container in (None, "N/A") else float(container)
+    return SourceStreams(int(video["index"]), None if audio is None else int(audio["index"]),
+                         int(video["width"]), int(video["height"]), video.get("color_space"),
+                         video.get("color_range"), duration)
 
 
 def probe_source(source: Path) -> SourceStreams:
@@ -285,52 +324,81 @@ class _Compiler:
         return argv
 
     # video
-    def branch(self, index: int, label_in: str, in_sf: int, out_sf: int, shift: int,
-               label_out: str) -> str:
+    def trim(self, label_in: str, in_sf: int, out_sf: int, shift: int, label_out: str) -> str:
+        """R1, the measured grid rule: source-grid frames ``[in_sf, out_sf)`` of one decoder run,
+        restamped from 0 (``+shift`` in ``frame`` mode)."""
         fps = self.fps
         setpts = "setpts=PTS-STARTPTS" + (f"+{shift}" if shift else "")
-        prefix = (f"{label_in}fps={fps.num}/{fps.den},trim=start_pts={in_sf}:end_pts={out_sf},"
-                  f"{setpts},")
+        return (f"{label_in}fps={fps.num}/{fps.den},trim=start_pts={in_sf}:end_pts={out_sf},"
+                f"{setpts}{label_out}")
+
+    def run_chain(self, label_in: str, ranges: Sequence[tuple[int, int]], shift: int,
+                  label_out: str) -> str:
+        """The frames of one decoder run: R1's ``trim`` for a single range; for several, the
+        same grid frames kept by one ``select`` on the grid index (``pts`` after ``fps``) and
+        renumbered, instead of ``split`` into one ``trim`` per piece (see the module notes)."""
+        if len(ranges) == 1:
+            return self.trim(label_in, ranges[0][0], ranges[0][1], shift, label_out)
+        if shift:
+            raise ValueError("only a single range can be shifted")
+        fps = self.fps
+        return (f"{label_in}fps={fps.num}/{fps.den},select='{select_expression(ranges)}',"
+                f"setpts=N{label_out}")
+
+    def layout(self, label_in: str, ranges: Sequence[tuple[int, int]], label_out: str) -> str:
+        """R4: one layout chain over frames that show the source-grid ``ranges`` in order.
+
+        The layout is per frame (scale, crop, blur, overlay), so applying it once after the
+        pieces are joined gives the same pixels as one chain per piece, with one set of
+        filter contexts however many cuts there are. The camera crop x of output frame ``n``
+        is the plan's value at the source frame it shows, so a plate cell and a final render
+        crop any source frame at the same x.
+        """
         crop = None
         if self.plan.layout == "camera":
             if self.plan.camera is None:
                 raise errors.AnalysisMissing("analysis_missing", ref="camera")
-            crop = layouts.crop_positions(
-                self.plan.camera, fps, source=(self.streams.width, self.streams.height),
-                output=self.plan.output, first_sf=in_sf, count=out_sf - in_sf)
+            crop = []
+            for in_sf, out_sf in ranges:
+                crop.extend(layouts.crop_positions(
+                    self.plan.camera, self.fps, source=(self.streams.width, self.streams.height),
+                    output=self.plan.output, first_sf=in_sf, count=out_sf - in_sf))
         return layouts.layout_chain(
-            self.plan.layout, label_in=prefix, label_out=label_out, suffix=f"_{index}",
+            self.plan.layout, label_in=label_in, label_out=label_out, suffix="_0",
             output=self.plan.output, source=(self.streams.width, self.streams.height),
             matrix=self.matrix, in_range=self.in_range, crop=crop)
 
     def decoded(self, branches: Sequence[tuple[int, int, int]],
                 runs: Sequence[Sequence[int]], *, video: bool, audio: bool) -> None:
-        """One seeked input per run; ``[vd<i>]`` and ``[sa<i>]`` per branch ``i``."""
-        for run in runs:
+        """One seeked input per decoder run: ``[vr<r>]`` the run's frames (R1), and ``[sa<i>]``
+        the source audio of each branch ``i`` as decoded (the T1.4 seam, §5.8)."""
+        for r, run in enumerate(runs):
             k = self.source_input(branches[run[0]][0])
             if video:
-                labels = "".join(f"[vd{i}]" for i in run)
-                split = f"split={len(run)}" if len(run) > 1 else "null"
-                self.graph.append(f"[{k}:{self.streams.video_index}]{split}{labels}")
+                ranges = [(branches[i][0], branches[i][1]) for i in run]
+                shift = branches[run[0]][2]
+                self.graph.append(self.run_chain(f"[{k}:{self.streams.video_index}]", ranges,
+                                                 shift, f"[vr{r}]"))
             if audio:
                 labels = "".join(f"[sa{i}]" for i in run)
                 split = f"asplit={len(run)}" if len(run) > 1 else "anull"
                 self.graph.append(f"[{k}:{self.streams.audio_index}]{split}{labels}")
+        self.video_runs = len(runs) if video else 0
 
     def picture(self, branches: Sequence[tuple[int, int, int]]) -> None:
-        """Pieces → layout → concat → text → logo → BT.709 4:2:0 ``[vout]`` (R1–R5)."""
+        """Runs → concat → layout → text → logo → BT.709 4:2:0 ``[vout]`` (R1–R5)."""
         fps = self.fps
-        for i, (in_sf, out_sf, shift) in enumerate(branches):
-            self.graph.append(self.branch(i, f"[vd{i}]", in_sf, out_sf, shift, f"[vp{i}]"))
-        labels = "".join(f"[vp{i}]" for i in range(len(branches)))
-        if len(branches) > 1:
-            join = f"concat=n={len(branches)}:v=1:a=0,settb={fps.den}/{fps.num}"
+        labels = "".join(f"[vr{r}]" for r in range(self.video_runs))
+        if self.video_runs > 1:
+            join = f"concat=n={self.video_runs}:v=1:a=0,settb={fps.den}/{fps.num}"
         else:
             join = f"settb={fps.den}/{fps.num}"
         self.graph.append(f"{labels}{join}[vcat]")
+        ranges = [(in_sf, out_sf) for in_sf, out_sf, _shift in branches]
+        self.graph.append(self.layout("[vcat]", ranges, "[vlay]"))
         assert self.plan.ass is not None
         self.sidecars[CAPTIONS_FILE] = self.plan.ass.encode("utf-8")
-        self.graph.append(f"[vcat]{_TEXT_IN[self.composite]},{_TEXT_FILTER}[vtext]")
+        self.graph.append(f"[vlay]{_TEXT_IN[self.composite]},{_TEXT_FILTER}[vtext]")
         last = "[vtext]"
         logo = self.plan.logo
         if logo is not None:
@@ -385,6 +453,26 @@ class _Compiler:
         return FfmpegJob(argv=tuple(argv), filter_script=";\n".join(self.graph) + "\n",
                          inputs=tuple(self.inputs), sidecars=dict(self.sidecars),
                          expected=self.expected)
+
+
+def select_expression(ranges: Sequence[tuple[int, int]]) -> str:
+    """A ``select`` expression true exactly for grid indices (``pts``) in the half-open
+    ``ranges`` (sorted, disjoint): a balanced ``if(lt(pts,K),A,B)`` tree of ``between`` leaves,
+    so a run of 2,000 pieces costs 11 comparisons per frame. Integers only (exact in double)."""
+    if not ranges:
+        raise ValueError("a select expression needs at least one range")
+    if any(b <= a for a, b in ranges) or any(
+            later[0] < earlier[1] for earlier, later in pairwise(ranges)):
+        raise ValueError("ranges must be non-empty, sorted and disjoint")
+
+    def tree(lo: int, hi: int) -> str:
+        if hi - lo == 1:
+            start, end = ranges[lo]
+            return f"between(pts,{start},{end - 1})"
+        mid = (lo + hi) // 2
+        return f"if(lt(pts,{ranges[mid][0]}),{tree(lo, mid)},{tree(mid, hi)})"
+
+    return tree(0, len(ranges))
 
 
 def _pieces_branches(plan: RenderPlan) -> list[tuple[int, int, int]]:
@@ -459,10 +547,11 @@ def _plate_cells(compiler: _Compiler, cells: Sequence[int]) -> FfmpegJob:
     for r, run in enumerate(runs):
         in_sf, out_sf = run[0] * size, (run[-1] + 1) * size
         k = compiler.source_input(in_sf)
-        compiler.graph.append(compiler.branch(r, f"[{k}:{compiler.streams.video_index}]",
-                                              in_sf, out_sf, 0, f"[pl{r}]"))
-        compiler.graph.append(f"[pl{r}]settb={fps.den}/{fps.num},{_YUV_TO_709},"
-                              f"format=yuv420p[cell{r}]")
+        compiler.graph.append(compiler.trim(f"[{k}:{compiler.streams.video_index}]",
+                                            in_sf, out_sf, 0, f"[pt{r}]"))
+        compiler.graph.append(compiler.layout(f"[pt{r}]settb={fps.den}/{fps.num},",
+                                              [(in_sf, out_sf)], f"[pl{r}]"))
+        compiler.graph.append(f"[pl{r}]{_YUV_TO_709},format=yuv420p[cell{r}]")
         split_at = ",".join(str(size * (i + 1)) for i in range(len(run)))
         outputs += ["-map", f"[cell{r}]", *_x264(*PLATE, size), "-bf", "0", "-forced-idr", "1",
                     "-force_key_frames", f"expr:eq(mod(n,{size}),0)", "-sc_threshold", "0",
