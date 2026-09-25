@@ -105,11 +105,20 @@ export class AuthRateLimiter {
   }
 }
 
-export function authRateLimitKeys(request, username, env = process.env) {
+/**
+ * The client IP from the reverse proxy header named by AUTH_TRUSTED_CLIENT_IP_HEADER
+ * ("cloudflare": CF-Connecting-IP, "nginx": X-Real-IP), or null when no header is trusted or
+ * the value is not an IP address. Never read from a header the deployment did not configure.
+ */
+export function trustedClientIp(request, env = process.env) {
   const mode = env.AUTH_TRUSTED_CLIENT_IP_HEADER;
   const supplied = mode === "cloudflare" ? request.headers.get("cf-connecting-ip")
     : mode === "nginx" ? request.headers.get("x-real-ip") : null;
-  const client = supplied && isIP(supplied) ? supplied : "untrusted-proxy-client";
+  return supplied && isIP(supplied) ? supplied : null;
+}
+
+export function authRateLimitKeys(request, username, env = process.env) {
+  const client = trustedClientIp(request, env) ?? "untrusted-proxy-client";
   const normalized = typeof username === "string" ? username.normalize("NFC").toLowerCase().slice(0, 256) : "";
   const digest = (value) => crypto.createHash("sha256").update(value).digest("hex");
   return [`client:${digest(client.slice(0, 256))}`, `user:${digest(normalized)}`];
