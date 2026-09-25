@@ -4,6 +4,7 @@ import pytest
 
 from ai_clipper import cli
 from ai_clipper.cli import parse_args
+from ai_clipper.focus import FocusSpec
 from ai_clipper.transcribe import (
     ENV_CONDITION_ON_PREVIOUS_TEXT,
     ENV_INITIAL_PROMPT,
@@ -309,6 +310,66 @@ def test_cli_forwards_the_trend_context_path_only(monkeypatch, tmp_path: Path):
 
     assert received["trend_context"] == Path(snapshot)
     assert received["selection_mode"] == "v3"
+
+
+# --- Fokus klip -------------------------------------------------------------------------------
+
+
+def test_cli_focus_defaults_to_none():
+    args = parse_args(["video.mp4", "--selection-mode", "v3"])
+    assert args.focus_terms is None and args.focus_note is None and args.focus is None
+
+
+def test_cli_parses_repeatable_focus_terms_and_a_note():
+    args = parse_args([
+        "video.mp4", "--selection-mode", "v3", "--focus-term", "jomok", "--focus-term",
+        " Reza\u200b Auditore ", "--focus-note", "momen jomok yang lucu",
+    ])  # fmt: skip
+    assert args.focus_terms == ["jomok", " Reza\u200b Auditore "]
+    assert args.focus == FocusSpec(("jomok", "Reza Auditore"), "momen jomok yang lucu")
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        [flag for index in range(9) for flag in ("--focus-term", f"istilah{index}")],
+        ["--focus-term", "x" * 41],
+        ["--focus-term", "a"],
+        ["--focus-term", "jomok", "--focus-term", "JOMOK"],
+        ["--focus-term", "jomok", "--focus-note", "x" * 201],
+        ["--focus-note", "catatan tanpa istilah"],
+        ["--focus-term"],
+        ["--focus-note"],
+    ],
+)
+def test_cli_rejects_invalid_focus_options(arguments: list[str]):
+    with pytest.raises(SystemExit, match="2"):
+        parse_args(["video.mp4", "--selection-mode", "v3", *arguments])
+
+
+def test_cli_focus_is_only_for_selection_v3():
+    with pytest.raises(SystemExit, match="2"):
+        parse_args(["video.mp4", "--focus-term", "jomok"])
+    with pytest.raises(SystemExit, match="2"):
+        parse_args(["video.mp4", "--selection-mode", "v2-shadow", "--focus-term", "jomok"])
+
+
+def test_cli_forwards_the_focus_to_the_pipeline(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(cli, "load_whisper_model", lambda *a, **k: "M")
+    received = _capture_pipeline(monkeypatch, tmp_path)
+
+    assert cli.main([*WEB_V3_ARGS, "--focus-term", "jomok", "--focus-term", "jomokers",
+                     "--focus-note", "momen jomok yang lucu"]) == 0
+
+    assert received["focus"] == FocusSpec(("jomok", "jomokers"), "momen jomok yang lucu")
+    assert received["selection_mode"] == "v3"
+
+
+def test_cli_without_focus_forwards_none(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(cli, "load_whisper_model", lambda *a, **k: "M")
+    received = _capture_pipeline(monkeypatch, tmp_path)
+    assert cli.main(WEB_V3_ARGS) == 0
+    assert received["focus"] is None
 
 
 def test_cli_reports_llm_errors_without_traceback(monkeypatch, capsys):

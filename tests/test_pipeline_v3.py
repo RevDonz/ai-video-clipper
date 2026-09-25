@@ -14,6 +14,7 @@ import pytest
 
 import ai_clipper.pipeline as pipeline_module
 from ai_clipper.audio_timeline import AudioTimelineError, build_audio_timeline
+from ai_clipper.focus import parse_focus
 from ai_clipper.llm import LLMError, LLMUnavailable, ScriptedLLMClient
 from ai_clipper.llm_selection import PROMPT_VERSION
 from ai_clipper.models import SelectionMode, TranscriptSegment, TranscriptWord
@@ -1443,3 +1444,91 @@ def test_v1_ignores_the_trend_context(env, monkeypatch):
         run(env, selection_mode="v1", trend_context=env.tmp / "x.json", max_duration=60.0)
     )
     assert manifest["status"] == "completed"
+
+
+# --- Fokus klip -------------------------------------------------------------------------------
+
+# "kisah25" is said once, in sentence 25 (its fourth word); the note is never said anywhere.
+FOCUS = parse_focus(["kisah25"], "CATATAN-RAHASIA-FOKUS")
+
+
+def kisah25_time() -> float:
+    start, end, text = rows()[25]
+    return word_times(start, end, text)[3][0]
+
+
+def test_a_focus_leads_the_clips_and_the_manifest_records_it(env, monkeypatch):
+    seen = {}
+    real_select = pipeline_module.select_clips_v3
+
+    def select(segments, **options):
+        seen.update(options)
+        return real_select(segments, **options)
+
+    monkeypatch.setattr(pipeline_module, "select_clips_v3", select)
+
+    manifest = manifest_of(run(env, focus=FOCUS))
+
+    assert seen["focus"] == FOCUS
+    first, *others = manifest["clips"]
+    assert first["focus"] == {"match": "literal", "terms": ["kisah25"], "at": kisah25_time()}
+    assert first["start"] <= kisah25_time() < first["end"]
+    assert [clip["focus"] for clip in others] == [
+        {"match": "none", "terms": [], "at": None}
+    ] * len(others)
+    for clip in manifest["clips"]:
+        assert set(clip) == CLIP_KEYS | {"focus"}
+    summary = manifest["selection_v3"]
+    assert summary["focus"] == {"terms": ["kisah25"], "matched": 1, "requested": 3}
+    assert "focus_few_matches:1" in summary["warnings"]
+    assert_web_summary({key: value for key, value in summary.items() if key != "focus"})
+    artifact = read_selection_artifact(env.job / "analysis" / "selection.v3.json")
+    assert artifact.focus is not None and artifact.focus_matched == 1
+    assert artifact.clips[0].focus.match == "literal"
+    assert "CATATAN-RAHASIA-FOKUS" not in repr(env.renders)  # the note never reaches FFmpeg
+
+
+def test_without_focus_the_manifest_and_selection_are_unchanged(env):
+    baseline = manifest_of(run(env))
+    baseline_selection = selection_bytes(env)
+
+    manifest = manifest_of(run(env, focus=None))
+
+    assert manifest == baseline
+    assert selection_bytes(env) == baseline_selection
+    assert "focus" not in manifest["selection_v3"]
+    assert all("focus" not in clip for clip in manifest["clips"])
+
+
+def test_the_heuristic_fallback_of_a_slow_llm_keeps_the_focus(env, monkeypatch):
+    release = threading.Event()
+    real_select = pipeline_module.select_clips_v3
+
+    def select(segments, **options):
+        if options["llm_client"] is not None:
+            release.wait(10)  # a provider that never answers
+        return real_select(segments, **options)
+
+    monkeypatch.setattr(pipeline_module, "select_clips_v3", select)
+    monkeypatch.setattr(pipeline_module, "LLM_WAIT_SECONDS", 0.05)
+    env.llm_client = ScriptedLLMClient([])
+    try:
+        manifest = manifest_of(run(env, llm_mode="auto", focus=FOCUS))
+    finally:
+        release.set()
+
+    summary = manifest["selection_v3"]
+    assert summary["status"] == "fallback"
+    assert summary["focus"] == {"terms": ["kisah25"], "matched": 1, "requested": 3}
+    assert manifest["clips"][0]["focus"]["match"] == "literal"
+
+
+def test_focus_must_be_a_focus_spec(env):
+    with pytest.raises(TypeError):
+        run(env, focus=["kisah25"])
+
+
+def test_v1_ignores_the_focus(env):
+    manifest = manifest_of(run(env, selection_mode="v1", focus=FOCUS, max_duration=60.0))
+    assert manifest["status"] == "completed"
+    assert all("focus" not in clip for clip in manifest["clips"])
