@@ -1797,6 +1797,22 @@ def _proposal(ctx: _Context, window: _Window, adjusted: float, similarity: float
 # --- public API -------------------------------------------------------------------------------
 
 
+def clean_hook_line(text: str) -> str:
+    """``text`` (one transcript line) as clean on-screen hook text, ``""`` when unusable.
+
+    The heuristic's own hook text rule (see *Packaging* in the module docstring): the best clean
+    sentence within :data:`HOOK_TEXT_MAX_CHARS`, never cut with an ellipsis.
+    """
+    if not isinstance(text, str):
+        raise TypeError("text must be a string")
+    return _clean_line(text)
+
+
+def archetype_label(archetype: str) -> str:
+    """The plain Indonesian label of an archetype ("Momen lucu"); unknown ones read as "other"."""
+    return _ARCHETYPE_LABELS.get(archetype, _ARCHETYPE_LABELS["other"])
+
+
 def _duration(value: object, name: str) -> float:
     if not isinstance(value, Real) or isinstance(value, bool):
         raise TypeError(f"{name} must be a number")

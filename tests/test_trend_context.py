@@ -17,11 +17,13 @@ from ai_clipper.trend_context import (
     TrendItem,
     TrendMatch,
     clean_trend_text,
+    fold_hashtag,
     load_trend_context,
     match_trends,
     read_trend_context,
     relevant_trends,
     trend_context_from_dict,
+    trend_tag_keys,
 )
 
 GENERATED = "2026-09-25T06:00:00Z"
@@ -342,6 +344,14 @@ def test_short_and_common_keywords_never_match_alone():
     assert matched([item("Viral", ("viral",))], "videonya viral banget") == []
     assert matched([item("Aja dulu", ("aja dulu",))], "aja dulu deh") == []
     assert matched([item("AI Act", ("AI act",))], "soal AI act eropa") == ["AI Act"]
+
+
+def test_trend_tag_keys_are_the_trend_written_as_one_hashtag_word():
+    trend = item("Kabur Aja Dulu", ("kabur aja dulu", "AI", "Café gaul"), hashtags=("#Merantau_ID",))
+    assert fold_hashtag("#Kabur_Aja Dulu") == "kaburajadulu"
+    assert fold_hashtag("#CaféGaul") == "cafegaul"
+    assert trend_tag_keys(trend) == frozenset({"kaburajadulu", "cafegaul", "merantauid"})
+    assert "ai" not in trend_tag_keys(trend)  # never a match on its own, so never a tag key
 
 
 def test_matches_are_ordered_by_count_then_score_and_report_terms():

@@ -421,6 +421,24 @@ def _terms(item: TrendItem) -> tuple[tuple[str, ...], ...]:
     return tuple(term for term in terms if term and any(_content(token) for token in term))
 
 
+def fold_hashtag(tag: str) -> str:
+    """A hashtag or phrase as one casefolded, accent-free word: ``#Kabur_Aja Dulu`` -> ``kaburajadulu``."""
+    if not isinstance(tag, str):
+        raise TypeError("tag must be a string")
+    return "".join(_tokens(tag))
+
+
+@lru_cache(maxsize=4096)
+def trend_tag_keys(item: TrendItem) -> frozenset[str]:
+    """What a hashtag naming ``item`` folds to (:func:`fold_hashtag`): its own hashtags, and its
+    title and keywords written as one word, when they would match a transcript on their own."""
+    if not isinstance(item, TrendItem):
+        raise TypeError("item must be a TrendItem")
+    keys = {fold_hashtag(tag) for tag in item.hashtags}
+    keys.update("".join(term) for term in _terms(item))
+    return frozenset(key for key in keys if key)
+
+
 def _positions(tokens: Sequence[str]) -> dict[str, list[int]]:
     index: dict[str, list[int]] = {}
     for position, token in enumerate(tokens):

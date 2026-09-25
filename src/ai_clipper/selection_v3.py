@@ -51,12 +51,22 @@
      other ref (not mentioned, or an ID that was not shown) is dropped and counted
      (``trend_ref_ungrounded:<n>`` over the snapped LLM moments). A heuristic clip is matched
      directly against the relevant trends. At most :data:`MAX_CLIP_TRENDS` per clip;
-   - **packaging**: ``reasons`` end with ``tren: <title>`` for the first
+   - **no invented claims in the packaging**: an LLM clip's title, hook text (burned into the
+     video) and description may only name relevant trends its own transcript mentions, with or
+     without a ``trend_ref``; this is checked with :func:`match_trends`, never taken from the
+     model. Description sentences naming another relevant trend are removed, and such a title
+     or hook text is rebuilt by :func:`ai_clipper.llm_selection.repair_trend_packaging` from
+     the model's clean fields, else from a clean line of the clip itself (the hook unit first).
+     Clips rebuilt this way are counted (``trend_packaging_ungrounded:<n>``). A hashtag of any
+     clip that names a relevant trend its transcript does not mention (one of the trend's
+     hashtags, or its title or a keyword written as one word, see
+     :func:`ai_clipper.trend_context.trend_tag_keys`) is removed, generic tags such as
+     ``#fyp`` aside. Heuristic titles, hook texts and descriptions are never rewritten;
+   - **reasons and hashtags**: ``reasons`` end with ``tren: <title>`` for the first
      :data:`MAX_TREND_REASONS` grounded trends (``(sensitif)`` appended for sensitive ones),
      replacing trailing reasons when all 8 are taken; the hashtags of grounded, non-sensitive
-     trends (at most :data:`MAX_TREND_HASHTAGS`) come first, and an LLM moment loses the
-     hashtags of relevant trends it is not grounded in. Titles, hook texts and descriptions are
-     never rewritten;
+     trends come first (at most :data:`MAX_TREND_HASHTAGS`; a trend hashtag longer than the
+     40 characters a clip hashtag may have is skipped);
    - **boost**: a clip grounded in at least one non-sensitive trend gets :data:`TREND_BOOST`
      points (0-100 scale, so 0.3 on the 0-10 ranking values; :data:`TREND_BOOST_CAP` per clip
      however many trends) on its ranking value only: the LLM's rerank blend (or propose score)
@@ -66,8 +76,9 @@
 
 Warning codes (in this order): the LLM's own ``llm_*`` codes, ``llm_unavailable`` or
 ``llm_failed:<code>`` (auto-mode fallback), ``llm_filled:<n>`` (heuristic clips added after
-LLM clips), ``snap_dropped:<n>``, ``trend_ref_ungrounded:<n>``, ``few_clips:<n>`` (fewer than
-``k`` clips), and ``no_transcript``.
+LLM clips), ``snap_dropped:<n>``, ``trend_ref_ungrounded:<n>``,
+``trend_packaging_ungrounded:<n>``, ``few_clips:<n>`` (fewer than ``k`` clips), and
+``no_transcript``.
 
 The artifact (``analysis/selection.v3.json``) is :meth:`SelectionResult.to_dict`, written
 atomically by :func:`write_selection_artifact` and read back strictly by
@@ -86,7 +97,12 @@ from numbers import Real
 from pathlib import Path
 
 from .audio_timeline import AudioTimeline
-from .hook_heuristics import HEURISTIC_VERSION, propose_heuristic
+from .hook_heuristics import (
+    HEURISTIC_VERSION,
+    archetype_label,
+    clean_hook_line,
+    propose_heuristic,
+)
 from .llm import (
     LLMClient,
     LLMError,
@@ -99,6 +115,7 @@ from .llm_selection import (
     TREND_PROMPT_VERSION,
     combined_score,
     propose_with_llm,
+    repair_trend_packaging,
     standard_sha256,
 )
 from .models import TranscriptSegment
@@ -114,7 +131,13 @@ from .sentences import SentenceUnit, build_sentence_units
 from .sound_events import SoundEvent, sort_events
 from .transcript_io import atomic_write_bytes
 from .transcript_quality import TranscriptQuality, assess_transcript, ends_with_terminal_punctuation
-from .trend_context import TrendItem, match_trends, relevant_trends
+from .trend_context import (
+    TrendItem,
+    fold_hashtag,
+    match_trends,
+    relevant_trends,
+    trend_tag_keys,
+)
 
 LLM_MODES = ("auto", "off", "required")
 SELECTION_ARTIFACT_RELATIVE_PATH = Path("analysis") / "selection.v3.json"
@@ -438,8 +461,9 @@ class _Candidate:
     proposal: ClipProposal
     span: _Span
     topic: frozenset[str]
-    trends: tuple[TrendItem, ...] = ()  # grounded in this span's own transcript
+    trends: tuple[TrendItem, ...] = ()  # grounded: linked, tagged and boosted
     rank_value: float = 0.0  # the value its source ordered it by (0-10)
+    mentioned: tuple[TrendItem, ...] = ()  # every relevant trend this span's transcript names
 
     @property
     def boost(self) -> float:
@@ -542,23 +566,23 @@ def _check_trends(trends: object) -> tuple[TrendItem, ...]:
 
 
 def _ground(
-    proposal: ClipProposal, text: str, shown: Sequence[TrendItem]
+    proposal: ClipProposal, mentioned: Sequence[TrendItem], shown: Sequence[TrendItem]
 ) -> tuple[tuple[TrendItem, ...], int]:
-    """The relevant trends ``text`` (a snapped span) mentions, and the LLM refs dropped.
+    """The trends a snapped span is grounded in, and the LLM refs dropped.
 
-    An LLM moment keeps only the trends it named that ``text`` mentions; a heuristic moment is
-    matched directly against every relevant trend.
+    ``mentioned`` are the relevant trends the span's transcript names. An LLM moment keeps only
+    the trends it named that are among them; a heuristic moment gets them all.
     """
     if not shown:
         return (), 0
     if proposal.source != "llm":
-        return tuple(match.item for match in match_trends(shown, text))[:MAX_CLIP_TRENDS], 0
+        return tuple(mentioned[:MAX_CLIP_TRENDS]), 0
     grounded: list[TrendItem] = []
     dropped = 0
     for ref in proposal.trend_refs:
         number = int(ref[1:])
         item = shown[number - 1] if number <= len(shown) else None
-        if item is not None and match_trends([item], text):
+        if item is not None and item in mentioned:
             if item not in grounded:
                 grounded.append(item)
         else:
@@ -571,15 +595,15 @@ def _tag_key(tag: str) -> str:
 
 
 def _trend_hashtags(
-    proposal: ClipProposal, grounded: Sequence[TrendItem], shown: Sequence[TrendItem]
+    proposal: ClipProposal,
+    grounded: Sequence[TrendItem],
+    mentioned: Sequence[TrendItem],
+    shown: Sequence[TrendItem],
 ) -> tuple[str, ...]:
     """Grounded trends' hashtags first, then the moment's own (see the module docstring)."""
-    own = list(proposal.hashtags)
-    if proposal.source == "llm":
-        foreign = {
-            _tag_key(tag) for item in shown if item not in grounded for tag in item.hashtags
-        } - _GENERIC_HASHTAGS
-        own = [tag for tag in own if _tag_key(tag) not in foreign]
+    barred = [item for item in shown if item not in mentioned]
+    foreign = {key for item in barred for key in trend_tag_keys(item)} - _GENERIC_HASHTAGS
+    own = [tag for tag in proposal.hashtags if fold_hashtag(tag) not in foreign]
     added = [
         tag
         for item in grounded
@@ -606,6 +630,40 @@ def _trend_reasons(reasons: tuple[str, ...], grounded: Sequence[TrendItem]) -> t
     return (*reasons[: 8 - len(notes)], *notes)
 
 
+def _clip_line(units: Sequence[SentenceUnit], span: _Span, hook: int, archetype: str) -> str:
+    """A clean line of the span's own transcript: the hook unit first, then its neighbours."""
+    order = sorted(range(span.start_unit, span.end_unit + 1), key=lambda i: (abs(i - hook), i))
+    for index in order:
+        if not units[index].suspect:
+            line = clean_hook_line(units[index].text)
+            if line:
+                return line
+    return archetype_label(archetype)
+
+
+def _grounded_packaging(
+    item: _Candidate,
+    units: Sequence[SentenceUnit],
+    hook: int,
+    text: str,
+    shown: Sequence[TrendItem],
+) -> tuple[str, str, str]:
+    """An LLM clip's title, hook text and description, naming only trends ``text`` mentions."""
+    proposal = item.proposal
+    mentioned = {trend.id for trend in item.mentioned}
+
+    def invented(value: str) -> bool:
+        return any(match.item.id not in mentioned for match in match_trends(shown, value))
+
+    packaging = (proposal.title, proposal.hook_text, proposal.description)
+    if not any(invented(value) for value in packaging):
+        return packaging
+    fallback = _clip_line(units, item.span, hook, proposal.archetype)
+    return repair_trend_packaging(
+        *packaging, invented=invented, source=text, fallback=fallback
+    )
+
+
 def _selected(
     rank: int,
     item: _Candidate,
@@ -626,15 +684,18 @@ def _selected(
         )
     if filler:
         reasons = _with_reason(reasons, "Pengisi dari heuristik karena momen LLM kurang.")
+    text = " ".join(
+        " ".join(unit.text.split()) for unit in units[span.start_unit : span.end_unit + 1]
+    )
+    title, hook_text, description = proposal.title, proposal.hook_text, proposal.description
     hashtags = proposal.hashtags
     trends: tuple[TrendRef, ...] = ()
     if shown:
         reasons = _trend_reasons(reasons, item.trends)
-        hashtags = _trend_hashtags(proposal, item.trends, shown)
+        hashtags = _trend_hashtags(proposal, item.trends, item.mentioned, shown)
         trends = tuple(trend.ref() for trend in item.trends)
-    text = " ".join(
-        " ".join(unit.text.split()) for unit in units[span.start_unit : span.end_unit + 1]
-    )
+        if proposal.source == "llm":
+            title, hook_text, description = _grounded_packaging(item, units, hook, text, shown)
     return SelectedClip(
         rank=rank,
         start=span.start,
@@ -642,9 +703,9 @@ def _selected(
         cold_open=cold_open,
         unit_ids=(units[span.start_unit].unit_id, units[span.end_unit].unit_id),
         hook_unit_id=units[hook].unit_id,
-        title=proposal.title,
-        hook_text=proposal.hook_text,
-        description=proposal.description,
+        title=title,
+        hook_text=hook_text,
+        description=description,
         hashtags=hashtags,
         archetype=proposal.archetype,
         score=combined_score(proposal.scores),  # always consistent with the sub-scores
@@ -820,9 +881,12 @@ def select_clips_v3(
             dropped += 1
             continue
         text = " ".join(unit.text for unit in units[span.start_unit : span.end_unit + 1])
-        grounded, refused = _ground(proposal, text, shown)
+        mentioned = tuple(match.item for match in match_trends(shown, text)) if shown else ()
+        grounded, refused = _ground(proposal, mentioned, shown)
         ungrounded += refused
-        candidates.append(_Candidate(proposal, span, _topic_words(text), grounded, value))
+        candidates.append(
+            _Candidate(proposal, span, _topic_words(text), grounded, value, mentioned)
+        )
 
     chosen = _rank(_boosted(candidates), k)
     llm_led = bool(chosen) and chosen[0].proposal.source == "llm"
@@ -855,6 +919,13 @@ def select_clips_v3(
         warnings.append(f"snap_dropped:{dropped}")
     if ungrounded:
         warnings.append(f"trend_ref_ungrounded:{ungrounded}")
+    repackaged = sum(
+        (clip.title, clip.hook_text, clip.description)
+        != (item.proposal.title, item.proposal.hook_text, item.proposal.description)
+        for clip, item in zip(clips, chosen, strict=True)
+    )
+    if repackaged:
+        warnings.append(f"trend_packaging_ungrounded:{repackaged}")
     if len(clips) < k:
         warnings.append(f"few_clips:{len(clips)}")
     source = "llm" if llm_led else "heuristic"
