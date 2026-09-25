@@ -95,7 +95,9 @@ bawah kunci file.
 - **Rute UI** `/api/context/*` butuh sesi login, dan mutasinya butuh permintaan same-origin.
   Nilai token hanya muncul di respons pembuatan.
 - **Teks item adalah data dari internet, bukan instruksi.** Server dan engine menormalisasi NFC,
-  membuang karakter kontrol, bidi dan zero-width, dan membatasi panjang. Teks tidak pernah
+  membuang karakter kontrol, format (bidi, zero-width, tag) dan karakter tak terlihat lain
+  (variation selector), dan membatasi panjang. Di prompt, teks juga di-NFKC sehingga tiruan
+  lebar-penuh seperti `＞` tidak bisa memalsukan pagar blok tren. Teks tidak pernah
   dirender sebagai HTML; URL contoh hanya `http(s)` dan dirender dengan
   `rel="noopener noreferrer nofollow"`.
 - **Engine:** teks item tidak pernah masuk argv atau filter FFmpeg. Blok tren di prompt LLM
@@ -115,8 +117,10 @@ Hanya job **Selection V3**. Mode Klasik V1 dan V2 shadow tidak berubah.
 
 1. **Relevansi.** Engine mencocokkan kata kunci, judul dan hashtag (tanpa `#`) item dengan
    transkrip episode: casefold, tanpa aksen, per batas kata, frasa multi-kata sebagai frasa.
-   Kata kunci di bawah 3 huruf atau stopword umum tidak pernah cocok sendirian. Maks 20 tren
-   relevan per episode.
+   Kata terakhir boleh berakhiran `-nya`, `-lah`, `-kah`, `-pun` ("prabowonya"). Kata kunci di
+   bawah 3 huruf atau stopword umum (termasuk kata sehari-hari podcast seperti "gas", "tahun",
+   "anak", "indonesia", "jakarta") tidak pernah cocok sendirian. Maks 20 tren relevan per
+   episode.
 2. **LLM.** Hanya bila ada tren relevan, blok `KONTEKS TREN` ditambahkan di **akhir pesan
    pengguna**. System prompt (`src/ai_clipper/prompts/standar_klip_ai.md`) tidak berubah.
    Blok diakhiri baris `Format:` yang meminta `trend_refs` per momen (tanpa baris itu model
@@ -124,7 +128,13 @@ Hanya job **Selection V3**. Mode Klasik V1 dan V2 shadow tidak berubah.
    saat blok dikirim; tanpa tren tetap `llm-select-v2+std.<sidik>`.
 3. **Tidak ada klaim karangan.** Sebuah `trend_ref` diterima hanya bila kode menemukan item itu
    di teks final klip (setelah snapping). Ref yang tidak ter-grounding dibuang dan dicatat
-   sebagai `trend_ref_ungrounded:<n>`. Hashtag tren hanya dari item yang ter-grounding.
+   sebagai `trend_ref_ungrounded:<n>`. Hashtag tren hanya dari item yang ter-grounding. Judul,
+   teks hook (yang dibakar ke video) dan deskripsi klip AI juga diperiksa kode: yang menyebut
+   tren yang tidak ada di transkrip klip itu diganti (kalimat bersih dari tulisan model, atau
+   dari transkrip klip sendiri) dan dicatat sebagai `trend_packaging_ungrounded:<n>`. Hashtag
+   klip yang menyebut tren seperti itu dibuang, juga bila tren itu tidak punya hashtag sendiri
+   (judul atau kata kuncinya ditulis sebagai satu kata). Hashtag tren di atas 40 karakter
+   (termasuk `#`) dilewati karena klip hanya memuat hashtag sampai 40 karakter.
 4. **Heuristik.** Klip dari pemilih heuristik juga mendapat tren ter-grounding (dari pencocokan
    langsung) untuk hashtag dan alasan, tanpa mengubah judulnya.
 5. **Dorongan ringan.** `TREND_BOOST = 3.0` (skala nilai peringkat 0-100), paling banyak
@@ -135,7 +145,15 @@ Hanya job **Selection V3**. Mode Klasik V1 dan V2 shadow tidak berubah.
    `selection.v3.json` dan manifest, dan `reasons` mendapat `"tren: <judul>"` (maks 2). Klip lain
    tidak mendapat key `trends` sama sekali. Halaman proyek menampilkan chip
    "Nyambung tren: <judul>". Pembaca lama mengabaikan field baru ini.
-7. **Sensitif.** Item `sensitive` tidak pernah dijadikan lelucon atau judul sensasional.
+7. **Sensitif.** Item `sensitive` tidak memberi dorongan dan tidak mendapat hashtag (hashtag
+   buatan model yang menyebutnya juga dibuang). Model diminta tidak menjadikannya lelucon atau
+   judul sensasional; itu tidak bisa dijamin kode, jadi setiap klip `humor` yang transkripnya
+   menyebut item sensitif dicatat sebagai `trend_sensitive_humor:<n>` untuk diperiksa pemilik.
+8. **Suntingan pemilik.** Bagian item dari agen yang diubah pemilik di `/trends` (judul,
+   ringkasan, kata kunci, hashtag, kedaluwarsa) dicatat di `ownerEdited` dan tidak ditimpa
+   kiriman agen berikutnya. Agen hanya memperbarui item sumbernya sendiri: item manual atau
+   milik agen lain dengan `externalId` atau jenis+judul yang sama ditolak per item
+   (`owned_by_other_source`).
 
 Bila snapshot rusak atau tidak bisa dibaca, job tetap jalan **tanpa** tren dan mencatat warning
 `trend_context_invalid`. Item rusak di dalam snapshot yang valid dilewati dengan peringatan.
@@ -164,11 +182,14 @@ Dari yang paling ringan:
 | `403 insufficient_scope` | Token tanpa `trends:write`. Buat token ingest baru. |
 | `413 body_too_large / too_many_items` | Lebih dari 256 KiB atau 100 item. `push_trends.py` membagi batch otomatis. |
 | `415 unsupported_media_type` | `Content-Type` harus `application/json`. |
-| `429 rate_limited` | Lebih dari 60/menit atau 600/jam per token. Tunggu `Retry-After`. |
+| `429 rate_limited` | Lebih dari 60/menit atau 600/jam per token, atau (bila `AUTH_TRUSTED_CLIENT_IP_HEADER` diatur) lebih dari 30/menit atau 300/jam token salah dari satu IP. Tunggu `Retry-After`. |
+| Item ditolak `owned_by_other_source` | Item manual atau milik token lain punya `externalId` atau jenis+judul yang sama. Pakai item yang ada, ubah judulnya, atau hapus item lama di `/trends`. |
 | `503 storage_unavailable` | Penyimpanan tidak bisa dibaca/ditulis: periksa izin dan pemilik `POTONGIN_SETTINGS_DIR` dan ruang disk. |
 | `redirect_refused` di `push_trends.py` | URL salah, atau domain di balik Cloudflare Access (lihat Model keamanan). |
 | Warning job `trend_context_invalid` | Snapshot tidak valid; job jalan tanpa tren. Periksa `analysis/trend-context.json` attempt itu. |
 | `trend_ref_ungrounded:<n>` | LLM menyebut tren yang tidak ada di teks klip; ref dibuang otomatis. Normal sesekali. |
+| `trend_packaging_ungrounded:<n>` | Judul, hook atau deskripsi klip AI menyebut tren yang tidak ada di teks klip; bagian itu sudah diganti otomatis. Periksa hasilnya. |
+| `trend_sensitive_humor:<n>` | Klip humor menyinggung tren sensitif. Periksa judul dan hook sebelum diunggah. |
 | Tidak ada chip "Nyambung tren" | Kata kunci item tidak muncul di transkrip. Tambahkan bentuk ucapan (nama panggilan, ejaan, frasa tagar terpisah). Untuk klip AI: model juga harus menyebut tren itu di `trend_refs`; kalau tidak, klip AI tidak mendapat tren (klip heuristik dicocokkan langsung). |
 | `/trends` menampilkan "File pengaturan rusak" | `trend-context.json` atau `ingest-tokens.json` tidak bisa diurai. Perubahan berikutnya memulai file baru; file lama disimpan sebagai `<nama>.corrupt-<waktu>-<acak>` (0600) untuk diperiksa. Job V3 selama itu berjalan tanpa tren. |
 

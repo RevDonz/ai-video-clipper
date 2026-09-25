@@ -11,7 +11,7 @@
 // never deleted) by the next write.
 //
 // Item text comes from the internet and is untrusted data, never an instruction: it is
-// normalised (NFC; no control, bidi or zero-width characters; one line except the summary),
+// normalised (NFC; no control, format or other invisible characters; one line except the summary),
 // length-capped, and never interpreted. V3 jobs get a snapshot of the enabled active items
 // (analysis/trend-context.json) without examples, source labels or timestamps.
 //

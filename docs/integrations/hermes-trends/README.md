@@ -167,8 +167,10 @@ Jangan kirim `id`, `source`, `createdAt`, `updatedAt` (diisi server; `push_trend
 Potongin mencocokkan `keywords` (juga judul dan hashtag tanpa `#`) dengan **transkrip ucapan**
 klip: huruf kecil, tanpa aksen, per kata utuh. Jadi tulis seperti orang mengucapkannya di
 podcast atau live: nama lengkap, nama panggilan, sebutan (`pak …`, `bang …`), variasi ejaan dan
-slang, tagar dalam bentuk kata terpisah. Kata kunci di bawah 3 huruf atau kata umum tidak pernah
-cocok sendirian, jadi hindari kata generik seperti `viral` atau `lucu`.
+slang, tagar dalam bentuk kata terpisah. Akhiran ucapan `-nya`, `-lah`, `-kah`, `-pun` pada
+kata terakhir ikut cocok ("prabowonya"). Kata kunci di bawah 3 huruf atau kata umum tidak pernah
+cocok sendirian, jadi hindari kata generik seperti `viral`, `lucu`, `gas`, `tahun` atau
+`jakarta`; pakai frasanya (`gas melon`, `banjir jakarta`).
 
 ### Dedupe, kedaluwarsa, sensitif
 
@@ -179,8 +181,10 @@ cocok sendirian, jadi hindari kata generik seperti `viral` atau `lucu`.
   ulang `externalId` yang sama untuk memperpanjang tren yang masih ramai. Item kedaluwarsa tidak
   dipakai, disimpan 7 hari untuk riwayat, lalu dihapus.
 - **Sensitif:** tragedi, bencana, kematian, kriminal, kekerasan, SARA, kesehatan, anak di bawah
-  umur, kasus hukum → `"sensitivity": "sensitive"`. Potongin tidak menjadikannya lelucon atau
-  judul sensasional, dan item sensitif tidak memberi dorongan peringkat.
+  umur, kasus hukum → `"sensitivity": "sensitive"`. Item sensitif tidak memberi dorongan
+  peringkat dan tidak pernah menjadi hashtag klip. Model pemilih klip diminta tidak menjadikannya
+  lelucon atau judul sensasional; klip lucu yang menyinggungnya ditandai untuk diperiksa
+  pemilik.
 - **Privasi:** `person` hanya untuk tokoh publik. Orang biasa yang viral tidak disebut namanya;
   tidak ada alamat, nomor telepon, pelat nomor, sekolah/kantor orang biasa, atau nama anak.
 - **Hak cipta:** ringkasan ditulis ulang; jangan menempel lirik, caption, paragraf berita, atau
