@@ -1,0 +1,4 @@
+/* "Nyambung tren" chips on a V3 clip card (project page). Tokens from globals.css. */
+.trendChips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px;padding:0;list-style:none}
+.trendChips li{display:inline-flex;align-items:center;gap:6px;max-width:100%;min-height:26px;padding:4px 10px;border:1px solid #cfe8b0;border-radius:99px;background:#f3fbe8;color:#2f5a12;font:700 11px/1.35 'DM Sans';overflow-wrap:anywhere}
+.dot{flex:none;width:7px;height:7px;border-radius:50%;background:#7fcf2a;box-shadow:0 0 0 3px #b8ff5744}
