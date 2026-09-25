@@ -119,8 +119,9 @@ Hanya job **Selection V3**. Mode Klasik V1 dan V2 shadow tidak berubah.
    relevan per episode.
 2. **LLM.** Hanya bila ada tren relevan, blok `KONTEKS TREN` ditambahkan di **akhir pesan
    pengguna**. System prompt (`src/ai_clipper/prompts/standar_klip_ai.md`) tidak berubah.
-   Jawaban boleh berisi `trend_refs` per momen. Provenance mencatat `llm-select-v2+trends.v1`
-   saat blok dikirim; tanpa tren tetap `llm-select-v2`.
+   Blok diakhiri baris `Format:` yang meminta `trend_refs` per momen (tanpa baris itu model
+   gratis tidak pernah mengisinya). Versi prompt tercatat `llm-select-v2+trends.v1+std.<sidik>`
+   saat blok dikirim; tanpa tren tetap `llm-select-v2+std.<sidik>`.
 3. **Tidak ada klaim karangan.** Sebuah `trend_ref` diterima hanya bila kode menemukan item itu
    di teks final klip (setelah snapping). Ref yang tidak ter-grounding dibuang dan dicatat
    sebagai `trend_ref_ungrounded:<n>`. Hashtag tren hanya dari item yang ter-grounding.
@@ -130,8 +131,9 @@ Hanya job **Selection V3**. Mode Klasik V1 dan V2 shadow tidak berubah.
    `TREND_BOOST_CAP = 3.0` per klip berapa pun jumlah trennya, diterapkan pada nilai peringkat
    sebelum pengurutan, hanya untuk klip dengan minimal satu tren ter-grounding. Item `sensitive`
    tidak memberi dorongan. `score` dan lima sub-skor yang ditampilkan **tidak berubah**.
-6. **Keluaran.** Setiap klip mendapat `trends` (`id`, `title`, `kind`) di `selection.v3.json` dan
-   manifest, dan `reasons` mendapat `"tren: <judul>"` (maks 2). Halaman proyek menampilkan chip
+6. **Keluaran.** Klip yang ter-grounding mendapat `trends` (`id`, `title`, `kind`, maks 5) di
+   `selection.v3.json` dan manifest, dan `reasons` mendapat `"tren: <judul>"` (maks 2). Klip lain
+   tidak mendapat key `trends` sama sekali. Halaman proyek menampilkan chip
    "Nyambung tren: <judul>". Pembaca lama mengabaikan field baru ini.
 7. **Sensitif.** Item `sensitive` tidak pernah dijadikan lelucon atau judul sensasional.
 
@@ -167,7 +169,8 @@ Dari yang paling ringan:
 | `redirect_refused` di `push_trends.py` | URL salah, atau domain di balik Cloudflare Access (lihat Model keamanan). |
 | Warning job `trend_context_invalid` | Snapshot tidak valid; job jalan tanpa tren. Periksa `analysis/trend-context.json` attempt itu. |
 | `trend_ref_ungrounded:<n>` | LLM menyebut tren yang tidak ada di teks klip; ref dibuang otomatis. Normal sesekali. |
-| Tidak ada chip "Nyambung tren" | Kata kunci item tidak muncul di transkrip. Tambahkan bentuk ucapan (nama panggilan, ejaan, frasa tagar terpisah). |
+| Tidak ada chip "Nyambung tren" | Kata kunci item tidak muncul di transkrip. Tambahkan bentuk ucapan (nama panggilan, ejaan, frasa tagar terpisah). Untuk klip AI: model juga harus menyebut tren itu di `trend_refs`; kalau tidak, klip AI tidak mendapat tren (klip heuristik dicocokkan langsung). |
+| `/trends` menampilkan "File pengaturan rusak" | `trend-context.json` atau `ingest-tokens.json` tidak bisa diurai. Perubahan berikutnya memulai file baru; file lama disimpan sebagai `<nama>.corrupt-<waktu>-<acak>` (0600) untuk diperiksa. Job V3 selama itu berjalan tanpa tren. |
 
 ## Verifikasi ujung ke ujung
 
