@@ -141,7 +141,7 @@ function installScenario(config) {
     const future = [];
     let planSeq = 0;
     let saveTimer = null;
-    let state = { status: "loading", doc: null, seed: null, words: null, etag: null, save: "saved", savedAtMs: null,
+    let state = { status: "loading", doc: null, seed: null, words: null, etag: null, revision: null, save: "saved", savedAtMs: null,
       canUndo: false, canRedo: false, plan: null, pending: config.pending ?? [], warnings: config.warnings ?? [],
       selection: null, commands: [], conflict: null, readOnlyReason: null };
     const set = (patch) => {
@@ -204,9 +204,10 @@ function installScenario(config) {
         set({ save: "saving" });
         await wait(config.saveMs ?? 60);
         if (config.saveFails) { set({ save: "error" }); return; }
-        const next = { ...state.doc, revision: state.doc.revision + 1, parent_sha256: state.etag };
+        // As the real store: the saved revision is `revision`; `doc` keeps the session document.
+        const next = { ...state.doc, revision: state.revision + 1, parent_sha256: state.etag };
         const result = await parts.api.putEdit(next, { etag: state.etag, key: crypto.randomUUID() });
-        set({ save: "saved", savedAtMs: Date.now(), etag: result.etag, doc: result.doc });
+        set({ save: "saved", savedAtMs: Date.now(), etag: result.etag, revision: result.doc.revision });
       },
       resolveConflict(choices) {
         calls.push(["resolveConflict", choices]);
@@ -224,7 +225,7 @@ function installScenario(config) {
       const words = await parts.api.words(edit.words.url);
       const plan = await parts.previewClient.plan(edit.doc);
       set({ status: edit.readOnly ? "readOnly" : "ready", readOnlyReason: edit.readOnlyReason ?? null, doc: edit.doc,
-        seed: clone(edit.doc), words, etag: edit.etag, plan, savedAtMs: Date.now() });
+        seed: clone(edit.doc), words, etag: edit.etag, revision: edit.doc.revision, plan, savedAtMs: Date.now() });
       if (config.conflict) set({ save: "conflict", conflict: config.conflict });
     })();
     return store;
@@ -419,6 +420,10 @@ test("a pending layer replaces the badge with what is pending, never an approxim
   await openEditor(page, { scenarioStore: true, pending: ["text", "plate"], cells });
   await expect(badge(page)).toHaveText("Memperbarui teks… · Menyiapkan video (2/6)…");
   await expect(page.getByText("● Sesuai hasil akhir")).toHaveCount(0);
+  await page.getByRole("button", { name: "Apa artinya?" }).click();
+  await expect(page.getByRole("note")).not.toHaveText(HELP_TEXT);
+  await expect(page.getByRole("note")).toContainText("belum");
+  await page.keyboard.press("Escape");
   const px = await pxPerFrame(page);
   const band = await page.locator("[data-pending-band]").evaluateAll((elements) => elements.map((element) => [element.offsetLeft, element.offsetWidth]));
   expect(band).toHaveLength(1);
@@ -719,6 +724,8 @@ test("export: acknowledge each check, then Antre → Merender (n%) → Memverifi
   const state = await editorState(page);
   expect(state.save).toBe("saved");
   expect(calls.find((call) => call[0] === "createRender")[1]).toEqual({ editEtag: expect.stringMatching(/^[0-9a-f]{64}$/) });
+  // the revision the export was made from (the store's saved one; the loaded document is 0)
+  await expect(dialog.getByText("Revisi 1 · tersimpan")).toBeVisible();
   await expect(dialog.getByText("Volume diturunkan agar audio tidak pecah (-3.80 dB)")).toBeVisible();
   await expect(dialog.getByText("Sutradara ditahan security")).toBeVisible();
   await expect(dialog.getByRole("button", { name: "Salin judul" })).toBeVisible();
@@ -736,8 +743,12 @@ test("export: cancel stays available and stops the render", async ({ page }) => 
   const dialog = await startExport(page);
   await dialog.getByRole("button", { name: "Mulai ekspor" }).click();
   await expect(dialog.getByRole("list", { name: "Tahap ekspor" }).locator('[aria-current="step"]')).toHaveText(/Merender/);
+  await expect(dialog.getByRole("list", { name: "Ekspor sebelumnya" })).toHaveCount(0);
   await dialog.getByRole("button", { name: "Batalkan ekspor" }).click();
   await expect(dialog.getByText("Render dibatalkan")).toBeVisible();
+  const stopped = dialog.getByRole("list", { name: "Tahap ekspor" }).locator('[aria-current="step"]');
+  await expect(stopped).toHaveText(/Merender/);
+  await expect(stopped).toHaveAttribute("data-step-status", "stopped");
   expect((await scenarioCalls(page)).some((call) => call[0] === "cancelRender")).toBe(true);
   await expect(dialog.getByRole("button", { name: "Coba lagi" })).toBeVisible();
 });
