@@ -122,6 +122,21 @@ export function clipTrendChips(clip) {
   return chips;
 }
 
+// Konteks Tren summary codes (engine: pipeline.py and selection_v3.py). Other codes stay
+// technical and get no label.
+const TREND_WARNING_LABELS = Object.freeze({
+  trend_items_skipped: (count) => `${count} item tren rusak dilewati.`,
+  trend_ref_ungrounded: (count) => `${count} tren yang disebut AI dibuang karena tidak disebut di transkrip klipnya.`,
+});
+
+/** An Indonesian explanation of a trend warning code of the V3 summary, or null. */
+export function selectionWarningLabel(code) {
+  if (code === "trend_context_invalid") return "File konteks tren job rusak atau hilang; job jalan tanpa tren.";
+  const match = typeof code === "string" ? /^([a-z_]+):([1-9]\d{0,5})$/.exec(code) : null;
+  const label = match && Object.hasOwn(TREND_WARNING_LABELS, match[1]) ? TREND_WARNING_LABELS[match[1]] : null;
+  return label ? label(match[2]) : null;
+}
+
 export function coldOpenLength(clip) {
   const coldOpen = clip?.coldOpen;
   if (!coldOpen || typeof coldOpen.start !== "number" || typeof coldOpen.end !== "number") return null;
