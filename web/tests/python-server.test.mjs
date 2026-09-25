@@ -51,7 +51,7 @@ process.stdin.on("data", (chunk) => {
   started = true;
   const config = JSON.parse(pending.slice(0, at));
   writeFileSync(path.join(here, "start-line"), JSON.stringify(config));
-  server = net.createServer((conn) => {
+  server = net.createServer({ allowHalfOpen: true }, (conn) => {
     const parts = [];
     conn.on("data", (c) => parts.push(c));
     conn.on("end", () => answer(conn, JSON.parse(Buffer.concat(parts).toString("utf8"))));
