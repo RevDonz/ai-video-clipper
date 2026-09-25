@@ -839,3 +839,58 @@ def test_a_face_track_clip_gets_a_camera_plan_and_renders(source, tmp_path):
     assert hashlib.sha256(plan_file.read_bytes()).hexdigest() == camera_sha
     assert render_edit.verify_file(Path(entry["output"]),
                                    render_edit.load_render_inputs(job_dir, seed_doc).plan).ok
+
+
+# --- the gate tools (scripts/parity/{rt_check,look_report}.py) ------------------------------------
+
+
+def _script(name: str):
+    import importlib.util
+    import sys
+
+    module_name = f"parity_{name}"
+    if module_name not in sys.modules:
+        spec = importlib.util.spec_from_file_location(
+            module_name, Path(__file__).resolve().parents[1] / "scripts" / "parity" / f"{name}.py")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        spec.loader.exec_module(module)
+    return sys.modules[module_name]
+
+
+def test_the_ink_box_splits_hook_and_captions():
+    look = _script("look_report")
+    width, height = look.W, look.H
+    plane = bytearray([look.GREY]) * (width * height)
+    for y in range(100, 140):
+        plane[y * width + 200:y * width + 520] = b"\xff" * 320  # a hook bar
+    for y in range(1000, 1060):
+        plane[y * width + 150:y * width + 571] = b"\x10" * 421  # a caption line
+    plane[5 * width + 3] = look.GREY + look.INK_THRESHOLD  # antialiasing below the threshold
+    assert look._box(bytes(plane), 0, height // 2) == [200, 100, 520, 140]
+    assert look._box(bytes(plane), height // 2, height) == [150, 1000, 571, 1060]
+    assert look._box(bytes([look.GREY]) * (width * height), 0, height) is None
+
+
+def test_ssim_offsets_and_runs_are_summarised(monkeypatch):
+    look = _script("look_report")
+    series = {-1: [0.975, 0.995, 0.995, 0.95], 0: [0.99, 0.985, 0.97, 0.96],
+              1: [0.9, 0.9, 0.9, 0.9]}
+    monkeypatch.setattr(look, "ssim_frames", lambda new, legacy, nf, lf, offset: series[offset])
+    report = look.ssim_report(Path("n"), Path("l"), (30, 1), (60, 1))
+    assert report["best_offset"] == -1 and report["frames"] == 4
+    assert report["per_frame_best_min"] == 0.96  # max over the offsets, frame by frame
+    assert report["frames_below_threshold"] == 1 and report["below_runs"] == [[3, 3]]
+    assert look._runs([1, 2, 3, 7, 9, 10]) == [[1, 3], [7, 7], [9, 10]]
+
+
+def test_the_r10_evidence_needs_every_case_linked():
+    rt = _script("rt_check")
+    rerun = {"clips": [{"layout": "fit_blur", "fps": [30, 1], "srt_identical": True,
+                        "plan_sha256_equal": True, "render_key_equal": True}],
+             "summary": {"clips": 1, "video_identical": 1, "pcm_identical": 1, "pass": True},
+             "environment": {}}
+    check = {"summary": {"cases": 3, "linked": 3, "pass": True}, "environment": {}}
+    assert rt.evidence([rerun], [check], ["synthetic"])["pass"] is True
+    failing = {"summary": {"cases": 3, "linked": 2, "pass": False}, "environment": {}}
+    assert rt.evidence([rerun], [failing], ["synthetic"])["pass"] is False
