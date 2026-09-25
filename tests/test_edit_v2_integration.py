@@ -235,6 +235,100 @@ def test_a_prepared_clip_renders_verifies_and_has_a_render_key(synthetic_jobs, t
     assert hashlib.sha256(job.sidecars["captions.ass"]).hexdigest() == plan.ass_sha256
 
 
+# --- R8: hostile text through the real modules ----------------------------------------------------
+# T1.3's property tests run with the stand-ins; these run the real caption track (T1.2a) and the
+# real audio fragment (T1.4), so a seam that let user text into argv or the graph would show.
+
+
+def _real_modes(plan):
+    size = tm.cell_frames(plan.fps)
+    loud = Loudness(-1900, -300)
+    return {"final": {"loudness": loud}, "reference": {"loudness": loud},
+            "audio_preview": {"loudness": loud}, "audio_measure": {},
+            "frame": {"frame": 30}, "plate_cells": {"cells": (plan.pieces[0].in_sf // size,)}}
+
+
+def test_hostile_text_never_reaches_argv_or_the_graph_through_the_real_modules(probe):
+    from test_edit_v2_compile import HOSTILE, hostile_doc
+
+    document = hostile_doc()
+    context = fixtures.load_context("c30")
+    plan = build_plan(document, words=context.words, camera=None, assets=context.assets,
+                      resources=Resources(RESOURCES_DIR))
+    probe["streams"] = fake_probe(plan.doc)
+    jobs = [compile_ffmpeg.compile_job(plan, mode=mode, source=SOURCE, assets_root=ASSETS_ROOT,
+                                       **extra) for mode, extra in _real_modes(plan).items()]
+    assert len(jobs) == 6
+    for job in jobs:
+        blob = "\n".join(job.argv) + "\n" + job.filter_script
+        for text in HOSTILE:
+            assert text not in blob and text.split()[0] not in blob
+        for word_id in document["captions"]["word_edits"]:
+            assert word_id not in blob
+    ass = jobs[0].sidecars["captions.ass"].decode("utf-8")
+    assert ass == plan.ass and "XH1" in ass  # the real caption track carries the text
+
+
+def test_random_text_never_reaches_argv_or_the_graph_through_the_real_modules(probe):
+    import random
+
+    rng = random.Random(20260925)
+    alphabet = "abc XYZ:;,[]'\"\\{}%$`=/.-_\u202e\u05e9"
+    context = fixtures.load_context("c30")
+    for _ in range(20):
+        document = load_doc("full_example__c30")
+        text = ("QQ" + "".join(rng.choice(alphabet) for _ in range(rng.randint(5, 60))))
+        text = text.strip()[:88] + "QQ"
+        hook = next(t for t in document["tracks"] if t["kind"] == "hook")["items"][0]
+        hook["payload"]["text"] = text
+        for word_id in sorted(document["captions"]["word_edits"])[:3]:
+            document["captions"]["word_edits"][word_id] = {"text": text[:38].strip() + "QQ"}
+        plan = build_plan(document, words=context.words, camera=None, assets=context.assets,
+                          resources=Resources(RESOURCES_DIR))
+        probe["streams"] = fake_probe(plan.doc)
+        job = compile_ffmpeg.compile_job(plan, mode="final", source=SOURCE,
+                                         assets_root=ASSETS_ROOT, loudness=Loudness(-1900, -300))
+        assert "QQ" not in "\n".join(job.argv) + job.filter_script
+        assert "QQ" in job.sidecars["captions.ass"].decode("utf-8")
+
+
+# --- R8 hygiene outside the compiler ------------------------------------------------------------------
+
+
+def test_every_helper_that_opens_the_source_whitelists_file_and_pipe(edit_v2_media_factory,
+                                                                      monkeypatch):
+    """The probes and decodes outside ``compile_job``/``execute`` (source.json, peaks, the
+    compiler's stream probe) open the job source with ``-protocol_whitelist file,pipe`` and an
+    allowlisted environment, like every FFmpeg child of the compiler (plan §5.2 R8, §9.1)."""
+    from support import edit_v2_media as media
+
+    from ai_clipper.edit_v2 import peaks, source_info
+
+    monkeypatch.setenv("APP_SESSION_SECRET", "secret-value")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "secret-value")
+    path = edit_v2_media_factory(media.VideoSpec(width=160, height=144, frames=45))
+    calls = []
+    real_run = subprocess.run
+
+    def spy(argv, *args, **kwargs):
+        calls.append((list(argv), kwargs.get("env")))
+        return real_run(argv, *args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", spy)
+    compile_ffmpeg._probe_cached.cache_clear()
+    source_info.probe_source(path)
+    peaks.build_peaks(path, (0, 1000))
+    compile_ffmpeg.probe_source(path)
+    opened = [(argv, env) for argv, env in calls if str(path) in argv]
+    tools = {Path(argv[0]).name for argv, _env in opened}
+    assert {"ffmpeg", "ffprobe"} <= tools and len(opened) >= 5
+    for argv, env in opened:
+        at = argv.index("-protocol_whitelist")
+        assert argv[at + 1] == "file,pipe" and at < argv.index(str(path)), argv
+        assert env is not None and set(env) <= {"PATH", "LANG", "LC_ALL"}, argv
+        assert "secret-value" not in json.dumps(env)
+
+
 # --- source edges ---------------------------------------------------------------------------------
 # A document that validates must render every planned frame, also at the first and the last
 # frame of the source (W1 verifier: a body ending at sf_ceil(duration_ms) rendered 150 of 151
