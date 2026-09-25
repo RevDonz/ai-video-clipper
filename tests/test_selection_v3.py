@@ -9,7 +9,7 @@ import pytest
 
 from ai_clipper import benchmark, selection_v3
 from ai_clipper.audio_timeline import build_audio_timeline
-from ai_clipper.focus import FocusMatcher, parse_focus
+from ai_clipper.focus import FocusMatcher, HeuristicWindows, parse_focus
 from ai_clipper.hook_heuristics import HEURISTIC_VERSION
 from ai_clipper.llm import LLMError, LLMUnavailable, ScriptedLLMClient
 from ai_clipper.llm_selection import (
@@ -47,7 +47,7 @@ from ai_clipper.selection_v3 import (
     selection_from_dict,
     write_selection_artifact,
 )
-from ai_clipper.sentences import SentenceUnit, looks_like_question
+from ai_clipper.sentences import SentenceUnit, build_sentence_units, looks_like_question
 from ai_clipper.sound_events import SoundEvent
 from ai_clipper.trend_context import TrendItem, match_trends
 
@@ -1448,6 +1448,34 @@ def test_extra_candidates_never_overlap_the_literal_clips(monkeypatch):
     assert [clip.focus.match for clip in result.clips] == ["literal", "literal", "none"]
     assert starts(result)[0] == "S0021" and 25 in unit_range(result.clips[1])
     assert result.clips[1].source == "heuristic" and result.clips[2].source == "llm"
+
+
+def test_a_mention_right_before_a_literal_clip_still_gets_its_own_window(monkeypatch):
+    monkeypatch.setattr(selection_v3, "propose_heuristic", lambda *args, **kwargs: ())
+    moments = [moment(20, 23, hook=21), moment(2, 5, hook=3)]
+
+    result, _ = llm_run(moments, k=3, segments=jomok_episode(19, 21), focus=JOMOK)
+
+    check_result(result, k=3, low=20.0, high=40.0)
+    assert [clip.focus.match for clip in result.clips] == ["literal", "literal", "none"]
+    before = result.clips[1]
+    assert before.source == "heuristic" and max(unit_range(before)) == 19
+
+
+def test_heuristic_windows_stay_inside_the_free_units():
+    units = build_sentence_units(jomok_episode(19))
+    windows = HeuristicWindows(units, min_duration=20.0, max_duration=40.0)
+
+    free = windows.around(19, 19, 6, within=(0, 19))
+    anywhere = windows.around(19, 19, 6)
+
+    assert free and all(item.start_unit <= 19 == item.end_unit for item in free)
+    assert all(item.start_unit <= 19 <= item.end_unit for item in anywhere)
+    assert [item.score for item in anywhere] == sorted(
+        (item.score for item in anywhere), reverse=True
+    )
+    assert windows.around(19, 19, 6, within=(19, 19)) == []  # 7 s: too short
+    assert windows.around(19, 19, 6, within=(20, 39)) == []
 
 
 def test_llm_clips_outranked_by_focus_matches_are_not_a_fallback():
