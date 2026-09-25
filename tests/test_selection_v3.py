@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import json
 import math
 
@@ -9,9 +10,15 @@ from ai_clipper import benchmark, selection_v3
 from ai_clipper.audio_timeline import build_audio_timeline
 from ai_clipper.hook_heuristics import HEURISTIC_VERSION
 from ai_clipper.llm import LLMError, LLMUnavailable, ScriptedLLMClient
-from ai_clipper.llm_selection import PROMPT_VERSION, combined_score, standard_sha256
+from ai_clipper.llm_selection import (
+    PROMPT_VERSION,
+    TREND_PROMPT_VERSION,
+    combined_score,
+    render_trend_block,
+    standard_sha256,
+)
 from ai_clipper.models import TranscriptSegment, TranscriptWord
-from ai_clipper.selection_types import SelectedClip, SelectionResult
+from ai_clipper.selection_types import SelectedClip, SelectionResult, TrendRef
 from ai_clipper.selection_v3 import (
     COLD_OPEN_MAX_SECONDS,
     COLD_OPEN_MIN_SECONDS,
@@ -19,6 +26,8 @@ from ai_clipper.selection_v3 import (
     PRE_ROLL_SECONDS,
     SELECTION_ARTIFACT_RELATIVE_PATH,
     TAIL_SECONDS,
+    TREND_BOOST,
+    TREND_BOOST_CAP,
     SelectionArtifactError,
     _Snapper,
     _Span,
@@ -30,6 +39,7 @@ from ai_clipper.selection_v3 import (
 )
 from ai_clipper.sentences import SentenceUnit, looks_like_question
 from ai_clipper.sound_events import SoundEvent
+from ai_clipper.trend_context import TrendItem
 
 SCORES = {"hook": 8, "standalone": 7, "payoff": 6, "emotion": 5, "shareability": 4}
 TOLERANCE = 1e-6
@@ -914,3 +924,206 @@ def test_selected_clips_are_benchmark_spans():
     spans = benchmark._validate_spans(result.clips)
     assert spans == tuple((clip.start, clip.end) for clip in result.clips)
     assert all(isinstance(clip, SelectedClip) for clip in result.clips)
+
+
+# --- Konteks Tren -----------------------------------------------------------------------------
+
+
+def trend(unit: int, name: str, *, score: float = 50.0, **overrides) -> TrendItem:
+    """A trend mentioned only by unit ``unit`` of :func:`episode` ("kisah<unit> bareng")."""
+    values = {
+        "id": f"trend-{name.lower()}",
+        "kind": "topic",
+        "title": f"Tren {name}",
+        "keywords": (f"kisah{unit} bareng",),
+        "hashtags": (f"#Tren{name}",),
+        "score": score,
+    }
+    values.update(overrides)
+    return TrendItem(**values)
+
+
+def llm_run(moments, *, trends=(), k=2, segments=None, **options):
+    client = ScriptedLLMClient([{"moments": moments}])
+    options.setdefault("rerank", False)
+    result = select_clips_v3(
+        episode(40) if segments is None else segments,
+        k=k,
+        min_duration=20.0,
+        max_duration=40.0,
+        llm_client=client,
+        trends=trends,
+        **options,
+    )
+    return result, client
+
+
+def flat(value: float) -> dict[str, float]:
+    return dict.fromkeys(SCORES, value)
+
+
+def test_without_relevant_trends_every_output_is_unchanged():
+    segments = episode(40, gap=0.5)
+    absent = TrendItem(id="trend-absent", kind="event", title="Gunung Meletus",
+                       keywords=("gunung meletus",), hashtags=("#GunungMeletus",))
+    moments = [moment(10, 13, hook=12, trend_refs=["T1"]), moment(20, 23, hook=21)]
+    baseline, base_client = llm_run(moments, segments=segments)
+    for trends in ((), [absent]):
+        result, client = llm_run(moments, segments=segments, trends=trends)
+        assert result == baseline
+        assert client.calls == base_client.calls
+        assert json.dumps(result.to_dict()) == json.dumps(baseline.to_dict())
+    heuristic = select_clips_v3(segments, k=4, min_duration=20.0, max_duration=40.0,
+                                llm_mode="off")
+    assert select_clips_v3(segments, k=4, min_duration=20.0, max_duration=40.0,
+                           llm_mode="off", trends=[absent]) == heuristic
+    assert all("trends" not in clip for clip in baseline.to_dict()["clips"])
+
+
+def test_llm_trend_refs_are_kept_only_when_the_clip_transcript_mentions_them():
+    first, second = trend(12, "A", score=90), trend(30, "B", score=10)
+    moments = [
+        moment(10, 13, hook=12, trend_refs=["T1", "T2", "T9"],
+               hashtags=["#fyp", "#TrenB", "#kisah"]),
+        moment(20, 23, hook=21, trend_refs=["T2"], hashtags=["#trenb", "#podcast"]),
+    ]
+
+    result, client = llm_run(moments, trends=[second, first])
+
+    assert client.calls[0]["user"].endswith("\n\n" + render_trend_block([first, second]))
+    assert result.source == "llm"
+    assert result.prompt_version == (
+        f"{PROMPT_VERSION}+{TREND_PROMPT_VERSION}+std.{standard_sha256()[:12]}"
+    )
+    grounded, invented = result.clips
+    assert grounded.trends == (TrendRef(id="trend-a", title="Tren A", kind="topic"),)
+    assert grounded.reasons[-1] == "tren: Tren A"
+    assert grounded.hashtags == ("#TrenA", "#fyp", "#kisah")  # B's tag was not grounded
+    assert grounded.title == "Judul klip LLM"  # packaging text is the model's own
+    assert invented.trends == () and invented.hashtags == ("#podcast",)
+    assert not any(reason.startswith("tren:") for reason in invented.reasons)
+    assert "trend_ref_ungrounded:3" in result.warnings
+    assert grounded.to_dict()["trends"] == [
+        {"id": "trend-a", "title": "Tren A", "kind": "topic"}
+    ]
+
+
+def test_heuristic_clips_get_trends_by_direct_matching_without_new_titles():
+    segments = episode(40, gap=0.5)
+    options = {"k": 4, "min_duration": 20.0, "max_duration": 40.0, "llm_mode": "off"}
+    baseline = select_clips_v3(segments, **options)
+    target = baseline.clips[1]
+    unit = int(target.unit_ids[0][1:])  # S0011 is unit index 10: mention the one after it
+    item = trend(unit, "H")
+
+    result = select_clips_v3(segments, trends=[item], **options)
+
+    assert result.prompt_version == HEURISTIC_VERSION
+    by_units = {clip.unit_ids: clip for clip in baseline.clips}
+    assert set(by_units) == {clip.unit_ids for clip in result.clips}
+    for clip in result.clips:
+        before = by_units[clip.unit_ids]
+        if clip.unit_ids != target.unit_ids:
+            assert dataclasses.replace(clip, rank=before.rank) == before
+            continue
+        assert clip.trends == (item.ref(),)
+        assert clip.title == before.title and clip.hook_text == before.hook_text
+        assert clip.description == before.description
+        assert clip.hashtags == ("#TrenH", *before.hashtags)
+        assert clip.reasons[-1] == "tren: Tren H"
+        assert clip.score == before.score and clip.scores == before.scores
+    assert not any(code.startswith("trend_ref_ungrounded") for code in result.warnings)
+
+
+def boost_moments(middle: float, refs=("T1",)) -> list[dict]:
+    return [
+        moment(2, 5, hook=3, scores=flat(7.0)),
+        moment(12, 15, hook=13, scores=flat(middle), trend_refs=list(refs)),
+        moment(22, 25, hook=23, scores=flat(5.0), trend_refs=["T2"]),
+    ]
+
+
+def starts(result: SelectionResult) -> list[str]:
+    return [clip.unit_ids[0] for clip in result.clips]
+
+
+def test_the_trend_boost_only_reorders_near_tied_clips_and_never_changes_scores():
+    assert TREND_BOOST == 3.0 and TREND_BOOST_CAP == 3.0  # points on a 0-100 scale
+    trends = [trend(13, "X", score=80), trend(23, "Y", score=70)]
+
+    plain, _ = llm_run(boost_moments(6.8), k=3)
+    boosted, _ = llm_run(boost_moments(6.8), k=3, trends=trends)
+    too_far, _ = llm_run(boost_moments(6.6), k=3, trends=trends)
+
+    assert starts(plain) == ["S0003", "S0013", "S0023"]
+    # 6.8 + 0.3 passes 7.0; 5.0 + 0.3 does not; 6.6 + 0.3 does not either.
+    assert starts(boosted) == ["S0013", "S0003", "S0023"]
+    assert starts(too_far) == ["S0003", "S0013", "S0023"]
+    for clip in boosted.clips:
+        before = next(item for item in plain.clips if item.unit_ids == clip.unit_ids)
+        assert clip.score == before.score == pytest.approx(combined_score(clip.scores))
+        assert clip.scores == before.scores
+    assert boosted.clips[0].score == pytest.approx(6.8)
+
+
+def test_the_boost_is_capped_per_clip():
+    trends = [trend(13, "X", score=80), trend(23, "Y", score=70), trend(14, "Z", score=60)]
+    result, _ = llm_run(boost_moments(6.65, refs=("T1", "T3")), k=3, trends=trends)
+    assert [len(clip.trends) for clip in result.clips] == [0, 2, 1]
+    assert starts(result) == ["S0003", "S0013", "S0023"]  # 6.65 + 0.3 (not 0.6) < 7.0
+
+
+def test_sensitive_trends_give_no_boost_and_no_hashtags():
+    trends = [trend(13, "X", score=80, sensitivity="sensitive"), trend(23, "Y", score=70)]
+    result, _ = llm_run(boost_moments(6.8), k=3, trends=trends)
+
+    assert starts(result) == ["S0003", "S0013", "S0023"]
+    sensitive = result.clips[1]
+    assert sensitive.trends == (trends[0].ref(),)
+    assert sensitive.reasons[-1] == "tren: Tren X (sensitif)"
+    assert "#TrenX" not in sensitive.hashtags
+
+
+def test_trends_must_be_trend_items():
+    with pytest.raises(TypeError):
+        select_clips_v3(episode(10), k=1, min_duration=20.0, max_duration=40.0,
+                        llm_mode="off", trends=["Kabur Aja Dulu"])
+
+
+def trend_result() -> SelectionResult:
+    return llm_run([moment(10, 13, hook=12, trend_refs=["T1"])], k=1,
+                   trends=[trend(12, "A")])[0]
+
+
+def test_artifact_round_trips_clip_trends(tmp_path):
+    result = trend_result()
+    assert result.clips[0].trends
+    path = tmp_path / SELECTION_ARTIFACT_RELATIVE_PATH
+
+    write_selection_artifact(path, result)
+
+    assert read_selection_artifact(path) == result
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["clips"][0]["trends"] == [{"id": "trend-a", "title": "Tren A", "kind": "topic"}]
+
+
+def trend_mutated(change) -> dict:
+    payload = trend_result().to_dict()
+    change(payload["clips"][0])
+    return payload
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        trend_mutated(lambda clip: clip.update(trends="Tren A")),
+        trend_mutated(lambda clip: clip["trends"][0].update(extra=1)),
+        trend_mutated(lambda clip: clip["trends"][0].pop("kind")),
+        trend_mutated(lambda clip: clip["trends"][0].update(id="../x")),
+        trend_mutated(lambda clip: clip["trends"][0].update(kind="rumor")),
+        trend_mutated(lambda clip: clip.update(trends=[clip["trends"][0]] * 2)),
+    ],
+)
+def test_artifact_reader_is_strict_about_trends(payload):
+    with pytest.raises(SelectionArtifactError):
+        selection_from_dict(payload)
