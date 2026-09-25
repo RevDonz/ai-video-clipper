@@ -22,7 +22,7 @@ import { PANELS } from "./panels/index.mjs";
 import ReadOnlyBanner from "./ReadOnlyBanner.jsx";
 import { createEditorRuntime, createFrameBus, createPlayerFacade } from "./runtime.mjs";
 import styles from "./shell.module.css";
-import { badgeView, checksView, exportMatchesSeed, messageFor, noticesView, rejectionText } from "./shell-model.mjs";
+import { badgeView, checksView, conflictParts, exportMatchesSeed, messageFor, noticesView, rejectionText } from "./shell-model.mjs";
 import Stage from "./Stage.jsx";
 import StageControls from "./StageControls.jsx";
 import Timeline from "./timeline/Timeline.jsx";
@@ -131,7 +131,6 @@ function EditorShell({ runtime, jobId, clipId, initialPanel }) {
   const [helpOpen, setHelpOpen] = useState(false);
   const [toast, setToast] = useState(null);
   const [clipInfo, setClipInfo] = useState(null);
-  const [otherTab, setOtherTab] = useState(false);
   const [exportState, setExportState] = useState(null);
   const flowRef = useRef(null);
   const exportButtonRef = useRef(null);
@@ -144,11 +143,25 @@ function EditorShell({ runtime, jobId, clipId, initialPanel }) {
   const ready = status === "ready" || readOnly;
   const plan = state.plan ?? null;
   const fps = plan?.fps ?? state.doc?.output?.fps ?? [30, 1];
-  const conflict = state.save === "conflict" && Array.isArray(state.conflict?.parts) && state.conflict.parts.length ? state.conflict : null;
+  // The store's per-part conflict (T2.5 `groups`; the T2.6 specs' `parts`), shown as a dialog.
+  const conflict = state.save === "conflict" && conflictParts(state.conflict).length ? state.conflict : null;
+  // "Klip ini terbuka di tab lain" comes from the store's own BroadcastChannel (T2.5).
+  const otherTab = state.otherTab === true;
   const modalOpen = exportOpen || helpOpen || Boolean(conflict);
 
   const notify = useCallback((text) => setToast({ text, id: Date.now() }), []);
   notifyRef.current = notify;
+
+  // A one-off store notice (merged with another tab, a draft that could not be merged) is a toast.
+  const noticeCode = state.notice?.code ?? null;
+  useEffect(() => {
+    if (!noticeCode || !state.notice?.message) return;
+    notify(state.notice.message);
+    store.dismissNotice?.();
+  }, [noticeCode, state.notice, notify, store]);
+
+  // The preview lane builds the plate cells around the playhead first (T2.3).
+  useEffect(() => frameBus.subscribe((frame) => runtime.setPlayhead?.(frame)), [frameBus, runtime]);
   useEffect(() => {
     if (!toast) return undefined;
     const timer = setTimeout(() => setToast(null), 4000);
@@ -187,8 +200,10 @@ function EditorShell({ runtime, jobId, clipId, initialPanel }) {
         if (Number.isFinite(next.frame)) frameBus.set(next.frame);
         setPlayerState((previous) => {
           const merged = { mode: next.mode ?? null, current: { ...(next.current ?? {}) },
-            playing: typeof next.playing === "boolean" ? next.playing : previous?.playing ?? false };
+            playing: typeof next.playing === "boolean" ? next.playing : previous?.playing ?? false,
+            exact: typeof next.exact === "boolean" ? next.exact : undefined };
           return previous && previous.mode === merged.mode && previous.playing === merged.playing
+            && previous.exact === merged.exact
             && JSON.stringify(previous.current) === JSON.stringify(merged.current) ? previous : merged;
         });
       },
@@ -228,31 +243,6 @@ function EditorShell({ runtime, jobId, clipId, initialPanel }) {
     }).catch(() => {});
     return () => { alive = false; };
   }, [api, clipId]);
-
-  // Another tab on the same clip (plan §4.5 "Tabs").
-  useEffect(() => {
-    if (typeof BroadcastChannel !== "function") return undefined;
-    const channel = new BroadcastChannel("potongin-editor");
-    const me = Math.random().toString(36).slice(2);
-    channel.onmessage = (event) => {
-      const message = event.data;
-      if (!message || message.clipId !== clipId || message.tab === me) return;
-      if (message.type === "open") {
-        setOtherTab(true);
-        channel.postMessage({ type: "here", clipId, tab: me });
-      } else if (message.type === "here") {
-        setOtherTab(true);
-      } else if (message.type === "closed") {
-        setOtherTab(false);
-        channel.postMessage({ type: "open", clipId, tab: me });
-      }
-    };
-    channel.postMessage({ type: "open", clipId, tab: me });
-    return () => {
-      channel.postMessage({ type: "closed", clipId, tab: me });
-      channel.close();
-    };
-  }, [clipId]);
 
   const openExport = useCallback(() => {
     if (!ready || readOnly) return;
@@ -330,7 +320,8 @@ function EditorShell({ runtime, jobId, clipId, initialPanel }) {
 
   useEffect(() => {
     const onKey = (event) => {
-      if (modalRef.current) return;
+      // A focused panel (the transcript) handles its own keys and prevents their default.
+      if (modalRef.current || event.defaultPrevented) return;
       const id = globalShortcut(event);
       const action = id ? actionsRef.current[id] : null;
       if (!action) return;
@@ -491,7 +482,12 @@ function EditorShell({ runtime, jobId, clipId, initialPanel }) {
         earlier={earlier}
         readOnly={readOnly}
       />
-      <ConflictDialog conflict={conflict} onResolve={(choices) => store.resolveConflict?.(choices)} />
+      <ConflictDialog
+        conflict={conflict}
+        onResolve={(choices) => {
+          Promise.resolve(store.resolveConflict?.(choices)).catch(() => {}); // the dialog shows conflict.error
+        }}
+      />
       <ShortcutHelp open={helpOpen} onClose={closeHelp} />
       {toast && <div key={toast.id} className={styles.toast} role="status" aria-live="polite">{toast.text}</div>}
     </div>

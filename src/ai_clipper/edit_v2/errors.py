@@ -110,6 +110,25 @@ CLIP_REASONS = frozenset(
         "not_v3",
     }
 )
+# Codes the Node routes answer with themselves (plan §4.2, §9.1; W2 T2.2/T2.3), so the editor
+# can show an Indonesian message for each (``messageId`` ``edit.<code>``).
+ROUTE_CODES = frozenset(
+    {
+        "invalid_request",
+        "csrf_rejected",
+        "rate_limited",
+        "backend_unavailable",
+        "superseded",
+        "editor_disabled",
+        "precondition_required",
+        "payload_too_large",
+        "storage_quota_exhausted",
+        "storage_free_space_low",
+        "storage_admission_unavailable",
+        "render_finished",
+        "not_cancellable",
+    }
+)
 # ``GET …/edit`` readOnlyReason values (plan §3.6).
 READ_ONLY_REASONS = frozenset({"transcript_changed"})
 # Informational notices shown by the editor (plan §4.4, Appendix C.6).
@@ -167,6 +186,20 @@ _MESSAGES = {
     "cancelled": "Render dibatalkan",
     "auto_file_unavailable": "File klip otomatis tidak tersedia; klip dirender ulang",
     "engine_fallback": "Klip dirender dengan mesin lama",
+    # Answered by the Node routes (ROUTE_CODES).
+    "invalid_request": "Permintaan tidak valid",
+    "csrf_rejected": "Permintaan ditolak karena tidak berasal dari halaman ini; muat ulang halaman",
+    "rate_limited": "Terlalu banyak permintaan; tunggu sebentar lalu coba lagi",
+    "backend_unavailable": "Layanan editor sedang tidak tersedia; coba lagi sebentar lagi",
+    "superseded": "Permintaan ini digantikan oleh perubahan yang lebih baru",
+    "editor_disabled": "Editor V3 belum diaktifkan",
+    "precondition_required": "Versi dokumen tidak disertakan; muat ulang editor",
+    "payload_too_large": "Permintaan terlalu besar",
+    "storage_quota_exhausted": "Penyimpanan server tidak cukup",
+    "storage_free_space_low": "Penyimpanan server tidak cukup",
+    "storage_admission_unavailable": "Pemeriksaan penyimpanan tidak tersedia",
+    "render_finished": "Render sudah selesai sehingga tidak bisa dibatalkan",
+    "not_cancellable": "Render ini tidak bisa dibatalkan",
     # Clip reasons (Appendix C.6 copy).
     "needs_prepare": "Klip perlu disiapkan dulu",
     "source_missing": "Video sumber sudah tidak ada",
@@ -340,6 +373,7 @@ __all__ = [
     "PROTOCOL_CODES",
     "READ_ONLY_REASONS",
     "RENDER_CODES",
+    "ROUTE_CODES",
     "SEMANTIC_CODES",
     "WARNING_CODES",
     "AnalysisMissing",

@@ -70,8 +70,6 @@ from pathlib import Path
 from typing import Any
 
 from .. import edit_manifest as _v1
-from ..selection_v3 import SELECTION_ARTIFACT_RELATIVE_PATH, read_selection_artifact
-from . import seed as seed_module
 from . import store
 from . import timemap as tm
 from .clip_id import CLIP_ID_PATTERN, clip_id, ms_from_seconds
@@ -261,6 +259,10 @@ def _archive(clip: Path, etag: str) -> dict:
 
 
 def _prepare_job(job: Path) -> dict:
+    # Imported here, not at module top: `seed` pulls in the whole analysis stack, and every
+    # `get`/`put` process would pay for it (PF-SAVE, T2.2 request R5).
+    from . import seed as seed_module
+
     results = seed_module.prepare_legacy_job(job)
     if not isinstance(results, list):
         raise EditV2Error("internal_error")
@@ -354,6 +356,9 @@ def _clips(job: Path) -> dict:
     options = options if isinstance(options, dict) else {}
     if options.get("selectionMode") != "v3":
         return _with_reason(_manifest_entries(job), "not_v3")
+    # Imported here for the same reason as `seed` in `_prepare_job` (PF-SAVE).
+    from ..selection_v3 import SELECTION_ARTIFACT_RELATIVE_PATH, read_selection_artifact
+
     selection_path = job / SELECTION_ARTIFACT_RELATIVE_PATH
     selection = None
     if _regular(selection_path):

@@ -479,6 +479,18 @@ def _result_warnings(result: object) -> list[str]:
     return codes
 
 
+_REUSED_COMPLETION = {"auto_file": "seed", "existing": "key"}
+
+
+def _completed_by(result: object) -> str:
+    """How the renderer finished: ``completed_by`` when it names one, else from T2.1's
+    ``RenderResult.reused`` (``auto_file`` = R10 by the seed, ``existing`` = the render key)."""
+    completed_by = getattr(result, "completed_by", None)
+    if completed_by in {"render", "seed", "key"}:
+        return completed_by
+    return _REUSED_COMPLETION.get(getattr(result, "reused", None), "render")
+
+
 def _failure_code(error: BaseException, reason: str | None) -> str:
     if reason in {"cancelled", "render_timeout", "render_stalled"}:
         return reason
@@ -691,10 +703,7 @@ def _run_v3(
             raise QueueError()
         if reservation is not None and not storage_client("heartbeat", *reservation):
             raise QueueError()
-        completed_by = getattr(result, "completed_by", None)
-        if completed_by not in {"render", "seed", "key"}:
-            completed_by = "render"
-        complete_v3(job, render_id, token, completed_by=completed_by,
+        complete_v3(job, render_id, token, completed_by=_completed_by(result),
                     warnings=_result_warnings(result))
         terminal_state = "completed"
     except Exception as error:  # noqa: BLE001 - the request records a fixed code only

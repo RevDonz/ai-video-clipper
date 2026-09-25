@@ -4,6 +4,14 @@
 //
 // Everything here is synthetic and deterministic (no network, no crypto, no DOM); the shapes
 // follow plan §3 (document), §3.6 (words), §4.2 (routes) and §4.3 (plan DTO).
+//
+// T2.Z (W2 integrator): `CommandRejected` is the real one of web/lib/editor/commands.mjs, so an
+// `instanceof` check means the same with the fakes and the real store; the fake store has the
+// real store's extra surface (context, draftKey, resolveConflict, startFromSeed, retrySave,
+// setSelection, dismissNotice and the state fields conflict, notice, otherTab, readOnlyReason).
+import { CommandRejected } from "../../../lib/editor/commands.mjs";
+
+export { CommandRejected };
 
 export const FAKE_JOB_ID = "8f0c2a1e-5b7d-4c3a-9e21-6d4f0b8a7c55";
 export const FAKE_CLIP_ID = "clip_9b2e41c07d3a5f18e6c2a0b4";
@@ -19,14 +27,6 @@ export const COMMANDS = Object.freeze([
   "SetLogoOpacity", "SnapLogo", "SetMusic", "RemoveMusic", "SetMusicGain", "SetMusicOffset",
   "SetMusicLoop", "SetMusicFades", "SetDuck", "SetSourceGain", "SetLoudness", "ResetToSeed",
 ]);
-
-export class CommandRejected extends Error {
-  constructor(code) {
-    super(`command rejected: ${code}`);
-    this.name = "CommandRejected";
-    this.code = code;
-  }
-}
 
 export class FakeApiError extends Error {
   constructor(status, code, body = {}) {
@@ -283,7 +283,7 @@ export function createFakeEditorStore({ jobId = FAKE_JOB_ID, clipId = FAKE_CLIP_
   const future = [];
   let state = { status: "loading", jobId, clipId, doc: null, seed: null, words: null, etag: null, save: "saved",
     savedAtMs: null, canUndo: false, canRedo: false, plan: null, pending: [], warnings: [], selection: null,
-    commands: [] };
+    commands: [], conflict: null, notice: null, otherTab: false, readOnlyReason: null, error: null };
   const set = (patch) => {
     state = { ...state, ...patch, canUndo: past.length > 0, canRedo: future.length > 0 };
     for (const listener of [...listeners]) listener(state);
@@ -296,6 +296,8 @@ export function createFakeEditorStore({ jobId = FAKE_JOB_ID, clipId = FAKE_CLIP_
   })();
   return {
     ready,
+    context: null,
+    draftKey: `${clipId}#fake-tab`,
     getState: () => state,
     dispatch(type, args = {}, { mergeKey = null } = {}) {
       if (!COMMANDS.includes(type)) throw new CommandRejected("unknown_command");
@@ -323,6 +325,16 @@ export function createFakeEditorStore({ jobId = FAKE_JOB_ID, clipId = FAKE_CLIP_
       set({ save: "saving" });
       set({ save: "saved", savedAtMs: now(), plan: await previewClient.plan(state.doc) });
     },
+    async resolveConflict() { set({ conflict: null, save: "dirty" }); },
+    async startFromSeed() {
+      await ready;
+      past.push(state.doc);
+      future.length = 0;
+      set({ status: "ready", readOnlyReason: null, doc: clone(state.seed ?? state.doc), save: "dirty" });
+    },
+    retrySave() { set({ error: null, save: state.save === "error" ? "dirty" : state.save }); },
+    setSelection(selection) { set({ selection }); },
+    dismissNotice() { set({ notice: null }); },
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     destroy() { listeners.clear(); },
   };

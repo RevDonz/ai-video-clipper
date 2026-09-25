@@ -183,15 +183,37 @@ def advance_px(text: str, font_file: Path, font_size: float) -> float:
     return units * font_size / height
 
 
+@functools.lru_cache(maxsize=4)
+def _manifest_text(path: str, size: int, mtime_ns: int) -> str:
+    text = Path(path).read_text(encoding="utf-8")
+    if len(text.encode("utf-8")) != size:
+        raise ValueError("fonts.json changed while reading")
+    return text
+
+
+@functools.lru_cache(maxsize=4)
+def _listed_fonts(path: str, size: int, mtime_ns: int) -> frozenset[str]:
+    manifest = json.loads(_manifest_text(path, size, mtime_ns))
+    return frozenset(entry["file"] for entry in manifest["fonts"])
+
+
+def _manifest_stamp() -> tuple[str, int, int]:
+    """``fonts.json`` by path, size and mtime: the caches above follow a changed file (the
+    caption track asks for a font per word, so re-reading the manifest each time cost 25–35 ms
+    of every preview plan, T2.3's PF-PLAN request)."""
+    info = FONTS_MANIFEST.stat()
+    return str(FONTS_MANIFEST), info.st_size, info.st_mtime_ns
+
+
 def fonts_manifest() -> dict[str, Any]:
-    """The parsed ``resources/fonts/fonts.json`` (files, sha256, licences, sources)."""
-    return json.loads(FONTS_MANIFEST.read_text(encoding="utf-8"))
+    """The parsed ``resources/fonts/fonts.json`` (files, sha256, licences, sources); a fresh
+    object per call, so a caller may change it."""
+    return json.loads(_manifest_text(*_manifest_stamp()))
 
 
 def font_path(file_name: str) -> Path:
     """Path of a pinned font file listed in ``fonts.json`` (anything else is rejected)."""
-    listed = {entry["file"] for entry in fonts_manifest()["fonts"]}
-    if file_name not in listed:
+    if file_name not in _listed_fonts(*_manifest_stamp()):
         raise ValueError(f"font {file_name!r} is not a pinned font")
     return FONTS_DIR / file_name
 

@@ -72,9 +72,11 @@ async function terminalRequestOwnsReservation(root, item) {
       path.join(requests, `${item.value.renderId}.json`),
       2 * 1024 * 1024,
     );
-    return request?.version === "render-request-v2"
+    // v2 (candidate renders) ends completed or failed; v3 (Editor V3 exports) also cancelled.
+    const terminal = request?.version === "render-request-v2" ? ["completed", "failed"]
+      : request?.version === "render-request-v3" ? ["completed", "failed", "cancelled"] : [];
+    return terminal.includes(request.state)
       && request.render_id === item.value.renderId
-      && ["completed", "failed"].includes(request.state)
       && request.storage_reservation_id === item.value.reservationId
       && typeof request.storage_reservation_token === "string"
       && tokenHash(request.storage_reservation_token) === item.value.tokenHash;

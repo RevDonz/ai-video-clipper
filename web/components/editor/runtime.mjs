@@ -1,13 +1,16 @@
 // The seam between the Editor V3 shell and the Appendix A.2 modules (T2.6).
 //
-// `createEditorRuntime({ kind })` returns { api, previewClient, store, createPlayer, pollMs,
-// newKey, destroy }:
+// `createEditorRuntime({ kind })` returns { api, previewClient, store, createPlayer, setPlayhead,
+// pollMs, newKey, destroy }:
 //   - "fake": the T1.Z fakes (web/components/editor/__dev__/fakes.mjs), loaded only when the page
 //     runs with POTONGIN_EDITOR_FAKES=1 (dev and CI). An e2e spec may wrap each object through
 //     `scenario` hooks (window.__potonginEditorScenario, installed before the page loads).
-//   - "real": the W2 integrator (T2.Z) wires createApiClient, createPreviewClient,
-//     createEditorStore and createPlayer here (plan §11.2 "Wiring: replace the fakes"); in phase
-//     B those modules are not on this branch, so it reports `runtime_unavailable`.
+//   - "real" (wired by T2.Z, plan §11.2 "Wiring: replace the fakes"): createApiClient and
+//     createPreviewClient (web/lib/editor/), createEditorStore with the IndexedDB draft, the
+//     BroadcastChannel and the page lifecycle, and createPlayer (web/lib/editor/player/) with
+//     truth frames from the preview client for the current document. `setPlayhead(frame)` is the
+//     output frame the preview lane builds first (sent with every plan request; T2.3).
+//     `deps` replaces the browser pieces in unit tests.
 //
 // Also here: the frame bus (the playhead, the time readout and the transcript's active word are
 // moved outside React, plan §6.2 "Seek and scrub") and a stable player facade that exists before
@@ -45,6 +48,7 @@ async function createFakeRuntime({ jobId, clipId, scenario }) {
     createPlayer(options) {
       return hook("player", fakes.createFakePlayer(options), options);
     },
+    setPlayhead() {},
     pollMs: Number.isInteger(scenario?.pollMs) && scenario.pollMs > 0 ? scenario.pollMs : 1000,
     newKey: uuid,
     destroy() {
@@ -53,10 +57,50 @@ async function createFakeRuntime({ jobId, clipId, scenario }) {
   };
 }
 
-export async function createEditorRuntime({ kind, jobId, clipId, scenario = null }) {
+const STORE_DEPS = Object.freeze(["draftStore", "channel", "lifecycle", "tabStorage", "now", "timers", "planPollMs"]);
+
+async function createRealRuntime({ jobId, clipId, deps = {} }) {
+  const [{ createApiClient, randomUuid }, { createPreviewClient }, { createEditorStore }] = await Promise.all([
+    import("../../lib/editor/api-client.mjs"),
+    import("../../lib/editor/preview-client.mjs"),
+    import("../../lib/editor/store.mjs"),
+  ]);
+  const makePlayer = typeof deps.createPlayer === "function"
+    ? deps.createPlayer
+    : (await import("../../lib/editor/player/player.mjs")).createPlayer;
+  const fetchImpl = typeof deps.fetchImpl === "function" ? deps.fetchImpl : (...args) => globalThis.fetch(...args);
+  let playhead = 0;
+  const api = createApiClient({ jobId, clipId, fetchImpl });
+  const previewClient = createPreviewClient({ jobId, clipId, fetchImpl, playhead: () => playhead });
+  const options = { jobId, clipId, api, previewClient };
+  for (const name of STORE_DEPS) if (Object.hasOwn(deps, name)) options[name] = deps[name];
+  const store = createEditorStore(options);
+  return {
+    kind: "real",
+    api,
+    previewClient,
+    store,
+    createPlayer(playerOptions = {}) {
+      return makePlayer({
+        ...playerOptions,
+        fetchImpl: playerOptions.fetchImpl ?? fetchImpl,
+        requestTruthFrame: (frame) => previewClient.frame(store.getState().doc, frame),
+      });
+    },
+    setPlayhead(frame) {
+      if (Number.isSafeInteger(frame) && frame >= 0) playhead = frame;
+    },
+    pollMs: 1000,
+    newKey: () => randomUuid(),
+    destroy() {
+      store.destroy();
+    },
+  };
+}
+
+export async function createEditorRuntime({ kind, jobId, clipId, scenario = null, deps = {} }) {
   if (kind === "fake") return createFakeRuntime({ jobId, clipId, scenario });
-  // T2.Z: build the real runtime here from web/lib/editor/{api-client,preview-client,store}.mjs,
-  // the draft store and web/lib/editor/player/player.mjs, with the same return shape.
+  if (kind === "real") return createRealRuntime({ jobId, clipId, deps });
   throw new RuntimeUnavailable();
 }
 

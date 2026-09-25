@@ -14,6 +14,11 @@
 //   etag: silently; older etag: rebased; a PUT that was in flight is re-sent with its
 //   Idempotency-Key, so a save whose response was lost is recognised, not applied twice); drafts
 //   of closed tabs of the clip are merged in; drafts of live tabs are left to them.
+// - Readiness polling (T2.Z): while the plan DTO names a layer that is still building (plate
+//   cells, the mix, the logo), the same document is asked for again every `planPollMs`; the lane
+//   answers from its cache without a new process and builds from the playhead first (T2.3). A
+//   plan the server abandoned (409 superseded: another request for the clip replaced it) or that
+//   failed is asked for again later, so the stage never waits on a request nobody answers.
 // - `BroadcastChannel("potongin-editor")` sets `otherTab` ("Klip ini terbuka di tab lain") and
 //   tells live tabs apart from closed ones; `beforeunload` is guarded while work is unsaved; blur
 //   and a hidden page flush the save.
@@ -114,6 +119,7 @@ export function createEditorStore({
   channel = defaultChannel(),
   lifecycle = defaultLifecycle(),
   tabStorage = defaultTabStorage(),
+  planPollMs = 750,
 }) {
   const listeners = new Set();
   let state = Object.freeze({
@@ -130,6 +136,7 @@ export function createEditorStore({
   let saveError = null;
   let saveWarnings = [];
   let planSeq = 0;
+  let pollTimer = null;
   let destroyed = false;
   let port = null;
   let detach = null;
@@ -168,17 +175,41 @@ export function createEditorStore({
       savedAtMs: now(), inflight });
   };
 
-  const requestPlan = () => {
+  const stopPoll = () => {
+    if (pollTimer !== null) timers.clearTimeout(pollTimer);
+    pollTimer = null;
+  };
+
+  const schedulePoll = (ms) => {
+    stopPoll();
+    if (!(planPollMs > 0) || destroyed) return;
+    pollTimer = timers.setTimeout(() => {
+      pollTimer = null;
+      requestPlan({ poll: true });
+    }, ms);
+  };
+
+  const requestPlan = ({ poll = false } = {}) => {
     if (!previewClient || !session || destroyed) return;
+    stopPoll();
     planSeq += 1;
     const seq = planSeq;
-    set({ pending: pendingLayers(state.plan, true) });
+    if (!poll) set({ pending: pendingLayers(state.plan, true) });
     previewClient.plan(session.doc).then((plan) => {
       if (destroyed || seq !== planSeq) return;
-      set({ plan, pending: pendingLayers(plan, false), warnings: plan?.warnings ?? saveWarnings, previewError: null });
+      const pending = pendingLayers(plan, false);
+      set({ plan, pending, warnings: plan?.warnings ?? saveWarnings, previewError: null });
+      if (pending.length) schedulePoll(planPollMs);
     }, (error) => {
-      if (destroyed || seq !== planSeq || error?.name === "AbortError") return;
+      if (destroyed || seq !== planSeq) return;
+      if (error?.name === "AbortError") {
+        // Only a newer request of this store supersedes locally, and that one changed planSeq:
+        // this one was abandoned by the server, so ask again.
+        schedulePoll(planPollMs);
+        return;
+      }
       set({ pending: pendingLayers(state.plan, false), previewError: { code: error?.code ?? "preview_failed" } });
+      schedulePoll(planPollMs * 4);
     });
   };
 
@@ -577,6 +608,7 @@ export function createEditorStore({
     },
     destroy() {
       if (destroyed) return;
+      stopPoll();
       autosave.destroy();
       detach?.();
       detach = null;

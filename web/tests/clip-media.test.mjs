@@ -218,7 +218,8 @@ test("missing files, symlinks and symlinked directories are 404", async () => {
 });
 
 test("resources are the pinned font files and pack JSON, byte for byte", async () => {
-  assert.deepEqual([...RESOURCE_KINDS].sort(), ["caption-packs", "fonts", "hook-designs"]);
+  // T2.Z added "jassub" (T2.4 request; CONTRACTS §5.17).
+  assert.deepEqual([...RESOURCE_KINDS].sort(), ["caption-packs", "fonts", "hook-designs", "jassub"]);
   const manifest = JSON.parse(readFileSync(path.join(RESOURCES, "fonts", "fonts.json"), "utf8"));
   for (const font of manifest.fonts) {
     const response = await resourceResponse(request(`/api/resources/fonts/${font.file}`), {
