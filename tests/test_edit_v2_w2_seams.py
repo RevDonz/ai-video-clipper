@@ -14,6 +14,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 import uuid
 from pathlib import Path
 from types import SimpleNamespace
@@ -134,3 +135,20 @@ def test_a_decoder_run_of_several_pieces_ends_at_its_last_frame(monkeypatch):
         bounded = (f"fps={num}/{den},trim=start_pts={ranges[0][0]}:end_pts={ranges[-1][1]},"
                    f"select='{select_expression(ranges)}',setpts=N")
         assert bounded in job.filter_script, run
+
+
+def test_the_supervisor_sees_ffmpeg_exit_at_once(tmp_path):
+    """PF-TRUTH (T2.3): the truth frame runs two short FFmpeg processes, and the 50 ms polling
+    of the supervisor added up to 50 ms to each; the exit now wakes the supervisor itself."""
+    from ai_clipper.edit_v2 import execute
+
+    env = {"PATH": os.environ.get("PATH", os.defpath), "LANG": "C.UTF-8"}
+    elapsed = []
+    for _ in range(5):
+        started = time.monotonic()
+        returncode, _progress, _stderr = execute._supervise(
+            ["true"], cwd=tmp_path, env=env, pass_fds=(), progress_pipe=None,
+            deadline=time.monotonic() + 30, stall_s=30, on_progress=None, cancel=None)
+        elapsed.append(time.monotonic() - started)
+        assert returncode == 0
+    assert min(elapsed) < 0.045, elapsed
