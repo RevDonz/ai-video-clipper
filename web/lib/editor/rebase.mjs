@@ -59,6 +59,15 @@ export const GROUP_LABELS = Object.freeze({
   audio: "Volume suara",
 });
 
+/** Parts that only make sense with another one: an item's fields need the item. */
+const PREREQUISITES = Object.freeze({
+  "hook.text": "hook.on", "hook.dur": "hook.on", "hook.y": "hook.on",
+  "logo.transform": "logo.asset", "logo.opacity": "logo.asset",
+  "music.gain": "music.asset", "music.offset": "music.asset", "music.loop": "music.asset",
+  "music.fades": "music.asset", "music.duck": "music.asset",
+  "removals:cold_open": "coldopen",
+});
+
 /** The dialog group of a part: "hook.text" → "hook", "word:w048121.text" → "word:w048121". */
 export function partGroup(part) {
   if (part.startsWith("word:")) return part.slice(0, part.lastIndexOf("."));
@@ -488,11 +497,12 @@ export function rebase({ base, mine, theirs, steps, ctx }) {
       for (const part of step.parts ?? []) conflictParts.add(part);
       continue;
     }
+    // ResetToSeed is replayed as the parts it changed (a whole reset would undo the other tab's
+    // edits) and logged that way, so that a later replay of the rebased log gives the same result.
+    const asParts = step.type === "ResetToSeed" ? { type: "__parts", values: partValues(ctx.seed, step.parts ?? []) } : null;
     let result;
     try {
-      result = step.type === "ResetToSeed"
-        ? { doc: applyParts(doc, partValues(ctx.seed, step.parts), ctx), args: step.args }
-        : applyStep(doc, step, ctx, idMap);
+      result = asParts ? { doc: applyParts(doc, asParts.values, ctx) } : applyStep(doc, step, ctx, idMap);
     } catch (error) {
       if (!(error instanceof CommandRejected)) throw error;
       for (const part of step.parts ?? []) conflictParts.add(part);
@@ -505,16 +515,28 @@ export function rebase({ base, mine, theirs, steps, ctx }) {
       continue;
     }
     doc = result.doc;
-    if (touched.length) replayed.push({ ...step, args: result.args, parts: touched });
+    if (!touched.length) continue;
+    if (asParts) replayed.push({ ...asParts, parts: touched, entryId: step.entryId });
+    else replayed.push({ ...step, args: result.args, parts: touched });
   }
-  const remaining = [...conflictParts].filter((part) => !deepEqual(partValue(doc, part), partValue(mine, part)));
+  const differs = (part) => !deepEqual(partValue(doc, part), partValue(mine, part));
+  const remaining = [...conflictParts].filter(differs).sort((a, b) => orderOf(a) - orderOf(b));
   if (!remaining.length) return { status: "merged", doc, steps: replayed, conflicts: [] };
   const groups = new Map();
-  for (const part of remaining.sort((a, b) => orderOf(a) - orderOf(b))) {
-    const group = partGroup(part);
-    if (!groups.has(group)) groups.set(group, []);
-    groups.get(group).push(part);
+  const add = (group, part) => {
+    if (!groups.has(group)) groups.set(group, new Set());
+    groups.get(group).add(part);
+  };
+  for (const part of remaining) {
+    // "Pakai punyaku" must be able to apply: a field needs its item, a cold-open cut its cold open.
+    const needs = PREREQUISITES[part];
+    if (needs && (partValue(doc, needs) === null) !== (partValue(mine, needs) === null)) {
+      const group = partGroup(needs);
+      add(group, needs);
+      add(group, part);
+    } else add(partGroup(part), part);
   }
+  for (const [group, parts] of groups) groups.set(group, [...parts].sort((a, b) => orderOf(a) - orderOf(b)));
   const conflicts = [...groups.entries()].map(([id, parts]) => ({
     id, label: groupLabel(id, mine, theirs, ctx), parts,
     mine: describe(mine, id, ctx), theirs: describe(doc, id, ctx),
