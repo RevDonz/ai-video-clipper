@@ -662,3 +662,53 @@ def test_prepared_seeds_have_the_documented_shape(prepared):
             assert segment["out_sf"] <= tm.sf_ceil(window[1], fps)
         assert seed["tracks"][0]["items"][0]["dur_f"] == 120
         assert os.path.basename(str(job_dir)) != seed["base"]["job_id"]  # a copy keeps the id
+
+
+# --- the frame-rate variants of the synthetic job ------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def variants(tmp_path_factory, make_job, edit_v2_ffmpeg):
+    root = tmp_path_factory.mktemp("editor_fixture_variants")
+    index = make_job.build(root, size=(256, 144), only=("fps25", "fps60", "vfr"))
+    return root, index
+
+
+@pytest.mark.parametrize(
+    ("name", "native", "vfr", "doc_fps", "layout", "pack", "hook", "cold_open"),
+    [
+        ("fps25", [25, 1], False, [25, 1], "fill_center", "classic", False, True),
+        ("fps60", [60, 1], False, [30, 1], "camera", "karaoke", True, True),
+        ("vfr", [30000, 1001], True, [30, 1], "fit_blur", "classic", True, False),
+    ],
+)
+def test_the_frame_rate_variants_seed_with_the_fps_rule(
+    variants, make_job, monkeypatch, name, native, vfr, doc_fps, layout, pack, hook, cold_open
+):
+    root, index = variants
+    job_dir = root / index["jobs"][name]["dir"]
+    assert read_selection_artifact(job_dir / "analysis" / "selection.v3.json").clips
+    monkeypatch.setattr(camera, "detect_face_track", make_job._stub_detector)
+    results = prepare_legacy_job(job_dir)
+    assert len(results) == 3 and all(entry["openable"] for entry in results)
+    probe = json.loads((job_dir / SOURCE_INFO_RELATIVE_PATH).read_text())["probe"]
+    assert (probe["fps_native"], probe["vfr"]) == (native, vfr)
+    cold_opens = 0
+    for entry in results:
+        clip_dir = job_dir / "analysis" / "clips" / entry["clip_id"]
+        seed = json.loads((clip_dir / "seed.json").read_text())
+        assert seed["output"]["fps"] == doc_fps
+        assert seed["layout"]["default"]["mode"] == layout
+        assert seed["captions"]["pack"]["id"] == pack
+        assert bool(seed["tracks"]) is hook
+        cold_opens += seed["main"]["segments"][0]["role"] == "cold_open"
+        (words_path,) = clip_dir.glob("words.*.json")
+        assert json.loads(words_path.read_text())["fps"] == doc_fps
+        cameras = list(clip_dir.glob("camera.*.json"))
+        assert len(cameras) == (layout == "camera")
+        if cameras:
+            # The fixture's stub face track loses the face for more than 1.5 s once, so the
+            # face-track chain always has a no-face span to report.
+            plan = json.loads(cameras[0].read_text())
+            assert plan["no_face"] and all(e - s > 1500 for s, e in plan["no_face"])
+    assert cold_opens == (1 if cold_open else 0)
