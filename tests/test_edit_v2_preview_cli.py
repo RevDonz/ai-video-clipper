@@ -562,7 +562,8 @@ def test_cells_are_published_once_under_their_plate_key(job):
         path = case["clip"] / "preview" / "plates" / plates.cell_name(lane["plateKey"], k)
         assert path.is_file() and stat.S_IMODE(path.stat().st_mode) == 0o600
         probe = media.probe(path)
-        assert probe["streams"][0]["width"] == 720
+        assert (probe["video"]["width"], probe["video"]["height"]) == (720, 1280)
+        assert probe["audio"] is None  # plate cells carry no audio
     again = ok(op(case, "cells", layout="fit_blur", cells=wanted, cancelToken=None))
     assert again == {"plateKey": lane["plateKey"], "built": [], "present": wanted}
     dto = ok(plan(case))["dto"]
@@ -628,7 +629,7 @@ def test_the_preview_mix_is_the_reference_pcm(job, tmp_path):
     assert len(pcm) // 4 == expected.total_samples == result["samples"]
     assert hashlib.md5(pcm).hexdigest() == hashlib.md5(
         reference_pcm(case, doc, tmp_path)).hexdigest()  # P-AUD, server half
-    probe = media.probe(flac)["streams"][0]
+    probe = media.probe(flac)["audio"]
     assert (probe["codec_name"], probe["sample_rate"], probe["channels"]) == ("flac", "48000", 2)
     again = ok(op(case, "audio", requestRaw=raw, cancelToken=None))
     assert again["built"] is False and again["name"] == result["name"]
@@ -639,7 +640,8 @@ def test_a_mix_with_music_is_measured_once_and_protected(job, tmp_path):
     case = job_case(job)
     assets = case["job_dir"] / "analysis" / "assets"
     assets.mkdir(exist_ok=True)
-    music = media.make_audio(tmp_path / "music.m4a", media.AudioSpec(), duration_ms=60_000)
+    loud = media.AudioSpec(bursts=(media.ToneBurst(0, 60_000, 440, -100),), clicks_ms=())
+    music = media.make_audio(tmp_path / "music.m4a", loud, duration_ms=60_000)  # -1 dBFS
     digest = hashlib.sha256(music.read_bytes()).hexdigest()
     (assets / f"{digest}.m4a").write_bytes(music.read_bytes())
     meta = {"kind": "audio", "mime": "audio/mp4", "duration_ms": 60_000, "lufs_c": -1400}
@@ -660,7 +662,8 @@ def test_a_mix_with_music_is_measured_once_and_protected(job, tmp_path):
     measured = sorted((case["clip"] / "preview" / "audio").glob("*.loudness.json"))
     assert len(measured) == 1
     loudness = json.loads(measured[0].read_text())
-    assert set(loudness) == {"i_clufs", "tp_cdb"}
+    assert set(loudness) == {"i_clufs", "tp_cdb", "mixSha256"}
+    assert measured[0].name == f"{loudness['mixSha256'][:16]}.loudness.json"
     assert result["gainCdb"] < 0  # music at +6 dB over the speech: peak protection
     assert any(w["code"].startswith("peak_reduced:") for w in result["warnings"])
     from ai_clipper.edit_v2.loudness import Loudness
@@ -699,8 +702,12 @@ def test_the_truth_frame_is_the_compilers_frame_mode_output(job, tmp_path):
         execute.run(reference, output_fd=fd, timeout_s=600)
     finally:
         os.close(fd)
-    graph = (f"[1:v]select=eq(n\\,{f}),scale=in_color_matrix=bt709:in_range=tv,format=rgb24,"
-             "setpts=0[r];[0:v]format=rgb24,setpts=0[t];[t][r]ssim")
+    # P-ENC's domain (scripts/parity/enc_check.py): BT.709 limited-range 4:4:4 planes
+    flags = "flags=accurate_rnd+full_chroma_int+bitexact"
+    graph = (f"[1:v]select=eq(n\\,{f}),scale=in_color_matrix=bt709:in_range=tv:"
+             f"out_color_matrix=bt709:out_range=tv:{flags},format=yuv444p,setpts=0[r];"
+             f"[0:v]scale=out_color_matrix=bt709:out_range=tv:{flags},format=yuv444p,"
+             "setpts=0[t];[t][r]ssim")
     out = subprocess.run(["ffmpeg", "-nostdin", "-hide_banner", "-nostats", "-i", str(path),
                           "-i", str(ref), "-filter_complex", graph, "-frames:v", "1", "-f",
                           "null", "-"], capture_output=True, text=True, check=True).stderr
