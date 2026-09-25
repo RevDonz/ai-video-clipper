@@ -1,0 +1,76 @@
+{
+  "browser": "147.0.7727.15",
+  "clips": [
+    {
+      "clip": "timing-24-1",
+      "control_one_frame_late_mismatches": 36,
+      "fps": [
+        24,
+        1
+      ],
+      "frames_rendered": 58,
+      "hazard_transitions": 0,
+      "mismatches": 0,
+      "transitions": 36
+    },
+    {
+      "clip": "timing-25-1",
+      "control_one_frame_late_mismatches": 54,
+      "fps": [
+        25,
+        1
+      ],
+      "frames_rendered": 137,
+      "hazard_transitions": 15,
+      "mismatches": 0,
+      "transitions": 54
+    },
+    {
+      "clip": "timing-30-1",
+      "control_one_frame_late_mismatches": 54,
+      "fps": [
+        30,
+        1
+      ],
+      "frames_rendered": 160,
+      "hazard_transitions": 15,
+      "mismatches": 0,
+      "transitions": 54
+    },
+    {
+      "clip": "timing-24000-1001",
+      "control_one_frame_late_mismatches": 51,
+      "fps": [
+        24000,
+        1001
+      ],
+      "frames_rendered": 145,
+      "hazard_transitions": 14,
+      "mismatches": 0,
+      "transitions": 51
+    },
+    {
+      "clip": "timing-30000-1001",
+      "control_one_frame_late_mismatches": 36,
+      "fps": [
+        30000,
+        1001
+      ],
+      "frames_rendered": 58,
+      "hazard_transitions": 0,
+      "mismatches": 0,
+      "transitions": 36
+    }
+  ],
+  "gate": "P-TIME (JASSUB side)",
+  "hazard_transitions": 44,
+  "jassub": "2.5.16",
+  "mismatches": 0,
+  "pass": true,
+  "task": "T1.2b",
+  "threshold": {
+    "mismatches": 0
+  },
+  "transitions": 231,
+  "wasm": "jassub-worker.wasm"
+}
