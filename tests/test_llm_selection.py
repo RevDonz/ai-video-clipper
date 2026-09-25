@@ -1702,6 +1702,8 @@ def test_a_focus_topup_asks_once_about_the_mentions_no_moment_covers() -> None:
                                       "sambil lalu"))
         for line in prompt.split("\n")
     )
+    # Every excerpt is looked at; an ordinary moment is scored low rather than left out.
+    assert "Periksa SETIAP potongan" in prompt and "skor yang jujur" in prompt
     assert focus_block_lines(prompt) == [
         'istilah: "jomok"; "jomokers"',
         'catatan: "momen jomok yang lucu"',
@@ -1827,11 +1829,20 @@ def test_the_topup_goes_before_the_rerank_and_its_moments_are_not_reranked() -> 
     assert outcome.rank_values == (8.0, 7.5, 6.0, 5.0, 5.0)
     assert "focus_topup:1" in outcome.warnings
 
-    # With one request left the top-up goes first and the rerank is skipped.
-    outcome, client = run(units, [], responses=[{"moments": RERANK_ITEMS}, topup], k=2,
+    # With one request left and more moments than slots, the rerank keeps it: the selector's
+    # own windows cover the mentions the top-up would have asked about.
+    outcome, client = run(units, [], responses=[{"moments": RERANK_ITEMS}, ranking], k=2,
+                          rerank=True, focus=jomok(), focus_topup=True, max_requests=2)
+    assert len(client.calls) == 2 and client.calls[1]["user"].startswith("TUGAS: urutkan")
+    assert "focus_topup_skipped:budget" in outcome.warnings
+    assert "llm_budget_exhausted" not in outcome.warnings
+    assert spans(outcome) == [(26, 30), (18, 22), (10, 14), (2, 6)]
+
+    # With no more moments than slots nothing is reranked: the last request is the top-up's.
+    outcome, client = run(units, [], responses=[{"moments": RERANK_ITEMS[:2]}, topup], k=2,
                           rerank=True, focus=jomok(), focus_topup=True, max_requests=2)
     assert len(client.calls) == 2 and client.calls[1]["user"].startswith(TOPUP_TASK)
-    assert "llm_budget_exhausted" in outcome.warnings and "focus_topup:1" in outcome.warnings
+    assert "focus_topup:1" in outcome.warnings
 
 
 def test_a_failed_topup_keeps_the_first_moments() -> None:
@@ -1906,3 +1917,38 @@ def test_mentions_inside_an_opening_teaser_montage_are_never_asked_about() -> No
     _, client = topup_run(jomok_units(60, mentions=(1, 31, 45)), [moment(10, 14)],
                           {"moments": []}, k=2)
     assert list(excerpt_lines(client.calls[1]["user"])) == ["P1", "P2"]
+
+
+def greeted(units):
+    """``units`` whose first unit is a channel greeting that also says the term."""
+    text = "Halo semuanya, selamat datang lagi. Terus soal perjomokan itu gimana kisah0 deh."
+    return [dataclasses.replace(units[0], text=text), *units[1:]]
+
+
+def test_mentions_inside_the_opening_greeting_are_never_asked_about() -> None:
+    # The greeting (00:00) and a mention 35 s later lie in the opening; 05:15 does not.
+    units = greeted(jomok_units(60, mentions=(0, 5, 45)))
+
+    _, client = topup_run(units, [moment(20, 24)], {"moments": []}, k=2)
+
+    prompt = client.calls[1]["user"]
+    assert excerpt_lines(prompt) == {"P1": [lid(index) for index in range(34, 56)]}
+    assert focus_block_lines(prompt)[2] == "baris yang menyebut istilah: L0046"
+
+    # Mentions in the opening alone never cause a top-up.
+    outcome, client = topup_run(greeted(jomok_units(60, mentions=(0, 5))), [moment(20, 24)], k=2)
+    assert len(client.calls) == 1
+    assert not any(code.startswith("focus_topup") for code in outcome.warnings)
+
+
+def test_a_topup_moment_that_starts_in_the_opening_is_dropped() -> None:
+    # 01:24 lies after the opening (00:00-01:00), but a moment from 00:42 starts inside it.
+    units = greeted(jomok_units(60, mentions=(0, 12, 45)))
+    answer = {"moments": [moment(6, 13, focus="literal"), moment(43, 47, focus="literal")]}
+
+    outcome, client = topup_run(units, [moment(20, 24)], answer, k=3)
+
+    assert list(excerpt_lines(client.calls[1]["user"])) == ["P1", "P2"]
+    assert spans(outcome) == [(20, 24), (43, 47)]
+    assert "focus_topup:1" in outcome.warnings
+    assert "llm_dropped:1:opening" in outcome.warnings
