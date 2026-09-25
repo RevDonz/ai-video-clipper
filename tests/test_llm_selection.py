@@ -1251,6 +1251,10 @@ def test_the_trend_block_has_the_specified_format() -> None:
             "sensasional."
         ),
         "Penilaian momen tetap berdasarkan standar; tren bukan alasan memilih momen yang lemah.",
+        (
+            'Format: di setiap momen isi "trend_refs" dengan id tren yang dipakai, misalnya '
+            '["T1"]; isi [] bila tidak ada.'
+        ),
     ]
     assert render_trend_block([]) == ""
 
