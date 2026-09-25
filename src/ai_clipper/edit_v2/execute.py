@@ -17,8 +17,12 @@ Plan §5.1, §5.2 R8 and §4.6:
   ``expected["stall_s"]`` (default 20 s), else ``render_stalled``; ``cancel`` kills the process
   group within the 50 ms poll.
 * **Outputs**: ``fd`` (FFmpeg writes ``@out`` = ``/proc/self/fd/<output_fd>``), ``null``,
-  ``cells`` (plate cells copied into the directory ``output_fd``, or returned when it is None)
-  and ``png`` (an optional fixed post step, then ancillary chunks stripped).
+  ``cells`` (plate cells copied into the directory ``output_fd``, or returned when it is None),
+  ``png`` (an optional fixed post step, then ancillary chunks stripped) and ``pipe`` (``@out`` is
+  the write end of a pipe: :func:`run_piped`).
+* **Pipes** (W2 integration, PF-AUDIO): :func:`run_piped` runs a producer whose ``@out`` is a
+  pipe and a consumer that reads it as its ``InputSpec("pipe", …)`` input, at the same time;
+  a failure or cancel on either side stops both.
 
 Failures raise ``RenderFailed`` (``render_failed``, ``render_timeout``, ``render_stalled``) or
 ``Cancelled``; the bounded stderr is attached as ``stderr_tail`` and never put in the message.
@@ -53,7 +57,7 @@ POLL_S = 0.05
 _INPUT = re.compile(r"@in:(\d+)")
 _SIDECAR = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
 _RESERVED = frozenset({GRAPH_FILE, FONTS_DIR})
-_OUTPUTS = ("fd", "null", "cells", "png")
+_OUTPUTS = ("fd", "null", "cells", "png", "pipe")
 
 
 @dataclass(frozen=True)
@@ -343,6 +347,21 @@ def run(
     Raises ``RenderFailed`` (``render_failed``, ``render_timeout``, ``render_stalled``) or
     ``Cancelled``; ``ValueError`` for a malformed job (unknown token, bad sidecar name).
     """
+    return _run(job, output_fd=output_fd, timeout_s=timeout_s, on_progress=on_progress,
+                cancel=cancel, pipes=None)
+
+
+def _run(
+    job: FfmpegJob,
+    *,
+    output_fd: int | None,
+    timeout_s: float,
+    on_progress: Callable[[int], None] | None,
+    cancel: threading.Event | None,
+    pipes: Mapping[str, int] | None,
+) -> ExecResult:
+    """:func:`run`; ``pipes`` maps the name of each ``InputSpec("pipe", name)`` input to the
+    read end of a pipe (the caller keeps it; :func:`run_piped` is the one user)."""
     started = time.monotonic()
     deadline = started + timeout_s
     expected = job.expected
@@ -378,6 +397,14 @@ def run(
             raise _fail("render_failed", ref="fontconfig")
         paths = expected.get("paths", {})
         for spec in job.inputs:
+            if spec.kind == "pipe":
+                if not pipes or spec.name not in pipes:
+                    raise ValueError(f"input pipe {spec.name!r} is not given")
+                fd = os.dup(pipes[spec.name])
+                fds.append(fd)
+                if not stat.S_ISFIFO(os.fstat(fd).st_mode):
+                    raise ValueError(f"input pipe {spec.name!r} is not a pipe")
+                continue
             if spec.kind == "sidecar":
                 if spec.name not in job.sidecars:
                     raise ValueError(f"input sidecar {spec.name!r} is not in the job")
@@ -448,4 +475,70 @@ def run(
         shutil.rmtree(work, ignore_errors=True)
 
 
-__all__ = ["RLIMIT_AS_BYTES", "STALL_S", "ExecResult", "run"]
+def run_piped(
+    producer: FfmpegJob,
+    consumer: FfmpegJob,
+    *,
+    output_fd: int | None,
+    timeout_s: float,
+    cancel: threading.Event | None = None,
+) -> tuple[ExecResult, ExecResult]:
+    """Run ``producer`` (output ``pipe``) and ``consumer`` (one ``InputSpec("pipe", …)``
+    input) at the same time, joined by a pipe; ``consumer`` writes to ``output_fd``.
+
+    Each side is a :func:`run` with its own limits, timeout and ``-progress`` stall window; the
+    parent closes its copies of the pipe as soon as a side ends, so a consumer that dies stops
+    the producer at once (a broken pipe) and a producer that dies ends the consumer's input.
+    ``cancel`` stops both. When both fail, the first failure is raised (the other side's is its
+    consequence); a cancel wins over a failure. Returns (producer result, consumer result).
+    """
+    if producer.expected.get("output") != "pipe":
+        raise ValueError("the producer must write to a pipe (output 'pipe')")
+    names = [spec.name for spec in consumer.inputs if spec.kind == "pipe"]
+    if len(names) != 1:
+        raise ValueError("the consumer must read exactly one pipe input")
+    read_fd, write_fd = os.pipe()
+    produced: dict[str, Any] = {}
+
+    def produce() -> None:
+        try:
+            produced["result"] = run(producer, output_fd=write_fd, timeout_s=timeout_s,
+                                     cancel=cancel)
+        except BaseException as exc:  # noqa: BLE001 - re-raised below, in the caller's thread
+            produced["error"] = exc
+            produced["at"] = time.monotonic()
+        finally:
+            os.close(write_fd)
+
+    thread = threading.Thread(target=produce, name="edit-v2-producer", daemon=True)
+    try:
+        thread.start()
+    except BaseException:
+        os.close(write_fd)
+        os.close(read_fd)
+        raise
+    consumed = None
+    consumer_error: BaseException | None = None
+    consumer_at = 0.0
+    try:
+        consumed = _run(consumer, output_fd=output_fd, timeout_s=timeout_s, on_progress=None,
+                        cancel=cancel, pipes={names[0]: read_fd})
+    except BaseException as exc:  # noqa: BLE001 - re-raised below
+        consumer_error = exc
+        consumer_at = time.monotonic()
+    finally:
+        os.close(read_fd)
+    thread.join()
+    producer_error = produced.get("error")
+    failures = [(at, error) for at, error in ((produced.get("at", 0.0), producer_error),
+                                              (consumer_at, consumer_error))
+                if error is not None]
+    for _at, error in failures:
+        if isinstance(error, errors.Cancelled):
+            raise error
+    if failures:
+        raise min(failures, key=lambda item: item[0])[1]
+    return produced["result"], consumed
+
+
+__all__ = ["RLIMIT_AS_BYTES", "STALL_S", "ExecResult", "run", "run_piped"]
