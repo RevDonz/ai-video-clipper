@@ -36,6 +36,7 @@ const ALLOWED = {
   TMPDIR: "/tmp",
   JOBS_ROOT: "/data/jobs",
   FONTCONFIG_FILE: "/app/resources/fontconfig/fonts.conf",
+  MAX_UPLOAD_BYTES: "524288000",
   POTONGIN_RENDER_ENGINE: "legacy",
   POTONGIN_EDITOR_V3: "off",
   POTONGIN_EDITOR_UPLOADS: "off",
