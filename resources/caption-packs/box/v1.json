@@ -9,6 +9,7 @@
   "outline": {"num": 1, "den": 100},
   "shadow": {"num": 0, "den": 1},
   "border_style": 3,
+  "box_style": "border",
   "colours": {"text": "#FFFFFF", "outline": "#000000", "outline_alpha": 64, "back": "#000000", "back_alpha": 64},
   "margin_side_pm": 60,
   "reveal": "static",

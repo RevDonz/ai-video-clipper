@@ -113,6 +113,16 @@ def ass_escape(text: str) -> str:
     return "".join(pieces)
 
 
+def _drawn_text(text: str) -> str:
+    """The characters libass draws for ``ass_escape(text)``, without its invisible markers."""
+    return "".join(
+        " " if character in _LINE_BREAKING else character
+        for character in text
+        if character in _LINE_BREAKING
+        or unicodedata.category(character) not in _DROPPED_CATEGORIES
+    )
+
+
 def shorten_hook_text(text: str, max_chars: int = HOOK_TEXT_MAX_CHARS) -> str:
     """Normalize whitespace and cap the length, cutting on a word boundary with an ellipsis."""
     if not isinstance(max_chars, int) or isinstance(max_chars, bool) or max_chars < 2:
@@ -414,6 +424,9 @@ PACK_SCHEMA = "potongin.caption-pack/1"
 HOOK_DESIGN_SCHEMA = "potongin.hook-design/1"
 CASES = ("asis", "upper")
 REVEALS = ("static", "karaoke", "word")
+# How a boxed pack (border_style 3) draws its box: libass' BorderStyle 3 ("border"), or a \\p
+# vector rectangle event behind each line ("vector", the P-TXT fallback of plan §5.4).
+BOX_STYLES = ("border", "vector")
 _COLOUR = re.compile(r"#[0-9A-F]{6}")
 _RESOURCE_ID = re.compile(r"[a-z][a-z0-9-]{0,31}")
 _OVERRIDE_KEYS = ("y_e5", "size_pm", "case", "highlight", "emphasis")
@@ -428,6 +441,8 @@ class CaptionPack:
     ``H · size_ratio · size_scale_pm/1000 · overrides.size_pm/1000`` (rounded half up), the
     outline and shadow ``H · ratio`` pixels (centipixel precision). ``max_width_pm`` set means
     one line per cue: cues wider than that per-mille of ``W`` are split (``fit_cues``).
+    ``box_style`` is how a boxed pack draws its box (``BOX_STYLES``); only boxed pack files
+    carry the field, and ``"vector"`` needs a one-line static boxed pack.
     """
 
     id: str
@@ -453,6 +468,7 @@ class CaptionPack:
     max_width_pm: int | None
     defaults: Mapping[str, Any]
     sha256: str
+    box_style: str = "border"
 
 
 @dataclass(frozen=True)
@@ -519,8 +535,10 @@ def _load_pack(pack_id: str, version: int) -> CaptionPack:
     expected = {"schema", "id", "v", "name", "style_name", "font", "size", "outline", "shadow",
                 "border_style", "colours", "margin_side_pm", "reveal", "words_per_cue",
                 "max_width_pm", "defaults"}
-    if set(data) != expected or data["schema"] != PACK_SCHEMA:
+    if set(data) - {"box_style"} != expected or data["schema"] != PACK_SCHEMA:
         raise ValueError("caption pack file does not follow potongin.caption-pack/1")
+    if "box_style" in data and data["border_style"] != 3:
+        raise ValueError("pack box_style is only for boxed packs (border_style 3)")
     if (data["id"], data["v"]) != (pack_id, version):
         raise ValueError("caption pack id/version do not match its path")
     font, colours, size = data["font"], data["colours"], data["size"]
@@ -547,6 +565,9 @@ def _load_pack(pack_id: str, version: int) -> CaptionPack:
         raise ValueError("pack words_per_cue must be a positive integer")
     if not _is_int(data["margin_side_pm"]) or not 0 <= data["margin_side_pm"] < 500:
         raise ValueError("pack margin_side_pm must be 0-499")
+    box_style = data.get("box_style", "border")
+    _check_box_style(box_style, border_style=data["border_style"], reveal=data["reveal"],
+                     max_width_pm=max_width)
     defaults = data["defaults"]
     _check_overrides(defaults)
     return CaptionPack(
@@ -573,7 +594,18 @@ def _load_pack(pack_id: str, version: int) -> CaptionPack:
         max_width_pm=max_width,
         defaults=MappingProxyType({key: defaults[key] for key in _OVERRIDE_KEYS}),
         sha256=sha,
+        box_style=box_style,
     )
+
+
+def _check_box_style(box_style: object, *, border_style: int, reveal: str,
+                     max_width_pm: int | None) -> None:
+    if box_style not in BOX_STYLES:
+        raise ValueError("pack box_style must be border or vector")
+    if box_style == "vector" and (border_style != 3 or reveal != "static"
+                                  or max_width_pm is None):
+        raise ValueError("pack box_style vector needs a one-line static boxed pack "
+                         "(border_style 3, max_width_pm)")
 
 
 def load_hook_design(design_id: str, version: int) -> dict[str, Any]:
@@ -594,6 +626,11 @@ def load_hook_design(design_id: str, version: int) -> dict[str, Any]:
     ):
         raise ValueError("hook design file does not follow potongin.hook-design/1")
     return data
+
+
+def _margin_v(height: int, y_e5: int) -> int:
+    """``MarginV = H − y`` of a bottom-anchored caption whose bottom is at ``y_e5``."""
+    return div_round_half_up((_E5 - y_e5) * height, _E5)
 
 
 def _check_overrides(overrides: Mapping[str, Any]) -> None:
@@ -762,18 +799,40 @@ def _caption_events(cues: Sequence[FrameCue], *, pack: CaptionPack, fps: Fps,
                        if first < last]
         elif pack.max_width_pm is not None:
             tags = "\\q2"
-            if len(cue.words) == 1:
-                display = _display(cue.words[0].text, case)
-                font = font_path(pack.font_file)
-                size = _pack_font_size(pack, height, overrides["size_pm"])
-                if not _fits(display, font, size, pack.max_width_pm, width):
-                    units, height_units = advance_units(display, font)
-                    shrunk = pack.max_width_pm * width * height_units // (1000 * units)
-                    tags += f"\\fs{max(1, shrunk)}"
+            display = " ".join(_display(word.text, case) for word in cue.words)
+            font = font_path(pack.font_file)
+            size = _pack_font_size(pack, height, overrides["size_pm"])
+            if len(cue.words) == 1 and not _fits(display, font, size, pack.max_width_pm, width):
+                units, height_units = advance_units(display, font)
+                size = max(1, pack.max_width_pm * width * height_units // (1000 * units))
+                tags += f"\\fs{size}"
+            if pack.box_style == "vector":
+                events.append(event(cue.f0, cue.f1, _vector_box(
+                    display, font, size, pack=pack, play_res=play_res, overrides=overrides)))
             events.append(event(cue.f0, cue.f1, f"{{{tags}}}{static(cue.words)}"))
         else:
             events.append(event(cue.f0, cue.f1, static(cue.words)))
     return events
+
+
+def _vector_box(text: str, font: Path, font_size: int, *, pack: CaptionPack,
+                play_res: tuple[int, int], overrides: Mapping[str, Any]) -> str:
+    """The ``\\p`` rectangle a ``box_style: vector`` pack draws behind one caption line.
+
+    It covers what libass' BorderStyle 3 box covers: the line's advance (from ``hmtx``) and its
+    font size (ascent + descent), padded by the pack outline on every side, in the outline
+    colour and alpha, bottom-centred on the line's bottom plus the padding.
+    """
+    width, height = play_res
+    num, den = pack.outline_ratio
+    pad = div_round_half_up(height * num, den)
+    units, height_units = advance_units(_drawn_text(text), font)
+    box_w = div_round_half_up(font_size * units, height_units) + 2 * pad
+    box_h = font_size + 2 * pad
+    bottom = height - _margin_v(height, overrides["y_e5"]) + pad
+    return (f"{{\\an2\\pos({_centi_text(50 * width)},{bottom})\\bord0\\shad0"
+            f"\\1c{_inline_colour(pack.outline_colour)}\\1a&H{pack.outline_alpha:02X}&\\p1}}"
+            f"m 0 0 l {box_w} 0 {box_w} {box_h} 0 {box_h}{{\\p0}}")
 
 
 def _pack_style(pack: CaptionPack, *, play_res: tuple[int, int],
@@ -782,6 +841,11 @@ def _pack_style(pack: CaptionPack, *, play_res: tuple[int, int],
     primary = overrides["highlight"] if pack.reveal == "karaoke" else pack.text_colour
     outline_num, outline_den = pack.outline_ratio
     shadow_num, shadow_den = pack.shadow_ratio
+    outline = _centi_text(div_round_half_up(100 * height * outline_num, outline_den))
+    shadow = _centi_text(div_round_half_up(100 * height * shadow_num, shadow_den))
+    border_style = pack.border_style
+    if pack.box_style == "vector":  # the box is its own event; the text has no border
+        border_style, outline, shadow = 1, "0", "0"
     return _style_line(
         pack.style_name,
         font_name=pack.font_family,
@@ -791,12 +855,12 @@ def _pack_style(pack: CaptionPack, *, play_res: tuple[int, int],
         outline_color=_ass_color(pack.outline_colour, alpha=pack.outline_alpha),
         back_color=_ass_color(pack.back_colour, alpha=pack.back_alpha),
         bold=pack.bold,
-        border_style=pack.border_style,
-        outline=_centi_text(div_round_half_up(100 * height * outline_num, outline_den)),
-        shadow=_centi_text(div_round_half_up(100 * height * shadow_num, shadow_den)),
+        border_style=border_style,
+        outline=outline,
+        shadow=shadow,
         alignment=2,
         margin_side=div_round_half_up(width * pack.margin_side_pm, 1000),
-        margin_vertical=div_round_half_up((_E5 - overrides["y_e5"]) * height, _E5),
+        margin_vertical=_margin_v(height, overrides["y_e5"]),
     )
 
 
@@ -819,7 +883,8 @@ def build_ass_v2(
     ``settb=den/num``). The header, the ``classic``/``karaoke`` style lines and the
     ``legacy-bar`` hook equal ``build_ass`` for the same size, so revision 0 looks the same.
     Emphasised words get the ``emphasis`` colour (defect #6); all text goes through
-    ``ass_escape``.
+    ``ass_escape``. A ``box_style: vector`` pack draws each box as a ``\\p`` rectangle event
+    right before its line (plan §5.4, the fallback if BorderStyle 3 fails P-TXT).
     """
     if (not isinstance(play_res, (tuple, list)) or len(play_res) != 2
             or not all(_is_int(value) and value > 0 for value in play_res)):
@@ -831,6 +896,8 @@ def build_ass_v2(
         raise ValueError("total_frames must be a positive integer")
     if not isinstance(pack, CaptionPack):
         raise TypeError("pack must be a CaptionPack (load_pack)")
+    _check_box_style(pack.box_style, border_style=pack.border_style, reveal=pack.reveal,
+                     max_width_pm=pack.max_width_pm)
     _check_overrides(overrides)
     for cue in cues:
         if not isinstance(cue, FrameCue):
