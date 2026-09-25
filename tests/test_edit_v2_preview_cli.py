@@ -789,6 +789,101 @@ def test_a_mix_with_music_is_measured_once_and_protected(job, tmp_path):
     assert again["gainCdb"] == result["gainCdb"]
 
 
+def _music_doc(case: dict, tmp_path: Path, gain_cdb: int) -> tuple[dict, dict]:
+    """The seed of ``case`` plus a looped, ducked music bed at ``gain_cdb`` (and its assets)."""
+    assets = case["job_dir"] / "analysis" / "assets"
+    assets.mkdir(exist_ok=True)
+    spec = media.AudioSpec(bursts=(media.ToneBurst(0, 60_000, 330, -140),), clicks_ms=())
+    music = media.make_audio(tmp_path / "music.m4a", spec, duration_ms=60_000)
+    digest = hashlib.sha256(music.read_bytes()).hexdigest()
+    (assets / f"{digest}.m4a").write_bytes(music.read_bytes())
+    meta = {"kind": "audio", "mime": "audio/mp4", "duration_ms": 60_000, "lufs_c": -1600}
+    (assets / f"{digest}.json").write_text(json.dumps(meta))
+    asset = f"sha256:{digest}"
+    doc = next_doc(case["seed"], store.seed(case["clip"])[1])
+    doc["tracks"].append({"id": "tr_mus", "kind": "audio", "role": "music", "items": [{
+        "id": "it_music", "type": "audio", "start": {"at": "clip_start"},
+        "end": {"at": "clip_end"},
+        "payload": {"asset": asset, "src_in_smp": 0, "loop": True, "gain_cdb": gain_cdb,
+                    "fade_in_f": 15, "fade_out_f": 30,
+                    "duck": {"on": True, "depth_cdb": 1000, "attack_ms": 30,
+                             "release_ms": 400, "hold_ms": 250, "detector": "words"}},
+        "origin": "user"}]})
+    doc["assets"] = {asset: meta}
+    return doc, {asset: meta}
+
+
+@pytest.mark.parametrize("mode", ["off", "normalize"])
+def test_a_first_mix_that_needs_a_measurement_decodes_the_source_once(job, tmp_path, mode):
+    """PF-AUDIO: the pre-master mix is decoded once; the loudness is measured from that stream
+    while it is written, then only the master stage runs. The measurement is the export's
+    (``audio_measure``) to the last centi-unit, and the PCM is the reference's (P-AUD)."""
+    from ai_clipper.edit_v2.loudness import Loudness, parse_ebur128
+
+    case = job_case(job)
+    doc, assets = _music_doc(case, tmp_path, -300 if mode == "off" else 250)
+    doc["audio"]["master"]["mode"] = mode
+    jobs = []
+    real_run = execute.run
+
+    def recording_run(job_, **kwargs):
+        jobs.append(job_)
+        return real_run(job_, **kwargs)
+
+    execute.run = recording_run
+    try:
+        result = ok(op(case, "audio", requestRaw=b64(body(doc)), cancelToken=None))
+    finally:
+        execute.run = real_run
+    assert result["built"] is True
+    decoding = [j for j in jobs if any(spec.kind == "source" and spec.name == "source"
+                                       for spec in j.inputs)]
+    assert len(decoding) == 1, [j.expected.get("mode") for j in jobs]
+    built = build_plan(doc, words=case["words"], camera=None, assets=assets,
+                       resources=Resources(RESOURCES_DIR))
+    measure = compile_ffmpeg.compile_job(built, mode="audio_measure", source=case["source"],
+                                         assets_root=case["job_dir"] / "analysis" / "assets")
+    exported = parse_ebur128(execute.run(measure, output_fd=None, timeout_s=600).stderr)
+    cached = json.loads((case["clip"] / "preview" / "audio" /
+                         f"{measure.expected['mix_sha256'][:16]}.loudness.json").read_text())
+    assert Loudness(cached["i_clufs"], cached["tp_cdb"]) == exported
+    pcm = media.read_pcm(case["clip"] / "preview" / "audio" / result["name"]).tobytes()
+    assert len(pcm) // 4 == built.total_samples == result["samples"]
+    reference = reference_pcm({**case, "assets": assets}, doc, tmp_path, loudness=exported)
+    assert hashlib.md5(pcm).hexdigest() == hashlib.md5(reference).hexdigest()
+
+
+def test_the_source_probe_is_kept_on_disk_for_the_next_process(job, monkeypatch):
+    """Each lane op is a new process: the source's ffprobe result is kept in
+    ``preview/probe.json`` under the file's identity, so only the first op pays for it."""
+    case = job_case(job, 1)
+    probe = case["clip"] / "preview" / "probe.json"
+    probe.unlink(missing_ok=True)
+    compile_ffmpeg._probe_cached.cache_clear()
+    lane = ok(plan(case))["lane"]
+    ok(op(case, "cells", layout="fit_blur", cells=lane["cells"][:1], cancelToken=None))
+    assert probe.is_file()
+    stored = json.loads(probe.read_text())
+    assert set(stored) == {"identity", "streams"}
+    compile_ffmpeg._probe_cached.cache_clear()
+    calls = []
+    real = subprocess.run
+
+    def counting(argv, *args, **kwargs):
+        if argv and Path(str(argv[0])).name == "ffprobe":
+            calls.append(argv)
+        return real(argv, *args, **kwargs)
+
+    monkeypatch.setattr(compile_ffmpeg.subprocess, "run", counting)
+    ok(op(case, "cells", layout="fit_blur", cells=lane["cells"][1:2], cancelToken=None))
+    assert calls == []
+    stored["identity"][2] += 1  # another file (size differs): probed again
+    probe.write_text(json.dumps(stored))
+    compile_ffmpeg._probe_cached.cache_clear()
+    ok(op(case, "cells", layout="fit_blur", cells=lane["cells"][2:3], cancelToken=None))
+    assert len(calls) == 1
+
+
 def test_the_truth_frame_is_the_compilers_frame_mode_output(job, tmp_path):
     case = job_case(job)
     doc = case["seed"]
