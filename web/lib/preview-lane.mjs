@@ -53,6 +53,7 @@ const STALE_TEMP_MS = 10 * 60_000;
 const CAP_INTERVAL_MS = 2_000;
 const MAX_ACCESS_ENTRIES = 50_000;
 const MAX_CLIPS = 64;
+const MEMORY_ENTRIES = 64;
 const HEX64 = /^[0-9a-f]{64}$/;
 const HEX32 = /^[0-9a-f]{32}$/;
 
@@ -103,7 +104,66 @@ export function parsePlanBody(buffer) {
     }
   }
   if (value.playhead !== undefined && !isFrame(value.playhead)) throw new LaneRequestError(400, "invalid_request");
-  return { playhead: value.playhead ?? 0 };
+  return { playhead: value.playhead ?? 0, known: value.known?.assSha256 ?? null };
+}
+
+const WS = new Set([0x20, 0x09, 0x0a, 0x0d]);
+
+function skipSpace(buffer, index) {
+  while (index < buffer.length && WS.has(buffer[index])) index += 1;
+  return index;
+}
+
+function skipString(buffer, index) { // index at the opening quote; returns past the closing one
+  for (index += 1; index < buffer.length; index += 1) {
+    if (buffer[index] === 0x5c) index += 1;
+    else if (buffer[index] === 0x22) return index + 1;
+  }
+  throw new LaneRequestError(400, "invalid_request");
+}
+
+function skipValue(buffer, index) {
+  if (buffer[index] === 0x22) return skipString(buffer, index);
+  if (buffer[index] === 0x7b || buffer[index] === 0x5b) {
+    let depth = 0;
+    for (; index < buffer.length; index += 1) {
+      const byte = buffer[index];
+      if (byte === 0x22) index = skipString(buffer, index) - 1;
+      else if (byte === 0x7b || byte === 0x5b) depth += 1;
+      else if ((byte === 0x7d || byte === 0x5d) && --depth === 0) return index + 1;
+    }
+    throw new LaneRequestError(400, "invalid_request");
+  }
+  while (index < buffer.length && !WS.has(buffer[index]) && ![0x2c, 0x7d, 0x5d].includes(buffer[index])) index += 1;
+  return index;
+}
+
+/**
+ * The exact bytes of the top-level `doc` member of a request body (already known to be a JSON
+ * object): Python validates these bytes as received, and the lane keys its caches on them.
+ */
+export function docBytes(buffer) {
+  let index = skipSpace(buffer, 0);
+  if (buffer[index] !== 0x7b) throw new LaneRequestError(400, "invalid_request");
+  index = skipSpace(buffer, index + 1);
+  let found = null;
+  while (index < buffer.length && buffer[index] !== 0x7d) {
+    if (buffer[index] !== 0x22) throw new LaneRequestError(400, "invalid_request");
+    const keyEnd = skipString(buffer, index);
+    const key = JSON.parse(buffer.subarray(index, keyEnd).toString("utf8"));
+    index = skipSpace(buffer, keyEnd);
+    if (buffer[index] !== 0x3a) throw new LaneRequestError(400, "invalid_request");
+    const start = skipSpace(buffer, index + 1);
+    const end = skipValue(buffer, start);
+    if (key === "doc") {
+      if (found) throw new LaneRequestError(400, "invalid_request"); // a doubled member
+      found = buffer.subarray(start, end);
+    }
+    index = skipSpace(buffer, end);
+    if (buffer[index] === 0x2c) index = skipSpace(buffer, index + 1);
+  }
+  if (!found) throw new LaneRequestError(400, "invalid_request");
+  return found;
 }
 
 /** `{doc, f}` (plan §4.2 `preview/frame`). */
@@ -253,6 +313,12 @@ export function createPreviewLane({
     const at = map.get(key);
     return at !== undefined && now() - at < window;
   };
+  // Per-key memories (done, failed, warnings) are bounded: one entry per edit otherwise.
+  const remember = (map, key, value) => {
+    map.delete(key);
+    map.set(key, value);
+    while (map.size > MEMORY_ENTRIES) map.delete(map.keys().next().value);
+  };
 
   // --- cancellation markers ----------------------------------------------------------------------
 
@@ -381,22 +447,22 @@ export function createPreviewLane({
       for (const k of task.cells) {
         if (clip.runningCells.get(k) === task) clip.runningCells.delete(k);
         if (task.plateKey !== clip.plate?.key) continue;
-        if (ok) clip.doneCells.set(k, now());
+        if (ok) remember(clip.doneCells, k, now());
         else if (wasCancelled) clip.queued.add(k); // preempted: back in the queue, same order
-        else clip.failedCells.set(k, now());
+        else remember(clip.failedCells, k, now());
       }
     } else if (task.kind === "audio") {
       if (clip.audio?.task === task) clip.audio = { key: task.key, task: null };
       if (ok) {
-        clip.audioDone.set(task.key, now());
-        if (Array.isArray(result.json?.warnings)) clip.audioWarnings.set(task.key, result.json.warnings.filter(isObject));
+        remember(clip.audioDone, task.key, now());
+        if (Array.isArray(result.json?.warnings)) remember(clip.audioWarnings, task.key, result.json.warnings.filter(isObject));
       } else if (!wasCancelled) {
-        clip.audioFailed.set(task.key, now());
+        remember(clip.audioFailed, task.key, now());
       }
     } else if (task.kind === "derive") {
       if (clip.derive.get(task.key) === task) clip.derive.delete(task.key);
-      if (ok) clip.deriveDone.set(task.key, now());
-      else if (!wasCancelled) clip.deriveFailed.set(task.key, now());
+      if (ok) remember(clip.deriveDone, task.key, now());
+      else if (!wasCancelled) remember(clip.deriveFailed, task.key, now());
     }
     task.settle?.(result, error);
     scheduleCap(clip.jobId);
@@ -521,9 +587,10 @@ export function createPreviewLane({
     return promise;
   }
 
-  async function respond(clip, entry) {
+  async function respond(clip, entry, { playhead = 0, known = null } = {}) {
     const dto = structuredClone(entry.dto);
-    const lane = entry.lane;
+    const lane = { ...entry.lane, playhead: Math.min(playhead, Math.max((dto.totalFrames ?? 1) - 1, 0)) };
+    if (isObject(dto.text) && known && known === dto.text.assSha256) delete dto.text.ass;
     const directory = clipDir(clip);
     const missing = [];
     const states = await Promise.all(dto.plate.cells.map(async (cell) => {
@@ -563,27 +630,34 @@ export function createPreviewLane({
   }
 
   async function plan({ jobId, clipId, body }) {
-    try { parsePlanBody(body); } catch (error) {
+    let request;
+    let doc;
+    try {
+      request = parsePlanBody(body);
+      doc = docBytes(body);
+    } catch (error) {
       return { status: error.status ?? 400, json: { error: { code: "invalid_request", messageId: "edit.invalid_request" } } };
     }
     const clip = clipState(jobId, clipId);
     clip.lastActive = now();
-    const sha = sha256(body);
+    // Keyed on the document's bytes: a poll that only updates `known` or `playhead` is answered
+    // from the cache; Python always gets `{"doc": …}` alone and returns the ASS.
+    const sha = sha256(doc);
     const cached = clip.cache.get(sha);
     if (cached && now() - cached.at < DTO_TTL_MS && clip.inflight?.sha !== sha) {
       if (clip.inflight) clip.inflight.controller.abort();
-      return respond(clip, cached);
+      return respond(clip, cached, request);
     }
     let pending;
     if (clip.inflight?.sha === sha) {
       pending = clip.inflight.promise;
     } else {
       clip.inflight?.controller.abort(); // a newer document supersedes the one being planned
-      pending = runPlan(clip, sha, body);
+      pending = runPlan(clip, sha, Buffer.concat([Buffer.from('{"doc":'), doc, Buffer.from("}")]));
     }
     const outcome = await pending;
     if (!outcome.entry) return outcome;
-    return respond(clip, outcome.entry);
+    return respond(clip, outcome.entry, request);
   }
 
   // --- prepare and frame -------------------------------------------------------------------------

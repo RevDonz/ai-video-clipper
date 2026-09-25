@@ -13,6 +13,7 @@ import {
   PREVIEW_MODULE,
   cellOrder,
   createPreviewLane,
+  docBytes,
   editorV3Enabled,
   frameResponse,
   parseFrameBody,
@@ -44,8 +45,10 @@ function root() {
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 async function settle(times = 5) { for (let i = 0; i < times; i += 1) await flush(); }
 
-function planBody(extra = {}) {
-  return Buffer.from(JSON.stringify({ doc: DOC, ...extra }));
+const DOC2 = { ...DOC, revision: 1 };
+
+function planBody(extra = {}, doc = DOC) {
+  return Buffer.from(JSON.stringify({ doc, ...extra }));
 }
 
 // A plan-op result as preview_cli returns it.
@@ -104,9 +107,10 @@ function cellsResult(payload) {
 }
 
 test("request bodies are checked before anything is spawned", () => {
-  assert.deepEqual(parsePlanBody(planBody()), { playhead: 0 });
-  assert.deepEqual(parsePlanBody(planBody({ known: { assSha256: "a".repeat(64) }, playhead: 42 })), { playhead: 42 });
-  assert.deepEqual(parsePlanBody(planBody({ known: {} })), { playhead: 0 });
+  assert.deepEqual(parsePlanBody(planBody()), { playhead: 0, known: null });
+  assert.deepEqual(parsePlanBody(planBody({ known: { assSha256: "a".repeat(64) }, playhead: 42 })),
+    { playhead: 42, known: "a".repeat(64) });
+  assert.deepEqual(parsePlanBody(planBody({ known: {} })), { playhead: 0, known: null });
   for (const bad of [
     Buffer.from("not json"), Buffer.from("[]"), Buffer.from("{}"), Buffer.from('{"doc": 1}'),
     Buffer.from('{"doc": []}'), planBody({ extra: 1 }), planBody({ known: [] }),
@@ -152,7 +156,7 @@ test("a plan runs the plan op once and schedules cells, audio and the logo", asy
     const [call] = cli.pending("plan");
     assert.equal(call.module, PREVIEW_MODULE);
     assert.deepEqual(Object.keys(call.payload).sort(), ["clipId", "jobId", "requestRaw"]);
-    assert.equal(Buffer.from(call.payload.requestRaw, "base64").toString(), planBody({ playhead: 130 }).toString());
+    assert.equal(Buffer.from(call.payload.requestRaw, "base64").toString(), `{"doc":${JSON.stringify(DOC)}}`);
     call.resolve({ exitCode: 0, json: planResult({ playhead: 130, logo: { asset: `sha256:${"9".repeat(64)}`, w: 20, h: 10, opacityPm: 850, name: `${"8".repeat(16)}@20x10a850.png`, ready: false } }) });
     const response = await pending;
     assert.equal(response.status, 200);
@@ -211,6 +215,49 @@ test("the same body shares one plan op and later polls are answered from the cac
   }
 });
 
+test("polls of the same document hit the cache whatever their known sha or playhead", async () => {
+  const { dir, clip, cleanup } = root();
+  const cli = fakeCli();
+  const lane = createPreviewLane({ jobsRoot: dir, runCli: cli.run, heavySlots: 0 });
+  try {
+    const first = lane.plan({ jobId: JOB, clipId: CLIP, body: planBody() });
+    await settle();
+    const [call] = cli.pending("plan");
+    // Python always gets the document alone, byte for byte, and returns the ASS
+    assert.equal(Buffer.from(call.payload.requestRaw, "base64").toString(), `{"doc":${JSON.stringify(DOC)}}`);
+    call.resolve({ exitCode: 0, json: planResult({ cells: [10, 11, 12], missing: [10, 11, 12] }) });
+    const answer = await first;
+    assert.equal(answer.json.text.ass, "[Script Info]");
+    const known = await lane.plan({ jobId: JOB, clipId: CLIP, body: planBody({ known: { assSha256: "3".repeat(64) }, playhead: 130 }) });
+    assert.equal(cli.calls.length, 1, "no new plan op for a poll");
+    assert.equal(known.status, 200);
+    assert.ok(!("ass" in known.json.text), "the client already has this ASS");
+    const other = await lane.plan({ jobId: JOB, clipId: CLIP, body: planBody({ known: { assSha256: "4".repeat(64) } }) });
+    assert.equal(other.json.text.ass, "[Script Info]");
+    // a document with other bytes (here a different key order) is planned again
+    const reordered = Buffer.from(`{"doc":{"revision":0,"schema":"clip-edit-v2"}}`);
+    const again = lane.plan({ jobId: JOB, clipId: CLIP, body: reordered });
+    await settle();
+    assert.equal(cli.pending("plan").length, 1);
+    cli.pending("plan")[0].resolve({ exitCode: 0, json: planResult() });
+    assert.equal((await again).status, 200);
+    assert.ok(!existsSync(path.join(clip, "preview", ".cancel")));
+  } finally {
+    lane.close();
+    cleanup();
+  }
+});
+
+test("a doc member is found byte for byte, and a doubled one is refused", () => {
+  assert.equal(docBytes(Buffer.from(' { "known" : {"assSha256": null}, "doc" : {"a":[1,{"b":"}"}]} , "playhead": 3 }')).toString(),
+    '{"a":[1,{"b":"}"}]}');
+  assert.equal(docBytes(Buffer.from('{"doc":{"t":"\\"quoted\\" and ] brace"},"playhead":0}')).toString(),
+    '{"t":"\\"quoted\\" and ] brace"}');
+  assert.equal(docBytes(Buffer.from('{"doc":{"n":8.0}}')).toString(), '{"n":8.0}'); // Python judges floats
+  assert.throws(() => docBytes(Buffer.from('{"doc":{},"doc":{}}')), LaneRequestError);
+  assert.throws(() => docBytes(Buffer.from('{"known":{}}')), LaneRequestError);
+});
+
 test("a newer plan for the clip cancels the superseded one", async () => {
   const { dir, cleanup } = root();
   const cli = fakeCli();
@@ -218,7 +265,7 @@ test("a newer plan for the clip cancels the superseded one", async () => {
   try {
     const old = lane.plan({ jobId: JOB, clipId: CLIP, body: planBody({ playhead: 1 }) });
     await settle();
-    const newer = lane.plan({ jobId: JOB, clipId: CLIP, body: planBody({ playhead: 2 }) });
+    const newer = lane.plan({ jobId: JOB, clipId: CLIP, body: planBody({ playhead: 2 }, DOC2) });
     await settle();
     const [first, second] = cli.calls;
     assert.equal(first.options.signal.aborted, true);
@@ -273,7 +320,7 @@ test("a new plate key cancels the old cells through a cancel marker", async () =
     await settle();
     const running = cli.pending("cells");
     assert.equal(running.length, 2);
-    const two = lane.plan({ jobId: JOB, clipId: CLIP, body: planBody({ playhead: 2 }) });
+    const two = lane.plan({ jobId: JOB, clipId: CLIP, body: planBody({ playhead: 2 }, DOC2) });
     await settle();
     cli.pending("plan")[0].resolve({ exitCode: 0, json: planResult({ plateKey: KEY2, audio: { key: AUDIO, ready: true } }) });
     await two;
@@ -354,7 +401,7 @@ test("a new audio mix for the clip replaces the one being built", async () => {
     await first;
     await settle();
     const [audio] = cli.pending("audio");
-    const second = lane.plan({ jobId: JOB, clipId: CLIP, body: planBody({ playhead: 2 }) });
+    const second = lane.plan({ jobId: JOB, clipId: CLIP, body: planBody({ playhead: 2 }, DOC2) });
     await settle();
     cli.pending("plan")[0].resolve({ exitCode: 0, json: planResult({ cells: [10], missing: [], audio: { key: "12".repeat(32), ready: false } }) });
     await second;
@@ -363,11 +410,11 @@ test("a new audio mix for the clip replaces the one being built", async () => {
     audio.resolve({ exitCode: 12, json: { error: { code: "cancelled" } } });
     await settle();
     const [next] = cli.pending("audio");
-    assert.equal(Buffer.from(next.payload.requestRaw, "base64").toString(), planBody({ playhead: 2 }).toString());
+    assert.equal(Buffer.from(next.payload.requestRaw, "base64").toString(), `{"doc":${JSON.stringify(DOC2)}}`);
     next.resolve({ exitCode: 0, json: { audioKey: "12".repeat(32), name: "x.flac", built: true, samples: 1, gainCdb: -80, warnings: [{ code: "peak_reduced:-0.80 dB", path: "/audio" }] } });
     await lane.idle();
     // the measured warning joins the next answer for the same document
-    const polled = await lane.plan({ jobId: JOB, clipId: CLIP, body: planBody({ playhead: 2 }) });
+    const polled = await lane.plan({ jobId: JOB, clipId: CLIP, body: planBody({ playhead: 2 }, DOC2) });
     assert.ok(polled.json.warnings.some((w) => w.code === "peak_reduced:-0.80 dB"));
   } finally {
     lane.close();
