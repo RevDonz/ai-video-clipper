@@ -724,24 +724,52 @@ const lockQueues = new Map();
 
 const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 
-// A lock directory older than LOCK_STALE_MS belongs to a writer that died: it is renamed away
-// (only one reclaimer can win the rename) and removed.
-async function reclaimStaleLock(lockPath) {
-  let info;
+async function isStale(target) {
   try {
-    info = await lstat(/* turbopackIgnore: true */ lockPath);
-  } catch (error) {
-    return error?.code === "ENOENT";
-  }
-  if (Date.now() - info.mtimeMs <= LOCK_STALE_MS) return false;
-  const aside = `${lockPath}.stale-${crypto.randomUUID()}`;
-  try {
-    await rename(/* turbopackIgnore: true */ lockPath, aside);
+    return Date.now() - (await lstat(/* turbopackIgnore: true */ target)).mtimeMs > LOCK_STALE_MS;
   } catch {
-    return true;
+    return false;
+  }
+}
+
+// Renames `target` away (atomic, so it leaves the namespace at once) and removes it.
+async function removeAside(target) {
+  const aside = `${target}.stale-${crypto.randomUUID()}`;
+  try {
+    await rename(/* turbopackIgnore: true */ target, aside);
+  } catch {
+    return;
   }
   await rm(/* turbopackIgnore: true */ aside, { recursive: true, force: true }).catch(() => {});
-  return true;
+}
+
+// A lock directory older than LOCK_STALE_MS belongs to a writer that died. Only the waiter that
+// holds the breaker directory (<lock>.break) may remove it, and it checks the lock's age while
+// holding the breaker: two waiters that both saw the stale lock can never both remove it, which
+// would let the second one throw away the fresh lock the first one had just taken. A breaker
+// is held for milliseconds; one older than LOCK_STALE_MS belongs to a reclaimer that died.
+// Returns true when the caller should try to take the lock right away.
+async function reclaimStaleLock(lockPath) {
+  const breaker = `${lockPath}.break`;
+  try {
+    await mkdir(/* turbopackIgnore: true */ breaker, { mode: 0o700 });
+  } catch (error) {
+    if (error?.code === "EEXIST" && await isStale(breaker)) await removeAside(breaker);
+    return false;
+  }
+  try {
+    let info;
+    try {
+      info = await lstat(/* turbopackIgnore: true */ lockPath);
+    } catch (error) {
+      return error?.code === "ENOENT";
+    }
+    if (Date.now() - info.mtimeMs <= LOCK_STALE_MS) return false;
+    await removeAside(lockPath);
+    return true;
+  } finally {
+    await rm(/* turbopackIgnore: true */ breaker, { recursive: true, force: true }).catch(() => {});
+  }
 }
 
 async function acquireLockDirectory(lockPath) {
