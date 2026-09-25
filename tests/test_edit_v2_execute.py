@@ -94,6 +94,8 @@ if behave == "fail":
 if behave == "stall":
     block(1)
     time.sleep(60)
+if behave == "silent":
+    time.sleep(60)
 if behave in ("busy", "busy-child"):
     if behave == "busy-child":
         child = subprocess.Popen(["sleep", "60"])
