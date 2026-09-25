@@ -30,6 +30,14 @@ file only adds ``trend_context_invalid`` and the job runs without trends; malfor
 "kind"}]`` in the manifest; clips without trends keep the exact historical shape, so a job
 without relevant trends writes the same manifest and ``selection.v3.json`` as before.
 
+**Fokus klip.** With ``focus`` (a :class:`ai_clipper.focus.FocusSpec`, CLI ``--focus-term`` and
+``--focus-note``) the option is passed to :func:`select_clips_v3`, including the heuristic
+fallback after the LLM deadline. Every clip then gets ``"focus": {"match", "terms", "at"}`` in
+the manifest and the ``selection_v3`` summary gets ``"focus": {"terms", "matched",
+"requested"}`` (``matched`` counted from the clips kept inside the video). The focus text is
+only data for the selector: it never reaches argv, FFmpeg or the renderer. Without ``focus``
+the manifest and ``selection.v3.json`` are exactly as before.
+
 Every mode writes a poster next to each rendered clip: :func:`write_clip_thumbnail` grabs one
 frame of ``clip-XX.mp4`` at :func:`thumbnail_time` (1.0 s, so the hook text and the first
 captions are on it; earlier for very short clips) into ``clip-XX.jpg``, at most
@@ -83,6 +91,7 @@ from .audio_timeline import (
 from .candidates import generate_candidates
 from .captions_ass import CAPTION_STYLES
 from .features import extract_features
+from .focus import FocusSpec
 from .highlight import select_highlights
 from .llm import LLMClient, LLMError, LLMUnavailable, create_llm_client_from_env, llm_disabled
 from .media_features import analyze_media
@@ -893,6 +902,8 @@ def _v3_manifest_clip(
     }
     if clip.trends:  # optional: clips without trends keep the historical contract
         entry["trends"] = [item.to_dict() for item in clip.trends]
+    if clip.focus is not None:  # optional: only a job with focus terms has it
+        entry["focus"] = clip.focus.to_dict()
     return entry
 
 
@@ -946,7 +957,7 @@ def _selection_v3_summary(state: _V3State, *, failed: bool) -> dict[str, object]
         if not failed:
             status = result.status
     leading = [f"pipeline_failed:{state.stage}"] if failed else []
-    return {
+    summary: dict[str, object] = {
         "mode": SelectionMode.V3.value,
         "status": status,
         "source": source,
@@ -957,6 +968,13 @@ def _selection_v3_summary(state: _V3State, *, failed: bool) -> dict[str, object]
         "artifact": SELECTION_ARTIFACT_RELATIVE_PATH.as_posix() if state.artifact_written else None,
         "transcript_source": state.transcript_source,
     }
+    if result is not None and result.focus is not None:  # only a job with focus terms
+        summary["focus"] = {
+            "terms": list(result.focus.terms),
+            "matched": result.focus_matched,
+            "requested": result.focus.requested,
+        }
+    return summary
 
 
 def _run_v3(
@@ -982,6 +1000,7 @@ def _run_v3(
     captions_dir: Path | None,
     word_timestamps: bool,
     trend_context: Path | None = None,
+    focus: FocusSpec | None = None,
 ) -> tuple[Transcription, Path, list[dict[str, object]]]:
     """Transcript, audio, selection, and rendering for Selection V3 (see the module docstring)."""
     media_duration = _probe_video_duration(source)
@@ -1020,7 +1039,9 @@ def _run_v3(
         write_audio_timeline(audio, artifact_root / AUDIO_TIMELINE_RELATIVE_PATH)
 
     trends = _job_trends(trend_context, state.warnings)
-    trend_options = {"trends": trends} if trends else {}
+    context_options: dict[str, object] = {"trends": trends} if trends else {}
+    if focus is not None:
+        context_options["focus"] = focus
     state.stage = "llm"
     client, budget, selector_mode = _v3_llm_client(llm_mode, artifact_root, state.warnings)
     if client is not None:
@@ -1047,7 +1068,7 @@ def _run_v3(
             max_requests=LLM_MAX_REQUESTS,
             deadline_s=LLM_DEADLINE_SECONDS,
             **budget_options,
-            **trend_options,
+            **context_options,
         )
 
     try:
@@ -1135,13 +1156,14 @@ def run_pipeline(
     hook_duration: float = DEFAULT_HOOK_DURATION,
     progress: Callable[[str, int, str], None] | None = None,
     trend_context: Path | str | None = None,
+    focus: FocusSpec | None = None,
 ) -> Path:
     """Transcribe, select highlights, render clips, and publish a status manifest.
 
-    ``llm_mode``, ``cold_open``, ``hook_overlay``, ``hook_duration``, ``captions_dir`` and
-    ``trend_context`` (a Konteks Tren snapshot) only apply to ``selection_mode="v3"``.
-    ``caption_style`` defaults to ``"karaoke"`` for V3 and ``"classic"`` otherwise;
-    ``word_timestamps`` applies to every Whisper run.
+    ``llm_mode``, ``cold_open``, ``hook_overlay``, ``hook_duration``, ``captions_dir``,
+    ``trend_context`` (a Konteks Tren snapshot) and ``focus`` (the Fokus klip option) only
+    apply to ``selection_mode="v3"``. ``caption_style`` defaults to ``"karaoke"`` for V3 and
+    ``"classic"`` otherwise; ``word_timestamps`` applies to every Whisper run.
     """
     source = Path(source).resolve()
     output_dir = Path(output_dir).resolve()
@@ -1183,6 +1205,8 @@ def run_pipeline(
         caption_style = _choice(caption_style, "caption_style", CAPTION_STYLES)
         captions_dir = _optional_path(captions_dir, "captions_dir")
         trend_context = _optional_path(trend_context, "trend_context")
+        if focus is not None and not isinstance(focus, FocusSpec):
+            raise TypeError("focus must be a FocusSpec or None")
         if selection_mode is SelectionMode.V3:
             min_duration, max_duration = _clip_bounds(min_duration, max_duration)
         report("analyzing", 26, "Memeriksa video dan memuat model AI")
@@ -1211,6 +1235,7 @@ def run_pipeline(
                 captions_dir=captions_dir,
                 word_timestamps=word_timestamps,
                 trend_context=trend_context,
+                focus=focus,
             )
             report("finalizing", 96, "Menyimpan hasil, subtitle, dan metadata")
             _publish_manifest(

@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from .captions_ass import CAPTION_STYLES
+from .focus import MAX_FOCUS_NOTE_CHARS, parse_focus
 from .llm import LLMError
 from .models import ClipProfile, SelectionMode
 from .pipeline import (
@@ -26,6 +27,7 @@ from .pipeline import (
 )
 from .ranking import MAX_RANKING_INPUTS
 from .render import HOOK_DURATION_MAX_SECONDS, RENDER_MODES
+from .selection_types import MAX_FOCUS_TERM_CHARS, MAX_FOCUS_TERMS, MIN_FOCUS_TERM_CHARS
 from .selection_v3 import LLM_MODES
 from .transcribe import (
     ENV_CONDITION_ON_PREVIOUS_TEXT,
@@ -163,6 +165,25 @@ def build_parser() -> argparse.ArgumentParser:
             "only adds the warning trend_context_invalid"
         ),
     )
+    v3.add_argument(
+        "--focus-term",
+        dest="focus_terms",
+        action="append",
+        metavar="TERM",
+        help=(
+            f"Fokus klip: a term to look for (repeatable, at most {MAX_FOCUS_TERMS}, "
+            f"{MIN_FOCUS_TERM_CHARS}-{MAX_FOCUS_TERM_CHARS} characters); matching clips "
+            "come first"
+        ),
+    )
+    v3.add_argument(
+        "--focus-note",
+        metavar="TEXT",
+        help=(
+            f"Fokus klip: a note for the AI about the terms (at most {MAX_FOCUS_NOTE_CHARS} "
+            "characters; needs --focus-term)"
+        ),
+    )
     parser.add_argument(
         "--caption-style",
         choices=CAPTION_STYLES,
@@ -204,7 +225,20 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
-    return build_parser().parse_args(argv)
+    """Parse ``argv``; ``focus`` is the Fokus klip option built from the focus flags, or None.
+
+    The focus text is only ever parsed here and handed to the pipeline as data; it never
+    reaches a subprocess command line.
+    """
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    try:
+        args.focus = parse_focus(args.focus_terms, args.focus_note)
+    except (TypeError, ValueError) as error:
+        parser.error(f"--focus-term/--focus-note: {error}")
+    if args.focus is not None and args.selection_mode != SelectionMode.V3.value:
+        parser.error("--focus-term needs --selection-mode v3")
+    return args
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -256,6 +290,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             hook_duration=args.hook_duration,
             progress=emit_progress,
             trend_context=args.trend_context,
+            focus=args.focus,
         )
     except (FileNotFoundError, RuntimeError, ValueError, LLMError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
