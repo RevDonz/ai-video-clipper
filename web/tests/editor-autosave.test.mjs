@@ -26,13 +26,13 @@ function fakeClock() {
     async advance(ms) {
       const end = now + ms;
       for (;;) {
+        await settle();
         const due = [...timers.entries()].filter(([, timer]) => timer.at <= end)
           .sort((a, b) => a[1].at - b[1].at || a[0] - b[0])[0];
         if (!due) break;
         timers.delete(due[0]);
         now = due[1].at;
         due[1].fn();
-        await settle();
       }
       now = end;
       await settle();
