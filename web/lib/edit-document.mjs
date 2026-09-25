@@ -3,6 +3,8 @@ import { lstat, realpath } from "node:fs/promises";
 import path from "node:path";
 import { TextDecoder } from "node:util";
 
+import { childEnv } from "./python-cli.mjs";
+
 export const MAX_EDIT_BODY_BYTES = 2 * 1024 * 1024;
 const MAX_COMMAND_BYTES = 3 * 1024 * 1024;
 const MAX_OUTPUT_BYTES = 4 * 1024 * 1024;
@@ -85,7 +87,7 @@ export function runEditorPython(analysisDir, command, options = {}) {
       ["-m", "ai_clipper.editor_api", "--analysis-dir", analysisDir],
       {
         encoding: "buffer", maxBuffer: MAX_OUTPUT_BYTES, timeout: timeout(options.timeoutMs),
-        killSignal: "SIGKILL", windowsHide: true, shell: false,
+        killSignal: "SIGKILL", windowsHide: true, shell: false, env: childEnv(options.env || process.env),
       },
       (error, stdout) => {
         if (error) {

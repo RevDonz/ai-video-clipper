@@ -4,6 +4,7 @@ import { lstat, open, realpath } from "node:fs/promises";
 import path from "node:path";
 import { TextDecoder } from "node:util";
 
+import { childEnv } from "./python-cli.mjs";
 import { MAX_ARTIFACT_BYTES } from "./candidates.mjs";
 
 export const MAX_TRANSCRIPT_BYTES = 16 * 1024 * 1024;
@@ -94,7 +95,8 @@ export function runCaptionCueSanitizer(artifact, transcript, candidateId, option
     const child = execFile(
       /* turbopackIgnore: true */ pythonBin,
       ["-m", "ai_clipper.candidate_cues"],
-      { encoding: "buffer", maxBuffer: MAX_OUTPUT_BYTES, timeout: timeoutValue(options.timeoutMs), killSignal: "SIGKILL", windowsHide: true },
+      { encoding: "buffer", maxBuffer: MAX_OUTPUT_BYTES, timeout: timeoutValue(options.timeoutMs), killSignal: "SIGKILL", windowsHide: true,
+        env: childEnv(options.env || process.env) },
       (error, stdout, stderr) => {
         if (error) {
           const message = Buffer.isBuffer(stderr) ? stderr.toString("ascii") : "";

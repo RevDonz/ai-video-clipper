@@ -22,6 +22,9 @@ import { engineProcessEnv, isLlmVariable, loadLlmEnv } from "./llm-settings.mjs"
 
 export const CHILD_ENV_ALLOWLIST = Object.freeze([
   "PATH", "HOME", "LANG", "TZ", "TMPDIR", "JOBS_ROOT", "FONTCONFIG_FILE",
+  // the render queue's source snapshot limit (not a secret; W2 integration: the older helpers
+  // spawn with this allowlist too, and render_queue reads it)
+  "MAX_UPLOAD_BYTES",
   // non-secret feature flags (plan §11.0)
   "POTONGIN_RENDER_ENGINE", "POTONGIN_EDITOR_V3", "POTONGIN_EDITOR_UPLOADS", "POTONGIN_EDITOR_LLM",
 ]);

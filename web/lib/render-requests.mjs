@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import crypto from "node:crypto";
 import { lstat, realpath } from "node:fs/promises";
 import path from "node:path";
+import { childEnv } from "./python-cli.mjs";
 import { parseStorageAdmissionConfig } from "./storage-admission.mjs";
 import { bindRenderStorage, releaseRenderStorage, reserveRenderStorage } from "./render-storage-admission.mjs";
 
@@ -124,7 +125,8 @@ export function runRenderQueuePython(jobDir, command, options = {}) {
   return new Promise((resolve, reject) => {
     const child = runner(options.pythonBin || process.env.PYTHON_BIN || "python", [
       "-m", "ai_clipper.render_queue", "--job-dir", jobDir,
-    ], { encoding: "buffer", maxBuffer: MAX_OUTPUT, timeout: 30_000, killSignal: "SIGKILL", windowsHide: true, shell: false },
+    ], { encoding: "buffer", maxBuffer: MAX_OUTPUT, timeout: 30_000, killSignal: "SIGKILL", windowsHide: true, shell: false,
+      env: childEnv(options.env || process.env) },
     (error, stdout) => {
       if (error) {
         if (error.code === 3) reject(new RenderQueueInvalidError());
@@ -149,7 +151,8 @@ export function estimateRenderSourceBytes(jobDir, options = {}) {
   return new Promise((resolve, reject) => {
     const child = runner(options.pythonBin || process.env.PYTHON_BIN || "python", [
       "-m", "ai_clipper.render_queue", "--job-dir", jobDir,
-    ], { encoding: "buffer", maxBuffer: MAX_OUTPUT, timeout: 30_000, killSignal: "SIGKILL", windowsHide: true, shell: false },
+    ], { encoding: "buffer", maxBuffer: MAX_OUTPUT, timeout: 30_000, killSignal: "SIGKILL", windowsHide: true, shell: false,
+      env: childEnv(options.env || process.env) },
     (error, stdout) => {
       if (error) { reject(error.code === 4 ? new RenderQueueNotFoundError() : new RenderQueueUnavailableError()); return; }
       try {

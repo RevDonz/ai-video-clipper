@@ -4,6 +4,8 @@ import { lstat, open, realpath } from "node:fs/promises";
 import path from "node:path";
 import { TextDecoder } from "node:util";
 
+import { childEnv } from "./python-cli.mjs";
+
 export const MAX_ARTIFACT_BYTES = 16 * 1024 * 1024;
 const READ_CHUNK_BYTES = 64 * 1024;
 const MAX_CANDIDATES = 5000;
@@ -153,6 +155,7 @@ export function runCandidateValidator(artifactBytes, options = {}) {
         timeout,
         killSignal: "SIGKILL",
         windowsHide: true,
+        env: childEnv(options.env || process.env),
       },
       (error, stdout) => {
         if (error || !Buffer.isBuffer(stdout) || stdout.length > MAX_ARTIFACT_BYTES) {

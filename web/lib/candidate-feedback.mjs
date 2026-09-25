@@ -3,6 +3,8 @@ import { lstat, realpath } from "node:fs/promises";
 import path from "node:path";
 import { TextDecoder } from "node:util";
 
+import { childEnv } from "./python-cli.mjs";
+
 export const MAX_FEEDBACK_COMMAND_BYTES = 4096;
 export const MAX_FEEDBACK_OUTPUT_BYTES = 8 * 1024 * 1024;
 const DEFAULT_TIMEOUT_MS = 5000;
@@ -118,6 +120,7 @@ export function runFeedbackPython(analysisDir, operation, rawBody, options = {})
         killSignal: "SIGKILL",
         windowsHide: true,
         shell: false,
+        env: childEnv(options.env || process.env),
       },
       (error, stdout) => {
         if (error) {
