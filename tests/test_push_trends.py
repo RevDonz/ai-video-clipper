@@ -800,7 +800,7 @@ def test_openapi_item_schema_matches_the_contract(openapi: dict, push: ModuleTyp
     assert props["examples"]["maxItems"] == 5
     assert (props["score"]["minimum"], props["score"]["maximum"]) == (0, 100)
     assert set(props["sensitivity"]["enum"]) == {"normal", "sensitive"}
-    assert props["externalId"]["pattern"] == "^[A-Za-z0-9._:/#@-]{1,120}$"
+    assert resolve(openapi, props["externalId"])["pattern"] == "^[A-Za-z0-9._:/#@-]{1,120}$"
     for server_field in push.SERVER_FIELDS:
         assert server_field not in props
     post = openapi["paths"]["/api/ingest/trends"]["post"]

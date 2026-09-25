@@ -1,0 +1,585 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Potongin Konteks Tren - ingest API",
+    "version": "1.0.0",
+    "summary": "Machine endpoint for an external agent (e.g. Hermes) to push trend context into Potongin.",
+    "description": "Routes for an external agent. Contract: docs/plans/2026-09-25-konteks-tren.md, sections 1 and 3.1.\n\n- Authentication is a bearer ingest token (`ptk_` + 43 base64url characters) created on the Konteks Tren page (`/trends`). Session cookies are not accepted on these routes.\n- Every response carries `Cache-Control: no-store`. Errors are `{\"error\": \"<pesan Indonesia>\", \"code\": \"<kode_tetap>\"}` and never contain paths or secret values.\n- Rate limit per token: 60 requests per minute and 600 per hour (`429 rate_limited` with `Retry-After`).\n- One POST holds at most 100 items and 256 KiB. Potongin keeps at most 1,000 active items; when full it prunes expired items first, then the lowest `score` and oldest.\n- Item text is untrusted data. Potongin normalises it (NFC; control, bidi and zero-width characters removed; newlines only in `summary`, at most 5 lines) and never treats it as an instruction.",
+    "license": {
+      "name": "Proprietary"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://potongin.revdonz.dev",
+      "description": "Production"
+    },
+    {
+      "url": "http://localhost:3000",
+      "description": "Local development (start-local.sh)"
+    }
+  ],
+  "security": [
+    {
+      "ingestToken": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "trends",
+      "description": "Konteks Tren ingest"
+    }
+  ],
+  "paths": {
+    "/api/ingest/trends": {
+      "post": {
+        "tags": ["trends"],
+        "operationId": "ingestTrends",
+        "summary": "Upsert up to 100 trend items",
+        "description": "Upserts each item by `externalId`, or, when `externalId` is absent, by `kind` plus the normalised `title` (casefold, accents removed, whitespace collapsed). Invalid items are rejected one by one and the valid ones are still stored. Server-owned fields (`id`, `source`, `createdAt`, `updatedAt`) must not be sent. Retrying the same request is safe: it updates the same items instead of duplicating them.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IngestRequest"
+              },
+              "examples": {
+                "oneTopic": {
+                  "summary": "One trending topic",
+                  "value": {
+                    "items": [
+                      {
+                        "externalId": "tiktok-cc:hashtag:kabur-aja-dulu",
+                        "kind": "hashtag",
+                        "title": "Kabur Aja Dulu",
+                        "summary": "Tagar ajakan merantau atau bekerja ke luar negeri; ramai dipakai untuk curhat soal lapangan kerja.",
+                        "keywords": ["kabur aja dulu", "kaburajadulu", "kabur dulu aja"],
+                        "hashtags": ["#KaburAjaDulu"],
+                        "platforms": ["tiktok", "x"],
+                        "region": "ID",
+                        "score": 72,
+                        "sensitivity": "normal",
+                        "expiresAt": "2026-10-05T00:00:00Z"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Processed. Check `rejected` for items that were refused.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestResult"
+                },
+                "examples": {
+                  "partial": {
+                    "value": {
+                      "accepted": 2,
+                      "created": 1,
+                      "updated": 1,
+                      "rejected": [
+                        {
+                          "index": 2,
+                          "code": "invalid_field",
+                          "field": "keywords"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/StorageUnavailable"
+          }
+        }
+      },
+      "get": {
+        "tags": ["trends"],
+        "operationId": "listActiveTrends",
+        "summary": "Active items, compact, for deduplication",
+        "description": "Returns the active items (not expired) in a compact form so the agent can skip items that already exist and reuse their `externalId` before it POSTs.",
+        "responses": {
+          "200": {
+            "description": "Active items.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompactList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/StorageUnavailable"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["trends"],
+        "operationId": "deleteTrend",
+        "summary": "Delete one item sent with this token's source",
+        "description": "Deletes the item with this `externalId` that belongs to the source (token label) of the calling token. Items from other sources, or added manually on the Konteks Tren page, are not touched.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ExternalIdQuery"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "No item with this `externalId` for this token's source.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/StorageUnavailable"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ingestToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "ptk_ + 43 base64url characters",
+        "description": "Ingest token with scope `trends:write`, created on the Konteks Tren page (`/trends`) and shown only once. Potongin stores only its SHA-256. Send it as `Authorization: Bearer ptk_...`; never put it in a URL, a log or a file you share."
+      }
+    },
+    "parameters": {
+      "ExternalIdQuery": {
+        "name": "externalId",
+        "in": "query",
+        "required": true,
+        "description": "The `externalId` the agent used when it sent the item.",
+        "schema": {
+          "$ref": "#/components/schemas/ExternalId"
+        }
+      }
+    },
+    "headers": {
+      "CacheControl": {
+        "description": "Always `no-store`.",
+        "schema": {
+          "type": "string",
+          "const": "no-store"
+        }
+      },
+      "RetryAfter": {
+        "description": "Seconds to wait before the next request.",
+        "schema": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "`invalid_json` (body is not JSON) or `invalid_body` (not `{\"items\": [...]}`, or a missing/invalid `externalId` on DELETE). Do not retry unchanged.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "examples": {
+              "invalidJson": {
+                "value": {
+                  "error": "Body bukan JSON yang valid.",
+                  "code": "invalid_json"
+                }
+              },
+              "invalidBody": {
+                "value": {
+                  "error": "Body harus berupa {\"items\": [...]}.",
+                  "code": "invalid_body"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "`missing_token`, `invalid_token` or `revoked_token`. A session cookie alone is also refused. Stop and ask the owner for a new token.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "examples": {
+              "revoked": {
+                "value": {
+                  "error": "Token sudah dicabut.",
+                  "code": "revoked_token"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "`insufficient_scope`: the token lacks `trends:write`.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "PayloadTooLarge": {
+        "description": "`body_too_large` (over 256 KiB, read with a bound) or `too_many_items` (over 100 items). Split the request.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "UnsupportedMediaType": {
+        "description": "`unsupported_media_type`: `Content-Type` must be `application/json`.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "RateLimited": {
+        "description": "`rate_limited`: over 60 requests per minute or 600 per hour for this token. Wait `Retry-After` seconds.",
+        "headers": {
+          "Retry-After": {
+            "$ref": "#/components/headers/RetryAfter"
+          },
+          "Cache-Control": {
+            "$ref": "#/components/headers/CacheControl"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "StorageUnavailable": {
+        "description": "`storage_unavailable`: Potongin could not read or write its trend store. Retry later with backoff.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "ExternalId": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9._:/#@-]{1,120}$",
+        "description": "Stable key chosen by the agent, the upsert key. Suggested shape `<source>:<kind>:<slug>`, e.g. `gtrends:topic:timnas-vs-bahrain`.",
+        "examples": ["tiktok-cc:hashtag:kabur-aja-dulu"]
+      },
+      "TrendItemInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "title", "keywords"],
+        "description": "One trend item as sent by an agent. Lengths are counted in Unicode code points after NFC normalisation.",
+        "properties": {
+          "externalId": {
+            "$ref": "#/components/schemas/ExternalId"
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["topic", "person", "joke", "meme", "sound", "hashtag", "format", "event"]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80,
+            "description": "Short canonical name, one line."
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 500,
+            "description": "Short neutral summary in Indonesian. Newlines allowed (at most 5 lines)."
+          },
+          "keywords": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 12,
+            "description": "How people actually say it in videos (aliases, slang, spellings). Potongin matches these against clip transcripts with word boundaries, casefolded and without accents; keywords under 3 letters or common stopwords never match on their own.",
+            "items": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 40
+            }
+          },
+          "hashtags": {
+            "type": "array",
+            "minItems": 0,
+            "maxItems": 10,
+            "description": "Real hashtags as used on the platforms: `#` then 1-50 letters, digits or underscores (any script). The pattern is ECMA-262 with Unicode property escapes; Python's `re` has no `\\p{L}`, so there use `^#[^\\W]{1,50}$` as a close equivalent.",
+            "items": {
+              "type": "string",
+              "pattern": "^#[\\p{L}\\p{N}_]{1,50}$"
+            }
+          },
+          "platforms": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": ["tiktok", "instagram", "youtube", "x", "facebook", "news", "other"]
+            }
+          },
+          "region": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}$",
+            "default": "ID",
+            "description": "ISO 3166-1 alpha-2."
+          },
+          "examples": {
+            "type": "array",
+            "minItems": 0,
+            "maxItems": 5,
+            "description": "Public example posts. Stored for the owner; never sent to the clip engine.",
+            "items": {
+              "$ref": "#/components/schemas/Example"
+            }
+          },
+          "score": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "default": 50,
+            "description": "Momentum according to the agent."
+          },
+          "sensitivity": {
+            "type": "string",
+            "enum": ["normal", "sensitive"],
+            "default": "normal",
+            "description": "`sensitive` for tragedy, disaster, SARA, violence, health and similar topics: never used for jokes or sensational titles, and never boosts ranking."
+          },
+          "firstSeenAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 UTC. Default: time received."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 UTC. Default: firstSeenAt + 10 days. At most 60 days from now."
+          }
+        }
+      },
+      "Example": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["url"],
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https?://",
+            "maxLength": 500
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 120
+          }
+        }
+      },
+      "IngestRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["items"],
+        "properties": {
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/TrendItemInput"
+            }
+          }
+        }
+      },
+      "IngestResult": {
+        "type": "object",
+        "required": ["accepted", "created", "updated", "rejected"],
+        "properties": {
+          "accepted": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "created": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "updated": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "rejected": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RejectedItem"
+            }
+          }
+        }
+      },
+      "RejectedItem": {
+        "type": "object",
+        "required": ["index", "code"],
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "0-based position in the request's `items` array."
+          },
+          "code": {
+            "type": "string",
+            "description": "Stable machine code for the reason."
+          },
+          "field": {
+            "type": ["string", "null"],
+            "description": "The offending field, when there is one."
+          }
+        }
+      },
+      "CompactItem": {
+        "type": "object",
+        "required": ["id", "kind", "title", "expiresAt", "updatedAt"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "externalId": {
+            "type": ["string", "null"]
+          },
+          "kind": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CompactList": {
+        "type": "object",
+        "required": ["items"],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CompactItem"
+            }
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": ["error", "code"],
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Message in Indonesian for people. Never contains paths or secret values."
+          },
+          "code": {
+            "type": "string",
+            "description": "Fixed machine code, for example missing_token, invalid_token, revoked_token, insufficient_scope, invalid_json, invalid_body, body_too_large, too_many_items, unsupported_media_type, rate_limited, storage_unavailable.",
+            "examples": ["rate_limited"]
+          }
+        }
+      }
+    }
+  }
+}
