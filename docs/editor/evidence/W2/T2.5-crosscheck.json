@@ -1,0 +1,65 @@
+{
+ "checks": "parse_doc of the JavaScript canonical bytes; canonical_bytes identical; validate_doc(doc, words, assets, seed) without error; JS pieces == timemap.pieces; content_equals_seed agrees",
+ "code_commit": "716a050",
+ "contexts": [
+  "c30",
+  "c25",
+  "c24"
+ ],
+ "environment": {
+  "cpus": 16,
+  "loadavg_1_5_15": [
+   11.78,
+   15.92,
+   15.44
+  ],
+  "machine": "x86_64",
+  "node": "v22.23.2"
+ },
+ "gate": "1,000 random command sequences: every intermediate document accepted by the Python validator",
+ "pass": true,
+ "runs": [
+  {
+   "distinct_documents": 19426,
+   "documents": 23258,
+   "documents_by_op": {
+    "command": 19695,
+    "rebase": 500,
+    "redo": 72,
+    "resolve": 262,
+    "start": 1000,
+    "undo": 1729
+   },
+   "failures": 0,
+   "python": "3.13.13",
+   "sequence_ids": 1000,
+   "sequences": 1000,
+   "toolchain": "local (uv, Node v22.23.2)",
+   "wall_s": 26.26
+  },
+  {
+   "distinct_documents": 19426,
+   "documents": 23258,
+   "documents_by_op": {
+    "command": 19695,
+    "rebase": 500,
+    "redo": 72,
+    "resolve": 262,
+    "start": 1000,
+    "undo": 1729
+   },
+   "failures": 0,
+   "python": "3.11.2",
+   "sequence_ids": 1000,
+   "sequences": 1000,
+   "toolchain": "ai-video-clipper:editor-w1z (Node v20.20.2)",
+   "wall_s": 29.59
+  }
+ ],
+ "seed": 20260925,
+ "threshold": {
+  "failures": 0,
+  "sequences": 1000
+ },
+ "tool": "tests/test_edit_v2_crosscheck.py + scripts/edit_v2/crosscheck_commands.mjs docs"
+}

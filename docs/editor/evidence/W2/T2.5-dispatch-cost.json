@@ -1,0 +1,61 @@
+{
+ "clip": {
+  "removals": 250,
+  "word_edits": 313,
+  "words_in_body": 939,
+  "words_in_window": 1500
+ },
+ "code_commit": "716a050",
+ "environment": {
+  "cpus": 16,
+  "loadavg_1_5_15": [
+   11.78,
+   15.92,
+   15.44
+  ],
+  "machine": "x86_64",
+  "node": "v22.23.2"
+ },
+ "gate": "informational: cost of one command on a large clip (feeds T2.7's 16 ms transcript budget)",
+ "harness": "synthetic 1,500-word window on the c25 seed geometry (scratch script, not committed)",
+ "session_ms": {
+  "EditWordText": {
+   "max": 2.488,
+   "n": 60,
+   "p50": 0.693,
+   "p95": 1.601
+  },
+  "RemoveWords": {
+   "max": 2.449,
+   "n": 60,
+   "p50": 0.373,
+   "p95": 1.289
+  },
+  "SetCaptionOverride": {
+   "max": 1.145,
+   "n": 60,
+   "p50": 0.354,
+   "p95": 0.962
+  },
+  "undo": {
+   "max": 0.125,
+   "n": 60,
+   "p50": 0.004,
+   "p95": 0.015
+  },
+  "wordStatus": {
+   "max": 2.032,
+   "n": 60,
+   "p50": 0.808,
+   "p95": 1.936
+  }
+ },
+ "store_dispatch_ms": {
+  "EditWordText": {
+   "max": 1.196,
+   "n": 60,
+   "p50": 0.691,
+   "p95": 1.05
+  }
+ }
+}

@@ -399,8 +399,11 @@ export async function twoTabRun(seed, steps = 40) {
   const stats = { dispatched: 0, rejected: 0, conflicts: 0, resolved: 0, reloads: 0, failures: 0, merges: 0, draftChecks: 0 };
   const open = async (storage = sessionStorageLike()) => {
     const tab = await opened(openTab({ server, drafts, channel, tabStorage: storage, autosave: true }));
+    let shown = null;
     tab.store.subscribe((state) => {
-      if (state.notice?.code === "merged") stats.merges += 1;
+      if (state.notice === shown) return;
+      shown = state.notice;
+      if (shown?.code === "merged") stats.merges += 1;
     });
     return tab;
   };
