@@ -194,7 +194,9 @@ terbaik lain berlabel "Di luar fokus". Setiap klip berlabel "Menyebut 'jomok' ·
 kode pada transkrip, termasuk kata berimbuhan seperti "perjomokan"), "Terkait 'jomok' (menurut
 AI)", atau "Di luar fokus"; halaman proyek menampilkan "n dari k klip cocok". Kalau AI
 mengusulkan terlalu sedikit momen fokus, AI ditanya sekali lagi tentang sebutan yang terlewat
-(top-up fokus). Tanpa kata kunci, hasilnya identik dengan sebelumnya.
+(top-up fokus), dan sebutan yang tetap tidak diambil AI boleh diisi jendela heuristik sebelum
+klip di luar fokus. Sapaan dan teaser pembuka tidak pernah dihitung. Tanpa kata kunci, hasilnya
+identik dengan sebelumnya.
 
 - Aturan, batas, kode peringatan:
   [`docs/operations/STANDAR_KLIP_AI.md`](docs/operations/STANDAR_KLIP_AI.md), bagian "Fokus klip".
@@ -202,10 +204,12 @@ mengusulkan terlalu sedikit momen fokus, AI ditanya sekali lagi tentang sebutan 
 
 **English.** A V3 job may carry 1-8 focus terms and a note (`focusTerms`/`focusNote` form
 fields, `options.focus`, CLI `--focus-term`/`--focus-note`). Matching clips (literal, checked
-in code with Indonesian affixes; or semantic, the LLM's claim) rank first within their source
-(LLM clips still lead; heuristic matches only fill slots the LLM leaves), unless they score
-well below the clips they would displace. When the LLM proposes too few focus moments, one extra
-request asks it about the mentions it left out (the focus top-up). Each clip gets
+in code with Indonesian affixes; or semantic, the LLM's claim) rank before every clip outside
+the focus (LLM matches first, then heuristic windows around mentions the LLM never looked at),
+unless they score well below their source's own picks; clips outside the focus only fill the
+slots left. When the LLM proposes too few focus moments, one extra request asks it about the
+mentions it left out (the focus top-up). The episode's opening (teaser montage, channel
+greeting) never counts for the focus. Each clip gets
 `focus: {match, terms, at}` and the summary `focus: {terms, matched, requested}`. Without focus
 terms every output is unchanged.
 
