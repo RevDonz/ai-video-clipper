@@ -537,6 +537,22 @@ def audio_key(plan: Any, toolchain_sha256: str | None) -> str:
     })
 
 
+def lane_audio(job: Any) -> Any:
+    """An ``audio_preview`` job as the lane runs it: two threads (``plates.lane_threads``) and
+    FLAC at compression level 0. FLAC is lossless, so the decoded PCM, which is what P-AUD
+    compares with the final graph, is unchanged; only the encode is faster."""
+    import dataclasses
+
+    from . import plates
+
+    argv = list(plates.lane_threads(job).argv)
+    for index in range(len(argv) - 1):
+        if argv[index] == "-c:a" and argv[index + 1] == "flac":
+            argv[index + 2:index + 2] = ["-compression_level", "0"]
+            return dataclasses.replace(job, argv=tuple(argv))
+    raise ValueError("not an audio_preview job (no FLAC output)")
+
+
 def frame_key(plan_sha256: str, toolchain_sha256: str | None) -> str:
     """The first 16 hex of the truth-frame identity (plan sha, compiler, toolchain)."""
     return _sha({"schema": FRAME_SCHEMA, "plan": plan_sha256, "compiler": COMPILER_VERSION,
@@ -915,8 +931,8 @@ def _audio(ctx: _Context, envelope: Mapping[str, Any]) -> dict[str, Any]:
     source = plates.source_path(ctx.job)
     assets_root = ctx.job / "analysis" / "assets"
     measured = _measure(ctx, plan, source, assets_root) if needs_measurement(plan.doc) else None
-    job = plates.lane_threads(compile_job(plan, mode="audio_preview", source=source,
-                                          assets_root=assets_root, loudness=measured))
+    job = lane_audio(compile_job(plan, mode="audio_preview", source=source,
+                                 assets_root=assets_root, loudness=measured))
     timeout = 60.0 + plan.total_samples / 48_000
     _publish_run(directory, name, lambda fd: execute.run(job, output_fd=fd, timeout_s=timeout,
                                                           cancel=ctx.cancel))
@@ -1077,7 +1093,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 __all__ = ["HEAVY_OPS", "MAX_ENVELOPE_BYTES", "OPS", "audio_key", "derived_name",
-           "frame_key", "handle", "main"]
+           "frame_key", "handle", "lane_audio", "main"]
 
 
 if __name__ == "__main__":
