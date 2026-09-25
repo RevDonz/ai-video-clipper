@@ -361,6 +361,55 @@ dashboard, 8 klip, 20–90 detik, subtitle YouTube, rantai LLM gratis):
   sapaan pembuka kanal (0:06–1:19, trap T1). Di job "drama", satu jendela heuristik (skor 5,6)
   naik di atas klip AI bernilai 8,x. Ini trade-off `prefer` yang dijelaskan di atas.
 
+### Setelah review (2026-09-25): urutan per sumber dan batas kualitas
+
+Review menemukan dua hal: jendela heuristik di sekitar sebutan naik di atas momen AI yang lebih
+kuat (tabel di atas: trap 7 → 13), dan imbuhan membuat kata kunci pendek cocok dengan kata lain
+("rap" di "rapi", "rang" di "perang"). Keputusan yang diterapkan (menunggu konfirmasi pemilik):
+
+- **Klip AI tetap memimpin.** Model sudah melihat baris yang menyebut kata kunci; heuristik
+  (termasuk jendela tambahan) hanya mengisi slot yang tidak diisi AI. Partisi `literal`,
+  `semantic`, `none` berlaku di dalam tiap sumber.
+- **Batas kualitas** `FOCUS_QUALITY_GAP = 1.0`: momen fokus hanya didahulukan kalau nilai
+  peringkatnya paling banyak 1,0 di bawah klip terlemah pilihan sumbernya tanpa fokus.
+- **Imbuhan lebih ketat:** akhiran `-an/-kan/-i/-in` tanpa awalan butuh kata kunci 5 huruf, dan
+  daftar kata umum (`FOCUS_WORD_ROOTS`) tidak pernah dianggap turunan kata kunci lain.
+
+Setup sama (K=10, 20–90 detik, istilah sintetis yang sama, heuristik dan putar ulang
+`llm-cache-final`; putar ulang memakai jawaban tanpa blok fokus, jadi klaim model dibaca `none`
+dan label `literal` diputuskan kode). Format sel: `L/S/N`, lalu Hits@5/Hits@10/Trap@10.
+
+| Episode | Run | Tanpa fokus | Versi awal | Setelah review | Momen sama dengan tanpa fokus |
+|---|---|---|---|---|---|
+| `0dzvz9JZFIM` | heuristik | 3/5/0 | 7/0/3 · 2/4/0 | 5/0/5 · 2/4/0 | 6/10 |
+| `0K37SYfox7M` | heuristik | 4/4/2 | 4/0/6 · 4/5/2 | 5/0/5 · 2/4/2 | 6/10 |
+| `0K37SYfox7M` | putar ulang | 3/4/0 | 4/0/6 · 4/6/0 | 0/0/10 · 3/4/0 | 10/10 |
+| `DwTmRFyQ53E` | heuristik | 4/4/1 | 6/0/4 · 3/7/1 | 6/0/4 · 3/7/1 | 5/10 |
+| `DwTmRFyQ53E` | putar ulang | 3/7/0 | 6/0/4 · 4/6/0 | 3/0/7 · 4/7/0 | 10/10 |
+| `FxQDATkYHtk` | heuristik | 0/0/1 | 10/0/0 · 3/4/2 | 10/0/0 · 3/4/1 | 0/10 |
+| `FxQDATkYHtk` | putar ulang | 2/3/0 | 10/0/0 · 2/3/2 | 2/0/8 · 2/3/0 | 10/10 |
+| `Ive926sC6mc` | heuristik | 3/5/1 | 10/0/0 · 2/3/1 | 10/0/0 · 2/3/1 | 3/10 |
+| `rBg0ZcwjVKQ` | heuristik | 1/2/0 | 9/0/1 · 3/4/1 | 10/0/0 · 3/4/1 | 2/10 |
+| `rBg0ZcwjVKQ` | putar ulang | 1/2/0 | 10/0/0 · 3/4/1 | 4/0/6 · 2/3/0 | 9/10 |
+| `WRxJGz-TA44` | heuristik | 3/3/1 | 3/0/7 · 2/2/2 | 2/0/8 · 3/3/1 | 9/10 |
+| `WRxJGz-TA44` | putar ulang | 3/4/1 | 3/0/7 · 3/4/1 | 1/0/9 · 3/4/1 | 10/10 |
+| **Total 12 run** | | **30/43/7** | **35/52/13** | **32/50/8** | |
+
+- Trap di 10 besar kembali ke dasar pada run putar ulang (1 → 1) dan naik satu pada heuristik
+  (6 → 7): sapaan pembuka `rBg0ZcwjVKQ` T1 ("belajar perjomokan di sini", skor heuristik 5,1)
+  masih terangkat, dan di `FxQDATkYHtk` satu jendela "politik" tanpa isi (T3) menggantikan trap
+  dasar T5 (versi awal: dua jendela T3). Teaser pembuka `WRxJGz-TA44` T1 tidak lagi terangkat.
+  Hits turun sedikit dari versi awal (52 → 50 di 10 besar) tetapi tetap di atas tanpa fokus (43).
+- Di run AI, fokus kini terutama mengubah urutan (9–10 dari 10 momen sama); kata kunci yang
+  tidak diusulkan model (misalnya "whatsapp" di `0K37SYfox7M` putar ulang) tidak lagi mengisi 10
+  besar. Dengan model sungguhan, blok fokus meminta model mengusulkan momen itu sendiri.
+- Sapuan `FOCUS_QUALITY_GAP` (Hits@5/Hits@10/Trap@10, heuristik 7 run | putar ulang 5 run):
+  0 → 18/24/7 | 13/20/1; 0,5 → 18/29/7 | 13/20/1; **1,0** → 18/29/7 | 14/21/1; 1,5 → 18/29/7 |
+  14/21/1; 2 dan 3 → 20/30/8 | 14/21/1; tanpa batas → 19/29/9 | 14/21/1. Nilai 1,0 adalah yang
+  terkecil dengan hasil terbaik di kedua jenis run tanpa trap tambahan.
+- **0 label `literal` yang salah dari 58**, dicek ulang dengan regex terpisah dan `at` di dalam
+  klip. Baris model sungguhan dan E2E di atas berasal dari versi awal dan belum diulang.
+
 ## Hasil final V3 setelah poles (2026-09-24, kode dibekukan)
 
 Dijalankan **sekali** setelah semua poles (LLM `llm-select-v2`, heuristik hasil setel ulang).
