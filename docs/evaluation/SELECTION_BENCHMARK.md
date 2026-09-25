@@ -268,7 +268,8 @@ Temuan:
   tradisi yang jenius?"), tetapi klip AI tidak mendapat tren ter-grounding, hashtag tren, atau
   dorongan. Satu baris tambahan
   `Format: di setiap momen isi "trend_refs" dengan id tren yang dipakai, misalnya ["T1"]; isi [] bila tidak ada.`
-  membuat Gemma mengisi 5 ref yang kelimanya benar.
+  membuat Gemma mengisi 5 ref yang kelimanya benar. **Baris ini dipakai sejak integrasi**
+  (blok tren sekarang diakhiri baris `Format:` itu); tanpa tren prompt tetap byte-identik.
 - Blok tren ikut memengaruhi **momen yang dipilih model**, bukan hanya kemasan: dengan tren,
   Gemma memilih dua momen tren yang tidak ada di run tanpa tren (beda server dan halal bihalal;
   keduanya gold, G6 dan G12), sehingga Hits@10 naik dari 6 ke 8, dan trap tetap 0. Satu episode

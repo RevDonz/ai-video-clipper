@@ -142,7 +142,10 @@ dipublikasikan bersama `analysis/`.
   Boleh dipakai untuk judul, teks hook, deskripsi dan hashtag, dan sebutkan id-nya di "trend_refs".
   Jangan mengarang hubungan. Tren "sensitive": jangan dijadikan lelucon/judul sensasional.
   Penilaian momen tetap berdasarkan standar; tren bukan alasan memilih momen yang lemah.
+  Format: di setiap momen isi "trend_refs" dengan id tren yang dipakai, misalnya ["T1"]; isi [] bila tidak ada.
   ```
+  Baris `Format:` ditambahkan saat integrasi: tanpa baris itu Gemma (0 dari 10 momen) dan Hermes
+  (0 dari 20) tidak pernah mengisi `trend_refs` (lihat `docs/evaluation/SELECTION_BENCHMARK.md`).
   Teks item dibatasi 300 karakter per baris, kutipan ganda dan `<<<`/`>>>` di dalam teks
   di-escape/dibuang.
 - Kontrak JSON jawaban propose mendapat field opsional `"trend_refs": ["T1", …]` per momen.
