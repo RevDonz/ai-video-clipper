@@ -513,6 +513,31 @@ def test_prepare_job_failure_is_a_sanitised_internal_error(tmp_path, contexts, m
     assert "secret" not in json.dumps(payload)
 
 
+def test_the_prepare_job_process_runs_at_the_lanes_nice_level(tmp_path, contexts, monkeypatch):
+    """W2 verifier: a job-level prepare (words, peaks, face-track camera plans; ~50 s for eight
+    face-track clips) runs at nice 5 like the preview lane's heavy work (plan §2.6); the other
+    ops keep their priority, and in-process callers are never reniced."""
+    import io
+    import types
+
+    job_id, _job = make_job(tmp_path, contexts, prepared=False)
+    niced = []
+    monkeypatch.setattr(api.os, "nice", lambda value: niced.append(value) or 0)
+    monkeypatch.setattr(seed_module, "prepare_legacy_job", lambda job_dir: [])
+    monkeypatch.setenv("JOBS_ROOT", str(tmp_path))
+    for op, expected in (("prepare_job", [api.NICE]), ("clips", [])):
+        niced.clear()
+        stdin = io.BytesIO(json.dumps({"op": op, "jobId": job_id}).encode())
+        monkeypatch.setattr(sys, "stdin", types.SimpleNamespace(buffer=stdin))
+        monkeypatch.setattr(sys, "stdout", types.SimpleNamespace(buffer=io.BytesIO()))
+        assert api.main([]) == 0
+        assert niced == expected, op
+    niced.clear()
+    call(tmp_path, op="prepare_job", jobId=job_id)
+    assert niced == []
+    assert api.NICE == 5
+
+
 # --- the real process boundary -----------------------------------------------------------------------
 
 
