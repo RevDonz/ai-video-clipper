@@ -116,10 +116,68 @@ diterapkan, dengan alasannya (hasil ukur di `docs/evaluation/SELECTION_BENCHMARK
   tiap sumber. Klip AI tetap di depan; heuristik, termasuk kandidat tambahan di sekitar sebutan,
   hanya mengisi slot yang tidak diisi AI (butir "Heuristik fallback"). Momen fokus hanya
   didahulukan bila nilainya paling banyak `FOCUS_QUALITY_GAP` = 1,0 di bawah klip terlemah
-  pilihan sumbernya tanpa fokus. Gerbang 2 dibaca dengan "layak" = lolos durasi dan batas
-  kualitas, dan di run AI juga diusulkan model. `focus_llm_outranked` tidak lagi mungkin terjadi
-  dan dihapus; provenance tetap dari AI selama ada klip AI.
+  pilihan sumbernya tanpa fokus (sejak §6 "nilai" = skor momen, bukan nilai peringkat). Gerbang
+  2 dibaca dengan "layak" = lolos durasi dan batas kualitas, dan di run AI juga diusulkan model
+  (sejak §6 termasuk lewat top-up fokus). `focus_llm_outranked` tidak lagi mungkin terjadi dan
+  dihapus; provenance tetap dari AI selama ada klip AI.
 - **Label dan kemasan:** sebutan harus mulai sebelum akhir klip untuk label `literal`; klaim
   `literal` yang turun ke `semantic` tidak boleh mengutip istilah di judul, teks hook, atau
   deskripsi; `focus_literal_ungrounded:<n>` menghitung klip terpilih saja.
 - **Istilah kembar:** istilah yang sama setelah tokenisasi ("jomok" dan "Jomok!") dianggap satu.
+
+## 6. Sebagaimana diterapkan: top-up fokus (2026-09-25)
+
+Keputusan pemilik (mengikat): mode `prefer` = *utamakan, sisanya diisi*. Momen yang cocok
+didahulukan; sisa slot diisi klip terbaik lain **hanya** bila momen cocok yang layak tidak cukup.
+
+Pada tip `32cec7b` kasus pemilik (`rBg0ZcwjVKQ`, "jomok", 8 klip, 20–90 detik) hanya memberi 2
+dari 8 klip cocok. Penyebabnya, diukur dengan memutar ulang cache LLM job itu sendiri:
+
+- Gemma mengusulkan 6 momen fokus (4 klaim `literal`, keempatnya memang menyebut "jomok", dan 2
+  `semantic`), tetapi batas kualitas membandingkan **nilai peringkat** AI, yaitu campuran skor
+  usulan dan peringkat ulang. Peringkat ulang tidak pernah melihat blok fokus, jadi 4 momen
+  fokus (01:40, 22:45, 53:01, 57:11) jatuh di bawah batas dan kalah dari momen di luar fokus.
+- Enam kelompok sebutan (00:53 sapaan, 07:18–07:48, 19:12, 34:15, 41:45–42:54, 55:50) tidak
+  tercakup usulan mana pun, dan AI tidak pernah ditanya lagi tentang itu.
+
+Yang diterapkan:
+
+1. **Batas kualitas memakai skor momen.** Untuk AI: skor rubrik dari permintaan yang melihat blok
+   fokus, bukan campuran dengan peringkat ulang. Untuk heuristik tidak berubah (skornya sama
+   dengan nilai peringkatnya). `FOCUS_QUALITY_GAP` tetap 1,0.
+2. **Top-up fokus: satu permintaan tambahan ke AI** (`llm_selection.py`). Setelah permintaan
+   usulan dan permintaan ulangnya: bila momen AI yang valid dan tentang fokus (barisnya menyebut
+   istilah, atau klaim `literal`/`semantic`) kurang dari k, dan ada kelompok sebutan yang tidak
+   tercakup momen mana pun, AI dikirimi potongan transkrip (baris dalam ±75 detik dari
+   kelompoknya, ID baris seperti biasa) untuk paling banyak 10 kelompok terpadat. Sebutan yang
+   berjarak paling banyak 45 detik satu kelompok; potongan yang bertumpang tindih digabung;
+   kelompok terlemah dibuang bila permintaan tidak muat konteks. AI diminta paling banyak satu
+   momen per potongan yang memuat baris sebutan dan menjadikan fokus sebagai inti, dengan standar
+   dan kontrak JSON yang sama, dan diminta melewati potongan lemah (sapaan atau pembuka, teaser di
+   menit-menit awal, penutup, sponsor, sebutan sambil lalu). Permintaan ini dihitung dalam batas
+   `max_requests` dan batas waktu, dan dikirim **sebelum** peringkat ulang: bila anggaran tinggal
+   satu permintaan, peringkat ulang yang dilewati.
+3. **Validasi seperti usulan biasa** (ID harus dari potongannya, snapping, aturan durasi). Momen
+   top-up **wajib memuat sebutan** (dicek kode, apa pun klaimnya; selain itu dibuang,
+   `llm_dropped:<n>:off_focus`). Momen kedua untuk satu potongan, pengulangan usulan yang sudah
+   ada (aturan dedupe), dan momen yang bertumpang tindih dengan momen fokus yang sudah ada dibuang
+   (`duplicate`). Label tetap diputuskan kode seperti klip lain.
+4. **Teaser pembuka tidak ditanyakan.** Sebutan di dalam montase teaser yang dideteksi heuristik
+   (`hook_heuristics.teaser_end`: kalimat awal yang terulang kata per kata di bagian lain video)
+   tidak pernah masuk potongan. Alasannya terukur: tanpa aturan ini Gemma mengusulkan teaser
+   pembuka `WRxJGz-TA44` (trap T1) di ketiga percobaan meski prompt memintanya dilewati.
+5. **Urutan.** Momen top-up masuk sumber AI dan dipartisi seperti momen AI lain (`literal`,
+   `semantic`, `none`), di belakang momen dari usulan pertama pada bagian yang sama. Jadi momen
+   top-up menggeser momen AI di luar fokus, dan momen di luar fokus hanya mengisi slot sisa.
+   Peringkat ulang tidak melihat momen top-up; nilai peringkatnya adalah skor momennya.
+6. **Peringatan.** `focus_topup:<n>` (n momen ditambahkan), `focus_topup_failed:<kode>`,
+   `focus_topup_skipped:budget|deadline|context`. `focus.matched` di ringkasan tetap dihitung
+   dari klip akhir.
+7. **Tidak berubah:** tanpa fokus semuanya identik (permintaan byte demi byte, seleksi, artefak),
+   juga bersama Konteks Tren. Jalur heuristik (LLM mati atau gagal) tetap seperti sebelumnya,
+   dengan batas kualitasnya.
+
+Hasil: kasus pemilik dari 2 menjadi 7 dari 8 klip cocok (5 `literal`, 2 `semantic`), sapaan
+00:53 tidak terpilih, dan job tanpa fokus tetap sama byte demi byte. Benchmark 12 run: Hits@5
+32 → 34, Hits@10 50 → 50, Trap@10 8 → 8. Rinciannya di `docs/evaluation/SELECTION_BENCHMARK.md`,
+bagian "Top-up fokus".
