@@ -74,10 +74,13 @@ MODES = (
 )
 QUALITIES = ("standar",)  # Essentials; "tinggi" is Stage 2 (K14)
 
-# Plan §5.2 R5 / E6: the text compositing format. Spike S-COLOR (T1.2b) picks it; the W1
-# integrator applies the decision here (and bumps RENDER_SEMANTICS if it changes pixels).
+# Plan §5.2 R5 / E6: the text compositing format. Spike S-COLOR (T1.2b, docs/editor/SPIKES.md
+# §1) chose planar RGB: FFmpeg 5.1.9's ``ass`` converts ASS colours with BT.601 coefficients in
+# the YUV formats (up to 23 levels off in a BT.709 file), so only ``gbrp`` passes P-TXT and
+# P-COLOR, at +11.7 % render cost. Applied by the W1 integrator before any render with
+# RENDER_SEMANTICS 1 existed, so the semantics version stays 1.
 COMPOSITE_FORMATS = ("yuv420p", "yuv444p", "gbrp")
-COMPOSITE_FORMAT = "yuv444p"
+COMPOSITE_FORMAT = "gbrp"
 
 FFMPEG_THREADS = 4
 DECODER_RUN_GAP_S = 10  # R2
@@ -240,12 +243,6 @@ def seek_arg(first_sf: int, fps: Fps) -> str:
     micro = first_sf * fps.den * 1_000_000 // fps.num - PREROLL_S * 1_000_000
     micro = max(micro, 0)
     return f"{micro // 1_000_000}.{micro % 1_000_000:06d}"
-
-
-def _gain_db(gain_cdb: int) -> str:
-    sign = "-" if gain_cdb < 0 else ""
-    value = abs(gain_cdb)
-    return f"{sign}{value // 100}.{value % 100:02d}dB"
 
 
 def _x264(preset: str, crf: int, gop: int) -> tuple[str, ...]:
@@ -437,7 +434,8 @@ class _Compiler:
         self.graph.append(fragment.graph.strip().rstrip(";").strip())
         self.expected["mix_sha256"] = fragment.mix_sha256
         if sample_fmt is None:  # audio_measure: the pre-master mix is measured
-            self.graph.append("[apre]aformat=sample_fmts=dbl,ebur128=peak=true[ameas]")
+            measure = audio_graph.master_filter("audio_measure", 0)
+            self.graph.append(f"[apre]aformat=sample_fmts=dbl,{measure}[ameas]")
             return
         needs = _loudness.needs_measurement(self.plan.doc)
         if needs and loudness is None:
@@ -446,9 +444,9 @@ class _Compiler:
         if not needs and loudness is not None:
             raise ValueError("this document must not be measured (revision-0 audio)")
         gain, issues = _loudness.output_gain(self.plan.doc, loudness)
-        volume = f"volume={_gain_db(gain)}," if gain else ""
-        self.graph.append(f"[apre]{volume}aresample={SAMPLE_RATE},aformat=sample_fmts="
-                          f"{sample_fmt}:sample_rates={SAMPLE_RATE}:channel_layouts=stereo[aout]")
+        master = audio_graph.master_filter(self.mode, gain)  # [volume=<g>dB,]aresample=48000
+        self.graph.append(f"[apre]{master},aformat=sample_fmts={sample_fmt}:sample_rates="
+                          f"{SAMPLE_RATE}:channel_layouts=stereo[aout]")
         self.expected["gain_cdb"] = gain
         self.expected["warnings"] = [issue.to_json() for issue in issues]
 

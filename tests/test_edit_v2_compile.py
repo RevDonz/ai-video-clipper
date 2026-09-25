@@ -123,7 +123,9 @@ GOLDEN_CASES = {
     "audio_measure__music__c30": ("music__c30", {"mode": "audio_measure"}),
     "derive_image__logo__c30": ("logo__c30", {"mode": "derive_image"}),
 }
-COMPOSITE_CASES = ("yuv420p", "gbrp")
+# The S-COLOR choice (gbrp) is the default and pinned by the goldens above; the other two
+# candidates keep a golden each (W1 integration).
+COMPOSITE_CASES = ("yuv420p", "yuv444p")
 
 
 def check_golden(name: str, text: str) -> None:
@@ -539,8 +541,10 @@ def test_measurement_is_required_exactly_when_the_document_needs_it(harness, pro
     with pytest.raises(ValueError, match="measure"):
         compiled("seed__c30", probe_stub, mode="final", loudness=Loudness(-1400, -300))
     _plan, job = compiled("music__c30", probe_stub, mode="audio_measure")
+    # audio_graph.master_filter("audio_measure", …): framelog=verbose keeps the per-frame lines
+    # out of the info log, so only the summary is printed (W1 integration, T1.4's request)
     assert job.filter_script.rstrip().endswith(
-        "[apre]aformat=sample_fmts=dbl,ebur128=peak=true[ameas]")
+        "[apre]aformat=sample_fmts=dbl,ebur128=peak=true:framelog=verbose[ameas]")
     assert job.argv[-3:] == ("-f", "null", "-")
     assert job.argv[job.argv.index("-loglevel") + 1] == "info"
     assert "[v" not in job.filter_script  # no video in the audio modes
@@ -587,10 +591,14 @@ def test_text_compositing_order(harness, probe_stub):
     overlay = graph.index("overlay=x=")
     last = graph.index("format=yuv420p[vout]")
     assert graph.index("settb=") < ass < overlay < last
-    assert ("scale=in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,"
-            "format=yuv444p,ass=") in graph
+    # R5 with the S-COLOR decision (docs/editor/SPIKES.md §1): into gbrp naming the input
+    # matrix, the text, the logo in gbrp, back to BT.709/tv 4:2:0.
+    assert compile_ffmpeg.COMPOSITE_FORMAT == "gbrp"
+    assert ("[vlay]scale=in_color_matrix=bt709:in_range=tv,format=gbrp,"
+            "ass=filename=captions.ass:fontsdir=fonts:shaping=complex[vtext]") in graph
     logo = plan.logo
-    assert f"overlay=x={logo.x}:y={logo.y}:format=yuv444" in graph
+    assert f"overlay=x={logo.x}:y={logo.y}:format=gbrp" in graph
+    assert "[vlogo]scale=out_color_matrix=bt709:out_range=tv,format=yuv420p[vout]" in graph
     assert (f"scale={logo.w}:{logo.h}:flags=lanczos,format=rgba,colorchannelmixer=aa=0.850"
             in graph)
 
