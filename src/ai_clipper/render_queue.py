@@ -23,11 +23,13 @@ import dataclasses
 import errno
 import fcntl
 import hashlib
+import itertools
 import json
 import math
 import os
 import re
 import stat
+import subprocess
 import sys
 import threading
 import uuid
@@ -35,6 +37,7 @@ import zlib
 from collections.abc import Callable, Iterable, Mapping
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
+from fractions import Fraction
 from pathlib import Path
 from typing import Any, BinaryIO, TextIO
 
@@ -1345,8 +1348,63 @@ def _auto_file(job: Path, clip_id: str, seed_doc: Mapping[str, Any]) -> Path | N
     return path if _regular(path) is not None else None
 
 
-def _verify_auto_file(path: Path, plan: RenderPlan) -> bool:
-    """G1–G2 of the auto file against the plan of the (seed-equal) document (plan §4.6 R10)."""
+LEGACY_R10_TOLERANCE_FRAMES = 4
+
+
+def _video_timing(fd: int) -> tuple[float, bool]:
+    """(duration in seconds, constant frame rate) of the first video stream, from its packets."""
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", "-protocol_whitelist", "file,pipe", "-select_streams", "v:0",
+         "-show_entries", "stream=time_base:packet=pts,duration", "-of", "json",
+         f"/proc/self/fd/{fd}"],
+        stdin=subprocess.DEVNULL, capture_output=True, text=True, pass_fds=(fd,), timeout=300,
+        env={"PATH": os.environ.get("PATH", os.defpath), "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8"},
+        check=False)
+    if result.returncode != 0:
+        raise RuntimeError("ffprobe failed")
+    data = json.loads(result.stdout)
+    base = Fraction(data["streams"][0]["time_base"])
+    packets = [(int(item["pts"]), int(item.get("duration") or 0))
+               for item in data.get("packets", ()) if "pts" in item]
+    if not packets:
+        raise RuntimeError("no video packets")
+    pts = sorted(value for value, _duration in packets)
+    steps = {later - earlier for earlier, later in itertools.pairwise(pts)}
+    constant = len(steps) <= 1
+    end = pts[-1] + steps.pop() if constant and steps else max(p + d for p, d in packets)
+    return float((end - pts[0]) * base), constant
+
+
+def _legacy_auto_ok(fd: int, plan: RenderPlan, report: Any) -> bool:
+    """R10 for an auto clip of the legacy engine (plan §4.4: "Ekspor tanpa perubahan" returns the
+    original file). That renderer keeps its own constant rate (60 fps, 23.976 for a VFR source)
+    and trims by seconds, so G1 must hold except the document's rate, and G2 holds by duration:
+    video and audio within ``LEGACY_R10_TOLERANCE_FRAMES`` output frames of the plan (32 real
+    clips measured 0 to 2.5 frames short)."""
+    gates = {gate.name: gate for gate in getattr(report, "gates", ())}
+    g1, g2 = gates.get("G1"), gates.get("G2")
+    if g1 is None or g2 is None or set(g1.problems) - {"frame_rate"}:
+        return False
+    if any(gate.blocking and not gate.ok for name, gate in gates.items() if name not in {"G1", "G2"}):
+        return False
+    fps = plan.fps
+    samples = g2.values.get("samples")
+    if type(samples) is not int or abs(samples - plan.total_samples) > _timemap.smp(
+            LEGACY_R10_TOLERANCE_FRAMES, fps):
+        return False
+    try:
+        duration_s, constant = _video_timing(fd)
+    except Exception:  # noqa: BLE001 - an unreadable file is not the auto clip
+        return False
+    planned = Fraction(plan.total_frames * fps.den, fps.num)
+    tolerance = Fraction(LEGACY_R10_TOLERANCE_FRAMES * fps.den, fps.num)
+    return constant and abs(Fraction(duration_s) - planned) <= tolerance
+
+
+def verify_auto_file(path: Path, plan: RenderPlan) -> bool:
+    """R10's re-verification of the auto clip against the plan of the (seed-equal) document
+    (plan §4.6): G1–G2 exactly for a file of the new engine; for a legacy-engine seed, G1 except
+    the document rate and G2 by duration (``_legacy_auto_ok``)."""
     from .edit_v2 import verify
 
     try:
@@ -1357,8 +1415,10 @@ def _verify_auto_file(path: Path, plan: RenderPlan) -> bool:
         normalize = plan.doc["audio"]["master"]["mode"] == "normalize"
         verify.verify_output(fd, plan, size=plan.output, normalize=normalize)
         return True
-    except edit_errors.VerificationFailed:
-        return False
+    except edit_errors.VerificationFailed as error:
+        if plan.doc["base"]["engine"]["compiler"] != "legacy":
+            return False
+        return _legacy_auto_ok(fd, plan, getattr(error, "report", None))
     except Exception:  # noqa: BLE001 - an unreadable auto file is simply unavailable
         return False
     finally:
@@ -1557,7 +1617,7 @@ def _prepare_v3(job: Path, clip_id: str, edit_etag: str, *, resources: Resources
     completed_by = None
     if content_equals_seed(doc, seed_doc):  # R10, checked first
         auto = _auto_file(job, clip_id, seed_doc)
-        if auto is not None and (verify_auto or _verify_auto_file)(auto, plan):
+        if auto is not None and (verify_auto or verify_auto_file)(auto, plan):
             completed_by = _publish_auto(job, clip_id, auto, output_relative, plan)
         else:
             warnings.append("auto_file_unavailable")
