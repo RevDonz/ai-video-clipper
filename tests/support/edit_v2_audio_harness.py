@@ -1,7 +1,15 @@
 """Audio-only harness graph and the T1.4 audio gates (plan §5.3, §5.6, §10; §11.1 T1.4).
 
-Until the W1 integrator connects T1.3's ``compile_job``, this module stands in for it with the
-minimum the audio seam needs (docs/editor/CONTRACTS.md §5.8):
+Two backends run the same scenarios:
+
+* ``compiler`` (the gates of record since the W1 integration): the documents are completed into
+  full ``clip-edit-v2`` documents, resolved by ``plan.build_plan`` and rendered by
+  ``compile_ffmpeg.compile_job`` + ``execute.run`` in the requested mode, exactly as the
+  pipeline and the render worker do. The synthetic audio is muxed with a small video stream
+  (stream copy), because every source the compiler sees has video.
+* ``harness`` (the default for the unit tests: fast, audio only), the stand-in T1.4 wrote
+  before ``compile_job`` was connected, with the minimum the audio seam needs
+  (docs/editor/CONTRACTS.md §5.8):
 
 * one seeked ``-copyts`` input per piece (``-ss max(0, in_sf/F − 1.0)``, plan §5.2 R1) whose
   first audio stream is labelled ``[sa<i>]`` exactly as decoded;
@@ -14,16 +22,19 @@ Everything is synthetic and generated on the fly (``support.edit_v2_media``, FFm
 FFmpeg runs with at most 4 threads. Gate evidence, measured in the reference image
 ``ai-video-clipper:editor-ref``::
 
-    PYTHONPATH=src:tests python -m support.edit_v2_audio_harness gates docs/editor/evidence/W1
+    PYTHONPATH=src:tests python -m support.edit_v2_audio_harness gates docs/editor/evidence/W1 \
+        [--backend compiler|harness] [--task T1.Z]
 """
 
 from __future__ import annotations
 
 import argparse
 import array
+import copy
 import hashlib
 import json
 import math
+import os
 import subprocess
 import sys
 import tempfile
@@ -32,7 +43,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from ai_clipper.edit_v2 import audio_graph, envelope, loudness
+from ai_clipper.edit_v2 import audio_graph, envelope, execute, loudness
 from ai_clipper.edit_v2 import timemap as tm
 from ai_clipper.edit_v2.audio_graph import AudioFragment
 from ai_clipper.edit_v2.doc import Issue
@@ -133,7 +144,47 @@ def burst_words(duration_ms: int) -> list[tuple[int, int]]:
     return [(b.start_ms, b.end_ms) for b in media.default_bursts(duration_ms)]
 
 
+BACKENDS = ("harness", "compiler")
+_BACKEND = {"name": "harness"}
+
+
+def set_backend(name: str) -> None:
+    """Select how scenarios run: ``harness`` (audio-only stand-in) or ``compiler``."""
+    if name not in BACKENDS:
+        raise ValueError(f"backend must be one of {BACKENDS}")
+    _BACKEND["name"] = name
+
+
+def backend() -> str:
+    return _BACKEND["name"]
+
+
+def full_doc(doc: Mapping[str, Any]) -> dict[str, Any]:
+    """``doc`` (the audio fields) completed into a full document on the c30 fixture seed:
+    karaoke captions, fit_blur, the window over the whole source."""
+    from support.edit_v2_fixtures import DOC_FIXTURES_DIR
+
+    template = json.loads((DOC_FIXTURES_DIR / "contexts" / "c30.seed.json").read_text(
+        encoding="utf-8"))
+    full = copy.deepcopy(template)
+    full["revision"] = 1
+    full["parent_sha256"] = "0" * 64
+    full["base"]["source"].update(copy.deepcopy(doc["base"]["source"]))
+    full["base"]["window_ms"] = [0, doc["base"]["source"]["duration_ms"]]
+    for key in ("output", "main", "tracks", "audio", "assets"):
+        full[key] = copy.deepcopy(doc[key])
+    full["layout"]["default"]["mode"] = "fit_blur"
+    return full
+
+
 def plan_for(doc: Mapping[str, Any], words_ms: Sequence[tuple[int, int]]) -> RenderPlan:
+    if backend() == "compiler":
+        from ai_clipper.edit_v2.glyphs import RESOURCES_DIR
+        from ai_clipper.edit_v2.plan import Resources, build_plan
+
+        full = full_doc(doc)
+        return build_plan(full, words=words_artifact(words_ms), camera=None,
+                          assets=full["assets"], resources=Resources(RESOURCES_DIR))
     return make_render_plan(doc, words_artifact(words_ms))
 
 
@@ -213,10 +264,76 @@ def _seek(in_sf: int, fps: Fps) -> str:
     return f"{us // 1_000_000}.{us % 1_000_000:06d}"
 
 
+_COMPILED_SUFFIX = {"reference": ".mkv", "audio_preview": ".flac", "final": ".mp4"}
+
+
+def _av_source(audio: Path | None, fps: Fps, duration_ms: int, root: Path) -> Path:
+    """A source the compiler accepts: a small grey H.264 stream plus ``audio`` (stream copy, so
+    the decoded samples are the file's own), or video only when ``audio`` is None."""
+    stem = "silent" if audio is None else audio.stem
+    path = root / f"{stem}-av-{fps.num}-{fps.den}.mp4"
+    if path.exists():
+        return path
+    root.mkdir(parents=True, exist_ok=True)
+    seconds = f"{duration_ms / 1000:.3f}"
+    args = ["-f", "lavfi", "-i", f"color=c=0x404040:s=256x144:r={fps.num}/{fps.den}:d={seconds}"]
+    if audio is not None:
+        args += ["-i", str(audio), "-map", "0:v", "-map", "1:a", "-c:a", "copy"]
+    args += ["-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+             "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709",
+             "-threads", str(FFMPEG_THREADS), "-map_metadata", "-1", "-fflags", "+bitexact",
+             "-flags:v", "+bitexact", str(path)]
+    _ffmpeg(args)
+    return path
+
+
+def _run_compiled(plan: RenderPlan, *, mode: str, sources: Media, work: Path, stem: str,
+                  measured: Loudness | None) -> RunResult:
+    """``compile_job`` + ``execute.run`` in ``mode`` (the pipeline's and worker's path)."""
+    from ai_clipper.edit_v2.compile_ffmpeg import compile_job
+
+    has_audio = bool(plan.doc["base"]["source"]["has_audio"])
+    if has_audio and sources.source is None:
+        raise ValueError("the document has source audio but no source file was given")
+    source = _av_source(sources.source if has_audio else None, plan.fps,
+                        plan.doc["base"]["source"]["duration_ms"], work.parent / "av")
+    assets_root = work / "assets"
+    assets_root.mkdir(parents=True, exist_ok=True)
+    for asset, path in sources.assets.items():
+        target = assets_root / f"{asset.split(':', 1)[1]}.m4a"
+        if not target.exists():
+            os.link(path, target)
+    needs = mode != "audio_measure" and loudness.needs_measurement(plan.doc)
+    job = compile_job(plan, mode=mode, source=source, assets_root=assets_root,
+                      loudness=measured if needs else None)
+    output: Path | None = None
+    if mode == "audio_measure":
+        result = execute.run(job, output_fd=None, timeout_s=600)
+    else:
+        output = work / f"{stem}{_COMPILED_SUFFIX[mode]}"
+        fd = os.open(output, os.O_RDWR | os.O_CREAT | os.O_TRUNC, 0o600)
+        try:
+            result = execute.run(job, output_fd=fd, timeout_s=600)
+        finally:
+            os.close(fd)
+    (work / f"{stem}.graph.txt").write_text(job.filter_script, encoding="utf-8")
+    own_inputs = len(audio_graph.audio_fragment(plan, mode=mode, first_input_index=0).inputs)
+    fragment = audio_graph.audio_fragment(plan, mode=mode,
+                                          first_input_index=len(job.inputs) - own_inputs)
+    warnings = tuple(Issue(item["code"], item["path"], item.get("ref"), item.get("f"))
+                     for item in job.expected.get("warnings", ()))
+    return RunResult(mode, output, result.stderr, job.filter_script,
+                     int(job.expected.get("gain_cdb", 0)), warnings, fragment)
+
+
 def run(plan: RenderPlan, *, mode: str, sources: Media, work: Path, name: str | None = None,
         measured: Loudness | None = None) -> RunResult:
-    """Run the audio fragment of ``plan`` in ``mode`` through FFmpeg (one process)."""
+    """Run the audio of ``plan`` in ``mode`` through FFmpeg (one process), with the selected
+    backend (``set_backend``)."""
     work.mkdir(parents=True, exist_ok=True)
+    if backend() == "compiler":
+        return _run_compiled(plan, mode=mode, sources=sources, work=work, stem=name or mode,
+                             measured=measured)
     stem = name or mode
     has_audio = bool(plan.doc["base"]["source"]["has_audio"])
     args: list[str] = []
@@ -560,7 +677,9 @@ def p_aud(work: Path, sources: Sources | None = None) -> dict[str, Any]:
         "preview_equals_reference": md5s[2] == md5s[0],
         "sample_counts_equal_plan": all(c == plan.total_samples for c in counts),
         "measurement_deterministic": first == second,
-        "graphs_identical": ref1.graph == ref2.graph == preview.graph,
+        # the audio fragment (a compiled reference also carries the video graph)
+        "graphs_identical": (ref1.fragment.graph == ref2.fragment.graph
+                             == preview.fragment.graph),
         "one_mix_sha_across_modes": len(mix_shas) == 1,
     }
     return {
@@ -585,10 +704,13 @@ def _ffmpeg_version() -> str:
     return out.stdout.splitlines()[0] if out.stdout else "unknown"
 
 
-def gates(out_dir: Path) -> dict[str, dict[str, Any]]:
+def gates(out_dir: Path, *, task: str = "T1.4") -> dict[str, dict[str, Any]]:
+    harness = ("compile_ffmpeg.compile_job + execute.run (the real compiler)"
+               if backend() == "compiler" else
+               "support.edit_v2_audio_harness (audio-only graph, until compile_job)")
     header = {"ffmpeg": _ffmpeg_version(),
               "reference_toolchain_problem": media.reference_toolchain_problem(),
-              "harness": "support.edit_v2_audio_harness (audio-only graph, until compile_job)"}
+              "harness": harness, "backend": backend(), "python": sys.version.split()[0]}
     with tempfile.TemporaryDirectory(prefix="t14-gates-") as tmp:
         work = Path(tmp)
         sources = Sources(work / "media")
@@ -602,7 +724,7 @@ def gates(out_dir: Path) -> dict[str, dict[str, Any]]:
         }
     out_dir.mkdir(parents=True, exist_ok=True)
     for name, report in reports.items():
-        path = out_dir / f"T1.4-{name}.json"
+        path = out_dir / f"{task}-{name}.json"
         path.write_text(json.dumps({**header, **report}, indent=2, sort_keys=True) + "\n",
                         encoding="utf-8")
     return reports
@@ -613,8 +735,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     run_gates = commands.add_parser("gates", help="measure every T1.4 gate and write evidence")
     run_gates.add_argument("out_dir", type=Path)
+    run_gates.add_argument("--backend", choices=BACKENDS, default="harness")
+    run_gates.add_argument("--task", default="T1.4", help="evidence file prefix")
     args = parser.parse_args(argv)
-    reports = gates(args.out_dir)
+    set_backend(args.backend)
+    reports = gates(args.out_dir, task=args.task)
     failures = {name: report["failures"] for name, report in reports.items()}
     print(json.dumps(failures, sort_keys=True))
     return 1 if any(failures.values()) else 0
@@ -625,15 +750,18 @@ if __name__ == "__main__":
 
 
 __all__ = [
+    "BACKENDS",
     "MUSIC_ASSET",
     "MUSIC_ASSET_META",
     "Media",
     "RunResult",
     "Sources",
     "audio_doc",
+    "backend",
     "burst_words",
     "click_doc",
     "duck_gate",
+    "full_doc",
     "g3_g3b",
     "g_click",
     "gates",
@@ -647,5 +775,6 @@ __all__ = [
     "plan_for",
     "render",
     "run",
+    "set_backend",
     "words_artifact",
 ]
