@@ -1,0 +1,57 @@
+{
+  "backend": "compiler",
+  "clamped_tolerance_lu": 0.5,
+  "encode": "aac 192k 48 kHz stereo",
+  "failures": 0,
+  "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+  "gate": "G3",
+  "harness": "compile_ffmpeg.compile_job + execute.run (the real compiler)",
+  "mixes": [
+    {
+      "achieved_lufs": -14.0,
+      "export_i_lufs": -14.0,
+      "export_tp_dbtp": -10.3,
+      "gain_db": 1.1,
+      "mode": "normalize",
+      "name": "speech",
+      "pass": true,
+      "pre_master_i_lufs": -15.1,
+      "pre_master_tp_dbtp": -11.8,
+      "target_lufs": -14.0,
+      "warning_details": [],
+      "warnings": []
+    },
+    {
+      "achieved_lufs": -14.0,
+      "export_i_lufs": -14.1,
+      "export_tp_dbtp": -7.3,
+      "gain_db": 0.9,
+      "mode": "normalize",
+      "name": "music_ducked",
+      "pass": true,
+      "pre_master_i_lufs": -14.9,
+      "pre_master_tp_dbtp": -8.2,
+      "target_lufs": -14.0,
+      "warning_details": [],
+      "warnings": []
+    },
+    {
+      "achieved_lufs": -14.0,
+      "export_i_lufs": -14.0,
+      "export_tp_dbtp": -5.9,
+      "gain_db": -12.2,
+      "mode": "normalize",
+      "name": "hot",
+      "pass": true,
+      "pre_master_i_lufs": -1.8,
+      "pre_master_tp_dbtp": 6.3,
+      "target_lufs": -14.0,
+      "warning_details": [],
+      "warnings": []
+    }
+  ],
+  "python": "3.11.2",
+  "reference_toolchain_problem": null,
+  "target_tolerance_lu": 1.0,
+  "tp_max_dbtp": -1.0
+}

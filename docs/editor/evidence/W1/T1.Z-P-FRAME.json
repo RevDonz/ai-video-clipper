@@ -1,0 +1,128 @@
+{
+  "gate": "P-FRAME",
+  "runs": {
+    "reference-image-ffmpeg-5.1.9": {
+      "cases": [
+        {
+          "case": "cfr_29.97",
+          "final_frames": 610,
+          "final_mismatches": 0,
+          "fps": [
+            30000,
+            1001
+          ],
+          "grid_frames": 900,
+          "grid_repeats": 0,
+          "grid_undecodable": 0,
+          "joins": 21,
+          "layout": "fit_blur",
+          "output_frames": 610,
+          "pieces": 22,
+          "plate_cell_frames_checked": 780,
+          "plate_cell_mismatches": 0,
+          "plate_cells": 13,
+          "plate_cells_with_wrong_length": 0,
+          "plate_mismatches": 0,
+          "plate_output_frames": 610,
+          "removals": 20,
+          "vfr": false
+        },
+        {
+          "case": "cfr_25",
+          "final_frames": 460,
+          "final_mismatches": 0,
+          "fps": [
+            25,
+            1
+          ],
+          "grid_frames": 760,
+          "grid_repeats": 0,
+          "grid_undecodable": 0,
+          "joins": 21,
+          "layout": "fill_center",
+          "output_frames": 460,
+          "pieces": 22,
+          "plate_cell_frames_checked": 650,
+          "plate_cell_mismatches": 0,
+          "plate_cells": 13,
+          "plate_cells_with_wrong_length": 0,
+          "plate_mismatches": 0,
+          "plate_output_frames": 460,
+          "removals": 20,
+          "vfr": false
+        },
+        {
+          "case": "cfr_30",
+          "final_frames": 610,
+          "final_mismatches": 0,
+          "fps": [
+            30,
+            1
+          ],
+          "grid_frames": 900,
+          "grid_repeats": 0,
+          "grid_undecodable": 0,
+          "joins": 21,
+          "layout": "camera",
+          "output_frames": 610,
+          "pieces": 22,
+          "plate_cell_frames_checked": 780,
+          "plate_cell_mismatches": 0,
+          "plate_cells": 13,
+          "plate_cells_with_wrong_length": 0,
+          "plate_mismatches": 0,
+          "plate_output_frames": 610,
+          "removals": 20,
+          "vfr": false
+        },
+        {
+          "case": "vfr_30",
+          "final_frames": 610,
+          "final_mismatches": 0,
+          "fps": [
+            30,
+            1
+          ],
+          "grid_frames": 900,
+          "grid_repeats": 81,
+          "grid_undecodable": 0,
+          "joins": 21,
+          "layout": "fit_blur",
+          "output_frames": 610,
+          "pieces": 22,
+          "plate_cell_frames_checked": 780,
+          "plate_cell_mismatches": 0,
+          "plate_cells": 13,
+          "plate_cells_with_wrong_length": 0,
+          "plate_mismatches": 0,
+          "plate_output_frames": 610,
+          "removals": 20,
+          "vfr": true
+        }
+      ],
+      "gate_wall_s": 52.6,
+      "modules": "real",
+      "pass": true,
+      "threshold": {
+        "min_frames": 2000,
+        "mismatches": 0
+      },
+      "toolchain": {
+        "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+        "python": "3.11.2",
+        "reference_toolchain_problem": null
+      },
+      "totals": {
+        "final_frames": 2290,
+        "final_mismatches": 0,
+        "grid_undecodable": 0,
+        "plate_cell_frames_checked": 2990,
+        "plate_cell_mismatches": 0,
+        "plate_cells_with_wrong_length": 0,
+        "plate_mismatches": 0,
+        "plate_output_frames": 2290
+      }
+    }
+  },
+  "task": "T1.Z"
+}

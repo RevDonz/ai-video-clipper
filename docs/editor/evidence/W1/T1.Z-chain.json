@@ -1,0 +1,434 @@
+{
+  "checks": {
+    "all_openable": true,
+    "documents_valid": true,
+    "g1_g2": true,
+    "g_det": true,
+    "p_aud": true,
+    "p_frame_fully_decoded": true,
+    "p_frame_zero_mismatches": true,
+    "prepare_ok": true,
+    "r10_seed_is_seed": true,
+    "reference_counts_exact": true,
+    "render_key_with_toolchain": true,
+    "renders": true,
+    "seeds_valid": true
+  },
+  "detail": {
+    "clips": [
+      {
+        "camera_no_face_spans": 1,
+        "clip_id": "clip_e81667ba20ed2bcb9995a418",
+        "cold_open": true,
+        "hook": true,
+        "index": 1,
+        "layouts": {
+          "camera": {
+            "G1": true,
+            "G2": true,
+            "G5_warnings": [
+              "unsafe_zone"
+            ],
+            "clip_s": 40.841,
+            "content_equals_seed": false,
+            "errors": [],
+            "final_s": 7.32,
+            "p_frame": {
+              "frames_checked": 1104,
+              "masked_under_hook": 120,
+              "mismatches": 0,
+              "undecodable": 0
+            },
+            "pieces": 2,
+            "plan_deterministic": true,
+            "plan_sha256": "9a63649757ce35ddb5d2900c31d72fe60e9916c2e441970415377582e1527b47",
+            "plan_warnings": [
+              "no_face",
+              "unsafe_zone"
+            ],
+            "preview_ass_equals_export": true,
+            "reference_counts_exact": true,
+            "reference_frames": 1224,
+            "reference_s": 9.77,
+            "reference_samples": 1960358,
+            "render_key": "6d3dd2cc1b38bc57dd447edce4d9822cbd9e34aa7e1a02c3e24dbd0fe5b66e74",
+            "revision": 1,
+            "total_frames": 1224,
+            "total_samples": 1960358,
+            "valid": true,
+            "verify_ok": true
+          },
+          "fill_center": {
+            "G1": true,
+            "G2": true,
+            "G5_warnings": [
+              "unsafe_zone"
+            ],
+            "clip_s": 40.841,
+            "content_equals_seed": false,
+            "errors": [],
+            "final_s": 6.91,
+            "p_frame": {
+              "frames_checked": 1104,
+              "masked_under_hook": 120,
+              "mismatches": 0,
+              "undecodable": 0
+            },
+            "pieces": 2,
+            "plan_deterministic": true,
+            "plan_sha256": "1520cfdabd605a2f4432df1be1537618a7050a2d36c6d2156f2ba29ddfc7732c",
+            "plan_warnings": [
+              "unsafe_zone"
+            ],
+            "preview_ass_equals_export": true,
+            "reference_counts_exact": true,
+            "reference_frames": 1224,
+            "reference_s": 7.87,
+            "reference_samples": 1960358,
+            "render_key": "70cefe8164cbfaadfdcb1a45892c61e9d314328c747cd84cab7e3ab1cabffa48",
+            "revision": 1,
+            "total_frames": 1224,
+            "total_samples": 1960358,
+            "valid": true,
+            "verify_ok": true
+          },
+          "fit_blur": {
+            "G1": true,
+            "G2": true,
+            "G5_warnings": [
+              "unsafe_zone"
+            ],
+            "clip_s": 40.841,
+            "content_equals_seed": true,
+            "errors": [],
+            "final_s": 12.22,
+            "p_aud_preview_equals_reference": true,
+            "p_frame": {
+              "frames_checked": 1224,
+              "masked_under_hook": 0,
+              "mismatches": 0,
+              "undecodable": 0
+            },
+            "pieces": 2,
+            "plan_deterministic": true,
+            "plan_sha256": "120719b98a349003c9136e2194d32ab1d38a2f6be41196d527786a255033f039",
+            "plan_warnings": [
+              "unsafe_zone"
+            ],
+            "preview_ass_equals_export": true,
+            "reference_counts_exact": true,
+            "reference_frames": 1224,
+            "reference_s": 13.53,
+            "reference_samples": 1960358,
+            "render_key": "0913673c25e947b981eec730ce95a7371026b5a9026d45a51710baf265fe3665",
+            "revision": 0,
+            "total_frames": 1224,
+            "total_samples": 1960358,
+            "valid": true,
+            "verify_ok": true
+          }
+        },
+        "pack": "karaoke",
+        "seed_errors": [],
+        "seed_valid": true,
+        "seed_warnings": []
+      },
+      {
+        "camera_no_face_spans": 1,
+        "clip_id": "clip_7ae904c09556ca7a9f9c1b95",
+        "cold_open": false,
+        "hook": true,
+        "index": 2,
+        "layouts": {
+          "camera": {
+            "G1": true,
+            "G2": true,
+            "G5_warnings": [
+              "unsafe_zone"
+            ],
+            "clip_s": 36.37,
+            "content_equals_seed": false,
+            "errors": [],
+            "final_s": 5.96,
+            "p_frame": {
+              "frames_checked": 970,
+              "masked_under_hook": 120,
+              "mismatches": 0,
+              "undecodable": 0
+            },
+            "pieces": 1,
+            "plan_deterministic": true,
+            "plan_sha256": "6e6d0cdd9f8d9968a426e0b16bf0466ef583ab5b95db8616804253004bdac660",
+            "plan_warnings": [
+              "unsafe_zone"
+            ],
+            "preview_ass_equals_export": true,
+            "reference_counts_exact": true,
+            "reference_frames": 1090,
+            "reference_s": 6.86,
+            "reference_samples": 1745744,
+            "render_key": "46ec7e11d4e79b461019e1e06554f1d8f17a54848a335f17efe54e55864ab424",
+            "revision": 1,
+            "total_frames": 1090,
+            "total_samples": 1745744,
+            "valid": true,
+            "verify_ok": true
+          },
+          "fill_center": {
+            "G1": true,
+            "G2": true,
+            "G5_warnings": [
+              "unsafe_zone"
+            ],
+            "clip_s": 36.37,
+            "content_equals_seed": false,
+            "errors": [],
+            "final_s": 5.86,
+            "p_frame": {
+              "frames_checked": 970,
+              "masked_under_hook": 120,
+              "mismatches": 0,
+              "undecodable": 0
+            },
+            "pieces": 1,
+            "plan_deterministic": true,
+            "plan_sha256": "e62d3afb3bd0dc86980adbe8d36ec02a64c1ffbd48ab524d43388dd59598ea9b",
+            "plan_warnings": [
+              "unsafe_zone"
+            ],
+            "preview_ass_equals_export": true,
+            "reference_counts_exact": true,
+            "reference_frames": 1090,
+            "reference_s": 6.51,
+            "reference_samples": 1745744,
+            "render_key": "6baac40ee516ae7507b6721414e2cfe2e0b51742ab56ad95ed71fad354d2afa8",
+            "revision": 1,
+            "total_frames": 1090,
+            "total_samples": 1745744,
+            "valid": true,
+            "verify_ok": true
+          },
+          "fit_blur": {
+            "G1": true,
+            "G2": true,
+            "G5_warnings": [
+              "unsafe_zone"
+            ],
+            "clip_s": 36.37,
+            "content_equals_seed": true,
+            "errors": [],
+            "final_s": 10.77,
+            "p_aud_preview_equals_reference": true,
+            "p_frame": {
+              "frames_checked": 1090,
+              "masked_under_hook": 0,
+              "mismatches": 0,
+              "undecodable": 0
+            },
+            "pieces": 1,
+            "plan_deterministic": true,
+            "plan_sha256": "56a5f38d76d02dc5682b22565b4b407c64e2f745460575a5b0c2d30d0b1eaba5",
+            "plan_warnings": [
+              "unsafe_zone"
+            ],
+            "preview_ass_equals_export": true,
+            "reference_counts_exact": true,
+            "reference_frames": 1090,
+            "reference_s": 11.92,
+            "reference_samples": 1745744,
+            "render_key": "db5175e091e4f70ec974b2e973074d7bc3c5dcc6db84b7ba9dd713438aeeaf6e",
+            "revision": 0,
+            "total_frames": 1090,
+            "total_samples": 1745744,
+            "valid": true,
+            "verify_ok": true
+          }
+        },
+        "pack": "karaoke",
+        "seed_errors": [],
+        "seed_valid": true,
+        "seed_warnings": []
+      },
+      {
+        "camera_no_face_spans": 1,
+        "clip_id": "clip_5594a0bb8fa80be0196a5a0b",
+        "cold_open": false,
+        "hook": true,
+        "index": 3,
+        "layouts": {
+          "camera": {
+            "G1": true,
+            "G2": true,
+            "G5_warnings": [
+              "unsafe_zone"
+            ],
+            "clip_s": 36.403,
+            "content_equals_seed": false,
+            "errors": [],
+            "final_s": 6.01,
+            "p_frame": {
+              "frames_checked": 971,
+              "masked_under_hook": 120,
+              "mismatches": 0,
+              "undecodable": 0
+            },
+            "pieces": 1,
+            "plan_deterministic": true,
+            "plan_sha256": "8a8ab5e7ce34f76131229e4a34a893ca9ed1d35dc4ad95402a4df829e1c86003",
+            "plan_warnings": [
+              "unsafe_zone"
+            ],
+            "preview_ass_equals_export": true,
+            "reference_counts_exact": true,
+            "reference_frames": 1091,
+            "reference_s": 6.76,
+            "reference_samples": 1747345,
+            "render_key": "81792feae8414e55629d0f10f6d1a6916cc77e2d10681cf3b5611a91b48acf2e",
+            "revision": 1,
+            "total_frames": 1091,
+            "total_samples": 1747345,
+            "valid": true,
+            "verify_ok": true
+          },
+          "fill_center": {
+            "G1": true,
+            "G2": true,
+            "G5_warnings": [
+              "unsafe_zone"
+            ],
+            "clip_s": 36.403,
+            "content_equals_seed": false,
+            "errors": [],
+            "final_s": 6.31,
+            "p_frame": {
+              "frames_checked": 971,
+              "masked_under_hook": 120,
+              "mismatches": 0,
+              "undecodable": 0
+            },
+            "pieces": 1,
+            "plan_deterministic": true,
+            "plan_sha256": "2d31e62b04c4f70c5939fe5c7a28f9aed1302157f0059d37f9b0d79ddc0e2e20",
+            "plan_warnings": [
+              "unsafe_zone"
+            ],
+            "preview_ass_equals_export": true,
+            "reference_counts_exact": true,
+            "reference_frames": 1091,
+            "reference_s": 8.92,
+            "reference_samples": 1747345,
+            "render_key": "974b40da427469aaec3c0dfc849f1d55de6f8ce9e87d026bd704b779785bcb68",
+            "revision": 1,
+            "total_frames": 1091,
+            "total_samples": 1747345,
+            "valid": true,
+            "verify_ok": true
+          },
+          "fit_blur": {
+            "G1": true,
+            "G2": true,
+            "G5_warnings": [
+              "unsafe_zone"
+            ],
+            "clip_s": 36.403,
+            "content_equals_seed": true,
+            "errors": [],
+            "final_s": 10.92,
+            "p_aud_preview_equals_reference": true,
+            "p_frame": {
+              "frames_checked": 1091,
+              "masked_under_hook": 0,
+              "mismatches": 0,
+              "undecodable": 0
+            },
+            "pieces": 1,
+            "plan_deterministic": true,
+            "plan_sha256": "a935309037e1d884dc6a1443bb350fe6ee1ccb8dde7a0126235bddbf99cb4961",
+            "plan_warnings": [
+              "unsafe_zone"
+            ],
+            "preview_ass_equals_export": true,
+            "reference_counts_exact": true,
+            "reference_frames": 1091,
+            "reference_s": 11.92,
+            "reference_samples": 1747345,
+            "render_key": "1a95fcaac3b3d547b4cf660cd910b0861e0475ec95858521c736c5cdc7991f55",
+            "revision": 0,
+            "total_frames": 1091,
+            "total_samples": 1747345,
+            "valid": true,
+            "verify_ok": true
+          }
+        },
+        "pack": "karaoke",
+        "seed_errors": [],
+        "seed_valid": true,
+        "seed_warnings": []
+      }
+    ],
+    "clips_exit": 0,
+    "composite": "gbrp",
+    "openable": [
+      true,
+      true,
+      true
+    ],
+    "prepare": {
+      "clips": [
+        {
+          "index": 1,
+          "openable": true,
+          "reason": null
+        },
+        {
+          "index": 2,
+          "openable": true,
+          "reason": null
+        },
+        {
+          "index": 3,
+          "openable": true,
+          "reason": null
+        }
+      ]
+    },
+    "prepare_exit": 0,
+    "toolchain_sha256": "4fefb754ae6cb98b5376c6c865d786ff0924f39e03b776499e5b3246f64985f0"
+  },
+  "frames_checked": 9495,
+  "frames_masked_under_hook": 720,
+  "gate": "W1 chain",
+  "loadavg_after": [
+    5.15,
+    3.9,
+    3.14
+  ],
+  "loadavg_before": [
+    2.94,
+    3.16,
+    2.78
+  ],
+  "pass": true,
+  "render_ratio_final": [
+    0.1611,
+    0.1639,
+    0.1651,
+    0.1692,
+    0.1733,
+    0.1792,
+    0.2961,
+    0.2992,
+    0.3
+  ],
+  "source_size": [
+    1280,
+    720
+  ],
+  "task": "T1.Z",
+  "toolchain": {
+    "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "python": "3.11.2",
+    "reference_toolchain_problem": null
+  },
+  "wall_s": 251.6
+}
