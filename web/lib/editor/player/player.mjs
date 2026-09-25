@@ -3,15 +3,16 @@
 // One Canvas2D at the output size, three layers drawn bottom to top for every frame n:
 //   1. the plate frame: source-grid frame sf of piece(n), from plate cell k = ⌊sf/C⌋ decoded by
 //      WebCodecs through Mediabunny (plate-source.mjs);
-//   2. the text bitmap: libass (JASSUB) drawing the server's ASS bytes at now_ms(n)
-//      (text-layer.mjs, W1, unchanged);
+//   2. the text: libass (JASSUB) drawing the server's ASS bytes at now_ms(n) (text-layer.mjs,
+//      the W1 adapter, used with split and keepBitmaps: one bitmap per band of text rows,
+//      owned by the player);
 //   3. the logo: the server's derived PNG drawn 1:1 at its box (logo-layer.mjs).
 // Frame n is presented only when all three layers for n are ready (presenter.mjs): the previous
 // exact frame stays up otherwise, and nothing approximate or partial is ever drawn (E7).
 //
 // The clock is an AudioContext({sampleRate: 48000}) playing the server's mix (audio-clock.mjs);
 // frame n is presented when the clock reaches n·den/num. During playback the text is rendered
-// one frame ahead and the plate cells are decoded ahead in output order, across jumps
+// TEXT_AHEAD frames ahead and the plate cells are decoded ahead in output order, across jumps
 // (frame-map.decodeSchedule), so a cut is reached with its frames decoded.
 //
 // Modes: "live" (the canvas), "auto_render" (revision 0 while its cells are not ready: the auto
@@ -55,7 +56,6 @@ const TEXT_AHEAD = 4;
 // a seek elsewhere stops that work at once (plate-source need({ exclusive })).
 const PAUSED_LOOKAHEAD_MS = 300;
 
-
 function defaultSupports() {
   const g = globalThis;
   return {
@@ -98,7 +98,13 @@ function pushBounded(list, value) {
  * `requestTruthFrame(frame) → Promise<Blob>`: the preview client's truth frame for the current
  * document (Ctrl+Shift+R; the only picture in "unsupported" mode).
  * seek/step resolve to { frame, presented } (plus superseded: true, or pending: "plate"|"text"|
- * "logo" when the frame could not be presented yet; it is presented as soon as it can be).
+ * "logo"|"video" when the frame could not be presented yet; it is presented as soon as it can be).
+ * state() → { mode, frame, playing, ended, waitingFor ("audio" while play() waits for the mix),
+ *   exact (every layer current and the playhead frame on screen: "● Sesuai hasil akhir"),
+ *   current: { text, plate, audio, logo }, pending: [names], slow (device check), error,
+ *   presentedFrame, plate: { ready, total } cells }. play({ silent: true }) plays on the wall
+ * clock without the mix ("Putar tanpa suara"). Call load() with every new plan DTO, also when
+ * only cell or mix states changed.
  */
 export function createPlayer({
   canvas,
