@@ -625,6 +625,55 @@ def test_v3_the_default_auto_file_check_is_g1_g2_of_the_seed_plan(tmp_path, monk
     assert job.create(job.seed_etag, verify_auto=None)["completed_by"] == "seed"
 
 
+def v3_report(g1: tuple[str, ...], g2: tuple[str, ...], samples: int | None):
+    return edit_verify.VerifyReport(gates=(
+        edit_verify.GateResult("G1", True, not g1, g1),
+        edit_verify.GateResult("G2", True, not g2, g2, {"samples": samples}),
+    ))
+
+
+def v3_legacy_check(tmp_path, monkeypatch, *, engine="legacy", g1=("frame_rate",),
+                    g2=("frame_count", "sample_count"), video_ms=None, audio_ms=None,
+                    constant=True):
+    """The R10 check of a legacy auto file with a stubbed verify report and video timing."""
+    job = V3Job(tmp_path, engine=engine, auto=True)
+    plan = build_plan(job.seed, words=job.context.words, camera=None, assets={},
+                      resources=job.resources)
+    plan_ms = V3_FRAMES * 1000 * 1001 / 30000
+    samples = plan.total_samples + round(48 * (audio_ms or 0))
+
+    def failing(fd, current_plan, *, size, normalize):
+        error = edit_errors.VerificationFailed("verification_failed")
+        error.report = v3_report(g1, g2, samples)
+        raise error
+
+    monkeypatch.setattr(edit_verify, "verify_output", failing)
+    monkeypatch.setattr(render_queue, "_video_timing",
+                        lambda fd: ((plan_ms + (video_ms or 0)) / 1000, constant))
+    return render_queue.verify_auto_file(job.job / "output" / "clip-03.mp4", plan)
+
+
+def test_v3_r10_legacy_auto_file_is_checked_by_duration_not_by_frame_count(tmp_path,
+                                                                          monkeypatch):
+    """A legacy render keeps its own frame rate (60 fps, 23.976 for a VFR source) and trims by
+    seconds: 32 real clips measured 0 to 2.5 frames short of the seed plan (evidence
+    T2.2-R10-real.json). G1 holds except the document rate; G2 holds by duration within
+    ``LEGACY_R10_TOLERANCE_FRAMES`` output frames."""
+    assert render_queue.LEGACY_R10_TOLERANCE_FRAMES == 4
+    tolerance_ms = 4 * 1000 * 1001 / 30000  # 133.5 ms at 30000/1001
+    assert v3_legacy_check(tmp_path / "a", monkeypatch, video_ms=-83.4, audio_ms=-80)
+    assert v3_legacy_check(tmp_path / "b", monkeypatch, video_ms=tolerance_ms - 1,
+                           audio_ms=-(tolerance_ms - 1))
+    assert not v3_legacy_check(tmp_path / "c", monkeypatch, video_ms=-(tolerance_ms + 5))
+    assert not v3_legacy_check(tmp_path / "d", monkeypatch, audio_ms=-(tolerance_ms + 5))
+    assert not v3_legacy_check(tmp_path / "e", monkeypatch, constant=False)  # not CFR
+    assert not v3_legacy_check(tmp_path / "f", monkeypatch, g1=("frame_rate", "size"))
+    assert not v3_legacy_check(tmp_path / "g", monkeypatch, g1=("faststart",))
+    # a file of the new engine was rendered from this very plan: its counts must be exact
+    assert not v3_legacy_check(tmp_path / "h", monkeypatch, engine="edit-v2/1", video_ms=0,
+                               audio_ms=0)
+
+
 def test_v3_an_existing_verified_export_of_the_same_key_completes_instantly(tmp_path):
     job = V3Job(tmp_path)
     _doc, etag = job.save(main__cut_fade_ms=20)
