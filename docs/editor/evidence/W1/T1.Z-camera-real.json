@@ -1,0 +1,114 @@
+{
+  "budget_s": 15.0,
+  "detector": "face_tracking.detect_face_track (Haar), 0.75 s samples",
+  "gate": "T1.5 camera plan, 3 min window, real sources (read only)",
+  "pass": true,
+  "sources": {
+    "3c7d024c": {
+      "codec": "h264",
+      "pass": true,
+      "per_sample_seek": {
+        "load_before": [
+          5.52,
+          6.15,
+          6.46
+        ],
+        "no_face_spans": 13,
+        "samples": 240,
+        "seconds": 6.58
+      },
+      "rate": "60/1",
+      "sequential": {
+        "load_before": [
+          5.36,
+          6.14,
+          6.46
+        ],
+        "no_face_spans": 13,
+        "samples": 240,
+        "seconds": 5.52
+      },
+      "size": [
+        640,
+        360
+      ],
+      "window_ms": [
+        510000,
+        690000
+      ]
+    },
+    "899226f8": {
+      "codec": "av1",
+      "pass": true,
+      "per_sample_seek": {
+        "load_before": [
+          5.46,
+          6.19,
+          6.49
+        ],
+        "no_face_spans": 18,
+        "samples": 240,
+        "seconds": 16.34
+      },
+      "rate": "25/1",
+      "sequential": {
+        "load_before": [
+          5.92,
+          6.3,
+          6.53
+        ],
+        "no_face_spans": 18,
+        "samples": 240,
+        "seconds": 8.9
+      },
+      "size": [
+        1280,
+        720
+      ],
+      "window_ms": [
+        1747670,
+        1927670
+      ]
+    },
+    "e7f0d37b": {
+      "codec": "av1",
+      "pass": true,
+      "per_sample_seek": {
+        "load_before": [
+          4.9,
+          6.17,
+          6.49
+        ],
+        "no_face_spans": 0,
+        "samples": 241,
+        "seconds": 25.92
+      },
+      "rate": "24000/1001",
+      "sequential": {
+        "load_before": [
+          4.43,
+          6.15,
+          6.49
+        ],
+        "no_face_spans": 0,
+        "samples": 241,
+        "seconds": 14.62
+      },
+      "size": [
+        1280,
+        720
+      ],
+      "window_ms": [
+        1904530,
+        2084530
+      ]
+    }
+  },
+  "task": "T1.Z",
+  "toolchain": {
+    "cpus": 16,
+    "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "python": "3.11.2"
+  },
+  "window_ms": 180000
+}

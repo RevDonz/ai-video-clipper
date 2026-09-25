@@ -16,17 +16,19 @@
           "plate_cells_differing": 0
         }
       ],
-      "cases": 6,
+      "cases": 8,
       "digest_differences": 0,
       "digests_per_case": {
         "cfr_25": 12,
         "cfr_29.97": 12,
         "cfr_30": 12,
+        "edge_end_29.97": 12,
+        "edge_start_23.976": 12,
         "fhd_23.976_logo": 13,
         "no_audio_29.97": 12,
         "vfr_30": 12
       },
-      "gate_wall_s": 25.4,
+      "gate_wall_s": 31.4,
       "hash_seeds": [
         11,
         4242

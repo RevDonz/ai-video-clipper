@@ -179,14 +179,14 @@
   "browser": "147.0.7727.15",
   "candidates": {
     "gbrp": {
-      "cost_s": 9.043,
-      "delivered_ssim_text": 0.981661,
+      "cost_s": 11.85,
+      "delivered_ssim_text": 0.99049,
       "p_color_pass": true,
-      "p_color_worst": 2.183,
-      "p_enc_mean_ssim_text_own": 0.981661,
-      "p_enc_min_ssim_all": 0.986603,
-      "p_enc_min_ssim_text": 0.97455,
-      "p_enc_pass": false,
+      "p_color_worst": 1.654,
+      "p_enc_mean_ssim_text_own": 0.99049,
+      "p_enc_min_ssim_all": 0.990166,
+      "p_enc_min_ssim_text": 0.98768,
+      "p_enc_pass": true,
       "p_txt_failing": [],
       "p_txt_pass": true,
       "p_txt_worst_gated": {
@@ -198,14 +198,14 @@
       }
     },
     "yuv420p": {
-      "cost_s": 8.048,
-      "delivered_ssim_text": 0.980373,
+      "cost_s": 10.825,
+      "delivered_ssim_text": 0.988198,
       "p_color_pass": false,
-      "p_color_worst": 23.81,
-      "p_enc_mean_ssim_text_own": 0.986006,
-      "p_enc_min_ssim_all": 0.988171,
-      "p_enc_min_ssim_text": 0.980492,
-      "p_enc_pass": false,
+      "p_color_worst": 22.629,
+      "p_enc_mean_ssim_text_own": 0.993609,
+      "p_enc_min_ssim_all": 0.991175,
+      "p_enc_min_ssim_text": 0.992424,
+      "p_enc_pass": true,
       "p_txt_failing": [
         "classic-10",
         "classic-40",
@@ -229,13 +229,13 @@
       }
     },
     "yuv444p": {
-      "cost_s": 8.101,
-      "delivered_ssim_text": 0.980405,
+      "cost_s": 11.075,
+      "delivered_ssim_text": 0.988335,
       "p_color_pass": false,
-      "p_color_worst": 23.165,
-      "p_enc_mean_ssim_text_own": 0.979975,
-      "p_enc_min_ssim_all": 0.98168,
-      "p_enc_min_ssim_text": 0.972676,
+      "p_color_worst": 22.499,
+      "p_enc_mean_ssim_text_own": 0.988253,
+      "p_enc_min_ssim_all": 0.985011,
+      "p_enc_min_ssim_text": 0.985837,
       "p_enc_pass": false,
       "p_txt_failing": [
         "karaoke-40",
@@ -253,9 +253,9 @@
   },
   "cost": {
     "best_s": {
-      "gbrp": 9.043,
-      "yuv420p": 8.048,
-      "yuv444p": 8.101
+      "gbrp": 11.85,
+      "yuv420p": 10.825,
+      "yuv444p": 11.075
     },
     "fps": [
       30000,
@@ -263,9 +263,9 @@
     ],
     "layout": "fit_blur",
     "relative_to_yuv420p": {
-      "gbrp": 1.124,
+      "gbrp": 1.095,
       "yuv420p": 1.0,
-      "yuv444p": 1.007
+      "yuv444p": 1.023
     },
     "runs": 5,
     "seconds": 30,
@@ -274,45 +274,42 @@
       1280
     ],
     "speed_x_realtime": {
-      "gbrp": 0.301,
-      "yuv420p": 0.268,
-      "yuv444p": 0.27
+      "gbrp": 0.395,
+      "yuv420p": 0.361,
+      "yuv444p": 0.369
     },
     "threads": 4,
     "times_s": {
       "gbrp": [
-        9.347,
-        9.84,
-        9.899,
-        9.043,
-        9.251
+        11.922,
+        11.85,
+        12.309,
+        12.457,
+        12.435
       ],
       "yuv420p": [
-        8.143,
-        8.901,
-        9.073,
-        8.1,
-        8.048
+        10.825,
+        10.881,
+        12.02,
+        11.711,
+        11.953
       ],
       "yuv444p": [
-        8.508,
-        9.29,
-        8.957,
-        8.187,
-        8.101
+        11.17,
+        11.075,
+        12.043,
+        11.825,
+        12.146
       ]
     }
   },
   "decision": {
-    "format": null,
+    "best_delivered_ssim_text": 0.99049,
+    "format": "gbrp",
     "rejected": {
-      "gbrp": [
-        "p_enc"
-      ],
       "yuv420p": [
         "p_txt",
-        "p_color",
-        "p_enc"
+        "p_color"
       ],
       "yuv444p": [
         "p_txt",
@@ -320,14 +317,14 @@
         "p_enc"
       ]
     },
-    "rule": "none_passed"
+    "rule": "cheapest_passing"
   },
   "jassub": "2.5.16",
   "jassub_libass_ms_probe_frames": {
     "frames": 120,
-    "max": 16.3,
+    "max": 14.8,
     "p50": 0.4,
-    "p95": 2.5
+    "p95": 2.4
   },
   "pack_variants": {
     "bold_font": {
@@ -356,11 +353,9 @@
     }
   },
   "recommendation": {
-    "basis": "p_enc_fails_for_every_candidate",
+    "basis": "cheapest_passing",
     "format": "gbrp",
-    "open_gates": [
-      "p_enc"
-    ]
+    "open_gates": []
   },
   "spike": "S-COLOR",
   "task": "T1.Z",

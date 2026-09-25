@@ -4,13 +4,20 @@
     "reference-image-ffmpeg-5.1.9": {
       "cases": [
         {
+          "body": [
+            30,
+            780
+          ],
           "case": "cfr_29.97",
+          "edges": "inner",
           "final_frames": 610,
           "final_mismatches": 0,
           "fps": [
             30000,
             1001
           ],
+          "grid_end": 900,
+          "grid_first": 0,
           "grid_frames": 900,
           "grid_repeats": 0,
           "grid_undecodable": 0,
@@ -22,19 +29,27 @@
           "plate_cell_mismatches": 0,
           "plate_cells": 13,
           "plate_cells_with_wrong_length": 0,
+          "plate_frames_below_window": 0,
           "plate_mismatches": 0,
           "plate_output_frames": 610,
           "removals": 20,
           "vfr": false
         },
         {
+          "body": [
+            30,
+            640
+          ],
           "case": "cfr_25",
+          "edges": "inner",
           "final_frames": 460,
           "final_mismatches": 0,
           "fps": [
             25,
             1
           ],
+          "grid_end": 760,
+          "grid_first": 0,
           "grid_frames": 760,
           "grid_repeats": 0,
           "grid_undecodable": 0,
@@ -46,19 +61,27 @@
           "plate_cell_mismatches": 0,
           "plate_cells": 13,
           "plate_cells_with_wrong_length": 0,
+          "plate_frames_below_window": 0,
           "plate_mismatches": 0,
           "plate_output_frames": 460,
           "removals": 20,
           "vfr": false
         },
         {
+          "body": [
+            30,
+            780
+          ],
           "case": "cfr_30",
+          "edges": "inner",
           "final_frames": 610,
           "final_mismatches": 0,
           "fps": [
             30,
             1
           ],
+          "grid_end": 900,
+          "grid_first": 0,
           "grid_frames": 900,
           "grid_repeats": 0,
           "grid_undecodable": 0,
@@ -70,19 +93,27 @@
           "plate_cell_mismatches": 0,
           "plate_cells": 13,
           "plate_cells_with_wrong_length": 0,
+          "plate_frames_below_window": 0,
           "plate_mismatches": 0,
           "plate_output_frames": 610,
           "removals": 20,
           "vfr": false
         },
         {
+          "body": [
+            30,
+            780
+          ],
           "case": "vfr_30",
+          "edges": "inner",
           "final_frames": 610,
           "final_mismatches": 0,
           "fps": [
             30,
             1
           ],
+          "grid_end": 900,
+          "grid_first": 0,
           "grid_frames": 900,
           "grid_repeats": 81,
           "grid_undecodable": 0,
@@ -94,13 +125,78 @@
           "plate_cell_mismatches": 0,
           "plate_cells": 13,
           "plate_cells_with_wrong_length": 0,
+          "plate_frames_below_window": 0,
           "plate_mismatches": 0,
           "plate_output_frames": 610,
           "removals": 20,
           "vfr": true
+        },
+        {
+          "body": [
+            0,
+            902
+          ],
+          "case": "edge_end_29.97",
+          "edges": "source",
+          "final_frames": 855,
+          "final_mismatches": 0,
+          "fps": [
+            30000,
+            1001
+          ],
+          "grid_end": 902,
+          "grid_first": 0,
+          "grid_frames": 902,
+          "grid_repeats": 0,
+          "grid_undecodable": 0,
+          "joins": 5,
+          "layout": "fill_center",
+          "output_frames": 855,
+          "pieces": 6,
+          "plate_cell_frames_checked": 902,
+          "plate_cell_mismatches": 0,
+          "plate_cells": 16,
+          "plate_cells_with_wrong_length": 0,
+          "plate_frames_below_window": 0,
+          "plate_mismatches": 0,
+          "plate_output_frames": 855,
+          "removals": 5,
+          "vfr": false
+        },
+        {
+          "body": [
+            1,
+            480
+          ],
+          "case": "edge_start_23.976",
+          "edges": "source",
+          "final_frames": 480,
+          "final_mismatches": 0,
+          "fps": [
+            24000,
+            1001
+          ],
+          "grid_end": 481,
+          "grid_first": 1,
+          "grid_frames": 480,
+          "grid_repeats": 0,
+          "grid_undecodable": 0,
+          "joins": 6,
+          "layout": "fit_blur",
+          "output_frames": 480,
+          "pieces": 7,
+          "plate_cell_frames_checked": 479,
+          "plate_cell_mismatches": 0,
+          "plate_cells": 10,
+          "plate_cells_with_wrong_length": 0,
+          "plate_frames_below_window": 1,
+          "plate_mismatches": 0,
+          "plate_output_frames": 480,
+          "removals": 5,
+          "vfr": false
         }
       ],
-      "gate_wall_s": 52.6,
+      "gate_wall_s": 83.2,
       "modules": "real",
       "pass": true,
       "threshold": {
@@ -113,14 +209,14 @@
         "reference_toolchain_problem": null
       },
       "totals": {
-        "final_frames": 2290,
+        "final_frames": 3625,
         "final_mismatches": 0,
         "grid_undecodable": 0,
-        "plate_cell_frames_checked": 2990,
+        "plate_cell_frames_checked": 4371,
         "plate_cell_mismatches": 0,
         "plate_cells_with_wrong_length": 0,
         "plate_mismatches": 0,
-        "plate_output_frames": 2290
+        "plate_output_frames": 3625
       }
     }
   },
