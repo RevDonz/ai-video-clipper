@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from numbers import Real
@@ -33,6 +34,15 @@ MAX_HOOK_TEXT_CHARS = 90
 MAX_DESCRIPTION_CHARS = 600
 MAX_REASON_CHARS = 300
 MAX_HASHTAGS = 10
+# Konteks Tren (docs/plans/2026-09-25-konteks-tren.md): trend kinds, and the trends a clip is
+# grounded in. A clip records at most MAX_CLIP_TRENDS; an LLM moment names at most
+# MAX_TREND_REFS prompt IDs (T1, T2, ...).
+TREND_KINDS = ("topic", "person", "joke", "meme", "sound", "hashtag", "format", "event")
+MAX_TREND_TITLE_CHARS = 80
+MAX_CLIP_TRENDS = 5
+MAX_TREND_REFS = 20
+TREND_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,63}")
+TREND_REF_PATTERN = re.compile(r"T[1-9][0-9]{0,2}")
 
 
 def _is_number(value: object) -> bool:
@@ -91,6 +101,49 @@ def _strings(value: object, name: str, maximum_items: int, maximum_chars: int) -
     return tuple(_text(item, f"{name} item", maximum_chars) for item in value)
 
 
+def _trend_refs(value: object) -> tuple[str, ...]:
+    if not isinstance(value, tuple):
+        raise TypeError("trend_refs must be a tuple")
+    if len(value) > MAX_TREND_REFS:
+        raise ValueError(f"trend_refs must contain at most {MAX_TREND_REFS} items")
+    if any(not isinstance(ref, str) or not TREND_REF_PATTERN.fullmatch(ref) for ref in value):
+        raise ValueError("trend_refs must be prompt trend IDs such as T1")
+    if len(set(value)) != len(value):
+        raise ValueError("trend_refs must not repeat")
+    return value
+
+
+def _trends(value: object) -> tuple[TrendRef, ...]:
+    if not isinstance(value, tuple) or any(not isinstance(item, TrendRef) for item in value):
+        raise TypeError("trends must be a tuple of TrendRef values")
+    if len(value) > MAX_CLIP_TRENDS:
+        raise ValueError(f"trends must contain at most {MAX_CLIP_TRENDS} items")
+    if len({item.id for item in value}) != len(value):
+        raise ValueError("trends must not repeat")
+    return value
+
+
+@dataclass(frozen=True, slots=True)
+class TrendRef:
+    """A trend a clip is grounded in: its own transcript mentions one of the trend's terms."""
+
+    id: str
+    title: str
+    kind: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.id, str) or not TREND_ID_PATTERN.fullmatch(self.id):
+            raise ValueError("trend id must be 1-64 letters, digits, '.', '_', ':' or '-'")
+        _text(self.title, "trend title", MAX_TREND_TITLE_CHARS)
+        if "\n" in self.title or "\t" in self.title or self.title != self.title.strip():
+            raise ValueError("trend title must be a single trimmed line")
+        if self.kind not in TREND_KINDS:
+            raise ValueError(f"trend kind must be one of {', '.join(TREND_KINDS)}")
+
+    def to_dict(self) -> dict[str, str]:
+        return {"id": self.id, "title": self.title, "kind": self.kind}
+
+
 def _common_packaging(item: ClipProposal | SelectedClip) -> None:
     if item.archetype not in ARCHETYPES:
         raise ValueError(f"unknown archetype: {item.archetype}")
@@ -107,7 +160,11 @@ def _common_packaging(item: ClipProposal | SelectedClip) -> None:
 
 @dataclass(frozen=True, slots=True)
 class ClipProposal:
-    """A moment expressed in sentence-unit indices, before boundary snapping."""
+    """A moment expressed in sentence-unit indices, before boundary snapping.
+
+    ``trend_refs`` are the prompt trend IDs (``T1``, ...) an LLM moment claims to use; the
+    selector keeps only those its transcript really mentions. Heuristic proposals have none.
+    """
 
     start_unit: int
     end_unit: int
@@ -122,6 +179,7 @@ class ClipProposal:
     scores: Mapping[str, float]
     score: float
     source: str
+    trend_refs: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         start = _index(self.start_unit, "start_unit")
@@ -136,11 +194,16 @@ class ClipProposal:
             if not start <= payoff <= end:
                 raise ValueError("payoff_unit must lie inside the proposal")
         _common_packaging(self)
+        _trend_refs(self.trend_refs)
 
 
 @dataclass(frozen=True, slots=True)
 class SelectedClip:
-    """A final, snapped clip in source seconds with everything needed to render and post."""
+    """A final, snapped clip in source seconds with everything needed to render and post.
+
+    ``trends`` are the trends the clip's own transcript mentions (empty without a trend
+    context); :meth:`to_dict` writes the key only when there is at least one.
+    """
 
     rank: int
     start: float
@@ -158,6 +221,7 @@ class SelectedClip:
     reasons: tuple[str, ...]
     source: str
     text: str
+    trends: tuple[TrendRef, ...] = ()
 
     def __post_init__(self) -> None:
         if not isinstance(self.rank, int) or isinstance(self.rank, bool) or self.rank <= 0:
@@ -186,13 +250,14 @@ class SelectedClip:
             raise TypeError("hook_unit_id must be a non-empty string")
         _text(self.text, "text", 200_000)
         _common_packaging(self)
+        _trends(self.trends)
 
     @property
     def duration(self) -> float:
         return self.end - self.start
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        payload: dict[str, object] = {
             "rank": self.rank,
             "start": self.start,
             "end": self.end,
@@ -212,6 +277,9 @@ class SelectedClip:
             "source": self.source,
             "text": self.text,
         }
+        if self.trends:  # optional: a clip without trends keeps its historical shape
+            payload["trends"] = [item.to_dict() for item in self.trends]
+        return payload
 
 
 @dataclass(frozen=True, slots=True)
