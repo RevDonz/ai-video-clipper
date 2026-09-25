@@ -408,7 +408,95 @@ dan label `literal` diputuskan kode). Format sel: `L/S/N`, lalu Hits@5/Hits@10/T
   14/21/1; 2 dan 3 → 20/30/8 | 14/21/1; tanpa batas → 19/29/9 | 14/21/1. Nilai 1,0 adalah yang
   terkecil dengan hasil terbaik di kedua jenis run tanpa trap tambahan.
 - **0 label `literal` yang salah dari 58**, dicek ulang dengan regex terpisah dan `at` di dalam
-  klip. Baris model sungguhan dan E2E di atas berasal dari versi awal dan belum diulang.
+  klip. Baris model sungguhan dan E2E di atas berasal dari versi awal; ukuran ulangnya ada di
+  bagian "Top-up fokus" berikut.
+
+### Top-up fokus (2026-09-25): utamakan, sisanya diisi
+
+Keputusan pemilik: momen yang cocok didahulukan, dan sisa slot diisi momen lain hanya bila momen
+cocok yang layak tidak cukup. Dua perubahan (spesifikasi §6): **top-up fokus**, yaitu satu
+permintaan AI tambahan untuk kelompok sebutan yang tidak tercakup usulan mana pun (sebutan di
+dalam teaser pembuka dilewati), dan **batas kualitas AI berbasis skor rubrik**, bukan campuran
+dengan peringkat ulang yang tidak pernah melihat fokus.
+
+Setup sama dengan tabel "Setelah review" (K=10, 20–90 detik, istilah yang sama, heuristik dan
+putar ulang `llm-cache-final` Hermes, retry mati). Usulan dan peringkat ulang diputar ulang dari
+cache; hanya permintaan top-up yang dikirim ke rantai gratis (Ollama Cloud `gemma4:31b`, lalu
+di-cache). Format sel: `L/S/N · Hits@5/Hits@10/Trap@10`; "Sama" = momen yang sama dengan tanpa
+fokus.
+
+| Episode | Run | Tanpa fokus | Setelah review (`32cec7b`) | Dengan top-up | Top-up | Sama |
+|---|---|---|---|---|---|---|
+| 7 episode | heuristik | 18/23/6 | 18/29/7 | 18/29/7 (identik per run) | tidak ada (tanpa LLM) | – |
+| `0K37SYfox7M` | putar ulang | 3/4/0 | 0/0/10 · 3/4/0 | 2/0/8 · 4/5/0 | `focus_topup:2` | 8/10 |
+| `DwTmRFyQ53E` | putar ulang | 3/7/0 | 3/0/7 · 4/7/0 | 4/0/6 · 4/6/0 | `focus_topup:1` | 9/10 |
+| `FxQDATkYHtk` | putar ulang | 2/3/0 | 2/0/8 · 2/3/0 | 3/0/7 · 3/3/0 | `focus_topup:1` | 9/10 |
+| `rBg0ZcwjVKQ` | putar ulang | 1/2/0 | 4/0/6 · 2/3/0 | 5/0/5 · 2/3/0 | `focus_topup:1` | 8/10 |
+| `WRxJGz-TA44` | putar ulang | 3/4/1 | 1/0/9 · 3/4/1 | 1/0/9 · 3/4/1 | tidak dikirim | 10/10 |
+| **Total 12 run** | | **30/43/7** | **32/50/8** | **34/50/8** | | |
+
+- **Hits@5 32 → 34, Hits@10 50 → 50, Trap@10 8 → 8.** Hits@5 naik di `0K37SYfox7M` dan
+  `FxQDATkYHtk`; di `0K37SYfox7M` satu momen gold bertambah di 10 besar, di `DwTmRFyQ53E` satu
+  momen gold di luar fokus tergeser (Hits@10 7 → 6).
+- Batas kualitas berbasis skor saja (tanpa top-up) memberi angka yang sama persis dengan
+  `32cec7b` di 12 run ini: jawaban Hermes tidak punya klaim fokus, dan momen literalnya sudah lolos.
+- Semua momen top-up berlabel `literal` dan benar; **0 label `literal` yang salah** (regex
+  terpisah, `at` di dalam klip), urutan `literal`, `semantic`, `none` benar di semua run.
+- `WRxJGz-TA44`: satu-satunya sebutan "burnout" yang tidak tercakup ada di teaser pembuka
+  (00:00), jadi top-up tidak dikirim. Tanpa aturan teaser, Gemma mengusulkan teaser itu
+  (00:00–00:40, trap T1) di ketiga percobaan (dua putar ulang, satu model sungguhan) meski prompt
+  memintanya dilewati. Di putar ulang trap tidak bertambah hanya karena klip itu menggantikan
+  teaser pilihan Hermes sendiri (00:23–00:50); di run model sungguhan trap naik 0 → 1.
+
+**Model sungguhan dengan blok fokus** (3 episode tabel versi awal; jawaban usulan Gemma yang
+tercatat diputar ulang dari cache, top-up ke Ollama Cloud `gemma4:31b`; K=10, catatan fokus):
+
+| Episode | Tanpa fokus | Setelah review | Dengan top-up | Top-up |
+|---|---|---|---|---|
+| `rBg0ZcwjVKQ` | 3/5/1 | 4/1/5 · 2/5/1 | 6/1/3 · 2/4/1 | `focus_topup:2`: 34:03 "tren jomok nggak akan pernah mati", 06:57 "JMK 48" |
+| `0K37SYfox7M` | 5/8/0 | 2/1/7 · 4/7/0 | 2/1/7 · 4/7/0 | `focus_topup:0` (model tidak menemukan yang layak) |
+| `WRxJGz-TA44` | 4/5/0 | 1/1/8 · 3/5/0 | 1/1/8 · 3/5/0 | tidak dikirim (sebutan tersisa di teaser) |
+| **Total** | **12/18/1** | **9/17/1** | **9/16/1** | |
+
+Di `rBg0ZcwjVKQ` klip fokus naik dari 5 ke 7 dari 10 dengan satu momen gold di luar fokus
+tergeser; trap tidak bertambah. 0 label `literal` yang salah.
+
+**E2E kasus pemilik** (`run.sh`: CLI sungguhan, `rBg0ZcwjVKQ`, subtitle YouTube, fokus "jomok"
+dengan catatan "momen jomok yang lucu", 8 klip, 20–90 detik, rantai gratis `.env`). Supaya
+bedanya hanya dari perubahan ini, cache LLM job sebelumnya dipakai lagi: usulan dan peringkat
+ulang Gemma sama persis, hanya top-up yang baru.
+
+| Job | Ringkasan | Label | Permintaan AI |
+|---|---|---|---|
+| Fokus, `32cec7b` | 2 dari 8 klip cocok, `focus_few_matches:2` | 2 `literal`, 6 "Di luar fokus" | 2 (usulan, peringkat ulang) |
+| Fokus, dengan top-up | 7 dari 8 klip cocok, `focus_topup:1`, `focus_few_matches:7` | 5 `literal`, 2 `semantic`, 1 "Di luar fokus" | 3 (+ top-up, `gemma4:31b`, 10 rb token masuk) |
+| Tanpa fokus | – | – | manifest dan 8 subtitle identik byte demi byte; `selection.v3.json` hanya beda `cached_requests` |
+
+Klip dengan top-up (urutan akhir; baris dasar = segmen transkrip pada sebutan pertama):
+
+| # | Waktu | Label | Baris dasar | Judul |
+|---|---|---|---|---|
+| 1 | 63:23–64:06 | `literal` | [63:52] "Bapak harus berjomok ria." | Cara Eja jelasin jejak digital jomok ke anaknya nanti |
+| 2 | 28:43–29:36 | `literal` | [28:50] "Panduan-panduan perjomokan, panduan hal-hal kayak gini." | Rahasia isi Kitab Rawi panduan jomok |
+| 3 | 01:40–02:59 | `literal` | [01:40] "Terus kapan lu bersentuhan dengan dunia jomok ini?" | Awal mula Eja terjun ke dunia jomok |
+| 4 | 22:45–24:11 | `literal` | [22:53] "dramok drama jomok gitu" | Saweran 4 Juta cuma buat minta drama jomok |
+| 5 | 06:57–07:28 | `literal` (top-up) | [07:20] "Iya barak barak O2J segala orang-orang yang jomok gitu jadinya kan." | Asal usul istilah Jomok 48 di komunitas Eja |
+| 6 | 53:01–54:30 | `semantic` | klaim AI (Koci tertipu meme Rusdi / barbershop Ngawi Timur) | Koci kena gocek jokes jomok |
+| 7 | 57:11–57:50 | `semantic` | klaim AI (uang dari membacakan Kitab Rawi, kitab "perjomokan") | Cuan dari jualan cerita Kitab Rawi |
+| 8 | 17:42–18:43 | "Di luar fokus" | – | Kisah Lades: Dari tak punya KTP jadi duo maut |
+
+Sebelumnya (`32cec7b`) hanya klip 1 dan 2 yang `literal`; klip 3, 4, 6, dan 7 sudah diusulkan
+Gemma sebagai momen fokus tetapi jatuh di bawah batas kualitas lama (campuran peringkat ulang),
+dan enam slot diisi momen di luar fokus (04:49, 36:36, 46:19, 49:08, 60:07, dan klip 8).
+
+- Sapaan kanal 00:53 ("belajar perjomokan di sini", trap T1) tidak terpilih: model melewati
+  potongannya. Top-up hanya menambah satu momen (06:57); lima potongan lain dilewati model,
+  termasuk 34:13 ("jomok ini sulit untuk redup") yang di run model sungguhan di atas justru
+  diusulkan, jadi hasilnya bergantung pada jawaban model.
+- Prompt top-up versi pertama (tanpa syarat "memuat baris yang menyebut istilahnya") memberi
+  19:21–20:27 "Eja merasa bersalah penonton stream-nya banyak bocah" berlabel `semantic`, klip
+  tentang umur penonton yang tidak menyebut jomok. Karena itu momen top-up kini wajib memuat
+  sebutan (dicek kode).
 
 ## Hasil final V3 setelah poles (2026-09-24, kode dibekukan)
 
