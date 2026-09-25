@@ -111,9 +111,10 @@ def reference_toolchain_problem() -> str | None:
         return "dpkg-query not found; cannot check libass/freetype/harfbuzz/fribidi/fontconfig"
     for package, wanted in REFERENCE_PACKAGES:
         result = subprocess.run(
-            [dpkg, "-W", "-f=${Version}", package], capture_output=True, text=True, check=False
+            [dpkg, "-W", "-f=${Version}\n", package], capture_output=True, text=True, check=False
         )
-        found = _upstream_version(result.stdout.strip()) if result.returncode == 0 else "missing"
+        versions = result.stdout.split()  # one line per installed architecture
+        found = _upstream_version(versions[0]) if result.returncode == 0 and versions else "missing"
         if found != wanted:
             return f"{package} {found} (reference {wanted})"
     return None
