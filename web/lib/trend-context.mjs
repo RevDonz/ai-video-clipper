@@ -291,8 +291,10 @@ function parseExampleUrl(raw, field) {
   return url.href;
 }
 
+// Examples are de-duplicated by their normalised URL (the first one wins).
 function parseExamples(raw) {
-  return parseList(raw, "examples", 0, TREND_LIMITS.examples).map((entry, index) => {
+  const examples = [];
+  parseList(raw, "examples", 0, TREND_LIMITS.examples).forEach((entry, index) => {
     const field = `examples[${index}]`;
     if (!isPlainObject(entry)) reject("invalid_type", field);
     for (const key of Object.keys(entry)) {
@@ -301,8 +303,9 @@ function parseExamples(raw) {
     if (entry.url === undefined || entry.url === null) reject("missing_field", `${field}.url`);
     const url = parseExampleUrl(entry.url, `${field}.url`);
     const note = entry.note === undefined || entry.note === null ? "" : parseLine(entry.note, `${field}.note`, 0, TREND_LIMITS.exampleNote);
-    return { url, note };
+    if (!examples.some((example) => example.url === url)) examples.push({ url, note });
   });
+  return examples;
 }
 
 function parseScore(raw) {
