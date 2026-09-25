@@ -11,3 +11,5 @@ web/test-results/
 web/playwright-report/
 .env
 gitleaks-report.json
+# Written by the image build (plan E10), never committed
+resources/toolchain.json
