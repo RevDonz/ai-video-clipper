@@ -1,6 +1,8 @@
 // Presentation helpers for Selection V3 clips and summaries. Client-safe: no
 // Node built-ins, so both the dashboard and the project page can import it.
 
+import { TREND_KIND_LABELS, TREND_LIMITS, cleanLine } from "./trend-view.mjs";
+
 export const ARCHETYPE_LABELS = Object.freeze({
   curiosity_gap: "Bikin penasaran",
   controversial_claim: "Klaim kontroversial",
@@ -92,6 +94,32 @@ export const CLIP_THUMBNAIL_URL = /^\/api\/jobs\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-
 export function clipPosterUrl(clip) {
   const url = clip?.thumbnailUrl;
   return typeof url === "string" && CLIP_THUMBNAIL_URL.test(url) ? url : undefined;
+}
+
+const MAX_TREND_CHIPS = 5;
+
+/**
+ * "Nyambung tren: <judul>" chips for the trends the engine grounded in this
+ * clip's transcript (`clip.trends`: [{ id, title, kind }]). An empty list for
+ * every clip without trends, so those clips render exactly as before.
+ * Titles are cleaned and bounded here; they are only ever rendered as text.
+ */
+export function clipTrendChips(clip) {
+  const trends = Array.isArray(clip?.trends) ? clip.trends : [];
+  const chips = [];
+  const seen = new Set();
+  for (const trend of trends) {
+    if (chips.length >= MAX_TREND_CHIPS) break;
+    if (!trend || typeof trend !== "object" || Array.isArray(trend)) continue;
+    const title = Array.from(cleanLine(trend.title)).slice(0, TREND_LIMITS.title).join("");
+    if (!title) continue;
+    const id = typeof trend.id === "string" ? cleanLine(trend.id).slice(0, 120) : "";
+    const key = id || `title:${title.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    chips.push({ key, title, label: `Nyambung tren: ${title}`, kindLabel: TREND_KIND_LABELS[trend.kind] || null });
+  }
+  return chips;
 }
 
 export function coldOpenLength(clip) {
