@@ -3,10 +3,11 @@
 // Every piece of preview work is a call of `python -m ai_clipper.edit_v2.preview_cli` through
 // web/lib/python-cli.mjs (allowlisted env, bounded IO, process-group kill; E11):
 //
-// * plan: one light process per request (at most PLAN_SLOTS at once). A newer plan request for
-//   the same clip aborts the superseded one (409 `superseded`); an identical request body shares
-//   the one in flight, and a repeated body (the client polling for readiness) is answered from a
-//   small cache with the cell, audio and logo states refreshed from disk, without a new process.
+// * plan: one light process per request (at most PLAN_SLOTS at once). A newer document for the
+//   same clip aborts the plan in flight (409 `superseded`); the same document (the exact bytes of
+//   its `doc` member) shares the one in flight, and a repeated document (the client polling for
+//   readiness, whatever its `known` sha or playhead) is answered from a small cache with the cell,
+//   audio and logo states refreshed from disk, without a new process.
 // * heavy work (plate cells, the audio mix, truth frames, derived logos, prepare with its camera
 //   plan): at most HEAVY_SLOTS processes (plan §2.6: semaphore 2; the CLI renices itself to 5
 //   and caps FFmpeg at 2 threads). Priority: truth frame, then audio and logo, then prepare, then
