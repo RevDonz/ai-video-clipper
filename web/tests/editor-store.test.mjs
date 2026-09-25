@@ -7,7 +7,7 @@ import test from "node:test";
 
 import { createFakeApiClient } from "../components/editor/__dev__/fakes.mjs";
 import { createFakeServer, loadContext } from "../../scripts/edit_v2/crosscheck_commands.mjs";
-import { ApiError, createApiClient } from "../lib/editor/api-client.mjs";
+import { ApiError, createApiClient, randomUuid } from "../lib/editor/api-client.mjs";
 import { CommandRejected } from "../lib/editor/commands.mjs";
 import { body, coldOpen, contentJson, hookItem } from "../lib/editor/doc-model.mjs";
 import { createMemoryDraftStore } from "../lib/editor/draft-store.mjs";
@@ -216,7 +216,7 @@ test("a 409 on the same part opens the per-part dialog; the editor keeps working
   await clock.advance(30000);
   assert.equal(server.puts.length, 1, "no save until the dialog is answered");
   await store.draftWriter.flush();
-  assert.equal((await drafts.get(server.clipId)).commands.length, 2);
+  assert.equal((await drafts.get(store.draftKey)).commands.length, 2);
   await store.resolveConflict({ hook: "theirs" });
   await clock.advance(1500);
   state = store.getState();
@@ -224,7 +224,7 @@ test("a 409 on the same part opens the per-part dialog; the editor keeps working
   assert.equal(state.conflict, null);
   assert.equal(hookItem(server.doc).payload.text, "Tersimpan");
   assert.equal(server.doc.layout.default.mode, "camera");
-  assert.equal(await drafts.get(server.clipId), null, "draft removed once everything is saved");
+  assert.deepEqual(await drafts.list(server.clipId), [], "draft removed once everything is saved");
   store.destroy();
 });
 
@@ -552,6 +552,15 @@ test("the API client maps errors to ApiError with the server's code", async () =
   await assert.rejects(other.getRender("../x"), TypeError);
   await assert.rejects(other.aiTask("nope"), TypeError);
   await assert.rejects(other.words("https://evil.example/words"), TypeError);
+});
+
+test("Idempotency-Keys are UUID v4 with or without crypto.randomUUID", () => {
+  const v4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+  assert.match(randomUuid(), v4);
+  const insecure = { getRandomValues: (bytes) => globalThis.crypto.getRandomValues(bytes) };
+  const keys = new Set(Array.from({ length: 200 }, () => randomUuid(insecure)));
+  assert.equal(keys.size, 200);
+  for (const key of keys) assert.match(key, v4);
 });
 
 // --- preview client ------------------------------------------------------------------------
