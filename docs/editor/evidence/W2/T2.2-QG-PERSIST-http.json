@@ -1,0 +1,30 @@
+{
+ "failures": 0,
+ "final_etag_is_last_save": true,
+ "final_revision": 5050,
+ "gate": "QG-PERSIST over HTTP",
+ "lockout": false,
+ "receipts_files": 200,
+ "receipts_limit": 200,
+ "replay_mismatches": 0,
+ "replays": 20,
+ "saves_ok": 5000,
+ "saves_requested": 5000,
+ "setup": {
+  "machine": {
+   "cpus": 16,
+   "load": [
+    11.1,
+    14.8,
+    15.1
+   ],
+   "model": "AMD Ryzen 7 5700G with Radeon Graphics"
+  },
+  "node": "v22.23.2",
+  "python": "the worktree venv (Python 3.13), PYTHON_BIN = a wrapper that records each child's /proc/self/environ",
+  "server": "next start (production standalone build) on 127.0.0.1:3291, T2.2 routes; web/lib/python-cli.mjs of the gate copy lists ai_clipper.render_queue (request R1)",
+  "worker": "render_worker.run_one with the reference render_request of tests/test_render_worker.py (W1 compiler + verify; T2.1's module is not in this branch)"
+ },
+ "stale_if_match_status": 409,
+ "task": "T2.2"
+}
