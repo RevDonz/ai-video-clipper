@@ -1,0 +1,65 @@
+{
+ "browser_measurement": {
+  "browser": "Chrome for Testing 147.0.7727.15 (Playwright build 1217)",
+  "commands": 60,
+  "commands_lost_max": 0,
+  "draft_durable_after_command_ms": {
+   "max": 6.1,
+   "p50": 1.5,
+   "p95": 3.6
+  },
+  "harness": "scratch page served from a local static server over the worktree's web/lib/editor modules (not committed); autosave off, so only the draft holds the work",
+  "indexeddb": "real",
+  "reloads": [
+   {
+    "commands_expected": 60,
+    "commands_restored": 60,
+    "delay_after_last_command_ms": "after_durable",
+    "identical_document": true
+   },
+   {
+    "commands_expected": 65,
+    "commands_restored": 65,
+    "delay_after_last_command_ms": 0,
+    "identical_document": true
+   },
+   {
+    "commands_expected": 70,
+    "commands_restored": 70,
+    "delay_after_last_command_ms": 20,
+    "identical_document": true
+   },
+   {
+    "commands_expected": 73,
+    "commands_restored": 73,
+    "delay_after_last_command_ms": 100,
+    "identical_document": true
+   },
+   {
+    "commands_expected": 76,
+    "commands_restored": 76,
+    "delay_after_last_command_ms": 500,
+    "identical_document": true
+   }
+  ],
+  "reopen_with_discovery_ms": 255,
+  "tab_keeps_its_draft_after_reload": true
+ },
+ "code_commit": "716a050",
+ "environment": {
+  "cpus": 16,
+  "loadavg_1_5_15": [
+   11.78,
+   15.92,
+   15.44
+  ],
+  "machine": "x86_64",
+  "node": "v22.23.2"
+ },
+ "gate": "the draft is written after every command (reload loses <= 2 s)",
+ "pass": true,
+ "threshold": {
+  "reload_loss_s": 2
+ },
+ "unit_tests": "web/tests/editor-draft.test.mjs: draft after each of 40 commands equals the store; reload restores all; per-tab drafts; closed-tab adoption; duplicated tab; end-of-pump race"
+}
