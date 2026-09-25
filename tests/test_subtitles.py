@@ -508,6 +508,64 @@ def test_frame_cues_follow_max_words_gaps_and_sentence_ends():
     assert len(build_frame_cues(words, pieces, HUNDRED, max_gap_ms=5)) == 8
 
 
+def test_a_gap_inside_a_piece_is_measured_in_source_time_like_the_legacy_cues():
+    """W2 Open 11 (T2.1 finding): a real gap of 611 ms rounds to 15 frames (600 ms) at 25 fps.
+    The legacy engine breaks the cue there (61 cs > 60 cs); inside one piece output time is
+    source time, so the frame cues measure the gap in source milliseconds and break too."""
+    pieces = (Piece(0, "seg_b1", "body", 0, 500, 0, 500),)
+    words = (SourceWord("w000001", 400, 1000, "satu", False),   # frames 10-25
+             SourceWord("w000002", 1611, 1900, "dua", False))   # frame 40: 15 frames later
+    cues = build_frame_cues(words, pieces, Fps(25, 1))
+    assert [cue.text for cue in cues] == ["satu", "dua"]
+    legacy = build_caption_cues([_segment((0.4, 1.0, "satu"), (1.611, 1.9, "dua"))], [(0.0, 20.0)])
+    assert [cue.text for cue in legacy] == ["satu", "dua"]
+    # 600 ms in source never breaks, whatever the frames say
+    close = (SourceWord("w000001", 400, 1019, "satu", False),
+             SourceWord("w000002", 1619, 1900, "dua", False))
+    assert [cue.text for cue in build_frame_cues(close, pieces, Fps(25, 1))] == ["satu dua"]
+
+
+def test_a_gap_across_a_cut_is_still_measured_in_output_time():
+    # w2 ends at source 3.8 s (output 95); w4 starts at source 6.2 s (output 105): 400 ms apart
+    # in the output although 2.4 s apart in the source (see the jump-cut test above).
+    words = (SourceWord("w000002", 3500, 3800, "gue", False),
+             SourceWord("w000004", 6200, 6500, "pulang", False))
+    assert [cue.text for cue in build_frame_cues(words, _body_with_cut(), Fps(25, 1))] == [
+        "gue pulang"]
+
+
+@pytest.mark.parametrize("fps", [Fps(24, 1), Fps(25, 1), Fps(30, 1), Fps(24000, 1001),
+                                 Fps(30000, 1001)])
+def test_frame_cues_group_words_as_the_legacy_cues_do_inside_one_piece(fps):
+    """Grouping parity with ``build_caption_cues`` on random speech (gaps up to 1.2 s, sentence
+    ends, the four-word limit), at every document frame rate; gaps within 10 ms of the 600 ms
+    threshold are left out (the legacy engine rounds them to centiseconds of a float)."""
+    import random
+
+    rng = random.Random(fps.num * 7 + fps.den)
+    for _trial in range(40):
+        at = 500
+        items = []
+        for index in range(40):
+            gap = rng.choice([0, 20, 80, 150, 300, 450, 580, 620, 700, 900, 1200])
+            gap += rng.randint(0, 15) if gap not in (580,) else 0
+            start = at + gap
+            end = start + rng.randint(120, 600)
+            text = f"kata{index}" + ("." if rng.random() < 0.12 else "")
+            items.append((start, end, text))
+            at = end
+        end_ms = at + 2000
+        end_sf = -(-end_ms * fps.num // (1000 * fps.den))
+        pieces = (Piece(0, "seg_b1", "body", 0, end_sf, 0, end_sf),)
+        words = tuple(SourceWord(f"w{i:06d}", s, e, text, False)
+                      for i, (s, e, text) in enumerate(items))
+        new = [cue.text for cue in build_frame_cues(words, pieces, fps)]
+        legacy = [cue.text for cue in build_caption_cues(
+            [_segment(*((s / 1000, e / 1000, text) for s, e, text in items))],
+            [(0.0, end_sf * fps.den / fps.num)])]
+        assert new == legacy
+
+
 @pytest.mark.parametrize(
     "options",
     [{"max_words": 0}, {"max_gap_ms": -1}, {"min_display_ms": -1}, {"max_gap_ms": 0.5},
