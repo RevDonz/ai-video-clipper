@@ -281,9 +281,10 @@ def test_overlapping_release_and_attack_take_the_minimum_exactly():
     item = _item()
     result = env.music_envelope(spans, item, total, NTSC)
     # The release of the first span (162000..181200) crosses the attack of the second
-    # (173560..175000) at x = 174092.09…: both neighbouring integer samples are breakpoints.
+    # (173560..175000) at x = (A·R + A·162000 + R·173560)/(A + R) = 174093.02…: both
+    # neighbouring integer samples are breakpoints.
     samples = [s for s, _g in result]
-    assert 174_092 in samples and 174_093 in samples
+    assert 174_093 in samples and 174_094 in samples
     depth = env.gain_e6(-1000)
     traps = [(a - 1440, a, b + 12_000, b + 12_000 + 19_200)
              for a, b in env.merge_spans(spans, 12_000)]
