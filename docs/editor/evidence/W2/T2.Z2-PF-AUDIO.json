@@ -1,0 +1,113 @@
+{
+  "gate": "PF-AUDIO",
+  "runs": {
+    "image": {
+      "clip_seconds": 90.0,
+      "environment": {
+        "cpu_quota": 4.0,
+        "cpus_visible": 16,
+        "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+        "loadavg": [
+          1.98,
+          4.06,
+          4.35
+        ],
+        "python": "3.11.2"
+      },
+      "gate_wall_s": 55.2,
+      "pass": true,
+      "speech_only_failures": 0,
+      "speech_only_ms": {
+        "max": 620.5,
+        "min": 588.6,
+        "n": 10,
+        "p50": 599.0,
+        "p95": 620.5
+      },
+      "speech_only_stages_ms": {
+        "compile_preview": 104.1,
+        "ffmpeg_preview_flac": 400.3,
+        "imports": 53.0,
+        "plan": 13.4,
+        "process_other": 57.7,
+        "total": 631.5,
+        "validate": 1.4
+      },
+      "threshold_ms": 1000,
+      "with_music_failures": 0,
+      "with_music_ms": {
+        "max": 916.0,
+        "min": 883.3,
+        "n": 16,
+        "p50": 902.3,
+        "p95": 914.5
+      },
+      "with_music_stages_ms": {
+        "compile_master": 0.1,
+        "compile_premaster_incl_ffprobe": 141.8,
+        "ffmpeg_decode_mix_and_measure": 463.0,
+        "ffmpeg_master_flac": 170.3,
+        "imports": 54.3,
+        "plan": 16.1,
+        "process_other": 61.0,
+        "total": 907.3,
+        "validate": 1.6
+      }
+    },
+    "load5": {
+      "clip_seconds": 90.0,
+      "environment": {
+        "cpu_quota": 4.0,
+        "cpus_visible": 16,
+        "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+        "loadavg": [
+          5.61,
+          4.38,
+          4.35
+        ],
+        "python": "3.11.2"
+      },
+      "gate_wall_s": 57.8,
+      "pass": false,
+      "speech_only_failures": 0,
+      "speech_only_ms": {
+        "max": 673.2,
+        "min": 620.3,
+        "n": 10,
+        "p50": 629.9,
+        "p95": 673.2
+      },
+      "speech_only_stages_ms": {
+        "compile_preview": 109.3,
+        "ffmpeg_preview_flac": 421.0,
+        "imports": 55.1,
+        "plan": 14.1,
+        "process_other": 61.5,
+        "total": 666.6,
+        "validate": 1.5
+      },
+      "threshold_ms": 1000,
+      "with_music_failures": 0,
+      "with_music_ms": {
+        "max": 1168.8,
+        "min": 954.3,
+        "n": 16,
+        "p50": 999.4,
+        "p95": 1132.6
+      },
+      "with_music_stages_ms": {
+        "compile_master": 0.1,
+        "compile_premaster_incl_ffprobe": 147.3,
+        "ffmpeg_decode_mix_and_measure": 556.9,
+        "ffmpeg_master_flac": 182.7,
+        "imports": 56.9,
+        "plan": 17.2,
+        "process_other": 62.5,
+        "total": 1027.8,
+        "validate": 1.7
+      }
+    }
+  },
+  "server": "ai-video-clipper:editor-w2r2 (the re-exit branch; FFmpeg 5.1.9, Python 3.11.2, toolchain.json sha 4fefb754\u202685f0): app container --cpus 6 with the persistent preview worker; the harness (scripts/parity/preview_lane_gates.py) inside the same image, --cpus 4, on the host network; 'load5' = the same run with five busy CPU loops on the host",
+  "task": "T2.Z2"
+}

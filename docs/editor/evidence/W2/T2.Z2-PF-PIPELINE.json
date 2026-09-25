@@ -1,0 +1,197 @@
+{
+  "environment": {
+    "legacy": {
+      "affinity": 16,
+      "cpu_count": 16,
+      "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+      "python": "3.11.2"
+    },
+    "new": {
+      "affinity": 16,
+      "cpu_count": 16,
+      "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+      "python": "3.11.2"
+    }
+  },
+  "gate": "PF-PIPELINE",
+  "jobs": [
+    {
+      "budget": 1.35,
+      "clips": 3,
+      "job": "e7f0d37b",
+      "layout": "fit_blur",
+      "legacy_s": 42.95,
+      "loadavg": {
+        "legacy": [
+          2.42,
+          2.06,
+          1.96
+        ],
+        "new": [
+          3.61,
+          2.35,
+          2.06
+        ]
+      },
+      "new_s": 72.336,
+      "new_warnings": [],
+      "output_s": 217.3,
+      "pass": false,
+      "ratio": 1.684,
+      "source_fps": "24000/1001"
+    },
+    {
+      "budget": 1.35,
+      "clips": 3,
+      "job": "899226f8",
+      "layout": "fit_blur",
+      "legacy_s": 36.603,
+      "loadavg": {
+        "legacy": [
+          4.46,
+          2.91,
+          2.28
+        ],
+        "new": [
+          7.17,
+          3.78,
+          2.6
+        ]
+      },
+      "new_s": 51.771,
+      "new_warnings": [],
+      "output_s": 149.8,
+      "pass": false,
+      "ratio": 1.414,
+      "source_fps": "25/1"
+    },
+    {
+      "budget": 1.6,
+      "clips": 5,
+      "job": "860fef1a",
+      "layout": "camera",
+      "legacy_s": 44.124,
+      "loadavg": {
+        "legacy": [
+          6.71,
+          4.22,
+          2.81
+        ],
+        "new": [
+          6.57,
+          4.52,
+          2.98
+        ]
+      },
+      "new_s": 90.723,
+      "new_warnings": [],
+      "output_s": 200.7,
+      "pass": false,
+      "ratio": 2.056,
+      "source_fps": "25/1"
+    },
+    {
+      "budget": 1.35,
+      "clips": 5,
+      "job": "3c7d024c",
+      "layout": "fit_blur",
+      "legacy_s": 104.408,
+      "loadavg": {
+        "legacy": [
+          6.66,
+          4.99,
+          3.29
+        ],
+        "new": [
+          5.5,
+          5.05,
+          3.5
+        ]
+      },
+      "new_s": 92.657,
+      "new_warnings": [],
+      "output_s": 278.9,
+      "pass": true,
+      "ratio": 0.887,
+      "source_fps": "60/1"
+    },
+    {
+      "budget": 1.35,
+      "clips": 4,
+      "job": "990f3f37",
+      "layout": "fill_center",
+      "legacy_s": 32.287,
+      "loadavg": {
+        "legacy": [
+          4.71,
+          4.85,
+          3.57
+        ],
+        "new": [
+          5.49,
+          5.05,
+          3.68
+        ]
+      },
+      "new_s": 57.709,
+      "new_warnings": [],
+      "output_s": 247.8,
+      "pass": false,
+      "ratio": 1.787,
+      "source_fps": "24000/1001"
+    }
+  ],
+  "layouts": {
+    "camera": {
+      "budget": 1.6,
+      "clips": 5,
+      "jobs": 1,
+      "jobs_pass": 0,
+      "legacy_s": 44.1,
+      "legacy_x_realtime": 0.22,
+      "new_s": 90.7,
+      "new_x_realtime": 0.452,
+      "output_s": 200.7,
+      "pass": false,
+      "ratio": 2.056,
+      "worst_job_ratio": 2.056
+    },
+    "fill_center": {
+      "budget": 1.35,
+      "clips": 4,
+      "jobs": 1,
+      "jobs_pass": 0,
+      "legacy_s": 32.3,
+      "legacy_x_realtime": 0.13,
+      "new_s": 57.7,
+      "new_x_realtime": 0.233,
+      "output_s": 247.8,
+      "pass": false,
+      "ratio": 1.787,
+      "worst_job_ratio": 1.787
+    },
+    "fit_blur": {
+      "budget": 1.35,
+      "clips": 11,
+      "jobs": 3,
+      "jobs_pass": 1,
+      "legacy_s": 184.0,
+      "legacy_x_realtime": 0.285,
+      "new_s": 216.8,
+      "new_x_realtime": 0.336,
+      "output_s": 646.0,
+      "pass": false,
+      "ratio": 1.178,
+      "worst_job_ratio": 1.684
+    }
+  },
+  "pass": false,
+  "runs": "look_report.py in ai-video-clipper:editor-w2r (the worktree's src), --cpus 4; per job the legacy engine (legacy2) then the new engine (new2), interleaved; P-LOOK measured against the owner's own legacy renders",
+  "scope": "the V3 rendering stage (per clip: seed artifacts + render + verify + poster; per job: source.json), same container and clips for both engines; transcription and selection are shared and excluded",
+  "task": "T2.Z2",
+  "threshold": {
+    "camera": 1.6,
+    "fill_center": 1.35,
+    "fit_blur": 1.35
+  }
+}
