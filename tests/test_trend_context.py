@@ -346,6 +346,37 @@ def test_short_and_common_keywords_never_match_alone():
     assert matched([item("AI Act", ("AI act",))], "soal AI act eropa") == ["AI Act"]
 
 
+def test_spoken_clitics_after_a_trend_word_still_match():
+    assert matched([item("Prabowo", ("prabowo",))], "prabowonya bilang gitu") == ["Prabowo"]
+    assert matched([item("Bjorka", ("bjorka",))], "si bjorkanya kabur") == ["Bjorka"]
+    assert matched([item("Bjorka", ("bjorka",))], "bjorkapun diam, bjorkalah pelakunya") == [
+        "Bjorka"
+    ]
+    kabur = item("Kabur Aja Dulu", ("kabur aja dulu",))
+    assert matched([kabur], "kabur aja dulunya gimana") == ["Kabur Aja Dulu"]
+    assert matched([kabur], "kaburnya aja dulu") == []  # only the last word of a phrase
+    # A clitic never leaves a stem shorter than a content word, and "-an" is no clitic.
+    assert matched([item("Tan", ("tanya",))], "tanya jawab") == ["Tan"]
+    assert matched([item("Pu", ("pujian",))], "punya dia") == []
+    assert matched([item("Kabur", ("kabur",))], "kaburan") == []
+
+
+def test_everyday_podcast_words_never_match_alone():
+    for word, text in (
+        ("gas", "ayo gas terus"),
+        ("tahun", "tahun ini"),
+        ("anak", "anak anak"),
+        ("indonesia", "orang indonesia"),
+        ("jakarta", "macet di jakarta"),
+    ):
+        assert word in TREND_STOPWORDS
+        assert matched([item(word.title(), (word,))], text) == [], word
+    assert matched([item("Gas Melon", ("gas melon",))], "antre gas melon lagi") == ["Gas Melon"]
+    assert matched([item("Banjir Jakarta", ("banjir jakarta",))], "banjir jakarta parah") == [
+        "Banjir Jakarta"
+    ]
+
+
 def test_trend_tag_keys_are_the_trend_written_as_one_hashtag_word():
     trend = item("Kabur Aja Dulu", ("kabur aja dulu", "AI", "Café gaul"), hashtags=("#Merantau_ID",))
     assert fold_hashtag("#Kabur_Aja Dulu") == "kaburajadulu"
