@@ -552,7 +552,12 @@ def _plate_cells(compiler: _Compiler, cells: Sequence[int]) -> FfmpegJob:
                                             in_sf, out_sf, 0, f"[pt{r}]"))
         compiler.graph.append(compiler.layout(f"[pt{r}]settb={fps.den}/{fps.num},",
                                               [(in_sf, out_sf)], f"[pl{r}]", suffix=f"_{r}"))
-        compiler.graph.append(f"[pl{r}]{_YUV_TO_709},format=yuv420p[cell{r}]")
+        # The same conversions as the final picture without text and logo (R5): with the gbrp
+        # composite the final's video passes through planar RGB, which clips the few YUV values
+        # outside the RGB gamut (scaling overshoot). A plate that skipped the round trip measured
+        # Y-SSIM 0.978 against the reference on the fill_center barcode (P-PLATE, W1 exit).
+        compiler.graph.append(
+            f"[pl{r}]{_TEXT_IN[compiler.composite]},{_TO_OUTPUT[compiler.composite]}[cell{r}]")
         split_at = ",".join(str(size * (i + 1)) for i in range(len(run)))
         outputs += ["-map", f"[cell{r}]", *_x264(*PLATE, size), "-bf", "0", "-forced-idr", "1",
                     "-force_key_frames", f"expr:eq(mod(n,{size}),0)", "-sc_threshold", "0",
