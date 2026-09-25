@@ -101,3 +101,35 @@ def test_measure_whole_and_text_regions(tmp_path: Path, edit_v2_ffmpeg: str) -> 
     rgb = enc_check.measure(lossy, reference, boxes=[(0, 0, 32, 16)], ffmpeg=edit_v2_ffmpeg,
                             domain="rgb")
     assert rgb["domain"] == "rgb" and 0.5 < rgb["ssim_all"] < 1.0 and "ssim_y" not in rgb
+
+
+def test_fixture_run_scores_each_export_against_its_own_and_the_common_reference(
+    tmp_path: Path, edit_v2_libass: str
+) -> None:
+    import reference_text as rt
+
+    fonts = tmp_path / "fonts-in"
+    fonts.mkdir()
+    system = Path("/usr/share/fonts/truetype/dejavu")
+    for name in ("DejaVuSans.ttf", "DejaVuSans-Bold.ttf"):
+        if not (system / name).is_file():
+            pytest.skip("DejaVu fonts not installed")
+        (fonts / name).write_bytes((system / name).read_bytes())
+    out = tmp_path / "fixtures"
+    manifest = rt.generate(out, fonts_dir=fonts, formats=("yuv420p", "gbrp"),
+                           only=("classic-10",), export=True, timing=False)
+    result = enc_check.measure_fixtures(out, rgb_diagnostic=False)
+    assert result["domain"] == "yuv444p" and result["common_reference"] == "gbrp"
+    own = result["formats"]["gbrp"]["clips"]["classic-10"]
+    other = result["formats"]["yuv420p"]["clips"]["classic-10"]
+    assert own["frames"] == other["frames"] == manifest["clips"][0]["total_frames"]
+    # gbrp's own reference is the common one; yuv420p is also scored against it.
+    assert own["vs_common"]["ssim_text"] == own["ssim_text"]
+    assert 0.9 < other["vs_common"]["ssim_text"] < 1.0
+    assert result["formats"]["yuv420p"]["mean_ssim_text_vs_common"] == pytest.approx(
+        other["vs_common"]["ssim_text"])
+    baseline = {"formats": {"gbrp": {"clips": {"classic-10": {
+        "ssim_all": own["ssim_all"] + 0.0021, "ssim_text": own["ssim_text"]}}}}}
+    again = enc_check.measure_fixtures(out, formats=("gbrp",), baseline=baseline,
+                                       rgb_diagnostic=False)
+    assert again["formats"]["gbrp"]["clips"]["classic-10"]["pass"] is False
