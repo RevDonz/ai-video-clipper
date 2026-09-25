@@ -138,6 +138,32 @@ def test_text_is_normalized_like_the_server():
     ]
 
 
+# What the web server strips from item text (web/lib/trend-context.mjs: \p{Cf} and
+# \p{Default_Ignorable_Code_Point}, listed on Node 22 with Unicode 17). The engine must strip at
+# least as much, on Python 3.11 (Unicode 14) too.
+SERVER_INVISIBLE = (
+    (0xAD, 0xAD), (0x34F, 0x34F), (0x600, 0x605), (0x61C, 0x61C), (0x6DD, 0x6DD),
+    (0x70F, 0x70F), (0x890, 0x891), (0x8E2, 0x8E2), (0x115F, 0x1160), (0x17B4, 0x17B5),
+    (0x180B, 0x180F), (0x200B, 0x200F), (0x202A, 0x202E), (0x2060, 0x206F), (0x3164, 0x3164),
+    (0xFE00, 0xFE0F), (0xFEFF, 0xFEFF), (0xFFA0, 0xFFA0), (0xFFF0, 0xFFFB), (0x110BD, 0x110BD),
+    (0x110CD, 0x110CD), (0x13430, 0x1343F), (0x1BCA0, 0x1BCA3), (0x1D173, 0x1D17A),
+    (0xE0000, 0xE0FFF),
+)  # fmt: skip
+
+
+def test_every_character_the_server_strips_is_stripped_by_the_engine():
+    for low, high in SERVER_INVISIBLE:
+        for code in range(low, high + 1):
+            assert clean_trend_text(f"a{chr(code)}b") == "ab", hex(code)
+
+
+def test_hidden_variation_selectors_and_tag_characters_never_reach_the_prompt():
+    hidden = "".join(chr(0xE0100 + index) for index in range(32)) + "\ufe0f\U000e0041\u00ad"
+    assert clean_trend_text("Kucing oren" + hidden) == "Kucing oren"
+    assert clean_trend_text("Kucing\u3164oren\u034f") == "Kucingoren"
+    assert clean_trend_text("Café ok") == "Café ok"  # visible text and accents stay
+
+
 def test_titles_and_keywords_are_cleaned_before_their_length_is_checked(tmp_path):
     loud = raw_item(title="\u2066Kabur\n Aja   Dulu\u2069", keywords=["  kabur\u200baja  "])
     [parsed] = read_trend_context(write(tmp_path, snapshot(loud)))
