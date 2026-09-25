@@ -116,9 +116,9 @@ captions.ass 19cfa695d11c5b5551915197eda1c62601cca82ce96804a8097d9c805fa4af4f
  "source_frame": 15010
 }
 ## filter_script
-[0:0]null[vd0];
-[vd0]fps=25/1,trim=start_pts=15010:end_pts=15011,setpts=PTS-STARTPTS+10,scale=720:1280:force_original_aspect_ratio=increase:in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuv444p,crop=720:1280:x='100':y=(ih-oh)/2,setsar=1[vp0];
-[vp0]settb=1/25[vcat];
-[vcat]scale=in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuv444p,ass=filename=captions.ass:fontsdir=fonts:shaping=complex[vtext];
+[0:0]fps=25/1,trim=start_pts=15010:end_pts=15011,setpts=PTS-STARTPTS+10[vr0];
+[vr0]settb=1/25[vcat];
+[vcat]scale=720:1280:force_original_aspect_ratio=increase:in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuv444p,crop=720:1280:x='100':y=(ih-oh)/2,setsar=1[vlay];
+[vlay]scale=in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuv444p,ass=filename=captions.ass:fontsdir=fonts:shaping=complex[vtext];
 [vtext]scale=in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuv420p[vout]
 

@@ -35,6 +35,7 @@ from ai_clipper.edit_v2.compile_ffmpeg import (
     compile_job,
     decoder_runs,
     seek_arg,
+    select_expression,
 )
 from ai_clipper.edit_v2.loudness import Loudness
 from ai_clipper.edit_v2.plan import Resources, build_plan
@@ -341,20 +342,77 @@ def test_seek_is_one_second_before_the_first_frame():
 
 
 def test_every_piece_uses_the_measured_grid_rule(harness, probe_stub):
+    """R1: a decoder run of one piece is the PF string verbatim; a run of several keeps the
+    same grid frames with one ``select`` on the grid index, never ``split`` into trims."""
     plan, job = compiled("removals_many__c30", probe_stub, mode="final")
     num, den = plan.fps.num, plan.fps.den
-    for p in plan.pieces:
-        rule = (f"fps={num}/{den},trim=start_pts={p.in_sf}:end_pts={p.out_sf},"
-                "setpts=PTS-STARTPTS,")
-        assert job.filter_script.count(rule) == 1, p
     runs = decoder_runs(plan.pieces, plan.fps)
+    assert any(len(run) > 1 for run in runs) and any(len(run) == 1 for run in runs)
     sources = [spec for spec in job.inputs if spec.kind == "source"]
     assert len(sources) == len(runs)
-    for spec, run in zip(sources, runs):
+    for r, (spec, run) in enumerate(zip(sources, runs)):
         first = plan.pieces[run[0]].in_sf
         assert spec.options[spec.options.index("-ss") + 1] == seek_arg(first, plan.fps)
+        ranges = [(plan.pieces[i].in_sf, plan.pieces[i].out_sf) for i in run]
+        if len(run) == 1:
+            chain = (f"[{r}:0]fps={num}/{den},trim=start_pts={ranges[0][0]}:"
+                     f"end_pts={ranges[0][1]},setpts=PTS-STARTPTS[vr{r}]")
+        else:
+            chain = (f"[{r}:0]fps={num}/{den},select='{select_expression(ranges)}',"
+                     f"setpts=N[vr{r}]")
+        assert job.filter_script.count(chain) == 1, run
+    assert "split=" not in job.filter_script.replace("asplit=", "").replace(
+        "[vcat]split=2", "")  # only fit_blur's own split remains
     assert "-copyts" in job.argv
-    assert f"concat=n={len(plan.pieces)}:v=1:a=0,settb={den}/{num}" in job.filter_script
+    assert f"concat=n={len(runs)}:v=1:a=0,settb={den}/{num}[vcat]" in job.filter_script
+    # R4: one layout chain after the join, however many cuts (one blur, two layout scales)
+    assert job.filter_script.count("gblur=") == 1
+    assert job.filter_script.count("force_original_aspect_ratio") == 2
+
+
+def evaluate_select(expr: str, pts: int) -> bool:
+    """Evaluate the ``select`` subset ``if(lt(pts,K),A,B)`` / ``between(pts,a,b)``."""
+    if expr.startswith("between(pts,"):
+        low, high = map(int, expr[len("between(pts,"):-1].split(","))
+        return low <= pts <= high
+    return bool(evaluate_tree(expr, pts, "pts", evaluate_select))
+
+
+def evaluate_tree(expr, value, name, leaf):
+    rest = expr[len(f"if(lt({name},"):]
+    threshold, rest = rest.split(")", 1)
+    body = rest[1:-1]
+    depth = 0
+    for position, char in enumerate(body):
+        depth += char == "("
+        depth -= char == ")"
+        if char == "," and depth == 0:
+            left, right = body[:position], body[position + 1:]
+            break
+    return leaf(left, value) if value < int(threshold) else leaf(right, value)
+
+
+def test_select_expression_keeps_exactly_the_ranges():
+    rng = random.Random(7)
+    for count in (1, 2, 3, 7, 64, 500):
+        ranges, position = [], rng.randint(0, 50)
+        for _ in range(count):
+            start = position + rng.randint(0, 40)
+            end = start + rng.randint(1, 30)
+            ranges.append((start, end))
+            position = end
+        expr = select_expression(ranges)
+        wanted = {sf for a, b in ranges for sf in range(a, b)}
+        for pts in range(ranges[-1][1] + 5):
+            assert evaluate_select(expr, pts) == (pts in wanted), (count, pts)
+        depth = deepest = 0
+        for char in expr:
+            depth += (char == "(") - (char == ")")
+            deepest = max(deepest, depth)
+        assert deepest <= 2 * (count - 1).bit_length() + 2  # balanced
+    for bad in ([], [(5, 5)], [(10, 20), (15, 30)], [(10, 20), (0, 5)]):
+        with pytest.raises(ValueError):
+            select_expression(bad)
 
 
 def test_source_audio_labels_follow_the_decoder_runs(harness, probe_stub):
@@ -649,30 +707,39 @@ def test_camera_crop_holds_across_a_cut_and_outside_the_samples():
 
 
 def test_camera_crop_is_the_same_in_plate_cells_and_in_final_pieces(harness, probe_stub):
-    plan = fixture_plan("seed__c25")  # camera layout, 25 fps
+    doc = load_doc("seed__c25")  # camera layout, 25 fps
+    body = doc["main"]["segments"][0]
+    doc["main"]["removals"] = [
+        {"id": f"rm_{k}", "seg": body["id"], "in_sf": body["in_sf"] + start,
+         "out_sf": body["in_sf"] + start + length, "words": [], "reason": "user",
+         "origin": "user"}
+        for k, (start, length) in enumerate(((40, 7), (95, 30), (171, 2)))]
+    plan = fixture_plan("seed__c25", doc=doc)
     probe_stub["streams"] = fake_probe(plan.doc)
     final = compile_job(plan, mode="final", source=SOURCE, assets_root=ASSETS_ROOT)
     first = plan.pieces[0].in_sf // 50
     cells = list(range(first, first + 6))
     plate = compile_job(plan, mode="plate_cells", cells=cells, source=SOURCE,
                         assets_root=ASSETS_ROOT)
-    pattern = re.compile(r"trim=start_pts=(\d+):end_pts=(\d+)[^;]*?crop=\d+:\d+:x='([^']*)'")
-    branches = pattern.findall(final.filter_script)
-    cell_branches = pattern.findall(plate.filter_script)
-    assert len(branches) == len(plan.pieces)
+    crop = re.compile(r"crop=\d+:\d+:x='([^']*)'")
+    (final_expr,) = crop.findall(final.filter_script)  # one layout chain after the join
+    trims = {int(run): int(start) for start, run in re.findall(
+        r"trim=start_pts=(\d+):end_pts=\d+,setpts=PTS-STARTPTS\[pt(\d+)\]", plate.filter_script)}
+    plate_exprs = {int(run): expr for run, expr in re.findall(
+        r"\[pt(\d+)\]settb=[^;]*?crop=\d+:\d+:x='([^']*)'", plate.filter_script)}
+    assert set(trims) == set(plate_exprs) == {0}  # the six cells are one run
+    run_start, cell_end = trims[0], (first + 6) * 50
     checked = 0
-    for start, end, expr in branches:
-        for other_start, other_end, other_expr in cell_branches:
-            lo, hi = max(int(start), int(other_start)), min(int(end), int(other_end))
-            for sf in range(lo, hi, 11):
-                assert evaluate(expr, sf - int(start)) == evaluate(other_expr, sf - int(other_start))
-                checked += 1
-    assert checked > 20
-    table = layouts.crop_positions(plan.camera, plan.fps, source=(1920, 1080),
-                                   output=(720, 1280), first_sf=int(branches[0][0]), count=30)
-    assert [evaluate(branches[0][2], n) for n in range(30)] == list(table)
-
-
+    for n in range(plan.total_frames):
+        sf = tm.out_to_src(n, plan.pieces)[1]
+        value = evaluate(final_expr, n)
+        assert value == layouts.crop_positions(plan.camera, plan.fps, source=(1920, 1080),
+                                               output=(720, 1280), first_sf=sf, count=1)[0]
+        if run_start <= sf < cell_end:
+            assert value == evaluate(plate_exprs[0], sf - run_start), n
+            checked += 1
+    assert checked > 200
+    assert len(plan.pieces) == 4  # the cuts are crossed: output n and source sf diverge
 # --- modes ------------------------------------------------------------------------------------------
 
 
@@ -680,7 +747,7 @@ def test_frame_mode_shifts_pts_so_ass_sees_now_ms(harness, probe_stub):
     plan, job = compiled("full_example__c30", probe_stub, mode="frame", frame=150)
     _piece, sf = tm.out_to_src(150, plan.pieces)
     num, den = plan.fps.num, plan.fps.den
-    assert (f"fps={num}/{den},trim=start_pts={sf}:end_pts={sf + 1},setpts=PTS-STARTPTS+150,"
+    assert (f"fps={num}/{den},trim=start_pts={sf}:end_pts={sf + 1},setpts=PTS-STARTPTS+150["
             in job.filter_script)
     assert f"settb={den}/{num}" in job.filter_script
     assert "concat" not in job.filter_script
@@ -730,13 +797,14 @@ class Clip:
 def synthetic_clip(tmp_path, *, fps=(30000, 1001), frames=450, layout="fit_blur",
                    cold_open=(300, 330), body=(60, 420),
                    removals=((100, 112), (150, 153), (200, 260), (300, 302)),
-                   scene_cut_every=0, audio=True, hook=None) -> Clip:
+                   scene_cut_every=0, audio=True, hook=None, vfr=False, drop_every=0) -> Clip:
     spec = media.VideoSpec(width=640, height=360, fps=fps, frames=frames,
-                           scene_cut_every=scene_cut_every,
+                           scene_cut_every=scene_cut_every, vfr=vfr, drop_every=drop_every,
+                           container="mkv" if vfr else "mp4",
                            audio=media.AudioSpec() if audio else None)
-    source = media.make_barcode_video(tmp_path / "source.mp4", spec)
+    source = media.make_barcode_video(tmp_path / ("source.mkv" if vfr else "source.mp4"), spec)
     duration_ms = frames * 1000 * fps[1] // fps[0]
-    info = HARNESS.SourceInfo(640, 360, fps, False, duration_ms, audio)
+    info = HARNESS.SourceInfo(640, 360, fps, vfr, duration_ms, audio)
     doc = HARNESS.make_doc(info, fps=fps, body=body, cold_open=cold_open, removals=removals,
                            layout=layout, hook=hook)
     return Clip(source, doc, HARNESS.make_words(duration_ms), media.grid_indices(source, fps))
@@ -769,9 +837,14 @@ FIT_BLUR_GEOMETRY = {"scale": 720 / 640, "top": (1280 - 360 * 720 / 640) / 2}
 CROP_GEOMETRY = {"scale": 1280 / 360, "top": 0.0}
 
 
-def test_final_and_plate_frames_are_the_grid_frames(harness, tmp_path, edit_v2_libass):
+@pytest.mark.parametrize("source", ["cfr_29.97", "vfr_30"])
+def test_final_and_plate_frames_are_the_grid_frames(harness, tmp_path, edit_v2_libass, source):
     """P-FRAME on PR: every output frame of plate and final shows ``grid[out_to_src(n)]``."""
-    clip = synthetic_clip(tmp_path)
+    if source == "vfr_30":  # Matroska, ms timestamps with jitter, every 11th frame dropped
+        clip = synthetic_clip(tmp_path, fps=(30, 1), vfr=True, drop_every=11)
+    else:
+        clip = synthetic_clip(tmp_path)
+    assert None not in clip.grid
     plan = build_plan(clip.doc, words=clip.words, camera=None, assets={},
                       resources=Resources(tmp_path / "resources"))
     final = compile_job(plan, mode="final", source=clip.source, assets_root=tmp_path)
@@ -795,6 +868,28 @@ def test_final_and_plate_frames_are_the_grid_frames(harness, tmp_path, edit_v2_l
         mismatches += decoded[sf // cell_frames][sf % cell_frames] != clip.grid[sf]
     assert mismatches == 0
     assert 2 * plan.total_frames >= 300
+
+
+def test_probe_uses_the_legacy_stream_selection(tmp_path, edit_v2_ffmpeg):
+    mp4 = media.make_barcode_video(tmp_path / "a.mp4", media.VideoSpec(frames=30))
+    streams = compile_ffmpeg.probe_source(mp4)
+    duration, video, audio = render._probe_source(mp4)
+    assert (streams.video_index, streams.audio_index, streams.duration_s) == (video, audio,
+                                                                              duration)
+    assert (streams.width, streams.height, streams.color_space) == (640, 360, "bt709")
+    # Matroska states no stream duration; the compiler needs none (the container's is kept)
+    mkv = media.make_barcode_video(tmp_path / "b.mkv",
+                                   media.VideoSpec(frames=30, container="mkv"))
+    streams = compile_ffmpeg.probe_source(mkv)
+    assert (streams.video_index, streams.audio_index) == (0, 1)
+    assert 0.9 < streams.duration_s < 1.2
+    silent = media.make_barcode_video(tmp_path / "c.mp4",
+                                      media.VideoSpec(frames=30, audio=None))
+    assert compile_ffmpeg.probe_source(silent).audio_index is None
+    (tmp_path / "broken.mp4").write_bytes(b"not a video")
+    with pytest.raises(Exception) as caught:
+        compile_ffmpeg.probe_source(tmp_path / "broken.mp4")
+    assert getattr(caught.value, "code", None) == "render_failed"
 
 
 def keyframes(path: Path) -> list[int]:
@@ -966,3 +1061,4 @@ def test_fraction_free_seek_matches_the_rational_value():
             expected = max(value, Fraction(0))
             micro = int(expected * 1_000_000)
             assert seek_arg(sf, fps) == f"{micro // 1_000_000}.{micro % 1_000_000:06d}"
+

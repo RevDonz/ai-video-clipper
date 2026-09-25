@@ -129,9 +129,14 @@ def harness_music_envelope(speech_spans: Sequence[tuple[int, int]], item: Mappin
 def harness_audio_fragment(plan: Any, *, mode: str, first_input_index: int) -> AudioFragment:
     """Stand-in for ``audio_graph.audio_fragment`` (T1.4) honouring the §5.8 seam.
 
-    Each ``[sa<i>]`` is resampled, panned to stereo and trimmed to the piece's exact samples
+    Each ``[sa<i>]`` is resampled, trimmed to the piece's exact samples and panned to stereo
     (plan §5.3), then the pieces are concatenated into ``[apre]``. A source without audio gives
     ``anullsrc`` with the exact sample count. Music items are not mixed by the harness.
+
+    ``pan`` comes after ``atrim``: every piece label carries its whole decoder run, and a
+    ``pan`` before the trim kept the audio queued in every finished piece (measured on FFmpeg
+    6.1, 150 pieces over 133 s: 2.3 GiB resident with ``aresample,pan,…,atrim``, 67 MiB with
+    ``aresample,…,atrim`` and the channel mapping after the trim).
     """
     fps = plan.fps
     parts = []
@@ -140,9 +145,9 @@ def harness_audio_fragment(plan: Any, *, mode: str, first_input_index: int) -> A
             first = piece.in_sf * SAMPLE_RATE * fps.den // fps.num
             count = tm.smp(piece.out_f0 + piece.frames, fps) - tm.smp(piece.out_f0, fps)
             parts.append(
-                f"[sa{piece.i}]aresample={SAMPLE_RATE},pan=stereo|FL=FL+FC|FR=FR+FC,"
-                f"asettb=1/{SAMPLE_RATE},atrim=start_pts={first}:end_pts={first + count},"
-                f"asetpts=PTS-STARTPTS[au_p{piece.i}]"
+                f"[sa{piece.i}]aresample={SAMPLE_RATE},asettb=1/{SAMPLE_RATE},"
+                f"atrim=start_pts={first}:end_pts={first + count},"
+                f"pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS[au_p{piece.i}]"
             )
         labels = "".join(f"[au_p{piece.i}]" for piece in plan.pieces)
         parts.append(f"{labels}concat=n={len(plan.pieces)}:v=0:a=1[apre]")

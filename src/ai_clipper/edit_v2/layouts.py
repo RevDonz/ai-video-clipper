@@ -9,11 +9,14 @@ The chains start from ``render.py``'s filter strings, imported and not modified
   both ``overlay`` inputs of fit-blur are 4:4:4 (no even-pixel truncation, R3 bug 3).
 * **R4.** ``fit_blur`` blurs with ``σ = 35·H/1280`` (today's look at 720×1280, the same relative
   blur at other sizes). ``fill_center`` is today's centred crop. ``camera`` crops with an x
-  expression of the branch's integer frame counter ``n`` (source-grid frame ``first_sf + n``),
-  whose values come from :func:`crop_positions`: the interpolation of
-  ``face_tracking.build_crop_expression`` evaluated exactly at every source-grid frame, rounded
-  once to an even integer. A plate cell and a final piece therefore crop any source frame at
-  the same x, whatever their first frame.
+  expression of the chain's integer frame counter ``n`` (never of float ``t``), a table whose
+  value at ``n`` comes from :func:`crop_positions` for the source-grid frame that frame ``n``
+  shows: the interpolation of ``face_tracking.build_crop_expression`` evaluated exactly at
+  every source-grid frame, rounded once to an even integer. A plate cell and a final render
+  therefore crop any source frame at the same x, whatever their cuts and first frame.
+
+The compiler applies one chain per plate run and one per render, after the pieces are joined
+(``compile_ffmpeg``, R4): the chain is per frame, so this equals a chain per piece.
 """
 
 from __future__ import annotations
