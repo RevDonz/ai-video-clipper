@@ -20,6 +20,8 @@ import {
   frameToMs,
   messageFor,
   noticesView,
+  rejectionText,
+  safeApiHref,
   saveStatusView,
   validEditorIds,
 } from "../components/editor/shell-model.mjs";
@@ -62,6 +64,13 @@ test("messages carry the detail after the colon, as errors.message() does", () =
   assert.equal(messageFor("tight_cut"), MESSAGES.tight_cut);
   assert.equal(messageFor("no_such_code"), "Terjadi kesalahan (no_such_code)");
   assert.equal(messageFor(null), "Terjadi kesalahan");
+});
+
+test("a rejected command explains itself in Indonesian", () => {
+  assert.equal(rejectionText({ code: "duration_out_of_bounds" }), MESSAGES.duration_out_of_bounds);
+  assert.equal(rejectionText({ code: "x", userMessage: "Durasi minimal 3 detik" }), "Durasi minimal 3 detik");
+  assert.equal(rejectionText({ code: "not_ready", message: "command rejected: not_ready" }), "Perubahan ini tidak bisa diterapkan");
+  assert.equal(rejectionText(null), "Perubahan ini tidak bisa diterapkan");
 });
 
 test("frames become source-accurate clock text with a decimal comma", () => {
@@ -192,6 +201,14 @@ test("the editor page is behind POTONGIN_EDITOR_V3 and fakes only with the dev f
   assert.equal(editorPageMode({ POTONGIN_EDITOR_V3: "on" }), "real");
   assert.equal(editorPageMode({ POTONGIN_EDITOR_V3: "on", POTONGIN_EDITOR_FAKES: "1" }), "fake");
   assert.equal(editorPageMode({ POTONGIN_EDITOR_V3: "true" }), "off", "only the documented value turns it on");
+});
+
+test("links and media from DTOs are same-origin API paths only", () => {
+  assert.equal(safeApiHref("/api/jobs/j/files/output/edits/c/a.mp4"), "/api/jobs/j/files/output/edits/c/a.mp4");
+  for (const hostile of ["javascript:alert(1)", "https://evil.example/a.mp4", "//evil.example/a.mp4", "/api\\..\\x",
+    "/projects/x", "/api/jobs/j/\u0000x", null, 42]) {
+    assert.equal(safeApiHref(hostile), null, String(hostile));
+  }
 });
 
 test("page ids are validated before anything runs", () => {

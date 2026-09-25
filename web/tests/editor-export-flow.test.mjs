@@ -218,6 +218,23 @@ test("transient poll errors keep polling; five in a row stop with a network erro
   assert.equal(timers.pending(), 0);
 });
 
+test("reset returns a finished flow to idle and keeps its history; a running flow is untouched", async () => {
+  const timers = manualTimers();
+  const api = scriptedApi([dto({ state: "completed", stage: "selesai", resultUrl: "/a.mp4", srtUrl: "/a.srt" })]);
+  const { flow } = flowWith(api, fakeStore(), timers);
+  await flow.start();
+  flow.reset();
+  assert.equal(flow.getState().phase, "running", "never resets a render in flight");
+  await timers.fire();
+  assert.equal(flow.getState().phase, "completed");
+  flow.reset();
+  assert.equal(flow.getState().phase, "idle");
+  assert.equal(flow.getState().render, null);
+  assert.equal(flow.getState().history.length, 1);
+  await flow.start();
+  assert.deepEqual(api.calls.filter((call) => call[0] === "createRender").map((call) => call[2]), ["k-1", "k-2"]);
+});
+
 test("destroy stops timers and ignores late answers", async () => {
   const timers = manualTimers();
   const api = scriptedApi([dto({ state: "rendering" })]);
