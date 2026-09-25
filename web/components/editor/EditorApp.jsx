@@ -17,15 +17,18 @@ import ChecksPanel from "./ChecksPanel.jsx";
 import ConflictDialog from "./ConflictDialog.jsx";
 import tokens from "./editor.module.css";
 import ExportDialog from "./ExportDialog.jsx";
-import { createExportFlow } from "./export-flow.mjs";
+import { createExportFlow, earlierExports } from "./export-flow.mjs";
 import { GIZMOS } from "./gizmos/index.mjs";
 import { PANELS } from "./panels/index.mjs";
 import ReadOnlyBanner from "./ReadOnlyBanner.jsx";
 import { createEditorRuntime, createFrameBus, createPlayerFacade } from "./runtime.mjs";
 import styles from "./shell.module.css";
-import { badgeView, checksView, conflictParts, exportMatchesSeed, messageFor, noticesView, rejectionText } from "./shell-model.mjs";
+import {
+  badgeView, checksView, conflictParts, exportMatchesSeed, exportRevision, liveEntries, messageFor, noticesView, rejectionText,
+} from "./shell-model.mjs";
 import Stage from "./Stage.jsx";
 import StageControls from "./StageControls.jsx";
+import { LANES } from "./timeline/lanes.mjs";
 import Timeline from "./timeline/Timeline.jsx";
 import { wordForTrimAt } from "./timeline/timeline-model.mjs";
 import TopBar from "./TopBar.jsx";
@@ -115,6 +118,9 @@ function ShortcutHelp({ open, onClose }) {
 
 function EditorShell({ runtime, jobId, clipId, initialPanel }) {
   const { store, api } = runtime;
+  // Panels and lanes of a wave that has not landed stay hidden in the app (W2 verifier).
+  const panels = useMemo(() => liveEntries(PANELS, runtime.kind), [runtime.kind]);
+  const lanes = useMemo(() => liveEntries(LANES, runtime.kind), [runtime.kind]);
   const subscribe = useCallback((onChange) => store.subscribe(() => onChange()), [store]);
   const snapshot = useCallback(() => store.getState(), [store]);
   const state = useSyncExternalStore(subscribe, snapshot, () => EMPTY_STATE);
@@ -125,7 +131,7 @@ function EditorShell({ runtime, jobId, clipId, initialPanel }) {
   }), [frameBus]);
   const [playerState, setPlayerState] = useState(null);
   const [media, setMedia] = useState(null);
-  const [panelId, setPanelId] = useState(initialPanel ?? PANELS[0].id);
+  const [panelId, setPanelId] = useState(initialPanel ?? panels[0].id);
   const [safeZone, setSafeZone] = useState(false);
   const [checksOpen, setChecksOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -345,25 +351,18 @@ function EditorShell({ runtime, jobId, clipId, initialPanel }) {
   const checks = useMemo(() => checksView({ warnings: state.warnings, plan }), [state.warnings, plan]);
   const notices = noticesView({ doc: state.doc, playerMode: playerState?.mode, otherTab });
   const unchanged = exportMatchesSeed({ plan, doc: state.doc, seed: state.seed });
-  const earlier = useMemo(() => {
-    const history = exportState?.history ?? [];
-    const latest = clipInfo?.latestRender;
-    if (latest?.renderId && !history.some((item) => item.renderId === latest.renderId)) {
-      return [...history, { renderId: latest.renderId, revision: latest.revision, atMs: null, state: latest.state,
-        resultUrl: latest.url ?? null, srtUrl: latest.srtUrl ?? null }];
-    }
-    return history;
-  }, [exportState, clipInfo]);
+  const earlier = useMemo(() => earlierExports({ history: exportState?.history ?? [], current: exportState?.render ?? null,
+    latest: clipInfo?.latestRender ?? null }), [exportState, clipInfo]);
   const isReady = ready && Boolean(plan) && playerState !== null;
-  const panel = PANELS.find((entry) => entry.id === panelId) ?? PANELS[0];
+  const panel = panels.find((entry) => entry.id === panelId) ?? panels[0];
   const Panel = lazyComponent(panel);
   const onMedia = useCallback((next) => setMedia(next), []);
 
   const onTabKey = (event, index) => {
-    const moves = { ArrowRight: index + 1, ArrowLeft: index - 1, Home: 0, End: PANELS.length - 1 };
+    const moves = { ArrowRight: index + 1, ArrowLeft: index - 1, Home: 0, End: panels.length - 1 };
     if (!(event.key in moves)) return;
     event.preventDefault();
-    const target = PANELS[(moves[event.key] + PANELS.length) % PANELS.length];
+    const target = panels[(moves[event.key] + panels.length) % panels.length];
     setPanelId(target.id);
     tabRefs.current.get(target.id)?.focus();
   };
@@ -408,7 +407,7 @@ function EditorShell({ runtime, jobId, clipId, initialPanel }) {
 
       <aside className={styles.panels} data-slot="panels" aria-label="Panel editor">
         <div className={styles.tabs} role="tablist" aria-label="Panel editor">
-          {PANELS.map((entry, index) => (
+          {panels.map((entry, index) => (
             <button
               key={entry.id}
               ref={(element) => { if (element) tabRefs.current.set(entry.id, element); else tabRefs.current.delete(entry.id); }}
@@ -482,7 +481,7 @@ function EditorShell({ runtime, jobId, clipId, initialPanel }) {
         />
       </main>
 
-      <Timeline plan={plan} state={state} dispatch={dispatch} player={player} frameBus={frameBus} notify={notify} readOnly={readOnly} />
+      <Timeline plan={plan} state={state} dispatch={dispatch} player={player} frameBus={frameBus} notify={notify} readOnly={readOnly} lanes={lanes} />
 
       <ChecksPanel
         open={checksOpen}
@@ -498,7 +497,7 @@ function EditorShell({ runtime, jobId, clipId, initialPanel }) {
         onCancel={() => flowRef.current?.cancel()}
         onRetry={() => flowRef.current?.retry()}
         checks={checks}
-        revision={state.doc?.revision ?? 0}
+        revision={exportRevision(state)}
         dirty={state.save === "dirty" || state.save === "saving"}
         unchanged={unchanged}
         output={state.doc?.output ?? plan?.output}

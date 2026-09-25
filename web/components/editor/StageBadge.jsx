@@ -2,11 +2,12 @@
 
 // The stage state badge (plan §6.1): "● Sesuai hasil akhir" only when every layer is current,
 // otherwise what is pending; plus the help popover with the one statement of what "sesuai"
-// cannot mean. The text comes from shell-model.badgeView.
+// cannot mean, or, for any other badge, what that badge means (shell-model.badgeHelp). The text
+// comes from shell-model.badgeView.
 import { useEffect, useId, useRef, useState } from "react";
 
 import styles from "./shell.module.css";
-import { BADGE_HELP } from "./shell-model.mjs";
+import { badgeHelp } from "./shell-model.mjs";
 
 export default function StageBadge({ view }) {
   const [open, setOpen] = useState(false);
@@ -49,7 +50,7 @@ export default function StageBadge({ view }) {
       >
         Apa artinya?
       </button>
-      {open && <div id={helpId} role="note" className={styles.popover}>{BADGE_HELP}</div>}
+      {open && <div id={helpId} role="note" className={styles.popover}>{badgeHelp(view)}</div>}
     </div>
   );
 }
