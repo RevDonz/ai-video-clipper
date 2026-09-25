@@ -374,8 +374,8 @@ def v3_write(path: Path, value: dict) -> None:
     path.write_text(json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False))
 
 
-def v3_rewrite(job: V3Job, render_id: str, **changes) -> None:
-    path = job.request_path(render_id)
+def v3_rewrite(job: V3Job, target: str, /, **changes) -> None:
+    path = job.request_path(target)
     v3_write(path, {**json.loads(path.read_text()), **changes})
 
 
