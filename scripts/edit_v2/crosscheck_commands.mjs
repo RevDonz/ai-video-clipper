@@ -30,6 +30,8 @@ import {
   contentJson,
   createContext,
   deepEqual,
+  hookItem,
+  logoItem,
   musicItem,
 } from "../../web/lib/editor/doc-model.mjs";
 import { createEditSession } from "../../web/lib/editor/history.mjs";
@@ -201,8 +203,7 @@ const GENERATORS = {
   SetCaptionPack(rng) {
     return { id: chance(rng, 0.05) ? "neon" : pick(rng, PACK_IDS) };
   },
-  SetCaptionOverride(rng) {
-    const key = pick(rng, ["y_e5", "size_pm", "case", "highlight", "emphasis"]);
+  SetCaptionOverride(rng, _doc, _context, key = pick(rng, ["y_e5", "size_pm", "case", "highlight", "emphasis"])) {
     const value = {
       y_e5: () => int(rng, 19000, 93000),
       size_pm: () => int(rng, 650, 1450),
@@ -310,6 +311,12 @@ const WEIGHTS = {
 };
 const TOTAL_WEIGHT = Object.values(WEIGHTS).reduce((sum, weight) => sum + weight, 0);
 
+const NEEDS = [
+  [["MoveLogo", "ResizeLogo", "SetLogoOpacity", "SnapLogo", "RemoveLogo"], logoItem, "SetLogo"],
+  [["SetMusicGain", "SetMusicOffset", "SetMusicLoop", "SetMusicFades", "SetDuck", "RemoveMusic"], musicItem, "SetMusic"],
+  [["SetHookText", "SetHookDuration", "SetHookY"], hookItem, "SetHookEnabled"],
+];
+
 /** One random command for `doc`: mostly valid arguments, some out of range on purpose. */
 export function randomCommand(rng, doc, context) {
   let roll = rng() * TOTAL_WEIGHT;
@@ -321,14 +328,33 @@ export function randomCommand(rng, doc, context) {
       break;
     }
   }
+  // A field command without its item mostly adds the item first (the rest test the rejection).
+  for (const [types, get, add] of NEEDS) {
+    if (types.includes(type) && !get(doc) && chance(rng, 0.6)) type = add;
+  }
   const args = GENERATORS[type](rng, doc, context);
   const merge = rng();
   const options = merge < 0.85 ? {} : merge < 0.93 ? { mergeKey: null } : { mergeKey: "test:burst" };
   return { type, args, options };
 }
 
-function advance(rng, clock) {
-  clock.t += chance(rng, 0.35) ? int(rng, 0, 450) : int(rng, 501, 3000);
+// Commands whose Appendix B mergeKey lets a quick series become one undo step (drags, sliders,
+// typing): a "burst" repeats one of them with new values 20–300 ms later.
+const MERGEABLE = new Set(["NudgeColdOpen", "EditWordText", "SetCaptionOverride", "SetHookText", "SetHookDuration",
+  "SetHookY", "MoveLogo", "ResizeLogo", "SetLogoOpacity", "SetMusicGain", "SetMusicOffset", "SetMusicFades", "SetDuck",
+  "SetSourceGain", "SetLoudness"]);
+
+function burstCommand(rng, previous, doc, context) {
+  const args = previous.type === "SetCaptionOverride"
+    ? GENERATORS.SetCaptionOverride(rng, doc, context, previous.args.key)
+    : GENERATORS[previous.type](rng, doc, context);
+  if (previous.type === "EditWordText") args.wordId = previous.args.wordId;
+  if (previous.type === "NudgeColdOpen") args.edge = previous.args.edge;
+  return { type: previous.type, args, options: previous.options };
+}
+
+function advance(rng, clock, burst) {
+  clock.t += burst ? int(rng, 20, 300) : chance(rng, 0.35) ? int(rng, 0, 450) : int(rng, 501, 3000);
 }
 
 /**
@@ -341,12 +367,14 @@ export function runSession({ rng, context, length, clock = { t: 1_000_000 }, onS
   const timeline = [canonicalJson(session.doc)];
   let position = 0;
   let mismatches = 0;
+  let previous = null;
   const compare = () => {
     if (canonicalJson(session.doc) !== timeline[position]) mismatches += 1;
   };
   for (let step = 0; step < length; step += 1) {
-    advance(rng, clock);
-    const roll = rng();
+    const burst = previous !== null && MERGEABLE.has(previous.type) && chance(rng, 0.45);
+    advance(rng, clock, burst);
+    const roll = burst ? 1 : rng();
     if (roll < 0.08) {
       if (session.undo()) {
         position -= 1;
@@ -365,7 +393,8 @@ export function runSession({ rng, context, length, clock = { t: 1_000_000 }, onS
       }
       continue;
     }
-    const command = randomCommand(rng, session.doc, context);
+    const command = burst ? burstCommand(rng, previous, session.doc, context) : randomCommand(rng, session.doc, context);
+    previous = command;
     let result;
     try {
       result = session.dispatch(command.type, command.args, command.options);
@@ -412,14 +441,24 @@ export function runUndoProperty({ contexts, sequences, seed, maxLength = 40 }) {
     const rng = mulberry32((seed + Math.imul(s, 0x9e3779b1)) >>> 0);
     const context = contexts[s % contexts.length];
     const length = 1 + Math.floor(rng() * maxLength);
-    const { session, timeline, mismatches } = runSession({ rng, context, length, stats });
+    const { session, timeline, position, mismatches } = runSession({ rng, context, length, stats });
     stepMismatches += mismatches;
     maxEntries = Math.max(maxEntries, session.history.size);
-    const final = canonicalJson(session.doc);
-    while (session.undo()) { /* undo everything */ }
-    if (canonicalJson(session.doc) !== timeline[0]) undoMismatches += 1;
-    while (session.redo()) { /* redo everything */ }
-    if (canonicalJson(session.doc) !== final) redoMismatches += 1;
+    // Undo-all walks the model timeline back to the initial document; redo-all walks it forward
+    // to the tip of the branch (the final document of the sequence's commands).
+    let at = position;
+    let walk = 0;
+    while (session.undo()) {
+      at -= 1;
+      if (canonicalJson(session.doc) !== timeline[at]) walk += 1;
+    }
+    if (at !== 0 || canonicalJson(session.doc) !== timeline[0]) undoMismatches += 1;
+    while (session.redo()) {
+      at += 1;
+      if (canonicalJson(session.doc) !== timeline[at]) walk += 1;
+    }
+    if (at !== timeline.length - 1 || canonicalJson(session.doc) !== timeline.at(-1)) redoMismatches += 1;
+    stepMismatches += walk;
   }
   return {
     gate: "QG-UNDO", sequences, seed, contexts: contexts.map((context) => context.id), maxLength,
@@ -530,7 +569,8 @@ export function generateDocs({ contexts, sequences, seed, write }) {
   for (let s = 0; s < sequences; s += 1) {
     const rng = mulberry32((seed + Math.imul(s, 0x27d4eb2f)) >>> 0);
     const context = contexts[s % contexts.length];
-    const length = 1 + Math.floor(rng() * 30);
+    const length = 1 + Math.floor(rng() * 60);
+    emit(context, s, -1, "start", context.seed);
     const { session } = runSession({ rng, context, length, stats,
       onState: (op, doc, step) => emit(context, s, step, op, doc) });
     if (s % 2 === 0) {

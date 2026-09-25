@@ -265,7 +265,7 @@ test("RemoveWords preconditions: contiguous, inside one segment, visible, body â
   rejects(C30, C30.seed, "RemoveWords", { wordIds: [] }, "invalid_args");
   rejects(C30, C30.seed, "RemoveWords", { wordIds: ["w999999"] }, "unknown_word");
   rejects(C30, C30.seed, "RemoveWords", { wordIds: [C30.ctx.wordList[0].id] }, "removal_outside_segment");
-  rejects(C30, C30.seed, "RemoveWords", { wordIds: inside.slice(1, -1).map((word) => word.id) }, "duration_out_of_bounds");
+  rejects(C30, C30.seed, "RemoveWords", { wordIds: inside.slice(0, -1).map((word) => word.id) }, "duration_out_of_bounds");
   // The first body word: the removal starts at the body edge, never before it.
   const doc = run(C30, C30.seed, "RemoveWords", { wordIds: [inside[0].id] });
   assert.ok(doc.main.removals[0].in_sf >= body(doc).in_sf);
