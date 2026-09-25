@@ -102,8 +102,9 @@
      searched between the chosen literal clips (:class:`ai_clipper.focus.HeuristicWindows`,
      :data:`FOCUS_WINDOW_OPTIONS` per mention), are snapped like any proposal (duration rules
      included); those that keep the mention and touch no chosen literal clip join the
-     ``literal`` part after its other candidates, best score first, no two sharing a unit, at
-     most one per free slot, and the ranking runs again;
+     ``literal`` part after its other candidates, those covering the most uncovered mentions
+     first, then the best score, no two sharing a unit, at most one per free slot, and the
+     ranking runs again;
    - **packaging**: only ``literal`` and ``semantic`` clips may use the focus theme. The title,
      hook text and description of an LLM clip labelled ``none`` that name a focus term are
      rebuilt like trend packaging (:func:`ai_clipper.llm_selection.repair_trend_packaging`),
@@ -816,8 +817,8 @@ def _focus_extras(
     For every uncovered mention the best :data:`FOCUS_WINDOW_OPTIONS` heuristic windows around
     it that stay between the chosen literal clips are snapped like any proposal; a window whose
     snapped span loses the mention or touches a chosen literal clip is skipped. The survivors
-    are taken best score first, never two that share a unit, at most one per free slot (``k``
-    minus the literal clips chosen).
+    are taken covering the most uncovered mentions first, then best score first, never two that
+    share a unit, at most one per free slot (``k`` minus the literal clips chosen).
     """
     literal = [item for item in chosen if item.focus == "literal"]
     room = k - len(literal)
@@ -850,7 +851,13 @@ def _focus_extras(
                 continue
             seen.add((span.start_unit, span.end_unit))
             options.append((proposal, span))
-    options.sort(key=lambda option: -option[0].score)  # stable: earlier mentions first on ties
+    # Most uncovered mentions first, then the best score (stable: earlier mentions on ties).
+    options.sort(
+        key=lambda option: (
+            -sum(_covers(option[1], hit) for hit in uncovered),
+            -option[0].score,
+        )
+    )
     extras: list[_Candidate] = []
     for proposal, span in options:
         if len(extras) >= room:
