@@ -421,13 +421,18 @@ def test_the_synthetic_transcript_carries_every_labelled_case(synthetic, make_jo
 # --- prepare_legacy_job ----------------------------------------------------------------------------
 
 
-def test_prepare_persists_every_artifact_once(synthetic, tmp_path):
-    job_dir = _copy_job(synthetic, "main", tmp_path)
+@pytest.fixture(scope="module")
+def prepared(synthetic, tmp_path_factory):
+    """One prepared copy of the main job, shared by the read-only tests below."""
+    job_dir = _copy_job(synthetic, "main", tmp_path_factory.mktemp("prepared"))
     before = inspect_job(job_dir)
+    return job_dir, before, prepare_legacy_job(job_dir)
+
+
+def test_prepare_persists_every_artifact_once(prepared):
+    job_dir, before, results = prepared
     assert [(entry["index"], entry["clip_id"], entry["openable"], entry["reason"])
             for entry in before] == [(i, None, False, "needs_prepare") for i in (1, 2, 3)]
-    assert not (job_dir / "analysis" / "clips").exists()
-    results = prepare_legacy_job(job_dir)
     assert [entry["index"] for entry in results] == [1, 2, 3]
     assert all(entry["openable"] and entry["reason"] is None for entry in results)
     source = job_dir / "input" / "source.mp4"
@@ -470,6 +475,42 @@ def test_prepare_persists_every_artifact_once(synthetic, tmp_path):
     after = inspect_job(job_dir)
     assert [(e["clip_id"], e["openable"], e["reason"]) for e in after] == [
         (e["clip_id"], True, None) for e in results]
+
+
+def test_prepared_words_match_the_synthetic_audio(prepared, synthetic):
+    job_dir, _before, results = prepared
+    index = synthetic[1]
+    expected = {gap["after"]: gap["class"] for gap in index["long_gaps"]}
+    checked = set()
+    events = []
+    for entry in results:
+        clip_dir = job_dir / "analysis" / "clips" / entry["clip_id"]
+        (words_path,) = clip_dir.glob("words.*.json")
+        words = json.loads(words_path.read_text())
+        listed = {gap["after"]: gap["class"] for gap in words["gaps"]}
+        for after, kind in listed.items():
+            if after in expected:
+                assert kind == expected[after], after
+                checked.add(after)
+            else:  # no other gap in the fixture exceeds 600 ms
+                raise AssertionError(f"unexpected long gap after {after}")
+        # Every gap of the synthetic audio is digital silence between tone bursts, so the
+        # chosen bin of every searched gap is quiet (AAC leaves at most a few LSB there).
+        levels = [bound["rms_cdb"] for bound in words["bounds"] if bound["rms_cdb"] is not None]
+        assert levels and max(levels) <= -3000
+        by_id = {word["id"]: word for word in words["words"]}
+        fps = Fps.from_json(words["fps"])
+        for bound in words["bounds"][1:-1]:
+            if not bound["tight"]:
+                at = bound["sf"] * 1000 * fps.den / fps.num
+                assert by_id[bound["after"]]["e"] <= at <= by_id[bound["before"]]["s"]
+        overlap = [bound for bound in words["bounds"]
+                   if [bound["after"], bound["before"]] in index["labels"]["overlap"]]
+        assert all(bound["tight"] for bound in overlap)
+        events.extend((event["kind"], event["src"]) for event in words["events"])
+    assert checked == set(expected)
+    assert ("laughter", "yt-caption") in events and ("laughter", "transcript") in events
+    assert ("applause", "yt-caption") in events
 
 
 def test_prepare_is_idempotent_and_never_overwrites(synthetic, tmp_path):
@@ -599,9 +640,9 @@ def test_a_face_track_job_gets_a_camera_plan(synthetic, tmp_path, monkeypatch):
         assert plan["output"] == {"w": 720, "h": 1280}
 
 
-def test_prepared_seeds_have_the_documented_shape(synthetic, tmp_path):
-    job_dir = _copy_job(synthetic, "main", tmp_path)
-    for entry in prepare_legacy_job(job_dir):
+def test_prepared_seeds_have_the_documented_shape(prepared):
+    job_dir, _before, results = prepared
+    for entry in results:
         seed = json.loads(
             (job_dir / "analysis" / "clips" / entry["clip_id"] / "seed.json").read_text())
         assert set(seed) == {"schema", "schema_minor", "clip_id", "revision", "parent_sha256",
