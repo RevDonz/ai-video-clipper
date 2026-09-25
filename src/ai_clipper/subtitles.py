@@ -446,23 +446,42 @@ class FrameCue:
 
 
 def _group_frame_words(
-    words: list[FrameWord], *, max_words: int, max_gap_ms: int, fps: Fps
+    words: list[FrameWord], *, max_words: int, max_gap_ms: int, fps: Fps,
+    sources: list[tuple[int, int, int]],
 ) -> list[list[FrameWord]]:
+    """Cues of up to ``max_words`` words, broken on sentence ends and on gaps over
+    ``max_gap_ms``. ``sources[i]`` is ``(s_ms, e_ms, piece)`` of ``words[i]``: inside one piece
+    output time is source time, so the gap is measured in source milliseconds, as the legacy
+    cues measure it (W2 Open 11: rounded to frames, a 611 ms gap became 600 ms and a 580 ms gap
+    625 ms); across a cut it is measured in output frames."""
     scale = 1000 * fps.den  # frames · scale = milliseconds · num
     groups: list[list[FrameWord]] = []
     current: list[FrameWord] = []
-    for word in words:
-        if current and (
-            len(current) >= max_words
-            or (word.f0 - current[-1].f1) * scale > max_gap_ms * fps.num
-            or _ends_sentence(current[-1].text)
-        ):
+    previous: tuple[int, int, int] | None = None
+    for word, source in zip(words, sources, strict=True):
+        if current and previous is not None and previous[2] == source[2]:
+            gap_over = source[0] - min(previous[1], source[0]) > max_gap_ms
+        else:
+            gap_over = bool(current) and (word.f0 - current[-1].f1) * scale > max_gap_ms * fps.num
+        if current and (len(current) >= max_words or gap_over
+                        or _ends_sentence(current[-1].text)):
             groups.append(current)
             current = []
         current.append(word)
+        previous = source
     if current:
         groups.append(current)
     return groups
+
+
+def _piece_of(s_ms: int, e_ms: int, scope: Sequence[Piece], fps: Fps) -> int:
+    """Position in ``scope`` of the piece that shows a word (``word_frames``' rule: the piece
+    whose source span holds its midpoint; one segment's pieces never overlap in the source)."""
+    mid_sf = (s_ms + e_ms) * fps.num // (2 * 1000 * fps.den)
+    for index, piece in enumerate(scope):
+        if piece.in_sf <= mid_sf < piece.out_sf:
+            return index
+    return -1
 
 
 def _merge_degenerate_frame_groups(
@@ -520,8 +539,9 @@ def build_frame_cues(
 
     The rules of :func:`build_caption_cues`, in integers: a word is shown when its midpoint lies
     in a piece (``timemap.word_frames``: rounded to frames, clamped to its piece, so a word never
-    spans a cut). Cues hold up to ``max_words`` words, break on a gap over ``max_gap_ms`` measured
-    in **output** time (after cuts) and on sentence ends, start at their first word, last at
+    spans a cut). Cues hold up to ``max_words`` words, break on a gap over ``max_gap_ms`` (in
+    source milliseconds between words of one piece, like the legacy cues; in **output** frames
+    across a cut) and on sentence ends, start at their first word, last at
     least ``min_display_ms`` (rounded up to frames) unless the next cue starts, and never
     overlap. They may span jump cuts inside a segment but never the join between segments (the
     cold-open join). A word shown in two segments (a cold open repeats body words) is captioned
@@ -550,15 +570,17 @@ def build_frame_cues(
                 continue
             frames = word_frames(word.s_ms, word.e_ms, scope, fps)
             if frames is not None:
-                placed.append(FrameWord(word.id, frames[0], frames[1], text, word.emphasis))
-        placed.sort(key=lambda word: word.f0)
+                placed.append((FrameWord(word.id, frames[0], frames[1], text, word.emphasis),
+                               (word.s_ms, word.e_ms, _piece_of(word.s_ms, word.e_ms, scope,
+                                                                fps))))
+        placed.sort(key=lambda item: item[0].f0)
         normalized = [
-            replace(word, f1=max(min(word.f1, placed[index + 1].f0), word.f0))
+            replace(word, f1=max(min(word.f1, placed[index + 1][0].f0), word.f0))
             if index + 1 < len(placed) else word
-            for index, word in enumerate(placed)
+            for index, (word, _source) in enumerate(placed)
         ]
         groups = _group_frame_words(normalized, max_words=max_words, max_gap_ms=max_gap_ms,
-                                    fps=fps)
+                                    fps=fps, sources=[source for _word, source in placed])
         cues += _segment_frame_cues(
             _merge_degenerate_frame_groups(groups, segment_end, fps),
             seg=seg, segment_end=segment_end, min_display=min_display,
