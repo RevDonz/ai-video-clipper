@@ -960,6 +960,38 @@ def test_plate_cells_have_exact_frames_and_an_idr_at_every_start(harness, tmp_pa
         assert 5 in types  # IDR slice
 
 
+def test_plate_cells_of_a_video_that_starts_late_keep_their_frame_positions(
+        harness, tmp_path, edit_v2_ffmpeg):
+    """A video that starts 41 ms after t = 0 has no grid frame 0 (W1 verifier). Cell 0 still
+    holds 60 frames, frame ``i`` of the cell showing grid frame ``i``: the frames below the
+    document's window (here only frame 0, which does not exist) repeat the window's first
+    frame, so the browser's ``sf = k·C + i`` mapping stays exact."""
+    from ai_clipper.edit_v2.seed import grid_window_ms
+
+    fps = (30000, 1001)
+    spec = media.VideoSpec(width=640, height=360, fps=fps, frames=300, video_delay_ms=41)
+    source = media.make_barcode_video(tmp_path / "late.mp4", spec)
+    first, end = media.grid_range(source, fps)
+    assert first == 1
+    duration_ms = 300 * 1000 * fps[1] // fps[0]
+    info = HARNESS.SourceInfo(640, 360, fps, False, duration_ms, True)
+    doc = HARNESS.make_doc(info, fps=fps, body=(first, 200), cold_open=None, removals=(),
+                           layout="fill_center")
+    doc["base"]["window_ms"] = list(grid_window_ms((0, duration_ms), (first, end), Fps(*fps)))
+    plan = build_plan(doc, words=HARNESS.make_words(duration_ms), camera=None, assets={},
+                      resources=Resources(tmp_path / "resources"))
+    job = compile_job(plan, mode="plate_cells", cells=(0, 1), source=source,
+                      assets_root=tmp_path)
+    run_cells(job, tmp_path / "cells")
+    grid = media.grid_indices(source, fps)  # grid[i] is the grid frame first + i
+    cell0 = decoded_indices(tmp_path / "cells" / "c0000000.mp4", **CROP_GEOMETRY)
+    cell1 = decoded_indices(tmp_path / "cells" / "c0000001.mp4", **CROP_GEOMETRY)
+    assert len(cell0) == 60 and len(cell1) == 60
+    assert cell0[first:] == grid[:60 - first]
+    assert cell0[:first] == [cell0[first]] * first
+    assert cell1 == grid[60 - first:120 - first]
+
+
 def hazard_frame(fps: Fps, start: int) -> int:
     n = start
     while tm.now_ms(n, fps) * fps.num == n * 1000 * fps.den or (n * 1000 * fps.den) % fps.num:

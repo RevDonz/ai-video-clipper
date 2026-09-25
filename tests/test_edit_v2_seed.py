@@ -24,7 +24,7 @@ import pytest
 from support import edit_v2_fixtures as fixtures
 
 from ai_clipper.audio_timeline import read_audio_timeline
-from ai_clipper.edit_v2 import COMPILER_ID, PACK_DEFAULT_OVERRIDES, camera
+from ai_clipper.edit_v2 import COMPILER_ID, DOC_FPS, PACK_DEFAULT_OVERRIDES, camera
 from ai_clipper.edit_v2 import timemap as tm
 from ai_clipper.edit_v2.clip_id import clip_id, ms_from_seconds
 from ai_clipper.edit_v2.seed import (
@@ -76,10 +76,23 @@ def _clip(*, rank=1, start=20.0, end=50.0, cold_open=None, hook_unit_id="S0007",
     )
 
 
-def _source_info(*, fps=(30000, 1001), vfr=False, duration_ms=180_000, w=1280, h=720):
+def _grid(duration_ms, *, first=0, end=None):
+    """``probe.grid_sf`` of a source whose grid covers every frame up to ``sf_ceil(duration)``
+    at every rate (``first`` overrides every entry, ``end`` the 30000/1001 entry)."""
+    grid = [[num, den, 0, tm.sf_ceil(duration_ms, Fps(num, den))] for num, den in DOC_FPS]
+    for entry in grid:
+        entry[2] = first
+    if end is not None:
+        grid[DOC_FPS.index((30000, 1001))][3] = end
+    return grid
+
+
+def _source_info(*, fps=(30000, 1001), vfr=False, duration_ms=180_000, w=1280, h=720,
+                 grid=None):
     return {"content_sha256": "a" * 64,
             "probe": {"w": w, "h": h, "fps_native": list(fps), "vfr": vfr,
-                      "duration_ms": duration_ms, "has_audio": True}}
+                      "duration_ms": duration_ms, "has_audio": True,
+                      "grid_sf": _grid(duration_ms) if grid is None else grid}}
 
 
 def _job(**options):
@@ -172,7 +185,8 @@ def test_build_seed_reproduces_the_t1_0_fixture_seeds(context_id, edit_v2_doc_co
     source_info = {"content_sha256": spec.source_sha,
                    "probe": {"w": spec.source_w, "h": spec.source_h,
                              "fps_native": list(spec.fps_native), "vfr": False,
-                             "duration_ms": spec.duration_ms, "has_audio": True}}
+                             "duration_ms": spec.duration_ms, "has_audio": True,
+                             "grid_sf": _grid(spec.duration_ms)}}
     built = build_seed(clip=clip, job=job, source_info=source_info,
                        words_sha=base["words"]["sha256"], words_count=base["words"]["count"],
                        camera_sha=base["camera"]["sha256"],
@@ -233,8 +247,65 @@ def test_seed_rows_of_the_plan_table():
                              "editor": "pipeline/edit-v2/1", "last_command": "Seed"}
     nulled = copy.deepcopy(seed)
     nulled["base"]["seed_sha256"] = None
+    del nulled["audit"]
     assert base["seed_sha256"] == hashlib.sha256(fixtures.canonical_bytes(nulled)).hexdigest()
     assert _no_floats(seed)
+
+
+def test_the_seed_hash_leaves_out_the_audit():
+    """R9: identical content gives identical plan and render keys, whenever the seed was
+    written (``base.seed_sha256`` is part of the content; ``audit`` is not)."""
+    early, late = _job(), _job()
+    late["seedAtMs"] = early["seedAtMs"] + 86_400_000
+    first, second = _seed(job=early), _seed(job=late)
+    assert first["audit"] != second["audit"]
+    assert first["base"]["seed_sha256"] == second["base"]["seed_sha256"]
+    other = _seed(_clip(start=21.0, end=50.0), job=early)
+    assert other["base"]["seed_sha256"] != first["base"]["seed_sha256"]
+
+
+def test_a_clip_that_ends_at_the_source_end_stops_at_the_last_grid_frame():
+    """902 frames at 29.97 last 30,096.73 ms; duration_ms is rounded up to 30,097, whose
+    ``sf_ceil`` (903) is one frame past the last frame. The seed stops at the grid end (902)."""
+    fps = Fps(30000, 1001)
+    info = _source_info(duration_ms=30_097, grid=_grid(30_097, end=902))
+    seed = _seed(_clip(start=20.0, end=30.097), source_info=info)
+    body = seed["main"]["segments"][-1]
+    assert (body["in_sf"], body["out_sf"]) == (tm.sf_floor(20_000, fps), 902)
+    low_ms, high_ms = seed["base"]["window_ms"]
+    assert tm.sf_ceil(high_ms, fps) == 902 and high_ms <= 30_097
+    assert seed["clip_id"] == clip_id("a" * 64, 20_000, 30_097, None)  # ids keep the clip's ms
+    assert low_ms == 0
+
+
+def test_a_clip_at_the_start_of_a_delayed_video_starts_at_its_first_grid_frame():
+    """A video that starts 41 ms after t = 0 has no grid frame 0: the body, the window and a
+    cold open start at frame 1."""
+    fps = Fps(30000, 1001)
+    info = _source_info(grid=_grid(180_000, first=1))
+    seed = _seed(_clip(start=0.0, end=20.0, cold_open=(0.0, 3.0)), source_info=info)
+    body = seed["main"]["segments"][-1]
+    assert body["in_sf"] == 1
+    low_ms = seed["base"]["window_ms"][0]
+    assert low_ms == -(-1000 * fps.den // fps.num)  # 34 ms: the start of grid frame 1
+    assert tm.sf_floor(low_ms, fps) == 1
+    for segment in seed["main"]["segments"]:
+        assert segment["in_sf"] >= 1
+
+
+def test_a_cold_open_past_the_grid_end_is_left_out():
+    info = _source_info(duration_ms=60_000, grid=_grid(60_000, end=1797))
+    seed = _seed(_clip(start=20.0, end=40.0, cold_open=(57.0, 60.0)), source_info=info)
+    co = seed["main"]["segments"][0]
+    assert co["role"] == "cold_open" and co["out_sf"] <= 1797
+    assert tm.sf_ceil(seed["base"]["window_ms"][1], Fps(30000, 1001)) <= 1797
+
+
+def test_a_seed_needs_the_recorded_grid():
+    info = _source_info()
+    del info["probe"]["grid_sf"]
+    with pytest.raises(SeedError):
+        _seed(source_info=info)
 
 
 def test_seed_options_from_the_job():
