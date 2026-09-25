@@ -200,7 +200,7 @@ async function realDirectory(target) {
 async function queueDirectory(jobsRoot, jobId) {
   if (!isJobId(jobId)) return null;
   try {
-    const root = await realpath(path.resolve(jobsRoot));
+    const root = await realpath(path.resolve(/* turbopackIgnore: true */ jobsRoot));
     const job = path.join(root, jobId);
     const directory = path.join(job, "analysis", "render-requests");
     for (const part of [job, path.join(job, "analysis"), directory]) await realDirectory(part);
@@ -211,7 +211,7 @@ async function queueDirectory(jobsRoot, jobId) {
 }
 
 async function readJson(file) {
-  const handle = await open(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+  const handle = await open(/* turbopackIgnore: true */ file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
     const info = await handle.stat();
     if (!info.isFile() || info.size > MAX_REQUEST_BYTES) throw new RenderRequestInvalidError();
@@ -227,7 +227,7 @@ export async function readRenderRequestFile(jobId, renderId, jobsRoot) {
   const directory = await queueDirectory(jobsRoot, jobId);
   if (directory === null) return null;
   try {
-    return await readJson(path.join(directory, `${renderId}.json`));
+    return await readJson(path.join(/* turbopackIgnore: true */ directory, `${renderId}.json`));
   } catch (error) {
     if (error?.code === "ENOENT") return null;
     throw error;
@@ -238,12 +238,12 @@ async function v3Requests(jobId, jobsRoot) {
   const directory = await queueDirectory(jobsRoot, jobId);
   if (directory === null) return [];
   let names;
-  try { names = await readdir(directory); } catch { return []; }
+  try { names = await readdir(/* turbopackIgnore: true */ directory); } catch { return []; }
   const result = [];
   for (const name of names.slice(0, MAX_LISTED_REQUESTS + 16)) {
     if (!/^[0-9a-f-]{36}\.json$/.test(name) || !uuid(name.slice(0, -5))) continue;
     try {
-      const value = await readJson(path.join(directory, name));
+      const value = await readJson(path.join(/* turbopackIgnore: true */ directory, name));
       if (value?.version === V3_VERSION && value.render_id === name.slice(0, -5)) result.push(validateRenderRequestV3(value));
     } catch { /* a legacy, partial or unsafe entry is not listed */ }
   }
