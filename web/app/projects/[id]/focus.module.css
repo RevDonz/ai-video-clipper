@@ -1,0 +1,9 @@
+/* Fokus klip on the project page: the job's focus line and one label per V3 clip.
+   Tokens and shapes from globals.css (.v3Summary card, .sourceBadge chips). */
+.focusLine{margin:0 0 18px;padding:12px 16px;border:1px solid #aeb7f7;border-radius:13px;background:#f7f8ff;color:#27306b;font-size:13px;line-height:1.5;overflow-wrap:anywhere}
+.focusLine .label{font:700 13px 'Manrope';color:#2f47c9}
+.focusLine strong{font-weight:700}
+.chip{display:inline-block;max-width:100%;border-radius:99px;padding:4px 9px;font:700 .75rem/1.35 'DM Sans';overflow-wrap:anywhere}
+.literal{background:#e3f7e8;color:#185c2c}
+.semantic{background:#f3e8ff;color:#5b2a86}
+.none{background:#eeece5;color:#4a4945}
