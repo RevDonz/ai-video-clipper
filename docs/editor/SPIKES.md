@@ -202,3 +202,24 @@ P-ENC,S-COLOR}.json`.
 - S-COLOR: the rule still selects none; the recommendation stays **gbrp**, +12.4 % over yuv420p
   (9.04 s vs 8.05 s per 30 s, best of 5). Applied in `compile_ffmpeg.COMPOSITE_FORMAT`.
 - Pack variants unchanged: Bold = Montserrat ExtraBold, Box = Montserrat + `BorderStyle 3`.
+
+## 7. R7 change after the W1 verifier (T1.Z, 2026-09-25)
+
+The verifier confirmed that the §5.2 rule selects no candidate while P-ENC fails for all three.
+The integrator changed R7 instead of the thresholds (docs/editor/GATES.md patch 14; CONTRACTS
+§5.16): Standar is `veryfast` crf 18 with x264 `chroma-qp-offset=-12`, and R5's 4:2:0 step is
+`scale=…:flags=accurate_rnd+full_chroma_int+full_chroma_inp+lanczos,format=yuv420p`. The options
+measured on the gated clips (lossless gbrp composites re-encoded per option, pinned image) are in
+`T1.Z-R7-options.json`; the cheapest that passes on both plates is the one applied.
+
+Re-run in `ai-video-clipper:editor-w1z` (fixtures, exports, P-ENC, P-COLOR and cost) and Chrome
+for Testing 147.0.7727.15 (P-TXT, P-TIME):
+
+- P-ENC (gbrp, 14 gated clips): whole 0.99017–0.99189, text 0.98768–0.99459; natural plate
+  whole ≥ 0.99704, text ≥ 0.99045. yuv420p passes P-ENC too (0.99117 / 0.99242) and yuv444p
+  does not (0.98501 / 0.98584).
+- P-COLOR (gbrp): worst mean |Δ| 1.65 (yuv420p 22.63, yuv444p 22.50).
+- P-TXT and P-TIME: unchanged (they are measured before the 4:2:0 step).
+- S-COLOR: **gbrp by the rule** (`cheapest_passing`): yuv420p fails P-TXT and P-COLOR, yuv444p
+  fails P-TXT, P-COLOR and P-ENC. Cost 11.85 s vs 10.83 s per 30 s for yuv420p (+9.5 %, best
+  of 5, machine load 4–8).
