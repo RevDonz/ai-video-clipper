@@ -83,13 +83,15 @@ with byte-identical results).
 
 ### Suites
 
-- `uv run pytest` (Python 3.13.13, local FFmpeg 6.1.1): 3,054 passed, 1 skipped at the final code commit.
+- `uv run pytest` (Python 3.13.13, local FFmpeg 6.1.1): 3,054 passed, 1 skipped at the final
+  code commit.
 - `uv run --python 3.11 --isolated --with-editable . --extra vision --with "pytest>=8,<9"
-  pytest` (Python 3.11.15): 3,054 passed, 1 skipped (the opt-in PUT timing gate, `POTONGIN_GATES=1`).
+  pytest` (Python 3.11.15): 3,054 passed, 1 skipped (the opt-in PUT timing gate,
+  `POTONGIN_GATES=1`).
 - Inside `editor-w1z` (Python 3.11.2, FFmpeg 5.1.9, pytest 8.4.2 in a scratch target on
-  `PYTHONPATH`): 3,051 passed, 3 skipped (PUT timing gate, no C compiler, no git), run before the grid-fallback test was added; the
-  image rebuilt at the final code commit passes the source-info, seed, integration and execute
-  files 120/120.
+  `PYTHONPATH`): 3,051 passed, 3 skipped (PUT timing gate, no C compiler, no git), run before
+  the grid-fallback test was added; the image rebuilt at the final code commit passes the
+  source-info, seed, integration and execute files 120/120.
 - `uv run ruff check src tests`: 0 findings. `npm test`: 457/457. `npm run build`: OK.
 - `npm run test:parity` against fixtures made in `editor-w1z`: 3/3.
 
