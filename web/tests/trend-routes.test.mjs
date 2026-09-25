@@ -193,6 +193,28 @@ test("ingest: 60 requests a minute per token, then 429 with Retry-After", async 
   assert.equal(other.status, 401);
 });
 
+test("ingest: a client whose token checks keep failing is refused before the check (trusted client IP only)", async () => {
+  const box = await sandbox();
+  const env = { ...box.env, AUTH_TRUSTED_CLIENT_IP_HEADER: "cloudflare" };
+  const { token } = await createIngestToken("hermes", { env, now: NOW });
+  const route = createIngestTrendsRoute({ env, clientLimiter: new IngestRateLimiter({ perMinute: 3, perHour: 100 }), now: () => NOW });
+  const from = (ip, value) => ingestRequest({ method: "GET", token: value, headers: { "CF-Connecting-IP": ip } });
+  const wrong = `ptk_${"A".repeat(43)}`;
+  for (let index = 0; index < 5; index += 1) assert.equal((await route.GET(from("203.0.113.9", token))).status, 200, "successes never count");
+  for (let index = 0; index < 3; index += 1) assert.equal((await route.GET(from("203.0.113.9", wrong))).status, 401);
+  const limited = await read(await route.GET(from("203.0.113.9", token)));
+  assert.equal(limited.status, 429);
+  assert.equal(limited.body.code, "rate_limited");
+  assert.match(limited.headers.get("retry-after"), /^[1-9]\d*$/);
+  assert.equal(limited.cacheControl, "no-store");
+  assert.equal((await route.GET(from("198.51.100.4", token))).status, 200, "another client is not affected");
+
+  // Without a trusted client IP every client would share one budget, so nobody is throttled.
+  const open = createIngestTrendsRoute({ env: box.env, clientLimiter: new IngestRateLimiter({ perMinute: 1, perHour: 1 }), now: () => NOW });
+  for (let index = 0; index < 3; index += 1) assert.equal((await open.GET(ingestRequest({ method: "GET", token: wrong }))).status, 401);
+  assert.equal((await open.GET(ingestRequest({ method: "GET", token }))).status, 200);
+});
+
 test("ingest: storage problems are 503 storage_unavailable without paths", async () => {
   const { route, token, dir, root } = await ingestFixture();
   const elsewhere = path.join(root, "elsewhere.json");
