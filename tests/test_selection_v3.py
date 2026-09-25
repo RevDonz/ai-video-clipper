@@ -5,6 +5,7 @@ import hashlib
 import json
 import math
 import re
+from typing import ClassVar
 
 import pytest
 
@@ -1425,27 +1426,47 @@ def test_an_extra_heuristic_candidate_covers_a_mention_nobody_proposed(monkeypat
     result, _ = llm_run(moments, k=3, segments=jomok_episode(30), focus=JOMOK)
 
     check_result(result, k=3, low=20.0, high=40.0)
-    assert [clip.source for clip in result.clips] == ["llm", "llm", "heuristic"]
-    extra = result.clips[2]  # the LLM left a slot: a window around the mention fills it
+    assert [clip.source for clip in result.clips] == ["heuristic", "llm", "llm"]
+    extra = result.clips[0]  # no LLM moment says the term: a window around the mention does
     assert extra.focus == ClipFocus("literal", ("jomok",), 210.7)
     assert 30 in unit_range(extra)
     assert extra.reasons[-1] == FOCUS_FILL_REASON
     assert result.source == "llm" and "llm_filled:1" in result.warnings
 
 
-def test_heuristic_focus_matches_only_fill_the_slots_the_llm_leaves():
+def test_heuristic_focus_matches_come_before_llm_clips_outside_the_focus():
     moments = [moment(2, 5, hook=3), moment(10, 13, hook=12)]  # neither says "jomok"
 
     full, _ = llm_run(moments, k=2, segments=jomok_episode(30), focus=JOMOK)
     short, _ = llm_run(moments, k=3, segments=jomok_episode(30), focus=JOMOK)
 
-    # The LLM saw the lines that say the term and chose these moments: they keep their slots.
-    assert [clip.source for clip in full.clips] == ["llm", "llm"]
-    assert [clip.focus.match for clip in full.clips] == ["none", "none"]
-    assert "focus_few_matches:0" in full.warnings
-    assert [clip.source for clip in short.clips] == ["llm", "llm", "heuristic"]
-    assert short.clips[2].focus.match == "literal" and 30 in unit_range(short.clips[2])
+    # Utamakan, sisanya diisi: a match the LLM left out takes the slot of its weakest pick.
+    assert [clip.source for clip in full.clips] == ["heuristic", "llm"]
+    assert [clip.focus.match for clip in full.clips] == ["literal", "none"]
+    assert 30 in unit_range(full.clips[0]) and starts(full)[1] == "S0003"
+    assert "focus_few_matches:1" in full.warnings and "llm_filled:1" in full.warnings
+    assert [clip.source for clip in short.clips] == ["heuristic", "llm", "llm"]
     assert "focus_few_matches:1" in short.warnings
+
+
+def test_a_mention_the_llm_already_judged_gets_no_heuristic_window(monkeypatch):
+    # The LLM proposed the moment that says the term but scored it far below its other picks.
+    moments = [
+        moment(2, 5, hook=3, scores=flat(9.0)),
+        moment(10, 13, hook=12, scores=flat(8.5)),
+        moment(28, 31, hook=29, scores=flat(2.0)),  # unit 30 says "perjomokan"
+    ]
+    proposals = (heuristic_proposal(26, 30, 6.0), heuristic_proposal(34, 37, 5.0))
+    monkeypatch.setattr(selection_v3, "propose_heuristic", lambda *args, **kwargs: proposals)
+    monkeypatch.setattr(FixedWindows, "offered", (heuristic_proposal(27, 30, 6.0),))
+    monkeypatch.setattr(FixedWindows, "asked", [])
+    monkeypatch.setattr(selection_v3, "HeuristicWindows", FixedWindows)
+
+    result, _ = llm_run(moments, k=2, segments=jomok_episode(30), focus=JOMOK)
+
+    assert starts(result) == ["S0003", "S0011"]
+    assert [clip.focus.match for clip in result.clips] == ["none", "none"]
+    assert FixedWindows.asked == []
 
 
 def test_no_extra_candidate_when_every_slot_already_matches(monkeypatch):
@@ -1460,24 +1481,47 @@ def test_extra_candidates_never_overlap_the_chosen_clips(monkeypatch):
     monkeypatch.setattr(selection_v3, "propose_heuristic", lambda *args, **kwargs: ())
     moments = [moment(20, 23, hook=21), moment(2, 5, hook=3)]
 
-    result, _ = llm_run(moments, k=3, segments=jomok_episode(22, 25), focus=JOMOK)
+    result, _ = llm_run(moments, k=3, segments=jomok_episode(22, 30), focus=JOMOK)
 
     check_result(result, k=3, low=20.0, high=40.0)  # no two clips share a unit
-    assert [clip.focus.match for clip in result.clips] == ["literal", "none", "literal"]
-    assert [clip.source for clip in result.clips] == ["llm", "llm", "heuristic"]
-    assert starts(result)[0] == "S0021" and 25 in unit_range(result.clips[2])
+    assert [clip.focus.match for clip in result.clips] == ["literal", "literal", "none"]
+    assert [clip.source for clip in result.clips] == ["llm", "heuristic", "llm"]
+    assert starts(result)[0] == "S0021" and 30 in unit_range(result.clips[1])
 
 
-def test_a_mention_right_before_a_chosen_clip_still_gets_its_own_window(monkeypatch):
+def test_a_mention_right_before_an_llm_clip_gets_a_window_that_stops_before_it(monkeypatch):
     monkeypatch.setattr(selection_v3, "propose_heuristic", lambda *args, **kwargs: ())
     moments = [moment(20, 23, hook=21), moment(2, 5, hook=3)]
 
-    result, _ = llm_run(moments, k=3, segments=jomok_episode(19, 21), focus=JOMOK)
+    result, _ = llm_run(moments, k=3, segments=jomok_episode(19), focus=JOMOK)
 
     check_result(result, k=3, low=20.0, high=40.0)
-    assert [clip.focus.match for clip in result.clips] == ["literal", "none", "literal"]
-    before = result.clips[2]
+    assert [clip.focus.match for clip in result.clips] == ["literal", "none", "none"]
+    before = result.clips[0]  # it never cuts into the LLM's own moment
     assert before.source == "heuristic" and max(unit_range(before)) == 19
+    assert starts(result)[1:] == ["S0021", "S0003"]
+
+
+def test_one_window_per_conversation_about_the_focus(monkeypatch):
+    # 22 and 25 are 21 s apart: one conversation, and the LLM's clip already covers it.
+    proposals = (heuristic_proposal(32, 35, 5.0),)
+    monkeypatch.setattr(selection_v3, "propose_heuristic", lambda *args, **kwargs: proposals)
+    monkeypatch.setattr(FixedWindows, "offered", (heuristic_proposal(24, 27, 5.0),))
+    monkeypatch.setattr(FixedWindows, "asked", [])
+    monkeypatch.setattr(selection_v3, "HeuristicWindows", FixedWindows)
+    moments = [moment(20, 23, hook=21), moment(2, 5, hook=3)]
+
+    result, _ = llm_run(moments, k=3, segments=jomok_episode(22, 25), focus=JOMOK)
+
+    assert FixedWindows.asked == []
+    assert starts(result) == ["S0021", "S0003", "S0033"]
+    assert [clip.focus.match for clip in result.clips] == ["literal", "none", "none"]
+
+    # 22 and 30 are 56 s apart: two conversations, and the second one gets its window.
+    monkeypatch.setattr(FixedWindows, "offered", (heuristic_proposal(28, 31, 5.0),))
+    result, _ = llm_run(moments, k=3, segments=jomok_episode(22, 30), focus=JOMOK)
+    assert FixedWindows.asked == [(30, 30)]
+    assert starts(result) == ["S0021", "S0029", "S0003"]
 
 
 def test_an_extra_window_that_covers_more_mentions_is_preferred(monkeypatch):
@@ -1487,8 +1531,8 @@ def test_an_extra_window_that_covers_more_mentions_is_preferred(monkeypatch):
     result, _ = llm_run(moments, k=3, segments=jomok_episode(30, 33), focus=JOMOK)
 
     check_result(result, k=3, low=20.0, high=40.0)
-    assert [clip.source for clip in result.clips] == ["llm", "llm", "heuristic"]
-    assert {30, 33} <= set(unit_range(result.clips[2]))  # one window says both
+    assert [clip.source for clip in result.clips] == ["heuristic", "llm", "llm"]
+    assert {30, 33} <= set(unit_range(result.clips[0]))  # one window says both
 
 
 def test_heuristic_windows_stay_inside_the_free_units():
@@ -1507,17 +1551,19 @@ def test_heuristic_windows_stay_inside_the_free_units():
     assert windows.around(19, 19, 6, within=(20, 39)) == []
 
 
-def test_the_llm_keeps_its_slots_and_its_provenance_with_a_focus():
+def test_the_llm_keeps_its_provenance_when_focus_matches_take_every_slot():
     for mode in ("auto", "required"):
         result, _ = llm_run([moment(2, 5, hook=3)], k=1, segments=jomok_episode(30),
                             focus=JOMOK, llm_mode=mode)
+        # The LLM answered and led the selection; a window around the mention took the slot.
         assert result.status == "completed" and result.source == "llm"
         assert result.provider == "scripted" and result.model == "scripted"
         assert result.prompt_version == (
             f"{PROMPT_VERSION}+{FOCUS_PROMPT_VERSION}+std.{standard_sha256()[:12]}"
         )
-        assert result.clips[0].source == "llm" and result.clips[0].focus.match == "none"
-        assert not any(code.startswith("focus_llm") for code in result.warnings)
+        assert result.clips[0].source == "heuristic" and result.clips[0].focus.match == "literal"
+        assert "llm_filled:1" in result.warnings
+        assert not any(code.startswith(("focus_llm", "llm_failed")) for code in result.warnings)
 
 
 def test_a_focus_match_far_below_the_other_clips_is_not_moved_up():
@@ -1565,14 +1611,17 @@ def heuristic_proposal(start: int, end: int, score: float) -> ClipProposal:
 
 
 class FixedWindows:
-    """A stand-in for :class:`HeuristicWindows` that offers the same windows around anything."""
+    """A stand-in for :class:`HeuristicWindows` that offers the same windows around anything
+    and records the units it was asked about (``asked``, reset for every selection)."""
 
     offered: tuple[ClipProposal, ...] = ()
+    asked: ClassVar[list[tuple[int, int]]] = []
 
     def __init__(self, *args, **kwargs) -> None:
-        pass
+        type(self).asked = []
 
     def around(self, first, last, limit, *, within=None):
+        type(self).asked.append((first, last))
         return list(self.offered)
 
 
@@ -1828,8 +1877,11 @@ def test_a_topup_moment_must_say_a_term_whatever_it_claims():
     # In the excerpt around unit 30, but without it: dropped, however sure the model is.
     claimed = {"moments": [moment(24, 27, hook=25, focus="literal", scores=flat(8.0))]}
     result, _ = topup_run(NONE_PICKS, claimed, segments=jomok_episode(30), k=3)
-    assert starts(result) == ["S0003", "S0011", "S0021"]
+    assert "S0025" not in starts(result)
     assert "focus_topup:0" in result.warnings and "llm_dropped:1:off_focus" in result.warnings
+    # No LLM moment says the mention, so the heuristic's own window around it comes first.
+    assert result.clips[0].source == "heuristic" and 30 in unit_range(result.clips[0])
+    assert starts(result)[1:] == ["S0003", "S0011"]
 
     # Saying the term is enough, with no claim at all: the label comes from the transcript.
     unclaimed = {"moments": [moment(28, 31, hook=29, scores=flat(8.0))]}
@@ -1838,16 +1890,16 @@ def test_a_topup_moment_must_say_a_term_whatever_it_claims():
     assert result.clips[0].focus == ClipFocus("literal", ("jomok",), 210.7)
 
 
-def test_a_greeting_the_model_skips_never_becomes_a_clip():
+def test_the_opening_greeting_never_becomes_a_clip_through_the_focus():
     topup = {"moments": [moment(28, 31, hook=29, focus="literal", scores=flat(7.5))]}
 
-    result, client = topup_run(NONE_PICKS, topup, segments=jomok_episode(1, 30), k=3)
+    result, client = topup_run(NONE_PICKS, topup, segments=greeted_episode(30), k=3)
 
     prompt = client.calls[1]["user"]
     assert "sapaan" in prompt and "teaser" in prompt
-    assert len(re.findall(r"^POTONGAN P\d+ ", prompt, flags=re.MULTILINE)) == 2
+    assert len(re.findall(r"^POTONGAN P\d+ ", prompt, flags=re.MULTILINE)) == 1  # not 00:00
     assert starts(result) == ["S0029", "S0003", "S0011"]
-    assert not any(1 in unit_range(clip) for clip in result.clips)
+    assert not any(0 in unit_range(clip) for clip in result.clips)
 
 
 def test_without_focus_the_topup_never_runs():
@@ -1886,3 +1938,67 @@ def test_the_llm_quality_floor_reads_the_moment_score_not_the_focus_blind_rerank
     assert len(client.calls) == 2  # every mention is covered: no top-up
     assert starts(result) == ["S0021", "S0003"]
     assert result.clips[0].focus.match == "literal"
+
+
+def test_a_semantic_claim_also_needs_the_rerank_near_the_other_clips():
+    # The same rubric score as the literal match above, but only the model says it is about
+    # the focus: the focus-blind rerank (blend 4.5) is the one check no code can replace.
+    moments = [
+        moment(2, 5, hook=3, scores=flat(9.0)),
+        moment(10, 13, hook=12, scores=flat(8.5)),
+        moment(20, 23, hook=21, scores=flat(8.0), focus="semantic"),  # says no term
+    ]
+    client = ScriptedLLMClient([{"moments": moments}, rank_by_start({2: 9.0, 10: 9.0, 20: 1.0})])
+
+    result = select_clips_v3(episode(40), k=2, min_duration=20.0, max_duration=40.0,
+                             llm_client=client, focus=JOMOK)
+
+    assert starts(result) == ["S0003", "S0011"]
+    assert [clip.focus.match for clip in result.clips] == ["none", "none"]
+
+    # A rerank close to the other clips (blend 7.9) moves it up, as before.
+    client = ScriptedLLMClient([{"moments": moments}, rank_by_start({2: 9.0, 10: 9.0, 20: 7.8})])
+    result = select_clips_v3(episode(40), k=2, min_duration=20.0, max_duration=40.0,
+                             llm_client=client, focus=JOMOK)
+    assert starts(result) == ["S0021", "S0003"]
+    assert result.clips[0].focus == ClipFocus("semantic", ("jomok",))
+
+
+def greeted_episode(*units: int):
+    """:func:`jomok_episode` whose first unit is a channel greeting that says the term."""
+    segments = jomok_episode(*units)
+    text = "Halo semuanya, selamat datang lagi di obrolan soal perjomokan kisah0 bareng teman0."
+    segments[0] = segment(0.0, text, 7.0)
+    return segments
+
+
+def test_a_clip_that_starts_in_the_opening_greeting_is_never_moved_up():
+    moments = [
+        moment(0, 3, hook=1, scores=flat(8.0), focus="literal"),  # the greeting says the term
+        moment(10, 13, hook=12, scores=flat(9.0)),
+        moment(20, 23, hook=21, scores=flat(8.5)),
+    ]
+
+    two, _ = llm_run(moments, k=2, segments=greeted_episode(), focus=JOMOK)
+    three, _ = llm_run(moments, k=3, segments=greeted_episode(), focus=JOMOK)
+
+    assert starts(two) == ["S0011", "S0021"]
+    assert "focus_few_matches:0" in two.warnings
+    # Chosen on its own merit it keeps its label: it does say the term.
+    assert starts(three) == ["S0011", "S0021", "S0001"]
+    assert three.clips[2].focus.match == "literal" and 0.0 <= three.clips[2].focus.at < 7.0
+
+
+def test_the_opening_greeting_gets_no_heuristic_window_and_moves_nothing_up(monkeypatch):
+    proposals = (heuristic_proposal(0, 3, 7.0), heuristic_proposal(10, 13, 6.5))
+    monkeypatch.setattr(selection_v3, "propose_heuristic", lambda *args, **kwargs: proposals)
+    monkeypatch.setattr(FixedWindows, "offered", (heuristic_proposal(28, 31, 6.4),))
+    monkeypatch.setattr(FixedWindows, "asked", [])
+    monkeypatch.setattr(selection_v3, "HeuristicWindows", FixedWindows)
+
+    result = select_clips_v3(greeted_episode(30), k=2, min_duration=20.0, max_duration=40.0,
+                             llm_mode="off", focus=JOMOK)
+
+    assert FixedWindows.asked == [(30, 30)]  # the mention at 00:00 is never asked about
+    assert starts(result) == ["S0029", "S0001"]
+    assert [clip.focus.match for clip in result.clips] == ["literal", "literal"]
