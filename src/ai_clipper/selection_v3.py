@@ -86,12 +86,16 @@
    - the LLM gets the FOKUS PENGGUNA block in its propose requests and every moment claims
      ``"focus"``; the prompt version becomes ``llm-select-v2[+trends.v1]+focus.v1+std.<sha>``;
    - **top-up** (``focus_topup``): when fewer than ``k`` of the LLM's valid moments are about
-     the focus and some mentions lie in none of them, :func:`propose_with_llm` sends one more
-     request around those mentions (see its docstring) and adds the moments that say a term.
-     They are LLM proposals like the others: snapped, labelled and ranked in their part below,
-     behind the moments of the first propose requests in that part, so they displace LLM
-     moments outside the focus, which then only fill the slots left (``focus_topup:<n>``,
-     ``focus_topup_failed:<code>`` or ``focus_topup_skipped:<reason>`` among the LLM's codes);
+     the focus and some mentions after the opening lie in none of them,
+     :func:`propose_with_llm` sends one more request around those mentions (see its
+     docstring) and adds the moments that say a term. They are LLM proposals like the others:
+     snapped, labelled and ranked in their part below, behind the moments of the first propose
+     requests in that part (``focus_topup:<n>``, ``focus_topup_failed:<code>`` or
+     ``focus_topup_skipped:<reason>`` among the LLM's codes);
+   - **the opening** (:func:`ai_clipper.hook_heuristics.opening_end`: an opening teaser
+     montage and the channel greeting, :data:`ai_clipper.hook_heuristics.GREETING_REACH_SECONDS`
+     from a greeting said in the intro): a clip that starts there is never moved up by the
+     focus, and its mentions are never asked about in the top-up nor get a window;
    - **labels, checked in code** (:class:`ai_clipper.selection_types.ClipFocus`): a clip whose
      snapped units say a focus term (:class:`ai_clipper.focus.FocusMatcher`, with the
      Indonesian affix rules) before the clip's end is ``literal``, whatever its source or
@@ -99,27 +103,36 @@
      Otherwise an LLM clip that claims ``literal`` or ``semantic`` is ``semantic`` (the LLM's
      word, labelled as such); a chosen clip whose literal claim the units do not back is
      counted (``focus_literal_ungrounded:<n>``). Everything else is ``none``;
-   - **order**: each source keeps its place (LLM clips first, the heuristic only fills the
-     slots the LLM leaves: the LLM saw the lines that say a term, so its choice stands). Inside
-     each source a stable partition ``literal``, ``semantic``, ``none`` comes first; each part
-     keeps its own order (the trend boost only inside the part) and near-duplicates are
-     deferred inside their part. **Quality floor**: a focus match only ranks in its part when
-     its moment score (``proposal.score``) is at most :data:`FOCUS_QUALITY_GAP` below the
-     weakest score among the clips its source's own ranking would give for ``k`` slots without
-     the focus; otherwise it ranks in ``none`` (it keeps its label if it is chosen there). For
-     the heuristic the score is its ranking value; for the LLM it is the rubric score of the
-     request that saw the focus, never the rerank blend (the rerank never sees the focus).
-     ``score`` and the sub-scores never change. A heuristic filler taken for the focus in an
-     LLM-led selection gets :data:`FOCUS_FILL_REASON` instead of the filler reason;
-   - **extra candidates**: when some mention lies in no chosen clip and some slot may still
-     change (an empty one, or one of a heuristic clip outside the ``literal`` part), the
-     heuristic's own best windows around each such mention, searched between the chosen clips
-     that stay (:class:`ai_clipper.focus.HeuristicWindows`, :data:`FOCUS_WINDOW_OPTIONS` per
-     mention), are snapped like any proposal (duration rules included); those that keep the
-     mention, touch no clip that stays and pass the heuristic's quality floor join the
-     heuristic's ``literal`` part after its other candidates, those covering the most uncovered
-     mentions first, then the best score, no two sharing a unit, at most one per free slot,
-     and the ranking runs again;
+   - **order** (*utamakan, sisanya diisi*, the owner's decision): a stable partition by part,
+     the focus parts first: LLM ``literal``, LLM ``semantic``, heuristic ``literal``, then the
+     ``none`` part of the LLM and of the heuristic. So a match the LLM left out takes the slot
+     of the weakest LLM clip outside the focus, and clips outside the focus only fill the slots
+     left. Each part keeps its own order (the trend boost only inside the part) and
+     near-duplicates are deferred inside their part. ``score`` and the sub-scores never change.
+     A heuristic clip taken for the focus in an LLM-led selection gets
+     :data:`FOCUS_FILL_REASON` instead of the filler reason;
+   - **quality floor** (:func:`_focus_floors`): a focus match only ranks in its part when it
+     is at most :data:`FOCUS_QUALITY_GAP` below the weakest clip its source's own ranking would
+     give for ``k`` slots without the focus: a ``literal`` match by its moment score (for the
+     LLM the rubric of the request that saw the focus; the rerank never sees it), a
+     ``semantic`` match (the LLM's word only) by its score and by its ranking value, the
+     rerank blend, so the rerank's independent reading still holds back a weak claim (without
+     a rerank the ranking value is the score). Otherwise it ranks in ``none`` and keeps its
+     label if it is chosen there;
+   - **mention clusters the LLM judged**: mentions after the opening form clusters
+     (:func:`ai_clipper.focus.mention_clusters`). A cluster one of the LLM's own moments says
+     (chosen or not, moved up or not) is the LLM's call: a heuristic window there is never
+     moved up;
+   - **extra candidates**: when an open cluster (said by no chosen clip and no LLM moment) is
+     left and some slot may still change (an empty one, or one of a clip outside the focus
+     parts), the heuristic's own best windows around its mentions, searched between the clips
+     in a focus part and the chosen LLM clips (a window never cuts into an LLM moment;
+     :class:`ai_clipper.focus.HeuristicWindows`, :data:`FOCUS_WINDOW_OPTIONS` per mention), are
+     snapped like any proposal (duration rules included); those that keep the mention, start
+     after the opening, touch none of those clips and pass the heuristic's quality floor join
+     the heuristic's ``literal`` part after its other candidates, those covering the most
+     mentions of open clusters first, then the best score, one per cluster, no two sharing a
+     unit, at most one per slot that may change, and the ranking runs again;
    - **packaging**: only ``literal`` and ``semantic`` clips may use the focus theme, and only a
      clip that says a term may quote it. The title, hook text and description of an LLM clip
      labelled ``none``, or claimed ``literal`` without saying a term, that name a focus term
@@ -133,9 +146,9 @@
      when fewer than ``k`` clips are ``literal`` or ``semantic``.
 
 Warning codes (in this order): the LLM's own ``llm_*`` codes, ``llm_unavailable`` or
-``llm_failed:<code>`` (auto-mode fallback), ``llm_filled:<n>`` (heuristic clips added after
-LLM clips), ``snap_dropped:<n>``, ``trend_ref_ungrounded:<n>``,
-``trend_packaging_ungrounded:<n>``, ``trend_sensitive_humor:<n>``,
+``llm_failed:<code>`` (auto-mode fallback), ``llm_filled:<n>`` (heuristic clips in a selection
+the LLM led: one of its moments survived snapping), ``snap_dropped:<n>``,
+``trend_ref_ungrounded:<n>``, ``trend_packaging_ungrounded:<n>``, ``trend_sensitive_humor:<n>``,
 ``focus_terms_unmatchable:<n>``, ``focus_literal_ungrounded:<n>``,
 ``focus_packaging_ungrounded:<n>``, ``focus_few_matches:<n>``, ``few_clips:<n>`` (fewer than
 ``k`` clips), and ``no_transcript``.
@@ -157,11 +170,12 @@ from numbers import Real
 from pathlib import Path
 
 from .audio_timeline import AudioTimeline
-from .focus import FocusHit, FocusMatcher, FocusSpec, HeuristicWindows
+from .focus import FocusHit, FocusMatcher, FocusSpec, HeuristicWindows, mention_clusters
 from .hook_heuristics import (
     HEURISTIC_VERSION,
     archetype_label,
     clean_hook_line,
+    opening_end,
     propose_heuristic,
 )
 from .llm import (
@@ -249,7 +263,9 @@ _TREND_HASHTAG = re.compile(r"#\w{1,39}")
 # many heuristic windows are tried around a mention nobody covered; and how far (moment score,
 # 0-10) a focus match may sit below the weakest clip its source would give without the focus
 # and still be moved up. Further down it is only chosen on its own merit.
-FOCUS_FILL_REASON = "Pengisi dari heuristik karena momen LLM kurang; menyebut fokus yang dicari."
+FOCUS_FILL_REASON = (
+    "Dari heuristik: menyebut fokus yang dicari, di bagian video yang tidak dipilih LLM."
+)
 FOCUS_WINDOW_OPTIONS = 6
 FOCUS_QUALITY_GAP = 1.0
 _TOLERANCE = 1e-6
@@ -587,16 +603,17 @@ def _by_source_and_part(item: _Candidate) -> object:
 
 
 def _ordered(candidates: list[_Candidate], focused: bool) -> list[_Candidate]:
-    """Candidates in ranking order (see :func:`_boosted`); with a focus, each source (LLM first)
-    is split into the stable partition ``literal``, ``semantic``, ``none`` by ``part``, and the
-    boost stays inside each part."""
+    """Candidates in ranking order (see :func:`_boosted`); with a focus, the stable partition
+    by ``part``: the focus parts (``literal``, then ``semantic``) of every source, LLM first,
+    then the ``none`` part of every source, LLM first. The boost stays inside each part."""
     if not focused:
         return _boosted(candidates)
-    sources = dict.fromkeys(item.proposal.source for item in candidates)
+    sources = list(dict.fromkeys(item.proposal.source for item in candidates))
+    groups = [(source, part) for source in sources for part in FOCUS_MATCHES if part != "none"]
+    groups += [(source, "none") for source in sources]
     return [
         item
-        for source in sources
-        for part in FOCUS_MATCHES
+        for source, part in groups
         for item in _boosted(
             [one for one in candidates if one.proposal.source == source and one.part == part]
         )
@@ -787,11 +804,31 @@ def _grounded_packaging(
 
 @dataclass(frozen=True, slots=True)
 class _Focus:
-    """A job's focus: the spec, its matcher and every literal mention in the units."""
+    """A job's focus: the spec, its matcher, every literal mention in the units, where the
+    episode's opening ends (:func:`ai_clipper.hook_heuristics.opening_end`, ``-inf`` without
+    one) and the mentions after it in clusters (:func:`ai_clipper.focus.mention_clusters`)."""
 
     spec: FocusSpec
     matcher: FocusMatcher
     hits: tuple[FocusHit, ...]
+    opening: float = -math.inf
+    clusters: tuple[tuple[FocusHit, ...], ...] = ()
+
+    @classmethod
+    def of(cls, matcher: FocusMatcher, units: Sequence[SentenceUnit]) -> _Focus:
+        hits = matcher.hits(units)
+        end = opening_end(units)
+        opening = -math.inf if end is None else end
+        clusters = mention_clusters(hit for hit in hits if hit.time >= opening - _TOLERANCE)
+        return cls(matcher.focus, matcher, hits, opening, tuple(clusters))
+
+    def touched(self, span: _Span) -> set[int]:
+        """The clusters (by position) with a mention ``span`` says."""
+        return {
+            number
+            for number, cluster in enumerate(self.clusters)
+            if any(_covers(span, hit) for hit in cluster)
+        }
 
 
 def _check_focus(focus: object) -> FocusSpec | None:
@@ -822,26 +859,49 @@ def _focus_match(proposal: ClipProposal, span: _Span, focus: _Focus) -> str:
     return "none"
 
 
-def _focus_floors(candidates: Sequence[_Candidate], k: int) -> dict[str, float]:
-    """Per source, the lowest moment score (``proposal.score``) that still ranks in a focus
-    part: the weakest score among the clips the source's own ranking would give for ``k``
-    slots without the focus, minus :data:`FOCUS_QUALITY_GAP`.
+@dataclass(frozen=True, slots=True)
+class _Floor:
+    """How low a focus match of one source may be and still be moved up (see
+    :func:`_focus_floors`): its moment score, and for a ``semantic`` claim its ranking value."""
 
-    The score, not the ranking value: an LLM's ranking value blends in the rerank, which never
-    sees the focus, while its score is the rubric of the request that did (the heuristic's two
-    values are the same)."""
-    floors: dict[str, float] = {}
+    score: float = -math.inf
+    value: float = -math.inf
+
+
+def _focus_floors(candidates: Sequence[_Candidate], k: int) -> dict[str, _Floor]:
+    """Per source, the weakest moment score (``proposal.score``) and the weakest ranking value
+    among the clips the source's own ranking would give for ``k`` slots without the focus,
+    each minus :data:`FOCUS_QUALITY_GAP`.
+
+    A ``literal`` match needs the score: the code checked that it says a term, and an LLM's
+    score is the rubric of the request that saw the focus, while its ranking value blends in
+    the rerank, which never sees the focus. A ``semantic`` match is only the LLM's word, so it
+    needs the ranking value too: the rerank's independent reading of its quality. For the
+    heuristic the two values are the same."""
+    floors: dict[str, _Floor] = {}
     for source in dict.fromkeys(item.proposal.source for item in candidates):
-        own = [item for item in candidates if item.proposal.source == source]
-        weakest = min(item.proposal.score for item in _rank(_boosted(own), k))
-        floors[source] = weakest - FOCUS_QUALITY_GAP
+        own = _rank(_boosted([item for item in candidates if item.proposal.source == source]), k)
+        floors[source] = _Floor(
+            min(item.proposal.score for item in own) - FOCUS_QUALITY_GAP,
+            min(item.rank_value for item in own) - FOCUS_QUALITY_GAP,
+        )
     return floors
 
 
-def _with_part(item: _Candidate, floors: Mapping[str, float]) -> _Candidate:
-    """``item`` in its focus part, or in ``none`` when it scores too low to be moved up."""
-    floor = floors.get(item.proposal.source, -math.inf)
-    moved = item.focus != "none" and item.proposal.score >= floor - _TOLERANCE
+def _with_part(
+    item: _Candidate, floors: Mapping[str, _Floor], focus: _Focus, judged: set[int]
+) -> _Candidate:
+    """``item`` in its focus part, or in ``none`` when it may not be moved up: it starts in the
+    episode's opening, scores too low (see :func:`_focus_floors`), or is a heuristic window
+    whose mentions all lie in clusters an LLM moment says (``judged``: the LLM's call)."""
+    floor = floors.get(item.proposal.source, _Floor())
+    moved = (
+        item.focus != "none"
+        and item.span.start >= focus.opening - _TOLERANCE
+        and item.proposal.score >= floor.score - _TOLERANCE
+        and (item.focus == "literal" or item.rank_value >= floor.value - _TOLERANCE)
+        and (item.proposal.source != "heuristic" or bool(focus.touched(item.span) - judged))
+    )
     return replace(item, part=item.focus if moved else "none")
 
 
@@ -871,37 +931,42 @@ def _focus_extras(
     *,
     k: int,
     floor: float,
+    judged: set[int],
     windows: HeuristicWindows,
     snapper: _Snapper,
     build: Callable[[ClipProposal, float, _Span], tuple[_Candidate, int]],
 ) -> list[_Candidate]:
-    """Heuristic candidates around mentions no chosen clip covers, for the slots they may take.
+    """Heuristic windows for the mention clusters nobody looked at, for the slots they may take.
 
-    Those slots are the empty ones and those of chosen heuristic clips outside the ``literal``
-    part: LLM clips and literal clips stay. For every uncovered mention the best
-    :data:`FOCUS_WINDOW_OPTIONS` heuristic windows around it that stay between the clips that
-    stay are snapped like any proposal; a window whose snapped span loses the mention, touches
-    a clip that stays, or scores below ``floor`` (see :func:`_focus_floors`) is skipped. The
-    survivors are taken covering the most uncovered mentions first, then best score first,
-    never two that share a unit, at most one per free slot.
+    Those slots are the empty ones and those of chosen clips outside the focus parts; clips in
+    a focus part stay. A cluster is open when no chosen clip and no LLM moment (``judged``)
+    says one of its mentions; mentions in the opening are in no cluster. Around every mention
+    of an open cluster the best :data:`FOCUS_WINDOW_OPTIONS` heuristic windows that stay
+    between the clips that stay and the chosen LLM clips (a window never cuts into an LLM
+    moment) are snapped like any proposal; a window whose snapped span loses the mention,
+    starts in the opening, touches one of those clips, or scores below ``floor`` (see
+    :func:`_focus_floors`) is skipped. The survivors are taken covering the most mentions of
+    open clusters first, then best score first, one per cluster, never two that share a unit,
+    at most one per free slot.
     """
-    fixed = [
-        item for item in chosen if item.proposal.source != "heuristic" or item.part == "literal"
-    ]
+    fixed = [item for item in chosen if item.part != "none"]
+    blocking = [item for item in chosen if item.part != "none" or item.proposal.source == "llm"]
     room = k - len(fixed)
-    uncovered = [
-        hit for hit in focus.hits if not any(_covers(item.span, hit) for item in chosen)
+    taken = set(judged).union(*(focus.touched(item.span) for item in chosen))
+    open_clusters = [
+        number for number in range(len(focus.clusters)) if number not in taken
     ]
-    if room <= 0 or not uncovered:
+    if room <= 0 or not open_clusters:
         return []
-    options: list[tuple[ClipProposal, _Span]] = []
+    uncovered = [hit for number in open_clusters for hit in focus.clusters[number]]
+    options: list[tuple[ClipProposal, _Span, set[int]]] = []
     seen: set[tuple[int, int]] = set()
     last_unit = len(snapper.units) - 1
     for hit in uncovered:
         free = (
-            max((item.span.end_unit + 1 for item in fixed
+            max((item.span.end_unit + 1 for item in blocking
                  if item.span.end_unit < hit.first_unit), default=0),
-            min((item.span.start_unit - 1 for item in fixed
+            min((item.span.start_unit - 1 for item in blocking
                  if item.span.start_unit > hit.last_unit), default=last_unit),
         )
         for proposal in windows.around(
@@ -912,15 +977,15 @@ def _focus_extras(
             payoff = proposal.hook_unit if proposal.payoff_unit is None else proposal.payoff_unit
             protect = (min(proposal.hook_unit, payoff), max(proposal.hook_unit, payoff))
             span = snapper.snap(proposal.start_unit, proposal.end_unit, protect)
-            if span is None or not _covers(span, hit):
+            if span is None or not _covers(span, hit) or span.start < focus.opening - _TOLERANCE:
                 continue
             if (span.start_unit, span.end_unit) in seen:
                 continue
-            if any(_overlap(span, item.span) for item in fixed):
+            if any(_overlap(span, item.span) for item in blocking):
                 continue
             seen.add((span.start_unit, span.end_unit))
-            options.append((proposal, span))
-    # Most uncovered mentions first, then the best score (stable: earlier mentions on ties).
+            options.append((proposal, span, focus.touched(span) - taken))
+    # Most mentions of open clusters first, then the best score (stable: earlier on ties).
     options.sort(
         key=lambda option: (
             -sum(_covers(option[1], hit) for hit in uncovered),
@@ -928,11 +993,13 @@ def _focus_extras(
         )
     )
     extras: list[_Candidate] = []
-    for proposal, span in options:
+    used: set[int] = set()
+    for proposal, span, clusters in options:
         if len(extras) >= room:
             break
-        if any(_overlap(span, item.span) for item in extras):
+        if clusters & used or any(_overlap(span, item.span) for item in extras):
             continue
+        used |= clusters
         extras.append(replace(build(proposal, proposal.score, span)[0], part="literal"))
     return extras
 
@@ -1104,7 +1171,7 @@ def select_clips_v3(
         shown = tuple(entry.item for entry in relevant_trends(trend_items, units))
     focused: _Focus | None = None
     if matcher is not None:
-        focused = _Focus(matcher.focus, matcher, matcher.hits(units))
+        focused = _Focus.of(matcher, units)
 
     warnings: list[str] = []
     llm_proposals: tuple[ClipProposal, ...] = ()
@@ -1196,28 +1263,35 @@ def select_clips_v3(
         candidates.append(candidate)
 
     group = _by_source
-    floors: dict[str, float] = {}
+    floors: dict[str, _Floor] = {}
+    judged: set[int] = set()  # mention clusters an LLM moment says: the LLM's call
     if focused is not None:
         group = _by_source_and_part
         floors = _focus_floors(candidates, k)
-        candidates = [_with_part(item, floors) for item in candidates]
+        for item in candidates:
+            if item.proposal.source == "llm":
+                judged |= focused.touched(item.span)
+        candidates = [_with_part(item, floors, focused, judged) for item in candidates]
     chosen = _rank(_ordered(candidates, focused is not None), k, group)
-    if focused is not None and focused.hits:
+    if focused is not None and focused.clusters:
         extras = _focus_extras(
             chosen,
             focused,
             k=k,
-            floor=floors.get("heuristic", -math.inf),
+            floor=floors.get("heuristic", _Floor()).score,
+            judged=judged,
             windows=HeuristicWindows(
                 units, min_duration=low, max_duration=high, events=ordered_events, audio=audio
             ),
             snapper=snapper,
             build=build,
         )
-        if extras:  # after the heuristic's other literal candidates, before its other ones
+        if extras:  # after the heuristic's other literal candidates, before every none part
             candidates.extend(extras)
             chosen = _rank(_ordered(candidates, True), k, group)
-    llm_led = bool(chosen) and chosen[0].proposal.source == "llm"
+    # The LLM led when one of its moments survived snapping (without a focus that moment is
+    # the first clip; with one, focus matches of the heuristic may come before it).
+    llm_led = any(item.proposal.source == "llm" for item in candidates)
     if not llm_led and llm_proposals and status == "completed":
         # Every LLM moment was lost to snapping.
         if llm_mode == "required":
