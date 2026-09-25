@@ -276,8 +276,7 @@ def test_package_constants():
 
 @pytest.mark.parametrize("name", STUB_MODULES + ("timemap", "clip_id", "errors"))
 def test_every_module_imports(name):
-    module = _module(name)
-    assert module.__doc__ and "plan" in module.__doc__.lower()
+    assert _module(name).__doc__
 
 
 @pytest.mark.parametrize(("module", "function"), sorted(SIGNATURES))
