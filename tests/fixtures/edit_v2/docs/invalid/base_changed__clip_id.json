@@ -3,7 +3,7 @@
   "schema_minor": 0,
   "clip_id": "clip_000000000000000000000000",
   "revision": 1,
-  "parent_sha256": "50bd916ca60595e6fcde99621910a6fa419f76a635b9120969556ed595ce6d4a",
+  "parent_sha256": "0b31cbc72ffdb9877c83ca0ceeb1faf6e81969fe2a80d607074eba72114d8eb5",
   "base": {
     "job_id": "8f0c2a1e-5b7d-4c3a-9e21-6d4f0b8a7c55",
     "source": {
@@ -31,13 +31,13 @@
       1369400
     ],
     "words": {
-      "sha256": "5f0cad1a59f7ae36e5c6a1869bc4e7b2a52ec339ff0cac67c2d2023b93944194",
+      "sha256": "352b19ed51b67b0f8a8be1ac8acc006ef0a33131d00642472a9d6b790204b9f9",
       "count": 376
     },
     "camera": {
       "sha256": null
     },
-    "seed_sha256": "aec859b5195207fd3793380c1ea387b160596c3f060acf323f3e3967043d0b6c",
+    "seed_sha256": "a65be013199aaa6913674061f2c5a11fff1be76a318f8c3309cd49126f4a53e4",
     "engine": {
       "compiler": "edit-v2/1",
       "render_semantics": 1
