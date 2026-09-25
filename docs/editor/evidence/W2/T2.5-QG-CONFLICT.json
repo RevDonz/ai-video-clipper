@@ -1,0 +1,62 @@
+{
+ "code_commit": "716a050",
+ "environment": {
+  "cpus": 16,
+  "loadavg_1_5_15": [
+   11.78,
+   15.92,
+   15.44
+  ],
+  "machine": "x86_64",
+  "node": "v22.23.2"
+ },
+ "gate": "QG-CONFLICT (unit level)",
+ "pass": true,
+ "rebase_property": {
+  "auto_merged": 8272,
+  "checks": "merged: every part only one tab changed keeps that tab's value; dialog: labelled groups, 'mine'/'theirs'/random answers apply, 'theirs' everywhere always valid; every rebased and resolved log replays to its document",
+  "dialog_groups_by_kind": {
+   "audio": 65,
+   "captions": 37,
+   "coldopen": 263,
+   "hook": 158,
+   "layout": 7,
+   "logo": 291,
+   "music": 325,
+   "removals": 230,
+   "trim": 584,
+   "word": 8
+  },
+  "per_part_dialog": 1728,
+  "problems": 0,
+  "resolutions_checked": 5172,
+  "scenarios": 10000,
+  "seed": 20260925,
+  "tool": "scripts/edit_v2/crosscheck_commands.mjs conflict",
+  "wall_s": 18.289
+ },
+ "store_property": {
+  "auto_merges": 918,
+  "checks": "two live tabs on one clip (shared server, shared IndexedDB, BroadcastChannel): after every step each tab's unsaved work rebuilds from its own draft; at the end nothing is unsaved, no draft is left, the server document passes checkDoc and a tab holds it",
+  "commands": 7679,
+  "commands_rejected": 1392,
+  "dialogs_answered": 82,
+  "draft_checks": 26326,
+  "failures": 0,
+  "injected_put_failures": 807,
+  "reloads": 1173,
+  "runs": 500,
+  "seeds": [
+   20000,
+   20499
+  ],
+  "steps_per_run": 40,
+  "test": "web/tests/editor-draft.test.mjs (60 runs in npm test; 500 here)",
+  "wall_s": 18.216
+ },
+ "threshold": {
+  "drafts_lost": 0,
+  "edits_lost_silently": 0,
+  "theirs_everywhere_rejected": 0
+ }
+}
