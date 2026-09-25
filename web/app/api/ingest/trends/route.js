@@ -1,5 +1,6 @@
-import { IngestRateLimiter } from "../../../../lib/ingest-rate-limit.mjs";
+import { INGEST_FAILED_AUTH_LIMITS, IngestRateLimiter } from "../../../../lib/ingest-rate-limit.mjs";
 import { verifyIngestToken } from "../../../../lib/ingest-tokens.mjs";
+import { trustedClientIp } from "../../../../lib/request-security.mjs";
 import {
   EXTERNAL_ID_PATTERN,
   TREND_LIMITS,
@@ -24,6 +25,7 @@ export const runtime = "nodejs";
 //   DELETE ?externalId=…         one item this token's source created
 
 const SHARED_LIMITER = new IngestRateLimiter();
+const SHARED_CLIENT_LIMITER = new IngestRateLimiter(INGEST_FAILED_AUTH_LIMITS);
 
 const AUTH_MESSAGES = Object.freeze({
   missing_token: "Token ingest diperlukan (Authorization: Bearer ptk_…).",
@@ -37,25 +39,33 @@ function isPlainObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
 }
 
-export function createIngestTrendsRoute({ env = process.env, limiter = SHARED_LIMITER, now = () => new Date() } = {}) {
-  // { token } or { denied: Response }: 401/403/503 from the token check, then 429 per token.
+function rateLimited(message, retryAfterSeconds) {
+  return jsonNoStore({ error: message, code: "rate_limited" }, 429, { "Retry-After": String(retryAfterSeconds) });
+}
+
+export function createIngestTrendsRoute({
+  env = process.env, limiter = SHARED_LIMITER, clientLimiter = SHARED_CLIENT_LIMITER, now = () => new Date(),
+} = {}) {
+  // { token } or { denied: Response }: 429 for a client IP whose token checks keep failing,
+  // 401/403/503 from the token check, then 429 per token. Failures are counted per client only
+  // with a trusted client IP (AUTH_TRUSTED_CLIENT_IP_HEADER); without one every client would
+  // share one budget and an attacker could lock the agent out.
   async function authenticate(request, scope) {
+    const client = trustedClientIp(request, env);
+    const clientKey = client === null ? null : `client:${client}`;
+    if (clientKey !== null) {
+      const gate = clientLimiter.peek(clientKey, now().getTime());
+      if (!gate.allowed) return { denied: rateLimited("Terlalu banyak token salah dari alamat ini. Coba lagi nanti.", gate.retryAfterSeconds) };
+    }
     const result = await verifyIngestToken(request.headers.get("authorization"), { env, scope, now: now() });
     if (!result.ok) {
+      if (clientKey !== null && result.status === 401) clientLimiter.consume(clientKey, now().getTime());
       const headers = result.status !== 401 ? {}
         : { "WWW-Authenticate": result.code === "missing_token" ? 'Bearer realm="potongin"' : 'Bearer realm="potongin", error="invalid_token"' };
       return { denied: jsonNoStore({ error: AUTH_MESSAGES[result.code], code: result.code }, result.status, headers) };
     }
     const decision = limiter.consume(result.token.id, now().getTime());
-    if (!decision.allowed) {
-      return {
-        denied: jsonNoStore(
-          { error: "Terlalu banyak permintaan untuk token ini. Coba lagi nanti.", code: "rate_limited" },
-          429,
-          { "Retry-After": String(decision.retryAfterSeconds) },
-        ),
-      };
-    }
+    if (!decision.allowed) return { denied: rateLimited("Terlalu banyak permintaan untuk token ini. Coba lagi nanti.", decision.retryAfterSeconds) };
     return { token: result.token };
   }
 
