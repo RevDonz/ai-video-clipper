@@ -292,8 +292,12 @@ def _read_bounded(stream: Any) -> bytes:
 
 
 def validate_url(url: str) -> str:
+    url = url.strip()
+    # urlsplit silently drops tabs and newlines; refuse them, spaces and controls up front.
+    if not url or any(ord(char) <= 0x20 or ord(char) == 0x7F for char in url):
+        raise UsageError("URL tidak valid (memuat spasi atau karakter kontrol).")
     try:
-        parts = urllib.parse.urlsplit(url.strip())
+        parts = urllib.parse.urlsplit(url)
         host, _port = parts.hostname, parts.port  # .port raises ValueError when malformed
     except ValueError:
         raise UsageError("URL tidak valid.") from None
@@ -330,7 +334,7 @@ class Client:
         except urllib.error.HTTPError as error:
             try:
                 payload = _read_bounded(error)
-            except (OSError, http.client.HTTPException):
+            except (OSError, ValueError, AttributeError, http.client.HTTPException):
                 payload = b""
             finally:
                 error.close()
