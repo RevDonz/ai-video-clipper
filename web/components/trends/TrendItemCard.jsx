@@ -26,17 +26,19 @@ export default function TrendItemCard({ item, now, onUpdate, onDelete }) {
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState(null);
+  const [pendingEnabled, setPendingEnabled] = useState(null); // optimistic switch state while saving
   const editButton = useRef(null);
   const deleteButton = useRef(null);
   const firstField = useRef(null);
   const cancelDelete = useRef(null);
   const returnFocus = useRef(null);
+  const idPrefix = `trend${useId()}`;
+  const titleId = `${idPrefix}-heading`;
 
   const status = trendItemStatus(item, now);
   const expiry = expiryView(item, now);
   const platforms = platformLabels(item.platforms);
-  const idPrefix = `trend${useId()}`;
-  const titleId = `${idPrefix}-title`;
+  const switchOn = pendingEnabled ?? item.enabled;
 
   useEffect(() => {
     if (mode === "edit") firstField.current?.querySelector("input, textarea, select")?.focus();
@@ -93,12 +95,17 @@ export default function TrendItemCard({ item, now, onUpdate, onDelete }) {
     }
   }
 
+  // The switch shows the new state at once and reverts if saving fails. It is
+  // never disabled, so keyboard focus stays on it; repeat toggles wait.
   async function toggleEnabled(event) {
+    if (busy) return;
     const enabled = event.target.checked;
     setBusy("toggle");
+    setPendingEnabled(enabled);
     setMessage(null);
     const result = await onUpdate({ enabled });
     setBusy("");
+    setPendingEnabled(null);
     setMessage(result.ok
       ? { tone: "ok", text: enabled ? "Diaktifkan: dipakai job berikutnya." : "Dinonaktifkan: tidak dipakai job berikutnya." }
       : { tone: "error", text: result.error });
@@ -182,11 +189,11 @@ export default function TrendItemCard({ item, now, onUpdate, onDelete }) {
       {mode === "view" && (
         <div className="trActions">
           <label className="trSwitch">
-            <input type="checkbox" role="switch" checked={item.enabled} onChange={toggleEnabled} disabled={busy !== ""} aria-describedby={`${idPrefix}-status`} />
-            <span>{item.enabled ? "Aktif" : "Nonaktif"}</span>
+            <input type="checkbox" role="switch" checked={switchOn} onChange={toggleEnabled} aria-busy={busy === "toggle" || undefined} aria-describedby={`${idPrefix}-status`} />
+            <span>{switchOn ? "Aktif" : "Nonaktif"}</span>
           </label>
-          <button type="button" className="trSecondary" ref={editButton} onClick={startEdit} disabled={busy !== ""}>Ubah</button>
-          <button type="button" className="trSecondary danger" ref={deleteButton} onClick={() => { setMessage(null); setMode("confirm"); }} disabled={busy !== ""}>Hapus</button>
+          <button type="button" className="trSecondary" ref={editButton} onClick={startEdit} disabled={busy === "delete"}>Ubah</button>
+          <button type="button" className="trSecondary danger" ref={deleteButton} onClick={() => { setMessage(null); setMode("confirm"); }} disabled={busy === "delete"}>Hapus</button>
         </div>
       )}
 

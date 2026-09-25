@@ -9,7 +9,7 @@
 .trHero p{max-width:720px;margin:0;color:var(--muted);font-size:16px;line-height:1.6}
 .trHero b{color:#4a4945}
 .trLayout{display:grid;gap:18px}
-.trTop{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:18px;align-items:start}
+.trUsage{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;align-items:stretch}
 .trCard{padding:26px;min-width:0}
 .trLoading{padding:40px;text-align:center;color:var(--muted);display:grid;gap:14px;justify-items:center}
 .trLoading p{margin:0}
@@ -55,21 +55,27 @@
 .trSwitch input:checked,.trMainSwitch input:checked{background:var(--blue)}
 .trSwitch input:checked::after,.trMainSwitch input:checked::after{transform:translateX(14px)}
 .trSwitch input:disabled,.trMainSwitch input:disabled{opacity:.5;cursor:wait}
-.trMainSwitch{display:flex;align-items:flex-start;gap:12px;margin-top:4px;padding:14px;border:1px solid var(--line);border-radius:12px;background:#fff;cursor:pointer}
+.trMainSwitch{display:flex;align-items:flex-start;gap:12px;margin:0;padding:14px;border:1px solid var(--line);border-radius:12px;background:#fff;cursor:pointer}
 .trMainSwitch input{margin-top:2px}
 .trMainSwitch span{display:grid;gap:4px}
 .trMainSwitch strong{font:700 13px 'Manrope'}
 .trMainSwitch small{color:var(--muted);font-size:12px;line-height:1.5}
 
 /* Status card */
-.trStats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:14px 0 0}
+.trStats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:0}
 .trStats div{padding:10px 12px;border:1px solid var(--line);border-radius:11px;background:#f8f7f2}
 .trStats dt{color:var(--muted);font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
 .trStats dd{margin:4px 0 0;font:800 22px 'Manrope'}
 .trFootnote{margin:12px 0 0;color:var(--muted);font-size:12px;line-height:1.5}
 
 /* Manual form */
-.trManualForm{display:grid;gap:14px}
+.trManualForm{display:grid;gap:14px;padding:4px 16px 16px}
+.trAdd{margin-top:18px;border:1px solid var(--line);border-radius:14px;background:#f8f7f2}
+.trAdd[open]{background:#fff}
+.trAdd summary{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 10px;min-height:48px;padding:14px 16px;font:700 13px 'Manrope';cursor:pointer;list-style:none}
+.trAdd summary::-webkit-details-marker{display:none}
+.trAdd summary small{color:var(--muted);font:600 11px 'DM Sans'}
+.trAdd[open] summary{border-bottom:1px dashed var(--line);margin-bottom:12px}
 .trPlatforms{min-width:0;margin:0;padding:0;border:0}
 .trPlatforms legend{margin-bottom:6px;padding:0;color:#4a4945;font-size:12px;font-weight:700}
 .trPlatforms>div{display:flex;flex-wrap:wrap;gap:6px}
@@ -188,7 +194,7 @@
 .trendsPage h2[tabindex]:focus,.trendsPage h3[tabindex]:focus{outline:none}
 
 @media(max-width:960px){
-  .trTop{grid-template-columns:1fr}
+  .trUsage{grid-template-columns:1fr}
   .trFilters{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
   .trStatusFilter{grid-column:1/-1;justify-self:start}
 }
