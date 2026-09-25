@@ -40,7 +40,14 @@ lane's two threads) and publishes ``preview/plates/<key16>-c<k:07d>.mp4``.
 ``audio`` ``{jobId, clipId, requestRaw, cancelToken|null}`` → ``{audioKey, name, built, samples,
 gainCdb, warnings}``: the ``audio_preview`` FLAC of the document (``preview/audio/<key16>.flac``
 and its ``<key16>.json``), measured first when ``loudness.needs_measurement`` (the result cached
-as ``<mix16>.loudness.json`` by the pre-master mix sha).
+as ``<mix16>.loudness.json`` by the pre-master mix sha). A mix that needs a new measurement is
+decoded once: the pre-master stream is measured while a copy is kept, then only the master stage
+runs on the copy (``compile_ffmpeg.premaster_jobs``/``master_job``, ``execute.run_piped``; W2
+re-exit, PF-AUDIO).
+
+The source's probe is kept in ``preview/probe.json`` under the file's identity. In the app every
+op runs in a child forked by ``edit_v2.preview_server`` (the persistent worker) rather than a new
+interpreter; the envelope, the result and the exit codes are the same.
 
 ``frame`` ``{jobId, clipId, requestRaw, cancelToken|null}`` → ``{name, planSha256, built}``: the
 truth frame ``f`` (the compiler's ``frame`` mode) as ``preview/frames/<key16>-<f>-<w>.png``.
