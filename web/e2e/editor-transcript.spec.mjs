@@ -10,10 +10,11 @@
 //
 // The browser is the parity pin, Chrome for Testing 147.0.7727.15 (Playwright build 1217), when
 // installed; PARITY_CHROME overrides it. With T27_EVIDENCE_DIR set, the gate tests (scripted
-// QG-UX U2 and U3, and the 1,500-word command budget) write their numbers there.
+// QG-UX U2 and U3, and the 1,500-word command budget) write their numbers there. T27_REAL_CLIPS
+// (a prepared job's analysis/clips directory, read from a copy) adds the budget on real clips.
 import { expect, test } from "@playwright/test";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -484,98 +485,146 @@ for (const viewport of [{ width: 1366, height: 768 }, { width: 1920, height: 108
   });
 }
 
+
+// In the page: time `rounds` rounds of seven commands, each from its DOM event (or the store's
+// undo) to the React commit plus a forced style and layout of the transcript.
+async function measureCommands({ rounds }) {
+  const list = document.querySelector("[data-transcript-words]");
+  const settle = async (check) => {
+    for (let i = 0; i < 6 && !check(); i += 1) await Promise.resolve();
+    let frames = 0;
+    while (!check() && frames < 30) {
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      frames += 1;
+    }
+    void list.offsetHeight; // style and layout of the updated transcript
+    return check();
+  };
+  const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+  const span = (i) => list.querySelector(`[data-w="${i}"]`);
+  const mouse = (target, type, init = {}) => target.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, button: 0, ...init }));
+  const click = (i, init = {}) => {
+    const target = span(i);
+    if (!target) throw new Error(`word ${i} is not rendered (${list.querySelectorAll("[data-w]").length} words shown)`);
+    mouse(target, "mousedown", { buttons: 1, ...init });
+    mouse(target, "mouseup", init);
+    mouse(target, "click", init);
+  };
+  const key = (k, init = {}) => list.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true, cancelable: true, ...init }));
+  // Body words not in the cold open, spread over the clip.
+  const bodyWords = [...list.querySelectorAll('[data-w][data-zone="body"]:not([data-cold])')].map((node) => Number(node.dataset.w));
+  const out = { RemoveWords: [], RestoreRemoval: [], SetWordEmphasis: [], SetWordHidden: [], EditWordText: [], TrimStart: [], Undo: [] };
+  let unsettled = 0;
+  const time = async (name, act, check) => {
+    const t0 = performance.now();
+    act();
+    const done = await settle(check);
+    out[name].push(performance.now() - t0);
+    if (!done) unsettled += 1;
+  };
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  for (let k = 0; k < rounds; k += 1) {
+    const first = bodyWords[Math.floor(((k + 0.5) * (bodyWords.length - 40)) / rounds) + 30];
+    click(first);
+    click(first + 4, { shiftKey: true });
+    await tick();
+    await time("RemoveWords", () => key("Delete"), () => span(first).hasAttribute("data-removed"));
+    const chip = list.querySelector("button[data-removal-id]");
+    await time("RestoreRemoval", () => chip.click(), () => !span(first).hasAttribute("data-removed"));
+    click(first + 1);
+    await tick();
+    await time("SetWordEmphasis", () => key("e", { ctrlKey: true }), () => span(first + 1).hasAttribute("data-emphasis"));
+    await time("SetWordHidden", () => key("X", { ctrlKey: true, shiftKey: true }), () => span(first + 1).hasAttribute("data-hidden"));
+    key("Enter");
+    await tick();
+    const input = list.querySelector("input[data-word-editor]");
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(input, `kata${k}`);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    await time("EditWordText", () => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })),
+      () => span(first + 1)?.textContent === `kata${k}`);
+    const trimAt = bodyWords[5 + k];
+    click(trimAt);
+    await tick();
+    await time("TrimStart", () => key("i"), () => span(trimAt - 1)?.dataset.zone === "before");
+    await time("Undo", () => window.__harness.store.undo(), () => span(trimAt - 1)?.dataset.zone === "body");
+  }
+  return { out, unsettled, spans: list.querySelectorAll("[data-w]").length };
+}
+
+function summarise(out) {
+  const stats = (samples) => {
+    const sorted = [...samples].sort((a, b) => a - b);
+    const pick = (q) => sorted[Math.min(sorted.length - 1, Math.ceil(q * sorted.length) - 1)];
+    return { n: sorted.length, p50_ms: Number(pick(0.5).toFixed(2)), p95_ms: Number(pick(0.95).toFixed(2)), max_ms: Number(sorted.at(-1).toFixed(2)) };
+  };
+  const perCommand = Object.fromEntries(Object.entries(out).map(([name, samples]) => [name, stats(samples)]));
+  return { overall: stats(Object.values(out).flat()), perCommand };
+}
+
+async function unfoldContext(page) {
+  await expect(transcript(page).locator('[data-w][data-zone="body"]').first()).toBeVisible();
+  for (const name of [/Tampilkan \d+ kalimat sebelumnya/, /Tampilkan \d+ kalimat sesudahnya/]) {
+    const toggle = transcript(page).getByRole("button", { name });
+    if (await toggle.count()) await toggle.click();
+  }
+}
+
+const BUDGET = {
+  gate: "a command on a 1,500-word window updates the transcript", threshold_ms: 16, statistic: "p95 per command and overall",
+  measured: "keydown/click dispatch → store command → React commit → forced style and layout of the transcript (in-page performance.now)",
+};
+
 test.describe("gates: command budget", () => {
   test.use({ viewport: { width: 1920, height: 1080 } });
 
   test("a command on a 1,500-word window updates the transcript in ≤ 16 ms", async ({ page, browser }) => {
     test.setTimeout(180_000);
-    await openHarness(page, { dataset: "long1500" });
-    await expect(transcript(page).locator('[data-zone="body"]').first()).toBeVisible();
-    for (const name of [/Tampilkan \d+ kalimat sebelumnya/, /Tampilkan \d+ kalimat sesudahnya/]) {
-      await transcript(page).getByRole("button", { name }).click();
-    }
+    const errors = await openHarness(page, { dataset: "long1500" });
+    await unfoldContext(page);
     await expect(transcript(page).locator("[data-w]")).toHaveCount(1500);
-    const results = await page.evaluate(async () => {
-      const list = document.querySelector("[data-transcript-words]");
-      const settle = async (check) => {
-        for (let i = 0; i < 6 && !check(); i += 1) await Promise.resolve();
-        let frames = 0;
-        while (!check() && frames < 30) {
-          await new Promise((resolve) => requestAnimationFrame(resolve));
-          frames += 1;
-        }
-        void list.offsetHeight; // style and layout of the updated transcript
-        return check();
-      };
-      const span = (i) => list.querySelector(`[data-w="${i}"]`);
-      const mouse = (target, type, init = {}) => target.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, button: 0, ...init }));
-      const click = (i, init = {}) => {
-        const target = span(i);
-        if (!target) throw new Error(`word ${i} is not rendered (${list.querySelectorAll("[data-w]").length} words shown)`);
-        mouse(target, "mousedown", { buttons: 1, ...init });
-        mouse(target, "mouseup", init);
-        mouse(target, "click", init);
-      };
-      const key = (k, init = {}) => list.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true, cancelable: true, ...init }));
-      const bodyWords = [...list.querySelectorAll('[data-w][data-zone="body"]')].map((node) => Number(node.dataset.w));
-      const out = { RemoveWords: [], RestoreRemoval: [], SetWordEmphasis: [], SetWordHidden: [], EditWordText: [], TrimStart: [], Undo: [] };
-      const ok = { count: 0, failed: 0 };
-      const time = async (name, act, check) => {
-        const t0 = performance.now();
-        act();
-        const done = await settle(check);
-        out[name].push(performance.now() - t0);
-        ok.count += 1;
-        if (!done) ok.failed += 1;
-      };
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      for (let k = 0; k < 20; k += 1) {
-        const first = bodyWords[100 + k * 40];
-        click(first);
-        click(first + 4, { shiftKey: true });
-        await new Promise((resolve) => setTimeout(resolve, 0));
-        await time("RemoveWords", () => key("Delete"), () => span(first).hasAttribute("data-removed"));
-        const chip = list.querySelector("button[data-removal-id]");
-        await time("RestoreRemoval", () => chip.click(), () => !span(first).hasAttribute("data-removed"));
-        click(first + 1);
-        await new Promise((resolve) => setTimeout(resolve, 0));
-        await time("SetWordEmphasis", () => key("e", { ctrlKey: true }), () => span(first + 1).hasAttribute("data-emphasis"));
-        await time("SetWordHidden", () => key("X", { ctrlKey: true, shiftKey: true }), () => span(first + 1).hasAttribute("data-hidden"));
-        key("Enter");
-        await new Promise((resolve) => setTimeout(resolve, 0));
-        const input = list.querySelector("input[data-word-editor]");
-        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
-        setter.call(input, `kata${k}`);
-        input.dispatchEvent(new Event("input", { bubbles: true }));
-        await time("EditWordText", () => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })),
-          () => span(first + 1)?.textContent === `kata${k}`);
-        const trimAt = bodyWords[5 + k];
-        click(trimAt);
-        await new Promise((resolve) => setTimeout(resolve, 0));
-        await time("TrimStart", () => key("i"), () => span(trimAt - 1)?.dataset.zone === "before");
-        await time("Undo", () => window.__harness.store.undo(), () => span(trimAt - 1)?.dataset.zone === "body");
-      }
-      return { out, ok, spans: list.querySelectorAll("[data-w]").length };
-    });
-    const summary = {};
-    const all = [];
-    for (const [name, samples] of Object.entries(results.out)) {
-      const sorted = [...samples].sort((a, b) => a - b);
-      const pick = (q) => sorted[Math.min(sorted.length - 1, Math.ceil(q * sorted.length) - 1)];
-      summary[name] = { n: sorted.length, p50_ms: Number(pick(0.5).toFixed(2)), p95_ms: Number(pick(0.95).toFixed(2)), max_ms: Number(sorted.at(-1).toFixed(2)) };
-      all.push(...samples);
-    }
-    all.sort((a, b) => a - b);
-    const p95 = all[Math.ceil(0.95 * all.length) - 1];
-    const overall = { n: all.length, p50_ms: Number(all[Math.ceil(0.5 * all.length) - 1].toFixed(2)), p95_ms: Number(p95.toFixed(2)), max_ms: Number(all.at(-1).toFixed(2)) };
+    const results = await page.evaluate(measureCommands, { rounds: 20 });
+    const { overall, perCommand } = summarise(results.out);
     writeEvidence("T2.7-PF-TRANSCRIPT-1500.json", {
-      gate: "a command on a 1,500-word window updates the transcript", threshold_ms: 16, statistic: "p95 per command and overall",
-      measured: "keydown/click dispatch → store command → React commit → forced style and layout of the transcript (in-page performance.now)",
-      words: results.spans, viewport: { width: 1920, height: 1080 }, overall, per_command: summary, unsettled: results.ok.failed,
-      pass: results.ok.failed === 0 && Object.values(summary).every((entry) => entry.p95_ms <= 16), ...environment(browser),
+      ...BUDGET, words: results.spans, viewport: { width: 1920, height: 1080 }, overall, per_command: perCommand,
+      unsettled: results.unsettled, pass: results.unsettled === 0 && Object.values(perCommand).every((entry) => entry.p95_ms <= 16),
+      ...environment(browser),
     });
+    expect(errors).toEqual([]);
     expect(results.spans).toBe(1500);
-    expect(results.ok.failed).toBe(0);
-    for (const [name, entry] of Object.entries(summary)) expect(entry.p95_ms, name).toBeLessThanOrEqual(16);
+    expect(results.unsettled).toBe(0);
+    for (const [name, entry] of Object.entries(perCommand)) expect(entry.p95_ms, name).toBeLessThanOrEqual(16);
+  });
+
+  // Supplementary: the same budget on real clips (seed.json + words.<sha>.json of a prepared
+  // job, one directory per clip under T27_REAL_CLIPS). Nothing but counts and timings is kept.
+  const realRoot = process.env.T27_REAL_CLIPS || "";
+  const realClips = realRoot && existsSync(realRoot)
+    ? readdirSync(realRoot).filter((name) => /^clip_[0-9a-f]{24}$/.test(name)).sort() : [];
+  test("the same budget on real prepared clips (T27_REAL_CLIPS)", async ({ page, browser }) => {
+    test.skip(realClips.length === 0, "T27_REAL_CLIPS names no prepared clip directories");
+    test.setTimeout(300_000);
+    const clips = [];
+    for (const clip of realClips) {
+      const dir = path.join(realRoot, clip);
+      const wordsFile = readdirSync(dir).find((name) => /^words\.[0-9a-f]{16}\.json$/.test(name));
+      const words = JSON.parse(readFileSync(path.join(dir, wordsFile), "utf8"));
+      const doc = JSON.parse(readFileSync(path.join(dir, "seed.json"), "utf8"));
+      const errors = await openHarness(page, { words, doc });
+      await unfoldContext(page);
+      await expect(transcript(page).locator("[data-w]")).toHaveCount(words.words.length);
+      const results = await page.evaluate(measureCommands, { rounds: 10 });
+      const { overall, perCommand } = summarise(results.out);
+      clips.push({ words: results.spans, fps: doc.output.fps, cold_open: doc.main.segments.length > 1, overall, per_command: perCommand,
+        unsettled: results.unsettled, page_errors: errors.length });
+      expect(errors).toEqual([]);
+      expect(results.unsettled).toBe(0);
+      for (const [name, entry] of Object.entries(perCommand)) expect(entry.p95_ms, `${clip} ${name}`).toBeLessThanOrEqual(16);
+      await page.unrouteAll({ behavior: "ignoreErrors" });
+    }
+    writeEvidence("T2.7-PF-TRANSCRIPT-real.json", {
+      ...BUDGET, supplementary: true, source: "prepared V3 clips of a real job (read-only copy)", clips,
+      pass: clips.every((clip) => clip.unsettled === 0 && Object.values(clip.per_command).every((entry) => entry.p95_ms <= 16)),
+      ...environment(browser),
+    });
   });
 });
