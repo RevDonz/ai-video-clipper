@@ -135,13 +135,17 @@ function Transcript({ state, dispatch, player }) {
   const dragging = useRef(false);
   const revealFocus = useRef(false);
 
+  // Callbacks read the latest dispatch through a ref, so they (and the memoised paragraphs) stay
+  // stable even when the shell passes a new dispatch function on every render.
+  const dispatchRef = useRef(dispatch);
+  dispatchRef.current = dispatch;
   const focusList = useCallback(() => listRef.current?.focus({ preventScroll: true }), []);
   const run = useCallback((commands) => {
     if (!commands?.length) return false;
-    const result = runCommands(dispatch, commands);
+    const result = runCommands((...args) => dispatchRef.current(...args), commands);
     setMessage(result.ok ? null : result.message);
     return result.ok;
-  }, [dispatch]);
+  }, []);
 
   const perform = useCallback((name) => {
     const current = actionsRef.current;
@@ -348,6 +352,7 @@ function Transcript({ state, dispatch, player }) {
         onDoubleClick={onDoubleClick}
         onKeyDown={onKeyDown}
       >
+        {model.paragraphs.length === 0 ? <p className={styles.loading}>Transkrip klip ini kosong.</p> : null}
         {hiddenBefore.length ? (
           <button type="button" className={styles.context} onClick={() => setExpanded((value) => ({ ...value, before: true }))}>
             {contextLabel(hiddenBefore, "sebelumnya")}

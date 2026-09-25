@@ -131,10 +131,11 @@
   background: rgba(47, 111, 237, 0.08);
 }
 
+/* Dimmed, yet ≥ 4.5:1 on the panel (#6b7280 on white is 4.8:1): no opacity, which would
+   break text contrast. */
 .word[data-zone="before"],
 .word[data-zone="after"] {
-  color: var(--ed-color-text-muted, #5b6270);
-  opacity: 0.55;
+  color: #6b7280;
 }
 
 .word[data-lowconf] {
@@ -145,8 +146,9 @@
 
 .word[data-removed],
 .word[data-co-removed] {
-  color: var(--ed-color-removed, #9aa1ad);
+  color: #6b7280;
   text-decoration: line-through;
+  text-decoration-color: var(--ed-color-removed, #9aa1ad);
 }
 
 .word[data-cold] {
@@ -173,21 +175,25 @@
 
 /* Opaque so the shadows that bridge the spaces between selected words do not stack. */
 .word[data-selected] {
+  color: var(--ed-color-text, #16181d);
   background: #d3e0fb;
   box-shadow: -0.16em 0 0 #d3e0fb, 0.16em 0 0 #d3e0fb;
 }
 
 .word[data-emphasis][data-selected] {
+  color: var(--tr-emphasis, #ff5c8a);
   background: #1d2129;
   box-shadow: 0 0 0 2px #7fa3f3;
 }
 
 .word[data-active] {
+  color: var(--ed-color-text, #16181d);
   background: #ffe9a8;
   box-shadow: 0 0 0 1px #e0b100;
 }
 
 .word[data-emphasis][data-active] {
+  color: var(--tr-emphasis, #ff5c8a);
   background: #1d2129;
   box-shadow: 0 0 0 2px #e0b100;
 }

@@ -38,10 +38,10 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT / "src") not in sys.path:
     sys.path.insert(0, str(ROOT / "src"))
 
-from ai_clipper import captions_ass  # noqa: E402
-from ai_clipper.edit_v2 import PACK_DEFAULT_OVERRIDES, PACK_IDS  # noqa: E402
-from ai_clipper.edit_v2.timemap import Fps  # noqa: E402
-from ai_clipper.subtitles import FrameCue, FrameWord  # noqa: E402
+from ai_clipper import captions_ass
+from ai_clipper.edit_v2 import PACK_DEFAULT_OVERRIDES, PACK_IDS
+from ai_clipper.edit_v2.timemap import Fps
+from ai_clipper.subtitles import FrameCue, FrameWord
 
 SCHEMA = "potongin.pack-thumbs/1"
 PACKS = PACK_IDS
