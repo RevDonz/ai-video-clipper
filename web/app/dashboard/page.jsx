@@ -7,7 +7,17 @@ import {
   recoverFailedJobSelection,
   storageStatusView,
 } from "../../lib/dashboard-storage-status.mjs";
-import { clipCaptionText, clipPosterUrl, llmStatusView, selectionSourceLabel } from "../../lib/selection-v3-view.mjs";
+import {
+  FOCUS_LIMITS,
+  addFocusTerms,
+  clipCaptionText,
+  clipPosterUrl,
+  focusFormFields,
+  llmStatusView,
+  normalizeFocusText,
+  selectionSourceLabel,
+} from "../../lib/selection-v3-view.mjs";
+import focusStyles from "./focus.module.css";
 
 const layouts = [
   {
@@ -89,6 +99,101 @@ function LlmBadge({ status, llmMode }) {
   );
 }
 
+/**
+ * Fokus klip (docs/plans/2026-09-25-fokus-klip.md §3): focus terms as removable chips (a comma
+ * or Enter makes a chip) plus a free note for the AI. Empty means no focus: nothing is sent.
+ */
+function FocusField({ terms, draft, note, error, llmMode, onTermsChange, onDraftChange, onNoteChange, onErrorChange }) {
+  const inputRef = useRef(null);
+  const removeButtons = useRef([]);
+  const refocusIndex = useRef(null);
+  const noteLength = Array.from(normalizeFocusText(note)).length;
+  const full = terms.length >= FOCUS_LIMITS.terms;
+
+  // After a chip is removed, keyboard focus moves to the next chip's button, else the input.
+  useEffect(() => {
+    removeButtons.current.length = terms.length;
+    if (refocusIndex.current === null) return;
+    const index = Math.min(refocusIndex.current, terms.length - 1);
+    refocusIndex.current = null;
+    (index >= 0 ? removeButtons.current[index] : inputRef.current)?.focus();
+  }, [terms]);
+
+  function apply(result, rest = "") {
+    onTermsChange(result.terms);
+    onDraftChange([result.pending, rest].filter(Boolean).join(", "));
+    onErrorChange(result.error);
+  }
+
+  function changeDraft(value) {
+    const cut = Math.max(value.lastIndexOf(","), value.lastIndexOf("\n"));
+    if (cut < 0) {
+      onDraftChange(value);
+      if (error) onErrorChange("");
+      return;
+    }
+    apply(addFocusTerms(terms, value.slice(0, cut)), value.slice(cut + 1).trimStart());
+  }
+
+  function commitDraft() {
+    if (normalizeFocusText(draft)) apply(addFocusTerms(terms, draft));
+  }
+
+  function remove(index) {
+    refocusIndex.current = index;
+    onTermsChange(terms.filter((_, position) => position !== index));
+    onErrorChange("");
+  }
+
+  return (
+    <div className={focusStyles.focus} role="group" aria-label="Fokus klip">
+      <div className={focusStyles.head}>
+        <label className={focusStyles.label} htmlFor="focus-terms-input">Cari momen tentang… (opsional)</label>
+        <span className={focusStyles.count} aria-hidden="true">{terms.length}/{FOCUS_LIMITS.terms}</span>
+      </div>
+      <div className={focusStyles.box}>
+        {terms.length > 0 && (
+          <ul className={focusStyles.chips} aria-label="Kata kunci fokus">
+            {terms.map((term, index) => (
+              <li key={term}>
+                <span>{term}</span>
+                <button type="button" ref={(node) => { removeButtons.current[index] = node; }} aria-label={`Hapus kata kunci ${term}`} onClick={() => remove(index)}>×</button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <input
+          id="focus-terms-input"
+          ref={inputRef}
+          className={focusStyles.input}
+          type="text"
+          autoComplete="off"
+          enterKeyHint="enter"
+          value={draft}
+          placeholder={full ? `Maksimal ${FOCUS_LIMITS.terms} kata kunci` : terms.length ? "Tambah kata kunci…" : "contoh: jomok, prank, tips kerja"}
+          aria-describedby="focus-terms-help"
+          aria-invalid={error ? "true" : undefined}
+          onChange={(event) => changeDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
+            event.preventDefault();
+            commitDraft();
+          }}
+          onBlur={commitDraft}
+        />
+      </div>
+      <p id="focus-terms-help" className={focusStyles.help}>Momen yang membahas kata kunci ini diutamakan; sisa slot diisi momen terbaik lain berlabel “Di luar fokus”. Pisahkan dengan koma atau Enter, maksimal {FOCUS_LIMITS.terms}.</p>
+      {error && <p className={focusStyles.error} role="alert">{error}</p>}
+      <label className={focusStyles.noteLabel} htmlFor="focus-note">Catatan untuk AI (opsional)</label>
+      <textarea id="focus-note" className={focusStyles.note} rows={2} value={note} placeholder="contoh: momen jomok yang lucu" aria-describedby="focus-note-help" onChange={(event) => onNoteChange(event.target.value)} />
+      <p id="focus-note-help" className={`${focusStyles.help} ${focusStyles.noteMeta}`}>
+        <span>{llmMode === "off" ? "Tanpa LLM, hanya momen yang menyebut kata kuncinya langsung yang dikenali; catatan tidak dipakai." : "Jelaskan momen yang dicari dengan kalimat biasa."}</span>
+        <span className={noteLength > FOCUS_LIMITS.note ? focusStyles.over : undefined}>{noteLength}/{FOCUS_LIMITS.note}</span>
+      </p>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const [sourceType, setSourceType] = useState("youtube");
   const [youtubeUrl, setYoutubeUrl] = useState("");
@@ -103,6 +208,10 @@ export default function DashboardPage() {
   const [hookOverlay, setHookOverlay] = useState(true);
   const [captionStyle, setCaptionStyle] = useState("karaoke");
   const [clipProfile, setClipProfile] = useState("standard");
+  const [focusTerms, setFocusTerms] = useState([]);
+  const [focusDraft, setFocusDraft] = useState("");
+  const [focusNote, setFocusNote] = useState("");
+  const [focusError, setFocusError] = useState("");
   const [llmStatus, setLlmStatus] = useState(null);
   const [jobs, setJobs] = useState([]);
   const [activeId, setActiveId] = useState(null);
@@ -196,6 +305,18 @@ export default function DashboardPage() {
   async function submit(event) {
     event.preventDefault();
     setMessage("");
+    // Focus is a V3 option; without terms it sends nothing and the payload is unchanged.
+    let focus = { fields: {} };
+    if (selectionMode === "v3") {
+      focus = focusFormFields({ terms: focusTerms, pending: focusDraft, note: focusNote });
+      setFocusTerms(focus.terms);
+      setFocusDraft(focus.pending);
+      if (!focus.fields) {
+        setFocusError(focus.error);
+        setMessage(focus.error);
+        return;
+      }
+    }
     setSubmitting(true);
     try {
       const data = new FormData();
@@ -209,6 +330,7 @@ export default function DashboardPage() {
         data.set("coldOpen", String(coldOpen));
         data.set("hookOverlay", String(hookOverlay));
         data.set("captionStyle", captionStyle);
+        for (const [name, value] of Object.entries(focus.fields)) data.set(name, value);
       } else if (selectionMode === "v2-shadow") {
         data.set("clipProfile", clipProfile);
       }
@@ -327,6 +449,17 @@ export default function DashboardPage() {
                     <span><strong>Tanpa LLM (heuristik)</strong><small>Tanpa internet; transkrip tidak dikirim ke mana pun.</small></span>
                   </label>
                 </fieldset>
+                <FocusField
+                  terms={focusTerms}
+                  draft={focusDraft}
+                  note={focusNote}
+                  error={focusError}
+                  llmMode={llmMode}
+                  onTermsChange={setFocusTerms}
+                  onDraftChange={setFocusDraft}
+                  onNoteChange={setFocusNote}
+                  onErrorChange={setFocusError}
+                />
                 <div className="toggleList">
                   <label className="shadowToggle">
                     <input type="checkbox" checked={coldOpen} onChange={(event) => setColdOpen(event.target.checked)} />

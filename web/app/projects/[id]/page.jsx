@@ -20,9 +20,11 @@ import {
   archetypeLabel,
   captionParts,
   clipCaptionText,
+  clipFocusChip,
   clipPosterUrl,
   clipTrendChips,
   coldOpenLength,
+  focusSummaryLine,
   formatTenths,
   isV3Job,
   scoreRows,
@@ -31,6 +33,7 @@ import {
   selectionWarningLabel,
   tenPointScore,
 } from "../../../lib/selection-v3-view.mjs";
+import focusStyles from "./focus.module.css";
 
 const STATUS_LABELS = {
   queued: "Menunggu",
@@ -287,7 +290,19 @@ function SelectionV3Summary({ summary }) {
   );
 }
 
-function V3ClipCard({ clip, copied, onCopy }) {
+// Fokus klip: "Fokus: jomok, jomokers — 5 dari 8 klip cocok". Nothing for jobs without focus.
+function FocusSummary({ job }) {
+  const view = focusSummaryLine(job);
+  if (!view) return null;
+  return (
+    <p className={focusStyles.focusLine}>
+      <span className={focusStyles.label}>Fokus:</span> {view.termsText}
+      {view.countText && <> — <strong>{view.countText}</strong></>}
+    </p>
+  );
+}
+
+function V3ClipCard({ clip, job, copied, onCopy }) {
   const index = String(clip.index).padStart(2, "0");
   const titleId = `v3-clip-${index}`;
   const score = tenPointScore(clip.score);
@@ -299,6 +314,7 @@ function V3ClipCard({ clip, copied, onCopy }) {
   const reasons = Array.isArray(clip.reasons) ? clip.reasons : [];
   const sourceRange = typeof clip.sourceStart === "number" && typeof clip.sourceEnd === "number";
   const trendChips = clipTrendChips(clip);
+  const focusChip = clipFocusChip(clip, job);
 
   return (
     <article className="v3Clip" aria-labelledby={titleId}>
@@ -309,6 +325,7 @@ function V3ClipCard({ clip, copied, onCopy }) {
           {source && <span className={`sourceBadge ${clip.selectionSource}`}>{source}</span>}
           {archetype && <span className="archetypeBadge">{archetype}</span>}
           {coldOpen !== null && <span className="coldOpenBadge" title="Kalimat hook diputar lebih dulu sebelum klip dimulai">Cold open {formatTenths(coldOpen)} dtk</span>}
+          {focusChip && <span className={`${focusStyles.chip} ${focusStyles[focusChip.tone]}`} data-focus={focusChip.tone}>{focusChip.label}</span>}
         </div>
         <h3 id={titleId}>{clip.title}</h3>
         {clip.hookText && <p className="hookLine"><span>Teks hook</span>{clip.hookText}</p>}
@@ -468,8 +485,9 @@ export default function ProjectDetailPage({ params }) {
             <section className="legacySection v3Section shell" aria-labelledby="v3-clips-title">
               <header><div className="eyebrow">SELECTION V3 · AI HOOK</div><h2 id="v3-clips-title">Klip siap posting</h2><p>Judul, teks hook, deskripsi, dan hashtag dibuat bersamaan dengan pemilihan momen. Salin caption, unduh MP4, lalu unggah.</p></header>
               <SelectionV3Summary summary={job.selectionV3} />
+              <FocusSummary job={job} />
               {clips.length ? <div className="v3Clips">{clips.map((clip) => (
-                <V3ClipCard key={clip.index} clip={clip} copied={copyState.index === clip.index ? copyState.status : ""} onCopy={copyCaption} />
+                <V3ClipCard key={clip.index} clip={clip} job={job} copied={copyState.index === clip.index ? copyState.status : ""} onCopy={copyCaption} />
               ))}</div> : <div className="noClips"><strong>{job.status === "failed" ? "Proses ini gagal" : "Klip belum tersedia"}</strong><p>{STATUS_LABELS[job.status] || job.status} · progres {progress}%</p></div>}
             </section>
           )}

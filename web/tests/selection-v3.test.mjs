@@ -655,6 +655,29 @@ test("project page shows V3 packaging only for V3 jobs and keeps the legacy layo
   assert.doesNotMatch(source, /dangerouslySetInnerHTML/);
 });
 
+test("dashboard: the focus input is part of the V3 options and its fields are sent only from the V3 branch", async () => {
+  const source = await readFile(new URL("../app/dashboard/page.jsx", import.meta.url), "utf8");
+  for (const text of ["Cari momen tentang… (opsional)", "Catatan untuk AI (opsional)"]) assert.ok(source.includes(text), text);
+  const v3Options = /\{selectionMode === "v3" && \(\s*<div className="v3Options">([\s\S]*?)<\/div>\s*\)\}/.exec(source);
+  assert.ok(v3Options, "V3 options block");
+  assert.match(v3Options[1], /<FocusField\b/);
+  const v3Branch = /if \(selectionMode === "v3"\) \{([\s\S]*?)\} else if \(selectionMode === "v2-shadow"\)/.exec(source);
+  assert.ok(v3Branch, "V3 submit branch");
+  assert.match(v3Branch[1], /for \(const \[name, value\] of Object\.entries\(focus\.fields\)\) data\.set\(name, value\);/);
+  // No other place names the focus form fields: an empty focus sends nothing.
+  assert.doesNotMatch(source, /data\.set\("focus/);
+  assert.match(source, /focusFormFields\(/);
+  assert.doesNotMatch(source, /dangerouslySetInnerHTML/);
+});
+
+test("project page: focus line and per-clip focus labels come from the view helpers, as text", async () => {
+  const source = await readFile(new URL("../app/projects/[id]/page.jsx", import.meta.url), "utf8");
+  assert.match(source, /focusSummaryLine\(job\)/);
+  assert.match(source, /clipFocusChip\(clip, job\)/);
+  assert.match(source, /<V3ClipCard key=\{clip\.index\} clip=\{clip\} job=\{job\}/);
+  assert.doesNotMatch(source, /dangerouslySetInnerHTML/);
+});
+
 // --- LLM status -------------------------------------------------------------------
 
 const SECRET_ENV = {
