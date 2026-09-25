@@ -360,13 +360,13 @@ export async function readWordsArtifact(jobsRoot, jobId, clipId, sha) {
   if (!isJobId(jobId) || !isClipId(clipId) || !isEtag(sha)) throw new WordsNotFoundError();
   let handle;
   try {
-    const root = await realpath(path.resolve(jobsRoot));
+    const root = await realpath(path.resolve(/* turbopackIgnore: true */ jobsRoot));
     const job = path.join(root, jobId);
     const clip = path.join(job, "analysis", "clips", clipId);
     for (const directory of [job, path.join(job, "analysis"), path.join(job, "analysis", "clips"), clip]) {
       await realDirectory(directory);
     }
-    handle = await open(path.join(clip, `words.${sha.slice(0, 16)}.json`),
+    handle = await open(path.join(/* turbopackIgnore: true */ clip, `words.${sha.slice(0, 16)}.json`),
       constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
     const info = await handle.stat();
     if (!info.isFile() || info.size > MAX_WORDS_BYTES) throw new WordsNotFoundError();
