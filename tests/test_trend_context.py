@@ -126,8 +126,8 @@ def test_load_trend_context_reports_generated_at_and_ignores_extra_fields(tmp_pa
 
 
 def test_text_is_normalized_like_the_server():
-    assert clean_trend_text("Café  ‮Kabur​ aja\n dulu\x07") == "Café Kabur aja dulu"
-    assert clean_trend_text("baris satu\r\nbaris dua tiga", multiline=True) == (
+    assert clean_trend_text("Cafe\u0301  \u202eKabur\u200b aja\n dulu\x07") == "Café Kabur aja dulu"
+    assert clean_trend_text("baris satu\r\nbaris dua\u2028tiga", multiline=True) == (
         "baris satu\nbaris dua\ntiga"
     )
     six = "\n".join(f"baris {index}" for index in range(1, 7))
@@ -137,7 +137,7 @@ def test_text_is_normalized_like_the_server():
 
 
 def test_titles_and_keywords_are_cleaned_before_their_length_is_checked(tmp_path):
-    loud = raw_item(title="⁦Kabur\n Aja   Dulu⁩", keywords=["  kabur​aja  "])
+    loud = raw_item(title="\u2066Kabur\n Aja   Dulu\u2069", keywords=["  kabur\u200baja  "])
     [parsed] = read_trend_context(write(tmp_path, snapshot(loud)))
 
     assert parsed.title == "Kabur Aja Dulu"
