@@ -30,7 +30,7 @@ libx264
 -preset
 veryfast
 -crf
-21
+18
 -profile:v
 high
 -pix_fmt
@@ -38,7 +38,7 @@ yuv420p
 -g
 48
 -x264-params
-threads=4
+threads=4:chroma-qp-offset=-12
 -color_primaries
 bt709
 -color_trc
@@ -120,5 +120,5 @@ captions.ass d7b683aafb3b52af93dea860c124fc998405fe484beba7252a35a0e19ff6ed1d
 [vr0]settb=1001/24000[vcat];
 [vcat]scale=1080:1920:force_original_aspect_ratio=increase:in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuv444p,crop=1080:1920,setsar=1[vlay];
 [vlay]scale=in_color_matrix=bt709:in_range=tv,format=gbrp,ass=filename=captions.ass:fontsdir=fonts:shaping=complex[vtext];
-[vtext]scale=out_color_matrix=bt709:out_range=tv,format=yuv420p[vout]
+[vtext]scale=out_color_matrix=bt709:out_range=tv:flags=accurate_rnd+full_chroma_int+full_chroma_inp+lanczos,format=yuv420p[vout]
 

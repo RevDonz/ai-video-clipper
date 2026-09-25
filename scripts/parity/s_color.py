@@ -48,7 +48,13 @@ import reference_text as rt
 from compare import Box
 
 from ai_clipper import captions_ass
+from ai_clipper.edit_v2 import compile_ffmpeg
 from ai_clipper.edit_v2.timemap import Fps
+
+R7_DESCRIPTION = (
+    f"R7 Standar (x264 {compile_ffmpeg.STANDAR[0]} crf {compile_ffmpeg.STANDAR[1]}, "
+    f"chroma-qp-offset {compile_ffmpeg.STANDAR_CHROMA_QP_OFFSET}, yuv420p via "
+    f"{compile_ffmpeg.FINAL_SCALE_FLAGS}, BT.709 tags)")
 
 WITHIN = 0.002
 LAYOUTS = ("fit_blur", "fill_center")
@@ -569,8 +575,8 @@ def write_evidence(*, decision: Mapping, browser: Path, matrix: Mapping | None, 
     files["P-ENC"] = {
         "task": task, "gate": "P-ENC (baseline)", "thresholds": p_enc["thresholds"],
         "domain": p_enc.get("domain"), "diagnostic": p_enc.get("diagnostic"),
-        "baseline_tolerance": p_enc["baseline_tolerance"], "encode": "R7 Standar (x264 veryfast "
-        "crf 21, yuv420p, BT.709 tags)", "toolchain": toolchain, "baseline_format": chosen,
+        "baseline_tolerance": p_enc["baseline_tolerance"], "encode": R7_DESCRIPTION,
+        "toolchain": toolchain, "baseline_format": chosen,
         "plate": "fit_blur of testsrc2 (synthetic, saturated)",
         "common_reference": p_enc.get("common_reference"),
         "formats": _p_enc_formats(p_enc, chosen),
