@@ -168,6 +168,24 @@ new Selection V2 domain models pass.
   `docs/evaluation/SELECTION_BENCHMARK.md`. No V3 numbers are claimed yet.
 - The contracts are in `docs/plans/2026-09-24-selection-v3-llm-hooks.md`.
 
+## Konteks Tren: tren dari agen luar
+
+**Bahasa Indonesia.** Potongin bisa menerima **konteks tren** (orang, topik, jokes/meme, sound,
+hashtag yang sedang ramai di Indonesia) dari agen milik pemilik, misalnya Hermes Agent, lewat
+`POST /api/ingest/trends` dengan token `ptk_…`. Potongin sendiri tidak men-scrape platform apa
+pun. Tren hanya dipakai untuk kemasan klip V3 (judul, teks hook, deskripsi, hashtag) dan dorongan
+peringkat kecil, dan hanya bila transkrip klip benar-benar menyebutnya. Tanpa item aktif,
+hasilnya identik. Item dan token dikelola di halaman **Konteks Tren** (`/trends`).
+
+- Paket agen (skill Hermes, prompt cron, OpenAPI, `scripts/trends/push_trends.py`):
+  [`docs/integrations/hermes-trends/README.md`](docs/integrations/hermes-trends/README.md).
+- Panduan operator (token, file, batas, keamanan, cara mematikan):
+  [`docs/operations/TREND_CONTEXT.md`](docs/operations/TREND_CONTEXT.md).
+
+**English.** An owner-run agent pushes trending Indonesian topics to a token-authenticated
+endpoint; Selection V3 uses them only for packaging and a capped ranking boost when a clip's
+transcript actually mentions them, with no change at all when no trend items are active.
+
 ## What is real today
 
 - Local Indonesian transcription with faster-whisper, word timestamps, and a transcript
