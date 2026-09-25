@@ -326,7 +326,7 @@ def score(fixtures: Path, browser: Path) -> dict[str, Any]:
 
 # --- evidence -------------------------------------------------------------------------------------
 
-_DROP_KEYS = ("executable", "details", "files", "procs")
+_DROP_KEYS = ("executable", "details", "files", "procs", "pid")
 
 
 def _numbers_only(value: Any) -> Any:
@@ -438,9 +438,12 @@ def write_evidence(fixtures: Path, browser: Path, out_dir: Path, *, task: str = 
         if not source.is_file():
             continue
         body, ok = build(json.loads(source.read_text(encoding="utf-8")))
-        data = {"gate": gate, "task": task, "pass": ok,
-                "browser": body.get("browser") if isinstance(body, dict) else None,
-                "toolchain": manifest.get("toolchain"), **_numbers_only(body)}
+        browser_version = body.get("browser") if isinstance(body, dict) else None
+        if browser_version is None and (browser / "composite_run.json").is_file():
+            browser_version = json.loads((browser / "composite_run.json").read_text(
+                encoding="utf-8")).get("browser")
+        data = {**_numbers_only(body), "gate": gate, "task": task, "pass": ok,
+                "browser": browser_version, "toolchain": manifest.get("toolchain")}
         if supplementary and gate in supplementary:
             data["supplementary"] = _numbers_only(dict(supplementary[gate]))
         path = out_dir / f"{task}-{gate}.json"

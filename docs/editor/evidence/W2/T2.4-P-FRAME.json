@@ -1,0 +1,141 @@
+{
+  "browser": "147.0.7727.15",
+  "cases": [
+    {
+      "case": "cfr_29.97",
+      "crop_x_checked": 0,
+      "crop_x_mismatches": 0,
+      "fps": [
+        30000,
+        1001
+      ],
+      "frames": 610,
+      "layout": "fit_blur",
+      "mismatches": 0,
+      "pieces": 22,
+      "seek_ms": {
+        "max": 27.299999952316284,
+        "p50": 8.400000095367432,
+        "p95": 11.800000190734863
+      },
+      "unpresented": 0,
+      "vfr": false
+    },
+    {
+      "case": "cfr_25",
+      "crop_x_checked": 460,
+      "crop_x_mismatches": 0,
+      "fps": [
+        25,
+        1
+      ],
+      "frames": 460,
+      "layout": "fill_center",
+      "mismatches": 0,
+      "pieces": 22,
+      "seek_ms": {
+        "max": 32.299999952316284,
+        "p50": 8.799999952316284,
+        "p95": 12
+      },
+      "unpresented": 0,
+      "vfr": false
+    },
+    {
+      "case": "cfr_30",
+      "crop_x_checked": 610,
+      "crop_x_mismatches": 0,
+      "fps": [
+        30,
+        1
+      ],
+      "frames": 610,
+      "layout": "camera",
+      "mismatches": 0,
+      "pieces": 22,
+      "seek_ms": {
+        "max": 31.799999952316284,
+        "p50": 8.5,
+        "p95": 11.700000047683716
+      },
+      "unpresented": 0,
+      "vfr": false
+    },
+    {
+      "case": "vfr_30",
+      "crop_x_checked": 0,
+      "crop_x_mismatches": 0,
+      "fps": [
+        30,
+        1
+      ],
+      "frames": 610,
+      "layout": "fit_blur",
+      "mismatches": 0,
+      "pieces": 22,
+      "seek_ms": {
+        "max": 35.200000047683716,
+        "p50": 8.599999904632568,
+        "p95": 12.399999856948853
+      },
+      "unpresented": 0,
+      "vfr": true
+    },
+    {
+      "case": "edge_end_29.97",
+      "crop_x_checked": 855,
+      "crop_x_mismatches": 0,
+      "fps": [
+        30000,
+        1001
+      ],
+      "frames": 855,
+      "layout": "fill_center",
+      "mismatches": 0,
+      "pieces": 6,
+      "seek_ms": {
+        "max": 33.09999990463257,
+        "p50": 8.700000047683716,
+        "p95": 11.399999856948853
+      },
+      "unpresented": 0,
+      "vfr": false
+    },
+    {
+      "case": "edge_start_23.976",
+      "crop_x_checked": 0,
+      "crop_x_mismatches": 0,
+      "fps": [
+        24000,
+        1001
+      ],
+      "frames": 480,
+      "layout": "fit_blur",
+      "mismatches": 0,
+      "pieces": 7,
+      "seek_ms": {
+        "max": 36.200000047683716,
+        "p50": 8.900000095367432,
+        "p95": 12.5
+      },
+      "unpresented": 0,
+      "vfr": false
+    }
+  ],
+  "gate": "P-FRAME",
+  "pass": true,
+  "task": "T2.4",
+  "threshold": {
+    "min_frames": 2000,
+    "mismatches": 0
+  },
+  "toolchain": {
+    "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "python": "3.11.2",
+    "reference_toolchain_problem": null
+  },
+  "totals": {
+    "frames": 3625,
+    "mismatches": 0
+  }
+}

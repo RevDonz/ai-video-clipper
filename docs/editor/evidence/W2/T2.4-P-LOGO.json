@@ -1,0 +1,168 @@
+{
+  "browser": "147.0.7727.15",
+  "failures": [],
+  "frames": 8,
+  "frames_detail": [
+    {
+      "box": [
+        576,
+        61,
+        691,
+        119
+      ],
+      "box_exact": true,
+      "frame": 1,
+      "max": 2,
+      "mean_abs": 1.106696651674163,
+      "plan_box": [
+        576,
+        61,
+        691,
+        119
+      ]
+    },
+    {
+      "box": [
+        576,
+        61,
+        691,
+        119
+      ],
+      "box_exact": true,
+      "frame": 12,
+      "max": 2,
+      "mean_abs": 1.106696651674163,
+      "plan_box": [
+        576,
+        61,
+        691,
+        119
+      ]
+    },
+    {
+      "box": [
+        576,
+        61,
+        691,
+        119
+      ],
+      "box_exact": true,
+      "frame": 21,
+      "max": 2,
+      "mean_abs": 1.106696651674163,
+      "plan_box": [
+        576,
+        61,
+        691,
+        119
+      ]
+    },
+    {
+      "box": [
+        576,
+        61,
+        691,
+        119
+      ],
+      "box_exact": true,
+      "frame": 43,
+      "max": 2,
+      "mean_abs": 1.106496751624188,
+      "plan_box": [
+        576,
+        61,
+        691,
+        119
+      ]
+    },
+    {
+      "box": [
+        576,
+        61,
+        691,
+        119
+      ],
+      "box_exact": true,
+      "frame": 60,
+      "max": 2,
+      "mean_abs": 1.1984007996002,
+      "plan_box": [
+        576,
+        61,
+        691,
+        119
+      ]
+    },
+    {
+      "box": [
+        576,
+        61,
+        691,
+        119
+      ],
+      "box_exact": true,
+      "frame": 72,
+      "max": 2,
+      "mean_abs": 1.1984007996002,
+      "plan_box": [
+        576,
+        61,
+        691,
+        119
+      ]
+    },
+    {
+      "box": [
+        576,
+        61,
+        691,
+        119
+      ],
+      "box_exact": true,
+      "frame": 81,
+      "max": 2,
+      "mean_abs": 1.1984007996002,
+      "plan_box": [
+        576,
+        61,
+        691,
+        119
+      ]
+    },
+    {
+      "box": [
+        576,
+        61,
+        691,
+        119
+      ],
+      "box_exact": true,
+      "frame": 128,
+      "max": 2,
+      "mean_abs": 1.1816591704147925,
+      "plan_box": [
+        576,
+        61,
+        691,
+        119
+      ]
+    }
+  ],
+  "gate": "P-LOGO",
+  "pass": true,
+  "task": "T2.4",
+  "thresholds": {
+    "box_px": 0,
+    "max": 8,
+    "mean_abs": 2.0
+  },
+  "toolchain": {
+    "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "python": "3.11.2",
+    "reference_toolchain_problem": null
+  },
+  "worst": {
+    "max": 2,
+    "mean_abs": 1.1984007996002
+  }
+}
