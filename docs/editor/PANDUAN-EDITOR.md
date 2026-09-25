@@ -11,8 +11,10 @@ tampilan mesin baru (keputusan K1 di checkpoint 2).
 ## 1. Yang sudah bisa dipakai
 
 Buka proyek V3, lalu klik **"Edit klip"** di kartu klip. Untuk proyek yang dibuat sebelum
-editor ini ada, klik **"Siapkan untuk editor"** sekali per proyek (beberapa detik; setelah itu
-tombol "Edit klip" muncul).
+editor ini ada, klik **"Siapkan untuk editor"** sekali per proyek (beberapa detik; proyek
+face-track sampai ± 1 menit karena jalur kameranya dihitung; setelah itu tombol "Edit klip"
+muncul). Pembukaan pertama tiap klip butuh 1–3 detik sampai gambar pertama tampil, karena potongan
+video pratinjaunya dibuat saat itu.
 
 Di dalam editor:
 

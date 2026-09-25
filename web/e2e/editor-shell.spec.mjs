@@ -282,6 +282,10 @@ function installScenario(config) {
           player.load(plan);
           if (config.unsupported) { emit("unsupported"); return; }
           auto = Boolean(plan?.rev0?.exact);
+          // The player owns the <video>'s src (T2.4; the Stage no longer sets it, T2.Z patch 28).
+          if (auto && options.video && options.video.getAttribute("src") !== plan.rev0.autoRenderUrl) {
+            options.video.setAttribute("src", plan.rev0.autoRenderUrl);
+          }
           if (auto) emit("auto_render");
         },
         state() {
