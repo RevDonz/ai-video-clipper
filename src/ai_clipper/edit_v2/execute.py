@@ -227,6 +227,18 @@ def _supervise(
                                         daemon=True))
     for reader in readers:
         reader.start()
+    # The exit wakes the loop at once (a waiter thread); cancel, the deadline and stalls are
+    # still checked every POLL_S. Before, the loop slept POLL_S, adding up to 50 ms to every
+    # process: the truth frame runs two (PF-TRUTH, T2.3's request).
+    exited = threading.Event()
+
+    def _wait_exit() -> None:
+        try:
+            process.wait()
+        finally:
+            exited.set()
+
+    threading.Thread(target=_wait_exit, daemon=True).start()
     reason = None
     reported = -1
     try:
@@ -244,10 +256,7 @@ def _supervise(
             if on_progress is not None and progress.frame != reported:
                 reported = progress.frame
                 on_progress(reported)
-            if cancel is not None:
-                cancel.wait(POLL_S)
-            else:
-                time.sleep(POLL_S)
+            exited.wait(POLL_S)
     except BaseException:
         if process.poll() is None:
             _kill_group(process)
