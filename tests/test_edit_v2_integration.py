@@ -247,9 +247,9 @@ EDGE_JOB = {"id": "8f0c2a1e-5b7d-4c3a-9e21-6d4f0b8a7c55", "seedAtMs": 0,
                         "coldOpen": False, "hookOverlay": False, "selectionMode": "v3"}}
 EDGE_CASES = {
     # 902 frames at 29.97 (30,096.73 ms): the clip runs to the end of the source
-    "end_29.97": (dict(fps=(30000, 1001), frames=902), "end"),
+    "end_29.97": ({"fps": (30000, 1001), "frames": 902}, "end"),
     # the video starts 41 ms after the audio: the clip starts at t = 0
-    "delayed_23.976": (dict(fps=(24000, 1001), frames=240, video_delay_ms=41), "start"),
+    "delayed_23.976": ({"fps": (24000, 1001), "frames": 240, "video_delay_ms": 41}, "start"),
 }
 
 
