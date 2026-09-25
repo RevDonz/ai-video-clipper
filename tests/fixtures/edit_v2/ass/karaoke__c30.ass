@@ -1,0 +1,62 @@
+[Script Info]
+ScriptType: v4.00+
+WrapStyle: 0
+ScaledBorderAndShadow: yes
+YCbCr Matrix: None
+PlayResX: 720
+PlayResY: 1280
+
+[V4+ Styles]
+Format: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding
+Style: Karaoke,DejaVu Sans,53,&H004DE1FF,&H00FFFFFF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,8.53,4.44,2,43,43,218,1
+Style: Hook,DejaVu Sans,59,&H00FFFFFF,&H00FFFFFF,&H59000000,&H59000000,-1,0,0,0,100,100,0,0,3,14,0,8,43,43,166,1
+
+[Events]
+Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text
+Dialogue: 0,0:00:00.26,0:00:01.79,Karaoke,,0,0,0,,{\k40}kopi {\k30}katanya {\k50}sumpah {\k33}lagi
+Dialogue: 0,0:00:01.83,0:00:02.76,Karaoke,,0,0,0,,{\k43}dong {\k34}dong {\k16}mah.
+Dialogue: 0,0:00:03.43,0:00:04.53,Karaoke,,0,0,0,,{\k43}nahan {\k40}langsung {\k27}ketawa
+Dialogue: 0,0:00:06.13,0:00:07.90,Karaoke,,0,0,0,,{\k40}anu {\k57}anu {\k43}sumpah {\k37}sumpah
+Dialogue: 0,0:00:07.97,0:00:08.67,Karaoke,,0,0,0,,{\k33}katanya {\k37}film.
+Dialogue: 0,0:00:09.14,0:00:10.64,Karaoke,,0,0,0,,{\k50}orang {\k40}kenapa {\k33}pelan {\k27}pokoknya
+Dialogue: 0,0:00:10.77,0:00:12.27,Karaoke,,0,0,0,,{\k40}kru {\k33}waktu {\k47}eh {\k30}sih
+Dialogue: 0,0:00:12.34,0:00:12.64,Karaoke,,0,0,0,,{\k30}orang.
+Dialogue: 0,0:00:13.07,0:00:14.47,Karaoke,,0,0,0,,{\k27}anu {\k47}mau {\k33}waktu {\k33}eh
+Dialogue: 0,0:00:14.61,0:00:14.91,Karaoke,,0,0,0,,{\k30}dong?
+Dialogue: 0,0:00:16.28,0:00:17.71,Karaoke,,0,0,0,,{\k43}dong {\k37}eh {\k43}pulang {\k20}syuting
+Dialogue: 0,0:00:17.78,0:00:18.91,Karaoke,,0,0,0,,{\k33}anu {\k60}nggak {\k20}sendiri.
+Dialogue: 0,0:00:19.91,0:00:21.48,Karaoke,,0,0,0,,{\k50}jadi {\k54}sendiri {\k30}nggak {\k23}nahan
+Dialogue: 0,0:00:21.58,0:00:22.95,Karaoke,,0,0,0,,{\k27}wkwk {\k37}mah {\k36}sih {\k37}masuk.
+Dialogue: 0,0:00:23.72,0:00:25.25,Karaoke,,0,0,0,,{\k50}juga {\k46}dong {\k34}anu {\k23}gue.
+Dialogue: 0,0:00:25.75,0:00:27.22,Karaoke,,0,0,0,,{\k40}semua {\k40}waktu {\k37}kita {\k30}orang
+Dialogue: 0,0:00:27.25,0:00:27.59,Karaoke,,0,0,0,,{\k34}ketawa?
+Dialogue: 0,0:00:27.99,0:00:29.76,Karaoke,,0,0,0,,{\k53}padahal {\k50}hati {\k37}mah {\k37}mau.
+Dialogue: 0,0:00:29.99,0:00:31.69,Karaoke,,0,0,0,,{\k57}hati {\k50}masuk {\k36}sih {\k27}sendiri.
+Dialogue: 0,0:00:33.09,0:00:34.73,Karaoke,,0,0,0,,{\k50}pulang {\k54}juga {\k40}ternyata {\k20}pas
+Dialogue: 0,0:00:34.76,0:00:36.43,Karaoke,,0,0,0,,{\k43}hati {\k34}pelan {\k47}katanya {\k43}pas
+Dialogue: 0,0:00:36.50,0:00:36.90,Karaoke,,0,0,0,,{\k40}security.
+Dialogue: 0,0:00:37.20,0:00:38.66,Karaoke,,0,0,0,,{\k30}sih {\k56}nggak {\k40}kopi {\k20}katanya
+Dialogue: 0,0:00:38.77,0:00:40.33,Karaoke,,0,0,0,,{\k50}sumpah {\k36}lagi {\k44}dong {\k26}dong
+Dialogue: 0,0:00:40.40,0:00:40.70,Karaoke,,0,0,0,,{\k30}mah.
+Dialogue: 0,0:00:41.23,0:00:42.94,Karaoke,,0,0,0,,{\k44}nahan {\k40}langsung {\k50}ketawa {\k37}kok
+Dialogue: 0,0:00:43.04,0:00:43.37,Karaoke,,0,0,0,,{\k33}ternyata.
+Dialogue: 0,0:00:43.70,0:00:45.20,Karaoke,,0,0,0,,{\k37}semua {\k43}katanya {\k40}masuk {\k30}aja
+Dialogue: 0,0:00:45.27,0:00:46.27,Karaoke,,0,0,0,,{\k34}masuk {\k43}eh {\k23}sumpah.
+Dialogue: 0,0:00:46.61,0:00:48.01,Karaoke,,0,0,0,,{\k36}dong {\k34}semua {\k50}sih {\k20}sendiri
+Dialogue: 0,0:00:48.14,0:00:48.51,Karaoke,,0,0,0,,{\k37}waktu.
+Dialogue: 0,0:00:49.74,0:00:51.24,Karaoke,,0,0,0,,{\k50}langsung {\k40}sih {\k34}security {\k26}terus
+Dialogue: 0,0:00:51.28,0:00:52.68,Karaoke,,0,0,0,,{\k53}itu {\k47}semua {\k40}orang.
+Dialogue: 0,0:00:52.98,0:00:54.35,Karaoke,,0,0,0,,{\k30}langsung {\k37}kenapa {\k50}padahal {\k20}aja
+Dialogue: 0,0:00:54.41,0:00:55.62,Karaoke,,0,0,0,,{\k40}syuting {\k40}dia {\k41}ambil.
+Dialogue: 0,0:00:56.28,0:00:57.95,Karaoke,,0,0,0,,{\k47}katanya {\k40}jadi {\k40}abis {\k40}security
+Dialogue: 0,0:00:58.05,0:00:58.35,Karaoke,,0,0,0,,{\k30}katanya.
+Dialogue: 0,0:00:58.68,0:01:00.22,Karaoke,,0,0,0,,{\k34}itu {\k50}ternyata {\k37}film {\k33}dong
+Dialogue: 0,0:01:00.39,0:01:00.75,Karaoke,,0,0,0,,{\k36}dong?
+Dialogue: 0,0:01:01.25,0:01:02.96,Karaoke,,0,0,0,,{\k50}dia {\k47}nggak {\k37}kru {\k37}pelan.
+Dialogue: 0,0:01:04.32,0:01:05.69,Karaoke,,0,0,0,,{\k30}pokoknya {\k30}semua {\k47}ternyata {\k30}dong
+Dialogue: 0,0:01:05.76,0:01:07.06,Karaoke,,0,0,0,,{\k27}waktu {\k30}ternyata {\k53}nggak {\k20}film.
+Dialogue: 0,0:01:07.43,0:01:08.90,Karaoke,,0,0,0,,{\k46}abis {\k34}bukan {\k50}kok {\k17}eh
+Dialogue: 0,0:01:09.03,0:01:10.23,Karaoke,,0,0,0,,{\k37}masuk {\k46}hati {\k37}sih.
+Dialogue: 0,0:01:11.66,0:01:12.03,Karaoke,,0,0,0,,{\k37}aja
+Dialogue: 1,0:00:00.00,0:00:04.00,Hook,,0,0,0,,{\fad(150,250)\an8\q2\pos(360,180)}Dia ditahan security
+Dialogue: 1,0:00:00.00,0:00:04.00,Hook,,0,0,0,,{\fad(150,250)\an8\q2\pos(360,267)}di film-nya sendiri

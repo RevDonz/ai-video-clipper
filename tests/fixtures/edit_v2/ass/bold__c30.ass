@@ -1,0 +1,158 @@
+[Script Info]
+ScriptType: v4.00+
+WrapStyle: 0
+ScaledBorderAndShadow: yes
+YCbCr Matrix: None
+PlayResX: 720
+PlayResY: 1280
+
+[V4+ Styles]
+Format: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding
+Style: Bold,Montserrat ExtraBold,72,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,14.22,0,2,43,43,218,1
+Style: Hook,DejaVu Sans,59,&H00FFFFFF,&H00FFFFFF,&H59000000,&H59000000,-1,0,0,0,100,100,0,0,3,14,0,8,43,43,166,1
+
+[Events]
+Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text
+Dialogue: 0,0:00:00.26,0:00:00.66,Bold,,0,0,0,,{\1c&H4DE1FF&}kopi{\1c&HFFFFFF&} katanya sumpah
+Dialogue: 0,0:00:00.66,0:00:00.96,Bold,,0,0,0,,kopi {\1c&H4DE1FF&}katanya{\1c&HFFFFFF&} sumpah
+Dialogue: 0,0:00:00.96,0:00:01.33,Bold,,0,0,0,,kopi katanya {\1c&H4DE1FF&}sumpah{\1c&HFFFFFF&}
+Dialogue: 0,0:00:01.46,0:00:01.83,Bold,,0,0,0,,{\1c&H4DE1FF&}lagi{\1c&HFFFFFF&} dong dong
+Dialogue: 0,0:00:01.83,0:00:02.26,Bold,,0,0,0,,lagi {\1c&H4DE1FF&}dong{\1c&HFFFFFF&} dong
+Dialogue: 0,0:00:02.26,0:00:02.53,Bold,,0,0,0,,lagi dong {\1c&H4DE1FF&}dong{\1c&HFFFFFF&}
+Dialogue: 0,0:00:02.60,0:00:02.90,Bold,,0,0,0,,{\1c&H4DE1FF&}mah.{\1c&HFFFFFF&}
+Dialogue: 0,0:00:03.43,0:00:03.86,Bold,,0,0,0,,{\1c&H4DE1FF&}nahan{\1c&HFFFFFF&} langsung ketawa
+Dialogue: 0,0:00:03.86,0:00:04.26,Bold,,0,0,0,,nahan {\1c&H4DE1FF&}langsung{\1c&HFFFFFF&} ketawa
+Dialogue: 0,0:00:04.26,0:00:04.53,Bold,,0,0,0,,nahan langsung {\1c&H4DE1FF&}ketawa{\1c&HFFFFFF&}
+Dialogue: 0,0:00:06.13,0:00:06.53,Bold,,0,0,0,,{\1c&H4DE1FF&}anu{\1c&HFFFFFF&} anu sumpah
+Dialogue: 0,0:00:06.53,0:00:07.10,Bold,,0,0,0,,anu {\1c&H4DE1FF&}anu{\1c&HFFFFFF&} sumpah
+Dialogue: 0,0:00:07.10,0:00:07.47,Bold,,0,0,0,,anu anu {\1c&H4DE1FF&}sumpah{\1c&HFFFFFF&}
+Dialogue: 0,0:00:07.53,0:00:07.97,Bold,,0,0,0,,{\1c&H4DE1FF&}sumpah{\1c&HFFFFFF&} katanya film.
+Dialogue: 0,0:00:07.97,0:00:08.30,Bold,,0,0,0,,sumpah {\1c&H4DE1FF&}katanya{\1c&HFFFFFF&} film.
+Dialogue: 0,0:00:08.30,0:00:08.67,Bold,,0,0,0,,sumpah katanya {\1c&H4DE1FF&}film.{\1c&HFFFFFF&}
+Dialogue: 0,0:00:09.14,0:00:09.64,Bold,,0,0,0,,{\1c&H4DE1FF&}orang{\1c&HFFFFFF&} kenapa pelan
+Dialogue: 0,0:00:09.64,0:00:10.04,Bold,,0,0,0,,orang {\1c&H4DE1FF&}kenapa{\1c&HFFFFFF&} pelan
+Dialogue: 0,0:00:10.04,0:00:10.27,Bold,,0,0,0,,orang kenapa {\1c&H4DE1FF&}pelan{\1c&HFFFFFF&}
+Dialogue: 0,0:00:10.37,0:00:10.77,Bold,,0,0,0,,{\1c&H4DE1FF&}pokoknya{\1c&HFFFFFF&} kru waktu
+Dialogue: 0,0:00:10.77,0:00:11.17,Bold,,0,0,0,,pokoknya {\1c&H4DE1FF&}kru{\1c&HFFFFFF&} waktu
+Dialogue: 0,0:00:11.17,0:00:11.37,Bold,,0,0,0,,pokoknya kru {\1c&H4DE1FF&}waktu{\1c&HFFFFFF&}
+Dialogue: 0,0:00:11.50,0:00:11.97,Bold,,0,0,0,,{\1c&H4DE1FF&}eh{\1c&HFFFFFF&} sih orang.
+Dialogue: 0,0:00:11.97,0:00:12.34,Bold,,0,0,0,,eh {\1c&H4DE1FF&}sih{\1c&HFFFFFF&} orang.
+Dialogue: 0,0:00:12.34,0:00:12.64,Bold,,0,0,0,,eh sih {\1c&H4DE1FF&}orang.{\1c&HFFFFFF&}
+Dialogue: 0,0:00:13.07,0:00:13.34,Bold,,0,0,0,,{\1c&H4DE1FF&}anu{\1c&HFFFFFF&} mau waktu
+Dialogue: 0,0:00:13.34,0:00:13.81,Bold,,0,0,0,,anu {\1c&H4DE1FF&}mau{\1c&HFFFFFF&} waktu
+Dialogue: 0,0:00:13.81,0:00:14.14,Bold,,0,0,0,,anu mau {\1c&H4DE1FF&}waktu{\1c&HFFFFFF&}
+Dialogue: 0,0:00:14.14,0:00:14.61,Bold,,0,0,0,,{\1c&H4DE1FF&}eh{\1c&HFFFFFF&} dong?
+Dialogue: 0,0:00:14.61,0:00:14.84,Bold,,0,0,0,,eh {\1c&H4DE1FF&}dong?{\1c&HFFFFFF&}
+Dialogue: 0,0:00:16.28,0:00:16.71,Bold,,0,0,0,,{\1c&H4DE1FF&}dong{\1c&HFFFFFF&} eh pulang
+Dialogue: 0,0:00:16.71,0:00:17.08,Bold,,0,0,0,,dong {\1c&H4DE1FF&}eh{\1c&HFFFFFF&} pulang
+Dialogue: 0,0:00:17.08,0:00:17.38,Bold,,0,0,0,,dong eh {\1c&H4DE1FF&}pulang{\1c&HFFFFFF&}
+Dialogue: 0,0:00:17.51,0:00:17.78,Bold,,0,0,0,,{\1c&H4DE1FF&}syuting{\1c&HFFFFFF&} anu nggak
+Dialogue: 0,0:00:17.78,0:00:18.11,Bold,,0,0,0,,syuting {\1c&H4DE1FF&}anu{\1c&HFFFFFF&} nggak
+Dialogue: 0,0:00:18.11,0:00:18.68,Bold,,0,0,0,,syuting anu {\1c&H4DE1FF&}nggak{\1c&HFFFFFF&}
+Dialogue: 0,0:00:18.71,0:00:19.01,Bold,,0,0,0,,{\1c&H4DE1FF&}sendiri.{\1c&HFFFFFF&}
+Dialogue: 0,0:00:19.91,0:00:20.41,Bold,,0,0,0,,{\1c&H4DE1FF&}jadi{\1c&HFFFFFF&} sendiri nggak
+Dialogue: 0,0:00:20.41,0:00:20.95,Bold,,0,0,0,,jadi {\1c&H4DE1FF&}sendiri{\1c&HFFFFFF&} nggak
+Dialogue: 0,0:00:20.95,0:00:21.18,Bold,,0,0,0,,jadi sendiri {\1c&H4DE1FF&}nggak{\1c&HFFFFFF&}
+Dialogue: 0,0:00:21.25,0:00:21.58,Bold,,0,0,0,,{\1c&H4DE1FF&}nahan{\1c&HFFFFFF&} wkwk mah
+Dialogue: 0,0:00:21.58,0:00:21.85,Bold,,0,0,0,,nahan {\1c&H4DE1FF&}wkwk{\1c&HFFFFFF&} mah
+Dialogue: 0,0:00:21.85,0:00:22.12,Bold,,0,0,0,,nahan wkwk {\1c&H4DE1FF&}mah{\1c&HFFFFFF&}
+Dialogue: 0,0:00:22.22,0:00:22.58,Bold,,0,0,0,,{\1c&H4DE1FF&}sih{\1c&HFFFFFF&} masuk.
+Dialogue: 0,0:00:22.58,0:00:22.95,Bold,,0,0,0,,sih {\1c&H4DE1FF&}masuk.{\1c&HFFFFFF&}
+Dialogue: 0,0:00:23.72,0:00:24.22,Bold,,0,0,0,,{\1c&H4DE1FF&}juga{\1c&HFFFFFF&} dong anu
+Dialogue: 0,0:00:24.22,0:00:24.68,Bold,,0,0,0,,juga {\1c&H4DE1FF&}dong{\1c&HFFFFFF&} anu
+Dialogue: 0,0:00:24.68,0:00:24.92,Bold,,0,0,0,,juga dong {\1c&H4DE1FF&}anu{\1c&HFFFFFF&}
+Dialogue: 0,0:00:25.02,0:00:25.32,Bold,,0,0,0,,{\1c&H4DE1FF&}gue.{\1c&HFFFFFF&}
+Dialogue: 0,0:00:25.75,0:00:26.15,Bold,,0,0,0,,{\1c&H4DE1FF&}semua{\1c&HFFFFFF&} waktu kita
+Dialogue: 0,0:00:26.15,0:00:26.55,Bold,,0,0,0,,semua {\1c&H4DE1FF&}waktu{\1c&HFFFFFF&} kita
+Dialogue: 0,0:00:26.55,0:00:26.82,Bold,,0,0,0,,semua waktu {\1c&H4DE1FF&}kita{\1c&HFFFFFF&}
+Dialogue: 0,0:00:26.92,0:00:27.25,Bold,,0,0,0,,{\1c&H4DE1FF&}orang{\1c&HFFFFFF&} ketawa?
+Dialogue: 0,0:00:27.25,0:00:27.59,Bold,,0,0,0,,orang {\1c&H4DE1FF&}ketawa?{\1c&HFFFFFF&}
+Dialogue: 0,0:00:27.99,0:00:28.52,Bold,,0,0,0,,{\1c&H4DE1FF&}padahal{\1c&HFFFFFF&} hati mah
+Dialogue: 0,0:00:28.52,0:00:29.02,Bold,,0,0,0,,padahal {\1c&H4DE1FF&}hati{\1c&HFFFFFF&} mah
+Dialogue: 0,0:00:29.02,0:00:29.29,Bold,,0,0,0,,padahal hati {\1c&H4DE1FF&}mah{\1c&HFFFFFF&}
+Dialogue: 0,0:00:29.39,0:00:29.76,Bold,,0,0,0,,{\1c&H4DE1FF&}mau.{\1c&HFFFFFF&}
+Dialogue: 0,0:00:29.99,0:00:30.56,Bold,,0,0,0,,{\1c&H4DE1FF&}hati{\1c&HFFFFFF&} masuk sih
+Dialogue: 0,0:00:30.56,0:00:31.06,Bold,,0,0,0,,hati {\1c&H4DE1FF&}masuk{\1c&HFFFFFF&} sih
+Dialogue: 0,0:00:31.06,0:00:31.26,Bold,,0,0,0,,hati masuk {\1c&H4DE1FF&}sih{\1c&HFFFFFF&}
+Dialogue: 0,0:00:31.42,0:00:31.72,Bold,,0,0,0,,{\1c&H4DE1FF&}sendiri.{\1c&HFFFFFF&}
+Dialogue: 0,0:00:33.09,0:00:33.59,Bold,,0,0,0,,{\1c&H4DE1FF&}pulang{\1c&HFFFFFF&} juga ternyata
+Dialogue: 0,0:00:33.59,0:00:34.13,Bold,,0,0,0,,pulang {\1c&H4DE1FF&}juga{\1c&HFFFFFF&} ternyata
+Dialogue: 0,0:00:34.13,0:00:34.39,Bold,,0,0,0,,pulang juga {\1c&H4DE1FF&}ternyata{\1c&HFFFFFF&}
+Dialogue: 0,0:00:34.53,0:00:34.76,Bold,,0,0,0,,{\1c&H4DE1FF&}pas{\1c&HFFFFFF&} hati pelan
+Dialogue: 0,0:00:34.76,0:00:35.19,Bold,,0,0,0,,pas {\1c&H4DE1FF&}hati{\1c&HFFFFFF&} pelan
+Dialogue: 0,0:00:35.19,0:00:35.43,Bold,,0,0,0,,pas hati {\1c&H4DE1FF&}pelan{\1c&HFFFFFF&}
+Dialogue: 0,0:00:35.53,0:00:36.00,Bold,,0,0,0,,{\1c&H4DE1FF&}katanya{\1c&HFFFFFF&} pas security.
+Dialogue: 0,0:00:36.00,0:00:36.50,Bold,,0,0,0,,katanya {\1c&H4DE1FF&}pas{\1c&HFFFFFF&} security.
+Dialogue: 0,0:00:36.50,0:00:36.90,Bold,,0,0,0,,katanya pas {\1c&H4DE1FF&}security.{\1c&HFFFFFF&}
+Dialogue: 0,0:00:37.20,0:00:37.50,Bold,,0,0,0,,{\1c&H4DE1FF&}sih{\1c&HFFFFFF&} nggak kopi
+Dialogue: 0,0:00:37.50,0:00:38.06,Bold,,0,0,0,,sih {\1c&H4DE1FF&}nggak{\1c&HFFFFFF&} kopi
+Dialogue: 0,0:00:38.06,0:00:38.43,Bold,,0,0,0,,sih nggak {\1c&H4DE1FF&}kopi{\1c&HFFFFFF&}
+Dialogue: 0,0:00:38.46,0:00:38.77,Bold,,0,0,0,,{\1c&H4DE1FF&}katanya{\1c&HFFFFFF&} sumpah lagi
+Dialogue: 0,0:00:38.77,0:00:39.27,Bold,,0,0,0,,katanya {\1c&H4DE1FF&}sumpah{\1c&HFFFFFF&} lagi
+Dialogue: 0,0:00:39.27,0:00:39.60,Bold,,0,0,0,,katanya sumpah {\1c&H4DE1FF&}lagi{\1c&HFFFFFF&}
+Dialogue: 0,0:00:39.63,0:00:40.07,Bold,,0,0,0,,{\1c&H4DE1FF&}dong{\1c&HFFFFFF&} dong mah.
+Dialogue: 0,0:00:40.07,0:00:40.40,Bold,,0,0,0,,dong {\1c&H4DE1FF&}dong{\1c&HFFFFFF&} mah.
+Dialogue: 0,0:00:40.40,0:00:40.57,Bold,,0,0,0,,dong dong {\1c&H4DE1FF&}mah.{\1c&HFFFFFF&}
+Dialogue: 0,0:00:41.23,0:00:41.67,Bold,,0,0,0,,{\1c&H4DE1FF&}nahan{\1c&HFFFFFF&} langsung ketawa
+Dialogue: 0,0:00:41.67,0:00:42.07,Bold,,0,0,0,,nahan {\1c&H4DE1FF&}langsung{\1c&HFFFFFF&} ketawa
+Dialogue: 0,0:00:42.07,0:00:42.44,Bold,,0,0,0,,nahan langsung {\1c&H4DE1FF&}ketawa{\1c&HFFFFFF&}
+Dialogue: 0,0:00:42.57,0:00:43.04,Bold,,0,0,0,,{\1c&H4DE1FF&}kok{\1c&HFFFFFF&} ternyata.
+Dialogue: 0,0:00:43.04,0:00:43.37,Bold,,0,0,0,,kok {\1c&H4DE1FF&}ternyata.{\1c&HFFFFFF&}
+Dialogue: 0,0:00:43.70,0:00:44.07,Bold,,0,0,0,,{\1c&H4DE1FF&}semua{\1c&HFFFFFF&} katanya masuk
+Dialogue: 0,0:00:44.07,0:00:44.50,Bold,,0,0,0,,semua {\1c&H4DE1FF&}katanya{\1c&HFFFFFF&} masuk
+Dialogue: 0,0:00:44.50,0:00:44.84,Bold,,0,0,0,,semua katanya {\1c&H4DE1FF&}masuk{\1c&HFFFFFF&}
+Dialogue: 0,0:00:44.90,0:00:45.27,Bold,,0,0,0,,{\1c&H4DE1FF&}aja{\1c&HFFFFFF&} masuk eh
+Dialogue: 0,0:00:45.27,0:00:45.61,Bold,,0,0,0,,aja {\1c&H4DE1FF&}masuk{\1c&HFFFFFF&} eh
+Dialogue: 0,0:00:45.61,0:00:45.87,Bold,,0,0,0,,aja masuk {\1c&H4DE1FF&}eh{\1c&HFFFFFF&}
+Dialogue: 0,0:00:46.04,0:00:46.34,Bold,,0,0,0,,{\1c&H4DE1FF&}sumpah.{\1c&HFFFFFF&}
+Dialogue: 0,0:00:46.61,0:00:46.97,Bold,,0,0,0,,{\1c&H4DE1FF&}dong{\1c&HFFFFFF&} semua sih
+Dialogue: 0,0:00:46.97,0:00:47.31,Bold,,0,0,0,,dong {\1c&H4DE1FF&}semua{\1c&HFFFFFF&} sih
+Dialogue: 0,0:00:47.31,0:00:47.64,Bold,,0,0,0,,dong semua {\1c&H4DE1FF&}sih{\1c&HFFFFFF&}
+Dialogue: 0,0:00:47.81,0:00:48.14,Bold,,0,0,0,,{\1c&H4DE1FF&}sendiri{\1c&HFFFFFF&} waktu.
+Dialogue: 0,0:00:48.14,0:00:48.51,Bold,,0,0,0,,sendiri {\1c&H4DE1FF&}waktu.{\1c&HFFFFFF&}
+Dialogue: 0,0:00:49.74,0:00:50.24,Bold,,0,0,0,,{\1c&H4DE1FF&}langsung{\1c&HFFFFFF&} sih security
+Dialogue: 0,0:00:50.24,0:00:50.64,Bold,,0,0,0,,langsung {\1c&H4DE1FF&}sih{\1c&HFFFFFF&} security
+Dialogue: 0,0:00:50.64,0:00:50.91,Bold,,0,0,0,,langsung sih {\1c&H4DE1FF&}security{\1c&HFFFFFF&}
+Dialogue: 0,0:00:50.98,0:00:51.28,Bold,,0,0,0,,{\1c&H4DE1FF&}terus{\1c&HFFFFFF&} itu semua
+Dialogue: 0,0:00:51.28,0:00:51.81,Bold,,0,0,0,,terus {\1c&H4DE1FF&}itu{\1c&HFFFFFF&} semua
+Dialogue: 0,0:00:51.81,0:00:52.18,Bold,,0,0,0,,terus itu {\1c&H4DE1FF&}semua{\1c&HFFFFFF&}
+Dialogue: 0,0:00:52.28,0:00:52.68,Bold,,0,0,0,,{\1c&H4DE1FF&}orang.{\1c&HFFFFFF&}
+Dialogue: 0,0:00:52.98,0:00:53.28,Bold,,0,0,0,,{\1c&H4DE1FF&}langsung{\1c&HFFFFFF&} kenapa padahal
+Dialogue: 0,0:00:53.28,0:00:53.65,Bold,,0,0,0,,langsung {\1c&H4DE1FF&}kenapa{\1c&HFFFFFF&} padahal
+Dialogue: 0,0:00:53.65,0:00:53.98,Bold,,0,0,0,,langsung kenapa {\1c&H4DE1FF&}padahal{\1c&HFFFFFF&}
+Dialogue: 0,0:00:54.15,0:00:54.41,Bold,,0,0,0,,{\1c&H4DE1FF&}aja{\1c&HFFFFFF&} syuting dia
+Dialogue: 0,0:00:54.41,0:00:54.81,Bold,,0,0,0,,aja {\1c&H4DE1FF&}syuting{\1c&HFFFFFF&} dia
+Dialogue: 0,0:00:54.81,0:00:55.15,Bold,,0,0,0,,aja syuting {\1c&H4DE1FF&}dia{\1c&HFFFFFF&}
+Dialogue: 0,0:00:55.21,0:00:55.62,Bold,,0,0,0,,{\1c&H4DE1FF&}ambil.{\1c&HFFFFFF&}
+Dialogue: 0,0:00:56.28,0:00:56.75,Bold,,0,0,0,,{\1c&H4DE1FF&}katanya{\1c&HFFFFFF&} jadi abis
+Dialogue: 0,0:00:56.75,0:00:57.15,Bold,,0,0,0,,katanya {\1c&H4DE1FF&}jadi{\1c&HFFFFFF&} abis
+Dialogue: 0,0:00:57.15,0:00:57.45,Bold,,0,0,0,,katanya jadi {\1c&H4DE1FF&}abis{\1c&HFFFFFF&}
+Dialogue: 0,0:00:57.55,0:00:58.05,Bold,,0,0,0,,{\1c&H4DE1FF&}security{\1c&HFFFFFF&} katanya.
+Dialogue: 0,0:00:58.05,0:00:58.35,Bold,,0,0,0,,security {\1c&H4DE1FF&}katanya.{\1c&HFFFFFF&}
+Dialogue: 0,0:00:58.68,0:00:59.02,Bold,,0,0,0,,{\1c&H4DE1FF&}itu{\1c&HFFFFFF&} ternyata film
+Dialogue: 0,0:00:59.02,0:00:59.52,Bold,,0,0,0,,itu {\1c&H4DE1FF&}ternyata{\1c&HFFFFFF&} film
+Dialogue: 0,0:00:59.52,0:00:59.75,Bold,,0,0,0,,itu ternyata {\1c&H4DE1FF&}film{\1c&HFFFFFF&}
+Dialogue: 0,0:00:59.89,0:01:00.39,Bold,,0,0,0,,{\1c&H4DE1FF&}dong{\1c&HFFFFFF&} dong?
+Dialogue: 0,0:01:00.39,0:01:00.75,Bold,,0,0,0,,dong {\1c&H4DE1FF&}dong?{\1c&HFFFFFF&}
+Dialogue: 0,0:01:01.25,0:01:01.75,Bold,,0,0,0,,{\1c&H4DE1FF&}dia{\1c&HFFFFFF&} nggak kru
+Dialogue: 0,0:01:01.75,0:01:02.22,Bold,,0,0,0,,dia {\1c&H4DE1FF&}nggak{\1c&HFFFFFF&} kru
+Dialogue: 0,0:01:02.22,0:01:02.52,Bold,,0,0,0,,dia nggak {\1c&H4DE1FF&}kru{\1c&HFFFFFF&}
+Dialogue: 0,0:01:02.59,0:01:02.96,Bold,,0,0,0,,{\1c&H4DE1FF&}pelan.{\1c&HFFFFFF&}
+Dialogue: 0,0:01:04.32,0:01:04.62,Bold,,0,0,0,,{\1c&H4DE1FF&}pokoknya{\1c&HFFFFFF&} semua ternyata
+Dialogue: 0,0:01:04.62,0:01:04.92,Bold,,0,0,0,,pokoknya {\1c&H4DE1FF&}semua{\1c&HFFFFFF&} ternyata
+Dialogue: 0,0:01:04.92,0:01:05.29,Bold,,0,0,0,,pokoknya semua {\1c&H4DE1FF&}ternyata{\1c&HFFFFFF&}
+Dialogue: 0,0:01:05.39,0:01:05.76,Bold,,0,0,0,,{\1c&H4DE1FF&}dong{\1c&HFFFFFF&} waktu ternyata
+Dialogue: 0,0:01:05.76,0:01:06.03,Bold,,0,0,0,,dong {\1c&H4DE1FF&}waktu{\1c&HFFFFFF&} ternyata
+Dialogue: 0,0:01:06.03,0:01:06.26,Bold,,0,0,0,,dong waktu {\1c&H4DE1FF&}ternyata{\1c&HFFFFFF&}
+Dialogue: 0,0:01:06.33,0:01:06.86,Bold,,0,0,0,,{\1c&H4DE1FF&}nggak{\1c&HFFFFFF&} film.
+Dialogue: 0,0:01:06.86,0:01:07.06,Bold,,0,0,0,,nggak {\1c&H4DE1FF&}film.{\1c&HFFFFFF&}
+Dialogue: 0,0:01:07.43,0:01:07.89,Bold,,0,0,0,,{\1c&H4DE1FF&}abis{\1c&HFFFFFF&} bukan kok
+Dialogue: 0,0:01:07.89,0:01:08.23,Bold,,0,0,0,,abis {\1c&H4DE1FF&}bukan{\1c&HFFFFFF&} kok
+Dialogue: 0,0:01:08.23,0:01:08.63,Bold,,0,0,0,,abis bukan {\1c&H4DE1FF&}kok{\1c&HFFFFFF&}
+Dialogue: 0,0:01:08.73,0:01:09.03,Bold,,0,0,0,,{\1c&H4DE1FF&}eh{\1c&HFFFFFF&} masuk hati
+Dialogue: 0,0:01:09.03,0:01:09.40,Bold,,0,0,0,,eh {\1c&H4DE1FF&}masuk{\1c&HFFFFFF&} hati
+Dialogue: 0,0:01:09.40,0:01:09.80,Bold,,0,0,0,,eh masuk {\1c&H4DE1FF&}hati{\1c&HFFFFFF&}
+Dialogue: 0,0:01:09.86,0:01:10.23,Bold,,0,0,0,,{\1c&H4DE1FF&}sih.{\1c&HFFFFFF&}
+Dialogue: 0,0:01:11.66,0:01:12.03,Bold,,0,0,0,,{\1c&H4DE1FF&}aja{\1c&HFFFFFF&}
+Dialogue: 1,0:00:00.00,0:00:04.00,Hook,,0,0,0,,{\fad(150,250)\an8\q2\pos(360,180)}Dia ditahan security
+Dialogue: 1,0:00:00.00,0:00:04.00,Hook,,0,0,0,,{\fad(150,250)\an8\q2\pos(360,267)}di film-nya sendiri
