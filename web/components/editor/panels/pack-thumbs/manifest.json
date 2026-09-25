@@ -1,0 +1,46 @@
+{
+  "background": "#4B5563",
+  "crop": [
+    80,
+    950,
+    560,
+    140
+  ],
+  "frame": 10,
+  "packs": {
+    "bold": {
+      "bytes": 9827,
+      "file": "bold.png",
+      "pack_sha256": "6d68d76de839d8dfed3c096074f7b599cb78703f622d3e30403f81aadcf1efa6",
+      "png_sha256": "f4821769e1b1e0e0f0ce0ee20146da4a1971fd141bd46cbb1b7e20af45725753"
+    },
+    "box": {
+      "bytes": 5777,
+      "file": "box.png",
+      "pack_sha256": "db937b4acd3a20793457b485bad85b96cc2820959177eab271bcb0ff8ba6774a",
+      "png_sha256": "2183f1db4267175de7a7e881f9704f650bdf7941cb56091e3984fff83d35700a"
+    },
+    "classic": {
+      "bytes": 6888,
+      "file": "classic.png",
+      "pack_sha256": "4686e460016150e2f0e9e4308115d154f3500f9507bbb4769a2d66a609887e13",
+      "png_sha256": "7e27eec77e0e0fe120e9bdc70f18ff4434e08f5f44121c79c102151e19e3c122"
+    },
+    "karaoke": {
+      "bytes": 7747,
+      "file": "karaoke.png",
+      "pack_sha256": "10db9308ced1f900fd0b59e2c6c03d32ebb83f6cf34bb036e2aa243ffa756ee5",
+      "png_sha256": "c2681fa0987217e522f76cea445e0c7a4c35ec18421c69b3242c6eae70e5d27c"
+    }
+  },
+  "sample": "Halo semua",
+  "schema": "potongin.pack-thumbs/1",
+  "size": [
+    320,
+    80
+  ],
+  "toolchain": {
+    "ffmpeg": "5.1.9-0+deb12u1",
+    "libass9": "1:0.17.1-1+deb12u1"
+  }
+}
