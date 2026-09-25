@@ -3,7 +3,8 @@
 Terakhir diperbarui: 2026-09-24. Legenda: ✅ selesai · 🔄 sedang dikerjakan · ⬜ belum · ⏸️ ditunda
 (menunggu keputusan). Selection V3 dan halaman Pengaturan AI sudah di `main` dan live di
 https://potongin.revdonz.dev sejak 2026-09-24. Empat tugas susulan (server LLM sendiri + 9Router,
-thumbnail + upgrade Next/React, Whisper, heuristik v3.1) ada di branch `feat/v3-followups`.
+thumbnail + upgrade Next/React, Whisper, heuristik v3.1) live sejak 2026-09-24 (PR #6).
+Editor V3 Esensial dikerjakan di branch `feat/editor-v3-esensial` mulai 2026-09-25.
 
 Dokumen rujukan:
 - Rencana teknis: [`docs/plans/2026-09-24-selection-v3-llm-hooks.md`](plans/2026-09-24-selection-v3-llm-hooks.md)
@@ -193,7 +194,7 @@ Keputusan: esensial dulu, lalu bertahap. Desain final ada di scratchpad sesi
   Isinya 4 gelombang (W1–W4, ~30 agen) + cadangan W5; riset di
   [`docs/plans/editor-v3-research/`](plans/editor-v3-research/).
 - ✅ Keputusan pemilik K1–K15: semua rekomendasi diterima; mesin acuan = PC Ryzen 7 5700G.
-- ⏸️ **Eksekusi editor ditunda atas permintaan pemilik.** Saat dimulai, langsung W1.
+- 🔄 **Eksekusi dimulai 2026-09-25** di branch `feat/editor-v3-esensial`: W1 "Mesin tunggal".
 - (arsip) Keputusan teknis dari desain FINAL (rekomendasi dalam kurung):
   - komposit yuv444p (ya);
   - blur "plate" resolusi rendah (perlu dilihat berdampingan);
