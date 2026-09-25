@@ -375,7 +375,8 @@ export function createClipRendersRoute(options = {}) {
       } else if (!await bind(deps.jobsRoot, reservation.reservationId, reservation.token, value.render_id).catch(() => false)) {
         return renderError("storage_admission_lost", 503);
       }
-      return editorResponse(renderDtoV3(jobId, value), value.state === "completed" ? 200 : 202);
+      // 200: nothing is left to do (an instant completion, or a replay of a finished export)
+      return editorResponse(renderDtoV3(jobId, value), TERMINAL.has(value.state) ? 200 : 202);
     },
   };
 }
