@@ -40,10 +40,34 @@
    sub-scores always matches them. Ranks come from the order above (the LLM rerank and the
    heuristic's diversity-adjusted score), never from this number.
 
+7. **Konteks Tren** (``trends``, from :mod:`ai_clipper.trend_context`). Without a trend the
+   transcript mentions (:func:`relevant_trends`, at most 20) nothing below happens and the
+   result is identical to a run without trends. Otherwise:
+
+   - the LLM sees them in the propose requests (``T1``, ...) and the prompt version becomes
+     ``llm-select-v2+trends.v1+std.<sha>``;
+   - **grounding**: a clip's trends are only trends its own snapped units mention. An LLM
+     moment keeps the ``trend_refs`` whose trend :func:`match_trends` finds in its text; every
+     other ref (not mentioned, or an ID that was not shown) is dropped and counted
+     (``trend_ref_ungrounded:<n>`` over the snapped LLM moments). A heuristic clip is matched
+     directly against the relevant trends. At most :data:`MAX_CLIP_TRENDS` per clip;
+   - **packaging**: ``reasons`` end with ``tren: <title>`` for the first
+     :data:`MAX_TREND_REASONS` grounded trends (``(sensitif)`` appended for sensitive ones),
+     replacing trailing reasons when all 8 are taken; the hashtags of grounded, non-sensitive
+     trends (at most :data:`MAX_TREND_HASHTAGS`) come first, and an LLM moment loses the
+     hashtags of relevant trends it is not grounded in. Titles, hook texts and descriptions are
+     never rewritten;
+   - **boost**: a clip grounded in at least one non-sensitive trend gets :data:`TREND_BOOST`
+     points (0-100 scale, so 0.3 on the 0-10 ranking values; :data:`TREND_BOOST_CAP` per clip
+     however many trends) on its ranking value only: the LLM's rerank blend (or propose score)
+     and the heuristic's diversity-adjusted score. Within each source a boosted clip moves up
+     past clips whose value is at least its own but below its boosted value, so only near ties
+     change places; ``score`` and the five sub-scores never change.
+
 Warning codes (in this order): the LLM's own ``llm_*`` codes, ``llm_unavailable`` or
 ``llm_failed:<code>`` (auto-mode fallback), ``llm_filled:<n>`` (heuristic clips added after
-LLM clips), ``snap_dropped:<n>``, ``few_clips:<n>`` (fewer than ``k`` clips), and
-``no_transcript``.
+LLM clips), ``snap_dropped:<n>``, ``trend_ref_ungrounded:<n>``, ``few_clips:<n>`` (fewer than
+``k`` clips), and ``no_transcript``.
 
 The artifact (``analysis/selection.v3.json``) is :meth:`SelectionResult.to_dict`, written
 atomically by :func:`write_selection_artifact` and read back strictly by
@@ -70,18 +94,27 @@ from .llm import (
     create_llm_client_from_env,
     load_llm_configs,
 )
-from .llm_selection import PROMPT_VERSION, combined_score, propose_with_llm, standard_sha256
+from .llm_selection import (
+    PROMPT_VERSION,
+    TREND_PROMPT_VERSION,
+    combined_score,
+    propose_with_llm,
+    standard_sha256,
+)
 from .models import TranscriptSegment
 from .selection_types import (
+    MAX_CLIP_TRENDS,
     SELECTION_V3_VERSION,
     ClipProposal,
     SelectedClip,
     SelectionResult,
+    TrendRef,
 )
 from .sentences import SentenceUnit, build_sentence_units
 from .sound_events import SoundEvent, sort_events
 from .transcript_io import atomic_write_bytes
 from .transcript_quality import TranscriptQuality, assess_transcript, ends_with_terminal_punctuation
+from .trend_context import TrendItem, match_trends, relevant_trends
 
 LLM_MODES = ("auto", "off", "required")
 SELECTION_ARTIFACT_RELATIVE_PATH = Path("analysis") / "selection.v3.json"
@@ -109,6 +142,21 @@ COLD_OPEN_MAX_SECONDS = 8.0
 
 NEAR_DUPLICATE_SIMILARITY = 0.25  # distinct clips score 0.05-0.09, teaser re-uses 0.2-0.5
 MIN_SIMILARITY_WORDS = 5
+
+# Konteks Tren: a mild boost in points of a 0-100 ranking scale (the owner's decision of
+# 2026-09-25); ranking values here are 0-10, so the boost is TREND_BOOST / RANK_SCALE_POINTS.
+TREND_BOOST = 3.0
+TREND_BOOST_CAP = 3.0
+RANK_SCALE_POINTS = 10.0
+MAX_TREND_REASONS = 2
+MAX_TREND_HASHTAGS = 3
+MAX_TRENDED_HASHTAGS = 8  # a clip's hashtags once trend hashtags were added
+# Generic tags an LLM moment keeps even when a relevant, ungrounded trend lists them too.
+_GENERIC_HASHTAGS = frozenset(
+    {"fyp", "foryou", "foryoupage", "viral", "trending", "podcast", "podcastindonesia", "shorts",
+     "reels"}
+)
+_TREND_HASHTAG = re.compile(r"#\w{1,39}")
 _TOLERANCE = 1e-6
 _TIME_DIGITS = 3
 _WORD = re.compile(r"[^\W\d_]+", re.UNICODE)
@@ -390,6 +438,46 @@ class _Candidate:
     proposal: ClipProposal
     span: _Span
     topic: frozenset[str]
+    trends: tuple[TrendItem, ...] = ()  # grounded in this span's own transcript
+    rank_value: float = 0.0  # the value its source ordered it by (0-10)
+
+    @property
+    def boost(self) -> float:
+        if not any(not item.sensitive for item in self.trends):
+            return 0.0
+        return min(TREND_BOOST, TREND_BOOST_CAP) / RANK_SCALE_POINTS
+
+
+def _boosted(candidates: list[_Candidate]) -> list[_Candidate]:
+    """Candidates with boosted ones moved up past near ties, within each source.
+
+    A boosted candidate passes the one above it while that one's value is at least its own
+    value (it was ranked ahead fairly) but below its boosted value. On a list whose values do
+    not increase this is a stable sort by boosted value; a candidate ranked ahead for another
+    reason (the LLM's un-reranked tail) is never passed.
+    """
+    if not any(item.boost for item in candidates):
+        return candidates
+    groups: dict[str, list[_Candidate]] = {}
+    for item in candidates:
+        groups.setdefault(item.proposal.source, []).append(item)
+    ordered: list[_Candidate] = []
+    for group in groups.values():
+        placed: list[_Candidate] = []
+        for item in group:
+            position = len(placed)
+            if item.boost:
+                boosted = item.rank_value + item.boost
+                while position > 0:
+                    above = placed[position - 1]
+                    if above.rank_value < item.rank_value - _TOLERANCE:
+                        break
+                    if above.rank_value + above.boost >= boosted - _TOLERANCE:
+                        break
+                    position -= 1
+            placed.insert(position, item)
+        ordered.extend(placed)
+    return ordered
 
 
 def _rank(candidates: Sequence[_Candidate], k: int) -> list[_Candidate]:
@@ -442,6 +530,82 @@ def _with_reason(reasons: tuple[str, ...], reason: str) -> tuple[str, ...]:
     return reasons if len(reasons) >= 8 else (*reasons, reason)
 
 
+# --- trends -----------------------------------------------------------------------------------
+
+
+def _check_trends(trends: object) -> tuple[TrendItem, ...]:
+    if isinstance(trends, (str, bytes)) or not isinstance(trends, Sequence):
+        raise TypeError("trends must be a sequence of TrendItem values")
+    if any(not isinstance(item, TrendItem) for item in trends):
+        raise TypeError("trends must be TrendItem values")
+    return tuple(trends)
+
+
+def _ground(
+    proposal: ClipProposal, text: str, shown: Sequence[TrendItem]
+) -> tuple[tuple[TrendItem, ...], int]:
+    """The relevant trends ``text`` (a snapped span) mentions, and the LLM refs dropped.
+
+    An LLM moment keeps only the trends it named that ``text`` mentions; a heuristic moment is
+    matched directly against every relevant trend.
+    """
+    if not shown:
+        return (), 0
+    if proposal.source != "llm":
+        return tuple(match.item for match in match_trends(shown, text))[:MAX_CLIP_TRENDS], 0
+    grounded: list[TrendItem] = []
+    dropped = 0
+    for ref in proposal.trend_refs:
+        number = int(ref[1:])
+        item = shown[number - 1] if number <= len(shown) else None
+        if item is not None and match_trends([item], text):
+            if item not in grounded:
+                grounded.append(item)
+        else:
+            dropped += 1
+    return tuple(grounded[:MAX_CLIP_TRENDS]), dropped
+
+
+def _tag_key(tag: str) -> str:
+    return tag.lstrip("#").casefold()
+
+
+def _trend_hashtags(
+    proposal: ClipProposal, grounded: Sequence[TrendItem], shown: Sequence[TrendItem]
+) -> tuple[str, ...]:
+    """Grounded trends' hashtags first, then the moment's own (see the module docstring)."""
+    own = list(proposal.hashtags)
+    if proposal.source == "llm":
+        foreign = {
+            _tag_key(tag) for item in shown if item not in grounded for tag in item.hashtags
+        } - _GENERIC_HASHTAGS
+        own = [tag for tag in own if _tag_key(tag) not in foreign]
+    added = [
+        tag
+        for item in grounded
+        if not item.sensitive
+        for tag in item.hashtags
+        if _TREND_HASHTAG.fullmatch(tag)
+    ][:MAX_TREND_HASHTAGS]
+    if not added and len(own) == len(proposal.hashtags):
+        return proposal.hashtags
+    tags: list[str] = []
+    for tag in (*added, *own):
+        if _tag_key(tag) not in {_tag_key(kept) for kept in tags}:
+            tags.append(tag)
+    return tuple(tags[:MAX_TRENDED_HASHTAGS])
+
+
+def _trend_reasons(reasons: tuple[str, ...], grounded: Sequence[TrendItem]) -> tuple[str, ...]:
+    notes = [
+        f"tren: {item.title}" + (" (sensitif)" if item.sensitive else "")
+        for item in grounded[:MAX_TREND_REASONS]
+    ]
+    if not notes:
+        return reasons
+    return (*reasons[: 8 - len(notes)], *notes)
+
+
 def _selected(
     rank: int,
     item: _Candidate,
@@ -449,6 +613,7 @@ def _selected(
     cold_open: tuple[float, float] | None,
     *,
     filler: bool,
+    shown: Sequence[TrendItem] = (),
 ) -> SelectedClip:
     proposal = item.proposal
     span = item.span
@@ -461,6 +626,12 @@ def _selected(
         )
     if filler:
         reasons = _with_reason(reasons, "Pengisi dari heuristik karena momen LLM kurang.")
+    hashtags = proposal.hashtags
+    trends: tuple[TrendRef, ...] = ()
+    if shown:
+        reasons = _trend_reasons(reasons, item.trends)
+        hashtags = _trend_hashtags(proposal, item.trends, shown)
+        trends = tuple(trend.ref() for trend in item.trends)
     text = " ".join(
         " ".join(unit.text.split()) for unit in units[span.start_unit : span.end_unit + 1]
     )
@@ -474,13 +645,14 @@ def _selected(
         title=proposal.title,
         hook_text=proposal.hook_text,
         description=proposal.description,
-        hashtags=proposal.hashtags,
+        hashtags=hashtags,
         archetype=proposal.archetype,
         score=combined_score(proposal.scores),  # always consistent with the sub-scores
         scores=proposal.scores,
         reasons=reasons,
         source=proposal.source,
         text=text,
+        trends=trends,
     )
 
 
@@ -495,8 +667,9 @@ def _media_end(segments: Sequence[TranscriptSegment], audio: AudioTimeline | Non
     return max(ends, default=0.0)
 
 
-def _llm_prompt_version() -> str:
-    return f"{PROMPT_VERSION}+std.{standard_sha256()[:12]}"
+def _llm_prompt_version(trends_sent: bool = False) -> str:
+    trends = f"+{TREND_PROMPT_VERSION}" if trends_sent else ""
+    return f"{PROMPT_VERSION}{trends}+std.{standard_sha256()[:12]}"
 
 
 def select_clips_v3(
@@ -518,6 +691,7 @@ def select_clips_v3(
     rerank: bool = True,
     retry: bool = True,
     clock: Callable[[], float] | None = None,
+    trends: Sequence[TrendItem] = (),
 ) -> SelectionResult:
     """Select up to ``k`` snapped, packaged clips; see the module docstring for the rules.
 
@@ -527,8 +701,11 @@ def select_clips_v3(
     size each request (pass the provider config values); ``max_requests`` and ``deadline_s``
     bound the LLM phase. ``rerank`` enables the listwise LLM rerank of
     :func:`propose_with_llm` and ``retry`` its single follow-up request when fewer than ``k / 2``
-    moments are valid; ``clock`` exists for tests.
+    moments are valid; ``clock`` exists for tests. ``trends`` are the job's active trend items
+    (:func:`ai_clipper.trend_context.read_trend_context`); only those the transcript mentions
+    are used.
     """
+    trend_items = _check_trends(trends)
     items = _check_segments(segments)
     k = _integer(k, "k", 1)
     low = _positive(min_duration, "min_duration")
@@ -565,9 +742,14 @@ def select_clips_v3(
     heuristic = propose_heuristic(
         units, min_duration=low, max_duration=high, k=k, events=ordered_events, audio=audio
     )
+    # The trends this episode mentions, in prompt order (T1, T2, ...); empty means no trends.
+    shown: tuple[TrendItem, ...] = ()
+    if trend_items:
+        shown = tuple(entry.item for entry in relevant_trends(trend_items, units))
 
     warnings: list[str] = []
     llm_proposals: tuple[ClipProposal, ...] = ()
+    llm_values: tuple[float, ...] = ()
     provider = model = None
     usage: Mapping[str, int] = {}
     status = "completed"
@@ -592,6 +774,7 @@ def select_clips_v3(
                 rerank=rerank,
                 retry=retry,
                 clock=clock,
+                **({"trends": shown} if shown else {}),
             )
             warnings.extend(outcome.warnings)
             usage = outcome.usage  # spent even when no moment survives
@@ -603,6 +786,7 @@ def select_clips_v3(
                     model=outcome.model,
                 )
             llm_proposals = outcome.proposals
+            llm_values = outcome.rank_values
             provider, model = outcome.provider, outcome.model
         except LLMUnavailable:
             if llm_mode == "required":
@@ -623,9 +807,12 @@ def select_clips_v3(
         min_duration=low,
         max_duration=high,
     )
+    if len(llm_values) != len(llm_proposals):
+        llm_values = tuple(proposal.score for proposal in llm_proposals)
+    values = (*llm_values, *(proposal.score for proposal in heuristic))
     candidates: list[_Candidate] = []
-    dropped = 0
-    for proposal in (*llm_proposals, *heuristic):
+    dropped = ungrounded = 0
+    for proposal, value in zip((*llm_proposals, *heuristic), values, strict=True):
         payoff = proposal.hook_unit if proposal.payoff_unit is None else proposal.payoff_unit
         protect = (min(proposal.hook_unit, payoff), max(proposal.hook_unit, payoff))
         span = snapper.snap(proposal.start_unit, proposal.end_unit, protect)
@@ -633,9 +820,11 @@ def select_clips_v3(
             dropped += 1
             continue
         text = " ".join(unit.text for unit in units[span.start_unit : span.end_unit + 1])
-        candidates.append(_Candidate(proposal, span, _topic_words(text)))
+        grounded, refused = _ground(proposal, text, shown)
+        ungrounded += refused
+        candidates.append(_Candidate(proposal, span, _topic_words(text), grounded, value))
 
-    chosen = _rank(candidates, k)
+    chosen = _rank(_boosted(candidates), k)
     llm_led = bool(chosen) and chosen[0].proposal.source == "llm"
     if not llm_led and llm_proposals and status == "completed":
         # Every LLM moment was lost to snapping.
@@ -656,6 +845,7 @@ def select_clips_v3(
             units,
             snapper.cold_open(item.span, item.proposal.hook_unit) if cold_open else None,
             filler=llm_led and item.proposal.source == "heuristic",
+            shown=shown,
         )
         for rank, item in enumerate(chosen, 1)
     )
@@ -663,6 +853,8 @@ def select_clips_v3(
         warnings.append(f"llm_filled:{fillers}")
     if dropped:
         warnings.append(f"snap_dropped:{dropped}")
+    if ungrounded:
+        warnings.append(f"trend_ref_ungrounded:{ungrounded}")
     if len(clips) < k:
         warnings.append(f"few_clips:{len(clips)}")
     source = "llm" if llm_led else "heuristic"
@@ -672,7 +864,7 @@ def select_clips_v3(
         status=status,
         provider=provider if source == "llm" else None,
         model=model if source == "llm" else None,
-        prompt_version=_llm_prompt_version() if source == "llm" else HEURISTIC_VERSION,
+        prompt_version=_llm_prompt_version(bool(shown)) if source == "llm" else HEURISTIC_VERSION,
         warnings=tuple(dict.fromkeys(warnings)),
         usage=dict(usage),
     )
@@ -715,10 +907,26 @@ _CLIP_FIELDS = frozenset(
 )
 
 
-def _exact(value: object, fields: frozenset[str], name: str) -> dict[str, object]:
-    if type(value) is not dict or set(value) != fields:
+_CLIP_OPTIONAL_FIELDS = frozenset({"trends"})  # written only when a clip has trends
+_TREND_FIELDS = frozenset({"id", "title", "kind"})
+
+
+def _exact(
+    value: object, fields: frozenset[str], name: str, optional: frozenset[str] = frozenset()
+) -> dict[str, object]:
+    if type(value) is not dict or not fields <= set(value) <= fields | optional:
         raise SelectionArtifactError(f"{name} must contain exactly {', '.join(sorted(fields))}")
     return value
+
+
+def _trend_refs(value: object, index: int) -> tuple[TrendRef, ...]:
+    if type(value) is not list:
+        raise SelectionArtifactError(f"clip {index} trends must be a list")
+    refs = []
+    for item in value:
+        entry = _exact(item, _TREND_FIELDS, f"clip {index} trend")
+        refs.append(TrendRef(id=entry["id"], title=entry["title"], kind=entry["kind"]))
+    return tuple(refs)
 
 
 def _string_tuple(value: object, name: str) -> tuple[str, ...]:
@@ -728,7 +936,7 @@ def _string_tuple(value: object, name: str) -> tuple[str, ...]:
 
 
 def _clip_from_dict(payload: object, index: int) -> SelectedClip:
-    value = _exact(payload, _CLIP_FIELDS, f"clip {index}")
+    value = _exact(payload, _CLIP_FIELDS, f"clip {index}", _CLIP_OPTIONAL_FIELDS)
     cold = value["cold_open"]
     cold_open = None
     if cold is not None:
@@ -754,6 +962,7 @@ def _clip_from_dict(payload: object, index: int) -> SelectedClip:
         reasons=_string_tuple(value["reasons"], f"clip {index} reasons"),
         source=value["source"],
         text=value["text"],
+        trends=_trend_refs(value["trends"], index) if "trends" in value else (),
     )
 
 
