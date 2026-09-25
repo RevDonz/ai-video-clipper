@@ -22,7 +22,7 @@ other agents while measuring (load averages are in the evidence files).
 
 | Gate | Threshold | Measured (W1 exit, real modules) | Evidence | Result |
 |---|---|---|---|---|
-| pytest (Python 3.13) | green | whole suite green (see "Suites") | — | **pass** |
+| pytest (Python 3.13.13) | green | 3,032 passed, 1 skipped (the opt-in PUT timing gate) | — | **pass** |
 | pytest (Python 3.11.15) | green | 3,032 passed, 1 skipped (the opt-in PUT timing gate) | — | **pass** |
 | ruff `src tests` | 0 findings | 0 | — | **pass** |
 | `npm test` / `npm run build` | green | 457/457; build OK | — | **pass** |
@@ -56,7 +56,7 @@ image.
 
 ### Suites
 
-- `uv run pytest` (Python 3.13.13, local FFmpeg 6.1.1): green at the final commit.
+- `uv run pytest` (Python 3.13.13, local FFmpeg 6.1.1): 3,032 passed, 1 skipped at the final commit.
 - `uv run --python 3.11 --isolated --with-editable . --extra vision --with "pytest>=8,<9"
   pytest`: 3,032 passed, 1 skipped (the opt-in PUT timing gate, `POTONGIN_GATES=1`).
 - `uv run ruff check src tests`: 0 findings. `npm test`: 457/457. `npm run build`: OK.
