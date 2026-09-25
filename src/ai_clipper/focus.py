@@ -36,9 +36,20 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from itertools import product
+from typing import Any
 
 from .audio_timeline import AudioTimeline
-from .hook_heuristics import _analyse_unit, _context, _proposal, _search
+from .hook_heuristics import (
+    _EPSILON,
+    HOOK_ZONE_MAX_SECONDS,
+    HOOK_ZONE_MIN_SECONDS,
+    HOOK_ZONE_SHARE,
+    _analyse_unit,
+    _assess,
+    _context,
+    _proposal,
+    _starts,
+)
 from .selection_types import (
     MAX_FOCUS_TERM_CHARS,
     MAX_FOCUS_TERMS,
@@ -287,12 +298,16 @@ class FocusMatcher:
 
 
 class HeuristicWindows:
-    """The heuristic's own scored windows (:mod:`ai_clipper.hook_heuristics`) around units.
+    """The heuristic's own windows (:mod:`ai_clipper.hook_heuristics`) around given units.
 
-    Built lazily on the first :meth:`around` call, with the same analysis
-    :func:`ai_clipper.hook_heuristics.propose_heuristic` runs (every start, the best end per
-    third of the duration range), so a window around a mention is scored and packaged exactly
-    like any heuristic proposal. The selector still snaps it and applies the duration rules.
+    The episode is analysed once, lazily, exactly as
+    :func:`ai_clipper.hook_heuristics.propose_heuristic` does. :meth:`around` then searches
+    like the heuristic's window search, restricted to the units asked for: every heuristic
+    start inside the allowed range, its hook zone, and the end with the best cut (full
+    laugh-end credit) among those that keep the mention and the duration bounds. So a window
+    around a mention is scored and packaged exactly like any heuristic proposal, even when a
+    chosen clip right next to it rules out the heuristic's usual ends. The selector still snaps
+    it and applies the duration rules.
     """
 
     def __init__(
@@ -309,19 +324,57 @@ class HeuristicWindows:
         self._high = float(max_duration)
         self._events = sort_events(events)
         self._audio = audio
-        self._state: tuple[object, list[object]] | None = None
+        self._state: tuple[Any, list[tuple[int, str]]] | None = None
 
-    def around(self, first: int, last: int, limit: int) -> list[ClipProposal]:
-        """Up to ``limit`` proposals whose units include ``first..last``, best score first."""
+    def _prepared(self) -> tuple[Any, list[tuple[int, str]]]:
+        if self._state is None:
+            ctx = _context(
+                [_analyse_unit(unit) for unit in self._units], self._events, self._audio
+            )
+            self._state = (ctx, _starts(ctx))
+        return self._state
+
+    def around(
+        self, first: int, last: int, limit: int, *, within: tuple[int, int] | None = None
+    ) -> list[ClipProposal]:
+        """Up to ``limit`` proposals whose units include ``first..last`` and stay inside
+        ``within`` (a ``(first, last)`` unit range, default every unit), one per start, best
+        score first."""
         if not self._units:
             return []
-        if self._state is None:
-            ctx = _context([_analyse_unit(unit) for unit in self._units], self._events,
-                           self._audio)
-            self._state = (ctx, _search(ctx, self._low, self._high))
-        ctx, windows = self._state
-        containing = sorted(
-            (window for window in windows if window.start <= first and last <= window.end),
-            key=lambda window: (-window.score, window.start, window.end),
+        low_unit, high_unit = (0, len(self._units) - 1) if within is None else within
+        low_unit, high_unit = max(low_unit, 0), min(high_unit, len(self._units) - 1)
+        if not low_unit <= first <= last <= high_unit:
+            return []
+        ctx, starts = self._prepared()
+        units = ctx.units
+        reach = min(
+            HOOK_ZONE_MAX_SECONDS, max(HOOK_ZONE_MIN_SECONDS, HOOK_ZONE_SHARE * self._high)
         )
-        return [_proposal(ctx, window, window.score, 0.0) for window in containing[:limit]]
+        found = []
+        for start, kind in starts:
+            if start < low_unit or units[last].end - units[start].start > self._high + _EPSILON:
+                continue
+            if start > first:
+                break
+            origin = units[start].start
+            zone, hook_unit, hook_value = start, start, -1.0
+            best = None
+            for end in range(start, high_unit + 1):
+                duration = units[end].end - origin
+                if duration > self._high + _EPSILON:
+                    break
+                while zone <= end and (zone == start or units[zone].start <= origin + reach):
+                    if ctx.line_value[zone] > hook_value + _EPSILON:
+                        hook_unit, hook_value = zone, ctx.line_value[zone]
+                    zone += 1
+                if end < last or duration < self._low - _EPSILON:
+                    continue
+                window = _assess(ctx, start, end, kind, hook_unit, hook_value)
+                window.zone_end = zone - 1
+                if best is None or window.choice > best.choice + _EPSILON:
+                    best = window
+            if best is not None:
+                found.append(best)
+        found.sort(key=lambda window: (-window.score, window.start, window.end))
+        return [_proposal(ctx, window, window.score, 0.0) for window in found[:limit]]

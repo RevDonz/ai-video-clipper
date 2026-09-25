@@ -98,12 +98,12 @@
      ``score`` and the sub-scores never change. A heuristic clip placed in an LLM-led selection
      because it is ``literal`` gets :data:`FOCUS_FILL_REASON` instead of the filler reason;
    - **extra candidates**: when fewer than ``k`` chosen clips are ``literal`` and some mention
-     lies in no chosen clip, the heuristic's own best windows around each such mention
-     (:class:`ai_clipper.focus.HeuristicWindows`, :data:`FOCUS_WINDOW_OPTIONS` per mention) are
-     snapped like any proposal (duration rules included); those that keep the mention and
-     touch no chosen literal clip join the ``literal`` part after its other candidates, best
-     score first, no two sharing a unit, at most one per free slot, and the ranking runs
-     again;
+     lies in no chosen clip, the heuristic's own best windows around each such mention,
+     searched between the chosen literal clips (:class:`ai_clipper.focus.HeuristicWindows`,
+     :data:`FOCUS_WINDOW_OPTIONS` per mention), are snapped like any proposal (duration rules
+     included); those that keep the mention and touch no chosen literal clip join the
+     ``literal`` part after its other candidates, best score first, no two sharing a unit, at
+     most one per free slot, and the ranking runs again;
    - **packaging**: only ``literal`` and ``semantic`` clips may use the focus theme. The title,
      hook text and description of an LLM clip labelled ``none`` that name a focus term are
      rebuilt like trend packaging (:func:`ai_clipper.llm_selection.repair_trend_packaging`),
@@ -814,9 +814,10 @@ def _focus_extras(
     """Heuristic candidates around mentions no chosen clip covers, while slots remain.
 
     For every uncovered mention the best :data:`FOCUS_WINDOW_OPTIONS` heuristic windows around
-    it are snapped like any proposal; a window whose snapped span loses the mention or touches
-    a chosen literal clip is skipped. The survivors are taken best score first, never two that
-    share a unit, at most one per free slot (``k`` minus the literal clips chosen).
+    it that stay between the chosen literal clips are snapped like any proposal; a window whose
+    snapped span loses the mention or touches a chosen literal clip is skipped. The survivors
+    are taken best score first, never two that share a unit, at most one per free slot (``k``
+    minus the literal clips chosen).
     """
     literal = [item for item in chosen if item.focus == "literal"]
     room = k - len(literal)
@@ -827,8 +828,17 @@ def _focus_extras(
         return []
     options: list[tuple[ClipProposal, _Span]] = []
     seen: set[tuple[int, int]] = set()
+    last_unit = len(snapper.units) - 1
     for hit in uncovered:
-        for proposal in windows.around(hit.first_unit, hit.last_unit, FOCUS_WINDOW_OPTIONS):
+        free = (
+            max((item.span.end_unit + 1 for item in literal
+                 if item.span.end_unit < hit.first_unit), default=0),
+            min((item.span.start_unit - 1 for item in literal
+                 if item.span.start_unit > hit.last_unit), default=last_unit),
+        )
+        for proposal in windows.around(
+            hit.first_unit, hit.last_unit, FOCUS_WINDOW_OPTIONS, within=free
+        ):
             payoff = proposal.hook_unit if proposal.payoff_unit is None else proposal.payoff_unit
             protect = (min(proposal.hook_unit, payoff), max(proposal.hook_unit, payoff))
             span = snapper.snap(proposal.start_unit, proposal.end_unit, protect)
