@@ -283,7 +283,7 @@ Appendix A.2) and `editor.module.css` (tokens only). Unit tests: `web/tests/pyth
 
 ---
 
-## W2 "Editor bisa dipakai": exit gate (T2.Z, 2026-09-25)
+## W2 "Editor bisa dipakai": exit gate (T2.Z, 2026-09-25; re-exit T2.Z2, 2026-09-26)
 
 Branch `editor-w2-integration`: the W2 base `44b4437`, then T2.1 → T2.2 → T2.3 → T2.5 → T2.4 →
 T2.6 → T2.7 cherry-picked in that order (60 commits, no conflicts), then the integration commits
@@ -304,7 +304,134 @@ production build of the branch on 127.0.0.1:3471. Machine: the K15 reference PC 
 threads), shared with other agents; load averages are in the evidence files (2–8 during these
 runs).
 
+### W2 verifier findings and what changed (T2.Z2 re-exit, 2026-09-26)
+
+The W2 verifier re-ran every gate at `1ba6d80` and found the exit gate not met (PF-AUDIO) plus
+four majors and ten minors. The re-exit (`0ea1929` … this commit, 20 commits: failing tests
+first, then each fix) addresses each one; the gates it touches were measured again on
+`ai-video-clipper:editor-w2r2`, built at `e13c351` (later commits: evidence, this document and a
+docstring; `toolchain.json` sha
+`4fefb754…85f0`, unchanged, so every render key stays valid), with copies of the owner's P3 jobs
+in a scratch `JOBS_ROOT` (app `--cpus 6`, render worker `--cpus 4`, 127.0.0.1:3495), Chrome for
+Testing 147.0.7727.15, on the K15 reference PC shared with other agents (loads in the evidence).
+The table in the next subsection is the first exit's; where a gate was measured again, this
+subsection supersedes it.
+
+| Finding (severity) | Fix | After (evidence `T2.Z2-*`) | Result |
+|---|---|---|---|
+| **PF-AUDIO** (blocker): with music 2,245 ms p95, speech only 1,291 ms (verifier, load 4.7) | The source is decoded **once**: the pre-master mix streams into the ebur128 measurement, which keeps a copy, then only the master stage and the FLAC run (`execute.run_piped`, `compile_ffmpeg.premaster_jobs`/`master_job`; the loudness is `audio_measure`'s and the PCM the reference's, tested). The source probe is kept in `preview/probe.json`. The **persistent preview worker** (plan §10.3) runs every lane op in a forked child without the interpreter start-up | 90 s clip: **with music p95 914.5 ms** (p50 902, load 2.0); speech only 620.5 ms. With five busy CPU loops on the host (load 5.6): **with music 1,132.6 ms**, speech only 673.2 ms. Stage times (music, one run): decode+mix‖measure 463 ms, master+FLAC 170 ms, compile 72 ms (probe cached) | **pass** at the nominal load; **fail with music under heavy load** (Open 22). Speech only (all W2 documents: music arrives in W3) passes at every measured load |
+| **Export dialog revision** (major): "Revisi 0" after edits | The dialog shows the store's saved revision (`shell-model.exportRevision`); the fakes' scenario store keeps revisions as the real store does | Fakes spec: "Revisi 1 · tersimpan" after the autosave; real stack: after every export the dialog names `render.revision` and the store agrees (`T2.Z2-e2e-flow.json`) | **fixed** |
+| **PF-PIPELINE** (major): reported as a layout aggregate that hid 1.48×/1.51× jobs | `look_report.py evidence` passes a layout only when every job of it passes, and reports each job with its source rate; re-measured (legacy then new engine, interleaved per job, 20 clips) | fit-blur 24 fps **1.68×**, 25 fps **1.41×**, 60 fps 0.89× (budget 1.35×); center-crop **1.79×** (1.35×); face-track **2.06×** (1.6×) | **fail**: blocks K1; T4.3 before the flip (Open 14) |
+| **PF-PLAN server** (major): 218 ms p95 | The persistent preview worker | HTTP p95 **33.7 ms** (load 1.8), 34.7 ms with five busy CPUs (load 6.0); a fresh CLI process alone is 115–171 ms p95 | **pass** |
+| **P-LOOK** (major): thresholds fail on 20/20; Open 11 deferred | **Open 11 fixed** (`subtitles.build_frame_cues`: inside a piece the word gap is measured in source ms, like the legacy cues; property test: identical grouping at all five document rates); P-LOOK re-rendered and re-measured; kit and owner pack regenerated with the R7 cost | Caption cues **894/894** with the legacy words (was 889); caption/hook boxes **19/20** clips at 0 px (one 60 fps clip 89 px: a zero-length word exactly at the cold-open end is shown because segment edges snap to frames); loudness 20/20 within 0.1 LU; SSIM ≥ 0.98 per frame **0/20** (13,257 of 29,767 frames; mean 0.963; deliberate: fit-blur row, face-track camera, R7, 60/VFR → 30); size **2.27×** | thresholds **fail** → owner (K1); P-RT re-run below passes |
+| PF-OPEN method (minor) | The spec's first visit is a never-opened clip, fresh context, until the first presented frame | VFR job, 5 cold clips: p50 1,775, **p95 2,428 ms**; face-track job, 6 cold clips: p95 2,494 ms (load 6.2); repeat 925 ms; first cell after prepare 736 ms | **pass** |
+| P-AUD VFR −8 samples (minor) | — | unchanged | open (Open 12, with W1 Open 4) |
+| E11 in the older helpers (minor) | `render-requests` (both spawns), `edit-document`, `candidates`, `caption-cues`, `candidate-feedback` pass `childEnv`; `MAX_UPLOAD_BYTES` joins the allowlist (not a secret; `render_queue` reads it) | `web/tests/legacy-spawn-env.test.mjs`; child-env audit (lane gates + e2e): **1,388** app children (733 preview worker incl. its forks, 179 api, 417 ffmpeg, 31 prlimit, 21 ffprobe, 6 render_queue, 1 preview_cli), 0 names outside the allowlist, **0 of 6 planted secrets** | **fixed** |
+| Job-level prepare (minor) | One run per job for concurrent requests, one job at a time, `PREPARE_RATE` (3, then one per 20 s; 429), `prepare_job` at nice 5; the project page shows one job-level action with "Menyiapkan analisis klip (kata, waveform, wajah)… N d" | `clip-edit.test.mjs`, `test_edit_v2_api.py`, fakes spec | **fixed** (the lane's semaphore is not shared: Open 23) |
+| Badge help (minor) | `shell-model.badgeHelp`: the §6.1 text for the exact badge only | unit + fakes spec | **fixed** |
+| Truth-frame threads (minor) | The `frame` op runs at the lane's two threads | PNG byte-identical to the four-thread compile (test, FFmpeg 6.1 and 5.1.9); PF-TRUTH p95 **292.8 ms** | **fixed** |
+| Fakes in production (minor) | `POTONGIN_EDITOR_FAKES` documented as a CI/development switch (CONTRACTS §5.18: the specs run it on `next start`; compose never passes it; the fake runtime makes no API call); the read-only inspect hook stays | — | **documented** |
+| Thin margins (minor) | Re-measured with the worker | PF-CELLS fit-blur 60 fps **11.62 s** (15), center-crop 7.71 s, face-track 14.10 s with the camera plan (25), 6.77 s without; PF-TRUTH 292.8 ms (600) | **pass** |
+| Owner beta UX (minor) | W3 panels and lanes hidden in the app (`LIVE_WAVES`; the fakes show them); a cancelled or failed export keeps the step it reached (`stopped`); the running export is not an earlier one | fakes spec; real stack: tabs Transkrip/Teks/Cold open, 3 lanes | **fixed** |
+| R10 rule for legacy clips (minor) | Recorded for the owner (checkpoint 2) | — | owner |
+
+Also re-run on the final image: **P-RT** on the 20 re-rendered clips: video, PCM, bytes and SRT
+identical 20/20 (29,807 frames; revision 0 re-rendered in another container on CPUs 8–11); R10
+**60/60** hard links (seed, undone edit, changed toolchain) (`T2.Z2-P-RT.json`). **P-AUD**
+(server, through the worker and the single-decode path): 6/6 md5 equal, samples = plan,
+including the measured music case (`T2.Z2-P-AUD.json`). **e2e flow** on the VFR center-crop job
+(990f3f37): every step, the edited export (16.2 s render for a 62.3 s clip) passes G1 and G2 on
+the download (G5 warns), R10 same inode; **QG-CONFLICT** two-tab e2e pass; **U1** 2.86 s, **U2**
+2.92 s, **U3** 2.91 s, **U6** 19.9 s for an 81.3 s clip (limit 111.3 s), **U7** 0 lost, reset
+found in 1.9 s; **QG-A11Y** 8 states, 0 violations of any impact. The browser parity gates
+(P-FRAME, P-TIME, P-TXT, P-LOGO, browser P-AUD, P-SYNC, PF-PLAY/SEEK/LIBASS/MEM) were not run
+again: the player, the text layer and the compiler's video path are unchanged; the server's
+cells are the same compile; the preview FLAC's PCM is proven equal to the reference; the Open 11
+change only regroups cues, which both renderers draw from the same ASS.
+
+**W2 exit verdict (re-exit).** Met except: (1) **PF-AUDIO with music under heavy load** (1.13 s
+p95 at load 5.6; 0.91 s at load 2.0; music is a W3 feature, and every W2 document passes at every
+measured load), (2) **PF-PIPELINE** (1.41–2.06× on four of five jobs; blocks K1 only, the engine
+flag stays `legacy`), (3) **P-LOOK's measured thresholds** (SSIM by design; one 89 px probe).
+These need the owner at checkpoint 2 (K1, R7 file size, the PF-PIPELINE condition, the R10
+legacy rule, and whether PF-AUDIO-with-music-under-load goes to W5/T3.3/T4.3); none changes what
+users see while the flags stay off.
+
+#### Suites at the re-exit commit
+
+- `uv run pytest` (Python 3.13.13, FFmpeg 6.1.1): 3,304 passed, 2 skipped (the opt-in PUT timing gate; the pack-thumbnail reproduction, toolchain-only).
+- `uv run --python 3.11 --isolated --with-editable . --extra vision --with "pytest>=8,<9"
+  pytest` (Python 3.11.15): 3,304 passed, 2 skipped (the same two).
+- Inside `editor-w2r2` (Python 3.11.2, FFmpeg 5.1.9, `--cpus 4`, the W1 scratch pytest target on
+  `PYTHONPATH`): 3,303 passed, 3 skipped (the PUT timing gate; no C compiler for the `vf_subtitles` reference; no git metadata in the container), 0 failed.
+- `uv run ruff check src tests`: 0 findings. `npm test`: 845/845. `npm run build`: OK (the same 13 Turbopack warnings as the first exit, all in routes that predate W2).
+- Browser specs (Chrome for Testing 147.0.7727.15): `e2e/editor-shell.spec.mjs` +
+  `e2e/editor-transcript.spec.mjs` on the fakes (`next start`, `EDITOR_GATES=1`, axe) 51 passed,
+  1 skipped (the optional real-clip budget); `e2e/editor-flow.spec.mjs` 10/10 against the image
+  stack (PF-OPEN run first so its clips were cold).
+- `docker build -t ai-video-clipper:editor-w2r2 .`: OK; `toolchain.json` sha `4fefb754…`; the
+  JASSUB worker files present.
+
+#### Patches by the W2 integrator (re-exit; numbering continues)
+
+39. `src/ai_clipper/edit_v2/execute.py` (T1.3): `run_piped` and pipe inputs/outputs; `run`'s
+    frozen signature kept (a private `_run`). Tests: `tests/test_edit_v2_execute.py`.
+40. `src/ai_clipper/edit_v2/compile_ffmpeg.py` (T1.3): `_master_chain` (one master-stage text),
+    `premaster_jobs`, `master_job`, `PREMASTER_INPUT`; probe seeding (`source_identity`,
+    `seed_probe`, `streams_to_json/from_json`, `clear_probe_cache`). `MODES` unchanged.
+41. `src/ai_clipper/edit_v2/preview_cli.py` (T2.3): the single-decode measured mix,
+    `preview/probe.json`, the truth frame at two threads. Tests:
+    `tests/test_edit_v2_preview_cli.py`.
+42. New `src/ai_clipper/edit_v2/preview_server.py` (+ `tests/test_edit_v2_preview_server.py`);
+    `web/lib/python-cli.mjs` `createPythonServer`, `PYTHON_SERVER_MODULES`
+    (+ `web/tests/python-server.test.mjs`); `web/lib/preview-lane.mjs` `previewCliRunner`,
+    `POTONGIN_PREVIEW_SERVER` (server-only kill switch).
+43. `src/ai_clipper/subtitles.py` (T1.2a): Open 11 (+ `tests/test_subtitles.py`).
+44. `web/lib/clip-edit.mjs` `createPrepareGate`/`PREPARE_RATE`; `src/ai_clipper/edit_v2/api.py`
+    `NICE` for `prepare_job`; `web/app/projects/[id]/page.jsx` the job-level prepare.
+45. `web/lib/python-cli.mjs` allowlist + `render-requests`, `edit-document`, `candidates`,
+    `caption-cues`, `candidate-feedback` (`childEnv`); `web/tests/python-cli.test.mjs`
+    expectation (+ `web/tests/legacy-spawn-env.test.mjs`).
+46. Editor UI (T2.6): `shell-model.mjs` (`exportRevision`, `badgeHelp`, `LIVE_WAVES`,
+    `liveEntries`), `export-flow.mjs` (`lastRunning`, `stopped`, `earlierExports`),
+    `ExportDialog.jsx`, `StageBadge.jsx`, `EditorApp.jsx`, `timeline/Timeline.jsx` (`lanes`),
+    `shell.module.css`; `web/e2e/editor-shell.spec.mjs` (the scenario store keeps revisions as the
+    real store does; the U1 predicate reads the saved revision accordingly).
+47. Gate tools: `scripts/parity/look_report.py` (per-job PF-PIPELINE pass, `LOOK_TASK`, kit
+    text), `scripts/parity/preview_lane_gates.py` (the mix cache cleared before PF-AUDIO, the
+    single-decode stage breakdown, `LANE_GATES_TASK`), `web/e2e/editor-flow.spec.mjs` (the
+    dialog's revision, W3 hidden, strict cold PF-OPEN). `docs/editor/CONTRACTS.md` §5.18.
+
+#### Open (re-exit updates)
+
+- Open 11 is **closed** (fixed; P-LOOK and P-RT re-run).
+- Open 14 is updated: PF-PLAN is met (worker); PF-AUDIO see 22; PF-PIPELINE per job 1.41–2.06×
+  (causes, T2.1's diagnosis: R7 crf 18 + chroma offset, the `gbrp` composite and scale flags;
+  then verify's full decode, peaks and the camera plan per clip; T4.3 candidates: overlap a clip's
+  verify, peaks and camera plan with the next clip's render, reuse per-job decodes). `probe_source`
+  is cached on disk for the lane.
+- Open 20 is updated: the face-track prepare still takes ~50 s for 8 clips, now niced, gated and
+  shown once per job with a seconds counter (no per-clip progress yet: T4.5).
+- 22. **PF-AUDIO with music under heavy load**: 1,132.6 ms p95 at load 5.6 (914.5 ms at 2.0). The
+  long pole is decode+mix (~460 ms) running beside the measurement, then the master+FLAC pass
+  (~170 ms). Measured and rejected: splitting speech and music into two producers (−30 ms, the
+  measurement becomes the pole). Left: splitting the true-peak measurement per channel with the
+  split producers, caching a clip's decoded runs (exactness to be proven for Opus pre-roll). T3.3
+  (music) or T4.3; owner at checkpoint 2.
+- 23. **Two heavy semaphores**: job-level prepares have their own gate (1 at a time, nice 5) beside
+  the lane's two heavy slots (a different CLI module); T4.3 may merge them.
+- 24. **P-LOOK's last caption probe**: a zero-length word exactly at the cold-open end is shown by
+  the new engine (segment edges snap to the frame grid) and not by the legacy engine (half-open
+  range in seconds); one probe of one clip, 89 px. Owner (K1).
+- 25. **Preview worker**: the server forks from a process without threads; a hung child is stopped
+  by its caller's timeout (SIGTERM to its group, SIGKILL after 2 s) as a spawned CLI was; the
+  server restarts after a crash with a 5 s back-off, spawning CLIs meanwhile.
+  `POTONGIN_PREVIEW_SERVER=off` returns to spawning.
+
 ### Summary table
+
+The first exit, at `1ba6d80`; the re-exit subsection above supersedes a row where a gate was
+measured again.
 
 | Gate | Threshold | Measured (W2 exit, integrated branch) | Evidence | Result |
 |---|---|---|---|---|
@@ -514,11 +641,12 @@ with a placeholder file (`panels/{LayoutPanel,LogoPanel,MusicPanel}.jsx`,
 `suggestions/index.jsx` is the hook-suggestions slot (T3.4). `__dev__/fakes.mjs` adds
 `createFakeUploadClient` (Appendix A.2 `uploadAsset`) and Rapikan, cold-open and AI-hook data.
 Tests: `web/tests/editor-w3-scaffold.test.mjs`. In the owner's beta the W3 tabs and lanes are
-visible and say the feature comes next.
+hidden until W3 lands (re-exit: `shell-model.LIVE_WAVES`; the W3 integrator adds `"W3"`); the
+fakes show them.
 
 ### Open (W2 additions; W1's list above stays)
 
-11. **Cue grouping** (T2.1 finding, T1.2a module): `_group_frame_words` compares the word gap after
+11. **Cue grouping** (closed at the re-exit: fixed, P-LOOK and P-RT re-run) (T2.1 finding, T1.2a module): `_group_frame_words` compares the word gap after
     rounding to frames, so real gaps of 0.611–0.620 s become 0.600 s and a cue does not break
     where the legacy engine breaks (5 of 894 real cues, 2 of 20 P-LOOK clips). Fix before the K1
     flip (W5/T4): measure the gap in source ms inside a piece; re-run P-LOOK and P-RT.
