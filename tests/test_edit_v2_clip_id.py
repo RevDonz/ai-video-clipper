@@ -5,9 +5,9 @@ from __future__ import annotations
 import hashlib
 
 import pytest
-from ai_clipper.edit_v2.clip_id import CLIP_ID_PATTERN, clip_id, is_clip_id, ms_from_seconds
 
-from ai_clipper.selection_types import SelectedClip
+from ai_clipper.edit_v2.clip_id import CLIP_ID_PATTERN, clip_id, is_clip_id, ms_from_seconds
+from ai_clipper.selection_types import SCORE_DIMENSIONS, SelectedClip
 
 SOURCE = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 OTHER_SOURCE = "a" * 64
@@ -57,7 +57,7 @@ def test_every_input_changes_the_id():
 def test_field_boundaries_cannot_be_shifted_between_fields():
     # "12" + "3" must not collide with "1" + "23": the NUL separators keep fields apart.
     assert clip_id(SOURCE, 12, 300, None) != clip_id(SOURCE, 1, 2300, None)
-    assert clip_id(SOURCE, 1, 23, (5, 6)) != clip_id(SOURCE, 1, 2, (35, 6))
+    assert clip_id(SOURCE, 1, 23, (5, 60)) != clip_id(SOURCE, 1, 2, (35, 60))
 
 
 def _selected(rank: int, *, start: float, end: float, cold, title: str, score: float) -> SelectedClip:
@@ -72,9 +72,9 @@ def _selected(rank: int, *, start: float, end: float, cold, title: str, score: f
         hook_text="Dia ditahan security di film-nya sendiri",
         description="Cerita lucu di balik layar.",
         hashtags=("podcast",),
-        archetype="story",
+        archetype="story_twist",
         score=score,
-        scores={"hook": score},
+        scores=dict.fromkeys(SCORE_DIMENSIONS, score),
         reasons=("hook",),
         source="llm",
         text="kata kata",
