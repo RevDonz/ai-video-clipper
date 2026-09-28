@@ -676,3 +676,96 @@ fakes show them.
 21. **The 16 ms transcript budget on the real store** was measured with T2.7's harness store
     (p95 4.0 ms, max 11.7 ms on 1,500 words); T2.5 measured the real store's dispatch alone
     (p95 ≤ 1.94 ms). The two together are not measured on the integrated page (T4.5).
+
+---
+
+## Rebase onto main (W3 base, 2026-09-28)
+
+Branch `editor-w3-base`: `editor-w2-integration` (`550723e`, 197 commits on `80c7901`) rebased
+onto `main` `55e4c6c` (Konteks Tren, Fokus klip, the content-based `.gitleaks.toml`); linear, no
+merge commits, no commit became empty (197 → 197), `rerere` on. Then five commits: three test
+commits where the two sides meet, one `ruff format`, one gitleaks allowlist. Flags unchanged
+(all off; `POTONGIN_RENDER_ENGINE=legacy`).
+
+**What conflicted and how it was resolved** (4 of the 197 commits; every other file of both sides
+merged cleanly, including `web/lib/selection-v3-view.mjs` and both web test files):
+
+| Commit (rebased) | File | Resolution |
+|---|---|---|
+| `06dbe93` engine-switch tests | `tests/test_pipeline_v3.py` | Both appended sections kept: main's Konteks Tren and Fokus klip tests, then the engine-switch tests (the fixture's `POTONGIN_RENDER_ENGINE` removal merged by itself) |
+| `9a85215` engine switch | `src/ai_clipper/pipeline.py` | `_run_v3` and `run_pipeline` take `trend_context`, `focus` **and** `render_engine`; the call passes all three; one docstring names all three. Trends and focus stay selection data: `_v3_manifest_clip` writes `trends`/`focus`, `_render_v3_clips` then adds the four engine fields, so a clip rendered by edit-v2 (or falling back) keeps both |
+| `9a85215` engine switch | `web/lib/jobs.mjs` | `sanitizeV3ClipFields` keeps `trends` and `focus`, then `clipId` and `renderEngine`; both name maps and `JOB_V3_ONLY_KEYS` carry all four |
+| `b874b1e` V3 shell, `1577049` job-level prepare | `web/app/projects/[id]/page.jsx` | Both imports; `FocusSummary` then the editor's `ClipEditorEntry`/`JobPrepare`; `V3ClipCard({ clip, job, copied, onCopy, editorEntry })`: focus chip in the badge row, then `TrendChips`, then `ClipEditorEntry`; the list keeps main's pinned `<V3ClipCard key={clip.index} clip={clip} job={job}` and adds `editorEntry`; `FocusSummary` sits above the editor's error panel and job-level prepare |
+
+Checked beyond the text: edit-v2 reads `selection.v3.json` through `selection_from_dict`, which
+accepts main's optional `trends`/`focus`; clip ids come from the source sha and times, so they are
+unchanged; the worker's engine environment is a denylist, so `POTONGIN_RENDER_ENGINE` still reaches
+the CLI beside `--trend-context`/`--focus-term`. Every test of both tips is still present (static
+count by file and name right after the rebase: main 1,734, editor 2,619, merged 3,006, 0 missing).
+
+**New tests where the sides meet.** `tests/test_pipeline_v3.py`: a V3 job with a trend snapshot and
+a focus rendered with `render_engine="edit-v2"` (one clip falling back) writes the legacy manifest
+plus exactly the four engine fields, trends, focus and the focus summary included, and no trend or
+focus text reaches the engine. `tests/test_edit_v2_render_edit.py` (real compiler): a job selected
+with a trend and focus labels seeds the same documents as without them (only
+`origin.selection_artifact_sha256` differs, so its plan sha does too), renders identical frames and
+PCM, opens in the editor listing, and `render_v3_job` keeps both. `web/tests/selection-v3.test.mjs`:
+the four clip fields side by side through the manifest and the job API, each dropped on its own;
+the summary's focus beside `engine_fallback`; the card structure. `web/e2e/editor-shell.spec.mjs`:
+the project page shows the focus line, the focus chip, the "Nyambung tren" chips and "Edit klip"
+in the same card (and at 390 px), and only the chips without the editor flag.
+
+`.gitleaks.toml`: main's content-based allowlist did not cover the W2 unit tests' fake keys (the
+example UUID family and `0123456789abcdef` in `web/tests/clip-{edit,media,renders}.test.mjs` and
+`tests/test_render_queue.py`: 7 findings). Those exact line shapes are now allowed; gitleaks
+v8.28.0 finds nothing in `main..editor-w3-base` or the branch's whole history, and real-format
+GitHub, Stripe, AWS-shaped and generic keys added to the same files (or after an allowed value on
+the same line, or in the evidence folder) are still reported.
+
+**Suites at the W3 base** (the last code commit; later commits are this document, evidence and the
+gitleaks config):
+
+- `uv run ruff check src tests`: 0 findings (`pipeline.py` and `tests/test_pipeline_v3.py` are
+  `ruff format` clean again, as on main).
+- `uv run pytest` (Python 3.13.13, FFmpeg 6.1.1): **3,783 passed, 2 skipped** (the opt-in PUT
+  timing gate; the pack-thumbnail reproduction, toolchain-only).
+- Python 3.11.15 (scratch venv from `uv.lock`, `--extra vision`): **3,783 passed, 2 skipped** (the
+  same two).
+- Inside `ai-video-clipper:editor-w3base` (Python 3.11.2, FFmpeg 5.1.9, `--cpus 4`, pytest 8.4.2
+  from a scratch target): **3,782 passed, 3 skipped** (the PUT timing gate; no C compiler; no git
+  metadata), 0 failed.
+- `npm test`: **983/983**. `npm run build`: OK (the same 13 Turbopack warnings).
+- Browser specs on a production build (`next start`, Chrome for Testing 147.0.7727.15):
+  `editor-shell` + `editor-transcript` on the fakes (`EDITOR_GATES=1`, axe) 53 passed, 1 skipped
+  (the optional real-clip budget); `focus` + `trends` 11 passed, and the live trends block 1/1 on
+  the temp server.
+- `docker build -t ai-video-clipper:editor-w3base .`: OK; `/app/resources/toolchain.json` sha
+  `4fefb754…85f0`, **the same as `editor-w2r2`** (every render key stays valid); `toolchain check`
+  OK; the JASSUB worker files present.
+
+**Gates re-run in `editor-w3base`** (evidence `docs/editor/evidence/W3/W3base-*.json`; the image's
+own `src` and `resources`):
+
+- **P-RT/R10**, synthetic job (`make_job.py build --only main,fps60,old --render --stub-camera` in
+  one container, `rt_check.py` in another on CPUs 8–11): 6/6 revision-0 re-renders identical in
+  video, PCM, bytes and SRT, render key and plan equal (6,813 frames, fit-blur 29.97 and camera
+  60→30); R10 **27/27** hard links (seed, undone edit, changed toolchain; edit-v2 and legacy).
+- **G-DET**: 0 digest differences over 8 cases and 3 processes (hash seeds 11, 4242), 0
+  preview/export ASS mismatches, final bytes and 13 plate cells identical (2 cases).
+- **e2e flow** (`e2e/editor-flow.spec.mjs`) against the image's app and render worker with a temp
+  copy of the owner's jobs (the originals only read): **10/10** on e7f0d37b (fit-blur): the edited
+  export (revision 1, 27.6 s render for a 48.8 s clip) passes G1 and G2 on the download (G5 warns),
+  R10 same inode; QG-CONFLICT pass; U1 3.9 s, U2 3.0 s, U3 3.0 s, U6 36.7 s for an 89.3 s clip
+  (limit 119.3 s), U7 0 lost and the reset found in 1.9 s; QG-A11Y 8 states, 0 violations;
+  PF-OPEN first visit p95 1,705 ms, repeat 1,555 ms, first cell 1,259 ms (load 18.5). PF-OPEN on
+  860fef1a (face-track): 1,097 / 1,005 / 874 ms.
+- A scratch check on the same stack (not committed): the e7f0d37b copy given a trend and a focus
+  shows the focus line, the focus chips, the trend chips and "Edit klip" in the same cards, and the
+  editor opens from them.
+
+**Open (noticed, not changed here).** The project page of a V3 job asks `/candidate-feedback`
+(404 without V2 candidates, unchanged since before both branches) and, with the editor flag off,
+`/api/jobs/:id/clips` (404, W2), so its console shows two 404s. A spec built on
+`e2e/support/harness.mjs` counts any API response ≥ 400 as a failure if pointed at such a page
+(`read-only` and `smoke` pick V2 jobs, so they are not affected; the Konteks Tren and Fokus specs
+fake the job routes).
