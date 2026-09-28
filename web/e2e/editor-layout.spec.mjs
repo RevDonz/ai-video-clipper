@@ -207,6 +207,7 @@ function installScenario(config) {
       return wrapped;
     },
     store(store, fakes, parts) {
+      store.ready?.catch?.(() => {}); // the replaced fake store may still plan once; its answer is unused
       store.destroy();
       return scenarioStore(fakes, parts);
     },
@@ -256,10 +257,15 @@ test.skip(process.env.E2E_EDITOR_FAKES !== "1",
   "E2E_EDITOR_FAKES=1 is required (server with POTONGIN_EDITOR_V3=on and POTONGIN_EDITOR_FAKES=1)");
 test.skip(!settings.username || !settings.password, "E2E_USERNAME and E2E_PASSWORD are required");
 
-async function openLayoutPanel(page, config = {}) {
+async function openLayoutPanel(page, config = {}, { planned = true } = {}) {
   await page.addInitScript(installScenario, config);
   await page.goto(EDITOR);
-  await expect(page.locator('[data-editor-ready="true"]')).toBeVisible({ timeout: 30_000 });
+  if (planned) {
+    await expect(page.locator('[data-editor-ready="true"]')).toBeVisible({ timeout: 30_000 });
+  } else {
+    // no plan yet (the server cannot plan the document): the editor is open, the stage waits
+    await expect(page.locator('[data-editor-status="ready"]')).toBeVisible({ timeout: 30_000 });
+  }
   // the fake runtime exposes its store, player and API; the panel also finds its preview client there
   await page.evaluate(() => { window.__potonginEditor.previewClient = window.__scenarioPreview; });
   await page.getByRole("tab", { name: "Tata letak" }).click();
@@ -414,11 +420,16 @@ test("face-track with every face found says so", async ({ page }) => {
 
 test("a face-track document without its camera plan is analysed on its own", async ({ page }) => {
   // e.g. a draft restored after the camera plan was removed: the plan request answers analysis_missing
-  const panel = await openLayoutPanel(page, { docPatch: { "layout.default.mode": "camera" }, prepareMs: 800 });
+  const panel = await openLayoutPanel(page, { docPatch: { "layout.default.mode": "camera" }, prepareMs: 800 },
+    { planned: false });
   await expect(radio(panel, "Ikuti wajah")).toBeChecked();
+  await expect(panel.locator("[data-layout-analysis]")).toContainText("Menganalisis wajah…");
   await expect.poll(async () => (await calls(page)).filter((entry) => entry[0] === "prepare")).toEqual([["prepare", { layout: "camera" }]]);
   await expect.poll(() => page.evaluate(() => window.__potonginEditor.store.getState().previewError), { timeout: 15_000 }).toBe(null);
+  await expect(page.locator('[data-editor-ready="true"]')).toBeVisible();
+  await expect(panel.locator("[data-layout-analysis]")).toBeHidden();
   expect((await calls(page)).filter((entry) => entry[0] === "dispatch")).toEqual([]);
+  expect(await layoutOf(page)).toBe("camera");
 });
 
 test("read-only: the layouts are shown but cannot be changed", async ({ page }) => {
