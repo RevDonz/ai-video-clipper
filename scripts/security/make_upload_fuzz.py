@@ -132,7 +132,10 @@ def png_apng(base: bytes) -> bytes:
     ihdr = chunks[0][1]
     width, height = struct.unpack(">II", ihdr[:8])
     idat = b"".join(body for kind, body in chunks if kind == b"IDAT")
-    fctl = lambda seq: struct.pack(">IIIIIHHBB", seq, width, height, 0, 0, 1, 10, 0, 0)  # noqa: E731
+
+    def fctl(seq: int) -> bytes:
+        return struct.pack(">IIIIIHHBB", seq, width, height, 0, 0, 1, 10, 0, 0)
+
     return _png([(b"IHDR", ihdr), (b"acTL", struct.pack(">II", 2, 0)), (b"fcTL", fctl(0)),
                  (b"IDAT", idat), (b"fcTL", fctl(1)), (b"fdAT", struct.pack(">I", 2) + idat),
                  (b"IEND", b"")])
@@ -454,7 +457,7 @@ def verdict(case: dict, *, status: int, elapsed_ms: int, code: str | None,
     """One case's result: 2xx = normalised, 4xx = rejected, anything else fails the gate."""
     outcome = "normalised" if 200 <= status < 300 else "rejected" if 400 <= status < 500 else \
         "server_error"
-    cap = TIME_CAPS_MS[case["kind"]] if case["kind"] in TIME_CAPS_MS else 20_000
+    cap = TIME_CAPS_MS.get(case["kind"], 20_000)
     problems = []
     if outcome == "server_error":
         problems.append(f"status {status}")
@@ -466,8 +469,11 @@ def verdict(case: dict, *, status: int, elapsed_ms: int, code: str | None,
         problems.append(f"over the {cap} ms cap")
     if stored is not None and any(marker in stored for marker in MARKERS):
         problems.append("a polyglot payload survived normalisation")
-    if case["id"].startswith("name_traversal") and outcome == "normalised" and name != "passwd":
-        problems.append("the traversal name was not reduced to its last segment")
+    # Display names never carry a path (identical content keeps its first name, so the exact
+    # value is checked by the unit tests of both languages, not here).
+    if outcome == "normalised" and name is not None and (
+            "/" in name or "\\" in name or name in (".", "..") or len(name) > 80):
+        problems.append("a display name kept a path or exceeded 80 characters")
     return {"id": case["id"], "kind": case["kind"], "mime": case["mime"], "bytes": case["bytes"],
             "expect": case["expect"], "stage": stage, "status": status, "outcome": outcome,
             "code": code, "reason": reason, "elapsedMs": elapsed_ms, "capMs": cap,
