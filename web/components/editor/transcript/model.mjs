@@ -9,105 +9,36 @@
 // - Paragraphs: sentence units (`u`) in word order, with the removal chips placed in them.
 // - The cold-open rules of §3.4 for a candidate range, and the active word at an output frame.
 //
-// The time-map functions mirror `edit_v2/timemap.py` and are checked against
-// `tests/fixtures/edit_v2/timemap-vectors.json`. (T2.5's `web/lib/editor/timemap.mjs` is the
-// store's copy of the same contract.) All arithmetic stays below 2^53 for sources under 10 h.
+// The time map is `web/lib/editor/timemap.mjs` (T2.5), the browser mirror of
+// `edit_v2/timemap.py` checked against `tests/fixtures/edit_v2/timemap-vectors.json`; this module
+// re-exports the names the panels use (T3.5 took over the T2.7 copy, W2 phase-B request). All
+// arithmetic stays below 2^53 for sources under 10 h.
+import {
+  divRoundHalfUp,
+  floorDiv,
+  outToSrc,
+  pieces as timemapPieces,
+  sfCeil,
+  sfFloor,
+  totalFrames,
+  wordFrames,
+} from "../../../lib/editor/timemap.mjs";
 
-const MIN_PIECE_FRAMES = 2;
+export { divRoundHalfUp, outToSrc, sfCeil, sfFloor, totalFrames, wordFrames };
+
 const SECONDS = new Intl.NumberFormat("id-ID", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const LOW_CONFIDENCE_PM = 500;
 
-// --- time map mirror ---------------------------------------------------------------------------
-
-export function sfFloor(ms, [num, den]) {
-  return Math.floor((ms * num) / (1000 * den));
-}
-
-export function sfCeil(ms, [num, den]) {
-  return Math.ceil((ms * num) / (1000 * den));
-}
-
-/** round_half_up(numerator / denominator) for integers, halves toward +∞ (denominator > 0). */
-export function divRoundHalfUp(numerator, denominator) {
-  return Math.floor((2 * numerator + denominator) / (2 * denominator));
-}
+// --- time map ----------------------------------------------------------------------------------
 
 /** The source-grid frame containing a word's midpoint `(s+e)/2` (plan §3.4 visibility rule). */
 export function midSf(word, [num, den]) {
-  return Math.floor(((word.s + word.e) * num) / (2000 * den));
-}
-
-function keptRanges(inSf, outSf, cuts) {
-  const kept = [];
-  let cursor = inSf;
-  for (const [a, b] of [...cuts].sort((x, y) => x[0] - y[0] || x[1] - y[1])) {
-    const start = Math.max(a, inSf);
-    const end = Math.min(b, outSf);
-    if (start >= end) continue;
-    if (start > cursor) kept.push([cursor, start]);
-    cursor = Math.max(cursor, end);
-  }
-  if (cursor < outSf) kept.push([cursor, outSf]);
-  return kept.filter(([a, b]) => b - a >= MIN_PIECE_FRAMES);
+  return floorDiv((word.s + word.e) * num, 2000 * den);
 }
 
 /** Pieces of `doc.main` in output order, plan DTO shape (timemap.py `pieces`). */
 export function piecesOf(doc) {
-  const cuts = new Map();
-  for (const removal of doc.main.removals ?? []) {
-    if (!(removal.in_sf < removal.out_sf)) continue;
-    if (!cuts.has(removal.seg)) cuts.set(removal.seg, []);
-    cuts.get(removal.seg).push([removal.in_sf, removal.out_sf]);
-  }
-  const pieces = [];
-  let outF0 = 0;
-  for (const segment of doc.main.segments) {
-    if (!(segment.in_sf < segment.out_sf)) continue;
-    for (const [inSf, outSf] of keptRanges(segment.in_sf, segment.out_sf, cuts.get(segment.id) ?? [])) {
-      pieces.push({ i: pieces.length, seg: segment.id, role: segment.role, inSf, outSf, outF0, frames: outSf - inSf });
-      outF0 += outSf - inSf;
-    }
-  }
-  return pieces;
-}
-
-export function totalFrames(pieces) {
-  return pieces.length ? pieces.at(-1).outF0 + pieces.at(-1).frames : 0;
-}
-
-/** `[piece, sf]` for output frame n (timemap.py `out_to_src`); throws outside the clip. */
-export function outToSrc(n, pieces) {
-  if (!Number.isInteger(n) || n < 0 || n >= totalFrames(pieces)) throw new RangeError("output frame outside the clip");
-  let lo = 0;
-  let hi = pieces.length - 1;
-  while (lo < hi) {
-    const mid = (lo + hi + 1) >> 1;
-    if (pieces[mid].outF0 <= n) lo = mid;
-    else hi = mid - 1;
-  }
-  const piece = pieces[lo];
-  return [piece, piece.inSf + (n - piece.outF0)];
-}
-
-/**
- * Output frames `[on, off]` of a word in the first piece (in output order) of `pieces` whose
- * source span holds its midpoint, or null (timemap.py `word_frames`).
- */
-export function wordFrames(sMs, eMs, pieces, fps) {
-  const [num, den] = fps;
-  const scale = 1000 * den;
-  const mid = Math.floor(((sMs + eMs) * num) / (2 * scale));
-  for (const piece of pieces) {
-    if (piece.inSf > mid || mid >= piece.outSf) continue;
-    const base = piece.inSf * scale;
-    const last = piece.outF0 + piece.frames;
-    let on = piece.outF0 + divRoundHalfUp(sMs * num - base, scale);
-    let off = piece.outF0 + divRoundHalfUp(eMs * num - base, scale);
-    on = Math.min(Math.max(on, piece.outF0), last);
-    off = Math.max(Math.min(Math.max(off, piece.outF0), last), on);
-    return [on, off];
-  }
-  return null;
+  return timemapPieces(doc);
 }
 
 /** "1,4 dtk": a frame count as Indonesian seconds with one decimal. */
