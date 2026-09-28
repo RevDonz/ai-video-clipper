@@ -118,6 +118,10 @@ export function cleanupView({ listing, doc, words, ctx }) {
   const view = {
     ok: list.ok, entries: [], hidden: { applied: 0, removed: 0, outside: 0, blocked: 0 },
     counts: Object.fromEntries(KIND_ORDER.map((kind) => [kind, 0])), locked: list.locked.length,
+    lockedBy: {
+      laughter: list.locked.filter((entry) => entry.reason === "laughter").length,
+      no_quiet_cut: list.locked.filter((entry) => entry.reason === "no_quiet_cut").length,
+    },
     missing: list.missing, precheck: list.precheck,
   };
   if (!list.ok || !doc || !words?.words) return view;

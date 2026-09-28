@@ -45,87 +45,79 @@
    37469,
    37484
   ],
-  "cl_21": [
-   37508,
-   37520
-  ],
-  "cl_23": [
+  "cl_22": [
    37583,
    37594
   ],
-  "cl_24": [
-   37616,
-   37628
-  ],
-  "cl_25": [
+  "cl_23": [
    37655,
    37677
   ],
-  "cl_27": [
+  "cl_25": [
    37823,
    37833
   ],
-  "cl_29": [
+  "cl_27": [
    38449,
    38461
+  ],
+  "cl_28": [
+   38542,
+   38571
   ],
   "cl_3": [
    35807,
    35835
   ],
   "cl_30": [
-   38542,
-   38571
-  ],
-  "cl_32": [
    38975,
    39008
   ],
-  "cl_33": [
+  "cl_31": [
    39142,
    39151
   ],
-  "cl_35": [
+  "cl_33": [
    39291,
    39303
   ],
-  "cl_36": [
+  "cl_34": [
    39334,
    39364
   ],
-  "cl_38": [
+  "cl_36": [
    39613,
    39629
   ],
-  "cl_39": [
+  "cl_37": [
    39655,
    39678
   ],
-  "cl_40": [
+  "cl_38": [
    39757,
    39771
   ],
-  "cl_41": [
+  "cl_39": [
    39818,
    39833
   ],
-  "cl_43": [
+  "cl_41": [
    40076,
    40088
   ],
-  "cl_44": [
+  "cl_42": [
    40366,
    40392
   ],
-  "cl_46": [
+  "cl_44": [
    40608,
    40624
   ],
-  "cl_47": [
+  "cl_45": [
    40860,
    40874
   ],
-  "cl_48": [
+  "cl_46": [
    40917,
    40925
   ],
@@ -365,29 +357,19 @@
     ]
    },
    {
-    "defaultOn": false,
-    "e": 1251845,
-    "id": "cl_21",
-    "kind": "filler",
-    "s": 1251531,
-    "wordIds": [
-     "w048242"
-    ]
-   },
-   {
     "afterWord": "w048243",
     "applicable": false,
     "beforeWord": "w048244",
     "defaultOn": false,
     "e": 1253646,
-    "id": "cl_22",
+    "id": "cl_21",
     "kind": "gap_voiced",
     "s": 1252217
    },
    {
     "defaultOn": false,
     "e": 1254325,
-    "id": "cl_23",
+    "id": "cl_22",
     "kind": "filler",
     "s": 1254083,
     "wordIds": [
@@ -395,21 +377,11 @@
     ]
    },
    {
-    "defaultOn": false,
-    "e": 1255530,
-    "id": "cl_24",
-    "kind": "filler",
-    "s": 1255144,
-    "wordIds": [
-     "w048248"
-    ]
-   },
-   {
     "afterWord": "w048250",
     "beforeWord": "w048251",
     "defaultOn": true,
     "e": 1257275,
-    "id": "cl_25",
+    "id": "cl_23",
     "inSf": 37655,
     "kind": "gap_silent",
     "outSf": 37677,
@@ -421,14 +393,14 @@
     "beforeWord": "w048259",
     "defaultOn": false,
     "e": 1261092,
-    "id": "cl_26",
+    "id": "cl_24",
     "kind": "gap_voiced",
     "s": 1260335
    },
    {
     "defaultOn": false,
     "e": 1262282,
-    "id": "cl_27",
+    "id": "cl_25",
     "kind": "filler",
     "s": 1262075,
     "wordIds": [
@@ -441,14 +413,14 @@
     "beforeWord": "w048294",
     "defaultOn": false,
     "e": 1278624,
-    "id": "cl_28",
+    "id": "cl_26",
     "kind": "gap_voiced",
     "s": 1277946
    },
    {
     "defaultOn": false,
     "e": 1283255,
-    "id": "cl_29",
+    "id": "cl_27",
     "kind": "filler",
     "s": 1282981,
     "wordIds": [
@@ -460,7 +432,7 @@
     "beforeWord": "w048311",
     "defaultOn": true,
     "e": 1287106,
-    "id": "cl_30",
+    "id": "cl_28",
     "inSf": 38542,
     "kind": "gap_silent",
     "outSf": 38571,
@@ -472,7 +444,7 @@
     "beforeWord": "w048325",
     "defaultOn": false,
     "e": 1293655,
-    "id": "cl_31",
+    "id": "cl_29",
     "kind": "gap_voiced",
     "s": 1292998
    },
@@ -481,7 +453,7 @@
     "beforeWord": "w048339",
     "defaultOn": true,
     "e": 1301699,
-    "id": "cl_32",
+    "id": "cl_30",
     "inSf": 38975,
     "kind": "gap_silent",
     "outSf": 39008,
@@ -490,7 +462,7 @@
    {
     "defaultOn": false,
     "e": 1306287,
-    "id": "cl_33",
+    "id": "cl_31",
     "kind": "filler",
     "s": 1306101,
     "wordIds": [
@@ -503,14 +475,14 @@
     "beforeWord": "w048354",
     "defaultOn": false,
     "e": 1309044,
-    "id": "cl_34",
+    "id": "cl_32",
     "kind": "gap_voiced",
     "s": 1307616
    },
    {
     "defaultOn": false,
     "e": 1311380,
-    "id": "cl_35",
+    "id": "cl_33",
     "kind": "filler",
     "s": 1311086,
     "wordIds": [
@@ -522,7 +494,7 @@
     "beforeWord": "w048362",
     "defaultOn": true,
     "e": 1313550,
-    "id": "cl_36",
+    "id": "cl_34",
     "inSf": 39334,
     "kind": "gap_silent",
     "outSf": 39364,
@@ -534,14 +506,14 @@
     "beforeWord": "w048376",
     "defaultOn": false,
     "e": 1320336,
-    "id": "cl_37",
+    "id": "cl_35",
     "kind": "gap_voiced",
     "s": 1319444
    },
    {
     "defaultOn": false,
     "e": 1322196,
-    "id": "cl_38",
+    "id": "cl_36",
     "kind": "filler",
     "s": 1321846,
     "wordIds": [
@@ -553,7 +525,7 @@
     "beforeWord": "w048383",
     "defaultOn": true,
     "e": 1324055,
-    "id": "cl_39",
+    "id": "cl_37",
     "inSf": 39655,
     "kind": "gap_silent",
     "outSf": 39678,
@@ -562,7 +534,7 @@
    {
     "defaultOn": false,
     "e": 1326986,
-    "id": "cl_40",
+    "id": "cl_38",
     "kind": "filler",
     "s": 1326567,
     "wordIds": [
@@ -572,7 +544,7 @@
    {
     "defaultOn": false,
     "e": 1329070,
-    "id": "cl_41",
+    "id": "cl_39",
     "kind": "filler",
     "s": 1328682,
     "wordIds": [
@@ -585,14 +557,14 @@
     "beforeWord": "w048408",
     "defaultOn": false,
     "e": 1336420,
-    "id": "cl_42",
+    "id": "cl_40",
     "kind": "gap_voiced",
     "s": 1335130
    },
    {
     "defaultOn": false,
     "e": 1337560,
-    "id": "cl_43",
+    "id": "cl_41",
     "kind": "filler",
     "s": 1337280,
     "wordIds": [
@@ -604,7 +576,7 @@
     "beforeWord": "w048431",
     "defaultOn": true,
     "e": 1347859,
-    "id": "cl_44",
+    "id": "cl_42",
     "inSf": 40366,
     "kind": "gap_silent",
     "outSf": 40392,
@@ -616,7 +588,7 @@
     "beforeWord": "w048439",
     "defaultOn": false,
     "e": 1351935,
-    "id": "cl_45",
+    "id": "cl_43",
     "kind": "gap_voiced",
     "s": 1351022
    },
@@ -625,7 +597,7 @@
     "beforeWord": "w048447",
     "defaultOn": true,
     "e": 1355598,
-    "id": "cl_46",
+    "id": "cl_44",
     "inSf": 40608,
     "kind": "gap_silent",
     "outSf": 40624,
@@ -634,7 +606,7 @@
    {
     "defaultOn": false,
     "e": 1363764,
-    "id": "cl_47",
+    "id": "cl_45",
     "kind": "filler",
     "s": 1363401,
     "wordIds": [
@@ -644,7 +616,7 @@
    {
     "defaultOn": false,
     "e": 1365478,
-    "id": "cl_48",
+    "id": "cl_46",
     "kind": "filler",
     "s": 1365293,
     "wordIds": [
@@ -657,6 +629,24 @@
    "version": "id-fillers.v1+id-reduplication.v1"
   },
   "locked": [
+   {
+    "e": 1251845,
+    "kind": "filler",
+    "reason": "no_quiet_cut",
+    "s": 1251531,
+    "wordIds": [
+     "w048242"
+    ]
+   },
+   {
+    "e": 1255530,
+    "kind": "filler",
+    "reason": "no_quiet_cut",
+    "s": 1255144,
+    "wordIds": [
+     "w048248"
+    ]
+   },
    {
     "afterWord": "w048275",
     "e": 1270466,
