@@ -350,9 +350,13 @@ def header_size(fmt: str, data: bytes) -> tuple[int, int] | None:
     return None
 
 
-def _image_size_ok(width: object, height: object) -> bool:
-    return (type(width) is int and type(height) is int and 1 <= width <= MAX_IMAGE_SIDE
-            and 1 <= height <= MAX_IMAGE_SIDE and width * height <= MAX_IMAGE_PIXELS)
+def _check_image_size(width: object, height: object) -> None:
+    """``probe`` when the size is unreadable (a truncated or malformed image), ``dimensions``
+    only when it is readable and over the caps (the message then says "too large")."""
+    if type(width) is not int or type(height) is not int or width < 1 or height < 1:
+        raise _reject("probe")
+    if width > MAX_IMAGE_SIDE or height > MAX_IMAGE_SIDE or width * height > MAX_IMAGE_PIXELS:
+        raise _reject("dimensions")
 
 
 # --- children ------------------------------------------------------------------------------------
@@ -443,8 +447,8 @@ def _probe(fmt: str, fd: int, *, work: Path, deadline: float, entries: str) -> d
 def _normalise_image(fd: int, fmt: str, head: bytes, *, work: Path, deadline: float
                      ) -> tuple[bytes, dict]:
     found = header_size(fmt, head)
-    if found is not None and not _image_size_ok(*found):
-        raise _reject("dimensions")
+    if found is not None:  # the decompression-bomb header is refused before anything runs
+        _check_image_size(*found)
     probed = _probe(fmt, fd, work=work, deadline=deadline,
                     entries="stream=index,codec_type,codec_name,width,height")
     streams = probed["streams"]
@@ -454,8 +458,7 @@ def _normalise_image(fd: int, fmt: str, head: bytes, *, work: Path, deadline: fl
     if stream.get("codec_type") != "video" or stream.get("codec_name") != IMAGE_CODECS[fmt]:
         raise _reject("codec")
     width, height = stream.get("width"), stream.get("height")
-    if not _image_size_ok(width, height):
-        raise _reject("dimensions")
+    _check_image_size(width, height)
     orientation = jpeg_orientation(head) if fmt == "jpeg" else 1
     shown = oriented_size(width, height, orientation)
     target_w, target_h = normalised_size(*shown)
