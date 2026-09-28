@@ -640,9 +640,12 @@ def post_case(base: str, job_id: str, token: str, case: dict, data: bytes) -> tu
         except (ConnectionError, http.client.HTTPException):
             return 0, {"code": "no_answer"}
         try:
-            return response.status, json.loads(raw or b"{}")
+            body = json.loads(raw or b"{}")
         except ValueError:
-            return response.status, {}
+            body = {}
+        if response.status == 429:  # the per-session upload rate: not this case's verdict
+            body = {**body, "retryAfter": response.getheader("Retry-After")}
+        return response.status, body
     finally:
         conn.close()
 
@@ -661,9 +664,14 @@ def run_http(corpus_dir: Path, *, base: str, job_id: str, username: str,
     results = []
     for case in load_index(corpus_dir)["cases"]:
         data = (corpus_dir / case["file"]).read_bytes()
-        started = time.monotonic()
-        status, body = post_case(base, job_id, token, case, data)
-        elapsed = round((time.monotonic() - started) * 1000)
+        for _attempt in range(20):  # 30 uploads per minute per session: wait and send again
+            started = time.monotonic()
+            status, body = post_case(base, job_id, token, case, data)
+            elapsed = round((time.monotonic() - started) * 1000)
+            if status != 429:
+                break
+            wait = body.get("retryAfter")
+            time.sleep(int(wait) if isinstance(wait, str) and wait.isdigit() else 2)
         stored = None
         if 200 <= status < 300:
             stored = fetch(base, f"/api/jobs/{job_id}/assets/{body['sha256']}", token)
