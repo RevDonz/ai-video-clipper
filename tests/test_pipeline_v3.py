@@ -1800,3 +1800,51 @@ def test_an_unknown_render_engine_argument_is_refused_before_any_work(env):
     with pytest.raises(ValueError):
         run(env, model=model, render_engine="edit-v3")
     assert model.calls == [] and env.renders == []
+
+
+# --- the engine switch with Konteks Tren and Fokus klip (the W3 base on main) -------------------
+
+
+def test_trends_and_focus_reach_the_manifest_through_the_edit_v2_engine(env, fake_engine):
+    focused = manifest_of(run(env, focus=FOCUS))
+    unit = statement_inside(focused["clips"][1])  # a clip outside the focus
+    path = trend_snapshot(env, trend_item(unit, "A"))
+    legacy = manifest_of(run(env, trend_context=path, focus=FOCUS))
+    assert fake_engine.instances == []
+    fake_engine.fail_ranks = {3}
+
+    manifest = manifest_of(run(env, trend_context=path, focus=FOCUS, render_engine="edit-v2"))
+
+    (renderer,) = fake_engine.instances
+    assert [rank for rank, _output in renderer.rendered] == [1, 2, 3]
+    assert renderer.fallbacks == [3]
+    for text in ("Tren A", "kisah", "CATATAN-RAHASIA-FOKUS"):
+        assert text not in repr(renderer.options)  # selection data never reaches the engine
+    # The engine only adds its four fields, to the fallback clip too; trends and focus stay.
+    assert [
+        {key: value for key, value in clip.items() if key not in ENGINE_KEYS}
+        for clip in manifest["clips"]
+    ] == legacy["clips"]
+    engines = [clip["render_engine"] for clip in manifest["clips"]]
+    assert engines == ["edit-v2/1", "edit-v2/1", "legacy"]
+    assert manifest["clips"][2]["clip_id"] == f"clip_{3:024x}"
+    assert manifest["clips"][0]["focus"] == {
+        "match": "literal",
+        "terms": ["kisah25"],
+        "at": kisah25_time(),
+    }
+    trended = [clip for clip in manifest["clips"] if "trends" in clip]
+    assert [clip["trends"] for clip in trended] == [
+        [{"id": "trend-a", "title": "Tren A", "kind": "topic"}]
+    ]
+    for clip in manifest["clips"]:
+        extra = {"focus"} | ({"trends"} if "trends" in clip else set())
+        assert set(clip) == CLIP_KEYS | ENGINE_KEYS | extra
+    summary = manifest["selection_v3"]
+    assert summary["focus"] == {"terms": ["kisah25"], "matched": 1, "requested": 3}
+    assert summary["focus"] == legacy["selection_v3"]["focus"]
+    assert "engine_fallback:3" in summary["warnings"]
+    assert [code for code in summary["warnings"] if code != "engine_fallback:3"] == (
+        legacy["selection_v3"]["warnings"]
+    )
+    assert_web_summary({key: value for key, value in summary.items() if key != "focus"})
