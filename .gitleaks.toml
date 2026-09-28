@@ -38,3 +38,16 @@ condition = "AND"
 paths = ['''^tests/test_editor_ai\.py$''']
 regexTarget = "line"
 regexes = ['''"(gsk_testkey1234567890|sk-or-test123456789)"''']
+
+[[allowlists]]
+description = "Editor V3 unit tests: the example UUID family (N23e4567-e89b-...) and a counting hex string as fake keys and tokens"
+condition = "AND"
+paths = ['''^(web/tests/clip-(edit|media|renders)\.test\.mjs|tests/test_render_queue\.py)$''']
+regexTarget = "line"
+regexes = [
+  '''^\s*const (KEY|RESERVATION_TOKEN) = "[0-9a-f]23e4567-e89b-42d3-a456-426614174000";$''',
+  '''^\s*lease_token: "[0-9a-f]23e4567-e89b-42d3-a456-426614174000", heartbeat_at: T1, updated_at: T1, \.\.\.overrides \}\);$''',
+  '''^\s*storage_reservation_token: "[0-9a-f]23e4567-e89b-42d3-a456-426614174000", storage_reserved_bytes: 99 \}\);$''',
+  '''^\s*idempotencyKey="[0-9a-f]23e4567-e89b-42d3-a456-426614174000"\)$''',
+  '''^\s*const KEY16 = "0123456789abcdef";$''',
+]
