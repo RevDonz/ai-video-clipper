@@ -278,7 +278,12 @@ async function writeAll(handle, chunk) {
   }
 }
 
-/** Stream the body into `target` (a new 0600 file), counting and sniffing; throws UploadRequestError. */
+/**
+ * Stream the body into `target` (a new 0600 file), counting and sniffing; throws
+ * UploadRequestError. After a sniff mismatch nothing more is written, but the rest of the
+ * declared body is still read (and dropped): answering in the middle of an upload would reset
+ * the connection, and the browser would report a network error instead of the 415.
+ */
 async function streamToQuarantine(request, target, { length, format, maxBytes }) {
   if (!request.body || request.bodyUsed) refuse(400, "invalid_request");
   const handle = await open(/* turbopackIgnore: true */ target,
@@ -287,9 +292,10 @@ async function streamToQuarantine(request, target, { length, format, maxBytes })
   let total = 0;
   let head = new Uint8Array(0);
   let sniffed = false;
+  let mismatch = false;
   const check = () => {
     sniffed = true;
-    if (sniffAsset(head) !== format) refuse(415, "asset_type_unsupported");
+    mismatch = sniffAsset(head) !== format;
   };
   try {
     while (true) {
@@ -307,9 +313,10 @@ async function streamToQuarantine(request, target, { length, format, maxBytes })
         head = joined;
         if (head.length >= SNIFF_BYTES) check();
       }
-      await writeAll(handle, chunk);
+      if (!mismatch) await writeAll(handle, chunk);
     }
     if (!sniffed) check();
+    if (mismatch) refuse(415, "asset_type_unsupported");
     if (total !== length) refuse(400, "invalid_request");
   } catch (error) {
     try { await reader.cancel(); } catch { /* the stream is abandoned */ }
