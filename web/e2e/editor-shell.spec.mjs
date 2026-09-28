@@ -997,17 +997,31 @@ const PROJECT_JOB = "2d3c4b5a-6978-4a1b-8c2d-3e4f5a6b7c8d";
 const CLIP_A = "clip_" + "a".repeat(24);
 const CLIP_B = "clip_" + "b".repeat(24);
 
-function projectJob() {
+// `context`: a job made with Konteks Tren and Fokus klip (main's features beside the editor).
+const CONTEXT_TREND = { id: "0b6f2c1e-8d7a-4c3b-9f21-6a5e4d3c2b1a", title: "Kabur Aja Dulu", kind: "topic" };
+const CONTEXT_CLIPS = {
+  1: { trends: [CONTEXT_TREND], focus: { match: "literal", terms: ["jomok"], at: 754 } },
+  2: { focus: { match: "semantic", terms: ["jomok"], at: null } },
+  3: { focus: { match: "none", terms: [], at: null } },
+  4: { trends: [CONTEXT_TREND], focus: { match: "none", terms: [], at: null } },
+};
+
+function projectJob({ context = false } = {}) {
   const clip = (index, title) => ({
     index, title, hookText: `Hook ${index}`, description: `Deskripsi ${index}`, hashtags: ["#uji"], text: `Teks ${index}`,
     duration: 42, start: 10, end: 52, score: 8.1, selectionSource: "llm", archetype: "humor", reasons: [],
     videoUrl: `/api/jobs/${PROJECT_JOB}/files/output/clip-0${index}.mp4`, downloadUrl: `/api/jobs/${PROJECT_JOB}/files/output/clip-0${index}.mp4?download=1`,
-    subtitleUrl: null, metadataVersion: 5,
+    subtitleUrl: null, metadataVersion: 5, ...(context ? CONTEXT_CLIPS[index] : {}),
   });
+  const selectionV3 = context ? {
+    mode: "v3", status: "completed", source: "llm", provider: "groq", model: "m", prompt_version: "llm-select-v2+trends.v1+focus.v1",
+    warnings: ["focus_few_matches:2"], artifact: "analysis/selection.v3.json", transcript_source: "whisper",
+    focus: { terms: ["jomok"], matched: 2, requested: 4 },
+  } : null;
   return {
     id: PROJECT_JOB, status: "completed", progress: 100, stage: "completed", stageDetail: "Selesai", createdAt: "2026-09-24T10:00:00.000Z",
     updatedAt: "2026-09-24T10:30:00.000Z", source: { type: "upload", name: "Podcast uji" }, error: null,
-    options: { selectionMode: "v3", renderMode: "fit-blur" }, selectionV3: null,
+    options: { selectionMode: "v3", renderMode: "fit-blur", ...(context ? { focus: { terms: ["jomok"], mode: "prefer" } } : {}) }, selectionV3,
     clips: [clip(1, "Klip satu"), clip(2, "Klip dua"), clip(3, "Klip tiga"), clip(4, "Klip empat")],
   };
 }
@@ -1017,10 +1031,10 @@ function listingClip(index, fields) {
     engine: "edit-v2/1", edit: null, latestRender: null, openable: false, reason: null, ...fields };
 }
 
-async function mockProject(page, { clipsStatus = 200, prepared = false } = {}) {
+async function mockProject(page, { clipsStatus = 200, prepared = false, context = false } = {}) {
   let preparedNow = prepared;
   const posts = [];
-  await page.route(`**/api/jobs/${PROJECT_JOB}`, (route) => route.fulfill({ json: { job: projectJob() } }));
+  await page.route(`**/api/jobs/${PROJECT_JOB}`, (route) => route.fulfill({ json: { job: projectJob({ context }) } }));
   await page.route(`**/api/jobs/${PROJECT_JOB}/candidates`, (route) => route.fulfill({ status: 200, json: { available: false } }));
   await page.route(`**/api/jobs/${PROJECT_JOB}/candidate-feedback`, (route) => route.fulfill({ status: 200, json: { available: false } }));
   await page.route(`**/api/jobs/${PROJECT_JOB}/files/**`, (route) => route.fulfill({ status: 200, contentType: "video/mp4", body: tinyMp4 }));
@@ -1077,6 +1091,55 @@ test("project page: an older job is prepared once, then its clips open", async (
   await expect(card.getByRole("link", { name: "Edit klip" })).toHaveAttribute("href", `/projects/${PROJECT_JOB}/clips/clip_${"d".repeat(24)}/edit`);
   await expect(page.getByRole("button", { name: /Siapkan untuk editor/ })).toHaveCount(0);
   expect(posts).toEqual(["{}"]);
+});
+
+test("project page: trend and focus chips and the editor entry share each V3 card", async ({ page }) => {
+  await mockProject(page, { context: true });
+  await page.goto(`/projects/${PROJECT_JOB}`);
+  const card = (index) => page.locator("article.v3Clip").nth(index - 1);
+  const trendChips = (index) => card(index).getByRole("list", { name: "Tren yang disebut di klip ini" }).getByRole("listitem");
+  await expect(page.locator("p").filter({ hasText: /^Fokus:/ })).toHaveText("Fokus: jomok — 2 dari 4 klip cocok");
+  await expect(card(1).locator("[data-focus]")).toHaveText("Menyebut 'jomok' · 12:34");
+  await expect(trendChips(1)).toHaveText(["Nyambung tren: Kabur Aja Dulu"]);
+  await expect(card(1).getByRole("link", { name: "Edit klip" })).toHaveAttribute("href", `/projects/${PROJECT_JOB}/clips/${CLIP_A}/edit`);
+  await expect(card(1).getByText("Diedit · revisi 3")).toBeVisible();
+  await expect(card(2).locator("[data-focus]")).toHaveText("Terkait 'jomok' (menurut AI)");
+  await expect(card(2).getByRole("link", { name: "Edit klip" })).toHaveAttribute("href", `/projects/${PROJECT_JOB}/clips/${CLIP_B}/edit`);
+  await expect(card(3).locator("[data-focus]")).toHaveText("Di luar fokus");
+  await expect(card(3).getByText("Video sumber sudah tidak ada")).toBeVisible();
+  await expect(card(4).locator("[data-focus]")).toHaveText("Di luar fokus");
+  await expect(trendChips(4)).toHaveText(["Nyambung tren: Kabur Aja Dulu"]);
+  await expect(card(4).getByText("Klip perlu disiapkan dulu")).toBeVisible();
+  // In each card: the focus chip above the title, then the trend chips, then the editor entry.
+  const order = await card(1).evaluate((article) => {
+    const at = (element) => [...article.querySelectorAll("*")].indexOf(element);
+    return {
+      focus: at(article.querySelector("[data-focus]")),
+      title: at(article.querySelector("h3")),
+      trends: at(article.querySelector('[aria-label="Tren yang disebut di klip ini"]')),
+      edit: at(article.querySelector(".clipEditorEntry")),
+    };
+  });
+  expect(order.focus).toBeGreaterThan(-1);
+  expect(order.title).toBeGreaterThan(order.focus);
+  expect(order.trends).toBeGreaterThan(order.title);
+  expect(order.edit).toBeGreaterThan(order.trends);
+  // The job-level prepare and the focus line both show, once each, above the cards.
+  await expect(page.getByRole("button", { name: /Siapkan untuk editor/ })).toHaveCount(1);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(card(1).getByRole("link", { name: "Edit klip" })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+});
+
+test("project page: without the editor flag the trend and focus chips stay and no editor entry shows", async ({ page }) => {
+  page.allowConsole.push(/404/);
+  await mockProject(page, { clipsStatus: 404, context: true });
+  await page.goto(`/projects/${PROJECT_JOB}`);
+  await expect(page.locator("article.v3Clip")).toHaveCount(4);
+  await expect(page.locator("article.v3Clip").first().locator("[data-focus]")).toHaveText("Menyebut 'jomok' · 12:34");
+  await expect(page.getByRole("list", { name: "Tren yang disebut di klip ini" })).toHaveCount(2);
+  await expect(page.getByRole("link", { name: "Edit klip" })).toHaveCount(0);
+  await expect(page.locator(".clipEditorEntry")).toHaveCount(0);
 });
 
 test("project page: without the editor flag there is no editor entry", async ({ page }) => {
