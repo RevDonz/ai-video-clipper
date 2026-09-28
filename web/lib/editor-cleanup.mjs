@@ -64,10 +64,12 @@ function sanitizeItem(value) {
   return { ...item, defaultOn: false, applicable: false };
 }
 
+const LOCK_REASONS = new Set(["laughter", "no_quiet_cut"]);
+
 function sanitizeLocked(value) {
-  if (!value || typeof value !== "object" || value.reason !== "laughter" || !span(value)) return null;
+  if (!value || typeof value !== "object" || !LOCK_REASONS.has(value.reason) || !span(value)) return null;
   if (!["filler", "repeat", "gap"].includes(value.kind)) return null;
-  const entry = { kind: value.kind, reason: "laughter", s: value.s, e: value.e };
+  const entry = { kind: value.kind, reason: value.reason, s: value.s, e: value.e };
   if (value.kind === "gap") {
     if (!WORD_ID.test(value.afterWord ?? "")) return null;
     entry.afterWord = value.afterWord;

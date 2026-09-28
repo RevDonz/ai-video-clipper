@@ -27,14 +27,26 @@ digest). Nothing here writes the document: the browser applies the checked items
 * ``gap_silent`` — a gap of class ``silent`` (> 600 ms, ≥ 80 % audio-timeline silence, §3.6):
   the proposal keeps 100 ms after the word before and 100 ms before the word after (200 ms,
   centred), snapped to frames inside the gap: ``inSf = sf_ceil(s + 100)``, ``outSf =
-  sf_floor(e − 100)``. ``defaultOn`` true.
+  sf_floor(e − 100)``, each moved inwards to a quiet frame when the peaks say it is not quiet
+  (see "Quiet cuts"). ``defaultOn`` true.
 * ``gap_voiced`` — a gap of class ``voiced``: listed for audition only (``applicable`` false;
   shortening voiced gaps is Stage 2).
 
 **Laughter lock.** A gap of class ``laughter`` and any word item whose removed words lie within
 ±500 ms of a laughter event (caption tag or transcript token) are never proposed; they are
-reported in ``locked`` so the UI can say why. **Protected particles** (``protected_particles``)
-are never part of any item; the user may still select and remove them in the transcript.
+reported in ``locked`` (reason ``laughter``) so the UI can say why. **Protected particles**
+(``protected_particles``) are never part of any item; the user may still select and remove them
+in the transcript.
+
+**Quiet cuts** (QG-CLEAN: every cut edge lies in its word gap and is quiet over ±10 ms). With
+the clip's peaks (``peaks=``; the CLI reads the file the words artifact names) a cut counts as
+quiet when every 10 ms bin within ±10 ms of it has a level ≤ ``QUIET_LEVEL`` (a peak below
+−36 dBFS). A word item cuts at its ``bounds`` frames; when one of them is ``tight`` (no frame
+boundary between the words: the cut would split a word) or not quiet, the item is not proposed
+(``locked``, reason ``no_quiet_cut``). A silent gap's edges start 100 ms inside the gap and move
+towards its middle to the first frame boundary that is quiet (Whisper's word times often end
+before the speech does); a gap with no quiet edge on either side is ``no_quiet_cut``. Without
+peaks (tests, the labelled set) no level is checked, and tight cuts are still refused.
 
 **Result** (:func:`build_cleanup`)::
 
@@ -42,7 +54,8 @@ are never part of any item; the user may still select and remove them in the tra
      items: [{id, kind: "filler"|"repeat", wordIds, repeatOf (repeat only), s, e, defaultOn}
              | {id, kind: "gap_silent", afterWord, beforeWord, s, e, inSf, outSf, defaultOn}
              | {id, kind: "gap_voiced", afterWord, beforeWord, s, e, defaultOn, applicable}],
-     locked: [{kind, reason: "laughter", s, e, wordIds | afterWord}]}
+     locked: [{kind: "filler"|"repeat"|"gap", reason: "laughter"|"no_quiet_cut", s, e,
+               wordIds | afterWord}]}
 
 ``s``/``e`` are source ms (the removed words, or the gap). The item fields ``id``, ``kind``,
 ``wordIds``, ``afterWord``, ``inSf`` and ``outSf`` are exactly the ``ApplyCleanup`` item shape
@@ -58,6 +71,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import re
 import stat
@@ -83,6 +97,7 @@ from .errors import (
     message_id,
 )
 from .glyphs import RESOURCES_DIR
+from .peaks import bin_level
 
 SCHEMA = "potongin.cleanup/1"
 LEXICON_SCHEMA = "potongin.lexicon/1"
@@ -98,9 +113,14 @@ PHRASE_LENGTHS = (3, 2)
 FILLER_RUN_MAX_GAP_MS = 600  # adjacent fillers further apart than this are separate items
 LAUGHTER_LOCK_MS = 500
 LAUGHTER_TOKEN = re.compile(r"(ha){2,}h?|(he){2,}|(hi){2,}|wk(wk)+\w*")
+QUIET_LEVEL = 1  # peaks bin level (s16 // 256): a peak below −36 dBFS
+QUIET_HALF_MS = 10  # the ±10 ms around a cut of the QG-CLEAN check
 ITEM_ID_PREFIX = "cl_"
 MAX_ENVELOPE_BYTES = 4096
 MAX_LEXICON_BYTES = 256 << 10
+MAX_PEAKS_BYTES = 16 << 20
+_BIN_MS = 10
+_PEAKS_NAME = re.compile(r"peaks\.[0-9a-f]{16}\.bin")
 
 _EDGE = re.compile(r"^[\W_]+|[\W_]+$")
 _CLOSERS = "\"'”’»)]}"
@@ -418,18 +438,62 @@ def _near_laughter(start: int, end: int, laughs: Sequence[tuple[int, int]]) -> b
     return any(s <= end + LAUGHTER_LOCK_MS and e >= start - LAUGHTER_LOCK_MS for s, e in laughs)
 
 
-def _gap_frames(start: int, end: int, fps: tm.Fps) -> tuple[int, int]:
-    return (tm.sf_ceil(start + GAP_KEEP_EACH_SIDE_MS, fps),
-            tm.sf_floor(end - GAP_KEEP_EACH_SIDE_MS, fps))
+class _Quiet:
+    """Whether a cut at a source time is quiet: every 10 ms peaks bin within ±10 ms of it is at
+    most ``QUIET_LEVEL`` (a peak below −36 dBFS). Without peaks every cut counts as quiet."""
+
+    def __init__(self, words: Mapping[str, Any], peaks: bytes | None) -> None:
+        info = words.get("peaks") or {}
+        usable = (peaks is not None and info.get("per_sec") == 100
+                  and type(info.get("start_ms")) is int)
+        self.peaks = peaks if usable else None
+        self.start = info.get("start_ms", 0)
+        self.bins = len(peaks) // 2 if self.peaks is not None else 0
+
+    def __call__(self, at: Fraction) -> bool:
+        if self.peaks is None:
+            return True
+        first = math.floor((at - QUIET_HALF_MS - self.start) / _BIN_MS)
+        last = math.ceil((at + QUIET_HALF_MS - self.start) / _BIN_MS)
+        if first < 0 or last > self.bins:
+            return False
+        return all(bin_level(self.peaks, index) <= QUIET_LEVEL for index in range(first, last))
+
+
+def _gap_frames(start: int, end: int, fps: tm.Fps, quiet: _Quiet) -> tuple[int, int] | None:
+    """The cut of a silent gap: 100 ms kept after the word before and before the word after,
+    each edge moved towards the middle to the first frame boundary with a quiet ±10 ms."""
+    centre = Fraction(start + end, 2)
+    first = tm.sf_ceil(start + GAP_KEEP_EACH_SIDE_MS, fps)
+    while edge_ms(first, fps) <= centre and not quiet(edge_ms(first, fps)):
+        first += 1
+    last = tm.sf_floor(end - GAP_KEEP_EACH_SIDE_MS, fps)
+    while edge_ms(last, fps) >= centre and not quiet(edge_ms(last, fps)):
+        last -= 1
+    return (first, last) if first < last and quiet(edge_ms(first, fps)) \
+        and quiet(edge_ms(last, fps)) else None
+
+
+def _clean_cut(item: Mapping[str, Any], words: Mapping[str, Any], fps: tm.Fps,
+               quiet: _Quiet) -> bool:
+    """A word item cuts at its ``bounds`` frames: neither may be tight (inside a word) or loud."""
+    if not words.get("bounds"):
+        return True
+    return all(not edge["tight"] and quiet(edge_ms(edge["sf"], fps))
+               for edge in removal_edges(item, words))
 
 
 _KIND_ORDER = {"filler": 0, "repeat": 1, "gap_silent": 2, "gap_voiced": 3}
 
 
-def build_cleanup(words: Mapping[str, Any], *, lexicon: Lexicon | None = None) -> dict[str, Any]:
-    """The Rapikan review list of a words artifact (see the module docstring)."""
+def build_cleanup(words: Mapping[str, Any], *, lexicon: Lexicon | None = None,
+                  peaks: bytes | None = None) -> dict[str, Any]:
+    """The Rapikan review list of a words artifact (see the module docstring). ``peaks`` are
+    the clip's ``peaks.<sha16>.bin`` (the words artifact names them); with them every cut is
+    placed at, or checked for, a quiet point."""
     lexicon = load_lexicon() if lexicon is None else lexicon
     fps = tm.Fps.from_json(words["fps"])
+    quiet = _Quiet(words, peaks)
     scan = _Scan(words, lexicon)
     entries = scan.entries
     laughs = _laughter(words)
@@ -441,8 +505,11 @@ def build_cleanup(words: Mapping[str, Any], *, lexicon: Lexicon | None = None) -
     for kind, first, last, kept in spans:
         word_ids = [entry["id"] for entry in entries[first:last + 1]]
         s, e = entries[first]["s"], entries[last]["e"]
-        if _near_laughter(s, e, laughs):
-            locked.append((s, {"kind": kind, "reason": "laughter", "s": s, "e": e,
+        reason = ("laughter" if _near_laughter(s, e, laughs)
+                  else None if _clean_cut({"kind": kind, "wordIds": word_ids}, words, fps, quiet)
+                  else "no_quiet_cut")
+        if reason is not None:
+            locked.append((s, {"kind": kind, "reason": reason, "s": s, "e": e,
                                "wordIds": word_ids}))
             continue
         item: dict[str, Any] = {"kind": kind, "wordIds": word_ids, "s": s, "e": e,
@@ -461,11 +528,14 @@ def build_cleanup(words: Mapping[str, Any], *, lexicon: Lexicon | None = None) -
             locked.append((s, {"kind": "gap", "reason": "laughter", "s": s, "e": e,
                                "afterWord": after}))
         elif gap["class"] == "silent":
-            in_sf, out_sf = _gap_frames(s, e, fps)
-            if in_sf < out_sf:
+            cut = _gap_frames(s, e, fps, quiet)
+            if cut is None:
+                locked.append((s, {"kind": "gap", "reason": "no_quiet_cut", "s": s, "e": e,
+                                   "afterWord": after}))
+            else:
                 candidates.append((s, _KIND_ORDER["gap_silent"], {
                     "kind": "gap_silent", "afterWord": after, "beforeWord": before, "s": s, "e": e,
-                    "inSf": in_sf, "outSf": out_sf, "defaultOn": True}))
+                    "inSf": cut[0], "outSf": cut[1], "defaultOn": True}))
         elif gap["class"] == "voiced":
             candidates.append((s, _KIND_ORDER["gap_voiced"], {
                 "kind": "gap_voiced", "afterWord": after, "beforeWord": before, "s": s, "e": e,
@@ -580,10 +650,27 @@ def _words_sha(clip: Path) -> str:
     raise AnalysisMissing()
 
 
+def _peaks(clip: Path, words: Mapping[str, Any]) -> bytes | None:
+    """The clip's peaks file named by the words artifact, when present and intact."""
+    name = (words.get("peaks") or {}).get("file")
+    if not isinstance(name, str) or _PEAKS_NAME.fullmatch(name) is None:
+        return None
+    path = clip / name
+    try:
+        info = path.lstat()
+    except (FileNotFoundError, NotADirectoryError):
+        return None
+    if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_PEAKS_BYTES:
+        return None
+    raw = path.read_bytes()
+    return raw if hashlib.sha256(raw).hexdigest()[:16] == name[6:22] else None
+
+
 def _list(clip: Path) -> dict[str, Any]:
     sha = _words_sha(clip)
     words = store.load_words(clip, sha)
-    return {"clipId": clip.name, "wordsSha256": sha, **build_cleanup(words)}
+    return {"clipId": clip.name, "wordsSha256": sha,
+            **build_cleanup(words, peaks=_peaks(clip, words))}
 
 
 def handle(raw: bytes, *, jobs_root: str | os.PathLike | None) -> tuple[int, dict]:
