@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import shutil
 import subprocess
 import sys
 import uuid
@@ -59,8 +60,12 @@ def test_the_corpus_covers_every_row_of_the_plan(corpus):
 
 
 def test_the_corpus_is_generated_not_stored():
-    tracked = subprocess.run(["git", "ls-files", "scripts/security"], cwd=ROOT,
+    vcs = shutil.which("git")
+    if vcs is None or not (ROOT / ".git").exists():  # e.g. the suite inside the pinned image
+        pytest.skip("git or the repository metadata is not available here")
+    tracked = subprocess.run([vcs, "ls-files", "scripts/security"], cwd=ROOT,
                              capture_output=True, text=True, check=False).stdout.split()
+    assert tracked, "scripts/security is tracked"
     assert all(name.endswith(".py") for name in tracked), tracked
 
 

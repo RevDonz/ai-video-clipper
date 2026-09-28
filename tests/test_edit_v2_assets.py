@@ -359,6 +359,22 @@ def test_the_normalised_size_keeps_the_long_edge_at_most_1024(size, expected):
     assert assets.normalised_size(*size) == expected
 
 
+SUMMARY = ("[Parsed_ebur128_1 @ 0x1] Summary:\n\n  Integrated loudness:\n    I:         {i} LUFS\n"
+           "    Threshold: -32.4 LUFS\n\n  Loudness range:\n    LRA:         3.1 LU\n")
+
+
+def test_the_integrated_loudness_is_read_from_the_last_summary():
+    # FFmpeg 5.1 configures the graph twice and prints an empty summary first.
+    assert assets.integrated_loudness(SUMMARY.format(i="-70.0") + SUMMARY.format(i="-22.4")) \
+        == -2240
+    assert assets.integrated_loudness(SUMMARY.format(i="-14.05")) == -1405
+    assert assets.integrated_loudness(SUMMARY.format(i="-inf")) == -7000
+    assert assets.integrated_loudness(SUMMARY.format(i="-99.0")) == -7000
+    assert assets.integrated_loudness(SUMMARY.format(i="3.0")) == 300
+    assert assets.integrated_loudness("no summary here") is None
+    assert assets.integrated_loudness("Summary:\n  nothing") is None
+
+
 def test_header_sizes_are_read_without_decoding():
     assert assets.header_size("png", png_header(5000, 12)) == (5000, 12)
     assert assets.header_size("jpeg", _jpeg_skeleton()) == (40, 30)
