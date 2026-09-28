@@ -34,8 +34,17 @@ const ENTRY = path.join(repoRoot, "web", "components", "editor", "transcript", "
 
 const normalize = (text) => text.normalize("NFC").toLowerCase().replace(/^[\p{P}\p{S}\s_]+|[\p{P}\p{S}\s_]+$/gu, "");
 const textOf = new Map(WORDS.words.map((word) => [word.id, word.t]));
-const VIEW = cleanupView({ listing: LISTING, doc: SEED, words: WORDS, ctx: createContext({ words: WORDS, seed: SEED }) });
-const byKind = (kind) => VIEW.entries.filter((entry) => entry.kind === kind);
+const viewOf = (doc) => cleanupView({ listing: LISTING, doc, words: WORDS, ctx: createContext({ words: WORDS, seed: doc }) });
+const VIEW = viewOf(SEED);
+const byKind = (kind, view = VIEW) => view.entries.filter((entry) => entry.kind === kind);
+
+// The seed's body holds no listed repeat; this document starts the body three words before the
+// first one (at a `bounds` frame, as TrimStart would), so every class is on screen.
+const firstRepeat = LISTING.items.find((item) => item.kind === "repeat");
+const earlier = WORDS.words[WORDS.words.findIndex((word) => word.id === firstRepeat.wordIds[0]) - 3];
+const EXTENDED = structuredClone(SEED);
+EXTENDED.main.segments.find((segment) => segment.role === "body").in_sf = WORDS.bounds.find((entry) => entry.before === earlier.id).sf;
+const VIEW_EXTENDED = viewOf(EXTENDED);
 
 function pinnedChrome() {
   const candidate = path.join(os.homedir(), ".cache", "ms-playwright", "chromium-1217", "chrome-linux64", "chrome");
@@ -84,16 +93,21 @@ async function doc(page) {
 
 test.describe("Rapikan review", () => {
   test("the button counts the open items and the review groups them with honest copy", async ({ page }) => {
-    const errors = await openHarness(page);
-    await expect(toggle(page)).toHaveText(new RegExp(`Rapikan.*${VIEW.entries.length}`));
+    const errors = await openHarness(page, { doc: EXTENDED });
+    await expect(toggle(page)).toHaveText(new RegExp(`Rapikan.*${VIEW_EXTENDED.entries.length}`));
     await expect(toggle(page)).toHaveAttribute("aria-expanded", "false");
     await openReview(page);
     await expect(toggle(page)).toHaveAttribute("aria-expanded", "true");
     for (const [kind, label] of [["filler", "Kata pengisi"], ["repeat", "Pengulangan"], ["gap_silent", "Jeda hening"], ["gap_voiced", "Jeda bersuara"]]) {
-      await expect(review(page).getByRole("group", { name: new RegExp(`^${label} \\(${byKind(kind).length}\\)`) })).toBeVisible();
+      const count = byKind(kind, VIEW_EXTENDED).length;
+      expect(count, kind).toBeGreaterThan(0);
+      await expect(review(page).getByRole("group", { name: new RegExp(`^${label} \\(${count}\\)`) })).toBeVisible();
     }
     await expect(review(page)).toContainText("Whisper sering tidak menulis");
-    await expect(review(page).locator("[data-cleanup-item]")).toHaveCount(VIEW.entries.length);
+    await expect(review(page).locator("[data-cleanup-item]")).toHaveCount(VIEW_EXTENDED.entries.length);
+    // a repeat shows the removed occurrence struck through and the kept one after it
+    const repeat = byKind("repeat", VIEW_EXTENDED)[0];
+    await expect(row(page, repeat.id).locator("del")).toHaveText(repeat.context.removed);
     expect(errors).toEqual([]);
   });
 
@@ -166,10 +180,10 @@ test.describe("Rapikan review", () => {
   });
 
   test("Putar plays the item with context and stops by itself", async ({ page }) => {
-    await openHarness(page);
+    await openHarness(page, { doc: EXTENDED });
     await openReview(page);
-    const entry = byKind("repeat")[0] ?? byKind("filler")[0];
-    const model = buildTranscriptModel(WORDS, SEED);
+    const entry = byKind("repeat", VIEW_EXTENDED)[0];
+    const model = buildTranscriptModel(WORDS, EXTENDED);
     const range = auditionRange(entry, model);
     await row(page, entry.id).getByRole("button", { name: /^Putar/ }).click();
     await expect.poll(() => page.evaluate(() => window.__harness.player.seeks.at(-1))).toBe(range.from);
