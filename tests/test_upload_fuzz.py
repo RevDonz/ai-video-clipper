@@ -77,6 +77,8 @@ def test_every_case_is_rejected_or_normalised_within_its_cap(corpus, tmp_path):
     assert by_id["mp3_ten_hours_silent"]["reason"] == "duration"
     assert by_id["mp3_ten_hours_lying_xing"]["reason"] == "duration"
     assert by_id["png_bomb_header"]["reason"] == "dimensions"
+    for case_id in ("png_truncated_half", "png_zero_width", "webp_garbage"):  # unreadable, not large
+        assert by_id[case_id]["reason"] != "dimensions", by_id[case_id]
     assert by_id["svg_as_png"]["status"] == 415 and by_id["svg_as_png"]["stage"] == "transport"
     assert by_id["oversize_music"]["status"] == 413
 
