@@ -1,0 +1,35 @@
+{
+  "schema": "potongin.lexicon/1",
+  "id": "id-reduplication",
+  "version": 1,
+  "language": "id",
+  "description": "Rapikan (plan §7.3), Indonesian: repeats that are never a stutter. 'pairs' are reduplicated words that ASR writes without a hyphen ('hati hati'); 'emphatic' words are repeated on purpose ('iya iya', 'enggak enggak', 'sebentar sebentar'); 'vocal_sounds' are laughter and other sounds; 'contextual' pairs are reduplication when the next word is one of 'followed_by' ('itu itu aja'). A word written with a hyphen ('bener -bener', as Whisper splits it) is never a repeat either, and a sentence end between the two words ('itu. Itu') is not a stutter. Tokens are compared case-folded (NFC) with the punctuation at both ends removed.",
+  "pairs": [
+    "abang abang", "adik adik", "anak anak", "apa apa", "asal asal", "bagian bagian", "baik baik", "bang bang", "bapak bapak", "barang barang",
+    "bareng bareng", "baru baru", "bener bener", "benar benar", "berita berita", "besar besar", "betul betul", "bisa bisa", "buru buru", "cara cara",
+    "cepat cepat", "cepet cepet", "cerita cerita", "cewek cewek", "cowok cowok", "coba coba", "dalam dalam", "data data", "deket deket", "dekat dekat",
+    "diam diam", "dikit dikit", "dua dua", "dulu dulu", "film film", "file file", "foto foto", "gambar gambar", "gara gara", "gede gede",
+    "guru guru", "hal hal", "happy happy", "hari hari", "hati hati", "ibu ibu", "jalan jalan", "jangan jangan", "jarang jarang", "jauh jauh",
+    "kadang kadang", "kakak kakak", "kali kali", "kapan kapan", "kasus kasus", "kata kata", "kawan kawan", "kecil kecil", "kenapa kenapa", "kerja kerja",
+    "ketawa ketawa", "kira kira", "konten konten", "kota kota", "kupu kupu", "laba laba", "lagi lagi", "lagu lagu", "lama lama", "lari lari",
+    "liat liat", "lihat lihat", "macam macam", "main main", "makan makan", "malam malam", "malem malem", "mana mana", "manis manis", "mas mas",
+    "masa masa", "masalah masalah", "masing masing", "mata mata", "mbak mbak", "minggu minggu", "minum minum", "mobil mobil", "motor motor", "muter muter",
+    "negara negara", "ngobrol ngobrol", "nonton nonton", "oleh oleh", "orang orang", "pagi pagi", "paling paling", "pelan pelan", "pikir pikir", "pura pura",
+    "ramai ramai", "rame rame", "rumah rumah", "sama sama", "sampai sampai", "sampe sampe", "sedikit sedikit", "sejarah sejarah", "sekali sekali", "sendiri sendiri",
+    "senang senang", "seneng seneng", "sering sering", "sia sia", "siang siang", "siapa siapa", "soal soal", "sore sore", "surat surat", "tahu tahu",
+    "tahun tahun", "tanda tanda", "tanya tanya", "tau tau", "teman teman", "temen temen", "tempat tempat", "tiba tiba", "tinggi tinggi", "video video",
+    "baca baca", "berapa berapa", "cari cari", "dengar dengar", "denger denger", "iseng iseng", "jenis jenis", "satu satu", "tiga tiga"
+  ],
+  "emphatic": [
+    "iya", "iyaa", "oke", "ok", "okay", "okey", "sip", "siap", "yes", "no", "enggak", "nggak", "ngga", "engga", "gak", "ga", "kagak", "tidak", "bukan",
+    "jangan", "sorry", "sori", "maaf", "sebentar", "bentar", "tunggu", "stop", "udah", "sudah", "cukup", "ayo", "ayok", "yuk", "halo", "hai", "hei", "woi",
+    "wah", "wow", "aduh", "duh", "astaga", "gila", "anjir", "anjay", "buset", "mantap", "mantul", "bagus", "betul", "benar", "bener", "setuju", "paham",
+    "ngerti", "amin", "gas", "lanjut", "serius", "beneran", "masa", "oh", "ah", "cepat", "cepet", "pelan", "tolong", "terus"
+  ],
+  "vocal_sounds": ["ha", "hah", "haha", "hahaha", "he", "heh", "hehe", "hi", "hih", "hihi", "ho", "hu", "huh", "wk", "wkwk", "wkwkwk", "bip", "beb", "dor", "tok", "tut", "ting"],
+  "contextual": [
+    {"word": "itu", "followed_by": ["aja", "saja", "doang", "lagi", "mulu", "melulu", "terus", "juga"]},
+    {"word": "ini", "followed_by": ["aja", "saja", "doang", "lagi", "mulu", "melulu", "terus", "juga"]},
+    {"word": "ada", "followed_by": ["aja", "saja", "ae", "wae"]}
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "schema": "potongin.lexicon/1",
+  "id": "id-fillers",
+  "version": 1,
+  "language": "id",
+  "description": "Rapikan (plan §7.3), Indonesian. Tokens are compared case-folded (NFC) with the punctuation at both ends removed. 'fillers' are the hard fillers (hook_heuristics._FILLERS without the backchannel 'heeh'); 'filler_patterns' add their elongated spellings (fullmatch; a lone 'm' is never a filler: '18 M' is a number); 'filler_phrases' are multi-word fillers; 'protected_particles' are never listed by Rapikan in any class; 'stutter_pronouns' and 'stutter_function_words' are the words whose immediate repeat is a stutter ('gua gua', 'yang yang'), except a pronoun written with a comma after a content word and before the same pronoun ('bantuan gue, gue ngerasa': a possessive, then the subject). 'precheck' pre-checks fillers in the review list and stays false until the owner confirms the labelled set (QG-CLEAN, checkpoint 3).",
+  "fillers": ["e", "ee", "eee", "eh", "ehm", "em", "emm", "hm", "hmm", "anu"],
+  "filler_patterns": ["e+", "e+h+", "e+m+", "e+h+m+", "h+m+", "m{2,}"],
+  "filler_phrases": [["apa", "namanya"]],
+  "protected_particles": ["sih", "dong", "kok", "lho", "loh", "deh", "kan", "ya", "yah", "nih", "tuh", "gitu", "kayak", "kaya", "lah", "mah", "toh", "nah", "kek", "heeh"],
+  "stutter_pronouns": ["aku", "saya", "gua", "gue", "gw", "lu", "lo", "loe", "elu", "kamu", "kau", "dia", "ia", "kita", "kami", "mereka", "kalian", "anda", "beliau"],
+  "stutter_function_words": [
+    "yang", "yg", "di", "ke", "dari", "dan", "atau", "tapi", "tetapi", "jadi", "lalu", "kalau", "kalo", "karena", "karna", "soalnya",
+    "buat", "untuk", "dengan", "pada", "ini", "itu", "si", "akan", "bakal", "harus", "juga", "cuma", "cuman", "pas", "biar", "supaya",
+    "emang", "memang", "masih"
+  ],
+  "precheck": false
+}

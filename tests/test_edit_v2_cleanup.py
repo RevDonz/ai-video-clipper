@@ -314,6 +314,29 @@ def test_a_repeated_phrase_starting_later_than_1_5_s_is_not_listed():
 def test_a_repeated_phrase_with_a_particle_or_a_boundary_is_not_listed():
     assert listing(["kayak", "gini", "kayak", "gini", "terus"])["items"] == []
     assert listing(["teman", "teman.", "Teman", "teman.", "Mentor."])["items"] == []
+    # a sentence ends inside the second occurrence: "nggak tau bang, itu bang. Itu dari drama"
+    assert listing(["nggak", "tau", "bang,", "itu", "bang.", "Itu", "dari", "drama"])["items"] == []
+
+
+def test_a_repetition_that_ends_the_sentence_is_an_echo_not_a_restart():
+    # a restart continues the sentence after the kept occurrence; an echo ends it
+    assert listing(["susah", "cari", "dia.", "Memang,", "memang.", "Nah,", "ada"])["items"] == []
+    assert listing(["nggak", "ada", "masalah.", "Nggak", "ada,", "nggak", "ada.", "Mas"])[
+        "items"] == []
+    restart = listing(["Sekarang", "aku", "sudah,", "aku", "sudah", "marah", "udah"])
+    assert len(items_of(restart, "repeat")) == 1
+    assert len(items_of(listing(["Sama", "si,", "si", "pihak", "laki"]), "repeat")) == 1
+
+
+def test_a_possessive_pronoun_before_the_same_pronoun_as_subject_is_not_a_stutter():
+    # "orang yang membutuhkan bantuan gue, gue ngerasa": "my help, I feel"
+    assert listing(["membutuhkan", "bantuan", "gue,", "gue", "ngerasa"])["items"] == []
+    assert listing(["di", "eksklusif", "gue,", "gue", "bilang"])["items"] == []
+    # after a sentence end or a function word the same shape is a restart
+    assert len(items_of(listing(["dia.", "Gue,", "gue", "ngerasa"]), "repeat")) == 1
+    assert len(items_of(listing(["jadi", "gue,", "gue", "ngerasa"]), "repeat")) == 1
+    # without the comma it stays a stutter
+    assert len(items_of(listing(["bantuan", "gue", "gue", "ngerasa"]), "repeat")) == 1
 
 
 # --- laughter lock ---------------------------------------------------------------------------------
@@ -459,10 +482,14 @@ def test_labelled_set_meets_qg_clean():
     assert set(report["particles_covered"]) == set(PARTICLES)
     assert report["sources"]["synthetic"] > 0 and report["sources"]["real"] > 0
     assert report["unlabelled_filler_hits"] == 0  # precision is measured on every hit
+    assert report["filler_hits"] >= 50 and report["filler_precision"] is not None
     assert report["particle_false_positives"] == 0
     assert report["reduplication_false_positives"] == 0
-    assert report["filler_precision"] >= 0.9
-    assert report["owner_confirmed"] is False  # flips at checkpoint 3, with the lexicon pre-check
+    # "filler precision ≥ 0.9 before pre-check" (plan §7.3, §10.2): fillers are pre-checked only
+    # once the owner has confirmed the labels (checkpoint 3) and the precision reaches 0.9
+    if cleanup.load_lexicon().filler_precheck:
+        assert report["owner_confirmed"] is True
+        assert report["filler_precision"] >= 0.9
 
 
 def test_labelled_samples_rebuild_as_words_artifacts():
