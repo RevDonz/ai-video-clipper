@@ -64,7 +64,8 @@ class Job:
         return self.store / ".incoming"
 
     def quarantine(self, data: bytes) -> str:
-        self.incoming.mkdir(parents=True, exist_ok=True, mode=0o700)
+        self.store.mkdir(exist_ok=True, mode=0o700)
+        self.incoming.mkdir(exist_ok=True, mode=0o700)
         incoming_id = str(uuid.uuid4())
         path = self.incoming / incoming_id
         fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
@@ -657,7 +658,7 @@ def test_the_normalised_bytes_are_deterministic(job, tmp_path, edit_v2_ffmpeg):
 def test_an_idempotency_key_replays_and_conflicts(job, tmp_path, edit_v2_ffmpeg, monkeypatch):
     key = str(uuid.uuid4())
     data = png_bytes(edit_v2_ffmpeg, tmp_path / "a.png", 32, 32)
-    other = png_bytes(edit_v2_ffmpeg, tmp_path / "b.png", 33, 33)
+    other = png_bytes(edit_v2_ffmpeg, tmp_path / "b.png", 34, 34)  # testsrc2 rounds odd sizes down
     first = ok(job.ingest(data, "logo", "image/png", key=key))
 
     def forbidden(*_args, **_kwargs):
@@ -686,7 +687,7 @@ def test_receipts_are_pruned(job, tmp_path, edit_v2_ffmpeg, monkeypatch):
 
 def test_the_per_job_asset_count_is_capped(job, tmp_path, edit_v2_ffmpeg, monkeypatch):
     monkeypatch.setattr(assets, "MAX_ASSETS_PER_JOB", 2)
-    images = [png_bytes(edit_v2_ffmpeg, tmp_path / f"{n}.png", 20 + n, 20) for n in range(3)]
+    images = [png_bytes(edit_v2_ffmpeg, tmp_path / f"{n}.png", 20 + 2 * n, 20) for n in range(3)]
     ok(job.ingest(images[0], "logo", "image/png"))
     ok(job.ingest(images[1], "logo", "image/png"))
     rejected(job.ingest(images[2], "logo", "image/png"), "asset_quota_exceeded")
@@ -699,7 +700,7 @@ def test_the_per_job_bytes_are_capped(job, tmp_path, edit_v2_ffmpeg, monkeypatch
     ok(job.ingest(first, "logo", "image/png"))
     used = sum((job.store / name).stat().st_size for name in job.files())
     monkeypatch.setattr(assets, "MAX_STORE_BYTES", used + 10)
-    second = png_bytes(edit_v2_ffmpeg, tmp_path / "b.png", 65, 64)
+    second = png_bytes(edit_v2_ffmpeg, tmp_path / "b.png", 66, 64)
     rejected(job.ingest(second, "logo", "image/png"), "asset_quota_exceeded")
 
 
@@ -761,7 +762,7 @@ def test_symlinked_directories_are_refused(job, tmp_path, link):
 
 
 def test_a_missing_job_or_quarantine_file_is_not_found(job):
-    code, payload = assets.handle(_envelope(job, str(uuid.uuid4())), jobs_root=job.root)
+    code, _payload = assets.handle(_envelope(job, str(uuid.uuid4())), jobs_root=job.root)
     assert code == 4
     other = Job(job.root.parent / "other", "11111111-2222-4333-8444-555555555555")
     shutil.rmtree(other.dir)

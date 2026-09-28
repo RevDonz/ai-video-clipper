@@ -91,3 +91,8 @@ def test_the_verdict_fails_a_server_error_a_slow_case_and_a_surviving_payload():
                         stored=b"\x89PNG")["pass"] is True
     assert fuzz.verdict({**case, "expect": "reject"}, status=201, elapsed_ms=1, code=None,
                         stage="http")["pass"] is False
+    for name in ("../../etc/passwd", "a\\b", "..", "x" * 81):
+        assert fuzz.verdict(case, status=201, elapsed_ms=1, code=None, stage="http",
+                            name=name)["pass"] is False
+    assert fuzz.verdict(case, status=201, elapsed_ms=1, code=None, stage="http",
+                        name="passwd")["pass"] is True
