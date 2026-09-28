@@ -13,6 +13,7 @@ import hashlib
 import inspect
 import json
 from decimal import ROUND_HALF_UP, Decimal
+from typing import ClassVar
 
 import pytest
 
@@ -248,3 +249,223 @@ def test_rejects_a_bad_window(source):
     with pytest.raises(ValueError):
         build_camera_plan(source, (2000, 2000), Fps(25, 1), out_w=720, out_h=1280,
                           detector=StubDetector())
+
+
+# --- T3.6: the window detector, progress reporting ----------------------------------------------
+#
+# The camera plan's own detector (``camera.detect_window``) runs today's detection (the same
+# cascade, parameters, sampled frames and cut flags as ``face_tracking.detect_face_track`` with
+# ``smooth=False, sequential=True``) with the Haar work spread over worker threads, each with its
+# own classifier (a shared ``CascadeClassifier`` is not thread-safe: it returns wrong boxes).
+# Equal-area faces are chosen by position, not by OpenCV's detection order.
+
+
+class ContentCascade:
+    """Stands in for ``cv2.CascadeClassifier``: one face whose position follows the pixels it is
+    given, so two detectors agree only when they looked at the same frames. Pure (thread-safe)."""
+
+    seen: ClassVar[list] = []
+
+    def __init__(self, *_args):
+        pass
+
+    def detectMultiScale(self, image, **kwargs):  # OpenCV's method name
+        import numpy as np
+
+        type(self).seen.append(tuple(sorted(kwargs.items())))
+        digest = hashlib.sha256(image.tobytes()).digest()
+        width = image.shape[1]
+        x = digest[0] * (width - 40) // 255
+        if digest[1] < 40:  # some frames have no face
+            return ()
+        return np.array([[x, 4, 40, 40]], dtype=np.int32)
+
+
+class TwoEqualFacesCascade:
+    """Two faces of the same size, reported in an order that changes from call to call."""
+
+    calls = 0
+
+    def __init__(self, *_args):
+        pass
+
+    def detectMultiScale(self, image, **_kwargs):  # OpenCV's method name
+        import numpy as np
+
+        type(self).calls += 1
+        faces = [[200, 10, 50, 50], [20, 12, 50, 50]]
+        if type(self).calls % 2:
+            faces.reverse()
+        return np.array(faces, dtype=np.int32)
+
+
+@pytest.fixture
+def cut_video(tmp_path, edit_v2_ffmpeg):
+    pytest.importorskip("cv2")
+    from support import edit_v2_media as media
+
+    return media.make_barcode_video(
+        tmp_path / "cuts.mp4",
+        media.VideoSpec(width=320, height=180, fps=(25, 1), frames=200, scene_cut_every=20,
+                        gop=250, audio=None))
+
+
+def test_the_window_detector_samples_todays_frames_and_decisions(cut_video, monkeypatch):
+    import cv2
+
+    from ai_clipper import face_tracking
+
+    monkeypatch.setattr(cv2, "CascadeClassifier", ContentCascade)
+    ContentCascade.seen = []
+    today = face_tracking.detect_face_track(cut_video, start=0.4, end=7.4, smooth=False,
+                                            sequential=True)
+    today_kwargs = set(ContentCascade.seen)
+    ContentCascade.seen = []
+    window = camera.detect_window(cut_video, start=0.4, end=7.4, sample_interval=0.75)
+    assert window == today
+    assert set(ContentCascade.seen) == today_kwargs  # scaleFactor, minNeighbors, minSize
+    times, centres, cuts, width, height = window
+    assert (width, height) == (320, 180) and len(times) == 10
+    assert any(cuts) and any(c is None for c in centres) and any(c is not None for c in centres)
+
+
+def test_the_window_detector_does_not_depend_on_the_number_of_workers(cut_video, monkeypatch):
+    import cv2
+
+    real = camera.detect_window(cut_video, start=0.0, end=6.0, sample_interval=0.75, workers=1)
+    assert real == camera.detect_window(cut_video, start=0.0, end=6.0, sample_interval=0.75,
+                                        workers=3)
+    monkeypatch.setattr(cv2, "CascadeClassifier", ContentCascade)
+    one = camera.detect_window(cut_video, start=0.0, end=7.9, sample_interval=0.75, workers=1)
+    assert one == camera.detect_window(cut_video, start=0.0, end=7.9, sample_interval=0.75,
+                                       workers=4)
+
+
+def test_equal_faces_are_chosen_by_position_not_by_detection_order(cut_video, monkeypatch):
+    import cv2
+
+    monkeypatch.setattr(cv2, "CascadeClassifier", TwoEqualFacesCascade)
+    _times, centres, *_rest = camera.detect_window(cut_video, start=0.0, end=3.0,
+                                                   sample_interval=0.75, workers=2)
+    assert centres == [(20 + 25) / 320] * 4
+
+
+def test_the_window_detector_leaves_opencv_threads_as_it_found_them(cut_video):
+    import cv2
+
+    before = cv2.getNumThreads()
+    cv2.setNumThreads(3)
+    try:
+        camera.detect_window(cut_video, start=0.0, end=2.0, sample_interval=0.75, workers=2)
+        assert cv2.getNumThreads() == 3
+    finally:
+        cv2.setNumThreads(before)
+
+
+def test_the_window_detector_refuses_a_source_it_cannot_open(tmp_path):
+    pytest.importorskip("cv2")
+    bad = tmp_path / "not-a-video.mp4"
+    bad.write_bytes(b"nothing here")
+    with pytest.raises(RuntimeError):
+        camera.detect_window(bad, start=0.0, end=2.0, sample_interval=0.75)
+
+
+def test_the_default_detector_takes_the_window_path(source, monkeypatch):
+    calls = []
+
+    def spy(path, *, start, end, sample_interval, progress=None, workers=None):
+        calls.append((path, start, end, sample_interval))
+        return [0.0, 0.75, 1.5], [0.5, None, 0.6], [False, False, True], 640, 360
+
+    monkeypatch.setattr(camera, "detect_window", spy)
+    plan = build_camera_plan(source, (1000, 3000), Fps(25, 1), out_w=720, out_h=1280)
+    assert calls == [(source, 1.0, 3.0, 0.75)]
+    assert plan["source"] == {"w": 640, "h": 360} and plan["cuts"] == [False, False, True]
+    # an explicit detector, or today's tracker replaced by a caller, is called instead
+    calls.clear()
+    build_camera_plan(source, (1000, 3000), Fps(25, 1), out_w=720, out_h=1280,
+                      detector=StubDetector())
+    assert calls == []
+
+
+def test_the_plan_reports_its_progress_per_sample(tmp_path, edit_v2_ffmpeg):
+    pytest.importorskip("cv2")
+    from support import edit_v2_media as media
+
+    path = media.make_barcode_video(
+        tmp_path / "faceless.mp4",
+        media.VideoSpec(width=320, height=180, fps=(25, 1), frames=150, audio=None))
+    events = []
+    with camera.reporting(lambda done, total: events.append((done, total))):
+        plan = build_camera_plan(path, (0, 6000), Fps(25, 1), out_w=720, out_h=1280)
+    count = len(plan["samples"])
+    assert count == 8
+    assert events[0] == (0, count) and events[-1] == (count, count)
+    assert all(total == count for _done, total in events)
+    done = [value for value, _total in events]
+    assert done == sorted(set(done))  # strictly increasing
+    events.clear()
+    build_camera_plan(path, (0, 6000), Fps(25, 1), out_w=720, out_h=1280)
+    assert events == []  # outside ``reporting`` nothing is reported
+
+
+def test_a_detector_of_its_own_reports_the_start_and_the_end(source):
+    events = []
+    with camera.reporting(lambda done, total: events.append((done, total))):
+        plan = build_camera_plan(source, (0, 4500), Fps(25, 1), out_w=720, out_h=1280,
+                                 detector=StubDetector())
+    assert len(plan["samples"]) == 6
+    assert events == [(0, 6), (6, 6)]
+
+
+def test_a_failing_progress_callback_never_stops_the_plan(source):
+    def broken(_done, _total):
+        raise OSError("disk full")
+
+    with camera.reporting(broken):
+        plan = build_camera_plan(source, (0, 4500), Fps(25, 1), out_w=720, out_h=1280,
+                                 detector=StubDetector())
+    assert len(plan["samples"]) == 6
+
+
+def test_the_progress_file_is_written_atomically_and_read_back(tmp_path):
+    path = tmp_path / "preview" / "camera.progress.json"
+    writer = camera.ProgressFile(path, window_ms=(1000, 181000), min_interval_s=0.0)
+    assert camera.read_progress(path) is None
+    writer(0, 240)
+    assert camera.read_progress(path) == {"window_ms": [1000, 181000], "done": 0, "total": 240}
+    assert oct(path.stat().st_mode & 0o777) == oct(0o600)
+    writer(120, 240)
+    assert camera.read_progress(path)["done"] == 120
+    assert not [p for p in path.parent.iterdir() if p.name != path.name]  # no temp file left
+    writer.clear()
+    assert camera.read_progress(path) is None and not path.exists()
+
+
+def test_the_progress_file_is_throttled_but_always_ends_complete(tmp_path):
+    path = tmp_path / "camera.progress.json"
+    writer = camera.ProgressFile(path, window_ms=(0, 9000), min_interval_s=3600.0)
+    writer(0, 12)
+    writer(5, 12)  # within the interval: not written
+    assert camera.read_progress(path)["done"] == 0
+    writer(12, 12)  # the last sample is always written
+    assert camera.read_progress(path)["done"] == 12
+
+
+@pytest.mark.parametrize("raw", [b"", b"{", b"[]", b'{"done": 1}',
+                                 b'{"schema": "x", "window_ms": [0, 1], "done": 1, "total": 2}',
+                                 (b'{"schema": "potongin.camera-progress/1", "window_ms": [0, 1],'
+                                  b' "done": 3, "total": 2}')])
+def test_a_malformed_progress_file_reads_as_none(tmp_path, raw):
+    path = tmp_path / "camera.progress.json"
+    path.write_bytes(raw)
+    assert camera.read_progress(path) is None
+
+
+def test_a_symlinked_progress_file_is_not_followed(tmp_path):
+    target = tmp_path / "elsewhere.json"
+    target.write_text(json.dumps({"schema": "potongin.camera-progress/1", "window_ms": [0, 1],
+                                  "done": 1, "total": 2}))
+    link = tmp_path / "camera.progress.json"
+    link.symlink_to(target)
+    assert camera.read_progress(link) is None
