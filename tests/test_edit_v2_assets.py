@@ -481,9 +481,20 @@ def test_image_dimension_caps_are_checked_before_anything_is_spawned(job, monkey
         raise AssertionError("nothing may be spawned for an oversized header")
 
     monkeypatch.setattr(assets.subprocess, "Popen", forbidden)
-    for width, height in [(4097, 1), (1, 4097), (100_000, 100_000), (0, 10), (4096, 4097)]:
+    for width, height in [(4097, 1), (1, 4097), (100_000, 100_000), (4096, 4097)]:
         rejected(job.ingest(png_header(width, height), "logo", "image/png"), "asset_rejected",
                  "dimensions")
+    # A zero side is a malformed file, not a large one (the panel says "too large" only for
+    # "dimensions").
+    rejected(job.ingest(png_header(0, 10), "logo", "image/png"), "asset_rejected", "probe")
+
+
+def test_a_truncated_image_is_unreadable_not_too_large(job, tmp_path, edit_v2_ffmpeg):
+    data = png_bytes(edit_v2_ffmpeg, tmp_path / "cut.png", 200, 150)
+    code, payload = job.ingest(data[: len(data) // 2], "logo", "image/png")
+    assert code in (0, 3), payload
+    if code == 3:
+        assert payload["error"]["ref"] != "dimensions", payload
 
 
 def test_an_image_over_the_side_cap_is_rejected_after_probe(job, tmp_path, edit_v2_ffmpeg):
