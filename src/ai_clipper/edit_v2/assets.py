@@ -32,10 +32,13 @@ Rules (plan §9.2, one row each):
 * **Normalise.** Images: the JPEG EXIF orientation applied (FFmpeg 5.1 ignores it; a bounded
   stdlib reader takes only tag 0x0112) → RGBA PNG ≤ 1024 px on the long edge → ancillary chunks
   stripped (:mod:`png_strip`). Audio: AAC-LC 192k, 48 kHz, stereo with an explicit ``pan``
-  (mono to both channels at full gain), deterministic bytes (bitexact, no metadata); then the
-  normalised file itself is decoded once for its exact sample count (``astats``; the loop period
-  the compiler sees), the integrated loudness and true peak (``ebur128``) and the waveform peaks
-  (the words artifact's format: 8-bit min/max pairs, 100 per second, mono 8 kHz).
+  (mono to both channels at full gain), deterministic bytes (bitexact, no metadata). A second
+  child measures the same stereo 48 kHz stream at the same time (the ingest p95 budget): the
+  integrated loudness (``ebur128``, ``lufs_c``) and the waveform peaks (the words artifact's
+  format: 8-bit min/max pairs, 100 per second, mono 8 kHz). The stored file's AAC packets are
+  then counted (demux only): ``(packets − 1) × 1024`` is exactly what a decoder, and so the
+  compiler's loop, yields (one primed frame is skipped by the edit list), and gives
+  ``duration_ms``.
 * **Identity.** ``sha256(normalised bytes)``: ``<sha>.png`` or ``<sha>.m4a`` (+
   ``<sha>.peaks.bin``) and ``<sha>.json``, written tmp → fsync → rename (0600, directories
   0700), the metadata last. The same content is stored once (the first display name is kept).
@@ -71,6 +74,7 @@ import tempfile
 import time
 import unicodedata
 from collections.abc import Iterator, Mapping, Sequence
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any
 
@@ -117,6 +121,8 @@ NORMALISED_MAX_SIDE = 1024
 MAX_AUDIO_MS = 15 * 60_000
 MIN_AUDIO_MS = 100
 AAC_TAIL_MS = 25  # the decoder's last AAC frame may carry up to 1,023 padding samples (21 ms)
+AAC_FRAME = 1024
+ABSOLUTE_GATE_CLUFS = -7000  # ebur128 reads silence as −70 LUFS (loudness.ABSOLUTE_GATE_CLUFS)
 MAX_CHANNELS = 2
 SAMPLE_RATE = 48_000
 AUDIO_BITRATE = "192k"
@@ -145,7 +151,7 @@ _SHA = re.compile(r"[0-9a-f]{64}")
 _STORE_FILE = re.compile(r"([0-9a-f]{64})\.(png|m4a|json|peaks\.bin)")
 _RECEIPT = re.compile(r"([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})"
                       r"\.json")
-_SAMPLES = re.compile(r"Number of samples:\s*([0-9]+)")
+_INTEGRATED = re.compile(r"Integrated loudness:\s*\n\s*I:\s*(-?[0-9]+(?:\.[0-9]+)?|-inf)\s+LUFS")
 _PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 _HEIF_BRANDS = frozenset({b"heic", b"heix", b"heim", b"heis", b"hevc", b"hevx", b"mif1", b"msf1",
                           b"avif", b"avis", b"heif"})
@@ -375,11 +381,10 @@ def _tool(name: str, env: Mapping[str, str]) -> str:
     return path
 
 
-def _spawn(argv: Sequence[str], *, work: Path, deadline: float, pass_fds: Sequence[int] = (),
-           capture: bool = False) -> tuple[int, bytes, str]:
-    """Run ``argv`` (``argv[0]`` a tool name) under prlimit in its own session; returns
-    ``(returncode, stdout, stderr tail)``. At the deadline the whole group is killed and the
-    upload refused (``timeout``)."""
+def _start(argv: Sequence[str], *, work: Path, deadline: float, pass_fds: Sequence[int] = (),
+           capture: bool = False) -> tuple[subprocess.Popen, Path]:
+    """Start ``argv`` (``argv[0]`` a tool name) under prlimit in a session of its own, with the
+    allowlisted environment; stderr goes to a file of the private directory."""
     if os.geteuid() == 0:
         raise EditV2Error("internal_error", ref="root")  # never parse untrusted media as root
     env = child_env(work)
@@ -399,23 +404,48 @@ def _spawn(argv: Sequence[str], *, work: Path, deadline: float, pass_fds: Sequen
                 pass_fds=tuple(pass_fds), start_new_session=True, close_fds=True)
         except OSError as exc:
             raise EditV2Error("internal_error", ref="spawn") from exc
-        try:
+    return process, log
+
+
+def _kill(process: subprocess.Popen) -> None:
+    with contextlib.suppress(ProcessLookupError, PermissionError):
+        os.killpg(process.pid, signal.SIGKILL)
+    with contextlib.suppress(Exception):
+        process.communicate()
+
+
+def _wait(children: Sequence[tuple[subprocess.Popen, Path]], deadline: float
+          ) -> list[tuple[int, bytes, str]]:
+    """Wait for every child; ``(returncode, stdout, stderr tail)`` each. At the deadline (or on
+    any error) every group is killed; a timeout refuses the upload (``timeout``)."""
+    results = []
+    try:
+        for process, log in children:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise subprocess.TimeoutExpired(process.args, 0)
             out, _ = process.communicate(timeout=remaining)
-        except subprocess.TimeoutExpired:
-            with contextlib.suppress(ProcessLookupError, PermissionError):
-                os.killpg(process.pid, signal.SIGKILL)
-            process.communicate()
-            raise _reject("timeout") from None
-        except BaseException:
-            with contextlib.suppress(ProcessLookupError, PermissionError):
-                os.killpg(process.pid, signal.SIGKILL)
-            process.wait()
-            raise
-    size = log.stat().st_size
-    with open(log, "rb") as handle:
-        handle.seek(max(0, size - STDERR_TAIL_BYTES))
-        tail = handle.read().decode("utf-8", "replace")
-    return process.returncode, out or b"", tail
+            size = log.stat().st_size
+            with open(log, "rb") as handle:
+                handle.seek(max(0, size - STDERR_TAIL_BYTES))
+                tail = handle.read().decode("utf-8", "replace")
+            results.append((process.returncode, out or b"", tail))
+    except subprocess.TimeoutExpired:
+        for process, _log in children:
+            _kill(process)
+        raise _reject("timeout") from None
+    except BaseException:
+        for process, _log in children:
+            _kill(process)
+        raise
+    return results
+
+
+def _spawn(argv: Sequence[str], *, work: Path, deadline: float, pass_fds: Sequence[int] = (),
+           capture: bool = False) -> tuple[int, bytes, str]:
+    """Run one child to its end (see :func:`_start` and :func:`_wait`)."""
+    return _wait([_start(argv, work=work, deadline=deadline, pass_fds=pass_fds,
+                         capture=capture)], deadline)[0]
 
 
 def _input_args(fmt: str, fd: int | None = None, path: Path | None = None) -> list[str]:
@@ -536,54 +566,83 @@ def _seconds(ms: int) -> str:
     return f"{ms // 1000}.{ms % 1000:03d}"
 
 
+def integrated_loudness(stderr: str) -> int | None:
+    """The integrated loudness (centi-LUFS) of the last ``ebur128`` summary, or None.
+
+    Silence reads as the absolute gate (−70 LUFS). FFmpeg 5.1 may print an empty summary for a
+    graph it configured twice before the real one, hence the last summary.
+    """
+    start = stderr.rfind("Summary:")
+    match = _INTEGRATED.search(stderr, start) if start >= 0 else None
+    if match is None:
+        return None
+    if match.group(1) == "-inf":
+        return ABSOLUTE_GATE_CLUFS
+    value = int((Decimal(match.group(1)) * 100).to_integral_value(ROUND_HALF_UP))
+    return max(value, ABSOLUTE_GATE_CLUFS)
+
+
 def _normalise_audio(fd: int, fmt: str, *, work: Path, deadline: float
                      ) -> tuple[bytes, dict, bytes]:
-    from .loudness import parse_ebur128
+    """Encode and measure at the same time (two children reading the same descriptor, each
+    ``-threads 2``), then count the stored file's AAC packets for its exact sample count."""
     from .peaks import peaks_from_pcm
 
     probed = _probe(fmt, fd, work=work, deadline=deadline,
                     entries="stream=index,codec_type,codec_name,channels,sample_rate"
                             ":stream_disposition=attached_pic:format=duration")
     stream = _audio_stream(fmt, probed)
+    index = stream["index"]
     right = "c0" if stream["channels"] == 1 else "c1"
-    output = work / "music.m4a"
+    stereo = f"pan=stereo|c0=c0|c1={right},aresample={SAMPLE_RATE}"
     cap = _seconds(MAX_AUDIO_MS + 500)  # the decode stops here whatever the header claims
-    code, _, _ = _spawn(["ffmpeg", "-nostdin", "-hide_banner", "-nostats", "-loglevel", "error",
-                         "-threads", str(FFMPEG_THREADS), *_input_args(fmt, fd),
-                         "-map", f"0:{stream['index']}", "-vn", "-sn", "-dn", "-t", cap,
-                         "-af", f"pan=stereo|c0=c0|c1={right},aresample={SAMPLE_RATE}",
-                         "-c:a", "aac", "-profile:a", "aac_low", "-b:a", AUDIO_BITRATE,
-                         "-ar", str(SAMPLE_RATE), "-ac", "2", "-threads", str(FFMPEG_THREADS),
-                         "-map_metadata", "-1", "-map_chapters", "-1", "-fflags", "+bitexact",
-                         "-flags:a", "+bitexact", "-movflags", "+faststart", "-f", "mp4",
-                         str(output)],
-                        work=work, deadline=deadline, pass_fds=(fd,))
-    if code != 0 or not output.is_file() or output.stat().st_size == 0:
-        raise _reject("decode")
+    source = ["-threads", str(FFMPEG_THREADS), "-t", cap, *_input_args(fmt, fd)]
+    output = work / "music.m4a"
     raw_peaks = work / "peaks.raw"
-    graph = ("[0:a:0]asplit=3[m][c][p];"
-             "[m]aformat=sample_fmts=dbl,ebur128=peak=true:framelog=verbose[mo];"
-             "[c]astats=measure_overall=Number_of_samples:measure_perchannel=none[co];"
+    encode = ["ffmpeg", "-nostdin", "-hide_banner", "-nostats", "-loglevel", "error", *source,
+              "-map", f"0:{index}", "-vn", "-sn", "-dn", "-af", stereo,
+              "-c:a", "aac", "-profile:a", "aac_low", "-b:a", AUDIO_BITRATE,
+              "-ar", str(SAMPLE_RATE), "-ac", "2", "-threads", str(FFMPEG_THREADS),
+              "-map_metadata", "-1", "-map_chapters", "-1", "-fflags", "+bitexact",
+              "-flags:a", "+bitexact", "-movflags", "+faststart", "-f", "mp4", str(output)]
+    graph = (f"[0:{index}]{stereo},asplit=2[m][p];"
+             "[m]aformat=sample_fmts=dbl,ebur128=framelog=verbose[mo];"
              f"[p]pan=mono|c0=0.5*c0+0.5*c1,aresample={PEAKS_RATE}[po]")
-    code, _, tail = _spawn(["ffmpeg", "-nostdin", "-hide_banner", "-nostats", "-loglevel", "info",
-                            "-threads", str(FFMPEG_THREADS), *_input_args("mp4", path=output),
-                            "-filter_complex", graph, "-map", "[mo]", "-f", "null", "-",
-                            "-map", "[co]", "-f", "null", "-", "-map", "[po]", "-c:a",
-                            "pcm_s16le", "-f", "s16le", str(raw_peaks)],
-                           work=work, deadline=deadline)
-    counts = _SAMPLES.findall(tail)
-    if code != 0 or not counts:
+    measure = ["ffmpeg", "-nostdin", "-hide_banner", "-nostats", "-loglevel", "info", *source,
+               "-filter_complex", graph, "-map", "[mo]", "-f", "null", "-",
+               "-map", "[po]", "-c:a", "pcm_s16le", "-f", "s16le", str(raw_peaks)]
+    children = [_start(encode, work=work, deadline=deadline, pass_fds=(fd,))]
+    try:
+        children.append(_start(measure, work=work, deadline=deadline, pass_fds=(fd,)))
+    except BaseException:
+        _kill(children[0][0])
+        raise
+    (encoded, _, _), (measured, _, tail) = _wait(children, deadline)
+    lufs_c = integrated_loudness(tail)
+    if encoded != 0 or measured != 0 or lufs_c is None or not output.is_file():
         raise _reject("decode")
-    samples = int(counts[-1])
+    code, out, _ = _spawn(["ffprobe", "-v", "error", "-hide_banner", *_input_args("mp4", path=output),
+                           "-count_packets", "-select_streams", "a:0", "-show_entries",
+                           "stream=codec_name,profile,sample_rate,channels,nb_read_packets",
+                           "-of", "json"], work=work, deadline=deadline, capture=True)
+    try:
+        streams = json.loads(out.decode("utf-8"))["streams"]
+        packets = int(streams[0]["nb_read_packets"])
+        ok = (len(streams) == 1 and streams[0]["codec_name"] == "aac"
+              and streams[0]["profile"] == "LC" and streams[0]["sample_rate"] == str(SAMPLE_RATE)
+              and streams[0]["channels"] == 2)
+    except (UnicodeDecodeError, ValueError, KeyError, IndexError, TypeError):
+        raise _reject("decode") from None
+    if code != 0 or not ok or packets < 2:
+        raise _reject("decode")
+    # FFmpeg's AAC encoder primes one frame, which the mp4 edit list marks for skipping; the
+    # decoder (and so the compiler's loop) yields every other frame whole: the loop period.
+    samples = (packets - 1) * AAC_FRAME
     duration_ms = samples * 1000 // SAMPLE_RATE
     if duration_ms > MAX_AUDIO_MS + AAC_TAIL_MS:
         raise _reject("duration")
     if duration_ms < MIN_AUDIO_MS:
         raise _reject("short")
-    try:
-        loudness = parse_ebur128(tail)
-    except EditV2Error:
-        raise _reject("decode") from None
     pcm = array.array("h")
     data = raw_peaks.read_bytes() if raw_peaks.is_file() else b""
     pcm.frombytes(data[: len(data) - len(data) % 2])
@@ -591,9 +650,8 @@ def _normalise_audio(fd: int, fmt: str, *, work: Path, deadline: float
         pcm.byteswap()
     bins = -(-duration_ms * PEAKS_PER_SEC // 1000)
     peaks = peaks_from_pcm(pcm, bins=bins, samples_per_bin=PEAKS_RATE // PEAKS_PER_SEC)
-    meta = {"kind": "audio", "mime": "audio/mp4", "duration_ms": duration_ms,
-            "lufs_c": loudness.i_clufs, "tp_cdb": loudness.tp_cdb, "samples": samples,
-            "peaks": {"per_sec": PEAKS_PER_SEC, "start_ms": 0, "bins": bins},
+    meta = {"kind": "audio", "mime": "audio/mp4", "duration_ms": duration_ms, "lufs_c": lufs_c,
+            "samples": samples, "peaks": {"per_sec": PEAKS_PER_SEC, "start_ms": 0, "bins": bins},
             "source": {"format": fmt, "codec": stream["codec_name"],
                        "channels": stream["channels"], "sample_rate": int(stream["sample_rate"])}}
     return output.read_bytes(), meta, peaks
