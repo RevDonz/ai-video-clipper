@@ -25,6 +25,7 @@ import shutil
 import subprocess
 import threading
 import uuid
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -32,11 +33,26 @@ import pytest
 
 import ai_clipper.pipeline as pipeline_module
 from ai_clipper.audio_timeline import build_audio_timeline
-from ai_clipper.edit_v2 import COMPILER_ID, errors, execute, render_edit, seed, store, toolchain
+from ai_clipper.edit_v2 import (
+    COMPILER_ID,
+    api,
+    errors,
+    execute,
+    render_edit,
+    seed,
+    store,
+    toolchain,
+)
 from ai_clipper.edit_v2 import doc as doc_module
 from ai_clipper.edit_v2.glyphs import RESOURCES_DIR
 from ai_clipper.edit_v2.plan import Resources
-from ai_clipper.selection_types import SelectedClip, SelectionResult
+from ai_clipper.selection_types import (
+    ClipFocus,
+    FocusSummary,
+    SelectedClip,
+    SelectionResult,
+    TrendRef,
+)
 
 SECONDS = 24.0
 FPS = 25
@@ -99,10 +115,10 @@ def clip(rank: int, start: float, end: float, cold_open=None) -> SelectedClip:
 CLIPS = (clip(1, 3.3, 12.0, cold_open=(18.3, 20.0)), clip(2, 12.3, 17.95))
 
 
-def selection(clips=CLIPS) -> SelectionResult:
+def selection(clips=CLIPS, focus: FocusSummary | None = None) -> SelectionResult:
     return SelectionResult(clips=tuple(clips), source="llm", status="completed",
                            provider="fixture", model="fixture-model", prompt_version="fixture-v1",
-                           warnings=(), usage={"requests": 1})
+                           warnings=(), usage={"requests": 1}, focus=focus)
 
 
 def timeline():
@@ -139,11 +155,12 @@ def make_job(root: Path, job_id: str, source: Path, *, render_mode="fit-blur") -
 
 
 def run_job(job_dir: Path, *, engine: str, render_mode="fit-blur", clips=CLIPS,
-            patches=()) -> dict:
+            patches=(), focus: FocusSummary | None = None) -> dict:
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(pipeline_module, "analyze_audio_timeline",
                       lambda source, **options: timeline())
-        patch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: selection(clips))
+        patch.setattr(pipeline_module, "select_clips_v3",
+                      lambda *a, **k: selection(clips, focus))
         for target, name, value in patches:
             patch.setattr(target, name, value)
         for name in list(os.environ):
@@ -783,6 +800,90 @@ def test_the_synthetic_job_render_option_records_engines(tmp_path, monkeypatch):
     index = json.loads((root / "fixture.json").read_text())
     assert index["jobs"]["main"]["rendered"] == "edit-v2"
     assert "rendered" not in index["jobs"]["v1"]
+
+
+# --- Konteks Tren and Fokus klip through the new engine (the W3 base on main) --------------------
+
+# "cerita" is the fifth word of sentence 1 (3.4-5.9 s), inside clip 1 (3.3-12.0 s).
+FOCUS_TERM = "cerita"
+FOCUS_AT = word_times(*rows()[1])[4][0]
+TREND = TrendRef(id="trend-cerita-seru", title="Cerita Seru", kind="topic")
+
+
+def with_trends_and_focus(clips=CLIPS) -> tuple[SelectedClip, ...]:
+    """``clips`` as a job with Konteks Tren and Fokus klip selects them: the first grounded in a
+    trend and a literal focus match, the second outside the focus."""
+    first, second = clips
+    return (replace(first, trends=(TREND,), focus=ClipFocus("literal", (FOCUS_TERM,), FOCUS_AT)),
+            replace(second, focus=ClipFocus("none")))
+
+
+@pytest.fixture(scope="module")
+def context_job(tmp_path_factory, source, auto_job):
+    """``auto_job`` again (the same job id and source), selected with a trend and a focus."""
+    root = tmp_path_factory.mktemp("context-jobs")
+    job_dir = make_job(root, auto_job.job_id, source)
+    manifest = run_job(job_dir, engine="edit-v2", clips=with_trends_and_focus(),
+                       focus=FocusSummary(terms=(FOCUS_TERM,), requested=3))
+    return SimpleNamespace(root=root, job_id=auto_job.job_id, job_dir=job_dir, manifest=manifest)
+
+
+def test_trends_and_focus_ride_along_the_new_engine_without_changing_its_render(context_job,
+                                                                               auto_job):
+    manifest = context_job.manifest
+    assert manifest["status"] == "completed"
+    summary = manifest["selection_v3"]
+    assert "engine_fallback" not in " ".join(summary["warnings"])
+    assert summary["focus"] == {"terms": [FOCUS_TERM], "matched": 1, "requested": 3}
+    first, second = manifest["clips"]
+    assert first["trends"] == [TREND.to_dict()]
+    assert first["focus"] == {"match": "literal", "terms": [FOCUS_TERM], "at": FOCUS_AT}
+    assert "trends" not in second
+    assert second["focus"] == {"match": "none", "terms": [], "at": None}
+    selection_sha = hashlib.sha256(
+        (context_job.job_dir / "analysis" / "selection.v3.json").read_bytes()).hexdigest()
+
+    def without_provenance(document: dict) -> dict:
+        document = copy.deepcopy(document)
+        del document["audit"], document["base"]["seed_sha256"]
+        del document["base"]["origin"]["selection_artifact_sha256"]
+        return document
+
+    for entry, plain in zip(manifest["clips"], auto_job.manifest["clips"], strict=True):
+        assert set(entry) == set(plain) | {"focus"} | ({"trends"} if "trends" in entry else set())
+        assert entry["render_engine"] == COMPILER_ID
+        # Trends and focus are selection data, never render input: the same clip id, seed and
+        # frames as the job without them. Only the seed's provenance names the other selection
+        # artifact (and so its plan sha, which covers the document's content, differs).
+        assert entry["clip_id"] == plain["clip_id"]
+        seed_doc, _etag = store.seed(clip_dir(context_job.job_dir, entry["clip_id"]))
+        plain_seed, _etag = store.seed(clip_dir(auto_job.job_dir, plain["clip_id"]))
+        assert seed_doc["base"]["origin"]["selection_artifact_sha256"] == selection_sha
+        assert without_provenance(seed_doc) == without_provenance(plain_seed)
+        assert framemd5(Path(entry["output"])) == framemd5(Path(plain["output"]))
+        assert pcm_md5(Path(entry["output"])) == pcm_md5(Path(plain["output"]))
+    # The editor's listing reads the same selection artifact: every clip opens.
+    status, listing = api.handle(
+        json.dumps({"op": "clips", "jobId": context_job.job_id}).encode(),
+        jobs_root=context_job.root)
+    assert status == 0
+    assert [(clip_entry["index"], clip_entry["clipId"], clip_entry["openable"])
+            for clip_entry in listing["clips"]] == [
+        (1, first["clip_id"], True), (2, second["clip_id"], True)]
+
+
+def test_render_v3_job_keeps_trends_and_focus_in_its_manifest_entries(context_job, tmp_path):
+    job_dir = copy_job(context_job, tmp_path)
+    for name in ("clip-01.mp4", "clip-01.srt", "clip-01.jpg"):
+        (job_dir / "output" / name).rename(tmp_path / name)
+    run = pipeline_module.render_v3_job(job_dir, render_engine="edit-v2", ranks=[1])
+    (entry,) = run.clips
+    expected = context_job.manifest["clips"][0]
+    assert run.warnings == []
+    assert entry["trends"] == expected["trends"] and entry["focus"] == expected["focus"]
+    assert entry["render_engine"] == COMPILER_ID
+    assert entry["clip_id"] == expected["clip_id"]
+    assert entry["plan_sha256"] == expected["plan_sha256"]
 
 
 # --- engine fallback and face-track ---------------------------------------------------------------
