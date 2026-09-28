@@ -445,6 +445,69 @@ test("after a sniff mismatch the rest of the body is read and dropped before the
   assert.deepEqual(await readdir(path.join(root, JOB_ID, "analysis", "assets", ".incoming")), []);
 });
 
+function countingBody(chunks) {
+  const state = { pulled: 0 };
+  state.stream = new ReadableStream({
+    pull(controller) {
+      if (state.pulled < chunks.length) controller.enqueue(chunks[state.pulled++]);
+      else controller.close();
+    },
+  });
+  return state;
+}
+
+function streamed(state, length, headers = {}) {
+  return new Request(`http://local/api/jobs/${JOB_ID}/assets`, {
+    method: "POST", duplex: "half", body: state.stream,
+    headers: { Host: "local", Origin: "http://local", Cookie: `potongin_session=${createSessionToken(AUTH)}`,
+      "X-Asset-Kind": "logo", "Content-Type": "image/png", "Idempotency-Key": KEY, "Content-Length": String(length), ...headers },
+  });
+}
+
+test("a refusal after the session checks reads the declared body first, so the client sees the answer", async (t) => {
+  // Over HTTP, answering while the client is still sending closes the connection: the browser
+  // reports a network error instead of "file too large", "quota reached" or "disk full".
+  const root = await jobsRoot(t);
+  const { calls, runCli } = recorder();
+  const mb = () => Buffer.alloc(1024 * 1024, 1);
+  const oversize = countingBody([mb(), mb(), mb()]);
+  let result = await read(await createAssetUploadRoute(deps(root, { runCli })).POST(
+    streamed(oversize, 10 * 1024 * 1024 + 1), context({ id: JOB_ID })));
+  assert.equal(result.status, 413);
+  assert.equal(oversize.pulled, 3);
+  const wrongType = countingBody([mb(), mb()]);
+  result = await read(await createAssetUploadRoute(deps(root, { runCli })).POST(
+    streamed(wrongType, 2 * 1024 * 1024, { "Content-Type": "image/gif" }), context({ id: JOB_ID })));
+  assert.equal(result.status, 415);
+  assert.equal(wrongType.pulled, 2);
+  const full = countingBody([pngBytes(), mb()]);
+  const failing = createAssetUploadRoute(deps(root, { runCli, reserve: async () => {
+    throw Object.assign(new Error("full"), { code: "storage_free_space_low" });
+  } }));
+  result = await read(await failing.POST(streamed(full, pngBytes().length + 1024 * 1024), context({ id: JOB_ID })));
+  assert.equal(result.status, 507);
+  assert.equal(full.pulled, 2);
+  const store = path.join(root, JOB_ID, "analysis", "assets");
+  for (let i = 0; i < 50; i += 1) await writeFile(path.join(store, `${String(i).padStart(64, "0")}.json`), "{}");
+  const quota = countingBody([pngBytes(), mb()]);
+  result = await read(await createAssetUploadRoute(deps(root, { runCli })).POST(
+    streamed(quota, pngBytes().length + 1024 * 1024), context({ id: JOB_ID })));
+  assert.equal(result.status, 409);
+  assert.equal(quota.pulled, 2);
+  // Beyond 64 MiB declared, nothing is read: the answer comes at once.
+  const huge = countingBody([mb(), mb(), mb()]);
+  result = await read(await createAssetUploadRoute(deps(root, { runCli })).POST(
+    streamed(huge, 65 * 1024 * 1024), context({ id: JOB_ID })));
+  assert.equal(result.status, 413);
+  assert.ok(huge.pulled < 3, "not consumed"); // a stream pre-pulls one chunk by itself
+  // Before the session checks nothing is read either.
+  const anonymous = countingBody([mb(), mb(), mb()]);
+  const request = streamed(anonymous, 3 * 1024 * 1024, { Cookie: "" });
+  assert.equal((await createAssetUploadRoute(deps(root, { runCli })).POST(request, context({ id: JOB_ID }))).status, 401);
+  assert.ok(anonymous.pulled < 3, "not consumed");
+  assert.equal(calls.length, 0);
+});
+
 test("the body is streamed to a private quarantine file, counted and removed afterwards", async (t) => {
   const root = await jobsRoot(t);
   const png = pngBytes(3, 3);
