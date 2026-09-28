@@ -417,6 +417,34 @@ test("the sniff refuses a body that does not match its type, without spawning", 
   assert.ok(setup.store.released.every((item) => item.state === "failed"));
 });
 
+test("after a sniff mismatch the rest of the body is read and dropped before the 415", async (t) => {
+  // Answering in the middle of an upload would reset the connection: the browser would show a
+  // network error instead of "Jenis file tidak didukung".
+  const root = await jobsRoot(t);
+  const { calls, runCli } = recorder();
+  const route = createAssetUploadRoute(deps(root, { runCli }));
+  const chunks = [Buffer.from(`GIF89a${"x".repeat(100)}`), Buffer.alloc(1024 * 1024, 7), Buffer.alloc(1024 * 1024, 9)];
+  let pulled = 0;
+  const body = new ReadableStream({
+    pull(controller) {
+      if (pulled < chunks.length) controller.enqueue(chunks[pulled++]);
+      else controller.close();
+    },
+  });
+  const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  const request = new Request(`http://local/api/jobs/${JOB_ID}/assets`, {
+    method: "POST", duplex: "half", body,
+    headers: { Host: "local", Origin: "http://local", Cookie: `potongin_session=${createSessionToken(AUTH)}`,
+      "X-Asset-Kind": "logo", "Content-Type": "image/png", "Idempotency-Key": KEY, "Content-Length": String(total) },
+  });
+  const result = await read(await route.POST(request, context({ id: JOB_ID })));
+  assert.equal(result.status, 415);
+  assert.equal(result.body.code, "asset_type_unsupported");
+  assert.equal(pulled, chunks.length);
+  assert.equal(calls.length, 0);
+  assert.deepEqual(await readdir(path.join(root, JOB_ID, "analysis", "assets", ".incoming")), []);
+});
+
 test("the body is streamed to a private quarantine file, counted and removed afterwards", async (t) => {
   const root = await jobsRoot(t);
   const png = pngBytes(3, 3);
