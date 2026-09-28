@@ -381,13 +381,17 @@ export function createAssetUploadRoute(options = {}) {
       }
       let upload;
       try { upload = parseUploadRequest(request.headers); } catch (error) {
-        return uploadError(error.code ?? "invalid_request", error.status ?? 400);
+        if (error instanceof UploadRequestError) return uploadError(error.code, error.status);
+        return uploadError("invalid_request", 400);
       }
       let directories; // the job and its analysis directory must exist; only the store is created
       try { directories = await assetDirectories(deps.jobsRoot, jobId, { create: true }); } catch {
         return uploadError("not_found", 404);
       }
-      const usage = await storeUsage(directories.store);
+      let usage;
+      try { usage = await storeUsage(directories.store); } catch {
+        return uploadError("backend_unavailable", 503);
+      }
       if (usage.count >= MAX_ASSETS_PER_JOB || usage.bytes >= MAX_STORE_BYTES) return uploadError("asset_quota_exceeded", 409);
 
       let reservation;
