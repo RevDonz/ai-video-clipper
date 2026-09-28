@@ -278,19 +278,18 @@ test("Terapkan (n) is one ApplyCleanup that cuts at Python's edges, and one undo
   assert.equal(session.history.entries[0].steps.length, 1);
   const applied = result.doc;
   for (const item of plan.args.items) {
-    const removal = applied.main.removals.find((entry) => entry.origin === `suggestion:${item.id}`
-      || entry.words.some((word) => item.wordIds?.includes(word)));
-    assert.ok(removal, item.id);
-    assert.ok(["filler", "repeat", "gap_silent"].includes(removal.reason));
-  }
-  // each item alone cuts exactly where cleanup.removal_edges says (the pytest-checked fixture)
-  for (const item of plan.args.items) {
+    // each item alone cuts exactly where cleanup.removal_edges says (the pytest-checked fixture)
     const alone = applyCommand(doc, "ApplyCleanup", { items: [item] }, ctx).doc;
     const added = alone.main.removals.find((entry) => entry.origin === `suggestion:${item.id}`);
     const segment = doc.main.segments.find((entry) => entry.id === added.seg);
     const [inSf, outSf] = FIXTURE.edges[item.id];
-    assert.deepEqual([added.in_sf, added.out_sf], [Math.max(inSf, segment.in_sf), Math.min(outSf, segment.out_sf)], item.id);
+    const cut = [Math.max(inSf, segment.in_sf), Math.min(outSf, segment.out_sf)];
+    assert.deepEqual([added.in_sf, added.out_sf], cut, item.id);
     assert.equal(added.reason, item.kind);
+    // together, touching cuts merge into one removal that still covers it (Appendix B)
+    const covering = applied.main.removals.find((entry) => entry.seg === segment.id && entry.in_sf <= cut[0]
+      && entry.out_sf >= cut[1] && entry.origin.startsWith("suggestion:"));
+    assert.ok(covering, item.id);
   }
   assert.equal(session.undo(), true);
   assert.deepEqual(session.doc, doc);

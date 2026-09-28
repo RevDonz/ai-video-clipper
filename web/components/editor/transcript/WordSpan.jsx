@@ -7,8 +7,11 @@ import { memo } from "react";
 
 import styles from "./transcript.module.css";
 
-function titleOf(state) {
+const CLEANUP_TITLES = Object.freeze({ filler: "Rapikan: kata pengisi", repeat: "Rapikan: pengulangan" });
+
+function titleOf(state, cleanup) {
   const parts = [];
+  if (cleanup) parts.push(CLEANUP_TITLES[cleanup] ?? "Rapikan");
   if (state.edited) parts.push(`Asli: ${state.asr}`);
   if (state.removal !== null) parts.push("Dipotong dari video");
   else if (state.zone !== "body") parts.push("Di luar klip");
@@ -21,7 +24,8 @@ function titleOf(state) {
 
 const flag = (on) => (on ? "" : undefined);
 
-function WordSpan({ state, selected }) {
+// `cleanup`: the Rapikan class proposing this word ("filler" | "repeat") while the review is open.
+function WordSpan({ state, selected, cleanup = null }) {
   return (
     <span
       className={styles.word}
@@ -36,7 +40,8 @@ function WordSpan({ state, selected }) {
       data-edited={flag(state.edited)}
       data-lowconf={flag(state.lowConf)}
       data-selected={flag(selected)}
-      title={titleOf(state)}
+      data-cleanup={cleanup ?? undefined}
+      title={titleOf(state, cleanup)}
     >
       {state.text}
     </span>

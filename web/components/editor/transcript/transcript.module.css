@@ -251,3 +251,245 @@
   border-radius: var(--ed-radius-sm, 4px);
   cursor: pointer;
 }
+
+/* --- Rapikan (T3.5, plan §7.3) ---------------------------------------------------------------- */
+
+.cleanupBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ed-space-2, 8px);
+}
+
+.cleanupBar .status {
+  flex: 1 1 auto;
+}
+
+.cleanupToggle {
+  flex: none;
+  font-weight: 600;
+}
+
+.cleanupToggle[aria-expanded="true"] {
+  background: var(--ed-color-accent-soft, #e6eeff);
+  border-color: var(--ed-color-accent, #2f6fed);
+}
+
+.cleanupCount {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--ed-color-accent, #2f6fed);
+  color: var(--ed-color-accent-text, #fff);
+  font-size: var(--ed-font-size-xs, 11px);
+  line-height: 1.5;
+  text-align: center;
+}
+
+/* Words and gaps the open review proposes: a dotted underline in the class colour. */
+.word[data-cleanup="filler"] {
+  text-decoration: underline dotted var(--ed-color-warning, #b26a00);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+.word[data-cleanup="repeat"] {
+  text-decoration: underline dotted var(--ed-color-cold-open, #7a3ff2);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+.gapMark {
+  display: inline-block;
+  padding: 0 3px;
+  border-radius: 3px;
+  font-size: var(--ed-font-size-xs, 11px);
+  line-height: 1.4;
+  vertical-align: 1px;
+  color: var(--ed-color-success, #1f7a3f);
+  background: var(--ed-color-success-soft, #e5f5eb);
+}
+
+.gapMark[data-cleanup-gap="gap_voiced"] {
+  color: var(--ed-color-text-muted, #5b6270);
+  background: var(--ed-color-surface-2, #eef0f4);
+}
+
+.review {
+  display: grid;
+  gap: var(--ed-space-2, 8px);
+  margin: var(--ed-space-2, 8px) var(--ed-space-3, 12px) 0;
+  padding: var(--ed-space-3, 12px);
+  border: 1px solid var(--ed-color-border, #d9dde3);
+  border-radius: var(--ed-radius-md, 8px);
+  background: var(--ed-color-surface, #fff);
+}
+
+.reviewHead {
+  display: grid;
+  gap: 2px;
+}
+
+.reviewTitle {
+  margin: 0;
+  font-size: var(--ed-font-size-lg, 16px);
+}
+
+.reviewNote,
+.reviewHint,
+.reviewMeta,
+.reviewEmpty {
+  margin: 0;
+  font-size: var(--ed-font-size-sm, 12px);
+  color: var(--ed-color-text-muted, #5b6270);
+}
+
+.reviewError {
+  margin: 0;
+  font-size: var(--ed-font-size-sm, 12px);
+  color: var(--ed-color-danger, #c62f2f);
+}
+
+.reviewGroup {
+  min-width: 0;
+  margin: 0;
+  padding: var(--ed-space-2, 8px) 0 0;
+  border: 0;
+  border-top: 1px solid var(--ed-color-border, #d9dde3);
+}
+
+.reviewLegend {
+  padding: 0;
+  font-size: var(--ed-font-size-md, 14px);
+  font-weight: 700;
+}
+
+.reviewBulk {
+  display: flex;
+  gap: var(--ed-space-3, 12px);
+  margin: 2px 0 0;
+}
+
+.linkButton {
+  padding: 0;
+  font: inherit;
+  font-size: var(--ed-font-size-sm, 12px);
+  color: var(--ed-color-accent-strong, #1f56c9);
+  background: none;
+  border: 0;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.linkButton:focus-visible,
+.reviewCheck:focus-visible,
+.apply:focus-visible {
+  outline: none;
+  box-shadow: var(--ed-focus-ring, 0 0 0 2px #fff, 0 0 0 4px #2f6fed);
+}
+
+.reviewList {
+  display: grid;
+  gap: 2px;
+  margin: var(--ed-space-1, 4px) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reviewRow {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--ed-space-2, 8px);
+  padding: 4px 2px;
+  border-radius: var(--ed-radius-sm, 4px);
+}
+
+.reviewRow:hover {
+  background: var(--ed-color-surface-2, #eef0f4);
+}
+
+.reviewCheck {
+  width: 16px;
+  height: 16px;
+  margin: 3px 0 0;
+  accent-color: var(--ed-color-accent, #2f6fed);
+}
+
+.reviewNoCheck {
+  width: 16px;
+}
+
+.reviewText {
+  font-size: var(--ed-font-size-sm, 12px);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  cursor: default;
+}
+
+label.reviewText {
+  cursor: pointer;
+}
+
+.reviewAround {
+  color: var(--ed-color-text-muted, #5b6270);
+}
+
+.reviewRemoved {
+  font-weight: 600;
+  color: var(--ed-color-danger, #c62f2f);
+  text-decoration-thickness: 1px;
+}
+
+.reviewKept {
+  font-weight: 600;
+}
+
+.reviewGap {
+  padding: 0 4px;
+  border-radius: 3px;
+  color: var(--ed-color-success, #1f7a3f);
+  background: var(--ed-color-success-soft, #e5f5eb);
+  white-space: nowrap;
+}
+
+.reviewActions {
+  display: flex;
+  gap: var(--ed-space-1, 4px);
+}
+
+.reviewFoot {
+  display: grid;
+  gap: 4px;
+  padding-top: var(--ed-space-2, 8px);
+  border-top: 1px solid var(--ed-color-border, #d9dde3);
+}
+
+.apply {
+  justify-self: start;
+  padding: 6px 14px;
+  font: inherit;
+  font-weight: 700;
+  color: var(--ed-color-accent-text, #fff);
+  background: var(--ed-color-accent, #2f6fed);
+  border: 1px solid var(--ed-color-accent, #2f6fed);
+  border-radius: var(--ed-radius-sm, 4px);
+  cursor: pointer;
+}
+
+.apply:hover:not(:disabled) {
+  background: var(--ed-color-accent-strong, #1f56c9);
+}
+
+.apply:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.reviewStatus {
+  min-height: 1.3em;
+  margin: 0;
+  font-size: var(--ed-font-size-sm, 12px);
+  color: var(--ed-color-success, #1f7a3f);
+}

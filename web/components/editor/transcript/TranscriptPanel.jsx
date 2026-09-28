@@ -8,13 +8,23 @@
 // selection: Delete/Backspace cut, Enter or double-click edits, Ctrl+Shift+X hides from captions,
 // Ctrl+E marks a keyword, I / O trim, Ctrl+Shift+H makes a cold open. Each also has a button.
 //
-// Props: { state, dispatch, player } (panels/index.mjs). Everything the panel shows comes from
-// `state.doc` and `state.words` through `model.mjs`, synchronously, so a command updates the
+// Props: { state, dispatch, player, api? } (panels/index.mjs). Everything the panel shows comes
+// from `state.doc` and `state.words` through `model.mjs`, synchronously, so a command updates the
 // transcript before the plan DTO arrives.
-import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+//
+// "Rapikan" (T3.5, plan §7.3): the header button opens the review of fillers, repeats and long
+// gaps (CleanupReview.jsx, cleanup-model.mjs); while it is open the transcript marks the words
+// and gaps it proposes. The list comes from `api.cleanup()` (Appendix A.2): with an `api` prop it
+// is fetched when the panel opens (so the button can count it); without one the panel builds an
+// API client for the clip and asks only when the review is opened.
+import { Fragment, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
+import { createApiClient } from "../../../lib/editor/api-client.mjs";
+import { createContext } from "../../../lib/editor/doc-model.mjs";
 import { commandsFor, keyAction, runCommands, selectionActions } from "./actions.mjs";
 import { followActiveWord } from "./active-word.mjs";
+import { auditionRange, badgeMarks, cleanupView, planApply } from "./cleanup-model.mjs";
+import CleanupReview from "./CleanupReview.jsx";
 import { buildTranscriptModel, coldOpenInfo, formatDuration, seekFrameOf } from "./model.mjs";
 import RemovalChip from "./RemovalChip.jsx";
 import {
@@ -34,8 +44,9 @@ import WordSpan from "./WordSpan.jsx";
 
 const SECONDS = new Intl.NumberFormat("id-ID", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const HELP_ID = "transcript-help";
+const GAP_TITLES = Object.freeze({ gap_silent: "Rapikan: jeda hening", gap_voiced: "Rapikan: jeda bersuara (dengarkan dulu)" });
 
-const Paragraph = memo(function Paragraph({ para, selFirst, selLast, editing, onEditDone, onRestore, readOnly }) {
+const Paragraph = memo(function Paragraph({ para, selFirst, selLast, editing, onEditDone, onRestore, readOnly, marks }) {
   const items = [];
   let chip = 0;
   const chipsBefore = (index) => {
@@ -53,11 +64,13 @@ const Paragraph = memo(function Paragraph({ para, selFirst, selLast, editing, on
     const state = para.states[k];
     const index = para.start + k;
     chipsBefore(index);
+    const gap = marks?.gaps.get(index);
     items.push(
       <Fragment key={state.id}>
         {index === editing
           ? <WordEditor state={state} onDone={onEditDone} />
-          : <WordSpan state={state} selected={selFirst <= index && index <= selLast} />}{" "}
+          : <WordSpan state={state} selected={selFirst <= index && index <= selLast} cleanup={marks?.words.get(index) ?? null} />}{" "}
+        {gap ? <><span className={styles.gapMark} data-cleanup-gap={gap} title={GAP_TITLES[gap]} aria-hidden="true">jeda</span>{" "}</> : null}
       </Fragment>,
     );
   }
@@ -108,7 +121,43 @@ function lineTarget(list, index, direction) {
   return best;
 }
 
-function Transcript({ state, dispatch, player }) {
+// The Rapikan list of the clip's current words: `{status, listing, load}`. Fetched once per
+// words artifact, when `eager` (an `api` prop was given) or when `wanted` (the review is open).
+function useCleanupList({ api, jobId, clipId, wordsKey, eager, wanted }) {
+  const client = useMemo(() => {
+    if (api?.cleanup) return api;
+    try {
+      return createApiClient({ jobId, clipId });
+    } catch {
+      return null;
+    }
+  }, [api, jobId, clipId]);
+  const [entry, setEntry] = useState({ key: null, status: "idle", listing: null });
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; };
+  }, []);
+  const key = `${clipId}:${wordsKey}`;
+  const load = useCallback(() => {
+    if (!client) {
+      setEntry({ key, status: "error", listing: null });
+      return;
+    }
+    setEntry({ key, status: "loading", listing: null });
+    client.cleanup().then(
+      (listing) => { if (alive.current) setEntry({ key, status: "ready", listing }); },
+      () => { if (alive.current) setEntry({ key, status: "error", listing: null }); },
+    );
+  }, [client, key]);
+  const current = entry.key === key ? entry : { key, status: "idle", listing: null };
+  useEffect(() => {
+    if ((eager || wanted) && current.status === "idle") load();
+  }, [eager, wanted, current.status, load]);
+  return { status: current.status, listing: current.listing, load };
+}
+
+function Transcript({ state, dispatch, player, api }) {
   const { doc, words } = state;
   const readOnly = state.status !== "ready";
   const listRef = useRef(null);
@@ -172,6 +221,97 @@ function Transcript({ state, dispatch, player }) {
   const onRestore = useCallback((removalId) => {
     run([{ type: "RestoreRemoval", args: { removalId }, mergeKey: null }]);
   }, [run]);
+
+  // --- Rapikan ------------------------------------------------------------------------------
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [overrides, setOverrides] = useState(() => new Map());
+  const [reviewMessage, setReviewMessage] = useState(null);
+  const [playing, setPlaying] = useState(null);
+  const playTimer = useRef(null);
+  const cleanup = useCleanupList({
+    api, jobId: state.jobId ?? doc.base?.job_id, clipId: doc.clip_id, wordsKey: doc.base?.words?.sha256 ?? "",
+    eager: Boolean(api?.cleanup), wanted: reviewOpen,
+  });
+  const seedDoc = state.seed ?? null;
+  // The command context: the seed fixes fps, output size and window (a document without a seed
+  // in the state carries the same values, so it is read once, not on every command).
+  const cleanupCtx = useMemo(() => (cleanup.listing ? createContext({ words, seed: seedDoc ?? modelRef.current.doc }) : null),
+    [cleanup.listing, words, seedDoc]);
+  const deferredDoc = useDeferredValue(doc);
+  const view = useMemo(() => (cleanup.listing && cleanupCtx
+    ? cleanupView({ listing: cleanup.listing, doc: deferredDoc, words, ctx: cleanupCtx }) : null),
+  [cleanup.listing, cleanupCtx, deferredDoc, words]);
+  const marks = useMemo(() => (reviewOpen && view ? badgeMarks(view) : null), [reviewOpen, view]);
+  const isChecked = useCallback((entry) => entry.checkable
+    && (overrides.has(entry.id) ? overrides.get(entry.id) : entry.defaultOn), [overrides]);
+  const onToggle = useCallback((id, on) => {
+    setOverrides((current) => new Map(current).set(id, on));
+  }, []);
+  const onGroup = useCallback((kind, on) => {
+    setOverrides((current) => {
+      const next = new Map(current);
+      for (const entry of view?.entries ?? []) if (entry.kind === kind && entry.checkable) next.set(entry.id, on);
+      return next;
+    });
+  }, [view]);
+  const onApply = useCallback(() => {
+    if (!view || !cleanupCtx) return;
+    const checked = new Set(view.entries.filter(isChecked).map((entry) => entry.id));
+    const plan = planApply({ view, checked, doc: modelRef.current.doc, ctx: cleanupCtx });
+    if (!plan.args.items.length) {
+      setReviewMessage(plan.skipped[0]?.message ?? "Tidak ada saran yang dipilih.");
+      return;
+    }
+    const result = runCommands((...args) => dispatchRef.current(...args), [{ type: "ApplyCleanup", args: plan.args, mergeKey: null }]);
+    if (!result.ok) {
+      setReviewMessage(result.message);
+      return;
+    }
+    const skipped = plan.skipped.length ? ` · ${plan.skipped.length} dilewati (${plan.skipped[0].message.replace(/\.$/, "")})` : "";
+    setReviewMessage(`${plan.args.items.length} saran diterapkan${skipped}. Urungkan dengan Ctrl+Z.`);
+    setOverrides(new Map());
+  }, [view, cleanupCtx, isChecked]);
+  const stopAudition = useCallback(() => {
+    clearTimeout(playTimer.current);
+    playTimer.current = null;
+    setPlaying(null);
+  }, []);
+  useEffect(() => () => clearTimeout(playTimer.current), []);
+  const onPlay = useCallback((entry) => {
+    if (playing === entry.id) {
+      player?.pause?.();
+      stopAudition();
+      return;
+    }
+    const span = auditionRange(entry, modelRef.current);
+    if (!span || !player?.seek) {
+      setReviewMessage("Bagian ini tidak ada di klip sekarang.");
+      return;
+    }
+    clearTimeout(playTimer.current);
+    setPlaying(entry.id);
+    Promise.resolve(player.seek(span.from)).then(() => player.play?.()).catch(() => stopAudition());
+    const [num, den] = modelRef.current.fps;
+    playTimer.current = setTimeout(() => {
+      player.pause?.();
+      stopAudition();
+    }, Math.round(((span.to - span.from) * den * 1000) / num));
+  }, [playing, player, stopAudition]);
+  const onReveal = useCallback((entry) => {
+    const first = entry.wordIdx.length ? entry.wordIdx[0] : entry.afterIdx;
+    const last = entry.wordIdx.length ? entry.wordIdx.at(-1) : entry.beforeIdx;
+    const paragraphs = modelRef.current.paragraphs;
+    const folded = foldedContext(paragraphs);
+    if (folded.before > 0 && first < paragraphs[folded.before].start) setExpanded((value) => ({ ...value, before: true }));
+    if (folded.after < paragraphs.length && last >= paragraphs[folded.after].start) setExpanded((value) => ({ ...value, after: true }));
+    revealFocus.current = true;
+    selectionStore.set(extendTo(selectOne(first), last));
+  }, [selectionStore]);
+  const toggleReview = useCallback(() => {
+    setReviewOpen((open) => !open);
+    setReviewMessage(null);
+  }, []);
+  const openCount = view ? view.entries.length : null;
 
   const onEditDone = useCallback((index, text, how) => {
     const states = modelRef.current.states;
@@ -324,7 +464,14 @@ function Transcript({ state, dispatch, player }) {
           {tool("extend", "Perpanjang ke sini", null)}
           {tool("coldOpen", "Jadikan cold open", "Ctrl+Shift+H")}
         </div>
-        <p className={styles.status} role="status" data-transcript-status="">{status}</p>
+        <div className={styles.cleanupBar}>
+          <p className={styles.status} role="status" data-transcript-status="">{status}</p>
+          <button type="button" className={`${styles.tool} ${styles.cleanupToggle}`} aria-expanded={reviewOpen}
+            aria-controls="cleanup-review" data-cleanup-toggle="" onClick={toggleReview}
+            title="Kata pengisi, pengulangan dan jeda panjang yang bisa dipotong">
+            Rapikan{openCount !== null ? <> <span className={styles.cleanupCount}>{openCount}</span></> : null}
+          </button>
+        </div>
         {message ? <p className={styles.message} role="alert" data-transcript-message="">{message}</p> : null}
         {coldOpen ? (
           <p className={styles.coldNote}>
@@ -332,6 +479,11 @@ function Transcript({ state, dispatch, player }) {
           </p>
         ) : null}
       </div>
+      {reviewOpen ? (
+        <CleanupReview view={view} status={cleanup.status} isChecked={isChecked} onToggle={onToggle} onGroup={onGroup}
+          onApply={onApply} onPlay={onPlay} playing={playing} onReveal={onReveal} onRetry={cleanup.load}
+          readOnly={readOnly} message={reviewMessage} />
+      ) : null}
       <p id={HELP_ID} className={styles.srOnly}>
         Panah memindah pilihan, Shift+panah memperluas. Delete memotong kata, Enter mengedit, Ctrl+Shift+X
         menyembunyikan dari caption, Ctrl+E menandai kata kunci, I dan O memotong awal dan akhir klip, Ctrl+Shift+H
@@ -375,6 +527,7 @@ function Transcript({ state, dispatch, player }) {
               onEditDone={onEditDone}
               onRestore={onRestore}
               readOnly={readOnly}
+              marks={marks}
             />
           );
         })}
@@ -393,7 +546,7 @@ function Transcript({ state, dispatch, player }) {
   );
 }
 
-export default function TranscriptPanel({ state, dispatch, player }) {
+export default function TranscriptPanel({ state, dispatch, player, api = null }) {
   if (!state?.doc || !state?.words) {
     return (
       <section data-panel="transcript" className={styles.panel} aria-busy="true">
@@ -401,5 +554,5 @@ export default function TranscriptPanel({ state, dispatch, player }) {
       </section>
     );
   }
-  return <Transcript state={state} dispatch={dispatch} player={player} />;
+  return <Transcript state={state} dispatch={dispatch} player={player} api={api} />;
 }
