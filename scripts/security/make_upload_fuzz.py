@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import http.client
 import io
 import json
 import os
@@ -613,21 +614,37 @@ def _login(base: str, username: str, password: str) -> str:
 
 
 def post_case(base: str, job_id: str, token: str, case: dict, data: bytes) -> tuple[int, dict]:
+    """POST one case; an answer sent before the body was read (the connection then closes on
+    the sender) is still read. Status 0 means no answer could be read (the case fails)."""
     headers = {"Origin": base, "Sec-Fetch-Site": "same-origin", "Cookie": f"potongin_session={token}",
                "Content-Type": case["mime"], "X-Asset-Kind": case["kind"],
-               "Idempotency-Key": str(uuid.uuid4())}
+               "Idempotency-Key": str(uuid.uuid4()), "Content-Length": str(len(data))}
     if case["name"] is not None:
         headers["X-Asset-Name"] = urllib.parse.quote(case["name"], safe="")
-    request = urllib.request.Request(f"{base}/api/jobs/{job_id}/assets", data=data, method="POST",
-                                     headers=headers)
+    parsed = urllib.parse.urlsplit(base)
+    conn = http.client.HTTPConnection(parsed.hostname, parsed.port, timeout=180)
     try:
-        with urllib.request.urlopen(request, timeout=180) as response:
-            return response.status, json.loads(response.read() or b"{}")
-    except urllib.error.HTTPError as error:
+        conn.putrequest("POST", f"/api/jobs/{job_id}/assets", skip_accept_encoding=True)
+        for name, value in headers.items():
+            conn.putheader(name, value)
+        conn.endheaders()
+        view = memoryview(data)
         try:
-            return error.code, json.loads(error.read() or b"{}")
+            for start in range(0, len(view), 1 << 20):
+                conn.send(view[start:start + (1 << 20)])
+        except (BrokenPipeError, ConnectionResetError):
+            pass  # answered early: the answer is read below
+        try:
+            response = conn.getresponse()
+            raw = response.read()
+        except (ConnectionError, http.client.HTTPException):
+            return 0, {"code": "no_answer"}
+        try:
+            return response.status, json.loads(raw or b"{}")
         except ValueError:
-            return error.code, {}
+            return response.status, {}
+    finally:
+        conn.close()
 
 
 def fetch(base: str, path: str, token: str) -> bytes:

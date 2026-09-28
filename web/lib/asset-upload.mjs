@@ -51,6 +51,8 @@ const INGEST_TIMEOUT_MS = Object.freeze({ logo: 30_000, music: 90_000 });
 // AAC 192k + peaks), reserved together with the upload's own length.
 const OUTPUT_RESERVE_BYTES = Object.freeze({ logo: 5 * 1024 * 1024, music: 24 * 1024 * 1024 });
 const MAX_CONCURRENT_INGESTS = 2;
+// A refusal made after the session checks reads at most this much of the body first (drain).
+const MAX_DRAIN_BYTES = 64 * 1024 * 1024;
 const SHA = /^[0-9a-f]{64}$/;
 const STORE_FILE = /^([0-9a-f]{64})\.(png|m4a|json|peaks\.bin)$/;
 const REASONS = new Set(["empty", "dimensions", "duration", "short", "streams", "channels", "codec", "probe", "decode", "timeout"]);
@@ -327,6 +329,28 @@ async function streamToQuarantine(request, target, { length, format, maxBytes })
   }
 }
 
+/**
+ * Read and drop the request body (at most `limit` bytes). Over HTTP, answering while the client
+ * is still sending closes the connection and the browser reports a network error instead of
+ * the answer, so refusals made after the session checks read the declared body first.
+ */
+async function drain(request, limit) {
+  if (!request.body || request.bodyUsed || !(limit > 0)) return;
+  let reader;
+  try { reader = request.body.getReader(); } catch { return; }
+  let total = 0;
+  try {
+    while (total <= limit) {
+      const { done, value } = await reader.read();
+      if (done) return;
+      total += value?.byteLength ?? 0;
+    }
+    await reader.cancel().catch(() => {});
+  } catch { /* the client went away */ } finally {
+    try { reader.releaseLock(); } catch { /* already released */ }
+  }
+}
+
 // --- the concurrency gate and the rate limits ---------------------------------------------------------
 
 const GATE = Symbol.for("potongin.assetIngestGate");
@@ -379,20 +403,28 @@ export function createAssetUploadRoute(options = {}) {
       if (!verdict.allowed) {
         return uploadError("rate_limited", 429, {}, { "Retry-After": String(Math.max(1, Math.ceil(verdict.retryAfterMs / 1000))) });
       }
+      // From here on the caller is a signed-in page of this origin: a refusal reads the declared
+      // body first (at most MAX_DRAIN_BYTES), so the browser gets the answer, not a reset.
+      const declared = request.headers.get("content-length");
+      const drainable = /^\d{1,15}$/.test(declared ?? "") && Number(declared) <= MAX_DRAIN_BYTES ? Number(declared) : 0;
+      const refused = async (response) => {
+        await drain(request, drainable);
+        return response;
+      };
       let upload;
       try { upload = parseUploadRequest(request.headers); } catch (error) {
-        if (error instanceof UploadRequestError) return uploadError(error.code, error.status);
-        return uploadError("invalid_request", 400);
+        if (error instanceof UploadRequestError) return refused(uploadError(error.code, error.status));
+        return refused(uploadError("invalid_request", 400));
       }
       let directories; // the job and its analysis directory must exist; only the store is created
       try { directories = await assetDirectories(deps.jobsRoot, jobId, { create: true }); } catch {
-        return uploadError("not_found", 404);
+        return refused(uploadError("not_found", 404));
       }
       let usage;
       try { usage = await storeUsage(directories.store); } catch {
-        return uploadError("backend_unavailable", 503);
+        return refused(uploadError("backend_unavailable", 503));
       }
-      if (usage.count >= MAX_ASSETS_PER_JOB || usage.bytes >= MAX_STORE_BYTES) return uploadError("asset_quota_exceeded", 409);
+      if (usage.count >= MAX_ASSETS_PER_JOB || usage.bytes >= MAX_STORE_BYTES) return refused(uploadError("asset_quota_exceeded", 409));
 
       let reservation;
       try {
@@ -402,7 +434,7 @@ export function createAssetUploadRoute(options = {}) {
           declaredBytes: BigInt(upload.length + OUTPUT_RESERVE_BYTES[upload.kind]),
         });
       } catch (error) {
-        return storageFailure(error);
+        return refused(storageFailure(error));
       }
       const incomingId = randomUUID();
       const target = path.join(directories.incoming, incomingId);
