@@ -1334,8 +1334,7 @@ def render_v3_job(
     options = options if isinstance(options, dict) else {}
     render_mode = options.get("renderMode", "fit-blur")
     validate_render_mode(render_mode)
-    caption_style = _choice(options.get("captionStyle", "karaoke"), "caption_style",
-                            CAPTION_STYLES)
+    caption_style = _choice(options.get("captionStyle", "karaoke"), "caption_style", CAPTION_STYLES)
     cold_open = _boolean(options.get("coldOpen", True), "cold_open")
     hook_overlay = _boolean(options.get("hookOverlay", True), "hook_overlay")
     render_engine = _choice(render_engine, "render_engine", render_edit.ENGINES)

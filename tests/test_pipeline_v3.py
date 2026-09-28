@@ -1650,8 +1650,12 @@ class FakeAutoRenderer:
 
             raise RenderFailed("render_failed")
         return SimpleNamespace(
-            clip_id=f"clip_{rank:024x}", render_engine="edit-v2/1", render_key=None,
-            plan_sha256=f"{rank:064x}", cold_open=rank not in FakeAutoRenderer.drop_cold_open)
+            clip_id=f"clip_{rank:024x}",
+            render_engine="edit-v2/1",
+            render_key=None,
+            plan_sha256=f"{rank:064x}",
+            cold_open=rank not in FakeAutoRenderer.drop_cold_open,
+        )
 
     def fallback(self, rank):
         self.fallbacks.append(rank)
@@ -1674,14 +1678,23 @@ TWO_CLIPS = (selected(1, 100.0, 130.0, cold_open=(118.0, 121.0)), selected(2, 20
 
 
 def legacy_render_kwargs(clip, teaser, *, width=1080, height=1920):
-    return {"start": clip.start, "end": clip.end, "width": width, "height": height,
-            "render_mode": "center-crop", "cold_open": teaser, "hook_text": clip.hook_text,
-            "hook_duration": 4.0, "caption_style": "karaoke"}
+    return {
+        "start": clip.start,
+        "end": clip.end,
+        "width": width,
+        "height": height,
+        "render_mode": "center-crop",
+        "cold_open": teaser,
+        "hook_text": clip.hook_text,
+        "hook_duration": 4.0,
+        "caption_style": "karaoke",
+    }
 
 
 @pytest.mark.parametrize("flag", [None, "legacy", "EDIT-V2", "yes"])
-def test_the_legacy_engine_keeps_todays_render_call_and_manifest(env, monkeypatch, fake_engine,
-                                                                 flag):
+def test_the_legacy_engine_keeps_todays_render_call_and_manifest(
+    env, monkeypatch, fake_engine, flag
+):
     if flag is not None:
         monkeypatch.setenv("POTONGIN_RENDER_ENGINE", flag)
     monkeypatch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: result(*TWO_CLIPS))
@@ -1692,8 +1705,9 @@ def test_the_legacy_engine_keeps_todays_render_call_and_manifest(env, monkeypatc
     assert len(env.renders) == 2
     for render, clip in zip(env.renders, TWO_CLIPS, strict=True):
         teaser = clip.cold_open
-        assert {key: render[key] for key in legacy_render_kwargs(clip, teaser)} == \
-            legacy_render_kwargs(clip, teaser)
+        assert {
+            key: render[key] for key in legacy_render_kwargs(clip, teaser)
+        } == legacy_render_kwargs(clip, teaser)
         assert render["transcript"][0].words
     for clip in manifest["clips"]:
         assert_web_clip(clip)  # exactly today's keys: no engine fields
@@ -1702,8 +1716,9 @@ def test_the_legacy_engine_keeps_todays_render_call_and_manifest(env, monkeypatc
 
 
 @pytest.mark.parametrize("how", ["env", "argument"])
-def test_the_edit_v2_engine_renders_every_clip_through_the_compiler(env, monkeypatch,
-                                                                    fake_engine, how):
+def test_the_edit_v2_engine_renders_every_clip_through_the_compiler(
+    env, monkeypatch, fake_engine, how
+):
     monkeypatch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: result(*TWO_CLIPS))
     options = {}
     if how == "env":
@@ -1711,8 +1726,9 @@ def test_the_edit_v2_engine_renders_every_clip_through_the_compiler(env, monkeyp
     else:
         options["render_engine"] = "edit-v2"
 
-    manifest = manifest_of(run(env, max_duration=60.0, width=720, height=1280,
-                               hook_duration=2.5, **options))
+    manifest = manifest_of(
+        run(env, max_duration=60.0, width=720, height=1280, hook_duration=2.5, **options)
+    )
 
     assert env.renders == []  # render_vertical is never called
     (renderer,) = fake_engine.instances
@@ -1720,10 +1736,18 @@ def test_the_edit_v2_engine_renders_every_clip_through_the_compiler(env, monkeyp
     assert renderer.options["source"] == env.source.resolve()
     assert renderer.options["output_dir"] == env.output.resolve()
     assert renderer.options["options"] == pipeline_module.render_edit.AutoOptions(
-        render_mode="center-crop", caption_style="karaoke", cold_open=True, hook_overlay=True,
-        hook_duration=2.5, width=720, height=1280)
-    assert renderer.rendered == [(1, env.output.resolve() / "clip-01.mp4"),
-                                 (2, env.output.resolve() / "clip-02.mp4")]
+        render_mode="center-crop",
+        caption_style="karaoke",
+        cold_open=True,
+        hook_overlay=True,
+        hook_duration=2.5,
+        width=720,
+        height=1280,
+    )
+    assert renderer.rendered == [
+        (1, env.output.resolve() / "clip-01.mp4"),
+        (2, env.output.resolve() / "clip-02.mp4"),
+    ]
     for index, clip in enumerate(manifest["clips"], start=1):
         assert set(clip) == CLIP_KEYS | ENGINE_KEYS
         assert clip["clip_id"] == f"clip_{index:024x}"
@@ -1755,8 +1779,9 @@ def test_a_failing_clip_falls_back_to_the_legacy_engine(env, monkeypatch, fake_e
     assert renderer.fallbacks == [2]
     (legacy,) = env.renders
     clip = TWO_CLIPS[1]
-    assert {key: legacy[key] for key in legacy_render_kwargs(clip, None)} == \
-        legacy_render_kwargs(clip, None)
+    assert {key: legacy[key] for key in legacy_render_kwargs(clip, None)} == legacy_render_kwargs(
+        clip, None
+    )
     first, second = manifest["clips"]
     assert first["render_engine"] == "edit-v2/1"
     assert second["render_engine"] == "legacy" and second["clip_id"] == f"clip_{2:024x}"
