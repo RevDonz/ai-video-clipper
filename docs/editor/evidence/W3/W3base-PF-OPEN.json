@@ -1,0 +1,40 @@
+{
+  "browser": "Chrome for Testing 147.0.7727.15",
+  "cellsReadyBeforePlan": 0,
+  "executable": "chromium-1217",
+  "firstCellAfterPrepareMs": 1259,
+  "firstMs": {
+    "max": 1705,
+    "p50": 1030,
+    "p95": 1705
+  },
+  "firstVisitColdToFrameMs": null,
+  "firstVisitColdToReadyMs": null,
+  "gate": "PF-OPEN (real stack)",
+  "limits": {
+    "cellMs": 2000,
+    "firstMs": 3000,
+    "repeatMs": 2000
+  },
+  "load": [
+    18.5,
+    12.7,
+    10.1
+  ],
+  "pass": true,
+  "prepareMs": 40,
+  "repeatFrameOnStageMs": {
+    "p50": 903,
+    "p95": 2706
+  },
+  "repeatMs": {
+    "max": 1555,
+    "p50": 897,
+    "p95": 1555
+  },
+  "runs": 10,
+  "schema": "potongin.gate/1",
+  "stack": "ai-video-clipper:editor-w3base (FFmpeg 5.1.9, Python 3.11.2, toolchain.json sha 4fefb754…85f0, the same as editor-w2r2): app --cpus 6, render worker --cpus 4, copies of the owner's jobs e7f0d37b (fit-blur, 3 clips) and 860fef1a (face-track, 8 clips, PF-OPEN)",
+  "task": "W3 base (rebase onto main 55e4c6c)",
+  "viewport": "1366x768"
+}
