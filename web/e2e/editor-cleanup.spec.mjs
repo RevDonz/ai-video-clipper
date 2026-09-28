@@ -104,6 +104,10 @@ test.describe("Rapikan review", () => {
       await expect(review(page).getByRole("group", { name: new RegExp(`^${label} \\(${count}\\)`) })).toBeVisible();
     }
     await expect(review(page)).toContainText("Whisper sering tidak menulis");
+    // the locked items say why they are not proposed
+    const quietless = LISTING.locked.filter((entry) => entry.reason === "no_quiet_cut").length;
+    expect(quietless).toBeGreaterThan(0);
+    await expect(review(page)).toContainText(`${quietless} saran tidak diusulkan: tidak ada titik potong yang hening`);
     await expect(review(page).locator("[data-cleanup-item]")).toHaveCount(VIEW_EXTENDED.entries.length);
     // a repeat shows the removed occurrence struck through and the kept one after it
     const repeat = byKind("repeat", VIEW_EXTENDED)[0];

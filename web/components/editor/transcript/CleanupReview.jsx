@@ -126,7 +126,12 @@ function CleanupReview({ view, status, isChecked, onToggle, onGroup, onApply, on
         </button>
         <p className={styles.reviewStatus} role="status">{message ?? ""}</p>
         {view?.hidden.applied ? <p className={styles.reviewMeta}>{view.hidden.applied} sudah diterapkan · urungkan dengan Ctrl+Z</p> : null}
-        {view?.locked ? <p className={styles.reviewMeta}>{view.locked} saran di sekitar tawa dikunci</p> : null}
+        {view?.lockedBy?.laughter ? <p className={styles.reviewMeta}>{view.lockedBy.laughter} saran di sekitar tawa dikunci</p> : null}
+        {view?.lockedBy?.no_quiet_cut ? (
+          <p className={styles.reviewMeta}>
+            {view.lockedBy.no_quiet_cut} saran tidak diusulkan: tidak ada titik potong yang hening (potongan akan terdengar)
+          </p>
+        ) : null}
       </div>
     </section>
   );

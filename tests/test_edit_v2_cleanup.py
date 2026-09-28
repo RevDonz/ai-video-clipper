@@ -28,8 +28,9 @@ from ai_clipper import hook_heuristics
 from ai_clipper.audio_timeline import ANALYZER_VERSION, AudioTimeline
 from ai_clipper.edit_v2 import DOC_FPS, cleanup, words
 from ai_clipper.edit_v2 import timemap as tm
+from ai_clipper.edit_v2.doc import canonical_bytes
 from ai_clipper.edit_v2.errors import MESSAGES
-from ai_clipper.edit_v2.peaks import bin_count
+from ai_clipper.edit_v2.peaks import bin_count, peaks_file_name
 from ai_clipper.edit_v2.timemap import Fps
 from ai_clipper.models import Transcription, TranscriptSegment, TranscriptWord
 from ai_clipper.sound_events import SoundEvent
@@ -395,6 +396,94 @@ def test_without_an_audio_timeline_no_gap_is_proposed():
     result = listing(["kita", "pergi", ("pulang", 1500), "sore"], audio=False)
     assert result["items"] == []
     assert result["missing"] == ["audio_timeline"]
+
+
+# --- quiet cuts (the clip's peaks) --------------------------------------------------------------------
+
+
+def loud_peaks(artifact: dict, spans: Sequence[tuple[int, int]], level: int = 40) -> bytes:
+    """Peaks of the artifact's window: silent, except bins overlapping ``spans`` (source ms)."""
+    start = artifact["peaks"]["start_ms"]
+    count = bin_count(tuple(artifact["window_ms"]))
+    raw = bytearray(2 * count)
+    for a, b in spans:
+        for index in range(max(0, (a - start) // 10), min(count, -(-(b - start) // 10))):
+            raw[2 * index] = (-level) & 0xFF
+            raw[2 * index + 1] = level
+    return bytes(raw)
+
+
+def speech(artifact: dict) -> list[tuple[int, int]]:
+    return [(word["s"], word["e"]) for word in artifact["words"]]
+
+
+def test_with_silent_peaks_the_list_is_unchanged():
+    artifact = build(["gua", "gua", "eh", "bingung", ("banget", 1400), "pulang"], silent_before=[4])
+    quiet = cleanup.build_cleanup(artifact, peaks=loud_peaks(artifact, speech(artifact)))
+    assert quiet["items"] == cleanup.build_cleanup(artifact)["items"]
+
+
+def test_a_silent_gap_edge_moves_out_of_a_speech_tail():
+    artifact = build(["kita", "pergi", ("pulang", 1400), "sore"], silent_before=[2])
+    gap = artifact["gaps"][0]
+    tail = (gap["s"], gap["s"] + 250)  # the word goes on 250 ms after its timestamp
+    item = items_of(cleanup.build_cleanup(
+        artifact, peaks=loud_peaks(artifact, [*speech(artifact), tail])), "gap_silent")[0]
+    plain = items_of(cleanup.build_cleanup(artifact), "gap_silent")[0]
+    frame = Fraction(1001, 30)
+    assert item["outSf"] == plain["outSf"]
+    assert item["inSf"] > plain["inSf"]
+    assert item["inSf"] * frame - 10 >= tail[1]  # the ±10 ms around the cut is quiet
+    assert (item["inSf"] - 1) * frame - 10 < tail[1]  # and it is the first such frame
+
+
+def test_a_gap_without_a_quiet_cut_is_not_proposed():
+    artifact = build(["kita", "pergi", ("pulang", 1400), "sore"], silent_before=[2])
+    gap = artifact["gaps"][0]
+    result = cleanup.build_cleanup(artifact, peaks=loud_peaks(artifact, [(gap["s"], gap["e"])]))
+    assert items_of(result, "gap_silent") == []
+    assert [lock["reason"] for lock in result["locked"]] == ["no_quiet_cut"]
+
+
+def test_a_word_item_whose_cut_is_not_quiet_is_not_proposed():
+    artifact = build(["jadi", "eh", "kita", "pergi"])
+    words = artifact["words"]
+    # the gap after "eh" carries speech: the cut there would clip it
+    result = cleanup.build_cleanup(artifact, peaks=loud_peaks(
+        artifact, [(words[0]["s"], words[1]["e"] + 100), *speech(artifact)]))
+    assert items_of(result, "filler") == []
+    assert result["locked"][0] == {"kind": "filler", "reason": "no_quiet_cut", "s": words[1]["s"],
+                                   "e": words[1]["e"], "wordIds": [words[1]["id"]]}
+
+
+def test_a_word_item_with_a_tight_cut_is_not_proposed():
+    # words that touch leave no frame boundary between them: the cut would split a word
+    artifact = build(["jadi", "eh", ("kita", 0), "pergi"])
+    assert any(entry["tight"] for entry in artifact["bounds"])
+    result = cleanup.build_cleanup(artifact, peaks=loud_peaks(artifact, speech(artifact)))
+    assert items_of(result, "filler") == []
+    assert result["locked"][0]["reason"] == "no_quiet_cut"
+
+
+def test_the_cli_reads_the_clips_peaks(tmp_path, edit_v2_doc_contexts):
+    context = edit_v2_doc_contexts["c30"]
+    words = copy.deepcopy(context.words)
+    peaks = loud_peaks(words, [(word["s"], word["e"] + 60) for word in words["words"]])
+    words["peaks"]["file"] = peaks_file_name(peaks)
+    seed = copy.deepcopy(context.seed)
+    seed["base"]["words"]["sha256"] = hashlib.sha256(canonical_bytes(words)).hexdigest()
+    make_clip(tmp_path, context, seed=seed, words=words)
+    clip = tmp_path / seed["base"]["job_id"] / "analysis" / "clips" / seed["clip_id"]
+    ids = {"jobId": seed["base"]["job_id"], "clipId": seed["clip_id"]}
+    with_peaks = cleanup.build_cleanup(words, peaks=peaks)
+    assert with_peaks["items"] != cleanup.build_cleanup(words)["items"]
+    (clip / words["peaks"]["file"]).write_bytes(peaks)
+    status, payload = call(tmp_path, op="list", **ids)
+    assert status == 0
+    assert payload["items"] == with_peaks["items"]
+    # a peaks file that does not match its name is ignored
+    (clip / words["peaks"]["file"]).write_bytes(bytes(len(peaks)))
+    assert call(tmp_path, op="list", **ids)[1]["items"] == cleanup.build_cleanup(words)["items"]
 
 
 # --- the list as a whole ----------------------------------------------------------------------------
