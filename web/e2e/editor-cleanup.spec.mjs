@@ -10,8 +10,11 @@
 //
 //   E2E_ALLOW_SKIP=1 E2E_NO_WEB_SERVER=1 npx playwright test e2e/editor-cleanup.spec.mjs \
 //     --project=desktop-chromium
+//
+// AXE_CORE_PATH=<axe.min.js> adds QG-A11Y with the review open (axe-core is not a dependency).
 import { expect, test } from "@playwright/test";
 import { existsSync, readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -52,6 +55,17 @@ function pinnedChrome() {
 }
 
 const chrome = process.env.PARITY_CHROME || pinnedChrome();
+
+function axeSource() {
+  const explicit = process.env.AXE_CORE_PATH;
+  if (explicit && existsSync(explicit)) return readFileSync(explicit, "utf8");
+  try {
+    return readFileSync(createRequire(import.meta.url).resolve("axe-core/axe.min.js"), "utf8");
+  } catch {
+    return null;
+  }
+}
+const AXE = axeSource();
 test.use({ launchOptions: chrome ? { executablePath: chrome } : {}, viewport: { width: 1366, height: 768 }, deviceScaleFactor: 1 });
 
 let bundle = null;
@@ -361,6 +375,26 @@ test.describe("Rapikan review", () => {
       return { name: style.animationName, duration: style.animationDuration };
     });
     expect(still.name === "none" || still.duration === "0s").toBe(true);
+  });
+
+  test("QG-A11Y: axe finds no critical or serious violation with the review open", async ({ page }) => {
+    test.skip(!AXE, "set AXE_CORE_PATH to an axe.min.js (axe-core is not a web dependency)");
+    await openHarness(page, { doc: EXTENDED });
+    await openReview(page);
+    await review(page).getByRole("group", { name: /^Kata pengisi/ }).getByRole("checkbox").first().check();
+    await page.addScriptTag({ content: AXE });
+    const serious = async () => page.evaluate(async () => {
+      const result = await window.axe.run(document, { resultTypes: ["violations"] });
+      return result.violations.filter((item) => ["critical", "serious"].includes(item.impact))
+        .map((item) => ({ id: item.id, impact: item.impact, targets: item.nodes.slice(0, 3).map((node) => node.target.join(" ")) }));
+    });
+    expect(await serious()).toEqual([]);
+    await page.evaluate((tokens) => {
+      const root = document.querySelector("#root > div");
+      for (const [name, value] of Object.entries(tokens)) root.style.setProperty(name, value);
+    }, DARK_TOKENS);
+    await page.waitForFunction(() => document.getAnimations().every((animation) => animation.playState !== "running"));
+    expect(await serious()).toEqual([]);
   });
 
   test("without an api prop the panel asks the route itself, only when opened", async ({ page }) => {
