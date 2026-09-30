@@ -1,0 +1,174 @@
+{
+  "task": "T3.5",
+  "gate": "QG-CLEAN",
+  "commit": "7fdd7fd",
+  "thresholds": {
+    "particle_false_positives": 0,
+    "reduplication_false_positives": 0,
+    "filler_precision_before_precheck": 0.9,
+    "cut_edge": "inside [a.e, b.s] or tight; RMS ±10 ms ≤ −35 dBFS unless tight",
+    "g_click_dbfs": -40.0,
+    "g_sync": "A/V end ≤ 1 frame; caption onset = plan frame",
+    "items": 20
+  },
+  "labelled_set": {
+    "samples": 274,
+    "sources": {
+      "real": 272,
+      "synthetic": 1,
+      "authored": 1
+    },
+    "tokens": 490,
+    "labels": {
+      "filler": 169,
+      "not_filler": 26,
+      "particle": 35,
+      "reduplication": 37,
+      "emphatic": 28,
+      "stutter": 38,
+      "not_repeat": 9
+    },
+    "reduplication_pairs": 37,
+    "particles_covered": [
+      "deh",
+      "dong",
+      "gitu",
+      "heeh",
+      "kan",
+      "kaya",
+      "kayak",
+      "kek",
+      "kok",
+      "lah",
+      "lho",
+      "loh",
+      "mah",
+      "nah",
+      "nih",
+      "sih",
+      "toh",
+      "tuh",
+      "ya",
+      "yah"
+    ],
+    "particle_false_positives": 0,
+    "reduplication_false_positives": 0,
+    "filler_hits": 194,
+    "filler_true_hits": 181,
+    "filler_precision": 0.933,
+    "filler_precision_borderline_flipped": 0.9897,
+    "filler_precision_by_group": {
+      "H": {
+        "true": 43,
+        "false": 4,
+        "precision": 0.9149
+      },
+      "S": {
+        "true": 2,
+        "false": 0,
+        "precision": 1.0
+      },
+      "V": {
+        "true": 94,
+        "false": 5,
+        "precision": 0.9495
+      },
+      "W": {
+        "true": 42,
+        "false": 4,
+        "precision": 0.913
+      }
+    },
+    "filler_recall": 1.0,
+    "borderline_labels": 29,
+    "owner_confirmed": false
+  },
+  "precheck": {
+    "fillers": false,
+    "rule": "fillers stay unchecked until the owner confirms the labels at checkpoint 3 and the precision on the confirmed labels is ≥ 0.9"
+  },
+  "real_clips_toolchain_of_record": {
+    "clips": 5,
+    "items_applied": 47,
+    "items_by_kind": {
+      "filler": 1,
+      "repeat": 0,
+      "gap_silent": 46
+    },
+    "cut_edges": 94,
+    "inside_gap": 94,
+    "tight": 0,
+    "rms_max_dbfs_untight": -47.89,
+    "cut_edge_failures": 0,
+    "joins": 49,
+    "g_click_max_step_dbfs": -200.0,
+    "g_sync_max_av_end_ms": 17.5,
+    "caption_onsets_checked": 60,
+    "g1_g2_pass": true,
+    "all_pass": true
+  },
+  "real_clips_local": {
+    "clips": 4,
+    "items_applied": 42,
+    "items_by_kind": {
+      "filler": 1,
+      "repeat": 0,
+      "gap_silent": 41
+    },
+    "cut_edges": 84,
+    "inside_gap": 84,
+    "tight": 0,
+    "rms_max_dbfs_untight": -47.89,
+    "cut_edge_failures": 0,
+    "joins": 43,
+    "g_click_max_step_dbfs": -200.0,
+    "g_sync_max_av_end_ms": 17.5,
+    "caption_onsets_checked": 48,
+    "g1_g2_pass": true,
+    "all_pass": true
+  },
+  "twenty_item_clip": {
+    "job": "e7f0d37b",
+    "clip_id": "clip_fa14b3c832db852797ab4560",
+    "items_by_kind": {
+      "gap_silent": 19,
+      "filler": 1
+    },
+    "cut_edges": 40,
+    "cut_edge_failures": 0,
+    "g_click_max_step_dbfs": -200.0,
+    "g_sync_av_end_ms": 17.5,
+    "pass": true
+  },
+  "synthetic": {
+    "items_by_kind": {
+      "gap_silent": 3,
+      "filler": 2,
+      "repeat": 1
+    },
+    "pass": true
+  },
+  "confirmation_sheet": {
+    "files": "scratchpad editor-w3/qg-clean/konfirmasi-label.{html,csv,json}",
+    "rows": 342,
+    "tokens": 490,
+    "published": "private artifact, owner only until shared"
+  },
+  "word_items_on_real_clips": {
+    "clips": 24,
+    "filler_proposed": 3,
+    "filler_locked_no_quiet_cut": 35,
+    "repeat_proposed": 0,
+    "repeat_locked_no_quiet_cut": 24,
+    "see": "T3.5-QG-CLEAN-locked.json"
+  },
+  "verdict": {
+    "particle_false_positives": "pass (0)",
+    "reduplication_false_positives": "pass (0)",
+    "filler_precision": "0.933 on the agent labels (>= 0.9); pre-check stays off until the owner confirms the labels",
+    "cut_edges": "pass (94/94 in the image, 84/84 local, 12/12 synthetic)",
+    "g_click": "pass",
+    "g_sync": "pass",
+    "twenty_items": "one real clip reaches 20 items (e7f0d37b); the other clips hold 5 to 9 items even with the body widened to the whole analysis window"
+  }
+}
