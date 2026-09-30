@@ -187,7 +187,10 @@ def test_the_hook_sentence_is_offered_when_it_makes_a_valid_cold_open(contexts):
         hooks = [c for c in candidates if c.source == "hook"]
         selection = [c for c in candidates if c.source == "selection"]
         valid = is_valid_cold_open(seed, words, members[0]["id"], members[-1]["id"])
-        duplicate = any(c.unit_ids == (hook_unit,) for c in selection)
+        span = snapped(words, members[0]["id"], members[-1]["id"])
+        # the selection's cold open usually is the hook sentence: then it is offered once
+        duplicate = any(2 * (min(span[1], c.out_sf) - max(span[0], c.in_sf))
+                        > min(span[1] - span[0], c.frames) for c in selection)
         if valid and not duplicate:
             assert [(c.first_word, c.last_word) for c in hooks] == \
                 [(members[0]["id"], members[-1]["id"])], context.id
