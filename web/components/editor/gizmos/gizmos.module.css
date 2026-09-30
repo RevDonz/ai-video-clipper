@@ -1,0 +1,143 @@
+/* The logo gizmo over the stage (plan §11.3 T3.2). Positions are percentages of the output size,
+   so the gizmo follows the stage's CSS scale. Colours are the editor's tokens only. The outline is
+   UI chrome drawn over the video: a dark and an accent stroke, so it reads on any footage. */
+
+.root {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.box {
+  position: absolute;
+  box-sizing: border-box;
+  pointer-events: auto;
+  cursor: grab;
+  touch-action: none;
+  border-radius: 1px;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ed-color-stage) 60%, transparent);
+  outline: 1px dashed color-mix(in srgb, var(--ed-color-stage-text) 55%, transparent);
+  outline-offset: 0;
+  transition: outline-color var(--ed-duration-fast), box-shadow var(--ed-duration-fast);
+}
+
+.box:hover,
+.root[data-dragging="true"] .box {
+  outline: 2px solid var(--ed-color-accent);
+  box-shadow: 0 0 0 3px var(--ed-color-stage);
+}
+
+.box:focus-visible {
+  outline: 2px solid var(--ed-color-accent);
+  box-shadow: var(--ed-focus-ring);
+}
+
+.root[data-dragging="true"] .box {
+  cursor: grabbing;
+}
+
+.box[data-unsafe="true"] {
+  outline-color: var(--ed-color-danger);
+}
+
+.box[aria-disabled="true"] {
+  cursor: default;
+  outline-style: dotted;
+}
+
+/* Corner handles: an 18 px hit area just outside each corner, so even the smallest logo (4 % of the
+   width, about 10 screen pixels) keeps its inside for moving; the 10 px square is drawn centred on
+   the corner and takes no pointer. They appear with the outline (hover, focus, a drag). */
+.handle {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  opacity: 0;
+  pointer-events: auto;
+  touch-action: none;
+  transition: opacity var(--ed-duration-fast);
+}
+
+.handle::after {
+  content: "";
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--ed-color-accent);
+  box-shadow: 0 0 0 1.5px var(--ed-color-stage);
+  pointer-events: none;
+}
+
+.box:hover .handle,
+.box:focus-within .handle,
+.root[data-dragging="true"] .handle {
+  opacity: 1;
+}
+
+.handle[data-logo-handle="top_left"] { right: 100%; bottom: 100%; cursor: nwse-resize; }
+.handle[data-logo-handle="top_left"]::after { right: -5px; bottom: -5px; }
+.handle[data-logo-handle="top_right"] { left: 100%; bottom: 100%; cursor: nesw-resize; }
+.handle[data-logo-handle="top_right"]::after { left: -5px; bottom: -5px; }
+.handle[data-logo-handle="bottom_left"] { right: 100%; top: 100%; cursor: nesw-resize; }
+.handle[data-logo-handle="bottom_left"]::after { right: -5px; top: -5px; }
+.handle[data-logo-handle="bottom_right"] { left: 100%; top: 100%; cursor: nwse-resize; }
+.handle[data-logo-handle="bottom_right"]::after { left: -5px; top: -5px; }
+
+/* Guides while dragging: the TikTok zone's edges (dashed), and the line the magnet took. */
+.guide {
+  position: absolute;
+  pointer-events: none;
+}
+
+.guideX {
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 1px solid var(--ed-color-accent);
+}
+
+.guideY {
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 1px solid var(--ed-color-accent);
+}
+
+.guide[data-guide-kind="zone"] {
+  border-color: var(--ed-color-danger);
+  border-style: dashed;
+  opacity: 0.8;
+}
+
+.zoneBand {
+  position: absolute;
+  pointer-events: none;
+  background: var(--ed-color-safe-zone);
+}
+
+/* The position read-out while dragging or resizing, on the side of the box with room (the stage
+   clips anything outside it). */
+.readout {
+  position: absolute;
+  margin: 6px 0;
+  padding: 2px 6px;
+  border-radius: var(--ed-radius-sm);
+  background: var(--ed-color-stage-surface);
+  color: var(--ed-color-stage-text);
+  font: 600 var(--ed-font-size-xs) / 1.4 var(--ed-font-ui);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.readout[data-unsafe="true"] {
+  box-shadow: inset 0 0 0 1px var(--ed-color-danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .box,
+  .handle {
+    transition: none;
+  }
+}

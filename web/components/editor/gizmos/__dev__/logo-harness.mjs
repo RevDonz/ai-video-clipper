@@ -149,6 +149,20 @@ export function createLogoHarness(config = {}) {
     jobId: FAKE_JOB_ID, clipId: FAKE_CLIP_ID, api, previewClient,
     draftStore: createDraftStore({ indexedDB: null }), channel: null, lifecycle: null, tabStorage: null,
   });
+  // Every dispatch, kept (the store's own pending log empties after each save).
+  const log = [];
+  const dispatch = store.dispatch;
+  store.dispatch = (type, args = {}, options = {}) => {
+    const entry = { type, args, mergeKey: options?.mergeKey ?? null, ok: true, code: null };
+    log.push(entry);
+    try {
+      return dispatch(type, args, options);
+    } catch (error) {
+      entry.ok = false;
+      entry.code = error?.code ?? null;
+      throw error;
+    }
+  };
   const unregister = provideLogoUploader(uploads.uploadAsset);
   let counter = 0;
   const runtime = {
@@ -165,5 +179,5 @@ export function createLogoHarness(config = {}) {
       store.destroy();
     },
   };
-  return { runtime, store, api, uploads: uploads.calls, planCalls, ready: false };
+  return { runtime, store, api, log, uploads: uploads.calls, planCalls, ready: false };
 }
