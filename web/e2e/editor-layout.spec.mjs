@@ -298,6 +298,38 @@ test("Tata letak lists the three layouts, the clip's own chosen, with thumbnails
   expect(first).toEqual([{ layout: "fit_blur", f: 0 }, { layout: "camera", f: 0 }, { layout: "fill_center", f: 0 }]);
 });
 
+test("the chosen layout is explained under the choices", async ({ page }) => {
+  const panel = await openLayoutPanel(page);
+  const about = panel.locator("[data-layout-about]");
+  await expect(about).toHaveText(/^Latar blur: Seluruh gambar terlihat\./);
+  await radio(panel, "Potong tengah").check();
+  await expect(about).toHaveText(/^Potong tengah: Potongan 9:16 tetap di tengah gambar\./);
+  // every choice keeps its own description for screen readers
+  await expect(radio(panel, "Ikuti wajah")).toHaveAccessibleDescription(/Butuh analisis wajah sekali per klip/);
+  await expect(panel.getByRole("group", { name: "Pilih tata letak" })).toBeVisible();
+});
+
+test("at 1366×768 the face analysis stays in view on its card", async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 768 });
+  const panel = await openLayoutPanel(page, { prepareMs: 2500 });
+  await radio(panel, "Ikuti wajah").check();
+  await expect(panel.locator('[data-layout-card-progress="camera"]')).toBeInViewport();
+  await expect.poll(() => layoutOf(page), { timeout: 15_000 }).toBe("camera");
+  const overflow = await page.locator('[data-panel="layout"]').evaluate((node) => node.scrollWidth - node.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(0);
+});
+
+test("with reduced motion the panel does not animate", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const panel = await openLayoutPanel(page);
+  const card = panel.locator('[data-layout-option="fill_center"]');
+  const duration = await card.evaluate((node) => getComputedStyle(node).transitionDuration);
+  expect(duration.split(",").every((value) => Number.parseFloat(value) === 0)).toBe(true);
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  const moving = await card.evaluate((node) => getComputedStyle(node).transitionDuration);
+  expect(moving.split(",").some((value) => Number.parseFloat(value) > 0)).toBe(true);
+});
+
 test("the thumbnails follow the playhead", async ({ page }) => {
   const panel = await openLayoutPanel(page);
   await expect(panel.locator('img[data-layout-thumb="fit_blur"]')).toBeVisible();
@@ -330,14 +362,22 @@ test("Ikuti wajah analyses the faces first, with the server's progress, then swi
   const panel = await openLayoutPanel(page, { prepareMs: 2500, progress: true });
   await radio(panel, "Ikuti wajah").check();
   const analysis = panel.locator("[data-layout-analysis]");
-  await expect(analysis).toContainText(/Menganalisis wajah… \d+% \(\d+\/240\)/);
+  await expect(analysis).toContainText(/Menganalisis wajah… \d+%$/);
+  await expect(analysis).not.toContainText("/240"); // samples mean nothing to the user
   const bar = analysis.getByRole("progressbar", { name: "Analisis wajah" });
   await expect(bar).toHaveAttribute("max", "240");
+  // the chosen card carries the progress too, where the eye is
+  const cardProgress = panel.locator('[data-layout-card-progress="camera"]');
+  await expect(cardProgress).toBeVisible();
+  await expect(cardProgress).toContainText(/\d+%/);
   // nothing switches while the faces are analysed: the stage keeps the current layout
   expect(await layoutOf(page)).toBe("fit_blur");
   await expect(radio(panel, "Ikuti wajah")).toBeChecked(); // the choice being prepared
+  await expect(panel.locator('[data-layout-option="fit_blur"]')).toContainText("Dipakai");
   await expect.poll(() => layoutOf(page), { timeout: 15_000 }).toBe("camera");
   await expect(analysis).toBeHidden();
+  await expect(cardProgress).toHaveCount(0);
+  await expect(panel.getByText("Dipakai", { exact: true })).toHaveCount(0); // nothing pending: the check mark says it
   const log = await calls(page);
   const prepare = log.findIndex((entry) => entry[0] === "prepare");
   const dispatch = log.findIndex((entry) => entry[0] === "dispatch");
@@ -359,7 +399,8 @@ test("without the server's progress the analysis shows the seconds and the usual
   const panel = await openLayoutPanel(page, { prepareMs: 2600 });
   await radio(panel, "Ikuti wajah").check();
   const analysis = panel.locator("[data-layout-analysis]");
-  await expect(analysis).toContainText(/Menganalisis wajah… \d+ dtk \(biasanya ± \d+ dtk\)/);
+  await expect(analysis).toContainText(/Menganalisis wajah… \d+ dtk \(biasanya \d+-\d+ dtk\)/);
+  await expect(panel.locator('[data-layout-card-progress="camera"]')).toContainText("Menganalisis");
   const bar = analysis.getByRole("progressbar", { name: "Analisis wajah" });
   await expect(bar).not.toHaveAttribute("value", /.*/); // indeterminate: never a made-up percentage
   await expect.poll(() => layoutOf(page), { timeout: 15_000 }).toBe("camera");
