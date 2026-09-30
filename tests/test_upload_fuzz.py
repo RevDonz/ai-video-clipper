@@ -183,3 +183,10 @@ def test_the_environment_audit_flags_names_outside_the_allowlist_and_planted_val
     assert report["plantedValuesFound"] == 2 and report["pass"] is False
     assert "planted" not in json.dumps(report["namesOutsideAllowlist"])  # names, never values
     assert fuzz.audit_environ([], allow=allow, marker="planted-")["pass"] is False
+
+
+def test_the_audit_reads_the_python_allowlist_from_python_cli():
+    names = fuzz.child_env_allowlist()
+    assert {"PATH", "HOME", "JOBS_ROOT", "POTONGIN_EDITOR_UPLOADS"} <= set(names)
+    assert not [name for name in names if name.endswith("_API_KEY")
+                or name.startswith(("APP_", "POTONGIN_SETTINGS", "POTONGIN_LLM"))]
