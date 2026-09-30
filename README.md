@@ -82,11 +82,13 @@ uv run ai-clipper /path/to/source.mp4 \
 
 For a CUDA machine, add `--device cuda`. The current machine has no `nvidia-smi`, so the verified demo used CPU inference and `libx264` rendering.
 
-The CLI still defaults to `--selection-mode v1` for compatibility. For Selection V3, add
-`--selection-mode v3`. The optional flags are `--llm auto|off|required`,
-`--no-cold-open`, `--no-hook-overlay`, `--caption-style classic|karaoke`, and
-`--captions-dir DIR`, where `DIR` holds YouTube json3 captions in `manual/` and `auto/`.
-The dashboard sends `v3` by default.
+The CLI defaults to the current selection (`--selection-mode v3`). The optional flags are
+`--llm auto|off|required`, `--no-cold-open`, `--no-hook-overlay`,
+`--caption-style classic|karaoke`, and `--captions-dir DIR`, where `DIR` holds YouTube json3
+captions in `manual/` and `auto/`. `--selection-mode v1|v2-shadow` stays for tooling and for
+old jobs; the web worker passes it for jobs created with those modes. New jobs from the web
+always use the current selection: the job API answers a request for `v1` or `v2-shadow` with
+400 (`selection_mode_retired`).
 
 ## Outputs
 
@@ -137,8 +139,8 @@ new Selection V2 domain models pass.
   [`docs/evaluation/SELECTION_BENCHMARK.md`](docs/evaluation/SELECTION_BENCHMARK.md).
   Angka hasil benchmark V3 belum dipublikasikan.
 - Standar kualitas klip: [`docs/operations/STANDAR_KLIP_AI.md`](docs/operations/STANDAR_KLIP_AI.md).
-- Mode lama **Klasik V1** dan **V2 shadow** tetap ada di bawah "Mode lama". Job lama
-  tampil persis seperti sebelumnya.
+- Dashboard hanya menawarkan cara terbaru, tanpa label versi dan tanpa mode lama. Job lama
+  tetap ada di riwayat dan klipnya tetap bisa diunduh.
 
 **English.** The dashboard now defaults to **AI Hook (V3)**:
 
@@ -188,7 +190,7 @@ transcript actually mentions them, with no change at all when no trend items are
 
 ## Fokus klip: cari momen tentang kata kunci tertentu
 
-**Bahasa Indonesia.** Di dashboard (mode V3) pemilik bisa mengisi kata kunci yang dicari
+**Bahasa Indonesia.** Di dashboard pemilik bisa mengisi kata kunci yang dicari
 (misalnya "jomok") dan catatan untuk AI. Klip yang cocok diutamakan, sisa slot diisi momen
 terbaik lain berlabel "Di luar fokus". Setiap klip berlabel "Menyebut 'jomok' · 12:34" (dicek
 kode pada transkrip, termasuk kata berimbuhan seperti "perjomokan"), "Terkait 'jomok' (menurut
@@ -217,8 +219,8 @@ terms every output is unchanged.
 
 - Local Indonesian transcription with faster-whisper, word timestamps, and a transcript
   quality gate; YouTube captions can replace Whisper when their quality is good enough
-- Selection V3 (dashboard default): LLM moment selection with ordered provider failover
-  and a deterministic heuristic fallback; V1 and V2 shadow remain selectable
+- Selection V3 (every new job): LLM moment selection with ordered provider failover
+  and a deterministic heuristic fallback; older V1 and V2 shadow jobs stay viewable
 - Cold open, on-screen hook text, and karaoke or classic burned-in captions
 - Selectable portrait layout: `face-track`, `fit-blur`, or `center-crop`
 - OpenCV face tracking with smoothed crop movement across speaker shots

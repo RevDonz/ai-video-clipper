@@ -90,10 +90,12 @@ test("V3 form options reject unknown values and options of other modes", () => {
     { selectionMode: "v1", coldOpen: "false" },
     { selectionMode: "v2-shadow", captionStyle: "karaoke" },
     { selectionMode: "v2-shadow", hookOverlay: "true" },
-    { llmMode: "auto" },
-    { coldOpen: "true" },
+    { llmMode: "required" },
     { selectionMode: "V3" },
   ]) assert.throws(() => parseJobOptions(input), undefined, JSON.stringify(input));
+  // Without a selection mode the options belong to the current selection.
+  assert.equal(parseJobOptions({ llmMode: "off" }).llmMode, "off");
+  assert.equal(parseJobOptions({ coldOpen: "false" }).selectionMode, "v3");
 });
 
 test("job API form parsing forwards the V3 fields", () => {
@@ -618,21 +620,15 @@ test("LLM badge view reflects the job's LLM choice and the configured status", (
   assert.match(llmStatusView({ state: "active", label: "LLM aktif: groq" }, "off").label, /tidak dipakai/);
 });
 
-test("dashboard defaults to V3, keeps V1 and V2 shadow under Mode lama, and reads the LLM status", async () => {
+test("dashboard sends the current selection's options without naming a mode, and reads the AI status", async () => {
   const source = await readFile(new URL("../app/dashboard/page.jsx", import.meta.url), "utf8");
-  assert.match(source, /useState\("v3"\)/);
-  assert.match(source, /AI Hook \(V3\)/);
-  assert.match(source, /<summary>Mode lama<\/summary>/);
-  assert.match(source, /Klasik V1/);
-  assert.match(source, /V2 shadow/);
+  assert.doesNotMatch(source, /AI Hook|Mode lama|Klasik V1|V2 shadow|selectionMode|clipProfile|llmMode/);
   assert.match(source, /fetch\("\/api\/llm\/status", \{ cache: "no-store"/);
-  for (const field of ["llmMode", "coldOpen", "hookOverlay", "captionStyle"]) assert.match(source, new RegExp(`data\\.set\\("${field}"`));
+  for (const field of ["coldOpen", "hookOverlay", "captionStyle"]) assert.match(source, new RegExp(`data\\.set\\("${field}"`));
   assert.match(source, /Buka dengan kalimat terkuat/);
-  assert.match(source, /Teks hook 4 detik pertama/);
-  assert.match(source, /Tanpa LLM \(heuristik\)/);
+  assert.match(source, /Teks hook di 4 detik pertama/);
+  assert.match(source, /aiStatusView\(aiStatus\)/);
   assert.match(source, /clipCaptionText\(clip\)/);
-  // V3 never sends a clip profile; only V2 shadow does.
-  assert.match(source, /else if \(selectionMode === "v2-shadow"\) \{\s*data\.set\("clipProfile"/);
 });
 
 test("every result video on the dashboard and project page uses the clip poster", async () => {
@@ -655,18 +651,18 @@ test("project page shows V3 packaging only for V3 jobs and keeps the legacy layo
   assert.doesNotMatch(source, /dangerouslySetInnerHTML/);
 });
 
-test("dashboard: the focus input is part of the V3 options and its fields are sent only from the V3 branch", async () => {
+test("dashboard: the focus input is part of the form and its fields are sent only through focusFormFields", async () => {
   const source = await readFile(new URL("../app/dashboard/page.jsx", import.meta.url), "utf8");
   for (const text of ["Cari momen tentang… (opsional)", "Catatan untuk AI (opsional)"]) assert.ok(source.includes(text), text);
-  const v3Options = /\{selectionMode === "v3" && \(\s*<div className="v3Options">([\s\S]*?)<\/div>\s*\)\}/.exec(source);
-  assert.ok(v3Options, "V3 options block");
-  assert.match(v3Options[1], /<FocusField\b/);
-  const v3Branch = /if \(selectionMode === "v3"\) \{([\s\S]*?)\} else if \(selectionMode === "v2-shadow"\)/.exec(source);
-  assert.ok(v3Branch, "V3 submit branch");
-  assert.match(v3Branch[1], /for \(const \[name, value\] of Object\.entries\(focus\.fields\)\) data\.set\(name, value\);/);
+  const form = /<form [^>]*onSubmit=\{submit\}[^>]*>([\s\S]*?)<\/form>/.exec(source);
+  assert.ok(form, "the job form");
+  assert.match(form[1], /<FocusField\b/);
+  const submit = /async function submit\(event\) \{([\s\S]*?)\n  \}\n/.exec(source);
+  assert.ok(submit, "the submit handler");
+  assert.match(submit[1], /focusFormFields\(\{ terms: focusTerms, pending: focusDraft, note: focusNote \}\)/);
+  assert.match(submit[1], /for \(const \[name, value\] of Object\.entries\(focus\.fields\)\) data\.set\(name, value\);/);
   // No other place names the focus form fields: an empty focus sends nothing.
   assert.doesNotMatch(source, /data\.set\("focus/);
-  assert.match(source, /focusFormFields\(/);
   assert.doesNotMatch(source, /dangerouslySetInnerHTML/);
 });
 

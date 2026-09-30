@@ -1,74 +1,130 @@
 import Brand from "../components/Brand.jsx";
+import styles from "./landing.module.css";
 
-const features = [
-  ["01", "Temukan momen terbaik", "Whisper membaca percakapan dan memilih bagian yang paling layak berdiri sebagai klip."],
-  ["02", "Siap format vertikal", "Render 9:16 dengan full-frame blur, center crop, atau face tracking yang mengikuti pembicara."],
-  ["03", "Caption siap publikasi", "Setiap hasil dilengkapi judul, caption, CTA, dan hashtag berdasarkan isi klip."],
+// What the app does today, in the order a job runs (web/scripts/run-job.mjs, src/ai_clipper).
+const steps = [
+  ["Ambil video", "Link YouTube atau file unggahan."],
+  ["Transkrip", "Subtitle YouTube kalau rapi, selain itu Whisper di server sendiri."],
+  ["Pilih momen", "AI mencari momen dengan hook terkuat. Tanpa AI, heuristik lokal yang memilih."],
+  ["Render", "Klip 9:16 dengan subtitle, teks hook, dan cold open."],
 ];
 
-const pipeline = ["Ambil video", "Transkripsi", "Pilih highlight", "Render & subtitle"];
+const features = [
+  ["hook", "Hook di detik pertama", "Kalimat terkuat bisa diputar lebih dulu, teks hook tampil 4 detik pertama, dan subtitle karaoke mengikuti setiap kata."],
+  ["focus", "Cari momen tentang topik", "Isi kata kunci seperti “prank” atau “tips kerja”. Klip yang membahasnya didahulukan dan diberi label."],
+  ["caption", "Caption siap salin", "Setiap klip punya judul, deskripsi, dan hashtag. Tren yang sedang ramai ikut dipakai kalau transkripnya menyebutnya."],
+];
+
+// Sample clips for the picture of the Hasil panel; labelled as an example under it.
+const sampleClips = [
+  ["Jangan tunggu sempurna", "Mulai dari yang kecil", 42],
+  ["Kesalahan terbesar saya", "Kesalahan yang terus diulang", 35],
+  ["Ini yang bikin konsisten", "Rahasia konsisten", 51],
+];
 
 export default function LandingPage() {
   return (
-    <main className="landing">
-      <nav className="landingNav landingShell">
+    <main className={styles.landing}>
+      <header className={`${styles.shell} ${styles.nav}`}>
         <Brand />
-        <div className="landingNavLinks"><a href="#cara-kerja">Cara kerja</a><a href="#fitur">Fitur</a><a href="#privasi">Privasi</a></div>
-        <a className="landingNavCta" href="/dashboard">Buka dashboard <span>↗</span></a>
-      </nav>
+        <nav className={styles.navLinks} aria-label="Bagian halaman">
+          <a href="#cara-kerja">Cara kerja</a>
+          <a href="#fitur">Fitur</a>
+          <a href="#privasi">Privasi</a>
+        </nav>
+        <a className={styles.navCta} href="/dashboard">Buat klip</a>
+      </header>
 
-      <section className="landingHero landingShell">
-        <div className="landingHeroCopy">
-          <div className="landingBadge"><i /> AI video repurposing · Bahasa Indonesia</div>
-          <h1>Video panjang,<br /><em>siap jadi konten.</em></h1>
-          <p>Temukan highlight, tambahkan subtitle, ubah ke format vertikal, lalu dapatkan caption—semuanya dalam satu alur kerja.</p>
-          <div className="landingActions"><a className="landingPrimary" href="/dashboard">Mulai potong video <span>→</span></a><a className="landingSecondary" href="#cara-kerja">Lihat cara kerja</a></div>
-          <div className="landingTrust"><span>Whisper lokal</span><b>•</b><span>FFmpeg</span><b>•</b><span>Data di server sendiri</span></div>
+      <section className={`${styles.shell} ${styles.hero}`} aria-labelledby="hero-title">
+        <div className={styles.heroCopy}>
+          <h1 id="hero-title">Video panjang,<br /><em>siap jadi konten.</em></h1>
+          <p>Tempel link YouTube atau unggah video berbahasa Indonesia. Potongin memilih momen dengan hook terkuat, lalu merender klip 9:16 lengkap dengan subtitle, teks hook, dan caption.</p>
+          <div className={styles.actions}>
+            <a className={styles.primary} href="/dashboard">Mulai potong video</a>
+            <a className={styles.secondary} href="#cara-kerja">Lihat cara kerja</a>
+          </div>
         </div>
 
-        <div className="productStage" aria-hidden="true">
-          <div className="stageGlow" />
-          <div className="stageWindow">
-            <div className="stageBar"><div><i /><i /><i /></div><span>potongin.ai / workspace</span><b>ONLINE</b></div>
-            <div className="stageBody">
-              <div className="stageSidebar"><strong><span>P</span></strong><i className="selected" /><i /><i /><i /><small>AI</small></div>
-              <div className="stageContent">
-                <div className="stageHeading"><div><small>PROJECT / VIDEO PODCAST</small><h3>3 klip terbaik ditemukan</h3></div><span className="stageFakeButton">Export semua</span></div>
-                <div className="stageGrid">
-                  {["Rahasia konsisten", "Kesalahan terbesar", "Mulai dari sekarang"].map((title, index) => (
-                    <article className="stageClip" key={title}>
-                      <div className={`stageVideo stageVideo${index + 1}`}><span>{index === 1 ? "JANGAN TUNGGU\nSEMPURNA" : index === 2 ? "MULAI DARI\nHAL KECIL" : "KONSISTENSI\nITU KUNCI"}</span><b>0:{index === 0 ? "42" : index === 1 ? "35" : "51"}</b></div>
-                      <small>CLIP 0{index + 1}</small><h4>{title}</h4><div><i style={{ width: `${78 + index * 7}%` }} /></div>
-                    </article>
-                  ))}
+        <figure className={styles.stage}>
+          <div className={styles.window} aria-hidden="true">
+            <div className={styles.windowHead}><strong>Hasil</strong><span>Selesai · 100%</span></div>
+            <div className={styles.windowProgress}><i /></div>
+            <div className={styles.sampleGrid}>
+              {sampleClips.map(([hook, title, seconds], index) => (
+                <div className={styles.sample} key={title}>
+                  <div className={styles.sampleFrame}>
+                    <b>{hook}</b>
+                    <i />
+                    <span>mulai <mark>dari</mark> sekarang</span>
+                  </div>
+                  <small>Klip {index + 1} · {seconds} detik</small>
+                  <strong>{title}</strong>
+                  <div className={styles.sampleActions}><span>Unduh MP4</span><span>Salin caption</span></div>
                 </div>
-              </div>
+              ))}
             </div>
           </div>
-          <div className="stageFloat"><span>✓</span><div><small>RENDER SELESAI</small><strong>3 klip siap publish</strong></div></div>
+          <figcaption>Contoh tampilan panel Hasil.</figcaption>
+        </figure>
+      </section>
+
+      <section className={`${styles.shell} ${styles.process}`} id="cara-kerja" aria-labelledby="cara-kerja-title">
+        <div className={styles.sectionHead}>
+          <h2 id="cara-kerja-title">Dari link ke klip, dalam satu alur.</h2>
+          <p>Anda memilih sumber, jumlah klip, durasi, dan layout. Sisanya berjalan otomatis di server.</p>
+        </div>
+        <ol className={styles.steps}>
+          {steps.map(([title, text], index) => (
+            <li key={title}>
+              <b>{String(index + 1).padStart(2, "0")}</b>
+              <strong>{title}</strong>
+              <p>{text}</p>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <section className={`${styles.shell} ${styles.features}`} id="fitur" aria-labelledby="fitur-title">
+        <h2 id="fitur-title" className={styles.featuresTitle}>Yang ada di setiap klip</h2>
+        <div className={styles.featureRow}>
+          {features.map(([glyph, title, text]) => (
+            <article key={glyph}>
+              <div className={`${styles.glyph} ${styles[glyph]}`} aria-hidden="true"><i /><i /><i /></div>
+              <h3>{title}</h3>
+              <p>{text}</p>
+            </article>
+          ))}
         </div>
       </section>
 
-      <section className="landingProof landingShell"><p>Satu workspace untuk seluruh proses repurposing</p><div><span>YOUTUBE</span><span>WHISPER</span><span>FFMPEG</span><span>SHORTS</span><span>REELS</span><span>TIKTOK</span></div></section>
-
-      <section className="landingProcess landingShell" id="cara-kerja">
-        <div className="landingSectionHead"><small>CARA KERJA</small><h2>Dari sumber ke klip,<br />tanpa pindah-pindah alat.</h2><p>Pipeline berjalan otomatis. Anda tetap memegang kendali atas sumber, layout, durasi, dan jumlah hasil.</p></div>
-        <div className="pipelineTrack">
-          {pipeline.map((item, index) => <div key={item}><b>{String(index + 1).padStart(2, "0")}</b><span>{item}</span>{index < pipeline.length - 1 && <i>→</i>}</div>)}
+      <section className={styles.privacy} id="privasi" aria-labelledby="privasi-title">
+        <div className={`${styles.shell} ${styles.privacyInner}`}>
+          <h2 id="privasi-title">Video Anda tetap di server Anda.</h2>
+          <div className={styles.privacyCopy}>
+            <p>Video, audio, dan hasil render disimpan di server sendiri. Yang dikirim ke penyedia AI hanya teks transkrip, dan hanya ke penyedia yang Anda atur. Matikan AI di Pengaturan, semua pemrosesan tetap berjalan di server.</p>
+            <ul>
+              <li>Riwayat proyek tersimpan dan bisa dihapus.</li>
+              <li>AI bisa dibatasi ke model gratis.</li>
+              <li>Tanpa AI, momen tetap dipilih heuristik lokal.</li>
+            </ul>
+          </div>
         </div>
       </section>
 
-      <section className="landingFeatures landingShell" id="fitur">
-        {features.map(([number, title, text]) => <article key={number}><small>{number}</small><div className={`featureGlyph glyph${number}`}><i /><b /></div><h3>{title}</h3><p>{text}</p></article>)}
+      <section className={`${styles.shell} ${styles.final}`} aria-labelledby="final-title">
+        <span className={styles.mark} aria-hidden="true">P</span>
+        <h2 id="final-title">Lebih sedikit edit manual.<br /><em>Lebih banyak klip terbit.</em></h2>
+        <a className={styles.primary} href="/dashboard">Mulai potong video</a>
       </section>
 
-      <section className="privacyBand" id="privasi">
-        <div className="landingShell"><div><small>SELF-HOSTED BY DESIGN</small><h2>Konten Anda.<br />Tetap milik Anda.</h2></div><div className="privacyCopy"><p>Proses inti berjalan di server sendiri. Video, transkrip, dan hasil render tidak perlu dikirim ke API AI berbayar pihak ketiga.</p><ul><li><span>✓</span> Penyimpanan persisten</li><li><span>✓</span> Tidak ada biaya API per menit</li><li><span>✓</span> Riwayat proyek terpusat</li></ul></div></div>
-      </section>
-
-      <section className="landingFinal landingShell"><div className="finalMark">P</div><small>SIAP MENGUBAH VIDEO BERIKUTNYA?</small><h2>Lebih sedikit editing.<br /><em>Lebih banyak publish.</em></h2><a href="/dashboard">Masuk ke dashboard <span>→</span></a></section>
-
-      <footer className="landingFooter landingShell"><Brand /><p>Self-hosted AI video repurposing.</p><div><a href="/dashboard">Dashboard</a><a href="/projects">Riwayat</a></div></footer>
+      <footer className={`${styles.shell} ${styles.footer}`}>
+        <Brand />
+        <p>Klip pendek dari video panjang, diproses di server sendiri.</p>
+        <nav aria-label="Tautan aplikasi">
+          <a href="/dashboard">Buat klip</a>
+          <a href="/projects">Riwayat</a>
+        </nav>
+      </footer>
     </main>
   );
 }

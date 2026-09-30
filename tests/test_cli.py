@@ -55,11 +55,18 @@ def test_cli_parses_source_and_processing_options():
 def test_cli_defaults_to_face_tracking():
     args = parse_args(["video.mp4"])
     assert args.render_mode == "face-track"
-    assert args.selection_mode == "v1"
     assert args.clip_profile == "standard"
     assert args.max_candidates == 200
     assert args.max_media_candidates == 12
     assert args.media_timeout == 30.0
+
+
+def test_cli_defaults_to_the_current_selection_and_keeps_the_flag():
+    assert parse_args(["video.mp4"]).selection_mode == "v3"
+    assert parse_args(["video.mp4", "--selection-mode", "v1"]).selection_mode == "v1"
+    assert parse_args(["video.mp4", "--selection-mode", "v2-shadow"]).selection_mode == "v2-shadow"
+    # Focus terms work without naming the mode: the default is the current selection.
+    assert parse_args(["video.mp4", "--focus-term", "jomok"]).focus is not None
 
 
 @pytest.mark.parametrize(
@@ -157,7 +164,7 @@ def test_cli_returns_nonzero_and_reports_pipeline_value_error(monkeypatch, capsy
 # --- Selection V3 flags ---------------------------------------------------------------------
 
 # The argument vectors web/scripts/run-job.mjs (buildClipperInvocation) sends.
-WEB_V1_ARGS = [
+WEB_BASE_ARGS = [
     "/data/jobs/j/input/source.mp4",
     "--output-dir", "/data/jobs/j/output",
     "--model", "small",
@@ -171,8 +178,10 @@ WEB_V1_ARGS = [
     "--render-mode", "fit-blur",
     "--artifact-root", "/data/jobs/j",
 ]  # fmt: skip
+# Old V1 jobs name their mode: the CLI default is the current selection.
+WEB_V1_ARGS = [*WEB_BASE_ARGS, "--selection-mode", "v1"]
 WEB_V3_ARGS = [
-    *WEB_V1_ARGS,
+    *WEB_BASE_ARGS,
     "--selection-mode", "v3",
     "--llm", "auto",
     "--no-cold-open",
@@ -359,7 +368,7 @@ def test_cli_rejects_invalid_focus_options(arguments: list[str]):
 
 def test_cli_focus_is_only_for_selection_v3():
     with pytest.raises(SystemExit, match="2"):
-        parse_args(["video.mp4", "--focus-term", "jomok"])
+        parse_args(["video.mp4", "--selection-mode", "v1", "--focus-term", "jomok"])
     with pytest.raises(SystemExit, match="2"):
         parse_args(["video.mp4", "--selection-mode", "v2-shadow", "--focus-term", "jomok"])
 

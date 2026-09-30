@@ -10,20 +10,11 @@ import {
   readBoundedUrlEncodedForm,
   sameOriginMutation,
 } from "../../../../lib/request-security.mjs";
+import { safeNextPath } from "../../../../lib/login-view.mjs";
 
 export const runtime = "nodejs";
 
 const authRateLimiter = new AuthRateLimiter(parseAuthRateLimitConfig());
-
-function safeDestination(value) {
-  return typeof value === "string"
-    && value.startsWith("/")
-    && !value.startsWith("//")
-    && !value.includes("\\")
-    && !/[\u0000-\u001f\u007f]/.test(value)
-    ? value
-    : "/dashboard";
-}
 
 export async function POST(request) {
   if (!sameOriginMutation(request)) return Response.json({ error: "Origin permintaan tidak diizinkan" }, { status: 403, headers: { "Cache-Control": "no-store" } });
@@ -35,21 +26,17 @@ export async function POST(request) {
   }
   const username = String(form.get("username") || "");
   const password = String(form.get("password") || "");
-  const next = safeDestination(String(form.get("next") || "/dashboard"));
+  const next = safeNextPath(String(form.get("next") || "/dashboard"));
   const limitKeys = authRateLimitKeys(request, username);
   if (!authenticateCredentials(username, password)) {
     const limits = limitKeys.map((key) => authRateLimiter.consume(key));
     const limited = limits.find((entry) => !entry.allowed);
-    if (limited) return Response.json({ error: "Terlalu banyak percobaan login" }, {
-      status: 429,
-      headers: { "Cache-Control": "no-store", "Retry-After": String(limited.retryAfterSeconds) },
-    });
-    const query = new URLSearchParams({ error: "1" });
+    // The login form is a plain HTML form: both refusals go back to it with a message.
+    const query = new URLSearchParams({ error: limited ? "limit" : "1" });
     if (next !== "/dashboard") query.set("next", next);
-    return new Response(null, {
-      status: 303,
-      headers: { Location: `/login?${query}` },
-    });
+    const headers = { Location: `/login?${query}` };
+    if (limited) Object.assign(headers, { "Cache-Control": "no-store", "Retry-After": String(limited.retryAfterSeconds) });
+    return new Response(null, { status: 303, headers });
   }
   limitKeys.forEach((key) => authRateLimiter.reset(key));
   return new Response(null, {

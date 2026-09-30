@@ -4,6 +4,21 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import AppHeader from "../../components/AppHeader.jsx";
 import {
+  AI_STATUS_UNREADABLE,
+  aiStatusView,
+  clipMetaText,
+  focusAiMode,
+  jobActivityText,
+  jobFailureView,
+  jobFinished,
+  jobFormProblems,
+  jobSourceLabel,
+  jobStageText,
+  JOB_STATUS_LABELS,
+  storageMessage,
+  submitErrorMessage,
+} from "../../lib/dashboard-view.mjs";
+import {
   createStorageStatusRecovery,
   recoverFailedJobSelection,
   storageStatusView,
@@ -16,91 +31,28 @@ import {
   focusFormFields,
   focusTermMatchable,
   focusTermsHint,
-  llmStatusView,
   normalizeFocusText,
   pastedFocusTerms,
-  selectionSourceLabel,
 } from "../../lib/selection-v3-view.mjs";
+import styles from "./dashboard.module.css";
 import focusStyles from "./focus.module.css";
 
 const layouts = [
-  {
-    id: "fit-blur",
-    name: "Full Frame + Blur",
-    badge: "Aman",
-    description: "Video landscape tetap utuh; area portrait diisi latar blur.",
-  },
-  {
-    id: "face-track",
-    name: "Follow Speaker",
-    badge: "AI",
-    description: "Layar 9:16 penuh dengan crop yang mengikuti wajah terbesar.",
-  },
-  {
-    id: "center-crop",
-    name: "Center Crop",
-    badge: "Cepat",
-    description: "Crop tengah sederhana untuk video dengan subjek selalu di pusat.",
-  },
+  { id: "fit-blur", name: "Utuh + latar blur", description: "Video landscape tetap utuh, sisa layar diisi versi blur." },
+  { id: "face-track", name: "Ikuti pembicara", description: "Layar penuh, crop mengikuti wajah terbesar." },
+  { id: "center-crop", name: "Crop tengah", description: "Untuk video yang subjeknya selalu di tengah." },
 ];
 
-const legacyModes = [
-  {
-    id: "v1",
-    name: "Klasik V1",
-    description: "Pemilih kata kunci lama. Klip dirender tanpa teks hook, cold open, atau judul AI.",
-  },
-  {
-    id: "v2-shadow",
-    name: "V2 shadow",
-    description: "V1 tetap merender klip; V2 hanya membuat kandidat pembanding untuk ditinjau di detail proyek.",
-  },
+const captionStyles = [
+  { id: "karaoke", name: "Karaoke", description: "Kata yang sedang diucapkan menyala." },
+  { id: "classic", name: "Klasik", description: "Beberapa kata per baris, tanpa sorotan." },
 ];
 
-const LLM_STATUS_UNREADABLE = { state: "invalid", label: "Status LLM tidak dapat dibaca — job tetap jalan, dengan heuristik bila perlu" };
+// Fields in the order the page checks them; the first invalid one gets focus.
+const FIELD_IDS = { youtubeUrl: "youtube-url", video: "video-file", limit: "clip-limit", minDuration: "min-duration", maxDuration: "max-duration" };
 
-const statusLabel = {
-  queued: "Menunggu worker",
-  preparing: "Menyiapkan video",
-  downloading: "Mengunduh YouTube",
-  processing: "Transkripsi dan render",
-  completed: "Selesai",
-  failed: "Gagal",
-};
-
-const stageLabel = {
-  analyzing: "Menganalisis video",
-  transcribing: "Membuat transkrip",
-  selecting: "Memilih highlight",
-  candidates_generating: "Membuat kandidat V2",
-  features: "Mengukur fitur kandidat V2",
-  ranking: "Menyusun shortlist V2",
-  media: "Menganalisis media kandidat V2",
-  candidates_ready: "Kandidat bayangan V2 siap",
-  captions: "Mengambil subtitle YouTube",
-  audio: "Menganalisis audio",
-  llm: "AI memilih momen",
-  packaging: "Menyiapkan judul dan hook",
-  rendering: "Merender klip",
-  finalizing: "Menyelesaikan hasil",
-  completed: "Selesai",
-  failed: "Gagal",
-};
-
-const storageMessages = {
-  storage_quota_exhausted: "Penyimpanan server tidak cukup untuk job baru.",
-  storage_free_space_low: "Ruang kosong penyimpanan server terlalu rendah.",
-  storage_admission_unavailable: "Status penyimpanan server tidak dapat diverifikasi. Coba lagi nanti.",
-};
-
-function LlmBadge({ status, llmMode }) {
-  const view = llmStatusView(status, llmMode);
-  return (
-    <p className={`llmBadge ${view.tone}`} role="status" aria-live="polite">
-      <i aria-hidden="true" />
-      <span>{view.label}</span>
-    </p>
-  );
+function FieldError({ id, message }) {
+  return message ? <p id={id} className={styles.fieldError}>{message}</p> : null;
 }
 
 /**
@@ -108,13 +60,13 @@ function LlmBadge({ status, llmMode }) {
  * or Enter makes a chip, a pasted list one chip per line) plus a free note for the AI. Empty
  * means no focus: nothing is sent. Chips the transcript can never say literally get a hint.
  */
-function FocusField({ terms, draft, note, error, llmMode, onTermsChange, onDraftChange, onNoteChange, onErrorChange }) {
+function FocusField({ terms, draft, note, error, aiMode, onTermsChange, onDraftChange, onNoteChange, onErrorChange }) {
   const inputRef = useRef(null);
   const removeButtons = useRef([]);
   const refocusIndex = useRef(null);
   const noteLength = Array.from(normalizeFocusText(note)).length;
   const full = terms.length >= FOCUS_LIMITS.terms;
-  const hint = focusTermsHint(terms, llmMode);
+  const hint = focusTermsHint(terms, aiMode);
 
   // After a chip is removed, keyboard focus moves to the next chip's button, else the input.
   useEffect(() => {
@@ -185,7 +137,7 @@ function FocusField({ terms, draft, note, error, llmMode, onTermsChange, onDraft
           autoComplete="off"
           enterKeyHint="enter"
           value={draft}
-          placeholder={full ? `Maksimal ${FOCUS_LIMITS.terms} kata kunci` : terms.length ? "Tambah kata kunci…" : "contoh: jomok, prank, tips kerja"}
+          placeholder={full ? `Maksimal ${FOCUS_LIMITS.terms} kata kunci` : terms.length ? "Tambah kata kunci…" : "contoh: prank, tips kerja"}
           aria-describedby={hint ? "focus-terms-help focus-terms-hint" : "focus-terms-help"}
           aria-invalid={error ? "true" : undefined}
           onChange={(event) => changeDraft(event.target.value)}
@@ -198,16 +150,35 @@ function FocusField({ terms, draft, note, error, llmMode, onTermsChange, onDraft
           onBlur={commitDraft}
         />
       </div>
-      <p id="focus-terms-help" className={focusStyles.help}>Momen yang membahas kata kunci ini diutamakan; sisa slot diisi momen terbaik lain berlabel “Di luar fokus”. Pisahkan dengan koma atau Enter (daftar per baris bisa ditempel), maksimal {FOCUS_LIMITS.terms}.</p>
+      <p id="focus-terms-help" className={focusStyles.help}>Klip yang membahasnya didahulukan; sisa slot diisi momen terbaik lain berlabel “Di luar fokus”. Pisahkan dengan koma atau Enter, maksimal {FOCUS_LIMITS.terms}.</p>
       {hint && <p id="focus-terms-hint" className={focusStyles.hint}>{hint}</p>}
       {error && <p className={focusStyles.error} role="alert">{error}</p>}
       <label className={focusStyles.noteLabel} htmlFor="focus-note">Catatan untuk AI (opsional)</label>
-      <textarea id="focus-note" className={focusStyles.note} rows={2} value={note} placeholder="contoh: momen jomok yang lucu" aria-describedby="focus-note-help" onChange={(event) => onNoteChange(event.target.value)} />
+      <textarea id="focus-note" className={focusStyles.note} rows={2} value={note} placeholder="contoh: momen prank yang bikin ketawa" aria-describedby="focus-note-help" onChange={(event) => onNoteChange(event.target.value)} />
       <p id="focus-note-help" className={`${focusStyles.help} ${focusStyles.noteMeta}`}>
-        <span>{llmMode === "off" ? "Tanpa LLM, hanya momen yang menyebut kata kuncinya langsung yang dikenali; catatan tidak dipakai." : "Jelaskan momen yang dicari dengan kalimat biasa."}</span>
+        <span>{aiMode === "off" ? "Tanpa AI, hanya momen yang menyebut kata kuncinya langsung yang dikenali; catatan tidak dipakai." : "Jelaskan momen yang dicari dengan kalimat biasa."}</span>
         <span className={noteLength > FOCUS_LIMITS.note ? focusStyles.over : undefined}>{noteLength}/{FOCUS_LIMITS.note}</span>
       </p>
     </div>
+  );
+}
+
+function ClipCard({ clip, copied, onCopy }) {
+  return (
+    <article className={styles.clip}>
+      <video controls preload="metadata" src={clip.videoUrl} poster={clipPosterUrl(clip)} />
+      <div className={styles.clipBody}>
+        <small>{clipMetaText(clip)}</small>
+        {clip.title && <h3>{clip.title}</h3>}
+        {clip.hookText && <p className={styles.hook}><span>Hook</span>{clip.hookText}</p>}
+        {clip.description && <p className={styles.description}>{clip.description}</p>}
+        <div className={styles.clipActions}>
+          {clip.downloadUrl && <a className="btn" href={clip.downloadUrl} download>Unduh MP4</a>}
+          <button type="button" className="btn" onClick={onCopy}>{copied === "ok" ? "Tersalin" : "Salin caption"}</button>
+        </div>
+        {copied === "failed" && <p className={styles.fieldError}>Tidak bisa menyalin di browser ini. Salin dari halaman proyek.</p>}
+      </div>
+    </article>
   );
 }
 
@@ -216,43 +187,58 @@ export default function DashboardPage() {
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [video, setVideo] = useState(null);
   const [renderMode, setRenderMode] = useState("fit-blur");
-  const [limit, setLimit] = useState(3);
-  const [minDuration, setMinDuration] = useState(20);
-  const [maxDuration, setMaxDuration] = useState(60);
-  const [selectionMode, setSelectionMode] = useState("v3");
-  const [llmMode, setLlmMode] = useState("auto");
+  const [limit, setLimit] = useState("3");
+  const [minDuration, setMinDuration] = useState("20");
+  const [maxDuration, setMaxDuration] = useState("60");
   const [coldOpen, setColdOpen] = useState(true);
   const [hookOverlay, setHookOverlay] = useState(true);
   const [captionStyle, setCaptionStyle] = useState("karaoke");
-  const [clipProfile, setClipProfile] = useState("standard");
   const [focusTerms, setFocusTerms] = useState([]);
   const [focusDraft, setFocusDraft] = useState("");
   const [focusNote, setFocusNote] = useState("");
   const [focusError, setFocusError] = useState("");
-  const [llmStatus, setLlmStatus] = useState(null);
+  const [problems, setProblems] = useState({});
+  const [aiStatus, setAiStatus] = useState(null);
   const [jobs, setJobs] = useState([]);
+  const [jobsState, setJobsState] = useState("loading");
   const [activeId, setActiveId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
-  const [message, setMessage] = useState("");
-  const [copiedClip, setCopiedClip] = useState(null);
-  const [storageView, setStorageView] = useState(() => storageStatusView(null));
+  const [message, setMessage] = useState(null);
+  const [copied, setCopied] = useState(null);
+  const [storageView, setStorageView] = useState(null);
   const storageRecovery = useRef(null);
+  const resultsRef = useRef(null);
   const copiedTimer = useRef(null);
   const mounted = useRef(false);
   const jobsRefreshGeneration = useRef(0);
 
   const activeJob = useMemo(() => jobs.find((job) => job.id === activeId), [jobs, activeId]);
-  const storageBlocked = storageView.submitBlocked;
+  const storage = storageView || storageStatusView(null);
+  const storageBlocked = storage.submitBlocked;
+  const ai = aiStatusView(aiStatus);
+  const aiMode = focusAiMode(aiStatus);
+  const failure = jobFailureView(activeJob);
 
   async function refreshJobs(selectedId = null, signal = undefined) {
     jobsRefreshGeneration.current += 1;
     const generation = jobsRefreshGeneration.current;
-    const response = await fetch("/api/jobs", { cache: "no-store", signal });
-    if (!response.ok || signal?.aborted || generation !== jobsRefreshGeneration.current) return;
-    const payload = await response.json();
-    if (signal?.aborted || generation !== jobsRefreshGeneration.current) return;
-    setJobs(payload.jobs || []);
-    setActiveId((current) => selectedId || current || payload.jobs?.[0]?.id || null);
+    try {
+      const response = await fetch("/api/jobs", { cache: "no-store", signal });
+      if (signal?.aborted || generation !== jobsRefreshGeneration.current) return;
+      if (!response.ok) {
+        setJobsState((current) => (current === "ready" ? current : "error"));
+        return;
+      }
+      const payload = await response.json();
+      if (signal?.aborted || generation !== jobsRefreshGeneration.current) return;
+      setJobs(payload.jobs || []);
+      setJobsState("ready");
+      setActiveId((current) => selectedId || current || payload.jobs?.[0]?.id || null);
+    } catch (error) {
+      if (signal?.aborted || generation !== jobsRefreshGeneration.current) return;
+      setJobsState((current) => (current === "ready" ? current : "error"));
+      if (selectedId) throw error;
+    }
   }
 
   async function refreshStorageStatus() {
@@ -264,16 +250,16 @@ export default function DashboardPage() {
     const controller = new AbortController();
     void refreshJobs(null, controller.signal).catch(() => {});
     void (async () => {
-      // The badge is informative only; the worker decides at run time.
-      let next = LLM_STATUS_UNREADABLE;
+      // Informative only: the worker decides at run time which AI (if any) picks the moments.
+      let next = AI_STATUS_UNREADABLE;
       try {
         const response = await fetch("/api/llm/status", { cache: "no-store", signal: controller.signal });
         const payload = await response.json();
-        if (payload?.llm && typeof payload.llm.label === "string") next = payload.llm;
+        if (payload?.llm && typeof payload.llm === "object" && typeof payload.llm.state === "string") next = payload.llm;
       } catch {
-        // Fall through to the "unreadable" badge unless the page is gone.
+        // Fall through to "unreadable" unless the page is gone.
       }
-      if (!controller.signal.aborted) setLlmStatus(next);
+      if (!controller.signal.aborted) setAiStatus(next);
     })();
     const recovery = createStorageStatusRecovery({ fetchImpl: fetch, onChange: setStorageView });
     storageRecovery.current = recovery;
@@ -290,7 +276,7 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    if (!activeId || ["completed", "failed"].includes(activeJob?.status)) return undefined;
+    if (!activeId || jobFinished(activeJob)) return undefined;
     const controller = new AbortController();
     let requestInFlight = false;
     const timer = setInterval(async () => {
@@ -321,40 +307,37 @@ export default function DashboardPage() {
 
   async function submit(event) {
     event.preventDefault();
-    setMessage("");
-    // Focus is a V3 option; without terms it sends nothing and the payload is unchanged.
-    let focus = { fields: {} };
-    if (selectionMode === "v3") {
-      focus = focusFormFields({ terms: focusTerms, pending: focusDraft, note: focusNote });
-      setFocusTerms(focus.terms);
-      setFocusDraft(focus.pending);
-      if (!focus.fields) {
-        setFocusError(focus.error);
-        setMessage(focus.error);
-        return;
-      }
+    setMessage(null);
+    const found = jobFormProblems({ sourceType, youtubeUrl, video, limit, minDuration, maxDuration });
+    setProblems(found);
+    const firstInvalid = Object.keys(FIELD_IDS).find((name) => found[name]);
+    if (firstInvalid) {
+      document.getElementById(FIELD_IDS[firstInvalid])?.focus();
+      return;
+    }
+    const focus = focusFormFields({ terms: focusTerms, pending: focusDraft, note: focusNote });
+    setFocusTerms(focus.terms);
+    setFocusDraft(focus.pending);
+    if (!focus.fields) {
+      setFocusError(focus.error);
+      document.getElementById("focus-terms-input")?.focus();
+      return;
     }
     setSubmitting(true);
     try {
       const data = new FormData();
       data.set("renderMode", renderMode);
-      data.set("limit", String(limit));
-      data.set("minDuration", String(minDuration));
-      data.set("maxDuration", String(maxDuration));
-      data.set("selectionMode", selectionMode);
-      if (selectionMode === "v3") {
-        data.set("llmMode", llmMode);
-        data.set("coldOpen", String(coldOpen));
-        data.set("hookOverlay", String(hookOverlay));
-        data.set("captionStyle", captionStyle);
-        for (const [name, value] of Object.entries(focus.fields)) data.set(name, value);
-      } else if (selectionMode === "v2-shadow") {
-        data.set("clipProfile", clipProfile);
-      }
-      if (sourceType === "youtube") data.set("youtubeUrl", youtubeUrl);
-      else if (video) data.set("video", video);
+      data.set("limit", String(limit).trim());
+      data.set("minDuration", String(minDuration).trim());
+      data.set("maxDuration", String(maxDuration).trim());
+      data.set("coldOpen", String(coldOpen));
+      data.set("hookOverlay", String(hookOverlay));
+      data.set("captionStyle", captionStyle);
+      for (const [name, value] of Object.entries(focus.fields)) data.set(name, value);
+      if (sourceType === "youtube") data.set("youtubeUrl", youtubeUrl.trim());
+      else data.set("video", video);
       const response = await fetch("/api/jobs", { method: "POST", body: data });
-      const payload = await response.json();
+      const payload = (await response.json().catch(() => null)) || {};
       if (!response.ok) {
         if (payload.jobId) {
           await recoverFailedJobSelection(payload.jobId, {
@@ -363,190 +346,280 @@ export default function DashboardPage() {
           });
         }
         if ([507, 503].includes(response.status)) await refreshStorageStatus();
-        setMessage(storageMessages[payload.code] || "Gagal membuat job");
+        setMessage({ tone: "error", text: submitErrorMessage(payload) });
         return;
       }
       setJobs((current) => [payload.job, ...current]);
+      setJobsState("ready");
       setActiveId(payload.job.id);
-      setMessage("Job berhasil dibuat. Halaman akan memperbarui progres otomatis.");
-    } catch (error) {
-      setMessage(error.message);
+      setMessage({ tone: "ok", text: "Job dibuat. Progresnya tampil di panel Hasil." });
+      // On one column the Hasil panel sits below the form: bring the new job into view.
+      if (window.matchMedia("(max-width: 900px)").matches) {
+        const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        resultsRef.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+      }
+    } catch {
+      setMessage({ tone: "error", text: "Server tidak terjangkau. Periksa koneksi lalu coba lagi." });
     } finally {
       setSubmitting(false);
     }
   }
 
   async function copyCaption(clip) {
-    await navigator.clipboard.writeText(clipCaptionText(clip));
+    const key = `${activeJob.id}-${clip.index}`;
+    let result = "ok";
+    try {
+      await navigator.clipboard.writeText(clipCaptionText(clip));
+    } catch {
+      result = "failed";
+    }
     if (!mounted.current) return;
-    setCopiedClip(`${activeJob.id}-${clip.index}`);
+    setCopied({ key, result, index: clip.index });
     if (copiedTimer.current !== null) clearTimeout(copiedTimer.current);
     copiedTimer.current = setTimeout(() => {
       copiedTimer.current = null;
-      setCopiedClip(null);
-    }, 1800);
+      setCopied(null);
+    }, result === "ok" ? 1800 : 6000);
   }
+
+  function clearProblem(name) {
+    if (problems[name]) setProblems(({ [name]: _removed, ...rest }) => rest);
+  }
+
+  const describedBy = (name, extra) => [extra, problems[name] ? `${FIELD_IDS[name]}-error` : null].filter(Boolean).join(" ") || undefined;
 
   return (
     <main>
       <AppHeader current="/dashboard" />
 
-      <section className="hero shell" id="top">
-        <div className="eyebrow">AI VIDEO REPURPOSING · BAHASA INDONESIA</div>
-        <h1>Satu video panjang.<br /><em>Banyak klip yang layak ditonton.</em></h1>
-        <p>Masukkan URL YouTube atau unggah video. Engine memilih momen dengan hook terkuat, menulis judul dan teks hook, membuat subtitle karaoke, lalu merender klip siap Shorts, Reels, atau TikTok.</p>
-        <div className="trust"><span>✓ Data tersimpan di server sendiri</span><span>✓ FFmpeg + Whisper lokal</span><span>✓ Tanpa biaya API per video</span></div>
-      </section>
+      <div className={`shell ${styles.head}`}>
+        <h1>Buat klip</h1>
+        <p>Satu video panjang jadi klip 9:16 dengan subtitle, teks hook, dan caption.</p>
+      </div>
 
-      {storageView.warning && (
-        <div className={`storageBanner shell ${storageView.unavailable ? "unavailable" : "blocked"}`} role="alert" aria-live="polite">
+      {storageView && storage.warning && (
+        <div className={`shell ${styles.banner} ${storage.unavailable ? styles.bannerWarning : styles.bannerDanger}`} role="alert">
           <div>
             <strong>{storageBlocked ? "Job baru dihentikan sementara" : "Status penyimpanan belum tersedia"}</strong>
-            <span>{storageMessages[storageView.admission.code] || storageMessages.storage_admission_unavailable}</span>
+            <span>{storageMessage(storage.admission.code)}</span>
           </div>
-          <button type="button" onClick={refreshStorageStatus} aria-label="Coba lagi memeriksa status penyimpanan">Coba lagi</button>
+          <button type="button" className="btn" onClick={refreshStorageStatus}>Periksa lagi</button>
         </div>
       )}
 
-      <section className="workspace shell">
-        <form className="panel creator" onSubmit={submit}>
-          <div className="panelHead"><span>01</span><div><h2>Sumber video</h2><p>Pilih salah satu sumber untuk diproses.</p></div></div>
-          <div className="tabs">
-            <button type="button" className={sourceType === "youtube" ? "active" : ""} onClick={() => setSourceType("youtube")}>URL YouTube</button>
-            <button type="button" className={sourceType === "upload" ? "active" : ""} onClick={() => setSourceType("upload")}>Upload file</button>
-          </div>
-          {sourceType === "youtube" ? (
-            <label className="field"><span>URL video</span><input type="url" required placeholder="https://youtube.com/watch?v=..." value={youtubeUrl} onChange={(e) => setYoutubeUrl(e.target.value)} /></label>
-          ) : (
-            <label className="drop"><input type="file" required accept="video/mp4,video/quicktime,video/webm,.mkv,.m4v" onChange={(e) => setVideo(e.target.files?.[0] || null)} /><strong>{video ? video.name : "Tarik atau pilih file video"}</strong><small>MP4, MOV, MKV, WEBM · maksimal mengikuti konfigurasi server</small></label>
-          )}
-
-          <div className="divider" />
-          <div className="panelHead compact"><span>02</span><div><h2>Layout output</h2><p>Mode bisa diganti untuk setiap job.</p></div></div>
-          <div className="layoutGrid">
-            {layouts.map((layout) => (
-              <button type="button" key={layout.id} className={`layoutCard ${renderMode === layout.id ? "selected" : ""}`} onClick={() => setRenderMode(layout.id)}>
-                <div className={`phone ${layout.id}`}><b /><i /></div>
-                <div><strong>{layout.name}</strong><small>{layout.description}</small></div><mark>{layout.badge}</mark>
-              </button>
-            ))}
-          </div>
-
-          <div className="settings">
-            <label><span>Jumlah klip</span><input type="number" min="1" max="10" value={limit} onChange={(e) => setLimit(e.target.value)} /></label>
-            <label><span>Durasi minimum</span><div><input type="number" min="5" max="180" value={minDuration} onChange={(e) => setMinDuration(e.target.value)} /><b>detik</b></div></label>
-            <label><span>Durasi maksimum</span><div><input type="number" min="5" max="180" value={maxDuration} onChange={(e) => setMaxDuration(e.target.value)} /><b>detik</b></div></label>
-          </div>
-          <div className="divider" />
-          <section className="modePanel" aria-labelledby="selection-mode-title">
-            <div className="panelHead compact"><span>03</span><div><h2 id="selection-mode-title">Pemilihan momen</h2><p>Cara engine memilih dan mengemas setiap klip.</p></div></div>
-            <label className={`modeCard ${selectionMode === "v3" ? "selected" : ""}`}>
-              <input type="radio" name="selectionMode" value="v3" checked={selectionMode === "v3"} onChange={() => setSelectionMode("v3")} />
-              <span>
-                <strong>AI Hook (V3) <mark>Disarankan</mark></strong>
-                <small>AI membaca transkrip, memilih momen yang langsung menarik di detik pertama, lalu menulis judul, teks hook, deskripsi, dan hashtag. Kalau LLM gratis sedang tidak tersedia, pemilih heuristik lokal otomatis dipakai, jadi klip tetap jadi.</small>
-              </span>
-            </label>
-
-            {selectionMode === "v3" && (
-              <div className="v3Options">
-                <LlmBadge status={llmStatus} llmMode={llmMode} />
-                <a className="llmSettingsLink" href="/settings">Atur penyedia AI, API key, dan model di Pengaturan →</a>
-                <fieldset className="choiceGroup">
-                  <legend>Pemilihan momen</legend>
-                  <label className={llmMode === "auto" ? "selected" : ""}>
-                    <input type="radio" name="llmMode" value="auto" checked={llmMode === "auto"} onChange={() => setLlmMode("auto")} />
-                    <span><strong>AI (LLM gratis)</strong><small>Otomatis cadangan heuristik bila LLM gagal.</small></span>
-                  </label>
-                  <label className={llmMode === "off" ? "selected" : ""}>
-                    <input type="radio" name="llmMode" value="off" checked={llmMode === "off"} onChange={() => setLlmMode("off")} />
-                    <span><strong>Tanpa LLM (heuristik)</strong><small>Tanpa internet; transkrip tidak dikirim ke mana pun.</small></span>
-                  </label>
-                </fieldset>
-                <FocusField
-                  terms={focusTerms}
-                  draft={focusDraft}
-                  note={focusNote}
-                  error={focusError}
-                  llmMode={llmMode}
-                  onTermsChange={setFocusTerms}
-                  onDraftChange={setFocusDraft}
-                  onNoteChange={setFocusNote}
-                  onErrorChange={setFocusError}
+      <div className={`shell ${styles.workspace}`}>
+        <form className={`panel ${styles.form}`} onSubmit={submit} noValidate aria-label="Buat klip">
+          <section className={styles.section} aria-labelledby="source-title">
+            <h2 id="source-title" className={styles.sectionTitle}>Sumber video</h2>
+            <div className={`segmented ${styles.segmented}`}>
+              <button type="button" aria-pressed={sourceType === "youtube"} onClick={() => setSourceType("youtube")}>Link YouTube</button>
+              <button type="button" aria-pressed={sourceType === "upload"} onClick={() => setSourceType("upload")}>Unggah file</button>
+            </div>
+            {sourceType === "youtube" ? (
+              <div className={styles.field}>
+                <label htmlFor="youtube-url">Link video</label>
+                <input
+                  id="youtube-url"
+                  className={styles.input}
+                  type="url"
+                  inputMode="url"
+                  autoComplete="off"
+                  placeholder="https://youtu.be/…"
+                  value={youtubeUrl}
+                  aria-invalid={problems.youtubeUrl ? "true" : undefined}
+                  aria-describedby={describedBy("youtubeUrl")}
+                  onChange={(event) => { setYoutubeUrl(event.target.value); clearProblem("youtubeUrl"); }}
                 />
-                <div className="toggleList">
-                  <label className="shadowToggle">
-                    <input type="checkbox" checked={coldOpen} onChange={(event) => setColdOpen(event.target.checked)} />
-                    <span><strong>Buka dengan kalimat terkuat</strong><small>Kalimat hook diputar dulu beberapa detik (cold open), lalu klip berjalan dari awal.</small></span>
-                  </label>
-                  <label className="shadowToggle">
-                    <input type="checkbox" checked={hookOverlay} onChange={(event) => setHookOverlay(event.target.checked)} />
-                    <span><strong>Teks hook 4 detik pertama</strong><small>Kalimat pemancing singkat tampil di bagian atas layar.</small></span>
-                  </label>
-                </div>
-                <fieldset className="choiceGroup">
-                  <legend>Gaya subtitle</legend>
-                  <label className={captionStyle === "karaoke" ? "selected" : ""}>
-                    <input type="radio" name="captionStyle" value="karaoke" checked={captionStyle === "karaoke"} onChange={() => setCaptionStyle("karaoke")} />
-                    <span><strong>Karaoke</strong><small>Kata yang sedang diucapkan menyala kuning.</small></span>
-                  </label>
-                  <label className={captionStyle === "classic" ? "selected" : ""}>
-                    <input type="radio" name="captionStyle" value="classic" checked={captionStyle === "classic"} onChange={() => setCaptionStyle("classic")} />
-                    <span><strong>Klasik</strong><small>Subtitle putih biasa, beberapa kata per baris.</small></span>
-                  </label>
-                </fieldset>
+                <FieldError id="youtube-url-error" message={problems.youtubeUrl} />
+              </div>
+            ) : (
+              <div className={styles.field}>
+                <label className={`${styles.drop} ${problems.video ? styles.dropInvalid : ""}`}>
+                  <input
+                    id="video-file"
+                    type="file"
+                    accept="video/mp4,video/quicktime,video/webm,.mkv,.m4v"
+                    aria-invalid={problems.video ? "true" : undefined}
+                    aria-describedby={describedBy("video", "video-file-help")}
+                    onChange={(event) => { setVideo(event.target.files?.[0] || null); clearProblem("video"); }}
+                  />
+                  <strong>{video ? video.name : "Pilih file video"}</strong>
+                  <small id="video-file-help">MP4, MOV, MKV atau WEBM. Batas ukuran mengikuti server.</small>
+                </label>
+                <FieldError id="video-file-error" message={problems.video} />
               </div>
             )}
+          </section>
 
-            <details className="legacyModes" open={selectionMode !== "v3" || undefined}>
-              <summary>Mode lama</summary>
-              <div>
-                {legacyModes.map((mode) => (
-                  <label key={mode.id} className={`modeCard compactMode ${selectionMode === mode.id ? "selected" : ""}`}>
-                    <input type="radio" name="selectionMode" value={mode.id} checked={selectionMode === mode.id} onChange={() => setSelectionMode(mode.id)} />
-                    <span><strong>{mode.name}</strong><small>{mode.description}</small></span>
+          <section className={styles.section} aria-labelledby="clips-title">
+            <h2 id="clips-title" className={styles.sectionTitle}>Klip</h2>
+            <div className={styles.numbers}>
+              <div className={`${styles.field} ${styles.limitField}`}>
+                <label htmlFor="clip-limit">Jumlah klip</label>
+                <input id="clip-limit" className={styles.input} type="number" inputMode="numeric" min="1" max="10" step="1" value={limit} aria-invalid={problems.limit ? "true" : undefined} aria-describedby={describedBy("limit")} onChange={(event) => { setLimit(event.target.value); clearProblem("limit"); }} />
+                <FieldError id="clip-limit-error" message={problems.limit} />
+              </div>
+              <div className={styles.field}>
+                <label htmlFor="min-duration">Durasi minimum</label>
+                <div className={styles.unit}>
+                  <input id="min-duration" className={styles.input} type="number" inputMode="decimal" min="5" max="180" value={minDuration} aria-invalid={problems.minDuration ? "true" : undefined} aria-describedby={describedBy("minDuration", "duration-unit")} onChange={(event) => { setMinDuration(event.target.value); clearProblem("minDuration"); clearProblem("maxDuration"); }} />
+                  <span aria-hidden="true">detik</span>
+                </div>
+                <FieldError id="min-duration-error" message={problems.minDuration} />
+              </div>
+              <div className={styles.field}>
+                <label htmlFor="max-duration">Durasi maksimum</label>
+                <div className={styles.unit}>
+                  <input id="max-duration" className={styles.input} type="number" inputMode="decimal" min="5" max="180" value={maxDuration} aria-invalid={problems.maxDuration ? "true" : undefined} aria-describedby={describedBy("maxDuration", "duration-unit")} onChange={(event) => { setMaxDuration(event.target.value); clearProblem("maxDuration"); }} />
+                  <span aria-hidden="true">detik</span>
+                </div>
+                <FieldError id="max-duration-error" message={problems.maxDuration} />
+              </div>
+            </div>
+            <p id="duration-unit" className="visuallyHidden">Dalam detik.</p>
+          </section>
+
+          <fieldset className={styles.section}>
+            <legend className={styles.sectionTitle}>Layout</legend>
+            <div className={styles.choices}>
+              {layouts.map((layout) => (
+                <label key={layout.id} className={`${styles.choice} ${renderMode === layout.id ? styles.selected : ""}`}>
+                  <input type="radio" name="renderMode" value={layout.id} checked={renderMode === layout.id} onChange={() => setRenderMode(layout.id)} />
+                  <span className={`${styles.frame} ${styles[layout.id]}`} aria-hidden="true"><i /></span>
+                  <span className={styles.choiceText}><strong>{layout.name}</strong><small>{layout.description}</small></span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
+          <section className={styles.section} aria-labelledby="look-title">
+            <h2 id="look-title" className={styles.sectionTitle}>Tampilan klip</h2>
+            <fieldset className={styles.group}>
+              <legend className={styles.groupTitle}>Gaya subtitle</legend>
+              <div className={`${styles.choices} ${styles.pair}`}>
+                {captionStyles.map((style) => (
+                  <label key={style.id} className={`${styles.choice} ${styles.compact} ${captionStyle === style.id ? styles.selected : ""}`}>
+                    <input type="radio" name="captionStyle" value={style.id} checked={captionStyle === style.id} onChange={() => setCaptionStyle(style.id)} />
+                    <span className={styles.choiceText}><strong>{style.name}</strong><small>{style.description}</small></span>
                   </label>
                 ))}
-                {selectionMode === "v2-shadow" && (
-                  <label className="profileField">
-                    <span>Profil kandidat V2</span>
-                    <select value={clipProfile} onChange={(event) => setClipProfile(event.target.value)}>
-                      <option value="viral-short">Klip singkat</option>
-                      <option value="standard">Standar</option>
-                      <option value="deep-dive">Pembahasan mendalam</option>
-                    </select>
-                  </label>
-                )}
               </div>
-            </details>
+            </fieldset>
+            <div className={styles.toggles}>
+              <label className={styles.toggle}>
+                <input type="checkbox" checked={coldOpen} onChange={(event) => setColdOpen(event.target.checked)} />
+                <span className={styles.choiceText}><strong>Buka dengan kalimat terkuat</strong><small>Kalimat hook diputar dulu beberapa detik, lalu klip mulai dari awal.</small></span>
+              </label>
+              <label className={styles.toggle}>
+                <input type="checkbox" checked={hookOverlay} onChange={(event) => setHookOverlay(event.target.checked)} />
+                <span className={styles.choiceText}><strong>Teks hook di 4 detik pertama</strong><small>Kalimat pemancing singkat di bagian atas layar.</small></span>
+              </label>
+            </div>
           </section>
-          <button className="submit" disabled={submitting || storageBlocked}>{submitting ? "Membuat job…" : "Buat klip sekarang"}<span>→</span></button>
-          {message && <p className="message">{message}</p>}
+
+          <section className={styles.section} aria-labelledby="moments-title">
+            <h2 id="moments-title" className={styles.sectionTitle}>Momen</h2>
+            <p className={`${styles.aiStatus} ${styles[ai.tone] || ""}`} role="status">
+              <i aria-hidden="true" />
+              <span>{ai.text}</span>
+              <a href="/settings">Atur AI</a>
+            </p>
+            <FocusField
+              terms={focusTerms}
+              draft={focusDraft}
+              note={focusNote}
+              error={focusError}
+              aiMode={aiMode}
+              onTermsChange={setFocusTerms}
+              onDraftChange={setFocusDraft}
+              onNoteChange={setFocusNote}
+              onErrorChange={setFocusError}
+            />
+          </section>
+
+          <div className={styles.submitRow}>
+            <button type="submit" className={styles.submit} disabled={submitting || storageBlocked}>{submitting ? "Membuat job…" : "Buat klip"}</button>
+            {message && <p className={`${styles.message} ${message.tone === "error" ? styles.messageError : ""}`} role={message.tone === "error" ? "alert" : "status"}>{message.text}</p>}
+          </div>
         </form>
 
-        <aside className="panel monitor">
-          <div className="panelHead"><span>03</span><div><h2>Progres & hasil</h2><p>Pantau worker tanpa membuka terminal.</p></div></div>
-          {activeJob ? (
-            <>
-              <div className={`jobState ${activeJob.status}`}><div><small>JOB {activeJob.id.slice(0, 8)}</small><strong>{stageLabel[activeJob.stage] || statusLabel[activeJob.status] || activeJob.status}</strong></div><b>{activeJob.progress || 0}%</b></div>
-              <div className="progress" role="progressbar" aria-label="Progres pemrosesan video" aria-valuemin="0" aria-valuemax="100" aria-valuenow={activeJob.progress || 0}><i style={{ width: `${activeJob.progress || 0}%` }} /></div>
-              {!["completed", "failed"].includes(activeJob.status) && <div className="jobActivity" role="status" aria-live="polite"><i /><span>{activeJob.stageDetail || "Worker aktif memproses video"}</span><b>AKTIF</b></div>}
-              {activeJob.error && <div className="error">{activeJob.error}</div>}
-              <div className="results">
-                {activeJob.clips?.map((clip) => (
-                  <article className="clip" key={clip.index}>
-                    <video controls preload="metadata" src={clip.videoUrl} poster={clipPosterUrl(clip)} />
-                    <div className="clipMeta"><small>CLIP {String(clip.index).padStart(2, "0")} · {Math.round(clip.duration)} DETIK{selectionSourceLabel(clip.selectionSource) && clip.selectionSource !== "v1" ? ` · ${selectionSourceLabel(clip.selectionSource).toUpperCase()}` : ""}</small><h3>{clip.title}</h3>{clip.hookText && <p className="hookLine"><span>Hook</span>{clip.hookText}</p>}<p className="socialDescription">{clip.description}</p><div className="clipActions"><a href={clip.downloadUrl}>Download MP4 ↓</a><button type="button" onClick={() => copyCaption(clip)}>{copiedClip === `${activeJob.id}-${clip.index}` ? "Tersalin ✓" : "Salin caption"}</button></div></div>
-                  </article>
-                ))}
-                {!activeJob.clips?.length && activeJob.status !== "failed" && <div className="empty"><div className="pulse" /><strong>{activeJob.stageDetail || "Worker sedang bekerja"}</strong><p>Progres diperbarui otomatis selama engine bekerja.</p></div>}
+        <aside ref={resultsRef} className={`panel ${styles.results}`} aria-labelledby="results-title">
+          <div className={styles.resultsHead}>
+            <h2 id="results-title">Hasil</h2>
+            <a href="/projects">Semua riwayat</a>
+          </div>
+
+          {jobsState === "loading" && !activeJob && (
+            <div className={styles.state} role="status"><strong>Memuat job terakhir…</strong></div>
+          )}
+          {jobsState === "error" && !activeJob && (
+            <div className={styles.state} role="alert">
+              <strong>Job terakhir tidak bisa dimuat.</strong>
+              <p>Periksa koneksi ke server, lalu muat ulang.</p>
+              <button type="button" className="btn" onClick={() => { setJobsState("loading"); void refreshJobs().catch(() => {}); }}>Muat ulang</button>
+            </div>
+          )}
+          {jobsState === "ready" && !activeJob && (
+            <div className={styles.state}>
+              <strong>Belum ada job</strong>
+              <p>Isi form lalu tekan Buat klip. Progres dan klipnya muncul di sini.</p>
+            </div>
+          )}
+
+          {activeJob && (
+            <div className={styles.job}>
+              <div className={`${styles.jobState} ${styles[activeJob.status] || ""}`}>
+                <div>
+                  <small title={jobSourceLabel(activeJob)}>{jobSourceLabel(activeJob)}</small>
+                  <strong>{jobStageText(activeJob)}</strong>
+                </div>
+                <b>{activeJob.progress || 0}%</b>
               </div>
-            </>
-          ) : <div className="empty"><div className="emptyIcon">▶</div><strong>Belum ada job</strong><p>Buat job pertama untuk melihat progres dan preview klip di sini.</p></div>}
-          {jobs.length > 1 && <div className="history"><div className="historyTitle"><h3>Riwayat terbaru</h3><a href="/projects">Lihat semua →</a></div>{jobs.slice(0, 8).map((job) => <button key={job.id} onClick={() => setActiveId(job.id)} className={job.id === activeId ? "active" : ""}><span>{job.source?.name || job.id.slice(0, 8)}</span><b>{statusLabel[job.status] || job.status}</b></button>)}</div>}
+              <div className={`${styles.progress} ${jobFinished(activeJob) ? styles.progressDone : ""} ${activeJob.status === "failed" ? styles.progressFailed : ""}`} role="progressbar" aria-label="Progres job" aria-valuemin="0" aria-valuemax="100" aria-valuenow={activeJob.progress || 0}><i style={{ width: `${activeJob.progress || 0}%` }} /></div>
+              {!jobFinished(activeJob) && (
+                <p className={`${styles.activity} ${activeJob.status === "queued" ? styles.queued : ""}`} role="status" aria-live="polite"><i aria-hidden="true" /><span>{jobActivityText(activeJob)}</span></p>
+              )}
+              {failure && (
+                <div className={styles.failure} role="alert">
+                  <strong>{failure.text}</strong>
+                  {failure.detail && (
+                    <details>
+                      <summary>Detail teknis</summary>
+                      <p>{failure.detail}</p>
+                    </details>
+                  )}
+                </div>
+              )}
+              <div className={styles.clips}>
+                {activeJob.clips?.map((clip) => (
+                  <ClipCard key={clip.index} clip={clip} copied={copied?.key === `${activeJob.id}-${clip.index}` ? copied.result : null} onCopy={() => copyCaption(clip)} />
+                ))}
+              </div>
+              {!activeJob.clips?.length && !failure && (
+                <p className={styles.waiting}>Klip muncul di sini setelah selesai dirender.</p>
+              )}
+              <a className={styles.projectLink} href={`/projects/${activeJob.id}`}>Buka proyek</a>
+              <p className="visuallyHidden" role="status">{copied?.result === "ok" ? `Caption klip ${copied.index} tersalin.` : ""}</p>
+            </div>
+          )}
+
+          {jobs.length > 1 && (
+            <section className={styles.history} aria-labelledby="history-title">
+              <h3 id="history-title">Job terakhir</h3>
+              <ul>
+                {jobs.slice(0, 8).map((job) => (
+                  <li key={job.id}>
+                    <button type="button" aria-pressed={job.id === activeId} onClick={() => setActiveId(job.id)}>
+                      <span>{jobSourceLabel(job)}</span>
+                      <b className={styles[`status_${job.status}`]}>{JOB_STATUS_LABELS[job.status] || "Memproses"}</b>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
         </aside>
-      </section>
-      <footer className="shell">Potongin AI · Self-hosted video worker <span>Next.js · Whisper · FFmpeg</span></footer>
+      </div>
     </main>
   );
 }
