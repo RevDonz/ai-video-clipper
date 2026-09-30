@@ -8,8 +8,9 @@ import test from "node:test";
 import { fakeDoc, fakePlan, fakeWords } from "../components/editor/__dev__/fakes.mjs";
 import {
   ANALYSIS_TEXT,
+  CAMERA_SECONDS_PER_180S,
   LAYOUT_OPTIONS,
-  analysisEstimateMs,
+  analysisRangeMs,
   analysisView,
   cameraReadyFromState,
   contentKey,
@@ -29,7 +30,9 @@ test("the three layouts of plan §3.3, in the order of Appendix C.1, with Indone
   for (const option of LAYOUT_OPTIONS) {
     assert.ok(Object.isFrozen(option));
     assert.match(option.note, /\S/);
+    assert.doesNotMatch(`${option.name} ${option.note}`, /[\u2013\u2014]|V[0-9]/); // no dashes, no version labels
   }
+  assert.match(LAYOUT_OPTIONS[1].note, /analisis wajah/);
   assert.ok(Object.isFrozen(LAYOUT_OPTIONS));
 });
 
@@ -110,38 +113,42 @@ test("the camera plan is known to exist when the seed names one (a face-track se
   assert.equal(cameraReadyFromState(null), false);
 });
 
-test("the analysis estimate follows the window length and the source size", () => {
-  const doc = fakeDoc(); // 1280×720, a 189 s window
-  const long = analysisEstimateMs(doc);
-  assert.ok(long >= 10_000 && long <= 20_000, String(long));
-  const small = structuredClone(doc);
-  small.base.source.w = 640;
-  small.base.source.h = 360;
-  assert.ok(analysisEstimateMs(small) < long);
+test("the usual analysis time is the measured range, scaled by the window length", () => {
+  // T3.6-camera-plan.json: 180 s windows of the five real sources took 4.6-13.4 s at 4 CPUs
+  assert.deepEqual([...CAMERA_SECONDS_PER_180S], [4.6, 13.4]);
+  const doc = fakeDoc(); // a 189 s window
+  assert.deepEqual(analysisRangeMs(doc), { minMs: 5000, maxMs: 15000 });
   const short = structuredClone(doc);
-  short.base.window_ms = [1181900, 1211900];
-  assert.ok(analysisEstimateMs(short) < long);
-  assert.ok(analysisEstimateMs(short) >= 3000);
-  assert.equal(analysisEstimateMs(null), null);
+  short.base.window_ms = [1181900, 1271900]; // 90 s
+  assert.deepEqual(analysisRangeMs(short), { minMs: 2000, maxMs: 7000 });
+  const tiny = structuredClone(doc);
+  tiny.base.window_ms = [1181900, 1183900];
+  assert.deepEqual(analysisRangeMs(tiny), { minMs: 1000, maxMs: 1000 });
+  assert.equal(analysisRangeMs(null), null);
+  assert.equal(analysisRangeMs({ base: { window_ms: "x" } }), null);
 });
 
-test("the analysis view: determinate with server progress, elapsed seconds otherwise", () => {
+test("the analysis view: a percentage with server progress, the seconds and the usual range otherwise", () => {
   assert.equal(analysisView(null, 0), null);
   assert.equal(analysisView({ state: "idle" }, 0), null);
-  const running = { state: "running", startedAt: 1000, estimateMs: 12_000 };
+  const running = { state: "running", startedAt: 1000, range: { minMs: 5000, maxMs: 15000 } };
   const early = analysisView(running, 1000 + 4_200);
   assert.equal(early.determinate, false);
   assert.equal(early.value, null);
-  assert.equal(early.text, `${ANALYSIS_TEXT.running} 4 dtk (biasanya ± 12 dtk)`);
+  assert.equal(early.text, `${ANALYSIS_TEXT.running} 4 dtk (biasanya 5-15 dtk)`);
   const withProgress = analysisView({ ...running, done: 60, total: 240 }, 3000);
   assert.deepEqual([withProgress.determinate, withProgress.value, withProgress.max], [true, 60, 240]);
-  assert.equal(withProgress.text, `${ANALYSIS_TEXT.running} 25% (60/240)`);
-  const late = analysisView(running, 1000 + 30_000);
-  assert.equal(late.text, `${ANALYSIS_TEXT.running} 30 dtk (lebih lama dari biasanya)`);
+  assert.equal(withProgress.text, `${ANALYSIS_TEXT.running} 25%`);
+  assert.equal(withProgress.percent, 25);
+  const late = analysisView(running, 1000 + 31_000);
+  assert.equal(late.text, `${ANALYSIS_TEXT.running} 31 dtk (lebih lama dari biasanya)`);
+  assert.equal(analysisView({ state: "running", startedAt: 0 }, 2_000).text, `${ANALYSIS_TEXT.running} 2 dtk`);
   const failed = analysisView({ state: "failed", code: "backend_unavailable" }, 0);
   assert.equal(failed.tone, "danger");
   assert.match(failed.text, /^Analisis wajah gagal: /);
   assert.equal(analysisView({ state: "done" }, 0), null);
+  // no dash but a plain hyphen in the range (R-02)
+  assert.doesNotMatch(early.text, /[\u2013\u2014]/);
 });
 
 test("runs without a face: one entry per warning frame, sorted, with its clock", () => {
