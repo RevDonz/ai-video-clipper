@@ -116,6 +116,7 @@ def evaluate_labelled(data: Mapping[str, Any], *, lexicon: cleanup.Lexicon | Non
     fp = {label: 0 for label in NEVER_LISTED}
     hits = {"true": 0, "false": 0, "true_flipped": 0}
     by_form: dict[str, list[int]] = {}
+    by_group: dict[str, list[int]] = {}
     filler_labelled = filler_found = unlabelled = 0
     stutter_runs = stutter_found = 0
     repeat_hits = {"stutter": 0, "other": 0}
@@ -149,6 +150,10 @@ def evaluate_labelled(data: Mapping[str, Any], *, lexicon: cleanup.Lexicon | Non
             if name == "filler":
                 filler_labelled += len(label["i"])
                 filler_found += sum(listed.get(k) == "filler" for k in label["i"])
+                lost = [k for k in label["i"] if listed.get(k) != "filler"]
+                if lost:
+                    misses.append({"sample": sample["id"], "label": name, "i": lost,
+                                   "listed": listed.get(lost[0])})
             if name == "stutter":
                 stutter_runs += 1
                 if all(listed.get(k) == "repeat" for k in label["i"]):
@@ -168,6 +173,7 @@ def evaluate_labelled(data: Mapping[str, Any], *, lexicon: cleanup.Lexicon | Non
             hits["true" if true else "false"] += 1
             hits["true_flipped"] += flipped
             by_form.setdefault(form, [0, 0])[0 if true else 1] += 1
+            by_group.setdefault(label.get("group", "?"), [0, 0])[0 if true else 1] += 1
             if not true:
                 misses.append({"sample": sample["id"], "label": label["label"], "i": [k],
                                "listed": kind, "borderline": bool(label.get("borderline"))})
@@ -195,6 +201,8 @@ def evaluate_labelled(data: Mapping[str, Any], *, lexicon: cleanup.Lexicon | Non
         "filler_precision_borderline_flipped": _ratio(hits["true_flipped"], total),
         "filler_precision_by_form": {form: {"true": t, "false": f, "precision": _ratio(t, t + f)}
                                      for form, (t, f) in sorted(by_form.items())},
+        "filler_precision_by_group": {group: {"true": t, "false": f, "precision": _ratio(t, t + f)}
+                                      for group, (t, f) in sorted(by_group.items())},
         "filler_recall": _ratio(filler_found, filler_labelled),
         "unlabelled_filler_hits": unlabelled,
         "stutter_runs": stutter_runs,
