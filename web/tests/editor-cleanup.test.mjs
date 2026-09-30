@@ -133,17 +133,24 @@ test("GET runs the cleanup CLI op list with the ids only, without the LLM enviro
   assert.equal(result.body.wordsSha256, LISTING.wordsSha256);
 });
 
-test("the ETag names the words and the lexicon; If-None-Match answers 304", async () => {
+test("the ETag is the digest of the list itself; If-None-Match answers 304", async () => {
   const { runCli } = recorder(ok());
   const route = createCleanupRoute({ authorize, env: env(), runCli });
   const first = await read(await route.GET(request(URL_PATH), context(IDS)));
-  const expected = createHash("sha256").update(`potongin.cleanup/1\0${LISTING.wordsSha256}\0${LISTING.lexicon.sha256}`).digest("hex");
+  const expected = createHash("sha256").update(JSON.stringify(first.body)).digest("hex");
   assert.equal(first.headers.get("etag"), `"${expected}"`);
   const again = await route.GET(request(URL_PATH, { headers: { "If-None-Match": `W/"${expected}"` } }), context(IDS));
   assert.equal(again.status, 304);
   assert.equal(again.headers.get("etag"), `"${expected}"`);
   const other = await route.GET(request(URL_PATH, { headers: { "If-None-Match": `"${"0".repeat(64)}"` } }), context(IDS));
   assert.equal(other.status, 200);
+  // a server whose rules changed answers a different list for the same words and lexicon: a
+  // browser holding the old list must not get 304
+  const changed = { ...LISTING, items: LISTING.items.slice(1) };
+  const newer = createCleanupRoute({ authorize, env: env(), runCli: recorder({ exitCode: 0, json: changed }).runCli });
+  const fresh = await newer.GET(request(URL_PATH, { headers: { "If-None-Match": `"${expected}"` } }), context(IDS));
+  assert.equal(fresh.status, 200);
+  assert.notEqual(fresh.headers.get("etag"), `"${expected}"`);
 });
 
 test("CLI failures map to fixed codes and never leak details", async () => {
