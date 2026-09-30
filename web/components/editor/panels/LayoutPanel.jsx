@@ -3,20 +3,20 @@
 // The layout panel "Tata letak" (plan §11.3 T3.6, §5.7, §3.3 `layout.default.mode`, Appendix B
 // `SetLayout`, Appendix C.1/C.6): fit-blur, face-track or center-crop for the whole clip.
 //
-// - Each choice shows a live thumbnail: the truth frame (plan §4.2 `preview/frame`, the export's
-//   own graph) of the current document in that layout at the playhead, refreshed when the playhead
-//   rests or the document changes. The panel keeps its own preview client for them, so they never
-//   cancel the stage's "Frame akhir".
-// - Face-track needs the clip's camera plan (§5.7). Choosing it runs `prepare {layout: "camera"}`
-//   first (instant when the plan exists) with its progress, and only then `SetLayout`: the stage
-//   keeps the current layout meanwhile, a failure keeps it too, and choosing another layout during
-//   the analysis wins. A face-track document whose plan is missing is analysed on its own.
-// - Under face-track, the runs without a face (the plan's `no_face` warnings) are listed with a
+// - Each card shows the truth frame (plan §4.2 `preview/frame`, the export's own graph) of the
+//   current document in that layout at the resting playhead. The panel keeps its own preview
+//   client for them, so they never cancel the stage's "Frame akhir".
+// - Face-track needs the clip's camera plan (§5.7): choosing it runs `prepare {layout: "camera"}`
+//   first (instant when the plan exists), with its progress on the card, and only then
+//   `SetLayout`. The stage keeps the current layout meanwhile, a failure keeps it too, and another
+//   choice made during the analysis wins. A face-track document whose plan is missing is analysed
+//   on its own.
+// - Under face-track the runs without a face (the plan's `no_face` warnings) are listed with a
 //   jump-to button each; the video is centred there (§3.7).
 //
-// Props: { state, dispatch, player } (panels/index.mjs), plus the optional seams `api` (prepare and
-// `cameraProgress()`) and `previewClient` (thumbnails). Without them the fake runtime's objects
-// (window.__potonginEditor) are used, and in the app the panel's own clients for this clip.
+// Props: { state, dispatch, player } (panels/index.mjs), plus the optional seams `api` (prepare
+// and `cameraProgress()`) and `previewClient` (thumbnails). Without them the fake runtime's
+// objects (window.__potonginEditor) are used, and in the app the panel's own clients.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { createApiClient } from "../../../lib/editor/api-client.mjs";
@@ -26,11 +26,12 @@ import styles from "./layout.module.css";
 import {
   ANALYSIS_TEXT,
   LAYOUT_OPTIONS,
-  analysisEstimateMs,
+  analysisRangeMs,
   analysisView,
   cameraReadyFromState,
   contentKey,
   noFaceList,
+  rangeText,
   switchSteps,
   thumbnailFrame,
   thumbnailOrder,
@@ -40,6 +41,10 @@ import {
 const THUMB_REST_MS = 400; // the playhead rests this long before the thumbnails follow it
 const PROGRESS_POLL_MS = 500;
 const SHOW_ANALYSIS_AFTER_MS = 250; // an existing camera plan answers faster: no flicker
+const RATE_LIMIT_RETRIES = 2; // preview/frame allows 4 per second per session (plan §9.1)
+const RATE_LIMIT_WAIT_MS = 350;
+
+const wait = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 
 function fakeRuntime() {
   return typeof window !== "undefined" ? window.__potonginEditor ?? null : null;
@@ -143,7 +148,17 @@ function useThumbnails({ state, services, frame, cameraReady }) {
         if (run !== generation.current) return;
         let next;
         try {
-          const blob = await client.frame(withLayout(current, mode), at);
+          let blob = null;
+          for (let attempt = 0; ; attempt += 1) {
+            try {
+              blob = await client.frame(withLayout(current, mode), at);
+              break;
+            } catch (error) {
+              if (error?.code !== "rate_limited" || attempt >= RATE_LIMIT_RETRIES) throw error;
+              await wait(RATE_LIMIT_WAIT_MS);
+              if (run !== generation.current) return;
+            }
+          }
           if (run !== generation.current) return;
           const url = URL.createObjectURL(blob);
           const old = urls.current.get(mode);
@@ -163,18 +178,33 @@ function useThumbnails({ state, services, frame, cameraReady }) {
   return { thumbs, at };
 }
 
-function Thumbnail({ option, thumb, fps, estimateText }) {
+function Thumbnail({ option, thumb, fps, rangeLabel, busy }) {
   if (thumb?.url) {
     const time = formatClock(frameToMs(thumb.frame ?? 0, fps));
     return (
-      <img className={`${styles.thumb} ${thumb.status === "refreshing" ? styles.thumbStale : ""}`} src={thumb.url}
+      <img key={thumb.url} className={`${styles.thumb} ${thumb.status === "refreshing" ? styles.thumbStale : ""}`} src={thumb.url}
         width={90} height={160} alt={`Contoh ${option.name} di ${time}`} data-layout-thumb={option.id} draggable={false} />
     );
   }
+  if (busy) return <span className={styles.thumbEmpty} data-layout-thumb-empty={option.id} />; // the card progress says it
   const text = thumb?.status === "needs_analysis"
-    ? `${ANALYSIS_TEXT.needed}${estimateText ? ` (± ${estimateText})` : ""}`
+    ? `${ANALYSIS_TEXT.needed}${rangeLabel ? ` (${rangeLabel})` : ""}`
     : thumb?.status === "unavailable" ? ANALYSIS_TEXT.unavailable : "Memuat contoh…";
   return <span className={styles.thumbEmpty} data-layout-thumb-empty={option.id}>{text}</span>;
+}
+
+/** The analysis on the face-track card: a percentage and its bar, or the seconds and a moving bar. */
+function CardProgress({ view }) {
+  const determinate = view?.determinate === true;
+  return (
+    <span className={styles.cardProgress} data-layout-card-progress="camera" aria-hidden="true">
+      <span className={styles.cardProgressText}>{determinate ? `${view.percent}%` : `${view?.seconds ?? 0} dtk`}</span>
+      <span className={styles.cardTrack}>
+        <span className={`${styles.cardFill} ${determinate ? "" : styles.cardFillUnknown}`}
+          style={determinate ? { width: `${view.percent}%` } : undefined} />
+      </span>
+    </span>
+  );
 }
 
 function LayoutPanelBody({ state, dispatch, player, api: apiProp, previewClient }) {
@@ -228,7 +258,7 @@ function LayoutPanelBody({ state, dispatch, player, api: apiProp, previewClient 
     const show = setTimeout(() => {
       if (run !== token.current || (switchAfter && target.current !== "camera")) return;
       setNow(Date.now());
-      setAnalysis({ state: "running", startedAt, estimateMs: analysisEstimateMs(stateRef.current.doc) });
+      setAnalysis({ state: "running", startedAt, range: analysisRangeMs(stateRef.current.doc) });
     }, SHOW_ANALYSIS_AFTER_MS);
     let poll = null;
     if (typeof api?.cameraProgress === "function") {
@@ -303,20 +333,24 @@ function LayoutPanelBody({ state, dispatch, player, api: apiProp, previewClient 
   }, [missing, analyse]);
 
   const view = analysisView(analysis, now);
+  const running = analysis?.state === "running";
   const shownLayout = choice ?? layout;
-  const estimate = analysisEstimateMs(doc);
-  const estimateText = estimate ? `${Math.ceil(estimate / 1000)} dtk` : null;
+  const shown = LAYOUT_OPTIONS.find((entry) => entry.id === shownLayout) ?? LAYOUT_OPTIONS[0];
+  const pending = choice !== null && choice !== layout;
+  const rangeLabel = rangeText(analysisRangeMs(doc));
   const planCurrent = !(state.pending ?? []).includes("text") && !state.previewError && Boolean(state.plan);
   const noFace = noFaceList(state.plan);
 
   return (
-    <section data-panel="layout" className={styles.panel} aria-busy={analysis?.state === "running"}>
+    <section data-panel="layout" className={styles.panel} aria-busy={running}>
       {message ? <p className={styles.message} role="alert">{message}</p> : null}
       <div className={styles.section}>
-        <h3 className={styles.title}>Tata letak video</h3>
-        <p className={styles.note}>Berlaku untuk seluruh klip.</p>
+        <div className={styles.head}>
+          <h3 className={styles.title}>Tata letak video</h3>
+          <p className={styles.note}>Berlaku untuk seluruh klip.</p>
+        </div>
         <fieldset className={styles.fieldset} disabled={readOnly}>
-          <legend className={styles.legend}>Pilih tata letak</legend>
+          <legend className={styles.srOnly}>Pilih tata letak</legend>
           <div className={styles.options}>
             {LAYOUT_OPTIONS.map((option) => (
               <label key={option.id} className={styles.option} data-layout-option={option.id}
@@ -325,23 +359,27 @@ function LayoutPanelBody({ state, dispatch, player, api: apiProp, previewClient 
                   aria-labelledby={`layout-name-${option.id}`} aria-describedby={`layout-note-${option.id}`}
                   checked={shownLayout === option.id} onChange={() => choose(option.id)} />
                 <span className={styles.thumbBox}>
-                  <Thumbnail option={option} thumb={thumbs[option.id]} fps={fps}
-                    estimateText={option.id === "camera" && !cameraReady ? estimateText : null} />
+                  <Thumbnail option={option} thumb={thumbs[option.id]} fps={fps} busy={option.id === "camera" && running}
+                    rangeLabel={option.id === "camera" && !cameraReady ? rangeLabel : null} />
+                  {option.id === "camera" && running ? <CardProgress view={view} /> : null}
                 </span>
                 <span className={styles.name} id={`layout-name-${option.id}`}>{option.name}</span>
-                <span className={styles.optionNote} id={`layout-note-${option.id}`}>{option.note}</span>
-                {option.id === layout ? <span className={styles.badge}>Dipakai</span> : null}
+                {pending && option.id === layout ? <span className={styles.badge}>Dipakai</span> : null}
+                <span className={styles.srOnly} id={`layout-note-${option.id}`}>{option.note}</span>
               </label>
             ))}
           </div>
         </fieldset>
-        {view && analysis?.state === "running" ? (
+        <p className={styles.about} data-layout-about="" aria-hidden="true">
+          <strong>{`${shown.name}:`}</strong>{` ${shown.note}`}
+        </p>
+        {view && running ? (
           <div className={styles.analysis} data-layout-analysis="" role="status">
             <progress className={styles.progress} aria-label="Analisis wajah"
               max={view.determinate ? view.max : undefined} value={view.determinate ? view.value : undefined} />
-            <span>{view.text}</span>
+            <span data-layout-analysis-text="">{view.text}</span>
             {target.current === "camera" ? (
-              <span className={styles.note}>Tata letak berganti setelah analisis selesai; pilih yang lain untuk batal.</span>
+              <span className={styles.note}>Tata letak berganti setelah analisis selesai. Pilih yang lain untuk membatalkan.</span>
             ) : null}
           </div>
         ) : null}
