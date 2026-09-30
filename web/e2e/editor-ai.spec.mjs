@@ -86,7 +86,13 @@ const test = base.extend({
   storageState: ({ workerStorageState }, use) => use(workerStorageState),
   page: async ({ page }, use, testInfo) => {
     const failures = [];
-    page.on("console", (message) => { if (message.type() === "error") failures.push(message.text()); });
+    page.on("console", (message) => {
+      if (message.type() !== "error") return;
+      const url = message.location()?.url ?? "";
+      // The app has no favicon: Chrome's own request for it is not the page's doing.
+      if (message.text().startsWith("Failed to load resource") && url.endsWith("/favicon.ico")) return;
+      failures.push(`${message.text()} ${url}`);
+    });
     page.on("pageerror", (error) => failures.push(error.stack || error.message));
     await use(page);
     if (failures.length && testInfo.status === testInfo.expectedStatus) throw new Error(`Browser diagnostics:\n${failures.join("\n")}`);

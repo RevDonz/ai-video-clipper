@@ -1,0 +1,52 @@
+{
+  "schema": "potongin.gate/1",
+  "gate": "QG-AI online hard gates (plan §7.1): instant p95 <= 300 ms, LLM p95 <= 15 s with a hard stop at 20 s, usable >= 70% (automated part)",
+  "task": "T3.4",
+  "code": "b28250d",
+  "stack": "production build of this branch (next start, real runtime, POTONGIN_EDITOR_V3=on, POTONGIN_EDITOR_LLM=on) on 127.0.0.1:3495; Python 3.13.13 from the worktree venv; temp APP_* values; a copy of the saved Pengaturan settings opened with the owner's settings secret through web/lib/llm-settings.mjs",
+  "llm_chain": "saved settings: ollama-cloud -> custom (owner's server) -> openrouter, free models only (POTONGIN_LLM_FREE_ONLY=1); every task was answered by ollama-cloud gemma4:31b",
+  "clips": "32 clips of copies of the owner's jobs e7f0d37b (3), 899226f8 (5), 860fef1a face-track (8), 3c7d024c 60 fps (8), 990f3f37 VFR (8); the originals were only read. 860fef1a was prepared inside ai-video-clipper:editor-w3base because edit_v2.source_info fails on it with the local FFmpeg 6.1.1",
+  "machine": "the shared K15 PC (Ryzen 7 5700G, 16 threads); load average 18-31 during the runs (other agents)",
+  "instant": {
+    "measure": "POST /api/jobs/:id/clips/:clipId/ai end to end (HTTP, route, heuristic child), 3 requests per clip",
+    "final": {"n": 96, "p50_ms": 157, "p95_ms": 209, "max_ms": 230, "load_average": 18.1},
+    "repeat": {"n": 96, "p50_ms": 159, "p95_ms": 199, "max_ms": 241, "load_average": 20.7},
+    "before_perf_commits": {"n": 96, "p50_ms": 293, "p95_ms": 371, "max_ms": 496, "load_average": 31.3,
+      "cause": "the selection_v3 and edit_v2.store imports in the heuristic child, removed in dee7152 and b28250d"},
+    "child_alone": {"n": 32, "p50_ms": 150, "p95_ms": 172, "max_ms": 199, "load_average": 22.7},
+    "variants_per_clip": {"min": 1, "max": 4},
+    "threshold_p95_ms": 300,
+    "pass": true
+  },
+  "llm": {
+    "measure": "the first task of each clip (not cached), from the 202 to the first GET that is not pending (polled every 250 ms); server elapsedMs from the task file",
+    "n": 31,
+    "not_counted": "one clip answered from the cache of a trial request made before the run",
+    "p50_ms": 2416,
+    "p95_ms": 10135,
+    "max_ms": 10332,
+    "server_p95_ms": 9821,
+    "server_max_ms": 10154,
+    "over_20_s": 0,
+    "failed": 0,
+    "threshold_p95_ms": 15000,
+    "hard_stop_s": 20,
+    "pass": true
+  },
+  "usable_automated": {
+    "rule": "at least one AI variant accepted by the validator (grounded, format, evidence, not a near-duplicate) that fits three hook lines",
+    "clips_passing": 32,
+    "clips": 32,
+    "ai_variants_per_clip": {"min": 4, "max": 6, "total": 167},
+    "dropped": {"ungrounded_number": 4, "duplicate_instant": 10, "same_as_current": 7, "truncated_quote": 3, "near_duplicate": 1},
+    "threshold_share": 0.7,
+    "pass": true
+  },
+  "grounding_note": "An earlier build also checked the first word of a hook against the episode's lower-case vocabulary: it dropped 36 AI hooks on these 32 clips and every one of those first words was a common word (Rahasia, Cara, Sisi, Alasan, ...). The plan's rule (capitalised non-initial tokens) is used, plus acronyms and inner capitals anywhere.",
+  "owner_review": {
+    "state": "pending (checkpoint 3)",
+    "sheet": "scratchpad editor-w3/qg-ai/review.md and review.csv (30 clips, 158 AI cards), blind pairs in blind-pairs.md with blind-key.json; not committed",
+    "threshold": "at least one AI variant usable as-is on >= 70% of clips (>= 21 of 30)"
+  },
+  "pass": true
+}
