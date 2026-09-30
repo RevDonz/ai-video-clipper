@@ -136,6 +136,7 @@ test("the analysis view: a percentage with server progress, the seconds and the 
   assert.equal(early.determinate, false);
   assert.equal(early.value, null);
   assert.equal(early.text, `${ANALYSIS_TEXT.running} 4 dtk (biasanya 5-15 dtk)`);
+  assert.equal(early.seconds, 4); // the card shows the seconds alone
   const withProgress = analysisView({ ...running, done: 60, total: 240 }, 3000);
   assert.deepEqual([withProgress.determinate, withProgress.value, withProgress.max], [true, 60, 240]);
   assert.equal(withProgress.text, `${ANALYSIS_TEXT.running} 25%`);
