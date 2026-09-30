@@ -470,9 +470,10 @@ test.describe("Musik panel on the fakes", () => {
     await expect.poll(async () => (await state(page)).plan.audio.musicGainPoints[3]?.[1]).toBe(Math.round(Math.round(10 ** (-980 / 2000) * 1e6) * 10 ** (-1600 / 2000)));
     const kuat = await check();
     expect(kuat[3][1]).toBeGreaterThan(sedang[3][1]); // deeper duck: lower on the lane
-    // A click on the lane moves the playhead there.
-    const box = await page.locator('[data-lane="music"]').boundingBox();
-    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    // A click on the lane moves the playhead there (the lane may sit below the timeline's fold).
+    const lane = page.locator('[data-lane="music"]');
+    const box = await lane.boundingBox();
+    await lane.click({ position: { x: box.width / 2, y: box.height / 2 } });
     await expect.poll(() => page.evaluate(() => window.__potonginEditor.player.frame())).toBeGreaterThan(100);
   });
 
@@ -568,7 +569,11 @@ test.describe("Musik panel on the fakes", () => {
       }
       return stops;
     });
+    // Reach the first control by keyboard, so :focus-visible applies from the start.
     await panel(page).getByRole("button", { name: "Ganti musik" }).focus();
+    await page.keyboard.press("Shift+Tab");
+    await page.keyboard.press("Tab");
+    await expect(panel(page).getByRole("button", { name: "Ganti musik" })).toBeFocused();
     const reached = new Set();
     for (let i = 0; i < expected + 6; i += 1) {
       const info = await page.evaluate(() => {
