@@ -698,3 +698,15 @@ def test_the_time_map_matches_the_clip(case):
     shown = {w["u"] for w in case["words"]["words"]
              if tm.word_frames(w["s"], w["e"], pieces, fps) is not None}
     assert shown == set(SENTENCES)
+
+
+def test_missing_words_and_a_rewritten_seed_are_refused(case):
+    raw = b64(body(case["seed"]))
+    (case["clip"] / "seed.json").write_text(json.dumps(case["seed"], indent=1))
+    status, payload = call(case, op="heuristic", jobId=JOB, clipId=CLIP, requestRaw=raw)
+    assert status == 1 and payload["error"]["code"] == "internal_error"
+    (case["clip"] / "seed.json").write_bytes(canonical_bytes(case["seed"]))
+    for words in case["clip"].glob("words.*.json"):
+        words.unlink()
+    status, payload = call(case, op="heuristic", jobId=JOB, clipId=CLIP, requestRaw=raw)
+    assert status == 8 and payload["error"]["code"] == "analysis_missing"

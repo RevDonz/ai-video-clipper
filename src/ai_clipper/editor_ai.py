@@ -363,20 +363,95 @@ def _selection_clip(job: Path, doc: Mapping[str, Any]) -> Mapping[str, str] | No
     return None
 
 
+# The job asset store's document-form fields (docs/editor/CONTRACTS.md §5.9, as edit_v2.store).
+_ASSET_FIELDS = {"image": ("kind", "mime", "w", "h"), "audio": ("kind", "mime", "duration_ms", "lufs_c")}
+_MAX_DOC_BYTES = 1 << 20
+_MAX_WORDS_BYTES = 32 << 20
+_MAX_ASSET_META_BYTES = 64 << 10
+_HEX64 = re.compile(r"[0-9a-f]{64}")
+
+
+def _stored(path: Path, limit: int) -> bytes | None:
+    from .edit_v2.source_info import read_regular
+
+    try:
+        return read_regular(path, limit)
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError):
+        raise EditV2Error("internal_error") from None
+
+
+def _stored_doc(path: Path) -> dict | None:
+    """A canonical document the store wrote (seed.json, edit/doc.json), or None when absent.
+
+    Read here rather than through ``edit_v2.store``, whose import alone (about 60 ms) is a fifth
+    of the instant budget; the checks are the store's: a regular file, canonical bytes."""
+    from .edit_v2.doc import canonical_bytes
+
+    raw = _stored(path, _MAX_DOC_BYTES)
+    if raw is None:
+        return None
+    try:
+        doc = json.loads(raw)
+    except ValueError:
+        raise EditV2Error("internal_error") from None
+    if type(doc) is not dict or canonical_bytes(doc) != raw:
+        raise EditV2Error("internal_error")
+    return doc
+
+
+def _stored_words(clip: Path, sha: object) -> dict:
+    from .edit_v2.errors import AnalysisMissing
+
+    if not isinstance(sha, str) or _HEX64.fullmatch(sha) is None:
+        raise EditV2Error("internal_error")
+    raw = _stored(clip / f"words.{sha[:16]}.json", _MAX_WORDS_BYTES)
+    if raw is None:
+        raise AnalysisMissing()
+    if hashlib.sha256(raw).hexdigest() != sha:
+        raise EditV2Error("internal_error")
+    try:
+        words = json.loads(raw)
+    except ValueError:
+        raise EditV2Error("internal_error") from None
+    if type(words) is not dict:
+        raise EditV2Error("internal_error")
+    return words
+
+
+def _stored_assets(job: Path, asset_ids: Iterable[str]) -> dict[str, dict]:
+    assets: dict[str, dict] = {}
+    for asset_id in asset_ids:
+        hex_id = asset_id[7:] if isinstance(asset_id, str) and asset_id.startswith("sha256:") else ""
+        if _HEX64.fullmatch(hex_id) is None:
+            continue
+        raw = _stored(job / "analysis" / "assets" / f"{hex_id}.json", _MAX_ASSET_META_BYTES)
+        try:
+            meta = json.loads(raw) if raw is not None else None
+        except ValueError:
+            continue
+        fields = _ASSET_FIELDS.get(meta.get("kind")) if isinstance(meta, dict) else None
+        if fields is not None and all(key in meta for key in fields):
+            assets[asset_id] = {key: meta[key] for key in fields}
+    return assets
+
+
 def load_context(job: Path, clip: Path, request_raw: bytes) -> HookContext:
     """Validate the request's document like the preview lane validates an unsaved one."""
-    from .edit_v2 import store
     from .edit_v2.doc import iter_asset_ids, parse_doc, validate_doc
 
     doc = parse_doc(doc_bytes(request_raw))
-    seed_doc, _seed_etag = store.seed(clip)
+    seed_doc = _stored_doc(clip / "seed.json")
+    if seed_doc is None:
+        raise NotFound()
     reference = seed_doc
     if doc.get("base") != seed_doc["base"]:
-        current, _etag, _is_seed = store.get(clip)
-        if current.get("base") == doc.get("base"):
+        current = _stored_doc(clip / "edit" / "doc.json")
+        if current is not None and current.get("base") == doc.get("base"):
             reference = current  # the job re-ran: a read-only document keeps its own words
-    words = store.load_words(clip, reference["base"]["words"]["sha256"])
-    assets = store.load_assets(clip, iter_asset_ids(doc))
+    words = _stored_words(clip, reference["base"]["words"]["sha256"])
+    assets = _stored_assets(job, iter_asset_ids(doc))
     validation = validate_doc(doc, words=words, assets=assets, seed=reference)
     if validation.errors:
         first = validation.errors[0]
