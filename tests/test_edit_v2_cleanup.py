@@ -486,6 +486,26 @@ def test_the_cli_reads_the_clips_peaks(tmp_path, edit_v2_doc_contexts):
     assert call(tmp_path, op="list", **ids)[1]["items"] == cleanup.build_cleanup(words)["items"]
 
 
+def test_the_real_clip_gate_applies_what_the_review_lists(tmp_path, edit_v2_doc_contexts):
+    # QG-CLEAN measures the items the editor shows: the CLI's list, quiet cuts included
+    context = edit_v2_doc_contexts["c30"]
+    words = copy.deepcopy(context.words)
+    peaks = loud_peaks(words, [(word["s"], word["e"] + 60) for word in words["words"]])
+    words["peaks"]["file"] = peaks_file_name(peaks)
+    seed = copy.deepcopy(context.seed)
+    seed["base"]["words"]["sha256"] = hashlib.sha256(canonical_bytes(words)).hexdigest()
+    make_clip(tmp_path, context, seed=seed, words=words)
+    clip = tmp_path / seed["base"]["job_id"] / "analysis" / "clips" / seed["clip_id"]
+    (clip / words["peaks"]["file"]).write_bytes(peaks)
+    status, payload = call(tmp_path, op="list", jobId=seed["base"]["job_id"],
+                           clipId=seed["clip_id"])
+    assert status == 0
+    listing = cleanup_gate.gate_listing(clip)
+    assert listing["items"] == payload["items"]
+    assert listing["locked"] == payload["locked"]
+    assert listing["items"] != cleanup.build_cleanup(words)["items"]
+
+
 # --- the list as a whole ----------------------------------------------------------------------------
 
 
