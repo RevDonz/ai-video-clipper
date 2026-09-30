@@ -54,7 +54,7 @@ SENTENCES = {
     "S0421": "Dia nggak bawa kartu kru sama sekali.",
     "S0422": "Jadi gue tahan dia di pintu masuk belakang.",
     "S0423": "Eh ternyata dia sutradaranya.",
-    "S0424": "Lu tahu rasanya gimana coba?",
+    "S0424": "Dia tuh malu banget kan?",
     "S0425": "Malu banget gue asli.",
     "S0426": "Semua kru pada ketawa.",
     "S0427": "Katanya baru kali ini sutradara ditahan di film sendiri.",
@@ -265,7 +265,7 @@ def test_the_hook_unit_sentence_is_tidied_and_fits_60_characters(case):
     assert "gue gue" not in unit["text"].casefold() and " ee " not in f" {unit['text']} "
     assert "sutradaranya" in unit["text"]
     assert len(unit["text"]) <= editor_ai.HOOK_PREFERRED_CHARS
-    assert not unit["text"].endswith("…")
+    assert not unit["text"].endswith(("…", "."))
 
 
 def test_a_question_hook_unit_gets_a_question_form(tmp_path):
