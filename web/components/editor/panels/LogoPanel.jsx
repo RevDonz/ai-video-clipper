@@ -6,12 +6,12 @@
 // logo item (the server's check) and offers to move the logo just out of the TikTok zone.
 // Props: { state, dispatch, player } (panels/index.mjs), plus optional `uploadAsset` (Appendix
 // A.2) and `uploadsEnabled` (POTONGIN_EDITOR_UPLOADS) when the shell passes them.
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useId, useRef, useState, useSyncExternalStore } from "react";
 
 import {
   LOGO_WIDTH_E5, OPACITY_PM, anchorFor, positionFor, resizeTo, transformSteps,
 } from "../gizmos/logo-geometry.mjs";
-import { LOGO_ACCEPT, logoUploadError, logoUploader } from "../gizmos/logo-upload.mjs";
+import { LOGO_ACCEPT, logoUploader, logoUploads } from "../gizmos/logo-upload.mjs";
 import styles from "./logo.module.css";
 import { logoPanelView, opacityLabel, sizeLabel } from "./logo-model.mjs";
 
@@ -20,10 +20,16 @@ const CORNERS = [
   { id: "bottom_left", label: "Kiri bawah" }, { id: "bottom_right", label: "Kanan bawah" },
 ];
 const TOO_TALL = "Logo ini terlalu tinggi untuk video. Pakai gambar yang lebih lebar.";
+const REFUSED = "Perubahan ini tidak bisa diterapkan.";
 
-function commandText(error) {
-  if (error?.code === "item_out_of_frame") return TOO_TALL;
-  return typeof error?.message === "string" && error.message ? error.message : "Perubahan ini tidak bisa diterapkan.";
+/** Runs commands through the store; returns null, or the refusal `{ code, message }`. */
+function apply(dispatch, steps, mergeKey = null) {
+  try {
+    for (const step of steps) dispatch(step.type, step.args, { mergeKey });
+    return null;
+  } catch (error) {
+    return { code: error?.code ?? null, message: typeof error?.message === "string" && error.message ? error.message : REFUSED };
+  }
 }
 
 export default function LogoPanel({ state, dispatch, uploadAsset: uploadProp = null, uploadsEnabled = true }) {
@@ -32,57 +38,37 @@ export default function LogoPanel({ state, dispatch, uploadAsset: uploadProp = n
   const locked = !view.ready || view.readOnly;
   const upload = uploadProp ?? logoUploader();
   const canUpload = Boolean(upload) && uploadsEnabled !== false && Boolean(view.jobId);
+  const owner = `${view.jobId}/${state?.clipId ?? ""}`;
+  const uploads = useSyncExternalStore(logoUploads.subscribe, logoUploads.getState, logoUploads.getState);
+  const progress = uploads.progress?.owner === owner ? uploads.progress : null;
+  const uploadMessage = uploads.message?.owner === owner ? uploads.message : null;
   const inputRef = useRef(null);
-  const activeRef = useRef(null);
-  const [progress, setProgress] = useState(null); // { name, fraction, phase }
-  const [message, setMessage] = useState(null); // { tone: "error" | "info", text }
+  const [commandMessage, setCommandMessage] = useState(null);
   const [dragOver, setDragOver] = useState(false);
-  const [names, setNames] = useState({}); // asset id → the file name it was uploaded as (this session)
   const [thumbFailed, setThumbFailed] = useState(null);
   const ids = { size: useId(), opacity: useId(), corners: useId(), help: useId() };
-
-  useEffect(() => () => activeRef.current?.abort(), []);
+  const message = commandMessage ? { tone: "error", text: commandMessage } : uploadMessage;
 
   const run = useCallback((steps, mergeKey = null) => {
-    try {
-      for (const step of steps) dispatch(step.type, step.args, { mergeKey });
-      setMessage(null);
-      return true;
-    } catch (error) {
-      setMessage({ tone: "error", text: commandText(error) });
-      return false;
-    }
+    const refused = apply(dispatch, steps, mergeKey);
+    setCommandMessage(refused?.message ?? null);
+    if (!refused) logoUploads.clearMessage();
+    return !refused;
   }, [dispatch]);
 
-  const startUpload = useCallback(async (file) => {
+  const startUpload = useCallback((file) => {
     if (!file || !canUpload || locked) return;
-    activeRef.current?.abort();
-    const controller = new AbortController();
-    activeRef.current = controller;
-    setMessage(null);
-    setProgress({ name: file.name, fraction: 0, phase: "upload" });
-    try {
-      const dto = await upload(view.jobId, file, "logo", {
-        signal: controller.signal,
-        onProgress: (fraction, info) => {
-          if (activeRef.current !== controller) return;
-          setProgress({ name: file.name, fraction: Math.max(0, Math.min(1, Number(fraction) || 0)), phase: info?.phase ?? "upload" });
-        },
-      });
-      if (activeRef.current !== controller) return;
-      activeRef.current = null;
-      setProgress(null);
-      if (run([{ type: "SetLogo", args: { asset: dto.sha256, meta: dto } }])) {
-        setNames((current) => ({ ...current, [`sha256:${dto.sha256}`]: dto.name ?? file.name }));
-      }
-    } catch (error) {
-      if (activeRef.current !== controller) return;
-      activeRef.current = null;
-      setProgress(null);
-      const mapped = logoUploadError(error);
-      setMessage({ tone: mapped.cancelled ? "info" : "error", text: mapped.message });
-    }
-  }, [canUpload, locked, upload, view.jobId, run]);
+    setCommandMessage(null);
+    // The dispatch outlives this panel (it is the store's), so a finished upload still lands.
+    logoUploads.start({
+      owner, upload, jobId: view.jobId, file,
+      onUploaded: (dto) => {
+        const refused = apply(dispatch, [{ type: "SetLogo", args: { asset: dto.sha256, meta: dto } }]);
+        if (!refused) return null;
+        return refused.code === "item_out_of_frame" ? TOO_TALL : refused.message;
+      },
+    });
+  }, [canUpload, locked, owner, upload, view.jobId, dispatch]);
 
   const onFiles = (files) => {
     const file = files?.[0];
@@ -132,7 +118,7 @@ export default function LogoPanel({ state, dispatch, uploadAsset: uploadProp = n
         aria-valuenow={percent} aria-valuetext={processing ? "Memproses gambar" : `${percent}%`}>
         <div className={styles.bar} style={{ width: `${percent}%` }} />
       </div>
-      <button type="button" className={`${styles.button} ${styles.quiet}`} onClick={() => activeRef.current?.abort()}>
+      <button type="button" className={`${styles.button} ${styles.quiet}`} onClick={() => logoUploads.cancel()}>
         Batalkan unggahan
       </button>
     </div>
@@ -192,7 +178,7 @@ export default function LogoPanel({ state, dispatch, uploadAsset: uploadProp = n
           )}
         </div>
         <div className={styles.assetText}>
-          <span className={styles.assetName}>{names[logo.assetId] ?? "Logo"}</span>
+          <span className={styles.assetName}>{uploads.names[logo.assetId] ?? "Logo"}</span>
           <span className={styles.note}>{`${meta.w} × ${meta.h} px`}</span>
           <div className={styles.row}>
             <button type="button" className={styles.button} disabled={locked || !canUpload || uploading} onClick={chooseFile}>Ganti logo</button>
