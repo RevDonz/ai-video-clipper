@@ -415,7 +415,7 @@ test.describe("Musik panel on the fakes", () => {
 
     await panel(page).getByRole("switch", { name: /Samakan kenyaringan/ }).click();
     expect(await lastCommand(page)).toMatchObject({ type: "SetLoudness", args: { mode: "normalize" }, mergeKey: "audio:master" });
-    await expect(panel(page).getByText("Tercapai −14,0 LUFS")).toBeVisible();
+    await expect(panel(page).getByText("Sesuai target −14,0 LUFS (±1 LU)")).toBeVisible();
   });
 
   test("replace keeps ducking, loop and fades in one undo step; remove clears the lane", async ({ page }) => {
@@ -599,9 +599,17 @@ test.describe("Musik panel on the fakes", () => {
     expect(overflow).toBeLessThanOrEqual(0);
     if (AXE) {
       await page.addScriptTag({ content: AXE });
-      const result = await page.evaluate(() => window.axe.run('[data-panel="music"]', { resultTypes: ["violations"] }));
-      const serious = result.violations.filter((violation) => ["critical", "serious"].includes(violation.impact));
-      expect(serious.map((violation) => violation.id)).toEqual([]);
+      const scopes = ['[data-panel="music"]', '[data-lane-row="music"]'];
+      const results = await page.evaluate(async (selectors) => {
+        const out = [];
+        for (const selector of selectors) out.push(await window.axe.run(selector, { resultTypes: ["violations"] })); // one run at a time
+        return out;
+      }, scopes);
+      const violations = results.flatMap((result) => result.violations.map((violation) => ({ id: violation.id, impact: violation.impact })));
+      writeGate("T3.3-QG-A11Y.json", { gate: "QG-A11Y (Musik panel and music lane, axe)", viewport: page.viewportSize(),
+        scopes, tab_stops: { expected, reached: reached.size }, violations,
+        pass: violations.every((violation) => !["critical", "serious"].includes(violation.impact)) });
+      expect(violations.filter((violation) => ["critical", "serious"].includes(violation.impact))).toEqual([]);
     }
   });
 
