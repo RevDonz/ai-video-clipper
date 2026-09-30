@@ -166,12 +166,11 @@ export default function TrendsPage() {
       <AppHeader current="/trends" />
 
       <section className="trHero shell">
-        <div className="eyebrow">KONTEKS · TREN TERKINI</div>
         <h1>Konteks Tren</h1>
         <p>
-          Topik, orang, jokes, meme, sound, dan hashtag yang sedang ramai, dikirim agen Anda atau ditambah manual.
-          Dipakai untuk judul, teks hook, deskripsi, dan hashtag klip, serta sedikit menaikkan peringkat momen yang
-          <b> benar-benar menyebut</b> tren itu di transkripnya. Momen bagus tanpa tren tetap menang.
+          Topik, orang, jokes, meme, sound, dan hashtag yang sedang ramai, dari agen Anda atau ditambah manual.
+          Dipakai untuk judul, hook, deskripsi, dan hashtag klip. Momen yang <b>benar-benar menyebut</b> tren di
+          transkripnya naik sedikit; momen bagus tanpa tren tetap menang.
         </p>
       </section>
 
@@ -179,17 +178,17 @@ export default function TrendsPage() {
         <div className="shell">
           <p className={`trAlert page ${notice.tone}`} role={notice.tone === "error" ? "alert" : "status"}>
             <span>{notice.text}</span>
-            <button type="button" className="trDismiss" onClick={() => setNotice(null)} aria-label="Tutup pesan">×</button>
+            <button type="button" className="btn ghost trDismiss" onClick={() => setNotice(null)} aria-label="Tutup pesan">×</button>
           </p>
         </div>
       )}
 
-      {loadState === "loading" && <div className="shell"><div className="panel trLoading" role="status">Memuat konteks tren…</div></div>}
+      {loadState === "loading" && <div className="shell"><div className="panel trState" role="status">Memuat konteks tren…</div></div>}
       {loadState === "error" && (
         <div className="shell">
-          <div className="panel trLoading" role="alert">
+          <div className="panel trState" role="alert">
             <p>{loadError || "Konteks tren tidak bisa dimuat."}</p>
-            <button type="button" className="trPrimary" onClick={() => loadTrends()}>Coba lagi</button>
+            <button type="button" className="btn primary" onClick={() => loadTrends()}>Coba lagi</button>
           </div>
         </div>
       )}
@@ -197,7 +196,7 @@ export default function TrendsPage() {
       {loadState === "ready" && (
         <div className="trLayout shell">
           <section className="panel trCard" aria-labelledby="tr-status-title">
-            <div className="panelHead compact"><span>01</span><div><h2 id="tr-status-title">Pemakaian</h2><p>Berlaku untuk job V3 berikutnya.</p></div></div>
+            <div className="trCardHead"><h2 id="tr-status-title">Pemakaian</h2><p>Berlaku untuk job berikutnya.</p></div>
             <div className="trUsage">
               <label className="trMainSwitch">
                 <input type="checkbox" role="switch" checked={switchOn} onChange={toggleEnabled} aria-busy={pendingEnabled !== null || undefined} aria-describedby="tr-switch-help" />
@@ -205,8 +204,8 @@ export default function TrendsPage() {
                   <strong>Pakai konteks tren di pemilihan klip</strong>
                   <small id="tr-switch-help">
                     {switchOn
-                      ? "Aktif. Tren hanya dipakai kalau transkrip klip menyebut kata kuncinya; tanpa tren aktif, hasil job sama persis seperti biasa."
-                      : "Mati. Job berjalan persis seperti tanpa tren. Item tetap tersimpan dan agen tetap bisa mengirim."}
+                      ? "Aktif. Tren hanya dipakai kalau transkrip klip menyebut kata kuncinya. Tanpa tren yang cocok, hasil job sama seperti biasa."
+                      : "Mati. Job berjalan tanpa tren. Item tetap tersimpan dan agen tetap bisa mengirim."}
                   </small>
                 </span>
               </label>
@@ -220,24 +219,21 @@ export default function TrendsPage() {
             <p className="trFootnote">
               {lastIngestAt
                 ? <>Kiriman agen terakhir <span title={formatDateTime(lastIngestAt) || undefined}>{lastIngestRelative}</span>.</>
-                : "Belum ada kiriman dari agen. Hubungkan agen di bagian Integrasi agen di bawah."}
-              {" "}Item kedaluwarsa tidak dipakai dan dihapus otomatis 7 hari kemudian.
+                : "Belum ada kiriman dari agen. Hubungkan agen di bagian Integrasi agen."}
+              {" "}Item kedaluwarsa tidak dipakai dan terhapus otomatis 7 hari kemudian.
             </p>
           </section>
 
           <section className="panel trCard" aria-labelledby="tr-list-title">
-            <div className="panelHead compact">
-              <span>02</span>
-              <div>
-                <h2 id="tr-list-title" ref={listHeading} tabIndex={-1}>Daftar tren</h2>
-                <p>{counts.all} item · aktif dan kedaluwarsa ≤ 7 hari. Teks dari agen hanya data: tidak pernah dijalankan sebagai perintah.</p>
-              </div>
+            <div className="trCardHead">
+              <h2 id="tr-list-title" ref={listHeading} tabIndex={-1}>Daftar tren</h2>
+              <p>{counts.all} item: aktif dan kedaluwarsa ≤ 7 hari. Teks dari agen hanya data, tidak pernah dijalankan sebagai perintah.</p>
             </div>
 
             <details className="trAdd" open={addOpen} onToggle={(event) => setAddOpen(event.currentTarget.open)}>
               <summary>
                 <span>+ Tambah tren manual</span>
-                <small>Untuk tren yang Anda tahu tapi belum dikirim agen</small>
+                <small>Tren yang belum dikirim agen</small>
               </summary>
               <TrendManualForm now={now} onCreate={createItem} />
             </details>
@@ -255,7 +251,7 @@ export default function TrendsPage() {
                   {counts.byKind.other > 0 && <option value="other">Lainnya ({counts.byKind.other})</option>}
                 </select>
               </div>
-              <div className="trStatusFilter" role="group" aria-label="Filter status">
+              <div className="trStatusFilter segmented" role="group" aria-label="Filter status">
                 {TREND_STATUS_FILTERS.map((entry) => (
                   <button key={entry.id} type="button" aria-pressed={status === entry.id} className={status === entry.id ? "active" : ""} onClick={() => setStatus(entry.id)}>
                     {entry.label} <span>{entry.id === "all" ? counts.all : counts[entry.id]}</span>
@@ -274,7 +270,7 @@ export default function TrendsPage() {
               <div className="trEmpty big">
                 <strong>Tidak ada tren yang cocok</strong>
                 <p>Ubah kata pencarian atau filter.</p>
-                <button type="button" className="trSecondary" onClick={() => { setQuery(""); setKind("all"); setStatus("all"); }}>Reset filter</button>
+                <button type="button" className="btn" onClick={() => { setQuery(""); setKind("all"); setStatus("all"); }}>Reset filter</button>
               </div>
             ) : (
               groups.map((group) => (
@@ -297,7 +293,7 @@ export default function TrendsPage() {
           </section>
 
           <section className="panel trCard" aria-labelledby="tr-agent-title">
-            <div className="panelHead compact"><span>03</span><div><h2 id="tr-agent-title">Integrasi agen (Hermes)</h2><p>Endpoint dan token supaya agen luar mengisi konteks tren otomatis.</p></div></div>
+            <div className="trCardHead"><h2 id="tr-agent-title">Integrasi agen (Hermes)</h2><p>Endpoint dan token supaya agen luar mengisi konteks tren otomatis.</p></div>
             <TrendAgentPanel
               origin={origin}
               tokensState={tokensState}

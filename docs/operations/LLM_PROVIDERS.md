@@ -137,7 +137,7 @@ dipakai. `.env` hanya menjadi cadangan kalau file pengaturan belum ada.
   `primary-worker` harus melihat secret yang sama (sudah diatur di `compose.yaml`). Nilai
   contoh dari `.env.example` ditolak: isi secret acak sendiri (mis. `openssl rand -hex 32`).
 - Kalau secret berubah, key lama tidak bisa dibuka: halaman Pengaturan menandainya
-  "Key tersimpan tidak bisa dibuka — isi ulang" dan penyedia itu dilewati sampai key diisi
+  "Key tersimpan tidak bisa dibuka. Isi ulang." dan penyedia itu dilewati sampai key diisi
   ulang. Isi `POTONGIN_SETTINGS_SECRET` sendiri kalau ingin bisa merotasi `APP_SESSION_SECRET`
   tanpa mengisi ulang key.
 - Key tersimpan terikat ke server tujuannya (skema + host + port dari base URL, atau URL bawaan

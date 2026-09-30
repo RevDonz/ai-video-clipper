@@ -90,7 +90,7 @@ const FIELD_LABELS = Object.freeze({
 });
 
 export const SECRET_MISSING_MESSAGE = "Kunci enkripsi pengaturan belum tersedia: set APP_SESSION_SECRET (atau POTONGIN_SETTINGS_SECRET) berisi minimal 32 karakter acak di server, bukan contoh dari .env.example.";
-export const KEY_UNREADABLE_MESSAGE = "Key tersimpan tidak bisa dibuka — isi ulang";
+export const KEY_UNREADABLE_MESSAGE = "Key tersimpan tidak bisa dibuka. Isi ulang.";
 
 export class LlmSettingsError extends Error {
   constructor(code, message, { issues = [] } = {}) {
@@ -797,7 +797,7 @@ export function publicSettingsView(settings, { secret = null, source = "ui" } = 
 
 const CORRUPT_STATUS = Object.freeze({
   state: "invalid", source: "ui", freeOnly: false, order: [], providers: [], problems: ["settings_unreadable"],
-  label: "File pengaturan AI rusak atau tidak bisa dibaca — memakai heuristik",
+  label: "File pengaturan AI rusak atau tidak bisa dibaca. Memakai heuristik lokal.",
 });
 
 /**
@@ -822,8 +822,8 @@ export async function readEffectiveLlmStatus(env = process.env, { read = null } 
   }).map((entry) => entry.provider));
   const overlay = buildLlmEnv(settings, {}, { secretEnv: env, includeUnreadable: true });
   const status = readLlmStatus(overlay, { unreadableKeys });
-  if (status.state === "disabled") return { ...status, source: "ui", label: "AI dimatikan di Pengaturan — memakai heuristik" };
-  if (status.state === "unconfigured") return { ...status, source: "ui", label: "Belum ada penyedia AI yang aktif di Pengaturan — memakai heuristik" };
+  if (status.state === "disabled") return { ...status, source: "ui", label: "AI dimatikan di Pengaturan. Memakai heuristik lokal." };
+  if (status.state === "unconfigured") return { ...status, source: "ui", label: "Belum ada penyedia AI yang aktif di Pengaturan. Memakai heuristik lokal." };
   return { ...status, source: "ui" };
 }
 

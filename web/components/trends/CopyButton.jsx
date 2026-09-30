@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
  * (https or localhost); when it is missing or refuses, the button says so and
  * the text stays selectable next to it.
  */
-export default function CopyButton({ text, label, announce, className = "trSecondary" }) {
+export default function CopyButton({ text, label, announce, className = "btn" }) {
   const [state, setState] = useState("");
   const timer = useRef(null);
 
@@ -28,7 +28,7 @@ export default function CopyButton({ text, label, announce, className = "trSecon
   return (
     <>
       <button type="button" className={className} onClick={copy} disabled={!text}>
-        {state === "copied" ? "Tersalin ✓" : state === "failed" ? "Gagal menyalin — pilih teks manual" : label}
+        {state === "copied" ? "Tersalin ✓" : state === "failed" ? "Gagal menyalin. Pilih teks manual." : label}
       </button>
       <span className="visuallyHidden" role="status" aria-live="polite">
         {state === "copied" ? `${announce || label}: tersalin ke clipboard` : state === "failed" ? "Gagal menyalin ke clipboard" : ""}

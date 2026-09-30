@@ -706,14 +706,14 @@ test("LLM status reports order, keys, FREE_ONLY and model names without leaking 
 });
 
 test("LLM status covers off, unconfigured, unusable and invalid configurations", () => {
-  assert.equal(readLlmStatus({}).label, "LLM belum dikonfigurasi — memakai heuristik");
+  assert.equal(readLlmStatus({}).label, "LLM belum dikonfigurasi. Memakai heuristik lokal.");
   assert.equal(readLlmStatus({}).state, "unconfigured");
   assert.equal(readLlmStatus({ ...SECRET_ENV, POTONGIN_LLM: "off" }).state, "disabled");
   assert.deepEqual(readLlmStatus({ ...SECRET_ENV, POTONGIN_LLM: "OFF" }).providers, []);
   const unusable = readLlmStatus({ POTONGIN_LLM_PROVIDER: "gemini" });
   assert.equal(unusable.state, "unusable");
   assert.match(unusable.label, /gemini: API key belum diisi/);
-  assert.equal(readLlmStatus({ POTONGIN_LLM_PROVIDERS: "gemini,groq" }).label, "LLM belum siap — memakai heuristik");
+  assert.equal(readLlmStatus({ POTONGIN_LLM_PROVIDERS: "gemini,groq" }).label, "LLM belum siap. Memakai heuristik lokal.");
   assert.equal(readLlmStatus({ POTONGIN_LLM_PROVIDERS: "gemini", GEMINI_API_KEY: "k", POTONGIN_LLM_FREE_ONLY: "maybe" }).state, "invalid");
   assert.equal(readLlmStatus({ POTONGIN_LLM_PROVIDERS: "gemini!" }).state, "invalid");
   assert.equal(readLlmStatus({ POTONGIN_LLM_PROVIDERS: "custom" }).state, "invalid");

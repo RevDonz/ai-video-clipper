@@ -213,7 +213,7 @@ export function providerStatusLine(statusProvider) {
     not_free: "Dilewati: berbayar (mode hanya-gratis aktif)",
     config_invalid: "Konfigurasi tidak valid",
     unknown_provider: "Nama penyedia tidak dikenal",
-    key_unreadable: "Key tersimpan tidak bisa dibuka — isi ulang",
+    key_unreadable: "Key tersimpan tidak bisa dibuka. Isi ulang.",
   };
   return { tone: statusProvider.reason === "config_invalid" || statusProvider.reason === "key_unreadable" ? "error" : "warning", text: reasons[statusProvider.reason] || "Belum siap" };
 }
