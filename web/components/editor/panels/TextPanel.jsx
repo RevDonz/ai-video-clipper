@@ -1,13 +1,17 @@
 "use client";
 
-// The text panel (plan §11.2 T2.7, §3.3, §5.4): captions on/off, the four packs (thumbnails
-// rendered by FFmpeg from the pack files, pack-thumbs/), position, size, uppercase, and the
-// highlight and keyword swatches; the hook on/off, its text with a counter and the fit badge from
-// the server's layout ("Muat" / "Akan terpotong"), duration and position. Every change is one
-// Appendix B command; sliders and typing merge into one undo step through their merge keys.
-// Props: { state, dispatch, player } (panels/index.mjs).
-import { useEffect, useRef, useState } from "react";
+// The text panel (plan §11.2 T2.7, §3.3, §5.4; T3.4 §7.1): captions on/off, the four packs
+// (thumbnails rendered by FFmpeg from the pack files, pack-thumbs/), position, size, uppercase, and
+// the highlight and keyword swatches; the hook on/off, its text with a counter and the fit badge
+// from the server's layout ("Muat" / "Akan terpotong"), the hook suggestions under the text field,
+// duration and position. Every change is one Appendix B command; sliders and typing merge into
+// one undo step through their merge keys.
+// Props: { state, dispatch, player, api? } (panels/index.mjs). Without an `api` prop the panel
+// uses the fake runtime's client (dev and CI) or its own client for the store's job and clip.
+import { useEffect, useMemo, useRef, useState } from "react";
 
+import { createApiClient } from "../../../lib/editor/api-client.mjs";
+import HookSuggestions from "../suggestions/index.jsx";
 import { runCommands } from "../transcript/actions.mjs";
 import boldThumb from "./pack-thumbs/bold.png";
 import boxThumb from "./pack-thumbs/box.png";
@@ -65,7 +69,20 @@ function Swatches({ legend, name, value, disabled, onChange, note }) {
   );
 }
 
-function TextPanelBody({ state, dispatch }) {
+function useEditorApi(api, jobId, clipId) {
+  return useMemo(() => {
+    if (api) return api;
+    const shared = typeof window === "undefined" ? null : window.__potonginEditor?.api;
+    if (shared) return shared;
+    try {
+      return createApiClient({ jobId, clipId });
+    } catch {
+      return null;
+    }
+  }, [api, jobId, clipId]);
+}
+
+function TextPanelBody({ state, dispatch, api }) {
   const { doc, plan } = state;
   const readOnly = state.status !== "ready";
   const fps = doc.output.fps;
@@ -74,6 +91,7 @@ function TextPanelBody({ state, dispatch }) {
   const hook = hookItemOf(doc);
   const seedHook = state.seed ? hookItemOf(state.seed) : null;
   const [message, setMessage] = useState(null);
+  const editorApi = useEditorApi(api, state.jobId ?? doc.base?.job_id, state.clipId ?? doc.clip_id);
   const [draft, setDraft] = useState(hook?.payload.text ?? seedHook?.payload.text ?? "");
   const draftRef = useRef(draft);
   draftRef.current = draft;
@@ -189,6 +207,7 @@ function TextPanelBody({ state, dispatch }) {
             Font hook tidak punya {missingGlyphs.join(", ")}; karakter ini tidak akan tampil di video.
           </p>
         ) : null}
+        <HookSuggestions state={state} dispatch={dispatch} api={editorApi} />
         <label className={styles.field}>
           <span>Durasi hook</span>
           <span className={styles.value}>{hook ? `${SECONDS.format((hook.dur_f * fps[1]) / fps[0])} dtk` : "—"}</span>
@@ -207,7 +226,7 @@ function TextPanelBody({ state, dispatch }) {
   );
 }
 
-export default function TextPanel({ state, dispatch }) {
+export default function TextPanel({ state, dispatch, api = null }) {
   if (!state?.doc) {
     return (
       <section data-panel="text" className={styles.panel} aria-busy="true">
@@ -215,5 +234,5 @@ export default function TextPanel({ state, dispatch }) {
       </section>
     );
   }
-  return <TextPanelBody state={state} dispatch={dispatch} />;
+  return <TextPanelBody state={state} dispatch={dispatch} api={api} />;
 }
