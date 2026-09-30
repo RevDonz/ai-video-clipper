@@ -1,0 +1,216 @@
+{
+ "schema": "potongin.gate/1",
+ "task": "T3.1",
+ "gate": "QG-SEC on the real server: the upload route authenticates itself without the proxy, a body over 10 MB arrives whole, the §9.2 serving headers, and no secret in any child the server spawned (E11)",
+ "matrix": [
+  {
+   "case": "no session cookie (the route itself, no proxy in front)",
+   "expected": 401,
+   "status": 401,
+   "code": null,
+   "pass": true
+  },
+  {
+   "case": "forged session cookie",
+   "expected": 401,
+   "status": 401,
+   "code": null,
+   "pass": true
+  },
+  {
+   "case": "no Origin",
+   "expected": 403,
+   "status": 403,
+   "code": "csrf_rejected",
+   "pass": true
+  },
+  {
+   "case": "foreign Origin",
+   "expected": 403,
+   "status": 403,
+   "code": "csrf_rejected",
+   "pass": true
+  },
+  {
+   "case": "Sec-Fetch-Site cross-site",
+   "expected": 403,
+   "status": 403,
+   "code": "csrf_rejected",
+   "pass": true
+  },
+  {
+   "case": "malformed job id",
+   "expected": 400,
+   "status": 400,
+   "code": "invalid_request",
+   "pass": true
+  },
+  {
+   "case": "unknown job",
+   "expected": 404,
+   "status": 404,
+   "code": "not_found",
+   "pass": true
+  },
+  {
+   "case": "chunked body without Content-Length",
+   "expected": 411,
+   "status": 411,
+   "code": "length_required",
+   "pass": true
+  },
+  {
+   "case": "no Idempotency-Key",
+   "expected": 400,
+   "status": 400,
+   "code": "invalid_request",
+   "pass": true
+  },
+  {
+   "case": "unknown X-Asset-Kind",
+   "expected": 400,
+   "status": 400,
+   "code": "invalid_request",
+   "pass": true
+  },
+  {
+   "case": "image/svg+xml for a logo",
+   "expected": 415,
+   "status": 415,
+   "code": "asset_type_unsupported",
+   "pass": true
+  },
+  {
+   "case": "SVG bytes declared as PNG",
+   "expected": 415,
+   "status": 415,
+   "code": "asset_type_unsupported",
+   "pass": true
+  },
+  {
+   "case": "a logo one byte over 10 MB",
+   "expected": 413,
+   "status": 413,
+   "code": "asset_too_large",
+   "pass": true
+  },
+  {
+   "case": "a valid PNG logo",
+   "expected": 201,
+   "status": 201,
+   "code": null,
+   "pass": true
+  },
+  {
+   "case": "GET without a session stops at the proxy",
+   "expected": 401,
+   "status": 401,
+   "code": "unauthorized",
+   "pass": true
+  },
+  {
+   "case": "GET serves the normalised logo with the §9.2 headers",
+   "expected": 200,
+   "status": 200,
+   "code": null,
+   "pass": true,
+   "sha256Matches": true,
+   "contentType": true,
+   "nosniff": true,
+   "csp": true,
+   "corp": true,
+   "disposition": true,
+   "ranges": true,
+   "nameIsDisplayOnly": true
+  },
+  {
+   "case": "GET with Range",
+   "expected": 206,
+   "status": 206,
+   "code": null,
+   "pass": true,
+   "length": true,
+   "contentRange": true
+  },
+  {
+   "case": "GET with an unknown part",
+   "expected": 400,
+   "status": 400,
+   "code": "invalid_request",
+   "pass": true
+  },
+  {
+   "case": "a 40.3 MB WAV arrives whole (no 10 MB proxy buffer)",
+   "expected": 201,
+   "status": 201,
+   "code": null,
+   "pass": true,
+   "wholeBody": true,
+   "bytes": 40320044,
+   "durationMs": 420010,
+   "elapsedMs": 6620
+  },
+  {
+   "case": "GET ?part=peaks serves the music waveform",
+   "expected": 200,
+   "status": 200,
+   "code": null,
+   "pass": true,
+   "length": true
+  }
+ ],
+ "pass": true,
+ "environAudit": {
+  "children": 129,
+  "byTool": {
+   "ffmpeg": 37,
+   "ffprobe": 50,
+   "python": 42
+  },
+  "namesOutsideAllowlist": [],
+  "plantedValuesFound": 0,
+  "pass": true,
+  "allowlists": {
+   "python": [
+    "FONTCONFIG_FILE",
+    "HOME",
+    "JOBS_ROOT",
+    "LANG",
+    "MAX_UPLOAD_BYTES",
+    "PATH",
+    "POTONGIN_EDITOR_LLM",
+    "POTONGIN_EDITOR_UPLOADS",
+    "POTONGIN_EDITOR_V3",
+    "POTONGIN_RENDER_ENGINE",
+    "TMPDIR",
+    "TZ"
+   ],
+   "ffmpeg": [
+    "HOME",
+    "LANG",
+    "LC_ALL",
+    "PATH",
+    "TMPDIR"
+   ],
+   "ffprobe": [
+    "HOME",
+    "LANG",
+    "LC_ALL",
+    "PATH",
+    "TMPDIR"
+   ]
+  }
+ },
+ "stack": "ai-video-clipper:editor-w3-t31-r2 (this branch at 6d4dfc5), next start standalone, FFmpeg 5.1.9, uid 1000, --cpus 6 --memory 10g, planted secret values in the server env, recorders on PATH",
+ "toolchain": {
+  "ffmpeg": "ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023 the FFmpeg developers",
+  "python": "3.13.13",
+  "machine": "x86_64",
+  "cpus": 16,
+  "load": [
+   2.3,
+   3.2,
+   3.1
+  ]
+ }
+}
