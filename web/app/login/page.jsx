@@ -1,3 +1,5 @@
+import Brand from "../../components/Brand.jsx";
+
 export const dynamic = "force-dynamic";
 
 export default async function LoginPage({ searchParams }) {
@@ -14,7 +16,7 @@ export default async function LoginPage({ searchParams }) {
   return (
     <main className="loginPage">
       <section className="loginCard">
-        <a className="brand loginBrand" href="/login"><span>P</span> Potongin AI</a>
+        <Brand className="loginBrand" />
         <div className="loginIntro">
           <small>SELF-HOSTED VIDEO WORKER</small>
           <h1>Selamat datang kembali.</h1>

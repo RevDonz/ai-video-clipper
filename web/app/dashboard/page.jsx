@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import AppHeader from "../../components/AppHeader.jsx";
 import {
   createStorageStatusRecovery,
   recoverFailedJobSelection,
@@ -388,10 +389,7 @@ export default function DashboardPage() {
 
   return (
     <main>
-      <nav className="nav shell">
-        <a className="brand" href="/"><span>P</span> Potongin AI</a>
-        <div className="navActions"><div className="navLinks"><a className="active" href="/dashboard">Buat Klip</a><a href="/projects">Riwayat</a><a href="/trends">Konteks Tren</a><a href="/settings">Pengaturan</a></div><div className="navMeta"><i /> Worker lokal siap</div><form method="post" action="/api/auth/logout"><button type="submit">Keluar</button></form></div>
-      </nav>
+      <AppHeader current="/dashboard" />
 
       <section className="hero shell" id="top">
         <div className="eyebrow">AI VIDEO REPURPOSING · BAHASA INDONESIA</div>
