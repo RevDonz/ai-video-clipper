@@ -25,14 +25,25 @@ Subcommands:
 ``score --captures DIR --job-dir DIR --out FILE``
     P-LOGO for the captures of ``web/e2e/editor-logo.spec.mjs`` (real stack): per case and frame
     the browser canvas (``browser.png``), the truth frames with and without the logo
-    (``truth.png``, ``truth-nologo.png``) and the document (``doc.json``). The server composite
-    of the same plate-cell frame is made with the compiler's strings
-    (``player_fixtures.composite_job``: gbrp, ``ass``, the derived logo, RGB before the 4:2:0
-    step), with and without the logo, as W2 measured P-LOGO. Box: where the browser drew the logo
-    must be exactly the plan's box; inside it mean ≤ 2 and max ≤ 8 levels. Truth frame: the box
-    where the truth frames with and without the logo differ must be exactly the plan's box; the
-    browser-vs-truth levels inside it are reported (the 4:2:0 step and the intra encode are in
-    them, bounded by P-ENC).
+    (``truth.png``, ``truth-nologo.png``) and the document (``doc.json``); ``_bare/<n>`` holds the
+    browser's frames without a logo.
+    - The gate as written, measured as W2 did: the server composite of the same plate-cell frame
+      with the compiler's strings (``player_fixtures.composite_job``: gbrp, ``ass``, the derived
+      logo, RGB before the 4:2:0 step), with and without the logo. Where the browser drew the logo
+      must be exactly the plan's box; inside it mean ≤ 2 and max ≤ 8 levels. The levels are also
+      split by the derived logo's alpha, because a transparent part of a logo shows the plate and
+      the captions under it (P-PLATE and P-TXT bound those).
+    - The blend alone (plan §5.5): the compiler's overlay of the lane's derived PNG onto the
+      browser's own logo-less frame, against the browser's frame with the logo.
+    - The truth frame: the browser's logo matched against the delivered pixels at every shift
+      within 3 px; the best match must be at (0, 0). (A > 16-level difference box between two
+      encoded frames is reported too, but 4:2:0 and the encoder's noise make it no geometric test.)
+
+``export --captures DIR --job-dir DIR [--cases …] --out FILE``
+    Real exports (``render_edit.render_document``) of captured documents: the export's verify
+    report must carry the logo's ``unsafe_zone`` exactly when its box touches the zone (G5), G1
+    and G2 must pass, and the logo in the decoded MP4 must sit at the plan's box (alignment as
+    above).
 
 Everything media-related runs in the toolchain image::
 
@@ -383,7 +394,68 @@ def _rgb(path: Path) -> Any:
     return compare.read_png(path).rgb()
 
 
-def score_case(case_dir: Path, job_dir: Path, clip_id: str, work: Path) -> list[dict[str, Any]]:
+def levels_by_alpha(test: Any, reference: Any, box: Mapping[str, int], derived: Any) -> dict[str, Any]:
+    """The box's levels split by the derived logo's alpha: ``clear`` (0: only what is under the
+    logo shows), ``full`` (the logo's own maximum, opacity baked in) and ``partial``."""
+    top = max(derived.row(y)[x * 4 + 3] for y in range(derived.height) for x in range(derived.width))
+    out = {name: {"max": 0, "total": 0, "count": 0} for name in ("clear", "partial", "full")}
+    c = test.channels
+    for y in range(box["y"], box["y"] + box["h"]):
+        row_a, row_b, row_d = test.row(y), reference.row(y), derived.row(y - box["y"])
+        for x in range(box["x"], box["x"] + box["w"]):
+            alpha = row_d[(x - box["x"]) * 4 + 3]
+            name = "clear" if alpha == 0 else "full" if alpha * 100 >= top * 98 else "partial"
+            bucket = out[name]
+            i = x * c
+            for k in range(3):
+                delta = abs(row_a[i + k] - row_b[i + k])
+                bucket["max"] = max(bucket["max"], delta)
+                bucket["total"] += delta
+                bucket["count"] += 1
+    return {name: {"px": value["count"] // 3, "max": value["max"],
+                   "mean_abs": value["total"] / value["count"] if value["count"] else 0.0}
+            for name, value in out.items()}
+
+
+def overlay_on(background: Path, derived: Path, box: Mapping[str, int], target: Path) -> Path:
+    """The compiler's logo overlay (both inputs in gbrp/gbrap, ``overlay … format=gbrp``) of the
+    lane's derived PNG onto ``background``: the blend alone, whatever is under the logo."""
+    graph = (f"[0:v]format=gbrp[bg];[1:v]format=gbrap[lg];"
+             f"[bg][lg]overlay=x={box['x']}:y={box['y']}:format=gbrp,format=rgb24[v]")
+    subprocess.run(["ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", "-y", "-threads", "4",
+                    "-f", "png_pipe", "-i", str(background), "-f", "png_pipe", "-i", str(derived),
+                    "-filter_complex", graph, "-map", "[v]", "-frames:v", "1", "-fflags", "+bitexact",
+                    "-f", "image2", "-c:v", "png", str(target)], check=True, timeout=60)
+    return target
+
+
+def alignment(test: Any, truth: Any, box: Mapping[str, int], *, reach: int = 3, pad: int = 4) -> dict[str, Any]:
+    """Where the browser's logo best matches the truth frame's: the sum of absolute differences
+    over the box (padded) for every shift within ``reach`` pixels; (0, 0) means the delivered logo
+    sits exactly where the browser draws it, whatever the encoder noise."""
+    x0, y0 = max(reach, box["x"] - pad), max(reach, box["y"] - pad)
+    x1 = min(test.width - reach, box["x"] + box["w"] + pad)
+    y1 = min(test.height - reach, box["y"] + box["h"] + pad)
+    c = test.channels
+    scores = {}
+    for dy in range(-reach, reach + 1):
+        for dx in range(-reach, reach + 1):
+            total = 0
+            for y in range(y0, y1):
+                row_a, row_b = test.row(y), truth.row(y + dy)
+                for x in range(x0, x1):
+                    i, j = x * c, (x + dx) * c
+                    total += abs(row_a[i] - row_b[j]) + abs(row_a[i + 1] - row_b[j + 1]) + abs(row_a[i + 2] - row_b[j + 2])
+            scores[(dx, dy)] = total
+    best = min(scores, key=scores.get)
+    runner_up = min(value for key, value in scores.items() if key != (0, 0))
+    return {"best": list(best), "aligned": best == (0, 0), "sad_zero": scores[(0, 0)],
+            "sad_best_other": runner_up, "margin": round(runner_up / max(1, scores[(0, 0)]), 3)}
+
+
+def score_case(case_dir: Path, job_dir: Path, clip_id: str, work: Path,
+               bare_dir: Path | None) -> list[dict[str, Any]]:
+    import compare
     import player_fixtures as pf
 
     from ai_clipper.edit_v2 import plates, preview_cli
@@ -396,10 +468,18 @@ def score_case(case_dir: Path, job_dir: Path, clip_id: str, work: Path) -> list[
     if plan.logo is None:
         raise RuntimeError(f"{case_dir.name}: the document has no logo")
     resources = preview_cli._resources()
-    key = plates.plate_key(plan.doc, camera_sha256=camera_sha, toolchain_sha256=preview_cli._toolchain())
+    toolchain = preview_cli._toolchain()
+    key = plates.plate_key(plan.doc, camera_sha256=camera_sha, toolchain_sha256=toolchain)
     size = tm.cell_frames(plan.fps)
-    asset_path = job_dir / "analysis" / "assets" / f"{plan.logo.asset.split(':', 1)[1]}.png"
-    box = {"x": plan.logo.x, "y": plan.logo.y, "w": plan.logo.w, "h": plan.logo.h}
+    logo = plan.logo
+    asset_path = job_dir / "analysis" / "assets" / f"{logo.asset.split(':', 1)[1]}.png"
+    derived_path = clip / "preview" / "derived" / preview_cli.derived_name(
+        logo.asset, logo.w, logo.h, logo.opacity_pm, toolchain)
+    derived = compare.read_png(derived_path)
+    if (derived.width, derived.height, derived.channels) != (logo.w, logo.h, 4):
+        raise RuntimeError(f"{case_dir.name}: the derived logo is not the box ({derived_path.name})")
+    box = {"x": logo.x, "y": logo.y, "w": logo.w, "h": logo.h}
+    plan_box = [box["x"], box["y"], box["x"] + box["w"], box["y"] + box["h"]]
     results = []
     for frame_dir in sorted(path for path in case_dir.iterdir() if path.is_dir()):
         n = int(frame_dir.name)
@@ -412,69 +492,165 @@ def score_case(case_dir: Path, job_dir: Path, clip_id: str, work: Path) -> list[
         out.mkdir(parents=True, exist_ok=True)
         with_logo, without = out / "composite.png", out / "nologo.png"
         pf._execute(pf.composite_job(plan, cell=cell, j=j, n=n, resources=resources,
-                                     logo=(plan.logo.asset, asset_path)), with_logo)
+                                     logo=(logo.asset, asset_path)), with_logo)
         pf._execute(pf.composite_job(plan, cell=cell, j=j, n=n, resources=resources), without)
         browser = _rgb(frame_dir / "browser.png")
         reference, nologo = _rgb(with_logo), _rgb(without)
         drawn = detect_box(browser, nologo, box)
         levels = box_levels(browser, reference, box)
-        plan_box = [box["x"], box["y"], box["x"] + box["w"], box["y"] + box["h"]]
         record: dict[str, Any] = {"case": case_dir.name, "frame": n, "plan_box": plan_box,
-                                  "browser_box": drawn, "box_exact": drawn == plan_box, **levels}
+                                  "browser_box": drawn, "box_exact": drawn == plan_box, **levels,
+                                  "by_alpha": levels_by_alpha(browser, reference, box, derived),
+                                  "under_logo_server": levels_by_alpha(nologo, reference, box, derived)["clear"]}
         record["pass"] = (record["box_exact"] and levels["mean_abs"] <= P_LOGO["mean_abs"]
                           and levels["max"] <= P_LOGO["max"])
+        bare_png = bare_dir / str(n) / "browser.png" if bare_dir else None
+        if bare_png is not None and bare_png.is_file():
+            blended = _rgb(overlay_on(bare_png, derived_path, box, out / "blend.png"))
+            blend = box_levels(browser, blended, box)
+            under = box_levels(_rgb(bare_png), nologo, box)
+            record["blend_only"] = {**blend, "pass": blend["mean_abs"] <= P_LOGO["mean_abs"]
+                                    and blend["max"] <= P_LOGO["max"],
+                                    "browser_vs_server_without_logo": under}
         truth_path, truth_bare = frame_dir / "truth.png", frame_dir / "truth-nologo.png"
         if truth_path.is_file() and truth_bare.is_file():
             truth, bare = _rgb(truth_path), _rgb(truth_bare)
-            truth_box = detect_box(truth, bare, box)
-            truth_levels = box_levels(browser, truth, box)
-            record["truth"] = {"box": truth_box, "box_exact": truth_box == plan_box,
-                               "browser_vs_truth": truth_levels,
+            record["truth"] = {"alignment": alignment(browser, truth, box),
+                               "difference_box": detect_box(truth, bare, box),
+                               "logo_in_truth": box_levels(truth, bare, box),
+                               "browser_vs_truth": box_levels(browser, truth, box),
                                "server_vs_truth": box_levels(reference, truth, box)}
         results.append(record)
     return results
 
 
+def _worst(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    return {"mean_abs": max((r["mean_abs"] for r in records), default=0.0),
+            "max": max((r["max"] for r in records), default=0)}
+
+
 def cmd_score(args: argparse.Namespace) -> int:
     captures = Path(args.captures)
     manifest = json.loads((captures / "manifest.json").read_text(encoding="utf-8"))
+    bare_dir = captures / "_bare" if (captures / "_bare").is_dir() else None
     frames: list[dict[str, Any]] = []
     with tempfile.TemporaryDirectory(prefix="logo-gates-") as scratch:
         for case in manifest["cases"]:
             frames.extend(score_case(captures / case["id"], Path(args.job_dir), manifest["clipId"],
-                                     Path(scratch)))
-    failures = [frame for frame in frames if not frame["pass"]]
+                                     Path(scratch), bare_dir))
+    failures = [{key: frame[key] for key in ("case", "frame", "box_exact", "mean_abs", "max", "by_alpha",
+                                              "under_logo_server")} for frame in frames if not frame["pass"]]
+    by_alpha = {name: _worst([frame["by_alpha"][name] for frame in frames if frame["by_alpha"][name]["px"]])
+                for name in ("full", "partial", "clear")}
+    blends = [frame["blend_only"] for frame in frames if "blend_only" in frame]
     truth = [frame["truth"] for frame in frames if "truth" in frame]
-    truth_failures = [frame for frame in frames if "truth" in frame and not frame["truth"]["box_exact"]]
-    worst = {"mean_abs": max((f["mean_abs"] for f in frames), default=0.0),
-             "max": max((f["max"] for f in frames), default=0)}
-    truth_worst = {"mean_abs": max((t["browser_vs_truth"]["mean_abs"] for t in truth), default=0.0),
-                   "max": max((t["browser_vs_truth"]["max"] for t in truth), default=0),
-                   "server_mean_abs": max((t["server_vs_truth"]["mean_abs"] for t in truth), default=0.0),
-                   "server_max": max((t["server_vs_truth"]["max"] for t in truth), default=0)}
+    misaligned = [{"case": f["case"], "frame": f["frame"], **f["truth"]["alignment"]}
+                  for f in frames if "truth" in f and not f["truth"]["alignment"]["aligned"]]
+    diff_boxes_exact = sum(1 for f in frames if "truth" in f and f["truth"]["difference_box"] == f["plan_box"])
     result = {
         "gate": "P-LOGO", "task": "T3.2", "thresholds": P_LOGO,
-        "method": ("browser canvas (real player, real lane, pinned Chrome) vs the server composite of "
-                   "the same plate-cell frame with the compiler's strings before the 4:2:0 step; "
-                   "box from the browser against the server's logo-less composite (> 16 levels)"),
+        "method": ("browser canvas (real player, real preview lane, pinned Chrome) vs the server composite of "
+                   "the same plate-cell frame with the compiler's strings before the 4:2:0 step, as W2 measured "
+                   "it (player_fixtures.score_logo); the box is where the browser differs from the server's "
+                   "logo-less composite by > 16 levels"),
         "job": manifest.get("job"), "clip": manifest["clipId"], "browser": manifest.get("browser"),
-        "output": manifest.get("output"), "cases": len(manifest["cases"]), "frames": len(frames),
-        "worst": worst, "failures": failures, "pass": bool(frames) and not failures,
+        "output": manifest.get("output"), "cases": [case["id"] for case in manifest["cases"]],
+        "frames": len(frames), "box_exact": sum(1 for f in frames if f["box_exact"]),
+        "worst": _worst(frames), "failures": failures, "pass": bool(frames) and not failures,
+        "by_logo_alpha": {
+            "note": ("levels split by the derived logo's alpha: 'clear' pixels show only what is under the "
+                     "logo (plate and caption raster, bounded by P-PLATE/P-TXT), 'full' only the logo"),
+            **by_alpha},
+        "blend_only": {
+            "method": ("the compiler's overlay (gbrp/gbrap, overlay format=gbrp) of the lane's derived PNG onto "
+                       "the browser's own logo-less frame, vs the browser's frame with the logo: the blend "
+                       "arithmetic alone (plan §5.5)"),
+            "frames": len(blends), "worst": _worst(blends),
+            "pass": bool(blends) and all(blend["pass"] for blend in blends)},
         "truth_frame": {
-            "method": ("POST preview/frame (the final graph with the 4:2:0 step and the intra encode) "
-                       "with and without the logo; box where they differ by > 16 levels"),
-            "frames": len(truth), "box_exact": len(truth) - len(truth_failures),
-            "box_failures": [{"case": f["case"], "frame": f["frame"], **f["truth"]} for f in truth_failures],
-            "worst": truth_worst, "box_pass": bool(truth) and not truth_failures,
-            "levels_within_p_logo": truth_worst["max"] <= P_LOGO["max"]
-            and truth_worst["mean_abs"] <= P_LOGO["mean_abs"],
+            "method": ("POST preview/frame (the final graph with the 4:2:0 step and an intra H.264 encode), "
+                       "with and without the logo; the browser's logo is matched against the truth frame at "
+                       "every shift within 3 px (sum of absolute differences over the box padded by 4 px)"),
+            "frames": len(truth), "aligned": len(truth) - len(misaligned), "misaligned": misaligned,
+            "box_pass": bool(truth) and not misaligned,
+            "min_margin": min((t["alignment"]["margin"] for t in truth), default=None),
+            "difference_box_exact": diff_boxes_exact,
+            "difference_box_note": ("the > 16-level difference box of two encoded frames is not a geometric "
+                                    "measure: 4:2:0 moves the logo's edge colour into the next pixel and the "
+                                    "encoder's noise differs between the two frames"),
+            "browser_vs_truth": _worst([t["browser_vs_truth"] for t in truth]),
+            "server_composite_vs_truth": _worst([t["server_vs_truth"] for t in truth]),
         },
         "frames_detail": frames, "toolchain": _toolchain(),
     }
     _dump(args.out, result)
-    print(json.dumps({"frames": len(frames), "worst": worst, "pass": result["pass"],
-                      "truth": result["truth_frame"]["box_pass"], "truth_worst": truth_worst}))
-    return 0 if result["pass"] and result["truth_frame"]["box_pass"] else 1
+    print(json.dumps({"frames": len(frames), "box_exact": result["box_exact"], "worst": result["worst"],
+                      "pass": result["pass"], "by_alpha": by_alpha, "blend_only": result["blend_only"]["worst"],
+                      "blend_pass": result["blend_only"]["pass"], "truth_aligned": result["truth_frame"]["aligned"],
+                      "truth_min_margin": result["truth_frame"]["min_margin"]}))
+    return 0 if result["pass"] and result["blend_only"]["pass"] and result["truth_frame"]["box_pass"] else 1
+
+
+# --- exports: G5 in the verify step and the logo in the delivered file ------------------------------
+
+
+def decode_frame(mp4: Path, n: int, target: Path) -> Path:
+    """Output frame ``n`` of an export as an RGB PNG (BT.709, limited range, as tagged)."""
+    select = f"select=eq(n\\,{n}),scale=in_color_matrix=bt709:in_range=tv:out_range=pc,format=rgb24"
+    subprocess.run(["ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", "-y", "-threads", "4",
+                    "-i", str(mp4), "-vf", select, "-frames:v", "1", "-f", "image2", "-c:v", "png", str(target)],
+                   check=True, timeout=120)
+    return target
+
+
+def cmd_export(args: argparse.Namespace) -> int:
+    from ai_clipper.edit_v2 import preview_cli
+    from ai_clipper.edit_v2.render_edit import render_document
+
+    captures = Path(args.captures)
+    manifest = json.loads((captures / "manifest.json").read_text(encoding="utf-8"))
+    job_dir = Path(args.job_dir)
+    clip = job_dir / "analysis" / "clips" / manifest["clipId"]
+    records = []
+    with tempfile.TemporaryDirectory(prefix="logo-export-") as scratch:
+        for case_id in args.cases.split(","):
+            case_dir = captures / case_id
+            doc = json.loads((case_dir / "doc.json").read_text(encoding="utf-8"))
+            plan, _camera = preview_cli._build(clip, preview_cli._validated(clip, json.dumps(doc).encode()))
+            box = {"x": plan.logo.x, "y": plan.logo.y, "w": plan.logo.w, "h": plan.logo.h}
+            output = Path(scratch) / f"{case_id}.mp4"
+            started = time.monotonic()
+            result = render_document(doc, job_dir, output, size=(doc["output"]["w"], doc["output"]["h"]),
+                                     quality="standar")
+            verify = result.verify or {}
+            gates = {gate["name"]: {"ok": gate["ok"], "blocking": gate["blocking"], "problems": gate["problems"]}
+                     for gate in verify.get("gates", [])}
+            logo_ids = {track["items"][0]["id"] for track in doc["tracks"] if track["kind"] == "visual"}
+            logo_warning = any(issue.get("code") == "unsafe_zone" and issue.get("ref") in logo_ids
+                               for issue in verify.get("warnings", []))
+            frames = []
+            for frame_dir in sorted(path for path in case_dir.iterdir() if path.is_dir()):
+                n = int(frame_dir.name)
+                delivered = _rgb(decode_frame(output, n, Path(scratch) / f"{case_id}-{n}.png"))
+                browser = _rgb(frame_dir / "browser.png")
+                frames.append({"frame": n, "alignment": alignment(browser, delivered, box),
+                               "browser_vs_export": box_levels(browser, delivered, box)})
+            records.append({
+                "case": case_id, "plan_box": [box["x"], box["y"], box["w"], box["h"]],
+                "expected_logo_warning": independent_unsafe((box["x"], box["y"], box["w"], box["h"]),
+                                                            (doc["output"]["w"], doc["output"]["h"])),
+                "logo_warning_in_export": logo_warning, "render_ok": bool(verify.get("ok")), "gates": gates,
+                "warnings": list(result.warnings), "render_s": round(time.monotonic() - started, 1),
+                "frames": frames})
+    agree = all(record["expected_logo_warning"] == record["logo_warning_in_export"] for record in records)
+    aligned = all(frame["alignment"]["aligned"] for record in records for frame in record["frames"])
+    value = {"gate": "G5 (export) and the logo in the delivered MP4", "task": "T3.2", "job": manifest.get("job"),
+             "clip": manifest["clipId"], "exports": records, "g5_logo_agrees": agree, "logo_aligned": aligned,
+             "pass": agree and aligned and all(record["render_ok"] for record in records),
+             "toolchain": _toolchain()}
+    _dump(args.out, value)
+    print(json.dumps({"exports": len(records), "g5_logo_agrees": agree, "logo_aligned": aligned, "pass": value["pass"]}))
+    return 0 if value["pass"] else 1
 
 
 # --- main ------------------------------------------------------------------------------------------
@@ -508,6 +684,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     score.add_argument("--job-dir", required=True)
     score.add_argument("--out")
     score.set_defaults(func=cmd_score)
+    export = sub.add_parser("export")
+    export.add_argument("--captures", required=True)
+    export.add_argument("--job-dir", required=True)
+    export.add_argument("--cases", default="square-default,square-safe-opaque")
+    export.add_argument("--out")
+    export.set_defaults(func=cmd_export)
     args = parser.parse_args(argv)
     os.umask(0o022)
     return args.func(args)
