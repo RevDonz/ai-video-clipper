@@ -1,4 +1,4 @@
-// Editor V3 uploads and the job asset store (plan §9.2, §4.2 "POST /assets", "GET /assets/:sha";
+// Logo and music uploads and the job asset store (plan §9.2, §4.2 "POST /assets", "GET /assets/:sha";
 // T3.1): web/lib/asset-upload.mjs (the two routes), web/lib/editor/upload-client.mjs (the browser
 // helper of Appendix A.2 `uploadAsset`) and the route files. Unit cases use a recording CLI
 // runner; the integration cases run the real `python -m ai_clipper.edit_v2.assets` through
@@ -203,7 +203,7 @@ function deps(root, extra = {}) {
   };
 }
 
-// --- shared rules (the same vectors as tests/test_edit_v2_assets.py) --------------------------------
+// Shared rules (the same vectors as tests/test_edit_v2_assets.py).
 
 test("the transport rules of plan §9.2", () => {
   assert.deepEqual(ASSET_KINDS.logo.types, ["image/png", "image/jpeg", "image/webp"]);
@@ -316,7 +316,7 @@ test("the DTO carries the peaks URL for music only", () => {
   assert.deepEqual(assetDto(JOB_ID, music), { ...music, peaksUrl: `/api/jobs/${JOB_ID}/assets/${SHA}?part=peaks` });
 });
 
-// --- POST: gates, transport, quarantine, mapping -------------------------------------------------------
+// POST: gates, transport, quarantine, mapping.
 
 test("route modules export their handlers and run on node", () => {
   assert.equal(typeof uploadRouteModule.POST, "function");
@@ -685,7 +685,7 @@ test("symlinked job, analysis, store or quarantine directories are refused", asy
   assert.deepEqual(await readdir(elsewhere), []);
 });
 
-// --- GET /assets/:sha ------------------------------------------------------------------------------------
+// GET /assets/:sha.
 
 async function storeAsset(root, { kind = "image", bytes = pngBytes(), name = "logo.png" } = {}) {
   const dir = path.join(root, JOB_ID, "analysis", "assets");
@@ -772,7 +772,7 @@ test("GET refuses bad ids, unknown parts, symlinks and anything outside the stor
   assert.equal(await status(get(linked), { id: JOB_ID, sha: linked }), 404);
 });
 
-// --- the browser client ---------------------------------------------------------------------------------
+// The browser client.
 
 class FakeXhr {
   constructor(script) {
@@ -947,7 +947,7 @@ test("the real client and the fake agree on the Appendix A.2 surface", async () 
   assert.throws(() => assetUrl(JOB_ID, "../x"), TypeError);
 });
 
-// --- integration: the real ingest CLI ---------------------------------------------------------------------
+// Integration: the real ingest CLI.
 
 const REAL = have("ffmpeg") && have("ffprobe") && have("prlimit");
 

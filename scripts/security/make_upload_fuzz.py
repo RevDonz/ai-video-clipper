@@ -63,7 +63,7 @@ class Case:
     note: str = ""
 
 
-# --- media helpers -------------------------------------------------------------------------------
+# Media helpers.
 
 
 def _ffmpeg(ffmpeg: str, *args: str) -> None:
@@ -295,7 +295,7 @@ def _zip() -> bytes:
     return buffer.getvalue()
 
 
-# --- the corpus --------------------------------------------------------------------------------------
+# The corpus.
 
 
 def _bases(ffmpeg: str, work: Path) -> dict[str, bytes | None]:
@@ -449,7 +449,7 @@ def load_index(corpus_dir: Path) -> dict:
     return json.loads((Path(corpus_dir) / "index.json").read_text())
 
 
-# --- verdicts ----------------------------------------------------------------------------------------
+# Verdicts.
 
 
 def verdict(case: dict, *, status: int, elapsed_ms: int, code: str | None,
@@ -508,7 +508,7 @@ def summarise(results: list[dict], **extra) -> dict:
     }
 
 
-# --- Python level: the Node transport rules, then edit_v2.assets ------------------------------------
+# Python level: the Node transport rules, then edit_v2.assets.
 
 _EXIT_STATUS = {0: 201, 4: 404, 9: 409}
 _CODE_STATUS = {"asset_type_unsupported": 415, "asset_too_large": 413, "asset_rejected": 422,
@@ -587,7 +587,7 @@ def _transport(assets, case: dict, data: bytes) -> tuple[int, str] | None:
     return None
 
 
-# --- HTTP level ----------------------------------------------------------------------------------------
+# HTTP level.
 
 
 def _login(base: str, username: str, password: str) -> str:
@@ -683,7 +683,7 @@ def run_http(corpus_dir: Path, *, base: str, job_id: str, username: str,
     return results
 
 
-# --- CLI -------------------------------------------------------------------------------------------
+# CLI.
 
 
 def _toolchain() -> dict:
