@@ -1,0 +1,29 @@
+{
+  "gate": "QG-A11Y (Logo panel and gizmo)",
+  "pass": true,
+  "run": {
+    "axe": "axe-core 4.13.0 via AXE_CORE_PATH (not a dependency)",
+    "browser": "Chrome for Testing 147.0.7727.15 (Playwright 1.62.1, build 1217)",
+    "page": "the harness page (gizmos/__dev__/logo-harness-entry.jsx)"
+  },
+  "serious": [],
+  "states": [
+    {
+      "state": "empty",
+      "violations": []
+    },
+    {
+      "state": "uploading",
+      "violations": []
+    },
+    {
+      "state": "error",
+      "violations": []
+    },
+    {
+      "state": "logo focused, in the zone",
+      "violations": []
+    }
+  ],
+  "task": "T3.2"
+}
