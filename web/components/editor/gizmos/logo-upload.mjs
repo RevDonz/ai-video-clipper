@@ -1,6 +1,6 @@
 // The Logo panel's side of uploads (plan §9.2, Appendix A.2 `uploadAsset`, T3.1's
-// web/lib/editor/upload-client.mjs): which client uploads, the panel's messages for its errors,
-// and the URL of a stored asset.
+// web/lib/editor/upload-client.mjs): which client uploads, the running upload (it outlives the
+// panel), the panel's messages for upload errors, and the URL of a stored asset.
 //
 // The client is the panel's `uploadAsset` prop when the shell passes one; otherwise the one
 // registered here (`provideLogoUploader`), which the specs use for the fake. Neither: the panel
@@ -53,6 +53,72 @@ export function logoUploadError(error) {
   if (Object.hasOwn(LOGO_MESSAGES, code)) return { code, cancelled: false, message: LOGO_MESSAGES[code] };
   return { code, cancelled: false, message: own ?? GENERIC };
 }
+
+/**
+ * The page's logo upload, outside the panel: switching tabs unmounts the panel, and an upload must
+ * not stop because of that. One upload at a time; a new one replaces (aborts) the running one.
+ * State: `{ progress: { owner, name, fraction, phase } | null, message: { owner, tone, text } | null,
+ * names: { [assetId]: file name } }`; `owner` names the clip the upload belongs to.
+ */
+export function createLogoUploads() {
+  let state = Object.freeze({ progress: null, message: null, names: Object.freeze({}) });
+  let running = null;
+  const listeners = new Set();
+  const set = (patch) => {
+    state = Object.freeze({ ...state, ...patch });
+    for (const listener of [...listeners]) listener();
+  };
+  return {
+    getState: () => state,
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    clearMessage() {
+      if (state.message) set({ message: null });
+    },
+    setMessage(owner, tone, text) {
+      set({ message: { owner, tone, text } });
+    },
+    cancel() {
+      running?.abort();
+    },
+    /** Uploads `file`; `onUploaded(dto)` applies it and returns a message string if that failed. */
+    async start({ owner, upload, jobId, file, onUploaded }) {
+      running?.abort();
+      const controller = new AbortController();
+      running = controller;
+      set({ message: null, progress: { owner, name: file.name, fraction: 0, phase: "upload" } });
+      const mine = () => running === controller;
+      try {
+        const dto = await upload(jobId, file, "logo", {
+          signal: controller.signal,
+          onProgress: (fraction, info) => {
+            if (!mine()) return;
+            const value = Math.max(0, Math.min(1, Number(fraction) || 0));
+            set({ progress: { owner, name: file.name, fraction: value, phase: info?.phase === "processing" ? "processing" : "upload" } });
+          },
+        });
+        if (!mine()) return;
+        running = null;
+        const answer = onUploaded(dto);
+        const refused = typeof answer === "string" && answer ? answer : null;
+        set({
+          progress: null,
+          message: refused ? { owner, tone: "error", text: refused } : null,
+          names: refused ? state.names : Object.freeze({ ...state.names, [`sha256:${dto.sha256}`]: dto.name ?? file.name }),
+        });
+      } catch (error) {
+        if (!mine()) return;
+        running = null;
+        const mapped = logoUploadError(error);
+        set({ progress: null, message: { owner, tone: mapped.cancelled ? "info" : "error", text: mapped.message } });
+      }
+    },
+  };
+}
+
+export const logoUploads = createLogoUploads();
 
 const JOB_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SHA = /^(?:sha256:)?([0-9a-f]{64})$/;
