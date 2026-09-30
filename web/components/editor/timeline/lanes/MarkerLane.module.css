@@ -1,0 +1,156 @@
+/* The marker lane (T3.7). Colours are the editor tokens only (editor.module.css). A marker's
+   `left` is its exact frame × zoom; point markers centre on it, a silence starts on it and spans
+   its length. Laughter takes the warm hue, silence the muted text, a camera cut the text colour,
+   so the three read apart at a glance without a legend. */
+
+.lane {
+  --mk-laughter: var(--ed-color-warning);
+  --mk-silence: var(--ed-color-text-muted);
+  --mk-cut: var(--ed-color-text);
+  --mk-size: 20px;
+}
+
+.note {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  display: inline-block;
+  max-width: 100%;
+  margin: 0;
+  padding: 0 8px;
+  overflow: hidden;
+  color: var(--ed-color-text-muted);
+  background: var(--ed-color-surface);
+  font-size: var(--ed-font-size-xs);
+  line-height: var(--ed-lane-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.marker {
+  position: absolute;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: var(--mk-size);
+  min-width: var(--mk-size);
+  height: var(--mk-size);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ed-radius-sm);
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+  transform: translate(-50%, -50%);
+}
+
+.marker.silence {
+  display: flex;
+  justify-content: flex-start;
+  min-width: 14px;
+  transform: translateY(-50%);
+  background: color-mix(in srgb, var(--mk-silence) 16%, transparent);
+  color: var(--mk-silence);
+}
+
+.laughter {
+  color: var(--mk-laughter);
+}
+
+.camera_cut {
+  color: var(--mk-cut);
+}
+
+.icon {
+  width: 14px;
+  height: 14px;
+  transition: transform var(--ed-duration-fast) ease-out;
+}
+
+.marker.silence .icon {
+  margin-left: 1px;
+}
+
+.cutLine {
+  display: block;
+  width: 2px;
+  height: 16px;
+  border-radius: 1px;
+  background: currentColor;
+  box-shadow: 0 -3px 0 1px currentColor;
+  transition: transform var(--ed-duration-fast) ease-out;
+}
+
+.marker:hover .icon,
+.marker:focus-visible .icon,
+.marker:hover .cutLine,
+.marker:focus-visible .cutLine {
+  transform: scale(1.18);
+}
+
+.tip {
+  position: absolute;
+  top: 50%;
+  z-index: 3;
+  display: inline-flex;
+  gap: 6px;
+  align-items: baseline;
+  margin-left: 14px;
+  padding: 2px 8px;
+  border-radius: var(--ed-radius-sm);
+  background: var(--ed-color-text);
+  color: var(--ed-color-surface);
+  font-size: var(--ed-font-size-xs);
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateY(-50%);
+  animation: tip-in var(--ed-duration-fast) ease-out;
+}
+
+.tipFlip {
+  margin-left: 0;
+  transform: translate(calc(-100% - 14px), -50%);
+}
+
+.tipTime {
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+
+@keyframes tip-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .icon,
+  .cutLine {
+    transition: none;
+  }
+
+  .marker:hover .icon,
+  .marker:focus-visible .icon,
+  .marker:hover .cutLine,
+  .marker:focus-visible .cutLine {
+    transform: none;
+  }
+
+  .tip {
+    animation: none;
+  }
+}

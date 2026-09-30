@@ -22,7 +22,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { HARNESS_HTML, bundleHarness } from "../components/editor/transcript/__dev__/bundle.mjs";
-import { stripAnalysis } from "../components/editor/timeline/lanes/markers.mjs";
+import { caseWords } from "../components/editor/timeline/lanes/__dev__/marker-cases.mjs";
 
 const ORIGIN = "http://editor-markers.test";
 const WEB = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -104,13 +104,18 @@ function environment(browser) {
 
 /**
  * Open the harness on `{words, doc}`. `suggestions` answers the cold-open route: an object
- * `{status, body, delayMs}` or a function(request count) → such an object. `peaks`: a Buffer, or
- * `{status}` for a failure.
+ * `{status, body, delayMs}` or a function(request count) → such an object. `peaks`: a Buffer,
+ * `{status}` for a failure, or a function(request count) → either.
  */
 async function openHarness(page, { words, doc, readOnly = false, suggestions = null, peaks = undefined } = {}) {
   const requests = [];
   let suggestionCalls = 0;
-  const peakBytes = peaks === undefined ? peaksFor(words) : peaks;
+  let peakCalls = 0;
+  const peakAnswer = () => {
+    peakCalls += 1;
+    if (peaks === undefined) return peaksFor(words);
+    return typeof peaks === "function" ? peaks(peakCalls) : peaks;
+  };
   await page.route(`${ORIGIN}/**`, async (route) => {
     const url = new URL(route.request().url());
     requests.push(url.pathname);
@@ -124,8 +129,9 @@ async function openHarness(page, { words, doc, readOnly = false, suggestions = n
       return route.fulfill({ status: answer.status, contentType: "application/json", body: JSON.stringify(answer.body) });
     }
     if (url.pathname.includes("/media/peaks/")) {
-      if (Buffer.isBuffer(peakBytes)) return route.fulfill({ status: 200, contentType: "application/octet-stream", body: peakBytes });
-      return route.fulfill({ status: peakBytes.status, contentType: "application/json", body: "{}" });
+      const answer = peakAnswer();
+      if (Buffer.isBuffer(answer)) return route.fulfill({ status: 200, contentType: "application/octet-stream", body: answer });
+      return route.fulfill({ status: answer.status, contentType: "application/json", body: "{}" });
     }
     return route.fulfill({ status: 404, body: "" });
   });
@@ -157,7 +163,7 @@ async function pxPerFrame(page) {
 }
 
 function caseData(kase) {
-  return { words: stripAnalysis(contextWords(kase.context), kase.strip), doc: kase.doc };
+  return { words: caseWords(contextWords(kase.context), kase), doc: kase.doc };
 }
 
 // --- markers ----------------------------------------------------------------------------------
@@ -273,17 +279,9 @@ test.describe("audio lane", () => {
   test("a failed peaks load says so and retries", async ({ page }) => {
     const kase = vectors.cases.find((item) => item.name === "c24/seed");
     const data = caseData(kase);
-    let fail = true;
-    await page.route(`${ORIGIN}/api/**/media/peaks/**`, (route) => (fail
-      ? route.fulfill({ status: 500, body: "{}" })
-      : route.fulfill({ status: 200, contentType: "application/octet-stream", body: peaksFor(data.words) })));
-    await openHarness(page, { ...data, peaks: { status: 500 } });
+    await openHarness(page, { ...data, peaks: (count) => (count === 1 ? { status: 500 } : peaksFor(data.words)) });
     await expect(audioLane(page)).toHaveAttribute("data-waveform-state", "error");
     await expect(audioLane(page)).toContainText("Waveform tidak bisa dimuat");
-    fail = false;
-    await page.unroute(`${ORIGIN}/**`);
-    await page.route(`${ORIGIN}/**`, (route) => route.fulfill({ status: 200, contentType: "application/octet-stream",
-      body: peaksFor(data.words) }));
     await audioLane(page).getByRole("button", { name: "Muat ulang waveform" }).click();
     await expect(audioLane(page)).toHaveAttribute("data-waveform-state", "ready");
   });
