@@ -279,7 +279,9 @@ test("normalize shows the reached loudness once the mix is ready, and 'Mengukur�
   const ready = musicView(stateOf(doc));
   assert.equal(ready.loudness.on, true);
   assert.equal(ready.loudness.measuring, false);
-  assert.equal(ready.loudness.achievedText, "Tercapai −14,0 LUFS");
+  // Without loudness_clamped the master reached the target within 1 LU (the clamp warns only above
+  // that, loudness.CLAMP_WARNING_CDB); the plan does not carry the exact value, so none is claimed.
+  assert.equal(ready.loudness.achievedText, "Sesuai target −14,0 LUFS (±1 LU)");
   const plan = { ...fakePlan(doc), audio: { ...fakePlan(doc).audio, state: "queued" } };
   const pending = musicView(stateOf(doc, { plan, pending: ["audio"] }));
   assert.equal(pending.loudness.measuring, true);

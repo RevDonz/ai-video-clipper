@@ -5,7 +5,8 @@
 // clip's own volume; normalize with the loudness it reached; the peak_reduced and music-shorter
 // notes; the one-time copyright notice. Every change is one Appendix B command (sliders merge into
 // one undo step through their merge keys); the rules live in music-model.mjs.
-// Props: { state, dispatch, player } (panels/index.mjs); `uploadAsset` replaces the upload in tests.
+// Props: { state, dispatch, player } (panels/index.mjs); optional `uploadAsset` (replaces the
+// upload) and `uploadsEnabled` (POTONGIN_EDITOR_UPLOADS as a boolean, for the W3 integrator).
 import { useEffect, useId, useRef, useState } from "react";
 
 import {
@@ -102,7 +103,7 @@ function presetDb(cdb) {
   return `${MINUS}${cdb / 100} dB`;
 }
 
-function MusicPanelBody({ state, dispatch, uploadAsset }) {
+function MusicPanelBody({ state, dispatch, uploadAsset, uploadsEnabled }) {
   const view = musicView(state);
   const uid = useId();
   const fileRef = useRef(null);
@@ -112,14 +113,18 @@ function MusicPanelBody({ state, dispatch, uploadAsset }) {
   const [names, setNames] = useState(() => storedNames());
   const controllerRef = useRef(null);
   const replaceRef = useRef(false);
+  // An upload outlives this panel (switching tabs does not cancel it); it applies to the
+  // document as it is when the file arrives.
+  const stateRef = useRef(state);
+  stateRef.current = state;
   const fps = state.doc.output.fps;
   const readOnly = view.readOnly;
   const busy = upload !== null && upload.phase !== "notice";
+  const canUpload = !readOnly && !busy && uploadsEnabled;
 
   useEffect(() => {
     if (upload?.phase === "notice") noticeButtonRef.current?.focus();
   }, [upload?.phase]);
-  useEffect(() => () => controllerRef.current?.abort(), []);
 
   const run = (commands) => {
     for (const { type, args, mergeKey } of commands) {
@@ -164,12 +169,12 @@ function MusicPanelBody({ state, dispatch, uploadAsset }) {
     setUpload({ phase: "uploading", replace, name: picked.name, progress: 0 });
     try {
       const send = uploadAsset ?? (await resolveUploadAsset());
-      const dto = await send(state.doc.base.job_id, file, "music", {
+      const dto = await send(stateRef.current.doc.base.job_id, file, "music", {
         signal: controller.signal,
         onProgress: (value) => setUpload((current) => (current && current.phase !== "notice"
           ? { ...current, progress: value, phase: value >= 1 ? "processing" : "uploading" } : current)),
       });
-      const current = replace ? musicCommands.replace(state.doc, dto) : musicCommands.add(dto);
+      const current = replace ? musicCommands.replace(stateRef.current.doc, dto) : musicCommands.add(dto);
       if (run(current)) {
         const assetId = `sha256:${String(dto.sha256).replace(/^sha256:/, "")}`;
         rememberName(assetId, picked.name);
@@ -190,10 +195,10 @@ function MusicPanelBody({ state, dispatch, uploadAsset }) {
 
   return (
     <section data-panel="music" className={`${base.panel} ${styles.panel}`} aria-busy={busy}>
-      <input ref={fileRef} type="file" accept={MUSIC_ACCEPT} hidden disabled={readOnly || busy} onChange={onFile} data-music-file="" />
+      <input ref={fileRef} type="file" accept={MUSIC_ACCEPT} hidden disabled={!canUpload} onChange={onFile} data-music-file="" />
 
       <div className={base.section}>
-        <h3 className={base.title}>Musik latar</h3>
+        <h2 className={base.title}>Musik latar</h2>
         {view.hasMusic ? (
           <div className={styles.card} data-music-card="">
             <p className={styles.name} data-music-name="">{names[view.assetId] ?? "Musik terunggah"}</p>
@@ -202,7 +207,7 @@ function MusicPanelBody({ state, dispatch, uploadAsset }) {
               {view.lufsText ? <span>{` · kenyaringan lagu ${view.lufsText}`}</span> : null}
             </p>
             <div className={base.row}>
-              <button type="button" className={base.button} disabled={readOnly || busy} onClick={() => start(true)}>Ganti musik</button>
+              <button type="button" className={base.button} disabled={!canUpload} onClick={() => start(true)}>Ganti musik</button>
               <button type="button" className={base.button} disabled={readOnly || busy} onClick={() => run(musicCommands.remove())}>Hapus musik</button>
             </div>
           </div>
@@ -211,11 +216,12 @@ function MusicPanelBody({ state, dispatch, uploadAsset }) {
             <p className={base.note}>
               Belum ada musik. Tambahkan lagu dari komputer: MP3, M4A, WAV, OGG atau FLAC, paling besar 50 MB dan 15 menit.
             </p>
-            <button type="button" className={`${base.button} ${base.primary}`} disabled={readOnly || busy} onClick={() => start(false)}>
+            <button type="button" className={`${base.button} ${base.primary}`} disabled={!canUpload} onClick={() => start(false)}>
               Tambah musik
             </button>
           </>
         )}
+        {uploadsEnabled ? null : <p className={styles.hint}>Unggah file belum diaktifkan di server ini.</p>}
 
         {upload?.phase === "notice" ? (
           <div className={styles.notice} role="group" aria-labelledby={`${uid}-notice`}>
@@ -287,7 +293,7 @@ function MusicPanelBody({ state, dispatch, uploadAsset }) {
       {view.hasMusic ? (
         <div className={base.section}>
           <div className={base.sectionHead}>
-            <h3 className={base.title}>Kecilkan saat bicara</h3>
+            <h2 className={base.title}>Kecilkan saat bicara</h2>
           </div>
           <Switch label="Kecilkan musik saat ada suara" checked={view.duck.on} disabled={readOnly}
             onChange={(on) => run(musicCommands.duckOn(on))} />
@@ -324,7 +330,7 @@ function MusicPanelBody({ state, dispatch, uploadAsset }) {
       ) : null}
 
       <div className={base.section}>
-        <h3 className={base.title}>Suara klip</h3>
+        <h2 className={base.title}>Suara klip</h2>
         <Slider label="Volume suara asli" value={view.sourceGainCdb} {...RANGES.source_gain_cdb} valueText={view.sourceGainText}
           disabled={readOnly} onChange={(value) => run(musicCommands.sourceGain(value))} />
         <Switch label={`Samakan kenyaringan ke ${view.loudness.targetText}`} checked={view.loudness.on} disabled={readOnly}
@@ -340,7 +346,7 @@ function MusicPanelBody({ state, dispatch, uploadAsset }) {
   );
 }
 
-export default function MusicPanel({ state, dispatch, uploadAsset = null }) {
+export default function MusicPanel({ state, dispatch, uploadAsset = null, uploadsEnabled = true }) {
   if (!state?.doc) {
     return (
       <section data-panel="music" className={base.panel} aria-busy="true">
@@ -348,5 +354,5 @@ export default function MusicPanel({ state, dispatch, uploadAsset = null }) {
       </section>
     );
   }
-  return <MusicPanelBody state={state} dispatch={dispatch} uploadAsset={uploadAsset} />;
+  return <MusicPanelBody state={state} dispatch={dispatch} uploadAsset={uploadAsset} uploadsEnabled={uploadsEnabled !== false} />;
 }
