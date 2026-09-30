@@ -1,0 +1,175 @@
+"""Tests for the T3.3 music gate tool (``scripts/parity/audio_gates.py``; plan §10.2 duck, G3,
+G3b, G-CLICK; §10.1 P-AUD).
+
+The measurements are checked on synthetic signals whose answer is known: a music stem shaped by
+the real ``envelope.music_envelope`` must pass the duck gate and a wrong depth must fail it; a
+hard cut must show up at its join; the music asset lands in the job asset store in the pinned
+document form (docs/editor/CONTRACTS.md §5.9); the silent twin keeps the video stream and
+silences the audio; the documents are the ones the Musik panel builds and the validator accepts.
+"""
+
+from __future__ import annotations
+
+import array
+import json
+import math
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts" / "parity"))
+
+import audio_gates
+from support.edit_v2_fixtures import DOC_FIXTURES_DIR, etag
+
+from ai_clipper.edit_v2 import envelope
+from ai_clipper.edit_v2 import timemap as tm
+from ai_clipper.edit_v2.doc import validate_doc
+
+RATE = 48_000
+FPS = tm.Fps(30, 1)
+
+
+def _stereo(values: list[float]) -> array.array:
+    out = array.array("h")
+    for value in values:
+        sample = max(-32768, min(32767, round(value * 32767)))
+        out.extend((sample, sample))
+    return out
+
+
+def _item(duck_on: bool, depth_cdb: int = 1000) -> dict:
+    return {"payload": {"asset": "sha256:" + "0" * 64, "src_in_smp": 0, "loop": True, "gain_cdb": 0,
+                        "fade_in_f": 0, "fade_out_f": 0,
+                        "duck": {"on": duck_on, "depth_cdb": depth_cdb, "attack_ms": 30,
+                                 "release_ms": 400, "hold_ms": 250, "detector": "words"}}}
+
+
+def _stems(spans, total, depth_cdb=1000):
+    tone = [0.25 * math.sin(2 * math.pi * 110 * n / RATE) for n in range(total)]
+    ducked_env = array.array("f")
+    ducked_env.frombytes(envelope.expand_f32(
+        envelope.music_envelope(spans, _item(True, depth_cdb), total, FPS), total))
+    flat_env = array.array("f")
+    flat_env.frombytes(envelope.expand_f32(
+        envelope.music_envelope(spans, _item(False), total, FPS), total))
+    return (_stereo([t * g for t, g in zip(tone, ducked_env)]),
+            _stereo([t * g for t, g in zip(tone, flat_env)]))
+
+
+SPANS = ((48_000, 72_000), (82_000, 96_000), (200_000, 260_000))  # the first two merge (gap < hold)
+TOTAL = 360_000
+DUCK = {"on": True, "depth_cdb": 1000, "attack_ms": 30, "release_ms": 400, "hold_ms": 250}
+
+
+def test_the_duck_measurement_passes_an_exact_envelope() -> None:
+    ducked, unducked = _stems(SPANS, TOTAL)
+    report = audio_gates.duck_rows(ducked, unducked, SPANS, DUCK, TOTAL)
+    assert report["failures"] == 0
+    assert [row["span"] for row in report["spans"]] == [[48_000, 96_000], [200_000, 260_000]]
+    assert all(row["max_deviation_db"] < 0.05 for row in report["spans"])
+    assert report["recovery_checks"] == 2
+    assert all(abs(row["recovery_db"]) < 0.05 for row in report["spans"])
+    assert report["windows"] > 100
+
+
+def test_the_duck_measurement_fails_a_wrong_depth() -> None:
+    ducked, unducked = _stems(SPANS, TOTAL, depth_cdb=1100)
+    report = audio_gates.duck_rows(ducked, unducked, SPANS, DUCK, TOTAL)
+    assert report["failures"] == 2
+    assert all(0.9 < row["max_deviation_db"] < 1.1 for row in report["spans"])
+
+
+def test_join_steps_find_a_hard_cut_and_pass_a_faded_join() -> None:
+    smooth = _stereo([0.3 * math.sin(2 * math.pi * 55 * n / RATE) for n in range(9600)])
+    steps = audio_gates.join_steps_dbfs(smooth, [4800])
+    assert steps[0] < -40
+    jumped = array.array("h", smooth)
+    for n in range(4800, 9600):
+        jumped[2 * n] = jumped[2 * n + 1] = 12000
+    assert audio_gates.join_steps_dbfs(jumped, [4800])[0] > -40
+
+
+def test_the_g3_and_g3b_rules() -> None:
+    assert audio_gates.g3_pass(export_i=-14.4, export_tp=-2.0, target=-14.0, clamped=None)
+    assert not audio_gates.g3_pass(export_i=-15.2, export_tp=-2.0, target=-14.0, clamped=None)
+    assert not audio_gates.g3_pass(export_i=-14.0, export_tp=-0.9, target=-14.0, clamped=None)
+    assert audio_gates.g3_pass(export_i=-16.6, export_tp=-1.2, target=-14.0, clamped=-16.3)
+    assert not audio_gates.g3_pass(export_i=-17.0, export_tp=-1.2, target=-14.0, clamped=-16.3)
+    assert audio_gates.g3b_pass(-1.0) and not audio_gates.g3b_pass(-0.99)
+
+
+@pytest.fixture(scope="module")
+def tone_asset(tmp_path_factory) -> tuple[Path, str, dict]:
+    job = tmp_path_factory.mktemp("job")
+    path = audio_gates.make_music(job / "tone.m4a", "tone", seconds=3)
+    asset, meta = audio_gates.store_asset(job, path)
+    return job, asset, meta
+
+
+def test_music_is_stored_in_the_document_form_of_the_asset_store(tone_asset) -> None:
+    job, asset, meta = tone_asset
+    hexdigest = asset.removeprefix("sha256:")
+    stored = job / "analysis" / "assets"
+    assert (stored / f"{hexdigest}.m4a").is_file()
+    assert json.loads((stored / f"{hexdigest}.json").read_text()) == meta
+    assert set(meta) == {"kind", "mime", "duration_ms", "lufs_c"}
+    assert (meta["kind"], meta["mime"]) == ("audio", "audio/mp4")
+    assert abs(meta["duration_ms"] - 3000) <= 50
+    assert isinstance(meta["lufs_c"], int) and -4000 < meta["lufs_c"] < -900
+    probe = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries",
+                            "stream=codec_name,sample_rate,channels", "-of", "csv=p=0",
+                            str(stored / f"{hexdigest}.m4a")], capture_output=True, text=True,
+                           check=True).stdout.strip()
+    assert probe == "aac,48000,2"
+
+
+def test_the_loud_track_is_loud(tmp_path) -> None:
+    path = audio_gates.make_music(tmp_path / "loud.m4a", "loud", seconds=3)
+    measured = audio_gates.measure_file(path)
+    assert measured.i_clufs > -1000, "louder than −10 LUFS"
+    assert measured.tp_cdb > -100, "true peak above −1 dBTP before any protection"
+
+
+def test_the_silent_twin_keeps_the_video_and_silences_the_audio(tmp_path) -> None:
+    source = tmp_path / "source.mp4"
+    subprocess.run(["ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i",
+                    "testsrc2=s=160x90:r=25:d=2", "-f", "lavfi", "-i", "sine=f=440:d=2",
+                    "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", "-threads", "2",
+                    "-shortest", str(source)], check=True)
+    twin = audio_gates.silent_twin(source, tmp_path / "twin.mp4")
+
+    def video_md5(path: Path) -> str:
+        return subprocess.run(["ffmpeg", "-nostdin", "-loglevel", "error", "-i", str(path), "-map",
+                               "0:v:0", "-c", "copy", "-f", "md5", "-"], capture_output=True,
+                              text=True, check=True).stdout.strip()
+
+    assert video_md5(twin) == video_md5(source)
+    samples = audio_gates.pcm_of(twin)
+    assert len(samples) >= 2 * 48_000 * 19 // 10
+    assert max(abs(v) for v in samples) == 0
+
+
+def test_music_documents_are_the_panels_and_validate(tone_asset) -> None:
+    contexts = DOC_FIXTURES_DIR / "contexts"
+    seed = json.loads((contexts / "c30.seed.json").read_bytes())
+    words = json.loads((contexts / "c30.words.json").read_bytes())
+    _job, asset, meta = tone_asset
+    doc = audio_gates.music_doc(seed, etag(seed), asset, meta, preset="kuat")
+    assert doc["revision"] == 1 and doc["parent_sha256"] == etag(seed)
+    payload = doc["tracks"][-1]["items"][0]["payload"]
+    assert payload["gain_cdb"] == max(-4800, min(600, -2600 - meta["lufs_c"]))
+    assert (payload["loop"], payload["fade_in_f"], payload["fade_out_f"]) == (True, 15, 30)
+    assert payload["duck"] == {"on": True, "depth_cdb": 1600, "attack_ms": 30, "release_ms": 400,
+                               "hold_ms": 250, "detector": "words"}
+    assert doc["assets"][asset] == meta
+    result = validate_doc(doc, words=words, assets={asset: meta}, seed=seed)
+    assert result.errors == ()
+    loud = audio_gates.music_doc(seed, etag(seed), asset, meta, gain_cdb=600, duck_on=False,
+                                 master="normalize", source_gain_cdb=1200)
+    assert loud["audio"] == {"source": {"gain_cdb": 1200},
+                             "master": {"mode": "normalize", "target_clufs": -1400, "tp_cdb": -100}}
+    assert validate_doc(loud, words=words, assets={asset: meta}, seed=seed).errors == ()
