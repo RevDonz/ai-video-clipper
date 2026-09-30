@@ -10,7 +10,7 @@
 // (plan §5.5) and follow when the plan returns, while the badge says "Memperbarui logo…". No
 // pixel is guessed here: the gizmo draws only its outline, handles and guides.
 // Props: { plan, state, dispatch, player, output, readOnly } (gizmos/index.mjs).
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useId, useRef, useState } from "react";
 
 import styles from "./gizmos.module.css";
 import {
@@ -82,7 +82,7 @@ export default function LogoGizmo({ state, dispatch, output: outputProp, readOnl
     const point = toOutput(event);
     dragRef.current = {
       kind: handle ? "resize" : "move", handle, pointerId: event.pointerId, start: point, startBox: found.box,
-      clientX: event.clientX, clientY: event.clientY, moved: Boolean(handle), snapX: null, snapY: null,
+      clientX: event.clientX, clientY: event.clientY, moved: Boolean(handle),
     };
     if (handle) setDrag({ kind: "resize", snapX: null, snapY: null });
   }, [locked, logo, current, toOutput]);
@@ -152,8 +152,6 @@ export default function LogoGizmo({ state, dispatch, output: outputProp, readOnl
       // Refused by the store: nothing moves.
     }
   }, [locked, current, output, run]);
-
-  useEffect(() => () => { dragRef.current = null; }, []);
 
   if (!logo || !box) return null;
   const hits = zoneHits(box, output);
