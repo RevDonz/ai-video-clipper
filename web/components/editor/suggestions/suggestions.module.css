@@ -1,0 +1,261 @@
+/* Hook suggestion cards (plan §7.1 "UI"). Editor tokens only (editor.module.css on the editor
+   root), so the cards follow the editor's theme. Ghost cards (dashed edge) read as offers until
+   one is used; the used card takes the accent, the only place the accent fills a surface. */
+
+.section {
+  display: grid;
+  gap: var(--ed-space-2);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ed-space-2);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--ed-font-size-sm);
+  font-weight: 700;
+  color: var(--ed-color-text);
+}
+
+.list {
+  display: grid;
+  gap: var(--ed-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  display: grid;
+  gap: var(--ed-space-1);
+  padding: var(--ed-space-2) var(--ed-space-3);
+  border: 1px dashed var(--ed-color-border);
+  border-radius: var(--ed-radius-md);
+  background: transparent;
+  transition: border-color var(--ed-duration-fast) ease-out, background-color var(--ed-duration-fast) ease-out;
+  animation: arrive var(--ed-duration-slow) ease-out both;
+}
+
+.card:hover {
+  border-style: solid;
+  border-color: var(--ed-color-text-muted);
+}
+
+.card[data-current="true"] {
+  border-style: solid;
+  border-color: var(--ed-color-accent);
+  background: var(--ed-color-accent-soft);
+}
+
+.text {
+  margin: 0;
+  font-size: var(--ed-font-size-md);
+  font-weight: 600;
+  line-height: var(--ed-line-height);
+  color: var(--ed-color-text);
+  overflow-wrap: anywhere;
+}
+
+.basis {
+  margin: 0;
+  font-size: var(--ed-font-size-xs);
+  line-height: var(--ed-line-height);
+  color: var(--ed-color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.basisLabel {
+  font-weight: 600;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ed-space-1) var(--ed-space-2);
+  font-size: var(--ed-font-size-xs);
+  color: var(--ed-color-text-muted);
+}
+
+.source {
+  font-weight: 700;
+  color: var(--ed-color-text-muted);
+}
+
+.card[data-source="llm"] .source {
+  color: var(--ed-color-accent-strong);
+}
+
+.style::before {
+  content: "· ";
+}
+
+.fit {
+  font-weight: 600;
+}
+
+.fit[data-fit="fits"] {
+  color: var(--ed-color-success);
+}
+
+.fit[data-fit="overflow"] {
+  color: var(--ed-color-warning-text);
+}
+
+.use {
+  margin-left: auto;
+  min-height: 28px;
+  padding: 3px var(--ed-space-3);
+  font: inherit;
+  font-size: var(--ed-font-size-sm);
+  font-weight: 600;
+  border: 1px solid var(--ed-color-border);
+  border-radius: var(--ed-radius-sm);
+  background: var(--ed-color-surface);
+  color: var(--ed-color-text);
+  cursor: pointer;
+  transition: border-color var(--ed-duration-fast) ease-out, color var(--ed-duration-fast) ease-out;
+}
+
+.use:hover:not(:disabled) {
+  border-color: var(--ed-color-accent);
+  color: var(--ed-color-accent-strong);
+}
+
+.use:focus-visible,
+.link:focus-visible {
+  outline: none;
+  box-shadow: var(--ed-focus-ring);
+}
+
+.use:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.card[data-current="true"] .use:disabled {
+  opacity: 1;
+  color: var(--ed-color-success);
+  background: transparent;
+  border-color: transparent;
+}
+
+.link {
+  padding: 0;
+  font: inherit;
+  font-size: var(--ed-font-size-sm);
+  font-weight: 600;
+  border: 0;
+  border-radius: var(--ed-radius-sm);
+  background: none;
+  color: var(--ed-color-accent-strong);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.muted,
+.privacy {
+  margin: 0;
+  font-size: var(--ed-font-size-xs);
+  line-height: var(--ed-line-height);
+  color: var(--ed-color-text-muted);
+}
+
+.problem {
+  margin: 0;
+  padding: 6px var(--ed-space-2);
+  font-size: var(--ed-font-size-sm);
+  border-radius: var(--ed-radius-sm);
+  background: var(--ed-color-danger-soft);
+  color: var(--ed-color-danger);
+}
+
+.notice {
+  margin: 0;
+  padding: 6px var(--ed-space-2);
+  font-size: var(--ed-font-size-xs);
+  line-height: var(--ed-line-height);
+  border-radius: var(--ed-radius-sm);
+  background: var(--ed-color-surface-2);
+  color: var(--ed-color-text);
+}
+
+.ai {
+  display: grid;
+  gap: var(--ed-space-2);
+  padding-top: var(--ed-space-2);
+  border-top: 1px solid var(--ed-color-border);
+}
+
+.loading,
+.pending {
+  display: grid;
+  gap: var(--ed-space-2);
+}
+
+.placeholder {
+  height: 44px;
+  border: 1px dashed var(--ed-color-border);
+  border-radius: var(--ed-radius-md);
+  background: var(--ed-color-surface-2);
+}
+
+/* The bar fills over the task's 20 s deadline: a real duration, not a loop. */
+.track {
+  height: 3px;
+  overflow: hidden;
+  border-radius: var(--ed-radius-sm);
+  background: var(--ed-color-surface-2);
+}
+
+.fill {
+  height: 100%;
+  background: var(--ed-color-accent);
+  transform-origin: left center;
+  animation: fill var(--task-seconds, 20s) linear both;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@keyframes arrive {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@keyframes fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .use {
+    animation: none;
+    transition: none;
+  }
+
+  .track {
+    display: none;
+  }
+}
