@@ -3,7 +3,7 @@
 
 .settingsPage{padding-bottom:130px}
 .settingsHero{padding:46px 0 28px}
-.settingsHero h1{font:800 clamp(32px,4.4vw,52px)/1.05 'Manrope';letter-spacing:-.045em;margin:14px 0 12px}
+.settingsHero h1{font:800 clamp(32px,4.4vw,52px)/1.05 var(--font);letter-spacing:-.045em;margin:14px 0 12px}
 .settingsHero p{max-width:680px;margin:0;color:var(--muted);font-size:16px;line-height:1.6}
 .settingsLayout{display:grid;gap:18px}
 .settingsTop{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:18px;align-items:start}
@@ -13,20 +13,20 @@
 .settingsSource{margin:10px 0 0;font-size:12px;line-height:1.5;color:var(--muted)}
 
 .settingsAlert{display:grid;gap:3px;margin:12px 0 0;padding:11px 13px;border:1px solid var(--line);border-radius:11px;font-size:12px;line-height:1.5}
-.settingsAlert strong{font:700 12px 'Manrope'}
+.settingsAlert strong{font:700 12px var(--font)}
 .settingsAlert.error{background:#fff0ed;border-color:#e8a69f;color:#8c2d25}
 .settingsAlert.warning{background:#fff9df;border-color:#e3cd7a;color:#5d4f12}
 .settingsAlert.muted{background:#f3f1ea;color:#5e5d58}
 
 .importBanner{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:14px;padding:14px 16px;border:1px solid #aeb7f7;border-radius:13px;background:#f7f8ff}
 .importBanner>div{display:grid;gap:4px}
-.importBanner strong{font:700 13px 'Manrope'}
+.importBanner strong{font:700 13px var(--font)}
 .importBanner span{font-size:12px;line-height:1.5;color:#4a4945}
 
-.primaryAction{flex:none;min-height:44px;border:0;border-radius:10px;background:var(--ink);color:#fff;padding:10px 14px;font:700 12px 'Manrope';cursor:pointer;transition:background .15s}
+.primaryAction{flex:none;min-height:44px;border:0;border-radius:10px;background:var(--ink);color:#fff;padding:10px 14px;font:700 12px var(--font);cursor:pointer;transition:background .15s}
 .primaryAction:hover:not(:disabled){background:var(--blue)}
 .primaryAction:disabled{opacity:.5;cursor:not-allowed}
-.secondaryAction,.inlineRow button,.keyState button{min-height:44px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);padding:8px 13px;font:700 12px 'DM Sans';cursor:pointer;white-space:nowrap}
+.secondaryAction,.inlineRow button,.keyState button{min-height:44px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);padding:8px 13px;font:700 12px var(--font);cursor:pointer;white-space:nowrap}
 .secondaryAction:hover:not(:disabled),.inlineRow button:hover:not(:disabled),.keyState button:hover{border-color:#aaa79d}
 .secondaryAction:disabled,.inlineRow button:disabled{opacity:.45;cursor:not-allowed}
 .keyState button{min-height:34px;padding:6px 11px;font-size:11px}
@@ -36,10 +36,10 @@
 .providerCard.off{background:#f8f7f2}
 .providerCard.off .providerIdentity h3{color:var(--muted)}
 .providerHead{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:12px;align-items:center}
-.providerRank{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:var(--ink);color:var(--lime);font:800 13px 'Manrope'}
+.providerRank{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:var(--ink);color:var(--lime);font:800 13px var(--font)}
 .providerCard.off .providerRank{background:#dcd9cf;color:#5e5d58}
 .providerIdentity{min-width:0}
-.providerIdentity h3{margin:0;font:700 15px 'Manrope';letter-spacing:-.01em}
+.providerIdentity h3{margin:0;font:700 15px var(--font);letter-spacing:-.01em}
 .providerIdentity small{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:5px;color:var(--muted);font-size:11px;overflow-wrap:anywhere}
 .providerIdentity code{padding:1px 6px;border-radius:5px;background:#f1efe8;color:#4a4945;font:600 11px ui-monospace,SFMono-Regular,Menlo,monospace}
 .chip{border-radius:99px;padding:3px 8px;background:#eeece5;color:#55534d;font-size:10px;font-weight:700}
@@ -47,7 +47,7 @@
 .chip.warning{background:#fff4cf;color:#6d5a10}
 .chip.error{background:#fff0ed;color:#a22f27}
 .providerTools{display:flex;align-items:center;gap:6px}
-.iconButton{min-width:36px;min-height:36px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--ink);padding:0 9px;font:700 13px 'DM Sans';cursor:pointer}
+.iconButton{min-width:36px;min-height:36px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--ink);padding:0 9px;font:700 13px var(--font);cursor:pointer}
 .iconButton:hover:not(:disabled){border-color:#aaa79d}
 .iconButton:disabled{opacity:.35;cursor:not-allowed}
 .iconButton.danger{color:#a22f27;font-size:11px}
@@ -64,7 +64,7 @@
 .settingsField{display:grid;gap:6px;align-content:start;min-width:0}
 .settingsField.wide{grid-column:1/-1}
 .settingsField>label,.settingsField>span{color:#4a4945;font-size:12px;font-weight:700}
-.settingsField input,.settingsField select{width:100%;min-height:44px;border:1px solid var(--line);border-radius:10px;background:#fff;padding:10px 12px;color:var(--ink);font:500 13px 'DM Sans';outline:none}
+.settingsField input,.settingsField select{width:100%;min-height:44px;border:1px solid var(--line);border-radius:10px;background:#fff;padding:10px 12px;color:var(--ink);font:500 13px var(--font);outline:none}
 .settingsField input::placeholder{color:#9a988f}
 .settingsField input:focus,.settingsField select:focus{border-color:var(--blue);box-shadow:0 0 0 3px #3f5efb14}
 .settingsField input[aria-invalid=true]{border-color:var(--red);box-shadow:0 0 0 3px #e44e3f14}
@@ -81,7 +81,7 @@
 .keyState.error{border-color:#e8a69f;background:#fff0ed;color:#8c2d25}
 
 .providerAdvanced{margin-top:14px;padding-top:8px;border-top:1px dashed var(--line)}
-.providerAdvanced summary{padding:8px 0;color:#4a4945;font:700 12px 'Manrope';cursor:pointer}
+.providerAdvanced summary{padding:8px 0;color:#4a4945;font:700 12px var(--font);cursor:pointer}
 .advancedGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:8px 0 4px}
 .providerFooter{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:14px}
 .testResult{flex:1;min-width:200px;margin:0;font-size:12px;line-height:1.45;overflow-wrap:anywhere}
@@ -91,18 +91,18 @@
 .providerEmpty{margin-top:16px;padding:18px;border:1px dashed #b9b6ab;border-radius:13px;background:#f8f7f2;color:var(--muted);font-size:13px;line-height:1.5;text-align:center}
 
 .addProvider{margin-top:16px;border:1px solid var(--line);border-radius:14px;background:#f8f7f2}
-.addProvider summary{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;font:700 13px 'Manrope';cursor:pointer}
-.addProvider summary small{color:var(--muted);font:600 11px 'DM Sans'}
+.addProvider summary{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;font:700 13px var(--font);cursor:pointer}
+.addProvider summary small{color:var(--muted);font:600 11px var(--font)}
 .presetGrid{list-style:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0;padding:0 14px 14px}
 .presetCard{display:flex;flex-direction:column;gap:8px;padding:13px;border:1px solid var(--line);border-radius:12px;background:#fff}
 .presetHead{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
-.presetHead strong{margin-right:4px;font:700 13px 'Manrope'}
+.presetHead strong{margin-right:4px;font:700 13px var(--font)}
 .presetCard p{margin:0;color:var(--muted);font-size:12px;line-height:1.5}
 .presetCard p.presetWarning{padding:8px 10px;border:1px solid #e3cd7a;border-radius:9px;background:#fff9df;color:#5d4f12;font-size:11px}
 .addProviderNote{margin:0;padding:0 16px 14px;color:var(--muted);font-size:12px;line-height:1.5}
 .presetGrid+.presetGrid{padding-top:0}
 .presetActions{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto;font-size:12px}
-.presetActions button{min-height:36px;border:0;border-radius:9px;background:var(--ink);color:#fff;padding:7px 12px;font:700 11px 'Manrope';cursor:pointer}
+.presetActions button{min-height:36px;border:0;border-radius:9px;background:var(--ink);color:#fff;padding:7px 12px;font:700 11px var(--font);cursor:pointer}
 .presetActions button:hover{background:var(--blue)}
 
 .settingsSaveBar>div:first-child>div{display:grid;gap:2px}

@@ -1,5 +1,5 @@
 export const metadata = {
-  title: "Pengaturan AI — Potongin",
+  title: "Pengaturan AI",
   description: "Atur penyedia LLM, API key, URL, dan model tanpa mengedit .env server.",
 };
 

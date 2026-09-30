@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import AppHeader from "../../components/AppHeader.jsx";
 import TrendAgentPanel from "../../components/trends/TrendAgentPanel.jsx";
 import TrendItemCard from "../../components/trends/TrendItemCard.jsx";
 import TrendManualForm from "../../components/trends/TrendManualForm.jsx";
@@ -162,13 +163,7 @@ export default function TrendsPage() {
 
   return (
     <main className="trendsPage">
-      <nav className="nav shell">
-        <a className="brand" href="/"><span>P</span> Potongin AI</a>
-        <div className="navActions">
-          <div className="navLinks"><a href="/dashboard">Buat Klip</a><a href="/projects">Riwayat</a><a className="active" href="/trends" aria-current="page">Konteks Tren</a><a href="/settings">Pengaturan</a></div>
-          <form method="post" action="/api/auth/logout"><button type="submit">Keluar</button></form>
-        </div>
-      </nav>
+      <AppHeader current="/trends" />
 
       <section className="trHero shell">
         <div className="eyebrow">KONTEKS · TREN TERKINI</div>
