@@ -51,7 +51,7 @@ const MESSAGES = Object.freeze({
   asset_rejected: "File tidak bisa dibaca atau tidak aman diproses; simpan ulang file-nya lalu unggah lagi",
   asset_quota_exceeded: "Batas file untuk job ini tercapai (maksimal 50 file dan 1 GB)",
   uploads_disabled: "Unggahan logo dan musik belum diaktifkan",
-  editor_disabled: "Editor V3 belum diaktifkan",
+  editor_disabled: "Editor belum diaktifkan",
   rate_limited: "Terlalu banyak unggahan; tunggu sebentar lalu coba lagi",
   csrf_rejected: "Permintaan ditolak karena tidak berasal dari halaman ini; muat ulang halaman",
   length_required: "Ukuran file tidak diketahui; unggah ulang",

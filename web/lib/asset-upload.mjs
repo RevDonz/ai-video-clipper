@@ -61,7 +61,7 @@ const DTO_KEYS = ["durationMs", "h", "kind", "lufsC", "mime", "name", "sha256", 
 export const ASSET_MESSAGES = Object.freeze({
   invalid_request: "Permintaan tidak valid",
   csrf_rejected: "Permintaan ditolak karena tidak berasal dari halaman ini; muat ulang halaman",
-  editor_disabled: "Editor V3 belum diaktifkan",
+  editor_disabled: "Editor belum diaktifkan",
   uploads_disabled: "Unggahan logo dan musik belum diaktifkan",
   not_found: "Data tidak ditemukan",
   rate_limited: "Terlalu banyak unggahan; tunggu sebentar lalu coba lagi",
