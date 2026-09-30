@@ -903,6 +903,20 @@ test("server errors become UploadError with the Indonesian message and reason", 
   assert.equal(uploadMessage("asset_rejected", "not-a-reason"), uploadMessage("asset_rejected"));
 });
 
+test("no upload message names a version or an engine (the owner's latest-only rule)", () => {
+  const reasons = ["dimensions", "duration", "short", "channels", "streams", "timeout", null];
+  const shown = [
+    ...Object.values(ASSET_MESSAGES),
+    ...Object.keys(ASSET_MESSAGES).map((code) => uploadMessage(code)),
+    ...reasons.map((reason) => uploadMessage("asset_rejected", reason)),
+    ...["unauthorized", "network_error", "invalid_response", "http_500"].map((code) => uploadMessage(code)),
+  ];
+  for (const text of shown) {
+    assert.doesNotMatch(text, /\bV\d\b|\bv\d+(?:\.\d+)*\b|mesin (?:lama|baru)|engine|versi/i, text);
+    assert.doesNotMatch(text, /—/, text);
+  }
+});
+
 test("network failures, aborts and malformed answers", async () => {
   let { instance } = client((xhr) => xhr.onerror?.());
   await assert.rejects(instance.uploadAsset(JOB_ID, fileLike("a.png", "image/png", 10), "logo"), (error) => error.code === "network_error" && error.status === 0);
