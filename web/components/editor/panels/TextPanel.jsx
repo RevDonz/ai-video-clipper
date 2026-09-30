@@ -69,16 +69,24 @@ function Swatches({ legend, name, value, disabled, onChange, note }) {
   );
 }
 
+// One client per clip for the page, so reopening the tab finds the same suggestions (they are
+// kept per client) instead of asking the server again.
+const OWN_CLIENTS = new Map();
+
 function useEditorApi(api, jobId, clipId) {
   return useMemo(() => {
     if (api) return api;
     const shared = typeof window === "undefined" ? null : window.__potonginEditor?.api;
     if (shared) return shared;
-    try {
-      return createApiClient({ jobId, clipId });
-    } catch {
-      return null;
+    const key = `${jobId}/${clipId}`;
+    if (!OWN_CLIENTS.has(key)) {
+      try {
+        OWN_CLIENTS.set(key, createApiClient({ jobId, clipId }));
+      } catch {
+        return null;
+      }
     }
+    return OWN_CLIENTS.get(key);
   }, [api, jobId, clipId]);
 }
 
