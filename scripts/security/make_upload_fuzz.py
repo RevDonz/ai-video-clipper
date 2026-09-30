@@ -769,18 +769,19 @@ def build_timing_inputs(out_dir: Path, *, ffmpeg: str | None = None,
     _ffmpeg(ffmpeg, "-f", "lavfi", "-i", "testsrc2=s=1600x1600,noise=alls=40:allf=t,format=rgba",
             *one, str(out / "png-1600-noisy.png"))
     add("PNG 1600x1600 RGBA noisy", "png-1600-noisy.png", "logo", "image/png")
-    _ffmpeg(ffmpeg, "-f", "lavfi", "-i", "testsrc2=s=4000x3000", *one, "-q:v", "3",
+    grain = "noise=alls=24:allf=t"  # photo-like entropy: several MB, as phone pictures are
+    _ffmpeg(ffmpeg, "-f", "lavfi", "-i", f"testsrc2=s=4000x3000,{grain}", *one, "-q:v", "3",
             str(out / "plain-4000.jpg"))
     jpeg = (out / "plain-4000.jpg").read_bytes()
     (out / "jpeg-4000-exif6.jpg").write_bytes(jpeg[:2] + _orientation_app1(6) + jpeg[2:])
     (out / "plain-4000.jpg").unlink()
     add("JPEG 4000x3000 EXIF 6", "jpeg-4000-exif6.jpg", "logo", "image/jpeg")
-    _ffmpeg(ffmpeg, "-f", "lavfi", "-i", "testsrc2=s=4096x4096", *one, "-q:v", "2",
+    _ffmpeg(ffmpeg, "-f", "lavfi", "-i", f"testsrc2=s=4096x4096,{grain}", *one, "-q:v", "4",
             str(out / "jpeg-4096.jpg"))
     add("JPEG 4096x4096", "jpeg-4096.jpg", "logo", "image/jpeg")
     if _has_encoder(ffmpeg, "libwebp"):
-        _ffmpeg(ffmpeg, "-f", "lavfi", "-i", "testsrc2=s=3000x2000", *one, "-c:v", "libwebp",
-                "-quality", "80", str(out / "webp-3000.webp"))
+        _ffmpeg(ffmpeg, "-f", "lavfi", "-i", f"testsrc2=s=3000x2000,{grain}", *one, "-c:v",
+                "libwebp", "-quality", "80", str(out / "webp-3000.webp"))
         add("WebP 3000x2000", "webp-3000.webp", "logo", "image/webp")
         _ffmpeg(ffmpeg, "-f", "lavfi", "-i", "testsrc2=s=512x512,format=rgba", *one, "-c:v",
                 "libwebp", "-lossless", "1", str(out / "webp-512-alpha.webp"))
