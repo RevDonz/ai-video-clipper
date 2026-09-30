@@ -215,8 +215,11 @@ test("a failed first request offers 'Coba lagi'; loading shows what is loading",
 
 test("keyboard: Tab reaches 'Pakai' with a visible focus ring and Enter applies it", async ({ page }) => {
   await openText(page, { answer: { taskId: null, heuristic: INSTANT, llm: { state: "disabled" } } });
+  await expect(instantList(page).getByRole("listitem")).toHaveCount(3);
+  // From the hook field, Tab skips the card in use (disabled) and lands on the next "Pakai".
+  await hookField(page).focus();
+  await page.keyboard.press("Tab");
   const button = instantList(page).getByRole("listitem").nth(1).getByRole("button");
-  await button.focus();
   await expect(button).toBeFocused();
   const ring = await button.evaluate((element) => getComputedStyle(element).boxShadow);
   expect(ring).not.toBe("none");
@@ -235,8 +238,8 @@ test("no version label anywhere in the Teks panel", async ({ page }) => {
 });
 
 test.describe("reduced motion", () => {
-  test.use({ reducedMotion: "reduce" });
   test("cards appear without animation and the progress bar is hidden", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
     await openText(page, { answer: { taskId: TASK_ID, heuristic: INSTANT, llm: { state: "pending" } }, pendingPolls: 50, task: { state: "pending" } });
     const card = instantList(page).getByRole("listitem").first();
     await expect(card).toBeVisible();
