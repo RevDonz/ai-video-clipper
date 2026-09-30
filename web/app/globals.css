@@ -568,7 +568,8 @@ footer {
 .jobActivity > i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--success); }
 .jobActivity > span { flex: 1; }
 .jobActivity > b { color: var(--success); font: 700 12px/1 var(--font); letter-spacing: .06em; }
-.error { margin-bottom: 14px; padding: 12px 14px; border: 1px solid var(--danger-border); border-radius: var(--radius-m); background: var(--danger-bg); color: var(--text); font-size: 14px; line-height: 1.5; }
+/* Scoped to the job monitor: a bare .error would also restyle .chip.error and .notice.error. */
+.monitor .error { margin-bottom: 14px; padding: 12px 14px; border: 1px solid var(--danger-border); border-radius: var(--radius-m); background: var(--danger-bg); color: var(--text); font-size: 14px; line-height: 1.5; }
 
 .results { display: grid; gap: 12px; }
 .clip { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-l); background: var(--surface-2); animation: rise-in var(--dur-3) var(--ease-out); }

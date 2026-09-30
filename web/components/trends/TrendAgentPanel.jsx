@@ -120,14 +120,14 @@ export default function TrendAgentPanel({ origin, tokensState, now, onCreateToke
               aria-describedby={describedBy("token-label", true, labelError)}
               onChange={(event) => { setLabel(event.target.value); setLabelError(""); }}
             />
-            <button type="submit" className="trPrimary" disabled={creating || full || tokensState.state !== "ready"}>
+            <button type="submit" className="btn" disabled={creating || full || tokensState.state !== "ready"}>
               {creating ? "Membuat…" : "Buat token"}
             </button>
           </div>
           <small id="token-label-help">
             {full
               ? `Sudah ${TREND_LIMITS.maxActiveTokens} token aktif (batas). Cabut yang tidak dipakai untuk membuat yang baru.`
-              : "Satu token per agen/mesin. Label tampil sebagai sumber item. Nilai token hanya ditampilkan sekali."}
+              : "Satu token per agen. Label tampil sebagai sumber item. Nilai token hanya ditampilkan sekali."}
           </small>
           {labelError && <small className="trFieldError" id="token-label-error">{labelError}</small>}
         </div>
@@ -135,12 +135,12 @@ export default function TrendAgentPanel({ origin, tokensState, now, onCreateToke
 
       {created && (
         <section className="trNewToken" ref={createdBox} tabIndex={-1} aria-labelledby="new-token-title">
-          <strong id="new-token-title">Token “{created.label}” dibuat — salin sekarang</strong>
+          <strong id="new-token-title">Token “{created.label}” dibuat. Salin sekarang.</strong>
           <p>Token ini <b>hanya ditampilkan sekali</b>. Server hanya menyimpan hash-nya; kalau hilang, cabut lalu buat token baru. Simpan di secret agen (variabel <code>{TOKEN_ENV}</code>), jangan di chat atau repo.</p>
           <label htmlFor="new-token-value">Token</label>
           <div className="trInlineRow">
             <input id="new-token-value" readOnly value={created.token} onFocus={(event) => event.target.select()} spellCheck={false} autoComplete="off" />
-            <CopyButton text={created.token} label="Salin token" announce="Token" className="trPrimary" />
+            <CopyButton text={created.token} label="Salin token" announce="Token" className="btn primary" />
           </div>
           <div className="trCurlHead">
             <span id="curl-title">Contoh uji coba (curl): tempel token saat diminta, lalu Enter</span>
@@ -149,7 +149,7 @@ export default function TrendAgentPanel({ origin, tokensState, now, onCreateToke
           <pre className="trCurl" aria-labelledby="curl-title" tabIndex={0}><code>{curlExample({ origin })}</code></pre>
           <small>Contoh ini membuat item “Tren uji coba” dengan <code>externalId</code> contoh; hapus dari daftar setelah uji coba.</small>
           <div className="trActions">
-            <button type="button" className="trSecondary" onClick={dismissCreated}>Sudah saya simpan — sembunyikan token</button>
+            <button type="button" className="btn" onClick={dismissCreated}>Sudah saya simpan, sembunyikan token</button>
           </div>
         </section>
       )}
@@ -165,7 +165,7 @@ export default function TrendAgentPanel({ origin, tokensState, now, onCreateToke
         {tokensState.state === "error" && (
           <div className="trAlert error" role="alert">
             <span>{tokensState.error}</span>
-            <button type="button" className="trSecondary" onClick={onReloadTokens}>Coba lagi</button>
+            <button type="button" className="btn" onClick={onReloadTokens}>Coba lagi</button>
           </div>
         )}
         {tokensState.state === "ready" && tokens.length === 0 && <p className="trEmpty">Belum ada token. Buat satu untuk agen Anda.</p>}
@@ -177,23 +177,23 @@ export default function TrendAgentPanel({ origin, tokensState, now, onCreateToke
                 <li key={token.id} className={view.status}>
                   <div className="trTokenIdentity">
                     <strong>{token.label}</strong>
-                    <code>{view.prefixText}</code>
-                    <span className={`trBadge ${view.status === "active" ? "ok" : "expired"}`}>{view.statusLabel}</span>
+                    {view.prefixText && <code>{view.prefixText}</code>}
+                    <span className={view.status === "active" ? "chip ok" : "chip"}>{view.statusLabel}</span>
                   </div>
                   <dl>
                     <div><dt>Dibuat</dt><dd>{view.createdText}</dd></div>
                     <div><dt>Terakhir dipakai</dt><dd title={view.lastUsedAbsolute || undefined}>{view.lastUsedText}</dd></div>
                   </dl>
                   {view.status === "active" && confirmingId !== token.id && (
-                    <button type="button" className="trSecondary danger" onClick={() => { setNotice(null); setConfirmingId(token.id); }} aria-label={`Cabut token ${token.label}`}>Cabut</button>
+                    <button type="button" className="btn danger" onClick={() => { setNotice(null); setConfirmingId(token.id); }} aria-label={`Cabut token ${token.label}`}>Cabut</button>
                   )}
                   {confirmingId === token.id && (
                     <div className="trConfirm" role="group" aria-label={`Konfirmasi cabut token ${token.label}`} onKeyDown={(event) => { if (event.key === "Escape" && !revokingId) setConfirmingId(null); }}>
                       <strong>Cabut “{token.label}”?</strong>
                       <p>Agen yang memakai token ini langsung ditolak (401). Item yang sudah masuk tetap ada.</p>
                       <div>
-                        <button type="button" className="confirmDelete" onClick={() => revoke(token)} disabled={revokingId === token.id}>{revokingId === token.id ? "Mencabut…" : "Ya, cabut"}</button>
-                        <button type="button" onClick={() => setConfirmingId(null)} disabled={revokingId === token.id} autoFocus>Batal</button>
+                        <button type="button" className="btn danger solid" onClick={() => revoke(token)} disabled={revokingId === token.id}>{revokingId === token.id ? "Mencabut…" : "Ya, cabut"}</button>
+                        <button type="button" className="btn" onClick={() => setConfirmingId(null)} disabled={revokingId === token.id} autoFocus>Batal</button>
                       </div>
                     </div>
                   )}

@@ -10,7 +10,6 @@ import {
   platformLabels,
   sourceLabel,
   trendItemStatus,
-  trendKindLabel,
   trendPatchPayload,
 } from "../../lib/trend-view.mjs";
 import { EditableTrendFields } from "./TrendFields.jsx";
@@ -127,10 +126,9 @@ export default function TrendItemCard({ item, now, onUpdate, onDelete }) {
   return (
     <article className={classes} aria-labelledby={titleId}>
       <div className="trItemTags">
-        <span className={`trKind ${item.kind}`}>{trendKindLabel(item.kind)}</span>
-        {item.sensitivity === "sensitive" && <span className="trBadge sensitive">Sensitif</span>}
-        {status !== "active" && <span className={`trBadge ${status}`}>{TREND_STATUS_LABELS[status]}</span>}
-        {item.score !== null && <span className="trScore" title="Momentum menurut agen (0–100)">Skor {item.score}</span>}
+        {item.sensitivity === "sensitive" && <span className="chip error">Sensitif</span>}
+        {status !== "active" && <span className="chip">{TREND_STATUS_LABELS[status]}</span>}
+        {item.score !== null && <span className="trScore" title="Seberapa ramai menurut agen (0–100)">Skor {item.score}</span>}
       </div>
       <h4 id={titleId}>{item.title}</h4>
 
@@ -174,17 +172,17 @@ export default function TrendItemCard({ item, now, onUpdate, onDelete }) {
             />
             <label className="trSwitch wide">
               <input type="checkbox" role="switch" checked={draft.enabled} onChange={(event) => change({ enabled: event.target.checked })} />
-              <span>{draft.enabled ? "Aktif — dipakai job berikutnya" : "Nonaktif — tidak dipakai"}</span>
+              <span>{draft.enabled ? "Aktif: dipakai job berikutnya" : "Nonaktif: tidak dipakai"}</span>
             </label>
           </div>
           {item.source !== "manual" && (
-            <p className="trFootnote">Item dari agen: bagian yang kamu ubah di sini tetap dipakai walau agen mengirim ulang item ini.</p>
+            <p className="trFootnote">Item dari agen: bagian yang Anda ubah di sini tetap dipakai walau agen mengirim ulang item ini.</p>
           )}
           {errors.general && <p className="trAlert error" role="alert">{errors.general}</p>}
           {Object.keys(errors).length > 0 && !errors.general && <p className="trAlert error" role="alert">Periksa isian yang ditandai.</p>}
           <div className="trActions">
-            <button type="submit" className="trPrimary" disabled={busy === "save"}>{busy === "save" ? "Menyimpan…" : "Simpan"}</button>
-            <button type="button" className="trSecondary" onClick={() => close(editButton)} disabled={busy === "save"}>Batal</button>
+            <button type="submit" className="btn primary" disabled={busy === "save"}>{busy === "save" ? "Menyimpan…" : "Simpan"}</button>
+            <button type="button" className="btn" onClick={() => close(editButton)} disabled={busy === "save"}>Batal</button>
           </div>
         </form>
       )}
@@ -195,8 +193,8 @@ export default function TrendItemCard({ item, now, onUpdate, onDelete }) {
             <input type="checkbox" role="switch" checked={switchOn} onChange={toggleEnabled} aria-busy={busy === "toggle" || undefined} aria-describedby={`${idPrefix}-status`} />
             <span>{switchOn ? "Aktif" : "Nonaktif"}</span>
           </label>
-          <button type="button" className="trSecondary" ref={editButton} onClick={startEdit} disabled={busy === "delete"}>Ubah</button>
-          <button type="button" className="trSecondary danger" ref={deleteButton} onClick={() => { setMessage(null); setMode("confirm"); }} disabled={busy === "delete"}>Hapus</button>
+          <button type="button" className="btn" ref={editButton} onClick={startEdit} disabled={busy === "delete"}>Ubah</button>
+          <button type="button" className="btn danger" ref={deleteButton} onClick={() => { setMessage(null); setMode("confirm"); }} disabled={busy === "delete"}>Hapus</button>
         </div>
       )}
 
@@ -210,8 +208,8 @@ export default function TrendItemCard({ item, now, onUpdate, onDelete }) {
           <strong id={`${idPrefix}-confirm`}>Hapus “{item.title}”?</strong>
           <p>Item hilang dari konteks tren dan tidak dipakai job berikutnya. {item.source !== "manual" ? "Agen bisa mengirimnya lagi pada jadwal berikutnya; untuk menahannya, nonaktifkan saja." : "Tindakan ini tidak dapat dibatalkan."}</p>
           <div>
-            <button type="button" className="confirmDelete" onClick={remove} disabled={busy === "delete"}>{busy === "delete" ? "Menghapus…" : "Ya, hapus"}</button>
-            <button type="button" ref={cancelDelete} onClick={() => close(deleteButton)} disabled={busy === "delete"}>Batal</button>
+            <button type="button" className="btn danger solid" onClick={remove} disabled={busy === "delete"}>{busy === "delete" ? "Menghapus…" : "Ya, hapus"}</button>
+            <button type="button" className="btn" ref={cancelDelete} onClick={() => close(deleteButton)} disabled={busy === "delete"}>Batal</button>
           </div>
         </div>
       )}
