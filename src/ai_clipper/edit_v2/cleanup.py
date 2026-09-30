@@ -666,7 +666,9 @@ def _peaks(clip: Path, words: Mapping[str, Any]) -> bytes | None:
     return raw if hashlib.sha256(raw).hexdigest()[:16] == name[6:22] else None
 
 
-def _list(clip: Path) -> dict[str, Any]:
+def clip_listing(clip: Path) -> dict[str, Any]:
+    """The review list of a clip directory, exactly as the CLI answers it (peaks included)."""
+    clip = Path(clip)
     sha = _words_sha(clip)
     words = store.load_words(clip, sha)
     return {"clipId": clip.name, "wordsSha256": sha,
@@ -680,7 +682,7 @@ def handle(raw: bytes, *, jobs_root: str | os.PathLike | None) -> tuple[int, dic
     try:
         envelope = _envelope(raw)
         clip = _clip_dir(jobs_root, envelope["jobId"], envelope["clipId"])
-        return EXIT_OK, _list(clip)
+        return EXIT_OK, clip_listing(clip)
     except _Usage:
         return EXIT_USAGE, usage
     except EditV2Error as error:
@@ -710,6 +712,7 @@ __all__ = [
     "SCHEMA",
     "Lexicon",
     "build_cleanup",
+    "clip_listing",
     "edge_ms",
     "handle",
     "load_lexicon",
