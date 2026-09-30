@@ -103,3 +103,83 @@ def test_the_verdict_fails_a_server_error_a_slow_case_and_a_surviving_payload():
                             name=name)["pass"] is False
     assert fuzz.verdict(case, status=201, elapsed_ms=1, code=None, stage="http",
                         name="passwd")["pass"] is True
+
+
+# Ingest timing (plan §11.3 T3.1: p95 ≤ 2 s per image, ≤ 8 s per 5-minute track).
+
+
+def test_the_percentile_is_nearest_rank():
+    assert fuzz.percentile([5], 0.95) == 5
+    assert fuzz.percentile([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 0.95) == 10
+    assert fuzz.percentile([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 0.50) == 5
+    assert fuzz.percentile(list(range(1, 21)), 0.95) == 19
+    with pytest.raises(ValueError):
+        fuzz.percentile([], 0.95)
+
+
+def test_the_timing_report_pools_the_samples_of_each_class():
+    runs = [
+        {"input": "PNG a", "kind": "logo", "class": "image", "samplesMs": [100, 200, 300]},
+        {"input": "JPEG b", "kind": "logo", "class": "image", "samplesMs": [1900, 2500]},
+        {"input": "MP3 5 min", "kind": "music", "class": "track5min", "samplesMs": [5000, 6000]},
+    ]
+    report = fuzz.timing_report(runs)
+    assert report["image"] == {"samples": 5, "p50Ms": 300, "p95Ms": 2500, "maxMs": 2500,
+                               "limitMs": 2000, "pass": False}
+    assert report["track5min"]["p95Ms"] == 6000 and report["track5min"]["pass"] is True
+    assert report["pass"] is False
+    assert report["inputs"][0]["p95Ms"] == 300
+    fast = fuzz.timing_report([{**runs[0]}, {**runs[2]}])
+    assert fast["pass"] is True
+    assert fuzz.timing_report([runs[0]])["pass"] is False  # a class without samples never passes
+
+
+def test_the_timing_inputs_cover_every_format(tmp_path, edit_v2_ffmpeg):
+    inputs = fuzz.build_timing_inputs(tmp_path, ffmpeg=edit_v2_ffmpeg, track_seconds=3)
+    kinds = {(item["kind"], item["mime"]) for item in inputs}
+    assert ("logo", "image/png") in kinds and ("logo", "image/jpeg") in kinds
+    assert ("music", "audio/wav") in kinds and ("music", "audio/flac") in kinds
+    assert ("music", "audio/mp4") in kinds
+    for item in inputs:
+        data = (tmp_path / item["file"]).read_bytes()
+        assert 0 < len(data) <= (10 << 20 if item["kind"] == "logo" else 50 << 20)
+        assert item["class"] == ("image" if item["kind"] == "logo" else "track5min")
+    oriented = [item for item in inputs if item["mime"] == "image/jpeg" and "EXIF" in item["input"]]
+    assert oriented, "one JPEG carries an EXIF orientation"
+
+
+# The child-environment audit (E11): wrappers record every child's /proc/self/environ.
+
+
+def test_a_recorder_logs_the_environment_and_runs_the_real_tool(tmp_path):
+    log = tmp_path / "environ.jsonl"
+    real = tmp_path / "real.sh"
+    real.write_text("#!/bin/sh\necho ran \"$@\"\n")
+    real.chmod(0o755)
+    wrapper = tmp_path / "tool"
+    wrapper.write_text(fuzz.recorder_script(real=str(real), tool="ffmpeg", log=str(log),
+                                            interpreter=sys.executable))
+    wrapper.chmod(0o755)
+    out = subprocess.run([str(wrapper), "-version"], capture_output=True, text=True, check=True,
+                         env={"PATH": "/usr/bin:/bin", "OPENROUTER_API_KEY": "planted-x"}).stdout
+    assert out.strip() == "ran -version"
+    record = json.loads(log.read_text().splitlines()[0])
+    assert record["tool"] == "ffmpeg"
+    assert record["env"]["OPENROUTER_API_KEY"] == "planted-x"
+
+
+def test_the_environment_audit_flags_names_outside_the_allowlist_and_planted_values():
+    allow = {"python": {"PATH", "HOME", "JOBS_ROOT"}, "ffmpeg": {"PATH", "HOME"}}
+    clean = [{"tool": "python", "env": {"PATH": "/bin", "JOBS_ROOT": "/j"}},
+             {"tool": "ffmpeg", "env": {"PATH": "/bin", "HOME": "/w"}}]
+    report = fuzz.audit_environ(clean, allow=allow, marker="planted-")
+    assert report["children"] == 2 and report["byTool"] == {"ffmpeg": 1, "python": 1}
+    assert report["namesOutsideAllowlist"] == [] and report["plantedValuesFound"] == 0
+    assert report["pass"] is True
+    dirty = clean + [{"tool": "ffmpeg", "env": {"PATH": "/bin", "APP_PASSWORD": "planted-pw"}},
+                     {"tool": "python", "env": {"PATH": "/bin:planted-in-path"}}]
+    report = fuzz.audit_environ(dirty, allow=allow, marker="planted-")
+    assert report["namesOutsideAllowlist"] == [{"tool": "ffmpeg", "name": "APP_PASSWORD"}]
+    assert report["plantedValuesFound"] == 2 and report["pass"] is False
+    assert "planted" not in json.dumps(report["namesOutsideAllowlist"])  # names, never values
+    assert fuzz.audit_environ([], allow=allow, marker="planted-")["pass"] is False
