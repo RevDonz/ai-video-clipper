@@ -28,10 +28,11 @@ Every candidate then goes through the same rules:
 * **No duplicates.** A candidate whose frames equal, or overlap by more than half, an earlier
   candidate's is dropped. Ids are ``co_1``… in the final order.
 
-Sentence units come from ``output/transcript.json`` exactly as the words artifact builds them,
-when that transcript still hashes to the artifact's ``transcript_sha256``; otherwise they are
-rebuilt from the artifact itself (:func:`units_from_words`: the words' display text, no suspect
-flag), so a job whose transcript is gone still gets suggestions.
+Sentence units are the words artifact's own (:func:`units_from_words`: its units, the words'
+display text) with the suspect flag of the transcript quality gate: the suspect segments of
+``analysis/transcript-quality.json`` are mapped to words through their global indices (the ids),
+counting each transcript segment's words in the raw JSON. A job without suspect segments never
+reads the transcript, which keeps this instant suggestion cheap (plan §7: ≤ 300 ms).
 
 CLI (``python -m ai_clipper.edit_v2.coldopen``, protocol of CONTRACTS §5.9): stdin
 ``{"op": "list", "jobId", "clipId"}`` → ``{wordsSha256, candidates: [Candidate.to_json()]}``
@@ -48,7 +49,7 @@ import os
 import re
 import stat
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -56,13 +57,13 @@ from typing import Any
 from ..hook_heuristics import _analyse_unit
 from ..models import TranscriptWord
 from ..sentences import SentenceUnit
-from . import store
 from . import timemap as tm
 from .clip_id import CLIP_ID_PATTERN, ms_from_seconds
 from .errors import (
     EXIT_INTERNAL,
     EXIT_OK,
     EXIT_USAGE,
+    AnalysisMissing,
     EditV2Error,
     NotFound,
     exit_code_for,
@@ -80,9 +81,14 @@ JOIN_FADE_MS = 30
 SOURCES = ("selection", "hook", "strong")
 MAX_ENVELOPE_BYTES = 4096
 MAX_TRANSCRIPT_BYTES = 16 << 20
+MAX_QUALITY_BYTES = 1 << 20
 MAX_SELECTION_BYTES = 8 << 20
+MAX_SEED_BYTES = 1 << 20  # doc.MAX_DOC_BYTES
+MAX_WORDS_BYTES = 32 << 20  # store.MAX_WORDS_BYTES
+SEED_FILE = "seed.json"
 SELECTION_RELATIVE_PATH = Path("analysis") / "selection.v3.json"
 TRANSCRIPT_RELATIVE_PATH = Path("output") / "transcript.json"
+QUALITY_RELATIVE_PATH = Path("analysis") / "transcript-quality.json"
 
 _UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}",
                    re.IGNORECASE)
@@ -148,11 +154,13 @@ class _Draft:
 # --- sentence units ------------------------------------------------------------------------------
 
 
-def units_from_words(words: Mapping[str, Any]) -> list[SentenceUnit]:
-    """The artifact's sentence units rebuilt from its own words (display text, no suspect flag).
+def units_from_words(words: Mapping[str, Any],
+                     suspect_words: Collection[str] = frozenset()) -> list[SentenceUnit]:
+    """The artifact's sentence units from its own words (display text, times, question flag).
 
-    Used when the transcript is gone or no longer matches the artifact; ``_analyse_unit`` reads
-    only the text, times, gap, question and suspect fields.
+    A unit is suspect when one of its words is in ``suspect_words`` (word ids); the sentence
+    builder splits units wherever that flag changes, so one word stands for the unit.
+    ``_analyse_unit`` reads only the text, times, gap, question and suspect fields.
     """
     members: dict[str, list[Mapping[str, Any]]] = {}
     for word in words["words"]:
@@ -173,26 +181,49 @@ def units_from_words(words: Mapping[str, Any]) -> list[SentenceUnit]:
             text=" ".join(w["t"] for w in listed), segment_start=0, segment_end=0,
             word_count=len(listed), is_question=bool(entry["q"]),
             gap_before=0.0 if previous_end is None else max(0.0, start - previous_end),
-            suspect=False, words=spoken))
+            suspect=any(w["id"] in suspect_words for w in listed), words=spoken))
         previous_end = end
     return units
 
 
-def units_from_transcript(raw: bytes, words: Mapping[str, Any]) -> list[SentenceUnit] | None:
-    """Sentence units of the transcript bytes, exactly as the words artifact built them, or
-    None when the transcript does not hash to the artifact's ``transcript_sha256``."""
-    from ..sentences import build_sentence_units
-    from ..transcript_io import transcription_from_json_bytes
-    from ..transcript_quality import assess_transcript
-    from .words import transcript_sha256
+def suspect_word_ids(transcript_raw: bytes, suspect_segments: Collection[int]) -> frozenset[str]:
+    """Ids (``w`` + global index) of the words of the transcript's suspect segments. A segment
+    counts its word list, or its whitespace tokens when it has none, exactly as the words
+    artifact flattens it (``subtitles._segment_words``)."""
+    if not suspect_segments:
+        return frozenset()
+    segments = json.loads(transcript_raw)["segments"]
+    out: set[str] = set()
+    index = 0
+    for number, segment in enumerate(segments):
+        listed = segment.get("words")
+        count = len(listed) if listed else len(str(segment.get("text", "")).split())
+        if number in suspect_segments:
+            out.update(f"w{position:06d}" for position in range(index, index + count))
+        index += count
+    return frozenset(out)
 
-    transcription = transcription_from_json_bytes(raw)
-    if transcript_sha256(transcription) != words.get("transcript_sha256"):
-        return None
-    quality = assess_transcript(transcription.segments, language=transcription.language or "id")
-    listed = {entry["id"] for entry in words["units"]}
-    return [unit for unit in build_sentence_units(transcription.segments, quality=quality)
-            if unit.unit_id in listed]
+
+def units_for_job(job: Path, words: Mapping[str, Any]) -> list[SentenceUnit]:
+    """The clip's units with the suspect flags of the job's transcript quality file."""
+    suspect: frozenset[str] = frozenset()
+    raw = _read(job / QUALITY_RELATIVE_PATH, MAX_QUALITY_BYTES)
+    indices: Any = None
+    if raw is not None:
+        try:
+            indices = json.loads(raw).get("suspect_segment_indices")
+        except (ValueError, AttributeError):
+            indices = None
+    segments = {i for i in indices if type(i) is int and i >= 0} if isinstance(indices, list) \
+        else set()
+    if segments:
+        transcript = _read(job / TRANSCRIPT_RELATIVE_PATH, MAX_TRANSCRIPT_BYTES)
+        if transcript is not None:
+            try:
+                suspect = suspect_word_ids(transcript, segments)
+            except (ValueError, TypeError, KeyError, AttributeError, RecursionError):
+                suspect = frozenset()
+    return units_from_words(words, suspect)
 
 
 # --- candidates ----------------------------------------------------------------------------------
@@ -470,16 +501,6 @@ def _read(path: Path, limit: int) -> bytes | None:
         return None
 
 
-def _transcript_units(job: Path, words: Mapping[str, Any]) -> list[SentenceUnit] | None:
-    raw = _read(job / TRANSCRIPT_RELATIVE_PATH, MAX_TRANSCRIPT_BYTES)
-    if raw is None:
-        return None
-    try:
-        return units_from_transcript(raw, words)
-    except (ValueError, TypeError, RecursionError):
-        return None
-
-
 def _selection_cold_open(job: Path, seed: Mapping[str, Any]) -> tuple[int, int] | None:
     """The selection clip's cold open (ms) when the artifact is the one the seed came from."""
     origin = seed["base"]["origin"]
@@ -499,15 +520,44 @@ def _selection_cold_open(job: Path, seed: Mapping[str, Any]) -> tuple[int, int] 
     return ms_from_seconds(start), ms_from_seconds(end)
 
 
+def _stored(path: Path, limit: int, missing: EditV2Error) -> tuple[dict[str, Any], bytes]:
+    """A JSON object the store wrote (regular file, no symlink) and its bytes; ``missing``
+    when absent, ``internal_error`` for anything else."""
+    from .source_info import read_regular
+
+    try:
+        raw = read_regular(path, limit)
+    except FileNotFoundError:
+        raise missing from None
+    except (OSError, ValueError):
+        raise EditV2Error("internal_error") from None
+    try:
+        value = json.loads(raw)
+    except ValueError:
+        raise EditV2Error("internal_error") from None
+    if type(value) is not dict:
+        raise EditV2Error("internal_error")
+    return value, raw
+
+
 def _list(job: Path, clip: Path) -> dict[str, Any]:
-    seed, _etag = store.seed(clip)
+    # The seed and the words file are read here rather than through `store`, whose imports (the
+    # V1 manifest stack) add ~50 ms to every call of this instant suggestion.
+    from .doc import canonical_bytes
+
+    seed, raw = _stored(clip / SEED_FILE, MAX_SEED_BYTES, NotFound())
+    if canonical_bytes(seed) != raw:
+        raise EditV2Error("internal_error")
     words_sha = seed["base"]["words"]["sha256"]
     if not isinstance(words_sha, str) or not _SHA.fullmatch(words_sha):
         raise EditV2Error("internal_error")
-    words = store.load_words(clip, words_sha)
+    words, raw = _stored(clip / f"words.{words_sha[:16]}.json", MAX_WORDS_BYTES,
+                         AnalysisMissing())
+    if hashlib.sha256(raw).hexdigest() != words_sha:
+        raise EditV2Error("internal_error")
     has_cold_open = any(s["role"] == "cold_open" for s in seed["main"]["segments"])
     candidates = build_candidates(
-        seed, words, units=_transcript_units(job, words),
+        seed, words, units=units_for_job(job, words),
         selection_cold_open_ms=None if has_cold_open else _selection_cold_open(job, seed))
     return {"wordsSha256": words_sha, "candidates": [c.to_json() for c in candidates]}
 
@@ -561,7 +611,8 @@ __all__ = [
     "build_candidates",
     "handle",
     "main",
-    "units_from_transcript",
+    "suspect_word_ids",
+    "units_for_job",
     "units_from_words",
 ]
 

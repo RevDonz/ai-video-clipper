@@ -481,6 +481,46 @@ def test_without_the_transcript_the_words_artifact_is_enough(synthetic, tmp_path
     assert payload["candidates"][0] == with_transcript["candidates"][0]
 
 
+def test_suspect_word_ids_count_words_like_the_artifact():
+    raw = json.dumps({"language": "id", "segments": [
+        {"start": 0, "end": 1, "text": "a b", "words": [
+            {"start": 0, "end": 0.4, "text": "a"}, {"start": 0.5, "end": 1, "text": "b"}]},
+        {"start": 1, "end": 2, "text": "c d  e"},  # no word timestamps: its tokens count
+        {"start": 2, "end": 3, "text": "f", "words": [{"start": 2, "end": 3, "text": "f"}]},
+    ]}).encode()
+    assert coldopen.suspect_word_ids(raw, {1}) == {"w000002", "w000003", "w000004"}
+    assert coldopen.suspect_word_ids(raw, {0, 2}) == {"w000000", "w000001", "w000005"}
+    assert coldopen.suspect_word_ids(raw, set()) == frozenset()
+
+
+def test_suspect_segments_of_the_quality_file_mark_their_sentences(synthetic, tmp_path):
+    root, _index, _prepared = synthetic
+    job_id, clip_id, _jobs = _clip(synthetic, "main", 1)
+    copy_root = tmp_path / "jobs"
+    shutil.copytree(root / "jobs" / job_id, copy_root / job_id, symlinks=True)
+    job = copy_root / job_id
+    seed, words = _stored(copy_root, job_id, clip_id)
+    units = coldopen.units_for_job(job, words)
+    assert not any(unit.suspect for unit in units)
+    strong = next(c for c in coldopen.build_candidates(seed, words, units=units)
+                  if c.source == "strong")
+    unit_id = strong.unit_ids[0]
+    # in the fixture every sentence is one transcript segment and one unit
+    quality_path = job / "analysis" / "transcript-quality.json"
+    quality = json.loads(quality_path.read_text())
+    quality["suspect_segment_indices"] = [int(unit_id[1:]) - 1]
+    quality_path.write_text(json.dumps(quality))
+    flagged = coldopen.units_for_job(job, words)
+    assert [unit.unit_id for unit in flagged if unit.suspect] == [unit_id]
+    before = next(_analyse_unit(u) for u in units if u.unit_id == unit_id).strength
+    after = next(_analyse_unit(u) for u in flagged if u.unit_id == unit_id).strength
+    assert after == pytest.approx(before * 0.3)
+    status, payload = _call(copy_root, op="list", jobId=job_id, clipId=clip_id)
+    assert status == 0
+    assert payload["candidates"] == [c.to_json() for c in
+                                     coldopen.build_candidates(seed, words, units=flagged)]
+
+
 _JOB = "8f0c2a1e-5b7d-4c3a-9e21-6d4f0b8a7c55"
 _CLIP = "clip_9b2e41c07d3a5f18e6c2a0b4"
 
