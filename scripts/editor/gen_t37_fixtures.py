@@ -55,11 +55,13 @@ def _json(value: Any) -> str:
 # --- markers (the Python side of the lane's rules) -----------------------------------------------
 
 
-def case_words(words: Mapping[str, Any], strip: Sequence[str]) -> dict[str, Any]:
-    """The words artifact as a job without ``strip`` analysis would have it (CONTRACTS §5.7):
-    no audio timeline empties silences, scene cuts and gap classes; no sound events drops the
-    caption tags (transcript laughter stays)."""
-    if not strip:
+def case_words(words: Mapping[str, Any], strip: Sequence[str],
+               extra: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    """The words artifact of a case: as a job without ``strip`` analysis would have it
+    (CONTRACTS §5.7: no audio timeline empties silences, scene cuts and gap classes; no sound
+    events drops the caption tags, transcript laughter stays), plus the ``extra`` events,
+    silences and scene cuts of a dense case, merged in sorted order."""
+    if not strip and not extra:
         return words  # type: ignore[return-value]
     if any(item not in STRIPPABLE for item in strip):
         raise ValueError("unknown analysis to strip")
@@ -69,7 +71,31 @@ def case_words(words: Mapping[str, Any], strip: Sequence[str]) -> dict[str, Any]
     if "sound_events" in strip:
         out["events"] = [event for event in out["events"] if event["src"] != "yt-caption"]
     out["missing"] = sorted(set(out["missing"]) | set(strip))
+    if extra:
+        out["events"] = sorted(out["events"] + list(extra["events"]),
+                               key=lambda ev: (ev["s"], ev["e"], ev["kind"], ev["src"]))
+        out["silences"] = sorted(out["silences"] + [list(pair) for pair in extra["silences"]])
+        out["scene_cuts_ms"] = sorted(out["scene_cuts_ms"] + list(extra["scene_cuts_ms"]))
     return out
+
+
+def dense_extra(words: Mapping[str, Any]) -> dict[str, Any]:
+    """An event at every word, cycling laughter tag, camera cut, silence and laughter token, so
+    that markers fall on every piece edge and rounding hazard of a document."""
+    events, silences, cuts = [], [], []
+    for index, word in enumerate(words["words"]):
+        kind = index % 4
+        if kind == 0:
+            mid = (word["s"] + word["e"]) // 2
+            events.append({"kind": "laughter", "s": mid, "e": mid, "src": "yt-caption"})
+        elif kind == 1:
+            cuts.append(word["s"])
+        elif kind == 2:
+            silences.append([word["e"], word["e"] + SILENCE_MIN_MS + (index % 5) * 37 - 37])
+        else:
+            events.append({"kind": "laughter", "s": word["s"], "e": word["e"],
+                           "src": "transcript"})
+    return {"events": events, "silences": silences, "scene_cuts_ms": cuts}
 
 
 def marker_sources(words: Mapping[str, Any]) -> list[tuple[str, str, int, int]]:
@@ -303,8 +329,15 @@ def marker_cases() -> list[dict[str, Any]]:
         for name, doc, strip in docs:
             words = case_words(context.words, strip)
             cases.append({"name": f"{context_id}/{name}", "context": context_id, "strip": strip,
-                          "doc": doc, "markers": markers(words, doc),
+                          "extra": None, "doc": doc, "markers": markers(words, doc),
                           "unavailable": unavailable(words)})
+        dense = {"c30": "cuts", "c25": "cuts", "c24": "cold_open_cut"}[context_id]
+        doc = next(case["doc"] for case in cases if case["name"] == f"{context_id}/{dense}")
+        extra = dense_extra(context.words)
+        words = case_words(context.words, [], extra)
+        cases.append({"name": f"{context_id}/dense_{dense}", "context": context_id, "strip": [],
+                      "extra": extra, "doc": doc, "markers": markers(words, doc),
+                      "unavailable": unavailable(words)})
     return cases
 
 
