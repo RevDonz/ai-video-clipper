@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import AppHeader from "../../components/AppHeader.jsx";
 import { CUSTOM_PROVIDERS, LLM_PRESETS, MAX_DISPLAY_NAME_LENGTH, REASONING_EFFORTS, SERVER_TEMPLATES, isFreeModel } from "../../lib/llm-presets.mjs";
 import {
   availableProviders,
@@ -685,13 +686,7 @@ export default function SettingsPage() {
 
   return (
     <main className="settingsPage">
-      <nav className="nav shell">
-        <a className="brand" href="/"><span>P</span> Potongin AI</a>
-        <div className="navActions">
-          <div className="navLinks"><a href="/dashboard">Buat Klip</a><a href="/projects">Riwayat</a><a href="/trends">Konteks Tren</a><a className="active" href="/settings" aria-current="page">Pengaturan</a></div>
-          <form method="post" action="/api/auth/logout"><button type="submit">Keluar</button></form>
-        </div>
-      </nav>
+      <AppHeader current="/settings" />
 
       <section className="settingsHero shell">
         <div className="eyebrow">PENGATURAN · AI &amp; LLM</div>

@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import AppHeader from "../../components/AppHeader.jsx";
+
 const statusLabel = {
   queued: "Menunggu",
   preparing: "Menyiapkan",
@@ -116,13 +118,7 @@ export default function ProjectsPage() {
 
   return (
     <main>
-      <nav className="nav shell">
-        <a className="brand" href="/"><span>P</span> Potongin AI</a>
-        <div className="navActions">
-          <div className="navLinks"><a href="/dashboard">Buat Klip</a><a className="active" href="/projects">Riwayat</a><a href="/trends">Konteks Tren</a><a href="/settings">Pengaturan</a></div>
-          <form method="post" action="/api/auth/logout"><button type="submit">Keluar</button></form>
-        </div>
-      </nav>
+      <AppHeader current="/projects" />
 
       <section className="projectsHero shell">
         <div><div className="eyebrow">ARSIP VIDEO · TERSIMPAN DI SERVER</div><h1>Riwayat proyek</h1><p>Buka kembali semua proses dan hasil klip yang pernah dibuat.</p></div>

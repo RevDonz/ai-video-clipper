@@ -1,3 +1,5 @@
+import Brand from "../components/Brand.jsx";
+
 const features = [
   ["01", "Temukan momen terbaik", "Whisper membaca percakapan dan memilih bagian yang paling layak berdiri sebagai klip."],
   ["02", "Siap format vertikal", "Render 9:16 dengan full-frame blur, center crop, atau face tracking yang mengikuti pembicara."],
@@ -10,7 +12,7 @@ export default function LandingPage() {
   return (
     <main className="landing">
       <nav className="landingNav landingShell">
-        <a className="landingBrand" href="/"><span>P</span> Potongin AI</a>
+        <Brand />
         <div className="landingNavLinks"><a href="#cara-kerja">Cara kerja</a><a href="#fitur">Fitur</a><a href="#privasi">Privasi</a></div>
         <a className="landingNavCta" href="/dashboard">Buka dashboard <span>↗</span></a>
       </nav>
@@ -66,7 +68,7 @@ export default function LandingPage() {
 
       <section className="landingFinal landingShell"><div className="finalMark">P</div><small>SIAP MENGUBAH VIDEO BERIKUTNYA?</small><h2>Lebih sedikit editing.<br /><em>Lebih banyak publish.</em></h2><a href="/dashboard">Masuk ke dashboard <span>→</span></a></section>
 
-      <footer className="landingFooter landingShell"><a className="landingBrand" href="/"><span>P</span> Potongin AI</a><p>Self-hosted AI video repurposing.</p><div><a href="/dashboard">Dashboard</a><a href="/projects">Riwayat</a></div></footer>
+      <footer className="landingFooter landingShell"><Brand /><p>Self-hosted AI video repurposing.</p><div><a href="/dashboard">Dashboard</a><a href="/projects">Riwayat</a></div></footer>
     </main>
   );
 }
