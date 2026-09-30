@@ -11,7 +11,10 @@ digest). Nothing here writes the document: the browser applies the checked items
 
 * ``filler``: a run of adjacent hard fillers (``fillers`` and their elongated spellings in
   ``filler_patterns``; ``"ee ee"`` is one item) or a filler phrase (``"apa namanya"``). A filler
-  written as a question (``"eh?"``, ``"Hmm?"``) is not listed: it is a tag or a reply. Adjacent
+  written as a question (``"eh?"``, ``"Hmm?"``) is not listed: it is a tag or a reply; nor is an
+  ``interjection_patterns`` token (``"eh"``) right after one of the ``quotatives`` (quoted speech:
+  ``"kayak, eh tunggu dulu"``) or right before one of the ``address_terms`` (``"Eh, Bang"``), a
+  token in capitals (``"HM"``, an acronym) or a letter next to a letter (``"A B C D E"``). Adjacent
   fillers more than 600 ms apart are separate items. ``defaultOn`` is the lexicon's ``precheck``
   (false until the owner confirms the labelled set, QG-CLEAN).
 * ``repeat``: an immediate repeat of one token (``"gua gua"``, ``"gua gua gua"``: every
@@ -142,6 +145,9 @@ class Lexicon:
     fillers: frozenset[str]
     filler_patterns: tuple[re.Pattern[str], ...]
     filler_phrases: tuple[tuple[str, ...], ...]
+    interjection_patterns: tuple[re.Pattern[str], ...]  # "eh": quoted or addressing, not a filler
+    quotatives: frozenset[str]
+    address_terms: frozenset[str]
     particles: frozenset[str]
     pronouns: frozenset[str]
     stutter_words: frozenset[str]  # pronouns and function words
@@ -209,6 +215,11 @@ def _load(directory: Path) -> Lexicon:
             raise ValueError("filler_phrases must be lists of at least two tokens")
         _words(phrase, "filler_phrases")
         phrases.append(tuple(phrase))
+    interjections = []
+    for spec in fillers.get("interjection_patterns", []):
+        if not isinstance(spec, str) or not spec:
+            raise ValueError("interjection_patterns must be regular expressions")
+        interjections.append(re.compile(spec))
     particles = _words(fillers.get("protected_particles"), "protected_particles")
     filler_words = _words(fillers.get("fillers"), "fillers")
     pronouns = _words(fillers.get("stutter_pronouns"), "stutter_pronouns")
@@ -240,6 +251,9 @@ def _load(directory: Path) -> Lexicon:
         fillers=filler_words,
         filler_patterns=tuple(patterns),
         filler_phrases=tuple(phrases),
+        interjection_patterns=tuple(interjections),
+        quotatives=_words(fillers.get("quotatives"), "quotatives"),
+        address_terms=_words(fillers.get("address_terms"), "address_terms"),
         particles=particles,
         pronouns=pronouns,
         stutter_words=stutter,
@@ -327,9 +341,27 @@ class _Scan:
                     _ends_sentence(self.raw[k]) for k in range(index, end - 1)):
                 return len(phrase)
         if self._free(index, index) and self.lexicon.is_filler(tokens[index]) \
-                and not _is_question(self.raw[index]):
+                and not _is_question(self.raw[index]) and not self._not_a_hesitation(index):
             return 1
         return 0
+
+    def _not_a_hesitation(self, index: int) -> bool:
+        """A filler-lexicon token that means something here: an acronym in capitals ("HM"), a
+        letter spelled among letters ("A B C D E"), or an interjection ("eh") that belongs to
+        quoted speech ("kayak, eh tunggu dulu") or speaks to someone ("Eh, Bang")."""
+        raw, tokens, lexicon = self.raw, self.tokens, self.lexicon
+        bare = _EDGE.sub("", raw[index])
+        if sum(char.isalpha() for char in bare) >= 2 and bare.isupper():
+            return True
+        neighbours = [tokens[k] for k in (index - 1, index + 1) if 0 <= k < len(tokens)]
+        if len(tokens[index]) == 1 and any(len(word) == 1 and word.isalpha() for word in neighbours):
+            return True
+        if not any(pattern.fullmatch(tokens[index]) for pattern in lexicon.interjection_patterns):
+            return False
+        quoted = index > 0 and tokens[index - 1] in lexicon.quotatives \
+            and not _ends_sentence(raw[index - 1])
+        addressed = index + 1 < len(tokens) and tokens[index + 1] in lexicon.address_terms
+        return quoted or addressed
 
     def fillers(self) -> list[_Span]:
         found = []
