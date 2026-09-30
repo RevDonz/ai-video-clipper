@@ -17,3 +17,24 @@ condition = "AND"
 paths = ['''^web/tests/rate-limit\.test\.mjs$''']
 regexTarget = "line"
 regexes = ['''const token = "v1\.eyJzdWIiOiJhZG1pbiJ9\.signature";''']
+
+[[allowlists]]
+description = "Fixed test UUIDs (idempotency keys, lease and reservation tokens) in the editor tests"
+condition = "AND"
+paths = ['''^(web/)?tests/''']
+regexTarget = "line"
+regexes = ['''"[0-9a-f]23e4567-e89b-42d3-a456-426614174000"''']
+
+[[allowlists]]
+description = "Fixed 16-hex test key in the clip media route test"
+condition = "AND"
+paths = ['''^web/tests/clip-media\.test\.mjs$''']
+regexTarget = "line"
+regexes = ['''const KEY16 = "0123456789abcdef";''']
+
+[[allowlists]]
+description = "Fake provider keys in the editor AI tests"
+condition = "AND"
+paths = ['''^tests/test_editor_ai\.py$''']
+regexTarget = "line"
+regexes = ['''"(gsk_testkey1234567890|sk-or-test123456789)"''']
