@@ -2,391 +2,265 @@
 
 import { use, useEffect, useRef, useState } from "react";
 
-import {
-  CONTRIBUTION_LABELS,
-  FEATURE_LABELS,
-  MEDIA_LABELS,
-  buildFeedbackView,
-  classifyFeedbackSaveFailure,
-  createFeedbackSaveAttempt,
-  formatDuration,
-  formatScore,
-  loadProjectDetail,
-  profileLabel,
-  validateFeedbackPayload,
-} from "../../../lib/candidate-view.mjs";
 import AppHeader from "../../../components/AppHeader.jsx";
 import TrendChips from "../../../components/trends/TrendChips.jsx";
+import {
+  clipLabel,
+  formatProjectDate,
+  isActiveStatus,
+  loadProjectDetail,
+  projectName,
+  projectProgress,
+  statusLabel,
+} from "../../../lib/project-view.mjs";
 import {
   archetypeLabel,
   captionParts,
   clipCaptionText,
   clipFocusChip,
   clipPosterUrl,
+  clipReasons,
+  clipScoreView,
   clipTrendChips,
   coldOpenLength,
   focusSummaryLine,
   formatTenths,
-  isV3Job,
-  scoreRows,
-  selectionSourceLabel,
-  selectionV3SummaryView,
-  selectionWarningLabel,
-  tenPointScore,
+  formatTimestamp,
+  selectionNotices,
 } from "../../../lib/selection-v3-view.mjs";
 import focusStyles from "./focus.module.css";
+import styles from "./project.module.css";
 
-const STATUS_LABELS = {
-  queued: "Menunggu",
-  preparing: "Menyiapkan",
-  downloading: "Mengunduh",
-  processing: "Diproses",
-  completed: "Selesai",
-  failed: "Gagal",
-};
+// A running job is re-read on this interval until it finishes.
+const POLL_MS = 5000;
+const COPY_RESET_MS = 2200;
 
-function safePercent(value) {
-  return Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0));
-}
-
-function projectName(job) {
-  if (job?.source?.name) return job.source.name;
-  if (job?.source?.type === "youtube") return "Video YouTube";
-  return job?.id ? `Proyek ${job.id.slice(0, 8)}` : "Detail proyek";
-}
-
-function formatDate(value) {
-  if (!value) return "Tanggal tidak tersedia";
-  const date = new Date(value);
-  if (Number.isNaN(date.valueOf())) return "Tanggal tidak tersedia";
-  return new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" }).format(date);
-}
-
-function FeedbackEditor({ candidate, jobId, latest, enabled, disabledReason, onSaved, onReloadRequired }) {
-  const [decision, setDecision] = useState(latest?.decision || "");
-  const [note, setNote] = useState(latest?.note || "");
-  const [savedDecision, setSavedDecision] = useState(latest?.decision || "");
-  const [savedNote, setSavedNote] = useState(latest?.note || "");
-  const [saveState, setSaveState] = useState({ status: "idle", message: "" });
-  const pendingAttempt = useRef(null);
-  const requestController = useRef(null);
-  const mounted = useRef(true);
-
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-      requestController.current?.abort();
-    };
-  }, []);
-
-  const chooseDecision = (value) => {
-    setDecision(value);
-    if (saveState.status !== "saving") setSaveState({ status: "idle", message: "" });
-  };
-  const changeNote = (value) => {
-    setNote(value);
-    if (saveState.status !== "saving") setSaveState({ status: "idle", message: "" });
-  };
-  const dirty = decision !== savedDecision || note !== savedNote;
-
-  const save = async () => {
-    const attempt = createFeedbackSaveAttempt(
-      pendingAttempt.current,
-      { candidateId: candidate.id, decision, note },
-      () => crypto.randomUUID(),
-    );
-    // Validate the raw note so trimming can never hide a control character.
-    const validation = validateFeedbackPayload({ ...attempt, note });
-    if (!validation.valid) {
-      setSaveState({ status: "error", message: validation.error });
-      return;
-    }
-
-    pendingAttempt.current = attempt;
-    requestController.current?.abort();
-    const controller = new AbortController();
-    requestController.current = controller;
-    setSaveState({ status: "saving", message: "Menyimpan feedback…" });
-    try {
-      const response = await fetch(`/api/jobs/${jobId}/candidate-feedback`, {
-        method: "PUT",
-        cache: "no-store",
-        signal: controller.signal,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(attempt),
-      });
-      let payload = {};
-      try {
-        payload = await response.json();
-      } catch {
-        payload = {};
-      }
-      if (!mounted.current) return;
-      if (response.status === 401) {
-        window.location.assign(`/login?next=${encodeURIComponent(`/projects/${jobId}`)}`);
-        return;
-      }
-      if (!response.ok) {
-        const failure = classifyFeedbackSaveFailure(response.status, payload);
-        pendingAttempt.current = failure.retryable ? { ...attempt, retryable: true } : null;
-        setSaveState(failure);
-        if (failure.reloadRequired) onReloadRequired(failure.message);
-        return;
-      }
-
-      const next = buildFeedbackView(payload);
-      const saved = next.latestByCandidate[candidate.id];
-      if (!next.available || !saved) throw new Error("Respons feedback tidak valid.");
-      pendingAttempt.current = null;
-      setDecision(saved.decision);
-      setNote(saved.note);
-      setSavedDecision(saved.decision);
-      setSavedNote(saved.note);
-      onSaved(next);
-      setSaveState({ status: "success", message: "Feedback tersimpan secara durabel untuk evaluasi/kalibrasi mendatang." });
-    } catch (error) {
-      if (!mounted.current || error?.name === "AbortError") return;
-      pendingAttempt.current = { ...attempt, retryable: true };
-      setSaveState({ status: "error", message: "Jaringan terputus; feedback belum dipastikan tersimpan. Coba lagi dengan ID permintaan yang sama." });
-    }
-  };
-
-  const noteLength = Array.from(note).length;
-  const reloadRequired = saveState.reloadRequired === true;
-  const disabled = !enabled || reloadRequired || saveState.status === "saving";
+function Notice({ notice }) {
   return (
-    <section className="feedbackEditor" aria-labelledby={`feedback-title-${candidate.id}`}>
-      <div className="feedbackHeading">
-        <div><h4 id={`feedback-title-${candidate.id}`}>Feedback kandidat</h4><p>Feedback tersimpan untuk evaluasi/kalibrasi mendatang; ini tidak mengaktifkan pelatihan otomatis.</p></div>
-        {latest?.createdAt && <span>Terakhir tersimpan {formatDate(latest.createdAt)}</span>}
-      </div>
-      <fieldset disabled={disabled}>
-        <legend>Keputusan untuk kandidat ini</legend>
-        <div className="decisionSegments">
-          {[["accepted", "Accept"], ["rejected", "Tolak"], ["undecided", "Belum diputuskan"]].map(([value, label]) => (
-            <label key={value} className={decision === value ? "selected" : ""}>
-              <input type="radio" name={`decision-${candidate.id}`} value={value} checked={decision === value} onChange={() => chooseDecision(value)} />
-              <span>{label}</span>
-            </label>
-          ))}
-        </div>
-      </fieldset>
-      <label className="feedbackNote" htmlFor={`feedback-note-${candidate.id}`}>
-        <span>Catatan opsional</span>
-        <textarea id={`feedback-note-${candidate.id}`} aria-describedby={`feedback-note-help-${candidate.id}`} value={note} disabled={disabled} onChange={(event) => changeNote(event.target.value)} placeholder="Tambahkan alasan singkat (opsional)" />
-        <small id={`feedback-note-help-${candidate.id}`} className={noteLength > 500 ? "over" : ""}>{noteLength}/500 karakter Unicode. Baris baru dan karakter kontrol tidak didukung.</small>
-      </label>
-      {(!enabled || reloadRequired) && <p className="feedbackDisabled" role="status">{reloadRequired ? saveState.message : disabledReason}</p>}
-      <div className="feedbackActions">
-        <button type="button" onClick={save} disabled={disabled || !dirty || !decision}>{saveState.status === "saving" ? "Menyimpan…" : "Simpan feedback"}</button>
-        <span className={`feedbackStatus ${saveState.status}`} role={saveState.status === "error" || reloadRequired ? "alert" : "status"} aria-live="polite">{saveState.message || (dirty ? "Perubahan belum disimpan." : "Tidak ada perubahan yang belum disimpan.")}</span>
-      </div>
-      {reloadRequired && <button className="feedbackReload" type="button" onClick={() => window.location.reload()}>Muat ulang halaman</button>}
-    </section>
-  );
-}
-
-function CandidateCard({ candidate, jobId, latestFeedback, feedbackEnabled, feedbackDisabledReason, onFeedbackSaved, onFeedbackReloadRequired }) {
-  const score = safePercent(candidate.score * 10);
-  const features = Object.entries(candidate.features || {});
-  const contributions = candidate.scoreBreakdown?.contributions || [];
-  const measurements = Object.entries(candidate.measuredMedia?.measurements || {})
-    .filter(([, value]) => value !== null && Number.isFinite(value));
-
-  return (
-    <article className="candidateCard" aria-labelledby={`candidate-${candidate.id}`}>
-      <header className="candidateHead">
-        <div className="candidateRank"><span>Peringkat</span><strong>#{candidate.rank}</strong></div>
-        <div className="candidateTitle">
-          <div><span className="profileBadge">{profileLabel(candidate.profile)}</span><span>Urutan tampil {candidate.displayOrder}</span></div>
-          <h3 id={`candidate-${candidate.id}`}>{candidate.text}</h3>
-        </div>
-        <div className="candidateScore">
-          <span>Clip Potential Score</span><strong>{formatScore(candidate.score)}<small>/10</small></strong>
-          <div className="scoreMeter" role="progressbar" aria-label={`Clip Potential Score ${formatScore(candidate.score)} dari 10`} aria-valuemin="0" aria-valuemax="10" aria-valuenow={candidate.score}>
-            <i style={{ width: `${score}%` }} />
-          </div>
-        </div>
-      </header>
-
-      <div className="candidateTiming" aria-label="Batas waktu kandidat">
-        <span><small>Mulai</small>{formatDuration(candidate.start)}</span>
-        <i aria-hidden="true">→</i>
-        <span><small>Selesai</small>{formatDuration(candidate.end)}</span>
-        <span><small>Durasi</small>{formatDuration(candidate.duration)}</span>
-      </div>
-      <p className="boundaryNote">Batas kandidat tetap mengikuti segmen transkrip utuh dan tidak dapat di-trim di editor.</p>
-      <a className="openEditorLink" href={`/projects/${encodeURIComponent(jobId)}/candidates/${encodeURIComponent(candidate.id)}/edit`}>Buka editor <span aria-hidden="true">→</span></a>
-
-      {!!candidate.topicTerms?.length && <div className="topicTerms" aria-label="Istilah topik">{candidate.topicTerms.map((term) => <span key={term}>{term}</span>)}</div>}
-
-      <div className="candidateColumns">
-        <section aria-labelledby={`reason-${candidate.id}`}>
-          <h4 id={`reason-${candidate.id}`}>Alasan pemilihan</h4>
-          {candidate.reasons?.length ? <ul>{candidate.reasons.map((reason, index) => <li key={`${candidate.id}-reason-${index}`}>{reason}</li>)}</ul> : <p>Alasan tidak tersedia.</p>}
-        </section>
-        <section aria-labelledby={`feature-${candidate.id}`}>
-          <h4 id={`feature-${candidate.id}`}>Fitur penilaian</h4>
-          <dl className="featureGrid">{features.map(([name, value]) => <div key={name}><dt>{FEATURE_LABELS[name] || name}</dt><dd>{formatScore(value)}</dd></div>)}</dl>
-        </section>
-      </div>
-
-      {measurements.length > 0 && (
-        <section className="mediaSignals" aria-labelledby={`media-${candidate.id}`}>
-          <h4 id={`media-${candidate.id}`}>Sinyal media terukur</h4>
-          <p>Audio dan visual di bawah adalah sinyal aktivitas hasil pengukuran, bukan klaim emosi, identitas pembicara, atau active-speaker.</p>
-          <dl>{measurements.map(([name, value]) => <div key={name}><dt>{MEDIA_LABELS[name] || name}</dt><dd>{formatScore(value)}</dd></div>)}</dl>
-        </section>
-      )}
-
-      <details className="scoreDetails">
-        <summary>Lihat rincian skor</summary>
-        <div className="breakdownSummary">
-          <span>Pra-penalti <b>{formatScore(candidate.scoreBreakdown?.weightedPrePenaltyScore)}</b></span>
-          <span>Penalti <b>−{formatScore(candidate.scoreBreakdown?.penaltyDeduction)}</b></span>
-          <span>Diversitas <b>−{formatScore(candidate.scoreBreakdown?.diversityDeduction)}</b></span>
-          <span>Skor akhir <b>{formatScore(candidate.scoreBreakdown?.finalScore)}</b></span>
-        </div>
-        {!!contributions.length && <div className="contributions" role="list">{contributions.map((item) => <div role="listitem" key={item.name}><span>{CONTRIBUTION_LABELS[item.name] || item.name}<small>{item.source === "media" ? "sinyal media" : "sinyal teks"}</small></span><b>{formatScore(item.weightedValue)}</b></div>)}</div>}
-      </details>
-
-      <FeedbackEditor
-        candidate={candidate}
-        jobId={jobId}
-        latest={latestFeedback}
-        enabled={feedbackEnabled}
-        disabledReason={feedbackDisabledReason}
-        onSaved={onFeedbackSaved}
-        onReloadRequired={onFeedbackReloadRequired}
-      />
-    </article>
-  );
-}
-
-function SelectionV3Summary({ summary }) {
-  const view = selectionV3SummaryView(summary);
-  if (!view) return null;
-  return (
-    <div className={`v3Summary ${view.tone}`} role={view.tone === "ok" ? "status" : "alert"}>
-      <div>
-        <strong>{view.headline}</strong>
-        <p>{view.detail}</p>
-      </div>
-      <dl>
-        {view.engine && <div><dt>Penyedia / model</dt><dd>{view.engine}</dd></div>}
-        {view.transcript && <div><dt>Transkrip</dt><dd>{view.transcript}</dd></div>}
-        {view.promptVersion && <div><dt>Versi prompt</dt><dd>{view.promptVersion}</dd></div>}
-      </dl>
-      {view.warnings.length > 0 && (
-        <details>
-          <summary>Kode peringatan teknis ({view.warnings.length})</summary>
-          <ul>{view.warnings.map((code) => {
-            const label = selectionWarningLabel(code);
-            return <li key={code}><code>{code}</code>{label && <> · {label}</>}</li>;
-          })}</ul>
-        </details>
-      )}
+    <div className={`notice ${notice.tone}`}>
+      {notice.title && <strong>{notice.title}</strong>}
+      <span>{notice.text}</span>
+      {notice.href && <a className={styles.noticeLink} href={notice.href}>{notice.action}</a>}
     </div>
   );
 }
 
-// Fokus klip: "Fokus: jomok, jomokers — 5 dari 8 klip cocok". Nothing for jobs without focus.
+// Fokus klip: "Fokus: jomok, jomokers · 5 dari 8 klip cocok". Nothing for jobs without focus.
 function FocusSummary({ job }) {
   const view = focusSummaryLine(job);
   if (!view) return null;
   return (
     <p className={focusStyles.focusLine}>
       <span className={focusStyles.label}>Fokus:</span> {view.termsText}
-      {view.countText && <> — <strong>{view.countText}</strong></>}
+      {view.countText && <> · <strong>{view.countText}</strong></>}
     </p>
   );
 }
 
-function V3ClipCard({ clip, job, copied, onCopy }) {
-  const index = String(clip.index).padStart(2, "0");
-  const titleId = `v3-clip-${index}`;
-  const score = tenPointScore(clip.score);
-  const rows = scoreRows(clip.scores);
-  const source = selectionSourceLabel(clip.selectionSource);
+function ScoreBlock({ score }) {
+  return (
+    <div className={styles.score}>
+      {score.total !== null && (
+        <p className={styles.scoreTotal}>
+          <span>Skor</span>
+          <strong>{formatTenths(score.total)}<small>/10</small></strong>
+        </p>
+      )}
+      {score.rows.length > 0 && (
+        <dl className={styles.scoreRows}>
+          {score.rows.map((row) => (
+            <div key={row.name}>
+              <dt>{row.label}</dt>
+              <dd>
+                <span className={styles.bar} aria-hidden="true"><i style={{ width: `${Math.max(0, Math.min(100, row.percent))}%` }} /></span>
+                <b>{formatTenths(row.value)}</b>
+              </dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </div>
+  );
+}
+
+function ClipCard({ clip, job, copied, onCopy }) {
+  const label = clipLabel(clip);
+  const titleId = `clip-${clip.index}-title`;
+  const score = clipScoreView(clip);
   const archetype = archetypeLabel(clip.archetype);
   const coldOpen = coldOpenLength(clip);
   const caption = captionParts(clip);
-  const reasons = Array.isArray(clip.reasons) ? clip.reasons : [];
-  const sourceRange = typeof clip.sourceStart === "number" && typeof clip.sourceEnd === "number";
+  const reasons = clipReasons(clip);
   const trendChips = clipTrendChips(clip);
   const focusChip = clipFocusChip(clip, job);
+  const from = formatTimestamp(clip.sourceStart);
+  const to = formatTimestamp(clip.sourceEnd);
 
   return (
-    <article className="v3Clip" aria-labelledby={titleId}>
-      <video controls preload="metadata" src={clip.videoUrl} poster={clipPosterUrl(clip)} />
-      <div className="v3ClipBody">
-        <div className="v3ClipTags">
-          <small>CLIP {index} · {Math.round(clip.duration || 0)} DETIK</small>
-          {source && <span className={`sourceBadge ${clip.selectionSource}`}>{source}</span>}
-          {archetype && <span className="archetypeBadge">{archetype}</span>}
-          {coldOpen !== null && <span className="coldOpenBadge" title="Kalimat hook diputar lebih dulu sebelum klip dimulai">Cold open {formatTenths(coldOpen)} dtk</span>}
+    <article className={styles.clip} aria-labelledby={titleId}>
+      <video className={styles.video} controls preload="metadata" src={clip.videoUrl} poster={clipPosterUrl(clip)} aria-label={`Video ${label}`} />
+      <div className={styles.clipBody}>
+        <div className={styles.tags}>
+          <span className={styles.clipNumber}>{label}</span>
+          {archetype && <span className="chip">{archetype}</span>}
+          {coldOpen !== null && <span className="chip">Dibuka kalimat terkuat · {formatTenths(coldOpen)} dtk</span>}
           {focusChip && <span className={`${focusStyles.chip} ${focusStyles[focusChip.tone]}`} data-focus={focusChip.tone}>{focusChip.label}</span>}
         </div>
-        <h3 id={titleId}>{clip.title}</h3>
-        {clip.hookText && <p className="hookLine"><span>Teks hook</span>{clip.hookText}</p>}
+        <h3 id={titleId}>{clip.title || label}</h3>
+        {clip.hookText && <p className={styles.hook}><span>Teks hook</span>{clip.hookText}</p>}
         {trendChips.length > 0 && <TrendChips chips={trendChips} />}
-
-        {(score !== null || rows.length > 0) && (
-          <div className="v3Scores">
-            {score !== null && <p className="v3ScoreTotal"><span>Skor</span><strong>{formatTenths(score)}<small>/10</small></strong></p>}
-            {rows.length > 0 && (
-              <dl>
-                {rows.map((row) => (
-                  <div key={row.name}>
-                    <dt>{row.label}</dt>
-                    <dd><span className="miniBar" aria-hidden="true"><i style={{ width: `${Math.max(0, Math.min(100, row.percent))}%` }} /></span><b>{formatTenths(row.value)}</b></dd>
-                  </div>
-                ))}
-              </dl>
-            )}
-          </div>
-        )}
+        {score && <ScoreBlock score={score} />}
 
         {reasons.length > 0 && (
-          <section className="v3Reasons" aria-label="Alasan dipilih">
-            <h4>Kenapa dipilih</h4>
-            <ul>{reasons.map((reason, position) => <li key={`${index}-reason-${position}`}>{reason}</li>)}</ul>
+          <section className={styles.reasons} aria-labelledby={`${titleId}-reasons`}>
+            <h4 id={`${titleId}-reasons`}>Kenapa dipilih</h4>
+            <ul>{reasons.map((reason, position) => <li key={`${clip.index}-reason-${position}`}>{reason}</li>)}</ul>
           </section>
         )}
 
-        <section className="v3Caption" aria-label="Caption untuk diunggah">
-          <h4>Caption</h4>
-          {caption.body && <p className="captionBody">{caption.body}</p>}
-          {caption.hashtags.length > 0 && <p className="hashtagList">{caption.hashtags.map((tag) => <span key={tag}>{tag}</span>)}</p>}
-          <button type="button" className="copyCaption" onClick={() => onCopy(clip)}>{copied === "copied" ? "Tersalin ✓" : copied === "failed" ? "Gagal menyalin — pilih teks manual" : "Salin caption"}</button>
-          <span className="visuallyHidden" role="status" aria-live="polite">{copied === "copied" ? "Caption tersalin ke clipboard" : ""}</span>
+        <section className={styles.caption} aria-labelledby={`${titleId}-caption`}>
+          <h4 id={`${titleId}-caption`}>Caption</h4>
+          {caption.body && <p className={styles.captionBody}>{caption.body}</p>}
+          {caption.hashtags.length > 0 && <p className={styles.hashtags}>{caption.hashtags.map((tag) => <span key={tag}>{tag}</span>)}</p>}
+          <button type="button" className={`btn ${styles.copy}`} data-state={copied || undefined} onClick={() => onCopy(clip)}>
+            {copied === "copied" ? "Tersalin" : copied === "failed" ? "Gagal menyalin" : "Salin caption"}
+          </button>
+          <span className="visuallyHidden" role="status" aria-live="polite">
+            {copied === "copied" ? "Caption tersalin." : copied === "failed" ? "Caption gagal disalin. Pilih teksnya, lalu salin manual." : ""}
+          </span>
         </section>
 
-        {sourceRange && <p className="v3SourceRange">Dari video sumber {formatDuration(clip.sourceStart)} → {formatDuration(clip.sourceEnd)}</p>}
-        <div className="archiveActions"><a href={clip.downloadUrl}>Download MP4 ↓</a>{clip.subtitleUrl && <a href={clip.subtitleUrl} aria-label={`Subtitle SRT klip ${index}`}>Subtitle SRT ↓</a>}</div>
+        <div className={styles.actions}>
+          <a className="btn" href={clip.downloadUrl}>Unduh MP4</a>
+          {clip.subtitleUrl && <a className="btn ghost" href={clip.subtitleUrl} aria-label={`Unduh subtitle SRT ${label}`}>Subtitle SRT</a>}
+          {from && to && <span className={styles.sourceRange}>Di video sumber: {from} sampai {to}</span>}
+        </div>
       </div>
     </article>
   );
 }
 
-export default function ProjectDetailPage({ params }) {
+function ClipsSection({ job, copyState, onCopy }) {
+  const clips = Array.isArray(job.clips) ? job.clips : [];
+  if (clips.length) {
+    return (
+      <section className={styles.clips} aria-labelledby="clips-title">
+        <h2 id="clips-title">{job.status === "completed" ? `${clips.length} klip siap diunggah` : `${clips.length} klip`}</h2>
+        <div className={styles.clipList}>
+          {clips.map((clip) => <ClipCard key={clip.index} clip={clip} job={job} copied={copyState.index === clip.index ? copyState.status : ""} onCopy={onCopy} />)}
+        </div>
+      </section>
+    );
+  }
+  if (job.status !== "completed") return null;
+  return (
+    <section className={styles.empty} aria-labelledby="clips-title">
+      <h2 id="clips-title">Tidak ada klip dari video ini</h2>
+      <p>Proses selesai, tetapi tidak ada momen yang lolos jadi klip.</p>
+      <a className="btn" href="/dashboard">Buat proyek baru</a>
+    </section>
+  );
+}
+
+function ProjectView({ job, copyState, onCopy }) {
+  const active = isActiveStatus(job.status);
+  const progress = projectProgress(job);
+  const notices = selectionNotices(job);
+  const clipCount = Array.isArray(job.clips) ? job.clips.length : 0;
+
+  return (
+    <div className={`shell ${styles.page}`}>
+      <a className={styles.back} href="/projects"><span aria-hidden="true">←</span> Riwayat</a>
+      <header className={styles.head}>
+        <h1>{projectName(job)}</h1>
+        <p className={styles.meta}>
+          <span className={styles.status} data-status={job.status}>{statusLabel(job.status)}</span>
+          <span>{formatProjectDate(job.createdAt)}</span>
+          {clipCount > 0 && <span>{clipCount} klip</span>}
+          {job.source?.type === "youtube" && job.source.url && (
+            <a href={job.source.url} target="_blank" rel="noopener noreferrer">Buka di YouTube<span className="visuallyHidden"> (tab baru)</span></a>
+          )}
+        </p>
+      </header>
+
+      {active && (
+        <section className={styles.progressPanel} aria-labelledby="progress-title">
+          <div>
+            <h2 id="progress-title">{job.stageDetail || "Sedang diproses"}</h2>
+            <b>{progress}%</b>
+          </div>
+          <div className="progress" role="progressbar" aria-labelledby="progress-title" aria-valuemin="0" aria-valuemax="100" aria-valuenow={progress}><i style={{ width: `${progress}%` }} /></div>
+          <p>Progres diperbarui otomatis. Klip muncul di sini setelah selesai.</p>
+        </section>
+      )}
+
+      {job.status === "failed" && (
+        <div className={`notice error ${styles.failed}`}>
+          <strong>Proses gagal</strong>
+          <span>{job.stageDetail || "Proyek ini berhenti sebelum klip selesai."}</span>
+          <a className={styles.noticeLink} href="/dashboard">Buat ulang di Buat Klip</a>
+        </div>
+      )}
+
+      {notices.length > 0 && <div className={styles.notices}>{notices.map((notice) => <Notice key={`${notice.tone}:${notice.text}`} notice={notice} />)}</div>}
+      <FocusSummary job={job} />
+      <ClipsSection job={job} copyState={copyState} onCopy={onCopy} />
+    </div>
+  );
+}
+
+export default function ProjectPage({ params }) {
   const { id } = use(params);
   const [job, setJob] = useState(null);
-  const [candidateView, setCandidateView] = useState({ available: false, selectionVersion: "", candidates: [] });
-  const [feedbackView, setFeedbackView] = useState({ available: false, selectionVersion: "", eventCount: 0, latestByCandidate: {} });
   const [loading, setLoading] = useState(true);
-  const [pageError, setPageError] = useState("");
-  const [candidateNotice, setCandidateNotice] = useState("");
-  const [feedbackNotice, setFeedbackNotice] = useState("");
-  const [feedbackReloadRequired, setFeedbackReloadRequired] = useState("");
-  const [reloadGeneration, setReloadGeneration] = useState(0);
+  const [error, setError] = useState(null);
+  const [generation, setGeneration] = useState(0);
   const [copyState, setCopyState] = useState({ index: null, status: "" });
   const copyTimer = useRef(null);
 
   useEffect(() => () => {
     if (copyTimer.current !== null) clearTimeout(copyTimer.current);
   }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
+    let pollTimer = null;
+    const load = async (initial) => {
+      if (initial) {
+        setLoading(true);
+        setJob(null);
+        setError(null);
+      }
+      try {
+        const result = await loadProjectDetail(id, { signal: controller.signal });
+        if (!active) return;
+        if (result.type === "redirect") {
+          window.location.assign(result.location);
+          return;
+        }
+        setJob(result.job);
+        if (isActiveStatus(result.job.status)) pollTimer = setTimeout(() => load(false), POLL_MS);
+      } catch (loadError) {
+        if (!active || loadError?.name === "AbortError") return;
+        // A failed poll keeps the page as it is and tries again; only the first load shows the error.
+        if (initial) setError({ message: loadError?.message || "Proyek tidak bisa dimuat.", kind: loadError?.kind || "request" });
+        else pollTimer = setTimeout(() => load(false), POLL_MS);
+      } finally {
+        if (active && initial) setLoading(false);
+      }
+    };
+    load(true);
+    return () => {
+      active = false;
+      controller.abort();
+      if (pollTimer !== null) clearTimeout(pollTimer);
+    };
+  }, [id, generation]);
+
+  useEffect(() => {
+    if (job) document.title = `${projectName(job)} · Potongin`;
+  }, [job]);
 
   const copyCaption = async (clip) => {
     let status = "copied";
@@ -400,130 +274,29 @@ export default function ProjectDetailPage({ params }) {
     copyTimer.current = setTimeout(() => {
       copyTimer.current = null;
       setCopyState({ index: null, status: "" });
-    }, 2200);
+    }, COPY_RESET_MS);
   };
-
-  useEffect(() => {
-    const controller = new AbortController();
-    let active = true;
-    setLoading(true);
-    setJob(null);
-    setCandidateView({ available: false, selectionVersion: "", candidates: [] });
-    setFeedbackView({ available: false, selectionVersion: "", eventCount: 0, latestByCandidate: {} });
-    setPageError("");
-    setCandidateNotice("");
-    setFeedbackNotice("");
-    setFeedbackReloadRequired("");
-    (async () => {
-      try {
-        const result = await loadProjectDetail(id, { signal: controller.signal });
-        if (!active) return;
-        if (result.type === "redirect") {
-          window.location.assign(result.location);
-          return;
-        }
-        setJob(result.job);
-        setCandidateView(result.candidateView);
-        setCandidateNotice(result.candidateNotice);
-        setFeedbackView(result.feedbackView);
-        setFeedbackNotice(result.feedbackNotice);
-      } catch (error) {
-        if (!active || error?.name === "AbortError") return;
-        setPageError(error instanceof Error ? error.message : "Terjadi gangguan jaringan saat memuat proyek.");
-      } finally {
-        if (active) setLoading(false);
-      }
-    })();
-    return () => {
-      active = false;
-      controller.abort();
-    };
-  }, [id, reloadGeneration]);
-
-  const clips = job?.clips || [];
-  const v3 = isV3Job(job);
-  const progress = safePercent(job?.progress);
-  const candidates = candidateView.candidates;
-  const selectionVersionMatches = feedbackView.available
-    && !!candidateView.selectionVersion
-    && feedbackView.selectionVersion === candidateView.selectionVersion;
-  const feedbackDisabledReason = feedbackReloadRequired || feedbackNotice
-    || (!feedbackView.available
-      ? "Penyimpanan feedback belum tersedia untuk proyek ini."
-      : "Versi pilihan kandidat berubah. Muat ulang halaman agar feedback tidak diterapkan ke versi yang salah.");
 
   return (
     <main>
       <AppHeader current="/projects" />
-
-      {loading && <section className="detailState shell" role="status" aria-live="polite"><div className="pulse" /><h1>Memuat detail proyek…</h1><p>Ringkasan job dan kandidat V2 sedang diambil.</p></section>}
-
-      {!loading && pageError && <section className="detailState detailError shell" role="alert"><div className="emptyIcon">!</div><h1>Detail proyek tidak tersedia</h1><p>{pageError}</p><div><button type="button" onClick={() => setReloadGeneration((value) => value + 1)}>Coba lagi</button><a href="/projects">Kembali ke riwayat</a></div></section>}
-
-      {!loading && job && (
-        <>
-          <header className="detailHero shell">
-            <a className="backLink" href="/projects">← Kembali ke riwayat</a>
-            <div className="eyebrow">DETAIL PROYEK · READ-ONLY</div>
-            <div className="detailHeroRow"><div><h1>{projectName(job)}</h1><p>ID {job.id} · dibuat {formatDate(job.createdAt)}</p></div><span className={`statusPill ${job.status}`}>{STATUS_LABELS[job.status] || job.status}</span></div>
-          </header>
-
-          <section className="jobOverview shell" aria-labelledby="job-summary-title">
-            <div className="jobSummaryCard">
-              <div><span>JOB</span><h2 id="job-summary-title">Ringkasan pemrosesan</h2></div>
-              <dl><div><dt>Status</dt><dd>{STATUS_LABELS[job.status] || job.status}</dd></div><div><dt>Mode render</dt><dd>{job.options?.renderMode || "—"}</dd></div><div><dt>{v3 ? "Klip" : "Klip lama"}</dt><dd>{clips.length}</dd></div><div><dt>Diperbarui</dt><dd>{formatDate(job.updatedAt)}</dd></div></dl>
-              <div className="progress" role="progressbar" aria-label="Progres pemrosesan proyek" aria-valuemin="0" aria-valuemax="100" aria-valuenow={progress}><i style={{ width: `${progress}%` }} /></div>
-              <p>{job.stageDetail || `Progres ${progress}%`}</p>
-              {job.error && <div className="projectError" role="alert">{job.error}</div>}
-              {job.source?.type === "youtube" && job.source.url && <a className="sourceLink" href={job.source.url} target="_blank" rel="noreferrer">Buka sumber YouTube ↗</a>}
-            </div>
-          </section>
-
-          {v3 && (
-            <section className="legacySection v3Section shell" aria-labelledby="v3-clips-title">
-              <header><div className="eyebrow">SELECTION V3 · AI HOOK</div><h2 id="v3-clips-title">Klip siap posting</h2><p>Judul, teks hook, deskripsi, dan hashtag dibuat bersamaan dengan pemilihan momen. Salin caption, unduh MP4, lalu unggah.</p></header>
-              <SelectionV3Summary summary={job.selectionV3} />
-              <FocusSummary job={job} />
-              {clips.length ? <div className="v3Clips">{clips.map((clip) => (
-                <V3ClipCard key={clip.index} clip={clip} job={job} copied={copyState.index === clip.index ? copyState.status : ""} onCopy={copyCaption} />
-              ))}</div> : <div className="noClips"><strong>{job.status === "failed" ? "Proses ini gagal" : "Klip belum tersedia"}</strong><p>{STATUS_LABELS[job.status] || job.status} · progres {progress}%</p></div>}
-            </section>
-          )}
-
-          {(!v3 || (candidateView.available && candidates.length > 0)) && <section className="candidatePanel shell" aria-labelledby="candidate-title">
-            <header><div><div className="eyebrow">SELECTION V2 · SHADOW OUTPUT</div><h2 id="candidate-title">Kandidat potongan</h2><p>Analisis tetap read-only; keputusan dan catatan di bawah hanya disimpan sebagai feedback evaluasi. Kandidat belum dirender atau diaktifkan untuk produksi.</p></div>{candidates.length > 0 && <strong>{candidates.length} kandidat · {feedbackView.eventCount} event feedback</strong>}</header>
-            {feedbackNotice && <div className="feedbackPanelWarning" role="status" aria-live="polite"><strong>Feedback sementara tidak tersedia.</strong><span>{feedbackNotice}</span></div>}
-            {feedbackReloadRequired && <div className="feedbackPanelWarning" role="alert"><strong>Feedback dikunci sampai halaman dimuat ulang.</strong><span>{feedbackReloadRequired}</span><button className="feedbackReload" type="button" onClick={() => window.location.reload()}>Muat ulang halaman</button></div>}
-            {feedbackView.available && !selectionVersionMatches && <div className="feedbackPanelWarning" role="alert"><strong>Versi kandidat tidak cocok.</strong><span>{feedbackDisabledReason}</span></div>}
-            {candidateView.available && candidates.length > 0 ? <div className="candidateList">{candidates.map((candidate) => (
-              <CandidateCard
-                key={candidate.id}
-                candidate={candidate}
-                jobId={id}
-                latestFeedback={feedbackView.latestByCandidate[candidate.id]}
-                feedbackEnabled={selectionVersionMatches && !feedbackReloadRequired}
-                feedbackDisabledReason={feedbackDisabledReason}
-                onFeedbackSaved={setFeedbackView}
-                onFeedbackReloadRequired={setFeedbackReloadRequired}
-              />
-            ))}</div> : (
-              <div className="candidateEmpty">
-                <div className="emptyIcon">◇</div><h3>Kandidat V2 belum tersedia</h3>
-                <p>{candidateNotice || "V2 shadow mungkin belum dijalankan untuk job lama, atau artifact analisis belum tersedia."}</p>
-                <p>Klip hasil job lama tetap dapat diputar dan diunduh di bagian “Klip yang sudah dirender” di bawah.</p>
-              </div>
-            )}
-          </section>}
-
-          {!v3 && <section className="legacySection shell" aria-labelledby="legacy-title">
-            <header><div className="eyebrow">HASIL JOB LAMA</div><h2 id="legacy-title">Klip yang sudah dirender</h2><p>Hasil lama tetap tersedia terlepas dari ketersediaan kandidat V2.</p></header>
-            {clips.length ? <div className="archiveClips">{clips.map((clip) => <article className="archiveClip" key={clip.index}><video controls preload="metadata" src={clip.videoUrl} poster={clipPosterUrl(clip)} /><div><small>CLIP {String(clip.index).padStart(2, "0")} · {Math.round(clip.duration || 0)} DETIK</small><h3>{clip.title}</h3><p className="socialDescription">{clip.description}</p>{clip.subtitleUrl && <p className="subtitleNote">Subtitle SRT tersedia sebagai file unduhan dan tidak dimuat sebagai track browser.</p>}<div className="archiveActions"><a href={clip.downloadUrl}>Download MP4 ↓</a>{clip.subtitleUrl && <a href={clip.subtitleUrl}>Subtitle SRT ↓</a>}</div></div></article>)}</div> : <div className="noClips"><strong>{job.status === "failed" ? "Proses ini gagal" : "Klip belum tersedia"}</strong><p>{STATUS_LABELS[job.status] || job.status} · progres {progress}%</p></div>}
-          </section>}
-        </>
+      {loading && (
+        <section className={`shell ${styles.state}`} role="status" aria-live="polite">
+          <span className="pulse" aria-hidden="true" />
+          <p>Memuat proyek…</p>
+        </section>
       )}
-      {v3
-        ? <footer className="shell">Potongin AI · Hasil klip AI hook <span>Selection V3</span></footer>
-        : <footer className="shell">Potongin AI · Peninjau kandidat read-only <span>Selection V2 shadow</span></footer>}
+      {!loading && error && (
+        <section className={`shell ${styles.state}`} role="alert">
+          <h1>Proyek tidak bisa dibuka</h1>
+          <p>{error.message}</p>
+          <div>
+            {error.kind !== "not-found" && <button type="button" className="btn primary" onClick={() => setGeneration((value) => value + 1)}>Coba lagi</button>}
+            <a className={error.kind === "not-found" ? "btn primary" : "btn"} href="/projects">Kembali ke Riwayat</a>
+          </div>
+        </section>
+      )}
+      {!loading && job && <ProjectView job={job} copyState={copyState} onCopy={copyCaption} />}
     </main>
   );
 }

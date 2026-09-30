@@ -1,0 +1,423 @@
+/* One project's page (/projects/[id]). Tokens from app/globals.css; building blocks
+   (.btn, .chip, .notice, .progress, .pulse) stay global. */
+
+.page {
+  padding: 20px 0 64px;
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  border-radius: var(--radius-s);
+  color: var(--text-muted);
+  font: 600 14px/1.2 var(--font);
+  text-decoration: none;
+  transition: color var(--dur-1) var(--ease-out);
+}
+/* The arrow points where the link goes; it moves a little that way on hover. */
+.back span {
+  transition: transform var(--dur-2) var(--ease-out);
+}
+.back:hover {
+  color: var(--text);
+}
+.back:hover span {
+  transform: translateX(-3px);
+}
+
+.head {
+  margin: 8px 0 24px;
+}
+.head h1 {
+  margin: 0 0 10px;
+  font: 700 clamp(26px, 3.2vw, 36px)/1.15 var(--font);
+  letter-spacing: -.02em;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+.meta a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  border-radius: var(--radius-s);
+  font-weight: 600;
+  text-decoration: none;
+}
+.meta a:hover {
+  text-decoration: underline;
+}
+
+/* Status always carries its word; the colour only backs it up. */
+.status {
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  color: var(--text-muted);
+  font: 600 13px/1.4 var(--font);
+  white-space: nowrap;
+}
+.status[data-status="completed"] { background: var(--success-bg); color: var(--success); }
+.status[data-status="failed"] { background: var(--danger-bg); color: var(--danger); }
+.status[data-status="deleting"] { background: var(--warning-bg); color: var(--warning); }
+.status[data-status="queued"],
+.status[data-status="preparing"],
+.status[data-status="downloading"],
+.status[data-status="processing"] { background: var(--info-bg); color: var(--info); }
+
+.progressPanel {
+  margin-bottom: 20px;
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  animation: rise var(--dur-3) var(--ease-out);
+}
+.progressPanel > div:first-child {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.progressPanel h2 {
+  margin: 0;
+  font: 600 16px/1.3 var(--font);
+}
+.progressPanel b {
+  font: 700 20px/1 var(--font);
+  font-variant-numeric: tabular-nums;
+}
+.progressPanel p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.failed,
+.notices {
+  margin-bottom: 20px;
+}
+.notices {
+  display: grid;
+  gap: 10px;
+}
+.noticeLink {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  border-radius: var(--radius-s);
+  font-weight: 600;
+  text-decoration: none;
+}
+.noticeLink:hover {
+  text-decoration: underline;
+}
+
+.clips > h2,
+.empty h2 {
+  margin: 0 0 14px;
+  font: 600 18px/1.3 var(--font);
+  letter-spacing: -.01em;
+}
+.clipList {
+  display: grid;
+  gap: 16px;
+}
+
+/* One clip: the video beside everything needed to post it. */
+.clip {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  animation: rise var(--dur-3) var(--ease-out) both;
+  transition: border-color var(--dur-2) var(--ease-out);
+}
+.clip:hover,
+.clip:focus-within {
+  border-color: var(--border-strong);
+}
+/* The video stays in view while the caption beside it is read and copied. */
+.video {
+  position: sticky;
+  top: 16px;
+  display: block;
+  width: 100%;
+  max-height: 500px;
+  aspect-ratio: 9 / 16;
+  border-radius: var(--radius-l);
+  background: var(--bg);
+  object-fit: contain;
+}
+.clipBody {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+  min-width: 0;
+}
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+.clipNumber {
+  margin-right: 4px;
+  color: var(--text-muted);
+  font: 600 13px/1.4 var(--font);
+  font-variant-numeric: tabular-nums;
+}
+.clipBody h3 {
+  margin: 0;
+  font: 700 clamp(18px, 2vw, 21px)/1.3 var(--font);
+  letter-spacing: -.01em;
+  overflow-wrap: anywhere;
+}
+.hook {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-m);
+  background: var(--surface-2);
+  font: 600 15px/1.45 var(--font);
+  overflow-wrap: anywhere;
+}
+.hook span {
+  color: var(--text-muted);
+  font: 600 12px/1.4 var(--font);
+}
+
+.score {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 20px;
+  align-items: center;
+  padding: 14px 16px;
+  border-radius: var(--radius-l);
+  background: var(--surface-2);
+}
+.scoreTotal {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+}
+.scoreTotal span {
+  color: var(--text-muted);
+  font: 600 13px/1.3 var(--font);
+}
+.scoreTotal strong {
+  font: 700 32px/1.05 var(--font);
+  letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+}
+.scoreTotal small {
+  margin-left: 2px;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 600;
+}
+.scoreRows {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+.scoreRows div {
+  display: grid;
+  grid-template-columns: 124px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+.scoreRows dt {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.scoreRows dd {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+}
+.scoreRows b {
+  min-width: 30px;
+  font: 600 13px var(--font);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.bar {
+  flex: 1;
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+}
+.bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--text-muted);
+  transform-origin: left;
+  animation: grow var(--dur-3) var(--ease-out) both;
+}
+/* Bars grow in once when the card appears: they read as a measure, not as decoration. */
+@keyframes grow {
+  from { transform: scaleX(0); }
+}
+@keyframes rise {
+  from { opacity: 0; transform: translateY(6px); }
+}
+
+.reasons h4,
+.caption h4 {
+  margin: 0 0 6px;
+  color: var(--text-muted);
+  font: 600 13px/1.3 var(--font);
+}
+.reasons ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.caption {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  background: var(--surface-2);
+}
+.captionBody {
+  margin: 0 0 10px;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.hashtags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 12px;
+}
+.hashtags span {
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  color: var(--text);
+  font: 600 13px/1.4 var(--font);
+  overflow-wrap: anywhere;
+}
+/* "Tersalin" confirms the copy in green for a moment; the word carries it too. */
+.caption .copy[data-state="copied"] {
+  border-color: var(--success-border);
+  background: var(--success-bg);
+  color: var(--success);
+}
+.caption .copy[data-state="failed"] {
+  border-color: var(--danger-border);
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+.sourceRange {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.empty {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+}
+.empty h2 {
+  margin: 0;
+}
+.empty p {
+  margin: 0 0 12px;
+  color: var(--text-muted);
+}
+
+.state {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  min-height: 50vh;
+  align-content: center;
+  text-align: center;
+}
+.state h1 {
+  margin: 0;
+  font: 700 clamp(24px, 3vw, 32px)/1.2 var(--font);
+  letter-spacing: -.02em;
+}
+.state p {
+  max-width: 520px;
+  margin: 0;
+  color: var(--text-muted);
+}
+.state > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+@media (max-width: 720px) {
+  .page {
+    padding-top: 12px;
+  }
+  .clip {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    padding: 12px;
+    border-radius: var(--radius-l);
+  }
+  .video {
+    position: static;
+    max-height: 70vh;
+  }
+  .score {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+  .scoreRows div {
+    grid-template-columns: 112px minmax(0, 1fr);
+  }
+  .sourceRange {
+    flex-basis: 100%;
+    margin-left: 0;
+  }
+  .actions :global(.btn) {
+    flex: 1 1 auto;
+  }
+}

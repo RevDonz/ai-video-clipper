@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import { test } from "node:test";
 
 const originalEnv = { ...process.env };
@@ -8,8 +8,7 @@ const originalEnv = { ...process.env };
 async function importFresh(path, env = {}) {
   process.env = { ...originalEnv, ...env };
   for (const key of [
-    "CI", "E2E_ALLOW_SKIP", "E2E_USERNAME", "E2E_PASSWORD", "E2E_CANDIDATE_ID",
-    "E2E_CANDIDATE_IDS", "E2E_RENDER_TIMEOUT_MS", "E2E_BASE_URL", "E2E_WORKERS",
+    "CI", "E2E_ALLOW_SKIP", "E2E_USERNAME", "E2E_PASSWORD", "E2E_JOB_ID", "E2E_BASE_URL", "E2E_WORKERS",
   ]) {
     if (!(key in env)) delete process.env[key];
   }
@@ -20,69 +19,49 @@ async function importFresh(path, env = {}) {
   }
 }
 
-test("render timeout accepts only positive finite milliseconds", async () => {
-  const { parsePositiveMilliseconds } = await importFresh("../e2e/support/harness.mjs", {
-    E2E_USERNAME: "user", E2E_PASSWORD: "secret",
-  });
-  assert.equal(parsePositiveMilliseconds(undefined, 600_000, "E2E_RENDER_TIMEOUT_MS"), 600_000);
-  assert.equal(parsePositiveMilliseconds("1500", 600_000, "E2E_RENDER_TIMEOUT_MS"), 1500);
-  for (const value of ["NaN", "Infinity", "0", "-1", "", "1.5", "9007199254740992"]) {
-    assert.throws(() => parsePositiveMilliseconds(value, 600_000, "E2E_RENDER_TIMEOUT_MS"), /positive finite/);
-  }
-});
+// A page whose in-page fetch answers from `routes` (path -> [status, body]).
+function fakePage(routes) {
+  const calls = [];
+  return {
+    calls,
+    evaluate: async (callback, path) => {
+      calls.push(path);
+      const [status, body] = routes[path] || [404, { error: "missing" }];
+      const fetch = async () => ({ status, json: async () => body });
+      const previous = globalThis.fetch;
+      globalThis.fetch = fetch;
+      try {
+        return await callback(path);
+      } finally {
+        globalThis.fetch = previous;
+      }
+    },
+  };
+}
 
-test("weak ETag delivery accepts only canonical strong or once-weak validators", async () => {
-  const { weakTransportEtag } = await importFresh("../e2e/support/harness.mjs", {
-    E2E_USERNAME: "user", E2E_PASSWORD: "secret",
-  });
-  const canonical = `"${"a".repeat(64)}"`;
-  assert.equal(weakTransportEtag(canonical), `W/${canonical}`);
-  assert.equal(weakTransportEtag(`W/${canonical}`), `W/${canonical}`);
-  for (const malformed of [
-    `W/W/${canonical}`, `w/${canonical}`, `"${"A".repeat(64)}"`,
-    `"${"a".repeat(63)}"`, ` ${canonical}`, `${canonical} `, "not-an-etag",
-  ]) assert.throws(() => weakTransportEtag(malformed), /canonical ETag/);
-});
-
-test("candidate pins never replace the complete available candidate set", async () => {
-  const { selectCandidateTargets } = await importFresh("../e2e/support/harness.mjs", {
-    E2E_USERNAME: "user", E2E_PASSWORD: "secret",
-  });
-  assert.deepEqual(
-    selectCandidateTargets([{ id: "a" }, { id: "b" }], ["b"]),
-    { availableCandidateIds: ["a", "b"], mutationCandidateIds: ["b"] },
-  );
-  assert.throws(() => selectCandidateTargets([{ id: "a" }], ["missing"]), /not in current selection/);
-});
-
-test("candidate discovery suppresses only the documented legacy response", async () => {
+test("the read-only target is the newest completed project with clips", async () => {
   const { resolveTarget } = await importFresh("../e2e/support/harness.mjs", {
     E2E_USERNAME: "user", E2E_PASSWORD: "secret",
   });
-  const response = (status, body) => ({
-    ok: () => status >= 200 && status < 300,
-    status: () => status,
-    json: async () => body,
-  });
-  const jobs = response(200, { jobs: [
-    { id: "legacy", status: "completed" },
-    { id: "current", status: "completed" },
-  ] });
-  const page = { request: { get: async (path) => {
-    if (path === "/api/jobs") return jobs;
-    if (path.includes("legacy")) return response(422, { error: "Artifact kandidat tidak valid" });
-    return response(200, { candidates: [{ id: "candidate" }], selectionVersion: 2 });
-  } } };
-  assert.deepEqual(await resolveTarget(page), {
-    jobId: "current",
-    availableCandidateIds: ["candidate"],
-    mutationCandidateIds: ["candidate"],
-    selectionVersion: 2,
-  });
+  const page = fakePage({ "/api/jobs": [200, { jobs: [
+    { id: "running", status: "processing", clips: [] },
+    { id: "empty", status: "completed", clips: [] },
+    { id: "done", status: "completed", clips: [{ index: 1 }, { index: 2 }] },
+    { id: "older", status: "completed", clips: [{ index: 1 }] },
+  ] }] });
+  assert.deepEqual(await resolveTarget(page), { jobId: "done", clipCount: 2 });
+  assert.deepEqual(page.calls, ["/api/jobs"], "no candidate request");
+});
 
-  page.request.get = async (path) => path === "/api/jobs"
-    ? jobs : response(503, { error: "backend unavailable" });
-  await assert.rejects(resolveTarget(page), /returned 503.*backend unavailable/);
+test("a pinned project is used as is, and failures are never read as 'no project'", async () => {
+  const { resolveTarget } = await importFresh("../e2e/support/harness.mjs", {
+    E2E_USERNAME: "user", E2E_PASSWORD: "secret", E2E_JOB_ID: "older",
+  });
+  const jobs = { jobs: [{ id: "done", status: "completed", clips: [{ index: 1 }] }, { id: "older", status: "completed", clips: [{ index: 1 }] }] };
+  assert.deepEqual(await resolveTarget(fakePage({ "/api/jobs": [200, jobs] })), { jobId: "older", clipCount: 1 });
+  await assert.rejects(resolveTarget(fakePage({ "/api/jobs": [200, { jobs: [] }] })), /E2E_JOB_ID older is not in the project list/);
+  await assert.rejects(resolveTarget(fakePage({ "/api/jobs": [401, { error: "expired" }] })), /returned 401.*expired/);
+  await assert.rejects(resolveTarget(fakePage({ "/api/jobs": [503, { error: "backend unavailable" }] })), /returned 503/);
 });
 
 test("media diagnostics ignore only browser-cancelled GET media requests", async () => {
@@ -95,43 +74,18 @@ test("media diagnostics ignore only browser-cancelled GET media requests", async
     failure: () => ({ errorText: reason }),
   });
   const failures = captureFailures(page);
-  const mediaUrl = "https://site/api/jobs/1/preview-source";
+  const mediaUrl = "https://site/api/jobs/1/files/output/clip-01.mp4";
 
   page.emit("requestfailed", request(mediaUrl));
-  page.emit("requestfailed", request("https://site/api/jobs/1/candidates", "fetch"));
+  page.emit("requestfailed", request("https://site/api/jobs/1", "fetch"));
   page.emit("requestfailed", request(mediaUrl, "media", "POST"));
   page.emit("requestfailed", request(mediaUrl, "media", "GET", "net::ERR_FAILED"));
 
   assert.deepEqual(failures.requests, [
-    "GET https://site/api/jobs/1/candidates net::ERR_ABORTED",
+    "GET https://site/api/jobs/1 net::ERR_ABORTED",
     `POST ${mediaUrl} net::ERR_ABORTED`,
     `GET ${mediaUrl} net::ERR_FAILED`,
   ]);
-});
-
-test("editor media cleanup pauses and unloads only videos with current sources", async () => {
-  const { captureFailures, cleanupEditorMedia } = await importFresh("../e2e/support/harness.mjs", {
-    E2E_USERNAME: "user", E2E_PASSWORD: "secret",
-  });
-  const page = new EventEmitter();
-  const calls = [];
-  const sourced = {
-    currentSrc: "https://site/api/jobs/1/preview.mp4",
-    pause: () => calls.push("pause"),
-    removeAttribute: (name) => calls.push(`remove:${name}`),
-    querySelectorAll: () => [],
-    load: () => calls.push("load"),
-  };
-  const empty = {
-    currentSrc: "", getAttribute: () => null,
-    pause: () => calls.push("empty:pause"),
-    removeAttribute: () => calls.push("empty:remove"),
-    querySelectorAll: () => [], load: () => calls.push("empty:load"),
-  };
-  page.locator = () => ({ evaluateAll: async (callback, argument) => callback([sourced, empty], argument) });
-  captureFailures(page);
-  assert.deepEqual(await cleanupEditorMedia(page), [sourced.currentSrc]);
-  assert.deepEqual(calls, ["pause", "remove:src", "load"]);
 });
 
 test("credential preflight fails closed except explicit local safe-skip", async () => {
@@ -159,7 +113,6 @@ test("config disables credential-bearing artifacts and gives mobile read-only co
   const mobile = config.projects.find((project) => project.name === "mobile-chromium");
   assert.match(String(mobile.testMatch), /read-only/);
   assert.match(String(mobile.testMatch), /smoke/);
-  assert.match(String(mobile.testIgnore), /mutation/);
 });
 
 test("worker concurrency is bounded, remote-safe by default, and fixed at one in CI", async () => {
@@ -180,20 +133,19 @@ test("worker concurrency is bounded, remote-safe by default, and fixed at one in
   }
 });
 
-test("spec contracts include nested editor deep-link, playback, terminal failure, and diagnostics fixture", async () => {
-  const [readOnly, mutation, harness] = await Promise.all([
+test("read-only specs cover the project deep link, playback, the old editor link and the gone routes", async () => {
+  const [readOnly, harness] = await Promise.all([
     readFile(new URL("../e2e/read-only.spec.mjs", import.meta.url), "utf8"),
-    readFile(new URL("../e2e/mutation.spec.mjs", import.meta.url), "utf8"),
     readFile(new URL("../e2e/support/harness.mjs", import.meta.url), "utf8"),
   ]);
-  assert.match(readOnly, /editorPath\(/);
   assert.match(readOnly, /clearCookies\(/);
   assert.match(readOnly, /expectPlaybackAdvances\(/);
-  assert.match(readOnly, /cleanupEditorMedia\(page\)[\s\S]*page\.goto\(editorPath/s);
-  assert.match(readOnly, /weakTransportEtag\(etag\)/);
-  assert.match(mutation, /waitForRenderCompletion\(/);
+  assert.match(readOnly, /\/candidates\/\$\{RETIRED_CANDIDATE\}\/edit/);
+  assert.match(readOnly, /toEqual\(\[404, 404, 404, 404\]\)/);
   assert.match(harness, /base\.extend\(/);
   assert.doesNotMatch(harness, /testInfo\.attach\(/);
+  assert.doesNotMatch(harness, /candidate|editorPath|E2E_CANDIDATE/i);
+  await assert.rejects(access(new URL("../e2e/mutation.spec.mjs", import.meta.url)), { code: "ENOENT" });
 });
 
 test("generated E2E reports and results are ignored", async () => {

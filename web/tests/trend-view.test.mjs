@@ -684,19 +684,18 @@ test("grounded trends become 'Nyambung tren: <judul>' chips, sanitized and bound
   assert.deepEqual(chips.map((chip) => chip.key), ["T1", "T2", "T5", "T6", "T7"], "at most five chips per clip");
 });
 
-test("the trend warning codes of a V3 summary get an Indonesian explanation", () => {
-  assert.equal(selectionWarningLabel("trend_context_invalid"), "File konteks tren job rusak atau hilang; job jalan tanpa tren.");
-  assert.equal(selectionWarningLabel("trend_items_skipped:3"), "3 item tren rusak dilewati.");
-  assert.equal(selectionWarningLabel("trend_ref_ungrounded:2"), "2 tren yang disebut AI dibuang karena tidak disebut di transkrip klipnya.");
-  assert.equal(
-    selectionWarningLabel("trend_packaging_ungrounded:1"),
-    "1 klip AI menyebut tren yang tidak ada di transkripnya; judul, hook atau deskripsinya diganti dari klip itu sendiri.",
-  );
+test("the trend warnings the owner can act on get a plain Indonesian notice", () => {
+  assert.equal(selectionWarningLabel("trend_context_invalid"), "Konteks Tren tidak terbaca, jadi proyek ini dibuat tanpa tren.");
+  assert.equal(selectionWarningLabel("trend_items_skipped:3"), "3 item Konteks Tren rusak dan dilewati.");
   assert.equal(
     selectionWarningLabel("trend_sensitive_humor:2"),
-    "2 klip lucu menyinggung tren sensitif; periksa judul dan hook-nya sebelum diunggah.",
+    "2 klip lucu menyinggung tren sensitif. Periksa judul dan hook-nya sebelum diunggah.",
   );
-  for (const code of ["llm_disabled", "trend_items_skipped", "trend_items_skipped:x", "trend_ref_ungrounded:0x", "suspect_segments:4", "", null, 7]) {
+  // Ungrounded trend claims are already dropped or replaced by the engine: nothing to act on.
+  for (const code of [
+    "trend_ref_ungrounded:2", "trend_packaging_ungrounded:1", "llm_disabled", "trend_items_skipped",
+    "trend_items_skipped:x", "trend_ref_ungrounded:0x", "suspect_segments:4", "", null, 7,
+  ]) {
     assert.equal(selectionWarningLabel(code), null, String(code));
   }
 });

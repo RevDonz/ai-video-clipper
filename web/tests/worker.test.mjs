@@ -7,7 +7,6 @@ import path from "node:path";
 import test from "node:test";
 
 import { buildClipperInvocation, main, manifestJobPatch, nextWorkerProgress, runFencedProcess } from "../scripts/run-job.mjs";
-import { readCandidateFeedback } from "../lib/candidate-feedback.mjs";
 import { openPreviewSource } from "../lib/preview-source.mjs";
 import { LeaseLostError, claimNextJob } from "../lib/primary-job-queue.mjs";
 import { createManualTrend, ingestTrendItems, setTrendContextEnabled, updateTrendItem } from "../lib/trend-context.mjs";
@@ -294,8 +293,9 @@ test("queue-managed runs publish the attempt analysis where every web reader loo
     assert.equal(await readFile(path.join(jobRoot, "analysis", "selection.v3.json"), "utf8"), '{"fake":"selection"}');
     await assert.rejects(lstat(path.join(jobRoot, "output", "analysis")), { code: "ENOENT" });
     await assert.rejects(lstat(path.join(attemptRootFor(jobRoot, claim.token), "analysis")), { code: "ENOENT" });
-    const analysisSeenByRoutes = await readCandidateFeedback(id, "get", Buffer.alloc(0), root, { runner: async (analysis) => analysis });
-    assert.equal(analysisSeenByRoutes, path.join(await realpath(root), id, "analysis"));
+    // A real directory under the job, not a link into the attempt the worker has just removed.
+    assert.ok((await lstat(path.join(jobRoot, "analysis"))).isDirectory());
+    assert.equal(await realpath(path.join(root, id, "analysis")), path.join(await realpath(root), id, "analysis"));
   }
 });
 

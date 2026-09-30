@@ -31,7 +31,7 @@ import {
   normalizeFocusText,
   pastedFocusTerms,
   removeFocusTerm,
-  selectionV3SummaryView,
+  selectionNotices,
   selectionWarningLabel,
   splitFocusTerms,
 } from "../lib/selection-v3-view.mjs";
@@ -302,9 +302,9 @@ const focusJob = (summaryFocus, optionsFocus = { terms: ["jomok", "jomokers"], m
   selectionV3: { mode: "v3", status: "completed", source: "llm", warnings: [], ...(summaryFocus ? { focus: summaryFocus } : {}) },
 });
 
-test("the focus line reads 'Fokus: a, b — n dari k klip cocok'; old jobs get none", () => {
+test("the focus line reads 'Fokus: a, b · n dari k klip cocok'; old jobs get none", () => {
   assert.deepEqual(focusSummaryLine(focusJob({ terms: ["jomok", "jomokers"], matched: 5, requested: 8 })), {
-    terms: ["jomok", "jomokers"], termsText: "jomok, jomokers", countText: "5 dari 8 klip cocok", text: "Fokus: jomok, jomokers — 5 dari 8 klip cocok",
+    terms: ["jomok", "jomokers"], termsText: "jomok, jomokers", countText: "5 dari 8 klip cocok", text: "Fokus: jomok, jomokers · 5 dari 8 klip cocok",
   });
   // Without engine counts (for example a failed job) only the terms from the options.
   assert.deepEqual(focusSummaryLine(focusJob(null)), { terms: ["jomok", "jomokers"], termsText: "jomok, jomokers", countText: null, text: "Fokus: jomok, jomokers" });
@@ -312,7 +312,7 @@ test("the focus line reads 'Fokus: a, b — n dari k klip cocok'; old jobs get n
   assert.equal(focusSummaryLine(focusJob(null, null)), null);
   assert.equal(focusSummaryLine({ options: V3, selectionV3: { mode: "v3", status: "completed" } }), null);
   assert.equal(focusSummaryLine(null), null);
-  assert.equal(focusSummaryLine(focusJob({ terms: [HOSTILE], matched: 1, requested: 3 })).text, `Fokus: ${HOSTILE} — 1 dari 3 klip cocok`);
+  assert.equal(focusSummaryLine(focusJob({ terms: [HOSTILE], matched: 1, requested: 3 })).text, `Fokus: ${HOSTILE} · 1 dari 3 klip cocok`);
 });
 
 test("per-clip labels: literal with its time, semantic as the AI's claim, the rest 'Di luar fokus'", () => {
@@ -342,15 +342,14 @@ test("timestamps read m:ss or h:mm:ss", () => {
   assert.equal(formatTimestamp("12"), null);
 });
 
-test("focus warning codes are explained in Indonesian", () => {
-  assert.match(selectionWarningLabel("focus_few_matches:2"), /Hanya 2 klip yang cocok dengan fokus.*Di luar fokus/);
-  assert.match(selectionWarningLabel("focus_few_matches:0"), /Tidak ada momen yang cocok dengan fokus/);
-  assert.match(selectionWarningLabel("focus_literal_ungrounded:3"), /3 klip.*tidak ditemukan di transkrip/);
-  assert.match(selectionWarningLabel("focus_terms_unmatchable:2"), /^2 kata kunci fokus terlalu pendek atau terlalu umum.*hanya pembacaan AI/);
-  assert.equal(selectionWarningLabel("focus_literal_ungrounded:0"), null);
-  assert.equal(selectionWarningLabel("focus_few_matches:x"), null);
-  // Konteks Tren labels are unchanged.
-  assert.match(selectionWarningLabel("trend_ref_ungrounded:2"), /^2 tren yang disebut AI dibuang/);
+test("only the focus warning the owner can act on gets a notice", () => {
+  // Terms the transcript can never say literally: the owner picks better words next time.
+  assert.match(selectionWarningLabel("focus_terms_unmatchable:2"), /^2 kata kunci fokus terlalu pendek atau terlalu umum.*lebih spesifik/);
+  // Few matches already show in the focus line ("2 dari 8 klip cocok") and the "Di luar fokus"
+  // labels; ungrounded claims are corrected by the engine. None of them repeats as a notice.
+  for (const code of ["focus_few_matches:2", "focus_few_matches:0", "focus_literal_ungrounded:3", "focus_literal_ungrounded:0", "focus_few_matches:x"]) {
+    assert.equal(selectionWarningLabel(code), null, code);
+  }
 });
 
 // --- Integration seams ----------------------------------------------------------------------
@@ -380,35 +379,26 @@ test("terms the engine would fold together (Python casefold) are one term here t
   assert.notEqual(focusTermKey("jomok"), focusTermKey("jomokers"));
 });
 
-test("every focus warning code the engine writes has an Indonesian label", () => {
-  assert.match(selectionWarningLabel("focus_packaging_ungrounded:2"), /^2 klip .*judul, hook atau deskripsinya/);
+test("focus codes the engine fixes itself stay in the artifact, off the page", () => {
   assert.match(selectionWarningLabel("focus_terms_unmatchable:1"), /^1 kata kunci fokus/);
-  // The engine no longer lets heuristic focus matches outrank the LLM: no such code or wording.
-  assert.equal(selectionWarningLabel("focus_llm_outranked:4"), null);
+  // Replaced packaging and the one extra focus request are the engine's own bookkeeping.
+  for (const code of [
+    "focus_packaging_ungrounded:2", "focus_llm_outranked:4", "focus_topup:3", "focus_topup:0",
+    "focus_topup_failed:rate_limited", "focus_topup_failed:invalid", "focus_topup_skipped:budget",
+    "focus_topup_skipped:deadline", "focus_topup_skipped:context", "focus_topup_skipped:later",
+    "focus_topup_failed:", "focus_topup_failed:Bad Code", "focus_topup:x",
+  ]) assert.equal(selectionWarningLabel(code), null, code);
 });
 
-test("the focus top-up codes are explained in Indonesian", () => {
-  assert.match(selectionWarningLabel("focus_topup:3"), /^AI diminta sekali lagi .*sebutan fokus.*3 momen fokus tambahan/);
-  assert.match(selectionWarningLabel("focus_topup:0"), /^AI diminta sekali lagi .*tidak ada momen fokus tambahan yang layak/);
-  assert.match(selectionWarningLabel("focus_topup_failed:rate_limited"), /^Permintaan tambahan .*gagal \(rate_limited\)/);
-  assert.match(selectionWarningLabel("focus_topup_failed:invalid"), /gagal \(invalid\)/);
-  assert.match(selectionWarningLabel("focus_topup_skipped:budget"), /dilewati.*peringkat ulang.*batas jumlah permintaan AI/);
-  assert.match(selectionWarningLabel("focus_topup_skipped:deadline"), /dilewati .*batas waktu AI/);
-  assert.match(selectionWarningLabel("focus_topup_skipped:context"), /dilewati .*tidak muat/);
-  assert.equal(selectionWarningLabel("focus_topup_skipped:later"), null);
-  assert.equal(selectionWarningLabel("focus_topup_failed:"), null);
-  assert.equal(selectionWarningLabel("focus_topup_failed:Bad Code"), null);
-  assert.equal(selectionWarningLabel("focus_topup:x"), null);
-});
-
-test("a heuristic run keeps its wording with a focus", () => {
+test("a heuristic run shows the same notices with or without a focus", () => {
   const summary = {
     mode: "v3", status: "completed", source: "heuristic", provider: null, model: null,
     prompt_version: "heuristic-v1", warnings: ["focus_few_matches:3"], artifact: null,
     transcript_source: "youtube-captions", focus: { terms: ["jomok"], matched: 3, requested: 8 },
   };
-  assert.deepEqual(selectionV3SummaryView(summary), selectionV3SummaryView({ ...summary, focus: undefined }));
-  assert.match(selectionV3SummaryView(summary).detail, /LLM tidak dipakai/);
+  const withFocus = selectionNotices({ options: V3, selectionV3: summary });
+  assert.deepEqual(withFocus, selectionNotices({ options: V3, selectionV3: { ...summary, focus: undefined } }));
+  assert.deepEqual(withFocus.map((notice) => notice.title), ["Dibuat tanpa AI"]);
 });
 
 test("POST /api/jobs stores the focus of a V3 YouTube job; without focus the job has none", async () => {

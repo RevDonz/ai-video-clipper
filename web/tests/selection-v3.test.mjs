@@ -31,11 +31,11 @@ import {
   captionParts,
   clipCaptionText,
   clipPosterUrl,
-  isV3Job,
+  clipScoreView,
   llmStatusView,
   scoreRows,
+  selectionNotices,
   selectionSourceLabel,
-  selectionV3SummaryView,
   tenPointScore,
 } from "../lib/selection-v3-view.mjs";
 import {
@@ -567,7 +567,8 @@ test("legacy jobs serialize exactly as before Selection V3", () => {
   const serialized = serializePublicJob(legacy);
   assert.deepEqual(serialized, { id: "old", status: "completed", options: { ...BASE, selectionMode: "v1" }, clips: [legacyClip] });
   assert.equal(sanitizeStoredClip(legacyClip), legacyClip);
-  assert.equal(isV3Job(serialized), false);
+  assert.deepEqual(selectionNotices(serialized), []);
+  assert.equal(clipScoreView(serialized.clips[0]), null, "an old clip's score is on another scale");
   assert.equal(clipCaptionText(legacyClip), `${legacyClip.title}\n\n${legacyClip.description}`);
 });
 
@@ -584,8 +585,6 @@ test("view helpers label archetypes, sources and scores in Indonesian", () => {
   assert.equal(tenPointScore(13), null);
   assert.equal(tenPointScore(8.4), 8.4);
   assert.deepEqual(scoreRows({ hook: 9, payoff: 11, emotion: 6 }).map((row) => [row.label, row.percent]), [["Hook", 90], ["Emosi", 60]]);
-  assert.equal(isV3Job({ options: { selectionMode: "v3" } }), true);
-  assert.equal(isV3Job({ options: {}, selectionV3: SUMMARY }), true);
 });
 
 test("caption parts separate the hashtag line and copy text stays complete", () => {
@@ -597,17 +596,19 @@ test("caption parts separate the hashtag line and copy text stays complete", () 
   assert.equal(clipCaptionText(detached), "T\n\nIsi\n\n#a #b");
 });
 
-test("selection summary view explains fallback in plain Indonesian", () => {
-  assert.equal(selectionV3SummaryView(null), null);
-  const ok = selectionV3SummaryView(SUMMARY);
-  assert.equal(ok.tone, "ok");
-  assert.match(ok.detail, /ollama-cloud \/ gpt-oss:120b/);
-  assert.equal(ok.transcript, "Transkrip dari subtitle YouTube");
-  const fallback = selectionV3SummaryView({ ...SUMMARY, status: "fallback", source: "heuristic" });
+test("selection notices explain a fallback in plain Indonesian and keep provenance off screen", () => {
+  assert.deepEqual(selectionNotices({ selectionV3: null }), []);
+  // A clean AI run needs no notice: provider, model, prompt and transcript source stay in the artifact.
+  assert.deepEqual(selectionNotices({ options: V3, selectionV3: SUMMARY }), []);
+  const [fallback] = selectionNotices({ options: V3, selectionV3: { ...SUMMARY, status: "fallback", source: "heuristic" } });
   assert.equal(fallback.tone, "warning");
-  assert.match(fallback.detail, /LLM gagal atau tidak tersedia/);
-  assert.equal(selectionV3SummaryView({ ...SUMMARY, status: "failed" }).tone, "error");
-  assert.match(selectionV3SummaryView({ ...SUMMARY, source: "heuristic", provider: null, model: null }).detail, /heuristik/);
+  assert.match(fallback.text, /tanpa AI.*API key atau kuota/);
+  assert.equal(fallback.href, "/settings");
+  // A failed run is explained by the job's own error on the page.
+  assert.deepEqual(selectionNotices({ options: V3, selectionV3: { ...SUMMARY, status: "failed" } }), []);
+  const [heuristic] = selectionNotices({ options: V3, selectionV3: { ...SUMMARY, source: "heuristic", provider: null, model: null } });
+  assert.match(heuristic.title, /tanpa AI/);
+  for (const notice of [fallback, heuristic]) assert.doesNotMatch(JSON.stringify(notice), /ollama|gpt-oss|hooks-v3|youtube-captions|LLM/);
 });
 
 test("LLM badge view reflects the job's LLM choice and the configured status", () => {
@@ -644,14 +645,14 @@ test("every result video on the dashboard and project page uses the clip poster"
   }
 });
 
-test("project page shows V3 packaging only for V3 jobs and keeps the legacy layout for old jobs", async () => {
+test("project page shows the packaging of every clip with one card and no version labels", async () => {
   const source = await readFile(new URL("../app/projects/[id]/page.jsx", import.meta.url), "utf8");
-  assert.match(source, /const v3 = isV3Job\(job\)/);
-  assert.match(source, /<SelectionV3Summary summary=\{job\.selectionV3\} \/>/);
-  assert.match(source, /\{!v3 && <section className="legacySection shell" aria-labelledby="legacy-title">/);
-  assert.match(source, /\{v3 \? "Klip" : "Klip lama"\}/);
+  assert.match(source, /selectionNotices\(job\)/);
+  assert.match(source, /clipScoreView\(clip\)/);
+  assert.match(source, /clipReasons\(clip\)/);
   assert.match(source, /clipCaptionText\(clip\)/);
-  for (const text of ["Teks hook", "Kenapa dipilih", "Salin caption", "Cold open"]) assert.ok(source.includes(text), text);
+  for (const text of ["Teks hook", "Kenapa dipilih", "Salin caption", "Dibuka kalimat terkuat", "Unduh MP4", "Subtitle SRT"]) assert.ok(source.includes(text), text);
+  assert.doesNotMatch(source, /isV3Job|SelectionV3Summary|legacySection|Klip lama|Cold open/);
   assert.doesNotMatch(source, /dangerouslySetInnerHTML/);
 });
 
@@ -674,7 +675,7 @@ test("project page: focus line and per-clip focus labels come from the view help
   const source = await readFile(new URL("../app/projects/[id]/page.jsx", import.meta.url), "utf8");
   assert.match(source, /focusSummaryLine\(job\)/);
   assert.match(source, /clipFocusChip\(clip, job\)/);
-  assert.match(source, /<V3ClipCard key=\{clip\.index\} clip=\{clip\} job=\{job\}/);
+  assert.match(source, /<ClipCard key=\{clip\.index\} clip=\{clip\} job=\{job\}/);
   assert.doesNotMatch(source, /dangerouslySetInnerHTML/);
 });
 
