@@ -13,15 +13,10 @@ increasing seconds), ``centres`` the normalised x centre of the face per sample 
 no face was found) and ``cuts`` the scene-change flags.
 
 * The default, today's ``face_tracking.detect_face_track`` (as long as no caller replaced it),
-  runs as ``face_window.detect_window`` (re-exported here as :func:`detect_window`): the same
-  cascade, detection parameters, sampled frames (one decode of the window, ``sequential=True``)
-  and cut flags, with the Haar work, which is ~80% of the time, spread over worker threads
-  (T3.6: the W1 budget of 15 s for a 3 min window was met with 0.38 s to spare on a long-GOP
-  AV1 720p source in a 4-CPU container). Each worker has its own classifier and OpenCV's own
-  thread pool is held at one thread meanwhile, so the result does not depend on the CPU count.
-  The one deliberate difference: equal-area faces are chosen by position (the leftmost, then
-  the topmost), never by OpenCV's detection order, which varies with its thread count.
-  OpenCV stays outside this stdlib-only package (``ai_clipper.face_window``).
+  runs as ``face_window.detect_window`` (re-exported here as :func:`detect_window`): today's
+  detection with one decode of the window (``sequential=True``) and a progress report per
+  sample. Equal-area faces are chosen by position, not by OpenCV's detection order, so the plan
+  does not depend on the CPU count. OpenCV stays outside this stdlib-only package.
 * A detector that accepts a ``smooth`` keyword is called with ``smooth=False`` and must return
   raw centres; the plan then applies ``face_tracking.smooth_face_track`` itself and lists every
   run of samples without a face that lasts longer than 1.5 s (from the first missing sample to
