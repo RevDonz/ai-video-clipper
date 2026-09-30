@@ -14,9 +14,10 @@ Sub-commands (evidence ``T3.6-<gate>.json`` under ``--evidence``, numbers only):
 
 ``switch`` (through the app)
     The editor is open on a real clip at its seed layout (the lane building its cells), then the
-    layout is switched at a playhead: the seconds until the playhead's cell of the new layout
-    exists. Budget ≤ 3 s for fit-blur and center-crop. The face-track switch (camera analysis
-    included) is reported.
+    layout is switched at a playhead: the seconds until the editor sees the playhead's cell of
+    the new layout ready (the plan asked again every 0.75 s, as the store polls), and until the
+    cell file exists. Budget ≤ 3 s for fit-blur and center-crop, on the editor's view. The
+    face-track switch (camera analysis included) is reported.
 
 ``p-frame`` (through the app and the export path)
     Barcode sources (29.97, 25, 60 → 30 and VFR) seeded with one layout and switched to each of
@@ -83,6 +84,7 @@ TASK = "T3.6"
 CAMERA_BUDGET_S = 15.0
 CAMERA_WINDOW_MS = 180_000
 SWITCH_BUDGET_S = 3.0
+STORE_POLL_S = 0.75  # the editor store asks for the plan again while a cell builds (planPollMs)
 PF_CELLS_BUDGET_S = {"fit_blur": 15.0, "fill_center": 15.0, "camera": 25.0}
 P_PLATE_SSIM_MARGIN = 0.002
 P_FRAME_MIN_FRAMES = 2_000
@@ -416,6 +418,25 @@ class AppGates:
 
     # switch -----------------------------------------------------------------------------------
 
+    def cell_ready(self, clip: Any, doc: Mapping[str, Any], playhead: int, cell: int, path: Path,
+                   began: float, timeout_s: float = 120.0) -> tuple[float | None, float | None]:
+        """Seconds from ``began`` until the playhead's cell file exists and until the editor sees
+        it: the plan asked again every ``STORE_POLL_S`` (as the store polls) says it is ready."""
+        on_disk = visible = None
+        next_poll = time.perf_counter() + STORE_POLL_S
+        while time.perf_counter() - began < timeout_s:
+            if on_disk is None and path.exists():
+                on_disk = time.perf_counter() - began
+            if time.perf_counter() >= next_poll:
+                status, dto, _ms = self.app.plan(clip.job_id, clip.id, doc, playhead=playhead)
+                if status == 200 and any(c["k"] == cell and c["state"] == "ready"
+                                         for c in dto["plate"]["cells"]):
+                    visible = time.perf_counter() - began
+                    break
+                next_poll = time.perf_counter() + STORE_POLL_S
+            time.sleep(0.01)
+        return on_disk, visible
+
     def switch(self) -> dict[str, Any]:
         cases = []
         for job, rank, layout, where in SWITCH_CASES:
@@ -452,8 +473,8 @@ class AppGates:
             cell = _cell_of(dto, playhead)
             path = clip.preview / "plates" / self.lg.plates.cell_name(dto["plate"]["plateKey"],
                                                                       cell)
-            waited = self.lg.wait_for([path], 120)
-            seconds = None if waited is None else time.perf_counter() - began
+            on_disk, visible = self.cell_ready(clip, doc, playhead, cell, path, began)
+            seconds = visible
             entry = {"clip": f"{job[:8]}#{rank}", "from": seed_layout, "to": layout,
                      "fps": list(clip.seed["output"]["fps"]),
                      "clip_seconds": round(total * clip.fps.den / clip.fps.num, 1),
@@ -461,6 +482,7 @@ class AppGates:
                      "opened_first_cell_s": None if opened_s is None else round(opened_s, 2),
                      "plan_ms": round(plan_ms, 1),
                      "first_cell_after_switch_s": None if seconds is None else round(seconds, 2),
+                     "cell_on_disk_s": None if on_disk is None else round(on_disk, 2),
                      **analysis}
             entry["gated"] = layout in ("fit_blur", "fill_center")
             entry["pass"] = seconds is not None and (not entry["gated"]
