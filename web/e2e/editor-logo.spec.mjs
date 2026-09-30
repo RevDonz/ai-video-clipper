@@ -165,7 +165,9 @@ async function snapshot(page) {
     return {
       save: state.save, canUndo: state.canUndo, logo: track?.items[0] ?? null, assets: state.doc.assets,
       planLogo: state.plan?.logo ?? null, warnings: state.plan?.warnings ?? [], planDoc: state.plan?.docSha256 ?? null,
-      commands: state.commands.map((entry) => ({ type: entry.type, args: entry.args })),
+      commands: window.__harness.log.filter((entry) => entry.ok).map((entry) => ({ type: entry.type, args: entry.args })),
+      rejected: window.__harness.log.filter((entry) => !entry.ok).map((entry) => ({ type: entry.type, code: entry.code })),
+      mergeKeys: window.__harness.log.filter((entry) => entry.ok).map((entry) => entry.mergeKey),
     };
   });
 }
@@ -215,6 +217,11 @@ async function dragBy(page, locator, dx, dy, { alt = false, steps = 8 } = {}) {
   if (alt) await page.keyboard.up("Alt");
 }
 
+/** Leaves any focused control, so the stage shortcuts (Ctrl+Z, arrows) go to the shell. */
+async function blur(page) {
+  await page.evaluate(() => document.activeElement?.blur?.());
+}
+
 async function logoTransform(page) {
   return (await snapshot(page)).logo?.transform ?? null;
 }
@@ -240,7 +247,7 @@ test.describe("logo panel and gizmo (harness)", () => {
     expect(state.commands.map((entry) => entry.type)).toEqual(["SetLogo"]);
     expect(Object.values(state.assets)).toEqual([{ kind: "image", mime: "image/png", w: 512, h: 512 }]);
     // Undo removes it (one step), redo brings it back.
-    await page.locator("body").click({ position: { x: 5, y: 700 } });
+    await blur(page);
     await page.keyboard.press("Control+z");
     await expect(logoBoxEl(page)).toHaveCount(0);
     await expect(panel(page).getByRole("button", { name: "Unggah logo" })).toBeVisible();
@@ -304,6 +311,8 @@ test.describe("logo panel and gizmo (harness)", () => {
     await expect(page.locator('[role="status"]', { hasText: "Logo harus berada di dalam frame" })).toHaveCount(0);
     state = await snapshot(page);
     expect(state.commands.every((entry) => ["SetLogo", "MoveLogo"].includes(entry.type))).toBe(true);
+    expect(state.mergeKeys.slice(1).every((key) => key === "logo:move")).toBe(true);
+    expect(state.rejected).toEqual([]);
     expect(errors).toEqual([]);
   });
 
@@ -315,9 +324,12 @@ test.describe("logo panel and gizmo (harness)", () => {
     const box = await logoBoxEl(page).boundingBox();
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
-    await page.mouse.move(box.x + box.width / 2 - 60 * scale, box.y + box.height / 2 + 63 * scale, { steps: 6 });
+    // From (576, 32) to about (556, 95): the magnet takes the corner margin and the zone's top edge,
+    // and the right edge is still inside the zone's right band.
+    await page.mouse.move(box.x + box.width / 2 - 20 * scale, box.y + box.height / 2 + 63 * scale, { steps: 6 });
     await expect(page.locator('[data-gizmo="logo"]')).toHaveAttribute("data-dragging", "true");
     await expect(page.locator('[data-guide="safe_top"]')).toBeVisible();
+    await expect(page.locator('[data-guide="margin_right"]')).toBeVisible();
     await expect(page.locator('[data-guide-kind="zone"]').first()).toBeVisible();
     await expect(logoBoxEl(page)).toHaveAttribute("data-unsafe", "true");
     await page.mouse.move(box.x + box.width / 2 - 64 * scale, box.y + box.height / 2 + 200 * scale, { steps: 6 });
@@ -353,7 +365,7 @@ test.describe("logo panel and gizmo (harness)", () => {
     const anchor = await planBox(page);
     for (let i = 0; i < 5; i += 1) await page.keyboard.press("ArrowUp");
     expect(await planBox(page)).toMatchObject({ y: anchor.y - 5 });
-    await page.locator("body").click({ position: { x: 5, y: 700 } });
+    await blur(page);
     await page.keyboard.press("Control+z");
     expect(await planBox(page)).toEqual(anchor);
     // Escape leaves the logo.
@@ -381,6 +393,8 @@ test.describe("logo panel and gizmo (harness)", () => {
     expect(grown.h).toBe(Math.floor((2 * grown.w * 250 + 1000) / 2000));
     const state = await snapshot(page);
     expect(new Set(state.commands.slice(2).map((entry) => entry.type))).toEqual(new Set(["ResizeLogo", "MoveLogo"]));
+    expect(new Set(state.mergeKeys.slice(2))).toEqual(new Set(["logo:size"]));
+    expect(state.rejected).toEqual([]);
     await page.keyboard.press("Control+z");
     expect(await planBox(page)).toEqual(start);
     await page.keyboard.press("Control+Shift+z");
@@ -428,8 +442,10 @@ test.describe("logo panel and gizmo (harness)", () => {
     await page.keyboard.press("ArrowRight");
     expect((await logoTransform(page)).opacity_pm).toBe(210);
     await expect(panel(page).getByText("21%", { exact: true })).toBeVisible();
-    const types = new Set((await snapshot(page)).commands.map((entry) => entry.type));
+    const final = await snapshot(page);
+    const types = new Set(final.commands.map((entry) => entry.type));
     expect([...types].every((type) => ["SetLogo", "MoveLogo", "ResizeLogo", "SetLogoOpacity"].includes(type))).toBe(true);
+    expect(final.rejected).toEqual([]);
     await expect(page.locator('[role="status"]', { hasText: "frame" })).toHaveCount(0);
     expect(errors).toEqual([]);
   });
