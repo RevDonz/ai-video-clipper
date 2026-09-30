@@ -45,7 +45,7 @@ SECRETS = {
 FFMPEG_ENV = {"PATH", "LANG", "LC_ALL", "HOME", "TMPDIR"}
 
 
-# --- helpers -------------------------------------------------------------------------------------
+# Helpers.
 
 
 class Job:
@@ -187,7 +187,7 @@ def with_app1(jpeg: bytes, app1: bytes) -> bytes:
     return jpeg[:2] + app1 + jpeg[2:]
 
 
-# --- pure rules ------------------------------------------------------------------------------------
+# Pure rules.
 
 
 def test_the_transport_rules_of_the_plan():
@@ -385,7 +385,7 @@ def test_header_sizes_are_read_without_decoding():
     assert assets.header_size("jpeg", b"\xff\xd8\xff\xe0\x00") is None
 
 
-# --- images ----------------------------------------------------------------------------------------
+# Images.
 
 
 def test_a_png_logo_is_normalised_into_the_store(job, tmp_path, edit_v2_ffmpeg):
@@ -518,7 +518,7 @@ def test_an_image_over_the_side_cap_is_rejected_after_probe(job, tmp_path, edit_
     rejected(job.ingest(data, "logo", "image/png"), "asset_rejected", "dimensions")
 
 
-# --- music -----------------------------------------------------------------------------------------
+# Music.
 
 
 def _music(job: Job, data: bytes, mime: str = "audio/wav", **kwargs) -> dict:
@@ -660,7 +660,7 @@ def test_a_near_empty_track_is_rejected(job, tmp_path):
     rejected(job.ingest(data, "music", "audio/wav"), "asset_rejected")
 
 
-# --- identity, idempotency, quota --------------------------------------------------------------------
+# Identity, idempotency, quota.
 
 
 def test_identical_content_is_stored_once(job, tmp_path, edit_v2_ffmpeg):
@@ -745,7 +745,7 @@ def test_a_type_mismatch_is_rejected_by_the_ingest_too(job, tmp_path, edit_v2_ff
     rejected(job.ingest(data, "music", "audio/mpeg"), "asset_type_unsupported")
 
 
-# --- filesystem safety -------------------------------------------------------------------------------
+# Filesystem safety.
 
 
 def _envelope(job: Job, incoming_id: str, **extra) -> bytes:
@@ -806,7 +806,7 @@ def test_stale_quarantine_files_are_pruned(job, tmp_path, edit_v2_ffmpeg):
     assert not (job.incoming / old).exists() and (job.incoming / fresh).exists()
 
 
-# --- the FFmpeg invocation and the child environment ------------------------------------------------
+# The FFmpeg invocation and the child environment.
 
 
 class Recorder:
@@ -918,7 +918,7 @@ def test_the_ingest_refuses_to_run_as_root(job, tmp_path, edit_v2_ffmpeg, monkey
     assert code == 1 and payload["error"]["code"] == "internal_error"
 
 
-# --- CLI ---------------------------------------------------------------------------------------------
+# CLI.
 
 
 @pytest.mark.parametrize("change", [

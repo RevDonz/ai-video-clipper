@@ -1,24 +1,15 @@
-// Editor V3 uploads and the job asset store over HTTP (plan §9.2, §4.2; T3.1).
+// Logo and music uploads and the job asset store over HTTP (plan §9.2, §4.2; T3.1).
 //
 //   POST /api/jobs/:id/assets        raw body (no multipart): a logo or a music file
-//   GET  /api/jobs/:id/assets/:sha   the normalised bytes (?part=peaks: the music waveform;
-//                                    ?part=meta: the asset object), HEAD alike
+//   GET  /api/jobs/:id/assets/:sha   the normalised bytes; ?part=peaks (music waveform),
+//                                    ?part=meta (the asset object); HEAD alike
 //
-// POST runs WITHOUT web/proxy.js in front (the proxy makes Next buffer a body at 10 MB and hand
-// the route a truncated one; web/tests/proxy-matcher.test.mjs pins the exclusion), so it checks
-// everything itself, in this order, before a byte of the body is read: the session
-// (requireAuth), POTONGIN_EDITOR_V3 and POTONGIN_EDITOR_UPLOADS (404 while off), same origin
-// (Origin, Host, Sec-Fetch-Site), the job id, the upload rate (30 per minute per session), the
-// transport headers (X-Asset-Kind, the Content-Type allowlist of the kind, Idempotency-Key, a
-// Content-Length within the kind's cap, X-Asset-Name ≤ 80 characters: percent-encoded UTF-8,
-// display only), the job's quota (≤ 50 assets, ≤ 1 GiB) and a storage-admission reservation.
-// The body is then streamed and counted into the quarantine `analysis/assets/.incoming/<uuid>`
-// (O_EXCL | O_NOFOLLOW, 0600, directories 0700 and never symlinks), refused at the cap or when
-// its first 64 bytes do not match the declared type, and handed to
-// `python -m ai_clipper.edit_v2.assets ingest` through web/lib/python-cli.mjs (allowlisted
-// environment, E11; at most two ingests at a time per process). The quarantine file and the
-// reservation are gone when the request ends, whatever happened. Answers carry fixed codes with
-// Indonesian messages and never echo a path, a name or the backend's output.
+// web/proxy.js does not run in front of POST (it would buffer the body at 10 MB), so POST checks,
+// before reading a byte: session, both editor flags, same origin, job id, upload rate, transport
+// headers, the job quota and a storage reservation. The body is streamed with a hard cap into
+// analysis/assets/.incoming/<uuid> (O_EXCL | O_NOFOLLOW, 0600), its first 64 bytes sniffed, then
+// `edit_v2.assets ingest` runs through python-cli.mjs (allowlisted env, E11; two at a time).
+// Answers carry fixed codes and never echo a path, a name or the backend's output.
 import { randomUUID as nodeRandomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { lstat, mkdir, open, readdir, realpath, unlink } from "node:fs/promises";
@@ -93,7 +84,7 @@ export function uploadsEnabled(env = process.env) {
   return env?.POTONGIN_EDITOR_UPLOADS === "on";
 }
 
-// --- shared rules (tests/test_edit_v2_assets.py holds the same vectors) ---------------------------
+// Shared rules (tests/test_edit_v2_assets.py holds the same vectors).
 
 const HEIF_BRANDS = new Set(["heic", "heix", "heim", "heis", "hevc", "hevx", "mif1", "msf1", "avif", "avis", "heif"]);
 const ascii = (bytes, start, end) => String.fromCharCode(...bytes.subarray(start, end));
@@ -196,7 +187,7 @@ function normaliseSafe(value) {
   try { return normaliseAssetName(value); } catch { return undefined; }
 }
 
-// --- responses ---------------------------------------------------------------------------------------
+// Responses.
 
 function json(body, status, headers = {}) {
   return Response.json(body, { status, headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", ...headers } });
@@ -226,7 +217,7 @@ function ingestFailure(result) {
   return uploadError("backend_unavailable", 503);
 }
 
-// --- filesystem --------------------------------------------------------------------------------------
+// Filesystem.
 
 class UnsafePath extends Error {}
 
@@ -351,7 +342,7 @@ async function drain(request, limit) {
   }
 }
 
-// --- the concurrency gate and the rate limits ---------------------------------------------------------
+// The concurrency gate and the rate limits.
 
 const GATE = Symbol.for("potongin.assetIngestGate");
 const LIMITS = Symbol.for("potongin.editorRateLimits");
@@ -380,7 +371,7 @@ function sessionToken(request) {
   return "";
 }
 
-// --- routes ------------------------------------------------------------------------------------------
+// Routes.
 
 export function createAssetUploadRoute(options = {}) {
   const deps = editorDeps(options);
