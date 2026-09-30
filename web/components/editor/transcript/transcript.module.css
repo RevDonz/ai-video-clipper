@@ -1,18 +1,22 @@
-/* Transcript panel (plan Appendix C.2). Colours and sizes come from the editor tokens
-   (editor.module.css, set on the editor root); the fallbacks keep the panel readable alone. */
+/* Transcript panel (plan Appendix C.2) and its Rapikan review (§7.3). Every colour comes from
+   the editor tokens (editor.module.css on the editor root), so the panel follows the editor's
+   theme, the owner's dark palette included (DESIGN.md). Tints are color-mix() of two tokens. The
+   accent is reserved for "Terapkan", the one action the review exists for; everything else is
+   neutral. Motion: short fades that show where new things came from, none under
+   prefers-reduced-motion. */
 
 .panel {
   display: flex;
   flex-direction: column;
   min-height: 100%;
   font-size: var(--ed-font-size-md, 14px);
-  color: var(--ed-color-text, #16181d);
+  color: var(--ed-color-text);
 }
 
 .loading {
   margin: 0;
   padding: var(--ed-space-4, 16px);
-  color: var(--ed-color-text-muted, #5b6270);
+  color: var(--ed-color-text-muted);
 }
 
 .header {
@@ -22,8 +26,8 @@
   display: grid;
   gap: var(--ed-space-2, 8px);
   padding: var(--ed-space-2, 8px) var(--ed-space-3, 12px);
-  background: var(--ed-color-surface, #fff);
-  border-bottom: 1px solid var(--ed-color-border, #d9dde3);
+  background: var(--ed-color-surface);
+  border-bottom: 1px solid var(--ed-color-border);
 }
 
 .toolbar {
@@ -37,16 +41,17 @@
   font-size: var(--ed-font-size-sm, 12px);
   line-height: 1.3;
   padding: 4px 8px;
-  border: 1px solid var(--ed-color-border, #d9dde3);
+  border: 1px solid var(--ed-color-border);
   border-radius: var(--ed-radius-sm, 4px);
-  background: var(--ed-color-surface, #fff);
-  color: var(--ed-color-text, #16181d);
+  background: var(--ed-color-surface);
+  color: var(--ed-color-text);
   cursor: pointer;
   transition: border-color var(--ed-duration-fast, 120ms), background var(--ed-duration-fast, 120ms);
 }
 
 .tool:hover:not(:disabled) {
-  border-color: var(--ed-color-accent, #2f6fed);
+  border-color: var(--ed-color-text-muted);
+  background: var(--ed-color-surface-2);
 }
 
 .tool:disabled {
@@ -54,39 +59,45 @@
   cursor: not-allowed;
 }
 
-.tool[aria-pressed="true"] {
-  background: var(--ed-color-accent, #2f6fed);
-  border-color: var(--ed-color-accent, #2f6fed);
-  color: var(--ed-color-accent-text, #fff);
+/* A pressed toggle inverts the neutral pair instead of spending the accent. */
+.tool[aria-pressed="true"],
+.tool[aria-pressed="true"]:hover:not(:disabled) {
+  background: var(--ed-color-text);
+  border-color: var(--ed-color-text);
+  color: var(--ed-color-surface);
 }
 
 .tool:focus-visible,
 .chip:focus-visible,
 .context:focus-visible,
-.words:focus-visible {
+.words:focus-visible,
+.linkButton:focus-visible,
+.reviewCheck:focus-visible,
+.apply:focus-visible {
   outline: none;
-  box-shadow: var(--ed-focus-ring, 0 0 0 2px #fff, 0 0 0 4px #2f6fed);
+  box-shadow: var(--ed-focus-ring);
 }
 
 .status {
   margin: 0;
   min-height: 1.3em;
   font-size: var(--ed-font-size-xs, 11px);
-  color: var(--ed-color-text-muted, #5b6270);
+  color: var(--ed-color-text-muted);
 }
 
 .message {
   margin: 0;
   font-size: var(--ed-font-size-sm, 12px);
-  color: var(--ed-color-danger, #c62f2f);
+  color: var(--ed-color-danger);
 }
 
+/* The left edge is the cold-open colour of the timeline: it names the segment, not decoration. */
 .coldNote {
   margin: 0;
   padding: 4px 8px;
   font-size: var(--ed-font-size-sm, 12px);
-  border-left: 3px solid var(--ed-color-cold-open, #7a3ff2);
-  background: #f5f0ff;
+  border-left: 3px solid var(--ed-color-cold-open);
+  background: var(--ed-color-surface-2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -94,7 +105,6 @@
 
 .coldTag {
   font-weight: 700;
-  color: var(--ed-color-cold-open, #7a3ff2);
 }
 
 .srOnly {
@@ -109,7 +119,10 @@
   border: 0;
 }
 
+/* Selection and playback tints, shared by the words and the shadows that bridge their spaces. */
 .words {
+  --tr-selected: color-mix(in srgb, var(--ed-color-accent) 22%, var(--ed-color-surface));
+  --tr-active: color-mix(in srgb, var(--ed-color-warning) 30%, var(--ed-color-surface));
   padding: var(--ed-space-3, 12px);
   line-height: 1.85;
   user-select: none;
@@ -128,41 +141,41 @@
 }
 
 .word:hover {
-  background: rgba(47, 111, 237, 0.08);
+  background: color-mix(in srgb, var(--ed-color-text) 8%, transparent);
 }
 
-/* Dimmed, yet ≥ 4.5:1 on the panel (#6b7280 on white is 4.8:1): no opacity, which would
-   break text contrast. */
+/* Dimmed by the muted token, never by opacity, so the text keeps its contrast. */
 .word[data-zone="before"],
 .word[data-zone="after"] {
-  color: #6b7280;
+  color: var(--ed-color-text-muted);
 }
 
 .word[data-lowconf] {
-  text-decoration: underline wavy var(--ed-color-warning, #b26a00);
+  text-decoration: underline wavy var(--ed-color-warning);
   text-decoration-thickness: 1px;
   text-underline-offset: 4px;
 }
 
 .word[data-removed],
 .word[data-co-removed] {
-  color: #6b7280;
+  color: var(--ed-color-text-muted);
   text-decoration: line-through;
-  text-decoration-color: var(--ed-color-removed, #9aa1ad);
+  text-decoration-color: var(--ed-color-removed);
 }
 
 .word[data-cold] {
-  box-shadow: inset 0 -2px 0 var(--ed-color-cold-open, #7a3ff2);
+  box-shadow: inset 0 -2px 0 var(--ed-color-cold-open);
 }
 
 .word[data-hidden] {
-  outline: 1px dashed var(--ed-color-text-muted, #5b6270);
+  outline: 1px dashed var(--ed-color-text-muted);
   outline-offset: 1px;
 }
 
+/* A keyword shows its caption swatch on the stage's dark surface, where every swatch reads. */
 .word[data-emphasis] {
-  color: var(--tr-emphasis, #ff5c8a);
-  background: #1d2129;
+  color: var(--tr-emphasis);
+  background: var(--ed-color-stage-surface);
   font-weight: 700;
 }
 
@@ -170,32 +183,32 @@
   content: "✎";
   margin-left: 1px;
   font-size: 0.7em;
-  color: var(--ed-color-accent, #2f6fed);
+  color: var(--ed-color-text-muted);
 }
 
 /* Opaque so the shadows that bridge the spaces between selected words do not stack. */
 .word[data-selected] {
-  color: var(--ed-color-text, #16181d);
-  background: #d3e0fb;
-  box-shadow: -0.16em 0 0 #d3e0fb, 0.16em 0 0 #d3e0fb;
+  color: var(--ed-color-text);
+  background: var(--tr-selected);
+  box-shadow: -0.16em 0 0 var(--tr-selected), 0.16em 0 0 var(--tr-selected);
 }
 
 .word[data-emphasis][data-selected] {
-  color: var(--tr-emphasis, #ff5c8a);
-  background: #1d2129;
-  box-shadow: 0 0 0 2px #7fa3f3;
+  color: var(--tr-emphasis);
+  background: var(--ed-color-stage-surface);
+  box-shadow: 0 0 0 2px var(--ed-color-text-muted);
 }
 
 .word[data-active] {
-  color: var(--ed-color-text, #16181d);
-  background: #ffe9a8;
-  box-shadow: 0 0 0 1px #e0b100;
+  color: var(--ed-color-text);
+  background: var(--tr-active);
+  box-shadow: 0 0 0 1px var(--ed-color-warning);
 }
 
 .word[data-emphasis][data-active] {
-  color: var(--tr-emphasis, #ff5c8a);
-  background: #1d2129;
-  box-shadow: 0 0 0 2px #e0b100;
+  color: var(--tr-emphasis);
+  background: var(--ed-color-stage-surface);
+  box-shadow: 0 0 0 2px var(--ed-color-warning);
 }
 
 .chip {
@@ -205,36 +218,37 @@
   padding: 0 7px;
   margin: 0 1px;
   vertical-align: 1px;
-  border: 1px solid var(--ed-color-border, #d9dde3);
+  border: 1px solid var(--ed-color-border);
   border-radius: 999px;
-  background: #eef1f6;
-  color: var(--ed-color-text-muted, #5b6270);
+  background: var(--ed-color-surface-2);
+  color: var(--ed-color-text-muted);
   cursor: pointer;
+  transition: background var(--ed-duration-fast, 120ms), color var(--ed-duration-fast, 120ms);
 }
 
 .chip:hover:not(:disabled) {
-  background: var(--ed-color-accent, #2f6fed);
-  border-color: var(--ed-color-accent, #2f6fed);
-  color: var(--ed-color-accent-text, #fff);
+  background: var(--ed-color-text);
+  border-color: var(--ed-color-text);
+  color: var(--ed-color-surface);
 }
 
 .chipCold {
-  border-color: var(--ed-color-cold-open, #7a3ff2);
+  border-color: var(--ed-color-cold-open);
 }
 
 .editor {
   font: inherit;
   padding: 0 3px;
-  border: 1px solid var(--ed-color-accent, #2f6fed);
+  border: 1px solid var(--ed-color-text-muted);
   border-radius: 3px;
-  background: var(--ed-color-surface, #fff);
-  color: var(--ed-color-text, #16181d);
+  background: var(--ed-color-surface);
+  color: var(--ed-color-text);
   user-select: text;
 }
 
 .editor:focus-visible {
-  outline: 2px solid var(--ed-color-accent, #2f6fed);
-  outline-offset: 1px;
+  outline: none;
+  box-shadow: var(--ed-focus-ring);
 }
 
 .context {
@@ -245,14 +259,20 @@
   font: inherit;
   font-size: var(--ed-font-size-sm, 12px);
   text-align: left;
-  color: var(--ed-color-accent, #2f6fed);
+  color: var(--ed-color-text-muted);
   background: none;
-  border: 1px dashed var(--ed-color-border, #d9dde3);
+  border: 1px dashed var(--ed-color-border);
   border-radius: var(--ed-radius-sm, 4px);
   cursor: pointer;
+  transition: color var(--ed-duration-fast, 120ms), border-color var(--ed-duration-fast, 120ms);
 }
 
-/* --- Rapikan (T3.5, plan §7.3) ---------------------------------------------------------------- */
+.context:hover {
+  color: var(--ed-color-text);
+  border-color: var(--ed-color-text-muted);
+}
+
+/* --- Rapikan (plan §7.3) ------------------------------------------------------------------ */
 
 .cleanupBar {
   display: flex;
@@ -271,8 +291,8 @@
 }
 
 .cleanupToggle[aria-expanded="true"] {
-  background: var(--ed-color-accent-soft, #e6eeff);
-  border-color: var(--ed-color-accent, #2f6fed);
+  background: var(--ed-color-surface-2);
+  border-color: var(--ed-color-text-muted);
 }
 
 .cleanupCount {
@@ -280,24 +300,24 @@
   min-width: 1.6em;
   padding: 0 5px;
   border-radius: 999px;
-  background: var(--ed-color-accent, #2f6fed);
-  color: var(--ed-color-accent-text, #fff);
+  background: var(--ed-color-surface-2);
+  color: var(--ed-color-text);
   font-size: var(--ed-font-size-xs, 11px);
   line-height: 1.5;
   text-align: center;
+  box-shadow: inset 0 0 0 1px var(--ed-color-border);
 }
 
-/* Words and gaps the open review proposes: a dotted underline in the class colour. */
-.word[data-cleanup="filler"] {
-  text-decoration: underline dotted var(--ed-color-warning, #b26a00);
+/* Words and gaps the open review proposes to cut: one "proposed" colour, told apart by the line
+   (dotted: filler, dashed: repeat) and named in the tooltip, never by hue alone. */
+.word[data-cleanup] {
+  text-decoration: underline dotted var(--ed-color-warning);
   text-decoration-thickness: 2px;
   text-underline-offset: 4px;
 }
 
 .word[data-cleanup="repeat"] {
-  text-decoration: underline dotted var(--ed-color-cold-open, #7a3ff2);
-  text-decoration-thickness: 2px;
-  text-underline-offset: 4px;
+  text-decoration-style: dashed;
 }
 
 .gapMark {
@@ -307,13 +327,14 @@
   font-size: var(--ed-font-size-xs, 11px);
   line-height: 1.4;
   vertical-align: 1px;
-  color: var(--ed-color-success, #1f7a3f);
-  background: var(--ed-color-success-soft, #e5f5eb);
+  color: var(--ed-color-text);
+  background: color-mix(in srgb, var(--ed-color-warning) 22%, var(--ed-color-surface));
+  animation: fadeIn var(--ed-duration-slow, 240ms) ease-out;
 }
 
 .gapMark[data-cleanup-gap="gap_voiced"] {
-  color: var(--ed-color-text-muted, #5b6270);
-  background: var(--ed-color-surface-2, #eef0f4);
+  color: var(--ed-color-text-muted);
+  background: var(--ed-color-surface-2);
 }
 
 .review {
@@ -321,9 +342,10 @@
   gap: var(--ed-space-2, 8px);
   margin: var(--ed-space-2, 8px) var(--ed-space-3, 12px) 0;
   padding: var(--ed-space-3, 12px);
-  border: 1px solid var(--ed-color-border, #d9dde3);
+  border: 1px solid var(--ed-color-border);
   border-radius: var(--ed-radius-md, 8px);
-  background: var(--ed-color-surface, #fff);
+  background: var(--ed-color-surface);
+  animation: reviewIn var(--ed-duration-slow, 240ms) ease-out;
 }
 
 .reviewHead {
@@ -342,13 +364,13 @@
 .reviewEmpty {
   margin: 0;
   font-size: var(--ed-font-size-sm, 12px);
-  color: var(--ed-color-text-muted, #5b6270);
+  color: var(--ed-color-text-muted);
 }
 
 .reviewError {
   margin: 0;
   font-size: var(--ed-font-size-sm, 12px);
-  color: var(--ed-color-danger, #c62f2f);
+  color: var(--ed-color-danger);
 }
 
 .reviewGroup {
@@ -356,7 +378,7 @@
   margin: 0;
   padding: var(--ed-space-2, 8px) 0 0;
   border: 0;
-  border-top: 1px solid var(--ed-color-border, #d9dde3);
+  border-top: 1px solid var(--ed-color-border);
 }
 
 .reviewLegend {
@@ -375,18 +397,17 @@
   padding: 0;
   font: inherit;
   font-size: var(--ed-font-size-sm, 12px);
-  color: var(--ed-color-accent-strong, #1f56c9);
+  color: var(--ed-color-text);
   background: none;
   border: 0;
   text-decoration: underline;
+  text-decoration-color: var(--ed-color-text-muted);
+  text-underline-offset: 2px;
   cursor: pointer;
 }
 
-.linkButton:focus-visible,
-.reviewCheck:focus-visible,
-.apply:focus-visible {
-  outline: none;
-  box-shadow: var(--ed-focus-ring, 0 0 0 2px #fff, 0 0 0 4px #2f6fed);
+.linkButton:hover {
+  text-decoration-color: var(--ed-color-text);
 }
 
 .reviewList {
@@ -404,17 +425,18 @@
   gap: var(--ed-space-2, 8px);
   padding: 4px 2px;
   border-radius: var(--ed-radius-sm, 4px);
+  transition: background var(--ed-duration-fast, 120ms);
 }
 
 .reviewRow:hover {
-  background: var(--ed-color-surface-2, #eef0f4);
+  background: var(--ed-color-surface-2);
 }
 
 .reviewCheck {
   width: 16px;
   height: 16px;
   margin: 3px 0 0;
-  accent-color: var(--ed-color-accent, #2f6fed);
+  accent-color: var(--ed-color-text);
 }
 
 .reviewNoCheck {
@@ -433,12 +455,12 @@ label.reviewText {
 }
 
 .reviewAround {
-  color: var(--ed-color-text-muted, #5b6270);
+  color: var(--ed-color-text-muted);
 }
 
 .reviewRemoved {
   font-weight: 600;
-  color: var(--ed-color-danger, #c62f2f);
+  color: var(--ed-color-danger);
   text-decoration-thickness: 1px;
 }
 
@@ -449,8 +471,8 @@ label.reviewText {
 .reviewGap {
   padding: 0 4px;
   border-radius: 3px;
-  color: var(--ed-color-success, #1f7a3f);
-  background: var(--ed-color-success-soft, #e5f5eb);
+  color: var(--ed-color-text);
+  background: color-mix(in srgb, var(--ed-color-warning) 22%, var(--ed-color-surface));
   white-space: nowrap;
 }
 
@@ -463,23 +485,29 @@ label.reviewText {
   display: grid;
   gap: 4px;
   padding-top: var(--ed-space-2, 8px);
-  border-top: 1px solid var(--ed-color-border, #d9dde3);
+  border-top: 1px solid var(--ed-color-border);
 }
 
+/* The review's one decision, and the only place the accent is spent. */
 .apply {
   justify-self: start;
   padding: 6px 14px;
   font: inherit;
   font-weight: 700;
-  color: var(--ed-color-accent-text, #fff);
-  background: var(--ed-color-accent, #2f6fed);
-  border: 1px solid var(--ed-color-accent, #2f6fed);
+  color: var(--ed-color-accent-text);
+  background: var(--ed-color-accent);
+  border: 1px solid var(--ed-color-accent);
   border-radius: var(--ed-radius-sm, 4px);
   cursor: pointer;
+  transition: filter var(--ed-duration-fast, 120ms), transform var(--ed-duration-fast, 120ms);
 }
 
 .apply:hover:not(:disabled) {
-  background: var(--ed-color-accent-strong, #1f56c9);
+  filter: brightness(0.92);
+}
+
+.apply:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 .apply:disabled {
@@ -491,5 +519,39 @@ label.reviewText {
   min-height: 1.3em;
   margin: 0;
   font-size: var(--ed-font-size-sm, 12px);
-  color: var(--ed-color-success, #1f7a3f);
+  color: var(--ed-color-text);
+}
+
+.reviewStatus:not(:empty) {
+  animation: fadeIn var(--ed-duration-slow, 240ms) ease-out;
+}
+
+/* The review unfolds from the toggle above it; a proposed gap fades in where it sits. */
+@keyframes reviewIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .review,
+  .gapMark,
+  .reviewStatus:not(:empty) {
+    animation: none;
+  }
+
+  .tool,
+  .chip,
+  .context,
+  .reviewRow,
+  .apply {
+    transition: none;
+  }
 }
