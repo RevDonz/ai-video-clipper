@@ -15,9 +15,9 @@ import { formatClock, frameToMs, messageFor } from "../shell-model.mjs";
 const option = (fields) => Object.freeze(fields);
 
 export const LAYOUT_OPTIONS = Object.freeze([
-  option({ id: "fit_blur", name: "Latar blur", note: "Seluruh gambar terlihat; bagian atas dan bawah diisi versi blur." }),
-  option({ id: "camera", name: "Ikuti wajah", note: "Potongan 9:16 bergeser mengikuti wajah. Butuh analisis wajah sekali per klip." }),
-  option({ id: "fill_center", name: "Potong tengah", note: "Potongan 9:16 tepat di tengah gambar." }),
+  option({ id: "fit_blur", name: "Latar blur", note: "Seluruh gambar terlihat. Bagian atas dan bawah diisi versi blur dari gambar yang sama." }),
+  option({ id: "camera", name: "Ikuti wajah", note: "Potongan 9:16 bergeser mengikuti wajah. Butuh analisis wajah sekali per klip; bagian tanpa wajah dipusatkan." }),
+  option({ id: "fill_center", name: "Potong tengah", note: "Potongan 9:16 tetap di tengah gambar. Sisi kiri dan kanan terpotong." }),
 ]);
 const IDS = LAYOUT_OPTIONS.map((entry) => entry.id);
 
@@ -93,41 +93,53 @@ export function cameraReadyFromState(state = {}) {
   return typeof named === "string" && /^[0-9a-f]{64}$/.test(named);
 }
 
-const WINDOW_SECONDS_COST_MS = 12; // decode and bookkeeping per second of window
-const PIXEL_COST_MS = 60; // Haar per second of window at 1280×720 (W3: 12.6 s for 180 s, 4 CPUs)
+// Seconds per 180 s window of the camera analysis, measured on the five real sources in the
+// image at 4 CPUs (docs/editor/evidence/W3/T3.6-camera-plan.json): the usual range shown while it
+// runs without the server's progress.
+export const CAMERA_SECONDS_PER_180S = Object.freeze([4.6, 13.4]);
 
-/** The usual length of the camera analysis for this clip (ms): its window and source size. */
-export function analysisEstimateMs(doc) {
+/** The usual length of the camera analysis of this clip: `{minMs, maxMs}` scaled by its window. */
+export function analysisRangeMs(doc) {
   const window = doc?.base?.window_ms;
-  const source = doc?.base?.source;
-  if (!Array.isArray(window) || !source) return null;
-  const seconds = Math.max(0, (window[1] - window[0]) / 1000);
-  const pixels = Math.max(1, (source.w ?? 1280) * (source.h ?? 720)) / (1280 * 720);
-  const estimate = seconds * (WINDOW_SECONDS_COST_MS + PIXEL_COST_MS * pixels);
-  return Math.max(3000, Math.ceil(estimate / 1000) * 1000);
+  if (!Array.isArray(window) || !Number.isFinite(window[0]) || !Number.isFinite(window[1])) return null;
+  const seconds = Math.max(0, window[1] - window[0]) / 1000;
+  const [low, high] = CAMERA_SECONDS_PER_180S;
+  return {
+    minMs: Math.max(1, Math.round((seconds * low) / 180)) * 1000,
+    maxMs: Math.max(1, Math.ceil((seconds * high) / 180)) * 1000,
+  };
+}
+
+/** "5-15 dtk" (a hyphen: R-02 keeps dashes out of the copy). */
+export function rangeText(range) {
+  if (!range) return null;
+  const low = Math.round(range.minMs / 1000);
+  const high = Math.round(range.maxMs / 1000);
+  return low === high ? `${high} dtk` : `${low}-${high} dtk`;
 }
 
 /**
- * The analysis line: `null` when nothing runs, otherwise `{determinate, value, max, text, tone}`.
- * With the server's progress (`done`/`total`) it is a percentage; without, the elapsed seconds
- * and the usual length (never a made-up percentage).
+ * The analysis line: `null` when nothing runs, otherwise `{determinate, value, max, percent, text,
+ * tone}` (plus `seconds` when the progress is unknown). With the server's progress (`done`/`total`) it is a percentage; without, the elapsed
+ * seconds and the usual range (never a made-up percentage).
  */
 export function analysisView(analysis, nowMs) {
   if (!analysis || (analysis.state !== "running" && analysis.state !== "failed")) return null;
   if (analysis.state === "failed") {
-    return { determinate: false, value: null, max: null, tone: "danger",
+    return { determinate: false, value: null, max: null, percent: null, tone: "danger",
       text: `${ANALYSIS_TEXT.failed} ${messageFor(analysis.code ?? "internal_error")}` };
   }
   if (Number.isSafeInteger(analysis.total) && analysis.total > 0 && Number.isSafeInteger(analysis.done)) {
     const done = Math.min(Math.max(analysis.done, 0), analysis.total);
     const percent = Math.floor((done * 100) / analysis.total);
-    return { determinate: true, value: done, max: analysis.total, tone: "busy",
-      text: `${ANALYSIS_TEXT.running} ${percent}% (${done}/${analysis.total})` };
+    return { determinate: true, value: done, max: analysis.total, percent, tone: "busy",
+      text: `${ANALYSIS_TEXT.running} ${percent}%` };
   }
   const elapsed = Math.max(0, Math.floor((nowMs - (analysis.startedAt ?? nowMs)) / 1000));
-  const usual = analysis.estimateMs ? Math.ceil(analysis.estimateMs / 1000) : null;
-  const tail = usual === null ? "" : elapsed > usual * 2 ? " (lebih lama dari biasanya)" : ` (biasanya ± ${usual} dtk)`;
-  return { determinate: false, value: null, max: null, tone: "busy", text: `${ANALYSIS_TEXT.running} ${elapsed} dtk${tail}` };
+  const range = analysis.range ?? null;
+  const tail = !range ? "" : elapsed * 1000 > range.maxMs * 2 ? " (lebih lama dari biasanya)" : ` (biasanya ${rangeText(range)})`;
+  return { determinate: false, value: null, max: null, percent: null, seconds: elapsed, tone: "busy",
+    text: `${ANALYSIS_TEXT.running} ${elapsed} dtk${tail}` };
 }
 
 /** The runs without a face of a plan: `[{f, time}]`, one per start frame inside the clip, sorted. */
