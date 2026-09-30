@@ -1,0 +1,313 @@
+{
+  "task": "T3.5",
+  "commit": "7fdd7fd",
+  "measured_in": {
+    "image": "ai-video-clipper:editor-w3base",
+    "ffmpeg": "5.1.9",
+    "python": "3.11.2",
+    "cpus": 4,
+    "user": "1000:1000"
+  },
+  "gate": "QG-CLEAN (labelled set)",
+  "lexicon": {
+    "version": "id-fillers.v1+id-reduplication.v1",
+    "sha256": "711b0d6982329f139a16cade565698599c9ac7ed76f5a239c534354c9944d854",
+    "filler_precheck": false
+  },
+  "samples": 274,
+  "sources": {
+    "real": 272,
+    "synthetic": 1,
+    "authored": 1
+  },
+  "tokens": 490,
+  "labels": {
+    "filler": 169,
+    "not_filler": 26,
+    "particle": 35,
+    "reduplication": 37,
+    "emphatic": 28,
+    "stutter": 38,
+    "not_repeat": 9
+  },
+  "borderline_labels": 29,
+  "reduplication_pairs": 37,
+  "particles_covered": [
+    "deh",
+    "dong",
+    "gitu",
+    "heeh",
+    "kan",
+    "kaya",
+    "kayak",
+    "kek",
+    "kok",
+    "lah",
+    "lho",
+    "loh",
+    "mah",
+    "nah",
+    "nih",
+    "sih",
+    "toh",
+    "tuh",
+    "ya",
+    "yah"
+  ],
+  "particle_false_positives": 0,
+  "reduplication_false_positives": 0,
+  "emphatic_false_positives": 10,
+  "not_repeat_false_positives": 0,
+  "filler_hits": 194,
+  "filler_true_hits": 181,
+  "filler_precision": 0.933,
+  "filler_precision_borderline_flipped": 0.9897,
+  "filler_precision_by_form": {
+    "anu": {
+      "true": 3,
+      "false": 0,
+      "precision": 1.0
+    },
+    "apa": {
+      "true": 7,
+      "false": 0,
+      "precision": 1.0
+    },
+    "e": {
+      "true": 11,
+      "false": 1,
+      "precision": 0.9167
+    },
+    "ee": {
+      "true": 80,
+      "false": 0,
+      "precision": 1.0
+    },
+    "eh": {
+      "true": 32,
+      "false": 11,
+      "precision": 0.7442
+    },
+    "em": {
+      "true": 0,
+      "false": 1,
+      "precision": 0.0
+    },
+    "hm": {
+      "true": 28,
+      "false": 0,
+      "precision": 1.0
+    },
+    "hmm": {
+      "true": 11,
+      "false": 0,
+      "precision": 1.0
+    },
+    "mm": {
+      "true": 2,
+      "false": 0,
+      "precision": 1.0
+    },
+    "namanya": {
+      "true": 7,
+      "false": 0,
+      "precision": 1.0
+    }
+  },
+  "filler_precision_by_group": {
+    "H": {
+      "true": 43,
+      "false": 4,
+      "precision": 0.9149
+    },
+    "S": {
+      "true": 2,
+      "false": 0,
+      "precision": 1.0
+    },
+    "V": {
+      "true": 94,
+      "false": 5,
+      "precision": 0.9495
+    },
+    "W": {
+      "true": 42,
+      "false": 4,
+      "precision": 0.913
+    }
+  },
+  "filler_recall": 1.0,
+  "unlabelled_filler_hits": 0,
+  "stutter_runs": 38,
+  "stutter_recall": 0.5526,
+  "repeat_hit_tokens": {
+    "stutter": 33,
+    "other": 22
+  },
+  "repeat_precision": 0.6,
+  "owner_confirmed": false,
+  "misses": [
+    {
+      "sample": "3c7d024c-04",
+      "label": "emphatic",
+      "i": [
+        6,
+        7
+      ],
+      "listed": "repeat"
+    },
+    {
+      "sample": "3c7d024c-17",
+      "label": "not_filler",
+      "i": [
+        6
+      ],
+      "listed": "filler",
+      "borderline": true
+    },
+    {
+      "sample": "3c7d024c-26",
+      "label": "not_filler",
+      "i": [
+        6
+      ],
+      "listed": "filler",
+      "borderline": true
+    },
+    {
+      "sample": "860fef1a-07",
+      "label": "emphatic",
+      "i": [
+        6,
+        7
+      ],
+      "listed": "repeat"
+    },
+    {
+      "sample": "860fef1a-24",
+      "label": "not_filler",
+      "i": [
+        6
+      ],
+      "listed": "filler",
+      "borderline": true
+    },
+    {
+      "sample": "899226f8-08",
+      "label": "not_filler",
+      "i": [
+        6
+      ],
+      "listed": "filler",
+      "borderline": true
+    },
+    {
+      "sample": "899226f8-18",
+      "label": "emphatic",
+      "i": [
+        6,
+        7
+      ],
+      "listed": "repeat"
+    },
+    {
+      "sample": "990f3f37-03",
+      "label": "emphatic",
+      "i": [
+        6,
+        7
+      ],
+      "listed": "repeat"
+    },
+    {
+      "sample": "990f3f37-20",
+      "label": "not_filler",
+      "i": [
+        6
+      ],
+      "listed": "filler",
+      "borderline": true
+    },
+    {
+      "sample": "e7f0d37b-27",
+      "label": "emphatic",
+      "i": [
+        13,
+        14
+      ],
+      "listed": "repeat"
+    },
+    {
+      "sample": "e7f0d37b-30",
+      "label": "not_filler",
+      "i": [
+        6
+      ],
+      "listed": "filler",
+      "borderline": true
+    },
+    {
+      "sample": "e7f0d37b-37",
+      "label": "not_filler",
+      "i": [
+        6
+      ],
+      "listed": "filler",
+      "borderline": true
+    },
+    {
+      "sample": "e7f0d37b-59",
+      "label": "not_filler",
+      "i": [
+        6
+      ],
+      "listed": "filler",
+      "borderline": false
+    },
+    {
+      "sample": "860fef1a-v03",
+      "label": "not_filler",
+      "i": [
+        6
+      ],
+      "listed": "filler",
+      "borderline": true
+    },
+    {
+      "sample": "899226f8-v05",
+      "label": "not_filler",
+      "i": [
+        6
+      ],
+      "listed": "filler",
+      "borderline": true
+    },
+    {
+      "sample": "899226f8-v16",
+      "label": "not_filler",
+      "i": [
+        6
+      ],
+      "listed": "filler",
+      "borderline": true
+    },
+    {
+      "sample": "e7f0d37b-v49",
+      "label": "not_filler",
+      "i": [
+        6
+      ],
+      "listed": "filler",
+      "borderline": true
+    },
+    {
+      "sample": "e7f0d37b-v92",
+      "label": "not_filler",
+      "i": [
+        6
+      ],
+      "listed": "filler",
+      "borderline": true
+    }
+  ]
+}
