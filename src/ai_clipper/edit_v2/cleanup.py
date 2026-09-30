@@ -9,12 +9,12 @@ digest). Nothing here writes the document: the browser applies the checked items
 
 **Classes** (in transcript order, ids ``cl_1``, ``cl_2``, …):
 
-* ``filler`` — a run of adjacent hard fillers (``fillers`` and their elongated spellings in
+* ``filler``: a run of adjacent hard fillers (``fillers`` and their elongated spellings in
   ``filler_patterns``; ``"ee ee"`` is one item) or a filler phrase (``"apa namanya"``). A filler
   written as a question (``"eh?"``, ``"Hmm?"``) is not listed: it is a tag or a reply. Adjacent
   fillers more than 600 ms apart are separate items. ``defaultOn`` is the lexicon's ``precheck``
   (false until the owner confirms the labelled set, QG-CLEAN).
-* ``repeat`` — an immediate repeat of one token (``"gua gua"``, ``"gua gua gua"``: every
+* ``repeat``: an immediate repeat of one token (``"gua gua"``, ``"gua gua gua"``: every
   occurrence but the last is removed, ``repeatOf`` names the kept one) or of a 2–3-token phrase
   whose second occurrence starts within 1.5 s of the first (``"kita harus kita harus"``).
   A repeated token is listed when it is a ``stutter_words`` entry (pronouns and function words),
@@ -24,12 +24,12 @@ digest). Nothing here writes the document: the browser applies the checked items
   with a hyphen at the join, as Whisper splits ``"bener-bener"``), ``emphatic`` repeats,
   ``vocal_sounds``, laughter tokens, a sentence end between the two occurrences (``"itu. Itu"``),
   and anything with a protected particle. ``defaultOn`` false.
-* ``gap_silent`` — a gap of class ``silent`` (> 600 ms, ≥ 80 % audio-timeline silence, §3.6):
+* ``gap_silent``: a gap of class ``silent`` (> 600 ms, ≥ 80 % audio-timeline silence, §3.6):
   the proposal keeps 100 ms after the word before and 100 ms before the word after (200 ms,
   centred), snapped to frames inside the gap: ``inSf = sf_ceil(s + 100)``, ``outSf =
   sf_floor(e − 100)``, each moved inwards to a quiet frame when the peaks say it is not quiet
   (see "Quiet cuts"). ``defaultOn`` true.
-* ``gap_voiced`` — a gap of class ``voiced``: listed for audition only (``applicable`` false;
+* ``gap_voiced``: a gap of class ``voiced``: listed for audition only (``applicable`` false;
   shortening voiced gaps is Stage 2).
 
 **Laughter lock.** A gap of class ``laughter`` and any word item whose removed words lie within
