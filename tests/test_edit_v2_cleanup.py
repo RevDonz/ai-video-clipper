@@ -190,6 +190,38 @@ def test_apa_alone_is_not_a_filler():
     assert items_of(listing(["apa", "itu", "namanya", "kamu", "apa"]), "filler") == []
 
 
+def filler_texts(tokens: Sequence[str]) -> list[list[str]]:
+    artifact = build(tokens)
+    return [texts(artifact, item["wordIds"])
+            for item in items_of(cleanup.build_cleanup(artifact), "filler")]
+
+
+@pytest.mark.parametrize("quotative", ["kayak", "kayak,", "kaya", "kek", "gini,", "bilang", "mikir"])
+def test_eh_after_a_quotative_is_reported_speech_not_a_filler(quotative):
+    # "gue langsung kayak, eh tunggu dulu": the "eh" belongs to the thought being quoted
+    assert filler_texts(["gue", "langsung", quotative, "eh", "tunggu", "dulu."]) == []
+    # a hesitation sound after the same word is still a filler, and so is "eh" elsewhere
+    assert filler_texts(["gua", quotative, "ee", "ngasir", "terus", "eh", "pulang."]) == [
+        ["ee"], ["eh"]]
+
+
+@pytest.mark.parametrize("address", ["Bang", "bro,", "mas", "kak", "hei.", "kau?", "lu", "kamu"])
+def test_eh_that_addresses_someone_is_not_a_filler(address):
+    # "Eh, Bang nanti pas live", "Eh, hei.", "Eh, lu mau nonton": an interjection to a person
+    assert filler_texts(["oke.", "Eh,", address, "nanti", "pas", "live."]) == []
+    # a restart before a pronoun that addresses nobody stays a filler
+    assert filler_texts(["misalnya", "eh", "gua", "lagi", "planning."]) == [["eh"]]
+
+
+def test_capitals_and_spelled_letters_are_not_fillers():
+    # "Copenhagen HM", "A B C D E": an acronym and a spelled letter, not hesitations
+    assert filler_texts(["20", "September", "Copenhagen", "HM.", "Oke."]) == []
+    assert filler_texts(["kita", "ngomong", "A", "B", "C", "D", "E", "enggak", "mungkin"]) == []
+    # a capitalised filler at a sentence start is still a filler
+    assert filler_texts(["Iya.", "E", "karena", "habis", "olahraga"]) == [["E"]]
+    assert filler_texts(["panas.", "Hm.", "Oke."]) == [["Hm."]]
+
+
 # --- protected particles --------------------------------------------------------------------------
 
 
