@@ -83,6 +83,18 @@ def test_the_duck_measurement_fails_a_wrong_depth() -> None:
     assert all(0.9 < row["max_deviation_db"] < 1.1 for row in report["spans"])
 
 
+def test_the_duck_measurement_stops_at_the_plans_last_sample() -> None:
+    # A span that runs to the clip's end, and a decoded export 512 samples longer than the plan
+    # (the AAC padding G2 allows): the padding is not music and must not be measured.
+    spans = ((300_000, TOTAL),)
+    ducked, unducked = _stems(spans, TOTAL)
+    tail = _stereo([0.001] * 512)
+    report = audio_gates.duck_rows(ducked + tail, unducked + tail, spans, DUCK,
+                                   TOTAL)
+    assert report["failures"] == 0
+    assert report["spans"][0]["windows"] == (TOTAL - 300_000) // audio_gates.DUCK_WINDOW
+
+
 def test_join_steps_find_a_hard_cut_and_pass_a_faded_join() -> None:
     smooth = _stereo([0.3 * math.sin(2 * math.pi * 55 * n / RATE) for n in range(9600)])
     steps = audio_gates.join_steps_dbfs(smooth, [4800])
