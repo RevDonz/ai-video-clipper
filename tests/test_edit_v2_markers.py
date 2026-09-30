@@ -97,7 +97,7 @@ def test_the_committed_vectors_are_current():
 
 def case_words(case: dict, contexts) -> dict:
     """The case's words artifact: its context's, minus the analysis the case strips."""
-    return _generator().case_words(contexts[case["context"]].words, case["strip"])
+    return _generator().case_words(contexts[case["context"]].words, case["strip"], case["extra"])
 
 
 def test_every_vector_document_is_a_valid_document(vectors, contexts):
@@ -158,14 +158,16 @@ def test_the_vectors_cover_every_rule(vectors, contexts):
     assert any(len({m["seg"] for m in case["markers"] if (m["kind"], m["s"]) == (k, s)}) == 2
                for case in vectors["cases"]
                for k, s in {(m["kind"], m["s"]) for m in case["markers"]})
-    # short silences are never markers; removals and trims hide what they cut
+    # short silences are never markers (the dense cases hold some); cuts hide what they cut
+    short = 0
     for case in vectors["cases"]:
         assert all(m["e"] - m["s"] >= 600 for m in case["markers"] if m["kind"] == "silence")
-    words = contexts["c30"].words
+        short += sum(e - s < 600 for s, e in case_words(case, contexts)["silences"])
+    assert short > 0
+    assert sum(len(case["markers"]) for case in vectors["cases"] if case["extra"]) >= 300
     seed_case = next(case for case in vectors["cases"] if case["name"] == "c30/seed")
     cut_case = next(case for case in vectors["cases"] if case["name"] == "c30/cuts")
     assert len(cut_case["markers"]) < len(seed_case["markers"])
-    assert any(e - s < 600 for s, e in words["silences"])
     assert any("laughter_tags" in case["unavailable"] for case in vectors["cases"])
     assert any(set(case["unavailable"]) == {"camera_cut", "laughter_tags", "silence"}
                for case in vectors["cases"])
