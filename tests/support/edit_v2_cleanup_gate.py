@@ -27,12 +27,12 @@ words (``[s_ms, e_ms, text]``) from the synthetic job and the owner's real trans
 the audio-timeline ``silences`` and the laughter spans around it, and labels on word indices
 (the rubric is in the file):
 
-* ``filler`` / ``not_filler`` — a filler-lexicon token that is / is not a removable filler;
-* ``particle`` — a protected particle (must never be listed);
-* ``reduplication`` — both words of a reduplicated word (must never be listed);
-* ``emphatic`` — a deliberate repetition (never listed);
-* ``stutter`` — the removable (earlier) occurrence of a restarted word or phrase;
-* ``not_repeat`` — the same word twice with different roles (never listed as a repeat).
+* ``filler`` / ``not_filler``: a filler-lexicon token that is / is not a removable filler;
+* ``particle``: a protected particle (must never be listed);
+* ``reduplication``: both words of a reduplicated word (must never be listed);
+* ``emphatic``: a deliberate repetition (never listed);
+* ``stutter``: the removable (earlier) occurrence of a restarted word or phrase;
+* ``not_repeat``: the same word twice with different roles (never listed as a repeat).
 
 ``borderline`` marks labels a reasonable editor could flip; precision is reported as labelled
 and with every borderline label flipped. Each sample is rebuilt as a words artifact
