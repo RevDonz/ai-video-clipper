@@ -100,24 +100,8 @@ def _selected(rank, start, end, cold_open, *, title, source="llm", hook_unit="S0
         reasons=("alasan",), source=source, text="teks klip")
 
 
-# Words the episode says elsewhere (outside the clip): common words a hook may open with.
-EPISODE_TEXT = ("pas itu cerita rahasia sisi lain momen kata orang kenapa bisa begitu, "
-                "sakitnya ditahan itu beda.")
-
-
-def write_transcript(job: Path, sentences) -> None:
-    """``output/transcript.json``: the episode vocabulary (one line elsewhere, then the clip)."""
-    segments = [{"start": 10.0, "end": 14.0, "text": EPISODE_TEXT}]
-    for index, (_unit, sentence) in enumerate(sorted(sentences.items())):
-        segments.append({"start": 1242.0 + 3 * index, "end": 1244.5 + 3 * index,
-                         "text": sentence})
-    (job / "output").mkdir(exist_ok=True)
-    (job / "output" / "transcript.json").write_text(
-        json.dumps({"language": "id", "segments": segments}, ensure_ascii=False))
-
-
 def make_job(root: Path, *, sentences=SENTENCES, origin=None, selection=True,
-             selection_source="llm", title=TITLE, transcript=True) -> dict:
+             selection_source="llm", title=TITLE) -> dict:
     words = coherent_words(sentences)
     seed = copy.deepcopy(C30.seed)
     seed["base"]["words"]["sha256"] = sha(canonical_bytes(words))
@@ -126,8 +110,6 @@ def make_job(root: Path, *, sentences=SENTENCES, origin=None, selection=True,
     job = root / JOB
     (job / "job.json").write_text(json.dumps({"id": JOB, "options": {"selectionMode": "v3",
                                                                       "coldOpen": True}}))
-    if transcript:
-        write_transcript(job, sentences)
     if selection:
         clips = (
             _selected(1, 100.0, 140.5, None, title="Klip satu", source=selection_source),
@@ -335,7 +317,8 @@ def test_a_long_transcript_is_cut_to_the_budget(case):
     ("Kata Deddy dia security paling galak", "ungrounded_name"),
     ("Security galak versi Jakarta Selatan", "ungrounded_name"),
     ('Dia bilang "sumpah gue benci horor mistis"', "ungrounded_quote"),
-    ("Deddy ditahan di pintu belakang", "ungrounded_name"),
+    ("KPK nahan sutradara di pintu belakang", "ungrounded_name"),
+    ("YouTube nahan sutradara di pintu belakang", "ungrounded_name"),
     ("Cek potongin.com buat cerita lengkap", "url"),
     ("Cerita lengkap di https://contoh.id/klip", "url"),
     ("Kata @raditya_dika dia paling galak", "handle"),
@@ -356,6 +339,7 @@ def test_hook_problems(case, text, code):
     "Pas Filmnya syuting, sutradara ditahan",
     '"Baru kali ini sutradara ditahan di film sendiri"',
     "Kenapa sutradara ini nggak boleh masuk?",
+    "Rahasia security paling galak di mall",  # a plain first word is exempt (plan: non-initial)
 ])
 def test_grounded_hooks_pass(case, text):
     assert editor_ai.hook_problem(text, context(case)) is None
@@ -579,8 +563,9 @@ def adversarial_responses():
         "Gajinya cuma {n} juta sebulan", "Kata {name} dia security paling galak",
         "Security {name} nahan sutradara", 'Dia bilang "{quote}"', "Cek {url} sekarang",
         "Cerita @{handle} di lokasi", "Security paling galak #{tag}", "Sutradara ditahan {emoji}",
-        "Tahun {year} sutradara ditahan", "{name} ditahan di pintu belakang",
+        "Tahun {year} sutradara ditahan", "{acronym} ditahan di pintu belakang",
     ]
+    acronyms = ["KPK", "DPR", "YouTube", "TikTok", "BNN", "PolRes"]
     names = ["Deddy", "Raffi", "Nagita", "Jakarta", "Bandung", "Netflix", "Marvel", "Sule", "Andre",
              "Baim", "KPK", "Surabaya"]
     quotes = ["sumpah gue benci horor mistis", "ini film terburuk sepanjang masa",
@@ -591,7 +576,7 @@ def adversarial_responses():
         text = pattern.format(n=3 + index % 7, name=names[index % len(names)],
                               quote=quotes[index % len(quotes)], url=f"klip{index}.com",
                               handle=f"akun{index}", tag=f"fyp{index}", emoji="😂🔥"[index % 2],
-                              year=1990 + index)
+                              year=1990 + index, acronym=acronyms[index % len(acronyms)])
         good = grounded[index % len(grounded)]
         responses.append(({"hooks": [{"text": text, "style": "klaim", "evidence": ["L0010"]},
                                      {"text": good[0], "style": "klaim", "evidence": good[1]}]},
