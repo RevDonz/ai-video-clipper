@@ -38,6 +38,7 @@ import {
   LOGO_MAX_BYTES,
   LOGO_TYPES,
   assetThumbUrl,
+  createLogoUploads,
   logoUploadError,
   logoUploader,
   provideLogoUploader,
@@ -397,6 +398,57 @@ test("upload errors become the logo panel's messages; a cancel is not an error",
   }
   assert.deepEqual(LOGO_TYPES, ["image/png", "image/jpeg", "image/webp"]);
   assert.equal(LOGO_MAX_BYTES, 10 * 1024 * 1024);
+});
+
+test("an upload outlives the panel: progress, the result, a cancel and a replaced upload", async () => {
+  const uploads = createLogoUploads();
+  const seen = [];
+  const stop = uploads.subscribe(() => seen.push(uploads.getState()));
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const calls = [];
+  const upload = async (jobId, file, kind, { onProgress, signal }) => {
+    calls.push({ jobId, name: file.name, kind });
+    onProgress(0.5, { phase: "upload" });
+    onProgress(1, { phase: "processing" });
+    await Promise.race([gate, new Promise((_, reject) => signal.addEventListener("abort", () => reject(new DOMException("x", "AbortError"))))]);
+    return { sha256: HEX, kind: "logo", mime: "image/png", w: 10, h: 10, name: "k.png" };
+  };
+  const done = [];
+  const owner = `${FAKE_JOB_ID}/clip_a`;
+  const running = uploads.start({ owner, upload, jobId: FAKE_JOB_ID, file: { name: "k.png" }, onUploaded: (dto) => done.push(dto.sha256) });
+  assert.deepEqual(uploads.getState().progress, { owner, name: "k.png", fraction: 1, phase: "processing" });
+  assert.ok(seen.some((state) => state.progress?.fraction === 0.5));
+  release();
+  await running;
+  assert.deepEqual(done, [HEX]);
+  assert.equal(uploads.getState().progress, null);
+  assert.equal(uploads.getState().names[`sha256:${HEX}`], "k.png");
+  // A cancel leaves an information message, never an error, and nothing is applied.
+  const never = new Promise(() => {});
+  const slow = async (jobId, file, kind, { signal }) => {
+    await Promise.race([never, new Promise((_, reject) => signal.addEventListener("abort", () => reject(new DOMException("x", "AbortError"))))]);
+  };
+  const cancelled = uploads.start({ owner, upload: slow, jobId: FAKE_JOB_ID, file: { name: "b.png" }, onUploaded: () => done.push("no") });
+  uploads.cancel();
+  await cancelled;
+  assert.deepEqual(uploads.getState().message, { owner, tone: "info", text: "Unggahan dibatalkan." });
+  // A second upload replaces the first; only the second one lands.
+  const first = uploads.start({ owner, upload: slow, jobId: FAKE_JOB_ID, file: { name: "1.png" }, onUploaded: () => done.push("first") });
+  const second = uploads.start({ owner, upload: async () => ({ sha256: HEX, kind: "logo", mime: "image/png", w: 1, h: 1 }),
+    jobId: FAKE_JOB_ID, file: { name: "2.png" }, onUploaded: () => done.push("second") });
+  await Promise.all([first, second]);
+  assert.deepEqual(done, [HEX, "second"]);
+  assert.equal(uploads.getState().message, null);
+  // An error keeps its message for the clip that started the upload.
+  await uploads.start({ owner, upload: async () => { throw new FakeApiError(415, "asset_type_unsupported"); }, jobId: FAKE_JOB_ID,
+    file: { name: "x.gif" }, onUploaded: () => done.push("no") });
+  assert.equal(uploads.getState().message.tone, "error");
+  assert.equal(uploads.getState().message.owner, owner);
+  uploads.clearMessage();
+  assert.equal(uploads.getState().message, null);
+  stop();
+  assert.equal(calls.length, 1);
 });
 
 test("the upload client comes from the panel's prop, else from the registered one", () => {

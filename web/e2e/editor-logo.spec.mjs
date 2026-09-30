@@ -15,7 +15,7 @@
 //
 // 2. "real stack": the captures behind P-LOGO at the output size and through truth frames. A
 //    private server (never :3000/:3001) with POTONGIN_EDITOR_V3=on and a JOBS_ROOT holding a copy
-//    of a real V3 job; synthetic logos go into that copy's asset store
+//    of a real job; synthetic logos go into that copy's asset store
 //    (scripts/parity/logo_gates.py assets); each case is saved as a document (PUT, the same
 //    commands the panel sends), opened in the real editor (real player, real preview lane), and
 //    for a few frames the canvas, the truth frames with and without the logo and the document
@@ -500,6 +500,22 @@ test.describe("logo panel and gizmo (harness)", () => {
     expect(errors).toEqual([]);
   });
 
+  test("switching tabs during an upload does not cancel it; the panel shows it again on return", async ({ page }) => {
+    await openHarness(page, { upload: { stepMs: 300, steps: 6 } });
+    await uploadFile(page, FILES.square);
+    await expect(panel(page).getByRole("progressbar", { name: "Unggahan logo" })).toBeVisible();
+    await page.getByRole("tab", { name: "Teks" }).click();
+    await page.waitForTimeout(400);
+    await page.getByRole("tab", { name: "Logo" }).click();
+    await expect(panel(page).getByRole("progressbar", { name: "Unggahan logo" })).toBeVisible();
+    await page.getByRole("tab", { name: "Teks" }).click();
+    await expect(logoBoxEl(page)).toBeVisible({ timeout: 10_000 });
+    await page.getByRole("tab", { name: "Logo" }).click();
+    await expect(panel(page).getByText("logo-kotak.png")).toBeVisible();
+    expect((await snapshot(page)).commands.map((entry) => entry.type)).toEqual(["SetLogo"]);
+    expect(await page.evaluate(() => window.__harness.uploads.length)).toBe(1);
+  });
+
   test("replace keeps the place; remove clears the gizmo and the panel; undo brings the logo back", async ({ page }) => {
     await openHarness(page);
     await addLogo(page);
@@ -669,7 +685,7 @@ async function settle(page, frame, { logo = true } = {}) {
 }
 
 test.describe("real stack", () => {
-  test.skip(!REAL, "E2E_LOGO_REAL=1 with a private server and a copy of a real V3 job (see the header)");
+  test.skip(!REAL, "E2E_LOGO_REAL=1 with a private server and a copy of a real job (see the header)");
   test.use({ baseURL: settings.baseURL, viewport: { width: 1366, height: 900 } });
 
   test("P-LOGO captures at the output size, with truth frames", async ({ page, browser }) => {
