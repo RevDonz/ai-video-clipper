@@ -162,7 +162,6 @@ class HookContext:
     selection: Mapping[str, str] | None  # title, hook_text, archetype, source of the V3 clip
     play_res: tuple[int, int]
     hook_y_e5: int
-    vocabulary: frozenset[str] | None  # word forms the episode writes in lower case
 
 
 # --- the request -----------------------------------------------------------------------------------
@@ -331,53 +330,40 @@ def visible_lines(doc: Mapping[str, Any], words: Mapping[str, Any]) -> tuple[Lin
     return tuple(lines)
 
 
-def _selection_clip(job: Path, doc: Mapping[str, Any]) -> Mapping[str, str] | None:
-    """Title, hook text, archetype and source of the V3 clip this document was seeded from."""
-    from .selection_v3 import selection_from_dict
+def _number(value: object) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and value >= 0
 
+
+def _selection_clip(job: Path, doc: Mapping[str, Any]) -> Mapping[str, str] | None:
+    """Title, hook text, archetype and source of the V3 clip this document was seeded from.
+
+    Read without ``selection_v3`` (its import costs more than the instant budget allows); only
+    labels come from here, so a clip entry that does not look right is skipped."""
     payload = _read_json(job / "analysis" / "selection.v3.json", MAX_SELECTION_BYTES)
-    if payload is None:
-        return None
-    try:
-        selection = selection_from_dict(payload)
-    except (TypeError, ValueError):
-        return None
+    clips = payload.get("clips") if isinstance(payload, dict) else None
     source_sha = doc["base"]["source"]["content_sha256"]
-    for clip in selection.clips:
-        start, end = ms_from_seconds(clip.start), ms_from_seconds(clip.end)
-        teasers = [None]
-        if clip.cold_open is not None:
-            teasers.insert(0, (ms_from_seconds(clip.cold_open[0]),
-                               ms_from_seconds(clip.cold_open[1])))
-        if any(compute_clip_id(source_sha, start, end, teaser) == doc["clip_id"]
-               for teaser in teasers):
-            return {"title": clip.title, "hook_text": clip.hook_text,
-                    "archetype": clip.archetype, "source": clip.source}
+    for clip in clips if isinstance(clips, list) else ():
+        if not isinstance(clip, dict) or not (_number(clip.get("start")) and _number(clip.get("end"))):
+            continue
+        try:
+            start, end = ms_from_seconds(clip["start"]), ms_from_seconds(clip["end"])
+            teasers: list[tuple[int, int] | None] = [None]
+            cold_open = clip.get("cold_open")
+            if isinstance(cold_open, dict):
+                cold_open = [cold_open.get("start"), cold_open.get("end")]
+            if isinstance(cold_open, list) and len(cold_open) == 2 and all(map(_number, cold_open)):
+                teasers.insert(0, (ms_from_seconds(cold_open[0]), ms_from_seconds(cold_open[1])))
+            matched = any(compute_clip_id(source_sha, start, end, teaser) == doc["clip_id"]
+                          for teaser in teasers)
+        except (TypeError, ValueError):
+            continue
+        if matched:
+            return {name: clip[name] if isinstance(clip.get(name), str) else ""
+                    for name in ("title", "hook_text", "archetype", "source")}
     return None
 
 
-def _episode_vocabulary(job: Path) -> frozenset[str] | None:
-    """Forms of every word the episode transcript writes in lower case (a common word, not a
-    name), or None without a readable transcript."""
-    from .transcript_io import read_transcript_json
-
-    try:
-        transcription = read_transcript_json(job / "output" / "transcript.json",
-                                             max_bytes=MAX_TRANSCRIPT_BYTES)
-    except (OSError, ValueError):
-        return None
-    forms: set[str] = set()
-    seen: set[str] = set()
-    for segment in transcription.segments:
-        for token in _WORD.findall(segment.text):
-            if token[:1].islower() and token not in seen:
-                seen.add(token)
-                forms |= _forms(token)
-    return frozenset(forms)
-
-
-def load_context(job: Path, clip: Path, request_raw: bytes, *,
-                 vocabulary: bool = True) -> HookContext:
+def load_context(job: Path, clip: Path, request_raw: bytes) -> HookContext:
     """Validate the request's document like the preview lane validates an unsaved one."""
     from .edit_v2 import store
     from .edit_v2.doc import iter_asset_ids, parse_doc, validate_doc
@@ -409,7 +395,6 @@ def load_context(job: Path, clip: Path, request_raw: bytes, *,
         current_hook=item["payload"]["text"] if item else None, seed_hook=seed_hook,
         selection=selection, play_res=(doc["output"]["w"], doc["output"]["h"]),
         hook_y_e5=item["transform"]["y_e5"] if item else DEFAULT_HOOK_Y_E5,
-        vocabulary=_episode_vocabulary(job) if vocabulary else None,
     )
 
 
@@ -581,12 +566,19 @@ def _capitalised(text: str) -> Iterable[tuple[str, bool]]:
         initial = False
 
 
-def grounding_problem(text: str, clip_text: str, *,
-                      vocabulary: frozenset[str] | None = None) -> str | None:
+def _entity_like(token: str) -> bool:
+    """An acronym ("KPK") or a word with an inner capital ("YouTube"): a name wherever it stands."""
+    letters = [character for character in token if character.isalpha()]
+    return len(letters) > 1 and (all(character.isupper() for character in letters)
+                                 or any(character.isupper() for character in letters[1:]))
+
+
+def grounding_problem(text: str, clip_text: str) -> str | None:
     """Plan §7.1 entity grounding: every number, capitalised non-initial token and quoted span
     of ``text`` occurs in ``clip_text`` (case-folded, light stemming); a quote needs
-    ``quote_overlap ≥ 0.6``. With the episode ``vocabulary``, an opening capitalised word must also
-    be in the clip or be a word the episode writes in lower case (a name at the start is caught)."""
+    ``quote_overlap ≥ 0.6``. An acronym or a word with an inner capital counts as a name even as
+    the first word; any other first word is exempt, as the plan's rule says (on 32 real clips
+    every capitalised first word the model wrote outside the clip text was a common word)."""
     from .llm_selection import quote_overlap
 
     clip_every, _phrases = _numbers(clip_text)
@@ -600,16 +592,10 @@ def grounding_problem(text: str, clip_text: str, *,
             return "ungrounded_quote"
     clip_forms = _text_forms(clip_text)
     for token, initial in _capitalised(text):
-        forms = _forms(token)
-        if forms & clip_forms:
+        if initial and not _entity_like(token):
             continue
-        if initial:
-            if vocabulary is None:
-                continue  # the plan's rule: non-initial tokens only
-            acronym = len(token) > 1 and token.isupper()
-            if not acronym and forms & vocabulary:
-                continue
-        return "ungrounded_name"
+        if not _forms(token) & clip_forms:
+            return "ungrounded_name"
     return None
 
 
@@ -641,7 +627,7 @@ def hook_problem(text: str, ctx: HookContext) -> str | None:
     packaging = packaging_problem(text, ctx.clip_text, title=False)
     if packaging in {"disfluent", "truncated_quote"}:
         return packaging
-    return grounding_problem(text, ctx.clip_text, vocabulary=ctx.vocabulary)
+    return grounding_problem(text, ctx.clip_text)
 
 
 # --- instant variants (plan §7.1 "Instant") -----------------------------------------------------------
@@ -670,10 +656,11 @@ def _unit_text(ctx: HookContext, unit: str) -> str:
 
 def _hook_line(text: str) -> str:
     from .hook_heuristics import clean_hook_line
-    from .llm_selection import tidy_packaging_text
 
     line = clean_hook_line(text)
     if not line:
+        from .llm_selection import tidy_packaging_text  # a 40 ms import, only when needed
+
         line = _cut(tidy_packaging_text(text), HOOK_PREFERRED_CHARS)
     line = line.strip()
     if line.endswith(".") and not line.endswith(".."):
@@ -696,14 +683,21 @@ def _units(ctx: HookContext) -> dict[str, Mapping[str, Any]]:
     return {unit["id"]: unit for unit in ctx.words.get("units", ())}
 
 
+def _readable(line: str) -> bool:
+    """A hook line that reads as a sentence: four words or more, few repeats."""
+    tokens = _tokens(line)
+    return len(tokens) >= 4 and len(set(tokens)) >= 0.75 * len(tokens)
+
+
 def _strongest_unit(ctx: HookContext, skip: str | None) -> tuple[str, str] | None:
-    """The strongest other sentence of the edited clip by the heuristic hook strength, skipping
-    sponsor, greeting, outro, backchannel, reaction and pronoun-led units."""
+    """``(unit, hook line)`` of the strongest other sentence of the edited clip by the heuristic
+    hook strength, skipping sponsor, greeting, outro, backchannel, reaction, segue and pronoun-led
+    units and lines with fewer than three content words or many repeats."""
     from .hook_heuristics import _analyse_unit
     from .sentences import SentenceUnit
 
     units = _units(ctx)
-    best: tuple[float, int, str, str] | None = None
+    ranked: list[tuple[float, int, str, str]] = []
     order = list(dict.fromkeys(line.unit for line in ctx.lines if not line.cold_open))
     for position, unit_id in enumerate(order):
         match = _UNIT_ID.fullmatch(unit_id)
@@ -721,11 +715,14 @@ def _strongest_unit(ctx: HookContext, skip: str | None) -> tuple[str, str] | Non
             continue
         if (analysis.sponsor or analysis.greeting or analysis.outro or analysis.backchannel
                 or analysis.reaction or analysis.pronoun_led or analysis.segue
-                or analysis.strength <= 0):
+                or analysis.strength <= 0 or len(set(analysis.content)) < 3):
             continue
-        if best is None or analysis.strength > best[0]:
-            best = (analysis.strength, position, unit_id, text)
-    return None if best is None else (best[2], best[3])
+        ranked.append((-analysis.strength, position, unit_id, text))
+    for _strength, _position, unit_id, text in sorted(ranked)[:8]:
+        line = _hook_line(text)
+        if _readable(line):
+            return unit_id, line
+    return None
 
 
 def instant_variants(ctx: HookContext) -> list[dict]:
@@ -748,7 +745,7 @@ def instant_variants(ctx: HookContext) -> list[dict]:
             candidates.append(("question", "heuristic", hook_unit, _question_form(unit_text)))
     strongest = _strongest_unit(ctx, hook_unit)
     if strongest is not None:
-        candidates.append(("strongest", "heuristic", strongest[0], _hook_line(strongest[1])))
+        candidates.append(("strongest", "heuristic", strongest[0], strongest[1]))
     variants: list[dict] = []
     for kind, source, unit, raw in candidates:
         text = _clean(raw)
@@ -1142,7 +1139,7 @@ def handle(raw: bytes, *, jobs_root: str | os.PathLike | None,
         job = _job_dir(jobs_root, envelope["jobId"])
         clip = _clip_dir(job, envelope["clipId"])
         if envelope["op"] == "heuristic":
-            ctx = load_context(job, clip, request, vocabulary=False)
+            ctx = load_context(job, clip, request)
             return EXIT_OK, {"heuristic": instant_variants(ctx)}
         return EXIT_OK, run_task(job, clip, task_id=envelope["taskId"], request_raw=request,
                                  env=env, client_factory=client_factory, deadline_s=deadline_s)
