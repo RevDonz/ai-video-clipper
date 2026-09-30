@@ -448,6 +448,11 @@ def _toolchain() -> dict[str, Any]:
             "loadavg": [round(value, 2) for value in os.getloadavg()]}
 
 
+def gate_listing(clip_dir: Path) -> dict:
+    """The review list the editor shows for the clip (the CLI's, with the clip's peaks)."""
+    return cleanup.clip_listing(clip_dir)
+
+
 def media_gate(jobs_root: Path, job_id: str, *, clip: str | None, items: int, work: Path,
                node: str, cues: int) -> dict:
     from ai_clipper.edit_v2 import api, render_edit, store
@@ -466,7 +471,7 @@ def media_gate(jobs_root: Path, job_id: str, *, clip: str | None, items: int, wo
         clip_dir = clips_dir / clip_id
         seed_doc, seed_etag = store.seed(clip_dir)
         words = store.load_words(clip_dir, seed_doc["base"]["words"]["sha256"])
-        listing = cleanup.build_cleanup(words)
+        listing = gate_listing(clip_dir)
         applied = _node_apply(node, words, seed_doc, listing, items)
         score = len(applied["items"])
         if best is None or score > best[0]:
