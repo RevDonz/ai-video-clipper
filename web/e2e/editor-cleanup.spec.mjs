@@ -91,6 +91,76 @@ async function doc(page) {
   return page.evaluate(() => window.__harness.store.getState().doc);
 }
 
+// The owner's dark palette (DESIGN.md: background, surface, line, text, muted text, one lime
+// accent) as editor tokens. The status colours for a dark surface are stand-ins until the editor
+// tokens switch; the point is that the panel is built on tokens, so it follows them.
+const DARK_TOKENS = Object.freeze({
+  "--ed-color-bg": "#080907", "--ed-color-surface": "#11120f", "--ed-color-surface-2": "#1c1d19",
+  "--ed-color-border": "#292b25", "--ed-color-text": "#f7f5ed", "--ed-color-text-muted": "#a5a69d",
+  "--ed-color-accent": "#dfff58", "--ed-color-accent-strong": "#ecff9c", "--ed-color-accent-soft": "#2b3112",
+  "--ed-color-accent-text": "#080907", "--ed-color-danger": "#ff8a7d", "--ed-color-danger-soft": "#3b1612",
+  "--ed-color-warning": "#f2b84b", "--ed-color-warning-text": "#f2b84b", "--ed-color-warning-soft": "#33260f",
+  "--ed-color-success": "#7ad99a", "--ed-color-success-soft": "#13301e", "--ed-color-cold-open": "#b89cff",
+  "--ed-color-cold-open-soft": "#251c3d", "--ed-color-stage-surface": "#1a1d24", "--ed-color-removed": "#77796f",
+  "--ed-focus-ring": "0 0 0 2px #11120f, 0 0 0 4px #dfff58",
+});
+
+// Every visible text in the transcript panel (the review included) against the background it is
+// drawn on, WCAG 2 contrast: [{text, ratio, large}] below the AA bar (4.5:1, 3:1 for large text).
+async function lowContrast(page) {
+  // colours are measured once the hover and theme transitions have settled
+  await page.waitForFunction(() => document.getAnimations().every((animation) => animation.playState !== "running"));
+  return page.evaluate(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 1;
+    canvas.height = 1;
+    const paint = canvas.getContext("2d", { willReadFrequently: true });
+    const rgba = (value) => {
+      paint.clearRect(0, 0, 1, 1);
+      paint.fillStyle = "#000";
+      paint.fillStyle = value;
+      paint.fillRect(0, 0, 1, 1);
+      const [r, g, b, a] = paint.getImageData(0, 0, 1, 1).data;
+      return { r, g, b, a: a / 255 };
+    };
+    const over = (top, bottom) => ({
+      r: top.r * top.a + bottom.r * (1 - top.a), g: top.g * top.a + bottom.g * (1 - top.a),
+      b: top.b * top.a + bottom.b * (1 - top.a), a: 1,
+    });
+    const background = (element) => {
+      const layers = [];
+      for (let node = element; node; node = node.parentElement) {
+        const colour = rgba(getComputedStyle(node).backgroundColor);
+        if (colour.a > 0) layers.push(colour);
+        if (colour.a >= 1) break;
+      }
+      return layers.reduceRight((below, layer) => over(layer, below), { r: 255, g: 255, b: 255, a: 1 });
+    };
+    const luminance = ({ r, g, b }) => [r, g, b].map((v) => {
+      const c = v / 255;
+      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    }).reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i], 0);
+    const ratio = (a, b) => {
+      const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+      return (hi + 0.05) / (lo + 0.05);
+    };
+    const failures = [];
+    for (const element of document.querySelectorAll('[data-panel="transcript"] *')) {
+      const own = [...element.childNodes].some((node) => node.nodeType === Node.TEXT_NODE && node.textContent.trim());
+      if (!own || element.closest(":disabled") || !element.getClientRects().length) continue;
+      const style = getComputedStyle(element);
+      if (style.visibility === "hidden" || Number(style.opacity) === 0) continue;
+      const back = background(element);
+      const fore = over(rgba(style.color), back);
+      const size = parseFloat(style.fontSize);
+      const large = size >= 24 || (size >= 18.66 && Number(style.fontWeight) >= 700);
+      const value = ratio(fore, back);
+      if (value < (large ? 3 : 4.5)) failures.push({ text: element.textContent.trim().slice(0, 40), ratio: Number(value.toFixed(2)), large });
+    }
+    return failures;
+  });
+}
+
 test.describe("Rapikan review", () => {
   test("the button counts the open items and the review groups them with honest copy", async ({ page }) => {
     const errors = await openHarness(page, { doc: EXTENDED });
@@ -103,7 +173,7 @@ test.describe("Rapikan review", () => {
       expect(count, kind).toBeGreaterThan(0);
       await expect(review(page).getByRole("group", { name: new RegExp(`^${label} \\(${count}\\)`) })).toBeVisible();
     }
-    await expect(review(page)).toContainText("Whisper sering tidak menulis");
+    await expect(review(page)).toContainText("Transkrip otomatis sering tidak menulis “eh” atau “em”");
     // the locked items say why they are not proposed
     const quietless = LISTING.locked.filter((entry) => entry.reason === "no_quiet_cut").length;
     expect(quietless).toBeGreaterThan(0);
@@ -228,6 +298,69 @@ test.describe("Rapikan review", () => {
     await openReview(page);
     await expect(review(page)).toContainText("Tidak ada yang perlu dirapikan di klip ini.");
     await expect(review(page)).toContainText("Jeda hening tidak tersedia untuk job ini");
+  });
+
+  test("the review names no engine or version and keeps its copy plain", async ({ page }) => {
+    await openHarness(page, { doc: EXTENDED });
+    await openReview(page);
+    const text = await transcript(page).innerText();
+    expect(text).not.toMatch(/whisper|editor v\d|\bv\d\b|versi|mesin (?:lama|baru)|—/i);
+    const titles = await transcript(page).locator("[title]").evaluateAll((nodes) => nodes.map((node) => node.title).join(" | "));
+    expect(titles).not.toMatch(/whisper|\bv\d\b|versi|mesin/i);
+    await expect(review(page).getByRole("group", { name: /^Jeda bersuara/ }))
+      .toContainText("Masih ada suara di jeda ini, jadi tidak dipotong otomatis. Dengarkan dulu.");
+  });
+
+  test("the text stays readable on the editor's tokens, light and the owner's dark palette", async ({ page }) => {
+    await openHarness(page, { doc: EXTENDED });
+    await openReview(page);
+    await transcript(page).locator('[data-w][data-zone="body"]').nth(2).click();
+    await page.mouse.move(1300, 700);
+    expect(await lowContrast(page)).toEqual([]);
+    await page.evaluate((tokens) => {
+      const root = document.querySelector("#root > div");
+      for (const [name, value] of Object.entries(tokens)) root.style.setProperty(name, value);
+    }, DARK_TOKENS);
+    const surface = await review(page).evaluate((node) => getComputedStyle(node).backgroundColor);
+    expect(surface).toBe("rgb(17, 18, 15)");
+    expect(await lowContrast(page)).toEqual([]);
+  });
+
+  test("one accent: only Terapkan carries the accent colour", async ({ page }) => {
+    await openHarness(page, { doc: EXTENDED });
+    await openReview(page);
+    const accent = await page.evaluate(() => {
+      const probe = document.createElement("span");
+      probe.style.color = "var(--ed-color-accent)";
+      document.querySelector("#root > div").append(probe);
+      const value = getComputedStyle(probe).color;
+      probe.remove();
+      return value;
+    });
+    const apply = review(page).getByRole("button", { name: /^Terapkan/ });
+    await page.mouse.move(1300, 700);
+    await expect(apply).toHaveCSS("background-color", accent);
+    const painted = await transcript(page).locator("*").evaluateAll((nodes, colour) => nodes.filter((node) => {
+      if (node.matches("button") && /^Terapkan/.test(node.textContent)) return false;
+      const style = getComputedStyle(node);
+      return [style.backgroundColor, style.borderTopColor, style.color].includes(colour);
+    }).map((node) => node.outerHTML.slice(0, 80)), accent);
+    expect(painted).toEqual([]);
+  });
+
+  test("the review eases in, and not at all with reduced motion", async ({ page }) => {
+    await openHarness(page);
+    await openReview(page);
+    const moving = await review(page).evaluate((node) => getComputedStyle(node).animationName);
+    expect(moving).not.toBe("none");
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await toggle(page).click();
+    await openReview(page);
+    const still = await review(page).evaluate((node) => {
+      const style = getComputedStyle(node);
+      return { name: style.animationName, duration: style.animationDuration };
+    });
+    expect(still.name === "none" || still.duration === "0s").toBe(true);
   });
 
   test("without an api prop the panel asks the route itself, only when opened", async ({ page }) => {
