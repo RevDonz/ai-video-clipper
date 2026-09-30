@@ -557,12 +557,12 @@ test("the effective LLM status follows UI settings when present and the environm
   const single = await sandbox();
   await saveLlmSettings({ enabled: true, freeOnly: false, providers: [{ provider: "custom", enabled: true, baseUrl: "https://h.example/v1", model: "m", apiKey: { action: "replace", value: KEYS.custom } }] }, { env: single.env });
   const unreadable = await readEffectiveLlmStatus({ ...single.env, APP_SESSION_SECRET: OTHER_SECRET });
-  assert.match(unreadable.label, /custom: key tersimpan tidak bisa dibuka — isi ulang/);
+  assert.match(unreadable.label, /custom: key tersimpan tidak bisa dibuka, isi ulang/);
 
   await saveLlmSettings({ ...hermesInput(), enabled: false }, { env });
   const off = await readEffectiveLlmStatus(env);
   assert.equal(off.state, "disabled");
-  assert.equal(off.label, "AI dimatikan di Pengaturan — memakai heuristik");
+  assert.equal(off.label, "AI dimatikan di Pengaturan. Memakai heuristik lokal.");
 
   await writeFile(file, "{ broken");
   const corrupt = await readEffectiveLlmStatus(env);
@@ -855,7 +855,7 @@ test("the status badge names custom servers and says FREE_ONLY does not filter t
   assert.equal(readLlmStatus({ ...SERVERS_ENV, POTONGIN_LLM_CUSTOM2_NAME: "bad\u0000name" }).providers[1].displayName, null, "an invalid name falls back to the id");
   const broken = readLlmStatus({ ...SERVERS_ENV, POTONGIN_LLM_CUSTOM2_BASE_URL: "http://remote.example/v1" });
   assert.equal(broken.state, "invalid");
-  assert.equal(broken.label, "Konfigurasi LLM tidak valid (9Router) — memakai heuristik");
+  assert.equal(broken.label, "Konfigurasi LLM tidak valid (9Router). Memakai heuristik lokal.");
   assert.equal(readLlmStatus({ POTONGIN_LLM_PROVIDERS: "custom2" }).state, "invalid", "custom2 needs its own URL and model");
   assertNoServerKeys(JSON.stringify(fromEnv), "status");
 

@@ -69,7 +69,7 @@ export default function TrendManualForm({ now, onCreate }) {
   }
 
   const bounds = expiryDateBounds(now);
-  const scoreHelp = "0–100, seberapa ramai. Kosong = 50.";
+  const scoreHelp = "0–100, seberapa ramai. Kosong: 50.";
   return (
     <form ref={form} className="trManualForm" onSubmit={submit} noValidate aria-label="Tambah tren manual">
       <div className="trFields">
@@ -121,7 +121,7 @@ export default function TrendManualForm({ now, onCreate }) {
         </fieldset>
       </div>
       <div className="trFormFooter">
-        <button type="submit" className="trPrimary" disabled={busy}>{busy ? "Menyimpan…" : "Tambah tren"}</button>
+        <button type="submit" className="btn primary" disabled={busy}>{busy ? "Menyimpan…" : "Tambah tren"}</button>
         <p className={`trFormNotice ${notice?.tone || "muted"}`} role={notice?.tone === "error" ? "alert" : "status"} aria-live="polite">
           {notice?.text || "Sumber item ini dicatat sebagai “Manual”."}
         </p>

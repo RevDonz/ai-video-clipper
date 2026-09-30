@@ -569,14 +569,16 @@ export function activeTokenCount(tokens) {
   return (tokens || []).filter((token) => !token.revokedAt).length;
 }
 
+const UNKNOWN_TIME = "tidak diketahui";
+
 export function tokenView(token, now = Date.now()) {
   const revoked = Boolean(token.revokedAt);
   return {
     status: revoked ? "revoked" : "active",
     statusLabel: revoked ? `Dicabut ${formatDateTime(token.revokedAt) || ""}`.trim() : "Aktif",
-    prefixText: token.prefix ? `${token.prefix}…` : "—",
-    createdText: formatDateTime(token.createdAt) || "—",
-    lastUsedText: token.lastUsedAt ? relativeTime(token.lastUsedAt, now) || "—" : "Belum pernah dipakai",
+    prefixText: token.prefix ? `${token.prefix}…` : "",
+    createdText: formatDateTime(token.createdAt) || UNKNOWN_TIME,
+    lastUsedText: token.lastUsedAt ? relativeTime(token.lastUsedAt, now) || UNKNOWN_TIME : "Belum pernah dipakai",
     lastUsedAbsolute: formatDateTime(token.lastUsedAt),
   };
 }
@@ -645,7 +647,7 @@ export function curlExample({ origin } = {}) {
 const STATUS_MESSAGES = {
   0: "Server tidak bisa dihubungi. Periksa koneksi lalu coba lagi.",
   403: "Permintaan ditolak oleh server. Muat ulang halaman lalu coba lagi.",
-  404: "Data tidak ditemukan — mungkin sudah dihapus. Muat ulang daftar.",
+  404: "Data tidak ditemukan, mungkin sudah dihapus. Muat ulang daftar.",
   413: "Isian terlalu besar untuk disimpan.",
   429: "Terlalu banyak permintaan. Tunggu sebentar lalu coba lagi.",
   503: "Penyimpanan konteks tren sedang tidak tersedia. Coba lagi nanti.",

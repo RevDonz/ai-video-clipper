@@ -27,11 +27,11 @@ import "./settings.css";
 const SESSION_TEXT = "Sesi login berakhir. Muat ulang halaman untuk masuk lagi.";
 const REASONING_LABELS = {
   "": "Bawaan penyedia",
-  none: "none — tanpa fase berpikir (paling cepat)",
+  none: "none: tanpa fase berpikir (paling cepat)",
   minimal: "minimal",
-  low: "low — hemat token",
+  low: "low: hemat token",
   medium: "medium",
-  high: "high — paling teliti, paling lambat",
+  high: "high: paling teliti, paling lambat",
 };
 // Draft fields whose edits clear the matching server/validation error.
 const ERROR_FIELD = { keyValue: "apiKey", keyAction: "apiKey", fallbackText: "fallbackModels" };
@@ -76,9 +76,13 @@ function presetBadges(name, freeOnly) {
   if (preset.local) badges.push({ text: "Lokal", tone: "" });
   else if (preset.custom) badges.push({ text: "Server sendiri", tone: "" });
   else if (preset.paidOnly) badges.push({ text: "Berbayar", tone: freeOnly ? "warning" : "" });
-  else badges.push({ text: "Gratis", tone: "ok" });
+  else badges.push({ text: "Gratis", tone: "" });
   if (!preset.requiresKey) badges.push({ text: "Key opsional", tone: "" });
   return badges;
+}
+
+function Chip({ tone, children }) {
+  return <span className={tone ? `chip ${tone}` : "chip"}>{children}</span>;
 }
 
 function FieldError({ id, message }) {
@@ -145,9 +149,9 @@ function KeyField({ item, preset, errors, onChange }) {
   if (!editing) {
     const state = item.keyAction === "clear" ? "warn" : item.apiKeyUnreadable ? "error" : "ok";
     const text = item.keyAction === "clear"
-      ? "Akan dihapus saat disimpan"
+      ? "Dihapus saat Anda menyimpan"
       : item.apiKeyUnreadable
-        ? "Key tersimpan tidak bisa dibuka — isi ulang"
+        ? "Key tersimpan tidak bisa dibuka. Isi ulang."
         : `Tersimpan ✓${item.keySource === "env" ? " (dari .env server)" : ""}`;
     return (
       <div className="settingsField">
@@ -155,11 +159,11 @@ function KeyField({ item, preset, errors, onChange }) {
         <div className={`keyState ${state}`} role="group" aria-labelledby={`${id}-label`} aria-describedby={error ? `${id}-error` : undefined}>
           <span>{text}</span>
           {item.keyAction === "clear" ? (
-            <button type="button" onClick={() => onChange({ keyAction: "keep", keyValue: "" })}>Batal</button>
+            <button type="button" className="btn" onClick={() => onChange({ keyAction: "keep", keyValue: "" })}>Batal</button>
           ) : (
             <>
-              <button type="button" onClick={() => onChange({ keyAction: "replace", keyValue: "" })}>{item.apiKeyUnreadable ? "Isi ulang" : "Ganti"}</button>
-              <button type="button" onClick={() => onChange({ keyAction: "clear", keyValue: "" })}>Hapus</button>
+              <button type="button" className="btn" onClick={() => onChange({ keyAction: "replace", keyValue: "" })}>{item.apiKeyUnreadable ? "Isi ulang" : "Ganti"}</button>
+              <button type="button" className="btn" onClick={() => onChange({ keyAction: "clear", keyValue: "" })}>Hapus</button>
             </>
           )}
         </div>
@@ -175,7 +179,7 @@ function KeyField({ item, preset, errors, onChange }) {
           id={id}
           type="password"
           value={item.keyValue}
-          placeholder={item.apiKeySet ? "Tempel API key baru" : "Belum diisi — tempel API key"}
+          placeholder={item.apiKeySet ? "Tempel API key baru" : "Tempel API key"}
           autoComplete="new-password"
           spellCheck={false}
           autoCapitalize="off"
@@ -186,11 +190,11 @@ function KeyField({ item, preset, errors, onChange }) {
             onChange({ keyValue: value, keyAction: value || item.apiKeySet ? "replace" : "keep" });
           }}
         />
-        {item.apiKeySet && <button type="button" onClick={() => onChange({ keyAction: "keep", keyValue: "" })}>Batal</button>}
+        {item.apiKeySet && <button type="button" className="btn" onClick={() => onChange({ keyAction: "keep", keyValue: "" })}>Batal</button>}
       </div>
       {!error && (
         <small id={`${id}-help`}>
-          {item.apiKeySet ? "Key lama tetap dipakai sampai Anda menyimpan." : "Belum diisi."} Key disimpan terenkripsi di server dan tidak pernah ditampilkan lagi.
+          {item.apiKeySet ? "Key lama tetap dipakai sampai Anda menyimpan. " : ""}Disimpan terenkripsi di server dan tidak ditampilkan lagi.
         </small>
       )}
       <FieldError id={`${id}-error`} message={error} />
@@ -220,7 +224,7 @@ function ModelField({ item, preset, label, errors, onChange, models, onFetchMode
           aria-describedby={error ? `${id}-error` : undefined}
           onChange={(event) => onChange({ model: event.target.value })}
         />
-        <button type="button" onClick={onFetchModels} disabled={listing?.state === "loading" || locked} title={locked ? "Simpan dulu untuk memakai nilai baru" : undefined}>
+        <button type="button" className="btn" onClick={onFetchModels} disabled={listing?.state === "loading" || locked} title={locked ? "Simpan dulu untuk memakai nilai baru" : undefined}>
           {listing?.state === "loading" ? "Mengambil…" : "Ambil daftar model"}
         </button>
       </div>
@@ -246,7 +250,7 @@ function ModelField({ item, preset, label, errors, onChange, models, onFetchMode
           </select>
         </div>
       ) : <small>Tidak ada model{filterFree ? " gratis (':free')" : ""} di daftar penyedia.</small>)}
-      {listing?.state === "done" && filterFree && shown.length > 0 && <small>Hanya model gratis yang ditampilkan karena mode hanya-gratis aktif.</small>}
+      {listing?.state === "done" && filterFree && shown.length > 0 && <small>Hanya model gratis yang ditampilkan.</small>}
       {listing?.state === "error" && <small className="fieldError" role="alert">{listing.message}</small>}
       <FieldError id={`${id}-error`} message={error} />
     </div>
@@ -261,7 +265,7 @@ function ProviderCard({ item, index, count, freeOnly, errors, statusLine, locked
   const host = baseUrlHost(item.baseUrl.trim());
   const baseUrlUpFront = Boolean(preset.custom || preset.local);
   let result = null;
-  if (test?.state === "running") result = { tone: "muted", text: "Menguji koneksi… (server lambat bisa butuh 1–2 menit)" };
+  if (test?.state === "running") result = { tone: "muted", text: "Menguji koneksi… Server lambat bisa butuh 1–2 menit." };
   else if (test?.state === "done" && test.result.status === "ok") {
     result = { tone: "ok", text: `✓ ${test.result.model || "Model"} menjawab dalam ${formatSeconds(test.result.latencyS)} detik.` };
   } else if (test?.state === "done") result = { tone: "error", text: `✗ ${test.result.message}` };
@@ -270,24 +274,24 @@ function ProviderCard({ item, index, count, freeOnly, errors, statusLine, locked
   return (
     <article id={`provider-${item.provider}`} className={`providerCard${item.enabled ? "" : " off"}`} aria-labelledby={titleId}>
       <header className="providerHead">
-        <span className="providerRank" aria-label={`Urutan ${index + 1}`}>{index + 1}</span>
+        <span className="providerRank"><span className="visuallyHidden">Urutan </span>{index + 1}</span>
         <div className="providerIdentity">
           <h3 id={titleId}>{label}</h3>
-          <small>
+          <div className="providerMeta">
             <code>{item.provider}</code>
             {host && <span>{host}</span>}
-            {presetBadges(item.provider, freeOnly).map((badge) => <span key={badge.text} className={`chip ${badge.tone}`}>{badge.text}</span>)}
-            {statusLine && !locked && <span className={`chip ${statusLine.tone}`}>{statusLine.text}</span>}
-          </small>
+            {presetBadges(item.provider, freeOnly).map((badge) => <Chip key={badge.text} tone={badge.tone}>{badge.text}</Chip>)}
+            {statusLine && !locked && <Chip tone={statusLine.tone}>{statusLine.text}</Chip>}
+          </div>
         </div>
         <div className="providerTools">
-          <label className="switch">
+          <label className="settingsSwitch">
             <input type="checkbox" role="switch" checked={item.enabled} onChange={(event) => onChange({ enabled: event.target.checked })} />
             <span>{item.enabled ? "Aktif" : "Nonaktif"}</span>
           </label>
-          <button type="button" className="iconButton" onClick={() => onMove(-1)} disabled={index === 0} aria-label={`Naikkan ${label}`} title="Naikkan">↑</button>
-          <button type="button" className="iconButton" onClick={() => onMove(1)} disabled={index === count - 1} aria-label={`Turunkan ${label}`} title="Turunkan">↓</button>
-          <button type="button" className="iconButton danger" onClick={onRemove} aria-label={`Hapus ${label} dari daftar`}>Hapus</button>
+          <button type="button" className="btn providerTool" onClick={() => onMove(-1)} disabled={index === 0} aria-label={`Naikkan ${label}`} title="Naikkan">↑</button>
+          <button type="button" className="btn providerTool" onClick={() => onMove(1)} disabled={index === count - 1} aria-label={`Turunkan ${label}`} title="Turunkan">↓</button>
+          <button type="button" className="btn danger providerTool" onClick={onRemove} aria-label={`Hapus ${label} dari daftar`}>Hapus</button>
         </div>
       </header>
       <p className="providerDescription">
@@ -295,14 +299,14 @@ function ProviderCard({ item, index, count, freeOnly, errors, statusLine, locked
         {preset.keyUrl && <a href={preset.keyUrl} target="_blank" rel="noopener noreferrer">Ambil API key ↗</a>}
         {template?.docsUrl && <a href={template.docsUrl} target="_blank" rel="noopener noreferrer">Dokumentasi ↗</a>}
       </p>
-      {template?.warning && <p className="settingsAlert warning">{template.warning}</p>}
+      {template?.warning && <p className="notice warning settingsNotice">{template.warning}</p>}
       {subscriptionModels(item).length > 0 && (
-        <p className="settingsAlert error" role="alert">
-          <strong>Model langganan konsumen dipilih</strong>
-          <span>{subscriptionModels(item).join(", ")} diteruskan lewat langganan pribadi (Claude/ChatGPT/Copilot/Cursor). Job otomatis Potongin sebaiknya memakai model gratis atau API key resmi.</span>
+        <p className="notice error settingsNotice" role="alert">
+          <strong>Model langganan pribadi dipilih</strong>
+          <span>{subscriptionModels(item).join(", ")} berjalan lewat langganan pribadi (Claude/ChatGPT/Copilot/Cursor). Untuk job otomatis, pakai model gratis atau API key resmi.</span>
         </p>
       )}
-      {freeOnly && preset.paidOnly && item.enabled && <p className="settingsAlert warning">Mode hanya-gratis aktif: penyedia berbayar ini akan dilewati.</p>}
+      {freeOnly && preset.paidOnly && item.enabled && <p className="notice warning settingsNotice">Mode hanya-gratis aktif: penyedia berbayar ini dilewati.</p>}
 
       <div className="providerFields">
         {preset.custom && (
@@ -311,7 +315,7 @@ function ProviderCard({ item, index, count, freeOnly, errors, statusLine, locked
             field="name"
             label="Nama server"
             placeholder={`mis. Hermes atau 9Router (kosong: ${preset.label})`}
-            help="Tampil di daftar failover dan status AI. Tidak dikirim ke server."
+            help="Tampil di urutan penyedia dan status AI. Tidak dikirim ke server."
             maxLength={MAX_DISPLAY_NAME_LENGTH}
             errors={errors}
             onChange={onChange}
@@ -327,7 +331,7 @@ function ProviderCard({ item, index, count, freeOnly, errors, statusLine, locked
             type="url"
             placeholder={preset.baseUrl ? `bawaan: ${preset.baseUrl}` : "https://server-anda.example/v1"}
             help={preset.custom
-              ? `Alamat API OpenAI-compatible, tanpa /chat/completions. http:// hanya untuk localhost atau host.docker.internal (server di host Docker).${template === SERVER_TEMPLATES["9router"] ? " 9Router: port 20128, mis. http://host.docker.internal:20128/v1." : ""} API key hanya dikirim ke server ini; ganti ke server lain berarti isi ulang key.`
+              ? `Alamat API OpenAI-compatible, tanpa /chat/completions. http:// hanya untuk localhost atau host.docker.internal (server di host Docker).${template === SERVER_TEMPLATES["9router"] ? " 9Router: port 20128, mis. http://host.docker.internal:20128/v1." : ""} API key hanya dikirim ke server ini; pindah server berarti isi ulang key.`
               : "Dari Docker, server Ollama di host: http://host.docker.internal:11434/v1"}
             errors={errors}
             onChange={onChange}
@@ -339,7 +343,7 @@ function ProviderCard({ item, index, count, freeOnly, errors, statusLine, locked
           field="fallbackText"
           label="Model cadangan"
           placeholder={preset.fallbackModels.length ? `bawaan: ${preset.fallbackModels.join(", ")}` : "tanpa cadangan"}
-          help="Dicoba berurutan kalau model utama gagal. Pisahkan dengan koma; kosong = bawaan; tulis none untuk tanpa cadangan."
+          help="Dicoba berurutan kalau model utama gagal. Pisahkan dengan koma. Kosong: bawaan. Tulis none untuk tanpa cadangan."
           errors={{ [`${item.provider}.fallbackText`]: errors[`${item.provider}.fallbackModels`] }}
           onChange={onChange}
         />
@@ -349,12 +353,12 @@ function ProviderCard({ item, index, count, freeOnly, errors, statusLine, locked
         <summary>Pengaturan lanjutan</summary>
         <div className="advancedGrid">
           <div className="settingsField wide">
-            <label htmlFor={`${item.provider}-reasoningEffort`}>Reasoning effort</label>
+            <label htmlFor={`${item.provider}-reasoningEffort`}>Penalaran (reasoning effort)</label>
             <select id={`${item.provider}-reasoningEffort`} value={item.reasoningEffort} aria-describedby={`${item.provider}-reasoningEffort-help`} onChange={(event) => onChange({ reasoningEffort: event.target.value })}>
               {["", ...REASONING_EFFORTS].map((value) => <option key={value || "default"} value={value}>{REASONING_LABELS[value]}</option>)}
             </select>
             <small id={`${item.provider}-reasoningEffort-help`}>
-              <b>none</b> mematikan fase “berpikir”. Model reasoning seperti Hermes jadi jauh lebih cepat (±0,4 detik, bukan ±20 detik) dan jawabannya tidak terpotong pada transkrip panjang. Kosongkan kalau server tidak mendukungnya.
+              <b>none</b> mematikan fase berpikir. Model reasoning seperti Hermes jadi jauh lebih cepat (±0,4 detik, bukan ±20 detik) dan jawabannya tidak terpotong pada transkrip panjang. Kosongkan kalau server tidak mendukungnya.
             </small>
             <FieldError id={`${item.provider}-reasoningEffort-error`} message={errors[`${item.provider}.reasoningEffort`]} />
           </div>
@@ -371,12 +375,12 @@ function ProviderCard({ item, index, count, freeOnly, errors, statusLine, locked
               wide
             />
           )}
-          <NumberField item={item} field="contextTokens" label="Konteks token" placeholder={`bawaan: ${preset.contextTokens}`} min={512} max={10000000} help="Anggaran token per permintaan; transkrip dipotong supaya muat." errors={errors} onChange={onChange} />
-          <NumberField item={item} field="maxOutputTokens" label="Token output maksimum" placeholder={`bawaan: ${preset.maxOutputTokens}`} min={1} max={1000000} errors={errors} onChange={onChange} />
-          <NumberField item={item} field="timeout" label="Timeout (detik)" placeholder={`bawaan: ${preset.timeout}`} min={1} max={3600} step="any" errors={errors} onChange={onChange} />
-          <NumberField item={item} field="rpm" label="Batas permintaan/menit" placeholder={preset.rpm ? `bawaan: ${preset.rpm}` : "bawaan: tanpa batas"} min={0} max={100000} step="any" help="0 = tanpa batas." errors={errors} onChange={onChange} />
+          <NumberField item={item} field="contextTokens" label="Batas konteks (token)" placeholder={`bawaan: ${preset.contextTokens}`} min={512} max={10000000} help="Per permintaan. Transkrip dipotong supaya muat." errors={errors} onChange={onChange} />
+          <NumberField item={item} field="maxOutputTokens" label="Maks. token jawaban" placeholder={`bawaan: ${preset.maxOutputTokens}`} min={1} max={1000000} errors={errors} onChange={onChange} />
+          <NumberField item={item} field="timeout" label="Batas waktu (detik)" placeholder={`bawaan: ${preset.timeout}`} min={1} max={3600} step="any" errors={errors} onChange={onChange} />
+          <NumberField item={item} field="rpm" label="Batas permintaan/menit" placeholder={preset.rpm ? `bawaan: ${preset.rpm}` : "bawaan: tanpa batas"} min={0} max={100000} step="any" help="0: tanpa batas." errors={errors} onChange={onChange} />
           <NumberField item={item} field="maxRetries" label="Percobaan ulang" placeholder="bawaan: 3" min={0} max={10} errors={errors} onChange={onChange} />
-          <NumberField item={item} field="temperature" label="Temperature" placeholder="bawaan: 0,2" min={0} max={2} step="any" errors={errors} onChange={onChange} />
+          <NumberField item={item} field="temperature" label="Suhu (temperature)" placeholder="bawaan: 0,2" min={0} max={2} step="any" errors={errors} onChange={onChange} />
           <div className="settingsField">
             <label htmlFor={`${item.provider}-jsonMode`}>Mode JSON</label>
             <select id={`${item.provider}-jsonMode`} value={item.jsonMode} onChange={(event) => onChange({ jsonMode: event.target.value })}>
@@ -395,11 +399,11 @@ function ProviderCard({ item, index, count, freeOnly, errors, statusLine, locked
       </details>
 
       <div className="providerFooter">
-        <button type="button" className="secondaryAction" onClick={onTest} disabled={test?.state === "running" || locked}>
+        <button type="button" className="btn" onClick={onTest} disabled={test?.state === "running" || locked}>
           {test?.state === "running" ? "Menguji…" : "Tes koneksi"}
         </button>
         <p className={`testResult ${result?.tone || "muted"}`} role="status" aria-live="polite">
-          {result ? result.text : locked ? "Simpan dulu untuk mengetes nilai yang baru." : "Kirim ping JSON kecil memakai pengaturan tersimpan."}
+          {result ? result.text : locked ? "Simpan dulu untuk mengetes nilai baru." : "Kirim ping JSON kecil dengan pengaturan tersimpan."}
         </p>
       </div>
     </article>
@@ -418,20 +422,20 @@ function AddProvider({ available, serversUsed, serverSlot, freeOnly, open, onAdd
             <li key={id} className="presetCard">
               <div className="presetHead">
                 <strong>{template.title}</strong>
-                <span className="chip">Server sendiri</span>
-                <span className="chip">Key opsional</span>
+                <Chip>Server sendiri</Chip>
+                <Chip>Key opsional</Chip>
               </div>
               <p>{template.description}</p>
-              {template.warning && <p className="presetWarning">{template.warning}</p>}
+              {template.warning && <p className="notice warning">{template.warning}</p>}
               <div className="presetActions">
                 {template.docsUrl ? <a href={template.docsUrl} target="_blank" rel="noopener noreferrer">Dokumentasi ↗</a> : <span />}
-                <button type="button" onClick={() => onAddServer(id)} aria-label={`Tambah ${template.title}`}>+ Tambah</button>
+                <button type="button" className="btn" onClick={() => onAddServer(id)} aria-label={`Tambah ${template.title}`}>+ Tambah</button>
               </div>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="addProviderNote">Sudah {serverLimit} server OpenAI-compatible (batas maksimal). Hapus salah satu untuk menambah yang lain.</p>
+        <p className="addProviderNote">Sudah {serverLimit} server sendiri (batas). Hapus satu untuk menambah yang lain.</p>
       )}
       {available.length > 0 && <ul className="presetGrid">
         {available.map((name) => {
@@ -440,12 +444,12 @@ function AddProvider({ available, serversUsed, serverSlot, freeOnly, open, onAdd
             <li key={name} className="presetCard">
               <div className="presetHead">
                 <strong>{preset.label}</strong>
-                {presetBadges(name, freeOnly).map((badge) => <span key={badge.text} className={`chip ${badge.tone}`}>{badge.text}</span>)}
+                {presetBadges(name, freeOnly).map((badge) => <Chip key={badge.text} tone={badge.tone}>{badge.text}</Chip>)}
               </div>
               <p>{preset.description}</p>
               <div className="presetActions">
                 {preset.keyUrl ? <a href={preset.keyUrl} target="_blank" rel="noopener noreferrer">Ambil API key ↗</a> : <span />}
-                <button type="button" onClick={() => onAdd(name)} aria-label={`Tambah ${preset.label}`}>+ Tambah</button>
+                <button type="button" className="btn" onClick={() => onAdd(name)} aria-label={`Tambah ${preset.label}`}>+ Tambah</button>
               </div>
             </li>
           );
@@ -593,7 +597,7 @@ export default function SettingsPage() {
     const keyed = keyedErrors(draft.providers, found);
     setErrors(keyed);
     if (Object.keys(keyed).length) {
-      setNotice({ tone: "error", text: `Periksa ${Object.keys(keyed).length} isian yang ditandai merah.` });
+      setNotice({ tone: "error", text: `Periksa ${Object.keys(keyed).length} isian yang ditandai.` });
       requestAnimationFrame(() => document.querySelector("[aria-invalid=true]")?.focus());
       return;
     }
@@ -605,7 +609,7 @@ export default function SettingsPage() {
       if (ok) {
         applyLoaded({ ...loaded, settings: body.settings, status: body.status, envImportAvailable: false, envWarnings: [], envError: null, fileError: null });
         setTests({});
-        setNotice({ tone: "ok", text: "Pengaturan tersimpan. Job berikutnya langsung memakai konfigurasi ini." });
+        setNotice({ tone: "ok", text: "Tersimpan. Job berikutnya memakai pengaturan ini." });
       } else if (status === 422 && Array.isArray(body?.issues)) {
         setErrors(keyedErrors(draft.providers, Object.fromEntries(body.issues.map((issue) => [issue.field, issue.message]))));
         setNotice({ tone: "error", text: body.error || "Pengaturan belum valid." });
@@ -631,7 +635,7 @@ export default function SettingsPage() {
       if (ok) {
         applyLoaded({ ...loaded, settings: payload.settings, status: payload.status, envImportAvailable: false, envWarnings: payload.warnings || [], envError: null, fileError: null });
         setTests({});
-        setNotice({ tone: "ok", text: `Konfigurasi .env diimpor (${payload.settings.providers.length} penyedia). Mulai sekarang AI diatur dari halaman ini.` });
+        setNotice({ tone: "ok", text: `${payload.settings.providers.length} penyedia diimpor dari .env. Mulai sekarang AI diatur di halaman ini.` });
       } else {
         setNotice({ tone: "error", text: status === 401 ? SESSION_TEXT : payload?.error || "Impor gagal." });
       }
@@ -678,28 +682,31 @@ export default function SettingsPage() {
   const statusByName = Object.fromEntries((loaded?.status?.providers || []).map((item) => [item.name, item]));
   const savedTime = source === "ui" ? formatTime(settings?.updatedAt) : null;
   const errorCount = Object.keys(errors).length;
-  let bar = { dot: "", text: "Semua perubahan tersimpan", detail: savedTime ? `Terakhir disimpan ${savedTime}` : "Belum ada pengaturan tersimpan di halaman ini." };
+  let bar = { dot: "", text: "Semua perubahan tersimpan", detail: savedTime ? `Terakhir disimpan ${savedTime}` : "Belum ada pengaturan yang disimpan di halaman ini." };
   if (saving) bar = { dot: "saving", text: "Menyimpan…", detail: "" };
   else if (notice?.tone === "error") bar = { dot: "error", text: notice.text, detail: dirty ? "Perubahan belum tersimpan." : "" };
-  else if (dirty) bar = { dot: "dirty", text: "Ada perubahan yang belum disimpan", detail: "Simpan supaya job berikutnya memakai pengaturan baru." };
+  else if (dirty) bar = { dot: "dirty", text: "Ada perubahan yang belum disimpan", detail: "Simpan supaya job berikutnya memakainya." };
   else if (notice?.tone === "ok") bar = { dot: "success", text: notice.text, detail: "" };
+
+  let sourceText = ".env server";
+  if (source === "ui") sourceText = "halaman ini";
+  else if (loaded?.fileError) sourceText = "tidak terbaca";
 
   return (
     <main className="settingsPage">
       <AppHeader current="/settings" />
 
       <section className="settingsHero shell">
-        <div className="eyebrow">PENGATURAN · AI &amp; LLM</div>
-        <h1>Penyedia AI</h1>
-        <p>Atur API key, alamat server, dan model LLM langsung dari sini, tanpa mengedit .env di server. Job berikutnya otomatis memakai pengaturan yang tersimpan.</p>
+        <h1>Pengaturan AI</h1>
+        <p>AI yang memilih klip dan menulis judul, hook, dan caption. Job berikutnya langsung memakai pengaturan yang tersimpan di sini.</p>
       </section>
 
-      {loadState === "loading" && <div className="shell"><div className="panel settingsLoading" role="status">Memuat pengaturan AI…</div></div>}
+      {loadState === "loading" && <div className="shell"><div className="panel settingsState" role="status">Memuat pengaturan AI…</div></div>}
       {loadState === "error" && (
         <div className="shell">
-          <div className="panel settingsLoading" role="alert">
+          <div className="panel settingsState" role="alert">
             <p>{notice?.text || "Pengaturan AI tidak bisa dimuat."}</p>
-            <button type="button" className="primaryAction" onClick={load}>Coba lagi</button>
+            <button type="button" className="btn primary" onClick={load}>Coba lagi</button>
           </div>
         </div>
       )}
@@ -708,60 +715,60 @@ export default function SettingsPage() {
         <div className="settingsLayout shell">
           <div className="settingsTop">
             <section className="panel settingsCard" aria-labelledby="ai-status-title">
-              <div className="panelHead compact"><span>01</span><div><h2 id="ai-status-title">Status AI</h2><p>Konfigurasi yang dipakai job berikutnya.</p></div></div>
-              <p className={`llmBadge ${statusView.tone}`} role="status" aria-live="polite"><i aria-hidden="true" /><span>{statusView.label}</span></p>
+              <div className="settingsCardHead"><h2 id="ai-status-title">Status AI</h2><p>Yang dipakai job berikutnya.</p></div>
+              <p className={`settingsStatus ${statusView.tone}`} role="status" aria-live="polite"><i aria-hidden="true" /><span>{statusView.label}</span></p>
               <p className="settingsSource">
-                Sumber: {source === "ui" ? "pengaturan di halaman ini" : loaded.fileError ? "—" : ".env server"}
+                Sumber: {sourceText}
                 {savedTime && ` · disimpan ${savedTime}`}
-                {dirty && " · status di atas belum termasuk perubahan yang belum disimpan"}
+                {dirty && " · belum termasuk perubahan yang belum disimpan"}
               </p>
               {!loaded.secretConfigured && (
-                <div className="settingsAlert error" role="alert">
+                <div className="notice error settingsNotice" role="alert">
                   <strong>Kunci enkripsi belum tersedia</strong>
                   <span>Set APP_SESSION_SECRET (atau POTONGIN_SETTINGS_SECRET) berisi minimal 32 karakter acak di server, bukan contoh dari .env.example. Tanpa itu API key tidak bisa disimpan.</span>
                 </div>
               )}
               {loaded.fileError && (
-                <div className="settingsAlert error" role="alert"><strong>File pengaturan AI bermasalah</strong><span>{loaded.fileError}</span></div>
+                <div className="notice error settingsNotice" role="alert"><strong>File pengaturan AI bermasalah</strong><span>{loaded.fileError}</span></div>
               )}
               {loaded.envError && (
-                <div className="settingsAlert warning"><strong>Konfigurasi LLM di .env tidak valid</strong><span>{loaded.envError}</span></div>
+                <div className="notice warning settingsNotice"><strong>Konfigurasi LLM di .env tidak valid</strong><span>{loaded.envError}</span></div>
               )}
-              {(loaded.envWarnings || []).map((warning) => <p key={warning} className="settingsAlert warning">{warning}</p>)}
+              {(loaded.envWarnings || []).map((warning) => <p key={warning} className="notice warning settingsNotice">{warning}</p>)}
               {source === "env" && loaded.envImportAvailable && (
-                <div className="importBanner">
+                <div className="notice info settingsNotice settingsImport">
                   <div>
-                    <strong>Konfigurasi saat ini dibaca dari .env server</strong>
-                    <span>Impor sekali supaya bisa diubah di sini. API key ikut dipindahkan dan disimpan terenkripsi; setelah itu .env tidak perlu disentuh lagi.</span>
+                    <strong>Pengaturan masih dibaca dari .env server</strong>
+                    <span>Impor sekali supaya bisa diubah di sini. API key ikut dipindahkan dan disimpan terenkripsi, lalu .env tidak perlu disentuh lagi.</span>
                   </div>
-                  <button type="button" className="primaryAction" onClick={importEnv} disabled={importing || saving}>
-                    {importing ? "Mengimpor…" : "Impor dari konfigurasi server (.env)"}
+                  <button type="button" className="btn primary" onClick={importEnv} disabled={importing || saving}>
+                    {importing ? "Mengimpor…" : "Impor dari .env"}
                   </button>
                 </div>
               )}
             </section>
 
             <section className="panel settingsCard" aria-labelledby="ai-general-title">
-              <div className="panelHead compact"><span>02</span><div><h2 id="ai-general-title">Umum</h2><p>Berlaku untuk semua penyedia.</p></div></div>
-              <div className="toggleList">
-                <label className="shadowToggle">
+              <div className="settingsCardHead"><h2 id="ai-general-title">Umum</h2><p>Berlaku untuk semua penyedia.</p></div>
+              <div className="settingsToggles">
+                <label className="settingsToggle">
                   <input type="checkbox" checked={draft.enabled} onChange={(event) => updateGeneral({ enabled: event.target.checked })} />
-                  <span><strong>Aktifkan AI (LLM)</strong><small>Matikan untuk selalu memakai pemilih heuristik lokal: tanpa internet, transkrip tidak dikirim ke mana pun. API key tetap tersimpan.</small></span>
+                  <span><strong>Aktifkan AI (LLM)</strong><small>Kalau mati, klip dipilih dengan heuristik lokal: tanpa internet, transkrip tidak dikirim ke mana pun. API key tetap tersimpan.</small></span>
                 </label>
-                <label className="shadowToggle">
+                <label className="settingsToggle">
                   <input type="checkbox" checked={draft.freeOnly} onChange={(event) => updateGeneral({ freeOnly: event.target.checked })} />
-                  <span><strong>Hanya model gratis</strong><small>Penyedia berbayar (DeepSeek, OpenAI) dilewati dan OpenRouter hanya memakai model “:free”. Server OpenAI-compatible Anda sendiri (mis. Hermes, 9Router) dan Ollama dianggap milik Anda dan tidak disaring, jadi pastikan model yang dipilih di sana memang boleh dipakai.</small></span>
+                  <span><strong>Hanya model gratis</strong><small>DeepSeek dan OpenAI dilewati, OpenRouter hanya memakai model “:free”. Server sendiri (mis. Hermes, 9Router) dan Ollama tidak disaring, jadi pastikan modelnya memang boleh dipakai.</small></span>
                 </label>
               </div>
             </section>
           </div>
 
           <section className="panel settingsCard" aria-labelledby="ai-providers-title">
-            <div className="panelHead compact"><span>03</span><div><h2 id="ai-providers-title">Penyedia AI (urutan failover)</h2><p>Dicoba dari atas ke bawah. Kalau satu gagal (kuota habis, key salah, server mati), otomatis pindah ke berikutnya; kalau semua gagal, heuristik lokal dipakai.</p></div></div>
-            {!draft.enabled && <p className="settingsAlert muted">AI sedang dimatikan. Daftar ini tetap disimpan tetapi tidak dipakai sampai AI diaktifkan lagi.</p>}
-            {errors.general && <p className="settingsAlert error" role="alert">{errors.general}</p>}
+            <div className="settingsCardHead"><h2 id="ai-providers-title">Urutan penyedia</h2><p>Dicoba dari atas. Kalau satu gagal (kuota habis, key salah, server mati), yang berikutnya dipakai. Kalau semua gagal, heuristik lokal dipakai.</p></div>
+            {!draft.enabled && <p className="notice settingsNotice">AI sedang mati. Daftar ini tetap tersimpan dan dipakai lagi setelah AI diaktifkan.</p>}
+            {errors.general && <p className="notice error settingsNotice" role="alert">{errors.general}</p>}
             {draft.providers.length === 0 ? (
-              <div className="providerEmpty">Belum ada penyedia. Tambahkan minimal satu di bawah, atau biarkan kosong supaya job selalu memakai heuristik lokal.</div>
+              <div className="providerEmpty">Belum ada penyedia. Tambah satu di bawah, atau biarkan kosong supaya job memakai heuristik lokal.</div>
             ) : (
               <ol className="providerList">
                 {draft.providers.map((item, index) => (
@@ -800,21 +807,21 @@ export default function SettingsPage() {
       )}
 
       {loadState === "ready" && (
-        <div className="editorSaveBar settingsSaveBar" role="region" aria-label="Simpan pengaturan AI">
-          <div>
-            <i className={`saveDot ${bar.dot}`} aria-hidden="true" />
+        <div className={`settingsSaveBar${dirty ? " dirty" : ""}`} role="region" aria-label="Simpan pengaturan AI">
+          <div className="settingsSaveState">
+            <i className={`settingsSaveDot ${bar.dot}`} aria-hidden="true" />
             <div>
               <p role="status" aria-live="polite">{bar.text}{errorCount > 0 && notice?.tone !== "error" ? ` · ${errorCount} isian perlu diperbaiki` : ""}</p>
               {bar.detail && <small>{bar.detail}</small>}
             </div>
           </div>
-          <div>
+          <div className="settingsSaveActions">
             {notice?.reload ? (
-              <button type="button" className="discard" onClick={load}>Muat ulang</button>
+              <button type="button" className="btn" onClick={load}>Muat ulang</button>
             ) : (
-              <button type="button" className="discard" onClick={discard} disabled={!dirty || saving}>Batalkan</button>
+              <button type="button" className="btn" onClick={discard} disabled={!dirty || saving}>Batalkan</button>
             )}
-            <button type="button" className="saveEditor" onClick={save} disabled={!dirty || saving}>{saving ? "Menyimpan…" : "Simpan"}</button>
+            <button type="button" className="btn primary" onClick={save} disabled={!dirty || saving}>{saving ? "Menyimpan…" : "Simpan"}</button>
           </div>
         </div>
       )}

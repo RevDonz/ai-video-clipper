@@ -450,6 +450,11 @@ test("token lists never carry hashes or values; active tokens come first", () =>
   assert.equal(revoked.status, "revoked");
   assert.equal(revoked.lastUsedText, "Belum pernah dipakai");
   assert.match(revoked.statusLabel, /^Dicabut/);
+  // A record without a prefix or with unreadable dates shows words, not a dash.
+  const bare = tokenView({ id: "x", label: "X", prefix: "", createdAt: "nope", lastUsedAt: "nope", revokedAt: null }, NOW);
+  assert.equal(bare.prefixText, "");
+  assert.equal(bare.createdText, "tidak diketahui");
+  assert.equal(bare.lastUsedText, "tidak diketahui");
 });
 
 test("a created token is accepted only in the documented ptk_ format", () => {

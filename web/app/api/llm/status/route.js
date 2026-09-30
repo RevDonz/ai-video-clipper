@@ -19,7 +19,7 @@ export function createLlmStatusHandler({ authorize = requireAuth, env = process.
     try {
       return Response.json({ llm: await readStatus(env) }, { headers: NO_STORE });
     } catch {
-      return Response.json({ llm: { state: "invalid", label: "Status LLM tidak dapat dibaca — memakai heuristik" } }, { status: 500, headers: NO_STORE });
+      return Response.json({ llm: { state: "invalid", label: "Status LLM tidak dapat dibaca. Memakai heuristik lokal." } }, { status: 500, headers: NO_STORE });
     }
   };
 }

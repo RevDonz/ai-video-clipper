@@ -246,7 +246,7 @@ test("a key the current secret cannot open is reported without running the engin
   const result = await read(await route.POST(request("/api/settings/llm/test", { method: "POST", body: { provider: "custom" } })));
   assert.equal(result.status, 200);
   assert.equal(result.body.result.code, "key_unreadable");
-  assert.match(result.body.result.message, /isi ulang/);
+  assert.match(result.body.result.message, /isi ulang/i);
   await assert.rejects(readFile(fake.log), { code: "ENOENT" });
 });
 

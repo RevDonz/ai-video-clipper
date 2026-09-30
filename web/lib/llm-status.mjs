@@ -199,7 +199,7 @@ const REASON_TEXT = {
   not_free: "tidak gratis (POTONGIN_LLM_FREE_ONLY aktif)",
   config_invalid: "konfigurasi tidak valid",
   unknown_provider: "nama penyedia tidak dikenal",
-  key_unreadable: "key tersimpan tidak bisa dibuka — isi ulang",
+  key_unreadable: "key tersimpan tidak bisa dibuka, isi ulang",
 };
 
 export function llmReasonText(reason) {
@@ -222,7 +222,7 @@ export function readLlmStatus(env = process.env, { unreadableKeys = null } = {})
   const base = { state: "unconfigured", freeOnly: false, order: [], providers: [], problems: [] };
   const switchValue = envText(env, "POTONGIN_LLM");
   if (switchValue !== null && OFF_VALUES.has(switchValue.toLowerCase())) {
-    return { ...base, state: "disabled", label: "LLM dimatikan (POTONGIN_LLM=off) — memakai heuristik" };
+    return { ...base, state: "disabled", label: "LLM dimatikan (POTONGIN_LLM=off). Memakai heuristik lokal." };
   }
   const { providers, invalid: invalidProviders } = parseProviders(env);
   const { freeOnly, invalid: invalidFreeOnly } = parseFreeOnly(env);
@@ -230,10 +230,10 @@ export function readLlmStatus(env = process.env, { unreadableKeys = null } = {})
   if (invalidProviders) problems.push("config_invalid:POTONGIN_LLM_PROVIDERS");
   if (invalidFreeOnly) problems.push("config_invalid:POTONGIN_LLM_FREE_ONLY");
   if (problems.length) {
-    return { ...base, state: "invalid", freeOnly, problems, label: "Konfigurasi LLM tidak valid — memakai heuristik" };
+    return { ...base, state: "invalid", freeOnly, problems, label: "Konfigurasi LLM tidak valid. Memakai heuristik lokal." };
   }
   if (!providers.length) {
-    return { ...base, freeOnly, label: "LLM belum dikonfigurasi — memakai heuristik" };
+    return { ...base, freeOnly, label: "LLM belum dikonfigurasi. Memakai heuristik lokal." };
   }
   const described = providers.map((name, index) => describeProvider(env, name, index === 0, freeOnly, unreadableKeys));
   // Only a missing key, FREE_ONLY or an unknown name is skipped in a list; any
@@ -246,7 +246,7 @@ export function readLlmStatus(env = process.env, { unreadableKeys = null } = {})
       freeOnly,
       providers: described,
       problems: [`config_invalid:${broken.name}`],
-      label: `Konfigurasi LLM tidak valid (${shownName(broken)}) — memakai heuristik`,
+      label: `Konfigurasi LLM tidak valid (${shownName(broken)}). Memakai heuristik lokal.`,
     };
   }
   const usable = described.filter((item) => item.usable);
@@ -261,7 +261,7 @@ export function readLlmStatus(env = process.env, { unreadableKeys = null } = {})
       state: "unusable",
       freeOnly,
       providers: described,
-      label: `LLM belum siap${detail} — memakai heuristik`,
+      label: `LLM belum siap${detail}. Memakai heuristik lokal.`,
     };
   }
   return {

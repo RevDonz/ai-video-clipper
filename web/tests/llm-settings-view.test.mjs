@@ -100,7 +100,7 @@ test("list helpers keep the failover order explicit", () => {
   assert.deepEqual(parseModelList(" none "), []);
   assert.deepEqual(parseModelList("a, b\nc,a"), ["a", "b", "c"]);
   assert.deepEqual(providerStatusLine({ usable: true }), { tone: "ok", text: "Siap dipakai" });
-  assert.equal(providerStatusLine({ usable: false, reason: "key_unreadable" }).tone, "error");
+  assert.deepEqual(providerStatusLine({ usable: false, reason: "key_unreadable" }), { tone: "error", text: "Key tersimpan tidak bisa dibuka. Isi ulang." });
   assert.equal(providerStatusLine(null), null);
   assert.equal(baseUrlHost("https://hermes.example:8443/v1"), "hermes.example:8443");
   assert.equal(baseUrlHost("http://remote.example/v1"), null);

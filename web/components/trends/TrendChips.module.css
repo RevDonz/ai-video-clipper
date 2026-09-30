@@ -19,4 +19,5 @@
   color: var(--text);
   font: 600 12px/1.4 var(--font);
   overflow-wrap: anywhere;
+  animation: pop-in var(--dur-2) var(--ease-out);
 }
