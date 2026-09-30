@@ -1,21 +1,19 @@
-"""Today's face detection over a whole clip window, with the Haar work on worker threads.
+"""Today's face detection over a whole clip window, reporting its progress per sample.
 
 The Editor V3 camera plan (``edit_v2.camera``, plan §5.7; T3.6) samples a clip window every
-0.75 s. ``face_tracking.detect_face_track(…, smooth=False, sequential=True)`` decodes the window
-once and runs the Haar cascade on each sampled frame in turn; the cascade is ~80% of the time
-(a 3 min window of a 1280×720 source: ~160 ms per sample on one core), so a 4-CPU container
-met the 15 s budget with 0.38 s to spare (W1). :func:`detect_window` keeps everything that
-decides the result (the cascade, ``scaleFactor``, ``minNeighbors``, ``minSize``, the frames
-sampled, the equalisation and the cut flags) and changes only how the work is scheduled:
+0.75 s. :func:`detect_window` returns exactly what ``face_tracking.detect_face_track(…,
+smooth=False, sequential=True)`` returns (same cascade, parameters, sampled frames, equalisation
+and cut flags; 0 of 1,202 samples differ on the five real sources), and adds:
 
-* the main thread decodes and computes the cut flags (sequential by nature) while up to
-  ``workers`` threads run the cascade;
-* every worker has its own ``CascadeClassifier``: one classifier shared by several threads is
-  not thread-safe (measured: 231 of 241 samples got other boxes on a real source);
-* OpenCV's own thread pool is held at one thread during the run (and restored after), so a
-  detection is computed the same way whatever the CPU count;
-* equal-area faces are chosen by position (sorted boxes: the leftmost, then the topmost)
-  instead of by OpenCV's detection order, which follows its internal thread scheduling.
+* ``progress(done, total)`` after every sample, for the editor's analysis progress;
+* the Haar work on up to four worker threads, each with its own ``CascadeClassifier`` (one
+  classifier shared by threads returns wrong boxes), while the main thread decodes;
+* OpenCV's own pool held at one thread during the run (restored after), and equal-area faces
+  chosen by position (the leftmost, then the topmost) instead of by OpenCV's detection order,
+  so the result does not depend on the CPU count.
+
+The work is CPU-bound either way: a 3 min window of the 1280×720 AV1 source costs ~40 CPU-s of
+Haar (~160 ms per sample) and ~9 CPU-s of decoding, about 13 s at 4 CPUs with either detector.
 
 Like ``face_tracking``, OpenCV is imported lazily (the ``vision`` extra); the Editor V3 package
 itself stays stdlib-only.
