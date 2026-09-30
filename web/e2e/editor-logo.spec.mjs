@@ -658,11 +658,12 @@ const inspect = (page) => page.evaluate(() => {
     player: player ? { mode: player.mode, frame: player.frame, exact: player.exact, presentedFrame: player.presentedFrame, current: player.current } : null };
 });
 
-async function settle(page, frame) {
+async function settle(page, frame, { logo = true } = {}) {
   await expect.poll(async () => {
     const view = await inspect(page);
     const player = view?.player;
-    return Boolean(view?.plan?.logo?.state === "ready" && player && player.mode === "live" && player.exact === true
+    const logoReady = logo ? view?.plan?.logo?.state === "ready" : view?.plan?.logo == null;
+    return Boolean(logoReady && player && player.mode === "live" && player.exact === true
       && player.presentedFrame === frame && player.current?.logo && player.current?.plate && player.current?.text);
   }, { timeout: 120_000, intervals: [250] }).toBe(true);
 }
@@ -698,9 +699,12 @@ test.describe("real stack", () => {
     };
     const run = (doc, steps) => steps.reduce((current, [type, args]) => applyCommand(current, type, args, ctx).doc, doc);
     const withAsset = (name) => ["SetLogo", { asset: logos[name].asset, meta: logos[name].meta }];
+    // "_bare" (the document without a logo) gives the browser's logo-less frames for the blend-only
+    // measurement; it has no truth frames.
     const cases = [
+      { id: "_bare", steps: [], bare: true },
       { id: "square-default", steps: [withAsset("square")] },
-      { id: "square-safe-opaque", steps: [withAsset("square"), ["MoveLogo", { x_e5: 76458, y_e5: 11758 }], ["SetLogoOpacity", { opacity_pm: 1000 }]] },
+      { id: "square-safe-opaque", steps: [withAsset("square"), ["MoveLogo", { x_e5: 79097, y_e5: 11758 }], ["SetLogoOpacity", { opacity_pm: 1000 }]] },
       { id: "wide-bottom-left-max", steps: [withAsset("wide"), ["MoveLogo", { x_e5: 50000, y_e5: 50000 }], ["ResizeLogo", { w_e5: 40000 }], ["SnapLogo", { corner: "bottom_left" }], ["SetLogoOpacity", { opacity_pm: 600 }]] },
       { id: "tall-free-faint", steps: [withAsset("tall"), ["ResizeLogo", { w_e5: 9000 }], ["MoveLogo", { x_e5: 46333, y_e5: 47734 }], ["SetLogoOpacity", { opacity_pm: 200 }]] },
       { id: "square-min-top-left", steps: [withAsset("square"), ["ResizeLogo", { w_e5: 4000 }], ["SnapLogo", { corner: "top_left" }]] },
@@ -727,9 +731,9 @@ test.describe("real stack", () => {
       const presses = [0, Math.floor(total / 3 / second), Math.floor((2 * total) / 3 / second)];
       const caseDir = path.join(CAPTURES, entry.id);
       mkdirSync(caseDir, { recursive: true });
-      const bare = run(view.doc, [["RemoveLogo", {}]]);
+      const bare = entry.bare ? null : run(view.doc, [["RemoveLogo", {}]]);
       writeFileSync(path.join(caseDir, "doc.json"), JSON.stringify(view.doc));
-      await page.locator("body").click({ position: { x: 5, y: 890 } });
+      await page.evaluate(() => document.activeElement?.blur?.());
       let frame = 0;
       for (const target of presses) {
         while (frame < Math.min(total - 1, target * second)) {
@@ -738,19 +742,20 @@ test.describe("real stack", () => {
           await expect.poll(async () => (await inspect(page)).player.frame, { timeout: 30_000 }).toBe(next);
           frame = next;
         }
-        await settle(page, frame);
+        await settle(page, frame, { logo: !entry.bare });
         const png = await page.evaluate(() => document.querySelector('[data-stage="canvas"]').toDataURL("image/png"));
         const frameDir = path.join(caseDir, String(frame));
         mkdirSync(frameDir, { recursive: true });
         writeFileSync(path.join(frameDir, "browser.png"), Buffer.from(png.split(",")[1], "base64"));
+        if (entry.bare) continue;
         writeFileSync(path.join(frameDir, "truth.png"), Buffer.from(await truthFrame(page, clip.clipId, view.doc, frame), "base64"));
         await page.waitForTimeout(300);
         writeFileSync(path.join(frameDir, "truth-nologo.png"), Buffer.from(await truthFrame(page, clip.clipId, bare, frame), "base64"));
         await page.waitForTimeout(300);
       }
-      manifest.cases.push({ id: entry.id, transform: box(view.doc), planLogo: view.plan.logo, frames: presses.length });
+      if (!entry.bare) manifest.cases.push({ id: entry.id, transform: box(view.doc), planLogo: view.plan.logo, frames: presses.length });
     }
     writeFileSync(path.join(CAPTURES, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
-    expect(manifest.cases.length).toBe(cases.length);
+    expect(manifest.cases.length).toBe(cases.length - 1);
   });
 });
