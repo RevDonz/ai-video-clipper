@@ -176,7 +176,7 @@ export function musicView(state) {
   const clampedAt = audioPending ? null : warningDetail(warnings, "loudness_clamped");
   let achievedText = null;
   if (on) achievedText = audioPending ? "Mengukur…" : clampedAt !== null
-    ? `Tercapai ${formatLufs(clampedAt)}: dibatasi agar tidak pecah` : `Tercapai ${formatLufs(master.target_clufs)}`;
+    ? `Tercapai ${formatLufs(clampedAt)}: dibatasi agar tidak pecah` : `Sesuai target ${formatLufs(master.target_clufs)} (±1 LU)`;
   const peakReducedCdb = audioPending ? null : warningDetail(warnings, "peak_reduced");
   const view = {
     loading: false,
