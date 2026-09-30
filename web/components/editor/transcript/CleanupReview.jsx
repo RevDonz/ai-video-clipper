@@ -21,7 +21,7 @@ const HINTS = Object.freeze({
   filler: "Belum dicentang otomatis: periksa dulu.",
   repeat: "Kata atau frasa yang diulang saat bicara tersendat; yang terakhir dipertahankan.",
   gap_silent: "Jeda hening dipendekkan menjadi 0,2 dtk.",
-  gap_voiced: "Jeda yang masih ada suaranya: dengarkan dulu. Memendekkannya belum tersedia.",
+  gap_voiced: "Masih ada suara di jeda ini, jadi tidak dipotong otomatis. Dengarkan dulu.",
 });
 
 export function entryLabel(entry) {
@@ -81,7 +81,7 @@ function CleanupReview({ view, status, isChecked, onToggle, onGroup, onApply, on
       <div className={styles.reviewHead}>
         <h2 id="cleanup-review-title" className={styles.reviewTitle}>Rapikan</h2>
         <p className={styles.reviewNote}>
-          Whisper sering tidak menulis “eh/em”, jadi daftar kata pengisi bisa pendek. Partikel seperti sih, dong
+          Transkrip otomatis sering tidak menulis “eh” atau “em”, jadi daftar kata pengisi bisa pendek. Partikel seperti sih, dong
           dan kok tidak pernah diusulkan; hapus sendiri di transkrip bila perlu.
         </p>
       </div>
