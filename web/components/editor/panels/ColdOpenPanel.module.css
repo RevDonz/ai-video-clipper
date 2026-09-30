@@ -1,0 +1,116 @@
+/* The cold-open suggestions (T3.7). Colours are the editor tokens only (editor.module.css). The
+   current cold open carries the cold-open colour of the timeline's block, so the panel and the
+   video lane say the same thing; the other suggestions stay quiet until hovered. */
+
+.status {
+  margin: 0;
+  padding: 6px 8px;
+  border-radius: var(--ed-radius-sm);
+  background: var(--ed-color-success-soft);
+  color: var(--ed-color-success);
+  font-size: var(--ed-font-size-sm);
+  animation: fade-in var(--ed-duration-fast) ease-out;
+}
+
+.list {
+  display: grid;
+  gap: var(--ed-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: grid;
+  gap: 6px;
+  padding: var(--ed-space-2) var(--ed-space-3);
+  border: 1px solid var(--ed-color-border);
+  border-radius: var(--ed-radius-md);
+  background: var(--ed-color-surface);
+  transition: border-color var(--ed-duration-fast) ease-out, background-color var(--ed-duration-fast) ease-out;
+  animation: fade-in var(--ed-duration-fast) ease-out;
+}
+
+.item:hover,
+.item:focus-within {
+  border-color: var(--ed-color-text-muted);
+}
+
+.current,
+.current:hover,
+.current:focus-within {
+  border-color: var(--ed-color-cold-open);
+  background: var(--ed-color-cold-open-soft);
+}
+
+.head {
+  display: flex;
+  gap: var(--ed-space-2);
+  align-items: baseline;
+  font-size: var(--ed-font-size-xs);
+}
+
+.label {
+  color: var(--ed-color-text);
+  font-weight: 700;
+}
+
+.badge {
+  color: var(--ed-color-cold-open);
+  font-weight: 700;
+}
+
+.length {
+  margin-left: auto;
+  color: var(--ed-color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.text {
+  margin: 0;
+  color: var(--ed-color-text);
+  font-size: var(--ed-font-size-sm);
+  line-height: var(--ed-line-height);
+}
+
+.why {
+  margin: 0;
+  color: var(--ed-color-text-muted);
+  font-size: var(--ed-font-size-xs);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.use:not(:disabled) {
+  border-color: var(--ed-color-cold-open);
+  color: var(--ed-color-cold-open);
+  font-weight: 700;
+}
+
+.blocked {
+  margin: 0;
+  color: var(--ed-color-warning-text);
+  font-size: var(--ed-font-size-xs);
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status,
+  .item {
+    animation: none;
+    transition: none;
+  }
+}

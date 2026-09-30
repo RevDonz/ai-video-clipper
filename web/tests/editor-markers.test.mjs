@@ -7,8 +7,9 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { caseWords } from "../components/editor/timeline/lanes/__dev__/marker-cases.mjs";
 import {
-  KIND_ORDER, SILENCE_MIN_MS, buildMarkers, markerText, stripAnalysis, unavailableNote,
+  KIND_ORDER, SILENCE_MIN_MS, buildMarkers, markerText, unavailableNote,
 } from "../components/editor/timeline/lanes/markers.mjs";
 import {
   decodePeaks, peaksUrl, waveformShapes,
@@ -26,25 +27,28 @@ const pick = (marker) => Object.fromEntries(VECTOR_FIELDS.map((key) => [key, mar
 test("every marker of the vectors lands on its exact frame (0 frames of difference)", () => {
   let total = 0;
   for (const kase of vectors.cases) {
-    const words = stripAnalysis(contextWords(kase.context), kase.strip);
+    const words = caseWords(contextWords(kase.context), kase);
     const { markers, unavailable } = buildMarkers(words, kase.doc);
     assert.deepEqual(markers.map(pick), kase.markers, kase.name);
     assert.deepEqual(unavailable, kase.unavailable, kase.name);
     total += markers.length;
   }
-  assert.ok(total >= 200, `only ${total} markers checked`);
+  assert.ok(total >= 700, `only ${total} markers checked`);
   assert.equal(vectors.silence_min_ms, SILENCE_MIN_MS);
   assert.deepEqual(KIND_ORDER, ["laughter", "silence", "camera_cut"]);
 });
 
-test("stripping analysis mirrors the generator: the missing list names what is empty", () => {
+test("case words mirror the generator: the missing list names what is empty", () => {
   const words = contextWords("c30");
-  const stripped = stripAnalysis(words, ["audio_timeline", "sound_events"]);
+  const stripped = caseWords(words, { strip: ["audio_timeline", "sound_events"] });
   assert.deepEqual(stripped.missing, ["audio_timeline", "sound_events"]);
   assert.deepEqual([stripped.silences, stripped.scene_cuts_ms, stripped.gaps], [[], [], []]);
   assert.deepEqual([...new Set(stripped.events.map((event) => event.src))], ["transcript"]);
-  assert.equal(stripAnalysis(words, []), words);
-  assert.notEqual(stripped.words, undefined);
+  assert.equal(caseWords(words, { strip: [], extra: null }), words);
+  const dense = vectors.cases.find((kase) => kase.extra);
+  const merged = caseWords(contextWords(dense.context), dense);
+  assert.ok(merged.events.length > contextWords(dense.context).events.length);
+  assert.deepEqual(merged.scene_cuts_ms, [...merged.scene_cuts_ms].sort((a, b) => a - b));
 });
 
 test("markers carry stable unique keys and a source-aware label with the output time", () => {
