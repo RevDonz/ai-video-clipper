@@ -1,10 +1,10 @@
-// GET /api/jobs/:id/clips/:clipId/cleanup — the Rapikan review list (plan §4.2, §7.3; T3.5).
+// GET /api/jobs/:id/clips/:clipId/cleanup: the Rapikan review list (plan §4.2, §7.3; T3.5).
 //
 // The list is `python -m ai_clipper.edit_v2.cleanup` op `list` over the clip's current words
 // artifact: fillers, repeats and gaps with the fields `ApplyCleanup` takes (CONTRACTS §5.17), no
-// LLM. It is immutable per (words sha, lexicon digest), so the answer carries that pair as its
-// ETag and a matching If-None-Match gets 304 (`private, no-cache`: the bare URL follows the
-// current document, whose words change after "Mulai dari versi AI").
+// LLM. Its ETag is the digest of the answer, and a matching If-None-Match gets 304
+// (`private, no-cache`: the bare URL follows the current document, whose words change after
+// "Mulai dari versi AI").
 //
 // Same prologue as every editor route (clip-edit.mjs): session, POTONGIN_EDITOR_V3, ids by regex
 // before anything is spawned; Python only through web/lib/python-cli.mjs (allowlisted env, no LLM
@@ -100,9 +100,9 @@ export function sanitizeCleanup(json) {
   };
 }
 
-/** The ETag of a list: its schema, words sha and lexicon digest (the list is a function of them). */
+/** The ETag of a list: the digest of the answer itself, so a rule change on the server is seen. */
 export function cleanupEtag(dto) {
-  return createHash("sha256").update(`${SCHEMA}\0${dto.wordsSha256}\0${dto.lexicon.sha256}`).digest("hex");
+  return createHash("sha256").update(JSON.stringify(dto)).digest("hex");
 }
 
 function etagMatches(request, etag) {
