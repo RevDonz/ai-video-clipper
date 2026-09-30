@@ -244,6 +244,19 @@ test("audition plays the candidate where the body shows it; it is gone once cut 
   assert.equal(gone.auditionReason, "Bagian ini sudah dipotong dari klip");
 });
 
+test("the seed's own cold open (cut from times, not word gaps) reads as current by its words", () => {
+  const vectors = JSON.parse(readFileSync(path.join(REPO, "tests", "fixtures", "edit_v2", "coldopen-vectors.json"), "utf8"));
+  const c30Words = JSON.parse(readFileSync(path.join(CONTEXTS, "c30.words.json"), "utf8"));
+  const c30Seed = JSON.parse(readFileSync(path.join(CONTEXTS, "c30.seed.json"), "utf8"));
+  const selection = vectors.contexts.c30.candidates.find((candidate) => candidate.source === "selection");
+  const co = c30Seed.main.segments.find((segment) => segment.role === "cold_open");
+  assert.notDeepEqual([co.in_sf, co.out_sf], [selection.inSf, selection.outSf], "the seed's edges are not word gaps");
+  const views = candidateViews({ candidates: readCandidates(vectors.contexts.c30), model: buildTranscriptModel(c30Words, c30Seed) });
+  assert.deepEqual(views.map((view) => view.current), views.map((view) => view.id === selection.id));
+  assert.equal(views[0].ok, false);
+  assert.deepEqual(views[0].audition, { f0: 0, f1: co.out_sf - co.in_sf });
+});
+
 test("a candidate that now repeats the opening is shown but cannot be used, with the reason", () => {
   const candidate = candidateFor(target.id);
   const ctx = createContext({ words, seed });
