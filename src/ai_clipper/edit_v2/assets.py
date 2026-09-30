@@ -177,7 +177,7 @@ def _reject(ref: str | None = None, code: str = "asset_rejected") -> AssetReject
     return AssetRejected(code, ref=ref if ref in REASONS else None)
 
 
-# --- pure rules ------------------------------------------------------------------------------------
+# Pure rules.
 
 
 def _id3(head: bytes) -> bool:
@@ -365,7 +365,7 @@ def _check_image_size(width: object, height: object) -> None:
         raise _reject("dimensions")
 
 
-# --- children ------------------------------------------------------------------------------------
+# Children.
 
 
 def child_env(work: Path) -> dict[str, str]:
@@ -471,7 +471,7 @@ def _probe(fmt: str, fd: int, *, work: Path, deadline: float, entries: str) -> d
     return value
 
 
-# --- images ----------------------------------------------------------------------------------------
+# Images.
 
 
 def _normalise_image(fd: int, fmt: str, head: bytes, *, work: Path, deadline: float
@@ -517,7 +517,7 @@ def _normalise_image(fd: int, fmt: str, head: bytes, *, work: Path, deadline: fl
     return media, meta
 
 
-# --- music -----------------------------------------------------------------------------------------
+# Music.
 
 
 def _audio_stream(fmt: str, probed: dict) -> dict:
@@ -657,7 +657,7 @@ def _normalise_audio(fd: int, fmt: str, *, work: Path, deadline: float
     return output.read_bytes(), meta, peaks
 
 
-# --- the store -------------------------------------------------------------------------------------
+# The store.
 
 
 def _real_dir(path: Path) -> Path:
@@ -936,7 +936,7 @@ def asset_meta(job_dir: Path, sha: str) -> dict:
         raise NotFound() from None
 
 
-# --- CLI -------------------------------------------------------------------------------------------
+# CLI.
 
 
 class _Usage(Exception):

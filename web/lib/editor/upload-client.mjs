@@ -1,19 +1,16 @@
-// Browser upload helper of the Editor V3 asset store (plan §9.2, Appendix A.2 `uploadAsset`;
-// T3.1). Used by the Logo (T3.2) and Musik (T3.3) panels.
+// Browser upload helper for the Logo (T3.2) and Musik (T3.3) panels (plan §9.2, Appendix A.2
+// `uploadAsset`; T3.1).
 //
-// `uploadAsset(jobId, file, kind, { onProgress, signal, key })` sends the file itself as the raw
-// body of `POST /api/jobs/:id/assets` (no multipart) through XMLHttpRequest, the one browser API
-// that reports upload progress. Before a byte is sent it maps the browser's type (and the
-// extension when the browser gives none) to the server's allowlist and checks the size cap, so
-// the common mistakes never cost an upload. Headers: `Content-Type` (canonical), `X-Asset-Kind`,
-// `Idempotency-Key` (one per call; pass `key` to retry the same upload), `X-Asset-Name` (the
-// display name, NFC, ≤ 80 code points, percent-encoded because header values are ASCII).
+// `uploadAsset(jobId, file, kind, { onProgress, signal, key })` sends the file as the raw body of
+// POST /api/jobs/:id/assets through XMLHttpRequest (fetch reports no upload progress). The type
+// and size are checked against the server's allowlist first, so a wrong file never goes out;
+// `key` reuses an Idempotency-Key to retry the same upload. X-Asset-Name is percent-encoded:
+// header values are ASCII.
 //
-// `onProgress(fraction, {phase})`: `phase` "upload" while bytes go out, then once
-// `(1, {phase: "processing"})` while the server normalises the file (a few seconds for music).
-// Resolves with the DTO `{sha256, kind, mime, w, h, durationMs, lufsC, peaksUrl, name}`; rejects
-// with `UploadError {status, code, reason, message}` (an Indonesian message for the panel; status
-// 0 = the network failed) or a DOMException "AbortError".
+// `onProgress(fraction, {phase})`: "upload" while bytes go out, then `(1, {phase: "processing"})`
+// while the server normalises the file. Resolves with the POST DTO `{sha256, kind, mime, w, h,
+// durationMs, lufsC, peaksUrl, name}`; rejects with `UploadError {status, code, reason, message}`
+// (status 0: the network failed) or an AbortError.
 
 import { randomUuid as defaultRandomUuid } from "./api-client.mjs";
 

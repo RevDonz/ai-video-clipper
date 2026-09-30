@@ -33,7 +33,7 @@ test("the agent ingest route bypasses the proxy: it authenticates with its own b
 const JOB = "8f0c2a1e-5b7d-4c3a-9e21-6d4f0b8a7c55";
 const SHA = "ab".repeat(32);
 
-test("the Editor V3 asset upload route bypasses the proxy: logos up to 10 MB, music up to 50 MB", () => {
+test("the asset upload route bypasses the proxy: logos up to 10 MB, music up to 50 MB", () => {
   // POST /api/jobs/:id/assets streams the raw body into the quarantine with its own cap; behind
   // the proxy Next would buffer it at 10 MB and hand the route a truncated body. The route
   // checks the session itself (requireAuth + sameOriginMutation), like POST /api/jobs.
