@@ -362,7 +362,7 @@ test("Ikuti wajah analyses the faces first, with the server's progress, then swi
   const panel = await openLayoutPanel(page, { prepareMs: 2500, progress: true });
   await radio(panel, "Ikuti wajah").check();
   const analysis = panel.locator("[data-layout-analysis]");
-  await expect(analysis).toContainText(/Menganalisis wajah… \d+%$/);
+  await expect(analysis.locator("[data-layout-analysis-text]")).toHaveText(/^Menganalisis wajah… \d+%$/);
   await expect(analysis).not.toContainText("/240"); // samples mean nothing to the user
   const bar = analysis.getByRole("progressbar", { name: "Analisis wajah" });
   await expect(bar).toHaveAttribute("max", "240");
@@ -400,7 +400,7 @@ test("without the server's progress the analysis shows the seconds and the usual
   await radio(panel, "Ikuti wajah").check();
   const analysis = panel.locator("[data-layout-analysis]");
   await expect(analysis).toContainText(/Menganalisis wajah… \d+ dtk \(biasanya \d+-\d+ dtk\)/);
-  await expect(panel.locator('[data-layout-card-progress="camera"]')).toContainText("Menganalisis");
+  await expect(panel.locator('[data-layout-card-progress="camera"]')).toHaveText(/^\d+ dtk$/);
   const bar = analysis.getByRole("progressbar", { name: "Analisis wajah" });
   await expect(bar).not.toHaveAttribute("value", /.*/); // indeterminate: never a made-up percentage
   await expect.poll(() => layoutOf(page), { timeout: 15_000 }).toBe("camera");
