@@ -308,7 +308,7 @@ test("the project history offers deletion without a blocking browser dialog", as
   const source = await readFile(new URL("../app/projects/page.jsx", import.meta.url), "utf8");
   assert.match(source, /method: "DELETE"/);
   assert.match(source, /Hapus permanen\?/);
-  assert.match(source, /deleting: "Menghapus"/);
+  assert.match(await readFile(new URL("../lib/project-view.mjs", import.meta.url), "utf8"), /deleting: "Menghapus"/);
   assert.doesNotMatch(source, /(?<![\w.])confirm\(/, "a modal confirm() blocks the page and the extension");
 });
 

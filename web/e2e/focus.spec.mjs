@@ -234,14 +234,12 @@ async function fakeProjectApi(page, jobs) {
     const [, , , id, ...rest] = pathname.split("/");
     const json = (body) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
     if (!rest.length) return json({ job: jobs[id] });
-    if (rest[0] === "candidates") return json({ available: false, candidates: [] });
-    if (rest[0] === "candidate-feedback") return json({ available: false });
     return route.fulfill({ status: 200, contentType: "video/mp4", body: "" });
   });
 }
 
 const focusLine = (page) => page.locator("p").filter({ hasText: /^Fokus:/ });
-const clipCard = (page, index) => page.locator("article.v3Clip").filter({ has: page.getByRole("heading", { name: `Judul klip ${index}` }) });
+const clipCard = (page, index) => page.getByRole("article", { name: `Judul klip ${index}`, exact: true });
 
 test.describe("Fokus klip on the project page (faked job API)", () => {
   test.beforeEach(() => skipWithoutCredentials(test));
@@ -250,15 +248,17 @@ test.describe("Fokus klip on the project page (faked job API)", () => {
     await fakeProjectApi(page, { [FOCUS_JOB_ID]: FOCUS_JOB, [PLAIN_JOB_ID]: PLAIN_JOB });
     await login(page, "/projects");
     await page.goto(`/projects/${FOCUS_JOB_ID}`);
-    await expect(focusLine(page)).toHaveText(`Fokus: jomok, ${HOSTILE} — 2 dari 3 klip cocok`);
+    await expect(focusLine(page)).toHaveText(`Fokus: jomok, ${HOSTILE} · 2 dari 3 klip cocok`);
     await expect(clipCard(page, 1).locator("[data-focus]")).toHaveText("Menyebut 'jomok' · 12:34");
     await expect(clipCard(page, 1).locator("[data-focus]")).toHaveAttribute("data-focus", "literal");
     await expect(clipCard(page, 2).locator("[data-focus]")).toHaveText(`Terkait 'jomok', '${HOSTILE}' (menurut AI)`);
     await expect(clipCard(page, 3).locator("[data-focus]")).toHaveText("Di luar fokus");
-    await expect(page.locator("article.v3Clip img, .v3Section img")).toHaveCount(0);
+    await expect(page.locator("main article img")).toHaveCount(0);
     expect(await page.evaluate(() => window.__fx)).toBeUndefined();
-    await page.getByText(/Kode peringatan teknis/).click();
+    // The explanation sits in the closed notes list, as text: no warning code on the page.
+    await page.getByText("Catatan pemilihan (1)").click();
     await expect(page.getByText(/Hanya 2 klip yang cocok dengan fokus; sisa slot diisi momen terbaik lain/)).toBeVisible();
+    await expect(page.getByText(/focus_few_matches|Kode peringatan/)).toHaveCount(0);
 
     await page.goto(`/projects/${PLAIN_JOB_ID}`);
     await expect(clipCard(page, 1)).toBeVisible();

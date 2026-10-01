@@ -41,10 +41,6 @@ export function selectionSourceLabel(source) {
   return SELECTION_SOURCE_LABELS[source] || null;
 }
 
-export function isV3Job(job) {
-  return job?.options?.selectionMode === "v3" || Boolean(job?.selectionV3);
-}
-
 export function formatTenths(value) {
   if (typeof value !== "number" || !Number.isFinite(value)) return "—";
   return value.toLocaleString("id-ID", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -60,6 +56,31 @@ export function scoreRows(scores) {
   return Object.keys(SCORE_LABELS)
     .filter((name) => tenPointScore(scores[name]) !== null)
     .map((name) => ({ name, label: SCORE_LABELS[name], value: scores[name], percent: scores[name] * 10 }));
+}
+
+// Clips picked by the current selection carry one of these sources; their score is 0–10.
+const CURRENT_SELECTION_SOURCES = new Set(["llm", "heuristic"]);
+
+/**
+ * The score block of a clip: `{ total, rows }` (total may be null), or null for a clip the
+ * current selection did not pick. Older clips have a score on another scale, even when it
+ * happens to fall between 0 and 10, so they show none.
+ */
+export function clipScoreView(clip) {
+  if (!CURRENT_SELECTION_SOURCES.has(clip?.selectionSource)) return null;
+  const total = tenPointScore(clip.score);
+  const rows = scoreRows(clip.scores);
+  return total === null && !rows.length ? null : { total, rows };
+}
+
+// The engine appends its rerank score as a reason ("Peringkat ulang LLM: 4,8/10"). It is
+// bookkeeping of the method, kept in the artifact and left off the page.
+const BOOKKEEPING_REASON = /^Peringkat ulang LLM:/;
+
+/** "Kenapa dipilih": the clip's reasons as text, without the engine's own bookkeeping. */
+export function clipReasons(clip) {
+  const reasons = Array.isArray(clip?.reasons) ? clip.reasons : [];
+  return reasons.filter((reason) => typeof reason === "string" && reason.trim() && !BOOKKEEPING_REASON.test(reason.trim()));
 }
 
 /**
@@ -143,7 +164,7 @@ const FOCUS_TOPUP_SKIPPED = Object.freeze({
   context: "Permintaan tambahan ke AI untuk momen fokus dilewati karena potongan transkripnya tidak muat di konteks model.",
 });
 
-/** An Indonesian explanation of a trend or focus warning code of the V3 summary, or null. */
+/** An Indonesian explanation of a trend or focus warning code of the selection summary, or null. */
 export function selectionWarningLabel(code) {
   if (code === "trend_context_invalid") return "File konteks tren job rusak atau hilang; job jalan tanpa tren.";
   if (code === "focus_few_matches:0") return "Tidak ada momen yang cocok dengan fokus; semua klip adalah momen terbaik lain dan diberi label “Di luar fokus”.";
@@ -154,6 +175,23 @@ export function selectionWarningLabel(code) {
   const match = typeof code === "string" ? /^([a-z_]+):([1-9]\d{0,5})$/.exec(code) : null;
   const label = match && Object.hasOwn(WARNING_LABELS, match[1]) ? WARNING_LABELS[match[1]] : null;
   return label ? label(match[2]) : null;
+}
+
+// Explained warnings the owner acts on: shown as notices above the clips. Every other explained
+// warning is a note in a closed list; unexplained codes stay in the artifact.
+const ACTIONABLE_WARNINGS = /^(trend_sensitive_humor|focus_terms_unmatchable):|^trend_items_skipped:|^trend_context_invalid$/;
+// Warnings fixed on the Konteks Tren page link there.
+const TREND_PAGE_WARNINGS = /^trend_(context_invalid|items_skipped)(?::|$)/;
+
+function summaryWarnings(job) {
+  const summary = job?.selectionV3;
+  if (!summary || typeof summary !== "object" || summary.mode !== "v3" || !Array.isArray(summary.warnings)) return [];
+  return summary.warnings.filter((code) => typeof code === "string" && selectionWarningLabel(code) !== null);
+}
+
+/** "Catatan pemilihan": the explained warnings that need no action, as plain text. */
+export function selectionNotes(job) {
+  return summaryWarnings(job).filter((code) => !ACTIONABLE_WARNINGS.test(code)).map(selectionWarningLabel);
 }
 
 // --- Fokus klip (docs/plans/2026-09-25-fokus-klip.md §1, §3) ------------------------------------
@@ -364,7 +402,7 @@ export function formatTimestamp(seconds) {
 }
 
 /**
- * "Fokus: jomok, jomokers — 5 dari 8 klip cocok" for a job with focus terms, or null (every job
+ * "Fokus: jomok, jomokers · 5 dari 8 klip cocok" for a job with focus terms, or null (every job
  * without focus). The counts come from the engine's summary; without them only the terms.
  */
 export function focusSummaryLine(job) {
@@ -377,7 +415,7 @@ export function focusSummaryLine(job) {
     ? `${matched} dari ${requested} klip cocok`
     : null;
   const termsText = terms.join(", ");
-  return { terms, termsText, countText, text: `Fokus: ${termsText}${countText ? ` — ${countText}` : ""}` };
+  return { terms, termsText, countText, text: `Fokus: ${termsText}${countText ? ` · ${countText}` : ""}` };
 }
 
 function quotedTerms(terms) {
@@ -412,42 +450,41 @@ export function coldOpenLength(clip) {
   return Number.isFinite(length) && length > 0 ? length : null;
 }
 
-const TRANSCRIPT_SOURCE_TEXT = {
-  "youtube-captions": "Transkrip dari subtitle YouTube",
-  whisper: "Transkrip dari Whisper lokal",
-};
-
-/** Plain-Indonesian presentation of a sanitized selectionV3 summary, or null. */
-export function selectionV3SummaryView(summary) {
-  if (!summary || summary.mode !== "v3") return null;
-  const engine = [summary.provider, summary.model].filter(Boolean).join(" / ");
-  let tone = "ok";
-  let headline;
-  let detail;
-  if (summary.status === "failed") {
-    tone = "error";
-    headline = "Pemilihan momen V3 gagal";
-    detail = "Engine tidak berhasil memilih momen. Lihat pesan kesalahan job di atas, lalu coba buat ulang.";
-  } else if (summary.status === "fallback") {
-    tone = "warning";
-    headline = "Momen dipilih heuristik (cadangan)";
-    detail = "LLM gagal atau tidak tersedia saat job berjalan, jadi pemilih heuristik lokal dipakai. Klip tetap dibuat, tetapi kualitas pemilihan bisa lebih rendah. Cek API key atau kuota penyedia LLM.";
-  } else if (summary.source === "llm") {
-    headline = "Momen dipilih AI (LLM)";
-    detail = engine ? `Dipilih dan diberi judul oleh ${engine}.` : "Dipilih dan diberi judul oleh LLM.";
-  } else {
-    headline = "Momen dipilih heuristik lokal";
-    detail = "LLM tidak dipakai untuk job ini (dimatikan atau belum dikonfigurasi). Pemilih heuristik tanpa internet yang memilih momen.";
+/**
+ * What the owner can act on after a run, as `[{ tone, title?, text, href?, action? }]`: the AI
+ * failed (fix the key or quota), the job ran without AI, or a warning with a fix (the other
+ * explained warnings are selectionNotes). A clean run has none. Provider, model, prompt version
+ * and transcript source are provenance: they stay in the job's artifact and log. A failed job is
+ * explained by its own error, not here.
+ */
+export function selectionNotices(job) {
+  const summary = job?.selectionV3;
+  if (!summary || typeof summary !== "object" || summary.mode !== "v3") return [];
+  const notices = [];
+  if (summary.status === "fallback") {
+    notices.push({
+      tone: "warning",
+      title: "AI gagal dipakai",
+      text: "Momen dipilih tanpa AI, jadi judul dan hook bisa kurang tajam. Cek API key atau kuota di Pengaturan.",
+      href: "/settings",
+      action: "Buka Pengaturan",
+    });
+  } else if (summary.status === "completed" && summary.source === "heuristic" && job?.options?.llmMode !== "off") {
+    notices.push({
+      tone: "info",
+      title: "Dibuat tanpa AI",
+      text: "AI mati atau belum diatur saat proyek ini diproses.",
+      href: "/settings",
+      action: "Atur AI",
+    });
   }
-  return {
-    tone,
-    headline,
-    detail,
-    engine: engine || null,
-    transcript: TRANSCRIPT_SOURCE_TEXT[summary.transcript_source] || null,
-    promptVersion: summary.prompt_version || null,
-    warnings: Array.isArray(summary.warnings) ? summary.warnings : [],
-  };
+  for (const code of summaryWarnings(job).filter((item) => ACTIONABLE_WARNINGS.test(item))) {
+    const text = selectionWarningLabel(code);
+    notices.push(TREND_PAGE_WARNINGS.test(code)
+      ? { tone: "warning", text, href: "/trends", action: "Buka Konteks Tren" }
+      : { tone: "warning", text });
+  }
+  return notices;
 }
 
 const LLM_STATE_TONES = { active: "ok", disabled: "muted", unconfigured: "muted", unusable: "warning", invalid: "warning" };

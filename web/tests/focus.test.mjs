@@ -32,7 +32,8 @@ import {
   normalizeFocusText,
   pastedFocusTerms,
   removeFocusTerm,
-  selectionV3SummaryView,
+  selectionNotes,
+  selectionNotices,
   selectionWarningLabel,
   splitFocusTerms,
 } from "../lib/selection-v3-view.mjs";
@@ -306,9 +307,9 @@ const focusJob = (summaryFocus, optionsFocus = { terms: ["jomok", "jomokers"], m
   selectionV3: { mode: "v3", status: "completed", source: "llm", warnings: [], ...(summaryFocus ? { focus: summaryFocus } : {}) },
 });
 
-test("the focus line reads 'Fokus: a, b — n dari k klip cocok'; old jobs get none", () => {
+test("the focus line reads 'Fokus: a, b · n dari k klip cocok'; old jobs get none", () => {
   assert.deepEqual(focusSummaryLine(focusJob({ terms: ["jomok", "jomokers"], matched: 5, requested: 8 })), {
-    terms: ["jomok", "jomokers"], termsText: "jomok, jomokers", countText: "5 dari 8 klip cocok", text: "Fokus: jomok, jomokers — 5 dari 8 klip cocok",
+    terms: ["jomok", "jomokers"], termsText: "jomok, jomokers", countText: "5 dari 8 klip cocok", text: "Fokus: jomok, jomokers · 5 dari 8 klip cocok",
   });
   // Without engine counts (for example a failed job) only the terms from the options.
   assert.deepEqual(focusSummaryLine(focusJob(null)), { terms: ["jomok", "jomokers"], termsText: "jomok, jomokers", countText: null, text: "Fokus: jomok, jomokers" });
@@ -316,7 +317,7 @@ test("the focus line reads 'Fokus: a, b — n dari k klip cocok'; old jobs get n
   assert.equal(focusSummaryLine(focusJob(null, null)), null);
   assert.equal(focusSummaryLine({ options: V3, selectionV3: { mode: "v3", status: "completed" } }), null);
   assert.equal(focusSummaryLine(null), null);
-  assert.equal(focusSummaryLine(focusJob({ terms: [HOSTILE], matched: 1, requested: 3 })).text, `Fokus: ${HOSTILE} — 1 dari 3 klip cocok`);
+  assert.equal(focusSummaryLine(focusJob({ terms: [HOSTILE], matched: 1, requested: 3 })).text, `Fokus: ${HOSTILE} · 1 dari 3 klip cocok`);
 });
 
 test("per-clip labels: literal with its time, semantic as the AI's claim, the rest 'Di luar fokus'", () => {
@@ -411,8 +412,12 @@ test("a heuristic run keeps its wording with a focus", () => {
     prompt_version: "heuristic-v1", warnings: ["focus_few_matches:3"], artifact: null,
     transcript_source: "youtube-captions", focus: { terms: ["jomok"], matched: 3, requested: 8 },
   };
-  assert.deepEqual(selectionV3SummaryView(summary), selectionV3SummaryView({ ...summary, focus: undefined }));
-  assert.match(selectionV3SummaryView(summary).detail, /LLM tidak dipakai/);
+  const job = (selectionV3) => ({ options: V3, selectionV3 });
+  assert.deepEqual(selectionNotices(job(summary)), selectionNotices(job({ ...summary, focus: undefined })));
+  assert.deepEqual(selectionNotes(job(summary)), selectionNotes(job({ ...summary, focus: undefined })));
+  const [notice] = selectionNotices(job(summary));
+  assert.match(`${notice.title} ${notice.text}`, /tanpa AI/);
+  assert.deepEqual(selectionNotes(job(summary)), [selectionWarningLabel("focus_few_matches:3")]);
 });
 
 test("POST /api/jobs stores the focus of a V3 YouTube job; without focus the job has none", async () => {
