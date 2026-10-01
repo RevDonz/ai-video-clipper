@@ -114,6 +114,20 @@ def test_the_g3_and_g3b_rules() -> None:
     assert audio_gates.g3b_pass(-1.0) and not audio_gates.g3b_pass(-0.99)
 
 
+def test_the_tools_own_renders_wait_out_a_busy_machine() -> None:
+    from ai_clipper.edit_v2.compile_ffmpeg import FfmpegJob
+
+    job = FfmpegJob(argv=("-i", "@in:0", "@out"), filter_script="anull", inputs=(), sidecars={},
+                    expected={"mode": "reference", "samples": 480})
+    patient = audio_gates.patient(job)
+    # only the stall window changes (the production default is 20 s of no progress)
+    assert patient.expected == {"mode": "reference", "samples": 480,
+                                "stall_s": audio_gates.REFERENCE_STALL_S}
+    assert audio_gates.REFERENCE_STALL_S >= 120
+    assert (patient.argv, patient.filter_script, patient.inputs) == (job.argv, "anull", ())
+    assert "stall_s" not in job.expected
+
+
 def test_evidence_is_one_file_per_gate_and_a_label_keeps_every_run(tmp_path) -> None:
     plain = audio_gates.write_evidence(tmp_path, "G3", {"gate": "G3", "pass_": True,
                                                         "path": tmp_path / "x.mp4"})
