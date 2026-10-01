@@ -114,6 +114,28 @@ def test_the_g3_and_g3b_rules() -> None:
     assert audio_gates.g3b_pass(-1.0) and not audio_gates.g3b_pass(-0.99)
 
 
+def test_evidence_is_one_file_per_gate_and_a_label_keeps_every_run(tmp_path) -> None:
+    plain = audio_gates.write_evidence(tmp_path, "G3", {"gate": "G3", "pass_": True,
+                                                        "path": tmp_path / "x.mp4"})
+    body = json.loads(plain.read_text())
+    assert plain.name == f"{audio_gates.TASK}-G3.json"
+    assert body["pass"] is True and body["path"] == "x.mp4" and "environment" in body
+
+    # PF-AUDIO is timed, so each load it is measured at is kept under its own label
+    audio_gates.write_evidence(tmp_path, "PF-AUDIO", {"gate": "PF-AUDIO", "p95": 1.5}, "busy")
+    path = audio_gates.write_evidence(tmp_path, "PF-AUDIO", {"gate": "PF-AUDIO", "p95": 0.9}, "idle")
+    runs = json.loads(path.read_text())
+    assert (runs["gate"], runs["task"]) == ("PF-AUDIO", audio_gates.TASK)
+    assert {label: run["p95"] for label, run in runs["runs"].items()} == {"busy": 1.5, "idle": 0.9}
+    assert all("environment" in run for run in runs["runs"].values())
+    audio_gates.write_evidence(tmp_path, "PF-AUDIO", {"gate": "PF-AUDIO", "p95": 0.8}, "idle")
+    assert json.loads(path.read_text())["runs"]["idle"]["p95"] == 0.8  # a label is replaced
+
+    path.write_text("not json")  # a damaged file starts over instead of failing the run
+    audio_gates.write_evidence(tmp_path, "PF-AUDIO", {"gate": "PF-AUDIO", "p95": 0.7}, "again")
+    assert list(json.loads(path.read_text())["runs"]) == ["again"]
+
+
 @pytest.fixture(scope="module")
 def tone_asset(tmp_path_factory) -> tuple[Path, str, dict]:
     job = tmp_path_factory.mktemp("job")
