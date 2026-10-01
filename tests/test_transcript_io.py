@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from ai_clipper.candidate_cues import _parse_transcript as _parse_candidate_transcript
+from ai_clipper.evaluation import _read_transcript as _read_evaluation_transcript
 from ai_clipper.models import Transcription, TranscriptSegment, TranscriptWord
 from ai_clipper.transcript_io import (
     MAX_TRANSCRIPT_BYTES,
@@ -67,10 +67,10 @@ def test_to_dict_keeps_rounded_segments_valid():
     assert transcription_from_dict(payload).segments[0].end == 1.001
 
 
-def test_to_dict_never_creates_overlaps_that_strict_readers_reject():
+def test_to_dict_never_creates_overlaps_that_strict_readers_reject(tmp_path: Path):
     # A sub-millisecond segment rounds to a zero-length one and is widened by 1 ms; the next
-    # segment must then start at (not before) that widened end, or evaluation.py and
-    # candidate_cues.py (which reject any overlap) refuse the whole transcript.
+    # segment must then start at (not before) that widened end, or evaluation.py (which rejects
+    # any overlap) refuses the whole transcript.
     touching = Transcription(
         "id",
         [
@@ -91,7 +91,8 @@ def test_to_dict_never_creates_overlaps_that_strict_readers_reject():
     ]
     for earlier, later in pairwise(segments):
         assert later["start"] >= earlier["end"]
-    assert _parse_candidate_transcript(json.dumps(transcription_to_dict(touching)).encode("utf-8"))
+    (tmp_path / "transcript.json").write_text(json.dumps(transcription_to_dict(touching)))
+    assert len(_read_evaluation_transcript(tmp_path)[0]) == 4
 
 
 def test_round_trip_preserves_words_and_legacy_segments():

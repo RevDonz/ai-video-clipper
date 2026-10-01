@@ -16,19 +16,17 @@ import pytest
 from support import edit_v2_fixtures as fixtures
 from test_edit_v2_store import next_doc
 from test_render_queue import (
-    KEY,
     RESERVATION_ID,
     RESERVATION_TOKEN,
     V3_TOOLCHAIN,
     V3Job,
-    fixture,
+    retired_request,
     v3_publish,
     v3_rewrite,
 )
 
 from ai_clipper import render_queue as render_queue_module
 from ai_clipper import render_worker
-from ai_clipper.edit_manifest import manifest_sha256
 from ai_clipper.edit_v2 import api as edit_api
 from ai_clipper.edit_v2 import compile_ffmpeg, execute, verify
 from ai_clipper.edit_v2 import errors as edit_errors
@@ -37,14 +35,10 @@ from ai_clipper.edit_v2.doc import canonical_bytes
 from ai_clipper.edit_v2.glyphs import RESOURCES_DIR
 from ai_clipper.edit_v2.plan import Resources, build_plan
 from ai_clipper.render_queue import (
-    QueueConflict,
     cancel_request_v3,
     claim_next,
-    create_request,
     create_request_v3,
     get_request,
-    publish_completed_output,
-    update_request,
 )
 from ai_clipper.render_worker import run_forever, run_one
 
@@ -60,31 +54,6 @@ def _make_job_module():
         sys.modules[name] = module
         spec.loader.exec_module(module)
     return sys.modules[name]
-
-
-def test_one_shot_worker_claims_renders_and_completes(tmp_path: Path):
-    legacy = tmp_path / "000-legacy-v1"
-    legacy.mkdir()
-    (legacy / "job.json").write_text('{"status":"completed"}')
-    job, _analysis, manifest, _source = fixture(tmp_path)
-    request = create_request(job, manifest.identity.candidate_id, manifest_sha256(manifest), KEY)
-    calls = []
-
-    def renderer(src, manifest_path, output, candidate_path, **options):
-        calls.append((src, manifest_path, output, candidate_path, options))
-        output.write_bytes(b"verified render")
-
-    assert (
-        run_one(tmp_path, renderer=renderer, verifier=lambda *_args: None) == request["render_id"]
-    )
-    final = get_request(job, request["render_id"])
-    assert final["state"] == "completed"
-    assert calls[0][0] == job / request["source_snapshot_relative"]
-    assert calls[0][1] == job / request["edit_manifest_relative"]
-    assert calls[0][3] == job / request["candidate_snapshot_relative"]
-    assert calls[0][4]["expected_source_content_sha256"] == request["source_content_sha256"]
-    assert (job / request["output_relative"]).read_bytes() == b"verified render"
-    assert run_one(tmp_path, renderer=renderer, verifier=lambda *_args: None) is None
 
 
 def test_watch_worker_sleeps_only_when_queue_is_empty(tmp_path: Path, monkeypatch):
@@ -115,390 +84,6 @@ def test_watch_worker_rejects_unsafe_poll_intervals(tmp_path: Path, poll_seconds
         run_forever(tmp_path, poll_seconds=poll_seconds)
 
 
-def test_worker_recovers_already_published_output_without_clobber(tmp_path: Path):
-    job, _analysis, manifest, _source = fixture(tmp_path)
-    request = create_request(job, manifest.identity.candidate_id, manifest_sha256(manifest), KEY)
-    claimed = claim_next(job)
-    update_request(job, request["render_id"], "rendering", lease_token=claimed["lease_token"])
-    output = job / request["output_relative"]
-    output.parent.mkdir(parents=True)
-    output.write_bytes(b"already complete")
-    # Simulate lease recovery by making a fresh queued request state through the authority.
-    path = job / "analysis" / "render-requests" / f"{request['render_id']}.json"
-    value = json.loads(path.read_text())
-    value.update(
-        state="queued",
-        attempts=0,
-        claimed_at=None,
-        rendering_at=None,
-        heartbeat_at=None,
-        lease_token=None,
-    )
-    path.write_text(json.dumps(value, sort_keys=True, separators=(",", ":")))
-    rendered = []
-    assert (
-        run_one(
-            tmp_path, renderer=lambda *_a, **_k: rendered.append(True), verifier=lambda *_a: None
-        )
-        == request["render_id"]
-    )
-    assert rendered == []
-    assert output.read_bytes() == b"already complete"
-    assert get_request(job, request["render_id"])["state"] == "completed"
-
-
-def test_recovery_rejects_tampered_source_snapshot_and_cannot_complete(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
-    job, _analysis, manifest, _source = fixture(tmp_path)
-    request = create_request(job, manifest.identity.candidate_id, manifest_sha256(manifest), KEY)
-    source_snapshot = job / request["source_snapshot_relative"]
-    source_snapshot.write_bytes(b"tampered after request creation")
-    output = job / request["output_relative"]
-    output.parent.mkdir(parents=True)
-    output.write_bytes(b"already complete")
-    monkeypatch.setattr(
-        render_worker,
-        "_probe_media",
-        lambda *_args, **_kwargs: {"has_audio": False},
-    )
-    monkeypatch.setattr(render_worker, "_verify_output", lambda *_args: None)
-
-    assert run_one(tmp_path) == request["render_id"]
-    final = get_request(job, request["render_id"])
-    assert final["state"] == "failed"
-    assert final["completed_at"] is None
-    assert final["error_code"] == "render_failed"
-
-
-def test_recovery_probes_open_verified_source_fd_despite_path_replacement(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
-    job, _analysis, manifest, _source = fixture(tmp_path)
-    request = create_request(job, manifest.identity.candidate_id, manifest_sha256(manifest), KEY)
-    source_snapshot = job / request["source_snapshot_relative"]
-    original = source_snapshot.read_bytes()
-    assert hashlib.sha256(original).hexdigest() == request["source_content_sha256"]
-    output = job / request["output_relative"]
-    output.parent.mkdir(parents=True)
-    output.write_bytes(b"already complete")
-    source_calls = []
-
-    def probe(path, **options):
-        if str(path).startswith("/proc/self/fd/"):
-            source_calls.append((str(path), options.get("pass_fds")))
-            source_snapshot.replace(source_snapshot.with_suffix(".replaced"))
-            source_snapshot.write_bytes(b"replacement")
-            assert Path(path).read_bytes() == original
-            fd = int(str(path).rsplit("/", 1)[1])
-            assert options.get("pass_fds") == (fd,)
-            return {"has_audio": False}
-        return {"has_audio": False}
-
-    monkeypatch.setattr(render_worker, "_probe_media", probe)
-    monkeypatch.setattr(render_worker, "_verify_output", lambda *_args: None)
-
-    assert run_one(tmp_path) == request["render_id"]
-    assert source_calls
-    assert get_request(job, request["render_id"])["state"] == "completed"
-
-
-def test_worker_heartbeats_during_long_render_and_prevents_reclaim(tmp_path: Path, monkeypatch):
-    # The queue's clock is the test's: the render outlives its lease by ten lease lengths at once,
-    # and the claim below meets the worker's own heartbeat, whatever the load on the machine (a
-    # wall-clock version with an 80 ms lease failed on a busy CI runner).
-    clock = {"now": render_queue_module.datetime(2026, 10, 1, 12, 0, tzinfo=render_queue_module.UTC)}
-
-    class QueueClock(render_queue_module.datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return clock["now"]
-
-    monkeypatch.setattr(render_queue_module, "datetime", QueueClock)
-    job, _analysis, manifest, _source = fixture(tmp_path)
-    request = create_request(job, manifest.identity.candidate_id, manifest_sha256(manifest), KEY)
-    rendering = threading.Event()
-    release = threading.Event()
-
-    def renderer(_source, _manifest, output, _candidate, **_options):
-        rendering.set()
-        assert release.wait(10)
-        output.write_bytes(b"long verified render")
-
-    worker = threading.Thread(
-        target=run_one,
-        args=(tmp_path,),
-        kwargs={
-            "renderer": renderer,
-            "verifier": lambda *_args: None,
-            "lease_seconds": 1,
-            "heartbeat_interval": 0.01,
-        },
-    )
-    worker.start()
-    assert rendering.wait(10)
-    claimed_at = get_request(job, request["render_id"])["heartbeat_at"]
-    clock["now"] += render_queue_module.timedelta(seconds=10)
-    later = clock["now"].isoformat(timespec="milliseconds").replace("+00:00", "Z")
-    deadline = time.monotonic() + 10
-    while get_request(job, request["render_id"])["heartbeat_at"] != later and time.monotonic() < deadline:
-        time.sleep(0.01)
-    assert claimed_at != later
-    assert get_request(job, request["render_id"])["heartbeat_at"] == later, "the worker heartbeats while it renders"
-    assert claim_next(job, lease_seconds=1) is None
-    release.set()
-    worker.join(10)
-
-    assert not worker.is_alive()
-    assert get_request(job, request["render_id"])["state"] == "completed"
-    assert (job / request["output_relative"]).read_bytes() == b"long verified render"
-    assert not list((job / "analysis" / "render-staging").iterdir())
-
-
-def test_lost_lease_worker_cannot_publish_and_cleans_staging(tmp_path: Path):
-    job, _analysis, manifest, _source = fixture(tmp_path)
-    request = create_request(job, manifest.identity.candidate_id, manifest_sha256(manifest), KEY)
-    rendered = threading.Event()
-    release = threading.Event()
-
-    def renderer(_source, _manifest, output, _candidate, **_options):
-        output.write_bytes(b"stale worker render")
-        rendered.set()
-        assert release.wait(2)
-
-    worker = threading.Thread(
-        target=run_one,
-        args=(tmp_path,),
-        kwargs={
-            "renderer": renderer,
-            "verifier": lambda *_args: None,
-            "lease_seconds": 0.05,
-            "heartbeat_interval": 10.0,
-        },
-    )
-    worker.start()
-    assert rendered.wait(2)
-    stale = get_request(job, request["render_id"])
-    stale_token = str(stale["lease_token"])
-    time.sleep(0.1)
-    replacement = claim_next(job, lease_seconds=0.05)
-    assert replacement is not None
-    update_request(
-        job,
-        request["render_id"],
-        "rendering",
-        lease_token=replacement["lease_token"],
-    )
-    release.set()
-    worker.join(2)
-
-    assert not worker.is_alive()
-    assert not (job / request["output_relative"]).exists()
-    assert not list((job / "analysis" / "render-staging").iterdir())
-    stale_staging = (
-        job / "analysis" / "render-staging" / f"{request['render_id']}.{stale_token}.mp4"
-    )
-    with pytest.raises(QueueConflict):
-        publish_completed_output(
-            job,
-            request["render_id"],
-            stale_token,
-            stale_staging,
-        )
-
-
-def test_admitted_worker_rechecks_heartbeats_and_releases_storage(tmp_path: Path):
-    job, _analysis, manifest, source = fixture(tmp_path)
-    request = create_request(
-        job,
-        manifest.identity.candidate_id,
-        manifest_sha256(manifest),
-        KEY,
-        storage_reservation={
-            "reservation_id": RESERVATION_ID,
-            "token": RESERVATION_TOKEN,
-            "reserved_bytes": source.stat().st_size + 4096,
-        },
-    )
-    calls = []
-
-    def storage_client(operation, reservation_id, token, terminal_state=None):
-        calls.append((operation, reservation_id, token, terminal_state))
-        return True
-
-    assert (
-        run_one(
-            tmp_path,
-            renderer=lambda _s, _m, output, _c, **_o: output.write_bytes(b"render"),
-            verifier=lambda *_a: None,
-            storage_client=storage_client,
-            heartbeat_interval=0.01,
-            storage_recheck_interval_ms=10,
-            storage_recheck_bytes=8 * 1024 * 1024,
-        )
-        == request["render_id"]
-    )
-    assert calls[0][:3] == ("heartbeat", RESERVATION_ID, RESERVATION_TOKEN)
-    assert ("release", RESERVATION_ID, RESERVATION_TOKEN, "completed") in calls
-
-
-def test_worker_fails_closed_when_storage_watermark_recheck_fails(tmp_path: Path):
-    job, _analysis, manifest, source = fixture(tmp_path)
-    request = create_request(
-        job,
-        manifest.identity.candidate_id,
-        manifest_sha256(manifest),
-        KEY,
-        storage_reservation={
-            "reservation_id": RESERVATION_ID,
-            "token": RESERVATION_TOKEN,
-            "reserved_bytes": source.stat().st_size + 4096,
-        },
-    )
-    rendered = []
-    assert (
-        run_one(
-            tmp_path,
-            renderer=lambda *_a, **_o: rendered.append(True),
-            verifier=lambda *_a: None,
-            storage_client=lambda *_a, **_o: False,
-            storage_recheck_interval_ms=1000,
-            storage_recheck_bytes=8 * 1024 * 1024,
-        )
-        == request["render_id"]
-    )
-    assert rendered == []
-    assert get_request(job, request["render_id"])["state"] == "failed"
-
-
-def test_periodic_storage_recheck_loss_prevents_publication(tmp_path: Path):
-    job, _analysis, manifest, source = fixture(tmp_path)
-    request = create_request(
-        job,
-        manifest.identity.candidate_id,
-        manifest_sha256(manifest),
-        KEY,
-        storage_reservation={
-            "reservation_id": RESERVATION_ID,
-            "token": RESERVATION_TOKEN,
-            "reserved_bytes": source.stat().st_size + 4096,
-        },
-    )
-    storage_lost = threading.Event()
-    heartbeat_calls = 0
-
-    def storage_client(operation, *_args, **_kwargs):
-        nonlocal heartbeat_calls
-        if operation == "release":
-            return True
-        heartbeat_calls += 1
-        if heartbeat_calls > 1:
-            storage_lost.set()
-            return False
-        return True
-
-    def renderer(_source, _manifest, output, _candidate, **_options):
-        assert storage_lost.wait(2)
-        output.write_bytes(b"must not publish")
-
-    assert (
-        run_one(
-            tmp_path,
-            renderer=renderer,
-            verifier=lambda *_args: None,
-            storage_client=storage_client,
-            heartbeat_interval=0.01,
-            storage_recheck_interval_ms=10,
-            storage_recheck_bytes=8 * 1024 * 1024,
-        )
-        == request["render_id"]
-    )
-    assert get_request(job, request["render_id"])["state"] == "failed"
-    assert not (job / request["output_relative"]).exists()
-
-
-def test_storage_time_cadence_is_independent_of_queue_heartbeat(tmp_path: Path):
-    job, _analysis, manifest, source = fixture(tmp_path)
-    create_request(
-        job,
-        manifest.identity.candidate_id,
-        manifest_sha256(manifest),
-        KEY,
-        storage_reservation={
-            "reservation_id": RESERVATION_ID,
-            "token": RESERVATION_TOKEN,
-            "reserved_bytes": source.stat().st_size + 4096,
-        },
-    )
-    checked = threading.Event()
-    calls = 0
-
-    def storage_client(operation, *_args, **_kwargs):
-        nonlocal calls
-        if operation == "release":
-            return True
-        calls += 1
-        if calls >= 2:
-            checked.set()
-        return True
-
-    def renderer(_source, _manifest, output, _candidate, **_options):
-        assert checked.wait(2)
-        output.write_bytes(b"render")
-
-    run_one(
-        tmp_path,
-        renderer=renderer,
-        verifier=lambda *_args: None,
-        storage_client=storage_client,
-        heartbeat_interval=10,
-        storage_recheck_interval_ms=10,
-        storage_recheck_bytes=1 << 30,
-    )
-    assert calls >= 3  # initial, periodic, and final
-
-
-def test_storage_byte_growth_triggers_recheck_while_renderer_blocks(tmp_path: Path):
-    job, _analysis, manifest, source = fixture(tmp_path)
-    create_request(
-        job,
-        manifest.identity.candidate_id,
-        manifest_sha256(manifest),
-        KEY,
-        storage_reservation={
-            "reservation_id": RESERVATION_ID,
-            "token": RESERVATION_TOKEN,
-            "reserved_bytes": source.stat().st_size + 4096,
-        },
-    )
-    checked = threading.Event()
-    calls = 0
-
-    def storage_client(operation, *_args, **_kwargs):
-        nonlocal calls
-        if operation == "release":
-            return True
-        calls += 1
-        if calls >= 2:
-            checked.set()
-        return True
-
-    def renderer(_source, _manifest, output, _candidate, **_options):
-        output.write_bytes(b"growing output")
-        assert checked.wait(2)
-
-    run_one(
-        tmp_path,
-        renderer=renderer,
-        verifier=lambda *_args: None,
-        storage_client=storage_client,
-        heartbeat_interval=10,
-        storage_recheck_interval_ms=60_000,
-        storage_recheck_bytes=1,
-    )
-    assert calls >= 3
-
-
 def test_render_storage_recheck_config_is_strict(monkeypatch):
     valid = {
         "JOBS_STORAGE_RECHECK_INTERVAL_MS": "100",
@@ -516,39 +101,6 @@ def test_render_storage_recheck_config_is_strict(monkeypatch):
         render_worker.parse_storage_recheck_config({})
 
 
-def test_release_transport_failure_does_not_undo_terminal_request(tmp_path: Path):
-    job, _analysis, manifest, source = fixture(tmp_path)
-    request = create_request(
-        job,
-        manifest.identity.candidate_id,
-        manifest_sha256(manifest),
-        KEY,
-        storage_reservation={
-            "reservation_id": RESERVATION_ID,
-            "token": RESERVATION_TOKEN,
-            "reserved_bytes": source.stat().st_size + 4096,
-        },
-    )
-
-    def storage_client(operation, *_args, **_kwargs):
-        if operation == "release":
-            raise OSError("transport failed")
-        return True
-
-    assert (
-        run_one(
-            tmp_path,
-            renderer=lambda _s, _m, output, _c, **_o: output.write_bytes(b"render"),
-            verifier=lambda *_args: None,
-            storage_client=storage_client,
-            storage_recheck_interval_ms=1000,
-            storage_recheck_bytes=8 * 1024 * 1024,
-        )
-        == request["render_id"]
-    )
-    assert get_request(job, request["render_id"])["state"] == "completed"
-
-
 # --- render-request-v3 (Editor V3 exports, plan §4.6; T2.2) ------------------------------------
 #
 # The worker hands a v3 request to ``renderer_v3``, whose default is T2.1's
@@ -561,7 +113,6 @@ def test_release_transport_failure_does_not_undo_terminal_request(tmp_path: Path
 def v3_worker(job: V3Job, **options) -> str | None:
     options.setdefault("heartbeat_interval", 0.05)
     options.setdefault("cancel_poll_seconds", 0.05)
-    options.setdefault("renderer", lambda *_a, **_k: pytest.fail("legacy renderer used for v3"))
     return run_one(job.root, **options)
 
 
@@ -840,23 +391,178 @@ def test_v3_lost_lease_is_left_to_the_new_owner(tmp_path):
     assert (final["state"], final["attempts"]) == ("claimed", 2)  # the new owner decides
 
 
-def test_mixed_queue_dispatches_legacy_and_v3_requests(tmp_path):
-    v3, v3_request = v3_queued(tmp_path)
-    legacy_job, _analysis, manifest, _source = fixture(v3.root)
-    legacy = create_request(legacy_job, manifest.identity.candidate_id,
-                            manifest_sha256(manifest), KEY)
-    legacy_calls = []
+def test_the_worker_leaves_retired_candidate_requests_alone(tmp_path):
+    job, request = v3_queued(tmp_path)
+    in_queue = retired_request(job)  # an export of the retired editor, still queued
+    old_queue = job.root / str(uuid.uuid4()) / "analysis" / "render-requests"
+    old_queue.mkdir(parents=True)  # another job edited in the retired editor
+    (old_queue.parents[1] / "job.json").write_text('{"status":"completed"}')
+    stale = retired_request(
+        SimpleNamespace(queue=old_queue, request_path=lambda rid: old_queue / f"{rid}.json"),
+        version="render-request-v1", state="claimed", at="2020-01-01T00:00:00.000Z")
+    files = [job.request_path(in_queue["render_id"]), old_queue / f"{stale['render_id']}.json"]
+    before = [path.read_bytes() for path in files]
+    rendered = []
 
-    def renderer(src, manifest_path, output, candidate_path, **options):
-        legacy_calls.append(output)
-        output.write_bytes(b"legacy render")
+    def render_request(job_dir, current, *, heartbeat, cancel):
+        rendered.append(current["render_id"])
+        v3_publish(job, current)
 
-    done = {run_one(v3.root, renderer=renderer, verifier=lambda *_args: None,
-                    renderer_v3=publishing(v3), heartbeat_interval=0.05) for _ in range(2)}
-    assert done == {legacy["render_id"], v3_request["render_id"]}
-    assert len(legacy_calls) == 1
-    assert get_request(legacy_job, legacy["render_id"])["state"] == "completed"
-    assert get_request(v3.job, v3_request["render_id"])["completed_by"] == "render"
+    assert v3_worker(job, renderer_v3=render_request, lease_seconds=1) == request["render_id"]
+    assert v3_worker(job, renderer_v3=render_request, lease_seconds=1) is None
+    assert rendered == [request["render_id"]]
+    assert [path.read_bytes() for path in files] == before
+
+
+def test_v3_worker_skips_old_jobs_and_directories_that_are_not_jobs(tmp_path):
+    job, request = v3_queued(tmp_path)
+    not_a_job = job.root / "000-not-a-job"
+    not_a_job.mkdir()
+    (not_a_job / "job.json").write_text('{"status":"completed"}')
+    old = job.root / str(uuid.uuid4())  # made before the editor: no analysis/ at all
+    (old / "output").mkdir(parents=True)
+    (old / "job.json").write_text('{"status":"completed"}')
+    assert v3_worker(job, renderer_v3=publishing(job)) == request["render_id"]
+    assert v3_worker(job, renderer_v3=publishing(job)) is None
+    assert sorted(path.name for path in old.iterdir()) == ["job.json", "output"]
+
+
+def test_v3_worker_heartbeats_during_a_long_render_and_prevents_reclaim(tmp_path, monkeypatch):
+    # The queue runs on the test's clock: the render outlives its lease ten times over at once,
+    # whatever the load on the machine.
+    clock = {"now": render_queue_module.datetime(2026, 10, 1, 12, 0,
+                                                 tzinfo=render_queue_module.UTC)}
+
+    class QueueClock(render_queue_module.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return clock["now"]
+
+    monkeypatch.setattr(render_queue_module, "datetime", QueueClock)
+    job, request = v3_queued(tmp_path)
+    rendering = threading.Event()
+    release = threading.Event()
+
+    def render_request(_job_dir, current, *, heartbeat, cancel):
+        rendering.set()
+        assert release.wait(10)
+        v3_publish(job, current, b"long verified render")
+
+    worker = threading.Thread(target=v3_worker, args=(job,), kwargs={
+        "renderer_v3": render_request, "lease_seconds": 1, "heartbeat_interval": 0.01})
+    worker.start()
+    assert rendering.wait(10)
+    claimed_at = get_request(job.job, request["render_id"])["heartbeat_at"]
+    clock["now"] += render_queue_module.timedelta(seconds=10)
+    later = clock["now"].isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    deadline = time.monotonic() + 10
+    while (get_request(job.job, request["render_id"])["heartbeat_at"] != later
+           and time.monotonic() < deadline):
+        time.sleep(0.01)
+    assert claimed_at != later
+    assert get_request(job.job, request["render_id"])["heartbeat_at"] == later, (
+        "the worker heartbeats while it renders")
+    assert claim_next(job.job, lease_seconds=1) is None
+    release.set()
+    worker.join(10)
+    assert not worker.is_alive()
+    final = get_request(job.job, request["render_id"])
+    assert (final["state"], final["attempts"]) == ("completed", 1)
+    assert (job.job / request["output_relative"]).read_bytes() == b"long verified render"
+
+
+def storage_queued(tmp_path):
+    reservation = {"reservation_id": RESERVATION_ID, "token": RESERVATION_TOKEN,
+                   "reserved_bytes": 4096}
+    return v3_queued(tmp_path, storage_reservation=reservation)
+
+
+def test_v3_storage_lost_during_the_render_never_completes_the_request(tmp_path):
+    job, request = storage_queued(tmp_path)
+    lost = threading.Event()
+    calls = []
+
+    def storage_client(operation, *_args, terminal_state=None):
+        calls.append((operation, terminal_state))
+        if operation == "heartbeat" and len(calls) > 1:  # the first recheck finds it gone
+            lost.set()
+            return False
+        return True
+
+    def render_request(_job_dir, current, *, heartbeat, cancel):
+        assert lost.wait(5) and cancel.wait(5), "a lost reservation stops the render"
+        v3_publish(job, current, b"published after the reservation was lost")
+
+    v3_worker(job, renderer_v3=render_request, storage_client=storage_client,
+              storage_recheck_interval_ms=10, storage_recheck_bytes=8 * 1024 * 1024)
+    final = get_request(job.job, request["render_id"])
+    assert (final["state"], final["error_code"]) == ("failed", "render_failed")
+    assert calls[-1] == ("release", "failed")
+
+
+def test_v3_storage_time_cadence_is_independent_of_the_queue_heartbeat(tmp_path):
+    job, request = storage_queued(tmp_path)
+    checked = threading.Event()
+    beats = []
+
+    def storage_client(operation, *_args, terminal_state=None):
+        if operation == "heartbeat":
+            beats.append(time.monotonic())
+            if len(beats) >= 2:
+                checked.set()
+        return True
+
+    def render_request(_job_dir, current, *, heartbeat, cancel):
+        heartbeat("merender", 10)
+        assert checked.wait(5)
+        v3_publish(job, current)
+
+    v3_worker(job, renderer_v3=render_request, storage_client=storage_client,
+              heartbeat_interval=10, storage_recheck_interval_ms=10,
+              storage_recheck_bytes=1 << 30)
+    assert len(beats) >= 3  # before the render, during it, and after it
+    assert get_request(job.job, request["render_id"])["state"] == "completed"
+
+
+def test_v3_storage_byte_growth_triggers_a_recheck_while_the_renderer_blocks(tmp_path):
+    job, request = storage_queued(tmp_path)
+    checked = threading.Event()
+    beats = []
+
+    def storage_client(operation, *_args, terminal_state=None):
+        if operation == "heartbeat":
+            beats.append(operation)
+            if len(beats) >= 2:
+                checked.set()
+        return True
+
+    def render_request(_job_dir, current, *, heartbeat, cancel):
+        heartbeat("merender", 10)
+        partial = (job.job / current["output_relative"]).with_name(".growing.tmp")
+        partial.write_bytes(b"growing output")
+        assert checked.wait(5)
+        partial.unlink()
+        v3_publish(job, current)
+
+    v3_worker(job, renderer_v3=render_request, storage_client=storage_client,
+              heartbeat_interval=10, storage_recheck_interval_ms=60_000,
+              storage_recheck_bytes=1)
+    assert len(beats) >= 3
+    assert get_request(job.job, request["render_id"])["state"] == "completed"
+
+
+def test_v3_release_transport_failure_does_not_undo_the_terminal_state(tmp_path):
+    job, request = storage_queued(tmp_path)
+
+    def storage_client(operation, *_args, terminal_state=None):
+        if operation == "release":
+            raise OSError("transport failed")
+        return True
+
+    assert v3_worker(job, renderer_v3=publishing(job), storage_client=storage_client,
+                     storage_recheck_interval_ms=1000,
+                     storage_recheck_bytes=8 * 1024 * 1024) == request["render_id"]
+    assert get_request(job.job, request["render_id"])["state"] == "completed"
 
 
 def test_v3_default_renderer_is_render_edit_render_request(tmp_path, monkeypatch):

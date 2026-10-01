@@ -1,5 +1,6 @@
 import json
 import math
+import subprocess
 import sys
 import types
 from pathlib import Path
@@ -578,6 +579,31 @@ def test_cli_compare_runs_every_selector_on_every_episode(tmp_path, capsys):
     assert pooled[("fixed", 5)]["hits"] == 2
     assert pooled[("fixed", 5)]["recall"] == pytest.approx(2 / 6, abs=1e-6)
     assert pooled[("other", 5)]["hits"] == 0
+
+
+def test_cli_compare_runs_the_builtin_baselines_as_a_module(tmp_path):
+    """The V1 and V2 baselines and the offline V3 heuristic still run side by side after the
+    candidate editor's retirement (T4.1 keeps the selection code they need)."""
+    gold_a, transcript_a = _cli_files(tmp_path, "episodeA")
+    gold_b, transcript_b = _cli_files(tmp_path, "episodeB")
+    output = tmp_path / "compare.json"
+    selectors = ["v1", "v2-standard", "v2-viral", "v2-deep", "v3-heuristic"]
+    argv = [sys.executable, "-m", "ai_clipper.benchmark", "--compare",
+            "--gold", str(gold_a), "--transcript", str(transcript_a),
+            "--gold", str(gold_b), "--transcript", str(transcript_b)]
+    for name in selectors:
+        argv += ["--selector", name]
+    argv += ["--min-duration", "20", "--max-duration", "90", "--json", str(output)]
+
+    result = subprocess.run(argv, capture_output=True, text=True, cwd=tmp_path, timeout=600,
+                            check=False)
+
+    assert result.returncode == 0, result.stderr
+    report = json.loads(output.read_text(encoding="utf-8"))
+    assert [(run["source_id"], run["selector"], run["status"]) for run in report["runs"]] == [
+        (episode, name, "completed") for episode in ("episodeA", "episodeB") for name in selectors
+    ]
+    assert {row["selector"] for row in report["pooled"]} == set(selectors)
 
 
 def test_cli_rejects_multiple_selectors_without_compare(tmp_path, capsys):

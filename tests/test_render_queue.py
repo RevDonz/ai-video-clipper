@@ -4,7 +4,6 @@ import errno
 import hashlib
 import json
 import os
-import shutil
 import subprocess
 import sys
 import threading
@@ -15,11 +14,9 @@ from pathlib import Path
 
 import pytest
 from support import edit_v2_fixtures as fixtures
-from test_edit_manifest import make_manifest
 from test_edit_v2_store import make_clip, next_doc
 
 from ai_clipper import render_queue
-from ai_clipper.edit_manifest import manifest_sha256, write_edit_manifest
 from ai_clipper.edit_v2 import PACK_IDS
 from ai_clipper.edit_v2 import errors as edit_errors
 from ai_clipper.edit_v2 import store as edit_store
@@ -44,7 +41,6 @@ from ai_clipper.render_queue import (
     cancel_request_v3,
     claim_next,
     complete_v3,
-    create_request,
     create_request_v3,
     estimate_v3,
     fail_v3,
@@ -56,7 +52,6 @@ from ai_clipper.render_queue import (
     prune_requests_v3,
     render_timeout_ms,
     start_rendering_v3,
-    update_request,
 )
 
 KEY = "323e4567-e89b-42d3-a456-426614174000"
@@ -64,215 +59,12 @@ RESERVATION_ID = "423e4567-e89b-42d3-a456-426614174000"
 RESERVATION_TOKEN = "523e4567-e89b-42d3-a456-426614174000"
 
 
-def fixture(tmp_path: Path):
-    job = tmp_path / "123e4567-e89b-42d3-a456-426614174000"
-    analysis, _artifact, manifest = make_manifest(job)
-    write_edit_manifest(analysis, manifest, expected_revision_sha256=None)
-    source = job / "input" / "source.mp4"
-    source.parent.mkdir()
-    source.write_bytes(b"downloaded source bytes")
-    (job / "job.json").write_text(json.dumps({"id": job.name, "sourcePath": str(source)}))
-    return job, analysis, manifest, source
-
-
-def test_create_is_durable_content_bound_and_idempotent(tmp_path: Path):
-    job, _analysis, manifest, source = fixture(tmp_path)
-    etag = manifest_sha256(manifest)
-    first = create_request(job, manifest.identity.candidate_id, etag, KEY)
-    replay = create_request(job, manifest.identity.candidate_id, etag, KEY.upper())
-
-    assert first == replay
-    assert first["version"] == "render-request-v1"
-    assert first["state"] == "queued" and first["attempts"] == 0
-    assert (
-        first["source_content_sha256"]
-        == __import__("hashlib").sha256(source.read_bytes()).hexdigest()
-    )
-    assert first["candidate_artifact_sha256"] == manifest.identity.candidate_artifact_sha256
-    assert (job / first["source_snapshot_relative"]).read_bytes() == b"downloaded source bytes"
-    assert (job / first["candidate_snapshot_relative"]).read_bytes() == (
-        job / "analysis" / "candidates.v2.json"
-    ).read_bytes()
-    assert (job / first["source_snapshot_relative"]).stat().st_mode & 0o777 == 0o600
-    assert first["edit_manifest_sha256"] == etag
-    assert (
-        first["output_relative"] == f"output/edits/{manifest.identity.candidate_id}/revision-1.mp4"
-    )
-    archive = job / first["edit_manifest_relative"]
-    assert archive.is_file()
-    assert get_request(job, first["render_id"]) == first
-
-    with pytest.raises(QueueConflict):
-        create_request(job, manifest.identity.candidate_id, "0" * 64, KEY)
-
-
-def test_claim_has_one_winner_and_state_machine_is_exact(tmp_path: Path):
-    job, _analysis, manifest, _source = fixture(tmp_path)
-    created = create_request(job, manifest.identity.candidate_id, manifest_sha256(manifest), KEY)
-    outcomes = []
-
-    def run():
-        outcomes.append(claim_next(job))
-
-    threads = [threading.Thread(target=run) for _ in range(2)]
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join()
-    claimed = [item for item in outcomes if item is not None]
-    assert len(claimed) == 1 and claimed[0]["state"] == "claimed"
-    token = claimed[0]["lease_token"]
-    assert claimed[0]["attempts"] == 1 and token
-    rendering = update_request(job, created["render_id"], "rendering", lease_token=token)
-    assert rendering["state"] == "rendering"
-    beat = heartbeat(job, created["render_id"], token)
-    assert beat["heartbeat_at"] is not None
-    completed = update_request(job, created["render_id"], "completed", lease_token=token)
-    assert completed["state"] == "completed" and completed["error_code"] is None
-
-
-def test_stale_claim_requeues_then_bounded_attempts_fail(tmp_path: Path):
-    job, _analysis, manifest, _source = fixture(tmp_path)
-    request = create_request(job, manifest.identity.candidate_id, manifest_sha256(manifest), KEY)
-    stale = (datetime.now(UTC) - timedelta(hours=1)).isoformat().replace("+00:00", "Z")
-    path = job / "analysis" / "render-requests" / f"{request['render_id']}.json"
-    tokens = []
-    for attempts in (0, 1, 2):
-        value = claim_next(job)
-        assert value is not None
-        tokens.append(value["lease_token"])
-        raw = json.loads(path.read_text())
-        raw["heartbeat_at"] = stale
-        raw["updated_at"] = stale
-        path.write_text(json.dumps(raw, sort_keys=True, separators=(",", ":")))
-    assert claim_next(job, lease_seconds=1) is None
-    final = get_request(job, request["render_id"])
-    assert final["state"] == "failed" and final["attempts"] == 3
-    assert final["error_code"] == "max_attempts_exceeded"
-    with pytest.raises(QueueConflict):
-        update_request(job, request["render_id"], "completed", lease_token=tokens[0])
-
-
-def test_enqueue_snapshots_are_immutable_and_ignore_later_mutation(tmp_path: Path):
-    job, analysis, manifest, source = fixture(tmp_path)
-    request = create_request(job, manifest.identity.candidate_id, manifest_sha256(manifest), KEY)
-    source_snapshot = job / request["source_snapshot_relative"]
-    candidate_snapshot = job / request["candidate_snapshot_relative"]
-    source.replace(source.with_suffix(".old"))
-    source.write_bytes(b"replacement")
-    (analysis / "candidates.v2.json").write_bytes(b"replacement")
-    assert source_snapshot.read_bytes() == b"downloaded source bytes"
-    assert candidate_snapshot.read_bytes() != b"replacement"
-
-
-def test_source_snapshot_copy_consumes_open_fd_after_path_replacement(tmp_path: Path, monkeypatch):
-    job, _analysis, manifest, source = fixture(tmp_path)
-    original_open = render_queue.os.open
-    replaced = False
-
-    def adversarial_open(path, flags, *args, **kwargs):
-        nonlocal replaced
-        fd = original_open(path, flags, *args, **kwargs)
-        if Path(path) == source and not replaced:
-            replaced = True
-            source.replace(source.with_suffix(".original"))
-            source.write_bytes(b"replacement after secure open")
-        return fd
-
-    monkeypatch.setattr(render_queue.os, "open", adversarial_open)
-    request = create_request(job, manifest.identity.candidate_id, manifest_sha256(manifest), KEY)
-
-    assert replaced
-    assert (job / request["source_snapshot_relative"]).read_bytes() == b"downloaded source bytes"
-    assert source.read_bytes() == b"replacement after secure open"
-
-
-def test_heartbeat_prevents_reclaim_but_expired_owner_is_fenced(tmp_path: Path):
-    job, _analysis, manifest, _source = fixture(tmp_path)
-    request = create_request(job, manifest.identity.candidate_id, manifest_sha256(manifest), KEY)
-    first = claim_next(job, lease_seconds=1)
-    assert first is not None
-    heartbeat(job, request["render_id"], first["lease_token"])
-    assert claim_next(job, lease_seconds=60) is None
-    path = job / "analysis" / "render-requests" / f"{request['render_id']}.json"
-    raw = json.loads(path.read_text())
-    raw["heartbeat_at"] = "2020-01-01T00:00:00.000Z"
-    path.write_text(json.dumps(raw, sort_keys=True, separators=(",", ":")))
-    second = claim_next(job, lease_seconds=1)
-    assert second is not None and second["lease_token"] != first["lease_token"]
-    with pytest.raises(QueueConflict):
-        update_request(job, request["render_id"], "rendering", lease_token=first["lease_token"])
-
-
-def test_queue_rejects_symlink_duplicate_nonfinite_and_oversize(tmp_path: Path):
-    job, _analysis, manifest, _source = fixture(tmp_path)
-    request = create_request(job, manifest.identity.candidate_id, manifest_sha256(manifest), KEY)
-    path = job / "analysis" / "render-requests" / f"{request['render_id']}.json"
-    path.write_text('{"version":"render-request-v1","version":"render-request-v1"}')
-    with pytest.raises(QueueInvalid):
-        get_request(job, request["render_id"])
-    path.write_text('{"x":1e999}')
-    with pytest.raises(QueueInvalid):
-        get_request(job, request["render_id"])
-    path.unlink()
-    outside = tmp_path / "outside"
-    outside.write_text("{}")
-    path.symlink_to(outside)
-    with pytest.raises(QueueInvalid):
-        get_request(job, request["render_id"])
-
-
-def test_admitted_request_durably_carries_fenced_storage_reservation(tmp_path: Path):
-    job, _analysis, manifest, source = fixture(tmp_path)
-    request = create_request(
-        job,
-        manifest.identity.candidate_id,
-        manifest_sha256(manifest),
-        KEY,
-        storage_reservation={
-            "reservation_id": RESERVATION_ID,
-            "token": RESERVATION_TOKEN,
-            "reserved_bytes": source.stat().st_size + 1024,
-        },
-    )
-
-    assert request["version"] == "render-request-v2"
-    assert request["storage_reservation_id"] == RESERVATION_ID
-    assert request["storage_reservation_token"] == RESERVATION_TOKEN
-    assert request["storage_reserved_bytes"] == source.stat().st_size + 1024
-    assert get_request(job, request["render_id"]) == request
-
-
-def test_content_addressed_snapshots_are_verified_and_reused_without_temp_copy(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
-    job, _analysis, manifest, _source = fixture(tmp_path)
-    create_request(job, manifest.identity.candidate_id, manifest_sha256(manifest), KEY)
-    original_open = render_queue.os.open
-
-    def no_snapshot_temporary(path, flags, *args, **kwargs):
-        if Path(path).name.startswith((".source.", ".candidates.")) and Path(path).name.endswith(
-            ".tmp"
-        ):
-            pytest.fail("verified content-addressed snapshot must be reused before temp copy")
-        return original_open(path, flags, *args, **kwargs)
-
-    monkeypatch.setattr(render_queue.os, "open", no_snapshot_temporary)
-    second = create_request(
-        job,
-        manifest.identity.candidate_id,
-        manifest_sha256(manifest),
-        "623e4567-e89b-42d3-a456-426614174000",
-    )
-    assert (job / second["source_snapshot_relative"]).is_file()
-    assert (job / second["candidate_snapshot_relative"]).is_file()
-
-
 # --- render-request-v3 (Editor V3 exports, plan §4.6; T2.2) ------------------------------------
 #
-# The legacy cases above are unchanged. Everything below drives the v3 functions against a clip
-# directory built from the c30 document context (tests/support/edit_v2_fixtures.py), with a
-# test resources/ tree that carries a toolchain.json (the image writes the real one, E10).
+# Every case drives the v3 functions against a clip directory built from the c30 document
+# context (tests/support/edit_v2_fixtures.py), with a test resources/ tree that carries a
+# toolchain.json (the image writes the real one, E10). The retired candidate editor's requests
+# (render-request-v1/-v2) appear only as files left in old queues (T4.1).
 
 EVIDENCE_W2 = Path(__file__).resolve().parents[1] / "docs" / "editor" / "evidence" / "W2"
 V3_SOURCE_BYTES = b"editor v3 downloaded source bytes"
@@ -882,21 +674,137 @@ def test_v3_request_carries_its_storage_reservation(tmp_path):
             job.create(etag, storage_reservation=bad)
 
 
-def test_legacy_create_is_unaffected_by_v3_requests_in_the_same_queue(tmp_path):
-    job, _analysis, manifest, _source = fixture(tmp_path)
-    v3 = V3Job(tmp_path / "v3")
-    _doc, etag = v3.save(main__cut_fade_ms=20)
-    v3_request = v3.create(etag, KEY)
-    queue = job / "analysis" / "render-requests"
-    queue.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(v3.request_path(v3_request["render_id"]),
-                    queue / f"{v3_request['render_id']}.json")
-    legacy = create_request(job, manifest.identity.candidate_id, manifest_sha256(manifest),
-                            "723e4567-e89b-42d3-a456-426614174000")
-    assert legacy["version"] == "render-request-v1"
-    with pytest.raises(QueueConflict):  # the key belongs to the v3 request
-        create_request(job, manifest.identity.candidate_id, manifest_sha256(manifest), KEY)
-    assert get_request(job, v3_request["render_id"])["version"] == "render-request-v3"
+def retired_request(job: V3Job, *, version: str = "render-request-v2", state: str = "queued",
+                    at: str = "2026-09-01T00:00:00.000Z") -> dict:
+    """A request of the retired candidate editor, as old queues still hold them (canonical)."""
+    render_id = str(uuid.uuid4())
+    candidate, sha = "cand_" + "a" * 64, "a" * 64
+    value = {
+        "version": version, "render_id": render_id, "idempotency_key": render_id,
+        "state": state, "candidate_id": candidate, "candidate_artifact_sha256": sha,
+        "candidate_snapshot_relative": f"analysis/render-inputs/candidates.{sha}.json",
+        "edit_manifest_sha256": sha, "edit_revision": 1,
+        "edit_manifest_relative": f"analysis/edits/archive/{candidate}.edit.v1.r1.{sha}.json",
+        "source_identity_sha256": sha, "source_content_sha256": sha,
+        "source_snapshot_relative": f"analysis/render-inputs/source.{sha}.mp4",
+        "output_relative": f"output/edits/{candidate}/revision-1.mp4",
+        "created_at": at, "updated_at": at, "claimed_at": None, "rendering_at": None,
+        "completed_at": None, "failed_at": None, "attempts": 0, "error_code": None,
+        "lease_token": None, "heartbeat_at": None,
+    }
+    if state == "claimed":  # its worker is long gone: a stale lease
+        value.update(attempts=1, claimed_at=at, lease_token=str(uuid.uuid4()), heartbeat_at=at)
+    elif state == "completed":
+        value.update(attempts=1, claimed_at=at, rendering_at=at, completed_at=at)
+    if version == "render-request-v2":
+        value.update(storage_reservation_id=RESERVATION_ID,
+                     storage_reservation_token=RESERVATION_TOKEN, storage_reserved_bytes=4096)
+    job.queue.mkdir(mode=0o700, exist_ok=True)
+    v3_write(job.request_path(render_id), value)
+    return value
+
+
+def test_retired_candidate_requests_are_never_claimed_listed_cancelled_or_pruned(tmp_path):
+    job = V3Job(tmp_path)
+    retired = [
+        retired_request(job),
+        retired_request(job, version="render-request-v1", state="claimed",
+                        at="2020-01-01T00:00:00.000Z"),
+        retired_request(job, version="render-request-v1", state="completed",
+                        at="2020-01-01T00:00:00.000Z"),
+    ]
+    (job.queue / f"{uuid.uuid4()}.json").write_text('{"version":"render-request-v2"}')
+    before = {path.name: path.read_bytes() for path in job.queue.iterdir()}
+
+    assert claim_next(job.job, lease_seconds=1) is None
+    assert list_requests_v3(job.job) == []
+    assert prune_requests_v3(job.job, now=V3_NOW + timedelta(days=3650)) == 0
+    for value in retired:
+        with pytest.raises(QueueNotFound):
+            get_request(job.job, value["render_id"])
+        with pytest.raises(QueueNotFound):
+            cancel_request_v3(job.job, value["render_id"])
+    assert {path.name: path.read_bytes() for path in job.queue.iterdir()} == before
+
+    _doc, etag = job.save(main__cut_fade_ms=20)
+    request = job.create(etag, retired[0]["idempotency_key"])  # its key names nothing any more
+    assert [item["render_id"] for item in list_requests_v3(job.job)] == [request["render_id"]]
+    assert claim_next(job.job)["render_id"] == request["render_id"]
+    for value in retired:
+        assert job.request_path(value["render_id"]).read_bytes() == before[
+            f"{value['render_id']}.json"]
+
+
+def test_a_retired_version_does_not_excuse_an_unsafe_or_malformed_file(tmp_path):
+    job = V3Job(tmp_path)
+    value = retired_request(job)
+    path = job.request_path(value["render_id"])
+    for raw in ('{"version":"render-request-v2","version":"render-request-v2"}',
+                '{"version":"render-request-v2","x":1e999}', '["render-request-v2"]', "{"):
+        path.write_text(raw)
+        with pytest.raises(QueueInvalid):
+            get_request(job.job, value["render_id"])
+        with pytest.raises(QueueInvalid):
+            claim_next(job.job)
+    path.unlink()
+    outside = tmp_path / "outside.json"
+    v3_write(outside, value)
+    path.symlink_to(outside)
+    with pytest.raises(QueueInvalid):
+        claim_next(job.job)
+
+
+def test_v3_claim_has_one_winner(tmp_path):
+    job = V3Job(tmp_path)
+    _doc, etag = job.save(main__cut_fade_ms=20)
+    request = job.create(etag)
+    outcomes = []
+    threads = [threading.Thread(target=lambda: outcomes.append(claim_next(job.job)))
+               for _ in range(4)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    claimed = [item for item in outcomes if item is not None]
+    assert len(claimed) == 1 and len(outcomes) == 4
+    assert (claimed[0]["render_id"], claimed[0]["state"], claimed[0]["attempts"]) == (
+        request["render_id"], "claimed", 1)
+
+
+def test_v3_heartbeat_prevents_reclaim_but_an_expired_owner_is_fenced(tmp_path):
+    job = V3Job(tmp_path)
+    _doc, etag = job.save(main__cut_fade_ms=20)
+    request = job.create(etag)
+    first = claim_next(job.job, lease_seconds=1)
+    heartbeat(job.job, request["render_id"], first["lease_token"])
+    assert claim_next(job.job, lease_seconds=60) is None
+    v3_rewrite(job, request["render_id"], heartbeat_at="2020-01-01T00:00:00.000Z")
+    second = claim_next(job.job, lease_seconds=1)
+    assert second is not None and second["lease_token"] != first["lease_token"]
+    with pytest.raises(QueueConflict):
+        start_rendering_v3(job.job, request["render_id"], first["lease_token"])
+    with pytest.raises(QueueConflict):
+        heartbeat(job.job, request["render_id"], first["lease_token"])
+
+
+def test_v3_request_files_must_be_strict_regular_json(tmp_path):
+    job = V3Job(tmp_path)
+    _doc, etag = job.save(main__cut_fade_ms=20)
+    request = job.create(etag)
+    path = job.request_path(request["render_id"])
+    pristine = path.read_bytes()
+    for raw in ('{"version":"render-request-v3","version":"render-request-v3"}', '{"x":1e999}'):
+        path.write_text(raw)
+        with pytest.raises(QueueInvalid):
+            get_request(job.job, request["render_id"])
+    path.unlink()
+    outside = tmp_path / "outside.json"
+    outside.write_bytes(pristine)
+    path.symlink_to(outside)
+    with pytest.raises(QueueInvalid):
+        get_request(job.job, request["render_id"])
+    with pytest.raises(QueueInvalid):
+        claim_next(job.job)
 
 
 def test_v3_retention_prunes_old_terminal_requests_keeping_the_newest_200(tmp_path):
@@ -920,11 +828,8 @@ def test_v3_retention_prunes_old_terminal_requests_keeping_the_newest_200(tmp_pa
     v3_write(job.request_path(queued_id), {**base, "render_id": queued_id,
                                            "idempotency_key": str(uuid.uuid4()),
                                            "created_at": month_ago, "updated_at": month_ago})
-    legacy_job, _analysis, manifest, _source = fixture(tmp_path / "legacy")
-    legacy = create_request(legacy_job, manifest.identity.candidate_id,
-                            manifest_sha256(manifest), KEY)
-    legacy_path = legacy_job / "analysis" / "render-requests" / f"{legacy['render_id']}.json"
-    shutil.copyfile(legacy_path, job.request_path(legacy["render_id"]))
+    legacy = retired_request(job, version="render-request-v1", state="completed",
+                             at=month_ago)
 
     removed = prune_requests_v3(job.job, now=V3_NOW)
     left = {path.stem for path in job.queue.glob("*.json")}
@@ -932,7 +837,7 @@ def test_v3_retention_prunes_old_terminal_requests_keeping_the_newest_200(tmp_pa
     assert removed == 60
     assert set(ids[60:]) <= left and not set(ids[:60]) & left
     assert queued_id in left  # a request that is not terminal is never pruned
-    assert legacy["render_id"] in left  # legacy requests are not touched
+    assert legacy["render_id"] in left  # a retired candidate request is kept
 
 
 def test_v3_1500_requests_created_over_time_never_hit_a_ceiling(tmp_path, monkeypatch):
@@ -1074,7 +979,9 @@ def test_v3_cli_runs_as_a_module_with_jobs_root_from_the_environment(tmp_path):
                             timeout=60, check=False)
     assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout) == {"requests": []}
-    legacy = subprocess.run([sys.executable, "-m", "ai_clipper.render_queue", "--job-dir",
-                             str(job.job)], input=b'{"operation":"drop"}', capture_output=True,
-                            env=env, timeout=60, check=False)
-    assert (legacy.returncode, legacy.stderr) == (3, b"render_queue_invalid\n")
+    # the candidate editor's protocol (``--job-dir`` and an ``operation``) is gone
+    retired = subprocess.run([sys.executable, "-m", "ai_clipper.render_queue", "--job-dir",
+                              str(job.job)], input=b'{"operation":"estimate"}',
+                             capture_output=True, env=env, timeout=60, check=False)
+    assert (retired.returncode, retired.stdout, retired.stderr) == (
+        2, b"", b"render_queue_usage\n")
