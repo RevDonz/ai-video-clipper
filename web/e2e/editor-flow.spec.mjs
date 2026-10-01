@@ -1012,6 +1012,21 @@ test("PF-OPEN on the real stack: first visit ≤ 3.0 s, repeat ≤ 2.0 s (p95); 
   expect(cellMs).toBeLessThanOrEqual(PF_OPEN_CELL_MS);
 });
 
+// Contrast is measured on the settled page. A panel that eases in is see-through for its first
+// 240 ms, and axe would read the fading text (as the Rapikan harness spec also waits). Content that
+// arrives after a fetch (the cold-open suggestions) fades in later still, so the wait first lets
+// the open panel finish loading, then asks for 300 ms without a running animation.
+async function settledForAxe(page) {
+  await expect(page.locator('[data-panel][aria-busy="true"], [data-panel] [aria-busy="true"]')).toHaveCount(0, { timeout: 45_000 });
+  await page.evaluate(() => { globalThis.__axeQuietSince = null; });
+  await page.waitForFunction(() => {
+    const now = performance.now();
+    if (document.getAnimations().some((animation) => animation.playState === "running")) globalThis.__axeQuietSince = null;
+    else globalThis.__axeQuietSince ??= now;
+    return globalThis.__axeQuietSince !== null && now - globalThis.__axeQuietSince >= 300;
+  }, null, { polling: 50 });
+}
+
 test("QG-A11Y on the real editor: axe finds no critical or serious violation", async ({ page, browser }) => {
   test.skip(!AXE, "set AXE_CORE_PATH to an axe.min.js (axe-core is not a web dependency)");
   const results = [];
@@ -1034,9 +1049,7 @@ test("QG-A11Y on the real editor: axe finds no critical or serious violation", a
       await expect(page.getByRole("region", { name: "Rapikan" })).toBeVisible({ timeout: 30_000 });
     }]]) {
       if (open) await open();
-      // Contrast is measured on the settled page: a panel that eases in is see-through for its
-      // first 240 ms, and axe would read the fading text (as the Rapikan harness spec also waits).
-      await page.waitForFunction(() => document.getAnimations().every((animation) => animation.playState !== "running"));
+      await settledForAxe(page);
       await page.addScriptTag({ content: AXE });
       const outcome = await page.evaluate(async () => {
         const report = await globalThis.axe.run(document, { resultTypes: ["violations"] });
