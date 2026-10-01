@@ -8,7 +8,7 @@ import test from "node:test";
 
 import * as entryView from "../lib/clip-entry-view.mjs";
 
-const { CLIP_REASON_TEXT, clipEntryView, loadClipEntries } = entryView;
+const { CLIP_REASON_TEXT, clipEntryFor, clipEntryView, loadClipEntries } = entryView;
 
 const JOB = "8f0c2a1e-5b7d-4c3a-9e21-6d4f0b8a7c55";
 const CLIP = "clip_9b2e41c07d3a5f18e6c2a0b4";
@@ -135,6 +135,26 @@ test("a malformed clip id is never linked; the engine of a clip is never named",
   const legacy = clipEntryView(JOB, listing({ engine: "legacy" }));
   assert.equal(legacy.editHref, `/projects/${JOB}/clips/${CLIP}/edit`);
   assert.equal("engineLegacy" in legacy, false);
+});
+
+// W4 verifier (GATES Open 42): jobs made before the editor list no clips (no manifest, no
+// analysis). Their cards said nothing; now each says why it cannot open. While the listing is
+// off, loading or failed, the cards stay as they are.
+test("a clip the listing does not name says why it cannot open", () => {
+  const v3 = { id: JOB, options: { selectionMode: "v3" } };
+  const old = { id: JOB, options: { selectionMode: "v1" } };
+  const available = { state: "available", byIndex: new Map([[1, clipEntryView(JOB, listing())]]) };
+  assert.equal(clipEntryFor(available, v3, 1).editHref, `/projects/${JOB}/clips/${CLIP}/edit`);
+  const unlisted = clipEntryFor(available, v3, 2);
+  assert.equal(unlisted.editHref, null);
+  assert.equal(unlisted.reasonText, "Klip ini belum bisa dibuka di editor");
+  assert.equal(unlisted.latestExport, null);
+  assert.equal(clipEntryFor(available, old, 2).reasonText, "Klip dari job ini tidak bisa diedit; proses ulang videonya");
+  assert.equal(clipEntryFor({ state: "available", byIndex: new Map() }, {}, 1).editHref, null);
+  for (const state of ["unavailable", "error", "redirect"]) {
+    assert.equal(clipEntryFor({ state, byIndex: new Map() }, v3, 2), null, state);
+  }
+  assert.equal(clipEntryFor(undefined, v3, 1), null);
 });
 
 test("the listing loads by clip index; 404 means the editor is off", async () => {

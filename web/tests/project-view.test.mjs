@@ -17,6 +17,7 @@ import {
   clipLabel,
   failureDetail,
   formatProjectDate,
+  historyOffersEdit,
   historySummary,
   isActiveStatus,
   loadProjectDetail,
@@ -447,17 +448,31 @@ test("a failed project says why it stopped: the worker's message under the notic
 test("every clip card offers 'Edit klip' from the clips listing; the page has no prepare step", async () => {
   const source = await read("app/projects/[id]/page.jsx");
   assert.match(source, /loadClipEntries\(id, \{ signal: controller\.signal \}\)/);
-  assert.match(source, /<ClipCard key=\{clip\.index\} clip=\{clip\} job=\{job\}[^>]*\n\s*entry=\{entries\.get\(clip\.index\) \?\? null\} \/>/);
+  assert.match(source, /<ClipCard key=\{clip\.index\} clip=\{clip\} job=\{job\}[^>]*\n\s*entry=\{clipEntryFor\(entries, job, clip\.index\)\} \/>/);
   assert.match(source, /<a className=\{`btn \$\{styles\.edit\}`\} href=\{entry\.editHref\}>Edit klip<\/a>/);
   assert.match(source, /<section id="klip" className=\{styles\.clips\}/);
   assert.doesNotMatch(source, /Siapkan untuk editor|prepareClipEntries|method: "POST"/);
   assert.doesNotMatch(source, /engineLegacy|mesin/i);
 });
 
+// W4 verifier: a job made before the editor (no Selection V3) has no clip to edit, so the history
+// does not send the owner to a project page without an editor entry.
+test("the history offers 'Edit klip' only on finished projects whose clips the editor can open", () => {
+  const job = { status: "completed", clips: [{ index: 1 }], options: { selectionMode: "v3" } };
+  assert.equal(historyOffersEdit(job, true), true);
+  assert.equal(historyOffersEdit(job, false), false, "the editor is off");
+  assert.equal(historyOffersEdit({ ...job, options: { selectionMode: "v1" } }, true), false);
+  assert.equal(historyOffersEdit({ ...job, options: { selectionMode: "v2" } }, true), false);
+  assert.equal(historyOffersEdit({ ...job, options: undefined }, true), false);
+  assert.equal(historyOffersEdit({ ...job, status: "running" }, true), false);
+  assert.equal(historyOffersEdit({ ...job, clips: [] }, true), false);
+  assert.equal(historyOffersEdit(null, true), false);
+});
+
 test("the history offers 'Edit klip' on finished projects while the editor is on", async () => {
   const source = await read("app/projects/page.jsx");
   assert.match(source, /setEditor\(payload\.editor === true\)/);
-  assert.match(source, /const editable = editor && job\.status === "completed" && clips\.length > 0;/);
+  assert.match(source, /const editable = historyOffersEdit\(job, editor\);/);
   assert.match(source, /href=\{`\/projects\/\$\{encodeURIComponent\(job\.id\)\}#klip`\}/);
   const route = await read("app/api/jobs/route.js");
   assert.match(route, /editor: readEditorFlags\(process\.env\)\.editorV3/);
