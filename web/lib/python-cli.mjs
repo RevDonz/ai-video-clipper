@@ -39,6 +39,8 @@ export const PYTHON_CLI_MODULES = Object.freeze([
   "ai_clipper.editor_ai",
   // Editor V3 exports: the render-request-v3 envelope (CONTRACTS §5.17; T2.2 request R1).
   "ai_clipper.render_queue",
+  // The editor janitor, run by the primary worker between jobs (T4.3).
+  "ai_clipper.edit_v2.janitor",
 ]);
 
 // CONTRACTS §5.3: CLI exit code → [code name, HTTP status].
