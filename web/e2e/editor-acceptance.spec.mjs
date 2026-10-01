@@ -1355,10 +1355,13 @@ async function keyboardWalk(page, scope, maxStops = 160) {
   return { stops: visited.length, noRing: visited.filter((entry) => !entry.ring).map((entry) => entry.name), ...report };
 }
 
-// Contrast is measured on the settled page: the open panel done loading (content that arrives
-// after a fetch, like the cold-open suggestions, fades in late), then 300 ms without a running
-// animation (a fading panel is see-through and axe would read its text).
+// Contrast is measured on the settled page: the open panel mounted (its code loads on first
+// open) and done loading (content that arrives after a fetch, like the cold-open suggestions, fades
+// in late), then 300 ms without a running animation (a fading panel is see-through and axe would
+// read its text).
 async function axeRun(page) {
+  await expect(page.getByText("Membuka panel…")).toHaveCount(0, { timeout: 30_000 });
+  await expect(page.locator("[data-panel]").first()).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('[data-panel][aria-busy="true"], [data-panel] [aria-busy="true"]')).toHaveCount(0, { timeout: 45_000 });
   await page.evaluate(() => { globalThis.__axeQuietSince = null; });
   await page.waitForFunction(() => {
