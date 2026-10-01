@@ -9,11 +9,14 @@ jobs; the originals are only read):
    one (interleaved, so both see the same machine), each through ``pipeline.render_v3_job`` in
    a fresh copy (``look_report.render``: labels ``NAME-legacy`` and ``NAME-new``). Per job the
    wall seconds, the CPU seconds of every child process and of this process, and the load.
-2. ``evidence --work WORK --round NAME … --out FILE [--same-as RUN]``: per job the median
-   ratio new/legacy over the rounds, per layout the worst job against its budget (fit-blur and
-   center-crop ≤ 1.35×, face-track ≤ 1.6×). ``--same-as RUN`` adds the byte check: every MP4
-   and SRT of each round's new run equals the one in ``RUN`` (the speed-up must not change the
-   delivered file; ``RUN`` is a render of the same clips by the code before it).
+2. ``check --work WORK --round NAME --same-as RUN [--prune]``: the byte check of a round:
+   every MP4 and SRT of its new run equals the one in ``RUN`` (the speed-up must not change the
+   delivered file; ``RUN`` is a render of the same clips by the code before it), kept in
+   ``NAME-new/same.json``; ``--prune`` then removes the round's rendered jobs (disk).
+3. ``evidence --work WORK --round NAME … --out FILE [--before NAME]``: per job the median ratio
+   new/legacy over the rounds, per layout the worst job against its budget (fit-blur and
+   center-crop ≤ 1.35×, face-track ≤ 1.6×), and each round's byte check; ``--before`` adds the
+   ratios of a round rendered by the code before the change (no byte check).
 """
 
 from __future__ import annotations
@@ -23,6 +26,7 @@ import hashlib
 import json
 import os
 import resource
+import shutil
 import statistics
 import sys
 import time
@@ -90,7 +94,28 @@ def _same_files(work: Path, label: str, reference: str) -> dict[str, int]:
     return {"clips": checked, "identical": same}
 
 
-def evidence(work: Path, rounds: list[str], same_as: str | None) -> dict[str, Any]:
+def check(work: Path, round_name: str, same_as: str, prune: bool) -> dict[str, Any]:
+    result = {**_same_files(work, f"{round_name}-new", same_as), "reference": same_as}
+    (work / "runs" / f"{round_name}-new" / "same.json").write_text(json.dumps(result) + "\n")
+    if prune:
+        for side in ("legacy", "new"):
+            shutil.rmtree(work / "runs" / f"{round_name}-{side}" / "jobs", ignore_errors=True)
+    return result
+
+
+def _ratios(work: Path, name: str) -> dict[str, Any]:
+    legacy = json.loads((work / "runs" / f"{name}-legacy" / "render.json").read_text())
+    new = json.loads((work / "runs" / f"{name}-new" / "render.json").read_text())
+    rows = {}
+    for entry in new["jobs"]:
+        twin = next((item for item in legacy["jobs"] if item["id"] == entry["id"]), None)
+        if twin is not None:
+            rows[entry["id"][:8]] = {"legacy_s": twin["seconds"], "new_s": entry["seconds"],
+                                     "ratio": round(entry["seconds"] / twin["seconds"], 3)}
+    return rows
+
+
+def evidence(work: Path, rounds: list[str], before: str | None = None) -> dict[str, Any]:
     selection = {job["id"]: job for job in json.loads((work / "selection.json").read_text())["jobs"]}
     per_job: dict[str, dict[str, Any]] = {}
     for name in rounds:
@@ -135,13 +160,16 @@ def evidence(work: Path, rounds: list[str], same_as: str | None) -> dict[str, An
         "environment": environment, "jobs": jobs, "layouts": layouts,
         "pass": all(layout["pass"] for layout in layouts.values()),
     }
-    if same_as is not None:
-        result["same_files"] = {name: _same_files(work, f"{name}-new", same_as)
-                                for name in rounds}
-        result["same_files_reference"] = same_as
-        result["pass"] = result["pass"] and all(
-            check["clips"] > 0 and check["clips"] == check["identical"]
-            for check in result["same_files"].values())
+    same = {}
+    for name in rounds:
+        path = work / "runs" / f"{name}-new" / "same.json"
+        same[name] = json.loads(path.read_text()) if path.exists() else None
+    result["same_files"] = same
+    if before is not None:
+        result["before"] = {"round": before, "jobs": _ratios(work, before)}
+    result["pass"] = result["pass"] and all(
+        item is not None and item["clips"] > 0 and item["clips"] == item["identical"]
+        for item in same.values())
     return result
 
 
@@ -152,17 +180,26 @@ def main(argv: list[str] | None = None) -> int:
     cmd.add_argument("--work", type=Path, required=True)
     cmd.add_argument("--round", required=True)
     cmd.add_argument("--job", action="append", default=None)
+    cmd = commands.add_parser("check")
+    cmd.add_argument("--work", type=Path, required=True)
+    cmd.add_argument("--round", required=True)
+    cmd.add_argument("--same-as", required=True)
+    cmd.add_argument("--prune", action="store_true")
     cmd = commands.add_parser("evidence")
     cmd.add_argument("--work", type=Path, required=True)
     cmd.add_argument("--round", action="append", required=True)
-    cmd.add_argument("--same-as", default=None)
     cmd.add_argument("--note", default=None)
+    cmd.add_argument("--before", default=None)
     cmd.add_argument("--out", type=Path, required=True)
     args = parser.parse_args(argv)
     if args.command == "run":
         run(args.work, args.round, args.job)
         return 0
-    result = evidence(args.work, args.round, args.same_as)
+    if args.command == "check":
+        checked = check(args.work, args.round, args.same_as, args.prune)
+        print(json.dumps(checked))
+        return 0 if checked["clips"] and checked["clips"] == checked["identical"] else 1
+    result = evidence(args.work, args.round, args.before)
     if args.note:
         result["note"] = args.note
     result["host_loadavg_at_report"] = list(os.getloadavg())

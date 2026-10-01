@@ -34,6 +34,7 @@ from fractions import Fraction
 from itertools import pairwise
 from typing import Any
 
+from ..face_window import cpu_budget
 from . import errors
 from . import loudness as _loudness
 from .doc import Issue
@@ -44,7 +45,7 @@ SAMPLE_TOLERANCE = 1024  # one AAC frame (G2)
 TRUE_PEAK_CEILING_CDB = -100  # −1.0 dBTP (G3, G3b)
 LOUDNESS_TOLERANCE_CLU = 100  # ± 1 LU around the target (G3)
 CLAMPED_TOLERANCE_CLU = 50  # ± 0.5 LU around a recorded loudness_clamped value (G3)
-FFMPEG_THREADS = 4
+FFMPEG_THREADS = 4  # the least; the frame-count decode uses the whole CPU budget (T4.3)
 MP4_BRANDS_REJECTED = (b"qt  ",)  # QuickTime is not the delivered MP4
 
 _STREAM_FIELDS = ("index,codec_type,codec_name,profile,pix_fmt,width,height,sample_aspect_ratio,"
@@ -108,8 +109,11 @@ def _timeout(plan: RenderPlan) -> float:
 
 
 def _probe(fd: int, timeout_s: float) -> dict[str, Any]:
+    """Streams and format, with every frame decoded and counted (``-count_frames``): the longest
+    reader, so it decodes on every CPU of the budget (the count does not depend on it)."""
+    threads = max(FFMPEG_THREADS, cpu_budget())
     output = _run(["ffprobe", "-v", "error", "-protocol_whitelist", "file,pipe", "-threads",
-                   str(FFMPEG_THREADS), "-count_frames", "-show_entries",
+                   str(threads), "-count_frames", "-show_entries",
                    f"format=format_name:stream={_STREAM_FIELDS}", "-of", "json", _input(fd)],
                   fd, timeout_s=timeout_s)
     return json.loads(output)
