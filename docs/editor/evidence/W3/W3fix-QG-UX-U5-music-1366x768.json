@@ -1,0 +1,47 @@
+{
+  "gate": "QG-UX U5 (music part, scripted on the fakes)",
+  "task": "T3.3",
+  "limit_ms": 60000,
+  "elapsed_ms": 1967,
+  "steps": [
+    {
+      "step": "editor ready",
+      "ms": 183
+    },
+    {
+      "step": "tab Musik",
+      "ms": 199
+    },
+    {
+      "step": "copyright notice read, file chosen",
+      "ms": 1401
+    },
+    {
+      "step": "uploaded",
+      "ms": 1594
+    },
+    {
+      "step": "ducked (Sedang), mix current",
+      "ms": 1967
+    }
+  ],
+  "viewport": {
+    "width": 1366,
+    "height": 768
+  },
+  "music_lane_on_screen": {
+    "lane": [
+      738,
+      768
+    ],
+    "label": [
+      738,
+      768
+    ],
+    "inside": true,
+    "aligned": true
+  },
+  "browser": "147.0.7727.15",
+  "note": "fake runtime and fake upload client (automation speed); the real upload is T3.1's route, the owner times U5 at checkpoint 3",
+  "pass": true
+}

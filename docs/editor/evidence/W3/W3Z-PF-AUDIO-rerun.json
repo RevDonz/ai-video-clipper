@@ -1,0 +1,62 @@
+{
+  "gate": "PF-AUDIO",
+  "runs": {
+    "w3z-ci-4vcpu": {
+      "clip": "synthetic main #1: fit-blur, 29.97 fps CFR, cold open",
+      "clip_seconds": 89.99,
+      "edits": [
+        "duck preset/depth",
+        "music gain",
+        "fade in",
+        "normalize + source gain",
+        "release"
+      ],
+      "environment": {
+        "cpus_visible": 4,
+        "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+        "loadavg": [
+          3.27,
+          3.44,
+          2.37
+        ],
+        "python": "3.11.2"
+      },
+      "failures": 0,
+      "gate": "PF-AUDIO",
+      "loadavg_during": [
+        3.47,
+        4.63
+      ],
+      "media": "synthetic",
+      "pass": false,
+      "task": "W3Z",
+      "threshold_ms": 1000,
+      "with_music_ms": {
+        "max": 1210.9,
+        "min": 1160.0,
+        "n": 20,
+        "p50": 1175.5,
+        "p95": 1199.5
+      },
+      "with_music_stages_ms": {
+        "compile_master": 0.1,
+        "compile_premaster_incl_ffprobe": 133.6,
+        "ffmpeg_decode_mix_and_measure": 680.3,
+        "ffmpeg_master_flac": 217.2,
+        "imports": 70.4,
+        "plan": 15.3,
+        "process_other": 75.8,
+        "total": 1198.2,
+        "validate": 1.5
+      }
+    }
+  },
+  "task": "W3Z",
+  "w3z": {
+    "ci_run": 36870736233,
+    "commit": "e4fbbbc",
+    "where": "GitHub Actions editor-gates.yml suite=command, production image (FFmpeg 5.1.9, Python 3.11.2, Node 20), 4 vCPU runner; timings indicative",
+    "script": "scripts/editor/w3_exit_gates.sh audio",
+    "note": "the W3 verifier's re-run on the same commit as W3Z-PF-AUDIO.json (834.6 ms p95): the gate is borderline on a busy 4 vCPU runner; the W4 speed-up (T4.3) owns it"
+  }
+}

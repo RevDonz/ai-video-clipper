@@ -1,0 +1,171 @@
+{
+  "gate": "QG-A11Y",
+  "axe": "4.13.0",
+  "browser": "147.0.7727.15",
+  "executable": "chromium-1217",
+  "states": 16,
+  "critical": 0,
+  "serious": 0,
+  "results": [
+    {
+      "state": "editor (revision 0, auto render)",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "violations": [],
+      "critical": 0,
+      "serious": 0
+    },
+    {
+      "state": "badge help open",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "violations": [],
+      "critical": 0,
+      "serious": 0
+    },
+    {
+      "state": "checks panel open",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "violations": [],
+      "critical": 0,
+      "serious": 0
+    },
+    {
+      "state": "shortcut help open",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "violations": [],
+      "critical": 0,
+      "serious": 0
+    },
+    {
+      "state": "safe zone on",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "violations": [],
+      "critical": 0,
+      "serious": 0
+    },
+    {
+      "state": "export dialog",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "violations": [],
+      "critical": 0,
+      "serious": 0
+    },
+    {
+      "state": "export completed",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "violations": [],
+      "critical": 0,
+      "serious": 0
+    },
+    {
+      "state": "editor (revision 0, auto render)",
+      "viewport": {
+        "width": 1366,
+        "height": 768
+      },
+      "violations": [],
+      "critical": 0,
+      "serious": 0
+    },
+    {
+      "state": "badge help open",
+      "viewport": {
+        "width": 1366,
+        "height": 768
+      },
+      "violations": [],
+      "critical": 0,
+      "serious": 0
+    },
+    {
+      "state": "checks panel open",
+      "viewport": {
+        "width": 1366,
+        "height": 768
+      },
+      "violations": [],
+      "critical": 0,
+      "serious": 0
+    },
+    {
+      "state": "shortcut help open",
+      "viewport": {
+        "width": 1366,
+        "height": 768
+      },
+      "violations": [],
+      "critical": 0,
+      "serious": 0
+    },
+    {
+      "state": "safe zone on",
+      "viewport": {
+        "width": 1366,
+        "height": 768
+      },
+      "violations": [],
+      "critical": 0,
+      "serious": 0
+    },
+    {
+      "state": "export dialog",
+      "viewport": {
+        "width": 1366,
+        "height": 768
+      },
+      "violations": [],
+      "critical": 0,
+      "serious": 0
+    },
+    {
+      "state": "export completed",
+      "viewport": {
+        "width": 1366,
+        "height": 768
+      },
+      "violations": [],
+      "critical": 0,
+      "serious": 0
+    },
+    {
+      "state": "conflict dialog",
+      "viewport": {
+        "width": 1366,
+        "height": 768
+      },
+      "violations": [],
+      "critical": 0,
+      "serious": 0
+    },
+    {
+      "state": "read-only + legacy notice",
+      "viewport": {
+        "width": 1366,
+        "height": 768
+      },
+      "violations": [],
+      "critical": 0,
+      "serious": 0
+    }
+  ]
+}
