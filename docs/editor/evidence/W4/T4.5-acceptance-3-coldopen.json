@@ -1,0 +1,8 @@
+{
+  "schema": "potongin.gate/1",
+  "capability": 3,
+  "coldOpenMs": 5005,
+  "suggestionUsed": "Pakai saran 1 sebagai cold open",
+  "longRuleChecked": true,
+  "pass": true
+}

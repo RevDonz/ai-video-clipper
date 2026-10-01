@@ -1,0 +1,18 @@
+{
+  "schema": "potongin.gate/1",
+  "capability": 5,
+  "packs": [
+    "classic",
+    "karaoke",
+    "bold",
+    "box"
+  ],
+  "overrides": {
+    "case": "upper",
+    "emphasis": "#FF5C8A",
+    "highlight": "#FFFFFF",
+    "size_pm": 1100,
+    "y_e5": 81000
+  },
+  "pass": true
+}

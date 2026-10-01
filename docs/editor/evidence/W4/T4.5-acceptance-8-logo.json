@@ -1,0 +1,22 @@
+{
+  "schema": "potongin.gate/1",
+  "capability": 8,
+  "uploadMs": 1086,
+  "box": {
+    "x": 468,
+    "y": 952,
+    "w": 119,
+    "h": 48
+  },
+  "centreRgb": [
+    204,
+    229,
+    104
+  ],
+  "gates": [
+    "G1",
+    "G2",
+    "G5"
+  ],
+  "pass": true
+}

@@ -1,0 +1,289 @@
+{
+  "schema": "potongin.gate/1",
+  "gate": "QG-A11Y (real stack, every panel and dialog, both viewports)",
+  "browser": "147.0.7727.15",
+  "axe": "4.13.0",
+  "states": 26,
+  "critical": 0,
+  "serious": 0,
+  "other": 0,
+  "results": [
+    {
+      "viewport": "1366x768",
+      "state": "ready",
+      "violations": []
+    },
+    {
+      "viewport": "1366x768",
+      "state": "Transkrip panel",
+      "violations": []
+    },
+    {
+      "viewport": "1366x768",
+      "state": "Teks panel",
+      "violations": []
+    },
+    {
+      "viewport": "1366x768",
+      "state": "Cold open panel",
+      "violations": []
+    },
+    {
+      "viewport": "1366x768",
+      "state": "Tata letak panel",
+      "violations": []
+    },
+    {
+      "viewport": "1366x768",
+      "state": "Logo panel",
+      "violations": []
+    },
+    {
+      "viewport": "1366x768",
+      "state": "Musik panel",
+      "violations": []
+    },
+    {
+      "viewport": "1366x768",
+      "state": "Rapikan review",
+      "violations": []
+    },
+    {
+      "viewport": "1366x768",
+      "state": "Perlu dicek",
+      "violations": []
+    },
+    {
+      "viewport": "1366x768",
+      "state": "badge help",
+      "violations": []
+    },
+    {
+      "viewport": "1366x768",
+      "state": "shortcut help",
+      "violations": []
+    },
+    {
+      "viewport": "1366x768",
+      "state": "safe zone on",
+      "violations": []
+    },
+    {
+      "viewport": "1366x768",
+      "state": "export dialog",
+      "violations": []
+    },
+    {
+      "viewport": "1920x1080",
+      "state": "ready",
+      "violations": []
+    },
+    {
+      "viewport": "1920x1080",
+      "state": "Transkrip panel",
+      "violations": []
+    },
+    {
+      "viewport": "1920x1080",
+      "state": "Teks panel",
+      "violations": []
+    },
+    {
+      "viewport": "1920x1080",
+      "state": "Cold open panel",
+      "violations": []
+    },
+    {
+      "viewport": "1920x1080",
+      "state": "Tata letak panel",
+      "violations": []
+    },
+    {
+      "viewport": "1920x1080",
+      "state": "Logo panel",
+      "violations": []
+    },
+    {
+      "viewport": "1920x1080",
+      "state": "Musik panel",
+      "violations": []
+    },
+    {
+      "viewport": "1920x1080",
+      "state": "Rapikan review",
+      "violations": []
+    },
+    {
+      "viewport": "1920x1080",
+      "state": "Perlu dicek",
+      "violations": []
+    },
+    {
+      "viewport": "1920x1080",
+      "state": "badge help",
+      "violations": []
+    },
+    {
+      "viewport": "1920x1080",
+      "state": "shortcut help",
+      "violations": []
+    },
+    {
+      "viewport": "1920x1080",
+      "state": "safe zone on",
+      "violations": []
+    },
+    {
+      "viewport": "1920x1080",
+      "state": "export dialog",
+      "violations": []
+    }
+  ],
+  "keyboard": [
+    {
+      "viewport": "1366x768",
+      "state": "top bar",
+      "stops": 6,
+      "noRing": [],
+      "controls": 6,
+      "missed": []
+    },
+    {
+      "viewport": "1366x768",
+      "state": "stage controls",
+      "stops": 7,
+      "noRing": [],
+      "controls": 7,
+      "missed": []
+    },
+    {
+      "viewport": "1366x768",
+      "state": "timeline",
+      "stops": 7,
+      "noRing": [],
+      "controls": 14,
+      "missed": []
+    },
+    {
+      "viewport": "1366x768",
+      "state": "Transkrip panel",
+      "stops": 4,
+      "noRing": [],
+      "controls": 4,
+      "missed": []
+    },
+    {
+      "viewport": "1366x768",
+      "state": "Teks panel",
+      "stops": 13,
+      "noRing": [],
+      "controls": 26,
+      "missed": []
+    },
+    {
+      "viewport": "1366x768",
+      "state": "Cold open panel",
+      "stops": 9,
+      "noRing": [],
+      "controls": 9,
+      "missed": []
+    },
+    {
+      "viewport": "1366x768",
+      "state": "Tata letak panel",
+      "stops": 1,
+      "noRing": [],
+      "controls": 3,
+      "missed": []
+    },
+    {
+      "viewport": "1366x768",
+      "state": "Logo panel",
+      "stops": 5,
+      "noRing": [],
+      "controls": 8,
+      "missed": []
+    },
+    {
+      "viewport": "1366x768",
+      "state": "Musik panel",
+      "stops": 12,
+      "noRing": [],
+      "controls": 18,
+      "missed": []
+    },
+    {
+      "viewport": "1920x1080",
+      "state": "top bar",
+      "stops": 6,
+      "noRing": [],
+      "controls": 6,
+      "missed": []
+    },
+    {
+      "viewport": "1920x1080",
+      "state": "stage controls",
+      "stops": 7,
+      "noRing": [],
+      "controls": 7,
+      "missed": []
+    },
+    {
+      "viewport": "1920x1080",
+      "state": "timeline",
+      "stops": 7,
+      "noRing": [],
+      "controls": 14,
+      "missed": []
+    },
+    {
+      "viewport": "1920x1080",
+      "state": "Transkrip panel",
+      "stops": 4,
+      "noRing": [],
+      "controls": 4,
+      "missed": []
+    },
+    {
+      "viewport": "1920x1080",
+      "state": "Teks panel",
+      "stops": 19,
+      "noRing": [],
+      "controls": 32,
+      "missed": []
+    },
+    {
+      "viewport": "1920x1080",
+      "state": "Cold open panel",
+      "stops": 9,
+      "noRing": [],
+      "controls": 9,
+      "missed": []
+    },
+    {
+      "viewport": "1920x1080",
+      "state": "Tata letak panel",
+      "stops": 1,
+      "noRing": [],
+      "controls": 3,
+      "missed": []
+    },
+    {
+      "viewport": "1920x1080",
+      "state": "Logo panel",
+      "stops": 5,
+      "noRing": [],
+      "controls": 8,
+      "missed": []
+    },
+    {
+      "viewport": "1920x1080",
+      "state": "Musik panel",
+      "stops": 12,
+      "noRing": [],
+      "controls": 18,
+      "missed": []
+    }
+  ],
+  "pass": true
+}

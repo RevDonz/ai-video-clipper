@@ -138,3 +138,8 @@ dialog Ekspor, tanpa perlu dicentang. Kalau caption tertutup tombol, geser ke at
 (aplikasi produksi, salinan job asli, Chrome for Testing 147). `web/e2e/editor-flow.spec.mjs`
 menjalankan U1–U7 versi skrip dengan batas waktu yang sama. Bot jauh lebih cepat dari manusia, jadi
 angka pemilik yang menentukan gerbang ini.
+
+Hasil bot terakhir (2 Oktober 2026, PC pemilik, salinan baru job `e7f0d37b` yang belum pernah
+dibuka di editor, render di FFmpeg PC): 13 dari 13 kemampuan lulus dalam 9,2 menit; QG-A11Y lulus
+(26 keadaan di dua ukuran jendela, 0 temuan axe, setiap kontrol di 9 bagian layar terjangkau dengan
+Tab). Angkanya ada di `docs/editor/evidence/W4/T4.5-*.json`.
