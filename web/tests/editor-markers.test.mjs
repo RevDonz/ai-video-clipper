@@ -187,3 +187,28 @@ test("peaks: the URL is built from checked ids and file name only; bytes decode 
   assert.deepEqual([...decoded], [-1, 127, -128, 0]);
   assert.throws(() => decodePeaks(new Uint8Array([1, 2, 3]).buffer), /peaks/);
 });
+
+// The lanes and the panel take every colour from the editor tokens (editor.module.css), so a
+// theme that redefines the tokens (the dark editor) restyles them; a computed or literal colour
+// would stay behind. transparent and currentColor are not colours of their own.
+const TOKEN_ONLY_STYLESHEETS = [
+  "components/editor/timeline/lanes/MarkerLane.module.css",
+  "components/editor/timeline/lanes/AudioLane.module.css",
+  "components/editor/panels/ColdOpenPanel.module.css",
+];
+const COLOUR_LITERAL = /#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix|light-dark)\(|(?<![\w-])(?:white|black|red|green|blue|gray|grey|orange|yellow|purple|pink)(?![\w-])/i;
+
+function colourLiterals(css) {
+  return css.replace(/\/\*[\s\S]*?\*\//g, (comment) => comment.replace(/[^\n]/g, " ")).split("\n")
+    .map((line, index) => ({ line: index + 1, text: line.trim() }))
+    .filter(({ text }) => text.includes(":") && COLOUR_LITERAL.test(text.replace(/url\([^)]*\)|"[^"]*"/g, "")));
+}
+
+test("the T3.7 stylesheets use editor tokens only: no literal or computed colour", () => {
+  assert.deepEqual(colourLiterals(".a {\n  background: color-mix(in srgb, var(--x) 16%, transparent);\n  color: #fff;\n  fill: white;\n}")
+    .map((hit) => hit.line), [2, 3, 4]);
+  assert.deepEqual(colourLiterals(".a {\n  color: var(--ed-color-text);\n  background: transparent;\n  border-color: currentColor;\n}"), []);
+  for (const file of TOKEN_ONLY_STYLESHEETS) {
+    assert.deepEqual(colourLiterals(readFileSync(path.join(repo, "web", file), "utf8")), [], file);
+  }
+});
