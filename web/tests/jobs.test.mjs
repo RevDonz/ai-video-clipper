@@ -298,6 +298,14 @@ test("AI social metadata stays useful for empty or noisy transcripts", () => {
   assert.match(metadata.description, /sampai akhir/i);
 });
 
+test("generated captions carry no em dash: old clips show and copy them on the dashboard", () => {
+  for (const text of ["", "Banyak orang tidak sadar kalau konsistensi itu kunci."]) {
+    const { title, description } = generateSocialMetadata(text);
+    assert.doesNotMatch(`${title}\n${description}`, /—/, text);
+  }
+  assert.match(generateSocialMetadata("").description, /Simak sampai akhir\. Bagian mana yang paling relate buat kamu\?/);
+});
+
 test("AI social metadata turns noisy speech into a clean topic hook", () => {
   const metadata = generateSocialMetadata(
     "Pip-pip boom setutu-tutu di belakang saya ini hasil dari sepeda custom yang baru selesai dibuat dan bisa digunakan untuk perjalanan jauh dengan berbagai aksesori tambahan yang sedang diperlihatkan kepada penonton.",
