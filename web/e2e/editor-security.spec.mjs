@@ -55,7 +55,8 @@ test("a page of the same origin cannot frame the editor", async ({ page }) => {
   const reached = framed ? await framed.evaluate(() => Boolean(document.querySelector("[data-editor-ready]"))).catch(() => false) : false;
   expect(reached, "the editor rendered inside a frame").toBe(false);
   expect(framed ? framed.url() : "").not.toContain(EDITOR);
-  await blocked;
+  const message = await blocked;
+  expect(message?.text() ?? "", "the browser reports the refused frame").toMatch(/frame-ancestors|X-Frame-Options/i);
 });
 
 test("the editor's API answers carry nosniff and Cross-Origin-Resource-Policy", async ({ page }) => {

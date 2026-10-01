@@ -295,7 +295,14 @@ def run(args: argparse.Namespace) -> dict:
                 # 400 from the guard; 404 from the media handler (kind, name) or from the router when
                 # an encoded value no longer matches the route; the header set is checked elsewhere
                 expected = (404,) if segment in ("kind", "name") else (400, 404)
-                m.check(f"{name}: {segment}={value[:24]}", expected, status, answer, raw, route_headers=False)
+                extra = {}
+                if value == "%2e%2e":
+                    # a dot segment: the router redirects to the normalised path on this origin
+                    expected = (*expected, 308)
+                    location = answer.get("location", "")
+                    extra["redirectStaysHere"] = status != 308 or (location.startswith("/") and not location.startswith("//")) \
+                        or location.startswith(f"{base}/")
+                m.check(f"{name}: {segment}={value[:24]}", expected, status, answer, raw, route_headers=False, **extra)
         # raw dot segments: the router normalises them away from the route, never into a file
         dotted = fill(template).replace(f"/{clip_id}/", f"/{clip_id}/../../../../secret-canary.txt/")
         if dotted != fill(template):
