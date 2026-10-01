@@ -13,7 +13,7 @@
 //   - optional: AXE_CORE_PATH=<axe.min.js>; EDITOR_GATES=1 and EDITOR_GATES_OUT=<dir> for the U5
 //     timing evidence.
 // The browser half of P-AUD (the last block) needs MUSIC_PAUD_FIXTURES=<dir> made by
-// `scripts/parity/audio_gates.py p-aud --browser-fixtures <dir>`; it runs on any server page.
+// `scripts/parity/audio_gates.py lane p-aud --browser-fixtures <dir>`; it needs no server.
 import { expect, test as base } from "@playwright/test";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -683,17 +683,22 @@ test.describe("Musik panel on the fakes", () => {
 const pAudManifest = pAudDir && existsSync(path.join(pAudDir, "manifest.json"))
   ? JSON.parse(readFileSync(path.join(pAudDir, "manifest.json"), "utf8")) : null;
 
-test.describe("P-AUD (browser half) on music mixes", () => {
-  test.skip(!pAudManifest, "MUSIC_PAUD_FIXTURES must hold manifest.json (scripts/parity/audio_gates.py p-aud --browser-fixtures)");
+// The page and the fixtures are served by Playwright on a routed origin: no app server or login.
+const P_AUD_ORIGIN = "http://music-paud.invalid";
 
-  test("the AudioBuffer of every music mix equals the reference PCM", async ({ page }) => {
-    test.setTimeout(600_000);
-    await page.route("**/__music-paud/**", (route) => {
-      const name = path.basename(new URL(route.request().url()).pathname);
-      if (!/^[a-z0-9_.-]+$/.test(name)) return route.fulfill({ status: 404, body: "" });
+base.describe("P-AUD (browser half) on music mixes", () => {
+  base.skip(!pAudManifest, "MUSIC_PAUD_FIXTURES must hold manifest.json (scripts/parity/audio_gates.py lane p-aud --browser-fixtures)");
+
+  base("the AudioBuffer of every music mix equals the reference PCM", async ({ page }) => {
+    base.setTimeout(600_000);
+    await page.route(`${P_AUD_ORIGIN}/**`, (route) => {
+      const { pathname } = new URL(route.request().url());
+      if (pathname === "/") return route.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html><title>P-AUD</title>" });
+      const name = path.basename(pathname);
+      if (!pathname.startsWith("/__music-paud/") || !/^[a-z0-9_.-]+$/.test(name)) return route.fulfill({ status: 404, body: "" });
       return route.fulfill({ status: 200, contentType: "application/octet-stream", body: readFileSync(path.join(pAudDir, name)) });
     });
-    await page.goto("/login");
+    await page.goto(`${P_AUD_ORIGIN}/`);
     const results = [];
     for (const item of pAudManifest.cases) {
       const check = await page.evaluate(async ({ flac, pcm }) => {
