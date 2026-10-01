@@ -21,6 +21,8 @@ Proyek lama tetap bisa dilihat dan diunduh dari Riwayat. Editor kandidat yang la
 - Di halaman proyek, setiap kartu klip punya tombol **"Edit klip"** (tombol pertama, paling
   terang). Klip yang sudah diedit memberi label "Diedit · revisi n" dan tautan "Ekspor terakhir".
 - Di **Riwayat**, proyek yang selesai punya tombol **"Edit klip"** yang membuka daftar klipnya.
+  Proyek lama yang dibuat sebelum editor ada tidak punya tombol ini; di halaman proyeknya, setiap
+  kartu klip menyebut alasannya.
 - Tidak ada langkah "Siapkan" lagi. Kalau proyeknya belum pernah dibuka di editor, editor
   menyiapkannya sendiri saat klip dibuka: layar "Menyiapkan klip untuk diedit" dengan hitungan
   detik. Ini hanya sekali per proyek: beberapa detik, sampai ± 1 menit untuk video panjang dengan
@@ -85,7 +87,8 @@ tersedia untuk job ini" (di lajurnya, atau di baris atas timeline bila lajurnya 
 
 **Lainnya.** Urungkan / Ulangi (Ctrl+Z, Ctrl+Shift+Z) sampai 200 langkah; simpan otomatis
 (± 1,5 detik setelah berhenti, juga disimpan di browser); **"Kembali ke versi AI"**; **Ekspor**
-(centang tiap item "Perlu dicek"; catatan biru tidak perlu dicentang; lalu Antre → Merender →
+(centang tiap item "Perlu dicek"; catatan biru tidak perlu dicentang, begitu juga semua item klip
+yang belum diubah, karena ekspornya file klip otomatis itu sendiri; lalu Antre → Merender →
 Memverifikasi → Selesai, **"Unduh MP4"** dan **"Unduh SRT"**, tersimpan sebagai
 `klip-02-revisi-5.mp4` dan seterusnya; bisa dibatalkan); dua tab pada klip yang sama digabung per
 bagian.
@@ -164,7 +167,8 @@ Syarat: Chrome atau Edge desktop, jendela minimal 1024 px.
 5. Buka `http://127.0.0.1:3000/projects`, klik **"Edit klip"** di proyek mana pun yang selesai,
    lalu **"Edit klip"** di kartu klipnya.
 
-Tanpa `POTONGIN_EDITOR_V3=on`, tombol "Edit klip" dan semua rute editor hilang (404). Dokumen edit
+Tanpa `POTONGIN_EDITOR_V3=on`, tombol "Edit klip", tautan "Ekspor terakhir" dan semua rute editor
+hilang (404); file ekspornya tetap ada dan tautannya kembali saat flag dinyalakan. Dokumen edit
 yang sudah tersimpan tetap ada di folder proyek (`analysis/clips/…`), logo dan musik di
 `analysis/assets/`, dan klip otomatis tidak berubah.
 

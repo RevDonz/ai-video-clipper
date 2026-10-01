@@ -30,7 +30,7 @@ musik dan hasil ekspor yang sudah tersimpan tidak hilang saat flag dimatikan.
 
 | Flag | Fungsi | Bawaan rilis (gerbangnya) | Kalau dimatikan |
 |---|---|---|---|
-| `POTONGIN_EDITOR_V3` | Tombol "Edit klip" dan semua rute editor | `on` | `off`: tombol "Edit klip" hilang dan rute editor menjawab 404; klip otomatis dan unduhannya tetap ada |
+| `POTONGIN_EDITOR_V3` | Tombol "Edit klip" dan semua rute editor | `on` | `off`: tombol "Edit klip" dan tautan "Ekspor terakhir" di kartu klip hilang, rute editor menjawab 404; klip otomatis dan unduhannya tetap ada. File ekspor tetap tersimpan di `output/edits/` dan tautannya muncul lagi saat flag dinyalakan |
 | `POTONGIN_EDITOR_UPLOADS` | Unggah logo dan musik | `on` (QG-SEC lengkap, tinjauan keamanan W4) | `off`: panel Logo dan Musik menulis "Unggah … belum tersedia di server ini"; logo dan musik yang sudah dipakai tetap ikut dirender |
 | `POTONGIN_EDITOR_LLM` | Saran hook yang ditulis AI gratis di Pengaturan | `on` (gerbang keras QG-AI lolos; penilaian 30 klip oleh pemilik menyusul) | `off`: hanya saran instan ("AI seleksi"/"Heuristik") |
 | `POTONGIN_RENDER_ENGINE` | `edit-v2`: klip otomatis dirender dengan kompiler yang sama dengan ekspor editor | `edit-v2` (PF-PIPELINE masuk anggaran per tata letak di PC acuan: latar blur 1,03×, potong tengah 1,28×, ikuti wajah 1,12× dibanding `legacy`) | `legacy`: proyek **baru** dirender dengan cara lama; klip yang sudah ada tidak berubah. Ekspor editor selalu memakai kompiler editor |
@@ -49,7 +49,10 @@ Untuk menyalakannya lagi, hapus baris itu (atau tulis `=on`) lalu `docker compos
 `POTONGIN_RENDER_ENGINE` dibaca `app`, `primary-worker` dan `render-worker`; ketiganya ikut dibuat
 ulang oleh perintah yang sama. Kalau seluruh rilis editor perlu dibatalkan, revert PR-nya di
 `main` (deploy otomatis memasang versi sebelumnya); data editor di folder job tetap ada dan dipakai
-lagi saat editor dinyalakan kembali.
+lagi saat editor dinyalakan kembali. Revert itu jangan ikut mengembalikan penjaga deploy
+(`deploy/production.sh` menghitung ekspor `cancelled` sebagai selesai, §7): tanpa baris itu, satu
+ekspor yang pernah dibatalkan menahan deploy rollback-nya. Paling aman, commit penjaga itu masuk
+`main` lebih dulu lewat PR kecil sendiri.
 
 **Kuota CPU render otomatis.** Mesin `edit-v2` memakai ± 2,2–2,5× waktu CPU `legacy` untuk potong
 tengah dan ikuti wajah (byte hasilnya sama dengan sebelum percepatan; tidak ada lagi percepatan
@@ -153,3 +156,4 @@ Kewajiban yang perlu dijaga:
 | PR gagal di Toolchain evidence guard | Kunci toolchain atau JASSUB berubah tanpa bukti baru: ikuti §3. |
 | Parity gagal di "Install Chrome for Testing" | Unduhan Chrome for Testing 147.0.7727.15 gagal; jalankan ulang job. Versi browser ini bagian dari kunci paritas, jadi jangan diganti tanpa mengukur ulang P-TIME dan P-TXT. |
 | Saran hook hanya "AI seleksi"/"Heuristik" | `POTONGIN_EDITOR_LLM` mati, atau penyedia AI gratis di Pengaturan sedang tidak bisa dipakai. |
+| Deploy berhenti: "Deployment blocked: durable work is active or unreadable" | Sebelum dan sesudah memasang image baru, `deploy/production.sh` memeriksa folder job dan mencetak `DURABLE_ACTIVE_JOBS=…`. Yang dihitung selesai: job `completed`, `failed`, `deleting`, dan ekspor `completed`, `failed`, `cancelled`. Ada job atau ekspor yang masih jalan: tunggu sampai selesai, lalu jalankan ulang deploy. Ada `errors`: ada file yang tidak terbaca, path-nya tercetak. File antrean ekspor yang rusak (`analysis/render-requests/<id>.json`) boleh dipindah keluar dari folder job (simpan salinannya); `job.json` yang rusak diperbaiki dulu. Lalu deploy ulang. |
