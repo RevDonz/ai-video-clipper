@@ -1,0 +1,129 @@
+{
+  "cases": [
+    {
+      "cells": [
+        161,
+        164,
+        167,
+        170
+      ],
+      "clip": "clip_297139c62f9cce416a1bd5a8",
+      "job": "3c7d024c",
+      "lane_threads": 2,
+      "layout": "fit_blur",
+      "rows": [
+        {
+          "built": true,
+          "rlimit_as_gib": 3.0,
+          "seconds": 2.76
+        },
+        {
+          "built": true,
+          "rlimit_as_gib": 2.75,
+          "seconds": 2.69
+        },
+        {
+          "built": true,
+          "rlimit_as_gib": 2.5,
+          "seconds": 2.67
+        },
+        {
+          "built": true,
+          "rlimit_as_gib": 2.25,
+          "seconds": 2.72
+        },
+        {
+          "built": false,
+          "rlimit_as_gib": 2.0,
+          "seconds": 0.86
+        }
+      ],
+      "runs": 4
+    },
+    {
+      "cells": [
+        177,
+        180,
+        183,
+        186
+      ],
+      "clip": "clip_04b7e3e109c93f94bc0892d4",
+      "job": "860fef1a",
+      "lane_threads": 2,
+      "layout": "camera",
+      "rows": [
+        {
+          "built": true,
+          "rlimit_as_gib": 3.0,
+          "seconds": 1.53
+        },
+        {
+          "built": true,
+          "rlimit_as_gib": 2.75,
+          "seconds": 1.46
+        },
+        {
+          "built": true,
+          "rlimit_as_gib": 2.5,
+          "seconds": 1.42
+        },
+        {
+          "built": true,
+          "rlimit_as_gib": 2.25,
+          "seconds": 1.44
+        },
+        {
+          "built": true,
+          "rlimit_as_gib": 2.0,
+          "seconds": 1.45
+        }
+      ],
+      "runs": 4
+    },
+    {
+      "cells": [
+        120,
+        123,
+        126,
+        129
+      ],
+      "clip": "clip_978d269bd1741457abab3727",
+      "job": "990f3f37",
+      "lane_threads": 2,
+      "layout": "fill_center",
+      "rows": [
+        {
+          "built": true,
+          "rlimit_as_gib": 3.0,
+          "seconds": 1.67
+        },
+        {
+          "built": true,
+          "rlimit_as_gib": 2.75,
+          "seconds": 1.64
+        },
+        {
+          "built": true,
+          "rlimit_as_gib": 2.5,
+          "seconds": 1.57
+        },
+        {
+          "built": true,
+          "rlimit_as_gib": 2.25,
+          "seconds": 1.58
+        },
+        {
+          "built": true,
+          "rlimit_as_gib": 2.0,
+          "seconds": 1.6
+        }
+      ],
+      "runs": 4
+    }
+  ],
+  "gate": "RLIMIT_AS for a 4-run plate-cell job (T2.4 request to T4.3)",
+  "pass": true,
+  "task": "T4.3",
+  "toolchain": "ai-video-clipper:editor-w3-t31-r2 (production image: FFmpeg 5.1.9, libass 0.17.1, Python 3.11.2, node 20) with this branch's src mounted over /app/src",
+  "what": "plates.build_cells at the lane's thread count with 4 non-contiguous cells (4 decoder runs, the lane's batch maximum) on real 720x1280 clips, execute.RLIMIT_AS_BYTES lowered step by step; the production limit is 3 GiB"
+}
