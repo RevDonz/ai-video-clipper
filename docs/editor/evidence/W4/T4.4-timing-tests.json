@@ -1,0 +1,33 @@
+{
+  "task": "T4.4",
+  "gate": "timing-flaky tests made deterministic",
+  "machine": "owner's PC (K15 reference, Ryzen 7 5700G, 16 threads), 2026-10-02, other agents running",
+  "tests": [
+    {
+      "file": "web/tests/primary-job-queue.test.mjs",
+      "name": "a live lock heartbeat prevents overlap beyond the stale interval",
+      "before": "wall clock: 150 ms stale interval, 50 ms heartbeat, 450 ms real sleep; failed on busy CI runners",
+      "after": "manual clock (web/tests/support/manual-clock.mjs) passed as withPrimaryQueueLock's clock option; the clock moves only while the holder's heartbeat and the waiter both sleep",
+      "asserts": [
+        "the waiter does not enter during three stale intervals (450 ms of lock time)",
+        "the holder's heartbeatAt equals the lock clock at 450 ms",
+        "the waiter enters after release without overlap"
+      ],
+      "control": "new test: a holder that never renews is taken over at exactly 152 ms on the same clock (checks every 2 ms)",
+      "under_load": {"runs": 15, "failing": 0, "load": "12 busy-loop processes"}
+    },
+    {
+      "file": "tests/test_render_worker.py",
+      "name": "test_worker_heartbeats_during_long_render_and_prevents_reclaim",
+      "before": "fake queue clock, but the worker's heartbeat timer and the wait for the beat ran on wall time",
+      "after": "one fake clock drives render_queue.datetime and render_worker.time.monotonic; the test waits for the worker's own beat (an event), not a wall-clock deadline",
+      "asserts": [
+        "no heartbeat while the clock stands still",
+        "the first beat after the clock moves 10 lease lengths carries the new time",
+        "claim_next finds the lease live; the render completes and publishes"
+      ],
+      "control": "with the loop's heartbeat call removed the test fails ('the worker heartbeats while it renders')",
+      "under_load": {"runs": 12, "failing": 0, "load": "12 busy-loop processes"}
+    }
+  ]
+}
