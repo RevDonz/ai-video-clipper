@@ -141,6 +141,16 @@ export function createJanitorTick({
   };
 }
 
+// The health snapshot: a janitor run keeps slot 0 from polling for up to its budget, so it
+// counts as active work (check-primary-worker-health.mjs wants fresh polling only when idle).
+export function primaryHealthSnapshot({ pid, workerId, heartbeatAt, lastPollAt, activeClaims, janitorRunning }) {
+  return {
+    version: 1, pid, workerId, heartbeatAt, lastPollAt,
+    activeClaims: activeClaims + (janitorRunning ? 1 : 0),
+    janitor: Boolean(janitorRunning),
+  };
+}
+
 export async function main(env = process.env) {
   const config = parsePrimaryQueueConfig(env);
   const jobsRoot = path.resolve(env.JOBS_ROOT || "/data/jobs");
@@ -153,8 +163,13 @@ export async function main(env = process.env) {
   let activeClaims = 0;
   let lastPollAt = new Date().toISOString();
   let healthWriteQueue = Promise.resolve();
+  const activity = createWorkerActivity();
+  const janitor = createJanitorTick({ env: { ...env, JOBS_ROOT: jobsRoot } });
   const writeHealth = () => {
-    const snapshot = { version: 1, pid: process.pid, workerId, heartbeatAt: new Date().toISOString(), lastPollAt, activeClaims };
+    const snapshot = primaryHealthSnapshot({
+      pid: process.pid, workerId, heartbeatAt: new Date().toISOString(), lastPollAt, activeClaims,
+      janitorRunning: janitor.running,
+    });
     const publish = async () => {
       const pending = `${healthPath}.${process.pid}.${crypto.randomUUID()}.tmp`;
       const fd = await open(pending, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
@@ -173,9 +188,6 @@ export async function main(env = process.env) {
   let stopping = false;
   process.once("SIGTERM", () => { stopping = true; });
   process.once("SIGINT", () => { stopping = true; });
-
-  const activity = createWorkerActivity();
-  const janitor = createJanitorTick({ env: { ...env, JOBS_ROOT: jobsRoot } });
 
   async function slot(index) {
     while (!stopping) {
@@ -206,7 +218,10 @@ export async function main(env = process.env) {
           await purgeDeletedJobs(jobsRoot).catch((error) => {
             process.stderr.write(`${safeWorkerError(error, "Job purge failed")}\n`);
           });
-          if (!stopping) await janitor.maybeRun(activity.idle);
+          if (!stopping && await janitor.maybeRun(activity.idle)) {
+            lastPollAt = new Date().toISOString(); // the loop was busy, not stuck
+            await writeHealth();
+          }
         }
         await sleep(pollMs);
         continue;
