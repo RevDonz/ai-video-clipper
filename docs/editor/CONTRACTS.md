@@ -13,7 +13,7 @@ of Part 5 your module touches; the tests `tests/test_edit_v2_contracts.py` pin t
 Contents: Part 1 (Appendix A) · Part 2 (§3) · Part 3 (§4.1–§4.2) · Part 4 (§4.3) ·
 Part 5 (T1.0 resolutions; §5.15–§5.16 W1; §5.17–§5.18 W2; §5.19–§5.20 W3; W4: §5.21 performance
 and retention, §5.22 the release contracts (CI suites, the toolchain guard, the licences page, the
-lock clock), §5.23 security hardening, §5.24 the caption note).
+lock clock), §5.23 security hardening, §5.24 the caption note, §5.25 the W4 verifier fixes).
 
 Final for Essentials: this file plus the W4 additions of the other W4 tasks is the contract the
 released editor keeps. Operating it: `docs/editor/OPERASIONAL.md`.
@@ -1671,3 +1671,22 @@ R10), which sits inside the TikTok button zone. The warning about it is now info
   export dialog.
 - A caption the user moved into the zone, the hook and the logo stay warnings that need a tick.
   The server's `unsafe_zone` warning and the plan are unchanged.
+
+## 5.25 W4 verifier fixes (2026-10-02)
+
+- **Deploy guard.** `deploy/production.sh` (`active_jobs`) treats render-request-v3 `cancelled`
+  as finished, like `completed` and `failed`; jobs `completed`, `failed` and `deleting` stay
+  quiet. Anything else, and any file it cannot read, still blocks the deploy.
+  `tests/test_deploy_guard.py` runs the script's embedded Python unchanged on a temporary jobs
+  root and ties the allow-list to `render_queue.V3_TERMINAL`.
+- **Render worker.** `run_one` skips a job without `analysis/render-requests/` instead of calling
+  `claim_next`, which created the directory and its `.queue.lock` in every job it walked past.
+- **Export checks.** `export-flow.exportChecks(checks, {unchanged})` →
+  `{blocking, warnings, notes}`, and `canStartExport(checks, acknowledged, {unchanged})`. With
+  `unchanged` (`exportMatchesSeed`: the export is the auto file, R10) every warning is a note:
+  shown, never ticked. Errors still block. "Perlu dicek (n)" and the checks panel do not change.
+- **Project entries.** `clip-entry-view.clipEntryFor(listing, job, index)`: the listing's entry,
+  else (listing `available` without that clip) a closed entry with the `not_v3` text for a job
+  without Selection V3 and the generic text otherwise; null while the listing is off, loading or
+  failed. `clip-entry-view.historyOffersEdit(job, editor)`: the history's "Edit klip" needs the
+  editor on, a completed job with clips and `options.selectionMode === "v3"`.
