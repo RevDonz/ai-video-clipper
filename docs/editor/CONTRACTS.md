@@ -11,8 +11,9 @@ Phase-B tasks: read §5.1 (where each name lives), §5.2 (additional signatures)
 of Part 5 your module touches; the tests `tests/test_edit_v2_contracts.py` pin the signatures.
 
 Contents: Part 1 (Appendix A) · Part 2 (§3) · Part 3 (§4.1–§4.2) · Part 4 (§4.3) ·
-Part 5 (T1.0 resolutions; §5.15–§5.16 W1; §5.17–§5.18 W2; §5.19–§5.20 W3; §5.21 the release
-contracts of W4: CI suites, the toolchain guard, the licences page, the lock clock).
+Part 5 (T1.0 resolutions; §5.15–§5.16 W1; §5.17–§5.18 W2; §5.19–§5.20 W3; W4: §5.21 performance
+and retention, §5.22 the release contracts (CI suites, the toolchain guard, the licences page, the
+lock clock), §5.23 security hardening, §5.24 the caption note).
 
 Final for Essentials: this file plus the W4 additions of the other W4 tasks is the contract the
 released editor keeps. Operating it: `docs/editor/OPERASIONAL.md`.
@@ -1620,3 +1621,52 @@ goldens, the render keys and the delivered bytes stay as they were.
   drives `render_queue.datetime` and the v3 monitor's `clock` (a `_V3Monitor` subclass) from one
   fake clock, moves it only after the monitor's first clock read, and waits for the worker's own
   beat. (T4.4 wrote it for the legacy worker test; T4.1 removed that path, so T4.Z ported it.)
+
+## 5.23 Security hardening (W4, T4.2, 2026-10-02)
+
+Additive; route behaviour is unchanged apart from the refusals below. Evidence:
+`docs/editor/evidence/W4/T4.2-QG-SEC*.json`.
+
+- **One guard per route method.** `web/lib/security-headers.mjs` `secureRoute(handler, {params,
+  limit})` wraps every method under `/api/jobs/:id/clips/**` and `/api/jobs/:id/assets/**`. Order:
+  `requireAuth`; `sameOriginMutation` for any method other than GET/HEAD; each named id against
+  `ROUTE_PARAMS` (`id`, `taskId`, `renderId`, `idempotencyKey`: lower-case UUID v1–8; `clipId`:
+  `clip_[0-9a-f]{24}`; `sha`: 64 lower-case hex); then the route's rate-limit bucket. Refusals are
+  `{error, code, messageId}`: 401; 403 `csrf_rejected`; 400 `invalid_request`; 429
+  `rate_limited` with `Retry-After`. A handler exception becomes 503 `backend_unavailable` instead
+  of the framework's 500.
+- **Headers on every answer.** `X-Content-Type-Options: nosniff` and
+  `Cross-Origin-Resource-Policy: same-origin`, plus `Cache-Control: no-store` unless the handler
+  set its own. `EDITOR_PAGE_HEADERS` (COOP same-origin, COEP require-corp, nosniff,
+  `frame-ancestors 'none'`, `X-Frame-Options: DENY`) is what `next.config.mjs` sends on the editor
+  page; a test keeps the two equal.
+- **Error redaction.** In an error JSON body, any string that names `JOBS_ROOT` (as set or
+  resolved), `POTONGIN_SETTINGS_DIR`, `POTONGIN_RESOURCES_DIR`, the app directory, `/proc/self/` or
+  a Python traceback becomes `null`; the status and the code stay.
+- **Rate limits** (`web/lib/rate-limit.mjs` `EDITOR_RATE_LIMITS`): new per-session bucket `api`
+  (burst 60, then 20/s) for GET/POST `/clips`, GET/PUT `/edit`, `/words`, `/prepare`, GET/POST
+  `/renders`, POST `/ai`, GET `/ai/:taskId`, `/cleanup` and `/coldopen-suggestions`. `plan` (10,
+  10/s), `frame` (4, 4/s), `upload` (30, 30/min) and `ai` (30 per job per hour) keep their own
+  buckets; media and asset GETs have no limit. Scripts that drive the API (a soak, a benchmark)
+  stay under 20 requests/s per session, honour `Retry-After`, or log in once per worker.
+- **AI quota answer.** The 202 with `llm.state` `rate_limited` also sends `Retry-After`.
+- **Media ids.** The media route accepts lower-case job ids only (an upper-case id no longer
+  reaches Python).
+- `web/lib/python-cli.mjs` is unchanged: the child-environment audit (312 children) found no name
+  outside `CHILD_ENV_ALLOWLIST` and no planted secret outside the AI task children.
+
+## 5.24 The caption's default spot is a note (W4, T4.5, K5, 2026-10-02)
+
+The seed keeps the auto clip's caption position (K5: an unchanged clip exports the auto file,
+R10), which sits inside the TikTok button zone. The warning about it is now informative:
+
+- `shell-model.checksView({warnings, plan, doc, seed})` returns `severity: "info"` (message
+  `CAPTION_SPOT_NOTE`: "Caption di posisi bawaan, dekat tombol TikTok. Kalau tertutup, geser ke atas
+  di tab Teks.") for an `unsafe_zone` warning on a `/captions/…` pointer when
+  `captionAtSeedSpot(doc, seed)` (`doc.captions.overrides.y_e5` equals the seed's). Notes sort last.
+- `actionableChecks(checks)` drops notes: "Perlu dicek (n)" counts only errors and warnings, and
+  notes appear under "Catatan" with a jump button.
+- `export-flow.canStartExport(checks, acknowledged)` ignores `info`: a note needs no tick in the
+  export dialog.
+- A caption the user moved into the zone, the hook and the logo stay warnings that need a tick.
+  The server's `unsafe_zone` warning and the plan are unchanged.
