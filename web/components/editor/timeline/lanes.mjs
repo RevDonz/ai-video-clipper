@@ -4,7 +4,9 @@
 // music, Appendix C.3) at the end of W2; W3 tasks replace their placeholder files.
 //
 // Every lane component receives the same props: `{ plan, state, dispatch, player, pxPerFrame }`
-// (`plan` is the plan DTO of §4.3; every position is an output frame).
+// (`plan` is the plan DTO of §4.3; every position is an output frame), plus `notify` (a toast),
+// `readOnly` and `onNote(text | null)`, which shows a note about the lane in the timeline's
+// header, where nothing in the lane covers it.
 // `load` is a lazy import, so this file stays importable outside the bundler (node tests).
 const entry = (fields) => Object.freeze(fields);
 

@@ -484,9 +484,35 @@
   padding: 0 8px;
 }
 
+/* A lane's note (e.g. the markers a job lacks), at the header's end: one line, the lane named. */
+.timelineNote {
+  display: inline-flex;
+  flex: 0 1 auto;
+  gap: 6px;
+  min-width: 0;
+  margin-left: auto;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.timelineNote > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.timelineNoteLane {
+  color: var(--text);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* The labels and the lanes' scroller take their content's height (flex-start), so the body
+   scrolls both together and the scroller never clips the last lane or scrolls on its own. */
 .timelineBody {
   display: flex;
   flex: 1 1 auto;
+  align-items: flex-start;
   min-height: 0;
   overflow-y: auto;
 }
