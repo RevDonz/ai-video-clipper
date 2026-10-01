@@ -55,7 +55,7 @@ Pengaturan; API masih menerima `llmMode=off`).
 Rencana lengkap: `docs/plans/2026-09-24-editor-v3-esensial.md`. Kontrak, hasil gerbang, panduan
 dan operasional: `docs/editor/{CONTRACTS,GATES,PANDUAN-EDITOR,OPERASIONAL,UJI-PENERIMAAN}.md`.
 
-- **`editor-w4-integration`: W1 + W2 + W3 + W4, di atas `main` `b1ab3e0`**, PR ke `main` dengan
+- **`editor-w4-integration`: W1 + W2 + W3 + W4, di atas `main` `b1ab3e0`**, PR #18 ke `main` dengan
   judul "feat: clip editor (Esensial)" (belum di-merge). W4 = T4.1 (backend editor lama dihapus) →
   T4.2 (keamanan, QG-SEC lengkap) → T4.3 (render otomatis klip paralel, janitor, retensi) → T4.4
   (gerbang CI: smoke paritas di setiap PR, penjaga toolchain, nightly; halaman `/licenses`;

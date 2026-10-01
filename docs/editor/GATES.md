@@ -1256,3 +1256,272 @@ export. Tests: `tests/test_edit_v2_janitor.py` (26), `web/tests/primary-worker-j
     (6–12); a quieter PC measures lower, a busier one higher.
 32. Not built: the persistent preview worker was already in place (W2); the two heavy semaphores
     (W2 Open 23) stay separate; the 10-frame plate GOP (W2 Open 13) stays out (PF-SEEK passes).
+
+---
+
+## W4 "Siap rilis": exit gate (T4.Z, 2026-10-02)
+
+Branch `editor-w4-integration`. T4.1 → T4.2 → T4.3 → T4.4 → T4.5 cherry-picked in that order onto
+the W4 base `105b567` (50 commits, linear, `rerere` on), then the integration commits (patches
+60–66 below). `origin/main` (`b1ab3e0`) was already an ancestor of the base, so the rebase onto
+`main` changed nothing. Three conflicts, all at seams the tasks named: `GATES.md` (T4.1 and T4.3
+both appended a section; both kept), `tests/test_render_worker.py` (T4.4 changed a legacy test
+that T4.1 removed; patch 61) and `CONTRACTS.md` (T4.3 and T4.4 both wrote a §5.21; patch 62).
+
+Owner decisions that changed W4 (binding): (1) the old candidate editor is retired, so T4.1
+removed its backend instead of fixing its 8 bugs, and the plan's "8/8 legacy regression tests"
+and legacy e2e gates are **retired** with it (T4.1's proofs replace them: old jobs open, play and
+download in a browser 10/10 and through the routes 4/4, the benchmark baselines run; acceptance
+capability 11 shows the eight bugs cannot happen in the new editor); (2) the auto render becomes
+`edit-v2` once PF-PIPELINE is within budget per layout on this PC, with the look change and the
+larger R7 files accepted (this is K1); (3) release with each flag on where its gate passes, the
+filler pre-check off; (4) the editor entry of W3 stays; (5) the K5 caption spot stays and its
+warning becomes a note.
+
+Where it was measured: the suites and the FFmpeg gates on GitHub Actions (4 vCPU runners; times
+there are indicative); the performance budgets on the K15 PC (T4.3, overnight, one run at a
+time); the browser acceptance on the owner's PC against a production build with copies of real
+jobs (T4.5 on its branch, T4.Z on the integrated branch, below).
+
+### Release defaults and the gate behind each
+
+| Flag (`compose.yaml`) | Default | Gate | Evidence | Result |
+|---|---|---|---|---|
+| `POTONGIN_EDITOR_V3` | `on` | the W1–W4 exit gates (table below) | this file | **on** |
+| `POTONGIN_EDITOR_UPLOADS` | `on` | QG-SEC complete (T4.2), re-run on the integrated head | `T4.2-QG-SEC*.json`, run 36920184986 | **on** |
+| `POTONGIN_EDITOR_LLM` | `on` | QG-AI hard gates: offline 0 ungrounded and 0 malformed accepted (100 scripted answers, `tests/test_editor_ai.py` in the image); online instant p95 209 ms (≤ 300), LLM p95 10.1 s (≤ 15), 0 over 20 s; the T4.Z real-stack run: the free chain answered with 5 cards | W3 rows above, `T4.Z-real-stack-e2e.json` | **on**; the owner's 30-clip review follows at checkpoint 3 |
+| `POTONGIN_RENDER_ENGINE` | `edit-v2` (app, primary worker, render worker) | PF-PIPELINE per layout on the K15 PC: fit-blur 1.03×/1.02×/0.59×, center-crop 1.28×, face-track 1.12×; delivered files byte-identical (200/200); K1 approved by decision (2) | `T4.3-PF-PIPELINE.json` | **on** (the production CPU quota is an owner item: Open 30) |
+| Filler pre-check (`resources/lexicon/id-fillers.v1.json` `precheck`) | `false` | the owner confirms the labels (QG-CLEAN precision ≥ 0.9 on them) | `web/tests/editor-w3-wiring.test.mjs` | **off** |
+
+`.env.example` lists each default and the value that switches it off;
+`docs/editor/OPERASIONAL.md` §2 gives the commands (`.env` line, `docker compose up -d`, no
+rebuild) and the rollback (revert the PR).
+
+### Final evidence table (plan §10, newest measurement per gate)
+
+| Gate | Threshold | Newest measurement | Where | Result |
+|---|---|---|---|---|
+| **P-FRAME** | 0 mismatches, ≥ 2,000 frames (300 on PR) | W3 per layout 7,572 frames, 0; PR smoke 940 frames, 0 (T4.4, run 36901027617; PR #18 run 36921940571 pass) | `W3Z-P-FRAME.json`, CI | **pass** |
+| **P-TIME** | 0 mismatches | 0 / 570 events (FFmpeg) and 0 / 231 transitions (JASSUB), stamped toolchain evidence | `toolchain/P-TIME-*.json` (run 36899253661) | **pass** |
+| **P-TXT** | SSIM ≥ 0.999, PSNR ≥ 45, max ≤ 16, 0 px > 16 | 120 frames gbrp: SSIM 0.999948, max 14 | `toolchain/P-TXT.json` | **pass** |
+| **P-ENC** | whole ≥ 0.990, text ≥ 0.980, ≤ 0.002 below the W1 baseline | min whole 0.99017, text 0.98682 | `toolchain/P-ENC.json` | **pass** |
+| **P-COLOR** | \|Δ\| ≤ 4 | worst mean 1.654 | `toolchain/P-COLOR.json` | **pass** |
+| **P-PLATE** | crop x 0 px; SSIM margin ≥ 0 | 5 cases incl. switched seeds, margins 0.00198–0.00200 | `W3Z-P-PLATE.json` | **pass** |
+| **P-LOGO** | box 0 px, mean ≤ 2, max ≤ 8 | 17/18 frames; 1 frame max 9 from captions under the logo's transparent pixels | `T3.2-P-LOGO.json` | **fail, owner decision** (Open 23) |
+| **P-AUD** | md5 equal; samples = plan; browser ≤ 1 LSB | md5 equal 6/6; `02-vfr-bed` 16 samples short on preview and reference alike; browser 0.707 LSB (W2) | `W3Z-P-AUD.json`, nightly run 36920054208 | **fail** (Open 12, the only red nightly gate) |
+| **P-SYNC** | ≤ 1 frame p99 | p99 0.34–0.36 frames | `T2.Z-P-SYNC.json` | **pass** |
+| **P-RT / R10** | identical frames and PCM; 100 % hard links | toolchain suite P-RT 6/6, R10 27/27; T4.3 200/200 byte-identical; acceptance: the unchanged clip exports the auto file (same inode) | `toolchain/P-RT.json`, `T4.3-PF-PIPELINE.json` | **pass** |
+| **P-LOOK** (K1) | thresholds + owner approval | kit thresholds fail by design (W2); the owner accepted the look change and the R7 files (decision 2) | `T2.1-P-LOOK.json` | **approved by the owner** |
+| **G1–G3, G3b, G5** | §5.9 | every export through the worker; T4.Z acceptance: G1/G2 pass on every export, G3b with music pass, G5 warns as designed | `T4.Z-real-stack-e2e.json` | **pass** |
+| **G-SYNC** | A/V end ≤ 1 frame | A/V end 9.9 ms after 20 Rapikan items | `W3Z-QG-CLEAN-synthetic.json` | **pass** |
+| **G-CLICK** | < −40 dBFS | worst −59.94 dBFS over 52 joins with music | `W3Z-G-CLICK.json` | **pass** |
+| **G-DET** | identical digests; preview ASS = export ASS | 8 cases × 3 processes, 0 differences; PR smoke pass | `W3Z-G-DET.json`, CI | **pass** |
+| **G-FAIL** | fixed code + Indonesian message on every failure path | unit tests in the suites (`errors.py` codes and their drift-tested JS mirror) | suites | **pass** |
+| **Duck** | ±0.5 dB; recovery ±1 dB | worst 0.361 dB | `W3Z-duck.json` | **pass** |
+| **QG-PERSIST** | 5,000 saves; receipts ≤ 200 | HTTP 5,000/5,000 (W2); retention soak 1,000 saves + 50 exports inside every cap (T4.3) | `T2.2-QG-PERSIST-http.json`, `T4.3-retention-soak.json` | **pass** |
+| **QG-UNDO** | 10,000 sequences | 0 mismatches; 23,258 documents accepted by Python | `T2.5-QG-UNDO.json` | **pass** |
+| **QG-CONFLICT** | both edits survive or the dialog asks | two-tab e2e pass (W2, W3, T4.Z flow run) | `T4.Z-real-stack-e2e.json` | **pass** |
+| **QG-SEC** | complete (§9) | fuzz 66 cases, 0 5xx; 491 route checks, 0 failed; 716 answers without a leak; 312 children, 0 names outside the allowlist; editor headers 3/3 in a browser. Re-run on the integrated head `0867dd7` (`scripts/editor/w4_qg_sec.sh`, run 36920184986): fuzz 66/66 at both levels with 0 5xx, 491 route checks with 0 failed, 312 children with 0 names outside the allowlist, 0 dashboard values and the LLM key only in the AI task children | `T4.2-QG-SEC*.json` | **pass** |
+| **QG-AI** | hard gates; owner review ≥ 21/30 | hard gates pass (row above) | W3 rows | **pass**; owner review **pending** (checkpoint 3) |
+| **QG-CLEAN** | 0 particle/reduplication FP; filler precision ≥ 0.9 | 0, 0, 0.933 on agent labels | `W3Z-QG-CLEAN-labels.json` | **pass**; pre-check **off** until the owner confirms |
+| **QG-A11Y** | 0 critical/serious; every control by keyboard | 26 states, 0 findings of any impact; keyboard walk of 9 regions per viewport (T4.5; T4.Z re-run 26 states, 0) | `T4.5-QG-A11Y.json`, `T4.Z-real-stack-e2e.json` | **pass** |
+| **QG-UX** | U1–U7 limits | scripted on the integrated branch: U1 2.4 s, U2 2.5 s, U3 2.5 s, U4 2.8 s, U5 3.8 s, U6 26.9 s for an 89.3 s clip (≤ 119.3 s), U7 0 commands lost and the reset found in 1.9 s; owner session at checkpoint 3 | `T4.Z-real-stack-e2e.json`, `UJI-PENERIMAAN.md` | scripted **pass**; owner **pending** |
+| **PF-OPEN** | 3.0 s / 2.0 s / 2.0 s | 2,437 / 1,039 / 932 / 850 ms | `T4.3-PF-OPEN.json` | **pass** |
+| **PF-CELLS** | ≤ 15 s / ≤ 25 s | 11.49 s, 7.81 s, 13.29 s | `T4.3-PF-CELLS.json` | **pass** |
+| **PF-SEEK** | ≤ 50 ms p95 | 38.6 ms (W2; the player did not change) | `T2.Z-PF-SEEK.json` | **pass** |
+| **PF-PLAY** | 0 drops at cuts | 0 | `T2.Z-PF-PLAY.json` | **pass** |
+| **PF-PLAN** | ≤ 200 ms p95 (server) | 40.1 ms | `T4.3-PF-PLAN.json` | **pass** |
+| **PF-AUDIO** | ≤ 1,000 ms p95 | 906.2 ms (K15 PC); a busy 4 vCPU runner measured up to 1.2 s | `T4.3-PF-AUDIO.json` | **pass** (thin, Open 29) |
+| **PF-TRUTH** | ≤ 600 ms p95 | 387.6 ms | `T4.3-PF-TRUTH.json` | **pass** |
+| **PF-SAVE** | ≤ 300 ms p95 | 137.9 ms (W2) | `T2.Z-PF-SAVE.json` | **pass** |
+| **PF-LIBASS** | ≤ 12 ms p95 | 6.3 ms (W2) | `T2.Z-PF-LIBASS.json` | **pass** |
+| **PF-RENDER** | report | p50 0.171×, p95 0.299× (W2) | `T2.Z-PF-RENDER.json` | **within budget** |
+| **PF-PIPELINE** | 1.35× / 1.6× per layout | 1.03× / 1.02× / 0.59×, 1.28×, 1.12× on the K15 PC; under `--cpus 6` center-crop 1.99×, face-track 1.82× | `T4.3-PF-PIPELINE.json` | **pass** on the reference PC; quota: owner (Open 30) |
+| **PF-MEM** | ≤ 1.2 GB | 1.070 GB (W2) | `T2.Z-PF-MEM.json` | **pass** |
+| 8/8 legacy regression tests, legacy e2e | — | retired with the old editor (decision 1); replaced by T4.1's proofs | `T4.1-old-jobs-browser.json` | **retired** |
+
+### W4 phase-B results not summarised elsewhere
+
+- **T4.2 security** (branch `editor-w4-t4.2`, CONTRACTS §5.23): one guard (`secureRoute`) on every
+  method under `/api/jobs/:id/clips/**` and `/assets/**`; six findings fixed (401 without
+  nosniff, no CORP anywhere, an upper-case job id reaching Python on the media and preview
+  routes, `path`/`ref` fields of CLI errors passed through, nine Python-starting routes without a
+  rate limit, the AI quota 202 without `Retry-After`, a handler exception reaching the framework's
+  500). Gate run 36899557124 and suite run 36899551730 on `f50f898`: green. The first gate run
+  (36898041360) failed 3 of 491 checks, all `%2e%2e` answered by the router with a same-origin
+  308, now accepted.
+- **T4.4 CI and docs** (branch `editor-w4-t4.4`, CONTRACTS §5.22): the PR suite (test,
+  toolchain guard, parity smoke: P-TIME, P-TXT subset, 940-frame P-FRAME, G-DET, P-AUD, R10, then
+  the JASSUB side in Chrome for Testing 147.0.7727.15 against the image's app) green in 6.8 min
+  (run 36901027617); the stamped toolchain evidence (run 36899253661); the nightly passes all 17
+  required gates and fails only on the app section's P-AUD (run 36899263216, Open 12); the
+  `/licenses` page; the two timing-flaky tests on fake clocks (15/15 and 12/12 under 12 busy
+  loops; controls fail).
+- **T4.5 acceptance** (branch `editor-w4-t4.5`, CONTRACTS §5.24): 13/13 capabilities on a fresh
+  copy of `e7f0d37b` (9.2 min), QG-A11Y 26 states with 0 findings, the W2/W3 `heading-order`
+  finding gone, the K5 note; `docs/editor/UJI-PENERIMAAN.md` is the owner's U1–U7 protocol. Runs
+  36905745425, 36905012080, 36901341857 (full, green).
+
+### Real-stack e2e on the integrated branch (T4.Z, owner's PC, 2026-10-02 03:00–03:45 WIB)
+
+The owner was away, so the heavy local run was allowed. A production build of `fc09edf`
+(`next build`, then `next start` on 127.0.0.1:3291), the render worker from the same tree
+(`python -m ai_clipper.render_worker --watch`; the PC's FFmpeg 6.1.1, so the image's gates stay
+the CI rows), every flag at its new default (`POTONGIN_EDITOR_V3`, `_UPLOADS`, `_LLM` on,
+`POTONGIN_RENDER_ENGINE=edit-v2`), a copy of the saved Pengaturan chain (free models only), and
+copies of the owner's jobs: a fresh `e7f0d37b` per run (never opened in the editor) and
+`899226f8` without its source video as the closed case; the originals were only read and the
+copies deleted afterwards. Chrome for Testing 147.0.7727.15, axe 4.13.0, one browser.
+
+- `web/e2e/editor-acceptance.spec.mjs`: **14/14 in 5.6 min** (13 capabilities + QG-A11Y). Open:
+  3 clips, 9.7–17.3 s each including the first prepare, the closed card names "Video sumber sudah
+  tidak ada". Hook: instant suggestions at once, the free chain answered with 5 cards. Layout:
+  exact after 6.9 s (center-crop), 16.3 s (face-track, analysis included), 1.9 s (back). Music:
+  upload 1.5 s, export 17.0 s, G3b pass, 48 kHz. Export: a 48.8 s clip rendered in 16.0 s, Antre →
+  Merender → Memverifikasi, the key reused, cancel works, the unchanged clip exports the auto
+  file. Eight old bugs: box `&H40000000` with `BorderStyle 3`, escapes, keyword `&H8A5CFF&`,
+  54 cues for 133 words, logo derived 115×46, 48 kHz with normalize, the render key changes with
+  the compiler, 215 saves keep 200 receipts. Undo depth 200, saved 1.9 s after the last key.
+  QG-A11Y 26 states, 0 critical, 0 serious, 0 other.
+- `web/e2e/editor-flow.spec.mjs`: **20/20 in 3.4 min**, which also closes W3 Open 28 (the
+  flow had not run on the real stack since the W3 verifier fixes). Entry: 3 cards with "Edit
+  klip", the unprepared clip opened with the progress in 5.5 s. The editor page is cross-origin
+  isolated, nosniff, never framed. W2 flow: the edited 48.8 s clip exported in 19.9 s, G1/G2 pass
+  on the download, back to the AI version exports the auto file (same inode). QG-CONFLICT pass.
+  Scripted U1–U7 as in the table. Logo upload 0.3 s, music upload 1.1 s, the export with both
+  passes G1, G2 and G3b (28.8 s). Instant hook suggestions used. Rapikan: 8 listed, 8 applied in
+  one step, one Urungkan restores. Layout exact after 10.9 s (center-crop) and 1.9 s (back).
+  11 markers, a click seeks, a cold-open suggestion used. PF-OPEN (clips already prepared by the
+  entry test) first p95 457 ms, repeat p95 403 ms, first cell 873 ms. QG-A11Y 16 states, 0.
+- After patch 66 (the export status route behind the guard), the flow ran again on a rebuild of
+  `58e1c02` with a fresh job copy: **20/20 in 3.5 min**; U1 2.4 s, U2 2.5 s, U3 2.5 s, U4 2.8 s,
+  U5 3.8 s, U6 26.8 s, U7 0 lost and 1.9 s; the export with logo and music 28.9 s, verified.
+- Before the green acceptance run, two starts failed on my setup, not on the code: the copies'
+  `job.json` still named the originals' source path (an absolute path the listing accepts), so the
+  sourceless copy listed `needs_prepare` instead of a closed reason; and the settings copy landed
+  one folder too deep, so the LLM part was off and the AI status never appeared. Both copies were
+  fixed (each `sourcePath` pointed at the copy's own `input/`; the settings file moved), the job
+  copy made fresh again, and the spec ran unchanged.
+
+### Suites
+
+- `ci-gate full` at `c935768` (the cherry-picks alone; run 36917866643): **success**. ruff "All
+  checks passed!"; pytest on Python 3.11 "4246 passed, 2 skipped, 1 xfailed"; npm test on Node 20
+  "# tests 1203", "# pass 1202", "# fail 0"; build "✓ Compiled successfully".
+- `ci-gate image` at `c935768` (run 36917906440): **success**. Image build compiled; pytest inside
+  it "4244 passed, 4 skipped, 1 xfailed".
+- On the final code `ca0a7d5` (patch 66 included; later commits are this document):
+  - `ci-gate full` (run 36921967246): **success**. ruff "All checks passed!"; pytest on Python
+    3.11 "4246 passed, 2 skipped, 1 xfailed"; npm test on Node 20 "# tests 1205", "# pass 1204",
+    "# fail 0"; build "✓ Compiled successfully".
+  - `ci-gate image` (run 36922015311): **success**. pytest inside the production image "4244
+    passed, 4 skipped, 1 xfailed".
+  - PR #18's `CI/CD` run (36921940571): **success**. Test and build (the same suites), the
+    toolchain evidence guard, and the parity smoke inside the built image: P-TIME-ffmpeg,
+    P-TIME-jassub, P-TXT, P-FRAME, G-DET, P-AUD, R10 all pass, the browser half 3/3 on Chrome for
+    Testing 147.0.7727.15 (6.5 min).
+- QG-SEC gate on `0867dd7` (run 36920184986): **success** (table above).
+- The nightly suite on `0867dd7` (`ci-cd.yml -f suite=nightly`, run 36920054208): **failure, on
+  the known item only**. All 17 required gates pass (P-TIME ffmpeg and JASSUB, P-TXT, P-ENC,
+  P-COLOR, P-RT, R10, P-FRAME, P-PLATE, G1-G2, G-DET, P-AUD (the parity section), G-CLICK, duck,
+  G3, G3b, glyph-probe) plus the PF-RENDER report. The app section fails P-AUD for `02-vfr-bed`
+  (1,614,384 samples against 1,614,400 planned, preview and reference alike: Open 12), and the
+  performance report lists PF-AUDIO with music at p95 1,196 ms on the 4 vCPU runner (906 ms on the
+  K15 PC). Same result as T4.4's nightly (run 36899263216).
+- The runs on `03c496b` (full 36921061601, image 36921113840, PR 36921044329) were cancelled once
+  patch 66 superseded that head.
+
+### Patches by the W4 integrator (logged per plan §11.0)
+
+Numbering continues from W3.
+
+60. `docs/editor/GATES.md`: T4.1's and T4.3's sections both kept (T4.1 first).
+61. `tests/test_render_worker.py`: T4.4 made the legacy heartbeat test deterministic, and T4.1
+    removed that test with the legacy path. The fake clock is ported to
+    `test_v3_worker_heartbeats_during_a_long_render_and_prevents_reclaim`: one clock drives
+    `render_queue.datetime` and the v3 monitor's clock (a `_V3Monitor` subclass passes `clock=`;
+    the default is bound at definition, so patching `time` would not reach it); the clock moves
+    only after the monitor's first read, which removes a start-up race; the test waits for the
+    worker's own beat. Ten repeated runs pass; with the monitor's heartbeat call removed it fails.
+62. `docs/editor/CONTRACTS.md`: T4.4's §5.21 becomes §5.22 (T4.3 keeps §5.21) with the ported
+    test's name; §5.23 records T4.2's guard (its request) and §5.24 T4.5's caption note (its
+    request to T4.4); the contents line.
+63. Release defaults: `compose.yaml` and `.env.example`; `web/tests/editor-w3-wiring.test.mjs`
+    now pins them, the `.env.example` lines and `precheck: false` (committed failing in
+    `c253829`, then `fc09edf`).
+64. `docs/editor/PANDUAN-EDITOR.md` (intro with the actual defaults, the export line and the K5
+    row: a note needs no tick), `docs/editor/OPERASIONAL.md` §2 (defaults, what switching off
+    does, commands, rollback, the CPU quota), the README editor section.
+65. `docs/ROADMAP.md` (§8 ticks, §6's test name, what remains for the owner), `docs/HANDOFF.md`
+    (§1–§4), this section and `evidence/W4/T4.Z-real-stack-e2e.json`.
+66. `web/app/api/jobs/[id]/renders/[renderId]/route.js` (T4.2's low finding for T4.1/T4.Z): GET
+    and DELETE go through `secureRoute({params: ["id", "renderId"], limit: "api"})`; the DELETE
+    starts the `render_queue` cancel and had no rate limit, and neither answer carried nosniff
+    or CORP. `web/tests/security-support.mjs` adds the `renders` tree and both methods to T4.2's
+    matrix (committed failing in `17303d2`: 7 of 14 tests, then `58e1c02`). The handlers did not
+    change; the real-stack flow ran again on the rebuilt app afterwards (below).
+
+### Phase-B requests (resolved here or forwarded)
+
+| From | Request | Status |
+|---|---|---|
+| T4.1 | approve its CONTRACTS changes (§A.1 CLI row, §4.1 layout, `GET /clips` `not_v3`, `GET /renders/:renderId`, render-request-v3 notes) | **approved** (they match the code and the suites) |
+| T4.1 | mark the legacy gates retired; ROADMAP §6's test name; HANDOFF §3/§4 | **done** (patches 61, 65) |
+| T4.1 | T4.2: drop `MAX_UPLOAD_BYTES` from `CHILD_ENV_ALLOWLIST` | **not done**: T4.2's audit found it harmless (not a secret); Open 40 |
+| T4.1 | T4.3: re-measure PF-PLAN without the `ranking` import | **done by T4.3** (40.1 ms) |
+| T4.2 | CONTRACTS §5.2x and GATES text | **done** (§5.23; above) |
+| T4.2 | pace the retention soak under 20 requests/s | **done by T4.3** (the soak runs in process on a simulated clock) |
+| T4.2 | wrap `renders/[renderId]` in `secureRoute` | **done** (patch 66) |
+| T4.2 | other low items outside its files | Open 38 |
+| T4.3 | `python-cli.mjs` janitor module, `pipeline.py` schedule/close, CONTRACTS §5.21, STORAGE_RETENTION | **merged** (no conflict) |
+| T4.3 | owner: the janitor deletes uploads unused for 30 days | checkpoint 3 (Open 45) |
+| T4.4 | keep the fake-clock render-worker test after T4.1 | **done** (patch 61) |
+| T4.4 | `primary-job-queue.mjs` gained an optional `clock` (default the system clock) | **recorded** here |
+| T4.4 | reconcile the guides with the compose defaults; T4.4 rows; HANDOFF notes | **done** (patches 64, 65) |
+| T4.4 | `/licenses` outside the login; a "Lisensi" link; link from the editor help | Open 37 (owner) |
+| T4.4 | `editor_budgets.mjs` in `run_all.sh` | Open 46 |
+| T4.5 | the K5 text in PANDUAN and CONTRACTS | **done** (patches 62, 64) |
+| T4.5 | GATES rows | **done** (above) |
+| T4.5 | `verify_export.py --loudness-clamped` | Open 41 |
+
+### Open (W4 additions; the W1–W3 lists and T4.3's 29–32 stay)
+
+33. **The nightly is red on P-AUD only** (Open 12: the compiler's source-audio path for a VFR
+    synthetic clip, 16 samples short on preview and reference alike). W5 or later; re-run with
+    `gh workflow run ci-cd.yml --ref <branch> -f suite=nightly`.
+34. **Owner checkpoint 3**: U1–U7 with a stopwatch at both window sizes, the QG-AI 30-clip review
+    (≥ 21/30; the LLM flag is already on by decision 3, so a fail means switching it off) and the
+    490 filler labels (then `precheck: true` by PR). The pack is outside the repository
+    (`editor-w4/checkpoint3.md` in the integrator's scratchpad).
+35. **P-LOGO** (Open 23): owner decision.
+36. **CPU quota of the primary worker** (Open 30): raise `cpus`, accept slower auto renders, or keep
+    `legacy` until then. The owner decides before the deploy.
+37. **`/licenses` sits behind the login**; anonymous landing visitors also receive Next/React and
+    DM Sans. Exempting it in `web/proxy.js` (with a proxy-matcher test) and linking it from the
+    landing footer and the editor's help is suggested. Optional: mirror the JASSUB and FriBidi
+    sources (2.5.16 has no git tag).
+38. Low security items from T4.2 still open: the proxy's 401 has no nosniff/CORP; non-editor
+    pages can be framed; the Pengaturan connection check uses a denylist environment; the HTTP
+    gate script (`scripts/security/route_matrix.py`) does not yet list the export status route
+    (the node matrix does, patch 66). Deferred by plan: revocable sessions and the nonce CSP (K10).
+39. Info: Python `render_queue`/`render_worker` accept UUID versions 1–5 in any case; the routes
+    accept lower-case versions 1–8. Fails closed (app ids are v4).
+40. `MAX_UPLOAD_BYTES` stays in `CHILD_ENV_ALLOWLIST` though no Python child reads it (not a
+    secret).
+41. `scripts/editor/verify_export.py` rebuilds the plan without the measured loudness clamp, so it
+    reports G3 failed for a clamped normalize export; the worker's own G3 passes and the
+    acceptance spec reads the clamp from the plan.
+42. A job without `analysis/` (or a V1 job without `output/manifest.json`) lists no clips and no
+    reason; the listing accepts an absolute `sourcePath` outside the job while prepare requires
+    the job's own `input/` (production always writes the latter).
+43. Copy: "Penanda tawa/jeda tidak tersedia untuk job ini" says "job" where the UI says
+    "proyek" (`errors.py` and its drift-tested mirror change together).
+44. At 1366×768 the transcript toolbar takes four rows and the tabs two while Rapikan is open.
+45. The janitor deletes uploaded logos and music that no document or kept revision used for 30
+    days (plan §4.4); STORAGE_RETENTION.md records it as the editor's own retention. Owner to
+    confirm.
+46. `scripts/perf/editor_budgets.mjs` is not yet a `perf` section of `scripts/parity/run_all.sh`.
+47. Scheduled workflows stop after 60 days without repository activity; the nightly then needs
+    re-enabling in the Actions tab.
+48. Exports of the old editor (`output/edits/cand_*/revision-N.mp4`) download by URL but no page
+    lists them (track A's decision).
