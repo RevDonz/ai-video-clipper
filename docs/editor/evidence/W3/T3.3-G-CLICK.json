@@ -1,0 +1,159 @@
+{
+  "cases": [
+    {
+      "clip": "synthetic main #1: fit-blur, 29.97 fps CFR, cold open",
+      "cut_fade_ms": 8,
+      "mid_word": {
+        "cold_open": true,
+        "control_hard_cuts_at_or_over_threshold": 7,
+        "control_hard_cuts_max_dbfs": -7.56,
+        "joins": 9,
+        "max_step_dbfs": -61.68,
+        "plan_samples": 1739337,
+        "samples": 1739337,
+        "steps_dbfs": [
+          -72.25,
+          -70.31,
+          -66.79,
+          -78.27,
+          -62.01,
+          -64.73,
+          -62.7,
+          -66.23,
+          -61.68
+        ]
+      },
+      "pass": true,
+      "role": "cold_open",
+      "word_bounds": {
+        "cold_open": true,
+        "control_hard_cuts_at_or_over_threshold": 0,
+        "control_hard_cuts_max_dbfs": -66.23,
+        "joins": 9,
+        "max_step_dbfs": -66.23,
+        "plan_samples": 1529528,
+        "samples": 1529528,
+        "steps_dbfs": [
+          -72.25,
+          -72.25,
+          -66.23,
+          -66.23,
+          -66.79,
+          -76.33,
+          -76.33,
+          -72.25,
+          -73.41
+        ]
+      }
+    },
+    {
+      "clip": "synthetic vfr #2: fit-blur, VFR Matroska",
+      "cut_fade_ms": 8,
+      "mid_word": {
+        "cold_open": false,
+        "control_hard_cuts_at_or_over_threshold": 6,
+        "control_hard_cuts_max_dbfs": -6.31,
+        "joins": 8,
+        "max_step_dbfs": -63.07,
+        "plan_samples": 1577600,
+        "samples": 1577600,
+        "steps_dbfs": [
+          -65.7,
+          -63.07,
+          -78.27,
+          -64.73,
+          -70.31,
+          -67.39,
+          -65.7,
+          -63.07
+        ]
+      },
+      "pass": true,
+      "role": "vfr",
+      "word_bounds": {
+        "cold_open": false,
+        "control_hard_cuts_at_or_over_threshold": 0,
+        "control_hard_cuts_max_dbfs": -66.23,
+        "joins": 8,
+        "max_step_dbfs": -66.23,
+        "plan_samples": 1395200,
+        "samples": 1395200,
+        "steps_dbfs": [
+          -78.27,
+          -76.33,
+          -71.22,
+          -76.33,
+          -78.27,
+          -72.25,
+          -76.33,
+          -66.23
+        ]
+      }
+    },
+    {
+      "clip": "synthetic fps60 #1: face-track (the fixture's stub camera), 60 fps, cold open",
+      "cut_fade_ms": 8,
+      "mid_word": {
+        "cold_open": true,
+        "control_hard_cuts_at_or_over_threshold": 8,
+        "control_hard_cuts_max_dbfs": -6.58,
+        "joins": 9,
+        "max_step_dbfs": -59.94,
+        "plan_samples": 1737600,
+        "samples": 1737600,
+        "steps_dbfs": [
+          -76.33,
+          -62.7,
+          -80.77,
+          -62.35,
+          -84.29,
+          -65.7,
+          -74.75,
+          -65.2,
+          -59.94
+        ]
+      },
+      "pass": true,
+      "role": "fps60",
+      "word_bounds": {
+        "cold_open": true,
+        "control_hard_cuts_at_or_over_threshold": 0,
+        "control_hard_cuts_max_dbfs": -72.25,
+        "joins": 9,
+        "max_step_dbfs": -72.25,
+        "plan_samples": 1532800,
+        "samples": 1532800,
+        "steps_dbfs": [
+          -76.33,
+          -78.27,
+          -76.33,
+          -72.25,
+          -76.33,
+          -76.33,
+          -76.33,
+          -78.27,
+          -76.33
+        ]
+      }
+    }
+  ],
+  "cuts": "8 two-word removals per clip, cut on the bounds table (word_bounds) and at the middle of their first and last word (mid_word); the control is the mid-word cuts with every fade at 0 ms and must show a click",
+  "environment": {
+    "cpus_visible": 4,
+    "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "loadavg": [
+      3.46,
+      2.29,
+      1.16
+    ],
+    "python": "3.11.2"
+  },
+  "failures": 0,
+  "gate": "G-CLICK",
+  "measured_on": "lossless reference (the export's graph before AAC), music in the mix",
+  "media": "synthetic",
+  "music": "tone chord at SetMusic's default gain, ducking Sedang",
+  "pass": true,
+  "task": "T3.3",
+  "threshold_dbfs": -40.0
+}

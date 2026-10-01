@@ -1,0 +1,139 @@
+{
+  "cases": [
+    {
+      "case": "00-cold_open-bed",
+      "clip": "synthetic main #1: fit-blur, 29.97 fps CFR, cold open",
+      "md5_equal": true,
+      "measured": true,
+      "music": "bed",
+      "pass": true,
+      "plan_samples": 1824222,
+      "preview_samples": 1824222,
+      "reference_samples": 1824222,
+      "role": "cold_open",
+      "settings": {},
+      "warnings": [
+        "unsafe_zone"
+      ]
+    },
+    {
+      "case": "01-cold_open-bed",
+      "clip": "synthetic main #1: fit-blur, 29.97 fps CFR, cold open",
+      "md5_equal": true,
+      "measured": true,
+      "music": "bed",
+      "pass": true,
+      "plan_samples": 1824222,
+      "preview_samples": 1824222,
+      "reference_samples": 1824222,
+      "role": "cold_open",
+      "settings": {
+        "master": "normalize",
+        "preset": "kuat"
+      },
+      "warnings": [
+        "unsafe_zone"
+      ]
+    },
+    {
+      "case": "02-vfr-bed",
+      "clip": "synthetic vfr #2: fit-blur, VFR Matroska",
+      "md5_equal": true,
+      "measured": true,
+      "music": "bed",
+      "pass": false,
+      "plan_samples": 1614400,
+      "preview_samples": 1614384,
+      "reference_samples": 1614384,
+      "role": "vfr",
+      "settings": {
+        "preset": "halus",
+        "src_in_smp": 336000
+      },
+      "warnings": [
+        "unsafe_zone"
+      ]
+    },
+    {
+      "case": "03-fps60-loud",
+      "clip": "synthetic fps60 #1: face-track (the fixture's stub camera), 60 fps, cold open",
+      "md5_equal": true,
+      "measured": true,
+      "music": "loud",
+      "pass": true,
+      "plan_samples": 1822400,
+      "preview_samples": 1822400,
+      "reference_samples": 1822400,
+      "role": "fps60",
+      "settings": {
+        "duck_on": false,
+        "gain_cdb": 600
+      },
+      "warnings": [
+        "unsafe_zone",
+        "no_face",
+        "peak_reduced:-9.70 dB"
+      ]
+    },
+    {
+      "case": "04-fps60-tone",
+      "clip": "synthetic fps60 #1: face-track (the fixture's stub camera), 60 fps, cold open",
+      "md5_equal": true,
+      "measured": true,
+      "music": "tone",
+      "pass": true,
+      "plan_samples": 1822400,
+      "preview_samples": 1822400,
+      "reference_samples": 1822400,
+      "role": "fps60",
+      "settings": {
+        "loop": false,
+        "source_gain_cdb": 600
+      },
+      "warnings": [
+        "music_shorter_than_clip",
+        "unsafe_zone",
+        "no_face"
+      ]
+    },
+    {
+      "case": "05-fps25-bed",
+      "clip": "synthetic fps25 #3: center-crop, 25 fps",
+      "md5_equal": true,
+      "measured": true,
+      "music": "bed",
+      "pass": true,
+      "plan_samples": 1620480,
+      "preview_samples": 1620480,
+      "reference_samples": 1620480,
+      "role": "fps25",
+      "settings": {
+        "fade_in_f": 0,
+        "fade_out_f": 250
+      },
+      "warnings": [
+        "unsafe_zone"
+      ]
+    }
+  ],
+  "environment": {
+    "cpus_visible": 4,
+    "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "loadavg": [
+      3.95,
+      2.97,
+      1.86
+    ],
+    "python": "3.11.2"
+  },
+  "failures": 1,
+  "gate": "P-AUD",
+  "media": "synthetic",
+  "pass": false,
+  "task": "T3.3",
+  "threshold": {
+    "pcm_md5": "equal",
+    "samples": "== plan"
+  },
+  "through": "the app's preview lane (persistent worker)"
+}
