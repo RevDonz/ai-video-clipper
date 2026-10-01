@@ -1,10 +1,14 @@
-// T2.6: the project page's editor entry per V3 clip (plan §4.2 GET/POST /clips, Appendix C.6) in
+// The project page's editor entry per clip (plan §4.2 GET /clips, Appendix C.6) in
 // web/lib/clip-entry-view.mjs: the "Edit klip" link, the edit badge, the latest export link and
-// the openable/reason message. The listing route only exists with POTONGIN_EDITOR_V3=on.
+// the reason a clip cannot open. The listing route only exists with POTONGIN_EDITOR_V3=on. A clip
+// that still needs preparing links to the editor too, which prepares it on open (W3, owner
+// feedback: no manual "Siapkan untuk editor" step; web/lib/editor/open-clip.mjs).
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { CLIP_REASON_TEXT, clipEntryView, loadClipEntries, prepareClipEntries } from "../lib/clip-entry-view.mjs";
+import * as entryView from "../lib/clip-entry-view.mjs";
+
+const { CLIP_REASON_TEXT, clipEntryView, loadClipEntries } = entryView;
 
 const JOB = "8f0c2a1e-5b7d-4c3a-9e21-6d4f0b8a7c55";
 const CLIP = "clip_9b2e41c07d3a5f18e6c2a0b4";
@@ -29,7 +33,7 @@ test("an openable clip links to its editor; the seed reads 'Belum diedit'", () =
   assert.equal(view.latestExport, null);
   assert.equal(view.reasonText, null);
   assert.equal(view.needsPrepare, false);
-  assert.equal(view.engineLegacy, false);
+  assert.equal("engineLegacy" in view, false, "no engine is named on screen (latest only)");
 });
 
 test("an edited clip shows its revision and its latest export", () => {
@@ -82,20 +86,35 @@ test("a clip that cannot open names its reason (Appendix C.6)", () => {
   const missing = clipEntryView(JOB, listing({ openable: false, reason: "source_missing" }));
   assert.equal(missing.editHref, null);
   assert.equal(missing.reasonText, "Video sumber sudah tidak ada");
-  const prepare = clipEntryView(JOB, listing({ clipId: null, edit: null, openable: false, reason: "needs_prepare" }));
-  assert.equal(prepare.needsPrepare, true);
-  assert.equal(prepare.reasonText, "Klip perlu disiapkan dulu");
-  assert.equal(prepare.editBadge, null);
   const unknown = clipEntryView(JOB, listing({ openable: false, reason: "mystery" }));
+  assert.equal(unknown.editHref, null);
   assert.equal(unknown.reasonText, "Klip ini belum bisa dibuka di editor");
 });
 
-test("a malformed clip id is never linked; a legacy-engine clip is flagged", () => {
+test("a clip that still needs preparing links to the editor, which prepares it on open", () => {
+  const byNumber = clipEntryView(JOB, listing({ index: 3, clipId: null, edit: null, openable: false, reason: "needs_prepare" }));
+  assert.equal(byNumber.needsPrepare, true);
+  assert.equal(byNumber.editHref, `/projects/${JOB}/clips/klip-3/edit`);
+  assert.equal(byNumber.reasonText, null, "no step to do by hand, so nothing to explain");
+  assert.equal(byNumber.editBadge, null);
+  const byId = clipEntryView(JOB, listing({ edit: null, openable: false, reason: "needs_prepare" }));
+  assert.equal(byId.editHref, `/projects/${JOB}/clips/${CLIP}/edit`);
+  const running = clipEntryView(JOB, listing({ index: 2, clipId: null, edit: null, openable: false, reason: "analysis_incomplete" }));
+  assert.equal(running.editHref, `/projects/${JOB}/clips/klip-2/edit`);
+  assert.equal(running.reasonText, null);
+  assert.equal("prepareClipEntries" in entryView, false, "the page has no prepare action of its own");
+});
+
+test("a malformed clip id is never linked; the engine of a clip is never named", () => {
   const bad = clipEntryView(JOB, listing({ clipId: "clip_../../x" }));
   assert.equal(bad.editHref, null);
   assert.equal(bad.openable, false);
   assert.equal(bad.reasonText, "Klip ini belum bisa dibuka di editor");
-  assert.equal(clipEntryView(JOB, listing({ engine: "legacy" })).engineLegacy, true);
+  const badPrepare = clipEntryView(JOB, listing({ clipId: "clip_../../x", openable: false, reason: "needs_prepare" }));
+  assert.equal(badPrepare.editHref, null);
+  const legacy = clipEntryView(JOB, listing({ engine: "legacy" }));
+  assert.equal(legacy.editHref, `/projects/${JOB}/clips/${CLIP}/edit`);
+  assert.equal("engineLegacy" in legacy, false);
 });
 
 test("the listing loads by clip index; 404 means the editor is off", async () => {
@@ -123,16 +142,3 @@ test("an aborted load rethrows the abort", async () => {
   await assert.rejects(loadClipEntries(JOB, { fetchImpl: async () => { throw abort; } }), (error) => error === abort);
 });
 
-test("preparing an older job posts once to the job-level route", async () => {
-  const calls = [];
-  const ok = await prepareClipEntries(JOB, { fetchImpl: async (url, init) => {
-    calls.push([url, init.method, init.headers["Content-Type"], init.body]);
-    return response(202, { state: "done" });
-  } });
-  assert.deepEqual(ok, { ok: true, message: "" });
-  assert.deepEqual(calls, [[`/api/jobs/${JOB}/clips`, "POST", "application/json", "{}"]]);
-  const busy = await prepareClipEntries(JOB, { fetchImpl: async () => response(503, { error: "sibuk" }) });
-  assert.deepEqual(busy, { ok: false, message: "Klip belum bisa disiapkan. Coba lagi sebentar lagi." });
-  const offline = await prepareClipEntries(JOB, { fetchImpl: async () => { throw new TypeError("offline"); } });
-  assert.equal(offline.ok, false);
-});

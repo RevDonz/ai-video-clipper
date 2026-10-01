@@ -241,7 +241,7 @@ export function exportRevision(state) {
  * with placeholder files before it lands (plan §11.0); the owner's beta hides them until the
  * wave's integrator adds its name here. The fakes (e2e specs, W3 development) show every entry.
  */
-export const LIVE_WAVES = Object.freeze(["W1", "W2"]);
+export const LIVE_WAVES = Object.freeze(["W1", "W2", "W3"]);
 
 export function liveEntries(entries, runtimeKind, liveWaves = LIVE_WAVES) {
   if (runtimeKind === "fake") return entries;

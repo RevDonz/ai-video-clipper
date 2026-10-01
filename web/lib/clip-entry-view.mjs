@@ -1,7 +1,9 @@
-// The project page's Editor V3 entry per V3 clip (plan §11.2 T2.6): the "Edit klip" link, the edit
-// badge, the latest export link and the openable/reason message, from `GET /api/jobs/:id/clips`
+// The project page's editor entry per clip (plan §11.2 T2.6): the "Edit klip" link, the edit
+// badge, the latest export link and the reason a clip cannot open, from `GET /api/jobs/:id/clips`
 // (plan §4.2). That route only answers when POTONGIN_EDITOR_V3=on, so a 404 simply hides the
-// entry. Client-safe: no Node built-ins.
+// entry. A clip that still needs preparing links to the editor as well: the editor prepares the
+// job on open and shows the progress (W3, owner feedback; lib/editor/open-clip.mjs). Client-safe:
+// no Node built-ins.
 
 export const CLIP_REASON_TEXT = Object.freeze({
   needs_prepare: "Klip perlu disiapkan dulu",
@@ -15,6 +17,14 @@ export const CLIP_REASON_TEXT = Object.freeze({
 const GENERIC_REASON = "Klip ini belum bisa dibuka di editor";
 const CLIP_ID = /^clip_[0-9a-f]{24}$/;
 const IN_PROGRESS = new Set(["queued", "claimed", "rendering"]);
+// Reasons the editor resolves by itself when the clip is opened (it prepares the job).
+const PREPARED_ON_OPEN = new Set(["needs_prepare", "analysis_incomplete"]);
+
+function editorPath(jobId, { clipId, index }) {
+  const job = encodeURIComponent(jobId);
+  if (clipId) return `/projects/${job}/clips/${encodeURIComponent(clipId)}/edit`;
+  return Number.isInteger(index) && index >= 1 && index <= 99 ? `/projects/${job}/clips/klip-${index}/edit` : null;
+}
 
 // Only the job's own API files, as the server builds them: no scheme, host, dot segments,
 // backslashes or control characters.
@@ -51,16 +61,17 @@ export function clipEntryView(jobId, clip) {
   const malformed = clip?.clipId !== null && clip?.clipId !== undefined && !clipId;
   const openable = clip?.openable === true && Boolean(clipId);
   const reason = typeof clip?.reason === "string" ? clip.reason : null;
+  const preparedOnOpen = !openable && !malformed && PREPARED_ON_OPEN.has(reason);
+  const editHref = openable || preparedOnOpen ? editorPath(jobId, { clipId, index: clip?.index }) : null;
   return {
     index: clip?.index,
     clipId,
     openable,
-    editHref: openable ? `/projects/${encodeURIComponent(jobId)}/clips/${encodeURIComponent(clipId)}/edit` : null,
-    reasonText: openable ? null : (!malformed && CLIP_REASON_TEXT[reason]) || GENERIC_REASON,
+    editHref,
+    reasonText: openable || editHref ? null : (!malformed && CLIP_REASON_TEXT[reason]) || GENERIC_REASON,
     needsPrepare: !openable && reason === "needs_prepare",
     editBadge: editBadge(clip?.edit),
     latestExport: latestExportView(jobId, clip?.latestRender),
-    engineLegacy: clip?.engine === "legacy",
   };
 }
 
@@ -97,17 +108,4 @@ export async function loadClipEntries(jobId, { fetchImpl = fetch, signal } = {})
     if (Number.isInteger(clip?.index)) byIndex.set(clip.index, clipEntryView(jobId, clip));
   }
   return { state: "available", byIndex };
-}
-
-/** Job-level prepare for jobs rendered before Essentials (plan §4.2 `POST /clips`). */
-export async function prepareClipEntries(jobId, { fetchImpl = fetch } = {}) {
-  const failure = { ok: false, message: "Klip belum bisa disiapkan. Coba lagi sebentar lagi." };
-  try {
-    const response = await fetchImpl(`/api/jobs/${jobId}/clips`, {
-      method: "POST", cache: "no-store", headers: { "Content-Type": "application/json" }, body: "{}",
-    });
-    return response.ok ? { ok: true, message: "" } : failure;
-  } catch {
-    return failure;
-  }
 }
