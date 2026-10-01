@@ -24,17 +24,19 @@ function multipartFields(request) {
   });
 }
 
-const V3_FIELDS = ["renderMode", "limit", "minDuration", "maxDuration", "selectionMode", "llmMode", "coldOpen", "hookOverlay", "captionStyle"];
+// The job form names no selection mode: the job API always uses the current one.
+const JOB_FIELDS = ["renderMode", "limit", "minDuration", "maxDuration", "coldOpen", "hookOverlay", "captionStyle"];
+const ACTIVE_AI = { state: "active", order: ["uji"], providers: [{ name: "uji", displayName: null }], label: "LLM aktif: uji" };
 
 /** Fakes /api/jobs, /api/llm/status and /api/storage/status for the dashboard. Returns the job POSTs. */
-async function fakeDashboardApi(page) {
+async function fakeDashboardApi(page, { llm = ACTIVE_AI } = {}) {
   const posts = [];
   const job = (id) => ({ id, status: "completed", progress: 100, stage: "completed", createdAt: iso(NOW), updatedAt: iso(NOW), source: { type: "youtube", url: "https://youtu.be/rBg0ZcwjVKQ" }, options: { selectionMode: "v3" }, clips: [] });
   await page.route(/\/api\/(?:jobs|llm\/status|storage\/status)(?:[/?]|$)/, (route) => {
     const request = route.request();
     const { pathname } = new URL(request.url());
     const json = (status, body) => route.fulfill({ status, contentType: "application/json", headers: { "Cache-Control": "no-store" }, body: JSON.stringify(body) });
-    if (pathname === "/api/llm/status") return json(200, { llm: { state: "active", label: "LLM aktif: uji" } });
+    if (pathname === "/api/llm/status") return json(200, { llm });
     if (pathname === "/api/storage/status") return json(200, { admission: { allowed: true, code: null } });
     if (pathname === "/api/jobs" && request.method() === "POST") {
       posts.push(multipartFields(request));
@@ -46,19 +48,20 @@ async function fakeDashboardApi(page) {
   return posts;
 }
 
-// The dashboard is prerendered: typing before hydration would be lost. The LLM badge only
+// The dashboard is prerendered: typing before hydration would be lost. The AI status line only
 // shows the faked status after React hydrated and fetched it.
-async function openDashboard(page) {
+async function openDashboard(page, statusText = "AI aktif: uji") {
   await login(page, "/dashboard");
-  await expect(page.getByText("LLM aktif: uji", { exact: true })).toBeVisible();
+  await expect(page.getByText(statusText, { exact: true })).toBeVisible();
 }
 
 const chipTexts = (page) => page.getByRole("list", { name: "Kata kunci fokus" }).locator("li > span");
 const overflow = (page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+const submitButton = (page) => page.getByRole("button", { name: "Buat klip", exact: true });
 
 async function submitJob(page, posts) {
   const before = posts.length;
-  await page.getByRole("button", { name: /Buat klip sekarang/ }).click();
+  await submitButton(page).click();
   await expect.poll(() => posts.length).toBe(before + 1);
   return posts.at(-1);
 }
@@ -111,18 +114,13 @@ test.describe("Fokus klip on the dashboard (faked job API)", () => {
     await note.fill("momen jomok yang lucu");
     await expect(page.getByText("21/200", { exact: true })).toBeVisible();
 
-    // Heuristic mode explains that only literal mentions count.
-    await page.getByText("Tanpa LLM (heuristik)", { exact: true }).click();
-    await expect(page.getByText(/Tanpa LLM, hanya momen yang menyebut kata kuncinya langsung/)).toBeVisible();
-    await page.getByText("AI (LLM gratis)", { exact: true }).click();
-
     // Text still in the input is committed when the job is created.
     await input.fill("reza auditore");
-    await page.getByLabel("URL video").fill("https://youtu.be/rBg0ZcwjVKQ");
+    await page.getByLabel("Link video").fill("https://youtu.be/rBg0ZcwjVKQ");
     const fields = await submitJob(page, posts);
     expect(fields).toEqual([
-      ["renderMode", "fit-blur"], ["limit", "3"], ["minDuration", "20"], ["maxDuration", "60"], ["selectionMode", "v3"],
-      ["llmMode", "auto"], ["coldOpen", "true"], ["hookOverlay", "true"], ["captionStyle", "karaoke"],
+      ["renderMode", "fit-blur"], ["limit", "3"], ["minDuration", "20"], ["maxDuration", "60"],
+      ["coldOpen", "true"], ["hookOverlay", "true"], ["captionStyle", "karaoke"],
       ["focusTerms", "jomok,jomokers,reza auditore"], ["focusNote", "momen jomok yang lucu"],
       ["youtubeUrl", "https://youtu.be/rBg0ZcwjVKQ"],
     ]);
@@ -149,10 +147,8 @@ test.describe("Fokus klip on the dashboard (faked job API)", () => {
     await input.fill("AI");
     await input.press("Enter");
     await expect(chipTexts(page)).toHaveText(["jomok", "jomokers", "reza", "AI"]);
-    await expect(hint).toHaveText("“AI” terlalu pendek atau terlalu umum untuk dicari langsung di transkrip; hanya AI (LLM) yang bisa mengenalinya dari maknanya.");
+    await expect(hint).toHaveText("“AI” terlalu pendek atau terlalu umum untuk dicari langsung di transkrip; hanya AI yang bisa mengenalinya dari maknanya.");
     await expect(input).toHaveAttribute("aria-describedby", "focus-terms-help focus-terms-hint");
-    await page.getByText("Tanpa LLM (heuristik)", { exact: true }).click();
-    await expect(hint).toContainText("Tanpa LLM kata kunci itu tidak berpengaruh.");
     await page.setViewportSize({ width: 390, height: 844 });
     expect(await overflow(page)).toBe(0);
     await page.getByRole("button", { name: "Hapus kata kunci AI", exact: true }).click();
@@ -160,37 +156,38 @@ test.describe("Fokus klip on the dashboard (faked job API)", () => {
     expect(posts).toHaveLength(0);
   });
 
-  test("without focus the job form sends exactly the fields it sent before; other modes never send focus", async ({ page }) => {
+  test("without focus the job form sends no focus field and never names a selection mode", async ({ page }) => {
     const posts = await fakeDashboardApi(page);
     await openDashboard(page);
-    await page.getByLabel("URL video").fill("https://youtu.be/rBg0ZcwjVKQ");
+    await page.getByLabel("Link video").fill("https://youtu.be/rBg0ZcwjVKQ");
     const plain = await submitJob(page, posts);
-    expect(plain.map(([name]) => name)).toEqual([...V3_FIELDS, "youtubeUrl"]);
+    expect(plain.map(([name]) => name)).toEqual([...JOB_FIELDS, "youtubeUrl"]);
+    await expect(page.getByText(/Mode lama|Klasik V1|AI Hook/)).toHaveCount(0);
+  });
 
-    // Chips typed in V3 stay out of a V1 job; the field is not shown there.
-    await page.getByLabel("Cari momen tentang… (opsional)").fill("jomok");
-    await page.getByLabel("Cari momen tentang… (opsional)").press("Enter");
-    await page.getByLabel("Catatan untuk AI (opsional)").fill("catatan");
-    await page.locator("summary", { hasText: "Mode lama" }).click();
-    await page.getByText("Klasik V1", { exact: true }).click();
-    await expect(page.getByLabel("Cari momen tentang… (opsional)")).toHaveCount(0);
-    const v1 = await submitJob(page, posts);
-    expect(v1).toEqual([["renderMode", "fit-blur"], ["limit", "3"], ["minDuration", "20"], ["maxDuration", "60"], ["selectionMode", "v1"], ["youtubeUrl", "https://youtu.be/rBg0ZcwjVKQ"]]);
+  test("without an active AI the focus help says only literal mentions count", async ({ page }) => {
+    await fakeDashboardApi(page, { llm: { state: "disabled", label: "AI dimatikan di Pengaturan" } });
+    await openDashboard(page, "AI dimatikan. Momen dipilih heuristik lokal.");
+    await expect(page.getByText(/Tanpa AI, hanya momen yang menyebut kata kuncinya langsung/)).toBeVisible();
+    const input = page.getByLabel("Cari momen tentang… (opsional)");
+    await input.fill("AI");
+    await input.press("Enter");
+    await expect(page.locator("#focus-terms-hint")).toContainText("Tanpa AI kata kunci itu tidak berpengaruh.");
   });
 
   test("a note without terms or an overlong note blocks the job with a message", async ({ page }) => {
     const posts = await fakeDashboardApi(page);
     await openDashboard(page);
-    await page.getByLabel("URL video").fill("https://youtu.be/rBg0ZcwjVKQ");
+    await page.getByLabel("Link video").fill("https://youtu.be/rBg0ZcwjVKQ");
     const note = page.getByLabel("Catatan untuk AI (opsional)");
     await note.fill("momen lucu");
-    await page.getByRole("button", { name: /Buat klip sekarang/ }).click();
+    await submitButton(page).click();
     await expect(page.getByRole("alert").filter({ hasText: "Isi minimal satu kata kunci fokus, atau kosongkan catatan untuk AI." })).toBeVisible();
 
     await page.getByLabel("Cari momen tentang… (opsional)").fill("jomok");
     await note.fill("n".repeat(201));
     await expect(page.getByText("201/200", { exact: true })).toBeVisible();
-    await page.getByRole("button", { name: /Buat klip sekarang/ }).click();
+    await submitButton(page).click();
     await expect(page.getByRole("alert").filter({ hasText: "Catatan untuk AI maksimal 200 karakter." })).toBeVisible();
     expect(posts).toHaveLength(0);
 

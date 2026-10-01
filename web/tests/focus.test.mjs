@@ -151,11 +151,13 @@ test("terms that can never match the transcript literally get a hint at entry", 
   assert.equal(focusTermMatchable("tiktok"), true);
   for (const term of ["AI", "5G", "apa aja", "yang", "wkwk"]) assert.equal(focusTermMatchable(term), false, term);
   assert.equal(focusTermsHint(["jomok", "tiktok"], "auto"), null);
-  assert.match(focusTermsHint(["AI", "jomok"], "auto"), /“AI”.*terlalu pendek atau terlalu umum.*AI \(LLM\)/);
+  assert.match(focusTermsHint(["AI", "jomok"], "auto"), /“AI”.*terlalu pendek atau terlalu umum.*hanya AI yang bisa mengenalinya/);
   assert.match(focusTermsHint(["AI", "apa aja"], "auto"), /“AI”, “apa aja”/);
-  assert.match(focusTermsHint(["AI"], "off"), /Tanpa LLM.*tidak berpengaruh/);
+  assert.match(focusTermsHint(["AI"], "off"), /Tanpa AI.*tidak berpengaruh/);
+  // The dashboard calls it AI everywhere; the hint never says LLM.
+  for (const mode of ["auto", "off"]) assert.doesNotMatch(focusTermsHint(["AI"], mode), /LLM/);
   // Plain text: React renders it escaped.
-  assert.equal(focusTermsHint(["<b>AI</b>"], "auto"), "“<b>AI</b>” terlalu pendek atau terlalu umum untuk dicari langsung di transkrip; hanya AI (LLM) yang bisa mengenalinya dari maknanya.");
+  assert.equal(focusTermsHint(["<b>AI</b>"], "auto"), "“<b>AI</b>” terlalu pendek atau terlalu umum untuk dicari langsung di transkrip; hanya AI yang bisa mengenalinya dari maknanya.");
 });
 
 test("the matchable check, the stopwords and the term key agree with the engine", async () => {

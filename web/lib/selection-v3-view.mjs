@@ -237,8 +237,8 @@ export function focusTermsHint(terms, llmMode) {
   const names = unmatchable.map((term) => `“${term}”`).join(", ");
   const text = `${names} terlalu pendek atau terlalu umum untuk dicari langsung di transkrip`;
   return llmMode === "off"
-    ? `${text}. Tanpa LLM kata kunci itu tidak berpengaruh.`
-    : `${text}; hanya AI (LLM) yang bisa mengenalinya dari maknanya.`;
+    ? `${text}. Tanpa AI kata kunci itu tidak berpengaruh.`
+    : `${text}; hanya AI yang bisa mengenalinya dari maknanya.`;
 }
 
 // Pasted separators that become commas: line breaks (a single-line input would turn them into
