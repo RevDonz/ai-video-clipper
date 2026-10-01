@@ -152,7 +152,8 @@
     "files": "scratchpad editor-w3/qg-clean/konfirmasi-label.{html,csv,json}",
     "rows": 342,
     "tokens": 490,
-    "published": "private artifact, owner only until shared"
+    "published": false,
+    "note": "local files for the owner's checkpoint 3 review; answers are copied back from the page"
   },
   "word_items_on_real_clips": {
     "clips": 24,
@@ -168,7 +169,7 @@
     "filler_precision": "0.933 on the agent labels (>= 0.9); pre-check stays off until the owner confirms the labels",
     "cut_edges": "pass (94/94 in the image, 84/84 local, 12/12 synthetic)",
     "g_click": "pass",
-    "g_sync": "pass",
+    "g_sync": "pass (the 20-item clip e7f0d37b keeps its cold open: 20 cuts + cold open)",
     "twenty_items": "one real clip reaches 20 items (e7f0d37b); the other clips hold 5 to 9 items even with the body widened to the whole analysis window"
   }
 }
