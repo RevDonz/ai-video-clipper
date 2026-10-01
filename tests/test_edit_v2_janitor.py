@@ -340,6 +340,18 @@ def test_an_unreadable_document_keeps_every_asset(tmp_path):
     assert report["assets"] == 0 and asset_files(job, asset)
 
 
+def test_a_request_path_outside_the_clip_archives_is_never_read(tmp_path):
+    job = make_job(tmp_path)
+    make_clip(job)
+    asset = write_asset(job, "logo")
+    outside = tmp_path / "outside.json.gz"
+    outside.write_bytes(gzip.compress(json.dumps(doc(1, (asset,))).encode(), mtime=0))
+    write_request(job, "escape", relative="../outside.json.gz")
+    clean(job)
+    clean(job, now_ms=NOW_MS + 30 * DAY_MS)
+    assert asset_files(job, asset) == []  # the outside file named it, but it is not the job's
+
+
 def test_assets_referenced_only_by_pruned_archives_become_orphans(tmp_path):
     job = make_job(tmp_path)
     clip = make_clip(job)
