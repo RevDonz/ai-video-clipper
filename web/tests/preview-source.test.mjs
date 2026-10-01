@@ -7,16 +7,11 @@ import { Readable } from "node:stream";
 import test from "node:test";
 import { promisify } from "node:util";
 
-import { createSessionToken } from "../lib/auth.mjs";
-import { GET, HEAD } from "../app/api/jobs/[id]/preview-source/route.js";
-import { PreviewInvalidError, openPreviewSource, previewResponse } from "../lib/preview-source.mjs";
+// The descriptor-backed range streaming behind the old editor's source preview. Its route went
+// with that editor; final-files reuses the stream, and the new editor's media routes build on it.
+import { PreviewInvalidError, PreviewNotFoundError, openPreviewSource, previewResponse } from "../lib/preview-source.mjs";
 
 const JOB_ID = "123e4567-e89b-42d3-a456-426614174000";
-const AUTH_ENV = {
-  APP_USERNAME: "admin",
-  APP_PASSWORD: "secret-value",
-  APP_SESSION_SECRET: "a-long-random-session-secret-value",
-};
 const MP4 = Buffer.concat([Buffer.from([0, 0, 0, 24]), Buffer.from("ftypisom0123456789abcdef")]);
 const closeFd = promisify(close);
 
@@ -31,26 +26,17 @@ async function fixture(extension = ".mp4") {
   return { root, job, input, sourcePath };
 }
 
-function request({ method = "GET", range, authenticated = true, signal } = {}) {
+function request({ method = "GET", range, signal } = {}) {
   const headers = {};
   if (range) headers.Range = range;
-  if (authenticated) headers.Cookie = `potongin_session=${createSessionToken(AUTH_ENV, 2_000_000_000)}`;
-  return new Request(`http://local/api/jobs/${JOB_ID}/preview-source`, { method, headers, signal });
+  return new Request(`http://local/media/${JOB_ID}`, { method, headers, signal });
 }
 
-async function invoke(root, options = {}) {
-  const previous = {};
-  for (const name of ["JOBS_ROOT", ...Object.keys(AUTH_ENV)]) previous[name] = process.env[name];
-  Object.assign(process.env, AUTH_ENV, { JOBS_ROOT: root });
-  try {
-    const handler = options.method === "HEAD" ? HEAD : GET;
-    return await handler(request(options), { params: Promise.resolve({ id: options.id || JOB_ID }) });
-  } finally {
-    for (const [name, value] of Object.entries(previous)) value === undefined ? delete process.env[name] : process.env[name] = value;
-  }
+function invoke(root, { method = "GET", range, signal, id = JOB_ID } = {}) {
+  return previewResponse(request({ method, range, signal }), id, { head: method === "HEAD", jobsRoot: root });
 }
 
-test("authenticated preview streams full source with private fixed headers", async () => {
+test("the preview streams the full source with private fixed headers", async () => {
   const { root, sourcePath } = await fixture();
   const response = await invoke(root);
   assert.equal(response.status, 200);
@@ -97,10 +83,12 @@ test("unsatisfiable and multiple ranges return 416 with size", async () => {
   }
 });
 
-test("preview authenticates and validates UUID before filesystem access", async () => {
-  const { root } = await fixture();
-  assert.equal((await invoke(root, { authenticated: false })).status, 401);
-  assert.equal((await invoke(root, { id: "../../etc/passwd" })).status, 400);
+test("a malformed job ID is rejected before any filesystem access", async () => {
+  const missingRoot = path.join(os.tmpdir(), "clipper-preview-never-created");
+  for (const id of ["../../etc/passwd", "", "123E4567-E89B-42D3-A456-426614174000x"]) {
+    await assert.rejects(invoke(missingRoot, { id }), PreviewInvalidError, id);
+  }
+  await assert.rejects(invoke(missingRoot), PreviewNotFoundError);
 });
 
 test("job, job.json, input, and source symlinks are rejected", async (t) => {
@@ -108,7 +96,7 @@ test("job, job.json, input, and source symlinks are rejected", async (t) => {
     const root = await mkdtemp(path.join(os.tmpdir(), "clipper-preview-root-"));
     const outside = (await fixture()).job;
     await symlink(outside, path.join(root, JOB_ID));
-    assert.equal((await invoke(root)).status, 404);
+    await assert.rejects(invoke(root), PreviewNotFoundError);
   });
   for (const targetName of ["job.json", "input", "source.mp4"]) {
     await t.test(targetName, async () => {
@@ -118,7 +106,7 @@ test("job, job.json, input, and source symlinks are rejected", async (t) => {
       const target = targetName === "source.mp4" ? fx.sourcePath : path.join(fx.job, targetName);
       await (await import("node:fs/promises")).rm(target, { recursive: true });
       await symlink(outside, target);
-      assert.equal((await invoke(fx.root)).status, targetName === "job.json" ? 404 : 422);
+      await assert.rejects(invoke(fx.root), targetName === "job.json" ? PreviewNotFoundError : PreviewInvalidError);
     });
   }
 });
@@ -131,7 +119,7 @@ test("private sourcePath must name a regular allowlisted video under input", asy
   ]) {
     const fx = await fixture();
     await mutate(fx);
-    assert.equal((await invoke(fx.root)).status, 422);
+    await assert.rejects(invoke(fx.root), PreviewInvalidError);
   }
 });
 
@@ -155,13 +143,13 @@ test("job JSON is strict UTF-8 with unique keys and exact requested identity", a
     await t.test(name, async () => {
       const fx = await fixture();
       await writeFile(path.join(fx.job, "job.json"), template.replaceAll("SOURCE", fx.sourcePath));
-      assert.equal((await invoke(fx.root)).status, 422);
+      await assert.rejects(invoke(fx.root), PreviewInvalidError);
     });
   }
   await t.test("invalid UTF-8", async () => {
     const fx = await fixture();
     await writeFile(path.join(fx.job, "job.json"), Buffer.from([0x7b, 0x22, 0xff, 0x22, 0x3a, 0x31, 0x7d]));
-    assert.equal((await invoke(fx.root)).status, 422);
+    await assert.rejects(invoke(fx.root), PreviewInvalidError);
   });
   await t.test("unknown evolving fields remain compatible", async () => {
     const fx = await fixture();

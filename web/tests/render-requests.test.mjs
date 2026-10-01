@@ -20,11 +20,6 @@ import {
   releaseRenderStorage,
   heartbeatRenderStorage,
 } from "../lib/render-storage-admission.mjs";
-import {
-  PayloadTooLargeError,
-  parseRenderBody,
-  readBoundedJsonBytes,
-} from "../app/api/jobs/[id]/candidates/[candidateId]/renders/route.js";
 
 const ID = "123e4567-e89b-42d3-a456-426614174000";
 const CANDIDATE = `cand_${"a".repeat(64)}`;
@@ -172,94 +167,6 @@ test("sanitizer validates first and encodes every URL segment", () => {
     sanitizeRenderStatus("job/id", request).resultUrl,
     `/api/jobs/job%2Fid/files/output/edits/${CANDIDATE}/revision-2.mp4`,
   );
-});
-
-test("render body reader accepts many streamed chunks despite a lying short length", async () => {
-  const raw = Buffer.from(JSON.stringify({ editEtag: SHA }));
-  let offset = 0;
-  const request = {
-    bodyUsed: false,
-    headers: new Headers({ "content-length": "1", "content-type": "application/json" }),
-    body: {
-      getReader() {
-        return {
-          async read() {
-            if (offset === raw.length) return { done: true };
-            return { done: false, value: raw.subarray(offset, ++offset) };
-          },
-          async cancel() { assert.fail("bounded input must not be cancelled"); },
-          releaseLock() {},
-        };
-      },
-    },
-  };
-  assert.deepEqual(Buffer.from(await readBoundedJsonBytes(request)), raw);
-
-  const parseRequest = new Request("http://local", {
-    method: "POST", body: raw, duplex: "half", headers: { "content-type": "application/json" },
-  });
-  assert.deepEqual(await parseRenderBody(parseRequest), { editEtag: SHA });
-});
-
-test("render body reader rejects oversized streams early and cancels the reader", async () => {
-  let reads = 0;
-  let cancelled = false;
-  const request = {
-    bodyUsed: false,
-    headers: new Headers({ "content-length": "2" }),
-    body: {
-      getReader() {
-        return {
-          async read() { reads += 1; return { done: false, value: new Uint8Array(400) }; },
-          async cancel() { cancelled = true; },
-          releaseLock() {},
-        };
-      },
-    },
-  };
-  await assert.rejects(readBoundedJsonBytes(request), PayloadTooLargeError);
-  assert.equal(reads, 3);
-  assert.equal(cancelled, true);
-
-  await assert.rejects(readBoundedJsonBytes({
-    bodyUsed: false,
-    headers: new Headers({ "content-length": "1025" }),
-    body: { getReader() { assert.fail("known oversized body must be rejected before reading"); } },
-  }), PayloadTooLargeError);
-});
-
-test("render body parser rejects null, consumed, aborted, malformed UTF-8, and extra keys", async () => {
-  let abortedReads = 0;
-  await assert.rejects(readBoundedJsonBytes({
-    bodyUsed: false, signal: { aborted: true }, headers: new Headers(),
-    body: { getReader: () => ({
-      read: async () => { abortedReads += 1; return { done: true }; },
-      cancel: async () => {}, releaseLock() {},
-    }) },
-  }), RenderQueueInvalidError);
-  assert.equal(abortedReads, 0);
-
-  for (const invalid of [
-    { bodyUsed: false, body: null, headers: new Headers() },
-    { bodyUsed: true, body: {}, headers: new Headers() },
-    {
-      bodyUsed: false, headers: new Headers(), body: { getReader: () => ({
-        read: async () => { throw Object.assign(new Error("aborted"), { name: "AbortError" }); },
-        cancel: async () => {}, releaseLock() {},
-      }) },
-    },
-  ]) await assert.rejects(readBoundedJsonBytes(invalid), RenderQueueInvalidError);
-
-  for (const raw of [
-    Uint8Array.from([0xc3, 0x28]),
-    Buffer.from(JSON.stringify({ editEtag: SHA, extra: true })),
-    Buffer.from(`{"editEtag":"${SHA}","editEtag":"${SHA}"}`),
-  ]) {
-    const invalid = new Request("http://local", {
-      method: "POST", body: raw, duplex: "half", headers: { "content-type": "application/json" },
-    });
-    await assert.rejects(parseRenderBody(invalid), RenderQueueInvalidError);
-  }
 });
 
 test("render reservations serialize admission and fence heartbeat and release", async (t) => {
