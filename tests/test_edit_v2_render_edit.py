@@ -942,6 +942,195 @@ def test_a_face_track_clip_gets_a_camera_plan_and_renders(source, tmp_path):
                                    render_edit.load_render_inputs(job_dir, seed_doc).plan).ok
 
 
+# --- concurrent auto renders (T4.3, PF-PIPELINE) ------------------------------------------------
+
+
+def auto_renderer(job_dir: Path, **options) -> render_edit.AutoRenderer:
+    return render_edit.AutoRenderer(
+        job_dir=job_dir, source=job_dir / "input" / "source.mp4", output_dir=job_dir / "output",
+        options=render_edit.AutoOptions(render_mode="fit-blur", caption_style="karaoke",
+                                        cold_open=True, hook_overlay=True, hook_duration=4.0,
+                                        width=720, height=1280), **options)
+
+
+class FinalRuns:
+    """Wraps ``execute.run``: counts the final encodes in flight and logs every FFmpeg run."""
+
+    def __init__(self, real, *, before_final=None):
+        self.real = real
+        self.before_final = before_final
+        self.lock = threading.Lock()
+        self.in_flight = 0
+        self.most = 0
+        self.log: list[tuple[str, str]] = []
+
+    def __call__(self, job, **kwargs):
+        mode = job.expected.get("mode")
+        if mode != "final":
+            return self.real(job, **kwargs)
+        with self.lock:
+            self.in_flight += 1
+            self.most = max(self.most, self.in_flight)
+            self.log.append(("start", mode))
+        try:
+            if self.before_final is not None:
+                self.before_final(kwargs)
+            return self.real(job, **kwargs)
+        finally:
+            with self.lock:
+                self.in_flight -= 1
+                self.log.append(("end", mode))
+
+
+def test_render_slots_follow_the_cpu_budget():
+    expected = {1: 1, 2: 1, 4: 1, 5: 2, 6: 2, 8: 2, 9: 3, 12: 3, 13: 4, 16: 4}
+    for budget, slots in expected.items():
+        assert render_edit.render_slots(budget) == min(slots, render_edit.RENDER_SLOTS_MAX)
+    assert render_edit.render_slots(64) == render_edit.RENDER_SLOTS_MAX
+    assert render_edit.RENDER_SLOTS_MAX >= 3
+    assert 1 <= render_edit.render_slots() <= render_edit.RENDER_SLOTS_MAX  # this machine
+
+
+def test_scheduled_clips_render_the_same_bytes_as_one_at_a_time(auto_job, tmp_path, monkeypatch):
+    """PF-PIPELINE without new pixels: two clips encoded at once give exactly the files that one
+    clip at a time gives (video frames, PCM, MP4 bytes and SRT)."""
+    job_dir = copy_job(auto_job, tmp_path)
+    alone = auto_renderer(job_dir, slots=1)
+    sequential = {rank: alone.render(rank, tmp_path / "one" / f"clip-{rank:02d}.mp4")
+                  for rank in (1, 2)}
+    barrier = threading.Barrier(2, timeout=60)
+    runs = FinalRuns(execute.run, before_final=lambda _kwargs: barrier.wait())
+    monkeypatch.setattr(render_edit.execute, "run", runs)
+    together = auto_renderer(job_dir, slots=2)
+    outputs = {rank: tmp_path / "two" / f"clip-{rank:02d}.mp4" for rank in (1, 2)}
+    together.schedule(list(outputs.items()))
+    try:
+        concurrent = {rank: together.render(rank, output) for rank, output in outputs.items()}
+    finally:
+        together.close()
+    assert runs.most == 2  # both encodes ran at the same time (the barrier needs two)
+    for rank in (1, 2):
+        one, two = sequential[rank].result, concurrent[rank].result
+        assert one.plan_sha256 == two.plan_sha256
+        assert framemd5(one.output) == framemd5(two.output)
+        assert pcm_md5(one.output) == pcm_md5(two.output)
+        assert one.output.read_bytes() == two.output.read_bytes()
+        assert one.srt.read_bytes() == two.srt.read_bytes()
+        assert concurrent[rank].clip_id == sequential[rank].clip_id
+
+
+def test_one_slot_encodes_one_clip_while_the_next_is_seeded(auto_job, tmp_path, monkeypatch):
+    job_dir = copy_job(auto_job, tmp_path)
+    for directory in (job_dir / "analysis" / "clips").iterdir():
+        shutil.rmtree(directory)  # the next clip must be seeded (peaks, words) from scratch
+    real_peaks = render_edit.build_peaks
+    lock = threading.Lock()
+    peaks_built: list[int] = []
+    finals: list[bool] = []
+    both_seeded = threading.Event()
+
+    def peaks(source, window):
+        result = real_peaks(source, window)
+        with lock:
+            peaks_built.append(window[0])
+            if len(peaks_built) == 2:
+                both_seeded.set()
+        return result
+
+    def before_final(_kwargs):
+        with lock:
+            first = not finals
+            finals.append(both_seeded.is_set())
+        if first:  # holding the only slot: the other clip is seeded by the other worker
+            finals[0] = both_seeded.wait(timeout=60)
+
+    runs = FinalRuns(execute.run, before_final=before_final)
+    monkeypatch.setattr(render_edit, "build_peaks", peaks)
+    monkeypatch.setattr(render_edit.execute, "run", runs)
+    renderer = auto_renderer(job_dir, slots=1)
+    outputs = {rank: tmp_path / "out" / f"clip-{rank:02d}.mp4" for rank in (1, 2)}
+    renderer.schedule(list(outputs.items()))
+    try:
+        results = {rank: renderer.render(rank, output) for rank, output in outputs.items()}
+    finally:
+        renderer.close()
+    assert runs.most == 1  # one slot: never two encodes at once
+    assert finals == [True, True]  # the second clip was seeded while the first held the slot
+    for rank, output in outputs.items():
+        assert results[rank].result.output == output and output.is_file()
+
+
+def test_a_scheduled_clip_that_fails_raises_from_its_render(auto_job, tmp_path, monkeypatch):
+    job_dir = copy_job(auto_job, tmp_path)
+    real = render_edit.render_document
+
+    def flaky(doc, *args, **kwargs):
+        if doc["base"]["origin"]["rank_at_seed"] == 1:
+            raise errors.RenderFailed("render_failed")
+        return real(doc, *args, **kwargs)
+
+    monkeypatch.setattr(render_edit, "render_document", flaky)
+    renderer = auto_renderer(job_dir, slots=2)
+    outputs = {rank: tmp_path / "out" / f"clip-{rank:02d}.mp4" for rank in (1, 2)}
+    renderer.schedule(list(outputs.items()))
+    try:
+        with pytest.raises(errors.RenderFailed):
+            renderer.render(1, outputs[1])
+        assert renderer.render(2, outputs[2]).result.output == outputs[2]
+    finally:
+        renderer.close()
+    assert not outputs[1].exists() and outputs[2].is_file()
+
+
+def test_close_stops_unconsumed_renders_and_leaves_no_files(auto_job, tmp_path, monkeypatch):
+    job_dir = copy_job(auto_job, tmp_path)
+    started = threading.Event()
+
+    def before_final(kwargs):
+        started.set()
+        assert kwargs["cancel"].wait(timeout=60)  # held until close() cancels
+
+    monkeypatch.setattr(render_edit.execute, "run",
+                        FinalRuns(execute.run, before_final=before_final))
+    renderer = auto_renderer(job_dir, slots=2)
+    out = tmp_path / "out"
+    renderer.schedule([(rank, out / f"clip-{rank:02d}.mp4") for rank in (1, 2)])
+    assert started.wait(timeout=60)
+    renderer.close()
+    assert not out.exists() or sorted(path.name for path in out.iterdir()) == []
+    renderer.close()  # idempotent
+
+
+def test_the_longest_clips_start_first(auto_job, tmp_path, monkeypatch):
+    """The tail of a job is its last clip alone: the longest clips (window plus cold open) are
+    handed to the workers first; the results still come back by rank."""
+    job_dir = copy_job(auto_job, tmp_path)
+    renderer = auto_renderer(job_dir, slots=1)
+    renderer.clips = {1: SimpleNamespace(start=0.0, end=10.0, cold_open=(20.0, 23.0)),
+                      2: SimpleNamespace(start=0.0, end=40.0, cold_open=None),
+                      3: SimpleNamespace(start=5.0, end=17.0, cold_open=None)}
+    done = []
+    monkeypatch.setattr(renderer, "_render_clip", lambda rank, output: done.append(rank) or rank)
+    renderer.schedule([(rank, tmp_path / f"clip-{rank:02d}.mp4") for rank in (1, 2, 3)])
+    try:
+        assert renderer.order == [2, 1, 3]  # 40 s, 13 s, 12 s
+        assert [renderer.render(rank, tmp_path / f"clip-{rank:02d}.mp4")
+                for rank in (1, 2, 3)] == [1, 2, 3]
+    finally:
+        renderer.close()
+    assert sorted(done) == [1, 2, 3]
+
+
+def test_render_without_a_schedule_stays_synchronous(auto_job, tmp_path):
+    job_dir = copy_job(auto_job, tmp_path)
+    renderer = auto_renderer(job_dir)
+    clip_ = renderer.render(2, tmp_path / "clip-02.mp4")
+    assert clip_.result.output == tmp_path / "clip-02.mp4"
+    renderer.close()  # nothing scheduled: a no-op
+    with pytest.raises(ValueError):
+        auto_renderer(job_dir, slots=0)
+
+
 # --- the gate tools (scripts/parity/{rt_check,look_report}.py) ------------------------------------
 
 
