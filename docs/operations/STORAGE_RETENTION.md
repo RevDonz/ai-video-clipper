@@ -19,6 +19,8 @@ Deletion is permanent and asynchronous:
 
 Step 4's order matters and must not be reversed. Storage accounting resolves each `.render-reservations/<id>.json` through `analysis/render-requests/<render_id>.json` inside the job directory. A reservation record left behind after its job directory is gone can never resolve again, so `declaredBytes + workReserveBytes` would be charged against the quota permanently, and admission is fail-closed. Removing reservation records first is the conservative direction: the bytes on disk are still counted by the scanner until the directory goes.
 
+A reservation stops counting once its request resolves to an export that completed, failed or was cancelled, or to a request of the retired candidate editor (`render-request-v2`) in any state: nothing renders those any more, so a queued one would otherwise hold its bytes forever. Render admission deletes such records; the shared accounting skips them (`web/lib/shared-storage-accounting.mjs`, `requestReleasesReservation`).
+
 A crash between any two steps is safe. The tombstone survives, and the next purge pass finishes the work; a tombstone whose directory is already gone is simply retired.
 
 ## What is and is not retained job data

@@ -1033,3 +1033,109 @@ blocks; axe on in a separate run). QG-A11Y on the fakes: 16 states, 0 critical, 
     "# pass 1147", "# fail 0", build compiled. Two runs before it on `d257283` were cancelled
     after the runner stalled (36882605320 in the Python step for 45 min, 36888344104 in
     `apt-get install ffmpeg` for 30 min; no test output, infrastructure).
+
+
+---
+
+## W4 T4.1: the candidate editor's backend retired (2026-10-02)
+
+Branch `editor-w4-t4.1` on the W3 end (`105b567`). Owner decision (W4, binding): the old
+candidate editor is retired, its web side already gone on `main`; T4.1 does **not** fix its eight
+bugs (plan §8, legacy column) but removes the backend code only that editor used, keeps old jobs
+viewable and downloadable, and keeps the benchmark baselines working. The eight bugs leave with
+the editor; the new editor fixes them by construction (plan §8, V3 column, gated in W1–W3).
+
+**Removed** (code and tests at `1189731`: 37 files, −7,874 / +1,457 lines):
+
+| What | It was | Reached only from |
+|---|---|---|
+| `src/ai_clipper/editor_api.py` | the candidate edit CLI (edit manifest PUT/GET, receipts) | `/api/jobs/:id/candidates/:cid/edit` (retired on `main`) |
+| `src/ai_clipper/edit_manifest.py` | the `clip-edit-v1.0` manifest contract and store | `editor_api`, `render_manifest`, the v1/v2 queue |
+| `src/ai_clipper/render_manifest.py` | the manifest renderer (its ASS, logo, loudnorm: bugs 1–6, 8) | the worker's v1/v2 branch |
+| `src/ai_clipper/candidate_api.py` | the candidates presentation CLI | `/api/jobs/:id/candidates` |
+| `src/ai_clipper/candidate_cues.py` | the caption-cue sanitizer CLI | `.../candidates/:cid/caption-cues` |
+| `src/ai_clipper/candidate_feedback.py` | the accept/reject log CLI | `/api/jobs/:id/candidate-feedback` |
+| `render_queue.py`: `render-request-v1`/`-v2` (create, update, publish, estimate, candidate and source snapshots, the `--job-dir` protocol) | the candidate exports | `.../candidates/:cid/renders`, the legacy status read |
+| `render_worker.py`: the manifest branch (`renderer`, `verifier`, `_verify_existing`, `_output_parent`, `_heartbeat_loop`, `analysis/render-staging`) | rendering a candidate export | v1/v2 requests |
+| `web/lib/render-requests.mjs` | the v1/v2 schema, its `--job-dir` bridge (spawned outside `python-cli.mjs`), the create, the legacy status DTO | the retired renders route, the status route's legacy branch |
+| tests | `tests/test_{editor_api,edit_manifest,render_manifest,candidate_api,candidate_cues,candidate_feedback}.py`, the candidate-request cases of `test_render_queue.py` and `test_render_worker.py`, `web/tests/{render-requests,legacy-spawn-env}.test.mjs` | — |
+
+**Kept, and why:**
+
+- The V1/V2 selection code (`highlight`, `candidates`, `features`, `ranking`, `media_features`):
+  queued or retried old jobs still run with their mode (`--selection-mode v1`/`v2-shadow`, `main`
+  `26ac083`), and the benchmark baselines `v1`, `v2-standard`, `v2-viral`, `v2-deep` use it.
+- `evaluation.py` (the offline V1-versus-V2 report): it read the old accept/reject feedback
+  through `candidate_feedback`; the strict reader moved into it with the same rules (exact
+  schema, bound to the exact candidate bytes, known candidates, unique event and request IDs,
+  8 MiB cap, no symlink or FIFO).
+- The storage helpers the clip store and the queue shared with the old store: moved, unchanged,
+  to `src/ai_clipper/job_files.py` (stdlib only). `edit_v2.store`, `edit_v2.api` and
+  `render_queue` no longer import `ranking`: the import named in W2 Open 14 (PF-PLAN) is cut,
+  70–90 ms per process on the reference PC (`T4.1-import-cut.json`; T4.3 may use it).
+- Everything the old editor left in a job is never rewritten: `analysis/edits`,
+  `analysis/render-inputs`, `analysis/candidate-feedback.v1.json`, old
+  `analysis/render-requests/*.json`, `output/edits/cand_*`. The files route still serves the
+  clips, subtitles and old exports.
+
+**Intentional behaviour changes** (listed per the T4.1 rule):
+
+1. `GET /api/jobs/:id/renders/:renderId` of a v1/v2 request answers 404 `not_found` (the body of
+   a missing one) instead of the legacy DTO; an unreadable request file answers 503; the route
+   never spawns. Its ID check is the editor's (UUID versions 1–8). It stays ungated by the flag.
+2. `python -m ai_clipper.render_queue` with any argument exits 2 with `render_queue_usage`.
+3. A v1/v2 file in a queue must still be strict canonical JSON (else the queue is invalid, as
+   before), but it is never claimed, listed, cancelled, pruned or rewritten; `get` answers not
+   found. A queued or stale-claimed old request is never rendered.
+4. Storage: one predicate (`shared-storage-accounting.requestReleasesReservation`) for the render
+   admission and the shared accounting: a finished v3 export, or a v2 request in any state,
+   releases its reservation (a queued v2 one would otherwise hold its bytes forever). The shared
+   accounting therefore also stops counting finished v3 exports, which it counted until the next
+   render admission swept them (`docs/operations/STORAGE_RETENTION.md`).
+5. `MAX_UPLOAD_BYTES` is read by no Python child any more (the v1/v2 source snapshot was its only
+   reader); it is still in `CHILD_ENV_ALLOWLIST` (T4.2's file, request below).
+
+**Tests (test first: `1466104` Python, `7911a20` web, then the code):**
+
+| Proof | Test | Result |
+|---|---|---|
+| The six modules are gone; queue and worker expose no candidate API; the editor backend imports no ranking/selection code | `tests/test_retired_candidate_editor.py` | pass |
+| Old queues: v1/v2 files never claimed, listed, cancelled or pruned, byte-identical after; a v3 export beside them works; malformed or symlinked v1/v2 files still invalid; `--job-dir` refused | `test_render_queue.py` (2 new, the module-CLI test extended) | pass |
+| The worker leaves old requests alone (same queue and another old job), skips jobs without `analysis/` and directories that are not jobs | `test_render_worker.py` (2 new) | pass |
+| Old projects (no mode; v2-shadow with every leftover of the old editor) load through the real job route with every clip, no old score, no version notice; clips, subtitles and the old export download; the clip listing (real Python CLI) offers no editor link; old render statuses 404; the old queue untouched; no web code knows the retired protocol | `web/tests/old-jobs.test.mjs` | pass |
+| Render status: v3 from the file, v1/v2 as missing, no spawn | `web/tests/clip-renders.test.mjs` | pass |
+| Reservations: v3 terminal reaped, v3 live kept, v2 reaped in every state, owner and token checked; shared accounting counts live exports only | `web/tests/render-storage-admission.test.mjs` | pass |
+| `python -m ai_clipper.benchmark --compare` runs `v1`, `v2-standard`, `v2-viral`, `v2-deep`, `v3-heuristic` on two episodes, every run completed | `test_benchmark.py::test_cli_compare_runs_the_builtin_baselines_as_a_module` | pass |
+| Old feedback still read strictly by the evaluation report (13 tampered shapes, duplicate keys, 8 MiB cap, symlink, FIFO) | `test_evaluation.py::test_old_candidate_feedback_is_read_strictly` | pass |
+| `job_files` keeps the old store's rules (symlink, FIFO, oversize, directory trust, parent fsync and its retry, atomic replace) | `tests/test_job_files.py` | pass |
+| In a browser: an old project (a copy of the owner's job `d1e45678`, no selection mode, 5 clips) and a synthetic old v2-shadow project with every leftover of the old editor render every card, play the first clip, send old editor links to the project page, 404 the six retired routes, and make no API call answer ≥ 400 | `e2e/read-only.spec.mjs` + `e2e/smoke.spec.mjs`, desktop and mobile, against the CI-built app (run 36898941555) | 10/10 per job (`T4.1-old-jobs-browser.json`) |
+
+Generic properties the candidate-request tests carried were ported to v3 requests, so none lost
+coverage: one winner per claim, a fenced expired owner, strict JSON, long-render heartbeats on the
+queue clock, the storage time cadence, byte growth, storage lost mid-render, a release transport
+failure. The flaky-test entry of `docs/ROADMAP.md` §6
+(`test_worker_heartbeats_during_long_render_and_prevents_reclaim`, already on the queue clock since
+W3 patch 47) is now `test_v3_worker_heartbeats_during_a_long_render_and_prevents_reclaim`.
+
+**Where it ran.** CI on GitHub Actions at `1189731` (the last code commit; later commits are this
+document, the README, CONTRACTS, STORAGE_RETENTION and evidence): `ci-gate full` run 36898607754
+**success** (ruff "All checks passed!"; pytest on Python 3.11 "4170 passed, 2 skipped, 1 xfailed";
+npm test on Node 20 "# pass 1154", "# fail 0"; build "✓ Compiled successfully"); `ci-gate image`
+run 36898617856 **success** ("4168 passed, 4 skipped, 1 xfailed" in the production image). The
+counts against W3's (4,272 / 1,147) are the removed suites minus the new and ported tests. Owner's
+PC: targeted tests only, the import timing (`T4.1-import-cut.json`) and one browser pass on the
+standalone app the image built (`editor-gates` command run 36898941555; table above). The first
+browser pass on the copy of `d1e45678` failed the no-version-wording check on desktop and mobile
+because of the project's own name, which the owner typed as "… V1 lama (pembanding)"; user text is
+not UI wording, and with the copy renamed all 10 passed (the original job was only read).
+
+### Phase-B requests (T4.1 → others)
+
+| To | Request |
+|---|---|
+| T4.Z | Approve the CONTRACTS changes (§A.1 CLI row, §4.1 layout, `GET /clips` `not_v3`, `GET /renders/:renderId`, render-request-v3 retention/flag/storage notes). |
+| T4.Z | The W4 exit gate's "8/8 legacy regression tests" and the legacy e2e (`mutation.spec.mjs`, deleted on `main`) no longer apply: the proofs above replace them. Tick plan §8 as "retired" in `docs/ROADMAP.md`; update ROADMAP §6's test name (above) and HANDOFF §3/§4 ("modul backend lama dibiarkan dulu"). |
+| T4.2 | `MAX_UPLOAD_BYTES` can leave `CHILD_ENV_ALLOWLIST` (`web/lib/python-cli.mjs`); no child reads it now. |
+| T4.3 | PF-PLAN: the store/api import of `ranking` is gone (`T4.1-import-cut.json`); re-measure with it. |
+| T4.4 | README's editor section and the final CONTRACTS/PANDUAN: the README paragraph on the retired editor is updated here; nothing in `PANDUAN-EDITOR.md` named the removed code. |
+| any W4 branch | Import `ai_clipper.job_files` (`read_regular`, `fsync_directory`, `ensure_directory`, `atomic_write`, `validate_analysis_dir`; errors `JobFileError`/`JobFileInvalid`/`JobFileNotFound`) instead of `edit_manifest`'s private helpers. |
