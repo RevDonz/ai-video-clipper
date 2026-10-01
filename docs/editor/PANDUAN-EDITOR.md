@@ -2,12 +2,17 @@
 
 Panduan ini untuk pemilik Potongin: apa yang bisa dipakai di editor, arti tanda di layar, dan cara
 mencobanya di aplikasi lokal. Rencana lengkapnya ada di `docs/plans/2026-09-24-editor-v3-esensial.md`;
-angka pengujian ada di `docs/editor/GATES.md`.
+angka pengujian ada di `docs/editor/GATES.md`; cara menjalankan dan memeriksa server ada di
+`docs/editor/OPERASIONAL.md`.
 
-Editor **masih mati secara bawaan** dan hanya muncul kalau `POTONGIN_EDITOR_V3=on`. Unggah logo
-dan musik butuh `POTONGIN_EDITOR_UPLOADS=on`, saran hook yang ditulis AI butuh
-`POTONGIN_EDITOR_LLM=on`; keduanya juga mati secara bawaan. Klip otomatis tetap dibuat dengan
-render yang sekarang (`POTONGIN_RENDER_ENGINE=legacy`) sampai render editor dipercepat (W4).
+Editor menyala selama `POTONGIN_EDITOR_V3=on`, bawaan saat rilis. Unggah logo dan musik
+(`POTONGIN_EDITOR_UPLOADS`) dan saran hook yang ditulis AI (`POTONGIN_EDITOR_LLM`) menyala begitu
+gerbangnya lolos (tinjauan keamanan, dan gerbang keras saran AI). Begitu render dipercepat, klip
+otomatis dirender dengan cara yang sama dengan ekspor editor (`POTONGIN_RENDER_ENGINE=edit-v2`):
+tampilannya sedikit berubah dan filenya lebih besar karena kualitasnya lebih tinggi. Daftar flag
+dan syaratnya: `docs/editor/OPERASIONAL.md` §2.
+
+Proyek lama tetap bisa dilihat dan diunduh dari Riwayat. Editor kandidat yang lama sudah tidak ada.
 
 ## 1. Membuka klip
 
@@ -34,7 +39,8 @@ render yang sekarang (`POTONGIN_RENDER_ENGINE=legacy`) sampai render editor dipe
   "Perpanjang ke sini". **Ctrl+Shift+H** menjadikan pilihan 0,5–8 detik sebagai cold open.
 - **Rapikan** (tombol di atas transkrip): daftar kata pengisi ("eh", "anu"), pengulangan
   ("saya saya") dan jeda hening yang bisa dipotong di titik yang tenang. Jeda hening sudah
-  tercentang, kata pengisi dan pengulangan belum. **Putar** memperdengarkan tiap item, **Lihat**
+  tercentang, kata pengisi dan pengulangan belum (kata pengisi ikut tercentang setelah pemilik
+  mengonfirmasi daftar labelnya). **Putar** memperdengarkan tiap item, **Lihat**
   menandainya di transkrip. **"Terapkan (n)"** memotong semua yang dicentang dalam satu langkah, dan
   satu Urungkan mengembalikan semuanya. Partikel ("kan", "sih", "mah", "toh", …) dan kata ulang
   ("anak-anak") tidak pernah didaftar. Jeda yang masih ada suaranya hanya bisa didengarkan.
@@ -89,20 +95,38 @@ tab pada klip yang sama digabung per bagian.
 | **Menyiapkan video (7/30)…** | Potongan video pratinjau masih dibuat server. Frame terakhir yang pasti tetap tampil. |
 | **Memperbarui teks… / logo… / Menyiapkan audio…** | Lapisan itu sedang diperbarui (biasanya < 1 detik). |
 | **Menyiapkan frame…** | Frame di posisi ini sedang digambar. |
-| **● Belum diubah: ekspor = klip otomatis** | Klip belum diedit, jadi ekspornya adalah file klip otomatis apa adanya. File itu dibuat sebelum editor dibuka, jadi bisa sedikit berbeda dari pratinjau. Setelah ada perubahan, tanda kembali ke "Sesuai hasil akhir". |
+| **● Belum diubah: ekspor = klip otomatis** | Klip belum diedit, jadi ekspornya adalah file klip otomatis apa adanya. Klip otomatis dari proyek yang dirender sebelum render disamakan dengan editor bisa sedikit berbeda dari pratinjau. Setelah ada perubahan, tanda kembali ke "Sesuai hasil akhir". |
 | **● Frame akhir** | Piksel hasil render akhir untuk frame ini. |
 
 Tombol **"Apa artinya?"** di sebelah tanda menampilkan penjelasan yang sama.
+
+### Apa yang dijamin "Sesuai hasil akhir"
+
+Pratinjau dan ekspor dibuat dari dokumen yang sama oleh aturan yang sama, dan CI mengujinya pada
+setiap perubahan kode (setiap PR) dan setiap malam:
+
+- **Frame:** setiap frame pratinjau menampilkan frame sumber yang sama dengan file akhir, termasuk
+  di setiap potongan dan cold open. Uji: 0 frame berbeda (ribuan frame, empat jenis frame rate).
+- **Waktu teks:** caption, hook dan kata aktif karaoke muncul dan hilang di frame yang sama.
+  Uji: 0 selisih di lima frame rate.
+- **Bentuk teks:** gambar teks di browser hampir identik dengan gambar teks di file akhir
+  sebelum kompresi (SSIM ≥ 0,999, beda tiap warna maksimal 16 dari 255).
+- **Audio:** sampel audio pratinjau sama persis dengan audio sebelum dikompresi ke AAC.
+- **Yang memang berbeda:** file MP4 dikompresi (H.264, warna 4:2:0), jadi tepi teks berwarna
+  sedikit lebih lembut. Batasnya diuji: kemiripan seluruh frame ≥ 0,990 dan area teks ≥ 0,980.
+  Untuk melihat piksel persisnya, pakai **"Frame akhir"**.
+- Klip yang belum diubah diekspor sebagai file klip otomatis itu sendiri (tidak dirender ulang).
 
 ## 4. Mencoba editor di aplikasi lokal
 
 Syarat: Chrome atau Edge desktop, jendela minimal 1024 px.
 
-1. Pakai cabang hasil W3 di folder repo:
+1. Pakai cabang `main` terbaru di folder repo (sebelum editor digabung ke `main`: cabang
+   integrasi editor yang terakhir, lihat `docs/HANDOFF.md`):
 
    ```bash
    cd /home/revdonz/Projects/ai-video-clipper
-   git switch editor-w3-integration
+   git switch main && git pull
    uv sync --frozen --extra vision
    (cd web && npm ci)
    ```
@@ -141,10 +165,10 @@ Tanpa `POTONGIN_EDITOR_V3=on`, tombol "Edit klip" dan semua rute editor hilang (
 yang sudah tersimpan tetap ada di folder proyek (`analysis/clips/…`), logo dan musik di
 `analysis/assets/`, dan klip otomatis tidak berubah.
 
-Di server (Docker), nyalakan dengan `POTONGIN_EDITOR_V3=on`, `POTONGIN_EDITOR_UPLOADS=on` dan
-`POTONGIN_EDITOR_LLM=on` di `.env`; `compose.yaml` meneruskannya ke container `app` dan bawaannya
-`off`. `POTONGIN_LLM_EDITOR_MODELS` (opsional, `provider/model` dipisah koma) memilih model gratis
-khusus untuk saran hook; kosong berarti rantai di Pengaturan.
+Di server (Docker), flag diatur di `.env`; `compose.yaml` meneruskannya ke container yang
+memerlukannya dan memegang bawaan rilisnya (`docs/editor/OPERASIONAL.md` §2).
+`POTONGIN_LLM_EDITOR_MODELS` (opsional, `provider/model` dipisah koma) memilih model gratis khusus
+untuk saran hook; kosong berarti rantai di Pengaturan.
 
 ## 5. Pintasan keyboard
 
@@ -171,7 +195,7 @@ Setiap aksi juga punya tombol di layar. Pintasan tidak aktif saat Anda mengetik 
 |---|---|
 | "Menyiapkan klip untuk diedit" lama sekali | Proyek panjang dengan face-track. Tunggu; setelah 12 menit editor menyerah dan meminta muat ulang. |
 | "Video sumber tidak bisa dibaca; proses ulang videonya" | FFmpeg gagal membaca video sumber proyek ini (filenya masih ada). Proses ulang videonya dari dashboard. |
-| "Caption masuk ke area tombol TikTok" di "Perlu dicek" | Posisi caption bawaan klip otomatis memang di area itu. Geser caption ke atas di tab Teks bila tertutup, atau centang lalu ekspor. |
+| Catatan "Perlu dicek" bahwa caption ada di area tombol TikTok | Hanya pemberitahuan, bukan kesalahan: caption bawaan memang di posisi yang sama dengan klip otomatis, supaya klip yang tidak diubah tetap diekspor sebagai file klip otomatis. Kalau di aplikasi caption tertutup tombol, geser caption ke atas di tab Teks; kalau tidak, centang lalu ekspor. |
 | "Transkrip berubah sejak klip diedit" (baca saja) | Proyek dijalankan ulang dan transkripnya berubah. Klik "Mulai dari versi AI". |
 | "Klip ini diubah di tab lain" | Dua tab mengubah bagian yang sama. Pilih versi per bagian; draf Anda tidak hilang. |
 | "Gagal menyimpan; perubahan aman di browser ini" | Server tidak terjangkau. Perubahan tersimpan di browser dan dikirim lagi otomatis. |
@@ -182,3 +206,10 @@ Setiap aksi juga punya tombol di layar. Pintasan tidak aktif saat Anda mengetik 
 | Ekspor tetap "Antre" | Render worker belum berjalan (langkah 4). |
 | "Editor butuh layar minimal 1024 px" | Perlebar jendela atau pakai laptop/komputer. |
 | "Pratinjau langsung butuh Chrome/Edge desktop" | Browser tanpa WebCodecs. Mengedit dan mengekspor tetap bisa; pratinjau memakai "Frame akhir". |
+
+## 7. Lisensi pihak ketiga
+
+Pratinjau editor memakai JASSUB (libass di browser) dan Mediabunny, dan caption memakai font
+Montserrat dan DejaVu. Lisensinya, versi persisnya dan tempat kode sumbernya ada di halaman
+**`/licenses`** aplikasi (teksnya di `web/public/licenses/`). Kewajiban yang perlu dijaga saat
+mengganti salah satunya: `docs/editor/OPERASIONAL.md` §6.

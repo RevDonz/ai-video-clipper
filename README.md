@@ -221,6 +221,35 @@ greeting) never counts for the focus. Each clip gets
 `focus: {match, terms, at}` and the summary `focus: {terms, matched, requested}`. Without focus
 terms every output is unchanged.
 
+## Editor klip
+
+**Bahasa Indonesia.** Tombol **Edit klip** di setiap klip membuka editor (desktop, Chrome atau
+Edge, layar ≥ 1024 px): potong lewat transkrip, rapikan kata pengisi dan jeda, perbaiki
+caption, pilih gaya caption dan teks hook (dengan saran), cold open, tata letak (latar blur,
+ikuti wajah, potong tengah), logo, musik dengan ducking, lalu ekspor MP4 + SRT. Pratinjau
+memakai kompiler yang sama dengan ekspor; tanda **"Sesuai hasil akhir"** berarti frame, waktu
+teks, gambar teks dan audio yang terlihat sama dengan file akhir, kecuali kompresi MP4.
+
+- Memakai editor dan arti setiap tanda: [`docs/editor/PANDUAN-EDITOR.md`](docs/editor/PANDUAN-EDITOR.md).
+- Flag (`POTONGIN_EDITOR_V3`, `POTONGIN_EDITOR_UPLOADS`, `POTONGIN_EDITOR_LLM`,
+  `POTONGIN_RENDER_ENGINE`), layanan, toolchain render yang dikunci, gerbang CI dan lisensi:
+  [`docs/editor/OPERASIONAL.md`](docs/editor/OPERASIONAL.md).
+- Hasil gerbang: [`docs/editor/GATES.md`](docs/editor/GATES.md); kontrak:
+  [`docs/editor/CONTRACTS.md`](docs/editor/CONTRACTS.md); rencana:
+  [`docs/plans/2026-09-24-editor-v3-esensial.md`](docs/plans/2026-09-24-editor-v3-esensial.md).
+- Lisensi pihak ketiga (JASSUB, Mediabunny, font): halaman `/licenses`.
+
+**English.** The clip editor edits a `clip-edit-v2` document (cuts from the transcript,
+captions, hook, cold open, layout, logo, ducked music) and renders it with the same FFmpeg
+compiler the preview uses. CI checks preview/export parity on every pull request: inside the
+production image, P-TIME, a P-TXT subset, a 300-frame P-FRAME, G-DET, P-AUD and R10
+(`scripts/parity/run_all.sh smoke`), then the JASSUB side in Chrome for Testing 147.0.7727.15
+against that image's app. A nightly run measures the full parity suite (P-ENC and P-COLOR
+included) and writes a performance report. `scripts/parity/toolchain_guard.py` fails a pull
+request that changes the pinned rendering toolchain (the Dockerfile pins behind
+`toolchain.json`) or the JASSUB pin without fresh, stamped P-TIME/P-TXT/P-ENC/P-COLOR/P-RT
+evidence (`gh workflow run ci-cd.yml --ref <branch> -f suite=toolchain`).
+
 ## What is real today
 
 - Local Indonesian transcription with faster-whisper, word timestamps, and a transcript
