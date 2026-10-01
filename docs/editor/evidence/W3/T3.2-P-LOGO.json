@@ -34,6 +34,7 @@
     "wide-over-captions"
   ],
   "clip": "clip_c7338377170b4a2e49948f67",
+  "failure_cause": "1 of 18 frames fails (wide-over-captions, frame 768): max 9 > 8, on the pixels where the logo is clear or partial. There the browser's own logo-less frame already differs from the server's logo-less composite by 9 levels (frames_detail[].blend_only.browser_vs_server_without_logo), and the logo does not change the server's pixels under its clear part (under_logo_server max 0). The logo's opaque pixels differ by at most 1 and the blend alone by at most 2 (blend_only). This case puts the logo over the captions, so the 9 levels come from what the logo shows through, which P-TXT bounds at max 16; the gate's 'logo region' (plan \u00a710.1) does not say whether that content counts. Not decided here: the threshold is unchanged and the frame stays a failure until the owner or the integrator decides.",
   "failures": [
     {
       "box_exact": true,
@@ -1536,6 +1537,7 @@
   "pass": false,
   "run": {
     "browser": "Chrome for Testing 147.0.7727.15 (Playwright 1.62.1, build 1217)",
+    "ci": "not re-run on GitHub Actions: the browser half needs Chrome and a copy of a real job, and neither is in the production image or on GitHub. The server half ran in the toolchain image built locally from the same Dockerfile; its FFmpeg 5.1.9 and Python 3.11.2 match the CI image's (editor-gates run 36844719931).",
     "commands": [
       "web/e2e/editor-logo.spec.mjs 'real stack' (captures)",
       "scripts/parity/logo_gates.py score | export | g5, in the image"
