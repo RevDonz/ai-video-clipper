@@ -114,7 +114,9 @@ export class CommandRejected extends Error {
 /** Duck depth presets of the music panel (plan §11.3 T3.3): Halus −6, Sedang −10, Kuat −16 dB. */
 export const DUCK_PRESETS = Object.freeze({ halus: 600, sedang: 1000, kuat: 1600 });
 const DEFAULT_DUCK = Object.freeze({ on: true, depth_cdb: 1000, attack_ms: 30, release_ms: 400, hold_ms: 250, detector: "words" });
-const DEFAULT_LOGO = Object.freeze({ x_e5: 88000, y_e5: 7000, w_e5: 16000, opacity_pm: 850 });
+// A new logo's size and opacity; SetLogo places it at the top-right preset (snapTarget).
+const DEFAULT_LOGO = Object.freeze({ x_e5: 50000, y_e5: 50000, w_e5: 16000, opacity_pm: 850 });
+const UI_ZONE_720 = Object.freeze({ top: 93, bottom: 280, right: 93 }); // plan §5.9 G5
 const DEFAULT_HOOK_MS = 4000; // today's hook duration (captions_ass.build_ass)
 const JOIN_FADE_MS = 30; // today's AUDIO_JOIN_FADE_SECONDS
 const CORNERS = Object.freeze(["top_left", "top_right", "bottom_left", "bottom_right"]);
@@ -493,14 +495,29 @@ function requireItem(doc, kind, code) {
   need(trackOf(doc, kind)?.items.length, code);
 }
 
+// The corner presets sit just outside the TikTok/Reels UI zone (plan §5.9 G5: 93 px top, 280 px
+// bottom, 93 px right at 720×1280, scaled like plan.ui_zone), so a preset never brings the G5
+// warning; the left edge, which the zone does not cover, keeps a 4 % margin.
 function snapTarget(ctx, transform, meta, corner) {
   const { w: width, h: height } = ctx.output;
   const [, , w, h] = box(ctx, transform, meta);
   const mx = divRoundHalfUp(4 * width, 100);
-  const my = divRoundHalfUp(25 * height, 1000);
-  const x0 = corner.endsWith("left") ? mx : width - mx - w;
-  const y0 = corner.startsWith("top") ? my : height - my - h;
+  const top = divRoundHalfUp(UI_ZONE_720.top * height, 1280);
+  const bottom = divRoundHalfUp(UI_ZONE_720.bottom * height, 1280);
+  const right = divRoundHalfUp(UI_ZONE_720.right * width, 720);
+  // A logo too large for the safe area starts at the frame edge instead.
+  const x0 = Math.min(Math.max(corner.endsWith("left") ? mx : width - right - w, 0), Math.max(0, width - w));
+  const y0 = Math.min(Math.max(corner.startsWith("top") ? top : height - bottom - h, 0), Math.max(0, height - h));
   return [divRoundHalfUp((2 * x0 + w) * 100000, 2 * width), divRoundHalfUp((2 * y0 + h) * 100000, 2 * height)];
+}
+
+/** A new logo's transform: the default size, fitted to the frame, at the top-right preset. */
+function defaultLogo(ctx, meta) {
+  const fitted = fitLogo(ctx, DEFAULT_LOGO, meta);
+  const [x, y] = snapTarget(ctx, fitted, meta, "top_right");
+  const position = clampPosition(ctx, meta, x, y, fitted.w_e5);
+  need(position, "item_out_of_frame");
+  return { ...fitted, x_e5: position[0], y_e5: position[1] };
 }
 
 const HANDLERS = {
@@ -713,7 +730,7 @@ const HANDLERS = {
     const origin = originArg(args.origin, ITEM_ORIGIN_PATTERN, "user");
     const track = trackOf(doc, "visual");
     const current = track?.items[0] ?? null;
-    const transform = fitLogo(ctx, current ? current.transform : DEFAULT_LOGO, meta);
+    const transform = current ? fitLogo(ctx, current.transform, meta) : defaultLogo(ctx, meta);
     const used = documentIds(doc);
     const item = {
       id: current?.id ?? freeId(used, TRACKS.visual.item), type: "image", start: { at: "clip_start" }, end: { at: "clip_end" },

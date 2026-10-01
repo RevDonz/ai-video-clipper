@@ -559,10 +559,14 @@ test("SetLayout switches between the three layouts", () => {
 test("SetLogo places the logo top-right inside the frame and registers the asset", () => {
   const doc = run(C30, C30.seed, "SetLogo", { asset: LOGO, meta: ASSETS[LOGO] });
   assert.deepEqual(doc.tracks.map((track) => track.id), ["tr_hook", "tr_ovr"]);
+  // Top-right, just outside the TikTok/Reels zone (93 px top and right bands at 720×1280), so a
+  // new logo never starts with the G5 warning: the box is (512, 93) 115×115.
   assert.deepEqual(logoItem(doc), {
     id: "it_logo", type: "image", start: { at: "clip_start" }, end: { at: "clip_end" },
-    transform: { x_e5: 88000, y_e5: 7000, w_e5: 16000, opacity_pm: 850 }, payload: { asset: LOGO, mode: "free" }, origin: "user",
+    transform: { x_e5: 79097, y_e5: 11758, w_e5: 16000, opacity_pm: 850 }, payload: { asset: LOGO, mode: "free" }, origin: "user",
   });
+  const placed = logoItem(doc).transform;
+  assert.deepEqual(logoBox({ ...placed, asset_w: 512, asset_h: 512, out_w: 720, out_h: 1280 }), [512, 93, 115, 115]);
   assert.deepEqual(doc.assets, { [LOGO]: ASSETS[LOGO] });
   // The upload DTO form (bare hex, camelCase, kind "logo") gives the same document.
   const dto = { sha256: LOGO.slice(7), kind: "logo", mime: "image/png", w: 512, h: 512, durationMs: null, lufsC: null, peaksUrl: null };
@@ -589,10 +593,15 @@ test("logo transform commands keep the box inside the frame", () => {
   rejects(C30, doc, "MoveLogo", { x_e5: 100000, y_e5: 50000 }, "item_out_of_frame");
   rejects(C30, doc, "MoveLogo", { x_e5: 100001, y_e5: 50000 }, "value_out_of_range");
   assert.equal(logoItem(run(C30, moved, "ResizeLogo", { w_e5: 40000 })).transform.w_e5, 40000);
-  rejects(C30, doc, "ResizeLogo", { w_e5: 40000 }, "item_out_of_frame");
+  // In the top-right corner of the frame a 40 % logo would leave it.
+  const cornered = run(C30, doc, "MoveLogo", { x_e5: 88000, y_e5: 7000 });
+  rejects(C30, cornered, "ResizeLogo", { w_e5: 40000 }, "item_out_of_frame");
   rejects(C30, doc, "ResizeLogo", { w_e5: 3999 }, "value_out_of_range");
   assert.equal(logoItem(run(C30, doc, "SetLogoOpacity", { opacity_pm: 200 })).transform.opacity_pm, 200);
   rejects(C30, doc, "SetLogoOpacity", { opacity_pm: 1001 }, "value_out_of_range");
+  // The corner presets sit outside the TikTok/Reels zone: 4 % from the left edge, against the
+  // zone's right (627), top (93) and bottom (1000) edges at 720×1280.
+  const presets = { top_left: [29, 93], top_right: [512, 93], bottom_left: [29, 885], bottom_right: [512, 885] };
   for (const corner of ["top_left", "top_right", "bottom_left", "bottom_right"]) {
     const snapped = run(C30, moved, "SnapLogo", { corner });
     const t = logoItem(snapped).transform;
@@ -600,6 +609,8 @@ test("logo transform commands keep the box inside the frame", () => {
     assert.equal(x0 < 360, corner.endsWith("left"), corner);
     assert.equal(y0 < 640, corner.startsWith("top"), corner);
     assert.ok(x0 >= 0 && y0 >= 0 && x0 + w <= 720 && y0 + h <= 1280, corner);
+    assert.deepEqual([x0, y0], presets[corner], corner);
+    assert.ok(y0 >= 93 && y0 + h <= 1280 - 280 && x0 + w <= 720 - 93, `${corner} outside the TikTok zone`);
   }
   rejects(C30, doc, "SnapLogo", { corner: "center" }, "invalid_args");
   const [x, y] = clampLogoPosition(doc, 100000, 0, C30.ctx);
