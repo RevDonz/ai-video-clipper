@@ -307,7 +307,8 @@ async function addMusic(page, name = "lagu-latar.m4a", { notice = false } = {}) 
   const chooser = page.waitForEvent("filechooser");
   await panel(page).getByRole("button", { name: "Tambah musik" }).click();
   if (notice) {
-    await expect(panel(page).getByText(/Content ID/)).toBeVisible();
+    // Content ID is YouTube's system; TikTok and Instagram run their own checks.
+    await expect(panel(page).getByText(/oleh pemeriksaan hak cipta di TikTok, Instagram dan YouTube \(Content ID\)\./)).toBeVisible();
     await panel(page).getByRole("button", { name: "Pilih file musik" }).click();
   }
   const fileChooser = await chooser;
@@ -475,6 +476,11 @@ test.describe("Musik panel on the fakes", () => {
     const box = await lane.boundingBox();
     await lane.click({ position: { x: box.width / 2, y: box.height / 2 } });
     await expect.poll(() => page.evaluate(() => window.__potonginEditor.player.frame())).toBeGreaterThan(100);
+    // The lane's text alternative says the music dips only while ducking is on.
+    const image = lane.getByRole("img");
+    await expect(image).toHaveAttribute("aria-label", "Volume musik sepanjang klip: turun saat ada suara");
+    await panel(page).getByRole("switch", { name: "Kecilkan musik saat ada suara" }).click();
+    await expect(image).toHaveAttribute("aria-label", "Volume musik sepanjang klip");
   });
 
   test("notes: music shorter than the clip, peak reduced, loudness clamped, measuring", async ({ page }) => {
