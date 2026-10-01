@@ -1,7 +1,7 @@
 """Per-clip document store: virtual revision 0, PUT rules, receipts, archive (plan §4.1, §4.4).
 
 Includes the in-process QG-PERSIST soak (5,000 consecutive saves) and the ported crash
-reconciliation cases of ``test_editor_api.py``. Set ``POTONGIN_GATE_EVIDENCE=1`` to (re)write
+reconciliation cases of the retired candidate store. Set ``POTONGIN_GATE_EVIDENCE=1`` to (re)write
 the gate evidence under ``docs/editor/evidence/W1/``; ``POTONGIN_GATES=1`` also runs the timing
 gate (in-process PUT p95 <= 30 ms for a 100 KB document), which is not a unit test because it
 depends on the machine.

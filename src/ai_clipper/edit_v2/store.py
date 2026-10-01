@@ -1,8 +1,8 @@
 """Per-clip document store: virtual revision 0, PUT rules, receipts, archive (plan §4.1, §4.4).
 
-Owner: T1.1. ``clip_dir`` is ``JOBS_ROOT/<job>/analysis/clips/<clip_id>``. It reuses the private
-helpers of ``edit_manifest.py`` (``_read_regular``, ``_fsync_directory`` and the ``flock`` and
-tmp → fsync → rename patterns of ``_edit_lock`` and ``_atomic_write``) without modifying them.
+Owner: T1.1. ``clip_dir`` is ``JOBS_ROOT/<job>/analysis/clips/<clip_id>``. It reads and syncs
+files with ``job_files`` (``read_regular``, ``fsync_directory``) and keeps the ``flock`` and
+tmp → fsync → rename patterns of ``job_files.atomic_write``.
 
 Layout (relative to ``clip_dir``): ``seed.json`` (revision 0, written by the seed builder, never
 here), ``words.<sha16>.json`` (the words artifact named by ``base.words.sha256``),
@@ -68,7 +68,7 @@ from collections.abc import Callable, Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from pathlib import Path
 
-from .. import edit_manifest as _v1
+from .. import job_files
 from .doc import (
     MAX_DOC_BYTES,
     Issue,
@@ -131,10 +131,10 @@ def _corrupt() -> EditV2Error:
 def _read(path: Path, limit: int) -> bytes | None:
     """A regular, non-symlink file's bytes (≤ limit), or None when it does not exist."""
     try:
-        return _v1._read_regular(path, limit)
+        return job_files.read_regular(path, limit)
     except FileNotFoundError:
         return None
-    except _v1.EditManifestError:
+    except job_files.JobFileError:
         raise _corrupt() from None
     except OSError as error:
         if error.errno in {errno.ENOENT, errno.ENOTDIR}:
@@ -210,7 +210,7 @@ def _fsync_directories(paths: Iterable[Path]) -> Callable[[], None]:
 
     def sync(path: Path) -> None:
         try:
-            _v1._fsync_directory(path)
+            job_files.fsync_directory(path)
         except BaseException as error:  # noqa: BLE001 - re-raised by wait()
             errors.append(error)
 
@@ -255,7 +255,7 @@ def _ensure_dir(path: Path) -> Path:
     except FileExistsError:
         pass
     else:
-        _v1._fsync_directory(path.parent)
+        job_files.fsync_directory(path.parent)
     info = path.lstat()
     if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
         raise _corrupt()
@@ -483,7 +483,7 @@ def _archive(clip_dir: Path, revision: int, etag: str, raw: bytes) -> str:
         return name
     try:
         _link_archive(staged.wait(), staged.target, etag)
-        _v1._fsync_directory(staged.target.parent)
+        job_files.fsync_directory(staged.target.parent)
     finally:
         staged.discard()
     return name
