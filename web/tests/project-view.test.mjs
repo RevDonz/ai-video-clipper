@@ -11,13 +11,13 @@ import { fileURLToPath } from "node:url";
 import { GET as getJobDetail } from "../app/api/jobs/[id]/route.js";
 import RetiredCandidatePage from "../app/projects/[id]/candidates/[[...rest]]/page.js";
 import { createSessionToken } from "../lib/auth.mjs";
+import { historyOffersEdit } from "../lib/clip-entry-view.mjs";
 import { generateSocialMetadata, serializePublicJob } from "../lib/jobs.mjs";
 import {
   ProjectDetailLoadError,
   clipLabel,
   failureDetail,
   formatProjectDate,
-  historyOffersEdit,
   historySummary,
   isActiveStatus,
   loadProjectDetail,

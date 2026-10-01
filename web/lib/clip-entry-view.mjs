@@ -2,8 +2,8 @@
 // badge, the latest export link and the reason a clip cannot open, from `GET /api/jobs/:id/clips`
 // (plan §4.2). That route only answers when POTONGIN_EDITOR_V3=on, so a 404 simply hides the
 // entry. A clip that still needs preparing links to the editor as well: the editor prepares the
-// job on open and shows the progress (W3, owner feedback; lib/editor/open-clip.mjs). Client-safe:
-// no Node built-ins.
+// job on open and shows the progress (W3, owner feedback; lib/editor/open-clip.mjs). The history's
+// "Edit klip" rule lives here too. Client-safe: no Node built-ins.
 
 export const CLIP_REASON_TEXT = Object.freeze({
   needs_prepare: "Klip perlu disiapkan dulu",
@@ -91,6 +91,28 @@ export function clipEntryView(jobId, clip) {
     editBadge: editBadge(clip?.edit),
     latestExport: latestExportView(jobId, clip?.latestRender, clip?.index),
   };
+}
+
+/**
+ * A clip's entry on the project page: the listing's own, or, when the listing loaded without it
+ * (a job made before the editor: no manifest or no analysis), the reason it cannot open. Null
+ * while the listing is off, loading or failed: the card then shows no editor entry at all.
+ */
+export function clipEntryFor(listing, job, index) {
+  const listed = listing?.byIndex?.get(index);
+  if (listed) return listed;
+  if (listing?.state !== "available") return null;
+  const reason = job?.options?.selectionMode === "v3" ? null : "not_v3";
+  return clipEntryView(job?.id, { index, clipId: null, openable: false, reason });
+}
+
+/**
+ * Whether the history links a project to its clips for editing: the editor is on, the project
+ * finished with clips, and it ran the current selection (older jobs have no clip to edit).
+ */
+export function historyOffersEdit(job, editor) {
+  return editor === true && job?.status === "completed" && Array.isArray(job?.clips) && job.clips.length > 0
+    && job?.options?.selectionMode === "v3";
 }
 
 async function readJson(response) {

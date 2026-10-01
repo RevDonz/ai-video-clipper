@@ -4,7 +4,7 @@ import { use, useEffect, useRef, useState } from "react";
 
 import AppHeader from "../../../components/AppHeader.jsx";
 import TrendChips from "../../../components/trends/TrendChips.jsx";
-import { loadClipEntries } from "../../../lib/clip-entry-view.mjs";
+import { clipEntryFor, loadClipEntries } from "../../../lib/clip-entry-view.mjs";
 import {
   clipLabel,
   failureDetail,
@@ -89,7 +89,8 @@ function ScoreBlock({ score }) {
 
 // The editor entry of a clip (POTONGIN_EDITOR_V3=on): "Edit klip" on every clip that can be
 // edited, including one whose job was never prepared (the editor prepares it on open), else the
-// reason it cannot be edited; plus the latest export of an edited clip.
+// reason it cannot be edited (also for a clip the listing does not name); plus the latest export
+// of an edited clip.
 function EditorEntry({ entry }) {
   if (!entry) return null;
   const latest = entry.latestExport;
@@ -171,7 +172,7 @@ function ClipsSection({ job, copyState, onCopy, entries }) {
         <h2 id="clips-title">{job.status === "completed" ? `${clips.length} klip siap diunggah` : `${clips.length} klip`}</h2>
         <div className={styles.clipList}>
           {clips.map((clip) => <ClipCard key={clip.index} clip={clip} job={job} copied={copyState.index === clip.index ? copyState.status : ""} onCopy={onCopy}
-            entry={entries.get(clip.index) ?? null} />)}
+            entry={clipEntryFor(entries, job, clip.index)} />)}
         </div>
       </section>
     );
@@ -249,7 +250,7 @@ export default function ProjectPage({ params }) {
   const [error, setError] = useState(null);
   const [generation, setGeneration] = useState(0);
   const [copyState, setCopyState] = useState({ index: null, status: "" });
-  const [entries, setEntries] = useState(() => new Map());
+  const [entries, setEntries] = useState(() => ({ state: "idle", byIndex: new Map() }));
   const copyTimer = useRef(null);
   const editable = job?.status === "completed" && Array.isArray(job?.clips) && job.clips.length > 0;
 
@@ -306,7 +307,7 @@ export default function ProjectPage({ params }) {
     loadClipEntries(id, { signal: controller.signal }).then((result) => {
       if (!active) return;
       if (result.state === "redirect") window.location.assign(result.location);
-      else setEntries(result.byIndex);
+      else setEntries(result);
     }).catch(() => {});
     return () => {
       active = false;
