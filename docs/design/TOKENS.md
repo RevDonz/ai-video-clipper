@@ -3,6 +3,9 @@
 Sumber: `web/app/globals.css` (`:root`). Arah: `DESIGN.md` (gelap di semua halaman, satu aksen lime,
 DM Sans, dial ENERGY 1 / RHYTHM 1 / MOTION 2). Ubah nilai di dua tempat sekaligus;
 `web/tests/app-shell.test.mjs` memeriksa keduanya sama dan menghitung ulang kontras AA.
+`web/tests/ui-guards.test.mjs` menolak warna di luar token ini (hex, `rgb()`, `color-mix()`, nama
+warna) di CSS dan komponen, dan memeriksa setiap pasangan teks/latar yang dipakai stylesheet.
+Kalau latar teks datang dari elemen induk, tulis komentar `/* on: --token */` di aturannya.
 
 Kontras dihitung dengan `.claude/skills/antislop-human/contrast-check.py`. Batas: teks 4.5:1,
 tepi kontrol dan cincin fokus 3:1.

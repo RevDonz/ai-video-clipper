@@ -339,10 +339,10 @@ export function validatePersistedJobOptions(input) {
   options.selectionMode = input.selectionMode;
   const persisted = (keys) => keys.some((key) => input[key] !== undefined);
   if (input.selectionMode !== "v2-shadow" && persisted(V2_OPTION_KEYS)) {
-    throw new Error("Invalid persisted job options: V2 options require v2-shadow mode");
+    throw new Error("Invalid persisted job options: shadow candidate options require v2-shadow mode");
   }
   if (input.selectionMode !== "v3" && persisted(V3_OPTION_KEYS)) {
-    throw new Error("Invalid persisted job options: V3 options require v3 mode");
+    throw new Error("Invalid persisted job options: AI selection options require v3 mode");
   }
   if (input.selectionMode === "v1") return options;
   if (input.selectionMode === "v3") {
