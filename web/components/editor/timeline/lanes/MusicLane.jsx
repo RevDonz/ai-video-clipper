@@ -76,7 +76,7 @@ export default function MusicLane({ plan, state, player, pxPerFrame = 1 }) {
     <div className={`${shell.lane} ${styles.lane}`} data-lane="music" onClick={seek}>
       {width > 0 ? (
         <svg className={styles.svg} width={width} viewBox={`0 0 ${width} ${HEIGHT}`} preserveAspectRatio="none"
-          role="img" aria-label="Volume musik sepanjang klip: turun saat ada suara">
+          role="img" aria-label={payload.duck?.on ? "Volume musik sepanjang klip: turun saat ada suara" : "Volume musik sepanjang klip"}>
           {wave ? <path className={styles.wave} d={wave} data-music-wave="" /> : null}
           {envelope ? (
             <polyline className={styles.envelope} points={envelope} vectorEffect="non-scaling-stroke"

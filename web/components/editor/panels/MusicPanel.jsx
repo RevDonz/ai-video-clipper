@@ -226,8 +226,8 @@ function MusicPanelBody({ state, dispatch, uploadAsset, uploadsEnabled }) {
         {upload?.phase === "notice" ? (
           <div className={styles.notice} role="group" aria-labelledby={`${uid}-notice`}>
             <p id={`${uid}-notice`} className={styles.noticeText}>
-              Pakai musik yang boleh Anda gunakan. Lagu berhak cipta bisa membuat video dibisukan atau diblokir oleh
-              Content ID di TikTok, YouTube dan Instagram.
+              Pakai musik yang boleh Anda gunakan. Lagu berhak cipta bisa membuat video dibisukan atau diblokir
+              oleh pemeriksaan hak cipta di TikTok, Instagram dan YouTube (Content ID).
             </p>
             <div className={base.row}>
               <button ref={noticeButtonRef} type="button" className={`${base.button} ${base.primary}`}
