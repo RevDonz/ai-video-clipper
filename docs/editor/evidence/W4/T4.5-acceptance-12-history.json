@@ -1,0 +1,8 @@
+{
+  "schema": "potongin.gate/1",
+  "capability": 12,
+  "undoDepth": 200,
+  "savedAfterLastKeyMs": 1965,
+  "autosaveDebounceMs": 1500,
+  "pass": true
+}

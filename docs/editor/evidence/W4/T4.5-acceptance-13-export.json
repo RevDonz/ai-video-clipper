@@ -1,0 +1,30 @@
+{
+  "schema": "potongin.gate/1",
+  "capability": 13,
+  "clipDurationMs": 48799,
+  "renderMs": 20978,
+  "steps": [
+    "Antre",
+    "Merender",
+    "Memverifikasi"
+  ],
+  "notes": 1,
+  "reusedBy": "key",
+  "cancelled": true,
+  "r10": "seed",
+  "gates": [
+    {
+      "name": "G1",
+      "ok": true
+    },
+    {
+      "name": "G2",
+      "ok": true
+    },
+    {
+      "name": "G5",
+      "ok": false
+    }
+  ],
+  "pass": true
+}
