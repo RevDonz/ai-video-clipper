@@ -428,43 +428,81 @@ def test_v3_worker_skips_old_jobs_and_directories_that_are_not_jobs(tmp_path):
 
 
 def test_v3_worker_heartbeats_during_a_long_render_and_prevents_reclaim(tmp_path, monkeypatch):
-    # The queue runs on the test's clock: the render outlives its lease ten times over at once,
-    # whatever the load on the machine.
-    clock = {"now": render_queue_module.datetime(2026, 10, 1, 12, 0,
-                                                 tzinfo=render_queue_module.UTC)}
+    # One fake clock drives the queue's timestamps and the monitor's heartbeat timer: the worker
+    # can beat only when the test moves that clock, and the test waits for the beat itself, so
+    # the outcome never depends on machine load (wall-clock versions failed on busy CI runners).
+    clock = {
+        "now": render_queue_module.datetime(2026, 10, 1, 12, 0, tzinfo=render_queue_module.UTC),
+        "monotonic": 1_000.0,
+    }
 
     class QueueClock(render_queue_module.datetime):
         @classmethod
         def now(cls, tz=None):
             return clock["now"]
 
+    watching = threading.Event()
+
+    class FakeClockMonitor(render_worker._V3Monitor):
+        def __init__(self, **options):
+            super().__init__(**options, clock=lambda: clock["monotonic"])
+
+        def run(self, stop):
+            # The monitor's first read of the clock is its lease timer's start: the test moves
+            # the clock only after it, so the beat below cannot be missed.
+            monitor_thread = threading.get_ident()
+            fake = self.clock
+
+            def seen_clock():
+                if threading.get_ident() == monitor_thread:
+                    watching.set()
+                return fake()
+
+            self.clock = seen_clock
+            super().run(stop)
+
     monkeypatch.setattr(render_queue_module, "datetime", QueueClock)
+    monkeypatch.setattr(render_worker, "_V3Monitor", FakeClockMonitor)
+    beats: list[str] = []
+    beat = threading.Event()
+    queue_heartbeat = render_worker.heartbeat
+
+    def recorded_heartbeat(job_dir, render_id, token):
+        result = queue_heartbeat(job_dir, render_id, token)
+        beats.append(result["heartbeat_at"])
+        beat.set()
+        return result
+
+    monkeypatch.setattr(render_worker, "heartbeat", recorded_heartbeat)
     job, request = v3_queued(tmp_path)
     rendering = threading.Event()
     release = threading.Event()
 
     def render_request(_job_dir, current, *, heartbeat, cancel):
         rendering.set()
-        assert release.wait(10)
+        assert release.wait(30)
         v3_publish(job, current, b"long verified render")
 
     worker = threading.Thread(target=v3_worker, args=(job,), kwargs={
-        "renderer_v3": render_request, "lease_seconds": 1, "heartbeat_interval": 0.01})
+        "renderer_v3": render_request, "lease_seconds": 1, "heartbeat_interval": 0.25})
     worker.start()
-    assert rendering.wait(10)
+    assert rendering.wait(30)
+    assert watching.wait(30)
     claimed_at = get_request(job.job, request["render_id"])["heartbeat_at"]
+    assert beats == [], "no heartbeat while the clock stands still"
+    # The render outlives its lease by ten lease lengths at once (under the 20 s liveness and
+    # the request's timeout): the queue's time moves first, so the beat the monitor's timer then
+    # triggers carries the new time.
     clock["now"] += render_queue_module.timedelta(seconds=10)
+    clock["monotonic"] += 10.0
     later = clock["now"].isoformat(timespec="milliseconds").replace("+00:00", "Z")
-    deadline = time.monotonic() + 10
-    while (get_request(job.job, request["render_id"])["heartbeat_at"] != later
-           and time.monotonic() < deadline):
-        time.sleep(0.01)
+    assert beat.wait(30), "the worker heartbeats while it renders"
     assert claimed_at != later
-    assert get_request(job.job, request["render_id"])["heartbeat_at"] == later, (
-        "the worker heartbeats while it renders")
+    assert beats[0] == later
+    assert get_request(job.job, request["render_id"])["heartbeat_at"] == later
     assert claim_next(job.job, lease_seconds=1) is None
     release.set()
-    worker.join(10)
+    worker.join(30)
     assert not worker.is_alive()
     final = get_request(job.job, request["render_id"])
     assert (final["state"], final["attempts"]) == ("completed", 1)
