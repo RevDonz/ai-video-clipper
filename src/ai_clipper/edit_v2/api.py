@@ -71,7 +71,7 @@ from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-from .. import edit_manifest as _v1
+from .. import job_files
 from . import store
 from . import timemap as tm
 from .clip_id import CLIP_ID_PATTERN, clip_id, ms_from_seconds
@@ -195,8 +195,8 @@ def _regular(path: Path) -> bool:
 def _read_json(path: Path, limit: int) -> object:
     """A small JSON file (regular, not a symlink), or None when missing or unreadable."""
     try:
-        raw = _v1._read_regular(path, limit)
-    except (OSError, _v1.EditManifestError):
+        raw = job_files.read_regular(path, limit)
+    except (OSError, job_files.JobFileError):
         return None
     try:
         return json.loads(raw)

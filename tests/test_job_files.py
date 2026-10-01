@@ -11,6 +11,8 @@ import sys
 from pathlib import Path
 
 import pytest
+
+from ai_clipper import job_files
 from ai_clipper.job_files import (
     JobFileError,
     JobFileInvalid,
@@ -21,8 +23,6 @@ from ai_clipper.job_files import (
     read_regular,
     validate_analysis_dir,
 )
-
-from ai_clipper import job_files
 
 
 def test_errors_share_one_base():
