@@ -369,6 +369,67 @@ def test_rejects_tamper_nonfinite_bad_utf8_duplicate_jobs_and_unsafe_output(tmp_
     assert outside.read_text() == "keep"
 
 
+def test_old_candidate_feedback_is_read_strictly(tmp_path: Path):
+    """Feedback written by the retired candidate editor is still read, with the same rules."""
+    from ai_clipper.evaluation import EvaluationError, evaluate_jobs
+
+    job = _job(tmp_path, "job-a")
+    artifact = _write_candidates(
+        job, "source.mp4",
+        [(0, 0, 30, "secret", ("alpha",), 6, 5, False),
+         (1, 30, 60, "secret two", ("beta",), 8, 7, False)],
+    )
+    registry = _registry(tmp_path, [job])
+    feedback_path = job / "analysis" / "candidate-feedback.v1.json"
+    _feedback(job, artifact, ["accepted", "rejected"])
+    valid = json.loads(feedback_path.read_text())
+    report = evaluate_jobs(registry, [job], tmp_path / "out")
+    assert report["sources"][0]["feedback"]["counts"] == {
+        "accepted": 1, "rejected": 1, "undecided": 0}
+
+    def event(**changes):
+        return {**valid, "events": [{**valid["events"][0], **changes}]}
+
+    tampered = [
+        {**valid, "unknown": 1},
+        {**valid, "feedback_version": "feedback-v2"},
+        {**valid, "selection_version": "selection-v9"},
+        {**valid, "candidate_artifact_analysis": {
+            "artifact": "candidates.v2.json",
+            "sha256": valid["candidate_artifact_analysis"]["sha256"]}},
+        {**valid, "events": [valid["events"][0], valid["events"][0]]},  # duplicate identity
+        event(candidate_id="cand_" + "f" * 64),  # not in the artifact
+        event(decision="maybe"),
+        event(note="line\nbreak"),
+        event(note=" padded"),
+        event(note="x" * 501),
+        event(created_at="2026-08-30T00:00:00Z"),
+        event(event_id="not-a-uuid"),
+        event(extra=True),
+    ]
+    for payload in tampered:
+        _json(feedback_path, payload)
+        with pytest.raises(EvaluationError, match="feedback"):
+            evaluate_jobs(registry, [job], tmp_path / "out")
+    raw = json.dumps(valid)
+    feedback_path.write_text(raw.replace('"events":', '"events":[],"events":', 1))
+    with pytest.raises(EvaluationError, match="feedback"):
+        evaluate_jobs(registry, [job], tmp_path / "out")
+    feedback_path.write_text(raw + " " * (8 * 1024 * 1024))  # valid JSON over the 8 MiB cap
+    with pytest.raises(EvaluationError, match="feedback"):
+        evaluate_jobs(registry, [job], tmp_path / "out")
+    feedback_path.unlink()
+    outside = tmp_path / "outside.json"
+    outside.write_text(raw)
+    feedback_path.symlink_to(outside)
+    with pytest.raises(EvaluationError, match="feedback"):
+        evaluate_jobs(registry, [job], tmp_path / "out")
+    feedback_path.unlink()
+    os.mkfifo(feedback_path)
+    with pytest.raises(EvaluationError, match="feedback"):
+        evaluate_jobs(registry, [job], tmp_path / "out")
+
+
 def test_credential_only_registry_changes_do_not_change_report(tmp_path: Path):
     from ai_clipper.evaluation import evaluate_jobs
 
