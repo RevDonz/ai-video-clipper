@@ -502,7 +502,7 @@ timeout + SIGKILL, fixed exit-code map as in `edit-document.mjs`, and an **allow
 | Method and path (under `/api/jobs/:id`) | Purpose | Contract |
 |---|---|---|
 | `POST /clips` | Job-level prepare for jobs rendered before Essentials: writes `analysis/source.json`, computes the clip ids and writes each clip's immutable `seed.json`, words and peaks (§3.5) | Same-origin; idempotent; `202 {state}` |
-| `GET /clips` | V3 clips of the job | `{clips:[{clipId, index, title, hookText, description, hashtags, durationMs, engine: "edit-v2/1"\|"legacy", edit:{state:"seed"\|"edited", revision, etag, updatedAtMs}, latestRender:{renderId, state, url, srtUrl, revision}\|null, openable, reason}]}`. For jobs rendered before Essentials, `clipId` is null with `reason: "needs_prepare"` until `POST /clips` has run. Other `reason` values (fixed codes with Indonesian messages): `source_missing`, `selection_unreadable`, `transcript_missing`, `analysis_incomplete` (`.attempts/` left), `not_v3` (V1/v2-shadow jobs; V2 candidates use the legacy editor and its "Buka di Editor V3") |
+| `GET /clips` | V3 clips of the job | `{clips:[{clipId, index, title, hookText, description, hashtags, durationMs, engine: "edit-v2/1"\|"legacy", edit:{state:"seed"\|"edited", revision, etag, updatedAtMs}, latestRender:{renderId, state, url, srtUrl, revision}\|null, openable, reason}]}`. For jobs rendered before Essentials, `clipId` is null with `reason: "needs_prepare"` until `POST /clips` has run. Other `reason` values (fixed codes with Indonesian messages): `source_missing`, `selection_unreadable`, `transcript_missing`, `analysis_incomplete` (`.attempts/` left), `not_v3` (V1/v2-shadow jobs; V2 candidates use the legacy editor and its "Buka di Editor V3"); `POST /clips` can also answer `source_unreadable` (the source is there but cannot be probed or measured; §5.20) |
 | `GET /clips/:clipId/edit` | Current document, or the seed as virtual revision 0 | `200 {doc, etag, seed, words:{sha256, url}, readOnly, readOnlyReason}` with `ETag` and `X-Edit-Seed: 1` for the seed. `?seed=1` always returns the seed (for "Kembali ke versi AI"). **No side effects.** `409 analysis_missing` when the words artifact does not exist yet (the client then calls `prepare`) |
 | `PUT /clips/:clipId/edit` | Save the full document | `If-Match` required (428), `Idempotency-Key` UUID required, `Content-Type: application/json`, ≤ 1 MiB. `200 {doc, etag, warnings}`; `409 revision_conflict {current, etag}`; `409 idempotency_conflict`; `422 {errors:[{path, code}]}`; `426 schema_too_new` |
 | `GET /clips/:clipId/words` | Words artifact | `ETag` = sha; `Cache-Control: private, max-age=31536000, immutable` |
@@ -1431,3 +1431,46 @@ Everything here is additive: no frozen signature, mode, DTO field or route chang
 - Messages without version or engine words (Python `_MESSAGES` and the JS copy together):
   `op_disabled`, `engine_fallback`, `editor_disabled`, `not_v3`, `legacy_engine`, the unchanged-clip
   badge `"● Belum diubah: ekspor = klip otomatis"` and its help.
+
+## 5.20 W3 verifier fixes (2026-10-01)
+
+- **Timeline layout.** `.timelineBody` aligns its two columns to the top (`align-items:
+  flex-start`): the labels and the lanes' scroller take their content's height, the body scrolls
+  both together, the last lane (Musik) scrolls fully into view at 1366×768 and 1920×1080, and the
+  scroller cannot scroll vertically on its own (labels stay beside their lanes). Hooks for tests:
+  `data-timeline-body`, `data-timeline-scroller`, `data-lane-label=<id>` (rows keep
+  `data-lane-row=<id>`).
+- **Lane notes.** Lanes also receive `onNote(text | null)`; the timeline shows each lane's note
+  at the end of its header (`data-lane-note=<id>`, the text in `[data-note-text]`). The marker
+  lane keeps its "tidak tersedia untuk job ini" note in the lane when it has no markers and moves
+  it to the header when it has some, so no marker covers it.
+- **Prepare answer.** `open-clip.prepareForEditor` reads the `POST /clips` answer: when it is
+  `{state: "done"}` and lists the requested clip (matched by its number, from the first listing)
+  as not openable, the editor shows that reason at once (its Appendix C.6 text; `needs_prepare`
+  or an unknown reason → `prepare_failed`) instead of polling the listing for 12 minutes.
+  New clip reason `source_unreadable` ("Video sumber tidak bisa dibaca; proses ulang videonya";
+  Python `errors.CLIP_REASONS`/`MESSAGES`, `clip-edit.CLIP_REASONS`,
+  `clip-entry-view.CLIP_REASON_TEXT`, `shell-model.MESSAGES`): `seed.prepare_legacy_job` uses it
+  when `ensure_source_info` raises `SourceInfoError` while the source file exists;
+  `source_missing` stays for a source that is gone.
+- **Frame grid.** `source_info._grid_pts` runs FFmpeg with `GRID_THREADS` and, when that run
+  exits non-zero, once more with `-threads 1 -filter_complex_threads 1` (FFmpeg 6.1.1 aborts on
+  some AV1 sources with several threads); a timeout is not retried.
+- **Logo presets.** `SnapLogo` places the box 4 % of the width from the left edge and against
+  the TikTok zone's right, top and bottom edges (plan §5.9: 93/280/93 px at 720×1280, scaled like
+  `plan.ui_zone`), clamped into the frame when the logo is larger than the safe area. `SetLogo`
+  without a current logo fits `w_e5` 16000 and places it at the `top_right` preset (a 512×512
+  logo at 720×1280: box (512, 93) 115×115, `x_e5` 79097, `y_e5` 11758), so no preset and no new
+  logo starts with the G5 warning. `logo-geometry.cornerTransform`/`cornerOf` follow; the
+  "margin" magnet guides (4 %/2.5 %) stay for deliberate placements.
+- **Check text.** `checksView` names what an `unsafe_zone` warning is about from its pointer:
+  `/captions/…` "Caption masuk ke area tombol TikTok", `/tracks/N/items/N/transform/y_e5` "Hook
+  …", `/tracks/N/items/N/transform` "Logo …"; other pointers keep the generic message.
+  `messageFor` writes a measured detail the Indonesian way (`peak_reduced:-2.20 dB` →
+  "(−2,2 dB)", `loudness_clamped:-16.30 LUFS` → "(−16,3 LUFS)"); other details are unchanged.
+- **Download names.** The final-file route takes `name` (lower-case letters and digits in words
+  joined by `-`, ≤ 64 characters) and answers `Content-Disposition: …; filename="<name><the file's
+  extension>"`; anything else keeps the stored name. `clip-entry-view.exportDownload(href, {index,
+  revision})` → `{href: "…?download=1&name=klip-NN-revisi-R", filename}`; the export dialog
+  (`ExportDialog` takes `clipIndex` from the listing), its earlier exports and the project page's
+  latest export use it.
