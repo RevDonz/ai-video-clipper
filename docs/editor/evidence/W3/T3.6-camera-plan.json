@@ -1,0 +1,66 @@
+{
+  "gate": "camera-plan",
+  "runs": {
+    "local-owner-pc-nice19": {
+      "baseline": "face_tracking.detect_face_track(sequential=True), W1: 14.62 s on e7f0d37b",
+      "budget_s": 15.0,
+      "compared_with_today": false,
+      "detector": "face_window.detect_window (Haar, 0.75 s samples, worker threads)",
+      "environment": {
+        "camera_workers": 4,
+        "cpu_quota": null,
+        "cpus_visible": 16,
+        "ffmpeg": "ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023 the FFmpeg developers",
+        "loadavg": [
+          4.73,
+          7.15,
+          6.94
+        ],
+        "python": "3.13.13"
+      },
+      "gate_wall_s": 11.2,
+      "note": "owner's PC, worktree .venv (Python 3.13, OpenCV 4.14), system FFmpeg 6.1.1 (not the pinned image), nice 19 + ionice idle, alone (no other gate of this task running), one real job, one run",
+      "pass": true,
+      "runs": 1,
+      "sources": {
+        "e7f0d37b": {
+          "codec": "av1",
+          "load_before": [
+            [
+              2.55,
+              6.89,
+              6.85
+            ]
+          ],
+          "no_face_spans": 0,
+          "pass": true,
+          "progress": {
+            "events": 242,
+            "last": [
+              241,
+              241
+            ],
+            "monotonic": true
+          },
+          "rate": "24000/1001",
+          "role": "fit-blur, AV1 1280\u00d7720 23.976",
+          "same_plan_every_run": true,
+          "samples": 241,
+          "size": [
+            1280,
+            720
+          ],
+          "window_detector_s": [
+            11.17
+          ],
+          "window_ms": [
+            1904530,
+            2084530
+          ]
+        }
+      },
+      "window_ms": 180000
+    }
+  },
+  "task": "T3.6"
+}

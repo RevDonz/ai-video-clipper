@@ -1,0 +1,291 @@
+{
+  "gate": "P-FRAME",
+  "runs": {
+    "ci-4vcpu": {
+      "cases": [
+        {
+          "cold_open": true,
+          "expected_undecodable": 0,
+          "final_frames": 683,
+          "final_mismatches": 0,
+          "fps": [
+            30000,
+            1001
+          ],
+          "from": "fit_blur",
+          "hook": false,
+          "job": "main",
+          "layout": "fit_blur",
+          "output_frames": 683,
+          "pass": true,
+          "pieces": 20,
+          "plate_mismatches": 0,
+          "removals": 18
+        },
+        {
+          "cold_open": true,
+          "expected_undecodable": 0,
+          "final_frames": 683,
+          "final_mismatches": 0,
+          "fps": [
+            30000,
+            1001
+          ],
+          "from": "fit_blur",
+          "hook": false,
+          "job": "main",
+          "layout": "fill_center",
+          "output_frames": 683,
+          "pass": true,
+          "pieces": 20,
+          "plate_mismatches": 0,
+          "removals": 18
+        },
+        {
+          "cold_open": true,
+          "expected_undecodable": 0,
+          "final_frames": 683,
+          "final_mismatches": 0,
+          "fps": [
+            30000,
+            1001
+          ],
+          "from": "fit_blur",
+          "hook": false,
+          "job": "main",
+          "layout": "camera",
+          "output_frames": 683,
+          "pass": true,
+          "pieces": 20,
+          "plate_mismatches": 0,
+          "prepare_ms": 2410.0,
+          "removals": 18
+        },
+        {
+          "cold_open": true,
+          "expected_undecodable": 0,
+          "final_frames": 572,
+          "final_mismatches": 0,
+          "fps": [
+            25,
+            1
+          ],
+          "from": "fill_center",
+          "hook": false,
+          "job": "fps25",
+          "layout": "fit_blur",
+          "output_frames": 572,
+          "pass": true,
+          "pieces": 20,
+          "plate_mismatches": 0,
+          "removals": 18
+        },
+        {
+          "cold_open": true,
+          "expected_undecodable": 0,
+          "final_frames": 572,
+          "final_mismatches": 0,
+          "fps": [
+            25,
+            1
+          ],
+          "from": "fill_center",
+          "hook": false,
+          "job": "fps25",
+          "layout": "fill_center",
+          "output_frames": 572,
+          "pass": true,
+          "pieces": 20,
+          "plate_mismatches": 0,
+          "removals": 18
+        },
+        {
+          "cold_open": true,
+          "expected_undecodable": 0,
+          "final_frames": 572,
+          "final_mismatches": 0,
+          "fps": [
+            25,
+            1
+          ],
+          "from": "fill_center",
+          "hook": false,
+          "job": "fps25",
+          "layout": "camera",
+          "output_frames": 572,
+          "pass": true,
+          "pieces": 20,
+          "plate_mismatches": 0,
+          "prepare_ms": 2387.7,
+          "removals": 18
+        },
+        {
+          "cold_open": true,
+          "expected_undecodable": 0,
+          "final_frames": 686,
+          "final_mismatches": 0,
+          "fps": [
+            30,
+            1
+          ],
+          "from": "camera",
+          "hook": false,
+          "job": "fps60",
+          "layout": "fit_blur",
+          "output_frames": 686,
+          "pass": true,
+          "pieces": 20,
+          "plate_mismatches": 0,
+          "removals": 18
+        },
+        {
+          "cold_open": true,
+          "expected_undecodable": 0,
+          "final_frames": 686,
+          "final_mismatches": 0,
+          "fps": [
+            30,
+            1
+          ],
+          "from": "camera",
+          "hook": false,
+          "job": "fps60",
+          "layout": "fill_center",
+          "output_frames": 686,
+          "pass": true,
+          "pieces": 20,
+          "plate_mismatches": 0,
+          "removals": 18
+        },
+        {
+          "cold_open": true,
+          "expected_undecodable": 0,
+          "final_frames": 686,
+          "final_mismatches": 0,
+          "fps": [
+            30,
+            1
+          ],
+          "from": "camera",
+          "hook": false,
+          "job": "fps60",
+          "layout": "camera",
+          "output_frames": 686,
+          "pass": true,
+          "pieces": 20,
+          "plate_mismatches": 0,
+          "prepare_ms": 11.8,
+          "removals": 18
+        },
+        {
+          "cold_open": false,
+          "expected_undecodable": 0,
+          "final_frames": 583,
+          "final_mismatches": 0,
+          "fps": [
+            30,
+            1
+          ],
+          "from": "fit_blur",
+          "hook": false,
+          "job": "vfr",
+          "layout": "fit_blur",
+          "output_frames": 583,
+          "pass": true,
+          "pieces": 19,
+          "plate_mismatches": 0,
+          "removals": 18
+        },
+        {
+          "cold_open": false,
+          "expected_undecodable": 0,
+          "final_frames": 583,
+          "final_mismatches": 0,
+          "fps": [
+            30,
+            1
+          ],
+          "from": "fit_blur",
+          "hook": false,
+          "job": "vfr",
+          "layout": "fill_center",
+          "output_frames": 583,
+          "pass": true,
+          "pieces": 19,
+          "plate_mismatches": 0,
+          "removals": 18
+        },
+        {
+          "cold_open": false,
+          "expected_undecodable": 0,
+          "final_frames": 583,
+          "final_mismatches": 0,
+          "fps": [
+            30,
+            1
+          ],
+          "from": "fit_blur",
+          "hook": false,
+          "job": "vfr",
+          "layout": "camera",
+          "output_frames": 583,
+          "pass": true,
+          "pieces": 19,
+          "plate_mismatches": 0,
+          "prepare_ms": 2484.7,
+          "removals": 18
+        }
+      ],
+      "ci_run": 36846632382,
+      "commit": "e69dcdf",
+      "environment": {
+        "camera_workers": 4,
+        "cpu_quota": null,
+        "cpus_visible": 4,
+        "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+        "loadavg": [
+          3.48,
+          2.51,
+          1.2
+        ],
+        "python": "3.11.2"
+      },
+      "gate_wall_s": 360.3,
+      "media": "synthetic",
+      "note": "GitHub Actions ubuntu-latest runner (4 vCPU; timings indicative), production image built from editor-w3-t3.6 at e69dcdf, standalone node server.js with POTONGIN_EDITOR_V3=on, gate client in the same container, synthetic barcode jobs",
+      "pass": true,
+      "per_layout": {
+        "camera": {
+          "cases": 4,
+          "final_frames": 2524,
+          "final_mismatches": 0,
+          "pass": true,
+          "plate_frames": 2524,
+          "plate_mismatches": 0
+        },
+        "fill_center": {
+          "cases": 4,
+          "final_frames": 2524,
+          "final_mismatches": 0,
+          "pass": true,
+          "plate_frames": 2524,
+          "plate_mismatches": 0
+        },
+        "fit_blur": {
+          "cases": 4,
+          "final_frames": 2524,
+          "final_mismatches": 0,
+          "pass": true,
+          "plate_frames": 2524,
+          "plate_mismatches": 0
+        }
+      },
+      "threshold": {
+        "min_frames_per_layout": 2000,
+        "mismatches": 0
+      },
+      "workflow": "editor-gates.yml (suite=command, production image)"
+    }
+  },
+  "task": "T3.6"
+}
