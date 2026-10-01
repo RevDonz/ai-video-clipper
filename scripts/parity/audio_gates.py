@@ -809,6 +809,31 @@ def write_evidence(directory: Path, gate: str, result: Mapping[str, Any],
     return path
 
 
+def run_gates(steps: Sequence[tuple[Sequence[str], Any]], evidence: Path | None,
+              label: str | None = None) -> list[str]:
+    """Run each step (gate names, a function returning their reports) and write each gate's
+    evidence as soon as it ends: a crash (a stalled render on a busy machine) fails that step's
+    gates alone, keeps the evidence already written and the run goes on."""
+    failures: list[str] = []
+    for names, compute in steps:
+        try:
+            reports = compute()
+        except (errors.EditV2Error, OSError, RuntimeError, ValueError,
+                subprocess.SubprocessError) as error:
+            reason = f"{type(error).__name__}: {getattr(error, 'code', None) or error}"
+            for gate in names:
+                print(f"{gate}: FAIL ({reason})", flush=True)
+            failures.extend(names)
+            continue
+        for gate, report in zip(names, reports, strict=True):
+            if evidence is not None:
+                write_evidence(evidence, gate, report, label)
+            print(f"{gate}: {'pass' if report.get('pass') else 'FAIL'}", flush=True)
+            if not report.get("pass"):
+                failures.append(gate)
+    return failures
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="T3.3 music gates on real exports")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -847,26 +872,19 @@ def main(argv: Sequence[str] | None = None) -> int:
             (args.jobs_root / TWINS_FILE).write_text(json.dumps(twins, indent=2))
         return 0
 
-    failures = []
+    label = getattr(args, "label", None)
     if args.command == "exports":
         gates = Exports(args.jobs_root, args.work)
-        reports: dict[str, dict[str, Any]] = {}
-        if args.gate in ("all", "click"):
-            reports["G-CLICK"] = gates.click()
-        if args.gate in ("all", "duck"):
-            reports["duck"] = gates.duck()
-        if args.gate in ("all", "loudness"):
-            reports["G3"], reports["G3b"] = gates.loudness()
+        steps = [(names, compute) for key, names, compute in (
+            ("click", ("G-CLICK",), lambda: (gates.click(),)),
+            ("duck", ("duck",), lambda: (gates.duck(),)),
+            ("loudness", ("G3", "G3b"), gates.loudness),
+        ) if args.gate in ("all", key)]
     else:
-        gates = Lane(args.base_url, args.jobs_root, args.work)
-        reports = {"P-AUD": gates.p_aud(args.browser_fixtures)} if args.gate == "p-aud" \
-            else {"PF-AUDIO": gates.pf_audio()}
-    for gate, report in reports.items():
-        if args.evidence is not None:
-            write_evidence(args.evidence, gate, report, getattr(args, "label", None))
-        print(f"{gate}: {'pass' if report.get('pass') else 'FAIL'}", flush=True)
-        if not report.get("pass"):
-            failures.append(gate)
+        lane_gates = Lane(args.base_url, args.jobs_root, args.work)
+        steps = [(("P-AUD",), lambda: (lane_gates.p_aud(args.browser_fixtures),))] \
+            if args.gate == "p-aud" else [(("PF-AUDIO",), lambda: (lane_gates.pf_audio(),))]
+    failures = run_gates(steps, args.evidence, label)
     return 1 if failures else 0
 
 
