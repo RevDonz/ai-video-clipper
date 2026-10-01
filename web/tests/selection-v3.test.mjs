@@ -90,10 +90,12 @@ test("V3 form options reject unknown values and options of other modes", () => {
     { selectionMode: "v1", coldOpen: "false" },
     { selectionMode: "v2-shadow", captionStyle: "karaoke" },
     { selectionMode: "v2-shadow", hookOverlay: "true" },
-    { llmMode: "auto" },
-    { coldOpen: "true" },
+    { llmMode: "required" },
     { selectionMode: "V3" },
   ]) assert.throws(() => parseJobOptions(input), undefined, JSON.stringify(input));
+  // Without a selection mode the options belong to the current selection.
+  assert.equal(parseJobOptions({ llmMode: "off" }).llmMode, "off");
+  assert.equal(parseJobOptions({ coldOpen: "false" }).selectionMode, "v3");
 });
 
 test("job API form parsing forwards the V3 fields", () => {

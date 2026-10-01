@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
 import { POST as login } from "../app/api/auth/login/route.js";
 import { POST as logout } from "../app/api/auth/logout/route.js";
-import { parseJobFormOptions, selectionV2Enabled } from "../app/api/jobs/route.js";
+import { POST as createJob, parseJobFormOptions } from "../app/api/jobs/route.js";
 import { proxy } from "../proxy.js";
 import {
   authenticateCredentials,
@@ -16,6 +16,8 @@ import {
   verifySessionToken,
 } from "../lib/auth.mjs";
 import {
+  CURRENT_SELECTION_MODE,
+  RetiredSelectionModeError,
   atomicWriteJson,
   enrichJobSocialMetadata,
   generateSocialMetadata,
@@ -36,42 +38,45 @@ import {
 import { TREND_KINDS } from "../lib/trend-context.mjs";
 import { jobClipFromManifest } from "../scripts/run-job.mjs";
 
+const CURRENT_DEFAULTS = { selectionMode: "v3", llmMode: "auto", coldOpen: true, hookOverlay: true, captionStyle: "karaoke" };
+
 test("accepts supported render and numeric options", () => {
   assert.deepEqual(
     parseJobOptions({ renderMode: "fit-blur", limit: "3", minDuration: "20", maxDuration: "60" }),
-    { renderMode: "fit-blur", limit: 3, minDuration: 20, maxDuration: 60 },
+    { renderMode: "fit-blur", limit: 3, minDuration: 20, maxDuration: 60, ...CURRENT_DEFAULTS },
   );
 });
 
-test("old job requests preserve their exact V1 option shape", () => {
-  assert.deepEqual(
-    parseJobOptions({ renderMode: "fit-blur", limit: "3", minDuration: "20", maxDuration: "60" }),
-    { renderMode: "fit-blur", limit: 3, minDuration: 20, maxDuration: 60 },
-  );
+test("a new job without a selection mode always uses the current selection", () => {
+  assert.equal(CURRENT_SELECTION_MODE, "v3");
+  assert.deepEqual(parseJobOptions({}), { renderMode: "fit-blur", limit: 5, minDuration: 20, maxDuration: 60, ...CURRENT_DEFAULTS });
+  assert.deepEqual(parseJobOptions({ selectionMode: "" }), parseJobOptions({}));
+  assert.deepEqual(parseJobOptions({ selectionMode: null, coldOpen: "false" }).coldOpen, false);
+  // Asking for the current selection by its stored name still works for tooling.
+  assert.deepEqual(parseJobOptions({ selectionMode: "v3" }), parseJobOptions({}));
 });
 
-test("V2 shadow options are strict, bounded, and default safely", () => {
-  assert.deepEqual(parseJobOptions({ selectionMode: "v2-shadow", clipProfile: "deep-dive" }), {
-    renderMode: "fit-blur", limit: 5, minDuration: 20, maxDuration: 60,
-    selectionMode: "v2-shadow", clipProfile: "deep-dive",
-    maxCandidates: 200, maxMediaCandidates: 12, mediaTimeout: 30,
-  });
+test("a new job cannot ask for a retired selection mode or its options", () => {
   for (const input of [
-    { selectionMode: "v2" }, { selectionMode: true },
-    { selectionMode: "v2-shadow", clipProfile: "viral" },
-    { selectionMode: "v2-shadow", clipProfile: false },
-    { selectionMode: "v2-shadow", maxCandidates: 5001 },
-    { selectionMode: "v2-shadow", maxCandidates: true },
-    { selectionMode: "v2-shadow", maxCandidates: 10, maxMediaCandidates: 11 },
-    { selectionMode: "v2-shadow", maxMediaCandidates: 101 },
-    { selectionMode: "v2-shadow", mediaTimeout: 0 },
-    { selectionMode: "v2-shadow", mediaTimeout: 301 },
-    { selectionMode: "v2-shadow", mediaTimeout: true },
-  ]) assert.throws(() => parseJobOptions(input));
-  assert.equal(selectionV2Enabled({}), true);
-  assert.equal(selectionV2Enabled({ SELECTION_V2_ENABLED: "true" }), true);
-  assert.equal(selectionV2Enabled({ SELECTION_V2_ENABLED: "false" }), false);
-  assert.throws(() => selectionV2Enabled({ SELECTION_V2_ENABLED: "yes" }));
+    { selectionMode: "v1" },
+    { selectionMode: "v2-shadow" },
+    { selectionMode: "v2-shadow", clipProfile: "deep-dive" },
+    { selectionMode: "v1", coldOpen: "true" },
+    { clipProfile: "standard" },
+    { selectionMode: "v3", clipProfile: "standard" },
+    { maxCandidates: "10" },
+    { maxMediaCandidates: "4" },
+    { mediaTimeout: "9" },
+  ]) {
+    assert.throws(() => parseJobOptions(input), (error) => {
+      assert.ok(error instanceof RetiredSelectionModeError, JSON.stringify(input));
+      assert.equal(error.code, "selection_mode_retired");
+      return true;
+    });
+  }
+  for (const input of [{ selectionMode: "v2" }, { selectionMode: true }, { selectionMode: "V3" }, { selectionMode: "v4" }]) {
+    assert.throws(() => parseJobOptions(input), (error) => !(error instanceof RetiredSelectionModeError) && /selection mode/i.test(error.message), JSON.stringify(input));
+  }
 });
 
 test("public old jobs advertise V1 without leaking sourcePath", () => {
@@ -114,22 +119,113 @@ test("public jobs re-sanitize Selection V2 summaries and omit invalid values", (
   assert.doesNotMatch(JSON.stringify(invalid), /secret|leak/);
 });
 
-test("job API form parsing leaves old payloads exact and accepts explicit shadow mode", () => {
+test("job API form parsing stores the current selection under its internal name and refuses retired modes", () => {
   const form = new FormData();
   form.set("renderMode", "fit-blur");
   form.set("limit", "3");
   form.set("minDuration", "20");
   form.set("maxDuration", "60");
   assert.deepEqual(parseJobFormOptions(form), {
-    renderMode: "fit-blur", limit: 3, minDuration: 20, maxDuration: 60,
+    renderMode: "fit-blur", limit: 3, minDuration: 20, maxDuration: 60, ...CURRENT_DEFAULTS,
   });
 
-  form.set("selectionMode", "v2-shadow");
-  form.set("clipProfile", "standard");
-  assert.deepEqual(parseJobFormOptions(form), {
-    renderMode: "fit-blur", limit: 3, minDuration: 20, maxDuration: 60,
-    selectionMode: "v2-shadow", clipProfile: "standard",
-    maxCandidates: 200, maxMediaCandidates: 12, mediaTimeout: 30,
+  for (const [name, value] of [["selectionMode", "v1"], ["selectionMode", "v2-shadow"], ["clipProfile", "standard"]]) {
+    const retired = new FormData();
+    for (const [key, field] of form.entries()) retired.set(key, field);
+    retired.set(name, value);
+    assert.throws(() => parseJobFormOptions(retired), RetiredSelectionModeError, `${name}=${value}`);
+  }
+});
+
+// --- Job API: retired selection modes ---------------------------------------------------------
+
+const POST_ENV = {
+  APP_USERNAME: "admin",
+  APP_PASSWORD: "secret-value",
+  APP_SESSION_SECRET: "a-long-random-session-secret-value",
+  PRIMARY_MAX_ACTIVE_JOBS: "4", PRIMARY_WORKER_CONCURRENCY: "1", PRIMARY_MAX_ATTEMPTS: "3", PRIMARY_LEASE_MS: "60000",
+  MAX_UPLOAD_BYTES: "1000000",
+  JOBS_STORAGE_QUOTA_BYTES: "10000000000", JOBS_STORAGE_MIN_FREE_BYTES: "0", JOBS_STORAGE_ACTIVE_RESERVE_BYTES: "1000",
+  JOBS_STORAGE_SCAN_MAX_ENTRIES: "10000", JOBS_STORAGE_SCAN_MAX_DEPTH: "12",
+};
+
+async function withJobsApi(run) {
+  const root = await mkdtemp(path.join(os.tmpdir(), "clipper-job-api-"));
+  const env = { ...POST_ENV, JOBS_ROOT: root };
+  const previous = Object.fromEntries(Object.keys(env).map((key) => [key, process.env[key]]));
+  Object.assign(process.env, env);
+  try {
+    const token = createSessionToken(env, 2_000_000_000);
+    const post = (fields) => {
+      const body = new FormData();
+      for (const [name, value] of Object.entries(fields)) body.set(name, value);
+      const request = new Request("http://clips.example/api/jobs", { method: "POST", body });
+      const headers = new Headers(request.headers);
+      return request.arrayBuffer().then((bytes) => {
+        headers.set("Content-Length", String(bytes.byteLength));
+        headers.set("Cookie", `potongin_session=${token}`);
+        headers.set("Origin", "http://clips.example");
+        headers.set("Host", "clips.example");
+        headers.set("Sec-Fetch-Site", "same-origin");
+        return createJob(new Request("http://clips.example/api/jobs", { method: "POST", headers, body: bytes }));
+      });
+    };
+    await run({ root, post });
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
+}
+
+// Published jobs: a refused request may leave an empty staging directory, never a job.json.
+async function jobDirectories(root) {
+  const published = [];
+  for (const entry of await readdir(root, { withFileTypes: true })) {
+    if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
+    if ((await readdir(path.join(root, entry.name))).includes("job.json")) published.push(entry.name);
+  }
+  return published;
+}
+
+test("POST /api/jobs refuses v1 and v2-shadow with 400 and an Indonesian message, and queues nothing", async () => {
+  await withJobsApi(async ({ root, post }) => {
+    for (const fields of [
+      { selectionMode: "v1" },
+      { selectionMode: "v2-shadow" },
+      { selectionMode: "v2-shadow", clipProfile: "deep-dive" },
+      { clipProfile: "standard" },
+    ]) {
+      const response = await post({ youtubeUrl: "https://youtu.be/rBg0ZcwjVKQ", ...fields });
+      assert.equal(response.status, 400, JSON.stringify(fields));
+      assert.equal(response.headers.get("cache-control"), "no-store");
+      const body = await response.json();
+      assert.deepEqual(body, {
+        error: "Mode pemilihan ini sudah tidak tersedia. Job baru selalu memakai pemilihan momen terbaru.",
+        code: "selection_mode_retired",
+      });
+      assert.doesNotMatch(body.error, /\bV[1-3]\b|shadow|—/i);
+    }
+    assert.deepEqual(await jobDirectories(root), []);
+  });
+});
+
+test("POST /api/jobs stores new jobs with the current selection, with or without the field", async () => {
+  await withJobsApi(async ({ root, post }) => {
+    const plain = await post({ youtubeUrl: "https://youtu.be/rBg0ZcwjVKQ", renderMode: "face-track", limit: "4", captionStyle: "classic" });
+    assert.equal(plain.status, 202);
+    const { job } = await plain.json();
+    assert.deepEqual(job.options, {
+      renderMode: "face-track", limit: 4, minDuration: 20, maxDuration: 60,
+      ...CURRENT_DEFAULTS, captionStyle: "classic",
+    });
+    const stored = JSON.parse(await readFile(path.join(root, job.id, "job.json"), "utf8"));
+    assert.equal(stored.options.selectionMode, "v3", "the worker still reads the internal name");
+
+    const explicit = await post({ youtubeUrl: "https://youtu.be/rBg0ZcwjVKQ", selectionMode: "v3", focusTerms: "jomok" });
+    assert.equal(explicit.status, 202);
+    assert.deepEqual((await explicit.json()).job.options.focus, { terms: ["jomok"], mode: "prefer" });
+    assert.equal((await jobDirectories(root)).length, 2);
   });
 });
 

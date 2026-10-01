@@ -6,7 +6,14 @@ import Busboy from "busboy";
 
 import { requireAuth } from "../../../lib/auth.mjs";
 import { sameOriginMutation } from "../../../lib/request-security.mjs";
-import { jobOptionInputFromForm, parseJobOptions, serializePublicJob, sortJobsNewest, validateYouTubeUrl } from "../../../lib/jobs.mjs";
+import {
+  RetiredSelectionModeError,
+  jobOptionInputFromForm,
+  parseJobOptions,
+  serializePublicJob,
+  sortJobsNewest,
+  validateYouTubeUrl,
+} from "../../../lib/jobs.mjs";
 import {
   QueueCapacityError,
   abortAdmissionStaging,
@@ -26,6 +33,7 @@ const jobsRoot = () => path.resolve(process.env.JOBS_ROOT || "/data/jobs");
 const MULTIPART_OVERHEAD_BYTES = 1024 * 1024;
 const VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".mkv", ".webm", ".m4v"]);
 const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
+const RETIRED_SELECTION_MESSAGE = "Mode pemilihan ini sudah tidak tersedia. Job baru selalu memakai pemilihan momen terbaru.";
 const postJson = (body, init = {}) => Response.json(body, {
   ...init, headers: { ...init.headers, ...NO_STORE_HEADERS },
 });
@@ -51,13 +59,6 @@ export function validatePrimaryRequestLength(headers, env = process.env) {
   const length = Number(rawLength);
   if (!Number.isSafeInteger(length) || length > maximum + MULTIPART_OVERHEAD_BYTES) throw new Error("Request is too large");
   return length;
-}
-
-export function selectionV2Enabled(env = process.env) {
-  const value = env.SELECTION_V2_ENABLED;
-  if (value === undefined || value === "true") return true;
-  if (value === "false") return false;
-  throw new Error("Invalid Selection V2 configuration");
 }
 
 export function parseJobFormOptions(form) {
@@ -254,7 +255,6 @@ export async function POST(request) {
       recheckBytes: storageConfig.recheckBytes,
     });
     const options = parseJobFormOptions(parsed.form);
-    if (options.selectionMode === "v2-shadow" && !selectionV2Enabled(process.env)) throw new Error("Selection V2 dinonaktifkan oleh operator");
     const youtubeUrl = String(parsed.form.get("youtubeUrl") || "").trim();
     const hasUpload = Boolean(parsed.upload && parsed.upload.size > 0);
     if ((hasUpload && youtubeUrl) || (!hasUpload && !youtubeUrl)) throw new Error("Pilih tepat satu sumber: upload video atau URL YouTube");
@@ -294,20 +294,20 @@ export async function POST(request) {
       if (recovered?.published) return postJson({ job: publicJob(recovered.job) }, { status: 202 });
       if (!createdJobRoot) await cancelAdmission(jobsRoot(), reservation).catch(() => {});
     }
+    if (error instanceof RetiredSelectionModeError) {
+      return postJson({ error: RETIRED_SELECTION_MESSAGE, code: error.code }, { status: 400 });
+    }
     const status = error instanceof QueueCapacityError ? 429
-      : /V2 dinonaktifkan/i.test(error.message || "") ? 403
-        : /configuration/i.test(error.message || "") ? 503
+      : /configuration/i.test(error.message || "") ? 503
         : /Content-Length/i.test(error.message || "") ? 411
           : /too large|melewati batas|limit exceeded/i.test(error.message || "") ? 413 : 400;
     const response = status === 429
       ? { error: "Antrean job sedang penuh.", code: "queue_capacity_reached" }
-      : status === 403
-        ? { error: "Selection V2 dinonaktifkan oleh operator.", code: "selection_v2_disabled" }
-        : status === 503
-          ? { error: "Layanan pembuatan job sementara tidak tersedia.", code: "job_service_unavailable" }
-          : status === 413
-            ? { error: "Ukuran permintaan job terlalu besar.", code: "request_too_large" }
-            : { error: "Permintaan job tidak valid.", code: "invalid_request" };
+      : status === 503
+        ? { error: "Layanan pembuatan job sementara tidak tersedia.", code: "job_service_unavailable" }
+        : status === 413
+          ? { error: "Ukuran permintaan job terlalu besar.", code: "request_too_large" }
+          : { error: "Permintaan job tidak valid.", code: "invalid_request" };
     return postJson(response, { status });
   }
 }

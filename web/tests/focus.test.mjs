@@ -9,6 +9,7 @@ import { promisify } from "node:util";
 
 import { parseJobFormOptions } from "../app/api/jobs/route.js";
 import {
+  RetiredSelectionModeError,
   jobOptionInputFromForm,
   parseJobOptions,
   sanitizeManifestClipFields,
@@ -204,10 +205,11 @@ test("focus options are bounded and only valid in V3 mode", () => {
     { ...FORM_V3, focusTerms: "jomok", focusNote: "n".repeat(201) },
     { ...FORM_V3, focusTerms: "jomok", focusNote: ["catatan"] },
     { ...FORM_V3, focusNote: "catatan tanpa istilah" },
-    { ...BASE, focusTerms: "jomok" },
     { ...BASE, selectionMode: "v1", focusTerms: "jomok" },
     { ...BASE, selectionMode: "v2-shadow", focusNote: "catatan" },
   ]) assert.throws(() => parseJobOptions(input), /focus|selection mode/i, JSON.stringify(input));
+  // A job without a selection mode is a current-selection job, so its focus is kept.
+  assert.deepEqual(parseJobOptions({ ...BASE, focusTerms: "jomok" }).focus, { terms: ["jomok"], mode: "prefer" });
   assert.equal(parseJobOptions({ ...FORM_V3, focusTerms: "t1,t2,t3,t4,t5,t6,t7,t8" }).focus.terms.length, 8);
   assert.equal(parseJobOptions({ ...FORM_V3, focusTerms: "jomok", focusNote: "😀".repeat(200) }).focus.note, "😀".repeat(200));
 });
@@ -366,7 +368,7 @@ test("the job API route reads focusTerms and focusNote from the form", () => {
   const v1 = new FormData();
   for (const [name, value] of Object.entries({ ...FORM_V3, selectionMode: "v1", llmMode: "", coldOpen: "", hookOverlay: "", captionStyle: "" })) v1.set(name, value);
   v1.set("focusTerms", "jomok");
-  assert.throws(() => parseJobFormOptions(v1), /focus/i);
+  assert.throws(() => parseJobFormOptions(v1), RetiredSelectionModeError);
 });
 
 test("terms the engine would fold together (Python casefold) are one term here too", () => {
