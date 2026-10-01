@@ -389,10 +389,18 @@ test.describe("cold-open suggestions", () => {
     test.skip(!AXE, "axe-core is not installed; set AXE_CORE_PATH");
     await openHarness(page, { words: contextWords("c30"), doc: contextSeed("c30"), suggestions: suggestionsFor("c30") });
     await expect(suggestionItems(page)).toHaveCount(coldopenVectors.contexts.c30.candidates.length);
+    await expect(audioLane(page)).toHaveAttribute("data-waveform-state", "ready");
     await page.addScriptTag({ content: AXE });
-    const result = await page.evaluate(async () => window.axe.run(document, { resultTypes: ["violations"] }));
-    const serious = result.violations.filter((violation) => ["critical", "serious"].includes(violation.impact));
-    expect(serious.map((violation) => violation.id)).toEqual([]);
+    const serious = async () => {
+      const result = await page.evaluate(async () => window.axe.run(document, { resultTypes: ["violations"] }));
+      return result.violations.filter((violation) => ["critical", "serious"].includes(violation.impact)).map((violation) => violation.id);
+    };
+    expect(await serious()).toEqual([]);
+    await page.locator("[data-event-marker]").first().focus(); // the tip is showing
+    await expect(page.locator("[data-marker-tip]")).toBeVisible();
+    expect(await serious()).toEqual([]);
+    await suggestionItems(page).nth(1).getByRole("button", { name: "Putar saran 2" }).click(); // listening state
+    expect(await serious()).toEqual([]);
   });
 });
 
@@ -412,7 +420,9 @@ async function scriptedU3(page, { words, doc, suggestions }) {
   const started = Date.now();
   await page.getByRole("tab", { name: "Cold open" }).click();
   await expect(suggestionItems(page).first()).toBeVisible();
-  const item = suggestionItems(page).and(page.locator('[data-current="false"][data-usable="true"]')).first();
+  const usable = suggestionItems(page).and(page.locator('[data-current="false"][data-usable="true"]'));
+  if (await usable.count() === 0) return null; // only the current cold open is suggested
+  const item = usable.first();
   const number = Number(await item.getAttribute("data-number"));
   const text = await item.locator("[data-suggestion-text]").textContent();
   await item.getByRole("button", { name: `Putar saran ${number}` }).click();
@@ -433,6 +443,7 @@ for (const viewport of [{ width: 1366, height: 768 }, { width: 1920, height: 108
     test("U3: replace the cold open from a suggestion ≤ 30 s", async ({ page, browser }) => {
       const doc = contextSeed("c30");
       const result = await scriptedU3(page, { words: contextWords("c30"), doc, suggestions: suggestionsFor("c30") });
+      expect(result).not.toBeNull();
       const lengthS = ((result.co.out_sf - result.co.in_sf) * result.fps[1]) / result.fps[0];
       expect(result.co.role).toBe("cold_open");
       expect(lengthS).toBeGreaterThanOrEqual(0.5);
@@ -462,6 +473,7 @@ test.describe("prepared real clips", () => {
   test.skip(realClips.length === 0, "T37_REAL_DATA is not set (scripts/editor/t37_gates.py browser-data)");
 
   test("markers exact on every real clip and document", async ({ page, browser }) => {
+    test.setTimeout(30 * 60_000); // one harness page per clip and document
     let compared = 0;
     const perClip = [];
     for (const name of realClips) {
@@ -488,6 +500,7 @@ test.describe("prepared real clips", () => {
   });
 
   test("U3 with suggestions ≤ 30 s on every real clip", async ({ page, browser }) => {
+    test.setTimeout(30 * 60_000); // one scripted run per clip
     const runs = [];
     for (const name of realClips) {
       const dir = path.join(realDataDir, name);
@@ -501,15 +514,26 @@ test.describe("prepared real clips", () => {
       }
       await page.unrouteAll({ behavior: "ignoreErrors" });
       const result = await scriptedU3(page, { words, doc, suggestions: { status: 200, body: candidates } });
+      if (!result) {
+        runs.push({ clip: name, skipped: "only the current cold open is suggested" });
+        continue;
+      }
       const operators = "M P B B M P B B M P B B M";
       const klm = Number((klmSeconds(operators) + result.auditionS).toFixed(2));
       expect(result.elapsedMs).toBeLessThanOrEqual(30_000);
       expect(klm).toBeLessThanOrEqual(30);
       runs.push({ clip: name, elapsed_s: result.elapsedMs / 1000, audition_s: Number(result.auditionS.toFixed(3)), klm_estimate_s: klm });
     }
+    // A clip without another usable suggestion cannot run U3; the gate never passes on skips alone.
+    const ran = runs.filter((run) => !run.skipped);
+    expect(ran.length, "at least one real clip runs U3").toBeGreaterThan(0);
+    const skipped = Object.entries(Object.groupBy(runs.filter((run) => run.skipped), (run) => run.skipped))
+      .map(([reason, list]) => ({ reason, clips: list.length }));
     writeEvidence("T3.7-QG-UX-U3-real.json", {
-      gate: "QG-UX U3 with suggestions on prepared real clips (scripted e2e)", limit_s: 30, runs,
-      pass: runs.every((run) => run.skipped || (run.elapsed_s <= 30 && run.klm_estimate_s <= 30)), ...environment(browser),
+      gate: "QG-UX U3 with suggestions on prepared real clips (scripted e2e)", limit_s: 30,
+      clips: runs.length, ran: ran.length, skipped,
+      max_elapsed_s: Math.max(...ran.map((run) => run.elapsed_s)), max_klm_estimate_s: Math.max(...ran.map((run) => run.klm_estimate_s)),
+      runs, pass: ran.every((run) => run.elapsed_s <= 30 && run.klm_estimate_s <= 30), ...environment(browser),
     });
   });
 });
