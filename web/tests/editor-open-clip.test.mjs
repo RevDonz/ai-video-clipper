@@ -52,15 +52,19 @@ test("an openable clip opens at once: one listing, no prepare", async () => {
 
 test("a clip that needs preparing is prepared once, then opens by its index", async () => {
   const progress = [];
+  // The prepare answer is read to the end: a body left unread is cut off (net::ERR_ABORTED) when
+  // the editor later aborts its signal on leaving the prepare step.
+  const prepareAnswer = json(202, { state: "done", clips: [] });
   const { calls, fetchImpl } = server([
     json(200, { clips: [entry({ index: 1, reason: "needs_prepare" }), entry({ index: 2, reason: "needs_prepare" })] }),
-    json(202, { state: "done", clips: [] }),
+    prepareAnswer,
     json(200, { clips: [entry({ index: 1, clipId: CLIP, openable: true }), entry({ index: 2, clipId: `clip_${"b".repeat(24)}`, openable: true })] }),
   ]);
   const result = await prepareForEditor({ jobId: JOB, index: 2, fetchImpl, onProgress: (step) => progress.push(step.phase), ...clock() });
   assert.deepEqual(result, { state: "ready", clipId: `clip_${"b".repeat(24)}`, prepared: true });
   assert.deepEqual(calls, [`GET /api/jobs/${JOB}/clips`, `POST /api/jobs/${JOB}/clips {}`, `GET /api/jobs/${JOB}/clips`]);
   assert.deepEqual(progress, ["preparing", "checking"]);
+  assert.equal(prepareAnswer.bodyUsed, true);
 });
 
 test("a prepare that is still running elsewhere is waited for, polling the listing", async () => {

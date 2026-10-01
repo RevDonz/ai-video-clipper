@@ -114,6 +114,8 @@ export async function prepareForEditor({
     if (error?.name === "AbortError") throw error;
     return failure("network");
   }
+  // Read the answer to the end, so a later abort of `signal` never cuts off its body.
+  try { await response.arrayBuffer(); } catch { /* the status is what counts */ }
   if (response.status === 401) return { state: "redirect", location: `/login?next=${encodeURIComponent(here)}` };
   // 429: this job's prepare already runs (another tab) or ran just now; wait and read the listing.
   if (response.status === 429) await sleep(retryAfterMs(response, pollMs));
