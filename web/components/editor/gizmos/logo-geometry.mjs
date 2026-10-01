@@ -8,7 +8,9 @@
 // - `zoneHits` mirrors plan.unsafe_zone_issues for the logo (top, bottom and right bands of the
 //   TikTok UI zone); web/tests/editor-logo.test.mjs checks it against the Python compiler's
 //   vectors, so the live hint during a drag says what the server's G5 warning will say.
-// - Corner presets reproduce SnapLogo's margins (4 % of the width, 2.5 % of the height).
+// - Corner presets reproduce SnapLogo: 4 % from the left edge and against the TikTok zone's
+//   right, top and bottom edges, so a preset never brings the G5 warning. The "margin" guides
+//   (4 % of the width, 2.5 % of the height) stay as magnets for a deliberate placement.
 import { divRoundHalfUp, logoBox } from "../../../lib/editor/timemap.mjs";
 
 export const LOGO_WIDTH_E5 = Object.freeze({ min: 4000, max: 40000 });
@@ -75,11 +77,13 @@ function cornerMargins(output) {
   return { mx: divRoundHalfUp(4 * output.w, 100), my: divRoundHalfUp(25 * output.h, 1000) };
 }
 
+// SnapLogo's spots: 4 % from the left edge, against the TikTok zone's right, top and bottom edges.
 function cornerStart(corner, size, output) {
-  const { mx, my } = cornerMargins(output);
+  const { mx } = cornerMargins(output);
+  const zone = uiZone(output);
   return {
-    x: clamp(corner.endsWith("left") ? mx : output.w - mx - size.w, 0, Math.max(0, output.w - size.w)),
-    y: clamp(corner.startsWith("top") ? my : output.h - my - size.h, 0, Math.max(0, output.h - size.h)),
+    x: clamp(corner.endsWith("left") ? mx : output.w - zone.right - size.w, 0, Math.max(0, output.w - size.w)),
+    y: clamp(corner.startsWith("top") ? zone.top : output.h - zone.bottom - size.h, 0, Math.max(0, output.h - size.h)),
   };
 }
 
@@ -102,7 +106,8 @@ export function cornerOf(transform, meta, output) {
 /**
  * The magnet guides for a box of `size`: per axis `{ id, kind, at, line }`, where `at` is the box
  * start that aligns with the guide and `line` the coordinate drawn on the stage. Kinds: "margin"
- * (the corner presets), "safe" (the TikTok zone's edges), "center" (x_e5 or y_e5 = 50000).
+ * (4 % / 2.5 % from the frame edges), "safe" (the TikTok zone's edges, where the corner presets
+ * sit), "center" (x_e5 or y_e5 = 50000).
  */
 export function guideLines(size, output) {
   const { mx, my } = cornerMargins(output);

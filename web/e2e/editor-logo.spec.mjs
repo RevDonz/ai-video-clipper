@@ -239,8 +239,10 @@ test.describe("logo panel and gizmo (harness)", () => {
     await expect(panel(page).getByText("PNG, JPEG, atau WebP", { exact: false })).toBeVisible();
     await expect(page.locator('[data-gizmo="logo"]')).toHaveCount(0);
     const box = await addLogo(page);
-    expect(await logoTransform(page)).toEqual({ x_e5: 88000, y_e5: 7000, w_e5: 16000, opacity_pm: 850 });
-    expect(box).toEqual({ x: 576, y: 32, w: 115, h: 115 });
+    // Top right, just outside the TikTok zone: no G5 warning for a new logo.
+    expect(await logoTransform(page)).toEqual({ x_e5: 79097, y_e5: 11758, w_e5: 16000, opacity_pm: 850 });
+    expect(box).toEqual({ x: 512, y: 93, w: 115, h: 115 });
+    await expect(panel(page).locator("[data-logo-unsafe]")).toHaveCount(0);
     const seen = await screenBox(page);
     expect({ x: seen.x, y: seen.y, w: seen.w, h: seen.h }).toEqual(box);
     await expect(panel(page).locator("[data-logo-thumb]")).toBeVisible();
@@ -263,9 +265,10 @@ test.describe("logo panel and gizmo (harness)", () => {
     await addLogo(page);
     const radio = (name) => panel(page).getByRole("radio", { name });
     await expect(radio("Kanan atas")).toBeChecked();
+    // Every preset sits outside the TikTok zone (93 px top, 280 px bottom, 93 px right).
     const expected = {
-      "Kiri atas": ["top_left", { x: 29, y: 32 }], "Kiri bawah": ["bottom_left", { x: 29, y: 1133 }],
-      "Kanan bawah": ["bottom_right", { x: 576, y: 1133 }], "Kanan atas": ["top_right", { x: 576, y: 32 }],
+      "Kiri atas": ["top_left", { x: 29, y: 93 }], "Kiri bawah": ["bottom_left", { x: 29, y: 885 }],
+      "Kanan bawah": ["bottom_right", { x: 512, y: 885 }], "Kanan atas": ["top_right", { x: 512, y: 93 }],
     };
     for (const [name, [corner, at]] of Object.entries(expected)) {
       await radio(name).check();
@@ -273,6 +276,7 @@ test.describe("logo panel and gizmo (harness)", () => {
       const state = await snapshot(page);
       expect(state.commands.at(-1)).toEqual({ type: "SnapLogo", args: { corner } });
       expect(await planBox(page)).toMatchObject(at);
+      await expect(panel(page).locator("[data-logo-unsafe]")).toHaveCount(0);
     }
     // Keyboard: arrows move between the presets in the radio group.
     await radio("Kanan atas").focus();
@@ -283,22 +287,26 @@ test.describe("logo panel and gizmo (harness)", () => {
   test("dragging snaps to the corner margins and the TikTok zone's edges; Alt drags freely; the frame stops it", async ({ page }) => {
     const errors = await openHarness(page);
     const start = await addLogo(page);
-    // Into the safe corner: the box start lands 4 px from the zone's right and top edges.
-    await dragBy(page, logoBoxEl(page), 512 + 4 - start.x, 93 + 4 - start.y);
-    expect(await planBox(page)).toEqual({ x: 512, y: 93, w: 115, h: 115 });
+    expect(start).toEqual({ x: 512, y: 93, w: 115, h: 115 });
+    // Near the top-left margins: the box start snaps to them (inside the zone's top band).
+    await dragBy(page, logoBoxEl(page), 29 + 5 - 512, 32 - 6 - 93);
+    expect(await planBox(page)).toEqual({ x: 29, y: 32, w: 115, h: 115 });
+    expect(await logoTransform(page)).toEqual({ x_e5: 12014, y_e5: 6992, w_e5: 16000, opacity_pm: 850 });
     let state = await snapshot(page);
     expect(state.commands.slice(1).every((entry) => entry.type === "MoveLogo")).toBe(true);
-    await expect(page.locator("[data-logo-unsafe]")).toHaveCount(0);
+    await expect(page.locator("[data-logo-unsafe]")).toBeVisible();
+    for (const name of ["Kiri atas", "Kanan atas"]) await expect(panel(page).getByRole("radio", { name })).not.toBeChecked();
     // One drag is one undo step.
     await page.keyboard.press("Control+z");
     expect(await planBox(page)).toEqual(start);
     await page.keyboard.press("Control+Shift+z");
-    expect(await planBox(page)).toEqual({ x: 512, y: 93, w: 115, h: 115 });
-    // Near the top-left margins: exactly the "Kiri atas" preset (SnapLogo's transform).
-    await dragBy(page, logoBoxEl(page), 29 + 5 - 512, 32 - 6 - 93);
     expect(await planBox(page)).toEqual({ x: 29, y: 32, w: 115, h: 115 });
+    // Down to 4 px past the zone's top edge: exactly the "Kiri atas" preset (SnapLogo's transform).
+    await dragBy(page, logoBoxEl(page), 0, 93 + 4 - 32);
+    expect(await planBox(page)).toEqual({ x: 29, y: 93, w: 115, h: 115 });
     await expect(panel(page).getByRole("radio", { name: "Kiri atas" })).toBeChecked();
-    expect(await logoTransform(page)).toEqual({ x_e5: 12014, y_e5: 6992, w_e5: 16000, opacity_pm: 850 });
+    expect(await logoTransform(page)).toEqual({ x_e5: 12014, y_e5: 11758, w_e5: 16000, opacity_pm: 850 });
+    await expect(page.locator("[data-logo-unsafe]")).toHaveCount(0);
     // Alt switches the magnet off: the same kind of drag stays where the pointer left it.
     await dragBy(page, logoBoxEl(page), 250, 300, { alt: true });
     const free = await planBox(page);
@@ -320,7 +328,10 @@ test.describe("logo panel and gizmo (harness)", () => {
 
   test("the guides show while dragging, and the box says when it is inside the TikTok zone", async ({ page }) => {
     await openHarness(page);
-    await addLogo(page);
+    const start = await addLogo(page);
+    // To the frame's top-right margins first (inside the zone).
+    await dragBy(page, logoBoxEl(page), 576 - start.x, 32 - start.y);
+    expect(await planBox(page)).toEqual({ x: 576, y: 32, w: 115, h: 115 });
     const stage = await stageCanvas(page).boundingBox();
     const scale = stage.width / 720;
     const box = await logoBoxEl(page).boundingBox();
@@ -355,7 +366,7 @@ test.describe("logo panel and gizmo (harness)", () => {
     // The arrows moved the logo, not the playhead (the stage shortcut ← / → steps frames).
     expect(await page.evaluate(() => window.__potonginEditor.player.frame())).toBe(0);
     // At the right edge nothing moves and nothing is rejected.
-    for (let i = 0; i < 4; i += 1) await page.keyboard.press("Shift+ArrowRight");
+    for (let i = 0; i < 10; i += 1) await page.keyboard.press("Shift+ArrowRight");
     expect(await planBox(page)).toMatchObject({ x: 720 - 115 });
     const before = (await snapshot(page)).commands.length;
     await page.keyboard.press("ArrowRight");
@@ -383,7 +394,7 @@ test.describe("logo panel and gizmo (harness)", () => {
     await expect(logoBoxEl(page)).toBeVisible();
     await panel(page).getByRole("radio", { name: "Kanan atas" }).check();
     const start = await planBox(page);
-    expect(start).toEqual({ x: 576, y: 32, w: 115, h: 29 });
+    expect(start).toEqual({ x: 512, y: 93, w: 115, h: 29 });
     await logoBoxEl(page).hover();
     const handle = page.locator('[data-logo-handle="bottom_left"]');
     await expect(handle).toBeVisible();
@@ -423,11 +434,11 @@ test.describe("logo panel and gizmo (harness)", () => {
     await expect(panel(page).getByText("16% lebar video · 115 px")).toBeVisible();
     await size.focus();
     await page.keyboard.press("End");
-    expect(await planBox(page)).toEqual({ x: 720 - 29 - 288, y: 32, w: 288, h: 288 });
+    expect(await planBox(page)).toEqual({ x: 720 - 93 - 288, y: 93, w: 288, h: 288 });
     await expect(panel(page).getByRole("radio", { name: "Kanan atas" })).toBeChecked();
     await expect(panel(page).getByText("40% lebar video · 288 px")).toBeVisible();
     await page.keyboard.press("Home");
-    expect(await planBox(page)).toEqual({ x: 720 - 29 - 29, y: 32, w: 29, h: 29 });
+    expect(await planBox(page)).toEqual({ x: 720 - 93 - 29, y: 93, w: 29, h: 29 });
     // Free placement near the left edge: growing is kept inside the frame.
     await dragBy(page, logoBoxEl(page), -900, 400, { alt: true });
     await size.focus();
@@ -454,13 +465,19 @@ test.describe("logo panel and gizmo (harness)", () => {
 
   test("G5: the TikTok-zone warning shows when the logo is in the zone, and 'Geser ke area aman' clears it", async ({ page }) => {
     await openHarness(page);
-    await addLogo(page);
+    const start = await addLogo(page);
     const warning = panel(page).locator("[data-logo-unsafe]");
+    // A new logo starts outside the zone.
+    await expect(page.getByRole("button", { name: /Perlu dicek \(0\)/ })).toBeVisible();
+    await expect(warning).toHaveCount(0);
+    // Dragged to the frame's top-right margins, it is inside the zone's top and right bands.
+    await dragBy(page, logoBoxEl(page), 576 - start.x, 32 - start.y);
+    expect(await planBox(page)).toEqual({ x: 576, y: 32, w: 115, h: 115 });
     await expect(warning).toBeVisible();
     await expect(warning).toContainText("tombol TikTok");
     await expect(page.getByRole("button", { name: /Perlu dicek \(1\)/ })).toBeVisible();
     await page.getByRole("button", { name: /Perlu dicek/ }).click();
-    await expect(page.getByText("Caption, hook, atau logo masuk ke area tombol TikTok")).toBeVisible();
+    await expect(page.getByText("Logo masuk ke area tombol TikTok")).toBeVisible();
     await page.keyboard.press("Escape");
     await warning.getByRole("button", { name: "Geser ke area aman" }).click();
     expect(await planBox(page)).toEqual({ x: 512, y: 93, w: 115, h: 115 });
@@ -583,8 +600,10 @@ test.describe("logo panel and gizmo (harness)", () => {
       await uploadFile(page, FILES.square);
       await expect(logoBoxEl(page)).toBeVisible();
       mark("uploaded");
-      await panel(page).locator("[data-logo-unsafe]").getByRole("button", { name: "Geser ke area aman" }).click();
-      mark("safe_area");
+      await expect(panel(page).locator("[data-logo-unsafe]")).toHaveCount(0);
+      await panel(page).getByRole("radio", { name: "Kiri atas" }).check();
+      await expect(panel(page).getByRole("radio", { name: "Kiri atas" })).toBeChecked();
+      mark("placed");
       await panel(page).getByRole("slider", { name: "Ukuran" }).focus();
       for (let i = 0; i < 20; i += 1) await page.keyboard.press("ArrowRight");
       mark("sized");

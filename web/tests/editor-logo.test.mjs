@@ -90,7 +90,7 @@ test("the logo of a document: its item, asset metadata and track index", () => {
   const logo = logoOf(doc);
   assert.equal(logo.item.type, "image");
   assert.deepEqual(logo.meta, { kind: "image", mime: "image/png", w: 512, h: 512 });
-  assert.deepEqual(logo.transform, { x_e5: 88000, y_e5: 7000, w_e5: 16000, opacity_pm: 850 });
+  assert.deepEqual(logo.transform, { x_e5: 79097, y_e5: 11758, w_e5: 16000, opacity_pm: 850 });
   assert.equal(doc.tracks[logo.index], doc.tracks.find((track) => track.kind === "visual"));
   assert.equal(logo.assetId, `sha256:${HEX}`);
 });
@@ -98,7 +98,7 @@ test("the logo of a document: its item, asset metadata and track index", () => {
 test("the box is plan §3.4's integer box at the document's output size", () => {
   const { doc, output } = withLogo();
   const { transform, meta } = logoOf(doc);
-  assert.deepEqual(boxOf(transform, meta, output), { x: 576, y: 32, w: 115, h: 115 });
+  assert.deepEqual(boxOf(transform, meta, output), { x: 512, y: 93, w: 115, h: 115 });
   const [x, y, w, h] = logoBox({ ...transform, asset_w: 512, asset_h: 512, out_w: 1080, out_h: 1920 });
   assert.deepEqual(boxOf(transform, meta, { w: 1080, h: 1920 }), { x, y, w, h });
   assert.equal(insideFrame({ x: 0, y: 0, w: 720, h: 1280 }, output), true);
@@ -191,6 +191,45 @@ test("the corner presets equal SnapLogo (plan Appendix B) for every asset shape 
   assert.equal(cornerOf({ ...corner, x_e5: corner.x_e5 + 200 }, meta, ctx.output), null);
 });
 
+test("every corner preset and a new logo's spot sit outside the TikTok zone whenever the logo fits beside it", () => {
+  for (const output of [{ w: 720, h: 1280 }, { w: 1080, h: 1920 }]) {
+    const zone = uiZone(output);
+    const mx = Math.round((4 * output.w) / 100);
+    for (const [aw, ah] of ASSETS) {
+      const { doc, ctx } = withLogo({ w: aw, h: ah, output });
+      const fresh = boxOf(transformOf(doc), logoOf(doc).meta, output);
+      const freshFits = fresh.w <= output.w - zone.right && fresh.h <= output.h - zone.top - zone.bottom;
+      if (freshFits) {
+        assert.equal(zoneHits(fresh, output).any, false, `new ${aw}x${ah} at ${output.w}: ${JSON.stringify(fresh)}`);
+        assert.equal(cornerOf(transformOf(doc), logoOf(doc).meta, output), "top_right", `new ${aw}x${ah}`);
+      }
+      for (const wE5 of [4000, 9000, 16000, 27500, 40000]) {
+        let sized;
+        try {
+          sized = apply(doc, ctx, [{ type: "MoveLogo", args: { x_e5: 50000, y_e5: 50000 } }, { type: "ResizeLogo", args: { w_e5: wE5 } }]);
+        } catch (error) {
+          if (error instanceof CommandRejected) continue;
+          throw error;
+        }
+        const { meta } = logoOf(sized);
+        const size = boxOf(transformOf(sized), meta, output);
+        const fits = mx + size.w <= output.w - zone.right && size.h <= output.h - zone.top - zone.bottom;
+        for (const corner of CORNERS) {
+          const box = boxOf(transformOf(apply(sized, ctx, [{ type: "SnapLogo", args: { corner } }])), meta, output);
+          const label = `${corner} ${aw}x${ah} w_e5 ${wE5} at ${output.w}: ${JSON.stringify(box)}`;
+          assert.ok(insideFrame(box, output), label);
+          if (!fits) continue;
+          assert.equal(zoneHits(box, output).any, false, label);
+          if (corner.endsWith("left")) assert.equal(box.x, mx, label);
+          else assert.equal(box.x + box.w, output.w - zone.right, label);
+          if (corner.startsWith("top")) assert.equal(box.y, zone.top, label);
+          else assert.equal(box.y + box.h, output.h - zone.bottom, label);
+        }
+      }
+    }
+  }
+});
+
 test("guides: the corner margins, the TikTok zone edges and the centre lines", () => {
   const output = { w: 720, h: 1280 };
   const guides = guideLines({ w: 115, h: 115 }, output);
@@ -229,7 +268,7 @@ test("dragging snaps to a guide within the threshold, the magnet can be switched
   assert.deepEqual([result.snapX?.id, result.snapY?.id], ["center", "safe_top"]);
 });
 
-test("a drag that snaps to both corner margins lands exactly on the corner preset", () => {
+test("a drag that snaps to the TikTok zone's top and right edges lands exactly on the corner preset", () => {
   const { doc, ctx } = withLogo();
   const { meta, transform } = logoOf(doc);
   const box = boxOf(transform, meta, ctx.output);
@@ -271,7 +310,7 @@ test("resizing keeps the edge that rests on a guide, else the centre, and stays 
   const { doc, ctx } = withLogo();
   const { meta } = logoOf(doc);
   const output = ctx.output;
-  // At the top-right corner preset both edges rest on the margins.
+  // At the top-right corner preset both edges rest on the TikTok zone's edges.
   const cornered = apply(doc, ctx, [{ type: "SnapLogo", args: { corner: "top_right" } }]);
   let box = boxOf(transformOf(cornered), meta, output);
   assert.deepEqual(anchorFor(box, output), { x: "right", y: "top" });
@@ -472,14 +511,17 @@ test("the panel's view: the logo, its box, the preset it sits on and the server'
   assert.equal(logoPanelView({ status: "loading" }).status, "loading");
   const empty = logoPanelView({ status: "ready", doc: fakeDoc(), plan: fakePlan(), jobId: FAKE_JOB_ID });
   assert.deepEqual([empty.status, empty.logo], ["ready", null]);
-  const { doc } = withLogo();
+  const fresh = withLogo();
+  assert.equal(logoPanelView({ status: "ready", doc: fresh.doc, plan: fakePlan(fresh.doc), jobId: FAKE_JOB_ID }).logo.corner, "top_right");
+  // Dragged into the zone's top-right corner (the box of the server's plan).
+  const doc = apply(fresh.doc, fresh.ctx, [{ type: "MoveLogo", args: { x_e5: 88000, y_e5: 7000 } }]);
   const plan = { ...fakePlan(doc), logo: { box: { x: 576, y: 32, w: 115, h: 115 }, opacityPm: 850, state: "ready" },
     warnings: [{ code: "unsafe_zone", path: "/tracks/1/items/0/transform", ref: logoOf(doc).item.id },
       { code: "unsafe_zone", path: "/tracks/0/items/0/transform/y_e5", ref: "it_hook" }] };
   const view = logoPanelView({ status: "ready", doc, plan, jobId: FAKE_JOB_ID });
   assert.equal(view.logo.assetId, `sha256:${HEX}`);
   assert.deepEqual(view.logo.box, { x: 576, y: 32, w: 115, h: 115 });
-  assert.equal(view.logo.corner, "top_right");
+  assert.equal(view.logo.corner, null, "the frame corner is not a preset any more");
   assert.equal(view.logo.unsafe, true, "the plan's unsafe_zone for the logo item");
   assert.deepEqual(view.logo.safeTarget, { x: 512, y: 93 });
   assert.equal(view.logo.thumbUrl, `/api/jobs/${FAKE_JOB_ID}/assets/${HEX}`);
