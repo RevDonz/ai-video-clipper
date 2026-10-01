@@ -429,8 +429,15 @@ test("auth redirects stay on the public origin behind a reverse proxy", async ()
     for (let attempt = 0; attempt < 8; attempt += 1) {
       throttled = await login(loginRequest({ username: "attacker", password: "wrong" }));
     }
-    assert.equal(throttled.status, 429);
+    // A throttled login goes back to the form with its own message instead of a raw JSON page,
+    // and still gets no session cookie.
+    assert.equal(throttled.status, 303);
+    assert.equal(throttled.headers.get("location"), "/login?error=limit");
     assert.match(throttled.headers.get("retry-after"), /^\d+$/);
+    assert.equal(throttled.headers.get("cache-control"), "no-store");
+    assert.equal(throttled.headers.get("set-cookie"), null);
+    const throttledNext = await login(loginRequest({ username: "attacker", password: "wrong", next: "/projects" }));
+    assert.equal(throttledNext.headers.get("location"), "/login?error=limit&next=%2Fprojects");
     const validAfterAttack = await login(loginRequest({ username: "admin", password: "secret-value" }));
     assert.equal(validAfterAttack.status, 303);
     assert.doesNotMatch(`${await throttled.text()} ${JSON.stringify(Object.fromEntries(throttled.headers))}`, /secret-value|wrong/);

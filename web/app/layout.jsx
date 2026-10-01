@@ -10,7 +10,7 @@ export const metadata = {
     default: "Potongin AI · Video Panjang Jadi Konten Siap Publish",
     template: "%s · Potongin",
   },
-  description: "Temukan highlight, buat subtitle, render vertikal, dan siapkan caption dari video panjang dalam satu workflow AI self-hosted.",
+  description: "Potong video panjang berbahasa Indonesia jadi klip 9:16 dengan subtitle, teks hook, dan caption. Diproses di server sendiri.",
 };
 
 export const viewport = {
