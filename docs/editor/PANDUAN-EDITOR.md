@@ -56,8 +56,9 @@ punya analisis wajah menganalisis dulu (hitungan persen); bagian tanpa wajah did
 tombol lompat, dan di bagian itu video dipusatkan.
 
 **Logo (tab).** **"Unggah logo"** (PNG, JPEG atau WebP, maks. 10 MB; PNG transparan paling rapi)
-atau seret file ke panel. Posisi cepat di empat sudut, **Ukuran** dan **Opasitas**; di layar
-pratinjau logo bisa digeser dan diubah ukurannya (panah 1 px, Shift+panah 10 px). Kalau logo masuk
+atau seret file ke panel. Logo baru muncul di kanan atas, di luar area tombol TikTok/Reels. Posisi
+cepat di empat sudut (semuanya di luar area itu), **Ukuran** dan **Opasitas**; di layar pratinjau
+logo bisa digeser dan diubah ukurannya (panah 1 px, Shift+panah 10 px). Kalau logo digeser masuk
 area tombol TikTok/Reels, muncul peringatan dengan tombol **"Geser ke area aman"**.
 
 **Musik (tab).** **"Tambah musik"** (MP3, M4A, WAV, OGG atau FLAC, maks. 50 MB; baca dulu
@@ -70,13 +71,15 @@ tidak pecah, panel menuliskannya.
 **Timeline (bawah).** Lajur video, teks, hook, **Audio** (waveform suara klip), **Penanda** (😂
 tawa, jeda ≥ 0,6 detik, potongan kamera; klik untuk lompat; arahkan kursor untuk asal tandanya) dan
 **Musik** (waveform musik dengan garis volume yang turun saat ada suara). Klik untuk pindah posisi,
-seret gagang awal/akhir (menempel ke batas kata), Ctrl+scroll untuk zoom. Kalau job lama tidak
-punya data tawa/jeda, lajurnya menulis "tidak tersedia untuk job ini".
+seret gagang awal/akhir (menempel ke batas kata), Ctrl+scroll untuk zoom; scroll timeline ke bawah
+untuk lajur Musik di layar pendek. Kalau job lama tidak punya data tawa/jeda, ada catatan "tidak
+tersedia untuk job ini" (di lajurnya, atau di baris atas timeline bila lajurnya berisi penanda).
 
 **Lainnya.** Urungkan / Ulangi (Ctrl+Z, Ctrl+Shift+Z) sampai 200 langkah; simpan otomatis
 (± 1,5 detik setelah berhenti, juga disimpan di browser); **"Kembali ke versi AI"**; **Ekspor**
 (centang tiap item "Perlu dicek", lalu Antre → Merender → Memverifikasi → Selesai, **"Unduh MP4"**
-dan **"Unduh SRT"**; bisa dibatalkan); dua tab pada klip yang sama digabung per bagian.
+dan **"Unduh SRT"**, tersimpan sebagai `klip-02-revisi-5.mp4` dan seterusnya; bisa dibatalkan); dua
+tab pada klip yang sama digabung per bagian.
 
 ## 3. Arti tanda di bawah layar pratinjau
 
@@ -167,6 +170,8 @@ Setiap aksi juga punya tombol di layar. Pintasan tidak aktif saat Anda mengetik 
 | Yang terlihat | Penyebab dan jalan keluar |
 |---|---|
 | "Menyiapkan klip untuk diedit" lama sekali | Proyek panjang dengan face-track. Tunggu; setelah 12 menit editor menyerah dan meminta muat ulang. |
+| "Video sumber tidak bisa dibaca; proses ulang videonya" | FFmpeg gagal membaca video sumber proyek ini (filenya masih ada). Proses ulang videonya dari dashboard. |
+| "Caption masuk ke area tombol TikTok" di "Perlu dicek" | Posisi caption bawaan klip otomatis memang di area itu. Geser caption ke atas di tab Teks bila tertutup, atau centang lalu ekspor. |
 | "Transkrip berubah sejak klip diedit" (baca saja) | Proyek dijalankan ulang dan transkripnya berubah. Klik "Mulai dari versi AI". |
 | "Klip ini diubah di tab lain" | Dua tab mengubah bagian yang sama. Pilih versi per bagian; draf Anda tidak hilang. |
 | "Gagal menyimpan; perubahan aman di browser ini" | Server tidak terjangkau. Perubahan tersimpan di browser dan dikirim lagi otomatis. |
