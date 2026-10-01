@@ -1,0 +1,43 @@
+{
+  "schema": "potongin.gate/1",
+  "capability": 11,
+  "results": {
+    "boxOpacity": {
+      "BorderStyle": "3",
+      "OutlineColour": "&H40000000"
+    },
+    "escape": true,
+    "keyword": "&H8A5CFF&",
+    "cues": {
+      "count": 54,
+      "words": 133
+    },
+    "logo": {
+      "box": {
+        "x": 512,
+        "y": 93,
+        "w": 115,
+        "h": 46
+      },
+      "derived": {
+        "status": 200,
+        "type": "image/png",
+        "w": 115,
+        "h": 46
+      }
+    },
+    "normalize": {
+      "sampleRate": 48000,
+      "clampedAt": -23.5
+    },
+    "renderKey": {
+      "file": "c40751e6a54034e5",
+      "changesWithCompiler": true
+    },
+    "saves": {
+      "count": 215,
+      "receipts": 200
+    }
+  },
+  "pass": true
+}

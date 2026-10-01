@@ -1,0 +1,26 @@
+{
+  "schema": "potongin.gate/1",
+  "capability": 1,
+  "clips": [
+    {
+      "index": 1,
+      "clipId": "clip_8fd05fdc20d4f6cbadb26109",
+      "openMs": 33239,
+      "engine": "legacy"
+    },
+    {
+      "index": 2,
+      "clipId": "clip_c7338377170b4a2e49948f67",
+      "openMs": 15260,
+      "engine": "legacy"
+    },
+    {
+      "index": 3,
+      "clipId": "clip_fa14b3c832db852797ab4560",
+      "openMs": 19879,
+      "engine": "legacy"
+    }
+  ],
+  "closedReason": "Video sumber sudah tidak ada",
+  "pass": true
+}

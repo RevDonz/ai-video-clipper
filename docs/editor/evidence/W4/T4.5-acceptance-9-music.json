@@ -1,0 +1,47 @@
+{
+  "schema": "potongin.gate/1",
+  "capability": 9,
+  "uploadMs": 2200,
+  "renderMs": 28153,
+  "completedBy": "render",
+  "payload": {
+    "asset": "sha256:e8974baf36ec098d17dcb8562578638001a254bceb7be9deb8931311f379301b",
+    "src_in_smp": 9600,
+    "loop": true,
+    "gain_cdb": -930,
+    "fade_in_f": 25,
+    "fade_out_f": 40,
+    "duck": {
+      "on": true,
+      "depth_cdb": 1600,
+      "attack_ms": 30,
+      "release_ms": 400,
+      "hold_ms": 250,
+      "detector": "words"
+    }
+  },
+  "gates": [
+    {
+      "name": "G1",
+      "ok": true
+    },
+    {
+      "name": "G2",
+      "ok": true
+    },
+    {
+      "name": "G3",
+      "ok": false
+    },
+    {
+      "name": "G3b",
+      "ok": true
+    },
+    {
+      "name": "G5",
+      "ok": false
+    }
+  ],
+  "sampleRate": 48000,
+  "pass": true
+}

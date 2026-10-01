@@ -1,0 +1,10 @@
+{
+  "schema": "potongin.gate/1",
+  "capability": 4,
+  "instantMs": 3,
+  "llm": {
+    "state": "done",
+    "cards": 6
+  },
+  "pass": true
+}

@@ -1,0 +1,23 @@
+{
+  "schema": "potongin.gate/1",
+  "capability": 7,
+  "initial": "fit_blur",
+  "switches": [
+    {
+      "mode": "fill_center",
+      "exactMs": 8120,
+      "noFace": null
+    },
+    {
+      "mode": "camera",
+      "exactMs": 19450,
+      "noFace": 0
+    },
+    {
+      "mode": "fit_blur",
+      "exactMs": 2074,
+      "noFace": null
+    }
+  ],
+  "pass": true
+}
