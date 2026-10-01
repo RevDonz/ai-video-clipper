@@ -18,7 +18,8 @@ measurement, master stage, H.264/AAC, G1–G3b verification).
 * **G3** (normalize) and **G3b** (music or source gain > 0, with a deliberately loud track):
   ``ebur128`` on the decoded export.
 * **G-CLICK**: the sample step at every join of the lossless ``reference`` (the export's graph
-  before AAC) with music in the mix is below −40 dBFS; a hard-cut control shows what a click is.
+  before AAC) with music in the mix is below −40 dBFS, for cuts on word bounds and inside words;
+  the mid-word cuts made hard are the control and must show a click.
 * **P-AUD** (server) and **PF-AUDIO**: through the running app's preview lane (``lane``).
 
 Usage (stdlib only; the image is the toolchain of record, see docs/editor/GATES.md)::
@@ -325,6 +326,15 @@ def join_steps_dbfs(samples: array.array, joins: Sequence[int]) -> list[float]:
             for j in joins]
 
 
+def click_pass(bound_steps: Sequence[float], mid_steps: Sequence[float],
+               mid_hard_steps: Sequence[float]) -> bool:
+    """G-CLICK: every faded join (cut on word bounds or inside words) steps below −40 dBFS, and
+    the same mid-word cuts made hard show at least one click (the measurement is not blind)."""
+    return (bool(bound_steps) and bool(mid_steps)
+            and all(step < CLICK_THRESHOLD_DBFS for step in (*bound_steps, *mid_steps))
+            and any(step >= CLICK_THRESHOLD_DBFS for step in mid_hard_steps))
+
+
 def g3_pass(*, export_i: float, export_tp: float, target: float, clamped: float | None) -> bool:
     """G3: −14 ± 1 LUFS integrated (or the recorded clamped value ± 0.5 LU), TP ≤ −1.0 dBTP."""
     if clamped is not None:
@@ -462,8 +472,9 @@ class Clip:
         self.words = store.load_words(clip_dir, self.seed["base"]["words"]["sha256"])
         self.fps = tm.Fps.from_json(self.seed["output"]["fps"])
 
-    def removals(self, count: int) -> list[dict[str, Any]]:
-        """``count`` two-word removals spread over the body, cut on the bounds table."""
+    def removals(self, count: int, *, mid_word: bool = False) -> list[dict[str, Any]]:
+        """``count`` two-word removals spread over the body, cut on the bounds table; with
+        ``mid_word`` each cut is the frame at the middle of its first and last word instead."""
         body = self.seed["main"]["segments"][-1]
         scale = 1000 * self.fps.den
         words = [w for w in self.words["words"]
@@ -479,6 +490,9 @@ class Clip:
                 break
             chosen = words[first:first + 2]
             in_sf, out_sf = before[chosen[0]["id"]]["sf"], after[chosen[-1]["id"]]["sf"]
+            if mid_word:
+                in_sf, out_sf = (tm.sf_floor((w["s"] + w["e"]) // 2, self.fps)
+                                 for w in (chosen[0], chosen[-1]))
             if body["in_sf"] < in_sf < out_sf < body["out_sf"] and (
                     not out or in_sf >= out[-1]["out_sf"]):
                 out.append({"id": f"rm_{index + 1}", "seg": body["id"], "in_sf": in_sf,
@@ -671,29 +685,38 @@ class Exports:
         cases = []
         for role in CLICK_ROLES:
             clip = self.clip(role)
-            removals = clip.removals(8)
-            doc = self.doc(clip, "tone", removals=removals)
-            plan = clip.plan(doc)
-            joins = [tm.smp(piece.out_f0, plan.fps) for piece in plan.pieces[1:]]
-            faded = reference_pcm(clip, doc, self.work / "click", f"{role}-faded")
-            steps = join_steps_dbfs(faded, joins)
-            hard_doc = copy.deepcopy(doc)
-            hard_doc["main"]["cut_fade_ms"] = 0
-            for join in hard_doc["main"]["joins"]:
-                join["audio_fade_ms"] = 0
-            hard = join_steps_dbfs(reference_pcm(clip, hard_doc, self.work / "click",
-                                                 f"{role}-hard"), joins)
-            worst = max(steps, default=-math.inf)
-            cases.append({"role": role, "clip": clip.label, "joins": len(joins), "cold_open": any(
-                p.role == "cold_open" for p in plan.pieces), "cut_fade_ms": 8,
-                "steps_dbfs": [_round(s, 2) for s in steps], "max_step_dbfs": _round(worst, 2),
-                "samples": len(faded) // 2, "plan_samples": plan.total_samples,
-                "control_hard_cuts_max_dbfs": _round(max(hard, default=-math.inf), 2),
-                "control_hard_cuts_at_or_over_threshold": sum(s >= CLICK_THRESHOLD_DBFS for s in hard),
-                "pass": bool(joins) and worst < CLICK_THRESHOLD_DBFS})
+            case: dict[str, Any] = {"role": role, "clip": clip.label, "cut_fade_ms": 8}
+            measured = {}
+            for cut, mid_word in (("word_bounds", False), ("mid_word", True)):
+                doc = self.doc(clip, "tone", removals=clip.removals(8, mid_word=mid_word))
+                plan = clip.plan(doc)
+                joins = [tm.smp(piece.out_f0, plan.fps) for piece in plan.pieces[1:]]
+                faded = reference_pcm(clip, doc, self.work / "click", f"{role}-{cut}-faded")
+                steps = join_steps_dbfs(faded, joins)
+                hard_doc = copy.deepcopy(doc)
+                hard_doc["main"]["cut_fade_ms"] = 0
+                for join in hard_doc["main"]["joins"]:
+                    join["audio_fade_ms"] = 0
+                hard = join_steps_dbfs(reference_pcm(clip, hard_doc, self.work / "click",
+                                                     f"{role}-{cut}-hard"), joins)
+                measured[cut] = (steps, hard)
+                case[cut] = {
+                    "joins": len(joins), "cold_open": any(p.role == "cold_open" for p in plan.pieces),
+                    "steps_dbfs": [_round(v, 2) for v in steps],
+                    "max_step_dbfs": _round(max(steps, default=-math.inf), 2),
+                    "samples": len(faded) // 2, "plan_samples": plan.total_samples,
+                    "control_hard_cuts_max_dbfs": _round(max(hard, default=-math.inf), 2),
+                    "control_hard_cuts_at_or_over_threshold": sum(
+                        v >= CLICK_THRESHOLD_DBFS for v in hard)}
+            case["pass"] = click_pass(measured["word_bounds"][0], measured["mid_word"][0],
+                                      measured["mid_word"][1])
+            cases.append(case)
         return {"gate": "G-CLICK", "task": TASK, "media": self.media, "threshold_dbfs": CLICK_THRESHOLD_DBFS,
                 "measured_on": "lossless reference (the export's graph before AAC), music in the mix",
                 "music": "tone chord at SetMusic's default gain, ducking Sedang",
+                "cuts": ("8 two-word removals per clip, cut on the bounds table (word_bounds) and "
+                         "at the middle of their first and last word (mid_word); the control is "
+                         "the mid-word cuts with every fade at 0 ms and must show a click"),
                 "cases": cases, "failures": sum(not c["pass"] for c in cases),
                 "pass": bool(cases) and all(c["pass"] for c in cases)}
 
