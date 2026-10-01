@@ -15,6 +15,11 @@ engine, so every clip has its seed), in a scratch directory:
 * **janitor ticks** every 100 saves (``edit_v2.janitor.run`` with ``--cap-mb``), then one tick
   31 days later.
 
+The soak runs on a simulated clock: one save every ``SAVE_EVERY_MS`` (30 s, a continuous
+autosave session: 1,000 saves ≈ 8 h 20 min). Receipts, preview files and the janitor's ``now``
+follow it, so the janitor's 10-minute "recently used" window and its 30-day rules see a long
+session, not the few minutes the soak takes.
+
 After every tick the caps are checked: committed receipts ≤ 200 per clip and no pending one,
 archives per clip ≤ revision 1 + the newest 50 + the revisions exports name, v3 requests
 ≤ 200, the job's preview cache ≤ the cap; after the late tick no suggestion and no orphan asset
@@ -58,6 +63,7 @@ DPKG = ("ffmpeg\t7:5.1.9-0+deb12u1\nfontconfig\t2.14.1-4\nlibass9:amd64\t1:0.17.
         "libfreetype6:amd64\t2.12.1+dfsg-5+deb12u4\nlibfribidi0:amd64\t1.0.8-2.1\n"
         "libharfbuzz0b:amd64\t6.0.0+dfsg-3\n")
 REQUESTS_CAP = 200
+SAVE_EVERY_MS = 30_000
 
 
 def _make_job_module():
@@ -178,7 +184,7 @@ def soak(work: Path, *, saves: int, exports: int, churn_mb: float, cap_mb: float
     _orphan_assets(job_dir)
     cap_bytes = int(cap_mb * (1 << 20))
     every_export = max(1, saves // exports)
-    now_ms = time.time_ns() // 1_000_000
+    start_ms = time.time_ns() // 1_000_000
     save_ms: list[float] = []
     export_s: list[float] = []
     ticks: list[dict[str, Any]] = []
@@ -187,12 +193,13 @@ def soak(work: Path, *, saves: int, exports: int, churn_mb: float, cap_mb: float
     states: dict[str, int] = {}
     for number in range(1, saves + 1):
         clip = clips[number % len(clips)]
+        now_ms = start_ms + number * SAVE_EVERY_MS  # the simulated clock
         document, etag, _is_seed = store.get(clip)
         nxt = _next(document, etag, f"Hook soak nomor {number}")
         started = time.perf_counter()
         _saved, etag, _warnings = store.put(clip, expected_etag=etag,
                                             idempotency_key=str(uuid.uuid4()),
-                                            raw=canonical_bytes(nxt), now_ms=now_ms + number)
+                                            raw=canonical_bytes(nxt), now_ms=now_ms)
         save_ms.append((time.perf_counter() - started) * 1000)
         if number % every_export == 0 and exported < exports:
             started = time.perf_counter()
@@ -203,10 +210,10 @@ def soak(work: Path, *, saves: int, exports: int, churn_mb: float, cap_mb: float
             export_s.append(time.perf_counter() - started)
             exported += 1
         if number % 10 == 0:
-            churned += _churn(clips, number // 10, churn_mb / 100, time.time())
+            churned += _churn(clips, number // 10, churn_mb / 100, now_ms / 1000)
         if number % 100 == 0:
             started = time.perf_counter()
-            report = janitor.run(jobs_root, now_ms=time.time_ns() // 1_000_000,
+            report = janitor.run(jobs_root, now_ms=now_ms,
                                  cap_bytes=cap_bytes)
             elapsed = time.perf_counter() - started
             caps = _caps(job_dir, clips, cap_bytes)
@@ -220,9 +227,9 @@ def soak(work: Path, *, saves: int, exports: int, churn_mb: float, cap_mb: float
     for request in list_requests_v3(job_dir):
         states[request["state"]] = states.get(request["state"], 0) + 1
     final = _caps(job_dir, clips, cap_bytes)
-    later = time.time_ns() // 1_000_000 + 31 * DAY_MS
-    janitor.run(jobs_root, now_ms=time.time_ns() // 1_000_000, cap_bytes=cap_bytes)
-    late = janitor.run(jobs_root, now_ms=later, cap_bytes=cap_bytes)
+    end_ms = start_ms + saves * SAVE_EVERY_MS
+    janitor.run(jobs_root, now_ms=end_ms, cap_bytes=cap_bytes)
+    late = janitor.run(jobs_root, now_ms=end_ms + 31 * DAY_MS, cap_bytes=cap_bytes)
     suggestions_left = sum(len(list((clip / "suggestions").glob("*.json"))) for clip in clips)
     assets_left = len(list((job_dir / "analysis" / "assets").glob("*.png")))
     passed = (all(tick["caps_ok"] for tick in ticks) and final["ok"]
@@ -235,6 +242,7 @@ def soak(work: Path, *, saves: int, exports: int, churn_mb: float, cap_mb: float
                                                  text=True, check=False).stdout.split("\n")[0],
                         "cpu_count": os.cpu_count(), "loadavg": list(os.getloadavg())},
         "saves": saves, "exports": exports, "export_states": states,
+        "simulated_session_h": round(saves * SAVE_EVERY_MS / 3_600_000, 2),
         "churn_bytes": churned, "cap_bytes": cap_bytes,
         "save_ms": {"p50": round(statistics.median(save_ms), 2),
                     "p95": round(_percentile(save_ms, 0.95), 2),
