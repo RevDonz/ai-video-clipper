@@ -1385,3 +1385,49 @@ Everything here is additive: no frozen signature, mode, DTO field or route chang
   production build, so it is not tied to `NODE_ENV`; `compose.yaml` never passes it; the fake
   runtime makes no API call. `window.__potonginEditorInspect` stays (read-only state, player
   state and stats; the e2e flow and support read it).
+
+## 5.19 W3 integration resolutions (T3.Z, 2026-10-01)
+
+### Wiring
+
+- `shell-model.LIVE_WAVES = ["W1", "W2", "W3"]`: every registered panel, lane and gizmo shows in
+  the app; `EditorApp` filters the gizmos with `liveEntries` too.
+- Panel props: `{state, dispatch, player}` plus `api` (the runtime's API client), `previewClient`,
+  `uploadAsset` (Appendix A.2; the real runtime's is `lib/editor/upload-client.uploadAsset`, the
+  fake runtime passes none and the panels resolve their own fake), `uploadsEnabled`
+  (`POTONGIN_EDITOR_UPLOADS`, read by the page through `readEditorFlags`; always true on the
+  fakes), `notify` and `readOnly`. A panel may ignore any of them.
+- `createEditorRuntime({kind: "real"})` returns `uploadAsset` (`deps.uploadAsset` in tests).
+- `EditorApp({jobId, clipId, clipIndex, runtimeKind, features: {uploads}})`.
+
+### Opening a clip with no manual prepare (owner feedback)
+
+- The editor page is `/projects/:id/clips/:ref/edit`; `:ref` is the clip id or `klip-<n>`
+  (1–99, the clip's number on the project page) for a clip that has no id until its job is
+  prepared (`lib/editor/open-clip.clipRefFromSegment`; anything else is a 404).
+- `open-clip.prepareForEditor({jobId, clipId | index})`: `GET /clips`; an openable clip opens at
+  once; `needs_prepare` or `analysis_incomplete` → one `POST /clips` (`429` waits `Retry-After`),
+  then the listing every 2 s until the clip is openable (12 min limit, `prepare_timeout`); any
+  other reason is an error with its Appendix C.6 text; `401` → login with `next` set to the
+  editor URL. `EditorApp` runs it when it has no clip id, or once per page load when the store's
+  first load answers `not_found`/`analysis_missing`, shows "Menyiapkan klip untuk diedit" with the
+  seconds, then replaces the address with the clip id's.
+- `clip-entry-view.clipEntryView`: `editHref` for openable clips and for clips the editor
+  prepares on open (by id, else `klip-<n>`); `reasonText` only when there is no link;
+  `engineLegacy` and `prepareClipEntries` are gone (no engine is named on screen; the page has no
+  prepare step).
+- `GET /api/jobs` adds `editor: boolean` (`POTONGIN_EDITOR_V3`), so the history offers "Edit klip"
+  (to `/projects/:id#klip`) only while the editor is on. The project page's clip list is
+  `<section id="klip">`.
+
+### Dark design and latest-only copy
+
+- The editor's colours are the `:root` tokens of `app/globals.css` (no `--ed-color-*`);
+  `editor.module.css` holds sizes, the focus ring and the popover shadow. New tokens:
+  `--cold-open`, `--cold-open-bg`, `--info-veil`, `--danger-veil`, `--shadow`
+  (`docs/design/TOKENS.md`). `web/tests/ui-guards.test.mjs` covers the editor like every page.
+- Caption and hook colours (clip content) live in `lib/editor/content-colours.mjs`
+  (`CAPTION_SWATCHES`, `DEFAULT_HIGHLIGHT`, `DEFAULT_EMPHASIS`).
+- Messages without version or engine words (Python `_MESSAGES` and the JS copy together):
+  `op_disabled`, `engine_fallback`, `editor_disabled`, `not_v3`, `legacy_engine`, the unchanged-clip
+  badge `"● Belum diubah: ekspor = klip otomatis"` and its help.
