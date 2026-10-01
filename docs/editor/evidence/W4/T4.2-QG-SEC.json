@@ -1,0 +1,29 @@
+{
+ "schema": "potongin.gate/1",
+ "gate": "QG-SEC, complete (plan §10.2 W4: upload fuzz, CSRF and auth matrix on every mutation, editor headers, no secret in any child's environment, ID regexes in Node and Python, the AI route refusing extra body fields)",
+ "task": "T4.2",
+ "suites": {
+  "commit": "f50f898",
+  "full": {"run": 36899551730, "ruff": "All checks passed!", "pytest": "4272 passed, 2 skipped, 1 xfailed (Python 3.11)",
+   "npmTest": "# pass 1176, # fail 0 (Node 20)", "build": "Compiled successfully"},
+  "gate": {"run": 36899557124, "command": "sh scripts/editor/w4_qg_sec.sh", "conclusion": "success"}
+ },
+ "parts": [
+  {"part": "upload fuzz, in process", "result": "66 cases: 45 rejected, 21 normalised, 0 5xx", "evidence": "T4.2-QG-SEC-fuzz-ingest.json", "run": 36899557124, "pass": true},
+  {"part": "upload fuzz over HTTP (the real app, every flag on)", "result": "66 cases: 45 rejected, 21 normalised, 0 5xx", "evidence": "T4.2-QG-SEC-fuzz-http.json", "run": 36899557124, "pass": true},
+  {"part": "every editor route over HTTP: session, origin, ids and traversal names, rate limits with Retry-After, body caps, the AI body, the header set, editor page headers, no server path in any answer", "result": "491 checks, 0 failed; 716 answers, none with a server path, the canary or a traceback; no 5xx but the fixed 503", "evidence": "T4.2-QG-SEC-routes.json", "run": 36899557124, "pass": true},
+  {"part": "E11: /proc/<pid>/environ of every child the app started (ingest, preview, api, cleanup, cold open, AI, render queue, FFmpeg, ffprobe, prlimit)", "result": "312 children, 0 names outside the allowlist, 0 planted dashboard values, the planted LLM key in 30 AI task children and nowhere else", "evidence": "T4.2-QG-SEC-routes.json (environ)", "run": 36899557124, "pass": true},
+  {"part": "editor page in a browser: COOP, COEP, nosniff, frame-ancestors, X-Frame-Options, crossOriginIsolated, no framing", "result": "3/3; crossOriginIsolated true", "evidence": "T4.2-QG-SEC-browser.json", "pass": true},
+  {"part": "unit and integration tests (node:test): every route file, every spawn site, the Python CLIs on the real interpreter", "result": "web/tests/security-routes, security-headers, security-child-env, security-python", "evidence": "the CI suite (npm test)", "pass": true}
+ ],
+ "fixed": [
+  "401 answers of the editor routes carried no nosniff; no editor API answer carried Cross-Origin-Resource-Policy",
+  "an upper-case job id passed the case-insensitive check of the media and preview routes and reached Python (the guard now allows one lower-case spelling)",
+  "a 422 from the api and preview CLIs passed the backend's path and ref fields through unchecked (now: a string naming a server directory or a traceback becomes null)",
+  "routes that start Python had no rate limit (edit, words, clips, prepare, renders, AI, AI task, cleanup, cold open): the session bucket api (60, then 20/s) with 429 and Retry-After",
+  "the AI 202 for an exhausted LLM quota had no Retry-After",
+  "a handler exception fell through to the framework's 500 (now a fixed 503 with the header set)"
+ ],
+ "uploadsMayDefaultOn": true,
+ "pass": true
+}
