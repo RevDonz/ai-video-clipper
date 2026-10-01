@@ -1,0 +1,59 @@
+{
+  "browser": "147.0.7727.15",
+  "clips": [
+    "bold-10",
+    "bold-40",
+    "bold-90",
+    "bold-dejavu-10",
+    "bold-dejavu-40",
+    "bold-dejavu-90",
+    "box-10",
+    "box-40",
+    "box-90",
+    "box-dejavu-10",
+    "box-dejavu-40",
+    "box-dejavu-90",
+    "box-pbox-10",
+    "box-pbox-40",
+    "box-pbox-90",
+    "classic-10",
+    "classic-40",
+    "classic-90",
+    "fallback",
+    "hook",
+    "karaoke-10",
+    "karaoke-40",
+    "karaoke-90",
+    "pcolor"
+  ],
+  "failures": [],
+  "frames": 120,
+  "gate": "P-TXT",
+  "gate_format": "gbrp",
+  "jassub": "2.5.16",
+  "pass": true,
+  "reference": "FFmpeg composite before 4:2:0, BT.709 to RGB",
+  "stamp": {
+    "commit": "56b33430f770ba637287ca66ef62d6254f9287ec",
+    "jassub": {
+      "integrity": "sha512-n4vjXfraf3o8k3/5TK6DhCYVcbQ/VqhVOgwqLd3l0xfMtsN4fpE/hPq2hPaGagBTOtJS9yHwRoRp3mmchQ9XVg==",
+      "version": "2.5.16"
+    },
+    "run": "36899253661",
+    "schema": "potongin.evidence-stamp/1",
+    "toolchain_sha256": "4fefb754ae6cb98b5376c6c865d786ff0924f39e03b776499e5b3246f64985f0"
+  },
+  "thresholds": {
+    "max": 16,
+    "psnr": 45.0,
+    "px_over_16": 0,
+    "ssim": 0.999
+  },
+  "worst_gated": {
+    "max": 14,
+    "psnr": 62.49980039190294,
+    "px_over_16": 0,
+    "ssim": 0.9999476742982829,
+    "ssim_text": 0.99945397480012
+  }
+}

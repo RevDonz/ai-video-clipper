@@ -1,0 +1,60 @@
+{
+  "browser": "147.0.7727.15",
+  "colors": {
+    "#3DF5A6": {
+      "max_abs_mean_delta": 1.654,
+      "pass": true,
+      "pixels": 1587
+    },
+    "#52C7FF": {
+      "max_abs_mean_delta": 0.818,
+      "pass": true,
+      "pixels": 1587
+    },
+    "#FF5C8A": {
+      "max_abs_mean_delta": 0.832,
+      "pass": true,
+      "pixels": 1587
+    },
+    "#FF9F1C": {
+      "max_abs_mean_delta": 1.645,
+      "pass": true,
+      "pixels": 1587
+    },
+    "#FFE14D": {
+      "max_abs_mean_delta": 0.924,
+      "pass": true,
+      "pixels": 1587
+    },
+    "#FFFFFF": {
+      "max_abs_mean_delta": 0.429,
+      "pass": true,
+      "pixels": 2521
+    },
+    "box": {
+      "max_abs_mean_delta": 1.022,
+      "pass": true,
+      "pixels": 11347
+    }
+  },
+  "compared": "delivered MP4 (decoded as BT.709) minus JASSUB composite, interior fills",
+  "failures": [],
+  "format": "gbrp",
+  "gate": "P-COLOR",
+  "jassub": "2.5.16",
+  "pass": true,
+  "stamp": {
+    "commit": "56b33430f770ba637287ca66ef62d6254f9287ec",
+    "jassub": {
+      "integrity": "sha512-n4vjXfraf3o8k3/5TK6DhCYVcbQ/VqhVOgwqLd3l0xfMtsN4fpE/hPq2hPaGagBTOtJS9yHwRoRp3mmchQ9XVg==",
+      "version": "2.5.16"
+    },
+    "run": "36899253661",
+    "schema": "potongin.evidence-stamp/1",
+    "toolchain_sha256": "4fefb754ae6cb98b5376c6c865d786ff0924f39e03b776499e5b3246f64985f0"
+  },
+  "threshold": {
+    "max_abs_mean_delta": 4.0
+  },
+  "worst_max_abs_mean_delta": 1.654
+}

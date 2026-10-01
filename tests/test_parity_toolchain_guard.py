@@ -115,6 +115,11 @@ def test_the_image_check_compares_bytes_with_the_derivation():
 # --- stamps, the record and the check ------------------------------------------------------------
 
 
+def test_this_repository_has_fresh_evidence_for_its_pins():
+    # Fails with the same message as the CI guard when a pin changed without a toolchain run.
+    assert tg.check(ROOT) == []
+
+
 def test_a_repository_whose_record_matches_its_pins_passes(tmp_path):
     assert tg.check(_recorded_repo(tmp_path)) == []
 
