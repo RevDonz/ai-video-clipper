@@ -19,12 +19,16 @@ const v1Args = [
   "--min-duration", "20", "--max-duration", "60", "--limit", "3",
   "--width", "720", "--height", "1280", "--render-mode", "fit-blur",
   "--artifact-root", "/data/jobs/id",
+  // The CLI default is the current selection; an old job names its own mode.
+  "--selection-mode", "v1",
 ];
 
 test("V1 worker invocation keeps its flags and always names the job artifact root", () => {
   assert.deepEqual(buildClipperInvocation(baseJob, "/data/jobs/id/input/source.mp4", "/data/jobs/id/output", {}), {
     command: "/app/.venv/bin/ai-clipper", args: v1Args,
   });
+  const explicit = { ...baseJob, options: { ...baseJob.options, selectionMode: "v1" } };
+  assert.deepEqual(buildClipperInvocation(explicit, "/data/jobs/id/input/source.mp4", "/data/jobs/id/output", {}).args, v1Args);
 });
 
 test("every selection mode writes analysis beside the output it will be published with", () => {

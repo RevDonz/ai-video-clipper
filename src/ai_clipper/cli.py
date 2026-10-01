@@ -104,7 +104,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--selection-mode",
         choices=tuple(mode.value for mode in SelectionMode),
-        default=SelectionMode.V1.value,
+        default=SelectionMode.V3.value,
+        help="moment selection (default: v3, the current one; v1 and v2-shadow are kept for old jobs)",
     )
     parser.add_argument(
         "--clip-profile",
