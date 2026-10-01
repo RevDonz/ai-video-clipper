@@ -297,15 +297,36 @@ def _run_probe(argv: list[str]) -> str:
 def _grid_pts(ffmpeg: str, source: Path, video_stream: int, seek_ms: int, *,
               first_only: bool) -> list[list[int]]:
     """Grid indices (``pts`` after ``fps=num/den`` with ``-copyts``) per document rate, from
-    ``seek_ms`` on: only the first one, or all of them to the end of the video."""
+    ``seek_ms`` on: only the first one, or all of them to the end of the video.
+
+    A threaded run that fails is run once more on one thread: FFmpeg 6.1.1 aborts on some AV1
+    sources with several decoder threads ("Assertion pkt failed", rc -6) and decodes them on
+    one. The thread count does not change the decoded frames, so the grid is the same."""
+    try:
+        return _grid_pts_run(ffmpeg, source, video_stream, seek_ms, first_only=first_only,
+                             threads=GRID_THREADS)
+    except _GridRunFailed:
+        try:
+            return _grid_pts_run(ffmpeg, source, video_stream, seek_ms, first_only=first_only,
+                                 threads=1)
+        except _GridRunFailed:
+            raise SourceInfoError("the frame grid could not be measured") from None
+
+
+class _GridRunFailed(Exception):
+    """FFmpeg exited non-zero while measuring the grid."""
+
+
+def _grid_pts_run(ffmpeg: str, source: Path, video_stream: int, seek_ms: int, *,
+                  first_only: bool, threads: int) -> list[list[int]]:
     labels = "".join(f"[s{i}]" for i in range(len(DOC_FPS)))
     graph = [f"[0:{video_stream}]scale=16:16,format=gray,split={len(DOC_FPS)}{labels}"]
     graph += [f"[s{i}]fps={num}/{den}[o{i}]" for i, (num, den) in enumerate(DOC_FPS)]
     seek = f"{seek_ms // 1000}.{seek_ms % 1000:03d}"
     with tempfile.TemporaryDirectory(prefix="edit-v2-grid-") as scratch:
         argv = [ffmpeg, "-nostdin", "-hide_banner", "-loglevel", "error", "-threads",
-                str(GRID_THREADS), *PROTOCOL_WHITELIST, "-ss", seek, "-copyts", "-i", str(source),
-                "-filter_complex_threads", str(GRID_THREADS), "-filter_complex", ";".join(graph)]
+                str(threads), *PROTOCOL_WHITELIST, "-ss", seek, "-copyts", "-i", str(source),
+                "-filter_complex_threads", str(threads), "-filter_complex", ";".join(graph)]
         for i in range(len(DOC_FPS)):
             argv += ["-map", f"[o{i}]", *(("-frames:v", "1") if first_only else ()),
                      "-f", "framemd5", os.path.join(scratch, f"grid{i}.txt")]
@@ -316,7 +337,7 @@ def _grid_pts(ffmpeg: str, source: Path, video_stream: int, seek_ms: int, *,
         except subprocess.TimeoutExpired:
             raise SourceInfoError("the frame grid could not be measured in time") from None
         if result.returncode != 0:
-            raise SourceInfoError("the frame grid could not be measured")
+            raise _GridRunFailed
         grids = []
         for i in range(len(DOC_FPS)):
             text = Path(scratch, f"grid{i}.txt").read_text(encoding="ascii", errors="replace")

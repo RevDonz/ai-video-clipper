@@ -661,6 +661,20 @@ def test_broken_jobs_name_their_reason(synthetic, tmp_path, breakage, reason):
     assert not (job_dir / "analysis" / "clips").exists()
 
 
+def test_a_source_that_cannot_be_read_is_unreadable_not_missing(synthetic, tmp_path):
+    """The file is there but ffprobe/FFmpeg cannot measure it (W3 verifier: a frame-grid abort
+    was reported as "Video sumber sudah tidak ada")."""
+    job_dir = _copy_job(synthetic, "main", tmp_path)
+    source = job_dir / "input" / "source.mp4"
+    source.unlink()
+    source.write_bytes(b"not a video " * 64)
+    (job_dir / SOURCE_INFO_RELATIVE_PATH).unlink(missing_ok=True)
+    results = prepare_legacy_job(job_dir)
+    assert results == [{"clip_id": None, "index": i, "openable": False,
+                        "reason": "source_unreadable"} for i in (1, 2, 3)]
+    assert not (job_dir / SOURCE_INFO_RELATIVE_PATH).exists()
+
+
 def test_a_source_outside_the_job_is_never_used(synthetic, tmp_path):
     job_dir = _copy_job(synthetic, "main", tmp_path)
     (job_dir / "input" / "source.mp4").unlink()

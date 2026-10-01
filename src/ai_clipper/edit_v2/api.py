@@ -33,7 +33,9 @@ match: ``not_v3``, ``analysis_incomplete`` (no selection and ``.attempts/`` left
 ``output/transcript.json`` and no seed), ``needs_prepare`` (no seed yet).
 
 ``prepare_job`` ``{jobId}`` → ``{state: "done", clips: [{clipId, index, openable, reason}]}``:
-calls ``seed.prepare_legacy_job(job_dir)`` (T1.5), idempotent.
+calls ``seed.prepare_legacy_job(job_dir)`` (T1.5), idempotent. Its reasons can also be
+``source_unreadable`` (the source is there but cannot be probed or measured), which ``clips``
+cannot know without decoding.
 
 ``get`` ``{jobId, clipId}`` → ``{doc, etag, isSeed, seed, seedEtag, engine, notices, words:
 {sha256, url}, readOnly, readOnlyReason}``. Writes nothing. ``readOnly`` is true with

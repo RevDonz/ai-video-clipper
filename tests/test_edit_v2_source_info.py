@@ -211,6 +211,41 @@ def test_the_grid_end_is_found_when_the_video_ends_early(edit_v2_media_factory, 
     assert seeks == [0, 57_000, 0]
 
 
+def test_the_grid_is_measured_on_one_thread_when_threaded_ffmpeg_aborts(edit_v2_media_factory,
+                                                                        monkeypatch):
+    """FFmpeg 6.1.1 aborts on some AV1 sources with ``-threads 4`` ("Assertion pkt failed at
+    src/fftools/ffmpeg_dec.c:597", rc -6) and decodes them with ``-threads 1`` (W3 verifier):
+    a failed threaded run is retried once on one thread, which gives the same grid."""
+    path = edit_v2_media_factory(_small((30000, 1001), 90))
+    expected = probe_source(path)["grid_sf"]
+    real_run = source_info.subprocess.run
+    threads = []
+
+    def flaky(argv, **kwargs):
+        if "-filter_complex" in argv:
+            count = argv[argv.index("-threads") + 1]
+            threads.append(count)
+            if count != "1":
+                return source_info.subprocess.CompletedProcess(argv, -6, b"", b"Assertion pkt failed")
+        return real_run(argv, **kwargs)
+
+    monkeypatch.setattr(source_info.subprocess, "run", flaky)
+    grid = source_info.measure_grid(path, video_stream=0, duration_ms=3003)
+    assert grid == expected
+    assert threads == [str(source_info.GRID_THREADS), "1", str(source_info.GRID_THREADS), "1"]
+
+
+def test_a_grid_run_that_fails_on_one_thread_too_is_an_error(edit_v2_media_factory, monkeypatch):
+    path = edit_v2_media_factory(_small((30000, 1001), 30))
+
+    def broken(argv, **kwargs):
+        return source_info.subprocess.CompletedProcess(argv, 1, b"", b"")
+
+    monkeypatch.setattr(source_info.subprocess, "run", broken)
+    with pytest.raises(SourceInfoError, match="frame grid could not be measured"):
+        source_info.measure_grid(path, video_stream=0, duration_ms=1001)
+
+
 def test_grid_range_needs_a_recorded_rate():
     probe = {"grid_sf": [[30000, 1001, 0, 902]]}
     assert source_info.grid_range(probe, Fps(30000, 1001)) == (0, 902)
