@@ -150,7 +150,8 @@ class _Builder:
         self.doc = copy.deepcopy(context.seed)
         self.doc["revision"] = 1
         self.doc["parent_sha256"] = fixtures.etag(context.seed)
-        self.doc["audit"].update(updated_at_ms=fixtures.EDITED_AT_MS, editor="editor-v3/1.0.0",
+        edited_at = max(fixtures.EDITED_AT_MS, context.seed["audit"]["created_at_ms"])
+        self.doc["audit"].update(updated_at_ms=edited_at, editor="editor-v3/1.0.0",
                                  last_command="RemoveWords")
 
     def segment(self, role: str) -> dict[str, Any] | None:
