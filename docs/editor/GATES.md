@@ -1229,7 +1229,14 @@ export. Tests: `tests/test_edit_v2_janitor.py` (26), `web/tests/primary-worker-j
   "4309 passed, 2 skipped, 1 xfailed"; npm test on Node 20 "# pass 1155", "# fail 0"; build
   "✓ Compiled successfully"); `ci-gate image` run 36911044239 **success** ("4307 passed,
   4 skipped, 1 xfailed" inside the production image, FFmpeg 5.1.9).
-- FINAL_CI_LINE
+- At `e064ba7` (+ the janitor's never-edited clips, the health snapshot, the soak clock):
+  `ci-gate full` run 36913459891 **success** (pytest "4310 passed, 2 skipped, 1 xfailed"; npm
+  test "# pass 1156", "# fail 0"); `ci-gate image` run 36913500400 **success** ("4308 passed,
+  4 skipped, 1 xfailed" in the production image).
+- At `88afca6` (the last code commit: the janitor reads only the queue's archive paths):
+  `ci-gate full` run 36914779612 **success** (ruff "All checks passed!"; pytest on Python 3.11
+  "4311 passed, 2 skipped, 1 xfailed"; npm test on Node 20 "# pass 1156", "# fail 0"; build
+  "✓ Compiled successfully"). Later commits are this document only.
 - Locally (targeted): `tests/test_edit_v2_render_edit.py`, `test_pipeline_v3.py`,
   `test_edit_v2_verify.py`, `test_edit_v2_camera.py`, `test_edit_v2_janitor.py`;
   `web/tests/{primary-worker,primary-worker-janitor,python-cli,preview-lane}.test.mjs`.
