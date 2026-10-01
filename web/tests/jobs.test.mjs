@@ -362,16 +362,16 @@ test("public landing and protected dashboard use separate routes", async () => {
   assert.match(dashboard, /fetch\("\/api\/jobs"/);
   assert.match(dashboard, /role="progressbar"/);
   assert.match(dashboard, /aria-live="polite"/);
-  // Selection V3 is the default; V1 and V2 shadow stay selectable under "Mode lama".
-  assert.match(dashboard, /V2 shadow/);
-  assert.match(dashboard, /V1 tetap merender/);
-  assert.match(dashboard, /const \[selectionMode, setSelectionMode\] = useState\("v3"\)/);
-  assert.match(dashboard, /data\.set\("selectionMode", selectionMode\)/);
+  // One form for the current selection: the server picks it, the page never names a mode.
+  assert.doesNotMatch(dashboard, /\bV[1-3]\b|Mode lama|Klasik V1|shadow|AI Hook|selectionMode|clipProfile|legacyModes|llmMode/);
   assert.match(dashboard, /createStorageStatusRecovery/);
   assert.match(dashboard, /role="alert"/);
-  assert.match(dashboard, /storage_quota_exhausted/);
-  assert.match(dashboard, /storage_free_space_low/);
-  assert.match(dashboard, /storage_admission_unavailable/);
+  // Storage refusals are worded in the dashboard's view module.
+  const view = await readFile(new URL("../lib/dashboard-view.mjs", import.meta.url), "utf8");
+  assert.match(dashboard, /storageMessage\(storage\.admission\.code\)/);
+  assert.match(view, /storage_quota_exhausted/);
+  assert.match(view, /storage_free_space_low/);
+  assert.match(view, /storage_admission_unavailable/);
   assert.match(dashboard, /disabled=\{submitting \|\| storageBlocked\}/);
   assert.match(dashboard, /payload\.jobId/);
   assert.match(dashboard, /const controller = new AbortController\(\)/);
