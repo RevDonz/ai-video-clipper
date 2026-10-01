@@ -7,6 +7,7 @@ import copy
 import dataclasses
 import os
 import subprocess
+import threading
 from pathlib import Path
 
 import pytest
@@ -127,6 +128,24 @@ def test_broken_outputs_are_blocked(tmp_path, edit_v2_ffmpeg, change, problem):
     plan = small_plan()
     path = encode(tmp_path / "broken.bin", **change)
     assert problem in problems(path, plan)
+
+
+def test_the_three_readers_run_at_the_same_time(tmp_path, edit_v2_ffmpeg, monkeypatch):
+    """T4.3: the probe (a full decode), the packet list and the audio decode read the file at
+    once (each through its own descriptor); the report is the one of a sequential read."""
+    path = encode(tmp_path / "good.mp4")
+    plan = small_plan()
+    expected = run_verify(path, plan).to_json()
+    barrier = threading.Barrier(3, timeout=30)
+    for name in ("_probe", "_video_pts", "_audio_bytes"):
+        real = getattr(verify, name)
+
+        def waiting(*args, _real=real, **kwargs):
+            barrier.wait()  # broken (RuntimeError) unless all three are running
+            return _real(*args, **kwargs)
+
+        monkeypatch.setattr(verify, name, waiting)
+    assert run_verify(path, plan).to_json() == expected
 
 
 def test_a_pipe_is_not_a_regular_file():

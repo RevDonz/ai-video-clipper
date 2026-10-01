@@ -1641,9 +1641,19 @@ class FakeAutoRenderer:
         self.options = options
         self.rendered: list = []
         self.fallbacks: list = []
+        self.scheduled: list = []
+        self.events: list = []
         FakeAutoRenderer.instances.append(self)
 
+    def schedule(self, items):
+        self.scheduled.append(list(items))
+        self.events.append("schedule")
+
+    def close(self):
+        self.events.append("close")
+
     def render(self, rank, output):
+        self.events.append(f"render:{rank}")
         self.rendered.append((rank, output))
         if rank in FakeAutoRenderer.fail_ranks:
             from ai_clipper.edit_v2.errors import RenderFailed
@@ -1748,6 +1758,10 @@ def test_the_edit_v2_engine_renders_every_clip_through_the_compiler(
         (1, env.output.resolve() / "clip-01.mp4"),
         (2, env.output.resolve() / "clip-02.mp4"),
     ]
+    # PF-PIPELINE (T4.3): every clip is scheduled up front, in order, and the renderer is
+    # closed once the last clip is taken.
+    assert renderer.scheduled == [renderer.rendered]
+    assert renderer.events == ["schedule", "render:1", "render:2", "close"]
     for index, clip in enumerate(manifest["clips"], start=1):
         assert set(clip) == CLIP_KEYS | ENGINE_KEYS
         assert clip["clip_id"] == f"clip_{index:024x}"
@@ -1818,6 +1832,26 @@ def test_the_legacy_fallback_failing_still_fails_the_job(env, monkeypatch, fake_
     summary = manifest_of(env.output / "manifest.json")["selection_v3"]
     assert summary["warnings"][0] == "pipeline_failed:rendering"
     assert "engine_fallback:1" in summary["warnings"]
+    (renderer,) = fake_engine.instances
+    assert renderer.events == ["schedule", "render:1", "close"]  # the rest is stopped
+
+
+def test_a_renderer_that_cannot_schedule_renders_one_clip_at_a_time(
+    env, monkeypatch, fake_engine
+):
+    monkeypatch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: result(*TWO_CLIPS))
+
+    def broken(self, items):
+        raise RuntimeError("no workers")
+
+    monkeypatch.setattr(fake_engine, "schedule", broken)
+
+    manifest = manifest_of(run(env, max_duration=60.0, render_engine="edit-v2"))
+
+    (renderer,) = fake_engine.instances
+    assert [rank for rank, _output in renderer.rendered] == [1, 2]
+    assert [clip["render_engine"] for clip in manifest["clips"]] == ["edit-v2/1", "edit-v2/1"]
+    assert renderer.events[-1] == "close"
 
 
 def test_an_unknown_render_engine_argument_is_refused_before_any_work(env):
