@@ -104,6 +104,7 @@ CLIP_REASONS = frozenset(
     {
         "needs_prepare",
         "source_missing",
+        "source_unreadable",
         "selection_unreadable",
         "transcript_missing",
         "analysis_incomplete",
@@ -203,6 +204,7 @@ _MESSAGES = {
     # Clip reasons (Appendix C.6 copy).
     "needs_prepare": "Klip perlu disiapkan dulu",
     "source_missing": "Video sumber sudah tidak ada",
+    "source_unreadable": "Video sumber tidak bisa dibaca; proses ulang videonya",
     "selection_unreadable": "Hasil seleksi tidak terbaca",
     "transcript_missing": "Transkrip tidak ditemukan",
     "analysis_incomplete": "Analisis job belum selesai",

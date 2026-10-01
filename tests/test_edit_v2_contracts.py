@@ -433,6 +433,7 @@ def test_every_documented_code_has_an_indonesian_message():
     assert errors.CLIP_REASONS == {
         "needs_prepare",
         "source_missing",
+        "source_unreadable",
         "selection_unreadable",
         "transcript_missing",
         "analysis_incomplete",

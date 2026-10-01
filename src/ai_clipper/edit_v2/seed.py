@@ -47,7 +47,9 @@ first matching reason: ``not_v3`` (the job did not run Selection V3), ``analysis
 (no ``analysis/selection.v3.json`` but one stranded in ``.attempts/*/analysis/``, or an existing
 seed whose words artifact is gone), ``selection_unreadable``, ``transcript_missing``,
 ``source_missing`` (the source must be a regular file inside ``input/``; ``job.json``'s absolute
-``sourcePath`` is only used when it points there). Those checks come before any write.
+``sourcePath`` is only used when it points there). Those checks come before any write. A source
+that is there but cannot be probed or measured (``source_info.SourceInfoError``) is
+``source_unreadable``; only prepare finds that out, because it decodes.
 :func:`inspect_job` reports the same entries without writing or decoding anything, with
 ``needs_prepare`` for clips whose seed does not exist yet.
 """
@@ -745,7 +747,9 @@ def prepare_legacy_job(job_dir: Path) -> list[dict]:
         try:
             source_info = ensure_source_info(job_dir, state.source)
         except SourceInfoError:
-            return [_entry(None, clip.rank, "source_missing") for clip in state.selection.clips]
+            # The file is there but cannot be probed or measured (or its source.json is bad).
+            reason = "source_unreadable" if _is_regular(state.source) else "source_missing"
+            return [_entry(None, clip.rank, reason) for clip in state.selection.clips]
         return [
             _prepare_clip(job_dir, state, clip, source_info, transcription, audio, events)
             for clip in state.selection.clips
