@@ -1,0 +1,293 @@
+{
+  "gate": "cold-open suggestions end to end (plan §7: instant suggestions <= 300 ms p95)",
+  "task": "T3.7",
+  "threshold_ms_p95": 300,
+  "path": "GET coldopen-suggestions route (fresh route per call, no memo) -> python-cli spawn (allowlisted env) -> python -m ai_clipper.edit_v2.coldopen list",
+  "clips": 32,
+  "samples": 160,
+  "p50_ms": 122.5,
+  "p95_ms": 163.1,
+  "max_ms": 177.7,
+  "statuses": [
+    200
+  ],
+  "repeat_calls": "answered from the route memo (no process)",
+  "pass": true,
+  "first_run": {
+    "note": "the run before this one, the first spawn after the image run compiled bytecode for another Python; host loadavg about 25 on 16 cpus from other processes",
+    "samples": 160,
+    "p50_ms": 125.1,
+    "p95_ms": 313,
+    "max_ms": 1846.9,
+    "pass": false
+  },
+  "python": "3.13.13 (worktree .venv)",
+  "node": "v22.23.2",
+  "cpus": 16,
+  "loadavg": [
+    27.19,
+    25.81,
+    16.61
+  ],
+  "commit": "8316614d0122ffaac548b3e9bc6ad439e31d72cf",
+  "measured_at": "2026-10-01T09:02:36Z",
+  "jobs": "scratch copies of e7f0d37b, 899226f8, 860fef1a, 3c7d024c, 990f3f37 (prepared in ai-video-clipper:editor-w3base)",
+  "per_clip": [
+    {
+      "jobId": "3c7d024c-f1f5-45a6-b767-9f2c190b0c42",
+      "clipId": "clip_23f6f39e80ca93f5a897b1bb",
+      "status": 200,
+      "candidates": 2,
+      "p50_ms": 99.5,
+      "max_ms": 122.6
+    },
+    {
+      "jobId": "3c7d024c-f1f5-45a6-b767-9f2c190b0c42",
+      "clipId": "clip_297139c62f9cce416a1bd5a8",
+      "status": 200,
+      "candidates": 2,
+      "p50_ms": 119.5,
+      "max_ms": 177.7
+    },
+    {
+      "jobId": "3c7d024c-f1f5-45a6-b767-9f2c190b0c42",
+      "clipId": "clip_6dcfbe0139e160940dabb1d2",
+      "status": 200,
+      "candidates": 4,
+      "p50_ms": 157.1,
+      "max_ms": 175.6
+    },
+    {
+      "jobId": "3c7d024c-f1f5-45a6-b767-9f2c190b0c42",
+      "clipId": "clip_79f6a91ef9850a699239bdae",
+      "status": 200,
+      "candidates": 0,
+      "p50_ms": 128.3,
+      "max_ms": 161.7
+    },
+    {
+      "jobId": "3c7d024c-f1f5-45a6-b767-9f2c190b0c42",
+      "clipId": "clip_95c5653dd66a5ddc14d4fd01",
+      "status": 200,
+      "candidates": 1,
+      "p50_ms": 124.3,
+      "max_ms": 137.4
+    },
+    {
+      "jobId": "3c7d024c-f1f5-45a6-b767-9f2c190b0c42",
+      "clipId": "clip_a144010a38e53079b3c2c8b1",
+      "status": 200,
+      "candidates": 3,
+      "p50_ms": 112.2,
+      "max_ms": 157.9
+    },
+    {
+      "jobId": "3c7d024c-f1f5-45a6-b767-9f2c190b0c42",
+      "clipId": "clip_d2b974fa3e86efe0c1384b04",
+      "status": 200,
+      "candidates": 3,
+      "p50_ms": 117.9,
+      "max_ms": 130.7
+    },
+    {
+      "jobId": "3c7d024c-f1f5-45a6-b767-9f2c190b0c42",
+      "clipId": "clip_e2ff79d57e7f866c23cbf1ab",
+      "status": 200,
+      "candidates": 3,
+      "p50_ms": 133,
+      "max_ms": 159.7
+    },
+    {
+      "jobId": "860fef1a-8140-4677-8d73-729d18f15431",
+      "clipId": "clip_04b7e3e109c93f94bc0892d4",
+      "status": 200,
+      "candidates": 0,
+      "p50_ms": 163.1,
+      "max_ms": 171.1
+    },
+    {
+      "jobId": "860fef1a-8140-4677-8d73-729d18f15431",
+      "clipId": "clip_3b79acd8afc84da00629135d",
+      "status": 200,
+      "candidates": 2,
+      "p50_ms": 158.8,
+      "max_ms": 175.6
+    },
+    {
+      "jobId": "860fef1a-8140-4677-8d73-729d18f15431",
+      "clipId": "clip_5646b9b858cd5a4a65e3d586",
+      "status": 200,
+      "candidates": 2,
+      "p50_ms": 133.6,
+      "max_ms": 144.2
+    },
+    {
+      "jobId": "860fef1a-8140-4677-8d73-729d18f15431",
+      "clipId": "clip_6dfb89bef062bb8dfa6f63c1",
+      "status": 200,
+      "candidates": 2,
+      "p50_ms": 117.2,
+      "max_ms": 122.5
+    },
+    {
+      "jobId": "860fef1a-8140-4677-8d73-729d18f15431",
+      "clipId": "clip_873853ea0345278c1f71f82b",
+      "status": 200,
+      "candidates": 2,
+      "p50_ms": 140.7,
+      "max_ms": 163.4
+    },
+    {
+      "jobId": "860fef1a-8140-4677-8d73-729d18f15431",
+      "clipId": "clip_ae9359099f0264ebe4185002",
+      "status": 200,
+      "candidates": 3,
+      "p50_ms": 133.2,
+      "max_ms": 136.9
+    },
+    {
+      "jobId": "860fef1a-8140-4677-8d73-729d18f15431",
+      "clipId": "clip_d5210e9aacdb23e2edbb35b9",
+      "status": 200,
+      "candidates": 1,
+      "p50_ms": 139.2,
+      "max_ms": 148.9
+    },
+    {
+      "jobId": "860fef1a-8140-4677-8d73-729d18f15431",
+      "clipId": "clip_dc1a6c7b20e424c94c248a4d",
+      "status": 200,
+      "candidates": 3,
+      "p50_ms": 133.2,
+      "max_ms": 142.6
+    },
+    {
+      "jobId": "899226f8-7e57-49d9-8c29-b078b2b91580",
+      "clipId": "clip_05283b2a79eb371eb70c88df",
+      "status": 200,
+      "candidates": 1,
+      "p50_ms": 117.9,
+      "max_ms": 133.9
+    },
+    {
+      "jobId": "899226f8-7e57-49d9-8c29-b078b2b91580",
+      "clipId": "clip_852ee7342fb01a94284c7fbc",
+      "status": 200,
+      "candidates": 2,
+      "p50_ms": 137.7,
+      "max_ms": 142.1
+    },
+    {
+      "jobId": "899226f8-7e57-49d9-8c29-b078b2b91580",
+      "clipId": "clip_9a9828b98684569dd7f6fc43",
+      "status": 200,
+      "candidates": 1,
+      "p50_ms": 128.3,
+      "max_ms": 152.7
+    },
+    {
+      "jobId": "899226f8-7e57-49d9-8c29-b078b2b91580",
+      "clipId": "clip_b86cc25fa6e83a6faad14251",
+      "status": 200,
+      "candidates": 1,
+      "p50_ms": 104.1,
+      "max_ms": 132
+    },
+    {
+      "jobId": "899226f8-7e57-49d9-8c29-b078b2b91580",
+      "clipId": "clip_e5bbce66807456b8aecf18c4",
+      "status": 200,
+      "candidates": 1,
+      "p50_ms": 103.5,
+      "max_ms": 115.7
+    },
+    {
+      "jobId": "990f3f37-f0a6-490a-a9a2-a6d6cdab004e",
+      "clipId": "clip_56d8d8c58c4439dccecdb3a2",
+      "status": 200,
+      "candidates": 1,
+      "p50_ms": 116.9,
+      "max_ms": 154
+    },
+    {
+      "jobId": "990f3f37-f0a6-490a-a9a2-a6d6cdab004e",
+      "clipId": "clip_649a0e4e517470a639d02022",
+      "status": 200,
+      "candidates": 2,
+      "p50_ms": 110.4,
+      "max_ms": 123.9
+    },
+    {
+      "jobId": "990f3f37-f0a6-490a-a9a2-a6d6cdab004e",
+      "clipId": "clip_6c498e543fd2b8ffd10809e4",
+      "status": 200,
+      "candidates": 4,
+      "p50_ms": 114.5,
+      "max_ms": 145.7
+    },
+    {
+      "jobId": "990f3f37-f0a6-490a-a9a2-a6d6cdab004e",
+      "clipId": "clip_8f285ddff6eeaa93d62a7a9a",
+      "status": 200,
+      "candidates": 3,
+      "p50_ms": 130.3,
+      "max_ms": 137.2
+    },
+    {
+      "jobId": "990f3f37-f0a6-490a-a9a2-a6d6cdab004e",
+      "clipId": "clip_97436a9111897dcaffde3356",
+      "status": 200,
+      "candidates": 4,
+      "p50_ms": 128.4,
+      "max_ms": 157
+    },
+    {
+      "jobId": "990f3f37-f0a6-490a-a9a2-a6d6cdab004e",
+      "clipId": "clip_978d269bd1741457abab3727",
+      "status": 200,
+      "candidates": 1,
+      "p50_ms": 133.1,
+      "max_ms": 151.5
+    },
+    {
+      "jobId": "990f3f37-f0a6-490a-a9a2-a6d6cdab004e",
+      "clipId": "clip_c4162fbf5acfeb9dfc4444b8",
+      "status": 200,
+      "candidates": 1,
+      "p50_ms": 117.7,
+      "max_ms": 145
+    },
+    {
+      "jobId": "990f3f37-f0a6-490a-a9a2-a6d6cdab004e",
+      "clipId": "clip_e51bdc1790a46a99d7a6178c",
+      "status": 200,
+      "candidates": 2,
+      "p50_ms": 118.4,
+      "max_ms": 134
+    },
+    {
+      "jobId": "e7f0d37b-6999-40a2-80b8-a09c8ff187ca",
+      "clipId": "clip_8fd05fdc20d4f6cbadb26109",
+      "status": 200,
+      "candidates": 4,
+      "p50_ms": 120.5,
+      "max_ms": 127.4
+    },
+    {
+      "jobId": "e7f0d37b-6999-40a2-80b8-a09c8ff187ca",
+      "clipId": "clip_c7338377170b4a2e49948f67",
+      "status": 200,
+      "candidates": 2,
+      "p50_ms": 109,
+      "max_ms": 113.7
+    },
+    {
+      "jobId": "e7f0d37b-6999-40a2-80b8-a09c8ff187ca",
+      "clipId": "clip_fa14b3c832db852797ab4560",
+      "status": 200,
+      "candidates": 2,
+      "p50_ms": 104.7,
+      "max_ms": 108.5
+    }
+  ]
+}

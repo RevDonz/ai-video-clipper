@@ -1,0 +1,211 @@
+{
+  "gate": "QG-UX U3 with suggestions on prepared real clips (scripted e2e)",
+  "limit_s": 30,
+  "clips": 32,
+  "ran": 24,
+  "skipped": [
+    {
+      "reason": "no candidates",
+      "clips": 2
+    },
+    {
+      "reason": "only the current cold open is suggested",
+      "clips": 6
+    }
+  ],
+  "max_elapsed_s": 8.519,
+  "max_klm_estimate_s": 16.82,
+  "runs": [
+    {
+      "clip": "3c7d024c-clip_23f6f39e80ca93f5a897b1bb",
+      "elapsed_s": 3.294,
+      "audition_s": 2.104,
+      "klm_estimate_s": 11.4
+    },
+    {
+      "clip": "3c7d024c-clip_297139c62f9cce416a1bd5a8",
+      "elapsed_s": 2.266,
+      "audition_s": 1.504,
+      "klm_estimate_s": 10.8
+    },
+    {
+      "clip": "3c7d024c-clip_6dcfbe0139e160940dabb1d2",
+      "elapsed_s": 2.665,
+      "audition_s": 1.44,
+      "klm_estimate_s": 10.74
+    },
+    {
+      "clip": "3c7d024c-clip_79f6a91ef9850a699239bdae",
+      "skipped": "no candidates"
+    },
+    {
+      "clip": "3c7d024c-clip_95c5653dd66a5ddc14d4fd01",
+      "elapsed_s": 5.218,
+      "audition_s": 2.936,
+      "klm_estimate_s": 12.24
+    },
+    {
+      "clip": "3c7d024c-clip_a144010a38e53079b3c2c8b1",
+      "elapsed_s": 2.412,
+      "audition_s": 1.536,
+      "klm_estimate_s": 10.84
+    },
+    {
+      "clip": "3c7d024c-clip_d2b974fa3e86efe0c1384b04",
+      "elapsed_s": 7.371,
+      "audition_s": 6.368,
+      "klm_estimate_s": 15.67
+    },
+    {
+      "clip": "3c7d024c-clip_e2ff79d57e7f866c23cbf1ab",
+      "elapsed_s": 5.434,
+      "audition_s": 4.64,
+      "klm_estimate_s": 13.94
+    },
+    {
+      "clip": "860fef1a-clip_04b7e3e109c93f94bc0892d4",
+      "skipped": "no candidates"
+    },
+    {
+      "clip": "860fef1a-clip_3b79acd8afc84da00629135d",
+      "elapsed_s": 8.519,
+      "audition_s": 7.521,
+      "klm_estimate_s": 16.82
+    },
+    {
+      "clip": "860fef1a-clip_5646b9b858cd5a4a65e3d586",
+      "elapsed_s": 5.615,
+      "audition_s": 4.2,
+      "klm_estimate_s": 13.5
+    },
+    {
+      "clip": "860fef1a-clip_6dfb89bef062bb8dfa6f63c1",
+      "elapsed_s": 5.466,
+      "audition_s": 4.321,
+      "klm_estimate_s": 13.62
+    },
+    {
+      "clip": "860fef1a-clip_873853ea0345278c1f71f82b",
+      "elapsed_s": 4.448,
+      "audition_s": 3.921,
+      "klm_estimate_s": 13.22
+    },
+    {
+      "clip": "860fef1a-clip_ae9359099f0264ebe4185002",
+      "elapsed_s": 3.331,
+      "audition_s": 2.521,
+      "klm_estimate_s": 11.82
+    },
+    {
+      "clip": "860fef1a-clip_d5210e9aacdb23e2edbb35b9",
+      "skipped": "only the current cold open is suggested"
+    },
+    {
+      "clip": "860fef1a-clip_dc1a6c7b20e424c94c248a4d",
+      "elapsed_s": 4.426,
+      "audition_s": 3.321,
+      "klm_estimate_s": 12.62
+    },
+    {
+      "clip": "899226f8-clip_05283b2a79eb371eb70c88df",
+      "skipped": "only the current cold open is suggested"
+    },
+    {
+      "clip": "899226f8-clip_852ee7342fb01a94284c7fbc",
+      "elapsed_s": 5.376,
+      "audition_s": 4.64,
+      "klm_estimate_s": 13.94
+    },
+    {
+      "clip": "899226f8-clip_9a9828b98684569dd7f6fc43",
+      "skipped": "only the current cold open is suggested"
+    },
+    {
+      "clip": "899226f8-clip_b86cc25fa6e83a6faad14251",
+      "skipped": "only the current cold open is suggested"
+    },
+    {
+      "clip": "899226f8-clip_e5bbce66807456b8aecf18c4",
+      "elapsed_s": 5.425,
+      "audition_s": 4.08,
+      "klm_estimate_s": 13.38
+    },
+    {
+      "clip": "990f3f37-clip_56d8d8c58c4439dccecdb3a2",
+      "skipped": "only the current cold open is suggested"
+    },
+    {
+      "clip": "990f3f37-clip_649a0e4e517470a639d02022",
+      "elapsed_s": 3.682,
+      "audition_s": 2.736,
+      "klm_estimate_s": 12.04
+    },
+    {
+      "clip": "990f3f37-clip_6c498e543fd2b8ffd10809e4",
+      "elapsed_s": 3.864,
+      "audition_s": 2.8,
+      "klm_estimate_s": 12.1
+    },
+    {
+      "clip": "990f3f37-clip_8f285ddff6eeaa93d62a7a9a",
+      "elapsed_s": 5.132,
+      "audition_s": 3.04,
+      "klm_estimate_s": 12.34
+    },
+    {
+      "clip": "990f3f37-clip_97436a9111897dcaffde3356",
+      "elapsed_s": 4.291,
+      "audition_s": 2.904,
+      "klm_estimate_s": 12.2
+    },
+    {
+      "clip": "990f3f37-clip_978d269bd1741457abab3727",
+      "elapsed_s": 5.351,
+      "audition_s": 4.568,
+      "klm_estimate_s": 13.87
+    },
+    {
+      "clip": "990f3f37-clip_c4162fbf5acfeb9dfc4444b8",
+      "skipped": "only the current cold open is suggested"
+    },
+    {
+      "clip": "990f3f37-clip_e51bdc1790a46a99d7a6178c",
+      "elapsed_s": 4.382,
+      "audition_s": 3.44,
+      "klm_estimate_s": 12.74
+    },
+    {
+      "clip": "e7f0d37b-clip_8fd05fdc20d4f6cbadb26109",
+      "elapsed_s": 6.474,
+      "audition_s": 5.76,
+      "klm_estimate_s": 15.06
+    },
+    {
+      "clip": "e7f0d37b-clip_c7338377170b4a2e49948f67",
+      "elapsed_s": 3.288,
+      "audition_s": 2.128,
+      "klm_estimate_s": 11.43
+    },
+    {
+      "clip": "e7f0d37b-clip_fa14b3c832db852797ab4560",
+      "elapsed_s": 6.209,
+      "audition_s": 4.672,
+      "klm_estimate_s": 13.97
+    }
+  ],
+  "pass": true,
+  "browser": "chromium",
+  "browserVersion": "147.0.7727.15",
+  "executable": "chromium-1217 (Chrome for Testing)",
+  "machine": {
+    "cpus": 16,
+    "cpuModel": "AMD Ryzen 7 5700G with Radeon Graphics",
+    "loadavg": [
+      26.84,
+      27.44,
+      20.3
+    ]
+  },
+  "commit": "8316614d0122ffaac548b3e9bc6ad439e31d72cf",
+  "harness": "web/components/editor/timeline/lanes/__dev__ (production React, real commands)"
+}
