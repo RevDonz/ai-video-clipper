@@ -28,6 +28,14 @@ Cloudflare, follow `deploy/VM_NGINX_CLOUDFLARE.md`.
 The web MVP is designed for one trusted self-hosted instance. Put Cloudflare
 Access or Nginx authentication in front of it before exposing it publicly.
 
+Every page uses the dark design in `DESIGN.md`: one palette of tokens on `:root` in
+`web/app/globals.css` (listed with their contrast in `docs/design/TOKENS.md`), DM Sans, one
+lime accent, Indonesian copy. `web/tests/ui-guards.test.mjs` runs with `npm test` and fails
+when a page, component, view library or worker script puts version wording on screen
+(V1/V2/V3, "Selection V", "Mode lama", "mesin lama/baru"), when a stylesheet or component
+uses a colour outside those tokens, or when a text/background pair the stylesheets use drops
+below WCAG AA (4.5:1).
+
 The web app shows only the current method. The old candidate editor and its routes
 (`/projects/<id>/candidates/...`, `/api/jobs/<id>/candidates/...`,
 `/api/jobs/<id>/candidate-feedback`, `/api/jobs/<id>/preview-source`) were retired on
