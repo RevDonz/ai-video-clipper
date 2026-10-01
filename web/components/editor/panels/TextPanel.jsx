@@ -11,6 +11,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { createApiClient } from "../../../lib/editor/api-client.mjs";
+import { CAPTION_SWATCHES } from "../../../lib/editor/content-colours.mjs";
 import HookSuggestions from "../suggestions/index.jsx";
 import { runCommands } from "../transcript/actions.mjs";
 import boldThumb from "./pack-thumbs/bold.png";
@@ -25,10 +26,7 @@ const PACKS = [
   { id: "bold", name: "Bold", note: "Tebal, kata aktif berwarna", thumb: boldThumb },
   { id: "box", name: "Box", note: "Teks di kotak gelap", thumb: boxThumb },
 ];
-const SWATCHES = [
-  { value: "#FFE14D", name: "Kuning" }, { value: "#FFFFFF", name: "Putih" }, { value: "#3DF5A6", name: "Hijau" },
-  { value: "#52C7FF", name: "Biru" }, { value: "#FF5C8A", name: "Merah muda" }, { value: "#FF9F1C", name: "Oranye" },
-];
+const SWATCHES = CAPTION_SWATCHES;
 const HIGHLIGHT_PACKS = new Set(["karaoke", "bold"]);
 const HOOK_MAX = 90;
 const SECONDS = new Intl.NumberFormat("id-ID", { minimumFractionDigits: 1, maximumFractionDigits: 1 });

@@ -22,10 +22,10 @@ function SafeZone({ w, h }) {
   return (
     <div className={styles.overlay} data-safe-zone="">
       <svg viewBox={`0 0 ${w} ${h}`} width="100%" height="100%" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-        <rect x="0" y="0" width={w} height={top} fill="var(--ed-color-safe-zone)" />
-        <rect x="0" y={h - bottom} width={w} height={bottom} fill="var(--ed-color-safe-zone)" />
-        <rect x={w - right} y={top} width={right} height={h - top - bottom} fill="var(--ed-color-safe-zone)" />
-        <rect x="0.5" y={top} width={w - right - 1} height={h - top - bottom} fill="none" stroke="#ff8a8e" strokeDasharray="12 8" strokeWidth="2" />
+        <rect x="0" y="0" width={w} height={top} fill="var(--danger-veil)" />
+        <rect x="0" y={h - bottom} width={w} height={bottom} fill="var(--danger-veil)" />
+        <rect x={w - right} y={top} width={right} height={h - top - bottom} fill="var(--danger-veil)" />
+        <rect x="0.5" y={top} width={w - right - 1} height={h - top - bottom} fill="none" stroke="var(--danger)" strokeDasharray="12 8" strokeWidth="2" />
       </svg>
       <span className={styles.safeZoneLabel}>Area tombol TikTok</span>
     </div>

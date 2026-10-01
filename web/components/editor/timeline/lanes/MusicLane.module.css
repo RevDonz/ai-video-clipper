@@ -15,14 +15,14 @@
 }
 
 .wave {
-  fill: var(--ed-color-accent);
+  fill: var(--info);
   fill-opacity: 0.28;
   stroke: none;
 }
 
 .envelope {
   fill: none;
-  stroke: var(--ed-color-accent);
+  stroke: var(--info);
   stroke-width: 1.5;
   stroke-linejoin: round;
 }

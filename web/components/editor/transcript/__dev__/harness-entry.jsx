@@ -19,8 +19,8 @@ function Harness({ store, player, initialPanel }) {
   const Panel = lazyPanels.get(panelId);
   return (
     <div className={editorStyles.tokens} style={{ display: "grid", gridTemplateColumns: "var(--ed-panel-width) 1fr",
-      height: "100vh", background: "var(--ed-color-bg)", color: "var(--ed-color-text)", fontFamily: "var(--ed-font-ui)" }}>
-      <aside style={{ overflow: "auto", borderRight: "1px solid var(--ed-color-border)", background: "var(--ed-color-surface)" }}>
+      height: "100vh", background: "var(--bg)", color: "var(--text)", fontFamily: "var(--ed-font-ui)" }}>
+      <aside style={{ overflow: "auto", borderRight: "1px solid var(--border)", background: "var(--surface)" }}>
         <div role="tablist" aria-label="Panel editor">
           {PANELS.map((entry) => (
             <button key={entry.id} type="button" role="tab" id={`editor-tab-${entry.id}`} aria-selected={entry.id === panelId}
@@ -35,7 +35,7 @@ function Harness({ store, player, initialPanel }) {
           </Suspense>
         </div>
       </aside>
-      <main aria-label="Panggung" data-harness-stage style={{ background: "var(--ed-color-stage)" }} />
+      <main aria-label="Panggung" data-harness-stage style={{ background: "var(--bg)" }} />
     </div>
   );
 }

@@ -7,7 +7,7 @@
   padding: var(--ed-space-3);
   font-size: var(--ed-font-size-md);
   line-height: var(--ed-line-height);
-  color: var(--ed-color-text);
+  color: var(--text);
 }
 
 .head {
@@ -24,14 +24,14 @@
 .note {
   margin: 0;
   font-size: var(--ed-font-size-xs);
-  color: var(--ed-color-text-muted);
+  color: var(--text-muted);
 }
 
 .section {
   display: grid;
   gap: var(--ed-space-3);
   padding-top: var(--ed-space-3);
-  border-top: 1px solid var(--ed-color-border);
+  border-top: 1px solid var(--border);
 }
 
 /* Buttons: the accent only on the upload action. */
@@ -42,10 +42,10 @@
   gap: var(--ed-space-2);
   min-height: 36px;
   padding: 0 var(--ed-space-3);
-  border: 1px solid var(--ed-color-border);
+  border: 1px solid var(--border-strong);
   border-radius: var(--ed-radius-md);
-  background: var(--ed-color-surface);
-  color: var(--ed-color-text);
+  background: var(--surface);
+  color: var(--text);
   font: inherit;
   font-size: var(--ed-font-size-sm);
   font-weight: 600;
@@ -54,7 +54,7 @@
 }
 
 .button:hover:not(:disabled) {
-  border-color: var(--ed-color-text-muted);
+  border-color: var(--text-muted);
 }
 
 .button:focus-visible,
@@ -69,19 +69,21 @@
   opacity: 0.55;
 }
 
+/* A panel's main action; lime stays with Ekspor, the one primary action of the screen. */
 .primary {
-  border-color: var(--ed-color-accent);
-  background: var(--ed-color-accent);
-  color: var(--ed-color-accent-text);
+  border-color: var(--text);
+  background: var(--text);
+  color: var(--bg);
 }
 
 .primary:hover:not(:disabled) {
-  border-color: var(--ed-color-accent-strong);
-  background: var(--ed-color-accent-strong);
+  border-color: var(--accent-hover);
+  background: var(--accent-hover);
+  color: var(--accent-ink);
 }
 
 .danger {
-  color: var(--ed-color-danger);
+  color: var(--danger);
 }
 
 .quiet {
@@ -91,7 +93,7 @@
   padding: 0 var(--ed-space-2);
   border-color: transparent;
   background: transparent;
-  color: var(--ed-color-text-muted);
+  color: var(--text-muted);
 }
 
 /* The drop area of the empty state. */
@@ -100,14 +102,14 @@
   justify-items: start;
   gap: var(--ed-space-2);
   padding: var(--ed-space-4);
-  border: 1px dashed var(--ed-color-border);
+  border: 1px dashed var(--border);
   border-radius: var(--ed-radius-md);
-  background: var(--ed-color-surface-2);
+  background: var(--surface-2);
   transition: border-color var(--ed-duration-fast), background var(--ed-duration-fast);
 }
 
 .drop[data-over="true"] {
-  border-color: var(--ed-color-accent);
+  border-color: var(--text);
   border-style: solid;
 }
 
@@ -125,12 +127,12 @@
   width: 64px;
   height: 64px;
   overflow: hidden;
-  border: 1px solid var(--ed-color-border);
+  border: 1px solid var(--border);
   border-radius: var(--ed-radius-sm);
-  background-color: var(--ed-color-surface);
+  background-color: var(--surface);
   background-image:
-    linear-gradient(45deg, var(--ed-color-surface-2) 25%, transparent 25%, transparent 75%, var(--ed-color-surface-2) 75%),
-    linear-gradient(45deg, var(--ed-color-surface-2) 25%, transparent 25%, transparent 75%, var(--ed-color-surface-2) 75%);
+    linear-gradient(45deg, var(--surface-2) 25%, transparent 25%, transparent 75%, var(--surface-2) 75%),
+    linear-gradient(45deg, var(--surface-2) 25%, transparent 25%, transparent 75%, var(--surface-2) 75%);
   background-position: 0 0, 6px 6px;
   background-size: 12px 12px;
 }
@@ -189,12 +191,12 @@
   height: 6px;
   overflow: hidden;
   border-radius: 3px;
-  background: var(--ed-color-surface-2);
+  background: var(--surface-2);
 }
 
 .bar {
   height: 100%;
-  background: var(--ed-color-accent);
+  background: var(--accent);
   transition: width var(--ed-duration-fast);
 }
 
@@ -206,13 +208,13 @@
 }
 
 .error {
-  background: var(--ed-color-danger-soft);
-  color: var(--ed-color-danger);
+  background: var(--danger-bg);
+  color: var(--danger);
 }
 
 .info {
-  background: var(--ed-color-surface-2);
-  color: var(--ed-color-text);
+  background: var(--surface-2);
+  color: var(--text);
 }
 
 /* Corner presets: four labelled cards, each with a small frame marking its corner. */
@@ -243,21 +245,21 @@
   gap: var(--ed-space-2);
   min-height: 44px;
   padding: 0 var(--ed-space-2);
-  border: 1px solid var(--ed-color-border);
+  border: 1px solid var(--border-strong);
   border-radius: var(--ed-radius-md);
-  background: var(--ed-color-surface);
+  background: var(--surface);
   font-size: var(--ed-font-size-sm);
   cursor: pointer;
   transition: border-color var(--ed-duration-fast);
 }
 
 .corner:hover {
-  border-color: var(--ed-color-text-muted);
+  border-color: var(--text-muted);
 }
 
 .corner:has(input:checked) {
-  border-color: var(--ed-color-accent);
-  box-shadow: inset 0 0 0 1px var(--ed-color-accent);
+  border-color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--text);
 }
 
 .fieldset:disabled .corner {
@@ -281,7 +283,7 @@
   flex: none;
   width: 14px;
   height: 24px;
-  border: 1.5px solid var(--ed-color-text-muted);
+  border: 1.5px solid var(--text-muted);
   border-radius: 2px;
 }
 
@@ -291,11 +293,11 @@
   width: 5px;
   height: 5px;
   border-radius: 1px;
-  background: var(--ed-color-text);
+  background: var(--text);
 }
 
 .corner:has(input:checked) .glyph::after {
-  background: var(--ed-color-accent);
+  background: var(--info);
 }
 
 .glyph[data-corner="top_left"]::after { top: 2px; left: 2px; }
@@ -313,7 +315,7 @@
 }
 
 .value {
-  color: var(--ed-color-text-muted);
+  color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
 
@@ -322,7 +324,7 @@
   width: 100%;
   margin: 0;
   border-radius: 4px;
-  accent-color: var(--ed-color-accent);
+  accent-color: var(--text);
 }
 
 /* The server's G5 warning for the logo. */
@@ -332,8 +334,8 @@
   gap: var(--ed-space-2);
   padding: var(--ed-space-2) var(--ed-space-3);
   border-radius: var(--ed-radius-md);
-  background: var(--ed-color-warning-soft);
-  color: var(--ed-color-warning-text);
+  background: var(--warning-bg);
+  color: var(--warning);
   font-size: var(--ed-font-size-sm);
 }
 

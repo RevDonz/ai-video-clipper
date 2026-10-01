@@ -12,6 +12,7 @@
 //   upload.processingMs  time after the last byte (T3.1's "processing" phase; default 40)
 //   upload.sizes      { [file name]: [w, h] } of the normalised PNG (default 512×512)
 //   upload.fail       { [file name]: { status, code, reason?, message? } | "network" }
+import { HARNESS_FRAME_GRADIENT } from "../../../../lib/editor/content-colours.mjs";
 import { createDraftStore } from "../../../../lib/editor/draft-store.mjs";
 import { createEditorStore } from "../../../../lib/editor/store.mjs";
 import { logoBox } from "../../../../lib/editor/timemap.mjs";
@@ -106,8 +107,8 @@ function createPaintingPlayer(options, images) {
     const bitmap = file ? await createImageBitmap(file).catch(() => null) : null;
     if (mine !== generation) return;
     const gradient = context.createLinearGradient(0, 0, canvas.width, canvas.height);
-    gradient.addColorStop(0, "#1b2230");
-    gradient.addColorStop(1, "#3b3024");
+    gradient.addColorStop(0, HARNESS_FRAME_GRADIENT[0]);
+    gradient.addColorStop(1, HARNESS_FRAME_GRADIENT[1]);
     context.globalAlpha = 1;
     context.fillStyle = gradient;
     context.fillRect(0, 0, canvas.width, canvas.height);

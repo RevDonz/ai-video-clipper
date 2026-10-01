@@ -77,11 +77,11 @@ function Harness({ store, player, api }) {
   const state = useSyncExternalStore(store.subscribe, store.getState);
   return (
     <div className={editorStyles.tokens} style={{ display: "grid", gridTemplateColumns: "var(--ed-panel-width) 1fr",
-      height: "100vh", background: "var(--ed-color-bg)", color: "var(--ed-color-text)", fontFamily: "var(--ed-font-ui)" }}>
-      <aside style={{ overflow: "auto", borderRight: "1px solid var(--ed-color-border)", background: "var(--ed-color-surface)" }}>
+      height: "100vh", background: "var(--bg)", color: "var(--text)", fontFamily: "var(--ed-font-ui)" }}>
+      <aside style={{ overflow: "auto", borderRight: "1px solid var(--border)", background: "var(--surface)" }}>
         <TranscriptPanel state={state} dispatch={store.dispatch} player={player} {...(api ? { api } : {})} />
       </aside>
-      <main aria-label="Panggung" data-harness-stage style={{ background: "var(--ed-color-stage)" }} />
+      <main aria-label="Panggung" data-harness-stage style={{ background: "var(--bg)" }} />
     </div>
   );
 }

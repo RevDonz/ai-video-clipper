@@ -30,6 +30,13 @@
   --warning-border: #6d5b22;
   --sheen: #ffffff73;
 
+  /* Editor: the cold-open part of a clip, and the see-through layers over the video stage. */
+  --cold-open: #c4a5ff;
+  --cold-open-bg: #221a33;
+  --info-veil: #8b9dff2e;
+  --danger-veil: #ff8b7d40;
+  --shadow: #000000b3;
+
   /* Names the pages used with the old light palette. */
   --paper: var(--bg);
   --card: var(--surface);

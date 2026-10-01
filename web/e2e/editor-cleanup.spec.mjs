@@ -105,19 +105,8 @@ async function doc(page) {
   return page.evaluate(() => window.__harness.store.getState().doc);
 }
 
-// The owner's dark palette (DESIGN.md: background, surface, line, text, muted text, one lime
-// accent) as editor tokens. The status colours for a dark surface are stand-ins until the editor
-// tokens switch; the point is that the panel is built on tokens, so it follows them.
-const DARK_TOKENS = Object.freeze({
-  "--ed-color-bg": "#080907", "--ed-color-surface": "#11120f", "--ed-color-surface-2": "#1c1d19",
-  "--ed-color-border": "#292b25", "--ed-color-text": "#f7f5ed", "--ed-color-text-muted": "#a5a69d",
-  "--ed-color-accent": "#dfff58", "--ed-color-accent-strong": "#ecff9c", "--ed-color-accent-soft": "#2b3112",
-  "--ed-color-accent-text": "#080907", "--ed-color-danger": "#ff8a7d", "--ed-color-danger-soft": "#3b1612",
-  "--ed-color-warning": "#f2b84b", "--ed-color-warning-text": "#f2b84b", "--ed-color-warning-soft": "#33260f",
-  "--ed-color-success": "#7ad99a", "--ed-color-success-soft": "#13301e", "--ed-color-cold-open": "#b89cff",
-  "--ed-color-cold-open-soft": "#251c3d", "--ed-color-stage-surface": "#1a1d24", "--ed-color-removed": "#77796f",
-  "--ed-focus-ring": "0 0 0 2px #11120f, 0 0 0 4px #dfff58",
-});
+// The editor draws with the app's dark tokens on :root (DESIGN.md; app/globals.css), which the
+// harness page carries like the app's root layout.
 
 // Every visible text in the transcript panel (the review included) against the background it is
 // drawn on, WCAG 2 contrast: [{text, ratio, large}] below the AA bar (4.5:1, 3:1 for large text).
@@ -325,41 +314,42 @@ test.describe("Rapikan review", () => {
       .toContainText("Masih ada suara di jeda ini, jadi tidak dipotong otomatis. Dengarkan dulu.");
   });
 
-  test("the text stays readable on the editor's tokens, light and the owner's dark palette", async ({ page }) => {
+  test("the text stays readable on the dark tokens (DESIGN.md)", async ({ page }) => {
     await openHarness(page, { doc: EXTENDED });
     await openReview(page);
     await transcript(page).locator('[data-w][data-zone="body"]').nth(2).click();
     await page.mouse.move(1300, 700);
-    expect(await lowContrast(page)).toEqual([]);
-    await page.evaluate((tokens) => {
-      const root = document.querySelector("#root > div");
-      for (const [name, value] of Object.entries(tokens)) root.style.setProperty(name, value);
-    }, DARK_TOKENS);
     const surface = await review(page).evaluate((node) => getComputedStyle(node).backgroundColor);
     expect(surface).toBe("rgb(17, 18, 15)");
     expect(await lowContrast(page)).toEqual([]);
   });
 
-  test("one accent: only Terapkan carries the accent colour", async ({ page }) => {
+  test("no lime in the review: Terapkan is its one strong button, lime stays with Ekspor", async ({ page }) => {
     await openHarness(page, { doc: EXTENDED });
     await openReview(page);
-    const accent = await page.evaluate(() => {
+    const colour = (value) => page.evaluate((css) => {
       const probe = document.createElement("span");
-      probe.style.color = "var(--ed-color-accent)";
+      probe.style.color = css;
       document.querySelector("#root > div").append(probe);
-      const value = getComputedStyle(probe).color;
+      const computed = getComputedStyle(probe).color;
       probe.remove();
-      return value;
-    });
+      return computed;
+    }, value);
+    const [accent, strong] = [await colour("var(--accent)"), await colour("var(--text)")];
     const apply = review(page).getByRole("button", { name: /^Terapkan/ });
     await page.mouse.move(1300, 700);
-    await expect(apply).toHaveCSS("background-color", accent);
-    const painted = await transcript(page).locator("*").evaluateAll((nodes, colour) => nodes.filter((node) => {
+    await expect(apply).toHaveCSS("background-color", strong);
+    const painted = (paint) => transcript(page).locator("*").evaluateAll((nodes, target) => nodes.filter((node) => {
       if (node.matches("button") && /^Terapkan/.test(node.textContent)) return false;
       const style = getComputedStyle(node);
-      return [style.backgroundColor, style.borderTopColor, style.color].includes(colour);
+      return style.backgroundColor === target;
+    }).map((node) => node.outerHTML.slice(0, 80)), paint);
+    expect(await painted(strong)).toEqual([]);
+    const lime = await transcript(page).locator("*").evaluateAll((nodes, target) => nodes.filter((node) => {
+      const style = getComputedStyle(node);
+      return [style.backgroundColor, style.borderTopColor, style.color].includes(target);
     }).map((node) => node.outerHTML.slice(0, 80)), accent);
-    expect(painted).toEqual([]);
+    expect(lime).toEqual([]);
   });
 
   test("the review eases in, and not at all with reduced motion", async ({ page }) => {
@@ -388,12 +378,6 @@ test.describe("Rapikan review", () => {
       return result.violations.filter((item) => ["critical", "serious"].includes(item.impact))
         .map((item) => ({ id: item.id, impact: item.impact, targets: item.nodes.slice(0, 3).map((node) => node.target.join(" ")) }));
     });
-    expect(await serious()).toEqual([]);
-    await page.evaluate((tokens) => {
-      const root = document.querySelector("#root > div");
-      for (const [name, value] of Object.entries(tokens)) root.style.setProperty(name, value);
-    }, DARK_TOKENS);
-    await page.waitForFunction(() => document.getAnimations().every((animation) => animation.playState !== "running"));
     expect(await serious()).toEqual([]);
   });
 

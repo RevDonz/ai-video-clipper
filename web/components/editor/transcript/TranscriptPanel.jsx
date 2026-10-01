@@ -20,6 +20,7 @@
 import { Fragment, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { createApiClient } from "../../../lib/editor/api-client.mjs";
+import { DEFAULT_EMPHASIS } from "../../../lib/editor/content-colours.mjs";
 import { createContext } from "../../../lib/editor/doc-model.mjs";
 import { commandsFor, keyAction, runCommands, selectionActions } from "./actions.mjs";
 import { followActiveWord } from "./active-word.mjs";
@@ -497,7 +498,7 @@ function Transcript({ state, dispatch, player, api }) {
         aria-describedby={HELP_ID}
         tabIndex={0}
         data-transcript-words=""
-        style={{ "--tr-emphasis": doc.captions?.overrides?.emphasis ?? "#FF5C8A" }}
+        style={{ "--tr-emphasis": doc.captions?.overrides?.emphasis ?? DEFAULT_EMPHASIS }}
         onMouseDown={onMouseDown}
         onMouseOver={onMouseOver}
         onClick={onClick}
