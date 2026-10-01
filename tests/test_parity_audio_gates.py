@@ -128,6 +128,40 @@ def test_the_tools_own_renders_wait_out_a_busy_machine() -> None:
     assert "stall_s" not in job.expected
 
 
+def test_each_gate_writes_its_evidence_when_it_ends_and_a_crash_fails_only_that_gate(
+        tmp_path, monkeypatch, capsys) -> None:
+    from ai_clipper.edit_v2 import errors
+
+    order = []
+
+    class Busy:
+        def __init__(self, jobs_root, work) -> None:
+            pass
+
+        def click(self):
+            order.append("click")
+            return {"gate": "G-CLICK", "pass": True}
+
+        def duck(self):
+            order.append("duck")
+            raise errors.RenderFailed("render_stalled")
+
+        def loudness(self):
+            order.append("loudness")
+            return {"gate": "G3", "pass": True}, {"gate": "G3b", "pass": False}
+
+    monkeypatch.setattr(audio_gates, "Exports", Busy)
+    evidence = tmp_path / "evidence"
+    code = audio_gates.main(["exports", "--jobs-root", str(tmp_path), "--work", str(tmp_path),
+                             "--evidence", str(evidence)])
+    assert code == 1 and order == ["click", "duck", "loudness"]
+    written = sorted(path.name for path in evidence.iterdir())
+    assert written == [f"{audio_gates.TASK}-{gate}.json" for gate in ("G-CLICK", "G3", "G3b")]
+    out = capsys.readouterr().out
+    assert "G-CLICK: pass" in out and "G3b: FAIL" in out
+    assert "duck: FAIL (RenderFailed: render_stalled)" in out
+
+
 def test_evidence_is_one_file_per_gate_and_a_label_keeps_every_run(tmp_path) -> None:
     plain = audio_gates.write_evidence(tmp_path, "G3", {"gate": "G3", "pass_": True,
                                                         "path": tmp_path / "x.mp4"})
