@@ -181,7 +181,7 @@ def transcription_to_dict(transcription: Transcription) -> dict[str, object]:
     """Serialize with times rounded to milliseconds; empty ``words`` are omitted.
 
     Written segments never overlap (a start is clamped to the previous written end), so the
-    output passes the strict readers in ``evaluation`` and ``candidate_cues``.
+    output passes the strict reader in ``evaluation``.
     """
     if not isinstance(transcription, Transcription):
         raise TypeError("transcription must be a Transcription")
