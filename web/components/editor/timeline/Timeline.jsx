@@ -27,6 +27,11 @@ export default function Timeline({ plan, state, dispatch, player, frameBus, noti
   const playheadRef = useRef(null);
   const [zoom, setZoom] = useState({ px: 1, fitted: true });
   const [width, setWidth] = useState(0);
+  const [notes, setNotes] = useState({});
+  const noteSetters = useMemo(() => Object.fromEntries(lanes.map((entry) => [entry.id, (text) => {
+    const next = typeof text === "string" && text ? text : null;
+    setNotes((current) => ((current[entry.id] ?? null) === next ? current : { ...current, [entry.id]: next }));
+  }])), [lanes]);
   const totalFrames = plan?.totalFrames ?? 0;
   const fps = plan?.fps ?? state?.doc?.output?.fps ?? [30, 1];
   const px = zoom.fitted ? fitZoom(totalFrames, Math.max(0, width - 2 * TRACK_PADDING)) : zoom.px;
@@ -82,13 +87,19 @@ export default function Timeline({ plan, state, dispatch, player, frameBus, noti
         <button type="button" className={styles.button} aria-label="Perbesar timeline" onClick={() => zoomBy(1.5)}>+</button>
         <button type="button" className={styles.button} onClick={() => setZoom({ px, fitted: true })} disabled={zoom.fitted}>Paskan</button>
         <span>Ctrl + scroll untuk zoom · klik penggaris untuk memindah playhead</span>
+        {lanes.filter((entry) => notes[entry.id]).map((entry) => (
+          <span key={entry.id} className={styles.timelineNote} data-lane-note={entry.id} title={notes[entry.id]}>
+            <span className={styles.timelineNoteLane}>{entry.label}</span>
+            <span data-note-text="">{notes[entry.id]}</span>
+          </span>
+        ))}
       </div>
-      <div className={styles.timelineBody}>
+      <div className={styles.timelineBody} data-timeline-body="">
         <div className={styles.laneLabels} aria-hidden="true">
           <div className={styles.rulerSpacer} />
-          {lanes.map((entry) => <div key={entry.id} className={styles.laneLabel}>{entry.label}</div>)}
+          {lanes.map((entry) => <div key={entry.id} className={styles.laneLabel} data-lane-label={entry.id}>{entry.label}</div>)}
         </div>
-        <div ref={scrollerRef} className={styles.scroller}>
+        <div ref={scrollerRef} className={styles.scroller} data-timeline-scroller="">
           <div className={styles.content} style={{ width: totalFrames * px + 2 * TRACK_PADDING, paddingLeft: TRACK_PADDING }}>
             <div style={{ position: "relative", width: totalFrames * px }} data-track="">
               <Ruler totalFrames={totalFrames} fps={fps} pxPerFrame={px} frameBus={frameBus} onSeek={seek} />
@@ -97,7 +108,8 @@ export default function Timeline({ plan, state, dispatch, player, frameBus, noti
                 return (
                   <div key={entry.id} className={styles.laneRow} data-lane-row={entry.id}>
                     <Suspense fallback={null}>
-                      <Lane plan={plan} state={state} dispatch={dispatch} player={player} pxPerFrame={px} notify={notify} readOnly={readOnly} />
+                      <Lane plan={plan} state={state} dispatch={dispatch} player={player} pxPerFrame={px} notify={notify} readOnly={readOnly}
+                        onNote={noteSetters[entry.id]} />
                     </Suspense>
                   </div>
                 );

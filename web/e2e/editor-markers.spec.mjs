@@ -147,6 +147,8 @@ async function openHarness(page, { words, doc, readOnly = false, suggestions = n
 }
 
 const markerLane = (page) => page.locator('[data-lane="markers"]');
+// The lane's "tidak tersedia" note: in the lane without markers, else in the timeline's header.
+const markerNote = (page) => page.locator('[data-markers-note], [data-lane-note="markers"] [data-note-text]');
 const audioLane = (page) => page.locator('[data-lane="audio"]');
 const panel = (page) => page.locator('[data-panel="coldopen"]');
 const suggestionItems = (page) => panel(page).locator("[data-coldopen-suggestion]");
@@ -229,17 +231,31 @@ test.describe("marker lane", () => {
   test("a job without caption tags says so and still marks laughter from the transcript", async ({ page }) => {
     const kase = vectors.cases.find((item) => item.name === "c25/seed");
     await openHarness(page, caseData(kase));
-    await expect(markerLane(page).locator("[data-markers-note]"))
-      .toHaveText("Tag tawa dari caption tidak tersedia untuk job ini. Tawa di transkrip tetap ditandai.");
+    const note = markerNote(page);
+    await expect(page.locator('[data-lane-note="markers"]')).toContainText("Penanda");
+    await expect(note).toHaveText("Tag tawa dari caption tidak tersedia untuk job ini. Tawa di transkrip tetap ditandai.");
     await expect(page.locator('[data-event-marker][data-src="transcript"]')).toHaveCount(
       kase.markers.filter((marker) => marker.src === "transcript").length);
     await expect(page.locator('[data-event-marker][data-src="yt-caption"]')).toHaveCount(0);
+    // The note is readable: fully on screen and under no marker (verifier, W3 exit).
+    await expect(note).toBeVisible();
+    const noteBox = await note.boundingBox();
+    const scroll = await note.evaluate((node) => [node.scrollWidth, node.clientWidth]);
+    expect(scroll[0]).toBeLessThanOrEqual(scroll[1]);
+    for (const box of await page.locator("[data-event-marker]").evaluateAll((nodes) => nodes.map((node) => {
+      const rect = node.getBoundingClientRect();
+      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+    }))) {
+      const apart = box.x >= noteBox.x + noteBox.width || box.x + box.width <= noteBox.x
+        || box.y >= noteBox.y + noteBox.height || box.y + box.height <= noteBox.y;
+      expect(apart, JSON.stringify({ box, noteBox })).toBe(true);
+    }
   });
 
   test("a job without the audio timeline or caption tags names both", async ({ page }) => {
     const kase = vectors.cases.find((item) => item.strip.length === 2);
     await openHarness(page, caseData(kase));
-    await expect(markerLane(page).locator("[data-markers-note]")).toHaveText(
+    await expect(markerNote(page)).toHaveText(
       "Jeda, potongan kamera, dan tag tawa dari caption tidak tersedia untuk job ini. Tawa di transkrip tetap ditandai.");
     await expect(page.locator('[data-event-marker][data-kind="silence"]')).toHaveCount(0);
     await expect(page.locator('[data-event-marker][data-kind="camera_cut"]')).toHaveCount(0);
@@ -256,6 +272,48 @@ test.describe("marker lane", () => {
 });
 
 // --- waveform ---------------------------------------------------------------------------------
+
+// --- timeline layout (every lane of the registry, the editor frame's timeline height) -----------
+
+test.describe("timeline layout", () => {
+  for (const viewport of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }]) {
+    test(`every lane sits beside its label and the last lane scrolls fully into view at ${viewport.width}×${viewport.height}`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      const kase = vectors.cases.find((item) => item.name === "c25/seed");
+      await openHarness(page, caseData(kase));
+      await expect(markerLane(page)).toHaveAttribute("data-markers-state", "ready");
+      const measure = () => page.evaluate(() => {
+        const rect = (node) => { const r = node.getBoundingClientRect(); return { top: r.top, bottom: r.bottom }; };
+        const body = document.querySelector("[data-timeline-body]");
+        const scroller = document.querySelector("[data-timeline-scroller]");
+        const rows = [...document.querySelectorAll("[data-lane-row]")].map((node) => ({ id: node.dataset.laneRow, ...rect(node) }));
+        const labels = Object.fromEntries([...document.querySelectorAll("[data-lane-label]")].map((node) => [node.dataset.laneLabel, rect(node)]));
+        return { body: rect(body), scroller: rect(scroller), scrollerTop: scroller.scrollTop, rows, labels };
+      });
+      const aligned = (layout) => {
+        expect(layout.rows.map((row) => row.id)).toEqual(["video", "captions", "hook", "audio", "markers", "music"]);
+        for (const row of layout.rows) {
+          expect(Math.abs(layout.labels[row.id].top - row.top), row.id).toBeLessThanOrEqual(0.5);
+          expect(Math.abs(layout.labels[row.id].bottom - row.bottom), row.id).toBeLessThanOrEqual(0.5);
+        }
+      };
+      aligned(await measure());
+      // Scrolled to the bottom, the last lane (Musik) is drawn whole, inside the scroller and the body.
+      await page.locator("[data-timeline-body]").evaluate((node) => { node.scrollTop = node.scrollHeight; });
+      const scrolled = await measure();
+      aligned(scrolled);
+      const last = scrolled.rows.at(-1);
+      expect(last.bottom).toBeLessThanOrEqual(scrolled.scroller.bottom + 0.5);
+      expect(last.bottom).toBeLessThanOrEqual(scrolled.body.bottom + 0.5);
+      expect(last.top).toBeGreaterThanOrEqual(scrolled.body.top - 0.5);
+      // Focus or code scrolling the lanes' scroller never moves the lanes away from their labels.
+      await page.locator("[data-timeline-scroller]").evaluate((node) => { node.scrollTop = 33; });
+      const pushed = await measure();
+      expect(pushed.scrollerTop).toBe(0);
+      aligned(pushed);
+    });
+  }
+});
 
 test.describe("audio lane", () => {
   test("the speech waveform is laid out per piece and a click seeks", async ({ page }) => {

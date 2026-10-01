@@ -5,9 +5,10 @@
 // the time map's word rule, computed from the current document). A click or Enter seeks to the
 // marker; the lane is one tab stop and arrows move between markers (toolbar pattern). Hover or
 // focus shows where the marker comes from. When the job lacks the analysis, a note says so
-// ("tidak tersedia untuk job ini", from the words artifact's `missing`).
-// Props (timeline/lanes.mjs): { plan, state, dispatch, player, pxPerFrame }.
-import { useMemo, useRef, useState } from "react";
+// ("tidak tersedia untuk job ini", from the words artifact's `missing`): in the lane when it has
+// no markers, else in the timeline's header (`onNote`), so no marker covers it.
+// Props (timeline/lanes.mjs): { plan, state, dispatch, player, pxPerFrame, onNote }.
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import styles from "../../shell.module.css";
 import css from "./MarkerLane.module.css";
@@ -37,7 +38,7 @@ function MarkerIcon({ kind }) {
   return <span className={css.cutLine} aria-hidden="true" />;
 }
 
-export default function MarkerLane({ plan, state, player, pxPerFrame = 1 }) {
+export default function MarkerLane({ plan, state, player, pxPerFrame = 1, onNote = null }) {
   const words = state?.words ?? null;
   const doc = state?.doc ?? null;
   const fps = doc?.output?.fps ?? plan?.fps ?? [30, 1];
@@ -50,6 +51,13 @@ export default function MarkerLane({ plan, state, player, pxPerFrame = 1 }) {
   const status = !words || !doc ? "loading" : markers.length ? "ready" : "empty";
   const current = Math.min(active, Math.max(0, markers.length - 1));
   const width = (plan?.totalFrames ?? 0) * pxPerFrame;
+  const noteInHeader = typeof onNote === "function" && Boolean(note) && markers.length > 0;
+
+  useEffect(() => {
+    if (typeof onNote !== "function") return undefined;
+    onNote(noteInHeader ? note : null);
+    return () => onNote(null);
+  }, [onNote, noteInHeader, note]);
 
   const seek = (index) => {
     setActive(index);
@@ -83,7 +91,7 @@ export default function MarkerLane({ plan, state, player, pxPerFrame = 1 }) {
   return (
     <div className={`${styles.lane} ${css.lane}`} data-lane="markers" data-markers-state={status}>
       {status === "loading" && <p className={css.note} data-markers-loading="">Memuat penanda…</p>}
-      {note && <p className={css.note} data-markers-note="">{note}</p>}
+      {note && !noteInHeader && <p className={css.note} data-markers-note="">{note}</p>}
       {status === "empty" && !note && (
         <p className={css.note} data-markers-empty="">Tidak ada tawa, jeda panjang, atau potongan kamera di klip ini.</p>
       )}
