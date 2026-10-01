@@ -1,10 +1,11 @@
 # Roadmap & status Potongin
 
-Terakhir diperbarui: 2026-10-01. Legenda: ✅ selesai · 🔄 sedang dikerjakan · ⬜ belum · ⏸️ ditunda
+Terakhir diperbarui: 2026-10-02. Legenda: ✅ selesai · 🔄 sedang dikerjakan · ⬜ belum · ⏸️ ditunda
 (menunggu keputusan). Selection V3 dan halaman Pengaturan AI sudah di `main` dan live di
 https://potongin.revdonz.dev sejak 2026-09-24. Empat tugas susulan (server LLM sendiri + 9Router,
 thumbnail + upgrade Next/React, Whisper, heuristik v3.1) live sejak 2026-09-24 (PR #6).
-Editor V3 Esensial dikerjakan di branch `feat/editor-v3-esensial` mulai 2026-09-25.
+Editor klip Esensial (W1–W4) selesai di branch `editor-w4-integration` (2026-10-02) dan menunggu
+PR ke `main`; sisa pekerjaan pemilik ada di §8.
 
 Keputusan pemilik 2026-09-30 berlaku untuk semua bagian di bawah (rinciannya di
 [`docs/HANDOFF.md`](HANDOFF.md) §2): tampilan selalu terbaru tanpa label versi atau mode lama,
@@ -158,8 +159,9 @@ Dokumen rujukan:
 - ✅ Review adversarial dan uji end-to-end sungguhan (jalur subtitle + LLM, dan jalur Whisper
   tanpa LLM). 1.533 test Python + 361 test web lolos.
 - ⬜ Timeout render disesuaikan dengan panjang klip; batas FFmpeg 300 detik untuk klip panjang.
-- ⬜ Perkuat test berbasis waktu yang kadang gagal di runner CI:
-  `tests/test_render_worker.py::test_worker_heartbeats_during_long_render_and_prevents_reclaim`.
+- ✅ Test berbasis waktu yang kadang gagal di runner CI kini memakai jam palsu (W4):
+  `tests/test_render_worker.py::test_v3_worker_heartbeats_during_a_long_render_and_prevents_reclaim`
+  dan tes kunci antrean web ("a live lock heartbeat prevents overlap beyond the stale interval").
 
 ## 7. Web, dashboard & deploy
 
@@ -214,10 +216,10 @@ Keputusan: esensial dulu, lalu bertahap. Desain final ada di scratchpad sesi
   Isinya 4 gelombang (W1–W4, ~30 agen) + cadangan W5; riset di
   [`docs/plans/editor-v3-research/`](plans/editor-v3-research/).
 - ✅ Keputusan pemilik K1–K15: semua rekomendasi diterima; mesin acuan = PC Ryzen 7 5700G.
-- 🔄 Eksekusi editor: W1 (mesin render tunggal), W2 (editor bisa dipakai) dan W3 (semua fitur
-  Esensial: logo, musik, saran hook AI, Rapikan, tata letak, penanda) selesai di branch
-  `editor-w3-integration`, di atas `main` terbaru. Berikutnya titik cek pemilik 3 lalu W4.
-  Status dan langkahnya: [`docs/HANDOFF.md`](HANDOFF.md) §4.
+- ✅ Eksekusi editor: W1 (mesin render tunggal), W2 (editor bisa dipakai), W3 (semua fitur
+  Esensial) dan W4 (siap rilis: keamanan, performa, CI, uji penerimaan) selesai di branch
+  `editor-w4-integration`, di atas `main` terbaru. Hasil gerbang: `docs/editor/GATES.md` bagian
+  "W4 Siap rilis". Status dan langkahnya: [`docs/HANDOFF.md`](HANDOFF.md) §4.
 - (arsip) Keputusan teknis dari desain FINAL (rekomendasi dalam kurung):
   - komposit yuv444p (ya);
   - blur "plate" resolusi rendah (perlu dilihat berdampingan);
@@ -228,17 +230,38 @@ Keputusan: esensial dulu, lalu bertahap. Desain final ada di scratchpad sesi
 - ✅ Editor lama (kandidat V2) dipensiunkan 2026-10-01 (keputusan pemilik 2026-09-30), jadi 8
   bug-nya tidak diperbaiki lagi: opasitas latar caption, caption terpotong sekitar 64 karakter,
   escape `\N`, normalize 96 kHz, logo tidak pernah ter-render, warna kata kunci, simpan mati
-  setelah 1.000 kali, render lama. Jalur backend-nya dihapus di W4.
-- ⬜ Buka klip V3 di editor (`clip_id` stabil; revisi 0 = versi AI).
-- ⬜ Trim menempel ke kata dan atur cold open.
-- ⬜ Edit teks hook dan saran hook dari AI.
-- ⬜ Edit caption dengan 4 preset (karaoke, bold, box, klasik); preview caption identik render.
-- ⬜ Potong berbasis transkrip (hapus kata/filler jadi jump cut).
-- ⬜ Ganti layout (fit-blur, face-track, center-crop).
-- ⬜ Logo/watermark.
-- ⬜ Musik latar dengan ducking.
-- ⬜ Waveform dan penanda tawa di timeline.
-- ⬜ Gerbang kualitas: uji paritas frame (SSIM), undo/autosave, dan performa.
+  setelah 1.000 kali, render lama. Jalur backend-nya dihapus di W4 (T4.1); job lama tetap bisa
+  dilihat dan diunduh, baseline benchmark tetap jalan. Gerbang rencana "8/8 tes regresi editor
+  lama" dan e2e editor lama **dipensiunkan** bersama editornya; di editor baru kedelapan bug itu
+  diuji tidak mungkin terjadi (uji penerimaan kemampuan 11).
+- ✅ Buka klip di editor (`clip_id` stabil; revisi 0 = versi AI), dari kartu klip dan Riwayat,
+  tanpa langkah "Siapkan".
+- ✅ Trim menempel ke kata dan atur cold open (dengan saran cold open).
+- ✅ Edit teks hook dan saran hook dari AI (saran instan + AI gratis).
+- ✅ Edit caption dengan 4 preset (karaoke, bold, box, klasik); preview caption identik render.
+- ✅ Potong berbasis transkrip (hapus kata jadi jump cut) dan Rapikan (kata pengisi, pengulangan,
+  jeda).
+- ✅ Ganti layout (fit-blur, face-track, center-crop).
+- ✅ Logo/watermark (unggah, sudut, ukuran, opasitas, area aman).
+- ✅ Musik latar dengan ducking dan penyamaan kenyaringan.
+- ✅ Waveform dan penanda tawa/jeda/potongan kamera di timeline.
+- ✅ Gerbang kualitas: paritas frame/teks/audio, undo/autosave, keamanan (QG-SEC lengkap),
+  aksesibilitas (QG-A11Y), performa di PC acuan; CI menjalankan smoke paritas di setiap PR,
+  penjaga toolchain, dan suite lengkap tiap malam.
+- ✅ Bawaan rilis di `compose.yaml`: editor, unggahan logo/musik dan saran AI menyala; klip
+  otomatis dirender dengan kompiler editor (`POTONGIN_RENDER_ENGINE=edit-v2`). Tiap flag bisa
+  dimatikan di `.env` tanpa build ulang (`docs/editor/OPERASIONAL.md` §2).
+- ⬜ **Sisa untuk pemilik (titik cek 3, ± 60 menit):** uji U1–U7 dengan stopwatch di dua ukuran
+  jendela (`docs/editor/UJI-PENERIMAAN.md`); penilaian 30 saran hook AI (lulus ≥ 21/30; flag LLM
+  sudah menyala karena gerbang otomatisnya lolos); konfirmasi 490 label kata pengisi (lalu
+  pra-centang kata pengisi di Rapikan dinyalakan lewat PR).
+- ⬜ **Keputusan pemilik sebelum produksi:** kuota CPU `primary-worker` (`cpus: 6`) membuat render
+  otomatis potong tengah/ikuti wajah ± 2× `legacy`; naikkan kuota, terima, atau pakai `legacy`
+  dulu. P-LOGO (1 dari 18 frame lewat batas karena caption di bawah logo transparan): ubah
+  definisi daerah logo atau biarkan.
+- ⬜ Malam CI hijau penuh: P-AUD klip VFR sintetis 16 sampel lebih pendek dari rencana (Open 12,
+  jalur audio sumber kompiler); PF-AUDIO tipis di runner 4 vCPU.
+- ⬜ PR `editor-w4-integration` → `main` (merge rebase) lalu deploy.
 
 ## 9. Editor tahap lanjut (sesi berikutnya)
 
