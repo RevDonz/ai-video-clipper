@@ -66,14 +66,19 @@ section_sec() {
   key="planted-secret-k-$R"
   llm="planted-secret-l-$R"
   sealer="planted-secret-x-$R$R"
+  session="planted-secret-s-$R$R"
+  # The fuzz client logs in with these (and the server's own login is a planted value too).
+  export APP_USERNAME=gate APP_PASSWORD="planted-secret-p-$R"
   start_server 3107 "PATH=$WORK/rec:$PATH" "OPENROUTER_API_KEY=$key" "POTONGIN_LLM_API_KEY=$llm" \
-    "POTONGIN_SETTINGS_SECRET=$sealer" POTONGIN_EDITOR_UPLOADS=on || fail sec-server
+    "POTONGIN_SETTINGS_SECRET=$sealer" "APP_SESSION_SECRET=$session" "APP_PASSWORD=$APP_PASSWORD" \
+    POTONGIN_EDITOR_UPLOADS=on || fail sec-server
   H="$STACK, node server.js (standalone), flags on, proxy.js in place, planted secret values in the server env, recorders on PATH"
   uv run python $F http "$WORK/corpus" "$EV/W3Z-QG-SEC-fuzz-http.json" --base http://127.0.0.1:3107 --job "$J1" --stack "$H" \
     > "$OUT/sec-http.txt" 2>&1 || fail sec-http
   uv run python $F matrix "$EV/W3Z-QG-SEC-http.json" --base http://127.0.0.1:3107 --job "$J2" --environ-log "$WORK/environ.log" \
     --stack "$H" > "$OUT/sec-matrix.txt" 2>&1 || fail sec-matrix
   stop_server
+  unset APP_USERNAME APP_PASSWORD
   tail -n 3 "$OUT/sec-ingest.txt" "$OUT/sec-timing.txt" "$OUT/sec-http.txt" "$OUT/sec-matrix.txt"
 }
 
@@ -154,7 +159,7 @@ section_rt() {
 }
 
 section_gdet() {
-  uv run python scripts/parity/frame_identity.py g-det --evidence "$EV" --task W3Z > "$OUT/gdet.txt" 2>&1 || fail gdet
+  PYTHONPATH=$PWD/src:$PWD/tests uv run python scripts/parity/frame_identity.py g-det --evidence "$EV" --task W3Z > "$OUT/gdet.txt" 2>&1 || fail gdet
   tail -n 4 "$OUT/gdet.txt"
 }
 
