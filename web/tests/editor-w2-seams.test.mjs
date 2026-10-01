@@ -323,7 +323,7 @@ test("an unchanged legacy-engine clip never claims 'Sesuai hasil akhir': its exp
   const legacyUnchanged = { ...plan, rev0: { planSha256: plan.planSha256, autoRenderUrl: "/api/jobs/x/files/output/clip-01.mp4", exact: false } };
   const view = badgeView({ status: "ready", plan: legacyUnchanged, player });
   assert.equal(view.tone, "legacy");
-  assert.equal(view.text, "● Belum diubah: ekspor = klip otomatis (mesin lama)");
+  assert.equal(view.text, "● Belum diubah: ekspor = klip otomatis");
   const edited = { ...legacyUnchanged, rev0: { ...legacyUnchanged.rev0, planSha256: "f".repeat(64) } };
   assert.equal(badgeView({ status: "ready", plan: edited, player }).tone, "exact");
   const newEngine = { ...legacyUnchanged, rev0: { ...legacyUnchanged.rev0, exact: true } };

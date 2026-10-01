@@ -73,7 +73,7 @@ const KEYS = Object.freeze([
 const MESSAGES_V3 = Object.freeze({
   ...MESSAGES,
   render_finished: "Render sudah selesai dan tidak bisa dibatalkan",
-  not_cancellable: "Render ini tidak bisa dibatalkan dari Editor V3",
+  not_cancellable: "Render ini tidak bisa dibatalkan dari editor",
   storage_quota_exhausted: "Penyimpanan server tidak cukup",
   storage_free_space_low: "Penyimpanan server tidak cukup",
   storage_admission_unavailable: "Pemeriksaan penyimpanan tidak tersedia",

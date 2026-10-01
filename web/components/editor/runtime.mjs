@@ -17,7 +17,7 @@
 // the stage canvas does.
 
 export class RuntimeUnavailable extends Error {
-  constructor(message = "Editor V3 belum tersambung ke server") {
+  constructor(message = "Editor belum tersambung ke server") {
     super(message);
     this.name = "RuntimeUnavailable";
     this.code = "runtime_unavailable";

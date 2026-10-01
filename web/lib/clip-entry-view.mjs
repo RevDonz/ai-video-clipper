@@ -9,7 +9,7 @@ export const CLIP_REASON_TEXT = Object.freeze({
   selection_unreadable: "Hasil seleksi tidak terbaca",
   transcript_missing: "Transkrip tidak ditemukan",
   analysis_incomplete: "Analisis job belum selesai",
-  not_v3: "Job ini bukan job V3",
+  not_v3: "Klip dari job ini tidak bisa diedit; proses ulang videonya",
 });
 
 const GENERIC_REASON = "Klip ini belum bisa dibuka di editor";

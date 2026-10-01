@@ -551,7 +551,7 @@ export default function EditorApp({ jobId, clipId, runtimeKind = "real", runtime
   if (failure) {
     return (
       <StatePage title="Editor belum tersedia" jobId={jobId}>
-        <p>{failure.code === "runtime_unavailable" ? "Editor V3 belum tersambung ke server. Coba lagi nanti." : "Editor gagal dimuat. Muat ulang halaman."}</p>
+        <p>{failure.code === "runtime_unavailable" ? "Editor belum tersambung ke server. Coba lagi nanti." : "Editor gagal dimuat. Muat ulang halaman."}</p>
       </StatePage>
     );
   }
