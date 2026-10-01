@@ -359,9 +359,11 @@ def clean_job(job_dir: Path, *, now_ms: int, cap_bytes: int = DEFAULT_CAP_BYTES)
     assets: set[str] = set()
     readable = True
     for clip in clips:
-        with contextlib.suppress(EditV2Error, OSError, ValueError):
-            report["receipts"] += store.prune_receipts(clip, keep=RECEIPTS_KEEP)
-        if not busy:
+        edited = _real_dir(clip / "edit")  # a clip never edited has nothing to prune (and the
+        if edited:  # document lock would create edit/ in it)
+            with contextlib.suppress(EditV2Error, OSError, ValueError):
+                report["receipts"] += store.prune_receipts(clip, keep=RECEIPTS_KEEP)
+        if edited and not busy:
             try:
                 report["archives"] += _prune_archives(clip, referenced_requests)
             except (EditV2Error, OSError):
