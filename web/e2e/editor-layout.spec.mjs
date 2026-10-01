@@ -324,7 +324,10 @@ test("with reduced motion the panel does not animate", async ({ page }) => {
   const panel = await openLayoutPanel(page);
   const card = panel.locator('[data-layout-option="fill_center"]');
   const duration = await card.evaluate((node) => getComputedStyle(node).transitionDuration);
-  expect(duration.split(",").every((value) => Number.parseFloat(value) === 0)).toBe(true);
+  // The app's global reduced-motion rule (app/globals.css) cuts every transition to 0.01 ms, i.e.
+  // a jump with no visible animation; anything from 1 ms up would move.
+  const ms = (value) => Number.parseFloat(value) * (value.trim().endsWith("ms") ? 1 : 1000);
+  expect(duration.split(",").every((value) => ms(value) < 1)).toBe(true);
   await page.emulateMedia({ reducedMotion: "no-preference" });
   const moving = await card.evaluate((node) => getComputedStyle(node).transitionDuration);
   expect(moving.split(",").some((value) => Number.parseFloat(value) > 0)).toBe(true);

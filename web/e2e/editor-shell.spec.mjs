@@ -832,7 +832,7 @@ test("every action is reachable by keyboard with a visible focus ring", async ({
     "Posisi pemutaran", "Awal klip", "Akhir klip", "Durasi hook", "Perbesar timeline", "Perkecil timeline"]) {
     expect(names, name).toContain(name);
   }
-  for (const item of seen.filter((entry) => entry.role !== "body")) expect(item.ring, item.name).toBe(true);
+  expect(seen.filter((entry) => entry.role !== "body" && !entry.ring).map((entry) => `${entry.role}: ${entry.name}`), "focused without a ring").toEqual([]);
 });
 
 async function axeViolations(page) {
