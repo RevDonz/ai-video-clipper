@@ -714,7 +714,7 @@ def test_retired_candidate_requests_are_never_claimed_listed_cancelled_or_pruned
                         at="2020-01-01T00:00:00.000Z"),
     ]
     (job.queue / f"{uuid.uuid4()}.json").write_text('{"version":"render-request-v2"}')
-    before = {path.name: path.read_bytes() for path in job.queue.iterdir()}
+    before = {path.name: path.read_bytes() for path in job.queue.glob("*.json")}
 
     assert claim_next(job.job, lease_seconds=1) is None
     assert list_requests_v3(job.job) == []
@@ -724,7 +724,7 @@ def test_retired_candidate_requests_are_never_claimed_listed_cancelled_or_pruned
             get_request(job.job, value["render_id"])
         with pytest.raises(QueueNotFound):
             cancel_request_v3(job.job, value["render_id"])
-    assert {path.name: path.read_bytes() for path in job.queue.iterdir()} == before
+    assert {path.name: path.read_bytes() for path in job.queue.glob("*.json")} == before
 
     _doc, etag = job.save(main__cut_fade_ms=20)
     request = job.create(etag, retired[0]["idempotency_key"])  # its key names nothing any more

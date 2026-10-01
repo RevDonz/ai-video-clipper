@@ -1,24 +1,23 @@
-"""Durable, idempotent filesystem render request queue and CLI authority.
+"""Durable, idempotent filesystem render queue of clip exports and its CLI authority.
 
-Two request families share ``analysis/render-requests/``:
+``analysis/render-requests/`` holds ``render-request-v3`` files (plan §4.6): one revision of a
+clip's ``clip-edit-v2`` document, named by the render key and rendered by the single compiler
+(``render_worker`` hands it to ``edit_v2.render_edit.render_request``). See the section
+"render-request-v3" for the fields, the rules (R10 first, then an existing export of the same
+key, then the queue), cancellation, stage/progress heartbeats and retention.
 
-* ``render-request-v1``/``-v2``: exports of the legacy candidate editor. Their validation and
-  every legacy function below are unchanged.
-* ``render-request-v3`` (Editor V3 exports, plan §4.6): one revision of a clip's
-  ``clip-edit-v2`` document, named by the render key and rendered by the single compiler
-  (``render_worker`` hands it to ``edit_v2.render_edit.render_request``). See the section
-  "render-request-v3" for the fields, the rules (R10 first, then an existing export of the same
-  key, then the queue), cancellation, stage/progress heartbeats and retention.
+Queues of old jobs may still hold ``render-request-v1``/``-v2`` files of the retired candidate
+editor (``RETIRED_VERSIONS``). They must still be strict canonical JSON, but they are never
+claimed, listed, cancelled, pruned or rewritten: ``get`` answers not found and the files stay as
+they are (their exports under ``output/edits/cand_*`` stay downloadable).
 
-CLIs: ``python -m ai_clipper.render_queue --job-dir <job>`` is the legacy protocol
-(``{"operation": …}``); without arguments the module speaks the Editor V3 envelope of
+CLI: ``python -m ai_clipper.render_queue`` (no arguments) speaks the envelope of
 ``docs/editor/CONTRACTS.md`` §5.9 (``{"op": …}``, ``$JOBS_ROOT``, the §5.3 exit codes) for the
-v3 routes, which spawn it through ``web/lib/python-cli.mjs``.
+editor routes, which spawn it through ``web/lib/python-cli.mjs``.
 """
 
 from __future__ import annotations
 
-import argparse
 import dataclasses
 import errno
 import fcntl
@@ -41,8 +40,7 @@ from fractions import Fraction
 from pathlib import Path
 from typing import Any, BinaryIO, TextIO
 
-from . import edit_manifest as storage
-from .edit_manifest import manifest_sha256
+from . import job_files
 from .edit_v2 import errors as edit_errors
 from .edit_v2 import store as edit_store
 from .edit_v2 import timemap as _timemap
@@ -50,48 +48,17 @@ from .edit_v2.clip_id import CLIP_ID_PATTERN
 from .edit_v2.doc import content_equals_seed
 from .edit_v2.glyphs import RESOURCES_DIR
 from .edit_v2.plan import RenderPlan, Resources, build_plan, render_key, toolchain_sha256
-from .ranking import MAX_ARTIFACT_BYTES, candidate_artifact_lock, read_candidates_artifact
-from .render_manifest import ManifestRenderError, _stream_sha256_regular
 
 MAX_REQUESTS = 1000
 MAX_REQUEST_BYTES = 2 * 1024 * 1024
 MAX_COMMAND_BYTES = 64 * 1024
 MAX_ATTEMPTS = 3
 DEFAULT_LEASE_SECONDS = 300
-DEFAULT_MAX_UPLOAD_BYTES = 500 * 1024 * 1024
+RETIRED_VERSIONS = frozenset({"render-request-v1", "render-request-v2"})
 _UUID = re.compile(
     r"[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\Z", re.IGNORECASE
 )
-_CANDIDATE = re.compile(r"cand_[0-9a-f]{64}\Z")
 _SHA = re.compile(r"[0-9a-f]{64}\Z")
-_STATES = {"queued", "claimed", "rendering", "completed", "failed"}
-_FIELDS = {
-    "version",
-    "render_id",
-    "idempotency_key",
-    "state",
-    "candidate_id",
-    "candidate_artifact_sha256",
-    "candidate_snapshot_relative",
-    "edit_manifest_sha256",
-    "edit_revision",
-    "edit_manifest_relative",
-    "source_identity_sha256",
-    "source_content_sha256",
-    "source_snapshot_relative",
-    "output_relative",
-    "created_at",
-    "updated_at",
-    "claimed_at",
-    "rendering_at",
-    "completed_at",
-    "failed_at",
-    "attempts",
-    "error_code",
-    "lease_token",
-    "heartbeat_at",
-}
-_STORAGE_FIELDS = {"storage_reservation_id", "storage_reservation_token", "storage_reserved_bytes"}
 
 
 class QueueError(Exception):
@@ -150,9 +117,9 @@ def _canonical(value: object) -> bytes:
 
 def _queue_dir(job: Path) -> Path:
     analysis = job / "analysis"
-    storage._validate_analysis_dir(analysis)
+    job_files.validate_analysis_dir(analysis)
     directory = analysis / "render-requests"
-    storage._ensure_directory(directory)
+    job_files.ensure_directory(directory)
     return directory
 
 
@@ -215,129 +182,38 @@ def _entries(directory: Path) -> list[Path]:
 
 
 def _validate(value: object) -> dict[str, object]:
-    if type(value) is dict and value.get("version") == V3_VERSION:
-        return _validate_v3(value)
-    if type(value) is not dict or (
-        set(value) != _FIELDS and set(value) != _FIELDS | _STORAGE_FIELDS
-    ):
+    if type(value) is not dict:
         raise QueueInvalid()
-    admitted = set(value) == _FIELDS | _STORAGE_FIELDS
-    if (
-        value["version"] != ("render-request-v2" if admitted else "render-request-v1")
-        or value["state"] not in _STATES
-    ):
-        raise QueueInvalid()
-    if admitted and (
-        not isinstance(value["storage_reservation_id"], str)
-        or not _UUID.fullmatch(value["storage_reservation_id"])
-        or not isinstance(value["storage_reservation_token"], str)
-        or not _UUID.fullmatch(value["storage_reservation_token"])
-        or not isinstance(value["storage_reserved_bytes"], int)
-        or isinstance(value["storage_reserved_bytes"], bool)
-        or not 0 < value["storage_reserved_bytes"] <= (1 << 64) - 1
-    ):
-        raise QueueInvalid()
-    if not isinstance(value["render_id"], str) or not _UUID.fullmatch(value["render_id"]):
-        raise QueueInvalid()
-    if not isinstance(value["idempotency_key"], str) or not _UUID.fullmatch(
-        value["idempotency_key"]
-    ):
-        raise QueueInvalid()
-    if not isinstance(value["candidate_id"], str) or not _CANDIDATE.fullmatch(
-        value["candidate_id"]
-    ):
-        raise QueueInvalid()
-    for field in (
-        "candidate_artifact_sha256",
-        "edit_manifest_sha256",
-        "source_identity_sha256",
-        "source_content_sha256",
-    ):
-        if not isinstance(value[field], str) or not _SHA.fullmatch(value[field]):
-            raise QueueInvalid()
-    if (
-        not isinstance(value["edit_revision"], int)
-        or isinstance(value["edit_revision"], bool)
-        or value["edit_revision"] < 1
-    ):
-        raise QueueInvalid()
-    expected_manifest = f"analysis/edits/archive/{value['candidate_id']}.edit.v1.r{value['edit_revision']}.{value['edit_manifest_sha256']}.json"
-    expected_output = f"output/edits/{value['candidate_id']}/revision-{value['edit_revision']}.mp4"
-    expected_candidate = (
-        f"analysis/render-inputs/candidates.{value['candidate_artifact_sha256']}.json"
-    )
-    source_snapshot = value["source_snapshot_relative"]
-    if (
-        value["edit_manifest_relative"] != expected_manifest
-        or value["output_relative"] != expected_output
-        or value["candidate_snapshot_relative"] != expected_candidate
-        or not isinstance(source_snapshot, str)
-        or re.fullmatch(
-            rf"analysis/render-inputs/source\.{value['source_content_sha256']}\.[a-z0-9]{{1,10}}",
-            source_snapshot,
-        )
-        is None
-    ):
-        raise QueueInvalid()
-    for field in ("created_at", "updated_at"):
-        _parse_time(value[field])
-    for field in ("claimed_at", "rendering_at", "completed_at", "failed_at", "heartbeat_at"):
-        if value[field] is not None:
-            _parse_time(value[field])
-    if (
-        not isinstance(value["attempts"], int)
-        or isinstance(value["attempts"], bool)
-        or not 0 <= value["attempts"] <= MAX_ATTEMPTS
-    ):
-        raise QueueInvalid()
-    if value["error_code"] is not None and value["error_code"] not in {
-        "render_failed",
-        "verification_failed",
-        "max_attempts_exceeded",
-    }:
-        raise QueueInvalid()
-    token = value["lease_token"]
-    if token is not None and (not isinstance(token, str) or not _UUID.fullmatch(token)):
-        raise QueueInvalid()
-    state = value["state"]
-    if (state in {"claimed", "rendering"}) != (
-        token is not None and value["heartbeat_at"] is not None
-    ):
-        raise QueueInvalid()
-    if state == "queued" and (
-        value["attempts"] != 0
-        or any(
-            value[field] is not None
-            for field in ("claimed_at", "rendering_at", "completed_at", "failed_at")
-        )
-        or value["error_code"] is not None
-    ):
-        raise QueueInvalid()
-    if state == "claimed" and (value["claimed_at"] is None or value["rendering_at"] is not None):
-        raise QueueInvalid()
-    if state == "rendering" and (value["claimed_at"] is None or value["rendering_at"] is None):
-        raise QueueInvalid()
-    if state == "completed" and (value["completed_at"] is None or value["error_code"] is not None):
-        raise QueueInvalid()
-    if state == "failed" and (value["failed_at"] is None or value["error_code"] is None):
-        raise QueueInvalid()
-    return value
+    return _validate_v3(value)
 
 
-def _read(path: Path) -> dict[str, object]:
+def _load(path: Path) -> dict[str, object] | None:
+    """The validated request of ``path``, or None for a request of the retired candidate editor.
+    A file that is unsafe, not strict canonical JSON or not a valid v3 request raises."""
     try:
-        raw = storage._read_regular(path, MAX_REQUEST_BYTES, missing=True)
-    except storage.EditManifestNotFound as error:
+        raw = job_files.read_regular(path, MAX_REQUEST_BYTES, missing=True)
+    except job_files.JobFileNotFound as error:
         raise QueueNotFound() from error
-    except (OSError, storage.EditManifestInvalid) as error:
+    except (OSError, job_files.JobFileInvalid) as error:
         raise QueueInvalid() from error
     try:
         value = json.loads(raw.decode("utf-8"), object_pairs_hook=_pairs, parse_constant=_constant)
     except (json.JSONDecodeError, UnicodeError) as error:
         raise QueueInvalid() from error
+    if type(value) is dict and value.get("version") in RETIRED_VERSIONS:
+        if raw != _canonical(value):
+            raise QueueInvalid()
+        return None
     value = _validate(value)
     if raw != _canonical(value):
         raise QueueInvalid()
+    return value
+
+
+def _read(path: Path) -> dict[str, object]:
+    value = _load(path)
+    if value is None:
+        raise QueueNotFound()
     return value
 
 
@@ -347,8 +223,8 @@ def _write(directory: Path, value: dict[str, object]) -> dict[str, object]:
     if len(raw) > MAX_REQUEST_BYTES:
         raise QueueInvalid()
     target = directory / f"{value['render_id']}.json"
-    storage._atomic_write(directory, target, raw)
-    if storage._read_regular(target, MAX_REQUEST_BYTES) != raw:
+    job_files.atomic_write(directory, target, raw)
+    if job_files.read_regular(target, MAX_REQUEST_BYTES) != raw:
         raise QueueInvalid()
     return value
 
@@ -356,7 +232,7 @@ def _write(directory: Path, value: dict[str, object]) -> dict[str, object]:
 def _job_source(job: Path) -> Path:
     """Resolve the exact job-owned source pathname; opening is performed separately."""
     try:
-        raw = storage._read_regular(job / "job.json", MAX_REQUEST_BYTES)
+        raw = job_files.read_regular(job / "job.json", MAX_REQUEST_BYTES)
         data = json.loads(raw.decode(), object_pairs_hook=_pairs, parse_constant=_constant)
         source_value = data["sourcePath"]
         if data.get("id") != job.name or not isinstance(source_value, str):
@@ -382,26 +258,9 @@ def _job_source(job: Path) -> Path:
         raise QueueInvalid() from error
 
 
-def estimate_source_bytes(job_dir: Path) -> int:
-    job = Path(job_dir).absolute()
-    source = _job_source(job)
-    fd = None
-    try:
-        fd = os.open(source, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
-        info = os.fstat(fd)
-        if not stat.S_ISREG(info.st_mode) or info.st_size < 0:
-            raise QueueInvalid()
-        return info.st_size
-    except OSError as error:
-        raise QueueInvalid() from error
-    finally:
-        if fd is not None:
-            os.close(fd)
-
-
 def _render_inputs(analysis: Path) -> Path:
     directory = analysis / "render-inputs"
-    storage._ensure_directory(directory)
+    job_files.ensure_directory(directory)
     try:
         os.chmod(directory, 0o700)
     except OSError as error:
@@ -417,211 +276,21 @@ def _fsync_dir(directory: Path) -> None:
         os.close(fd)
 
 
-def _publish_snapshot(directory: Path, temporary: Path, target: Path, digest: str) -> None:
+def _file_sha256(path: Path) -> str:
+    """The sha256 of a regular file opened without following a final symlink."""
     try:
-        os.link(temporary, target, follow_symlinks=False)
-    except FileExistsError:
-        try:
-            if _stream_sha256_regular(target, "snapshot") != digest:
-                raise QueueInvalid()
-        except ManifestRenderError as error:
-            raise QueueInvalid() from error
-    finally:
-        try:
-            temporary.unlink()
-        except FileNotFoundError:
-            pass
-    _fsync_dir(directory)
-
-
-def _snapshot_source(job: Path, analysis: Path) -> tuple[str, str]:
-    source = _job_source(job)
-    extension = source.suffix[1:].lower()
-    if not re.fullmatch(r"[a-z0-9]{1,10}", extension):
-        extension = "bin"
-    try:
-        maximum = int(os.environ.get("MAX_UPLOAD_BYTES", str(DEFAULT_MAX_UPLOAD_BYTES)))
-        if maximum <= 0:
-            raise ValueError
-    except ValueError as error:
-        raise QueueInvalid() from error
-    directory = _render_inputs(analysis)
-    temporary = directory / f".source.{uuid.uuid4()}.tmp"
-    source_fd = output_fd = None
-    try:
-        source_fd = os.open(source, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
-        info = os.fstat(source_fd)
-        if not stat.S_ISREG(info.st_mode) or info.st_size > maximum:
-            raise QueueInvalid()
-        digest = __import__("hashlib").sha256()
-        total = 0
-        while chunk := os.read(source_fd, min(1024 * 1024, maximum + 1 - total)):
-            total += len(chunk)
-            if total > maximum:
-                raise QueueInvalid()
-            digest.update(chunk)
-        hexdigest = digest.hexdigest()
-        target = directory / f"source.{hexdigest}.{extension}"
-        if target.exists():
-            try:
-                if _stream_sha256_regular(target, "snapshot") != hexdigest:
-                    raise QueueInvalid()
-            except ManifestRenderError as error:
-                raise QueueInvalid() from error
-            return str(target.relative_to(job)), hexdigest
-        os.lseek(source_fd, 0, os.SEEK_SET)
-        output_fd = os.open(
-            temporary,
-            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW,
-            0o600,
-        )
-        while chunk := os.read(source_fd, 1024 * 1024):
-            offset = 0
-            while offset < len(chunk):
-                offset += os.write(output_fd, chunk[offset:])
-        os.fsync(output_fd)
+        fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
     except OSError as error:
         raise QueueInvalid() from error
-    finally:
-        if output_fd is not None:
-            os.close(output_fd)
-        if source_fd is not None:
-            os.close(source_fd)
-    target = directory / f"source.{hexdigest}.{extension}"
-    _publish_snapshot(directory, temporary, target, hexdigest)
-    return str(target.relative_to(job)), hexdigest
-
-
-def _snapshot_candidates(job: Path, analysis: Path, expected_digest: str) -> str:
-    directory = _render_inputs(analysis)
-    with candidate_artifact_lock(analysis, exclusive=False):
-        try:
-            raw = storage._read_regular(analysis / "candidates.v2.json", MAX_ARTIFACT_BYTES)
-        except (OSError, storage.EditManifestInvalid) as error:
-            raise QueueInvalid() from error
-        digest = __import__("hashlib").sha256(raw).hexdigest()
-        if digest != expected_digest:
-            raise QueueConflict()
-        target = directory / f"candidates.{digest}.json"
-        if target.exists():
-            try:
-                if _stream_sha256_regular(target, "snapshot") != digest:
-                    raise QueueInvalid()
-                read_candidates_artifact(target)
-            except (ManifestRenderError, OSError, ValueError) as error:
-                raise QueueInvalid() from error
-            return str(target.relative_to(job))
-        temporary = directory / f".candidates.{uuid.uuid4()}.tmp"
-        fd = os.open(
-            temporary,
-            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW,
-            0o600,
-        )
-        try:
-            offset = 0
-            while offset < len(raw):
-                offset += os.write(fd, raw[offset:])
-            os.fsync(fd)
-        finally:
-            os.close(fd)
-        target = directory / f"candidates.{digest}.json"
-        _publish_snapshot(directory, temporary, target, digest)
-        try:
-            read_candidates_artifact(target)
-        except (OSError, ValueError) as error:
-            raise QueueInvalid() from error
-    return str(target.relative_to(job))
-
-
-def create_request(
-    job_dir: Path,
-    candidate_id: str,
-    edit_etag: str,
-    idempotency_key: str,
-    *,
-    storage_reservation: dict[str, object] | None = None,
-) -> dict[str, object]:
-    job = Path(job_dir).absolute()
-    if (
-        not _UUID.fullmatch(job.name)
-        or not _CANDIDATE.fullmatch(candidate_id)
-        or not _SHA.fullmatch(edit_etag)
-        or not _UUID.fullmatch(idempotency_key)
-    ):
-        raise QueueInvalid()
-    if storage_reservation is not None and (
-        type(storage_reservation) is not dict
-        or set(storage_reservation) != {"reservation_id", "token", "reserved_bytes"}
-        or not isinstance(storage_reservation["reservation_id"], str)
-        or not _UUID.fullmatch(storage_reservation["reservation_id"])
-        or not isinstance(storage_reservation["token"], str)
-        or not _UUID.fullmatch(storage_reservation["token"])
-        or not isinstance(storage_reservation["reserved_bytes"], int)
-        or isinstance(storage_reservation["reserved_bytes"], bool)
-        or not 0 < storage_reservation["reserved_bytes"] <= (1 << 64) - 1
-    ):
-        raise QueueInvalid()
-    key = idempotency_key.lower()
-    directory = _queue_dir(job)
-    analysis = job / "analysis"
-    with _lock(directory), storage._edit_transaction(analysis, candidate_id) as edits:
-        entries = _entries(directory)
-        for path in entries:
-            request = _read(path)
-            if request["idempotency_key"] == key:
-                if (
-                    request.get("candidate_id") != candidate_id  # v3 requests have no candidate
-                    or request["edit_manifest_sha256"] != edit_etag
-                ):
-                    raise QueueConflict()
-                return request
-        if len(entries) >= MAX_REQUESTS:
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
             raise QueueInvalid()
-        manifest = storage._read_edit_manifest_locked(analysis, edits, candidate_id)
-        if manifest_sha256(manifest) != edit_etag:
-            raise QueueConflict()
-        archive = storage._archive_current(edits, manifest, edit_etag)
-        candidate_snapshot = _snapshot_candidates(
-            job, analysis, manifest.identity.candidate_artifact_sha256
-        )
-        source_snapshot, source_digest = _snapshot_source(job, analysis)
-        now = _now()
-        render_id = str(uuid.uuid4())
-        request = {
-            "version": "render-request-v2"
-            if storage_reservation is not None
-            else "render-request-v1",
-            "render_id": render_id,
-            "idempotency_key": key,
-            "state": "queued",
-            "candidate_id": candidate_id,
-            "candidate_artifact_sha256": manifest.identity.candidate_artifact_sha256,
-            "candidate_snapshot_relative": candidate_snapshot,
-            "edit_manifest_sha256": edit_etag,
-            "edit_revision": manifest.revision,
-            "edit_manifest_relative": str(archive.relative_to(job)),
-            "source_identity_sha256": manifest.identity.source_sha256,
-            "source_content_sha256": source_digest,
-            "source_snapshot_relative": source_snapshot,
-            "output_relative": f"output/edits/{candidate_id}/revision-{manifest.revision}.mp4",
-            "created_at": now,
-            "updated_at": now,
-            "claimed_at": None,
-            "rendering_at": None,
-            "completed_at": None,
-            "failed_at": None,
-            "attempts": 0,
-            "error_code": None,
-            "lease_token": None,
-            "heartbeat_at": None,
-        }
-        if storage_reservation is not None:
-            request.update(
-                storage_reservation_id=storage_reservation["reservation_id"],
-                storage_reservation_token=storage_reservation["token"],
-                storage_reserved_bytes=storage_reservation["reserved_bytes"],
-            )
-        return _write(directory, request)
+        digest = hashlib.sha256()
+        while chunk := os.read(fd, 1024 * 1024):
+            digest.update(chunk)
+        return digest.hexdigest()
+    finally:
+        os.close(fd)
 
 
 def get_request(job_dir: Path, render_id: str) -> dict[str, object]:
@@ -646,7 +315,8 @@ def claim_next(
     now_dt = datetime.now(UTC)
     now = _now()
     with _lock(directory):
-        requests = [_read(path) for path in _entries(directory)]
+        loaded = [_load(path) for path in _entries(directory)]
+        requests = [request for request in loaded if request is not None]
         available = None
         for request in requests:
             if request["state"] == "queued":
@@ -657,10 +327,7 @@ def claim_next(
                 if heartbeat_at is not None and now_dt - _parse_time(heartbeat_at) > timedelta(
                     seconds=lease_seconds
                 ):
-                    if (
-                        request.get("version") == V3_VERSION
-                        and request["cancel_requested_at"] is not None
-                    ):
+                    if request["cancel_requested_at"] is not None:
                         # its worker is gone and the user cancelled it: never render it again
                         _write(directory, _v3_ended(request, "cancelled", now))
                         continue
@@ -686,6 +353,8 @@ def claim_next(
         claimed = {
             **available,
             "state": "claimed",
+            "stage": "antre",
+            "progress_pm": 0,
             "attempts": int(available["attempts"]) + 1,
             "claimed_at": now,
             "rendering_at": None,
@@ -693,8 +362,6 @@ def claim_next(
             "lease_token": token,
             "heartbeat_at": now,
         }
-        if available.get("version") == V3_VERSION:
-            claimed.update(stage="antre", progress_pm=0)
         return _write(directory, claimed)
 
 
@@ -711,155 +378,17 @@ def heartbeat(job_dir: Path, render_id: str, lease_token: str) -> dict[str, obje
         return _write(directory, {**current, "heartbeat_at": now, "updated_at": now})
 
 
-def update_request(
-    job_dir: Path,
-    render_id: str,
-    state: str,
-    *,
-    lease_token: str,
-    error_code: str | None = None,
-) -> dict[str, object]:
-    directory = _queue_dir(Path(job_dir).absolute())
-    now = _now()
-    with _lock(directory):
-        current = _read(directory / f"{render_id}.json")
-        if current["lease_token"] != lease_token:
-            raise QueueConflict()
-        allowed = {
-            ("claimed", "rendering"),
-            ("rendering", "completed"),
-            ("claimed", "failed"),
-            ("rendering", "failed"),
-        }
-        if (current["state"], state) not in allowed:
-            raise QueueConflict()
-        patch: dict[str, object] = {"state": state, "updated_at": now}
-        if state == "rendering":
-            patch.update(rendering_at=now, heartbeat_at=now)
-        elif state == "completed":
-            patch.update(completed_at=now, error_code=None, lease_token=None, heartbeat_at=None)
-        else:
-            if error_code not in {"render_failed", "verification_failed"}:
-                raise QueueInvalid()
-            patch.update(
-                failed_at=now,
-                error_code=error_code,
-                lease_token=None,
-                heartbeat_at=None,
-            )
-        return _write(directory, {**current, **patch})
-
-
-def publish_completed_output(
-    job_dir: Path, render_id: str, lease_token: str, staging: Path
-) -> dict[str, object]:
-    """Fence publication and completion under the same queue ownership lock."""
-    job = Path(job_dir).absolute()
-    directory = _queue_dir(job)
-    now = _now()
-    with _lock(directory):
-        current = _read(directory / f"{render_id}.json")
-        if current["state"] != "rendering" or current["lease_token"] != lease_token:
-            raise QueueConflict()
-        expected_staging_parent = job / "analysis" / "render-staging"
-        staging = Path(staging).absolute()
-        if staging.parent != expected_staging_parent or not re.fullmatch(
-            rf"{re.escape(render_id)}\.{re.escape(lease_token)}\.mp4", staging.name
-        ):
-            raise QueueInvalid()
-        try:
-            info = staging.lstat()
-        except OSError as error:
-            raise QueueInvalid() from error
-        if stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode):
-            raise QueueInvalid()
-        output = job / str(current["output_relative"])
-        try:
-            os.link(staging, output, follow_symlinks=False)
-        except FileExistsError:
-            raise QueueConflict() from None
-        except OSError as error:
-            raise QueueInvalid() from error
-        _fsync_dir(output.parent)
-        return _write(
-            directory,
-            {
-                **current,
-                "state": "completed",
-                "updated_at": now,
-                "completed_at": now,
-                "error_code": None,
-                "lease_token": None,
-                "heartbeat_at": None,
-            },
-        )
-
-
-def process(job: Path, command: object):
-    if type(command) is not dict or not isinstance(command.get("operation"), str):
-        raise QueueInvalid()
-    op = command["operation"]
-    if op == "create" and set(command) in (
-        {"operation", "candidateId", "editEtag", "idempotencyKey"},
-        {"operation", "candidateId", "editEtag", "idempotencyKey", "storageReservation"},
-    ):
-        return create_request(
-            job,
-            command["candidateId"],
-            command["editEtag"],
-            command["idempotencyKey"],
-            storage_reservation=command.get("storageReservation"),
-        )
-    if op == "get" and set(command) == {"operation", "renderId"}:
-        return get_request(job, command["renderId"])
-    if op == "estimate" and set(command) == {"operation"}:
-        return {"sourceBytes": str(estimate_source_bytes(job))}
-    if op == "claim" and set(command) <= {"operation", "leaseSeconds"}:
-        return claim_next(job, lease_seconds=command.get("leaseSeconds", DEFAULT_LEASE_SECONDS))
-    if (
-        op == "update"
-        and set(command) <= {"operation", "renderId", "state", "leaseToken", "errorCode"}
-        and "leaseToken" in command
-    ):
-        return update_request(
-            job,
-            command["renderId"],
-            command["state"],
-            lease_token=command["leaseToken"],
-            error_code=command.get("errorCode"),
-        )
-    if op == "heartbeat" and set(command) == {"operation", "renderId", "leaseToken"}:
-        return heartbeat(job, command["renderId"], command["leaseToken"])
-    raise QueueInvalid()
-
-
 def run(argv: list[str], stdin: BinaryIO, stdout: BinaryIO, stderr: TextIO) -> int:
-    if not argv:  # the Editor V3 envelope (no --job-dir): see handle_v3
-        return run_v3(stdin, stdout)
-    parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--job-dir", required=True)
-    try:
-        args = parser.parse_args(argv)
-        raw = stdin.read(MAX_COMMAND_BYTES + 1)
-        if not raw or len(raw) > MAX_COMMAND_BYTES:
-            raise QueueInvalid()
-        command = json.loads(raw.decode(), object_pairs_hook=_pairs, parse_constant=_constant)
-        stdout.write(_canonical(process(Path(args.job_dir), command)) + b"\n")
-        return 0
-    except QueueConflict:
-        stderr.write("render_queue_conflict\n")
-        return 5
-    except QueueNotFound:
-        stderr.write("render_queue_not_found\n")
-        return 4
-    except Exception:  # noqa: BLE001 - protocol boundary sanitizes every failure
-        stderr.write("render_queue_invalid\n")
-        return 3
+    """The CLI takes no arguments: ``--job-dir`` belonged to the retired candidate editor."""
+    if argv:
+        stderr.write("render_queue_usage\n")
+        return edit_errors.EXIT_USAGE
+    return run_v3(stdin, stdout)
 
 
 # --- render-request-v3 (Editor V3 exports; plan §4.6, §4.2, §9.1; T2.2) --------------------------
 #
-# Fields (exact set, canonical JSON like v1/v2):
+# Fields (exact set, canonical JSON):
 #   version "render-request-v3", render_id, idempotency_key (lowercase UUID), state, stage,
 #   progress_pm; clip_id, doc_sha256, doc_revision, doc_relative (seed.json for revision 0,
 #   else edit/archive/r<N>.<sha>.json.gz); render_key, size "output", quality "standar",
@@ -887,7 +416,7 @@ def run(argv: list[str], stdin: BinaryIO, stdout: BinaryIO, stderr: TextIO) -> i
 #   * Timeout ``max(120 s, 3 × predicted)`` with ``predicted = duration × cost(layout, size)``
 #     (``RENDER_COST_PERMILLE``, the PF-RENDER budget); liveness is the worker's (20 s).
 #   * Retention: terminal v3 requests older than 7 days are pruned at every create, keeping the
-#     newest 200 terminal ones whatever their age. Legacy requests are never pruned here.
+#     newest 200 terminal ones whatever their age. Retired candidate requests stay as they are.
 
 V3_VERSION = "render-request-v3"
 V3_STATES = frozenset({"queued", "claimed", "rendering", "completed", "failed", "cancelled"})
@@ -1252,8 +781,8 @@ def _published(job: Path, output_relative: str) -> bool:
 def _read_doc(job: Path, relative: str, etag: str) -> dict[str, Any]:
     """The document a request names (seed.json or a gzip archive) whose bytes hash to etag."""
     try:
-        data = storage._read_regular(job / relative, MAX_DOC_ARCHIVE_BYTES)
-    except (OSError, storage.EditManifestError) as error:
+        data = job_files.read_regular(job / relative, MAX_DOC_ARCHIVE_BYTES)
+    except (OSError, job_files.JobFileError) as error:
         raise QueueInvalid() from error
     if relative.endswith(".gz"):
         try:
@@ -1302,10 +831,10 @@ def _camera_for(clip: Path, doc: Mapping[str, Any]) -> dict[str, Any] | None:
             raise QueueAnalysisMissing()
         path = clip / names[0]
     try:
-        raw = storage._read_regular(path, 32 << 20, missing=True)
-    except storage.EditManifestNotFound:
+        raw = job_files.read_regular(path, 32 << 20, missing=True)
+    except job_files.JobFileNotFound:
         raise QueueAnalysisMissing() from None
-    except (OSError, storage.EditManifestError) as error:
+    except (OSError, job_files.JobFileError) as error:
         raise QueueInvalid() from error
     if sha is not None and hashlib.sha256(raw).hexdigest() != sha:
         raise QueueInvalid()
@@ -1330,9 +859,9 @@ def _auto_file(job: Path, clip_id: str, seed_doc: Mapping[str, Any]) -> Path | N
     clip (``clip_id`` recorded by the new engine), else the seed's rank (``clip-NN`` = rank)."""
     index = seed_doc["base"]["origin"]["rank_at_seed"]
     try:
-        manifest = json.loads(storage._read_regular(job / "output" / "manifest.json",
-                                                    MAX_MANIFEST_BYTES))
-    except (OSError, ValueError, storage.EditManifestError):
+        manifest = json.loads(job_files.read_regular(job / "output" / "manifest.json",
+                                                     MAX_MANIFEST_BYTES))
+    except (OSError, ValueError, job_files.JobFileError):
         manifest = None
     clips = manifest.get("clips") if isinstance(manifest, dict) else None
     for entry in clips if isinstance(clips, list) else ():
@@ -1542,11 +1071,8 @@ def _snapshot_source_v3(job: Path, expected_sha: str) -> str:
             if existing is not None:
                 if os.path.samestat(existing, info):
                     return str(target.relative_to(job))
-                try:
-                    if _stream_sha256_regular(target, "snapshot") != expected_sha:
-                        raise QueueInvalid()
-                except ManifestRenderError as error:
-                    raise QueueInvalid() from error
+                if _file_sha256(target) != expected_sha:
+                    raise QueueInvalid()
                 return str(target.relative_to(job))
             try:
                 os.link(source, target, follow_symlinks=False)
@@ -1639,7 +1165,7 @@ def _prune_locked(directory: Path, moment: datetime, requests: list[dict[str, ob
     terminal = sorted(
         ((_parse_time(request["updated_at"]), str(request["render_id"]))
          for request in requests
-         if request.get("version") == V3_VERSION and request["state"] in V3_TERMINAL),
+         if request["state"] in V3_TERMINAL),
         reverse=True,
     )
     cutoff = moment - timedelta(days=RETENTION_DAYS)
@@ -1659,7 +1185,7 @@ def _prune_locked(directory: Path, moment: datetime, requests: list[dict[str, ob
 
 def prune_requests_v3(job_dir: Path, *, now: datetime | None = None) -> int:
     """Delete terminal v3 requests older than ``RETENTION_DAYS`` beyond the newest
-    ``RETENTION_KEEP``; queued and running requests and legacy requests are kept."""
+    ``RETENTION_KEEP``; queued and running requests and retired candidate requests are kept."""
     directory = _queue_dir(Path(job_dir).absolute())
     with _lock(directory):
         return _prune_locked(directory, now or datetime.now(UTC), _scan(directory))
@@ -1668,12 +1194,13 @@ def prune_requests_v3(job_dir: Path, *, now: datetime | None = None) -> int:
 # Parsed requests by file identity. Every write replaces the file (a new inode, a new ctime),
 # so a scan re-parses only what changed since the last one; the cache is bounded and private to
 # the process. Callers get copies.
-_SCAN_CACHE: dict[tuple[str, int, int, int, int], dict[str, object]] = {}
+_SCAN_CACHE: dict[tuple[str, int, int, int, int], dict[str, object] | None] = {}
 _SCAN_CACHE_MAX = 8192
 
 
 def _scan(directory: Path) -> list[dict[str, object]]:
-    """Every request of the queue (validated, canonical), like ``_read`` over ``_entries``."""
+    """Every v3 request of the queue (validated, canonical), like ``_load`` over ``_entries``;
+    retired candidate requests are skipped."""
     result = []
     for path in _entries(directory):
         try:
@@ -1681,12 +1208,15 @@ def _scan(directory: Path) -> list[dict[str, object]]:
         except OSError as error:
             raise QueueInvalid() from error
         identity = (str(path), info.st_ino, info.st_mtime_ns, info.st_ctime_ns, info.st_size)
-        cached = _SCAN_CACHE.get(identity)
-        if cached is None:
-            cached = _read(path)
+        if identity in _SCAN_CACHE:
+            cached = _SCAN_CACHE[identity]
+        else:
+            cached = _load(path)
             if len(_SCAN_CACHE) >= _SCAN_CACHE_MAX:
                 _SCAN_CACHE.clear()
             _SCAN_CACHE[identity] = cached
+        if cached is None:
+            continue
         result.append({key: list(value) if isinstance(value, list) else value
                        for key, value in cached.items()})
     return result
@@ -1774,11 +1304,7 @@ def create_request_v3(
 
 
 def _replay_v3(request: dict[str, object], clip_id: str, edit_etag: str) -> dict[str, object]:
-    if (
-        request.get("version") != V3_VERSION
-        or request["clip_id"] != clip_id
-        or request["doc_sha256"] != edit_etag
-    ):
+    if request["clip_id"] != clip_id or request["doc_sha256"] != edit_etag:
         raise QueueIdempotencyConflict()
     return request
 
@@ -1802,7 +1328,7 @@ def estimate_v3(job_dir: Path, clip_id: str, edit_etag: str) -> int:
 
 def _v3_request(directory: Path, render_id: str) -> dict[str, object]:
     request = _read(directory / f"{render_id}.json")
-    if request.get("version") != V3_VERSION or request["render_id"] != render_id:
+    if request["render_id"] != render_id:
         raise QueueInvalid()
     return request
 
@@ -1881,16 +1407,13 @@ def fail_v3(job_dir: Path, render_id: str, lease_token: str, error_code: str, *,
 def cancel_request_v3(job_dir: Path, render_id: str, *,
                       now: datetime | None = None) -> dict[str, object]:
     """Cancel an export: queued → cancelled; claimed/rendering → ``cancel_requested_at`` (the
-    worker kills FFmpeg and ends it as cancelled); a finished request, or a legacy one (which
-    cannot be cancelled), is returned unchanged."""
+    worker kills FFmpeg and ends it as cancelled); a finished request is returned unchanged."""
     if not _v3_uuid(render_id):
         raise QueueInvalid()
     directory = _queue_dir(Path(job_dir).absolute())
     stamp = _stamp(now)
     with _lock(directory):
         current = _read(directory / f"{render_id}.json")
-        if current.get("version") != V3_VERSION:
-            return current
         if current["state"] == "queued":
             return _write(directory, _v3_ended(current, "cancelled", stamp))
         if current["state"] in {"claimed", "rendering"} and current["cancel_requested_at"] is None:
@@ -1907,13 +1430,13 @@ def list_requests_v3(job_dir: Path, clip_id: str | None = None) -> list[dict[str
     directory = _queue_dir(job)
     with _lock(directory):
         requests = _scan(directory)
-    selected = [request for request in requests if request.get("version") == V3_VERSION
-                and (clip_id is None or request["clip_id"] == clip_id)]
+    selected = [request for request in requests
+                if clip_id is None or request["clip_id"] == clip_id]
     return sorted(selected, key=lambda item: (str(item["created_at"]), str(item["render_id"])),
                   reverse=True)
 
 
-# --- the v3 CLI (CONTRACTS §5.9 envelope, §5.3 exit codes) ---------------------------------------
+# --- the CLI (CONTRACTS §5.9 envelope, §5.3 exit codes) ---------------------------------------
 
 _V3_OPS: dict[str, tuple[frozenset[str], frozenset[str]]] = {
     # op: (required keys, optional keys) besides "op"
@@ -1999,7 +1522,7 @@ def handle_v3(raw: bytes, *, jobs_root: str | os.PathLike | None,
         return 0, {"requests": list_requests_v3(job, envelope["clipId"])}
     except _Usage:
         return edit_errors.EXIT_USAGE, _v3_error("internal_error")
-    except (QueueNotFound, edit_errors.NotFound, storage.EditManifestNotFound):
+    except (QueueNotFound, edit_errors.NotFound, job_files.JobFileNotFound):
         return edit_errors.EXIT_NOT_FOUND, _v3_error("not_found")
     except QueueSourceMissing:
         return edit_errors.EXIT_NOT_FOUND, _v3_error("source_missing")
