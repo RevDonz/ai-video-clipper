@@ -642,25 +642,38 @@ test.describe("Musik panel on the fakes", () => {
     expect(doc.audio).toEqual(browser.doc.audio);
   });
 
-  test("scripted QG-UX U5 (music part): add ducked music within the time limit", async ({ page }) => {
-    test.skip(!runGates, "EDITOR_GATES=1 runs the timed U5 (music part)");
-    await page.addInitScript(installMusicScenario, { audioMs: 400 });
-    const started = Date.now();
-    await page.goto(EDITOR);
-    await expect(page.locator('[data-editor-ready="true"]')).toBeVisible({ timeout: 30_000 });
-    await page.getByRole("tab", { name: "Musik" }).click();
-    await addMusic(page, "u5.m4a", { notice: true });
-    await expect(panel(page).getByRole("radio", { name: /Sedang/ })).toBeChecked({ timeout: 10_000 });
-    await expect.poll(async () => (await state(page)).pending.length).toBe(0);
-    const elapsed = Date.now() - started;
-    const payload = await payloadOf(page);
-    expect(payload.duck.on).toBe(true);
-    writeGate("T3.3-QG-UX-U5-music.json", { gate: "QG-UX U5 (music part, scripted on the fakes)", limit_ms: U5_LIMIT_MS,
-      elapsed_ms: elapsed, steps: ["open the editor", "tab Musik", "Tambah musik", "copyright notice: Pilih file musik",
-        "choose the file", "upload", "ducking Sedang by default", "mix current"],
-      viewport: page.viewportSize(), browser: page.context().browser()?.version() ?? null, pass: elapsed <= U5_LIMIT_MS });
-    expect(elapsed).toBeLessThanOrEqual(U5_LIMIT_MS);
-  });
+  for (const viewport of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }]) {
+    const size = `${viewport.width}x${viewport.height}`;
+    test(`scripted QG-UX U5 (music part) at ${size}: add ducked music within the time limit`, async ({ page }) => {
+      test.skip(!runGates, "EDITOR_GATES=1 runs the timed U5 (music part)");
+      await page.setViewportSize(viewport);
+      await page.addInitScript(installMusicScenario, { audioMs: 400 });
+      const started = Date.now();
+      const steps = [];
+      const mark = (step) => steps.push({ step, ms: Date.now() - started });
+      await page.goto(EDITOR);
+      await expect(page.locator('[data-editor-ready="true"]')).toBeVisible({ timeout: 30_000 });
+      mark("editor ready");
+      await page.getByRole("tab", { name: "Musik" }).click();
+      mark("tab Musik");
+      await addMusic(page, "u5.m4a", { notice: true });
+      mark("copyright notice read, file chosen");
+      await expect(musicName(page)).toHaveText("u5.m4a", { timeout: 10_000 });
+      mark("uploaded");
+      await expect(panel(page).getByRole("radio", { name: /Sedang/ })).toBeChecked({ timeout: 10_000 });
+      await expect.poll(async () => (await state(page)).pending.length).toBe(0);
+      mark("ducked (Sedang), mix current");
+      const elapsed = Date.now() - started;
+      const payload = await payloadOf(page);
+      expect(payload.duck.on).toBe(true);
+      writeGate(`T3.3-QG-UX-U5-music-${size}.json`, { gate: "QG-UX U5 (music part, scripted on the fakes)", task: "T3.3",
+        limit_ms: U5_LIMIT_MS, elapsed_ms: elapsed, steps, viewport: page.viewportSize(),
+        browser: page.context().browser()?.version() ?? null,
+        note: "fake runtime and fake upload client (automation speed); the real upload is T3.1's route, the owner times U5 at checkpoint 3",
+        pass: elapsed <= U5_LIMIT_MS });
+      expect(elapsed).toBeLessThanOrEqual(U5_LIMIT_MS);
+    });
+  }
 });
 
 // ---------------------------------------------------------------------------------------------
