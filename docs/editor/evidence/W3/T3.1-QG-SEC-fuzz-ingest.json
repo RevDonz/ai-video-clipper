@@ -11,11 +11,11 @@
  "timesByKind": {
   "logo": {
    "cases": 37,
-   "maxMs": 758
+   "maxMs": 751
   },
   "music": {
    "cases": 29,
-   "maxMs": 3001
+   "maxMs": 3617
   }
  },
  "pass": true,
@@ -31,7 +31,7 @@
    "outcome": "normalised",
    "code": null,
    "reason": null,
-   "elapsedMs": 252,
+   "elapsedMs": 185,
    "capMs": 20000,
    "pass": true,
    "problems": []
@@ -47,7 +47,7 @@
    "outcome": "rejected",
    "code": "asset_rejected",
    "reason": "probe",
-   "elapsedMs": 64,
+   "elapsedMs": 68,
    "capMs": 20000,
    "pass": true,
    "problems": []
@@ -63,7 +63,7 @@
    "outcome": "rejected",
    "code": "asset_rejected",
    "reason": "probe",
-   "elapsedMs": 65,
+   "elapsedMs": 67,
    "capMs": 20000,
    "pass": true,
    "problems": []
@@ -79,7 +79,7 @@
    "outcome": "rejected",
    "code": "asset_rejected",
    "reason": "decode",
-   "elapsedMs": 124,
+   "elapsedMs": 182,
    "capMs": 20000,
    "pass": true,
    "problems": []
@@ -127,7 +127,7 @@
    "outcome": "normalised",
    "code": null,
    "reason": null,
-   "elapsedMs": 758,
+   "elapsedMs": 751,
    "capMs": 20000,
    "pass": true,
    "problems": []
@@ -143,7 +143,7 @@
    "outcome": "normalised",
    "code": null,
    "reason": null,
-   "elapsedMs": 132,
+   "elapsedMs": 181,
    "capMs": 20000,
    "pass": true,
    "problems": []
@@ -159,7 +159,7 @@
    "outcome": "normalised",
    "code": null,
    "reason": null,
-   "elapsedMs": 145,
+   "elapsedMs": 182,
    "capMs": 20000,
    "pass": true,
    "problems": []
@@ -175,7 +175,7 @@
    "outcome": "normalised",
    "code": null,
    "reason": null,
-   "elapsedMs": 142,
+   "elapsedMs": 184,
    "capMs": 20000,
    "pass": true,
    "problems": []
@@ -319,7 +319,7 @@
    "outcome": "normalised",
    "code": null,
    "reason": null,
-   "elapsedMs": 193,
+   "elapsedMs": 321,
    "capMs": 20000,
    "pass": true,
    "problems": []
@@ -335,7 +335,7 @@
    "outcome": "normalised",
    "code": null,
    "reason": null,
-   "elapsedMs": 213,
+   "elapsedMs": 182,
    "capMs": 20000,
    "pass": true,
    "problems": []
@@ -383,7 +383,7 @@
    "outcome": "normalised",
    "code": null,
    "reason": null,
-   "elapsedMs": 196,
+   "elapsedMs": 182,
    "capMs": 20000,
    "pass": true,
    "problems": []
@@ -415,7 +415,7 @@
    "outcome": "normalised",
    "code": null,
    "reason": null,
-   "elapsedMs": 217,
+   "elapsedMs": 183,
    "capMs": 20000,
    "pass": true,
    "problems": []
@@ -431,7 +431,7 @@
    "outcome": "rejected",
    "code": "asset_rejected",
    "reason": "probe",
-   "elapsedMs": 66,
+   "elapsedMs": 67,
    "capMs": 20000,
    "pass": true,
    "problems": []
@@ -463,7 +463,7 @@
    "outcome": "rejected",
    "code": "asset_rejected",
    "reason": "probe",
-   "elapsedMs": 65,
+   "elapsedMs": 66,
    "capMs": 20000,
    "pass": true,
    "problems": []
@@ -527,7 +527,7 @@
    "outcome": "normalised",
    "code": null,
    "reason": null,
-   "elapsedMs": 147,
+   "elapsedMs": 184,
    "capMs": 20000,
    "pass": true,
    "problems": []
@@ -543,7 +543,7 @@
    "outcome": "normalised",
    "code": null,
    "reason": null,
-   "elapsedMs": 197,
+   "elapsedMs": 183,
    "capMs": 20000,
    "pass": true,
    "problems": []
@@ -639,7 +639,7 @@
    "outcome": "normalised",
    "code": null,
    "reason": null,
-   "elapsedMs": 333,
+   "elapsedMs": 369,
    "capMs": 60000,
    "pass": true,
    "problems": []
@@ -655,7 +655,7 @@
    "outcome": "normalised",
    "code": null,
    "reason": null,
-   "elapsedMs": 281,
+   "elapsedMs": 310,
    "capMs": 60000,
    "pass": true,
    "problems": []
@@ -671,7 +671,7 @@
    "outcome": "rejected",
    "code": "asset_rejected",
    "reason": "probe",
-   "elapsedMs": 70,
+   "elapsedMs": 67,
    "capMs": 60000,
    "pass": true,
    "problems": []
@@ -687,7 +687,7 @@
    "outcome": "rejected",
    "code": "asset_rejected",
    "reason": "channels",
-   "elapsedMs": 76,
+   "elapsedMs": 72,
    "capMs": 60000,
    "pass": true,
    "problems": []
@@ -703,7 +703,7 @@
    "outcome": "normalised",
    "code": null,
    "reason": null,
-   "elapsedMs": 320,
+   "elapsedMs": 354,
    "capMs": 60000,
    "pass": true,
    "problems": []
@@ -719,7 +719,7 @@
    "outcome": "rejected",
    "code": "asset_rejected",
    "reason": "probe",
-   "elapsedMs": 64,
+   "elapsedMs": 66,
    "capMs": 60000,
    "pass": true,
    "problems": []
@@ -735,7 +735,7 @@
    "outcome": "normalised",
    "code": null,
    "reason": null,
-   "elapsedMs": 315,
+   "elapsedMs": 352,
    "capMs": 60000,
    "pass": true,
    "problems": []
@@ -751,7 +751,7 @@
    "outcome": "normalised",
    "code": null,
    "reason": null,
-   "elapsedMs": 318,
+   "elapsedMs": 358,
    "capMs": 60000,
    "pass": true,
    "problems": []
@@ -760,14 +760,14 @@
    "id": "mp4_with_video",
    "kind": "music",
    "mime": "audio/mp4",
-   "bytes": 119557,
+   "bytes": 119333,
    "expect": "reject",
    "stage": "ingest",
    "status": 422,
    "outcome": "rejected",
    "code": "asset_rejected",
    "reason": "streams",
-   "elapsedMs": 71,
+   "elapsedMs": 70,
    "capMs": 60000,
    "pass": true,
    "problems": []
@@ -831,7 +831,7 @@
    "outcome": "rejected",
    "code": "asset_rejected",
    "reason": "duration",
-   "elapsedMs": 101,
+   "elapsedMs": 104,
    "capMs": 60000,
    "pass": true,
    "problems": []
@@ -847,7 +847,7 @@
    "outcome": "rejected",
    "code": "asset_rejected",
    "reason": "duration",
-   "elapsedMs": 3001,
+   "elapsedMs": 3617,
    "capMs": 60000,
    "pass": true,
    "problems": []
@@ -863,7 +863,7 @@
    "outcome": "rejected",
    "code": "asset_rejected",
    "reason": "probe",
-   "elapsedMs": 65,
+   "elapsedMs": 69,
    "capMs": 60000,
    "pass": true,
    "problems": []
@@ -879,7 +879,7 @@
    "outcome": "normalised",
    "code": null,
    "reason": null,
-   "elapsedMs": 333,
+   "elapsedMs": 309,
    "capMs": 60000,
    "pass": true,
    "problems": []
@@ -895,7 +895,7 @@
    "outcome": "normalised",
    "code": null,
    "reason": null,
-   "elapsedMs": 289,
+   "elapsedMs": 256,
    "capMs": 60000,
    "pass": true,
    "problems": []
@@ -911,7 +911,7 @@
    "outcome": "normalised",
    "code": null,
    "reason": null,
-   "elapsedMs": 447,
+   "elapsedMs": 442,
    "capMs": 60000,
    "pass": true,
    "problems": []
@@ -943,7 +943,7 @@
    "outcome": "normalised",
    "code": null,
    "reason": null,
-   "elapsedMs": 466,
+   "elapsedMs": 508,
    "capMs": 60000,
    "pass": true,
    "problems": []
@@ -959,7 +959,7 @@
    "outcome": "rejected",
    "code": "asset_rejected",
    "reason": "probe",
-   "elapsedMs": 66,
+   "elapsedMs": 67,
    "capMs": 60000,
    "pass": true,
    "problems": []
@@ -975,7 +975,7 @@
    "outcome": "normalised",
    "code": null,
    "reason": null,
-   "elapsedMs": 327,
+   "elapsedMs": 355,
    "capMs": 60000,
    "pass": true,
    "problems": []
@@ -991,7 +991,7 @@
    "outcome": "rejected",
    "code": "asset_rejected",
    "reason": "probe",
-   "elapsedMs": 66,
+   "elapsedMs": 68,
    "capMs": 60000,
    "pass": true,
    "problems": []
@@ -1082,11 +1082,13 @@
   "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
   "python": "3.11.2",
   "machine": "x86_64",
-  "cpus": 16,
+  "cpus": 4,
   "load": [
-   5.0,
-   4.2,
-   3.1
+   2.4,
+   0.8,
+   0.3
   ]
- }
+ },
+ "stack": "GitHub Actions ubuntu-latest runner (4 vCPU; timings indicative), production image built from editor-w3-t3.1 at d83251a, FFmpeg 5.1.9, uid 1000 (node)",
+ "ciRun": "editor-gates.yml run 36844706040 (suite=command)"
 }
