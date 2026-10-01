@@ -25,6 +25,7 @@ import {
   projectName,
   projectProgress,
   projectRowDetail,
+  projectStageText,
   statusLabel,
 } from "../lib/project-view.mjs";
 import {
@@ -309,6 +310,31 @@ test("a history row says how many clips a project has, or where an unfinished on
   assert.equal(projectRowDetail({ status: "deleting", stageDetail: "Proyek sedang dihapus dari penyimpanan server" }), "Sedang dihapus");
 });
 
+// Old jobs still running or failed in a retired mode report stages such as "Kandidat bayangan V2
+// siap"; that wording stays in the job file.
+const VERSIONED_STAGES = ["Kandidat bayangan V2 siap", "Membuat kandidat V2 dari batas transkrip", "Selection V3 berjalan"];
+
+test("a history row never shows a stage text that names a version", () => {
+  for (const stageDetail of VERSIONED_STAGES) {
+    assert.equal(projectRowDetail({ status: "processing", stageDetail, clips: [] }), "Sedang diproses", stageDetail);
+    assert.equal(projectRowDetail({ status: "failed", stageDetail }), "Berhenti sebelum selesai", stageDetail);
+  }
+});
+
+test("the project page's progress title and failure notice drop a stage text that names a version", async () => {
+  assert.equal(projectStageText({ status: "processing", stageDetail: "Memilih momen terbaik" }), "Memilih momen terbaik");
+  assert.equal(projectStageText({ status: "queued" }), "Sedang diproses");
+  assert.equal(projectStageText({ status: "failed", stageDetail: "Penyimpanan server tidak cukup" }), "Penyimpanan server tidak cukup");
+  assert.equal(projectStageText({ status: "failed", stageDetail: " " }), "Proyek ini berhenti sebelum klip selesai.");
+  for (const stageDetail of VERSIONED_STAGES) {
+    assert.equal(projectStageText({ status: "processing", stageDetail }), "Sedang diproses", stageDetail);
+    assert.equal(projectStageText({ status: "failed", stageDetail }), "Proyek ini berhenti sebelum klip selesai.", stageDetail);
+  }
+  const source = await read("app/projects/[id]/page.jsx");
+  assert.doesNotMatch(source, /job\.stageDetail/, "the page reads the stage only through projectStageText");
+  assert.match(source, /<h2 id="progress-title">\{projectStageText\(job\)\}<\/h2>/);
+});
+
 // --- The retired candidate editor -------------------------------------------------------------
 
 test("the candidate editor, its routes and its libraries are gone", async () => {
@@ -405,6 +431,7 @@ test("a failed project shows the worker's own message when it is words, not a co
   }
   assert.equal(failureDetail(failed("Penyimpanan penuh", "Penyimpanan penuh")), null, "no repeat of the stage text");
   assert.equal(failureDetail(failed("Gagal", undefined)), "Gagal");
+  assert.equal(failureDetail(failed("Invalid persisted job options: V2 options require v2-shadow mode")), null, "no version wording");
   for (const job of [failed(null), failed("   "), failed(42), { status: "completed", error: "Gagal sebelumnya" }, null]) {
     assert.equal(failureDetail(job), null);
   }

@@ -12,6 +12,7 @@ import {
   loadProjectDetail,
   projectName,
   projectProgress,
+  projectStageText,
   statusLabel,
 } from "../../../lib/project-view.mjs";
 import {
@@ -190,7 +191,7 @@ function ProjectView({ job, copyState, onCopy }) {
       {active && (
         <section className={styles.progressPanel} aria-labelledby="progress-title">
           <div>
-            <h2 id="progress-title">{job.stageDetail || "Sedang diproses"}</h2>
+            <h2 id="progress-title">{projectStageText(job)}</h2>
             <b>{progress}%</b>
           </div>
           <div className="progress" role="progressbar" aria-labelledby="progress-title" aria-valuemin="0" aria-valuemax="100" aria-valuenow={progress}><i style={{ width: `${progress}%` }} /></div>
@@ -201,7 +202,7 @@ function ProjectView({ job, copyState, onCopy }) {
       {job.status === "failed" && (
         <div className={`notice error ${styles.failed}`}>
           <strong>Proses gagal</strong>
-          <span>{job.stageDetail || "Proyek ini berhenti sebelum klip selesai."}</span>
+          <span>{projectStageText(job)}</span>
           {serverError && <span className={styles.errorDetail}>Pesan dari server: {serverError}</span>}
           <a className={styles.noticeLink} href="/dashboard">Buat ulang di Buat Klip</a>
         </div>

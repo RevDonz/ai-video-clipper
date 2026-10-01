@@ -176,6 +176,9 @@ test("a failed job shows an Indonesian reason; the raw error stays behind a disc
     text: "Ruang kosong penyimpanan server terlalu rendah.", detail: null,
   });
   assert.deepEqual(jobFailureView({ status: "failed" }), { text: "Proses berhenti karena terjadi kesalahan.", detail: null });
+  assert.deepEqual(jobFailureView({ status: "failed", error: "Invalid persisted job options: V2 options require v2-shadow mode" }), {
+    text: "Proses berhenti karena terjadi kesalahan.", detail: null,
+  });
   assert.equal(jobFailureView({ status: "completed", error: "x" }), null);
 });
 
