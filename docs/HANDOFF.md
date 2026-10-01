@@ -60,7 +60,9 @@ dan operasional: `docs/editor/{CONTRACTS,GATES,PANDUAN-EDITOR,OPERASIONAL,UJI-PE
   T4.2 (keamanan, QG-SEC lengkap) → T4.3 (render otomatis klip paralel, janitor, retensi) → T4.4
   (gerbang CI: smoke paritas di setiap PR, penjaga toolchain, nightly; halaman `/licenses`;
   panduan final) → T4.5 (13 uji penerimaan, QG-A11Y, catatan caption K5), lalu integrasi T4.Z.
-  Hasil gerbangnya: `docs/editor/GATES.md` bagian "W4 Siap rilis".
+  Hasil gerbangnya: `docs/editor/GATES.md` bagian "W4 Siap rilis". Verifikasi rilis menemukan satu
+  pemblokir (penjaga deploy dan ekspor `cancelled`) dan enam temuan kecil; semuanya sudah ditangani
+  di bagian "W4 verifier findings: fixes".
 - **Bawaan rilis di `compose.yaml`:** `POTONGIN_EDITOR_V3=on`, `POTONGIN_EDITOR_UPLOADS=on`,
   `POTONGIN_EDITOR_LLM=on`, `POTONGIN_RENDER_ENGINE=edit-v2`. Cara mematikan satu flag di server:
   `docs/editor/OPERASIONAL.md` §2 (baris di `.env`, lalu `docker compose up -d`, tanpa build).
@@ -79,7 +81,10 @@ Langkah berikutnya:
    P-LOGO (1 dari 18 frame lewat batas oleh caption di bawah logo transparan).
 3. **Merge PR ke `main` (merge rebase)** → deploy otomatis. Setelah deploy: buka satu proyek,
    **Edit klip**, ekspor satu klip; proses satu video baru untuk melihat render otomatis baru.
-   Rollback seluruh rilis = revert PR.
+   Rollback seluruh rilis = revert PR, **tanpa** ikut me-revert penjaga deploy
+   (`fix(deploy): a cancelled export is not live work for the deploy guard`): penjaga lama di
+   `main` menganggap ekspor yang dibatalkan masih jalan dan menahan deploy rollback. Paling aman,
+   commit itu masuk `main` lebih dulu lewat PR kecil sendiri (`docs/editor/GATES.md`, Open 49).
 4. **Sisa teknis (W5 atau sesudahnya):** P-AUD klip VFR sintetis 16 sampel lebih pendek (Open 12)
    membuat nightly merah; PF-AUDIO dengan musik tipis di runner 4 vCPU; halaman `/licenses` masih
    di balik login.
