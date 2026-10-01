@@ -601,6 +601,9 @@ export function createPreviewLane({
       const name = cellName(lane.plateKey, cell.k);
       if (await isFile(path.join(directory, "preview", "plates", name))) return { k: cell.k, state: "ready", url: url(clip, "plates", name) };
       missing.push(cell.k);
+      // Missing on disk now: a build that finished is no longer done (the cache cap or the
+      // janitor removed it), so it is queued again at once (W3 Open 24).
+      if (clip.plate?.key === lane.plateKey) clip.doneCells.delete(cell.k);
       const task = clip.runningCells.get(cell.k);
       return { k: cell.k, state: task && task.plateKey === lane.plateKey ? "building" : "queued" };
     }));
@@ -609,6 +612,7 @@ export function createPreviewLane({
     if (isObject(dto.audio) && typeof lane.audio?.key === "string") {
       const name = `${lane.audio.key.slice(0, 16)}.flac`;
       audioReady = await isFile(path.join(directory, "preview", "audio", name));
+      if (!audioReady) clip.audioDone.delete(lane.audio.key);
       const { url: _old, ...rest } = dto.audio;
       dto.audio = audioReady ? { ...rest, state: "ready", url: url(clip, "audio", name) }
         : { ...rest, state: clip.audio?.key === lane.audio.key && clip.audio.task && running.has(clip.audio.task) ? "building" : "queued" };
@@ -624,6 +628,7 @@ export function createPreviewLane({
     let logoReady = false;
     if (lane.logo && isObject(dto.logo)) {
       logoReady = await isFile(path.join(directory, "preview", "derived", lane.logo.name));
+      if (!logoReady) clip.deriveDone.delete(lane.logo.name);
       const { url: _old, ...rest } = dto.logo;
       const task = clip.derive.get(lane.logo.name);
       dto.logo = logoReady ? { ...rest, state: "ready", url: url(clip, "derived", lane.logo.name) }
