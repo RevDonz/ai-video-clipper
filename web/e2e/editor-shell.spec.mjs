@@ -1075,8 +1075,10 @@ test("project page: 'Edit klip' on every clip that can be edited, its badge and 
   await expect(page.getByRole("article")).toHaveCount(4);
   await expect(card(1).getByRole("link", { name: "Edit klip" })).toHaveAttribute("href", `/projects/${PROJECT_JOB}/clips/${CLIP_A}/edit`);
   await expect(card(1).getByText("Diedit · revisi 3")).toBeVisible();
+  // Saved as the clip's number and revision, not the stored hash name.
   await expect(card(1).getByRole("link", { name: "Ekspor terakhir · revisi 3" })).toHaveAttribute("href",
-    `/api/jobs/${PROJECT_JOB}/files/output/edits/${CLIP_A}/0123456789abcdef.mp4`);
+    `/api/jobs/${PROJECT_JOB}/files/output/edits/${CLIP_A}/0123456789abcdef.mp4?download=1&name=klip-01-revisi-3`);
+  await expect(card(1).getByRole("link", { name: "Ekspor terakhir · revisi 3" })).toHaveAttribute("download", "klip-01-revisi-3.mp4");
   await expect(card(2).getByRole("link", { name: "Edit klip" })).toHaveAttribute("href", `/projects/${PROJECT_JOB}/clips/${CLIP_B}/edit`);
   await expect(card(3).getByRole("link", { name: "Edit klip" })).toHaveCount(0);
   await expect(card(3).getByText("Video sumber sudah tidak ada")).toBeVisible();
