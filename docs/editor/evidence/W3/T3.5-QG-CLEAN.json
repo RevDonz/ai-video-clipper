@@ -171,5 +171,30 @@
     "g_click": "pass",
     "g_sync": "pass (the 20-item clip e7f0d37b keeps its cold open: 20 cuts + cold open)",
     "twenty_items": "one real clip reaches 20 items (e7f0d37b); the other clips hold 5 to 9 items even with the body widened to the whole analysis window"
+  },
+  "ci_image": {
+    "run_id": 36846157901,
+    "commit": "2b86873",
+    "ffmpeg": "5.1.9",
+    "python": "3.11.2",
+    "cpus": 4,
+    "labels": {
+      "particle_false_positives": 0,
+      "reduplication_false_positives": 0,
+      "filler_precision": 0.933
+    },
+    "synthetic": {
+      "items_by_kind": {
+        "gap_silent": 3,
+        "filler": 2,
+        "repeat": 1
+      },
+      "cut_edges": 12,
+      "cut_edge_failures": 0,
+      "g_click_max_step_dbfs": -200.0,
+      "g_sync_av_end_ms": 9.867,
+      "pass": true
+    },
+    "see": "T3.5-QG-CLEAN-ci.json"
   }
 }
