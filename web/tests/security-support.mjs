@@ -110,9 +110,13 @@ export const ROUTES = Object.freeze([
       headers: { "X-Asset-Kind": "logo", "Idempotency-Key": "00000000-0000-4000-8000-000000000003" } }) },
   { name: "GET asset", file: "assets/[sha]/route.js", method: "GET", params: { id: JOB, sha: SHA }, limit: null },
   { name: "HEAD asset", file: "assets/[sha]/route.js", method: "HEAD", params: { id: JOB, sha: SHA }, limit: null },
+  // The export status the editor polls, and its cancel (T4.Z: the third tree, behind the same guard).
+  { name: "GET render", file: "renders/[renderId]/route.js", method: "GET", params: { id: JOB, renderId: RENDER }, limit: "api" },
+  { name: "DELETE render", file: "renders/[renderId]/route.js", method: "DELETE", params: { id: JOB, renderId: RENDER },
+    mutation: true, limit: "api" },
 ]);
 
-/** Every route file under the two trees, relative to app/api/jobs/[id]/ (the table must list each). */
+/** Every route file under the three trees, relative to app/api/jobs/[id]/ (the table must list each). */
 export async function routeFiles() {
   const base = path.join(WEB, "app", "api", "jobs", "[id]");
   const found = [];
@@ -123,7 +127,7 @@ export async function routeFiles() {
       else if (entry.name === "route.js") found.push(path.relative(base, full).split(path.sep).join("/"));
     }
   }
-  for (const tree of ["clips", "assets"]) await walk(path.join(base, tree));
+  for (const tree of ["clips", "assets", "renders"]) await walk(path.join(base, tree));
   return found.sort();
 }
 
