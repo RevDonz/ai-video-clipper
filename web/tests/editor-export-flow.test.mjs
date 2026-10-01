@@ -273,6 +273,13 @@ test("export starts only when every check is acknowledged and nothing blocks", (
   assert.equal(canStartExport([{ key: "x", severity: "error" }], new Set(["x"])), false);
 });
 
+test("a note (the caption at its auto-clip spot, K5) needs no tick before export", () => {
+  const note = { key: "n", severity: "info" };
+  assert.equal(canStartExport([note], new Set()), true);
+  assert.equal(canStartExport([note, { key: "a", severity: "warning" }], new Set()), false);
+  assert.equal(canStartExport([note, { key: "a", severity: "warning" }], new Set(["a"])), true);
+});
+
 test("after a cancel or a failure the steps stay where the render stopped (W2 verifier)", async () => {
   const timers = manualTimers();
   const api = scriptedApi([dto({ state: "rendering", stage: "merender", progressPm: 450 })]);
