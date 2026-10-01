@@ -63,6 +63,10 @@ function plateDto(key, ready, cellFrames = 60) {
   };
 }
 
+// The yield after each kept frame is a microtask here, as in gatedHarness. The default yield is
+// setTimeout(0) on Node (no global scheduler), and whether a 1 ms timer fires before the tests'
+// setImmediate differs between Node 20 and 22, so a pass could still be open when a test checks
+// that its decoder was closed.
 function harness({ frames = 60, capacity = 90, maxDecoders = 3 } = {}) {
   const mb = fakeMediabunny({ frames });
   const fetches = [];
@@ -79,6 +83,7 @@ function harness({ frames = 60, capacity = 90, maxDecoders = 3 } = {}) {
       converted.push(`${frame.cell}:${frame.j}`);
       return { cell: frame.cell, j: frame.j, close() { closed.push(`${frame.cell}:${frame.j}`); } };
     },
+    yieldTask: () => Promise.resolve(),
     fps: FPS,
     capacity,
     maxDecoders,
