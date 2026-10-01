@@ -1028,4 +1028,8 @@ blocks; axe on in a separate run). QG-A11Y on the fakes: 16 states, 0 critical, 
     token per file. The helpers made a token per request, and a token changes when the clock
     passes a second, so a rate-limit test that crossed a second used two keys: the full run on
     `83ad2d5` (run 36880261354) failed "uploads are rate limited per session" with 200 instead of
-    429 (the run on `95ad2a3` passed it). Assertions unchanged.
+    429 (the run on `95ad2a3` passed it). Assertions unchanged. `ci-gate full` on `d257283` (run
+    36892302530): **success**; ruff clean, pytest "4272 passed, 2 skipped, 1 xfailed", npm test
+    "# pass 1147", "# fail 0", build compiled. Two runs before it on `d257283` were cancelled
+    after the runner stalled (36882605320 in the Python step for 45 min, 36888344104 in
+    `apt-get install ffmpeg` for 30 min; no test output, infrastructure).
