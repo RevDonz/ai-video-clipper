@@ -113,7 +113,7 @@ bawah kunci file.
 
 ## Pengaruh ke pemilihan klip
 
-Hanya job **Selection V3**. Mode Klasik V1 dan V2 shadow tidak berubah.
+Hanya job **Selection V3**, yaitu setiap job baru. Job lama Klasik V1 dan V2 shadow tidak berubah.
 
 1. **Relevansi.** Engine mencocokkan kata kunci, judul dan hashtag (tanpa `#`) item dengan
    transkrip episode: casefold, tanpa aksen, per batas kata, frasa multi-kata sebagai frasa.
