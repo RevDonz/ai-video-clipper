@@ -666,8 +666,24 @@ test.describe("Musik panel on the fakes", () => {
       const elapsed = Date.now() - started;
       const payload = await payloadOf(page);
       expect(payload.duck.on).toBe(true);
+      // The owner sees the lane: scrolled down, the MUSIK lane (waveform and ducking curve) is drawn
+      // whole inside the timeline, beside its label (W3 verifier: it was cut off at both sizes).
+      await page.locator("[data-timeline-body]").evaluate((node) => { node.scrollTop = node.scrollHeight; });
+      const onScreen = await page.evaluate(() => {
+        const box = (selector) => document.querySelector(selector).getBoundingClientRect();
+        const lane = box('[data-lane-row="music"]');
+        const label = box('[data-lane-label="music"]');
+        const scroller = box("[data-timeline-scroller]");
+        const body = box("[data-timeline-body]");
+        return { lane: [lane.top, lane.bottom], label: [label.top, label.bottom],
+          inside: lane.top >= body.top - 0.5 && lane.bottom <= body.bottom + 0.5 && lane.bottom <= scroller.bottom + 0.5,
+          aligned: Math.abs(lane.top - label.top) <= 0.5 && Math.abs(lane.bottom - label.bottom) <= 0.5 };
+      });
+      expect(onScreen.inside, JSON.stringify(onScreen)).toBe(true);
+      expect(onScreen.aligned, JSON.stringify(onScreen)).toBe(true);
+      await expect(page.locator('[data-lane="music"] [data-music-envelope]')).toBeInViewport({ ratio: 1 });
       writeGate(`T3.3-QG-UX-U5-music-${size}.json`, { gate: "QG-UX U5 (music part, scripted on the fakes)", task: "T3.3",
-        limit_ms: U5_LIMIT_MS, elapsed_ms: elapsed, steps, viewport: page.viewportSize(),
+        limit_ms: U5_LIMIT_MS, elapsed_ms: elapsed, steps, viewport: page.viewportSize(), music_lane_on_screen: onScreen,
         browser: page.context().browser()?.version() ?? null,
         note: "fake runtime and fake upload client (automation speed); the real upload is T3.1's route, the owner times U5 at checkpoint 3",
         pass: elapsed <= U5_LIMIT_MS });
