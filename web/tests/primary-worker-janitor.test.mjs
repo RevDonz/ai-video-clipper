@@ -1,14 +1,19 @@
 // T4.3: the editor janitor runs from the primary worker between jobs (plan §11.4), never while a
 // job is active, and jobs wait while it runs.
 import assert from "node:assert/strict";
+import { mkdtemp, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 
 import { PYTHON_CLI_MODULES } from "../lib/python-cli.mjs";
+import { checkPrimaryWorkerHealth } from "../scripts/check-primary-worker-health.mjs";
 import {
   DEFAULT_JANITOR_INTERVAL_MS,
   JANITOR_MODULE,
   createJanitorTick,
   createWorkerActivity,
+  primaryHealthSnapshot,
 } from "../scripts/primary-worker.mjs";
 
 function clock(start = 1_790_000_000_000) {
@@ -116,6 +121,26 @@ test("a failing janitor is logged without detail and retried after the interval"
   assert.equal(calls.length, 2);
   assert.equal(lines.length, 2);
   for (const line of lines) assert.doesNotMatch(line, /secret-path|\/data/);
+});
+
+test("a janitor run counts as active work for the health check", async () => {
+  // The health check wants fresh polling while no claim is active; a janitor run (up to its
+  // budget) stops slot 0 from polling, so the snapshot counts it as active work.
+  const now = Date.parse("2026-10-02T01:00:00.000Z");
+  const base = { pid: process.pid, workerId: "worker", heartbeatAt: new Date(now).toISOString(),
+    lastPollAt: new Date(now - 60_000).toISOString() };
+  const idle = primaryHealthSnapshot({ ...base, activeClaims: 0, janitorRunning: false });
+  const cleaning = primaryHealthSnapshot({ ...base, activeClaims: 0, janitorRunning: true });
+  assert.equal(idle.activeClaims, 0);
+  assert.equal(cleaning.activeClaims, 1);
+  assert.equal(cleaning.janitor, true);
+  const root = await mkdtemp(path.join(os.tmpdir(), "primary-janitor-health-"));
+  const healthPath = path.join(root, "health.json");
+  const env = { PRIMARY_WORKER_HEALTH_PATH: healthPath, PRIMARY_WORKER_HEALTH_MAX_AGE_MS: "15000" };
+  await writeFile(healthPath, JSON.stringify(idle));
+  await assert.rejects(checkPrimaryWorkerHealth(env, now), /polling.*stale/i);
+  await writeFile(healthPath, JSON.stringify(cleaning));
+  assert.equal((await checkPrimaryWorkerHealth(env, now)).activeClaims, 1);
 });
 
 test("an invalid cache cap falls back to the default", async () => {
