@@ -166,7 +166,7 @@ CLIs (stdin JSON envelope → stdout JSON, bounded; exit codes as in T1.1):
 | `python -m ai_clipper.edit_v2.assets` | `ingest`, `meta` |
 | `python -m ai_clipper.edit_v2.cleanup` / `coldopen` | `list` |
 | `python -m ai_clipper.editor_ai` | `heuristic`, `run-task` |
-| `python -m ai_clipper.render_queue` (added in W2, T2.2; §5.17) | `estimate`, `create`, `get`, `cancel`, `list` (no arguments: the Editor V3 envelope; `--job-dir` keeps the legacy protocol) |
+| `python -m ai_clipper.render_queue` (added in W2, T2.2; §5.17) | `estimate`, `create`, `get`, `cancel`, `list` (no arguments: the Editor V3 envelope; any argument exits 2 `render_queue_usage`: the candidate editor's `--job-dir` protocol was retired in W4, T4.1) |
 
 ### A.2 JavaScript (browser; ESM; no new dependency except jassub and mediabunny)
 
@@ -480,7 +480,7 @@ JOBS_ROOT/<job>/
       preview/derived/<asset_sha16>@<w>x<h>.png logo prescaled to its exact pixel box
       suggestions/<task_id>.json                AI tasks (30 days)
   analysis/assets/<sha256>.{png,m4a} + <sha256>.json    job asset store (§9.2)
-  analysis/render-requests/<render_id>.json     render-request-v1/v2 (legacy) and v3 (new)
+  analysis/render-requests/<render_id>.json     render-request-v3 (old jobs may keep v1/v2 files: never acted on)
   output/clip-NN.mp4 + .srt                     auto renders (unchanged paths; = revision 0)
   output/edits/<clip_id>/<render_key16>.{mp4,srt}   editor exports
 ```
@@ -502,7 +502,7 @@ timeout + SIGKILL, fixed exit-code map as in `edit-document.mjs`, and an **allow
 | Method and path (under `/api/jobs/:id`) | Purpose | Contract |
 |---|---|---|
 | `POST /clips` | Job-level prepare for jobs rendered before Essentials: writes `analysis/source.json`, computes the clip ids and writes each clip's immutable `seed.json`, words and peaks (§3.5) | Same-origin; idempotent; `202 {state}` |
-| `GET /clips` | V3 clips of the job | `{clips:[{clipId, index, title, hookText, description, hashtags, durationMs, engine: "edit-v2/1"\|"legacy", edit:{state:"seed"\|"edited", revision, etag, updatedAtMs}, latestRender:{renderId, state, url, srtUrl, revision}\|null, openable, reason}]}`. For jobs rendered before Essentials, `clipId` is null with `reason: "needs_prepare"` until `POST /clips` has run. Other `reason` values (fixed codes with Indonesian messages): `source_missing`, `selection_unreadable`, `transcript_missing`, `analysis_incomplete` (`.attempts/` left), `not_v3` (V1/v2-shadow jobs; V2 candidates use the legacy editor and its "Buka di Editor V3"); `POST /clips` can also answer `source_unreadable` (the source is there but cannot be probed or measured; §5.20) |
+| `GET /clips` | V3 clips of the job | `{clips:[{clipId, index, title, hookText, description, hashtags, durationMs, engine: "edit-v2/1"\|"legacy", edit:{state:"seed"\|"edited", revision, etag, updatedAtMs}, latestRender:{renderId, state, url, srtUrl, revision}\|null, openable, reason}]}`. For jobs rendered before Essentials, `clipId` is null with `reason: "needs_prepare"` until `POST /clips` has run. Other `reason` values (fixed codes with Indonesian messages): `source_missing`, `selection_unreadable`, `transcript_missing`, `analysis_incomplete` (`.attempts/` left), `not_v3` (V1/v2-shadow jobs; their candidate editor is retired); `POST /clips` can also answer `source_unreadable` (the source is there but cannot be probed or measured; §5.20) |
 | `GET /clips/:clipId/edit` | Current document, or the seed as virtual revision 0 | `200 {doc, etag, seed, words:{sha256, url}, readOnly, readOnlyReason}` with `ETag` and `X-Edit-Seed: 1` for the seed. `?seed=1` always returns the seed (for "Kembali ke versi AI"). **No side effects.** `409 analysis_missing` when the words artifact does not exist yet (the client then calls `prepare`) |
 | `PUT /clips/:clipId/edit` | Save the full document | `If-Match` required (428), `Idempotency-Key` UUID required, `Content-Type: application/json`, ≤ 1 MiB. `200 {doc, etag, warnings}`; `409 revision_conflict {current, etag}`; `409 idempotency_conflict`; `422 {errors:[{path, code}]}`; `426 schema_too_new` |
 | `GET /clips/:clipId/words` | Words artifact | `ETag` = sha; `Cache-Control: private, max-age=31536000, immutable` |
@@ -511,7 +511,7 @@ timeout + SIGKILL, fixed exit-code map as in `edit-document.mjs`, and an **allow
 | `POST /clips/:clipId/preview/frame` | Truth frame | Body `{doc, f}`; `image/png` at the output size with ancillary chunks stripped; ≤ 4/s; cached by `(plan_sha, f)` |
 | `GET /clips/:clipId/media/:kind/:name` | Plate cells, audio mixes, ASS, derived logos, peaks | `kind` ∈ {`plates`, `audio`, `ass`, `derived`, `peaks`}; `name` matches a content-hash regex; realpath containment; HTTP Range; `private, max-age=31536000, immutable`; `nosniff`; `Cross-Origin-Resource-Policy: same-origin`. ASS (which contains user text) is served as `text/plain; charset=utf-8` with `Content-Security-Policy: sandbox` |
 | `POST /clips/:clipId/renders` | Enqueue an export | `Idempotency-Key`; body exactly `{"editEtag":"<64 hex>"}` ≤ 1 KiB (size and quality are fixed to the auto clip's in Essentials); storage reservation first (existing admission). `202 RenderDTO`, or `200` with `state:"completed"` when the document content equals the seed (R10) or the render key already exists |
-| `GET /renders/:renderId` (extended) | Status of legacy and v3 requests | `RenderDTO {renderId, clipId\|candidateId, state, stage, progressPm, revision, errorCode, resultUrl, srtUrl}` |
+| `GET /renders/:renderId` (extended) | Status of a v3 request; 404 for a missing one and for a v1/v2 request of the retired candidate editor (W4, T4.1) | `RenderDTO {renderId, clipId, state, stage, progressPm, revision, errorCode, resultUrl, srtUrl}` |
 | `DELETE /renders/:renderId` (new) | Cancel a v3 request | Same-origin; queued → `cancelled`; rendering → the worker kills FFmpeg within 2 s and marks `cancelled` |
 | `POST /clips/:clipId/ai` | AI hook suggestions (§7) | Body exactly `{task:"hooks", doc}` (no provider, model or URL field is accepted; those come only from the sealed LLM settings); `202 {taskId, heuristic:[…], llm:{state:"pending"\|"disabled"\|"rate_limited"}}` |
 | `GET /clips/:clipId/ai/:taskId` | Poll an AI task | `taskId` is a UUID (checked in Node and Python); `{state:"pending"\|"done"\|"failed", suggestions:[…], error:{code, messageId}\|null}` |
@@ -1181,7 +1181,8 @@ signatures stay; everything below is additive unless marked **changed**.
   1:1, duration within 0.25 s of the manifest). A failing auto file renders with the warning
   `auto_file_unavailable`.
 - Retention: a terminal v3 request is pruned when older than 7 days and not among the newest
-  200 terminal requests; legacy requests are never pruned.
+  200 terminal requests; v1/v2 files of the retired candidate editor are never pruned,
+  claimed, listed or rewritten (strict canonical JSON still required; `get` answers not found).
 - `GET …/edit`: `seed` is a boolean, plus `seedEtag`, `engine`, `notices`; `words.url` carries
   `?sha=<sha>` and is cached immutably; the bare words URL is revalidated (no-cache + ETag, 304)
   because it changes after "Mulai dari versi AI" (a deviation from §4.2's immutable words).
@@ -1190,11 +1191,14 @@ signatures stay; everything below is additive unless marked **changed**.
   answers 200 cancelled, 202 when a cancel is requested, 409 `render_finished` or
   `not_cancellable`. `GET /clips/:clipId/renders` lists a clip's exports (additive).
 - Every new route answers 404 `editor_disabled` while `POTONGIN_EDITOR_V3` is not `on`; the
-  legacy render status GET is not gated. A job's `sourcePath` must lie in its own `input/` for
-  the source snapshot (the legacy rule, unchanged): a job copied to another `JOBS_ROOT` exports
-  only after its `job.json` names the copy's file.
-- Storage: a terminal v3 request (completed, failed or cancelled) releases its reservation like a
-  v2 one; the admission scan counts a hard-linked file (source snapshots, R10 exports) once.
+  render status GET is not gated (it reads the request file, never spawns). A job's `sourcePath`
+  must lie in its own `input/` for the source snapshot (the legacy rule, unchanged): a job copied
+  to another `JOBS_ROOT` exports only after its `job.json` names the copy's file.
+- Storage: a terminal v3 request (completed, failed or cancelled) releases its reservation; so
+  does a v2 request of the retired candidate editor in any state (nothing renders it any more).
+  The render admission and the shared accounting use the same predicate
+  (`shared-storage-accounting.requestReleasesReservation`). The admission scan counts a
+  hard-linked file (source snapshots, R10 exports) once.
 
 ### Preview lane (T2.3)
 

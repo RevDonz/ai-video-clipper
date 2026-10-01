@@ -1,0 +1,28 @@
+{
+ "task": "T4.1",
+ "gate": "import cut of the editor backend (W2 Open 14: store -> edit_manifest -> ranking)",
+ "method": "median of 15 fresh processes per module, warm file cache; before = W3 end 105b567 (src via PYTHONPATH), after = this branch",
+ "machine": "owner's PC (reference machine), load average 7.5 from other work; indicative",
+ "python": "3.13.13",
+ "runs_per_module": 15,
+ "modules": {
+  "ai_clipper.edit_v2.api": {
+   "imports_ranking_after": false,
+   "imports_ranking_before": true,
+   "median_ms_after": 22.11,
+   "median_ms_before": 92.51
+  },
+  "ai_clipper.edit_v2.store": {
+   "imports_ranking_after": false,
+   "imports_ranking_before": true,
+   "median_ms_after": 21.73,
+   "median_ms_before": 90.01
+  },
+  "ai_clipper.render_queue": {
+   "imports_ranking_after": false,
+   "imports_ranking_before": true,
+   "median_ms_after": 41.11,
+   "median_ms_before": 132.2
+  }
+ }
+}

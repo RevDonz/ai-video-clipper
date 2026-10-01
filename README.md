@@ -40,9 +40,25 @@ The web app shows only the current method. The old candidate editor and its rout
 (`/projects/<id>/candidates/...`, `/api/jobs/<id>/candidates/...`,
 `/api/jobs/<id>/candidate-feedback`, `/api/jobs/<id>/preview-source`) were retired on
 2026-09-30: old links open the project page, and projects made with the older selection
-modes still show and serve their rendered clips. The Python modules behind those routes
-stay in `src/ai_clipper`; so does the render status route `/api/jobs/<id>/renders/<renderId>`,
-which the new editor extends.
+modes still show and serve their rendered clips.
+
+Its backend is gone too (2026-10-02): the Python modules `editor_api`, `edit_manifest`,
+`render_manifest`, `candidate_api`, `candidate_cues` and `candidate_feedback`, the candidate
+render requests (`render-request-v1`/`-v2`) of `render_queue` and `render_worker` with the
+queue's `--job-dir` protocol, and `web/lib/render-requests.mjs`. What old jobs need stays:
+
+- their clips, subtitles and an export the old editor made (`output/edits/cand_*/…`) download
+  through `/api/jobs/<id>/files/...`; `/api/jobs/<id>/renders/<renderId>` answers 404 for an
+  old editor's render request;
+- the files the old editor left in a job (`analysis/edits`, `analysis/render-inputs`, old
+  `analysis/render-requests/*.json`) are never rewritten; the render worker never claims an old
+  request, and its storage reservation is released;
+- the older selection code still runs queued or retried old jobs (`--selection-mode v1` and
+  `v2-shadow`) and the benchmark baselines (`v1`, `v2-*`); the offline V1-versus-V2 report
+  (`python -m ai_clipper.evaluation`) still reads the old editor's accept/reject feedback.
+
+The storage helpers the clip editor shared with the old store now live in
+`src/ai_clipper/job_files.py`. Details: `docs/editor/GATES.md`, section "W4 T4.1".
 
 ## Verified result
 
