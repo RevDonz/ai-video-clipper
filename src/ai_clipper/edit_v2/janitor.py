@@ -75,6 +75,9 @@ _ARCHIVE = re.compile(r"r(0|[1-9][0-9]{0,15})\.([0-9a-f]{64})\.json\.gz")
 _ASSET_FILE = re.compile(r"([0-9a-f]{64})\.(png|m4a|json|peaks\.bin)")
 _SHA = re.compile(r"[0-9a-f]{64}")
 _REQUEST_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.json")
+# A render request's archived revision (render_queue ``_v3_doc_relative``); nothing else is read.
+_ARCHIVE_RELATIVE = re.compile(
+    rf"analysis/clips/({CLIP_ID_PATTERN.pattern})/edit/archive/{_ARCHIVE.pattern}")
 _DIRECTORY = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
 
 
@@ -374,9 +377,11 @@ def clean_job(job_dir: Path, *, now_ms: int, cap_bytes: int = DEFAULT_CAP_BYTES)
                 readable = False
                 continue
             assets.update(asset.split(":", 1)[1] for asset in iter_asset_ids(document))
-    for relative in referenced_requests:  # a requested revision that lives outside archives
+    for relative in referenced_requests:  # a requested revision kept for an export
+        if _ARCHIVE_RELATIVE.fullmatch(relative) is None:
+            continue  # seed.json (no uploads) or not a path the queue writes
         path = job / relative
-        if relative.endswith(".json.gz") and path.is_file():
+        if path.is_file():
             document = _archive_doc(path)
             if isinstance(document, dict):
                 assets.update(asset.split(":", 1)[1] for asset in iter_asset_ids(document))
