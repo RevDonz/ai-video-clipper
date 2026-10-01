@@ -12,16 +12,14 @@ import {
 } from "./selection-v3-view.mjs";
 
 export const RENDER_MODES = ["face-track", "fit-blur", "center-crop"];
+/** Every selection mode a stored job may carry. Only CURRENT_SELECTION_MODE is accepted for new jobs. */
 export const SELECTION_MODES = ["v1", "v2-shadow", "v3"];
+/** The selection every new job uses, stored under its internal name for the worker. */
+export const CURRENT_SELECTION_MODE = "v3";
+const RETIRED_SELECTION_MODES = ["v1", "v2-shadow"];
 export const CLIP_PROFILES = ["viral-short", "standard", "deep-dive"];
 export const LLM_MODES = ["auto", "off"];
 export const CAPTION_STYLES = ["karaoke", "classic"];
-export const DEFAULT_SHADOW_OPTIONS = Object.freeze({
-  clipProfile: "standard",
-  maxCandidates: 200,
-  maxMediaCandidates: 12,
-  mediaTimeout: 30,
-});
 export const DEFAULT_V3_OPTIONS = Object.freeze({
   llmMode: "auto",
   coldOpen: true,
@@ -38,7 +36,19 @@ const MAX_FOCUS_TERMS_INPUT = 4096;
 const MAX_FOCUS_TERMS_ENTRIES = 64;
 const WORKER_PROGRESS_PREFIX = "POTONGIN_PROGRESS ";
 
-/** Every field of the job creation form that parseJobOptions reads. */
+/**
+ * A new job asked for a selection mode, or options of one, that is no longer offered. Stored jobs
+ * keep their mode (validatePersistedJobOptions); only job creation refuses it.
+ */
+export class RetiredSelectionModeError extends Error {
+  constructor() {
+    super("Retired selection mode: new jobs always use the current selection");
+    this.name = "RetiredSelectionModeError";
+    this.code = "selection_mode_retired";
+  }
+}
+
+/** Every field of the job creation form that parseJobOptions reads (retired ones only to refuse them). */
 export const JOB_FORM_FIELDS = Object.freeze([
   "renderMode", "limit", "minDuration", "maxDuration", "selectionMode",
   ...V2_OPTION_KEYS, ...V3_OPTION_KEYS, ...FOCUS_FORM_KEYS,
@@ -385,58 +395,30 @@ export function parseJobOptions(input = {}) {
   if (minDuration < 5 || maxDuration > 180 || maxDuration < minDuration) {
     throw new Error("duration range must satisfy 5 <= min <= max <= 180");
   }
-  const options = { renderMode, limit, minDuration, maxDuration };
   const provided = (key) => input[key] !== undefined && input[key] !== null && input[key] !== "";
-  const hasSelectionOptions = ["selectionMode", ...V2_OPTION_KEYS, ...V3_OPTION_KEYS, ...FOCUS_FORM_KEYS].some(provided);
-  if (!hasSelectionOptions) return options;
-
-  if (typeof input.selectionMode !== "string" || !SELECTION_MODES.includes(input.selectionMode)) {
-    throw new Error("Unsupported selection mode");
+  // New jobs always use the current selection; a missing field means exactly that.
+  const selectionMode = provided("selectionMode") ? input.selectionMode : CURRENT_SELECTION_MODE;
+  if (RETIRED_SELECTION_MODES.includes(selectionMode) || V2_OPTION_KEYS.some(provided)) {
+    throw new RetiredSelectionModeError();
   }
-  options.selectionMode = input.selectionMode;
-  if (input.selectionMode !== "v2-shadow" && V2_OPTION_KEYS.some(provided)) {
-    throw new Error("V2 selection options require v2-shadow mode");
-  }
-  if (input.selectionMode !== "v3" && V3_OPTION_KEYS.some(provided)) {
-    throw new Error("V3 selection options require v3 mode");
-  }
-  if (input.selectionMode !== "v3" && FOCUS_FORM_KEYS.some(provided)) {
-    throw new Error("Focus options require v3 mode");
-  }
-  if (input.selectionMode === "v1") return options;
-  if (input.selectionMode === "v3") {
-    const llmMode = provided("llmMode") ? input.llmMode : DEFAULT_V3_OPTIONS.llmMode;
-    if (typeof llmMode !== "string" || !LLM_MODES.includes(llmMode)) throw new Error("Unsupported LLM mode");
-    const captionStyle = provided("captionStyle") ? input.captionStyle : DEFAULT_V3_OPTIONS.captionStyle;
-    if (typeof captionStyle !== "string" || !CAPTION_STYLES.includes(captionStyle)) throw new Error("Unsupported caption style");
-    const focus = parseFocusOption(input.focusTerms, input.focusNote);
-    return {
-      ...options,
-      llmMode,
-      coldOpen: formBoolean(input.coldOpen, DEFAULT_V3_OPTIONS.coldOpen, "cold open"),
-      hookOverlay: formBoolean(input.hookOverlay, DEFAULT_V3_OPTIONS.hookOverlay, "hook overlay"),
-      captionStyle,
-      ...(focus ? { focus } : {}),
-    };
-  }
-
-  const clipProfile = input.clipProfile ?? DEFAULT_SHADOW_OPTIONS.clipProfile;
-  if (typeof clipProfile !== "string" || !CLIP_PROFILES.includes(clipProfile)) {
-    throw new Error("Unsupported clip profile");
-  }
-  const maxCandidates = formNumber(input.maxCandidates, DEFAULT_SHADOW_OPTIONS.maxCandidates, "max candidates");
-  const maxMediaCandidates = formNumber(input.maxMediaCandidates, DEFAULT_SHADOW_OPTIONS.maxMediaCandidates, "max media candidates");
-  const mediaTimeout = formNumber(input.mediaTimeout, DEFAULT_SHADOW_OPTIONS.mediaTimeout, "media timeout");
-  if (!Number.isInteger(maxCandidates) || maxCandidates < 1 || maxCandidates > 5000) {
-    throw new Error("max candidates must be an integer between 1 and 5000");
-  }
-  if (!Number.isInteger(maxMediaCandidates) || maxMediaCandidates < 1 || maxMediaCandidates > Math.min(maxCandidates, 100)) {
-    throw new Error("max media candidates must be an integer no greater than min(max candidates, 100)");
-  }
-  if (mediaTimeout <= 0 || mediaTimeout > 300) {
-    throw new Error("media timeout must satisfy 0 < timeout <= 300");
-  }
-  return { ...options, clipProfile, maxCandidates, maxMediaCandidates, mediaTimeout };
+  if (selectionMode !== CURRENT_SELECTION_MODE) throw new Error("Unsupported selection mode");
+  const llmMode = provided("llmMode") ? input.llmMode : DEFAULT_V3_OPTIONS.llmMode;
+  if (typeof llmMode !== "string" || !LLM_MODES.includes(llmMode)) throw new Error("Unsupported LLM mode");
+  const captionStyle = provided("captionStyle") ? input.captionStyle : DEFAULT_V3_OPTIONS.captionStyle;
+  if (typeof captionStyle !== "string" || !CAPTION_STYLES.includes(captionStyle)) throw new Error("Unsupported caption style");
+  const focus = parseFocusOption(input.focusTerms, input.focusNote);
+  return {
+    renderMode,
+    limit,
+    minDuration,
+    maxDuration,
+    selectionMode,
+    llmMode,
+    coldOpen: formBoolean(input.coldOpen, DEFAULT_V3_OPTIONS.coldOpen, "cold open"),
+    hookOverlay: formBoolean(input.hookOverlay, DEFAULT_V3_OPTIONS.hookOverlay, "hook overlay"),
+    captionStyle,
+    ...(focus ? { focus } : {}),
+  };
 }
 
 const SELECTION_V2_ANALYSIS_ID = /^[0-9a-f]{32}$/;
