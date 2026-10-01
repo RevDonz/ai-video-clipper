@@ -544,10 +544,14 @@ test("preview caches are held under the per-job cap, least recently used first",
 
 // --- routes ---------------------------------------------------------------------------------------
 
+// One login for the file, as a browser keeps its cookie: a token made per request changes when the
+// clock passes a second, which would give the per-session rate limit a new key mid-test.
+let loginToken = null;
+
 function mutation(url, bodyBytes, { origin = "http://127.0.0.1:3999", session = true, type = "application/json" } = {}) {
   const headers = new Headers({ host: "127.0.0.1:3999", origin, "sec-fetch-site": "same-origin" });
   if (type) headers.set("content-type", type);
-  if (session) headers.set("cookie", `${SESSION_COOKIE}=${createSessionToken(SECRET_ENV)}`);
+  if (session) headers.set("cookie", `${SESSION_COOKIE}=${(loginToken ??= createSessionToken(SECRET_ENV))}`);
   return new Request(`http://127.0.0.1:3999${url}`, { method: "POST", headers, body: bodyBytes, duplex: "half" });
 }
 

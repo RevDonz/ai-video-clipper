@@ -1024,3 +1024,8 @@ blocks; axe on in a separate run). QG-A11Y on the fakes: 16 states, 0 critical, 
 57. `shell-model.mjs`: `checksView` names the element in the zone; `messageFor` localises numbers.
 58. `final-files.mjs` `name`; `clip-entry-view.exportDownload`; `ExportDialog` (`clipIndex`),
     `EditorApp`, the project page.
+59. `web/tests/asset-upload.test.mjs` (T3.1) and `web/tests/preview-lane.test.mjs` (W2): one session
+    token per file. The helpers made a token per request, and a token changes when the clock
+    passes a second, so a rate-limit test that crossed a second used two keys: the full run on
+    `83ad2d5` (run 36880261354) failed "uploads are rate limited per session" with 200 instead of
+    429 (the run on `95ad2a3` passed it). Assertions unchanged.
