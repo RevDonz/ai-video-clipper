@@ -2,10 +2,10 @@
 
 // The export dialog (plan Appendix C.5): (1) the revision and the "Perlu dicek" items, each
 // acknowledged (notes are shown, not ticked; an unchanged clip has notes only); (2) the output
-// line, and the R10 line for unchanged content; (3) Antre → Merender (n%) → Memverifikasi → Selesai, with cancel until the end;
-// (4) downloads, the read-only title,
-// description and hashtags with copy buttons, and the audio notes; (5) earlier exports; (6) on a
-// failure, the Indonesian explanation and "Coba lagi". No size or quality choice in Essentials.
+// line, and the R10 line for unchanged content; (3) Antre → Merender (n%) → Memverifikasi →
+// Selesai, with cancel until the end; (4) downloads, the read-only title, description and hashtags
+// with copy buttons, and the audio notes; (5) earlier exports; (6) on a failure, the Indonesian
+// explanation and "Coba lagi". No size or quality choice in Essentials.
 // The state machine lives in export-flow.mjs; EditorApp owns it, so closing the dialog never
 // stops a render.
 import { useEffect, useMemo, useRef, useState } from "react";
