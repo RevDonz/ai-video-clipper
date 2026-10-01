@@ -150,6 +150,10 @@ def run_one(
             continue  # jobs made before the analysis artifacts have nothing to export
         if stat.S_ISLNK(analysis_info.st_mode) or not stat.S_ISDIR(analysis_info.st_mode):
             continue
+        # No queue yet means no export was ever requested; claim_next would create one (and
+        # its lock file) in every old job the scan walks past.
+        if not os.path.lexists(analysis / "render-requests"):
+            continue
         try:
             request = claim_next(job, lease_seconds=lease_seconds)
         except QueueError:
