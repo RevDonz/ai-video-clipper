@@ -45,7 +45,17 @@ export function parsePrimaryQueueConfig(env = process.env) {
   return { maxActiveJobs, concurrency, maxAttempts, leaseMs, legacyQuiescenceMs };
 }
 
-const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+// The lock's time source. Tests pass a manual clock with the same shape, so heartbeats and stale
+// checks follow virtual time; `sleep` resolves early when its signal aborts.
+const SYSTEM_CLOCK = Object.freeze({
+  now: () => Date.now(),
+  sleep: (milliseconds, signal) => new Promise((resolve) => {
+    if (signal?.aborted) { resolve(); return; }
+    const done = () => { clearTimeout(timer); signal?.removeEventListener("abort", done); resolve(); };
+    const timer = setTimeout(done, milliseconds);
+    signal?.addEventListener("abort", done, { once: true });
+  }),
+});
 const tokenHash = (token) => crypto.createHash("sha256").update(token).digest("hex");
 const contained = (root, target) => target === root || target.startsWith(`${root}${path.sep}`);
 
@@ -71,26 +81,27 @@ async function readNoFollowJson(target) {
   } finally { await fd.close(); }
 }
 
-async function acquireQueueLock(jobsRoot, { timeoutMs = 10_000, staleMs = LOCK_STALE_MS, retryDelayMs = 10 } = {}) {
+async function acquireQueueLock(jobsRoot, { timeoutMs = 10_000, staleMs = LOCK_STALE_MS, retryDelayMs = 10, clock = SYSTEM_CLOCK } = {}) {
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || !Number.isSafeInteger(staleMs) || staleMs < 1
-      || !Number.isSafeInteger(retryDelayMs) || retryDelayMs < 1) throw new Error("Invalid primary queue lock configuration");
+      || !Number.isSafeInteger(retryDelayMs) || retryDelayMs < 1
+      || typeof clock?.now !== "function" || typeof clock?.sleep !== "function") throw new Error("Invalid primary queue lock configuration");
   const root = await ensureJobsRoot(jobsRoot);
   const lockPath = path.join(root, LOCK_NAME);
   const ownerPath = path.join(lockPath, "owner.json");
   const reclaimPath = path.join(lockPath, ".reclaim");
-  const deadline = Date.now() + timeoutMs;
+  const deadline = clock.now() + timeoutMs;
   const token = crypto.randomUUID();
   while (true) {
     try {
       await mkdir(lockPath, { mode: 0o700 });
-      const createdAt = new Date().toISOString();
+      const createdAt = new Date(clock.now()).toISOString();
       await durableWriteJson(ownerPath, { token, pid: process.pid, hostname: os.hostname(), createdAt, heartbeatAt: createdAt });
       const renew = async () => {
         await mkdir(reclaimPath, { mode: 0o700 });
         try {
           const owner = await readNoFollowJson(ownerPath);
           if (owner.token !== token) throw new LeaseLostError("Primary queue lock lease was lost");
-          await durableWriteJson(ownerPath, { ...owner, heartbeatAt: new Date().toISOString() });
+          await durableWriteJson(ownerPath, { ...owner, heartbeatAt: new Date(clock.now()).toISOString() });
         } finally {
           await rmdir(reclaimPath).catch((error) => { if (error.code !== "ENOENT") throw error; });
         }
@@ -98,13 +109,11 @@ async function acquireQueueLock(jobsRoot, { timeoutMs = 10_000, staleMs = LOCK_S
       const controller = new AbortController();
       const heartbeatMs = Math.max(1, Math.floor(staleMs / 3));
       let stopped = false;
-      let timer = null;
-      let wake = null;
+      const stopping = new AbortController();
       let renewalFailure = null;
       const heartbeat = (async () => {
         while (!stopped) {
-          await new Promise((resolve) => { wake = resolve; timer = setTimeout(resolve, heartbeatMs); });
-          timer = null;
+          await clock.sleep(heartbeatMs, stopping.signal);
           if (stopped) break;
           try { await renew(); }
           catch (error) {
@@ -116,8 +125,7 @@ async function acquireQueueLock(jobsRoot, { timeoutMs = 10_000, staleMs = LOCK_S
       const stopHeartbeat = async () => {
         if (!stopped) {
           stopped = true;
-          if (timer !== null) clearTimeout(timer);
-          wake?.();
+          stopping.abort();
         }
         await heartbeat;
       };
@@ -154,7 +162,7 @@ async function acquireQueueLock(jobsRoot, { timeoutMs = 10_000, staleMs = LOCK_S
       return release;
     } catch (error) {
       if (error.code !== "EEXIST") throw error;
-      if (Date.now() >= deadline) throw new Error("Timed out acquiring primary queue lock");
+      if (clock.now() >= deadline) throw new Error("Timed out acquiring primary queue lock");
       try {
         const lockInfo = await lstat(lockPath);
         if (lockInfo.isSymbolicLink() || !lockInfo.isDirectory()) throw new QueueStateError("Unsafe primary queue lock");
@@ -162,14 +170,14 @@ async function acquireQueueLock(jobsRoot, { timeoutMs = 10_000, staleMs = LOCK_S
         try { owner = await readNoFollowJson(ownerPath); }
         catch (inspectError) { if (inspectError.code !== "ENOENT") throw inspectError; }
         const heartbeat = owner ? Date.parse(owner.heartbeatAt || owner.createdAt) : lockInfo.mtimeMs;
-        if (Number.isFinite(heartbeat) && Date.now() - heartbeat > staleMs) {
+        if (Number.isFinite(heartbeat) && clock.now() - heartbeat > staleMs) {
           try {
             await mkdir(reclaimPath, { mode: 0o700 });
             let currentOwner = null;
             try { currentOwner = await readNoFollowJson(ownerPath); }
             catch (inspectError) { if (inspectError.code !== "ENOENT") throw inspectError; }
             const currentHeartbeat = currentOwner ? Date.parse(currentOwner.heartbeatAt || currentOwner.createdAt) : heartbeat;
-            if (Number.isFinite(currentHeartbeat) && Date.now() - currentHeartbeat > staleMs) {
+            if (Number.isFinite(currentHeartbeat) && clock.now() - currentHeartbeat > staleMs) {
               const abandoned = `${lockPath}.abandoned.${crypto.randomUUID()}`;
               await rename(lockPath, abandoned);
               await rm(abandoned, { recursive: true, force: true });
@@ -184,8 +192,8 @@ async function acquireQueueLock(jobsRoot, { timeoutMs = 10_000, staleMs = LOCK_S
       } catch (inspectError) {
         if (inspectError.code !== "ENOENT" && inspectError instanceof QueueStateError) throw inspectError;
       }
-      if (Date.now() >= deadline) throw new Error("Timed out acquiring primary queue lock");
-      await delay(retryDelayMs);
+      if (clock.now() >= deadline) throw new Error("Timed out acquiring primary queue lock");
+      await clock.sleep(retryDelayMs);
     }
   }
 }

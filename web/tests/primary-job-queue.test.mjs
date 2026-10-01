@@ -26,6 +26,7 @@ import {
   withPrimaryQueueLock,
 } from "../lib/primary-job-queue.mjs";
 import { heartbeatRenderStorage, reserveRenderStorage } from "../lib/render-storage-admission.mjs";
+import { advanceWhileAsleep, manualClock, runUntilSettled } from "./support/manual-clock.mjs";
 
 function deferred() {
   let resolve;
@@ -475,12 +476,17 @@ test("attempt output must be exactly .attempts/<attempt>/output inside the job",
   assert.equal((await persisted(jobsRoot, id)).status, "preparing");
 });
 
+const LOCK_CLOCK_START = Date.parse("2026-10-01T00:00:00.000Z");
+const lockOwner = async (jobsRoot) => JSON.parse(await readFile(path.join(jobsRoot, ".primary-queue.lock", "owner.json"), "utf8"));
+
 test("a live lock heartbeat prevents overlap beyond the stale interval", async () => {
-  // Timings are scaled (heartbeat every staleMs/3 = 50 ms) so shared CI runners and busy
-  // machines do not miss a 10 ms heartbeat; the waiter still waits 3x past the stale interval.
+  // The lock runs on a manual clock that moves only while the holder's heartbeat and the waiter
+  // both sleep, so no machine load can delay a renewal past the stale interval.
   const jobsRoot = await root();
+  const clock = manualClock(LOCK_CLOCK_START);
+  const options = { staleMs: 150, timeoutMs: 3000, retryDelayMs: 2, clock };
   let firstInside = false;
-  let overlap = false;
+  let overlap = null;
   let releaseFirst;
   const holdFirst = new Promise((resolve) => { releaseFirst = resolve; });
   const enteredFirst = deferred();
@@ -490,16 +496,48 @@ test("a live lock heartbeat prevents overlap beyond the stale interval", async (
     enteredFirst.resolve();
     await holdFirst;
     firstInside = false;
-  }, { staleMs: 150, timeoutMs: 3000, retryDelayMs: 2 });
+  }, options);
   await enteredFirst.promise;
-
   const second = withPrimaryQueueLock(jobsRoot, async () => {
     overlap = firstInside;
-  }, { staleMs: 150, timeoutMs: 3000, retryDelayMs: 2 });
-  await new Promise((resolve) => setTimeout(resolve, 450));
+  }, options);
+
+  // Three stale intervals pass on the lock's clock while the first callback holds the lock.
+  await advanceWhileAsleep(clock, LOCK_CLOCK_START + 450, { sleepers: 2 });
+  assert.equal(clock.now(), LOCK_CLOCK_START + 450);
+  assert.equal(overlap, null, "the waiter must not enter while the lock is held");
+  assert.equal(Date.parse((await lockOwner(jobsRoot)).heartbeatAt), LOCK_CLOCK_START + 450,
+    "the holder renews every staleMs/3 on the lock's clock");
+
   releaseFirst();
-  await Promise.all([first, second]);
+  await first;
+  await runUntilSettled(clock, second);
   assert.equal(overlap, false);
+});
+
+test("a lock whose holder stops renewing is taken over once the stale interval passes", async () => {
+  // Control for the test above: the same clock and options, with a holder that never renews.
+  const jobsRoot = await root();
+  const clock = manualClock(LOCK_CLOCK_START);
+  const lockPath = path.join(jobsRoot, ".primary-queue.lock");
+  const silentSince = new Date(LOCK_CLOCK_START).toISOString();
+  await mkdir(lockPath);
+  await writeFile(path.join(lockPath, "owner.json"), JSON.stringify({
+    token: "silent-holder", pid: process.pid, hostname: os.hostname(), createdAt: silentSince, heartbeatAt: silentSince,
+  }));
+  const waiter = withPrimaryQueueLock(jobsRoot, () => lockOwner(jobsRoot),
+    { staleMs: 150, timeoutMs: 3000, retryDelayMs: 2, clock });
+  const taken = await runUntilSettled(clock, waiter);
+  assert.notEqual(taken.token, "silent-holder");
+  // Checked every 2 ms: the first check past 150 ms is at 152 ms, and the takeover is immediate.
+  assert.equal(Date.parse(taken.createdAt), LOCK_CLOCK_START + 152);
+});
+
+test("the lock refuses a clock without now() and sleep()", async () => {
+  const jobsRoot = await root();
+  for (const clock of [null, { now: () => 0 }, { sleep: async () => {} }, { now: 0, sleep: async () => {} }]) {
+    await assert.rejects(withPrimaryQueueLock(jobsRoot, async () => {}, { clock }), /lock configuration/i);
+  }
 });
 
 test("lock ownership loss aborts the callback and fails closed", async () => {
