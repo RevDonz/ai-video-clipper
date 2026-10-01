@@ -1,0 +1,714 @@
+{
+  "task": "T3.5",
+  "gate": "QG-CLEAN",
+  "commit": "2b86873",
+  "measured_in": {
+    "where": "GitHub Actions, editor-gates.yml suite=command, production image",
+    "run_id": 36846157901,
+    "ffmpeg": "5.1.9-0+deb12u1",
+    "python": "3.11.2",
+    "node": "v20.20.2",
+    "cpus": 4,
+    "note": "4 vCPU runner: render_s is indicative only"
+  },
+  "commands": [
+    "python -m support.edit_v2_cleanup_gate labels /out/qg-clean/labels.json",
+    "python scripts/editor_fixture/make_job.py build /tmp/syn --only main --render --stub-camera --force",
+    "python -m support.edit_v2_cleanup_gate media /out/qg-clean/media-synthetic.json --jobs-root /tmp/syn/jobs --job <main> --items 20"
+  ],
+  "labels": {
+    "gate": "QG-CLEAN (labelled set)",
+    "lexicon": {
+      "version": "id-fillers.v1+id-reduplication.v1",
+      "sha256": "711b0d6982329f139a16cade565698599c9ac7ed76f5a239c534354c9944d854",
+      "filler_precheck": false
+    },
+    "samples": 274,
+    "sources": {
+      "real": 272,
+      "synthetic": 1,
+      "authored": 1
+    },
+    "tokens": 490,
+    "labels": {
+      "filler": 169,
+      "not_filler": 26,
+      "particle": 35,
+      "reduplication": 37,
+      "emphatic": 28,
+      "stutter": 38,
+      "not_repeat": 9
+    },
+    "borderline_labels": 29,
+    "reduplication_pairs": 37,
+    "particles_covered": [
+      "deh",
+      "dong",
+      "gitu",
+      "heeh",
+      "kan",
+      "kaya",
+      "kayak",
+      "kek",
+      "kok",
+      "lah",
+      "lho",
+      "loh",
+      "mah",
+      "nah",
+      "nih",
+      "sih",
+      "toh",
+      "tuh",
+      "ya",
+      "yah"
+    ],
+    "particle_false_positives": 0,
+    "reduplication_false_positives": 0,
+    "emphatic_false_positives": 10,
+    "not_repeat_false_positives": 0,
+    "filler_hits": 194,
+    "filler_true_hits": 181,
+    "filler_precision": 0.933,
+    "filler_precision_borderline_flipped": 0.9897,
+    "filler_precision_by_form": {
+      "anu": {
+        "true": 3,
+        "false": 0,
+        "precision": 1.0
+      },
+      "apa": {
+        "true": 7,
+        "false": 0,
+        "precision": 1.0
+      },
+      "e": {
+        "true": 11,
+        "false": 1,
+        "precision": 0.9167
+      },
+      "ee": {
+        "true": 80,
+        "false": 0,
+        "precision": 1.0
+      },
+      "eh": {
+        "true": 32,
+        "false": 11,
+        "precision": 0.7442
+      },
+      "em": {
+        "true": 0,
+        "false": 1,
+        "precision": 0.0
+      },
+      "hm": {
+        "true": 28,
+        "false": 0,
+        "precision": 1.0
+      },
+      "hmm": {
+        "true": 11,
+        "false": 0,
+        "precision": 1.0
+      },
+      "mm": {
+        "true": 2,
+        "false": 0,
+        "precision": 1.0
+      },
+      "namanya": {
+        "true": 7,
+        "false": 0,
+        "precision": 1.0
+      }
+    },
+    "filler_precision_by_group": {
+      "H": {
+        "true": 43,
+        "false": 4,
+        "precision": 0.9149
+      },
+      "S": {
+        "true": 2,
+        "false": 0,
+        "precision": 1.0
+      },
+      "V": {
+        "true": 94,
+        "false": 5,
+        "precision": 0.9495
+      },
+      "W": {
+        "true": 42,
+        "false": 4,
+        "precision": 0.913
+      }
+    },
+    "filler_recall": 1.0,
+    "unlabelled_filler_hits": 0,
+    "stutter_runs": 38,
+    "stutter_recall": 0.5526,
+    "repeat_hit_tokens": {
+      "stutter": 33,
+      "other": 22
+    },
+    "repeat_precision": 0.6,
+    "owner_confirmed": false,
+    "misses": [
+      {
+        "sample": "3c7d024c-04",
+        "label": "emphatic",
+        "i": [
+          6,
+          7
+        ],
+        "listed": "repeat"
+      },
+      {
+        "sample": "3c7d024c-17",
+        "label": "not_filler",
+        "i": [
+          6
+        ],
+        "listed": "filler",
+        "borderline": true
+      },
+      {
+        "sample": "3c7d024c-26",
+        "label": "not_filler",
+        "i": [
+          6
+        ],
+        "listed": "filler",
+        "borderline": true
+      },
+      {
+        "sample": "860fef1a-07",
+        "label": "emphatic",
+        "i": [
+          6,
+          7
+        ],
+        "listed": "repeat"
+      },
+      {
+        "sample": "860fef1a-24",
+        "label": "not_filler",
+        "i": [
+          6
+        ],
+        "listed": "filler",
+        "borderline": true
+      },
+      {
+        "sample": "899226f8-08",
+        "label": "not_filler",
+        "i": [
+          6
+        ],
+        "listed": "filler",
+        "borderline": true
+      },
+      {
+        "sample": "899226f8-18",
+        "label": "emphatic",
+        "i": [
+          6,
+          7
+        ],
+        "listed": "repeat"
+      },
+      {
+        "sample": "990f3f37-03",
+        "label": "emphatic",
+        "i": [
+          6,
+          7
+        ],
+        "listed": "repeat"
+      },
+      {
+        "sample": "990f3f37-20",
+        "label": "not_filler",
+        "i": [
+          6
+        ],
+        "listed": "filler",
+        "borderline": true
+      },
+      {
+        "sample": "e7f0d37b-27",
+        "label": "emphatic",
+        "i": [
+          13,
+          14
+        ],
+        "listed": "repeat"
+      },
+      {
+        "sample": "e7f0d37b-30",
+        "label": "not_filler",
+        "i": [
+          6
+        ],
+        "listed": "filler",
+        "borderline": true
+      },
+      {
+        "sample": "e7f0d37b-37",
+        "label": "not_filler",
+        "i": [
+          6
+        ],
+        "listed": "filler",
+        "borderline": true
+      },
+      {
+        "sample": "e7f0d37b-59",
+        "label": "not_filler",
+        "i": [
+          6
+        ],
+        "listed": "filler",
+        "borderline": false
+      },
+      {
+        "sample": "860fef1a-v03",
+        "label": "not_filler",
+        "i": [
+          6
+        ],
+        "listed": "filler",
+        "borderline": true
+      },
+      {
+        "sample": "899226f8-v05",
+        "label": "not_filler",
+        "i": [
+          6
+        ],
+        "listed": "filler",
+        "borderline": true
+      },
+      {
+        "sample": "899226f8-v16",
+        "label": "not_filler",
+        "i": [
+          6
+        ],
+        "listed": "filler",
+        "borderline": true
+      },
+      {
+        "sample": "e7f0d37b-v49",
+        "label": "not_filler",
+        "i": [
+          6
+        ],
+        "listed": "filler",
+        "borderline": true
+      },
+      {
+        "sample": "e7f0d37b-v92",
+        "label": "not_filler",
+        "i": [
+          6
+        ],
+        "listed": "filler",
+        "borderline": true
+      }
+    ]
+  },
+  "synthetic": {
+    "gate": "QG-CLEAN (real clip): cut edges, G-CLICK and G-SYNC after applying items",
+    "job": "d0ea7856-ad51-5f92-a229-16c8534fb495",
+    "clip_id": "clip_7ae904c09556ca7a9f9c1b95",
+    "engine_of_seed": "edit-v2/1",
+    "fps": [
+      30000,
+      1001
+    ],
+    "layout": "fit_blur",
+    "listing": {
+      "filler": 2,
+      "repeat": 1,
+      "gap_silent": 3,
+      "gap_voiced": 1
+    },
+    "open_in_clip": {
+      "filler": 2,
+      "repeat": 1,
+      "gap_silent": 3
+    },
+    "body_widened_by_trims": {
+      "trims": 79,
+      "seed_body_sf": [
+        1958,
+        3048
+      ],
+      "edited_body_sf": [
+        174,
+        4822
+      ]
+    },
+    "items_applied": 6,
+    "items_by_kind": {
+      "gap_silent": 3,
+      "filler": 2,
+      "repeat": 1
+    },
+    "items_skipped": [],
+    "items_wanted": 20,
+    "one_undo_step": "ApplyCleanup (one command)",
+    "saved_revision": 1,
+    "save_warnings": [],
+    "removals": 6,
+    "output_frames": 4504,
+    "render_s": 69.7,
+    "g1_g2": [
+      {
+        "gate": "G1",
+        "pass": true,
+        "problems": []
+      },
+      {
+        "gate": "G2",
+        "pass": true,
+        "problems": []
+      }
+    ],
+    "verify_warnings": [
+      {
+        "code": "unsafe_zone",
+        "path": "/captions/overrides/y_e5"
+      }
+    ],
+    "cut_edges": {
+      "check": "cut edges inside the word gap (or tight); RMS ±10 ms ≤ −35 dBFS unless tight",
+      "edges": 12,
+      "tight": 0,
+      "inside_gap": 12,
+      "rms_max_dbfs_untight": -200.0,
+      "failures": [],
+      "pass": true,
+      "per_edge": [
+        {
+          "item": "cl_1",
+          "kind": "gap_silent",
+          "edge": "in",
+          "sf": 1477,
+          "ms": 49282.57,
+          "gap_ms": [
+            49166,
+            50666
+          ],
+          "inside_gap": true,
+          "tight": false,
+          "rms_dbfs": -200.0,
+          "pass": true
+        },
+        {
+          "item": "cl_1",
+          "kind": "gap_silent",
+          "edge": "out",
+          "sf": 1515,
+          "ms": 50550.5,
+          "gap_ms": [
+            49166,
+            50666
+          ],
+          "inside_gap": true,
+          "tight": false,
+          "rms_dbfs": -200.0,
+          "pass": true
+        },
+        {
+          "item": "cl_2",
+          "kind": "filler",
+          "edge": "in",
+          "sf": 1955,
+          "ms": 65231.83,
+          "gap_ms": [
+            64942,
+            65502
+          ],
+          "inside_gap": true,
+          "tight": false,
+          "rms_dbfs": -200.0,
+          "pass": true
+        },
+        {
+          "item": "cl_2",
+          "kind": "filler",
+          "edge": "out",
+          "sf": 1971,
+          "ms": 65765.7,
+          "gap_ms": [
+            65718,
+            65828
+          ],
+          "inside_gap": true,
+          "tight": false,
+          "rms_dbfs": -200.0,
+          "pass": true
+        },
+        {
+          "item": "cl_3",
+          "kind": "repeat",
+          "edge": "in",
+          "sf": 1983,
+          "ms": 66166.1,
+          "gap_ms": [
+            66120,
+            66210
+          ],
+          "inside_gap": true,
+          "tight": false,
+          "rms_dbfs": -200.0,
+          "pass": true
+        },
+        {
+          "item": "cl_3",
+          "kind": "repeat",
+          "edge": "out",
+          "sf": 1994,
+          "ms": 66533.13,
+          "gap_ms": [
+            66464,
+            66594
+          ],
+          "inside_gap": true,
+          "tight": false,
+          "rms_dbfs": -200.0,
+          "pass": true
+        },
+        {
+          "item": "cl_4",
+          "kind": "filler",
+          "edge": "in",
+          "sf": 2059,
+          "ms": 68701.97,
+          "gap_ms": [
+            68492,
+            68912
+          ],
+          "inside_gap": true,
+          "tight": false,
+          "rms_dbfs": -200.0,
+          "pass": true
+        },
+        {
+          "item": "cl_4",
+          "kind": "filler",
+          "edge": "out",
+          "sf": 2074,
+          "ms": 69202.47,
+          "gap_ms": [
+            69166,
+            69256
+          ],
+          "inside_gap": true,
+          "tight": false,
+          "rms_dbfs": -200.0,
+          "pass": true
+        },
+        {
+          "item": "cl_6",
+          "kind": "gap_silent",
+          "edge": "in",
+          "sf": 3560,
+          "ms": 118785.33,
+          "gap_ms": [
+            118676,
+            120076
+          ],
+          "inside_gap": true,
+          "tight": false,
+          "rms_dbfs": -200.0,
+          "pass": true
+        },
+        {
+          "item": "cl_6",
+          "kind": "gap_silent",
+          "edge": "out",
+          "sf": 3595,
+          "ms": 119953.17,
+          "gap_ms": [
+            118676,
+            120076
+          ],
+          "inside_gap": true,
+          "tight": false,
+          "rms_dbfs": -200.0,
+          "pass": true
+        },
+        {
+          "item": "cl_7",
+          "kind": "gap_silent",
+          "edge": "in",
+          "sf": 4562,
+          "ms": 152218.73,
+          "gap_ms": [
+            152116,
+            153316
+          ],
+          "inside_gap": true,
+          "tight": false,
+          "rms_dbfs": -200.0,
+          "pass": true
+        },
+        {
+          "item": "cl_7",
+          "kind": "gap_silent",
+          "edge": "out",
+          "sf": 4591,
+          "ms": 153186.37,
+          "gap_ms": [
+            152116,
+            153316
+          ],
+          "inside_gap": true,
+          "tight": false,
+          "rms_dbfs": -200.0,
+          "pass": true
+        }
+      ]
+    },
+    "g_click": {
+      "gate": "G-CLICK",
+      "threshold_dbfs": -40.0,
+      "joins": 6,
+      "max_step_dbfs": -200.0,
+      "steps_dbfs": [
+        -200.0,
+        -200.0,
+        -200.0,
+        -200.0,
+        -200.0,
+        -200.0
+      ],
+      "samples": 7213606,
+      "plan_samples": 7213606,
+      "pass": true
+    },
+    "g_sync": {
+      "gate": "G-SYNC",
+      "video_frames": 4504,
+      "audio_samples": 7214080,
+      "av_end_difference_ms": 9.867,
+      "one_frame_ms": 33.367,
+      "av_pass": true,
+      "caption_onsets_checked": 12,
+      "caption_onsets": [
+        {
+          "f0": 2,
+          "text": 4,
+          "differing_px_before": 0,
+          "differing_px_at_onset": 23441,
+          "pass": true
+        },
+        {
+          "f0": 318,
+          "text": 4,
+          "differing_px_before": 0,
+          "differing_px_at_onset": 21786,
+          "pass": true
+        },
+        {
+          "f0": 669,
+          "text": 4,
+          "differing_px_before": 0,
+          "differing_px_at_onset": 20729,
+          "pass": true
+        },
+        {
+          "f0": 995,
+          "text": 4,
+          "differing_px_before": 0,
+          "differing_px_at_onset": 39753,
+          "pass": true
+        },
+        {
+          "f0": 1362,
+          "text": 4,
+          "differing_px_before": 0,
+          "differing_px_at_onset": 20530,
+          "pass": true
+        },
+        {
+          "f0": 1745,
+          "text": 4,
+          "differing_px_before": 0,
+          "differing_px_at_onset": 26138,
+          "pass": true
+        },
+        {
+          "f0": 2040,
+          "text": 4,
+          "differing_px_before": 0,
+          "differing_px_at_onset": 22798,
+          "pass": true
+        },
+        {
+          "f0": 2444,
+          "text": 2,
+          "differing_px_before": 0,
+          "differing_px_at_onset": 12198,
+          "pass": true
+        },
+        {
+          "f0": 2800,
+          "text": 4,
+          "differing_px_before": 0,
+          "differing_px_at_onset": 32693,
+          "pass": true
+        },
+        {
+          "f0": 3168,
+          "text": 3,
+          "differing_px_before": 0,
+          "differing_px_at_onset": 12833,
+          "pass": true
+        },
+        {
+          "f0": 3581,
+          "text": 2,
+          "differing_px_before": 0,
+          "differing_px_at_onset": 15774,
+          "pass": true
+        },
+        {
+          "f0": 3903,
+          "text": 4,
+          "differing_px_before": 0,
+          "differing_px_at_onset": 24051,
+          "pass": true
+        }
+      ],
+      "caption_pass": true,
+      "pass": true
+    },
+    "pass": true,
+    "toolchain": {
+      "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+      "python": "3.11.2",
+      "machine": "x86_64",
+      "cpus": 4,
+      "loadavg": [
+        2.46,
+        1.6,
+        0.7
+      ]
+    }
+  },
+  "verdict": {
+    "particle_false_positives": "pass (0)",
+    "reduplication_false_positives": "pass (0)",
+    "filler_precision": "0.933 on the agent labels (>= 0.9); pre-check stays off until the owner confirms the labels",
+    "cut_edges": "pass (12/12 inside the gap, 0 tight)",
+    "g_click": "pass",
+    "g_sync": "pass (A/V end 9.9 ms, 12 caption onsets)",
+    "real_clips": "not on GitHub: measured locally in the same toolchain (see T3.5-QG-CLEAN.json real_clips_toolchain_of_record)"
+  }
+}
