@@ -90,10 +90,8 @@ def _next(document: dict, etag: str, hook: str) -> dict:
     nxt["parent_sha256"] = etag
     nxt["audit"]["editor"] = "editor-v3/1.0.0"
     nxt["audit"]["last_command"] = "SetHookText"
-    hook_items = [item for track in nxt["tracks"] if track["kind"] == "text"
-                  for item in track["items"] if item.get("payload", {}).get("role") == "hook"]
-    target = hook_items[0] if hook_items else nxt["tracks"][0]["items"][0]
-    target["payload"]["text"] = hook
+    (track,) = [track for track in nxt["tracks"] if track["kind"] == "hook"]
+    track["items"][0]["payload"]["text"] = hook
     return nxt
 
 
