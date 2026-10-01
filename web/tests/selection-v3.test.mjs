@@ -35,7 +35,6 @@ import {
   llmStatusView,
   scoreRows,
   selectionNotices,
-  selectionSourceLabel,
   tenPointScore,
 } from "../lib/selection-v3-view.mjs";
 import {
@@ -576,14 +575,10 @@ test("legacy jobs serialize exactly as before Selection V3", () => {
 
 // --- View helpers --------------------------------------------------------------
 
-test("view helpers label archetypes, sources and scores in Indonesian", () => {
+test("view helpers label archetypes and scores in Indonesian", () => {
   assert.equal(archetypeLabel("relatable_pain"), "Masalah yang relate");
   assert.equal(archetypeLabel("brand_new_code"), "Lainnya");
   assert.equal(archetypeLabel(null), null);
-  assert.equal(selectionSourceLabel("llm"), "AI/LLM");
-  assert.equal(selectionSourceLabel("heuristic"), "Heuristik");
-  assert.equal(selectionSourceLabel("v1"), "V1");
-  assert.equal(selectionSourceLabel("x"), null);
   assert.equal(tenPointScore(13), null);
   assert.equal(tenPointScore(8.4), 8.4);
   assert.deepEqual(scoreRows({ hook: 9, payoff: 11, emotion: 6 }).map((row) => [row.label, row.percent]), [["Hook", 90], ["Emosi", 60]]);

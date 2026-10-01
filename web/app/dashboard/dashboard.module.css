@@ -193,7 +193,7 @@ legend.sectionTitle + *, legend.groupTitle + * { clear: both; }
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--text) 45%, transparent), transparent);
+  background: linear-gradient(90deg, transparent, var(--sheen), transparent);
   transform: translateX(-100%);
   animation: progress-sheen 1.8s var(--ease-in-out) infinite;
 }

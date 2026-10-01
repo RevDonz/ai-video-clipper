@@ -36,6 +36,7 @@ tepi kontrol dan cincin fokus 3:1.
 | `--warning` | Peringatan | `#f0c95a` | 12.55 bg, 9.74 surface-3, 9.96 warning-bg |
 | `--warning-bg` | Latar pesan peringatan | `#282210` | text 14.50, muted 6.44 |
 | `--warning-border` | Tepi pesan peringatan (hiasan) | `#6d5b22` | 2.39 di warning-bg |
+| `--sheen` | Kilau yang lewat di isi bar progres (hiasan) | `#ffffff73` | tanpa teks |
 
 Info dan fokus memakai biru yang sama: `#3f5efb` lama hanya 4.00 di latar gelap, jadi dinaikkan.
 Merah `#e44e3f` lama menjadi `#ff8b7d` supaya tetap terbaca di latar merah gelap.
