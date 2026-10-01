@@ -1,0 +1,78 @@
+{
+  "browser": "Chrome for Testing 147.0.7727.15",
+  "cellsReadyBeforePlan": 0,
+  "executable": "chromium-1217",
+  "firstCellAfterPrepareMs": 850,
+  "firstMs": {
+    "max": 1039,
+    "p50": 1009,
+    "p95": 1039
+  },
+  "firstVisitColdToFrameMs": {
+    "clips": 5,
+    "max": 2437,
+    "p50": 1722,
+    "p95": 2437
+  },
+  "firstVisitColdToReadyMs": {
+    "p50": 991,
+    "p95": 1007
+  },
+  "gate": "PF-OPEN (real stack)",
+  "limits": {
+    "cellMs": 2000,
+    "firstMs": 3000,
+    "repeatMs": 2000
+  },
+  "load": [
+    4.5,
+    3.5,
+    5.3
+  ],
+  "pass": true,
+  "prepareMs": 73,
+  "repeatFrameOnStageMs": {
+    "p50": 917,
+    "p95": 941
+  },
+  "repeatMs": {
+    "max": 932,
+    "p50": 909,
+    "p95": 932
+  },
+  "runs": 10,
+  "schema": "potongin.gate/1",
+  "second_run": {
+    "firstCellAfterPrepareMs": 879,
+    "firstMs": {
+      "max": 1080,
+      "p50": 1008,
+      "p95": 1080
+    },
+    "firstVisitColdToFrameMs": {
+      "clips": 1,
+      "max": 2485,
+      "p50": 2485,
+      "p95": 2485
+    },
+    "job": "a fresh copy of e7f0d37b (3 clips, never prepared; 1 cold clip)",
+    "load": [
+      3.3,
+      3.2,
+      5.3
+    ],
+    "pass": true,
+    "repeatMs": {
+      "max": 962,
+      "p50": 939,
+      "p95": 962
+    }
+  },
+  "t43": {
+    "app": "ai-video-clipper:editor-w3-t31-r2 (production image: FFmpeg 5.1.9, libass 0.17.1, Python 3.11.2, node 20) with this branch's src mounted over /app/src, the branch's standalone app, POTONGIN_EDITOR_V3=on, app --cpus 6",
+    "job": "a copy of the owner's VFR job 990f3f37 (8 clips, 5 never opened: the cold first visits); the original only read",
+    "where": "the K15 reference PC (AMD Ryzen 7 5700G, 8 cores / 16 threads, 31 GiB), shared with other agents' work while measuring (load averages per job in the rounds); web/e2e/editor-flow.spec.mjs (entry + PF-OPEN)"
+  },
+  "task": "T4.3",
+  "viewport": "1366x768"
+}

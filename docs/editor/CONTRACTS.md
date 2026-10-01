@@ -1478,3 +1478,50 @@ Everything here is additive: no frozen signature, mode, DTO field or route chang
   revision})` → `{href: "…?download=1&name=klip-NN-revisi-R", filename}`; the export dialog
   (`ExportDialog` takes `clipIndex` from the listing), its earlier exports and the project page's
   latest export use it.
+
+## 5.21 W4 T4.3 additions (performance and retention, 2026-10-02)
+
+Additive; no frozen signature changes. Every FFmpeg argument and graph is unchanged, so the
+goldens, the render keys and the delivered bytes stay as they were.
+
+- **Auto render, several clips at once (PF-PIPELINE).** `render_edit.render_slots(budget=None)`
+  = `ceil(budget / FFMPEG_THREADS)` clamped to `1…RENDER_SLOTS_MAX` (4); `budget` defaults to
+  `face_window.cpu_budget()` (affinity capped by a cgroup CPU quota): 16 CPUs → 4, a 6-CPU
+  quota → 2, 4 CPUs → 1. `AutoRenderer(…, slots=None)` adds `schedule(items)` (every
+  `(rank, output)` starts in the background, the longest clip first by window plus cold open;
+  `order` lists the ranks as handed out), `render(rank, output)` (returns or raises the scheduled
+  clip's result; an unscheduled clip renders synchronously as before) and `close()` (cancels what
+  nobody took: FFmpeg is killed, nothing of it is published; idempotent, never raises). A heavy
+  slot is held by each final encode and each camera plan; workers = slots + 1, so seeds and
+  verification overlap the encodes. `render_document(…, encode_slot=None)`: an optional context
+  manager held around the final encode only. The pipeline calls `schedule` before its loop and
+  `close` in a `finally`; a renderer that cannot schedule renders one clip at a time
+  (`potongin: edit-v2 schedule: …` on stderr).
+- **Verify.** `verify_output` runs its three readers (the `-count_frames` probe, the video
+  packet list of `v:0`, the decode of `a:0`) at the same time, each through its own description
+  of the descriptor; the gates and their values are unchanged.
+- **OpenCV threads.** `face_window.one_opencv_thread(cv2)`: the first of several overlapping
+  windows sets OpenCV's pool to one thread, the last one restores the saved count.
+- **Janitor CLI** (`python -m ai_clipper.edit_v2.janitor`, in `PYTHON_CLI_MODULES`): envelope
+  `{"op": "run", "nowMs"?, "capBytes"?, "budgetMs"?, "after"?}` (integers; `after` a job UUID;
+  ≤ 4 KiB; any other key or op is exit 2), `JOBS_ROOT` from the environment, stdout
+  `{jobs, receipts, archives, suggestions, cache_files, cache_bytes, assets, complete, next}`.
+  Policies (module docstring): receipts as `store.prune_receipts` (200 committed + pending),
+  archives = revision 1 + render-referenced (`doc_relative`) + newest 50 (skipped while an
+  export of the job is queued, claimed or rendering), suggestions and leftover temporaries,
+  preview caches unused for 30 days, then the job cap (default 1 GiB) by least recent use
+  (`max(mtime, atime)`, never a file used in the last 10 min), temporaries and `.cancel`
+  markers older than 10 min, assets unreferenced for 30 days (first seen in
+  `analysis/assets/.janitor.json` {schema `potongin.janitor/1`, `orphans: {sha: ms}`}; a
+  document that cannot be read keeps every asset). Jobs being deleted are skipped.
+- **Primary worker.** `createJanitorTick` / `createWorkerActivity` in
+  `web/scripts/primary-worker.mjs`: slot 0 runs the janitor after the deletion purge when no job
+  is active or being claimed, at most every `DEFAULT_JANITOR_INTERVAL_MS` (6 h) and at once on
+  start, with `JANITOR_BUDGET_MS` (60 s); an unfinished run continues from its cursor at the next
+  idle poll; no slot claims while it runs; a failure is logged as "Editor janitor failed" only.
+  `capBytes` comes from `POTONGIN_PREVIEW_CACHE_BYTES` when it is a positive integer. The health
+  snapshot (`primaryHealthSnapshot`) counts a running janitor as one active claim (and adds
+  `janitor: true`), so `check-primary-worker-health.mjs` does not call the busy loop stale; the
+  poll time is refreshed when the run ends. A clip never edited (no `edit/`) is not locked.
+- **Preview lane.** A plan answer that finds a cell, the mix or the derived logo missing on disk
+  forgets its "built" memory, so the lane queues it again at once (W3 Open 24).

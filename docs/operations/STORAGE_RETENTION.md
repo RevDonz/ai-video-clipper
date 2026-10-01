@@ -35,6 +35,23 @@ The queue protocol may clean up only protocol metadata that is not a job or arti
 
 That narrow protocol cleanup is not a retention mechanism. Once bytes have been written to a UUID job root, the root and partial data must be preserved; protocol cleanup must never recurse into it.
 
+## The editor's own retention (plan §4.1, §4.4, K11)
+
+The clip editor keeps editing state inside a job root, and the editor plan bounds it; this is the
+only automated removal inside a job root, and it never removes a job, its source, its analysis
+artifacts (words, peaks, camera plans, seeds), its auto renders or an editor export:
+
+- the preview lane holds each job's regenerable preview files (`analysis/clips/*/preview/**`)
+  under a cap (1 GiB by default, `POTONGIN_PREVIEW_CACHE_BYTES`) by evicting the least recently
+  used file;
+- the editor janitor (`python -m ai_clipper.edit_v2.janitor`), run by the primary worker between
+  jobs (never while a job is active), prunes per clip the idempotency receipts beyond the newest
+  200 committed ones, the archived revisions other than revision 1, those a render request names
+  and the newest 50, AI hook suggestions after 30 days and preview files unused for 30 days; it
+  holds the same cache cap, and it deletes an uploaded logo or music file that no document and
+  no kept revision has used for 30 days. It skips a job being deleted and leaves archives and
+  assets alone while an export of the job is in flight.
+
 ## Capacity planning
 
 Operators must monitor both application-owned allocated bytes and filesystem free space. `JOBS_STORAGE_ACTIVE_RESERVE_BYTES` is a future-growth allowance for each active job and must conservatively cover expected YouTube downloads, upload/input growth, attempt work, analysis artifacts, and rendered outputs. Sparse files are charged by allocated blocks, while all filesystem objects are inspected by the bounded scanner. On Linux, the jobs root must remain on one mount identity: nested mounts, including bind mounts backed by the same filesystem/device, cause admission to fail closed. Mount metadata must remain readable and consistent throughout the descriptor-anchored scan.
