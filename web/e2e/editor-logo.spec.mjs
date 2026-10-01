@@ -117,6 +117,8 @@ const FILES = {
   rejected: { name: "rusak.png", mimeType: "image/png", buffer: Buffer.from("not really a png") },
   network: { name: "putus.png", mimeType: "image/png", buffer: badgePng(64, 64, 2) },
   slow: { name: "lambat.png", mimeType: "image/png", buffer: badgePng(64, 64, 1) },
+  // 20×4096 (within §9.2's 4096 px): even at the smallest width (4%) it is taller than 1280 px.
+  pole: { name: "tiang.png", mimeType: "image/png", buffer: badgePng(8, 64, 2), size: [20, 4096] },
 };
 const shaOf = (file) => fakeSha256(`asset:logo:${file.name}:${file.buffer.length}`);
 
@@ -497,6 +499,22 @@ test.describe("logo panel and gizmo (harness)", () => {
     await expect(alert).toHaveCount(0);
     const uploads = await page.evaluate(() => window.__harness.uploads.map((entry) => entry.name));
     expect(uploads).toEqual(["animasi.gif", "besar.png", "rusak.png", "putus.png", "lambat.png", "logo-kotak.png"]);
+    expect(errors).toEqual([]);
+  });
+
+  test("a logo too tall for the frame even at the smallest size: SetLogo's item_out_of_frame has its own message", async ({ page }) => {
+    const errors = await openHarness(page);
+    const alert = panel(page).locator("[data-logo-error]");
+    await uploadFile(page, FILES.pole);
+    await expect(alert).toHaveText("Logo ini terlalu tinggi untuk video. Pakai gambar yang lebih lebar.");
+    await expect(logoBoxEl(page)).toHaveCount(0);
+    const state = await snapshot(page);
+    expect(state.logo).toBeNull();
+    expect(state.commands).toEqual([]);
+    expect(state.rejected).toEqual([{ type: "SetLogo", code: "item_out_of_frame" }]);
+    // A wider file still works and clears the message.
+    await addLogo(page);
+    await expect(alert).toHaveCount(0);
     expect(errors).toEqual([]);
   });
 
