@@ -1125,16 +1125,18 @@ test("Kemampuan 12, urungkan, simpan otomatis, konflik: 200 steps, merged drags,
   await openTab(page, "Teks");
   const upper = panelOf(page, "text").getByRole("checkbox", { name: "Huruf besar semua" });
   // 205 single steps: undo goes back 200 of them, never further.
+  const seedCase = (await inspect(page)).doc.captions.overrides.case;
+  const flipped = seedCase === "upper" ? "asis" : "upper";
   for (let i = 0; i < UNDO_DEPTH + 5; i += 1) await upper.click();
   await waitSaved(page, 60_000);
   await blur(page);
   for (let i = 0; i < UNDO_DEPTH; i += 1) await page.keyboard.press("Control+z");
   const undone = await inspect(page);
   expect(undone.canUndo).toBe(false);
-  // 205 toggles from "asis": after 5 the case is "upper" (odd), which is where undo stops.
-  expect(undone.doc.captions.overrides.case).toBe("upper");
+  // Undo stops after the 5th toggle (odd: the case is flipped), the oldest steps beyond 200.
+  expect(undone.doc.captions.overrides.case).toBe(flipped);
   await page.keyboard.press("Control+Shift+z");
-  expect((await inspect(page)).doc.captions.overrides.case).toBe("asis");
+  expect((await inspect(page)).doc.captions.overrides.case).toBe(seedCase);
   await waitSaved(page);
   await resetToSeed(page);
 
