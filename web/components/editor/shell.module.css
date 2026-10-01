@@ -850,6 +850,13 @@
   background: var(--danger-bg);
 }
 
+/* A note informs (the caption at the auto clip's spot, K5): the calm info tone, not the warning one. */
+.checkItem_info {
+  border-color: var(--info-border);
+  background: var(--info-bg);
+  color: var(--text);
+}
+
 .checkItem label {
   display: flex;
   flex: 1 1 auto;
@@ -915,6 +922,16 @@
   border-radius: var(--ed-radius-md);
   background: var(--warning-bg);
   color: var(--warning);
+  font-size: var(--ed-font-size-sm);
+}
+
+.infoNote {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--info-border);
+  border-radius: var(--ed-radius-md);
+  background: var(--info-bg);
+  color: var(--text);
   font-size: var(--ed-font-size-sm);
 }
 

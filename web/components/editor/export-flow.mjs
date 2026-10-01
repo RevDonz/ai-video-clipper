@@ -76,7 +76,8 @@ export function earlierExports({ history = [], current = null, latest = null } =
 /** Export may start only when every warning is acknowledged and nothing blocks it. */
 export function canStartExport(checks, acknowledged) {
   if (checks.some((check) => check.severity === "error")) return false;
-  return checks.every((check) => acknowledged.has(check.key));
+  // A note (severity "info": the caption at the auto clip's spot, K5) informs; it needs no tick.
+  return checks.every((check) => check.severity === "info" || acknowledged.has(check.key));
 }
 
 function errorCodeOf(error) {

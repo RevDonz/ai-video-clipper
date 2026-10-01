@@ -12,6 +12,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { createApiClient } from "../../../lib/editor/api-client.mjs";
 import { CAPTION_SWATCHES } from "../../../lib/editor/content-colours.mjs";
+import { captionAtSeedSpot } from "../shell-model.mjs";
 import HookSuggestions from "../suggestions/index.jsx";
 import { runCommands } from "../transcript/actions.mjs";
 import boldThumb from "./pack-thumbs/bold.png";
@@ -131,6 +132,8 @@ function TextPanelBody({ state, dispatch, api }) {
   const unsafe = (plan?.warnings ?? []).filter((warning) => warning.code === "unsafe_zone");
   const unsafeCaption = unsafe.some((warning) => (warning.path ? warning.path.startsWith("/captions") : !warning.ref));
   const unsafeHook = hook !== null && unsafe.some((warning) => (warning.path ? warning.path.startsWith("/tracks") : warning.ref === hook.id));
+  // At the auto clip's spot (K5) the zone is a note, not a warning: the owner kept that spot.
+  const captionNote = unsafeCaption && captionAtSeedSpot(doc, state.seed);
   const hookEnableText = draftText || seedHook?.payload.text || "";
   // glyph_unsupported:U+XXXX on the hook (plan §3.7): characters the hook font lacks.
   const missingGlyphs = hook === null ? [] : (plan?.warnings ?? [])
@@ -170,7 +173,12 @@ function TextPanelBody({ state, dispatch, api }) {
           <input type="range" className={styles.range} min={20000} max={92000} step={500} value={overrides.y_e5}
             disabled={readOnly} onChange={(event) => run("SetCaptionOverride", { key: "y_e5", value: Number(event.target.value) }, "cap:y_e5")} />
         </label>
-        {unsafeCaption ? <p className={styles.warning}>Caption berada di area tombol TikTok/Reels; geser ke atas bila tertutup.</p> : null}
+        {unsafeCaption && captionNote ? (
+          <p className={styles.note} data-caption-zone="note">Posisi bawaan, dekat tombol TikTok. Kalau tertutup, geser caption ke atas.</p>
+        ) : null}
+        {unsafeCaption && !captionNote ? (
+          <p className={styles.warning} data-caption-zone="warning">Caption masuk area tombol TikTok/Reels; geser ke atas bila tertutup.</p>
+        ) : null}
         <label className={styles.field}>
           <span>Ukuran caption</span>
           <span className={styles.value}>{Math.round(overrides.size_pm / 10)}%</span>
@@ -216,13 +224,13 @@ function TextPanelBody({ state, dispatch, api }) {
         <HookSuggestions state={state} dispatch={dispatch} api={editorApi} />
         <label className={styles.field}>
           <span>Durasi hook</span>
-          <span className={styles.value}>{hook ? `${SECONDS.format((hook.dur_f * fps[1]) / fps[0])} dtk` : "—"}</span>
+          <span className={styles.value}>{hook ? `${SECONDS.format((hook.dur_f * fps[1]) / fps[0])} dtk` : "Mati"}</span>
           <input type="range" className={styles.range} min={15} max={maxHookFrames} step={1} value={hook?.dur_f ?? 15}
             disabled={readOnly || hook === null} onChange={(event) => run("SetHookDuration", { dur_f: Number(event.target.value) }, "hook:dur_f")} />
         </label>
         <label className={styles.field}>
           <span>Posisi hook</span>
-          <span className={styles.value}>{hook ? `${Math.round(hook.transform.y_e5 / 1000)}% dari atas` : "—"}</span>
+          <span className={styles.value}>{hook ? `${Math.round(hook.transform.y_e5 / 1000)}% dari atas` : "Mati"}</span>
           <input type="range" className={styles.range} min={6000} max={40000} step={500} value={hook?.transform.y_e5 ?? 13000}
             disabled={readOnly || hook === null} onChange={(event) => run("SetHookY", { y_e5: Number(event.target.value) }, "hook:y_e5")} />
         </label>
