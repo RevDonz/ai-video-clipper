@@ -27,7 +27,8 @@ import ReadOnlyBanner from "./ReadOnlyBanner.jsx";
 import { createEditorRuntime, createFrameBus, createPlayerFacade } from "./runtime.mjs";
 import styles from "./shell.module.css";
 import {
-  badgeView, checksView, conflictParts, exportMatchesSeed, exportRevision, liveEntries, messageFor, noticesView, rejectionText,
+  actionableChecks, badgeView, checksView, conflictParts, exportMatchesSeed, exportRevision, liveEntries, messageFor, noticesView,
+  rejectionText,
 } from "./shell-model.mjs";
 import Stage from "./Stage.jsx";
 import StageControls from "./StageControls.jsx";
@@ -356,7 +357,8 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
   }, []);
 
   const badge = badgeView({ status, plan, storePending: Array.isArray(state.pending) ? state.pending : [], player: playerState });
-  const checks = useMemo(() => checksView({ warnings: state.warnings, plan }), [state.warnings, plan]);
+  const checks = useMemo(() => checksView({ warnings: state.warnings, plan, doc: state.doc, seed: state.seed }),
+    [state.warnings, plan, state.doc, state.seed]);
   const notices = noticesView({ doc: state.doc, playerMode: playerState?.mode, otherTab });
   const unchanged = exportMatchesSeed({ plan, doc: state.doc, seed: state.seed });
   const earlier = useMemo(() => earlierExports({ history: exportState?.history ?? [], current: exportState?.render ?? null,
@@ -410,7 +412,7 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
         onReset={() => safeDispatch("ResetToSeed", {})}
         resetDisabled={status !== "ready"}
         onRetrySave={() => { Promise.resolve().then(() => store.flush()).catch(() => {}); }}
-        checksCount={checks.length}
+        checksCount={actionableChecks(checks).length}
         checksOpen={checksOpen}
         checksButtonRef={checksButtonRef}
         onToggleChecks={() => (checksOpen ? closeChecks() : setChecksOpen(true))}
@@ -441,6 +443,8 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
           ))}
         </div>
         <div className={styles.tabPanel} role="tabpanel" id="editor-panel" aria-labelledby={`editor-tab-${panel.id}`}>
+          {/* The panel's name as the level-2 heading its sections (h3) sit under (QG-A11Y heading order). */}
+          <h2 className={styles.visuallyHidden}>{panel.label}</h2>
           <Suspense fallback={<p className={styles.muted}>Membuka panel…</p>}>
             <Panel
               state={state}
