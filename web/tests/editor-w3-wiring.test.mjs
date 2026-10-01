@@ -18,13 +18,13 @@ function service(source, name) {
   return next < 0 ? source.slice(start) : source.slice(start, start + 1 + next);
 }
 
-test("compose passes the editor flags to the app with the release defaults: editor, uploads and LLM on, engine edit-v2", async () => {
+test("compose passes the editor flags to the app with the release defaults: editor, uploads and LLM on, engine legacy until the owner decides", async () => {
   const app = service(await compose(), "app");
   assert.match(app, /^ {6}POTONGIN_EDITOR_V3: \$\{POTONGIN_EDITOR_V3:-on\}$/m);
   assert.match(app, /^ {6}POTONGIN_EDITOR_UPLOADS: \$\{POTONGIN_EDITOR_UPLOADS:-on\}$/m);
   assert.match(app, /^ {6}POTONGIN_EDITOR_LLM: \$\{POTONGIN_EDITOR_LLM:-on\}$/m);
   assert.match(app, /^ {6}POTONGIN_LLM_EDITOR_MODELS: \$\{POTONGIN_LLM_EDITOR_MODELS:-\}$/m);
-  assert.match(app, /^ {6}POTONGIN_RENDER_ENGINE: \$\{POTONGIN_RENDER_ENGINE:-edit-v2\}$/m);
+  assert.match(app, /^ {6}POTONGIN_RENDER_ENGINE: \$\{POTONGIN_RENDER_ENGINE:-legacy\}$/m);
 });
 
 test("only the app serves the editor: the workers get no editor upload or AI flag, and the same engine", async () => {
@@ -32,9 +32,9 @@ test("only the app serves the editor: the workers get no editor upload or AI fla
   for (const name of ["primary-worker", "render-worker"]) {
     const worker = service(source, name);
     assert.doesNotMatch(worker, /POTONGIN_EDITOR_(?:UPLOADS|LLM)|POTONGIN_LLM_EDITOR_MODELS/, name);
-    assert.match(worker, /^ {6}POTONGIN_RENDER_ENGINE: \$\{POTONGIN_RENDER_ENGINE:-edit-v2\}$/m, name);
+    assert.match(worker, /^ {6}POTONGIN_RENDER_ENGINE: \$\{POTONGIN_RENDER_ENGINE:-legacy\}$/m, name);
   }
-  assert.doesNotMatch(source, /POTONGIN_RENDER_ENGINE:-legacy|POTONGIN_EDITOR_(?:V3|UPLOADS|LLM):-off/);
+  assert.doesNotMatch(source, /POTONGIN_RENDER_ENGINE:-edit-v2|POTONGIN_EDITOR_(?:V3|UPLOADS|LLM):-off/);
 });
 
 test(".env.example names every flag with its release default and how to switch it off", async () => {
@@ -43,7 +43,7 @@ test(".env.example names every flag with its release default and how to switch i
     ["POTONGIN_EDITOR_V3", "on", "off"],
     ["POTONGIN_EDITOR_UPLOADS", "on", "off"],
     ["POTONGIN_EDITOR_LLM", "on", "off"],
-    ["POTONGIN_RENDER_ENGINE", "edit-v2", "legacy"],
+    ["POTONGIN_RENDER_ENGINE", "legacy", "edit-v2"],
   ]) {
     assert.match(text, new RegExp(`^# ${name}=${value}$`, "m"), name);
     assert.match(text, new RegExp(`${name}=${off}\\b`), `${name} names its off value`);

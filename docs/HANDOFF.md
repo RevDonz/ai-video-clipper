@@ -29,9 +29,11 @@ Deploy terjadi otomatis lewat CI setiap ada merge ke `main`.
   label).
 - **Editor lama (kandidat V2) dipensiunkan**, termasuk backend-nya (W4). Job lama tetap bisa
   dilihat dan diunduh; baseline benchmark tetap jalan.
-- **Mesin render baru** untuk klip otomatis (`POTONGIN_RENDER_ENGINE=edit-v2`) menyala begitu
-  PF-PIPELINE masuk anggaran per tata letak di PC pemilik (sudah, W4). Perubahan tampilan dan file
-  yang lebih besar (encode kualitas tinggi) sudah disetujui.
+- **Mesin render baru** untuk klip otomatis (`POTONGIN_RENDER_ENGINE=edit-v2`): PF-PIPELINE sudah
+  masuk anggaran di PC pemilik (W4), tapi dengan kuota `cpus: 6` di produksi potong tengah dan
+  ikuti wajah ± 2× lebih lambat. Rilis tanpa pengawasan memakai `legacy` dulu; pemilik memutuskan
+  (naikkan kuota, terima, atau tetap `legacy`). Perubahan tampilan dan file yang lebih besar sudah
+  disetujui.
 - **Rilis setelah W4 dengan flag menyala bila gerbangnya lolos:** editor; unggahan setelah QG-SEC
   lengkap; saran AI setelah gerbang keras QG-AI otomatis (penilaian 30 klip oleh pemilik menyusul).
   Pra-centang kata pengisi di Rapikan tetap mati sampai pemilik mengonfirmasi labelnya.
@@ -64,7 +66,7 @@ dan operasional: `docs/editor/{CONTRACTS,GATES,PANDUAN-EDITOR,OPERASIONAL,UJI-PE
   pemblokir (penjaga deploy dan ekspor `cancelled`) dan enam temuan kecil; semuanya sudah ditangani
   di bagian "W4 verifier findings: fixes".
 - **Bawaan rilis di `compose.yaml`:** `POTONGIN_EDITOR_V3=on`, `POTONGIN_EDITOR_UPLOADS=on`,
-  `POTONGIN_EDITOR_LLM=on`, `POTONGIN_RENDER_ENGINE=edit-v2`. Cara mematikan satu flag di server:
+  `POTONGIN_EDITOR_LLM=on`, `POTONGIN_RENDER_ENGINE=legacy` (lihat di atas). Cara mengubah satu flag di server:
   `docs/editor/OPERASIONAL.md` §2 (baris di `.env`, lalu `docker compose up -d`, tanpa build).
 - Branch tugas `editor-w4-t4.1` … `editor-w4-t4.5` sudah masuk; tidak perlu dilanjutkan.
 

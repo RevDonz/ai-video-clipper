@@ -8,9 +8,9 @@ angka pengujian ada di `docs/editor/GATES.md`; cara menjalankan dan memeriksa se
 Saat rilis, `compose.yaml` menyalakan semuanya: editor (`POTONGIN_EDITOR_V3=on`), unggah logo dan
 musik (`POTONGIN_EDITOR_UPLOADS=on`, tinjauan keamanan lolos) dan saran hook yang ditulis AI
 (`POTONGIN_EDITOR_LLM=on`, gerbang keras saran AI lolos; penilaian 30 klip oleh pemilik menyusul).
-Klip otomatis dirender dengan cara yang sama dengan ekspor editor
-(`POTONGIN_RENDER_ENGINE=edit-v2`): tampilannya sedikit berubah dan filenya lebih besar karena
-kualitasnya lebih tinggi. Pra-centang kata pengisi di Rapikan masih mati sampai pemilik
+Klip otomatis masih dirender dengan cara lama (`POTONGIN_RENDER_ENGINE=legacy`) sampai pemilik
+memutuskan soal kuota CPU; dengan `edit-v2` klip otomatis dirender sama dengan ekspor editor,
+tampilannya sedikit berubah dan filenya lebih besar karena kualitasnya lebih tinggi. Pra-centang kata pengisi di Rapikan masih mati sampai pemilik
 mengonfirmasi labelnya. Daftar flag, syaratnya dan cara mematikannya: `docs/editor/OPERASIONAL.md`
 §2.
 
