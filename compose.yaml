@@ -36,13 +36,14 @@ services:
       AUTH_RATE_LIMIT_ATTEMPTS: ${AUTH_RATE_LIMIT_ATTEMPTS:-8}
       AUTH_RATE_LIMIT_WINDOW_MS: ${AUTH_RATE_LIMIT_WINDOW_MS:-900000}
       AUTH_TRUSTED_CLIENT_IP_HEADER: ${AUTH_TRUSTED_CLIENT_IP_HEADER:-}
-      # Editor V3 flags (docs/plans/2026-09-24-editor-v3-esensial.md §11.0). Off by default:
-      # the render engine stays legacy until the owner approves P-LOOK (K1), the editor and its
-      # uploads and AI suggestions stay hidden until their wave gates pass.
-      POTONGIN_RENDER_ENGINE: ${POTONGIN_RENDER_ENGINE:-legacy}
-      POTONGIN_EDITOR_V3: ${POTONGIN_EDITOR_V3:-off}
-      POTONGIN_EDITOR_UPLOADS: ${POTONGIN_EDITOR_UPLOADS:-off}
-      POTONGIN_EDITOR_LLM: ${POTONGIN_EDITOR_LLM:-off}
+      # Editor flags, release defaults (docs/editor/OPERASIONAL.md §2): the editor, its logo and
+      # music uploads (QG-SEC complete) and its free-LLM hook suggestions (QG-AI hard gates) are
+      # on, and the auto clips render with the editor's compiler (PF-PIPELINE within budget).
+      # Set any of them in .env to switch it off (off / legacy) without a rebuild.
+      POTONGIN_RENDER_ENGINE: ${POTONGIN_RENDER_ENGINE:-edit-v2}
+      POTONGIN_EDITOR_V3: ${POTONGIN_EDITOR_V3:-on}
+      POTONGIN_EDITOR_UPLOADS: ${POTONGIN_EDITOR_UPLOADS:-on}
+      POTONGIN_EDITOR_LLM: ${POTONGIN_EDITOR_LLM:-on}
       # Optional: the editor's hook suggestions use these free models first (provider/model,
       # comma-separated; K13). Blank = the saved Pengaturan chain.
       POTONGIN_LLM_EDITOR_MODELS: ${POTONGIN_LLM_EDITOR_MODELS:-}
@@ -148,8 +149,8 @@ services:
       PRIMARY_WORKER_HEALTH_PATH: /tmp/primary-worker-health.json
       PRIMARY_WORKER_HEALTH_MAX_AGE_MS: ${PRIMARY_WORKER_HEALTH_MAX_AGE_MS:-15000}
       POTONGIN_CAPTIONS_TIMEOUT_MS: ${POTONGIN_CAPTIONS_TIMEOUT_MS:-}
-      # Editor V3: which engine renders the auto clips (legacy until K1).
-      POTONGIN_RENDER_ENGINE: ${POTONGIN_RENDER_ENGINE:-legacy}
+      # Which engine renders the auto clips: edit-v2 (the editor's compiler) or legacy.
+      POTONGIN_RENDER_ENGINE: ${POTONGIN_RENDER_ENGINE:-edit-v2}
       # LLM settings saved on the Pengaturan page (docs/operations/LLM_PROVIDERS.md):
       # run-job.mjs opens the sealed keys with the same secret as the app and hands
       # them only to the engine process; yt-dlp never receives keys or secrets.
@@ -240,7 +241,7 @@ services:
     environment:
       JOBS_ROOT: /data/jobs
       RENDER_STORAGE_CLI: /app/scripts/render-storage-admission.mjs
-      POTONGIN_RENDER_ENGINE: ${POTONGIN_RENDER_ENGINE:-legacy}
+      POTONGIN_RENDER_ENGINE: ${POTONGIN_RENDER_ENGINE:-edit-v2}
       JOBS_STORAGE_QUOTA_BYTES: ${JOBS_STORAGE_QUOTA_BYTES:?required}
       JOBS_STORAGE_MIN_FREE_BYTES: ${JOBS_STORAGE_MIN_FREE_BYTES:?required}
       JOBS_STORAGE_ACTIVE_RESERVE_BYTES: ${JOBS_STORAGE_ACTIVE_RESERVE_BYTES:?required}
