@@ -268,6 +268,14 @@ def camera_plan_gate(jobs_root: Path, jobs: Sequence[str], runs: int = 2,
 # --- main ------------------------------------------------------------------------------------------
 
 
+def _size(value: str) -> tuple[int, int]:
+    width, _x, height = value.partition("x")
+    try:
+        return int(width), int(height)
+    except ValueError:
+        raise argparse.ArgumentTypeError("size must be WIDTHxHEIGHT") from None
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="T3.6 layout-switch and face-track gates")
     parser.add_argument("gate", choices=("camera-plan", "switch", "p-frame", "p-plate",
@@ -281,6 +289,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--media", choices=("synthetic", "real"), default="synthetic",
                         help="switch, pf-cells, p-plate: the barcode jobs of make_job.py (CI) or "
                         "the owner's real clips under --jobs-root (local)")
+    parser.add_argument("--perf-size", type=_size, default=SYNTHETIC_PERF_SIZE,
+                        help="switch, pf-cells with synthetic media: the barcode jobs' WIDTHxHEIGHT")
     parser.add_argument("--runs", type=int, default=2, help="camera-plan: timed plans per source")
     parser.add_argument("--no-compare", dest="compare", action="store_false",
                         help="camera-plan: skip today's detector (one plan per run, lighter)")
@@ -292,9 +302,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     else:
         if not args.base_url:
             parser.error("--base-url is required for the app gates")
-        gates = AppGates(args.base_url, args.jobs_root, args.work, media=args.media)
+        gates = AppGates(args.base_url, args.jobs_root, args.work, media=args.media,
+                         perf_size=args.perf_size)
         result = getattr(gates, args.gate.replace("-", "_"))()
         result["media"] = "real" if args.gate != "p-frame" and args.media == "real" else "synthetic"
+        if result["media"] == "synthetic" and args.gate in ("switch", "pf-cells"):
+            result["synthetic_size"] = list(args.perf_size)
     if args.note:
         result["note"] = args.note
     result["gate_wall_s"] = round(time.monotonic() - started, 1)
@@ -356,20 +369,23 @@ SWITCH_SYNTHETIC = (
     ("fps60", 2, "fill_center", 0.0),
     ("fps60", 3, "fill_center", 0.9),
     ("vfr", 1, "fill_center", 0.5),
-    ("vfr", 2, "fit_blur", 0.0),
+    ("vfr", 2, "fill_center", 0.9),
     # face-track after a switch (the camera plan is analysed first): reported, not gated
     ("main", 3, "camera", 0.5),
     ("fps25", 1, "camera", 0.0),
 )
 PF_CELLS_SYNTHETIC = (
     ("fps60", 1, "fit_blur"),
-    ("main", 2, "fit_blur"),
+    ("fps25", 1, "fit_blur"),
     ("vfr", 1, "fill_center"),
     ("fps60", 2, "fill_center"),
     ("main", 1, "camera"),
     ("fps25", 2, "camera"),
 )
 PF_CELLS_NOMINAL_S = 60.0  # the budget is for a ~60 s clip; shorter clips are projected to it
+# P-PLATE after a switch beyond the ruler clip (seeded fit-blur): fit-blur from a center-crop seed
+# (SSIM) and center-crop from a face-track seed (SSIM and crop x on the ruler)
+P_PLATE_SYNTHETIC = (("fps25", "fit_blur", False), ("fps60", "fill_center", True))
 
 
 def _cell_of(dto: Mapping[str, Any], playhead: int) -> int:
@@ -384,8 +400,9 @@ class AppGates:
     """The gates that go through the running app (see the module docstring)."""
 
     def __init__(self, base_url: str, jobs_root: Path, work: Path, *,
-                 media: str = "synthetic") -> None:
-        self.media = media
+                 media: str = "synthetic",
+                 perf_size: tuple[int, int] = SYNTHETIC_PERF_SIZE) -> None:
+        self.media, self.perf_size = media, perf_size
         self.lg = lane_gates()
         self.fi = frame_identity()
         self.app = self.lg.App(base_url, os.environ.get("E2E_USERNAME", ""),
@@ -465,7 +482,7 @@ class AppGates:
         if self.media == "real":
             return list(real)
         names = sorted({case[0] for case in synthetic})
-        jobs = self.synthetic(names, size=SYNTHETIC_PERF_SIZE)
+        jobs = self.synthetic(names, size=self.perf_size)
         return [(jobs[case[0]], *case[1:]) for case in synthetic]
 
     def synthetic(self, names: Sequence[str], size: tuple[int, int] = (640, 360)) -> dict:
@@ -627,10 +644,12 @@ class AppGates:
     # P-PLATE ----------------------------------------------------------------------------------
 
     def p_plate(self) -> dict[str, Any]:
-        jobs = self.synthetic(["main"])
+        jobs = self.synthetic(["main", *(name for name, _layout, _ruler in P_PLATE_SYNTHETIC)])
         ruler = self.clip(jobs["main"], 1)
         self._sweep_camera(ruler)
         cases = [self._plate_case(ruler, layout, ruler=True) for layout in LAYOUTS]
+        for name, layout, on_ruler in P_PLATE_SYNTHETIC:
+            cases.append(self._plate_case(self.clip(jobs[name], 1), layout, ruler=on_ruler))
         for job, rank, layouts in (P_PLATE_REAL if self.media == "real" else ()):
             clip = self.clip(job, rank)
             for layout in layouts:
