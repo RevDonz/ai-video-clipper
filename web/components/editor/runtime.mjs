@@ -60,10 +60,11 @@ async function createFakeRuntime({ jobId, clipId, scenario }) {
 const STORE_DEPS = Object.freeze(["draftStore", "channel", "lifecycle", "tabStorage", "now", "timers", "planPollMs"]);
 
 async function createRealRuntime({ jobId, clipId, deps = {} }) {
-  const [{ createApiClient, randomUuid }, { createPreviewClient }, { createEditorStore }] = await Promise.all([
+  const [{ createApiClient, randomUuid }, { createPreviewClient }, { createEditorStore }, uploads] = await Promise.all([
     import("../../lib/editor/api-client.mjs"),
     import("../../lib/editor/preview-client.mjs"),
     import("../../lib/editor/store.mjs"),
+    import("../../lib/editor/upload-client.mjs"),
   ]);
   const makePlayer = typeof deps.createPlayer === "function"
     ? deps.createPlayer
@@ -80,6 +81,8 @@ async function createRealRuntime({ jobId, clipId, deps = {} }) {
     api,
     previewClient,
     store,
+    // The Logo and Musik panels upload through T3.1's client (Appendix A.2 `uploadAsset`).
+    uploadAsset: typeof deps.uploadAsset === "function" ? deps.uploadAsset : uploads.uploadAsset,
     createPlayer(playerOptions = {}) {
       return makePlayer({
         ...playerOptions,

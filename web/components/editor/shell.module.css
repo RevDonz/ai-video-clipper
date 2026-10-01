@@ -1059,6 +1059,12 @@
   color: var(--text-muted);
 }
 
+.state .prepareSeconds {
+  color: var(--text);
+  font-size: var(--ed-font-size-lg);
+  font-variant-numeric: tabular-nums;
+}
+
 .skeleton {
   width: 220px;
   height: 8px;

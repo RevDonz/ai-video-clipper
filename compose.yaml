@@ -43,6 +43,9 @@ services:
       POTONGIN_EDITOR_V3: ${POTONGIN_EDITOR_V3:-off}
       POTONGIN_EDITOR_UPLOADS: ${POTONGIN_EDITOR_UPLOADS:-off}
       POTONGIN_EDITOR_LLM: ${POTONGIN_EDITOR_LLM:-off}
+      # Optional: the editor's hook suggestions use these free models first (provider/model,
+      # comma-separated; K13). Blank = the saved Pengaturan chain.
+      POTONGIN_LLM_EDITOR_MODELS: ${POTONGIN_LLM_EDITOR_MODELS:-}
       # LLM settings are managed on the Pengaturan page (/settings) and stored,
       # keys sealed with AES-256-GCM, in /data/settings (outside /data/jobs).
       # The key-sealing secret is POTONGIN_SETTINGS_SECRET when set, else

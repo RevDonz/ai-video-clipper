@@ -666,9 +666,9 @@ test("a changed transcript opens read-only with 'Mulai dari versi AI'", async ({
   await expect(page.getByText("Transkrip berubah sejak klip diedit")).toHaveCount(0);
 });
 
-test("a legacy-engine clip says so; save errors offer a retry", async ({ page }) => {
+test("a clip whose auto file came before the editor says so; save errors offer a retry", async ({ page }) => {
   await openEditor(page, { scenarioStore: true, saveFails: true, autosaveMs: 50, docPatch: { "base.engine.compiler": "legacy" } });
-  await expect(page.getByText("Klip ini dibuat dengan mesin lama; setelah diubah, ekspor dari editor memakai mesin baru (tampilan teks bisa sedikit berbeda)")).toBeVisible();
+  await expect(page.getByText("Klip otomatis ini dibuat sebelum editor dibuka; setelah klip diubah, tampilan teks hasil ekspor bisa sedikit berbeda")).toBeVisible();
   await page.evaluate(() => window.__potonginEditor.store.dispatch("SetCaptionsEnabled", { on: false }));
   await expect(page.getByRole("status").filter({ hasText: "Gagal menyimpan; perubahan aman di browser ini" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Coba simpan lagi" })).toBeVisible();
@@ -1031,21 +1031,19 @@ function listingClip(index, fields) {
     engine: "edit-v2/1", edit: null, latestRender: null, openable: false, reason: null, ...fields };
 }
 
-async function mockProject(page, { clipsStatus = 200, prepared = false, context = false } = {}) {
-  let preparedNow = prepared;
+async function mockProject(page, { clipsStatus = 200, context = false } = {}) {
+  let preparedNow = false;
   const posts = [];
   await page.route(`**/api/jobs/${PROJECT_JOB}`, (route) => route.fulfill({ json: { job: projectJob({ context }) } }));
-  await page.route(`**/api/jobs/${PROJECT_JOB}/candidates`, (route) => route.fulfill({ status: 200, json: { available: false } }));
-  await page.route(`**/api/jobs/${PROJECT_JOB}/candidate-feedback`, (route) => route.fulfill({ status: 200, json: { available: false } }));
   await page.route(`**/api/jobs/${PROJECT_JOB}/files/**`, (route) => route.fulfill({ status: 200, contentType: "video/mp4", body: tinyMp4 }));
   await page.route(`**/api/jobs/${PROJECT_JOB}/clips`, async (route) => {
     if (route.request().method() === "POST") {
       posts.push(route.request().postData());
-      await new Promise((resolve) => setTimeout(resolve, 600)); // camera plans take a while
+      await new Promise((resolve) => setTimeout(resolve, 1200)); // words, waveform and camera plans take a while
       preparedNow = true;
-      return route.fulfill({ status: 202, json: { state: "done" } });
+      return route.fulfill({ status: 202, json: { state: "done", clips: [] } });
     }
-    if (clipsStatus !== 200) return route.fulfill({ status: clipsStatus, json: { error: "Editor V3 belum aktif" } });
+    if (clipsStatus !== 200) return route.fulfill({ status: clipsStatus, json: { code: "editor_disabled" } });
     return route.fulfill({ json: { clips: [
       listingClip(1, { clipId: CLIP_A, openable: true, edit: { state: "edited", revision: 3, etag: "c".repeat(64), updatedAtMs: 1 },
         latestRender: { renderId: "r-1", state: "completed", revision: 3, url: `/api/jobs/${PROJECT_JOB}/files/output/edits/${CLIP_A}/0123456789abcdef.mp4`,
@@ -1053,52 +1051,64 @@ async function mockProject(page, { clipsStatus = 200, prepared = false, context 
       listingClip(2, { clipId: CLIP_B, openable: true, edit: { state: "seed", revision: 0, etag: "d".repeat(64), updatedAtMs: 1 }, engine: "legacy" }),
       listingClip(3, { clipId: "clip_" + "c".repeat(24), openable: false, reason: "source_missing", edit: { state: "seed", revision: 0, etag: "e".repeat(64), updatedAtMs: 1 } }),
       preparedNow
-        ? listingClip(4, { clipId: "clip_" + "d".repeat(24), openable: true, edit: { state: "seed", revision: 0, etag: "f".repeat(64), updatedAtMs: 1 } })
+        ? listingClip(4, { clipId: FAKE_CLIP_ID, openable: true, edit: { state: "seed", revision: 0, etag: "f".repeat(64), updatedAtMs: 1 } })
         : listingClip(4, { reason: "needs_prepare" }),
     ] } });
   });
   return posts;
 }
 
-test("project page: 'Edit klip', the edit badge, the latest export and each reason", async ({ page }) => {
-  await mockProject(page);
-  await page.goto(`/projects/${PROJECT_JOB}`);
-  const card = (index) => page.locator("article.v3Clip").nth(index - 1);
-  await expect(card(1).getByRole("link", { name: "Edit klip" })).toHaveAttribute("href", `/projects/${PROJECT_JOB}/clips/${CLIP_A}/edit`);
-  await expect(card(1).getByText("Diedit · revisi 3")).toBeVisible();
-  await expect(card(1).getByRole("link", { name: /Ekspor terakhir · revisi 3/ })).toHaveAttribute("href",
-    `/api/jobs/${PROJECT_JOB}/files/output/edits/${CLIP_A}/0123456789abcdef.mp4`);
-  await expect(card(2).getByRole("link", { name: "Edit klip" })).toHaveAttribute("href", `/projects/${PROJECT_JOB}/clips/${CLIP_B}/edit`);
-  await expect(card(2).getByText("Belum diedit")).toBeVisible();
-  await expect(card(2).getByText("Dibuat dengan mesin lama")).toBeVisible();
-  await expect(card(3).getByRole("link", { name: "Edit klip" })).toHaveCount(0);
-  await expect(card(3).getByText("Video sumber sudah tidak ada")).toBeVisible();
-  await expect(card(4).getByText("Klip perlu disiapkan dulu")).toBeVisible();
-});
+const projectCard = (page, index) => page.getByRole("article").nth(index - 1);
 
-test("project page: an older job is prepared once, then its clips open", async ({ page }) => {
+test("project page: 'Edit klip' on every clip that can be edited, its badge and its latest export", async ({ page }) => {
   const posts = await mockProject(page);
   await page.goto(`/projects/${PROJECT_JOB}`);
-  const card = page.locator("article.v3Clip").nth(3);
-  await expect(card.getByText("Klip perlu disiapkan dulu")).toBeVisible();
-  // one job-level action (the prepare covers every clip of the job), not one per card
-  const prepare = page.getByRole("button", { name: /Siapkan untuk editor/ });
-  await expect(prepare).toHaveCount(1);
-  await expect(page.locator("article.v3Clip").getByRole("button", { name: /Siapkan untuk editor/ })).toHaveCount(0);
-  await prepare.click();
-  // Appendix C.6 wording while it runs
-  await expect(page.getByRole("status").filter({ hasText: "Menyiapkan analisis klip (kata, waveform, wajah)…" })).toBeVisible();
-  await expect(card.getByRole("link", { name: "Edit klip" })).toHaveAttribute("href", `/projects/${PROJECT_JOB}/clips/clip_${"d".repeat(24)}/edit`);
-  await expect(page.getByRole("button", { name: /Siapkan untuk editor/ })).toHaveCount(0);
+  const card = (index) => projectCard(page, index);
+  await expect(page.getByRole("article")).toHaveCount(4);
+  await expect(card(1).getByRole("link", { name: "Edit klip" })).toHaveAttribute("href", `/projects/${PROJECT_JOB}/clips/${CLIP_A}/edit`);
+  await expect(card(1).getByText("Diedit · revisi 3")).toBeVisible();
+  await expect(card(1).getByRole("link", { name: "Ekspor terakhir · revisi 3" })).toHaveAttribute("href",
+    `/api/jobs/${PROJECT_JOB}/files/output/edits/${CLIP_A}/0123456789abcdef.mp4`);
+  await expect(card(2).getByRole("link", { name: "Edit klip" })).toHaveAttribute("href", `/projects/${PROJECT_JOB}/clips/${CLIP_B}/edit`);
+  await expect(card(3).getByRole("link", { name: "Edit klip" })).toHaveCount(0);
+  await expect(card(3).getByText("Video sumber sudah tidak ada")).toBeVisible();
+  // A clip of a job that was never prepared links to the editor too, by its number: no step by hand.
+  await expect(card(4).getByRole("link", { name: "Edit klip" })).toHaveAttribute("href", `/projects/${PROJECT_JOB}/clips/klip-4/edit`);
+  await expect(page.getByRole("button", { name: /Siapkan/ })).toHaveCount(0);
+  await expect(page.getByText(/perlu disiapkan|mesin (?:lama|baru)/i)).toHaveCount(0);
+  // "Edit klip" is each card's first action.
+  const first = await card(2).getByRole("link", { name: "Edit klip" }).evaluate((link) => link.parentElement.firstElementChild === link);
+  expect(first).toBe(true);
+  expect(posts).toEqual([]);
+});
+
+test("opening a clip that was never prepared prepares it in the editor, with progress, then opens it", async ({ page }) => {
+  const posts = await mockProject(page);
+  await page.goto(`/projects/${PROJECT_JOB}`);
+  await projectCard(page, 4).getByRole("link", { name: "Edit klip" }).click();
+  await expect(page.getByRole("heading", { name: "Menyiapkan klip untuk diedit" })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Menyiapkan transkrip kata, waveform, dan wajah." })).toBeVisible();
+  await expect(page.locator("[data-prepare-seconds]")).toHaveText(/^\d+ dtk$/);
+  await expect(page.locator('[data-editor-ready="true"]')).toBeVisible({ timeout: 30_000 });
+  // The address becomes the clip's own, so a reload opens it directly.
+  expect(new URL(page.url()).pathname).toBe(`/projects/${PROJECT_JOB}/clips/${FAKE_CLIP_ID}/edit`);
   expect(posts).toEqual(["{}"]);
 });
 
-test("project page: trend and focus chips and the editor entry share each V3 card", async ({ page }) => {
+test("a clip that cannot be edited says why in the editor and links back", async ({ page }) => {
+  await mockProject(page);
+  await page.goto(`/projects/${PROJECT_JOB}/clips/klip-3/edit`);
+  await expect(page.getByRole("heading", { name: "Klip tidak bisa dibuka" })).toBeVisible();
+  await expect(page.getByText("Video sumber sudah tidak ada")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Kembali ke proyek" })).toHaveAttribute("href", `/projects/${PROJECT_JOB}`);
+});
+
+test("project page: trend and focus chips and the editor entry share each card", async ({ page }) => {
   await mockProject(page, { context: true });
   await page.goto(`/projects/${PROJECT_JOB}`);
-  const card = (index) => page.locator("article.v3Clip").nth(index - 1);
+  const card = (index) => projectCard(page, index);
   const trendChips = (index) => card(index).getByRole("list", { name: "Tren yang disebut di klip ini" }).getByRole("listitem");
-  await expect(page.locator("p").filter({ hasText: /^Fokus:/ })).toHaveText("Fokus: jomok — 2 dari 4 klip cocok");
+  await expect(page.locator("p").filter({ hasText: /^Fokus:/ })).toHaveText("Fokus: jomok · 2 dari 4 klip cocok");
   await expect(card(1).locator("[data-focus]")).toHaveText("Menyebut 'jomok' · 12:34");
   await expect(trendChips(1)).toHaveText(["Nyambung tren: Kabur Aja Dulu"]);
   await expect(card(1).getByRole("link", { name: "Edit klip" })).toHaveAttribute("href", `/projects/${PROJECT_JOB}/clips/${CLIP_A}/edit`);
@@ -1107,46 +1117,53 @@ test("project page: trend and focus chips and the editor entry share each V3 car
   await expect(card(2).getByRole("link", { name: "Edit klip" })).toHaveAttribute("href", `/projects/${PROJECT_JOB}/clips/${CLIP_B}/edit`);
   await expect(card(3).locator("[data-focus]")).toHaveText("Di luar fokus");
   await expect(card(3).getByText("Video sumber sudah tidak ada")).toBeVisible();
-  await expect(card(4).locator("[data-focus]")).toHaveText("Di luar fokus");
   await expect(trendChips(4)).toHaveText(["Nyambung tren: Kabur Aja Dulu"]);
-  await expect(card(4).getByText("Klip perlu disiapkan dulu")).toBeVisible();
-  // In each card: the focus chip above the title, then the trend chips, then the editor entry.
+  await expect(card(4).getByRole("link", { name: "Edit klip" })).toBeVisible();
+  // In each card: the focus chip above the title, then the trend chips, then "Edit klip".
   const order = await card(1).evaluate((article) => {
     const at = (element) => [...article.querySelectorAll("*")].indexOf(element);
     return {
       focus: at(article.querySelector("[data-focus]")),
       title: at(article.querySelector("h3")),
       trends: at(article.querySelector('[aria-label="Tren yang disebut di klip ini"]')),
-      edit: at(article.querySelector(".clipEditorEntry")),
+      edit: at([...article.querySelectorAll("a")].find((link) => link.textContent === "Edit klip")),
     };
   });
   expect(order.focus).toBeGreaterThan(-1);
   expect(order.title).toBeGreaterThan(order.focus);
   expect(order.trends).toBeGreaterThan(order.title);
   expect(order.edit).toBeGreaterThan(order.trends);
-  // The job-level prepare and the focus line both show, once each, above the cards.
-  await expect(page.getByRole("button", { name: /Siapkan untuk editor/ })).toHaveCount(1);
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(card(1).getByRole("link", { name: "Edit klip" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
 });
 
-test("project page: without the editor flag the trend and focus chips stay and no editor entry shows", async ({ page }) => {
+test("project page: without the editor flag the chips stay and no editor entry shows", async ({ page }) => {
   page.allowConsole.push(/404/);
   await mockProject(page, { clipsStatus: 404, context: true });
   await page.goto(`/projects/${PROJECT_JOB}`);
-  await expect(page.locator("article.v3Clip")).toHaveCount(4);
-  await expect(page.locator("article.v3Clip").first().locator("[data-focus]")).toHaveText("Menyebut 'jomok' · 12:34");
+  await expect(page.getByRole("article")).toHaveCount(4);
+  await expect(projectCard(page, 1).locator("[data-focus]")).toHaveText("Menyebut 'jomok' · 12:34");
   await expect(page.getByRole("list", { name: "Tren yang disebut di klip ini" })).toHaveCount(2);
   await expect(page.getByRole("link", { name: "Edit klip" })).toHaveCount(0);
-  await expect(page.locator(".clipEditorEntry")).toHaveCount(0);
+  await expect(page.getByText("Diedit · revisi 3")).toHaveCount(0);
 });
 
-test("project page: without the editor flag there is no editor entry", async ({ page }) => {
-  page.allowConsole.push(/404/);
-  await mockProject(page, { clipsStatus: 404 });
-  await page.goto(`/projects/${PROJECT_JOB}`);
-  await expect(page.locator("article.v3Clip")).toHaveCount(4);
-  await expect(page.getByRole("link", { name: "Edit klip" })).toHaveCount(0);
-  await expect(page.getByText("Belum diedit")).toHaveCount(0);
+test("history: 'Edit klip' on a finished project opens its clip list, only while the editor is on", async ({ page }) => {
+  let editor = true;
+  const finished = { ...projectJob(), id: PROJECT_JOB };
+  const running = { ...projectJob(), id: "3e4d5c6b-7a89-4b2c-9d3e-4f5a6b7c8d9e", status: "processing", progress: 40, clips: [] };
+  await page.route("**/api/jobs", (route) => route.fulfill({ json: { jobs: [finished, running], total: 2, editor } }));
+  await page.route(`**/api/jobs/${PROJECT_JOB}/files/**`, (route) => route.fulfill({ status: 200, contentType: "video/mp4", body: tinyMp4 }));
+  await page.goto("/projects");
+  const rows = page.getByRole("list", { name: "Proyek" }).getByRole("listitem");
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(0).getByRole("link", { name: "Edit klip Podcast uji" })).toHaveAttribute("href", `/projects/${PROJECT_JOB}#klip`);
+  await expect(rows.nth(1).getByRole("link", { name: /^Edit klip/ })).toHaveCount(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(rows.nth(0).getByRole("link", { name: "Edit klip Podcast uji" })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+  editor = false;
+  await page.getByRole("button", { name: "Muat ulang" }).click();
+  await expect(page.getByRole("link", { name: /^Edit klip/ })).toHaveCount(0);
 });

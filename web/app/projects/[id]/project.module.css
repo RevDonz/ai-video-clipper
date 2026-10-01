@@ -380,6 +380,22 @@
   align-items: center;
   gap: 8px 10px;
 }
+/* "Edit klip" is the card's first action and the brightest one; lime stays with the page's one
+   primary action. */
+.actions .edit {
+  border-color: var(--text);
+  background: var(--text);
+  color: var(--bg);
+}
+.actions .edit:hover {
+  border-color: var(--accent-hover);
+  background: var(--accent-hover);
+  color: var(--accent-ink);
+}
+.editNote {
+  color: var(--text-muted);
+  font-size: 13px;
+}
 .sourceRange {
   margin-left: auto;
   color: var(--text-muted);

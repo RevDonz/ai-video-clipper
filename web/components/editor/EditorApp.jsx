@@ -6,12 +6,15 @@
 // notice states, and the keyboard map (Appendix C.4).
 //
 // Seams (Appendix A.2): `runtime` (runtime.mjs) provides the store (createEditorStore), the API
-// and preview clients and createPlayer. The page passes `runtimeKind`; tests may inject a runtime.
-// Every panel receives { state, dispatch, player } and every lane { plan, state, dispatch, player,
-// pxPerFrame } (plus `notify` and `readOnly`); `player` is the facade of runtime.mjs, which adds
-// `subscribeFrame(fn)` and `frame()` so that DOM can follow playback outside React (§6.2).
+// and preview clients, the upload client and createPlayer. The page passes `runtimeKind` and the
+// server's `features` (uploads on or off); tests may inject a runtime. Every panel receives
+// { state, dispatch, player } plus the clients it may use (`api`, `previewClient`, `uploadAsset`,
+// `uploadsEnabled`), every lane { plan, state, dispatch, player, pxPerFrame }, and both `notify`
+// and `readOnly`; `player` is the facade of runtime.mjs, which adds `subscribeFrame(fn)` and
+// `frame()` so that DOM can follow playback outside React (§6.2).
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
+import { editorHref, prepareForEditor } from "../../lib/editor/open-clip.mjs";
 import { SHORTCUTS, globalShortcut } from "../../lib/editor/shortcuts.mjs";
 import ChecksPanel from "./ChecksPanel.jsx";
 import ConflictDialog from "./ConflictDialog.jsx";
@@ -49,6 +52,8 @@ const PLAYER_ERRORS = Object.freeze({
 });
 const EMPTY_STATE = Object.freeze({ status: "loading", doc: null, plan: null, pending: [], warnings: [], save: "saved" });
 const TERMINAL_EXPORT = new Set(["completed", "failed", "cancelled", "error"]);
+// A clip of a job that was never prepared has no document or words yet: the editor prepares it.
+const PREPARE_CODES = new Set(["not_found", "analysis_missing"]);
 const BUSY_EXPORT = new Set(["saving", "submitting", "running"]);
 
 function useNarrow() {
@@ -116,11 +121,14 @@ function ShortcutHelp({ open, onClose }) {
   );
 }
 
-function EditorShell({ runtime, jobId, clipId, initialPanel }) {
+function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNeedsPrepare = null }) {
   const { store, api } = runtime;
   // Panels and lanes of a wave that has not landed stay hidden in the app (W2 verifier).
   const panels = useMemo(() => liveEntries(PANELS, runtime.kind), [runtime.kind]);
   const lanes = useMemo(() => liveEntries(LANES, runtime.kind), [runtime.kind]);
+  const gizmos = useMemo(() => liveEntries(GIZMOS, runtime.kind), [runtime.kind]);
+  // Uploads follow POTONGIN_EDITOR_UPLOADS (the page passes it); the fakes always allow them.
+  const uploadsEnabled = runtime.kind === "fake" || features.uploads === true;
   const subscribe = useCallback((onChange) => store.subscribe(() => onChange()), [store]);
   const snapshot = useCallback(() => store.getState(), [store]);
   const state = useSyncExternalStore(subscribe, snapshot, () => EMPTY_STATE);
@@ -358,6 +366,12 @@ function EditorShell({ runtime, jobId, clipId, initialPanel }) {
   const Panel = lazyComponent(panel);
   const onMedia = useCallback((next) => setMedia(next), []);
 
+  const errorCode = status === "error" ? (state.error?.code ?? state.errorCode ?? "internal_error") : null;
+  const preparesNow = typeof onNeedsPrepare === "function" && PREPARE_CODES.has(errorCode);
+  useEffect(() => {
+    if (preparesNow) onNeedsPrepare();
+  }, [preparesNow, onNeedsPrepare]);
+
   const onTabKey = (event, index) => {
     const moves = { ArrowRight: index + 1, ArrowLeft: index - 1, Home: 0, End: panels.length - 1 };
     if (!(event.key in moves)) return;
@@ -368,9 +382,10 @@ function EditorShell({ runtime, jobId, clipId, initialPanel }) {
   };
 
   if (status === "error") {
+    if (preparesNow) return <StatePage title="Menyiapkan klip untuk diedit" jobId={jobId} busy><p>Memeriksa analisis klip…</p></StatePage>;
     return (
       <StatePage title="Klip tidak bisa dibuka" jobId={jobId}>
-        <p>{messageFor(state.error?.code ?? state.errorCode ?? "internal_error")}</p>
+        <p>{messageFor(errorCode)}</p>
       </StatePage>
     );
   }
@@ -427,7 +442,17 @@ function EditorShell({ runtime, jobId, clipId, initialPanel }) {
         </div>
         <div className={styles.tabPanel} role="tabpanel" id="editor-panel" aria-labelledby={`editor-tab-${panel.id}`}>
           <Suspense fallback={<p className={styles.muted}>Membuka panel…</p>}>
-            <Panel state={state} dispatch={dispatch} player={player} />
+            <Panel
+              state={state}
+              dispatch={dispatch}
+              player={player}
+              api={api}
+              previewClient={runtime.previewClient}
+              uploadAsset={runtime.uploadAsset ?? null}
+              uploadsEnabled={uploadsEnabled}
+              notify={notify}
+              readOnly={readOnly}
+            />
           </Suspense>
         </div>
       </aside>
@@ -455,7 +480,7 @@ function EditorShell({ runtime, jobId, clipId, initialPanel }) {
           playerMode={playerState?.mode}
           safeZone={safeZone}
           onMedia={onMedia}
-          gizmos={GIZMOS.map((entry) => {
+          gizmos={gizmos.map((entry) => {
             // W3 gizmos (T3.2's LogoGizmo) mount here from their registry (gizmos/index.mjs).
             const Gizmo = lazyComponent(entry);
             return (
@@ -517,13 +542,40 @@ function EditorShell({ runtime, jobId, clipId, initialPanel }) {
   );
 }
 
-export default function EditorApp({ jobId, clipId, runtimeKind = "real", runtime: injected = null, initialPanel }) {
+// While the job is prepared for the editor (POST /clips: words, waveform and camera plans for every
+// clip, about a minute for a long face-track job): one status line, the seconds it has taken and
+// an indeterminate bar. The seconds are not announced every second; the status line is.
+function PreparePage({ jobId, startedAt }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const seconds = Math.max(0, Math.floor((now - startedAt) / 1000));
+  return (
+    <StatePage title="Menyiapkan klip untuk diedit" jobId={jobId} busy>
+      <p role="status" aria-live="polite">Menyiapkan transkrip kata, waveform, dan wajah.</p>
+      <p className={styles.prepareSeconds} data-prepare-seconds={seconds}>{`${seconds} dtk`}</p>
+      <p>Hanya sekali per proyek. Video panjang dengan face-track bisa butuh sekitar satu menit.</p>
+    </StatePage>
+  );
+}
+
+export default function EditorApp({
+  jobId, clipId: initialClipId = null, clipIndex = null, runtimeKind = "real", runtime: injected = null, initialPanel,
+  features = {},
+}) {
   const narrow = useNarrow();
   const [runtime, setRuntime] = useState(injected);
   const [failure, setFailure] = useState(null);
+  const [clipId, setClipId] = useState(initialClipId);
+  // A clip opened by its number ("klip-3") or one whose analysis is missing is prepared here, once
+  // per page load (owner feedback: no manual "Siapkan untuk editor" step).
+  const [prepare, setPrepare] = useState(() => (!injected && !initialClipId ? { startedAt: Date.now() } : null));
+  const [prepared, setPrepared] = useState(false);
 
   useEffect(() => {
-    if (injected) return undefined;
+    if (injected || prepare || !clipId) return undefined;
     let alive = true;
     let created = null;
     const scenario = runtimeKind === "fake" ? (globalThis.__potonginEditorScenario ?? null) : null;
@@ -539,7 +591,42 @@ export default function EditorApp({ jobId, clipId, runtimeKind = "real", runtime
       created?.destroy();
       setRuntime(null);
     };
-  }, [injected, runtimeKind, jobId, clipId]);
+  }, [injected, runtimeKind, jobId, clipId, prepare]);
+
+  useEffect(() => {
+    if (!prepare) return undefined;
+    const controller = new AbortController();
+    let alive = true;
+    prepareForEditor({ jobId, clipId, index: clipIndex, signal: controller.signal })
+      .then((result) => {
+        if (!alive) return;
+        if (result.state === "redirect") {
+          window.location.assign(result.location);
+          return;
+        }
+        setPrepared(true);
+        setPrepare(null);
+        if (result.state !== "ready") {
+          setFailure({ code: result.code, message: result.message });
+          return;
+        }
+        const href = editorHref(jobId, { clipId: result.clipId });
+        if (href && window.location.pathname !== href) window.history.replaceState(window.history.state, "", href);
+        setClipId(result.clipId);
+      })
+      .catch((error) => {
+        if (!alive || error?.name === "AbortError") return;
+        setPrepared(true);
+        setPrepare(null);
+        setFailure({ code: "prepare_failed", message: "Klip belum bisa disiapkan. Muat ulang halaman untuk mencoba lagi." });
+      });
+    return () => {
+      alive = false;
+      controller.abort();
+    };
+  }, [prepare, jobId, clipId, clipIndex]);
+
+  const onNeedsPrepare = useCallback(() => setPrepare({ startedAt: Date.now() }), []);
 
   if (narrow) {
     return (
@@ -549,14 +636,27 @@ export default function EditorApp({ jobId, clipId, runtimeKind = "real", runtime
     );
   }
   if (failure) {
+    const known = typeof failure.message === "string" && failure.message && failure.code !== "runtime_unavailable";
     return (
-      <StatePage title="Editor belum tersedia" jobId={jobId}>
-        <p>{failure.code === "runtime_unavailable" ? "Editor belum tersambung ke server. Coba lagi nanti." : "Editor gagal dimuat. Muat ulang halaman."}</p>
+      <StatePage title={known ? "Klip tidak bisa dibuka" : "Editor belum tersedia"} jobId={jobId}>
+        <p>{known ? failure.message
+          : failure.code === "runtime_unavailable" ? "Editor belum tersambung ke server. Coba lagi nanti." : "Editor gagal dimuat. Muat ulang halaman."}</p>
       </StatePage>
     );
   }
+  if (prepare) return <PreparePage jobId={jobId} startedAt={prepare.startedAt} />;
   if (!runtime) {
     return <StatePage title="Membuka klip…" busy><p>Menyiapkan transkrip, pratinjau, dan timeline.</p></StatePage>;
   }
-  return <EditorShell key={`${jobId}/${clipId}`} runtime={runtime} jobId={jobId} clipId={clipId} initialPanel={initialPanel} />;
+  return (
+    <EditorShell
+      key={`${jobId}/${clipId}`}
+      runtime={runtime}
+      jobId={jobId}
+      clipId={clipId}
+      initialPanel={initialPanel}
+      features={features}
+      onNeedsPrepare={injected || prepared ? null : onNeedsPrepare}
+    />
+  );
 }

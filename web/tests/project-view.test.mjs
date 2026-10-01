@@ -444,6 +444,25 @@ test("a failed project says why it stopped: the worker's message under the notic
   assert.match(source, /serverError && <span className=\{styles\.errorDetail\}>Pesan dari server: \{serverError\}<\/span>/);
 });
 
+test("every clip card offers 'Edit klip' from the clips listing; the page has no prepare step", async () => {
+  const source = await read("app/projects/[id]/page.jsx");
+  assert.match(source, /loadClipEntries\(id, \{ signal: controller\.signal \}\)/);
+  assert.match(source, /<ClipCard key=\{clip\.index\} clip=\{clip\} job=\{job\}[^>]*\n\s*entry=\{entries\.get\(clip\.index\) \?\? null\} \/>/);
+  assert.match(source, /<a className=\{`btn \$\{styles\.edit\}`\} href=\{entry\.editHref\}>Edit klip<\/a>/);
+  assert.match(source, /<section id="klip" className=\{styles\.clips\}/);
+  assert.doesNotMatch(source, /Siapkan untuk editor|prepareClipEntries|method: "POST"/);
+  assert.doesNotMatch(source, /engineLegacy|mesin/i);
+});
+
+test("the history offers 'Edit klip' on finished projects while the editor is on", async () => {
+  const source = await read("app/projects/page.jsx");
+  assert.match(source, /setEditor\(payload\.editor === true\)/);
+  assert.match(source, /const editable = editor && job\.status === "completed" && clips\.length > 0;/);
+  assert.match(source, /href=\{`\/projects\/\$\{encodeURIComponent\(job\.id\)\}#klip`\}/);
+  const route = await read("app/api/jobs/route.js");
+  assert.match(route, /editor: readEditorFlags\(process\.env\)\.editorV3/);
+});
+
 test("the history links each project to its page and deletes without a browser dialog", async () => {
   const source = await read("app/projects/page.jsx");
   assert.match(source, /href=\{`\/projects\/\$\{encodeURIComponent\(job\.id\)\}`\}/);

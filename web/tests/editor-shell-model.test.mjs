@@ -251,9 +251,20 @@ test("the badge help explains the badge it belongs to (§6.1, W2 verifier)", () 
 });
 
 test("panels and lanes of a wave that has not landed are hidden in the app, shown on the fakes", () => {
-  const entries = [{ id: "a", wave: "W2" }, { id: "b", wave: "W3" }, { id: "c", wave: "W2" }];
-  assert.deepEqual([...LIVE_WAVES], ["W1", "W2"]);
+  const entries = [{ id: "a", wave: "W3" }, { id: "b", wave: "W4" }, { id: "c", wave: "W2" }];
+  assert.deepEqual([...LIVE_WAVES], ["W1", "W2", "W3"]);
   assert.deepEqual(liveEntries(entries, "real").map((entry) => entry.id), ["a", "c"]);
   assert.deepEqual(liveEntries(entries, "fake").map((entry) => entry.id), ["a", "b", "c"]);
-  assert.deepEqual(liveEntries(entries, "real", ["W2", "W3"]).map((entry) => entry.id), ["a", "b", "c"]);
+  assert.deepEqual(liveEntries(entries, "real", ["W3", "W4"]).map((entry) => entry.id), ["a", "b"]);
+});
+
+test("W3 has landed: every registered panel, lane and gizmo shows in the app", async () => {
+  const [{ PANELS }, { LANES }, { GIZMOS }] = await Promise.all([
+    import("../components/editor/panels/index.mjs"),
+    import("../components/editor/timeline/lanes.mjs"),
+    import("../components/editor/gizmos/index.mjs"),
+  ]);
+  assert.deepEqual(liveEntries(PANELS, "real").map((entry) => entry.id), ["transcript", "text", "coldopen", "layout", "logo", "music"]);
+  assert.deepEqual(liveEntries(LANES, "real").map((entry) => entry.id), ["video", "captions", "hook", "audio", "markers", "music"]);
+  assert.deepEqual(liveEntries(GIZMOS, "real").map((entry) => entry.id), ["logo"]);
 });

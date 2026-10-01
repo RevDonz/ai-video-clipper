@@ -290,7 +290,22 @@ test("the real runtime wires the A.2 modules: API client, preview client, store 
   const frameRequest = requests.find((item) => item.url.endsWith("/preview/frame"));
   assert.equal(JSON.parse(frameRequest.body).f, 3);
   assert.match(runtime.newKey(), /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  // W3 wiring: the Logo and Musik panels upload through T3.1's client.
+  const { uploadAsset } = await import("../lib/editor/upload-client.mjs");
+  assert.equal(runtime.uploadAsset, uploadAsset);
   runtime.destroy();
+});
+
+test("the shell hands every panel its clients and the uploads flag, and mounts the live gizmos (W3 wiring)", async () => {
+  const source = await readFile(new URL("../components/editor/EditorApp.jsx", import.meta.url), "utf8");
+  const panel = /<Panel\s([\s\S]*?)\/>/.exec(source)?.[1] ?? "";
+  for (const prop of ["state={state}", "dispatch={dispatch}", "player={player}", "api={api}", "previewClient={runtime.previewClient}",
+    "uploadAsset={runtime.uploadAsset ?? null}", "uploadsEnabled={uploadsEnabled}", "notify={notify}", "readOnly={readOnly}"]) {
+    assert.ok(panel.includes(prop), `panel prop ${prop}`);
+  }
+  assert.match(source, /const uploadsEnabled = runtime\.kind === "fake" \|\| features\.uploads === true;/);
+  assert.match(source, /const gizmos = useMemo\(\(\) => liveEntries\(GIZMOS, runtime\.kind\)/);
+  assert.match(source, /gizmos=\{gizmos\.map\(/);
 });
 
 // --- shell ↔ store shapes (T2.5 → T2.6) ---------------------------------------------------------------

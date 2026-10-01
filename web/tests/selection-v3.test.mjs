@@ -33,7 +33,6 @@ import {
   clipPosterUrl,
   clipScoreView,
   llmStatusView,
-  renderEngineView,
   scoreRows,
   selectionNotices,
   tenPointScore,
@@ -671,24 +670,23 @@ test("project page: focus line and per-clip focus labels come from the view help
   assert.doesNotMatch(source, /dangerouslySetInnerHTML/);
 });
 
-test("project page: each V3 card shows the focus chip, the trend chips and the editor entry together", async () => {
+test("project page: each card shows the focus chip, the trend chips and the editor entry together", async () => {
   const source = await readFile(new URL("../app/projects/[id]/page.jsx", import.meta.url), "utf8");
-  const card = /function V3ClipCard\(\{ clip, job, copied, onCopy, editorEntry = null \}\) \{([\s\S]*?)\n\}\n/.exec(source);
-  assert.ok(card, "V3ClipCard takes the job (focus) and the editor entry");
+  const card = /function ClipCard\(\{ clip, job, copied, onCopy, entry = null \}\) \{([\s\S]*?)\n\}\n/.exec(source);
+  assert.ok(card, "ClipCard takes the job (focus) and the editor entry");
   const body = card[1];
   const focusChip = body.indexOf("{focusChip && <span");
-  const title = body.indexOf("<h3 id={titleId}>{clip.title}</h3>");
+  const edited = body.indexOf("{entry?.editBadge?.tone === \"edited\"");
+  const title = body.indexOf("<h3 id={titleId}>");
   const trends = body.indexOf("{trendChips.length > 0 && <TrendChips chips={trendChips} />}");
-  const entry = body.indexOf("<ClipEditorEntry entry={editorEntry} index={index} />");
+  const entry = body.indexOf("<EditorEntry entry={entry} />");
   assert.ok(focusChip > 0 && title > focusChip, "the focus chip is in the badge row above the title");
+  assert.ok(edited > focusChip && edited < title, "the edit badge sits in the same row");
   assert.ok(trends > title && entry > trends, "the editor entry follows the trend chips");
-  assert.equal(body.slice(trends, entry).split("\n").length, 2, "the editor entry is right after the trend chips");
-  const list = /<V3ClipCard key=\{clip\.index\} clip=\{clip\} job=\{job\}([\s\S]*?)\/>/.exec(source);
-  assert.ok(list, "the clip list renders V3ClipCard");
-  assert.match(list[1], /editorEntry=\{clipEntries\.state === "available" \? clipEntries\.byIndex\.get\(clip\.index\) \?\? null : null\}/);
-  // The focus line comes before the job-level editor notices, above the cards.
+  assert.ok(entry < body.indexOf("Unduh MP4"), "'Edit klip' is the first action of the card");
+  // The focus line comes before the cards.
   const section = source.indexOf("<FocusSummary job={job} />");
-  assert.ok(section > 0 && section < source.indexOf("{needsPrepare > 0 && (") && section < source.indexOf("<V3ClipCard key="));
+  assert.ok(section > 0 && section < source.indexOf("<ClipsSection "));
 });
 
 // --- LLM status -------------------------------------------------------------------
@@ -977,12 +975,11 @@ test("stored clips re-validate clipId and renderEngine before they are served", 
   assert.equal(sanitizeStoredClip({ index: 1, text: "Klip lama", clipId: "clip_bad" }, JOB_ID).clipId, undefined);
 });
 
-test("the engine view names the new and the old render engine", () => {
-  assert.deepEqual(renderEngineView({ renderEngine: "edit-v2/1" }), { engine: "edit-v2/1", label: "Mesin baru", legacy: false });
-  assert.deepEqual(renderEngineView({ renderEngine: "legacy" }), { engine: "legacy", label: "Mesin lama", legacy: true });
-  assert.equal(renderEngineView({ renderEngine: "edit-v9/1" }), null);
-  assert.equal(renderEngineView({}), null);
-  assert.equal(renderEngineView(null), null);
+test("no view names the render engine of a clip (latest only)", async () => {
+  const view = await import("../lib/selection-v3-view.mjs");
+  assert.equal("renderEngineView" in view, false);
+  const entry = await readFile(new URL("../lib/clip-entry-view.mjs", import.meta.url), "utf8");
+  assert.doesNotMatch(entry, /engineLegacy|mesin (?:lama|baru)/i);
 });
 
 // --- Where the engine meets Konteks Tren and Fokus klip (the W3 base on main) --------------

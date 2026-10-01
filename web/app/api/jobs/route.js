@@ -5,6 +5,7 @@ import path from "node:path";
 import Busboy from "busboy";
 
 import { requireAuth } from "../../../lib/auth.mjs";
+import { readEditorFlags } from "../../../lib/editor/flags.mjs";
 import { sameOriginMutation } from "../../../lib/request-security.mjs";
 import {
   RetiredSelectionModeError,
@@ -215,7 +216,8 @@ export async function GET(request) {
     try { jobs.push(publicJob(JSON.parse(await readFile(path.join(jobsRoot(), entry.name, "job.json"), "utf8")))); }
     catch { /* Ignore incomplete directories; queue validation is authoritative. */ }
   }
-  return Response.json({ jobs: sortJobsNewest(jobs), total: jobs.length });
+  // `editor`: the history offers "Edit klip" only while the editor is on (POTONGIN_EDITOR_V3).
+  return Response.json({ jobs: sortJobsNewest(jobs), total: jobs.length, editor: readEditorFlags(process.env).editorV3 });
 }
 
 export async function POST(request) {
