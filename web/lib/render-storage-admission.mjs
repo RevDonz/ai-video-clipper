@@ -4,7 +4,7 @@ import { lstat, mkdir, open, readdir, realpath, unlink } from "node:fs/promises"
 import path from "node:path";
 
 import { durableWriteJson, withPrimaryQueueLock } from "./primary-job-queue.mjs";
-import { readSharedStorageAccounting } from "./shared-storage-accounting.mjs";
+import { readSharedStorageAccounting, requestReleasesReservation } from "./shared-storage-accounting.mjs";
 import {
   evaluateStorageAdmission,
   readAvailableBytes,
@@ -72,14 +72,7 @@ async function terminalRequestOwnsReservation(root, item) {
       path.join(requests, `${item.value.renderId}.json`),
       2 * 1024 * 1024,
     );
-    // v2 (candidate renders) ends completed or failed; v3 (Editor V3 exports) also cancelled.
-    const terminal = request?.version === "render-request-v2" ? ["completed", "failed"]
-      : request?.version === "render-request-v3" ? ["completed", "failed", "cancelled"] : [];
-    return terminal.includes(request.state)
-      && request.render_id === item.value.renderId
-      && request.storage_reservation_id === item.value.reservationId
-      && typeof request.storage_reservation_token === "string"
-      && tokenHash(request.storage_reservation_token) === item.value.tokenHash;
+    return requestReleasesReservation(request, item.value);
   } catch (error) {
     if (error?.code === "ENOENT") return false;
     throw error;

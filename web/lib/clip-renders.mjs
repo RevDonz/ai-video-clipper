@@ -2,16 +2,17 @@
 //
 //   POST   /api/jobs/:id/clips/:clipId/renders   export a revision: body exactly {"editEtag"}
 //   GET    /api/jobs/:id/clips/:clipId/renders   the clip's exports, newest first
-//   GET    /api/jobs/:id/renders/:renderId       status of a legacy (unchanged) or v3 request
-//   DELETE /api/jobs/:id/renders/:renderId       cancel a v3 request
+//   GET    /api/jobs/:id/renders/:renderId       status of an export
+//   DELETE /api/jobs/:id/renders/:renderId       cancel an export
 //
 // POST: storage reservation first (the existing render admission), then
 // `python -m ai_clipper.render_queue` `create` through web/lib/python-cli.mjs. The request either
 // completes at once (R10: the document is the seed and the auto clip is hard-linked; or an
 // export of the same render key exists) → 200 and the reservation is released, or it is queued
 // → 202 and the reservation is bound to it (the render worker releases it at the end).
-// Status reads parse the request file in Node (no spawn); legacy requests keep their old path and
-// DTO. No path, token or hash of the server's layout leaves in a RenderDTO.
+// Status reads parse the request file in Node (no spawn). Requests of the retired candidate editor
+// (render-request-v1/-v2, still in old queues) answer 404 like missing ones. No path, token or hash
+// of the server's layout leaves in a RenderDTO.
 import { randomUUID as nodeRandomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { lstat, open, readdir, realpath } from "node:fs/promises";
@@ -33,19 +34,12 @@ import {
   MAX_SMALL_BODY_BYTES,
   MESSAGES,
 } from "./clip-edit.mjs";
-import {
-  RenderQueueInvalidError,
-  RenderQueueNotFoundError,
-  isRenderId,
-  isRenderJobId,
-  readRenderRequest,
-  sanitizeRenderStatus,
-} from "./render-requests.mjs";
 import { bindRenderStorage, releaseRenderStorage, reserveRenderStorage } from "./render-storage-admission.mjs";
 import { parseStorageAdmissionConfig } from "./storage-admission.mjs";
 
 export const RENDER_QUEUE_MODULE = "ai_clipper.render_queue";
 export const V3_VERSION = "render-request-v3";
+const RETIRED_VERSIONS = new Set(["render-request-v1", "render-request-v2"]);
 const CREATE_TIMEOUT_MS = 3 * 60_000;
 const MAX_REQUEST_BYTES = 2 * 1024 * 1024;
 const MAX_LISTED_REQUESTS = 1000;
@@ -381,46 +375,31 @@ export function createClipRendersRoute(options = {}) {
   };
 }
 
-// The legacy status answers exactly as the route did before render-request-v3.
-function legacyStatus(error) {
-  const respond = (body, status) => Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
-  if (error instanceof RenderQueueNotFoundError) return respond({ error: "Render tidak ditemukan", code: "not_found" }, 404);
-  if (error instanceof RenderQueueInvalidError) return respond({ error: "Render tidak valid", code: "invalid_request" }, 400);
-  return respond({ error: "Layanan render tidak tersedia", code: "backend_unavailable" }, 503);
-}
-
 export function createRenderStatusRoute(options = {}) {
   const deps = editorDeps(options);
-  const legacyRead = options.legacyRead ?? readRenderRequest;
-  const legacyResponse = (body, status) => Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
+  // the status read keeps its bodies and stays ungated by the editor flag
+  const plain = (body, status) => Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
 
   return {
     async GET(request, { params }) {
       const denied = deps.authorize(request);
       if (denied) return denied;
       const { id: jobId, renderId } = await params;
-      if (!isRenderJobId(jobId) || !isRenderId(renderId)) {  // the legacy id rules, unchanged
-        return legacyResponse({ error: "Render tidak valid", code: "invalid_request" }, 400);
-      }
+      if (!isJobId(jobId) || !uuid(renderId)) return plain({ error: "Render tidak valid", code: "invalid_request" }, 400);
       let value;
       try {
         value = await readRenderRequestFile(jobId, renderId, deps.jobsRoot);
       } catch {
-        value = undefined;  // unsafe or unreadable: the legacy path answers as it always did
+        return renderError("backend_unavailable", 503);
       }
-      if (value === null) return legacyResponse({ error: "Render tidak ditemukan", code: "not_found" }, 404);
-      if (value?.version === V3_VERSION) {
-        try {
-          if (value.render_id !== renderId) throw new RenderRequestInvalidError();
-          return editorResponse(renderDtoV3(jobId, value));
-        } catch {
-          return renderError("backend_unavailable", 503);
-        }
+      if (value === null || RETIRED_VERSIONS.has(value?.version)) {
+        return plain({ error: "Render tidak ditemukan", code: "not_found" }, 404);
       }
       try {
-        return legacyResponse(sanitizeRenderStatus(jobId, await legacyRead(jobId, renderId)), 200);
-      } catch (error) {
-        return legacyStatus(error);
+        if (value?.version !== V3_VERSION || value.render_id !== renderId) throw new RenderRequestInvalidError();
+        return editorResponse(renderDtoV3(jobId, value));
+      } catch {
+        return renderError("backend_unavailable", 503);
       }
     },
     async DELETE(request, { params }) {
