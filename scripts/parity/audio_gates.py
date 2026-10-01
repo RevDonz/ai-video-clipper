@@ -781,10 +781,20 @@ def _jsonable(value: Any) -> Any:
     return value
 
 
-def write_evidence(directory: Path, gate: str, result: Mapping[str, Any]) -> Path:
+def write_evidence(directory: Path, gate: str, result: Mapping[str, Any],
+                   label: str | None = None) -> Path:
+    """``<task>-<gate>.json``; with ``label`` the result joins the file's ``runs`` under that name
+    (a timing gate measured at several loads keeps every run)."""
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"{TASK}-{gate}.json"
     body = {**_jsonable(dict(result)), "environment": environment()}
+    if label is not None:
+        try:
+            previous = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            previous = {}
+        runs = previous.get("runs", {}) if isinstance(previous, dict) else {}
+        body = {"gate": gate, "task": TASK, "runs": {**runs, label: body}}
     path.write_text(json.dumps(body, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
                     encoding="utf-8")
     return path
@@ -809,6 +819,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     lane.add_argument("--work", type=Path, default=Path(tempfile.gettempdir()) / "t33-lane")
     lane.add_argument("--evidence", type=Path)
     lane.add_argument("--browser-fixtures", type=Path)
+    lane.add_argument("--label", help="keep this run beside earlier ones in the evidence file")
     args = parser.parse_args(argv)
 
     if args.command == "setup":
@@ -843,7 +854,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             else {"PF-AUDIO": gates.pf_audio()}
     for gate, report in reports.items():
         if args.evidence is not None:
-            write_evidence(args.evidence, gate, report)
+            write_evidence(args.evidence, gate, report, getattr(args, "label", None))
         print(f"{gate}: {'pass' if report.get('pass') else 'FAIL'}", flush=True)
         if not report.get("pass"):
             failures.append(gate)
