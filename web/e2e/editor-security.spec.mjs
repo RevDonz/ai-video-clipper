@@ -67,24 +67,28 @@ test("the editor's API answers carry nosniff and Cross-Origin-Resource-Policy", 
       `/api/jobs/${job}/clips/${clip}/edit`,
       `/api/jobs/${job}/clips/${clip}/cleanup`,
       `/api/jobs/${job}/clips/${clip}/media/plates/0123456789abcdef-c0000000.mp4`,
-      `/api/jobs/${job}/clips/${clip}/media/plates/..%2F..%2Fseed.json`,
       `/api/jobs/${job.toUpperCase()}/clips/${clip}/edit`,
       `/api/jobs/${job}/assets/${"ab".repeat(32)}`,
     ];
-    const out = [];
-    for (const target of paths) {
+    const read = async (target) => {
       const response = await fetch(target, { cache: "no-store" });
-      out.push({ target, status: response.status, nosniff: response.headers.get("x-content-type-options"),
-        corp: response.headers.get("cross-origin-resource-policy"), body: (await response.text()).slice(0, 400) });
-    }
-    return { out };
+      return { target, status: response.status, nosniff: response.headers.get("x-content-type-options"),
+        corp: response.headers.get("cross-origin-resource-policy"), body: (await response.text()).slice(0, 400) };
+    };
+    const out = [];
+    for (const target of paths) out.push(await read(target));
+    const traversal = await read(`/api/jobs/${job}/clips/${clip}/media/plates/..%2F..%2Fseed.json`);
+    return { out, traversal };
   }, { job: FAKE_JOB_ID, clip: FAKE_CLIP_ID });
   for (const answer of answers.out) {
     expect(answer.nosniff, answer.target).toBe("nosniff");
     expect(answer.corp, answer.target).toBe("same-origin");
-    expect(answer.status, answer.target).not.toBe(500);
+    // 503 is the fixed answer when no Python backend is reachable (the fakes server); never another 5xx
+    expect(answer.status < 500 || answer.status === 503, `${answer.target}: ${answer.status}`).toBe(true);
     expect(answer.body, answer.target).not.toMatch(/Traceback|\/data\/jobs|\/proc\/self/);
   }
   const upper = answers.out.find((answer) => answer.target.includes(FAKE_JOB_ID.toUpperCase()));
   expect(upper.status).toBe(400);
+  expect([400, 404]).toContain(answers.traversal.status);
+  expect(answers.traversal.body).not.toMatch(/"schema"|Traceback|\/data\/jobs/);
 });
