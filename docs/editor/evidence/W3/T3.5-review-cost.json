@@ -1,0 +1,159 @@
+{
+  "task": "T3.5",
+  "commit": "7fdd7fd",
+  "what": "cleanup-model.cleanupView (every item tried alone with the real ApplyCleanup) and planApply of every checkable item, 30 runs, body widened to the whole analysis window",
+  "clips": [
+    {
+      "clip_id": "clip_8fd05fdc20d4f6cbadb26109",
+      "loadavg": [
+        40.95,
+        28.23,
+        16.39
+      ],
+      "words": 558,
+      "items": 33,
+      "open": 33,
+      "view_ms": {
+        "p50": 3.12,
+        "p95": 12.1
+      },
+      "plan_apply_ms": {
+        "p50": 2,
+        "p95": 6.09
+      }
+    },
+    {
+      "clip_id": "clip_c7338377170b4a2e49948f67",
+      "loadavg": [
+        40.95,
+        28.23,
+        16.39
+      ],
+      "words": 406,
+      "items": 30,
+      "open": 30,
+      "view_ms": {
+        "p50": 1.42,
+        "p95": 4.46
+      },
+      "plan_apply_ms": {
+        "p50": 0.79,
+        "p95": 2.79
+      }
+    },
+    {
+      "clip_id": "clip_fa14b3c832db852797ab4560",
+      "loadavg": [
+        40.95,
+        28.23,
+        16.39
+      ],
+      "words": 456,
+      "items": 40,
+      "open": 40,
+      "view_ms": {
+        "p50": 2.08,
+        "p95": 6.08
+      },
+      "plan_apply_ms": {
+        "p50": 1.42,
+        "p95": 3.27
+      }
+    },
+    {
+      "clip_id": "clip_05283b2a79eb371eb70c88df",
+      "loadavg": [
+        40.95,
+        28.23,
+        16.39
+      ],
+      "words": 349,
+      "items": 15,
+      "open": 15,
+      "view_ms": {
+        "p50": 0.28,
+        "p95": 3.19
+      },
+      "plan_apply_ms": {
+        "p50": 0.05,
+        "p95": 0.17
+      }
+    },
+    {
+      "clip_id": "clip_852ee7342fb01a94284c7fbc",
+      "loadavg": [
+        40.95,
+        28.23,
+        16.39
+      ],
+      "words": 488,
+      "items": 13,
+      "open": 13,
+      "view_ms": {
+        "p50": 0.57,
+        "p95": 2.79
+      },
+      "plan_apply_ms": {
+        "p50": 0.23,
+        "p95": 2.12
+      }
+    },
+    {
+      "clip_id": "clip_9a9828b98684569dd7f6fc43",
+      "loadavg": [
+        40.95,
+        28.23,
+        16.39
+      ],
+      "words": 368,
+      "items": 14,
+      "open": 14,
+      "view_ms": {
+        "p50": 0.49,
+        "p95": 6.55
+      },
+      "plan_apply_ms": {
+        "p50": 0.16,
+        "p95": 0.31
+      }
+    },
+    {
+      "clip_id": "clip_b86cc25fa6e83a6faad14251",
+      "loadavg": [
+        40.95,
+        28.23,
+        16.39
+      ],
+      "words": 426,
+      "items": 25,
+      "open": 25,
+      "view_ms": {
+        "p50": 0.24,
+        "p95": 1.98
+      },
+      "plan_apply_ms": {
+        "p50": 0.04,
+        "p95": 0.91
+      }
+    },
+    {
+      "clip_id": "clip_e5bbce66807456b8aecf18c4",
+      "loadavg": [
+        40.95,
+        28.23,
+        16.39
+      ],
+      "words": 466,
+      "items": 19,
+      "open": 19,
+      "view_ms": {
+        "p50": 0.52,
+        "p95": 5.22
+      },
+      "plan_apply_ms": {
+        "p50": 0.24,
+        "p95": 1.4
+      }
+    }
+  ]
+}

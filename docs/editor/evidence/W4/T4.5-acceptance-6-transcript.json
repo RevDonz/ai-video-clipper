@@ -1,0 +1,11 @@
+{
+  "schema": "potongin.gate/1",
+  "capability": 6,
+  "removalFrames": [
+    14859,
+    14880
+  ],
+  "rapikanListed": 33,
+  "applied": 8,
+  "pass": true
+}

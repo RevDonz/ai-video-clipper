@@ -1,0 +1,173 @@
+{
+  "baseline": "docs/editor/evidence/W1/T1.Z-P-ENC.json",
+  "baseline_tolerance": 0.002,
+  "clips": {
+    "bold-10": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9916196666666669,
+      "ssim_text": 0.9895022000000001
+    },
+    "bold-40": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9911525652173918,
+      "ssim_text": 0.9918140695652174
+    },
+    "bold-90": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9907806009389675,
+      "ssim_text": 0.9889667652582161
+    },
+    "bold-dejavu-10": {
+      "gate": false,
+      "pass": true,
+      "ssim_all": 0.991520933333334,
+      "ssim_text": 0.9893915333333333
+    },
+    "bold-dejavu-40": {
+      "gate": false,
+      "pass": true,
+      "ssim_all": 0.9909838173913045,
+      "ssim_text": 0.9909731565217396
+    },
+    "bold-dejavu-90": {
+      "gate": false,
+      "pass": true,
+      "ssim_all": 0.9906215962441317,
+      "ssim_text": 0.9888839342723008
+    },
+    "box-10": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9917278444444446,
+      "ssim_text": 0.9915315111111112
+    },
+    "box-40": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.991102165217391,
+      "ssim_text": 0.9895054000000002
+    },
+    "box-90": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9909347887323947,
+      "ssim_text": 0.9890288450704229
+    },
+    "box-dejavu-10": {
+      "gate": false,
+      "pass": true,
+      "ssim_all": 0.9916013333333336,
+      "ssim_text": 0.9900374444444441
+    },
+    "box-dejavu-40": {
+      "gate": false,
+      "pass": true,
+      "ssim_all": 0.9911914260869565,
+      "ssim_text": 0.9891726260869567
+    },
+    "box-dejavu-90": {
+      "gate": false,
+      "pass": true,
+      "ssim_all": 0.9909211079812206,
+      "ssim_text": 0.986879521126761
+    },
+    "box-pbox-10": {
+      "gate": false,
+      "pass": true,
+      "ssim_all": 0.9916862888888887,
+      "ssim_text": 0.990615088888889
+    },
+    "box-pbox-40": {
+      "gate": false,
+      "pass": true,
+      "ssim_all": 0.9909569826086961,
+      "ssim_text": 0.9875763217391306
+    },
+    "box-pbox-90": {
+      "gate": false,
+      "pass": true,
+      "ssim_all": 0.9907612676056334,
+      "ssim_text": 0.987163995305165
+    },
+    "classic-10": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9918906222222222,
+      "ssim_text": 0.9937681111111112
+    },
+    "classic-40": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9914716521739134,
+      "ssim_text": 0.992639086956522
+    },
+    "classic-90": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.991311638497653,
+      "ssim_text": 0.9943357183098593
+    },
+    "fallback": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9912827166666666,
+      "ssim_text": 0.9868170333333334
+    },
+    "hook": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9901659733333332,
+      "ssim_text": 0.9873081400000001
+    },
+    "karaoke-10": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9917533555555557,
+      "ssim_text": 0.989859888888889
+    },
+    "karaoke-40": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9911160521739127,
+      "ssim_text": 0.987663582608696
+    },
+    "karaoke-90": {
+      "gate": true,
+      "pass": true,
+      "ssim_all": 0.9907587605633813,
+      "ssim_text": 0.9880426572769954
+    },
+    "pcolor": {
+      "gate": false,
+      "pass": true,
+      "ssim_all": 0.9974037111111115,
+      "ssim_text": 0.9899951555555554
+    }
+  },
+  "domain": "yuv444p",
+  "failures": [],
+  "format": "gbrp",
+  "gate": "P-ENC",
+  "mean_ssim_all": 0.9910456692126911,
+  "mean_ssim_text": 0.9899302144535841,
+  "min_ssim_all": 0.9901659733333332,
+  "min_ssim_text": 0.9868170333333334,
+  "pass": true,
+  "stamp": {
+    "commit": "56b33430f770ba637287ca66ef62d6254f9287ec",
+    "jassub": {
+      "integrity": "sha512-n4vjXfraf3o8k3/5TK6DhCYVcbQ/VqhVOgwqLd3l0xfMtsN4fpE/hPq2hPaGagBTOtJS9yHwRoRp3mmchQ9XVg==",
+      "version": "2.5.16"
+    },
+    "run": "36899253661",
+    "schema": "potongin.evidence-stamp/1",
+    "toolchain_sha256": "4fefb754ae6cb98b5376c6c865d786ff0924f39e03b776499e5b3246f64985f0"
+  },
+  "thresholds": {
+    "ssim_all": 0.99,
+    "ssim_text": 0.98
+  }
+}

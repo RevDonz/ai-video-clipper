@@ -1,0 +1,95 @@
+{
+  "gate": "PF-TRUTH",
+  "runs": {
+    "image": {
+      "cases": [
+        {
+          "failures": 0,
+          "http_ms": {
+            "max": 284.2,
+            "min": 246.2,
+            "n": 12,
+            "p50": 265.1,
+            "p95": 276.6
+          },
+          "layout": "fit_blur",
+          "role": "fit_blur",
+          "stages_ms": {
+            "compile_incl_ffprobe": 66.8,
+            "ffmpeg_encode_and_png": 234.4,
+            "imports": 54.3,
+            "plan": 11.4,
+            "process_other": 57.4,
+            "total": 427.6,
+            "validate": 1.6
+          }
+        },
+        {
+          "failures": 0,
+          "http_ms": {
+            "max": 306.9,
+            "min": 274.3,
+            "n": 12,
+            "p50": 287.9,
+            "p95": 295.1
+          },
+          "layout": "fill_center",
+          "role": "fill_center",
+          "stages_ms": {
+            "compile_incl_ffprobe": 62.6,
+            "ffmpeg_encode_and_png": 246.6,
+            "imports": 55.9,
+            "plan": 11.9,
+            "process_other": 57.6,
+            "total": 440.2,
+            "validate": 1.5
+          }
+        },
+        {
+          "failures": 0,
+          "http_ms": {
+            "max": 292.8,
+            "min": 256.9,
+            "n": 12,
+            "p50": 273.3,
+            "p95": 283.9
+          },
+          "layout": "camera",
+          "role": "camera",
+          "stages_ms": {
+            "compile_incl_ffprobe": 58.0,
+            "ffmpeg_encode_and_png": 240.7,
+            "imports": 53.8,
+            "plan": 11.4,
+            "process_other": 57.2,
+            "total": 421.5,
+            "validate": 1.5
+          }
+        }
+      ],
+      "environment": {
+        "cpu_quota": 4.0,
+        "cpus_visible": 16,
+        "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+        "loadavg": [
+          2.14,
+          3.99,
+          4.32
+        ],
+        "python": "3.11.2"
+      },
+      "gate_wall_s": 14.7,
+      "http_ms": {
+        "max": 306.9,
+        "min": 246.2,
+        "n": 36,
+        "p50": 274.5,
+        "p95": 292.8
+      },
+      "pass": true,
+      "threshold_ms": 600
+    }
+  },
+  "server": "ai-video-clipper:editor-w2r2 (the re-exit branch; FFmpeg 5.1.9, Python 3.11.2, toolchain.json sha 4fefb754\u202685f0): app container --cpus 6 with the persistent preview worker; the harness (scripts/parity/preview_lane_gates.py) inside the same image, --cpus 4, on the host network; 'load5' = the same run with five busy CPU loops on the host",
+  "task": "T2.Z2"
+}

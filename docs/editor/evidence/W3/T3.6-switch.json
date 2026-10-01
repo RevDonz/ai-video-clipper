@@ -1,0 +1,300 @@
+{
+  "gate": "switch",
+  "runs": {
+    "ci-4vcpu": {
+      "budget_s": 3.0,
+      "by_layout_s": {
+        "camera": {
+          "max": 5.12,
+          "min": 4.79,
+          "n": 2,
+          "p50": 4.96,
+          "p95": 5.12
+        },
+        "fill_center": {
+          "max": 1.58,
+          "min": 0.8,
+          "n": 7,
+          "p50": 0.81,
+          "p95": 1.58
+        },
+        "fit_blur": {
+          "max": 1.59,
+          "min": 1.56,
+          "n": 4,
+          "p50": 1.58,
+          "p95": 1.59
+        }
+      },
+      "cases": [
+        {
+          "cell": 19,
+          "cell_on_disk_s": 0.73,
+          "clip": "d0ea7856#1",
+          "clip_seconds": 40.8,
+          "first_cell_after_switch_s": 0.81,
+          "fps": [
+            30000,
+            1001
+          ],
+          "from": "fit_blur",
+          "gated": true,
+          "opened_first_cell_s": 0.89,
+          "pass": true,
+          "plan_ms": 45.2,
+          "playhead": 0,
+          "to": "fill_center"
+        },
+        {
+          "cell": 41,
+          "cell_on_disk_s": 0.75,
+          "clip": "d0ea7856#2",
+          "clip_seconds": 36.4,
+          "first_cell_after_switch_s": 0.8,
+          "fps": [
+            30000,
+            1001
+          ],
+          "from": "fit_blur",
+          "gated": true,
+          "opened_first_cell_s": 1.1,
+          "pass": true,
+          "plan_ms": 42.3,
+          "playhead": 545,
+          "to": "fill_center"
+        },
+        {
+          "cell": 77,
+          "cell_on_disk_s": 0.77,
+          "clip": "d0ea7856#3",
+          "clip_seconds": 36.4,
+          "first_cell_after_switch_s": 0.81,
+          "fps": [
+            30000,
+            1001
+          ],
+          "from": "fit_blur",
+          "gated": true,
+          "opened_first_cell_s": 1.36,
+          "pass": true,
+          "plan_ms": 41.7,
+          "playhead": 981,
+          "to": "fill_center"
+        },
+        {
+          "cell": 14,
+          "cell_on_disk_s": 0.83,
+          "clip": "156ec9e2#1",
+          "clip_seconds": 40.8,
+          "first_cell_after_switch_s": 1.58,
+          "fps": [
+            25,
+            1
+          ],
+          "from": "fill_center",
+          "gated": true,
+          "opened_first_cell_s": 1.13,
+          "pass": true,
+          "plan_ms": 48.4,
+          "playhead": 510,
+          "to": "fit_blur"
+        },
+        {
+          "cell": 49,
+          "cell_on_disk_s": 0.82,
+          "clip": "156ec9e2#2",
+          "clip_seconds": 36.4,
+          "first_cell_after_switch_s": 1.57,
+          "fps": [
+            25,
+            1
+          ],
+          "from": "fill_center",
+          "gated": true,
+          "opened_first_cell_s": 0.85,
+          "pass": true,
+          "plan_ms": 45.1,
+          "playhead": 818,
+          "to": "fit_blur"
+        },
+        {
+          "cell": 61,
+          "cell_on_disk_s": 0.83,
+          "clip": "156ec9e2#3",
+          "clip_seconds": 36.4,
+          "first_cell_after_switch_s": 1.56,
+          "fps": [
+            25,
+            1
+          ],
+          "from": "fill_center",
+          "gated": true,
+          "opened_first_cell_s": 0.8,
+          "pass": true,
+          "plan_ms": 32.0,
+          "playhead": 0,
+          "to": "fit_blur"
+        },
+        {
+          "cell": 14,
+          "cell_on_disk_s": 1.14,
+          "clip": "d1aaccfa#1",
+          "clip_seconds": 40.8,
+          "first_cell_after_switch_s": 1.59,
+          "fps": [
+            30,
+            1
+          ],
+          "from": "camera",
+          "gated": true,
+          "opened_first_cell_s": 1.15,
+          "pass": true,
+          "plan_ms": 54.7,
+          "playhead": 612,
+          "to": "fit_blur"
+        },
+        {
+          "cell": 32,
+          "cell_on_disk_s": 0.86,
+          "clip": "d1aaccfa#2",
+          "clip_seconds": 36.4,
+          "first_cell_after_switch_s": 1.58,
+          "fps": [
+            30,
+            1
+          ],
+          "from": "camera",
+          "gated": true,
+          "opened_first_cell_s": 1.01,
+          "pass": true,
+          "plan_ms": 38.7,
+          "playhead": 0,
+          "to": "fill_center"
+        },
+        {
+          "cell": 77,
+          "cell_on_disk_s": 0.79,
+          "clip": "d1aaccfa#3",
+          "clip_seconds": 36.4,
+          "first_cell_after_switch_s": 0.81,
+          "fps": [
+            30,
+            1
+          ],
+          "from": "camera",
+          "gated": true,
+          "opened_first_cell_s": 0.98,
+          "pass": true,
+          "plan_ms": 45.7,
+          "playhead": 982,
+          "to": "fill_center"
+        },
+        {
+          "cell": 15,
+          "cell_on_disk_s": 0.74,
+          "clip": "bada77e7#1",
+          "clip_seconds": 37.4,
+          "first_cell_after_switch_s": 0.81,
+          "fps": [
+            30,
+            1
+          ],
+          "from": "fit_blur",
+          "gated": true,
+          "opened_first_cell_s": 1.36,
+          "pass": true,
+          "plan_ms": 41.1,
+          "playhead": 561,
+          "to": "fill_center"
+        },
+        {
+          "cell": 49,
+          "cell_on_disk_s": 0.75,
+          "clip": "bada77e7#2",
+          "clip_seconds": 36.4,
+          "first_cell_after_switch_s": 0.81,
+          "fps": [
+            30,
+            1
+          ],
+          "from": "fit_blur",
+          "gated": true,
+          "opened_first_cell_s": 1.42,
+          "pass": true,
+          "plan_ms": 41.1,
+          "playhead": 981,
+          "to": "fill_center"
+        },
+        {
+          "cell": 70,
+          "cell_on_disk_s": 5.01,
+          "clip": "d0ea7856#3",
+          "clip_seconds": 36.4,
+          "first_cell_after_switch_s": 5.12,
+          "fps": [
+            30000,
+            1001
+          ],
+          "from": "fit_blur",
+          "gated": false,
+          "opened_first_cell_s": 1.31,
+          "pass": true,
+          "plan_ms": 22.6,
+          "playhead": 545,
+          "prepare_ms": 4327.2,
+          "to": "camera"
+        },
+        {
+          "cell": 19,
+          "cell_on_disk_s": 4.55,
+          "clip": "156ec9e2#1",
+          "clip_seconds": 40.8,
+          "first_cell_after_switch_s": 4.79,
+          "fps": [
+            25,
+            1
+          ],
+          "from": "fill_center",
+          "gated": false,
+          "opened_first_cell_s": 0.93,
+          "pass": true,
+          "plan_ms": 27.4,
+          "playhead": 0,
+          "prepare_ms": 3996.8,
+          "to": "camera"
+        }
+      ],
+      "ci_run": 36848125248,
+      "commit": "7891f5d",
+      "environment": {
+        "camera_workers": 4,
+        "cpu_quota": null,
+        "cpus_visible": 4,
+        "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+        "loadavg": [
+          4.73,
+          2.17,
+          0.89
+        ],
+        "python": "3.11.2"
+      },
+      "fit_blur_center_crop_s": {
+        "max": 1.59,
+        "min": 0.8,
+        "n": 11,
+        "p50": 0.81,
+        "p95": 1.59
+      },
+      "gate_wall_s": 179.8,
+      "media": "synthetic",
+      "note": "GitHub Actions ubuntu-latest runner (4 vCPU; timings indicative), production image built from editor-w3-t3.6 at 7891f5d, standalone node server.js with POTONGIN_EDITOR_V3=on, gate client in the same container, synthetic barcode jobs",
+      "pass": true,
+      "synthetic_size": [
+        1280,
+        720
+      ],
+      "workflow": "editor-gates.yml (suite=command, production image)"
+    }
+  },
+  "task": "T3.6"
+}

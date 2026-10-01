@@ -1,0 +1,31 @@
+{
+  "app": {
+    "by_kind": {
+      "ffmpeg": 417,
+      "ffprobe": 21,
+      "prlimit": 31,
+      "python -m ai_clipper.edit_v2.api": 179,
+      "python -m ai_clipper.edit_v2.preview_cli": 1,
+      "python -m ai_clipper.edit_v2.preview_server": 733,
+      "python -m ai_clipper.render_queue": 6
+    },
+    "names_outside_allowlist": [],
+    "processes": 1388,
+    "secret_hits": 0
+  },
+  "gate": "QG-SEC (child env)",
+  "method": "/proc/<pid>/environ of every python -m \u2026, ffmpeg, ffprobe and prlimit process in the app and render-worker containers, polled every 10 ms during the lane gates and the e2e flow; the app container holds planted canary secrets (APP_PASSWORD, APP_SESSION_SECRET, POTONGIN_SETTINGS_SECRET, OPENROUTER/GEMINI/custom API keys); values are never recorded",
+  "pass": true,
+  "stack": "ai-video-clipper:editor-w2r2 (the re-exit branch; FFmpeg 5.1.9, Python 3.11.2, toolchain.json sha 4fefb754\u202685f0)",
+  "task": "T2.Z2",
+  "worker": {
+    "by_kind": {
+      "ffmpeg": 4,
+      "ffprobe": 5
+    },
+    "names_outside_allowlist": [],
+    "note": "the render_worker process itself is the container's entry point (its environment is the container's, with no secret); its FFmpeg children are counted",
+    "processes": 9,
+    "secret_hits": 0
+  }
+}

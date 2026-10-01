@@ -1,0 +1,69 @@
+/* The audio lane (T3.7). Colours are the editor tokens only (editor.module.css): each piece of
+   the waveform takes its video block's colour (body or cold open), so the two lanes line up. */
+
+.lane {
+  cursor: pointer;
+}
+
+.wave {
+  position: absolute;
+  top: 3px;
+  left: 0;
+  height: calc(100% - 6px);
+  overflow: visible;
+  animation: wave-in var(--ed-duration-slow) ease-out;
+}
+
+.body {
+  fill: var(--info);
+  fill-opacity: 0.7;
+}
+
+.coldOpen {
+  fill: var(--cold-open);
+  fill-opacity: 0.75;
+}
+
+.note {
+  position: sticky;
+  left: 0;
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0;
+  padding: 0 8px;
+  color: var(--text-muted);
+  font-size: var(--ed-font-size-xs);
+  line-height: var(--ed-lane-height);
+  white-space: nowrap;
+  cursor: default;
+}
+
+.retry {
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--ed-radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: 600 var(--ed-font-size-xs) / 1.4 var(--ed-font-ui);
+  cursor: pointer;
+}
+
+.retry:hover {
+  border-color: var(--text);
+}
+
+@keyframes wave-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wave {
+    animation: none;
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "browser": "Chrome for Testing 147.0.7727.15",
+  "cellsReadyBeforePlan": 0,
+  "executable": "chromium-1217",
+  "firstCellAfterPrepareMs": 601,
+  "firstMs": {
+    "max": 999,
+    "p50": 957,
+    "p95": 999
+  },
+  "firstVisitColdToFrameMs": {
+    "clips": 6,
+    "max": 2494,
+    "p50": 1617,
+    "p95": 2494
+  },
+  "firstVisitColdToReadyMs": {
+    "p50": 968,
+    "p95": 1002
+  },
+  "gate": "PF-OPEN (real stack)",
+  "limits": {
+    "cellMs": 2000,
+    "firstMs": 3000,
+    "repeatMs": 2000
+  },
+  "load": [
+    6.2,
+    4.4,
+    4.3
+  ],
+  "pass": true,
+  "prepareMs": 12,
+  "repeatFrameOnStageMs": {
+    "p50": 753,
+    "p95": 934
+  },
+  "repeatMs": {
+    "max": 927,
+    "p50": 381,
+    "p95": 927
+  },
+  "runs": 10,
+  "schema": "potongin.gate/1",
+  "stack": "ai-video-clipper:editor-w2r2 (the re-exit branch; FFmpeg 5.1.9, Python 3.11.2, toolchain.json sha 4fefb754\u202685f0): app --cpus 6, render worker --cpus 4, copies of the owner's P3 jobs; job 990f3f37 (VFR, center-crop), PF-OPEN also 860fef1a (face-track)",
+  "task": "T2.Z2",
+  "viewport": "1366x768"
+}

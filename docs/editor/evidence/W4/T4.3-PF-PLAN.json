@@ -1,0 +1,95 @@
+{
+  "gate": "PF-PLAN",
+  "runs": {
+    "k15-app-cpus6": {
+      "cases": [
+        {
+          "cli_process_ms": {
+            "max": 256.9,
+            "min": 193.1,
+            "n": 20,
+            "p50": 231.0,
+            "p95": 248.5
+          },
+          "dto_bytes_max": 31738,
+          "failures": 0,
+          "frames": 2404,
+          "http_ms": {
+            "max": 41.5,
+            "min": 28.3,
+            "n": 40,
+            "p50": 35.3,
+            "p95": 38.9
+          },
+          "role": "fit_blur_long",
+          "words": 472
+        },
+        {
+          "cli_process_ms": {
+            "max": 254.4,
+            "min": 195.5,
+            "n": 20,
+            "p50": 225.9,
+            "p95": 248.1
+          },
+          "dto_bytes_max": 35066,
+          "failures": 0,
+          "frames": 2440,
+          "http_ms": {
+            "max": 43.0,
+            "min": 29.5,
+            "n": 40,
+            "p50": 35.7,
+            "p95": 41.3
+          },
+          "role": "fill_center_long",
+          "words": 505
+        },
+        {
+          "cli_process_ms": {
+            "max": 260.9,
+            "min": 194.8,
+            "n": 20,
+            "p50": 228.8,
+            "p95": 256.0
+          },
+          "dto_bytes_max": 22986,
+          "failures": 0,
+          "frames": 1574,
+          "http_ms": {
+            "max": 38.6,
+            "min": 26.4,
+            "n": 40,
+            "p50": 30.6,
+            "p95": 34.1
+          },
+          "role": "fit_blur_2",
+          "words": 426
+        }
+      ],
+      "environment": {
+        "cpu_quota": 4.0,
+        "cpus_visible": 16,
+        "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+        "loadavg": [
+          4.99,
+          5.74,
+          7.03
+        ],
+        "python": "3.11.2"
+      },
+      "gate_wall_s": 28.2,
+      "http_ms": {
+        "max": 43.0,
+        "min": 26.4,
+        "n": 120,
+        "p50": 34.1,
+        "p95": 40.1
+      },
+      "pass": true,
+      "threshold_ms": 200
+    }
+  },
+  "server": "ai-video-clipper:editor-w3-t31-r2 (production image: FFmpeg 5.1.9, libass 0.17.1, Python 3.11.2, node 20) with this branch's src mounted over /app/src: the branch's standalone app (next build) on 127.0.0.1, app container --cpus 6 with the persistent preview worker, the harness (scripts/parity/preview_lane_gates.py) in the same image --cpus 4, host network; JOBS_ROOT: copies of the owner's jobs 3c7d024c, 990f3f37, 860fef1a, 899226f8 (prepare_job), the originals only read; the K15 reference PC (AMD Ryzen 7 5700G, 8 cores / 16 threads, 31 GiB), shared with other agents' work while measuring (load averages per job in the rounds)",
+  "task": "T4.3"
+}

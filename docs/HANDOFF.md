@@ -1,8 +1,8 @@
 # Handoff: status dan cara melanjutkan
 
-Terakhir diperbarui 2026-10-01. Pekerjaan agen dihentikan pemilik untuk menghemat token; semua hasil
-sementara ada di branch GitHub di bawah. Dokumen ini untuk agen atau device mana pun yang
-melanjutkan. Aturan proyek: `AGENTS.md`; arah desain: `DESIGN.md`.
+Terakhir diperbarui 2026-10-02 (editor W4 selesai, lihat §4). Semua hasil ada di branch GitHub di
+bawah. Dokumen ini untuk agen atau device mana pun yang melanjutkan. Aturan proyek: `AGENTS.md`;
+arah desain: `DESIGN.md`.
 
 ## 1. Sudah live di produksi (`main`)
 
@@ -11,6 +11,9 @@ melanjutkan. Aturan proyek: `AGENTS.md`; arah desain: `DESIGN.md`.
 - Upload > 10 MB (route upload tidak lewat proxy).
 - Konteks Tren (`docs/plans/2026-09-25-konteks-tren.md`) dan Fokus klip
   (`docs/plans/2026-09-25-fokus-klip.md`).
+- Jalur A (PR #14): tampilan selalu terbaru tanpa label versi, tema gelap di semua halaman, editor
+  kandidat lama dipensiunkan di sisi web, penjaga UI di CI; perbaikan rate limit login (PR #15);
+  workflow `editor-gates.yml` untuk tes berat (PR #16).
 - Skill antislop (mode during), `AGENTS.md`, `DESIGN.md`.
 
 Deploy terjadi otomatis lewat CI setiap ada merge ke `main`.
@@ -24,90 +27,75 @@ Deploy terjadi otomatis lewat CI setiap ada merge ke `main`.
 - **Konteks Tren:** tren hanya untuk kemasan + dorongan ringan, selalu di-ground ke transkrip.
 - **Fokus klip:** "utamakan, sisanya diisi" (klip yang cocok duluan, sisa slot diisi dan diberi
   label).
-- **Editor lama (kandidat V2) dipensiunkan.** Job lama tetap bisa dilihat dan diunduh.
-- **Mesin render baru** untuk klip otomatis dinyalakan begitu render-nya dipercepat (sekarang
-  1,4–2× lebih lambat). Encode kualitas tinggi (file ± 2,3× lebih besar) sudah disetujui.
+- **Editor lama (kandidat V2) dipensiunkan**, termasuk backend-nya (W4). Job lama tetap bisa
+  dilihat dan diunduh; baseline benchmark tetap jalan.
+- **Mesin render baru** untuk klip otomatis (`POTONGIN_RENDER_ENGINE=edit-v2`): PF-PIPELINE sudah
+  masuk anggaran di PC pemilik (W4), tapi dengan kuota `cpus: 6` di produksi potong tengah dan
+  ikuti wajah ± 2× lebih lambat. Rilis tanpa pengawasan memakai `legacy` dulu; pemilik memutuskan
+  (naikkan kuota, terima, atau tetap `legacy`). Perubahan tampilan dan file yang lebih besar sudah
+  disetujui.
+- **Rilis setelah W4 dengan flag menyala bila gerbangnya lolos:** editor; unggahan setelah QG-SEC
+  lengkap; saran AI setelah gerbang keras QG-AI otomatis (penilaian 30 klip oleh pemilik menyusul).
+  Pra-centang kata pengisi di Rapikan tetap mati sampai pemilik mengonfirmasi labelnya.
+- **Masuk ke editor** mudah ditemukan dan tanpa langkah "Siapkan" manual (W3, dipertahankan).
+- **Caption bawaan (K5)** tetap di posisi klip otomatis (klip yang tidak diubah mengekspor file
+  otomatis); pemberitahuan area aman TikTok dibuat informatif (catatan biru, tanpa centang).
 - Rencana editor dan semua keputusan K1–K15: `docs/plans/2026-09-24-editor-v3-esensial.md` §12.
 
-## 3. Jalur A: UI "selalu terbaru" + tema gelap (selesai, menunggu PR)
+## 3. Jalur A: UI "selalu terbaru" + tema gelap (selesai, di `main`)
 
-Tujuan: dashboard satu alur tanpa V1/V2/"Mode lama", tanpa label versi di mana pun, editor lama
-dipensiunkan (halaman dan route web-nya dihapus, tautan lama diarahkan ke halaman proyek), semua
-halaman non-editor gelap sesuai `DESIGN.md`. Job baru selalu memakai seleksi terbaru; API menolak
-v1/v2; default CLI ikut terbaru. Modul backend lama dibiarkan dulu (dihapus di jalur B).
+Dashboard satu alur tanpa V1/V2/"Mode lama", tanpa label versi di mana pun, halaman dan route web
+editor lama dihapus (tautan lama diarahkan ke halaman proyek), semua halaman gelap sesuai
+`DESIGN.md`. Job baru selalu memakai seleksi terbaru; API menolak v1/v2; default CLI ikut
+terbaru. Digabung lewat PR #14. Modul backend editor lama dihapus kemudian di jalur B (W4, T4.1).
 
-| Branch | Isi | Status |
-|---|---|---|
-| `ui-dark-tokens` | token gelap + header bersama | selesai |
-| `ui-dark-p1` | login, landing, dashboard, default API/CLI | selesai (wip ditinjau dan ditulis ulang) |
-| `ui-dark-p2` | riwayat, halaman proyek, pensiun editor lama | selesai (wip ditinjau dan ditulis ulang) |
-| `ui-dark-p3` | Pengaturan, Konteks Tren, halaman 404/galat | selesai |
-| `feat/ui-latest-dark` | semuanya di atas `main` + sambungan + penjaga CI | selesai, siap PR |
+Catatan terbuka untuk pemilik: pilihan "Tanpa LLM" per job hilang dari dashboard (AI diatur di
+Pengaturan; API masih menerima `llmMode=off`).
 
-Langkah:
-1. Selesai: p1 dan p2 diselesaikan dari commit "wip"; p3 dicek.
-2. Selesai: digabung ke `feat/ui-latest-dark` (riwayat linear di atas `main` `0b07bb8`).
-3. Selesai: semua tes (§6), screenshot semua halaman di 1366 dan 390 px, audit antislop (kontras
-   dengan `python3 .claude/skills/antislop-human/contrast-check.py`), cari sisa kata versi
-   (V1|V2|V3|Selection V|Mode lama|mesin lama|mesin baru|llm-select) di teks yang terlihat.
-4. Belum: PR ke `main` (merge rebase) → deploy.
-5. Selesai: penjaga CI (label versi di tampilan, warna di luar token, kontras di bawah AA).
+## 4. Jalur B: Editor (W1–W4 selesai, menunggu titik cek 3 dan PR)
 
-Hasil integrasi:
-- p1, p2, p3 di-cherry-pick di atas `ui-dark-tokens`; konflik di `globals.css`, `jobs.mjs` dan
-  `TrendChips` diselesaikan, gaya global yang tak dipakai lagi dibuang.
-- Sambungan: riwayat dan halaman proyek menyembunyikan teks tahap/galat yang menyebut versi
-  (sama seperti dashboard, `web/lib/stage-detail.mjs`); label sumber "V1" yang tak terpakai
-  dihapus; kilau bar progres memakai token `--sheen`; tautan kecil di Pengaturan dan Konteks Tren
-  jadi target 44 px; input tanggal kini menampilkan cincin fokus.
-- Penjaga CI `web/tests/ui-guards.test.mjs` (jalan di `npm test`): kata versi di string dan teks
-  JSX (`app`, `components`, `lib`, `scripts`), warna di luar token `:root`, dan setiap pasangan
-  teks/latar yang dipakai stylesheet di bawah AA. Tiap penjaga dibuktikan gagal pada pelanggaran
-  yang ditanam.
+Rencana lengkap: `docs/plans/2026-09-24-editor-v3-esensial.md`. Kontrak, hasil gerbang, panduan
+dan operasional: `docs/editor/{CONTRACTS,GATES,PANDUAN-EDITOR,OPERASIONAL,UJI-PENERIMAAN}.md`.
 
-Catatan terbuka untuk pemilik:
-pilihan "Tanpa LLM" per job hilang dari dashboard (AI diatur di Pengaturan; API masih menerima
-`llmMode=off`); route status render `/api/jobs/<id>/renders/<renderId>` dibiarkan untuk editor
-baru.
+- **`editor-w4-integration`: W1 + W2 + W3 + W4, di atas `main` `b1ab3e0`**, PR #18 ke `main` dengan
+  judul "feat: clip editor (Esensial)" (belum di-merge). W4 = T4.1 (backend editor lama dihapus) →
+  T4.2 (keamanan, QG-SEC lengkap) → T4.3 (render otomatis klip paralel, janitor, retensi) → T4.4
+  (gerbang CI: smoke paritas di setiap PR, penjaga toolchain, nightly; halaman `/licenses`;
+  panduan final) → T4.5 (13 uji penerimaan, QG-A11Y, catatan caption K5), lalu integrasi T4.Z.
+  Hasil gerbangnya: `docs/editor/GATES.md` bagian "W4 Siap rilis". Verifikasi rilis menemukan satu
+  pemblokir (penjaga deploy dan ekspor `cancelled`) dan enam temuan kecil; semuanya sudah ditangani
+  di bagian "W4 verifier findings: fixes".
+- **Bawaan rilis di `compose.yaml`:** `POTONGIN_EDITOR_V3=on`, `POTONGIN_EDITOR_UPLOADS=on`,
+  `POTONGIN_EDITOR_LLM=on`, `POTONGIN_RENDER_ENGINE=legacy` (lihat di atas). Cara mengubah satu flag di server:
+  `docs/editor/OPERASIONAL.md` §2 (baris di `.env`, lalu `docker compose up -d`, tanpa build).
+- Branch tugas `editor-w4-t4.1` … `editor-w4-t4.5` sudah masuk; tidak perlu dilanjutkan.
 
-## 4. Jalur B: Editor (W3 sebagian, lalu W4)
+Langkah berikutnya:
+1. **Titik cek pemilik 3** (± 60 menit; paketnya di luar repo, `editor-w4/checkpoint3.md` di
+   scratchpad sesi integrasi):
+   - uji U1–U7 dengan stopwatch di 1366×768 dan 1920×1080 (`docs/editor/UJI-PENERIMAAN.md`);
+   - penilaian 30 saran hook AI (lulus ≥ 21/30). Flag LLM sudah menyala karena gerbang otomatisnya
+     lolos; kalau penilaian gagal, matikan `POTONGIN_EDITOR_LLM` dan perbaiki prompt di W5;
+   - konfirmasi 490 label kata pengisi; kalau presisi tetap ≥ 0,9, ubah `precheck` di
+     `resources/lexicon/id-fillers.v1.json` ke `true` lewat PR.
+2. **Keputusan pemilik sebelum deploy:** kuota CPU `primary-worker` (dengan `cpus: 6`, render
+   otomatis potong tengah/ikuti wajah ± 2× `legacy`; naikkan kuota, terima, atau `legacy` dulu) dan
+   P-LOGO (1 dari 18 frame lewat batas oleh caption di bawah logo transparan).
+3. **Merge PR ke `main` (merge rebase)** → deploy otomatis. Setelah deploy: buka satu proyek,
+   **Edit klip**, ekspor satu klip; proses satu video baru untuk melihat render otomatis baru.
+   Rollback seluruh rilis = revert PR, **tanpa** ikut me-revert penjaga deploy
+   (`fix(deploy): a cancelled export is not live work for the deploy guard`): penjaga lama di
+   `main` menganggap ekspor yang dibatalkan masih jalan dan menahan deploy rollback. Paling aman,
+   commit itu masuk `main` lebih dulu lewat PR kecil sendiri (`docs/editor/GATES.md`, Open 49).
+4. **Sisa teknis (W5 atau sesudahnya):** P-AUD klip VFR sintetis 16 sampel lebih pendek (Open 12)
+   membuat nightly merah; PF-AUDIO dengan musik tipis di runner 4 vCPU; halaman `/licenses` masih
+   di balik login.
 
-Rencana lengkap: `docs/plans/2026-09-24-editor-v3-esensial.md` (§11.3 W3, §11.4 W4). Kontrak dan hasil
-gerbang ada di branch editor: `docs/editor/{CONTRACTS,GATES,PANDUAN-EDITOR}.md`.
-
-- `editor-w3-base`: `main` (sebelum `AGENTS.md`) + W1 + W2, sudah di-rebase dan lolos semua tes
-  (3.783 tes Python, 983 tes web). W1 (mesin render tunggal) dan W2 (editor bisa dipakai)
-  selesai dan terverifikasi.
-- Branch tugas W3 (semua sebagian, berbasis `editor-w3-base`):
-
-| Branch | Fitur |
-|---|---|
-| `editor-w3-t3.1` | unggah aset (+ pengecualian proxy) |
-| `editor-w3-t3.2` | logo / watermark |
-| `editor-w3-t3.3` | musik + ducking (commit terakhir "wip") |
-| `editor-w3-t3.4` | saran hook AI |
-| `editor-w3-t3.5` | Rapikan (kata pengisi, gagap, jeda) |
-| `editor-w3-t3.6` | ganti tata letak + face-track |
-| `editor-w3-t3.7` | waveform + penanda (commit terakhir "wip") |
-
-Langkah:
-1. Selesaikan tiap tugas dari commit terakhirnya (TDD, gerbang di rencana §11.3).
-2. Integrasi T3.Z: cherry-pick t3.1 → t3.7 ke `editor-w3-integration`, sambungkan registry, editor
-   digelapkan sesuai `DESIGN.md`, tanpa istilah versi/mesin di tampilan, gerbang W3, panduan.
-3. W4 (rencana §11.4) dengan perubahan dari pemilik:
-   - editor lama dipensiunkan: T4.1 tidak lagi memperbaiki 8 bug-nya; hapus jalur backend lama
-     setelah jalur A menghapus sisi web-nya;
-   - T4.3 mempercepat render mesin baru, lalu `POTONGIN_RENDER_ENGINE` dinyalakan ke mesin baru;
-   - tombol "Edit klip" harus mudah ditemukan (dari riwayat dan kartu klip) dan tanpa langkah
-     "Siapkan untuk editor" manual (pemilik tidak menemukannya saat mencoba);
-   - tes web "a live lock heartbeat prevents overlap beyond the stale interval" sering gagal di
-     CI: buat deterministik (jam palsu), jangan hanya memperpanjang waktu.
-4. Rebase ke `main` terbaru (akan ada konflik dengan jalur A di halaman proyek), PR, deploy.
-5. Titik cek pemilik 3: uji U1–U7, penilaian 30 saran hook AI, konfirmasi daftar kata pengisi.
-
-Gerbang paritas diukur di image produksi (`docker build -t ai-video-clipper:editor .`): FFmpeg
-5.1.9 dan libass 0.17.1 dipin lewat snapshot Debian; `resources/toolchain.json` masuk kunci
-render.
+Gerbang berat jalan di GitHub Actions, bukan di PC pemilik: `editor-gates.yml` (`suite=full`,
+`suite=image`, `suite=command`) dan `ci-cd.yml` (PR: tes + penjaga toolchain + smoke paritas;
+`-f suite=nightly|toolchain` lewat dispatch). Di worktree, perintah pemindai rahasia (gitleaks)
+perlu folder `.git` repo utama ikut di-mount (beserta `safe.directory`); tanpa itu ia memindai 0
+commit.
 
 ## 5. Lain-lain yang tertunda
 

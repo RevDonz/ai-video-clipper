@@ -1,0 +1,772 @@
+{
+ "schema": "potongin.gate/1",
+ "task": "T4.Z",
+ "gate": "real-stack e2e on the integrated branch (acceptance 13 + QG-A11Y, and the W2/W3 flow with scripted U1-U7)",
+ "stack": {
+  "build": "next build of editor-w4-integration fc09edf, next start on 127.0.0.1 (private port)",
+  "render_worker": "python -m ai_clipper.render_worker --watch (owner's PC, FFmpeg 6.1.1)",
+  "flags": {
+   "POTONGIN_EDITOR_V3": "on",
+   "POTONGIN_EDITOR_UPLOADS": "on",
+   "POTONGIN_EDITOR_LLM": "on",
+   "POTONGIN_RENDER_ENGINE": "edit-v2"
+  },
+  "llm": "copy of the saved Pengaturan chain (free models only)",
+  "jobs": "fresh copies of e7f0d37b per run (never opened in the editor); 899226f8 without its source video as the closed case; originals only read, copies deleted",
+  "browser": "Chrome for Testing 147.0.7727.15, axe 4.13.0, one browser",
+  "machine": "owner's PC (K15 reference), 2026-10-02 03:00-03:45 WIB, owner away"
+ },
+ "acceptance": {
+  "passed": 14,
+  "of": 14,
+  "minutes": 5.6,
+  "capabilities": {
+   "1": {
+    "capability": 1,
+    "clips": [
+     {
+      "index": 1,
+      "clipId": "clip_8fd05fdc20d4f6cbadb26109",
+      "openMs": 17313,
+      "engine": "legacy"
+     },
+     {
+      "index": 2,
+      "clipId": "clip_c7338377170b4a2e49948f67",
+      "openMs": 9719,
+      "engine": "legacy"
+     },
+     {
+      "index": 3,
+      "clipId": "clip_fa14b3c832db852797ab4560",
+      "openMs": 16275,
+      "engine": "legacy"
+     }
+    ],
+    "closedReason": "Video sumber sudah tidak ada",
+    "pass": true
+   },
+   "10": {
+    "capability": 10,
+    "markers": 11,
+    "kinds": {
+     "silence": 9,
+     "camera_cut": 2
+    },
+    "missing": [],
+    "pass": true
+   },
+   "11": {
+    "capability": 11,
+    "results": {
+     "boxOpacity": {
+      "BorderStyle": "3",
+      "OutlineColour": "&H40000000"
+     },
+     "escape": true,
+     "keyword": "&H8A5CFF&",
+     "cues": {
+      "count": 54,
+      "words": 133
+     },
+     "logo": {
+      "box": {
+       "x": 512,
+       "y": 93,
+       "w": 115,
+       "h": 46
+      },
+      "derived": {
+       "status": 200,
+       "type": "image/png",
+       "w": 115,
+       "h": 46
+      }
+     },
+     "normalize": {
+      "sampleRate": 48000,
+      "clampedAt": -23.5
+     },
+     "renderKey": {
+      "file": "c40751e6a54034e5",
+      "changesWithCompiler": true
+     },
+     "saves": {
+      "count": 215,
+      "receipts": 200
+     }
+    },
+    "pass": true
+   },
+   "12": {
+    "capability": 12,
+    "undoDepth": 200,
+    "savedAfterLastKeyMs": 1937,
+    "autosaveDebounceMs": 1500,
+    "pass": true
+   },
+   "13": {
+    "capability": 13,
+    "clipDurationMs": 48799,
+    "renderMs": 16036,
+    "steps": [
+     "Antre",
+     "Merender",
+     "Memverifikasi"
+    ],
+    "notes": 1,
+    "reusedBy": "key",
+    "cancelled": true,
+    "r10": "seed",
+    "gates": [
+     {
+      "name": "G1",
+      "ok": true
+     },
+     {
+      "name": "G2",
+      "ok": true
+     },
+     {
+      "name": "G5",
+      "ok": false
+     }
+    ],
+    "pass": true
+   },
+   "2": {
+    "capability": 2,
+    "inSf": 14828,
+    "outSf": 16799,
+    "pass": true
+   },
+   "3": {
+    "capability": 3,
+    "coldOpenMs": 5005,
+    "suggestionUsed": "Pakai saran 1 sebagai cold open",
+    "longRuleChecked": true,
+    "pass": true
+   },
+   "4": {
+    "capability": 4,
+    "instantMs": 2,
+    "llm": {
+     "state": "done",
+     "cards": 5
+    },
+    "pass": true
+   },
+   "5": {
+    "capability": 5,
+    "packs": [
+     "classic",
+     "karaoke",
+     "bold",
+     "box"
+    ],
+    "overrides": {
+     "case": "upper",
+     "emphasis": "#FF5C8A",
+     "highlight": "#FFFFFF",
+     "size_pm": 1100,
+     "y_e5": 81000
+    },
+    "pass": true
+   },
+   "6": {
+    "capability": 6,
+    "removalFrames": [
+     14859,
+     14880
+    ],
+    "rapikanListed": 33,
+    "applied": 8,
+    "pass": true
+   },
+   "7": {
+    "capability": 7,
+    "initial": "fit_blur",
+    "switches": [
+     {
+      "mode": "fill_center",
+      "exactMs": 6869,
+      "noFace": null
+     },
+     {
+      "mode": "camera",
+      "exactMs": 16337,
+      "noFace": 0
+     },
+     {
+      "mode": "fit_blur",
+      "exactMs": 1937,
+      "noFace": null
+     }
+    ],
+    "pass": true
+   },
+   "8": {
+    "capability": 8,
+    "uploadMs": 446,
+    "box": {
+     "x": 468,
+     "y": 952,
+     "w": 119,
+     "h": 48
+    },
+    "centreRgb": [
+     204,
+     229,
+     104
+    ],
+    "gates": [
+     "G1",
+     "G2",
+     "G5"
+    ],
+    "pass": true
+   },
+   "9": {
+    "capability": 9,
+    "uploadMs": 1494,
+    "renderMs": 16977,
+    "completedBy": "render",
+    "payload": {
+     "asset": "sha256:e8974baf36ec098d17dcb8562578638001a254bceb7be9deb8931311f379301b",
+     "src_in_smp": 9600,
+     "loop": true,
+     "gain_cdb": -930,
+     "fade_in_f": 25,
+     "fade_out_f": 40,
+     "duck": {
+      "on": true,
+      "depth_cdb": 1600,
+      "attack_ms": 30,
+      "release_ms": 400,
+      "hold_ms": 250,
+      "detector": "words"
+     }
+    },
+    "gates": [
+     {
+      "name": "G1",
+      "ok": true
+     },
+     {
+      "name": "G2",
+      "ok": true
+     },
+     {
+      "name": "G3",
+      "ok": false
+     },
+     {
+      "name": "G3b",
+      "ok": true
+     },
+     {
+      "name": "G5",
+      "ok": false
+     }
+    ],
+    "sampleRate": 48000,
+    "pass": true
+   }
+  },
+  "qg_a11y": {
+   "states": 26,
+   "critical": 0,
+   "serious": 0,
+   "other": 0,
+   "axe": "4.13.0",
+   "pass": true
+  }
+ },
+ "flow": {
+  "passed": 20,
+  "of": 20,
+  "minutes": 3.4,
+  "scripted_ux_ms": {
+   "U1": 2419,
+   "U2": 2478,
+   "U3": 2510,
+   "U4": 2766,
+   "U5": 3820,
+   "U6": {
+    "elapsedMs": 26868,
+    "limitMs": 119256,
+    "clipDurationMs": 89256
+   },
+   "U7": {
+    "lostCommands": 0,
+    "resetFoundMs": 1912
+   }
+  },
+  "results": {
+   "T2.Z-PF-OPEN": {
+    "gate": "PF-OPEN (real stack)",
+    "browser": "Chrome for Testing 147.0.7727.15",
+    "viewport": "1366x768",
+    "runs": 10,
+    "firstVisitColdToFrameMs": null,
+    "firstVisitColdToReadyMs": null,
+    "firstMs": {
+     "p50": 440,
+     "p95": 457,
+     "max": 457
+    },
+    "repeatMs": {
+     "p50": 400,
+     "p95": 403,
+     "max": 403
+    },
+    "repeatFrameOnStageMs": {
+     "p50": 766,
+     "p95": 777
+    },
+    "firstCellAfterPrepareMs": 873,
+    "prepareMs": 11,
+    "cellsReadyBeforePlan": 0,
+    "limits": {
+     "firstMs": 3000,
+     "repeatMs": 2000,
+     "cellMs": 2000
+    },
+    "load": [
+     3.1,
+     2.7,
+     2
+    ],
+    "pass": true
+   },
+   "T2.Z-QG-A11Y": {
+    "gate": "QG-A11Y (real stack)",
+    "browser": "Chrome for Testing 147.0.7727.15",
+    "axe": "4.13.0",
+    "states": 16,
+    "critical": 0,
+    "serious": 0,
+    "anyImpact": 0,
+    "results": [
+     {
+      "viewport": "1366x768",
+      "state": "ready",
+      "violations": []
+     },
+     {
+      "viewport": "1366x768",
+      "state": "export dialog",
+      "violations": []
+     },
+     {
+      "viewport": "1366x768",
+      "state": "text panel",
+      "violations": []
+     },
+     {
+      "viewport": "1366x768",
+      "state": "cold-open panel",
+      "violations": []
+     },
+     {
+      "viewport": "1366x768",
+      "state": "layout panel",
+      "violations": []
+     },
+     {
+      "viewport": "1366x768",
+      "state": "logo panel",
+      "violations": []
+     },
+     {
+      "viewport": "1366x768",
+      "state": "music panel",
+      "violations": []
+     },
+     {
+      "viewport": "1366x768",
+      "state": "Rapikan review",
+      "violations": []
+     },
+     {
+      "viewport": "1920x1080",
+      "state": "ready",
+      "violations": []
+     },
+     {
+      "viewport": "1920x1080",
+      "state": "export dialog",
+      "violations": []
+     },
+     {
+      "viewport": "1920x1080",
+      "state": "text panel",
+      "violations": []
+     },
+     {
+      "viewport": "1920x1080",
+      "state": "cold-open panel",
+      "violations": []
+     },
+     {
+      "viewport": "1920x1080",
+      "state": "layout panel",
+      "violations": []
+     },
+     {
+      "viewport": "1920x1080",
+      "state": "logo panel",
+      "violations": []
+     },
+     {
+      "viewport": "1920x1080",
+      "state": "music panel",
+      "violations": []
+     },
+     {
+      "viewport": "1920x1080",
+      "state": "Rapikan review",
+      "violations": []
+     }
+    ],
+    "pass": true
+   },
+   "T2.Z-QG-CONFLICT-e2e": {
+    "gate": "QG-CONFLICT (two-tab e2e)",
+    "browser": "Chrome for Testing 147.0.7727.15",
+    "differentParts": {
+     "merged": true,
+     "bothSurvive": true
+    },
+    "samePart": {
+     "dialog": true,
+     "chosen": "mine",
+     "finalIsMine": true,
+     "otherEditKept": true
+    },
+    "pass": true
+   },
+   "T2.Z-QG-UX-U1": {
+    "gate": "QG-UX U1 (scripted, real stack)",
+    "browser": "Chrome for Testing 147.0.7727.15",
+    "viewport": "1366x768",
+    "elapsedMs": 2419,
+    "limitMs": 20000,
+    "pass": true
+   },
+   "T2.Z-QG-UX-U2": {
+    "gate": "QG-UX U2 (scripted, real stack)",
+    "browser": "Chrome for Testing 147.0.7727.15",
+    "viewport": "1366x768",
+    "removedMs": 5281,
+    "words": 14,
+    "elapsedMs": 2478,
+    "limitMs": 20000,
+    "pass": true
+   },
+   "T2.Z-QG-UX-U3": {
+    "gate": "QG-UX U3 (scripted, real stack)",
+    "browser": "Chrome for Testing 147.0.7727.15",
+    "viewport": "1366x768",
+    "coldOpenMs": 2079,
+    "elapsedMs": 2510,
+    "limitMs": 45000,
+    "pass": true
+   },
+   "T2.Z-QG-UX-U6": {
+    "gate": "QG-UX U6 (scripted, real stack, real render)",
+    "browser": "Chrome for Testing 147.0.7727.15",
+    "viewport": "1366x768",
+    "clipDurationMs": 89256,
+    "renderMs": 26758,
+    "elapsedMs": 26868,
+    "limitMs": 119256,
+    "load": [
+     2.7,
+     2.4,
+     1.9
+    ],
+    "pass": true
+   },
+   "T2.Z-QG-UX-U7": {
+    "gate": "QG-UX U7 (scripted, real stack)",
+    "browser": "Chrome for Testing 147.0.7727.15",
+    "viewport": "1366x768",
+    "unsavedCommandsAtReload": 2,
+    "lostCommands": 0,
+    "resetFoundMs": 1912,
+    "limitMs": 20000,
+    "pass": true
+   },
+   "T2.Z-e2e-flow": {
+    "gate": "e2e flow (plan §11.2 T2.Z)",
+    "browser": "Chrome for Testing 147.0.7727.15",
+    "clipDurationMs": 48799,
+    "steps": [
+     {
+      "name": "open",
+      "ms": 493
+     },
+     {
+      "name": "trim",
+      "ms": 97
+     },
+     {
+      "name": "delete words",
+      "ms": 177
+     },
+     {
+      "name": "fix a word",
+      "ms": 65
+     },
+     {
+      "name": "switch pack",
+      "ms": 257
+     },
+     {
+      "name": "edit the hook",
+      "ms": 17
+     },
+     {
+      "name": "change the cold open",
+      "ms": 299
+     },
+     {
+      "name": "undo/redo",
+      "ms": 43
+     },
+     {
+      "name": "reload",
+      "ms": 412
+     },
+     {
+      "name": "export",
+      "ms": 20096
+     },
+     {
+      "name": "download",
+      "ms": 75
+     },
+     {
+      "name": "undo everything (back to the AI version)",
+      "ms": 1942
+     },
+     {
+      "name": "export the AI version",
+      "ms": 853
+     }
+    ],
+    "edited": {
+     "revision": 1,
+     "renderMs": 19925,
+     "completedBy": "render",
+     "verify": {
+      "ok": true,
+      "frames": 1096,
+      "samples": 2194192,
+      "gates": [
+       {
+        "name": "G1",
+        "ok": true,
+        "blocking": true
+       },
+       {
+        "name": "G2",
+        "ok": true,
+        "blocking": true
+       },
+       {
+        "name": "G5",
+        "ok": false,
+        "blocking": false
+       }
+      ]
+     }
+    },
+    "r10": {
+     "sameInode": true,
+     "bytesEqual": true,
+     "completedBy": "seed",
+     "createdStatus": 200
+    },
+    "pass": true
+   },
+   "W3-e2e-entry": {
+    "gate": "e2e entry: Edit klip and the automatic prepare (real stack)",
+    "browser": "Chrome for Testing 147.0.7727.15",
+    "cards": 3,
+    "unpreparedAtStart": true,
+    "openMs": 5509,
+    "openableAfter": 3,
+    "pass": true
+   },
+   "W3-e2e-export": {
+    "gate": "e2e export with logo and music (real stack)",
+    "browser": "Chrome for Testing 147.0.7727.15",
+    "revision": 22,
+    "renderMs": 28835,
+    "verify": {
+     "ok": true,
+     "gates": [
+      {
+       "name": "G1",
+       "ok": true,
+       "blocking": true
+      },
+      {
+       "name": "G2",
+       "ok": true,
+       "blocking": true
+      },
+      {
+       "name": "G3b",
+       "ok": true,
+       "blocking": true
+      },
+      {
+       "name": "G5",
+       "ok": false,
+       "blocking": false
+      }
+     ]
+    },
+    "pass": true
+   },
+   "W3-e2e-hooks": {
+    "gate": "e2e hook suggestions (real stack, LLM part off)",
+    "pass": true,
+    "chosenChars": 53
+   },
+   "W3-e2e-layout": {
+    "gate": "e2e layout switch (real stack)",
+    "initial": "fit_blur",
+    "switches": [
+     {
+      "mode": "fill_center",
+      "exactMs": 10869
+     },
+     {
+      "mode": "fit_blur",
+      "exactMs": 1905
+     }
+    ],
+    "pass": true
+   },
+   "W3-e2e-logo": {
+    "gate": "e2e logo (real stack)",
+    "uploadMs": 323,
+    "item": {
+     "id": "it_logo",
+     "type": "image",
+     "start": {
+      "at": "clip_start"
+     },
+     "end": {
+      "at": "clip_end"
+     },
+     "transform": {
+      "x_e5": 79028,
+      "y_e5": 9063,
+      "w_e5": 16100,
+      "opacity_pm": 840
+     },
+     "payload": {
+      "asset": "sha256:d52142806c56ee082a4f91540c1e5a30ddb76ebf7830b61533895b7433f09a10",
+      "mode": "free"
+     },
+     "origin": "user"
+    },
+    "pass": true
+   },
+   "W3-e2e-markers": {
+    "gate": "e2e waveform, markers, cold-open suggestions (real stack)",
+    "markers": 11,
+    "seekOk": true,
+    "suggestionUsed": "Pakai saran 2 sebagai cold open",
+    "pass": true
+   },
+   "W3-e2e-music": {
+    "gate": "e2e music (real stack)",
+    "uploadMs": 1063,
+    "payload": {
+     "asset": "sha256:23186b5e99608bc787e6a89479280be4f9550e15d60fe1c62d2f616a27f6e510",
+     "src_in_smp": 0,
+     "loop": true,
+     "gain_cdb": -950,
+     "fade_in_f": 15,
+     "fade_out_f": 30,
+     "duck": {
+      "on": true,
+      "depth_cdb": 1600,
+      "attack_ms": 30,
+      "release_ms": 400,
+      "hold_ms": 250,
+      "detector": "words"
+     }
+    },
+    "pass": true
+   },
+   "W3-e2e-rapikan": {
+    "gate": "e2e Rapikan (real stack)",
+    "listed": 8,
+    "applied": 8,
+    "pass": true
+   },
+   "W3Z-QG-UX-U4": {
+    "gate": "QG-UX U4 (scripted, real stack)",
+    "browser": "Chrome for Testing 147.0.7727.15",
+    "viewport": "1366x768",
+    "pack": "Bold",
+    "elapsedMs": 2766,
+    "limitMs": 30000,
+    "pass": true
+   },
+   "W3Z-QG-UX-U5": {
+    "gate": "QG-UX U5 (scripted, real stack)",
+    "browser": "Chrome for Testing 147.0.7727.15",
+    "viewport": "1366x768",
+    "elapsedMs": 3820,
+    "limitMs": 60000,
+    "pass": true
+   }
+  }
+ },
+ "pass": true,
+ "flow_rerun_after_render_route_guard": {
+  "build": "next build of editor-w4-integration 58e1c02 (patch 66: the export status and cancel route behind secureRoute)",
+  "passed": 20,
+  "of": 20,
+  "minutes": 3.5,
+  "scripted_ux_ms": {
+   "U1": 2437,
+   "U2": 2474,
+   "U3": 2475,
+   "U4": 2767,
+   "U5": 3795,
+   "U6": {
+    "elapsedMs": 26805,
+    "limitMs": 119256
+   },
+   "U7": {
+    "lostCommands": 0,
+    "resetFoundMs": 1916
+   }
+  },
+  "export_with_logo_and_music": {
+   "renderMs": 28850,
+   "verify_ok": true
+  },
+  "pf_open": {
+   "firstMs": {
+    "p50": 442,
+    "p95": 455,
+    "max": 455
+   },
+   "repeatMs": {
+    "p50": 399,
+    "p95": 412,
+    "max": 412
+   }
+  }
+ }
+}

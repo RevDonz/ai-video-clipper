@@ -1,0 +1,94 @@
+{
+  "gate": "PF-TRUTH",
+  "runs": {
+    "image-ffmpeg-5.1.9": {
+      "cases": [
+        {
+          "failures": 0,
+          "http_ms": {
+            "max": 652.5,
+            "min": 557.9,
+            "n": 12,
+            "p50": 606.6,
+            "p95": 619.8
+          },
+          "layout": "fit_blur",
+          "role": "fit_blur",
+          "stages_ms": {
+            "compile_incl_ffprobe": 91.1,
+            "ffmpeg_encode_and_png": 354.5,
+            "imports": 73.6,
+            "plan": 21.3,
+            "process_other": 84.5,
+            "total": 627.1,
+            "validate": 2.1
+          }
+        },
+        {
+          "failures": 0,
+          "http_ms": {
+            "max": 885.9,
+            "min": 499.8,
+            "n": 12,
+            "p50": 616.6,
+            "p95": 669.5
+          },
+          "layout": "fill_center",
+          "role": "fill_center",
+          "stages_ms": {
+            "compile_incl_ffprobe": 63.7,
+            "ffmpeg_encode_and_png": 305.5,
+            "imports": 54.8,
+            "plan": 16.9,
+            "process_other": 60.3,
+            "total": 501.7,
+            "validate": 1.5
+          }
+        },
+        {
+          "failures": 0,
+          "http_ms": {
+            "max": 498.6,
+            "min": 483.3,
+            "n": 12,
+            "p50": 487.5,
+            "p95": 496.9
+          },
+          "layout": "camera",
+          "role": "camera",
+          "stages_ms": {
+            "compile_incl_ffprobe": 69.6,
+            "ffmpeg_encode_and_png": 305.5,
+            "imports": 63.3,
+            "plan": 18.2,
+            "process_other": 75.0,
+            "total": 534.6,
+            "validate": 2.1
+          }
+        }
+      ],
+      "environment": {
+        "cpu_quota": 6.0,
+        "cpus_visible": 16,
+        "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+        "loadavg": [
+          7.21,
+          15.35,
+          17.38
+        ],
+        "python": "3.11.2"
+      },
+      "gate_wall_s": 27.6,
+      "http_ms": {
+        "max": 885.9,
+        "min": 483.3,
+        "n": 36,
+        "p50": 597.2,
+        "p95": 669.2
+      },
+      "pass": false,
+      "threshold_ms": 600
+    }
+  },
+  "task": "T2.3"
+}

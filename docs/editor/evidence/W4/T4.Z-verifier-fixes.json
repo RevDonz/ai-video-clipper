@@ -1,0 +1,56 @@
+{
+ "schema": "potongin.gate/1",
+ "task": "T4.Z (W4 verifier fixes)",
+ "gate": "the fixes of the W4 release verification on 536f5de, re-checked on the real stack and in CI",
+ "stack": {
+  "build": "next build of editor-w4-integration at 00e40ce plus the e2e harness commits, next start on 127.0.0.1 (private port); build and job copies in /dev/shm (the PC's root disk was full)",
+  "render_worker": "python -m ai_clipper.render_worker --watch (owner's PC, FFmpeg 6.1.1)",
+  "flags": {
+   "POTONGIN_EDITOR_V3": "on",
+   "POTONGIN_EDITOR_UPLOADS": "on",
+   "POTONGIN_EDITOR_LLM": "off (no settings copy: the instant hook suggestions only)",
+   "POTONGIN_RENDER_ENGINE": "edit-v2"
+  },
+  "jobs": "fresh copies of e7f0d37b per run, 899226f8 without its source (closed case), d1e45678 (before Selection V3) and d3e45678 (Selection V3, no analysis/); originals only read, copies deleted",
+  "browser": "Chrome for Testing 147.0.7727.15, axe 4.13.0, one browser",
+  "machine": "owner's PC, 2026-10-02 05:30-05:55 WIB, owner away"
+ },
+ "deploy_guard": {
+  "test": "tests/test_deploy_guard.py runs deploy/production.sh's embedded Python unchanged on a temporary jobs root",
+  "before_fix": {"cancelled_request": "reported as live work (3 of 14 tests failed)"},
+  "after_fix": {"tests": 14, "failed": 0, "quiet_export_states": ["completed", "failed", "cancelled"], "live_export_states": ["queued", "claimed", "rendering"], "unreadable_file": "still blocks"}
+ },
+ "render_worker_scan": {
+  "test": "test_v3_worker_writes_nothing_into_a_job_that_was_never_exported",
+  "real_stack": "after start-up, analysis/render-requests/ exists in 0 of the 2 untouched job copies with analysis/ (before: created in every one)"
+ },
+ "qg_a11y_flow_repeat": {
+  "before": {"runs": 4, "failed": 1, "finding": "color-contrast 4.31 on the current cold-open suggestion mid fade-in (6.76 once settled)"},
+  "after": {"runs": 8, "failed": 0}
+ },
+ "acceptance_13_stages": {
+  "run_1": {"clipDurationMs": 48799, "steps": ["Antre", "Merender", "Memverifikasi"], "receivedStages": ["merender", "memverifikasi", "selesai"], "pass": true},
+  "run_2": {"clipDurationMs": 48799, "steps": ["Antre", "Merender"], "receivedStages": ["antre", "merender", "selesai"], "pass": true, "note": "the dialog never received memverifikasi: the old assertion fails here at random, the new one checks what the dialog was told"}
+ },
+ "real_stack": {
+  "flow": {"passed": 20, "of": 20, "minutes": 3.6, "U1_ms": 2450, "U2_ms": 2483, "U3_ms": 2521, "U4_ms": 2744, "U5_ms": 3857, "U6_ms": 26822, "U6_limit_ms": 119256, "U7_lost": 0, "U7_reset_found_ms": 1914, "qg_a11y_states": 16, "qg_a11y_findings": 0},
+  "acceptance": {"passed": 14, "of": 14, "minutes": 5.7, "qg_a11y_states": 26, "critical": 0, "serious": 0},
+  "fakes_shell": {"passed": 36, "skipped": 1, "skipped_reason": "PF-OPEN timing gate (EDITOR_GATES unset)", "includes": "an unchanged clip's checks are notes in the export"}
+ },
+ "pages": {
+  "history_edit_klip": {"e7f0d37b": true, "899226f8": true, "d3e45678": true, "d1e45678": false},
+  "project_page_reason": {"d1e45678": "Klip dari job ini tidak bisa diedit; proses ulang videonya (5 of 5 cards)", "d3e45678": "Klip ini belum bisa dibuka di editor (3 of 3 cards)"},
+  "unchanged_export_dialogs": {"clips": 3, "checkboxes": 0, "notes": "the K5 caption note on each", "start_enabled": true}
+ },
+ "ci": {
+  "full": {"run": 36935260211, "head": "00e40ce", "ruff": "All checks passed!", "pytest": "4261 passed, 2 skipped, 1 xfailed", "npm": "# tests 1209, # pass 1208, # fail 0", "build": "Compiled successfully"},
+  "image": {"run": 36935302658, "head": "00e40ce", "pytest": "4259 passed, 4 skipped, 1 xfailed"},
+  "pr": {"run": 36935257855, "head": "00e40ce", "conclusion": "success"},
+  "final": {
+   "head": "f87dd8f",
+   "full": {"run": 36938001003, "pytest": "4261 passed, 2 skipped, 1 xfailed", "npm": "# tests 1209, # pass 1208, # fail 0", "conclusion": "success"},
+   "image": {"run": 36938032673, "pytest": "4259 passed, 4 skipped, 1 xfailed", "conclusion": "success"},
+   "pr": {"run": 36937967572, "conclusion": "success"}
+  }
+ }
+}

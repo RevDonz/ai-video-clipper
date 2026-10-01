@@ -71,17 +71,32 @@ async function primaryReservations(root, activeIds, errorFactory) {
   }
   return total;
 }
+// The request states that end a reservation: an export (v3) that completed, failed or was
+// cancelled, and a request of the retired candidate editor (v2) in any state, since nothing
+// renders those any more.
+const RELEASING_STATES = new Map([
+  ["render-request-v3", new Set(["completed", "failed", "cancelled"])],
+  ["render-request-v2", null],
+]);
+
+/** Whether `request` (a parsed request file) releases the reservation `{renderId, reservationId, tokenHash}`. */
+export function requestReleasesReservation(request, { renderId, reservationId, tokenHash }) {
+  if (!request || typeof request !== "object" || renderId === null || !RELEASING_STATES.has(request.version)) return false;
+  const states = RELEASING_STATES.get(request.version);
+  return (states === null || states.has(request.state))
+    && request.render_id === renderId
+    && request.storage_reservation_id === reservationId
+    && typeof request.storage_reservation_token === "string"
+    && crypto.createHash("sha256").update(request.storage_reservation_token).digest("hex") === tokenHash;
+}
+
 async function terminalRenderOwns(root, item, errorFactory) {
   if (item.renderId === null) return false;
   const target = path.join(root, item.jobId, "analysis", "render-requests", `${item.renderId}.json`);
   let request;
   try { request = await readJson(target, 2 * 1024 * 1024, errorFactory); }
   catch (error) { if (error.code === "ENOENT") return false; throw error; }
-  return request?.version === "render-request-v2" && request.render_id === item.renderId
-    && ["completed", "failed"].includes(request.state)
-    && request.storage_reservation_id === item.reservationId
-    && typeof request.storage_reservation_token === "string"
-    && crypto.createHash("sha256").update(request.storage_reservation_token).digest("hex") === item.tokenHash;
+  return requestReleasesReservation(request, item);
 }
 async function renderReservations(root, errorFactory) {
   const directory = path.join(root, ".render-reservations");

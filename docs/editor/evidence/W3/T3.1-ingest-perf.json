@@ -1,0 +1,321 @@
+{
+ "schema": "potongin.gate/1",
+ "task": "T3.1",
+ "gate": "ingest p95 (plan §11.3 T3.1): <= 2 s per image, <= 8 s per 5-minute track",
+ "method": "python -m ai_clipper.edit_v2.assets ingest, one process per upload as the route spawns it (start-up, hashing, probe, normalise, store); the stored asset removed after each run so every run writes",
+ "image": {
+  "samples": 60,
+  "p50Ms": 723,
+  "p95Ms": 1093,
+  "maxMs": 1094,
+  "limitMs": 2000,
+  "pass": true
+ },
+ "track5min": {
+  "samples": 25,
+  "p50Ms": 5834,
+  "p95Ms": 6084,
+  "maxMs": 7396,
+  "limitMs": 8000,
+  "pass": true
+ },
+ "inputs": [
+  {
+   "input": "PNG 1024x1024 RGBA",
+   "kind": "logo",
+   "class": "image",
+   "bytes": 107457,
+   "samplesMs": [
+    243,
+    241,
+    241,
+    241,
+    242,
+    243,
+    243,
+    241,
+    243,
+    242
+   ],
+   "normalised": {
+    "w": 1024,
+    "h": 1024,
+    "durationMs": null,
+    "lufsC": null
+   },
+   "runs": 10,
+   "p50Ms": 242,
+   "p95Ms": 243,
+   "maxMs": 243
+  },
+  {
+   "input": "PNG 1600x1600 RGBA noisy",
+   "kind": "logo",
+   "class": "image",
+   "bytes": 6305902,
+   "samplesMs": [
+    727,
+    728,
+    728,
+    725,
+    724,
+    725,
+    725,
+    726,
+    726,
+    726
+   ],
+   "normalised": {
+    "w": 1024,
+    "h": 1024,
+    "durationMs": null,
+    "lufsC": null
+   },
+   "runs": 10,
+   "p50Ms": 726,
+   "p95Ms": 728,
+   "maxMs": 728
+  },
+  {
+   "input": "JPEG 4000x3000 EXIF 6",
+   "kind": "logo",
+   "class": "image",
+   "bytes": 6059043,
+   "samplesMs": [
+    716,
+    767,
+    770,
+    717,
+    720,
+    769,
+    717,
+    719,
+    767,
+    716
+   ],
+   "normalised": {
+    "w": 768,
+    "h": 1024,
+    "durationMs": null,
+    "lufsC": null
+   },
+   "runs": 10,
+   "p50Ms": 719,
+   "p95Ms": 770,
+   "maxMs": 770
+  },
+  {
+   "input": "JPEG 4096x4096",
+   "kind": "logo",
+   "class": "image",
+   "bytes": 6765574,
+   "samplesMs": [
+    773,
+    726,
+    775,
+    723,
+    722,
+    723,
+    723,
+    724,
+    722,
+    722
+   ],
+   "normalised": {
+    "w": 1024,
+    "h": 1024,
+    "durationMs": null,
+    "lufsC": null
+   },
+   "runs": 10,
+   "p50Ms": 723,
+   "p95Ms": 775,
+   "maxMs": 775
+  },
+  {
+   "input": "WebP 3000x2000",
+   "kind": "logo",
+   "class": "image",
+   "bytes": 2651390,
+   "samplesMs": [
+    1092,
+    1091,
+    1093,
+    1094,
+    1092,
+    1093,
+    1090,
+    1093,
+    1091,
+    1092
+   ],
+   "normalised": {
+    "w": 1024,
+    "h": 683,
+    "durationMs": null,
+    "lufsC": null
+   },
+   "runs": 10,
+   "p50Ms": 1092,
+   "p95Ms": 1094,
+   "maxMs": 1094
+  },
+  {
+   "input": "WebP 512x512 lossless alpha",
+   "kind": "logo",
+   "class": "image",
+   "bytes": 16808,
+   "samplesMs": [
+    239,
+    239,
+    240,
+    240,
+    240,
+    238,
+    240,
+    239,
+    239,
+    240
+   ],
+   "normalised": {
+    "w": 512,
+    "h": 512,
+    "durationMs": null,
+    "lufsC": null
+   },
+   "runs": 10,
+   "p50Ms": 239,
+   "p95Ms": 240,
+   "maxMs": 240
+  },
+  {
+   "input": "MP3 320k 44.1k stereo 5 min",
+   "kind": "music",
+   "class": "track5min",
+   "bytes": 12002787,
+   "samplesMs": [
+    5984,
+    6084,
+    5991,
+    6035,
+    5988
+   ],
+   "normalised": {
+    "w": null,
+    "h": null,
+    "durationMs": 300010,
+    "lufsC": -1880
+   },
+   "runs": 5,
+   "p50Ms": 5991,
+   "p95Ms": 6084,
+   "maxMs": 6084
+  },
+  {
+   "input": "M4A AAC 256k 5 min",
+   "kind": "music",
+   "class": "track5min",
+   "bytes": 8320063,
+   "samplesMs": [
+    5833,
+    5893,
+    7396,
+    5844,
+    5843
+   ],
+   "normalised": {
+    "w": null,
+    "h": null,
+    "durationMs": 300010,
+    "lufsC": -1880
+   },
+   "runs": 5,
+   "p50Ms": 5844,
+   "p95Ms": 7396,
+   "maxMs": 7396
+  },
+  {
+   "input": "FLAC 44.1k stereo 5 min",
+   "kind": "music",
+   "class": "track5min",
+   "bytes": 17514466,
+   "samplesMs": [
+    5794,
+    5799,
+    5797,
+    5797,
+    5794
+   ],
+   "normalised": {
+    "w": null,
+    "h": null,
+    "durationMs": 300010,
+    "lufsC": -1880
+   },
+   "runs": 5,
+   "p50Ms": 5797,
+   "p95Ms": 5799,
+   "maxMs": 5799
+  },
+  {
+   "input": "Ogg Vorbis q6 5 min",
+   "kind": "music",
+   "class": "track5min",
+   "bytes": 4899302,
+   "samplesMs": [
+    5893,
+    5883,
+    5834,
+    5834,
+    5887
+   ],
+   "normalised": {
+    "w": null,
+    "h": null,
+    "durationMs": 300010,
+    "lufsC": -1880
+   },
+   "runs": 5,
+   "p50Ms": 5883,
+   "p95Ms": 5893,
+   "maxMs": 5893
+  },
+  {
+   "input": "WAV 48k mono 5 min",
+   "kind": "music",
+   "class": "track5min",
+   "bytes": 28800078,
+   "samplesMs": [
+    5605,
+    5565,
+    5616,
+    5610,
+    5608
+   ],
+   "normalised": {
+    "w": null,
+    "h": null,
+    "durationMs": 300010,
+    "lufsC": -1880
+   },
+   "runs": 5,
+   "p50Ms": 5608,
+   "p95Ms": 5616,
+   "maxMs": 5616
+  }
+ ],
+ "pass": true,
+ "stack": "GitHub Actions ubuntu-latest runner (4 vCPU; timings indicative), production image built from editor-w3-t3.1 at d83251a, FFmpeg 5.1.9, uid 1000 (node)",
+ "toolchain": {
+  "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+  "python": "3.11.2",
+  "machine": "x86_64",
+  "cpus": 4,
+  "load": [
+   1.2,
+   1.0,
+   0.5
+  ]
+ },
+ "ciRun": "editor-gates.yml run 36844706040 (suite=command)"
+}

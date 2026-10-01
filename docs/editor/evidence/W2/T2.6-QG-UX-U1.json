@@ -1,0 +1,27 @@
+{
+  "browser": "Chrome for Testing 147.0.7727.15 (Playwright 1.62.1, build 1217)",
+  "commit": "30d7e79",
+  "elapsed_ms": 2049,
+  "gate": "QG-UX U1 (scripted): fix a clipped first word",
+  "load_average_1m_before_after": [
+    8.98,
+    12.88
+  ],
+  "machine": "K15 reference PC (Ryzen 7 5700G, 16 threads), shared with other agents",
+  "pass": true,
+  "scenario": "seed body starts inside the first word (in_sf 37225, word 'Kenapa' at 37220.7); drag 'Awal klip' left 3 frames; it snaps to the bounds frame 37220 (TrimStart gapWord w048121); autosave (1.5 s debounce, PUT +90 ms) saves revision 1; plan +200 ms",
+  "server": "next build + next start (production), private 127.0.0.1 port, POTONGIN_EDITOR_V3=on, POTONGIN_EDITOR_FAKES=1",
+  "spec": "web/e2e/editor-shell.spec.mjs",
+  "steps": [
+    "drag Awal klip left to the word gap",
+    "autosave (1.5 s debounce)"
+  ],
+  "task": "T2.6",
+  "threshold": {
+    "limit_ms": 20000
+  },
+  "viewport": [
+    1366,
+    768
+  ]
+}

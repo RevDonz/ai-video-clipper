@@ -1,0 +1,55 @@
+{
+  "gate": "PF-AUDIO",
+  "runs": {
+    "ci-4vcpu": {
+      "clip": "synthetic main #1: fit-blur, 29.97 fps CFR, cold open",
+      "clip_seconds": 89.99,
+      "edits": [
+        "duck preset/depth",
+        "music gain",
+        "fade in",
+        "normalize + source gain",
+        "release"
+      ],
+      "environment": {
+        "cpus_visible": 4,
+        "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+        "loadavg": [
+          3.03,
+          2.89,
+          1.9
+        ],
+        "python": "3.11.2"
+      },
+      "failures": 0,
+      "gate": "PF-AUDIO",
+      "loadavg_during": [
+        3.03,
+        3.89
+      ],
+      "media": "synthetic",
+      "pass": false,
+      "task": "T3.3",
+      "threshold_ms": 1000,
+      "with_music_ms": {
+        "max": 1312.3,
+        "min": 939.7,
+        "n": 20,
+        "p50": 1058.0,
+        "p95": 1291.7
+      },
+      "with_music_stages_ms": {
+        "compile_master": 0.1,
+        "compile_premaster_incl_ffprobe": 107.3,
+        "ffmpeg_decode_mix_and_measure": 562.9,
+        "ffmpeg_master_flac": 159.0,
+        "imports": 49.6,
+        "plan": 10.9,
+        "process_other": 60.0,
+        "total": 957.5,
+        "validate": 1.1
+      }
+    }
+  },
+  "task": "T3.3"
+}

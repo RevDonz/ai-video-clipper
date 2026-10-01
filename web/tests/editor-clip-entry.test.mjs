@@ -1,0 +1,184 @@
+// The project page's editor entry per clip (plan §4.2 GET /clips, Appendix C.6) in
+// web/lib/clip-entry-view.mjs: the "Edit klip" link, the edit badge, the latest export link and
+// the reason a clip cannot open. The listing route only exists with POTONGIN_EDITOR_V3=on. A clip
+// that still needs preparing links to the editor too, which prepares it on open (W3, owner
+// feedback: no manual "Siapkan untuk editor" step; web/lib/editor/open-clip.mjs).
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import * as entryView from "../lib/clip-entry-view.mjs";
+
+const { CLIP_REASON_TEXT, clipEntryFor, clipEntryView, loadClipEntries } = entryView;
+
+const JOB = "8f0c2a1e-5b7d-4c3a-9e21-6d4f0b8a7c55";
+const CLIP = "clip_9b2e41c07d3a5f18e6c2a0b4";
+
+function listing(fields = {}) {
+  return {
+    clipId: CLIP, index: 1, title: "Judul", hookText: "Hook", description: "Deskripsi", hashtags: ["#a"], durationMs: 42_000,
+    engine: "edit-v2/1", edit: { state: "seed", revision: 0, etag: "a".repeat(64), updatedAtMs: 1 }, latestRender: null,
+    openable: true, reason: null, ...fields,
+  };
+}
+
+function response(status, body) {
+  return { status, ok: status >= 200 && status < 300, json: async () => body };
+}
+
+test("an openable clip links to its editor; the seed reads 'Belum diedit'", () => {
+  const view = clipEntryView(JOB, listing());
+  assert.equal(view.editHref, `/projects/${JOB}/clips/${CLIP}/edit`);
+  assert.equal(view.openable, true);
+  assert.deepEqual(view.editBadge, { text: "Belum diedit", tone: "muted" });
+  assert.equal(view.latestExport, null);
+  assert.equal(view.reasonText, null);
+  assert.equal(view.needsPrepare, false);
+  assert.equal("engineLegacy" in view, false, "no engine is named on screen (latest only)");
+});
+
+test("an edited clip shows its revision and its latest export", () => {
+  const view = clipEntryView(JOB, listing({
+    edit: { state: "edited", revision: 3, etag: "b".repeat(64), updatedAtMs: 2 },
+    latestRender: { renderId: "r-9", state: "completed", revision: 3,
+      url: `/api/jobs/${JOB}/files/output/edits/${CLIP}/0123456789abcdef.mp4`,
+      srtUrl: `/api/jobs/${JOB}/files/output/edits/${CLIP}/0123456789abcdef.srt` },
+  }));
+  assert.deepEqual(view.editBadge, { text: "Diedit · revisi 3", tone: "edited" });
+  // Saved under the clip's number and revision, not the stored hash name.
+  assert.deepEqual(view.latestExport, {
+    label: "Ekspor terakhir · revisi 3", state: "completed",
+    href: `/api/jobs/${JOB}/files/output/edits/${CLIP}/0123456789abcdef.mp4?download=1&name=klip-01-revisi-3`,
+    filename: "klip-01-revisi-3.mp4",
+    srtHref: `/api/jobs/${JOB}/files/output/edits/${CLIP}/0123456789abcdef.srt?download=1&name=klip-01-revisi-3`,
+    srtFilename: "klip-01-revisi-3.srt",
+  });
+});
+
+test("an export downloads as klip-NN-revisi-R with the file's own extension", () => {
+  const { exportDownload } = entryView;
+  const base = `/api/jobs/${JOB}/files/output/edits/${CLIP}/0123456789abcdef`;
+  assert.deepEqual(exportDownload(`${base}.mp4`, { index: 12, revision: 7 }),
+    { href: `${base}.mp4?download=1&name=klip-12-revisi-7`, filename: "klip-12-revisi-7.mp4" });
+  assert.deepEqual(exportDownload(`${base}.srt`, { index: 2, revision: 0 }),
+    { href: `${base}.srt?download=1&name=klip-02-revisi-0`, filename: "klip-02-revisi-0.srt" });
+  assert.deepEqual(exportDownload(`${base}.mp4?v=1`, { index: 2, revision: 1 }),
+    { href: `${base}.mp4?v=1&download=1&name=klip-02-revisi-1`, filename: "klip-02-revisi-1.mp4" });
+  // Without a clip number or revision the link stays as the server gave it.
+  for (const ref of [{}, { index: 0, revision: 1 }, { index: 100, revision: 1 }, { index: 1, revision: -1 }, { index: 1.5, revision: 1 }]) {
+    assert.deepEqual(exportDownload(`${base}.mp4`, ref), { href: `${base}.mp4`, filename: null }, JSON.stringify(ref));
+  }
+  assert.equal(exportDownload(null, { index: 1, revision: 1 }), null);
+});
+
+test("an export in progress or failed has no download link", () => {
+  assert.deepEqual(clipEntryView(JOB, listing({ latestRender: { renderId: "r", state: "rendering", revision: 2, url: null, srtUrl: null } })).latestExport,
+    { label: "Ekspor sedang diproses", state: "rendering", href: null, srtHref: null });
+  assert.deepEqual(clipEntryView(JOB, listing({ latestRender: { renderId: "r", state: "queued", revision: 2, url: null, srtUrl: null } })).latestExport.label,
+    "Ekspor sedang diproses");
+  assert.deepEqual(clipEntryView(JOB, listing({ latestRender: { renderId: "r", state: "failed", revision: 2, url: null, srtUrl: null } })).latestExport,
+    { label: "Ekspor terakhir gagal", state: "failed", href: null, srtHref: null });
+  assert.equal(clipEntryView(JOB, listing({ latestRender: { renderId: "r", state: "cancelled", revision: 2, url: null, srtUrl: null } })).latestExport, null);
+});
+
+test("links never leave the job's own API paths", () => {
+  const hostile = clipEntryView(JOB, listing({ latestRender: { renderId: "r", state: "completed", revision: 1,
+    url: "javascript:alert(1)", srtUrl: "https://evil.example/x.srt" } }));
+  assert.equal(hostile.latestExport.href, null);
+  assert.equal(hostile.latestExport.srtHref, null);
+  const otherJob = clipEntryView(JOB, listing({ latestRender: { renderId: "r", state: "completed", revision: 1,
+    url: "/api/jobs/00000000-0000-4000-8000-000000000000/files/output/x.mp4", srtUrl: null } }));
+  assert.equal(otherJob.latestExport.href, null);
+  const traversal = clipEntryView(JOB, listing({ latestRender: { renderId: "r", state: "completed", revision: 1,
+    url: `/api/jobs/${JOB}/../../x.mp4`, srtUrl: null } }));
+  assert.equal(traversal.latestExport.href, null);
+});
+
+test("a clip that cannot open names its reason (Appendix C.6)", () => {
+  assert.deepEqual(CLIP_REASON_TEXT, {
+    needs_prepare: "Klip perlu disiapkan dulu",
+    source_missing: "Video sumber sudah tidak ada",
+    source_unreadable: "Video sumber tidak bisa dibaca; proses ulang videonya",
+    selection_unreadable: "Hasil seleksi tidak terbaca",
+    transcript_missing: "Transkrip tidak ditemukan",
+    analysis_incomplete: "Analisis job belum selesai",
+    not_v3: "Klip dari job ini tidak bisa diedit; proses ulang videonya",
+  });
+  const missing = clipEntryView(JOB, listing({ openable: false, reason: "source_missing" }));
+  assert.equal(missing.editHref, null);
+  assert.equal(missing.reasonText, "Video sumber sudah tidak ada");
+  const unknown = clipEntryView(JOB, listing({ openable: false, reason: "mystery" }));
+  assert.equal(unknown.editHref, null);
+  assert.equal(unknown.reasonText, "Klip ini belum bisa dibuka di editor");
+});
+
+test("a clip that still needs preparing links to the editor, which prepares it on open", () => {
+  const byNumber = clipEntryView(JOB, listing({ index: 3, clipId: null, edit: null, openable: false, reason: "needs_prepare" }));
+  assert.equal(byNumber.needsPrepare, true);
+  assert.equal(byNumber.editHref, `/projects/${JOB}/clips/klip-3/edit`);
+  assert.equal(byNumber.reasonText, null, "no step to do by hand, so nothing to explain");
+  assert.equal(byNumber.editBadge, null);
+  const byId = clipEntryView(JOB, listing({ edit: null, openable: false, reason: "needs_prepare" }));
+  assert.equal(byId.editHref, `/projects/${JOB}/clips/${CLIP}/edit`);
+  const running = clipEntryView(JOB, listing({ index: 2, clipId: null, edit: null, openable: false, reason: "analysis_incomplete" }));
+  assert.equal(running.editHref, `/projects/${JOB}/clips/klip-2/edit`);
+  assert.equal(running.reasonText, null);
+  assert.equal("prepareClipEntries" in entryView, false, "the page has no prepare action of its own");
+});
+
+test("a malformed clip id is never linked; the engine of a clip is never named", () => {
+  const bad = clipEntryView(JOB, listing({ clipId: "clip_../../x" }));
+  assert.equal(bad.editHref, null);
+  assert.equal(bad.openable, false);
+  assert.equal(bad.reasonText, "Klip ini belum bisa dibuka di editor");
+  const badPrepare = clipEntryView(JOB, listing({ clipId: "clip_../../x", openable: false, reason: "needs_prepare" }));
+  assert.equal(badPrepare.editHref, null);
+  const legacy = clipEntryView(JOB, listing({ engine: "legacy" }));
+  assert.equal(legacy.editHref, `/projects/${JOB}/clips/${CLIP}/edit`);
+  assert.equal("engineLegacy" in legacy, false);
+});
+
+// W4 verifier (GATES Open 42): jobs made before the editor list no clips (no manifest, no
+// analysis). Their cards said nothing; now each says why it cannot open. While the listing is
+// off, loading or failed, the cards stay as they are.
+test("a clip the listing does not name says why it cannot open", () => {
+  const v3 = { id: JOB, options: { selectionMode: "v3" } };
+  const old = { id: JOB, options: { selectionMode: "v1" } };
+  const available = { state: "available", byIndex: new Map([[1, clipEntryView(JOB, listing())]]) };
+  assert.equal(clipEntryFor(available, v3, 1).editHref, `/projects/${JOB}/clips/${CLIP}/edit`);
+  const unlisted = clipEntryFor(available, v3, 2);
+  assert.equal(unlisted.editHref, null);
+  assert.equal(unlisted.reasonText, "Klip ini belum bisa dibuka di editor");
+  assert.equal(unlisted.latestExport, null);
+  assert.equal(clipEntryFor(available, old, 2).reasonText, "Klip dari job ini tidak bisa diedit; proses ulang videonya");
+  assert.equal(clipEntryFor({ state: "available", byIndex: new Map() }, {}, 1).editHref, null);
+  for (const state of ["unavailable", "error", "redirect"]) {
+    assert.equal(clipEntryFor({ state, byIndex: new Map() }, v3, 2), null, state);
+  }
+  assert.equal(clipEntryFor(undefined, v3, 1), null);
+});
+
+test("the listing loads by clip index; 404 means the editor is off", async () => {
+  const calls = [];
+  const loaded = await loadClipEntries(JOB, { fetchImpl: async (url, init) => {
+    calls.push([url, init.cache]);
+    return response(200, { clips: [listing(), listing({ index: 2, clipId: "clip_" + "1".repeat(24) })] });
+  } });
+  assert.deepEqual(calls, [[`/api/jobs/${JOB}/clips`, "no-store"]]);
+  assert.equal(loaded.state, "available");
+  assert.equal(loaded.byIndex.get(2).clipId, "clip_" + "1".repeat(24));
+  assert.equal(loaded.byIndex.size, 2);
+  assert.equal((await loadClipEntries(JOB, { fetchImpl: async () => response(404, { error: "x" }) })).state, "unavailable");
+  assert.deepEqual(await loadClipEntries(JOB, { fetchImpl: async () => response(401, {}) }),
+    { state: "redirect", location: `/login?next=${encodeURIComponent(`/projects/${JOB}`)}`, byIndex: new Map() });
+  const failed = await loadClipEntries(JOB, { fetchImpl: async () => response(500, { error: "boom" }) });
+  assert.equal(failed.state, "error");
+  assert.equal(failed.message, "Status editor klip tidak dapat dimuat.");
+  assert.equal((await loadClipEntries(JOB, { fetchImpl: async () => { throw new TypeError("offline"); } })).state, "error");
+  assert.equal((await loadClipEntries(JOB, { fetchImpl: async () => response(200, { clips: "no" }) })).state, "error");
+});
+
+test("an aborted load rethrows the abort", async () => {
+  const abort = new DOMException("aborted", "AbortError");
+  await assert.rejects(loadClipEntries(JOB, { fetchImpl: async () => { throw abort; } }), (error) => error === abort);
+});
+

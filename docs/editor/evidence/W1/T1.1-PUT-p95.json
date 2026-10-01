@@ -1,0 +1,35 @@
+{
+ "doc_bytes": 100055,
+ "environment": {
+  "cpus": 16,
+  "filesystem": "ext4",
+  "loadavg_1_5_15": [
+   2.44,
+   4.38,
+   5.44
+  ],
+  "machine": "x86_64",
+  "python": "3.11.15"
+ },
+ "environment_after": {
+  "cpus": 16,
+  "filesystem": "ext4",
+  "loadavg_1_5_15": [
+   2.56,
+   4.31,
+   5.4
+  ],
+  "machine": "x86_64",
+  "python": "3.11.15"
+ },
+ "gate": "in-process PUT p95 <= 30 ms for a 100 KB document",
+ "pass": true,
+ "put_ms_max": 18.321,
+ "put_ms_p50": 10.217,
+ "put_ms_p95": 11.947,
+ "put_ms_p99": 14.276,
+ "python_executable_is_311": true,
+ "receipt_files": 200,
+ "samples": 1000,
+ "threshold_ms": 30
+}

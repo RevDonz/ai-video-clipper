@@ -1,0 +1,136 @@
+[Script Info]
+ScriptType: v4.00+
+WrapStyle: 0
+ScaledBorderAndShadow: yes
+YCbCr Matrix: None
+PlayResX: 720
+PlayResY: 1280
+
+[V4+ Styles]
+Format: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding
+Style: Caption,DejaVu Sans,53,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,8.53,4.44,2,43,43,218,1
+
+[Events]
+Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text
+Dialogue: 0,0:00:00.51,0:00:01.91,Caption,,0,0,0,,pelan pelan pulang juga
+Dialogue: 0,0:00:01.95,0:00:03.11,Caption,,0,0,0,,nahan syuting abis?
+Dialogue: 0,0:00:03.47,0:00:04.95,Caption,,0,0,0,,katanya abis dia aja
+Dialogue: 0,0:00:05.03,0:00:06.35,Caption,,0,0,0,,nggak juga eh masuk.
+Dialogue: 0,0:00:06.95,0:00:08.55,Caption,,0,0,0,,sendiri eh sih sih
+Dialogue: 0,0:00:08.67,0:00:09.23,Caption,,0,0,0,,anu beneran.
+Dialogue: 0,0:00:09.63,0:00:10.95,Caption,,0,0,0,,tahu padahal jadi nggak
+Dialogue: 0,0:00:10.99,0:00:12.63,Caption,,0,0,0,,ketawa pas kopi security.
+Dialogue: 0,0:00:12.63,0:00:15.27,Caption,,0,0,0,,dia terus pokoknya terus
+Dialogue: 0,0:00:15.35,0:00:16.75,Caption,,0,0,0,,kopi dong wkwk kok
+Dialogue: 0,0:00:16.83,0:00:17.15,Caption,,0,0,0,,sumpah.
+Dialogue: 0,0:00:17.55,0:00:19.07,Caption,,0,0,0,,anu pintu pelan kenapa
+Dialogue: 0,0:00:19.19,0:00:19.79,Caption,,0,0,0,,ternyata film.
+Dialogue: 0,0:00:21.11,0:00:22.63,Caption,,0,0,0,,pulang nggak tahu kopi.
+Dialogue: 0,0:00:23.15,0:00:24.47,Caption,,0,0,0,,beneran anu pokoknya juga
+Dialogue: 0,0:00:24.63,0:00:25.39,Caption,,0,0,0,,padahal dia.
+Dialogue: 0,0:00:26.07,0:00:27.55,Caption,,0,0,0,,eh padahal pas dong
+Dialogue: 0,0:00:27.63,0:00:28.35,Caption,,0,0,0,,pokoknya itu?
+Dialogue: 0,0:00:28.79,0:00:30.15,Caption,,0,0,0,,tahu ambil pintu eh
+Dialogue: 0,0:00:30.19,0:00:31.63,Caption,,0,0,0,,pokoknya kru syuting sendiri
+Dialogue: 0,0:00:31.79,0:00:32.15,Caption,,0,0,0,,nahan.
+Dialogue: 0,0:00:32.63,0:00:34.19,Caption,,0,0,0,,waktu sumpah sumpah aja
+Dialogue: 0,0:00:34.31,0:00:35.91,Caption,,0,0,0,,gue mah film orang
+Dialogue: 0,0:00:35.99,0:00:36.31,Caption,,0,0,0,,kita?
+Dialogue: 0,0:00:36.79,0:00:38.43,Caption,,0,0,0,,pelan masuk anu syuting.
+Dialogue: 0,0:00:39.79,0:00:41.27,Caption,,0,0,0,,kok nahan mau sumpah
+Dialogue: 0,0:00:41.43,0:00:42.67,Caption,,0,0,0,,lagi ternyata kru lagi.
+Dialogue: 0,0:00:44.11,0:00:45.87,Caption,,0,0,0,,tahu sumpah nggak tahu
+Dialogue: 0,0:00:45.95,0:00:47.27,Caption,,0,0,0,,pintu dong waktu.
+Dialogue: 0,0:00:47.63,0:00:49.15,Caption,,0,0,0,,kopi gue pulang lagi
+Dialogue: 0,0:00:49.19,0:00:49.51,Caption,,0,0,0,,anu.
+Dialogue: 0,0:00:50.51,0:00:52.03,Caption,,0,0,0,,padahal kok pokoknya kru?
+Dialogue: 0,0:00:53.19,0:00:54.75,Caption,,0,0,0,,kita nahan mah mau
+Dialogue: 0,0:00:54.87,0:00:55.99,Caption,,0,0,0,,juga semua abis anu.
+Dialogue: 0,0:00:57.27,0:00:58.55,Caption,,0,0,0,,katanya nggak nahan juga.
+Dialogue: 0,0:00:58.91,0:01:00.55,Caption,,0,0,0,,di itu juga bukan
+Dialogue: 0,0:01:00.59,0:01:01.51,Caption,,0,0,0,,eh sumpah semua?
+Dialogue: 0,0:01:01.95,0:01:03.51,Caption,,0,0,0,,jadi ternyata sumpah di
+Dialogue: 0,0:01:03.67,0:01:03.99,Caption,,0,0,0,,lagi.
+Dialogue: 0,0:01:04.31,0:01:05.43,Caption,,0,0,0,,anu mau ketawa juga
+Dialogue: 0,0:01:05.59,0:01:06.71,Caption,,0,0,0,,jadi pintu sendiri.
+Dialogue: 0,0:01:07.07,0:01:08.39,Caption,,0,0,0,,terus gue di katanya
+Dialogue: 0,0:01:08.47,0:01:09.63,Caption,,0,0,0,,juga kopi jadi.
+Dialogue: 0,0:01:10.67,0:01:11.95,Caption,,0,0,0,,pas hati syuting film
+Dialogue: 0,0:01:12.07,0:01:13.39,Caption,,0,0,0,,padahal kita semua mau
+Dialogue: 0,0:01:13.51,0:01:13.83,Caption,,0,0,0,,anu?
+Dialogue: 0,0:01:14.83,0:01:16.19,Caption,,0,0,0,,ketawa syuting syuting dia
+Dialogue: 0,0:01:16.31,0:01:17.59,Caption,,0,0,0,,masuk pintu waktu.
+Dialogue: 0,0:01:18.95,0:01:20.47,Caption,,0,0,0,,kok dia beneran anu.
+Dialogue: 0,0:01:20.87,0:01:22.43,Caption,,0,0,0,,abis kenapa terus security
+Dialogue: 0,0:01:22.51,0:01:23.19,Caption,,0,0,0,,sendiri semua.
+Dialogue: 0,0:01:23.47,0:01:24.87,Caption,,0,0,0,,pas kita semua waktu
+Dialogue: 0,0:01:24.91,0:01:25.91,Caption,,0,0,0,,lagi pelan lagi?
+Dialogue: 0,0:01:26.83,0:01:28.47,Caption,,0,0,0,,kita bukan sumpah pokoknya
+Dialogue: 0,0:01:28.55,0:01:30.07,Caption,,0,0,0,,juga orang sama juga
+Dialogue: 0,0:01:30.15,0:01:30.55,Caption,,0,0,0,,mau.
+Dialogue: 0,0:01:31.55,0:01:32.95,Caption,,0,0,0,,abis mau pas film
+Dialogue: 0,0:01:33.07,0:01:34.07,Caption,,0,0,0,,langsung jadi waktu?
+Dialogue: 0,0:01:34.35,0:01:36.11,Caption,,0,0,0,,pintu ternyata nahan juga
+Dialogue: 0,0:01:36.15,0:01:37.07,Caption,,0,0,0,,tahu waktu.
+Dialogue: 0,0:01:37.43,0:01:38.99,Caption,,0,0,0,,kok sama kenapa tahu
+Dialogue: 0,0:01:39.15,0:01:39.83,Caption,,0,0,0,,kru pulang?
+Dialogue: 0,0:01:41.19,0:01:42.67,Caption,,0,0,0,,di kok semua ketawa
+Dialogue: 0,0:01:42.75,0:01:43.75,Caption,,0,0,0,,orang ketawa bukan.
+Dialogue: 0,0:01:44.79,0:01:46.39,Caption,,0,0,0,,sih anu padahal orang
+Dialogue: 0,0:01:46.47,0:01:47.79,Caption,,0,0,0,,semua kenapa pelan mau.
+Dialogue: 0,0:01:48.11,0:01:49.55,Caption,,0,0,0,,kenapa kopi anu kopi.
+Dialogue: 0,0:01:50.63,0:01:52.11,Caption,,0,0,0,,gue jadi mau pulang
+Dialogue: 0,0:01:52.19,0:01:52.51,Caption,,0,0,0,,masuk.
+Dialogue: 0,0:01:53.35,0:01:54.95,Caption,,0,0,0,,kita pelan syuting mah
+Dialogue: 0,0:01:55.07,0:01:56.75,Caption,,0,0,0,,lagi di pulang syuting.
+Dialogue: 0,0:01:57.87,0:01:59.35,Caption,,0,0,0,,langsung jadi sumpah langsung
+Dialogue: 0,0:01:59.43,0:02:00.79,Caption,,0,0,0,,hati pelan katanya.
+Dialogue: 0,0:02:01.59,0:02:02.87,Caption,,0,0,0,,security dia syuting kita
+Dialogue: 0,0:02:02.95,0:02:03.63,Caption,,0,0,0,,kru kok?
+Dialogue: 0,0:02:04.43,0:02:05.95,Caption,,0,0,0,,padahal orang pintu kita
+Dialogue: 0,0:02:06.03,0:02:06.67,Caption,,0,0,0,,eh sih.
+Dialogue: 0,0:02:07.87,0:02:09.55,Caption,,0,0,0,,kru pas di pokoknya.
+Dialogue: 0,0:02:10.47,0:02:11.99,Caption,,0,0,0,,masuk kenapa sumpah sumpah
+Dialogue: 0,0:02:12.07,0:02:13.59,Caption,,0,0,0,,bukan pulang bukan jadi
+Dialogue: 0,0:02:13.67,0:02:13.99,Caption,,0,0,0,,security.
+Dialogue: 0,0:02:15.11,0:02:16.51,Caption,,0,0,0,,jadi mah tahu padahal
+Dialogue: 0,0:02:16.63,0:02:17.99,Caption,,0,0,0,,pas kenapa bukan pelan
+Dialogue: 0,0:02:18.07,0:02:18.39,Caption,,0,0,0,,padahal.
+Dialogue: 0,0:02:18.75,0:02:20.27,Caption,,0,0,0,,mah waktu kopi dia
+Dialogue: 0,0:02:20.43,0:02:20.83,Caption,,0,0,0,,gue?
+Dialogue: 0,0:02:21.27,0:02:22.79,Caption,,0,0,0,,sumpah ternyata pelan anu
+Dialogue: 0,0:02:22.83,0:02:23.27,Caption,,0,0,0,,ternyata.
+Dialogue: 0,0:02:23.59,0:02:24.91,Caption,,0,0,0,,kita dong eh lagi
+Dialogue: 0,0:02:24.99,0:02:26.31,Caption,,0,0,0,,sumpah dong pintu syuting.
+Dialogue: 0,0:02:27.75,0:02:29.51,Caption,,0,0,0,,sendiri itu pintu gue
+Dialogue: 0,0:02:29.55,0:02:31.07,Caption,,0,0,0,,nggak pokoknya dia jadi
+Dialogue: 0,0:02:31.15,0:02:31.47,Caption,,0,0,0,,kita.
+Dialogue: 0,0:02:31.83,0:02:33.11,Caption,,0,0,0,,hati kita semua ketawa
+Dialogue: 0,0:02:33.19,0:02:33.55,Caption,,0,0,0,,ambil.
+Dialogue: 0,0:02:33.83,0:02:35.27,Caption,,0,0,0,,semua pas padahal itu
+Dialogue: 0,0:02:35.35,0:02:37.15,Caption,,0,0,0,,di kita sumpah gue?
+Dialogue: 0,0:02:37.99,0:02:39.55,Caption,,0,0,0,,orang langsung dong langsung.
+Dialogue: 0,0:02:40.19,0:02:41.47,Caption,,0,0,0,,abis itu katanya eh
+Dialogue: 0,0:02:41.59,0:02:43.23,Caption,,0,0,0,,security kenapa abis ketawa
+Dialogue: 0,0:02:43.39,0:02:43.71,Caption,,0,0,0,,masuk.
+Dialogue: 0,0:02:44.55,0:02:46.39,Caption,,0,0,0,,kok pelan sumpah sumpah.
+Dialogue: 0,0:02:46.91,0:02:48.23,Caption,,0,0,0,,kopi pulang nahan pulang
+Dialogue: 0,0:02:48.27,0:02:48.63,Caption,,0,0,0,,tahu.
+Dialogue: 0,0:02:50.03,0:02:51.67,Caption,,0,0,0,,nggak katanya juga beneran
+Dialogue: 0,0:02:51.75,0:02:52.15,Caption,,0,0,0,,pokoknya.
+Dialogue: 0,0:02:52.99,0:02:54.19,Caption,,0,0,0,,bukan itu katanya katanya
+Dialogue: 0,0:02:54.31,0:02:55.07,Caption,,0,0,0,,terus nggak.
+Dialogue: 0,0:02:56.35,0:02:57.79,Caption,,0,0,0,,kok gue semua terus
+Dialogue: 0,0:02:57.83,0:02:59.55,Caption,,0,0,0,,kenapa dia kru pelan
+Dialogue: 0,0:02:59.63,0:03:00.03,Caption,,0,0,0,,dong.
+Dialogue: 0,0:03:00.75,0:03:02.39,Caption,,0,0,0,,orang sama anu security
+Dialogue: 0,0:03:02.47,0:03:03.91,Caption,,0,0,0,,padahal tahu kok itu.
+Dialogue: 0,0:03:04.83,0:03:06.39,Caption,,0,0,0,,di bukan semua pokoknya
+Dialogue: 0,0:03:06.51,0:03:06.91,Caption,,0,0,0,,pintu.
+Dialogue: 0,0:03:07.95,0:03:09.39,Caption,,0,0,0,,eh waktu syuting ambil
+Dialogue: 0,0:03:09.51,0:03:10.55,Caption,,0,0,0,,security security nahan.
+Dialogue: 0,0:03:11.99,0:03:13.47,Caption,,0,0,0,,syuting sama pintu syuting
+Dialogue: 0,0:03:13.55,0:03:15.23,Caption,,0,0,0,,kita ternyata mau pulang.
+Dialogue: 0,0:03:15.87,0:03:17.23,Caption,,0,0,0,,kok padahal gue di
+Dialogue: 0,0:03:17.35,0:03:17.71,Caption,,0,0,0,,bukan.
+Dialogue: 0,0:03:18.23,0:03:19.83,Caption,,0,0,0,,ambil abis pelan tahu

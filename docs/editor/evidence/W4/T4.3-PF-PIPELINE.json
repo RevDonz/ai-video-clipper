@@ -1,0 +1,800 @@
+{
+  "before": {
+    "jobs": {
+      "3c7d024c": {
+        "legacy_s": 91.573,
+        "new_s": 91.07,
+        "ratio": 0.995
+      },
+      "860fef1a": {
+        "legacy_s": 31.874,
+        "new_s": 74.984,
+        "ratio": 2.353
+      },
+      "899226f8": {
+        "legacy_s": 25.721,
+        "new_s": 46.326,
+        "ratio": 1.801
+      },
+      "990f3f37": {
+        "legacy_s": 23.353,
+        "new_s": 71.202,
+        "ratio": 3.049
+      },
+      "e7f0d37b": {
+        "legacy_s": 36.052,
+        "new_s": 63.387,
+        "ratio": 1.758
+      }
+    },
+    "round": "b0"
+  },
+  "before_note": "before = the base commit 105b567, one round, same PC; its center-crop new-engine run overlapped a local test run (3.05x); a quiet run of the same code just before measured legacy 23.27 s, new 52.06 s = 2.24x",
+  "budget": {
+    "camera": 1.6,
+    "fill_center": 1.35,
+    "fit_blur": 1.35
+  },
+  "code": "editor-w4-t4.3 at b1552f5 (concurrent auto render, verify readers and threads)",
+  "cpu_quota_6": {
+    "jobs": {
+      "3c7d024c": {
+        "layout": "fit_blur",
+        "median_ratio": 0.647,
+        "ratios": [
+          0.649,
+          0.646
+        ]
+      },
+      "860fef1a": {
+        "layout": "camera",
+        "median_ratio": 1.821,
+        "ratios": [
+          1.812,
+          1.829
+        ]
+      },
+      "899226f8": {
+        "layout": "fit_blur",
+        "median_ratio": 1.293,
+        "ratios": [
+          1.313,
+          1.274
+        ]
+      },
+      "990f3f37": {
+        "layout": "fill_center",
+        "median_ratio": 1.986,
+        "ratios": [
+          1.979,
+          1.993
+        ]
+      },
+      "e7f0d37b": {
+        "layout": "fit_blur",
+        "median_ratio": 1.345,
+        "ratios": [
+          1.35,
+          1.341
+        ]
+      }
+    },
+    "layouts": {
+      "camera": {
+        "budget": 1.6,
+        "jobs": 1,
+        "jobs_pass": 0,
+        "pass": false,
+        "worst_ratio": 1.821
+      },
+      "fill_center": {
+        "budget": 1.35,
+        "jobs": 1,
+        "jobs_pass": 0,
+        "pass": false,
+        "worst_ratio": 1.986
+      },
+      "fit_blur": {
+        "budget": 1.35,
+        "jobs": 3,
+        "jobs_pass": 3,
+        "pass": true,
+        "worst_ratio": 1.345
+      }
+    },
+    "pass": false,
+    "same_files": {
+      "c1": {
+        "clips": 20,
+        "identical": 20,
+        "reference": "b0-new"
+      },
+      "c2": {
+        "clips": 20,
+        "identical": 20,
+        "reference": "b0-new"
+      }
+    },
+    "what": "the same rounds in a container with --cpus 6 (the compose primary-worker quota): render_slots = 2; indicative for production, not the owner's gate"
+  },
+  "earlier_rounds": {
+    "code": "7f12544 (before the verify threads change)",
+    "jobs": {
+      "3c7d024c": {
+        "layout": "fit_blur",
+        "median_ratio": 0.597,
+        "ratios": [
+          0.626,
+          0.55,
+          0.598,
+          0.56,
+          0.597
+        ]
+      },
+      "860fef1a": {
+        "layout": "camera",
+        "median_ratio": 1.171,
+        "ratios": [
+          1.203,
+          1.171,
+          1.134,
+          1.324,
+          1.115
+        ]
+      },
+      "899226f8": {
+        "layout": "fit_blur",
+        "median_ratio": 1.025,
+        "ratios": [
+          0.971,
+          1.025,
+          1.039,
+          1.036,
+          0.923
+        ]
+      },
+      "990f3f37": {
+        "layout": "fill_center",
+        "median_ratio": 1.32,
+        "ratios": [
+          1.283,
+          1.32,
+          1.344,
+          1.35,
+          1.318
+        ]
+      },
+      "e7f0d37b": {
+        "layout": "fit_blur",
+        "median_ratio": 1.057,
+        "ratios": [
+          0.974,
+          1.057,
+          1.07,
+          1.063,
+          0.918
+        ]
+      }
+    },
+    "layouts": {
+      "camera": {
+        "budget": 1.6,
+        "jobs": 1,
+        "jobs_pass": 1,
+        "pass": true,
+        "worst_ratio": 1.171
+      },
+      "fill_center": {
+        "budget": 1.35,
+        "jobs": 1,
+        "jobs_pass": 1,
+        "pass": true,
+        "worst_ratio": 1.32
+      },
+      "fit_blur": {
+        "budget": 1.35,
+        "jobs": 3,
+        "jobs_pass": 3,
+        "pass": true,
+        "worst_ratio": 1.057
+      }
+    },
+    "pass": true,
+    "same_files": {
+      "p1": {
+        "clips": 20,
+        "identical": 20,
+        "reference": "b0-new"
+      },
+      "p2": {
+        "clips": 20,
+        "identical": 20,
+        "reference": "b0-new"
+      },
+      "p3": {
+        "clips": 20,
+        "identical": 20,
+        "reference": "b0-new"
+      },
+      "p4": {
+        "clips": 20,
+        "identical": 20,
+        "reference": "b0-new"
+      },
+      "p5": {
+        "clips": 20,
+        "identical": 20,
+        "reference": "b0-new"
+      }
+    }
+  },
+  "environment": {
+    "affinity": 16,
+    "cpu_count": 16,
+    "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "python": "3.11.2"
+  },
+  "gate": "PF-PIPELINE",
+  "host_loadavg_at_report": [
+    8.71142578125,
+    8.92333984375,
+    9.12890625
+  ],
+  "jobs": [
+    {
+      "budget": 1.35,
+      "clips": 3,
+      "job": "e7f0d37b",
+      "layout": "fit_blur",
+      "median_ratio": 1.032,
+      "pass": true,
+      "rounds": [
+        {
+          "cpu_legacy_s": {
+            "children_s": 155.1,
+            "self_s": 0.1,
+            "wall_s": 35.822
+          },
+          "cpu_new_s": {
+            "children_s": 253.6,
+            "self_s": 1.7,
+            "wall_s": 37.011
+          },
+          "engines": [
+            "edit-v2/1"
+          ],
+          "legacy_s": 35.714,
+          "load_legacy": [
+            4.65,
+            8.9,
+            9.51
+          ],
+          "load_new": [
+            8.49,
+            9.33,
+            9.63
+          ],
+          "new_s": 36.9,
+          "ratio": 1.033,
+          "round": "q1",
+          "warnings": []
+        },
+        {
+          "cpu_legacy_s": {
+            "children_s": 154.1,
+            "self_s": 0.1,
+            "wall_s": 34.125
+          },
+          "cpu_new_s": {
+            "children_s": 245.3,
+            "self_s": 1.7,
+            "wall_s": 34.919
+          },
+          "engines": [
+            "edit-v2/1"
+          ],
+          "legacy_s": 34.016,
+          "load_legacy": [
+            10.07,
+            9.17,
+            9.44
+          ],
+          "load_new": [
+            10.34,
+            9.3,
+            9.47
+          ],
+          "new_s": 34.81,
+          "ratio": 1.023,
+          "round": "q2",
+          "warnings": []
+        },
+        {
+          "cpu_legacy_s": {
+            "children_s": 153.8,
+            "self_s": 0.1,
+            "wall_s": 33.92
+          },
+          "cpu_new_s": {
+            "children_s": 246.0,
+            "self_s": 1.7,
+            "wall_s": 35.0
+          },
+          "engines": [
+            "edit-v2/1"
+          ],
+          "legacy_s": 33.812,
+          "load_legacy": [
+            10.38,
+            9.1,
+            9.29
+          ],
+          "load_new": [
+            8.33,
+            8.7,
+            9.15
+          ],
+          "new_s": 34.89,
+          "ratio": 1.032,
+          "round": "q3",
+          "warnings": []
+        }
+      ],
+      "source_fps": "24000/1001"
+    },
+    {
+      "budget": 1.35,
+      "clips": 3,
+      "job": "899226f8",
+      "layout": "fit_blur",
+      "median_ratio": 1.015,
+      "pass": true,
+      "rounds": [
+        {
+          "cpu_legacy_s": {
+            "children_s": 117.0,
+            "self_s": 0.1,
+            "wall_s": 26.976
+          },
+          "cpu_new_s": {
+            "children_s": 189.0,
+            "self_s": 1.5,
+            "wall_s": 27.373
+          },
+          "engines": [
+            "edit-v2/1"
+          ],
+          "legacy_s": 26.865,
+          "load_legacy": [
+            8.5,
+            9.2,
+            9.58
+          ],
+          "load_new": [
+            9.11,
+            9.3,
+            9.6
+          ],
+          "new_s": 27.267,
+          "ratio": 1.015,
+          "round": "q1",
+          "warnings": []
+        },
+        {
+          "cpu_legacy_s": {
+            "children_s": 115.8,
+            "self_s": 0.1,
+            "wall_s": 25.763
+          },
+          "cpu_new_s": {
+            "children_s": 182.0,
+            "self_s": 1.4,
+            "wall_s": 25.873
+          },
+          "engines": [
+            "edit-v2/1"
+          ],
+          "legacy_s": 25.659,
+          "load_legacy": [
+            10.03,
+            9.34,
+            9.48
+          ],
+          "load_new": [
+            9.81,
+            9.34,
+            9.47
+          ],
+          "new_s": 25.766,
+          "ratio": 1.004,
+          "round": "q2",
+          "warnings": []
+        },
+        {
+          "cpu_legacy_s": {
+            "children_s": 115.3,
+            "self_s": 0.1,
+            "wall_s": 25.126
+          },
+          "cpu_new_s": {
+            "children_s": 181.4,
+            "self_s": 1.4,
+            "wall_s": 25.614
+          },
+          "engines": [
+            "edit-v2/1"
+          ],
+          "legacy_s": 25.017,
+          "load_legacy": [
+            8.67,
+            8.79,
+            9.17
+          ],
+          "load_new": [
+            8.78,
+            8.79,
+            9.16
+          ],
+          "new_s": 25.508,
+          "ratio": 1.02,
+          "round": "q3",
+          "warnings": []
+        }
+      ],
+      "source_fps": "25/1"
+    },
+    {
+      "budget": 1.6,
+      "clips": 5,
+      "job": "860fef1a",
+      "layout": "camera",
+      "median_ratio": 1.119,
+      "pass": true,
+      "rounds": [
+        {
+          "cpu_legacy_s": {
+            "children_s": 111.3,
+            "self_s": 72.7,
+            "wall_s": 32.399
+          },
+          "cpu_new_s": {
+            "children_s": 221.9,
+            "self_s": 187.1,
+            "wall_s": 39.308
+          },
+          "engines": [
+            "edit-v2/1"
+          ],
+          "legacy_s": 32.313,
+          "load_legacy": [
+            8.18,
+            9.06,
+            9.51
+          ],
+          "load_new": [
+            8.52,
+            9.05,
+            9.49
+          ],
+          "new_s": 39.234,
+          "ratio": 1.214,
+          "round": "q1",
+          "warnings": []
+        },
+        {
+          "cpu_legacy_s": {
+            "children_s": 109.2,
+            "self_s": 71.4,
+            "wall_s": 31.192
+          },
+          "cpu_new_s": {
+            "children_s": 211.9,
+            "self_s": 187.8,
+            "wall_s": 34.895
+          },
+          "engines": [
+            "edit-v2/1"
+          ],
+          "legacy_s": 31.116,
+          "load_legacy": [
+            9.96,
+            9.39,
+            9.49
+          ],
+          "load_new": [
+            7.47,
+            8.85,
+            9.3
+          ],
+          "new_s": 34.818,
+          "ratio": 1.119,
+          "round": "q2",
+          "warnings": []
+        },
+        {
+          "cpu_legacy_s": {
+            "children_s": 109.0,
+            "self_s": 71.7,
+            "wall_s": 31.094
+          },
+          "cpu_new_s": {
+            "children_s": 210.3,
+            "self_s": 188.0,
+            "wall_s": 34.43
+          },
+          "engines": [
+            "edit-v2/1"
+          ],
+          "legacy_s": 31.015,
+          "load_legacy": [
+            7.94,
+            8.6,
+            9.08
+          ],
+          "load_new": [
+            7.42,
+            8.37,
+            8.99
+          ],
+          "new_s": 34.352,
+          "ratio": 1.108,
+          "round": "q3",
+          "warnings": []
+        }
+      ],
+      "source_fps": "25/1"
+    },
+    {
+      "budget": 1.35,
+      "clips": 5,
+      "job": "3c7d024c",
+      "layout": "fit_blur",
+      "median_ratio": 0.589,
+      "pass": true,
+      "rounds": [
+        {
+          "cpu_legacy_s": {
+            "children_s": 359.0,
+            "self_s": 0.1,
+            "wall_s": 95.693
+          },
+          "cpu_new_s": {
+            "children_s": 379.7,
+            "self_s": 1.8,
+            "wall_s": 53.241
+          },
+          "engines": [
+            "edit-v2/1"
+          ],
+          "legacy_s": 95.586,
+          "load_legacy": [
+            12.08,
+            10.04,
+            9.81
+          ],
+          "load_new": [
+            5.9,
+            8.48,
+            9.28
+          ],
+          "new_s": 53.162,
+          "ratio": 0.556,
+          "round": "q1",
+          "warnings": []
+        },
+        {
+          "cpu_legacy_s": {
+            "children_s": 352.7,
+            "self_s": 0.1,
+            "wall_s": 87.422
+          },
+          "cpu_new_s": {
+            "children_s": 377.1,
+            "self_s": 1.8,
+            "wall_s": 52.587
+          },
+          "engines": [
+            "edit-v2/1"
+          ],
+          "legacy_s": 87.345,
+          "load_legacy": [
+            10.71,
+            9.52,
+            9.51
+          ],
+          "load_new": [
+            6.51,
+            8.53,
+            9.17
+          ],
+          "new_s": 52.51,
+          "ratio": 0.601,
+          "round": "q2",
+          "warnings": []
+        },
+        {
+          "cpu_legacy_s": {
+            "children_s": 353.0,
+            "self_s": 0.1,
+            "wall_s": 87.446
+          },
+          "cpu_new_s": {
+            "children_s": 374.1,
+            "self_s": 1.7,
+            "wall_s": 51.562
+          },
+          "engines": [
+            "edit-v2/1"
+          ],
+          "legacy_s": 87.366,
+          "load_legacy": [
+            11.95,
+            9.36,
+            9.29
+          ],
+          "load_new": [
+            7.01,
+            8.69,
+            9.08
+          ],
+          "new_s": 51.484,
+          "ratio": 0.589,
+          "round": "q3",
+          "warnings": []
+        }
+      ],
+      "source_fps": "60/1"
+    },
+    {
+      "budget": 1.35,
+      "clips": 4,
+      "job": "990f3f37",
+      "layout": "fill_center",
+      "median_ratio": 1.278,
+      "pass": true,
+      "rounds": [
+        {
+          "cpu_legacy_s": {
+            "children_s": 119.2,
+            "self_s": 0.0,
+            "wall_s": 21.793
+          },
+          "cpu_new_s": {
+            "children_s": 296.9,
+            "self_s": 1.3,
+            "wall_s": 27.625
+          },
+          "engines": [
+            "edit-v2/1"
+          ],
+          "legacy_s": 21.718,
+          "load_legacy": [
+            7.27,
+            8.6,
+            9.28
+          ],
+          "load_new": [
+            8.18,
+            8.69,
+            9.3
+          ],
+          "new_s": 27.545,
+          "ratio": 1.268,
+          "round": "q1",
+          "warnings": []
+        },
+        {
+          "cpu_legacy_s": {
+            "children_s": 118.5,
+            "self_s": 0.1,
+            "wall_s": 21.625
+          },
+          "cpu_new_s": {
+            "children_s": 296.2,
+            "self_s": 1.2,
+            "wall_s": 27.601
+          },
+          "engines": [
+            "edit-v2/1"
+          ],
+          "legacy_s": 21.537,
+          "load_legacy": [
+            8.03,
+            8.71,
+            9.2
+          ],
+          "load_new": [
+            6.56,
+            8.31,
+            9.05
+          ],
+          "new_s": 27.522,
+          "ratio": 1.278,
+          "round": "q2",
+          "warnings": []
+        },
+        {
+          "cpu_legacy_s": {
+            "children_s": 118.2,
+            "self_s": 0.0,
+            "wall_s": 21.433
+          },
+          "cpu_new_s": {
+            "children_s": 298.0,
+            "self_s": 1.2,
+            "wall_s": 27.896
+          },
+          "engines": [
+            "edit-v2/1"
+          ],
+          "legacy_s": 21.358,
+          "load_legacy": [
+            8.4,
+            8.9,
+            9.14
+          ],
+          "load_new": [
+            7.17,
+            8.58,
+            9.03
+          ],
+          "new_s": 27.816,
+          "ratio": 1.302,
+          "round": "q3",
+          "warnings": []
+        }
+      ],
+      "source_fps": "24000/1001"
+    }
+  ],
+  "layouts": {
+    "camera": {
+      "budget": 1.6,
+      "jobs": 1,
+      "jobs_pass": 1,
+      "pass": true,
+      "worst_ratio": 1.119
+    },
+    "fill_center": {
+      "budget": 1.35,
+      "jobs": 1,
+      "jobs_pass": 1,
+      "pass": true,
+      "worst_ratio": 1.278
+    },
+    "fit_blur": {
+      "budget": 1.35,
+      "jobs": 3,
+      "jobs_pass": 3,
+      "pass": true,
+      "worst_ratio": 1.032
+    }
+  },
+  "machine": "the K15 reference PC (AMD Ryzen 7 5700G, 8 cores / 16 threads, 31 GiB), shared with other agents' work while measuring (load averages per job in the rounds)",
+  "pass": true,
+  "rounds": [
+    "q1",
+    "q2",
+    "q3"
+  ],
+  "same_files": {
+    "q1": {
+      "clips": 20,
+      "identical": 20,
+      "reference": "b0-new"
+    },
+    "q2": {
+      "clips": 20,
+      "identical": 20,
+      "reference": "b0-new"
+    },
+    "q3": {
+      "clips": 20,
+      "identical": 20,
+      "reference": "b0-new"
+    }
+  },
+  "scope": "the V3 rendering stage of copied real jobs (pipeline.render_v3_job, as T2.1/T2.Z2 measured it): per job, the legacy engine then the new engine in fresh copies, interleaved; wall seconds of the whole stage; CPU seconds of every child and of the process (OpenCV runs in-process for face-track)",
+  "task": "T4.3",
+  "toolchain": "ai-video-clipper:editor-w3-t31-r2 (production image: FFmpeg 5.1.9, libass 0.17.1, Python 3.11.2, node 20) with this branch's src mounted over /app/src; docker run without a CPU limit (all 16 threads)"
+}

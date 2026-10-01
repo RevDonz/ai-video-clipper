@@ -1,0 +1,1119 @@
+{
+ "schema": "potongin.qg-sec-routes/1",
+ "gate": "QG-SEC (every editor route over HTTP, E11 child environment)",
+ "task": "T4.2",
+ "stack": "GitHub Actions ubuntu-latest runner (4 vCPU; timings indicative), production image, ffmpeg version 5.1.9-0+deb12u1, Python 3.11.2, node server.js (standalone), every editor flag on, proxy.js in place, planted secret values in the server env, recorders on PATH",
+ "checks": 491,
+ "failures": [],
+ "answers": 716,
+ "answersWithLeak": [],
+ "serverErrors": [],
+ "environ": {
+  "children": 312,
+  "byKind": {
+   "ffmpeg": 50,
+   "ffprobe": 52,
+   "prlimit": 97,
+   "python -m ai_clipper.edit_v2.api": 5,
+   "python -m ai_clipper.edit_v2.assets": 41,
+   "python -m ai_clipper.edit_v2.cleanup": 1,
+   "python -m ai_clipper.edit_v2.coldopen": 1,
+   "python -m ai_clipper.edit_v2.preview_cli": 1,
+   "python -m ai_clipper.edit_v2.preview_server": 1,
+   "python -m ai_clipper.editor_ai": 61,
+   "python -m ai_clipper.render_queue": 2
+  },
+  "namesOutsideAllowlist": [],
+  "dashboardSecretHits": 0,
+  "llmKeyOutsideAiTask": 0,
+  "aiTaskChildrenWithKey": 30,
+  "kindsMissing": [],
+  "pass": true
+ },
+ "matrix": {
+  "GET clips: no cookie": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    401
+   ]
+  },
+  "GET clips: forged cookie": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    401
+   ]
+  },
+  "POST clips: no cookie": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    401
+   ]
+  },
+  "POST clips: forged cookie": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    401
+   ]
+  },
+  "GET edit: no cookie": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    401
+   ]
+  },
+  "GET edit: forged cookie": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    401
+   ]
+  },
+  "PUT edit: no cookie": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    401
+   ]
+  },
+  "PUT edit: forged cookie": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    401
+   ]
+  },
+  "GET words: no cookie": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    401
+   ]
+  },
+  "GET words: forged cookie": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    401
+   ]
+  },
+  "POST prepare: no cookie": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    401
+   ]
+  },
+  "POST prepare: forged cookie": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    401
+   ]
+  },
+  "POST plan: no cookie": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    401
+   ]
+  },
+  "POST plan: forged cookie": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    401
+   ]
+  },
+  "POST frame: no cookie": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    401
+   ]
+  },
+  "POST frame: forged cookie": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    401
+   ]
+  },
+  "GET media: no cookie": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    401
+   ]
+  },
+  "GET media: forged cookie": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    401
+   ]
+  },
+  "GET renders: no cookie": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    401
+   ]
+  },
+  "GET renders: forged cookie": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    401
+   ]
+  },
+  "POST renders: no cookie": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    401
+   ]
+  },
+  "POST renders: forged cookie": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    401
+   ]
+  },
+  "POST ai: no cookie": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    401
+   ]
+  },
+  "POST ai: forged cookie": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    401
+   ]
+  },
+  "GET ai task: no cookie": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    401
+   ]
+  },
+  "GET ai task: forged cookie": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    401
+   ]
+  },
+  "GET cleanup: no cookie": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    401
+   ]
+  },
+  "GET cleanup: forged cookie": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    401
+   ]
+  },
+  "GET coldopen: no cookie": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    401
+   ]
+  },
+  "GET coldopen: forged cookie": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    401
+   ]
+  },
+  "POST assets: no cookie": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    401
+   ]
+  },
+  "POST assets: forged cookie": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    401
+   ]
+  },
+  "GET asset: no cookie": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    401
+   ]
+  },
+  "GET asset: forged cookie": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    401
+   ]
+  },
+  "POST clips: no Origin": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    403
+   ]
+  },
+  "POST clips: foreign Origin": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    403
+   ]
+  },
+  "POST clips: cross-site fetch": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    403
+   ]
+  },
+  "POST clips: same-site fetch": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    403
+   ]
+  },
+  "PUT edit: no Origin": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    403
+   ]
+  },
+  "PUT edit: foreign Origin": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    403
+   ]
+  },
+  "PUT edit: cross-site fetch": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    403
+   ]
+  },
+  "PUT edit: same-site fetch": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    403
+   ]
+  },
+  "POST prepare: no Origin": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    403
+   ]
+  },
+  "POST prepare: foreign Origin": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    403
+   ]
+  },
+  "POST prepare: cross-site fetch": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    403
+   ]
+  },
+  "POST prepare: same-site fetch": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    403
+   ]
+  },
+  "POST plan: no Origin": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    403
+   ]
+  },
+  "POST plan: foreign Origin": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    403
+   ]
+  },
+  "POST plan: cross-site fetch": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    403
+   ]
+  },
+  "POST plan: same-site fetch": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    403
+   ]
+  },
+  "POST frame: no Origin": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    403
+   ]
+  },
+  "POST frame: foreign Origin": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    403
+   ]
+  },
+  "POST frame: cross-site fetch": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    403
+   ]
+  },
+  "POST frame: same-site fetch": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    403
+   ]
+  },
+  "POST renders: no Origin": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    403
+   ]
+  },
+  "POST renders: foreign Origin": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    403
+   ]
+  },
+  "POST renders: cross-site fetch": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    403
+   ]
+  },
+  "POST renders: same-site fetch": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    403
+   ]
+  },
+  "POST ai: no Origin": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    403
+   ]
+  },
+  "POST ai: foreign Origin": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    403
+   ]
+  },
+  "POST ai: cross-site fetch": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    403
+   ]
+  },
+  "POST ai: same-site fetch": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    403
+   ]
+  },
+  "POST assets: no Origin": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    403
+   ]
+  },
+  "POST assets: foreign Origin": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    403
+   ]
+  },
+  "POST assets: cross-site fetch": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    403
+   ]
+  },
+  "POST assets: same-site fetch": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    403
+   ]
+  },
+  "GET clips: id=*": {
+   "checks": 11,
+   "passed": 11,
+   "statuses": [
+    400,
+    404
+   ]
+  },
+  "POST clips: id=*": {
+   "checks": 11,
+   "passed": 11,
+   "statuses": [
+    400,
+    404
+   ]
+  },
+  "GET edit: id=*": {
+   "checks": 11,
+   "passed": 11,
+   "statuses": [
+    400,
+    404
+   ]
+  },
+  "GET edit: clipId=*": {
+   "checks": 11,
+   "passed": 11,
+   "statuses": [
+    400,
+    404
+   ]
+  },
+  "GET edit: dot segments": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    404
+   ]
+  },
+  "PUT edit: id=*": {
+   "checks": 11,
+   "passed": 11,
+   "statuses": [
+    400,
+    404
+   ]
+  },
+  "PUT edit: clipId=*": {
+   "checks": 11,
+   "passed": 11,
+   "statuses": [
+    400,
+    404
+   ]
+  },
+  "PUT edit: dot segments": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    404
+   ]
+  },
+  "GET words: id=*": {
+   "checks": 11,
+   "passed": 11,
+   "statuses": [
+    400,
+    404
+   ]
+  },
+  "GET words: clipId=*": {
+   "checks": 11,
+   "passed": 11,
+   "statuses": [
+    400,
+    404
+   ]
+  },
+  "GET words: dot segments": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    404
+   ]
+  },
+  "POST prepare: id=*": {
+   "checks": 11,
+   "passed": 11,
+   "statuses": [
+    400,
+    404
+   ]
+  },
+  "POST prepare: clipId=*": {
+   "checks": 11,
+   "passed": 11,
+   "statuses": [
+    400,
+    404
+   ]
+  },
+  "POST prepare: dot segments": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    404
+   ]
+  },
+  "POST plan: id=*": {
+   "checks": 11,
+   "passed": 11,
+   "statuses": [
+    400,
+    404
+   ]
+  },
+  "POST plan: clipId=*": {
+   "checks": 11,
+   "passed": 11,
+   "statuses": [
+    400,
+    404
+   ]
+  },
+  "POST plan: dot segments": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    404
+   ]
+  },
+  "POST frame: id=*": {
+   "checks": 11,
+   "passed": 11,
+   "statuses": [
+    400,
+    404
+   ]
+  },
+  "POST frame: clipId=*": {
+   "checks": 11,
+   "passed": 11,
+   "statuses": [
+    400,
+    404
+   ]
+  },
+  "POST frame: dot segments": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    404
+   ]
+  },
+  "GET media: id=*": {
+   "checks": 11,
+   "passed": 11,
+   "statuses": [
+    400,
+    404
+   ]
+  },
+  "GET media: clipId=*": {
+   "checks": 11,
+   "passed": 11,
+   "statuses": [
+    400,
+    404
+   ]
+  },
+  "GET media: kind=*": {
+   "checks": 12,
+   "passed": 12,
+   "statuses": [
+    404
+   ]
+  },
+  "GET media: name=*": {
+   "checks": 11,
+   "passed": 11,
+   "statuses": [
+    404,
+    308
+   ]
+  },
+  "GET media: dot segments": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    404
+   ]
+  },
+  "GET renders: id=*": {
+   "checks": 11,
+   "passed": 11,
+   "statuses": [
+    400,
+    404
+   ]
+  },
+  "GET renders: clipId=*": {
+   "checks": 11,
+   "passed": 11,
+   "statuses": [
+    400,
+    404
+   ]
+  },
+  "GET renders: dot segments": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    404
+   ]
+  },
+  "POST renders: id=*": {
+   "checks": 11,
+   "passed": 11,
+   "statuses": [
+    400,
+    404
+   ]
+  },
+  "POST renders: clipId=*": {
+   "checks": 11,
+   "passed": 11,
+   "statuses": [
+    400,
+    404
+   ]
+  },
+  "POST renders: dot segments": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    404
+   ]
+  },
+  "POST ai: id=*": {
+   "checks": 11,
+   "passed": 11,
+   "statuses": [
+    400,
+    404
+   ]
+  },
+  "POST ai: clipId=*": {
+   "checks": 11,
+   "passed": 11,
+   "statuses": [
+    400,
+    404
+   ]
+  },
+  "POST ai: dot segments": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    404
+   ]
+  },
+  "GET ai task: id=*": {
+   "checks": 11,
+   "passed": 11,
+   "statuses": [
+    400,
+    404
+   ]
+  },
+  "GET ai task: clipId=*": {
+   "checks": 11,
+   "passed": 11,
+   "statuses": [
+    400,
+    404
+   ]
+  },
+  "GET ai task: taskId=*": {
+   "checks": 11,
+   "passed": 11,
+   "statuses": [
+    400,
+    308
+   ]
+  },
+  "GET ai task: dot segments": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    404
+   ]
+  },
+  "GET cleanup: id=*": {
+   "checks": 11,
+   "passed": 11,
+   "statuses": [
+    400,
+    404
+   ]
+  },
+  "GET cleanup: clipId=*": {
+   "checks": 11,
+   "passed": 11,
+   "statuses": [
+    400,
+    404
+   ]
+  },
+  "GET cleanup: dot segments": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    404
+   ]
+  },
+  "GET coldopen: id=*": {
+   "checks": 11,
+   "passed": 11,
+   "statuses": [
+    400,
+    404
+   ]
+  },
+  "GET coldopen: clipId=*": {
+   "checks": 11,
+   "passed": 11,
+   "statuses": [
+    400,
+    404
+   ]
+  },
+  "GET coldopen: dot segments": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    404
+   ]
+  },
+  "POST assets: id=*": {
+   "checks": 11,
+   "passed": 11,
+   "statuses": [
+    400,
+    404
+   ]
+  },
+  "GET asset: id=*": {
+   "checks": 11,
+   "passed": 11,
+   "statuses": [
+    400,
+    404
+   ]
+  },
+  "GET asset: sha=*": {
+   "checks": 11,
+   "passed": 11,
+   "statuses": [
+    400,
+    308
+   ]
+  },
+  "POST clips: one byte over 1024 bytes": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    413
+   ]
+  },
+  "PUT edit: one byte over 1048576 bytes": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    413
+   ]
+  },
+  "POST prepare: one byte over 1024 bytes": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    413
+   ]
+  },
+  "POST plan: one byte over 1052672 bytes": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    413
+   ]
+  },
+  "POST frame: one byte over 1052672 bytes": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    413
+   ]
+  },
+  "POST renders: one byte over 1024 bytes": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    413
+   ]
+  },
+  "POST ai: one byte over 1052672 bytes": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    413
+   ]
+  },
+  "POST assets: one byte over 10485760 bytes": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    413
+   ]
+  },
+  "POST ai: extra field provider": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    400
+   ]
+  },
+  "POST ai: extra field model": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    400
+   ]
+  },
+  "POST ai: extra field baseUrl": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    400
+   ]
+  },
+  "POST ai: extra field url": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    400
+   ]
+  },
+  "POST ai: extra field apiKey": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    400
+   ]
+  },
+  "POST ai: extra field endpoint": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    400
+   ]
+  },
+  "POST ai: extra field headers": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    400
+   ]
+  },
+  "POST ai: extra field system": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    400
+   ]
+  },
+  "POST ai: extra field messages": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    400
+   ]
+  },
+  "GET clips: 200 with the header set": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    200
+   ]
+  },
+  "GET edit: 200 with the header set": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    200
+   ]
+  },
+  "GET words: 200 with the header set": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    200
+   ]
+  },
+  "GET cleanup: 200 with the header set": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    200
+   ]
+  },
+  "GET coldopen: 200 with the header set": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    200
+   ]
+  },
+  "GET renders: 200 with the header set": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    200
+   ]
+  },
+  "POST assets: a valid logo": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    201
+   ]
+  },
+  "GET asset: the §9.2 headers": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    200
+   ]
+  },
+  "POST renders: an export request": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    200
+   ]
+  },
+  "POST prepare: 202": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    202
+   ]
+  },
+  "POST plan: 200": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    200
+   ]
+  },
+  "GET media: a plate cell": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    200
+   ]
+  },
+  "GET media: the ASS in a CSP sandbox": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    200
+   ]
+  },
+  "editor page clip_e81667ba20ed2bcb9995a418: isolation and framing headers": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    200
+   ]
+  },
+  "editor page klip-1: isolation and framing headers": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    200
+   ]
+  },
+  "POST plan: 429 after 10 in a second": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    429
+   ]
+  },
+  "POST frame: 429 after 4 in a second": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    429
+   ]
+  },
+  "GET renders: 429 after the api burst (60, 20/s)": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    429
+   ]
+  },
+  "POST assets: 429 after 30 uploads in a minute": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    429
+   ]
+  },
+  "POST ai: the LLM quota answers 202 with Retry-After": {
+   "checks": 1,
+   "passed": 1,
+   "statuses": [
+    202
+   ]
+  }
+ },
+ "pass": true
+}

@@ -1,0 +1,348 @@
+/* The layout panel "Tata letak" (plan §11.3 T3.6). Every colour, size and duration is an editor
+   token (editor.module.css on the editor root), so the panel follows the palette the tokens set.
+   The accent marks the chosen card and the analysis bar only; hover and status stay neutral.
+   Motion (hover, the chosen card, a thumbnail arriving, the analysis) runs only without
+   prefers-reduced-motion. */
+
+.panel {
+  display: grid;
+  gap: var(--ed-space-4);
+  padding: var(--ed-space-3);
+  font-size: var(--ed-font-size-md);
+  color: var(--text);
+}
+
+.section {
+  display: grid;
+  gap: var(--ed-space-2);
+  padding-bottom: var(--ed-space-4);
+  border-bottom: 1px solid var(--border);
+}
+
+.section:last-child {
+  border-bottom: 0;
+}
+
+.head {
+  display: grid;
+  gap: 2px;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--ed-font-size-lg);
+  font-weight: 700;
+}
+
+.subtitle {
+  margin: 0;
+  font-size: var(--ed-font-size-md);
+  font-weight: 700;
+}
+
+.note {
+  margin: 0;
+  font-size: var(--ed-font-size-xs);
+  line-height: var(--ed-line-height);
+  color: var(--text-muted);
+}
+
+.message {
+  margin: 0;
+  padding: var(--ed-space-1) var(--ed-space-2);
+  font-size: var(--ed-font-size-sm);
+  color: var(--danger);
+  background: var(--danger-bg);
+  border-radius: var(--ed-radius-sm);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* Three 9:16 cards side by side: 380 px panel, 320 px at 1366×768. */
+.options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--ed-space-2);
+}
+
+.option {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: var(--ed-space-1);
+  min-width: 0;
+  padding: 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--ed-radius-md);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.option:hover {
+  border-color: var(--text-muted);
+}
+
+.option:has(input:checked) {
+  border-color: var(--text);
+  box-shadow: 0 0 0 1px var(--text);
+}
+
+.option:has(input:focus-visible) {
+  box-shadow: var(--ed-focus-ring);
+}
+
+.fieldset:disabled .option {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* A native radio laid invisibly over its whole card: the click target, the focus and the
+   accessible control, while the card draws the state (:has(input:checked)). */
+.cover {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.cover:disabled {
+  cursor: not-allowed;
+}
+
+.thumbBox {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 9 / 16;
+  overflow: hidden;
+  border-radius: var(--ed-radius-sm);
+  background: var(--bg);
+}
+
+.thumb {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.thumbStale {
+  opacity: 0.6;
+}
+
+.thumbEmpty {
+  padding: 6px;
+  font-size: var(--ed-font-size-xs);
+  line-height: 1.3;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+/* The analysis on the chosen face-track card, over the bottom of its thumbnail. */
+.cardProgress {
+  position: absolute;
+  inset: auto 0 0;
+  display: grid;
+  gap: var(--ed-space-1);
+  padding: 6px;
+  font-size: var(--ed-font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+.cardTrack {
+  position: relative;
+  display: block;
+  height: 4px;
+  overflow: hidden;
+  border-radius: var(--ed-radius-sm);
+  background: var(--border);
+}
+
+.cardFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  border-radius: inherit;
+  background: var(--accent);
+}
+
+/* Without the server's progress: a third of the track (it moves only with motion allowed). */
+.cardFillUnknown {
+  width: 33%;
+}
+
+.name {
+  font-size: var(--ed-font-size-sm);
+  font-weight: 700;
+}
+
+/* The layout the stage still shows while face-track is being analysed. */
+.badge {
+  justify-self: start;
+  padding: 0 6px;
+  font-size: var(--ed-font-size-xs);
+  font-weight: 600;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--ed-radius-sm);
+  background: var(--surface-2);
+}
+
+.about {
+  margin: 0;
+  font-size: var(--ed-font-size-sm);
+  line-height: var(--ed-line-height);
+  color: var(--text-muted);
+}
+
+.about strong {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.analysis {
+  display: grid;
+  gap: var(--ed-space-1);
+  padding: var(--ed-space-2);
+  font-size: var(--ed-font-size-sm);
+  font-variant-numeric: tabular-nums;
+  border-radius: var(--ed-radius-sm);
+  background: var(--surface-2);
+}
+
+.progress {
+  width: 100%;
+  height: 8px;
+  accent-color: var(--text);
+}
+
+.failure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ed-space-2);
+  padding: var(--ed-space-1) var(--ed-space-2);
+  font-size: var(--ed-font-size-sm);
+  color: var(--danger);
+  background: var(--danger-bg);
+  border-radius: var(--ed-radius-sm);
+}
+
+.button {
+  padding: var(--ed-space-1) 10px;
+  font: inherit;
+  font-size: var(--ed-font-size-sm);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--ed-radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.button:hover:not(:disabled) {
+  border-color: var(--text-muted);
+}
+
+.button:focus-visible,
+.jump:focus-visible {
+  outline: none;
+  box-shadow: var(--ed-focus-ring);
+}
+
+.jumps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.jump {
+  padding: 3px var(--ed-space-2);
+  font: inherit;
+  font-size: var(--ed-font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--warning);
+  border: 1px solid var(--warning);
+  border-radius: var(--ed-radius-sm);
+  background: var(--warning-bg);
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .option,
+  .button,
+  .jump {
+    transition: border-color var(--ed-duration-fast) ease-out, box-shadow var(--ed-duration-fast) ease-out,
+      background-color var(--ed-duration-fast) ease-out;
+  }
+
+  .thumb {
+    animation: thumb-in var(--ed-duration-slow) ease-out;
+    transition: opacity var(--ed-duration-fast) ease-out;
+  }
+
+  .analysis,
+  .failure,
+  .cardProgress {
+    animation: rise-in var(--ed-duration-slow) ease-out;
+  }
+
+  .cardFill {
+    transition: width var(--ed-duration-slow) ease-out;
+  }
+
+  /* Moves only while the analysis runs; the card loses it as soon as it ends. */
+  .cardFillUnknown {
+    animation: sweep 1.2s ease-in-out infinite;
+  }
+}
+
+@keyframes thumb-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@keyframes sweep {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(300%);
+  }
+}

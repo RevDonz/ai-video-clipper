@@ -1,0 +1,99 @@
+{
+  "gate": "P-RT",
+  "pass": true,
+  "sets": [
+    {
+      "r10": {
+        "by_case": {
+          "edit-v2/1:changed_toolchain": {
+            "cases": 6,
+            "linked": 6
+          },
+          "edit-v2/1:seed": {
+            "cases": 6,
+            "linked": 6
+          },
+          "edit-v2/1:undone_edit": {
+            "cases": 6,
+            "linked": 6
+          },
+          "legacy:changed_toolchain": {
+            "cases": 3,
+            "linked": 3
+          },
+          "legacy:seed": {
+            "cases": 3,
+            "linked": 3
+          },
+          "legacy:undone_edit": {
+            "cases": 3,
+            "linked": 3
+          }
+        },
+        "cases": 27,
+        "environment": {
+          "affinity": 4,
+          "cpu_count": 4,
+          "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+          "loadavg": [
+            2.98,
+            2.66,
+            1.39
+          ],
+          "python": "3.11.2",
+          "toolchain_sha256": null
+        },
+        "linked": 27,
+        "linked_pct": 100.0,
+        "pass": true
+      },
+      "rerender": {
+        "bytes_identical": 6,
+        "clips": 6,
+        "environment": {
+          "affinity": 4,
+          "cpu_count": 4,
+          "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+          "loadavg": [
+            3.06,
+            2.66,
+            1.38
+          ],
+          "python": "3.11.2",
+          "toolchain_sha256": null
+        },
+        "fps": [
+          "30/1",
+          "30000/1001"
+        ],
+        "frames": 6813,
+        "layouts": [
+          "camera",
+          "fit_blur"
+        ],
+        "pass": true,
+        "pcm_identical": 6,
+        "plan_sha256_equal": 6,
+        "render_key_equal": 6,
+        "srt_identical": 6,
+        "video_identical": 6
+      },
+      "set": "W3Z"
+    }
+  ],
+  "setup": {
+    "stack": "github-4vcpu-image"
+  },
+  "task": "T2.1",
+  "threshold": {
+    "pcm_md5": "identical",
+    "r10_hard_link_pct": 100,
+    "video_framemd5": "identical"
+  },
+  "w3z": {
+    "ci_run": 36857976574,
+    "commit": "96db8fd",
+    "where": "GitHub Actions editor-gates.yml suite=command, production image (FFmpeg 5.1.9, Python 3.11.2, Node 20), 4 vCPU runner; timings indicative",
+    "script": "scripts/editor/w3_exit_gates.sh"
+  }
+}

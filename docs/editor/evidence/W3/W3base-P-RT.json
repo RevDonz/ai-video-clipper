@@ -1,0 +1,96 @@
+{
+  "gate": "P-RT",
+  "pass": true,
+  "sets": [
+    {
+      "r10": {
+        "by_case": {
+          "edit-v2/1:changed_toolchain": {
+            "cases": 6,
+            "linked": 6
+          },
+          "edit-v2/1:seed": {
+            "cases": 6,
+            "linked": 6
+          },
+          "edit-v2/1:undone_edit": {
+            "cases": 6,
+            "linked": 6
+          },
+          "legacy:changed_toolchain": {
+            "cases": 3,
+            "linked": 3
+          },
+          "legacy:seed": {
+            "cases": 3,
+            "linked": 3
+          },
+          "legacy:undone_edit": {
+            "cases": 3,
+            "linked": 3
+          }
+        },
+        "cases": 27,
+        "environment": {
+          "affinity": 4,
+          "cpu_count": 16,
+          "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+          "loadavg": [
+            9.28,
+            9.09,
+            8.43
+          ],
+          "python": "3.11.2",
+          "toolchain_sha256": "4fefb754ae6cb98b5376c6c865d786ff0924f39e03b776499e5b3246f64985f0"
+        },
+        "linked": 27,
+        "linked_pct": 100.0,
+        "pass": true
+      },
+      "rerender": {
+        "bytes_identical": 6,
+        "clips": 6,
+        "environment": {
+          "affinity": 4,
+          "cpu_count": 16,
+          "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+          "loadavg": [
+            9.99,
+            9.21,
+            8.45
+          ],
+          "python": "3.11.2",
+          "toolchain_sha256": "4fefb754ae6cb98b5376c6c865d786ff0924f39e03b776499e5b3246f64985f0"
+        },
+        "fps": [
+          "30/1",
+          "30000/1001"
+        ],
+        "frames": 6813,
+        "layouts": [
+          "camera",
+          "fit_blur"
+        ],
+        "pass": true,
+        "pcm_identical": 6,
+        "plan_sha256_equal": 6,
+        "render_key_equal": 6,
+        "srt_identical": 6,
+        "video_identical": 6
+      },
+      "set": "synthetic"
+    }
+  ],
+  "setup": {
+    "image": "ai-video-clipper:editor-w3base",
+    "primary_container": "cpuset-0-7-cpus-4",
+    "run": "make_job.py build --only main,fps60,old --render --stub-camera in the primary container; rt_check.py rerender and r10 in the worker container; the image's own src and resources (toolchain.json present)",
+    "worker_container": "cpuset-8-11-cpus-4"
+  },
+  "task": "W3 base (rebase onto main 55e4c6c)",
+  "threshold": {
+    "pcm_md5": "identical",
+    "r10_hard_link_pct": 100,
+    "video_framemd5": "identical"
+  }
+}

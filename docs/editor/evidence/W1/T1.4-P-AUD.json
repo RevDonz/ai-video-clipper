@@ -1,0 +1,27 @@
+{
+  "checks": {
+    "graphs_identical": true,
+    "measurement_deterministic": true,
+    "one_mix_sha_across_modes": true,
+    "preview_equals_reference": true,
+    "reference_runs_identical": true,
+    "sample_counts_equal_plan": true
+  },
+  "failures": 0,
+  "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+  "gate": "P-AUD (server)",
+  "harness": "support.edit_v2_audio_harness (audio-only graph, until compile_job)",
+  "master_gain_db": 4.0,
+  "pcm_md5": {
+    "audio_preview": "db08a410c3f77a8c2e8ca07fad92d1e7",
+    "reference_1": "db08a410c3f77a8c2e8ca07fad92d1e7",
+    "reference_2": "db08a410c3f77a8c2e8ca07fad92d1e7"
+  },
+  "plan_samples": 722321,
+  "reference_toolchain_problem": null,
+  "samples": [
+    722321,
+    722321,
+    722321
+  ]
+}

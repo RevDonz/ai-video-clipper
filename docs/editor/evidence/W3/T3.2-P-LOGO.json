@@ -1,0 +1,1582 @@
+{
+  "blend_only": {
+    "frames": 18,
+    "method": "the compiler's overlay (gbrp/gbrap, overlay format=gbrp) of the lane's derived PNG onto the browser's own logo-less frame, vs the browser's frame with the logo: the blend arithmetic alone (plan \u00a75.5)",
+    "pass": true,
+    "worst": {
+      "max": 2,
+      "mean_abs": 0.7214366729678638
+    }
+  },
+  "box_exact": 18,
+  "browser": "147.0.7727.15",
+  "by_logo_alpha": {
+    "clear": {
+      "max": 9,
+      "mean_abs": 0.7298474945533769
+    },
+    "full": {
+      "max": 6,
+      "mean_abs": 0.7621576215762158
+    },
+    "note": "levels split by the derived logo's alpha: 'clear' pixels show only what is under the logo (plate and caption raster, bounded by P-PLATE/P-TXT), 'full' only the logo",
+    "partial": {
+      "max": 9,
+      "mean_abs": 0.6988270904275444
+    }
+  },
+  "cases": [
+    "square-default",
+    "square-safe-opaque",
+    "wide-bottom-left-max",
+    "tall-free-faint",
+    "square-min-top-left",
+    "wide-over-captions"
+  ],
+  "clip": "clip_c7338377170b4a2e49948f67",
+  "failure_cause": "1 of 18 frames fails (wide-over-captions, frame 768): max 9 > 8, on the pixels where the logo is clear or partial. There the browser's own logo-less frame already differs from the server's logo-less composite by 9 levels (frames_detail[].blend_only.browser_vs_server_without_logo), and the logo does not change the server's pixels under its clear part (under_logo_server max 0). The logo's opaque pixels differ by at most 1 and the blend alone by at most 2 (blend_only). This case puts the logo over the captions, so the 9 levels come from what the logo shows through, which P-TXT bounds at max 16; the gate's 'logo region' (plan \u00a710.1) does not say whether that content counts. Not decided here: the threshold is unchanged and the frame stays a failure until the owner or the integrator decides.",
+  "failures": [
+    {
+      "box_exact": true,
+      "by_alpha": {
+        "clear": {
+          "max": 9,
+          "mean_abs": 0.2991833704528582,
+          "px": 449
+        },
+        "full": {
+          "max": 1,
+          "mean_abs": 0.012065024130048261,
+          "px": 7874
+        },
+        "partial": {
+          "max": 9,
+          "mean_abs": 0.40266328471781865,
+          "px": 1577
+        }
+      },
+      "case": "wide-over-captions",
+      "frame": 768,
+      "max": 9,
+      "mean_abs": 0.0873063973063973,
+      "under_logo_server": {
+        "max": 0,
+        "mean_abs": 0.0,
+        "px": 449
+      }
+    }
+  ],
+  "frames": 18,
+  "frames_detail": [
+    {
+      "blend_only": {
+        "browser_vs_server_without_logo": {
+          "max": 2,
+          "mean_abs": 0.17605545053560176
+        },
+        "max": 2,
+        "mean_abs": 0.7087838689350977,
+        "pass": true
+      },
+      "box_exact": true,
+      "browser_box": [
+        576,
+        32,
+        691,
+        147
+      ],
+      "by_alpha": {
+        "clear": {
+          "max": 2,
+          "mean_abs": 0.15916787614900824,
+          "px": 689
+        },
+        "full": {
+          "max": 2,
+          "mean_abs": 0.7436774367743677,
+          "px": 11111
+        },
+        "partial": {
+          "max": 2,
+          "mean_abs": 0.5211695906432748,
+          "px": 1425
+        }
+      },
+      "case": "square-default",
+      "frame": 0,
+      "max": 2,
+      "mean_abs": 0.6892501575299307,
+      "pass": true,
+      "plan_box": [
+        576,
+        32,
+        691,
+        147
+      ],
+      "truth": {
+        "alignment": {
+          "aligned": true,
+          "best": [
+            0,
+            0
+          ],
+          "margin": 3.233,
+          "sad_best_other": 326625,
+          "sad_zero": 101015
+        },
+        "browser_vs_truth": {
+          "max": 61,
+          "mean_abs": 2.2763453056080656
+        },
+        "difference_box": [
+          576,
+          32,
+          692,
+          148
+        ],
+        "logo_in_truth": {
+          "max": 238,
+          "mean_abs": 75.56781348456207
+        },
+        "server_vs_truth": {
+          "max": 60,
+          "mean_abs": 2.4232388153749214
+        }
+      },
+      "under_logo_server": {
+        "max": 0,
+        "mean_abs": 0.0,
+        "px": 689
+      }
+    },
+    {
+      "blend_only": {
+        "browser_vs_server_without_logo": {
+          "max": 2,
+          "mean_abs": 0.17923125393824826
+        },
+        "max": 2,
+        "mean_abs": 0.7146565847511027,
+        "pass": true
+      },
+      "box_exact": true,
+      "browser_box": [
+        576,
+        32,
+        691,
+        147
+      ],
+      "by_alpha": {
+        "clear": {
+          "max": 1,
+          "mean_abs": 0.1456216739235607,
+          "px": 689
+        },
+        "full": {
+          "max": 2,
+          "mean_abs": 0.7496174961749618,
+          "px": 11111
+        },
+        "partial": {
+          "max": 2,
+          "mean_abs": 0.5076023391812865,
+          "px": 1425
+        }
+      },
+      "case": "square-default",
+      "frame": 384,
+      "max": 2,
+      "mean_abs": 0.6920730938878387,
+      "pass": true,
+      "plan_box": [
+        576,
+        32,
+        691,
+        147
+      ],
+      "truth": {
+        "alignment": {
+          "aligned": true,
+          "best": [
+            0,
+            0
+          ],
+          "margin": 3.242,
+          "sad_best_other": 328964,
+          "sad_zero": 101463
+        },
+        "browser_vs_truth": {
+          "max": 60,
+          "mean_abs": 2.2843856332703214
+        },
+        "difference_box": [
+          576,
+          32,
+          692,
+          147
+        ],
+        "logo_in_truth": {
+          "max": 238,
+          "mean_abs": 75.63763074984247
+        },
+        "server_vs_truth": {
+          "max": 60,
+          "mean_abs": 2.450787649653434
+        }
+      },
+      "under_logo_server": {
+        "max": 0,
+        "mean_abs": 0.0,
+        "px": 689
+      }
+    },
+    {
+      "blend_only": {
+        "browser_vs_server_without_logo": {
+          "max": 2,
+          "mean_abs": 0.17885318210459988
+        },
+        "max": 2,
+        "mean_abs": 0.7214366729678638,
+        "pass": true
+      },
+      "box_exact": true,
+      "browser_box": [
+        576,
+        32,
+        691,
+        147
+      ],
+      "by_alpha": {
+        "clear": {
+          "max": 1,
+          "mean_abs": 0.15626511852926947,
+          "px": 689
+        },
+        "full": {
+          "max": 2,
+          "mean_abs": 0.7621576215762158,
+          "px": 11111
+        },
+        "partial": {
+          "max": 2,
+          "mean_abs": 0.5162573099415204,
+          "px": 1425
+        }
+      },
+      "case": "square-default",
+      "frame": 768,
+      "max": 2,
+      "mean_abs": 0.7040957781978576,
+      "pass": true,
+      "plan_box": [
+        576,
+        32,
+        691,
+        147
+      ],
+      "truth": {
+        "alignment": {
+          "aligned": true,
+          "best": [
+            0,
+            0
+          ],
+          "margin": 3.216,
+          "sad_best_other": 329298,
+          "sad_zero": 102408
+        },
+        "browser_vs_truth": {
+          "max": 61,
+          "mean_abs": 2.307826086956522
+        },
+        "difference_box": [
+          576,
+          32,
+          692,
+          147
+        ],
+        "logo_in_truth": {
+          "max": 238,
+          "mean_abs": 75.50091997479521
+        },
+        "server_vs_truth": {
+          "max": 60,
+          "mean_abs": 2.4140138626339005
+        }
+      },
+      "under_logo_server": {
+        "max": 0,
+        "mean_abs": 0.0,
+        "px": 689
+      }
+    },
+    {
+      "blend_only": {
+        "browser_vs_server_without_logo": {
+          "max": 1,
+          "mean_abs": 0.11528670447385003
+        },
+        "max": 2,
+        "mean_abs": 0.07652173913043478,
+        "pass": true
+      },
+      "box_exact": true,
+      "browser_box": [
+        512,
+        93,
+        627,
+        208
+      ],
+      "by_alpha": {
+        "clear": {
+          "max": 1,
+          "mean_abs": 0.16932752781809385,
+          "px": 689
+        },
+        "full": {
+          "max": 1,
+          "mean_abs": 0.003989680825533957,
+          "px": 11112
+        },
+        "partial": {
+          "max": 2,
+          "mean_abs": 0.662687265917603,
+          "px": 1424
+        }
+      },
+      "case": "square-safe-opaque",
+      "frame": 0,
+      "max": 2,
+      "mean_abs": 0.083528670447385,
+      "pass": true,
+      "plan_box": [
+        512,
+        93,
+        627,
+        208
+      ],
+      "truth": {
+        "alignment": {
+          "aligned": true,
+          "best": [
+            0,
+            0
+          ],
+          "margin": 3.396,
+          "sad_best_other": 373635,
+          "sad_zero": 110009
+        },
+        "browser_vs_truth": {
+          "max": 68,
+          "mean_abs": 2.550396975425331
+        },
+        "difference_box": [
+          512,
+          93,
+          628,
+          208
+        ],
+        "logo_in_truth": {
+          "max": 248,
+          "mean_abs": 92.822936357908
+        },
+        "server_vs_truth": {
+          "max": 68,
+          "mean_abs": 2.565368620037807
+        }
+      },
+      "under_logo_server": {
+        "max": 0,
+        "mean_abs": 0.0,
+        "px": 689
+      }
+    },
+    {
+      "blend_only": {
+        "browser_vs_server_without_logo": {
+          "max": 1,
+          "mean_abs": 0.13890359168241967
+        },
+        "max": 2,
+        "mean_abs": 0.07614366729678639,
+        "pass": true
+      },
+      "box_exact": true,
+      "browser_box": [
+        512,
+        93,
+        627,
+        208
+      ],
+      "by_alpha": {
+        "clear": {
+          "max": 1,
+          "mean_abs": 0.22012578616352202,
+          "px": 689
+        },
+        "full": {
+          "max": 1,
+          "mean_abs": 0.004019678425725942,
+          "px": 11112
+        },
+        "partial": {
+          "max": 2,
+          "mean_abs": 0.6460674157303371,
+          "px": 1424
+        }
+      },
+      "case": "square-safe-opaque",
+      "frame": 384,
+      "max": 2,
+      "mean_abs": 0.08441083805923126,
+      "pass": true,
+      "plan_box": [
+        512,
+        93,
+        627,
+        208
+      ],
+      "truth": {
+        "alignment": {
+          "aligned": true,
+          "best": [
+            0,
+            0
+          ],
+          "margin": 3.397,
+          "sad_best_other": 373849,
+          "sad_zero": 110054
+        },
+        "browser_vs_truth": {
+          "max": 67,
+          "mean_abs": 2.5493131695022053
+        },
+        "difference_box": [
+          512,
+          93,
+          628,
+          208
+        ],
+        "logo_in_truth": {
+          "max": 247,
+          "mean_abs": 92.71957151858854
+        },
+        "server_vs_truth": {
+          "max": 67,
+          "mean_abs": 2.556093257718967
+        }
+      },
+      "under_logo_server": {
+        "max": 0,
+        "mean_abs": 0.0,
+        "px": 689
+      }
+    },
+    {
+      "blend_only": {
+        "browser_vs_server_without_logo": {
+          "max": 2,
+          "mean_abs": 0.13091367359798362
+        },
+        "max": 2,
+        "mean_abs": 0.07606805293005671,
+        "pass": true
+      },
+      "box_exact": true,
+      "browser_box": [
+        512,
+        93,
+        627,
+        208
+      ],
+      "by_alpha": {
+        "clear": {
+          "max": 1,
+          "mean_abs": 0.2215771649733914,
+          "px": 689
+        },
+        "full": {
+          "max": 1,
+          "mean_abs": 0.004019678425725942,
+          "px": 11112
+        },
+        "partial": {
+          "max": 2,
+          "mean_abs": 0.6423220973782772,
+          "px": 1424
+        }
+      },
+      "case": "square-safe-opaque",
+      "frame": 768,
+      "max": 2,
+      "mean_abs": 0.08408317580340265,
+      "pass": true,
+      "plan_box": [
+        512,
+        93,
+        627,
+        208
+      ],
+      "truth": {
+        "alignment": {
+          "aligned": true,
+          "best": [
+            0,
+            0
+          ],
+          "margin": 3.348,
+          "sad_best_other": 379552,
+          "sad_zero": 113381
+        },
+        "browser_vs_truth": {
+          "max": 67,
+          "mean_abs": 2.6086704473850033
+        },
+        "difference_box": [
+          512,
+          93,
+          628,
+          208
+        ],
+        "logo_in_truth": {
+          "max": 247,
+          "mean_abs": 92.52574669187146
+        },
+        "server_vs_truth": {
+          "max": 67,
+          "mean_abs": 2.6202142407057343
+        }
+      },
+      "under_logo_server": {
+        "max": 0,
+        "mean_abs": 0.0,
+        "px": 689
+      }
+    },
+    {
+      "blend_only": {
+        "browser_vs_server_without_logo": {
+          "max": 2,
+          "mean_abs": 0.19474987139917696
+        },
+        "max": 2,
+        "mean_abs": 0.43460648148148145,
+        "pass": true
+      },
+      "box_exact": true,
+      "browser_box": [
+        29,
+        1176,
+        317,
+        1248
+      ],
+      "by_alpha": {
+        "clear": {
+          "max": 2,
+          "mean_abs": 0.2064412238325282,
+          "px": 1035
+        },
+        "full": {
+          "max": 2,
+          "mean_abs": 0.4790863840719332,
+          "px": 16608
+        },
+        "partial": {
+          "max": 2,
+          "mean_abs": 0.36501778208858715,
+          "px": 3093
+        }
+      },
+      "case": "wide-bottom-left-max",
+      "frame": 0,
+      "max": 2,
+      "mean_abs": 0.44846322016460904,
+      "pass": true,
+      "plan_box": [
+        29,
+        1176,
+        317,
+        1248
+      ],
+      "truth": {
+        "alignment": {
+          "aligned": true,
+          "best": [
+            0,
+            0
+          ],
+          "margin": 1.932,
+          "sad_best_other": 390910,
+          "sad_zero": 202285
+        },
+        "browser_vs_truth": {
+          "max": 51,
+          "mean_abs": 2.9745691872427984
+        },
+        "difference_box": [
+          29,
+          1176,
+          318,
+          1248
+        ],
+        "logo_in_truth": {
+          "max": 156,
+          "mean_abs": 60.424012988683124
+        },
+        "server_vs_truth": {
+          "max": 51,
+          "mean_abs": 2.810667438271605
+        }
+      },
+      "under_logo_server": {
+        "max": 0,
+        "mean_abs": 0.0,
+        "px": 1035
+      }
+    },
+    {
+      "blend_only": {
+        "browser_vs_server_without_logo": {
+          "max": 3,
+          "mean_abs": 0.41097608024691357
+        },
+        "max": 2,
+        "mean_abs": 0.4046585648148148,
+        "pass": true
+      },
+      "box_exact": true,
+      "browser_box": [
+        29,
+        1176,
+        317,
+        1248
+      ],
+      "by_alpha": {
+        "clear": {
+          "max": 3,
+          "mean_abs": 0.45507246376811594,
+          "px": 1035
+        },
+        "full": {
+          "max": 2,
+          "mean_abs": 0.4410525048169557,
+          "px": 16608
+        },
+        "partial": {
+          "max": 2,
+          "mean_abs": 0.43291302942127385,
+          "px": 3093
+        }
+      },
+      "case": "wide-bottom-left-max",
+      "frame": 384,
+      "max": 3,
+      "mean_abs": 0.4405381944444444,
+      "pass": true,
+      "plan_box": [
+        29,
+        1176,
+        317,
+        1248
+      ],
+      "truth": {
+        "alignment": {
+          "aligned": true,
+          "best": [
+            0,
+            0
+          ],
+          "margin": 1.841,
+          "sad_best_other": 393049,
+          "sad_zero": 213527
+        },
+        "browser_vs_truth": {
+          "max": 71,
+          "mean_abs": 3.079025205761317
+        },
+        "difference_box": [
+          29,
+          1176,
+          318,
+          1248
+        ],
+        "logo_in_truth": {
+          "max": 155,
+          "mean_abs": 52.98942258230453
+        },
+        "server_vs_truth": {
+          "max": 72,
+          "mean_abs": 2.974392361111111
+        }
+      },
+      "under_logo_server": {
+        "max": 0,
+        "mean_abs": 0.0,
+        "px": 1035
+      }
+    },
+    {
+      "blend_only": {
+        "browser_vs_server_without_logo": {
+          "max": 1,
+          "mean_abs": 0.05888310185185185
+        },
+        "max": 2,
+        "mean_abs": 0.47434413580246915,
+        "pass": true
+      },
+      "box_exact": true,
+      "browser_box": [
+        29,
+        1176,
+        317,
+        1248
+      ],
+      "by_alpha": {
+        "clear": {
+          "max": 1,
+          "mean_abs": 0.1143317230273752,
+          "px": 1035
+        },
+        "full": {
+          "max": 2,
+          "mean_abs": 0.5279784842646115,
+          "px": 16608
+        },
+        "partial": {
+          "max": 2,
+          "mean_abs": 0.3341954952042246,
+          "px": 3093
+        }
+      },
+      "case": "wide-bottom-left-max",
+      "frame": 768,
+      "max": 2,
+      "mean_abs": 0.4784272119341564,
+      "pass": true,
+      "plan_box": [
+        29,
+        1176,
+        317,
+        1248
+      ],
+      "truth": {
+        "alignment": {
+          "aligned": true,
+          "best": [
+            0,
+            0
+          ],
+          "margin": 1.989,
+          "sad_best_other": 384053,
+          "sad_zero": 193118
+        },
+        "browser_vs_truth": {
+          "max": 56,
+          "mean_abs": 2.921087319958848
+        },
+        "difference_box": [
+          29,
+          1176,
+          318,
+          1248
+        ],
+        "logo_in_truth": {
+          "max": 162,
+          "mean_abs": 67.3595357510288
+        },
+        "server_vs_truth": {
+          "max": 57,
+          "mean_abs": 2.722752700617284
+        }
+      },
+      "under_logo_server": {
+        "max": 0,
+        "mean_abs": 0.0,
+        "px": 1035
+      }
+    },
+    {
+      "blend_only": {
+        "browser_vs_server_without_logo": {
+          "max": 4,
+          "mean_abs": 0.4782248520710059
+        },
+        "max": 1,
+        "mean_abs": 0.3763313609467456,
+        "pass": true
+      },
+      "box_exact": true,
+      "browser_box": [
+        301,
+        546,
+        366,
+        676
+      ],
+      "by_alpha": {
+        "clear": {
+          "max": 4,
+          "mean_abs": 0.7298474945533769,
+          "px": 459
+        },
+        "full": {
+          "max": 4,
+          "mean_abs": 0.5757149554617909,
+          "px": 7110
+        },
+        "partial": {
+          "max": 4,
+          "mean_abs": 0.6988270904275444,
+          "px": 881
+        }
+      },
+      "case": "tall-free-faint",
+      "frame": 0,
+      "max": 4,
+      "mean_abs": 0.5969230769230769,
+      "pass": true,
+      "plan_box": [
+        301,
+        546,
+        366,
+        676
+      ],
+      "truth": {
+        "alignment": {
+          "aligned": true,
+          "best": [
+            0,
+            0
+          ],
+          "margin": 2.483,
+          "sad_best_other": 286920,
+          "sad_zero": 115532
+        },
+        "browser_vs_truth": {
+          "max": 28,
+          "mean_abs": 3.8224457593688363
+        },
+        "difference_box": [
+          288,
+          545,
+          368,
+          676
+        ],
+        "logo_in_truth": {
+          "max": 64,
+          "mean_abs": 17.10370808678501
+        },
+        "server_vs_truth": {
+          "max": 28,
+          "mean_abs": 3.84887573964497
+        }
+      },
+      "under_logo_server": {
+        "max": 0,
+        "mean_abs": 0.0,
+        "px": 459
+      }
+    },
+    {
+      "blend_only": {
+        "browser_vs_server_without_logo": {
+          "max": 7,
+          "mean_abs": 0.5173570019723865
+        },
+        "max": 1,
+        "mean_abs": 0.37921104536489153,
+        "pass": true
+      },
+      "box_exact": true,
+      "browser_box": [
+        301,
+        546,
+        366,
+        676
+      ],
+      "by_alpha": {
+        "clear": {
+          "max": 4,
+          "mean_abs": 0.6027596223674655,
+          "px": 459
+        },
+        "full": {
+          "max": 6,
+          "mean_abs": 0.604172526957337,
+          "px": 7110
+        },
+        "partial": {
+          "max": 3,
+          "mean_abs": 0.6700718880060538,
+          "px": 881
+        }
+      },
+      "case": "tall-free-faint",
+      "frame": 384,
+      "max": 6,
+      "mean_abs": 0.6109664694280079,
+      "pass": true,
+      "plan_box": [
+        301,
+        546,
+        366,
+        676
+      ],
+      "truth": {
+        "alignment": {
+          "aligned": true,
+          "best": [
+            0,
+            0
+          ],
+          "margin": 2.478,
+          "sad_best_other": 277510,
+          "sad_zero": 111971
+        },
+        "browser_vs_truth": {
+          "max": 26,
+          "mean_abs": 3.6766074950690335
+        },
+        "difference_box": [
+          301,
+          544,
+          369,
+          680
+        ],
+        "logo_in_truth": {
+          "max": 66,
+          "mean_abs": 16.45562130177515
+        },
+        "server_vs_truth": {
+          "max": 26,
+          "mean_abs": 3.6894674556213016
+        }
+      },
+      "under_logo_server": {
+        "max": 0,
+        "mean_abs": 0.0,
+        "px": 459
+      }
+    },
+    {
+      "blend_only": {
+        "browser_vs_server_without_logo": {
+          "max": 8,
+          "mean_abs": 0.415069033530572
+        },
+        "max": 1,
+        "mean_abs": 0.3757396449704142,
+        "pass": true
+      },
+      "box_exact": true,
+      "browser_box": [
+        301,
+        546,
+        366,
+        676
+      ],
+      "by_alpha": {
+        "clear": {
+          "max": 3,
+          "mean_abs": 0.5076252723311547,
+          "px": 459
+        },
+        "full": {
+          "max": 6,
+          "mean_abs": 0.5561650257852789,
+          "px": 7110
+        },
+        "partial": {
+          "max": 3,
+          "mean_abs": 0.595535376466137,
+          "px": 881
+        }
+      },
+      "case": "tall-free-faint",
+      "frame": 768,
+      "max": 6,
+      "mean_abs": 0.5576331360946746,
+      "pass": true,
+      "plan_box": [
+        301,
+        546,
+        366,
+        676
+      ],
+      "truth": {
+        "alignment": {
+          "aligned": true,
+          "best": [
+            0,
+            0
+          ],
+          "margin": 2.264,
+          "sad_best_other": 254455,
+          "sad_zero": 112400
+        },
+        "browser_vs_truth": {
+          "max": 25,
+          "mean_abs": 3.670177514792899
+        },
+        "difference_box": [
+          297,
+          546,
+          382,
+          679
+        ],
+        "logo_in_truth": {
+          "max": 68,
+          "mean_abs": 17.72422090729783
+        },
+        "server_vs_truth": {
+          "max": 25,
+          "mean_abs": 3.712465483234714
+        }
+      },
+      "under_logo_server": {
+        "max": 0,
+        "mean_abs": 0.0,
+        "px": 459
+      }
+    },
+    {
+      "blend_only": {
+        "browser_vs_server_without_logo": {
+          "max": 2,
+          "mean_abs": 0.17122473246135553
+        },
+        "max": 2,
+        "mean_abs": 0.632183908045977,
+        "pass": true
+      },
+      "box_exact": true,
+      "browser_box": [
+        29,
+        32,
+        58,
+        61
+      ],
+      "by_alpha": {
+        "clear": {
+          "max": 1,
+          "mean_abs": 0.12643678160919541,
+          "px": 29
+        },
+        "full": {
+          "max": 2,
+          "mean_abs": 0.6597222222222222,
+          "px": 672
+        },
+        "partial": {
+          "max": 2,
+          "mean_abs": 0.5380952380952381,
+          "px": 140
+        }
+      },
+      "case": "square-min-top-left",
+      "frame": 0,
+      "max": 2,
+      "mean_abs": 0.621086008719778,
+      "pass": true,
+      "plan_box": [
+        29,
+        32,
+        58,
+        61
+      ],
+      "truth": {
+        "alignment": {
+          "aligned": true,
+          "best": [
+            0,
+            0
+          ],
+          "margin": 3.584,
+          "sad_best_other": 66679,
+          "sad_zero": 18606
+        },
+        "browser_vs_truth": {
+          "max": 69,
+          "mean_abs": 5.874355925485533
+        },
+        "difference_box": [
+          29,
+          32,
+          58,
+          62
+        ],
+        "logo_in_truth": {
+          "max": 212,
+          "mean_abs": 67.064209274673
+        },
+        "server_vs_truth": {
+          "max": 70,
+          "mean_abs": 5.988109393579072
+        }
+      },
+      "under_logo_server": {
+        "max": 0,
+        "mean_abs": 0.0,
+        "px": 29
+      }
+    },
+    {
+      "blend_only": {
+        "browser_vs_server_without_logo": {
+          "max": 2,
+          "mean_abs": 0.16646848989298454
+        },
+        "max": 2,
+        "mean_abs": 0.63059849385652,
+        "pass": true
+      },
+      "box_exact": true,
+      "browser_box": [
+        29,
+        32,
+        58,
+        61
+      ],
+      "by_alpha": {
+        "clear": {
+          "max": 1,
+          "mean_abs": 0.19540229885057472,
+          "px": 29
+        },
+        "full": {
+          "max": 2,
+          "mean_abs": 0.6636904761904762,
+          "px": 672
+        },
+        "partial": {
+          "max": 2,
+          "mean_abs": 0.5047619047619047,
+          "px": 140
+        }
+      },
+      "case": "square-min-top-left",
+      "frame": 384,
+      "max": 2,
+      "mean_abs": 0.621086008719778,
+      "pass": true,
+      "plan_box": [
+        29,
+        32,
+        58,
+        61
+      ],
+      "truth": {
+        "alignment": {
+          "aligned": true,
+          "best": [
+            0,
+            0
+          ],
+          "margin": 3.54,
+          "sad_best_other": 66828,
+          "sad_zero": 18876
+        },
+        "browser_vs_truth": {
+          "max": 65,
+          "mean_abs": 5.876734046769719
+        },
+        "difference_box": [
+          29,
+          32,
+          58,
+          62
+        ],
+        "logo_in_truth": {
+          "max": 212,
+          "mean_abs": 67.51208878319461
+        },
+        "server_vs_truth": {
+          "max": 66,
+          "mean_abs": 5.959571938168847
+        }
+      },
+      "under_logo_server": {
+        "max": 0,
+        "mean_abs": 0.0,
+        "px": 29
+      }
+    },
+    {
+      "blend_only": {
+        "browser_vs_server_without_logo": {
+          "max": 2,
+          "mean_abs": 0.16210860087197781
+        },
+        "max": 2,
+        "mean_abs": 0.6349583828775267,
+        "pass": true
+      },
+      "box_exact": true,
+      "browser_box": [
+        29,
+        32,
+        58,
+        61
+      ],
+      "by_alpha": {
+        "clear": {
+          "max": 2,
+          "mean_abs": 0.1724137931034483,
+          "px": 29
+        },
+        "full": {
+          "max": 2,
+          "mean_abs": 0.6696428571428571,
+          "px": 672
+        },
+        "partial": {
+          "max": 2,
+          "mean_abs": 0.5142857142857142,
+          "px": 140
+        }
+      },
+      "case": "square-min-top-left",
+      "frame": 768,
+      "max": 2,
+      "mean_abs": 0.6266349583828775,
+      "pass": true,
+      "plan_box": [
+        29,
+        32,
+        58,
+        61
+      ],
+      "truth": {
+        "alignment": {
+          "aligned": true,
+          "best": [
+            0,
+            0
+          ],
+          "margin": 3.667,
+          "sad_best_other": 67515,
+          "sad_zero": 18409
+        },
+        "browser_vs_truth": {
+          "max": 66,
+          "mean_abs": 5.632976615140706
+        },
+        "difference_box": [
+          29,
+          32,
+          60,
+          64
+        ],
+        "logo_in_truth": {
+          "max": 212,
+          "mean_abs": 67.44589774078479
+        },
+        "server_vs_truth": {
+          "max": 67,
+          "mean_abs": 5.772889417360285
+        }
+      },
+      "under_logo_server": {
+        "max": 0,
+        "mean_abs": 0.0,
+        "px": 29
+      }
+    },
+    {
+      "blend_only": {
+        "browser_vs_server_without_logo": {
+          "max": 2,
+          "mean_abs": 0.21286195286195286
+        },
+        "max": 2,
+        "mean_abs": 0.08188552188552188,
+        "pass": true
+      },
+      "box_exact": true,
+      "browser_box": [
+        261,
+        1005,
+        459,
+        1055
+      ],
+      "by_alpha": {
+        "clear": {
+          "max": 1,
+          "mean_abs": 0.12620638455827765,
+          "px": 449
+        },
+        "full": {
+          "max": 1,
+          "mean_abs": 0.016806366946067224,
+          "px": 7874
+        },
+        "partial": {
+          "max": 2,
+          "mean_abs": 0.4525470302261678,
+          "px": 1577
+        }
+      },
+      "case": "wide-over-captions",
+      "frame": 0,
+      "max": 2,
+      "mean_abs": 0.09117845117845118,
+      "pass": true,
+      "plan_box": [
+        261,
+        1005,
+        459,
+        1055
+      ],
+      "truth": {
+        "alignment": {
+          "aligned": true,
+          "best": [
+            0,
+            0
+          ],
+          "margin": 2.348,
+          "sad_best_other": 385269,
+          "sad_zero": 164112
+        },
+        "browser_vs_truth": {
+          "max": 94,
+          "mean_abs": 4.9573063973063975
+        },
+        "difference_box": [
+          260,
+          1004,
+          460,
+          1056
+        ],
+        "logo_in_truth": {
+          "max": 228,
+          "mean_abs": 96.78023569023568
+        },
+        "server_vs_truth": {
+          "max": 94,
+          "mean_abs": 4.94026936026936
+        }
+      },
+      "under_logo_server": {
+        "max": 0,
+        "mean_abs": 0.0,
+        "px": 449
+      }
+    },
+    {
+      "blend_only": {
+        "browser_vs_server_without_logo": {
+          "max": 1,
+          "mean_abs": 0.1139057239057239
+        },
+        "max": 2,
+        "mean_abs": 0.08471380471380471,
+        "pass": true
+      },
+      "box_exact": true,
+      "browser_box": [
+        261,
+        1005,
+        459,
+        1055
+      ],
+      "by_alpha": {
+        "clear": {
+          "max": 1,
+          "mean_abs": 0.09799554565701558,
+          "px": 449
+        },
+        "full": {
+          "max": 1,
+          "mean_abs": 0.016764033528067056,
+          "px": 7874
+        },
+        "partial": {
+          "max": 2,
+          "mean_abs": 0.4639611075882477,
+          "px": 1577
+        }
+      },
+      "case": "wide-over-captions",
+      "frame": 384,
+      "max": 2,
+      "mean_abs": 0.09168350168350169,
+      "pass": true,
+      "plan_box": [
+        261,
+        1005,
+        459,
+        1055
+      ],
+      "truth": {
+        "alignment": {
+          "aligned": true,
+          "best": [
+            0,
+            0
+          ],
+          "margin": 2.402,
+          "sad_best_other": 379953,
+          "sad_zero": 158193
+        },
+        "browser_vs_truth": {
+          "max": 101,
+          "mean_abs": 4.914680134680134
+        },
+        "difference_box": [
+          260,
+          1004,
+          460,
+          1056
+        ],
+        "logo_in_truth": {
+          "max": 245,
+          "mean_abs": 106.10434343434343
+        },
+        "server_vs_truth": {
+          "max": 101,
+          "mean_abs": 4.90016835016835
+        }
+      },
+      "under_logo_server": {
+        "max": 0,
+        "mean_abs": 0.0,
+        "px": 449
+      }
+    },
+    {
+      "blend_only": {
+        "browser_vs_server_without_logo": {
+          "max": 9,
+          "mean_abs": 0.21898989898989898
+        },
+        "max": 2,
+        "mean_abs": 0.0631986531986532,
+        "pass": true
+      },
+      "box_exact": true,
+      "browser_box": [
+        261,
+        1005,
+        459,
+        1055
+      ],
+      "by_alpha": {
+        "clear": {
+          "max": 9,
+          "mean_abs": 0.2991833704528582,
+          "px": 449
+        },
+        "full": {
+          "max": 1,
+          "mean_abs": 0.012065024130048261,
+          "px": 7874
+        },
+        "partial": {
+          "max": 9,
+          "mean_abs": 0.40266328471781865,
+          "px": 1577
+        }
+      },
+      "case": "wide-over-captions",
+      "frame": 768,
+      "max": 9,
+      "mean_abs": 0.0873063973063973,
+      "pass": false,
+      "plan_box": [
+        261,
+        1005,
+        459,
+        1055
+      ],
+      "truth": {
+        "alignment": {
+          "aligned": true,
+          "best": [
+            0,
+            0
+          ],
+          "margin": 2.997,
+          "sad_best_other": 477714,
+          "sad_zero": 159421
+        },
+        "browser_vs_truth": {
+          "max": 132,
+          "mean_abs": 4.975555555555555
+        },
+        "difference_box": [
+          255,
+          1004,
+          462,
+          1064
+        ],
+        "logo_in_truth": {
+          "max": 255,
+          "mean_abs": 103.8722558922559
+        },
+        "server_vs_truth": {
+          "max": 132,
+          "mean_abs": 4.952828282828283
+        }
+      },
+      "under_logo_server": {
+        "max": 0,
+        "mean_abs": 0.0,
+        "px": 449
+      }
+    }
+  ],
+  "gate": "P-LOGO",
+  "job": "e7f0d37b-6999-40a2-80b8-a09c8ff187ca",
+  "method": "browser canvas (real player, real preview lane, pinned Chrome) vs the server composite of the same plate-cell frame with the compiler's strings before the 4:2:0 step, as W2 measured it (player_fixtures.score_logo); the box is where the browser differs from the server's logo-less composite by > 16 levels",
+  "output": {
+    "h": 1280,
+    "w": 720
+  },
+  "pass": false,
+  "run": {
+    "browser": "Chrome for Testing 147.0.7727.15 (Playwright 1.62.1, build 1217)",
+    "ci": "not re-run on GitHub Actions: the browser half needs Chrome and a copy of a real job, and neither is in the production image or on GitHub. The server half ran in the toolchain image built locally from the same Dockerfile; its FFmpeg 5.1.9 and Python 3.11.2 match the CI image's (editor-gates run 36844719931).",
+    "commands": [
+      "web/e2e/editor-logo.spec.mjs 'real stack' (captures)",
+      "scripts/parity/logo_gates.py score | export | g5, in the image"
+    ],
+    "image": "ai-video-clipper:editor-w3base (FFmpeg 5.1.9, libass 0.17.1, Python 3.11.2), app container --cpus 4 on 127.0.0.1:3721",
+    "job": "a copy of the owner's job e7f0d37b (fit-blur, 24 fps source, clip 2: 48.8 s) in a scratch JOBS_ROOT; the original only read",
+    "load_average_at_run": "about 21-23 (the machine is shared with other agents)",
+    "logos": "synthetic RGBA PNGs from logo_gates.py assets (512x512, 1000x250, 300x600), stored as T3.1 stores uploads"
+  },
+  "task": "T3.2",
+  "thresholds": {
+    "box_px": 0,
+    "max": 8,
+    "mean_abs": 2.0
+  },
+  "toolchain": {
+    "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "python": "3.11.2"
+  },
+  "truth_frame": {
+    "aligned": 18,
+    "box_pass": true,
+    "browser_vs_truth": {
+      "max": 132,
+      "mean_abs": 5.876734046769719
+    },
+    "difference_box_exact": 0,
+    "difference_box_note": "the > 16-level difference box of two encoded frames is not a geometric measure: 4:2:0 moves the logo's edge colour into the next pixel and the encoder's noise differs between the two frames",
+    "frames": 18,
+    "method": "POST preview/frame (the final graph with the 4:2:0 step and an intra H.264 encode), with and without the logo; the browser's logo is matched against the truth frame at every shift within 3 px (sum of absolute differences over the box padded by 4 px)",
+    "min_margin": 1.841,
+    "misaligned": [],
+    "server_composite_vs_truth": {
+      "max": 132,
+      "mean_abs": 5.988109393579072
+    }
+  },
+  "worst": {
+    "max": 9,
+    "mean_abs": 0.7040957781978576
+  }
+}

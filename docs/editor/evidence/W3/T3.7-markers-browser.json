@@ -1,0 +1,109 @@
+{
+  "gate": "marker positions exact (browser lane vs Python vectors)",
+  "threshold_frames": 0,
+  "cases": 21,
+  "markers_compared": 737,
+  "frame_mismatches": 0,
+  "position_mismatches": 0,
+  "pass": true,
+  "per_case": [
+    {
+      "name": "c30/seed",
+      "markers": 8
+    },
+    {
+      "name": "c30/cuts",
+      "markers": 4
+    },
+    {
+      "name": "c30/trim",
+      "markers": 4
+    },
+    {
+      "name": "c30/cold_open",
+      "markers": 8
+    },
+    {
+      "name": "c30/cold_open_cut",
+      "markers": 8
+    },
+    {
+      "name": "c30/no_cold_open",
+      "markers": 7
+    },
+    {
+      "name": "c30/dense_cuts",
+      "markers": 129
+    },
+    {
+      "name": "c25/seed",
+      "markers": 18
+    },
+    {
+      "name": "c25/cuts",
+      "markers": 14
+    },
+    {
+      "name": "c25/trim",
+      "markers": 9
+    },
+    {
+      "name": "c25/cold_open",
+      "markers": 20
+    },
+    {
+      "name": "c25/cold_open_cut",
+      "markers": 20
+    },
+    {
+      "name": "c25/dense_cuts",
+      "markers": 364
+    },
+    {
+      "name": "c24/seed",
+      "markers": 5
+    },
+    {
+      "name": "c24/cuts",
+      "markers": 3
+    },
+    {
+      "name": "c24/trim",
+      "markers": 4
+    },
+    {
+      "name": "c24/cold_open",
+      "markers": 5
+    },
+    {
+      "name": "c24/cold_open_cut",
+      "markers": 5
+    },
+    {
+      "name": "c24/no_cold_open",
+      "markers": 4
+    },
+    {
+      "name": "c24/no_analysis",
+      "markers": 2
+    },
+    {
+      "name": "c24/dense_cold_open_cut",
+      "markers": 96
+    }
+  ],
+  "browser": "chromium",
+  "browserVersion": "147.0.7727.15",
+  "executable": "chromium-1217 (Chrome for Testing)",
+  "machine": {
+    "cpus": 16,
+    "cpuModel": "AMD Ryzen 7 5700G with Radeon Graphics",
+    "loadavg": [
+      29.94,
+      26.66,
+      17.33
+    ]
+  },
+  "commit": "8316614d0122ffaac548b3e9bc6ad439e31d72cf",
+  "harness": "web/components/editor/timeline/lanes/__dev__ (production React, real commands)"
+}

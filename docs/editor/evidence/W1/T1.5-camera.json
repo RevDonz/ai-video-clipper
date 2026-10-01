@@ -1,0 +1,50 @@
+{
+  "gate": "camera plan for a 3 min window",
+  "runs": {
+    "editor-ref-ffmpeg-5.1.9": {
+      "cpu_count": 16,
+      "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+      "gop_frames": 120,
+      "load_avg_1m": 3.75,
+      "pass_real": true,
+      "pass_stub": true,
+      "python": "3.11.2",
+      "real_detector_s": 9.194,
+      "real_detector_samples": 240,
+      "reference_toolchain_problem": null,
+      "samples": 240,
+      "size": [
+        1280,
+        720
+      ],
+      "stub_detector_s": 0.0733,
+      "window_ms": [
+        0,
+        180000
+      ]
+    },
+    "local-ffmpeg-6.1.1": {
+      "cpu_count": 16,
+      "ffmpeg": "ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023 the FFmpeg developers",
+      "gop_frames": 120,
+      "load_avg_1m": 3.87,
+      "pass_real": true,
+      "pass_stub": true,
+      "python": "3.13.13",
+      "real_detector_s": 7.986,
+      "real_detector_samples": 240,
+      "reference_toolchain_problem": "ffmpeg 6.1.1-3ubuntu5 (reference 5.1.9)",
+      "samples": 240,
+      "size": [
+        1280,
+        720
+      ],
+      "stub_detector_s": 0.0475,
+      "window_ms": [
+        0,
+        180000
+      ]
+    }
+  },
+  "threshold_s": 15.0
+}

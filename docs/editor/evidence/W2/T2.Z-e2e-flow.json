@@ -1,0 +1,96 @@
+{
+  "schema": "potongin.gate/1",
+  "gate": "e2e flow (plan \u00a711.2 T2.Z)",
+  "browser": "Chrome for Testing 147.0.7727.15",
+  "executable": "chromium-1217",
+  "clipDurationMs": 48799,
+  "steps": [
+    {
+      "name": "open",
+      "ms": 969
+    },
+    {
+      "name": "trim",
+      "ms": 93
+    },
+    {
+      "name": "delete words",
+      "ms": 145
+    },
+    {
+      "name": "fix a word",
+      "ms": 79
+    },
+    {
+      "name": "switch pack",
+      "ms": 353
+    },
+    {
+      "name": "edit the hook",
+      "ms": 10
+    },
+    {
+      "name": "change the cold open",
+      "ms": 259
+    },
+    {
+      "name": "undo/redo",
+      "ms": 27
+    },
+    {
+      "name": "reload",
+      "ms": 909
+    },
+    {
+      "name": "export",
+      "ms": 22302
+    },
+    {
+      "name": "download",
+      "ms": 92
+    },
+    {
+      "name": "undo everything (back to the AI version)",
+      "ms": 1948
+    },
+    {
+      "name": "export the AI version",
+      "ms": 1903
+    }
+  ],
+  "edited": {
+    "revision": 1,
+    "renderMs": 22102,
+    "completedBy": "render",
+    "verify": {
+      "ok": true,
+      "frames": 1096,
+      "samples": 2194192,
+      "gates": [
+        {
+          "name": "G1",
+          "ok": true,
+          "blocking": true
+        },
+        {
+          "name": "G2",
+          "ok": true,
+          "blocking": true
+        },
+        {
+          "name": "G5",
+          "ok": false,
+          "blocking": false
+        }
+      ]
+    }
+  },
+  "r10": {
+    "sameInode": true,
+    "bytesEqual": true,
+    "completedBy": "seed",
+    "createdStatus": 200
+  },
+  "pass": true,
+  "server": "ai-video-clipper:editor-w2 (app and render-worker containers, --cpus 6 and 4; JOBS_ROOT: a copy of the owner's job e7f0d37b, 23.976 fps, legacy engine)"
+}

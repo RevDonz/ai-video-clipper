@@ -1,0 +1,82 @@
+{
+  "schema": "potongin.gate/1",
+  "gate": "AA contrast of the editor's new token pairs",
+  "tool": "python3 .claude/skills/antislop-human/contrast-check.py",
+  "task": "W3Z",
+  "pairs": [
+    {
+      "pair": "cold-open on bg",
+      "colours": "#c4a5ff on #080907",
+      "ratio": "9.67:1",
+      "normal_text_4_5": "PASS"
+    },
+    {
+      "pair": "cold-open on surface-3",
+      "colours": "#c4a5ff on #23251f",
+      "ratio": "7.50:1",
+      "normal_text_4_5": "PASS"
+    },
+    {
+      "pair": "cold-open on cold-open-bg",
+      "colours": "#c4a5ff on #221a33",
+      "ratio": "8.05:1",
+      "normal_text_4_5": "PASS"
+    },
+    {
+      "pair": "text on cold-open-bg",
+      "colours": "#f7f5ed on #221a33",
+      "ratio": "15.23:1",
+      "normal_text_4_5": "PASS"
+    },
+    {
+      "pair": "text-muted on cold-open-bg",
+      "colours": "#a5a69d on #221a33",
+      "ratio": "6.76:1",
+      "normal_text_4_5": "PASS"
+    },
+    {
+      "pair": "text on info-border (selected word)",
+      "colours": "#f7f5ed on #3a4680",
+      "ratio": "8.13:1",
+      "normal_text_4_5": "PASS"
+    },
+    {
+      "pair": "text on warning-bg (playing word)",
+      "colours": "#f7f5ed on #282210",
+      "ratio": "14.50:1",
+      "normal_text_4_5": "PASS"
+    },
+    {
+      "pair": "bg on text (panel strong button)",
+      "colours": "#080907 on #f7f5ed",
+      "ratio": "18.28:1",
+      "normal_text_4_5": "PASS"
+    },
+    {
+      "pair": "accent-ink on accent-hover",
+      "colours": "#0b0c09 on #ecff9a",
+      "ratio": "18.06:1",
+      "normal_text_4_5": "PASS"
+    },
+    {
+      "pair": "bg on success (switch knob)",
+      "colours": "#080907 on #7fd99a",
+      "ratio": "11.68:1",
+      "normal_text_4_5": "PASS"
+    },
+    {
+      "pair": "border-strong on surface (control edge)",
+      "colours": "#6b6d63 on #11120f",
+      "ratio": "3.57:1",
+      "normal_text_4_5": "FAIL"
+    },
+    {
+      "pair": "focus on surface (focus ring)",
+      "colours": "#8b9dff on #11120f",
+      "ratio": "7.49:1",
+      "normal_text_4_5": "PASS"
+    }
+  ],
+  "note": "border-strong is a control edge (3:1 for UI components), not text; every text pair passes 4.5:1. web/tests/ui-guards.test.mjs checks every text/background pair the stylesheets use with the same formula.",
+  "pass": true
+}

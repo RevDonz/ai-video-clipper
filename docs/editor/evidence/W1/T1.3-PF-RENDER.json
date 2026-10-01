@@ -1,0 +1,176 @@
+{
+  "gate": "PF-RENDER",
+  "runs": {
+    "local-ffmpeg-6.1.1": {
+      "budget": {
+        "p50": 0.4,
+        "p95": 0.6
+      },
+      "cases": [
+        {
+          "case": "pf_60s_fit_blur",
+          "clip_s": 62.162,
+          "layout": "fit_blur",
+          "output": [
+            720,
+            1280
+          ],
+          "ratio": 0.2426,
+          "render_s": 15.078,
+          "source": [
+            1280,
+            720
+          ]
+        },
+        {
+          "case": "pf_60s_fill_center",
+          "clip_s": 62.162,
+          "layout": "fill_center",
+          "output": [
+            720,
+            1280
+          ],
+          "ratio": 0.1056,
+          "render_s": 6.563,
+          "source": [
+            1280,
+            720
+          ]
+        },
+        {
+          "case": "pf_60s_camera",
+          "clip_s": 62.162,
+          "layout": "camera",
+          "output": [
+            720,
+            1280
+          ],
+          "ratio": 0.1096,
+          "render_s": 6.814,
+          "source": [
+            1280,
+            720
+          ]
+        }
+      ],
+      "cpus": {
+        "affinity": 16,
+        "cgroup_quota": null,
+        "os_cpu_count": 16
+      },
+      "ffmpeg_threads": 4,
+      "gate_wall_s": 35.5,
+      "loadavg_after": [
+        3.68,
+        4.43,
+        4.76
+      ],
+      "loadavg_before": [
+        3.29,
+        4.48,
+        4.79
+      ],
+      "note": "synthetic barcode source (flat bands, harness captions): encoding costs less than real footage, so these ratios are a lower bound; the real-clip measurement comes with W2",
+      "report_only": true,
+      "summary": {
+        "p50": 0.1096,
+        "p95": 0.2426
+      },
+      "toolchain": {
+        "ffmpeg": "ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023 the FFmpeg developers",
+        "python": "3.13.13",
+        "reference_toolchain_problem": "ffmpeg 6.1.1-3ubuntu5 (reference 5.1.9)"
+      },
+      "within_budget": {
+        "p50": true,
+        "p95": true
+      }
+    },
+    "reference-image-ffmpeg-5.1.9": {
+      "budget": {
+        "p50": 0.4,
+        "p95": 0.6
+      },
+      "cases": [
+        {
+          "case": "pf_60s_fit_blur",
+          "clip_s": 62.162,
+          "layout": "fit_blur",
+          "output": [
+            720,
+            1280
+          ],
+          "ratio": 0.2651,
+          "render_s": 16.481,
+          "source": [
+            1280,
+            720
+          ]
+        },
+        {
+          "case": "pf_60s_fill_center",
+          "clip_s": 62.162,
+          "layout": "fill_center",
+          "output": [
+            720,
+            1280
+          ],
+          "ratio": 0.1056,
+          "render_s": 6.563,
+          "source": [
+            1280,
+            720
+          ]
+        },
+        {
+          "case": "pf_60s_camera",
+          "clip_s": 62.162,
+          "layout": "camera",
+          "output": [
+            720,
+            1280
+          ],
+          "ratio": 0.129,
+          "render_s": 8.021,
+          "source": [
+            1280,
+            720
+          ]
+        }
+      ],
+      "cpus": {
+        "affinity": 16,
+        "cgroup_quota": 4.0,
+        "os_cpu_count": 16
+      },
+      "ffmpeg_threads": 4,
+      "gate_wall_s": 39.2,
+      "loadavg_after": [
+        5.74,
+        4.9,
+        4.93
+      ],
+      "loadavg_before": [
+        6.18,
+        4.87,
+        4.93
+      ],
+      "note": "synthetic barcode source (flat bands, harness captions): encoding costs less than real footage, so these ratios are a lower bound; the real-clip measurement comes with W2",
+      "report_only": true,
+      "summary": {
+        "p50": 0.129,
+        "p95": 0.2651
+      },
+      "toolchain": {
+        "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+        "python": "3.11.2",
+        "reference_toolchain_problem": null
+      },
+      "within_budget": {
+        "p50": true,
+        "p95": true
+      }
+    }
+  },
+  "task": "T1.3"
+}

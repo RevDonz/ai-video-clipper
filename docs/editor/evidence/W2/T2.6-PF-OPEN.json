@@ -1,0 +1,68 @@
+{
+  "browser": "Chrome for Testing 147.0.7727.15 (Playwright 1.62.1, build 1217)",
+  "commit": "30d7e79",
+  "definition": "navigation start to editor interactive: store ready (doc, words, plan), stage player loaded, transcript panel shown",
+  "gate": "PF-OPEN (client part)",
+  "load_average_1m_before_after": [
+    8.98,
+    12.88
+  ],
+  "machine": "K15 reference PC (Ryzen 7 5700G, 16 threads), shared with other agents",
+  "not_measured_here": [
+    "server round trips of the real routes (T2.2/T2.3) and the real store (T2.5): simulated at 90 ms per CLI call (R1) and 200 ms for the plan (PF-PLAN server budget)",
+    "first plate cell at the playhead <= 2.0 s after prepare (T2.3/T2.4; W2 exit at T2.Z)",
+    "the transcript is the T1.Z placeholder until T2.7 merges"
+  ],
+  "pass": true,
+  "runs_per_variant": 20,
+  "server": "next build + next start (production), private 127.0.0.1 port, POTONGIN_EDITOR_V3=on, POTONGIN_EDITOR_FAKES=1",
+  "spec": "web/e2e/editor-shell.spec.mjs",
+  "task": "T2.6",
+  "threshold": {
+    "first_visit_p95_ms": 3000,
+    "repeat_visit_p95_ms": 2000
+  },
+  "variants": [
+    {
+      "first_visit_ms": {
+        "max": 939.7,
+        "p50": 479.8,
+        "p95": 732.8
+      },
+      "name": "fakes, no server latency",
+      "repeat_visit_ms": {
+        "max": 647.2,
+        "p50": 421,
+        "p95": 513.3
+      },
+      "simulated_server_ms": null
+    },
+    {
+      "first_visit_ms": {
+        "max": 662.3,
+        "p50": 563.6,
+        "p95": 622.5
+      },
+      "name": "fakes + simulated server latency",
+      "repeat_visit_ms": {
+        "max": 611.6,
+        "p50": 498.5,
+        "p95": 582.7
+      },
+      "simulated_server_ms": {
+        "api": {
+          "clips": 90,
+          "getEdit": 90,
+          "words": 90
+        },
+        "preview": {
+          "plan": 200
+        }
+      }
+    }
+  ],
+  "viewport": [
+    1366,
+    768
+  ]
+}

@@ -1,0 +1,16 @@
+{
+ "creates_refused": 0,
+ "elapsed_s": 46.8,
+ "final_request_files": 201,
+ "gate": "1,500 requests created over time never hit a ceiling",
+ "max_requests_ceiling": 1000,
+ "peak_request_files": 201,
+ "python": "3.13.13",
+ "requests_created": 1500,
+ "retention": {
+  "days": 7,
+  "keep_newest_terminal": 200
+ },
+ "spacing_hours": 1,
+ "task": "T2.2"
+}

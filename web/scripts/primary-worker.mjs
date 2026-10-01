@@ -14,6 +14,7 @@ import {
   validateClaimForExecution,
 } from "../lib/primary-job-queue.mjs";
 import { purgeDeletedJobs } from "../lib/job-deletion.mjs";
+import { runPythonCli } from "../lib/python-cli.mjs";
 
 const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
@@ -77,6 +78,79 @@ export async function runClaim({
   }
 }
 
+// The editor janitor (plan §4.4, §11.4 T4.3; `ai_clipper.edit_v2.janitor`): receipts, archives,
+// suggestions, preview caches and orphan assets. Slot 0 runs it between jobs, at most once per
+// interval, never while a job is active or being claimed, and no slot claims while it runs. A run
+// has a time budget; an unfinished one continues from its cursor at the next idle poll.
+export const JANITOR_MODULE = "ai_clipper.edit_v2.janitor";
+export const DEFAULT_JANITOR_INTERVAL_MS = 6 * 60 * 60_000;
+export const JANITOR_BUDGET_MS = 60_000;
+const JANITOR_TIMEOUT_MS = JANITOR_BUDGET_MS + 60_000;
+
+export function createWorkerActivity() {
+  let claims = 0;
+  let active = 0;
+  return {
+    claiming() { claims += 1; },
+    claimed(gotJob) { claims -= 1; if (gotJob) active += 1; },
+    finished() { active -= 1; },
+    idle: () => claims === 0 && active === 0,
+    mayClaim: (janitor) => !janitor?.running,
+  };
+}
+
+export function createJanitorTick({
+  env = process.env,
+  intervalMs = DEFAULT_JANITOR_INTERVAL_MS,
+  now = Date.now,
+  runCli = runPythonCli,
+  log = (line) => process.stderr.write(`${line}\n`),
+} = {}) {
+  let nextAt = now();
+  let cursor = null;
+  let running = false;
+  const cap = Number(env.POTONGIN_PREVIEW_CACHE_BYTES);
+  return {
+    get running() { return running; },
+    async maybeRun(isIdle) {
+      if (running || now() < nextAt || !isIdle()) return false;
+      running = true; // set before any await: the slots see it at once
+      try {
+        const payload = { nowMs: now(), budgetMs: JANITOR_BUDGET_MS };
+        if (Number.isSafeInteger(cap) && cap > 0) payload.capBytes = cap;
+        if (cursor) payload.after = cursor;
+        const result = await runCli(JANITOR_MODULE, "run", payload, { timeoutMs: JANITOR_TIMEOUT_MS, env });
+        const report = result?.exitCode === 0 ? result.json : null;
+        if (report && report.complete === false && typeof report.next === "string") {
+          cursor = report.next;
+          nextAt = now();
+        } else {
+          if (!report) log("Editor janitor failed");
+          cursor = null;
+          nextAt = now() + intervalMs;
+        }
+      } catch {
+        log("Editor janitor failed");
+        cursor = null;
+        nextAt = now() + intervalMs;
+      } finally {
+        running = false;
+      }
+      return true;
+    },
+  };
+}
+
+// The health snapshot: a janitor run keeps slot 0 from polling for up to its budget, so it
+// counts as active work (check-primary-worker-health.mjs wants fresh polling only when idle).
+export function primaryHealthSnapshot({ pid, workerId, heartbeatAt, lastPollAt, activeClaims, janitorRunning }) {
+  return {
+    version: 1, pid, workerId, heartbeatAt, lastPollAt,
+    activeClaims: activeClaims + (janitorRunning ? 1 : 0),
+    janitor: Boolean(janitorRunning),
+  };
+}
+
 export async function main(env = process.env) {
   const config = parsePrimaryQueueConfig(env);
   const jobsRoot = path.resolve(env.JOBS_ROOT || "/data/jobs");
@@ -89,8 +163,13 @@ export async function main(env = process.env) {
   let activeClaims = 0;
   let lastPollAt = new Date().toISOString();
   let healthWriteQueue = Promise.resolve();
+  const activity = createWorkerActivity();
+  const janitor = createJanitorTick({ env: { ...env, JOBS_ROOT: jobsRoot } });
   const writeHealth = () => {
-    const snapshot = { version: 1, pid: process.pid, workerId, heartbeatAt: new Date().toISOString(), lastPollAt, activeClaims };
+    const snapshot = primaryHealthSnapshot({
+      pid: process.pid, workerId, heartbeatAt: new Date().toISOString(), lastPollAt, activeClaims,
+      janitorRunning: janitor.running,
+    });
     const publish = async () => {
       const pending = `${healthPath}.${process.pid}.${crypto.randomUUID()}.tmp`;
       const fd = await open(pending, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
@@ -112,22 +191,37 @@ export async function main(env = process.env) {
 
   async function slot(index) {
     while (!stopping) {
-      const claim = await claimNextJob({
-        jobsRoot,
-        workerId: `${workerId}:${index}`,
-        leaseMs: config.leaseMs,
-        maxAttempts: config.maxAttempts,
-        legacyQuiescenceMs: config.legacyQuiescenceMs,
-      });
+      if (!activity.mayClaim(janitor)) {
+        await sleep(pollMs);
+        continue;
+      }
+      activity.claiming();
+      let claim = null;
+      try {
+        claim = await claimNextJob({
+          jobsRoot,
+          workerId: `${workerId}:${index}`,
+          leaseMs: config.leaseMs,
+          maxAttempts: config.maxAttempts,
+          legacyQuiescenceMs: config.legacyQuiescenceMs,
+        });
+      } finally {
+        activity.claimed(Boolean(claim));
+      }
       lastPollAt = new Date().toISOString();
       await writeHealth();
       if (!claim) {
         // One slot drives the deletion purge: jobs whose lease was revoked
-        // become removable once that lease window has passed.
+        // become removable once that lease window has passed. The same slot runs
+        // the editor janitor when no job is active.
         if (index === 0) {
           await purgeDeletedJobs(jobsRoot).catch((error) => {
             process.stderr.write(`${safeWorkerError(error, "Job purge failed")}\n`);
           });
+          if (!stopping && await janitor.maybeRun(activity.idle)) {
+            lastPollAt = new Date().toISOString(); // the loop was busy, not stuck
+            await writeHealth();
+          }
         }
         await sleep(pollMs);
         continue;
@@ -139,6 +233,7 @@ export async function main(env = process.env) {
         process.stderr.write(`${safeWorkerError(error, "Primary runner failed")}\n`);
       } finally {
         activeClaims -= 1;
+        activity.finished();
         lastPollAt = new Date().toISOString();
         await writeHealth();
       }

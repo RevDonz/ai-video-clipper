@@ -19,6 +19,8 @@ Deletion is permanent and asynchronous:
 
 Step 4's order matters and must not be reversed. Storage accounting resolves each `.render-reservations/<id>.json` through `analysis/render-requests/<render_id>.json` inside the job directory. A reservation record left behind after its job directory is gone can never resolve again, so `declaredBytes + workReserveBytes` would be charged against the quota permanently, and admission is fail-closed. Removing reservation records first is the conservative direction: the bytes on disk are still counted by the scanner until the directory goes.
 
+A reservation stops counting once its request resolves to an export that completed, failed or was cancelled, or to a request of the retired candidate editor (`render-request-v2`) in any state: nothing renders those any more, so a queued one would otherwise hold its bytes forever. Render admission deletes such records; the shared accounting skips them (`web/lib/shared-storage-accounting.mjs`, `requestReleasesReservation`).
+
 A crash between any two steps is safe. The tombstone survives, and the next purge pass finishes the work; a tombstone whose directory is already gone is simply retired.
 
 ## What is and is not retained job data
@@ -32,6 +34,23 @@ The queue protocol may clean up only protocol metadata that is not a job or arti
 - a reservation record before any job root or job bytes exist.
 
 That narrow protocol cleanup is not a retention mechanism. Once bytes have been written to a UUID job root, the root and partial data must be preserved; protocol cleanup must never recurse into it.
+
+## The editor's own retention (plan §4.1, §4.4, K11)
+
+The clip editor keeps editing state inside a job root, and the editor plan bounds it; this is the
+only automated removal inside a job root, and it never removes a job, its source, its analysis
+artifacts (words, peaks, camera plans, seeds), its auto renders or an editor export:
+
+- the preview lane holds each job's regenerable preview files (`analysis/clips/*/preview/**`)
+  under a cap (1 GiB by default, `POTONGIN_PREVIEW_CACHE_BYTES`) by evicting the least recently
+  used file;
+- the editor janitor (`python -m ai_clipper.edit_v2.janitor`), run by the primary worker between
+  jobs (never while a job is active), prunes per clip the idempotency receipts beyond the newest
+  200 committed ones, the archived revisions other than revision 1, those a render request names
+  and the newest 50, AI hook suggestions after 30 days and preview files unused for 30 days; it
+  holds the same cache cap, and it deletes an uploaded logo or music file that no document and
+  no kept revision has used for 30 days. It skips a job being deleted and leaves archives and
+  assets alone while an export of the job is in flight.
 
 ## Capacity planning
 

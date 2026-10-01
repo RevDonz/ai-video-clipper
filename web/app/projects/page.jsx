@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import AppHeader from "../../components/AppHeader.jsx";
+import { historyOffersEdit } from "../../lib/clip-entry-view.mjs";
 import {
   PROJECT_FILTERS,
   formatProjectDate,
@@ -21,8 +22,9 @@ import styles from "./projects.module.css";
 // While a project is still running, the list is re-read on this interval.
 const POLL_MS = 5000;
 
-function ProjectRow({ job, confirming, busy, onAskDelete, onCancelDelete, onDelete }) {
+function ProjectRow({ job, editor, confirming, busy, onAskDelete, onCancelDelete, onDelete }) {
   const clips = Array.isArray(job.clips) ? job.clips : [];
+  const editable = historyOffersEdit(job, editor);
   const poster = clips.map(clipPosterUrl).find(Boolean);
   const active = isActiveStatus(job.status);
   const name = projectName(job);
@@ -53,7 +55,12 @@ function ProjectRow({ job, confirming, busy, onAskDelete, onCancelDelete, onDele
         </span>
       </a>
       {job.status !== "deleting" && !confirming && (
-        <button ref={askRef} type="button" className={`btn ghost ${styles.ask}`} onClick={onAskDelete} aria-label={`Hapus ${name}`}>Hapus</button>
+        <div className={styles.actions}>
+          {editable && (
+            <a className={`btn ${styles.edit}`} href={`/projects/${encodeURIComponent(job.id)}#klip`} aria-label={`Edit klip ${name}`}>Edit klip</a>
+          )}
+          <button ref={askRef} type="button" className={`btn ghost ${styles.ask}`} onClick={onAskDelete} aria-label={`Hapus ${name}`}>Hapus</button>
+        </div>
       )}
       {confirming && (
         <div
@@ -79,6 +86,7 @@ function ProjectRow({ job, confirming, busy, onAskDelete, onCancelDelete, onDele
 
 export default function ProjectsPage() {
   const [jobs, setJobs] = useState([]);
+  const [editor, setEditor] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -109,6 +117,7 @@ export default function ProjectsPage() {
         if (!alive) return;
         const list = Array.isArray(payload.jobs) ? payload.jobs : [];
         setJobs(list);
+        setEditor(payload.editor === true);
         setLoaded(true);
         setError("");
         if (list.some((job) => isActiveStatus(job.status))) pollTimer = setTimeout(() => load(false), POLL_MS);
@@ -215,6 +224,7 @@ export default function ProjectsPage() {
               <ProjectRow
                 key={job.id}
                 job={job}
+                editor={editor}
                 confirming={confirmingId === job.id}
                 busy={busyId === job.id}
                 onAskDelete={() => { setActionError(""); setConfirmingId(job.id); }}

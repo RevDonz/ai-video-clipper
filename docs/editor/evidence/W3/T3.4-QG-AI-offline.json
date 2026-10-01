@@ -1,0 +1,36 @@
+{
+  "schema": "potongin.gate/1",
+  "gate": "QG-AI offline hard gates (plan §7.1): grounding and format",
+  "task": "T3.4",
+  "code": "b28250d",
+  "test": "tests/test_editor_ai.py::test_qg_ai_offline_no_ungrounded_entity_and_no_malformed_output_is_accepted",
+  "client": "ai_clipper.llm.ScriptedLLMClient (no network)",
+  "responses": 100,
+  "adversarial": {
+    "responses": 50,
+    "items_ungrounded_or_forbidden": 50,
+    "items_grounded": 50,
+    "kinds": ["number not in the clip", "name not in the clip (non-initial)", "acronym or inner-capital name as the first word",
+      "quote with overlap < 0.6", "URL", "@handle", "hashtag", "emoji", "year not in the clip"],
+    "ungrounded_accepted": 0,
+    "grounded_accepted": 50
+  },
+  "malformed": {
+    "responses": 50,
+    "kinds": ["truncated JSON", "not JSON", "broken code fence", "hooks as a string", "no hooks key", "hooks as numbers",
+      "items without text", "a top-level array", "hooks null", "text as a number"],
+    "accepted": 0
+  },
+  "thresholds": {"ungrounded_accepted": 0, "malformed_accepted": 0},
+  "suites": {
+    "local": "Python 3.13.13, FFmpeg 6.1.1: tests/test_editor_ai.py 73 passed",
+    "image": "ai-video-clipper:editor-w3base (Python 3.11.2, FFmpeg 5.1.9): tests/test_editor_ai.py 73 passed",
+    "ci_image": "GitHub Actions editor-gates run 36847186553 (suite=command, production image built from 0d77f97; Python 3.11.2, FFmpeg 5.1.9): tests/test_editor_ai.py 73 passed",
+    "ci_full": "GitHub Actions editor-gates run 36846131194 (suite=full at 0d77f97; Python 3.11, Node 20): ruff clean, pytest 3856 passed and 2 skipped; npm test 999 passed and 1 failed in web/tests/editor-player-plate.test.mjs (T2.4's file; it fails the same way on every W3 branch and is not a T3.4 test)"
+  },
+  "also_offline": {
+    "deadline": "a client that answers after 5 s is stopped at a 0.3 s deadline (test_the_deadline_stops_the_task); DEADLINE_S is 20.0",
+    "node_kill": "a child that outlives killAfterMs is killed with its group and the task reads failed/timeout (web/tests/editor-ai.test.mjs); KILL_AFTER_MS is 25000"
+  },
+  "pass": true
+}

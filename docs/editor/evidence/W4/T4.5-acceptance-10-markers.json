@@ -1,0 +1,11 @@
+{
+  "schema": "potongin.gate/1",
+  "capability": 10,
+  "markers": 11,
+  "kinds": {
+    "silence": 9,
+    "camera_cut": 2
+  },
+  "missing": [],
+  "pass": true
+}

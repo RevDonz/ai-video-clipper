@@ -1,0 +1,45 @@
+{
+  "gate": "marker positions exact: browser lane model vs Python time map, real clips",
+  "task": "T3.7",
+  "threshold_frames": 0,
+  "jobs": [
+    "3c7d024c",
+    "860fef1a",
+    "899226f8",
+    "990f3f37",
+    "e7f0d37b"
+  ],
+  "clips": 32,
+  "documents": 187,
+  "markers_compared": 2632,
+  "by_kind": {
+    "camera_cut:audio_timeline": 1803,
+    "laughter:transcript": 3,
+    "laughter:yt-caption": 4,
+    "silence:audio_timeline": 822
+  },
+  "documents_by_name": {
+    "seed": 32,
+    "cuts": 29,
+    "trim": 32,
+    "event_cold_open": 29,
+    "candidate": 65
+  },
+  "missing_analysis": {
+    "sound_events": 29,
+    "none": 3
+  },
+  "frame_mismatches": 0,
+  "mismatches": [],
+  "pass": true,
+  "python": "3.11.2",
+  "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+  "cpus": 16,
+  "loadavg": [
+    28.11,
+    25.49,
+    15.0
+  ],
+  "commit": "8316614d0122ffaac548b3e9bc6ad439e31d72cf",
+  "measured_at": "2026-10-01T09:00:10Z"
+}

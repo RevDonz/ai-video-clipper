@@ -1,0 +1,33 @@
+{
+  "cold_open_fade_ms": 30,
+  "control_hard_cuts_detected": 4,
+  "control_hard_cuts_steps_dbfs": [
+    -12.26,
+    -21.79,
+    -16.85,
+    -15.37
+  ],
+  "cut_fade_ms": 8,
+  "failures": 0,
+  "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+  "gate": "G-CLICK",
+  "harness": "support.edit_v2_audio_harness (audio-only graph, until compile_job)",
+  "join_samples": [
+    116916,
+    216216,
+    321921,
+    607006
+  ],
+  "joins": 4,
+  "max_step_dbfs": -80.77,
+  "plan_samples": 722321,
+  "reference_toolchain_problem": null,
+  "samples": 722321,
+  "steps_dbfs": [
+    -80.77,
+    -80.77,
+    -84.29,
+    -80.77
+  ],
+  "threshold_dbfs": -40.0
+}

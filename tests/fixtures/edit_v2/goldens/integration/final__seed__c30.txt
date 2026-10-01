@@ -1,0 +1,134 @@
+## argv
+ffmpeg
+-nostdin
+-y
+-hide_banner
+-nostats
+-loglevel
+error
+-progress
+@progress
+-copyts
+-protocol_whitelist
+file,pipe
+-threads
+4
+-ss
+1274.173900
+-i
+@in:0
+-protocol_whitelist
+file,pipe
+-threads
+4
+-ss
+1240.907333
+-i
+@in:1
+-protocol_whitelist
+file,pipe
+-f
+f32le
+-ar
+48000
+-ac
+1
+-i
+@in:2
+-filter_complex_script
+filter_graph.txt
+-filter_complex_threads
+4
+-map
+[vout]
+-map
+[aout]
+-c:v
+libx264
+-preset
+veryfast
+-crf
+18
+-profile:v
+high
+-pix_fmt
+yuv420p
+-g
+60
+-x264-params
+threads=4:chroma-qp-offset=-12
+-color_primaries
+bt709
+-color_trc
+bt709
+-colorspace
+bt709
+-color_range
+tv
+-c:a
+aac
+-b:a
+192k
+-ar
+48000
+-ac
+2
+-fps_mode
+passthrough
+-map_metadata
+-1
+-fflags
++bitexact
+-flags:v
++bitexact
+-flags:a
++bitexact
+-movflags
++faststart
+-f
+mp4
+@out
+## inputs
+source source -threads 4 -ss 1274.173900
+source source -threads 4 -ss 1240.907333
+sidecar audio-speech.f32 -f f32le -ar 48000 -ac 1
+## sidecars
+audio-speech.f32 f96fc0667b4e3c8df34a57f67d329dc137391e0b3416ccf29197d0c26882cb91
+captions.ass bb6a6966b672e0a1efd2f6f7ce81243b7a1820615f192f781e4d21e07c56ec11
+## expected
+{
+ "assets_root": "/jobs/job-1/analysis/assets",
+ "fontconfig_file": "/app/resources/fontconfig/fonts.conf",
+ "fonts_dir": "/app/resources/fonts",
+ "fps": [
+  30000,
+  1001
+ ],
+ "frames": 2159,
+ "gain_cdb": 0,
+ "mix_sha256": "038368b2431787eccb275934611c26dffcd0bcffce91cc369052ecee6c667939",
+ "mode": "final",
+ "output": "fd",
+ "paths": {
+  "source": "/jobs/job-1/source.mp4"
+ },
+ "samples": 3457854,
+ "size": [
+  720,
+  1280
+ ],
+ "srt": "1\n00:00:00,267 --> 00:00:01,802\nkopi katanya sumpah lagi\n\n2\n00:00:01,835 --> 00:00:02,769\ndong dong mah.\n\n3\n00:00:03,437 --> 00:00:04,538\nnahan langsung ketawa\n\n4\n00:00:06,139 --> 00:00:07,908\nanu anu sumpah sumpah\n\n5\n00:00:07,975 --> 00:00:08,675\nkatanya film.\n\n6\n00:00:09,142 --> 00:00:10,644\norang kenapa pelan pokoknya\n\n7\n00:00:10,777 --> 00:00:12,279\nkru waktu eh sih\n\n8\n00:00:12,346 --> 00:00:12,646\norang.\n\n9\n00:00:13,080 --> 00:00:14,481\nanu mau waktu eh\n\n10\n00:00:14,615 --> 00:00:14,915\ndong?\n\n11\n00:00:16,283 --> 00:00:17,718\ndong eh pulang syuting\n\n12\n00:00:17,784 --> 00:00:18,919\nanu nggak sendiri.\n\n13\n00:00:19,920 --> 00:00:21,488\njadi sendiri nggak nahan\n\n14\n00:00:21,588 --> 00:00:22,956\nwkwk mah sih masuk.\n\n15\n00:00:23,724 --> 00:00:25,259\njuga dong anu gue.\n\n16\n00:00:25,759 --> 00:00:27,227\nsemua waktu kita orang\n\n17\n00:00:27,261 --> 00:00:27,594\nketawa?\n\n18\n00:00:27,995 --> 00:00:29,763\npadahal hati mah mau.\n\n19\n00:00:29,997 --> 00:00:31,698\nhati masuk sih sendiri.\n\n20\n00:00:33,100 --> 00:00:34,735\npulang juga ternyata pas\n\n21\n00:00:34,768 --> 00:00:36,436\nhati pelan katanya pas\n\n22\n00:00:36,503 --> 00:00:36,904\nsecurity.\n\n23\n00:00:37,204 --> 00:00:38,672\nsih nggak kopi katanya\n\n24\n00:00:38,772 --> 00:00:40,340\nsumpah lagi dong dong\n\n25\n00:00:40,407 --> 00:00:40,707\nmah.\n\n26\n00:00:41,241 --> 00:00:42,943\nnahan langsung ketawa kok\n\n27\n00:00:43,043 --> 00:00:43,377\nternyata.\n\n28\n00:00:43,710 --> 00:00:45,212\nsemua katanya masuk aja\n\n29\n00:00:45,279 --> 00:00:46,280\nmasuk eh sumpah.\n\n30\n00:00:46,613 --> 00:00:48,015\ndong semua sih sendiri\n\n31\n00:00:48,148 --> 00:00:48,515\nwaktu.\n\n32\n00:00:49,750 --> 00:00:51,251\nlangsung sih security terus\n\n33\n00:00:51,285 --> 00:00:52,686\nitu semua orang.\n\n34\n00:00:52,986 --> 00:00:54,354\nlangsung kenapa padahal aja\n\n35\n00:00:54,421 --> 00:00:55,622\nsyuting dia ambil.\n\n36\n00:00:56,290 --> 00:00:57,958\nkatanya jadi abis security\n\n37\n00:00:58,058 --> 00:00:58,358\nkatanya.\n\n38\n00:00:58,692 --> 00:01:00,227\nitu ternyata film dong\n\n39\n00:01:00,394 --> 00:01:00,761\ndong?\n\n40\n00:01:01,261 --> 00:01:02,963\ndia nggak kru pelan.\n\n41\n00:01:04,331 --> 00:01:05,699\npokoknya semua ternyata dong\n\n42\n00:01:05,766 --> 00:01:07,067\nwaktu ternyata nggak film.\n\n43\n00:01:07,434 --> 00:01:08,902\nabis bukan kok eh\n\n44\n00:01:09,036 --> 00:01:10,237\nmasuk hati sih.\n\n45\n00:01:11,672 --> 00:01:12,039\naja\n",
+ "warnings": []
+}
+## filter_script
+[0:0]fps=30000/1001,trim=start_pts=38217:end_pts=38353,setpts=PTS-STARTPTS[vr0];
+[0:1]anull[sa0];
+[1:0]fps=30000/1001,trim=start_pts=37220:end_pts=39243,setpts=PTS-STARTPTS[vr1];
+[1:1]anull[sa1];
+[vr0][vr1]concat=n=2:v=1:a=0,settb=1001/30000[vcat];
+[vcat]split=2[background_0][foreground_0];[background_0]scale=720:1280:force_original_aspect_ratio=increase:in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuv444p,crop=720:1280,gblur=sigma=35[blurred_0];[foreground_0]scale=720:1280:force_original_aspect_ratio=decrease:in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuva444p[fit_0];[blurred_0][fit_0]overlay=(W-w)/2:(H-h)/2:format=yuv444,setsar=1[vlay];
+[vlay]scale=in_color_matrix=bt709:in_range=tv,format=gbrp,ass=filename=captions.ass:fontsdir=fonts:shaping=complex[vtext];
+[vtext]scale=out_color_matrix=bt709:out_range=tv:flags=accurate_rnd+full_chroma_int+full_chroma_inp+lanczos,format=yuv420p[vout];
+[sa0]aresample=48000,asettb=1/48000,apad,atrim=start_pts=61208347:end_pts=61426164,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS[au_p0];[sa1]aresample=48000,asettb=1/48000,apad,atrim=start_pts=59611552:end_pts=62851589,pan=stereo|FL=FL+FC|FR=FR+FC,asetpts=PTS-STARTPTS[au_p1];[au_p0][au_p1]concat=n=2:v=0:a=1[au_sc];[2:a]pan=stereo|c0=c0|c1=c0[au_se];[au_sc][au_se]amultiply,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[apre];
+[apre]aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[aout]
+

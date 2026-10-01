@@ -185,6 +185,17 @@
 .status[data-status="downloading"],
 .status[data-status="processing"] { background: var(--info-bg); color: var(--info); }
 
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* "Edit klip" opens the project at its clip list, where every clip has its own "Edit klip". */
+.actions .edit {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
 /* Delete stays quiet until pointed at; then it turns red like the confirmation it opens. */
 .row .ask:hover:not(:disabled) {
   background: var(--danger-bg);
@@ -262,6 +273,11 @@
   }
   .confirm {
     margin-right: 0;
+  }
+  .actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+    padding-bottom: 10px;
   }
   .confirm > div > * {
     flex: 1 1 auto;

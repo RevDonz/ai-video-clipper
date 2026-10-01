@@ -1,0 +1,343 @@
+{
+  "task": "T3.5",
+  "commit": "7fdd7fd",
+  "what": "Rapikan lists of every prepared real clip (4 jobs on the local toolchain; the face-track job's source does not decode there), and why word items are locked",
+  "clips": 24,
+  "items": {
+    "gap_voiced": 394,
+    "gap_silent": 131,
+    "filler": 3
+  },
+  "locked": {
+    "filler:no_quiet_cut": 35,
+    "repeat:no_quiet_cut": 24,
+    "gap:laughter": 8,
+    "gap:no_quiet_cut": 7
+  },
+  "locked_word_item_edges": {
+    "edges": 118,
+    "tight": 27,
+    "note": "a tight edge has no frame boundary between the words: the cut splits a word"
+  },
+  "quiet_threshold_calibration": [
+    {
+      "quiet_peak_level": 1,
+      "peak_below_dbfs": -36.1,
+      "locked_items_it_would_open": 0,
+      "of_which_rms_le_-35_on_both_edges": 0
+    },
+    {
+      "quiet_peak_level": 2,
+      "peak_below_dbfs": -32.6,
+      "locked_items_it_would_open": 9,
+      "of_which_rms_le_-35_on_both_edges": 9
+    },
+    {
+      "quiet_peak_level": 3,
+      "peak_below_dbfs": -30.1,
+      "locked_items_it_would_open": 10,
+      "of_which_rms_le_-35_on_both_edges": 10
+    },
+    {
+      "quiet_peak_level": 4,
+      "peak_below_dbfs": -28.2,
+      "locked_items_it_would_open": 11,
+      "of_which_rms_le_-35_on_both_edges": 11
+    },
+    {
+      "quiet_peak_level": 5,
+      "peak_below_dbfs": -26.6,
+      "locked_items_it_would_open": 15,
+      "of_which_rms_le_-35_on_both_edges": 15
+    },
+    {
+      "quiet_peak_level": 6,
+      "peak_below_dbfs": -25.2,
+      "locked_items_it_would_open": 17,
+      "of_which_rms_le_-35_on_both_edges": 17
+    }
+  ],
+  "shipped_quiet_peak_level": 1,
+  "why_level_1": "a peak below −36.1 dBFS bounds the RMS below −36.1 dBFS for any waveform, so every proposed cut meets the −35 dBFS criterion by construction; higher levels open more fillers (all measured below −35 dBFS RMS here) but only empirically",
+  "per_clip": [
+    {
+      "job": "3c7d024c",
+      "clip_id": "clip_23f6f39e80ca93f5a897b1bb",
+      "items": {
+        "gap_voiced": 12,
+        "gap_silent": 2
+      },
+      "locked": {
+        "filler:no_quiet_cut": 2
+      }
+    },
+    {
+      "job": "3c7d024c",
+      "clip_id": "clip_297139c62f9cce416a1bd5a8",
+      "items": {
+        "gap_voiced": 25,
+        "gap_silent": 5
+      },
+      "locked": {
+        "repeat:no_quiet_cut": 1
+      }
+    },
+    {
+      "job": "3c7d024c",
+      "clip_id": "clip_6dcfbe0139e160940dabb1d2",
+      "items": {
+        "gap_voiced": 21
+      },
+      "locked": {
+        "repeat:no_quiet_cut": 1,
+        "filler:no_quiet_cut": 1
+      }
+    },
+    {
+      "job": "3c7d024c",
+      "clip_id": "clip_79f6a91ef9850a699239bdae",
+      "items": {
+        "gap_voiced": 16,
+        "gap_silent": 6
+      },
+      "locked": {
+        "repeat:no_quiet_cut": 3,
+        "gap:laughter": 1
+      }
+    },
+    {
+      "job": "3c7d024c",
+      "clip_id": "clip_95c5653dd66a5ddc14d4fd01",
+      "items": {
+        "gap_voiced": 21,
+        "gap_silent": 1
+      },
+      "locked": {}
+    },
+    {
+      "job": "3c7d024c",
+      "clip_id": "clip_a144010a38e53079b3c2c8b1",
+      "items": {
+        "gap_voiced": 9
+      },
+      "locked": {
+        "repeat:no_quiet_cut": 1,
+        "filler:no_quiet_cut": 1
+      }
+    },
+    {
+      "job": "3c7d024c",
+      "clip_id": "clip_d2b974fa3e86efe0c1384b04",
+      "items": {
+        "gap_voiced": 10,
+        "gap_silent": 1
+      },
+      "locked": {
+        "gap:laughter": 1,
+        "repeat:no_quiet_cut": 2,
+        "filler:no_quiet_cut": 2
+      }
+    },
+    {
+      "job": "3c7d024c",
+      "clip_id": "clip_e2ff79d57e7f866c23cbf1ab",
+      "items": {
+        "gap_voiced": 11,
+        "gap_silent": 2
+      },
+      "locked": {
+        "gap:no_quiet_cut": 1,
+        "filler:no_quiet_cut": 2,
+        "repeat:no_quiet_cut": 2
+      }
+    },
+    {
+      "job": "899226f8",
+      "clip_id": "clip_05283b2a79eb371eb70c88df",
+      "items": {
+        "gap_silent": 2,
+        "gap_voiced": 13
+      },
+      "locked": {
+        "gap:no_quiet_cut": 2,
+        "filler:no_quiet_cut": 1,
+        "repeat:no_quiet_cut": 2
+      }
+    },
+    {
+      "job": "899226f8",
+      "clip_id": "clip_852ee7342fb01a94284c7fbc",
+      "items": {
+        "gap_silent": 7,
+        "gap_voiced": 6
+      },
+      "locked": {
+        "filler:no_quiet_cut": 1
+      }
+    },
+    {
+      "job": "899226f8",
+      "clip_id": "clip_9a9828b98684569dd7f6fc43",
+      "items": {
+        "gap_silent": 6,
+        "gap_voiced": 8
+      },
+      "locked": {
+        "gap:no_quiet_cut": 1,
+        "repeat:no_quiet_cut": 1,
+        "filler:no_quiet_cut": 3
+      }
+    },
+    {
+      "job": "899226f8",
+      "clip_id": "clip_b86cc25fa6e83a6faad14251",
+      "items": {
+        "gap_voiced": 22,
+        "gap_silent": 3
+      },
+      "locked": {
+        "gap:no_quiet_cut": 1
+      }
+    },
+    {
+      "job": "899226f8",
+      "clip_id": "clip_e5bbce66807456b8aecf18c4",
+      "items": {
+        "gap_voiced": 10,
+        "gap_silent": 9
+      },
+      "locked": {
+        "repeat:no_quiet_cut": 2,
+        "filler:no_quiet_cut": 1,
+        "gap:no_quiet_cut": 2
+      }
+    },
+    {
+      "job": "990f3f37",
+      "clip_id": "clip_56d8d8c58c4439dccecdb3a2",
+      "items": {
+        "gap_voiced": 23,
+        "gap_silent": 4
+      },
+      "locked": {
+        "filler:no_quiet_cut": 1,
+        "repeat:no_quiet_cut": 1
+      }
+    },
+    {
+      "job": "990f3f37",
+      "clip_id": "clip_649a0e4e517470a639d02022",
+      "items": {
+        "gap_voiced": 23,
+        "gap_silent": 3
+      },
+      "locked": {}
+    },
+    {
+      "job": "990f3f37",
+      "clip_id": "clip_6c498e543fd2b8ffd10809e4",
+      "items": {
+        "gap_silent": 7,
+        "gap_voiced": 22
+      },
+      "locked": {
+        "repeat:no_quiet_cut": 1
+      }
+    },
+    {
+      "job": "990f3f37",
+      "clip_id": "clip_8f285ddff6eeaa93d62a7a9a",
+      "items": {
+        "gap_voiced": 15,
+        "gap_silent": 7
+      },
+      "locked": {
+        "filler:no_quiet_cut": 1
+      }
+    },
+    {
+      "job": "990f3f37",
+      "clip_id": "clip_97436a9111897dcaffde3356",
+      "items": {
+        "gap_silent": 3,
+        "gap_voiced": 21
+      },
+      "locked": {
+        "repeat:no_quiet_cut": 1
+      }
+    },
+    {
+      "job": "990f3f37",
+      "clip_id": "clip_978d269bd1741457abab3727",
+      "items": {
+        "gap_voiced": 19,
+        "gap_silent": 5
+      },
+      "locked": {}
+    },
+    {
+      "job": "990f3f37",
+      "clip_id": "clip_c4162fbf5acfeb9dfc4444b8",
+      "items": {
+        "gap_voiced": 18,
+        "gap_silent": 4
+      },
+      "locked": {
+        "filler:no_quiet_cut": 1,
+        "repeat:no_quiet_cut": 1
+      }
+    },
+    {
+      "job": "990f3f37",
+      "clip_id": "clip_e51bdc1790a46a99d7a6178c",
+      "items": {
+        "gap_voiced": 17,
+        "gap_silent": 6
+      },
+      "locked": {
+        "repeat:no_quiet_cut": 1,
+        "filler:no_quiet_cut": 1
+      }
+    },
+    {
+      "job": "e7f0d37b",
+      "clip_id": "clip_8fd05fdc20d4f6cbadb26109",
+      "items": {
+        "gap_silent": 17,
+        "gap_voiced": 16
+      },
+      "locked": {
+        "gap:laughter": 1,
+        "filler:no_quiet_cut": 6,
+        "repeat:no_quiet_cut": 1
+      }
+    },
+    {
+      "job": "e7f0d37b",
+      "clip_id": "clip_c7338377170b4a2e49948f67",
+      "items": {
+        "gap_voiced": 17,
+        "gap_silent": 11,
+        "filler": 2
+      },
+      "locked": {
+        "filler:no_quiet_cut": 8,
+        "repeat:no_quiet_cut": 1
+      }
+    },
+    {
+      "job": "e7f0d37b",
+      "clip_id": "clip_fa14b3c832db852797ab4560",
+      "items": {
+        "gap_voiced": 19,
+        "gap_silent": 20,
+        "filler": 1
+      },
+      "locked": {
+        "gap:laughter": 5,
+        "filler:no_quiet_cut": 3,
+        "repeat:no_quiet_cut": 2
+      }
+    }
+  ]
+}

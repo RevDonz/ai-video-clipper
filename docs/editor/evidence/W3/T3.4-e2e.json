@@ -1,0 +1,31 @@
+{
+  "schema": "potongin.gate/1",
+  "gate": "Hook suggestion cards in the Teks panel (plan §7.1 UI) and QG-A11Y on the panel",
+  "task": "T3.4",
+  "code": "489692b",
+  "stack": "production build of this branch (next start) with POTONGIN_EDITOR_V3=on and POTONGIN_EDITOR_FAKES=1 on 127.0.0.1:3497; Chrome for Testing 147.0.7727.15 (Playwright 1.62.1, chromium-1217); viewport 1366x768; axe-core 4.12.1 through AXE_CORE_PATH",
+  "earlier_run": "b28250d on 127.0.0.1:3496 with axe-core 4.13.0: 11 passed",
+  "spec": "web/e2e/editor-ai.spec.mjs",
+  "results": {"passed": 11, "failed": 0, "skipped": 0},
+  "covers": [
+    "instant cards with AI seleksi / Heuristik labels and Muat / Akan terpotong badges",
+    "Pakai = one SetHookText with origin suggestion:<id>; the card in use reads Dipakai; Ctrl+Z restores",
+    "the AI task polled every second (gaps 0.8-2.5 s asserted); AI cards labelled AI with the transcript line they rest on",
+    "a failed task: the plan's message, the instant cards stay, Coba lagi asks again",
+    "the hourly limit (minutes left) and an unreadable settings file explained",
+    "LLM off: no AI line, no privacy note",
+    "switching panels keeps the cards and the running task, no second request",
+    "keyboard: Tab from the hook field reaches Pakai with a focus ring, Enter applies",
+    "reduced motion: no card animation, the progress bar hidden",
+    "no version label in the panel",
+    "axe: 0 critical or serious violations in the Teks panel with instant and AI cards"
+  ],
+  "neighbours": {
+    "editor-shell.spec.mjs at 489692b": "32 passed, 1 skipped (PF-OPEN needs EDITOR_GATES=1)",
+    "editor-shell.spec.mjs with editor-ai.spec.mjs at b28250d": "43 passed, 1 skipped",
+    "editor-transcript.spec.mjs": "20 passed, 1 skipped (real clips need T27_REAL_CLIPS); its 16 ms command-budget gate read 16.6 ms p95 for RestoreRemoval in one run at load 18-22 and passed in the other (T2.7's harness page, not touched here)",
+    "focus.spec.mjs and trends.spec.mjs": "11 passed, 1 skipped (the live Konteks Tren block needs its own env)"
+  },
+  "real_runtime": "the same build with the real runtime and the LLM on, a copied VFR clip: the Teks panel showed 9 cards, instant and AI; Pakai on the first AI card set the hook text with origin suggestion:ai_68a3421c0 (last_command SetHookText)",
+  "pass": true
+}

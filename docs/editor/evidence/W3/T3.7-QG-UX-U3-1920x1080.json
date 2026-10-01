@@ -1,0 +1,33 @@
+{
+  "gate": "QG-UX U3 with suggestions (scripted e2e)",
+  "task": "replace the cold open from a suggestion",
+  "limit_s": 30,
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "elapsed_s": 3.743,
+  "audition_s": 2.872,
+  "cold_open_s": 2.903,
+  "user_actions": {
+    "clicks": 3,
+    "keys": 0
+  },
+  "klm_operators": "M P B B M P B B M P B B M",
+  "klm_estimate_s": 12.17,
+  "pass": true,
+  "browser": "chromium",
+  "browserVersion": "147.0.7727.15",
+  "executable": "chromium-1217 (Chrome for Testing)",
+  "machine": {
+    "cpus": 16,
+    "cpuModel": "AMD Ryzen 7 5700G with Radeon Graphics",
+    "loadavg": [
+      29.25,
+      27.03,
+      17.86
+    ]
+  },
+  "commit": "8316614d0122ffaac548b3e9bc6ad439e31d72cf",
+  "harness": "web/components/editor/timeline/lanes/__dev__ (production React, real commands)"
+}

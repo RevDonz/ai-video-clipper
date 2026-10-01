@@ -1,0 +1,22 @@
+{
+ "schema": "potongin.gate/1",
+ "gate": "QG-SEC (editor page headers in a browser: cross-origin isolation, no framing, API header set)",
+ "task": "T4.2",
+ "spec": "web/e2e/editor-security.spec.mjs",
+ "stack": "owner's PC, Chrome for Testing 147.0.7727.15 (Playwright 1.62.1, build 1217), the standalone app built in the production image by CI run 36898041360 (commit be28d4e), POTONGIN_EDITOR_V3=on with the editor fakes, 127.0.0.1:3197",
+ "tests": 3,
+ "passed": 3,
+ "editorPage": {
+  "status": 200,
+  "crossOriginOpenerPolicy": "same-origin",
+  "crossOriginEmbedderPolicy": "require-corp",
+  "xContentTypeOptions": "nosniff",
+  "frameAncestorsNone": true,
+  "xFrameOptions": "DENY",
+  "crossOriginIsolated": true,
+  "sharedArrayBuffer": true
+ },
+ "framing": "an iframe of the editor on a page of the same origin is refused by the browser (console: frame-ancestors / X-Frame-Options); the editor never renders inside it",
+ "apiAnswers": "6 editor API answers fetched from the isolated page (clips, edit, cleanup, media, an upper-case job id, an asset) carry nosniff and Cross-Origin-Resource-Policy: same-origin; the upper-case job id is a 400; no 5xx but the fixed 503 of a missing backend; a traversal media name is refused without content",
+ "pass": true
+}

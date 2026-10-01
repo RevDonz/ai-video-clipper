@@ -1,0 +1,50 @@
+/* Editor layout tokens (T2.6; dark design by the W3 integrator). Every value is a custom property on
+   `.tokens`, the class EditorApp puts on its root (the layout rules live in shell.module.css).
+   Colours are not defined here: the editor uses the dark tokens on :root in app/globals.css
+   (DESIGN.md, docs/design/TOKENS.md), so web/tests/ui-guards.test.mjs checks every editor text and
+   background pair at WCAG AA. Sizes follow plan Appendix C.1 at 1920×1080 and, below 1500 px wide,
+   at 1366×768. */
+
+.tokens {
+  --ed-font-ui: var(--font);
+  --ed-font-mono: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --ed-font-size-xs: 11px;
+  --ed-font-size-sm: 12px;
+  --ed-font-size-md: 14px;
+  --ed-font-size-lg: 16px;
+  --ed-line-height: 1.45;
+
+  --ed-space-1: 4px;
+  --ed-space-2: 8px;
+  --ed-space-3: 12px;
+  --ed-space-4: 16px;
+  --ed-space-5: 24px;
+  --ed-radius-sm: var(--radius-s);
+  --ed-radius-md: var(--radius-m);
+  --ed-radius-lg: var(--radius-l);
+
+  --ed-topbar-height: 56px;
+  --ed-panel-width: 380px;
+  --ed-timeline-height: 240px;
+  --ed-lane-height: 36px;
+  --ed-ruler-height: 26px;
+  --ed-lane-label-width: 72px;
+  --ed-controls-height: 52px;
+  --ed-min-width: 1024px;
+
+  --ed-focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--focus);
+  --ed-shadow-popover: 0 0 0 1px var(--border-strong), 0 16px 40px var(--shadow);
+
+  --ed-duration-fast: var(--dur-1);
+  --ed-duration-slow: var(--dur-3);
+
+}
+
+@media (max-width: 1500px) {
+  .tokens {
+    --ed-panel-width: 320px;
+    --ed-timeline-height: 200px;
+    --ed-lane-height: 30px;
+    --ed-ruler-height: 22px;
+  }
+}

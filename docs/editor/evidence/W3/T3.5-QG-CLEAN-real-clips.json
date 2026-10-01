@@ -1,0 +1,2597 @@
+{
+  "task": "T3.5",
+  "commit": "7fdd7fd",
+  "gate": "QG-CLEAN real clips (copies of the owner's jobs)",
+  "method": "support.edit_v2_cleanup_gate media: the review's own list (the CLI's, peaks included); the browser's code widens the body until 20 items are open or the window ends, applies them as one ApplyCleanup, saves revision 1 and exports it; then the cut-edge check, G-CLICK on the preview mix and G-SYNC on the export",
+  "toolchain_of_record": {
+    "measured_in": {
+      "image": "ai-video-clipper:editor-w3base",
+      "ffmpeg": "5.1.9",
+      "python": "3.11.2",
+      "cpus": 4,
+      "user": "1000:1000"
+    },
+    "totals": {
+      "clips": 5,
+      "items_applied": 47,
+      "items_by_kind": {
+        "filler": 1,
+        "repeat": 0,
+        "gap_silent": 46
+      },
+      "cut_edges": 94,
+      "inside_gap": 94,
+      "tight": 0,
+      "rms_max_dbfs_untight": -47.89,
+      "cut_edge_failures": 0,
+      "joins": 49,
+      "g_click_max_step_dbfs": -200.0,
+      "g_sync_max_av_end_ms": 17.5,
+      "caption_onsets_checked": 60,
+      "g1_g2_pass": true,
+      "all_pass": true
+    },
+    "runs": [
+      {
+        "job": "3c7d024c",
+        "clip_id": "clip_79f6a91ef9850a699239bdae",
+        "fps": [
+          30,
+          1
+        ],
+        "layout": "fit_blur",
+        "engine_of_seed": "legacy",
+        "listing": {
+          "filler": 0,
+          "repeat": 0,
+          "gap_silent": 6,
+          "gap_voiced": 16
+        },
+        "open_in_clip": {
+          "filler": 0,
+          "repeat": 0,
+          "gap_silent": 6
+        },
+        "body_widened_by_trims": {
+          "trims": 107,
+          "seed_body_sf": [
+            14522,
+            16774
+          ],
+          "edited_body_sf": [
+            12730,
+            18571
+          ]
+        },
+        "items_applied": 6,
+        "items_by_kind": {
+          "gap_silent": 6
+        },
+        "items_skipped": 0,
+        "removals": 6,
+        "save_warnings": [
+          "tight_cut"
+        ],
+        "output_frames": 5750,
+        "render_s": 155.7,
+        "g1_g2": [
+          {
+            "gate": "G1",
+            "pass": true,
+            "problems": []
+          },
+          {
+            "gate": "G2",
+            "pass": true,
+            "problems": []
+          }
+        ],
+        "cut_edges": {
+          "edges": 12,
+          "tight": 0,
+          "inside_gap": 12,
+          "rms_max_dbfs_untight": -50.93,
+          "pass": true,
+          "failures": 0,
+          "rows": [
+            [
+              "cl_5",
+              "gap_silent",
+              "in",
+              13784,
+              true,
+              false,
+              -53.02
+            ],
+            [
+              "cl_5",
+              "gap_silent",
+              "out",
+              13811,
+              true,
+              false,
+              -200.0
+            ],
+            [
+              "cl_9",
+              "gap_silent",
+              "in",
+              14320,
+              true,
+              false,
+              -54.48
+            ],
+            [
+              "cl_9",
+              "gap_silent",
+              "out",
+              14339,
+              true,
+              false,
+              -55.63
+            ],
+            [
+              "cl_10",
+              "gap_silent",
+              "in",
+              14660,
+              true,
+              false,
+              -51.64
+            ],
+            [
+              "cl_10",
+              "gap_silent",
+              "out",
+              14670,
+              true,
+              false,
+              -55.35
+            ],
+            [
+              "cl_13",
+              "gap_silent",
+              "in",
+              15040,
+              true,
+              false,
+              -50.93
+            ],
+            [
+              "cl_13",
+              "gap_silent",
+              "out",
+              15051,
+              true,
+              false,
+              -51.17
+            ],
+            [
+              "cl_15",
+              "gap_silent",
+              "in",
+              15768,
+              true,
+              false,
+              -55.32
+            ],
+            [
+              "cl_15",
+              "gap_silent",
+              "out",
+              15781,
+              true,
+              false,
+              -54.27
+            ],
+            [
+              "cl_16",
+              "gap_silent",
+              "in",
+              15903,
+              true,
+              false,
+              -51.38
+            ],
+            [
+              "cl_16",
+              "gap_silent",
+              "out",
+              15914,
+              true,
+              false,
+              -51.75
+            ]
+          ],
+          "row_fields": [
+            "item",
+            "kind",
+            "edge",
+            "sf",
+            "inside_gap",
+            "tight",
+            "rms_dbfs"
+          ]
+        },
+        "g_click": {
+          "joins": 6,
+          "max_step_dbfs": -200.0,
+          "samples": 9200000,
+          "plan_samples": 9200000,
+          "pass": true
+        },
+        "g_sync": {
+          "video_frames": 5750,
+          "audio_samples": 9200640,
+          "av_end_difference_ms": 13.333,
+          "one_frame_ms": 33.333,
+          "caption_onsets_checked": 12,
+          "av_pass": true,
+          "caption_pass": true,
+          "pass": true
+        },
+        "pass": true,
+        "toolchain": {
+          "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+          "python": "3.11.2",
+          "machine": "x86_64",
+          "cpus": 16,
+          "loadavg": [
+            33.1,
+            23.46,
+            14.02
+          ]
+        }
+      },
+      {
+        "job": "860fef1a",
+        "clip_id": "clip_5646b9b858cd5a4a65e3d586",
+        "fps": [
+          25,
+          1
+        ],
+        "layout": "camera",
+        "engine_of_seed": "legacy",
+        "listing": {
+          "filler": 0,
+          "repeat": 0,
+          "gap_silent": 5,
+          "gap_voiced": 13
+        },
+        "open_in_clip": {
+          "filler": 0,
+          "repeat": 0,
+          "gap_silent": 5
+        },
+        "body_widened_by_trims": {
+          "trims": 96,
+          "seed_body_sf": [
+            23204,
+            23952
+          ],
+          "edited_body_sf": [
+            21705,
+            25446
+          ]
+        },
+        "items_applied": 5,
+        "items_by_kind": {
+          "gap_silent": 5
+        },
+        "items_skipped": 0,
+        "removals": 5,
+        "save_warnings": [
+          "tight_cut"
+        ],
+        "output_frames": 3699,
+        "render_s": 101.2,
+        "g1_g2": [
+          {
+            "gate": "G1",
+            "pass": true,
+            "problems": []
+          },
+          {
+            "gate": "G2",
+            "pass": true,
+            "problems": []
+          }
+        ],
+        "cut_edges": {
+          "edges": 10,
+          "tight": 0,
+          "inside_gap": 10,
+          "rms_max_dbfs_untight": -51.43,
+          "pass": true,
+          "failures": 0,
+          "rows": [
+            [
+              "cl_2",
+              "gap_silent",
+              "in",
+              22754,
+              true,
+              false,
+              -66.48
+            ],
+            [
+              "cl_2",
+              "gap_silent",
+              "out",
+              22775,
+              true,
+              false,
+              -58.51
+            ],
+            [
+              "cl_3",
+              "gap_silent",
+              "in",
+              22952,
+              true,
+              false,
+              -75.56
+            ],
+            [
+              "cl_3",
+              "gap_silent",
+              "out",
+              22970,
+              true,
+              false,
+              -79.84
+            ],
+            [
+              "cl_4",
+              "gap_silent",
+              "in",
+              23088,
+              true,
+              false,
+              -64.4
+            ],
+            [
+              "cl_4",
+              "gap_silent",
+              "out",
+              23098,
+              true,
+              false,
+              -51.43
+            ],
+            [
+              "cl_5",
+              "gap_silent",
+              "in",
+              23190,
+              true,
+              false,
+              -71.2
+            ],
+            [
+              "cl_5",
+              "gap_silent",
+              "out",
+              23206,
+              true,
+              false,
+              -70.86
+            ],
+            [
+              "cl_6",
+              "gap_silent",
+              "in",
+              23353,
+              true,
+              false,
+              -68.67
+            ],
+            [
+              "cl_6",
+              "gap_silent",
+              "out",
+              23378,
+              true,
+              false,
+              -72.89
+            ]
+          ],
+          "row_fields": [
+            "item",
+            "kind",
+            "edge",
+            "sf",
+            "inside_gap",
+            "tight",
+            "rms_dbfs"
+          ]
+        },
+        "g_click": {
+          "joins": 6,
+          "max_step_dbfs": -200.0,
+          "samples": 7102080,
+          "plan_samples": 7102080,
+          "pass": true
+        },
+        "g_sync": {
+          "video_frames": 3699,
+          "audio_samples": 7102464,
+          "av_end_difference_ms": 8.0,
+          "one_frame_ms": 40.0,
+          "caption_onsets_checked": 12,
+          "av_pass": true,
+          "caption_pass": true,
+          "pass": true
+        },
+        "pass": true,
+        "toolchain": {
+          "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+          "python": "3.11.2",
+          "machine": "x86_64",
+          "cpus": 16,
+          "loadavg": [
+            31.46,
+            32.4,
+            23.35
+          ]
+        }
+      },
+      {
+        "job": "899226f8",
+        "clip_id": "clip_e5bbce66807456b8aecf18c4",
+        "fps": [
+          25,
+          1
+        ],
+        "layout": "fit_blur",
+        "engine_of_seed": "legacy",
+        "listing": {
+          "filler": 0,
+          "repeat": 0,
+          "gap_silent": 9,
+          "gap_voiced": 10
+        },
+        "open_in_clip": {
+          "filler": 0,
+          "repeat": 0,
+          "gap_silent": 9
+        },
+        "body_widened_by_trims": {
+          "trims": 106,
+          "seed_body_sf": [
+            39862,
+            41273
+          ],
+          "edited_body_sf": [
+            38365,
+            42760
+          ]
+        },
+        "items_applied": 9,
+        "items_by_kind": {
+          "gap_silent": 9
+        },
+        "items_skipped": 0,
+        "removals": 9,
+        "save_warnings": [
+          "tight_cut"
+        ],
+        "output_frames": 4261,
+        "render_s": 145.5,
+        "g1_g2": [
+          {
+            "gate": "G1",
+            "pass": true,
+            "problems": []
+          },
+          {
+            "gate": "G2",
+            "pass": true,
+            "problems": []
+          }
+        ],
+        "cut_edges": {
+          "edges": 18,
+          "tight": 0,
+          "inside_gap": 18,
+          "rms_max_dbfs_untight": -47.92,
+          "pass": true,
+          "failures": 0,
+          "rows": [
+            [
+              "cl_2",
+              "gap_silent",
+              "in",
+              38632,
+              true,
+              false,
+              -54.66
+            ],
+            [
+              "cl_2",
+              "gap_silent",
+              "out",
+              38641,
+              true,
+              false,
+              -55.04
+            ],
+            [
+              "cl_3",
+              "gap_silent",
+              "in",
+              38986,
+              true,
+              false,
+              -56.47
+            ],
+            [
+              "cl_3",
+              "gap_silent",
+              "out",
+              39000,
+              true,
+              false,
+              -54.93
+            ],
+            [
+              "cl_6",
+              "gap_silent",
+              "in",
+              39350,
+              true,
+              false,
+              -54.7
+            ],
+            [
+              "cl_6",
+              "gap_silent",
+              "out",
+              39368,
+              true,
+              false,
+              -58.71
+            ],
+            [
+              "cl_8",
+              "gap_silent",
+              "in",
+              40547,
+              true,
+              false,
+              -48.79
+            ],
+            [
+              "cl_8",
+              "gap_silent",
+              "out",
+              40557,
+              true,
+              false,
+              -52.07
+            ],
+            [
+              "cl_9",
+              "gap_silent",
+              "in",
+              40799,
+              true,
+              false,
+              -47.92
+            ],
+            [
+              "cl_9",
+              "gap_silent",
+              "out",
+              40810,
+              true,
+              false,
+              -54.69
+            ],
+            [
+              "cl_10",
+              "gap_silent",
+              "in",
+              40908,
+              true,
+              false,
+              -52.59
+            ],
+            [
+              "cl_10",
+              "gap_silent",
+              "out",
+              40916,
+              true,
+              false,
+              -54.83
+            ],
+            [
+              "cl_11",
+              "gap_silent",
+              "in",
+              40989,
+              true,
+              false,
+              -53.94
+            ],
+            [
+              "cl_11",
+              "gap_silent",
+              "out",
+              41016,
+              true,
+              false,
+              -55.54
+            ],
+            [
+              "cl_17",
+              "gap_silent",
+              "in",
+              42617,
+              true,
+              false,
+              -49.22
+            ],
+            [
+              "cl_17",
+              "gap_silent",
+              "out",
+              42646,
+              true,
+              false,
+              -52.47
+            ],
+            [
+              "cl_19",
+              "gap_silent",
+              "in",
+              42738,
+              true,
+              false,
+              -51.58
+            ],
+            [
+              "cl_19",
+              "gap_silent",
+              "out",
+              42746,
+              true,
+              false,
+              -56.68
+            ]
+          ],
+          "row_fields": [
+            "item",
+            "kind",
+            "edge",
+            "sf",
+            "inside_gap",
+            "tight",
+            "rms_dbfs"
+          ]
+        },
+        "g_click": {
+          "joins": 9,
+          "max_step_dbfs": -200.0,
+          "samples": 8181120,
+          "plan_samples": 8181120,
+          "pass": true
+        },
+        "g_sync": {
+          "video_frames": 4261,
+          "audio_samples": 8181760,
+          "av_end_difference_ms": 13.333,
+          "one_frame_ms": 40.0,
+          "caption_onsets_checked": 12,
+          "av_pass": true,
+          "caption_pass": true,
+          "pass": true
+        },
+        "pass": true,
+        "toolchain": {
+          "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+          "python": "3.11.2",
+          "machine": "x86_64",
+          "cpus": 16,
+          "loadavg": [
+            23.87,
+            19.25,
+            10.7
+          ]
+        }
+      },
+      {
+        "job": "990f3f37",
+        "clip_id": "clip_6c498e543fd2b8ffd10809e4",
+        "fps": [
+          30,
+          1
+        ],
+        "layout": "fill_center",
+        "engine_of_seed": "legacy",
+        "listing": {
+          "filler": 0,
+          "repeat": 0,
+          "gap_silent": 7,
+          "gap_voiced": 22
+        },
+        "open_in_clip": {
+          "filler": 0,
+          "repeat": 0,
+          "gap_silent": 7
+        },
+        "body_widened_by_trims": {
+          "trims": 99,
+          "seed_body_sf": [
+            13820,
+            16164
+          ],
+          "edited_body_sf": [
+            12028,
+            17963
+          ]
+        },
+        "items_applied": 7,
+        "items_by_kind": {
+          "gap_silent": 7
+        },
+        "items_skipped": 0,
+        "removals": 7,
+        "save_warnings": [
+          "tight_cut"
+        ],
+        "output_frames": 5916,
+        "render_s": 149.1,
+        "g1_g2": [
+          {
+            "gate": "G1",
+            "pass": true,
+            "problems": []
+          },
+          {
+            "gate": "G2",
+            "pass": true,
+            "problems": []
+          }
+        ],
+        "cut_edges": {
+          "edges": 14,
+          "tight": 0,
+          "inside_gap": 14,
+          "rms_max_dbfs_untight": -51.75,
+          "pass": true,
+          "failures": 0,
+          "rows": [
+            [
+              "cl_1",
+              "gap_silent",
+              "in",
+              12117,
+              true,
+              false,
+              -55.83
+            ],
+            [
+              "cl_1",
+              "gap_silent",
+              "out",
+              12138,
+              true,
+              false,
+              -58.63
+            ],
+            [
+              "cl_3",
+              "gap_silent",
+              "in",
+              12587,
+              true,
+              false,
+              -55.29
+            ],
+            [
+              "cl_3",
+              "gap_silent",
+              "out",
+              12606,
+              true,
+              false,
+              -58.76
+            ],
+            [
+              "cl_5",
+              "gap_silent",
+              "in",
+              13042,
+              true,
+              false,
+              -51.75
+            ],
+            [
+              "cl_5",
+              "gap_silent",
+              "out",
+              13056,
+              true,
+              false,
+              -52.45
+            ],
+            [
+              "cl_7",
+              "gap_silent",
+              "in",
+              13470,
+              true,
+              false,
+              -57.09
+            ],
+            [
+              "cl_7",
+              "gap_silent",
+              "out",
+              13488,
+              true,
+              false,
+              -55.64
+            ],
+            [
+              "cl_8",
+              "gap_silent",
+              "in",
+              13545,
+              true,
+              false,
+              -57.4
+            ],
+            [
+              "cl_8",
+              "gap_silent",
+              "out",
+              13562,
+              true,
+              false,
+              -58.9
+            ],
+            [
+              "cl_17",
+              "gap_silent",
+              "in",
+              15518,
+              true,
+              false,
+              -54.76
+            ],
+            [
+              "cl_17",
+              "gap_silent",
+              "out",
+              15530,
+              true,
+              false,
+              -57.2
+            ],
+            [
+              "cl_23",
+              "gap_silent",
+              "in",
+              16781,
+              true,
+              false,
+              -58.82
+            ],
+            [
+              "cl_23",
+              "gap_silent",
+              "out",
+              16795,
+              true,
+              false,
+              -61.2
+            ]
+          ],
+          "row_fields": [
+            "item",
+            "kind",
+            "edge",
+            "sf",
+            "inside_gap",
+            "tight",
+            "rms_dbfs"
+          ]
+        },
+        "g_click": {
+          "joins": 8,
+          "max_step_dbfs": -200.0,
+          "samples": 9465600,
+          "plan_samples": 9465600,
+          "pass": true
+        },
+        "g_sync": {
+          "video_frames": 5916,
+          "audio_samples": 9465856,
+          "av_end_difference_ms": 5.333,
+          "one_frame_ms": 33.333,
+          "caption_onsets_checked": 12,
+          "av_pass": true,
+          "caption_pass": true,
+          "pass": true
+        },
+        "pass": true,
+        "toolchain": {
+          "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+          "python": "3.11.2",
+          "machine": "x86_64",
+          "cpus": 16,
+          "loadavg": [
+            41.7,
+            32.78,
+            19.78
+          ]
+        }
+      },
+      {
+        "job": "e7f0d37b",
+        "clip_id": "clip_fa14b3c832db852797ab4560",
+        "fps": [
+          24000,
+          1001
+        ],
+        "layout": "fit_blur",
+        "engine_of_seed": "legacy",
+        "listing": {
+          "filler": 1,
+          "repeat": 0,
+          "gap_silent": 20,
+          "gap_voiced": 19
+        },
+        "open_in_clip": {
+          "filler": 1,
+          "repeat": 0,
+          "gap_silent": 19
+        },
+        "body_widened_by_trims": {
+          "trims": 84,
+          "seed_body_sf": [
+            52654,
+            54414
+          ],
+          "edited_body_sf": [
+            51223,
+            55563
+          ]
+        },
+        "items_applied": 20,
+        "items_by_kind": {
+          "gap_silent": 19,
+          "filler": 1
+        },
+        "items_skipped": 0,
+        "removals": 19,
+        "save_warnings": [
+          "tight_cut"
+        ],
+        "output_frames": 4092,
+        "render_s": 126.3,
+        "g1_g2": [
+          {
+            "gate": "G1",
+            "pass": true,
+            "problems": []
+          },
+          {
+            "gate": "G2",
+            "pass": true,
+            "problems": []
+          }
+        ],
+        "cut_edges": {
+          "edges": 40,
+          "tight": 0,
+          "inside_gap": 40,
+          "rms_max_dbfs_untight": -47.89,
+          "pass": true,
+          "failures": 0,
+          "rows": [
+            [
+              "cl_7",
+              "gap_silent",
+              "in",
+              51971,
+              true,
+              false,
+              -59.73
+            ],
+            [
+              "cl_7",
+              "gap_silent",
+              "out",
+              51981,
+              true,
+              false,
+              -62.56
+            ],
+            [
+              "cl_8",
+              "gap_silent",
+              "in",
+              52185,
+              true,
+              false,
+              -50.71
+            ],
+            [
+              "cl_8",
+              "gap_silent",
+              "out",
+              52208,
+              true,
+              false,
+              -53.44
+            ],
+            [
+              "cl_9",
+              "gap_silent",
+              "in",
+              52311,
+              true,
+              false,
+              -55.42
+            ],
+            [
+              "cl_9",
+              "gap_silent",
+              "out",
+              52337,
+              true,
+              false,
+              -59.74
+            ],
+            [
+              "cl_10",
+              "gap_silent",
+              "in",
+              52619,
+              true,
+              false,
+              -54.44
+            ],
+            [
+              "cl_10",
+              "gap_silent",
+              "out",
+              52655,
+              true,
+              false,
+              -56.83
+            ],
+            [
+              "cl_11",
+              "gap_silent",
+              "in",
+              52741,
+              true,
+              false,
+              -56.8
+            ],
+            [
+              "cl_11",
+              "gap_silent",
+              "out",
+              52756,
+              true,
+              false,
+              -52.99
+            ],
+            [
+              "cl_13",
+              "gap_silent",
+              "in",
+              53164,
+              true,
+              false,
+              -55.7
+            ],
+            [
+              "cl_13",
+              "gap_silent",
+              "out",
+              53183,
+              true,
+              false,
+              -53.76
+            ],
+            [
+              "cl_14",
+              "filler",
+              "in",
+              53173,
+              true,
+              false,
+              -55.32
+            ],
+            [
+              "cl_14",
+              "filler",
+              "out",
+              53205,
+              true,
+              false,
+              -55.65
+            ],
+            [
+              "cl_16",
+              "gap_silent",
+              "in",
+              53313,
+              true,
+              false,
+              -55.46
+            ],
+            [
+              "cl_16",
+              "gap_silent",
+              "out",
+              53324,
+              true,
+              false,
+              -58.43
+            ],
+            [
+              "cl_23",
+              "gap_silent",
+              "in",
+              53886,
+              true,
+              false,
+              -54.6
+            ],
+            [
+              "cl_23",
+              "gap_silent",
+              "out",
+              53907,
+              true,
+              false,
+              -53.83
+            ],
+            [
+              "cl_24",
+              "gap_silent",
+              "in",
+              53942,
+              true,
+              false,
+              -51.92
+            ],
+            [
+              "cl_24",
+              "gap_silent",
+              "out",
+              53963,
+              true,
+              false,
+              -50.24
+            ],
+            [
+              "cl_25",
+              "gap_silent",
+              "in",
+              53988,
+              true,
+              false,
+              -51.79
+            ],
+            [
+              "cl_25",
+              "gap_silent",
+              "out",
+              53997,
+              true,
+              false,
+              -53.63
+            ],
+            [
+              "cl_26",
+              "gap_silent",
+              "in",
+              54154,
+              true,
+              false,
+              -50.55
+            ],
+            [
+              "cl_26",
+              "gap_silent",
+              "out",
+              54168,
+              true,
+              false,
+              -48.89
+            ],
+            [
+              "cl_27",
+              "gap_silent",
+              "in",
+              54191,
+              true,
+              false,
+              -53.12
+            ],
+            [
+              "cl_27",
+              "gap_silent",
+              "out",
+              54212,
+              true,
+              false,
+              -52.38
+            ],
+            [
+              "cl_28",
+              "gap_silent",
+              "in",
+              54246,
+              true,
+              false,
+              -56.79
+            ],
+            [
+              "cl_28",
+              "gap_silent",
+              "out",
+              54256,
+              true,
+              false,
+              -58.64
+            ],
+            [
+              "cl_29",
+              "gap_silent",
+              "in",
+              54290,
+              true,
+              false,
+              -54.22
+            ],
+            [
+              "cl_29",
+              "gap_silent",
+              "out",
+              54300,
+              true,
+              false,
+              -56.77
+            ],
+            [
+              "cl_30",
+              "gap_silent",
+              "in",
+              54407,
+              true,
+              false,
+              -58.31
+            ],
+            [
+              "cl_30",
+              "gap_silent",
+              "out",
+              54454,
+              true,
+              false,
+              -47.89
+            ],
+            [
+              "cl_31",
+              "gap_silent",
+              "in",
+              54518,
+              true,
+              false,
+              -52.0
+            ],
+            [
+              "cl_31",
+              "gap_silent",
+              "out",
+              54541,
+              true,
+              false,
+              -53.29
+            ],
+            [
+              "cl_34",
+              "gap_silent",
+              "in",
+              54868,
+              true,
+              false,
+              -54.45
+            ],
+            [
+              "cl_34",
+              "gap_silent",
+              "out",
+              54892,
+              true,
+              false,
+              -58.0
+            ],
+            [
+              "cl_35",
+              "gap_silent",
+              "in",
+              54994,
+              true,
+              false,
+              -53.93
+            ],
+            [
+              "cl_35",
+              "gap_silent",
+              "out",
+              55004,
+              true,
+              false,
+              -52.82
+            ],
+            [
+              "cl_38",
+              "gap_silent",
+              "in",
+              55525,
+              true,
+              false,
+              -50.35
+            ],
+            [
+              "cl_38",
+              "gap_silent",
+              "out",
+              55547,
+              true,
+              false,
+              -55.57
+            ]
+          ],
+          "row_fields": [
+            "item",
+            "kind",
+            "edge",
+            "sf",
+            "inside_gap",
+            "tight",
+            "rms_dbfs"
+          ]
+        },
+        "g_click": {
+          "joins": 20,
+          "max_step_dbfs": -200.0,
+          "samples": 8192184,
+          "plan_samples": 8192184,
+          "pass": true
+        },
+        "g_sync": {
+          "video_frames": 4092,
+          "audio_samples": 8193024,
+          "av_end_difference_ms": 17.5,
+          "one_frame_ms": 41.708,
+          "caption_onsets_checked": 12,
+          "av_pass": true,
+          "caption_pass": true,
+          "pass": true
+        },
+        "pass": true,
+        "toolchain": {
+          "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+          "python": "3.11.2",
+          "machine": "x86_64",
+          "cpus": 16,
+          "loadavg": [
+            20.23,
+            12.36,
+            6.88
+          ]
+        }
+      }
+    ]
+  },
+  "local": {
+    "measured_in": {
+      "ffmpeg": "6.1.1",
+      "python": "3.13"
+    },
+    "totals": {
+      "clips": 4,
+      "items_applied": 42,
+      "items_by_kind": {
+        "filler": 1,
+        "repeat": 0,
+        "gap_silent": 41
+      },
+      "cut_edges": 84,
+      "inside_gap": 84,
+      "tight": 0,
+      "rms_max_dbfs_untight": -47.89,
+      "cut_edge_failures": 0,
+      "joins": 43,
+      "g_click_max_step_dbfs": -200.0,
+      "g_sync_max_av_end_ms": 17.5,
+      "caption_onsets_checked": 48,
+      "g1_g2_pass": true,
+      "all_pass": true
+    },
+    "runs": [
+      {
+        "job": "3c7d024c",
+        "clip_id": "clip_79f6a91ef9850a699239bdae",
+        "fps": [
+          30,
+          1
+        ],
+        "layout": "fit_blur",
+        "engine_of_seed": "legacy",
+        "listing": {
+          "filler": 0,
+          "repeat": 0,
+          "gap_silent": 6,
+          "gap_voiced": 16
+        },
+        "open_in_clip": {
+          "filler": 0,
+          "repeat": 0,
+          "gap_silent": 6
+        },
+        "body_widened_by_trims": {
+          "trims": 107,
+          "seed_body_sf": [
+            14522,
+            16774
+          ],
+          "edited_body_sf": [
+            12730,
+            18571
+          ]
+        },
+        "items_applied": 6,
+        "items_by_kind": {
+          "gap_silent": 6
+        },
+        "items_skipped": 0,
+        "removals": 6,
+        "save_warnings": [
+          "tight_cut"
+        ],
+        "output_frames": 5750,
+        "render_s": 171.3,
+        "g1_g2": [
+          {
+            "gate": "G1",
+            "pass": true,
+            "problems": []
+          },
+          {
+            "gate": "G2",
+            "pass": true,
+            "problems": []
+          }
+        ],
+        "cut_edges": {
+          "edges": 12,
+          "tight": 0,
+          "inside_gap": 12,
+          "rms_max_dbfs_untight": -50.93,
+          "pass": true,
+          "failures": 0,
+          "rows": [
+            [
+              "cl_5",
+              "gap_silent",
+              "in",
+              13784,
+              true,
+              false,
+              -53.02
+            ],
+            [
+              "cl_5",
+              "gap_silent",
+              "out",
+              13811,
+              true,
+              false,
+              -200.0
+            ],
+            [
+              "cl_9",
+              "gap_silent",
+              "in",
+              14320,
+              true,
+              false,
+              -54.48
+            ],
+            [
+              "cl_9",
+              "gap_silent",
+              "out",
+              14339,
+              true,
+              false,
+              -55.63
+            ],
+            [
+              "cl_10",
+              "gap_silent",
+              "in",
+              14660,
+              true,
+              false,
+              -51.64
+            ],
+            [
+              "cl_10",
+              "gap_silent",
+              "out",
+              14670,
+              true,
+              false,
+              -55.35
+            ],
+            [
+              "cl_13",
+              "gap_silent",
+              "in",
+              15040,
+              true,
+              false,
+              -50.93
+            ],
+            [
+              "cl_13",
+              "gap_silent",
+              "out",
+              15051,
+              true,
+              false,
+              -51.17
+            ],
+            [
+              "cl_15",
+              "gap_silent",
+              "in",
+              15768,
+              true,
+              false,
+              -55.32
+            ],
+            [
+              "cl_15",
+              "gap_silent",
+              "out",
+              15781,
+              true,
+              false,
+              -54.27
+            ],
+            [
+              "cl_16",
+              "gap_silent",
+              "in",
+              15903,
+              true,
+              false,
+              -51.38
+            ],
+            [
+              "cl_16",
+              "gap_silent",
+              "out",
+              15914,
+              true,
+              false,
+              -51.75
+            ]
+          ],
+          "row_fields": [
+            "item",
+            "kind",
+            "edge",
+            "sf",
+            "inside_gap",
+            "tight",
+            "rms_dbfs"
+          ]
+        },
+        "g_click": {
+          "joins": 6,
+          "max_step_dbfs": -200.0,
+          "samples": 9200000,
+          "plan_samples": 9200000,
+          "pass": true
+        },
+        "g_sync": {
+          "video_frames": 5750,
+          "audio_samples": 9200640,
+          "av_end_difference_ms": 13.333,
+          "one_frame_ms": 33.333,
+          "caption_onsets_checked": 12,
+          "av_pass": true,
+          "caption_pass": true,
+          "pass": true
+        },
+        "pass": true,
+        "toolchain": {
+          "ffmpeg": "ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023 the FFmpeg developers",
+          "python": "3.13.13",
+          "machine": "x86_64",
+          "cpus": 16,
+          "loadavg": [
+            20.25,
+            22.64,
+            22.93
+          ]
+        }
+      },
+      {
+        "job": "899226f8",
+        "clip_id": "clip_e5bbce66807456b8aecf18c4",
+        "fps": [
+          25,
+          1
+        ],
+        "layout": "fit_blur",
+        "engine_of_seed": "legacy",
+        "listing": {
+          "filler": 0,
+          "repeat": 0,
+          "gap_silent": 9,
+          "gap_voiced": 10
+        },
+        "open_in_clip": {
+          "filler": 0,
+          "repeat": 0,
+          "gap_silent": 9
+        },
+        "body_widened_by_trims": {
+          "trims": 106,
+          "seed_body_sf": [
+            39862,
+            41273
+          ],
+          "edited_body_sf": [
+            38365,
+            42760
+          ]
+        },
+        "items_applied": 9,
+        "items_by_kind": {
+          "gap_silent": 9
+        },
+        "items_skipped": 0,
+        "removals": 9,
+        "save_warnings": [
+          "tight_cut"
+        ],
+        "output_frames": 4261,
+        "render_s": 81.5,
+        "g1_g2": [
+          {
+            "gate": "G1",
+            "pass": true,
+            "problems": []
+          },
+          {
+            "gate": "G2",
+            "pass": true,
+            "problems": []
+          }
+        ],
+        "cut_edges": {
+          "edges": 18,
+          "tight": 0,
+          "inside_gap": 18,
+          "rms_max_dbfs_untight": -47.92,
+          "pass": true,
+          "failures": 0,
+          "rows": [
+            [
+              "cl_2",
+              "gap_silent",
+              "in",
+              38632,
+              true,
+              false,
+              -54.66
+            ],
+            [
+              "cl_2",
+              "gap_silent",
+              "out",
+              38641,
+              true,
+              false,
+              -55.04
+            ],
+            [
+              "cl_3",
+              "gap_silent",
+              "in",
+              38986,
+              true,
+              false,
+              -56.47
+            ],
+            [
+              "cl_3",
+              "gap_silent",
+              "out",
+              39000,
+              true,
+              false,
+              -54.93
+            ],
+            [
+              "cl_6",
+              "gap_silent",
+              "in",
+              39350,
+              true,
+              false,
+              -54.7
+            ],
+            [
+              "cl_6",
+              "gap_silent",
+              "out",
+              39368,
+              true,
+              false,
+              -58.71
+            ],
+            [
+              "cl_8",
+              "gap_silent",
+              "in",
+              40547,
+              true,
+              false,
+              -48.79
+            ],
+            [
+              "cl_8",
+              "gap_silent",
+              "out",
+              40557,
+              true,
+              false,
+              -52.07
+            ],
+            [
+              "cl_9",
+              "gap_silent",
+              "in",
+              40799,
+              true,
+              false,
+              -47.92
+            ],
+            [
+              "cl_9",
+              "gap_silent",
+              "out",
+              40810,
+              true,
+              false,
+              -54.69
+            ],
+            [
+              "cl_10",
+              "gap_silent",
+              "in",
+              40908,
+              true,
+              false,
+              -52.59
+            ],
+            [
+              "cl_10",
+              "gap_silent",
+              "out",
+              40916,
+              true,
+              false,
+              -54.83
+            ],
+            [
+              "cl_11",
+              "gap_silent",
+              "in",
+              40989,
+              true,
+              false,
+              -53.94
+            ],
+            [
+              "cl_11",
+              "gap_silent",
+              "out",
+              41016,
+              true,
+              false,
+              -55.54
+            ],
+            [
+              "cl_17",
+              "gap_silent",
+              "in",
+              42617,
+              true,
+              false,
+              -49.22
+            ],
+            [
+              "cl_17",
+              "gap_silent",
+              "out",
+              42646,
+              true,
+              false,
+              -52.47
+            ],
+            [
+              "cl_19",
+              "gap_silent",
+              "in",
+              42738,
+              true,
+              false,
+              -51.58
+            ],
+            [
+              "cl_19",
+              "gap_silent",
+              "out",
+              42746,
+              true,
+              false,
+              -56.68
+            ]
+          ],
+          "row_fields": [
+            "item",
+            "kind",
+            "edge",
+            "sf",
+            "inside_gap",
+            "tight",
+            "rms_dbfs"
+          ]
+        },
+        "g_click": {
+          "joins": 9,
+          "max_step_dbfs": -200.0,
+          "samples": 8181120,
+          "plan_samples": 8181120,
+          "pass": true
+        },
+        "g_sync": {
+          "video_frames": 4261,
+          "audio_samples": 8181760,
+          "av_end_difference_ms": 13.333,
+          "one_frame_ms": 40.0,
+          "caption_onsets_checked": 12,
+          "av_pass": true,
+          "caption_pass": true,
+          "pass": true
+        },
+        "pass": true,
+        "toolchain": {
+          "ffmpeg": "ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023 the FFmpeg developers",
+          "python": "3.13.13",
+          "machine": "x86_64",
+          "cpus": 16,
+          "loadavg": [
+            13.52,
+            21.57,
+            22.59
+          ]
+        }
+      },
+      {
+        "job": "990f3f37",
+        "clip_id": "clip_6c498e543fd2b8ffd10809e4",
+        "fps": [
+          30,
+          1
+        ],
+        "layout": "fill_center",
+        "engine_of_seed": "legacy",
+        "listing": {
+          "filler": 0,
+          "repeat": 0,
+          "gap_silent": 7,
+          "gap_voiced": 22
+        },
+        "open_in_clip": {
+          "filler": 0,
+          "repeat": 0,
+          "gap_silent": 7
+        },
+        "body_widened_by_trims": {
+          "trims": 99,
+          "seed_body_sf": [
+            13820,
+            16164
+          ],
+          "edited_body_sf": [
+            12028,
+            17963
+          ]
+        },
+        "items_applied": 7,
+        "items_by_kind": {
+          "gap_silent": 7
+        },
+        "items_skipped": 0,
+        "removals": 7,
+        "save_warnings": [
+          "tight_cut"
+        ],
+        "output_frames": 5916,
+        "render_s": 76.5,
+        "g1_g2": [
+          {
+            "gate": "G1",
+            "pass": true,
+            "problems": []
+          },
+          {
+            "gate": "G2",
+            "pass": true,
+            "problems": []
+          }
+        ],
+        "cut_edges": {
+          "edges": 14,
+          "tight": 0,
+          "inside_gap": 14,
+          "rms_max_dbfs_untight": -51.75,
+          "pass": true,
+          "failures": 0,
+          "rows": [
+            [
+              "cl_1",
+              "gap_silent",
+              "in",
+              12117,
+              true,
+              false,
+              -55.83
+            ],
+            [
+              "cl_1",
+              "gap_silent",
+              "out",
+              12138,
+              true,
+              false,
+              -58.63
+            ],
+            [
+              "cl_3",
+              "gap_silent",
+              "in",
+              12587,
+              true,
+              false,
+              -55.29
+            ],
+            [
+              "cl_3",
+              "gap_silent",
+              "out",
+              12606,
+              true,
+              false,
+              -58.76
+            ],
+            [
+              "cl_5",
+              "gap_silent",
+              "in",
+              13042,
+              true,
+              false,
+              -51.75
+            ],
+            [
+              "cl_5",
+              "gap_silent",
+              "out",
+              13056,
+              true,
+              false,
+              -52.45
+            ],
+            [
+              "cl_7",
+              "gap_silent",
+              "in",
+              13470,
+              true,
+              false,
+              -57.09
+            ],
+            [
+              "cl_7",
+              "gap_silent",
+              "out",
+              13488,
+              true,
+              false,
+              -55.64
+            ],
+            [
+              "cl_8",
+              "gap_silent",
+              "in",
+              13545,
+              true,
+              false,
+              -57.4
+            ],
+            [
+              "cl_8",
+              "gap_silent",
+              "out",
+              13562,
+              true,
+              false,
+              -58.9
+            ],
+            [
+              "cl_17",
+              "gap_silent",
+              "in",
+              15518,
+              true,
+              false,
+              -54.76
+            ],
+            [
+              "cl_17",
+              "gap_silent",
+              "out",
+              15530,
+              true,
+              false,
+              -57.2
+            ],
+            [
+              "cl_23",
+              "gap_silent",
+              "in",
+              16781,
+              true,
+              false,
+              -58.82
+            ],
+            [
+              "cl_23",
+              "gap_silent",
+              "out",
+              16795,
+              true,
+              false,
+              -61.2
+            ]
+          ],
+          "row_fields": [
+            "item",
+            "kind",
+            "edge",
+            "sf",
+            "inside_gap",
+            "tight",
+            "rms_dbfs"
+          ]
+        },
+        "g_click": {
+          "joins": 8,
+          "max_step_dbfs": -200.0,
+          "samples": 9465600,
+          "plan_samples": 9465600,
+          "pass": true
+        },
+        "g_sync": {
+          "video_frames": 5916,
+          "audio_samples": 9465856,
+          "av_end_difference_ms": 5.333,
+          "one_frame_ms": 33.333,
+          "caption_onsets_checked": 12,
+          "av_pass": true,
+          "caption_pass": true,
+          "pass": true
+        },
+        "pass": true,
+        "toolchain": {
+          "ffmpeg": "ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023 the FFmpeg developers",
+          "python": "3.13.13",
+          "machine": "x86_64",
+          "cpus": 16,
+          "loadavg": [
+            16.92,
+            20.87,
+            22.27
+          ]
+        }
+      },
+      {
+        "job": "e7f0d37b",
+        "clip_id": "clip_fa14b3c832db852797ab4560",
+        "fps": [
+          24000,
+          1001
+        ],
+        "layout": "fit_blur",
+        "engine_of_seed": "legacy",
+        "listing": {
+          "filler": 1,
+          "repeat": 0,
+          "gap_silent": 20,
+          "gap_voiced": 19
+        },
+        "open_in_clip": {
+          "filler": 1,
+          "repeat": 0,
+          "gap_silent": 19
+        },
+        "body_widened_by_trims": {
+          "trims": 84,
+          "seed_body_sf": [
+            52654,
+            54414
+          ],
+          "edited_body_sf": [
+            51223,
+            55563
+          ]
+        },
+        "items_applied": 20,
+        "items_by_kind": {
+          "gap_silent": 19,
+          "filler": 1
+        },
+        "items_skipped": 0,
+        "removals": 19,
+        "save_warnings": [
+          "tight_cut"
+        ],
+        "output_frames": 4092,
+        "render_s": 97.1,
+        "g1_g2": [
+          {
+            "gate": "G1",
+            "pass": true,
+            "problems": []
+          },
+          {
+            "gate": "G2",
+            "pass": true,
+            "problems": []
+          }
+        ],
+        "cut_edges": {
+          "edges": 40,
+          "tight": 0,
+          "inside_gap": 40,
+          "rms_max_dbfs_untight": -47.89,
+          "pass": true,
+          "failures": 0,
+          "rows": [
+            [
+              "cl_7",
+              "gap_silent",
+              "in",
+              51971,
+              true,
+              false,
+              -59.73
+            ],
+            [
+              "cl_7",
+              "gap_silent",
+              "out",
+              51981,
+              true,
+              false,
+              -62.56
+            ],
+            [
+              "cl_8",
+              "gap_silent",
+              "in",
+              52185,
+              true,
+              false,
+              -50.71
+            ],
+            [
+              "cl_8",
+              "gap_silent",
+              "out",
+              52208,
+              true,
+              false,
+              -53.44
+            ],
+            [
+              "cl_9",
+              "gap_silent",
+              "in",
+              52311,
+              true,
+              false,
+              -55.42
+            ],
+            [
+              "cl_9",
+              "gap_silent",
+              "out",
+              52337,
+              true,
+              false,
+              -59.74
+            ],
+            [
+              "cl_10",
+              "gap_silent",
+              "in",
+              52619,
+              true,
+              false,
+              -54.44
+            ],
+            [
+              "cl_10",
+              "gap_silent",
+              "out",
+              52655,
+              true,
+              false,
+              -56.83
+            ],
+            [
+              "cl_11",
+              "gap_silent",
+              "in",
+              52741,
+              true,
+              false,
+              -56.8
+            ],
+            [
+              "cl_11",
+              "gap_silent",
+              "out",
+              52756,
+              true,
+              false,
+              -52.99
+            ],
+            [
+              "cl_13",
+              "gap_silent",
+              "in",
+              53164,
+              true,
+              false,
+              -55.7
+            ],
+            [
+              "cl_13",
+              "gap_silent",
+              "out",
+              53183,
+              true,
+              false,
+              -53.76
+            ],
+            [
+              "cl_14",
+              "filler",
+              "in",
+              53173,
+              true,
+              false,
+              -55.32
+            ],
+            [
+              "cl_14",
+              "filler",
+              "out",
+              53205,
+              true,
+              false,
+              -55.65
+            ],
+            [
+              "cl_16",
+              "gap_silent",
+              "in",
+              53313,
+              true,
+              false,
+              -55.46
+            ],
+            [
+              "cl_16",
+              "gap_silent",
+              "out",
+              53324,
+              true,
+              false,
+              -58.43
+            ],
+            [
+              "cl_23",
+              "gap_silent",
+              "in",
+              53886,
+              true,
+              false,
+              -54.6
+            ],
+            [
+              "cl_23",
+              "gap_silent",
+              "out",
+              53907,
+              true,
+              false,
+              -53.83
+            ],
+            [
+              "cl_24",
+              "gap_silent",
+              "in",
+              53942,
+              true,
+              false,
+              -51.92
+            ],
+            [
+              "cl_24",
+              "gap_silent",
+              "out",
+              53963,
+              true,
+              false,
+              -50.24
+            ],
+            [
+              "cl_25",
+              "gap_silent",
+              "in",
+              53988,
+              true,
+              false,
+              -51.79
+            ],
+            [
+              "cl_25",
+              "gap_silent",
+              "out",
+              53997,
+              true,
+              false,
+              -53.63
+            ],
+            [
+              "cl_26",
+              "gap_silent",
+              "in",
+              54154,
+              true,
+              false,
+              -50.55
+            ],
+            [
+              "cl_26",
+              "gap_silent",
+              "out",
+              54168,
+              true,
+              false,
+              -48.89
+            ],
+            [
+              "cl_27",
+              "gap_silent",
+              "in",
+              54191,
+              true,
+              false,
+              -53.12
+            ],
+            [
+              "cl_27",
+              "gap_silent",
+              "out",
+              54212,
+              true,
+              false,
+              -52.38
+            ],
+            [
+              "cl_28",
+              "gap_silent",
+              "in",
+              54246,
+              true,
+              false,
+              -56.79
+            ],
+            [
+              "cl_28",
+              "gap_silent",
+              "out",
+              54256,
+              true,
+              false,
+              -58.64
+            ],
+            [
+              "cl_29",
+              "gap_silent",
+              "in",
+              54290,
+              true,
+              false,
+              -54.22
+            ],
+            [
+              "cl_29",
+              "gap_silent",
+              "out",
+              54300,
+              true,
+              false,
+              -56.77
+            ],
+            [
+              "cl_30",
+              "gap_silent",
+              "in",
+              54407,
+              true,
+              false,
+              -58.31
+            ],
+            [
+              "cl_30",
+              "gap_silent",
+              "out",
+              54454,
+              true,
+              false,
+              -47.89
+            ],
+            [
+              "cl_31",
+              "gap_silent",
+              "in",
+              54518,
+              true,
+              false,
+              -52.0
+            ],
+            [
+              "cl_31",
+              "gap_silent",
+              "out",
+              54541,
+              true,
+              false,
+              -53.29
+            ],
+            [
+              "cl_34",
+              "gap_silent",
+              "in",
+              54868,
+              true,
+              false,
+              -54.45
+            ],
+            [
+              "cl_34",
+              "gap_silent",
+              "out",
+              54892,
+              true,
+              false,
+              -58.0
+            ],
+            [
+              "cl_35",
+              "gap_silent",
+              "in",
+              54994,
+              true,
+              false,
+              -53.93
+            ],
+            [
+              "cl_35",
+              "gap_silent",
+              "out",
+              55004,
+              true,
+              false,
+              -52.82
+            ],
+            [
+              "cl_38",
+              "gap_silent",
+              "in",
+              55525,
+              true,
+              false,
+              -50.35
+            ],
+            [
+              "cl_38",
+              "gap_silent",
+              "out",
+              55547,
+              true,
+              false,
+              -55.57
+            ]
+          ],
+          "row_fields": [
+            "item",
+            "kind",
+            "edge",
+            "sf",
+            "inside_gap",
+            "tight",
+            "rms_dbfs"
+          ]
+        },
+        "g_click": {
+          "joins": 20,
+          "max_step_dbfs": -200.0,
+          "samples": 8192184,
+          "plan_samples": 8192184,
+          "pass": true
+        },
+        "g_sync": {
+          "video_frames": 4092,
+          "audio_samples": 8193024,
+          "av_end_difference_ms": 17.5,
+          "one_frame_ms": 41.708,
+          "caption_onsets_checked": 12,
+          "av_pass": true,
+          "caption_pass": true,
+          "pass": true
+        },
+        "pass": true,
+        "toolchain": {
+          "ffmpeg": "ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023 the FFmpeg developers",
+          "python": "3.13.13",
+          "machine": "x86_64",
+          "cpus": 16,
+          "loadavg": [
+            16.71,
+            25.08,
+            23.7
+          ]
+        }
+      }
+    ],
+    "note": "860fef1a is not prepared on the local FFmpeg (its source does not decode there); it runs in the image"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "gate": "QG-A11Y (Logo panel and gizmo)",
+  "task": "T3.2",
+  "states": [
+    {
+      "state": "empty",
+      "violations": []
+    },
+    {
+      "state": "uploading",
+      "violations": []
+    },
+    {
+      "state": "error",
+      "violations": []
+    },
+    {
+      "state": "logo focused, in the zone",
+      "violations": []
+    }
+  ],
+  "serious": [],
+  "pass": true
+}

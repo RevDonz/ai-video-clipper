@@ -1,0 +1,55 @@
+{
+  "task": "T4.4",
+  "gate": "CI on the pull request, the toolchain suite and one nightly run",
+  "stack": "GitHub Actions ubuntu-latest (4 vCPU; times indicative), production image built per run (FFmpeg 5.1.9, libass 0.17.1, Python 3.11.2, Node 20), Chrome for Testing 147.0.7727.15",
+  "runs": {
+    "pr": {
+      "workflow": "ci-cd.yml, dispatch suite=pr",
+      "run": 36901027617,
+      "commit": "24f977c",
+      "jobs": {
+        "test": {"result": "success", "minutes": 19.8, "ruff": "All checks passed", "pytest_python_3_11": {"passed": 4309, "skipped": 2, "xfailed": 1}, "npm_test_node_20": {"tests": 1156, "pass": 1155, "fail": 0}, "build": "compiled"},
+        "toolchain_guard": {"result": "success", "seconds": 4},
+        "parity_smoke": {
+          "result": "success", "minutes": 6.8,
+          "section_seconds": {"toolchain": 0, "ptime": 23, "ptxt": 10, "pframe": 35, "gdet": 91, "paud": 15, "r10": 106},
+          "gates": {"P-TIME-ffmpeg": "pass", "P-TIME-jassub": "pass", "P-TXT": "pass", "P-FRAME": "pass", "G-DET": "pass", "P-AUD": "pass", "R10": "pass"},
+          "browser_specs": "3 passed"
+        }
+      }
+    },
+    "image_pytest": {"workflow": "editor-gates.yml suite=image", "run": 36901078345, "commit": "24f977c", "result": "success", "pytest": {"passed": 4307, "skipped": 4, "xfailed": 1}},
+    "toolchain": {
+      "workflow": "ci-cd.yml, dispatch suite=toolchain",
+      "run": 36899253661,
+      "commit": "56b3343",
+      "result": "success",
+      "minutes": 13.0,
+      "section_seconds": {"toolchain": 0, "ptime": 23, "ptxt_full": 119, "penc": 75, "rt": 394},
+      "gates": {
+        "P-TIME-ffmpeg": {"events": 570, "boundaries": 1223, "hazard_boundaries": 247, "mismatches": 0},
+        "P-TIME-jassub": {"transitions": 231, "mismatches": 0},
+        "P-TXT": {"format": "gbrp", "frames": 120, "ssim": 0.999948, "ssim_text": 0.999454, "psnr_db": 62.5, "max": 14, "px_over_16": 0},
+        "P-ENC": {"format": "gbrp", "min_ssim_all": 0.99017, "min_ssim_text": 0.98682, "baseline": "W1/T1.Z-P-ENC.json"},
+        "P-COLOR": {"format": "gbrp", "worst_max_abs_mean_delta": 1.654},
+        "P-RT": {"clips": 6, "frames": 6813, "bytes_identical": 6, "pcm_identical": 6},
+        "R10": {"cases": 27, "linked": 27}
+      },
+      "stamped_evidence": "docs/editor/evidence/toolchain/ (record.json and six gate files)"
+    },
+    "nightly": {
+      "workflow": "ci-cd.yml, dispatch suite=nightly (the scheduled run uses the same job)",
+      "run": 36899263216,
+      "commit": "56b3343",
+      "result": "failure",
+      "minutes": 42.0,
+      "section_seconds": {"toolchain": 0, "ptime": 18, "ptxt_full": 84, "penc": 55, "rt": 285, "frame": 276, "audio": 71, "glyph": 1, "goldens": 0, "app": 1593},
+      "required_gates": {"pass": ["G-CLICK", "G-DET", "G1-G2", "G3", "G3b", "P-AUD", "P-COLOR", "P-ENC", "P-FRAME", "P-PLATE", "P-RT", "P-TIME-ffmpeg", "P-TIME-jassub", "P-TXT", "R10", "duck", "glyph-probe"], "report": ["PF-RENDER"], "fail": []},
+      "app_section": {
+        "P-FRAME per layout": "pass", "P-PLATE per layout": "pass", "layout switch": "within budget",
+        "P-AUD through the preview lane": {"result": "fail", "cases": 6, "md5_equal": 6, "sample_count_failures": 1, "failing_case": "02-vfr-bed", "plan_samples": 1614400, "preview_samples": 1614384, "reference_samples": 1614384, "known_as": "W3 Open 12 (the compiler's source-audio path); not changed by T4.4"},
+        "PF-AUDIO": "over budget on the 4 vCPU runner (indicative; W2 Open 22, T4.3)"
+      }
+    }
+  }
+}

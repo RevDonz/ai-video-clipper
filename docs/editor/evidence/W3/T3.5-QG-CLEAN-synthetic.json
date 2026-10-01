@@ -1,0 +1,219 @@
+{
+  "task": "T3.5",
+  "commit": "7fdd7fd",
+  "measured_in": {
+    "ffmpeg": "6.1.1",
+    "python": "3.13"
+  },
+  "run": {
+    "job": "d0ea7856",
+    "clip_id": "clip_a4f5547f0c83ba34409a9e3c",
+    "fps": [
+      30000,
+      1001
+    ],
+    "layout": "fit_blur",
+    "engine_of_seed": "edit-v2/1",
+    "listing": {
+      "filler": 2,
+      "repeat": 1,
+      "gap_silent": 3,
+      "gap_voiced": 1
+    },
+    "open_in_clip": {
+      "filler": 2,
+      "repeat": 1,
+      "gap_silent": 3
+    },
+    "body_widened_by_trims": {
+      "trims": 79,
+      "seed_body_sf": [
+        1958,
+        3048
+      ],
+      "edited_body_sf": [
+        174,
+        4822
+      ]
+    },
+    "items_applied": 6,
+    "items_by_kind": {
+      "gap_silent": 3,
+      "filler": 2,
+      "repeat": 1
+    },
+    "items_skipped": 0,
+    "removals": 6,
+    "save_warnings": [],
+    "output_frames": 4504,
+    "render_s": 154.0,
+    "g1_g2": [
+      {
+        "gate": "G1",
+        "pass": true,
+        "problems": []
+      },
+      {
+        "gate": "G2",
+        "pass": true,
+        "problems": []
+      }
+    ],
+    "cut_edges": {
+      "edges": 12,
+      "tight": 0,
+      "inside_gap": 12,
+      "rms_max_dbfs_untight": -200.0,
+      "pass": true,
+      "failures": 0,
+      "rows": [
+        [
+          "cl_1",
+          "gap_silent",
+          "in",
+          1477,
+          true,
+          false,
+          -200.0
+        ],
+        [
+          "cl_1",
+          "gap_silent",
+          "out",
+          1515,
+          true,
+          false,
+          -200.0
+        ],
+        [
+          "cl_2",
+          "filler",
+          "in",
+          1955,
+          true,
+          false,
+          -200.0
+        ],
+        [
+          "cl_2",
+          "filler",
+          "out",
+          1971,
+          true,
+          false,
+          -200.0
+        ],
+        [
+          "cl_3",
+          "repeat",
+          "in",
+          1983,
+          true,
+          false,
+          -200.0
+        ],
+        [
+          "cl_3",
+          "repeat",
+          "out",
+          1994,
+          true,
+          false,
+          -200.0
+        ],
+        [
+          "cl_4",
+          "filler",
+          "in",
+          2059,
+          true,
+          false,
+          -200.0
+        ],
+        [
+          "cl_4",
+          "filler",
+          "out",
+          2074,
+          true,
+          false,
+          -200.0
+        ],
+        [
+          "cl_6",
+          "gap_silent",
+          "in",
+          3560,
+          true,
+          false,
+          -200.0
+        ],
+        [
+          "cl_6",
+          "gap_silent",
+          "out",
+          3595,
+          true,
+          false,
+          -200.0
+        ],
+        [
+          "cl_7",
+          "gap_silent",
+          "in",
+          4562,
+          true,
+          false,
+          -200.0
+        ],
+        [
+          "cl_7",
+          "gap_silent",
+          "out",
+          4591,
+          true,
+          false,
+          -200.0
+        ]
+      ],
+      "row_fields": [
+        "item",
+        "kind",
+        "edge",
+        "sf",
+        "inside_gap",
+        "tight",
+        "rms_dbfs"
+      ]
+    },
+    "g_click": {
+      "joins": 6,
+      "max_step_dbfs": -200.0,
+      "samples": 7213606,
+      "plan_samples": 7213606,
+      "pass": true
+    },
+    "g_sync": {
+      "video_frames": 4504,
+      "audio_samples": 7214080,
+      "av_end_difference_ms": 9.867,
+      "one_frame_ms": 33.367,
+      "caption_onsets_checked": 12,
+      "av_pass": true,
+      "caption_pass": true,
+      "pass": true
+    },
+    "pass": true,
+    "toolchain": {
+      "ffmpeg": "ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023 the FFmpeg developers",
+      "python": "3.13.13",
+      "machine": "x86_64",
+      "cpus": 16,
+      "loadavg": [
+        23.23,
+        29.57,
+        24.66
+      ]
+    }
+  }
+}

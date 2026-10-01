@@ -1,0 +1,108 @@
+## argv
+ffmpeg
+-nostdin
+-y
+-hide_banner
+-nostats
+-loglevel
+error
+-progress
+@progress
+-copyts
+-protocol_whitelist
+file,pipe
+-threads
+4
+-ss
+599.000000
+-i
+@in:0
+-filter_complex_script
+filter_graph.txt
+-filter_complex_threads
+4
+-map
+[cell0]
+-c:v
+libx264
+-preset
+veryfast
+-crf
+18
+-profile:v
+high
+-pix_fmt
+yuv420p
+-g
+50
+-x264-params
+threads=4
+-color_primaries
+bt709
+-color_trc
+bt709
+-colorspace
+bt709
+-color_range
+tv
+-bf
+0
+-forced-idr
+1
+-force_key_frames
+expr:eq(mod(n,50),0)
+-sc_threshold
+0
+-fps_mode
+passthrough
+-map_metadata
+-1
+-fflags
++bitexact
+-flags:v
++bitexact
+-flags:a
++bitexact
+-f
+segment
+-segment_format
+mp4
+-segment_frames
+50,100
+-segment_start_number
+300
+-reset_timestamps
+1
+c%07d.mp4
+## inputs
+source source -threads 4 -ss 599.000000
+## sidecars
+## expected
+{
+ "assets_root": "/jobs/job-1/analysis/assets",
+ "cell_frames": 50,
+ "cells": {
+  "300": 50,
+  "301": 50
+ },
+ "fontconfig_file": "/app/resources/fontconfig/fonts.conf",
+ "fonts_dir": "/app/resources/fonts",
+ "fps": [
+  25,
+  1
+ ],
+ "mode": "plate_cells",
+ "output": "cells",
+ "paths": {
+  "source": "/jobs/job-1/source.mp4"
+ },
+ "size": [
+  720,
+  1280
+ ]
+}
+## filter_script
+[0:0]fps=25/1,trim=start_pts=15000:end_pts=15100,setpts=PTS-STARTPTS[pt0];
+[pt0]settb=1/25,scale=720:1280:force_original_aspect_ratio=increase:in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuv444p,crop=720:1280:x='if(lt(n,50),if(lt(n,25),if(lt(n,12),if(lt(n,6),if(lt(n,3),if(lt(n,1),0,if(lt(n,2),10,20)),if(lt(n,4),30,if(lt(n,5),40,50))),if(lt(n,9),if(lt(n,7),60,if(lt(n,8),70,80)),if(lt(n,10),90,if(lt(n,11),100,110)))),if(lt(n,18),if(lt(n,15),if(lt(n,13),120,if(lt(n,14),128,138)),if(lt(n,16),148,if(lt(n,17),158,168))),if(lt(n,21),if(lt(n,19),178,if(lt(n,20),188,200)),if(lt(n,23),if(lt(n,22),210,222),if(lt(n,24),232,244))))),if(lt(n,37),if(lt(n,31),if(lt(n,28),if(lt(n,26),254,if(lt(n,27),266,276)),if(lt(n,29),288,if(lt(n,30),298,310))),if(lt(n,34),if(lt(n,32),320,if(lt(n,33),330,342)),if(lt(n,35),352,if(lt(n,36),364,374)))),if(lt(n,43),if(lt(n,40),if(lt(n,38),386,if(lt(n,39),396,408)),if(lt(n,41),418,if(lt(n,42),430,440))),if(lt(n,46),if(lt(n,44),452,if(lt(n,45),462,474)),if(lt(n,48),if(lt(n,47),484,494),if(lt(n,49),506,516)))))),if(lt(n,75),if(lt(n,62),if(lt(n,56),if(lt(n,53),if(lt(n,51),528,if(lt(n,52),538,550)),if(lt(n,54),560,if(lt(n,55),572,582))),if(lt(n,59),if(lt(n,57),594,if(lt(n,58),604,616)),if(lt(n,60),626,if(lt(n,61),638,648)))),if(lt(n,68),if(lt(n,65),if(lt(n,63),658,if(lt(n,64),670,680)),if(lt(n,66),692,if(lt(n,67),702,714))),if(lt(n,71),if(lt(n,69),724,if(lt(n,70),736,746)),if(lt(n,73),if(lt(n,72),758,768),if(lt(n,74),780,790))))),if(lt(n,87),if(lt(n,81),if(lt(n,78),if(lt(n,76),802,if(lt(n,77),812,822)),if(lt(n,79),834,if(lt(n,80),844,856))),if(lt(n,84),if(lt(n,82),866,if(lt(n,83),878,888)),if(lt(n,85),900,if(lt(n,86),910,922)))),if(lt(n,93),if(lt(n,90),if(lt(n,88),932,if(lt(n,89),944,954)),if(lt(n,91),966,if(lt(n,92),976,986))),if(lt(n,96),if(lt(n,94),998,if(lt(n,95),1008,1020)),if(lt(n,98),if(lt(n,97),1030,1042),if(lt(n,99),1052,1064)))))))':y=(ih-oh)/2,setsar=1[pl0];
+[pl0]scale=in_color_matrix=bt709:in_range=tv,format=gbrp,scale=out_color_matrix=bt709:out_range=tv:flags=accurate_rnd+full_chroma_int+full_chroma_inp+lanczos,format=yuv420p[cell0]
+

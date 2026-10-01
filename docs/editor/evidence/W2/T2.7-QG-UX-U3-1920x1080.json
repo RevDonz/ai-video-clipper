@@ -1,0 +1,32 @@
+{
+  "gate": "QG-UX U3 (scripted e2e)",
+  "task": "replace the cold open",
+  "limit_s": 45,
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "elapsed_s": 0.46,
+  "cold_open_s": 2.836,
+  "user_actions": {
+    "clicks": 4,
+    "keys": 1
+  },
+  "klm_operators": "M P 2B M P 2B M P 2B K M K M 3K M P 2B M",
+  "klm_estimate_s": 16.05,
+  "pass": true,
+  "browser": "chromium",
+  "browserVersion": "147.0.7727.15",
+  "executable": "chromium-1217 (Chrome for Testing)",
+  "machine": {
+    "cpus": 16,
+    "cpuModel": "AMD Ryzen 7 5700G with Radeon Graphics",
+    "loadavg": [
+      16.8,
+      14.81,
+      10.91
+    ]
+  },
+  "commit": "8477f0d55af64e4d82797c72a80253991ef28ce3",
+  "harness": "web/components/editor/transcript/__dev__ (production React, harness store)"
+}

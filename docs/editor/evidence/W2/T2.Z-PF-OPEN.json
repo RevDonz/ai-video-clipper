@@ -1,0 +1,37 @@
+{
+  "schema": "potongin.gate/1",
+  "gate": "PF-OPEN (real stack)",
+  "browser": "Chrome for Testing 147.0.7727.15",
+  "executable": "chromium-1217",
+  "viewport": "1366x768",
+  "runs": 10,
+  "firstMs": {
+    "p50": 919,
+    "p95": 932,
+    "max": 932
+  },
+  "repeatMs": {
+    "p50": 864,
+    "p95": 873,
+    "max": 873
+  },
+  "repeatFrameOnStageMs": {
+    "p50": 869,
+    "p95": 878
+  },
+  "firstCellAfterPrepareMs": 1034,
+  "prepareMs": 167,
+  "cellsReadyBeforePlan": 0,
+  "limits": {
+    "firstMs": 3000,
+    "repeatMs": 2000,
+    "cellMs": 2000
+  },
+  "load": [
+    3.4,
+    5.1,
+    5.8
+  ],
+  "pass": true,
+  "server": "ai-video-clipper:editor-w2 (app and render-worker containers, --cpus 6 and 4; JOBS_ROOT: a copy of the owner's job e7f0d37b, 23.976 fps, legacy engine)"
+}

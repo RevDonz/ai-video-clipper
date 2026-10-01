@@ -1,0 +1,279 @@
+{
+  "failures": 0,
+  "fonts": {
+    "faces": [
+      "DejaVuSans",
+      "DejaVuSans-Bold",
+      "Montserrat-ExtraBold"
+    ],
+    "failures": 0,
+    "fallback_faces": [],
+    "unexpected_faces": []
+  },
+  "gate": "ASS goldens (4 packs + hook)",
+  "goldens": {
+    "bold__c30": {
+      "bytes": 13732,
+      "cues": 57,
+      "dialogues": 143,
+      "equals_committed": true,
+      "hook_lines": 2,
+      "rendered": {
+        "1115": {
+          "md5": "622503b97a63ad9ff56340abb9bb073b",
+          "visible": true
+        },
+        "5": {
+          "md5": "258483fc42e56f3d6172dc30d406e6ae",
+          "visible": true
+        },
+        "8": {
+          "md5": "436693cab91a3e7b82b8b8bdd37e578c",
+          "visible": true
+        }
+      },
+      "sha256": "1569de1f9d0b357092f519741af74510e9bb33d892a595ede14aec79b34b09e9",
+      "styles": [
+        "Bold",
+        "Hook"
+      ],
+      "warnings": [
+        "unsafe_zone"
+      ]
+    },
+    "box__c30": {
+      "bytes": 4724,
+      "cues": 59,
+      "dialogues": 61,
+      "equals_committed": true,
+      "hook_lines": 2,
+      "rendered": {
+        "1153": {
+          "md5": "f3d273ede40d9b0bacb8c493a06124a9",
+          "visible": true
+        },
+        "5": {
+          "md5": "258483fc42e56f3d6172dc30d406e6ae",
+          "visible": true
+        },
+        "8": {
+          "md5": "1c97ee673d2f0fcc58f2824f0188dee3",
+          "visible": true
+        }
+      },
+      "sha256": "5890e93aaeffe588846ee4a6938801d4894d288ad6aac4d415adabf276f69092",
+      "styles": [
+        "Box",
+        "Hook"
+      ],
+      "warnings": [
+        "unsafe_zone"
+      ]
+    },
+    "classic__c25": {
+      "bytes": 8998,
+      "cues": 122,
+      "dialogues": 122,
+      "equals_committed": true,
+      "hook_lines": 0,
+      "rendered": {
+        "13": {
+          "md5": "5accb7e4751b655447a38361c634ba79",
+          "visible": true
+        },
+        "2479": {
+          "md5": "76436700d524e5fce5acdaf189d45bfe",
+          "visible": true
+        }
+      },
+      "sha256": "6e8f26d8a1c323a204ed1a8e5ca4952801607e4be9ffa68f5d4428923cd88399",
+      "styles": [
+        "Caption"
+      ],
+      "warnings": [
+        "unsafe_zone"
+      ]
+    },
+    "classic__c30": {
+      "bytes": 3963,
+      "cues": 45,
+      "dialogues": 47,
+      "equals_committed": true,
+      "hook_lines": 2,
+      "rendered": {
+        "1115": {
+          "md5": "6fc443eac12d8707c517ec7b8eb8eec8",
+          "visible": true
+        },
+        "5": {
+          "md5": "258483fc42e56f3d6172dc30d406e6ae",
+          "visible": true
+        },
+        "8": {
+          "md5": "371bd4e4cca669a47533b20b68dc0f17",
+          "visible": true
+        }
+      },
+      "sha256": "919a2e1de996f2d944f3cc49095023a42e68c79a9aef8ed389fb44ab4bcf95b3",
+      "styles": [
+        "Caption",
+        "Hook"
+      ],
+      "warnings": [
+        "unsafe_zone"
+      ]
+    },
+    "full_example__c30": {
+      "bytes": 13443,
+      "cues": 55,
+      "dialogues": 139,
+      "equals_committed": true,
+      "hook_lines": 2,
+      "rendered": {
+        "1130": {
+          "md5": "4731763eb3b2ce0bee0a300fc307e96a",
+          "visible": true
+        },
+        "5": {
+          "md5": "258483fc42e56f3d6172dc30d406e6ae",
+          "visible": true
+        },
+        "8": {
+          "md5": "a282b933e1eaf16e06d16c670f05852f",
+          "visible": true
+        }
+      },
+      "sha256": "34f90449bd536f2476d0d2e716f8ec3e9ba302b439d2f645c6dd4a7fb9d6ad61",
+      "styles": [
+        "Bold",
+        "Hook"
+      ],
+      "warnings": [
+        "unsafe_zone"
+      ]
+    },
+    "hook__c30": {
+      "bytes": 871,
+      "cues": 0,
+      "dialogues": 2,
+      "equals_committed": true,
+      "hook_lines": 2,
+      "rendered": {
+        "5": {
+          "md5": "258483fc42e56f3d6172dc30d406e6ae",
+          "visible": true
+        }
+      },
+      "sha256": "356aa7063e9178d4dc731c6ddcd02e1d648818ed823fd55e8495fea80b972a16",
+      "styles": [
+        "Hook"
+      ],
+      "warnings": []
+    },
+    "karaoke__c24": {
+      "bytes": 3459,
+      "cues": 30,
+      "dialogues": 32,
+      "equals_committed": true,
+      "hook_lines": 2,
+      "rendered": {
+        "5": {
+          "md5": "e4a163125705023edbd46b74a8030eb7",
+          "visible": true
+        },
+        "6": {
+          "md5": "4b13d63709bf7d3506eed8c18967fca4",
+          "visible": true
+        },
+        "666": {
+          "md5": "2c1a51fc56d3440690f6d26048dd7957",
+          "visible": true
+        }
+      },
+      "sha256": "d7b683aafb3b52af93dea860c124fc998405fe484beba7252a35a0e19ff6ed1d",
+      "styles": [
+        "Hook",
+        "Karaoke"
+      ],
+      "warnings": [
+        "unsafe_zone"
+      ]
+    },
+    "karaoke__c30": {
+      "bytes": 4810,
+      "cues": 45,
+      "dialogues": 47,
+      "equals_committed": true,
+      "hook_lines": 2,
+      "rendered": {
+        "1115": {
+          "md5": "9cf7c2169b035c1576e79702eba99ae7",
+          "visible": true
+        },
+        "5": {
+          "md5": "258483fc42e56f3d6172dc30d406e6ae",
+          "visible": true
+        },
+        "8": {
+          "md5": "c000af123749a87b20372b457370ed1e",
+          "visible": true
+        }
+      },
+      "sha256": "bb6a6966b672e0a1efd2f6f7ce81243b7a1820615f192f781e4d21e07c56ec11",
+      "styles": [
+        "Hook",
+        "Karaoke"
+      ],
+      "warnings": [
+        "unsafe_zone"
+      ]
+    },
+    "word_edits__c30": {
+      "bytes": 4902,
+      "cues": 45,
+      "dialogues": 47,
+      "equals_committed": true,
+      "hook_lines": 2,
+      "rendered": {
+        "1115": {
+          "md5": "9cf7c2169b035c1576e79702eba99ae7",
+          "visible": true
+        },
+        "5": {
+          "md5": "258483fc42e56f3d6172dc30d406e6ae",
+          "visible": true
+        },
+        "8": {
+          "md5": "c000af123749a87b20372b457370ed1e",
+          "visible": true
+        }
+      },
+      "sha256": "a8d9882ab5a10bf39edd90663b3321286e91292553f5ec2940810100108a4594",
+      "styles": [
+        "Hook",
+        "Karaoke"
+      ],
+      "warnings": [
+        "unsafe_zone"
+      ]
+    }
+  },
+  "styles_covered": [
+    "Bold",
+    "Box",
+    "Caption",
+    "Hook",
+    "Karaoke"
+  ],
+  "task": "T1.2a",
+  "toolchain": {
+    "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "fontconfig": "2.14.1-4",
+    "libass9": "1:0.17.1-1+deb12u1",
+    "libfreetype6": "2.12.1+dfsg-5+deb12u4",
+    "libfribidi0": "1.0.8-2.1",
+    "libharfbuzz0b": "6.0.0+dfsg-3",
+    "python": "3.11.2",
+    "reference_toolchain_problem": null
+  }
+}

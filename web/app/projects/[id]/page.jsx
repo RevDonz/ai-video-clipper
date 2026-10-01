@@ -4,6 +4,7 @@ import { use, useEffect, useRef, useState } from "react";
 
 import AppHeader from "../../../components/AppHeader.jsx";
 import TrendChips from "../../../components/trends/TrendChips.jsx";
+import { clipEntryFor, loadClipEntries } from "../../../lib/clip-entry-view.mjs";
 import {
   clipLabel,
   failureDetail,
@@ -86,7 +87,25 @@ function ScoreBlock({ score }) {
   );
 }
 
-function ClipCard({ clip, job, copied, onCopy }) {
+// The editor entry of a clip (POTONGIN_EDITOR_V3=on): "Edit klip" on every clip that can be
+// edited, including one whose job was never prepared (the editor prepares it on open), else the
+// reason it cannot be edited (also for a clip the listing does not name); plus the latest export
+// of an edited clip.
+function EditorEntry({ entry }) {
+  if (!entry) return null;
+  const latest = entry.latestExport;
+  return (
+    <>
+      {entry.editHref
+        ? <a className={`btn ${styles.edit}`} href={entry.editHref}>Edit klip</a>
+        : entry.reasonText && <span className={styles.editNote}>{entry.reasonText}</span>}
+      {latest?.href && <a className="btn ghost" href={latest.href} download={latest.filename || true}>{latest.label}</a>}
+      {latest && !latest.href && <span className={styles.editNote}>{latest.label}</span>}
+    </>
+  );
+}
+
+function ClipCard({ clip, job, copied, onCopy, entry = null }) {
   const label = clipLabel(clip);
   const titleId = `clip-${clip.index}-title`;
   const score = clipScoreView(clip);
@@ -108,6 +127,7 @@ function ClipCard({ clip, job, copied, onCopy }) {
           {archetype && <span className="chip">{archetype}</span>}
           {coldOpen !== null && <span className="chip">Dibuka kalimat terkuat · {formatTenths(coldOpen)} dtk</span>}
           {focusChip && <span className={`${focusStyles.chip} ${focusStyles[focusChip.tone]}`} data-focus={focusChip.tone}>{focusChip.label}</span>}
+          {entry?.editBadge?.tone === "edited" && <span className="chip info">{entry.editBadge.text}</span>}
         </div>
         <h3 id={titleId}>{clip.title || label}</h3>
         {clip.hookText && <p className={styles.hook}><span>Teks hook</span>{clip.hookText}</p>}
@@ -134,6 +154,7 @@ function ClipCard({ clip, job, copied, onCopy }) {
         </section>
 
         <div className={styles.actions}>
+          <EditorEntry entry={entry} />
           <a className="btn" href={clip.downloadUrl}>Unduh MP4</a>
           {clip.subtitleUrl && <a className="btn ghost" href={clip.subtitleUrl} aria-label={`Unduh subtitle SRT ${label}`}>Subtitle SRT</a>}
           {from && to && <span className={styles.sourceRange}>Di video sumber: {from} sampai {to}</span>}
@@ -143,14 +164,15 @@ function ClipCard({ clip, job, copied, onCopy }) {
   );
 }
 
-function ClipsSection({ job, copyState, onCopy }) {
+function ClipsSection({ job, copyState, onCopy, entries }) {
   const clips = Array.isArray(job.clips) ? job.clips : [];
   if (clips.length) {
     return (
-      <section className={styles.clips} aria-labelledby="clips-title">
+      <section id="klip" className={styles.clips} aria-labelledby="clips-title">
         <h2 id="clips-title">{job.status === "completed" ? `${clips.length} klip siap diunggah` : `${clips.length} klip`}</h2>
         <div className={styles.clipList}>
-          {clips.map((clip) => <ClipCard key={clip.index} clip={clip} job={job} copied={copyState.index === clip.index ? copyState.status : ""} onCopy={onCopy} />)}
+          {clips.map((clip) => <ClipCard key={clip.index} clip={clip} job={job} copied={copyState.index === clip.index ? copyState.status : ""} onCopy={onCopy}
+            entry={clipEntryFor(entries, job, clip.index)} />)}
         </div>
       </section>
     );
@@ -165,7 +187,7 @@ function ClipsSection({ job, copyState, onCopy }) {
   );
 }
 
-function ProjectView({ job, copyState, onCopy }) {
+function ProjectView({ job, copyState, onCopy, entries }) {
   const active = isActiveStatus(job.status);
   const progress = projectProgress(job);
   const notices = selectionNotices(job);
@@ -216,7 +238,7 @@ function ProjectView({ job, copyState, onCopy }) {
         </details>
       )}
       <FocusSummary job={job} />
-      <ClipsSection job={job} copyState={copyState} onCopy={onCopy} />
+      <ClipsSection job={job} copyState={copyState} onCopy={onCopy} entries={entries} />
     </div>
   );
 }
@@ -228,7 +250,9 @@ export default function ProjectPage({ params }) {
   const [error, setError] = useState(null);
   const [generation, setGeneration] = useState(0);
   const [copyState, setCopyState] = useState({ index: null, status: "" });
+  const [entries, setEntries] = useState(() => ({ state: "idle", byIndex: new Map() }));
   const copyTimer = useRef(null);
+  const editable = job?.status === "completed" && Array.isArray(job?.clips) && job.clips.length > 0;
 
   useEffect(() => () => {
     if (copyTimer.current !== null) clearTimeout(copyTimer.current);
@@ -274,6 +298,23 @@ export default function ProjectPage({ params }) {
     if (job) document.title = `${projectName(job)} · Potongin`;
   }, [job]);
 
+  // The editor entries come from the clips listing, which answers only when the editor is on (a
+  // 404 leaves the cards as they are).
+  useEffect(() => {
+    if (!editable) return undefined;
+    const controller = new AbortController();
+    let active = true;
+    loadClipEntries(id, { signal: controller.signal }).then((result) => {
+      if (!active) return;
+      if (result.state === "redirect") window.location.assign(result.location);
+      else setEntries(result);
+    }).catch(() => {});
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [id, editable, generation]);
+
   const copyCaption = async (clip) => {
     let status = "copied";
     try {
@@ -308,7 +349,7 @@ export default function ProjectPage({ params }) {
           </div>
         </section>
       )}
-      {!loading && job && <ProjectView job={job} copyState={copyState} onCopy={copyCaption} />}
+      {!loading && job && <ProjectView job={job} copyState={copyState} onCopy={copyCaption} entries={entries} />}
     </main>
   );
 }

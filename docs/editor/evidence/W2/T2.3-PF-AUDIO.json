@@ -1,0 +1,59 @@
+{
+  "gate": "PF-AUDIO",
+  "runs": {
+    "image-ffmpeg-5.1.9": {
+      "clip_seconds": 90.0,
+      "environment": {
+        "cpu_quota": 6.0,
+        "cpus_visible": 16,
+        "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+        "loadavg": [
+          4.73,
+          12.67,
+          16.27
+        ],
+        "python": "3.11.2"
+      },
+      "gate_wall_s": 78.1,
+      "pass": false,
+      "speech_only_failures": 0,
+      "speech_only_ms": {
+        "max": 929.1,
+        "min": 861.1,
+        "n": 10,
+        "p50": 907.8,
+        "p95": 929.1
+      },
+      "speech_only_stages_ms": {
+        "compile_preview": 108.6,
+        "ffmpeg_preview_flac": 457.0,
+        "imports": 58.3,
+        "plan": 20.3,
+        "process_other": 59.2,
+        "total": 702.6,
+        "validate": 1.5
+      },
+      "threshold_ms": 1000,
+      "with_music_failures": 0,
+      "with_music_ms": {
+        "max": 2148.4,
+        "min": 1906.5,
+        "n": 16,
+        "p50": 1991.1,
+        "p95": 2086.3
+      },
+      "with_music_stages_ms": {
+        "compile_measure_incl_ffprobe": 147.1,
+        "compile_preview": 49.9,
+        "ffmpeg_measure": 712.1,
+        "ffmpeg_preview_flac": 562.3,
+        "imports": 55.5,
+        "plan": 22.9,
+        "process_other": 66.8,
+        "total": 1616.7,
+        "validate": 1.6
+      }
+    }
+  },
+  "task": "T2.3"
+}

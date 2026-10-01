@@ -1,0 +1,35 @@
+{
+ "cases": 40,
+ "checks": 2220,
+ "code_commit": "716a050",
+ "environment": {
+  "cpus": 16,
+  "loadavg_1_5_15": [
+   11.78,
+   15.92,
+   15.44
+  ],
+  "machine": "x86_64",
+  "node": "v22.23.2"
+ },
+ "expected_checks": 2220,
+ "gate": "timemap.mjs equals the time-map vectors (>= 500)",
+ "mismatches": 0,
+ "pass": true,
+ "scalar_checks": {
+  "cell_frames": 8,
+  "div_round_half_up": 16,
+  "logo_box": 16,
+  "now_ms": 335,
+  "safe_cs": 335,
+  "sf_ceil": 212,
+  "sf_floor": 212,
+  "smp": 144
+ },
+ "threshold": {
+  "min_checks": 500,
+  "mismatches": 0
+ },
+ "tool": "scripts/edit_v2/crosscheck_commands.mjs timemap",
+ "vectors": "tests/fixtures/edit_v2/timemap-vectors.json"
+}

@@ -40,9 +40,25 @@ The web app shows only the current method. The old candidate editor and its rout
 (`/projects/<id>/candidates/...`, `/api/jobs/<id>/candidates/...`,
 `/api/jobs/<id>/candidate-feedback`, `/api/jobs/<id>/preview-source`) were retired on
 2026-09-30: old links open the project page, and projects made with the older selection
-modes still show and serve their rendered clips. The Python modules behind those routes
-stay in `src/ai_clipper`; so does the render status route `/api/jobs/<id>/renders/<renderId>`,
-which the new editor extends.
+modes still show and serve their rendered clips.
+
+Its backend is gone too (2026-10-02): the Python modules `editor_api`, `edit_manifest`,
+`render_manifest`, `candidate_api`, `candidate_cues` and `candidate_feedback`, the candidate
+render requests (`render-request-v1`/`-v2`) of `render_queue` and `render_worker` with the
+queue's `--job-dir` protocol, and `web/lib/render-requests.mjs`. What old jobs need stays:
+
+- their clips, subtitles and an export the old editor made (`output/edits/cand_*/…`) download
+  through `/api/jobs/<id>/files/...`; `/api/jobs/<id>/renders/<renderId>` answers 404 for an
+  old editor's render request;
+- the files the old editor left in a job (`analysis/edits`, `analysis/render-inputs`, old
+  `analysis/render-requests/*.json`) are never rewritten; the render worker never claims an old
+  request, and its storage reservation is released;
+- the older selection code still runs queued or retried old jobs (`--selection-mode v1` and
+  `v2-shadow`) and the benchmark baselines (`v1`, `v2-*`); the offline V1-versus-V2 report
+  (`python -m ai_clipper.evaluation`) still reads the old editor's accept/reject feedback.
+
+The storage helpers the clip editor shared with the old store now live in
+`src/ai_clipper/job_files.py`. Details: `docs/editor/GATES.md`, section "W4 T4.1".
 
 ## Verified result
 
@@ -220,6 +236,37 @@ mentions it left out (the focus top-up). The episode's opening (teaser montage, 
 greeting) never counts for the focus. Each clip gets
 `focus: {match, terms, at}` and the summary `focus: {terms, matched, requested}`. Without focus
 terms every output is unchanged.
+
+## Editor klip
+
+**Bahasa Indonesia.** Tombol **Edit klip** di setiap klip membuka editor (desktop, Chrome atau
+Edge, layar ≥ 1024 px): potong lewat transkrip, rapikan kata pengisi dan jeda, perbaiki
+caption, pilih gaya caption dan teks hook (dengan saran), cold open, tata letak (latar blur,
+ikuti wajah, potong tengah), logo, musik dengan ducking, lalu ekspor MP4 + SRT. Pratinjau
+memakai kompiler yang sama dengan ekspor; tanda **"Sesuai hasil akhir"** berarti frame, waktu
+teks, gambar teks dan audio yang terlihat sama dengan file akhir, kecuali kompresi MP4.
+
+- Memakai editor dan arti setiap tanda: [`docs/editor/PANDUAN-EDITOR.md`](docs/editor/PANDUAN-EDITOR.md).
+- Flag (`POTONGIN_EDITOR_V3`, `POTONGIN_EDITOR_UPLOADS`, `POTONGIN_EDITOR_LLM`,
+  `POTONGIN_RENDER_ENGINE`), layanan, toolchain render yang dikunci, gerbang CI dan lisensi:
+  [`docs/editor/OPERASIONAL.md`](docs/editor/OPERASIONAL.md). Bawaan rilis di `compose.yaml`:
+  editor, unggahan dan saran AI `on`, mesin render `edit-v2`; tiap flag bisa dimatikan lewat
+  `.env` tanpa build ulang (OPERASIONAL §2).
+- Hasil gerbang: [`docs/editor/GATES.md`](docs/editor/GATES.md); kontrak:
+  [`docs/editor/CONTRACTS.md`](docs/editor/CONTRACTS.md); rencana:
+  [`docs/plans/2026-09-24-editor-v3-esensial.md`](docs/plans/2026-09-24-editor-v3-esensial.md).
+- Lisensi pihak ketiga (JASSUB, Mediabunny, font): halaman `/licenses`.
+
+**English.** The clip editor edits a `clip-edit-v2` document (cuts from the transcript,
+captions, hook, cold open, layout, logo, ducked music) and renders it with the same FFmpeg
+compiler the preview uses. CI checks preview/export parity on every pull request: inside the
+production image, P-TIME, a P-TXT subset, a 300-frame P-FRAME, G-DET, P-AUD and R10
+(`scripts/parity/run_all.sh smoke`), then the JASSUB side in Chrome for Testing 147.0.7727.15
+against that image's app. A nightly run measures the full parity suite (P-ENC and P-COLOR
+included) and writes a performance report. `scripts/parity/toolchain_guard.py` fails a pull
+request that changes the pinned rendering toolchain (the Dockerfile pins behind
+`toolchain.json`) or the JASSUB pin without fresh, stamped P-TIME/P-TXT/P-ENC/P-COLOR/P-RT
+evidence (`gh workflow run ci-cd.yml --ref <branch> -f suite=toolchain`).
 
 ## What is real today
 

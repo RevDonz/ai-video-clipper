@@ -1,0 +1,73 @@
+{
+  "attack_ms": 30,
+  "depth_db": 10.0,
+  "failures": 0,
+  "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+  "gate": "duck",
+  "harness": "support.edit_v2_audio_harness (audio-only graph, until compile_job)",
+  "hold_ms": 250,
+  "plan_samples": 960960,
+  "recovery_checks": 5,
+  "recovery_tolerance_db": 1.0,
+  "reference_toolchain_problem": null,
+  "release_ms": 400,
+  "samples": 960960,
+  "spans": [
+    {
+      "max_deviation_db": 0.0,
+      "recovery_db": 0.0,
+      "span": [
+        48048,
+        86486
+      ],
+      "windows": 105
+    },
+    {
+      "max_deviation_db": 0.0,
+      "recovery_db": null,
+      "span": [
+        144144,
+        172972
+      ],
+      "windows": 85
+    },
+    {
+      "max_deviation_db": 0.0,
+      "recovery_db": 0.0,
+      "span": [
+        187387,
+        206606
+      ],
+      "windows": 65
+    },
+    {
+      "max_deviation_db": 0.0,
+      "recovery_db": 0.0,
+      "span": [
+        336336,
+        384384
+      ],
+      "windows": 125
+    },
+    {
+      "max_deviation_db": 0.0,
+      "recovery_db": 0.0,
+      "span": [
+        480480,
+        482081
+      ],
+      "windows": 28
+    },
+    {
+      "max_deviation_db": 0.0,
+      "recovery_db": 0.0,
+      "span": [
+        672672,
+        792792
+      ],
+      "windows": 275
+    }
+  ],
+  "tolerance_db": 0.5,
+  "window_samples": 480
+}

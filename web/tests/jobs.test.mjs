@@ -89,6 +89,22 @@ test("public old jobs advertise V1 without leaking sourcePath", () => {
   assert.equal(result.options.renderMode, "fit-blur");
 });
 
+test("public jobs pass the editor clip id and render engine only when well formed", () => {
+  const clip = {
+    index: 1, score: 8, start: 10, end: 40, duration: 30, text: "Klip", title: "Judul", hookText: "Hook",
+    selectionSource: "llm", clipId: "clip_00112233445566778899aabb", renderEngine: "edit-v2/1",
+  };
+  const job = { id: "923e4567-e89b-42d3-a456-426614174000", options: { selectionMode: "v3" }, clips: [clip] };
+  const result = serializePublicJob(job);
+  assert.equal(result.clips[0].clipId, "clip_00112233445566778899aabb");
+  assert.equal(result.clips[0].renderEngine, "edit-v2/1");
+  const hostile = serializePublicJob({ ...job, clips: [{ ...clip, clipId: "clip_<script>", renderEngine: "rm -rf" }] });
+  assert.equal(hostile.clips[0].clipId, undefined);
+  assert.equal(hostile.clips[0].renderEngine, undefined);
+  assert.equal(hostile.clips[0].title, "Judul");
+  assert.doesNotMatch(JSON.stringify(hostile), /<script>|rm -rf/);
+});
+
 test("public jobs re-sanitize Selection V2 summaries and omit invalid values", () => {
   const raw = {
     mode: "v2-shadow", status: "failed", analysis_id: "0123456789abcdef0123456789abcdef",

@@ -1,0 +1,326 @@
+{
+  "schema": "potongin.gate/1",
+  "task": "T3.1",
+  "gate": "ingest p95 (plan §11.3 T3.1): <= 2 s per image, <= 8 s per 5-minute track",
+  "method": "python -m ai_clipper.edit_v2.assets ingest, one process per upload as the route spawns it (start-up, hashing, probe, normalise, store); the stored asset removed after each run so every run writes",
+  "image": {
+    "samples": 60,
+    "p50Ms": 722,
+    "p95Ms": 1091,
+    "maxMs": 1098,
+    "limitMs": 2000,
+    "pass": true
+  },
+  "track5min": {
+    "samples": 25,
+    "p50Ms": 5886,
+    "p95Ms": 5989,
+    "maxMs": 5991,
+    "limitMs": 8000,
+    "pass": true
+  },
+  "inputs": [
+    {
+      "input": "PNG 1024x1024 RGBA",
+      "kind": "logo",
+      "class": "image",
+      "bytes": 107457,
+      "samplesMs": [
+        241,
+        244,
+        242,
+        244,
+        245,
+        242,
+        244,
+        244,
+        243,
+        242
+      ],
+      "normalised": {
+        "w": 1024,
+        "h": 1024,
+        "durationMs": null,
+        "lufsC": null
+      },
+      "runs": 10,
+      "p50Ms": 243,
+      "p95Ms": 245,
+      "maxMs": 245
+    },
+    {
+      "input": "PNG 1600x1600 RGBA noisy",
+      "kind": "logo",
+      "class": "image",
+      "bytes": 6305902,
+      "samplesMs": [
+        726,
+        730,
+        727,
+        728,
+        726,
+        725,
+        725,
+        727,
+        727,
+        728
+      ],
+      "normalised": {
+        "w": 1024,
+        "h": 1024,
+        "durationMs": null,
+        "lufsC": null
+      },
+      "runs": 10,
+      "p50Ms": 727,
+      "p95Ms": 730,
+      "maxMs": 730
+    },
+    {
+      "input": "JPEG 4000x3000 EXIF 6",
+      "kind": "logo",
+      "class": "image",
+      "bytes": 6059043,
+      "samplesMs": [
+        767,
+        716,
+        716,
+        716,
+        717,
+        733,
+        743,
+        715,
+        717,
+        717
+      ],
+      "normalised": {
+        "w": 768,
+        "h": 1024,
+        "durationMs": null,
+        "lufsC": null
+      },
+      "runs": 10,
+      "p50Ms": 717,
+      "p95Ms": 767,
+      "maxMs": 767
+    },
+    {
+      "input": "JPEG 4096x4096",
+      "kind": "logo",
+      "class": "image",
+      "bytes": 6765574,
+      "samplesMs": [
+        722,
+        726,
+        725,
+        773,
+        724,
+        725,
+        720,
+        721,
+        723,
+        722
+      ],
+      "normalised": {
+        "w": 1024,
+        "h": 1024,
+        "durationMs": null,
+        "lufsC": null
+      },
+      "runs": 10,
+      "p50Ms": 723,
+      "p95Ms": 773,
+      "maxMs": 773
+    },
+    {
+      "input": "WebP 3000x2000",
+      "kind": "logo",
+      "class": "image",
+      "bytes": 2651390,
+      "samplesMs": [
+        1090,
+        1093,
+        1091,
+        1092,
+        1090,
+        1091,
+        1091,
+        1098,
+        1091,
+        1091
+      ],
+      "normalised": {
+        "w": 1024,
+        "h": 683,
+        "durationMs": null,
+        "lufsC": null
+      },
+      "runs": 10,
+      "p50Ms": 1091,
+      "p95Ms": 1098,
+      "maxMs": 1098
+    },
+    {
+      "input": "WebP 512x512 lossless alpha",
+      "kind": "logo",
+      "class": "image",
+      "bytes": 16808,
+      "samplesMs": [
+        239,
+        237,
+        238,
+        239,
+        238,
+        238,
+        242,
+        238,
+        237,
+        240
+      ],
+      "normalised": {
+        "w": 512,
+        "h": 512,
+        "durationMs": null,
+        "lufsC": null
+      },
+      "runs": 10,
+      "p50Ms": 238,
+      "p95Ms": 242,
+      "maxMs": 242
+    },
+    {
+      "input": "MP3 320k 44.1k stereo 5 min",
+      "kind": "music",
+      "class": "track5min",
+      "bytes": 12002787,
+      "samplesMs": [
+        5938,
+        5939,
+        5938,
+        5991,
+        5989
+      ],
+      "normalised": {
+        "w": null,
+        "h": null,
+        "durationMs": 300010,
+        "lufsC": -1880
+      },
+      "runs": 5,
+      "p50Ms": 5939,
+      "p95Ms": 5991,
+      "maxMs": 5991
+    },
+    {
+      "input": "M4A AAC 256k 5 min",
+      "kind": "music",
+      "class": "track5min",
+      "bytes": 8320646,
+      "samplesMs": [
+        5838,
+        5837,
+        5949,
+        5897,
+        5889
+      ],
+      "normalised": {
+        "w": null,
+        "h": null,
+        "durationMs": 300010,
+        "lufsC": -1880
+      },
+      "runs": 5,
+      "p50Ms": 5889,
+      "p95Ms": 5949,
+      "maxMs": 5949
+    },
+    {
+      "input": "FLAC 44.1k stereo 5 min",
+      "kind": "music",
+      "class": "track5min",
+      "bytes": 17513689,
+      "samplesMs": [
+        5693,
+        5790,
+        5745,
+        5845,
+        5796
+      ],
+      "normalised": {
+        "w": null,
+        "h": null,
+        "durationMs": 300010,
+        "lufsC": -1880
+      },
+      "runs": 5,
+      "p50Ms": 5790,
+      "p95Ms": 5845,
+      "maxMs": 5845
+    },
+    {
+      "input": "Ogg Vorbis q6 5 min",
+      "kind": "music",
+      "class": "track5min",
+      "bytes": 4899608,
+      "samplesMs": [
+        5892,
+        5886,
+        5889,
+        5932,
+        5942
+      ],
+      "normalised": {
+        "w": null,
+        "h": null,
+        "durationMs": 300010,
+        "lufsC": -1880
+      },
+      "runs": 5,
+      "p50Ms": 5892,
+      "p95Ms": 5942,
+      "maxMs": 5942
+    },
+    {
+      "input": "WAV 48k mono 5 min",
+      "kind": "music",
+      "class": "track5min",
+      "bytes": 28800078,
+      "samplesMs": [
+        5604,
+        5610,
+        5610,
+        5609,
+        5605
+      ],
+      "normalised": {
+        "w": null,
+        "h": null,
+        "durationMs": 300010,
+        "lufsC": -1880
+      },
+      "runs": 5,
+      "p50Ms": 5609,
+      "p95Ms": 5610,
+      "maxMs": 5610
+    }
+  ],
+  "pass": true,
+  "stack": "GitHub Actions ubuntu-latest runner (4 vCPU; timings indicative), production image, ffmpeg version 5.1.9-0+deb12u1, Python 3.11.2",
+  "toolchain": {
+    "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "python": "3.11.2",
+    "machine": "x86_64",
+    "cpus": 4,
+    "load": [
+      1.1,
+      0.8,
+      0.4
+    ]
+  },
+  "w3z": {
+    "ci_run": 36860568957,
+    "commit": "24f3d02",
+    "where": "GitHub Actions editor-gates.yml suite=command, production image (FFmpeg 5.1.9, Python 3.11.2, Node 20), 4 vCPU runner; timings indicative",
+    "script": "scripts/editor/w3_exit_gates.sh"
+  }
+}

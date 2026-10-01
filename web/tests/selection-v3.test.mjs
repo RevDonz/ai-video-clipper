@@ -670,6 +670,25 @@ test("project page: focus line and per-clip focus labels come from the view help
   assert.doesNotMatch(source, /dangerouslySetInnerHTML/);
 });
 
+test("project page: each card shows the focus chip, the trend chips and the editor entry together", async () => {
+  const source = await readFile(new URL("../app/projects/[id]/page.jsx", import.meta.url), "utf8");
+  const card = /function ClipCard\(\{ clip, job, copied, onCopy, entry = null \}\) \{([\s\S]*?)\n\}\n/.exec(source);
+  assert.ok(card, "ClipCard takes the job (focus) and the editor entry");
+  const body = card[1];
+  const focusChip = body.indexOf("{focusChip && <span");
+  const edited = body.indexOf("{entry?.editBadge?.tone === \"edited\"");
+  const title = body.indexOf("<h3 id={titleId}>");
+  const trends = body.indexOf("{trendChips.length > 0 && <TrendChips chips={trendChips} />}");
+  const entry = body.indexOf("<EditorEntry entry={entry} />");
+  assert.ok(focusChip > 0 && title > focusChip, "the focus chip is in the badge row above the title");
+  assert.ok(edited > focusChip && edited < title, "the edit badge sits in the same row");
+  assert.ok(trends > title && entry > trends, "the editor entry follows the trend chips");
+  assert.ok(entry < body.indexOf("Unduh MP4"), "'Edit klip' is the first action of the card");
+  // The focus line comes before the cards.
+  const section = source.indexOf("<FocusSummary job={job} />");
+  assert.ok(section > 0 && section < source.indexOf("<ClipsSection "));
+});
+
 // --- LLM status -------------------------------------------------------------------
 
 const SECRET_ENV = {
@@ -892,6 +911,114 @@ test("a V3 YouTube job without any captions runs Whisper (no --captions-dir) and
   assert.equal(persisted.status, "completed");
   const argv = JSON.parse(await readFile(path.join(jobRoot, "output", "argv.json"), "utf8"));
   assert.ok(!argv.includes("--captions-dir"));
+});
+
+// --- Render engine (Editor V3 T2.1, plan §5.8) ------------------------------------
+
+const CLIP_ID = "clip_0123456789abcdef01234567";
+
+test("manifest clip_id and render_engine pass through as clipId and renderEngine", () => {
+  const clip = jobClipFromManifest({
+    ...MANIFEST_CLIP, clip_id: CLIP_ID, render_engine: "edit-v2/1", render_key: "a".repeat(64), plan_sha256: "b".repeat(64),
+  }, JOB_ID);
+  assert.equal(clip.clipId, CLIP_ID);
+  assert.equal(clip.renderEngine, "edit-v2/1");
+  // The render key and plan sha stay on the server (the editor reads them from the engine).
+  assert.equal(clip.renderKey, undefined);
+  assert.equal(clip.planSha256, undefined);
+  assert.equal(clip.render_key, undefined);
+  const fallback = jobClipFromManifest({ ...MANIFEST_CLIP, clip_id: CLIP_ID, render_engine: "legacy", render_key: null }, JOB_ID);
+  assert.equal(fallback.renderEngine, "legacy");
+  assert.equal(fallback.clipId, CLIP_ID);
+  const unseeded = jobClipFromManifest({ ...MANIFEST_CLIP, clip_id: null, render_engine: "legacy" }, JOB_ID);
+  assert.equal(unseeded.clipId, undefined);
+  assert.equal(unseeded.renderEngine, "legacy");
+  // Today's manifests (legacy engine) keep exactly the historical job clip shape.
+  assert.deepEqual(jobClipFromManifest(MANIFEST_CLIP, JOB_ID), jobClipFromManifest({ ...MANIFEST_CLIP }, JOB_ID));
+  assert.equal("clipId" in jobClipFromManifest(MANIFEST_CLIP, JOB_ID), false);
+  assert.equal("renderEngine" in jobClipFromManifest(MANIFEST_CLIP, JOB_ID), false);
+});
+
+test("malformed clip ids and render engines are dropped, never coerced", () => {
+  const cases = [
+    ["clip_XYZ", "edit-v2/2"],
+    ["clip_0123456789ABCDEF01234567", "Legacy"],
+    [`${CLIP_ID}0`, "edit-v2"],
+    [`../${CLIP_ID}`, "edit-v2/1 "],
+    [` ${CLIP_ID}`, " legacy"],
+    [42, ["legacy"]],
+    [{ id: CLIP_ID }, { engine: "legacy" }],
+    [`${CLIP_ID}\n`, "legacy\u0000"],
+  ];
+  for (const [clipId, engine] of cases) {
+    const clip = jobClipFromManifest({ ...MANIFEST_CLIP, clip_id: clipId, render_engine: engine }, JOB_ID);
+    assert.equal(clip.clipId, undefined, JSON.stringify(clipId));
+    assert.equal(clip.renderEngine, undefined, JSON.stringify(engine));
+    assert.deepEqual(sanitizeManifestClipFields({ clip_id: clipId, render_engine: engine }), {});
+  }
+  assert.deepEqual(sanitizeManifestClipFields({ clip_id: CLIP_ID, render_engine: "edit-v2/1" }), {
+    clipId: CLIP_ID, renderEngine: "edit-v2/1",
+  });
+});
+
+test("stored clips re-validate clipId and renderEngine before they are served", () => {
+  const packaged = jobClipFromManifest({ ...MANIFEST_CLIP, clip_id: CLIP_ID, render_engine: "edit-v2/1" }, JOB_ID);
+  const publicJob = serializePublicJob({
+    id: JOB_ID, options: V3,
+    clips: [packaged, { ...packaged, clipId: "clip_bad", renderEngine: "edit-v9/1" }, { ...packaged, clipId: undefined, renderEngine: "legacy" }],
+  });
+  assert.deepEqual(publicJob.clips[0], packaged);
+  assert.equal(publicJob.clips[1].clipId, undefined);
+  assert.equal(publicJob.clips[1].renderEngine, undefined);
+  assert.equal(publicJob.clips[1].title, packaged.title);
+  assert.equal(publicJob.clips[2].renderEngine, "legacy");
+  assert.equal(sanitizeStoredClip({ index: 1, text: "Klip lama", clipId: "clip_bad" }, JOB_ID).clipId, undefined);
+});
+
+test("no view names the render engine of a clip (latest only)", async () => {
+  const view = await import("../lib/selection-v3-view.mjs");
+  assert.equal("renderEngineView" in view, false);
+  const entry = await readFile(new URL("../lib/clip-entry-view.mjs", import.meta.url), "utf8");
+  assert.doesNotMatch(entry, /engineLegacy|mesin (?:lama|baru)/i);
+});
+
+// --- Where the engine meets Konteks Tren and Fokus klip (the W3 base on main) --------------
+
+const CONTEXT_TREND = { id: "0b6f2c1e-8d7a-4c3b-9f21-6a5e4d3c2b1a", title: "Kabur Aja Dulu", kind: "topic" };
+const CONTEXT_FOCUS = { match: "literal", terms: ["gaji"], at: 101.25 };
+
+test("a V3 clip rendered by the new engine keeps its trends and focus beside clipId and renderEngine", () => {
+  const manifestClip = {
+    ...MANIFEST_CLIP, trends: [CONTEXT_TREND], focus: CONTEXT_FOCUS,
+    clip_id: CLIP_ID, render_engine: "edit-v2/1", render_key: "a".repeat(64), plan_sha256: "b".repeat(64),
+  };
+  const clip = jobClipFromManifest(manifestClip, JOB_ID);
+  const plain = jobClipFromManifest(MANIFEST_CLIP, JOB_ID);
+  assert.deepEqual(clip, { ...plain, trends: [CONTEXT_TREND], focus: CONTEXT_FOCUS, clipId: CLIP_ID, renderEngine: "edit-v2/1" });
+  assert.equal("renderKey" in clip || "planSha256" in clip, false);
+  // The job API serves all four, re-sanitised, and each one is dropped on its own when broken.
+  const job = { id: JOB_ID, options: V3, clips: [clip] };
+  assert.deepEqual(serializePublicJob(job).clips[0], clip);
+  const brokenEditor = serializePublicJob({ ...job, clips: [{ ...clip, clipId: "clip_<b>", renderEngine: "edit-v9/1" }] }).clips[0];
+  assert.deepEqual(brokenEditor, { ...plain, trends: [CONTEXT_TREND], focus: CONTEXT_FOCUS });
+  const brokenContext = serializePublicJob({ ...job, clips: [{ ...clip, trends: [{ id: "x", title: "y", kind: "rumor" }], focus: { match: "kuat" } }] }).clips[0];
+  assert.deepEqual(brokenContext, { ...plain, clipId: CLIP_ID, renderEngine: "edit-v2/1" });
+  // A fallback clip (engine_fallback) keeps its context too.
+  const fallback = jobClipFromManifest({ ...manifestClip, render_engine: "legacy", render_key: null, plan_sha256: null }, JOB_ID);
+  assert.deepEqual(fallback, { ...clip, renderEngine: "legacy" });
+  assert.deepEqual(sanitizeManifestClipFields({ trends: [CONTEXT_TREND], focus: CONTEXT_FOCUS, clip_id: CLIP_ID, render_engine: "legacy" }), {
+    trends: [CONTEXT_TREND], focus: CONTEXT_FOCUS, clipId: CLIP_ID, renderEngine: "legacy",
+  });
+});
+
+test("a V3 summary keeps its focus and the engine fallback codes side by side", () => {
+  const summary = sanitizeSelectionV3Summary({
+    mode: "v3", status: "completed", source: "llm", provider: "groq", model: "m", prompt_version: "llm-select-v2+trends.v1+focus.v1",
+    warnings: ["focus_few_matches:1", "engine_fallback:3", "trend_ref_ungrounded:1"], artifact: "analysis/selection.v3.json",
+    transcript_source: "whisper", focus: { terms: ["gaji"], matched: 1, requested: 3 },
+  });
+  assert.deepEqual(summary.warnings, ["focus_few_matches:1", "engine_fallback:3", "trend_ref_ungrounded:1"]);
+  assert.deepEqual(summary.focus, { terms: ["gaji"], matched: 1, requested: 3 });
 });
 
 test("V1 and V2 YouTube jobs never fetch captions", async () => {

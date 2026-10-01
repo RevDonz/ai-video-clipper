@@ -1,0 +1,18 @@
+{
+  "schema": "potongin.gate/1",
+  "gate": "QG-UX U2 (scripted, real stack)",
+  "browser": "Chrome for Testing 147.0.7727.15",
+  "executable": "chromium-1217",
+  "viewport": "1366x768",
+  "removedMs": 5281,
+  "words": 14,
+  "elapsedMs": 2930,
+  "limitMs": 20000,
+  "pass": true,
+  "w3z": {
+    "where": "owner's PC (K15 reference PC), one browser, alone: web/e2e/editor-flow.spec.mjs, 20 passed",
+    "app": "the standalone app of the production image built by CI run 36861153869 (node server.js), POTONGIN_EDITOR_V3=on, POTONGIN_EDITOR_UPLOADS=on, POTONGIN_EDITOR_LLM off, render worker niced",
+    "job": "a fresh copy of the owner's job e7f0d37b (fit-blur, 3 clips, never prepared); the original only read",
+    "toolchain_note": "local system FFmpeg 6.1.1 for renders; the image of record's gates ran on CI"
+  }
+}

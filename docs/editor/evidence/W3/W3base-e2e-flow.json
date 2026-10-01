@@ -1,0 +1,97 @@
+{
+  "browser": "Chrome for Testing 147.0.7727.15",
+  "clipDurationMs": 48799,
+  "edited": {
+    "completedBy": "render",
+    "renderMs": 27637,
+    "revision": 1,
+    "verify": {
+      "frames": 1096,
+      "gates": [
+        {
+          "blocking": true,
+          "name": "G1",
+          "ok": true
+        },
+        {
+          "blocking": true,
+          "name": "G2",
+          "ok": true
+        },
+        {
+          "blocking": false,
+          "name": "G5",
+          "ok": false
+        }
+      ],
+      "ok": true,
+      "samples": 2194192
+    }
+  },
+  "executable": "chromium-1217",
+  "gate": "e2e flow (plan §11.2 T2.Z)",
+  "pass": true,
+  "r10": {
+    "bytesEqual": true,
+    "completedBy": "seed",
+    "createdStatus": 200,
+    "sameInode": true
+  },
+  "schema": "potongin.gate/1",
+  "stack": "ai-video-clipper:editor-w3base (FFmpeg 5.1.9, Python 3.11.2, toolchain.json sha 4fefb754…85f0, the same as editor-w2r2): app --cpus 6, render worker --cpus 4, copies of the owner's jobs e7f0d37b (fit-blur, 3 clips) and 860fef1a (face-track, 8 clips, PF-OPEN)",
+  "steps": [
+    {
+      "ms": 1013,
+      "name": "open"
+    },
+    {
+      "ms": 96,
+      "name": "trim"
+    },
+    {
+      "ms": 198,
+      "name": "delete words"
+    },
+    {
+      "ms": 94,
+      "name": "fix a word"
+    },
+    {
+      "ms": 240,
+      "name": "switch pack"
+    },
+    {
+      "ms": 17,
+      "name": "edit the hook"
+    },
+    {
+      "ms": 288,
+      "name": "change the cold open"
+    },
+    {
+      "ms": 58,
+      "name": "undo/redo"
+    },
+    {
+      "ms": 969,
+      "name": "reload"
+    },
+    {
+      "ms": 27892,
+      "name": "export"
+    },
+    {
+      "ms": 133,
+      "name": "download"
+    },
+    {
+      "ms": 1935,
+      "name": "undo everything (back to the AI version)"
+    },
+    {
+      "ms": 1667,
+      "name": "export the AI version"
+    }
+  ],
+  "task": "W3 base (rebase onto main 55e4c6c)"
+}

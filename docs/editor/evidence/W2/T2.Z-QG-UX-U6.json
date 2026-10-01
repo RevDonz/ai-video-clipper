@@ -1,0 +1,18 @@
+{
+  "schema": "potongin.gate/1",
+  "gate": "QG-UX U6 (scripted, real stack, real render)",
+  "browser": "Chrome for Testing 147.0.7727.15",
+  "executable": "chromium-1217",
+  "viewport": "1366x768",
+  "clipDurationMs": 89256,
+  "renderMs": 27962,
+  "elapsedMs": 28139,
+  "limitMs": 119256,
+  "load": [
+    4.6,
+    5.5,
+    5.9
+  ],
+  "pass": true,
+  "server": "ai-video-clipper:editor-w2 (app and render-worker containers, --cpus 6 and 4; JOBS_ROOT: a copy of the owner's job e7f0d37b, 23.976 fps, legacy engine)"
+}

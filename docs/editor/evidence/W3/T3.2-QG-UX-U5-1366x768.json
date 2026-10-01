@@ -1,0 +1,51 @@
+{
+  "browser": "147.0.7727.15",
+  "elapsed_ms": 3267,
+  "final_box": {
+    "h": 130,
+    "w": 130,
+    "x": 497,
+    "y": 93
+  },
+  "gate": "QG-UX U5 (logo part, scripted)",
+  "limit_ms": 60000,
+  "note": "harness page: EditorApp on the real store and commands, fake API and upload client; automation speed, the owner times U5 at checkpoint 3",
+  "pass": true,
+  "run": {
+    "axe": null,
+    "browser": "Chrome for Testing 147.0.7727.15 (Playwright 1.62.1, build 1217)",
+    "measured_at": "2026-10-01, after the upload-tracker fix (f628111)",
+    "page": "the harness page (gizmos/__dev__/logo-harness-entry.jsx)"
+  },
+  "steps": [
+    {
+      "ms": 213,
+      "step": "tab"
+    },
+    {
+      "ms": 831,
+      "step": "uploaded"
+    },
+    {
+      "ms": 935,
+      "step": "safe_area"
+    },
+    {
+      "ms": 1272,
+      "step": "sized"
+    },
+    {
+      "ms": 1341,
+      "step": "faded"
+    },
+    {
+      "ms": 3267,
+      "step": "saved"
+    }
+  ],
+  "task": "T3.2",
+  "viewport": {
+    "height": 768,
+    "width": 1366
+  }
+}

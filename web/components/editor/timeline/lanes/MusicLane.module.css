@@ -1,0 +1,28 @@
+/* The music lane (T3.3): the waveform as a quiet fill and the volume curve as the one accented
+   line, so a dip under speech reads at a glance. Colours are editor tokens only. */
+
+.lane {
+  cursor: pointer;
+}
+
+.svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.wave {
+  fill: var(--info);
+  fill-opacity: 0.28;
+  stroke: none;
+}
+
+.envelope {
+  fill: none;
+  stroke: var(--info);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}

@@ -1,0 +1,274 @@
+/* The Musik panel's own pieces (T3.3). Shared controls (switch, button, section) come from
+   panels.module.css; every colour here is an editor token (editor.module.css), so the panel
+   follows the editor's theme. Motion: a short fade for things that appear and colour transitions
+   on the presets, both off under prefers-reduced-motion. */
+
+.panel {
+  min-width: 0;
+}
+
+.card {
+  display: grid;
+  gap: var(--ed-space-2, 8px);
+  padding: var(--ed-space-3, 12px);
+  border: 1px solid var(--border);
+  border-radius: var(--ed-radius-md, 8px);
+  background: var(--surface-2);
+  animation: appear var(--ed-duration-slow, 240ms) ease-out;
+}
+
+.name {
+  margin: 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  margin: 0;
+  font-size: var(--ed-font-size-xs, 11px);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.notice {
+  display: grid;
+  gap: var(--ed-space-2, 8px);
+  padding: var(--ed-space-3, 12px);
+  border: 1px solid var(--warning);
+  border-radius: var(--ed-radius-md, 8px);
+  background: var(--warning-bg);
+  color: var(--warning);
+  animation: appear var(--ed-duration-slow, 240ms) ease-out;
+}
+
+.noticeText {
+  margin: 0;
+  font-size: var(--ed-font-size-sm, 12px);
+  line-height: var(--ed-line-height, 1.45);
+}
+
+.upload {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--ed-space-1, 4px) var(--ed-space-2, 8px);
+}
+
+.uploadText {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: var(--ed-font-size-sm, 12px);
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+.progress {
+  width: 100%;
+  height: 6px;
+  accent-color: var(--text);
+}
+
+.error {
+  margin: 0;
+  padding: 6px 8px;
+  border-radius: var(--ed-radius-sm, 4px);
+  font-size: var(--ed-font-size-sm, 12px);
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+
+.info,
+.hint,
+.status {
+  margin: 0;
+  font-size: var(--ed-font-size-xs, 11px);
+  line-height: var(--ed-line-height, 1.45);
+  color: var(--text-muted);
+}
+
+.status {
+  font-variant-numeric: tabular-nums;
+}
+
+.status[data-loudness] {
+  font-size: var(--ed-font-size-sm, 12px);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.statusBlock {
+  display: grid;
+  gap: var(--ed-space-1, 4px);
+}
+
+.warning {
+  margin: 0;
+  padding: 6px 8px;
+  border-radius: var(--ed-radius-sm, 4px);
+  font-size: var(--ed-font-size-xs, 11px);
+  line-height: var(--ed-line-height, 1.45);
+  color: var(--warning);
+  background: var(--warning-bg);
+  animation: appear var(--ed-duration-slow, 240ms) ease-out;
+}
+
+/* Sliders: the label, the value and an optional action on one line, the range under them. */
+.field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.fieldHead {
+  display: flex;
+  align-items: center;
+  gap: var(--ed-space-2, 8px);
+  min-width: 0;
+  font-size: var(--ed-font-size-sm, 12px);
+}
+
+.label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.value {
+  flex: none;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.range {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--text);
+  border-radius: 999px;
+}
+
+.range:focus-visible {
+  outline: none;
+  box-shadow: var(--ed-focus-ring);
+}
+
+.reset {
+  flex: none;
+  padding: 1px 8px;
+  font: inherit;
+  font-size: var(--ed-font-size-xs, 11px);
+  border: 1px solid var(--border);
+  border-radius: var(--ed-radius-sm, 4px);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.reset:hover:not(:disabled) {
+  border-color: var(--text);
+}
+
+.reset:focus-visible {
+  outline: none;
+  box-shadow: var(--ed-focus-ring);
+}
+
+/* Ducking presets: three equal choices, the chosen one marked by the accent. */
+.duckSet {
+  display: grid;
+  gap: var(--ed-space-2, 8px);
+}
+
+.presets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.preset {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  padding: 8px 4px;
+  text-align: center;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--ed-radius-sm, 4px);
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color var(--ed-duration-fast, 120ms), background-color var(--ed-duration-fast, 120ms);
+}
+
+.preset:hover {
+  border-color: var(--text);
+}
+
+.preset:has(input:checked) {
+  border-color: var(--text);
+  background: var(--surface-3);
+}
+
+.preset:has(input:focus-visible) {
+  box-shadow: var(--ed-focus-ring);
+}
+
+.duckSet:disabled .preset {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.presetName {
+  font-size: var(--ed-font-size-sm, 12px);
+  font-weight: 700;
+}
+
+.presetValue {
+  font-size: var(--ed-font-size-xs, 11px);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.details {
+  border-top: 1px solid var(--border);
+  padding-top: var(--ed-space-2, 8px);
+}
+
+.summary {
+  width: fit-content;
+  padding: 2px 4px;
+  border-radius: var(--ed-radius-sm, 4px);
+  font-size: var(--ed-font-size-sm, 12px);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.summary:focus-visible {
+  outline: none;
+  box-shadow: var(--ed-focus-ring);
+}
+
+.detailBody {
+  display: grid;
+  gap: var(--ed-space-3, 12px);
+  padding-top: var(--ed-space-2, 8px);
+}
+
+@keyframes appear {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .notice,
+  .warning {
+    animation: none;
+  }
+
+  .preset {
+    transition: none;
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "gate": "QG-UX U5 (logo part, scripted)",
+  "task": "T3.2",
+  "limit_ms": 60000,
+  "elapsed_ms": 3003,
+  "pass": true,
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "steps": [
+    {
+      "step": "tab",
+      "ms": 40
+    },
+    {
+      "step": "uploaded",
+      "ms": 1014
+    },
+    {
+      "step": "placed",
+      "ms": 1059
+    },
+    {
+      "step": "sized",
+      "ms": 1110
+    },
+    {
+      "step": "faded",
+      "ms": 1123
+    },
+    {
+      "step": "saved",
+      "ms": 3003
+    }
+  ],
+  "final_box": {
+    "x": 29,
+    "y": 93,
+    "w": 130,
+    "h": 130
+  },
+  "browser": "147.0.7727.15",
+  "note": "harness page: EditorApp on the real store and commands, fake API and upload client; automation speed, the owner times U5 at checkpoint 3"
+}

@@ -1,23 +1,13 @@
-import { requireAuth } from "../../../../../../lib/auth.mjs";
-import {
-  RenderQueueInvalidError, RenderQueueNotFoundError, RenderQueueUnavailableError,
-  isRenderId, isRenderJobId, readRenderRequest, sanitizeRenderStatus,
-} from "../../../../../../lib/render-requests.mjs";
+// GET: status of an export; DELETE: cancel it (plan §4.2, §4.6). Requests of the retired
+// candidate editor answer 404. The handlers live in web/lib/clip-renders.mjs; both methods pass
+// the shared guard of the editor routes first (session, origin, ids, the api bucket, headers).
+import { createRenderStatusRoute } from "../../../../../../lib/clip-renders.mjs";
+import { secureRoute } from "../../../../../../lib/security-headers.mjs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-function response(body, status) { return Response.json(body, { status, headers: { "Cache-Control": "no-store" } }); }
 
-export async function GET(request, { params }) {
-  const denied = requireAuth(request); if (denied) return denied;
-  const { id, renderId } = await params;
-  if (!isRenderJobId(id) || !isRenderId(renderId)) return response({ error: "Render tidak valid", code: "invalid_request" }, 400);
-  try {
-    return response(sanitizeRenderStatus(id, await readRenderRequest(id, renderId)), 200);
-  } catch (error) {
-    if (error instanceof RenderQueueNotFoundError) return response({ error: "Render tidak ditemukan", code: "not_found" }, 404);
-    if (error instanceof RenderQueueInvalidError) return response({ error: "Render tidak valid", code: "invalid_request" }, 400);
-    if (error instanceof RenderQueueUnavailableError) return response({ error: "Layanan render tidak tersedia", code: "backend_unavailable" }, 503);
-    return response({ error: "Layanan render tidak tersedia", code: "backend_unavailable" }, 503);
-  }
-}
+const route = createRenderStatusRoute();
+
+export const GET = secureRoute(route.GET, { params: ["id", "renderId"], limit: "api" });
+export const DELETE = secureRoute(route.DELETE, { params: ["id", "renderId"], limit: "api" });

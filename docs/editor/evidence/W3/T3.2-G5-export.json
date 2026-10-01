@@ -1,0 +1,290 @@
+{
+  "clip": "clip_c7338377170b4a2e49948f67",
+  "exports": [
+    {
+      "case": "square-default",
+      "expected_logo_warning": true,
+      "frames": [
+        {
+          "alignment": {
+            "aligned": true,
+            "best": [
+              0,
+              0
+            ],
+            "margin": 3.779,
+            "sad_best_other": 316827,
+            "sad_zero": 83838
+          },
+          "browser_vs_export": {
+            "max": 47,
+            "mean_abs": 1.8627347195967234
+          },
+          "frame": 0
+        },
+        {
+          "alignment": {
+            "aligned": true,
+            "best": [
+              0,
+              0
+            ],
+            "margin": 3.946,
+            "sad_best_other": 315021,
+            "sad_zero": 79829
+          },
+          "browser_vs_export": {
+            "max": 48,
+            "mean_abs": 1.7595967233774417
+          },
+          "frame": 384
+        },
+        {
+          "alignment": {
+            "aligned": true,
+            "best": [
+              0,
+              0
+            ],
+            "margin": 3.916,
+            "sad_best_other": 315200,
+            "sad_zero": 80486
+          },
+          "browser_vs_export": {
+            "max": 49,
+            "mean_abs": 1.7813232514177695
+          },
+          "frame": 768
+        }
+      ],
+      "gates": {
+        "G1": {
+          "blocking": true,
+          "ok": true,
+          "problems": []
+        },
+        "G2": {
+          "blocking": true,
+          "ok": true,
+          "problems": []
+        },
+        "G5": {
+          "blocking": false,
+          "ok": false,
+          "problems": [
+            "unsafe_zone"
+          ]
+        }
+      },
+      "logo_warning_in_export": true,
+      "plan_box": [
+        576,
+        32,
+        115,
+        115
+      ],
+      "render_ok": true,
+      "render_s": 35.0,
+      "warnings": [
+        "unsafe_zone"
+      ]
+    },
+    {
+      "case": "square-safe-opaque",
+      "expected_logo_warning": false,
+      "frames": [
+        {
+          "alignment": {
+            "aligned": true,
+            "best": [
+              0,
+              0
+            ],
+            "margin": 4.284,
+            "sad_best_other": 368729,
+            "sad_zero": 86063
+          },
+          "browser_vs_export": {
+            "max": 65,
+            "mean_abs": 1.981877756773787
+          },
+          "frame": 0
+        },
+        {
+          "alignment": {
+            "aligned": true,
+            "best": [
+              0,
+              0
+            ],
+            "margin": 4.517,
+            "sad_best_other": 369009,
+            "sad_zero": 81698
+          },
+          "browser_vs_export": {
+            "max": 68,
+            "mean_abs": 1.8608443604284814
+          },
+          "frame": 384
+        },
+        {
+          "alignment": {
+            "aligned": true,
+            "best": [
+              0,
+              0
+            ],
+            "margin": 4.593,
+            "sad_best_other": 367333,
+            "sad_zero": 79978
+          },
+          "browser_vs_export": {
+            "max": 68,
+            "mean_abs": 1.8262885948330183
+          },
+          "frame": 768
+        }
+      ],
+      "gates": {
+        "G1": {
+          "blocking": true,
+          "ok": true,
+          "problems": []
+        },
+        "G2": {
+          "blocking": true,
+          "ok": true,
+          "problems": []
+        },
+        "G5": {
+          "blocking": false,
+          "ok": false,
+          "problems": [
+            "unsafe_zone"
+          ]
+        }
+      },
+      "logo_warning_in_export": false,
+      "plan_box": [
+        512,
+        93,
+        115,
+        115
+      ],
+      "render_ok": true,
+      "render_s": 32.9,
+      "warnings": [
+        "unsafe_zone"
+      ]
+    },
+    {
+      "case": "wide-over-captions",
+      "expected_logo_warning": true,
+      "frames": [
+        {
+          "alignment": {
+            "aligned": true,
+            "best": [
+              0,
+              0
+            ],
+            "margin": 2.625,
+            "sad_best_other": 368744,
+            "sad_zero": 140451
+          },
+          "browser_vs_export": {
+            "max": 83,
+            "mean_abs": 4.283602693602694
+          },
+          "frame": 0
+        },
+        {
+          "alignment": {
+            "aligned": true,
+            "best": [
+              0,
+              0
+            ],
+            "margin": 3.019,
+            "sad_best_other": 348958,
+            "sad_zero": 115606
+          },
+          "browser_vs_export": {
+            "max": 95,
+            "mean_abs": 3.6104713804713806
+          },
+          "frame": 384
+        },
+        {
+          "alignment": {
+            "aligned": true,
+            "best": [
+              0,
+              0
+            ],
+            "margin": 3.645,
+            "sad_best_other": 459224,
+            "sad_zero": 126004
+          },
+          "browser_vs_export": {
+            "max": 121,
+            "mean_abs": 3.945050505050505
+          },
+          "frame": 768
+        }
+      ],
+      "gates": {
+        "G1": {
+          "blocking": true,
+          "ok": true,
+          "problems": []
+        },
+        "G2": {
+          "blocking": true,
+          "ok": true,
+          "problems": []
+        },
+        "G5": {
+          "blocking": false,
+          "ok": false,
+          "problems": [
+            "unsafe_zone"
+          ]
+        }
+      },
+      "logo_warning_in_export": true,
+      "plan_box": [
+        261,
+        1005,
+        198,
+        50
+      ],
+      "render_ok": true,
+      "render_s": 24.8,
+      "warnings": [
+        "unsafe_zone"
+      ]
+    }
+  ],
+  "g5_logo_agrees": true,
+  "gate": "G5 (export) and the logo in the delivered MP4",
+  "job": "e7f0d37b-6999-40a2-80b8-a09c8ff187ca",
+  "logo_aligned": true,
+  "pass": true,
+  "run": {
+    "browser": "Chrome for Testing 147.0.7727.15 (Playwright 1.62.1, build 1217)",
+    "commands": [
+      "web/e2e/editor-logo.spec.mjs 'real stack' (captures)",
+      "scripts/parity/logo_gates.py score | export | g5, in the image"
+    ],
+    "image": "ai-video-clipper:editor-w3base (FFmpeg 5.1.9, libass 0.17.1, Python 3.11.2), app container --cpus 4 on 127.0.0.1:3721",
+    "job": "a copy of the owner's job e7f0d37b (fit-blur, 24 fps source, clip 2: 48.8 s) in a scratch JOBS_ROOT; the original only read",
+    "load_average_at_run": "about 21-23 (the machine is shared with other agents)",
+    "logos": "synthetic RGBA PNGs from logo_gates.py assets (512x512, 1000x250, 300x600), stored as T3.1 stores uploads"
+  },
+  "task": "T3.2",
+  "toolchain": {
+    "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "python": "3.11.2"
+  }
+}

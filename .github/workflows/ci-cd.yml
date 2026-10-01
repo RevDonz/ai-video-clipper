@@ -1,22 +1,35 @@
 name: CI/CD
 
+# Pull requests and pushes to main: tests and build, the toolchain evidence guard and the parity
+# smoke in the production image (plan §10, §11.4 T4.4). Nightly: the full parity suite and the
+# performance report. Dispatch: `gh workflow run ci-cd.yml --ref <branch> -f suite=pr|toolchain|nightly`
+# (toolchain = fresh, stamped evidence for a new toolchain or JASSUB pin; docs/editor/OPERASIONAL.md).
 on:
   pull_request:
     branches: [main]
   push:
     branches: [main]
+  schedule:
+    - cron: "30 18 * * *" # 01:30 WIB
   workflow_dispatch:
+    inputs:
+      suite:
+        description: "pr: the pull-request checks; toolchain: stamped evidence for new pins; nightly: full parity and performance"
+        type: choice
+        options: [pr, toolchain, nightly]
+        default: pr
 
 permissions:
   contents: read
 
 concurrency:
-  group: potongin-${{ github.workflow }}-${{ github.ref }}
+  group: potongin-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}-${{ inputs.suite || 'auto' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:
     name: Test and build
+    if: github.event_name == 'pull_request' || github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.suite == 'pr')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -79,6 +92,11 @@ jobs:
       - name: Validate production image
         run: docker build --tag ai-video-clipper:ci-${{ github.sha }} .
 
+      - name: Check the pinned rendering toolchain of the image
+        run: |
+          docker run --rm ai-video-clipper:ci-${GITHUB_SHA} \
+            /app/.venv/bin/python -m ai_clipper.edit_v2.toolchain check /app/resources/toolchain.json
+
       - name: Validate deployment script and Compose config
         env:
           APP_USERNAME: ci-user
@@ -95,6 +113,176 @@ jobs:
         run: |
           bash -n deploy/production.sh
           IMAGE_TAG=ci-${GITHUB_SHA} docker compose -p ai-video-clipper config --quiet
+
+  toolchain-guard:
+    # A new rendering toolchain (the Dockerfile pins behind toolchain.json) or JASSUB pin needs
+    # fresh P-TIME, P-TXT, P-ENC, P-COLOR and P-RT evidence stamped for it (plan §10).
+    name: Toolchain evidence guard
+    if: github.event_name == 'pull_request' || github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.suite == 'pr')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+
+      - name: The recorded evidence matches the pins
+        run: python3 scripts/parity/toolchain_guard.py check
+
+  parity:
+    # The gates in the production image this commit builds; the browser half in Chrome for
+    # Testing against that image's own app (scripts/parity/run_all.sh).
+    name: Parity (${{ (github.event_name == 'schedule' || inputs.suite == 'nightly') && 'nightly' || (inputs.suite == 'toolchain' && 'toolchain' || 'smoke') }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 200
+    env:
+      SUITE: ${{ (github.event_name == 'schedule' || inputs.suite == 'nightly') && 'full' || (inputs.suite == 'toolchain' && 'toolchain' || 'smoke') }}
+      CHROME_FOR_TESTING: "147.0.7727.15"
+      IMAGE: potongin-parity:${{ github.sha }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+
+      - name: Scratch directory
+        run: |
+          echo "PARITY_OUT=$RUNNER_TEMP/parity" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/parity" && chmod 777 "$RUNNER_TEMP/parity"
+
+      - name: Build the production image
+        run: docker build --tag "$IMAGE" .
+
+      - name: Gate tools in the image
+        run: |
+          docker run -d --name parity-tools -v "$PWD:/w:ro" -v "$PARITY_OUT:/out" "$IMAGE" sleep infinity
+          docker exec parity-tools sh -ec 'cp -r /w /tmp/w && cd /tmp/w && uv sync --frozen --python /usr/bin/python3 --extra vision --extra web' \
+            > "$RUNNER_TEMP/uv-sync.log" 2>&1 || { tail -n 40 "$RUNNER_TEMP/uv-sync.log"; exit 1; }
+
+      - name: Gates in the image
+        id: image
+        continue-on-error: true
+        run: docker exec -e SUITE parity-tools sh -ec 'cd /tmp/w && OUT=/out sh scripts/parity/run_all.sh "$SUITE"'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install Chrome for Testing (the parity pin)
+        working-directory: web
+        run: |
+          npm ci
+          npx playwright install-deps chromium
+          # The pin is Playwright's chromium build 1217; the specs look for it there (PARITY_CHROME).
+          target="$HOME/.cache/ms-playwright/chromium-1217"
+          mkdir -p "$target"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/cft.zip" \
+            "https://storage.googleapis.com/chrome-for-testing-public/$CHROME_FOR_TESTING/linux64/chrome-linux64.zip"
+          unzip -q -o "$RUNNER_TEMP/cft.zip" -d "$target"
+          echo "PARITY_CHROME=$target/chrome-linux64/chrome" >> "$GITHUB_ENV"
+          version=$(PARITY_CHROME="$target/chrome-linux64/chrome" node -e 'import("@playwright/test").then(async ({ chromium }) => { const b = await chromium.launch({ executablePath: process.env.PARITY_CHROME }); console.log(b.version()); await b.close(); })')
+          echo "Chrome for Testing $version"
+          test "$version" = "$CHROME_FOR_TESTING"
+
+      - name: Start the image's app with the text harness
+        run: |
+          user=parity-ci
+          password=$(openssl rand -hex 24)
+          secret=$(openssl rand -hex 32)
+          echo "::add-mask::$password"
+          echo "::add-mask::$secret"
+          echo "E2E_USERNAME=$user" >> "$GITHUB_ENV"
+          echo "E2E_PASSWORD=$password" >> "$GITHUB_ENV"
+          export APP_USERNAME="$user" APP_PASSWORD="$password" APP_SESSION_SECRET="$secret"
+          docker run -d --name parity-app -p 127.0.0.1:3217:3217 -e PORT=3217 -e HOSTNAME=0.0.0.0 \
+            -e APP_USERNAME -e APP_PASSWORD -e APP_SESSION_SECRET \
+            -e POTONGIN_PARITY_HARNESS=1 -e POTONGIN_PARITY_FIXTURES=/fixtures \
+            -e JOBS_STORAGE_QUOTA_BYTES=32212254720 -e JOBS_STORAGE_MIN_FREE_BYTES=1073741824 \
+            -e JOBS_STORAGE_ACTIVE_RESERVE_BYTES=1073741824 -e JOBS_STORAGE_SCAN_MAX_ENTRIES=200000 \
+            -e JOBS_STORAGE_SCAN_MAX_DEPTH=16 -e JOBS_STORAGE_SCAN_DEADLINE_MS=30000 \
+            -e JOBS_STORAGE_RECHECK_BYTES=8388608 -e JOBS_STORAGE_RECHECK_INTERVAL_MS=5000 \
+            -v "$PARITY_OUT/ptxt:/fixtures:ro" "$IMAGE"
+          for attempt in $(seq 1 60); do
+            curl -fsS http://127.0.0.1:3217/api/health >/dev/null && exit 0
+            sleep 2
+          done
+          docker logs parity-app 2>&1 | tail -n 40
+          exit 1
+
+      - name: Browser half (P-TIME JASSUB side, P-TXT)
+        id: browser
+        continue-on-error: true
+        working-directory: web
+        env:
+          E2E_BASE_URL: http://127.0.0.1:3217
+          E2E_NO_WEB_SERVER: "1"
+          PARITY_PYTHON: python3
+        run: POTONGIN_PARITY_FIXTURES="$PARITY_OUT/ptxt" PARITY_OUT_DIR="$PARITY_OUT/browser" npm run test:parity
+
+      - name: Text gates, performance report and summary
+        if: always()
+        run: |
+          jassub=$(python3 scripts/parity/toolchain_guard.py state | python3 -c 'import json, sys; print(json.load(sys.stdin)["jassub"]["version"])')
+          color=""
+          [ "$SUITE" = smoke ] || color=--color
+          docker exec parity-tools sh -ec "cd /tmp/w && PYTHONPATH=src:tests uv run python scripts/parity/ci_gates.py text \
+            --browser /out/browser --fixtures /out/ptxt --evidence /out/evidence --jassub $jassub $color" || true
+          docker exec parity-tools sh -ec 'cd /tmp/w && uv run python scripts/parity/ci_gates.py perf-report --out /out/perf.json \
+            --stack "$(nproc) vCPU GitHub runner, production image (indicative)" /out/evidence /out/app' || true
+          docker exec -e SUITE parity-tools sh -ec 'cd /tmp/w && uv run python scripts/parity/ci_gates.py summary \
+            --suite "$SUITE" --out /out/summary.json /out/evidence' | tee "$RUNNER_TEMP/summary.txt" || true
+          { echo "### Parity ($SUITE)"; echo '```'; cat "$RUNNER_TEMP/summary.txt"; cat "$PARITY_OUT/times.txt" 2>/dev/null; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Stamp the toolchain evidence
+        if: always() && env.SUITE != 'smoke'
+        run: |
+          dest="$RUNNER_TEMP/toolchain-evidence/docs/editor/evidence/toolchain"
+          mkdir -p "$dest"
+          python3 scripts/parity/toolchain_guard.py state --out "$RUNNER_TEMP/state.json"
+          for gate in P-TIME-ffmpeg P-TIME-jassub P-TXT P-ENC P-COLOR P-RT; do
+            cp "$PARITY_OUT/evidence/CI-$gate.json" "$dest/$gate.json"
+          done
+          python3 scripts/parity/toolchain_guard.py stamp --state "$RUNNER_TEMP/state.json" \
+            --commit "$GITHUB_SHA" --run "$GITHUB_RUN_ID" "$dest"/*.json
+          rel=docs/editor/evidence/toolchain
+          python3 scripts/parity/toolchain_guard.py record --state "$RUNNER_TEMP/state.json" \
+            --commit "$GITHUB_SHA" --run "$GITHUB_RUN_ID" --out "$dest/record.json" \
+            --gate "P-TIME=$rel/P-TIME-ffmpeg.json" --gate "P-TIME=$rel/P-TIME-jassub.json" \
+            --gate "P-TXT=$rel/P-TXT.json" --gate "P-ENC=$rel/P-ENC.json" \
+            --gate "P-COLOR=$rel/P-COLOR.json" --gate "P-RT=$rel/P-RT.json"
+          cp -r "$RUNNER_TEMP/toolchain-evidence/docs" .
+          python3 scripts/parity/toolchain_guard.py check
+
+      - name: Keep the evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: parity-${{ env.SUITE }}
+          path: |
+            ${{ runner.temp }}/parity/evidence
+            ${{ runner.temp }}/parity/app/evidence
+            ${{ runner.temp }}/parity/logs
+            ${{ runner.temp }}/parity/browser/*.json
+            ${{ runner.temp }}/parity/*.json
+            ${{ runner.temp }}/parity/*.txt
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Keep the stamped toolchain evidence
+        if: always() && env.SUITE != 'smoke'
+        uses: actions/upload-artifact@v4
+        with:
+          name: toolchain-evidence
+          path: ${{ runner.temp }}/toolchain-evidence
+          if-no-files-found: ignore
+          retention-days: 90
+
+      - name: Decide
+        if: always()
+        run: |
+          test "${{ steps.image.outcome }}" = success || { echo "gates in the image failed: $(cat "$PARITY_OUT/fail.txt")"; exit 1; }
+          test "${{ steps.browser.outcome }}" = success || { echo "the browser half failed"; exit 1; }
+          python3 -c 'import json, sys; sys.exit(0 if json.load(open(sys.argv[1]))["ok"] else 1)' "$PARITY_OUT/summary.json"
 
   deploy:
     name: Deploy production
