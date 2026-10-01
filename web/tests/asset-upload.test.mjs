@@ -50,6 +50,10 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..", "..");
 const AUTH = Object.freeze({ APP_USERNAME: "admin", APP_PASSWORD: "pw-secret-value", APP_SESSION_SECRET: "session-secret-".padEnd(48, "z") });
 const JOB_ID = "8f0c2a1e-5b7d-4c3a-9e21-6d4f0b8a7c55";
+// One login for the whole file, as a browser keeps its cookie: a token made per request changes
+// when the clock passes a second, which gave the per-session rate limit a new key mid-test.
+let session = null;
+const sessionToken = () => (session ??= createSessionToken(AUTH));
 const KEY = "00000000-0000-4000-8000-000000000001";
 const SHA = "ab".repeat(32);
 const SECRETS = Object.freeze({
@@ -82,7 +86,7 @@ function upload(body, { kind = "logo", type = "image/png", key = KEY, name, leng
   job = JOB_ID, headers = {} } = {}) {
   const all = { Host: "local", "X-Asset-Kind": kind, "Content-Type": type, "Idempotency-Key": key, ...headers };
   if (origin) all.Origin = origin;
-  if (cookie) all.Cookie = `potongin_session=${createSessionToken(AUTH)}`;
+  if (cookie) all.Cookie = `potongin_session=${sessionToken()}`;
   if (name !== undefined) all["X-Asset-Name"] = name;
   const bytes = body instanceof Uint8Array ? body : Buffer.from(body ?? "");
   if (length !== null) all["Content-Length"] = String(length ?? bytes.length);
@@ -92,7 +96,7 @@ function upload(body, { kind = "logo", type = "image/png", key = KEY, name, leng
 
 function get(sha, { part, cookie = true, job = JOB_ID, method = "GET", range } = {}) {
   const headers = { Host: "local" };
-  if (cookie) headers.Cookie = `potongin_session=${createSessionToken(AUTH)}`;
+  if (cookie) headers.Cookie = `potongin_session=${sessionToken()}`;
   if (range) headers.Range = range;
   const query = part === undefined ? "" : `?part=${part}`;
   return new Request(`http://local/api/jobs/${job}/assets/${sha}${query}`, { method, headers });
@@ -434,7 +438,7 @@ test("after a sniff mismatch the rest of the body is read and dropped before the
   const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
   const request = new Request(`http://local/api/jobs/${JOB_ID}/assets`, {
     method: "POST", duplex: "half", body,
-    headers: { Host: "local", Origin: "http://local", Cookie: `potongin_session=${createSessionToken(AUTH)}`,
+    headers: { Host: "local", Origin: "http://local", Cookie: `potongin_session=${sessionToken()}`,
       "X-Asset-Kind": "logo", "Content-Type": "image/png", "Idempotency-Key": KEY, "Content-Length": String(total) },
   });
   const result = await read(await route.POST(request, context({ id: JOB_ID })));
@@ -459,7 +463,7 @@ function countingBody(chunks) {
 function streamed(state, length, headers = {}) {
   return new Request(`http://local/api/jobs/${JOB_ID}/assets`, {
     method: "POST", duplex: "half", body: state.stream,
-    headers: { Host: "local", Origin: "http://local", Cookie: `potongin_session=${createSessionToken(AUTH)}`,
+    headers: { Host: "local", Origin: "http://local", Cookie: `potongin_session=${sessionToken()}`,
       "X-Asset-Kind": "logo", "Content-Type": "image/png", "Idempotency-Key": KEY, "Content-Length": String(length), ...headers },
   });
 }
@@ -561,7 +565,7 @@ test("a body longer or shorter than its Content-Length is refused and nothing is
   });
   const request = new Request(`http://local/api/jobs/${JOB_ID}/assets`, {
     method: "POST", duplex: "half", body: huge,
-    headers: { Host: "local", Origin: "http://local", Cookie: `potongin_session=${createSessionToken(AUTH)}`,
+    headers: { Host: "local", Origin: "http://local", Cookie: `potongin_session=${sessionToken()}`,
       "X-Asset-Kind": "logo", "Content-Type": "image/png", "Idempotency-Key": KEY, "Content-Length": String(1024) },
   });
   const result = await read(await route.POST(request, context({ id: JOB_ID })));
