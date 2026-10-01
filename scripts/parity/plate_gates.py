@@ -35,8 +35,11 @@ Sub-commands (evidence ``T3.6-<gate>.json`` under ``--evidence``, numbers only):
 
 ``pf-cells`` (through the app)
     All plate cells of a ~60 s clip after a switch: ≤ 15 s (fit-blur, center-crop) and
-    ≤ 25 s (face-track, including the camera plan), two heavy slots. A shorter clip is held to
-    the budget twice: as measured and projected to 60 s (``projected_60s_s``).
+    ≤ 25 s (face-track, including the camera plan), two heavy slots, the plan asked again every
+    0.75 s while they build (as the store polls). A shorter clip is held to the budget twice: as
+    measured and projected to 60 s (``projected_60s_s``). Run it on a lane that has just started
+    (a fresh server): a lane that built a cell of the same plate in the last 30 s does not build
+    it again when the gate deletes it.
 
 ``--media`` (switch, pf-cells, p-plate): ``synthetic`` (default; the barcode jobs of
 ``make_job.py``, 1280×720 for the timed gates, so the gates run where the owner's jobs are not,
@@ -445,6 +448,30 @@ class AppGates:
                  for cell in dto["plate"]["cells"]]
         return self.lg.wait_for(paths, timeout_s)
 
+    def polled(self, clip: Any, doc: Mapping[str, Any], paths: Sequence[Path],
+               timeout_s: float) -> tuple[float | None, dict[str, int]]:
+        """Seconds until every path exists while the plan is asked again every ``STORE_POLL_S``,
+        as the editor's store polls while cells build (a cell the lane dropped is asked for
+        again, as in the editor); with the plate cells' states of the last answer."""
+        began = time.perf_counter()
+        next_poll = began + STORE_POLL_S
+        states: dict[str, int] = {}
+        pending = list(paths)
+        while True:
+            pending = [path for path in pending if not path.exists()]
+            if not pending:
+                return time.perf_counter() - began, states
+            if time.perf_counter() - began > timeout_s:
+                return None, states
+            if time.perf_counter() >= next_poll:
+                status, dto, _ms = self.app.plan(clip.job_id, clip.id, doc, playhead=0)
+                if status == 200:
+                    states = {}
+                    for cell in dto["plate"]["cells"]:
+                        states[cell["state"]] = states.get(cell["state"], 0) + 1
+                next_poll = time.perf_counter() + STORE_POLL_S
+            time.sleep(0.01)
+
     def export_plan(self, clip: Any, doc: Mapping[str, Any]):
         """The export's plan: ``render_edit.load_render_inputs`` (validation, words, the camera
         plan it resolves for a switched layout, assets) exactly as the render worker builds it."""
@@ -613,10 +640,13 @@ class AppGates:
                 cases.append({"clip": f"{job[:8]}#{rank}", "error": f"plan {status}",
                               "pass": False})
                 continue
-            first = self.lg.wait_for([clip.preview / "plates" / self.lg.plates.cell_name(
-                dto["plate"]["plateKey"], _cell_of(dto, 0))], 300)
+            key = dto["plate"]["plateKey"]
+            first, _states = self.polled(clip, doc, [clip.preview / "plates" / self.lg.plates
+                                                     .cell_name(key, _cell_of(dto, 0))], 300)
             first_s = None if first is None else time.perf_counter() - began
-            done = self.all_cells(clip, dto, 600)
+            done, states = self.polled(clip, doc, [clip.preview / "plates" / self.lg.plates
+                                                   .cell_name(key, cell["k"])
+                                                   for cell in dto["plate"]["cells"]], 300)
             elapsed = time.perf_counter() - began
             budget = PF_CELLS_BUDGET_S[layout]
             clip_seconds = dto["totalFrames"] * clip.fps.den / clip.fps.num
@@ -631,6 +661,8 @@ class AppGates:
                      "projected_60s_s": None if projected is None else round(projected, 2),
                      "budget_s": budget,
                      "pass": done is not None and elapsed <= budget and projected <= budget}
+            if done is None:
+                entry["cell_states_at_timeout"] = states
             cases.append(entry)
             print(json.dumps(entry), flush=True)
             time.sleep(5)  # let the background mix of the case finish
