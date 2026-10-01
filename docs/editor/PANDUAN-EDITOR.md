@@ -1,103 +1,124 @@
-# Panduan Editor V3 (tahap W2: "Editor bisa dipakai")
+# Panduan editor klip
 
-Panduan ini untuk pemilik Potongin. Isinya: apa yang sudah bisa dipakai di Editor V3, arti tanda
-di layar, dan cara mencobanya di aplikasi lokal. Rencana lengkapnya ada di
-`docs/plans/2026-09-24-editor-v3-esensial.md`; angka pengujian ada di `docs/editor/GATES.md`.
+Panduan ini untuk pemilik Potongin: apa yang bisa dipakai di editor, arti tanda di layar, dan cara
+mencobanya di aplikasi lokal. Rencana lengkapnya ada di `docs/plans/2026-09-24-editor-v3-esensial.md`;
+angka pengujian ada di `docs/editor/GATES.md`.
 
-Editor V3 **masih mati secara bawaan**. Ia hanya muncul kalau `POTONGIN_EDITOR_V3=on`. Klip
-otomatis juga masih dibuat mesin lama (`POTONGIN_RENDER_ENGINE=legacy`) sampai Anda menyetujui
-tampilan mesin baru (keputusan K1 di checkpoint 2).
+Editor **masih mati secara bawaan** dan hanya muncul kalau `POTONGIN_EDITOR_V3=on`. Unggah logo
+dan musik butuh `POTONGIN_EDITOR_UPLOADS=on`, saran hook yang ditulis AI butuh
+`POTONGIN_EDITOR_LLM=on`; keduanya juga mati secara bawaan. Klip otomatis tetap dibuat dengan
+render yang sekarang (`POTONGIN_RENDER_ENGINE=legacy`) sampai render editor dipercepat (W4).
 
-## 1. Yang sudah bisa dipakai
+## 1. Membuka klip
 
-Buka proyek V3, lalu klik **"Edit klip"** di kartu klip. Untuk proyek yang dibuat sebelum
-editor ini ada, klik **"Siapkan untuk editor"** sekali per proyek (beberapa detik; proyek
-face-track sampai ± 1 menit karena jalur kameranya dihitung; setelah itu tombol "Edit klip"
-muncul). Pembukaan pertama tiap klip butuh 1–3 detik sampai gambar pertama tampil, karena potongan
-video pratinjaunya dibuat saat itu.
+- Di halaman proyek, setiap kartu klip punya tombol **"Edit klip"** (tombol pertama, paling
+  terang). Klip yang sudah diedit memberi label "Diedit · revisi n" dan tautan "Ekspor terakhir".
+- Di **Riwayat**, proyek yang selesai punya tombol **"Edit klip"** yang membuka daftar klipnya.
+- Tidak ada langkah "Siapkan" lagi. Kalau proyeknya belum pernah dibuka di editor, editor
+  menyiapkannya sendiri saat klip dibuka: layar "Menyiapkan klip untuk diedit" dengan hitungan
+  detik. Ini hanya sekali per proyek: beberapa detik, sampai ± 1 menit untuk video panjang dengan
+  face-track. Setelah itu alamatnya pindah ke alamat klip itu sendiri, jadi muat ulang langsung
+  membuka klip.
+- Klip yang memang tidak bisa diedit (misalnya video sumbernya sudah dihapus) menulis alasannya di
+  kartu dan di editor, dengan tautan kembali ke proyek.
 
-Di dalam editor:
+## 2. Yang bisa dipakai
 
-- **Transkrip (tab kiri).** Klik kata untuk memilih, Shift+klik untuk rentang.
-  - **Delete/Backspace** memotong kata terpilih (jump cut). Bagian yang dipotong tampil dicoret
-    dengan chip "⋯ 1,4 dtk"; klik chip untuk memulihkannya.
-  - **Enter** atau klik dua kali: perbaiki tulisan kata (Enter simpan, Esc batal, Tab ke kata
-    berikutnya). Yang berubah hanya caption; suara tetap.
-  - **Ctrl+Shift+X** menyembunyikan kata dari caption; **Ctrl+E** memberi warna kata kunci.
-  - **I / O** ("Mulai di sini" / "Akhiri di sini") memindah awal atau akhir klip ke kata terpilih.
-    Kata di luar klip tampil redup dengan tombol **"Perpanjang ke sini"**.
-  - **Ctrl+Shift+H** ("Jadikan cold open") menjadikan pilihan 0,5–8 detik sebagai cold open.
-- **Teks (tab).** Caption: nyala/mati, 4 gaya (Karaoke, Classic, Bold, Box), posisi, ukuran,
-  huruf besar, warna sorot dan warna kata kunci. Hook: nyala/mati, teks (maks. 90 karakter, dengan
-  tanda "Muat"/"Akan terpotong"), durasi dan posisi.
-- **Cold open (tab).** Nyala/mati, kalimatnya dan panjangnya, tambah/buang satu kata di tiap
-  ujung.
-- **Timeline (bawah).** Klik untuk pindah posisi; seret gagang awal/akhir klip (selalu menempel
-  ke batas kata); Ctrl+scroll untuk zoom.
-- **Urungkan / Ulangi** (Ctrl+Z, Ctrl+Shift+Z) sampai 200 langkah.
-- **Simpan otomatis.** Setiap perubahan disimpan sendiri (± 1,5 detik setelah berhenti mengetik)
-  dan juga disimpan di browser. Muat ulang halaman di tengah pengeditan tidak menghilangkan apa
-  pun. Status di atas: "Tersimpan · 3 dtk lalu" / "Menyimpan…" / "Belum tersimpan".
-- **"Kembali ke versi AI"** mengembalikan klip ke hasil otomatis (bisa diurungkan).
-- **Ekspor.** Tombol **"Ekspor"**: centang tiap peringatan di "Perlu dicek", lalu "Mulai ekspor".
-  Tahapannya Antre → Merender (n%) → Memverifikasi → Selesai, lalu **"Unduh MP4"** dan
-  **"Unduh SRT"**. Ekspor bisa dibatalkan. Klip yang tidak diubah langsung selesai: file yang
-  diunduh adalah file klip otomatis itu sendiri.
-- **Dua tab.** Kalau klip yang sama terbuka di dua tab, muncul "Klip ini terbuka di tab lain".
-  Perubahan di bagian berbeda digabung otomatis; kalau bagian yang sama diubah di dua tab, editor
-  menanyakan per bagian ("Pakai punyaku" / "Pakai yang tersimpan").
+**Transkrip (tab kiri).** Klik kata untuk memilih, Shift+klik untuk rentang.
+- **Delete/Backspace** memotong kata terpilih (jump cut); klik chip "⋯ 1,4 dtk" untuk
+  memulihkannya.
+- **Enter** atau klik dua kali memperbaiki tulisan kata (caption saja; suara tetap).
+- **Ctrl+Shift+X** menyembunyikan kata dari caption; **Ctrl+E** menandai kata kunci (tebal dan
+  bergaris bawah warna kata kunci).
+- **I / O** memindah awal atau akhir klip ke kata terpilih; kata di luar klip redup dengan tombol
+  "Perpanjang ke sini". **Ctrl+Shift+H** menjadikan pilihan 0,5–8 detik sebagai cold open.
+- **Rapikan** (tombol di atas transkrip): daftar kata pengisi ("eh", "anu"), pengulangan
+  ("saya saya") dan jeda hening yang bisa dipotong di titik yang tenang. Jeda hening sudah
+  tercentang, kata pengisi dan pengulangan belum. **Putar** memperdengarkan tiap item, **Lihat**
+  menandainya di transkrip. **"Terapkan (n)"** memotong semua yang dicentang dalam satu langkah, dan
+  satu Urungkan mengembalikan semuanya. Partikel ("kan", "sih", "mah", "toh", …) dan kata ulang
+  ("anak-anak") tidak pernah didaftar. Jeda yang masih ada suaranya hanya bisa didengarkan.
 
-Tab **Tata letak, Logo dan Musik** serta lajur **Audio, Penanda dan Musik** di timeline sudah
-terlihat tetapi masih kosong: isinya datang di tahap berikutnya (W3), bersama saran hook AI,
-"Rapikan" (filler, pengulangan, jeda) dan penanda tawa/jeda.
+**Teks (tab).** Caption: nyala/mati, gaya (Karaoke, Classic, Bold, Box), posisi, ukuran, huruf
+besar, warna sorot dan warna kata kunci. Hook: teks (maks. 90 karakter, tanda "Muat" / "Akan
+terpotong"), durasi dan posisi. **Saran hook** di bawah kolom teks: saran otomatis langsung
+muncul dengan sumbernya ("AI seleksi" dari pemilihan klip, "Heuristik" dari transkrip); **"Pakai"**
+mengganti teks hook (bisa diurungkan). Dengan `POTONGIN_EDITOR_LLM=on`, AI gratis di Pengaturan
+juga menulis saran dari transkrip yang sudah diedit (sekitar 10 detik).
 
-## 2. Arti tanda di bawah layar pratinjau
+**Cold open (tab).** Nyala/mati, kalimat dan panjangnya, tambah/buang satu kata di tiap ujung.
+**Saran cold open** mengusulkan kalimat terkuat dari klip; **Putar** memperdengarkannya,
+**Pakai** menjadikannya cold open.
+
+**Tata letak (tab).** **Latar blur**, **Ikuti wajah** dan **Potong tengah**, masing-masing dengan
+contoh gambar di posisi putar. Berlaku untuk seluruh klip. "Ikuti wajah" pada proyek yang belum
+punya analisis wajah menganalisis dulu (hitungan persen); bagian tanpa wajah didaftar dengan
+tombol lompat, dan di bagian itu video dipusatkan.
+
+**Logo (tab).** **"Unggah logo"** (PNG, JPEG atau WebP, maks. 10 MB; PNG transparan paling rapi)
+atau seret file ke panel. Posisi cepat di empat sudut, **Ukuran** dan **Opasitas**; di layar
+pratinjau logo bisa digeser dan diubah ukurannya (panah 1 px, Shift+panah 10 px). Kalau logo masuk
+area tombol TikTok/Reels, muncul peringatan dengan tombol **"Geser ke area aman"**.
+
+**Musik (tab).** **"Tambah musik"** (MP3, M4A, WAV, OGG atau FLAC, maks. 50 MB; baca dulu
+catatan hak cipta). Volume musik, mulai dari, ulangi sampai klip selesai, muncul/hilang perlahan.
+**Kecilkan musik saat ada suara** dengan kekuatan **Halus** (−6 dB), **Sedang** (−10 dB) atau
+**Kuat** (−16 dB), plus "Atur detail" (waktu turun, naik, jeda tahan). Volume suara asli dan
+**Samakan kenyaringan** (−14 LUFS) dengan hasil yang tercapai; kalau volume diturunkan supaya
+tidak pecah, panel menuliskannya.
+
+**Timeline (bawah).** Lajur video, teks, hook, **Audio** (waveform suara klip), **Penanda** (😂
+tawa, jeda ≥ 0,6 detik, potongan kamera; klik untuk lompat; arahkan kursor untuk asal tandanya) dan
+**Musik** (waveform musik dengan garis volume yang turun saat ada suara). Klik untuk pindah posisi,
+seret gagang awal/akhir (menempel ke batas kata), Ctrl+scroll untuk zoom. Kalau job lama tidak
+punya data tawa/jeda, lajurnya menulis "tidak tersedia untuk job ini".
+
+**Lainnya.** Urungkan / Ulangi (Ctrl+Z, Ctrl+Shift+Z) sampai 200 langkah; simpan otomatis
+(± 1,5 detik setelah berhenti, juga disimpan di browser); **"Kembali ke versi AI"**; **Ekspor**
+(centang tiap item "Perlu dicek", lalu Antre → Merender → Memverifikasi → Selesai, **"Unduh MP4"**
+dan **"Unduh SRT"**; bisa dibatalkan); dua tab pada klip yang sama digabung per bagian.
+
+## 3. Arti tanda di bawah layar pratinjau
 
 | Tanda | Artinya |
 |---|---|
-| **● Sesuai hasil akhir** | Frame, teks, logo dan audio yang Anda lihat sama dengan hasil ekspor. File MP4 akhir dikompresi (H.264, warna 4:2:0), jadi tepi teks berwarna sedikit lebih lembut. Tekan **"Frame akhir"** (Ctrl+Shift+R) untuk melihat piksel persisnya. Tanda ini hanya muncul kalau semua lapisan sudah terbaru; pratinjau tidak pernah menebak atau memperkirakan. |
+| **● Sesuai hasil akhir** | Frame, teks, logo dan audio yang Anda lihat sama dengan hasil ekspor. File MP4 akhir dikompresi (H.264, warna 4:2:0), jadi tepi teks berwarna sedikit lebih lembut. **"Frame akhir"** (Ctrl+Shift+R) menampilkan piksel persisnya. Tanda ini hanya muncul kalau semua lapisan sudah terbaru. |
 | **Menyiapkan video (7/30)…** | Potongan video pratinjau masih dibuat server. Frame terakhir yang pasti tetap tampil. |
-| **Memperbarui teks…** | Caption/hook sedang diperbarui (biasanya < 0,4 detik). |
-| **Menyiapkan audio…** | Campuran audio baru sedang dibuat; tombol putar menunggu. |
+| **Memperbarui teks… / logo… / Menyiapkan audio…** | Lapisan itu sedang diperbarui (biasanya < 1 detik). |
 | **Menyiapkan frame…** | Frame di posisi ini sedang digambar. |
-| **● Belum diubah: ekspor = klip otomatis (mesin lama)** | Klip dari proyek lama yang belum diedit. Ekspornya adalah klip otomatis lama itu sendiri, sedangkan pratinjau memakai mesin baru, jadi tampilannya bisa sedikit berbeda. Setelah ada perubahan, ekspor memakai mesin baru dan tanda kembali ke "Sesuai hasil akhir". |
-| **● Frame akhir** | Anda sedang melihat piksel hasil render akhir untuk frame ini. |
+| **● Belum diubah: ekspor = klip otomatis** | Klip belum diedit, jadi ekspornya adalah file klip otomatis apa adanya. File itu dibuat sebelum editor dibuka, jadi bisa sedikit berbeda dari pratinjau. Setelah ada perubahan, tanda kembali ke "Sesuai hasil akhir". |
+| **● Frame akhir** | Piksel hasil render akhir untuk frame ini. |
 
 Tombol **"Apa artinya?"** di sebelah tanda menampilkan penjelasan yang sama.
 
-## 3. Mencoba editor di aplikasi lokal
+## 4. Mencoba editor di aplikasi lokal
 
-Syarat: Chrome atau Edge desktop, jendela minimal 1024 px. (Browser lain tetap bisa mengedit dan
-mengekspor, tetapi pratinjaunya hanya berupa "Frame akhir".)
+Syarat: Chrome atau Edge desktop, jendela minimal 1024 px.
 
-1. Pakai cabang hasil W2 di folder repo:
+1. Pakai cabang hasil W3 di folder repo:
 
    ```bash
    cd /home/revdonz/Projects/ai-video-clipper
-   git switch editor-w2-integration
+   git switch editor-w3-integration
    uv sync --frozen --extra vision
    (cd web && npm ci)
    ```
 
-2. Buat berkas toolchain lokal sekali saja. Ekspor editor memberi nama file menurut versi
-   FFmpeg/libass yang dipakai; image Docker membuatnya sendiri, di lokal buat dengan:
+2. Buat berkas toolchain lokal sekali saja (ekspor memberi nama file menurut versi FFmpeg/libass;
+   image Docker membuatnya sendiri):
 
    ```bash
    .venv/bin/python -m ai_clipper.edit_v2.toolchain write resources/toolchain.json \
      --base-image "local/dev-host@sha256:$(printf potongin-local-dev | sha256sum | cut -c1-64)"
    ```
 
-   Berkas ini tidak masuk git. Tanpa berkas ini ekspor menjawab "Layanan editor sedang tidak
-   tersedia".
-
-3. Jalankan aplikasi seperti biasa, tetapi dengan editor menyala:
+3. Jalankan aplikasi dengan editor, unggahan dan (kalau mau) saran AI menyala:
 
    ```bash
-   POTONGIN_EDITOR_V3=on artifacts/local/start-local.sh
+   POTONGIN_EDITOR_V3=on POTONGIN_EDITOR_UPLOADS=on POTONGIN_EDITOR_LLM=on artifacts/local/start-local.sh
    ```
 
-4. Di terminal kedua, jalankan render worker (dipakai untuk ekspor dari editor). Nilainya sama
-   dengan `start-local.sh`:
+4. Di terminal kedua, jalankan render worker (untuk ekspor dari editor):
 
    ```bash
    cd /home/revdonz/Projects/ai-video-clipper
@@ -110,17 +131,19 @@ mengekspor, tetapi pratinjaunya hanya berupa "Frame akhir".)
    .venv/bin/python -m ai_clipper.render_worker --jobs-root "$PWD/artifacts/local/jobs" --watch --poll-seconds 2
    ```
 
-5. Buka `http://127.0.0.1:3000/projects`, pilih proyek V3, klik **"Siapkan untuk editor"**
-   (sekali), lalu **"Edit klip"**.
+5. Buka `http://127.0.0.1:3000/projects`, klik **"Edit klip"** di proyek mana pun yang selesai,
+   lalu **"Edit klip"** di kartu klipnya.
 
-Untuk mematikan editor lagi, jalankan `start-local.sh` tanpa `POTONGIN_EDITOR_V3=on`: tombol
-"Edit klip" dan semua rute editor hilang (404). Dokumen edit yang sudah tersimpan tetap ada di
-folder proyek (`analysis/clips/…`) dan tidak mengubah klip otomatis.
+Tanpa `POTONGIN_EDITOR_V3=on`, tombol "Edit klip" dan semua rute editor hilang (404). Dokumen edit
+yang sudah tersimpan tetap ada di folder proyek (`analysis/clips/…`), logo dan musik di
+`analysis/assets/`, dan klip otomatis tidak berubah.
 
-Di server (Docker), editor dinyalakan dengan `POTONGIN_EDITOR_V3=on` di `.env`; `compose.yaml`
-sudah meneruskannya ke container `app` dan bawaannya `off`.
+Di server (Docker), nyalakan dengan `POTONGIN_EDITOR_V3=on`, `POTONGIN_EDITOR_UPLOADS=on` dan
+`POTONGIN_EDITOR_LLM=on` di `.env`; `compose.yaml` meneruskannya ke container `app` dan bawaannya
+`off`. `POTONGIN_LLM_EDITOR_MODELS` (opsional, `provider/model` dipisah koma) memilih model gratis
+khusus untuk saran hook; kosong berarti rantai di Pengaturan.
 
-## 4. Pintasan keyboard
+## 5. Pintasan keyboard
 
 | Tombol | Aksi |
 |---|---|
@@ -131,7 +154,7 @@ sudah meneruskannya ke container `app` dan bawaannya `off`.
 | Enter | Edit kata |
 | I / O | Awal / akhir klip di pilihan atau di posisi putar |
 | Ctrl+Shift+H | Pilihan → cold open |
-| Ctrl+E / Ctrl+Shift+X | Warna kata kunci / sembunyikan dari caption |
+| Ctrl+E / Ctrl+Shift+X | Kata kunci / sembunyikan dari caption |
 | ' | Zona aman TikTok |
 | Ctrl+Shift+R | Frame akhir |
 | Ctrl+Shift+E | Ekspor |
@@ -139,16 +162,18 @@ sudah meneruskannya ke container `app` dan bawaannya `off`.
 
 Setiap aksi juga punya tombol di layar. Pintasan tidak aktif saat Anda mengetik di kolom teks.
 
-## 5. Kalau ada masalah
+## 6. Kalau ada masalah
 
 | Yang terlihat | Penyebab dan jalan keluar |
 |---|---|
-| "Klip perlu disiapkan dulu" | Proyek lama: klik "Siapkan untuk editor" di halaman proyek. |
-| "Transkrip berubah sejak klip diedit" (baca saja) | Proyek dijalankan ulang dan transkripnya berubah. Klik "Mulai dari versi AI" untuk mulai lagi dari hasil otomatis yang baru. |
+| "Menyiapkan klip untuk diedit" lama sekali | Proyek panjang dengan face-track. Tunggu; setelah 12 menit editor menyerah dan meminta muat ulang. |
+| "Transkrip berubah sejak klip diedit" (baca saja) | Proyek dijalankan ulang dan transkripnya berubah. Klik "Mulai dari versi AI". |
 | "Klip ini diubah di tab lain" | Dua tab mengubah bagian yang sama. Pilih versi per bagian; draf Anda tidak hilang. |
-| "Gagal menyimpan; perubahan aman di browser ini" | Server tidak terjangkau. Perubahan tersimpan di browser dan dikirim lagi otomatis; ada tombol untuk mencoba lagi. |
-| Ekspor: "Layanan editor sedang tidak tersedia" | Di lokal: berkas `resources/toolchain.json` belum dibuat (langkah 2). |
+| "Gagal menyimpan; perubahan aman di browser ini" | Server tidak terjangkau. Perubahan tersimpan di browser dan dikirim lagi otomatis. |
+| "Unggah logo belum tersedia di server ini" / "Unggah file belum diaktifkan di server ini" | `POTONGIN_EDITOR_UPLOADS` belum `on`. |
+| Saran hook hanya "AI seleksi"/"Heuristik" | `POTONGIN_EDITOR_LLM` belum `on`, atau AI di Pengaturan sedang tidak bisa dipakai. |
+| Lajur Penanda: "tidak tersedia untuk job ini" | Job lama tanpa analisis audio; jalankan ulang proyeknya kalau butuh penanda. |
+| Ekspor: "Layanan editor sedang tidak tersedia" | Di lokal: `resources/toolchain.json` belum dibuat (langkah 2). |
 | Ekspor tetap "Antre" | Render worker belum berjalan (langkah 4). |
-| Ekspor: "Video sumber sudah tidak ada" | File video sumber proyek hilang atau proyek dipindah ke folder lain. |
 | "Editor butuh layar minimal 1024 px" | Perlebar jendela atau pakai laptop/komputer. |
-| "Pratinjau langsung butuh Chrome/Edge desktop" | Browser tidak punya WebCodecs. Mengedit dan mengekspor tetap bisa; pratinjau memakai "Frame akhir". |
+| "Pratinjau langsung butuh Chrome/Edge desktop" | Browser tanpa WebCodecs. Mengedit dan mengekspor tetap bisa; pratinjau memakai "Frame akhir". |

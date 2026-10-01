@@ -6,7 +6,7 @@
 //   → undo/redo → reload → export → download → G1–G3 on the file → undo everything → export →
 //   the auto file itself (R10)
 //
-// plus QG-CONFLICT with two tabs, the scripted QG-UX tasks U1, U2, U3, U6 and U7 with their time
+// plus QG-CONFLICT with two tabs, the scripted QG-UX tasks U1–U7 (U4 and U5 since W3) with their time
 // limits, PF-OPEN, the editor headers (cross-origin isolated) and QG-A11Y (axe) on the real page.
 //
 // W3 (plan §11.3 T3.Z), one flow per feature: the entry ("Edit klip" on every card and in the
@@ -50,6 +50,8 @@ const AXE = process.env.AXE_CORE_PATH && existsSync(process.env.AXE_CORE_PATH) ?
 const U1_MS = 20_000;
 const U2_MS = 20_000;
 const U3_MS = 45_000;
+const U4_MS = 30_000;
+const U5_MS = 60_000;
 const U6_EXTRA_MS = 30_000;
 const U7_RESET_MS = 20_000;
 const PF_OPEN_FIRST_MS = 3_000;
@@ -766,12 +768,60 @@ test("W3 music: upload a bed, the Kuat duck preset, the lane follows; the stage 
   writeEvidence("W3-e2e-music", { schema: "potongin.gate/1", gate: "e2e music (real stack)", uploadMs, payload: music.payload, pass: true });
 });
 
+test("QG-UX U4 (scripted): apply a suggested hook and switch the pack in ≤ 30 s", async ({ page, browser }) => {
+  await openEditor(page, clips[0].clipId);
+  await resetToSeed(page);
+  const seedPack = (await inspect(page)).doc.captions.pack.id;
+  const target = seedPack === "bold" ? "Box" : "Bold";
+  const started = Date.now();
+  await openTab(page, "Teks");
+  const card = page.locator('[data-hook-suggestions] [data-suggestion][data-current="false"]').first();
+  await card.getByRole("button", { name: /^Pakai hook: / }).click();
+  const packs = page.getByRole("group", { name: "Gaya caption" });
+  await packs.getByRole("radio", { name: target }).check();
+  const saved = await waitSaved(page);
+  const elapsed = Date.now() - started;
+  expect(saved.doc.captions.pack.id).toBe(target.toLowerCase());
+  writeEvidence("W3Z-QG-UX-U4", { schema: "potongin.gate/1", gate: "QG-UX U4 (scripted, real stack)", ...browserInfo(browser),
+    viewport: "1366x768", pack: target, elapsedMs: elapsed, limitMs: U4_MS, pass: elapsed <= U4_MS });
+  expect(elapsed).toBeLessThanOrEqual(U4_MS);
+  await resetToSeed(page);
+});
+
+test("QG-UX U5 (scripted): add a logo and ducked music in ≤ 60 s", async ({ page, browser }) => {
+  test.skip(!UPLOADS, "set E2E_EDITOR_UPLOADS=1 for a server with POTONGIN_EDITOR_UPLOADS=on");
+  test.setTimeout(5 * 60_000);
+  await openEditor(page, clips[0].clipId);
+  await resetToSeed(page);
+  const started = Date.now();
+  await openTab(page, "Logo");
+  await panelOf(page, "logo").locator('input[type="file"]').setInputFiles({ name: "logo-u5.png", mimeType: "image/png", buffer: pngLogo(180, 72) });
+  await expect(panelOf(page, "logo").getByRole("radio", { name: "Kanan atas" })).toBeEnabled({ timeout: 60_000 });
+  await panelOf(page, "logo").getByRole("radio", { name: "Kanan atas" }).check();
+  await openTab(page, "Musik");
+  const chooser = page.waitForEvent("filechooser");
+  await panelOf(page, "music").getByRole("button", { name: "Tambah musik" }).click();
+  if (await panelOf(page, "music").getByRole("button", { name: "Pilih file musik" }).isVisible()) {
+    await panelOf(page, "music").getByRole("button", { name: "Pilih file musik" }).click();
+  }
+  await (await chooser).setFiles({ name: "latar-u5.wav", mimeType: "audio/wav", buffer: wavTone(15) });
+  await expect(panelOf(page, "music").locator("[data-music-card]")).toBeVisible({ timeout: 60_000 });
+  await panelOf(page, "music").getByRole("radio", { name: /Sedang/ }).check();
+  const saved = await waitSaved(page);
+  const elapsed = Date.now() - started;
+  expect(visualItem(saved.doc)).toBeTruthy();
+  expect(musicItem(saved.doc)?.payload?.duck?.on).toBe(true);
+  writeEvidence("W3Z-QG-UX-U5", { schema: "potongin.gate/1", gate: "QG-UX U5 (scripted, real stack)", ...browserInfo(browser),
+    viewport: "1366x768", elapsedMs: elapsed, limitMs: U5_MS, pass: elapsed <= U5_MS });
+  expect(elapsed).toBeLessThanOrEqual(U5_MS);
+});
+
 test("W3 export with logo and music: G1–G3 on the download", async ({ page, browser }) => {
   test.skip(!UPLOADS, "set E2E_EDITOR_UPLOADS=1 for a server with POTONGIN_EDITOR_UPLOADS=on");
   test.setTimeout(20 * 60_000);
   await openEditor(page, clips[0].clipId);
   const state = await waitSaved(page);
-  expect(visualItem(state.doc) && musicItem(state.doc), "the logo and music flows ran first").toBeTruthy();
+  expect(visualItem(state.doc) && musicItem(state.doc), "U5 left a logo and ducked music").toBeTruthy();
   const { dialog, render, doneMs } = await exportClip(page);
   const file = await download(page, dialog);
   const verified = verifyExport(state.doc, file);
