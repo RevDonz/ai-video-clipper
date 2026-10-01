@@ -154,6 +154,16 @@ test("focus rings and control edges keep 3:1 against what surrounds them", async
   }
 });
 
+test("date inputs show the focus ring too: their inner field holds the focus, not the input", async () => {
+  // Chromium focuses the day/month segment inside the shadow tree, so the input itself matches
+  // only :focus-within and the global :focus-visible ring never appears on it.
+  const css = await read("app/globals.css");
+  const rule = /([^{}]*input\[type="date"\][^{}]*:focus-within[^{}]*)\{([^}]*)\}/.exec(css);
+  assert.ok(rule, "a :focus-within ring for date inputs");
+  assert.match(rule[2], /outline:\s*2px solid var\(--focus\)/);
+  for (const type of ["date", "time", "datetime-local", "month", "week"]) assert.match(rule[1], new RegExp(`input\\[type="${type}"\\]`), type);
+});
+
 test("DM Sans is self-hosted through next/font and every stylesheet reaches it through --font", async () => {
   // A remote @import in globals.css is dropped by the build, so the font never loaded.
   const layout = await read("app/layout.jsx");

@@ -88,6 +88,8 @@ body {
 :where(img, video) { max-width: 100%; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 :where(input, select, textarea):focus-visible { outline-offset: 1px; }
+/* Date and time inputs keep focus on an inner segment, so only :focus-within reaches them. */
+:where(input[type="date"], input[type="time"], input[type="datetime-local"], input[type="month"], input[type="week"]):focus-within { outline: 2px solid var(--focus); outline-offset: 1px; }
 :where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="hidden"]), select, textarea) {
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-m);

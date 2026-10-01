@@ -103,6 +103,20 @@ test("the pages' stylesheets use the design tokens, never literal colours", asyn
   }
 });
 
+test("the pages' stand-alone links and chips are 44 px tap targets on a phone", async () => {
+  const rule = (css, selector) => {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return [...css.matchAll(new RegExp(`(?:^|[},])\\s*${escaped}\\s*\\{([^}]*)\\}`, "gm"))].map((match) => match[1]).join(";");
+  };
+  const settings = (await read("app/settings/settings.css")).replace(/\/\*[\s\S]*?\*\//g, "");
+  const trends = (await read("app/trends/trends.css")).replace(/\/\*[\s\S]*?\*\//g, "");
+  // "Dokumentasi ↗" / "Ambil API key ↗" on the provider cards and the Hermes guide link.
+  assert.match(rule(settings, ".presetActions a"), /min-height:\s*44px/);
+  assert.match(rule(trends, ".trGuideLink"), /min-height:\s*44px/);
+  // A one-letter platform chip ("X") is still a full target.
+  assert.match(rule(trends, ".trPlatforms label"), /min-width:\s*44px/);
+});
+
 test("the pages keep the global focus ring: no outline removal, no private ring colour", async () => {
   for (const file of OWN_STYLESHEETS) {
     const css = await read(file);
