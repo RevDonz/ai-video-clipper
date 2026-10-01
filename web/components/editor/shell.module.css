@@ -415,9 +415,14 @@
   white-space: nowrap;
 }
 
+/* The detail shrinks first when the controls row is short (1366 px): it ends in "…" and the full
+   line stays in its title and in the "Apa artinya?" popover. */
 .badgeDetail {
+  min-width: 0;
+  overflow: hidden;
   color: var(--text-muted);
   font-size: var(--ed-font-size-xs);
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
