@@ -9,6 +9,12 @@
 // plus QG-CONFLICT with two tabs, the scripted QG-UX tasks U1, U2, U3, U6 and U7 with their time
 // limits, PF-OPEN, the editor headers (cross-origin isolated) and QG-A11Y (axe) on the real page.
 //
+// W3 (plan §11.3 T3.Z), one flow per feature: the entry ("Edit klip" on every card and in the
+// history; a clip of an unprepared job opens with the progress and no manual step), logo and music
+// uploads with an export checked by G1–G3, hook suggestions, Rapikan, the layout switch, and the
+// waveform, markers and cold-open suggestions. The entry flow runs first so it can meet the job
+// unprepared (copy a job without its analysis/clips folder to see the progress).
+//
 // Setup (every value is required unless marked optional):
 //   E2E_BASE_URL, E2E_USERNAME, E2E_PASSWORD      a private server (never the owner's :3000)
 //   E2E_EDITOR_JOB_ID                            a V3 job in that server's JOBS_ROOT (a copy)
@@ -16,6 +22,8 @@
 //   E2E_EDITOR_PYTHON (optional)                 a Python with ai_clipper (default: python3)
 //   EDITOR_GATES_OUT (optional)                  where the gate evidence JSON is written
 //   AXE_CORE_PATH (optional)                     axe.min.js for QG-A11Y (skipped without it)
+//   E2E_EDITOR_UPLOADS=1 (optional)              the server runs with POTONGIN_EDITOR_UPLOADS=on
+//                                                (the logo and music flows skip without it)
 // The browser is Chrome for Testing 147.0.7727.15 (Playwright build 1217) when installed, as for
 // the parity specs; PARITY_CHROME overrides it. Run:
 //   E2E_NO_WEB_SERVER=1 npx playwright test e2e/editor-flow.spec.mjs --project=desktop-chromium
@@ -26,6 +34,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSy
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { crc32, deflateSync } from "node:zlib";
 
 import { login, settings } from "./support/harness.mjs";
 
@@ -34,6 +43,7 @@ const JOB_ID = process.env.E2E_EDITOR_JOB_ID || "";
 const JOBS_ROOT = process.env.E2E_JOBS_ROOT || "";
 const PYTHON = process.env.E2E_EDITOR_PYTHON || "python3";
 const GATES_OUT = process.env.EDITOR_GATES_OUT || "";
+const UPLOADS = process.env.E2E_EDITOR_UPLOADS === "1";
 const AXE = process.env.AXE_CORE_PATH && existsSync(process.env.AXE_CORE_PATH) ? readFileSync(process.env.AXE_CORE_PATH, "utf8") : null;
 
 // Plan §10.2 QG-UX and §10.3 PF-OPEN limits (never weakened here).
@@ -80,8 +90,22 @@ async function api(page, method, url, json) {
   }, { method, url, json });
 }
 
-let clips = null; // [{clipId, index, durationMs, title}] after the job-level prepare
+let clips = null; // [{clipId, index, durationMs, title}] once the job is prepared
+let unpreparedAtStart = false;
 const evidence = {};
+
+/** The openable clips; prepares the job through the API when the entry test did not run first. */
+async function ensureClips(page) {
+  if (clips?.length) return clips;
+  const prepared = await api(page, "POST", `/api/jobs/${JOB_ID}/clips`, {});
+  expect([200, 202, 429], `POST /clips: ${prepared.status} ${JSON.stringify(prepared.body)}`).toContain(prepared.status);
+  await expect.poll(async () => {
+    const listing = (await api(page, "GET", `/api/jobs/${JOB_ID}/clips`)).body;
+    clips = (listing.clips ?? []).filter((clip) => clip.openable && clip.clipId);
+    return clips.length;
+  }, { timeout: 600_000 }).toBeGreaterThan(0);
+  return clips;
+}
 
 function writeEvidence(name, value) {
   evidence[name] = value;
@@ -243,16 +267,43 @@ test.beforeAll(async ({ browser }) => {
   const context = await browser.newContext();
   const page = await context.newPage();
   await login(page);
-  const prepared = await api(page, "POST", `/api/jobs/${JOB_ID}/clips`, {});
-  expect([200, 202], `POST /clips: ${prepared.status} ${JSON.stringify(prepared.body)}`).toContain(prepared.status);
-  const listing = (await api(page, "GET", `/api/jobs/${JOB_ID}/clips`)).body;
-  clips = listing.clips.filter((clip) => clip.openable && clip.clipId);
-  expect(clips.length).toBeGreaterThan(0);
+  const listing = await api(page, "GET", `/api/jobs/${JOB_ID}/clips`);
+  expect(listing.status, `GET /clips: ${JSON.stringify(listing.body)}`).toBe(200);
+  unpreparedAtStart = listing.body.clips.some((clip) => !clip.openable && clip.reason === "needs_prepare");
   await context.close();
 });
 
-test.beforeEach(async ({ page }) => {
+test.beforeEach(async ({ page }, testInfo) => {
   await login(page);
+  // The entry flow prepares the job itself, through "Edit klip"; every other flow needs its clips.
+  if (!testInfo.title.startsWith("entry:")) await ensureClips(page);
+});
+
+test("entry: 'Edit klip' on every clip card and in the history; a clip opens with no manual prepare", async ({ page, browser }) => {
+  test.setTimeout(15 * 60_000);
+  await page.goto(`/projects/${JOB_ID}`);
+  const cards = page.getByRole("article");
+  await expect(cards.first()).toBeVisible({ timeout: 30_000 });
+  const count = await cards.count();
+  for (let index = 0; index < count; index += 1) await expect(cards.nth(index).getByRole("link", { name: "Edit klip" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Siapkan/ })).toHaveCount(0);
+  await page.goto("/projects");
+  const row = page.getByRole("list", { name: "Proyek" }).getByRole("listitem").filter({ has: page.locator(`a[href="/projects/${JOB_ID}"]`) });
+  await expect(row.getByRole("link", { name: /^Edit klip/ })).toHaveAttribute("href", `/projects/${JOB_ID}#klip`);
+  await row.getByRole("link", { name: /^Edit klip/ }).click();
+  await expect(page).toHaveURL(new RegExp(`/projects/${JOB_ID}#klip$`));
+  const started = Date.now();
+  await page.getByRole("article").first().getByRole("link", { name: "Edit klip" }).click();
+  if (unpreparedAtStart) {
+    await expect(page.getByRole("heading", { name: "Menyiapkan klip untuk diedit" })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("status").filter({ hasText: "Menyiapkan transkrip kata, waveform, dan wajah." })).toBeVisible();
+  }
+  await expect(page.locator('[data-editor-ready="true"]')).toBeVisible({ timeout: 12 * 60_000 });
+  const openMs = Date.now() - started;
+  expect(new URL(page.url()).pathname).toMatch(new RegExp(`^/projects/${JOB_ID}/clips/clip_[0-9a-f]{24}/edit$`));
+  await ensureClips(page);
+  writeEvidence("W3-e2e-entry", { schema: "potongin.gate/1", gate: "e2e entry: Edit klip and the automatic prepare (real stack)",
+    ...browserInfo(browser), cards: count, unpreparedAtStart, openMs, openableAfter: clips.length, pass: true });
 });
 
 test("the editor page is cross-origin isolated, nosniff and never framed", async ({ page }) => {
@@ -602,6 +653,232 @@ function coldClips() {
   return clips.filter((clip) => !existsSync(path.join(JOBS_ROOT, JOB_ID, "analysis", "clips", clip.clipId, "preview")));
 }
 
+// --- W3: one flow per feature (plan §11.3 T3.Z) ---------------------------------------------------
+// Uploads need a server with POTONGIN_EDITOR_UPLOADS=on (E2E_EDITOR_UPLOADS=1); the hook
+// suggestions run with the LLM part off (the instant variants), as the flags default.
+
+/** A 200×80 RGBA PNG with a transparent surround, made here (no media in the repository). */
+function pngLogo(width = 200, height = 80) {
+  const stride = width * 4 + 1;
+  const raw = Buffer.alloc(stride * height);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const at = y * stride + 1 + x * 4;
+      const inside = ((x - width / 2) / (width / 2)) ** 2 + ((y - height / 2) / (height / 2)) ** 2 <= 1;
+      raw.set([0xdf, 0xff, 0x58, inside ? 230 : 0], at);
+    }
+  }
+  const chunk = (type, data) => {
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(data.length);
+    const body = Buffer.concat([Buffer.from(type, "ascii"), data]);
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(crc32(body));
+    return Buffer.concat([length, body, crc]);
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header.set([8, 6, 0, 0, 0], 8);
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", header),
+    chunk("IDAT", deflateSync(raw)), chunk("IEND", Buffer.alloc(0))]);
+}
+
+/** A 20 s mono 48 kHz WAV: a 220 Hz tone that swells, as a stand-in music bed. */
+function wavTone(seconds = 20, rate = 48_000) {
+  const samples = seconds * rate;
+  const data = Buffer.alloc(samples * 2);
+  for (let i = 0; i < samples; i += 1) {
+    const swell = 0.6 + 0.4 * Math.sin((2 * Math.PI * 0.5 * i) / rate);
+    data.writeInt16LE(Math.round(Math.sin((2 * Math.PI * 220 * i) / rate) * 0.25 * swell * 32767), i * 2);
+  }
+  const header = Buffer.alloc(44);
+  header.write("RIFF", 0, "ascii");
+  header.writeUInt32LE(36 + data.length, 4);
+  header.write("WAVEfmt ", 8, "ascii");
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(1, 22);
+  header.writeUInt32LE(rate, 24);
+  header.writeUInt32LE(rate * 2, 28);
+  header.writeUInt16LE(2, 32);
+  header.writeUInt16LE(16, 34);
+  header.write("data", 36, "ascii");
+  header.writeUInt32LE(data.length, 40);
+  return Buffer.concat([header, data]);
+}
+
+const visualItem = (doc) => doc.tracks.find((track) => track.kind === "visual")?.items[0] ?? null;
+const musicItem = (doc) => doc.tracks.find((track) => track.kind === "audio")?.items[0] ?? null;
+const hookTextOf = (doc) => doc.tracks.find((track) => track.kind === "hook")?.items[0]?.payload?.text ?? null;
+const panelOf = (page, id) => page.locator(`[data-panel="${id}"]`);
+
+// "Sesuai hasil akhir"; back at the AI version of a clip whose auto file came before the editor
+// (the engine stays legacy until K1) the badge says the export is that file instead.
+async function exactBadge(page, { timeout = 120_000, unchangedOk = false } = {}) {
+  const text = unchangedOk ? /^● (?:Sesuai hasil akhir|Belum diubah: ekspor = klip otomatis)$/ : "● Sesuai hasil akhir";
+  await expect(page.getByTestId("stage-badge")).toHaveText(text, { timeout });
+}
+
+test("W3 logo: upload, a corner, size and opacity; the stage shows it exactly", async ({ page }) => {
+  test.skip(!UPLOADS, "set E2E_EDITOR_UPLOADS=1 for a server with POTONGIN_EDITOR_UPLOADS=on");
+  test.setTimeout(5 * 60_000);
+  await openEditor(page, clips[0].clipId);
+  await resetToSeed(page);
+  await openTab(page, "Logo");
+  const started = Date.now();
+  await panelOf(page, "logo").locator('input[type="file"]').setInputFiles({ name: "logo-uji.png", mimeType: "image/png", buffer: pngLogo() });
+  await expect(panelOf(page, "logo").getByRole("radio", { name: "Kanan atas" })).toBeEnabled({ timeout: 60_000 });
+  const uploadMs = Date.now() - started;
+  await panelOf(page, "logo").getByRole("radio", { name: "Kanan atas" }).check();
+  for (const [name, key] of [["Ukuran", "ArrowRight"], ["Opasitas", "ArrowLeft"]]) {
+    await panelOf(page, "logo").getByRole("slider", { name }).focus();
+    await page.keyboard.press(key);
+  }
+  const saved = await waitSaved(page);
+  const logo = visualItem(saved.doc);
+  expect(logo, "a logo item in the document").toBeTruthy();
+  expect(Object.keys(saved.doc.assets ?? {}).length).toBeGreaterThan(0);
+  await expect(page.locator('[data-gizmo="logo"] [data-logo-box]')).toBeVisible();
+  await exactBadge(page);
+  writeEvidence("W3-e2e-logo", { schema: "potongin.gate/1", gate: "e2e logo (real stack)", uploadMs, item: logo, pass: true });
+});
+
+test("W3 music: upload a bed, the Kuat duck preset, the lane follows; the stage stays exact", async ({ page }) => {
+  test.skip(!UPLOADS, "set E2E_EDITOR_UPLOADS=1 for a server with POTONGIN_EDITOR_UPLOADS=on");
+  test.setTimeout(5 * 60_000);
+  await openEditor(page, clips[0].clipId);
+  await openTab(page, "Musik");
+  const panel = panelOf(page, "music");
+  const chooser = page.waitForEvent("filechooser");
+  await panel.getByRole("button", { name: "Tambah musik" }).click();
+  if (await panel.getByRole("button", { name: "Pilih file musik" }).isVisible()) await panel.getByRole("button", { name: "Pilih file musik" }).click();
+  const started = Date.now();
+  await (await chooser).setFiles({ name: "latar-uji.wav", mimeType: "audio/wav", buffer: wavTone() });
+  await expect(panel.locator("[data-music-card]")).toBeVisible({ timeout: 120_000 });
+  const uploadMs = Date.now() - started;
+  await panel.getByRole("radio", { name: /Kuat/ }).check();
+  const saved = await waitSaved(page);
+  const music = musicItem(saved.doc);
+  expect(music?.payload?.duck?.on).toBe(true);
+  await expect(page.locator('[data-lane="music"]').getByRole("img", { name: /turun saat ada suara/ })).toBeVisible();
+  await exactBadge(page);
+  writeEvidence("W3-e2e-music", { schema: "potongin.gate/1", gate: "e2e music (real stack)", uploadMs, payload: music.payload, pass: true });
+});
+
+test("W3 export with logo and music: G1–G3 on the download", async ({ page, browser }) => {
+  test.skip(!UPLOADS, "set E2E_EDITOR_UPLOADS=1 for a server with POTONGIN_EDITOR_UPLOADS=on");
+  test.setTimeout(20 * 60_000);
+  await openEditor(page, clips[0].clipId);
+  const state = await waitSaved(page);
+  expect(visualItem(state.doc) && musicItem(state.doc), "the logo and music flows ran first").toBeTruthy();
+  const { dialog, render, doneMs } = await exportClip(page);
+  const file = await download(page, dialog);
+  const verified = verifyExport(state.doc, file);
+  writeEvidence("W3-e2e-export", { schema: "potongin.gate/1", gate: "e2e export with logo and music (real stack)", ...browserInfo(browser),
+    revision: render.revision, renderMs: doneMs, verify: { ok: verified.ok, gates: verified.report?.gates?.map((gate) => ({ name: gate.name, ok: gate.ok, blocking: gate.blocking })) },
+    pass: verified.ok });
+  expect(verified.ok, JSON.stringify(verified.report?.gates ?? verified)).toBe(true);
+  await resetToSeed(page);
+});
+
+test("W3 hook suggestions: instant variants with their source, one replaces the hook", async ({ page }) => {
+  await openEditor(page, clips[0].clipId);
+  await resetToSeed(page);
+  await openTab(page, "Teks");
+  const card = page.locator('[data-hook-suggestions] [data-suggestion][data-current="false"]').first();
+  await expect(card).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator("[data-hook-suggestions] [data-source-label]").first()).toHaveText(/^(AI seleksi|Heuristik)$/);
+  const chosen = (await card.locator("p").first().textContent()).trim();
+  await card.getByRole("button", { name: /^Pakai hook: / }).click();
+  const saved = await waitSaved(page);
+  expect(hookTextOf(saved.doc)).toBe(chosen);
+  await page.getByRole("button", { name: "Urungkan" }).click();
+  await waitSaved(page);
+  writeEvidence("W3-e2e-hooks", { schema: "potongin.gate/1", gate: "e2e hook suggestions (real stack, LLM part off)", chosen, pass: true });
+});
+
+test("W3 Rapikan: the review lists what it can cut; Terapkan applies it in one step and Urungkan restores", async ({ page }) => {
+  await openEditor(page, clips[0].clipId);
+  await resetToSeed(page);
+  await openTab(page, "Transkrip");
+  await transcript(page).getByRole("button", { name: /^Rapikan/ }).click();
+  const review = page.getByRole("region", { name: "Rapikan" });
+  await expect(review).toBeVisible({ timeout: 30_000 });
+  const boxes = review.getByRole("checkbox");
+  const total = await boxes.count();
+  let applied = 0;
+  if (total > 0) {
+    for (const box of (await boxes.all()).slice(0, 3)) if (await box.isEnabled() && !(await box.isChecked())) await box.check();
+    const apply = review.getByRole("button", { name: /^Terapkan \(\d+\)/ });
+    applied = Number(/\((\d+)\)/.exec(await apply.textContent())[1]);
+    const before = (await inspect(page)).doc;
+    await apply.click();
+    const after = (await waitSaved(page)).doc;
+    expect(contentOf(after)).not.toBe(contentOf(before));
+    await page.getByRole("button", { name: "Urungkan" }).click();
+    const undone = (await waitSaved(page)).doc;
+    expect(contentOf(undone)).toBe(contentOf(before));
+  } else {
+    await expect(review).toContainText(/Tidak ada|tidak ada/);
+  }
+  writeEvidence("W3-e2e-rapikan", { schema: "potongin.gate/1", gate: "e2e Rapikan (real stack)", listed: total, applied, pass: true });
+});
+
+test("W3 layout: Potong tengah and back to Latar blur, the stage exact after each", async ({ page }) => {
+  test.setTimeout(5 * 60_000);
+  await openEditor(page, clips[0].clipId);
+  await resetToSeed(page);
+  await openTab(page, "Tata letak");
+  const panel = panelOf(page, "layout");
+  const initial = (await inspect(page)).doc.layout.default.mode;
+  const switches = [];
+  for (const [name, mode] of initial === "fill_center" ? [["Latar blur", "fit_blur"], ["Potong tengah", "fill_center"]]
+    : [["Potong tengah", "fill_center"], ["Latar blur", "fit_blur"]]) {
+    const started = Date.now();
+    await panel.getByRole("radio", { name: new RegExp(`^${name}`) }).check();
+    expect((await waitSaved(page)).doc.layout.default.mode).toBe(mode);
+    await exactBadge(page, { unchangedOk: mode === initial });
+    switches.push({ mode, exactMs: Date.now() - started });
+  }
+  await resetToSeed(page);
+  writeEvidence("W3-e2e-layout", { schema: "potongin.gate/1", gate: "e2e layout switch (real stack)", initial, switches, pass: true });
+});
+
+test("W3 waveform, markers and cold-open suggestions: lanes drawn, a marker seeks, a suggestion becomes the cold open", async ({ page }) => {
+  await openEditor(page, clips[0].clipId);
+  await resetToSeed(page);
+  await expect(page.locator('[data-lane="audio"]')).toHaveAttribute("data-waveform-state", "ready", { timeout: 30_000 });
+  const lane = page.locator('[data-lane="markers"]');
+  await expect(lane).toHaveAttribute("data-markers-state", /ready|empty|missing/, { timeout: 30_000 });
+  const markers = lane.locator("[data-event-marker]");
+  const count = await markers.count();
+  let seekOk = null;
+  if (count > 0) {
+    const target = count > 1 ? markers.nth(1) : markers.first();
+    const f0 = Number(await target.getAttribute("data-f0"));
+    await target.click();
+    await expect.poll(() => page.evaluate(() => globalThis.__potonginEditorInspect.player().frame)).toBe(f0);
+    seekOk = true;
+  }
+  await openTab(page, "Cold open");
+  const items = page.locator("[data-coldopen-suggestion]");
+  await expect(page.locator("[data-suggestions-state]")).not.toHaveAttribute("data-suggestions-state", "loading", { timeout: 30_000 });
+  let used = null;
+  const usable = items.getByRole("button", { name: /^Pakai saran \d+ sebagai cold open$/ });
+  for (const button of await usable.all()) {
+    if (!(await button.isEnabled())) continue;
+    used = await button.getAttribute("aria-label") ?? await button.textContent();
+    await button.click();
+    const saved = await waitSaved(page);
+    expect(saved.doc.main.segments[0].role).toBe("cold_open");
+    break;
+  }
+  await resetToSeed(page);
+  writeEvidence("W3-e2e-markers", { schema: "potongin.gate/1", gate: "e2e waveform, markers, cold-open suggestions (real stack)",
+    markers: count, seekOk, suggestionUsed: used, pass: true });
+});
+
 test("PF-OPEN on the real stack: first visit ≤ 3.0 s, repeat ≤ 2.0 s (p95); first playhead cell ≤ 2.0 s after prepare", async ({ browser }) => {
   test.setTimeout(10 * 60_000);
   const runs = Number(process.env.EDITOR_PF_OPEN_RUNS || 10);
@@ -695,7 +972,15 @@ test("QG-A11Y on the real editor: axe finds no critical or serious violation", a
     }], ["text panel", async () => {
       await page.getByRole("dialog", { name: "Ekspor klip" }).getByRole("button", { name: "Tutup" }).click();
       await openTab(page, "Teks");
-    }], ["cold-open panel", async () => { await openTab(page, "Cold open"); }]]) {
+    }], ["cold-open panel", async () => { await openTab(page, "Cold open"); }],
+    ["layout panel", async () => { await openTab(page, "Tata letak"); }],
+    ["logo panel", async () => { await openTab(page, "Logo"); }],
+    ["music panel", async () => { await openTab(page, "Musik"); }],
+    ["Rapikan review", async () => {
+      await openTab(page, "Transkrip");
+      await transcript(page).getByRole("button", { name: /^Rapikan/ }).click();
+      await expect(page.getByRole("region", { name: "Rapikan" })).toBeVisible({ timeout: 30_000 });
+    }]]) {
       if (open) await open();
       await page.addScriptTag({ content: AXE });
       const outcome = await page.evaluate(async () => {
