@@ -1,6 +1,8 @@
 // Token buckets for the editor routes (plan §9.1 "Rate limits"; K13):
 //   preview/plan ≤ 10/s and preview/frame ≤ 4/s per session, uploads ≤ 30/min per session,
 //   AI suggestions ≤ 30 per job per hour (across sessions: it protects the LLM quota).
+// `api` (T4.2) bounds every other editor route that starts a Python process or reads many files:
+//   a burst of 60, then 20/s per session; the editor itself never comes near it.
 // Session buckets are keyed by sha256 of the session token, so the raw token is never kept.
 // Memory is bounded: the least recently used key is evicted beyond `maxKeys`.
 // In-process state: one app container, so per-process buckets are the whole picture.
@@ -11,6 +13,7 @@ export const EDITOR_RATE_LIMITS = Object.freeze({
   frame: Object.freeze({ capacity: 4, refillPerSecond: 4, scope: "session" }),
   ai: Object.freeze({ capacity: 30, refillPerSecond: 30 / 3600, scope: "job" }),
   upload: Object.freeze({ capacity: 30, refillPerSecond: 30 / 60, scope: "session" }),
+  api: Object.freeze({ capacity: 60, refillPerSecond: 20, scope: "session" }),
 });
 
 // Sub-microsecond float error must not add a millisecond to a retry time.
@@ -80,4 +83,17 @@ export function createEditorRateLimits({ now = Date.now, maxKeys = 10_000, limit
       return entry.limiter.take(`session:${sessionRateKey(sessionToken)}`);
     },
   };
+}
+
+const SHARED = Symbol.for("potongin.editorRateLimits");
+
+/** The limiters of this process, shared by every editor route (one app container). */
+export function sharedEditorRateLimits() {
+  globalThis[SHARED] ??= createEditorRateLimits();
+  return globalThis[SHARED];
+}
+
+/** A `Retry-After` value: whole seconds, at least 1. */
+export function retryAfterSeconds(retryAfterMs) {
+  return String(Math.max(1, Math.ceil(Number(retryAfterMs) / 1000) || 1));
 }
