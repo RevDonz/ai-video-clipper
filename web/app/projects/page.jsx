@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import AppHeader from "../../components/AppHeader.jsx";
+import { historyOffersEdit } from "../../lib/clip-entry-view.mjs";
 import {
   PROJECT_FILTERS,
   formatProjectDate,
@@ -23,7 +24,7 @@ const POLL_MS = 5000;
 
 function ProjectRow({ job, editor, confirming, busy, onAskDelete, onCancelDelete, onDelete }) {
   const clips = Array.isArray(job.clips) ? job.clips : [];
-  const editable = editor && job.status === "completed" && clips.length > 0;
+  const editable = historyOffersEdit(job, editor);
   const poster = clips.map(clipPosterUrl).find(Boolean);
   const active = isActiveStatus(job.status);
   const name = projectName(job);
