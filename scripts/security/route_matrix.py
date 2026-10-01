@@ -162,6 +162,19 @@ class Matrix:
         return row
 
 
+def summarise(rows: list[dict]) -> dict:
+    """Rows grouped by case (the tried value left out): checks, passes and the statuses seen."""
+    groups: dict[str, dict] = {}
+    for row in rows:
+        key = re.sub(r"=.*$", "=*", row["case"])
+        group = groups.setdefault(key, {"checks": 0, "passed": 0, "statuses": []})
+        group["checks"] += 1
+        group["passed"] += 1 if row["pass"] else 0
+        if row["status"] not in group["statuses"]:
+            group["statuses"].append(row["status"])
+    return groups
+
+
 def login(base: str, username: str, password: str) -> str:
     time.sleep(1.1)  # a session token is signed per second: one login per second, one token each
     return fuzz._login(base, username, password)
@@ -423,7 +436,7 @@ def run(args: argparse.Namespace) -> dict:
         "schema": SCHEMA, "gate": "QG-SEC (every editor route over HTTP, E11 child environment)",
         "task": "T4.2", "stack": args.stack, "checks": len(m.rows), "failures": failures,
         "answers": m.answers, "answersWithLeak": sorted(set(m.leaky)), "serverErrors": m.server_errors,
-        "environ": environ, "matrix": m.rows,
+        "environ": environ, "matrix": summarise(m.rows),
         "pass": not failures and not m.leaky and not m.server_errors and environ["pass"],
     }
 
