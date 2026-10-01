@@ -9,6 +9,7 @@
 // stops a render.
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { exportDownload } from "../../lib/clip-entry-view.mjs";
 import styles from "./shell.module.css";
 import { canStartExport, exportStepView } from "./export-flow.mjs";
 import { safeApiHref } from "./shell-model.mjs";
@@ -49,8 +50,15 @@ function CopyField({ label, value, copyLabel }) {
   );
 }
 
+// An earlier export's MP4, saved as "klip-NN-revisi-R.mp4" like the current one.
+function EarlierLink({ item, clipIndex }) {
+  const link = exportDownload(safeApiHref(item.resultUrl), { index: clipIndex, revision: item.revision });
+  return <a href={link.href} download={link.filename || true}>{`MP4 revisi ${item.revision ?? "?"}`}</a>;
+}
+
 export default function ExportDialog({
   open, onClose, flow, onStart, onCancel, onRetry, checks, revision, dirty, unchanged, output, packaging, earlier, readOnly,
+  clipIndex = null,
 }) {
   const dialogRef = useRef(null);
   const [acked, setAcked] = useState(() => new Set());
@@ -73,6 +81,9 @@ export default function ExportDialog({
   const ready = canStartExport(checks, acked) && !readOnly;
   const notes = warnings.filter((check) => AUDIO_NOTES.has(check.code.split(":")[0]));
   const result = phase === "completed" ? flow.render : null;
+  const saved = { index: clipIndex, revision: result?.revision };
+  const mp4 = result ? exportDownload(safeApiHref(result.resultUrl), saved) : null;
+  const srt = result ? exportDownload(safeApiHref(result.srtUrl), saved) : null;
   const failed = phase === "failed" || phase === "cancelled" || phase === "error";
   const toggle = (key) => setAcked((current) => {
     const next = new Set(current);
@@ -161,11 +172,11 @@ export default function ExportDialog({
               <section className={styles.section} aria-labelledby="export-result">
                 <h3 id="export-result">Unduhan</h3>
                 <div className={styles.downloads}>
-                  {safeApiHref(result.resultUrl) && (
-                    <a className={`${styles.button} ${styles.primary} ${styles.downloadLink}`} href={safeApiHref(result.resultUrl)} download>Unduh MP4</a>
+                  {mp4 && (
+                    <a className={`${styles.button} ${styles.primary} ${styles.downloadLink}`} href={mp4.href} download={mp4.filename || true}>Unduh MP4</a>
                   )}
-                  {safeApiHref(result.srtUrl) && (
-                    <a className={`${styles.button} ${styles.downloadLink}`} href={safeApiHref(result.srtUrl)} download>Unduh SRT</a>
+                  {srt && (
+                    <a className={`${styles.button} ${styles.downloadLink}`} href={srt.href} download={srt.filename || true}>Unduh SRT</a>
                   )}
                 </div>
                 {notes.map((check) => <p key={check.key} className={styles.note}>{`Catatan audio: ${check.message}`}</p>)}
@@ -188,7 +199,7 @@ export default function ExportDialog({
                       <span>{`Revisi ${item.revision ?? "?"}`}</span>
                       {item.atMs && <span className={styles.checkTime}>{formatTime(item.atMs)}</span>}
                       {item.state === "completed" && safeApiHref(item.resultUrl)
-                        ? <a href={safeApiHref(item.resultUrl)} download>{`MP4 revisi ${item.revision ?? "?"}`}</a>
+                        ? <EarlierLink item={item} clipIndex={clipIndex} />
                         : <span className={styles.muted}>{item.state === "failed" ? "gagal" : item.state === "cancelled" ? "dibatalkan" : "diproses"}</span>}
                     </li>
                   ))}

@@ -112,6 +112,38 @@ test("the editor page opens a clip id or klip-<n>, passes the uploads flag, and 
   assert.match(source, /title: "Edit klip · Potongin"/);
 });
 
+test("a finished prepare that leaves the clip closed says why at once instead of polling (W3 verifier)", async () => {
+  // The listing cannot know a source FFmpeg fails on (it never decodes): the prepare answer does.
+  const answer = json(202, { state: "done", clips: [
+    { clipId: null, index: 1, openable: false, reason: "source_unreadable" },
+    { clipId: null, index: 2, openable: false, reason: "source_unreadable" },
+  ] });
+  let { calls, fetchImpl } = server([
+    json(200, { clips: [entry({ index: 1, reason: "needs_prepare" }), entry({ index: 2, reason: "needs_prepare" })] }),
+    answer,
+  ]);
+  let result = await prepareForEditor({ jobId: JOB, index: 2, fetchImpl, ...clock() });
+  assert.deepEqual(result, { state: "error", code: "source_unreadable", message: "Video sumber tidak bisa dibaca; proses ulang videonya" });
+  assert.deepEqual(calls, [`GET /api/jobs/${JOB}/clips`, `POST /api/jobs/${JOB}/clips {}`]);
+  assert.equal(answer.bodyUsed, true);
+  // A clip opened by its id is found in the answer by its number (a closed clip has no id there).
+  ({ calls, fetchImpl } = server([
+    json(200, { clips: [entry({ clipId: CLIP, index: 3, reason: "needs_prepare" })] }),
+    json(202, { state: "done", clips: [{ clipId: null, index: 3, openable: false, reason: "transcript_missing" }] }),
+  ]));
+  result = await prepareForEditor({ jobId: JOB, clipId: CLIP, fetchImpl, ...clock() });
+  assert.deepEqual(result, { state: "error", code: "transcript_missing", message: "Transkrip tidak ditemukan" });
+  assert.equal(calls.length, 2);
+  // A reason the page does not know, or "still needs preparing" after a finished prepare.
+  for (const reason of ["needs_prepare", "no_such_reason", null]) {
+    result = await prepareForEditor({ jobId: JOB, index: 1, ...server([
+      json(200, { clips: [entry({ index: 1, reason: "needs_prepare" })] }),
+      json(202, { state: "done", clips: [{ clipId: null, index: 1, openable: false, reason }] }),
+    ]), ...clock() });
+    assert.deepEqual(result, { state: "error", code: "prepare_failed", message: "Klip belum bisa disiapkan. Coba lagi sebentar lagi." }, String(reason));
+  }
+});
+
 test("preparing gives up after the time limit instead of polling forever", async () => {
   const stuck = () => json(200, { clips: [entry({ clipId: CLIP, reason: "analysis_incomplete" })] });
   const script = [json(200, { clips: [entry({ clipId: CLIP, reason: "needs_prepare" })] }), json(202, { state: "pending" })];

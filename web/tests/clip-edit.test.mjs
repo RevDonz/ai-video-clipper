@@ -249,6 +249,16 @@ test("POST clips prepares the job (202) with an empty or {} body only", async ()
   assert.equal(big.status, 413);
 });
 
+test("POST clips passes on why a prepared clip still cannot open (a source FFmpeg cannot read)", async () => {
+  const prepared = { state: "done", clips: [{ clipId: null, index: 1, openable: false, reason: "source_unreadable" },
+    { clipId: null, index: 2, openable: false, reason: "no_such_reason" }] };
+  const { runCli } = recorder({ prepare_job: { exitCode: 0, json: prepared } });
+  const result = await read(await createClipsRoute({ authorize, env: env(), runCli })
+    .POST(request(CLIPS_URL, { method: "POST", body: "{}" }), context({ id: JOB_ID })));
+  assert.equal(result.status, 202);
+  assert.deepEqual(result.body.clips.map((clip) => clip.reason), ["source_unreadable", null]);
+});
+
 test("job prepares share one run per job, run one at a time and are rate limited (W2 verifier)", async () => {
   // The camera plans of a face-track job take ~50 s: two clicks share one run, two jobs do not
   // prepare at the same time (the preview lane keeps its CPU), and a job is prepared at most

@@ -44,11 +44,30 @@ test("an edited clip shows its revision and its latest export", () => {
       srtUrl: `/api/jobs/${JOB}/files/output/edits/${CLIP}/0123456789abcdef.srt` },
   }));
   assert.deepEqual(view.editBadge, { text: "Diedit · revisi 3", tone: "edited" });
+  // Saved under the clip's number and revision, not the stored hash name.
   assert.deepEqual(view.latestExport, {
     label: "Ekspor terakhir · revisi 3", state: "completed",
-    href: `/api/jobs/${JOB}/files/output/edits/${CLIP}/0123456789abcdef.mp4`,
-    srtHref: `/api/jobs/${JOB}/files/output/edits/${CLIP}/0123456789abcdef.srt`,
+    href: `/api/jobs/${JOB}/files/output/edits/${CLIP}/0123456789abcdef.mp4?download=1&name=klip-01-revisi-3`,
+    filename: "klip-01-revisi-3.mp4",
+    srtHref: `/api/jobs/${JOB}/files/output/edits/${CLIP}/0123456789abcdef.srt?download=1&name=klip-01-revisi-3`,
+    srtFilename: "klip-01-revisi-3.srt",
   });
+});
+
+test("an export downloads as klip-NN-revisi-R with the file's own extension", () => {
+  const { exportDownload } = entryView;
+  const base = `/api/jobs/${JOB}/files/output/edits/${CLIP}/0123456789abcdef`;
+  assert.deepEqual(exportDownload(`${base}.mp4`, { index: 12, revision: 7 }),
+    { href: `${base}.mp4?download=1&name=klip-12-revisi-7`, filename: "klip-12-revisi-7.mp4" });
+  assert.deepEqual(exportDownload(`${base}.srt`, { index: 2, revision: 0 }),
+    { href: `${base}.srt?download=1&name=klip-02-revisi-0`, filename: "klip-02-revisi-0.srt" });
+  assert.deepEqual(exportDownload(`${base}.mp4?v=1`, { index: 2, revision: 1 }),
+    { href: `${base}.mp4?v=1&download=1&name=klip-02-revisi-1`, filename: "klip-02-revisi-1.mp4" });
+  // Without a clip number or revision the link stays as the server gave it.
+  for (const ref of [{}, { index: 0, revision: 1 }, { index: 100, revision: 1 }, { index: 1, revision: -1 }, { index: 1.5, revision: 1 }]) {
+    assert.deepEqual(exportDownload(`${base}.mp4`, ref), { href: `${base}.mp4`, filename: null }, JSON.stringify(ref));
+  }
+  assert.equal(exportDownload(null, { index: 1, revision: 1 }), null);
 });
 
 test("an export in progress or failed has no download link", () => {
@@ -78,6 +97,7 @@ test("a clip that cannot open names its reason (Appendix C.6)", () => {
   assert.deepEqual(CLIP_REASON_TEXT, {
     needs_prepare: "Klip perlu disiapkan dulu",
     source_missing: "Video sumber sudah tidak ada",
+    source_unreadable: "Video sumber tidak bisa dibaca; proses ulang videonya",
     selection_unreadable: "Hasil seleksi tidak terbaca",
     transcript_missing: "Transkrip tidak ditemukan",
     analysis_incomplete: "Analisis job belum selesai",

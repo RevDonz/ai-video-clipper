@@ -56,14 +56,18 @@ test("every shell message equals the Python message of the same code", () => {
   for (const code of ["tight_cut", "laughter_cut", "hook_overflow", "glyph_unsupported", "no_face", "unsafe_zone",
     "loudness_clamped", "peak_reduced", "music_shorter_than_clip", "render_failed", "render_timeout", "render_stalled",
     "verification_failed", "cancelled", "auto_file_unavailable", "needs_prepare", "source_missing",
-    "selection_unreadable", "transcript_missing", "analysis_incomplete", "not_v3", "transcript_changed",
+    "source_unreadable", "selection_unreadable", "transcript_missing", "analysis_incomplete", "not_v3", "transcript_changed",
     "legacy_engine", "revision_conflict", "schema_too_new"]) {
     assert.ok(MESSAGES[code], code);
   }
 });
 
-test("messages carry the detail after the colon, as errors.message() does", () => {
-  assert.equal(messageFor("peak_reduced:-3.80 dB"), `${MESSAGES.peak_reduced} (-3.80 dB)`);
+test("messages carry the detail after the colon, as errors.message() does, with Indonesian numbers", () => {
+  // Numbers in the detail read the Indonesian way, as the Musik panel writes them.
+  assert.equal(messageFor("peak_reduced:-3.80 dB"), `${MESSAGES.peak_reduced} (−3,8 dB)`);
+  assert.equal(messageFor("peak_reduced:-2.20 dB"), `${MESSAGES.peak_reduced} (−2,2 dB)`);
+  assert.equal(messageFor("loudness_clamped:-16.30 LUFS"), `${MESSAGES.loudness_clamped} (−16,3 LUFS)`);
+  assert.equal(messageFor("peak_reduced:12 dB"), `${MESSAGES.peak_reduced} (12 dB)`);
   assert.equal(messageFor("glyph_unsupported:U+1F602"), `${MESSAGES.glyph_unsupported} (U+1F602)`);
   assert.equal(messageFor("tight_cut"), MESSAGES.tight_cut);
   assert.equal(messageFor("no_such_code"), "Terjadi kesalahan (no_such_code)");
@@ -159,13 +163,28 @@ test("checks merge store and plan warnings, dedupe, sort by frame and carry jump
     ["tight_cut", 402, "00:13,4"],
     ["peak_reduced:-3.80 dB", null, null],
   ]);
-  assert.equal(checks[2].message, `${MESSAGES.peak_reduced} (-3.80 dB)`);
+  assert.equal(checks[2].message, `${MESSAGES.peak_reduced} (−3,8 dB)`);
   assert.equal(checks[0].severity, "warning");
   assert.equal(new Set(checks.map((check) => check.key)).size, checks.length);
   const blocking = checksView({ warnings: [], plan: { fps: FPS, warnings: [], errors: [{ code: "cold_open_invalid", path: "/main/segments/0" }] } });
   assert.equal(blocking[0].severity, "error");
   assert.equal(blocking[0].message, MESSAGES.cold_open_invalid);
   assert.deepEqual(checksView({ warnings: undefined, plan: null }), []);
+});
+
+test("a TikTok-zone check names the caption, the hook or the logo it is about", () => {
+  const checks = checksView({ warnings: [], plan: { fps: FPS, errors: [], warnings: [
+    { code: "unsafe_zone", path: "/captions/overrides/y_e5", f: 3 },
+    { code: "unsafe_zone", path: "/tracks/0/items/0/transform/y_e5", ref: "it_hook", f: 0 },
+    { code: "unsafe_zone", path: "/tracks/1/items/0/transform", ref: "it_logo" },
+    { code: "unsafe_zone", path: "/somewhere/else" },
+  ] } });
+  assert.deepEqual(checks.map((check) => check.message), [
+    "Hook masuk ke area tombol TikTok",
+    "Caption masuk ke area tombol TikTok",
+    "Logo masuk ke area tombol TikTok",
+    MESSAGES.unsafe_zone,
+  ]);
 });
 
 test("content identity ignores revision, parent and audit (R10)", () => {

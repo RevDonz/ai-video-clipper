@@ -62,6 +62,15 @@ function find(clips, { clipId, index }) {
   return clips.find((clip) => clip?.index === index) ?? null;
 }
 
+/** The error for clip number `index` when a finished prepare left it closed, else null. */
+function finishedClosed(answer, index) {
+  if (answer?.state !== "done" || !Array.isArray(answer.clips) || !Number.isInteger(index)) return null;
+  const clip = answer.clips.find((entry) => entry?.index === index);
+  if (!clip || clip.openable === true) return null;
+  const known = typeof clip.reason === "string" && clip.reason !== "needs_prepare" && Object.hasOwn(CLIP_REASON_TEXT, clip.reason);
+  return known ? failure(clip.reason, CLIP_REASON_TEXT[clip.reason]) : failure("prepare_failed");
+}
+
 function retryAfterMs(response, fallback) {
   const seconds = Number(response.headers?.get?.("retry-after"));
   return Number.isFinite(seconds) && seconds > 0 ? Math.min(seconds, 60) * 1000 : fallback;
@@ -115,11 +124,18 @@ export async function prepareForEditor({
     return failure("network");
   }
   // Read the answer to the end, so a later abort of `signal` never cuts off its body.
-  try { await response.arrayBuffer(); } catch { /* the status is what counts */ }
+  let answer = null;
+  try { answer = JSON.parse(new TextDecoder().decode(await response.arrayBuffer())); } catch { answer = null; }
   if (response.status === 401) return { state: "redirect", location: `/login?next=${encodeURIComponent(here)}` };
   // 429: this job's prepare already runs (another tab) or ran just now; wait and read the listing.
   if (response.status === 429) await sleep(retryAfterMs(response, pollMs));
   else if (!response.ok) return failure("prepare_failed");
+  else {
+    // A finished prepare names every clip it could not open (a source FFmpeg cannot read, …);
+    // the listing never decodes, so it would keep saying "needs_prepare".
+    const closed = finishedClosed(answer, first.clip.index ?? index);
+    if (closed) return closed;
+  }
 
   for (;;) {
     onProgress({ phase: "checking" });

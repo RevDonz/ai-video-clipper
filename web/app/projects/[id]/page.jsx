@@ -98,7 +98,7 @@ function EditorEntry({ entry }) {
       {entry.editHref
         ? <a className={`btn ${styles.edit}`} href={entry.editHref}>Edit klip</a>
         : entry.reasonText && <span className={styles.editNote}>{entry.reasonText}</span>}
-      {latest?.href && <a className="btn ghost" href={latest.href} download>{latest.label}</a>}
+      {latest?.href && <a className="btn ghost" href={latest.href} download={latest.filename || true}>{latest.label}</a>}
       {latest && !latest.href && <span className={styles.editNote}>{latest.label}</span>}
     </>
   );
