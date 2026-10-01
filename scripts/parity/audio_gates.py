@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """T3.3 music gates (plan §10.2 duck, G3, G3b, G-CLICK; §10.1 P-AUD; §10.3 PF-AUDIO).
 
-Everything runs on copies of the owner's P3 jobs (the originals are only read), with music made
+Everything runs on copies of jobs (the originals are only read): the owner's P3 jobs (local
+only) or the synthetic V3 jobs of ``scripts/editor_fixture/make_job.py`` (``setup --synthetic``;
+what CI measures, since the P3 media is not on GitHub). The music is made
 here (lavfi tones and noise, normalised as §9.2 describes: AAC-LC 192k, 48 kHz, stereo, stored in
 the job asset store in the document form of docs/editor/CONTRACTS.md §5.9), documents built the
 way the Musik panel builds them (SetMusic's defaults and the Halus/Sedang/Kuat presets of
@@ -10,7 +12,7 @@ measurement, master stage, H.264/AAC, G1–G3b verification).
 
 * **duck**: the music-only stem during speech is the unducked stem − depth ± 0.5 dB, and back
   within 1 dB by release + 50 ms after the span's end + hold. Measured on the exports of a
-  *silent twin* of each real job (the same video stream, words and cuts; the source audio replaced
+  *silent twin* of each job (the same video stream, words and cuts; the source audio replaced
   by digital silence, so the export's audio is the music stem) and, as a cross-check, on the
   lossless ``reference`` of the same documents.
 * **G3** (normalize) and **G3b** (music or source gain > 0, with a deliberately loud track):
@@ -22,6 +24,9 @@ measurement, master stage, H.264/AAC, G1–G3b verification).
 Usage (stdlib only; the image is the toolchain of record, see docs/editor/GATES.md)::
 
     python scripts/parity/audio_gates.py setup --originals <jobs> --jobs-root <scratch> [--twins]
+    python scripts/editor_fixture/make_job.py build <fixture> --only main,fps25,fps60,vfr
+    python scripts/parity/audio_gates.py setup --synthetic --originals <fixture> \
+        --jobs-root <scratch> --twins
     python scripts/parity/audio_gates.py exports --jobs-root <scratch> --work <dir> \\
         --evidence docs/editor/evidence/W3
     E2E_USERNAME=… E2E_PASSWORD=… python scripts/parity/audio_gates.py lane {p-aud,pf-audio} \\
@@ -84,16 +89,49 @@ REFERENCE_STALL_S = 300.0
 EDITOR = "editor-v3/1.0.0"
 TRACK_ORDER = {"hook": 0, "visual": 1, "audio": 2}
 
-# The owner's P3 jobs (plan §11.0) and the clips each gate uses: (job, rank).
+# The clips each gate uses, by role, in two media sets: the owner's P3 jobs (plan §11.0; local
+# copies only, they are not on GitHub) and the synthetic V3 jobs of
+# scripts/editor_fixture/make_job.py (generated on demand, so the gates also run on CI).
 JOBS = ("899226f8-7e57-49d9-8c29-b078b2b91580", "990f3f37-f0a6-490a-a9a2-a6d6cdab004e",
         "3c7d024c-f1f5-45a6-b767-9f2c190b0c42", "860fef1a-8140-4677-8d73-729d18f15431")
-CLIPS = {
-    "fit_blur_23976_cold_open": ("899226f8-7e57-49d9-8c29-b078b2b91580", 3),
-    "fill_center_vfr": ("990f3f37-f0a6-490a-a9a2-a6d6cdab004e", 2),
-    "fit_blur_60fps": ("3c7d024c-f1f5-45a6-b767-9f2c190b0c42", 2),
-    "camera_25fps": ("860fef1a-8140-4677-8d73-729d18f15431", 4),
+P3_ROLES = {
+    "cold_open": {"job": JOBS[0], "rank": 3, "clip": "P3 899226f8 #3: fit-blur, 23.976 fps, cold open"},
+    "vfr": {"job": JOBS[1], "rank": 2, "clip": "P3 990f3f37 #2: fill-center, VFR"},
+    "fps60": {"job": JOBS[2], "rank": 2, "clip": "P3 3c7d024c #2: fit-blur, 60 fps"},
+    "fps25": {"job": JOBS[3], "rank": 4, "clip": "P3 860fef1a #4: face-track, 25 fps"},
 }
-TWIN_ROLES = ("fit_blur_23976_cold_open", "fill_center_vfr", "fit_blur_60fps")
+SYNTHETIC_ROLES = {
+    "cold_open": {"fixture": "main", "rank": 1,
+                  "clip": "synthetic main #1: fit-blur, 29.97 fps CFR, cold open"},
+    "vfr": {"fixture": "vfr", "rank": 2, "clip": "synthetic vfr #2: fit-blur, VFR Matroska"},
+    "fps60": {"fixture": "fps60", "rank": 1,
+              "clip": "synthetic fps60 #1: face-track (the fixture's stub camera), 60 fps, cold open"},
+    "fps25": {"fixture": "fps25", "rank": 3, "clip": "synthetic fps25 #3: center-crop, 25 fps"},
+}
+TWIN_ROLES = ("cold_open", "vfr", "fps60")
+CLICK_ROLES = ("cold_open", "vfr", "fps60")
+PF_AUDIO_ROLE = "cold_open"
+# G3 (every "normalize" row) and G3b (every row): (role, music, the panel's settings)
+LOUDNESS_PLANS = (
+    ("cold_open", "bed", {"master": "normalize"}),
+    ("vfr", "bed", {"master": "normalize", "preset": "kuat"}),
+    ("fps60", "bed", {"master": "normalize", "preset": "halus"}),
+    ("fps60", "loud", {"master": "normalize", "gain_cdb": 600, "duck_on": False}),
+    ("cold_open", "loud", {"gain_cdb": 600, "duck_on": False}),
+    ("vfr", "loud", {"gain_cdb": 600, "preset": "kuat"}),
+    ("fps60", "loud", {"gain_cdb": 600, "duck_on": False, "source_gain_cdb": 1200}),
+    ("fps25", "loud", {"gain_cdb": 600, "duck_on": False, "fade_in_f": 0, "fade_out_f": 0}),
+    ("fps25", "bed", {"source_gain_cdb": 1200}),
+)
+P_AUD_VARIANTS = (
+    ("cold_open", "bed", {}),
+    ("cold_open", "bed", {"preset": "kuat", "master": "normalize"}),
+    ("vfr", "bed", {"preset": "halus", "src_in_smp": 48_000 * 7}),
+    ("fps60", "loud", {"gain_cdb": 600, "duck_on": False}),
+    ("fps60", "tone", {"loop": False, "source_gain_cdb": 600}),
+    ("fps25", "bed", {"fade_in_f": 0, "fade_out_f": 250}),
+)
+ROLES_FILE = "roles.json"
 TWINS_FILE = "twins.json"
 
 
@@ -342,6 +380,46 @@ def copy_job(original: Path, target: Path) -> Path:
     return target
 
 
+def p3_roles() -> dict[str, dict[str, Any]]:
+    return copy.deepcopy(P3_ROLES)
+
+
+def synthetic_roles(index: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
+    """The roles over the jobs of a ``make_job.py build`` (its ``fixture.json`` index)."""
+    jobs = index.get("jobs", {})
+    missing = sorted({spec["fixture"] for spec in SYNTHETIC_ROLES.values()} - set(jobs))
+    if missing:
+        raise SystemExit("the synthetic fixture lacks the jobs " + ", ".join(missing)
+                         + " (make_job.py build --only main,fps25,fps60,vfr)")
+    return {role: {"job": jobs[spec["fixture"]]["id"], "rank": spec["rank"], "clip": spec["clip"]}
+            for role, spec in SYNTHETIC_ROLES.items()}
+
+
+def write_roles(jobs_root: Path, roles: Mapping[str, Any], *, media: str) -> Path:
+    path = Path(jobs_root) / ROLES_FILE
+    path.write_text(json.dumps({"media": media, "roles": roles}, indent=2, sort_keys=True) + "\n")
+    return path
+
+
+def _roles_file(jobs_root: Path) -> dict[str, Any] | None:
+    try:
+        body = json.loads((Path(jobs_root) / ROLES_FILE).read_text())
+    except (OSError, ValueError):
+        return None
+    return body if isinstance(body, dict) and isinstance(body.get("roles"), dict) else None
+
+
+def read_roles(jobs_root: Path) -> dict[str, dict[str, Any]]:
+    """The roles ``setup`` recorded under ``jobs_root`` (the P3 set when it recorded none)."""
+    body = _roles_file(jobs_root)
+    return body["roles"] if body else p3_roles()
+
+
+def media_of(jobs_root: Path) -> str:
+    body = _roles_file(jobs_root)
+    return str(body.get("media")) if body else "p3"
+
+
 def make_twin(job_dir: Path, jobs_root: Path) -> Path:
     """The silent twin of a copied job: a new job id, the source with silent audio, the same
     transcript and selection, prepared from scratch (new source sha, so new clip ids)."""
@@ -375,11 +453,11 @@ def clip_dir_of(job_dir: Path, rank: int) -> Path | None:
 class Clip:
     """One prepared clip of a copied job: its seed, words and the documents built on it."""
 
-    def __init__(self, job_dir: Path, rank: int, role: str) -> None:
+    def __init__(self, job_dir: Path, rank: int, role: str, label: str = "") -> None:
         clip_dir = clip_dir_of(job_dir, rank)
         if clip_dir is None:
             raise SystemExit(f"{job_dir.name}: no prepared clip of rank {rank} (run setup)")
-        self.job_dir, self.dir, self.role = job_dir, clip_dir, role
+        self.job_dir, self.dir, self.role, self.label = job_dir, clip_dir, role, label
         self.seed, self.etag = store.seed(clip_dir)
         self.words = store.load_words(clip_dir, self.seed["base"]["words"]["sha256"])
         self.fps = tm.Fps.from_json(self.seed["output"]["fps"])
@@ -481,12 +559,13 @@ class Exports:
         self._music: dict[tuple[str, str], tuple[str, dict]] = {}
         twins = jobs_root / TWINS_FILE
         self.twins = json.loads(twins.read_text()) if twins.exists() else {}
+        self.roles, self.media = read_roles(jobs_root), media_of(jobs_root)
 
     def clip(self, role: str, *, twin: bool = False) -> Clip:
-        job, rank = CLIPS[role]
-        if twin:
-            job = self.twins[job]
-        return Clip(self.jobs_root / job, rank, role)
+        entry = self.roles[role]
+        job = self.twins[entry["job"]] if twin else entry["job"]
+        return Clip(self.jobs_root / job, entry["rank"], role,
+                    entry["clip"] + (" (silent twin)" if twin else ""))
 
     def music(self, clip: Clip, kind: str) -> tuple[str, dict]:
         key = (clip.job_dir.name, kind)
@@ -519,7 +598,8 @@ class Exports:
                 plan = clip.plan(doc)
                 ducked = export(clip, doc, self.work / "duck" / f"{role}-{preset}.mp4")
                 duck = doc["tracks"][-1]["items"][0]["payload"]["duck"]
-                case: dict[str, Any] = {"role": role, "preset": preset, "depth_db": duck["depth_cdb"] / 100,
+                case: dict[str, Any] = {"role": role, "clip": clip.label, "preset": preset,
+                                        "depth_db": duck["depth_cdb"] / 100,
                                         "clip_seconds": round(plan.total_samples / RATE, 2),
                                         "pieces": len(plan.pieces),
                                         "speech_spans": len(plan.speech_spans)}
@@ -542,9 +622,9 @@ class Exports:
                 ducked["path"].unlink(missing_ok=True)
             if "path" in flat:
                 flat["path"].unlink(missing_ok=True)
-        return {"gate": "duck", "task": TASK, "tolerance_db": DUCK_TOLERANCE_DB,
+        return {"gate": "duck", "task": TASK, "media": self.media, "tolerance_db": DUCK_TOLERANCE_DB,
                 "recovery_tolerance_db": DUCK_RECOVERY_DB, "window_samples": DUCK_WINDOW,
-                "method": ("exports (render_document, AAC) of a silent twin of each real job: the "
+                "method": ("exports (render_document, AAC) of a silent twin of each job: the "
                            "export's audio is the music stem; the lossless reference of the same "
                            "documents as a cross-check; 3 removals per clip; fades 0"),
                 "cases": cases, "failures": sum(not c.get("pass", False) for c in cases),
@@ -554,23 +634,12 @@ class Exports:
 
     def loudness(self) -> tuple[dict[str, Any], dict[str, Any]]:
         g3_cases, g3b_cases = [], []
-        plans = [
-            ("fit_blur_23976_cold_open", "bed", {"master": "normalize"}),
-            ("fill_center_vfr", "bed", {"master": "normalize", "preset": "kuat"}),
-            ("fit_blur_60fps", "bed", {"master": "normalize", "preset": "halus"}),
-            ("fit_blur_60fps", "loud", {"master": "normalize", "gain_cdb": 600, "duck_on": False}),
-            ("fit_blur_23976_cold_open", "loud", {"gain_cdb": 600, "duck_on": False}),
-            ("fill_center_vfr", "loud", {"gain_cdb": 600, "preset": "kuat"}),
-            ("fit_blur_60fps", "loud", {"gain_cdb": 600, "duck_on": False, "source_gain_cdb": 1200}),
-            ("camera_25fps", "loud", {"gain_cdb": 600, "duck_on": False, "fade_in_f": 0,
-                                      "fade_out_f": 0}),
-            ("camera_25fps", "bed", {"source_gain_cdb": 1200}),
-        ]
-        for index, (role, kind, settings) in enumerate(plans):
+        for index, (role, kind, settings) in enumerate(LOUDNESS_PLANS):
             clip = self.clip(role)
             doc = self.doc(clip, kind, removals=clip.removals(2), **settings)
             result = export(clip, doc, self.work / "loudness" / f"{index:02d}-{role}-{kind}.mp4")
-            row: dict[str, Any] = {"role": role, "music": kind, "settings": settings,
+            row: dict[str, Any] = {"role": role, "clip": clip.label, "music": kind,
+                                   "settings": settings,
                                    "music_lufs": self.music(clip, kind)[1]["lufs_c"] / 100}
             if "path" not in result:
                 row.update(error=result["error"], pass_=False)
@@ -584,12 +653,12 @@ class Exports:
                     export_i=row["export_i_lufs"], export_tp=row["export_tp_dbtp"], target=-14.0,
                     clamped=row["loudness_clamped_lufs"])})
             g3b_cases.append({**row, "pass": "error" not in row and g3b_pass(row["export_tp_dbtp"])})
-        g3 = {"gate": "G3", "task": TASK, "threshold": {"target_lufs": -14.0,
+        g3 = {"gate": "G3", "task": TASK, "media": self.media, "threshold": {"target_lufs": -14.0,
               "tolerance_lu": G3_TOLERANCE_LU, "clamped_tolerance_lu": G3_CLAMPED_TOLERANCE_LU,
               "tp_max_dbtp": TP_MAX_DBTP}, "measured_on": "decoded export (AAC-LC 192k)",
               "cases": g3_cases, "failures": sum(not c["pass"] for c in g3_cases),
               "pass": bool(g3_cases) and all(c["pass"] for c in g3_cases)}
-        g3b = {"gate": "G3b", "task": TASK, "threshold": {"tp_max_dbtp": TP_MAX_DBTP},
+        g3b = {"gate": "G3b", "task": TASK, "media": self.media, "threshold": {"tp_max_dbtp": TP_MAX_DBTP},
                "measured_on": "decoded export (AAC-LC 192k)",
                "loud_track": "square bass, bright chord and pink noise limited at full scale",
                "cases": g3b_cases, "failures": sum(not c["pass"] for c in g3b_cases),
@@ -600,7 +669,7 @@ class Exports:
 
     def click(self) -> dict[str, Any]:
         cases = []
-        for role in ("fit_blur_23976_cold_open", "fill_center_vfr", "fit_blur_60fps"):
+        for role in CLICK_ROLES:
             clip = self.clip(role)
             removals = clip.removals(8)
             doc = self.doc(clip, "tone", removals=removals)
@@ -615,14 +684,14 @@ class Exports:
             hard = join_steps_dbfs(reference_pcm(clip, hard_doc, self.work / "click",
                                                  f"{role}-hard"), joins)
             worst = max(steps, default=-math.inf)
-            cases.append({"role": role, "joins": len(joins), "cold_open": any(
+            cases.append({"role": role, "clip": clip.label, "joins": len(joins), "cold_open": any(
                 p.role == "cold_open" for p in plan.pieces), "cut_fade_ms": 8,
                 "steps_dbfs": [_round(s, 2) for s in steps], "max_step_dbfs": _round(worst, 2),
                 "samples": len(faded) // 2, "plan_samples": plan.total_samples,
                 "control_hard_cuts_max_dbfs": _round(max(hard, default=-math.inf), 2),
                 "control_hard_cuts_at_or_over_threshold": sum(s >= CLICK_THRESHOLD_DBFS for s in hard),
                 "pass": bool(joins) and worst < CLICK_THRESHOLD_DBFS})
-        return {"gate": "G-CLICK", "task": TASK, "threshold_dbfs": CLICK_THRESHOLD_DBFS,
+        return {"gate": "G-CLICK", "task": TASK, "media": self.media, "threshold_dbfs": CLICK_THRESHOLD_DBFS,
                 "measured_on": "lossless reference (the export's graph before AAC), music in the mix",
                 "music": "tone chord at SetMusic's default gain, ducking Sedang",
                 "cases": cases, "failures": sum(not c["pass"] for c in cases),
@@ -658,19 +727,11 @@ class Lane:
         return flac, dto
 
     def p_aud(self, fixtures: Path | None) -> dict[str, Any]:
-        variants = [
-            ("fit_blur_23976_cold_open", "bed", {}),
-            ("fit_blur_23976_cold_open", "bed", {"preset": "kuat", "master": "normalize"}),
-            ("fill_center_vfr", "bed", {"preset": "halus", "src_in_smp": 48_000 * 7}),
-            ("fit_blur_60fps", "loud", {"gain_cdb": 600, "duck_on": False}),
-            ("fit_blur_60fps", "tone", {"loop": False, "source_gain_cdb": 600}),
-            ("camera_25fps", "bed", {"fade_in_f": 0, "fade_out_f": 250}),
-        ]
         cases = []
         manifest = []
         if fixtures is not None:
             fixtures.mkdir(parents=True, exist_ok=True)
-        for index, (role, kind, settings) in enumerate(variants):
+        for index, (role, kind, settings) in enumerate(P_AUD_VARIANTS):
             clip = self.exports.clip(role)
             doc = self.exports.doc(clip, kind, removals=clip.removals(3), **settings)
             if settings.get("loop") is False:
@@ -689,7 +750,8 @@ class Lane:
             plan = clip.plan(doc)
             reference = reference_pcm(clip, doc, self.work / "paud", case_id)
             preview = pcm_of(flac)
-            entry = {"case": case_id, "role": role, "music": kind, "settings": settings,
+            entry = {"case": case_id, "role": role, "clip": clip.label, "music": kind,
+                     "settings": settings,
                      "plan_samples": plan.total_samples, "preview_samples": len(preview) // 2,
                      "reference_samples": len(reference) // 2,
                      "measured": needs_measurement(plan.doc),
@@ -705,14 +767,14 @@ class Lane:
                                  "planSamples": plan.total_samples})
         if fixtures is not None:
             (fixtures / "manifest.json").write_text(json.dumps({"cases": manifest}, indent=2))
-        return {"gate": "P-AUD", "task": TASK, "threshold": {"pcm_md5": "equal",
+        return {"gate": "P-AUD", "task": TASK, "media": self.exports.media, "threshold": {"pcm_md5": "equal",
                 "samples": "== plan"}, "through": "the app's preview lane (persistent worker)",
                 "cases": cases, "failures": sum(not c["pass"] for c in cases),
                 "pass": bool(cases) and all(c["pass"] for c in cases)}
 
     def pf_audio(self, runs: int = 20) -> dict[str, Any]:
         """Edit → fresh mix on a 90 s clip with music, for the edits the Musik panel makes."""
-        clip = self.exports.clip("fit_blur_23976_cold_open")
+        clip = self.exports.clip(PF_AUDIO_ROLE)
         asset, meta = self.exports.music(clip, "bed")
         base = music_doc(clip.seed, clip.etag, asset, meta)
         body = base["main"]["segments"][-1]
@@ -760,7 +822,8 @@ class Lane:
             time.sleep(0.3)  # the next edit comes after the mix, as in a session
         stages = self.tools.stage_breakdown("audio", self.tools.Clip(
             self.jobs_root, clip.job_dir.name, clip.dir), edits[0], self.work, [])
-        result = {"gate": "PF-AUDIO", "task": TASK, "threshold_ms": 1000, "clip_seconds": seconds,
+        result = {"gate": "PF-AUDIO", "task": TASK, "media": self.exports.media, "clip": clip.label,
+                  "threshold_ms": 1000, "clip_seconds": seconds,
                   "edits": ["duck preset/depth", "music gain", "fade in", "normalize + source gain",
                             "release"],
                   "with_music_ms": self.tools.summary(times) if times else None,
@@ -835,13 +898,16 @@ def run_gates(steps: Sequence[tuple[Sequence[str], Any]], evidence: Path | None,
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="T3.3 music gates on real exports")
+    parser = argparse.ArgumentParser(description="T3.3 music gates on exports")
     commands = parser.add_subparsers(dest="command", required=True)
-    setup = commands.add_parser("setup", help="copy and prepare the real jobs (and silent twins)")
-    setup.add_argument("--originals", type=Path, required=True)
+    setup = commands.add_parser("setup", help="copy and prepare the jobs (and silent twins)")
+    setup.add_argument("--originals", type=Path, required=True,
+                       help="the P3 jobs directory, or with --synthetic a make_job.py build")
+    setup.add_argument("--synthetic", action="store_true",
+                       help="use the synthetic V3 jobs of scripts/editor_fixture/make_job.py")
     setup.add_argument("--jobs-root", type=Path, required=True)
     setup.add_argument("--twins", action="store_true")
-    exports = commands.add_parser("exports", help="duck, G3, G3b and G-CLICK on real exports")
+    exports = commands.add_parser("exports", help="duck, G3, G3b and G-CLICK on exports")
     exports.add_argument("--jobs-root", type=Path, required=True)
     exports.add_argument("--work", type=Path, default=Path(tempfile.gettempdir()) / "t33-audio")
     exports.add_argument("--evidence", type=Path)
@@ -859,17 +925,27 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "setup":
         args.jobs_root.mkdir(parents=True, exist_ok=True)
         twins = {}
-        for job in JOBS:
-            copied = copy_job(args.originals / job, args.jobs_root / job)
+        originals, media, roles = args.originals, "p3", p3_roles()
+        if args.synthetic:
+            make_job = _load("make_job", ROOT / "scripts" / "editor_fixture" / "make_job.py")
+            from ai_clipper.edit_v2 import camera
+
+            # the fixture's stub camera, as `make_job.py build --prepare --stub-camera`
+            camera.detect_face_track = make_job._stub_detector
+            roles = synthetic_roles(json.loads((args.originals / "fixture.json").read_text()))
+            originals, media = args.originals / "jobs", "synthetic"
+        for job in dict.fromkeys(entry["job"] for entry in roles.values()):
+            copied = copy_job(originals / job, args.jobs_root / job)
             entries = prepare(copied)
             print(job, [(e["index"], e["openable"], e["reason"]) for e in entries], flush=True)
-            if args.twins and any(CLIPS[role][0] == job for role in TWIN_ROLES):
+            if args.twins and any(roles[role]["job"] == job for role in TWIN_ROLES):
                 twin = make_twin(copied, args.jobs_root)
                 twins[job] = twin.name
                 entries = prepare(twin)
                 print("  twin", twin.name, [(e["index"], e["openable"]) for e in entries], flush=True)
         if twins:
             (args.jobs_root / TWINS_FILE).write_text(json.dumps(twins, indent=2))
+        write_roles(args.jobs_root, roles, media=media)
         return 0
 
     label = getattr(args, "label", None)
