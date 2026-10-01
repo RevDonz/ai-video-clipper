@@ -529,6 +529,7 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
         packaging={clipInfo ? { title: clipInfo.title, description: clipInfo.description, hashtags: clipInfo.hashtags } : null}
         earlier={earlier}
         readOnly={readOnly}
+        clipIndex={Number.isInteger(clipInfo?.index) ? clipInfo.index : null}
       />
       <ConflictDialog
         conflict={conflict}

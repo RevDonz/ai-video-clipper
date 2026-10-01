@@ -30,7 +30,7 @@ const PREPARE_TIMEOUT_MS = 10 * 60_000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const CLIP_ID = /^clip_[0-9a-f]{24}$/;
 const SHA = /^[0-9a-f]{64}$/;
-const CLIP_REASONS = new Set(["needs_prepare", "source_missing", "selection_unreadable", "transcript_missing",
+const CLIP_REASONS = new Set(["needs_prepare", "source_missing", "source_unreadable", "selection_unreadable", "transcript_missing",
   "analysis_incomplete", "not_v3"]);
 const ENGINES = new Set(["edit-v2/1", "legacy"]);
 

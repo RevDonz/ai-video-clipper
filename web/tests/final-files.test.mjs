@@ -35,11 +35,12 @@ async function fixture() {
   return { root, output, edits, target };
 }
 
-function request({ method = "GET", range, authenticated = true, signal, download = false } = {}) {
+function request({ method = "GET", range, authenticated = true, signal, download = false, query = null } = {}) {
   const headers = {};
   if (range) headers.Range = range;
   if (authenticated) headers.Cookie = `potongin_session=${createSessionToken(AUTH_ENV, 2_000_000_000)}`;
-  return new Request(`http://local/api/jobs/${JOB_ID}/files/output/edits/clip.mp4${download ? "?download=1" : ""}`, { method, headers, signal });
+  const search = query ?? (download ? "?download=1" : "");
+  return new Request(`http://local/api/jobs/${JOB_ID}/files/output/edits/clip.mp4${search}`, { method, headers, signal });
 }
 
 async function invoke(root, options = {}) {
@@ -111,6 +112,25 @@ test("MIME and disposition are safe for MP4, SRT, JSON, JPEG thumbnails, unknown
   const downloaded = await invoke(fx.root, { download: true });
   assert.equal(downloaded.headers.get("content-disposition"), "attachment; filename=\"clip.mp4\"");
   await downloaded.arrayBuffer();
+});
+
+test("a download can be saved under a clip name (lower-case words and digits; the file's own extension)", async () => {
+  const fx = await fixture();
+  await writeFile(path.join(fx.edits, "captions.srt"), "captions");
+  const named = await invoke(fx.root, { query: "?download=1&name=klip-02-revisi-5" });
+  assert.equal(named.headers.get("content-disposition"), "attachment; filename=\"klip-02-revisi-5.mp4\"");
+  await named.arrayBuffer();
+  const srt = await invoke(fx.root, { query: "?download=1&name=klip-02-revisi-5", segments: ["output", "edits", "captions.srt"] });
+  assert.equal(srt.headers.get("content-disposition"), "attachment; filename=\"klip-02-revisi-5.srt\"");
+  await srt.arrayBuffer();
+  const inline = await invoke(fx.root, { query: "?name=klip-02" });
+  assert.equal(inline.headers.get("content-disposition"), "inline; filename=\"klip-02.mp4\"");
+  await inline.arrayBuffer();
+  for (const name of ["", "../x", "a\"b", "KLIP-02", "klip 02", "klip-02.mp4", "-klip", "klip-", "klip--02", "k".repeat(65), "klïp", "a%0d%0ab"]) {
+    const response = await invoke(fx.root, { query: `?download=1&name=${encodeURIComponent(name)}` });
+    assert.equal(response.headers.get("content-disposition"), "attachment; filename=\"clip.mp4\"", JSON.stringify(name));
+    await response.arrayBuffer();
+  }
 });
 
 test("invalid ranges close the descriptor and return 416 with exact size", async () => {

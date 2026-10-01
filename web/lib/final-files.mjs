@@ -14,6 +14,8 @@ const SAFE_SEGMENT = /^[A-Za-z0-9._-]+$/;
 const MAX_SEGMENTS = 16;
 const MAX_SEGMENT_LENGTH = 128;
 const MAX_PATH_LENGTH = 1024;
+// A requested download name: lower-case words of letters and digits joined by "-", ≤ 64 chars.
+const SAVE_NAME = /^(?=.{1,64}$)[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const TYPES = new Map([
   [".mp4", "video/mp4"],
   [".srt", "application/x-subrip; charset=utf-8"],
@@ -118,12 +120,16 @@ export async function finalFileResponse(
   let start = 0;
   let end = opened.size - 1;
   let status = 200;
-  const download = new URL(request.url).searchParams.get("download") === "1";
+  const query = new URL(request.url).searchParams;
+  const download = query.get("download") === "1";
   const attachment = download || !TYPES.has(opened.extension);
+  // `name`: the saved file's name without extension (an edited export is stored under a hash).
+  const name = query.get("name");
+  const filename = name !== null && SAVE_NAME.test(name) ? `${name}${opened.extension}` : opened.filename;
   const headers = {
     "Accept-Ranges": "bytes",
     "Content-Type": opened.contentType,
-    "Content-Disposition": `${attachment ? "attachment" : "inline"}; filename="${opened.filename}"`,
+    "Content-Disposition": `${attachment ? "attachment" : "inline"}; filename="${filename}"`,
     "Cache-Control": "private, no-store",
     "X-Content-Type-Options": "nosniff",
   };

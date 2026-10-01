@@ -8,6 +8,7 @@
 export const CLIP_REASON_TEXT = Object.freeze({
   needs_prepare: "Klip perlu disiapkan dulu",
   source_missing: "Video sumber sudah tidak ada",
+  source_unreadable: "Video sumber tidak bisa dibaca; proses ulang videonya",
   selection_unreadable: "Hasil seleksi tidak terbaca",
   transcript_missing: "Transkrip tidak ditemukan",
   analysis_incomplete: "Analisis job belum selesai",
@@ -37,11 +38,28 @@ function ownUrl(jobId, value) {
   return value;
 }
 
-function latestExportView(jobId, render) {
+/**
+ * An edited export is stored under a hash name; its link asks the file route to save it as
+ * "klip-NN-revisi-R" plus the file's own extension: `{href, filename}` (filename null when the
+ * clip number or revision is unknown), or null without a link.
+ */
+export function exportDownload(href, { index, revision } = {}) {
+  if (typeof href !== "string" || !href) return null;
+  const known = Number.isInteger(index) && index >= 1 && index <= 99 && Number.isInteger(revision) && revision >= 0;
+  const extension = /\.[a-z0-9]+$/i.exec(href.split("?")[0])?.[0].toLowerCase() ?? "";
+  if (!known || !extension) return { href, filename: null };
+  const name = `klip-${String(index).padStart(2, "0")}-revisi-${revision}`;
+  return { href: `${href}${href.includes("?") ? "&" : "?"}download=1&name=${name}`, filename: `${name}${extension}` };
+}
+
+function latestExportView(jobId, render, index) {
   if (!render || typeof render !== "object") return null;
   if (render.state === "completed") {
+    const ref = { index, revision: render.revision };
+    const mp4 = exportDownload(ownUrl(jobId, render.url), ref);
+    const srt = exportDownload(ownUrl(jobId, render.srtUrl), ref);
     return { label: `Ekspor terakhir · revisi ${render.revision}`, state: "completed",
-      href: ownUrl(jobId, render.url), srtHref: ownUrl(jobId, render.srtUrl) };
+      href: mp4?.href ?? null, filename: mp4?.filename ?? null, srtHref: srt?.href ?? null, srtFilename: srt?.filename ?? null };
   }
   if (IN_PROGRESS.has(render.state)) return { label: "Ekspor sedang diproses", state: render.state, href: null, srtHref: null };
   if (render.state === "failed") return { label: "Ekspor terakhir gagal", state: "failed", href: null, srtHref: null };
@@ -71,7 +89,7 @@ export function clipEntryView(jobId, clip) {
     reasonText: openable || editHref ? null : (!malformed && CLIP_REASON_TEXT[reason]) || GENERIC_REASON,
     needsPrepare: !openable && reason === "needs_prepare",
     editBadge: editBadge(clip?.edit),
-    latestExport: latestExportView(jobId, clip?.latestRender),
+    latestExport: latestExportView(jobId, clip?.latestRender, clip?.index),
   };
 }
 

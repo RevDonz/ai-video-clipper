@@ -334,11 +334,17 @@ const test = base.extend({
     });
     page.allowConsole = [];
     await page.route(`**${AUTO_RENDER}`, (route) => route.fulfill({ status: 200, contentType: "video/mp4", body: tinyMp4 }));
-    await page.route(`**/files/output/edits/**`, (route) => route.fulfill({
-      status: 200, body: route.request().url().endsWith(".srt") ? "1\n00:00:00,000 --> 00:00:01,000\nhalo\n" : tinyMp4,
-      headers: { "Content-Type": route.request().url().endsWith(".srt") ? "application/x-subrip" : "video/mp4",
-        "Content-Disposition": "attachment; filename=\"klip.mp4\"" },
-    }));
+    // As lib/final-files.mjs: the stored (hash) name, or `name` plus the file's extension.
+    await page.route(`**/files/output/edits/**`, (route) => {
+      const url = new URL(route.request().url());
+      const srt = url.pathname.endsWith(".srt");
+      const name = url.searchParams.get("name");
+      const filename = name ? `${name}${srt ? ".srt" : ".mp4"}` : url.pathname.split("/").at(-1);
+      return route.fulfill({
+        status: 200, body: srt ? "1\n00:00:00,000 --> 00:00:01,000\nhalo\n" : tinyMp4,
+        headers: { "Content-Type": srt ? "application/x-subrip" : "video/mp4", "Content-Disposition": `attachment; filename="${filename}"` },
+      });
+    });
     await use(page);
     failures.console = failures.console.filter((text) => !page.allowConsole.some((pattern) => pattern.test(text)));
     const count = Object.values(failures).reduce((total, list) => total + list.length, 0);
@@ -717,8 +723,10 @@ test("export: acknowledge each check, then Antre → Merender (n%) → Memverifi
   await expect(steps.locator('[aria-current="step"]')).toHaveText(/Merender \(\d{1,2}%\)/);
   await expect(dialog.getByRole("button", { name: "Batalkan ekspor" })).toBeVisible();
   await expect(steps.locator('[aria-current="step"]')).toHaveText("Memverifikasi");
-  await expect(dialog.getByRole("link", { name: "Unduh MP4" })).toHaveAttribute("href", EXPORT_MP4, { timeout: 10_000 });
-  await expect(dialog.getByRole("link", { name: "Unduh SRT" })).toHaveAttribute("href", EXPORT_SRT);
+  // Saved as the clip's number and revision, not the stored hash name.
+  await expect(dialog.getByRole("link", { name: "Unduh MP4" })).toHaveAttribute("href", `${EXPORT_MP4}?download=1&name=klip-01-revisi-1`, { timeout: 10_000 });
+  await expect(dialog.getByRole("link", { name: "Unduh MP4" })).toHaveAttribute("download", "klip-01-revisi-1.mp4");
+  await expect(dialog.getByRole("link", { name: "Unduh SRT" })).toHaveAttribute("href", `${EXPORT_SRT}?download=1&name=klip-01-revisi-1`);
   await expect(dialog.getByRole("button", { name: "Batalkan ekspor" })).toHaveCount(0);
   const calls = await scenarioCalls(page);
   const state = await editorState(page);
@@ -726,7 +734,7 @@ test("export: acknowledge each check, then Antre → Merender (n%) → Memverifi
   expect(calls.find((call) => call[0] === "createRender")[1]).toEqual({ editEtag: expect.stringMatching(/^[0-9a-f]{64}$/) });
   // the revision the export was made from (the store's saved one; the loaded document is 0)
   await expect(dialog.getByText("Revisi 1 · tersimpan")).toBeVisible();
-  await expect(dialog.getByText("Volume diturunkan agar audio tidak pecah (-3.80 dB)")).toBeVisible();
+  await expect(dialog.getByText("Volume diturunkan agar audio tidak pecah (−3,8 dB)")).toBeVisible();
   await expect(dialog.getByText("Sutradara ditahan security")).toBeVisible();
   await expect(dialog.getByRole("button", { name: "Salin judul" })).toBeVisible();
   await expect(dialog.getByRole("button", { name: "Salin deskripsi" })).toBeVisible();
@@ -734,7 +742,7 @@ test("export: acknowledge each check, then Antre → Merender (n%) → Memverifi
   await expect(dialog.getByRole("list", { name: "Ekspor sebelumnya" }).getByRole("listitem")).toHaveCount(1);
   const download = page.waitForEvent("download");
   await dialog.getByRole("link", { name: "Unduh MP4" }).click();
-  expect((await download).suggestedFilename()).toMatch(/\.mp4$/);
+  expect((await download).suggestedFilename()).toBe("klip-01-revisi-1.mp4");
 });
 
 test("export: cancel stays available and stops the render", async ({ page }) => {

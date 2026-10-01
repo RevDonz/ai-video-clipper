@@ -58,6 +58,7 @@ export const MESSAGES = Object.freeze({
   // Clip reasons (Appendix C.6).
   needs_prepare: "Klip perlu disiapkan dulu",
   source_missing: "Video sumber sudah tidak ada",
+  source_unreadable: "Video sumber tidak bisa dibaca; proses ulang videonya",
   selection_unreadable: "Hasil seleksi tidak terbaca",
   transcript_missing: "Transkrip tidak ditemukan",
   analysis_incomplete: "Analisis job belum selesai",
@@ -75,6 +76,18 @@ const SHELL_TEXT = Object.freeze({
   command_rejected: "Perubahan ini tidak bisa diterapkan",
 });
 
+// A measured value in a code's detail ("-3.80 dB", "-16.30 LUFS"): sign, number, unit.
+const MEASURE = /^([+-]?)(\d+(?:\.\d+)?)(?: ([A-Za-z]+))?$/;
+
+/** "-3.80 dB" → "−3,8 dB" (one decimal, comma, true minus), as the Musik panel writes it. */
+function localDetail(detail) {
+  const match = MEASURE.exec(detail);
+  if (!match) return detail;
+  const [, sign, number, unit] = match;
+  const digits = number.includes(".") ? Number(number).toFixed(1).replace(".", ",") : number;
+  return `${sign === "-" ? "−" : sign}${digits}${unit ? ` ${unit}` : ""}`;
+}
+
 /** The Indonesian message of a code; a detail after ":" is appended in parentheses. */
 export function messageFor(code) {
   if (typeof code !== "string" || !code) return "Terjadi kesalahan";
@@ -83,7 +96,22 @@ export function messageFor(code) {
   const detail = separator < 0 ? "" : code.slice(separator + 1);
   const text = MESSAGES[base] ?? SHELL_TEXT[base];
   if (!text) return `Terjadi kesalahan (${code})`;
-  return detail ? `${text} (${detail})` : text;
+  return detail ? `${text} (${localDetail(detail)})` : text;
+}
+
+// unsafe_zone names what is in the TikTok zone, from the warning's JSON pointer (plan §5.9 G5).
+const ZONE_TEXT = Object.freeze([
+  [/^\/captions\//, "Caption masuk ke area tombol TikTok"],
+  [/^\/tracks\/\d+\/items\/\d+\/transform\/y_e5$/, "Hook masuk ke area tombol TikTok"],
+  [/^\/tracks\/\d+\/items\/\d+\/transform$/, "Logo masuk ke area tombol TikTok"],
+]);
+
+function checkMessage(issue) {
+  if (issue.code === "unsafe_zone" && typeof issue.path === "string") {
+    const found = ZONE_TEXT.find(([pattern]) => pattern.test(issue.path));
+    if (found) return found[1];
+  }
+  return messageFor(issue.code);
 }
 
 /**
@@ -262,7 +290,7 @@ export function checksView({ warnings = [], plan = null } = {}) {
     const key = `${severity}|${issue.code}|${issue.ref ?? ""}|${f ?? ""}|${f === null ? issue.path ?? "" : ""}`;
     if (seen.has(key)) return;
     seen.add(key);
-    items.push({ key, severity, code: issue.code, ref: issue.ref ?? null, f, message: messageFor(issue.code),
+    items.push({ key, severity, code: issue.code, ref: issue.ref ?? null, f, message: checkMessage(issue),
       timeText: f === null ? null : formatClock(frameToMs(f, fps)) });
   };
   for (const issue of Array.isArray(plan?.errors) ? plan.errors : []) add(issue, "error");
