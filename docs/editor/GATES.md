@@ -811,7 +811,7 @@ only read).
 | G3b (deliberately loud track) | TP ≤ −1.0 dBTP | 9 cases, worst −1.1 dBTP; `peak_reduced` 2.3–12.0 dB | `W3Z-G3b.json` | **pass** |
 | G-CLICK with music | every faded join < −40 dBFS; the hard-cut control must click | worst −59.94 dBFS over 52 joins; control 21/26 | `W3Z-G-CLICK.json` | **pass** |
 | P-AUD (server, preview lane) | PCM md5 equal; samples = plan | md5 equal 6/6; samples 5/6: `02-vfr-bed` 16 samples short on preview and reference alike | `W3Z-P-AUD.json` | **fail** (Open 12, unchanged) |
-| PF-AUDIO with music | p95 ≤ 1,000 ms | p95 834.6 ms, 20 edits, 90 s clip | `W3Z-PF-AUDIO.json` | **pass** (indicative) |
+| PF-AUDIO with music | p95 ≤ 1,000 ms | p95 834.6 ms, 20 edits, 90 s clip (load 3.1–4.1); the verifier's re-run on the same commit: **1,199.5 ms** (load 3.3–4.6, run 36870736233) | `W3Z-PF-AUDIO.json`, `W3Z-PF-AUDIO-rerun.json` | **borderline**: passes on a quiet 4 vCPU runner, fails on a busy one (W2 Open 22; the W4 speed-up, T4.3) |
 | QG-AI hard gates (offline) | 0 ungrounded, 0 malformed accepted | `tests/test_editor_ai.py` 73/73 in the image, including the 100 scripted adversarial answers | T3.4 + run 36857927653 | **pass** |
 | QG-AI online (instant p95 ≤ 300 ms; LLM p95 ≤ 15 s, none > 20 s) | as stated | T3.4, local real jobs, free chain: 209 ms; 10.1 s; 0 over 20 s | `T3.4-QG-AI-online.json` | **pass** (owner review at checkpoint 3) |
 | QG-CLEAN labelled set | particles 0 FP, reduplication 0 FP, filler precision ≥ 0.9 | 490 tokens, 37 pairs: 0, 0, 0.933 (agent labels; pre-check stays off) | `W3Z-QG-CLEAN-labels.json` | **pass** |
@@ -950,7 +950,7 @@ in `origin/main..editor-w3-integration`.
 | T3.2 | P-LOGO 1/18 frames: does "logo region" include what shows through a transparent logo? | **owner decision**, checkpoint 3 (Open 23) |
 | T3.3 | GATES rows for the music gates | **done** (table above) |
 | T3.3 | P-AUD VFR 16-sample shortfall | **open** (Open 12, compiler's source-audio path; W4/W5) |
-| T3.3, T3.6 | PF-AUDIO and PF-CELLS fit-blur budgets on 4 vCPU | PF-AUDIO passes this run; PF-CELLS fit-blur forwarded to W4/T4.3 |
+| T3.3, T3.6 | PF-AUDIO and PF-CELLS fit-blur budgets on 4 vCPU | PF-AUDIO borderline (834.6 ms in this run, 1,199.5 ms in the verifier's re-run); both forwarded to W4/T4.3 |
 | T3.4 | the shell passes its API client to the panels | **done** (patch 43) |
 | T3.4 | compose passes `POTONGIN_LLM_EDITOR_MODELS` | **done** (patch 46) |
 | T3.5 | the flaky render-worker heartbeat test | **fixed** (patch 47) |
@@ -970,3 +970,57 @@ in `origin/main..editor-w3-integration`.
     review; both are wired and gated.
 26. **Filler pre-check** stays off until the owner confirms the labels (QG-CLEAN precision on
     agent labels 0.933).
+27. **The caption's default spot is inside the TikTok zone** (83 % down; the zone starts at 78 %):
+    seeds keep today's caption position (K5) so an unchanged clip exports the auto file (R10), and
+    every export lists "Caption masuk ke area tombol TikTok" in "Perlu dicek". Moving the default
+    changes every clip's look: owner decision.
+28. **The real-stack flow (`editor-flow.spec.mjs`) was not re-run after the verifier fixes**: it
+    renders with FFmpeg on the owner's PC (heavy-work rule). The fixes are covered by unit tests,
+    the fakes specs on the CI-built app, the harness specs and the CI gate run below; the next
+    real-stack pass (owner's walkthrough at checkpoint 3, or W4's) covers them on a real job.
+
+## W3 verifier findings: fixes (2026-10-01)
+
+The verifier re-ran W3 at `e4fbbbc` and found three majors and five minors (both suites green).
+All eight are handled on `editor-w3-integration`, test first; seven are fixed, PF-AUDIO is
+re-recorded as borderline.
+
+| Finding | Fix | Tests and gates | Result |
+|---|---|---|---|
+| **Major**: the MUSIK lane can never be seen (1366×768, 1920×1080); a scrolled scroller moves every label a row off its lane | `.timelineBody` aligns its columns to the top: labels and the lanes' scroller take their content's height and scroll together; the scroller has nothing to scroll on its own | `editor-markers.spec` "timeline layout" at both sizes (every label beside its lane, the last lane inside the scroller and the body after scrolling, scroller `scrollTop` stays 0); `editor-music.spec` U5 now asserts the lane on screen: lane 738–768 = label 738–768 at 1366×768 | **fixed** (`W3fix-QG-UX-U5-music-*.json`) |
+| **Major**: a prepare that ends with the clip closed leaves "Menyiapkan" up for 12 min; a source FFmpeg cannot read is called "Video sumber sudah tidak ada" | `open-clip.prepareForEditor` reads the `POST /clips` answer and shows the clip's reason at once; new reason `source_unreadable` ("Video sumber tidak bisa dibaca; proses ulang videonya") when the source exists but cannot be probed (CONTRACTS §5.20) | `editor-open-clip.test` (reason by number or id, no polling, unknown → `prepare_failed`), `clip-edit.test`, `test_edit_v2_seed` (garbage source → `source_unreadable`), `test_edit_v2_contracts` | **fixed** |
+| **Major**: all four logo presets and a new logo's spot are inside the TikTok zone | `SnapLogo` rests against the zone's right/top/bottom edges (4 % from the left); `SetLogo` places a new logo on the top-right preset (box (512, 93) for 512×512 at 720×1280); "Perlu dicek" names caption, hook or logo | `editor-commands.test`, `editor-logo.test` (every preset and new logo outside the zone for 6 shapes × 5 widths × 2 sizes whenever the logo fits), `editor-logo.spec` 16 passed with axe (U5 logo 3.0 s), G5 re-run 450 cases, 0 mismatches (run 36878186098) | **fixed** (`W3fix-G5.json`, `W3fix-QG-UX-U5-logo-*.json`); the caption default stays in the zone (Open 27) |
+| Minor: FFmpeg 6.1.1 aborts the frame-grid check on an AV1 source (`-threads 4`) | a failed threaded grid run is run once more on one thread | `test_edit_v2_source_info` (retry, and a failure on one thread too); local check on job `860fef1a` (read only, FFmpeg 6.1.1): head run threads 4 rc −6, threads 1 rc 0, tail threads 4 rc 0; grid recorded in 1.9 s | **fixed** (`W3fix-grid-av1-local.json`) |
+| Minor: PF-AUDIO recorded as a pass | the row says borderline with both runs | the verifier's run 36870736233: p95 1,199.5 ms (load 3.3–4.6) | **re-recorded** (`W3Z-PF-AUDIO-rerun.json`; W2 Open 22, T4.3) |
+| Minor: the Penanda note sits under the markers | with markers, the lane's note moves to the timeline header (`onNote`); without markers it stays in the lane | `editor-markers.spec`: the note is visible, not truncated and overlaps no marker | **fixed** |
+| Minor: "(−2.20 dB)" in "Perlu dicek" and the export dialog | `messageFor` writes measured details the Indonesian way: "(−2,2 dB)", "(−16,3 LUFS)" | `editor-shell-model.test`, `editor-shell.spec` export test | **fixed** |
+| Minor: "Unduh MP4" saves a hash name | the file route takes a checked `name`; the export dialog, its earlier exports and the project page save `klip-NN-revisi-R.mp4` / `.srt` | `final-files.test` (valid and hostile names), `editor-clip-entry.test`, `editor-shell.spec`: the download is `klip-01-revisi-1.mp4` | **fixed** |
+
+**Where it ran.** CI on GitHub Actions at `95ad2a3` (the last code commit; later commits are
+specs, this document and evidence): `ci-gate full` run 36878146602 **success** (ruff "All checks
+passed!"; pytest on Python 3.11 "4272 passed, 2 skipped, 1 xfailed"; npm test on Node 20 "# pass
+1147", "# fail 0"; build "✓ Compiled successfully"); `ci-gate image` run 36878193964 **success**
+("4270 passed, 4 skipped, 1 xfailed" in the production image, FFmpeg 5.1.9); gate command run
+36878186098 (`w3_exit_gates.sh logo markers web`: logo vectors up to date, logo
+pytest, G5 450/0, logo node 20/20, markers node 25/25, markers pytest, the standalone app). Owner's
+PC, one browser at a time (Chrome for Testing 147.0.7727.15) against that CI-built app with the
+fakes on a private port: `editor-shell` 34 tests (33 passed on the first run; the project-page test
+still expected the hash link and passes with the new name), `editor-music` 13 passed, 1 skipped
+(+ U5 at both sizes with the lane check), `editor-layout` 16 passed, `editor-ai` 11 passed;
+harness specs `editor-logo` 16 passed (axe on), `editor-markers` 17 passed, 3 skipped (real-data
+blocks; axe on in a separate run). QG-A11Y on the fakes: 16 states, 0 critical, 0 serious
+(`W3fix-QG-A11Y-shell.json`); logo and music panels 0 serious (`W3fix-QG-A11Y-logo.json`,
+`W3fix-QG-A11Y-music.json`).
+
+### Patches by the W3 integrator (continued)
+
+53. `shell.module.css` `.timelineBody { align-items: flex-start }`; `Timeline.jsx` test hooks and
+    lane notes in the header (`onNote`); `MarkerLane.jsx` moves its note there when it has markers.
+54. `open-clip.mjs` reads the prepare answer; `source_unreadable` in `errors.py`, `seed.py`,
+    `api.py` (doc), `clip-edit.mjs`, `clip-entry-view.mjs`, `shell-model.mjs`.
+55. `source_info._grid_pts` retries a failed threaded run on one thread.
+56. `commands.mjs` `SnapLogo`/`SetLogo`, `logo-geometry.mjs` corner presets outside the zone; the
+    logo specs and tests follow (presets (29|512, 93|885) for a 115 px logo at 720×1280).
+57. `shell-model.mjs`: `checksView` names the element in the zone; `messageFor` localises numbers.
+58. `final-files.mjs` `name`; `clip-entry-view.exportDownload`; `ExportDialog` (`clipIndex`),
+    `EditorApp`, the project page.

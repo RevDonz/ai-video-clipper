@@ -1,0 +1,17 @@
+{
+  "gate": "QG-A11Y (Musik panel and music lane, axe)",
+  "viewport": {
+    "width": 1366,
+    "height": 768
+  },
+  "scopes": [
+    "[data-panel=\"music\"]",
+    "[data-lane-row=\"music\"]"
+  ],
+  "tab_stops": {
+    "expected": 16,
+    "reached": 16
+  },
+  "violations": [],
+  "pass": true
+}
