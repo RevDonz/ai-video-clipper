@@ -731,5 +731,42 @@
    }
   }
  },
- "pass": true
+ "pass": true,
+ "flow_rerun_after_render_route_guard": {
+  "build": "next build of editor-w4-integration 58e1c02 (patch 66: the export status and cancel route behind secureRoute)",
+  "passed": 20,
+  "of": 20,
+  "minutes": 3.5,
+  "scripted_ux_ms": {
+   "U1": 2437,
+   "U2": 2474,
+   "U3": 2475,
+   "U4": 2767,
+   "U5": 3795,
+   "U6": {
+    "elapsedMs": 26805,
+    "limitMs": 119256
+   },
+   "U7": {
+    "lostCommands": 0,
+    "resetFoundMs": 1916
+   }
+  },
+  "export_with_logo_and_music": {
+   "renderMs": 28850,
+   "verify_ok": true
+  },
+  "pf_open": {
+   "firstMs": {
+    "p50": 442,
+    "p95": 455,
+    "max": 455
+   },
+   "repeatMs": {
+    "p50": 399,
+    "p95": 412,
+    "max": 412
+   }
+  }
+ }
 }

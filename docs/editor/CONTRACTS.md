@@ -1628,7 +1628,8 @@ Additive; route behaviour is unchanged apart from the refusals below. Evidence:
 `docs/editor/evidence/W4/T4.2-QG-SEC*.json`.
 
 - **One guard per route method.** `web/lib/security-headers.mjs` `secureRoute(handler, {params,
-  limit})` wraps every method under `/api/jobs/:id/clips/**` and `/api/jobs/:id/assets/**`. Order:
+  limit})` wraps every method under `/api/jobs/:id/clips/**` and `/api/jobs/:id/assets/**`, and
+  (T4.Z) GET and DELETE `/api/jobs/:id/renders/:renderId` with the `api` bucket. Order:
   `requireAuth`; `sameOriginMutation` for any method other than GET/HEAD; each named id against
   `ROUTE_PARAMS` (`id`, `taskId`, `renderId`, `idempotencyKey`: lower-case UUID v1–8; `clipId`:
   `clip_[0-9a-f]{24}`; `sha`: 64 lower-case hex); then the route's rate-limit bucket. Refusals are
