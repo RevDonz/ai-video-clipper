@@ -39,7 +39,7 @@ export default function StageBadge({ view }) {
   return (
     <div ref={rootRef} className={`${styles.badge} ${styles[`badge_${tone}`] ?? ""}`} data-badge-tone={tone}>
       <span className={styles.badgeText} role="status" aria-live="polite" data-testid="stage-badge">{view?.text ?? ""}</span>
-      {view?.detail && <span className={styles.badgeDetail}>{view.detail}</span>}
+      {view?.detail && <span className={styles.badgeDetail} title={view.detail}>{view.detail}</span>}
       <button
         ref={buttonRef}
         type="button"

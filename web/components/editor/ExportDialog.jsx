@@ -149,7 +149,7 @@ export default function ExportDialog({
             <section className={styles.section} aria-labelledby="export-output">
               <h3 id="export-output">Hasil</h3>
               <p className={styles.muted}>{`${output?.w ?? 720}×${output?.h ?? 1280}, kualitas sama dengan klip otomatis`}</p>
-              {unchanged && <p className={styles.note}>Tanpa perubahan: file klip otomatis dipakai langsung</p>}
+              {unchanged && <p className={styles.infoNote}>Tanpa perubahan: file klip otomatis dipakai langsung</p>}
             </section>
 
             <section className={styles.section} aria-labelledby="export-progress">
