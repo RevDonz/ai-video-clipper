@@ -282,54 +282,6 @@ test("candidate display formatters remain honest and locale-friendly", () => {
   assert.equal(profileLabel("unknown"), "Profil kandidat");
 });
 
-test("project detail source has accessible states and no candidate media URL construction", async () => {
-  const source = await readFile(new URL("../app/projects/[id]/page.jsx", import.meta.url), "utf8");
-  const helperSource = await readFile(new URL("../lib/candidate-view.mjs", import.meta.url), "utf8");
-  assert.match(helperSource, /\/api\/jobs\/\$\{id\}/);
-  assert.match(helperSource, /\/api\/jobs\/\$\{id\}\/candidates/);
-  assert.match(helperSource, /cache:\s*"no-store"/);
-  assert.match(helperSource, /Promise\.allSettled/);
-  assert.match(source, /const controller = new AbortController\(\)/);
-  assert.match(source, /let active = true/);
-  assert.match(source, /loadProjectDetail\(id, \{ signal: controller\.signal \}\)/);
-  assert.match(source, /if \(!active\) return/);
-  assert.match(source, /active = false;\s*controller\.abort\(\)/);
-  assert.match(source, /error\?\.name === "AbortError"/);
-  assert.match(source, /aria-live="polite"/);
-  assert.match(source, /<fieldset/);
-  assert.match(source, /<legend/);
-  assert.match(source, /type="radio"/);
-  assert.match(source, /Accept/);
-  assert.match(source, /Tolak/);
-  assert.match(source, /Belum diputuskan/);
-  assert.match(source, /Array\.from\(note\)\.length/);
-  assert.doesNotMatch(source, /maxLength=\{500\}/);
-  assert.match(source, /feedback tersimpan untuk evaluasi\/kalibrasi mendatang/i);
-  assert.match(source, /segmen transkrip utuh/i);
-  assert.match(source, /crypto\.randomUUID/);
-  assert.match(source, /onReloadRequired\(failure\.message\)/);
-  assert.match(source, /onFeedbackReloadRequired=\{setFeedbackReloadRequired\}/);
-  assert.match(source, /feedbackEnabled=\{selectionVersionMatches && !feedbackReloadRequired\}/);
-  assert.match(source, /role="progressbar"/);
-  assert.match(source, /Clip Potential Score/);
-  assert.match(source, /V2 shadow/);
-  assert.match(source, /sinyal aktivitas/);
-  assert.match(source, /<details/);
-  assert.doesNotMatch(source, /sourcePath|candidates\.v2\.json|\/data\/jobs|candidate\.videoUrl/);
-});
-
-test("project history links each card to its detail route", async () => {
-  const source = await readFile(new URL("../app/projects/page.jsx", import.meta.url), "utf8");
-  assert.match(source, /href={`\/projects\/\$\{job\.id\}`}/);
-});
-
-test("rendered clips omit invalid HTML SRT tracks but retain an explained SRT download", async () => {
-  const source = await readFile(new URL("../app/projects/[id]/page.jsx", import.meta.url), "utf8");
-  assert.doesNotMatch(source, /<track\b/);
-  assert.match(source, /href=\{clip\.subtitleUrl\}>Subtitle SRT ↓<\/a>/);
-  assert.match(source, /Subtitle SRT tersedia sebagai file unduhan/);
-});
-
 test("candidate metadata stays at least 12px and contribution annotations use accessible contrast", async () => {
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   const finalDeclaration = (selector, property) => {

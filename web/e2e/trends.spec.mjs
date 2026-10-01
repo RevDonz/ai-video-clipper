@@ -261,14 +261,12 @@ test.describe("Konteks Tren page (faked API)", () => {
     await page.route(new RegExp(`/api/jobs/${jobId}(?:/.*)?$`), (route) => {
       const { pathname } = new URL(route.request().url());
       if (pathname === `/api/jobs/${jobId}`) return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ job }) });
-      if (pathname.endsWith("/candidates")) return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ available: false, candidates: [] }) });
-      if (pathname.endsWith("/candidate-feedback")) return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ available: false }) });
       return route.fulfill({ status: 200, contentType: "video/mp4", body: "" });
     });
     await login(page, "/projects");
     await page.goto(`/projects/${jobId}`);
-    const first = page.locator("article.v3Clip").filter({ has: page.getByRole("heading", { name: "Judul klip 1" }) });
-    const second = page.locator("article.v3Clip").filter({ has: page.getByRole("heading", { name: "Judul klip 2" }) });
+    const first = page.getByRole("article", { name: "Judul klip 1", exact: true });
+    const second = page.getByRole("article", { name: "Judul klip 2", exact: true });
     const chips = first.getByRole("list", { name: "Tren yang disebut di klip ini" });
     await expect(chips.getByRole("listitem")).toHaveText(["Nyambung tren: Kabur Aja Dulu", `Nyambung tren: ${HOSTILE_TITLE}`]);
     await expect(first.locator("img")).toHaveCount(0);

@@ -1,70 +1,132 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import AppHeader from "../../components/AppHeader.jsx";
+import {
+  PROJECT_FILTERS,
+  formatProjectDate,
+  historySummary,
+  isActiveStatus,
+  matchesProjectFilter,
+  matchesProjectQuery,
+  projectName,
+  projectProgress,
+  projectRowDetail,
+  statusLabel,
+} from "../../lib/project-view.mjs";
+import { clipPosterUrl } from "../../lib/selection-v3-view.mjs";
+import styles from "./projects.module.css";
 
-const statusLabel = {
-  queued: "Menunggu",
-  preparing: "Menyiapkan",
-  downloading: "Mengunduh",
-  processing: "Diproses",
-  completed: "Selesai",
-  failed: "Gagal",
-  deleting: "Menghapus",
-};
+// While a project is still running, the list is re-read on this interval.
+const POLL_MS = 5000;
 
-function projectName(job) {
-  if (job.source?.name) return job.source.name;
-  if (job.source?.type === "youtube") {
-    try {
-      const url = new URL(job.source.url);
-      return `YouTube · ${url.searchParams.get("v") || url.pathname.split("/").filter(Boolean).at(-1) || "Video"}`;
-    } catch {
-      return "Video YouTube";
-    }
-  }
-  return `Proyek ${job.id.slice(0, 8)}`;
-}
+function ProjectRow({ job, confirming, busy, onAskDelete, onCancelDelete, onDelete }) {
+  const clips = Array.isArray(job.clips) ? job.clips : [];
+  const poster = clips.map(clipPosterUrl).find(Boolean);
+  const active = isActiveStatus(job.status);
+  const name = projectName(job);
+  const confirmId = `confirm-${job.id}`;
+  const askRef = useRef(null);
+  const cancelRef = useRef(null);
+  const wasConfirming = useRef(false);
 
-function formatDate(value) {
-  if (!value) return "Tanggal tidak tersedia";
-  return new Intl.DateTimeFormat("id-ID", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
+  // Opening the confirmation puts focus on "Batal"; closing it returns focus to "Hapus".
+  useEffect(() => {
+    if (confirming) cancelRef.current?.focus();
+    else if (wasConfirming.current) askRef.current?.focus();
+    wasConfirming.current = confirming;
+  }, [confirming]);
+
+  return (
+    <li className={styles.row} data-confirming={confirming || undefined}>
+      <a className={styles.link} href={`/projects/${encodeURIComponent(job.id)}`}>
+        <span className={styles.thumb} aria-hidden="true">
+          {poster ? <img src={poster} alt="" loading="lazy" decoding="async" /> : clips.length > 0 && <i className={styles.play} />}
+        </span>
+        <span className={styles.info}>
+          <strong>{name}</strong>
+          <small>{formatProjectDate(job.createdAt)} · {projectRowDetail(job)}</small>
+        </span>
+        <span className={styles.status} data-status={job.status}>
+          {statusLabel(job.status)}{active ? ` · ${projectProgress(job)}%` : ""}
+        </span>
+      </a>
+      {job.status !== "deleting" && !confirming && (
+        <button ref={askRef} type="button" className={`btn ghost ${styles.ask}`} onClick={onAskDelete} aria-label={`Hapus ${name}`}>Hapus</button>
+      )}
+      {confirming && (
+        <div
+          className={styles.confirm}
+          role="group"
+          aria-labelledby={confirmId}
+          onKeyDown={(event) => { if (event.key === "Escape" && !busy) onCancelDelete(); }}
+        >
+          <strong id={confirmId}>Hapus permanen?</strong>
+          <p>
+            Video sumber, hasil analisis, dan semua klip proyek ini ikut terhapus dari server. Tidak bisa dibatalkan.
+            {active ? " Proses yang sedang berjalan dihentikan dulu." : ""}
+          </p>
+          <div>
+            <button type="button" className="btn danger solid" disabled={busy} onClick={onDelete}>{busy ? "Menghapus…" : "Ya, hapus permanen"}</button>
+            <button ref={cancelRef} type="button" className="btn" disabled={busy} onClick={onCancelDelete}>Batal</button>
+          </div>
+        </div>
+      )}
+    </li>
+  );
 }
 
 export default function ProjectsPage() {
   const [jobs, setJobs] = useState([]);
+  const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
-  const [opened, setOpened] = useState(null);
-  const [copiedClip, setCopiedClip] = useState(null);
   const [confirmingId, setConfirmingId] = useState(null);
   const [busyId, setBusyId] = useState(null);
   const [actionError, setActionError] = useState("");
-
-  async function loadJobs() {
-    setLoading(true);
-    setError("");
-    try {
-      const response = await fetch("/api/jobs", { cache: "no-store" });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Riwayat tidak dapat dimuat");
-      setJobs(payload.jobs || []);
-    } catch (loadError) {
-      setError(loadError.message);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const [generation, setGeneration] = useState(0);
 
   useEffect(() => {
-    loadJobs();
-  }, []);
+    const controller = new AbortController();
+    let alive = true;
+    let pollTimer = null;
+    const load = async (initial) => {
+      if (initial) {
+        setLoading(true);
+        setError("");
+      }
+      try {
+        const response = await fetch("/api/jobs", { cache: "no-store", signal: controller.signal });
+        if (response.status === 401) {
+          window.location.assign(`/login?next=${encodeURIComponent("/projects")}`);
+          return;
+        }
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error("Riwayat tidak bisa dimuat. Coba lagi sebentar lagi.");
+        if (!alive) return;
+        const list = Array.isArray(payload.jobs) ? payload.jobs : [];
+        setJobs(list);
+        setLoaded(true);
+        setError("");
+        if (list.some((job) => isActiveStatus(job.status))) pollTimer = setTimeout(() => load(false), POLL_MS);
+      } catch (loadError) {
+        if (!alive || loadError?.name === "AbortError") return;
+        if (initial) setError(loadError instanceof TypeError ? "Riwayat tidak bisa dimuat. Periksa koneksi, lalu coba lagi." : loadError.message);
+        else pollTimer = setTimeout(() => load(false), POLL_MS);
+      } finally {
+        if (alive && initial) setLoading(false);
+      }
+    };
+    load(true);
+    return () => {
+      alive = false;
+      controller.abort();
+      if (pollTimer !== null) clearTimeout(pollTimer);
+    };
+  }, [generation]);
 
   // Deletion is permanent and covers running jobs: the server revokes the
   // worker's lease, then reclaims the bytes once that worker has stopped.
@@ -78,131 +140,91 @@ export default function ProjectsPage() {
         headers: { "Accept": "application/json" },
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.error || "Proyek tidak dapat dihapus");
+      if (!response.ok) throw new Error(payload.error || "Proyek tidak bisa dihapus. Coba lagi.");
       setConfirmingId(null);
-      setOpened((current) => (current === job.id ? null : current));
       setJobs((current) => (payload.removed
         ? current.filter((item) => item.id !== job.id)
         : current.map((item) => (item.id === job.id ? { ...item, status: "deleting", progress: 0 } : item))));
     } catch (deleteError) {
-      setActionError(deleteError.message);
+      setActionError(deleteError instanceof TypeError ? "Proyek tidak bisa dihapus. Periksa koneksi, lalu coba lagi." : deleteError.message);
     } finally {
       setBusyId(null);
     }
   }
 
-  async function copyCaption(job, clip) {
-    await navigator.clipboard.writeText(`${clip.title}\n\n${clip.description}`);
-    setCopiedClip(`${job.id}-${clip.index}`);
-    setTimeout(() => setCopiedClip(null), 1800);
-  }
-
-  const visible = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    return jobs.filter((job) => {
-      const matchesStatus = filter === "all"
-        || (filter === "active" && !["completed", "failed", "deleting"].includes(job.status))
-        || job.status === filter;
-      const haystack = [
-        projectName(job),
-        job.id,
-        job.source?.url,
-        ...(job.clips || []).map((clip) => clip.text),
-      ].filter(Boolean).join(" ").toLowerCase();
-      return matchesStatus && (!needle || haystack.includes(needle));
-    });
-  }, [jobs, query, filter]);
-
-  const completed = jobs.filter((job) => job.status === "completed").length;
-  const clips = jobs.reduce((total, job) => total + (job.clips?.length || 0), 0);
+  const visible = useMemo(
+    () => jobs.filter((job) => matchesProjectFilter(job, filter) && matchesProjectQuery(job, query)),
+    [jobs, query, filter],
+  );
+  const filtered = query.trim() !== "" || filter !== "all";
 
   return (
     <main>
       <AppHeader current="/projects" />
+      <div className={`shell ${styles.page}`}>
+        <header className={styles.head}>
+          <div>
+            <h1>Riwayat proyek</h1>
+            {loaded && <p>{historySummary(jobs)}</p>}
+          </div>
+          <a className="btn primary" href="/dashboard">Buat klip baru</a>
+        </header>
 
-      <section className="projectsHero shell">
-        <div><div className="eyebrow">ARSIP VIDEO · TERSIMPAN DI SERVER</div><h1>Riwayat proyek</h1><p>Buka kembali semua proses dan hasil klip yang pernah dibuat.</p></div>
-        <a className="newProject" href="/dashboard">+ Buat proyek baru</a>
-      </section>
-
-      <section className="projectStats shell">
-        <div><strong>{jobs.length}</strong><span>Total proyek</span></div>
-        <div><strong>{completed}</strong><span>Proyek selesai</span></div>
-        <div><strong>{clips}</strong><span>Klip tersimpan</span></div>
-      </section>
-
-      <section className="projectBrowser shell">
-        <div className="projectTools">
-          <label className="projectSearch"><span>⌕</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Cari nama, ID, URL, atau isi klip…" /></label>
-          <div className="projectFilters">
-            {[["all", "Semua"], ["completed", "Selesai"], ["active", "Berjalan"], ["failed", "Gagal"]].map(([value, label]) => (
-              <button key={value} className={filter === value ? "active" : ""} onClick={() => setFilter(value)}>{label}</button>
+        <div className={styles.tools}>
+          <label className={styles.search}>
+            <span className="visuallyHidden">Cari proyek</span>
+            <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Cari nama, ID, URL, atau isi klip" />
+          </label>
+          <div className={`segmented ${styles.filters}`} role="group" aria-label="Saring status">
+            {PROJECT_FILTERS.map((item) => (
+              <button key={item.value} type="button" aria-pressed={filter === item.value} onClick={() => setFilter(item.value)}>{item.label}</button>
             ))}
           </div>
-          <button className="refreshProjects" onClick={loadJobs} disabled={loading}>↻ Muat ulang</button>
+          <button type="button" className="btn" onClick={() => setGeneration((value) => value + 1)} disabled={loading}>{loading ? "Memuat…" : "Muat ulang"}</button>
         </div>
 
-        {error && <div className="projectError">{error}</div>}
-        {actionError && <div className="projectError" role="alert">{actionError}</div>}
-        {loading ? <div className="projectEmpty"><div className="pulse" /><strong>Memuat seluruh riwayat…</strong></div> : null}
-        {!loading && !visible.length ? <div className="projectEmpty"><div className="emptyIcon">⌕</div><strong>Tidak ada proyek yang cocok</strong><p>Ubah kata pencarian atau filter status.</p></div> : null}
+        {actionError && <div className={`notice error ${styles.notice}`} role="alert">{actionError}</div>}
 
-        <div className="projectList">
-          {visible.map((job) => {
-            const isOpen = opened === job.id;
-            return (
-              <article className={`projectCard ${isOpen ? "opened" : ""}`} key={job.id}>
-                <button className="projectSummary" onClick={() => setOpened(isOpen ? null : job.id)} aria-expanded={isOpen}>
-                  <div className={`projectPoster ${job.status}`}><span>{job.clips?.length || 0}</span><small>KLIP</small></div>
-                  <div className="projectIdentity"><small>{formatDate(job.createdAt)}</small><h2>{projectName(job)}</h2><p>ID {job.id.slice(0, 8)} · {job.options?.renderMode || "fit-blur"}</p></div>
-                  <div className="projectMetrics"><span className={`statusPill ${job.status}`}>{statusLabel[job.status] || job.status}</span><b>{job.progress || 0}%</b></div>
-                  <span className="projectChevron">{isOpen ? "−" : "+"}</span>
-                </button>
+        {loading && !loaded && (
+          <div className={styles.state} role="status" aria-live="polite"><span className="pulse" aria-hidden="true" /><p>Memuat riwayat…</p></div>
+        )}
+        {!loading && error && (
+          <div className={`notice error ${styles.notice}`} role="alert">
+            <strong>Riwayat tidak bisa dimuat</strong>
+            <span>{error}</span>
+            <button type="button" className={`btn ${styles.retry}`} onClick={() => setGeneration((value) => value + 1)}>Coba lagi</button>
+          </div>
+        )}
+        {loaded && jobs.length === 0 && (
+          <div className={styles.state}>
+            <strong>Belum ada proyek</strong>
+            <p>Proyek yang kamu buat di Buat Klip muncul di sini, lengkap dengan klipnya.</p>
+          </div>
+        )}
+        {loaded && jobs.length > 0 && visible.length === 0 && (
+          <div className={styles.state}>
+            <strong>Tidak ada proyek yang cocok</strong>
+            <p>Ubah kata pencarian atau pilih status lain.</p>
+            {filtered && <button type="button" className="btn" onClick={() => { setQuery(""); setFilter("all"); }}>Tampilkan semua</button>}
+          </div>
+        )}
 
-                {isOpen && (
-                  <div className="projectDetail">
-                    <a className="projectDetailLink" href={`/projects/${job.id}`}>Buka detail & kandidat V2 →</a>
-                    <div className="projectDanger">
-                      {confirmingId === job.id ? (
-                        <>
-                          <strong>Hapus permanen?</strong>
-                          <p>Video sumber, seluruh artefak analisis, dan klip hasil render akan hilang dari server. Tindakan ini tidak dapat dibatalkan.{!["completed", "failed", "deleting"].includes(job.status) ? " Proses yang sedang berjalan akan dihentikan lebih dulu, jadi penghapusan selesai dalam waktu kurang dari satu menit." : ""}</p>
-                          <div>
-                            <button type="button" className="confirmDelete" disabled={busyId === job.id} onClick={() => deleteProject(job)}>
-                              {busyId === job.id ? "Menghapus…" : "Ya, hapus permanen"}
-                            </button>
-                            <button type="button" onClick={() => setConfirmingId(null)} disabled={busyId === job.id}>Batal</button>
-                          </div>
-                        </>
-                      ) : (
-                        <button
-                          type="button"
-                          className="requestDelete"
-                          disabled={job.status === "deleting"}
-                          onClick={() => { setActionError(""); setConfirmingId(job.id); }}
-                        >{job.status === "deleting" ? "Sedang dihapus…" : "Hapus proyek"}</button>
-                      )}
-                    </div>
-                    {job.source?.url && <a className="sourceLink" href={job.source.url} target="_blank" rel="noreferrer">Buka sumber YouTube ↗</a>}
-                    {job.error && <div className="projectError">{job.error}</div>}
-                    {job.clips?.length ? (
-                      <div className="archiveClips">
-                        {job.clips.map((clip) => (
-                          <article className="archiveClip" key={clip.index}>
-                            <video controls preload="metadata" src={clip.videoUrl} />
-                            <div><small>CLIP {String(clip.index).padStart(2, "0")} · {Math.round(clip.duration || 0)} DETIK</small><h3>{clip.title}</h3><p className="socialDescription">{clip.description}</p><div className="archiveActions"><a href={clip.downloadUrl}>Download MP4 ↓</a>{clip.subtitleUrl && <a href={clip.subtitleUrl}>Subtitle SRT ↓</a>}<button type="button" onClick={() => copyCaption(job, clip)}>{copiedClip === `${job.id}-${clip.index}` ? "Tersalin ✓" : "Salin caption"}</button></div></div>
-                          </article>
-                        ))}
-                      </div>
-                    ) : <div className="noClips"><strong>{job.status === "failed" ? "Proses ini gagal" : "Klip belum tersedia"}</strong><p>{statusLabel[job.status] || job.status} · progres {job.progress || 0}%</p></div>}
-                  </div>
-                )}
-              </article>
-            );
-          })}
-        </div>
-      </section>
-      <footer className="shell">Potongin AI · Arsip tersimpan di volume server <span>{jobs.length} proyek · {clips} klip</span></footer>
+        {visible.length > 0 && (
+          <ul className={styles.list} aria-label="Proyek">
+            {visible.map((job) => (
+              <ProjectRow
+                key={job.id}
+                job={job}
+                confirming={confirmingId === job.id}
+                busy={busyId === job.id}
+                onAskDelete={() => { setActionError(""); setConfirmingId(job.id); }}
+                onCancelDelete={() => setConfirmingId(null)}
+                onDelete={() => deleteProject(job)}
+              />
+            ))}
+          </ul>
+        )}
+      </div>
     </main>
   );
 }

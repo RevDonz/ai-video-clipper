@@ -1,0 +1,269 @@
+/* Project history (/projects). Tokens from app/globals.css; building blocks (.btn, .notice,
+   .segmented, .pulse) stay global. */
+
+.page {
+  padding: 32px 0 64px;
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px 24px;
+  margin-bottom: 24px;
+}
+.head h1 {
+  margin: 0;
+  font: 700 clamp(28px, 3.4vw, 38px)/1.1 var(--font);
+  letter-spacing: -.02em;
+}
+.head p {
+  margin: 8px 0 0;
+  color: var(--text-muted);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tools {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.search input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  font-size: 15px;
+}
+.search input:focus-visible {
+  border-color: var(--focus);
+}
+.filters button {
+  min-width: 72px;
+}
+
+.notice {
+  margin-bottom: 16px;
+}
+.retry {
+  justify-self: start;
+  margin-top: 6px;
+}
+
+.state {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 56px 16px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-xl);
+  color: var(--text-muted);
+  text-align: center;
+  animation: fade var(--dur-2) var(--ease-out);
+}
+.state strong {
+  color: var(--text);
+  font: 600 16px/1.3 var(--font);
+}
+.state p {
+  max-width: 420px;
+  margin: 0 0 4px;
+  font-size: 14px;
+}
+
+.list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* One project: the whole row opens it; delete sits apart at the end. */
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0 8px;
+  padding-right: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  transition: border-color var(--dur-2) var(--ease-out), background-color var(--dur-2) var(--ease-out);
+}
+.row:hover,
+.row:focus-within {
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+}
+.row[data-confirming] {
+  border-color: var(--danger-border);
+}
+.link {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  grid-template-areas: "thumb info status";
+  gap: 14px;
+  align-items: center;
+  min-width: 0;
+  padding: 10px 0 10px 10px;
+  border-radius: var(--radius-l);
+  color: var(--text);
+  text-decoration: none;
+}
+.thumb {
+  grid-area: thumb;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  overflow: hidden;
+  border-radius: var(--radius-m);
+  background: var(--surface-3);
+  color: var(--text-muted);
+  font: 700 16px/1 var(--font);
+  font-variant-numeric: tabular-nums;
+}
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* Clips without a poster (older projects) get a play mark in its place; no clips, no mark. */
+.play {
+  width: 0;
+  height: 0;
+  margin-left: 3px;
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
+  border-left: 13px solid var(--text-muted);
+}
+.info {
+  grid-area: info;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.info strong {
+  overflow: hidden;
+  font: 600 15px/1.35 var(--font);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.info small {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.link:hover .info strong {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Status always carries its word; the colour only backs it up. */
+.status {
+  grid-area: status;
+  justify-self: end;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  color: var(--text-muted);
+  font: 600 13px/1.4 var(--font);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.status[data-status="completed"] { background: var(--success-bg); color: var(--success); }
+.status[data-status="failed"] { background: var(--danger-bg); color: var(--danger); }
+.status[data-status="deleting"] { background: var(--warning-bg); color: var(--warning); }
+.status[data-status="queued"],
+.status[data-status="preparing"],
+.status[data-status="downloading"],
+.status[data-status="processing"] { background: var(--info-bg); color: var(--info); }
+
+/* Delete stays quiet until pointed at; then it turns red like the confirmation it opens. */
+.row .ask:hover:not(:disabled) {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.confirm {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 6px;
+  margin: 0 0 10px 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--danger-border);
+  border-radius: var(--radius-m);
+  background: var(--danger-bg);
+  animation: rise var(--dur-2) var(--ease-out);
+}
+.confirm strong {
+  color: var(--danger);
+  font: 700 15px/1.3 var(--font);
+}
+.confirm p {
+  margin: 0 0 6px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.confirm > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(6px); }
+}
+@keyframes fade {
+  from { opacity: 0; }
+}
+
+@media (max-width: 860px) {
+  .tools {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .search {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 600px) {
+  .page {
+    padding-top: 20px;
+  }
+  .head > a {
+    flex: 1 1 100%;
+  }
+  .tools {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* Thumb-sized on a phone. */
+  .filters button {
+    min-width: 0;
+    min-height: 44px;
+    padding-inline: 6px;
+  }
+  .link {
+    grid-template-columns: 48px minmax(0, 1fr);
+    grid-template-areas: "thumb info" "thumb status";
+    gap: 4px 12px;
+  }
+  /* The stage of a running or failed project is the point of the line: let it wrap. */
+  .info small {
+    white-space: normal;
+  }
+  .status {
+    justify-self: start;
+  }
+  .confirm {
+    margin-right: 0;
+  }
+  .confirm > div > * {
+    flex: 1 1 auto;
+  }
+}
