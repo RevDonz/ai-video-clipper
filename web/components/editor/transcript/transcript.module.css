@@ -10,13 +10,13 @@
   flex-direction: column;
   min-height: 100%;
   font-size: var(--ed-font-size-md, 14px);
-  color: var(--ed-color-text);
+  color: var(--text);
 }
 
 .loading {
   margin: 0;
   padding: var(--ed-space-4, 16px);
-  color: var(--ed-color-text-muted);
+  color: var(--text-muted);
 }
 
 .header {
@@ -26,8 +26,8 @@
   display: grid;
   gap: var(--ed-space-2, 8px);
   padding: var(--ed-space-2, 8px) var(--ed-space-3, 12px);
-  background: var(--ed-color-surface);
-  border-bottom: 1px solid var(--ed-color-border);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
 }
 
 .toolbar {
@@ -41,17 +41,17 @@
   font-size: var(--ed-font-size-sm, 12px);
   line-height: 1.3;
   padding: 4px 8px;
-  border: 1px solid var(--ed-color-border);
+  border: 1px solid var(--border);
   border-radius: var(--ed-radius-sm, 4px);
-  background: var(--ed-color-surface);
-  color: var(--ed-color-text);
+  background: var(--surface);
+  color: var(--text);
   cursor: pointer;
   transition: border-color var(--ed-duration-fast, 120ms), background var(--ed-duration-fast, 120ms);
 }
 
 .tool:hover:not(:disabled) {
-  border-color: var(--ed-color-text-muted);
-  background: var(--ed-color-surface-2);
+  border-color: var(--text-muted);
+  background: var(--surface-2);
 }
 
 .tool:disabled {
@@ -62,9 +62,9 @@
 /* A pressed toggle inverts the neutral pair instead of spending the accent. */
 .tool[aria-pressed="true"],
 .tool[aria-pressed="true"]:hover:not(:disabled) {
-  background: var(--ed-color-text);
-  border-color: var(--ed-color-text);
-  color: var(--ed-color-surface);
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--surface);
 }
 
 .tool:focus-visible,
@@ -82,13 +82,13 @@
   margin: 0;
   min-height: 1.3em;
   font-size: var(--ed-font-size-xs, 11px);
-  color: var(--ed-color-text-muted);
+  color: var(--text-muted);
 }
 
 .message {
   margin: 0;
   font-size: var(--ed-font-size-sm, 12px);
-  color: var(--ed-color-danger);
+  color: var(--danger);
 }
 
 /* The left edge is the cold-open colour of the timeline: it names the segment, not decoration. */
@@ -96,8 +96,8 @@
   margin: 0;
   padding: 4px 8px;
   font-size: var(--ed-font-size-sm, 12px);
-  border-left: 3px solid var(--ed-color-cold-open);
-  background: var(--ed-color-surface-2);
+  border-left: 3px solid var(--cold-open);
+  background: var(--surface-2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -121,8 +121,6 @@
 
 /* Selection and playback tints, shared by the words and the shadows that bridge their spaces. */
 .words {
-  --tr-selected: color-mix(in srgb, var(--ed-color-accent) 22%, var(--ed-color-surface));
-  --tr-active: color-mix(in srgb, var(--ed-color-warning) 30%, var(--ed-color-surface));
   padding: var(--ed-space-3, 12px);
   line-height: 1.85;
   user-select: none;
@@ -141,74 +139,64 @@
 }
 
 .word:hover {
-  background: color-mix(in srgb, var(--ed-color-text) 8%, transparent);
+  background: var(--surface-3);
 }
 
 /* Dimmed by the muted token, never by opacity, so the text keeps its contrast. */
 .word[data-zone="before"],
 .word[data-zone="after"] {
-  color: var(--ed-color-text-muted);
+  color: var(--text-muted);
 }
 
 .word[data-lowconf] {
-  text-decoration: underline wavy var(--ed-color-warning);
+  text-decoration: underline wavy var(--warning);
   text-decoration-thickness: 1px;
   text-underline-offset: 4px;
 }
 
 .word[data-removed],
 .word[data-co-removed] {
-  color: var(--ed-color-text-muted);
+  color: var(--text-muted);
   text-decoration: line-through;
-  text-decoration-color: var(--ed-color-removed);
+  text-decoration-color: var(--text-muted);
 }
 
 .word[data-cold] {
-  box-shadow: inset 0 -2px 0 var(--ed-color-cold-open);
+  box-shadow: inset 0 -2px 0 var(--cold-open);
 }
 
 .word[data-hidden] {
-  outline: 1px dashed var(--ed-color-text-muted);
+  outline: 1px dashed var(--text-muted);
   outline-offset: 1px;
 }
 
-/* A keyword shows its caption swatch on the stage's dark surface, where every swatch reads. */
+/* A keyword is bold and underlined in its caption swatch; the text itself keeps the UI's text
+   colour, so a dark swatch never costs contrast. */
 .word[data-emphasis] {
-  color: var(--tr-emphasis);
-  background: var(--ed-color-stage-surface);
+  color: var(--text);
   font-weight: 700;
+  text-decoration: underline 2px var(--tr-emphasis);
+  text-underline-offset: 3px;
 }
 
 .word[data-edited]::after {
   content: "✎";
   margin-left: 1px;
   font-size: 0.7em;
-  color: var(--ed-color-text-muted);
+  color: var(--text-muted);
 }
 
 /* Opaque so the shadows that bridge the spaces between selected words do not stack. */
 .word[data-selected] {
-  color: var(--ed-color-text);
-  background: var(--tr-selected);
-  box-shadow: -0.16em 0 0 var(--tr-selected), 0.16em 0 0 var(--tr-selected);
-}
-
-.word[data-emphasis][data-selected] {
-  color: var(--tr-emphasis);
-  background: var(--ed-color-stage-surface);
-  box-shadow: 0 0 0 2px var(--ed-color-text-muted);
+  color: var(--text);
+  background: var(--info-border);
+  box-shadow: -0.16em 0 0 var(--info-border), 0.16em 0 0 var(--info-border);
 }
 
 .word[data-active] {
-  color: var(--ed-color-text);
-  background: var(--tr-active);
-  box-shadow: 0 0 0 1px var(--ed-color-warning);
-}
-
-.word[data-emphasis][data-active] {
-  color: var(--tr-emphasis);
-  background: var(--ed-color-stage-surface);
-  box-shadow: 0 0 0 2px var(--ed-color-warning);
+  color: var(--text);
+  background: var(--warning-bg);
+  box-shadow: 0 0 0 1px var(--warning);
 }
 
 .chip {
@@ -218,31 +206,31 @@
   padding: 0 7px;
   margin: 0 1px;
   vertical-align: 1px;
-  border: 1px solid var(--ed-color-border);
+  border: 1px solid var(--border-strong);
   border-radius: 999px;
-  background: var(--ed-color-surface-2);
-  color: var(--ed-color-text-muted);
+  background: var(--surface-2);
+  color: var(--text-muted);
   cursor: pointer;
   transition: background var(--ed-duration-fast, 120ms), color var(--ed-duration-fast, 120ms);
 }
 
 .chip:hover:not(:disabled) {
-  background: var(--ed-color-text);
-  border-color: var(--ed-color-text);
-  color: var(--ed-color-surface);
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--surface);
 }
 
 .chipCold {
-  border-color: var(--ed-color-cold-open);
+  border-color: var(--cold-open);
 }
 
 .editor {
   font: inherit;
   padding: 0 3px;
-  border: 1px solid var(--ed-color-text-muted);
+  border: 1px solid var(--text-muted);
   border-radius: 3px;
-  background: var(--ed-color-surface);
-  color: var(--ed-color-text);
+  background: var(--surface);
+  color: var(--text);
   user-select: text;
 }
 
@@ -259,17 +247,17 @@
   font: inherit;
   font-size: var(--ed-font-size-sm, 12px);
   text-align: left;
-  color: var(--ed-color-text-muted);
+  color: var(--text-muted);
   background: none;
-  border: 1px dashed var(--ed-color-border);
+  border: 1px dashed var(--border);
   border-radius: var(--ed-radius-sm, 4px);
   cursor: pointer;
   transition: color var(--ed-duration-fast, 120ms), border-color var(--ed-duration-fast, 120ms);
 }
 
 .context:hover {
-  color: var(--ed-color-text);
-  border-color: var(--ed-color-text-muted);
+  color: var(--text);
+  border-color: var(--text-muted);
 }
 
 /* --- Rapikan (plan §7.3) ------------------------------------------------------------------ */
@@ -291,8 +279,8 @@
 }
 
 .cleanupToggle[aria-expanded="true"] {
-  background: var(--ed-color-surface-2);
-  border-color: var(--ed-color-text-muted);
+  background: var(--surface-2);
+  border-color: var(--text-muted);
 }
 
 .cleanupCount {
@@ -300,18 +288,18 @@
   min-width: 1.6em;
   padding: 0 5px;
   border-radius: 999px;
-  background: var(--ed-color-surface-2);
-  color: var(--ed-color-text);
+  background: var(--surface-2);
+  color: var(--text);
   font-size: var(--ed-font-size-xs, 11px);
   line-height: 1.5;
   text-align: center;
-  box-shadow: inset 0 0 0 1px var(--ed-color-border);
+  box-shadow: inset 0 0 0 1px var(--border);
 }
 
 /* Words and gaps the open review proposes to cut: one "proposed" colour, told apart by the line
    (dotted: filler, dashed: repeat) and named in the tooltip, never by hue alone. */
 .word[data-cleanup] {
-  text-decoration: underline dotted var(--ed-color-warning);
+  text-decoration: underline dotted var(--warning);
   text-decoration-thickness: 2px;
   text-underline-offset: 4px;
 }
@@ -327,14 +315,14 @@
   font-size: var(--ed-font-size-xs, 11px);
   line-height: 1.4;
   vertical-align: 1px;
-  color: var(--ed-color-text);
-  background: color-mix(in srgb, var(--ed-color-warning) 22%, var(--ed-color-surface));
+  color: var(--text);
+  background: var(--warning-bg);
   animation: fadeIn var(--ed-duration-slow, 240ms) ease-out;
 }
 
 .gapMark[data-cleanup-gap="gap_voiced"] {
-  color: var(--ed-color-text-muted);
-  background: var(--ed-color-surface-2);
+  color: var(--text-muted);
+  background: var(--surface-2);
 }
 
 .review {
@@ -342,9 +330,9 @@
   gap: var(--ed-space-2, 8px);
   margin: var(--ed-space-2, 8px) var(--ed-space-3, 12px) 0;
   padding: var(--ed-space-3, 12px);
-  border: 1px solid var(--ed-color-border);
+  border: 1px solid var(--border);
   border-radius: var(--ed-radius-md, 8px);
-  background: var(--ed-color-surface);
+  background: var(--surface);
   animation: reviewIn var(--ed-duration-slow, 240ms) ease-out;
 }
 
@@ -364,13 +352,13 @@
 .reviewEmpty {
   margin: 0;
   font-size: var(--ed-font-size-sm, 12px);
-  color: var(--ed-color-text-muted);
+  color: var(--text-muted);
 }
 
 .reviewError {
   margin: 0;
   font-size: var(--ed-font-size-sm, 12px);
-  color: var(--ed-color-danger);
+  color: var(--danger);
 }
 
 .reviewGroup {
@@ -378,7 +366,7 @@
   margin: 0;
   padding: var(--ed-space-2, 8px) 0 0;
   border: 0;
-  border-top: 1px solid var(--ed-color-border);
+  border-top: 1px solid var(--border);
 }
 
 .reviewLegend {
@@ -397,17 +385,17 @@
   padding: 0;
   font: inherit;
   font-size: var(--ed-font-size-sm, 12px);
-  color: var(--ed-color-text);
+  color: var(--text);
   background: none;
   border: 0;
   text-decoration: underline;
-  text-decoration-color: var(--ed-color-text-muted);
+  text-decoration-color: var(--text-muted);
   text-underline-offset: 2px;
   cursor: pointer;
 }
 
 .linkButton:hover {
-  text-decoration-color: var(--ed-color-text);
+  text-decoration-color: var(--text);
 }
 
 .reviewList {
@@ -429,14 +417,14 @@
 }
 
 .reviewRow:hover {
-  background: var(--ed-color-surface-2);
+  background: var(--surface-2);
 }
 
 .reviewCheck {
   width: 16px;
   height: 16px;
   margin: 3px 0 0;
-  accent-color: var(--ed-color-text);
+  accent-color: var(--text);
 }
 
 .reviewNoCheck {
@@ -455,12 +443,12 @@ label.reviewText {
 }
 
 .reviewAround {
-  color: var(--ed-color-text-muted);
+  color: var(--text-muted);
 }
 
 .reviewRemoved {
   font-weight: 600;
-  color: var(--ed-color-danger);
+  color: var(--danger);
   text-decoration-thickness: 1px;
 }
 
@@ -471,8 +459,8 @@ label.reviewText {
 .reviewGap {
   padding: 0 4px;
   border-radius: 3px;
-  color: var(--ed-color-text);
-  background: color-mix(in srgb, var(--ed-color-warning) 22%, var(--ed-color-surface));
+  color: var(--text);
+  background: var(--warning-bg);
   white-space: nowrap;
 }
 
@@ -485,18 +473,18 @@ label.reviewText {
   display: grid;
   gap: 4px;
   padding-top: var(--ed-space-2, 8px);
-  border-top: 1px solid var(--ed-color-border);
+  border-top: 1px solid var(--border);
 }
 
-/* The review's one decision, and the only place the accent is spent. */
+/* The review's one decision; lime stays with Ekspor, the one primary action of the screen. */
 .apply {
   justify-self: start;
   padding: 6px 14px;
   font: inherit;
   font-weight: 700;
-  color: var(--ed-color-accent-text);
-  background: var(--ed-color-accent);
-  border: 1px solid var(--ed-color-accent);
+  color: var(--bg);
+  background: var(--text);
+  border: 1px solid var(--text);
   border-radius: var(--ed-radius-sm, 4px);
   cursor: pointer;
   transition: filter var(--ed-duration-fast, 120ms), transform var(--ed-duration-fast, 120ms);
@@ -519,7 +507,7 @@ label.reviewText {
   min-height: 1.3em;
   margin: 0;
   font-size: var(--ed-font-size-sm, 12px);
-  color: var(--ed-color-text);
+  color: var(--text);
 }
 
 .reviewStatus:not(:empty) {

@@ -15,12 +15,12 @@
 }
 
 .body {
-  fill: var(--ed-color-body);
+  fill: var(--info);
   fill-opacity: 0.7;
 }
 
 .coldOpen {
-  fill: var(--ed-color-cold-open);
+  fill: var(--cold-open);
   fill-opacity: 0.75;
 }
 
@@ -32,7 +32,7 @@
   align-items: center;
   margin: 0;
   padding: 0 8px;
-  color: var(--ed-color-text-muted);
+  color: var(--text-muted);
   font-size: var(--ed-font-size-xs);
   line-height: var(--ed-lane-height);
   white-space: nowrap;
@@ -41,16 +41,16 @@
 
 .retry {
   padding: 1px 8px;
-  border: 1px solid var(--ed-color-border);
+  border: 1px solid var(--border);
   border-radius: var(--ed-radius-sm);
-  background: var(--ed-color-surface);
-  color: var(--ed-color-text);
+  background: var(--surface);
+  color: var(--text);
   font: 600 var(--ed-font-size-xs) / 1.4 var(--ed-font-ui);
   cursor: pointer;
 }
 
 .retry:hover {
-  border-color: var(--ed-color-accent);
+  border-color: var(--text);
 }
 
 @keyframes wave-in {

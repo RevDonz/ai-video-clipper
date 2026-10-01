@@ -222,7 +222,9 @@ test.describe("transcript panel", () => {
     await page.keyboard.press("Control+e");
     expect(await lastCommand(page)).toMatchObject({ type: "SetWordEmphasis", args: { wordId: demoWords[index].id, on: true } });
     await expect(word(page, index)).toHaveAttribute("data-emphasis", "");
-    await expect(word(page, index)).toHaveCSS("color", "rgb(255, 92, 138)");
+    // The keyword is underlined in its caption swatch; its text keeps the UI's text colour (AA).
+    await expect(word(page, index)).toHaveCSS("text-decoration-color", "rgb(255, 92, 138)");
+    await expect(word(page, index)).toHaveCSS("color", "rgb(247, 245, 237)");
   });
 
   test("set the trim from the transcript and extend it back with 'Perpanjang ke sini'", async ({ page }) => {

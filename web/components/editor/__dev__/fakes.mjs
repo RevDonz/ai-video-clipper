@@ -10,6 +10,7 @@
 // real store's extra surface (context, draftKey, resolveConflict, startFromSeed, retrySave,
 // setSelection, dismissNotice and the state fields conflict, notice, otherTab, readOnlyReason).
 import { CommandRejected } from "../../../lib/editor/commands.mjs";
+import { DEFAULT_EMPHASIS, DEFAULT_HIGHLIGHT } from "../../../lib/editor/content-colours.mjs";
 
 export { CommandRejected };
 
@@ -100,7 +101,7 @@ export function fakeDoc() {
     main: { segments: [{ id: "seg_b1", role: "body", in_sf: 37215, out_sf: 37515 }], removals: [], joins: [], cut_fade_ms: 8 },
     captions: {
       enabled: true, pack: { id: "karaoke", v: 1 },
-      overrides: { y_e5: 83000, size_pm: 1000, case: "asis", highlight: "#FFE14D", emphasis: "#FF5C8A" }, word_edits: {},
+      overrides: { y_e5: 83000, size_pm: 1000, case: "asis", highlight: DEFAULT_HIGHLIGHT, emphasis: DEFAULT_EMPHASIS }, word_edits: {},
     },
     layout: { default: { mode: "fit_blur", no_face: "center" } },
     tracks: [{ id: "tr_hook", kind: "hook", items: [{

@@ -6,10 +6,11 @@
 //
 // Every dispatch is appended to `log` as {type, args, mergeKey, ok, code}. The plan DTO is
 // recomputed 150 ms after a change ("text" is pending meanwhile), like the debounced preview.
+import { CAPTION_SWATCHES } from "../../../../lib/editor/content-colours.mjs";
 import { CommandRejected, fakePlan } from "../../__dev__/fakes.mjs";
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
-const SWATCHES = ["#FFE14D", "#FFFFFF", "#3DF5A6", "#52C7FF", "#FF5C8A", "#FF9F1C"];
+const SWATCHES = CAPTION_SWATCHES.map((swatch) => swatch.value);
 const PACKS = ["classic", "karaoke", "bold", "box"];
 const MERGE_WINDOW_MS = 500;
 

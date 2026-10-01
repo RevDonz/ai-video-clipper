@@ -7,7 +7,7 @@
 // (`{src, width, height}`). The result is one classic script for `page.route`.
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { existsSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -137,6 +137,11 @@ load(0);
 })();`;
 }
 
+// The editor's colours are the app's tokens on :root (app/globals.css); the harness page carries
+// that block, as the app's root layout does, so the panels render as they do in the editor.
+const ROOT_TOKENS = /:root\s*\{[\s\S]*?\n\}/.exec(readFileSync(path.join(WEB_ROOT, "app", "globals.css"), "utf8"))[0];
+
 /** The harness HTML page. */
 export const HARNESS_HTML = `<!doctype html><html lang="id"><head><meta charset="utf-8"><title>Editor harness</title>
-<style>html,body{margin:0;height:100%}</style></head><body><div id="root"></div><script src="/harness.js"></script></body></html>`;
+<style>${ROOT_TOKENS}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:var(--font)}</style></head><body><div id="root"></div><script src="/harness.js"></script></body></html>`;

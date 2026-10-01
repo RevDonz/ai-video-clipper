@@ -18,7 +18,7 @@
   margin: 0;
   font-size: var(--ed-font-size-sm);
   font-weight: 700;
-  color: var(--ed-color-text);
+  color: var(--text);
 }
 
 .list {
@@ -33,7 +33,7 @@
   display: grid;
   gap: var(--ed-space-1);
   padding: var(--ed-space-2) var(--ed-space-3);
-  border: 1px dashed var(--ed-color-border);
+  border: 1px dashed var(--border);
   border-radius: var(--ed-radius-md);
   background: transparent;
   transition: border-color var(--ed-duration-fast) ease-out, background-color var(--ed-duration-fast) ease-out;
@@ -42,13 +42,13 @@
 
 .card:hover {
   border-style: solid;
-  border-color: var(--ed-color-text-muted);
+  border-color: var(--text-muted);
 }
 
 .card[data-current="true"] {
   border-style: solid;
-  border-color: var(--ed-color-accent);
-  background: var(--ed-color-accent-soft);
+  border-color: var(--text);
+  background: var(--surface-3);
 }
 
 .text {
@@ -56,7 +56,7 @@
   font-size: var(--ed-font-size-md);
   font-weight: 600;
   line-height: var(--ed-line-height);
-  color: var(--ed-color-text);
+  color: var(--text);
   overflow-wrap: anywhere;
 }
 
@@ -64,7 +64,7 @@
   margin: 0;
   font-size: var(--ed-font-size-xs);
   line-height: var(--ed-line-height);
-  color: var(--ed-color-text-muted);
+  color: var(--text-muted);
   overflow-wrap: anywhere;
 }
 
@@ -78,16 +78,16 @@
   align-items: center;
   gap: var(--ed-space-1) var(--ed-space-2);
   font-size: var(--ed-font-size-xs);
-  color: var(--ed-color-text-muted);
+  color: var(--text-muted);
 }
 
 .source {
   font-weight: 700;
-  color: var(--ed-color-text-muted);
+  color: var(--text-muted);
 }
 
 .card[data-source="llm"] .source {
-  color: var(--ed-color-accent-strong);
+  color: var(--info);
 }
 
 .style::before {
@@ -99,11 +99,11 @@
 }
 
 .fit[data-fit="fits"] {
-  color: var(--ed-color-success);
+  color: var(--success);
 }
 
 .fit[data-fit="overflow"] {
-  color: var(--ed-color-warning-text);
+  color: var(--warning);
 }
 
 .use {
@@ -113,17 +113,17 @@
   font: inherit;
   font-size: var(--ed-font-size-sm);
   font-weight: 600;
-  border: 1px solid var(--ed-color-border);
+  border: 1px solid var(--border);
   border-radius: var(--ed-radius-sm);
-  background: var(--ed-color-surface);
-  color: var(--ed-color-text);
+  background: var(--surface);
+  color: var(--text);
   cursor: pointer;
   transition: border-color var(--ed-duration-fast) ease-out, color var(--ed-duration-fast) ease-out;
 }
 
 .use:hover:not(:disabled) {
-  border-color: var(--ed-color-accent);
-  color: var(--ed-color-accent-strong);
+  border-color: var(--text);
+  color: var(--info);
 }
 
 .use:focus-visible,
@@ -139,7 +139,7 @@
 
 .card[data-current="true"] .use:disabled {
   opacity: 1;
-  color: var(--ed-color-success);
+  color: var(--success);
   background: transparent;
   border-color: transparent;
 }
@@ -152,7 +152,7 @@
   border: 0;
   border-radius: var(--ed-radius-sm);
   background: none;
-  color: var(--ed-color-accent-strong);
+  color: var(--info);
   text-decoration: underline;
   text-underline-offset: 2px;
   cursor: pointer;
@@ -163,7 +163,7 @@
   margin: 0;
   font-size: var(--ed-font-size-xs);
   line-height: var(--ed-line-height);
-  color: var(--ed-color-text-muted);
+  color: var(--text-muted);
 }
 
 .problem {
@@ -171,8 +171,8 @@
   padding: 6px var(--ed-space-2);
   font-size: var(--ed-font-size-sm);
   border-radius: var(--ed-radius-sm);
-  background: var(--ed-color-danger-soft);
-  color: var(--ed-color-danger);
+  background: var(--danger-bg);
+  color: var(--danger);
 }
 
 .notice {
@@ -181,15 +181,15 @@
   font-size: var(--ed-font-size-xs);
   line-height: var(--ed-line-height);
   border-radius: var(--ed-radius-sm);
-  background: var(--ed-color-surface-2);
-  color: var(--ed-color-text);
+  background: var(--surface-2);
+  color: var(--text);
 }
 
 .ai {
   display: grid;
   gap: var(--ed-space-2);
   padding-top: var(--ed-space-2);
-  border-top: 1px solid var(--ed-color-border);
+  border-top: 1px solid var(--border);
 }
 
 .loading,
@@ -200,9 +200,9 @@
 
 .placeholder {
   height: 44px;
-  border: 1px dashed var(--ed-color-border);
+  border: 1px dashed var(--border);
   border-radius: var(--ed-radius-md);
-  background: var(--ed-color-surface-2);
+  background: var(--surface-2);
 }
 
 /* The bar fills over the task's 20 s deadline: a real duration, not a loop. */
@@ -210,12 +210,12 @@
   height: 3px;
   overflow: hidden;
   border-radius: var(--ed-radius-sm);
-  background: var(--ed-color-surface-2);
+  background: var(--surface-2);
 }
 
 .fill {
   height: 100%;
-  background: var(--ed-color-accent);
+  background: var(--accent);
   transform-origin: left center;
   animation: fill var(--task-seconds, 20s) linear both;
 }

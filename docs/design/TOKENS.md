@@ -40,6 +40,15 @@ tepi kontrol dan cincin fokus 3:1.
 | `--warning-bg` | Latar pesan peringatan | `#282210` | text 14.50, muted 6.44 |
 | `--warning-border` | Tepi pesan peringatan (hiasan) | `#6d5b22` | 2.39 di warning-bg |
 | `--sheen` | Kilau yang lewat di isi bar progres (hiasan) | `#ffffff73` | tanpa teks |
+| `--cold-open` | Editor: bagian cold open di timeline dan transkrip | `#c4a5ff` | 9.67 bg, 7.50 surface-3, 8.05 cold-open-bg |
+| `--cold-open-bg` | Editor: latar bagian cold open | `#221a33` | text 15.23, muted 6.76 |
+| `--info-veil` | Editor: arsiran bagian yang belum siap (tembus pandang) | `#8b9dff2e` | tanpa teks |
+| `--danger-veil` | Editor: area tombol TikTok di atas video (tembus pandang) | `#ff8b7d40` | tanpa teks |
+| `--shadow` | Bayangan dialog dan popover editor | `#000000b3` | tanpa teks |
+
+Editor memakai token yang sama dengan halaman lain; `web/components/editor/editor.module.css` hanya
+berisi ukuran dan jarak. Di timeline: isi klip `--info` / `--info-bg`, hook `--warning` /
+`--warning-bg`, cold open `--cold-open` / `--cold-open-bg`, playhead `--danger`.
 
 Info dan fokus memakai biru yang sama: `#3f5efb` lama hanya 4.00 di latar gelap, jadi dinaikkan.
 Merah `#e44e3f` lama menjadi `#ff8b7d` supaya tetap terbaca di latar merah gelap.

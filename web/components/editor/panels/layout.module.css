@@ -9,14 +9,14 @@
   gap: var(--ed-space-4);
   padding: var(--ed-space-3);
   font-size: var(--ed-font-size-md);
-  color: var(--ed-color-text);
+  color: var(--text);
 }
 
 .section {
   display: grid;
   gap: var(--ed-space-2);
   padding-bottom: var(--ed-space-4);
-  border-bottom: 1px solid var(--ed-color-border);
+  border-bottom: 1px solid var(--border);
 }
 
 .section:last-child {
@@ -44,15 +44,15 @@
   margin: 0;
   font-size: var(--ed-font-size-xs);
   line-height: var(--ed-line-height);
-  color: var(--ed-color-text-muted);
+  color: var(--text-muted);
 }
 
 .message {
   margin: 0;
   padding: var(--ed-space-1) var(--ed-space-2);
   font-size: var(--ed-font-size-sm);
-  color: var(--ed-color-danger);
-  background: var(--ed-color-danger-soft);
+  color: var(--danger);
+  background: var(--danger-bg);
   border-radius: var(--ed-radius-sm);
 }
 
@@ -89,19 +89,19 @@
   gap: var(--ed-space-1);
   min-width: 0;
   padding: 6px;
-  border: 1px solid var(--ed-color-border);
+  border: 1px solid var(--border-strong);
   border-radius: var(--ed-radius-md);
-  background: var(--ed-color-surface);
+  background: var(--surface);
   cursor: pointer;
 }
 
 .option:hover {
-  border-color: var(--ed-color-text-muted);
+  border-color: var(--text-muted);
 }
 
 .option:has(input:checked) {
-  border-color: var(--ed-color-accent);
-  box-shadow: 0 0 0 1px var(--ed-color-accent);
+  border-color: var(--text);
+  box-shadow: 0 0 0 1px var(--text);
 }
 
 .option:has(input:focus-visible) {
@@ -138,7 +138,7 @@
   aspect-ratio: 9 / 16;
   overflow: hidden;
   border-radius: var(--ed-radius-sm);
-  background: var(--ed-color-stage);
+  background: var(--bg);
 }
 
 .thumb {
@@ -157,7 +157,7 @@
   font-size: var(--ed-font-size-xs);
   line-height: 1.3;
   text-align: center;
-  color: var(--ed-color-stage-muted);
+  color: var(--text-muted);
 }
 
 /* The analysis on the chosen face-track card, over the bottom of its thumbnail. */
@@ -169,8 +169,8 @@
   padding: 6px;
   font-size: var(--ed-font-size-xs);
   font-variant-numeric: tabular-nums;
-  color: var(--ed-color-stage-text);
-  background: var(--ed-color-stage-surface);
+  color: var(--text);
+  background: var(--surface-2);
 }
 
 .cardTrack {
@@ -179,7 +179,7 @@
   height: 4px;
   overflow: hidden;
   border-radius: var(--ed-radius-sm);
-  background: var(--ed-color-stage-border);
+  background: var(--border);
 }
 
 .cardFill {
@@ -187,7 +187,7 @@
   inset: 0 auto 0 0;
   width: 0;
   border-radius: inherit;
-  background: var(--ed-color-accent);
+  background: var(--accent);
 }
 
 /* Without the server's progress: a third of the track (it moves only with motion allowed). */
@@ -206,22 +206,22 @@
   padding: 0 6px;
   font-size: var(--ed-font-size-xs);
   font-weight: 600;
-  color: var(--ed-color-text);
-  border: 1px solid var(--ed-color-border);
+  color: var(--text);
+  border: 1px solid var(--border);
   border-radius: var(--ed-radius-sm);
-  background: var(--ed-color-surface-2);
+  background: var(--surface-2);
 }
 
 .about {
   margin: 0;
   font-size: var(--ed-font-size-sm);
   line-height: var(--ed-line-height);
-  color: var(--ed-color-text-muted);
+  color: var(--text-muted);
 }
 
 .about strong {
   font-weight: 700;
-  color: var(--ed-color-text);
+  color: var(--text);
 }
 
 .analysis {
@@ -231,13 +231,13 @@
   font-size: var(--ed-font-size-sm);
   font-variant-numeric: tabular-nums;
   border-radius: var(--ed-radius-sm);
-  background: var(--ed-color-surface-2);
+  background: var(--surface-2);
 }
 
 .progress {
   width: 100%;
   height: 8px;
-  accent-color: var(--ed-color-accent);
+  accent-color: var(--text);
 }
 
 .failure {
@@ -248,8 +248,8 @@
   gap: var(--ed-space-2);
   padding: var(--ed-space-1) var(--ed-space-2);
   font-size: var(--ed-font-size-sm);
-  color: var(--ed-color-danger);
-  background: var(--ed-color-danger-soft);
+  color: var(--danger);
+  background: var(--danger-bg);
   border-radius: var(--ed-radius-sm);
 }
 
@@ -257,15 +257,15 @@
   padding: var(--ed-space-1) 10px;
   font: inherit;
   font-size: var(--ed-font-size-sm);
-  color: var(--ed-color-text);
-  border: 1px solid var(--ed-color-border);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
   border-radius: var(--ed-radius-sm);
-  background: var(--ed-color-surface);
+  background: var(--surface);
   cursor: pointer;
 }
 
 .button:hover:not(:disabled) {
-  border-color: var(--ed-color-text-muted);
+  border-color: var(--text-muted);
 }
 
 .button:focus-visible,
@@ -288,10 +288,10 @@
   font: inherit;
   font-size: var(--ed-font-size-xs);
   font-variant-numeric: tabular-nums;
-  color: var(--ed-color-warning-text);
-  border: 1px solid var(--ed-color-warning);
+  color: var(--warning);
+  border: 1px solid var(--warning);
   border-radius: var(--ed-radius-sm);
-  background: var(--ed-color-warning-soft);
+  background: var(--warning-bg);
   cursor: pointer;
 }
 
