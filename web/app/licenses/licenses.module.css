@@ -1,0 +1,158 @@
+/* Third-party notices (/licenses). A single reading column of reference text: sections are split
+   by rules, not cards, because nothing here is a separate object to act on. Tokens from
+   app/globals.css. */
+
+.page {
+  max-width: 760px;
+  padding: 32px 0 72px;
+}
+
+.head h1 {
+  margin: 0;
+  font: 700 clamp(28px, 3.4vw, 38px)/1.1 var(--font);
+  letter-spacing: -.02em;
+}
+.head p {
+  margin: 10px 0 0;
+  color: var(--text-muted);
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.block {
+  margin-top: 36px;
+  padding-top: 28px;
+  border-top: 1px solid var(--border);
+}
+.block h2 {
+  margin: 0;
+  font: 700 22px/1.25 var(--font);
+  letter-spacing: -.01em;
+}
+.block h3 {
+  margin: 28px 0 4px;
+  font: 600 16px/1.4 var(--font);
+}
+.use {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.facts {
+  display: grid;
+  margin: 18px 0 0;
+}
+.row {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: 4px 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.row:last-child,
+.items li:last-child {
+  border-bottom: 0;
+}
+.row dt {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+.row dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Hashes and notes sit under their value: long, rarely read, never allowed to widen the page. */
+.hash,
+.note {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.items {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.items li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.name {
+  font-weight: 600;
+}
+.licence {
+  color: var(--text-muted);
+  font-size: 14px;
+  text-align: right;
+}
+.detail {
+  grid-column: 1 / -1;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.items .links {
+  grid-column: 1 / -1;
+}
+
+/* Standalone links get a 44 px hit area; the row stays compact by spacing them sideways. */
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 18px;
+}
+.links a,
+.file {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  text-underline-offset: 3px;
+  transition: color var(--dur-1) var(--ease-out);
+}
+.links a:hover,
+.file:hover {
+  color: var(--text);
+}
+.file {
+  overflow-wrap: anywhere;
+}
+
+.text {
+  margin: 14px 0 0;
+  line-height: 1.6;
+}
+.credit {
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+@media (max-width: 620px) {
+  .page {
+    padding: 24px 0 56px;
+  }
+  .row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .items li {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .licence {
+    text-align: left;
+  }
+}
