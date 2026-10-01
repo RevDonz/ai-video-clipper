@@ -1,8 +1,9 @@
 "use client";
 
 // The export dialog (plan Appendix C.5): (1) the revision and the "Perlu dicek" items, each
-// acknowledged; (2) the output line, and the R10 line for unchanged content; (3) Antre → Merender
-// (n%) → Memverifikasi → Selesai, with cancel until the end; (4) downloads, the read-only title,
+// acknowledged (notes are shown, not ticked); (2) the output line, and the R10 line for unchanged
+// content; (3) Antre → Merender (n%) → Memverifikasi → Selesai, with cancel until the end;
+// (4) downloads, the read-only title,
 // description and hashtags with copy buttons, and the audio notes; (5) earlier exports; (6) on a
 // failure, the Indonesian explanation and "Coba lagi". No size or quality choice in Essentials.
 // The state machine lives in export-flow.mjs; EditorApp owns it, so closing the dialog never
@@ -42,7 +43,7 @@ function CopyField({ label, value, copyLabel }) {
     <div>
       <dt>{label}</dt>
       <dd>
-        <span className={styles.packValue}>{value || "—"}</span>
+        <span className={styles.packValue}>{value || "Tidak ada"}</span>
         <button type="button" className={`${styles.button} ${styles.quiet}`} onClick={copy} disabled={!value}>{copyLabel}</button>
         <span className={styles.visuallyHidden} role="status" aria-live="polite">{copied}</span>
       </dd>
@@ -76,8 +77,10 @@ export default function ExportDialog({
   const phase = flow?.phase ?? "idle";
   const active = ACTIVE.has(phase);
   const steps = useMemo(() => exportStepView(flow?.render ?? null, flow?.lastRunning ?? null), [flow?.render, flow?.lastRunning]);
-  const warnings = checks.filter((check) => check.severity !== "error");
+  const warnings = checks.filter((check) => check.severity === "warning");
   const blocking = checks.filter((check) => check.severity === "error");
+  // Notes inform and need no tick (the caption at the auto clip's spot, K5).
+  const infos = checks.filter((check) => check.severity === "info");
   const ready = canStartExport(checks, acked) && !readOnly;
   const notes = warnings.filter((check) => AUDIO_NOTES.has(check.code.split(":")[0]));
   const result = phase === "completed" ? flow.render : null;
@@ -140,6 +143,7 @@ export default function ExportDialog({
               {warnings.length > 0 && phase !== "idle" && (
                 <p className={styles.muted}>{`Semua ${warnings.length} hal sudah dicek.`}</p>
               )}
+              {infos.map((check) => <p key={check.key} className={styles.infoNote} data-export-note="">{check.message}</p>)}
             </section>
 
             <section className={styles.section} aria-labelledby="export-output">

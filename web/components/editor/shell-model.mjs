@@ -114,6 +114,26 @@ function checkMessage(issue) {
   return messageFor(issue.code);
 }
 
+// Owner decision K5 (kept in W4): the seed keeps the auto clip's caption spot (83 % down, inside
+// the zone that starts at 78 %), so an unchanged clip exports the auto file (R10). At that spot the
+// zone warning is a note: it informs, and export does not ask for a tick.
+export const CAPTION_SPOT_NOTE = "Caption di posisi bawaan, dekat tombol TikTok. Kalau tertutup, geser ke atas di tab Teks.";
+
+/** Whether the caption sits where the auto clip put it (the seed's bottom anchor). */
+export function captionAtSeedSpot(doc, seed) {
+  const at = doc?.captions?.overrides?.y_e5;
+  return Number.isInteger(at) && at === seed?.captions?.overrides?.y_e5;
+}
+
+function isCaptionZone(issue) {
+  return issue.code === "unsafe_zone" && typeof issue.path === "string" && issue.path.startsWith("/captions/");
+}
+
+/** The checks that need the user: errors and warnings, not notes. */
+export function actionableChecks(checks) {
+  return (Array.isArray(checks) ? checks : []).filter((check) => check.severity !== "info");
+}
+
 /**
  * The toast text of a command rejected by the store (Appendix B: `CommandRejected(code)` carries
  * a user message): its `userMessage`, else the message of its code, else a generic line.
@@ -278,25 +298,30 @@ export function liveEntries(entries, runtimeKind, liveWaves = LIVE_WAVES) {
 
 /**
  * "Perlu dicek": store warnings (save results) and plan warnings, deduplicated, sorted by
- * frame (items without a frame last); plan errors come first as blocking items.
+ * frame (items without a frame last); plan errors come first as blocking items, notes last.
+ * With the document and its seed, the caption's zone warning at the auto clip's spot is a note
+ * (severity "info", K5).
  */
-export function checksView({ warnings = [], plan = null } = {}) {
+export function checksView({ warnings = [], plan = null, doc = null, seed = null } = {}) {
   const fps = plan?.fps;
   const seen = new Set();
   const items = [];
-  const add = (issue, severity) => {
+  const captionNote = captionAtSeedSpot(doc, seed);
+  const add = (issue, given) => {
     if (!issue || typeof issue.code !== "string") return;
+    const note = given === "warning" && captionNote && isCaptionZone(issue);
+    const severity = note ? "info" : given;
     const f = Number.isInteger(issue.f) ? issue.f : null;
     const key = `${severity}|${issue.code}|${issue.ref ?? ""}|${f ?? ""}|${f === null ? issue.path ?? "" : ""}`;
     if (seen.has(key)) return;
     seen.add(key);
-    items.push({ key, severity, code: issue.code, ref: issue.ref ?? null, f, message: checkMessage(issue),
+    items.push({ key, severity, code: issue.code, ref: issue.ref ?? null, f, message: note ? CAPTION_SPOT_NOTE : checkMessage(issue),
       timeText: f === null ? null : formatClock(frameToMs(f, fps)) });
   };
   for (const issue of Array.isArray(plan?.errors) ? plan.errors : []) add(issue, "error");
   for (const issue of Array.isArray(warnings) ? warnings : []) add(issue, "warning");
   for (const issue of Array.isArray(plan?.warnings) ? plan.warnings : []) add(issue, "warning");
-  const rank = (item) => (item.severity === "error" ? 0 : 1);
+  const rank = (item) => ({ error: 0, warning: 1 })[item.severity] ?? 2;
   return items.sort((a, b) => rank(a) - rank(b) || (a.f ?? Infinity) - (b.f ?? Infinity));
 }
 
