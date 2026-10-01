@@ -1,0 +1,20 @@
+{
+ "task": "T4.1",
+ "gate": "old projects render and play after the candidate editor's backend is gone (browser)",
+ "app": "standalone app built by the production image of editor-w4-t4.1 at 1189731 (editor-gates command run 36898941555), served on the owner's PC on a private port with POTONGIN_EDITOR_V3=on",
+ "browser": "Chrome for Testing 151.0.7922.34 (Playwright 1.62.1), one worker",
+ "specs": ["web/e2e/read-only.spec.mjs", "web/e2e/smoke.spec.mjs"],
+ "projects": ["desktop-chromium", "mobile-chromium"],
+ "jobs": [
+  {
+   "job": "d1e45678 (owner's old job without a selection mode, 5 clips; a copy, the original only read)",
+   "result": "10 passed",
+   "note": "the first run failed the no-version-wording check twice (desktop, mobile) on the project's own name, which the owner typed with 'V1 lama (pembanding)'; with the copy renamed, 10 passed"
+  },
+  {
+   "job": "synthetic old v2-shadow job, 2 playable clips, with the retired editor's leftovers (edit manifests, render inputs, render-request-v1 completed and -v2 queued, an export under output/edits/cand_*)",
+   "result": "10 passed"
+  }
+ ],
+ "checked": "deep link through login, every clip card (title, Unduh MP4 under /files/output/, Salin caption), no version wording, the first clip plays, an old candidate-editor link lands on the project page, the six retired candidate routes answer 404, no API response >= 400 on the pages (the clip listing answers 200 with no editor link)"
+}
