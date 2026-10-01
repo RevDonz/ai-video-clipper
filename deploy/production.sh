@@ -53,7 +53,9 @@ for job_dir in sorted(root.iterdir() if root.is_dir() else []):
             try:
                 payload = json.loads(request_file.read_text())
                 state = payload.get("state")
-                if state not in {"completed", "failed"}:
+                # "cancelled" is terminal too (render-request-v3): FFmpeg is already stopped,
+                # and retention keeps the request, so counting it would block every deploy.
+                if state not in {"completed", "failed", "cancelled"}:
                     active.append({"kind": "render", "id": payload.get("render_id", request_file.stem), "state": state})
             except Exception as error:
                 errors.append({"path": str(request_file), "error": type(error).__name__})
