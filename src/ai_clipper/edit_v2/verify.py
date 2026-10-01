@@ -14,7 +14,9 @@
 * **G5 text-safe** (warns): caption, hook and logo geometry against the TikTok UI zone
   (``unsafe_zone``).
 
-The file is read through its descriptor (``/proc/self/fd/N`` for FFmpeg); nothing is written. A
+The file is read through its descriptor (``/proc/self/fd/N`` for FFmpeg; each reader opens its
+own description, so the probe, the packet list and the audio decode run at the same time,
+T4.3); nothing is written. A
 blocking failure raises ``VerificationFailed`` (``verification_failed``, Indonesian message
 ``edit.verification_failed``) carrying the report as ``.report``.
 """
@@ -26,6 +28,7 @@ import os
 import stat
 import subprocess
 from collections.abc import Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from fractions import Fraction
 from itertools import pairwise
@@ -112,9 +115,11 @@ def _probe(fd: int, timeout_s: float) -> dict[str, Any]:
     return json.loads(output)
 
 
-def _video_pts(fd: int, index: int, timeout_s: float) -> list[int] | None:
+def _video_pts(fd: int, stream: str, timeout_s: float) -> list[int] | None:
+    """The packet timestamps of ``stream`` (``v:0``: the first video stream, the only one a
+    file that passes G1 has)."""
     output = _run(["ffprobe", "-v", "error", "-protocol_whitelist", "file,pipe",
-                   "-select_streams", str(index), "-show_entries", "packet=pts", "-of", "csv=p=0",
+                   "-select_streams", stream, "-show_entries", "packet=pts", "-of", "csv=p=0",
                    _input(fd)], fd, timeout_s=timeout_s)
     values = []
     for line in output.split():
@@ -125,11 +130,12 @@ def _video_pts(fd: int, index: int, timeout_s: float) -> list[int] | None:
     return sorted(values)
 
 
-def _audio_samples(fd: int, index: int, channels: int, timeout_s: float) -> int:
-    """Samples per channel of the decoded audio stream (native rate and layout)."""
+def _audio_bytes(fd: int, timeout_s: float) -> int:
+    """Bytes of the first audio stream decoded to s16 (native rate and layout); samples per
+    channel = bytes / (2 × channels)."""
     argv = ["ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", "-threads",
             str(FFMPEG_THREADS), "-protocol_whitelist", "file,pipe", "-i", _input(fd), "-map",
-            f"0:{index}", "-c:a", "pcm_s16le", "-f", "s16le", "-"]
+            "0:a:0", "-c:a", "pcm_s16le", "-f", "s16le", "-"]
     total = 0
     with subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                           stderr=subprocess.DEVNULL, env=_env(), pass_fds=(fd,)) as process:
@@ -143,7 +149,7 @@ def _audio_samples(fd: int, index: int, channels: int, timeout_s: float) -> int:
             raise
     if process.returncode != 0:
         raise RuntimeError("audio decode failed")
-    return total // (2 * max(channels, 1))
+    return total
 
 
 def _top_level_boxes(fd: int) -> list[bytes]:
@@ -199,8 +205,12 @@ def _g1_g2(fd: int, plan: RenderPlan, size: tuple[int, int]) -> tuple[GateResult
         g1.append("container")
     if b"moov" not in kinds or b"mdat" not in kinds or kinds.index(b"moov") > kinds.index(b"mdat"):
         g1.append("faststart")
+    with ThreadPoolExecutor(max_workers=3, thread_name_prefix="edit-v2-verify") as pool:
+        probed = pool.submit(_probe, fd, timeout_s)
+        packets = pool.submit(_video_pts, fd, "v:0", timeout_s)
+        decoded = pool.submit(_audio_bytes, fd, timeout_s)
     try:
-        info = _probe(fd, timeout_s)
+        info = probed.result()
     except (RuntimeError, OSError, subprocess.SubprocessError, ValueError):
         g1.append("probe_failed")
         g2.extend(("frame_count", "sample_count"))
@@ -231,7 +241,7 @@ def _g1_g2(fd: int, plan: RenderPlan, size: tuple[int, int]) -> tuple[GateResult
         g1.extend(problem for problem, ok in checks if not ok)
         frame = Fraction(fps.den, fps.num)
         try:
-            pts = _video_pts(fd, int(video["index"]), timeout_s)
+            pts = packets.result()
         except (RuntimeError, OSError, subprocess.SubprocessError, KeyError, ValueError):
             pts = None
         if _fraction(video.get("r_frame_rate")) != 1 / frame or not _cfr(
@@ -254,9 +264,10 @@ def _g1_g2(fd: int, plan: RenderPlan, size: tuple[int, int]) -> tuple[GateResult
         )
         g1.extend(problem for problem, ok in checks if not ok)
         try:
-            values2["samples"] = _audio_samples(fd, int(audio["index"]),
-                                                int(audio.get("channels") or 0), timeout_s)
-        except (RuntimeError, OSError, subprocess.SubprocessError, KeyError, ValueError):
+            channels = max(int(audio.get("channels") or 0), 1)
+            values2["samples"] = decoded.result() // (2 * channels)
+        except (RuntimeError, OSError, subprocess.SubprocessError, KeyError, ValueError,
+                TypeError):
             pass
     samples = values2["samples"]
     if samples is None or abs(samples - plan.total_samples) > SAMPLE_TOLERANCE:

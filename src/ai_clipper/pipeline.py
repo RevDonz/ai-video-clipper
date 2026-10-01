@@ -1212,59 +1212,68 @@ def _render_v3_clips(
             ),
         )
     wanted = None if ranks is None else set(ranks)
+    _schedule_edit_v2(renderer, [
+        (clip.rank, output_dir / f"clip-{index:02d}.mp4")
+        for index, (clip, _teaser) in enumerate(plans, start=1)
+        if wanted is None or clip.rank in wanted
+    ])
     clips: list[dict[str, object]] = []
-    for index, (clip, teaser) in enumerate(plans, start=1):
-        if wanted is not None and clip.rank not in wanted:
-            continue
-        started = time.monotonic()
-        report(
-            "rendering",
-            65 + round(((index - 1) / len(plans)) * 29),
-            f"Merender klip {index} dari {len(plans)}",
-        )
-        clip_path = output_dir / f"clip-{index:02d}.mp4"
-        engine_fields: dict[str, object] | None = None
-        if render_engine == render_edit.ENGINE_EDIT_V2:
-            auto = _render_edit_v2(renderer, clip.rank, clip_path, index)
-            if auto is None:
-                warnings.append(f"engine_fallback:{index}")
-                engine_fields = {
-                    "clip_id": None if renderer is None else renderer.fallback(clip.rank),
-                    "render_engine": render_edit.LEGACY_ENGINE_ID,
-                    "render_key": None,
-                    "plan_sha256": None,
-                }
-            else:
-                engine_fields = {
-                    "clip_id": auto.clip_id,
-                    "render_engine": auto.render_engine,
-                    "render_key": auto.render_key,
-                    "plan_sha256": auto.plan_sha256,
-                }
-                if not auto.cold_open:  # the seed left an invalid teaser out (plan §3.4)
-                    teaser = None
-        if engine_fields is None or engine_fields["render_engine"] == "legacy":
-            render_vertical(
-                source,
-                clip_path,
-                start=clip.start,
-                end=clip.end,
-                transcript=transcription.segments,
-                width=width,
-                height=height,
-                render_mode=render_mode,
-                cold_open=teaser,
-                hook_text=clip.hook_text if hook_overlay else None,
-                hook_duration=hook_duration,
-                caption_style=caption_style,
+    try:
+        for index, (clip, teaser) in enumerate(plans, start=1):
+            if wanted is not None and clip.rank not in wanted:
+                continue
+            started = time.monotonic()
+            report(
+                "rendering",
+                65 + round(((index - 1) / len(plans)) * 29),
+                f"Merender klip {index} dari {len(plans)}",
             )
-        thumbnail = _clip_thumbnail(clip_path, _rendered_seconds(clip, teaser), index, warnings)
-        entry = _v3_manifest_clip(index, clip, teaser, clip_path, thumbnail)
-        if engine_fields is not None:
-            entry.update(engine_fields)
-        clips.append(entry)
-        if timings is not None:
-            timings[clip.rank] = time.monotonic() - started
+            clip_path = output_dir / f"clip-{index:02d}.mp4"
+            engine_fields: dict[str, object] | None = None
+            if render_engine == render_edit.ENGINE_EDIT_V2:
+                auto = _render_edit_v2(renderer, clip.rank, clip_path, index)
+                if auto is None:
+                    warnings.append(f"engine_fallback:{index}")
+                    engine_fields = {
+                        "clip_id": None if renderer is None else renderer.fallback(clip.rank),
+                        "render_engine": render_edit.LEGACY_ENGINE_ID,
+                        "render_key": None,
+                        "plan_sha256": None,
+                    }
+                else:
+                    engine_fields = {
+                        "clip_id": auto.clip_id,
+                        "render_engine": auto.render_engine,
+                        "render_key": auto.render_key,
+                        "plan_sha256": auto.plan_sha256,
+                    }
+                    if not auto.cold_open:  # the seed left an invalid teaser out (plan §3.4)
+                        teaser = None
+            if engine_fields is None or engine_fields["render_engine"] == "legacy":
+                render_vertical(
+                    source,
+                    clip_path,
+                    start=clip.start,
+                    end=clip.end,
+                    transcript=transcription.segments,
+                    width=width,
+                    height=height,
+                    render_mode=render_mode,
+                    cold_open=teaser,
+                    hook_text=clip.hook_text if hook_overlay else None,
+                    hook_duration=hook_duration,
+                    caption_style=caption_style,
+                )
+            thumbnail = _clip_thumbnail(clip_path, _rendered_seconds(clip, teaser), index, warnings)
+            entry = _v3_manifest_clip(index, clip, teaser, clip_path, thumbnail)
+            if engine_fields is not None:
+                entry.update(engine_fields)
+            clips.append(entry)
+            if timings is not None:
+                timings[clip.rank] = time.monotonic() - started
+    finally:
+        if renderer is not None:
+            renderer.close()  # stops whatever was scheduled and never taken
     return clips
 
 
@@ -1288,6 +1297,18 @@ def _edit_v2_renderer(
     except Exception as error:  # noqa: BLE001 - the job never fails because of the editor path
         _engine_note("edit-v2 unavailable", error)
         return None
+
+
+def _schedule_edit_v2(renderer: Any | None, items: list[tuple[int, Path]]) -> None:
+    """Let the new engine start every clip in the background (PF-PIPELINE: several clips at
+    once, the same files as one at a time); when it cannot, each clip renders when the loop
+    reaches it."""
+    if renderer is None:
+        return
+    try:
+        renderer.schedule(items)
+    except Exception as error:  # noqa: BLE001 - the clips then render one at a time
+        _engine_note("edit-v2 schedule", error)
 
 
 def _render_edit_v2(renderer: Any | None, rank: int, clip_path: Path, index: int) -> Any | None:
