@@ -1,0 +1,399 @@
+{
+  "gate": "PF-CELLS",
+  "history": "Three CI runs on different 4-vCPU runners (indicative). Run 36846664148 (e69dcdf) is superseded: one of its fit-blur cases switched a fit-blur seed to fit-blur. Run 36848125248 (7891f5d) at 1280x720 is not recorded: its first case waited 600 s for a cell the lane had built for the switch gate's backlog seconds before the gate deleted it (the lane does not queue a cell again within 30 s of building it, and the gate then asked for the plan only once); since 5569da4 the gate polls like the store and runs on a fresh server. Its 640x360 run (new plate keys) is kept as ci-4vcpu-640x360-r2.",
+  "runs": {
+    "ci-4vcpu": {
+      "cases": [
+        {
+          "all_cells_s": 14.23,
+          "budget_s": 15.0,
+          "camera_plan_built": false,
+          "cells": 19,
+          "clip": "d1aaccfa#1",
+          "clip_seconds": 40.83,
+          "first_cell_s": 1.76,
+          "from": "camera",
+          "pass": false,
+          "plan_ms": 71.7,
+          "prepare_ms": 258.3,
+          "projected_60s_s": 20.9,
+          "to": "fit_blur"
+        },
+        {
+          "all_cells_s": 11.0,
+          "budget_s": 15.0,
+          "camera_plan_built": false,
+          "cells": 19,
+          "clip": "156ec9e2#1",
+          "clip_seconds": 40.84,
+          "first_cell_s": 1.22,
+          "from": "fill_center",
+          "pass": false,
+          "plan_ms": 54.2,
+          "prepare_ms": 10.6,
+          "projected_60s_s": 16.16,
+          "to": "fit_blur"
+        },
+        {
+          "all_cells_s": 8.24,
+          "budget_s": 15.0,
+          "camera_plan_built": false,
+          "cells": 19,
+          "clip": "bada77e7#1",
+          "clip_seconds": 37.4,
+          "first_cell_s": 0.96,
+          "from": "fit_blur",
+          "pass": true,
+          "plan_ms": 56.0,
+          "prepare_ms": 10.0,
+          "projected_60s_s": 13.22,
+          "to": "fill_center"
+        },
+        {
+          "all_cells_s": 8.82,
+          "budget_s": 15.0,
+          "camera_plan_built": false,
+          "cells": 19,
+          "clip": "d1aaccfa#2",
+          "clip_seconds": 36.37,
+          "first_cell_s": 1.16,
+          "from": "camera",
+          "pass": true,
+          "plan_ms": 36.8,
+          "prepare_ms": 11.5,
+          "projected_60s_s": 14.56,
+          "to": "fill_center"
+        },
+        {
+          "all_cells_s": 13.53,
+          "budget_s": 25.0,
+          "camera_plan_built": true,
+          "cells": 19,
+          "clip": "d0ea7856#1",
+          "clip_seconds": 40.84,
+          "first_cell_s": 5.84,
+          "from": "fit_blur",
+          "pass": true,
+          "plan_ms": 59.8,
+          "prepare_ms": 4975.3,
+          "projected_60s_s": 19.88,
+          "to": "camera"
+        },
+        {
+          "all_cells_s": 13.49,
+          "budget_s": 25.0,
+          "camera_plan_built": true,
+          "cells": 19,
+          "clip": "156ec9e2#2",
+          "clip_seconds": 36.36,
+          "first_cell_s": 7.49,
+          "from": "fill_center",
+          "pass": true,
+          "plan_ms": 36.0,
+          "prepare_ms": 6644.2,
+          "projected_60s_s": 22.26,
+          "to": "camera"
+        }
+      ],
+      "ci_run": 36850424292,
+      "commit": "5569da4",
+      "environment": {
+        "camera_workers": 4,
+        "cpu_quota": null,
+        "cpus_visible": 4,
+        "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+        "loadavg": [
+          3.43,
+          2.21,
+          1.02
+        ],
+        "python": "3.11.2"
+      },
+      "gate_wall_s": 320.1,
+      "heavy_slots": 2,
+      "media": "synthetic",
+      "nominal_clip_s": 60.0,
+      "note": "GitHub Actions ubuntu-latest runner (4 vCPU; timings indicative), production image built from editor-w3-t3.6 at 5569da4, standalone node server.js with POTONGIN_EDITOR_V3=on started fresh for this gate, gate client in the same container, synthetic barcode jobs",
+      "pass": false,
+      "pass_by_layout": {
+        "camera": true,
+        "fill_center": true,
+        "fit_blur": false
+      },
+      "synthetic_size": [
+        1280,
+        720
+      ],
+      "threshold_s": {
+        "camera": 25.0,
+        "fill_center": 15.0,
+        "fit_blur": 15.0
+      },
+      "workflow": "editor-gates.yml (suite=command, production image)"
+    },
+    "ci-4vcpu-640x360": {
+      "cases": [
+        {
+          "all_cells_s": 12.76,
+          "budget_s": 15.0,
+          "camera_plan_built": false,
+          "cells": 19,
+          "clip": "d1aaccfa#1",
+          "clip_seconds": 40.83,
+          "first_cell_s": 1.61,
+          "from": "camera",
+          "pass": false,
+          "plan_ms": 53.4,
+          "prepare_ms": 241.7,
+          "projected_60s_s": 18.75,
+          "to": "fit_blur"
+        },
+        {
+          "all_cells_s": 10.23,
+          "budget_s": 15.0,
+          "camera_plan_built": false,
+          "cells": 19,
+          "clip": "156ec9e2#1",
+          "clip_seconds": 40.84,
+          "first_cell_s": 1.12,
+          "from": "fill_center",
+          "pass": false,
+          "plan_ms": 54.8,
+          "prepare_ms": 11.5,
+          "projected_60s_s": 15.04,
+          "to": "fit_blur"
+        },
+        {
+          "all_cells_s": 7.22,
+          "budget_s": 15.0,
+          "camera_plan_built": false,
+          "cells": 19,
+          "clip": "bada77e7#1",
+          "clip_seconds": 37.4,
+          "first_cell_s": 0.85,
+          "from": "fit_blur",
+          "pass": true,
+          "plan_ms": 39.0,
+          "prepare_ms": 10.6,
+          "projected_60s_s": 11.59,
+          "to": "fill_center"
+        },
+        {
+          "all_cells_s": 7.54,
+          "budget_s": 15.0,
+          "camera_plan_built": false,
+          "cells": 19,
+          "clip": "d1aaccfa#2",
+          "clip_seconds": 36.37,
+          "first_cell_s": 0.9,
+          "from": "camera",
+          "pass": true,
+          "plan_ms": 54.2,
+          "prepare_ms": 10.4,
+          "projected_60s_s": 12.43,
+          "to": "fill_center"
+        },
+        {
+          "all_cells_s": 9.9,
+          "budget_s": 25.0,
+          "camera_plan_built": true,
+          "cells": 19,
+          "clip": "d0ea7856#1",
+          "clip_seconds": 40.84,
+          "first_cell_s": 3.16,
+          "from": "fit_blur",
+          "pass": true,
+          "plan_ms": 38.8,
+          "prepare_ms": 2394.5,
+          "projected_60s_s": 14.54,
+          "to": "camera"
+        },
+        {
+          "all_cells_s": 9.42,
+          "budget_s": 25.0,
+          "camera_plan_built": true,
+          "cells": 19,
+          "clip": "156ec9e2#2",
+          "clip_seconds": 36.36,
+          "first_cell_s": 4.02,
+          "from": "fill_center",
+          "pass": true,
+          "plan_ms": 52.1,
+          "prepare_ms": 3301.0,
+          "projected_60s_s": 15.54,
+          "to": "camera"
+        }
+      ],
+      "ci_run": 36850424292,
+      "commit": "5569da4",
+      "environment": {
+        "camera_workers": 4,
+        "cpu_quota": null,
+        "cpus_visible": 4,
+        "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+        "loadavg": [
+          3.1,
+          2.47,
+          1.31
+        ],
+        "python": "3.11.2"
+      },
+      "gate_wall_s": 166.9,
+      "heavy_slots": 2,
+      "media": "synthetic",
+      "nominal_clip_s": 60.0,
+      "note": "GitHub Actions ubuntu-latest runner (4 vCPU; timings indicative), production image built from editor-w3-t3.6 at 5569da4, standalone node server.js with POTONGIN_EDITOR_V3=on started fresh for this gate, gate client in the same container, synthetic barcode jobs",
+      "pass": false,
+      "pass_by_layout": {
+        "camera": true,
+        "fill_center": true,
+        "fit_blur": false
+      },
+      "synthetic_size": [
+        640,
+        360
+      ],
+      "threshold_s": {
+        "camera": 25.0,
+        "fill_center": 15.0,
+        "fit_blur": 15.0
+      },
+      "workflow": "editor-gates.yml (suite=command, production image)"
+    },
+    "ci-4vcpu-640x360-r2": {
+      "cases": [
+        {
+          "all_cells_s": 7.62,
+          "budget_s": 15.0,
+          "camera_plan_built": false,
+          "cells": 19,
+          "clip": "d1aaccfa#1",
+          "clip_seconds": 40.83,
+          "first_cell_s": 0.85,
+          "from": "camera",
+          "pass": true,
+          "plan_ms": 34.8,
+          "prepare_ms": 9.3,
+          "projected_60s_s": 11.19,
+          "to": "fit_blur"
+        },
+        {
+          "all_cells_s": 6.13,
+          "budget_s": 15.0,
+          "camera_plan_built": false,
+          "cells": 19,
+          "clip": "156ec9e2#1",
+          "clip_seconds": 40.84,
+          "first_cell_s": 0.7,
+          "from": "fill_center",
+          "pass": true,
+          "plan_ms": 23.8,
+          "prepare_ms": 8.5,
+          "projected_60s_s": 9.0,
+          "to": "fit_blur"
+        },
+        {
+          "all_cells_s": 5.16,
+          "budget_s": 15.0,
+          "camera_plan_built": false,
+          "cells": 19,
+          "clip": "bada77e7#1",
+          "clip_seconds": 37.4,
+          "first_cell_s": 0.58,
+          "from": "fit_blur",
+          "pass": true,
+          "plan_ms": 35.0,
+          "prepare_ms": 8.8,
+          "projected_60s_s": 8.27,
+          "to": "fill_center"
+        },
+        {
+          "all_cells_s": 5.47,
+          "budget_s": 15.0,
+          "camera_plan_built": false,
+          "cells": 19,
+          "clip": "d1aaccfa#2",
+          "clip_seconds": 36.37,
+          "first_cell_s": 0.63,
+          "from": "camera",
+          "pass": true,
+          "plan_ms": 36.2,
+          "prepare_ms": 9.7,
+          "projected_60s_s": 9.02,
+          "to": "fill_center"
+        },
+        {
+          "all_cells_s": 6.79,
+          "budget_s": 25.0,
+          "camera_plan_built": true,
+          "cells": 19,
+          "clip": "d0ea7856#1",
+          "clip_seconds": 40.84,
+          "first_cell_s": 1.98,
+          "from": "fit_blur",
+          "pass": true,
+          "plan_ms": 33.2,
+          "prepare_ms": 1489.3,
+          "projected_60s_s": 9.97,
+          "to": "camera"
+        },
+        {
+          "all_cells_s": 6.58,
+          "budget_s": 25.0,
+          "camera_plan_built": true,
+          "cells": 19,
+          "clip": "156ec9e2#2",
+          "clip_seconds": 36.36,
+          "first_cell_s": 2.66,
+          "from": "fill_center",
+          "pass": true,
+          "plan_ms": 38.2,
+          "prepare_ms": 2153.9,
+          "projected_60s_s": 10.86,
+          "to": "camera"
+        }
+      ],
+      "ci_run": 36848125248,
+      "commit": "7891f5d",
+      "environment": {
+        "camera_workers": 4,
+        "cpu_quota": null,
+        "cpus_visible": 4,
+        "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+        "loadavg": [
+          2.36,
+          1.36,
+          0.98
+        ],
+        "python": "3.11.2"
+      },
+      "gate_wall_s": 113.3,
+      "heavy_slots": 2,
+      "media": "synthetic",
+      "nominal_clip_s": 60.0,
+      "note": "GitHub Actions ubuntu-latest runner (4 vCPU; timings indicative), production image built from editor-w3-t3.6 at 7891f5d, standalone node server.js with POTONGIN_EDITOR_V3=on, gate client in the same container, synthetic barcode jobs; the same server had just run the switch gate (the plate keys of the 640x360 jobs were new to it)",
+      "pass": true,
+      "pass_by_layout": {
+        "camera": true,
+        "fill_center": true,
+        "fit_blur": true
+      },
+      "synthetic_size": [
+        640,
+        360
+      ],
+      "threshold_s": {
+        "camera": 25.0,
+        "fill_center": 15.0,
+        "fit_blur": 15.0
+      },
+      "workflow": "editor-gates.yml (suite=command, production image)"
+    }
+  },
+  "summary": {
+    "camera": "pass on every run, the camera plan built in the case: 1280x720 13.49-13.53 s measured, 19.88-22.26 s projected; 640x360 6.58-9.9 s measured, 9.97-15.54 s projected (25 s)",
+    "fill_center": "pass on every run: 1280x720 8.24-8.82 s measured, 13.22-14.56 s projected to 60 s; 640x360 5.16-7.54 s measured, 8.27-12.43 s projected (15 s)",
+    "fit_blur": "measured within 15 s on ~41 s clips (1280x720: 11.0 and 14.23 s; 640x360: 6.13-12.76 s) but the projection to a 60 s clip exceeds 15 s on the slower runner (16.16-20.9 s at 1280x720, 15.04-18.75 s at 640x360); on the faster runner 640x360 passes both (9.0-11.19 s projected). Thin, as W2 recorded (T2.3: 13.38 s for a real 60 fps clip on the owner's PC); the cell builder is the lane's (T2.3/T4.3)"
+  },
+  "task": "T3.6"
+}

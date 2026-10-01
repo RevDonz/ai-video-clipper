@@ -1,0 +1,30 @@
+{
+  "schema": "potongin.gate/1",
+  "gate": "e2e editor-layout (plan §11.3 T3.6: switching between all three layouts, face-track analysis, no-face list, QG-A11Y)",
+  "task": "T3.6",
+  "spec": "web/e2e/editor-layout.spec.mjs",
+  "stack": "owner's PC, next start (production build of the branch's web/), POTONGIN_EDITOR_V3=on with POTONGIN_EDITOR_FAKES=1, Playwright desktop-chromium, one worker",
+  "code": "the panel and spec as committed at 0aaef3b (unchanged since)",
+  "tests": [
+    "Tata letak lists the three layouts, the clip's own chosen, with thumbnails at the playhead",
+    "the chosen layout is explained under the choices",
+    "at 1366×768 the face analysis stays in view on its card",
+    "with reduced motion the panel does not animate",
+    "the thumbnails follow the playhead",
+    "choosing Potong tengah switches the whole clip at once; undo and redo follow",
+    "Ikuti wajah analyses the faces first, with the server's progress, then switches",
+    "without the server's progress the analysis shows the seconds and the usual length",
+    "choosing another layout while the faces are analysed keeps that choice",
+    "a failed analysis says so, keeps the layout and can be tried again",
+    "the runs without a face are listed with jump-to, only for face-track",
+    "face-track with every face found says so",
+    "a face-track document without its camera plan is analysed on its own",
+    "read-only: the layouts are shown but cannot be changed",
+    "the choices work from the keyboard",
+    "QG-A11Y: axe finds no critical or serious violation in the layout panel"
+  ],
+  "passed": 16,
+  "failed": 0,
+  "wall_s": 46.8,
+  "pass": true
+}
