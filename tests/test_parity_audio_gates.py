@@ -162,6 +162,42 @@ def test_each_gate_writes_its_evidence_when_it_ends_and_a_crash_fails_only_that_
     assert "duck: FAIL (RenderFailed: render_stalled)" in out
 
 
+def test_every_gate_names_only_roles_that_both_media_sets_fill() -> None:
+    used = {*audio_gates.TWIN_ROLES, *audio_gates.CLICK_ROLES, audio_gates.PF_AUDIO_ROLE,
+            *(role for role, _kind, _settings in audio_gates.LOUDNESS_PLANS),
+            *(role for role, _kind, _settings in audio_gates.P_AUD_VARIANTS)}
+    assert used == set(audio_gates.P3_ROLES) == set(audio_gates.SYNTHETIC_ROLES)
+    for roles in (audio_gates.P3_ROLES, audio_gates.SYNTHETIC_ROLES):
+        assert all(isinstance(role["clip"], str) and role["clip"] for role in roles.values())
+
+
+def test_the_synthetic_roles_come_from_the_fixture_index(tmp_path) -> None:
+    index = {"jobs": {name: {"id": f"id-{name}", "dir": f"jobs/id-{name}"}
+                      for name in ("main", "fps25", "fps60", "vfr", "old", "v1")}}
+    roles = audio_gates.synthetic_roles(index)
+    assert {role: (entry["job"], entry["rank"]) for role, entry in roles.items()} == {
+        role: (f"id-{audio_gates.SYNTHETIC_ROLES[role]['fixture']}",
+               audio_gates.SYNTHETIC_ROLES[role]["rank"]) for role in audio_gates.SYNTHETIC_ROLES}
+    assert roles["cold_open"]["job"] == "id-main" and roles["fps60"]["job"] == "id-fps60"
+    with pytest.raises(SystemExit, match="vfr"):
+        audio_gates.synthetic_roles({"jobs": {"main": {"id": "a"}, "fps25": {"id": "b"},
+                                              "fps60": {"id": "c"}}})
+
+
+def test_the_gates_read_the_roles_setup_wrote(tmp_path) -> None:
+    # no roles file: the owner's P3 copies (the default before synthetic media existed)
+    assert audio_gates.read_roles(tmp_path) == audio_gates.p3_roles()
+    assert audio_gates.read_roles(tmp_path)["cold_open"]["job"] == audio_gates.JOBS[0]
+    roles = audio_gates.synthetic_roles(
+        {"jobs": {name: {"id": f"id-{name}"} for name in ("main", "fps25", "fps60", "vfr")}})
+    audio_gates.write_roles(tmp_path, roles, media="synthetic")
+    assert audio_gates.read_roles(tmp_path) == roles
+    assert audio_gates.media_of(tmp_path) == "synthetic"
+    assert audio_gates.media_of(tmp_path / "elsewhere") == "p3"
+    gates = audio_gates.Exports(tmp_path, tmp_path / "work")
+    assert gates.roles == roles and gates.media == "synthetic"
+
+
 def test_evidence_is_one_file_per_gate_and_a_label_keeps_every_run(tmp_path) -> None:
     plain = audio_gates.write_evidence(tmp_path, "G3", {"gate": "G3", "pass_": True,
                                                         "path": tmp_path / "x.mp4"})
