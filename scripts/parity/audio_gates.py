@@ -37,6 +37,7 @@ from __future__ import annotations
 import argparse
 import array
 import copy
+import dataclasses
 import hashlib
 import importlib.util
 import json
@@ -77,6 +78,9 @@ CLICK_THRESHOLD_DBFS = -40.0
 TP_MAX_DBTP = -1.0
 G3_TOLERANCE_LU = 1.0
 G3_CLAMPED_TOLERANCE_LU = 0.5
+# The tool's own renders (the lossless reference and its measurement) are offline: on a shared
+# machine FFmpeg may report no progress for longer than the production stall window (20 s).
+REFERENCE_STALL_S = 300.0
 EDITOR = "editor-v3/1.0.0"
 TRACK_ORDER = {"hook": 0, "visual": 1, "audio": 2}
 
@@ -439,6 +443,11 @@ def export(clip: Clip, doc: Mapping[str, Any], out: Path) -> dict[str, Any]:
             "export_i_lufs": measured.i_clufs / 100, "export_tp_dbtp": measured.tp_cdb / 100}
 
 
+def patient(job: compile_ffmpeg.FfmpegJob) -> compile_ffmpeg.FfmpegJob:
+    """``job`` with the tool's stall window (``REFERENCE_STALL_S``); nothing else changes."""
+    return dataclasses.replace(job, expected={**job.expected, "stall_s": REFERENCE_STALL_S})
+
+
 def reference_pcm(clip: Clip, doc: Mapping[str, Any], work: Path, name: str) -> array.array:
     """The lossless ``reference`` render of ``doc`` (the export's graph without AAC), decoded."""
     plan = clip.plan(doc)
@@ -448,14 +457,14 @@ def reference_pcm(clip: Clip, doc: Mapping[str, Any], work: Path, name: str) -> 
     if needs_measurement(plan.doc):
         job = compile_ffmpeg.compile_job(plan, mode="audio_measure", source=source,
                                          assets_root=assets_root)
-        measured = parse_ebur128(execute.run(job, output_fd=None, timeout_s=1800).stderr)
+        measured = parse_ebur128(execute.run(patient(job), output_fd=None, timeout_s=1800).stderr)
     job = compile_ffmpeg.compile_job(plan, mode="reference", source=source,
                                      assets_root=assets_root, loudness=measured)
     work.mkdir(parents=True, exist_ok=True)
     out = work / f"{name}.mkv"
     fd = os.open(out, os.O_RDWR | os.O_CREAT | os.O_TRUNC, 0o600)
     try:
-        execute.run(job, output_fd=fd, timeout_s=1800)
+        execute.run(patient(job), output_fd=fd, timeout_s=1800)
     finally:
         os.close(fd)
     samples = pcm_of(out)
