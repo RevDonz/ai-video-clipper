@@ -204,10 +204,13 @@ def test_recovery_probes_open_verified_source_fd_despite_path_replacement(
 
 
 def test_worker_heartbeats_during_long_render_and_prevents_reclaim(tmp_path: Path, monkeypatch):
-    # The queue's clock is the test's: the render outlives its lease by ten lease lengths at once,
-    # and the claim below meets the worker's own heartbeat, whatever the load on the machine (a
-    # wall-clock version with an 80 ms lease failed on a busy CI runner).
-    clock = {"now": render_queue_module.datetime(2026, 10, 1, 12, 0, tzinfo=render_queue_module.UTC)}
+    # One fake clock drives the queue's timestamps and the worker's heartbeat timer: the worker
+    # can beat only when the test moves that clock, and the test waits for the beat itself, so
+    # the outcome never depends on machine load (wall-clock versions failed on busy CI runners).
+    clock = {
+        "now": render_queue_module.datetime(2026, 10, 1, 12, 0, tzinfo=render_queue_module.UTC),
+        "monotonic": 1_000.0,
+    }
 
     class QueueClock(render_queue_module.datetime):
         @classmethod
@@ -215,6 +218,19 @@ def test_worker_heartbeats_during_long_render_and_prevents_reclaim(tmp_path: Pat
             return clock["now"]
 
     monkeypatch.setattr(render_queue_module, "datetime", QueueClock)
+    monkeypatch.setattr(render_worker, "time",
+                        SimpleNamespace(monotonic=lambda: clock["monotonic"], sleep=time.sleep))
+    beats: list[str] = []
+    beat = threading.Event()
+    queue_heartbeat = render_worker.heartbeat
+
+    def recorded_heartbeat(job_dir, render_id, token):
+        result = queue_heartbeat(job_dir, render_id, token)
+        beats.append(result["heartbeat_at"])
+        beat.set()
+        return result
+
+    monkeypatch.setattr(render_worker, "heartbeat", recorded_heartbeat)
     job, _analysis, manifest, _source = fixture(tmp_path)
     request = create_request(job, manifest.identity.candidate_id, manifest_sha256(manifest), KEY)
     rendering = threading.Event()
@@ -222,7 +238,7 @@ def test_worker_heartbeats_during_long_render_and_prevents_reclaim(tmp_path: Pat
 
     def renderer(_source, _manifest, output, _candidate, **_options):
         rendering.set()
-        assert release.wait(10)
+        assert release.wait(30)
         output.write_bytes(b"long verified render")
 
     worker = threading.Thread(
@@ -232,22 +248,25 @@ def test_worker_heartbeats_during_long_render_and_prevents_reclaim(tmp_path: Pat
             "renderer": renderer,
             "verifier": lambda *_args: None,
             "lease_seconds": 1,
-            "heartbeat_interval": 0.01,
+            "heartbeat_interval": 0.25,
         },
     )
     worker.start()
-    assert rendering.wait(10)
+    assert rendering.wait(30)
     claimed_at = get_request(job, request["render_id"])["heartbeat_at"]
+    assert beats == [], "no heartbeat while the clock stands still"
+    # The render outlives its lease by ten lease lengths at once: the queue's time moves first,
+    # so the beat the worker's timer then triggers carries the new time.
     clock["now"] += render_queue_module.timedelta(seconds=10)
+    clock["monotonic"] += 10.0
     later = clock["now"].isoformat(timespec="milliseconds").replace("+00:00", "Z")
-    deadline = time.monotonic() + 10
-    while get_request(job, request["render_id"])["heartbeat_at"] != later and time.monotonic() < deadline:
-        time.sleep(0.01)
+    assert beat.wait(30), "the worker heartbeats while it renders"
     assert claimed_at != later
-    assert get_request(job, request["render_id"])["heartbeat_at"] == later, "the worker heartbeats while it renders"
+    assert beats[0] == later
+    assert get_request(job, request["render_id"])["heartbeat_at"] == later
     assert claim_next(job, lease_seconds=1) is None
     release.set()
-    worker.join(10)
+    worker.join(30)
 
     assert not worker.is_alive()
     assert get_request(job, request["render_id"])["state"] == "completed"
