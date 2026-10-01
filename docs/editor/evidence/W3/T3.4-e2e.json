@@ -2,8 +2,9 @@
   "schema": "potongin.gate/1",
   "gate": "Hook suggestion cards in the Teks panel (plan §7.1 UI) and QG-A11Y on the panel",
   "task": "T3.4",
-  "code": "b28250d",
-  "stack": "production build of this branch (next start) with POTONGIN_EDITOR_V3=on and POTONGIN_EDITOR_FAKES=1 on 127.0.0.1:3496; Chrome for Testing 147.0.7727.15 (Playwright 1.62.1, chromium-1217); viewport 1366x768; axe-core 4.13.0 through AXE_CORE_PATH",
+  "code": "489692b",
+  "stack": "production build of this branch (next start) with POTONGIN_EDITOR_V3=on and POTONGIN_EDITOR_FAKES=1 on 127.0.0.1:3497; Chrome for Testing 147.0.7727.15 (Playwright 1.62.1, chromium-1217); viewport 1366x768; axe-core 4.12.1 through AXE_CORE_PATH",
+  "earlier_run": "b28250d on 127.0.0.1:3496 with axe-core 4.13.0: 11 passed",
   "spec": "web/e2e/editor-ai.spec.mjs",
   "results": {"passed": 11, "failed": 0, "skipped": 0},
   "covers": [
@@ -20,7 +21,8 @@
     "axe: 0 critical or serious violations in the Teks panel with instant and AI cards"
   ],
   "neighbours": {
-    "editor-shell.spec.mjs with editor-ai.spec.mjs": "43 passed, 1 skipped (PF-OPEN needs EDITOR_GATES=1)",
+    "editor-shell.spec.mjs at 489692b": "32 passed, 1 skipped (PF-OPEN needs EDITOR_GATES=1)",
+    "editor-shell.spec.mjs with editor-ai.spec.mjs at b28250d": "43 passed, 1 skipped",
     "editor-transcript.spec.mjs": "20 passed, 1 skipped (real clips need T27_REAL_CLIPS); its 16 ms command-budget gate read 16.6 ms p95 for RestoreRemoval in one run at load 18-22 and passed in the other (T2.7's harness page, not touched here)",
     "focus.spec.mjs and trends.spec.mjs": "11 passed, 1 skipped (the live Konteks Tren block needs its own env)"
   },
