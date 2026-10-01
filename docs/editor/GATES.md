@@ -1033,3 +1033,113 @@ blocks; axe on in a separate run). QG-A11Y on the fakes: 16 states, 0 critical, 
     "# pass 1147", "# fail 0", build compiled. Two runs before it on `d257283` were cancelled
     after the runner stalled (36882605320 in the Python step for 45 min, 36888344104 in
     `apt-get install ffmpeg` for 30 min; no test output, infrastructure).
+
+---
+
+## W4 T4.3 "Performa dan retensi" (phase B, 2026-10-02)
+
+Branch `editor-w4-t4.3` off `105b567` (the W3 verifier fixes). Owner decision for W4: the auto
+render switches to the new engine (`POTONGIN_RENDER_ENGINE=edit-v2`, flipped by T4.Z) once
+PF-PIPELINE is within budget per layout **on the K15 PC** (fit-blur and center-crop ≤ 1.35×,
+face-track ≤ 1.6×, real sources), without changing the delivered pixels.
+
+Where it was measured (the owner allowed heavy local runs overnight, one at a time): the K15
+reference PC (Ryzen 7 5700G, 8 cores / 16 threads), shared with other agents' work (load
+averages per job in the evidence, mostly 6–12 during the rounds). Toolchain of record: the
+production image `ai-video-clipper:editor-w3-t31-r2` (FFmpeg 5.1.9, libass 0.17.1, Python 3.11.2,
+node 20) with this branch's `src` mounted over `/app/src`; the copies of the owner's five P3 jobs
+(e7f0d37b, 899226f8, 860fef1a, 3c7d024c, 990f3f37; the originals only read) in scratch.
+
+### What changed (no FFmpeg argument, graph or encoder setting changed)
+
+- **The auto render runs the clips of a job at once** (`render_edit.AutoRenderer.schedule`,
+  CONTRACTS §5.21): heavy slots (a final encode or a camera plan, ~4 CPUs each) =
+  `ceil(CPU budget / 4)`, at most 4 (16 threads → 4, the compose quota of 6 → 2, 4 vCPU → 1),
+  plus one worker that seeds or verifies meanwhile; the longest clips start first. The pipeline
+  keeps its loop, order, per-clip fallback and manifest.
+- **Verify** reads the probe, the packet list and the audio at the same time, and decodes the
+  frame count on the whole CPU budget (a 2,440-frame clip: 1.7 s at 4 threads, 0.9 s at 16).
+- Measured and dropped: a lower priority (nice 5) for all but the longest clip (no gain in an
+  A/B of 3 + 3 runs: the job is CPU-bound); three slots (the fourth clip of a job ran alone:
+  center-crop 39.9 s against 29.6 s with four).
+
+### Summary table
+
+| Gate | Threshold | Measured | Evidence | Result |
+|---|---|---|---|---|
+| **PF-PIPELINE fit-blur** | ≤ 1.35× per job | median of 3 rounds: 23.976 fps **1.03×** (1.02–1.03), 25 fps **1.02×** (1.00–1.02), 60 fps **0.59×** (0.56–0.60); before this task 1.76×, 1.80×, 0.99× on this PC (W2: 1.68×, 1.41×, 0.89×) | `T4.3-PF-PIPELINE.json` | **pass** |
+| **PF-PIPELINE center-crop** | ≤ 1.35× | VFR → 30 fps job, 4 clips: **1.28×** (1.27–1.30; legacy 21.4–21.7 s, new 27.5–27.8 s); the 5 earlier rounds without the verify change 1.32× (1.28–1.35); before 2.24× (W2 1.79×) | `T4.3-PF-PIPELINE.json` | **pass** (the thinnest layout) |
+| **PF-PIPELINE face-track** | ≤ 1.6× | 5 clips: **1.12×** (1.11–1.21); before 2.35× (W2 2.06×) | `T4.3-PF-PIPELINE.json` | **pass** |
+| Delivered files unchanged | byte-identical | every MP4 and SRT of every round equals the render of the code before this task (one clip at a time): **200/200** (8 rounds on 16 threads + 2 under the quota, 20 clips each); unit test: two clips at once = one at a time (frames, PCM, bytes, SRT) | `T4.3-PF-PIPELINE.json` `same_files`, `test_edit_v2_render_edit.py` | **pass** (P-RT/R10, P-ENC, P-COLOR and the goldens are untouched: same argv, same bytes) |
+| PF-PIPELINE under the compose quota (`--cpus 6`, indicative) | (production containers) | 2 rounds: fit-blur 1.34×, 1.29×, 0.65×; **center-crop 1.99×; face-track 1.82×** | `T4.3-PF-PIPELINE.json` `cpu_quota_6` | **fails** two layouts: the new engine needs more CPU (below); owner decision (open item 30) |
+| PF-AUDIO with music | ≤ 1,000 ms p95 | 90 s clip, 16 edits: **p95 906.2 ms** (p50 894.2); speech only 618.1 ms; load 2.9 | `T4.3-PF-AUDIO.json` | **pass** (thin; CI's 4 vCPU runner measured 835–1,200 ms in W3) |
+| PF-PLAN (server) | ≤ 200 ms p95 | HTTP p95 **40.1 ms** (120 documents, persistent worker) | `T4.3-PF-PLAN.json` | **pass** |
+| PF-TRUTH | ≤ 600 ms p95 | p95 **387.6 ms** (36 frames, 3 layouts) | `T4.3-PF-TRUTH.json` | **pass** |
+| PF-CELLS | ≤ 15 s (fit-blur, center-crop), ≤ 25 s (face-track) | fit-blur 60 fps **11.49 s**, center-crop 7.81 s, face-track **13.29 s** with the camera plan (6.66 s without) | `T4.3-PF-CELLS.json` | **pass** |
+| PF-OPEN | first visit ≤ 3.0 s p95, repeat ≤ 2.0 s, first cell ≤ 2.0 s | VFR job, 5 never-opened clips: first visit p95 **2,437 ms**; first p95 1,039 ms, repeat p95 932 ms, first cell 850 ms (fresh e7f0d37b copy: 2,485 / 1,080 / 962 / 879 ms) | `T4.3-PF-OPEN.json` | **pass** |
+| Plate cells under RLIMIT_AS (T2.4's request) | a 4-run cell job builds under 3 GiB | fit-blur needs 2.0–2.25 GiB, face-track and center-crop < 2 GiB | `T4.3-RLIMIT-cells.json` | **pass** (≥ 0.75 GiB headroom) |
+| Retention soak | 1,000 saves + 50 exports + cache churn inside the caps | 1,000 saves (a simulated 8 h 20 min autosave session, one save every 30 s), 50 exports (all completed, p50 10.5 s), 1 GiB of preview churn under a 64 MiB cap, a janitor tick every 100 saves: cache ≤ cap at all 10 ticks; committed receipts ≤ 200 and none pending; archives ≤ 65 per clip (revision 1 + newest 50 + the 16–17 that exports name); 50 requests; 31 days later 100 suggestions and 3 unused assets removed, none left; janitor tick ≤ 21 ms; save p95 14.5 ms in process | `T4.3-retention-soak.json` | **pass** |
+
+The app for the lane gates and PF-OPEN: the branch's standalone build in the image, app container
+`--cpus 6` (the compose quota) with the persistent preview worker, the lane harness in the same
+image `--cpus 4`, Chrome for Testing 147.0.7727.15. Earlier evidence still stands for PF-SAVE,
+PF-SEEK, PF-PLAY, PF-LIBASS and PF-MEM (W2; the player, the store and the text layer did not
+change); `node scripts/perf/editor_budgets.mjs` prints every budget with its newest evidence.
+
+**CPU per job** (children of the stage, plus the process for face-track, final rounds): fit-blur
+1.6× legacy at 24/25 fps (R7 crf 18 + chroma offset, the gbrp composite and lanczos 4:2:0),
+1.06× at 60 fps (the new engine renders 30 fps); center-crop **2.5×** (the same, plus 25 % more
+frames: the VFR source becomes 30 fps CFR); face-track **2.2×** (the camera plan's Haar
+detection over the whole window). On 16 threads the clips overlap and the job takes about as
+long as the legacy job; under a 6-CPU quota the new engine is CPU-bound, which the
+`cpu_quota_6` rounds show. No speed-up that keeps the delivered bytes is left in the encode
+itself: every FFmpeg argument (x264 threads, filters, scale flags) is part of the pixels.
+
+### The janitor and the retention soak
+
+`python -m ai_clipper.edit_v2.janitor` (CONTRACTS §5.21; plan §4.4): per clip under its document
+lock, receipts (200 committed + pending), archives (revision 1, render-referenced, newest 50),
+suggestions after 30 days, preview caches unused for 30 days and the job cap, temporaries and
+cancel markers after 10 min; assets unreferenced for 30 days under the asset store's lock. The
+primary worker runs it between jobs (slot 0, at most every 6 h, never while a job is active or
+being claimed; claims wait while it runs). `docs/operations/STORAGE_RETENTION.md` names it as the
+editor's own retention, which never removes a job, its source, its analysis, its renders or an
+export. Tests: `tests/test_edit_v2_janitor.py` (26), `web/tests/primary-worker-janitor.test.mjs`
+(7).
+
+### Also in this task
+
+- **W3 Open 24 fixed**: a plan answer that finds a cell, the mix or the derived logo missing on
+  disk forgets that it was built, so the lane queues it again at once (`preview-lane.test.mjs`).
+- **OpenCV threads**: overlapping face windows keep OpenCV at one thread until the last ends
+  (`face_window.one_opencv_thread`).
+- Tools: `scripts/perf/pf_pipeline.py` (rounds, byte check, evidence),
+  `scripts/perf/retention_soak.py`, `scripts/perf/editor_budgets.mjs`.
+
+### Suites
+
+- On GitHub Actions at `3225b52` (the concurrent render, verify, janitor, lane fix and tools):
+  `ci-gate full` run 36907633864 **success** (ruff "All checks passed!"; pytest on Python 3.11
+  "4309 passed, 2 skipped, 1 xfailed"; npm test on Node 20 "# pass 1155", "# fail 0"; build
+  "✓ Compiled successfully"); `ci-gate image` run 36911044239 **success** ("4307 passed,
+  4 skipped, 1 xfailed" inside the production image, FFmpeg 5.1.9).
+- FINAL_CI_LINE
+- Locally (targeted): `tests/test_edit_v2_render_edit.py`, `test_pipeline_v3.py`,
+  `test_edit_v2_verify.py`, `test_edit_v2_camera.py`, `test_edit_v2_janitor.py`;
+  `web/tests/{primary-worker,primary-worker-janitor,python-cli,preview-lane}.test.mjs`.
+
+### Open (W4 T4.3)
+
+29. **PF-AUDIO margin**: 906 ms p95 on this PC against 1,000 ms (W2 Open 22's levers remain:
+    splitting the true-peak measurement per channel, which needs a producer with several
+    consumers; caching a clip's decoded runs). Measured here: the true peak adds ~165 ms to the
+    ebur128 pass over a 90 s stereo mix (FFmpeg 5.1.9: 0.37 s with, 0.20 s without); the FLAC
+    level does not matter (0.169 s default, 0.176 s level 0).
+30. **Production quota**: under `cpus: 6` (compose `primary-worker`) the new engine is 1.8×
+    (face-track) and 2.0× (center-crop) the legacy engine: raising that quota (the slots follow
+    it, up to 4 at 16 CPUs) or accepting the slower auto render is the owner's call before the
+    engine flag reaches production.
+31. **Center-crop margin on this PC**: 1.28× against 1.35× with other agents' load on the PC
+    (6–12); a quieter PC measures lower, a busier one higher.
+32. Not built: the persistent preview worker was already in place (W2); the two heavy semaphores
+    (W2 Open 23) stay separate; the 10-frame plate GOP (W2 Open 13) stays out (PF-SEEK passes).
