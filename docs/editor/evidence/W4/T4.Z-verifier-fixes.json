@@ -45,6 +45,12 @@
  "ci": {
   "full": {"run": 36935260211, "head": "00e40ce", "ruff": "All checks passed!", "pytest": "4261 passed, 2 skipped, 1 xfailed", "npm": "# tests 1209, # pass 1208, # fail 0", "build": "Compiled successfully"},
   "image": {"run": 36935302658, "head": "00e40ce", "pytest": "4259 passed, 4 skipped, 1 xfailed"},
-  "pr": {"run": 36935257855, "head": "00e40ce", "conclusion": "success"}
+  "pr": {"run": 36935257855, "head": "00e40ce", "conclusion": "success"},
+  "final": {
+   "head": "f87dd8f",
+   "full": {"run": 36938001003, "pytest": "4261 passed, 2 skipped, 1 xfailed", "npm": "# tests 1209, # pass 1208, # fail 0", "conclusion": "success"},
+   "image": {"run": 36938032673, "pytest": "4259 passed, 4 skipped, 1 xfailed", "conclusion": "success"},
+   "pr": {"run": 36937967572, "conclusion": "success"}
+  }
  }
 }

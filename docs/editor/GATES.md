@@ -1580,7 +1580,14 @@ copies deleted afterwards. Numbers: `evidence/W4/T4.Z-verifier-fixes.json`.
   "4259 passed, 4 skipped, 1 xfailed".
 - PR #18's `CI/CD` at `00e40ce` (run 36935257855): **success** (tests, toolchain guard, parity
   smoke).
-- Later commits change only the real-stack e2e specs (not in any CI suite) and documents.
+- On the final code `f87dd8f` (the e2e harness commits and a comment rewrap on top; later commits
+  are this document):
+  - `ci-gate full` (run 36938001003): **success**. ruff "All checks passed!"; pytest on Python
+    3.11 "4261 passed, 2 skipped, 1 xfailed"; npm test on Node 20 "# tests 1209", "# pass 1208",
+    "# fail 0"; build "✓ Compiled successfully".
+  - `ci-gate image` (run 36938032673): **success**, pytest inside the production image "4259
+    passed, 4 skipped, 1 xfailed".
+  - PR #18's `CI/CD` (run 36937967572): **success**.
 
 ### Patches by the W4 integrator (continued)
 
