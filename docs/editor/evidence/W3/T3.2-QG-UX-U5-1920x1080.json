@@ -1,6 +1,6 @@
 {
   "browser": "147.0.7727.15",
-  "elapsed_ms": 2824,
+  "elapsed_ms": 3299,
   "final_box": {
     "h": 130,
     "w": 130,
@@ -14,31 +14,32 @@
   "run": {
     "axe": null,
     "browser": "Chrome for Testing 147.0.7727.15 (Playwright 1.62.1, build 1217)",
+    "measured_at": "2026-10-01, after the upload-tracker fix (f628111)",
     "page": "the harness page (gizmos/__dev__/logo-harness-entry.jsx)"
   },
   "steps": [
     {
-      "ms": 55,
+      "ms": 45,
       "step": "tab"
     },
     {
-      "ms": 585,
+      "ms": 1080,
       "step": "uploaded"
     },
     {
-      "ms": 637,
+      "ms": 1171,
       "step": "safe_area"
     },
     {
-      "ms": 875,
+      "ms": 1350,
       "step": "sized"
     },
     {
-      "ms": 921,
+      "ms": 1398,
       "step": "faded"
     },
     {
-      "ms": 2824,
+      "ms": 3299,
       "step": "saved"
     }
   ],
