@@ -11,8 +11,11 @@ Phase-B tasks: read §5.1 (where each name lives), §5.2 (additional signatures)
 of Part 5 your module touches; the tests `tests/test_edit_v2_contracts.py` pin the signatures.
 
 Contents: Part 1 (Appendix A) · Part 2 (§3) · Part 3 (§4.1–§4.2) · Part 4 (§4.3) ·
-Part 5 (T1.0 resolutions, §5.15 the W1 integration resolutions of T1.Z, §5.16 the W1 verifier
-fixes).
+Part 5 (T1.0 resolutions; §5.15–§5.16 W1; §5.17–§5.18 W2; §5.19–§5.20 W3; §5.21 the release
+contracts of W4: CI suites, the toolchain guard, the licences page, the lock clock).
+
+Final for Essentials: this file plus the W4 additions of the other W4 tasks is the contract the
+released editor keeps. Operating it: `docs/editor/OPERASIONAL.md`.
 
 # Part 1. Module contracts (plan Appendix A, verbatim)
 
@@ -1526,3 +1529,94 @@ goldens, the render keys and the delivered bytes stay as they were.
   poll time is refreshed when the run ends. A clip never edited (no `edit/`) is not locked.
 - **Preview lane.** A plan answer that finds a cell, the mix or the derived logo missing on disk
   forgets its "built" memory, so the lane queues it again at once (W3 Open 24).
+
+## 5.22 Release contracts (W4, T4.4, 2026-10-02)
+
+### CI suites (`scripts/parity/run_all.sh`, `scripts/parity/ci_gates.py`)
+
+- `sh scripts/parity/run_all.sh smoke|toolchain|full [section…]` runs from a writable copy of the
+  repository inside the production image with its environment synced (`uv sync --frozen --python
+  /usr/bin/python3 --extra vision --extra web`); `OUT` (default `/out`), `WORK` (default
+  `/tmp/parity-work`). Sections: `toolchain ptime ptxt ptxt_full penc pframe gdet paud r10 rt
+  frame audio glyph goldens app`. Suites: smoke = `toolchain ptime ptxt pframe gdet paud r10`;
+  toolchain = `toolchain ptime ptxt_full penc rt`; full = toolchain + `frame audio glyph goldens
+  app`. A failing section is appended to `$OUT/fail.txt`; the script runs the rest and exits 1.
+- Evidence: `$OUT/evidence/CI-<gate>.json`. `ci_gates.gate_passed(doc)` reads `pass` (a bool),
+  else every `runs[*]` verdict, else `summary.pass`, else `mismatches == 0` or `failures == 0`;
+  anything else is a report (PF-RENDER). `ci_gates.REQUIRED[suite]`: smoke `P-TIME-ffmpeg
+  P-TIME-jassub P-TXT P-FRAME G-DET P-AUD R10`; toolchain `P-TIME-ffmpeg P-TIME-jassub P-TXT P-ENC
+  P-COLOR P-RT R10`; full = toolchain + `P-FRAME P-PLATE G1-G2 G-DET P-AUD G-CLICK duck G3 G3b
+  glyph-probe`. `summary --suite S DIR…` exits 1 on a FAIL, an unreadable file or a missing
+  required gate. The app gates of `full` (the W3 runner, `scripts/editor/w3_exit_gates.sh plate
+  audio`) write to `$OUT/app/evidence` and fail the `app` section through their own `fail.txt`.
+- Smoke P-FRAME: `ci_gates.SMOKE_P_FRAME_CASES`, two barcode sources (29.97 CFR fit-blur with the
+  hook; 30 VFR center-crop), 760 source frames, 20 cuts and a cold open each (470 output frames
+  each); verdict `frame_totals_pass(totals, 300)`, `frame_identity`'s rule with the PR minimum.
+- P-TXT: smoke `classic-40,karaoke-40,bold-40,box-40,hook,fallback` plus the five timing
+  fixtures, `--formats gbrp --no-export`; toolchain and full: every clip, gbrp, with exports.
+  P-ENC: `enc_check.measure_fixtures(…, formats=("gbrp",))` against `W1/T1.Z-P-ENC.json` (the
+  baseline rule). P-COLOR: `s_color.score_p_color(…, formats=("gbrp",))`. `ci_gates.py text`
+  refuses browser output that names another JASSUB than the pin; P-TIME (JASSUB side) passes only
+  with five rates, 0 mismatches and the one-frame-late control flagging every edge.
+- `ci_gates.py perf-report` collects every `*PF-*` and `*switch*` evidence of a run into
+  `$OUT/perf.json` (`potongin.perf-report/1`); times on CI runners are indicative.
+
+### Workflow (`.github/workflows/ci-cd.yml`)
+
+- PR and push to `main`: `test` (steps unchanged), `toolchain-guard`, `parity` (smoke). Schedule
+  `30 18 * * *` (01:30 WIB): `parity` (full). Dispatch input `suite` ∈ {`pr`, `toolchain`,
+  `nightly`}. `deploy` is unchanged (needs `test`; push to `main` only). The manual boolean
+  `parity` input is gone: its harness is the browser half of every suite. Concurrency groups carry
+  the event and the suite, so a nightly never waits for, or blocks, a deploy.
+- `parity` builds `potongin-parity:<sha>`, runs the suite in a long-lived tools container, starts
+  the image's own app (`node server.js`, `POTONGIN_PARITY_HARNESS=1`, the fixtures read-only) on
+  127.0.0.1:3217, installs Chrome for Testing 147.0.7727.15 into
+  `~/.cache/ms-playwright/chromium-1217` (`PARITY_CHROME`) and checks its version, runs
+  `npm run test:parity`, scores the text gates in the image, writes the gate table to the run
+  summary and uploads `parity-<suite>` (JSON evidence and logs, no media) and, outside the smoke,
+  `toolchain-evidence` (stamped evidence and record, laid out from the repository root).
+
+### Toolchain guard (`scripts/parity/toolchain_guard.py`)
+
+- `derive_toolchain(dockerfile)` is the `toolchain.json` document the image writes: `ARG
+  NODE_IMAGE=` and `ARG DEBIAN_SNAPSHOT=` exactly once each, and the six `toolchain.PACKAGES`
+  pinned exactly once (`package=version`) in the one `apt-get install` command; anything else is
+  a `GuardError`. `toolchain_sha256` hashes `toolchain.encode(document)` (`4fefb754…85f0` at this
+  commit, the W1 image's value).
+- `jassub_pin(package.json, package-lock.json)` is `{version, integrity}`: an exact version, the
+  same version in the lock and a sha512 integrity.
+- Record `docs/editor/evidence/toolchain/record.json` (`potongin.toolchain-record/1`):
+  `{toolchain, toolchain_sha256, jassub, gates: {P-TIME: [ffmpeg, jassub], P-TXT, P-ENC, P-COLOR,
+  P-RT}, commit, run}`. Each evidence file it names carries `stamp`
+  (`potongin.evidence-stamp/1`: `{toolchain_sha256, jassub, commit, run}`); only evidence with a
+  boolean `pass` can be stamped.
+- `check` fails when the derived sha or the JASSUB pin differs from the record, or when a
+  required gate's file is missing, outside the repository, not `pass: true`, or stamped for other
+  pins. `image --toolchain /app/resources/toolchain.json` fails when the image's bytes differ from
+  the derivation (the `toolchain` section of every suite).
+
+### Licences page (`/licenses`)
+
+- `web/app/licenses/notices.mjs`: `JASSUB` (version, npm integrity, the served files = the keys
+  of `clip-media.JASSUB_FILES`, the SPDX expression, source commit `656371a…` and the build
+  scripts at it, every component with its source at the exact submodule commit and its licence
+  texts, `fullNotice`), `FREETYPE_CREDIT`, `MEDIABUNNY` (version, integrity, tag `v1.59.1`,
+  commit), `FONTS`, `WEB`, `licenceFiles()`. Texts: `web/public/licenses/{jassub,mediabunny,
+  fonts,web}/*.txt`, served as static files. `web/tests/licenses.test.mjs`: versions and
+  integrities equal the pins and the lock; `JASSUB.version === text-layer.JASSUB_VERSION`; every
+  linked file exists and every file is linked; the npm and font copies are byte-identical to
+  `node_modules` and `resources/fonts`.
+- The page sits behind the login like every page (`web/proxy.js` unchanged).
+
+### Lock and lease clocks in tests
+
+- `withPrimaryQueueLock(root, callback, {timeoutMs, staleMs, retryDelayMs, clock})`: `clock =
+  {now(): epoch ms, sleep(ms, signal?): Promise}`, default the system clock; a value without both
+  functions is refused. The heartbeat (every `staleMs/3`), the owner's `createdAt`/`heartbeatAt`,
+  the stale test and the retry delay use it; a partial lock without `owner.json` is still aged by
+  its directory mtime (wall time). `web/tests/support/manual-clock.mjs` is the test clock
+  (`tick()` jumps to the next wake-up; tests tick only while every party sleeps).
+- `tests/test_render_worker.py::test_v3_worker_heartbeats_during_a_long_render_and_prevents_reclaim`
+  drives `render_queue.datetime` and the v3 monitor's `clock` (a `_V3Monitor` subclass) from one
+  fake clock, moves it only after the monitor's first clock read, and waits for the worker's own
+  beat. (T4.4 wrote it for the legacy worker test; T4.1 removed that path, so T4.Z ported it.)
