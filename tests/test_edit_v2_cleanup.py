@@ -626,11 +626,11 @@ def test_labelled_set_meets_qg_clean():
     assert report["filler_hits"] >= 50 and report["filler_precision"] is not None
     assert report["particle_false_positives"] == 0
     assert report["reduplication_false_positives"] == 0
-    # "filler precision ≥ 0.9 before pre-check" (plan §7.3, §10.2): fillers are pre-checked only
-    # once the owner has confirmed the labels (checkpoint 3) and the precision reaches 0.9
+    # QG-CLEAN "filler precision ≥ 0.9 before pre-check" (plan §7.3, §10.2) holds on the labels
+    # as they stand; fillers are pre-checked only once the owner has confirmed them (checkpoint 3)
+    assert report["filler_precision"] >= 0.9
     if cleanup.load_lexicon().filler_precheck:
         assert report["owner_confirmed"] is True
-        assert report["filler_precision"] >= 0.9
 
 
 def test_labelled_samples_rebuild_as_words_artifacts():
