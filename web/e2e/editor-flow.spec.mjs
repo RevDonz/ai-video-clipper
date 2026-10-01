@@ -335,9 +335,10 @@ test("the W2 flow: edit, undo/redo, reload, export, G1–G3, back to the AI vers
   await resetToSeed(page);
   const seedState = await inspect(page);
   expect(await page.evaluate(() => globalThis.crossOriginIsolated)).toBe(true);
-  // the W3 placeholders (Tata letak, Logo, Musik; Audio, Penanda, Musik) are not shown yet
-  await expect(page.getByRole("tab")).toHaveText(["Transkrip", "Teks", "Cold open"]);
-  await expect(page.locator("[data-lane-row]")).toHaveCount(3);
+  // W3 is live: every tab and lane of the registries shows (Tata letak, Logo, Musik; Audio,
+  // Penanda, Musik).
+  await expect(page.getByRole("tab")).toHaveText(["Transkrip", "Teks", "Cold open", "Tata letak", "Logo", "Musik"]);
+  await expect(page.locator("[data-lane-row]")).toHaveCount(6);
   let body = await bodyWordIndexes(page);
   expect(body.length).toBeGreaterThan(20);
 
@@ -829,6 +830,7 @@ test("W3 export with logo and music: G1–G3 on the download", async ({ page, br
     revision: render.revision, renderMs: doneMs, verify: { ok: verified.ok, gates: verified.report?.gates?.map((gate) => ({ name: gate.name, ok: gate.ok, blocking: gate.blocking })) },
     pass: verified.ok });
   expect(verified.ok, JSON.stringify(verified.report?.gates ?? verified)).toBe(true);
+  await dialog.getByRole("button", { name: "Tutup" }).click();
   await resetToSeed(page);
 });
 

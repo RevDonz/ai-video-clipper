@@ -1,17 +1,14 @@
 // E11 for the older Python helpers (W2 verifier finding): the render queue (legacy requests and
-// the source estimate), the legacy editor API, the candidate validator, the caption-cue sanitizer
-// and candidate feedback spawn their Python child with python-cli's allowlisted environment, so
-// no child ever holds APP_*, POTONGIN_SETTINGS_*, POTONGIN_LLM* or an *_API_KEY.
+// the source estimate) spawns its Python child with python-cli's allowlisted environment, so no
+// child ever holds APP_*, POTONGIN_SETTINGS_*, POTONGIN_LLM* or an *_API_KEY. (The candidate
+// editor's helpers, which this test also covered, were retired on main with that editor; main's
+// project-view.test.mjs checks that they are gone.)
 import assert from "node:assert/strict";
 import { chmod, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { runFeedbackPython } from "../lib/candidate-feedback.mjs";
-import { runCandidateValidator } from "../lib/candidates.mjs";
-import { runCaptionCueSanitizer } from "../lib/caption-cues.mjs";
-import { runEditorPython } from "../lib/edit-document.mjs";
 import { CHILD_ENV_ALLOWLIST } from "../lib/python-cli.mjs";
 import { estimateRenderSourceBytes, runRenderQueuePython } from "../lib/render-requests.mjs";
 
@@ -63,10 +60,6 @@ test("the older Python helpers give their child the allowlisted environment only
   const calls = [
     ["ai_clipper.render_queue", () => runRenderQueuePython("/data/jobs/x", { operation: "get" }, options)],
     ["ai_clipper.render_queue", () => estimateRenderSourceBytes("/data/jobs/x", options)],
-    ["ai_clipper.editor_api", () => runEditorPython("/data/jobs/x/analysis", { op: "get" }, options)],
-    ["ai_clipper.candidate_api", () => runCandidateValidator(Buffer.from("{}"), options)],
-    ["ai_clipper.candidate_cues", () => runCaptionCueSanitizer(Buffer.from("{}"), Buffer.from("{}"), `cand_${"a".repeat(64)}`, options)],
-    ["ai_clipper.candidate_feedback", () => runFeedbackPython("/data/jobs/x/analysis", "get", Buffer.alloc(0), options)],
   ];
   for (const [, call] of calls) await assert.rejects(call());
   const records = [];
