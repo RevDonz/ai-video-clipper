@@ -1,30 +1,32 @@
 {
-  "cases": 450,
-  "elapsed_s": 6.18,
   "gate": "G5",
-  "mismatch_detail": [],
-  "mismatches": 0,
-  "pass": true,
-  "run": {
-    "contexts": "tests/fixtures/edit_v2/docs contexts c30 (720x1280) and c24 (1080x1920)",
-    "image": "ai-video-clipper:editor-w3base (FFmpeg 5.1.9, libass 0.17.1, Python 3.11.2), app container --cpus 4 on 127.0.0.1:3721",
-    "method": "build_plan's unsafe_zone for the logo item and the export check (unsafe_zone_issues at the render size, as verify_output calls it) against the zone written from plan \u00a75.9, for logos swept one pixel at a time across the top, bottom and right edges plus the four corners"
-  },
-  "safe_cases": 208,
   "task": "T3.2",
-  "toolchain": {
-    "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
-    "python": "3.11.2"
-  },
+  "pass": true,
+  "cases": 450,
   "unsafe_cases": 242,
+  "safe_cases": 208,
+  "mismatches": 0,
+  "mismatch_detail": [],
+  "zone_720x1280": [
+    93,
+    280,
+    93
+  ],
   "zone_1080x1920": [
     140,
     420,
     140
   ],
-  "zone_720x1280": [
-    93,
-    280,
-    93
-  ]
+  "elapsed_s": 2.91,
+  "toolchain": {
+    "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "python": "3.11.2"
+  },
+  "run": {
+    "where": "GitHub Actions editor-gates.yml, suite=command, run 36844719931: the production image built from editor-w3-t3.2 at 2c69c6e, on a 4 vCPU runner (load 1.17); elapsed_s is indicative",
+    "command": "scripts/parity/logo_gates.py g5 --out …; logo_gates.py vectors --check (vectors up to date); pytest tests/test_parity_logo_gates.py (7 passed)",
+    "contexts": "tests/fixtures/edit_v2/docs contexts c30 (720x1280) and c24 (1080x1920)",
+    "method": "build_plan's unsafe_zone for the logo item and the export check (unsafe_zone_issues at the render size, as verify_output calls it) against the zone written from plan §5.9, for logos swept one pixel at a time across the top, bottom and right edges plus the four corners",
+    "earlier": "the same sweep in the local image (ai-video-clipper:editor-w3base) gave the same 450 cases, 0 mismatches (6.18 s at load ~21)"
+  }
 }
