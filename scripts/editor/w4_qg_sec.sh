@@ -2,7 +2,7 @@
 # QG-SEC, complete (plan §10.2, §11.4 T4.2), run inside the production image from the repository
 # root:
 #
-#   sh scripts/security/w4_qg_sec.sh
+#   sh scripts/editor/w4_qg_sec.sh
 #
 # 1. the upload fuzz in process (the Node transport rules and edit_v2.assets);
 # 2. a synthetic rendered job (scripts/editor_fixture/make_job.py) and an empty job for the fuzz;
