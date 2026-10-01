@@ -157,7 +157,7 @@ _MESSAGES = {
     "unknown_word": "Kata yang dirujuk tidak ada di transkrip klip",
     "asset_missing": "File logo atau musik tidak ditemukan; unggah ulang",
     "pack_unknown": "Gaya caption tidak dikenal",
-    "op_disabled": "Fitur ini belum tersedia di Editor V3 Esensial",
+    "op_disabled": "Fitur ini belum tersedia di editor",
     "item_out_of_frame": "Logo keluar dari bingkai video",
     "revision_mismatch": "Nomor revisi tidak cocok dengan versi yang tersimpan",
     "parent_mismatch": "Dokumen ini tidak dibuat dari versi yang tersimpan",
@@ -185,14 +185,14 @@ _MESSAGES = {
     "verification_failed": "Hasil render tidak lolos pemeriksaan mutu",
     "cancelled": "Render dibatalkan",
     "auto_file_unavailable": "File klip otomatis tidak tersedia; klip dirender ulang",
-    "engine_fallback": "Klip dirender dengan mesin lama",
+    "engine_fallback": "Klip dirender dengan cara cadangan",
     # Answered by the Node routes (ROUTE_CODES).
     "invalid_request": "Permintaan tidak valid",
     "csrf_rejected": "Permintaan ditolak karena tidak berasal dari halaman ini; muat ulang halaman",
     "rate_limited": "Terlalu banyak permintaan; tunggu sebentar lalu coba lagi",
     "backend_unavailable": "Layanan editor sedang tidak tersedia; coba lagi sebentar lagi",
     "superseded": "Permintaan ini digantikan oleh perubahan yang lebih baru",
-    "editor_disabled": "Editor V3 belum diaktifkan",
+    "editor_disabled": "Editor belum diaktifkan",
     "precondition_required": "Versi dokumen tidak disertakan; muat ulang editor",
     "payload_too_large": "Permintaan terlalu besar",
     "storage_quota_exhausted": "Penyimpanan server tidak cukup",
@@ -206,12 +206,12 @@ _MESSAGES = {
     "selection_unreadable": "Hasil seleksi tidak terbaca",
     "transcript_missing": "Transkrip tidak ditemukan",
     "analysis_incomplete": "Analisis job belum selesai",
-    "not_v3": "Job ini bukan job V3",
+    "not_v3": "Klip dari job ini tidak bisa diedit; proses ulang videonya",
     # Read-only reasons and notices.
     "transcript_changed": "Transkrip berubah sejak klip diedit",
     "legacy_engine": (
-        "Klip ini dibuat dengan mesin lama; setelah diubah, ekspor dari editor memakai mesin baru "
-        "(tampilan teks bisa sedikit berbeda)"
+        "Klip otomatis ini dibuat sebelum editor dibuka; setelah klip diubah, tampilan teks hasil "
+        "ekspor bisa sedikit berbeda"
     ),
     "markers_unavailable": "Penanda tawa/jeda tidak tersedia untuk job ini",
 }

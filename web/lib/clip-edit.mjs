@@ -37,7 +37,7 @@ const ENGINES = new Set(["edit-v2/1", "legacy"]);
 export const MESSAGES = Object.freeze({
   invalid_request: "Permintaan tidak valid",
   csrf_rejected: "Origin permintaan tidak diizinkan",
-  editor_disabled: "Editor V3 belum diaktifkan",
+  editor_disabled: "Editor belum diaktifkan",
   not_found: "Data tidak ditemukan",
   payload_too_large: "Permintaan terlalu besar",
   precondition_required: "If-Match wajib diisi",

@@ -15,7 +15,7 @@ export const MESSAGES = Object.freeze({
   unknown_word: "Kata yang dirujuk tidak ada di transkrip klip",
   asset_missing: "File logo atau musik tidak ditemukan; unggah ulang",
   pack_unknown: "Gaya caption tidak dikenal",
-  op_disabled: "Fitur ini belum tersedia di Editor V3 Esensial",
+  op_disabled: "Fitur ini belum tersedia di editor",
   item_out_of_frame: "Logo keluar dari bingkai video",
   // Warnings ("Perlu dicek").
   tight_cut: "Potongan sangat rapat dengan kata di sebelahnya; dengarkan hasilnya",
@@ -40,14 +40,14 @@ export const MESSAGES = Object.freeze({
   verification_failed: "Hasil render tidak lolos pemeriksaan mutu",
   cancelled: "Render dibatalkan",
   auto_file_unavailable: "File klip otomatis tidak tersedia; klip dirender ulang",
-  engine_fallback: "Klip dirender dengan mesin lama",
+  engine_fallback: "Klip dirender dengan cara cadangan",
   // Answered by the Node routes (errors.ROUTE_CODES; T2.Z).
   invalid_request: "Permintaan tidak valid",
   csrf_rejected: "Permintaan ditolak karena tidak berasal dari halaman ini; muat ulang halaman",
   rate_limited: "Terlalu banyak permintaan; tunggu sebentar lalu coba lagi",
   backend_unavailable: "Layanan editor sedang tidak tersedia; coba lagi sebentar lagi",
   superseded: "Permintaan ini digantikan oleh perubahan yang lebih baru",
-  editor_disabled: "Editor V3 belum diaktifkan",
+  editor_disabled: "Editor belum diaktifkan",
   precondition_required: "Versi dokumen tidak disertakan; muat ulang editor",
   payload_too_large: "Permintaan terlalu besar",
   storage_quota_exhausted: "Penyimpanan server tidak cukup",
@@ -61,10 +61,10 @@ export const MESSAGES = Object.freeze({
   selection_unreadable: "Hasil seleksi tidak terbaca",
   transcript_missing: "Transkrip tidak ditemukan",
   analysis_incomplete: "Analisis job belum selesai",
-  not_v3: "Job ini bukan job V3",
+  not_v3: "Klip dari job ini tidak bisa diedit; proses ulang videonya",
   // Read-only reason and notices.
   transcript_changed: "Transkrip berubah sejak klip diedit",
-  legacy_engine: "Klip ini dibuat dengan mesin lama; setelah diubah, ekspor dari editor memakai mesin baru (tampilan teks bisa sedikit berbeda)",
+  legacy_engine: "Klip otomatis ini dibuat sebelum editor dibuka; setelah klip diubah, tampilan teks hasil ekspor bisa sedikit berbeda",
   markers_unavailable: "Penanda tawa/jeda tidak tersedia untuk job ini",
 });
 
@@ -170,7 +170,7 @@ const PENDING_TEXT = {
 };
 
 export const EXACT_TEXT = "● Sesuai hasil akhir";
-export const LEGACY_UNCHANGED_TEXT = "● Belum diubah: ekspor = klip otomatis (mesin lama)";
+export const LEGACY_UNCHANGED_TEXT = "● Belum diubah: ekspor = klip otomatis";
 
 /**
  * The stage badge (plan §6.1): "● Sesuai hasil akhir" only when every layer is current (or the
@@ -197,7 +197,7 @@ export function badgeView({ status, plan, storePending = [], player = null }) {
   // export is the old file, so the badge says so instead of claiming exactness (T2.Z).
   if (!pending.length && plan.rev0 && plan.rev0.exact === false && plan.rev0.autoRenderUrl
     && plan.rev0.planSha256 === plan.planSha256) {
-    return { tone: "legacy", text: LEGACY_UNCHANGED_TEXT, detail: "Ubah apa saja agar ekspor memakai mesin baru seperti pratinjau ini" };
+    return { tone: "legacy", text: LEGACY_UNCHANGED_TEXT, detail: "Ubah apa saja agar ekspor sama persis dengan pratinjau ini" };
   }
   if (!pending.length) return { tone: "exact", text: EXACT_TEXT, detail: null };
   return { tone: "pending", text: pending.map((layer) => PENDING_TEXT[layer](plan)).join(" · "), detail: null };
@@ -212,9 +212,9 @@ const BADGE_HELP_BY_TONE = Object.freeze({
   pending: "Pratinjau belum selesai disiapkan: bagian yang disebut di lencana belum sama dengan hasil akhir. "
     + "Setelah semuanya siap, lencana berubah menjadi '● Sesuai hasil akhir'. Tekan 'Frame akhir' untuk melihat "
     + "piksel persis hasil akhir sekarang juga.",
-  legacy: "Klip ini belum diubah, jadi ekspor memakai file klip otomatis yang dibuat mesin lama. Pratinjau di sini "
-    + "digambar mesin baru, jadi bisa sedikit berbeda dari file itu (misalnya posisi video, warna teks). Setelah "
-    + "Anda mengubah apa saja, ekspor memakai mesin baru dan hasilnya sama dengan pratinjau ini.",
+  legacy: "Klip ini belum diubah, jadi ekspor memakai file klip otomatis apa adanya. File itu dibuat sebelum editor "
+    + "dibuka, jadi bisa sedikit berbeda dari pratinjau ini (misalnya posisi video, warna teks). Setelah Anda "
+    + "mengubah apa saja, hasil ekspor sama dengan pratinjau ini.",
   truth: "Ini 'Frame akhir': piksel persis hasil render di posisi ini, termasuk kompresi H.264 dan warna 4:2:0. "
     + "Putar atau geser playhead untuk kembali ke pratinjau.",
   unsupported: "Browser ini tidak bisa menampilkan pratinjau langsung, jadi tidak ada yang bisa dibandingkan dengan "

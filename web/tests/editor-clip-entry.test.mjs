@@ -77,7 +77,7 @@ test("a clip that cannot open names its reason (Appendix C.6)", () => {
     selection_unreadable: "Hasil seleksi tidak terbaca",
     transcript_missing: "Transkrip tidak ditemukan",
     analysis_incomplete: "Analisis job belum selesai",
-    not_v3: "Job ini bukan job V3",
+    not_v3: "Klip dari job ini tidak bisa diedit; proses ulang videonya",
   });
   const missing = clipEntryView(JOB, listing({ openable: false, reason: "source_missing" }));
   assert.equal(missing.editHref, null);

@@ -193,7 +193,7 @@ test("notices: legacy engine, other tab, unsupported browser", () => {
   assert.deepEqual(noticesView({ doc: legacy, playerMode: "live", otherTab: true }).map((notice) => notice.code),
     ["legacy_engine", "other_tab"]);
   assert.equal(noticesView({ doc: legacy, playerMode: "live", otherTab: false })[0].text,
-    "Klip ini dibuat dengan mesin lama; setelah diubah, ekspor dari editor memakai mesin baru (tampilan teks bisa sedikit berbeda)");
+    "Klip otomatis ini dibuat sebelum editor dibuka; setelah klip diubah, tampilan teks hasil ekspor bisa sedikit berbeda");
   assert.equal(noticesView({ doc, playerMode: "live", otherTab: true })[0].text, "Klip ini terbuka di tab lain");
   assert.deepEqual(noticesView({ doc, playerMode: "unsupported", otherTab: false }).map((notice) => notice.code), ["unsupported_browser"]);
 });
@@ -238,7 +238,8 @@ test("the badge help explains the badge it belongs to (§6.1, W2 verifier)", () 
   assert.match(pending, /belum/);
   assert.doesNotMatch(pending, /^Frame, teks, logo dan audio sama dengan hasil akhir/);
   const legacy = badgeHelp({ tone: "legacy" });
-  assert.match(legacy, /mesin lama/);
+  assert.match(legacy, /dibuat sebelum editor dibuka/);
+  assert.doesNotMatch(legacy, /mesin (?:lama|baru)/i);
   assert.match(legacy, /file klip otomatis/);
   assert.doesNotMatch(legacy, /^Frame, teks, logo dan audio sama dengan hasil akhir/);
   assert.match(badgeHelp({ tone: "truth" }), /Frame akhir/);
