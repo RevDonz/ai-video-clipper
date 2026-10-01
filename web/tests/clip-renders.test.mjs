@@ -1,6 +1,7 @@
 // Editor V3 exports (plan §4.2, §4.6, §9.1; T2.2): POST/GET /api/jobs/:id/clips/:clipId/renders,
-// GET (legacy and v3) and DELETE /api/jobs/:id/renders/:renderId, the v3 request validator and the
-// RenderDTO. Every path is resolved from import.meta.url (plan §8, D11).
+// GET and DELETE /api/jobs/:id/renders/:renderId, the v3 request validator and the RenderDTO.
+// Requests of the retired candidate editor answer 404 (T4.1). Every path is resolved from
+// import.meta.url (plan §8, D11).
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -23,7 +24,6 @@ import {
   validateRenderRequestV3,
 } from "../lib/clip-renders.mjs";
 import { PYTHON_CLI_MODULES, PythonCliError, childEnv } from "../lib/python-cli.mjs";
-import { sanitizeRenderStatus } from "../lib/render-requests.mjs";
 import { StorageAdmissionError } from "../lib/storage-admission.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -381,17 +381,16 @@ test("the clip's exports are listed newest first from the request files, invalid
   assert.equal(calls.length, 0);
 });
 
-// --- GET /renders/:renderId (legacy and v3) --------------------------------------------------------
+// --- GET /renders/:renderId ------------------------------------------------------------------------
 
-test("GET render status serves v3 requests from the file and legacy requests unchanged", async (t) => {
+test("GET render status serves v3 requests from the file; retired candidate requests are not found", async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "clip-renders-status-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const directory = await queueDir(root);
   await writeRequest(directory, rendering());
-  const legacyId = "a23e4567-e89b-42d3-a456-426614174000";
   const candidate = `cand_${"a".repeat(64)}`;
-  const legacy = {
-    version: "render-request-v1", render_id: legacyId, idempotency_key: legacyId, state: "completed", candidate_id: candidate,
+  const retired = (version, renderId) => ({
+    version, render_id: renderId, idempotency_key: renderId, state: "completed", candidate_id: candidate,
     candidate_artifact_sha256: "a".repeat(64), candidate_snapshot_relative: `analysis/render-inputs/candidates.${"a".repeat(64)}.json`,
     edit_manifest_sha256: "a".repeat(64), edit_revision: 2,
     edit_manifest_relative: `analysis/edits/archive/${candidate}.edit.v1.r2.${"a".repeat(64)}.json`,
@@ -399,29 +398,39 @@ test("GET render status serves v3 requests from the file and legacy requests unc
     source_snapshot_relative: `analysis/render-inputs/source.${"a".repeat(64)}.mp4`,
     output_relative: `output/edits/${candidate}/revision-2.mp4`, created_at: T0, updated_at: T1, claimed_at: T0,
     rendering_at: T0, completed_at: T1, failed_at: null, attempts: 1, error_code: null, lease_token: null, heartbeat_at: null,
-  };
-  await writeRequest(directory, legacy);
-  const legacyCalls = [];
-  const deps = { authorize, env: env({ JOBS_ROOT: root, POTONGIN_EDITOR_V3: "off" }), runCli: recorder().runCli,
-    legacyRead: async (jobId, renderId) => { legacyCalls.push([jobId, renderId]); return legacy; } };
-  const route = createRenderStatusRoute(deps);
-  const v3 = await read(await route.GET(request(STATUS_URL), context(STATUS_IDS)));
+  });
+  const retiredIds = ["a23e4567-e89b-42d3-a456-426614174000", "b23e4567-e89b-42d3-a456-426614174000"];
+  await writeRequest(directory, retired("render-request-v1", retiredIds[0]));
+  await writeRequest(directory, { ...retired("render-request-v2", retiredIds[1]), storage_reservation_id: RESERVATION_ID,
+    storage_reservation_token: RESERVATION_TOKEN, storage_reserved_bytes: 4096 });
+  const { calls, runCli } = recorder();
+  // the status read is not gated by the editor flag
+  const route = createRenderStatusRoute({ authorize, env: env({ JOBS_ROOT: root, POTONGIN_EDITOR_V3: "off" }), runCli });
+  const get = (renderId) => route.GET(request(`/api/jobs/${JOB_ID}/renders/${renderId}`), context({ id: JOB_ID, renderId })).then(read);
+  const v3 = await get(RENDER_ID);
   assert.equal(v3.status, 200);
   assert.deepEqual(v3.body, renderDtoV3(JOB_ID, rendering()));
   assert.equal(v3.body.progressPm, 420);
   assert.equal(v3.headers.get("cache-control"), "no-store");
-  assert.equal(legacyCalls.length, 0);
-  const old = await read(await route.GET(request(`/api/jobs/${JOB_ID}/renders/${legacyId}`), context({ id: JOB_ID, renderId: legacyId })));
-  assert.equal(old.status, 200);
-  assert.deepEqual(old.body, sanitizeRenderStatus(JOB_ID, legacy));  // byte-for-byte the legacy DTO
-  assert.deepEqual(legacyCalls, [[JOB_ID, legacyId]]);
-  const missingId = randomUUID();
-  const missing = await read(await route.GET(request(`/api/jobs/${JOB_ID}/renders/${missingId}`), context({ id: JOB_ID, renderId: missingId })));
-  assert.deepEqual([missing.status, missing.body.code], [404, "not_found"]);
+  const missing = await get(randomUUID());
+  assert.deepEqual([missing.status, missing.body], [404, { error: "Render tidak ditemukan", code: "not_found" }]);
+  for (const renderId of retiredIds) {
+    const old = await get(renderId);
+    assert.deepEqual([old.status, old.body], [missing.status, missing.body], renderId);
+    assert.doesNotMatch(old.text, /cand_|output\/edits|revision-2/);
+  }
+  assert.equal(calls.length, 0, "a status read never spawns Python");
   assert.equal((await route.GET(request(STATUS_URL), context({ id: JOB_ID, renderId: "x" }))).status, 400);
+  assert.equal((await route.GET(request(STATUS_URL), context({ id: "x", renderId: RENDER_ID }))).status, 400);
   assert.equal((await route.GET(request(STATUS_URL, { cookie: false }), context(STATUS_IDS))).status, 401);
   await writeFile(path.join(directory, `${RENDER_ID}.json`), JSON.stringify(rendering({ stage: "bogus" })));
   assert.equal((await route.GET(request(STATUS_URL), context(STATUS_IDS))).status, 503);
+  await writeFile(path.join(directory, `${RENDER_ID}.json`), "{not json");
+  assert.equal((await route.GET(request(STATUS_URL), context(STATUS_IDS))).status, 503);
+  await rm(path.join(directory, `${RENDER_ID}.json`));
+  await symlink(path.join(directory, `${retiredIds[0]}.json`), path.join(directory, `${RENDER_ID}.json`));
+  assert.equal((await route.GET(request(STATUS_URL), context(STATUS_IDS))).status, 503);
+  assert.equal(calls.length, 0);
 });
 
 // --- DELETE /renders/:renderId ----------------------------------------------------------------------
