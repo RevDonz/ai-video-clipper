@@ -1525,3 +1525,92 @@ Numbering continues from W3.
     re-enabling in the Actions tab.
 48. Exports of the old editor (`output/edits/cand_*/revision-N.mp4`) download by URL but no page
     lists them (track A's decision).
+
+## W4 verifier findings: fixes (T4.Z, 2026-10-02)
+
+The release verification of `536f5de` (production image, the real `compose.yaml` at its release
+defaults, copies of the owner's jobs) answered "not yet": one blocker and six minor findings.
+Everything else held: CI full, image and PR green, acceptance 14/14, the flow 19/20 (the one
+failure is finding 5a), old jobs viewable and downloadable, the benchmark baselines identical to
+`main`, no version wording on screen, QG-SEC probes as designed. Each fix below was committed
+test-first (the failing test, then the fix).
+
+| # | Finding | Severity | What changed | Proof |
+|---|---|---|---|---|
+| 1 | `deploy/production.sh` counts a **cancelled** export (`render-request-v3` terminal state) as live work, so one cancel blocks every later deploy and the revert-PR rollback until files are deleted over SSH | **blocker** | The guard's allow-list for render requests is `{"completed", "failed", "cancelled"}` (patch 67) | `tests/test_deploy_guard.py`: the script's own Python, unchanged, on a temporary jobs root; 3 of 14 failed before the fix, 14/14 after; the allow-list is tied to `render_queue.V3_TERMINAL` |
+| 2 | With `POTONGIN_EDITOR_V3=off` the "Ekspor terakhir" links leave the project page (files kept, back when on); OPERASIONAL promised only the auto clips | minor | Documented, not changed: OPERASIONAL §2 and PANDUAN now say the links hide and the files stay (patch 72). Showing them while the editor is off needs a read path outside the editor's routes (Open 50) | docs |
+| 3 | The history offers "Edit klip" on jobs made before Selection V3, landing on a page with no editor entry and no reason (Open 42) | minor | The history needs `options.selectionMode === "v3"`; on the project page a clip the listing does not name says why it cannot open (patch 70) | unit tests; real stack: no "Edit klip" for `d1e45678`, every card of `d1e45678` and `d3e45678` names its reason |
+| 4 | PF-PIPELINE under the compose CPU quota is moderate (whole job ≈ 1.10×, render phase ≈ 1.5×, auto files ≈ 2× the size, center-crop) | minor | No code: the numbers join Open 36 (the owner's quota decision) | the verifier's run |
+| 5a | QG-A11Y (flow) ran axe while the cold-open suggestions faded in | minor | Both real-stack specs wait for the open panel to mount ("Membuka panel…" gone, a `[data-panel]` visible) and finish loading (no `aria-busy="true"` inside it), then for 300 ms without a running animation (patch 71) | reproduced 1 of 4 before (contrast 4.31 mid fade-in; 6.76 settled), 8 of 8 after |
+| 5b | Acceptance capability 13 required "Memverifikasi" on screen; the dialog polls once a second and a short verification can fall between two polls | minor | The test records the stages its status polls received and requires each of them on screen, with `merender` among them; verification itself is proven by `completedBy: "render"` and the G1–G3 checks (patch 71) | the second real-stack run hit the case (received `antre`, `merender`, `selesai`) and passed; the first saw all three on screen |
+| 6 | An untouched clip asks for a tick on the AI's own tight cut although its export is the auto file | minor | `exportChecks(checks, {unchanged})`: for an unchanged clip every warning is a note in the export dialog (no tick); errors still block, an edited clip still asks for each tick. "Perlu dicek (n)" and the checks panel stay as they are: while editing, the cut is worth a look (patch 69) | unit tests; fake spec "an unchanged clip's checks are notes in the export"; real stack: 3 unchanged clips, 0 tick boxes, export enabled |
+| 7a | Capability 11 needs a local `resources/toolchain.json`, unstated | minor | The acceptance setup header names it (patch 71) | the header |
+| 7b | The render worker created `analysis/render-requests/.queue.lock` in every job with `analysis/` | minor | `run_one` skips a job without `analysis/render-requests/` (patch 68) | `test_v3_worker_writes_nothing_into_a_job_that_was_never_exported`; real stack: 0 queues created in untouched copies |
+| 7c | A malformed render-request file blocks deploys (as on `main`) | minor | Kept (fails closed), now pinned by a test and documented with the way out (OPERASIONAL §7) | `test_an_unreadable_request_still_blocks_a_deploy` |
+
+**Rollback after the guard fix.** A revert of PR #18 also reverts `deploy/production.sh`; main's
+guard does not know `cancelled`, so a cancelled export on the server would block that rollback
+deploy. The fix is its own commit (`fix(deploy): a cancelled export is not live work for the
+deploy guard`, test in the commit before it); landing it on `main` first in a small PR keeps any
+later revert of #18 deployable (Open 49; OPERASIONAL §2 says the same to the owner).
+
+### Real-stack re-check (owner's PC, 2026-10-02 05:30–05:55 WIB)
+
+The owner was away. The root disk was full, so the production build (`next build`, `next start`
+on a private port) and the job copies lived in `/dev/shm`; the render worker ran from this
+worktree. Flags at the release defaults except `POTONGIN_EDITOR_LLM=off` (no settings copy, so
+the instant hook suggestions only). Fresh copies of `e7f0d37b` per run, `899226f8` without its
+source as the closed case, `d1e45678` and `d3e45678` for the old-job pages; originals only read,
+copies deleted afterwards. Numbers: `evidence/W4/T4.Z-verifier-fixes.json`.
+
+- `web/e2e/editor-flow.spec.mjs`: **20/20 in 3.6 min**; U1 2.5 s, U2 2.5 s, U3 2.5 s, U4 2.7 s,
+  U5 3.9 s, U6 26.8 s for an 89.3 s clip, U7 0 lost and the reset found in 1.9 s; QG-A11Y 16
+  states, 0 findings. Its QG-A11Y alone: 8/8 repeats.
+- `web/e2e/editor-acceptance.spec.mjs`: **14/14 in 5.7 min**; QG-A11Y 26 states, 0 critical,
+  0 serious; capability 13 as in row 5b.
+- `web/e2e/editor-shell.spec.mjs` on the fakes (same build with `POTONGIN_EDITOR_FAKES=1`):
+  36 passed, 1 skipped (the PF-OPEN timing gate without `EDITOR_GATES`).
+
+### Suites
+
+- `ci-gate full` at `00e40ce` (every code change of this section; run 36935260211): **success**.
+  ruff "All checks passed!"; pytest on Python 3.11 "4261 passed, 2 skipped, 1 xfailed"; npm test
+  on Node 20 "# tests 1209", "# pass 1208", "# fail 0"; build "✓ Compiled successfully".
+- `ci-gate image` at `00e40ce` (run 36935302658): **success**, pytest inside the production image
+  "4259 passed, 4 skipped, 1 xfailed".
+- PR #18's `CI/CD` at `00e40ce` (run 36935257855): **success** (tests, toolchain guard, parity
+  smoke).
+- Later commits change only the real-stack e2e specs (not in any CI suite) and documents.
+
+### Patches by the W4 integrator (continued)
+
+67. `deploy/production.sh` (the blocker) and the new `tests/test_deploy_guard.py`.
+68. `src/ai_clipper/render_worker.py` (`run_one`), `tests/test_render_worker.py`.
+69. `web/components/editor/export-flow.mjs` (`exportChecks`, `canStartExport(…, {unchanged})`),
+    `web/components/editor/ExportDialog.jsx`, `web/tests/editor-export-flow.test.mjs`,
+    `web/e2e/editor-shell.spec.mjs` (one test).
+70. `web/lib/clip-entry-view.mjs` (`historyOffersEdit`, `clipEntryFor`), `web/app/projects/page.jsx`,
+    `web/app/projects/[id]/page.jsx`, `web/tests/editor-clip-entry.test.mjs`,
+    `web/tests/project-view.test.mjs` (the history pin now names the helper).
+71. `web/e2e/editor-flow.spec.mjs` (`settledForAxe`), `web/e2e/editor-acceptance.spec.mjs`
+    (`axeRun`, `exportClip` records the received stages, capability 13, the setup header).
+72. `docs/editor/OPERASIONAL.md` (§2 editor off, the rollback; §7 a blocked deploy),
+    `docs/editor/PANDUAN-EDITOR.md`, `docs/editor/CONTRACTS.md` §5.25.
+73. This section, `evidence/W4/T4.Z-verifier-fixes.json`, `docs/HANDOFF.md` (the rollback note).
+
+### Open (verifier additions; the lists above stay)
+
+- **36** gains the verifier's compose-quota run: the same 4-minute upload, center-crop, the same
+  two spans: `legacy` job 59 s (render phase ≈ 12 s, files 11.05 + 5.71 MB), `edit-v2/1` job 65 s
+  (render phase ≈ 18 s, files 22.80 + 13.06 MB).
+- **42** is closed on the page side: every card of such a job names its reason. The listing itself
+  still returns no entries for them, and the history still offers "Edit klip" for a Selection V3
+  job without `analysis/` (only synthetic copies have that shape; production always writes it).
+49. Land `fix(deploy): a cancelled export is not live work for the deploy guard` on `main` ahead of
+    PR #18 (owner or integrator; no deploy from this branch).
+50. With the editor off, edited exports have no link on any page (files kept, links back when on).
+    A read-only "Ekspor terakhir" outside the editor's routes would keep them reachable; owner to
+    decide whether it is worth it.
+51. The real-stack specs run only on the owner's PC (they need real jobs, which never leave it);
+    this section's run used `POTONGIN_EDITOR_LLM=off`, so the free-LLM hook cards were last seen
+    on the real stack in T4.Z's run and the verifier's.
