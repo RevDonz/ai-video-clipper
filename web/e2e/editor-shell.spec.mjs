@@ -817,6 +817,19 @@ test("export of an unchanged clip uses the auto file (R10) and completes at once
   await expect(dialog.getByRole("list", { name: "Tahap ekspor" }).locator('[data-step-status="done"]')).toHaveCount(4);
 });
 
+// W4 verifier: the auto clip's own tight cut is a note in the export of an unchanged clip (its
+// export is the auto file). Once the clip is edited it asks for a tick again (the test above).
+test("an unchanged clip's checks are notes in the export: no tick, export starts at once", async ({ page }) => {
+  await openEditor(page, { scenarioStore: true, unchanged: true, render: { ...RENDER, instant: true },
+    planWarnings: [{ code: "tight_cut", ref: "rm_01", f: 120 }] });
+  const dialog = await startExport(page);
+  await expect(dialog.getByText("Tanpa perubahan: file klip otomatis dipakai langsung")).toBeVisible();
+  await expect(dialog.getByRole("checkbox")).toHaveCount(0);
+  await expect(dialog.locator("[data-export-note]")).toHaveText("Potongan sangat rapat dengan kata di sebelahnya; dengarkan hasilnya");
+  await dialog.getByRole("button", { name: "Mulai ekspor" }).click();
+  await expect(dialog.getByRole("link", { name: "Unduh MP4" })).toBeVisible();
+});
+
 // ---------------------------------------------------------------------------------------------
 // Layout, keyboard reach, accessibility (Appendix C.1, QG-A11Y)
 

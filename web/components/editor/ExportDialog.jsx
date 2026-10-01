@@ -1,8 +1,8 @@
 "use client";
 
 // The export dialog (plan Appendix C.5): (1) the revision and the "Perlu dicek" items, each
-// acknowledged (notes are shown, not ticked); (2) the output line, and the R10 line for unchanged
-// content; (3) Antre → Merender (n%) → Memverifikasi → Selesai, with cancel until the end;
+// acknowledged (notes are shown, not ticked; an unchanged clip has notes only); (2) the output
+// line, and the R10 line for unchanged content; (3) Antre → Merender (n%) → Memverifikasi → Selesai, with cancel until the end;
 // (4) downloads, the read-only title,
 // description and hashtags with copy buttons, and the audio notes; (5) earlier exports; (6) on a
 // failure, the Indonesian explanation and "Coba lagi". No size or quality choice in Essentials.
@@ -12,7 +12,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { exportDownload } from "../../lib/clip-entry-view.mjs";
 import styles from "./shell.module.css";
-import { canStartExport, exportStepView } from "./export-flow.mjs";
+import { canStartExport, exportChecks, exportStepView } from "./export-flow.mjs";
 import { safeApiHref } from "./shell-model.mjs";
 
 const ACTIVE = new Set(["saving", "submitting", "running"]);
@@ -77,12 +77,11 @@ export default function ExportDialog({
   const phase = flow?.phase ?? "idle";
   const active = ACTIVE.has(phase);
   const steps = useMemo(() => exportStepView(flow?.render ?? null, flow?.lastRunning ?? null), [flow?.render, flow?.lastRunning]);
-  const warnings = checks.filter((check) => check.severity === "warning");
-  const blocking = checks.filter((check) => check.severity === "error");
-  // Notes inform and need no tick (the caption at the auto clip's spot, K5).
-  const infos = checks.filter((check) => check.severity === "info");
-  const ready = canStartExport(checks, acked) && !readOnly;
-  const notes = warnings.filter((check) => AUDIO_NOTES.has(check.code.split(":")[0]));
+  // Notes inform and need no tick: the caption at the auto clip's spot (K5), and every warning of
+  // an unchanged clip, whose export is the auto file itself.
+  const { blocking, warnings, notes: infos } = exportChecks(checks, { unchanged });
+  const ready = canStartExport(checks, acked, { unchanged }) && !readOnly;
+  const notes = checks.filter((check) => check.severity === "warning" && AUDIO_NOTES.has(check.code.split(":")[0]));
   const result = phase === "completed" ? flow.render : null;
   const saved = { index: clipIndex, revision: result?.revision };
   const mp4 = result ? exportDownload(safeApiHref(result.resultUrl), saved) : null;
