@@ -1,0 +1,116 @@
+{
+  "cases": [
+    {
+      "clip": "synthetic main #1: fit-blur, 29.97 fps CFR, cold open",
+      "elapsed_s": 15.5,
+      "export_i_lufs": -14.0,
+      "export_tp_dbtp": -10.9,
+      "frames": 1167,
+      "loudness_clamped_lufs": null,
+      "music": "bed",
+      "music_lufs": -18.9,
+      "pass": true,
+      "peak_reduced_db": null,
+      "role": "cold_open",
+      "samples": 1869824,
+      "settings": {
+        "master": "normalize"
+      },
+      "target_lufs": -14.0,
+      "warnings": [
+        "unsafe_zone"
+      ]
+    },
+    {
+      "clip": "synthetic vfr #2: fit-blur, VFR Matroska",
+      "elapsed_s": 13.94,
+      "export_i_lufs": -14.0,
+      "export_tp_dbtp": -10.9,
+      "frames": 1038,
+      "loudness_clamped_lufs": null,
+      "music": "bed",
+      "music_lufs": -18.9,
+      "pass": true,
+      "peak_reduced_db": null,
+      "role": "vfr",
+      "samples": 1660928,
+      "settings": {
+        "master": "normalize",
+        "preset": "kuat"
+      },
+      "target_lufs": -14.0,
+      "warnings": [
+        "unsafe_zone"
+      ]
+    },
+    {
+      "clip": "synthetic fps60 #1: face-track (the fixture's stub camera), 60 fps, cold open",
+      "elapsed_s": 9.94,
+      "export_i_lufs": -14.0,
+      "export_tp_dbtp": -10.5,
+      "frames": 1168,
+      "loudness_clamped_lufs": null,
+      "music": "bed",
+      "music_lufs": -18.9,
+      "pass": true,
+      "peak_reduced_db": null,
+      "role": "fps60",
+      "samples": 1868800,
+      "settings": {
+        "master": "normalize",
+        "preset": "halus"
+      },
+      "target_lufs": -14.0,
+      "warnings": [
+        "unsafe_zone",
+        "no_face"
+      ]
+    },
+    {
+      "clip": "synthetic fps60 #1: face-track (the fixture's stub camera), 60 fps, cold open",
+      "elapsed_s": 10.75,
+      "export_i_lufs": -14.1,
+      "export_tp_dbtp": -7.1,
+      "frames": 1168,
+      "loudness_clamped_lufs": null,
+      "music": "loud",
+      "music_lufs": -5.0,
+      "pass": true,
+      "peak_reduced_db": null,
+      "role": "fps60",
+      "samples": 1868800,
+      "settings": {
+        "duck_on": false,
+        "gain_cdb": 600,
+        "master": "normalize"
+      },
+      "target_lufs": -14.0,
+      "warnings": [
+        "unsafe_zone",
+        "no_face"
+      ]
+    }
+  ],
+  "environment": {
+    "cpus_visible": 4,
+    "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "loadavg": [
+      2.3,
+      2.46,
+      1.58
+    ],
+    "python": "3.11.2"
+  },
+  "failures": 0,
+  "gate": "G3",
+  "measured_on": "decoded export (AAC-LC 192k)",
+  "media": "synthetic",
+  "pass": true,
+  "task": "T3.3",
+  "threshold": {
+    "clamped_tolerance_lu": 0.5,
+    "target_lufs": -14.0,
+    "tolerance_lu": 1.0,
+    "tp_max_dbtp": -1.0
+  }
+}

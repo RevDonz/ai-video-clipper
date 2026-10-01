@@ -1,0 +1,87 @@
+{
+  "gate": "P-AUD (browser half, music)",
+  "task": "T3.3",
+  "browser": "147.0.7727.15",
+  "threshold": {
+    "max_diff_lsb": 1,
+    "sample_rate": 48000,
+    "same_count_as": "reference and plan"
+  },
+  "cases": [
+    {
+      "case": "00-cold_open-bed",
+      "planSamples": 1824222,
+      "contextRate": 48000,
+      "bufferRate": 48000,
+      "channels": 2,
+      "length": 1824222,
+      "referenceLength": 1824222,
+      "maxDiffLsb": 0.2861328125,
+      "differingSamples": 1824515,
+      "notExactUnderInt16Scaling": 0
+    },
+    {
+      "case": "01-cold_open-bed",
+      "planSamples": 1824222,
+      "contextRate": 48000,
+      "bufferRate": 48000,
+      "channels": 2,
+      "length": 1824222,
+      "referenceLength": 1824222,
+      "maxDiffLsb": 0.26953125,
+      "differingSamples": 1823608,
+      "notExactUnderInt16Scaling": 0
+    },
+    {
+      "case": "02-vfr-bed",
+      "planSamples": 1614400,
+      "contextRate": 48000,
+      "bufferRate": 48000,
+      "channels": 2,
+      "length": 1614384,
+      "referenceLength": 1614384,
+      "maxDiffLsb": 0.3017578125,
+      "differingSamples": 1615528,
+      "notExactUnderInt16Scaling": 0
+    },
+    {
+      "case": "03-fps60-loud",
+      "planSamples": 1822400,
+      "contextRate": 48000,
+      "bufferRate": 48000,
+      "channels": 2,
+      "length": 1822400,
+      "referenceLength": 1822400,
+      "maxDiffLsb": 0.755859375,
+      "differingSamples": 1820270,
+      "notExactUnderInt16Scaling": 0
+    },
+    {
+      "case": "04-fps60-tone",
+      "planSamples": 1822400,
+      "contextRate": 48000,
+      "bufferRate": 48000,
+      "channels": 2,
+      "length": 1822400,
+      "referenceLength": 1822400,
+      "maxDiffLsb": 0.537109375,
+      "differingSamples": 1394112,
+      "notExactUnderInt16Scaling": 0
+    },
+    {
+      "case": "05-fps25-bed",
+      "planSamples": 1620480,
+      "contextRate": 48000,
+      "bufferRate": 48000,
+      "channels": 2,
+      "length": 1620480,
+      "referenceLength": 1620480,
+      "maxDiffLsb": 0.283203125,
+      "differingSamples": 1617858,
+      "notExactUnderInt16Scaling": 0
+    }
+  ],
+  "pass": false,
+  "fixtures": "the preview FLACs and reference PCM of T3.3-P-AUD.json (synthetic media, production image, CI run 36845131903)",
+  "vfr_note": "02-vfr-bed: 16 samples short of the plan on both the preview and the reference (Open 12)"
+}

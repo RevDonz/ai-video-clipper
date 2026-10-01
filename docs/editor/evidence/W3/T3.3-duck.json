@@ -1,0 +1,1058 @@
+{
+  "cases": [
+    {
+      "clip": "synthetic main #1: fit-blur, 29.97 fps CFR, cold open (silent twin)",
+      "clip_seconds": 38.0,
+      "depth_db": 6.0,
+      "export": {
+        "failures": 0,
+        "max_deviation_db": 0.164,
+        "recovery_checks": 0,
+        "spans": [
+          {
+            "max_deviation_db": 0.164,
+            "recovery_db": null,
+            "span": [
+              4804,
+              156956
+            ],
+            "windows": 341
+          },
+          {
+            "max_deviation_db": 0.115,
+            "recovery_db": null,
+            "span": [
+              172972,
+              350750
+            ],
+            "windows": 395
+          },
+          {
+            "max_deviation_db": 0.115,
+            "recovery_db": null,
+            "span": [
+              368368,
+              525324
+            ],
+            "windows": 351
+          },
+          {
+            "max_deviation_db": 0.106,
+            "recovery_db": null,
+            "span": [
+              550950,
+              691891
+            ],
+            "windows": 318
+          },
+          {
+            "max_deviation_db": 0.118,
+            "recovery_db": null,
+            "span": [
+              711110,
+              869668
+            ],
+            "windows": 355
+          },
+          {
+            "max_deviation_db": 0.087,
+            "recovery_db": null,
+            "span": [
+              895294,
+              1025024
+            ],
+            "windows": 295
+          },
+          {
+            "max_deviation_db": 0.121,
+            "recovery_db": null,
+            "span": [
+              1044243,
+              1181980
+            ],
+            "windows": 311
+          },
+          {
+            "max_deviation_db": 0.084,
+            "recovery_db": null,
+            "span": [
+              1204403,
+              1468667
+            ],
+            "windows": 575
+          },
+          {
+            "max_deviation_db": 0.115,
+            "recovery_db": null,
+            "span": [
+              1495894,
+              1638436
+            ],
+            "windows": 321
+          },
+          {
+            "max_deviation_db": 0.117,
+            "recovery_db": null,
+            "span": [
+              1659257,
+              1805003
+            ],
+            "windows": 328
+          }
+        ],
+        "windows": 3590
+      },
+      "pass": true,
+      "peak_reduced": {
+        "ducked": null,
+        "unducked": null
+      },
+      "pieces": 5,
+      "preset": "halus",
+      "reference": {
+        "failures": 0,
+        "max_deviation_db": 0.001,
+        "recovery_checks": 0,
+        "windows": 3590
+      },
+      "role": "cold_open",
+      "speech_spans": 80
+    },
+    {
+      "clip": "synthetic main #1: fit-blur, 29.97 fps CFR, cold open (silent twin)",
+      "clip_seconds": 38.0,
+      "depth_db": 10.0,
+      "export": {
+        "failures": 0,
+        "max_deviation_db": 0.178,
+        "recovery_checks": 0,
+        "spans": [
+          {
+            "max_deviation_db": 0.178,
+            "recovery_db": null,
+            "span": [
+              4804,
+              156956
+            ],
+            "windows": 341
+          },
+          {
+            "max_deviation_db": 0.14,
+            "recovery_db": null,
+            "span": [
+              172972,
+              350750
+            ],
+            "windows": 395
+          },
+          {
+            "max_deviation_db": 0.155,
+            "recovery_db": null,
+            "span": [
+              368368,
+              525324
+            ],
+            "windows": 351
+          },
+          {
+            "max_deviation_db": 0.161,
+            "recovery_db": null,
+            "span": [
+              550950,
+              691891
+            ],
+            "windows": 318
+          },
+          {
+            "max_deviation_db": 0.161,
+            "recovery_db": null,
+            "span": [
+              711110,
+              869668
+            ],
+            "windows": 355
+          },
+          {
+            "max_deviation_db": 0.113,
+            "recovery_db": null,
+            "span": [
+              895294,
+              1025024
+            ],
+            "windows": 295
+          },
+          {
+            "max_deviation_db": 0.163,
+            "recovery_db": null,
+            "span": [
+              1044243,
+              1181980
+            ],
+            "windows": 311
+          },
+          {
+            "max_deviation_db": 0.115,
+            "recovery_db": null,
+            "span": [
+              1204403,
+              1468667
+            ],
+            "windows": 575
+          },
+          {
+            "max_deviation_db": 0.157,
+            "recovery_db": null,
+            "span": [
+              1495894,
+              1638436
+            ],
+            "windows": 321
+          },
+          {
+            "max_deviation_db": 0.161,
+            "recovery_db": null,
+            "span": [
+              1659257,
+              1805003
+            ],
+            "windows": 328
+          }
+        ],
+        "windows": 3590
+      },
+      "pass": true,
+      "peak_reduced": {
+        "ducked": null,
+        "unducked": null
+      },
+      "pieces": 5,
+      "preset": "sedang",
+      "reference": {
+        "failures": 0,
+        "max_deviation_db": 0.001,
+        "recovery_checks": 0,
+        "windows": 3590
+      },
+      "role": "cold_open",
+      "speech_spans": 80
+    },
+    {
+      "clip": "synthetic main #1: fit-blur, 29.97 fps CFR, cold open (silent twin)",
+      "clip_seconds": 38.0,
+      "depth_db": 16.0,
+      "export": {
+        "failures": 0,
+        "max_deviation_db": 0.201,
+        "recovery_checks": 0,
+        "spans": [
+          {
+            "max_deviation_db": 0.201,
+            "recovery_db": null,
+            "span": [
+              4804,
+              156956
+            ],
+            "windows": 341
+          },
+          {
+            "max_deviation_db": 0.136,
+            "recovery_db": null,
+            "span": [
+              172972,
+              350750
+            ],
+            "windows": 395
+          },
+          {
+            "max_deviation_db": 0.128,
+            "recovery_db": null,
+            "span": [
+              368368,
+              525324
+            ],
+            "windows": 351
+          },
+          {
+            "max_deviation_db": 0.146,
+            "recovery_db": null,
+            "span": [
+              550950,
+              691891
+            ],
+            "windows": 318
+          },
+          {
+            "max_deviation_db": 0.121,
+            "recovery_db": null,
+            "span": [
+              711110,
+              869668
+            ],
+            "windows": 355
+          },
+          {
+            "max_deviation_db": 0.154,
+            "recovery_db": null,
+            "span": [
+              895294,
+              1025024
+            ],
+            "windows": 295
+          },
+          {
+            "max_deviation_db": 0.131,
+            "recovery_db": null,
+            "span": [
+              1044243,
+              1181980
+            ],
+            "windows": 311
+          },
+          {
+            "max_deviation_db": 0.163,
+            "recovery_db": null,
+            "span": [
+              1204403,
+              1468667
+            ],
+            "windows": 575
+          },
+          {
+            "max_deviation_db": 0.14,
+            "recovery_db": null,
+            "span": [
+              1495894,
+              1638436
+            ],
+            "windows": 321
+          },
+          {
+            "max_deviation_db": 0.148,
+            "recovery_db": null,
+            "span": [
+              1659257,
+              1805003
+            ],
+            "windows": 328
+          }
+        ],
+        "windows": 3590
+      },
+      "pass": true,
+      "peak_reduced": {
+        "ducked": null,
+        "unducked": null
+      },
+      "pieces": 5,
+      "preset": "kuat",
+      "reference": {
+        "failures": 0,
+        "max_deviation_db": 0.002,
+        "recovery_checks": 0,
+        "windows": 3590
+      },
+      "role": "cold_open",
+      "speech_spans": 80
+    },
+    {
+      "clip": "synthetic vfr #2: fit-blur, VFR Matroska (silent twin)",
+      "clip_seconds": 33.63,
+      "depth_db": 6.0,
+      "export": {
+        "failures": 0,
+        "max_deviation_db": 0.286,
+        "recovery_checks": 2,
+        "spans": [
+          {
+            "max_deviation_db": 0.286,
+            "recovery_db": null,
+            "span": [
+              8000,
+              152000
+            ],
+            "windows": 325
+          },
+          {
+            "max_deviation_db": 0.15,
+            "recovery_db": null,
+            "span": [
+              171200,
+              310400
+            ],
+            "windows": 315
+          },
+          {
+            "max_deviation_db": 0.101,
+            "recovery_db": null,
+            "span": [
+              336000,
+              481600
+            ],
+            "windows": 328
+          },
+          {
+            "max_deviation_db": 0.101,
+            "recovery_db": null,
+            "span": [
+              499200,
+              638400
+            ],
+            "windows": 315
+          },
+          {
+            "max_deviation_db": 0.15,
+            "recovery_db": 0.0,
+            "span": [
+              660800,
+              926400
+            ],
+            "windows": 578
+          },
+          {
+            "max_deviation_db": 0.1,
+            "recovery_db": -0.0,
+            "span": [
+              1003200,
+              1128000
+            ],
+            "windows": 285
+          },
+          {
+            "max_deviation_db": 0.1,
+            "recovery_db": null,
+            "span": [
+              1180800,
+              1296000
+            ],
+            "windows": 265
+          },
+          {
+            "max_deviation_db": 0.114,
+            "recovery_db": null,
+            "span": [
+              1321600,
+              1464000
+            ],
+            "windows": 321
+          },
+          {
+            "max_deviation_db": 0.15,
+            "recovery_db": null,
+            "span": [
+              1481600,
+              1601600
+            ],
+            "windows": 275
+          }
+        ],
+        "windows": 3007
+      },
+      "pass": true,
+      "peak_reduced": {
+        "ducked": null,
+        "unducked": null
+      },
+      "pieces": 4,
+      "preset": "halus",
+      "reference": {
+        "failures": 0,
+        "max_deviation_db": 0.001,
+        "recovery_checks": 2,
+        "windows": 3007
+      },
+      "role": "vfr",
+      "speech_spans": 67
+    },
+    {
+      "clip": "synthetic vfr #2: fit-blur, VFR Matroska (silent twin)",
+      "clip_seconds": 33.63,
+      "depth_db": 10.0,
+      "export": {
+        "failures": 0,
+        "max_deviation_db": 0.265,
+        "recovery_checks": 2,
+        "spans": [
+          {
+            "max_deviation_db": 0.265,
+            "recovery_db": null,
+            "span": [
+              8000,
+              152000
+            ],
+            "windows": 325
+          },
+          {
+            "max_deviation_db": 0.162,
+            "recovery_db": null,
+            "span": [
+              171200,
+              310400
+            ],
+            "windows": 315
+          },
+          {
+            "max_deviation_db": 0.142,
+            "recovery_db": null,
+            "span": [
+              336000,
+              481600
+            ],
+            "windows": 328
+          },
+          {
+            "max_deviation_db": 0.142,
+            "recovery_db": null,
+            "span": [
+              499200,
+              638400
+            ],
+            "windows": 315
+          },
+          {
+            "max_deviation_db": 0.162,
+            "recovery_db": 0.0,
+            "span": [
+              660800,
+              926400
+            ],
+            "windows": 578
+          },
+          {
+            "max_deviation_db": 0.151,
+            "recovery_db": -0.0,
+            "span": [
+              1003200,
+              1128000
+            ],
+            "windows": 285
+          },
+          {
+            "max_deviation_db": 0.151,
+            "recovery_db": null,
+            "span": [
+              1180800,
+              1296000
+            ],
+            "windows": 265
+          },
+          {
+            "max_deviation_db": 0.134,
+            "recovery_db": null,
+            "span": [
+              1321600,
+              1464000
+            ],
+            "windows": 321
+          },
+          {
+            "max_deviation_db": 0.163,
+            "recovery_db": null,
+            "span": [
+              1481600,
+              1601600
+            ],
+            "windows": 275
+          }
+        ],
+        "windows": 3007
+      },
+      "pass": true,
+      "peak_reduced": {
+        "ducked": null,
+        "unducked": null
+      },
+      "pieces": 4,
+      "preset": "sedang",
+      "reference": {
+        "failures": 0,
+        "max_deviation_db": 0.001,
+        "recovery_checks": 2,
+        "windows": 3007
+      },
+      "role": "vfr",
+      "speech_spans": 67
+    },
+    {
+      "clip": "synthetic vfr #2: fit-blur, VFR Matroska (silent twin)",
+      "clip_seconds": 33.63,
+      "depth_db": 16.0,
+      "export": {
+        "failures": 0,
+        "max_deviation_db": 0.361,
+        "recovery_checks": 2,
+        "spans": [
+          {
+            "max_deviation_db": 0.361,
+            "recovery_db": null,
+            "span": [
+              8000,
+              152000
+            ],
+            "windows": 325
+          },
+          {
+            "max_deviation_db": 0.181,
+            "recovery_db": null,
+            "span": [
+              171200,
+              310400
+            ],
+            "windows": 315
+          },
+          {
+            "max_deviation_db": 0.148,
+            "recovery_db": null,
+            "span": [
+              336000,
+              481600
+            ],
+            "windows": 328
+          },
+          {
+            "max_deviation_db": 0.148,
+            "recovery_db": null,
+            "span": [
+              499200,
+              638400
+            ],
+            "windows": 315
+          },
+          {
+            "max_deviation_db": 0.181,
+            "recovery_db": 0.0,
+            "span": [
+              660800,
+              926400
+            ],
+            "windows": 578
+          },
+          {
+            "max_deviation_db": 0.148,
+            "recovery_db": -0.0,
+            "span": [
+              1003200,
+              1128000
+            ],
+            "windows": 285
+          },
+          {
+            "max_deviation_db": 0.148,
+            "recovery_db": null,
+            "span": [
+              1180800,
+              1296000
+            ],
+            "windows": 265
+          },
+          {
+            "max_deviation_db": 0.163,
+            "recovery_db": null,
+            "span": [
+              1321600,
+              1464000
+            ],
+            "windows": 321
+          },
+          {
+            "max_deviation_db": 0.181,
+            "recovery_db": null,
+            "span": [
+              1481600,
+              1601600
+            ],
+            "windows": 275
+          }
+        ],
+        "windows": 3007
+      },
+      "pass": true,
+      "peak_reduced": {
+        "ducked": null,
+        "unducked": null
+      },
+      "pieces": 4,
+      "preset": "kuat",
+      "reference": {
+        "failures": 0,
+        "max_deviation_db": 0.002,
+        "recovery_checks": 2,
+        "windows": 3007
+      },
+      "role": "vfr",
+      "speech_spans": 67
+    },
+    {
+      "clip": "synthetic fps60 #1: face-track (the fixture's stub camera), 60 fps, cold open (silent twin)",
+      "clip_seconds": 37.97,
+      "depth_db": 6.0,
+      "export": {
+        "failures": 0,
+        "max_deviation_db": 0.17,
+        "recovery_checks": 0,
+        "spans": [
+          {
+            "max_deviation_db": 0.17,
+            "recovery_db": null,
+            "span": [
+              4800,
+              158400
+            ],
+            "windows": 345
+          },
+          {
+            "max_deviation_db": 0.101,
+            "recovery_db": null,
+            "span": [
+              172800,
+              352000
+            ],
+            "windows": 398
+          },
+          {
+            "max_deviation_db": 0.15,
+            "recovery_db": null,
+            "span": [
+              368000,
+              524800
+            ],
+            "windows": 351
+          },
+          {
+            "max_deviation_db": 0.101,
+            "recovery_db": null,
+            "span": [
+              552000,
+              689600
+            ],
+            "windows": 311
+          },
+          {
+            "max_deviation_db": 0.101,
+            "recovery_db": null,
+            "span": [
+              710400,
+              868800
+            ],
+            "windows": 355
+          },
+          {
+            "max_deviation_db": 0.1,
+            "recovery_db": null,
+            "span": [
+              892800,
+              1024000
+            ],
+            "windows": 298
+          },
+          {
+            "max_deviation_db": 0.114,
+            "recovery_db": null,
+            "span": [
+              1043200,
+              1180800
+            ],
+            "windows": 311
+          },
+          {
+            "max_deviation_db": 0.15,
+            "recovery_db": null,
+            "span": [
+              1203200,
+              1468800
+            ],
+            "windows": 578
+          },
+          {
+            "max_deviation_db": 0.15,
+            "recovery_db": null,
+            "span": [
+              1496000,
+              1636800
+            ],
+            "windows": 318
+          },
+          {
+            "max_deviation_db": 0.114,
+            "recovery_db": null,
+            "span": [
+              1657600,
+              1803200
+            ],
+            "windows": 328
+          }
+        ],
+        "windows": 3593
+      },
+      "pass": true,
+      "peak_reduced": {
+        "ducked": null,
+        "unducked": null
+      },
+      "pieces": 5,
+      "preset": "halus",
+      "reference": {
+        "failures": 0,
+        "max_deviation_db": 0.001,
+        "recovery_checks": 0,
+        "windows": 3593
+      },
+      "role": "fps60",
+      "speech_spans": 80
+    },
+    {
+      "clip": "synthetic fps60 #1: face-track (the fixture's stub camera), 60 fps, cold open (silent twin)",
+      "clip_seconds": 37.97,
+      "depth_db": 10.0,
+      "export": {
+        "failures": 0,
+        "max_deviation_db": 0.178,
+        "recovery_checks": 0,
+        "spans": [
+          {
+            "max_deviation_db": 0.178,
+            "recovery_db": null,
+            "span": [
+              4800,
+              158400
+            ],
+            "windows": 345
+          },
+          {
+            "max_deviation_db": 0.151,
+            "recovery_db": null,
+            "span": [
+              172800,
+              352000
+            ],
+            "windows": 398
+          },
+          {
+            "max_deviation_db": 0.163,
+            "recovery_db": null,
+            "span": [
+              368000,
+              524800
+            ],
+            "windows": 351
+          },
+          {
+            "max_deviation_db": 0.142,
+            "recovery_db": null,
+            "span": [
+              552000,
+              689600
+            ],
+            "windows": 311
+          },
+          {
+            "max_deviation_db": 0.151,
+            "recovery_db": null,
+            "span": [
+              710400,
+              868800
+            ],
+            "windows": 355
+          },
+          {
+            "max_deviation_db": 0.151,
+            "recovery_db": null,
+            "span": [
+              892800,
+              1024000
+            ],
+            "windows": 298
+          },
+          {
+            "max_deviation_db": 0.134,
+            "recovery_db": null,
+            "span": [
+              1043200,
+              1180800
+            ],
+            "windows": 311
+          },
+          {
+            "max_deviation_db": 0.162,
+            "recovery_db": null,
+            "span": [
+              1203200,
+              1468800
+            ],
+            "windows": 578
+          },
+          {
+            "max_deviation_db": 0.162,
+            "recovery_db": null,
+            "span": [
+              1496000,
+              1636800
+            ],
+            "windows": 318
+          },
+          {
+            "max_deviation_db": 0.134,
+            "recovery_db": null,
+            "span": [
+              1657600,
+              1803200
+            ],
+            "windows": 328
+          }
+        ],
+        "windows": 3593
+      },
+      "pass": true,
+      "peak_reduced": {
+        "ducked": null,
+        "unducked": null
+      },
+      "pieces": 5,
+      "preset": "sedang",
+      "reference": {
+        "failures": 0,
+        "max_deviation_db": 0.001,
+        "recovery_checks": 0,
+        "windows": 3593
+      },
+      "role": "fps60",
+      "speech_spans": 80
+    },
+    {
+      "clip": "synthetic fps60 #1: face-track (the fixture's stub camera), 60 fps, cold open (silent twin)",
+      "clip_seconds": 37.97,
+      "depth_db": 16.0,
+      "export": {
+        "failures": 0,
+        "max_deviation_db": 0.207,
+        "recovery_checks": 0,
+        "spans": [
+          {
+            "max_deviation_db": 0.207,
+            "recovery_db": null,
+            "span": [
+              4800,
+              158400
+            ],
+            "windows": 345
+          },
+          {
+            "max_deviation_db": 0.148,
+            "recovery_db": null,
+            "span": [
+              172800,
+              352000
+            ],
+            "windows": 398
+          },
+          {
+            "max_deviation_db": 0.181,
+            "recovery_db": null,
+            "span": [
+              368000,
+              524800
+            ],
+            "windows": 351
+          },
+          {
+            "max_deviation_db": 0.148,
+            "recovery_db": null,
+            "span": [
+              552000,
+              689600
+            ],
+            "windows": 311
+          },
+          {
+            "max_deviation_db": 0.148,
+            "recovery_db": null,
+            "span": [
+              710400,
+              868800
+            ],
+            "windows": 355
+          },
+          {
+            "max_deviation_db": 0.148,
+            "recovery_db": null,
+            "span": [
+              892800,
+              1024000
+            ],
+            "windows": 298
+          },
+          {
+            "max_deviation_db": 0.146,
+            "recovery_db": null,
+            "span": [
+              1043200,
+              1180800
+            ],
+            "windows": 311
+          },
+          {
+            "max_deviation_db": 0.182,
+            "recovery_db": null,
+            "span": [
+              1203200,
+              1468800
+            ],
+            "windows": 578
+          },
+          {
+            "max_deviation_db": 0.181,
+            "recovery_db": null,
+            "span": [
+              1496000,
+              1636800
+            ],
+            "windows": 318
+          },
+          {
+            "max_deviation_db": 0.163,
+            "recovery_db": null,
+            "span": [
+              1657600,
+              1803200
+            ],
+            "windows": 328
+          }
+        ],
+        "windows": 3593
+      },
+      "pass": true,
+      "peak_reduced": {
+        "ducked": null,
+        "unducked": null
+      },
+      "pieces": 5,
+      "preset": "kuat",
+      "reference": {
+        "failures": 0,
+        "max_deviation_db": 0.002,
+        "recovery_checks": 0,
+        "windows": 3593
+      },
+      "role": "fps60",
+      "speech_spans": 80
+    }
+  ],
+  "environment": {
+    "cpus_visible": 4,
+    "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "loadavg": [
+      3.18,
+      2.58,
+      1.49
+    ],
+    "python": "3.11.2"
+  },
+  "failures": 0,
+  "gate": "duck",
+  "media": "synthetic",
+  "method": "exports (render_document, AAC) of a silent twin of each job: the export's audio is the music stem; the lossless reference of the same documents as a cross-check; 3 removals per clip; fades 0",
+  "pass": true,
+  "recovery_tolerance_db": 1.0,
+  "task": "T3.3",
+  "tolerance_db": 0.5,
+  "window_samples": 480
+}
