@@ -1,6 +1,7 @@
 // T2.6: the export dialog's state machine (plan Appendix C.5, §4.2 renders routes, §4.6 states)
 // in web/components/editor/export-flow.mjs, driven with a manual clock.
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { MESSAGES } from "../components/editor/shell-model.mjs";
@@ -9,6 +10,7 @@ import {
   canStartExport,
   createExportFlow,
   earlierExports,
+  exportChecks,
   exportStepView,
 } from "../components/editor/export-flow.mjs";
 
@@ -278,6 +280,26 @@ test("a note (the caption at its auto-clip spot, K5) needs no tick before export
   assert.equal(canStartExport([note], new Set()), true);
   assert.equal(canStartExport([note, { key: "a", severity: "warning" }], new Set()), false);
   assert.equal(canStartExport([note, { key: "a", severity: "warning" }], new Set(["a"])), true);
+});
+
+// W4 verifier: an untouched auto clip exports its own auto file (R10), the file the project page
+// already offers. Its warnings (a tight cut the AI chose) inform there; a tick only adds friction.
+test("an unchanged clip asks no tick: its warnings become notes, errors still block", () => {
+  const warning = { key: "w", severity: "warning", code: "tight_cut" };
+  const note = { key: "n", severity: "info", code: "unsafe_zone" };
+  const error = { key: "x", severity: "error", code: "cold_open_invalid" };
+  assert.equal(canStartExport([warning, note], new Set()), false);
+  assert.equal(canStartExport([warning, note], new Set(), { unchanged: true }), true);
+  assert.equal(canStartExport([error, warning], new Set(["x", "w"]), { unchanged: true }), false);
+  assert.deepEqual(exportChecks([error, warning, note]), { blocking: [error], warnings: [warning], notes: [note] });
+  assert.deepEqual(exportChecks([error, warning, note], { unchanged: true }), { blocking: [error], warnings: [], notes: [warning, note] });
+  assert.deepEqual(exportChecks(undefined), { blocking: [], warnings: [], notes: [] });
+});
+
+test("the export dialog takes its checks and its start rule from the unchanged state", async () => {
+  const source = await readFile(new URL("../components/editor/ExportDialog.jsx", import.meta.url), "utf8");
+  assert.match(source, /exportChecks\(checks, \{ unchanged \}\)/);
+  assert.match(source, /canStartExport\(checks, acked, \{ unchanged \}\)/);
 });
 
 test("after a cancel or a failure the steps stay where the render stopped (W2 verifier)", async () => {
