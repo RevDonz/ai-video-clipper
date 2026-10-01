@@ -1,0 +1,31 @@
+{
+  "cases": 450,
+  "elapsed_s": 4.84,
+  "gate": "G5",
+  "mismatch_detail": [],
+  "mismatches": 0,
+  "pass": true,
+  "safe_cases": 208,
+  "task": "T3.2",
+  "toolchain": {
+    "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "python": "3.11.2"
+  },
+  "unsafe_cases": 242,
+  "zone_1080x1920": [
+    140,
+    420,
+    140
+  ],
+  "zone_720x1280": [
+    93,
+    280,
+    93
+  ],
+  "w3z": {
+    "ci_run": 36857927653,
+    "commit": "96db8fd",
+    "where": "GitHub Actions editor-gates.yml suite=command, production image (FFmpeg 5.1.9, Python 3.11.2, Node 20), 4 vCPU runner; timings indicative",
+    "script": "scripts/editor/w3_exit_gates.sh"
+  }
+}

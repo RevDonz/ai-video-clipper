@@ -1,7 +1,7 @@
 # Handoff: status dan cara melanjutkan
 
-Terakhir diperbarui 2026-10-01. Pekerjaan agen dihentikan pemilik untuk menghemat token; semua hasil
-sementara ada di branch GitHub di bawah. Dokumen ini untuk agen atau device mana pun yang
+Terakhir diperbarui 2026-10-01 (W3 editor selesai, lihat §4). Semua hasil ada di branch GitHub di
+bawah. Dokumen ini untuk agen atau device mana pun yang
 melanjutkan. Aturan proyek: `AGENTS.md`; arah desain: `DESIGN.md`.
 
 ## 1. Sudah live di produksi (`main`)
@@ -70,44 +70,44 @@ pilihan "Tanpa LLM" per job hilang dari dashboard (AI diatur di Pengaturan; API 
 `llmMode=off`); route status render `/api/jobs/<id>/renders/<renderId>` dibiarkan untuk editor
 baru.
 
-## 4. Jalur B: Editor (W3 sebagian, lalu W4)
+## 4. Jalur B: Editor (W3 selesai, lalu W4)
 
-Rencana lengkap: `docs/plans/2026-09-24-editor-v3-esensial.md` (§11.3 W3, §11.4 W4). Kontrak dan hasil
-gerbang ada di branch editor: `docs/editor/{CONTRACTS,GATES,PANDUAN-EDITOR}.md`.
+Rencana lengkap: `docs/plans/2026-09-24-editor-v3-esensial.md` (§11.4 W4). Kontrak, hasil gerbang
+dan panduan ada di branch editor: `docs/editor/{CONTRACTS,GATES,PANDUAN-EDITOR}.md`.
 
-- `editor-w3-base`: `main` (sebelum `AGENTS.md`) + W1 + W2, sudah di-rebase dan lolos semua tes
-  (3.783 tes Python, 983 tes web). W1 (mesin render tunggal) dan W2 (editor bisa dipakai)
-  selesai dan terverifikasi.
-- Branch tugas W3 (semua sebagian, berbasis `editor-w3-base`):
+- **`editor-w3-integration`: W1 + W2 + W3, di atas `main` terbaru** (jalur A: tema gelap, tanpa
+  label versi, editor lama dipensiunkan). T3.1–T3.7 digabung (riwayat linear), lalu di-rebase ke
+  `main` `b1ab3e0`. Semua fitur Esensial tersambung: unggah aset, logo, musik + ducking, saran hook
+  AI, Rapikan, ganti tata letak + face-track, waveform + penanda, saran cold open. Editor gelap
+  dengan token yang sama dengan halaman lain (penjaga UI CI lolos untuk editor). Hasil gerbang W3:
+  `docs/editor/GATES.md` bagian W3.
+- **Masuk ke editor (masukan pemilik):** tombol "Edit klip" di setiap kartu klip (tombol pertama)
+  dan di Riwayat; tidak ada langkah "Siapkan untuk editor" lagi: editor menyiapkan proyek sendiri
+  saat klip dibuka dan menampilkan progresnya.
+- **Flag tetap mati secara bawaan:** `POTONGIN_EDITOR_V3`, `POTONGIN_EDITOR_UPLOADS`,
+  `POTONGIN_EDITOR_LLM` = `off`, `POTONGIN_RENDER_ENGINE=legacy`.
+- Branch tugas `editor-w3-t3.1` … `editor-w3-t3.7` sudah masuk; tidak perlu dilanjutkan.
 
-| Branch | Fitur |
-|---|---|
-| `editor-w3-t3.1` | unggah aset (+ pengecualian proxy) |
-| `editor-w3-t3.2` | logo / watermark |
-| `editor-w3-t3.3` | musik + ducking (commit terakhir "wip") |
-| `editor-w3-t3.4` | saran hook AI |
-| `editor-w3-t3.5` | Rapikan (kata pengisi, gagap, jeda) |
-| `editor-w3-t3.6` | ganti tata letak + face-track |
-| `editor-w3-t3.7` | waveform + penanda (commit terakhir "wip") |
-
-Langkah:
-1. Selesaikan tiap tugas dari commit terakhirnya (TDD, gerbang di rencana §11.3).
-2. Integrasi T3.Z: cherry-pick t3.1 → t3.7 ke `editor-w3-integration`, sambungkan registry, editor
-   digelapkan sesuai `DESIGN.md`, tanpa istilah versi/mesin di tampilan, gerbang W3, panduan.
-3. W4 (rencana §11.4) dengan perubahan dari pemilik:
-   - editor lama dipensiunkan: T4.1 tidak lagi memperbaiki 8 bug-nya; hapus jalur backend lama
-     setelah jalur A menghapus sisi web-nya;
-   - T4.3 mempercepat render mesin baru, lalu `POTONGIN_RENDER_ENGINE` dinyalakan ke mesin baru;
-   - tombol "Edit klip" harus mudah ditemukan (dari riwayat dan kartu klip) dan tanpa langkah
-     "Siapkan untuk editor" manual (pemilik tidak menemukannya saat mencoba);
+Langkah berikutnya:
+1. **Titik cek pemilik 3** (± 60 menit): uji U1–U7 dengan stopwatch, penilaian 30 saran hook AI
+   (lulus ≥ 21/30, lalu `POTONGIN_EDITOR_LLM=on`), konfirmasi 490 label kata pengisi (lalu
+   pra-centang kata pengisi di Rapikan dinyalakan), keputusan P-LOGO (1 dari 18 frame). Paketnya
+   disiapkan agen W3 di luar repo (`checkpoint3.md`, lembar QG-AI dan label).
+2. **W4** (rencana §11.4) dengan perubahan dari pemilik:
+   - T4.1: editor lama sudah dipensiunkan; hapus jalur backend lamanya;
+   - T4.3: percepat render editor (PF-CELLS latar blur di mesin 4 vCPU masih tipis), lalu
+     `POTONGIN_RENDER_ENGINE` dinyalakan ke render editor;
+   - P-AUD: klip VFR 16 sampel lebih pendek dari rencana (Open 12, jalur audio sumber kompiler);
+   - lane pratinjau: sel yang dihapus < 30 detik setelah dibuat tidak dibuat ulang (Open 24);
    - tes web "a live lock heartbeat prevents overlap beyond the stale interval" sering gagal di
-     CI: buat deterministik (jam palsu), jangan hanya memperpanjang waktu.
-4. Rebase ke `main` terbaru (akan ada konflik dengan jalur A di halaman proyek), PR, deploy.
-5. Titik cek pemilik 3: uji U1–U7, penilaian 30 saran hook AI, konfirmasi daftar kata pengisi.
+     CI: buat deterministik (jam palsu), jangan hanya memperpanjang waktu;
+   - tinjauan keamanan, lalu `POTONGIN_EDITOR_UPLOADS=on`.
+3. PR `editor-w3-integration` → `main` (merge rebase) setelah W4, lalu deploy.
 
-Gerbang paritas diukur di image produksi (`docker build -t ai-video-clipper:editor .`): FFmpeg
-5.1.9 dan libass 0.17.1 dipin lewat snapshot Debian; `resources/toolchain.json` masuk kunci
-render.
+Gerbang berat jalan di GitHub Actions, bukan di PC pemilik: `scripts/editor/w3_exit_gates.sh
+<bagian>` lewat `editor-gates.yml` (`suite=command`), plus `suite=full` dan `suite=image`. Di
+worktree, perintah pemindai rahasia (gitleaks) perlu folder `.git` repo utama ikut di-mount
+(beserta `safe.directory`); tanpa itu ia memindai 0 commit.
 
 ## 5. Lain-lain yang tertunda
 

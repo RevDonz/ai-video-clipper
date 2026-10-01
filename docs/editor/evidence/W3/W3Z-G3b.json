@@ -1,0 +1,229 @@
+{
+  "cases": [
+    {
+      "clip": "synthetic main #1: fit-blur, 29.97 fps CFR, cold open",
+      "elapsed_s": 11.4,
+      "export_i_lufs": -14.0,
+      "export_tp_dbtp": -10.9,
+      "frames": 1167,
+      "loudness_clamped_lufs": null,
+      "music": "bed",
+      "music_lufs": -18.9,
+      "pass": true,
+      "peak_reduced_db": null,
+      "role": "cold_open",
+      "samples": 1869824,
+      "settings": {
+        "master": "normalize"
+      },
+      "warnings": [
+        "unsafe_zone"
+      ]
+    },
+    {
+      "clip": "synthetic vfr #2: fit-blur, VFR Matroska",
+      "elapsed_s": 9.92,
+      "export_i_lufs": -14.0,
+      "export_tp_dbtp": -10.9,
+      "frames": 1038,
+      "loudness_clamped_lufs": null,
+      "music": "bed",
+      "music_lufs": -18.9,
+      "pass": true,
+      "peak_reduced_db": null,
+      "role": "vfr",
+      "samples": 1660928,
+      "settings": {
+        "master": "normalize",
+        "preset": "kuat"
+      },
+      "warnings": [
+        "unsafe_zone"
+      ]
+    },
+    {
+      "clip": "synthetic fps60 #1: face-track (the fixture's stub camera), 60 fps, cold open",
+      "elapsed_s": 7.67,
+      "export_i_lufs": -14.0,
+      "export_tp_dbtp": -10.5,
+      "frames": 1168,
+      "loudness_clamped_lufs": null,
+      "music": "bed",
+      "music_lufs": -18.9,
+      "pass": true,
+      "peak_reduced_db": null,
+      "role": "fps60",
+      "samples": 1868800,
+      "settings": {
+        "master": "normalize",
+        "preset": "halus"
+      },
+      "warnings": [
+        "unsafe_zone",
+        "no_face"
+      ]
+    },
+    {
+      "clip": "synthetic fps60 #1: face-track (the fixture's stub camera), 60 fps, cold open",
+      "elapsed_s": 8.39,
+      "export_i_lufs": -14.1,
+      "export_tp_dbtp": -7.1,
+      "frames": 1168,
+      "loudness_clamped_lufs": null,
+      "music": "loud",
+      "music_lufs": -5.0,
+      "pass": true,
+      "peak_reduced_db": null,
+      "role": "fps60",
+      "samples": 1868800,
+      "settings": {
+        "duck_on": false,
+        "gain_cdb": 600,
+        "master": "normalize"
+      },
+      "warnings": [
+        "unsafe_zone",
+        "no_face"
+      ]
+    },
+    {
+      "clip": "synthetic main #1: fit-blur, 29.97 fps CFR, cold open",
+      "elapsed_s": 11.83,
+      "export_i_lufs": -8.7,
+      "export_tp_dbtp": -1.9,
+      "frames": 1167,
+      "loudness_clamped_lufs": null,
+      "music": "loud",
+      "music_lufs": -5.0,
+      "pass": true,
+      "peak_reduced_db": -9.7,
+      "role": "cold_open",
+      "samples": 1869824,
+      "settings": {
+        "duck_on": false,
+        "gain_cdb": 600
+      },
+      "warnings": [
+        "unsafe_zone",
+        "peak_reduced:-9.70 dB"
+      ]
+    },
+    {
+      "clip": "synthetic vfr #2: fit-blur, VFR Matroska",
+      "elapsed_s": 10.22,
+      "export_i_lufs": -17.3,
+      "export_tp_dbtp": -2.1,
+      "frames": 1038,
+      "loudness_clamped_lufs": null,
+      "music": "loud",
+      "music_lufs": -5.0,
+      "pass": true,
+      "peak_reduced_db": -8.6,
+      "role": "vfr",
+      "samples": 1660928,
+      "settings": {
+        "gain_cdb": 600,
+        "preset": "kuat"
+      },
+      "warnings": [
+        "unsafe_zone",
+        "peak_reduced:-8.60 dB"
+      ]
+    },
+    {
+      "clip": "synthetic fps60 #1: face-track (the fixture's stub camera), 60 fps, cold open",
+      "elapsed_s": 8.15,
+      "export_i_lufs": -9.3,
+      "export_tp_dbtp": -2.0,
+      "frames": 1168,
+      "loudness_clamped_lufs": null,
+      "music": "loud",
+      "music_lufs": -5.0,
+      "pass": true,
+      "peak_reduced_db": -12.0,
+      "role": "fps60",
+      "samples": 1868800,
+      "settings": {
+        "duck_on": false,
+        "gain_cdb": 600,
+        "source_gain_cdb": 1200
+      },
+      "warnings": [
+        "unsafe_zone",
+        "no_face",
+        "peak_reduced:-12.00 dB"
+      ]
+    },
+    {
+      "clip": "synthetic fps25 #3: center-crop, 25 fps",
+      "elapsed_s": 6.08,
+      "export_i_lufs": -9.1,
+      "export_tp_dbtp": -2.4,
+      "frames": 863,
+      "loudness_clamped_lufs": null,
+      "music": "loud",
+      "music_lufs": -5.0,
+      "pass": true,
+      "peak_reduced_db": -10.2,
+      "role": "fps25",
+      "samples": 1657856,
+      "settings": {
+        "duck_on": false,
+        "fade_in_f": 0,
+        "fade_out_f": 0,
+        "gain_cdb": 600
+      },
+      "warnings": [
+        "unsafe_zone",
+        "peak_reduced:-10.20 dB"
+      ]
+    },
+    {
+      "clip": "synthetic fps25 #3: center-crop, 25 fps",
+      "elapsed_s": 5.73,
+      "export_i_lufs": -3.9,
+      "export_tp_dbtp": -1.1,
+      "frames": 863,
+      "loudness_clamped_lufs": null,
+      "music": "bed",
+      "music_lufs": -18.9,
+      "pass": true,
+      "peak_reduced_db": -2.3,
+      "role": "fps25",
+      "samples": 1657856,
+      "settings": {
+        "source_gain_cdb": 1200
+      },
+      "warnings": [
+        "unsafe_zone",
+        "peak_reduced:-2.30 dB"
+      ]
+    }
+  ],
+  "environment": {
+    "cpus_visible": 4,
+    "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "loadavg": [
+      3.14,
+      2.48,
+      1.34
+    ],
+    "python": "3.11.2"
+  },
+  "failures": 0,
+  "gate": "G3b",
+  "loud_track": "square bass, bright chord and pink noise limited at full scale",
+  "measured_on": "decoded export (AAC-LC 192k)",
+  "media": "synthetic",
+  "pass": true,
+  "task": "W3Z",
+  "threshold": {
+    "tp_max_dbtp": -1.0
+  },
+  "w3z": {
+    "ci_run": 36857944101,
+    "commit": "96db8fd",
+    "where": "GitHub Actions editor-gates.yml suite=command, production image (FFmpeg 5.1.9, Python 3.11.2, Node 20), 4 vCPU runner; timings indicative",
+    "script": "scripts/editor/w3_exit_gates.sh"
+  }
+}

@@ -1,0 +1,388 @@
+{
+  "gate": "QG-CLEAN (real clip): cut edges, G-CLICK and G-SYNC after applying items",
+  "job": "d0ea7856-ad51-5f92-a229-16c8534fb495",
+  "clip_id": "clip_7ae904c09556ca7a9f9c1b95",
+  "engine_of_seed": "edit-v2/1",
+  "fps": [
+    30000,
+    1001
+  ],
+  "layout": "fit_blur",
+  "listing": {
+    "filler": 2,
+    "repeat": 1,
+    "gap_silent": 3,
+    "gap_voiced": 1
+  },
+  "open_in_clip": {
+    "filler": 2,
+    "repeat": 1,
+    "gap_silent": 3
+  },
+  "body_widened_by_trims": {
+    "trims": 79,
+    "seed_body_sf": [
+      1958,
+      3048
+    ],
+    "edited_body_sf": [
+      174,
+      4822
+    ]
+  },
+  "items_applied": 6,
+  "items_by_kind": {
+    "gap_silent": 3,
+    "filler": 2,
+    "repeat": 1
+  },
+  "items_skipped": [],
+  "items_wanted": 20,
+  "one_undo_step": "ApplyCleanup (one command)",
+  "saved_revision": 1,
+  "save_warnings": [],
+  "removals": 6,
+  "output_frames": 4504,
+  "render_s": 58.0,
+  "g1_g2": [
+    {
+      "gate": "G1",
+      "pass": true,
+      "problems": []
+    },
+    {
+      "gate": "G2",
+      "pass": true,
+      "problems": []
+    }
+  ],
+  "verify_warnings": [
+    {
+      "code": "unsafe_zone",
+      "path": "/captions/overrides/y_e5"
+    }
+  ],
+  "cut_edges": {
+    "check": "cut edges inside the word gap (or tight); RMS ±10 ms ≤ −35 dBFS unless tight",
+    "edges": 12,
+    "tight": 0,
+    "inside_gap": 12,
+    "rms_max_dbfs_untight": -200.0,
+    "failures": [],
+    "pass": true,
+    "per_edge": [
+      {
+        "item": "cl_1",
+        "kind": "gap_silent",
+        "edge": "in",
+        "sf": 1477,
+        "ms": 49282.57,
+        "gap_ms": [
+          49166,
+          50666
+        ],
+        "inside_gap": true,
+        "tight": false,
+        "rms_dbfs": -200.0,
+        "pass": true
+      },
+      {
+        "item": "cl_1",
+        "kind": "gap_silent",
+        "edge": "out",
+        "sf": 1515,
+        "ms": 50550.5,
+        "gap_ms": [
+          49166,
+          50666
+        ],
+        "inside_gap": true,
+        "tight": false,
+        "rms_dbfs": -200.0,
+        "pass": true
+      },
+      {
+        "item": "cl_2",
+        "kind": "filler",
+        "edge": "in",
+        "sf": 1955,
+        "ms": 65231.83,
+        "gap_ms": [
+          64942,
+          65502
+        ],
+        "inside_gap": true,
+        "tight": false,
+        "rms_dbfs": -200.0,
+        "pass": true
+      },
+      {
+        "item": "cl_2",
+        "kind": "filler",
+        "edge": "out",
+        "sf": 1971,
+        "ms": 65765.7,
+        "gap_ms": [
+          65718,
+          65828
+        ],
+        "inside_gap": true,
+        "tight": false,
+        "rms_dbfs": -200.0,
+        "pass": true
+      },
+      {
+        "item": "cl_3",
+        "kind": "repeat",
+        "edge": "in",
+        "sf": 1983,
+        "ms": 66166.1,
+        "gap_ms": [
+          66120,
+          66210
+        ],
+        "inside_gap": true,
+        "tight": false,
+        "rms_dbfs": -200.0,
+        "pass": true
+      },
+      {
+        "item": "cl_3",
+        "kind": "repeat",
+        "edge": "out",
+        "sf": 1994,
+        "ms": 66533.13,
+        "gap_ms": [
+          66464,
+          66594
+        ],
+        "inside_gap": true,
+        "tight": false,
+        "rms_dbfs": -200.0,
+        "pass": true
+      },
+      {
+        "item": "cl_4",
+        "kind": "filler",
+        "edge": "in",
+        "sf": 2059,
+        "ms": 68701.97,
+        "gap_ms": [
+          68492,
+          68912
+        ],
+        "inside_gap": true,
+        "tight": false,
+        "rms_dbfs": -200.0,
+        "pass": true
+      },
+      {
+        "item": "cl_4",
+        "kind": "filler",
+        "edge": "out",
+        "sf": 2074,
+        "ms": 69202.47,
+        "gap_ms": [
+          69166,
+          69256
+        ],
+        "inside_gap": true,
+        "tight": false,
+        "rms_dbfs": -200.0,
+        "pass": true
+      },
+      {
+        "item": "cl_6",
+        "kind": "gap_silent",
+        "edge": "in",
+        "sf": 3560,
+        "ms": 118785.33,
+        "gap_ms": [
+          118676,
+          120076
+        ],
+        "inside_gap": true,
+        "tight": false,
+        "rms_dbfs": -200.0,
+        "pass": true
+      },
+      {
+        "item": "cl_6",
+        "kind": "gap_silent",
+        "edge": "out",
+        "sf": 3595,
+        "ms": 119953.17,
+        "gap_ms": [
+          118676,
+          120076
+        ],
+        "inside_gap": true,
+        "tight": false,
+        "rms_dbfs": -200.0,
+        "pass": true
+      },
+      {
+        "item": "cl_7",
+        "kind": "gap_silent",
+        "edge": "in",
+        "sf": 4562,
+        "ms": 152218.73,
+        "gap_ms": [
+          152116,
+          153316
+        ],
+        "inside_gap": true,
+        "tight": false,
+        "rms_dbfs": -200.0,
+        "pass": true
+      },
+      {
+        "item": "cl_7",
+        "kind": "gap_silent",
+        "edge": "out",
+        "sf": 4591,
+        "ms": 153186.37,
+        "gap_ms": [
+          152116,
+          153316
+        ],
+        "inside_gap": true,
+        "tight": false,
+        "rms_dbfs": -200.0,
+        "pass": true
+      }
+    ]
+  },
+  "g_click": {
+    "gate": "G-CLICK",
+    "threshold_dbfs": -40.0,
+    "joins": 6,
+    "max_step_dbfs": -200.0,
+    "steps_dbfs": [
+      -200.0,
+      -200.0,
+      -200.0,
+      -200.0,
+      -200.0,
+      -200.0
+    ],
+    "samples": 7213606,
+    "plan_samples": 7213606,
+    "pass": true
+  },
+  "g_sync": {
+    "gate": "G-SYNC",
+    "video_frames": 4504,
+    "audio_samples": 7214080,
+    "av_end_difference_ms": 9.867,
+    "one_frame_ms": 33.367,
+    "av_pass": true,
+    "caption_onsets_checked": 12,
+    "caption_onsets": [
+      {
+        "f0": 2,
+        "text": 4,
+        "differing_px_before": 0,
+        "differing_px_at_onset": 23441,
+        "pass": true
+      },
+      {
+        "f0": 318,
+        "text": 4,
+        "differing_px_before": 0,
+        "differing_px_at_onset": 21786,
+        "pass": true
+      },
+      {
+        "f0": 669,
+        "text": 4,
+        "differing_px_before": 0,
+        "differing_px_at_onset": 20729,
+        "pass": true
+      },
+      {
+        "f0": 995,
+        "text": 4,
+        "differing_px_before": 0,
+        "differing_px_at_onset": 39753,
+        "pass": true
+      },
+      {
+        "f0": 1362,
+        "text": 4,
+        "differing_px_before": 0,
+        "differing_px_at_onset": 20530,
+        "pass": true
+      },
+      {
+        "f0": 1745,
+        "text": 4,
+        "differing_px_before": 0,
+        "differing_px_at_onset": 26138,
+        "pass": true
+      },
+      {
+        "f0": 2040,
+        "text": 4,
+        "differing_px_before": 0,
+        "differing_px_at_onset": 22798,
+        "pass": true
+      },
+      {
+        "f0": 2444,
+        "text": 2,
+        "differing_px_before": 0,
+        "differing_px_at_onset": 12198,
+        "pass": true
+      },
+      {
+        "f0": 2800,
+        "text": 4,
+        "differing_px_before": 0,
+        "differing_px_at_onset": 32693,
+        "pass": true
+      },
+      {
+        "f0": 3168,
+        "text": 3,
+        "differing_px_before": 0,
+        "differing_px_at_onset": 12833,
+        "pass": true
+      },
+      {
+        "f0": 3581,
+        "text": 2,
+        "differing_px_before": 0,
+        "differing_px_at_onset": 15774,
+        "pass": true
+      },
+      {
+        "f0": 3903,
+        "text": 4,
+        "differing_px_before": 0,
+        "differing_px_at_onset": 24051,
+        "pass": true
+      }
+    ],
+    "caption_pass": true,
+    "pass": true
+  },
+  "pass": true,
+  "toolchain": {
+    "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "python": "3.11.2",
+    "machine": "x86_64",
+    "cpus": 4,
+    "loadavg": [
+      1.62,
+      1.19,
+      0.53
+    ]
+  },
+  "w3z": {
+    "ci_run": 36857976574,
+    "commit": "96db8fd",
+    "where": "GitHub Actions editor-gates.yml suite=command, production image (FFmpeg 5.1.9, Python 3.11.2, Node 20), 4 vCPU runner; timings indicative",
+    "script": "scripts/editor/w3_exit_gates.sh"
+  }
+}

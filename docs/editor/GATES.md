@@ -769,3 +769,204 @@ own `src` and `resources`):
 `e2e/support/harness.mjs` counts any API response ≥ 400 as a failure if pointed at such a page
 (`read-only` and `smoke` pick V2 jobs, so they are not affected; the Konteks Tren and Fokus specs
 fake the job routes).
+
+---
+
+## W3 "Fitur Esensial lengkap": exit gate (T3.Z, 2026-10-01)
+
+Branch `editor-w3-integration`. T3.1 → T3.2 → T3.3 → T3.4 → T3.5 → T3.6 → T3.7 cherry-picked in that
+order onto the W3 base `7a63f3a` (106 commits, no conflicts: the seven tasks touched disjoint files),
+then the whole branch rebased onto `main` `b1ab3e0` (track A: the dark design, latest-only copy,
+the candidate editor retired, the UI guards, the login rate-limit fix, the editor-gates workflow):
+309 commits, linear, `rerere` on, then the integration commits (patches 39–51 below). Flags stay off
+by default (`POTONGIN_EDITOR_V3`, `POTONGIN_EDITOR_UPLOADS`, `POTONGIN_EDITOR_LLM` = `off`,
+`POTONGIN_RENDER_ENGINE=legacy` until the W4 speed-up); `compose.yaml` passes all of them, plus the
+optional `POTONGIN_LLM_EDITOR_MODELS`, to the app only.
+
+Where it was measured (owner rule 2026-10-01: heavy work on GitHub Actions, the owner's PC only for
+targeted tests and one browser pass): the suites and every FFmpeg gate ran in `editor-gates.yml`
+(`suite=full`, `suite=image`, and `suite=command` with `scripts/editor/w3_exit_gates.sh`) on
+4 vCPU runners, so every timing there is indicative. The production image of record is the one
+those runs build (FFmpeg 5.1.9, libass 0.17.1, Python 3.11.2, Node 20). The browser parts ran on the
+owner's PC against the standalone app that image built (downloaded from CI run 36861153869), one
+browser at a time: Chrome for Testing 147.0.7727.15, the fakes specs, the P-TXT subset against the
+image's references, and the real-stack flow on a copy of the owner's job `e7f0d37b` (the original
+only read).
+
+### Summary table
+
+| Gate | Threshold | Measured (W3 exit, integrated branch) | Evidence | Result |
+|---|---|---|---|---|
+| ruff, pytest (Python 3.11), npm test (Node 20), build | green | 0 findings; 4,269 passed; 1,141 pass, 0 fail; compiled (run 36862523910) | — | **pass** |
+| pytest in the production image | green | 4,267 passed, 4 skipped, 1 xfailed (run 36862524594) | — | **pass** |
+| UI guards (main's `ui-guards.test.mjs`) on the editor | no version wording; colours only from `:root`; every text pair AA | 0 / 0 / 0 (the editor's own palette removed, patches 40–42) | — | **pass** |
+| AA contrast of the new pairs (`contrast-check.py`) | 4.5:1 text, 3:1 control edges | cold-open 9.67 on bg, 7.50 on surface-3; selected word 8.13; strong button 18.28; control edge 3.57 | `W3Z-contrast.json` | **pass** |
+| QG-SEC upload fuzz (HTTP and ingest) | 100 % rejected or normalised, no 5xx | 66 cases: 45 rejected, 21 normalised, 0 5xx, both levels | `W3Z-QG-SEC-fuzz-http.json`, `W3Z-QG-SEC-fuzz-ingest.json` | **pass** |
+| QG-SEC route matrix + E11 child env | 20/20; no name outside the allowlist, no planted value | 20/20; 129 children (ffmpeg 37, ffprobe 50, python 42), 0 names outside, 0 planted values | `W3Z-QG-SEC-http.json` | **pass** |
+| Ingest p95 | ≤ 2 s per image, ≤ 8 s per 5-min track | 1,091 ms (60 samples); 5,989 ms (25 samples) | `W3Z-ingest-perf.json` | **pass** (indicative) |
+| G5 (logo in the unsafe zone) | build_plan = export check = §5.9 zone | 450 cases (242 unsafe), 0 mismatches | `W3Z-G5.json` | **pass** |
+| P-LOGO | max ≤ 8 in the logo region | not re-measured (unchanged since T3.2: 17/18 frames pass, 1 frame max 9 from the captions under the logo's transparent pixels) | `T3.2-P-LOGO.json` | **fail, owner decision** (Open 23) |
+| duck (Halus −6, Sedang −10, Kuat −16 dB) | ±0.5 dB, recovery ±1 dB | 9 cases, worst 0.361 dB; 6 recovery checks within 1 dB | `W3Z-duck.json` | **pass** |
+| G3 | −14 ± 1 LUFS, TP ≤ −1 dBTP | −14.0 to −14.1 LUFS, TP −10.9 to −7.1 dBTP | `W3Z-G3.json` | **pass** |
+| G3b (deliberately loud track) | TP ≤ −1.0 dBTP | 9 cases, worst −1.1 dBTP; `peak_reduced` 2.3–12.0 dB | `W3Z-G3b.json` | **pass** |
+| G-CLICK with music | every faded join < −40 dBFS; the hard-cut control must click | worst −59.94 dBFS over 52 joins; control 21/26 | `W3Z-G-CLICK.json` | **pass** |
+| P-AUD (server, preview lane) | PCM md5 equal; samples = plan | md5 equal 6/6; samples 5/6: `02-vfr-bed` 16 samples short on preview and reference alike | `W3Z-P-AUD.json` | **fail** (Open 12, unchanged) |
+| PF-AUDIO with music | p95 ≤ 1,000 ms | p95 834.6 ms, 20 edits, 90 s clip | `W3Z-PF-AUDIO.json` | **pass** (indicative) |
+| QG-AI hard gates (offline) | 0 ungrounded, 0 malformed accepted | `tests/test_editor_ai.py` 73/73 in the image, including the 100 scripted adversarial answers | T3.4 + run 36857927653 | **pass** |
+| QG-AI online (instant p95 ≤ 300 ms; LLM p95 ≤ 15 s, none > 20 s) | as stated | T3.4, local real jobs, free chain: 209 ms; 10.1 s; 0 over 20 s | `T3.4-QG-AI-online.json` | **pass** (owner review at checkpoint 3) |
+| QG-CLEAN labelled set | particles 0 FP, reduplication 0 FP, filler precision ≥ 0.9 | 490 tokens, 37 pairs: 0, 0, 0.933 (agent labels; pre-check stays off) | `W3Z-QG-CLEAN-labels.json` | **pass** |
+| QG-CLEAN cut edges + G-CLICK + G-SYNC | edges inside the gap; < −40 dBFS; A/V ≤ 1 frame | 6 items: 12/12 edges inside, −200 dBFS, A/V end 9.9 ms, 12 caption onsets | `W3Z-QG-CLEAN-synthetic.json` | **pass** |
+| P-FRAME per layout | 0 mismatches | 12 cases (fit-blur, center-crop, face-track; 29.97, 25, 60, VFR), 7,572 frames, 0 | `W3Z-P-FRAME.json` | **pass** |
+| P-PLATE per layout | crop x 0 px, SSIM margin ≥ 0 | 5 cases incl. switched seeds: crop x 0 on 924 + 923 frames × 3 streams; margins 0.00198–0.00200 | `W3Z-P-PLATE.json` | **pass** |
+| Switch: first cell at the playhead | ≤ 3 s (fit-blur, center-crop) | 11 gated cases, max 1.59 s; face-track (reported) 4.8–5.8 s incl. analysis | `W3Z-switch.json` | **pass** (indicative) |
+| Markers exact | 0 frames | node 25/25, pytest, fixture vectors up to date (T3.7: 0 of 2,632 on real clips) | run 36857927653, `T3.7-markers-exact.json` | **pass** |
+| P-RT / R10 | identical frames, PCM, bytes; 100 % hard links | 6/6 clips, 6,813 frames, bytes and PCM identical; R10 27/27 | `W3Z-P-RT.json` | **pass** |
+| G-DET | 0 digest differences; preview ASS = export ASS | 8 cases × 3 processes, 0; 0 ASS mismatches | `W3Z-G-DET.json` | **pass** |
+| P-TXT (subset: 4 packs at 40 chars, hook, fallback) | SSIM ≥ 0.999, PSNR ≥ 45, max ≤ 16, 0 px > 16 | 30 frames (gbrp): SSIM 0.99995, text 0.99964, PSNR 62.77, max 13, 0 | `W3Z-P-TXT.json` | **pass** |
+| Fakes specs on the production build | green | 139 passed, 8 skipped (real-data blocks) | — | **pass** |
+| Real-stack flow, one per feature (`editor-flow.spec.mjs`) | green, time limits | 20 passed: entry, W2 flow, QG-CONFLICT, U1–U7, logo, music, export G1/G2/G3b, hooks, Rapikan, layout, markers, PF-OPEN, QG-A11Y | `W3Z-e2e-*.json`, `W3Z-QG-UX-*.json` | **pass** |
+| Scripted QG-UX U4 and U5 (real stack) | ≤ 30 s; ≤ 60 s | 2.8 s; 4.6 s | `W3Z-QG-UX-U4.json`, `W3Z-QG-UX-U5.json` | **pass** |
+| QG-A11Y (real stack, every W3 panel, both viewports) | 0 critical, 0 serious | 16 states: 0, 0 (2 moderate, Open 19) | `W3Z-QG-A11Y.json` | **pass** |
+
+### Suites
+
+On GitHub Actions at `6857674` (the last code commit; later commits are this document and
+evidence):
+
+- `ci-gate full` (run 36862523910): **success**. ruff "All checks passed!"; pytest on Python 3.11
+  "4269 passed, 2 skipped, 1 xfailed"; npm test on Node 20 "# pass 1141", "# fail 0"; npm run build
+  "✓ Compiled successfully".
+- `ci-gate image` (run 36862524594): **success**. The image builds (Next "✓ Compiled
+  successfully"); pytest inside it (Python 3.11.2, FFmpeg 5.1.9) "4267 passed, 4 skipped, 1 xfailed".
+- Exit-gate command runs (`scripts/editor/w3_exit_gates.sh`): run 36857927653 (web, sec, ai,
+  markers, logo, gdet, ptxt at `96db8fd`: the QG-SEC HTTP half and G-DET failed on the script's own
+  setup, fixed in `24f3d02`), run 36860568957 (sec, gdet at `24f3d02`: pass), run 36857944101
+  (audio: every gate passes except P-AUD's known VFR case), run 36857976574 (clean, rt: pass), run
+  36858009742 (plate: pass), run 36861153869 (web: the standalone app of `1a417e1` for the browser
+  runs). The gate code did not change after those commits.
+- Earlier full runs on this branch: 36857462744 (pytest 4,268 passed, 1 failed: the heartbeat test,
+  patch 47; the web suite did not run), 36860568483 (pytest 4,269 passed; web 1,139 pass, 2 fail:
+  the rebase seams of the next commit).
+
+Browser (owner's PC, Chrome for Testing 147.0.7727.15, one browser at a time, the CI-built
+standalone app):
+
+- Fakes specs on the production build: `editor-shell` 33 passed, 1 skipped (the optional real-clip
+  budget); `editor-layout`, `editor-ai`, `editor-logo`, `editor-music` 54 passed, 4 skipped (their
+  real-stack blocks); harness specs `editor-transcript`, `editor-cleanup`, `editor-markers` 52
+  passed, 3 skipped (axe there ran with `AXE_CORE_PATH`; the skips are real-data blocks).
+- P-TXT subset against the image's references: 30 frames, gbrp gate pass (table).
+- **`web/e2e/editor-flow.spec.mjs` on a fresh copy of the owner's job `e7f0d37b`: 20 passed
+  (3.8 m)**. Entry: 3 cards, each with "Edit klip", the history link, the unprepared clip opened
+  with the progress in 5.5 s. W2 flow (edit, undo/redo, reload, export, G1/G2 on the download,
+  R10 same inode) pass; QG-CONFLICT pass; U1 2.9 s (≤ 20), U2 2.9 s (≤ 20), U3 3.0 s (≤ 45),
+  U4 2.8 s (≤ 30), U5 4.6 s (≤ 60), U6 26.9 s for a 89.3 s clip (≤ 119.3), U7 pass; logo upload
+  1.1 s, music upload 1.1 s, the export with logo and ducked music passes G1, G2 and G3b (G5 warns:
+  the logo sits top right in the TikTok zone, as placed); hook suggestion used; Rapikan 8 listed,
+  8 applied, one Urungkan restores; layout switch exact after 11.5 s (center-crop, cells built)
+  and 1.9 s (back); 11 markers, a click seeks to its frame, a cold-open suggestion applied;
+  PF-OPEN first visit p95 933 ms, repeat 887 ms, first cell 882 ms; QG-A11Y 16 states (both
+  viewports, every W3 panel and the Rapikan review), 0 critical, 0 serious (2 moderate: the cold-open
+  panel's heading order, W2 Open 19). Evidence:
+  `W3Z-e2e-*.json`, `W3Z-QG-UX-U1…U7.json`, `W3Z-PF-OPEN.json`, `W3Z-QG-A11Y.json`,
+  `W3Z-QG-CONFLICT-e2e.json` (renders there used the PC's FFmpeg 6.1.1; the image's gates are the
+  CI rows).
+- Before that pass, two earlier runs found two test seams (the W2 flow expected the W3 tabs hidden;
+  the W3 export flow left its dialog open) and the local server first had a storage setting out of
+  range; QG-A11Y now waits for the panel's entrance animation before axe reads contrast.
+
+### Patches by the W3 integrator (logged per plan §11.0)
+
+Numbering continues from W2.
+
+39. `web/tests/editor-player-plate.test.mjs` (T2.4): `harness()` injects the microtask yield that
+    `gatedHarness` already uses. On Node 20 the default `setTimeout(0)` yield fired after the
+    test's one `setImmediate`, so "need(k, j) decodes the cell from j…" saw the decoder still
+    open (every W3 branch's full run). Assertions unchanged.
+40. Latest-only copy: `src/ai_clipper/edit_v2/errors.py` `_MESSAGES` and its JS copy in
+    `shell-model.mjs`, `clip-edit.mjs`, `clip-entry-view.mjs`, `clip-renders.mjs`, `runtime.mjs`,
+    `EditorApp.jsx`: no "Editor V3", "mesin lama/baru" or "job V3"; the unchanged-clip badge reads
+    "● Belum diubah: ekspor = klip otomatis". Tests keep their checks with the new copy.
+41. Dark design: every editor stylesheet (W2 and W3 files) draws with the `:root` tokens of
+    `app/globals.css`; `editor.module.css` keeps sizes, the focus ring and the popover; new tokens
+    `--cold-open`, `--cold-open-bg`, `--info-veil`, `--danger-veil`, `--shadow`
+    (`docs/design/TOKENS.md`); caption swatches move to `lib/editor/content-colours.mjs`; a
+    transcript keyword is bold and underlined in its swatch (text stays `--text`); the harness page
+    (`transcript/__dev__/bundle.mjs`) carries the `:root` block. Specs: `editor-cleanup` checks
+    the dark tokens and that no lime shows in the review; `editor-transcript` checks the underline.
+42. DESIGN.md "one accent": lime only on Ekspor (and progress fills); panel actions (Terapkan, the
+    logo upload) are the strong neutral button; selections `--surface-3` with light edges;
+    control edges `--border-strong`; focus outlines `--focus`.
+43. Wiring: `LIVE_WAVES` adds `W3`; `EditorApp` gives panels `api`, `previewClient`,
+    `uploadAsset`, `uploadsEnabled`, `notify`, `readOnly` and filters gizmos with `liveEntries`;
+    the real runtime returns T3.1's `uploadAsset`; the page passes `features.uploads`.
+44. Entry (owner feedback): `lib/editor/open-clip.mjs` (the `klip-<n>` address and the automatic
+    job-level prepare), `EditorApp` prepare step with progress, `clip-entry-view` links clips that
+    need preparing, the project page puts "Edit klip" first on every card, the history offers
+    "Edit klip" (`GET /api/jobs` says whether the editor is on), the editor page accepts
+    `klip-<n>` and is titled "Edit klip · Potongin". `prepareClipEntries`, `engineLegacy` and the
+    page's "Siapkan untuk editor" are gone.
+45. `open-clip.prepareForEditor` reads the prepare answer to the end (a production build showed
+    the unread POST cut off as `net::ERR_ABORTED` when the editor left the prepare step).
+46. `compose.yaml`: `POTONGIN_LLM_EDITOR_MODELS` (blank) for the app (T3.4's request);
+    `web/tests/editor-w3-wiring.test.mjs` checks every editor flag and its default.
+47. `tests/test_render_worker.py`: the heartbeat test runs on the queue's clock (it failed on a
+    busy CI runner with an 80 ms wall-clock lease, T3.5's report); without heartbeats it still fails.
+48. Specs: `editor-layout` "does not animate" means under 1 ms (main's global reduced-motion rule
+    leaves 0.01 ms); `editor-shell` lists every element focused without a ring; the project-page
+    block of `editor-shell` follows the new entry; `selection-v3.test.mjs` checks that no view
+    names the engine (main dropped the engine label) and follows main's `ClipCard`.
+49. `web/e2e/editor-flow.spec.mjs`: the entry flow first, then logo, music (and their export with
+    G1–G3), hook suggestions, Rapikan, the layout switch, waveform/markers/cold-open suggestions,
+    the scripted U4 and U5, and QG-A11Y over the W3 panels.
+50. `scripts/editor/w3_exit_gates.sh`: the exit gate by section inside the image (new).
+51. `docs/editor/PANDUAN-EDITOR.md` (every W3 feature, no version words), `CONTRACTS.md` §5.19.
+52. Seams found by the full suite and the real pass: `web/tests/legacy-spawn-env.test.mjs` (W2)
+    keeps E11 for the render-queue helpers (main deleted the four candidate-editor helpers it
+    also covered); `editor.module.css` holds custom properties only (`editor-scaffold` test);
+    `editor-flow.spec.mjs`: the W2 flow expects the W3 tabs and lanes, the W3 export closes its
+    dialog, and QG-A11Y waits for entrance animations before axe reads contrast (the Rapikan
+    review fades in for 240 ms; axe read the fading text as 1.5:1).
+
+### The rebase onto main (what conflicted)
+
+| Commit (rebased) | File | Resolution |
+|---|---|---|
+| `eb85bdb` roadmap | `docs/ROADMAP.md` | main's text (track A and the 2026-09-30 decisions) |
+| `443b0f7` engine switch | `web/lib/selection-v3-view.mjs` | main's file: `selectionSourceLabel` and `isV3Job` are gone there, and `renderEngineView` ("Mesin baru/lama") is not added (latest only; its test replaced, patch 48) |
+| `f165a86` shell, `5ad7855` prepare | `web/app/projects/[id]/page.jsx` | main's page each time; the editor entry rebuilt on it (patch 44) |
+| `17a2b1b` E11 helpers | `web/lib/{candidates,caption-cues,edit-document,candidate-feedback}.mjs` | deleted, as on main (the candidate editor is retired) |
+| `a1c6900` gitleaks | `.gitleaks.toml` | both allowlists kept, each in its own table |
+
+Every other file of both sides merged by itself. gitleaks v8.28.0 with main's config finds nothing
+in `origin/main..editor-w3-integration`.
+
+### Phase-B requests (resolved here or forwarded)
+
+| From | Request | Status |
+|---|---|---|
+| T3.1–T3.7 | the Node 20 failure in `editor-player-plate.test.mjs` | **fixed** (patch 39) |
+| T3.2 | connect the real upload client to the Logo panel | **done** (patch 43) |
+| T3.2 | P-LOGO 1/18 frames: does "logo region" include what shows through a transparent logo? | **owner decision**, checkpoint 3 (Open 23) |
+| T3.3 | GATES rows for the music gates | **done** (table above) |
+| T3.3 | P-AUD VFR 16-sample shortfall | **open** (Open 12, compiler's source-audio path; W4/W5) |
+| T3.3, T3.6 | PF-AUDIO and PF-CELLS fit-blur budgets on 4 vCPU | PF-AUDIO passes this run; PF-CELLS fit-blur forwarded to W4/T4.3 |
+| T3.4 | the shell passes its API client to the panels | **done** (patch 43) |
+| T3.4 | compose passes `POTONGIN_LLM_EDITOR_MODELS` | **done** (patch 46) |
+| T3.5 | the flaky render-worker heartbeat test | **fixed** (patch 47) |
+| T3.5 | the owner confirms the 490 filler labels | checkpoint 3 |
+| T3.6 | the lane does not re-queue a cell deleted within 30 s of its build | forwarded to W4/T4.3 (Open 24) |
+| T3.7 | the gitleaks command needs the main `.git` mounted in a worktree | used here; noted in HANDOFF |
+
+### Open (W3 additions; the W1 and W2 lists above stay)
+
+22. **PF-CELLS fit-blur** is thin on a 4 vCPU runner (projected 16–21 s for a 60 s clip against
+    15 s; the owner's PC measured 13.4 s in W2): the W4 speed-up (T4.3).
+23. **P-LOGO, 1 of 18 frames** (max 9 against 8) comes from captions seen through the logo's
+    transparent pixels; the threshold is unchanged until the owner decides what the logo region is.
+24. **The preview lane** does not re-queue a cell deleted within 30 s of being built (cache
+    eviction, outside cleanup): the editor recovers on its next poll (T3.6; W4).
+25. **Uploads and AI stay off** until the owner's checkpoint 3 (QG-AI review) and W4's security
+    review; both are wired and gated.
+26. **Filler pre-check** stays off until the owner confirms the labels (QG-CLEAN precision on
+    agent labels 0.933).

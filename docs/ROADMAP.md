@@ -214,8 +214,10 @@ Keputusan: esensial dulu, lalu bertahap. Desain final ada di scratchpad sesi
   Isinya 4 gelombang (W1–W4, ~30 agen) + cadangan W5; riset di
   [`docs/plans/editor-v3-research/`](plans/editor-v3-research/).
 - ✅ Keputusan pemilik K1–K15: semua rekomendasi diterima; mesin acuan = PC Ryzen 7 5700G.
-- 🔄 Eksekusi editor: W1 (mesin render tunggal) dan W2 (editor bisa dipakai) selesai di branch
-  `editor-w3-base`; tugas W3 sebagian. Status dan langkahnya: [`docs/HANDOFF.md`](HANDOFF.md) §4.
+- 🔄 Eksekusi editor: W1 (mesin render tunggal), W2 (editor bisa dipakai) dan W3 (semua fitur
+  Esensial: logo, musik, saran hook AI, Rapikan, tata letak, penanda) selesai di branch
+  `editor-w3-integration`, di atas `main` terbaru. Berikutnya titik cek pemilik 3 lalu W4.
+  Status dan langkahnya: [`docs/HANDOFF.md`](HANDOFF.md) §4.
 - (arsip) Keputusan teknis dari desain FINAL (rekomendasi dalam kurung):
   - komposit yuv444p (ya);
   - blur "plate" resolusi rendah (perlu dilihat berdampingan);
