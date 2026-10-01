@@ -148,6 +148,28 @@ def test_the_three_readers_run_at_the_same_time(tmp_path, edit_v2_ffmpeg, monkey
     assert run_verify(path, plan).to_json() == expected
 
 
+def test_the_frame_count_decodes_on_every_cpu_of_the_budget(tmp_path, edit_v2_ffmpeg,
+                                                            monkeypatch):
+    """T4.3: the probe's full decode (the longest reader, on the tail of an auto render) uses
+    the CPU budget, at least ``FFMPEG_THREADS``; the decoded frame count does not depend on it."""
+    path = encode(tmp_path / "good.mp4")
+    plan = small_plan()
+    seen = []
+    real = verify._run
+
+    def recording(argv, fd, *, timeout_s):
+        if "-count_frames" in argv:
+            seen.append(argv[argv.index("-threads") + 1])
+        return real(argv, fd, timeout_s=timeout_s)
+
+    monkeypatch.setattr(verify, "_run", recording)
+    for budget, threads in ((16, "16"), (2, str(verify.FFMPEG_THREADS))):
+        monkeypatch.setattr(verify, "cpu_budget", lambda budget=budget: budget)
+        report = run_verify(path, plan)
+        assert report.gate("G2").values["frames"] == FRAMES
+        assert seen[-1] == threads
+
+
 def test_a_pipe_is_not_a_regular_file():
     plan = small_plan()
     read, write = os.pipe()
