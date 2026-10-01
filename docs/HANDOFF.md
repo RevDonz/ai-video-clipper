@@ -1,6 +1,6 @@
 # Handoff: status dan cara melanjutkan
 
-Terakhir diperbarui 2026-09-30. Pekerjaan agen dihentikan pemilik untuk menghemat token; semua hasil
+Terakhir diperbarui 2026-10-01. Pekerjaan agen dihentikan pemilik untuk menghemat token; semua hasil
 sementara ada di branch GitHub di bawah. Dokumen ini untuk agen atau device mana pun yang
 melanjutkan. Aturan proyek: `AGENTS.md`; arah desain: `DESIGN.md`.
 
@@ -29,7 +29,7 @@ Deploy terjadi otomatis lewat CI setiap ada merge ke `main`.
   1,4–2× lebih lambat). Encode kualitas tinggi (file ± 2,3× lebih besar) sudah disetujui.
 - Rencana editor dan semua keputusan K1–K15: `docs/plans/2026-09-24-editor-v3-esensial.md` §12.
 
-## 3. Jalur A (disarankan dulu): UI "selalu terbaru" + tema gelap
+## 3. Jalur A: UI "selalu terbaru" + tema gelap (selesai, menunggu PR)
 
 Tujuan: dashboard satu alur tanpa V1/V2/"Mode lama", tanpa label versi di mana pun, editor lama
 dipensiunkan (halaman dan route web-nya dihapus, tautan lama diarahkan ke halaman proyek), semua
@@ -39,20 +39,36 @@ v1/v2; default CLI ikut terbaru. Modul backend lama dibiarkan dulu (dihapus di j
 | Branch | Isi | Status |
 |---|---|---|
 | `ui-dark-tokens` | token gelap + header bersama | selesai |
-| `ui-dark-p1` | login, landing, dashboard, default API/CLI | sebagian (commit terakhir "wip", belum ditinjau) |
-| `ui-dark-p2` | riwayat, halaman proyek, pensiun editor lama | sebagian (commit terakhir "wip", belum ditinjau) |
-| `ui-dark-p3` | Pengaturan, Konteks Tren | kemungkinan selesai, perlu dicek |
+| `ui-dark-p1` | login, landing, dashboard, default API/CLI | selesai (wip ditinjau dan ditulis ulang) |
+| `ui-dark-p2` | riwayat, halaman proyek, pensiun editor lama | selesai (wip ditinjau dan ditulis ulang) |
+| `ui-dark-p3` | Pengaturan, Konteks Tren, halaman 404/galat | selesai |
+| `feat/ui-latest-dark` | semuanya di atas `main` + sambungan + penjaga CI | selesai, siap PR |
 
 Langkah:
-1. Selesaikan p1 dan p2 dari commit "wip" (jangan mulai ulang); cek p3.
-2. Gabungkan ke `feat/ui-latest-dark`: cherry-pick p1 → p2 → p3 di atas `ui-dark-tokens`, lalu
-   rebase ke `main` terbaru.
-3. Jalankan semua tes (lihat §6), screenshot semua halaman di 1366 dan 390 px, audit antislop
-   (kontras dengan `python3 .claude/skills/antislop-human/contrast-check.py`), cari sisa kata
-   versi (V1|V2|V3|Selection V|Mode lama|mesin lama|mesin baru|llm-select) di teks yang terlihat.
-4. PR ke `main` (merge rebase) → deploy.
-5. Tambahkan penjaga CI: gagal bila ada label versi di tampilan, warna di luar token, atau kontras
-   di bawah AA.
+1. Selesai: p1 dan p2 diselesaikan dari commit "wip"; p3 dicek.
+2. Selesai: digabung ke `feat/ui-latest-dark` (riwayat linear di atas `main` `0b07bb8`).
+3. Selesai: semua tes (§6), screenshot semua halaman di 1366 dan 390 px, audit antislop (kontras
+   dengan `python3 .claude/skills/antislop-human/contrast-check.py`), cari sisa kata versi
+   (V1|V2|V3|Selection V|Mode lama|mesin lama|mesin baru|llm-select) di teks yang terlihat.
+4. Belum: PR ke `main` (merge rebase) → deploy.
+5. Selesai: penjaga CI (label versi di tampilan, warna di luar token, kontras di bawah AA).
+
+Hasil integrasi:
+- p1, p2, p3 di-cherry-pick di atas `ui-dark-tokens`; konflik di `globals.css`, `jobs.mjs` dan
+  `TrendChips` diselesaikan, gaya global yang tak dipakai lagi dibuang.
+- Sambungan: riwayat dan halaman proyek menyembunyikan teks tahap/galat yang menyebut versi
+  (sama seperti dashboard, `web/lib/stage-detail.mjs`); label sumber "V1" yang tak terpakai
+  dihapus; kilau bar progres memakai token `--sheen`; tautan kecil di Pengaturan dan Konteks Tren
+  jadi target 44 px; input tanggal kini menampilkan cincin fokus.
+- Penjaga CI `web/tests/ui-guards.test.mjs` (jalan di `npm test`): kata versi di string dan teks
+  JSX (`app`, `components`, `lib`, `scripts`), warna di luar token `:root`, dan setiap pasangan
+  teks/latar yang dipakai stylesheet di bawah AA. Tiap penjaga dibuktikan gagal pada pelanggaran
+  yang ditanam.
+
+Catatan terbuka untuk pemilik:
+pilihan "Tanpa LLM" per job hilang dari dashboard (AI diatur di Pengaturan; API masih menerima
+`llmMode=off`); route status render `/api/jobs/<id>/renders/<renderId>` dibiarkan untuk editor
+baru.
 
 ## 4. Jalur B: Editor (W3 sebagian, lalu W4)
 
@@ -96,7 +112,7 @@ render.
 ## 5. Lain-lain yang tertunda
 
 - Judul klip fokus dari heuristik masih kasar: satu permintaan LLM untuk merapikan judulnya.
-- Perbarui `docs/ROADMAP.md` dengan keputusan 2026-09-30.
+- ~~Perbarui `docs/ROADMAP.md` dengan keputusan 2026-09-30.~~ Selesai di `feat/ui-latest-dark`.
 - Pemilik: ganti API key LLM dan password server yang pernah tertempel di chat.
 
 ## 6. Menyiapkan lingkungan di device baru

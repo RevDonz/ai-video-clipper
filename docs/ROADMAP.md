@@ -1,9 +1,15 @@
 # Roadmap & status Potongin
 
-Terakhir diperbarui: 2026-09-24. Legenda: ✅ selesai · 🔄 sedang dikerjakan · ⬜ belum · ⏸️ ditunda
+Terakhir diperbarui: 2026-10-01. Legenda: ✅ selesai · 🔄 sedang dikerjakan · ⬜ belum · ⏸️ ditunda
 (menunggu keputusan). Selection V3 dan halaman Pengaturan AI sudah di `main` dan live di
 https://potongin.revdonz.dev sejak 2026-09-24. Empat tugas susulan (server LLM sendiri + 9Router,
 thumbnail + upgrade Next/React, Whisper, heuristik v3.1) ada di branch `feat/v3-followups`.
+
+Keputusan pemilik 2026-09-30 berlaku untuk semua bagian di bawah (rinciannya di
+[`docs/HANDOFF.md`](HANDOFF.md) §2): tampilan selalu terbaru tanpa label versi atau mode lama,
+tema gelap di semua halaman ([`DESIGN.md`](../DESIGN.md)), LLM gratis dulu, editor lama
+dipensiunkan. Jalur A (UI selalu terbaru + tema gelap) selesai di branch `feat/ui-latest-dark`
+dan menunggu PR ke `main`.
 
 Dokumen rujukan:
 - Rencana teknis: [`docs/plans/2026-09-24-selection-v3-llm-hooks.md`](plans/2026-09-24-selection-v3-llm-hooks.md)
@@ -158,13 +164,27 @@ Dokumen rujukan:
 
 - ✅ Artefak `analysis/` dan sumber YouTube tidak lagi "tersangkut" di `.attempts/` untuk job
   dashboard.
-- ✅ Dashboard:
+- ✅ Dashboard (2026-09-24, diganti alur tunggal 2026-10-01):
   - V3 sebagai default ("AI Hook (V3)");
   - pilihan LLM/heuristik, cold open, teks hook, karaoke/klasik;
   - badge status LLM;
   - mode lama di menu terpisah.
 - ✅ Halaman proyek "Klip siap posting": judul, teks hook, jenis hook, skor + 5 sub-skor,
   alasan, caption + hashtag + tombol salin, badge sumber, chip cold open.
+- ✅ **Selalu terbaru + tema gelap (jalur A, 2026-10-01, branch `feat/ui-latest-dark`)**:
+  - dashboard satu alur tanpa pilihan mode dan tanpa label versi; AI dinyalakan atau dimatikan
+    hanya di Pengaturan, dashboard menampilkan statusnya;
+  - job baru selalu memakai seleksi terbaru: API menolak `v1`/`v2-shadow` dengan 400 berbahasa
+    Indonesia, default CLI ikut terbaru, job lama yang masih antre tetap jalan dengan modenya;
+  - job lama (V1/V2) tetap bisa dilihat dan diunduh, tanpa label versi dan tanpa skor skala lama;
+    teks tahap dan galat yang menyebut versi tidak tampil;
+  - editor kandidat lama dipensiunkan: halaman dan route web-nya dihapus, tautan lama membuka
+    halaman proyek; modul Python-nya menunggu jalur B;
+  - semua halaman gelap sesuai `DESIGN.md` (token di `docs/design/TOKENS.md`), kontras AA,
+    390 px tanpa scroll ke samping, bisa dipakai dengan keyboard; halaman 404 dan galat
+    berbahasa Indonesia;
+  - penjaga CI di `npm test` (`web/tests/ui-guards.test.mjs`): kata versi di tampilan, warna di
+    luar token, dan pasangan teks/latar di bawah AA membuat tes gagal.
 - ✅ Worker mengunduh subtitle YouTube (manual + auto).
 - ✅ `compose.yaml` meneruskan variabel LLM; `.env.example` punya bagian LLM; README
   diperbarui.
@@ -193,7 +213,8 @@ Keputusan: esensial dulu, lalu bertahap. Desain final ada di scratchpad sesi
   Isinya 4 gelombang (W1–W4, ~30 agen) + cadangan W5; riset di
   [`docs/plans/editor-v3-research/`](plans/editor-v3-research/).
 - ✅ Keputusan pemilik K1–K15: semua rekomendasi diterima; mesin acuan = PC Ryzen 7 5700G.
-- ⏸️ **Eksekusi editor ditunda atas permintaan pemilik.** Saat dimulai, langsung W1.
+- 🔄 Eksekusi editor: W1 (mesin render tunggal) dan W2 (editor bisa dipakai) selesai di branch
+  `editor-w3-base`; tugas W3 sebagian. Status dan langkahnya: [`docs/HANDOFF.md`](HANDOFF.md) §4.
 - (arsip) Keputusan teknis dari desain FINAL (rekomendasi dalam kurung):
   - komposit yuv444p (ya);
   - blur "plate" resolusi rendah (perlu dilihat berdampingan);
@@ -201,15 +222,10 @@ Keputusan: esensial dulu, lalu bertahap. Desain final ada di scratchpad sesi
   - Node di jalur render (ya);
   - selisih versi libass (terima dengan gerbang);
   - browser Chrome/Edge desktop dulu (ya).
-- ⬜ Perbaiki 8 bug editor lama:
-  - opasitas latar caption;
-  - caption terpotong sekitar 64 karakter;
-  - escape `\N`;
-  - normalize 96 kHz;
-  - logo tidak pernah ter-render;
-  - warna kata kunci tidak berfungsi;
-  - simpan mati setelah 1.000 kali;
-  - render lama tidak ikut diperbaiki.
+- ✅ Editor lama (kandidat V2) dipensiunkan 2026-10-01 (keputusan pemilik 2026-09-30), jadi 8
+  bug-nya tidak diperbaiki lagi: opasitas latar caption, caption terpotong sekitar 64 karakter,
+  escape `\N`, normalize 96 kHz, logo tidak pernah ter-render, warna kata kunci, simpan mati
+  setelah 1.000 kali, render lama. Jalur backend-nya dihapus di W4.
 - ⬜ Buka klip V3 di editor (`clip_id` stabil; revisi 0 = versi AI).
 - ⬜ Trim menempel ke kata dan atur cold open.
 - ⬜ Edit teks hook dan saran hook dari AI.
