@@ -24,7 +24,9 @@
   "thresholds": {"ungrounded_accepted": 0, "malformed_accepted": 0},
   "suites": {
     "local": "Python 3.13.13, FFmpeg 6.1.1: tests/test_editor_ai.py 73 passed",
-    "image": "ai-video-clipper:editor-w3base (Python 3.11.2, FFmpeg 5.1.9): tests/test_editor_ai.py 73 passed"
+    "image": "ai-video-clipper:editor-w3base (Python 3.11.2, FFmpeg 5.1.9): tests/test_editor_ai.py 73 passed",
+    "ci_image": "GitHub Actions editor-gates run 36847186553 (suite=command, production image built from 0d77f97; Python 3.11.2, FFmpeg 5.1.9): tests/test_editor_ai.py 73 passed",
+    "ci_full": "GitHub Actions editor-gates run 36846131194 (suite=full at 0d77f97; Python 3.11, Node 20): ruff clean, pytest 3856 passed and 2 skipped; npm test 999 passed and 1 failed in web/tests/editor-player-plate.test.mjs (T2.4's file; it fails the same way on every W3 branch and is not a T3.4 test)"
   },
   "also_offline": {
     "deadline": "a client that answers after 5 s is stopped at a 0.3 s deadline (test_the_deadline_stops_the_task); DEADLINE_S is 20.0",
