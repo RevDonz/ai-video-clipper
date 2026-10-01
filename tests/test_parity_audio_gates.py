@@ -11,6 +11,7 @@ silences the audio; the documents are the ones the Musik panel builds and the va
 from __future__ import annotations
 
 import array
+import itertools
 import json
 import math
 import subprocess
@@ -103,6 +104,44 @@ def test_join_steps_find_a_hard_cut_and_pass_a_faded_join() -> None:
     for n in range(4800, 9600):
         jumped[2 * n] = jumped[2 * n + 1] = 12000
     assert audio_gates.join_steps_dbfs(jumped, [4800])[0] > -40
+
+
+def _clip_with_words(count: int = 40) -> audio_gates.Clip:
+    """A Clip over 400 ms words 200 ms apart at 30 fps; the bounds sit in the gaps."""
+    clip = object.__new__(audio_gates.Clip)
+    clip.fps = FPS
+    clip.seed = {"main": {"segments": [{"id": "sg_body", "in_sf": 0, "out_sf": 18 * count}]}}
+    words = [{"id": f"w{i}", "s": 600 * i + 100, "e": 600 * i + 500} for i in range(count)]
+    bounds = [{"before": f"w{i}", "after": f"w{i - 1}" if i else None, "sf": 18 * i}
+              for i in range(count)]
+    bounds.append({"before": None, "after": f"w{count - 1}", "sf": 18 * count})
+    clip.words = {"words": words, "bounds": bounds}
+    return clip
+
+
+def test_removals_cut_on_the_bounds_or_inside_the_words() -> None:
+    clip = _clip_with_words()
+    spans = {w["id"]: (w["s"], w["e"]) for w in clip.words["words"]}
+    on_bounds = clip.removals(8)
+    assert len(on_bounds) == 8
+    assert all(r["in_sf"] % 18 == 0 and r["out_sf"] % 18 == 0 for r in on_bounds)
+    mid = clip.removals(8, mid_word=True)
+    assert [r["words"] for r in mid] == [r["words"] for r in on_bounds]
+    for removal in mid:
+        for edge, word in ((removal["in_sf"], removal["words"][0]),
+                           (removal["out_sf"], removal["words"][-1])):
+            ms = edge * 1000 * FPS.den / FPS.num
+            assert spans[word][0] < ms < spans[word][1], (edge, word)
+    assert all(a["out_sf"] <= b["in_sf"] for a, b in itertools.pairwise(mid))
+
+
+def test_g_click_passes_only_when_its_hard_cut_control_sees_a_click() -> None:
+    assert audio_gates.click_pass([-70.0, -66.2], [-60.1, -55.0], [-30.0, -52.0])
+    assert not audio_gates.click_pass([-70.0, -39.9], [-60.1], [-30.0])  # a click at a word bound
+    assert not audio_gates.click_pass([-70.0], [-40.0], [-30.0])  # a click mid-word
+    assert not audio_gates.click_pass([-70.0], [-60.1], [-52.0, -41.0])  # the control is blind
+    assert not audio_gates.click_pass([], [-60.1], [-30.0])
+    assert not audio_gates.click_pass([-70.0], [], [])
 
 
 def test_the_g3_and_g3b_rules() -> None:
