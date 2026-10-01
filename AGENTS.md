@@ -32,8 +32,9 @@ owner; when one is in doubt, ask before acting against it.
 - On the owner's PC, the local apps run on ports 3000 and 3001 and use `artifacts/local`
   (read-only for agents). Stop only processes you started, by PID; never kill by name or port.
 - Tests first for behaviour changes; never weaken a threshold or a test to make it pass.
-- **Do not load the owner's PC** (owner's request, 2026-10-01). Locally run only targeted tests
-  for the files you change; at most 3 agents in parallel. Whole suites, Docker image builds,
+- **Do not load the owner's PC with heavy tests** (owner's request, 2026-10-01). Many agents in
+  parallel are fine; what lagged the PC was heavy test work. Locally run only targeted tests for
+  the files you change. Whole suites, Docker image builds,
   FFmpeg gate measurements and browser suites run on GitHub Actions: push the work branch, then
   `gh workflow run editor-gates.yml -f ref=<branch> -f suite=full|image|command [-f command='…']`,
   follow it with `gh run watch`, read failures with `gh run view --log-failed`, fetch outputs with
