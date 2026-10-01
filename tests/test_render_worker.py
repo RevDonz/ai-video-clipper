@@ -427,6 +427,18 @@ def test_v3_worker_skips_old_jobs_and_directories_that_are_not_jobs(tmp_path):
     assert sorted(path.name for path in old.iterdir()) == ["job.json", "output"]
 
 
+def test_v3_worker_writes_nothing_into_a_job_that_was_never_exported(tmp_path):
+    """A job with analysis/ but no export has no queue: the worker's scan must not create one
+    (render-requests/ and its .queue.lock) in every old job it walks past."""
+    job, request = v3_queued(tmp_path)
+    untouched = job.root / str(uuid.uuid4())
+    (untouched / "analysis").mkdir(parents=True)
+    (untouched / "job.json").write_text('{"status":"completed"}')
+    assert v3_worker(job, renderer_v3=publishing(job)) == request["render_id"]
+    assert v3_worker(job, renderer_v3=publishing(job)) is None
+    assert sorted(path.name for path in (untouched / "analysis").iterdir()) == []
+
+
 def test_v3_worker_heartbeats_during_a_long_render_and_prevents_reclaim(tmp_path, monkeypatch):
     # One fake clock drives the queue's timestamps and the monitor's heartbeat timer: the worker
     # can beat only when the test moves that clock, and the test waits for the beat itself, so
