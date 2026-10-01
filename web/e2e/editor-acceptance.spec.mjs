@@ -25,6 +25,9 @@
 //   E2E_EDITOR_LLM=1 (optional)                the server runs with POTONGIN_EDITOR_LLM=on
 //   AXE_CORE_PATH                              axe.min.js (axe-core is not a web dependency)
 //   EDITOR_GATES_OUT (optional)                where the evidence JSON is written (numbers only)
+//   resources/toolchain.json                   the server's own file, in this checkout (gitignored;
+//                                              `docker cp <app>:/app/resources/toolchain.json resources/`
+//                                              for the image): capability 11 recomputes the render key
 // The server must run with POTONGIN_EDITOR_UPLOADS=on. FFmpeg and ffprobe must be on PATH. The
 // browser is Chrome for Testing 147.0.7727.15 (Playwright build 1217) when installed; PARITY_CHROME
 // overrides it. Run (one browser, one worker):
@@ -268,6 +271,14 @@ async function exportClip(page, { timeout = 600_000 } = {}) {
   await expect(dialog).toBeVisible();
   for (const box of await dialog.getByRole("checkbox").all()) await box.check();
   const created = page.waitForResponse((response) => response.request().method() === "POST" && /\/renders$/.test(new URL(response.url()).pathname));
+  // The stages the dialog received from its status polls (GET /renders/:id, once a second).
+  const received = new Set();
+  const onStatus = async (response) => {
+    if (response.request().method() !== "GET" || !/\/renders\/[0-9a-f-]{36}$/.test(new URL(response.url()).pathname)) return;
+    const body = await response.json().catch(() => null);
+    if (typeof body?.stage === "string") received.add(body.stage);
+  };
+  page.on("response", onStatus);
   const started = Date.now();
   await dialog.getByRole("button", { name: "Mulai ekspor" }).click();
   const createdResponse = await created;
@@ -281,8 +292,12 @@ async function exportClip(page, { timeout = 600_000 } = {}) {
       await page.waitForTimeout(150);
     }
   })();
-  await expect(link.or(dialog.getByRole("alert"))).toBeVisible({ timeout });
-  await watch;
+  try {
+    await expect(link.or(dialog.getByRole("alert"))).toBeVisible({ timeout });
+    await watch;
+  } finally {
+    page.off("response", onStatus);
+  }
   if (!(await link.isVisible())) {
     throw new Error(`export failed: ${createdResponse.status()} ${JSON.stringify(first)}: ${await dialog.getByRole("alert").textContent()}`);
   }
@@ -290,7 +305,8 @@ async function exportClip(page, { timeout = 600_000 } = {}) {
   const polled = await api(page, "GET", `/api/jobs/${JOB_ID}/renders/${first.renderId}`);
   const final = polled.status === 200 ? polled.body : first;
   await expect(dialog.getByText(`Revisi ${final.revision} · tersimpan`)).toBeVisible();
-  return { dialog, render: final, created: first, createdStatus: createdResponse.status(), doneMs, steps: [...steps] };
+  return { dialog, render: final, created: first, createdStatus: createdResponse.status(), doneMs, steps: [...steps],
+    receivedStages: [...received] };
 }
 
 // Downloads and scratch files live in temporary folders removed after each test.
@@ -1218,7 +1234,14 @@ test("Kemampuan 13, ekspor lewat antrean: stages, MP4 + SRT, G1–G3, the same k
   const first = await exportClip(page);
   expect(first.render.state).toBe("completed");
   expect(first.render.completedBy).toBe("render");
-  for (const stage of ["Merender", "Memverifikasi"]) expect(first.steps.join("|"), `stage ${stage} shown`).toContain(stage);
+  // The dialog shows every stage its status polls received. It polls once a second, and a short
+  // clip can finish verifying between two polls (W4 verifier: a 24 s clip went Merender → Selesai),
+  // so Memverifikasi is required on screen whenever a poll returned it. The verification itself is
+  // proven by completedBy "render" (published only after G1–G3b) and the G1–G3 checks below.
+  expect(first.receivedStages, "the dialog saw the render running").toContain("merender");
+  for (const [stage, label] of [["merender", "Merender"], ["memverifikasi", "Memverifikasi"]]) {
+    if (first.receivedStages.includes(stage)) expect(first.steps.join("|"), `stage ${label} shown`).toContain(label);
+  }
   const mp4 = await download(page, first.dialog, "Unduh MP4");
   const srt = await download(page, first.dialog, "Unduh SRT");
   expect(path.basename(mp4)).toBe(`klip-${String(clip.index).padStart(2, "0")}-revisi-${first.render.revision}.mp4`);
@@ -1261,6 +1284,7 @@ test("Kemampuan 13, ekspor lewat antrean: stages, MP4 + SRT, G1–G3, the same k
   expect(exported.ino === original.ino && exported.dev === original.dev, "the auto file itself").toBe(true);
   await auto.dialog.getByRole("button", { name: "Tutup" }).click();
   writeEvidence("T4.5-acceptance-13-export", { capability: 13, clipDurationMs: clip.durationMs, renderMs: first.doneMs, steps: first.steps,
+    receivedStages: first.receivedStages,
     notes, reusedBy: again.render.completedBy, cancelled: true, r10: auto.render.completedBy,
     gates: verified.report?.gates?.map((gate) => ({ name: gate.name, ok: gate.ok })), pass: true });
 });
@@ -1331,8 +1355,18 @@ async function keyboardWalk(page, scope, maxStops = 160) {
   return { stops: visited.length, noRing: visited.filter((entry) => !entry.ring).map((entry) => entry.name), ...report };
 }
 
+// Contrast is measured on the settled page: the open panel done loading (content that arrives
+// after a fetch, like the cold-open suggestions, fades in late), then 300 ms without a running
+// animation (a fading panel is see-through and axe would read its text).
 async function axeRun(page) {
-  await page.waitForFunction(() => document.getAnimations().every((animation) => animation.playState !== "running"));
+  await expect(page.locator('[data-panel][aria-busy="true"], [data-panel] [aria-busy="true"]')).toHaveCount(0, { timeout: 45_000 });
+  await page.evaluate(() => { globalThis.__axeQuietSince = null; });
+  await page.waitForFunction(() => {
+    const now = performance.now();
+    if (document.getAnimations().some((animation) => animation.playState === "running")) globalThis.__axeQuietSince = null;
+    else globalThis.__axeQuietSince ??= now;
+    return globalThis.__axeQuietSince !== null && now - globalThis.__axeQuietSince >= 300;
+  }, null, { polling: 50 });
   await page.addScriptTag({ content: AXE });
   return page.evaluate(async () => {
     const report = await globalThis.axe.run(document, { resultTypes: ["violations"] });
