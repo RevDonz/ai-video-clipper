@@ -1509,7 +1509,8 @@ goldens, the render keys and the delivered bytes stay as they were.
   (`max(mtime, atime)`, never a file used in the last 10 min), temporaries and `.cancel`
   markers older than 10 min, assets unreferenced for 30 days (first seen in
   `analysis/assets/.janitor.json` {schema `potongin.janitor/1`, `orphans: {sha: ms}`}; a
-  document that cannot be read keeps every asset). Jobs being deleted are skipped.
+  document that cannot be read keeps every asset; a request's `doc_relative` counts only when it
+  is `analysis/clips/<clip>/edit/archive/r<N>.<sha>.json.gz`). Jobs being deleted are skipped.
 - **Primary worker.** `createJanitorTick` / `createWorkerActivity` in
   `web/scripts/primary-worker.mjs`: slot 0 runs the janitor after the deletion purge when no job
   is active or being claimed, at most every `DEFAULT_JANITOR_INTERVAL_MS` (6 h) and at once on
