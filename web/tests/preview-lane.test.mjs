@@ -216,6 +216,54 @@ test("the same body shares one plan op and later polls are answered from the cac
   }
 });
 
+test("a cell, mix or logo removed right after it was built is queued again on the next poll", async () => {
+  // W3 Open 24 (T4.3): the lane remembered a built cell for 30 s and did not queue it again when
+  // the cache cap (or the janitor) removed its file in that window; the poll checks the disk.
+  const { dir, clip, cleanup } = root();
+  let at = 1_000_000;
+  const cli = fakeCli();
+  const lane = createPreviewLane({ jobsRoot: dir, runCli: cli.run, heavySlots: 2, now: () => at });
+  const logo = { asset: `sha256:${"9".repeat(64)}`, w: 20, h: 10, opacityPm: 850, name: `${"8".repeat(16)}@20x10a850.png`, ready: false };
+  const derived = path.join(clip, "preview", "derived", logo.name);
+  try {
+    const first = lane.plan({ jobId: JOB, clipId: CLIP, body: planBody() });
+    await settle();
+    cli.pending("plan")[0].resolve({ exitCode: 0, json: planResult({ cells: [10], missing: [10], logo }) });
+    assert.equal((await first).status, 200);
+    await settle();
+    for (const call of cli.pending()) {
+      if (call.op === "audio") {
+        readyAudio(clip);
+        call.resolve({ exitCode: 0, json: { audioKey: AUDIO, name: `${AUDIO.slice(0, 16)}.flac`, built: true, samples: 100, gainCdb: 0, warnings: [] } });
+      } else if (call.op === "derive") {
+        mkdirSync(path.dirname(derived), { recursive: true });
+        writeFileSync(derived, "png");
+        call.resolve({ exitCode: 0, json: { name: logo.name, built: true } });
+      }
+    }
+    await settle();
+    const [cells] = cli.pending("cells");
+    readyCell(clip, 10);
+    cells.resolve(cellsResult(cells.payload));
+    await lane.idle();
+    at += 1_000; // well inside the 30 s memory of a finished build
+    rmSync(path.join(clip, "preview", "plates", `${KEY.slice(0, 16)}-c0000010.mp4`));
+    rmSync(path.join(clip, "preview", "audio", `${AUDIO.slice(0, 16)}.flac`));
+    rmSync(derived);
+    const polled = await lane.plan({ jobId: JOB, clipId: CLIP, body: planBody() });
+    assert.deepEqual(polled.json.plate.cells, [{ k: 10, state: "queued" }]);
+    await settle();
+    const again = cli.pending().filter((c) => c.op !== "plan").map((c) => c.op).sort();
+    assert.deepEqual(again, ["audio", "derive"]); // priority work first; the cell waits for a slot
+    for (const call of cli.pending()) call.resolve(call.op === "cells" ? cellsResult(call.payload) : { exitCode: 0, json: {} });
+    await settle();
+    assert.deepEqual(cli.calls.filter((c) => c.op === "cells").map((c) => c.payload.cells), [[10], [10]]);
+  } finally {
+    lane.close();
+    cleanup();
+  }
+});
+
 test("polls of the same document hit the cache whatever their known sha or playhead", async () => {
   const { dir, clip, cleanup } = root();
   const cli = fakeCli();
