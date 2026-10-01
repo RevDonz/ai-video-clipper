@@ -207,6 +207,7 @@ test("the web app keeps nothing of the retired editor's backend", async () => {
   for (const file of files) {
     const source = await readFile(file, "utf8");
     assert.doesNotMatch(source, retiredModules, file);
-    assert.doesNotMatch(source, /--job-dir|render-request-v1|createRenderRequest|sanitizeRenderStatus/, file);
+    // nothing reads the retired requests' fields or speaks their queue protocol
+    assert.doesNotMatch(source, /--job-dir|runRenderQueuePython|createRenderRequest|sanitizeRenderStatus|edit_manifest_relative|candidate_snapshot_relative/, file);
   }
 });

@@ -1,5 +1,5 @@
-// GET: status of a legacy (unchanged DTO) or render-request-v3 export; DELETE: cancel a v3
-// export (plan §4.2, §4.6). The handlers live in web/lib/clip-renders.mjs.
+// GET: status of an export; DELETE: cancel it (plan §4.2, §4.6). Requests of the retired
+// candidate editor answer 404. The handlers live in web/lib/clip-renders.mjs.
 import { createRenderStatusRoute } from "../../../../../../lib/clip-renders.mjs";
 
 export const dynamic = "force-dynamic";
