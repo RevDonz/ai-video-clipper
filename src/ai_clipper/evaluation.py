@@ -21,14 +21,14 @@ import sys
 import unicodedata
 import uuid
 from collections import Counter
+from datetime import datetime
 from itertools import pairwise
 from pathlib import Path
 from statistics import median
 from urllib.parse import quote, unquote_to_bytes, urlsplit, urlunsplit
 
-from .candidate_feedback import FeedbackArtifactInvalid, read_candidate_feedback_state
 from .models import TranscriptSegment
-from .ranking import MAX_ARTIFACT_BYTES, CandidatesArtifact
+from .ranking import MAX_ARTIFACT_BYTES, SELECTION_VERSION, CandidatesArtifact
 from .transcript_io import words_from_payload
 
 SCHEMA_VERSION = "evaluation-v1.0"
@@ -38,6 +38,21 @@ MAX_TRANSCRIPT_CUES = 100_000
 MAX_V1_CLIPS = 5_000
 MAX_JOBS = 1_000
 OUTPUT_JSON = "evaluation.json"
+# Accept/reject decisions the retired candidate editor recorded next to a V2 candidates artifact.
+FEEDBACK_VERSION = "feedback-v1"
+MAX_FEEDBACK_BYTES = 8 * 1024 * 1024
+MAX_FEEDBACK_EVENTS = 10_000
+MAX_FEEDBACK_NOTE_CHARS = 500
+_FEEDBACK_BINDING = "analysis/candidates.v2.json"
+_FEEDBACK_DECISIONS = frozenset({"accepted", "rejected", "undecided"})
+_FEEDBACK_EVENT_FIELDS = frozenset(
+    {"event_id", "client_request_id", "candidate_id", "decision", "note", "created_at"}
+)
+_FEEDBACK_UUID = re.compile(
+    r"[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\Z", re.IGNORECASE
+)
+_FEEDBACK_CREATED_AT = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\Z")
+_CANDIDATE_ID = re.compile(r"cand_[0-9a-f]{64}\Z")
 OUTPUT_MARKDOWN = "evaluation.md"
 _SENSITIVE_QUERY = {
     "token",
@@ -348,9 +363,69 @@ def _read_feedback(
     if artifact is None or raw_candidates is None or len(present) != 1:
         raise EvaluationError("feedback requires one bound V2 candidates artifact")
     try:
-        return read_candidate_feedback_state(present[0], raw_candidates)
-    except FeedbackArtifactInvalid as error:
+        return _feedback_state(present[0], artifact, raw_candidates)
+    except (EvaluationError, TypeError, ValueError) as error:
         raise EvaluationError("feedback failed strict binding or schema validation") from error
+
+
+def _feedback_state(
+    path: Path, artifact: CandidatesArtifact, raw_candidates: bytes
+) -> dict[str, object]:
+    """The latest decision per candidate. The file must be bound to these exact candidate bytes,
+    name only their candidates and never repeat an event or client request ID."""
+    document = _exact(
+        _json_file(path, MAX_FEEDBACK_BYTES, "feedback")[0],
+        {"feedback_version", "selection_version", "candidate_artifact_analysis", "events"},
+        "feedback",
+    )
+    binding = _exact(document["candidate_artifact_analysis"], {"artifact", "sha256"}, "feedback")
+    expected = {"artifact": _FEEDBACK_BINDING, "sha256": hashlib.sha256(raw_candidates).hexdigest()}
+    if (
+        document["feedback_version"] != FEEDBACK_VERSION
+        or document["selection_version"] != SELECTION_VERSION
+        or artifact.selection_version != SELECTION_VERSION
+        or binding != expected
+    ):
+        raise EvaluationError("feedback is bound to other candidates")
+    events = document["events"]
+    if type(events) is not list or len(events) > MAX_FEEDBACK_EVENTS:
+        raise EvaluationError("feedback events are invalid")
+    candidate_ids = {candidate.candidate_id for candidate in artifact.candidates}
+    if any(_CANDIDATE_ID.fullmatch(value) is None for value in candidate_ids):
+        raise EvaluationError("feedback is bound to invalid candidates")
+    event_ids: set[str] = set()
+    request_ids: set[str] = set()
+    latest: dict[str, dict[str, object]] = {}
+    for value in events:
+        event = _feedback_event(value, candidate_ids)
+        if event["event_id"] in event_ids or event["client_request_id"] in request_ids:
+            raise EvaluationError("feedback repeats an event")
+        event_ids.add(event["event_id"])
+        request_ids.add(event["client_request_id"])
+        latest[event["candidate_id"]] = {"decision": event["decision"]}
+    return {"latestByCandidate": latest}
+
+
+def _feedback_event(value: object, candidate_ids: set[str]) -> dict[str, object]:
+    event = _exact(value, set(_FEEDBACK_EVENT_FIELDS), "feedback event")
+    note, created_at = event["note"], event["created_at"]
+    if (
+        not all(
+            isinstance(event[name], str) and _FEEDBACK_UUID.fullmatch(event[name])
+            for name in ("event_id", "client_request_id")
+        )
+        or event["candidate_id"] not in candidate_ids
+        or event["decision"] not in _FEEDBACK_DECISIONS
+        or not isinstance(note, str)
+        or len(note) > MAX_FEEDBACK_NOTE_CHARS
+        or note != note.strip()
+        or any(unicodedata.category(char) == "Cc" for char in note)
+        or not isinstance(created_at, str)
+        or _FEEDBACK_CREATED_AT.fullmatch(created_at) is None
+    ):
+        raise EvaluationError("feedback event is invalid")
+    datetime.fromisoformat(created_at)  # a real UTC date (ValueError otherwise)
+    return event
 
 
 def _sanitize_url(url: object) -> str:
