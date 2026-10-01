@@ -1,0 +1,41 @@
+{
+  "commit": "56b33430f770ba637287ca66ef62d6254f9287ec",
+  "gates": {
+    "P-COLOR": [
+      "docs/editor/evidence/toolchain/P-COLOR.json"
+    ],
+    "P-ENC": [
+      "docs/editor/evidence/toolchain/P-ENC.json"
+    ],
+    "P-RT": [
+      "docs/editor/evidence/toolchain/P-RT.json"
+    ],
+    "P-TIME": [
+      "docs/editor/evidence/toolchain/P-TIME-ffmpeg.json",
+      "docs/editor/evidence/toolchain/P-TIME-jassub.json"
+    ],
+    "P-TXT": [
+      "docs/editor/evidence/toolchain/P-TXT.json"
+    ]
+  },
+  "jassub": {
+    "integrity": "sha512-n4vjXfraf3o8k3/5TK6DhCYVcbQ/VqhVOgwqLd3l0xfMtsN4fpE/hPq2hPaGagBTOtJS9yHwRoRp3mmchQ9XVg==",
+    "version": "2.5.16"
+  },
+  "run": "36899253661",
+  "schema": "potongin.toolchain-record/1",
+  "toolchain": {
+    "apt_snapshot": "20260924T000000Z",
+    "base_image": "node:20-bookworm-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0",
+    "packages": {
+      "ffmpeg": "7:5.1.9-0+deb12u1",
+      "fontconfig": "2.14.1-4",
+      "libass9": "1:0.17.1-1+deb12u1",
+      "libfreetype6": "2.12.1+dfsg-5+deb12u4",
+      "libfribidi0": "1.0.8-2.1",
+      "libharfbuzz0b": "6.0.0+dfsg-3"
+    },
+    "schema": "potongin.toolchain/1"
+  },
+  "toolchain_sha256": "4fefb754ae6cb98b5376c6c865d786ff0924f39e03b776499e5b3246f64985f0"
+}
