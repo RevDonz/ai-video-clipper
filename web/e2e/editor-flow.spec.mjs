@@ -1013,10 +1013,13 @@ test("PF-OPEN on the real stack: first visit ≤ 3.0 s, repeat ≤ 2.0 s (p95); 
 });
 
 // Contrast is measured on the settled page. A panel that eases in is see-through for its first
-// 240 ms, and axe would read the fading text (as the Rapikan harness spec also waits). Content that
-// arrives after a fetch (the cold-open suggestions) fades in later still, so the wait first lets
-// the open panel finish loading, then asks for 300 ms without a running animation.
+// 240 ms, and axe would read the fading text (as the Rapikan harness spec also waits). A panel's
+// code loads on first open ("Membuka panel…") and its content can arrive after a fetch (the
+// cold-open suggestions), both later than one animation check, so the wait first lets the open
+// panel mount and finish loading, then asks for 300 ms without a running animation.
 async function settledForAxe(page) {
+  await expect(page.getByText("Membuka panel…")).toHaveCount(0, { timeout: 30_000 });
+  await expect(page.locator("[data-panel]").first()).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('[data-panel][aria-busy="true"], [data-panel] [aria-busy="true"]')).toHaveCount(0, { timeout: 45_000 });
   await page.evaluate(() => { globalThis.__axeQuietSince = null; });
   await page.waitForFunction(() => {
