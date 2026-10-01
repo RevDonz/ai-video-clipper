@@ -1,0 +1,28 @@
+{
+  "schema": "potongin.gate/1",
+  "gate": "e2e music (real stack)",
+  "uploadMs": 1058,
+  "payload": {
+    "asset": "sha256:23186b5e99608bc787e6a89479280be4f9550e15d60fe1c62d2f616a27f6e510",
+    "src_in_smp": 0,
+    "loop": true,
+    "gain_cdb": -950,
+    "fade_in_f": 15,
+    "fade_out_f": 30,
+    "duck": {
+      "on": true,
+      "depth_cdb": 1600,
+      "attack_ms": 30,
+      "release_ms": 400,
+      "hold_ms": 250,
+      "detector": "words"
+    }
+  },
+  "pass": true,
+  "w3z": {
+    "where": "owner's PC (K15 reference PC), one browser, alone: web/e2e/editor-flow.spec.mjs, 20 passed",
+    "app": "the standalone app of the production image built by CI run 36861153869 (node server.js), POTONGIN_EDITOR_V3=on, POTONGIN_EDITOR_UPLOADS=on, POTONGIN_EDITOR_LLM off, render worker niced",
+    "job": "a fresh copy of the owner's job e7f0d37b (fit-blur, 3 clips, never prepared); the original only read",
+    "toolchain_note": "local system FFmpeg 6.1.1 for renders; the image of record's gates ran on CI"
+  }
+}

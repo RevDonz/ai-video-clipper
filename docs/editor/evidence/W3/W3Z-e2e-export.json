@@ -1,0 +1,40 @@
+{
+  "schema": "potongin.gate/1",
+  "gate": "e2e export with logo and music (real stack)",
+  "browser": "Chrome for Testing 147.0.7727.15",
+  "executable": "chromium-1217",
+  "revision": 22,
+  "renderMs": 29884,
+  "verify": {
+    "ok": true,
+    "gates": [
+      {
+        "name": "G1",
+        "ok": true,
+        "blocking": true
+      },
+      {
+        "name": "G2",
+        "ok": true,
+        "blocking": true
+      },
+      {
+        "name": "G3b",
+        "ok": true,
+        "blocking": true
+      },
+      {
+        "name": "G5",
+        "ok": false,
+        "blocking": false
+      }
+    ]
+  },
+  "pass": true,
+  "w3z": {
+    "where": "owner's PC (K15 reference PC), one browser, alone: web/e2e/editor-flow.spec.mjs, 20 passed",
+    "app": "the standalone app of the production image built by CI run 36861153869 (node server.js), POTONGIN_EDITOR_V3=on, POTONGIN_EDITOR_UPLOADS=on, POTONGIN_EDITOR_LLM off, render worker niced",
+    "job": "a fresh copy of the owner's job e7f0d37b (fit-blur, 3 clips, never prepared); the original only read",
+    "toolchain_note": "local system FFmpeg 6.1.1 for renders; the image of record's gates ran on CI"
+  }
+}

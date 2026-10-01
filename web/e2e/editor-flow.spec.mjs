@@ -1034,10 +1034,14 @@ test("QG-A11Y on the real editor: axe finds no critical or serious violation", a
       await expect(page.getByRole("region", { name: "Rapikan" })).toBeVisible({ timeout: 30_000 });
     }]]) {
       if (open) await open();
+      // Contrast is measured on the settled page: a panel that eases in is see-through for its
+      // first 240 ms, and axe would read the fading text (as the Rapikan harness spec also waits).
+      await page.waitForFunction(() => document.getAnimations().every((animation) => animation.playState !== "running"));
       await page.addScriptTag({ content: AXE });
       const outcome = await page.evaluate(async () => {
         const report = await globalThis.axe.run(document, { resultTypes: ["violations"] });
-        return report.violations.map((item) => ({ id: item.id, impact: item.impact, nodes: item.nodes.length }));
+        return report.violations.map((item) => ({ id: item.id, impact: item.impact, nodes: item.nodes.length,
+          targets: item.nodes.slice(0, 3).map((node) => `${node.target.join(" ")} :: ${(node.any[0]?.message ?? "").slice(0, 160)}`) }));
       });
       results.push({ viewport: `${viewport.width}x${viewport.height}`, state: name, violations: outcome });
     }

@@ -1,0 +1,37 @@
+{
+  "schema": "potongin.gate/1",
+  "gate": "P-TXT (subset: the 4 packs at 40 characters, hook, fallback glyph)",
+  "task": "W3Z",
+  "format": "gbrp",
+  "thresholds": {
+    "max": 16,
+    "psnr": 45.0,
+    "px_over_16": 0,
+    "ssim": 0.999
+  },
+  "frames": 30,
+  "clips": [
+    "bold-40",
+    "box-40",
+    "classic-40",
+    "fallback",
+    "hook",
+    "karaoke-40"
+  ],
+  "worst": {
+    "max": 13,
+    "psnr": 62.771073439612906,
+    "px_over_16": 0,
+    "ssim": 0.9999479755293653,
+    "ssim_text": 0.9996443768296487
+  },
+  "min_ssim": 0.9999479755293653,
+  "min_ssim_text": 0.9996443768296487,
+  "min_psnr": 62.771073439612906,
+  "max": 13,
+  "px_over_16": 0,
+  "failures": [],
+  "pass": true,
+  "references": "scripts/parity/reference_text.py --only classic-40,karaoke-40,bold-40,box-40,hook,fallback in the production image (CI run 36857927653)",
+  "browser_half": "web/e2e/parity-text.spec.mjs (P-TXT) on the owner's PC against the image's standalone app; Chrome for Testing 147.0.7727.15, JASSUB 2.5.16"
+}
