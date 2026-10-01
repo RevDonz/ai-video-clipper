@@ -148,7 +148,7 @@
    "wholeBody": true,
    "bytes": 40320044,
    "durationMs": 420010,
-   "elapsedMs": 6620
+   "elapsedMs": 8968
   },
   {
    "case": "GET ?part=peaks serves the music waveform",
@@ -201,16 +201,17 @@
    ]
   }
  },
- "stack": "ai-video-clipper:editor-w3-t31-r2 (this branch at 6d4dfc5), next start standalone, FFmpeg 5.1.9, uid 1000, --cpus 6 --memory 10g, planted secret values in the server env, recorders on PATH",
+ "stack": "GitHub Actions ubuntu-latest runner (4 vCPU; timings indicative), production image built from editor-w3-t3.1 at d83251a, FFmpeg 5.1.9, uid 1000 (node), node server.js (standalone), flags on, proxy.js in place, planted secret values in the server env, recorders on PATH",
  "toolchain": {
-  "ffmpeg": "ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023 the FFmpeg developers",
-  "python": "3.13.13",
+  "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+  "python": "3.11.2",
   "machine": "x86_64",
-  "cpus": 16,
+  "cpus": 4,
   "load": [
-   2.3,
-   3.2,
-   3.1
+   0.7,
+   0.9,
+   0.5
   ]
- }
+ },
+ "ciRun": "editor-gates.yml run 36844706040 (suite=command)"
 }
