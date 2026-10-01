@@ -362,6 +362,36 @@ def test_the_window_detector_leaves_opencv_threads_as_it_found_them(cut_video):
         cv2.setNumThreads(before)
 
 
+class FakeOpenCvThreads:
+    def __init__(self, threads):
+        self.threads = threads
+
+    def getNumThreads(self):  # OpenCV's method name
+        return self.threads
+
+    def setNumThreads(self, value):  # OpenCV's method name
+        self.threads = value
+
+
+def test_overlapping_windows_hold_opencv_at_one_thread_until_the_last_ends():
+    """T4.3: the auto render runs camera plans of several clips at once; the first window to
+    start keeps OpenCV's own pool at one thread and the last one to end restores it."""
+    from ai_clipper import face_window
+
+    cv2 = FakeOpenCvThreads(3)
+    first, second = (face_window.one_opencv_thread(cv2) for _ in range(2))
+    first.__enter__()
+    assert cv2.threads == 1
+    second.__enter__()
+    first.__exit__(None, None, None)
+    assert cv2.threads == 1  # the second window is still running
+    second.__exit__(None, None, None)
+    assert cv2.threads == 3
+    with face_window.one_opencv_thread(cv2):
+        assert cv2.threads == 1
+    assert cv2.threads == 3
+
+
 def test_the_window_detector_refuses_a_source_it_cannot_open(tmp_path):
     pytest.importorskip("cv2")
     bad = tmp_path / "not-a-video.mp4"
