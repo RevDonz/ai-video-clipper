@@ -10,7 +10,8 @@ Sub-commands (evidence ``T3.6-<gate>.json`` under ``--evidence``, numbers only):
     ``camera.build_camera_plan``) and with today's ``face_tracking.detect_face_track`` (one
     decode, as W1 measured it). Budget: ≤ 15 s per window in the image at ``--cpus 4``. The two
     plans are compared sample by sample (they may differ only where two faces have the same
-    size, which today's detector orders by OpenCV's thread scheduling).
+    size, which today's detector orders by OpenCV's thread scheduling). ``--runs 1
+    --no-compare --jobs <one job>``: one plan of one source, light enough for the owner's PC.
 
 ``switch`` (through the app)
     The editor is open on a real clip at its seed layout (the lane building its cells), then the
@@ -33,13 +34,29 @@ Sub-commands (evidence ``T3.6-<gate>.json`` under ``--evidence``, numbers only):
     (0 px), across cuts and cell boundaries. Real clips switched too (SSIM only).
 
 ``pf-cells`` (through the app)
-    All plate cells of a ~60 s real clip after a switch: ≤ 15 s (fit-blur, center-crop) and
-    ≤ 25 s (face-track, including the camera plan), two heavy slots.
+    All plate cells of a ~60 s clip after a switch: ≤ 15 s (fit-blur, center-crop) and
+    ≤ 25 s (face-track, including the camera plan), two heavy slots. A shorter clip is held to
+    the budget twice: as measured and projected to 60 s (``projected_60s_s``).
 
-The app gates reach a running Next server (``POTONGIN_EDITOR_V3=on``, ``JOBS_ROOT`` on a scratch
-copy of the owner's jobs, prepared with ``edit_v2.api prepare_job``) as the editor does: a
-session cookie, same-origin headers and the rate limits of plan §9.1; the lane's files are read
-from ``--jobs-root``. Run it where the server's FFmpeg is (the pinned image for the record)::
+``--media`` (switch, pf-cells, p-plate): ``synthetic`` (default; the barcode jobs of
+``make_job.py``, 1280×720 for the timed gates, so the gates run where the owner's jobs are not,
+e.g. in CI) or ``real`` (the owner's clips under ``--jobs-root``; P-PLATE adds their SSIM
+cases). P-FRAME is always synthetic.
+
+The app gates reach a running Next server (``POTONGIN_EDITOR_V3=on``, ``JOBS_ROOT`` = ``--jobs-root``:
+an empty scratch directory for synthetic media, a scratch copy of the owner's jobs prepared with
+``edit_v2.api prepare_job`` for real media) as the editor does: a session cookie, same-origin
+headers and the rate limits of plan §9.1; the lane's files are read from ``--jobs-root``. Run it
+where the server's FFmpeg is: in the production image, the standalone server and the gate side
+by side (the editor-gates workflow, ``suite=command``)::
+
+    export APP_USERNAME=gate APP_PASSWORD=<random> E2E_USERNAME=gate E2E_PASSWORD=<same>
+    (cd /app && JOBS_ROOT=/tmp/jobs APP_SESSION_SECRET=<random> POTONGIN_EDITOR_V3=on \\
+        PORT=3361 HOSTNAME=127.0.0.1 node server.js) &
+    uv run python scripts/parity/plate_gates.py p-frame --base-url http://127.0.0.1:3361 \\
+        --jobs-root /tmp/jobs --evidence docs/editor/evidence/W3 --label ci
+
+or locally against real media (``--media real``)::
 
     docker run --rm --network host --user 1000:1000 -v "$PWD":/w -v "$JOBS":/jobs -w /w \\
         -e PYTHONPATH=/w/src:/w/tests -e HOME=/tmp -e E2E_USERNAME -e E2E_PASSWORD \\
@@ -195,7 +212,9 @@ def _timed_plan(source: Path, window: tuple[int, int], detector: Callable | None
             "progress_last": list(events[-1]) if events else None}
 
 
-def camera_plan_gate(jobs_root: Path, jobs: Sequence[str], runs: int = 2) -> dict[str, Any]:
+def camera_plan_gate(jobs_root: Path, jobs: Sequence[str], runs: int = 2,
+                     compare: bool = True) -> dict[str, Any]:
+    """``runs`` timed plans per source; ``compare``: also today's detector, sample by sample."""
     sources = {}
     for job in jobs:
         source = jobs_root / job / "input" / "source.mp4"
@@ -207,35 +226,39 @@ def camera_plan_gate(jobs_root: Path, jobs: Sequence[str], runs: int = 2) -> dic
         window = (start, min(duration_ms, start + CAMERA_WINDOW_MS))
         stream = probe["streams"][0]
         fast_runs = [_timed_plan(source, window, None)]
-        today = _timed_plan(source, window, todays_detector)
+        today = _timed_plan(source, window, todays_detector) if compare else None
         for _ in range(runs - 1):
             fast_runs.append(_timed_plan(source, window, None))
-        fast, old = fast_runs[0]["plan"], today["plan"]
-        samples_fast, samples_old = fast["samples"], old["samples"]
-        differing = [i for i, (a, b) in enumerate(zip(samples_fast, samples_old)) if a != b]
+        fast = fast_runs[0]["plan"]
         entry = {
             "role": REAL_JOBS.get(job, ""), "codec": stream["codec_name"],
             "size": [stream["width"], stream["height"]], "rate": stream["r_frame_rate"],
-            "window_ms": list(window), "samples": len(samples_fast),
+            "window_ms": list(window), "samples": len(fast["samples"]),
             "window_detector_s": [run["seconds"] for run in fast_runs],
-            "todays_detector_s": today["seconds"],
-            "load_before": [run["load_before"] for run in fast_runs] + [today["load_before"]],
+            "load_before": [run["load_before"] for run in fast_runs],
             "no_face_spans": len(fast["no_face"]),
-            "identical_to_today": fast == old,
-            "samples_differing_from_today": len(differing),
-            "max_centre_pm_difference": max((abs(samples_fast[i][1] - samples_old[i][1])
-                                             for i in differing), default=0),
-            "cuts_equal": fast["cuts"] == old["cuts"],
-            "no_face_equal": fast["no_face"] == old["no_face"],
             "same_plan_every_run": all(run["plan"] == fast for run in fast_runs),
             "progress": {"events": fast_runs[0]["progress_events"],
                          "monotonic": fast_runs[0]["progress_monotonic"],
                          "last": fast_runs[0]["progress_last"]},
         }
+        if today is not None:
+            old = today["plan"]
+            samples_fast, samples_old = fast["samples"], old["samples"]
+            differing = [i for i, (a, b) in enumerate(zip(samples_fast, samples_old)) if a != b]
+            entry.update({
+                "todays_detector_s": today["seconds"], "todays_load_before": today["load_before"],
+                "identical_to_today": fast == old,
+                "samples_differing_from_today": len(differing),
+                "max_centre_pm_difference": max((abs(samples_fast[i][1] - samples_old[i][1])
+                                                 for i in differing), default=0),
+                "cuts_equal": fast["cuts"] == old["cuts"],
+                "no_face_equal": fast["no_face"] == old["no_face"]})
         entry["pass"] = max(entry["window_detector_s"]) <= CAMERA_BUDGET_S
         sources[job[:8]] = entry
-        print(json.dumps({job[:8]: {k: v for k, v in entry.items()}}), flush=True)
+        print(json.dumps({job[:8]: entry}), flush=True)
     return {"budget_s": CAMERA_BUDGET_S, "window_ms": CAMERA_WINDOW_MS, "runs": runs,
+            "compared_with_today": compare,
             "detector": "face_window.detect_window (Haar, 0.75 s samples, worker threads)",
             "baseline": "face_tracking.detect_face_track(sequential=True), W1: 14.62 s on e7f0d37b",
             "sources": sources,
@@ -255,15 +278,25 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--evidence", type=Path)
     parser.add_argument("--label", default="run")
     parser.add_argument("--jobs", nargs="*", default=list(REAL_JOBS))
+    parser.add_argument("--media", choices=("synthetic", "real"), default="synthetic",
+                        help="switch, pf-cells, p-plate: the barcode jobs of make_job.py (CI) or "
+                        "the owner's real clips under --jobs-root (local)")
+    parser.add_argument("--runs", type=int, default=2, help="camera-plan: timed plans per source")
+    parser.add_argument("--no-compare", dest="compare", action="store_false",
+                        help="camera-plan: skip today's detector (one plan per run, lighter)")
+    parser.add_argument("--note", help="where and how the gate ran (stored with the run)")
     args = parser.parse_args(argv)
     started = time.monotonic()
     if args.gate == "camera-plan":
-        result = camera_plan_gate(args.jobs_root, args.jobs)
+        result = camera_plan_gate(args.jobs_root, args.jobs, args.runs, args.compare)
     else:
         if not args.base_url:
             parser.error("--base-url is required for the app gates")
-        gates = AppGates(args.base_url, args.jobs_root, args.work)
+        gates = AppGates(args.base_url, args.jobs_root, args.work, media=args.media)
         result = getattr(gates, args.gate.replace("-", "_"))()
+        result["media"] = "real" if args.gate != "p-frame" and args.media == "real" else "synthetic"
+    if args.note:
+        result["note"] = args.note
     result["gate_wall_s"] = round(time.monotonic() - started, 1)
     gate = {"camera-plan": "camera-plan", "switch": "switch", "p-frame": "P-FRAME",
             "p-plate": "P-PLATE", "pf-cells": "PF-CELLS"}[args.gate]
@@ -309,6 +342,34 @@ P_PLATE_REAL = (
     ("860fef1a-8140-4677-8d73-729d18f15431", 4, ("fit_blur", "fill_center")),
 )
 P_FRAME_JOBS = ("main", "fps25", "fps60", "vfr")
+# The same gates on the barcode jobs of make_job.py (1280×720, as the owner's AV1 sources; CI):
+# seeds main and vfr fit-blur (29.97, VFR), fps25 center-crop (25), fps60 face-track (60).
+SYNTHETIC_PERF_SIZE = (1280, 720)
+SWITCH_SYNTHETIC = (
+    ("main", 1, "fill_center", 0.0),
+    ("main", 2, "fill_center", 0.5),
+    ("main", 3, "fill_center", 0.9),
+    ("fps25", 1, "fit_blur", 0.5),
+    ("fps25", 2, "fit_blur", 0.9),
+    ("fps25", 3, "fit_blur", 0.0),
+    ("fps60", 1, "fit_blur", 0.5),
+    ("fps60", 2, "fill_center", 0.0),
+    ("fps60", 3, "fill_center", 0.9),
+    ("vfr", 1, "fill_center", 0.5),
+    ("vfr", 2, "fit_blur", 0.0),
+    # face-track after a switch (the camera plan is analysed first): reported, not gated
+    ("main", 3, "camera", 0.5),
+    ("fps25", 1, "camera", 0.0),
+)
+PF_CELLS_SYNTHETIC = (
+    ("fps60", 1, "fit_blur"),
+    ("main", 2, "fit_blur"),
+    ("vfr", 1, "fill_center"),
+    ("fps60", 2, "fill_center"),
+    ("main", 1, "camera"),
+    ("fps25", 2, "camera"),
+)
+PF_CELLS_NOMINAL_S = 60.0  # the budget is for a ~60 s clip; shorter clips are projected to it
 
 
 def _cell_of(dto: Mapping[str, Any], playhead: int) -> int:
@@ -322,7 +383,9 @@ def _cell_of(dto: Mapping[str, Any], playhead: int) -> int:
 class AppGates:
     """The gates that go through the running app (see the module docstring)."""
 
-    def __init__(self, base_url: str, jobs_root: Path, work: Path) -> None:
+    def __init__(self, base_url: str, jobs_root: Path, work: Path, *,
+                 media: str = "synthetic") -> None:
+        self.media = media
         self.lg = lane_gates()
         self.fi = frame_identity()
         self.app = self.lg.App(base_url, os.environ.get("E2E_USERNAME", ""),
@@ -396,6 +459,15 @@ class AppGates:
             frames = cache[k]
             yield frames[sf % size] if sf % size < len(frames) else b""
 
+    def cases(self, real: Sequence[tuple], synthetic: Sequence[tuple]) -> list[tuple]:
+        """The cases of ``--media``: the real table as is, or the synthetic one with each job
+        name replaced by the id of its prepared barcode job."""
+        if self.media == "real":
+            return list(real)
+        names = sorted({case[0] for case in synthetic})
+        jobs = self.synthetic(names, size=SYNTHETIC_PERF_SIZE)
+        return [(jobs[case[0]], *case[1:]) for case in synthetic]
+
     def synthetic(self, names: Sequence[str], size: tuple[int, int] = (640, 360)) -> dict:
         """The synthetic barcode + column-ruler jobs of ``make_job.py``, copied into the jobs
         root and prepared (seeds, words, peaks; face-track seeds get their camera plan)."""
@@ -439,7 +511,7 @@ class AppGates:
 
     def switch(self) -> dict[str, Any]:
         cases = []
-        for job, rank, layout, where in SWITCH_CASES:
+        for job, rank, layout, where in self.cases(SWITCH_CASES, SWITCH_SYNTHETIC):
             clip = self.clip(job, rank)
             self.lg.clear_preview(clip)
             seed_layout = clip.seed["layout"]["default"]["mode"]
@@ -489,17 +561,22 @@ class AppGates:
                                                      or seconds <= SWITCH_BUDGET_S)
             cases.append(entry)
             print(json.dumps(entry), flush=True)
-        gated =[c["first_cell_after_switch_s"] for c in cases
-                 if c.get("gated") and c.get("first_cell_after_switch_s") is not None]
+        def seconds_to(layout: str) -> list[float]:
+            return [c["first_cell_after_switch_s"] for c in cases if c.get("to") == layout
+                    and c.get("first_cell_after_switch_s") is not None]
+
+        gated = seconds_to("fit_blur") + seconds_to("fill_center")
         return {"budget_s": SWITCH_BUDGET_S, "cases": cases,
                 "fit_blur_center_crop_s": summary(gated) if gated else None,
+                "by_layout_s": {layout: summary(seconds_to(layout)) if seconds_to(layout) else None
+                                for layout in LAYOUTS},
                 "pass": bool(gated) and all(c.get("pass") for c in cases)}
 
     # PF-CELLS ---------------------------------------------------------------------------------
 
     def pf_cells(self) -> dict[str, Any]:
         cases = []
-        for job, rank, layout in PF_CELLS_CASES:
+        for job, rank, layout in self.cases(PF_CELLS_CASES, PF_CELLS_SYNTHETIC):
             clip = self.clip(job, rank)
             self.lg.clear_preview(clip)
             built_camera = False
@@ -525,18 +602,26 @@ class AppGates:
             done = self.all_cells(clip, dto, 600)
             elapsed = time.perf_counter() - began
             budget = PF_CELLS_BUDGET_S[layout]
+            clip_seconds = dto["totalFrames"] * clip.fps.den / clip.fps.num
+            projected = None if done is None else elapsed * max(1.0, PF_CELLS_NOMINAL_S
+                                                                 / clip_seconds)
             entry = {"clip": f"{job[:8]}#{rank}", "from": clip.seed["layout"]["default"]["mode"],
-                     "to": layout, "clip_seconds": round(dto["totalFrames"] * clip.fps.den
-                                                         / clip.fps.num, 2),
+                     "to": layout, "clip_seconds": round(clip_seconds, 2),
                      "cells": len(dto["plate"]["cells"]), "camera_plan_built": built_camera,
                      "prepare_ms": round(prepare_ms, 1), "plan_ms": round(plan_ms, 1),
                      "first_cell_s": None if first_s is None else round(first_s, 2),
                      "all_cells_s": None if done is None else round(elapsed, 2),
-                     "budget_s": budget, "pass": done is not None and elapsed <= budget}
+                     "projected_60s_s": None if projected is None else round(projected, 2),
+                     "budget_s": budget,
+                     "pass": done is not None and elapsed <= budget and projected <= budget}
             cases.append(entry)
             print(json.dumps(entry), flush=True)
             time.sleep(5)  # let the background mix of the case finish
-        return {"threshold_s": PF_CELLS_BUDGET_S, "heavy_slots": 2, "cases": cases,
+        by_layout = {layout: bool([c for c in cases if c.get("to") == layout])
+                     and all(c.get("pass") for c in cases if c.get("to") == layout)
+                     for layout in LAYOUTS}
+        return {"threshold_s": PF_CELLS_BUDGET_S, "heavy_slots": 2,
+                "nominal_clip_s": PF_CELLS_NOMINAL_S, "cases": cases, "pass_by_layout": by_layout,
                 "pass": bool(cases) and all(c.get("pass") for c in cases)}
 
     # P-PLATE ----------------------------------------------------------------------------------
@@ -546,7 +631,7 @@ class AppGates:
         ruler = self.clip(jobs["main"], 1)
         self._sweep_camera(ruler)
         cases = [self._plate_case(ruler, layout, ruler=True) for layout in LAYOUTS]
-        for job, rank, layouts in P_PLATE_REAL:
+        for job, rank, layouts in (P_PLATE_REAL if self.media == "real" else ()):
             clip = self.clip(job, rank)
             for layout in layouts:
                 cases.append(self._plate_case(clip, layout, ruler=False))
