@@ -100,6 +100,13 @@ export class AuthRateLimiter {
       : { allowed: false, retryAfterSeconds: Math.max(1, Math.ceil((entry.resetAt - now) / 1000)) };
   }
 
+  /** Whether `key` has used up its attempts in the current window, without using one. */
+  blocked(key, now = Date.now()) {
+    const entry = this.entries.get(key);
+    if (!entry || now >= entry.resetAt || entry.count < this.attempts) return { blocked: false, retryAfterSeconds: 0 };
+    return { blocked: true, retryAfterSeconds: Math.max(1, Math.ceil((entry.resetAt - now) / 1000)) };
+  }
+
   reset(key) {
     this.entries.delete(key);
   }
