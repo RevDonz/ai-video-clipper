@@ -8,9 +8,10 @@ and cut flags; 0 of 1,202 samples differ on the five real sources), and adds:
 * ``progress(done, total)`` after every sample, for the editor's analysis progress;
 * the Haar work on up to four worker threads, each with its own ``CascadeClassifier`` (one
   classifier shared by threads returns wrong boxes), while the main thread decodes;
-* OpenCV's own pool held at one thread during the run (restored after), and equal-area faces
-  chosen by position (the leftmost, then the topmost) instead of by OpenCV's detection order,
-  so the result does not depend on the CPU count.
+* OpenCV's own pool held at one thread during the run (restored after the last of several
+  overlapping runs ends: the auto render plans several clips at once, T4.3), and equal-area
+  faces chosen by position (the leftmost, then the topmost) instead of by OpenCV's detection
+  order, so the result does not depend on the CPU count.
 
 The work is CPU-bound either way: a 3 min window of the 1280×720 AV1 source costs ~40 CPU-s of
 Haar (~160 ms per sample) and ~9 CPU-s of decoding, about 13 s at 4 CPUs with either detector.
@@ -25,8 +26,9 @@ import math
 import os
 import threading
 from collections import deque
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from concurrent.futures import Future, ThreadPoolExecutor
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -77,6 +79,30 @@ def cpu_budget() -> int:
             pass
         break
     return max(1, count)
+
+
+_threads_lock = threading.Lock()
+_threads_holds = 0
+_threads_before = 1
+
+
+@contextmanager
+def one_opencv_thread(cv2: Any) -> Iterator[None]:
+    """OpenCV's own pool at one thread while any window runs: the first run to start saves the
+    count, the last one to end restores it (runs of several clips overlap)."""
+    global _threads_holds, _threads_before
+    with _threads_lock:
+        if _threads_holds == 0:
+            _threads_before = cv2.getNumThreads()
+            cv2.setNumThreads(1)
+        _threads_holds += 1
+    try:
+        yield
+    finally:
+        with _threads_lock:
+            _threads_holds -= 1
+            if _threads_holds == 0:
+                cv2.setNumThreads(_threads_before)
 
 
 def _silent(_done: int, _total: int) -> None:
@@ -156,48 +182,44 @@ def detect_window(
                 report(finished, total)
 
         report(0, total)
-        threads_before = cv2.getNumThreads()
-        cv2.setNumThreads(1)
-        try:
-            with ThreadPoolExecutor(max_workers=workers,
-                                    thread_name_prefix="face-window") as pool:
-                previous_thumbnail = None
-                current = -1  # index of the frame last grabbed in sequential mode
-                exhausted = False
+        with one_opencv_thread(cv2), ThreadPoolExecutor(
+                max_workers=workers, thread_name_prefix="face-window") as pool:
+            previous_thumbnail = None
+            current = -1  # index of the frame last grabbed in sequential mode
+            exhausted = False
+            if sequential:
+                capture.set(cv2.CAP_PROP_POS_MSEC, start * 1000)
+            for index, relative_time in enumerate(times):
+                ok, frame = False, None
                 if sequential:
-                    capture.set(cv2.CAP_PROP_POS_MSEC, start * 1000)
-                for index, relative_time in enumerate(times):
-                    ok, frame = False, None
-                    if sequential:
-                        seconds = ((start + relative_time) * 1000) / 1000.0
-                        target = int(seconds * fps + 0.5)  # where CAP_PROP_POS_MSEC would land
-                        while not exhausted and current < target:
-                            if not capture.grab():
-                                exhausted = True
-                                break
-                            current = round(capture.get(cv2.CAP_PROP_POS_FRAMES)) - 1
-                        if not exhausted and current >= target:
-                            ok, frame = capture.retrieve()
-                    else:
-                        capture.set(cv2.CAP_PROP_POS_MSEC, (start + relative_time) * 1000)
-                        ok, frame = capture.read()
-                    future = None
-                    if ok:
-                        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                        thumbnail = cv2.resize(gray, THUMBNAIL)
-                        if previous_thumbnail is not None:
-                            change = cv2.absdiff(thumbnail, previous_thumbnail).mean() / 255
-                            cuts[index] = bool(change >= CUT_CHANGE)
-                        previous_thumbnail = thumbnail
-                        future = pool.submit(detect, gray)
-                    pending.append((index, future))
-                    collect(2 * workers)  # bounds the frames held in memory
-                collect(0)
-        finally:
-            cv2.setNumThreads(threads_before)
+                    seconds = ((start + relative_time) * 1000) / 1000.0
+                    target = int(seconds * fps + 0.5)  # where CAP_PROP_POS_MSEC would land
+                    while not exhausted and current < target:
+                        if not capture.grab():
+                            exhausted = True
+                            break
+                        current = round(capture.get(cv2.CAP_PROP_POS_FRAMES)) - 1
+                    if not exhausted and current >= target:
+                        ok, frame = capture.retrieve()
+                else:
+                    capture.set(cv2.CAP_PROP_POS_MSEC, (start + relative_time) * 1000)
+                    ok, frame = capture.read()
+                future = None
+                if ok:
+                    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                    thumbnail = cv2.resize(gray, THUMBNAIL)
+                    if previous_thumbnail is not None:
+                        change = cv2.absdiff(thumbnail, previous_thumbnail).mean() / 255
+                        cuts[index] = bool(change >= CUT_CHANGE)
+                    previous_thumbnail = thumbnail
+                    future = pool.submit(detect, gray)
+                pending.append((index, future))
+                collect(2 * workers)  # bounds the frames held in memory
+            collect(0)
     finally:
         capture.release()
     return times, centres, cuts, source_width, source_height
 
 
-__all__ = ["DETECT_WORKERS_MAX", "cpu_budget", "detect_window", "sample_times"]
+__all__ = ["DETECT_WORKERS_MAX", "cpu_budget", "detect_window", "one_opencv_thread",
+           "sample_times"]

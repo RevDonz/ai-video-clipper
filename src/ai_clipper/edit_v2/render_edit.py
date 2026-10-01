@@ -62,13 +62,16 @@ import stat
 import threading
 import time
 import zlib
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
+from concurrent.futures import Future, ThreadPoolExecutor
+from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Self
 
 from .. import render as _legacy
 from ..audio_timeline import AudioTimeline
+from ..face_window import cpu_budget
 from ..selection_v3 import SELECTION_ARTIFACT_RELATIVE_PATH, selection_from_dict
 from ..sound_events import events_from_dict
 from ..transcript_io import MAX_TRANSCRIPT_BYTES, transcription_from_json_bytes
@@ -113,6 +116,12 @@ MIN_TIMEOUT_S = 120.0
 TIMEOUT_FACTOR = 3
 PREDICTED_X = {"fit_blur": 0.5, "camera": 0.5, "fill_center": 0.4}
 PIPELINE_MIN_TIMEOUT_S = float(_legacy.FFMPEG_TIMEOUT_SECONDS)  # never stricter than legacy
+# PF-PIPELINE (T4.3): the auto render runs several clips at once. A "heavy slot" is one final
+# encode or one camera plan, each about FFMPEG_THREADS CPUs busy (x264 and the filters at
+# 4 threads; the Haar detection on 4 workers). Every FFmpeg argument stays as it was, so the
+# pixels do not change; only the clips overlap. Four slots fill the K15 PC (16 threads): a
+# job of four clips encodes them all at once (measured: 3 slots left the fourth clip alone).
+RENDER_SLOTS_MAX = 4
 
 MAX_JOB_BYTES = 4 * 1024 * 1024
 MAX_MANIFEST_BYTES = 16 * 1024 * 1024
@@ -277,6 +286,17 @@ def render_key_for(plan: RenderPlan, measured: Loudness | None,
         return None
     return render_key(plan, size=plan.output, quality="standar",
                       measure_sha=measure_sha256(measured), toolchain_sha=toolchain)
+
+
+def render_slots(budget: int | None = None) -> int:
+    """Heavy slots of the auto render (``AutoRenderer``): one per ``FFMPEG_THREADS`` CPUs of
+    the CPU ``budget`` (default: this process's affinity, capped by a cgroup CPU quota), rounded
+    up, at least 1 and at most ``RENDER_SLOTS_MAX``. Rounding up uses a quota of 6 CPUs fully
+    (two clips at 4 threads each); one clip alone keeps about 4 CPUs busy."""
+    budget = cpu_budget() if budget is None else budget
+    if type(budget) is not int or budget < 1:
+        raise ValueError("budget must be a positive integer")
+    return max(1, min(RENDER_SLOTS_MAX, -(-budget // compile_ffmpeg.FFMPEG_THREADS)))
 
 
 def render_timeout_s(doc: Mapping[str, Any]) -> float:
@@ -513,8 +533,10 @@ def _codes(*groups) -> tuple[str, ...]:
 def _render(inputs: RenderInputs, output: Path, *, source: Path, job_dir: Path,
             progress: Callable[[int], None] | None, stage: Callable[[str, int], None] | None,
             cancel: threading.Event | None, timeout_s: float | None,
-            warnings: tuple[str, ...] = ()) -> RenderResult:
+            warnings: tuple[str, ...] = (),
+            encode_slot: AbstractContextManager | None = None) -> RenderResult:
     started = time.monotonic()
+    slot = nullcontext() if encode_slot is None else encode_slot
     timeout = render_timeout_s(inputs.doc) if timeout_s is None else float(timeout_s)
     assets_root = Path(job_dir) / ASSETS_RELATIVE_PATH
     with _Destination(output) as destination:
@@ -531,8 +553,9 @@ def _render(inputs: RenderInputs, output: Path, *, source: Path, job_dir: Path,
             if progress is not None:
                 progress(min(PROGRESS_FULL, frames * PROGRESS_FULL // total))
 
-        execute.run(job, output_fd=video_fd, timeout_s=timeout, on_progress=frames_done,
-                    cancel=cancel)
+        with slot:  # the encode only: the gates below run beside the next clip's encode
+            execute.run(job, output_fd=video_fd, timeout_s=timeout, on_progress=frames_done,
+                        cancel=cancel)
         os.fsync(video_fd)
         if stage is not None:
             stage("memverifikasi", PROGRESS_FULL)
@@ -566,6 +589,7 @@ def render_document(
     source: Path | None = None,
     resources: Resources | None = None,
     timeout_s: float | None = None,
+    encode_slot: AbstractContextManager | None = None,
 ) -> RenderResult:
     """Render ``doc`` of the job at ``job_dir`` to ``output`` (MP4) and ``output.srt``.
 
@@ -573,6 +597,8 @@ def render_document(
     ``ValueError``). ``progress`` receives per-mille of the frames written. ``source`` defaults
     to the job's own source; its content sha must be the document's. Nothing is published
     unless G1–G3/G3b pass; an existing ``output`` or ``.srt`` is never overwritten.
+    ``encode_slot`` (a context manager, e.g. a semaphore) is held around the final encode only
+    (``AutoRenderer``'s heavy slots).
     """
     output_size = (doc["output"]["w"], doc["output"]["h"])
     if tuple(size) != output_size or output_size not in OUTPUT_SIZES:
@@ -583,7 +609,7 @@ def render_document(
     source = job_source(job_dir) if source is None else Path(source)
     source = _checked_source(source, doc["base"]["source"]["content_sha256"])
     return _render(inputs, Path(output), source=source, job_dir=Path(job_dir), progress=progress,
-                   stage=None, cancel=cancel, timeout_s=timeout_s)
+                   stage=None, cancel=cancel, timeout_s=timeout_s, encode_slot=encode_slot)
 
 
 # --- R10: the auto file ------------------------------------------------------------------------
@@ -918,12 +944,29 @@ class AutoRenderer:
 
     The constructor reads everything once (and writes ``analysis/source.json``); any failure
     there means no clip can use the new engine.
+
+    **Several clips at once (T4.3, PF-PIPELINE).** :meth:`schedule` starts every clip in the
+    background; :meth:`render` then returns (or raises) the scheduled clip's result, so the
+    pipeline keeps its order, its per-clip fallback and its manifest. ``slots`` heavy steps run
+    at once (a final encode or a camera plan, :func:`render_slots`), and one more worker seeds
+    or verifies another clip meanwhile. Every clip is rendered by exactly the FFmpeg job it
+    would get alone, so the files are byte-identical to one clip at a time. :meth:`close` stops
+    what was scheduled and never consumed (FFmpeg is killed, nothing is published) and waits
+    for the workers. Without :meth:`schedule`, :meth:`render` works synchronously as before.
     """
 
     def __init__(self, *, job_dir: Path, source: Path, output_dir: Path, options: AutoOptions,
                  job_id: str | None = None, detector: Callable | None = None,
                  resources: Resources | None = None,
-                 min_timeout_s: float = PIPELINE_MIN_TIMEOUT_S) -> None:
+                 min_timeout_s: float = PIPELINE_MIN_TIMEOUT_S, slots: int | None = None) -> None:
+        self.slots = render_slots() if slots is None else slots
+        if type(self.slots) is not int or self.slots < 1:
+            raise ValueError("slots must be a positive integer")
+        self._heavy = threading.BoundedSemaphore(self.slots)
+        self._cancel = threading.Event()
+        self._pool: ThreadPoolExecutor | None = None
+        self._scheduled: dict[int, tuple[Path, Future]] = {}
+        self.order: list[int] = []  # the ranks in the order they were handed to the workers
         self.job_dir = Path(job_dir)
         self.source = Path(source)
         self.options = options
@@ -983,9 +1026,10 @@ class AutoRenderer:
         camera_sha = None
         if face_track:
             detector = _camera.detect_face_track if self.detector is None else self.detector
-            camera_plan = _camera.build_camera_plan(
-                self.source, window, fps, out_w=self.options.width, out_h=self.options.height,
-                detector=detector)
+            with self._heavy:  # the Haar detection keeps about as many CPUs busy as an encode
+                camera_plan = _camera.build_camera_plan(
+                    self.source, window, fps, out_w=self.options.width,
+                    out_h=self.options.height, detector=detector)
             camera_raw = _camera.encode_camera_plan(camera_plan)
             _write_or_match(directory / _camera.camera_file_name(camera_raw), camera_raw)
             camera_sha = sha256_hex(camera_raw)
@@ -1004,14 +1048,64 @@ class AutoRenderer:
         document, _etag = store.seed(directory)  # render from the file (plan §3.5)
         return directory, document
 
+    def _seconds(self, rank: int) -> float:
+        """The clip's expected output length: its window plus its cold open."""
+        clip = self.clips.get(rank)
+        if clip is None:
+            return 0.0
+        teaser = clip.cold_open if self.options.cold_open else None
+        return (clip.end - clip.start) + (teaser[1] - teaser[0] if teaser else 0.0)
+
+    def schedule(self, items: Sequence[tuple[int, Path]]) -> None:
+        """Start seeding and rendering every ``(rank, output)`` in the background, the
+        longest clips first (the job ends with its shortest clips, so its tail is short; see
+        the class docstring). Once per renderer; a single clip is left to :meth:`render`."""
+        if self._pool is not None or self._scheduled:
+            raise RuntimeError("this renderer has already scheduled its clips")
+        items = [(rank, Path(output)) for rank, output in items]
+        ranks = [rank for rank, _output in items]
+        if len(set(ranks)) != len(ranks):
+            raise ValueError("every rank is scheduled once")
+        if len(items) < 2:
+            return
+        items.sort(key=lambda item: -self._seconds(item[0]))  # stable: ties keep rank order
+        self.order = [rank for rank, _output in items]
+        self._pool = ThreadPoolExecutor(max_workers=min(len(items), self.slots + 1),
+                                        thread_name_prefix="edit-v2-auto")
+        for rank, output in items:
+            self._scheduled[rank] = (output, self._pool.submit(self._render_clip, rank, output))
+
     def render(self, rank: int, output: Path) -> AutoClip:
-        """Seed the clip of ``rank`` and render it from ``seed.json`` to ``output``."""
+        """Seed the clip of ``rank`` and render it from ``seed.json`` to ``output``; for a
+        scheduled clip, wait for its result."""
+        scheduled = self._scheduled.pop(rank, None)
+        if scheduled is not None:
+            if scheduled[0] != Path(output):
+                raise ValueError("the clip was scheduled with another output")
+            return scheduled[1].result()
+        return self._render_clip(rank, output)
+
+    def close(self) -> None:
+        """Stop the scheduled clips nobody took (their FFmpeg is killed and nothing of them is
+        published) and wait for the workers. Never raises; idempotent."""
+        pool, self._pool = self._pool, None
+        if pool is None:
+            return
+        if self._scheduled:
+            self._cancel.set()
+        pool.shutdown(wait=True, cancel_futures=True)
+        self._scheduled.clear()
+
+    def _render_clip(self, rank: int, output: Path) -> AutoClip:
+        if self._cancel.is_set():
+            raise errors.Cancelled("cancelled")
         _directory, document = self._seed(rank)
         timeout = max(self.min_timeout_s, render_timeout_s(document))
         result = render_document(document, self.job_dir, output,
                                  size=(self.options.width, self.options.height),
                                  quality="standar", source=self.source,
-                                 resources=self.resources, timeout_s=timeout)
+                                 resources=self.resources, timeout_s=timeout,
+                                 cancel=self._cancel, encode_slot=self._heavy)
         cold_open = any(segment["role"] == "cold_open"
                         for segment in document["main"]["segments"])
         return AutoClip(clip_id=document["clip_id"], render_engine=COMPILER_ID,
@@ -1039,6 +1133,7 @@ __all__ = [
     "ENGINE_EDIT_V2",
     "ENGINE_ENV",
     "ENGINE_LEGACY",
+    "RENDER_SLOTS_MAX",
     "REQUEST_VERSION",
     "STAGES",
     "AutoClip",
@@ -1056,6 +1151,7 @@ __all__ = [
     "render_document",
     "render_key_for",
     "render_request",
+    "render_slots",
     "render_timeout_s",
     "verify_file",
 ]
