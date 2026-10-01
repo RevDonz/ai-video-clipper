@@ -270,6 +270,7 @@ html:has(.settingsSaveBar) { scroll-padding-bottom: 150px; }
 .presetCard > p { margin: 0; color: var(--text-muted); font-size: 13px; line-height: 1.5; }
 .presetCard > p.notice { color: var(--text); font-size: 12px; }
 .presetActions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; font-size: 13px; }
+.presetActions a { display: inline-flex; align-items: center; min-height: 44px; }
 .addProviderNote { margin: 0; padding: 0 16px 14px; color: var(--text-muted); font-size: 13px; line-height: 1.5; }
 
 /* Save bar: it floats over the scrolling form, so it is the page's one raised surface.

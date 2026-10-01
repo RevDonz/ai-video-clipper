@@ -157,6 +157,8 @@
   position: relative;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  min-width: 44px;
   min-height: 44px;
   padding: 0 14px;
   border: 1px solid var(--border-strong);
@@ -169,7 +171,8 @@
 }
 .trPlatforms label:hover { color: var(--text); background: var(--surface-3); }
 .trPlatforms label.checked { border-color: var(--text); background: var(--surface-3); color: var(--text); }
-.trPlatforms input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; }
+/* Pinned to a corner: centred under the text it would take the clicks meant for the label. */
+.trPlatforms input { position: absolute; top: 0; left: 0; width: 1px; height: 1px; margin: 0; opacity: 0; }
 .trPlatforms label:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
 .trFormFooter { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .trFormNotice { flex: 1; min-width: 180px; margin: 0; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
@@ -278,7 +281,7 @@
 .trAgentIntro { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .trAgentIntro p { max-width: 760px; margin: 0; color: var(--text-muted); font-size: 14px; line-height: 1.6; }
 .trAgentIntro b { color: var(--text); font-weight: 600; }
-.trGuideLink { flex: none; font-size: 13px; white-space: nowrap; }
+.trGuideLink { flex: none; display: inline-flex; align-items: center; min-height: 44px; font-size: 13px; white-space: nowrap; }
 .trEndpoint { display: grid; gap: 6px; }
 .trEndpoint input, .trNewToken input { font: 500 13px ui-monospace, SFMono-Regular, Menlo, monospace; }
 .trAgent code {
