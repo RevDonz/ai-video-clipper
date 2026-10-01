@@ -189,6 +189,15 @@ def test_files_that_are_not_archives_are_never_touched(tmp_path):
     assert stray.read_text() == "mine"
 
 
+def test_a_clip_that_was_never_edited_gets_no_edit_directory(tmp_path):
+    job = make_job(tmp_path)
+    clip = job / "analysis" / "clips" / CLIP
+    clip.mkdir()
+    (clip / "seed.json").write_text("{}")
+    clean(job)
+    assert sorted(path.name for path in clip.iterdir()) == ["seed.json"]
+
+
 # --- suggestions -------------------------------------------------------------------------------------
 
 
