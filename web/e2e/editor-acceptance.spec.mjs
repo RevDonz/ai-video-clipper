@@ -435,9 +435,14 @@ async function uploadMusic(page, buffer = wavTone()) {
   const panel = panelOf(page, "music");
   const chooser = page.waitForEvent("filechooser");
   await panel.getByRole("button", { name: "Tambah musik" }).click();
-  if (await panel.getByRole("button", { name: "Pilih file musik" }).isVisible()) await panel.getByRole("button", { name: "Pilih file musik" }).click();
+  // The copyright note comes first once per browser; then the picker opens.
+  const notice = panel.getByRole("button", { name: "Pilih file musik" });
+  const first = await Promise.race([chooser.then(() => "picker"), notice.waitFor({ timeout: 15_000 }).then(() => "notice")]);
+  if (first === "notice") await notice.click();
   await (await chooser).setFiles({ name: "latar-uji.wav", mimeType: "audio/wav", buffer });
-  await expect(panel.locator("[data-music-card]")).toBeVisible({ timeout: 120_000 });
+  const card = panel.locator("[data-music-card]");
+  await expect(card.or(panel.getByRole("alert"))).toBeVisible({ timeout: 120_000 });
+  if (!(await card.isVisible())) throw new Error(`music upload: ${await panel.innerText()}`);
 }
 
 /** Moves a range slider by key presses (keyboard only, as a keyboard user would). */
