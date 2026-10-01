@@ -58,6 +58,11 @@ export function buildClipperInvocation(job, sourcePath, outputRoot, env = proces
     "--artifact-root",
     path.dirname(outputRoot),
   ];
+  // A job stored without a mode predates selection modes and is a V1 job. The CLI defaults to
+  // the current selection, so older jobs name their mode.
+  if (options.selectionMode === undefined || options.selectionMode === "v1") {
+    args.push("--selection-mode", "v1");
+  }
   if (options.selectionMode === "v2-shadow") {
     args.push(
       "--selection-mode", "v2-shadow",
