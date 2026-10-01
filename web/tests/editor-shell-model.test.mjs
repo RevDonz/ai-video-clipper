@@ -11,6 +11,7 @@ import {
   BADGE_HELP,
   LIVE_WAVES,
   MESSAGES,
+  actionableChecks,
   badgeHelp,
   badgeView,
   checksView,
@@ -185,6 +186,36 @@ test("a TikTok-zone check names the caption, the hook or the logo it is about", 
     "Logo masuk ke area tombol TikTok",
     MESSAGES.unsafe_zone,
   ]);
+});
+
+// Owner decision (W4, K5): the caption keeps the auto clip's spot, which reaches into the TikTok
+// zone. That spot is a note (informative, no tick before export); a caption the user moved into the
+// zone stays a check.
+test("the caption at its auto-clip spot in the TikTok zone is a note, not a check (K5)", () => {
+  const seed = fakeDoc();
+  const zone = { code: "unsafe_zone", path: "/captions/overrides/y_e5", f: 3 };
+  const plan = { fps: FPS, errors: [], warnings: [zone, { code: "tight_cut", ref: "rm_01", f: 9 }] };
+  const atSeed = checksView({ warnings: [], plan, doc: structuredClone(seed), seed });
+  const note = atSeed.find((check) => check.code === "unsafe_zone");
+  assert.equal(note.severity, "info");
+  assert.equal(note.message, "Caption di posisi bawaan, dekat tombol TikTok. Kalau tertutup, geser ke atas di tab Teks.");
+  assert.equal(note.timeText, "00:00,1");
+  assert.equal(atSeed.at(-1), note, "notes come after the checks");
+  assert.deepEqual(actionableChecks(atSeed).map((check) => check.code), ["tight_cut"]);
+
+  const moved = structuredClone(seed);
+  moved.captions.overrides.y_e5 = 90000;
+  const check = checksView({ warnings: [], plan, doc: moved, seed }).find((item) => item.code === "unsafe_zone");
+  assert.equal(check.severity, "warning");
+  assert.equal(check.message, "Caption masuk ke area tombol TikTok");
+  assert.equal(actionableChecks(checksView({ warnings: [], plan, doc: moved, seed })).length, 2);
+
+  // The hook and the logo are always placed by the user: they stay checks at any spot.
+  const others = checksView({ warnings: [], doc: structuredClone(seed), seed, plan: { fps: FPS, errors: [], warnings: [
+    { code: "unsafe_zone", path: "/tracks/0/items/0/transform/y_e5", ref: "it_hook", f: 0 },
+    { code: "unsafe_zone", path: "/tracks/1/items/0/transform", ref: "it_logo" },
+  ] } });
+  assert.deepEqual(others.map((item) => item.severity), ["warning", "warning"]);
 });
 
 test("content identity ignores revision, parent and audit (R10)", () => {

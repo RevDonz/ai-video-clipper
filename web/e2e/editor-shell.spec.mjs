@@ -648,6 +648,40 @@ test("the checks panel lists warnings with their messages and jumps to their fra
   await expect(open).toBeFocused();
 });
 
+// Owner decision (W4, K5): the caption keeps the auto clip's spot, inside the TikTok zone. There the
+// zone warning informs: it is not counted, export asks no tick, and the Teks panel says it calmly.
+test("the caption at its auto-clip spot is a note: not counted, no tick before export (K5)", async ({ page }) => {
+  const note = "Caption di posisi bawaan, dekat tombol TikTok. Kalau tertutup, geser ke atas di tab Teks.";
+  await openEditor(page, { planWarnings: [{ code: "unsafe_zone", path: "/captions/overrides/y_e5", f: 3 }] });
+  const open = page.getByRole("button", { name: "Perlu dicek (0)" });
+  await open.click();
+  const panel = page.getByRole("dialog", { name: "Perlu dicek" });
+  await expect(panel.getByText("Tidak ada yang perlu dicek.")).toBeVisible();
+  await expect(panel.getByRole("list", { name: "Catatan" }).getByRole("listitem")).toHaveText(new RegExp(`^${note.replace(/[.]/g, "\\.")}`));
+  await page.keyboard.press("Escape");
+  await expect(open).toBeFocused();
+  await page.getByRole("tab", { name: "Teks" }).click();
+  await expect(page.locator('[data-caption-zone="note"]')).toHaveText("Posisi bawaan, dekat tombol TikTok. Kalau tertutup, geser caption ke atas.");
+  await expect(page.locator('[data-caption-zone="warning"]')).toHaveCount(0);
+  await page.getByRole("button", { name: "Ekspor", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Ekspor klip" });
+  await expect(dialog.locator("[data-export-note]")).toHaveText(note);
+  await expect(dialog.getByRole("checkbox")).toHaveCount(0);
+  await expect(dialog.getByRole("button", { name: "Mulai ekspor" })).toBeEnabled();
+});
+
+test("a caption moved into the TikTok zone is still a check that export asks about", async ({ page }) => {
+  await openEditor(page, { planWarnings: [{ code: "unsafe_zone", path: "/captions/overrides/y_e5", f: 3 }] });
+  await page.evaluate(() => window.__potonginEditor.store.dispatch("SetCaptionOverride", { key: "y_e5", value: 90000 }));
+  await expect(page.getByRole("button", { name: "Perlu dicek (1)" })).toBeVisible();
+  await page.getByRole("tab", { name: "Teks" }).click();
+  await expect(page.locator('[data-caption-zone="warning"]')).toBeVisible();
+  await page.getByRole("button", { name: "Ekspor", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Ekspor klip" });
+  await expect(dialog.getByRole("checkbox", { name: "Caption masuk ke area tombol TikTok" })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Mulai ekspor" })).toBeDisabled();
+});
+
 test("the conflict dialog asks per part and resolves with the choices", async ({ page }) => {
   await openEditor(page, { scenarioStore: true, conflict: { parts: [
     { id: "hook", label: "Teks hook" }, { id: "rm_01", label: "Potongan 00:12" }, { id: "w048121", label: "Caption kata 'Kenapa'" },
