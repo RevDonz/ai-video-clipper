@@ -9,7 +9,8 @@ cues, ``RenderPlan.srt``). Nothing is published unless the blocking gates pass.
 
 **The pipeline (auto render, plan §5.8).** With ``POTONGIN_RENDER_ENGINE=edit-v2``
 (:func:`engine_from_env`; anything else, including unset, is ``legacy``) the V3 pipeline builds
-one :class:`AutoRenderer` per job and calls :meth:`AutoRenderer.render` per clip. It reads back
+one :class:`AutoRenderer` per job, schedules every clip (:meth:`AutoRenderer.schedule`: several
+clips at once, T4.3) and takes each clip's result with :meth:`AutoRenderer.render`. It reads back
 what the pipeline wrote (``output/transcript.json``, ``analysis/selection.v3.json``,
 ``analysis/audio-timeline.json``, ``analysis/sound-events.json``), so the seed of a new job and
 the seed ``prepare`` would build for the same job use the same inputs. Per clip it writes
