@@ -73,11 +73,25 @@ export function earlierExports({ history = [], current = null, latest = null } =
   return items;
 }
 
+/**
+ * The export dialog's checks: errors block, warnings need a tick, notes inform. A note is the
+ * caption at the auto clip's spot (K5). An unchanged clip exports its own auto file (R10), so its
+ * warnings are notes too: nothing in this export differs from the file the project page offers.
+ */
+export function exportChecks(checks, { unchanged = false } = {}) {
+  const list = Array.isArray(checks) ? checks : [];
+  const tickable = (check) => check.severity === "warning" && !unchanged;
+  return {
+    blocking: list.filter((check) => check.severity === "error"),
+    warnings: list.filter(tickable),
+    notes: list.filter((check) => check.severity !== "error" && !tickable(check)),
+  };
+}
+
 /** Export may start only when every warning is acknowledged and nothing blocks it. */
-export function canStartExport(checks, acknowledged) {
-  if (checks.some((check) => check.severity === "error")) return false;
-  // A note (severity "info": the caption at the auto clip's spot, K5) informs; it needs no tick.
-  return checks.every((check) => check.severity === "info" || acknowledged.has(check.key));
+export function canStartExport(checks, acknowledged, { unchanged = false } = {}) {
+  const { blocking, warnings } = exportChecks(checks, { unchanged });
+  return blocking.length === 0 && warnings.every((check) => acknowledged.has(check.key));
 }
 
 function errorCodeOf(error) {
