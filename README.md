@@ -249,7 +249,9 @@ teks, gambar teks dan audio yang terlihat sama dengan file akhir, kecuali kompre
 - Memakai editor dan arti setiap tanda: [`docs/editor/PANDUAN-EDITOR.md`](docs/editor/PANDUAN-EDITOR.md).
 - Flag (`POTONGIN_EDITOR_V3`, `POTONGIN_EDITOR_UPLOADS`, `POTONGIN_EDITOR_LLM`,
   `POTONGIN_RENDER_ENGINE`), layanan, toolchain render yang dikunci, gerbang CI dan lisensi:
-  [`docs/editor/OPERASIONAL.md`](docs/editor/OPERASIONAL.md).
+  [`docs/editor/OPERASIONAL.md`](docs/editor/OPERASIONAL.md). Bawaan rilis di `compose.yaml`:
+  editor, unggahan dan saran AI `on`, mesin render `edit-v2`; tiap flag bisa dimatikan lewat
+  `.env` tanpa build ulang (OPERASIONAL §2).
 - Hasil gerbang: [`docs/editor/GATES.md`](docs/editor/GATES.md); kontrak:
   [`docs/editor/CONTRACTS.md`](docs/editor/CONTRACTS.md); rencana:
   [`docs/plans/2026-09-24-editor-v3-esensial.md`](docs/plans/2026-09-24-editor-v3-esensial.md).

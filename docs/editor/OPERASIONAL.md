@@ -25,21 +25,43 @@ Klip otomatis (`output/clip-NN.mp4`) tidak pernah ditimpa editor. Kapasitas dan 
 ## 2. Flag
 
 Flag dibaca dari `.env` server dan diteruskan `compose.yaml` ke container yang memerlukannya.
-Mengubah flag cukup dengan mengubah `.env` lalu deploy ulang; dokumen edit yang sudah tersimpan
-tidak hilang saat flag dimatikan.
+`compose.yaml` memegang bawaan rilis di bawah; `.env` selalu bisa menimpanya. Dokumen edit, logo,
+musik dan hasil ekspor yang sudah tersimpan tidak hilang saat flag dimatikan.
 
-| Flag | Fungsi | Syarat menyala (keputusan pemilik) |
-|---|---|---|
-| `POTONGIN_EDITOR_V3` | Tombol "Edit klip" dan semua rute editor; `off` = 404 | Menyala saat rilis |
-| `POTONGIN_EDITOR_UPLOADS` | Unggah logo dan musik | Setelah QG-SEC lengkap (tinjauan keamanan W4) |
-| `POTONGIN_EDITOR_LLM` | Saran hook yang ditulis AI gratis di Pengaturan (saran instan tetap ada tanpa flag ini) | Setelah gerbang keras QG-AI lolos; penilaian 30 klip oleh pemilik menyusul |
-| `POTONGIN_RENDER_ENGINE` | `edit-v2`: klip otomatis dirender dengan kompiler yang sama dengan ekspor editor; `legacy`: cara lama | `edit-v2` begitu PF-PIPELINE masuk anggaran di PC acuan (latar blur dan potong tengah ≤ 1,35×, ikuti wajah ≤ 1,6× dibanding `legacy`). Tampilan klip sedikit berubah dan file lebih besar (kualitas R7); keduanya sudah disetujui |
-| `POTONGIN_LLM_EDITOR_MODELS` | Opsional: daftar `provider/model` gratis khusus saran hook; kosong = rantai di Pengaturan | Tidak ada syarat |
-| `POTONGIN_PARITY_HARNESS` | Halaman uji paritas untuk CI | **Jangan pernah** di produksi |
+| Flag | Fungsi | Bawaan rilis (gerbangnya) | Kalau dimatikan |
+|---|---|---|---|
+| `POTONGIN_EDITOR_V3` | Tombol "Edit klip" dan semua rute editor | `on` | `off`: tombol "Edit klip" hilang dan rute editor menjawab 404; klip otomatis dan unduhannya tetap ada |
+| `POTONGIN_EDITOR_UPLOADS` | Unggah logo dan musik | `on` (QG-SEC lengkap, tinjauan keamanan W4) | `off`: panel Logo dan Musik menulis "Unggah … belum tersedia di server ini"; logo dan musik yang sudah dipakai tetap ikut dirender |
+| `POTONGIN_EDITOR_LLM` | Saran hook yang ditulis AI gratis di Pengaturan | `on` (gerbang keras QG-AI lolos; penilaian 30 klip oleh pemilik menyusul) | `off`: hanya saran instan ("AI seleksi"/"Heuristik") |
+| `POTONGIN_RENDER_ENGINE` | `edit-v2`: klip otomatis dirender dengan kompiler yang sama dengan ekspor editor | `edit-v2` (PF-PIPELINE masuk anggaran per tata letak di PC acuan: latar blur 1,03×, potong tengah 1,28×, ikuti wajah 1,12× dibanding `legacy`) | `legacy`: proyek **baru** dirender dengan cara lama; klip yang sudah ada tidak berubah. Ekspor editor selalu memakai kompiler editor |
+| `POTONGIN_LLM_EDITOR_MODELS` | Opsional: daftar `provider/model` gratis khusus saran hook; kosong = rantai di Pengaturan | kosong | — |
+| `POTONGIN_PARITY_HARNESS` | Halaman uji paritas untuk CI | tidak diteruskan | **Jangan pernah** dinyalakan di produksi |
 
-Pra-centang kata pengisi di Rapikan tetap mati sampai pemilik mengonfirmasi label kata pengisinya.
-Bawaan di `compose.yaml` diatur integrator rilis (T4.Z) sesuai gerbang yang lolos; `.env` selalu
-bisa menimpanya.
+Cara mematikan satu flag di server (contoh: unggahan):
+
+```bash
+cd <folder deploy>                 # folder yang berisi compose.yaml dan .env
+echo 'POTONGIN_EDITOR_UPLOADS=off' >> .env
+docker compose up -d               # membuat ulang container yang berubah; tidak perlu build
+```
+
+Untuk menyalakannya lagi, hapus baris itu (atau tulis `=on`) lalu `docker compose up -d` lagi.
+`POTONGIN_RENDER_ENGINE` dibaca `app`, `primary-worker` dan `render-worker`; ketiganya ikut dibuat
+ulang oleh perintah yang sama. Kalau seluruh rilis editor perlu dibatalkan, revert PR-nya di
+`main` (deploy otomatis memasang versi sebelumnya); data editor di folder job tetap ada dan dipakai
+lagi saat editor dinyalakan kembali.
+
+**Kuota CPU render otomatis.** Mesin `edit-v2` memakai ± 2,2–2,5× waktu CPU `legacy` untuk potong
+tengah dan ikuti wajah (byte hasilnya sama dengan sebelum percepatan; tidak ada lagi percepatan
+yang menjaga byte). Di PC acuan dengan semua CPU, batas PF-PIPELINE terpenuhi. Dengan kuota
+`cpus: 6` milik `primary-worker` di `compose.yaml`, T4.3 mengukur potong tengah 1,99× dan ikuti
+wajah 1,82× (latar blur 1,34×/1,29×/0,65×). Pilihan pemilik sebelum produksi: naikkan `cpus`
+`primary-worker` (slot render mengikuti kuota: 16 CPU = 4 slot, 6 CPU = 2 slot), terima render
+otomatis yang lebih lambat, atau pakai `POTONGIN_RENDER_ENGINE=legacy` dulu.
+
+Pra-centang kata pengisi di Rapikan bukan flag: nilainya `precheck` di
+`resources/lexicon/id-fillers.v1.json` (sekarang `false`). Nilainya diubah ke `true` lewat PR
+setelah pemilik mengonfirmasi label kata pengisi (presisi tetap ≥ 0,9).
 
 ## 3. Toolchain render yang dikunci
 

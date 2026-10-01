@@ -5,12 +5,14 @@ mencobanya di aplikasi lokal. Rencana lengkapnya ada di `docs/plans/2026-09-24-e
 angka pengujian ada di `docs/editor/GATES.md`; cara menjalankan dan memeriksa server ada di
 `docs/editor/OPERASIONAL.md`.
 
-Editor menyala selama `POTONGIN_EDITOR_V3=on`, bawaan saat rilis. Unggah logo dan musik
-(`POTONGIN_EDITOR_UPLOADS`) dan saran hook yang ditulis AI (`POTONGIN_EDITOR_LLM`) menyala begitu
-gerbangnya lolos (tinjauan keamanan, dan gerbang keras saran AI). Begitu render dipercepat, klip
-otomatis dirender dengan cara yang sama dengan ekspor editor (`POTONGIN_RENDER_ENGINE=edit-v2`):
-tampilannya sedikit berubah dan filenya lebih besar karena kualitasnya lebih tinggi. Daftar flag
-dan syaratnya: `docs/editor/OPERASIONAL.md` §2.
+Saat rilis, `compose.yaml` menyalakan semuanya: editor (`POTONGIN_EDITOR_V3=on`), unggah logo dan
+musik (`POTONGIN_EDITOR_UPLOADS=on`, tinjauan keamanan lolos) dan saran hook yang ditulis AI
+(`POTONGIN_EDITOR_LLM=on`, gerbang keras saran AI lolos; penilaian 30 klip oleh pemilik menyusul).
+Klip otomatis dirender dengan cara yang sama dengan ekspor editor
+(`POTONGIN_RENDER_ENGINE=edit-v2`): tampilannya sedikit berubah dan filenya lebih besar karena
+kualitasnya lebih tinggi. Pra-centang kata pengisi di Rapikan masih mati sampai pemilik
+mengonfirmasi labelnya. Daftar flag, syaratnya dan cara mematikannya: `docs/editor/OPERASIONAL.md`
+§2.
 
 Proyek lama tetap bisa dilihat dan diunduh dari Riwayat. Editor kandidat yang lama sudah tidak ada.
 
@@ -83,9 +85,10 @@ tersedia untuk job ini" (di lajurnya, atau di baris atas timeline bila lajurnya 
 
 **Lainnya.** Urungkan / Ulangi (Ctrl+Z, Ctrl+Shift+Z) sampai 200 langkah; simpan otomatis
 (± 1,5 detik setelah berhenti, juga disimpan di browser); **"Kembali ke versi AI"**; **Ekspor**
-(centang tiap item "Perlu dicek", lalu Antre → Merender → Memverifikasi → Selesai, **"Unduh MP4"**
-dan **"Unduh SRT"**, tersimpan sebagai `klip-02-revisi-5.mp4` dan seterusnya; bisa dibatalkan); dua
-tab pada klip yang sama digabung per bagian.
+(centang tiap item "Perlu dicek"; catatan biru tidak perlu dicentang; lalu Antre → Merender →
+Memverifikasi → Selesai, **"Unduh MP4"** dan **"Unduh SRT"**, tersimpan sebagai
+`klip-02-revisi-5.mp4` dan seterusnya; bisa dibatalkan); dua tab pada klip yang sama digabung per
+bagian.
 
 ## 3. Arti tanda di bawah layar pratinjau
 
@@ -195,7 +198,7 @@ Setiap aksi juga punya tombol di layar. Pintasan tidak aktif saat Anda mengetik 
 |---|---|
 | "Menyiapkan klip untuk diedit" lama sekali | Proyek panjang dengan face-track. Tunggu; setelah 12 menit editor menyerah dan meminta muat ulang. |
 | "Video sumber tidak bisa dibaca; proses ulang videonya" | FFmpeg gagal membaca video sumber proyek ini (filenya masih ada). Proses ulang videonya dari dashboard. |
-| Catatan "Perlu dicek" bahwa caption ada di area tombol TikTok | Hanya pemberitahuan, bukan kesalahan: caption bawaan memang di posisi yang sama dengan klip otomatis, supaya klip yang tidak diubah tetap diekspor sebagai file klip otomatis. Kalau di aplikasi caption tertutup tombol, geser caption ke atas di tab Teks; kalau tidak, centang lalu ekspor. |
+| Catatan biru "Caption di posisi bawaan, dekat tombol TikTok" | Hanya pemberitahuan, bukan kesalahan, dan tidak perlu dicentang saat ekspor: caption bawaan memang di posisi yang sama dengan klip otomatis, supaya klip yang tidak diubah tetap diekspor sebagai file klip otomatis. Kalau di aplikasi caption tertutup tombol, geser caption ke atas di tab Teks. Caption yang Anda geser sendiri ke area itu tetap muncul di "Perlu dicek" dan perlu dicentang. |
 | "Transkrip berubah sejak klip diedit" (baca saja) | Proyek dijalankan ulang dan transkripnya berubah. Klik "Mulai dari versi AI". |
 | "Klip ini diubah di tab lain" | Dua tab mengubah bagian yang sama. Pilih versi per bagian; draf Anda tidak hilang. |
 | "Gagal menyimpan; perubahan aman di browser ini" | Server tidak terjangkau. Perubahan tersimpan di browser dan dikirim lagi otomatis. |
