@@ -168,12 +168,19 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
 
-      - name: Install Chrome for Testing (Playwright)
+      - name: Install Chrome for Testing (the parity pin)
         working-directory: web
         run: |
           npm ci
-          npx playwright install --with-deps chromium
-          version=$(node -e 'import("@playwright/test").then(async ({ chromium }) => { const b = await chromium.launch(); console.log(b.version()); await b.close(); })')
+          npx playwright install-deps chromium
+          # The pin is Playwright's chromium build 1217; the specs look for it there (PARITY_CHROME).
+          target="$HOME/.cache/ms-playwright/chromium-1217"
+          mkdir -p "$target"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/cft.zip" \
+            "https://storage.googleapis.com/chrome-for-testing-public/$CHROME_FOR_TESTING/linux64/chrome-linux64.zip"
+          unzip -q -o "$RUNNER_TEMP/cft.zip" -d "$target"
+          echo "PARITY_CHROME=$target/chrome-linux64/chrome" >> "$GITHUB_ENV"
+          version=$(PARITY_CHROME="$target/chrome-linux64/chrome" node -e 'import("@playwright/test").then(async ({ chromium }) => { const b = await chromium.launch({ executablePath: process.env.PARITY_CHROME }); console.log(b.version()); await b.close(); })')
           echo "Chrome for Testing $version"
           test "$version" = "$CHROME_FOR_TESTING"
 
