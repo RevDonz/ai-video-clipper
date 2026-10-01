@@ -14,7 +14,7 @@
   "llm": "copy of the saved Pengaturan chain (free models only)",
   "jobs": "fresh copies of e7f0d37b per run (never opened in the editor); 899226f8 without its source video as the closed case; originals only read, copies deleted",
   "browser": "Chrome for Testing 147.0.7727.15, axe 4.13.0, one browser",
-  "machine": "owner's PC (K15 reference), 2026-10-02 03:00-03:30 WIB, owner away"
+  "machine": "owner's PC (K15 reference), 2026-10-02 03:00-03:45 WIB, owner away"
  },
  "acceptance": {
   "passed": 14,

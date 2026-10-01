@@ -261,7 +261,7 @@ Keputusan: esensial dulu, lalu bertahap. Desain final ada di scratchpad sesi
   definisi daerah logo atau biarkan.
 - ⬜ Malam CI hijau penuh: P-AUD klip VFR sintetis 16 sampel lebih pendek dari rencana (Open 12,
   jalur audio sumber kompiler); PF-AUDIO tipis di runner 4 vCPU.
-- ⬜ PR `editor-w4-integration` → `main` (merge rebase) lalu deploy.
+- ⬜ PR #18 `editor-w4-integration` → `main` (merge rebase) lalu deploy.
 
 ## 9. Editor tahap lanjut (sesi berikutnya)
 
