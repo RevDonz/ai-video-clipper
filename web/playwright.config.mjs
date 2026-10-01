@@ -60,7 +60,6 @@ export default defineConfig({
     {
       name: "mobile-chromium",
       testMatch: /(?:read-only|smoke)\.spec\.mjs/,
-      testIgnore: /mutation\.spec\.mjs/,
       use: { ...devices["Pixel 7"] },
     },
   ],

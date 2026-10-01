@@ -2,13 +2,14 @@
 // method only: no version labels, no candidate editor, no technical provenance. Jobs made
 // with older selection modes keep their rendered clips, shown like every other clip.
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { GET as getJobDetail } from "../app/api/jobs/[id]/route.js";
+import RetiredCandidatePage from "../app/projects/[id]/candidates/[[...rest]]/page.js";
 import { createSessionToken } from "../lib/auth.mjs";
 import { generateSocialMetadata, serializePublicJob } from "../lib/jobs.mjs";
 import {
@@ -37,6 +38,7 @@ import {
 
 const WEB = fileURLToPath(new URL("..", import.meta.url));
 const read = (relative) => readFile(path.join(WEB, relative), "utf8");
+const exists = (relative) => access(path.join(WEB, relative)).then(() => true, () => false);
 
 const JOB_ID = "123e4567-e89b-42d3-a456-426614174000";
 const AUTH_ENV = {
@@ -307,7 +309,42 @@ test("a history row says how many clips a project has, or where an unfinished on
   assert.equal(projectRowDetail({ status: "deleting", stageDetail: "Proyek sedang dihapus dari penyimpanan server" }), "Sedang dihapus");
 });
 
-// --- No version wording -----------------------------------------------------------------------
+// --- The retired candidate editor -------------------------------------------------------------
+
+test("the candidate editor, its routes and its libraries are gone", async () => {
+  for (const relative of [
+    "app/projects/[id]/candidates/[candidateId]/edit/page.jsx",
+    "app/api/jobs/[id]/candidates/route.js",
+    "app/api/jobs/[id]/candidates/[candidateId]/caption-cues/route.js",
+    "app/api/jobs/[id]/candidates/[candidateId]/edit/route.js",
+    "app/api/jobs/[id]/candidates/[candidateId]/renders/route.js",
+    "app/api/jobs/[id]/candidate-feedback/route.js",
+    // The source preview only fed the old editor's player.
+    "app/api/jobs/[id]/preview-source/route.js",
+    "lib/candidate-view.mjs",
+    "lib/candidates.mjs",
+    "lib/candidate-feedback.mjs",
+    "lib/caption-cues.mjs",
+    "lib/edit-document.mjs",
+    "lib/editor-view.mjs",
+    "lib/editor-timeline.mjs",
+    "e2e/mutation.spec.mjs",
+  ]) assert.equal(await exists(relative), false, `${relative} should be deleted`);
+});
+
+test("an old candidate-editor link lands on its project page", async () => {
+  const redirected = async (params) => {
+    try {
+      await RetiredCandidatePage({ params: Promise.resolve(params) });
+    } catch (error) {
+      return error.digest;
+    }
+    return null;
+  };
+  assert.match(await redirected({ id: JOB_ID, rest: ["cand_abc", "edit"] }), new RegExp(`^NEXT_REDIRECT;replace;/projects/${JOB_ID};307;`));
+  assert.match(await redirected({ id: JOB_ID }), new RegExp(`;/projects/${JOB_ID};`));
+  assert.match(await redirected({ id: "a b/c" }), /;\/projects\/a%20b%2Fc;/);
+});
 
 test("the history and project pages carry no version wording and no candidate requests", async () => {
   for (const file of ["app/projects/page.jsx", "app/projects/[id]/page.jsx", "lib/project-view.mjs"]) {

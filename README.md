@@ -28,15 +28,13 @@ Cloudflare, follow `deploy/VM_NGINX_CLOUDFLARE.md`.
 The web MVP is designed for one trusted self-hosted instance. Put Cloudflare
 Access or Nginx authentication in front of it before exposing it publicly.
 
-Candidate review requests validate `analysis/candidates.v2.json` through
-`python -m ai_clipper.candidate_api`; Python's `CandidatesArtifact` contract is
-the sole semantic validator. The authenticated Next.js route securely opens and
-bounds the artifact, passes those exact bytes over stdin, and accepts only a
-strict presentation DTO with source, raw provenance, credentials, weight config,
-and internal media IDs removed. One bounded Python subprocess per request is an
-intentional trade-off for this occasional review endpoint. `PYTHON_BIN` may select
-the interpreter (default `python`), and `CANDIDATE_VALIDATOR_TIMEOUT_MS` controls
-the timeout (default 5000 ms, capped at 30000 ms).
+The web app shows only the current method. The old candidate editor and its routes
+(`/projects/<id>/candidates/...`, `/api/jobs/<id>/candidates/...`,
+`/api/jobs/<id>/candidate-feedback`, `/api/jobs/<id>/preview-source`) were retired on
+2026-09-30: old links open the project page, and projects made with the older selection
+modes still show and serve their rendered clips. The Python modules behind those routes
+stay in `src/ai_clipper`; so does the render status route `/api/jobs/<id>/renders/<renderId>`,
+which the new editor extends.
 
 ## Verified result
 
@@ -227,7 +225,7 @@ terms every output is unchanged.
 - H.264/AAC MP4 rendering with downloadable SRT that matches the burned captions
 - Machine-readable, fail-closed manifest (`processing`, `completed`, or `failed`)
 - Authenticated Next.js dashboard, durable job queue with fenced leases, persistent
-  project history, candidate editor for V2 shadow candidates, and project deletion
+  project history with every clip ready to post, and project deletion
 - YouTube and direct upload ingestion through the web worker, with stage-based progress
 
 ## Important limitations
