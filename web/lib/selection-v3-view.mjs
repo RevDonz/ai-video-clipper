@@ -26,19 +26,9 @@ export const SCORE_LABELS = Object.freeze({
   shareability: "Layak dibagikan",
 });
 
-export const SELECTION_SOURCE_LABELS = Object.freeze({
-  llm: "AI/LLM",
-  heuristic: "Heuristik",
-  v1: "V1",
-});
-
 export function archetypeLabel(code) {
   if (typeof code !== "string" || !code) return null;
   return ARCHETYPE_LABELS[code] || ARCHETYPE_LABELS.other;
-}
-
-export function selectionSourceLabel(source) {
-  return SELECTION_SOURCE_LABELS[source] || null;
 }
 
 export function formatTenths(value) {

@@ -28,6 +28,7 @@
   --warning: #f0c95a;
   --warning-bg: #282210;
   --warning-border: #6d5b22;
+  --sheen: #ffffff73;
 
   /* Names the pages used with the old light palette. */
   --paper: var(--bg);
@@ -177,7 +178,7 @@ body {
 .notice.warning strong { color: var(--warning); }
 .notice.error strong { color: var(--danger); }
 
-.segmented, .tabs {
+.segmented {
   display: flex;
   gap: 2px;
   padding: 4px;
@@ -185,7 +186,7 @@ body {
   border-radius: var(--radius-l);
   background: var(--surface-2);
 }
-.segmented > *, .tabs button {
+.segmented > * {
   flex: 1;
   min-height: 40px;
   padding: 8px 12px;
@@ -197,8 +198,8 @@ body {
   cursor: pointer;
   transition: background-color var(--dur-2) var(--ease-out), color var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out);
 }
-.segmented > *:hover, .tabs button:hover { color: var(--text); background: var(--surface-3); }
-.segmented > .active, .segmented > [aria-pressed="true"], .tabs button.active {
+.segmented > *:hover { color: var(--text); background: var(--surface-3); }
+.segmented > .active, .segmented > [aria-pressed="true"] {
   background: var(--surface-3);
   color: var(--text);
   box-shadow: inset 0 0 0 1px var(--border-strong);
@@ -301,50 +302,8 @@ footer {
 }
 
 /* Shared by signed-in pages (the dashboard's own styles are in app/dashboard/dashboard.module.css) */
-.panelHead { display: flex; gap: 14px; align-items: flex-start; }
-.panelHead > span {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 34px;
-  height: 34px;
-  border: 1px solid var(--border-strong);
-  border-radius: 50%;
-  color: var(--text-muted);
-  font: 600 12px/1 var(--font);
-  font-variant-numeric: tabular-nums;
-}
-.panelHead h2 { margin: 4px 0; font: 700 20px/1.25 var(--font); letter-spacing: -.02em; }
-.panelHead p { margin: 0; color: var(--text-muted); font-size: 14px; }
 .compact { margin-bottom: 16px; }
 .message { margin: 10px 0 0; color: var(--text-muted); font-size: 13px; text-align: center; animation: fade-in var(--dur-2) var(--ease-out); }
-
-.llmBadge {
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
-  margin: 0;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-m);
-  background: var(--surface-2);
-  color: var(--text);
-  font: 500 13px/1.45 var(--font);
-  overflow-wrap: anywhere;
-}
-.llmBadge i { flex: none; width: 8px; height: 8px; margin-top: 5px; border-radius: 50%; background: var(--text-muted); }
-.llmBadge.ok { border-color: var(--success-border); background: var(--success-bg); }
-.llmBadge.ok i { background: var(--success); }
-.llmBadge.warning { border-color: var(--warning-border); background: var(--warning-bg); }
-.llmBadge.warning i { background: var(--warning); }
-.llmBadge.error { border-color: var(--danger-border); background: var(--danger-bg); }
-.llmBadge.error i { background: var(--danger); }
-.toggleList { display: grid; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-m); background: var(--surface-2); }
-.shadowToggle { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
-.shadowToggle input { flex: none; width: 18px; height: 18px; margin: 2px 0 0; }
-.shadowToggle span { display: grid; gap: 3px; }
-.shadowToggle strong { font: 600 14px/1.35 var(--font); }
-.shadowToggle small { color: var(--text-muted); font-size: 13px; line-height: 1.45; }
 
 .progress { height: 6px; margin: 10px 1px; overflow: hidden; border-radius: var(--radius-pill); background: var(--surface-3); }
 .progress i { position: relative; display: block; height: 100%; border-radius: inherit; background: var(--accent); transition: width calc(var(--dur-3) * 2) var(--ease-out); }
@@ -353,45 +312,9 @@ footer {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, transparent, #ffffff73, transparent);
+  background: linear-gradient(90deg, transparent, var(--sheen), transparent);
   transform: translateX(-100%);
   animation: progress-sheen 1.8s var(--ease-in-out) infinite;
 }
 
-.clip { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-l); background: var(--surface-2); animation: rise-in var(--dur-3) var(--ease-out); }
-.clip video { display: block; width: 100%; height: 230px; background: var(--bg); object-fit: contain; }
-.clip > div { padding: 14px; }
-.clip small { color: var(--text-muted); font-size: 12px; font-weight: 600; letter-spacing: .04em; }
-.clip p { display: -webkit-box; margin: 7px 0; overflow: hidden; font-size: 14px; line-height: 1.45; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.clip a { color: var(--info); font-size: 13px; font-weight: 600; text-decoration: none; }
-.hookLine { display: flex; align-items: baseline; gap: 8px; margin: 8px 0; padding: 8px 10px; border-radius: var(--radius-s); background: var(--surface-3); color: var(--text); font: 600 14px/1.4 var(--font); }
-.hookLine span { flex: none; color: var(--text-muted); font: 600 12px/1.4 var(--font); letter-spacing: .04em; text-transform: uppercase; }
-.clip .hookLine { display: flex; overflow: visible; -webkit-line-clamp: unset; font-size: 13px; }
-.clipMeta h3 { margin: 6px 0; font: 600 15px/1.35 var(--font); letter-spacing: -.01em; }
-.socialDescription { display: -webkit-box !important; overflow: hidden !important; color: var(--text-muted); font-size: 13px !important; line-height: 1.5 !important; white-space: pre-line !important; -webkit-box-orient: vertical !important; -webkit-line-clamp: 6 !important; }
-.clipActions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
-.clipActions button { padding: 0; border: 0; background: transparent; color: var(--info); font: 600 13px var(--font); cursor: pointer; }
-.clipActions button:hover, .clip a:hover { text-decoration: underline; }
-
-.emptyIcon { display: grid; place-items: center; width: 56px; height: 56px; border: 1px solid var(--border-strong); border-radius: 50%; background: var(--surface-2); color: var(--text-muted); }
 .pulse { width: 16px; height: 16px; border-radius: 50%; background: var(--text); animation: loading-pulse 1.4s var(--ease-in-out) infinite; }
-
-/* The red "Ya, hapus" button of in-page confirmations (Konteks Tren). */
-.confirmDelete { border-color: var(--danger) !important; background: var(--danger) !important; color: var(--danger-ink) !important; }
-
-/* Save bar of the AI settings page (app/settings/page.jsx). It came with the retired candidate
-   editor's styles and is kept as it was until the settings page gets its own. */
-.editorSaveBar{position:fixed;z-index:20;left:50%;bottom:14px;transform:translateX(-50%);width:min(1120px,calc(100% - 28px));display:flex;align-items:center;justify-content:space-between;gap:18px;padding:12px 14px;border:1px solid #33352f;border-radius:16px;background:#11120ff2;color:white;box-shadow:0 16px 55px #0005;backdrop-filter:blur(12px)}
-.editorSaveBar>div{display:flex;align-items:center;gap:9px}
-.editorSaveBar p{margin:0;font-size:.76rem}
-.editorSaveBar small{color:#aaada4;font-size:.66rem}
-.saveDot{width:8px;height:8px;border-radius:50%;background:#8b8e84}
-.saveDot.dirty,.saveDot.retry{background:#ffb84d}
-.saveDot.saving{background:#8298ff;animation:activityPulse 1.5s infinite}
-.saveDot.success{background:#6bc98a}
-.saveDot.error,.saveDot.conflict{background:#f06e61}
-.editorSaveBar button{min-height:44px;border-radius:10px;padding:9px 14px;font:700 .75rem var(--font)}
-.saveEditor{min-width:100px;border:0;background:var(--lime);color:#11120f}
-.saveEditor:disabled{opacity:.45;cursor:not-allowed}
-@media(max-width:900px){.editorSaveBar small{display:none}}
-@media(max-width:620px){.editorSaveBar{bottom:8px;display:grid}.editorSaveBar>div{justify-content:space-between}.editorSaveBar>div:last-child{display:grid;grid-template-columns:1fr 1fr}.editorSaveBar button{width:100%}}
