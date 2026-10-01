@@ -146,7 +146,7 @@ export function generateSocialMetadata(transcript) {
   );
   const excerpt = truncateAtWord(text || "Ada insight menarik yang layak kamu simak dari video ini", 210);
   const hashtags = ["#fyp", "#viral", "#shorts", ...topicHashtags(text)];
-  const description = `${excerpt}${/[.!?]$/.test(excerpt) ? "" : "."}\n\nSimak sampai akhir—bagian mana yang paling relate buat kamu?\n\n${hashtags.join(" ")}`;
+  const description = `${excerpt}${/[.!?]$/.test(excerpt) ? "" : "."}\n\nSimak sampai akhir. Bagian mana yang paling relate buat kamu?\n\n${hashtags.join(" ")}`;
   return { title, description, hashtags, metadataVersion: 5 };
 }
 
