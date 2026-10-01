@@ -1,0 +1,114 @@
+name: Editor gates (manual)
+
+# Heavy test runs for work branches, so agents do not load the owner's PC.
+# Trigger: gh workflow run editor-gates.yml -f ref=<branch> -f suite=full|image|command [-f command='...']
+# suite=full: ruff, pytest (Python 3.11), web tests and build, as in CI/CD.
+# suite=image: the whole pytest inside the production image (pinned FFmpeg/libass toolchain).
+# suite=command: one shell command from the repo root inside the production image; whatever it
+# writes to /out is uploaded as the run's artifact.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch or commit to test
+        required: true
+        type: string
+      suite:
+        description: Which suite to run
+        required: true
+        default: full
+        type: choice
+        options: [full, image, command]
+      command:
+        description: For suite=command, a shell command run from the repo root inside the image
+        required: false
+        default: ""
+        type: string
+
+run-name: "${{ inputs.suite }} @ ${{ inputs.ref }}"
+
+permissions:
+  contents: read
+
+jobs:
+  gates:
+    name: ${{ inputs.suite }} @ ${{ inputs.ref }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      GATE_COMMAND: ${{ inputs.command }}
+    steps:
+      - name: Check out the branch
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Install FFmpeg
+        if: inputs.suite == 'full'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ffmpeg
+
+      - name: Set up Python
+        if: inputs.suite == 'full'
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv
+        if: inputs.suite == 'full'
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.6"
+          enable-cache: true
+
+      - name: Python suites
+        if: inputs.suite == 'full'
+        run: |
+          uv sync --frozen --extra vision --extra web
+          uv run ruff check src tests
+          uv run pytest
+
+      - name: Set up Node.js
+        if: inputs.suite == 'full'
+        uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Web suites
+        if: inputs.suite == 'full'
+        working-directory: web
+        env:
+          PYTHON_BIN: ${{ github.workspace }}/.venv/bin/python
+        run: |
+          npm ci
+          npm test
+          npm run build
+
+      - name: Build the production image
+        if: inputs.suite != 'full'
+        run: docker build --tag potongin-gates .
+
+      - name: Run inside the production image
+        if: inputs.suite != 'full'
+        env:
+          SUITE: ${{ inputs.suite }}
+        run: |
+          mkdir -p gate-output && chmod 777 gate-output
+          docker run --rm -e SUITE -e GATE_COMMAND -v "$PWD:/w:ro" -v "$PWD/gate-output:/out" potongin-gates sh -ec '
+            cp -r /w /tmp/w && cd /tmp/w
+            uv sync --frozen --python /usr/bin/python3 --extra vision --extra web
+            if [ "$SUITE" = image ]; then uv run pytest; else sh -ec "$GATE_COMMAND"; fi
+            if [ -d docs/editor/evidence ]; then cp -r docs/editor/evidence /out/; fi'
+
+      - name: Upload outputs
+        if: always() && inputs.suite != 'full'
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-output
+          path: gate-output
+          if-no-files-found: ignore
+          retention-days: 7
