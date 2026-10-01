@@ -248,11 +248,12 @@ def p_enc(fixtures: Path, evidence: Path, baseline: Path) -> bool:
 def text_gates(browser: Path, fixtures: Path, evidence: Path, *, jassub: str, color: bool) -> bool:
     p_time = json.loads((browser / "p_time_jassub.json").read_text(encoding="utf-8"))
     check_browser_jassub(p_time, jassub)
-    passed = write(evidence, "P-TIME-jassub", ptime_jassub_evidence(p_time))
+    timing = ptime_jassub_evidence(p_time)
+    write(evidence, "P-TIME-jassub", timing)
     p_txt = ptxt_evidence(json.loads((browser / "p_txt.json").read_text(encoding="utf-8")))
     p_txt.update(browser=p_time.get("browserVersion"), jassub=p_time.get("jassub"))
     write(evidence, "P-TXT", p_txt)
-    ok = gate_passed(json.loads(passed.read_text())) and p_txt["pass"]
+    ok = timing["pass"] and p_txt["pass"]
     if color:
         import s_color
 
