@@ -38,7 +38,6 @@
   --ed-duration-fast: var(--dur-1);
   --ed-duration-slow: var(--dur-3);
 
-  color-scheme: dark;
 }
 
 @media (max-width: 1500px) {
