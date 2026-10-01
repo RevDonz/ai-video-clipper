@@ -2,6 +2,7 @@
 // (/projects/[id]). Client-safe: no Node built-ins.
 
 import { formatTimestamp } from "./selection-v3-view.mjs";
+import { shownStageDetail, shownWorkerText } from "./stage-detail.mjs";
 
 export const STATUS_LABELS = Object.freeze({
   queued: "Menunggu",
@@ -63,11 +64,18 @@ export function clipLabel(clip) {
 
 /** The history row's second line after the date: the clip count, or where an unfinished job stands. */
 export function projectRowDetail(job) {
-  const stage = typeof job?.stageDetail === "string" ? job.stageDetail.trim() : "";
+  const stage = shownStageDetail(job);
   if (job?.status === "completed") return `${Array.isArray(job.clips) ? job.clips.length : 0} klip`;
   if (job?.status === "deleting") return "Sedang dihapus";
   if (job?.status === "failed") return stage || "Berhenti sebelum selesai";
   return stage || "Sedang diproses";
+}
+
+/** The project page's progress title, or the reason in its failure notice. */
+export function projectStageText(job) {
+  const stage = shownStageDetail(job);
+  if (stage) return stage;
+  return job?.status === "failed" ? "Proyek ini berhenti sebelum klip selesai." : "Sedang diproses";
 }
 
 // A machine code such as "storage_admission_unavailable" or "llm_error:rate_limited".
@@ -78,11 +86,10 @@ const MACHINE_CODE = /^[a-z0-9]+(?:[_:][a-z0-9_.:-]+)+$/;
  * words, not a bare code (codes stay in the job file), and not a repeat of the stage text.
  */
 export function failureDetail(job) {
-  if (job?.status !== "failed" || typeof job.error !== "string") return null;
-  const error = job.error.trim();
+  if (job?.status !== "failed") return null;
+  const error = shownWorkerText(job.error);
   if (!error || MACHINE_CODE.test(error)) return null;
-  const stage = typeof job.stageDetail === "string" ? job.stageDetail.trim() : "";
-  return error === stage ? null : error;
+  return error === shownStageDetail(job) ? null : error;
 }
 
 export function historySummary(jobs) {

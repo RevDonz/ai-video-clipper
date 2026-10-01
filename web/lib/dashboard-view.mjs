@@ -2,6 +2,8 @@
 // Client-safe. The owner's rule: only the current method on screen, no version labels and no
 // technical provenance (selection source, prompt or engine versions); old jobs stay viewable.
 
+import { shownStageDetail, shownWorkerText } from "./stage-detail.mjs";
+
 export const JOB_STATUS_LABELS = Object.freeze({
   queued: "Dalam antrean",
   preparing: "Menyiapkan video",
@@ -59,16 +61,6 @@ export function jobStageText(job) {
   return JOB_STAGE_LABELS[job?.stage] || JOB_STATUS_LABELS[job?.status] || "Memproses";
 }
 
-// Old jobs that were still running when their mode was retired report stages such as
-// "Kandidat bayangan V2 siap". Version wording stays in the job file, never on screen.
-const VERSION_WORDING = /\bV\d\b|\bshadow\b|\bSelection\b/i;
-
-/** The worker's stage detail when it is fit to show, else null. */
-function shownStageDetail(job) {
-  const detail = typeof job?.stageDetail === "string" ? job.stageDetail.trim() : "";
-  return detail && !VERSION_WORDING.test(detail) ? detail : null;
-}
-
 /** The live line under the progress bar: the worker's own detail, else what the job waits for. */
 export function jobActivityText(job) {
   const detail = shownStageDetail(job);
@@ -99,7 +91,7 @@ export function clipMetaText(clip) {
 /** A failed job's reason in Indonesian, plus the worker's raw error for the disclosure, or null. */
 export function jobFailureView(job) {
   if (job?.status !== "failed") return null;
-  const error = typeof job.error === "string" && job.error.trim() ? job.error.trim() : null;
+  const error = shownWorkerText(job.error);
   if (error && Object.hasOwn(STORAGE_MESSAGES, error)) return { text: STORAGE_MESSAGES[error], detail: null };
   return { text: shownStageDetail(job) || "Proses berhenti karena terjadi kesalahan.", detail: error };
 }
