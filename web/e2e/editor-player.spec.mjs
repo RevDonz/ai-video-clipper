@@ -250,15 +250,29 @@ test("P-JOIN-B: the cold-open transition in the player equals the plan and the s
     probes += shots.length;
     // (c) The whoosh is in the server mix: the AudioBuffer against the reference PCM.
     let audio = null;
+    let playback = null;
     if (item.whoosh) {
       const result = await page.evaluate(() => window.__player.audioCheck());
       audio = { ...result, planSamplesDelta: result.referenceLength - result.planSamples };
+      // Not gated: playback through the join from 2 s before it (the blend reads the canvas back).
+      const from = Math.max(0, item.join.at_f - Math.round((2 * item.fps[0]) / item.fps[1]));
+      const run = await page.evaluate((fromFrame) => window.__player.playProbe({ fromFrame, pixels: false }), from);
+      const inWindow = new Set(item.join.check_frames);
+      playback = { from_frame: from, presented: run.samples.length, drops: run.stats.drops,
+        drops_at_cuts: run.stats.dropsAtCuts, drops_in_window: run.stats.dropped.filter((n) => inWindow.has(n)).length,
+        holds: run.stats.holds,
+        present_gap_ms: gaps(run.samples) };
     }
+    const seekMs = (blended) => {
+      const ms = check.filter((entry) => (want(entry.frame) > 0) === blended).map((entry) => entry.seekMs);
+      return { p50: percentile(ms, 50), max: ms.length ? Math.max(...ms) : null };
+    };
     results.push({ case: item.id, fps: item.fps, layout: item.layout, style: item.style, whoosh: item.whoosh,
       logo: item.logo, at_f: item.join.at_f,
       alpha: { frames: check.length, mismatches, unpresented, control_one_frame_late_flagged: lateFlagged,
         control_edges: edges, details },
-      composites: shots.length, audio });
+      seek_ms: { blended: seekMs(true), plain: seekMs(false) },
+      composites: shots.length, audio, playback });
   }
   const scoreFile = path.join(outDir, "p_join_b_scores.json");
   try {

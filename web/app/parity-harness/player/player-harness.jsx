@@ -252,11 +252,11 @@ function createHarness(manifest, stage) {
       const out = [];
       for (const n of frames) {
         drawnAlpha.delete(n);
-        await seekShown(n);
+        const seekMs = await seekShown(n);
         const overlay = player.debug.joinAt(n);
         out.push({ frame: n, presented: player.state().presentedFrame === n,
           joinAlphaPm: drawnAlpha.get(n) ?? null, joinAt: overlay ? overlay.alphaPm : 0,
-          rgb: overlay ? [...overlay.rgb] : null });
+          rgb: overlay ? [...overlay.rgb] : null, seekMs });
       }
       return out;
     },
