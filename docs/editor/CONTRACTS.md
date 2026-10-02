@@ -1271,6 +1271,12 @@ signatures stay; everything below is additive unless marked **changed**.
   waitingFor, exact, pending, slow, error, presentedFrame, plate {ready, total}`;
   `play({silent})` plays without the mix; `stats()` serves the gates. The player owns the
   `<video>` element's `src`.
+- Paused frame (PR #22): three attempts with budgets of 1.5, 4 and 4 s; a retry asks the plate
+  source for `need(k, j, {fresh: true})` (passes over the cell with no progress are abandoned,
+  one sequential pass from the cell start). After the last attempt `state().error` is
+  `{layer: "plate"|"text", message, frame}` and the badge reads "Frame gagal dimuat"; a frame
+  that still comes is drawn and clears it. `pause()` draws the playhead frame when playback was
+  holding another. `stats().paused` and `stats().plate.abandoned` record the misses.
 - Runtime (`web/components/editor/runtime.mjs`): `createEditorRuntime({kind: "real"})` builds
   the API client, the preview client, the store (IndexedDB draft, channel, lifecycle) and the
   player (truth frames from the preview client for the current document); `setPlayhead(frame)`;
