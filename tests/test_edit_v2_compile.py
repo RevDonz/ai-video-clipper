@@ -25,7 +25,7 @@ from support import edit_v2_media as media
 from test_edit_v2_plan import HARNESS, camera_for, context_for, load_doc
 
 from ai_clipper import face_tracking, render
-from ai_clipper.edit_v2 import captions, compile_ffmpeg, execute, layouts
+from ai_clipper.edit_v2 import audio_graph, captions, compile_ffmpeg, execute, layouts, transitions
 from ai_clipper.edit_v2 import timemap as tm
 from ai_clipper.edit_v2.compile_ffmpeg import (
     GRAPH_FILE,
@@ -183,12 +183,108 @@ def test_every_label_is_produced_once_and_consumed_once(harness, probe_stub, gol
 
 def test_every_golden_file_has_a_case():
     names = {path.stem for path in GOLDENS.glob("*.txt")}
-    expected = set(GOLDEN_CASES) | {f"final__logo__c30__{c}" for c in COMPOSITE_CASES}
+    expected = (set(GOLDEN_CASES) | set(TRANSITION_GOLDEN_CASES)
+                | {f"final__logo__c30__{c}" for c in COMPOSITE_CASES})
     assert names == expected
 
 
 def test_every_mode_has_a_golden():
     assert {kwargs["mode"] for _name, kwargs in GOLDEN_CASES.values()} == set(MODES)
+
+
+# --- the cold-open transition (spec 2026-10-02 §4.1, §4.2) -----------------------------------------
+#
+# These goldens run the real audio fragment (the whoosh is its part), with the harness captions.
+
+REAL_AUDIO_FRAGMENT = audio_graph.audio_fragment
+REAL_LOAD_SFX = transitions.load_sfx_pcm
+TRANSITION_GOLDEN_CASES = {
+    "final__flash_whoosh__c30": ("seed__c30", "flash_white", True, {"mode": "final"}),
+    "frame__dip__c25": ("cold_open_added__c25", "dip_black", False, {"mode": "frame", "frame": "J"}),
+    "reference__flash__c24": ("seed__c24", "flash_white", False, {"mode": "reference"}),
+    "audio_preview__whoosh_music__c30": ("music__c30", "flash_white", True,
+                                         {"mode": "audio_preview",
+                                          "loudness": Loudness(-1650, -40)}),
+    "audio_measure__whoosh_music__c30": ("music__c30", "flash_white", True,
+                                         {"mode": "audio_measure"}),
+}
+
+
+def with_join(name: str, style: str, whoosh: bool) -> dict:
+    doc = load_doc(name)
+    join = doc["main"]["joins"][0]
+    join["style"] = style
+    if whoosh:
+        join["sfx"] = {"id": "whoosh", "v": 1}
+    else:
+        join.pop("sfx", None)
+    return doc
+
+
+@pytest.fixture
+def real_audio(harness, monkeypatch):
+    monkeypatch.setattr(audio_graph, "audio_fragment", REAL_AUDIO_FRAGMENT)
+    # RESOURCES names the image's /app/resources; the pinned file is the same bytes here.
+    monkeypatch.setattr(transitions, "load_sfx_pcm",
+                        lambda _root, spec: REAL_LOAD_SFX(RESOURCES_DIR, spec))
+
+
+def transition_job(probe_stub, golden: str):
+    name, style, whoosh, kwargs = TRANSITION_GOLDEN_CASES[golden]
+    doc = with_join(name, style, whoosh)
+    kwargs = dict(kwargs)
+    if kwargs.get("frame") == "J":
+        kwargs["frame"] = fixture_plan(name, doc=doc).joins[0].at_f
+    return compiled(name, probe_stub, doc=doc, **kwargs)
+
+
+@pytest.mark.parametrize("golden", sorted(TRANSITION_GOLDEN_CASES))
+def test_transition_goldens(real_audio, probe_stub, golden):
+    _plan, job = transition_job(probe_stub, golden)
+    check_golden(golden, render_golden(job))
+    produced, consumed = graph_labels(job)
+    assert produced and set(produced.values()) == {1} and produced == consumed, golden
+
+
+@pytest.mark.parametrize(("name", "style"), [("join_flash_white__c30", "flash_white"),
+                                             ("join_dip_black__c30", "dip_black"),
+                                             ("join_dip_black_whoosh__c30", "dip_black")])
+def test_the_effect_is_one_lutrgb_per_frame_between_layout_and_text(harness, probe_stub, name,
+                                                                    style):
+    plan, job = compiled(name, probe_stub, mode="final")
+    (join,) = plan.joins
+    assert join.style == style and join.alpha
+    chain = transitions.lut_chain(plan.joins, plan.fps)
+    assert job.filter_script.count("lutrgb=") == chain.count("lutrgb=") == len(join.alpha)
+    assert (f"[vlay]scale=in_color_matrix=bt709:in_range=tv,format=gbrp{chain},"
+            f"ass=filename=captions.ass:fontsdir=fonts:shaping=complex[vtext]"
+            in job.filter_script.split(";\n"))
+    # the same string in every picture mode (G-DET); never in plate cells
+    _plan, reference = compiled(name, probe_stub, mode="reference")
+    _plan, frame = compiled(name, probe_stub, mode="frame", frame=join.at_f)
+    for other in (reference, frame):
+        assert chain in other.filter_script
+    first_cell = plan.pieces[0].in_sf // tm.cell_frames(plan.fps)
+    _plan, cells = compiled(name, probe_stub, mode="plate_cells", cells=(first_cell,))
+    assert "lutrgb" not in cells.filter_script
+
+
+def test_an_effect_only_adds_its_chain(harness, probe_stub):
+    doc = with_join("seed__c30", "flash_white", False)
+    plan, flash = compiled("seed__c30", probe_stub, doc=doc, mode="final")
+    _plan, cut = compiled("seed__c30", probe_stub, mode="final")
+    chain = transitions.lut_chain(plan.joins, plan.fps)
+    assert chain and flash.filter_script.replace(chain, "") == cut.filter_script
+    assert flash.argv == cut.argv and flash.inputs == cut.inputs
+    assert flash.sidecars == cut.sidecars
+    assert {k: v for k, v in flash.expected.items()} == cut.expected
+
+
+def test_the_effect_needs_the_gbrp_composite(harness, probe_stub, monkeypatch):
+    monkeypatch.setattr(compile_ffmpeg, "COMPOSITE_FORMAT", "yuv420p")
+    with pytest.raises(ValueError):
+        compiled("join_flash_white__c30", probe_stub, mode="final")
+    compiled("seed__c30", probe_stub, mode="final")  # a cut still compiles
 
 
 # --- R8 hygiene and user text --------------------------------------------------------------------

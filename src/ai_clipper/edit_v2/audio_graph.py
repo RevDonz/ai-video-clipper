@@ -34,6 +34,12 @@ asset name ever appears in it):
   ``amultiply`` with the music envelope and ``amix=inputs=2:normalize=0:duration=first``;
 * envelope sidecars are mono f32 at 48 kHz (``-f f32le -ar 48000 -ac 1``) panned to stereo
   with ``pan=stereo|c0=c0|c1=c0`` before ``amultiply`` (again no implicit −3 dB upmix);
+* the cold-open whoosh (a join's ``sfx``, spec 2026-10-02 §4.2): the pinned PCM as the sidecar
+  ``audio-sfx-<id>-v<v>.pcm`` (``-f s16le -ar 48000 -ac 2``), the fragment's last own input,
+  ``asetpts=PTS-STARTPTS[,atrim=start_sample=<skip>,asetpts=PTS-STARTPTS],
+  adelay=delays=<start>S:all=1,apad,atrim=end_sample=<total>``, mixed with the speech (closed
+  into ``[au_s]``) and the music by ``amix=inputs=<n>:normalize=0:duration=first``. Without a
+  sound the fragment is exactly what it was before transitions existed;
 * ``aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo`` → ``[apre]``.
 """
 
@@ -47,6 +53,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from . import COMPILER_VERSION
+from . import transitions as _transitions
 from .compile_ffmpeg import InputSpec
 from .envelope import (
     expand_f32,
@@ -55,6 +62,7 @@ from .envelope import (
     music_item,
     speech_envelope,
 )
+from .glyphs import RESOURCES_DIR
 from .loudness import format_centi
 from .plan import RenderPlan
 from .timemap import SAMPLE_RATE, smp
@@ -67,6 +75,8 @@ AUDIO_MODES = ("final", "reference", "audio_preview", "audio_measure")
 SPEECH_ENVELOPE = "audio-speech.f32"
 MUSIC_ENVELOPE = "audio-music.f32"
 ENVELOPE_OPTIONS = ("-f", "f32le", "-ar", str(SAMPLE_RATE), "-ac", "1")
+SFX_SIDECAR = "audio-sfx-{id}-v{v}.pcm"  # the join's sound (transitions.load_sfx_pcm)
+SFX_OPTIONS = ("-f", "s16le", "-ar", str(SAMPLE_RATE), "-ac", "2")
 MEASURE_FILTER = "ebur128=peak=true:framelog=verbose"
 MIX_SCHEMA = "potongin-audio-mix/1"
 
@@ -158,8 +168,34 @@ def _build(plan: RenderPlan) -> tuple[str, tuple[InputSpec, ...], dict[str, byte
         mix = f"{speech_label}{music_label}amix=inputs=2:normalize=0:duration=first"
     else:
         mix = speech
+
+    # The cold-open whoosh (spec 2026-10-02 §4.2): a sidecar after every other own input, its
+    # hit on the join, padded and trimmed to the clip, added at unity gain.
+    sounds: list[str] = []
+    for join in plan.joins:
+        sfx = join.sfx
+        if sfx is None:
+            continue
+        if item is None and not sounds:
+            speech_label = graph.close(speech, f"{LABEL_PREFIX}s")
+        name = SFX_SIDECAR.format(id=sfx.id, v=sfx.v)
+        sidecars[name] = _transitions.load_sfx_pcm(_resources_root(plan),
+                                                   _transitions.SFX[(sfx.id, sfx.v)])
+        sfx_input = own_input(InputSpec("sidecar", name, SFX_OPTIONS))
+        skip = (f"atrim=start_sample={sfx.skip_smp},asetpts=PTS-STARTPTS,"
+                if sfx.skip_smp else "")
+        sounds.append(graph.close(
+            f"{sfx_input}asetpts=PTS-STARTPTS,{skip}adelay=delays={sfx.start_smp}S:all=1,apad,"
+            f"atrim=end_sample={total}", f"{LABEL_PREFIX}w{len(sounds) or ''}"))
+    if sounds:
+        labels = [speech_label, *([] if item is None else [music_label]), *sounds]
+        mix = f"{''.join(labels)}amix=inputs={len(labels)}:normalize=0:duration=first"
     graph.close(f"{mix},{_FORMAT}", OUTPUT_LABEL)
     return ";".join(graph.chains), tuple(inputs), sidecars
+
+
+def _resources_root(plan: RenderPlan):
+    return RESOURCES_DIR if plan.resources is None else plan.resources.root
 
 
 def _numbered(template: str, first_input_index: int) -> str:

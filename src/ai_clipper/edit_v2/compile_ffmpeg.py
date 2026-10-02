@@ -29,7 +29,10 @@ Every caller (pipeline, render-worker, preview lane, gates) goes through ``compi
   crop x is a table indexed by the output frame (values = the plan's x at the source frame
   shown), identical per source frame in plate cells and final renders.
 * **R5** text composited in ``COMPOSITE_FORMAT``
-  (``ass`` with ``shaping=complex``), then the logo, then BT.709/tv 4:2:0; **R7** the Standar
+  (``ass`` with ``shaping=complex``), then the logo, then BT.709/tv 4:2:0; a cold-open
+  transition (``transitions.lut_chain``: one ``lutrgb`` per affected frame) is applied to the
+  video layer in the composite format, before the text, in every picture mode and never in
+  plate cells; **R7** the Standar
   encode; **R8** no user string in argv or the graph (text reaches FFmpeg only inside the ASS
   sidecar), inputs as ``/proc/self/fd/N`` tokens, ``-protocol_whitelist file,pipe``,
   ``-progress``; **R9** see ``plan.render_key``.
@@ -59,6 +62,7 @@ from typing import TYPE_CHECKING, Any
 from .. import render as _render
 from . import errors, layouts
 from . import timemap as tm
+from . import transitions as _transitions
 from .plan import RenderPlan
 from .source_info import PROTOCOL_WHITELIST, child_env
 from .timemap import Fps, Piece
@@ -479,7 +483,10 @@ class _Compiler:
         self.graph.append(self.layout("[vcat]", ranges, "[vlay]"))
         assert self.plan.ass is not None
         self.sidecars[CAPTIONS_FILE] = self.plan.ass.encode("utf-8")
-        self.graph.append(f"[vlay]{_TEXT_IN[self.composite]},{_TEXT_FILTER}[vtext]")
+        # The cold-open effect (spec 2026-10-02 §4.1) on the video layer, under the text: one
+        # lutrgb per affected frame, "" for a cut. t is n·den/num after the settb above.
+        effect = _transitions.lut_chain(self.plan.joins, fps, self.composite)
+        self.graph.append(f"[vlay]{_TEXT_IN[self.composite]}{effect},{_TEXT_FILTER}[vtext]")
         last = "[vtext]"
         logo = self.plan.logo
         if logo is not None:
