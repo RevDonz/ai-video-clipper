@@ -1649,9 +1649,10 @@ run and commit). P-JOIN-B (the browser half) is T2's and is filled at integratio
 | **P-JOIN-B** (browser) | the player's `joinAlphaPm`, the canvas against the server composite, the whoosh mix | 0 mismatches; P-TXT's numbers; ≤ 1 LSB | 29.97, 25, 23.976 (spec §5.4) | nightly (ci-cd parity job) | T2 |
 
 Unchanged gates measured on this branch at `99c0916`: P-FRAME 3,625 frames, 0 mismatches; P-PLATE,
-G1/G2, G-CLICK, duck, G3, G3b pass (run 36966430990); `suite=full` (ruff, pytest 4,442 on
-Python 3.11, web 1,208/1,209 with 1 skip, build) run 36966421656 and `suite=image` (pytest 4,441
-in the image, the whoosh level test included) run 36966424538 green.
+G1/G2, G-CLICK, duck, G3, G3b pass (run 36966430990). Suites at T1's head `41025f5`:
+`suite=full` (ruff, pytest 4,443 on Python 3.11, web 1,208/1,209 with 1 skip, build) run
+36969631130 and `suite=image` (pytest 4,442 in the image, the whoosh level test and the
+truth-frame effect test included) run 36969633949, both green.
 
 - The whoosh file's level in the image: −29.00 LUFS integrated, −17.20 dBTP
   (`resources/sfx/whoosh/v1.meta.json`; `tests/test_edit_v2_transitions.py` checks −29.0 ± 1.0
