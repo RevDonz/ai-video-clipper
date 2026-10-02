@@ -456,6 +456,21 @@ test("a text render that never settles is bounded too: reported as the text afte
   player.destroy();
 });
 
+test("a logo that never finishes loading is reported as the logo after the budgets", async () => {
+  const env = makeDeps();
+  env.deps.createLogoLayer = () => ({ load: () => new Promise(() => {}), readyFor: () => false, draw() {}, destroy() {} });
+  const { player, plates } = mount(env);
+  player.load(planDto()).catch(() => {}); // waits for the logo, so the seek asks for the frame
+  await settle();
+  player.seek(3);
+  await settle();
+  await env.runTimers();
+  assert.deepEqual(env.fired, [1500, 4000, 4000]);
+  assert.deepEqual(plates(), []);
+  assert.deepEqual(player.state().error, { layer: "logo", message: "paused_frame_timeout:logo", frame: 3 });
+  player.destroy();
+});
+
 test("pausing on a frame playback was holding paints it once its plate frame comes", async () => {
   const landing = deferred();
   // Frame 0 at load, then frame 5 (cell 47, index 35): asked by the held tick and by the pause.
