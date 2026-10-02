@@ -1,8 +1,11 @@
 // The cold-open transition in the browser (spec 2026-10-02 §5): the plan DTO's joins as a
-// full-frame colour fill, drawn over the plate frame and under the text, at globalAlpha = a/1000.
+// full-frame blend toward a colour, applied to the plate frame on the canvas and under the text.
 // The server blends the same colour into the composite's RGB before the text (lutrgb), so plates
-// stay per source frame and the fill comes from the plan alone. The whoosh is in the server mix;
+// stay per source frame and the blend comes from the plan alone. The whoosh is in the server mix;
 // `sfx` is informational here.
+//
+// The blend is the export's own integer arithmetic per pixel (§2.3), not a globalAlpha fill:
+// Skia's 8-bit alpha rounds ±1 differently, which fails P-JOIN-B's SSIM on dark frames.
 
 export const JOIN_STYLES = Object.freeze(["cut", "flash_white", "dip_black"]);
 
@@ -57,13 +60,36 @@ export function overlayAt(overlays, n) {
   return overlays.get(n) ?? null;
 }
 
-/** Fills the whole canvas with the overlay's colour at alphaPm/1000 (nothing without one). */
+const tables = new Map(); // colour·1001 + alphaPm → Uint8Array(256)
+
+/** The export's lutrgb for one channel: out = ⌊(p·(1000 − a) + C·a + 500) / 1000⌋ per level p. */
+export function blendTable(colour, alphaPm) {
+  const key = colour * 1001 + alphaPm;
+  let table = tables.get(key);
+  if (!table) {
+    table = new Uint8Array(256);
+    for (let p = 0; p < 256; p += 1) table[p] = Math.floor((p * (1000 - alphaPm) + colour * alphaPm + 500) / 1000);
+    if (tables.size >= 64) tables.clear();
+    tables.set(key, table);
+  }
+  return table;
+}
+
+/** Blends RGBA pixels toward the overlay's colour in place; alpha is left as it is. */
+export function blendPixels(rgba, overlay) {
+  const [r, g, b] = overlay.rgb.map((colour) => blendTable(colour, overlay.alphaPm));
+  for (let i = 0; i < rgba.length; i += 4) {
+    rgba[i] = r[rgba[i]];
+    rgba[i + 1] = g[rgba[i + 1]];
+    rgba[i + 2] = b[rgba[i + 2]];
+  }
+  return rgba;
+}
+
+/** Blends the whole canvas (the plate frame just drawn) toward the overlay (nothing without one). */
 export function drawOverlay(ctx, overlay, width, height) {
   if (!overlay) return;
-  ctx.save();
-  ctx.globalCompositeOperation = "source-over";
-  ctx.globalAlpha = overlay.alphaPm / 1000;
-  ctx.fillStyle = `rgb(${overlay.rgb[0]}, ${overlay.rgb[1]}, ${overlay.rgb[2]})`;
-  ctx.fillRect(0, 0, width, height);
-  ctx.restore();
+  const image = ctx.getImageData(0, 0, width, height);
+  blendPixels(image.data, overlay);
+  ctx.putImageData(image, 0, 0);
 }

@@ -2,15 +2,15 @@
 //
 // One Canvas2D at the output size, three layers drawn bottom to top for every frame n:
 //   1. the plate frame: source-grid frame sf of piece(n), from plate cell k = ⌊sf/C⌋ decoded by
-//      WebCodecs through Mediabunny (plate-source.mjs), then the cold-open transition's colour
-//      fill of frame n from the plan DTO's joins, if any (join-layer.mjs);
+//      WebCodecs through Mediabunny (plate-source.mjs), then blended toward the cold-open
+//      transition's colour for frame n from the plan DTO's joins, if any (join-layer.mjs);
 //   2. the text: libass (JASSUB) drawing the server's ASS bytes at now_ms(n) (text-layer.mjs,
 //      the W1 adapter, used with split and keepBitmaps: one bitmap per band of text rows,
 //      owned by the player);
 //   3. the logo: the server's derived PNG drawn 1:1 at its box (logo-layer.mjs).
 // Frame n is presented only when all three layers for n are ready (presenter.mjs): the previous
-// exact frame stays up otherwise, and nothing approximate or partial is ever drawn (E7). The fill
-// needs nothing loaded, so it is never pending.
+// exact frame stays up otherwise, and nothing approximate or partial is ever drawn (E7). The
+// blend needs nothing loaded, so it is never pending.
 //
 // The clock is an AudioContext({sampleRate: 48000}) playing the server's mix (audio-clock.mjs);
 // frame n is presented when the clock reaches n·den/num. During playback the text is rendered
