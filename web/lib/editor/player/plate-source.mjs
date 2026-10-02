@@ -13,7 +13,9 @@
 //   decoder already past a newly needed frame leaves it to a follow-up pass.
 // * `need(k, j)` is a frame the stage waits for: it starts at once (a lone frame with getSample,
 //   which decodes from the IDR and flushes), promotes a pass already heading for it, and with
-//   `exclusive` (a paused seek) stops the decode-ahead of the previous position.
+//   `exclusive` (a paused seek) stops the decode-ahead of the previous position. A lone pass
+//   that does not deliver its frame (no sample, a neighbour, a decode error) hands it to one
+//   sequential pass, the route playback decodes with.
 // * A new plate key (a layout change) flushes every frame and ignores decodes still running.
 
 import { cellFramesFor, sampleIndex, sampleTimestamp } from "./frame-map.mjs";
@@ -268,10 +270,11 @@ export function createPlateSource({
       const first = Math.min(...job.wanted);
       job.position = first - 1;
       job.started = true;
-      if (job.urgent && job.wanted.size === 1 && typeof sink.getSample === "function") {
+      if (job.urgent && !job.sequential && job.wanted.size === 1 && typeof sink.getSample === "function") {
         // A lone seek target: getSample decodes from the IDR to j and flushes the decoder, so
         // the frame comes out without waiting for the next one (samples() needs it to know
         // that j is the frame at j's time) or for the decoder's frame-thread delay.
+        job.lone = true;
         const sample = await sink.getSample(sampleTimestamp(first, fps));
         timing.firstSample = now() - timing.started;
         job.done = true;
@@ -285,12 +288,13 @@ export function createPlateSource({
             sample.close?.();
           }
         }
+        // No sample, or a neighbouring one: the frame is still in the cell (the plan maps the
+        // playhead into it), so one sequential pass reads it. Another getSample would give the
+        // same answer, and a null here would leave the stage without its frame for good.
         for (const j of job.wanted) {
-          if (!cache.has(frameKey(job.k, j))) {
-            if (sample && live(job)) job.followUp.add(j);
-            else if (!sample) settle(job.k, j, null);
-          }
+          if (!cache.has(frameKey(job.k, j)) && live(job)) job.followUp.add(j);
         }
+        if (job.followUp.size) job.sequentialFollowUp = true;
         return;
       }
       let exhausted = true; // the cell ended before every needed frame was seen
@@ -324,7 +328,13 @@ export function createPlateSource({
       }
     } catch (error) {
       stats.errors += 1;
-      if (job.generation === generation) {
+      if (job.generation === generation && job.lone) {
+        // The lone route failed to decode a cell that was fetched and opened: its frames get
+        // one sequential pass over the same bytes; a failure there fails the cell.
+        job.done = true;
+        for (const j of job.wanted) if (!cache.has(frameKey(job.k, j))) job.followUp.add(j);
+        job.sequentialFollowUp = true;
+      } else if (job.generation === generation) {
         buffers.delete(job.k);
         failCell(job.k, error instanceof Error && /^plate_cell_failed/.test(error.message)
           ? error : new Error(`plate_cell_failed:${job.k}:${error?.message ?? error}`));
@@ -348,7 +358,10 @@ export function createPlateSource({
       if (jobs.get(job.k) === job) jobs.delete(job.k);
       if (job.generation === generation && job.followUp.size) {
         const pending = [...job.followUp].filter((j) => !cache.has(frameKey(job.k, j)) && waiters.has(frameKey(job.k, j)));
-        if (pending.length) want(job.k, pending, { urgent: pending.some((j) => urgent.has(frameKey(job.k, j))) });
+        if (pending.length) {
+          want(job.k, pending, { urgent: pending.some((j) => urgent.has(frameKey(job.k, j))),
+            sequential: job.sequentialFollowUp === true });
+        }
       }
       pump();
     });
@@ -371,21 +384,24 @@ export function createPlateSource({
     while (running < maxDecoders && queue.length) start(queue.shift());
   }
 
-  function want(k, js, { urgent: isUrgent = false } = {}) {
+  /** `sequential`: the frames came back from a lone pass without being decoded (no getSample). */
+  function want(k, js, { urgent: isUrgent = false, sequential = false } = {}) {
     const missing = js.filter((j) => !cache.has(frameKey(k, j)));
     if (!missing.length) return;
     let job = jobs.get(k);
     if (job && job.generation === generation && !job.done && !job.cancelled
       && (!job.started || missing.every((j) => j > job.position)) && (!isUrgent || job.urgent)) {
       for (const j of missing) job.wanted.add(j);
+      if (sequential) job.sequential = true;
       return;
     }
     if (job && job.generation === generation && !job.done && !job.cancelled && !isUrgent) {
       for (const j of missing) job.followUp.add(j); // behind the running pass
+      if (sequential) job.sequentialFollowUp = true;
       return;
     }
     job = { k, wanted: new Set(missing), followUp: new Set(), generation, started: false, running: false,
-      done: false, cancelled: false, urgent: isUrgent, position: -1 };
+      done: false, cancelled: false, urgent: isUrgent, position: -1, sequential };
     jobs.set(k, job);
     if (isUrgent) queue.unshift(job);
     else queue.push(job);

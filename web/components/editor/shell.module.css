@@ -432,6 +432,7 @@
 .badge_loading .badgeText { color: var(--warning); }
 .badge_unsupported .badgeText { color: var(--text); white-space: normal; }
 .badge_legacy .badgeText { color: var(--text); white-space: normal; }
+.badge_failed .badgeText { color: var(--danger); }
 
 .helpButton {
   flex: none;
