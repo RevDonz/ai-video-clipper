@@ -25,6 +25,7 @@ import {
   liveEntries,
   messageFor,
   noticesView,
+  playerView,
   rejectionText,
   safeApiHref,
   saveStatusView,
@@ -133,6 +134,32 @@ test("the stage badge says '● Sesuai hasil akhir' only when every layer is cur
     "Memperbarui logo…");
   assert.equal(badgeView({ status: "ready", plan, storePending: [], player: { mode: "live", current: { ...LIVE.current, logo: false } } }).text,
     "● Sesuai hasil akhir", "no logo in the plan: the logo layer is trivially current");
+});
+
+test("a playhead frame the player gave up on is named, not 'Menyiapkan frame…' forever", () => {
+  const plan = fakePlan();
+  const paused = { ...LIVE, playing: false, exact: false };
+  assert.deepEqual(badgeView({ status: "ready", plan, storePending: [], player: paused }),
+    { tone: "pending", text: "Menyiapkan frame…", detail: null });
+  const failed = badgeView({ status: "ready", plan, storePending: [], player: { ...paused, plateError: true } });
+  assert.deepEqual(failed, { tone: "failed", text: "Frame gagal dimuat", detail: "Putar atau geser playhead untuk mencoba lagi" });
+  assert.match(badgeHelp(failed), /Frame akhir/);
+  assert.notEqual(badgeHelp(failed), BADGE_HELP);
+  // A layer still pending is named first; a drawn frame is exact again.
+  assert.equal(badgeView({ status: "ready", plan, storePending: ["text"], player: { ...paused, plateError: true } }).text, "Memperbarui teks…");
+  assert.equal(badgeView({ status: "ready", plan, storePending: [], player: { ...LIVE, playing: false, exact: true, plateError: false } }).tone, "exact");
+});
+
+test("the shell keeps the player state it shows, including a plate the player gave up on", () => {
+  const live = { mode: "live", frame: 0, playing: false, exact: false, error: null, current: { ...LIVE.current } };
+  const first = playerView(null, live);
+  assert.deepEqual(first, { mode: "live", current: LIVE.current, playing: false, exact: false, plateError: false });
+  assert.equal(playerView(first, { ...live, frame: 3 }), first, "an unchanged view keeps its identity (no re-render)");
+  const failed = playerView(first, { ...live, error: { layer: "plate", message: "plate_cell_failed:47:x" } });
+  assert.notEqual(failed, first);
+  assert.equal(failed.plateError, true);
+  assert.equal(playerView(first, { ...live, error: { layer: "audio", message: "audio_fetch_failed:500" } }).plateError, false);
+  assert.equal(playerView(failed, { mode: "live", current: LIVE.current }).playing, false, "a partial state keeps playing");
 });
 
 test("revision 0 on the auto render, truth frames, unsupported browsers and loading", () => {
