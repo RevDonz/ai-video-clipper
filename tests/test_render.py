@@ -1019,3 +1019,163 @@ def test_hook_box_is_burned_in_the_top_safe_area_only_for_hook_duration(tmp_path
     assert abs(after_hook - 128) <= 12
     streams = _probe_streams(output)
     assert all(abs(float(stream["duration"]) - 3.0) <= 0.1 for stream in streams)
+
+
+# --- the cold-open transition (spec 2026-10-02 §4.3, §4.4) ---------------------------------------
+
+LEGACY_GOLDEN = Path(__file__).resolve().parent / "fixtures" / "render" / "legacy-multi-range.json"
+WHOOSH = Path(__file__).resolve().parents[1] / "resources" / "sfx" / "whoosh" / "v1.wav"
+FMT = "aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo"
+
+
+def _legacy_cases(**join) -> dict[str, list[str]]:
+    source = Path("/src/source.mp4")
+    common = {"video_stream_index": 0, "width": 360, "height": 640,
+              "output_path": "/proc/self/fd/9", **join}
+    return {
+        "center_crop_audio": render_module._multi_range_command(
+            source, ranges=((10.0, 12.002), (4.0, 9.0)), audio_stream_index=1,
+            render_mode="center-crop", **common),
+        "fit_blur_silent": render_module._multi_range_command(
+            source, ranges=((5.0, 6.0), (1.0, 3.0)), audio_stream_index=None,
+            render_mode="fit-blur", **common),
+    }
+
+
+def test_the_default_multi_range_command_is_byte_identical_to_before():
+    golden = json.loads(LEGACY_GOLDEN.read_text(encoding="utf-8"))
+    assert _legacy_cases() == golden
+    assert _legacy_cases(join_style="cut", join_sfx_path=None) == golden
+
+
+def _chains(graph: str) -> list[str]:
+    """The graph's chains: split on ``;`` outside single quotes (geq's ``st(…);…``)."""
+    chains, current, quoted = [], "", False
+    for character in graph:
+        if character == "'":
+            quoted = not quoted
+        if character == ";" and not quoted:
+            chains.append(current)
+            current = ""
+        else:
+            current += character
+    return [*chains, current]
+
+
+def _geq(plane: str, colour: int, alpha: str) -> str:
+    return (f"{plane}='st(0,{alpha});floor(({plane}(X,Y)*(1000-ld(0))+{colour}*ld(0)+500)"
+            f"/1000)'")
+
+
+def test_the_flash_and_the_whoosh_in_the_legacy_graph():
+    commands = _legacy_cases(join_style="flash_white", join_sfx_path=WHOOSH)
+    command = commands["center_crop_audio"]
+    graph = command[command.index("-filter_complex") + 1]
+    chains = _chains(graph)
+    head = "clip(floor(1000-1000*(2.002-T)/0.100+0.5),0,1000)"
+    assert chains[1] == (
+        "[source0]scale=360:640:force_original_aspect_ratio=increase,crop=360:640,setsar=1,"
+        f"format=yuv420p,geq={_geq('lum', 235, head)}:{_geq('cb', 128, head)}:"
+        f"{_geq('cr', 128, head)}:enable='gte(t,1.902)'[video0]")
+    body = "clip(floor(1000-1000*T/0.100+0.5),0,1000)"
+    assert chains[4] == (
+        "[source1]scale=360:640:force_original_aspect_ratio=increase,crop=360:640,setsar=1,"
+        f"format=yuv420p,geq={_geq('lum', 235, body)}:{_geq('cb', 128, body)}:"
+        f"{_geq('cr', 128, body)}:enable='lt(t,0.100)'[video1]")
+    assert chains[-5:] == [
+        "[video0][audio0][video1][audio1]concat=n=2:v=1:a=1[joined][speech]",
+        f"[speech]{FMT}[sp]",
+        f"[2:a]{FMT},adelay=delays=84576S:all=1,apad[wh]",
+        "[sp][wh]amix=inputs=2:normalize=0:duration=first[audio]",
+        "[joined]ass=filename='captions.ass'[video]",
+    ]
+    # the whoosh is the third input, unseeked
+    assert _inputs(command)[2] == ["-i", str(WHOOSH)]
+    # the per-range micro-fades are unchanged
+    golden = json.loads(LEGACY_GOLDEN.read_text(encoding="utf-8"))["center_crop_audio"]
+    golden_graph = _chains(golden[golden.index("-filter_complex") + 1])
+    assert chains[2] == golden_graph[2] and chains[5] == golden_graph[5]
+
+
+def test_the_dip_and_a_silent_source_in_the_legacy_graph():
+    command = _legacy_cases(join_style="dip_black", join_sfx_path=None)["fit_blur_silent"]
+    graph = command[command.index("-filter_complex") + 1]
+    head = "clip(floor(1000-1000*(1.000-T)/0.150+0.5),0,1000)"
+    assert (f"overlay=(W-w)/2:(H-h)/2,setsar=1,format=yuv420p,geq={_geq('lum', 16, head)}:"
+            f"{_geq('cb', 128, head)}:{_geq('cr', 128, head)}:enable='gte(t,0.850)'[video0]"
+            in graph)
+    assert "enable='lt(t,0.150)'[video1]" in graph
+    assert "[joined][audio]" in graph and "amix" not in graph  # no sound: today's audio
+    with_sound = _legacy_cases(join_style="cut", join_sfx_path=WHOOSH)["fit_blur_silent"]
+    graph = with_sound[with_sound.index("-filter_complex") + 1]
+    assert "geq" not in graph and "format=yuv420p" not in graph
+    assert f"[2:a]{FMT},adelay=delays=36480S:all=1,apad[wh]" in graph  # 1.000 s · 48 − 11 520
+    assert graph.count("anullsrc") == 2
+
+
+@pytest.mark.parametrize("options", [{"join_style": "xfade"}, {"join_style": "fade"},
+                                     {"join_style": None}, {"join_sfx": "pop"},
+                                     {"join_sfx": "whoosh", "join_style": "wipe"}])
+def test_unknown_join_options_are_rejected_before_any_subprocess(tmp_path: Path, monkeypatch,
+                                                                 options):
+    calls = []
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: calls.append(a))
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"source")
+    with pytest.raises(ValueError):
+        render_vertical(source, tmp_path / "clip.mp4", start=0.0, end=1.0, transcript=[],
+                        cold_open=(4.0, 5.0), **options)
+    assert calls == []
+
+
+def test_join_options_are_ignored_without_a_cold_open(tmp_path: Path, monkeypatch):
+    source = tmp_path / "source.mp4"
+    output = tmp_path / "clip.mp4"
+    source.write_bytes(b"source")
+    captured = _fake_render_tools(monkeypatch, output_duration=1.0)
+    render_vertical(source, output, start=0.5, end=1.5, transcript=[], width=360, height=640,
+                    join_style="flash_white", join_sfx="whoosh")
+    [command] = captured["commands"]
+    graph = command[command.index("-filter_complex") + 1]
+    assert "geq" not in graph and str(WHOOSH) not in command
+
+
+def test_render_vertical_passes_the_checked_whoosh(tmp_path: Path, monkeypatch):
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"source")
+    captured = _fake_render_tools(monkeypatch, output_duration=7.002)
+    render_vertical(source, tmp_path / "clip.mp4", start=4.0, end=9.0, transcript=[],
+                    width=360, height=640, cold_open=(10.0, 12.002), join_style="flash_white",
+                    join_sfx="whoosh")
+    [command] = captured["commands"]
+    assert _inputs(command)[2] == ["-i", str(WHOOSH.resolve())]
+
+
+def test_a_changed_whoosh_fails_the_legacy_render(tmp_path: Path, monkeypatch):
+    calls = []
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: calls.append(a))
+    monkeypatch.setattr(render_module, "SFX_RESOURCES_DIR", tmp_path / "resources")
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"source")
+    with pytest.raises(RuntimeError, match="cold-open sound effect is missing or changed"):
+        render_vertical(source, tmp_path / "clip.mp4", start=4.0, end=9.0, transcript=[],
+                        cold_open=(10.0, 12.0), join_style="cut", join_sfx="whoosh")
+    assert calls == []
+
+
+def test_a_flash_and_whoosh_render_lights_the_join_and_keeps_the_duration(tmp_path: Path):
+    """One small synthetic render (spec §8 T1): the first body frame is the flash's white."""
+    source = tmp_path / "gray.mp4"
+    output = tmp_path / "clip.mp4"
+    _make_source(source, duration=6.0, video="color=c=0x404040:size=640x360")
+
+    render_vertical(source, output, start=1.0, end=3.0, transcript=[], width=360, height=640,
+                    cold_open=(4.0, 6.0), join_style="flash_white", join_sfx="whoosh")
+
+    streams = _probe_streams(output)
+    assert [(stream["codec_type"], stream["codec_name"]) for stream in streams] == [
+        ("video", "h264"), ("audio", "aac")]
+    assert all(abs(float(stream["duration"]) - 4.0) <= 0.25 for stream in streams)
+    assert _luma_at(output, time=2.0, x=180, y=320) >= 225  # the join: pure white
+    assert _luma_at(output, time=1.0, x=180, y=320) <= 80  # before the flash
+    assert _luma_at(output, time=3.0, x=180, y=320) <= 80  # after it

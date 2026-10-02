@@ -11,7 +11,9 @@ from __future__ import annotations
 import hashlib
 import math
 import re
+from collections.abc import Mapping
 from decimal import ROUND_HALF_UP, Decimal
+from typing import Any
 
 CLIP_ID_PATTERN = re.compile(r"clip_[0-9a-f]{24}")
 _SHA256 = re.compile(r"[0-9a-f]{64}")
@@ -61,6 +63,23 @@ def is_clip_id(value: object) -> bool:
     return isinstance(value, str) and CLIP_ID_PATTERN.fullmatch(value) is not None
 
 
+def manifest_clip_id(entry: Mapping[str, Any], source_content_sha256: str) -> str | None:
+    """The clip id of an ``output/manifest.json`` clip entry: its ``clip_id`` when it has one
+    (``None`` when that is malformed), else the id of its ``start``, ``end`` and ``cold_open``
+    seconds (a manifest written before the engine switch); ``None`` when they are unusable."""
+    value = entry.get("clip_id")
+    if value is not None:
+        return value if is_clip_id(value) else None
+    try:
+        start, end = ms_from_seconds(entry["start"]), ms_from_seconds(entry["end"])
+        teaser = entry.get("cold_open")
+        pair = None if teaser is None else (ms_from_seconds(teaser["start"]),
+                                            ms_from_seconds(teaser["end"]))
+        return clip_id(source_content_sha256, start, end, pair)
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
 def ms_from_seconds(seconds: float) -> int:
     """``round_half_up(seconds·1000)`` on the decimal value of ``seconds`` (plan §3.4).
 
@@ -77,4 +96,4 @@ def ms_from_seconds(seconds: float) -> int:
     return int(value.quantize(Decimal(1), rounding=ROUND_HALF_UP))
 
 
-__all__ = ["CLIP_ID_PATTERN", "clip_id", "is_clip_id", "ms_from_seconds"]
+__all__ = ["CLIP_ID_PATTERN", "clip_id", "is_clip_id", "manifest_clip_id", "ms_from_seconds"]

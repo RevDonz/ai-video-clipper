@@ -81,7 +81,7 @@ from . import camera as _camera
 from . import loudness as _loudness
 from . import seed as _seed
 from . import timemap as tm
-from .clip_id import CLIP_ID_PATTERN, clip_id, ms_from_seconds
+from .clip_id import CLIP_ID_PATTERN, manifest_clip_id
 from .doc import MAX_DOC_BYTES, canonical_bytes, content_equals_seed, parse_doc, validate_doc
 from .glyphs import RESOURCES_DIR
 from .loudness import Loudness
@@ -97,6 +97,7 @@ from .source_info import (
     write_immutable,
 )
 from .timemap import Fps
+from .transitions import CUT_JOIN, ColdOpenJoin
 from .words import build_words_artifact, encode_words, words_file_name
 
 ENGINE_ENV = "POTONGIN_RENDER_ENGINE"
@@ -628,17 +629,7 @@ class AutoFile:
 
 
 def _manifest_clip_id(entry: Mapping[str, Any], source_sha: str) -> str | None:
-    value = entry.get("clip_id")
-    if value is not None:
-        return value if isinstance(value, str) and CLIP_ID_PATTERN.fullmatch(value) else None
-    try:
-        start, end = ms_from_seconds(entry["start"]), ms_from_seconds(entry["end"])
-        teaser = entry.get("cold_open")
-        pair = None if teaser is None else (ms_from_seconds(teaser["start"]),
-                                            ms_from_seconds(teaser["end"]))
-        return clip_id(source_sha, start, end, pair)
-    except (KeyError, TypeError, ValueError):
-        return None
+    return manifest_clip_id(entry, source_sha)
 
 
 def auto_file(job_dir: Path, doc: Mapping[str, Any]) -> AutoFile | None:
@@ -906,6 +897,9 @@ class AutoOptions:
     hook_duration: float  # seconds
     width: int
     height: int
+    # The cold-open transition of the auto render (spec 2026-10-02 §6.2); the default keeps a
+    # construction without it on today's cut.
+    cold_open_join: ColdOpenJoin = CUT_JOIN
 
     def job(self, job_id: str, seed_at_ms: int) -> dict[str, Any]:
         """The ``job`` mapping of ``seed.build_seed``."""
@@ -913,7 +907,8 @@ class AutoOptions:
                 "options": {"renderMode": self.render_mode, "captionStyle": self.caption_style,
                             "coldOpen": self.cold_open, "hookOverlay": self.hook_overlay},
                 "renderSize": [self.width, self.height], "hookDuration": self.hook_duration,
-                "seedAtMs": seed_at_ms, "seedBy": "pipeline"}
+                "seedAtMs": seed_at_ms, "seedBy": "pipeline",
+                "coldOpenJoin": self.cold_open_join.to_json()}
 
 
 @dataclass(frozen=True)
@@ -926,6 +921,8 @@ class AutoClip:
     plan_sha256: str
     cold_open: bool  # the seed kept the clip's cold open
     result: RenderResult
+    # The seed's join when it kept the cold open (the manifest's cold_open_join), else None.
+    cold_open_join: ColdOpenJoin | None = None
 
     def manifest_fields(self) -> dict[str, Any]:
         return {"clip_id": self.clip_id, "render_engine": self.render_engine,
@@ -1109,9 +1106,14 @@ class AutoRenderer:
                                  cancel=self._cancel, encode_slot=self._heavy)
         cold_open = any(segment["role"] == "cold_open"
                         for segment in document["main"]["segments"])
+        joins = document["main"]["joins"]
+        join = None
+        if cold_open and joins:
+            sound = joins[0].get("sfx")
+            join = ColdOpenJoin(joins[0]["style"], None if sound is None else sound["id"])
         return AutoClip(clip_id=document["clip_id"], render_engine=COMPILER_ID,
                         render_key=result.render_key, plan_sha256=result.plan_sha256,
-                        cold_open=cold_open, result=result)
+                        cold_open=cold_open, result=result, cold_open_join=join)
 
     def fallback(self, rank: int) -> str | None:
         """Before the legacy engine renders the clip of ``rank``: remove the ``seed.json`` this
