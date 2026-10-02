@@ -60,6 +60,15 @@ juga menulis saran dari transkrip yang sudah diedit (sekitar 10 detik).
 **Saran cold open** mengusulkan kalimat terkuat dari klip; **Putar** memperdengarkannya,
 **Pakai** menjadikannya cold open.
 
+**Transisi** (di tab Cold open) mengatur efek di sambungan cold open ke awal klip: **Potong
+langsung** (tanpa efek), **Kilat putih** (layar memutih sekitar 0,2 detik) atau **Gelap sebentar**
+(layar menggelap sekitar 0,3 detik), plus sakelar **Suara whoosh**. **Putar transisi** memutar satu
+detik sebelum dan sesudah sambungan. Klip otomatis yang punya cold open memakai Kilat putih dengan
+whoosh; klip yang dirender sebelum fitur ini tetap potong langsung, dan "Kembali ke versi AI"
+mengembalikan transisi yang dipakai file otomatisnya. Efeknya hanya menutup gambar video (caption,
+hook dan logo tetap di atasnya); durasi klip dan waktu caption tidak bergeser. Tanpa cold open,
+bagian ini mati dengan keterangan "Aktifkan cold open dulu."
+
 **Tata letak (tab).** **Latar blur**, **Ikuti wajah** dan **Potong tengah**, masing-masing dengan
 contoh gambar di posisi putar. Berlaku untuk seluruh klip. "Ikuti wajah" pada proyek yang belum
 punya analisis wajah menganalisis dulu (hitungan persen); bagian tanpa wajah didaftar dengan
