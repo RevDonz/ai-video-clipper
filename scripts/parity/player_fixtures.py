@@ -573,10 +573,12 @@ def _gate_p_join_b(r: dict) -> tuple[dict, bool]:
 
     cases = r["cases"]
     whoosh = [c for c in cases if c.get("whoosh")]
-    composite = r["composite"]
+    composite = r.get("composite") or {"frames": 0, "failures": [{"scores": "missing"}]}
+    expected = r.get("composite_expected", composite["frames"])
     ok = (len(cases) >= len(JOIN_CASES) and all(alpha_ok(c["alpha"]) for c in cases)
           and bool(whoosh) and all(audio_ok(c["audio"]) for c in whoosh)
-          and composite["frames"] > 0 and not composite["failures"])
+          and composite["frames"] > 0 and composite["frames"] == expected
+          and not composite["failures"])
     threshold = {"alpha_mismatches": 0, "composite": P_JOIN_B,
                  "audio": {"max_diff_lsb": P_JOIN_B_AUDIO_MAX_LSB, "same_count_as": "reference"}}
     return {"threshold": threshold, **r}, ok
