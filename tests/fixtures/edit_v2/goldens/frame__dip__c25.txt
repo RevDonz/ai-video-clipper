@@ -1,0 +1,124 @@
+## argv
+ffmpeg
+-nostdin
+-y
+-hide_banner
+-nostats
+-loglevel
+error
+-progress
+@progress
+-copyts
+-protocol_whitelist
+file,pipe
+-threads
+4
+-ss
+599.000000
+-i
+@in:0
+-filter_complex_script
+filter_graph.txt
+-filter_complex_threads
+4
+-map
+[vout]
+-frames:v
+1
+-c:v
+libx264
+-preset
+veryfast
+-crf
+18
+-profile:v
+high
+-pix_fmt
+yuv420p
+-g
+50
+-x264-params
+threads=4:chroma-qp-offset=-12
+-color_primaries
+bt709
+-color_trc
+bt709
+-colorspace
+bt709
+-color_range
+tv
+-fps_mode
+passthrough
+-map_metadata
+-1
+-fflags
++bitexact
+-flags:v
++bitexact
+-flags:a
++bitexact
+-f
+h264
+frame.h264
+## inputs
+source source -threads 4 -ss 599.000000
+## sidecars
+captions.ass bd16e85de945830d3f4ac8d6ec601916e392e95d86e88bc7ca32277a44818014
+## expected
+{
+ "assets_root": "/jobs/job-1/analysis/assets",
+ "fontconfig_file": "/app/resources/fontconfig/fonts.conf",
+ "fonts_dir": "/app/resources/fonts",
+ "fps": [
+  25,
+  1
+ ],
+ "frame": 67,
+ "frames": 1,
+ "mode": "frame",
+ "output": "png",
+ "paths": {
+  "source": "/jobs/job-1/source.mp4"
+ },
+ "post": [
+  "ffmpeg",
+  "-nostdin",
+  "-y",
+  "-hide_banner",
+  "-nostats",
+  "-loglevel",
+  "error",
+  "-protocol_whitelist",
+  "file,pipe",
+  "-f",
+  "h264",
+  "-i",
+  "frame.h264",
+  "-frames:v",
+  "1",
+  "-vf",
+  "scale=in_color_matrix=bt709:in_range=tv,format=rgb24",
+  "-fflags",
+  "+bitexact",
+  "-flags:v",
+  "+bitexact",
+  "-f",
+  "image2",
+  "-c:v",
+  "png",
+  "frame.png"
+ ],
+ "result": "frame.png",
+ "size": [
+  720,
+  1280
+ ],
+ "source_frame": 15000
+}
+## filter_script
+[0:0]fps=25/1,trim=start_pts=15000:end_pts=15001,setpts=PTS-STARTPTS+67[vr0];
+[vr0]settb=1/25[vcat];
+[vcat]scale=720:1280:force_original_aspect_ratio=increase:in_color_matrix=bt709:in_range=tv:out_color_matrix=bt709:out_range=tv,format=yuv444p,crop=720:1280:x='0':y=(ih-oh)/2,setsar=1[vlay];
+[vlay]scale=in_color_matrix=bt709:in_range=tv,format=gbrp,lutrgb=r=floor((val*800+500)/1000):g=floor((val*800+500)/1000):b=floor((val*800+500)/1000):enable='between(t,2.540000,2.580000)',lutrgb=r=floor((val*533+500)/1000):g=floor((val*533+500)/1000):b=floor((val*533+500)/1000):enable='between(t,2.580000,2.620000)',lutrgb=r=floor((val*267+500)/1000):g=floor((val*267+500)/1000):b=floor((val*267+500)/1000):enable='between(t,2.620000,2.660000)',lutrgb=r=floor((val*0+500)/1000):g=floor((val*0+500)/1000):b=floor((val*0+500)/1000):enable='between(t,2.660000,2.700000)',lutrgb=r=floor((val*267+500)/1000):g=floor((val*267+500)/1000):b=floor((val*267+500)/1000):enable='between(t,2.700000,2.740000)',lutrgb=r=floor((val*533+500)/1000):g=floor((val*533+500)/1000):b=floor((val*533+500)/1000):enable='between(t,2.740000,2.780000)',lutrgb=r=floor((val*800+500)/1000):g=floor((val*800+500)/1000):b=floor((val*800+500)/1000):enable='between(t,2.780000,2.820000)',ass=filename=captions.ass:fontsdir=fonts:shaping=complex[vtext];
+[vtext]scale=out_color_matrix=bt709:out_range=tv:flags=accurate_rnd+full_chroma_int+full_chroma_inp+lanczos,format=yuv420p[vout]
+
