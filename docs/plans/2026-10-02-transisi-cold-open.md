@@ -944,8 +944,9 @@ given, instead of `transisi-t2-preview`):
      of where the composite differs from the same frame without text (the whole frame when no
      text is drawn).
    - (c) runs only on the case with the whoosh, through the existing `audioCheck`.
-   - Only the plate cells of frame 0 and the window are made. The mix and the reference PCM are
-     made only for the whoosh case.
+   - The cases without the whoosh get the plate cells of frame 0 and of the window only. The
+     whoosh case is also played through the join, so it gets every cell, the mix and the
+     reference PCM.
 6. **Scoring and evidence.**
    - The spec runs `player_fixtures.py score --join` on the host `python3`, as P-TXT does, and
      merges the scores into `p_join_b.json`.
