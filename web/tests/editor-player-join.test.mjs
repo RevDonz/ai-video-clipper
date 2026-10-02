@@ -1,9 +1,17 @@
 // The cold-open transition in the player (spec 2026-10-02 §5.2): the plan DTO's joins become a
-// full-frame colour fill per output frame, drawn over the plate frame with globalAlpha = a/1000.
+// full-frame blend toward a colour per output frame, applied to the plate frame with the export's
+// lutrgb arithmetic (§2.3), so the canvas equals the server composite before the text.
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { drawOverlay, joinOverlays, joinsValid, overlayAt } from "../lib/editor/player/join-layer.mjs";
+import {
+  blendPixels,
+  blendTable,
+  drawOverlay,
+  joinOverlays,
+  joinsValid,
+  overlayAt,
+} from "../lib/editor/player/join-layer.mjs";
 
 // The §1.6 example: 30000/1001, J = 60, flash_white with the whoosh.
 const FLASH = {
@@ -52,41 +60,71 @@ test("overlays are frozen copies: a later change to the DTO does not move the fi
   assert.ok(Object.isFrozen(overlayAt(overlays, 60).rgb));
 });
 
-function recordingContext() {
+// §2.3, the export's lutrgb: out = ⌊(p·(1000 − a) + C·a + 500) / 1000⌋.
+const lutrgb = (p, colour, a) => Math.floor((p * (1000 - a) + colour * a + 500) / 1000);
+
+// The §2.2 alphas of every supported rate, both styles.
+const TABLE_ALPHAS = [111, 110, 166, 167, 200, 333, 444, 467, 555, 556, 583, 600, 666, 667, 722, 733, 778, 1000];
+
+test("the blend table is the export's lutrgb for every level and every table alpha", () => {
+  for (const colour of [0, 255]) {
+    for (const a of TABLE_ALPHAS) {
+      const table = blendTable(colour, a);
+      for (let p = 0; p < 256; p += 1) assert.equal(table[p], lutrgb(p, colour, a), `C ${colour}, a ${a}, p ${p}`);
+    }
+  }
+  assert.deepEqual([...blendTable(255, 1000)], new Array(256).fill(255));
+  assert.deepEqual([...blendTable(0, 1000)], new Array(256).fill(0));
+});
+
+test("blendPixels blends R, G and B toward the colour and leaves alpha alone", () => {
+  const rgba = Uint8ClampedArray.from([0, 100, 200, 255, 16, 128, 235, 7]);
+  blendPixels(rgba, { rgb: [255, 255, 255], alphaPm: 333 });
+  assert.deepEqual([...rgba], [
+    lutrgb(0, 255, 333), lutrgb(100, 255, 333), lutrgb(200, 255, 333), 255,
+    lutrgb(16, 255, 333), lutrgb(128, 255, 333), lutrgb(235, 255, 333), 7,
+  ]);
+  const dark = Uint8ClampedArray.from([16, 17, 235, 255]);
+  blendPixels(dark, { rgb: [0, 0, 0], alphaPm: 733 });
+  assert.deepEqual([...dark], [4, 5, 63, 255]);
+});
+
+function pixelContext(width, height, level) {
   const calls = [];
+  const data = new Uint8ClampedArray(width * height * 4).map((_, i) => (i % 4 === 3 ? 255 : level));
   const ctx = {
     calls,
     globalAlpha: 1,
-    globalCompositeOperation: "copy",
-    fillStyle: "#000000",
-    save() { calls.push(["save"]); },
-    restore() { calls.push(["restore"]); },
-    fillRect(x, y, w, h) {
-      calls.push(["fillRect", x, y, w, h, { alpha: ctx.globalAlpha, op: ctx.globalCompositeOperation, fill: ctx.fillStyle }]);
-    },
+    globalCompositeOperation: "source-over",
+    getImageData(x, y, w, h) { calls.push(["getImageData", x, y, w, h]); return { data, width: w, height: h }; },
+    putImageData(image, x, y) { calls.push(["putImageData", x, y, [...image.data.slice(0, 4)]]); },
+    fillRect() { calls.push(["fillRect"]); },
   };
   return ctx;
 }
 
-test("drawOverlay fills the whole canvas at a/1000 between save and restore", () => {
-  const ctx = recordingContext();
-  drawOverlay(ctx, overlayAt(joinOverlays([FLASH]), 58), 720, 1280);
-  assert.deepEqual(ctx.calls, [
-    ["save"],
-    ["fillRect", 0, 0, 720, 1280, { alpha: 0.333, op: "source-over", fill: "rgb(255, 255, 255)" }],
-    ["restore"],
-  ]);
-  const peak = recordingContext();
-  drawOverlay(peak, overlayAt(joinOverlays([FLASH]), 60), 720, 1280);
-  assert.equal(peak.calls[1][5].alpha, 1);
-  const dip = recordingContext();
-  drawOverlay(dip, overlayAt(joinOverlays([DIP]), 57), 1080, 1920);
-  assert.deepEqual(dip.calls[1], ["fillRect", 0, 0, 1080, 1920, { alpha: 0.333, op: "source-over", fill: "rgb(0, 0, 0)" }]);
+test("drawOverlay blends the whole canvas with the export's arithmetic, in place", () => {
+  const ctx = pixelContext(4, 2, 100);
+  drawOverlay(ctx, overlayAt(joinOverlays([FLASH]), 58), 4, 2);
+  const flash = lutrgb(100, 255, 333);
+  assert.deepEqual(ctx.calls, [["getImageData", 0, 0, 4, 2], ["putImageData", 0, 0, [flash, flash, flash, 255]]]);
+  assert.equal(flash, 152);
+  const peak = pixelContext(4, 2, 100);
+  drawOverlay(peak, overlayAt(joinOverlays([FLASH]), 60), 4, 2);
+  assert.deepEqual(peak.calls[1][3], [255, 255, 255, 255]);
+  const dip = pixelContext(3, 3, 16);
+  drawOverlay(dip, overlayAt(joinOverlays([DIP]), 58), 3, 3);
+  assert.deepEqual(dip.calls[1][3], [7, 7, 7, 255]);
+  assert.equal(lutrgb(16, 0, 556), 7);
+  for (const context of [ctx, peak, dip]) {
+    assert.equal(context.globalAlpha, 1);
+    assert.equal(context.globalCompositeOperation, "source-over");
+  }
 });
 
 test("drawOverlay without an overlay touches nothing", () => {
-  const ctx = recordingContext();
-  drawOverlay(ctx, null, 720, 1280);
+  const ctx = pixelContext(2, 2, 50);
+  drawOverlay(ctx, null, 2, 2);
   assert.deepEqual(ctx.calls, []);
 });
 
