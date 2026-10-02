@@ -106,10 +106,11 @@
   gap: 6px;
 }
 
+/* Names wrap to one or two lines; the lengths share the bottom row, so they line up. */
 .preset {
   position: relative;
   display: grid;
-  align-content: start;
+  grid-template-rows: 1fr auto;
   gap: 2px;
   padding: var(--ed-space-2) var(--ed-space-1);
   border: 1px solid var(--border-strong);
@@ -139,6 +140,7 @@
 }
 
 .presetName {
+  align-self: center;
   color: var(--text);
   font-size: var(--ed-font-size-sm);
   font-weight: 700;
