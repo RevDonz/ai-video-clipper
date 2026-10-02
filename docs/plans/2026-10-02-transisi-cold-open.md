@@ -914,7 +914,20 @@ given, instead of `transisi-t2-preview`):
 2. **Player.** `onFrame.joinAlphaPm` is sent with every live frame the player draws. The
    `auto_render` frame events keep their shape: the auto MP4 holds the effect and the player
    draws nothing there. `debug.joinAt(n)` returns the frozen overlay `{rgb, alphaPm}` or `null`.
-3. **P-JOIN-B cases** (`player_fixtures.JOIN_CASES`, `generate --only join`): `join_29.97`
+3. **The blend is exact, not a `globalAlpha` fill (amends §2.3's browser line and §5.2's
+   `drawOverlay`).**
+   - The first P-JOIN-B run (pre-integration, run 36964783673) used §5.2's
+     `fillRect` at `globalAlpha = a/1000`. Max differences were ≤ 3, PSNR ≥ 52.9 dB and |mean|
+     ≤ 0.32 on every frame. Five `dip_black` frames still failed SSIM ≥ 0.999 (0.982–0.9988):
+     Skia rounds through an 8-bit alpha, and on dark content SSIM's luminance term punishes the
+     resulting ±1. Unblended frames matched the server apart from the text.
+   - So `drawOverlay` now reads the plate frame back (`getImageData`), maps R, G and B through
+     the export's own `⌊(p·(1000 − a) + C·a + 500) / 1000⌋` (a 256-entry table per channel) and
+     writes it back (`putImageData`), still between the plate and the text. The threshold is
+     unchanged.
+   - The cost falls only on the frames of the window (5–9 per clip). P-JOIN-B records the seek
+     time of blended frames and the drops while playing through the join, without gating them.
+4. **P-JOIN-B cases** (`player_fixtures.JOIN_CASES`, `generate --only join`): `join_29.97`
    (`flash_white` + whoosh, fit-blur, hook), `join_25` (`dip_black`, `fill_center`) and
    `join_23.976` (`flash_white`, fit-blur, 5 cuts, the P-LOGO logo at top right). All use the
    `frame_identity` barcode sources at 720×1280, the harness canvas size. The documents are built
@@ -922,7 +935,7 @@ given, instead of `transisi-t2-preview`):
    whoosh=…)` itself, so the cases do not depend on `Workspace.clip` reading `Case.join_style`.
    The generator refuses a plan that lost the transition (`transition_of`), and a DTO whose
    `alphaPm` is not the plan's alpha.
-4. **What each part measures.**
+5. **What each part measures.**
    - (a) runs on every frame of `[J − before − 2, J + after + 2)`. It compares
      `onFrame.joinAlphaPm`, `debug.joinAt` and the `rgb` with the plan. It also runs a
      one-frame-late control, as P-TIME does, which must flag every change of the plan.
@@ -933,21 +946,21 @@ given, instead of `transisi-t2-preview`):
    - (c) runs only on the case with the whoosh, through the existing `audioCheck`.
    - Only the plate cells of frame 0 and the window are made. The mix and the reference PCM are
      made only for the whoosh case.
-5. **Scoring and evidence.**
+6. **Scoring and evidence.**
    - The spec runs `player_fixtures.py score --join` on the host `python3`, as P-TXT does, and
      merges the scores into `p_join_b.json`.
    - `evidence` takes `--label` (an alias of `--task`) and `--gate` (repeatable, to write only
      some gates). The parity job runs `evidence --label CI --gate P-JOIN-B` in `parity-tools`
      before `summary`.
-6. **CI.** The two new steps run when `SUITE` is `full` (the schedule and `suite=nightly`).
+7. **CI.** The two new steps run when `SUITE` is `full` (the schedule and `suite=nightly`).
    `Decide` also requires the P-JOIN-B step, and the player results
    (`browser/player/*.json`) are kept with the evidence.
-7. **Python tests.** The tests of `player_fixtures.py` live in the existing
+8. **Python tests.** The tests of `player_fixtures.py` live in the existing
    `tests/test_parity_player_fixtures.py`. That file belongs to `player_fixtures.py` (GATES.md
    T2.4) and is not in T1's list. The one test that needs T1's engine (the cases' plans and DTO
    against the §2.2 table) uses `pytest.importorskip("ai_clipper.edit_v2.transitions")`: it is
    skipped on `transisi-t2` and runs on the integration branch.
-8. **Evidence file.** `T2-P-JOIN-B.json` comes from the integration branch's
+9. **Evidence file.** `T2-P-JOIN-B.json` comes from the integration branch's
    `ci-cd.yml -f suite=nightly`, because the fixtures need T1's `transitions` and `make_doc`
    arguments. It is the run's `CI-P-JOIN-B.json` (artifact `parity-full`) with `task` set to
    `T2`.
