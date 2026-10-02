@@ -54,6 +54,16 @@ lagi saat editor dinyalakan kembali. Revert itu jangan ikut mengembalikan penjag
 ekspor yang pernah dibatalkan menahan deploy rollback-nya. Commit penjaga itu sudah masuk `main`
 lebih dulu lewat PR #19, jadi revert `5064831` tidak menyentuhnya.
 
+**Transisi cold open dan rollback.** Sejak transisi cold open (2026-10-02), klip otomatis baru
+yang punya cold open dirender dengan Kilat putih dan whoosh di sambungannya (kedua mesin), dan
+manifest-nya mencatat `cold_open_join`; seed klip itu ikut membawa transisinya. Kalau rilis ini
+di-revert ke image sebelumnya, dokumen edit atau seed yang **memakai** transisi (Kilat putih,
+Gelap sebentar) atau whoosh tidak bisa dibaca image lama (422 `op_disabled` untuk gayanya,
+`unknown_key` untuk `sfx`): klip itu tidak bisa dibuka di editor sampai rilis ini kembali. Klip
+yang tidak memakainya (semua klip lama, klip tanpa cold open, dan dokumen Potong langsung tanpa
+whoosh) tidak terpengaruh. File klip otomatis dan hasil ekspor yang sudah ada tetap utuh dan bisa
+diunduh.
+
 **Kuota CPU render otomatis.** Mesin `edit-v2` memakai ± 2,2–2,5× waktu CPU `legacy` untuk potong
 tengah dan ikuti wajah (byte hasilnya sama dengan sebelum percepatan; tidak ada lagi percepatan
 yang menjaga byte). Di PC acuan dengan semua CPU, batas PF-PIPELINE terpenuhi. Dengan kuota

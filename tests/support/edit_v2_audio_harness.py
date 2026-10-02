@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import array
 import copy
+import dataclasses
 import hashlib
 import json
 import math
@@ -106,12 +107,17 @@ def audio_doc(
     target_clufs: int = -1400,
     tp_cdb: int = -100,
     music: Mapping[str, Any] | None = None,
+    join_style: str = "cut",
+    whoosh: bool = False,
 ) -> dict[str, Any]:
-    """A clip-edit-v2 document with the fields the audio path reads (not a full seed)."""
+    """A clip-edit-v2 document with the fields the audio path reads (not a full seed);
+    ``join_style`` and ``whoosh`` are the cold-open transition (spec 2026-10-02)."""
     segs = [{"id": sid, "role": role, "in_sf": a, "out_sf": b} for sid, role, a, b in segments]
     cold_open = next((s["id"] for s in segs if s["role"] == "cold_open"), None)
     joins = ([] if cold_open is None else
-             [{"after": cold_open, "style": "cut", "audio_fade_ms": join_fade_ms}])
+             [{"after": cold_open, "style": join_style, "audio_fade_ms": join_fade_ms}])
+    if whoosh and joins:
+        joins[0]["sfx"] = {"id": "whoosh", "v": 1}
     rms = [{"id": f"rm_{k}", "seg": seg, "in_sf": a, "out_sf": b, "words": [], "reason": "user",
             "origin": "user"} for k, (seg, a, b) in enumerate(removals, 1)]
     tracks = [] if music is None else [music_track(**dict(music))]
@@ -185,7 +191,13 @@ def plan_for(doc: Mapping[str, Any], words_ms: Sequence[tuple[int, int]]) -> Ren
         full = full_doc(doc)
         return build_plan(full, words=words_artifact(words_ms), camera=None,
                           assets=full["assets"], resources=Resources(RESOURCES_DIR))
-    return make_render_plan(doc, words_artifact(words_ms))
+    plan = make_render_plan(doc, words_artifact(words_ms))
+    if any(join["style"] != "cut" or "sfx" in join for join in doc["main"]["joins"]):
+        from ai_clipper.edit_v2 import transitions
+
+        plan = dataclasses.replace(plan, joins=transitions.plan_joins(
+            doc, plan.pieces, plan.fps, plan.total_frames))
+    return plan
 
 
 # --- media -------------------------------------------------------------------------------------
@@ -672,6 +684,17 @@ def p_aud(work: Path, sources: Sources | None = None) -> dict[str, Any]:
     mix_shas = {audio_graph.audio_fragment(plan, mode=mode, first_input_index=k).mix_sha256
                 for mode in audio_graph.AUDIO_MODES for k in (0, 7)}
     counts = [len(pcm1) // 2, len(pcm2) // 2, len(pcm3) // 2]
+    # The cold-open whoosh (spec 2026-10-02 §5.4, P-AUD's new case): the preview mix of a
+    # flash-and-whoosh document is the reference PCM too. No music: revision-0 audio, unmeasured.
+    whoosh_plan = plan_for(click_doc(join_style="flash_white", whoosh=True),
+                           burst_words(SOURCE_MS))
+    whoosh_source = sources.media(sources.speech(), music_kind=None)
+    whoosh_ref = run(whoosh_plan, mode="reference", sources=whoosh_source, work=work,
+                     name="whoosh-ref")
+    whoosh_preview = run(whoosh_plan, mode="audio_preview", sources=whoosh_source, work=work,
+                         name="whoosh-preview")
+    whoosh_ref_pcm, whoosh_preview_pcm = pcm(whoosh_ref.output), pcm(whoosh_preview.output)
+    whoosh_md5s = [md5(whoosh_ref_pcm), md5(whoosh_preview_pcm)]
     checks = {
         "reference_runs_identical": md5s[0] == md5s[1],
         "preview_equals_reference": md5s[2] == md5s[0],
@@ -681,12 +704,19 @@ def p_aud(work: Path, sources: Sources | None = None) -> dict[str, Any]:
         "graphs_identical": (ref1.fragment.graph == ref2.fragment.graph
                              == preview.fragment.graph),
         "one_mix_sha_across_modes": len(mix_shas) == 1,
+        "whoosh_in_the_mix": any(join.sfx is not None for join in whoosh_plan.joins)
+        and "audio-sfx-whoosh-v1.pcm" in whoosh_ref.fragment.sidecars,
+        "whoosh_preview_equals_reference": whoosh_md5s[0] == whoosh_md5s[1],
+        "whoosh_sample_counts_equal_plan": len(whoosh_ref_pcm) // 2 == len(
+            whoosh_preview_pcm) // 2 == whoosh_plan.total_samples,
     }
     return {
         "gate": "P-AUD (server)",
-        "pcm_md5": {"reference_1": md5s[0], "reference_2": md5s[1], "audio_preview": md5s[2]},
+        "pcm_md5": {"reference_1": md5s[0], "reference_2": md5s[1], "audio_preview": md5s[2],
+                    "whoosh_reference": whoosh_md5s[0], "whoosh_audio_preview": whoosh_md5s[1]},
         "samples": counts,
         "plan_samples": plan.total_samples,
+        "whoosh_plan_samples": whoosh_plan.total_samples,
         "master_gain_db": _cdb(ref1.gain_cdb),
         "checks": checks,
         "failures": sum(not ok for ok in checks.values()),

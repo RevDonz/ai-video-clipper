@@ -7,11 +7,13 @@ Every evidence file of a CI run is ``<dir>/CI-<gate>.json`` and says pass in one
 ``gate_passed`` reads. Suites (``REQUIRED``):
 
 * ``smoke`` (every pull request): P-TIME (FFmpeg and JASSUB sides), the P-TXT subset, a
-  300-frame P-FRAME, G-DET, P-AUD (server) and R10;
+  300-frame P-FRAME, G-DET, P-AUD (server), R10 and the cold-open transition's smoke (P-JOIN
+  and G-WHOOSH on the 29.97 flash with the whoosh, ``join_gates.py smoke``);
 * ``toolchain`` (a new toolchain or JASSUB pin): P-TIME, the full P-TXT matrix, P-ENC, P-COLOR
   and P-RT with R10, the evidence ``toolchain_guard.py`` stamps;
 * ``full`` (nightly): ``toolchain`` plus P-FRAME (≥ 2,000 frames), P-PLATE, G1/G2, G-DET,
-  PF-RENDER, the audio gates and the glyph probe.
+  PF-RENDER, the audio gates, the glyph probe and the transition's gates (P-JOIN, G-WHOOSH,
+  P-LOOK-JOIN from ``join_gates.py all``; P-JOIN-B from the browser half).
 
 CLI (inside the production image, ``PYTHONPATH=src:tests``)::
 
@@ -46,10 +48,13 @@ PTIME_RATES = 5
 
 _TOOLCHAIN_GATES = ("P-TIME-ffmpeg", "P-TIME-jassub", "P-TXT", "P-ENC", "P-COLOR", "P-RT", "R10")
 REQUIRED: dict[str, tuple[str, ...]] = {
-    "smoke": ("P-TIME-ffmpeg", "P-TIME-jassub", "P-TXT", "P-FRAME", "G-DET", "P-AUD", "R10"),
+    "smoke": ("P-TIME-ffmpeg", "P-TIME-jassub", "P-TXT", "P-FRAME", "G-DET", "P-AUD", "R10",
+              "P-JOIN", "G-WHOOSH"),
     "toolchain": _TOOLCHAIN_GATES,
     "full": _TOOLCHAIN_GATES + ("P-FRAME", "P-PLATE", "G1-G2", "G-DET", "P-AUD", "G-CLICK", "duck",
-                                "G3", "G3b", "glyph-probe"),
+                                "G3", "G3b", "glyph-probe",
+                                # the cold-open transition (spec 2026-10-02 §5.4)
+                                "P-JOIN", "G-WHOOSH", "P-LOOK-JOIN", "P-JOIN-B"),
 }
 
 # Two barcode sources with the geometry of the full gate's cases (20 cuts and a cold open each):

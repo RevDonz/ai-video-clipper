@@ -262,8 +262,15 @@ def make_doc(
     assets: Mapping[str, Mapping[str, Any]] | None = None,
     master: str = "off",
     source_gain_cdb: int = 0,
+    join_style: str = "cut",
+    whoosh: bool = False,
 ) -> dict[str, Any]:
-    """A ``clip-edit-v2`` document for a synthetic source (edges in source-grid frames)."""
+    """A ``clip-edit-v2`` document for a synthetic source (edges in source-grid frames).
+
+    ``join_style`` and ``whoosh`` set the cold-open join's transition (spec 2026-10-02 §1.1);
+    they need ``cold_open``."""
+    if (join_style != "cut" or whoosh) and cold_open is None:
+        raise ValueError("a cold-open transition needs a cold open")
     doc = _template()
     doc["revision"] = 1
     doc["parent_sha256"] = "0" * 64
@@ -278,7 +285,9 @@ def make_doc(
     if cold_open is not None:
         segments.append({"id": "seg_co", "role": "cold_open", "in_sf": cold_open[0],
                          "out_sf": cold_open[1]})
-        joins.append({"after": "seg_co", "style": "cut", "audio_fade_ms": 30})
+        joins.append({"after": "seg_co", "style": join_style, "audio_fade_ms": 30})
+        if whoosh:
+            joins[0]["sfx"] = {"id": "whoosh", "v": 1}
     segments.append({"id": "seg_b1", "role": "body", "in_sf": body[0], "out_sf": body[1]})
     doc["main"] = {
         "segments": segments,
@@ -453,6 +462,9 @@ class Case:
     # "inner": the body runs from frame 30 to 120 frames before the end; "source": the body is
     # every frame the seed allows, from the source's first to its last grid frame (W1 verifier).
     edges: str = "inner"
+    # The cold-open transition (spec 2026-10-02): the join's style and the whoosh.
+    join_style: str = "cut"
+    whoosh: bool = False
 
 
 P_FRAME_CASES = (
@@ -472,6 +484,12 @@ EXTRA_RENDER_CASES = (
          hook=True, logo=True),
     Case("no_audio_29.97", (30000, 1001), 600, "fill_center", cuts=3, cold_open=False,
          audio=False),
+)
+# G-DET also covers a document with the cold-open transition (spec 2026-10-02 §5.4): the effect
+# chain and the whoosh sidecar are part of the digests (same source as cfr_29.97).
+JOIN_DET_CASES = (
+    Case("join_29.97_flash_whoosh", (30000, 1001), 900, "fit_blur", hook=True,
+         join_style="flash_white", whoosh=True),
 )
 P_PLATE_CASES = tuple(
     Case(f"plate_{layout}", (30000, 1001), 900, layout, cuts=10, captions=False)
@@ -584,7 +602,7 @@ class Workspace:
                        removals=edges["removals"], layout=case.layout, output=case.output,
                        captions_enabled=case.captions,
                        hook=("Hook sintetis", 45) if case.hook else None, logo=logo,
-                       assets=assets)
+                       assets=assets, join_style=case.join_style, whoosh=case.whoosh)
         doc["base"]["window_ms"] = window_ms
         camera = (make_camera(duration_ms, case.fps, case.source_size, case.output)
                   if case.layout == "camera" else None)
@@ -1002,7 +1020,8 @@ def _file_sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def g_det(ws: Workspace, cases: Sequence[Case] = P_FRAME_CASES + EXTRA_RENDER_CASES,
+def g_det(ws: Workspace,
+          cases: Sequence[Case] = P_FRAME_CASES + EXTRA_RENDER_CASES + JOIN_DET_CASES,
           bitstream: Sequence[Case] = (P_FRAME_CASES[0], P_FRAME_CASES[3])) -> dict[str, Any]:
     spec = {"resources": str(ws.resources.root), "assets_root": str(ws.root / "assets"),
             "cases": {case.name: {key: ws.clip(case)[key] if key != "source"
