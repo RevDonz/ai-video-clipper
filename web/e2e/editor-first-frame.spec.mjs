@@ -15,7 +15,7 @@
 //   POTONGIN_PARITY_FIXTURES=<dir> npx playwright test e2e/editor-first-frame.spec.mjs --project=desktop-chromium
 // CI: `gh workflow run editor-gates.yml -f ref=<branch> -f suite=player -f command=e2e/editor-first-frame.spec.mjs`.
 // Every P-FRAME case of the manifest is opened (E2E_FIRST_FRAME_CASES narrows them).
-import { expect, test } from "@playwright/test";
+import { chromium, expect, test } from "@playwright/test";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -145,20 +145,24 @@ const STACKS = [
 
 for (const stack of STACKS) {
   test.describe(`first frame without Play or a gesture (${stack.name})`, () => {
-    test.use({
-      launchOptions: { ...(chrome ? { executablePath: chrome } : {}), args: ["--mute-audio", ...stack.args] },
-    });
-
-    for (const item of cases) {
-      test(`${item.id}: frame 0 is on the canvas before Play`, async ({ browser }) => {
+    // Without fixtures the file still declares its test, which the skips above then skip.
+    for (const item of cases.length ? cases : [{ id: "no-p-frame-case" }]) {
+      test(`${item.id}: frame 0 is on the canvas before Play`, async () => {
         test.setTimeout(FIRST_FRAME_TIMEOUT_MS + 60_000);
-        const report = await firstFrame(browser, item.id);
-        writeJson(`first_frame_${item.id}_${stack.args.length ? "nogpu" : "gpu"}.json`,
-          { browser: browser.version(), executable: chrome ?? null, args: stack.args, ...report });
-        test.info().annotations.push({ type: "first-frame",
-          description: `${browser.version()} ${report.firstMs ?? "-"} ms, webgl2 ${report.webgl2}, contexts ${JSON.stringify(report.contexts)}` });
-        if (stack.webgl2 === false) expect(report.webgl2, "the stack under test has no WebGL2").toBe(false);
-        checkFirstFrame(report);
+        expect(cases.length, "the fixtures hold a P-FRAME case").toBeGreaterThan(0);
+        // A browser per test: the launch flags differ per stack (a worker option cannot).
+        const browser = await chromium.launch({ ...(chrome ? { executablePath: chrome } : {}), args: ["--mute-audio", ...stack.args] });
+        try {
+          const report = await firstFrame(browser, item.id);
+          writeJson(`first_frame_${item.id}_${stack.args.length ? "nogpu" : "gpu"}.json`,
+            { browser: browser.version(), executable: chrome ?? null, args: stack.args, ...report });
+          test.info().annotations.push({ type: "first-frame",
+            description: `${browser.version()} ${report.firstMs ?? "-"} ms, webgl2 ${report.webgl2}, contexts ${JSON.stringify(report.contexts)}` });
+          if (stack.webgl2 === false) expect(report.webgl2, "the stack under test has no WebGL2").toBe(false);
+          checkFirstFrame(report);
+        } finally {
+          await browser.close();
+        }
       });
     }
   });
