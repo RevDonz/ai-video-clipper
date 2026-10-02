@@ -22,7 +22,10 @@ import {
   defaultMusicGain,
 } from "../lib/editor/commands.mjs";
 import {
+  AUTO_JOIN,
   EDITOR_ID,
+  JOIN_STYLES,
+  SFX_WHOOSH,
   body,
   canonicalJson,
   checkDoc,
@@ -30,11 +33,13 @@ import {
   contentEquals,
   contentJson,
   hookItem,
+  joinTemplate,
   logoItem,
   musicItem,
   nearestTrimWord,
   wordStatus,
 } from "../lib/editor/doc-model.mjs";
+import { applyParts, partValue } from "../lib/editor/rebase.mjs";
 import { logoBox, pieces, sfCeil, sfFloor } from "../lib/editor/timemap.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -93,9 +98,10 @@ function bodyFrames(doc) {
 
 // --- model ---------------------------------------------------------------------------------
 
-test("the command list is Appendix B, the same 35 names the fakes know", () => {
+test("the command list is Appendix B with the transition commands, the same 37 names the fakes know", () => {
   assert.deepEqual([...COMMANDS], [...FAKE_COMMANDS]);
-  assert.equal(COMMANDS.length, 35);
+  assert.equal(COMMANDS.length, 37);
+  assert.deepEqual(COMMANDS.slice(6, 10), ["SetColdOpen", "NudgeColdOpen", "SetJoinStyle", "SetJoinSfx"]);
   for (const [code, message] of Object.entries(COMMAND_MESSAGES)) {
     assert.match(code, /^[a-z_]+$/);
     assert.ok(message.length > 5, code);
@@ -178,8 +184,8 @@ test("defaultMergeKey follows Appendix B", () => {
   assert.equal(defaultMergeKey("SetSourceGain", { gain_cdb: 100 }), "audio:source");
   assert.equal(defaultMergeKey("SetLoudness", { mode: "off" }), "audio:master");
   for (const type of ["TrimStart", "TrimEnd", "RemoveWords", "RemoveGap", "RestoreRemoval", "ApplyCleanup",
-    "SetColdOpen", "SetWordHidden", "SetWordEmphasis", "SetCaptionPack", "SetLayout", "SetLogo", "RemoveLogo",
-    "SnapLogo", "SetMusic", "RemoveMusic", "ResetToSeed"]) {
+    "SetColdOpen", "SetJoinStyle", "SetJoinSfx", "SetWordHidden", "SetWordEmphasis", "SetCaptionPack", "SetLayout",
+    "SetLogo", "RemoveLogo", "SnapLogo", "SetMusic", "RemoveMusic", "ResetToSeed"]) {
     assert.equal(defaultMergeKey(type, {}), null, type);
   }
 });
@@ -392,14 +398,16 @@ function coWordsAt(context, fromSec, maxSec) {
   return [ctx.wordList[start], ctx.wordList[end]];
 }
 
-test("SetColdOpen builds the cold open from bounds with a 30 ms cut join", () => {
+// c25's seed has no cold open, so a new cold open gets the auto clips' transition (owner
+// decision 2026-10-02: Kilat putih + whoosh); the audio fade stays 30 ms.
+test("SetColdOpen builds the cold open from bounds with a 30 ms join and the auto transition", () => {
   const [first, last] = coWordsAt(C25, 40, 4);
   const doc = run(C25, C25.seed, "SetColdOpen", { firstWord: first.id, lastWord: last.id });
   assert.deepEqual(doc.main.segments[0], {
     id: "seg_co", role: "cold_open", in_sf: C25.ctx.boundBefore(idx(C25, first)).sf, out_sf: C25.ctx.boundAfter(idx(C25, last)).sf,
   });
   assert.equal(doc.main.segments[1].role, "body");
-  assert.deepEqual(doc.main.joins, [{ after: "seg_co", style: "cut", audio_fade_ms: 30 }]);
+  assert.deepEqual(doc.main.joins, [{ after: "seg_co", style: "flash_white", audio_fade_ms: 30, sfx: { id: "whoosh", v: 1 } }]);
   const cleared = run(C25, doc, "SetColdOpen", null);
   assert.equal(contentJson(cleared), contentJson(C25.seed));
 });
@@ -443,6 +451,145 @@ test("NudgeColdOpen moves one edge by whole word gaps", () => {
   rejects(C30, C30.seed, "NudgeColdOpen", { edge: "middle", words: 1 }, "invalid_args");
   rejects(C30, C30.seed, "NudgeColdOpen", { edge: "in", words: 0 }, "invalid_args");
   rejects(C30, C30.seed, "NudgeColdOpen", { edge: "in", words: 40 }, "cold_open_invalid");
+});
+
+// --- cold-open transition (docs/plans/2026-10-02-transisi-cold-open.md §1.1, §7.2) ------------
+
+const WHOOSH = Object.freeze({ id: "whoosh", v: 1 });
+
+/** `seed` with its cold-open join replaced by `join` (a seed rendered with that transition). */
+function seedWithJoin(context, join) {
+  const seed = structuredClone(context.seed);
+  const { sfx: _sfx, ...rest } = seed.main.joins[0];
+  seed.main.joins = [{ ...rest, ...join }];
+  return { ...context, seed, ctx: { ...context.ctx, seed } };
+}
+
+function withoutColdOpen(context, doc = context.seed) {
+  return applyCommand(doc, "SetColdOpen", null, context.ctx).doc;
+}
+
+test("the join model: three styles, the whoosh pair and the auto clips' default", () => {
+  assert.deepEqual([...JOIN_STYLES], ["cut", "flash_white", "dip_black"]);
+  assert.deepEqual(SFX_WHOOSH, WHOOSH);
+  assert.deepEqual(AUTO_JOIN, { style: "flash_white", sfx: WHOOSH });
+  assert.ok(Object.isFrozen(JOIN_STYLES) && Object.isFrozen(SFX_WHOOSH) && Object.isFrozen(AUTO_JOIN));
+});
+
+test("joinTemplate: the current join, else the seed's when the seed has a cold open, else the auto default", () => {
+  assert.deepEqual(joinTemplate(C30.seed, C30.seed), { style: "cut", sfx: null });
+  const dipped = run(C30, run(C30, C30.seed, "SetJoinStyle", { style: "dip_black" }), "SetJoinSfx", { on: true });
+  assert.deepEqual(joinTemplate(dipped, C30.seed), { style: "dip_black", sfx: WHOOSH });
+  assert.deepEqual(joinTemplate(withoutColdOpen(C30), C30.seed), { style: "cut", sfx: null });
+  const flashed = seedWithJoin(C30, { style: "flash_white", sfx: { ...WHOOSH } });
+  assert.deepEqual(joinTemplate(withoutColdOpen(C30), flashed.seed), { style: "flash_white", sfx: WHOOSH });
+  assert.deepEqual(joinTemplate(C25.seed, C25.seed), { style: "flash_white", sfx: WHOOSH });
+  assert.deepEqual(joinTemplate(C25.seed, null), { style: "flash_white", sfx: WHOOSH });
+  // A template never shares the document's objects.
+  assert.notEqual(joinTemplate(dipped, C30.seed).sfx, dipped.main.joins[0].sfx);
+});
+
+test("checkDoc accepts the three styles with or without the whoosh, and no other join", () => {
+  const withJoin = (patch, drop = []) => {
+    const doc = structuredClone(C30.seed);
+    doc.main.joins[0] = { ...doc.main.joins[0], ...patch };
+    for (const key of drop) delete doc.main.joins[0][key];
+    return doc;
+  };
+  for (const style of JOIN_STYLES) {
+    assert.deepEqual(checkDoc(withJoin({ style }), C30.ctx), [], style);
+    assert.deepEqual(checkDoc(withJoin({ style, sfx: { ...WHOOSH } }), C30.ctx), [], `${style} + whoosh`);
+  }
+  const bad = [
+    [{ style: "xfade" }], [{ style: "fade" }], [{ style: null }], [{ sfx: null }], [{ sfx: "whoosh" }], [{ sfx: [] }],
+    [{ sfx: { id: "pop", v: 1 } }], [{ sfx: { id: "whoosh", v: 2 } }], [{ sfx: { id: "whoosh" } }],
+    [{ sfx: { id: "whoosh", v: 1, gain_cdb: 0 } }], [{ dur_f: 6 }], [{ audio_fade_ms: 251 }], [{}, ["style"]],
+  ];
+  for (const [patch, drop] of bad) {
+    assert.deepEqual(checkDoc(withJoin(patch, drop), C30.ctx), [{ code: "cold_open_invalid", path: "/main/joins" }],
+      JSON.stringify([patch, drop]));
+  }
+  // A transition without a cold open is a join without a cold open.
+  const orphan = structuredClone(C25.seed);
+  orphan.main.joins = [{ after: "seg_co", style: "flash_white", audio_fade_ms: 30, sfx: { ...WHOOSH } }];
+  assert.deepEqual(checkDoc(orphan, C25.ctx), [{ code: "cold_open_invalid", path: "/main/joins" }]);
+});
+
+test("SetJoinStyle sets the style of the cold-open join and nothing else", () => {
+  for (const style of JOIN_STYLES) {
+    const result = applyCommand(deepFreeze(structuredClone(C30.seed)), "SetJoinStyle", { style }, C30.ctx);
+    assert.deepEqual(result.doc.main.joins, [{ after: "seg_co", style, audio_fade_ms: 30 }]);
+    assert.deepEqual(result.args, { style });
+  }
+  const whoosh = run(C30, C30.seed, "SetJoinSfx", { on: true });
+  const doc = run(C30, whoosh, "SetJoinStyle", { style: "dip_black" });
+  assert.deepEqual(doc.main.joins, [{ after: "seg_co", style: "dip_black", audio_fade_ms: 30, sfx: WHOOSH }]);
+  // Duration, segments, removals and captions are untouched (the time map does not move).
+  assert.equal(doc.main.segments, whoosh.main.segments);
+  assert.equal(doc.main.removals, whoosh.main.removals);
+  assert.equal(doc.captions, whoosh.captions);
+  assert.deepEqual(pieces(doc), pieces(C30.seed));
+  assert.equal(contentJson(run(C30, doc, "SetJoinStyle", { style: "cut" })), contentJson(whoosh));
+  for (const style of ["xfade", "fade", "", 3, null, undefined]) rejects(C30, C30.seed, "SetJoinStyle", { style }, "value_out_of_range");
+  rejects(C25, C25.seed, "SetJoinStyle", { style: "flash_white" }, "cold_open_missing");
+  rejects(C25, C25.seed, "SetJoinStyle", { style: "xfade" }, "cold_open_missing");
+});
+
+test("SetJoinSfx adds the whoosh and removes the key when off", () => {
+  const on = run(C30, C30.seed, "SetJoinSfx", { on: true });
+  assert.deepEqual(on.main.joins, [{ after: "seg_co", style: "cut", audio_fade_ms: 30, sfx: WHOOSH }]);
+  assert.deepEqual(applyCommand(C30.seed, "SetJoinSfx", { on: true }, C30.ctx).args, { on: true });
+  const off = run(C30, on, "SetJoinSfx", { on: false });
+  assert.ok(!Object.hasOwn(off.main.joins[0], "sfx"), "no sound is the absent key, never null");
+  assert.equal(contentJson(off), contentJson(C30.seed));
+  assert.equal(off.main.segments, on.main.segments);
+  // Off on a join without the whoosh changes nothing.
+  assert.equal(contentJson(run(C30, C30.seed, "SetJoinSfx", { on: false })), contentJson(C30.seed));
+  rejects(C30, C30.seed, "SetJoinSfx", { on: "yes" }, "invalid_args");
+  rejects(C30, C30.seed, "SetJoinSfx", { on: 1 }, "invalid_args");
+  rejects(C30, C30.seed, "SetJoinSfx", {}, "invalid_args");
+  rejects(C25, C25.seed, "SetJoinSfx", { on: true }, "cold_open_missing");
+});
+
+test("SetColdOpen keeps the style and the whoosh when it replaces the cold open; NudgeColdOpen keeps them too", () => {
+  let doc = run(C30, C30.seed, "SetJoinStyle", { style: "dip_black" });
+  doc = run(C30, doc, "SetJoinSfx", { on: true });
+  const [first, last] = coWordsAt(C30, 20, 3);
+  const replaced = run(C30, doc, "SetColdOpen", { firstWord: first.id, lastWord: last.id });
+  assert.notEqual(coldOpen(replaced).in_sf, coldOpen(doc).in_sf);
+  assert.deepEqual(replaced.main.joins, [{ after: "seg_co", style: "dip_black", audio_fade_ms: 30, sfx: WHOOSH }]);
+  const nudged = run(C30, doc, "NudgeColdOpen", { edge: "in", words: 1 });
+  assert.equal(nudged.main.joins, doc.main.joins);
+  // Removing the cold open drops its transition and its whoosh with the join.
+  assert.deepEqual(run(C30, doc, "SetColdOpen", null).main.joins, []);
+});
+
+test("a new cold open takes the seed's transition when the seed has a cold open (R10), else the auto one", () => {
+  const [first, last] = coWordsAt(C30, 20, 3);
+  // c30's seed is a cut without sound: a cold open made again after removing it is a cut.
+  let edited = run(C30, C30.seed, "SetJoinStyle", { style: "flash_white" });
+  edited = run(C30, edited, "SetColdOpen", null);
+  const again = run(C30, edited, "SetColdOpen", { firstWord: first.id, lastWord: last.id });
+  assert.deepEqual(again.main.joins, [{ after: "seg_co", style: "cut", audio_fade_ms: 30 }]);
+  // A seed rendered with Kilat putih + whoosh gives its own transition back.
+  const flashed = seedWithJoin(C30, { style: "flash_white", sfx: { ...WHOOSH } });
+  const plain = run(flashed, withoutColdOpen(flashed), "SetColdOpen", { firstWord: first.id, lastWord: last.id });
+  assert.deepEqual(plain.main.joins, flashed.seed.main.joins);
+  // Removing and re-adding the seed's own cold open is the seed again (exact bounds through the
+  // cold-open part, the way an undo past a save or a conflict resolution sets it).
+  for (const context of [C30, flashed, seedWithJoin(C30, { style: "dip_black" })]) {
+    const removed = withoutColdOpen(context);
+    const back = applyParts(removed, { coldopen: partValue(context.seed, "coldopen") }, context.ctx);
+    assert.ok(contentEquals(back, context.seed), JSON.stringify(context.seed.main.joins));
+  }
+  // c25's seed has none: the auto transition, also after the whoosh was switched off and the
+  // cold open removed (a removed cold open keeps nothing).
+  const [a, b] = coWordsAt(C25, 40, 4);
+  let doc = run(C25, C25.seed, "SetColdOpen", { firstWord: a.id, lastWord: b.id });
+  doc = run(C25, doc, "SetJoinSfx", { on: false });
+  doc = run(C25, doc, "SetColdOpen", null);
+  doc = run(C25, doc, "SetColdOpen", { firstWord: a.id, lastWord: b.id });
+  assert.deepEqual(doc.main.joins, [{ after: "seg_co", style: "flash_white", audio_fade_ms: 30, sfx: WHOOSH }]);
 });
 
 // --- captions ------------------------------------------------------------------------------
