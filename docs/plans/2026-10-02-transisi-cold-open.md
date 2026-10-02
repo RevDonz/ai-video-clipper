@@ -1056,6 +1056,61 @@ agent).
 - `.github/workflows/editor-gates.yml`
 - `docs/editor/PANDUAN-EDITOR.md`
 
+### Decisions during build (T3)
+
+Where §7 and §8 were silent or would not hold as written, T3 chose the option closest to FINAL and
+CONTRACTS:
+
+1. **`joinTemplate(doc, seed)` is the whole SetColdOpen rule**: the current join, else the seed's
+   join when the seed has a cold open, else `AUTO_JOIN`. It returns `{ style, sfx }` (sfx
+   `{id, v}` or `null`) as fresh objects. `doc-model.mjs` also exports `coldOpenJoin(after,
+   audioFadeMs, template)` (the document join, with no `sfx` key when silent) and
+   `JOIN_STYLE_NAMES` (Potong langsung, Kilat putih, Gelap sebentar), so commands, rebase and the
+   panel build and name joins one way.
+2. **Command details.** Both commands check the cold open first (`cold_open_missing`). Any style
+   outside `JOIN_STYLES`, a non-string or a missing one included, is `value_out_of_range` (as
+   SetLayout). `SetJoinSfx {on: false}` on a silent join changes nothing, so it adds no history
+   entry.
+3. **The change detector of `join.sfx` tells "no cold open" from "cold open without whoosh".**
+   `partValue` stays as §7.3 says (`joins[0]?.sfx ?? null`), but `identity()` (what `diffParts`
+   compares) is `null` without a cold open and `{ sfx: <value or null> }` with one. Without this, a
+   cold open whose whoosh was switched off, rebuilt from parts (an undo past a save, a conflict
+   resolution), would get the template's whoosh back on clips whose seed has no cold open: the
+   existing "applyParts reconstructs a document exactly" property fails on c25.
+4. **"Pakai punyaku" for a cold open brings its own transition.** When one side has a cold open and
+   the other has none and the `coldopen` group conflicts, `join.style`/`join.sfx` that differ join
+   that group (as `removals:cold_open` does), so restoring mine restores its style and whoosh, not
+   the template's. `checkConflictScenario` allows `join.*` in the `coldopen` group.
+5. **Panel.** The reason is read-only first, then "Aktifkan cold open dulu.". "Putar transisi"
+   stays enabled in read-only when a cold open exists (playing is not editing, like "Putar cold
+   open") and reads "Hentikan" while it plays, like the suggestions' "Putar". The status line
+   describes the last choice only while the document still shows it (an undo or the other tab
+   clears it) and keeps its line height when empty, so the panel does not jump. `title` and
+   `aria-describedby` sit on each disabled radio, which covers its card and so receives the hover.
+6. **R10 round trip in tests.** The fixture seeds' cold opens do not sit on the words' bounds table
+   (c30: seed `in_sf` 38217, SetColdOpen from its words gives 38222), so "remove and re-add the
+   seed's cold open is the seed" is tested through the cold-open part (exact bounds); the
+   SetColdOpen path compares the joins.
+7. **Fakes.** `fakeAlphaPm`/`fakeJoins` are exported and pinned against the §2.2 table at all five
+   rates; frames outside the clip are dropped, a cut with a whoosh keeps its `sfx` placement. The
+   fake store gets no reducers for the join commands (the fake seed has no cold open); the e2e
+   spec uses its own scenario store, like `editor-music.spec.mjs`.
+8. **crosscheck.** `SetJoinStyle` sends `xfade`/`fade` 5 % of the time and `SetJoinSfx` a
+   non-boolean 3 %, for rejection coverage; a transition command without a cold open is turned
+   into SetColdOpen 60 % of the time (the `NEEDS` rule of the item commands). Checked against
+   T1's validator (`transisi-t1` `6135705`): 1,000 sequences, 22,994 documents, 0 failures. On
+   this branch alone `tests/test_edit_v2_crosscheck.py` fails (`unknown_key`/`op_disabled`), as
+   §8 expects until T1 is merged.
+9. **editor-gates.yml.** `suite=e2e` serves `next start` on 127.0.0.1:3217 with an empty
+   `JOBS_ROOT` and settings directory, and takes axe-core 4.10.3 from the registry tarball outside
+   `node_modules` (GATES.md T2.6 declined axe as a devDependency). `suite=full` now runs the web
+   suites when pytest failed (`!cancelled()`), so one run shows every failure; the job still
+   fails. Until this file is on `main`, dispatch with `--ref <branch>` so the branch's workflow
+   (with `e2e`) is used.
+10. **Outside the owned files**, one line: `web/e2e/editor-acceptance.spec.mjs` (capability 3)
+    asserted a plain cut join after Ctrl+Shift+H; it now expects
+    `coldOpenJoin(id, 30, joinTemplate(seed, seed))`.
+
 ### Files nobody touches
 
 - `web/lib/editor/{preview-client,history,autosave,store,timemap}.mjs`,
