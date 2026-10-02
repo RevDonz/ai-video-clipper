@@ -47,12 +47,12 @@ docker compose up -d               # membuat ulang container yang berubah; tidak
 
 Untuk menyalakannya lagi, hapus baris itu (atau tulis `=on`) lalu `docker compose up -d` lagi.
 `POTONGIN_RENDER_ENGINE` dibaca `app`, `primary-worker` dan `render-worker`; ketiganya ikut dibuat
-ulang oleh perintah yang sama. Kalau seluruh rilis editor perlu dibatalkan, revert PR-nya di
-`main` (deploy otomatis memasang versi sebelumnya); data editor di folder job tetap ada dan dipakai
+ulang oleh perintah yang sama. Kalau seluruh rilis editor perlu dibatalkan, revert commit
+`5064831` (PR #20) di `main` lewat PR (deploy otomatis memasang versi sebelumnya); data editor di folder job tetap ada dan dipakai
 lagi saat editor dinyalakan kembali. Revert itu jangan ikut mengembalikan penjaga deploy
 (`deploy/production.sh` menghitung ekspor `cancelled` sebagai selesai, §7): tanpa baris itu, satu
-ekspor yang pernah dibatalkan menahan deploy rollback-nya. Paling aman, commit penjaga itu masuk
-`main` lebih dulu lewat PR kecil sendiri.
+ekspor yang pernah dibatalkan menahan deploy rollback-nya. Commit penjaga itu sudah masuk `main`
+lebih dulu lewat PR #19, jadi revert `5064831` tidak menyentuhnya.
 
 **Kuota CPU render otomatis.** Mesin `edit-v2` memakai ± 2,2–2,5× waktu CPU `legacy` untuk potong
 tengah dan ikuti wajah (byte hasilnya sama dengan sebelum percepatan; tidak ada lagi percepatan

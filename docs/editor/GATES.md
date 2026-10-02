@@ -1614,7 +1614,9 @@ copies deleted afterwards. Numbers: `evidence/W4/T4.Z-verifier-fixes.json`.
   still returns no entries for them, and the history still offers "Edit klip" for a Selection V3
   job without `analysis/` (only synthetic copies have that shape; production always writes it).
 49. Land `fix(deploy): a cancelled export is not live work for the deploy guard` on `main` ahead of
-    PR #18 (owner or integrator; no deploy from this branch).
+    PR #18 (owner or integrator; no deploy from this branch). **Done 2026-10-02:** PR #19, then the
+    editor itself as PR #20 (squash commit `5064831`, since GitHub cannot rebase-merge 403 commits;
+    full history on branch `editor-release`). Reverting `5064831` keeps the guard.
 50. With the editor off, edited exports have no link on any page (files kept, links back when on).
     A read-only "Ekspor terakhir" outside the editor's routes would keep them reachable; owner to
     decide whether it is worth it.
