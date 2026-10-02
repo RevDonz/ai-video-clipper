@@ -1,0 +1,131 @@
+{
+ "evidence": {
+  "cases": [
+   {
+    "case": "29.97 flash_white+whoosh",
+    "checks": {
+     "inside_exact_share": true,
+     "inside_within_1_lsb": true,
+     "lengths_equal_plan": true,
+     "outside_zero": true,
+     "peak_at_the_hit": true
+    },
+    "fps": [
+     30000,
+     1001
+    ],
+    "hit_smp": 96096,
+    "inside_exact_share": 0.999901,
+    "inside_max_abs_error": 1,
+    "loudest_10ms_at": 95878,
+    "loudest_10ms_expected": 95856,
+    "measured": false,
+    "outside_nonzero": 0,
+    "pass": true,
+    "samples": 20160,
+    "start_smp": 84576,
+    "style": "flash_white"
+   },
+   {
+    "case": "25 dip_black+whoosh",
+    "checks": {
+     "inside_exact_share": true,
+     "inside_within_1_lsb": true,
+     "lengths_equal_plan": true,
+     "outside_zero": true,
+     "peak_at_the_hit": true
+    },
+    "fps": [
+     25,
+     1
+    ],
+    "hit_smp": 96000,
+    "inside_exact_share": 1.0,
+    "inside_max_abs_error": 0,
+    "loudest_10ms_at": 95782,
+    "loudest_10ms_expected": 95760,
+    "measured": false,
+    "outside_nonzero": 0,
+    "pass": true,
+    "samples": 20160,
+    "start_smp": 84480,
+    "style": "dip_black"
+   },
+   {
+    "case": "29.97 cut+whoosh",
+    "checks": {
+     "inside_exact_share": true,
+     "inside_within_1_lsb": true,
+     "lengths_equal_plan": true,
+     "outside_zero": true,
+     "peak_at_the_hit": true
+    },
+    "fps": [
+     30000,
+     1001
+    ],
+    "hit_smp": 96096,
+    "inside_exact_share": 0.999901,
+    "inside_max_abs_error": 1,
+    "loudest_10ms_at": 95878,
+    "loudest_10ms_expected": 95856,
+    "measured": false,
+    "outside_nonzero": 0,
+    "pass": true,
+    "samples": 20160,
+    "start_smp": 84576,
+    "style": "cut"
+   },
+   {
+    "case": "29.97 whoosh with ducked music",
+    "checks": {
+     "inside_exact_share": true,
+     "inside_within_1_lsb": true,
+     "lengths_equal_plan": true,
+     "outside_zero": true,
+     "peak_at_the_hit": true
+    },
+    "fps": [
+     30000,
+     1001
+    ],
+    "hit_smp": 96096,
+    "inside_exact_share": 0.999926,
+    "inside_max_abs_error": 1,
+    "loudest_10ms_at": 95878,
+    "loudest_10ms_expected": 95856,
+    "measured": true,
+    "outside_nonzero": 0,
+    "pass": true,
+    "samples": 20160,
+    "start_smp": 84576,
+    "style": "flash_white"
+   }
+  ],
+  "gate": "G-WHOOSH",
+  "gate_wall_s": 19.9,
+  "pass": true,
+  "scope": "full",
+  "threshold": {
+   "inside_exact_share": 0.999,
+   "inside_lsb": 1,
+   "outside": 0,
+   "peak_samples": 480
+  },
+  "toolchain": {
+   "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+   "python": "3.11.2",
+   "reference_toolchain_problem": null
+  }
+ },
+ "gate": "G-WHOOSH",
+ "measured": {
+  "command": "OUT=/out sh scripts/parity/run_all.sh full join rt frame audio",
+  "commit": "99c0916",
+  "run": 36966430990,
+  "stack": "GitHub Actions 4 vCPU, the production image (FFmpeg 5.1.9, Python 3.11.2)",
+  "workflow": "editor-gates.yml (suite=command)"
+ },
+ "spec": "docs/plans/2026-10-02-transisi-cold-open.md",
+ "task": "T1"
+}

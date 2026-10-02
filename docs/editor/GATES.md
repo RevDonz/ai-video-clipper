@@ -1623,3 +1623,38 @@ copies deleted afterwards. Numbers: `evidence/W4/T4.Z-verifier-fixes.json`.
 51. The real-stack specs run only on the owner's PC (they need real jobs, which never leave it);
     this section's run used `POTONGIN_EDITOR_LLM=off`, so the free-LLM hook cards were last seen
     on the real stack in T4.Z's run and the verifier's.
+
+## Transisi cold open (2026-10-02)
+
+Spec: `docs/plans/2026-10-02-transisi-cold-open.md` (owner decisions of 2026-10-02, with T1's
+"Decisions during build"); contract: CONTRACTS §5.26. Auto clips that keep a cold open get a
+white flash and a whoosh at the join (both engines); the editor offers Potong langsung / Kilat
+putih / Gelap sebentar and a whoosh toggle. Nothing moves a frame or a sample, so every gate
+above keeps its cases and its numbers: its documents keep `cut` joins without a sound, and the
+transition reaches them through the cut document (spec §2.4), which these new gates prove.
+
+Where it was measured: GitHub Actions, 4 vCPU, the production image (FFmpeg 5.1.9, Python
+3.11.2), branch `transisi-t1`. Evidence: `evidence/TR/T1-*.json` (numbers only; each names its
+run and commit). P-JOIN-B (the browser half) is T2's and is filled at integration.
+
+| Gate | What is compared | Threshold | Cases | When | Result (T1) |
+|---|---|---|---|---|---|
+| **P-JOIN** | `reference` of a transition document against the same document with `cut`, decoded to RGB (BT.709): (a) frames outside the effect; (b) inside it, the pixels the text cannot reach against `blend(cut, alpha)`; (c) per frame, the alpha by least squares; (d) frames, samples, ASS sha, pieces, one `lutrgb` per affected frame; the text's pixels decide the layer order (text share over the effect, frames with alpha ≥ 500) | (a) md5 identical; (b) every pixel ≤ 3 levels, mean ≤ 1.0; (c) ±10 per mille; text share ≥ 0.5 (under the effect: 0) | 10: 5 rates × 2 styles, 600-frame barcode source, 20 cuts, a 2 s cold open; the 29.97 cases hold the hook over the join. PR smoke: 29.97 `flash_white` + whoosh | PR (smoke), nightly | **pass** 10/10 (run 36966430990): outside 0 mismatches; inside max 1 level, mean ≤ 0.84; alpha within 8 per mille; text share 0.65–0.74 (the hook bar is 65 % opaque) and 0.998–1.000 under the dip. Smoke pass (run 36966427934) |
+| **G-WHOOSH** | s16 `reference` PCM of a whoosh document minus the same without it | outside the whoosh: 0 on every sample; inside: ≤ 1 LSB from the file, ≥ 99.9 % exact; the loudest 10 ms within ±480 samples of `hit − 240` | 29.97 `flash_white`, 25 `dip_black`, 29.97 `cut`, 29.97 with ducked music (both renders with the no-whoosh measurement) | PR (smoke: the first), nightly | **pass** 4/4: outside 0 non-zero samples; inside max 1 LSB, 99.990–100 % exact; loudest 10 ms 22 samples after `hit − 240` |
+| **P-AUD** (new case) | `audio_preview` FLAC PCM against `reference` PCM of a 29.97 `flash_white` + whoosh document | md5 equal; samples = plan | the click document with the whoosh | PR | **pass** (run 36966427934): md5 equal, 722,321 samples = plan |
+| **P-LOOK-JOIN** | legacy and edit-v2 auto renders of the synthetic job's clip 1, each against its own render without the transition: per-frame alpha around each one's own join; each whoosh onset against where that engine places it; both renders' loudness | alpha within 50 per mille at the best offset in ±1 frame; onset within 2 ms; loudness within 0.5 LU | main (29.97 fit-blur), fps25 (center-crop), fps60 (face-track: legacy 60 against edit-v2 30) | nightly | pending (rerun 36968543523; the first run's legacy face-track crashed on the stub track's empty samples, fixed in `d062d7a`) |
+| **R10 / P-RT** | as above | P-RT framemd5 and PCM md5 identical; R10 hard link 100 % | `main` (edit-v2 with the flash and whoosh), `fps60`, `old` (legacy, before the transition: cut, no manifest key), `legacy_new` (legacy with the flash and whoosh, prepared afterwards) | PR (R10), toolchain / nightly (P-RT) | **pass**: P-RT re-render 6/6 clips, 6,813 frames, video, PCM and bytes identical; R10 36/36 linked (18 edit-v2, 18 legacy). PR smoke R10 18/18 |
+| **G-DET** | unchanged rule, plus a 29.97 `flash_white` + whoosh document | identical plan, ASS, graph, sidecars and envelope across 3 processes | 9 cases | PR | **pass**: 0 differences, preview ASS = export ASS |
+| **PF-RENDER** (report) | each engine's delivered render of the 29.97 clip (10.3 s) with and without the flash and the whoosh | report | edit-v2 `final` of the 20-cut document; legacy `render_vertical` of the cold open and the body's span | nightly | edit-v2 5.04 → 5.17 s (+0.13 s); legacy 4.37 → 5.54 s (+1.17 s: `geq` on the affected frames and the join-measuring pass). The existing PF-RENDER (unchanged documents) p50 0.318×, p95 0.473× (within budget) |
+| **P-JOIN-B** (browser) | the player's `joinAlphaPm`, the canvas against the server composite, the whoosh mix | 0 mismatches; P-TXT's numbers; ≤ 1 LSB | 29.97, 25, 23.976 (spec §5.4) | nightly (ci-cd parity job) | T2 |
+
+Unchanged gates measured on this branch at `99c0916`: P-FRAME 3,625 frames, 0 mismatches; P-PLATE,
+G1/G2, G-CLICK, duck, G3, G3b pass (run 36966430990); `suite=full` (ruff, pytest 4,442 on
+Python 3.11, web 1,208/1,209 with 1 skip, build) run 36966421656 and `suite=image` (pytest 4,441
+in the image, the whoosh level test included) run 36966424538 green.
+
+- The whoosh file's level in the image: −29.00 LUFS integrated, −17.20 dBTP
+  (`resources/sfx/whoosh/v1.meta.json`; `tests/test_edit_v2_transitions.py` checks −29.0 ± 1.0
+  and ≤ −16.0 dBTP on the pinned toolchain).
+- Open for the owner (spec §10): listen to the committed whoosh and one real clip of each style
+  before release; a different level ships as `whoosh/v2`.
