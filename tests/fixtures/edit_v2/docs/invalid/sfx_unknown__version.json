@@ -72,8 +72,12 @@
     "joins": [
       {
         "after": "seg_co",
-        "style": "xfade",
-        "audio_fade_ms": 30
+        "style": "cut",
+        "audio_fade_ms": 30,
+        "sfx": {
+          "id": "whoosh",
+          "v": 2
+        }
       }
     ],
     "cut_fade_ms": 8

@@ -591,3 +591,100 @@ def test_content_equality_agrees_with_the_plan_hash(harness, resources):
     for name in ("rev1_unchanged__c30", "removal_single__c30", "pack_bold__c30"):
         same_plan = plan_for(name, resources).plan_sha256 == seed_plan.plan_sha256
         assert equals(load_doc(name), seed) == same_plan, name
+
+
+# --- the cold-open transition (spec 2026-10-02 §1.5, §1.6, §2.4) --------------------------------
+
+PLAN_SHAS = ROOT / "tests" / "fixtures" / "edit_v2" / "plan-shas.json"
+TRANSITION_FIXTURES = ("join_flash_white__c30", "join_dip_black__c30", "join_cut_whoosh__c30",
+                       "join_dip_black_whoosh__c30", "join_flash_white_whoosh__c24")
+
+
+def real_plan(name: str, doc: dict | None = None) -> RenderPlan:
+    """The plan with the real caption track and envelopes over the repository's resources."""
+    from ai_clipper.edit_v2.glyphs import RESOURCES_DIR
+
+    context = context_for(name)
+    doc = load_doc(name) if doc is None else doc
+    camera = camera_for(doc) if doc["layout"]["default"]["mode"] == "camera" else None
+    return build_plan(doc, words=context.words, camera=camera, assets=context.assets,
+                      resources=Resources(RESOURCES_DIR))
+
+
+def as_cut(doc: dict) -> dict:
+    """The same document with a plain cut join (no effect, no sound)."""
+    cut = copy.deepcopy(doc)
+    join = cut["main"]["joins"][0]
+    join["style"] = "cut"
+    join.pop("sfx", None)
+    return cut
+
+
+def test_every_pre_existing_fixture_plan_sha_is_unchanged():
+    """``tests/fixtures/edit_v2/plan-shas.json`` was computed before the transition existed: a
+    document without one hashes to the same plan (so the same render key and preview caches)."""
+    expected = json.loads(PLAN_SHAS.read_text(encoding="utf-8"))["plans"]
+    assert len(expected) >= 60 and not set(expected) & set(TRANSITION_FIXTURES)
+    assert {name: real_plan(name).plan_sha256 for name in expected} == expected
+
+
+def test_joins_enter_the_plan_json_only_with_an_effect_or_a_sound(harness, resources):
+    for name in ("seed__c30", "seed__c24", "join_fade_250__c30", "cold_open_added__c25",
+                 "seed__c25"):
+        plan = plan_for(name, resources)
+        assert "joins" not in plan.to_json(), name
+        assert all(join.style == "cut" and join.sfx is None for join in plan.joins)
+    assert plan_for("seed__c25", resources).joins == ()
+    for name in TRANSITION_FIXTURES:
+        plan = plan_for(name, resources)
+        body = plan.to_json()
+        assert body["joins"] == [join.to_json() for join in plan.joins], name
+        assert plan.plan_sha256 == hashlib.sha256(canonical(body)).hexdigest()
+
+
+def test_the_join_plan_follows_the_cold_open(harness, resources):
+    from ai_clipper.edit_v2 import transitions
+
+    plan = plan_for("join_flash_white_whoosh__c24", resources)
+    (join,) = plan.joins
+    body = next(piece for piece in plan.pieces if piece.role == "body")
+    assert join.at_f == body.out_f0 == sum(p.frames for p in plan.pieces if p.seg == "seg_co")
+    assert join.alpha == transitions.join_alpha("flash_white", join.at_f, plan.total_frames,
+                                                plan.fps)
+    assert join.sfx is not None and join.sfx.hit_smp == tm.smp(join.at_f, plan.fps)
+    assert join.sfx.start_smp == join.sfx.hit_smp - 11_520 and join.sfx.skip_smp == 0
+    # a removal inside the cold open moves the join, the effect and the sound with it
+    doc = load_doc("join_flash_white_whoosh__c24")
+    co = doc["main"]["segments"][0]
+    doc["main"]["removals"] = [{"id": "rm_1", "seg": "seg_co", "in_sf": co["in_sf"] + 10,
+                                "out_sf": co["in_sf"] + 14, "words": [], "reason": "user",
+                                "origin": "user"}]
+    moved = plan_for("join_flash_white_whoosh__c24", resources, doc=doc)
+    assert moved.joins[0].at_f == join.at_f - 4
+    assert moved.joins[0].alpha == tuple((f - 4, a) for f, a in join.alpha)
+    assert moved.joins[0].sfx.hit_smp == tm.smp(join.at_f - 4, plan.fps)
+
+
+@pytest.mark.parametrize("name", TRANSITION_FIXTURES)
+def test_a_transition_changes_nothing_but_the_joins(name):
+    """§2.4 with the real modules: pieces, frames, samples, speech spans, captions (ASS bytes
+    and cues), hook and both envelopes are the cut document's."""
+    doc = load_doc(name)
+    plan, plain = real_plan(name, doc), real_plan(name, as_cut(doc))
+    for field in dataclasses.fields(RenderPlan):
+        if field.name in ("doc", "content_sha256", "joins", "plan_sha256"):
+            continue
+        assert getattr(plan, field.name) == getattr(plain, field.name), field.name
+    assert plan.ass == plain.ass and plan.captions.cues == plain.captions.cues
+    assert plan.plan_sha256 != plain.plan_sha256
+    assert plain.joins[0].alpha == () and plain.joins[0].sfx is None
+    assert plan.joins[0].at_f == plain.joins[0].at_f
+    body, plain_body = plan.to_json(), plain.to_json()
+    assert {key for key in body.keys() | plain_body.keys()
+            if body.get(key) != plain_body.get(key)} == {"joins", "content_sha256"}
+
+
+def test_the_whoosh_and_the_style_give_different_plans(harness, resources):
+    shas = {name: plan_for(name, resources).plan_sha256
+            for name in ("rev1_unchanged__c30", *TRANSITION_FIXTURES[:4])}
+    assert len(set(shas.values())) == len(shas)

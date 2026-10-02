@@ -639,6 +639,17 @@ def _valid(contexts: Mapping[str, Context]) -> list[_Fixture]:
         d = _Doc(c30, "SetColdOpen")
         d.doc["main"]["joins"][0]["audio_fade_ms"] = value
         add(f"join_fade_{value}", d)
+    # The cold-open transition (spec 2026-10-02 §1.1): any style with or without the whoosh.
+    for name, context, style, whoosh in (("join_flash_white", c30, "flash_white", False),
+                                         ("join_dip_black", c30, "dip_black", False),
+                                         ("join_cut_whoosh", c30, "cut", True),
+                                         ("join_dip_black_whoosh", c30, "dip_black", True),
+                                         ("join_flash_white_whoosh", c24, "flash_white", True)):
+        d = _Doc(context, "SetJoinSfx" if whoosh else "SetJoinStyle")
+        d.doc["main"]["joins"][0]["style"] = style
+        if whoosh:
+            d.doc["main"]["joins"][0]["sfx"] = {"id": "whoosh", "v": 1}
+        add(name, d)
     for value in (0, 50):
         d = _Doc(c30, "RemoveWords")
         d.doc["main"]["cut_fade_ms"] = value
@@ -1054,6 +1065,10 @@ def _invalid(contexts: Mapping[str, Context]) -> list[_Fixture]:
     add("cold_open_invalid", "join_without_cold_open", "/main/joins/0",
         mutated(lambda b: b.doc["main"].update(
             joins=[{"after": "seg_b1", "style": "cut", "audio_fade_ms": 30}]), c25))
+    add("cold_open_invalid", "transition_without_cold_open", "/main/joins/0",
+        mutated(lambda b: b.doc["main"].update(
+            joins=[{"after": "seg_b1", "style": "flash_white", "audio_fade_ms": 30,
+                    "sfx": {"id": "whoosh", "v": 1}}]), c25))
 
     # duration_out_of_bounds.
     add("duration_out_of_bounds", "short", "/main/segments/1",
@@ -1128,9 +1143,22 @@ def _invalid(contexts: Mapping[str, Context]) -> list[_Fixture]:
     add("pack_unknown", "version", "/captions/pack",
         mutated(lambda b: b.doc["captions"]["pack"].update(v=2)))
 
+    # The cold-open transition's sound (spec 2026-10-02 §1.1).
+    def join(**fields: Any) -> Callable[[_Doc], None]:
+        return lambda b: b.doc["main"]["joins"][0].update(fields)
+
+    add("sfx_unknown", "id", "/main/joins/0/sfx", mutated(join(sfx={"id": "pop", "v": 1})))
+    add("sfx_unknown", "version", "/main/joins/0/sfx",
+        mutated(join(sfx={"id": "whoosh", "v": 2})))
+    add("range_invalid", "join_style", "/main/joins/0/style", mutated(join(style="fade")))
+    add("range_invalid", "join_sfx_null", "/main/joins/0/sfx", mutated(join(sfx=None)))
+    add("range_invalid", "join_sfx_no_v", "/main/joins/0/sfx/v",
+        mutated(join(sfx={"id": "whoosh"})))
+    add("unknown_key", "join_sfx", "/main/joins/0/sfx/gain_cdb",
+        mutated(join(sfx={"id": "whoosh", "v": 1, "gain_cdb": 0})))
+
     # op_disabled.
-    add("op_disabled", "join_style", "/main/joins/0/style",
-        mutated(lambda b: b.doc["main"]["joins"][0].update(style="flash_white")))
+    add("op_disabled", "join_style", "/main/joins/0/style", mutated(join(style="xfade")))
 
     def second_hook(b: _Doc) -> None:
         track = copy.deepcopy(b.doc["tracks"][0])

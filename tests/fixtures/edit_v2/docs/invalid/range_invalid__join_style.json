@@ -72,7 +72,7 @@
     "joins": [
       {
         "after": "seg_co",
-        "style": "xfade",
+        "style": "fade",
         "audio_fade_ms": 30
       }
     ],
