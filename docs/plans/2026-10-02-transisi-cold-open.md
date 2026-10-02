@@ -1033,6 +1033,73 @@ If a task finds it must change one of these, it stops and reports instead.
    `suite=image` run is the proof of record.
 8. **Poster frames** inside a flash are moved after it (§4.5).
 
+## Decisions during build (T1)
+
+Where this spec was silent or did not hold against the code, T1 chose the option closest to
+FINAL and CONTRACTS. Each is in CONTRACTS §5.26 or GATES "Transisi cold open".
+
+1. **Branch.** T1 is built on `transisi-t1` (the orchestrator's name), not `transisi-t1-engine`.
+2. **`lut_chain(joins, fps, composite="gbrp")`.** A third, defaulted parameter carries the
+   compiler's composite. It raises `ValueError` only when there is an effect, so the S-COLOR
+   tools (cut documents in other composites) keep compiling. T2's two-argument call is valid.
+   A window that would start before 0 (an effect on frame 0, unreachable in a valid document)
+   starts at `0.000000`.
+3. **Legacy's cold-open side is placed against the measured join.** §4.3 puts it against `L0`,
+   the range length as written. The range really ends at a source frame boundary: measured with
+   FFmpeg 6.1 at 4 rates × 6 seek points, a frame-rate prediction of the range's frame count was
+   off by one at 8 of 24 points (e.g. 25 fps, `-ss 4.004 -t 2.002`: 51 frames, not 50). Against
+   `L0` the cold-open-side alphas sit up to `1/(F·W)` off the table (0.33 for the flash at
+   30 fps), beyond P-LOOK-JOIN's 0.05. `render._cold_open_join_s` reads the range's end with
+   the render's own seek (one `framecrc` pass of 0.5–8 s, before the render) and the range-0
+   `geq` uses it (`%d.%06d`); it falls back to `L0` when the pass fails. The body side, the
+   whoosh delay (`L0_ms·48 − 11520`, the audio join, as specified) and the cut command are
+   unchanged.
+4. **P-JOIN and the text.** (b) "every pixel within 3 levels of `blend(cut)`" cannot hold on
+   the text, which §4 draws over the effect on purpose. The text's pixels are left out of (b)
+   and (c): the luma and chroma samples the text changes, with the 4:2:0 reach (3 chroma
+   samples), in the cut render and in the transition render, each against the same render
+   without text (two more renders per rate and style; a translucent box over black video is
+   invisible in one and visible in the other). On those pixels the layer order is judged: the
+   text's share over the effect (`Σ(u − j)(u − c) / Σ(u − c)²`, `u = blend(c)`) must be ≥ 0.5 on
+   frames with alpha ≥ 500 (text under the effect gives 0; the hook's 65 %-opaque bar gives
+   0.65). The 29.97 cases hold the hook over the join so the order is always judged. The cases
+   use 600 source frames (310 output frames at 29.97) to keep the nightly short; still 20 cuts
+   and the 2 s cold open.
+5. **G-WHOOSH's "same document without it"** is the cut document: a style changes no audio
+   (the fragment and `mix_sha256` are equal, tested). The ducked-music case renders both
+   documents with the measurement of the one without the whoosh, so the master gain is the same
+   and the difference is the mix alone (in production the whoosh is part of the measured mix,
+   §3.3).
+6. **P-LOOK-JOIN** compares each engine's per-frame alphas around its own join (its peak
+   frame) at the best offset in ±1 legacy frame, and each whoosh onset with where that engine
+   places it (edit-v2 `start_smp`, legacy `L0_ms·48 − 11520`), within 2 ms. The two engines'
+   joins themselves differ by up to a frame (edit-v2 snaps the cold open to its frame grid),
+   which is P-LOOK's existing territory. Loudness: both auto renders within 0.5 LU.
+7. **P-AUD's new case** runs in the gate's existing runner (`support.edit_v2_audio_harness
+   .p_aud`); `CI-P-AUD.json` gains `whoosh_preview_equals_reference` and the whoosh sample
+   count.
+8. **`AutoClip.cold_open_join`** (defaulted last field) carries the seed's join, so the
+   manifest field comes from the seed; the pipeline falls back to its own join. `ColdOpenJoin`'s
+   `sfx` names the latest version of the sound (`"whoosh"` → v1).
+9. **Seed context.** A malformed `coldOpenJoin` raises `SeedError` (only our code writes it);
+   prepare filters manifest values through `ColdOpenJoin.from_json` first, so a garbled
+   manifest seeds a cut.
+10. **Posters.** `write_clip_thumbnail(at=…)` checks `0 ≤ at < duration`. `thumbnail_time`
+    moves a time inside `avoid` to its middle + 0.25 s (= `L0 + 0.25`), kept only when it is
+    inside the clip.
+11. **Fixtures.** `make_job`: `old` renders with `cold_open_join=None`; `legacy_new` is the
+    `main` media rendered by legacy with the transition. `run_all.sh` builds `main,legacy_new`
+    for R10 (pull request) and `main,fps60,old,legacy_new` for P-RT.
+12. **Pins of "unchanged".** The pre-transition plan sha of every valid document fixture is in
+    `tests/fixtures/edit_v2/plan-shas.json` (real caption track and envelopes, the repository's
+    resources), the pre-transition legacy multi-range argv in
+    `tests/fixtures/render/legacy-multi-range.json`, and three pre-transition preview
+    `audio_key`s in `tests/test_edit_v2_preview_cli.py`.
+13. **`render_v3_job`'s default is the pipeline's join**, so the P-LOOK kit (`look_report.py`)
+    and make_job render what production renders.
+14. **P-JOIN-B** is in `ci_gates.REQUIRED["full"]` as specified; a nightly on a branch without
+    T2's `ci-cd.yml` step lists it as missing.
+
 ## Appendix A. Reference whoosh generator (prototype, run 2026-10-02)
 
 Integer and `Fraction` arithmetic only. T1 turns this into `scripts/sfx/make_whoosh.py`:
