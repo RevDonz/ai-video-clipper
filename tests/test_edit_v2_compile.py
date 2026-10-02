@@ -9,6 +9,7 @@ they pin only this task's part of the graph.
 
 from __future__ import annotations
 
+import copy
 import dataclasses
 import hashlib
 import json
@@ -1147,6 +1148,39 @@ def test_frame_mode_matches_the_final_at_ass_hazard_frames(harness, tmp_path, mo
         expected = first <= n < last
         assert box_on(gray) is expected, n
         assert box_on(planes[n]) is expected, n
+
+
+def test_truth_frames_carry_the_cold_open_effect(harness, tmp_path, edit_v2_libass):
+    """The ``frame`` mode (the preview's truth frames) fires exactly its frame's ``lutrgb``:
+    J is the flash's white, J+1 the plan's blend of the cut frame, J−3 the cut frame."""
+    clip = synthetic_clip(tmp_path, frames=360, cold_open=(300, 330), body=(60, 240),
+                          removals=())
+    flash = copy.deepcopy(clip.doc)
+    flash["main"]["joins"][0]["style"] = "flash_white"
+    plans = {name: build_plan(doc, words=clip.words, camera=None, assets={},
+                              resources=Resources(RESOURCES_DIR))
+             for name, doc in (("cut", clip.doc), ("flash", flash))}
+    (join,) = plans["flash"].joins
+    assert join.at_f == 30 and dict(join.alpha)[31] == 666
+
+    def frame(name: str, n: int) -> bytes:
+        job = compile_job(plans[name], mode="frame", frame=n, source=clip.source,
+                          assets_root=tmp_path)
+        return HARNESS.png_to_gray(execute.run(job, output_fd=None, timeout_s=60).output,
+                                   (720, 1280))
+
+    top = 720 * 600  # the picture above the harness captions (no hook)
+    white = frame("flash", 30)[:top]
+    assert min(white) >= 250
+    assert frame("flash", 27) == frame("cut", 27)
+    # a truth frame is the export's encode (lossy): the alpha by least squares, and the mean
+    cut, blended = frame("cut", 31)[:top], frame("flash", 31)[:top]
+    lever = [255 - c for c in cut]
+    alpha = (sum((b - c) * w for c, b, w in zip(cut, blended, lever))
+             / sum(w * w for w in lever))
+    assert abs(alpha - 0.666) <= 0.02
+    errors = [abs(b - (c * 334 + 255 * 666 + 500) // 1000) for c, b in zip(cut, blended)]
+    assert sum(errors) / len(errors) <= 3.0
 
 
 def test_camera_crop_decoded_from_the_ruler_matches_the_plan(harness, tmp_path, edit_v2_ffmpeg):
