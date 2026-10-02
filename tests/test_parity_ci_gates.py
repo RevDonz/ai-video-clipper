@@ -68,11 +68,12 @@ def test_an_unreadable_evidence_file_fails_the_summary(tmp_path):
 
 def test_every_suite_requires_the_gates_of_the_plan():
     assert set(cg.REQUIRED["smoke"]) == {"P-TIME-ffmpeg", "P-TIME-jassub", "P-TXT", "P-FRAME", "G-DET",
-                                         "P-AUD", "R10"}
+                                         "P-AUD", "R10", "P-JOIN", "G-WHOOSH"}
     assert set(cg.REQUIRED["toolchain"]) >= {"P-TIME-ffmpeg", "P-TIME-jassub", "P-TXT", "P-ENC", "P-COLOR",
                                              "P-RT"}
     assert set(cg.REQUIRED["full"]) >= set(cg.REQUIRED["toolchain"]) | {
-        "P-FRAME", "P-PLATE", "G1-G2", "G-DET", "P-AUD", "G-CLICK", "duck", "G3", "G3b", "R10"}
+        "P-FRAME", "P-PLATE", "G1-G2", "G-DET", "P-AUD", "G-CLICK", "duck", "G3", "G3b", "R10",
+        "P-JOIN", "G-WHOOSH", "P-LOOK-JOIN", "P-JOIN-B"}  # the cold-open transition (2026-10-02)
 
 
 def test_the_pr_smoke_shows_at_least_300_frames_with_cuts_and_a_cold_open():

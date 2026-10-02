@@ -9,13 +9,15 @@
 # P-TIME, P-TXT and, outside the smoke, P-COLOR) and decides with `ci_gates.py summary`.
 #
 #   smoke      every pull request: P-TIME (FFmpeg side), the P-TXT references of a subset,
-#              300-frame P-FRAME, G-DET, P-AUD (server) and R10
+#              300-frame P-FRAME, G-DET, P-AUD (server), R10 and the cold-open transition's
+#              P-JOIN and G-WHOOSH on one case
 #   toolchain  a new toolchain or JASSUB pin: P-TIME, the whole P-TXT matrix with its exports,
 #              P-ENC, P-RT and R10 (the evidence toolchain_guard.py stamps)
 #   full       nightly: toolchain, then P-FRAME (2,000+ frames), P-PLATE, G1/G2, G-DET and
-#              PF-RENDER, the audio gates, the glyph probe and ASS goldens, and the gates
-#              through the app (P-FRAME and P-PLATE per layout, the layout switch, P-AUD and
-#              PF-AUDIO through the preview lane)
+#              PF-RENDER, the audio gates, the glyph probe and ASS goldens, the cold-open
+#              transition (P-JOIN, G-WHOOSH, P-LOOK-JOIN), and the gates through the app
+#              (P-FRAME and P-PLATE per layout, the layout switch, P-AUD and PF-AUDIO through
+#              the preview lane)
 #
 # Named sections run instead of the suite's list. Outputs: evidence in $OUT/evidence
 # (CI-<gate>.json, numbers only), the text fixtures in $OUT/ptxt, logs in $OUT/logs, the app
@@ -25,9 +27,9 @@ set -u
 suite=${1:?usage: run_all.sh smoke|toolchain|full [section...]}
 shift
 case $suite in
-  smoke) sections="toolchain ptime ptxt pframe gdet paud r10" ;;
+  smoke) sections="toolchain ptime ptxt pframe gdet paud r10 join" ;;
   toolchain) sections="toolchain ptime ptxt_full penc rt" ;;
-  full) sections="toolchain ptime ptxt_full penc rt frame audio glyph goldens app" ;;
+  full) sections="toolchain ptime ptxt_full penc rt frame audio glyph goldens join app" ;;
   *) echo "unknown suite: $suite" >&2; exit 2 ;;
 esac
 [ $# -gt 0 ] && sections=$*
@@ -93,16 +95,18 @@ section_paud() {
 }
 
 section_r10() {
-  $PY scripts/editor_fixture/make_job.py build "$WORK/r10" --only main --render --stub-camera \
-    > "$LOGS/r10-build.txt" 2>&1 || fail r10-build
+  # main: edit-v2 with the cold-open flash and whoosh; legacy_new: the legacy engine with them
+  $PY scripts/editor_fixture/make_job.py build "$WORK/r10" --only main,legacy_new --render \
+    --stub-camera > "$LOGS/r10-build.txt" 2>&1 || fail r10-build
   $PY scripts/parity/rt_check.py r10 "$WORK/r10/jobs" --out "$EV/CI-R10.json" --work "$WORK/r10w" \
     > "$LOGS/r10.txt" 2>&1 || fail r10
 }
 
 section_rt() {
-  # A 29.97 job, a 60 fps face-track job and a job rendered before the engine switch.
-  $PY scripts/editor_fixture/make_job.py build "$WORK/rt" --only main,fps60,old --render --stub-camera \
-    > "$LOGS/rt-build.txt" 2>&1 || fail rt-build
+  # A 29.97 job, a 60 fps face-track job, a job rendered before the engine switch and the
+  # cold-open transition, and a legacy job rendered with the transition.
+  $PY scripts/editor_fixture/make_job.py build "$WORK/rt" --only main,fps60,old,legacy_new --render \
+    --stub-camera > "$LOGS/rt-build.txt" 2>&1 || fail rt-build
   $PY scripts/parity/rt_check.py rerender "$WORK/rt/jobs" --out "$WORK/rt-rerender.json" \
     --work "$WORK/rtw" > "$LOGS/rt-rerender.txt" 2>&1 || fail rt-rerender
   $PY scripts/parity/rt_check.py r10 "$WORK/rt/jobs" --out "$EV/CI-R10.json" --work "$WORK/rtw" \
@@ -129,6 +133,14 @@ section_glyph() {
 
 section_goldens() {
   $PY -m support.edit_v2_text goldens --check > "$LOGS/goldens.txt" 2>&1 || fail goldens
+}
+
+section_join() {
+  # The cold-open transition (spec 2026-10-02 §5.4): one case on a pull request, every case
+  # (P-JOIN, G-WHOOSH and P-LOOK-JOIN) nightly.
+  if [ "$suite" = smoke ]; then mode=smoke; else mode=all; fi
+  $PY scripts/parity/join_gates.py "$mode" --evidence "$EV" --work "$WORK/join" \
+    > "$LOGS/join.txt" 2>&1 || fail join
 }
 
 section_app() {

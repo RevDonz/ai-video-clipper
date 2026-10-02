@@ -333,7 +333,7 @@ Duplicate keys, NaN and unknown keys are rejected at every level.
 | `output` | `w×h` ∈ {720×1280, 1080×1920}; `fps` as §3.1; `sample_rate` 48000; `channels` 2 | Fixed at seed (the job's render size; the dashboard uses 720×1280). Exports render at this size (§4.6) |
 | `main.segments` | 1–2 items: optional `cold_open` first, then exactly one `body` | Cold-open rules in §3.4 |
 | `main.removals` | ≤ 2,000; `reason` ∈ {`user`, `filler`, `repeat`, `gap_silent`}; `origin` `user` or `suggestion:<id>` | Sorted by `in_sf` within a segment; no overlap; `words` must exist in the words artifact |
-| `main.joins` | 0–1 item: `after` = cold-open id; `style` `"cut"`; `audio_fade_ms` 0–250 (seed 30) | Other styles are Stage 2 |
+| `main.joins` | 0–1 item: `after` = cold-open id; `style` `"cut"`, `"flash_white"` or `"dip_black"`; `audio_fade_ms` 0–250 (seed 30); optional `sfx` `{"id": "whoosh", "v": 1}` (absent = no sound) | The cold-open transition (§5.26, amended 2026-10-02). `xfade` stays `op_disabled`; another `{id, v}` is `sfx_unknown` |
 | `main.cut_fade_ms` | 0–50 (default 8) | Micro-fade at every jump cut (G-CLICK) |
 | `captions.pack` | `{id ∈ {classic, karaoke, bold, box}, v: 1}` | Packs are immutable per version (§5.4) |
 | `captions.overrides.y_e5` | 20000–92000 (bottom anchor of the caption block) | Seed 83000 (= today's 17% bottom margin) |
@@ -384,7 +384,7 @@ AI" target of an existing clip.
 |---|---|
 | `clip_id` | `"clip_" + sha256("potongin-clip-v1\0" ‖ source_content_sha256 ‖ "\0" ‖ start_ms ‖ "\0" ‖ end_ms ‖ "\0" ‖ (co_start_ms "-" co_end_ms, or "-"))[:24]` (FINAL §4.9; rank and selection version excluded, so a re-run that finds the same moment re-attaches the edits) |
 | `main.segments` | Cold open (when the job ran with cold open and the clip has one) + body, edges per §3.4 |
-| `main.joins` | `cut` with `audio_fade_ms: 30` (today's `AUDIO_JOIN_FADE_SECONDS`) |
+| `main.joins` | With a kept cold open: `{"after": "seg_co", "style", "audio_fade_ms": 30}` (+ `sfx`) from the seed context `coldOpenJoin`: the pipeline's `flash_white` + whoosh; prepare: the clip's manifest `cold_open_join`, else `cut` without sound (§5.26, amended 2026-10-02). `audio_fade_ms` is today's `AUDIO_JOIN_FADE_SECONDS` |
 | `captions.pack` | `karaoke` or `classic` from the job's `captionStyle`; overrides at the pack defaults |
 | hook item | When `hookOverlay` and `hook_text` exist: `[0, round_half_up(hook_duration·F))`, `legacy-bar`, `y_e5 13000` |
 | `layout.default.mode` | `face-track` → `camera`, `fit-blur` → `fit_blur`, `center-crop` → `fill_center` |
@@ -448,7 +448,7 @@ every later reader sees.
 | Level | Codes (Indonesian message id = `edit.<code>`) | Effect |
 |---|---|---|
 | Parse | `invalid_json`, `float_not_allowed`, `duplicate_key`, `unknown_key`, `too_large`, `not_nfc`, `control_char` | 422 `{errors:[{path, code}]}` |
-| Semantic, blocking | `base_changed`, `outside_window`, `range_invalid`, `cold_open_invalid`, `duration_out_of_bounds`, `removal_outside_segment`, `removal_overlap`, `unknown_word`, `asset_missing`, `pack_unknown`, `op_disabled`, `item_out_of_frame`, `revision_mismatch`, `parent_mismatch` | 422 |
+| Semantic, blocking | `base_changed`, `outside_window`, `range_invalid`, `cold_open_invalid`, `duration_out_of_bounds`, `removal_outside_segment`, `removal_overlap`, `unknown_word`, `asset_missing`, `pack_unknown`, `sfx_unknown` (2026-10-02, §5.26), `op_disabled`, `item_out_of_frame`, `revision_mismatch`, `parent_mismatch` | 422 |
 | Warning (save allowed; export asks for acknowledgement in "Perlu dicek") | `tight_cut`, `laughter_cut` (a cut inside a laughter span or within 300 ms of a laughter point), `hook_overflow` (the hook does not fit 3 lines at the smallest size and will be shortened with "…"), `glyph_unsupported:U+XXXX` (the pack font lacks a character, e.g. emoji), `no_face` (face-track spans with no face; listed with jump-to), `unsafe_zone` (caption, hook or logo box inside the TikTok UI zone), `loudness_clamped`, `peak_reduced` (§5.6 step 5), `music_shorter_than_clip` (loop off) | Listed with a jump-to target; nothing is silently changed |
 
 ### 3.8 Forward compatibility with FINAL (Stage 2)
@@ -456,6 +456,10 @@ every later reader sees.
 - Stage 2 adds **optional** keys under `schema_minor: 1`: more tracks and items, word anchors,
   `intro_hold_f`, `markers`, `template_ref`, `packaging`, join styles, `layout.ranges`, and
   `camera.manual_keys`. A minor-0 document stays valid unchanged.
+- *Amended 2026-10-02 (§5.26):* the join styles `flash_white` and `dip_black` and the optional
+  join key `sfx` are valid under `schema_minor: 0`. Every minor-0 document stays valid and
+  means what it meant; an older server refuses the new values with `op_disabled` (style) and
+  `unknown_key` (`sfx`). `xfade` and a join `dur_f` remain Stage 2.
 - The pack ids `classic` and `karaoke` are the FINAL `legacy-classic@1` and `legacy-karaoke@1`
   (an alias table is added in Stage 2).
 - FINAL puts the resolver in JS. If Stage 2 adopts that, the Python resolver becomes the
@@ -546,9 +550,17 @@ timeout + SIGKILL, fixed exit-code map as in `edit-document.mjs`, and an **allow
             "samples": 2901901, "musicGainPoints": [[0, 0], [1440, 316228]], "speechSpans": [[0, 4320]]},
   "rev0": {"planSha256": "…", "autoRenderUrl": "/api/jobs/…/files/output/clip-03.mp4", "exact": true},
   "warnings": [{"code": "tight_cut", "ref": "rm_01", "f": 402}],
-  "errors": []
+  "errors": [],
+  "joins": [{"after": "seg_co", "style": "flash_white", "atF": 135, "rgb": [255, 255, 255],
+             "alphaPm": [[133, 333], [134, 666], [135, 1000], [136, 666], [137, 333]],
+             "sfx": {"id": "whoosh", "v": 1, "startSmp": 204696, "hitSmp": 216216, "samples": 20160}}]
 }
 ```
+
+- `joins` (added 2026-10-02, §5.26) is always present (`[]` without a cold open): the
+  cold-open transition the player draws as a full-frame colour fill between the plate and the
+  text. `rgb` is `null` and `alphaPm` `[]` for `cut`; `sfx` is informational (the whoosh is in
+  the server mix).
 
 - `text.ass` is omitted when `known.assSha256` equals the new sha. `cues` and `hook` exist only to
   draw the timeline and the transcript; pixels always come from the ASS.
@@ -1690,3 +1702,150 @@ R10), which sits inside the TikTok button zone. The warning about it is now info
   without Selection V3 and the generic text otherwise; null while the listing is off, loading or
   failed. `clip-entry-view.historyOffersEdit(job, editor)`: the history's "Edit klip" needs the
   editor on, a completed job with clips and `options.selectionMode === "v3"`.
+
+## 5.26 Cold-open transition (Transisi cold open, 2026-10-02)
+
+The hook teaser that opens a clip (segment role `cold_open`) cuts into the body with an effect
+and an optional whoosh. Spec: `docs/plans/2026-10-02-transisi-cold-open.md` (owner decisions of
+2026-10-02, including its "Decisions during build (T1)"). Nothing here moves a frame or a
+sample: pieces, frames, samples, speech spans, captions (ASS bytes and cues), the hook, both
+envelopes and the time map are the cut's.
+
+### The document join (§3.3)
+
+`{"after": "seg_co", "style": "cut"|"flash_white"|"dip_black", "audio_fade_ms": 0–250,
+"sfx"?: {"id": "whoosh", "v": 1}}`. `xfade` → `op_disabled`; another string → `range_invalid`;
+`sfx` `null`, not an object or without `id`/`v` → `range_invalid` at the key; an extra key →
+`unknown_key`; a well-formed unpinned `{id, v}` → **`sfx_unknown`** ("Efek suara transisi tidak
+dikenal") at `/main/joins/0/sfx`. "No sound" is the absent key, never null. Every style can carry
+the sound. The structural join rules are unchanged (one join with a cold open, none without).
+`schema_minor` stays 0 (§3.8 amendment); `_AUDIO_ROLES` still has `sfx` as `op_disabled` (the
+whoosh is a join field, not a track item).
+
+### `edit_v2/transitions.py` (stdlib; imports only `timemap`, `errors`, `glyphs`)
+
+```python
+JOIN_STYLES = ("cut", "flash_white", "dip_black"); DISABLED_JOIN_STYLES = ("xfade",)
+HALF_WIDTH_MS = {"flash_white": 100, "dip_black": 150}
+RGB = {"flash_white": (255, 255, 255), "dip_black": (0, 0, 0)}
+YUV_TV = {"flash_white": (235, 128, 128), "dip_black": (16, 128, 128)}
+
+@dataclass(frozen=True)
+class SfxSpec:                     # SFX[("whoosh", 1)]: resources/sfx/whoosh/v1.wav
+    id: str; v: int; sha256: str; samples: int; hit_smp: int     # 20160 frames, hit 11520
+
+@dataclass(frozen=True)
+class SfxPlan:
+    id: str; v: int; sha256: str
+    start_smp: int                 # max(0, smp(at_f) − hit)
+    skip_smp: int                  # max(0, hit − smp(at_f)); 0 in every valid document
+    samples: int                   # spec.samples − skip_smp
+    hit_smp: int                   # smp(at_f)
+
+@dataclass(frozen=True)
+class JoinPlan:
+    after: str; style: str
+    at_f: int                      # J = Σ frames of the after-segment's pieces
+    alpha: tuple[tuple[int, int], ...]   # (output frame, alpha_pm > 0), ascending
+    sfx: SfxPlan | None
+
+@dataclass(frozen=True)
+class ColdOpenJoin:                # the manifest / seed-context form of an auto render's join
+    style: str; sfx: str | None    # sfx: None or "whoosh" (its latest version)
+    def to_json(self) -> dict: ...                      # {"style", "sfx": {id, v} | null}
+    @classmethod
+    def from_json(cls, value) -> ColdOpenJoin | None: ...   # strict, else None
+    def doc_join(self, after: str, audio_fade_ms: int) -> dict: ...
+AUTO_COLD_OPEN_JOIN = ColdOpenJoin("flash_white", "whoosh"); CUT_JOIN = ColdOpenJoin("cut", None)
+
+def alpha_pm(style, k, fps) -> int: ...          # v = W·num − 1000·|k|·den; round_half_up(1000·v / (W·num)) if v > 0
+def join_alpha(style, at_f, total_frames, fps) -> tuple: ...    # frames outside the clip dropped, never rescaled
+def plan_joins(doc, pieces, fps, total_frames) -> tuple[JoinPlan, ...]: ...
+def lut_chain(joins, fps, composite="gbrp") -> str: ...   # "" or "," + one lutrgb per frame; ValueError off gbrp
+def joins_dto(joins) -> list[dict]: ...
+def sfx_file(resources_root, spec) -> Path: ...           # O_NOFOLLOW, regular, sha = pin
+def load_sfx_pcm(resources_root, spec) -> bytes: ...      # s16le frames, cached by (path, size, mtime)
+```
+
+A missing or changed sound file is `RenderFailed("render_failed", ref="sfx")` (legacy:
+`RuntimeError("cold-open sound effect is missing or changed")`).
+
+### Frame math
+
+`k = n − J`; each style is a symmetric triangle peaking (1000) on `J`; per side `⌈W·F⌉ − 1`
+frames before and `⌈W·F⌉` from `J` (spec §2.2 table, pinned by `tests/test_edit_v2_transitions.py`).
+Pixels: `out = floor((p·(1000 − a) + C·a + 500)/1000)`, video layer only: captions, hook and logo
+are drawn on top in both engines and in the browser.
+
+### Render plan, plan JSON and keys
+
+- `RenderPlan.joins: tuple[JoinPlan, ...] = ()` is the **last** field (one per document join).
+- `RenderPlan.to_json()` gains `"joins": [JoinPlan.to_json(), …]` **only when** a join has a
+  style other than `cut` or a sound; every pre-existing document keeps its plan sha (pinned in
+  `tests/fixtures/edit_v2/plan-shas.json`).
+- `COMPILER_ID`, `COMPILER_VERSION`, `RENDER_SEMANTICS`, `SCHEMA_MINOR`, `PLAN_SCHEMA` and
+  `toolchain.json` are unchanged. The render key, `frame_key` and `mix_sha256` cover the
+  transition through the plan sha and the graph; `plate_key` never sees it.
+- `preview_cli.audio_key` gains `"sfx": [{id, v, sha256, start_smp, skip_smp}]` only with a
+  sound (a style-only change reuses the preview mix); `_rev0_identity` gains `"sfx": <sha256 of
+  the file>` only when the seed has one.
+
+### Compiler (edit-v2)
+
+- Video: `[vlay]{_TEXT_IN[gbrp]}{lut_chain(joins, fps)},{_TEXT_FILTER}[vtext]` in `final`,
+  `reference` and `frame`; each `lutrgb` is enabled on `between(t,(2f−1)·den/(2·num),(2f+1)·den/
+  (2·num))` (6 decimals, half up, ≥ 0). Plate cells never carry it.
+- Audio: the sound is the fragment's **last** own input, the sidecar `audio-sfx-<id>-v<v>.pcm`
+  (`-f s16le -ar 48000 -ac 2`): `asetpts=PTS-STARTPTS[,atrim=start_sample=<skip>,
+  asetpts=PTS-STARTPTS],adelay=delays=<start>S:all=1,apad,atrim=end_sample=<T>[au_w]`; the speech
+  is closed into `[au_s]` and `[au_s][au_m]?[au_w]amix=inputs=<n>:normalize=0:duration=first`
+  feeds `[apre]`. Without a sound the fragment is byte-identical to before.
+
+### Plan DTO (§4.3)
+
+`joins` is always present: `[{after, style, atF, rgb: [r, g, b] | null, alphaPm: [[f, a], …],
+sfx: {id, v, startSmp, hitSmp, samples} | null}]`.
+
+### Auto renders, seeds and the manifest
+
+- `pipeline._render_v3_clips(..., cold_open_join: ColdOpenJoin | None)`: `run_pipeline` passes
+  `AUTO_COLD_OPEN_JOIN` (no option; latest only), `render_v3_job(..., cold_open_join=
+  AUTO_COLD_OPEN_JOIN)` for the tools, `None` = the stage before the transition (fixtures).
+- Legacy: `render_vertical(..., join_style="cut", join_sfx=None)`; with the defaults the command
+  is byte-identical. A style adds, per range, `format=yuv420p,geq=lum/cb/cr` blending toward
+  `YUV_TV` (`enable` on the side's window); the sound is one more input (`-i <resources>/sfx/
+  whoosh/v1.wav`) mixed by `amix` after `[speech]aformat=fltp:48000:stereo`, delayed by
+  `L0_ms·48 − 11520` samples. The cold-open side's join time is the range's measured end
+  (`render._cold_open_join_s`, one `framecrc` pass with the render's own seek), else the length
+  as written.
+- edit-v2: `render_edit.AutoOptions.cold_open_join: ColdOpenJoin = CUT_JOIN` (last field);
+  `AutoOptions.job()` adds `"coldOpenJoin"`; `AutoClip.cold_open_join` is the seed's join (or
+  `None` when the seed left the teaser out).
+- Manifest clip field `"cold_open_join": {"style", "sfx": {id, v} | null}` on every clip whose
+  auto render has a cold open (either engine, fallback included); absent otherwise and on every
+  older manifest. The web's manifest sanitiser drops it.
+- Seed context key `coldOpenJoin` (the same JSON; missing = `CUT_JOIN`; malformed →
+  `SeedError`). `seed.prepare_legacy_job` reads `output/manifest.json` once (≤ 16 MiB, strict)
+  and matches entries by `clip_id.manifest_clip_id(entry, source_sha)` (the entry's `clip_id`,
+  else the id of its `start`/`end`/`cold_open`); `seed.manifest_joins` keeps the readable
+  values. So an old clip seeds a cut and a new one the join it was rendered with: R10 (the
+  unchanged clip exports the auto file) holds for both.
+- Posters: `pipeline.thumbnail_time(duration, avoid=None)`; a clip with a teaser and a style
+  other than `cut` avoids `(L0 − 0.2, L0 + 0.2)`; a default time inside moves to `L0 + 0.25`.
+  `write_clip_thumbnail(..., at=None)`.
+
+### Editor commands and two-tab merge (T3)
+
+`SetJoinStyle {style}` and `SetJoinSfx {on}` (precondition `cold_open_missing`; `null` merge
+key), `SetColdOpen` keeps the join's style and sound or takes the seed's (else
+`AUTO_JOIN = {style: "flash_white", sfx: {id: "whoosh", v: 1}}`); rebase parts `join.style` and
+`join.sfx` after `coldopen` (prerequisite `coldopen`; group label "Transisi cold open"). See the
+spec §7.2–§7.3.
+
+### Resources
+
+`resources/sfx/whoosh/v1.wav` (48 kHz, stereo, s16le, 20 160 frames, 80 684 bytes; CC0,
+self-made, no third-party material) with `v1.meta.json` (`potongin.sfx/1`: sha256, peak 4370,
+loudness −29.00 LUFS / −17.20 dBTP measured with FFmpeg 5.1.9). `scripts/sfx/make_whoosh.py`
+(stdlib, integers and `Fraction` only) regenerates it; `--check` exits 1 unless the bytes and
+the meta's sha are the committed ones. `v1.wav` is immutable: another sound or level is `v2`.
