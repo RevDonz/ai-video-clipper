@@ -15,6 +15,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { badgeView, playerView } from "../components/editor/shell-model.mjs";
+import { createPlateSource } from "../lib/editor/player/plate-source.mjs";
 import { createPlayer } from "../lib/editor/player/player.mjs";
 
 const FPS = [30, 1];
@@ -31,14 +32,16 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
-function planDto({ mix = "m1" } = {}) {
+/** `building`: the server still builds a cell after the clip's three (the store polls meanwhile). */
+function planDto({ mix = "m1", building = false } = {}) {
   const pieces = [{ i: 0, seg: "seg_b1", role: "body", inSf: 2850, outSf: 3000, outF0: 0, frames: 150 }];
+  const cells = [47, 48, 49].map((k) => ({ k, state: "ready", url: `/media/plates/pk-c${String(k).padStart(7, "0")}.mp4` }));
+  if (building) cells.push({ k: 50, state: "queued", url: null });
   return {
     planSha256: `plan-${mix}`, docSha256: "d1", compiler: "edit-v2/1", renderSemantics: 1,
     fps: FPS, totalFrames: 150, output: { w: 720, h: 1280 }, pieces, cues: [], hook: null,
     text: { assSha256: "a1", ass: "[Script Info]\n", url: "/ass/a1.ass", fonts: [] },
-    plate: { plateKey: "pk", cellFrames: 60, w: 720, h: 1280,
-      cells: [47, 48, 49].map((k) => ({ k, state: "ready", url: `/media/plates/pk-c${String(k).padStart(7, "0")}.mp4` })) },
+    plate: { plateKey: "pk", cellFrames: 60, w: 720, h: 1280, cells },
     logo: null,
     audio: { mixSha256: mix, state: "ready", url: `/media/audio/${mix}.flac`, samples: 240_000 },
     rev0: { planSha256: "rev0", autoRenderUrl: null, exact: false },
@@ -72,6 +75,7 @@ function makeDeps({ plateAnswers = [], textAnswers = [], audioGate = null } = {}
   const inflight = new Map();
   const needs = [];
   const needCalls = [];
+  const ensures = [];
   const textRenders = [];
   const clock = { now: 0 };
   const timers = [];
@@ -106,7 +110,10 @@ function makeDeps({ plateAnswers = [], textAnswers = [], audioGate = null } = {}
       promise.then(done, done);
       return promise;
     },
-    ensure() { return Promise.resolve(); },
+    ensure(schedule, { keep = [] } = {}) {
+      ensures.push({ at: clock.now, keep });
+      return Promise.resolve();
+    },
     stats() { return {}; },
     destroy() {},
   };
@@ -167,16 +174,18 @@ function makeDeps({ plateAnswers = [], textAnswers = [], audioGate = null } = {}
     }
     if (Number.isFinite(until)) clock.now = Math.max(clock.now, until);
   }
-  return Object.assign(env, { deps, plate, audio, needs, needCalls, textRenders, clock, timers, fired, runTimers });
+  return Object.assign(env, { deps, plate, audio, needs, needCalls, ensures, textRenders, clock, timers, fired, runTimers });
 }
 
 function mount(env) {
   const { canvas, draws, kinds } = fakeCanvas();
+  const frames = []; // every frame drawn, as onFrame reports it
   const player = createPlayer({
     canvas, fetchImpl: async () => ({ ok: true, status: 200, text: async () => "" }), deps: env.deps,
+    onFrame: (info) => frames.push({ frame: info.frame, playing: info.playing }),
   });
   const plates = () => draws.filter((draw) => draw.image.layer === "plate").map((draw) => [draw.image.k, draw.image.j]);
-  return { player, draws, kinds, plates };
+  return { player, draws, kinds, plates, frames };
 }
 
 test("the first frame is painted while the mix still decodes: no Play, no gesture", async () => {
@@ -480,5 +489,216 @@ test("pausing on a frame playback was holding paints it once its plate frame com
   await settle();
   assert.equal(env.needs.length, asked);
   assert.equal(player.state().presentedFrame, 5);
+  player.destroy();
+});
+
+// Play supersedes every paused attempt. One still waiting when Play starts (a seek still decoding,
+// a retry after a budget, a pause's repaint) must not draw its frame over playback.
+
+/** Plays from the playhead until frame 31 (cell 48, index 1) is on the canvas. */
+async function playTo31(player, env) {
+  await player.play({ silent: true });
+  env.wallPosition = 31.2 / 30;
+  env.raf();
+  await settle();
+  env.raf?.();
+  await settle();
+  assert.equal(player.state().presentedFrame, 31, "playback presents frame 31");
+}
+
+/** The paused frame's draw, had it happened: the frame on the canvas while playing, or its decode-ahead. */
+function staleDraws({ frames, env, from, n, k, j }) {
+  return {
+    frames: frames.filter((f) => f.playing && f.frame === n),
+    prefetches: env.ensures.slice(from).filter(({ keep }) => keep.some(([kk, jj]) => kk === k && jj === j)),
+  };
+}
+
+test("a paused attempt still waiting when Play starts never draws over playback", async () => {
+  // A seek to frame 5 (cell 47, index 35) whose decode lands while playing.
+  const landing = deferred();
+  const env = makeDeps({ plateAnswers: ["frame", landing] });
+  const { player, frames } = mount(env);
+  await player.load(planDto());
+  await settle();
+  player.seek(5);
+  await settle();
+  await playTo31(player, env);
+  const from = env.ensures.length;
+  landing.resolve();
+  await settle(20);
+  assert.deepEqual(staleDraws({ frames, env, from, n: 5, k: 47, j: 35 }), { frames: [], prefetches: [] },
+    "the seek's frame 5 was drawn over playback at frame 31");
+  assert.equal(player.state().presentedFrame, 31);
+  assert.equal(player.state().playing, true);
+  player.destroy();
+
+  // A retry after the first budget: its fresh pass delivers frame 0 while playing.
+  const late = deferred();
+  const retried = makeDeps({ plateAnswers: ["hang", late] });
+  const second = mount(retried);
+  await second.player.load(planDto());
+  await settle();
+  await retried.runTimers(1500);
+  assert.deepEqual(retried.needCalls.map(({ fresh }) => fresh), [false, true], "the retry waits on a fresh pass");
+  await playTo31(second.player, retried);
+  const after = retried.ensures.length;
+  late.resolve();
+  await settle(20);
+  assert.deepEqual(staleDraws({ frames: second.frames, env: retried, from: after, n: 0, k: 47, j: 30 }),
+    { frames: [], prefetches: [] }, "the retry's frame 0 was drawn over playback at frame 31");
+  assert.equal(second.player.state().presentedFrame, 31);
+  assert.equal(second.player.state().error, null);
+  await retried.runTimers(20_000);
+  assert.equal(second.player.state().error, null, "nothing is reported for a frame playback left behind");
+  assert.deepEqual(second.player.stats().paused.map(({ attempt, reason }) => [attempt, reason]), [[0, "timeout"]]);
+  second.player.destroy();
+});
+
+test("a pause repaint still waiting when Play starts again never draws over playback", async () => {
+  const landing = deferred();
+  // Frame 0 at load, then frame 5 (cell 47, index 35), asked by the held tick and by the pause.
+  const env = makeDeps({ plateAnswers: ["frame", landing] });
+  const { player, frames } = mount(env);
+  await player.load(planDto());
+  await settle();
+  await player.play({ silent: true });
+  env.wallPosition = 5.2 / 30;
+  env.raf();
+  await settle();
+  assert.equal(player.state().presentedFrame, 0, "held on frame 0");
+  player.pause(); // the repaint of frame 5 waits for its decode
+  await settle();
+  await playTo31(player, env);
+  const from = env.ensures.length;
+  landing.resolve();
+  await settle(20);
+  assert.deepEqual(staleDraws({ frames, env, from, n: 5, k: 47, j: 35 }), { frames: [], prefetches: [] },
+    "the pause's repaint of frame 5 was drawn over playback at frame 31");
+  assert.equal(player.state().presentedFrame, 31);
+  player.destroy();
+});
+
+// While cells build, the store reloads the same plan every 750 ms. A poll must not start the paused
+// frame over once its attempts are under way: not while one waits, not in a retry delay, and not
+// after the failure is reported. Only something new (a seek, Play, another plan) asks again.
+
+/** The store's polls: `dto()` loaded every `ms` from `from` until `until`; `onPoll` runs first. */
+function pollPlans(env, player, { ms = 750, from = ms, until = 60_000, dto = () => planDto({ building: true }), onPoll = () => {} } = {}) {
+  const poll = () => {
+    onPoll();
+    player.load(dto()).catch(() => {});
+    if (env.clock.now + ms <= until) env.deps.setTimeout(poll, ms);
+  };
+  env.deps.setTimeout(poll, from);
+}
+
+/** The shell's badge for the player's state with the store's pending layers. */
+function badgeWhile(player, plan, storePending) {
+  return badgeView({ status: "ready", plan, storePending, player: playerView(null, player.state()) });
+}
+
+test("polls of the same plan while cells build leave a frame that ran out of time reported: one round of attempts", async () => {
+  const env = makeDeps({ plateAnswers: Array.from({ length: 40 }, () => "hang") });
+  const { player } = mount(env);
+  await player.load(planDto({ building: true }));
+  await settle();
+  const seen = [];
+  pollPlans(env, player, { onPoll: () => seen.push({ at: env.clock.now, error: player.state().error }) });
+  await env.runTimers(60_000);
+  assert.deepEqual(env.needCalls.map(({ at, fresh }) => [at, fresh]), [[0, false], [1500, true], [5500, true]],
+    "one attempt and two retries, none started over by a poll");
+  const reported = { layer: "plate", message: "paused_frame_timeout:plate", frame: 0 };
+  assert.deepEqual(player.state().error, reported);
+  const later = seen.filter(({ at }) => at > 9500);
+  assert.ok(later.length > 60);
+  assert.deepEqual(later.filter(({ error }) => error?.message !== reported.message), [], "the report stays at every poll");
+  assert.equal(playerView(null, player.state()).frameError, true);
+  assert.equal(badgeWhile(player, planDto({ building: true }), ["plate"]).text, "Menyiapkan video (3/4)…",
+    "while cells build the badge names them first");
+  assert.deepEqual(player.stats().paused.map(({ attempt, reason }) => [attempt, reason]),
+    [[0, "timeout"], [1, "timeout"], [2, "timeout"]]);
+
+  // The last cell is built: the badge names the failure at once, with no new round of attempts.
+  await player.load(planDto());
+  await settle();
+  assert.equal(badgeWhile(player, planDto(), []).text, "Frame gagal dimuat");
+  assert.equal(env.needCalls.length, 3);
+  // An edit (another plan) asks again, from the first attempt.
+  await player.load(planDto({ mix: "m2" }));
+  await settle();
+  assert.deepEqual(env.needCalls.slice(3).map(({ fresh }) => fresh), [false]);
+  assert.equal(player.state().error, null, "a new request starts clean");
+  player.destroy();
+});
+
+test("polls in the retry delays do not start the attempts over: a frame that keeps failing is reported while cells build", async () => {
+  const failure = () => new Error("plate_cell_failed:47:EncodingError: Decoder failure");
+  const env = makeDeps({ plateAnswers: Array.from({ length: 40 }, failure) });
+  const { player } = mount(env);
+  await player.load(planDto({ building: true }));
+  await settle();
+  // The first poll lands in the 250 ms delay, the second in the 1 s one.
+  pollPlans(env, player, { from: 100 });
+  await env.runTimers(60_000);
+  assert.deepEqual(env.needCalls.map(({ at, fresh }) => [at, fresh]), [[0, false], [250, true], [1250, true]],
+    "one attempt and two retries, each after its delay");
+  assert.deepEqual(player.state().error,
+    { layer: "plate", message: "plate_cell_failed:47:EncodingError: Decoder failure", frame: 0 });
+  assert.equal(playerView(null, player.state()).frameError, true);
+  await player.load(planDto());
+  await settle();
+  assert.equal(badgeWhile(player, planDto(), []).text, "Frame gagal dimuat");
+  player.destroy();
+});
+
+/** Mediabunny whose every decoder stalls: getSample and the sample stream never answer. */
+function stalledMediabunny() {
+  const counts = { decoders: 0 };
+  class BufferSource { constructor(buffer) { this.buffer = buffer; } }
+  class Input {
+    async getPrimaryVideoTrack() { return {}; }
+    dispose() {}
+  }
+  class VideoSampleSink {
+    constructor() { counts.decoders += 1; }
+    getSample() { return new Promise(() => {}); }
+    async* samples() { yield await new Promise(() => {}); }
+  }
+  return { counts, module: { Input, BufferSource, VideoSampleSink, ALL_FORMATS: [] } };
+}
+
+test("every decoder stalls while cells build: one round of attempts, and a cell abandons at most two decoders", async () => {
+  // The real plate source: an abandoned decoder cannot be closed, so each one stays for good.
+  const mb = stalledMediabunny();
+  const env = makeDeps();
+  let source = null;
+  env.deps.createPlateSource = ({ fps, capacity }) => {
+    source = createPlateSource({
+      fetchImpl: async () => ({ ok: true, status: 200, arrayBuffer: async () => new ArrayBuffer(0) }),
+      loadMediabunny: async () => mb.module,
+      retainFrame: async () => ({ close() {} }),
+      yieldTask: () => Promise.resolve(),
+      now: () => env.clock.now,
+      fps, capacity,
+    });
+    return source;
+  };
+  const { player } = mount(env);
+  await player.load(planDto({ building: true }));
+  await settle();
+  pollPlans(env, player);
+  await env.runTimers(60_000);
+  assert.deepEqual(player.state().error, { layer: "plate", message: "paused_frame_timeout:plate", frame: 0 });
+  assert.deepEqual([source.stats().passes, source.stats().abandoned, mb.counts.decoders], [3, 2, 3],
+    "one lone pass and two fresh ones; the first two abandoned");
+
+  // A new request on the same cell gets its round of attempts, but no more decoders are abandoned.
+  player.seek(20); // cell 47, index 50; it never resolves: its frame never comes
+  await settle();
+  await env.runTimers(80_000);
+  assert.deepEqual(player.state().error, { layer: "plate", message: "paused_frame_timeout:plate", frame: 20 });
+  assert.deepEqual([source.stats().passes, source.stats().abandoned, source.stats().stalled, mb.counts.decoders], [3, 2, 2, 3],
+    "the cell's two abandoned decoders cap its fresh passes: the retries wait on its pass");
   player.destroy();
 });
