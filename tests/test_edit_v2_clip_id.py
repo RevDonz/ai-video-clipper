@@ -6,7 +6,13 @@ import hashlib
 
 import pytest
 
-from ai_clipper.edit_v2.clip_id import CLIP_ID_PATTERN, clip_id, is_clip_id, ms_from_seconds
+from ai_clipper.edit_v2.clip_id import (
+    CLIP_ID_PATTERN,
+    clip_id,
+    is_clip_id,
+    manifest_clip_id,
+    ms_from_seconds,
+)
 from ai_clipper.selection_types import SCORE_DIMENSIONS, SelectedClip
 
 SOURCE = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
@@ -135,6 +141,24 @@ def test_ms_from_seconds_rounds_the_decimal_value_half_up():
 def test_clip_id_rejects_malformed_inputs(source, start, end, cold):
     with pytest.raises((TypeError, ValueError)):
         clip_id(source, start, end, cold)
+
+
+def test_manifest_clip_id_prefers_the_entry_id_then_computes_it():
+    """The id of an ``output/manifest.json`` clip entry (render_edit's R10 lookup and prepare's
+    cold-open join, spec 2026-10-02 §6.1)."""
+    named = "clip_" + "4" * 24
+    assert manifest_clip_id({"clip_id": named, "start": 1.0, "end": 2.0}, SOURCE) == named
+    assert manifest_clip_id({"clip_id": "clip_x", "start": 1.0, "end": 2.0}, SOURCE) is None
+    assert manifest_clip_id({"clip_id": None, "start": 1241.93, "end": 1309.4},
+                            SOURCE) == GOLDEN[1][4]
+    entry = {"start": 1241.93, "end": 1309.4, "cold_open": {"start": 1275.2, "end": 1279.7}}
+    assert manifest_clip_id(entry, SOURCE) == GOLDEN[0][4]
+    entry["cold_open"] = None
+    assert manifest_clip_id(entry, SOURCE) == GOLDEN[1][4]
+    for broken in ({}, {"start": "1", "end": 2.0}, {"start": 2.0, "end": 1.0},
+                   {"start": 1.0, "end": 2.0, "cold_open": {"start": 1.0}},
+                   {"start": 1.0, "end": 2.0, "cold_open": [1.0, 2.0]}):
+        assert manifest_clip_id(broken, SOURCE) is None
 
 
 def test_is_clip_id():

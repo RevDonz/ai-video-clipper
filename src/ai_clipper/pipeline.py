@@ -32,6 +32,12 @@ shadow keep their historical behaviour. Selection V3 (``selection_mode="v3"``) r
    and the summary warning ``engine_fallback:<index>``: the job never fails because of the
    editor path.
 
+**Cold-open transition** (spec 2026-10-02 §6.2). Both engines render a clip that keeps its cold
+open with a white flash and the whoosh at the join (``transitions.AUTO_COLD_OPEN_JOIN``; no
+option, latest only), and its manifest entry records it as ``"cold_open_join": {"style",
+"sfx"}``. Clips without a cold open are unchanged and have no such key. ``prepare`` later seeds
+that join, so the auto file stays revision 0 (R10).
+
 **Konteks Tren.** With ``trend_context`` (the worker's ``analysis/trend-context.json``
 snapshot, CLI ``--trend-context``), the active trend items are read with
 :func:`load_trend_context` right before selection and passed to :func:`select_clips_v3`. Only
@@ -52,7 +58,8 @@ the manifest and ``selection.v3.json`` are exactly as before.
 
 Every mode writes a poster next to each rendered clip: :func:`write_clip_thumbnail` grabs one
 frame of ``clip-XX.mp4`` at :func:`thumbnail_time` (1.0 s, so the hook text and the first
-captions are on it; earlier for very short clips) into ``clip-XX.jpg``, at most
+captions are on it; earlier for very short clips; 0.25 s after a cold-open flash that would
+cover it) into ``clip-XX.jpg``, at most
 ``THUMBNAIL_WIDTH`` pixels wide, with the same no-clobber publication as the render. The clip's
 manifest entry gets ``"thumbnail": "<path>"``. A poster that could not be written never fails
 the job: a V3 clip then has ``"thumbnail": null`` (its contract lists every field) and the
@@ -105,6 +112,7 @@ from .audio_timeline import (
 from .candidates import generate_candidates
 from .captions_ass import CAPTION_STYLES
 from .edit_v2 import render_edit
+from .edit_v2.transitions import AUTO_COLD_OPEN_JOIN, CUT_JOIN, ColdOpenJoin
 from .features import extract_features
 from .focus import FocusSpec
 from .highlight import select_highlights
@@ -202,6 +210,10 @@ THUMBNAIL_QUALITY = 4  # FFmpeg -q:v for MJPEG (2 is best, 31 worst)
 THUMBNAIL_AT_SECONDS = 1.0  # the hook overlay and the first caption are on screen by now
 THUMBNAIL_SHORT_AT_SECONDS = 0.3
 THUMBNAIL_SHORT_CLIP_SECONDS = 2.0
+# The poster stays off a cold-open flash or dip (spec 2026-10-02 §4.5): ±0.2 s around the join
+# covers the dip's 0.15 s half-width plus a frame; a poster inside moves 0.25 s past the join.
+THUMBNAIL_JOIN_MARGIN_SECONDS = 0.2
+THUMBNAIL_AFTER_JOIN_SECONDS = 0.25
 THUMBNAIL_TIMEOUT_SECONDS = 60
 MAX_THUMBNAIL_BYTES = 8 * 1024 * 1024
 _JPEG_START = b"\xff\xd8\xff"
@@ -212,11 +224,20 @@ class ThumbnailError(RuntimeError):
     """A clip poster could not be written. Messages never contain a path."""
 
 
-def thumbnail_time(duration: float) -> float:
-    """Where the poster frame is taken in a clip of ``duration`` rendered seconds."""
+def thumbnail_time(duration: float, avoid: tuple[float, float] | None = None) -> float:
+    """Where the poster frame is taken in a clip of ``duration`` rendered seconds.
+
+    ``avoid`` is a window around a cold-open flash or dip (its join ± 0.2 s): a default time
+    inside it moves to 0.25 s after the join, so the poster never shows the effect."""
     if duration >= THUMBNAIL_SHORT_CLIP_SECONDS:
-        return THUMBNAIL_AT_SECONDS
-    return max(0.0, min(THUMBNAIL_SHORT_AT_SECONDS, duration / 2))
+        at = THUMBNAIL_AT_SECONDS
+    else:
+        at = max(0.0, min(THUMBNAIL_SHORT_AT_SECONDS, duration / 2))
+    if avoid is not None and avoid[0] <= at <= avoid[1]:
+        moved = (avoid[0] + avoid[1]) / 2 + THUMBNAIL_AFTER_JOIN_SECONDS
+        if moved < duration:
+            at = moved
+    return at
 
 
 def _require_thumbnail_absent(directory_fd: int, name: str) -> None:
@@ -274,8 +295,10 @@ def _thumbnail_command(clip_fd: int, image_fd: int, at: float) -> list[str]:
     ]
 
 
-def write_clip_thumbnail(clip: Path, *, duration: float) -> Path:
+def write_clip_thumbnail(clip: Path, *, duration: float, at: float | None = None) -> Path:
     """Write ``clip``'s poster frame to ``clip-XX.jpg`` beside it and return that path.
+
+    The frame is taken at ``at`` seconds (default :func:`thumbnail_time` of ``duration``).
 
     The rendered clip is opened without following symlinks and FFmpeg only sees file
     descriptors. The JPEG goes to a private sibling temporary file, is checked, and is then
@@ -287,6 +310,11 @@ def write_clip_thumbnail(clip: Path, *, duration: float) -> Path:
     duration = float(duration)
     if not math.isfinite(duration) or duration <= 0:
         raise ValueError("duration must be finite and positive")
+    if at is None:
+        at = thumbnail_time(duration)
+    elif (not isinstance(at, Real) or isinstance(at, bool) or not math.isfinite(at)
+          or not 0 <= at < duration):
+        raise ValueError("the poster time must lie inside the clip")
     clip = Path(clip).absolute()
     destination = clip.with_suffix(THUMBNAIL_SUFFIX)
     if destination.name == clip.name:
@@ -314,7 +342,7 @@ def write_clip_thumbnail(clip: Path, *, duration: float) -> Path:
             image_fd, temporary = _create_sibling_temp(directory_fd, THUMBNAIL_SUFFIX)
         except (OSError, RuntimeError) as exc:
             raise ThumbnailError("could not create a thumbnail temporary file") from exc
-        command = _thumbnail_command(clip_fd, image_fd, thumbnail_time(duration))
+        command = _thumbnail_command(clip_fd, image_fd, float(at))
         try:
             subprocess.run(
                 command,
@@ -356,11 +384,16 @@ def write_clip_thumbnail(clip: Path, *, duration: float) -> Path:
 
 
 def _clip_thumbnail(
-    clip_path: Path, duration: float, index: int, warnings: list[str] | None
+    clip_path: Path,
+    duration: float,
+    index: int,
+    warnings: list[str] | None,
+    avoid: tuple[float, float] | None = None,
 ) -> str | None:
     """The poster path for the manifest, or ``None``: a missing poster never fails a job."""
     try:
-        return str(write_clip_thumbnail(clip_path, duration=duration))
+        at = thumbnail_time(duration, avoid)
+        return str(write_clip_thumbnail(clip_path, duration=duration, at=at))
     except (ThumbnailError, OSError):
         if warnings is not None:
             warnings.append(f"thumbnail_failed:{index}")
@@ -1168,6 +1201,7 @@ def _run_v3(
         render_engine=render_engine,
         report=report,
         warnings=state.warnings,
+        cold_open_join=AUTO_COLD_OPEN_JOIN,  # always on (latest only): no option for it
     )
     state.stage = "finalizing"
     return transcription, transcript_path, clips
@@ -1190,11 +1224,17 @@ def _render_v3_clips(
     render_engine: str,
     report: Callable[[str, int, str], None],
     warnings: list[str],
+    cold_open_join: ColdOpenJoin | None,
     ranks: Iterable[int] | None = None,
     timings: dict[int, float] | None = None,
 ) -> list[dict[str, object]]:
     """The V3 rendering stage: every clip (or the given ``ranks``) with ``render_engine``,
-    the manifest entry of each, its poster and, per clip, the wall time in ``timings``."""
+    the manifest entry of each, its poster and, per clip, the wall time in ``timings``.
+
+    ``cold_open_join`` is the transition at a clip's cold-open join (spec 2026-10-02 §6.2):
+    both engines render it and the manifest entry of a clip with a cold open records it as
+    ``cold_open_join``. ``None`` is the stage before transitions existed (a cut, no sound, no
+    manifest field), kept for fixtures only."""
     renderer = None
     if render_engine == render_edit.ENGINE_EDIT_V2:
         renderer = _edit_v2_renderer(
@@ -1209,8 +1249,14 @@ def _render_v3_clips(
                 hook_duration=hook_duration,
                 width=width,
                 height=height,
+                cold_open_join=CUT_JOIN if cold_open_join is None else cold_open_join,
             ),
         )
+    join_options: dict[str, object] = (
+        {}
+        if cold_open_join is None
+        else {"join_style": cold_open_join.style, "join_sfx": cold_open_join.sfx}
+    )
     wanted = None if ranks is None else set(ranks)
     _schedule_edit_v2(renderer, [
         (clip.rank, output_dir / f"clip-{index:02d}.mp4")
@@ -1230,6 +1276,7 @@ def _render_v3_clips(
             )
             clip_path = output_dir / f"clip-{index:02d}.mp4"
             engine_fields: dict[str, object] | None = None
+            join = cold_open_join
             if render_engine == render_edit.ENGINE_EDIT_V2:
                 auto = _render_edit_v2(renderer, clip.rank, clip_path, index)
                 if auto is None:
@@ -1249,6 +1296,8 @@ def _render_v3_clips(
                     }
                     if not auto.cold_open:  # the seed left an invalid teaser out (plan §3.4)
                         teaser = None
+                    # the join the seed kept (equal to cold_open_join by construction)
+                    join = getattr(auto, "cold_open_join", None) or cold_open_join
             if engine_fields is None or engine_fields["render_engine"] == "legacy":
                 render_vertical(
                     source,
@@ -1263,11 +1312,21 @@ def _render_v3_clips(
                     hook_text=clip.hook_text if hook_overlay else None,
                     hook_duration=hook_duration,
                     caption_style=caption_style,
+                    **join_options,
                 )
-            thumbnail = _clip_thumbnail(clip_path, _rendered_seconds(clip, teaser), index, warnings)
+            avoid = None
+            if teaser is not None and join is not None and join.style != "cut":
+                at_join = teaser[1] - teaser[0]  # the join, in seconds of the rendered clip
+                avoid = (at_join - THUMBNAIL_JOIN_MARGIN_SECONDS,
+                         at_join + THUMBNAIL_JOIN_MARGIN_SECONDS)
+            thumbnail = _clip_thumbnail(
+                clip_path, _rendered_seconds(clip, teaser), index, warnings, avoid
+            )
             entry = _v3_manifest_clip(index, clip, teaser, clip_path, thumbnail)
             if engine_fields is not None:
                 entry.update(engine_fields)
+            if teaser is not None and join is not None:
+                entry["cold_open_join"] = join.to_json()
             clips.append(entry)
             if timings is not None:
                 timings[clip.rank] = time.monotonic() - started
@@ -1340,6 +1399,7 @@ def render_v3_job(
     width: int = 720,
     height: int = 1280,
     hook_duration: float = DEFAULT_HOOK_DURATION,
+    cold_open_join: ColdOpenJoin | None = AUTO_COLD_OPEN_JOIN,
 ) -> V3RenderRun:
     """The V3 rendering stage again, over an existing job's own ``output/transcript.json``,
     ``analysis/selection.v3.json`` and ``job.json`` options, into ``job_dir/output``.
@@ -1347,7 +1407,8 @@ def render_v3_job(
     For tools and fixtures only (the P-LOOK kit and PF-PIPELINE, the synthetic job's
     ``--render``): it renders exactly what the pipeline renders after selection (the dashboard's
     720×1280 by default), so a comparison of the two engines needs no Whisper or LLM run. The
-    clip files must not exist yet; the manifest is left to the caller.
+    clip files must not exist yet; the manifest is left to the caller. ``cold_open_join`` is
+    the pipeline's transition; ``None`` renders as before transitions existed (fixtures).
     """
     job_dir = Path(job_dir).resolve()
     job = json.loads((job_dir / "job.json").read_text(encoding="utf-8"))
@@ -1381,6 +1442,7 @@ def render_v3_job(
         render_engine=render_engine,
         report=lambda _stage, _percent, _detail: None,
         warnings=warnings,
+        cold_open_join=cold_open_join,
         ranks=ranks,
         timings=timings,
     )

@@ -121,6 +121,36 @@
    "warnings": []
   },
   {
+   "file": "valid/join_flash_white__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/join_dip_black__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/join_cut_whoosh__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/join_dip_black_whoosh__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/join_flash_white_whoosh__c24.json",
+   "context": "c24",
+   "check": "put",
+   "warnings": []
+  },
+  {
    "file": "valid/cut_fade_0__c30.json",
    "context": "c30",
    "check": "put",
@@ -1026,6 +1056,13 @@
    "path": "/main/joins/0"
   },
   {
+   "file": "invalid/cold_open_invalid__transition_without_cold_open.json",
+   "context": "c25",
+   "check": "put",
+   "code": "cold_open_invalid",
+   "path": "/main/joins/0"
+  },
+  {
    "file": "invalid/duration_out_of_bounds__short.json",
    "context": "c30",
    "check": "put",
@@ -1122,6 +1159,48 @@
    "check": "put",
    "code": "pack_unknown",
    "path": "/captions/pack"
+  },
+  {
+   "file": "invalid/sfx_unknown__id.json",
+   "context": "c30",
+   "check": "put",
+   "code": "sfx_unknown",
+   "path": "/main/joins/0/sfx"
+  },
+  {
+   "file": "invalid/sfx_unknown__version.json",
+   "context": "c30",
+   "check": "put",
+   "code": "sfx_unknown",
+   "path": "/main/joins/0/sfx"
+  },
+  {
+   "file": "invalid/range_invalid__join_style.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/main/joins/0/style"
+  },
+  {
+   "file": "invalid/range_invalid__join_sfx_null.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/main/joins/0/sfx"
+  },
+  {
+   "file": "invalid/range_invalid__join_sfx_no_v.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/main/joins/0/sfx/v"
+  },
+  {
+   "file": "invalid/unknown_key__join_sfx.json",
+   "context": "c30",
+   "check": "put",
+   "code": "unknown_key",
+   "path": "/main/joins/0/sfx/gain_cdb"
   },
   {
    "file": "invalid/op_disabled__join_style.json",

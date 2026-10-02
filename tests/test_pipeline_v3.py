@@ -15,6 +15,7 @@ import pytest
 
 import ai_clipper.pipeline as pipeline_module
 from ai_clipper.audio_timeline import AudioTimelineError, build_audio_timeline
+from ai_clipper.edit_v2.transitions import AUTO_COLD_OPEN_JOIN, ColdOpenJoin
 from ai_clipper.focus import parse_focus
 from ai_clipper.llm import LLMError, LLMUnavailable, ScriptedLLMClient
 from ai_clipper.llm_selection import PROMPT_VERSION
@@ -66,6 +67,7 @@ CLIP_KEYS = {
     "thumbnail",
 }
 SCORES = {"hook": 8.0, "standalone": 7.0, "payoff": 6.0, "emotion": 5.0, "shareability": 4.0}
+AUTO_JOIN_JSON = {"style": "flash_white", "sfx": {"id": "whoosh", "v": 1}}
 
 SENTENCE_SECONDS = 7.3  # not whole seconds: whole-second durations look quantized
 GAP_SECONDS = 0.5
@@ -219,6 +221,7 @@ def env(monkeypatch, tmp_path: Path):
         job=tmp_path / "job",
         renders=[],
         thumbnails=[],
+        poster_times=[],
         audio_calls=[],
         llm_factory_calls=[],
         progress=[],
@@ -247,8 +250,9 @@ def env(monkeypatch, tmp_path: Path):
         pipeline_module, "render_vertical", lambda *args, **kwargs: state.renders.append(kwargs)
     )
 
-    def thumbnail(clip, *, duration):
+    def thumbnail(clip, *, duration, at=None):
         state.thumbnails.append((clip, duration))
+        state.poster_times.append(at)
         return clip.with_suffix(".jpg")
 
     monkeypatch.setattr(pipeline_module, "write_clip_thumbnail", thumbnail)
@@ -321,8 +325,15 @@ def assert_web_summary(summary: dict) -> None:
     assert summary["transcript_source"] in {None, "youtube-captions", "whisper"}
 
 
+def join_keys(clip: dict) -> set[str]:
+    """``cold_open_join`` (spec 2026-10-02 §6.1): on every clip rendered with a cold open."""
+    return set() if clip["cold_open"] is None else {"cold_open_join"}
+
+
 def assert_web_clip(clip: dict) -> None:
-    assert set(clip) == CLIP_KEYS
+    assert set(clip) == CLIP_KEYS | join_keys(clip)
+    if join_keys(clip):  # the web's manifest sanitiser drops it (a whitelist)
+        assert clip["cold_open_join"] == AUTO_JOIN_JSON
     assert isinstance(clip["title"], str) and 0 < len(clip["title"]) <= 100
     assert isinstance(clip["hook_text"], str) and 0 < len(clip["hook_text"]) <= 90
     assert clip["description"] is None or len(clip["description"]) <= 600
@@ -957,7 +968,7 @@ def test_thumbnail_failure_keeps_the_clip_without_a_poster(env, monkeypatch, mod
     )
     calls = []
 
-    def flaky(clip, *, duration):
+    def flaky(clip, *, duration, at=None):
         calls.append(clip.name)
         if clip.name == "clip-01.mp4":
             raise pipeline_module.ThumbnailError("FFmpeg thumbnail failed")
@@ -985,7 +996,7 @@ def test_unexpected_thumbnail_errors_still_fail_the_job(env, monkeypatch):
         pipeline_module, "select_clips_v3", lambda *a, **k: result(selected(1, 100.0, 130.0))
     )
 
-    def broken(clip, *, duration):
+    def broken(clip, *, duration, at=None):
         raise TypeError("programming error")
 
     monkeypatch.setattr(pipeline_module, "write_clip_thumbnail", broken)
@@ -1366,7 +1377,7 @@ def test_a_trend_context_grounds_clips_and_the_manifest_records_it(env, monkeypa
     assert len(trended) == 1
     clip = trended[0]
     assert clip["trends"] == [{"id": "trend-a", "title": "Tren A", "kind": "topic"}]
-    assert set(clip) == CLIP_KEYS | {"trends"}
+    assert set(clip) == CLIP_KEYS | {"trends"} | join_keys(clip)
     assert clip["hashtags"][0] == "#TrenA"
     assert clip["reasons"][-1] == "tren: Tren A"
     for other in manifest["clips"]:
@@ -1479,7 +1490,7 @@ def test_a_focus_leads_the_clips_and_the_manifest_records_it(env, monkeypatch):
         others
     )
     for clip in manifest["clips"]:
-        assert set(clip) == CLIP_KEYS | {"focus"}
+        assert set(clip) == CLIP_KEYS | {"focus"} | join_keys(clip)
     summary = manifest["selection_v3"]
     assert summary["focus"] == {"terms": ["kisah25"], "matched": 1, "requested": 3}
     assert "focus_few_matches:1" in summary["warnings"]
@@ -1753,6 +1764,7 @@ def test_the_edit_v2_engine_renders_every_clip_through_the_compiler(
         hook_duration=2.5,
         width=720,
         height=1280,
+        cold_open_join=AUTO_COLD_OPEN_JOIN,  # the owner's default (spec 2026-10-02 §6.2)
     )
     assert renderer.rendered == [
         (1, env.output.resolve() / "clip-01.mp4"),
@@ -1763,7 +1775,7 @@ def test_the_edit_v2_engine_renders_every_clip_through_the_compiler(
     assert renderer.scheduled == [renderer.rendered]
     assert renderer.events == ["schedule", "render:1", "render:2", "close"]
     for index, clip in enumerate(manifest["clips"], start=1):
-        assert set(clip) == CLIP_KEYS | ENGINE_KEYS
+        assert set(clip) == CLIP_KEYS | ENGINE_KEYS | join_keys(clip)
         assert clip["clip_id"] == f"clip_{index:024x}"
         assert clip["render_engine"] == "edit-v2/1"
         assert clip["render_key"] is None and clip["plan_sha256"] == f"{index:064x}"
@@ -1897,7 +1909,7 @@ def test_trends_and_focus_reach_the_manifest_through_the_edit_v2_engine(env, fak
         [{"id": "trend-a", "title": "Tren A", "kind": "topic"}]
     ]
     for clip in manifest["clips"]:
-        extra = {"focus"} | ({"trends"} if "trends" in clip else set())
+        extra = {"focus"} | ({"trends"} if "trends" in clip else set()) | join_keys(clip)
         assert set(clip) == CLIP_KEYS | ENGINE_KEYS | extra
     summary = manifest["selection_v3"]
     assert summary["focus"] == {"terms": ["kisah25"], "matched": 1, "requested": 3}
@@ -1907,3 +1919,99 @@ def test_trends_and_focus_reach_the_manifest_through_the_edit_v2_engine(env, fak
         legacy["selection_v3"]["warnings"]
     )
     assert_web_summary({key: value for key, value in summary.items() if key != "focus"})
+
+
+# --- the cold-open transition (spec 2026-10-02 §4.5, §6.1, §6.2) ---------------------------------
+
+SHORT_TEASER = (selected(1, 100.0, 130.0, cold_open=(118.0, 119.0)), selected(2, 200.0, 230.0))
+
+
+def test_auto_clips_with_a_cold_open_get_the_flash_and_the_whoosh(env, monkeypatch):
+    monkeypatch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: result(*TWO_CLIPS))
+
+    manifest = manifest_of(run(env, max_duration=60.0))
+
+    first, second = manifest["clips"]
+    assert first["cold_open_join"] == AUTO_JOIN_JSON
+    assert "cold_open_join" not in second  # no cold open, nothing changes
+    for render in env.renders:
+        assert (render["join_style"], render["join_sfx"]) == ("flash_white", "whoosh")
+    assert env.renders[0]["cold_open"] == (118.0, 121.0) and env.renders[1]["cold_open"] is None
+
+
+def test_the_new_engine_seeds_the_join_and_its_fallback_renders_it(env, monkeypatch,
+                                                                  fake_engine):
+    monkeypatch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: result(
+        selected(1, 100.0, 130.0, cold_open=(118.0, 121.0)),
+        selected(2, 200.0, 230.0, cold_open=(220.0, 222.0))))
+    fake_engine.fail_ranks = {2}
+
+    manifest = manifest_of(run(env, max_duration=60.0, render_engine="edit-v2"))
+
+    (renderer,) = fake_engine.instances
+    assert renderer.options["options"].cold_open_join == AUTO_COLD_OPEN_JOIN
+    first, second = manifest["clips"]
+    assert first["render_engine"] == "edit-v2/1" and first["cold_open_join"] == AUTO_JOIN_JSON
+    assert second["render_engine"] == "legacy" and second["cold_open_join"] == AUTO_JOIN_JSON
+    (legacy,) = env.renders
+    assert (legacy["cold_open"], legacy["join_style"], legacy["join_sfx"]) == (
+        (220.0, 222.0), "flash_white", "whoosh")
+
+
+def test_the_manifest_join_is_the_one_the_seed_kept(env, monkeypatch, fake_engine):
+    monkeypatch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: result(*TWO_CLIPS))
+    fake_engine.drop_cold_open = {1}
+
+    first = manifest_of(run(env, max_duration=60.0, render_engine="edit-v2"))["clips"][0]
+
+    assert first["cold_open"] is None and "cold_open_join" not in first
+
+
+def test_an_engine_reported_join_wins(env, monkeypatch, fake_engine):
+    monkeypatch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: result(*TWO_CLIPS))
+    original = FakeAutoRenderer.render
+
+    def render(self, rank, output):
+        auto = original(self, rank, output)
+        auto.cold_open_join = ColdOpenJoin("dip_black", None)
+        return auto
+
+    monkeypatch.setattr(FakeAutoRenderer, "render", render)
+
+    first = manifest_of(run(env, max_duration=60.0, render_engine="edit-v2"))["clips"][0]
+
+    assert first["cold_open_join"] == {"style": "dip_black", "sfx": None}
+
+
+@pytest.mark.parametrize(
+    ("duration", "avoid", "expected"),
+    [(20.0, None, 1.0), (20.0, (3.3, 3.7), 1.0), (20.0, (0.8, 1.2), 1.25),
+     (20.0, (0.6, 1.0), 1.05), (1.5, (0.1, 0.5), 0.55), (20.0, (1.0, 1.4), 1.45)],
+)
+def test_the_poster_time_steps_out_of_the_flash(duration, avoid, expected):
+    assert pipeline_module.thumbnail_time(duration, avoid) == pytest.approx(expected)
+
+
+def test_the_poster_is_taken_after_a_flash_that_covers_the_first_second(env, monkeypatch):
+    monkeypatch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: result(*SHORT_TEASER))
+
+    run(env, max_duration=60.0)
+
+    # a 1.0 s teaser: the flash peaks at 1.0 s, so the poster moves to 1.25 s
+    assert env.poster_times == [pytest.approx(1.25), pytest.approx(1.0)]
+
+
+def test_without_a_join_the_rendering_stage_is_the_one_before_the_transition(env):
+    output = env.output
+    output.mkdir(parents=True)
+    clips = pipeline_module._render_v3_clips(
+        env.source, output, env.job, plans=[(clip, clip.cold_open) for clip in SHORT_TEASER],
+        transcription=SimpleNamespace(segments=[]), width=720, height=1280,
+        render_mode="center-crop", cold_open=True, hook_overlay=True, hook_duration=4.0,
+        caption_style="karaoke", render_engine="legacy", report=lambda *_: None, warnings=[],
+        cold_open_join=None)
+
+    assert all(set(clip) == CLIP_KEYS for clip in clips)
+    assert all("join_style" not in render and "join_sfx" not in render
+               for render in env.renders)
+    assert env.poster_times == [pytest.approx(1.0), pytest.approx(1.0)]
