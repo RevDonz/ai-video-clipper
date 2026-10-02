@@ -7,7 +7,9 @@
 //   open(caseId, variant?, { rev0Fallback }?)  a fresh player with the case's plan DTO
 //   readFrames(frames, { crop })     seek each frame; barcode index and crop x from the canvas (P-FRAME)
 //   laneStates(frames, lanes)        seek each frame; per-lane text state from the canvas (P-TIME)
-//   composite(frames)                seek each frame; the canvas as PNG (P-TXT, P-LOGO)
+//   composite(frames)                seek each frame; the canvas as PNG (P-TXT, P-LOGO, P-JOIN-B)
+//   joinCheck(frames)                seek each frame; the transition alpha the player drew
+//                                    (onFrame.joinAlphaPm) and debug.joinAt (P-JOIN-B)
 //   audioCheck()                     the decoded AudioBuffer vs the reference PCM (P-AUD)
 //   playProbe({ fromFrame, pixels }) real-time playback; per presented frame: the barcode on the
 //                                    canvas and the audio heard (getOutputTimestamp) (P-SYNC,
@@ -81,6 +83,7 @@ function createHarness(manifest, stage) {
   let item = null;
   let dto = null;
   let frameListener = null;
+  const drawnAlpha = new Map(); // frame → onFrame.joinAlphaPm of its last live drawing
   const strip = new Uint8Array(WIDTH * HEIGHT);
 
   async function planFor(caseId, variant) {
@@ -144,12 +147,16 @@ function createHarness(manifest, stage) {
       stage.host.appendChild(canvas);
       stage.video.removeAttribute("src");
       stage.video.load();
+      drawnAlpha.clear();
       const truthFiles = item.truth?.files ?? {};
       player = createPlayer({
         canvas,
         jassubUrl: JASSUB_URL,
         video: rev0Fallback ? stage.video : null,
-        onFrame: (info) => frameListener?.(info),
+        onFrame: (info) => {
+          if (typeof info.joinAlphaPm === "number") drawnAlpha.set(info.frame, info.joinAlphaPm);
+          frameListener?.(info);
+        },
         requestTruthFrame: async (n) => {
           const file = truthFiles[String(n)];
           if (!file) throw new Error(`no truth frame ${n}`);
@@ -239,6 +246,19 @@ function createHarness(manifest, stage) {
           png: base64(new Uint8Array(await blob.arrayBuffer())) });
       }
       return shots;
+    },
+
+    async joinCheck(frames) {
+      const out = [];
+      for (const n of frames) {
+        drawnAlpha.delete(n);
+        await seekShown(n);
+        const overlay = player.debug.joinAt(n);
+        out.push({ frame: n, presented: player.state().presentedFrame === n,
+          joinAlphaPm: drawnAlpha.get(n) ?? null, joinAt: overlay ? overlay.alphaPm : 0,
+          rgb: overlay ? [...overlay.rgb] : null });
+      }
+      return out;
     },
 
     async audioCheck() {
@@ -408,8 +428,8 @@ export default function PlayerHarness() {
         error: api.error,
       }),
     };
-    for (const name of ["open", "readFrames", "laneStates", "composite", "audioCheck", "playProbe", "seekBench",
-      "memoryWorkout", "truthCheck", "fallbackCheck", "debugState", "debugVideo", "seekOnly"]) {
+    for (const name of ["open", "readFrames", "laneStates", "composite", "joinCheck", "audioCheck", "playProbe",
+      "seekBench", "memoryWorkout", "truthCheck", "fallbackCheck", "debugState", "debugVideo", "seekOnly"]) {
       api[name] = (...args) => harness[name](...args);
     }
     window.__player = api;

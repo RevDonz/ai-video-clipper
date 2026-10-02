@@ -325,23 +325,28 @@ def test_join_scoring_scores_every_probe_frame_and_flags_missing_ones(tmp_path):
     assert set(result["cases"]["join_x"]) == {"57", "58"}
 
 
-def _p_join_b(*, mismatches=0, max_lsb=0, failures=()):
+def _p_join_b(*, mismatches=0, max_lsb=0, failures=(), scored=23, flagged=6):
     alpha = {"frames": 9, "mismatches": mismatches, "unpresented": 0,
-             "control_one_frame_late_flagged": 6, "control_edges": 6}
+             "control_one_frame_late_flagged": flagged, "control_edges": 6}
     audio = {"contextRate": 48000, "bufferRate": 48000, "length": 960960,
              "referenceLength": 960960, "maxDiffLsb": max_lsb}
+    composite = None if scored is None else {"frames": scored, "failures": list(failures),
+                                             "worst": {"mean_diff": 0.4}}
     return {"browser": "147.0.7727.15", "executable": "/home/x/chrome",
             "cases": [{"case": "join_29.97", "whoosh": True, "alpha": alpha, "audio": audio},
                       {"case": "join_25", "whoosh": False, "alpha": alpha, "audio": None},
                       {"case": "join_23.976", "whoosh": False, "alpha": alpha, "audio": None}],
-            "composite": {"frames": 23, "failures": list(failures), "worst": {"mean_diff": 0.4}}}
+            "composite": composite, "composite_expected": 23}
 
 
 @pytest.mark.parametrize(("change", "ok"), [
     ({}, True),
     ({"mismatches": 1}, False),
+    ({"flagged": 0}, False),
     ({"max_lsb": 2}, False),
     ({"failures": [{"case": "join_25", "frame": 50, "missing": True}]}, False),
+    ({"scored": 22}, False),
+    ({"scored": None}, False),
 ])
 def test_the_p_join_b_evidence_is_written_under_the_label(tmp_path, change, ok):
     fixtures, _ = _join_fixture(tmp_path, [57])
