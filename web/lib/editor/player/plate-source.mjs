@@ -19,13 +19,17 @@
 //   without decoding it resolves that frame null: the cell has no such sample.
 // * `need(k, j, { fresh })` is the stage giving up on a pass that never answered (a decode that
 //   stalls, as under heavy memory pressure): the passes over the cell that show no progress are
-//   abandoned and the frame gets one sequential pass from the cell start.
+//   abandoned and the frame gets one sequential pass from the cell start. A cell abandons at most
+//   two passes that have not settled; past that a fresh need waits like any other.
 // * A new plate key (a layout change) flushes every frame and ignores decodes still running.
 
 import { cellFramesFor, sampleIndex, sampleTimestamp } from "./frame-map.mjs";
 
 // A fresh need keeps a pass that decoded a frame this recently: it is slow, not stalled.
 const FRESH_IDLE_MS = 1000;
+// An abandoned pass keeps its decoder until it settles, maybe never (nothing can close it). A cell
+// abandons at most this many that have not settled; past that a fresh need waits on its pass.
+const MAX_STALLED_PER_CELL = 2;
 
 export function createFrameCache({ capacity = 90, onEvict = () => {} } = {}) {
   const map = new Map(); // oldest first
@@ -169,7 +173,9 @@ export function createPlateSource({
   const queue = [];
   const waiters = new Map(); // "k:j" → { promise, resolve, reject }
   let running = 0;
-  const stats = { framesDecoded: 0, framesKept: 0, cellFetches: 0, passes: 0, errors: 0, abandoned: 0 };
+  const stalledIn = new Map(); // k → abandoned passes over cell k that have not settled (this plate)
+  // stalled: abandoned passes that have not settled, of every plate (decoders the page still holds)
+  const stats = { framesDecoded: 0, framesKept: 0, cellFetches: 0, passes: 0, errors: 0, abandoned: 0, stalled: 0 };
   const passLog = []; // the last 64 passes: fetch, open, first sample and total times (ms)
   let cellFrames = fps ? cellFramesFor(fps) : null;
 
@@ -372,7 +378,13 @@ export function createPlateSource({
     job.running = true;
     active.add(job);
     runJob(job).finally(() => {
-      if (active.delete(job)) running -= 1; // an abandoned pass was let go already
+      if (active.delete(job)) {
+        running -= 1;
+      } else if (job.abandoned) {
+        // An abandoned pass left the decoder count already; settled, it no longer holds a decoder.
+        stats.stalled -= 1;
+        if (job.generation === generation) stalledIn.set(job.k, stalledIn.get(job.k) - 1);
+      }
       if (jobs.get(job.k) === job) jobs.delete(job.k);
       if (!job.abandoned && job.generation === generation && job.followUp.size) {
         const pending = [...job.followUp].filter((j) => !cache.has(frameKey(job.k, j)) && waiters.has(frameKey(job.k, j)));
@@ -455,8 +467,9 @@ export function createPlateSource({
   /**
    * A fresh need: abandons the passes over cell k that show no progress (a lone pass, which cannot
    * show any, one still fetching or opening, one with no frame for FRESH_IDLE_MS). Their decoders
-   * cannot be stopped from here, so they leave the decoder count and hand nothing on. Returns the
-   * urgent frames they owed; the decode-ahead ones resolve null, as a paused seek drops them.
+   * cannot be stopped from here, so they leave the decoder count and hand nothing on; a running one
+   * is kept once the cell has MAX_STALLED_PER_CELL abandoned passes that have not settled. Returns
+   * the urgent frames they owed; the decode-ahead ones resolve null, as a paused seek drops them.
    */
   function abandonStalled(k) {
     const owed = new Set();
@@ -464,13 +477,20 @@ export function createPlateSource({
     for (const job of [...active, ...queue]) {
       if (job.k !== k || job.abandoned || job.generation !== generation) continue;
       if (!job.lone && job.lastSampleAt !== undefined && at - job.lastSampleAt < FRESH_IDLE_MS) continue;
+      const decoding = active.has(job);
+      if (decoding && (stalledIn.get(k) ?? 0) >= MAX_STALLED_PER_CELL) continue;
       job.cancelled = true;
       job.abandoned = true;
       stats.abandoned += 1;
       for (const j of [...job.wanted, ...job.followUp]) owed.add(j);
       const queued = queue.indexOf(job);
       if (queued >= 0) queue.splice(queued, 1);
-      if (active.delete(job)) running -= 1;
+      if (decoding) {
+        active.delete(job);
+        running -= 1;
+        stats.stalled += 1;
+        stalledIn.set(k, (stalledIn.get(k) ?? 0) + 1);
+      }
       if (jobs.get(k) === job) jobs.delete(k);
     }
     const carried = [];
@@ -500,6 +520,7 @@ export function createPlateSource({
         urgent.clear();
         queue.length = 0;
         jobs.clear();
+        stalledIn.clear();
         buffers.clear();
         cache.clear();
       }
