@@ -185,7 +185,7 @@ def test_a_symlinked_clip_directory_is_not_followed(c30, tmp_path_factory):
 
 DTO_KEYS = {"planSha256", "docSha256", "compiler", "renderSemantics", "fps", "totalFrames",
             "output", "pieces", "cues", "hook", "text", "plate", "logo", "audio", "rev0",
-            "warnings", "errors"}
+            "warnings", "errors", "joins"}
 
 
 def test_plan_of_the_seed_is_the_frozen_dto(c30):
@@ -236,6 +236,9 @@ def test_plan_of_the_seed_is_the_frozen_dto(c30):
     assert {"code": "unsafe_zone", "path": "/captions/overrides/y_e5"}.items() <= next(
         w for w in dto["warnings"] if w["code"] == "unsafe_zone").items()
     assert dto["errors"] == []
+    co_frames = sum(p.frames for p in expected.pieces if p.seg == "seg_co")
+    assert dto["joins"] == [{"after": "seg_co", "style": "cut", "atF": co_frames, "rgb": None,
+                             "alphaPm": [], "sfx": None}]
 
 
 def test_plan_publishes_the_ass_bytes_it_names(c30):
@@ -325,6 +328,121 @@ def test_the_audio_key_follows_the_sound_and_the_plate_key_the_pixels(c30):
         len(point) == 2 for point in music["audio"]["musicGainPoints"])
     assert center["plate"]["plateKey"] != seed["plate"]["plateKey"]
     assert center["audio"]["mixSha256"] == seed["audio"]["mixSha256"]
+
+
+# --- the cold-open transition (spec 2026-10-02 §1.5, §1.6) -----------------------------------------
+
+# preview_cli.audio_key before transitions existed (toolchain None, then "ab"·32): a document
+# without a sound keeps its preview mix.
+MIX_IDENTITY_BEFORE = {
+    "seed__c30": (
+        "a771288df0f4fd28d612bba039b932879a5a7c63fc280766d462458c0108e9c3",
+        "0186ff32fb1b4e84dd4113c2e4ca1d51e2db6cc918b01e5cb174bfbd3259b8db",
+    ),
+    "music__c30": (
+        "bd62a4a33eeebdfd0e2132b9a545b5c222750e4f1c834d87802d3c3af2b6d0b1",
+        "1a09ff8d4fb7844e319987a3b8c12d287935f11c978bf73b238a6f1ec02c1691",
+    ),
+    "join_fade_250__c30": (
+        "38c3998d2415efb82249f0ae45aed4d9ad23a88910c4fcf92a8cdc3f79a56737",
+        "e09121de8b891333e9df59b9b520d819119db81657deb8d6f258b9aa5b730589",
+    ),
+}
+
+
+def with_join(doc: dict, style: str, whoosh: bool) -> dict:
+    doc = copy.deepcopy(doc)
+    join = doc["main"]["joins"][0]
+    join["style"] = style
+    if whoosh:
+        join["sfx"] = {"id": "whoosh", "v": 1}
+    else:
+        join.pop("sfx", None)
+    return doc
+
+
+def test_the_audio_key_of_a_document_without_a_sound_is_unchanged(c30):
+    for name, (plain, pinned) in MIX_IDENTITY_BEFORE.items():
+        doc = c30["seed"] if name == "seed__c30" else valid(name)
+        built = expected_plan(c30, doc)
+        assert preview_cli.audio_key(built, None) == plain, name
+        assert preview_cli.audio_key(built, "ab" * 32) == pinned, name
+        # an effect alone changes the picture, not the sound
+        for style in ("flash_white", "dip_black"):
+            assert preview_cli.audio_key(expected_plan(c30, with_join(doc, style, False)),
+                                         None) == plain
+
+
+def test_the_audio_key_follows_the_whoosh_not_the_style(c30):
+    doc = valid("rev1_unchanged__c30")
+    keys = {style: preview_cli.audio_key(expected_plan(c30, with_join(doc, style, True)), None)
+            for style in ("cut", "flash_white", "dip_black")}
+    assert len(set(keys.values())) == 1
+    assert keys["cut"] != MIX_IDENTITY_BEFORE["seed__c30"][0]
+    dto = ok(plan(c30, valid("join_dip_black_whoosh__c30")))["dto"]
+    assert dto["audio"]["mixSha256"] == keys["cut"]
+    flash = ok(plan(c30, valid("join_flash_white__c30")))["dto"]
+    assert flash["audio"]["mixSha256"] == ok(plan(c30))["dto"]["audio"]["mixSha256"]
+    assert flash["plate"]["plateKey"] == ok(plan(c30))["dto"]["plate"]["plateKey"]
+
+
+def test_the_plan_dto_carries_the_joins(c30):
+    from ai_clipper.edit_v2 import transitions
+
+    for name in ("join_flash_white__c30", "join_dip_black_whoosh__c30", "join_cut_whoosh__c30"):
+        doc = valid(name)
+        dto = ok(plan(c30, doc))["dto"]
+        built = expected_plan(c30, doc)
+        assert dto["joins"] == transitions.joins_dto(built.joins), name
+        assert dto["planSha256"] == built.plan_sha256
+    dto = ok(plan(c30, valid("join_dip_black_whoosh__c30")))["dto"]
+    (join,) = dto["joins"]
+    assert join["style"] == "dip_black" and join["rgb"] == [0, 0, 0]
+    assert [frame for frame, _alpha in join["alphaPm"]] == list(
+        range(join["atF"] - 4, join["atF"] + 5))
+    assert join["sfx"] == {"id": "whoosh", "v": 1, "startSmp": join["sfx"]["hitSmp"] - 11520,
+                           "hitSmp": tm.smp(join["atF"], tm.Fps(30000, 1001)),
+                           "samples": 20160}
+    assert ok(plan(c30, valid("cold_open_removed__c30")))["dto"]["joins"] == []
+
+
+def test_the_rev0_identity_names_the_seeds_sound(tmp_path, contexts):
+    context = contexts["c30"]
+    plain = preview_cli._rev0_identity(preview_cli._validated(
+        make_clip(tmp_path / "a", context), canonical_bytes(context.seed)))
+    assert "sfx" not in plain
+    seed = with_join(context.seed, "flash_white", True)
+    clip = make_clip(tmp_path / "b", context, seed=seed)
+    identity = preview_cli._rev0_identity(preview_cli._validated(clip, canonical_bytes(seed)))
+    wav = RESOURCES_DIR / "sfx" / "whoosh" / "v1.wav"
+    assert identity["sfx"] == hashlib.sha256(wav.read_bytes()).hexdigest()
+    assert {k: v for k, v in identity.items() if k not in ("sfx", "seed")} == {
+        k: v for k, v in plain.items() if k != "seed"}
+
+
+def test_an_unchanged_auto_join_seed_is_revision_0(tmp_path, contexts):
+    """R10 in the preview: a new seed with the auto join plans to the manifest's plan sha."""
+    context = contexts["c30"]
+    seed = with_join(context.seed, "flash_white", True)
+    clip = make_clip(tmp_path, context, seed=seed)
+    job = clip.parents[2]
+    (job / "output").mkdir()
+    rank = seed["base"]["origin"]["rank_at_seed"]
+    name = f"clip-{rank:02d}.mp4"
+    (job / "output" / name).write_bytes(b"mp4")
+    case = {"root": tmp_path, "seed": seed, "jobId": seed["base"]["job_id"],
+            "clipId": seed["clip_id"], "words": context.words, "assets": context.assets}
+    seed_sha = expected_plan(case, seed).plan_sha256
+    (job / "output" / "manifest.json").write_text(json.dumps({"clips": [
+        {"index": rank, "clip_id": seed["clip_id"], "render_engine": COMPILER_ID,
+         "plan_sha256": seed_sha,
+         "cold_open_join": {"style": "flash_white", "sfx": {"id": "whoosh", "v": 1}}}]}))
+    assert ok(plan(case))["dto"]["rev0"]["exact"] is True
+    edited = with_join(seed, "cut", False)
+    edited["revision"] = 1
+    edited["parent_sha256"] = doc_sha256(seed)
+    rev0 = ok(plan(case, edited))["dto"]["rev0"]
+    assert rev0["planSha256"] == seed_sha and rev0["exact"] is False
 
 
 def test_the_logo_box_and_its_derived_bitmap_are_named(c30):
