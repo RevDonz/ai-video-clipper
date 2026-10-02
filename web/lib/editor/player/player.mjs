@@ -55,6 +55,18 @@ const TEXT_AHEAD = 4;
 // While paused only the next frames are decoded ahead (frame steps and the start of playback);
 // a seek elsewhere stops that work at once (plate-source need({ exclusive })).
 const PAUSED_LOOKAHEAD_MS = 300;
+// Nothing but the paused path asks for a paused frame (playback asks on every tick), so it gets
+// three attempts. One that fails (a decode error, no frame, no text, a draw that throws) hands over
+// after `afterMs`; one still waiting at `budgetMs`, whatever holds it (a decode that never settles
+// under heavy memory pressure), hands over at once. Every retry asks for a fresh plate pass. After
+// the last, state().error carries the frame, and a frame that still comes is drawn.
+// 1.5 s is 16× the paused-seek p95 under load (91 ms) and 2× a cold open's first cell (736 ms;
+// GATES PF-SEEK, PF-OPEN); 4 s decodes a whole cell (at most 2 s of video) at half real time.
+const PAUSED_ATTEMPTS = [
+  { budgetMs: 1500 },
+  { afterMs: 250, budgetMs: 4000 },
+  { afterMs: 1000, budgetMs: 4000 },
+];
 
 function defaultSupports() {
   const g = globalThis;
@@ -129,6 +141,8 @@ export function createPlayer({
     now: defaultNow,
     supports: defaultSupports,
     createImageBitmap: (blob, options) => globalThis.createImageBitmap(blob, options),
+    setTimeout: (callback, ms) => globalThis.setTimeout(callback, ms),
+    clearTimeout: (id) => globalThis.clearTimeout(id),
     ...deps,
   };
   const live = Boolean(d.supports().live);
@@ -160,6 +174,8 @@ export function createPlayer({
   const holdReasons = { plate: 0, text: 0, logo: 0 }; // playing holds, by missing layer
   const holdLog = []; // the last 64 playing holds (diagnostics)
   const seekLog = []; // the last 256 paused presentations: plate and text times (diagnostics)
+  const pausedLog = []; // the last 64 paused attempts that did not draw: layer and why (diagnostics)
+  let pausedRound = null; // { n, token, planSha } of the paused frame's latest attempt (see roundUnderWay)
 
   // Text layer state. Every render goes through one chain (the layer compares each frame with
   // the one rendered before it); rendered frames are kept as entries { sha, parts: [{ bitmap,
@@ -415,6 +431,7 @@ export function createPlayer({
     for (const part of textAt?.parts ?? []) c.drawImage(part.bitmap, part.x, part.y);
     logo.draw(c);
     shown = { planSha: plan.planSha256, frame: n };
+    if (frameFailed()) error = null; // a frame on the canvas: the paused failure is over
     truthShown = null;
     presenter.presented(n);
     const at = cellAt(n);
@@ -440,15 +457,85 @@ export function createPlayer({
     return { frame: n, presented: false, superseded: true };
   }
 
-  async function presentPaused(n) {
+  /** The paused player gave up on a frame: state().error carries it (layer "plate", "text" or "logo"). */
+  function frameFailed() {
+    return Number.isInteger(error?.frame);
+  }
+
+  function logPaused(n, attempt, layer, reason) {
+    if (pausedLog.length >= 64) pausedLog.shift();
+    pausedLog.push({ n, attempt, layer, reason, at: d.now() });
+  }
+
+  /**
+   * Paused frame n of this plan has its attempts under way (one waiting, a retry due) or reported,
+   * and nothing newer was asked since: a poll of the same plan leaves it be.
+   */
+  function roundUnderWay(n) {
+    return Boolean(pausedRound && pausedRound.token === seekToken && pausedRound.n === n
+      && plan && pausedRound.planSha === plan.planSha256);
+  }
+
+  /** A seek, Play or a new plan came after the paused attempt with this token. */
+  function overtaken(token) {
+    return token !== seekToken || playing;
+  }
+
+  /**
+   * Paused frame n was not drawn: its plate or text did not come, or the draw threw. The next
+   * attempt follows after its delay while nothing newer was asked (a seek, play, a new plan); after
+   * the last, the failure is reported instead of leaving the stage on "Menyiapkan frame…".
+   */
+  function missed(n, token, attempt, layer, failure) {
+    logPaused(n, attempt, layer, String(failure?.message ?? failure ?? "missing"));
+    const next = PAUSED_ATTEMPTS[attempt + 1];
+    if (next) {
+      d.setTimeout(() => {
+        if (destroyed || playing || token !== seekToken || mode !== "live" || frame !== n) return;
+        presentPaused(n, attempt + 1).catch(() => {});
+      }, next.afterMs);
+    } else {
+      error = { layer, message: String(failure?.message ?? failure ?? `${layer}_frame_missing`), frame: n };
+    }
+    emit();
+    return { frame: n, presented: false, pending: layer };
+  }
+
+  /** The attempt is past its budget with the frame still not drawn: whatever holds it, move on. */
+  function overBudget(n, token, attempt, wait) {
+    if (wait.done || destroyed || playing || token !== seekToken || mode !== "live" || frame !== n) return;
+    logPaused(n, attempt, wait.layer, "timeout");
+    if (attempt + 1 < PAUSED_ATTEMPTS.length) {
+      presentPaused(n, attempt + 1).catch(() => {});
+      return;
+    }
+    // The last attempt keeps waiting: a frame that still comes is drawn and clears the report.
+    error = { layer: wait.layer, message: `paused_frame_timeout:${wait.layer}`, frame: n };
+    emit();
+  }
+
+  async function presentPaused(n, attempt = 0) {
     const token = ++seekToken;
     if (mode === "auto_render") return seekVideo(n, token);
     if (mode === "unsupported") return showTruth(n, token);
+    if (!attempt && frameFailed()) error = null; // a new request starts clean
     const at = cellAt(n);
     if (!at || plateSource.cellState(at.k) !== "ready") {
       emit();
       return { frame: n, presented: false, pending: "plate" };
     }
+    pausedRound = { n, token, planSha: plan.planSha256 };
+    const wait = { layer: "plate", done: false };
+    const budget = d.setTimeout(() => overBudget(n, token, attempt, wait), PAUSED_ATTEMPTS[attempt].budgetMs);
+    try {
+      return await drawPaused(n, token, attempt, at, wait);
+    } finally {
+      wait.done = true;
+      d.clearTimeout(budget);
+    }
+  }
+
+  async function drawPaused(n, token, attempt, at, wait) {
     const started = d.now();
     const cached = plateSource.frame(at.k, at.j);
     let textMs = null;
@@ -460,38 +547,48 @@ export function createPlayer({
     let bitmap;
     let plateMs = 0;
     try {
-      bitmap = cached ?? await plateSource.need(at.k, at.j, { exclusive: true });
+      // A retry does not wait on the pass that failed it: the plate source starts a fresh one.
+      bitmap = cached ?? await plateSource.need(at.k, at.j, { exclusive: true, fresh: attempt > 0 });
       plateMs = d.now() - started;
     } catch (failure) {
-      if (token !== seekToken) return superseded(n);
-      error = { layer: "plate", message: String(failure?.message ?? failure) };
-      emit();
-      return { frame: n, presented: false, pending: "plate" };
+      if (overtaken(token)) return superseded(n);
+      return missed(n, token, attempt, "plate", failure);
     }
-    if (token !== seekToken) return superseded(n);
-    if (!bitmap) return { frame: n, presented: false, pending: "plate" };
-    await textPromise.catch(() => null);
-    if (token !== seekToken) return superseded(n);
+    if (overtaken(token)) return superseded(n);
+    if (!bitmap) return missed(n, token, attempt, "plate", null);
+    wait.layer = "text";
+    let textFailure = null;
+    const noText = (failure) => {
+      textFailure = failure;
+      return null;
+    };
+    await textPromise.catch(noText);
+    if (overtaken(token)) return superseded(n);
     if (!textEntry(n)) {
-      await renderText(n, { seek: true }).catch(() => null); // a track swap came in between
-      if (token !== seekToken) return superseded(n);
+      await renderText(n, { seek: true }).catch(noText); // a track swap came in between
+      if (overtaken(token)) return superseded(n);
     }
     const textAt = textEntry(n);
-    if (!textAt) {
-      emit();
-      return { frame: n, presented: false, pending: "text" };
-    }
+    if (!textAt) return missed(n, token, attempt, "text", textFailure);
+    wait.layer = "logo";
     await logoPromise.catch(() => {});
-    if (token !== seekToken) return superseded(n);
+    if (overtaken(token)) return superseded(n);
     if (!logo.readyFor(plan.logo)) {
+      pausedRound = null; // the next load() asks again
       emit();
       return { frame: n, presented: false, pending: "logo" };
     }
     // The bitmap may have been evicted while the text rendered: fetch it again.
     const plateBitmap = plateSource.frame(at.k, at.j) ?? bitmap;
-    draw(n, plateBitmap, textAt);
+    try {
+      draw(n, plateBitmap, textAt);
+    } catch (failure) {
+      // A source closed under the draw (drawImage throws): the callers drop this promise's
+      // rejection, so it goes the way of a missed plate frame (asked again, then reported).
+      return missed(n, token, attempt, "plate", failure);
+    }
     if (seekLog.length >= 256) seekLog.shift();
-    seekLog.push({ n, cold: !cached, plateMs, textMs, totalMs: d.now() - started });
+    seekLog.push({ n, cold: !cached, plateMs, textMs, totalMs: d.now() - started, attempt });
     pruneText(n);
     prefetch(n);
     emit();
@@ -712,6 +809,30 @@ export function createPlayer({
 
   // --- the API ----------------------------------------------------------------------------------
 
+  /**
+   * Stops playback where it is. `repaint`: draw the playhead frame when it is not on the canvas (a
+   * frame playback was holding); a seek, a truth frame or a new plan right after draws its own.
+   */
+  function pausePlayback({ repaint }) {
+    releasePlayWaiter(false);
+    if (!playing) {
+      emit();
+      return;
+    }
+    if (mode === "auto_render" && video) {
+      const n = Math.round((video.currentTime * fps[0]) / fps[1] - 0.5);
+      frame = clamp(n);
+    }
+    stopPlayback();
+    if (plan && audio && audio.mixSha256 !== plan.audio.mixSha256) {
+      audioPromise = audio.load(plan.audio).catch((failure) => {
+        error = { layer: "audio", message: String(failure?.message ?? failure) };
+      });
+    }
+    emit();
+    if (repaint && mode === "live" && plan && !shownIs(frame)) presentPaused(frame).catch(() => {});
+  }
+
   const player = {
     async load(dto) {
       assertAlive();
@@ -721,7 +842,7 @@ export function createPlayer({
         current: plan ? { docSha256: plan.docSha256, mixSha256: audio?.mixSha256 ?? null } : null,
         next: { docSha256: dto.docSha256, mixSha256: dto.audio.mixSha256 },
       });
-      if (decision.pause && playing) player.pause();
+      if (decision.pause && playing) pausePlayback({ repaint: false });
       const planChanged = !plan || plan.planSha256 !== dto.planSha256;
       const piecesChanged = !plan || JSON.stringify(plan.pieces) !== JSON.stringify(dto.pieces);
       plan = dto;
@@ -768,11 +889,18 @@ export function createPlayer({
         if (mode !== "truth") setMode(decideMode());
       }
       emit();
-      await Promise.all([textPromise, logoPromise, audioPromise]);
+      // The picture needs the text and the logo; the mix is only the clock. A mix still loading
+      // or decoding (before a user gesture its AudioContext is suspended) never holds back the
+      // frame at the playhead.
+      await Promise.all([textPromise, logoPromise]);
+      if (destroyed || plan !== dto) return;
+      // A poll of the same plan leaves the paused frame's attempts to their budgets and delays, and
+      // a failure they reported stays reported.
+      if (!playing && mode === "live" && !shownIs(frame) && !roundUnderWay(frame)) presentPaused(frame).catch(() => {});
+      await audioPromise;
       if (destroyed || plan !== dto) return;
       emit();
       if (playWaiter && audioCurrent()) releasePlayWaiter(true);
-      if (!playing && mode === "live" && !shownIs(frame)) presentPaused(frame).catch(() => {});
     },
 
     async play({ silent = false } = {}) {
@@ -799,6 +927,7 @@ export function createPlayer({
       }
       await startClock(silent || !audioCurrent());
       playing = true;
+      seekToken += 1; // a paused attempt still waiting never draws over playback
       ended = false;
       presenter.startRun(frame, { shown: shownIs(frame) });
       pumpText(shownIs(frame) ? frame + 1 : frame);
@@ -809,22 +938,7 @@ export function createPlayer({
 
     pause() {
       if (destroyed) return;
-      releasePlayWaiter(false);
-      if (!playing) {
-        emit();
-        return;
-      }
-      if (mode === "auto_render" && video) {
-        const n = Math.round((video.currentTime * fps[0]) / fps[1] - 0.5);
-        frame = clamp(n);
-      }
-      stopPlayback();
-      if (plan && audio && audio.mixSha256 !== plan.audio.mixSha256) {
-        audioPromise = audio.load(plan.audio).catch((failure) => {
-          error = { layer: "audio", message: String(failure?.message ?? failure) };
-        });
-      }
-      emit();
+      pausePlayback({ repaint: true });
     },
 
     async seek(target) {
@@ -853,7 +967,7 @@ export function createPlayer({
 
     async step(delta) {
       assertAlive();
-      if (playing) player.pause();
+      if (playing) pausePlayback({ repaint: false });
       return player.seek(frame + Math.trunc(delta));
     },
 
@@ -861,7 +975,7 @@ export function createPlayer({
       assertAlive();
       if (!requestTruthFrame) throw new Error("truth_frame_unavailable");
       if (!plan) return { frame: 0, presented: false, pending: "plan" };
-      player.pause();
+      pausePlayback({ repaint: false });
       const n = clamp(target);
       frame = n;
       if (mode === "auto_render") setMode("live");
@@ -885,6 +999,7 @@ export function createPlayer({
         },
         plate: plateSource ? plateSource.stats() : null,
         seeks: seekLog.slice(),
+        paused: pausedLog.slice(),
         device: { slow: deviceCheck.slow, p95: deviceCheck.p95 },
         audio: audio ? { ready: audio.ready, start: audio.startInfo ?? null } : null,
       };

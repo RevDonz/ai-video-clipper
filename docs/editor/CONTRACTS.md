@@ -1259,6 +1259,19 @@ signatures stay; everything below is additive unless marked **changed**.
   waitingFor, exact, pending, slow, error, presentedFrame, plate {ready, total}`;
   `play({silent})` plays without the mix; `stats()` serves the gates. The player owns the
   `<video>` element's `src`.
+- Paused frame (PR #22): three attempts with budgets of 1.5, 4 and 4 s; a retry asks the plate
+  source for `need(k, j, {fresh: true})` (passes over the cell with no progress are abandoned,
+  one sequential pass from the cell start). A cell abandons at most two passes that have not
+  settled, since nothing can close their decoders; past that a fresh need waits on the cell's
+  pass. After the last attempt `state().error` is `{layer: "plate"|"text"|"logo", message,
+  frame}`: the layer the frame waited for, `"logo"` for a logo load that never finishes. Once no
+  layer is pending the badge reads "Frame gagal dimuat"; a frame that still comes is drawn and
+  clears it. A `load()` of the same plan (the store's polls while cells build) leaves these
+  attempts alone: one waiting, a retry due, or a failure already reported. A seek, Play, a pause
+  on a frame that is not on screen, and a new plan ask again. Play supersedes an attempt still
+  waiting, which never draws over playback. `pause()` draws the playhead frame when playback was
+  holding another. `stats().paused`, `stats().plate.abandoned` and `stats().plate.stalled`
+  (abandoned passes that have not settled) record the misses.
 - Runtime (`web/components/editor/runtime.mjs`): `createEditorRuntime({kind: "real"})` builds
   the API client, the preview client, the store (IndexedDB draft, channel, lifecycle) and the
   player (truth frames from the preview client for the current document); `setPlayhead(frame)`;

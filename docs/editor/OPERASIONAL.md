@@ -121,7 +121,12 @@ lolos; perbaikannya di kode, atau keputusan pemilik dicatat di `GATES.md`.
 
 Untuk cabang kerja, `editor-gates.yml` tetap tersedia: `suite=full` (seperti Test and build),
 `suite=image` (pytest di dalam image) dan `suite=command` (satu perintah di dalam image, misalnya
-`sh scripts/parity/run_all.sh smoke pframe gdet`).
+`sh scripts/parity/run_all.sh smoke pframe gdet`). `suite=player` menjalankan spec browser player
+di Chrome for Testing terhadap app image itu sendiri: image membuat fixture player (`cases`,
+default `cfr_25,cfr_30`), `command` berisi argumen Playwright (default
+`e2e/editor-first-frame.spec.mjs`), dan `chrome` memilih versi atau milestone (kosong = pin
+paritas). Contoh: `-f suite=player -f cases=cfr_29.97,cfr_25,cfr_30,vfr_30,edge_end_29.97,edge_start_23.976
+-f command='e2e/editor-player.spec.mjs -g "P-FRAME|PF-SEEK"'`.
 
 ## 5. Bukti dan GATES
 

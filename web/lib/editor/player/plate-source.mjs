@@ -13,10 +13,23 @@
 //   decoder already past a newly needed frame leaves it to a follow-up pass.
 // * `need(k, j)` is a frame the stage waits for: it starts at once (a lone frame with getSample,
 //   which decodes from the IDR and flushes), promotes a pass already heading for it, and with
-//   `exclusive` (a paused seek) stops the decode-ahead of the previous position.
+//   `exclusive` (a paused seek) stops the decode-ahead of the previous position. A lone pass
+//   that does not deliver its frame (no sample, a neighbour, a decode error) hands it to one
+//   sequential pass, the route playback decodes with. A sequential pass that goes past a frame
+//   without decoding it resolves that frame null: the cell has no such sample.
+// * `need(k, j, { fresh })` is the stage giving up on a pass that never answered (a decode that
+//   stalls, as under heavy memory pressure): the passes over the cell that show no progress are
+//   abandoned and the frame gets one sequential pass from the cell start. A cell abandons at most
+//   two passes that have not settled; past that a fresh need waits like any other.
 // * A new plate key (a layout change) flushes every frame and ignores decodes still running.
 
 import { cellFramesFor, sampleIndex, sampleTimestamp } from "./frame-map.mjs";
+
+// A fresh need keeps a pass that decoded a frame this recently: it is slow, not stalled.
+const FRESH_IDLE_MS = 1000;
+// An abandoned pass keeps its decoder until it settles, maybe never (nothing can close it). A cell
+// abandons at most this many that have not settled; past that a fresh need waits on its pass.
+const MAX_STALLED_PER_CELL = 2;
 
 export function createFrameCache({ capacity = 90, onEvict = () => {} } = {}) {
   const map = new Map(); // oldest first
@@ -160,7 +173,9 @@ export function createPlateSource({
   const queue = [];
   const waiters = new Map(); // "k:j" → { promise, resolve, reject }
   let running = 0;
-  const stats = { framesDecoded: 0, framesKept: 0, cellFetches: 0, passes: 0, errors: 0 };
+  const stalledIn = new Map(); // k → abandoned passes over cell k that have not settled (this plate)
+  // stalled: abandoned passes that have not settled, of every plate (decoders the page still holds)
+  const stats = { framesDecoded: 0, framesKept: 0, cellFetches: 0, passes: 0, errors: 0, abandoned: 0, stalled: 0 };
   const passLog = []; // the last 64 passes: fetch, open, first sample and total times (ms)
   let cellFrames = fps ? cellFramesFor(fps) : null;
 
@@ -268,10 +283,11 @@ export function createPlateSource({
       const first = Math.min(...job.wanted);
       job.position = first - 1;
       job.started = true;
-      if (job.urgent && job.wanted.size === 1 && typeof sink.getSample === "function") {
+      if (job.urgent && !job.sequential && job.wanted.size === 1 && typeof sink.getSample === "function") {
         // A lone seek target: getSample decodes from the IDR to j and flushes the decoder, so
         // the frame comes out without waiting for the next one (samples() needs it to know
         // that j is the frame at j's time) or for the decoder's frame-thread delay.
+        job.lone = true;
         const sample = await sink.getSample(sampleTimestamp(first, fps));
         timing.firstSample = now() - timing.started;
         job.done = true;
@@ -280,24 +296,33 @@ export function createPlateSource({
           try {
             const j = sampleIndex(sample.timestamp, fps);
             job.position = j;
-            if (j === first && live(job) && !cache.has(frameKey(job.k, j))) await keep(job, j, sample);
+            // An abandoned pass that answers after all still has the frame: kept if still missing.
+            if (j === first && job.generation === generation && !destroyed && !cache.has(frameKey(job.k, j))) {
+              await keep(job, j, sample);
+            }
           } finally {
             sample.close?.();
           }
         }
+        // No sample, or a neighbouring one: the frame is still in the cell (the plan maps the
+        // playhead into it), so one sequential pass reads it. Another getSample would give the
+        // same answer, and a null here would leave the stage without its frame for good.
         for (const j of job.wanted) {
-          if (!cache.has(frameKey(job.k, j))) {
-            if (sample && live(job)) job.followUp.add(j);
-            else if (!sample) settle(job.k, j, null);
-          }
+          if (!cache.has(frameKey(job.k, j)) && live(job)) job.followUp.add(j);
         }
+        if (job.followUp.size) job.sequentialFollowUp = true;
         return;
       }
       let exhausted = true; // the cell ended before every needed frame was seen
-      for await (const sample of sink.samples(sampleTimestamp(first, fps))) {
+      const seen = new Set();
+      // A fresh pass streams from the cell start (its only IDR, so the decode is the same) so that
+      // every decoded frame shows it is moving.
+      for await (const sample of sink.samples(job.fromStart ? 0 : sampleTimestamp(first, fps))) {
         const j = sampleIndex(sample.timestamp, fps);
         stats.framesDecoded += 1;
         timing.firstSample ??= now() - timing.started;
+        job.lastSampleAt = now();
+        seen.add(j);
         let stop = !live(job);
         try {
           if (!stop && j >= first) {
@@ -318,13 +343,23 @@ export function createPlateSource({
       job.done = true;
       for (const j of job.wanted) {
         if (cache.has(frameKey(job.k, j))) continue;
-        // Past the last frame of a short cell: that frame does not exist.
+        // Past the last frame of a short cell, or passed without a sample: that frame does not
+        // exist, and another pass would only take turns with this one.
         if (exhausted && j > job.position && !job.cancelled) settle(job.k, j, null);
+        else if (live(job) && j < job.position && !seen.has(j)) settle(job.k, j, null);
         else job.followUp.add(j);
       }
     } catch (error) {
       stats.errors += 1;
-      if (job.generation === generation) {
+      if (job.abandoned) {
+        // Its frames went to a fresh pass, which this failure says nothing about.
+      } else if (job.generation === generation && job.lone) {
+        // The lone route failed to decode a cell that was fetched and opened: its frames get
+        // one sequential pass over the same bytes; a failure there fails the cell.
+        job.done = true;
+        for (const j of job.wanted) if (!cache.has(frameKey(job.k, j))) job.followUp.add(j);
+        job.sequentialFollowUp = true;
+      } else if (job.generation === generation) {
         buffers.delete(job.k);
         failCell(job.k, error instanceof Error && /^plate_cell_failed/.test(error.message)
           ? error : new Error(`plate_cell_failed:${job.k}:${error?.message ?? error}`));
@@ -343,12 +378,20 @@ export function createPlateSource({
     job.running = true;
     active.add(job);
     runJob(job).finally(() => {
-      running -= 1;
-      active.delete(job);
+      if (active.delete(job)) {
+        running -= 1;
+      } else if (job.abandoned) {
+        // An abandoned pass left the decoder count already; settled, it no longer holds a decoder.
+        stats.stalled -= 1;
+        if (job.generation === generation) stalledIn.set(job.k, stalledIn.get(job.k) - 1);
+      }
       if (jobs.get(job.k) === job) jobs.delete(job.k);
-      if (job.generation === generation && job.followUp.size) {
+      if (!job.abandoned && job.generation === generation && job.followUp.size) {
         const pending = [...job.followUp].filter((j) => !cache.has(frameKey(job.k, j)) && waiters.has(frameKey(job.k, j)));
-        if (pending.length) want(job.k, pending, { urgent: pending.some((j) => urgent.has(frameKey(job.k, j))) });
+        if (pending.length) {
+          want(job.k, pending, { urgent: pending.some((j) => urgent.has(frameKey(job.k, j))),
+            sequential: job.sequentialFollowUp === true });
+        }
       }
       pump();
     });
@@ -371,21 +414,28 @@ export function createPlateSource({
     while (running < maxDecoders && queue.length) start(queue.shift());
   }
 
-  function want(k, js, { urgent: isUrgent = false } = {}) {
+  /**
+   * `sequential`: the frames came back from a lone pass without being decoded (no getSample).
+   * `fromStart`: a fresh pass, streamed from the cell start.
+   */
+  function want(k, js, { urgent: isUrgent = false, sequential = false, fromStart = false } = {}) {
     const missing = js.filter((j) => !cache.has(frameKey(k, j)));
     if (!missing.length) return;
     let job = jobs.get(k);
     if (job && job.generation === generation && !job.done && !job.cancelled
       && (!job.started || missing.every((j) => j > job.position)) && (!isUrgent || job.urgent)) {
       for (const j of missing) job.wanted.add(j);
+      if (sequential) job.sequential = true;
+      if (fromStart && !job.started) job.fromStart = true;
       return;
     }
     if (job && job.generation === generation && !job.done && !job.cancelled && !isUrgent) {
       for (const j of missing) job.followUp.add(j); // behind the running pass
+      if (sequential) job.sequentialFollowUp = true;
       return;
     }
     job = { k, wanted: new Set(missing), followUp: new Set(), generation, started: false, running: false,
-      done: false, cancelled: false, urgent: isUrgent, position: -1 };
+      done: false, cancelled: false, urgent: isUrgent, position: -1, sequential, fromStart };
     jobs.set(k, job);
     if (isUrgent) queue.unshift(job);
     else queue.push(job);
@@ -414,6 +464,50 @@ export function createPlateSource({
     pump();
   }
 
+  /**
+   * A fresh need: abandons the passes over cell k that show no progress (a lone pass, which cannot
+   * show any, one still fetching or opening, one with no frame for FRESH_IDLE_MS). Their decoders
+   * cannot be stopped from here, so they leave the decoder count and hand nothing on; a running one
+   * is kept once the cell has MAX_STALLED_PER_CELL abandoned passes that have not settled. Returns
+   * the urgent frames they owed; the decode-ahead ones resolve null, as a paused seek drops them.
+   */
+  function abandonStalled(k) {
+    const owed = new Set();
+    const at = now();
+    for (const job of [...active, ...queue]) {
+      if (job.k !== k || job.abandoned || job.generation !== generation) continue;
+      if (!job.lone && job.lastSampleAt !== undefined && at - job.lastSampleAt < FRESH_IDLE_MS) continue;
+      const decoding = active.has(job);
+      if (decoding && (stalledIn.get(k) ?? 0) >= MAX_STALLED_PER_CELL) continue;
+      job.cancelled = true;
+      job.abandoned = true;
+      stats.abandoned += 1;
+      for (const j of [...job.wanted, ...job.followUp]) owed.add(j);
+      const queued = queue.indexOf(job);
+      if (queued >= 0) queue.splice(queued, 1);
+      if (decoding) {
+        active.delete(job);
+        running -= 1;
+        stats.stalled += 1;
+        stalledIn.set(k, (stalledIn.get(k) ?? 0) + 1);
+      }
+      if (jobs.get(k) === job) jobs.delete(k);
+    }
+    const carried = [];
+    for (const j of owed) {
+      const key = frameKey(k, j);
+      const entry = waiters.get(key);
+      if (!entry || cache.has(key)) continue;
+      if (urgent.has(key)) {
+        carried.push(j);
+      } else {
+        waiters.delete(key);
+        entry.resolve(null);
+      }
+    }
+    return carried;
+  }
+
   const source = {
     setPlate(dto) {
       if (destroyed) return;
@@ -426,6 +520,7 @@ export function createPlateSource({
         urgent.clear();
         queue.length = 0;
         jobs.clear();
+        stalledIn.clear();
         buffers.clear();
         cache.clear();
       }
@@ -452,9 +547,11 @@ export function createPlateSource({
      * The bitmap of frame j of cell k, decoding it first (null when the cell is not ready). The
      * stage waits for it: its pass starts at once, whatever the decode-ahead is doing; a pass
      * already on its way to j is promoted instead of starting another. `exclusive` (a paused
-     * seek) also stops the decode-ahead of the previous position.
+     * seek) also stops the decode-ahead of the previous position. `fresh` (the stage gave up
+     * waiting) first abandons the cell's passes that show no progress, and a new pass is a
+     * sequential one from the cell start.
      */
-    async need(k, j, { exclusive = false } = {}) {
+    async need(k, j, { exclusive = false, fresh = false } = {}) {
       if (destroyed) return null;
       const key = frameKey(k, j);
       const cached = cache.get(key);
@@ -462,12 +559,14 @@ export function createPlateSource({
       if (cellState(k) !== "ready") return null;
       urgent.add(key);
       const promise = waiter(k, j);
+      const owed = fresh ? abandonStalled(k).filter((other) => other !== j) : [];
       const serving = [...active, ...queue].find((job) => job.k === k && live(job) && !job.done
         && job.wanted.has(j) && (!job.started || job.position < j));
       if (serving) serving.urgent = true;
       if (exclusive) cancelAhead();
       if (serving) pump();
-      else want(k, [j], { urgent: true });
+      else want(k, [j], { urgent: true, sequential: fresh, fromStart: fresh });
+      if (owed.length) want(k, owed, { urgent: true, sequential: true, fromStart: true });
       return promise;
     },
     /** Decodes the schedule ahead ([{k, js, firstN}] in first-need order); protects its frames. */

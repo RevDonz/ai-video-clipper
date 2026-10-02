@@ -236,8 +236,12 @@ export function badgeView({ status, plan, storePending = [], player = null }) {
   if (!mode) return { tone: "pending", text: "Menyiapkan pratinjau…", detail: null };
   const pending = pendingLayers({ plan, storePending, playerCurrent: player?.current });
   // Every layer is current, but the paused player has not drawn the playhead frame yet (its
-  // `exact` is false: a seek still decoding): no claim until it is on screen (T2.4, §6.1).
+  // `exact` is false: a seek still decoding): no claim until it is on screen (T2.4, §6.1). Once
+  // the player gave up on that frame (every attempt failed or ran out of time), the badge says so.
   if (!pending.length && player?.exact === false && !player?.playing) {
+    if (player?.frameError) {
+      return { tone: "failed", text: "Frame gagal dimuat", detail: "Putar atau geser playhead untuk mencoba lagi" };
+    }
     return { tone: "pending", text: "Menyiapkan frame…", detail: null };
   }
   // An unchanged clip exports its auto file itself (R10). When that file is not the new
@@ -268,11 +272,33 @@ const BADGE_HELP_BY_TONE = Object.freeze({
   unsupported: "Browser ini tidak bisa menampilkan pratinjau langsung, jadi tidak ada yang bisa dibandingkan dengan "
     + "hasil akhir di sini. Anda tetap bisa mengedit dan mengekspor; hasil ekspor tidak terpengaruh.",
   loading: "Klip sedang dibuka. Lencana ini memberi tahu kapan pratinjau sama dengan hasil akhir.",
+  failed: "Frame di posisi playhead belum tampil, juga setelah dicoba ulang: browser gagal menyiapkan gambar atau "
+    + "teksnya, atau prosesnya terlalu lama. Kalau akhirnya selesai, frame langsung tampil. Putar atau geser "
+    + "playhead untuk mencoba lagi, atau tekan 'Frame akhir' untuk melihat piksel persis hasil akhir dari server.",
 });
 
 /** The help popover of a badge (§6.1): "sama dengan hasil akhir" only for the exact badge. */
 export function badgeHelp(view) {
   return BADGE_HELP_BY_TONE[view?.tone] ?? BADGE_HELP_BY_TONE.loading;
+}
+
+/**
+ * What the shell keeps of a player state (EditorApp's onState): mode, layers, playing, exact and
+ * whether the player gave up on the playhead frame (a plate error, or any error that names the
+ * paused frame: its text). An unchanged view keeps its identity, so a new frame alone does not
+ * re-render the shell.
+ */
+export function playerView(previous, next) {
+  const view = {
+    mode: next.mode ?? null,
+    current: { ...(next.current ?? {}) },
+    playing: typeof next.playing === "boolean" ? next.playing : previous?.playing ?? false,
+    exact: typeof next.exact === "boolean" ? next.exact : undefined,
+    frameError: next.error?.layer === "plate" || Number.isInteger(next.error?.frame),
+  };
+  return previous && previous.mode === view.mode && previous.playing === view.playing
+    && previous.exact === view.exact && previous.frameError === view.frameError
+    && JSON.stringify(previous.current) === JSON.stringify(view.current) ? previous : view;
 }
 
 /**

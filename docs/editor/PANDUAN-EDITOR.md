@@ -101,6 +101,7 @@ bagian.
 | **Menyiapkan video (7/30)…** | Potongan video pratinjau masih dibuat server. Frame terakhir yang pasti tetap tampil. |
 | **Memperbarui teks… / logo… / Menyiapkan audio…** | Lapisan itu sedang diperbarui (biasanya < 1 detik). |
 | **Menyiapkan frame…** | Frame di posisi ini sedang digambar. |
+| **Frame gagal dimuat** | Browser belum bisa menampilkan frame di posisi ini, juga setelah dicoba ulang (gagal, atau terlalu lama, misalnya saat memori komputer penuh). Kalau akhirnya selesai, frame langsung tampil. Putar atau geser playhead untuk mencoba lagi; **"Frame akhir"** menampilkan piksel dari server. |
 | **● Belum diubah: ekspor = klip otomatis** | Klip belum diedit, jadi ekspornya adalah file klip otomatis apa adanya. Klip otomatis dari proyek yang dirender sebelum render disamakan dengan editor bisa sedikit berbeda dari pratinjau. Setelah ada perubahan, tanda kembali ke "Sesuai hasil akhir". |
 | **● Frame akhir** | Piksel hasil render akhir untuk frame ini. |
 
