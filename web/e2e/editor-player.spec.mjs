@@ -1,6 +1,6 @@
 // Browser player gates (plan §10.1 P-FRAME, P-TIME, P-TXT, P-LOGO, P-AUD (browser half), P-SYNC;
-// §10.3 PF-SEEK, PF-PLAY, PF-LIBASS, PF-MEM; §11.2 T2.4), measured through createPlayer in the
-// pinned browser.
+// §10.3 PF-SEEK, PF-PLAY, PF-LIBASS, PF-MEM; §11.2 T2.4; P-JOIN-B of the cold-open transition,
+// spec 2026-10-02 §5.4), measured through createPlayer in the pinned browser.
 //
 // Prerequisites:
 //   1. Fixtures made in the toolchain image (plate cells, mixes, reference PCM, server
@@ -205,6 +205,92 @@ test("P-AUD (browser half): the AudioBuffer of the mix equals the reference PCM"
     expect(r.length).toBe(r.referenceLength);
     expect(r.maxDiffLsb).toBeLessThanOrEqual(P_AUD_MAX_LSB);
   }
+});
+
+test("P-JOIN-B: the cold-open transition in the player equals the plan and the server composite", async ({ page }) => {
+  test.setTimeout(900_000);
+  const info = await openHarness(page);
+  const results = [];
+  let probes = 0;
+  for (const item of cases("join")) {
+    await page.evaluate((id) => window.__player.open(id), item.id);
+    // (a) The alpha the player drew on every frame of [J − before − 2, J + after + 2).
+    const check = await page.evaluate((frames) => window.__player.joinCheck(frames), item.join.check_frames);
+    const planned = new Map(item.join.alpha);
+    const want = (n) => planned.get(n) ?? 0;
+    const drawn = new Map(check.map((entry) => [entry.frame, entry.joinAlphaPm]));
+    let mismatches = 0;
+    let unpresented = 0;
+    const details = [];
+    for (const entry of check) {
+      if (!entry.presented) unpresented += 1;
+      const alpha = want(entry.frame);
+      const rgbOk = alpha === 0 ? entry.rgb === null : JSON.stringify(entry.rgb) === JSON.stringify(item.join.rgb);
+      if (entry.joinAlphaPm !== alpha || entry.joinAt !== alpha || !rgbOk) {
+        mismatches += 1;
+        if (details.length < 10) details.push({ ...entry, want: alpha });
+      }
+    }
+    // Negative control: the drawn alphas read one frame late must miss every change of the plan.
+    let edges = 0;
+    let lateFlagged = 0;
+    for (const entry of check.slice(1)) {
+      if (want(entry.frame) === want(entry.frame - 1)) continue;
+      edges += 1;
+      if (drawn.get(entry.frame - 1) !== want(entry.frame)) lateFlagged += 1;
+    }
+    // (b) The canvas around the join, scored against the server composites below.
+    const shots = await page.evaluate((frames) => window.__player.composite(frames), item.join.probe_frames);
+    for (const shot of shots) {
+      expect(shot.presented, `${item.id} frame ${shot.frame}`).toBe(true);
+      const target = path.join(outDir, "join", item.id, `${shot.frame}.png`);
+      mkdirSync(path.dirname(target), { recursive: true });
+      writeFileSync(target, Buffer.from(shot.png, "base64"));
+    }
+    probes += shots.length;
+    // (c) The whoosh is in the server mix: the AudioBuffer against the reference PCM.
+    let audio = null;
+    if (item.whoosh) {
+      const result = await page.evaluate(() => window.__player.audioCheck());
+      audio = { ...result, planSamplesDelta: result.referenceLength - result.planSamples };
+    }
+    results.push({ case: item.id, fps: item.fps, layout: item.layout, style: item.style, whoosh: item.whoosh,
+      logo: item.logo, at_f: item.join.at_f,
+      alpha: { frames: check.length, mismatches, unpresented, control_one_frame_late_flagged: lateFlagged,
+        control_edges: edges, details },
+      composites: shots.length, audio });
+  }
+  const scoreFile = path.join(outDir, "p_join_b_scores.json");
+  try {
+    execFileSync(python, [path.join(repoRoot, "scripts", "parity", "player_fixtures.py"), "score", "--join",
+      "--fixtures", fixturesDir, "--browser", outDir, "--out", scoreFile], {
+      stdio: "inherit",
+      env: { ...process.env, PYTHONPATH: [path.join(repoRoot, "src"), path.join(repoRoot, "tests")].join(path.delimiter) },
+    });
+  } catch {
+    // exit 1 = a frame failed; the scores file says which, and is checked below
+  }
+  const scores = existsSync(scoreFile) ? JSON.parse(readFileSync(scoreFile, "utf8")).p_join_b : null;
+  writeJson("p_join_b.json", { browser: info.browserVersion, executable: info.executable, cases: results,
+    composite: scores, composite_expected: probes });
+  expect(results.length).toBeGreaterThanOrEqual(3);
+  for (const r of results) {
+    expect(r.alpha.mismatches, r.case).toBe(0);
+    expect(r.alpha.unpresented, r.case).toBe(0);
+    expect(r.alpha.control_edges, r.case).toBeGreaterThan(0);
+    expect(r.alpha.control_one_frame_late_flagged, r.case).toBe(r.alpha.control_edges);
+  }
+  const whoosh = results.filter((r) => r.whoosh);
+  expect(whoosh.length).toBeGreaterThanOrEqual(1);
+  for (const r of whoosh) {
+    expect(r.audio.contextRate).toBe(48000);
+    expect(r.audio.bufferRate).toBe(48000);
+    expect(r.audio.length).toBe(r.audio.referenceLength);
+    expect(r.audio.maxDiffLsb).toBeLessThanOrEqual(P_AUD_MAX_LSB);
+  }
+  expect(scores, "the composites were scored").not.toBeNull();
+  expect(scores.frames).toBe(probes);
+  expect(scores.failures).toEqual([]);
 });
 
 function gaps(samples) {
