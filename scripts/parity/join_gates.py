@@ -89,6 +89,7 @@ LOOK_ONSET_SAMPLES = 96  # 2 ms
 LOOK_LOUDNESS_LU = 0.5
 LOOK_JOBS = ("main", "fps25", "fps60")
 LOOK_OUTPUT = (720, 1280)  # pipeline.render_v3_job's default size
+LOOK_SOURCE = (640, 360)  # the synthetic job's source size (the engines are compared, not it)
 SAMPLE_RATE = 48_000
 WINDOW = 480  # 10 ms
 _RGB = "scale=in_color_matrix=bt709:in_range=tv,format=rgb24"  # compile_ffmpeg._PNG_DECODE
@@ -591,6 +592,8 @@ def _look_engine(auto_dir: Path, cut_dir: Path, engine: str) -> dict[str, Any]:
     manifest = json.loads((auto_dir / "output" / "manifest.json").read_text(encoding="utf-8"))
     entry = next(clip for clip in manifest["clips"] if clip["index"] == 1)
     teaser = entry["cold_open"]
+    if teaser is None or entry.get("cold_open_join") is None:
+        raise RuntimeError(f"{engine}: clip 1 was rendered without its cold open")
     length_ms = int(f"{teaser['end'] - teaser['start']:.3f}".replace(".", ""))
     auto = auto_dir / "output" / "clip-01.mp4"
     cut = cut_dir / "output" / "clip-01.mp4"
@@ -645,28 +648,35 @@ def look(work: Path) -> dict[str, Any]:
     from ai_clipper.edit_v2 import camera
 
     make_job = _make_job()
-    camera.detect_face_track = make_job._stub_detector
+    camera.detect_face_track = make_job._stub_detector  # deterministic face track (fps60)
     legacy_render.detect_face_track = make_job._stub_detector
-    index = make_job.build(work / "fixture", only=LOOK_JOBS, force=True)
+    index = make_job.build(work / "fixture", size=LOOK_SOURCE, only=LOOK_JOBS, force=True)
     rows = []
     for name in LOOK_JOBS:
         pristine = work / "fixture" / index["jobs"][name]["dir"]
         engines = {}
-        for engine in ("legacy", "edit-v2"):
-            dirs = {}
-            for variant, join in (("auto", transitions.AUTO_COLD_OPEN_JOIN), ("cut", None)):
-                target = work / "runs" / f"{name}-{engine}-{variant}" / pristine.name
-                if target.exists():
-                    shutil.rmtree(target)
-                shutil.copytree(pristine, target, symlinks=True)
-                run = pipeline.render_v3_job(target, render_engine=engine, ranks=[1],
-                                             cold_open_join=join)
-                manifest_path = target / "output" / "manifest.json"
-                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-                manifest["clips"] = run.clips
-                manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
-                dirs[variant] = target
-            engines[engine] = _look_engine(dirs["auto"], dirs["cut"], engine)
+        try:
+            for engine in ("legacy", "edit-v2"):
+                dirs = {}
+                for variant, join in (("auto", transitions.AUTO_COLD_OPEN_JOIN), ("cut", None)):
+                    target = work / "runs" / f"{name}-{engine}-{variant}" / pristine.name
+                    if target.exists():
+                        shutil.rmtree(target)
+                    shutil.copytree(pristine, target, symlinks=True)
+                    run = pipeline.render_v3_job(target, render_engine=engine, ranks=[1],
+                                                 cold_open_join=join)
+                    if run.warnings:
+                        raise RuntimeError(f"{engine} {variant}: {run.warnings}")
+                    manifest_path = target / "output" / "manifest.json"
+                    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                    manifest["clips"] = run.clips
+                    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+                    dirs[variant] = target
+                engines[engine] = _look_engine(dirs["auto"], dirs["cut"], engine)
+        except Exception as error:  # noqa: BLE001 - recorded as a failed job, the others run
+            rows.append({"job": name, "error": f"{type(error).__name__}: {error}"[:300],
+                         "pass": False})
+            continue
         new, legacy = engines["edit-v2"], engines["legacy"]
         alphas = _compare_alphas(new, legacy)
         checks = {
