@@ -212,6 +212,39 @@ test("a retry gives way to a newer seek and to playback", async () => {
   player.destroy();
 });
 
+test("a paused draw that throws is retried, not swallowed with the stage left black", async () => {
+  // Every caller of the paused present drops its rejection; a drawImage that throws (a source
+  // closed under it) used to leave no frame, no error and "Menyiapkan frame…".
+  const env = makeDeps();
+  const { player, draws } = mount(env);
+  const canvas = { width: 720, height: 1280 };
+  let failures = 1;
+  const ctx = {
+    globalCompositeOperation: "source-over",
+    imageSmoothingEnabled: true,
+    drawImage(image, x, y) {
+      if (image.layer === "plate" && failures > 0) {
+        failures -= 1;
+        throw new DOMException("The image source is detached.", "InvalidStateError");
+      }
+      draws.push({ image, x, y });
+    },
+  };
+  canvas.getContext = () => ctx;
+  const drawing = createPlayer({ canvas, fetchImpl: async () => ({ ok: true, status: 200, text: async () => "" }), deps: env.deps });
+  player.destroy();
+  await drawing.load(planDto());
+  await settle();
+  assert.equal(drawing.state().presentedFrame, null);
+  assert.equal(drawing.state().error, null, "still being prepared: one retry is due");
+  assert.deepEqual(env.timers.map((timer) => timer.ms), [250]);
+  await env.runTimers();
+  assert.equal(drawing.state().presentedFrame, 0);
+  assert.equal(drawing.state().exact, true);
+  assert.deepEqual(draws.filter((draw) => draw.image.layer === "plate").map((draw) => [draw.image.k, draw.image.j]), [[47, 30]]);
+  drawing.destroy();
+});
+
 test("without WebGL2 the live player still runs and paints through Canvas2D only", async () => {
   // The production browser had WebCodecs and OffscreenCanvas 2D but no WebGL2.
   const names = ["VideoDecoder", "OffscreenCanvas", "Worker", "AudioContext", "createImageBitmap", "WebGL2RenderingContext"];

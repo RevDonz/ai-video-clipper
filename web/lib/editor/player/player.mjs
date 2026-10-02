@@ -453,10 +453,10 @@ export function createPlayer({
   }
 
   /**
-   * The plate frame of paused frame n did not come (a failed or an empty decode). Nothing else
-   * asks for a paused frame again, so it is asked for again after PAUSED_PLATE_RETRY_MS while
-   * nothing newer was asked (a seek, play, a new plan), then reported as the plate's error
-   * instead of leaving the stage on "Menyiapkan frame…".
+   * Paused frame n could not be shown: its plate frame did not come (a failed or an empty decode)
+   * or did not draw. Nothing else asks for a paused frame again, so it is asked for again after
+   * PAUSED_PLATE_RETRY_MS while nothing newer was asked (a seek, play, a new plan), then reported
+   * as the plate's error instead of leaving the stage on "Menyiapkan frame…".
    */
   function plateMissed(n, token, attempt, failure) {
     if (attempt < PAUSED_PLATE_RETRY_MS.length) {
@@ -519,7 +519,13 @@ export function createPlayer({
     }
     // The bitmap may have been evicted while the text rendered: fetch it again.
     const plateBitmap = plateSource.frame(at.k, at.j) ?? bitmap;
-    draw(n, plateBitmap, textAt);
+    try {
+      draw(n, plateBitmap, textAt);
+    } catch (failure) {
+      // A source closed under the draw (drawImage throws): the callers drop this promise's
+      // rejection, so it goes the way of a missed plate frame (asked again, then reported).
+      return plateMissed(n, token, attempt, failure);
+    }
     if (seekLog.length >= 256) seekLog.shift();
     seekLog.push({ n, cold: !cached, plateMs, textMs, totalMs: d.now() - started });
     pruneText(n);
