@@ -181,7 +181,7 @@ export function createPlayer({
   const holdLog = []; // the last 64 playing holds (diagnostics)
   const seekLog = []; // the last 256 paused presentations: plate and text times (diagnostics)
   const pausedLog = []; // the last 64 paused attempts that did not draw: layer and why (diagnostics)
-  let pausedWait = null; // the paused attempt in flight: { n, token, planSha, layer, done }
+  let pausedRound = null; // { n, token, planSha } of the paused frame's latest attempt (see roundUnderWay)
 
   // Text layer state. Every render goes through one chain (the layer compares each frame with
   // the one rendered before it); rendered frames are kept as entries { sha, parts: [{ bitmap,
@@ -465,7 +465,7 @@ export function createPlayer({
     return { frame: n, presented: false, superseded: true };
   }
 
-  /** The paused player gave up on a frame: state().error carries it (layer "plate" or "text"). */
+  /** The paused player gave up on a frame: state().error carries it (layer "plate", "text" or "logo"). */
   function frameFailed() {
     return Number.isInteger(error?.frame);
   }
@@ -475,10 +475,18 @@ export function createPlayer({
     pausedLog.push({ n, attempt, layer, reason, at: d.now() });
   }
 
-  /** An attempt at paused frame n of this plan is still within its budgets. */
-  function attemptInFlight(n) {
-    return Boolean(pausedWait && !pausedWait.done && pausedWait.token === seekToken && pausedWait.n === n
-      && plan && pausedWait.planSha === plan.planSha256);
+  /**
+   * Paused frame n of this plan has its attempts under way (one waiting, a retry due) or reported,
+   * and nothing newer was asked since: a poll of the same plan leaves it be.
+   */
+  function roundUnderWay(n) {
+    return Boolean(pausedRound && pausedRound.token === seekToken && pausedRound.n === n
+      && plan && pausedRound.planSha === plan.planSha256);
+  }
+
+  /** A seek, Play or a new plan came after the paused attempt with this token. */
+  function overtaken(token) {
+    return token !== seekToken || playing;
   }
 
   /**
@@ -511,7 +519,6 @@ export function createPlayer({
     }
     // The last attempt keeps waiting: a frame that still comes is drawn and clears the report.
     error = { layer: wait.layer, message: `paused_frame_timeout:${wait.layer}`, frame: n };
-    pausedWait = null; // the next load() of this plan may start over
     emit();
   }
 
@@ -525,14 +532,13 @@ export function createPlayer({
       emit();
       return { frame: n, presented: false, pending: "plate" };
     }
-    const wait = { n, token, planSha: plan.planSha256, layer: "plate", done: false };
-    pausedWait = wait;
+    pausedRound = { n, token, planSha: plan.planSha256 };
+    const wait = { layer: "plate", done: false };
     const budget = d.setTimeout(() => overBudget(n, token, attempt, wait), PAUSED_ATTEMPTS[attempt].budgetMs);
     try {
       return await drawPaused(n, token, attempt, at, wait);
     } finally {
       wait.done = true;
-      if (pausedWait === wait) pausedWait = null;
       d.clearTimeout(budget);
     }
   }
@@ -553,10 +559,10 @@ export function createPlayer({
       bitmap = cached ?? await plateSource.need(at.k, at.j, { exclusive: true, fresh: attempt > 0 });
       plateMs = d.now() - started;
     } catch (failure) {
-      if (token !== seekToken) return superseded(n);
+      if (overtaken(token)) return superseded(n);
       return missed(n, token, attempt, "plate", failure);
     }
-    if (token !== seekToken) return superseded(n);
+    if (overtaken(token)) return superseded(n);
     if (!bitmap) return missed(n, token, attempt, "plate", null);
     wait.layer = "text";
     let textFailure = null;
@@ -565,17 +571,18 @@ export function createPlayer({
       return null;
     };
     await textPromise.catch(noText);
-    if (token !== seekToken) return superseded(n);
+    if (overtaken(token)) return superseded(n);
     if (!textEntry(n)) {
       await renderText(n, { seek: true }).catch(noText); // a track swap came in between
-      if (token !== seekToken) return superseded(n);
+      if (overtaken(token)) return superseded(n);
     }
     const textAt = textEntry(n);
     if (!textAt) return missed(n, token, attempt, "text", textFailure);
     wait.layer = "logo";
     await logoPromise.catch(() => {});
-    if (token !== seekToken) return superseded(n);
+    if (overtaken(token)) return superseded(n);
     if (!logo.readyFor(plan.logo)) {
+      pausedRound = null; // the next load() asks again
       emit();
       return { frame: n, presented: false, pending: "logo" };
     }
@@ -896,8 +903,9 @@ export function createPlayer({
       // frame at the playhead.
       await Promise.all([textPromise, logoPromise]);
       if (destroyed || plan !== dto) return;
-      // A poll of the same plan leaves an attempt in flight to its budget instead of restarting it.
-      if (!playing && mode === "live" && !shownIs(frame) && !attemptInFlight(frame)) presentPaused(frame).catch(() => {});
+      // A poll of the same plan leaves the paused frame's attempts to their budgets and delays, and
+      // a failure they reported stays reported.
+      if (!playing && mode === "live" && !shownIs(frame) && !roundUnderWay(frame)) presentPaused(frame).catch(() => {});
       await audioPromise;
       if (destroyed || plan !== dto) return;
       emit();
@@ -928,6 +936,7 @@ export function createPlayer({
       }
       await startClock(silent || !audioCurrent());
       playing = true;
+      seekToken += 1; // a paused attempt still waiting never draws over playback
       ended = false;
       presenter.startRun(frame, { shown: shownIs(frame) });
       pumpText(shownIs(frame) ? frame + 1 : frame);
