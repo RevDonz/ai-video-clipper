@@ -526,7 +526,7 @@ def audio_key(plan: Any, toolchain_sha256: str | None) -> str:
         music_identity = {"asset": payload["asset"], "src_in_smp": payload["src_in_smp"],
                           "loop": payload["loop"],
                           "meta": dict(plan.assets.get(payload["asset"], {}))}
-    return _sha({
+    identity = {
         "schema": AUDIO_SCHEMA,
         "compiler": COMPILER_VERSION,
         "render_semantics": RENDER_SEMANTICS,
@@ -542,7 +542,15 @@ def audio_key(plan: Any, toolchain_sha256: str | None) -> str:
         "master": dict(doc["audio"]["master"]),
         "source_gain_cdb": doc["audio"]["source"]["gain_cdb"],
         "toolchain": toolchain_sha256,
-    })
+    }
+    # The cold-open whoosh (spec 2026-10-02 §1.5): only when a join has one, so every older
+    # preview mix keeps its key; the style alone never changes the sound.
+    sounds = [join.sfx for join in getattr(plan, "joins", ()) if join.sfx is not None]
+    if sounds:
+        identity["sfx"] = [{"id": sfx.id, "v": sfx.v, "sha256": sfx.sha256,
+                            "start_smp": sfx.start_smp, "skip_smp": sfx.skip_smp}
+                           for sfx in sounds]
+    return _sha(identity)
 
 
 def lane_audio(job: Any) -> Any:
@@ -634,12 +642,14 @@ def _file_sha(path: Path) -> str | None:
 def _rev0_identity(validated: _Validated) -> dict[str, Any]:
     """What the seed's plan sha depends on besides the seed itself (its words and camera are
     named by the seed): the compiler and the resource files the seed's captions read."""
+    from . import transitions
+
     seed_doc = validated.seed
     resources = _resources()
     pack = seed_doc["captions"]["pack"]
     hook = _hook_item(seed_doc)
     design = hook["payload"]["design"] if hook is not None else None
-    return {
+    identity = {
         "schema": REV0_SCHEMA,
         "seed": validated.seed_etag,
         "compiler": COMPILER_VERSION,
@@ -649,6 +659,13 @@ def _rev0_identity(validated: _Validated) -> dict[str, Any]:
         "hook_design": None if design is None
         else _file_sha(resources.hook_design_file(design["id"], design["v"])),
     }
+    # The seed's cold-open whoosh (spec 2026-10-02 §1.5): only when it has one.
+    sound = next((join["sfx"] for join in seed_doc["main"]["joins"] if "sfx" in join), None)
+    if sound is not None:
+        spec = transitions.SFX.get((sound["id"], sound["v"]))
+        identity["sfx"] = None if spec is None else _file_sha(
+            transitions.sfx_path(resources.root, spec))
+    return identity
 
 
 def _rev0_plan_sha(ctx: _Context, validated: _Validated) -> str | None:
@@ -789,6 +806,7 @@ def _plan(ctx: _Context, envelope: Mapping[str, Any]) -> dict[str, Any]:
             seen.add(marker)
             warnings.append(entry)
 
+    from . import transitions
     from .doc import doc_sha256
 
     dto = {
@@ -810,6 +828,8 @@ def _plan(ctx: _Context, envelope: Mapping[str, Any]) -> dict[str, Any]:
         "rev0": _rev0(ctx, validated, plan),
         "warnings": warnings,
         "errors": [],
+        # the cold-open transition the player draws between the plate and the text (§4.3)
+        "joins": transitions.joins_dto(plan.joins),
     }
     lane = {
         "playhead": min(request.playhead, max(plan.total_frames - 1, 0)),
