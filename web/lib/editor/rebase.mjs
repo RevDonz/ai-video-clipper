@@ -561,7 +561,9 @@ export function rebase({ base, mine, theirs, steps, ctx }) {
     if (asParts) replayed.push({ ...asParts, parts: touched, entryId: step.entryId });
     else replayed.push({ ...step, args: result.args, parts: touched });
   }
-  const differs = (part) => !deepEqual(partValue(doc, part), partValue(mine, part));
+  // The identity too: a cold open without a whoosh and no cold open have the same join.sfx value.
+  const differs = (part) => !deepEqual(partValue(doc, part), partValue(mine, part))
+    || !deepEqual(identity(doc, part), identity(mine, part));
   const remaining = [...conflictParts].filter(differs).sort((a, b) => orderOf(a) - orderOf(b));
   if (!remaining.length) return { status: "merged", doc, steps: replayed, conflicts: [] };
   const groups = new Map();

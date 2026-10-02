@@ -225,6 +225,32 @@ test("a cold open brought back by 'Pakai punyaku' brings its transition along", 
   assert.equal(contentJson(replaySteps(theirs.doc, mineWins.steps, C30.ctx).doc), contentJson(mineWins.doc));
 });
 
+test("a whoosh switched off survives the other tab removing the cold open", () => {
+  // c25: the saved cold open has the template's Kilat putih + whoosh. Mine switches the whoosh
+  // off (and trims the cold open in the first case); theirs removes the cold open. "No whoosh"
+  // and "no cold open" are different values here, so the dialog lists the sound and "Pakai
+  // punyaku" brings back the cold open without it, never the template's whoosh.
+  const base = c25WithColdOpen();
+  assert.deepEqual(partValue(base, "join.sfx"), WHOOSH);
+  const theirs = tab(C25, base);
+  theirs.dispatch("SetColdOpen", null);
+  const trimmed = tab(C25, base);
+  trimmed.dispatch("SetJoinSfx", { on: false });
+  trimmed.dispatch("NudgeColdOpen", { edge: "out", words: -1 });
+  const muted = tab(C25, base);
+  muted.dispatch("SetJoinSfx", { on: false });
+  for (const mine of [trimmed, muted]) {
+    const result = rebase({ base, mine: mine.doc, theirs: theirs.doc, steps: mine.pending, ctx: C25.ctx });
+    assert.equal(result.status, "conflict");
+    assert.deepEqual(result.conflicts.map((group) => [group.id, group.parts]), [["coldopen", ["coldopen", "join.style", "join.sfx"]]]);
+    const mineWins = result.resolve({});
+    assert.ok(!Object.hasOwn(mineWins.doc.main.joins[0], "sfx"));
+    assert.equal(contentJson(mineWins.doc), contentJson(mine.doc));
+    assert.equal(contentJson(replaySteps(theirs.doc, mineWins.steps, C25.ctx).doc), contentJson(mineWins.doc));
+    assert.equal(contentJson(result.resolve({ coldopen: "theirs" }).doc), contentJson(theirs.doc));
+  }
+});
+
 test("edits of different parts in two tabs both survive", () => {
   const words = bodyWords(C30);
   const mine = tab(C30);
