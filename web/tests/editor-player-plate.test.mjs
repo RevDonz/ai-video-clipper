@@ -645,3 +645,41 @@ test("a fresh need keeps a pass that is still decoding and abandons one that sto
   }
   assert.deepEqual(h.converted, ["47:40"]);
 });
+
+test("a cell abandons at most two passes that have not settled: past that a fresh need waits on the cell's pass", async () => {
+  // Every decoder stalls. An abandoned pass keeps its decoder until it settles, which may be never.
+  const h = loneHarness(() => new Promise(() => {}));
+  const { VideoSampleSink } = h.mb.module;
+  const fail = []; // one per sequential pass: fail[i]() makes that pass throw at last
+  VideoSampleSink.prototype.samples = async function* stalled(start) {
+    h.mb.log.push(["open", this.track.cell, Math.round((start * FPS[0]) / FPS[1])]);
+    yield await new Promise((_, reject) => { fail.push(() => reject(new Error("EncodingError: Decoder failure"))); });
+  };
+  h.source.setPlate(plateDto("p1", [47]));
+  const opens = () => h.mb.log.filter(([kind]) => kind === "open").length;
+  const fresh = async () => {
+    h.source.need(47, 30, { exclusive: true, fresh: true });
+    await ticks(20);
+  };
+  try {
+    h.source.need(47, 30, { exclusive: true }); // a lone pass
+    await ticks(20);
+    await fresh(); // abandons the lone pass
+    await fresh(); // abandons the first sequential pass
+    assert.deepEqual([h.source.stats().abandoned, h.source.stats().stalled, opens()], [2, 2, 2]);
+    await fresh();
+    await fresh();
+    assert.deepEqual([h.source.stats().abandoned, h.source.stats().stalled, opens()], [2, 2, 2],
+      "no third decoder is abandoned: the fresh needs wait on the cell's pass");
+    assert.equal(h.source.stats().running, 1);
+    // An abandoned pass that settles frees its place: the next fresh need may abandon one again.
+    fail[0]();
+    await ticks(20);
+    assert.equal(h.source.stats().stalled, 1);
+    await fresh();
+    assert.deepEqual([h.source.stats().abandoned, h.source.stats().stalled, opens()], [3, 2, 3]);
+  } finally {
+    h.source.destroy();
+  }
+  assert.deepEqual(h.converted, []);
+});
