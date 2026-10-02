@@ -98,6 +98,68 @@
   font-size: var(--ed-font-size-xs);
 }
 
+/* Transisi: three equal choices, the Musik duck presets' pattern. The chosen card is marked by
+   the text colour on the raised surface; the lime accent stays with Ekspor (DESIGN.md). */
+.presets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.preset {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  padding: var(--ed-space-2) var(--ed-space-1);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--ed-radius-sm);
+  background: var(--surface);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color var(--ed-duration-fast) ease-out, background-color var(--ed-duration-fast) ease-out;
+}
+
+.preset:hover:not(:has(input:disabled)) {
+  border-color: var(--text);
+}
+
+.preset:has(input:checked) {
+  border-color: var(--text);
+  background: var(--surface-3);
+}
+
+.preset:has(input:focus-visible) {
+  box-shadow: var(--ed-focus-ring);
+}
+
+.preset:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.presetName {
+  color: var(--text);
+  font-size: var(--ed-font-size-sm);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.presetDetail {
+  color: var(--text-muted);
+  font-size: var(--ed-font-size-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The line keeps its height when empty, so the panel does not jump when a choice is confirmed. */
+.transitionStatus {
+  min-height: calc(var(--ed-font-size-xs) * var(--ed-line-height));
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--ed-font-size-xs);
+  line-height: var(--ed-line-height);
+}
+
 @keyframes fade-in {
   from {
     opacity: 0;
@@ -109,7 +171,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .status,
-  .item {
+  .item,
+  .preset {
     animation: none;
     transition: none;
   }
