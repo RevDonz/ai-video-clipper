@@ -1652,7 +1652,12 @@ Unchanged gates measured on this branch at `99c0916`: P-FRAME 3,625 frames, 0 mi
 G1/G2, G-CLICK, duck, G3, G3b pass (run 36966430990). Suites at T1's head `41025f5`:
 `suite=full` (ruff, pytest 4,443 on Python 3.11, web 1,208/1,209 with 1 skip, build) run
 36969631130 and `suite=image` (pytest 4,442 in the image, the whoosh level test and the
-truth-frame effect test included) run 36969633949, both green.
+truth-frame effect test included) run 36969633949, both green. The nightly parity run
+(`ci-cd.yml`, run 36969497212 at `8d19535`): every gate passes, the browser half (P-TIME JASSUB
+side, P-TXT, P-COLOR) and P-JOIN, G-WHOOSH, P-LOOK-JOIN, P-RT and R10 included. Two red items,
+neither T1's: the app's P-AUD (`02-vfr-bed` 16 samples short on preview and reference alike,
+md5 equal: Open 12, the same as nightly 36920054208 of the code on `main`) and P-JOIN-B
+missing (T2 adds it to the parity job).
 
 - The whoosh file's level in the image: −29.00 LUFS integrated, −17.20 dBTP
   (`resources/sfx/whoosh/v1.meta.json`; `tests/test_edit_v2_transitions.py` checks −29.0 ± 1.0
