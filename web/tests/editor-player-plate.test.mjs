@@ -377,7 +377,7 @@ test("destroy closes every cached frame", async () => {
 // The lone-frame route (getSample) that a paused frame uses can come back without that frame: no
 // sample, the neighbouring sample, or a decode error. The frame then goes to one sequential pass
 // (the route playback uses) instead of resolving null, asking getSample forever, or failing.
-function loneHarness(lone) {
+function loneHarness(lone, { now } = {}) {
   const mb = fakeMediabunny({ getSample: true });
   const { VideoSampleSink } = mb.module;
   class Sink extends VideoSampleSink {
@@ -403,6 +403,7 @@ function loneHarness(lone) {
     retainFrame: async (frame) => { converted.push(`${frame.cell}:${frame.j}`); return { cell: frame.cell, j: frame.j, close() {} }; },
     yieldTask: () => Promise.resolve(),
     fps: FPS,
+    ...(now ? { now } : {}),
   });
   return { source, mb, converted, fetches };
 }
@@ -486,4 +487,161 @@ test("a cell fetch that fails in a lone pass is not retried by a second pass", a
   source.setPlate(plateDto("p1", [47]));
   await assert.rejects(source.need(47, 30, { exclusive: true }), /plate_cell_failed:47:503/);
   assert.deepEqual(fetches, ["/cells/p1-47.mp4"]);
+});
+
+test("a frame missing from its cell resolves null after one lone and one sequential pass", async () => {
+  // The cell has no sample for frame 30: getSample answers with 29, and the stream skips 30.
+  const h = loneHarness(async ({ cell, j }) => sampleOf(cell, j === 30 ? 29 : j));
+  const { VideoSampleSink } = h.mb.module;
+  const stream = VideoSampleSink.prototype.samples;
+  VideoSampleSink.prototype.samples = async function* gapped(start) {
+    for await (const sample of stream.call(this, start)) {
+      if (Math.round((sample.timestamp * FPS[0]) / FPS[1]) !== 30) yield sample;
+    }
+  };
+  h.source.setPlate(plateDto("p1", [47]));
+  let bitmap;
+  try {
+    bitmap = await within(h.source.need(47, 30, { exclusive: true }), 2000, "need(47, 30)");
+  } finally {
+    h.source.destroy();
+  }
+  assert.equal(bitmap, null, "no such frame: the caller is told, not left with lone and sequential passes taking turns");
+  assert.deepEqual(h.mb.log.filter(([kind]) => kind === "lone" || kind === "open"), [["lone", 47, 30], ["open", 47, 30]]);
+});
+
+// A lone pass that never settles (a decoder flush that stalls under memory pressure): a caller who
+// asks again joins it, and so does playback's decode-ahead. need({ fresh }) abandons the passes over
+// the cell that show no progress and decodes the frame in one sequential pass from the cell start,
+// where every decoded frame counts as progress.
+const ticks = async (count) => {
+  for (let i = 0; i < count; i += 1) await new Promise((resolve) => setImmediate(resolve));
+};
+
+function deferred() {
+  let resolve;
+  const promise = new Promise((res) => { resolve = res; });
+  return { promise, resolve };
+}
+
+function sampleOf(cell, j) {
+  return { timestamp: (j * FPS[1]) / FPS[0], toVideoFrame: () => ({ cell, j, close() {} }), close() {} };
+}
+
+test("a fresh need abandons a lone pass that never settles: one pass from the cell start, and nobody joins the stalled one", async () => {
+  let calls = 0;
+  const { source, mb, converted } = loneHarness(({ cell, j }) => (calls++ === 0 ? new Promise(() => {}) : sampleOf(cell, j)));
+  source.setPlate(plateDto("p1", [47]));
+  let firstSettled = false;
+  const first = source.need(47, 30, { exclusive: true });
+  first.then(() => { firstSettled = true; }, () => { firstSettled = true; });
+  await ticks(20);
+  let aheadDone = false;
+  const ahead = source.ensure([{ k: 47, js: [31, 32], firstN: 1 }]);
+  ahead.then(() => { aheadDone = true; });
+  await ticks(20);
+  assert.equal(firstSettled, false);
+  assert.equal(aheadDone, false, "the decode-ahead waits on the stalled pass too");
+  try {
+    const bitmap = await within(source.need(47, 30, { exclusive: true, fresh: true }), 2000, "fresh need(47, 30)");
+    assert.deepEqual([bitmap.cell, bitmap.j], [47, 30]);
+    assert.equal(await within(first, 2000, "the first need"), bitmap, "the first caller gets the same frame");
+    await within(ahead, 2000, "ensure"); // the decode-ahead it owed is dropped, as for any paused seek
+    const next = await within(source.need(47, 31), 2000, "need(47, 31)");
+    assert.deepEqual([next.cell, next.j], [47, 31], "a later caller does not join the stalled pass");
+    await ticks(20);
+    assert.equal(source.stats().abandoned, 1);
+    assert.equal(source.stats().running, 0, "the stalled pass no longer holds a decoder slot");
+  } finally {
+    source.destroy();
+  }
+  assert.deepEqual(mb.log.filter(([kind]) => kind === "lone" || kind === "open"),
+    [["lone", 47, 30], ["open", 47, 0], ["lone", 47, 31]]);
+  assert.deepEqual(converted, ["47:30", "47:31"]);
+});
+
+test("an abandoned lone pass that answers first still gives its frame, and only once", async () => {
+  const stalled = deferred();
+  const h = loneHarness(() => stalled.promise);
+  const gate = deferred();
+  const { VideoSampleSink } = h.mb.module;
+  const stream = VideoSampleSink.prototype.samples;
+  VideoSampleSink.prototype.samples = async function* gated(start) {
+    await gate.promise;
+    yield* stream.call(this, start);
+  };
+  h.source.setPlate(plateDto("p1", [47]));
+  const first = h.source.need(47, 30, { exclusive: true });
+  await ticks(20);
+  const fresh = h.source.need(47, 30, { exclusive: true, fresh: true });
+  await ticks(20);
+  stalled.resolve(sampleOf(47, 30)); // the stalled decode answers after all, before the fresh pass
+  try {
+    const bitmap = await within(fresh, 2000, "fresh need(47, 30)");
+    assert.deepEqual([bitmap.cell, bitmap.j], [47, 30]);
+    assert.equal(await first, bitmap);
+    gate.resolve();
+    await ticks(80);
+    assert.equal(h.source.stats().running, 0);
+  } finally {
+    h.source.destroy();
+  }
+  assert.deepEqual(h.converted, ["47:30"], "the fresh pass finds the frame decoded");
+});
+
+test("a fresh need keeps a pass that is still decoding and abandons one that stopped; its late failure fails nothing", async () => {
+  let clock = 0;
+  const h = loneHarness(() => new Promise(() => {}), { now: () => clock });
+  const { VideoSampleSink } = h.mb.module;
+  // Each pass yields only the samples the test allows: a decoder whose speed the test sets.
+  const passes = [];
+  VideoSampleSink.prototype.samples = async function* stepped(start) {
+    const pass = { allowed: 0, failure: null, wake: () => {} };
+    passes.push(pass);
+    const first = Math.floor((start * FPS[0]) / FPS[1] + 1e-9);
+    h.mb.log.push(["open", this.track.cell, first]);
+    for (let j = first; j < 60; j += 1) {
+      while (!pass.allowed && !pass.failure) await new Promise((resolve) => { pass.wake = resolve; });
+      if (pass.failure) throw pass.failure;
+      pass.allowed -= 1;
+      yield sampleOf(this.track.cell, j);
+    }
+  };
+  const allow = async (pass, count) => {
+    pass.allowed += count;
+    pass.wake();
+    await ticks(count * 4 + 20);
+  };
+  h.source.setPlate(plateDto("p1", [47]));
+  const opens = () => h.mb.log.filter(([kind]) => kind === "open");
+  try {
+    const first = h.source.need(47, 40, { exclusive: true }); // a lone pass that stalls
+    await ticks(20);
+    clock = 1500;
+    const retry = h.source.need(47, 40, { exclusive: true, fresh: true });
+    await ticks(20);
+    assert.deepEqual(opens(), [["open", 47, 0]]);
+    await allow(passes[0], 10); // frames 0–9 decoded at 1.5 s
+    clock = 2000;
+    h.source.need(47, 40, { exclusive: true, fresh: true });
+    await ticks(20);
+    assert.equal(h.source.stats().abandoned, 1, "a pass that decoded 0.5 s ago is kept");
+    assert.equal(opens().length, 1);
+    clock = 3500; // nothing decoded for 2 s: stopped
+    const last = h.source.need(47, 40, { exclusive: true, fresh: true });
+    await ticks(20);
+    assert.equal(h.source.stats().abandoned, 2);
+    assert.deepEqual(opens(), [["open", 47, 0], ["open", 47, 0]]);
+    passes[0].failure = new Error("EncodingError: Decoder failure");
+    passes[0].wake();
+    await ticks(20);
+    await allow(passes[1], 41);
+    const bitmap = await within(last, 2000, "need(47, 40)");
+    assert.deepEqual([bitmap.cell, bitmap.j], [47, 40]);
+    assert.equal(await within(first, 2000, "the first need"), bitmap, "the abandoned pass's failure rejected nobody");
+    assert.equal(await retry, bitmap);
+  } finally {
+    h.source.destroy();
+  }
+  assert.deepEqual(h.converted, ["47:40"]);
 });

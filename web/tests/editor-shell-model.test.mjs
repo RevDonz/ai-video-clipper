@@ -141,25 +141,38 @@ test("a playhead frame the player gave up on is named, not 'Menyiapkan frame…'
   const paused = { ...LIVE, playing: false, exact: false };
   assert.deepEqual(badgeView({ status: "ready", plan, storePending: [], player: paused }),
     { tone: "pending", text: "Menyiapkan frame…", detail: null });
-  const failed = badgeView({ status: "ready", plan, storePending: [], player: { ...paused, plateError: true } });
+  const failed = badgeView({ status: "ready", plan, storePending: [], player: { ...paused, frameError: true } });
   assert.deepEqual(failed, { tone: "failed", text: "Frame gagal dimuat", detail: "Putar atau geser playhead untuk mencoba lagi" });
   assert.match(badgeHelp(failed), /Frame akhir/);
   assert.notEqual(badgeHelp(failed), BADGE_HELP);
+  // The help covers every way the player gives up on a frame: a decode or a draw that fails, the
+  // text, and a wait past the budgets. It does not claim a decode error it may not have seen.
+  assert.doesNotMatch(badgeHelp(failed), /mendekode/);
+  assert.match(badgeHelp(failed), /gambar atau teks/);
+  assert.match(badgeHelp(failed), /terlalu lama/);
   // A layer still pending is named first; a drawn frame is exact again.
-  assert.equal(badgeView({ status: "ready", plan, storePending: ["text"], player: { ...paused, plateError: true } }).text, "Memperbarui teks…");
-  assert.equal(badgeView({ status: "ready", plan, storePending: [], player: { ...LIVE, playing: false, exact: true, plateError: false } }).tone, "exact");
+  assert.equal(badgeView({ status: "ready", plan, storePending: ["text"], player: { ...paused, frameError: true } }).text, "Memperbarui teks…");
+  assert.equal(badgeView({ status: "ready", plan, storePending: [], player: { ...LIVE, playing: false, exact: true, frameError: false } }).tone, "exact");
+  // While the server still builds plate cells the badge says so, whatever the player gave up on.
+  const building = { ...plan, plate: { ...plan.plate,
+    cells: Array.from({ length: 31 }, (_, k) => ({ k, state: k < 3 ? "ready" : "queued", url: k < 3 ? `/c${k}.mp4` : null })) } };
+  assert.equal(badgeView({ status: "ready", plan: building, storePending: ["plate"], player: { ...paused, frameError: true } }).text,
+    "Menyiapkan video (3/31)…");
 });
 
-test("the shell keeps the player state it shows, including a plate the player gave up on", () => {
+test("the shell keeps the player state it shows, including a frame the player gave up on", () => {
   const live = { mode: "live", frame: 0, playing: false, exact: false, error: null, current: { ...LIVE.current } };
   const first = playerView(null, live);
-  assert.deepEqual(first, { mode: "live", current: LIVE.current, playing: false, exact: false, plateError: false });
+  assert.deepEqual(first, { mode: "live", current: LIVE.current, playing: false, exact: false, frameError: false });
   assert.equal(playerView(first, { ...live, frame: 3 }), first, "an unchanged view keeps its identity (no re-render)");
   const failed = playerView(first, { ...live, error: { layer: "plate", message: "plate_cell_failed:47:x" } });
   assert.notEqual(failed, first);
-  assert.equal(failed.plateError, true);
-  assert.equal(playerView(first, { ...live, error: { layer: "audio", message: "audio_fetch_failed:500" } }).plateError, false);
+  assert.equal(failed.frameError, true);
+  assert.equal(playerView(first, { ...live, error: { layer: "audio", message: "audio_fetch_failed:500" } }).frameError, false);
   assert.equal(playerView(failed, { mode: "live", current: LIVE.current }).playing, false, "a partial state keeps playing");
+  // The paused frame's text failed (it carries the frame); a text fetch at load does not.
+  assert.equal(playerView(first, { ...live, error: { layer: "text", message: "worker: render failed", frame: 0 } }).frameError, true);
+  assert.equal(playerView(first, { ...live, error: { layer: "text", message: "text_fetch_failed:500" } }).frameError, false);
 });
 
 test("revision 0 on the auto render, truth frames, unsupported browsers and loading", () => {
