@@ -1,0 +1,26 @@
+{
+ "schema": "potongin.sfx/1",
+ "id": "whoosh",
+ "v": 1,
+ "file": "v1.wav",
+ "sha256": "a722efe71a615aec8857742f8a5627164c58c2f2fa2956de165e5e1b0c6c7fa5",
+ "bytes": 80684,
+ "sample_rate": 48000,
+ "channels": 2,
+ "sample_format": "s16le",
+ "samples": 20160,
+ "hit_smp": 11520,
+ "peak": 4370,
+ "loudness": {
+  "i_clufs": -2900,
+  "tp_cdb": -1720,
+  "measured_with": "FFmpeg 5.1.9 ebur128=peak=true"
+ },
+ "license": "CC0-1.0",
+ "author": "Potongin (self-made; no third-party material)",
+ "generator": {
+  "script": "scripts/sfx/make_whoosh.py",
+  "sha256": "f03a5ebc873f90ff5068b40140e3e5a22f6e688026b0baa119d12757f2f8cdd5",
+  "seed": 2654435769
+ }
+}
