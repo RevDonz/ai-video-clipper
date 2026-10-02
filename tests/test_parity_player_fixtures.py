@@ -250,6 +250,16 @@ def test_join_frames_cover_the_window_and_its_neighbours():
         pf.join_check_frames([], 150)
 
 
+def test_join_cells_are_the_window_or_every_cell_of_a_played_case():
+    plan = _plan()
+    size = tm.cell_frames(plan.fps)
+    window = list(range(56, 65))
+    cells = pf.join_cells(plan, window, whole=False)
+    assert cells == sorted({tm.out_to_src(n, plan.pieces)[1] // size for n in (0, *window)})
+    assert pf.join_cells(plan, window, whole=True) == pf.cells_needed(plan)
+    assert set(cells) < set(pf.cells_needed(plan))
+
+
 def test_the_server_composite_blends_the_transition_before_the_text():
     plan = _plan(hook=False, cuts=2)
     resources = Resources(RESOURCES_DIR)

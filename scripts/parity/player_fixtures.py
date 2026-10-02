@@ -313,6 +313,15 @@ def join_probe_frames(alpha: Sequence[Sequence[int]], total: int) -> list[int]:
     return list(range(max(0, first - 1), min(total, last + 2)))
 
 
+def join_cells(plan: Any, frames: Sequence[int], *, whole: bool) -> list[int]:
+    """The plate cells a join case serves: every cell when it is played through (``whole``),
+    otherwise those of frame 0 (the harness opens on it) and of ``frames``."""
+    if whole:
+        return cells_needed(plan)
+    size = tm.cell_frames(plan.fps)
+    return sorted({tm.out_to_src(n, plan.pieces)[1] // size for n in (0, *frames)})
+
+
 def lut_chain(plan: Any) -> str:
     """The compiler's transition filters for the plan (``""`` when no join has a fill)."""
     joins = getattr(plan, "joins", ())
@@ -1014,8 +1023,8 @@ class Generator:
         check = join_check_frames(alpha, total)
         probe = join_probe_frames(alpha, total)
         size = tm.cell_frames(plan.fps)
-        wanted = sorted({tm.out_to_src(n, plan.pieces)[1] // size for n in (0, *check)})
-        ready = self.cells(plan, source, case.name, wanted)
+        # The whoosh case is also played through the join (its drops are recorded).
+        ready = self.cells(plan, source, case.name, join_cells(plan, check, whole=jc.whoosh))
         mix = self.mix(plan, source, case.name) if jc.whoosh else None
         plate_key = _sha(["plate", case.name, case.layout, list(case.fps)])
         logo_file = None
