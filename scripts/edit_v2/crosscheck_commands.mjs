@@ -26,6 +26,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { ApiError } from "../../web/lib/editor/api-client.mjs";
 import { COMMANDS, CommandRejected, applyCommand } from "../../web/lib/editor/commands.mjs";
 import {
+  JOIN_STYLES,
   PACK_IDS,
   SWATCHES,
   body,
@@ -193,6 +194,12 @@ const GENERATORS = {
   NudgeColdOpen(rng) {
     return { edge: chance(rng, 0.5) ? "in" : "out", words: pick(rng, [-3, -2, -1, -1, 1, 1, 2, 3]) };
   },
+  SetJoinStyle(rng) {
+    return { style: chance(rng, 0.05) ? pick(rng, ["xfade", "fade"]) : pick(rng, JOIN_STYLES) };
+  },
+  SetJoinSfx(rng) {
+    return { on: chance(rng, 0.03) ? "on" : chance(rng, 0.6) };
+  },
   EditWordText(rng, doc, context) {
     const word = anyWord(rng, doc, context);
     return { wordId: word.id, text: chance(rng, 0.2) ? word.t : pick(rng, WORD_TEXTS) };
@@ -309,7 +316,7 @@ const GENERATORS = {
 
 const WEIGHTS = {
   RemoveWords: 16, RestoreRemoval: 5, TrimStart: 5, TrimEnd: 5, RemoveGap: 4, ApplyCleanup: 3, SetColdOpen: 4,
-  NudgeColdOpen: 4, EditWordText: 7, SetWordHidden: 3, SetWordEmphasis: 3, SetCaptionsEnabled: 1, SetCaptionPack: 2,
+  NudgeColdOpen: 4, SetJoinStyle: 3, SetJoinSfx: 2, EditWordText: 7, SetWordHidden: 3, SetWordEmphasis: 3, SetCaptionsEnabled: 1, SetCaptionPack: 2,
   SetCaptionOverride: 4, SetHookEnabled: 2, SetHookText: 4, SetHookDuration: 2, SetHookY: 2, SetLayout: 2, SetLogo: 3,
   RemoveLogo: 1, MoveLogo: 3, ResizeLogo: 2, SetLogoOpacity: 2, SnapLogo: 2, SetMusic: 3, RemoveMusic: 1,
   SetMusicGain: 2, SetMusicOffset: 2, SetMusicLoop: 1, SetMusicFades: 2, SetDuck: 2, SetSourceGain: 2, SetLoudness: 2,
@@ -321,6 +328,7 @@ const NEEDS = [
   [["MoveLogo", "ResizeLogo", "SetLogoOpacity", "SnapLogo", "RemoveLogo"], logoItem, "SetLogo"],
   [["SetMusicGain", "SetMusicOffset", "SetMusicLoop", "SetMusicFades", "SetDuck", "RemoveMusic"], musicItem, "SetMusic"],
   [["SetHookText", "SetHookDuration", "SetHookY"], hookItem, "SetHookEnabled"],
+  [["SetJoinStyle", "SetJoinSfx"], coldOpen, "SetColdOpen"],
 ];
 
 /** One random command for `doc`: mostly valid arguments, some out of range on purpose. */
@@ -514,8 +522,10 @@ export function checkConflictScenario({ base, mine, theirs, context, rng }) {
     docs.push(["rebase", result.doc]);
     for (const group of result.conflicts) {
       if (!group.label) problems.push(`group ${group.id} has no label`);
+      // A cold open's removals and transition join its group when one side has no cold open.
+      const coldOpenPart = (part) => part === "removals:cold_open" || part.startsWith("join.");
       for (const part of group.parts) {
-        if (partGroup(part) !== group.id && !(group.id === "coldopen" && part === "removals:cold_open")) {
+        if (partGroup(part) !== group.id && !(group.id === "coldopen" && coldOpenPart(part))) {
           problems.push(`part ${part} outside group ${group.id}`);
         }
       }

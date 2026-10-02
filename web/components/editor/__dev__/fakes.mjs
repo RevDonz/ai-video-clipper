@@ -19,10 +19,11 @@ export const FAKE_CLIP_ID = "clip_9b2e41c07d3a5f18e6c2a0b4";
 const FPS = [30000, 1001];
 const SHA = (seed) => fakeSha256(`fake:${seed}`);
 
-// Appendix B: every command name the real store knows (T2.5 implements them all).
+// Appendix B: every command name the real store knows (T2.5 implements them all), with the
+// cold-open transition commands (docs/plans/2026-10-02-transisi-cold-open.md §7.2).
 export const COMMANDS = Object.freeze([
   "TrimStart", "TrimEnd", "RemoveWords", "RemoveGap", "RestoreRemoval", "ApplyCleanup",
-  "SetColdOpen", "NudgeColdOpen", "EditWordText", "SetWordHidden", "SetWordEmphasis",
+  "SetColdOpen", "NudgeColdOpen", "SetJoinStyle", "SetJoinSfx", "EditWordText", "SetWordHidden", "SetWordEmphasis",
   "SetCaptionsEnabled", "SetCaptionPack", "SetCaptionOverride", "SetHookEnabled", "SetHookText",
   "SetHookDuration", "SetHookY", "SetLayout", "SetLogo", "RemoveLogo", "MoveLogo", "ResizeLogo",
   "SetLogoOpacity", "SnapLogo", "SetMusic", "RemoveMusic", "SetMusicGain", "SetMusicOffset",
