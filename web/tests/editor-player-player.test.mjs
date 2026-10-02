@@ -1,7 +1,7 @@
 // createPlayer (Appendix A.2; plan §6.2) with every layer injected: the presenter barrier across
 // plate, text and logo; superseded seeks; playback on the audio clock with text pre-rendered one
 // frame ahead; the swap rules; truth frames; the revision-0 <video> fallback; unsupported
-// browsers; the device check.
+// browsers; the device check; the cold-open transition fill (spec 2026-10-02 §5.2).
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -21,11 +21,12 @@ const tick = () => new Promise((resolve) => setImmediate(resolve));
 function planDto({
   doc = "d1", ass = "a1", mix = "m1", plateKey = "p1", ready = [0, 1, 2, 3, 4], logo = null, rev0 = null,
   pieces = [{ i: 0, seg: "seg_b1", role: "body", inSf: 30, outSf: 180, outF0: 0, frames: 150 }], audioState = "ready",
-  fonts = [{ family: "DejaVu Sans", url: "/fonts/DejaVuSans.ttf", sha256: "f".repeat(64) }],
+  fonts = [{ family: "DejaVu Sans", url: "/fonts/DejaVuSans.ttf", sha256: "f".repeat(64) }], joins,
 } = {}) {
   const total = pieces.reduce((sum, piece) => sum + piece.frames, 0);
+  const joinKey = joins ? `-${joins.map((join) => join.style).join("+")}` : "";
   return {
-    planSha256: `plan-${doc}-${ass}-${plateKey}-${mix}`, docSha256: doc, compiler: "edit-v2/1", renderSemantics: 1,
+    planSha256: `plan-${doc}-${ass}-${plateKey}-${mix}${joinKey}`, docSha256: doc, compiler: "edit-v2/1", renderSemantics: 1,
     fps: FPS, totalFrames: total, output: { w: 720, h: 1280 }, pieces, cues: [], hook: null,
     text: { assSha256: ass, ass: `[Script Info]\n; ${ass}\n`, url: `/ass/${ass}.ass`, fonts },
     plate: { plateKey, cellFrames: 60, w: 720, h: 1280,
@@ -35,15 +36,24 @@ function planDto({
       samples: Math.floor((total * 48000 * FPS[1]) / FPS[0]), musicGainPoints: [], speechSpans: [] },
     rev0: rev0 ?? { planSha256: "rev0", autoRenderUrl: null, exact: false },
     warnings: [], errors: [],
+    ...(joins ? { joins } : {}),
   };
 }
 
 function fakeCanvas() {
   const draws = [];
+  const saved = [];
   const ctx = {
     globalCompositeOperation: "source-over",
+    globalAlpha: 1,
+    fillStyle: "#000000",
     imageSmoothingEnabled: true,
-    drawImage(image, x, y) { draws.push({ image, x, y, op: this.globalCompositeOperation }); },
+    drawImage(image, x, y) { draws.push({ image, x, y, op: this.globalCompositeOperation, alpha: this.globalAlpha }); },
+    fillRect(x, y, w, h) {
+      draws.push({ image: { layer: "fill" }, x, y, w, h, op: this.globalCompositeOperation, alpha: this.globalAlpha, fill: this.fillStyle });
+    },
+    save() { saved.push([this.globalCompositeOperation, this.globalAlpha, this.fillStyle]); },
+    restore() { [this.globalCompositeOperation, this.globalAlpha, this.fillStyle] = saved.pop(); },
   };
   const canvas = { width: 300, height: 150, contextOptions: null, getContext(kind, options) { canvas.contextOptions = options; return ctx; } };
   return { canvas, ctx, draws };
@@ -545,4 +555,140 @@ test("destroy stops everything and releases the layers", async () => {
   assert.ok(env.log.some(([kind]) => kind === "audioDestroy"));
   assert.equal(env.raf.queue.length, 0);
   await assert.rejects(instance.seek(1), /destroyed/);
+});
+
+// The cold-open transition (spec 2026-10-02 §5.2): a 60-frame cold open, then the body; at 30/1
+// a flash covers frames 58–62 around J = 60 (§2.2).
+const CO_PIECES = [
+  { i: 0, seg: "seg_co", role: "cold_open", inSf: 330, outSf: 390, outF0: 0, frames: 60 },
+  { i: 1, seg: "seg_b1", role: "body", inSf: 30, outSf: 120, outF0: 60, frames: 90 },
+];
+const CO_CELLS = [0, 1, 2, 3, 4, 5, 6];
+const FLASH = {
+  after: "seg_co", style: "flash_white", atF: 60, rgb: [255, 255, 255],
+  alphaPm: [[58, 333], [59, 667], [60, 1000], [61, 667], [62, 333]],
+  sfx: { id: "whoosh", v: 1, startSmp: 84480, hitSmp: 96000, samples: 20160 },
+};
+const DIP = {
+  after: "seg_co", style: "dip_black", atF: 60, rgb: [0, 0, 0],
+  alphaPm: [[56, 111], [57, 333], [58, 556], [59, 778], [60, 1000], [61, 778], [62, 556], [63, 333], [64, 111]],
+  sfx: null,
+};
+const CUT = { after: "seg_co", style: "cut", atF: 60, rgb: null, alphaPm: [], sfx: null };
+
+const coldOpenPlan = (options = {}) => planDto({ pieces: CO_PIECES, ready: CO_CELLS, ...options });
+
+function layersOf(draws) {
+  return draws.map((draw) => [draw.image.layer, draw.op, draw.alpha]);
+}
+
+test("the transition fill is drawn over the plate and under the text and logo", async () => {
+  const env = makeDeps();
+  const logo = { box: { x: 560, y: 26, w: 115, h: 115 }, opacityPm: 850, url: "/derived/logo@115x115.png" };
+  const { instance, draws, frames } = player(env);
+  await instance.load(coldOpenPlan({ joins: [FLASH], logo }));
+  await tick();
+  const before = draws.length;
+  assert.deepEqual(await instance.seek(58), { frame: 58, presented: true });
+  assert.deepEqual(layersOf(draws.slice(before)), [
+    ["plate", "copy", 1], ["fill", "source-over", 0.333], ["text", "source-over", 1], ["logo", "source-over", 1],
+  ]);
+  const fill = draws[before + 1];
+  assert.deepEqual([fill.x, fill.y, fill.w, fill.h, fill.fill], [0, 0, 720, 1280, "rgb(255, 255, 255)"]);
+  assert.equal(frames.at(-1).frame, 58);
+  assert.equal(frames.at(-1).joinAlphaPm, 333);
+  const peak = draws.length;
+  await instance.seek(60);
+  assert.deepEqual(layersOf(draws.slice(peak)), [
+    ["plate", "copy", 1], ["fill", "source-over", 1], ["text", "source-over", 1], ["logo", "source-over", 1],
+  ]);
+  assert.deepEqual([draws[peak].image.k, draws[peak].image.j], [0, 30], "the body's first source frame");
+  assert.equal(frames.at(-1).joinAlphaPm, 1000);
+  assert.deepEqual(instance.debug.joinAt(60), { rgb: [255, 255, 255], alphaPm: 1000 });
+  assert.equal(instance.debug.joinAt(57), null);
+});
+
+test("no fill outside the alpha frames, for a cut join or without joins; onFrame reports 0", async () => {
+  const env = makeDeps();
+  const { instance, draws, frames } = player(env);
+  await instance.load(coldOpenPlan({ joins: [FLASH] }));
+  await tick();
+  for (const n of [57, 63, 0, 149]) {
+    const before = draws.length;
+    await instance.seek(n);
+    assert.deepEqual(draws.slice(before).map((draw) => draw.image.layer), ["plate", "text"], `frame ${n}`);
+    assert.equal(frames.at(-1).joinAlphaPm, 0, `frame ${n}`);
+  }
+  for (const joins of [[CUT], [], undefined]) {
+    await instance.load(coldOpenPlan({ doc: `d-${joins?.length ?? "none"}`, joins }));
+    await tick();
+    const before = draws.length;
+    await instance.seek(60);
+    await instance.seek(59);
+    assert.ok(!draws.slice(before).some((draw) => draw.image.layer === "fill"), JSON.stringify(joins));
+    assert.equal(frames.at(-1).joinAlphaPm, 0);
+    assert.equal(instance.debug.joinAt(60), null);
+  }
+});
+
+test("playback draws the fill on every frame the clock presents", async () => {
+  const env = makeDeps();
+  const { instance, frames } = player(env);
+  await instance.load(coldOpenPlan({ joins: [DIP] }));
+  await instance.seek(54);
+  await instance.play();
+  for (let n = 55; n <= 66; n += 1) await env.frameTick((n + 0.5) / 30);
+  const shown = frames.filter((info) => info.playing).map((info) => [info.frame, info.joinAlphaPm]);
+  assert.deepEqual(shown, [
+    [55, 0], [56, 111], [57, 333], [58, 556], [59, 778], [60, 1000], [61, 778], [62, 556], [63, 333], [64, 111],
+    [65, 0], [66, 0],
+  ]);
+  instance.pause();
+});
+
+test("a malformed joins list in the plan DTO is refused", async () => {
+  const env = makeDeps();
+  const { instance } = player(env);
+  const bad = {
+    "unsorted frames": [{ ...FLASH, alphaPm: [[59, 667], [58, 333], [60, 1000]] }],
+    "alpha 0": [{ ...FLASH, alphaPm: [[58, 0], [60, 1000]] }],
+    "alpha 1001": [{ ...FLASH, alphaPm: [[58, 333], [60, 1001]] }],
+    "rgb with alphas missing": [{ ...FLASH, alphaPm: [] }],
+    "a frame at totalFrames": [{ ...FLASH, alphaPm: [[149, 1000], [150, 500]] }],
+    "atF past the end": [{ ...FLASH, atF: 151 }],
+    "an unknown style": [{ ...FLASH, style: "xfade" }],
+    "joins not a list": { 0: FLASH },
+    "joins null": null,
+  };
+  for (const [name, joins] of Object.entries(bad)) {
+    const dto = coldOpenPlan({ joins: [FLASH] });
+    dto.joins = joins;
+    await assert.rejects(instance.load(dto), /invalid plan DTO: joins/, name);
+  }
+  assert.equal(instance.state().presentedFrame, null, "nothing was loaded");
+});
+
+test("a style-only change redraws the paused frame and keeps the mix", async () => {
+  const env = makeDeps();
+  const { instance, draws, frames } = player(env);
+  await instance.load(coldOpenPlan({ joins: [CUT] }));
+  await tick();
+  await instance.seek(60);
+  assert.equal(frames.at(-1).joinAlphaPm, 0);
+  const before = draws.length;
+  await instance.load(coldOpenPlan({ doc: "d2", joins: [FLASH] }));
+  await tick();
+  await tick();
+  assert.deepEqual(draws.slice(before).map((draw) => [draw.image.layer, draw.alpha]),
+    [["plate", 1], ["fill", 1], ["text", 1]]);
+  assert.equal(draws[before + 1].fill, "rgb(255, 255, 255)");
+  assert.deepEqual([frames.at(-1).frame, frames.at(-1).joinAlphaPm], [60, 1000]);
+  const dip = draws.length;
+  await instance.load(coldOpenPlan({ doc: "d3", joins: [DIP] }));
+  await tick();
+  await tick();
+  assert.equal(draws.slice(dip).find((draw) => draw.image.layer === "fill").fill, "rgb(0, 0, 0)");
+  assert.deepEqual(env.audio.loads, ["m1"], "the same mix is not reloaded");
+  assert.equal(env.textLayers[0].tracks.length, 1, "the same ASS is not set again");
+  assert.equal(instance.state().exact, true);
 });
