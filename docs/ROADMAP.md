@@ -256,13 +256,14 @@ Keputusan: esensial dulu, lalu bertahap. Desain final ada di scratchpad sesi
   jendela (`docs/editor/UJI-PENERIMAAN.md`); penilaian 30 saran hook AI (lulus ≥ 21/30; flag LLM
   sudah menyala karena gerbang otomatisnya lolos); konfirmasi 490 label kata pengisi (lalu
   pra-centang kata pengisi di Rapikan dinyalakan lewat PR).
-- ⬜ **Keputusan pemilik sebelum produksi:** kuota CPU `primary-worker` (`cpus: 6`) membuat render
+- ⬜ **Keputusan pemilik:** kuota CPU `primary-worker` (`cpus: 6`) membuat render
   otomatis potong tengah/ikuti wajah ± 2× `legacy`; naikkan kuota, terima, atau pakai `legacy`
   dulu. P-LOGO (1 dari 18 frame lewat batas karena caption di bawah logo transparan): ubah
   definisi daerah logo atau biarkan.
 - ⬜ Malam CI hijau penuh: P-AUD klip VFR sintetis 16 sampel lebih pendek dari rencana (Open 12,
   jalur audio sumber kompiler); PF-AUDIO tipis di runner 4 vCPU.
-- ⬜ PR #18 `editor-w4-integration` → `main` (merge rebase) lalu deploy.
+- ✅ Live di produksi 2026-10-02 lewat PR #20 (commit squash `5064831`; riwayat lengkap di branch
+  `editor-release`), dengan render otomatis tetap `legacy` sampai keputusan kuota CPU.
 
 ## 9. Editor tahap lanjut (sesi berikutnya)
 

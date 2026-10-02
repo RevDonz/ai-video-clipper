@@ -1,6 +1,6 @@
 # Handoff: status dan cara melanjutkan
 
-Terakhir diperbarui 2026-10-02 (editor W4 selesai, lihat §4). Semua hasil ada di branch GitHub di
+Terakhir diperbarui 2026-10-02 (editor sudah live, lihat §4). Semua hasil ada di branch GitHub di
 bawah. Dokumen ini untuk agen atau device mana pun yang melanjutkan. Aturan proyek: `AGENTS.md`;
 arah desain: `DESIGN.md`.
 
@@ -15,6 +15,9 @@ arah desain: `DESIGN.md`.
   kandidat lama dipensiunkan di sisi web, penjaga UI di CI; perbaikan rate limit login (PR #15);
   workflow `editor-gates.yml` untuk tes berat (PR #16).
 - Skill antislop (mode during), `AGENTS.md`, `DESIGN.md`.
+- Editor klip (Esensial, W1–W4), PR #20, live sejak 2026-10-02: tombol **Edit klip** di kartu
+  klip dan riwayat. Editor, unggahan aset dan saran AI menyala; render otomatis klip memakai
+  mesin `legacy` sampai pemilik memutuskan kuota CPU (§4).
 
 Deploy terjadi otomatis lewat CI setiap ada merge ke `main`.
 
@@ -52,41 +55,39 @@ terbaru. Digabung lewat PR #14. Modul backend editor lama dihapus kemudian di ja
 Catatan terbuka untuk pemilik: pilihan "Tanpa LLM" per job hilang dari dashboard (AI diatur di
 Pengaturan; API masih menerima `llmMode=off`).
 
-## 4. Jalur B: Editor (W1–W4 selesai, menunggu titik cek 3 dan PR)
+## 4. Jalur B: Editor (live sejak 2026-10-02, menunggu titik cek 3)
 
 Rencana lengkap: `docs/plans/2026-09-24-editor-v3-esensial.md`. Kontrak, hasil gerbang, panduan
 dan operasional: `docs/editor/{CONTRACTS,GATES,PANDUAN-EDITOR,OPERASIONAL,UJI-PENERIMAAN}.md`.
 
-- **`editor-w4-integration`: W1 + W2 + W3 + W4, di atas `main` `b1ab3e0`**, PR #18 ke `main` dengan
-  judul "feat: clip editor (Esensial)" (belum di-merge). W4 = T4.1 (backend editor lama dihapus) →
-  T4.2 (keamanan, QG-SEC lengkap) → T4.3 (render otomatis klip paralel, janitor, retensi) → T4.4
-  (gerbang CI: smoke paritas di setiap PR, penjaga toolchain, nightly; halaman `/licenses`;
-  panduan final) → T4.5 (13 uji penerimaan, QG-A11Y, catatan caption K5), lalu integrasi T4.Z.
-  Hasil gerbangnya: `docs/editor/GATES.md` bagian "W4 Siap rilis". Verifikasi rilis menemukan satu
-  pemblokir (penjaga deploy dan ekspor `cancelled`) dan enam temuan kecil; semuanya sudah ditangani
-  di bagian "W4 verifier findings: fixes".
+- **Live lewat PR #20** (commit `5064831` di `main`). GitHub tidak bisa merge-rebase branch
+  sebesar ini (403 commit, 961 file), jadi masuk sebagai satu commit squash; riwayat lengkapnya
+  ada di branch `editor-release` (pohon identik; jangan dihapus). PR #18 ditutup karena
+  digantikan #20. Isi W4 dan hasil gerbangnya: `docs/editor/GATES.md` bagian "W4 Siap rilis".
+  Penjaga deploy untuk ekspor `cancelled` masuk lebih dulu lewat PR #19.
+- **Cek produksi setelah deploy:** health OK; semua halaman dan route editor mengarah ke login
+  tanpa sesi; ketiga container memakai image `5064831`; flag sesuai bawaan di bawah; FFmpeg
+  5.1.9; tidak ada error di log; beban server rendah.
 - **Bawaan rilis di `compose.yaml`:** `POTONGIN_EDITOR_V3=on`, `POTONGIN_EDITOR_UPLOADS=on`,
   `POTONGIN_EDITOR_LLM=on`, `POTONGIN_RENDER_ENGINE=legacy` (lihat di atas). Cara mengubah satu flag di server:
   `docs/editor/OPERASIONAL.md` §2 (baris di `.env`, lalu `docker compose up -d`, tanpa build).
 - Branch tugas `editor-w4-t4.1` … `editor-w4-t4.5` sudah masuk; tidak perlu dilanjutkan.
 
 Langkah berikutnya:
-1. **Titik cek pemilik 3** (± 60 menit; paketnya di luar repo, `editor-w4/checkpoint3.md` di
-   scratchpad sesi integrasi):
+1. **Titik cek pemilik 3** (± 60 menit; paketnya di luar repo, di PC pemilik:
+   `artifacts/handoff/checkpoint3/`):
    - uji U1–U7 dengan stopwatch di 1366×768 dan 1920×1080 (`docs/editor/UJI-PENERIMAAN.md`);
    - penilaian 30 saran hook AI (lulus ≥ 21/30). Flag LLM sudah menyala karena gerbang otomatisnya
      lolos; kalau penilaian gagal, matikan `POTONGIN_EDITOR_LLM` dan perbaiki prompt di W5;
    - konfirmasi 490 label kata pengisi; kalau presisi tetap ≥ 0,9, ubah `precheck` di
      `resources/lexicon/id-fillers.v1.json` ke `true` lewat PR.
-2. **Keputusan pemilik sebelum deploy:** kuota CPU `primary-worker` (dengan `cpus: 6`, render
+2. **Keputusan pemilik:** kuota CPU `primary-worker` (dengan `cpus: 6`, render
    otomatis potong tengah/ikuti wajah ± 2× `legacy`; naikkan kuota, terima, atau `legacy` dulu) dan
    P-LOGO (1 dari 18 frame lewat batas oleh caption di bawah logo transparan).
-3. **Merge PR ke `main` (merge rebase)** → deploy otomatis. Setelah deploy: buka satu proyek,
-   **Edit klip**, ekspor satu klip; proses satu video baru untuk melihat render otomatis baru.
-   Rollback seluruh rilis = revert PR, **tanpa** ikut me-revert penjaga deploy
-   (`fix(deploy): a cancelled export is not live work for the deploy guard`): penjaga lama di
-   `main` menganggap ekspor yang dibatalkan masih jalan dan menahan deploy rollback. Paling aman,
-   commit itu masuk `main` lebih dulu lewat PR kecil sendiri (`docs/editor/GATES.md`, Open 49).
+3. **Uji di produksi oleh pemilik:** buka satu proyek, **Edit klip**, ekspor satu klip; proses
+   satu video baru. Rollback seluruh editor = revert commit `5064831` lewat PR (penjaga deploy
+   dari #19 tetap, jadi deploy rollback tidak tertahan). Satu fitur saja bisa dimatikan lewat
+   flag-nya (`docs/editor/OPERASIONAL.md` §2).
 4. **Sisa teknis (W5 atau sesudahnya):** P-AUD klip VFR sintetis 16 sampel lebih pendek (Open 12)
    membuat nightly merah; PF-AUDIO dengan musik tipis di runner 4 vCPU; halaman `/licenses` masih
    di balik login.
@@ -102,6 +103,8 @@ commit.
 - Judul klip fokus dari heuristik masih kasar: satu permintaan LLM untuk merapikan judulnya.
 - ~~Perbarui `docs/ROADMAP.md` dengan keputusan 2026-09-30.~~ Selesai di `feat/ui-latest-dark`.
 - Pemilik: ganti API key LLM dan password server yang pernah tertempel di chat.
+- Disk server 81%: build cache Docker ± 17 GB dan image lama ± 10 GB bisa dibersihkan. Server
+  juga dipakai aplikasi lain, jadi pemilik yang memutuskan.
 
 ## 6. Menyiapkan lingkungan di device baru
 
