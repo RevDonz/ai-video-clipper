@@ -628,11 +628,12 @@ which those gates already prove.
   - When the seed keeps the cold open, the join is
     `{"after": "seg_co", "style": <style>, "audio_fade_ms": 30}` plus `"sfx"` when it is on.
   - When the seed drops an invalid teaser there is no join at all, as today.
-- `transitions.ColdOpenJoin(style: str, sfx: str | None)` provides:
+- `transitions.ColdOpenJoin(style: str, sfx: str | None, v: int | None = None)` (`v` left out:
+  the sound's latest version) provides:
   - `to_json()` → `{"style": <style>, "sfx": {"id": "whoosh", "v": 1} | null}` (the manifest
     and seed-context form) and `from_json(value) -> ColdOpenJoin | None` (strict: exactly those
-    two keys, a known style, and an sfx that is `null` or the whoosh pair; anything else →
-    `None`);
+    two keys, a known style, and an sfx that is `null` or a pair pinned in `SFX`, older versions
+    included; anything else → `None`);
   - `doc_join(after, audio_fade_ms) -> dict`;
   - the constants `AUTO_COLD_OPEN_JOIN = ColdOpenJoin("flash_white", "whoosh")` and
     `CUT_JOIN = ColdOpenJoin("cut", None)`.
@@ -1219,7 +1220,8 @@ FINAL and CONTRACTS. Each is in CONTRACTS §5.26 or GATES "Transisi cold open".
    count.
 8. **`AutoClip.cold_open_join`** (defaulted last field) carries the seed's join, so the
    manifest field comes from the seed; the pipeline falls back to its own join. `ColdOpenJoin`'s
-   `sfx` names the latest version of the sound (`"whoosh"` → v1).
+   `sfx` names the latest version of the sound (`"whoosh"` → v1). (Since the review of PR #23 it
+   keeps the version it was read with, see "Decisions after review".)
 9. **Seed context.** A malformed `coldOpenJoin` raises `SeedError` (only our code writes it);
    prepare filters manifest values through `ColdOpenJoin.from_json` first, so a garbled
    manifest seeds a cut.
@@ -1250,6 +1252,11 @@ FINAL and CONTRACTS. Each is in CONTRACTS §5.26 or GATES "Transisi cold open".
    measures the join as well. A measured end before `L0` (never on a CFR source) leaves the
    join, effect included, at `L0`. P-LOOK-JOIN expects legacy's onset from the decoded join,
    not from the length the render writes, so it would see a hit placed against `L0` again.
+3. **`ColdOpenJoin` keeps its sound's version** (`v`, the latest when left out). `from_json`
+   accepts any pair pinned in `SFX`, and `to_json`/`doc_join` write the version back, so once
+   whoosh v2 ships a clip rendered with v1 still seeds v1 (its R10 file), not a cut; the
+   edit-v2 auto clip reads the version from its seed. New auto renders name the latest, which
+   is the only sound the legacy engine renders.
 
 ## Appendix A. Reference whoosh generator (prototype, run 2026-10-02)
 

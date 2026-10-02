@@ -837,6 +837,22 @@ def test_prepare_seeds_a_cut_for_a_garbled_manifest_join(value):
         assert manifest_joins(broken, source) == {}
 
 
+def test_a_clip_rendered_with_an_older_whoosh_seeds_that_whoosh(monkeypatch):
+    """After whoosh v2 ships, a clip whose auto file has v1 seeds v1 (its R10 file), not a cut."""
+    from ai_clipper.edit_v2.seed import manifest_joins
+
+    v1 = tr.SFX[("whoosh", 1)]
+    monkeypatch.setitem(tr.SFX, ("whoosh", 2), tr.SfxSpec(id="whoosh", v=2, sha256="0" * 64,
+                                                          samples=v1.samples,
+                                                          hit_smp=v1.hit_smp))
+    monkeypatch.setitem(tr.LATEST_SFX, "whoosh", 2)
+    named = {"index": 1, "clip_id": "clip_" + "1" * 24, "start": 1.0, "end": 9.0,
+             "cold_open_join": {"style": "flash_white", "sfx": {"id": "whoosh", "v": 1}}}
+    joins = manifest_joins({"clips": [named]}, "a" * 64)
+    assert joins == {"clip_" + "1" * 24: tr.ColdOpenJoin("flash_white", "whoosh", 1)}
+    assert joins["clip_" + "1" * 24].doc_join("seg_co", 30)["sfx"] == {"id": "whoosh", "v": 1}
+
+
 def test_prepare_without_a_readable_manifest_seeds_cuts(synthetic, tmp_path):
     job_dir = _copy_job(synthetic, "main", tmp_path)
     (job_dir / "output" / "manifest.json").write_text("{not json")

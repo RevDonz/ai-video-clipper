@@ -109,16 +109,23 @@ class ColdOpenJoin:
     """The style and sound an auto render used at its cold-open join."""
 
     style: str
-    sfx: str | None  # None or "whoosh" (the latest version of it)
+    sfx: str | None  # None or a sound id ("whoosh")
+    v: int | None = None  # the sound's pinned version; left out, the latest (None without one)
 
     def __post_init__(self) -> None:
         if self.style not in JOIN_STYLES:
             raise ValueError(f"unknown join style: {self.style!r}")
-        if self.sfx is not None and self.sfx not in LATEST_SFX:
-            raise ValueError(f"unknown join sound: {self.sfx!r}")
+        if self.sfx is None:
+            if self.v is not None:
+                raise ValueError("a join without a sound has no sound version")
+            return
+        version = LATEST_SFX.get(self.sfx) if self.v is None else self.v
+        if type(version) is not int or (self.sfx, version) not in SFX:
+            raise ValueError(f"unknown join sound: {self.sfx!r} version {self.v!r}")
+        object.__setattr__(self, "v", version)
 
     def sfx_json(self) -> dict[str, Any] | None:
-        return None if self.sfx is None else {"id": self.sfx, "v": LATEST_SFX[self.sfx]}
+        return None if self.sfx is None else {"id": self.sfx, "v": self.v}
 
     def to_json(self) -> dict[str, Any]:
         """``{"style": …, "sfx": {"id", "v"} | null}``: the manifest and seed-context form."""
@@ -127,7 +134,8 @@ class ColdOpenJoin:
     @classmethod
     def from_json(cls, value: object) -> ColdOpenJoin | None:
         """Strict inverse of :meth:`to_json` (exactly ``style`` and ``sfx``, a known style, and
-        ``sfx`` null or a known ``{id, v}``); anything else is None."""
+        ``sfx`` null or a pinned ``{id, v}`` of :data:`SFX`, older versions included: a clip
+        rendered with one keeps it); anything else is None."""
         if type(value) is not dict or set(value) != {"style", "sfx"}:
             return None
         style, sfx = value["style"], value["sfx"]
@@ -136,9 +144,9 @@ class ColdOpenJoin:
         if sfx is None:
             return cls(style, None)
         if (type(sfx) is not dict or set(sfx) != {"id", "v"} or type(sfx["id"]) is not str
-                or type(sfx["v"]) is not int or LATEST_SFX.get(sfx["id"]) != sfx["v"]):
+                or type(sfx["v"]) is not int or (sfx["id"], sfx["v"]) not in SFX):
             return None
-        return cls(style, sfx["id"])
+        return cls(style, sfx["id"], sfx["v"])
 
     def doc_join(self, after: str, audio_fade_ms: int) -> dict[str, Any]:
         """The document join; ``sfx`` is absent (never null) without a sound."""

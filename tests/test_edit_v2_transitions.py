@@ -271,6 +271,31 @@ def test_cold_open_join_refuses_unknown_values():
         tr.ColdOpenJoin("xfade", None)
     with pytest.raises(ValueError):
         tr.ColdOpenJoin("cut", "pop")
+    with pytest.raises(ValueError):
+        tr.ColdOpenJoin("cut", "whoosh", 2)  # not pinned
+    with pytest.raises(ValueError):
+        tr.ColdOpenJoin("cut", None, 1)  # a version without a sound
+    with pytest.raises(ValueError):
+        tr.ColdOpenJoin("cut", "whoosh", True)
+
+
+def test_a_join_keeps_the_version_of_its_sound_after_a_newer_one_ships(monkeypatch):
+    """Spec §10.1: a new level ships as whoosh/v2 and documents that name v1 keep v1. A clip
+    rendered with v1 records v1, and its seed must name v1, not fall back to a cut."""
+    v1 = tr.SFX[("whoosh", 1)]
+    monkeypatch.setitem(tr.SFX, ("whoosh", 2), tr.SfxSpec(id="whoosh", v=2, sha256="0" * 64,
+                                                          samples=v1.samples,
+                                                          hit_smp=v1.hit_smp))
+    monkeypatch.setitem(tr.LATEST_SFX, "whoosh", 2)
+    recorded = {"style": "flash_white", "sfx": {"id": "whoosh", "v": 1}}
+    join = tr.ColdOpenJoin.from_json(recorded)
+    assert join == tr.ColdOpenJoin("flash_white", "whoosh", 1)
+    assert join.to_json() == recorded
+    assert join.doc_join("seg_co", 30)["sfx"] == {"id": "whoosh", "v": 1}
+    # a new join names the latest
+    assert tr.ColdOpenJoin("flash_white", "whoosh").sfx_json() == {"id": "whoosh", "v": 2}
+    assert tr.ColdOpenJoin("flash_white", "whoosh") != join
+    assert tr.ColdOpenJoin.from_json({"style": "cut", "sfx": {"id": "whoosh", "v": 3}}) is None
 
 
 # --- the whoosh --------------------------------------------------------------------------------
