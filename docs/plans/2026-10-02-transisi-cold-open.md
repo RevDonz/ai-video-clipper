@@ -901,6 +901,57 @@ content allowlist entry in `.gitleaks.toml` (T1 only).
   branch, `ci-cd.yml -f suite=nightly` (the browser gate needs T1's engine for the fixtures).
 - Evidence: `docs/editor/evidence/TR/T2-P-JOIN-B.json`.
 
+#### Decisions during build (T2)
+
+Where the spec was silent, T2 chose as follows (branch `transisi-t2`, the name the run was
+given, instead of `transisi-t2-preview`):
+
+1. **DTO validation** (`join-layer.joinsValid`, called by `validatePlan`). Beyond §5.2's list:
+   - `rgb` is `null` exactly for `cut`, and `alphaPm` is non-empty exactly when `rgb` is set (the
+     §1.6 shape; "rgb with alphas missing" is refused);
+   - a frame may be claimed by one join only (one fill per frame; Essentials has one join);
+   - an absent `sfx` reads as `null`: it is informational and the player never uses it.
+2. **Player.** `onFrame.joinAlphaPm` is sent with every live frame the player draws. The
+   `auto_render` frame events keep their shape: the auto MP4 holds the effect and the player
+   draws nothing there. `debug.joinAt(n)` returns the frozen overlay `{rgb, alphaPm}` or `null`.
+3. **P-JOIN-B cases** (`player_fixtures.JOIN_CASES`, `generate --only join`): `join_29.97`
+   (`flash_white` + whoosh, fit-blur, hook), `join_25` (`dip_black`, `fill_center`) and
+   `join_23.976` (`flash_white`, fit-blur, 5 cuts, the P-LOGO logo at top right). All use the
+   `frame_identity` barcode sources at 720×1280, the harness canvas size. The documents are built
+   by `player_fixtures.join_document`, which calls `frame_identity.make_doc(..., join_style=…,
+   whoosh=…)` itself, so the cases do not depend on `Workspace.clip` reading `Case.join_style`.
+   The generator refuses a plan that lost the transition (`transition_of`), and a DTO whose
+   `alphaPm` is not the plan's alpha.
+4. **What each part measures.**
+   - (a) runs on every frame of `[J − before − 2, J + after + 2)`. It compares
+     `onFrame.joinAlphaPm`, `debug.joinAt` and the `rgb` with the plan. It also runs a
+     one-frame-late control, as P-TIME does, which must flag every change of the plan.
+   - (b) takes every filled frame plus the unfilled frame on each side (7, 9 and 7 frames). The
+     mean difference is signed, per channel, over the whole frame. The text region is the union
+     of where the composite differs from the same frame without text (the whole frame when no
+     text is drawn).
+   - (c) runs only on the case with the whoosh, through the existing `audioCheck`.
+   - Only the plate cells of frame 0 and the window are made. The mix and the reference PCM are
+     made only for the whoosh case.
+5. **Scoring and evidence.**
+   - The spec runs `player_fixtures.py score --join` on the host `python3`, as P-TXT does, and
+     merges the scores into `p_join_b.json`.
+   - `evidence` takes `--label` (an alias of `--task`) and `--gate` (repeatable, to write only
+     some gates). The parity job runs `evidence --label CI --gate P-JOIN-B` in `parity-tools`
+     before `summary`.
+6. **CI.** The two new steps run when `SUITE` is `full` (the schedule and `suite=nightly`).
+   `Decide` also requires the P-JOIN-B step, and the player results
+   (`browser/player/*.json`) are kept with the evidence.
+7. **Python tests.** The tests of `player_fixtures.py` live in the existing
+   `tests/test_parity_player_fixtures.py`. That file belongs to `player_fixtures.py` (GATES.md
+   T2.4) and is not in T1's list. The one test that needs T1's engine (the cases' plans and DTO
+   against the §2.2 table) uses `pytest.importorskip("ai_clipper.edit_v2.transitions")`: it is
+   skipped on `transisi-t2` and runs on the integration branch.
+8. **Evidence file.** `T2-P-JOIN-B.json` comes from the integration branch's
+   `ci-cd.yml -f suite=nightly`, because the fixtures need T1's `transitions` and `make_doc`
+   arguments. It is the run's `CI-P-JOIN-B.json` (artifact `parity-full`) with `task` set to
+   `T2`.
+
 ### T3 (editor UI)
 
 - `web/tests/editor-commands.test.mjs`:
