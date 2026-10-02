@@ -139,3 +139,15 @@ def test_the_engine_shapes_are_compared_around_their_own_joins():
     assert jg._compare_alphas(new, shifted)["max_abs_alpha_pm"] <= 1
     broken = {**legacy, "alpha_pm": [0] * len(legacy_alphas)}
     assert jg._compare_alphas(new, broken)["max_abs_alpha_pm"] == 1000
+
+
+def test_legacy_s_whoosh_is_expected_on_its_measured_join():
+    # 25 fps, -ss 4.004 -t 2.002: 51 frames, the body starts at 2.040 s, not at 2.002 s
+    join = jg.legacy_join_us(2002, "2.040000")
+    assert join == 2_040_000
+    assert jg.legacy_onset(join, 11_520) == 97_920 - 11_520
+    # a measured end before the written length, or none: the length as written
+    assert jg.legacy_join_us(2002, "1.980000") == 2_002_000
+    assert jg.legacy_join_us(2002, None) == 2_002_000
+    assert jg.legacy_onset(2_002_000, 11_520) == 84_576
+    assert jg.legacy_onset(2_041_667, 11_520) == 86_480  # 98 000.016 samples, rounded

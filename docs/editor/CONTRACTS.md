@@ -1828,12 +1828,13 @@ player's validator against each other.
 - Legacy: `render_vertical(..., join_style="cut", join_sfx=None)`; with the defaults the command
   is byte-identical. A style adds, per range, `format=yuv420p,geq=lum/cb/cr` blending toward
   `YUV_TV` (`enable` on the side's window); the sound is one more input (`-i <resources>/sfx/
-  whoosh/v1.wav`), delayed by `L0_ms·48 − 11520` samples and added at unity by
+  whoosh/v1.wav`), delayed by `round(J_us·48/1000) − 11520` samples and added at unity by
   `amerge=inputs=2,pan=stereo|c0=c0+c2|c1=c1+c3` after `[speech]pan=stereo|FL=FL+FC|FR=FR+FC,
   aformat=fltp:48000:stereo` (a mono source at 1.0 on both channels, as edit-v2; `amerge` keeps
-  the speech to its last sample, where `amix … duration=first` dropped what it held). The cold-open side's join time is the range's measured end
-  (`render._cold_open_join_s`, one `framecrc` pass with the render's own seek), else the length
-  as written.
+  the speech to its last sample, where `amix … duration=first` dropped what it held). The join
+  `J` (cold-open effect and hit) is where concat starts the body: the later of the length as
+  written and the range's measured end (`render._cold_open_join_s`, one `framecrc` pass with
+  the render's own seek, run for a style or a sound), else the length as written.
 - edit-v2: `render_edit.AutoOptions.cold_open_join: ColdOpenJoin = CUT_JOIN` (last field);
   `AutoOptions.job()` adds `"coldOpenJoin"`; `AutoClip.cold_open_join` is the seed's join (or
   `None` when the seed left the teaser out).
