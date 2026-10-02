@@ -1,4 +1,5 @@
 import json
+import math
 import subprocess
 import tempfile
 from pathlib import Path
@@ -1084,9 +1085,9 @@ def test_the_flash_and_the_whoosh_in_the_legacy_graph():
         f"{_geq('cr', 128, body)}:enable='lt(t,0.100)'[video1]")
     assert chains[-5:] == [
         "[video0][audio0][video1][audio1]concat=n=2:v=1:a=1[joined][speech]",
-        f"[speech]{FMT}[sp]",
+        f"[speech]pan=stereo|FL=FL+FC|FR=FR+FC,{FMT}[sp]",
         f"[2:a]{FMT},adelay=delays=84576S:all=1,apad[wh]",
-        "[sp][wh]amix=inputs=2:normalize=0:duration=first[audio]",
+        "[sp][wh]amerge=inputs=2,pan=stereo|c0=c0+c2|c1=c1+c3[audio]",
         "[joined]ass=filename='captions.ass'[video]",
     ]
     # the whoosh is the third input, unseeked
@@ -1105,7 +1106,7 @@ def test_the_dip_and_a_silent_source_in_the_legacy_graph():
             f"{_geq('cb', 128, head)}:{_geq('cr', 128, head)}:enable='gte(t,0.850)'[video0]"
             in graph)
     assert "enable='lt(t,0.150)'[video1]" in graph
-    assert "[joined][audio]" in graph and "amix" not in graph  # no sound: today's audio
+    assert "[joined][audio]" in graph and "amerge" not in graph  # no sound: today's audio
     with_sound = _legacy_cases(join_style="cut", join_sfx_path=WHOOSH)["fit_blur_silent"]
     graph = with_sound[with_sound.index("-filter_complex") + 1]
     assert "geq" not in graph and "format=yuv420p" not in graph
@@ -1217,3 +1218,48 @@ def test_a_flash_and_whoosh_render_lights_the_join_and_keeps_the_duration(tmp_pa
     assert _luma_at(output, time=2.0, x=180, y=320) >= 225  # the join: pure white
     assert _luma_at(output, time=1.0, x=180, y=320) <= 80  # before the flash
     assert _luma_at(output, time=3.0, x=180, y=320) <= 80  # after it
+
+
+def _decoded_samples(path: Path) -> int:
+    """Samples per channel of the decoded audio."""
+    pcm = subprocess.run(["ffmpeg", "-v", "error", "-i", str(path), "-map", "0:a:0", "-ac", "1",
+                          "-f", "s16le", "-acodec", "pcm_s16le", "-"],
+                         check=True, capture_output=True).stdout
+    return len(pcm) // 2
+
+
+def _channel_rms_db(path: Path, *, start: float, seconds: float) -> list[float]:
+    """The RMS level (dBFS) of each audio channel over ``[start, start + seconds)``."""
+    probe = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries", "stream=channels",
+         "-of", "json", str(path)], check=True, capture_output=True, text=True).stdout
+    channels = int(json.loads(probe)["streams"][0]["channels"])
+    pcm = subprocess.run(
+        ["ffmpeg", "-v", "error", "-i", str(path), "-map", "0:a:0", "-af",
+         f"atrim=start={start:.3f}:duration={seconds:.3f}", "-f", "s16le", "-acodec",
+         "pcm_s16le", "-"], check=True, capture_output=True).stdout
+    samples = memoryview(pcm).cast("h")
+    levels = []
+    for channel in range(channels):
+        values = samples[channel::channels]
+        mean_square = sum(value * value for value in values) / len(values)
+        levels.append(10 * math.log10(mean_square / 32768**2))
+    return levels
+
+
+def test_the_whoosh_keeps_a_mono_source_level_and_every_sample(tmp_path: Path):
+    """A mono file plays at full level on both speakers: with the whoosh, the speech is copied
+    to both channels at 1.0 (as edit-v2 does), not upmixed at −3 dB per channel. The mix keeps
+    the speech to its last sample (``amix`` drops what it holds when its first input ends)."""
+    source = tmp_path / "mono.mp4"
+    _make_source(source, duration=8.0, video="color=c=0x404040:size=320x180")  # mono sine
+    cut, whoosh = tmp_path / "cut.mp4", tmp_path / "whoosh.mp4"
+    common = {"start": 1.0, "end": 4.0, "transcript": [], "width": 180, "height": 320,
+              "cold_open": (5.0, 7.0)}
+    render_vertical(source, cut, **common)
+    render_vertical(source, whoosh, join_style="flash_white", join_sfx="whoosh", **common)
+    # 0.5–1.5 s: before the whoosh starts (2.000 s − 11 520 samples = 1.760 s)
+    [plain] = _channel_rms_db(cut, start=0.5, seconds=1.0)
+    left, right = _channel_rms_db(whoosh, start=0.5, seconds=1.0)
+    assert abs(left - plain) <= 0.2 and abs(right - plain) <= 0.2, (plain, left, right)
+    assert _decoded_samples(whoosh) == _decoded_samples(cut)

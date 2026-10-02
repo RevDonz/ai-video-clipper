@@ -495,19 +495,26 @@ index is `len(ranges)`. The concat's audio label is renamed, and three chains fo
 
 ```
 [video0][audio0][video1][audio1]concat=n=2:v=1:a=1[joined][speech];
-[speech]aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[sp];
+[speech]pan=stereo|FL=FL+FC|FR=FR+FC,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[sp];
 [2:a]aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,adelay=delays=<S0>S:all=1,apad[wh];
-[sp][wh]amix=inputs=2:normalize=0:duration=first[audio]
+[sp][wh]amerge=inputs=2,pan=stereo|c0=c0+c2|c1=c1+c3[audio]
 ```
 
 - `S0 = L0_ms·48 − 11520`; for the 2.002 s example, `84576`.
 - The per-range `afade` micro-fades are unchanged.
-- The `aformat` on the speech is explicit, so the mix never depends on FFmpeg's format
-  negotiation:
-  - a stereo 48 kHz source is unchanged;
+- The `pan` and `aformat` on the speech are explicit, so the mix never depends on FFmpeg's
+  format negotiation:
+  - a stereo 48 kHz source is unchanged (bit for bit);
   - other rates are resampled to 48 kHz;
-  - a mono source becomes stereo through swresample's upmix (each channel −3 dB), which keeps
-    its loudness the same as the clips of the same job without a cold open.
+  - a mono source is copied to both channels at 1.0 (edit-v2's `pan`), so it plays at the level
+    of the clips of the same job without a cold open (a mono file plays at full level on both
+    speakers). Review of PR #23: swresample's upmix (−3 dB per channel) made these clips 3 dB
+    quieter.
+- `amerge` + `pan` adds the two at unity (the sum `amix … normalize=0` gave). `amix …
+  duration=first` drops the samples it still holds when its first input ends: on a test source
+  the speech lost 21 ms at the tail, and 0.59 s once the `pan` changed the scheduling (FFmpeg
+  6.1). `amerge` keeps the speech queued until the whoosh branch has the same samples, so the
+  mix ends on the speech's last sample.
 - Without a whoosh, the audio chains are byte-identical to today.
 - The legacy duration check (±0.25 s) is unaffected.
 
@@ -1149,8 +1156,9 @@ If a task finds it must change one of these, it stops and reports instead.
    today.
 3. **Legacy uses the source grid.** Its alphas follow the same function at its own frame times,
    so they can sit one frame off edit-v2's on non-matching rates. P-LOOK-JOIN bounds it.
-4. **Legacy audio for whoosh clips becomes 48 kHz stereo** (mono sources upmixed at −3 dB per
-   channel, the same loudness). Clips without a cold open are unchanged.
+4. **Legacy audio for whoosh clips becomes 48 kHz stereo** (a mono source copied to both
+   channels at 1.0, so it plays at the level of the job's other clips). Clips without a cold
+   open are unchanged.
 5. **Rollback** makes documents and seeds that use a transition unreadable (§1.4).
 6. **Workflow edits** (`ci-cd.yml` by T2, `editor-gates.yml` by T3) must each be dispatched once
    and pass before the integration PR.
@@ -1224,6 +1232,13 @@ FINAL and CONTRACTS. Each is in CONTRACTS §5.26 or GATES "Transisi cold open".
     and make_job render what production renders.
 14. **P-JOIN-B** is in `ci_gates.REQUIRED["full"]` as specified; a nightly on a branch without
     T2's `ci-cd.yml` step lists it as missing.
+
+## Decisions after review (PR #23)
+
+1. **Legacy mono speech under the whoosh** goes to both channels at 1.0 (edit-v2's
+   `pan=stereo|FL=FL+FC|FR=FR+FC`), and the whoosh is added by `amerge` + `pan` instead of
+   `amix` (§4.4). `tests/test_render.py` renders a mono source with and without the whoosh: the
+   same level per channel before the whoosh, the same decoded length.
 
 ## Appendix A. Reference whoosh generator (prototype, run 2026-10-02)
 

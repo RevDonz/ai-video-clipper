@@ -37,6 +37,9 @@ _LENGTH_EPSILON_SECONDS = 1e-9
 _SILENT_AUDIO = "anullsrc=channel_layout=stereo:sample_rate=48000"
 _CAPTIONS_FILTER = "ass=filename='captions.ass'"
 _SFX_FORMAT = "aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo"
+# Mono speech goes to both channels at 1.0 (edit-v2's pan), not swresample's −3 dB upmix.
+_SPEECH_TO_STEREO = "pan=stereo|FL=FL+FC|FR=FR+FC"
+_SUM_TWO_STEREO = "pan=stereo|c0=c0+c2|c1=c1+c3"  # amerge's 4 channels: unity sum
 _ENCODE_ARGUMENTS = (
     "-map",
     "[video]",
@@ -528,9 +531,11 @@ def _multi_range_command(
             raise ValueError("the cold open is too short for the sound effect")
         command.extend(["-i", str(join_sfx_path)])
         parts.append(f"{pads}concat=n={len(ranges)}:v=1:a=1[joined][speech]")
-        parts.append(f"[speech]{_SFX_FORMAT}[sp]")
+        parts.append(f"[speech]{_SPEECH_TO_STEREO},{_SFX_FORMAT}[sp]")
         parts.append(f"[{len(ranges)}:a]{_SFX_FORMAT},adelay=delays={delay}S:all=1,apad[wh]")
-        parts.append("[sp][wh]amix=inputs=2:normalize=0:duration=first[audio]")
+        # amerge keeps the speech queued until the whoosh branch has the same samples, so the
+        # speech ends the mix on its last sample (amix drops what it holds at that EOF).
+        parts.append(f"[sp][wh]amerge=inputs=2,{_SUM_TWO_STEREO}[audio]")
     parts.append(f"[joined]{_CAPTIONS_FILTER}[video]")
     command.extend(["-filter_complex", ";".join(parts), *_ENCODE_ARGUMENTS, output_path])
     return command
