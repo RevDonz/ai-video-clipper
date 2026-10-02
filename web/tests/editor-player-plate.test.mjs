@@ -373,3 +373,117 @@ test("destroy closes every cached frame", async () => {
   source.destroy();
   assert.deepEqual(closed.sort(), ["0:0", "0:1"]);
 });
+
+// The lone-frame route (getSample) that a paused frame uses can come back without that frame: no
+// sample, the neighbouring sample, or a decode error. The frame then goes to one sequential pass
+// (the route playback uses) instead of resolving null, asking getSample forever, or failing.
+function loneHarness(lone) {
+  const mb = fakeMediabunny({ getSample: true });
+  const { VideoSampleSink } = mb.module;
+  class Sink extends VideoSampleSink {
+    constructor(track) {
+      super(track);
+      this.getSample = async (timestamp) => {
+        // A macrotask, as a real decode is: a pass that keeps asking cannot starve the timers.
+        await new Promise((resolve) => setImmediate(resolve));
+        const j = Math.floor((timestamp * FPS[0]) / FPS[1] + 1e-9);
+        mb.log.push(["lone", track.cell, j]);
+        return lone({ cell: track.cell, j });
+      };
+    }
+  }
+  const converted = [];
+  const fetches = [];
+  const source = createPlateSource({
+    fetchImpl: async (url) => {
+      fetches.push(url);
+      return { ok: true, status: 200, arrayBuffer: async () => ({ cell: Number(/-(\d+)\.mp4$/.exec(url)[1]) }) };
+    },
+    loadMediabunny: async () => ({ ...mb.module, VideoSampleSink: Sink }),
+    retainFrame: async (frame) => { converted.push(`${frame.cell}:${frame.j}`); return { cell: frame.cell, j: frame.j, close() {} }; },
+    yieldTask: () => Promise.resolve(),
+    fps: FPS,
+  });
+  return { source, mb, converted, fetches };
+}
+
+function within(promise, ms, what) {
+  let timer;
+  const late = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`${what}: not settled in ${ms} ms`)), ms); });
+  return Promise.race([promise, late]).finally(() => clearTimeout(timer));
+}
+
+test("a lone frame getSample does not find is decoded by one sequential pass", async () => {
+  const { source, mb, converted } = loneHarness(async () => null);
+  source.setPlate(plateDto("p1", [47]));
+  let bitmap = null;
+  try {
+    bitmap = await within(source.need(47, 30, { exclusive: true }), 2000, "need(47, 30)");
+  } finally {
+    source.destroy();
+  }
+  assert.ok(bitmap, "the frame is decoded, not given up");
+  assert.deepEqual([bitmap.cell, bitmap.j], [47, 30]);
+  assert.deepEqual(mb.log.filter(([kind]) => kind === "lone" || kind === "open"), [["lone", 47, 30], ["open", 47, 30]]);
+  assert.deepEqual(converted, ["47:30"]);
+});
+
+test("a lone frame answered with its neighbour streams once instead of asking getSample forever", async () => {
+  const { source, mb, converted } = loneHarness(async ({ cell, j }) => (
+    { timestamp: ((j - 1) * FPS[1]) / FPS[0], toVideoFrame: () => ({ cell, j: j - 1, close() {} }), close() {} }));
+  source.setPlate(plateDto("p1", [47]));
+  let bitmap = null;
+  try {
+    bitmap = await within(source.need(47, 30, { exclusive: true }), 2000, "need(47, 30)");
+  } finally {
+    source.destroy();
+  }
+  assert.deepEqual([bitmap.cell, bitmap.j], [47, 30]);
+  assert.equal(mb.log.filter(([kind]) => kind === "lone").length, 1, "getSample is asked once");
+  assert.deepEqual(mb.log.filter(([kind]) => kind === "open"), [["open", 47, 30]]);
+  assert.deepEqual(converted, ["47:30"]);
+});
+
+test("a lone pass whose decode fails hands the frame to one sequential pass; a second failure rejects", async () => {
+  const flaky = loneHarness(async () => { throw new Error("EncodingError: Decoder failure"); });
+  flaky.source.setPlate(plateDto("p1", [47]));
+  let bitmap = null;
+  try {
+    bitmap = await within(flaky.source.need(47, 30, { exclusive: true }), 2000, "need(47, 30)");
+  } finally {
+    flaky.source.destroy();
+  }
+  assert.deepEqual([bitmap.cell, bitmap.j], [47, 30]);
+  assert.deepEqual(flaky.mb.log.filter(([kind]) => kind === "lone" || kind === "open"), [["lone", 47, 30], ["open", 47, 30]]);
+  assert.deepEqual(flaky.fetches, ["/cells/p1-47.mp4"], "the cell bytes are reused");
+
+  const broken = loneHarness(async () => { throw new Error("EncodingError: Decoder failure"); });
+  const { VideoSampleSink } = broken.mb.module;
+  VideoSampleSink.prototype.samples = async function* samples() {
+    broken.mb.log.push(["open", this.track.cell, -1]);
+    throw new Error("EncodingError: Decoder failure");
+  };
+  broken.source.setPlate(plateDto("p1", [47]));
+  try {
+    await assert.rejects(within(broken.source.need(47, 30, { exclusive: true }), 2000, "need(47, 30)"), /plate_cell_failed:47/);
+  } finally {
+    broken.source.destroy();
+  }
+  assert.equal(broken.mb.log.filter(([kind]) => kind === "lone").length, 1);
+  assert.equal(broken.mb.log.filter(([kind]) => kind === "open").length, 1);
+});
+
+test("a cell fetch that fails in a lone pass is not retried by a second pass", async () => {
+  const mb = fakeMediabunny({ getSample: true });
+  const fetches = [];
+  const source = createPlateSource({
+    fetchImpl: async (url) => { fetches.push(url); return { ok: false, status: 503 }; },
+    loadMediabunny: async () => mb.module,
+    retainFrame: async (frame) => ({ cell: frame.cell, j: frame.j, close() {} }),
+    yieldTask: () => Promise.resolve(),
+    fps: FPS,
+  });
+  source.setPlate(plateDto("p1", [47]));
+  await assert.rejects(source.need(47, 30, { exclusive: true }), /plate_cell_failed:47:503/);
+  assert.deepEqual(fetches, ["/cells/p1-47.mp4"]);
+});
