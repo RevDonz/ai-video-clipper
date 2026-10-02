@@ -810,7 +810,7 @@ def test_the_synthetic_job_render_option_records_engines(tmp_path, monkeypatch):
     make_job_module = _make_job_module()
     root = tmp_path / "fixture"
     jobs = {}
-    for name in ("main", "old", "stranded", "v1"):
+    for name in ("main", "old", "legacy_new", "stranded", "v1"):
         job_dir = root / "jobs" / name
         (job_dir / "output").mkdir(parents=True)
         manifest = {"clips": [{"index": 1, "output": "x"}],
@@ -819,9 +819,11 @@ def test_the_synthetic_job_render_option_records_engines(tmp_path, monkeypatch):
         (job_dir / "job.json").write_text(json.dumps({"id": name, "clips": []}))
         jobs[name] = {"dir": f"jobs/{name}"}
     calls = []
+    joins = {}
 
-    def fake(job_dir, *, render_engine):
+    def fake(job_dir, *, render_engine, cold_open_join):
         calls.append((Path(job_dir).name, render_engine))
+        joins[Path(job_dir).name] = cold_open_join
         engine = {"edit-v2": COMPILER_ID}.get(render_engine)
         entry = {"index": 1, "score": 1.0, "start": 1.0, "end": 9.0, "duration": 8.0,
                  "text": "t", "output": str(Path(job_dir) / "output" / "clip-01.mp4"),
@@ -833,7 +835,9 @@ def test_the_synthetic_job_render_option_records_engines(tmp_path, monkeypatch):
 
     monkeypatch.setattr(pipeline_module, "render_v3_job", fake)
     report = make_job_module.render_all(root, {"jobs": jobs}, stub_camera=False)
-    assert calls == [("main", "edit-v2"), ("old", "legacy")]
+    assert calls == [("main", "edit-v2"), ("old", "legacy"), ("legacy_new", "legacy")]
+    # old: the pipeline before the cold-open transition; the others: its flash and whoosh
+    assert joins == {"main": AUTO_COLD_OPEN_JOIN, "old": None, "legacy_new": AUTO_COLD_OPEN_JOIN}
     assert report["main"]["clips"][0]["render_engine"] == COMPILER_ID
     assert report["old"]["clips"][0]["render_engine"] == "legacy"
     main_job = json.loads((root / "jobs" / "main" / "job.json").read_text())
