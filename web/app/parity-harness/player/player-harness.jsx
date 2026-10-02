@@ -388,7 +388,12 @@ function createHarness(manifest, stage) {
     // Diagnostics (not gates).
     debugState() {
       const { mode, frame, presentedFrame, pending, error, current } = player.state();
-      return { case: item?.id, mode, frame, presentedFrame, pending, error, current, audio: player.stats().audio };
+      const stats = player.stats();
+      const plate = stats.plate
+        ? { passes: stats.plate.passes, errors: stats.plate.errors, abandoned: stats.plate.abandoned ?? null }
+        : null;
+      return { case: item?.id, mode, frame, presentedFrame, pending, error, current, audio: stats.audio, plate,
+        paused: stats.paused ?? null };
     },
     debugVideo() {
       const v = stage.video;

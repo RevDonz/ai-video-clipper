@@ -9,6 +9,11 @@
 // own timers carry no activation) and results come back as a console message only. Twice: with the
 // browser's default GPU stack, and with the GPU and every WebGL API off, like the owner's browser.
 //
+// A third run reproduces the stall seen on production under heavy memory pressure: the first video
+// decoder the page flushes never settles (a paused frame is decoded with getSample, which flushes;
+// playback's sequential route does not need to). Before the paused wait had a budget, that left the
+// stage black until Play.
+//
 // Prerequisites (as for web/e2e/editor-player.spec.mjs): player fixtures from
 // `scripts/parity/player_fixtures.py generate --out <dir> [--only <case>,...]`, a server with
 // POTONGIN_PARITY_HARNESS=1 and POTONGIN_PARITY_FIXTURES=<dir>, E2E_USERNAME/E2E_PASSWORD, and
@@ -41,6 +46,22 @@ const FIRST_FRAME_TIMEOUT_MS = 90_000;
 
 test.skip(!manifest, "POTONGIN_PARITY_FIXTURES must hold player/manifest.json (scripts/parity/player_fixtures.py generate)");
 test.skip(!settings.username || !settings.password, "E2E_USERNAME and E2E_PASSWORD are required");
+
+// Runs in the harness page before its scripts: the first VideoDecoder whose flush() is called never
+// settles, and neither does any later flush of that decoder; every other decoder works.
+function stallFirstDecoder() {
+  const Native = globalThis.VideoDecoder;
+  if (typeof Native !== "function") return;
+  const flush = Native.prototype.flush;
+  let stalled = null;
+  globalThis.__potonginStalledFlushes = 0;
+  Native.prototype.flush = function stalledFlush(...args) {
+    stalled ??= this;
+    if (this !== stalled) return flush.apply(this, args);
+    globalThis.__potonginStalledFlushes += 1;
+    return new Promise(() => {});
+  };
+}
 
 // Runs in the harness page before its scripts: records every AudioContext, waits for the harness,
 // opens the case (the harness resolves once the playhead frame is on the canvas), then reports.
@@ -91,18 +112,19 @@ function openOnLoad({ tag, caseId }) {
       const until = performance.now() + 30_000;
       while (!api.debugState().audio?.ready && performance.now() < until) await new Promise((resolve) => setTimeout(resolve, 50));
       report({ case: caseId, firstMs, shown, picture, activeBefore, hasBeenActive, webgl2: webgl2(),
-        audioReady: Boolean(api.debugState().audio?.ready), contexts: contexts.map((context) => context.state) });
+        audioReady: Boolean(api.debugState().audio?.ready), contexts: contexts.map((context) => context.state),
+        stalledFlushes: globalThis.__potonginStalledFlushes ?? 0 });
     } catch (error) {
       let shown = null;
       try { shown = api.debugState(); } catch { shown = null; }
       report({ case: caseId, error: String(error?.message || error), shown, picture: pixels(), webgl2: webgl2(),
-        contexts: contexts.map((context) => context.state) });
+        contexts: contexts.map((context) => context.state), stalledFlushes: globalThis.__potonginStalledFlushes ?? 0 });
     }
   };
   poll();
 }
 
-async function firstFrame(browser, caseId) {
+async function firstFrame(browser, caseId, { stall = false } = {}) {
   const context = await browser.newContext({ baseURL: settings.baseURL, viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1 });
   try {
     // The session cookie from a page of its own: the harness page never sees that click.
@@ -110,6 +132,7 @@ async function firstFrame(browser, caseId) {
     await login(entry, "/parity-harness/player");
     await entry.close();
     const page = await context.newPage();
+    if (stall) await page.addInitScript(stallFirstDecoder);
     await page.addInitScript(openOnLoad, { tag: TAG, caseId });
     const message = page.waitForEvent("console", { predicate: (item) => item.text().startsWith(TAG), timeout: FIRST_FRAME_TIMEOUT_MS });
     await page.goto("/parity-harness/player");
@@ -167,3 +190,26 @@ for (const stack of STACKS) {
     }
   });
 }
+
+test.describe("first frame when the decoder stalls (its flush never settles), without Play", () => {
+  for (const item of cases.length ? cases : [{ id: "no-p-frame-case" }]) {
+    test(`${item.id}: frame 0 is on the canvas after the stalled decode is given up`, async () => {
+      test.setTimeout(FIRST_FRAME_TIMEOUT_MS + 60_000);
+      expect(cases.length, "the fixtures hold a P-FRAME case").toBeGreaterThan(0);
+      const browser = await chromium.launch({ ...(chrome ? { executablePath: chrome } : {}), args: ["--mute-audio"] });
+      try {
+        const report = await firstFrame(browser, item.id, { stall: true });
+        writeJson(`first_frame_${item.id}_stall.json`, { browser: browser.version(), executable: chrome ?? null, ...report });
+        test.info().annotations.push({ type: "first-frame-stall",
+          description: `${browser.version()} ${report.firstMs ?? "-"} ms, stalled flushes ${report.stalledFlushes}, `
+            + `plate ${JSON.stringify(report.shown?.plate ?? null)}` });
+        expect(report.stalledFlushes, "the first decoder's flush stalled").toBeGreaterThan(0);
+        checkFirstFrame(report);
+        expect(report.shown.plate?.abandoned, "the stalled pass was given up").toBeGreaterThanOrEqual(1);
+        expect(report.shown.error ?? null, "a frame that came is not reported as failed").toBeNull();
+      } finally {
+        await browser.close();
+      }
+    });
+  }
+});
