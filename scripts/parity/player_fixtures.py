@@ -19,11 +19,17 @@ through ``/api/parity-fixtures/player/…`` and ``web/e2e/editor-player.spec.mjs
   (``final`` mode) for the revision-0 fallback;
 * the five P-TIME timing fixtures of ``reference_text.timing_ass`` (hazard frames included) over
   a flat plate at each frame rate;
-* a 300 s clip for PF-MEM.
+* a 300 s clip for PF-MEM;
+* the three P-JOIN-B cases of the cold-open transition (spec 2026-10-02 §5.4; ``--only join``):
+  29.97 ``flash_white`` + whoosh fit-blur with the hook, 25 ``dip_black`` center crop, 23.976
+  ``flash_white`` with a logo. Each holds the plan's alpha per frame, the server composite of the
+  frames around the join (decoded plate frame, ``transitions.lut_chain``, ``ass``, the logo; RGB
+  before the 4:2:0 step) and, with the whoosh, the mix and the reference PCM.
 
-``score`` compares the browser composites with the server composites (``compare.py``);
-``evidence`` turns the spec's results into ``docs/editor/evidence/W2/T2.4-<gate>.json`` (numbers
-only). Everything media-related runs in the toolchain image::
+``score`` compares the browser composites with the server composites (``compare.py``; ``--join``
+for P-JOIN-B); ``evidence`` turns the spec's results into ``<task>-<gate>.json`` (numbers only;
+``--label CI --gate P-JOIN-B`` writes ``CI-P-JOIN-B.json``). Everything media-related runs in the
+toolchain image::
 
     docker run --rm --user 1000:1000 --cpus 4 -v "$PWD":/w -v "$OUT":/out -w /w \\
       -e PYTHONPATH=/w/src:/w/tests -e HOME=/tmp ai-video-clipper:editor-w1z \\
@@ -44,6 +50,7 @@ import sys
 import tempfile
 import time
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -78,6 +85,26 @@ PLAY_CASES = ("cfr_29.97", "cfr_25", "cfr_30", "vfr_30")
 TRUTH_FRAMES = (0, 150, 400)
 LONG_SECONDS = 300
 FALLBACK_TEXT = "Suka ♥ banget"  # U+2665: Montserrat lacks it, DejaVu Sans has it (R6)
+# P-JOIN-B (b): P-TXT's numbers plus the mean difference per channel; (a) and (c) are exact.
+P_JOIN_B = {**compare.P_TXT_THRESHOLDS, "mean_diff": 1.0}
+P_JOIN_B_AUDIO_MAX_LSB = 1
+
+
+@dataclass(frozen=True)
+class JoinCase:
+    """A P-JOIN-B case: a barcode clip whose cold-open join carries a transition."""
+
+    case: fi.Case
+    style: str
+    whoosh: bool
+
+
+JOIN_CASES = (
+    JoinCase(fi.Case("join_29.97", (30000, 1001), 900, "fit_blur", hook=True), "flash_white", True),
+    JoinCase(fi.Case("join_25", (25, 1), 760, "fill_center"), "dip_black", False),
+    JoinCase(fi.Case("join_23.976", (24000, 1001), 700, "fit_blur", cuts=5, logo=True),
+             "flash_white", False),
+)
 
 # Composite strings of the compiler (plan §5.2 R5 with S-COLOR = gbrp; CONTRACTS §5.15).
 _TEXT_IN_GBRP = "scale=in_color_matrix=bt709:in_range=tv,format=gbrp"
@@ -113,6 +140,16 @@ def font_entries(resources: Any) -> list[dict[str, Any]]:
         out.append({"family": name, "file": font["file"], "sha256": font["sha256"],
                     "url": f"{BASE}/fonts/{font['file']}"})
     return out
+
+
+def dto_joins(plan: Any) -> list[dict[str, Any]]:
+    """``joins`` of the DTO, as ``preview_cli`` builds it (``[]`` without a join)."""
+    joins = getattr(plan, "joins", ())
+    if not joins:
+        return []
+    from ai_clipper.edit_v2 import transitions
+
+    return transitions.joins_dto(joins)
 
 
 def _sha(value: Any) -> str:
@@ -173,7 +210,7 @@ def plan_dto(plan: Any, *, case: str, variant: str, plate_key: str, ready: set[i
                            for f in fonts]},
         "plate": {"plateKey": plate_key, "cellFrames": tm.cell_frames(fps), "w": plan.output[0],
                   "h": plan.output[1], "cells": cells},
-        "logo": logo, "audio": audio, "rev0": rev0,
+        "logo": logo, "audio": audio, "rev0": rev0, "joins": dto_joins(plan),
         "warnings": [issue.to_json() for issue in plan.warnings], "errors": [],
     }
 
@@ -230,6 +267,62 @@ def probe_frames(plan: Any, *, count: int = 8) -> list[int]:
     return sorted(chosen)
 
 
+def join_document(jc: JoinCase, *, logo_asset: str | None = None,
+                  assets: Mapping[str, Mapping[str, Any]] | None = None) -> dict[str, Any]:
+    """The document of a P-JOIN-B case: the barcode clip of ``frame_identity`` (its edges, hook
+    and layout) with the case's transition at the cold-open join."""
+    case = jc.case
+    source_fps = case.source_fps or case.fps
+    duration_ms = case.frames * 1000 * source_fps[1] // source_fps[0]
+    info = fi.SourceInfo(case.source_size[0], case.source_size[1], source_fps, case.vfr,
+                         duration_ms, case.audio)
+    edges = fi.case_edges(case)
+    return fi.make_doc(info, fps=case.fps, body=edges["body"], cold_open=edges["cold_open"],
+                       removals=edges["removals"], layout=case.layout, output=case.output,
+                       captions_enabled=case.captions,
+                       hook=("Hook sintetis", 45) if case.hook else None,
+                       logo=(logo_asset, dict(LOGO_TRANSFORM)) if logo_asset else None,
+                       assets=assets, join_style=jc.style, whoosh=jc.whoosh)
+
+
+def transition_of(plan: Any, jc: JoinCase) -> Any:
+    """The plan's one join, checked to carry the case's style, whoosh and alphas."""
+    joins = getattr(plan, "joins", ())
+    if (len(joins) != 1 or joins[0].style != jc.style or not joins[0].alpha
+            or (joins[0].sfx is not None) != jc.whoosh):
+        raise RuntimeError(f"{jc.case.name}: the plan does not carry {jc.style}"
+                           f"{' + whoosh' if jc.whoosh else ''} at the cold-open join")
+    return joins[0]
+
+
+def _alpha_frames(alpha: Sequence[Sequence[int]]) -> tuple[int, int]:
+    if not alpha:
+        raise ValueError("a join without alpha frames has no window")
+    return alpha[0][0], alpha[-1][0]
+
+
+def join_check_frames(alpha: Sequence[Sequence[int]], total: int) -> list[int]:
+    """P-JOIN-B (a): every frame of [J − before − 2, J + after + 2) inside the clip."""
+    first, last = _alpha_frames(alpha)
+    return list(range(max(0, first - 2), min(total, last + 3)))
+
+
+def join_probe_frames(alpha: Sequence[Sequence[int]], total: int) -> list[int]:
+    """P-JOIN-B (b): every frame with a fill, and the unfilled frame on either side."""
+    first, last = _alpha_frames(alpha)
+    return list(range(max(0, first - 1), min(total, last + 2)))
+
+
+def lut_chain(plan: Any) -> str:
+    """The compiler's transition filters for the plan (``""`` when no join has a fill)."""
+    joins = getattr(plan, "joins", ())
+    if not any(join.alpha for join in joins):
+        return ""
+    from ai_clipper.edit_v2 import transitions
+
+    return transitions.lut_chain(joins, plan.fps)
+
+
 # --- scoring --------------------------------------------------------------------------------------
 
 
@@ -278,6 +371,64 @@ def logo_pass(score: Mapping[str, Any]) -> bool:
 
 def _read_rgb(path: Path) -> Any:
     return compare.read_png(path).rgb()
+
+
+def mean_diff(reference: Any, test: Any) -> list[float]:
+    """Mean of ``test − reference`` per channel over the whole frame (signed)."""
+    if (reference.width, reference.height, reference.channels) != (
+            test.width, test.height, test.channels):
+        raise ValueError("image shapes differ")
+    c = reference.channels
+    sums = [0] * c
+    for y in range(reference.height):
+        row_r, row_t = reference.row(y), test.row(y)
+        if row_r == row_t:
+            continue
+        for k in range(c):
+            sums[k] += sum(row_t[k::c]) - sum(row_r[k::c])
+    pixels = reference.width * reference.height
+    return [total / pixels for total in sums]
+
+
+def join_composite_pass(metrics: Mapping[str, Any]) -> bool:
+    return (compare.p_txt_pass(dict(metrics))
+            and max(abs(value) for value in metrics["mean_diff"]) <= P_JOIN_B["mean_diff"])
+
+
+def score_join(fixtures: Path, browser: Path) -> dict[str, Any]:
+    """P-JOIN-B (b): every probe frame of the join cases (``join/<case>/<frame>.png``) against
+    the server composite of the same frame."""
+    manifest = json.loads((fixtures / "player" / "manifest.json").read_text(encoding="utf-8"))
+    result: dict[str, Any] = {"thresholds": dict(P_JOIN_B), "frames": 0, "failures": [],
+                              "worst": {"ssim": 1.0, "psnr": float("inf"), "max": 0,
+                                        "px_over_16": 0, "mean_diff": 0.0}, "cases": {}}
+    worst = result["worst"]
+    for case in manifest["cases"]:
+        if case.get("kind") != "join":
+            continue
+        join = case["join"]
+        per_frame = {}
+        for frame in join["probe_frames"]:
+            shot = browser / "join" / case["id"] / f"{frame}.png"
+            if not shot.is_file():
+                result["failures"].append({"case": case["id"], "frame": frame, "missing": True})
+                continue
+            reference = _read_rgb(fixtures / join["composite"][str(frame)])
+            test_img = _read_rgb(shot)
+            region = compare.Box(*join["text_region"][str(frame)])
+            metrics = {**compare.p_txt_metrics(reference, test_img, text_region=region),
+                       "mean_diff": mean_diff(reference, test_img)}
+            per_frame[str(frame)] = metrics
+            result["frames"] += 1
+            for key in ("ssim", "psnr"):
+                worst[key] = min(worst[key], metrics[key])
+            for key in ("max", "px_over_16"):
+                worst[key] = max(worst[key], metrics[key])
+            worst["mean_diff"] = max(worst["mean_diff"], *(abs(v) for v in metrics["mean_diff"]))
+            if not join_composite_pass(metrics):
+                result["failures"].append({"case": case["id"], "frame": frame, **metrics})
+        result["cases"][case["id"]] = per_frame
+    return result
 
 
 def score(fixtures: Path, browser: Path) -> dict[str, Any]:
@@ -410,6 +561,27 @@ def _gate_truth(r: dict) -> tuple[dict, bool]:
     return r, ok
 
 
+def _gate_p_join_b(r: dict) -> tuple[dict, bool]:
+    def alpha_ok(alpha: Mapping[str, Any]) -> bool:
+        return (alpha["frames"] > 0 and alpha["mismatches"] == 0 and alpha["unpresented"] == 0
+                and alpha["control_one_frame_late_flagged"] > 0)
+
+    def audio_ok(audio: Mapping[str, Any] | None) -> bool:
+        return (audio is not None and audio["contextRate"] == 48000
+                and audio["bufferRate"] == 48000 and audio["length"] == audio["referenceLength"]
+                and audio["maxDiffLsb"] <= P_JOIN_B_AUDIO_MAX_LSB)
+
+    cases = r["cases"]
+    whoosh = [c for c in cases if c.get("whoosh")]
+    composite = r["composite"]
+    ok = (len(cases) >= len(JOIN_CASES) and all(alpha_ok(c["alpha"]) for c in cases)
+          and bool(whoosh) and all(audio_ok(c["audio"]) for c in whoosh)
+          and composite["frames"] > 0 and not composite["failures"])
+    threshold = {"alpha_mismatches": 0, "composite": P_JOIN_B,
+                 "audio": {"max_diff_lsb": P_JOIN_B_AUDIO_MAX_LSB, "same_count_as": "reference"}}
+    return {"threshold": threshold, **r}, ok
+
+
 EVIDENCE = (
     ("p_frame.json", "P-FRAME", _gate_p_frame),
     ("p_time.json", "P-TIME", _gate_p_time),
@@ -422,20 +594,22 @@ EVIDENCE = (
     ("pf_libass.json", "PF-LIBASS", _gate_pf_libass),
     ("pf_mem.json", "PF-MEM", _gate_pf_mem),
     ("truth_fallback.json", "REV0-TRUTH", _gate_truth),
+    ("p_join_b.json", "P-JOIN-B", _gate_p_join_b),
 )
 
 
 def write_evidence(fixtures: Path, browser: Path, out_dir: Path, *, task: str = "T2.4",
-                   supplementary: Mapping[str, Mapping[str, Any]] | None = None) -> list[Path]:
-    """One ``<task>-<gate>.json`` per gate whose results exist (numbers only: no paths).
-    ``supplementary`` adds non-gating measurements to a gate's file (e.g. PF-SEEK with another
-    plate GOP)."""
+                   supplementary: Mapping[str, Mapping[str, Any]] | None = None,
+                   gates: Sequence[str] | None = None) -> list[Path]:
+    """One ``<task>-<gate>.json`` per gate whose results exist (numbers only: no paths), or per
+    gate of ``gates`` only. ``supplementary`` adds non-gating measurements to a gate's file
+    (e.g. PF-SEEK with another plate GOP)."""
     manifest = json.loads((fixtures / "player" / "manifest.json").read_text(encoding="utf-8"))
     written = []
     out_dir.mkdir(parents=True, exist_ok=True)
     for name, gate, build in EVIDENCE:
         source = browser / name
-        if not source.is_file():
+        if not source.is_file() or (gates is not None and gate not in gates):
             continue
         body, ok = build(json.loads(source.read_text(encoding="utf-8")))
         browser_version = body.get("browser") if isinstance(body, dict) else None
@@ -476,15 +650,16 @@ def _execute(job: FfmpegJob, output: Path, *, directory: bool = False) -> None:
 
 
 def composite_job(plan: Any, *, cell: Path, j: int, n: int, resources: Any, text: bool = True,
-                  logo: tuple[str, Path] | None = None) -> FfmpegJob:
+                  logo: tuple[str, Path] | None = None, lut: str = "") -> FfmpegJob:
     """The server composite of output frame ``n`` over frame ``j`` of a decoded plate cell, with
-    the compiler's R5 strings: into gbrp, ``ass`` at ``now_ms(n)`` (pts ``n`` in time base
-    den/num, as ``frame`` mode), the derived logo overlaid in gbrp; RGB before the 4:2:0 step."""
+    the compiler's R5 strings: into gbrp, the transition's ``lut`` (``lut_chain``: its ``enable``
+    windows read t = n·den/num), ``ass`` at ``now_ms(n)`` (pts ``n`` in time base den/num, as
+    ``frame`` mode), the derived logo overlaid in gbrp; RGB before the 4:2:0 step."""
     from ai_clipper.edit_v2.derive import derive_filter
 
     fps = plan.fps
     chain = (f"[0:v]trim=start_frame={j}:end_frame={j + 1},setpts=PTS-STARTPTS,"
-             f"settb={fps.den}/{fps.num},setpts={n},{_TEXT_IN_GBRP}")
+             f"settb={fps.den}/{fps.num},setpts={n},{_TEXT_IN_GBRP}{lut}")
     graph = [chain + (f",{_TEXT_FILTER}" if text else "") + "[vtext]"]
     inputs = [InputSpec("source", "source")]
     paths: dict[str, str] = {"source": str(cell)}
@@ -818,6 +993,84 @@ class Generator:
                           for lane, spec in lanes.items()},
                 "transitions": transitions, "flat_rgb": FLAT_RGB}
 
+    # P-JOIN-B --------------------------------------------------------------------------------
+
+    def join(self, jc: JoinCase) -> dict[str, Any]:
+        from ai_clipper.edit_v2.plan import build_plan
+
+        case = jc.case
+        clip = self.ws.clip(case)  # the barcode source, words and assets of the clip
+        source = clip["source"]
+        assets = dict(clip["assets"])
+        logo_asset = next(iter(assets)) if case.logo else None
+        doc = join_document(jc, logo_asset=logo_asset, assets=assets)
+        plan = build_plan(doc, words=clip["words"], camera=clip["camera"], assets=assets,
+                          resources=self.resources)
+        join = transition_of(plan, jc)
+        alpha = [list(pair) for pair in join.alpha]
+        total = plan.total_frames
+        check = join_check_frames(alpha, total)
+        probe = join_probe_frames(alpha, total)
+        size = tm.cell_frames(plan.fps)
+        wanted = sorted({tm.out_to_src(n, plan.pieces)[1] // size for n in (0, *check)})
+        ready = self.cells(plan, source, case.name, wanted)
+        mix = self.mix(plan, source, case.name) if jc.whoosh else None
+        plate_key = _sha(["plate", case.name, case.layout, list(case.fps)])
+        logo_file = None
+        logo_input = None
+        if plan.logo is not None:
+            from ai_clipper.edit_v2.derive import derive_image
+
+            asset_path = self.ws.root / "assets" / f"{plan.logo.asset.split(':')[1]}.png"
+            logo_file = f"logo-{plan.logo.w}x{plan.logo.h}.png"
+            (self.out / case.name / logo_file).write_bytes(derive_image(
+                asset_path, w=plan.logo.w, h=plan.logo.h, opacity_pm=plan.logo.opacity_pm))
+            logo_input = (plan.logo.asset, asset_path)
+        dto = plan_dto(plan, case=case.name, variant="default", plate_key=plate_key, ready=ready,
+                       mix=mix, fonts=self.fonts, logo_file=logo_file, auto_render=None)
+        if [join_dto["alphaPm"] for join_dto in dto["joins"]] != [alpha]:
+            raise RuntimeError(f"{case.name}: the DTO's alphas are not the plan's")
+        lut = lut_chain(plan)
+        self.log(f"{case.name}: {jc.style}{' + whoosh' if jc.whoosh else ''}, J = {join.at_f}, "
+                 f"{len(probe)} composites")
+        composites: dict[str, str] = {}
+        plates: dict[str, str] = {}
+        region = None
+        base = self.out / case.name / "join"
+        for n in probe:
+            sf = tm.out_to_src(n, plan.pieces)[1]
+            k, j = divmod(sf, size)
+            cell = self.out / case.name / "cells" / f"c{k:07d}.mp4"
+            composite = base / "composite" / f"{n}.png"
+            plate = base / "plate" / f"{n}.png"
+            _execute(composite_job(plan, cell=cell, j=j, n=n, resources=self.resources,
+                                   logo=logo_input, lut=lut), composite)
+            _execute(composite_job(plan, cell=cell, j=j, n=n, resources=self.resources,
+                                   text=False, lut=lut), plate)
+            composites[str(n)] = self.rel(composite)
+            plates[str(n)] = self.rel(plate)
+            box = compare.diff_bbox(_read_rgb(plate), _read_rgb(composite))
+            region = box.union(region) if box is not None else region
+        # One text region per case, as the P-TXT variants (the whole frame when none is drawn).
+        width, height = plan.output
+        padded = (region.pad(REGION_PAD, width, height).to_list() if region is not None
+                  else [0, 0, width, height])
+        entry: dict[str, Any] = {
+            "id": case.name, "kind": "join", "fps": list(case.fps), "layout": case.layout,
+            "style": jc.style, "whoosh": jc.whoosh, "logo": plan.logo is not None,
+            "total_frames": total, "pieces": len(plan.pieces), "variants": [],
+            "plans": {"default": self.write_plan(case.name, "default", dto)},
+            "default_variant": "default", "plate_key": plate_key,
+            "decode": self.decode_info(case),
+            "join": {"at_f": join.at_f, "rgb": dto["joins"][0]["rgb"], "alpha": alpha,
+                     "sfx": dto["joins"][0]["sfx"], "check_frames": check,
+                     "probe_frames": probe, "composite": composites, "plate": plates,
+                     "text_region": {str(n): padded for n in probe}},
+        }
+        if jc.whoosh:
+            entry.update(self.reference_pcm(plan, source, case.name))
+        return entry
+
     # PF-MEM ----------------------------------------------------------------------------------
 
     def long(self) -> dict[str, Any]:
@@ -860,6 +1113,9 @@ def generate(out: Path, *, only: Sequence[str] | None = None, plate_gop: int | N
                 cases.append(gen.ptime(rate))
         if only is None or "long_300s" in only:
             cases.append(gen.long())
+        for jc in JOIN_CASES:
+            if only is None or "join" in only or jc.case.name in only:
+                cases.append(gen.join(jc))
     manifest = {"schema": SCHEMA, "size": [720, 1280], "fonts": gen.fonts,
                 "fallback_family": "DejaVu Sans", "toolchain": _toolchain(),
                 "composite": "gbrp", "plate_gop": plate_gop,
@@ -874,7 +1130,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     gen = commands.add_parser("generate")
     gen.add_argument("--out", type=Path, required=True)
-    gen.add_argument("--only", help="comma-separated case ids")
+    gen.add_argument("--only", help="comma-separated case ids; join: every P-JOIN-B case")
     gen.add_argument("--plate-gop", type=int,
                      help="measurement only: x264 GOP of the plate cells (default: the compiler's, "
                           "one GOP per cell)")
@@ -882,11 +1138,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     sc.add_argument("--fixtures", type=Path, required=True)
     sc.add_argument("--browser", type=Path, required=True)
     sc.add_argument("--out", type=Path, required=True)
+    sc.add_argument("--join", action="store_true",
+                    help="score the P-JOIN-B composites only (join/<case>/<frame>.png)")
     ev = commands.add_parser("evidence")
     ev.add_argument("--fixtures", type=Path, required=True)
     ev.add_argument("--browser", type=Path, required=True)
     ev.add_argument("--out-dir", type=Path, required=True)
-    ev.add_argument("--task", default="T2.4")
+    ev.add_argument("--task", "--label", dest="task", default="T2.4",
+                    help="the file prefix: <task>-<gate>.json (CI in the parity job)")
+    ev.add_argument("--gate", dest="gates", action="append",
+                    help="write only this gate's file (repeatable)")
     ev.add_argument("--seek-gop", nargs=2, metavar=("GOP", "PF_SEEK_JSON"),
                     help="a pf_seek.json measured on plate cells with another GOP (supplementary)")
     args = parser.parse_args(argv)
@@ -897,6 +1158,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(json.dumps({"cases": [c["id"] for c in manifest["cases"]],
                           "wall_s": manifest["wall_s"], "toolchain": manifest["toolchain"]}))
         return 0
+    if args.command == "score" and args.join:
+        joined = score_join(args.fixtures, args.browser)
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        args.out.write_text(json.dumps(_numbers_only({"schema": "potongin.player-scores/1",
+                                                      "p_join_b": joined}), indent=2) + "\n",
+                            encoding="utf-8")
+        print(json.dumps({"p_join_b": {k: joined[k] for k in ("frames", "worst")},
+                          "p_join_b_failures": len(joined["failures"])}, default=str))
+        return 0 if not joined["failures"] else 1
     if args.command == "score":
         result = score(args.fixtures, args.browser)
         args.out.parent.mkdir(parents=True, exist_ok=True)
@@ -918,7 +1188,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "cases": [{k: c.get(k) for k in ("case", "seeks", "p50", "p95", "max", "plate_ms",
                                             "text_ms")} for c in seek["cases"]]}}}
     written = write_evidence(args.fixtures, args.browser, args.out_dir, task=args.task,
-                             supplementary=supplementary)
+                             supplementary=supplementary, gates=args.gates)
     for path in written:
         data = json.loads(path.read_text(encoding="utf-8"))
         print(f"{path.name}: {'pass' if data['pass'] else 'FAIL'}")
