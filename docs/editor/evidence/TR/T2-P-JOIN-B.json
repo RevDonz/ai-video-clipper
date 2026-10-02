@@ -1,0 +1,486 @@
+{
+  "browser": "147.0.7727.15",
+  "cases": [
+    {
+      "alpha": {
+        "control_edges": 6,
+        "control_one_frame_late_flagged": 6,
+        "frames": 9,
+        "mismatches": 0,
+        "unpresented": 0
+      },
+      "at_f": 60,
+      "audio": {
+        "bufferRate": 48000,
+        "channels": 2,
+        "contextRate": 48000,
+        "differingSamples": 506608,
+        "length": 976976,
+        "maxDiffLsb": 0.6171875,
+        "notExactUnderInt16Scaling": 0,
+        "planSamples": 976976,
+        "planSamplesDelta": 0,
+        "referenceLength": 976976
+      },
+      "case": "join_29.97",
+      "composites": 7,
+      "fps": [
+        30000,
+        1001
+      ],
+      "layout": "fit_blur",
+      "logo": false,
+      "playback": {
+        "drops": 1,
+        "drops_at_cuts": 0,
+        "drops_in_window": 0,
+        "from_frame": 0,
+        "holds": 0,
+        "present_gap_ms": {
+          "max": 96.80000000001746,
+          "p50": 33.30000000001746,
+          "p99": 48.39999999999418
+        },
+        "presented": 608
+      },
+      "seek_ms": {
+        "blended": {
+          "max": 68,
+          "p50": 14.300000000017462
+        },
+        "plain": {
+          "max": 52.10000000000582,
+          "p50": 6.400000000023283
+        }
+      },
+      "style": "flash_white",
+      "whoosh": true
+    },
+    {
+      "alpha": {
+        "control_edges": 8,
+        "control_one_frame_late_flagged": 8,
+        "frames": 11,
+        "mismatches": 0,
+        "unpresented": 0
+      },
+      "at_f": 50,
+      "audio": null,
+      "case": "join_25",
+      "composites": 9,
+      "fps": [
+        25,
+        1
+      ],
+      "layout": "fill_center",
+      "logo": false,
+      "playback": null,
+      "seek_ms": {
+        "blended": {
+          "max": 67.30000000001746,
+          "p50": 20.10000000000582
+        },
+        "plain": {
+          "max": 50.60000000000582,
+          "p50": 25.900000000023283
+        }
+      },
+      "style": "dip_black",
+      "whoosh": false
+    },
+    {
+      "alpha": {
+        "control_edges": 6,
+        "control_one_frame_late_flagged": 6,
+        "frames": 9,
+        "mismatches": 0,
+        "unpresented": 0
+      },
+      "at_f": 48,
+      "audio": null,
+      "case": "join_23.976",
+      "composites": 7,
+      "fps": [
+        24000,
+        1001
+      ],
+      "layout": "fit_blur",
+      "logo": true,
+      "playback": null,
+      "seek_ms": {
+        "blended": {
+          "max": 30.699999999982538,
+          "p50": 13.39999999999418
+        },
+        "plain": {
+          "max": 49.39999999999418,
+          "p50": 30.79999999998836
+        }
+      },
+      "style": "flash_white",
+      "whoosh": false
+    }
+  ],
+  "composite": {
+    "cases": {
+      "join_23.976": {
+        "45": {
+          "max": 2,
+          "mean_diff": [
+            -0.01726128472222222,
+            -0.016343315972222223,
+            -0.013391927083333333
+          ],
+          "psnr": 65.23187547322087,
+          "px_differing": 13385,
+          "px_over_16": 0,
+          "ssim": 0.999934448754606,
+          "ssim_text": 0.9981940827259602
+        },
+        "46": {
+          "max": 2,
+          "mean_diff": [
+            -0.017075737847222223,
+            -0.014481336805555555,
+            -0.013421223958333334
+          ],
+          "psnr": 65.60068699397193,
+          "px_differing": 12839,
+          "px_over_16": 0,
+          "ssim": 0.9999454985028634,
+          "ssim_text": 0.9994551865137251
+        },
+        "47": {
+          "max": 1,
+          "mean_diff": [
+            -0.0061892361111111115,
+            -0.006139322916666667,
+            -0.0022211371527777776
+          ],
+          "psnr": 70.10689733109763,
+          "px_differing": 9475,
+          "px_over_16": 0,
+          "ssim": 0.9999779942569177,
+          "ssim_text": 0.9996056485908047
+        },
+        "48": {
+          "max": 1,
+          "mean_diff": [
+            0.0004763454861111111,
+            0.0003862847222222222,
+            0.004112413194444445
+          ],
+          "psnr": 75.93404741660669,
+          "px_differing": 4318,
+          "px_over_16": 0,
+          "ssim": 0.9999998182053434,
+          "ssim_text": 0.9999886177010009
+        },
+        "49": {
+          "max": 1,
+          "mean_diff": [
+            -0.00384765625,
+            -0.004108072916666667,
+            2.2786458333333334e-05
+          ],
+          "psnr": 72.14023098065516,
+          "px_differing": 7341,
+          "px_over_16": 0,
+          "ssim": 0.9999833350674774,
+          "ssim_text": 0.9995954876752027
+        },
+        "50": {
+          "max": 2,
+          "mean_diff": [
+            -0.013971354166666667,
+            -0.011643880208333334,
+            -0.010227864583333333
+          ],
+          "psnr": 66.61269713479209,
+          "px_differing": 10485,
+          "px_over_16": 0,
+          "ssim": 0.9999612690695775,
+          "ssim_text": 0.9994588848160898
+        },
+        "51": {
+          "max": 2,
+          "mean_diff": [
+            -0.014233940972222222,
+            -0.013748914930555555,
+            -0.010528428819444444
+          ],
+          "psnr": 65.88076370208121,
+          "px_differing": 10790,
+          "px_over_16": 0,
+          "ssim": 0.9999491270166241,
+          "ssim_text": 0.9986322397002191
+        }
+      },
+      "join_25": {
+        "46": {
+          "max": 1,
+          "mean_diff": [
+            -0.004214409722222222,
+            -0.004214409722222222,
+            -0.004214409722222222
+          ],
+          "psnr": 71.8834360571108,
+          "px_differing": 3884,
+          "px_over_16": 0,
+          "ssim": 0.999998917923929,
+          "ssim_text": 0.999998917923929
+        },
+        "47": {
+          "max": 1,
+          "mean_diff": [
+            -0.0030392795138888887,
+            -0.0030392795138888887,
+            -0.0030392795138888887
+          ],
+          "psnr": 73.30309718123479,
+          "px_differing": 2801,
+          "px_over_16": 0,
+          "ssim": 0.999999454326256,
+          "ssim_text": 0.999999454326256
+        },
+        "48": {
+          "max": 1,
+          "mean_diff": [
+            -0.0005447048611111111,
+            -0.0005447048611111111,
+            -0.0005447048611111111
+          ],
+          "psnr": 80.76919109802027,
+          "px_differing": 502,
+          "px_over_16": 0,
+          "ssim": 0.9999993140908497,
+          "ssim_text": 0.9999993140908497
+        },
+        "49": {
+          "max": 1,
+          "mean_diff": [
+            -0.00048177083333333335,
+            -0.00048177083333333335,
+            -0.00048177083333333335
+          ],
+          "psnr": 81.30239856832426,
+          "px_differing": 444,
+          "px_over_16": 0,
+          "ssim": 0.9999987315541133,
+          "ssim_text": 0.9999987315541133
+        },
+        "50": {
+          "max": 0,
+          "mean_diff": [
+            0,
+            0,
+            0
+          ],
+          "psnr": "inf",
+          "px_differing": 0,
+          "px_over_16": 0,
+          "ssim": 1,
+          "ssim_text": 1
+        },
+        "51": {
+          "max": 1,
+          "mean_diff": [
+            -0.0006022135416666667,
+            -0.0006022135416666667,
+            -0.0006022135416666667
+          ],
+          "psnr": 80.3332984382437,
+          "px_differing": 555,
+          "px_over_16": 0,
+          "ssim": 0.9999988219779112,
+          "ssim_text": 0.9999988219779112
+        },
+        "52": {
+          "max": 1,
+          "mean_diff": [
+            -0.002289496527777778,
+            -0.002289496527777778,
+            -0.002289496527777778
+          ],
+          "psnr": 74.53340371649355,
+          "px_differing": 2110,
+          "px_over_16": 0,
+          "ssim": 0.9999975492167383,
+          "ssim_text": 0.9999975492167383
+        },
+        "53": {
+          "max": 1,
+          "mean_diff": [
+            -0.002322048611111111,
+            -0.002322048611111111,
+            -0.002322048611111111
+          ],
+          "psnr": 74.47209053597857,
+          "px_differing": 2140,
+          "px_over_16": 0,
+          "ssim": 0.9999993783786586,
+          "ssim_text": 0.9999993783786586
+        },
+        "54": {
+          "max": 1,
+          "mean_diff": [
+            -0.0025260416666666665,
+            -0.0025260416666666665,
+            -0.0025260416666666665
+          ],
+          "psnr": 74.10639850969196,
+          "px_differing": 2328,
+          "px_over_16": 0,
+          "ssim": 0.9999994484767843,
+          "ssim_text": 0.9999994484767843
+        }
+      },
+      "join_29.97": {
+        "57": {
+          "max": 12,
+          "mean_diff": [
+            -0.0017664930555555557,
+            -0.0016417100694444443,
+            -0.0018760850694444445
+          ],
+          "psnr": 64.64951913936035,
+          "px_differing": 8490,
+          "px_over_16": 0,
+          "ssim": 0.9999652907735662,
+          "ssim_text": 0.9998135595230746
+        },
+        "58": {
+          "max": 1,
+          "mean_diff": [
+            -0.006043836805555556,
+            -0.006043836805555556,
+            -0.006043836805555556
+          ],
+          "psnr": 70.31767631773319,
+          "px_differing": 5570,
+          "px_over_16": 0,
+          "ssim": 0.9999456236558674,
+          "ssim_text": 1
+        },
+        "59": {
+          "max": 1,
+          "mean_diff": [
+            -0.0006662326388888888,
+            -0.0006662326388888888,
+            -0.0006662326388888888
+          ],
+          "psnr": 79.8945445580588,
+          "px_differing": 614,
+          "px_over_16": 0,
+          "ssim": 0.9999966917522635,
+          "ssim_text": 1
+        },
+        "60": {
+          "max": 0,
+          "mean_diff": [
+            0,
+            0,
+            0
+          ],
+          "psnr": "inf",
+          "px_differing": 0,
+          "px_over_16": 0,
+          "ssim": 1,
+          "ssim_text": 1
+        },
+        "61": {
+          "max": 1,
+          "mean_diff": [
+            -0.002692057291666667,
+            -0.002692057291666667,
+            -0.002692057291666667
+          ],
+          "psnr": 73.82996062674837,
+          "px_differing": 2481,
+          "px_over_16": 0,
+          "ssim": 0.9999811711670468,
+          "ssim_text": 1
+        },
+        "62": {
+          "max": 1,
+          "mean_diff": [
+            -0.0037261284722222223,
+            -0.0037261284722222223,
+            -0.0037261284722222223
+          ],
+          "psnr": 72.41822536122149,
+          "px_differing": 3434,
+          "px_over_16": 0,
+          "ssim": 0.9999742221382869,
+          "ssim_text": 1
+        },
+        "63": {
+          "max": 1,
+          "mean_diff": [
+            -0.0038617621527777778,
+            -0.0038617621527777778,
+            -0.0038617621527777778
+          ],
+          "psnr": 72.26294838943201,
+          "px_differing": 3559,
+          "px_over_16": 0,
+          "ssim": 0.9999745279915466,
+          "ssim_text": 1
+        }
+      }
+    },
+    "failures": [],
+    "frames": 23,
+    "thresholds": {
+      "max": 16,
+      "mean_diff": 1,
+      "psnr": 45,
+      "px_over_16": 0,
+      "ssim": 0.999
+    },
+    "worst": {
+      "max": 12,
+      "mean_diff": 0.01726128472222222,
+      "psnr": 64.64951913936035,
+      "px_over_16": 0,
+      "ssim": 0.999934448754606
+    }
+  },
+  "composite_expected": 23,
+  "gate": "P-JOIN-B",
+  "pass": true,
+  "run": {
+    "branch": "transisi-t2-joincheck",
+    "commit": "743a608",
+    "earlier": {
+      "id": 36964783673,
+      "result": "fail",
+      "why": "globalAlpha fill: SSIM 0.982-0.9988 on 5 dip_black frames (max diff <= 3)"
+    },
+    "id": 36965911172,
+    "note": "Measured before integration: T1's engine (transitions, plan joins, DTO, lut_chain, whoosh mix) merged with T2. frame_identity.make_doc's join_style/whoosh arguments were a stand-in written to spec §8 (T1's parity tooling had not landed). The integration nightly re-measures it as CI-P-JOIN-B.json.",
+    "t1_commit": "dd41aeb",
+    "t2_commit": "ce621f0",
+    "workflow": "ci-cd.yml suite=nightly (parity job; image sections toolchain and ptxt only)"
+  },
+  "task": "T2",
+  "threshold": {
+    "alpha_mismatches": 0,
+    "audio": {
+      "max_diff_lsb": 1,
+      "same_count_as": "reference"
+    },
+    "composite": {
+      "max": 16,
+      "mean_diff": 1.0,
+      "psnr": 45.0,
+      "px_over_16": 0,
+      "ssim": 0.999
+    }
+  },
+  "toolchain": {
+    "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+    "python": "3.11.2",
+    "reference_toolchain_problem": null
+  }
+}

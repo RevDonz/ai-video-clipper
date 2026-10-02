@@ -961,10 +961,15 @@ given, instead of `transisi-t2-preview`):
    T2.4) and is not in T1's list. The one test that needs T1's engine (the cases' plans and DTO
    against the §2.2 table) uses `pytest.importorskip("ai_clipper.edit_v2.transitions")`: it is
    skipped on `transisi-t2` and runs on the integration branch.
-9. **Evidence file.** `T2-P-JOIN-B.json` comes from the integration branch's
-   `ci-cd.yml -f suite=nightly`, because the fixtures need T1's `transitions` and `make_doc`
-   arguments. It is the run's `CI-P-JOIN-B.json` (artifact `parity-full`) with `task` set to
-   `T2`.
+9. **Evidence file.** `T2-P-JOIN-B.json` is the `CI-P-JOIN-B.json` of a run made before
+   integration, with `task` set to `T2` and the run recorded in it:
+   - run 36965911172, on the throwaway branch `transisi-t2-joincheck` (T1 `dd41aeb` merged with
+     T2 `ce621f0`);
+   - `frame_identity.make_doc`'s join arguments were a stand-in written to §8, and the parity job
+     ran only the image sections that P-JOIN-B needs.
+
+   The integration branch's `ci-cd.yml -f suite=nightly` measures it again as
+   `CI-P-JOIN-B.json`. Use that run's numbers for GATES.md.
 
 ### T3 (editor UI)
 
