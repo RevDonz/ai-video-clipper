@@ -172,6 +172,40 @@ test("a style set after the other tab removed the cold open is grouped with the 
   assert.equal(coldOpen(result.resolve({ coldopen: "theirs" }).doc), null);
 });
 
+test("undo past a save logs the transition as parts; the log replays to the same document", () => {
+  // c25: a new cold open gets Kilat putih + whoosh; the user mutes it, picks Gelap sebentar,
+  // removes the cold open and saves, then undoes everything past the save and redoes it. Bringing
+  // back the muted cold open from parts must not bring back the template's whoosh.
+  const words = bodyWords(C25);
+  const session = tab(C25);
+  session.dispatch("SetColdOpen", { firstWord: words[60].id, lastWord: words[64].id });
+  session.dispatch("SetJoinSfx", { on: false });
+  session.dispatch("SetJoinStyle", { style: "dip_black" });
+  session.dispatch("SetColdOpen", null);
+  session.seal();
+  session.saved(session.pending.length);
+  const saved = session.doc;
+  const states = [];
+  const replays = () => contentJson(replaySteps(saved, session.pending, C25.ctx).doc) === contentJson(session.doc);
+  while (session.undo()) {
+    states.push(session.doc);
+    assert.ok(session.pending.every((step) => step.type === "__parts"));
+    assert.ok(replays(), `undo ${states.length}`);
+  }
+  assert.equal(coldOpen(session.doc), null);
+  while (session.redo()) {
+    states.push(session.doc);
+    assert.ok(replays(), `redo ${states.length}`);
+  }
+  assert.equal(coldOpen(session.doc), null);
+  // Every state on the way is valid, and the whoosh came back only where it was on.
+  for (const doc of states) assert.deepEqual(checkDoc(doc, C25.ctx), []);
+  assert.deepEqual(states.map((doc) => doc.main.joins[0] ?? null).map((join) => join && [join.style, Boolean(join.sfx)]), [
+    ["dip_black", false], ["flash_white", false], ["flash_white", true], null,
+    ["flash_white", true], ["flash_white", false], ["dip_black", false], null,
+  ]);
+});
+
 test("a cold open brought back by 'Pakai punyaku' brings its transition along", () => {
   // Both tabs start from a saved revision with Gelap sebentar + whoosh; mine only trims the cold
   // open, theirs removes it: restoring mine restores the transition, not the seed's cut.
