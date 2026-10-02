@@ -1646,7 +1646,7 @@ run and commit). P-JOIN-B (the browser half) is T2's and is filled at integratio
 | **R10 / P-RT** | as above | P-RT framemd5 and PCM md5 identical; R10 hard link 100 % | `main` (edit-v2 with the flash and whoosh), `fps60`, `old` (legacy, before the transition: cut, no manifest key), `legacy_new` (legacy with the flash and whoosh, prepared afterwards) | PR (R10), toolchain / nightly (P-RT) | **pass**: P-RT re-render 6/6 clips, 6,813 frames, video, PCM and bytes identical; R10 36/36 linked (18 edit-v2, 18 legacy). PR smoke R10 18/18 |
 | **G-DET** | unchanged rule, plus a 29.97 `flash_white` + whoosh document | identical plan, ASS, graph, sidecars and envelope across 3 processes | 9 cases | PR | **pass**: 0 differences, preview ASS = export ASS |
 | **PF-RENDER** (report) | each engine's delivered render of the 29.97 clip (10.3 s) with and without the flash and the whoosh | report | edit-v2 `final` of the 20-cut document; legacy `render_vertical` of the cold open and the body's span | nightly | edit-v2 5.04 → 5.17 s (+0.13 s); legacy 4.37 → 5.54 s (+1.17 s: `geq` on the affected frames and the join-measuring pass). The existing PF-RENDER (unchanged documents) p50 0.318×, p95 0.473× (within budget) |
-| **P-JOIN-B** (browser) | the player's `joinAlphaPm`, the canvas against the server composite, the whoosh mix | 0 mismatches; P-TXT's numbers; ≤ 1 LSB | 29.97, 25, 23.976 (spec §5.4) | nightly (ci-cd parity job) | T2 |
+| **P-JOIN-B** (browser) | (a) the player's `joinAlphaPm` and `debug.joinAt` on `[J − before − 2, J + after + 2)`; (b) the canvas against the server composite (plate frame + `lut_chain` + `ass` [+ logo], before 4:2:0); (c) the whoosh mix's AudioBuffer against the reference PCM | (a) 0 mismatches; (b) SSIM ≥ 0.999, PSNR ≥ 45 dB, max ≤ 16, 0 px > 16, \|mean\| ≤ 1.0 per channel; (c) ≤ 1 LSB, same length | 29.97 `flash_white` + whoosh fit-blur with the hook; 25 `dip_black` center-crop; 23.976 `flash_white` with a logo | nightly (ci-cd parity job) | **pass** (integration nightly 36976027925, Chrome for Testing 147): (a) 0 mismatches on 29 frames, the one-frame-late control flags all 20 edges; (b) 23/23 composites, worst SSIM 0.99993, PSNR ≥ 64.6 dB, max 12, \|mean\| ≤ 0.017, 0 px > 16; (c) 0.62 LSB, 976,976 samples = plan. Not gated: 609 frames played through the join, 0 drops; seek p50 12–16 ms on blended frames. T2's pre-integration run: `evidence/TR/T2-P-JOIN-B.json` |
 
 Unchanged gates measured on this branch at `99c0916`: P-FRAME 3,625 frames, 0 mismatches; P-PLATE,
 G1/G2, G-CLICK, duck, G3, G3b pass (run 36966430990). Suites at T1's head `41025f5`:
@@ -1664,3 +1664,38 @@ missing (T2 adds it to the parity job).
   and ≤ −16.0 dBTP on the pinned toolchain).
 - Open for the owner (spec §10): listen to the committed whoosh and one real clip of each style
   before release; a different level ships as `whoosh/v2`.
+
+### Integration (branch `transisi-integration`, PR #23)
+
+T1, T2 and T3 were cherry-picked onto `main` (no conflicts). A wiring test was added on top:
+`tests/test_edit_v2_transition_wiring.py` with `scripts/edit_v2/transition_wiring.mjs` runs the
+editor's real commands, the engine and the player's DTO check against each other on c24, c25 and c30.
+- Every document from `SetColdOpen`/`SetJoinStyle`/`SetJoinSfx` validates, plans with its style and
+  sound, has the panel's `J`, and compiles with one `lutrgb` per affected frame and the whoosh
+  sidecar only when it is on.
+- The engine's DTO equals the dev fakes' port, and `joinsValid` accepts it and fills exactly the
+  plan's frames.
+- Every seed join the pipeline writes passes `checkDoc` and comes back from `SetColdOpen`.
+
+It found no mismatch; a mutation (the fakes' half-width, a player rejecting `dip_black`) makes it
+fail. All runs are at `7417a9e`, on GitHub Actions:
+
+| Run | Result |
+|---|---|
+| editor-gates `full` 36976016187 | **pass**: ruff; pytest 4,469 passed, 3 skipped, 1 xfailed (Python 3.11), the 1,000-sequence command crosscheck included (red on T3 alone, green with T1's validator); web 1,243/1,244 pass, 1 skipped; build |
+| editor-gates `image` 36976018865 | **pass**: pytest 4,468 passed, 4 skipped, 1 xfailed in the production image (FFmpeg 5.1.9) |
+| editor-gates `e2e` 36976021933 | **pass**: `e2e/editor-transition.spec.mjs` 7/7 (axe clean) |
+| editor-gates `run_all.sh smoke` 36976025179 | **pass**: P-JOIN, G-WHOOSH, P-AUD with the whoosh (722,321 samples = plan), R10 18/18, G-DET 9 cases × 3 processes with 0 differences, P-FRAME 940 frames with 0 mismatches |
+| ci-cd `nightly` 36976027925 | `summary.json` **ok** (every required gate, P-JOIN-B included). P-JOIN 10/10 (0 mismatches outside the effect, one `lutrgb` per affected frame). G-WHOOSH 4/4 (0 samples outside, ≤ 1 LSB inside). P-LOOK-JOIN 3/3 (alpha within 2 per mille at offset 0, onsets 0 samples off, loudness Δ 0.0/0.0/−0.1 LU). P-RT, R10 36/36, P-TXT, P-TIME both sides (0 mismatches), P-FRAME, P-PLATE, G-DET, G1/G2, G3, G3b, G-CLICK, duck, glyph and PF-RENDER also pass. PF-RENDER-JOIN (report): edit-v2 +0.07 s, legacy +0.93 s on 10.3 s. The run is red only on the app section's P-AUD: `02-vfr-bed` is 16 samples short on preview and reference alike, md5 equal. That is Open 12 and is unchanged from `main`'s nightly 36920054208. The app's cold-open cases, now with Kilat putih + whoosh, are md5 equal with samples = plan |
+| PR #23 checks 36977478624 | **pass**: Test and build, Parity (smoke), Toolchain evidence guard |
+
+Owner samples, rendered locally from one real clip (job `3c7d024c` clip 4, 7.06 s cold open) into
+`artifacts/handoff/transisi/` (not in git):
+- legacy auto and edit-v2 auto, each with Kilat putih + whoosh;
+- an editor export with Gelap sebentar and no whoosh.
+
+Checks on the files:
+- the flash peaks on the join at 7.07 s (legacy, 60 fps) and 7.10 s (edit-v2, 30 fps);
+- the dip covers 9 frames;
+- both edit-v2 files are 39.133 s;
+- the whoosh starts at 6.857 s, which is `hit − 240 ms`.
