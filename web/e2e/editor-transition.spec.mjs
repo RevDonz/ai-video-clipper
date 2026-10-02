@@ -373,7 +373,8 @@ test.describe("Transisi in the Cold open panel on the fakes", () => {
     await expect(play).toHaveAttribute("data-transition-audition", `${J - SECOND}-${J + SECOND}`);
     const before = await page.evaluate(() => window.__transitionSeeks.length);
     await play.click();
-    await expect.poll(() => page.evaluate(() => window.__transitionSeeks.slice(before)), { timeout: 5000 }).toEqual([J - SECOND]);
+    await expect.poll(() => page.evaluate((from) => window.__transitionSeeks.slice(from), before), { timeout: 5000 })
+      .toEqual([J - SECOND]);
     await expect(section(page).getByRole("button", { name: "Hentikan" })).toBeVisible();
     await section(page).getByRole("button", { name: "Hentikan" }).click();
     await expect(section(page).getByRole("button", { name: "Putar transisi" })).toBeVisible();

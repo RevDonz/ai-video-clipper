@@ -131,8 +131,10 @@ jobs:
           echo "::add-mask::$secret"
           echo "E2E_USERNAME=$user" >> "$GITHUB_ENV"
           echo "E2E_PASSWORD=$password" >> "$GITHUB_ENV"
-          mkdir -p "$GITHUB_WORKSPACE/gate-output"
+          mkdir -p "$GITHUB_WORKSPACE/gate-output" "$RUNNER_TEMP/jobs" "$RUNNER_TEMP/settings"
+          # An empty jobs root and settings directory: the project list after login reads them.
           APP_USERNAME="$user" APP_PASSWORD="$password" APP_SESSION_SECRET="$secret" \
+            JOBS_ROOT="$RUNNER_TEMP/jobs" POTONGIN_SETTINGS_DIR="$RUNNER_TEMP/settings" \
             POTONGIN_EDITOR_V3=on POTONGIN_EDITOR_FAKES=1 \
             nohup npx next start --hostname 127.0.0.1 --port 3217 > "$GITHUB_WORKSPACE/gate-output/next.log" 2>&1 &
           for attempt in $(seq 1 60); do
