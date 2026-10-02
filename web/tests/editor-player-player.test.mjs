@@ -40,20 +40,24 @@ function planDto({
   };
 }
 
+// The canvas pixels the transition reads back: one plate pixel of level 100 (opaque) stands for
+// the frame; a "fill" draw records the region and the blended pixel written back.
+const PLATE_LEVEL = 100;
+
 function fakeCanvas() {
   const draws = [];
-  const saved = [];
   const ctx = {
     globalCompositeOperation: "source-over",
     globalAlpha: 1,
-    fillStyle: "#000000",
     imageSmoothingEnabled: true,
     drawImage(image, x, y) { draws.push({ image, x, y, op: this.globalCompositeOperation, alpha: this.globalAlpha }); },
-    fillRect(x, y, w, h) {
-      draws.push({ image: { layer: "fill" }, x, y, w, h, op: this.globalCompositeOperation, alpha: this.globalAlpha, fill: this.fillStyle });
+    getImageData(x, y, w, h) {
+      return { data: Uint8ClampedArray.from([PLATE_LEVEL, PLATE_LEVEL, PLATE_LEVEL, 255]), region: [x, y, w, h] };
     },
-    save() { saved.push([this.globalCompositeOperation, this.globalAlpha, this.fillStyle]); },
-    restore() { [this.globalCompositeOperation, this.globalAlpha, this.fillStyle] = saved.pop(); },
+    putImageData(image, x, y) {
+      draws.push({ image: { layer: "fill" }, x, y, region: image.region, pixel: [...image.data],
+        op: this.globalCompositeOperation, alpha: this.globalAlpha });
+    },
   };
   const canvas = { width: 300, height: 150, contextOptions: null, getContext(kind, options) { canvas.contextOptions = options; return ctx; } };
   return { canvas, ctx, draws };
@@ -591,10 +595,11 @@ test("the transition fill is drawn over the plate and under the text and logo", 
   const before = draws.length;
   assert.deepEqual(await instance.seek(58), { frame: 58, presented: true });
   assert.deepEqual(layersOf(draws.slice(before)), [
-    ["plate", "copy", 1], ["fill", "source-over", 0.333], ["text", "source-over", 1], ["logo", "source-over", 1],
+    ["plate", "copy", 1], ["fill", "source-over", 1], ["text", "source-over", 1], ["logo", "source-over", 1],
   ]);
   const fill = draws[before + 1];
-  assert.deepEqual([fill.x, fill.y, fill.w, fill.h, fill.fill], [0, 0, 720, 1280, "rgb(255, 255, 255)"]);
+  // The whole canvas, blended as the export's lutrgb: ⌊(100·667 + 255·333 + 500) / 1000⌋ = 152.
+  assert.deepEqual([fill.region, fill.x, fill.y, fill.pixel], [[0, 0, 720, 1280], 0, 0, [152, 152, 152, 255]]);
   assert.equal(frames.at(-1).frame, 58);
   assert.equal(frames.at(-1).joinAlphaPm, 333);
   const peak = draws.length;
@@ -603,6 +608,7 @@ test("the transition fill is drawn over the plate and under the text and logo", 
     ["plate", "copy", 1], ["fill", "source-over", 1], ["text", "source-over", 1], ["logo", "source-over", 1],
   ]);
   assert.deepEqual([draws[peak].image.k, draws[peak].image.j], [0, 30], "the body's first source frame");
+  assert.deepEqual(draws[peak + 1].pixel, [255, 255, 255, 255]);
   assert.equal(frames.at(-1).joinAlphaPm, 1000);
   assert.deepEqual(instance.debug.joinAt(60), { rgb: [255, 255, 255], alphaPm: 1000 });
   assert.equal(instance.debug.joinAt(57), null);
@@ -633,9 +639,10 @@ test("no fill outside the alpha frames, for a cut join or without joins; onFrame
 
 test("playback draws the fill on every frame the clock presents", async () => {
   const env = makeDeps();
-  const { instance, frames } = player(env);
+  const { instance, frames, draws } = player(env);
   await instance.load(coldOpenPlan({ joins: [DIP] }));
   await instance.seek(54);
+  const before = draws.length;
   await instance.play();
   for (let n = 55; n <= 66; n += 1) await env.frameTick((n + 0.5) / 30);
   const shown = frames.filter((info) => info.playing).map((info) => [info.frame, info.joinAlphaPm]);
@@ -643,6 +650,9 @@ test("playback draws the fill on every frame the clock presents", async () => {
     [55, 0], [56, 111], [57, 333], [58, 556], [59, 778], [60, 1000], [61, 778], [62, 556], [63, 333], [64, 111],
     [65, 0], [66, 0],
   ]);
+  // ⌊(100·(1000 − a) + 500) / 1000⌋ toward black, frame by frame.
+  const blended = draws.slice(before).filter((draw) => draw.image.layer === "fill").map((draw) => draw.pixel[0]);
+  assert.deepEqual(blended, [89, 67, 44, 22, 0, 22, 44, 67, 89]);
   instance.pause();
 });
 
@@ -681,13 +691,13 @@ test("a style-only change redraws the paused frame and keeps the mix", async () 
   await tick();
   assert.deepEqual(draws.slice(before).map((draw) => [draw.image.layer, draw.alpha]),
     [["plate", 1], ["fill", 1], ["text", 1]]);
-  assert.equal(draws[before + 1].fill, "rgb(255, 255, 255)");
+  assert.deepEqual(draws[before + 1].pixel, [255, 255, 255, 255]);
   assert.deepEqual([frames.at(-1).frame, frames.at(-1).joinAlphaPm], [60, 1000]);
   const dip = draws.length;
   await instance.load(coldOpenPlan({ doc: "d3", joins: [DIP] }));
   await tick();
   await tick();
-  assert.equal(draws.slice(dip).find((draw) => draw.image.layer === "fill").fill, "rgb(0, 0, 0)");
+  assert.deepEqual(draws.slice(dip).find((draw) => draw.image.layer === "fill").pixel, [0, 0, 0, 255]);
   assert.deepEqual(env.audio.loads, ["m1"], "the same mix is not reloaded");
   assert.equal(env.textLayers[0].tracks.length, 1, "the same ASS is not set again");
   assert.equal(instance.state().exact, true);
