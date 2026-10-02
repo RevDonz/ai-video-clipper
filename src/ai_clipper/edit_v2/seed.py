@@ -15,7 +15,12 @@ take the dashboard's V3 defaults) plus optional seed-context keys that never occ
 * ``hookDuration``: seconds, default 4.0 (the pipeline's ``DEFAULT_HOOK_DURATION``);
 * ``seedAtMs``: the seed time (``audit.created_at_ms``), default now;
 * ``seedBy``: ``"pipeline"`` (default; ``base.engine.compiler`` ``edit-v2/1``, editor
-  ``pipeline/edit-v2/1``) or ``"prepare"`` (``legacy``, ``prepare/edit-v2/1``).
+  ``pipeline/edit-v2/1``) or ``"prepare"`` (``legacy``, ``prepare/edit-v2/1``);
+* ``coldOpenJoin``: ``{"style", "sfx"}`` (``transitions.ColdOpenJoin.to_json``), the join the
+  auto render uses at a kept cold open; missing is a cut without sound (spec 2026-10-02 §6.1).
+  :func:`prepare_legacy_job` takes it from the clip's ``output/manifest.json`` entry
+  (``cold_open_join``, matched by clip id), so a clip rendered before the transition seeds a
+  cut and a newer one the join it was rendered with.
 
 **Rules beyond the plan table** (each keeps the seed valid for the validator):
 
@@ -89,7 +94,7 @@ from . import (
 from . import camera as _camera
 from . import timemap as tm
 from .clip_id import clip_id as _clip_id
-from .clip_id import ms_from_seconds
+from .clip_id import manifest_clip_id, ms_from_seconds
 from .errors import NotFound
 from .peaks import build_peaks, peaks_file_name
 from .source_info import (
@@ -104,6 +109,7 @@ from .source_info import (
     write_immutable,
 )
 from .timemap import Fps
+from .transitions import CUT_JOIN, ColdOpenJoin
 from .words import build_words_artifact, encode_words, words_file_name
 
 if TYPE_CHECKING:
@@ -132,6 +138,9 @@ MAX_SELECTION_BYTES = 8 * 1024 * 1024
 MAX_AUDIO_TIMELINE_BYTES = 32 * 1024 * 1024
 MAX_SOUND_EVENTS_BYTES = _sound_events.MAX_SOUND_EVENTS_BYTES
 MAX_SEED_BYTES = 1 << 20
+MANIFEST_RELATIVE_PATH = Path("output") / "manifest.json"
+MAX_MANIFEST_BYTES = 16 * 1024 * 1024
+COLD_OPEN_FADE_MS = 30  # the cold-open join's audio fade (plan §3.5)
 _UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 _SHA = re.compile(r"[0-9a-f]{64}")
 
@@ -216,6 +225,7 @@ class _Context:
     render_size: tuple[int, int]
     seed_at_ms: int
     by: str
+    join: ColdOpenJoin = CUT_JOIN
 
 
 def _flag(options: Mapping, name: str) -> bool:
@@ -253,9 +263,14 @@ def _context(job: Mapping) -> _Context:
     by = job.get("seedBy", "pipeline")
     if by not in EDITORS:
         raise SeedError("seedBy must be pipeline or prepare")
+    join = CUT_JOIN
+    if "coldOpenJoin" in job:
+        join = ColdOpenJoin.from_json(job["coldOpenJoin"])
+        if join is None:
+            raise SeedError("coldOpenJoin must be {style, sfx} with a known style and sound")
     return _Context(job_id, layout, pack, _flag(options, "coldOpen"), _flag(options, "hookOverlay"),
                     ms_from_seconds(float(hook_duration)), (int(size[0]), int(size[1])), seed_at,
-                    by)
+                    by, join)
 
 
 def _source(source_info: Mapping) -> dict[str, Any]:
@@ -395,7 +410,7 @@ def build_seed(
             }],
         })
     hook_unit = clip.hook_unit_id if 1 <= len(clip.hook_unit_id) <= 16 else None
-    joins = ([{"after": "seg_co", "style": "cut", "audio_fade_ms": 30}]
+    joins = ([context.join.doc_join("seg_co", COLD_OPEN_FADE_MS)]
              if plan.teaser_ms is not None else [])
     seed: dict[str, Any] = {
         "schema": SCHEMA,
@@ -680,8 +695,32 @@ def _write_or_match(path: Path, data: bytes) -> bool:
         return False
 
 
+def manifest_joins(manifest: object, source_content_sha256: str) -> dict[str, ColdOpenJoin]:
+    """The ``cold_open_join`` of every ``output/manifest.json`` clip entry that has a readable
+    one, by clip id (``clip_id.manifest_clip_id``): the join its auto render used (spec
+    2026-10-02 §6.1). A missing or malformed value is left out, so that clip seeds a cut."""
+    clips = manifest.get("clips") if isinstance(manifest, dict) else None
+    found: dict[str, ColdOpenJoin] = {}
+    for entry in clips if isinstance(clips, list) else ():
+        if not isinstance(entry, dict) or "cold_open_join" not in entry:
+            continue
+        join = ColdOpenJoin.from_json(entry["cold_open_join"])
+        clip = manifest_clip_id(entry, source_content_sha256)
+        if join is not None and clip is not None:
+            found.setdefault(clip, join)
+    return found
+
+
+def _read_manifest(job_dir: Path) -> Any:
+    try:
+        return _strict_json(read_regular(job_dir / MANIFEST_RELATIVE_PATH, MAX_MANIFEST_BYTES))
+    except (OSError, ValueError, UnicodeDecodeError, RecursionError):
+        return None
+
+
 def _prepare_clip(job_dir: Path, state: _JobState, clip: SelectedClip, source_info: Mapping,
-                  transcription: Any, audio: Any, events: Any) -> dict[str, Any]:
+                  transcription: Any, audio: Any, events: Any,
+                  joins: Mapping[str, ColdOpenJoin]) -> dict[str, Any]:
     context = state.context
     try:
         plan = _clip_plan(clip, context, _source(source_info), source_info)
@@ -718,7 +757,8 @@ def _prepare_clip(job_dir: Path, state: _JobState, clip: SelectedClip, source_in
         camera_raw = _camera.encode_camera_plan(camera_plan)
         _write_or_match(clip_dir / _camera.camera_file_name(camera_raw), camera_raw)
         camera_sha = sha256_hex(camera_raw)
-    job = {**state.job, "seedBy": "prepare", "seedAtMs": time.time_ns() // 1_000_000}
+    job = {**state.job, "seedBy": "prepare", "seedAtMs": time.time_ns() // 1_000_000,
+           "coldOpenJoin": joins.get(plan.clip_id, CUT_JOIN).to_json()}
     new_seed = build_seed(clip=clip, job=job, source_info=source_info, words_sha=words_sha,
                           words_count=len(words["words"]), camera_sha=camera_sha,
                           selection_sha=state.selection_sha)
@@ -750,8 +790,9 @@ def prepare_legacy_job(job_dir: Path) -> list[dict]:
             # The file is there but cannot be probed or measured (or its source.json is bad).
             reason = "source_unreadable" if _is_regular(state.source) else "source_missing"
             return [_entry(None, clip.rank, reason) for clip in state.selection.clips]
+        joins = manifest_joins(_read_manifest(job_dir), source_info["content_sha256"])
         return [
-            _prepare_clip(job_dir, state, clip, source_info, transcription, audio, events)
+            _prepare_clip(job_dir, state, clip, source_info, transcription, audio, events, joins)
             for clip in state.selection.clips
         ]
 
@@ -764,6 +805,7 @@ __all__ = [
     "encode_seed",
     "grid_window_ms",
     "inspect_job",
+    "manifest_joins",
     "output_fps",
     "prepare_legacy_job",
     "seed_sha256",
