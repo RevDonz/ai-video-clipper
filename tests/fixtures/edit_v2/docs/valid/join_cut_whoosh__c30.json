@@ -72,8 +72,12 @@
     "joins": [
       {
         "after": "seg_co",
-        "style": "xfade",
-        "audio_fade_ms": 30
+        "style": "cut",
+        "audio_fade_ms": 30,
+        "sfx": {
+          "id": "whoosh",
+          "v": 1
+        }
       }
     ],
     "cut_fade_ms": 8
@@ -143,6 +147,6 @@
     "created_at_ms": 1790000000000,
     "updated_at_ms": 1790000060000,
     "editor": "editor-v3/1.0.0",
-    "last_command": "ResetToSeed"
+    "last_command": "SetJoinSfx"
   }
 }

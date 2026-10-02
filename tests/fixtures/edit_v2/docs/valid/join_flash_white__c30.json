@@ -72,7 +72,7 @@
     "joins": [
       {
         "after": "seg_co",
-        "style": "xfade",
+        "style": "flash_white",
         "audio_fade_ms": 30
       }
     ],
@@ -143,6 +143,6 @@
     "created_at_ms": 1790000000000,
     "updated_at_ms": 1790000060000,
     "editor": "editor-v3/1.0.0",
-    "last_command": "ResetToSeed"
+    "last_command": "SetJoinStyle"
   }
 }
