@@ -28,14 +28,16 @@
   around each one's own join, within 50 per mille at the best offset in ±1 frame; each
   whoosh's onset (cross-correlation of the PCM difference with the file) within 2 ms of where
   that engine places it; both auto renders' integrated loudness within 0.5 LU.
+* **PF-RENDER-JOIN** (report only): each engine's delivered render of the 29.97 clip with and
+  without the flash and the whoosh.
 
 CLI (``PYTHONPATH=src:tests``, in the production image)::
 
-    join_gates.py p-join|g-whoosh|look|smoke|all --evidence DIR [--work DIR] [--task CI]
+    join_gates.py p-join|g-whoosh|look|pf|smoke|all --evidence DIR [--work DIR] [--task CI]
 
 ``smoke`` is P-JOIN and G-WHOOSH on the 29.97 ``flash_white`` + whoosh case (every pull
-request); ``all`` every case of the three gates (nightly). Evidence: ``<task>-<gate>.json``,
-numbers only, with a ``pass`` boolean.
+request); ``all`` every case of the three gates and the report (nightly). Evidence:
+``<task>-<gate>.json``, numbers only, with a ``pass`` boolean (none for the report).
 """
 
 from __future__ import annotations
@@ -683,6 +685,62 @@ def look(work: Path) -> dict[str, Any]:
             "jobs": rows, "pass": bool(rows) and all(row["pass"] for row in rows)}
 
 
+# --- PF-RENDER of the transition (report only) -----------------------------------------------------
+
+
+def _timed(function) -> float:
+    started = time.monotonic()
+    function()
+    return round(time.monotonic() - started, 3)
+
+
+def pf_render(ws: fi.Workspace) -> dict[str, Any]:
+    """The cost of the effect and the whoosh in each engine's delivered render: the 29.97 clip
+    with and without them (edit-v2 ``final``; legacy ``render_vertical`` over the same source
+    ranges), each run twice, the faster kept."""
+    from ai_clipper.render import render_vertical
+
+    ntsc = (30000, 1001)
+    rows = {}
+    for label, case_ in (("cut", case(ntsc)), ("flash_white+whoosh",
+                                                case(ntsc, "flash_white", whoosh=True))):
+        times = []
+        for attempt in range(2):
+            key = (case_.name, "final" + ("#2" if attempt else ""))
+            ws.renders.pop(key, None)
+            times.append(_timed(lambda c=case_, a=attempt: ws.render(c, "final", again=bool(a))))
+        rows[f"edit-v2 {label}"] = min(times)
+    clip = ws.clip(case(ntsc))
+    plan = ws.plan(case(ntsc))
+    body = next(piece for piece in plan.pieces if piece.role == "body")
+    co = plan.pieces[0]
+    fps = plan.fps
+    start, end = body.in_sf * fps.den / fps.num, plan.pieces[-1].out_sf * fps.den / fps.num
+    teaser = (co.in_sf * fps.den / fps.num, co.out_sf * fps.den / fps.num)
+    for label, options in (("cut", {}), ("flash_white+whoosh",
+                                         {"join_style": "flash_white", "join_sfx": "whoosh"})):
+        times = []
+        for attempt in range(2):
+            output = ws.root / f"pf-legacy-{label.replace('+', '-')}-{attempt}.mp4"
+            for path in (output, output.with_suffix(".srt")):
+                path.unlink(missing_ok=True)
+            times.append(_timed(lambda o=output, opts=options: render_vertical(
+                clip["source"], o, start=round(start, 3), end=round(end, 3), transcript=[],
+                width=720, height=1280, render_mode="fit-blur",
+                cold_open=(round(teaser[0], 3), round(teaser[1], 3)), **opts)))
+        rows[f"legacy {label}"] = min(times)
+    clip_s = plan.total_frames * fps.den / fps.num
+    return {"gate": "PF-RENDER-JOIN", "report_only": True, "clip_s": round(clip_s, 3),
+            "render_s": rows,
+            "ratio": {name: round(seconds / clip_s, 4) for name, seconds in rows.items()},
+            "delta_s": {"edit-v2": round(rows["edit-v2 flash_white+whoosh"]
+                                         - rows["edit-v2 cut"], 3),
+                        "legacy": round(rows["legacy flash_white+whoosh"] - rows["legacy cut"],
+                                        3)},
+            "note": ("synthetic barcode source, 720×1280; edit-v2 is the 20-cut document, "
+                     "legacy the cold open and the body's span (no cuts)")}
+
+
 # --- CLI -------------------------------------------------------------------------------------------
 
 
@@ -696,14 +754,15 @@ def write(directory: Path, task: str, gate: str, result: Mapping[str, Any]) -> P
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
-    parser.add_argument("gate", choices=("p-join", "g-whoosh", "look", "smoke", "all"))
+    parser.add_argument("gate", choices=("p-join", "g-whoosh", "look", "pf", "smoke", "all"))
     parser.add_argument("--evidence", type=Path, required=True)
     parser.add_argument("--work", type=Path, default=None)
     parser.add_argument("--task", default="CI")
     args = parser.parse_args(argv)
     smoke = args.gate == "smoke"
-    names = {"p-join": ["p-join"], "g-whoosh": ["g-whoosh"], "look": ["look"],
-             "smoke": ["p-join", "g-whoosh"], "all": ["p-join", "g-whoosh", "look"]}[args.gate]
+    names = {"p-join": ["p-join"], "g-whoosh": ["g-whoosh"], "look": ["look"], "pf": ["pf"],
+             "smoke": ["p-join", "g-whoosh"],
+             "all": ["p-join", "g-whoosh", "pf", "look"]}[args.gate]
     failed = []
     with tempfile.TemporaryDirectory(prefix="join-gates-") as scratch:
         work = Path(scratch) if args.work is None else args.work
@@ -715,13 +774,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                 result = p_join(ws, smoke=smoke)
             elif name == "g-whoosh":
                 result = g_whoosh(ws, smoke=smoke)
+            elif name == "pf":
+                result = pf_render(ws)
             else:
                 result = look(work / "look")
             result["gate_wall_s"] = round(time.monotonic() - started, 1)
             write(args.evidence, args.task, result["gate"], result)
-            print(f"{result['gate']}: {'pass' if result['pass'] else 'FAIL'} "
-                  f"({result['gate_wall_s']} s)", flush=True)
-            if not result["pass"]:
+            verdict = {True: "pass", False: "FAIL", None: "report"}[result.get("pass")]
+            print(f"{result['gate']}: {verdict} ({result['gate_wall_s']} s)", flush=True)
+            if result.get("pass") is False:
                 failed.append(result["gate"])
     return 1 if failed else 0
 
