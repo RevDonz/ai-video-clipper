@@ -1,11 +1,16 @@
 name: Editor gates (manual)
 
 # Heavy test runs for work branches, so agents do not load the owner's PC.
-# Trigger: gh workflow run editor-gates.yml -f ref=<branch> -f suite=full|image|command [-f command='...']
+# Trigger: gh workflow run editor-gates.yml -f ref=<branch> -f suite=full|image|command|player [-f command='...']
 # suite=full: ruff, pytest (Python 3.11), web tests and build, as in CI/CD.
 # suite=image: the whole pytest inside the production image (pinned FFmpeg/libass toolchain).
 # suite=command: one shell command from the repo root inside the production image; whatever it
 # writes to /out is uploaded as the run's artifact.
+# suite=player: browser specs of the editor player. The image makes the player fixtures
+# (scripts/parity/player_fixtures.py, cases in `cases`) and serves its own app with the parity
+# harness; Chrome for Testing (`chrome`: a version or a milestone, default the parity pin) runs
+# `npx playwright test <command> --project=desktop-chromium` against it, for example
+# -f command=e2e/editor-first-frame.spec.mjs. Results land in the run's artifact.
 
 on:
   workflow_dispatch:
@@ -19,9 +24,19 @@ on:
         required: true
         default: full
         type: choice
-        options: [full, image, command]
+        options: [full, image, command, player]
       command:
-        description: For suite=command, a shell command run from the repo root inside the image
+        description: For suite=command, a shell command run from the repo root inside the image; for suite=player, the Playwright arguments
+        required: false
+        default: ""
+        type: string
+      cases:
+        description: For suite=player, the player fixture cases to make (comma-separated ids)
+        required: false
+        default: "cfr_25,cfr_30"
+        type: string
+      chrome:
+        description: For suite=player, the Chrome for Testing version or milestone (empty = the parity pin)
         required: false
         default: ""
         type: string
@@ -71,7 +86,7 @@ jobs:
           uv run pytest
 
       - name: Set up Node.js
-        if: inputs.suite == 'full'
+        if: inputs.suite == 'full' || inputs.suite == 'player'
         uses: actions/setup-node@v5
         with:
           node-version: "20"
@@ -93,7 +108,7 @@ jobs:
         run: docker build --tag potongin-gates .
 
       - name: Run inside the production image
-        if: inputs.suite != 'full'
+        if: inputs.suite == 'image' || inputs.suite == 'command'
         env:
           SUITE: ${{ inputs.suite }}
         run: |
@@ -104,11 +119,99 @@ jobs:
             if [ "$SUITE" = image ]; then uv run pytest; else sh -ec "$GATE_COMMAND"; fi
             if [ -d docs/editor/evidence ]; then cp -r docs/editor/evidence /out/; fi'
 
+      - name: Player fixtures in the image
+        if: inputs.suite == 'player'
+        env:
+          PLAYER_CASES: ${{ inputs.cases }}
+        run: |
+          mkdir -p gate-output && chmod 777 gate-output
+          docker run --rm -e PLAYER_CASES -v "$PWD:/w:ro" -v "$PWD/gate-output:/out" potongin-gates sh -ec '
+            cp -r /w /tmp/w && cd /tmp/w
+            uv sync --frozen --python /usr/bin/python3 --extra vision --extra web > /out/uv-sync.log 2>&1 || { tail -n 40 /out/uv-sync.log; exit 1; }
+            PYTHONPATH=src:tests uv run python scripts/parity/player_fixtures.py generate --out /out/ptxt --only "$PLAYER_CASES"'
+
+      - name: Install Chrome for Testing
+        if: inputs.suite == 'player'
+        working-directory: web
+        env:
+          CHROME_REQUEST: ${{ inputs.chrome }}
+          CHROME_PIN: "147.0.7727.15"
+        run: |
+          npm ci
+          npx playwright install-deps chromium
+          version="${CHROME_REQUEST:-$CHROME_PIN}"
+          case "$version" in
+            *[!0-9]*) ;;
+            *) version=$(curl -fsSL --retry 3 https://googlechromelabs.github.io/chrome-for-testing/latest-versions-per-milestone.json \
+                 | python3 -c 'import json, sys; print(json.load(sys.stdin)["milestones"][sys.argv[1]]["version"])' "$version") ;;
+          esac
+          target="$HOME/.cache/ms-playwright/cft-$version"
+          mkdir -p "$target"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/cft.zip" \
+            "https://storage.googleapis.com/chrome-for-testing-public/$version/linux64/chrome-linux64.zip"
+          unzip -q -o "$RUNNER_TEMP/cft.zip" -d "$target"
+          echo "PARITY_CHROME=$target/chrome-linux64/chrome" >> "$GITHUB_ENV"
+          echo "Chrome for Testing $version"
+
+      - name: Start the image's app with the player harness
+        if: inputs.suite == 'player'
+        run: |
+          user=gates-ci
+          password=$(openssl rand -hex 24)
+          secret=$(openssl rand -hex 32)
+          echo "::add-mask::$password"
+          echo "::add-mask::$secret"
+          echo "E2E_USERNAME=$user" >> "$GITHUB_ENV"
+          echo "E2E_PASSWORD=$password" >> "$GITHUB_ENV"
+          export APP_USERNAME="$user" APP_PASSWORD="$password" APP_SESSION_SECRET="$secret"
+          docker run -d --name gates-app -p 127.0.0.1:3217:3217 -e PORT=3217 -e HOSTNAME=0.0.0.0 \
+            -e APP_USERNAME -e APP_PASSWORD -e APP_SESSION_SECRET \
+            -e POTONGIN_PARITY_HARNESS=1 -e POTONGIN_PARITY_FIXTURES=/fixtures \
+            -e JOBS_STORAGE_QUOTA_BYTES=32212254720 -e JOBS_STORAGE_MIN_FREE_BYTES=1073741824 \
+            -e JOBS_STORAGE_ACTIVE_RESERVE_BYTES=1073741824 -e JOBS_STORAGE_SCAN_MAX_ENTRIES=200000 \
+            -e JOBS_STORAGE_SCAN_MAX_DEPTH=16 -e JOBS_STORAGE_SCAN_DEADLINE_MS=30000 \
+            -e JOBS_STORAGE_RECHECK_BYTES=8388608 -e JOBS_STORAGE_RECHECK_INTERVAL_MS=5000 \
+            -v "$PWD/gate-output/ptxt:/fixtures:ro" potongin-gates
+          for attempt in $(seq 1 60); do
+            curl -fsS http://127.0.0.1:3217/api/health >/dev/null && exit 0
+            sleep 2
+          done
+          docker logs gates-app 2>&1 | tail -n 40
+          exit 1
+
+      - name: Player browser specs
+        if: inputs.suite == 'player'
+        working-directory: web
+        env:
+          E2E_BASE_URL: http://127.0.0.1:3217
+          E2E_NO_WEB_SERVER: "1"
+          PARITY_PYTHON: python3
+        run: |
+          export POTONGIN_PARITY_FIXTURES="$GITHUB_WORKSPACE/gate-output/ptxt" PARITY_OUT_DIR="$GITHUB_WORKSPACE/gate-output/browser"
+          echo "Chrome: $("$PARITY_CHROME" --version)"
+          eval "npx playwright test ${GATE_COMMAND:-e2e/editor-first-frame.spec.mjs} --project=desktop-chromium"
+
+      - name: App log
+        if: always() && inputs.suite == 'player'
+        run: docker logs gates-app > gate-output/app.log 2>&1 || true
+
       - name: Upload outputs
-        if: always() && inputs.suite != 'full'
+        if: always() && (inputs.suite == 'image' || inputs.suite == 'command')
         uses: actions/upload-artifact@v4
         with:
           name: gate-output
           path: gate-output
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload player outputs
+        if: always() && inputs.suite == 'player'
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-output
+          # The results and logs; the fixtures (plate cells, mixes) stay out.
+          path: |
+            gate-output
+            !gate-output/ptxt
           if-no-files-found: ignore
           retention-days: 7
