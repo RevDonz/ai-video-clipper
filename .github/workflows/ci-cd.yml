@@ -161,6 +161,16 @@ jobs:
         continue-on-error: true
         run: docker exec -e SUITE parity-tools sh -ec 'cd /tmp/w && OUT=/out sh scripts/parity/run_all.sh "$SUITE"'
 
+      - name: Player fixtures of the cold-open transition (P-JOIN-B)
+        # Into $PARITY_OUT/ptxt/player, which the app container below serves read-only.
+        id: join_fixtures
+        if: env.SUITE == 'full'
+        continue-on-error: true
+        run: |
+          docker exec parity-tools sh -ec 'cd /tmp/w && mkdir -p /out/logs && PYTHONPATH=src:tests uv run python \
+            scripts/parity/player_fixtures.py generate --out /out/ptxt --only join > /out/logs/join-fixtures.txt 2>&1' \
+            || { docker exec parity-tools tail -n 40 /out/logs/join-fixtures.txt; exit 1; }
+
       - name: Set up Node.js
         uses: actions/setup-node@v5
         with:
@@ -219,6 +229,21 @@ jobs:
           PARITY_PYTHON: python3
         run: POTONGIN_PARITY_FIXTURES="$PARITY_OUT/ptxt" PARITY_OUT_DIR="$PARITY_OUT/browser" npm run test:parity
 
+      - name: Browser half of the cold-open transition (P-JOIN-B)
+        id: join
+        if: env.SUITE == 'full'
+        continue-on-error: true
+        working-directory: web
+        env:
+          E2E_BASE_URL: http://127.0.0.1:3217
+          E2E_NO_WEB_SERVER: "1"
+          PARITY_PYTHON: python3
+          FIXTURES_OUTCOME: ${{ steps.join_fixtures.outcome }}
+        run: |
+          test "$FIXTURES_OUTCOME" = success || { echo "the P-JOIN-B fixtures were not made"; exit 1; }
+          POTONGIN_PARITY_FIXTURES="$PARITY_OUT/ptxt" PARITY_OUT_DIR="$PARITY_OUT/browser" \
+            npx playwright test e2e/editor-player.spec.mjs --project=desktop-chromium -g "P-JOIN-B"
+
       - name: Text gates, performance report and summary
         if: always()
         run: |
@@ -227,6 +252,10 @@ jobs:
           [ "$SUITE" = smoke ] || color=--color
           docker exec parity-tools sh -ec "cd /tmp/w && PYTHONPATH=src:tests uv run python scripts/parity/ci_gates.py text \
             --browser /out/browser --fixtures /out/ptxt --evidence /out/evidence --jassub $jassub $color" || true
+          if [ "$SUITE" = full ]; then
+            docker exec parity-tools sh -ec 'cd /tmp/w && PYTHONPATH=src:tests uv run python scripts/parity/player_fixtures.py evidence \
+              --fixtures /out/ptxt --browser /out/browser/player --out-dir /out/evidence --label CI --gate P-JOIN-B' || true
+          fi
           docker exec parity-tools sh -ec 'cd /tmp/w && uv run python scripts/parity/ci_gates.py perf-report --out /out/perf.json \
             --stack "$(nproc) vCPU GitHub runner, production image (indicative)" /out/evidence /out/app' || true
           docker exec -e SUITE parity-tools sh -ec 'cd /tmp/w && uv run python scripts/parity/ci_gates.py summary \
@@ -263,6 +292,7 @@ jobs:
             ${{ runner.temp }}/parity/app/evidence
             ${{ runner.temp }}/parity/logs
             ${{ runner.temp }}/parity/browser/*.json
+            ${{ runner.temp }}/parity/browser/player/*.json
             ${{ runner.temp }}/parity/*.json
             ${{ runner.temp }}/parity/*.txt
           if-no-files-found: warn
@@ -282,6 +312,9 @@ jobs:
         run: |
           test "${{ steps.image.outcome }}" = success || { echo "gates in the image failed: $(cat "$PARITY_OUT/fail.txt")"; exit 1; }
           test "${{ steps.browser.outcome }}" = success || { echo "the browser half failed"; exit 1; }
+          if [ "$SUITE" = full ]; then
+            test "${{ steps.join.outcome }}" = success || { echo "the P-JOIN-B browser gate failed"; exit 1; }
+          fi
           python3 -c 'import json, sys; sys.exit(0 if json.load(open(sys.argv[1]))["ok"] else 1)' "$PARITY_OUT/summary.json"
 
   deploy:
