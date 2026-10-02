@@ -558,9 +558,9 @@ timeout + SIGKILL, fixed exit-code map as in `edit-document.mjs`, and an **allow
 ```
 
 - `joins` (added 2026-10-02, §5.26) is always present (`[]` without a cold open): the
-  cold-open transition the player draws as a full-frame colour fill between the plate and the
-  text. `rgb` is `null` and `alphaPm` `[]` for `cut`; `sfx` is informational (the whoosh is in
-  the server mix).
+  cold-open transition the player blends into the plate frame, between the plate and the text,
+  with the export's own per-pixel arithmetic (§5.26 "Browser preview"). `rgb` is `null` and
+  `alphaPm` `[]` for `cut`; `sfx` is informational (the whoosh is in the server mix).
 
 - `text.ass` is omitted when `known.assSha256` equals the new sha. `cues` and `hook` exist only to
   draw the timeline and the transcript; pixels always come from the ASS.
@@ -1805,6 +1805,20 @@ are drawn on top in both engines and in the browser.
 
 `joins` is always present: `[{after, style, atF, rgb: [r, g, b] | null, alphaPm: [[f, a], …],
 sfx: {id, v, startSmp, hitSmp, samples} | null}]`.
+
+### Browser preview (T2)
+
+`web/lib/editor/player/join-layer.mjs`. `validatePlan` refuses a DTO whose `joins` breaks the
+shape above (`TypeError("invalid plan DTO: joins")`): `rgb` null exactly for `cut`, `alphaPm`
+non-empty exactly when `rgb` is set, frames strictly increasing in `[0, totalFrames)`, alphas
+1–1000, one fill per frame. For frame `n` the player draws the plate frame, then blends the whole
+canvas toward `rgb` with the export's `⌊(p·(1000 − a) + C·a + 500)/1000⌋` per channel
+(`getImageData`/`putImageData` with a 256-entry table; not a `globalAlpha` fill, whose 8-bit
+alpha failed P-JOIN-B's SSIM on dark frames, spec "Decisions during build (T2)" 3), then the
+text and the logo. `onFrame` carries `joinAlphaPm` (0 without a fill) and `debug.joinAt(n)`
+returns the fill. The whoosh comes with the server mix; a style-only change keeps `mixSha256`.
+`tests/test_edit_v2_transition_wiring.py` runs the editor's commands, this engine and the
+player's validator against each other.
 
 ### Auto renders, seeds and the manifest
 
