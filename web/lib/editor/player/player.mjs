@@ -58,6 +58,9 @@ const TEXT_AHEAD = 4;
 // While paused only the next frames are decoded ahead (frame steps and the start of playback);
 // a seek elsewhere stops that work at once (plate-source need({ exclusive })).
 const PAUSED_LOOKAHEAD_MS = 300;
+// A paused frame whose plate decode failed or came back empty is asked for again after these
+// delays, then reported (state().error, layer "plate"). Playback asks again on every tick anyway.
+const PAUSED_PLATE_RETRY_MS = [250, 1000];
 
 function defaultSupports() {
   const g = globalThis;
@@ -134,6 +137,7 @@ export function createPlayer({
     now: defaultNow,
     supports: defaultSupports,
     createImageBitmap: (blob, options) => globalThis.createImageBitmap(blob, options),
+    setTimeout: (callback, ms) => globalThis.setTimeout(callback, ms),
     ...deps,
   };
   const live = Boolean(d.supports().live);
@@ -448,10 +452,30 @@ export function createPlayer({
     return { frame: n, presented: false, superseded: true };
   }
 
-  async function presentPaused(n) {
+  /**
+   * The plate frame of paused frame n did not come (a failed or an empty decode). Nothing else
+   * asks for a paused frame again, so it is asked for again after PAUSED_PLATE_RETRY_MS while
+   * nothing newer was asked (a seek, play, a new plan), then reported as the plate's error
+   * instead of leaving the stage on "Menyiapkan frame…".
+   */
+  function plateMissed(n, token, attempt, failure) {
+    if (attempt < PAUSED_PLATE_RETRY_MS.length) {
+      d.setTimeout(() => {
+        if (destroyed || playing || token !== seekToken || mode !== "live" || frame !== n) return;
+        presentPaused(n, attempt + 1).catch(() => {});
+      }, PAUSED_PLATE_RETRY_MS[attempt]);
+    } else {
+      error = { layer: "plate", message: String(failure?.message ?? failure ?? "plate_frame_missing") };
+    }
+    emit();
+    return { frame: n, presented: false, pending: "plate" };
+  }
+
+  async function presentPaused(n, attempt = 0) {
     const token = ++seekToken;
     if (mode === "auto_render") return seekVideo(n, token);
     if (mode === "unsupported") return showTruth(n, token);
+    if (!attempt && error?.layer === "plate") error = null; // a new request starts clean
     const at = cellAt(n);
     if (!at || plateSource.cellState(at.k) !== "ready") {
       emit();
@@ -472,12 +496,10 @@ export function createPlayer({
       plateMs = d.now() - started;
     } catch (failure) {
       if (token !== seekToken) return superseded(n);
-      error = { layer: "plate", message: String(failure?.message ?? failure) };
-      emit();
-      return { frame: n, presented: false, pending: "plate" };
+      return plateMissed(n, token, attempt, failure);
     }
     if (token !== seekToken) return superseded(n);
-    if (!bitmap) return { frame: n, presented: false, pending: "plate" };
+    if (!bitmap) return plateMissed(n, token, attempt, null);
     await textPromise.catch(() => null);
     if (token !== seekToken) return superseded(n);
     if (!textEntry(n)) {
@@ -777,11 +799,16 @@ export function createPlayer({
         if (mode !== "truth") setMode(decideMode());
       }
       emit();
-      await Promise.all([textPromise, logoPromise, audioPromise]);
+      // The picture needs the text and the logo; the mix is only the clock. A mix still loading
+      // or decoding (before a user gesture its AudioContext is suspended) never holds back the
+      // frame at the playhead.
+      await Promise.all([textPromise, logoPromise]);
+      if (destroyed || plan !== dto) return;
+      if (!playing && mode === "live" && !shownIs(frame)) presentPaused(frame).catch(() => {});
+      await audioPromise;
       if (destroyed || plan !== dto) return;
       emit();
       if (playWaiter && audioCurrent()) releasePlayWaiter(true);
-      if (!playing && mode === "live" && !shownIs(frame)) presentPaused(frame).catch(() => {});
     },
 
     async play({ silent = false } = {}) {

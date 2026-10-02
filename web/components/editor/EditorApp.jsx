@@ -28,7 +28,7 @@ import { createEditorRuntime, createFrameBus, createPlayerFacade } from "./runti
 import styles from "./shell.module.css";
 import {
   actionableChecks, badgeView, checksView, conflictParts, exportMatchesSeed, exportRevision, liveEntries, messageFor, noticesView,
-  rejectionText,
+  playerView, rejectionText,
 } from "./shell-model.mjs";
 import Stage from "./Stage.jsx";
 import StageControls from "./StageControls.jsx";
@@ -222,14 +222,7 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
       onState: (next) => {
         if (!next) return;
         if (Number.isFinite(next.frame)) frameBus.set(next.frame);
-        setPlayerState((previous) => {
-          const merged = { mode: next.mode ?? null, current: { ...(next.current ?? {}) },
-            playing: typeof next.playing === "boolean" ? next.playing : previous?.playing ?? false,
-            exact: typeof next.exact === "boolean" ? next.exact : undefined };
-          return previous && previous.mode === merged.mode && previous.playing === merged.playing
-            && previous.exact === merged.exact
-            && JSON.stringify(previous.current) === JSON.stringify(merged.current) ? previous : merged;
-        });
+        setPlayerState((previous) => playerView(previous, next));
       },
       onFrame: (frame) => frameBus.set(frame),
     });
