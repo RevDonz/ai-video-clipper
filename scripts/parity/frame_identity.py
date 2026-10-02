@@ -262,6 +262,8 @@ def make_doc(
     assets: Mapping[str, Mapping[str, Any]] | None = None,
     master: str = "off",
     source_gain_cdb: int = 0,
+    join_style: str = "cut",
+    whoosh: bool = False,
 ) -> dict[str, Any]:
     """A ``clip-edit-v2`` document for a synthetic source (edges in source-grid frames)."""
     doc = _template()
@@ -278,7 +280,8 @@ def make_doc(
     if cold_open is not None:
         segments.append({"id": "seg_co", "role": "cold_open", "in_sf": cold_open[0],
                          "out_sf": cold_open[1]})
-        joins.append({"after": "seg_co", "style": "cut", "audio_fade_ms": 30})
+        joins.append({"after": "seg_co", "style": join_style, "audio_fade_ms": 30,
+                      **({"sfx": {"id": "whoosh", "v": 1}} if whoosh else {})})
     segments.append({"id": "seg_b1", "role": "body", "in_sf": body[0], "out_sf": body[1]})
     doc["main"] = {
         "segments": segments,

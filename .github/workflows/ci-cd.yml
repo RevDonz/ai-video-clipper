@@ -159,7 +159,7 @@ jobs:
       - name: Gates in the image
         id: image
         continue-on-error: true
-        run: docker exec -e SUITE parity-tools sh -ec 'cd /tmp/w && OUT=/out sh scripts/parity/run_all.sh "$SUITE"'
+        run: docker exec -e SUITE parity-tools sh -ec 'cd /tmp/w && OUT=/out sh scripts/parity/run_all.sh "$SUITE" toolchain ptxt'
 
       - name: Player fixtures of the cold-open transition (P-JOIN-B)
         # Into $PARITY_OUT/ptxt/player, which the app container below serves read-only.
