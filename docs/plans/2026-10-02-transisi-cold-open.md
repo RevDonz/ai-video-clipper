@@ -500,7 +500,12 @@ index is `len(ranges)`. The concat's audio label is renamed, and three chains fo
 [sp][wh]amerge=inputs=2,pan=stereo|c0=c0+c2|c1=c1+c3[audio]
 ```
 
-- `S0 = L0_ms·48 − 11520`; for the 2.002 s example, `84576`.
+- `S0 = round(J_us·48/1000) − 11520`, with `J` the join: the later of `L0` and the cold open's
+  measured end (`render._cold_open_join_s`, T1 decision 3), since concat pads the range's
+  shorter stream and starts the body's picture and sound at `J`. For the 2.002 s example
+  measured at 2.002000 s, `84576`; at 25 fps with `-ss 4.004` the range holds 51 frames, so
+  `J` = 2.040 s and `S0` = `86400` (review of PR #23: `L0_ms·48 − 11520` put the hit 38 ms
+  before the body).
 - The per-range `afade` micro-fades are unchanged.
 - The `pan` and `aformat` on the speech are explicit, so the mix never depends on FFmpeg's
   format negotiation:
@@ -1184,9 +1189,9 @@ FINAL and CONTRACTS. Each is in CONTRACTS §5.26 or GATES "Transisi cold open".
    `L0` the cold-open-side alphas sit up to `1/(F·W)` off the table (0.33 for the flash at
    30 fps), beyond P-LOOK-JOIN's 0.05. `render._cold_open_join_s` reads the range's end with
    the render's own seek (one `framecrc` pass of 0.5–8 s, before the render) and the range-0
-   `geq` uses it (`%d.%06d`); it falls back to `L0` when the pass fails. The body side, the
-   whoosh delay (`L0_ms·48 − 11520`, the audio join, as specified) and the cut command are
-   unchanged.
+   `geq` uses it (`%d.%06d`); it falls back to `L0` when the pass fails. The body side and the
+   cut command are unchanged. (The whoosh delay kept `L0_ms·48 − 11520` here; the review of
+   PR #23 moved it to the measured join too, see "Decisions after review".)
 4. **P-JOIN and the text.** (b) "every pixel within 3 levels of `blend(cut)`" cannot hold on
    the text, which §4 draws over the effect on purpose. The text's pixels are left out of (b)
    and (c): the luma and chroma samples the text changes, with the 4:2:0 reach (3 chroma
@@ -1205,7 +1210,8 @@ FINAL and CONTRACTS. Each is in CONTRACTS §5.26 or GATES "Transisi cold open".
    §3.3).
 6. **P-LOOK-JOIN** compares each engine's per-frame alphas around its own join (its peak
    frame) at the best offset in ±1 legacy frame, and each whoosh onset with where that engine
-   places it (edit-v2 `start_smp`, legacy `L0_ms·48 − 11520`), within 2 ms. The two engines'
+   places it (edit-v2 `start_smp`; legacy, since the review of PR #23, its hit on the cold
+   open's end decoded with the render's own seek, at least `L0`), within 2 ms. The two engines'
    joins themselves differ by up to a frame (edit-v2 snaps the cold open to its frame grid),
    which is P-LOOK's existing territory. Loudness: both auto renders within 0.5 LU.
 7. **P-AUD's new case** runs in the gate's existing runner (`support.edit_v2_audio_harness
@@ -1239,6 +1245,11 @@ FINAL and CONTRACTS. Each is in CONTRACTS §5.26 or GATES "Transisi cold open".
    `pan=stereo|FL=FL+FC|FR=FR+FC`), and the whoosh is added by `amerge` + `pan` instead of
    `amix` (§4.4). `tests/test_render.py` renders a mono source with and without the whoosh: the
    same level per channel before the whoosh, the same decoded length.
+2. **Legacy's whoosh hit is on the measured join**, the later of `L0` and the cold open's
+   measured end, where concat starts the body's picture and sound (§4.4). A cut with the whoosh
+   measures the join as well. A measured end before `L0` (never on a CFR source) leaves the
+   join, effect included, at `L0`. P-LOOK-JOIN expects legacy's onset from the decoded join,
+   not from the length the render writes, so it would see a hit placed against `L0` again.
 
 ## Appendix A. Reference whoosh generator (prototype, run 2026-10-02)
 

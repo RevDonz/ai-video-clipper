@@ -26,8 +26,10 @@
   29.97 fit-blur, fps25 center-crop, fps60 face-track: legacy 60 against edit-v2 30), each
   against its own render without the transition: the per-frame alpha each engine applied,
   around each one's own join, within 50 per mille at the best offset in ±1 frame; each
-  whoosh's onset (cross-correlation of the PCM difference with the file) within 2 ms of where
-  that engine places it; both auto renders' integrated loudness within 0.5 LU.
+  whoosh's onset (cross-correlation of the PCM difference with the file) within 2 ms of its
+  hit on the engine's join (edit-v2: the plan's ``smp(J)``; legacy: the cold open's end decoded
+  with the render's seek, at least its length as written); both auto renders' integrated
+  loudness within 0.5 LU.
 * **PF-RENDER-JOIN** (report only): each engine's delivered render of the 29.97 clip with and
   without the flash and the whoosh.
 
@@ -585,6 +587,22 @@ def _loudness(path: Path) -> float:
     return parse_ebur128(stderr).i_clufs / 100
 
 
+def legacy_join_us(length_ms: int, measured: str | None) -> int:
+    """Where legacy's concat starts the body, in microseconds: the later of the cold open's
+    length as written and its measured end (``%d.%06d``, the frames its seek keeps), since
+    concat pads the shorter stream of the range."""
+    join = length_ms * 1000
+    if measured is None:
+        return join
+    whole, _, fraction = measured.partition(".")
+    return max(join, int(whole) * 1_000_000 + int(fraction))
+
+
+def legacy_onset(join_us: int, hit_smp: int) -> int:
+    """The whoosh's first sample when its hit is on the body's first sample at 48 kHz."""
+    return (join_us * 48 + 500) // 1000 - hit_smp
+
+
 def _look_engine(auto_dir: Path, cut_dir: Path, engine: str) -> dict[str, Any]:
     """One engine's alpha series around its own join and its whoosh onset."""
     from ai_clipper.edit_v2 import render_edit, store
@@ -605,8 +623,17 @@ def _look_engine(auto_dir: Path, cut_dir: Path, engine: str) -> dict[str, Any]:
         join_s = join.at_f * plan.fps.den / plan.fps.num
         expected_onset = join.sfx.start_smp
     else:
-        join_s = length_ms / 1000
-        expected_onset = length_ms * 48 - spec.hit_smp
+        from ai_clipper import render as legacy_render
+
+        # The join decoded from the source with the render's own seek, not the length the
+        # render writes for -t: the body starts on the cold open's last frame's end.
+        source = render_edit.job_source(auto_dir).resolve()
+        _duration, video_index, _audio = legacy_render._probe_source(source)
+        measured = legacy_render._cold_open_join_s(source, video_index, teaser["start"],
+                                                   teaser["end"] - teaser["start"])
+        join_us = legacy_join_us(length_ms, measured)
+        join_s = join_us / 1_000_000
+        expected_onset = legacy_onset(join_us, spec.hit_smp)
     rate = _frame_rate(auto)
     start = join_s - 0.4
     auto_frames, cut_frames = _window_frames(auto, start, 0.8), _window_frames(cut, start, 0.8)

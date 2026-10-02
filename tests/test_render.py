@@ -2,6 +2,7 @@ import json
 import math
 import subprocess
 import tempfile
+import wave
 from pathlib import Path
 
 import pytest
@@ -1198,8 +1199,73 @@ def test_the_cold_open_effect_follows_the_measured_join():
     assert "clip(floor(1000-1000*(2.041667-T)/0.100+0.5),0,1000)" in graph
     assert "enable='gte(t,1.941667)'[video0]" in graph
     assert "enable='lt(t,0.100)'[video1]" in graph
-    # the whoosh follows the audio join, the range length as written (2.002 s)
+    # concat pads the cold open's audio to its last frame, so the body's sound starts at the
+    # measured join too: the hit lands there (2.041667 s · 48 000 = 98 000, − 11 520)
+    assert "adelay=delays=86480S:all=1" in graph
+
+
+def test_a_measured_end_before_the_written_length_keeps_the_written_join():
+    """concat starts the body at the later of the cold open's picture and sound (2.002 s)."""
+    command = render_module._multi_range_command(
+        Path("/src/source.mp4"), ranges=((4.004, 6.006), (1.0, 3.0)), video_stream_index=0,
+        audio_stream_index=1, width=360, height=640, render_mode="center-crop",
+        output_path="/proc/self/fd/9", join_style="flash_white", join_sfx_path=WHOOSH,
+        cold_open_join_s="1.980000")
+    graph = command[command.index("-filter_complex") + 1]
+    assert "clip(floor(1000-1000*(2.002-T)/0.100+0.5),0,1000)" in graph
+    assert "enable='gte(t,1.902)'[video0]" in graph
     assert "adelay=delays=84576S:all=1" in graph
+
+
+def test_a_cut_with_the_whoosh_measures_the_join(tmp_path: Path, monkeypatch):
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"source")
+    captured = _fake_render_tools(monkeypatch, output_duration=7.002)
+    measured = []
+    monkeypatch.setattr(render_module, "_cold_open_join_s",
+                        lambda *args: measured.append(args) or "2.035367")
+    render_vertical(source, tmp_path / "clip.mp4", start=4.0, end=9.0, transcript=[],
+                    width=360, height=640, cold_open=(10.0, 12.002), join_style="cut",
+                    join_sfx="whoosh")
+    [command] = captured["commands"]
+    assert measured == [(source.resolve(), 0, 10.0, pytest.approx(2.002))]
+    graph = command[command.index("-filter_complex") + 1]
+    assert "geq" not in graph
+    assert "adelay=delays=86178S:all=1" in graph  # round(2.035367 · 48 000) − 11 520
+
+
+def test_the_whoosh_hit_lands_on_the_first_body_sample(tmp_path: Path):
+    """25 fps, ``-ss 4.004 -t 2.002``: the cold open holds 51 frames (2.040 s), concat pads its
+    sound to them, and the body starts at 2.040 s; the hit is there, not at 2.002 s."""
+    source = tmp_path / "silent25.mp4"
+    subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i",
+                    "color=c=0x404040:size=320x180:rate=25:duration=8", "-f", "lavfi", "-i",
+                    "anullsrc=channel_layout=stereo:sample_rate=48000", "-t", "8", "-c:v",
+                    "libx264", "-preset", "ultrafast", "-c:a", "aac", "-shortest", str(source)],
+                   check=True, capture_output=True)
+    assert render_module._cold_open_join_s(source, 0, 4.004, 2.002) == "2.040000"
+    output = tmp_path / "clip.mp4"
+    render_vertical(source, output, start=1.0, end=4.0, transcript=[], width=180, height=320,
+                    cold_open=(4.004, 6.006), join_style="flash_white", join_sfx="whoosh")
+    pcm = subprocess.run(["ffmpeg", "-v", "error", "-i", str(output), "-map", "0:a:0", "-f",
+                          "s16le", "-acodec", "pcm_s16le", "-"],
+                         check=True, capture_output=True).stdout
+    mixed = memoryview(pcm).cast("h")
+    whoosh = _whoosh_left()
+    expected = 2_040 * 48 - 11_520
+
+    def score(lag: int) -> float:
+        return sum(mixed[2 * (lag + i)] * value for i, value in enumerate(whoosh))
+
+    best = max(range(expected - 2_000, expected + 2_001, 8), key=score)
+    best = max(range(best - 8, best + 9), key=score)
+    assert best == expected, (best, expected)
+
+
+def _whoosh_left() -> list[int]:
+    with wave.open(str(WHOOSH), "rb") as handle:
+        frames = memoryview(handle.readframes(handle.getnframes())).cast("h")
+    return list(frames[0::2])
 
 
 def test_a_flash_and_whoosh_render_lights_the_join_and_keeps_the_duration(tmp_path: Path):

@@ -410,7 +410,8 @@ def _cold_open_join_s(source: Path, video_index: int, start: float, length: floa
 
     The range holds the source frames the seek keeps, so its end is a frame boundary that a
     guess from the frame rate misses by a frame at about a third of seek points; the effect on
-    the cold-open side is placed against it. ``None`` when it cannot be read."""
+    the cold-open side and the whoosh's hit are placed against it. ``None`` when it cannot be
+    read."""
     command = ["ffmpeg", "-nostdin", "-v", "error", "-ss", f"{start:.3f}", "-t",
                f"{length:.3f}", "-i", str(source), "-map", f"0:{video_index}", "-f",
                "framecrc", "-"]
@@ -486,13 +487,24 @@ def _multi_range_command(
     cold open and the start of the body; ``join_sfx_path`` (the checked whoosh file) is one
     more input, mixed at unity gain with its hit on the join. With the defaults the command is
     byte-identical to the one before the transition existed.
+
+    The join is where concat starts the body: the later of the cold open's measured end
+    (``cold_open_join_s``) and its length as written, since concat pads the shorter stream.
     """
     command = ["ffmpeg", "-y"]
     parts: list[str] = []
     last = len(ranges) - 1
     fade = AUDIO_JOIN_FADE_SECONDS
-    # The cold open's length exactly as written for -t, in milliseconds: the join's time.
+    # The cold open's length exactly as written for -t, in milliseconds.
     cold_open_ms = int(f"{ranges[0][1] - ranges[0][0]:.3f}".replace(".", ""))
+    join_us = cold_open_ms * 1000
+    if cold_open_join_s is not None:
+        whole, _, fraction = cold_open_join_s.partition(".")
+        measured_us = int(whole) * 1_000_000 + int(fraction)
+        if measured_us >= join_us:
+            join_us = measured_us
+        else:
+            cold_open_join_s = None
     for index, (range_start, range_end) in enumerate(ranges):
         length = range_end - range_start
         command.extend(["-ss", f"{range_start:.3f}", "-t", f"{length:.3f}", "-i", str(source)])
@@ -524,9 +536,9 @@ def _multi_range_command(
     if join_sfx_path is None:
         parts.append(f"{pads}concat=n={len(ranges)}:v=1:a=1[joined][audio]")
     else:
-        # The whoosh (spec §4.4): its hit (file sample 11 520) on the join, at 48 kHz.
+        # The whoosh (spec §4.4): its hit (file sample 11 520) on the join's sample at 48 kHz.
         spec = _transitions.SFX[("whoosh", _transitions.LATEST_SFX["whoosh"])]
-        delay = cold_open_ms * 48 - spec.hit_smp
+        delay = (join_us * 48 + 500) // 1000 - spec.hit_smp
         if delay < 0:
             raise ValueError("the cold open is too short for the sound effect")
         command.extend(["-i", str(join_sfx_path)])
@@ -665,7 +677,7 @@ def render_vertical(
             )
         else:
             join_s = None
-            if join_style != "cut":
+            if join_style != "cut" or sfx_path is not None:
                 join_s = _cold_open_join_s(source, video_stream_index, ranges[0][0],
                                            ranges[0][1] - ranges[0][0])
             command = _multi_range_command(
