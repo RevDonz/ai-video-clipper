@@ -13,6 +13,15 @@ export const PACK_IDS = Object.freeze(["classic", "karaoke", "bold", "box"]);
 export const SWATCHES = Object.freeze(["#FFE14D", "#FFFFFF", "#3DF5A6", "#52C7FF", "#FF5C8A", "#FF9F1C"]);
 export const PACK_DEFAULT_CASE = Object.freeze({ classic: "asis", karaoke: "asis", bold: "upper", box: "asis" });
 export const LAYOUT_MODES = Object.freeze(["fit_blur", "camera", "fill_center"]);
+/** Cold-open join styles (docs/plans/2026-10-02-transisi-cold-open.md §1.1); `xfade` stays op_disabled. */
+export const JOIN_STYLES = Object.freeze(["cut", "flash_white", "dip_black"]);
+/** The one sound a join can carry; no sound is the absent `sfx` key, never null. */
+export const SFX_WHOOSH = Object.freeze({ id: "whoosh", v: 1 });
+/** The transition of auto clips with a cold open (owner decision 2026-10-02). */
+export const AUTO_JOIN = Object.freeze({ style: "flash_white", sfx: SFX_WHOOSH });
+/** What the editor calls each style (Cold open panel, conflict dialog). */
+export const JOIN_STYLE_NAMES = Object.freeze({ cut: "Potong langsung", flash_white: "Kilat putih", dip_black: "Gelap sebentar" });
+const JOIN_KEYS = Object.freeze(["after", "style", "audio_fade_ms", "sfx"]);
 export const REMOVAL_REASONS = Object.freeze(["user", "filler", "repeat", "gap_silent"]);
 export const LIMITS = Object.freeze({ removals: 2000, removalWords: 400, wordEdits: 6000, wordText: 40, hookText: 90 });
 export const ID_PATTERN = /^[a-z]{2,3}_[0-9a-z]{1,16}$/;
@@ -154,6 +163,32 @@ export function logoItem(doc) {
 
 export function musicItem(doc) {
   return trackOf(doc, "audio")?.items[0] ?? null;
+}
+
+function joinOf(doc) {
+  return coldOpen(doc) ? doc.main.joins[0] ?? null : null;
+}
+
+/**
+ * The `{ style, sfx }` (sfx: `{ id, v }` or null) a cold open set by SetColdOpen gets: the current
+ * join's, so a replaced cold open keeps its transition; without one the seed's join when the seed
+ * has a cold open, so removing and re-adding it gives the seed back (R10); otherwise AUTO_JOIN.
+ * Shared with the rebase's "coldopen" part. The result never shares the documents' objects.
+ */
+export function joinTemplate(doc, seed) {
+  for (const join of [joinOf(doc), seed ? joinOf(seed) : null]) {
+    if (join && JOIN_STYLES.includes(join.style)) {
+      return { style: join.style, sfx: deepEqual(join.sfx, SFX_WHOOSH) ? { ...SFX_WHOOSH } : null };
+    }
+  }
+  return { style: AUTO_JOIN.style, sfx: { ...AUTO_JOIN.sfx } };
+}
+
+/** The document join of cold open `after` with a `joinTemplate` result (no sound: no `sfx` key). */
+export function coldOpenJoin(after, audioFadeMs, template) {
+  const join = { after, style: template.style, audio_fade_ms: audioFadeMs };
+  if (template.sfx) join.sfx = { ...template.sfx };
+  return join;
 }
 
 /** Every id of the document's single id namespace (segments, removals, tracks, items). */
@@ -350,10 +385,7 @@ export function checkDoc(doc, ctx) {
   });
   const co = coIndex >= 0 ? segments[coIndex] : null;
   if (co) {
-    const join = main.joins[0];
-    if (main.joins.length !== 1 || !join || join.after !== co.id || join.style !== "cut" || !isInt(join.audio_fade_ms, 0, 250)) {
-      add("cold_open_invalid", "/main/joins");
-    }
+    if (main.joins.length !== 1 || !joinOk(main.joins[0], co.id)) add("cold_open_invalid", "/main/joins");
   } else if (main.joins.length) add("cold_open_invalid", "/main/joins");
   if (!isInt(main.cut_fade_ms, 0, 50)) add("range_invalid", "/main/cut_fade_ms");
   if (issues.length === mainIssues && bodyIndex >= 0) {
@@ -453,6 +485,15 @@ export function checkDoc(doc, ctx) {
   if (typeof audit.editor !== "string" || audit.editor.length < 1 || [...audit.editor].length > 64) add("range_invalid", "/audit/editor");
   if (typeof audit.last_command !== "string" || !/^[A-Za-z]{1,40}$/.test(audit.last_command)) add("range_invalid", "/audit/last_command");
   return issues;
+}
+
+// The Python validator reports these as range_invalid, op_disabled, unknown_key or sfx_unknown; a
+// command never builds them, so the client keeps the one cold-open code.
+function joinOk(join, after) {
+  if (!join || typeof join !== "object" || Array.isArray(join)) return false;
+  return join.after === after && JOIN_STYLES.includes(join.style) && isInt(join.audio_fade_ms, 0, 250)
+    && Object.keys(join).every((key) => JOIN_KEYS.includes(key))
+    && (!Object.hasOwn(join, "sfx") || deepEqual(join.sfx, SFX_WHOOSH));
 }
 
 function checkHook(item, path, fps, add) {
