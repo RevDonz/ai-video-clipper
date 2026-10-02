@@ -2,13 +2,15 @@
 //
 // One Canvas2D at the output size, three layers drawn bottom to top for every frame n:
 //   1. the plate frame: source-grid frame sf of piece(n), from plate cell k = ⌊sf/C⌋ decoded by
-//      WebCodecs through Mediabunny (plate-source.mjs);
+//      WebCodecs through Mediabunny (plate-source.mjs), then blended toward the cold-open
+//      transition's colour for frame n from the plan DTO's joins, if any (join-layer.mjs);
 //   2. the text: libass (JASSUB) drawing the server's ASS bytes at now_ms(n) (text-layer.mjs,
 //      the W1 adapter, used with split and keepBitmaps: one bitmap per band of text rows,
 //      owned by the player);
 //   3. the logo: the server's derived PNG drawn 1:1 at its box (logo-layer.mjs).
 // Frame n is presented only when all three layers for n are ready (presenter.mjs): the previous
-// exact frame stays up otherwise, and nothing approximate or partial is ever drawn (E7).
+// exact frame stays up otherwise, and nothing approximate or partial is ever drawn (E7). The
+// blend needs nothing loaded, so it is never pending.
 //
 // The clock is an AudioContext({sampleRate: 48000}) playing the server's mix (audio-clock.mjs);
 // frame n is presented when the clock reaches n·den/num. During playback the text is rendered
@@ -38,6 +40,7 @@ import {
   preRollFrames,
   totalFrames,
 } from "./frame-map.mjs";
+import { drawOverlay, joinOverlays, joinsValid, overlayAt } from "./join-layer.mjs";
 import { createLogoLayer as defaultCreateLogoLayer } from "./logo-layer.mjs";
 import { createPlateSource as defaultCreatePlateSource } from "./plate-source.mjs";
 import { createPresenter } from "./presenter.mjs";
@@ -81,6 +84,7 @@ function validatePlan(dto) {
   if (dto.plate.w !== dto.output.w || dto.plate.h !== dto.output.h) fail("plate size");
   if (!dto.text || typeof dto.text.assSha256 !== "string" || !Array.isArray(dto.text.fonts)) fail("text");
   if (!dto.audio || typeof dto.audio.mixSha256 !== "string") fail("audio");
+  if (!joinsValid(dto.joins, dto.totalFrames)) fail("joins");
   return fps;
 }
 
@@ -104,7 +108,8 @@ function pushBounded(list, value) {
  *   current: { text, plate, audio, logo }, pending: [names], slow (device check), error,
  *   presentedFrame, plate: { ready, total } cells }. play({ silent: true }) plays on the wall
  * clock without the mix ("Putar tanpa suara"). Call load() with every new plan DTO, also when
- * only cell or mix states changed.
+ * only cell or mix states changed. onFrame gets, for every live frame drawn, its frame, source
+ * frame, piece, cell and joinAlphaPm (the transition alpha drawn, 0 when none).
  */
 export function createPlayer({
   canvas,
@@ -136,6 +141,7 @@ export function createPlayer({
   let plan = null;
   let fps = null;
   let pieces = [];
+  let overlays = joinOverlays();
   let total = 0;
   let cellFrames = 0;
   let aheadFrames = 30;
@@ -412,6 +418,8 @@ export function createPlayer({
     c.globalCompositeOperation = "copy";
     c.drawImage(bitmap, 0, 0);
     c.globalCompositeOperation = "source-over";
+    const overlay = overlayAt(overlays, n);
+    drawOverlay(c, overlay, plan.output.w, plan.output.h);
     for (const part of textAt?.parts ?? []) c.drawImage(part.bitmap, part.x, part.y);
     logo.draw(c);
     shown = { planSha: plan.planSha256, frame: n };
@@ -420,7 +428,7 @@ export function createPlayer({
     const at = cellAt(n);
     onFrame({
       frame: n, sf: at.sf, piece: at.i, cell: at.k, index: at.j, playing, planSha256: plan.planSha256,
-      at: d.now(), position: playing && clock ? clock.position() : null,
+      at: d.now(), position: playing && clock ? clock.position() : null, joinAlphaPm: overlay ? overlay.alphaPm : 0,
     });
   }
 
@@ -727,6 +735,7 @@ export function createPlayer({
       plan = dto;
       fps = nextFps;
       pieces = dto.pieces;
+      overlays = joinOverlays(dto.joins);
       total = dto.totalFrames;
       cellFrames = dto.plate.cellFrames;
       aheadFrames = Math.max(preRollFrames(fps, 500) + 1, preRollFrames(fps, lookaheadMs));
@@ -908,6 +917,7 @@ export function createPlayer({
       audioContext: () => audio?.context ?? null,
       audioStart: () => (clock === audio ? audio.startInfo ?? null : null),
       clockPosition: () => (clock ? clock.position() : null),
+      joinAt: (n) => overlayAt(overlays, n),
     },
 
     destroy() {

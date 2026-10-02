@@ -4,6 +4,8 @@ Terakhir diperbarui 2026-10-02 (editor sudah live, lihat §4). Semua hasil ada d
 bawah. Dokumen ini untuk agen atau device mana pun yang melanjutkan. Aturan proyek: `AGENTS.md`;
 arah desain: `DESIGN.md`.
 
+**Menunggu merge pemilik:** PR #23 (branch `transisi-integration`), transisi di sambungan cold open (Kilat putih / Gelap sebentar + whoosh; klip otomatis baru memakai Kilat putih + whoosh, klip lama tetap potong langsung); spek `docs/plans/2026-10-02-transisi-cold-open.md`, hasil gerbang `docs/editor/GATES.md` "Transisi cold open", contoh video di `artifacts/handoff/transisi/`.
+
 ## 1. Sudah live di produksi (`main`)
 
 - Selection V3 (pemilihan momen dengan LLM gratis + heuristik), halaman Pengaturan AI (key

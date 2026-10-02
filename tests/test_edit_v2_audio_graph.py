@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import array
 import copy
+import dataclasses
 import math
 import re
 import struct
@@ -20,7 +21,9 @@ from support import edit_v2_media as media
 from ai_clipper.edit_v2 import audio_graph as ag
 from ai_clipper.edit_v2 import envelope as env
 from ai_clipper.edit_v2 import timemap as tm
-from ai_clipper.edit_v2.compile_ffmpeg import InputSpec
+from ai_clipper.edit_v2 import transitions
+from ai_clipper.edit_v2.compile_ffmpeg import SIDECAR_NAME, InputSpec
+from ai_clipper.edit_v2.glyphs import RESOURCES_DIR
 
 PAN = "pan=stereo|FL=FL+FC|FR=FR+FC"
 FORMAT = "aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo"
@@ -258,6 +261,129 @@ def test_master_filter():
         ag.master_filter("plate_cells", 0)
 
 
+# --- the cold-open whoosh (spec 2026-10-02 §4.2) -----------------------------------------------------
+
+WHOOSH = {"id": "whoosh", "v": 1}
+WHOOSH_SIDECAR = "audio-sfx-whoosh-v1.pcm"
+WHOOSH_OPTIONS = ("-f", "s16le", "-ar", "48000", "-ac", "2")
+
+
+def _join_plan(doc, *, style="flash_white", sfx=True, words=None):
+    """The plan of ``doc`` with its join set to ``style`` (and the whoosh)."""
+    doc = copy.deepcopy(doc)
+    join = doc["main"]["joins"][0]
+    join["style"] = style
+    if sfx:
+        join["sfx"] = dict(WHOOSH)
+    plan = _plan(doc, words)
+    return dataclasses.replace(plan, joins=transitions.plan_joins(doc, plan.pieces, plan.fps,
+                                                                  plan.total_frames))
+
+
+def _whoosh_chain(k: int, plan) -> str:
+    sfx = plan.joins[0].sfx
+    return (f"[{k}:a]asetpts=PTS-STARTPTS,adelay=delays={sfx.start_smp}S:all=1,apad,"
+            f"atrim=end_sample={plan.total_samples}[au_w]")
+
+
+def test_the_whoosh_is_a_sidecar_after_every_other_input():
+    plan = _join_plan(harness.click_doc(source_gain_cdb=-300,
+                                        music={"gain_cdb": -800, "loop": False}))
+    fragment = ag.audio_fragment(plan, mode="final", first_input_index=5)
+    assert fragment.inputs == (
+        InputSpec("sidecar", "audio-speech.f32", ENV_OPTIONS),
+        InputSpec("asset", harness.MUSIC_ASSET, ("-f", "mov")),
+        InputSpec("sidecar", "audio-music.f32", ENV_OPTIONS),
+        InputSpec("sidecar", WHOOSH_SIDECAR, WHOOSH_OPTIONS),
+    )
+    spec = transitions.SFX[("whoosh", 1)]
+    assert fragment.sidecars[WHOOSH_SIDECAR] == transitions.load_sfx_pcm(RESOURCES_DIR, spec)
+    assert SIDECAR_NAME.fullmatch(WHOOSH_SIDECAR)
+    assert fragment.graph.split(";")[-2:] == [
+        _whoosh_chain(8, plan),
+        f"[au_s][au_m][au_w]amix=inputs=3:normalize=0:duration=first,{FORMAT}[apre]",
+    ]
+
+
+def test_the_whoosh_closes_the_speech_even_without_music():
+    plan = _join_plan(harness.click_doc())
+    sfx = plan.joins[0].sfx
+    # cold open 312–385 (73 frames at 29.97): J = 73, smp(73) = 116 916
+    assert (plan.joins[0].at_f, sfx.hit_smp, sfx.start_smp, sfx.skip_smp) == (73, 116916,
+                                                                              105396, 0)
+    fragment = ag.audio_fragment(plan, mode="reference", first_input_index=5)
+    assert fragment.inputs[-1] == InputSpec("sidecar", WHOOSH_SIDECAR, WHOOSH_OPTIONS)
+    assert fragment.graph.split(";")[-5:] == [
+        "[au_p0][au_p1][au_p2][au_p3][au_p4]concat=n=5:v=0:a=1[au_sc]",
+        "[5:a]pan=stereo|c0=c0|c1=c0[au_se]",
+        "[au_sc][au_se]amultiply[au_s]",
+        ("[6:a]asetpts=PTS-STARTPTS,adelay=delays=105396S:all=1,apad,"
+         "atrim=end_sample=722321[au_w]"),
+        f"[au_s][au_w]amix=inputs=2:normalize=0:duration=first,{FORMAT}[apre]",
+    ]
+
+
+def test_a_whoosh_without_source_audio_mixes_with_silence():
+    doc = harness.audio_doc(segments=(("seg_co", "cold_open", 312, 385),
+                                      ("seg_b1", "body", 43, 540)), has_audio=False)
+    plan = _join_plan(doc, style="cut")
+    fragment = ag.audio_fragment(plan, mode="final", first_input_index=0)
+    assert plan.total_samples == tm.smp(570, plan.fps) == 912912
+    assert fragment.graph.split(";") == [
+        "anullsrc=channel_layout=stereo:sample_rate=48000,atrim=end_sample=912912[au_s]",
+        _whoosh_chain(0, plan),
+        f"[au_s][au_w]amix=inputs=2:normalize=0:duration=first,{FORMAT}[apre]",
+    ]
+
+
+def test_a_skipped_head_trims_the_whoosh_before_the_delay():
+    plan = _join_plan(harness.click_doc())
+    spec = transitions.SFX[("whoosh", 1)]
+    early = transitions.sfx_plan(spec, 3, plan.fps)  # smp(3) = 4804 < 11 520
+    assert early.skip_smp == 11520 - 4804 and early.start_smp == 0
+    plan = dataclasses.replace(plan, joins=(dataclasses.replace(plan.joins[0], sfx=early),))
+    fragment = ag.audio_fragment(plan, mode="final", first_input_index=6)
+    assert fragment.graph.split(";")[-2] == (
+        "[7:a]asetpts=PTS-STARTPTS,atrim=start_sample=6716,asetpts=PTS-STARTPTS,"
+        "adelay=delays=0S:all=1,apad,atrim=end_sample=722321[au_w]")
+
+
+def test_the_mix_sha_follows_the_sound_not_the_style():
+    doc = harness.click_doc(music={"gain_cdb": -800})
+    base = ag.audio_fragment(_plan(doc), mode="final", first_input_index=0)
+    cut = ag.audio_fragment(_join_plan(doc, style="cut", sfx=False), mode="final",
+                            first_input_index=0)
+    flash = ag.audio_fragment(_join_plan(doc, style="flash_white", sfx=False), mode="final",
+                              first_input_index=0)
+    assert base == cut == flash  # a cut, or an effect without the sound: today's fragment
+    whoosh = {style: ag.audio_fragment(_join_plan(doc, style=style), mode="final",
+                                       first_input_index=0)
+              for style in transitions.JOIN_STYLES}
+    assert len({f.mix_sha256 for f in whoosh.values()}) == 1
+    assert whoosh["cut"].mix_sha256 != base.mix_sha256
+    assert len({f.graph for f in whoosh.values()}) == 1
+
+
+def test_the_whoosh_fragment_is_the_same_in_every_mode():
+    plan = _join_plan(harness.click_doc(music={"gain_cdb": -800}))
+    fragments = [ag.audio_fragment(plan, mode=mode, first_input_index=3)
+                 for mode in ag.AUDIO_MODES]
+    assert len({(f.graph, f.mix_sha256) for f in fragments}) == 1
+    assert ag.audio_fragment(plan, mode="final", first_input_index=9).mix_sha256 \
+        == fragments[0].mix_sha256
+
+
+def test_a_missing_or_changed_whoosh_fails_the_render(tmp_path):
+    from ai_clipper.edit_v2 import errors
+    from ai_clipper.edit_v2.plan import Resources
+
+    plan = dataclasses.replace(_join_plan(harness.click_doc()),
+                               resources=Resources(tmp_path / "resources"))
+    with pytest.raises(errors.RenderFailed) as caught:
+        ag.audio_fragment(plan, mode="final", first_input_index=0)
+    assert caught.value.ref == "sfx"
+
+
 # --- FFmpeg (local toolchain) ------------------------------------------------------------------------
 
 
@@ -364,6 +490,28 @@ def test_source_without_audio_gives_exact_silence(sources, tmp_path):
     samples = harness.pcm(out.output)
     assert len(samples) == 2 * plan.total_samples
     assert not any(samples)
+
+
+def test_the_whoosh_adds_exactly_its_samples(sources, tmp_path):
+    """G-WHOOSH on the local toolchain: the whoosh document's PCM minus the cut document's is
+    0 outside the whoosh and the whoosh (±1 LSB) inside it; the length is the plan's."""
+    source = sources.media(sources.speech(), music_kind=None)
+    doc = harness.click_doc()
+    cut = harness.pcm(harness.run(_plan(doc), mode="reference", sources=source, work=tmp_path,
+                                  name="cut").output)
+    plan = _join_plan(doc)
+    mixed = harness.pcm(harness.run(plan, mode="reference", sources=source, work=tmp_path,
+                                    name="whoosh").output)
+    assert len(cut) == len(mixed) == 2 * plan.total_samples
+    sfx = plan.joins[0].sfx
+    wav = array.array("h", transitions.load_sfx_pcm(RESOURCES_DIR,
+                                                    transitions.SFX[("whoosh", 1)]))
+    first, last = 2 * sfx.start_smp, 2 * (sfx.start_smp + sfx.samples)
+    assert all(a == b for a, b in zip(cut[:first], mixed[:first], strict=True))
+    assert all(a == b for a, b in zip(cut[last:], mixed[last:], strict=True))
+    errors_ = [mixed[i] - cut[i] - wav[i - first] for i in range(first, last)]
+    assert max(abs(e) for e in errors_) <= 1
+    assert sum(e == 0 for e in errors_) >= 0.999 * len(errors_)
 
 
 # --- gates (local run; evidence of record comes from the reference image) -------------------------

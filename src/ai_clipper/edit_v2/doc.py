@@ -30,7 +30,7 @@ from dataclasses import dataclass
 from json.decoder import scanstring
 from typing import Any
 
-from . import COMPILER_ID, DOC_FPS, OUTPUT_SIZES, PACK_IDS, SCHEMA, SWATCHES
+from . import COMPILER_ID, DOC_FPS, OUTPUT_SIZES, PACK_IDS, SCHEMA, SWATCHES, transitions
 from . import timemap as tm
 from .clip_id import CLIP_ID_PATTERN
 from .errors import DocInvalid, SchemaTooNew
@@ -354,7 +354,7 @@ _ROOT = _compile(_keys(
                segments=_List(_keys("id", "role", "in_sf", "out_sf")),
                removals=_List(_keys("id", "seg", "in_sf", "out_sf", "words", "reason",
                                     "origin")),
-               joins=_List(_keys("after", "style", "audio_fade_ms"))),
+               joins=_List(_keys("after", "style", "audio_fade_ms", sfx=_keys("id", "v")))),
     captions=_keys("enabled", pack=_keys("id", "v"),
                    overrides=_keys("y_e5", "size_pm", "case", "highlight", "emphasis"),
                    word_edits=_Map(_keys("text", "hidden", "emphasis"))),
@@ -506,7 +506,7 @@ _REMOVAL_ORIGIN = re.compile(r"(?:user|suggestion:[a-z]{2,3}_[0-9a-z]{1,16})")
 _SEGMENT_ROLES = ({"cold_open", "body"}, {"insert"})
 _REMOVAL_REASONS = ({"user", "filler", "repeat", "gap_silent"},
                     {"gap_voiced", "ai_condense", "timeline"})
-_JOIN_STYLES = ({"cut"}, {"flash_white", "dip_black", "xfade"})
+_JOIN_STYLES = (set(transitions.JOIN_STYLES), set(transitions.DISABLED_JOIN_STYLES))
 _CASES = ({"asis", "upper"}, {"lower", "sentence"})
 _LAYOUT_MODES = ({"fit_blur", "camera", "fill_center"},
                  {"smart_speaker", "fit_black", "split", "branded"})
@@ -985,6 +985,8 @@ class _Validator:
             self.string(join, "after", path, pattern=_ID)
             self.enum(join, "style", path, _JOIN_STYLES)
             self.integer(join, "audio_fade_ms", path, 0, 250)
+            if "sfx" in join:  # optional; "no sound" is the absent key, never null
+                self.join_sfx(join["sfx"], f"{path}/sfx")
         segments = self.doc["main"].get("segments")
         if not isinstance(segments, list) or not segments:
             return  # no segment list to check the joins against (reported on /main/segments)
@@ -1003,6 +1005,16 @@ class _Validator:
         if isinstance(first, dict) and isinstance(first.get("after"), str) \
                 and isinstance(cold.get("id"), str) and first["after"] != cold["id"]:
             self.error("cold_open_invalid", "/main/joins/0/after")
+
+    def join_sfx(self, sfx: object, path: str) -> None:
+        """The join's sound, checked like ``captions.pack``: a well-formed ``{id, v}`` that is
+        not pinned in ``transitions.SFX`` is ``sfx_unknown``."""
+        if self.obj(sfx, path) is None:
+            return
+        sfx_id = self.string(sfx, "id", path)
+        version = self.integer(sfx, "v", path, -MAX_SAFE_INTEGER)
+        if sfx_id is not None and version is not None and (sfx_id, version) not in transitions.SFX:
+            self.error("sfx_unknown", path)
 
     def segment_frames_rule(self) -> None:
         """Body duration and cold-open rules, computed from the valid segments and removals."""

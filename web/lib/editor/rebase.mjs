@@ -14,14 +14,17 @@
 // (part values set as a whole: an undo past the last save, or a conflict resolution).
 import { CommandRejected, applyCommand } from "./commands.mjs";
 import {
+  JOIN_STYLE_NAMES,
   TRACKS,
   body,
   checkDoc,
   coldOpen,
+  coldOpenJoin,
   contentJson,
   deepEqual,
   documentIds,
   formatFrameTime,
+  joinTemplate,
   nextId,
   segmentOf,
   trackOf,
@@ -31,9 +34,12 @@ import { pieces, srcToOut } from "./timemap.mjs";
 const OVERRIDE_KEYS = ["y_e5", "size_pm", "case", "highlight", "emphasis"];
 const WORD_FIELDS = ["text", "hidden", "emphasis"];
 
-/** Every fixed part, in the order parts are applied (word parts come after the captions). */
+/**
+ * Every fixed part, in the order parts are applied (word parts come after the captions). The
+ * cold-open transition (join.style, join.sfx) comes right after the cold open it belongs to.
+ */
 export const PARTS = Object.freeze([
-  "base", "coldopen", "trim", "removals:cold_open", "removals:body", "cut_fade",
+  "base", "coldopen", "join.style", "join.sfx", "trim", "removals:cold_open", "removals:body", "cut_fade",
   "captions.enabled", "captions.pack", ...OVERRIDE_KEYS.map((key) => `captions.override.${key}`),
   "hook.on", "hook.text", "hook.dur", "hook.y", "layout",
   "logo.asset", "logo.transform", "logo.opacity",
@@ -48,6 +54,7 @@ export const GROUP_LABELS = Object.freeze({
   base: "Versi klip",
   trim: "Awal/akhir klip",
   coldopen: "Cold open",
+  join: "Transisi cold open",
   "removals:cold_open": "Potongan di cold open",
   "removals:body": "Potongan",
   cuts: "Fade potongan",
@@ -65,8 +72,9 @@ const PREREQUISITES = Object.freeze({
   "logo.transform": "logo.asset", "logo.opacity": "logo.asset",
   "music.gain": "music.asset", "music.offset": "music.asset", "music.loop": "music.asset",
   "music.fades": "music.asset", "music.duck": "music.asset",
-  "removals:cold_open": "coldopen",
+  "removals:cold_open": "coldopen", "join.style": "coldopen", "join.sfx": "coldopen",
 });
+const JOIN_PARTS = Object.freeze(["join.style", "join.sfx"]);
 
 /** The dialog group of a part: "hook.text" → "hook", "word:w048121.text" → "word:w048121". */
 export function partGroup(part) {
@@ -110,6 +118,12 @@ function identity(doc, part) {
       return { track: withoutItems(track), id: entry?.id ?? null, type: entry?.type, start: entry?.start, end: entry?.end,
         origin: entry?.origin, asset, mode: entry?.payload?.mode, meta: doc.assets[asset] ?? null };
     }
+    // "No whoosh" and "no cold open" are both null as values; as a change they differ, so a
+    // cold open added or removed always lists join.sfx and is rebuilt with its own sound.
+    case "join.sfx": {
+      const join = coldOpen(doc) ? doc.main.joins[0] : null;
+      return join ? { sfx: join.sfx ?? null } : null;
+    }
     default:
       return partValue(doc, part);
   }
@@ -140,6 +154,8 @@ export function partValue(doc, part) {
       const segment = coldOpen(doc);
       return segment ? { id: segment.id, in_sf: segment.in_sf, out_sf: segment.out_sf, fade: doc.main.joins[0]?.audio_fade_ms ?? 30 } : null;
     }
+    case "join.style": return doc.main.joins[0]?.style ?? null;
+    case "join.sfx": return doc.main.joins[0]?.sfx ?? null;
     case "cut_fade": return doc.main.cut_fade_ms;
     case "captions.enabled": return doc.captions.enabled;
     case "captions.pack": return doc.captions.pack;
@@ -216,7 +232,11 @@ function setItem(doc, kind, patch, missing) {
   return { ...doc, tracks: doc.tracks.map((entry) => (entry === track ? next : entry)) };
 }
 
-function setPart(doc, part, value, assets) {
+function setJoin(doc, join) {
+  return { ...doc, main: { ...doc.main, joins: [join] } };
+}
+
+function setPart(doc, part, value, assets, ctx) {
   if (part.startsWith("word:")) {
     const dot = part.lastIndexOf(".");
     const id = part.slice(5, dot);
@@ -253,8 +273,25 @@ function setPart(doc, part, value, assets) {
       const segment = { id, role: "cold_open", in_sf: value.in_sf, out_sf: value.out_sf };
       const removals = current && current.id !== id
         ? doc.main.removals.map((removal) => (removal.seg === current.id ? { ...removal, seg: id } : removal)) : doc.main.removals;
+      // The current join keeps its transition; a new cold open gets SetColdOpen's template.
+      const join = coldOpenJoin(id, value.fade, joinTemplate(doc, ctx?.seed ?? null));
       return { ...doc, main: { ...doc.main, segments: [segment, ...doc.main.segments.filter((entry) => entry.role !== "cold_open")],
-        removals, joins: [{ after: id, style: "cut", audio_fade_ms: value.fade }] } };
+        removals, joins: [join] } };
+    }
+    case "join.style": {
+      if (value === null) return doc;
+      if (!coldOpen(doc)) return reject("cold_open_missing");
+      return setJoin(doc, { ...doc.main.joins[0], style: value });
+    }
+    case "join.sfx": {
+      const join = coldOpen(doc) ? doc.main.joins[0] : null;
+      if (value === null) {
+        if (!join || !Object.hasOwn(join, "sfx")) return doc;
+        const { sfx: _sfx, ...rest } = join;
+        return setJoin(doc, rest);
+      }
+      if (!join) return reject("cold_open_missing");
+      return setJoin(doc, { ...join, sfx: { ...value } });
     }
     case "cut_fade": return { ...doc, main: { ...doc.main, cut_fade_ms: value } };
     case "captions.enabled": return { ...doc, captions: { ...doc.captions, enabled: value } };
@@ -360,7 +397,7 @@ export function applyParts(doc, values, ctx) {
   let next = doc;
   for (const part of Object.keys(values).sort((a, b) => orderOf(a) - orderOf(b))) {
     if (part.startsWith("removals:")) lists[part.slice(9)] = values[part];
-    else next = setPart(next, part, values[part], assets);
+    else next = setPart(next, part, values[part], assets, ctx);
   }
   next = setRemovalLists(next, lists);
   next = normalize(next, assets);
@@ -456,6 +493,11 @@ function describe(doc, group, ctx) {
       const segment = coldOpen(doc);
       return segment ? `${formatFrameTime(segment.out_sf - segment.in_sf, fps)} dari ${formatFrameTime(segment.in_sf, fps)}` : "Tanpa cold open";
     }
+    case "join": {
+      const join = coldOpen(doc) ? doc.main.joins[0] : null;
+      if (!join) return "Tanpa cold open";
+      return `${JOIN_STYLE_NAMES[join.style] ?? join.style}${join.sfx ? " + whoosh" : ""}`;
+    }
     case "captions": return `${doc.captions.enabled ? doc.captions.pack.id : "caption mati"}`;
     case "hook": return item(doc, "hook")?.payload.text ?? "Hook mati";
     case "layout": return doc.layout.default.mode;
@@ -519,7 +561,9 @@ export function rebase({ base, mine, theirs, steps, ctx }) {
     if (asParts) replayed.push({ ...asParts, parts: touched, entryId: step.entryId });
     else replayed.push({ ...step, args: result.args, parts: touched });
   }
-  const differs = (part) => !deepEqual(partValue(doc, part), partValue(mine, part));
+  // The identity too: a cold open without a whoosh and no cold open have the same join.sfx value.
+  const differs = (part) => !deepEqual(partValue(doc, part), partValue(mine, part))
+    || !deepEqual(identity(doc, part), identity(mine, part));
   const remaining = [...conflictParts].filter(differs).sort((a, b) => orderOf(a) - orderOf(b));
   if (!remaining.length) return { status: "merged", doc, steps: replayed, conflicts: [] };
   const groups = new Map();
@@ -535,6 +579,11 @@ export function rebase({ base, mine, theirs, steps, ctx }) {
       add(group, needs);
       add(group, part);
     } else add(partGroup(part), part);
+  }
+  // A cold open that one side has and the other does not: "Pakai punyaku" brings back mine with
+  // its own transition (not the template's), "Pakai yang tersimpan" keeps theirs.
+  if (groups.has("coldopen") && (partValue(doc, "coldopen") === null) !== (partValue(mine, "coldopen") === null)) {
+    for (const part of JOIN_PARTS) if (differs(part)) add("coldopen", part);
   }
   for (const [group, parts] of groups) groups.set(group, [...parts].sort((a, b) => orderOf(a) - orderOf(b)));
   const conflicts = [...groups.entries()].map(([id, parts]) => ({

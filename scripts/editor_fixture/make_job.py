@@ -13,6 +13,8 @@ sources, hard-linked into each job):
   every 9th frame dropped, no cold open): the same transcript over other sources;
 * ``old``: the ``main`` media without ``sound-events.json`` (a Whisper-style job) and with a
   leftover ``.attempts/orphan.analysis.<uuid>/`` directory; it opens after prepare;
+* ``legacy_new``: the ``main`` job again, for the legacy engine with the cold-open transition
+  (spec 2026-10-02 §6.3: ``old`` stands for a clip rendered before it);
 * ``stranded``: ``analysis/`` exists only under ``.attempts/<sha>/analysis/`` (a job completed
   before the web published attempt analysis): ``analysis_incomplete``;
 * ``v1``: a Selection V1 job: ``not_v3``.
@@ -29,8 +31,10 @@ open (a question). Every artifact is deterministic; only the H.264 bits depend o
 ``docs/editor/evidence/W1/T1.5-words_peaks.json`` and ``T1.5-camera.json``.
 
 ``build --render`` (T2.1) then renders the auto clips of every V3 job through the pipeline's
-rendering stage (``pipeline.render_v3_job``): ``old`` with the legacy engine (a job rendered
-before the engine switch), the others with the edit-v2 compiler, so they carry ``seed.json``
+rendering stage (``pipeline.render_v3_job``): ``old`` with the legacy engine as before the
+engine switch and the cold-open transition (a cut), ``legacy_new`` with the legacy engine and
+the transition (flash and whoosh), the others with the edit-v2 compiler and the transition, so
+they carry ``seed.json``
 (engine ``edit-v2/1``), words, peaks, camera plan (face-track, stubbed with ``--stub-camera``)
 and ``output/clip-NN.mp4`` + ``.srt`` + ``.jpg``; the manifest and ``job.json`` clips gain
 ``clip_id``/``clipId`` and ``render_engine``/``renderEngine``. ``--prepare`` runs after it
@@ -218,6 +222,8 @@ VARIANTS: dict[str, Variant] = {
     "vfr": Variant("vfr", (30000, 1001), container="mkv", vfr=True, caption_style="classic",
                    cold_open=False),
     "old": Variant("main", (30000, 1001), sound_events=False, layout="orphan_attempt"),
+    # rendered by the legacy engine with the cold-open transition (spec 2026-10-02 §6.3)
+    "legacy_new": Variant("main", (30000, 1001)),
     "stranded": Variant("main", (30000, 1001), layout="stranded", expect="analysis_incomplete"),
     "v1": Variant("main", (30000, 1001), selection_mode="v1", expect="not_v3"),
 }
@@ -621,12 +627,19 @@ def prepare_all(out: Path, index: dict[str, Any], *, stub_camera: bool) -> dict[
             for name, entry in index["jobs"].items()}
 
 
+LEGACY_JOBS = ("old", "legacy_new")
+BEFORE_TRANSITION_JOBS = ("old",)  # rendered as before the cold-open transition existed
+
+
 def render_all(out: Path, index: dict[str, Any], *, stub_camera: bool) -> dict[str, Any]:
-    """Render the auto clips of every V3 job through ``pipeline.render_v3_job`` (``old``
-    with the legacy engine, the others with edit-v2) and record them in the manifest,
-    ``job.json`` and the index."""
+    """Render the auto clips of every V3 job through ``pipeline.render_v3_job`` (``old`` and
+    ``legacy_new`` with the legacy engine, the others with edit-v2) and record them in the
+    manifest, ``job.json`` and the index. ``old`` renders as the pipeline did before the
+    cold-open transition (a cut, no ``cold_open_join``); every other job with the pipeline's
+    default flash and whoosh."""
     from ai_clipper import pipeline
     from ai_clipper.edit_v2 import camera
+    from ai_clipper.edit_v2.transitions import AUTO_COLD_OPEN_JOIN
 
     if stub_camera:
         camera.detect_face_track = _stub_detector
@@ -635,9 +648,10 @@ def render_all(out: Path, index: dict[str, Any], *, stub_camera: bool) -> dict[s
         variant = VARIANTS[name]
         if variant.selection_mode != "v3" or variant.layout == "stranded":
             continue
-        engine = "legacy" if name == "old" else "edit-v2"
+        engine = "legacy" if name in LEGACY_JOBS else "edit-v2"
+        join = None if name in BEFORE_TRANSITION_JOBS else AUTO_COLD_OPEN_JOIN
         job_dir = out / entry["dir"]
-        run = pipeline.render_v3_job(job_dir, render_engine=engine)
+        run = pipeline.render_v3_job(job_dir, render_engine=engine, cold_open_join=join)
         manifest_path = job_dir / "output" / "manifest.json"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         manifest["clips"] = run.clips
@@ -650,6 +664,7 @@ def render_all(out: Path, index: dict[str, Any], *, stub_camera: bool) -> dict[s
         job["selectionV3"] = manifest["selection_v3"]
         _write_json(job_path, job)
         entry["rendered"] = engine
+        entry["cold_open_join"] = None if join is None else join.to_json()
         report[name] = {"engine": engine, "seconds": round(run.seconds, 2),
                         "warnings": run.warnings,
                         "clips": [{"index": clip["index"], "clip_id": clip.get("clip_id"),

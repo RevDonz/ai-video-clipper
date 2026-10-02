@@ -22,23 +22,29 @@
 //   fit the box instead (shrinking a very tall logo); `clampLogoPosition` is the helper for drags.
 // - ApplyCleanup items: `{ id, kind: "filler" | "repeat", wordIds }` or
 //   `{ id, kind: "gap_silent", afterWord, inSf, outSf }`; origin `suggestion:<id>`.
+// - SetColdOpen gives the join the transition of `joinTemplate` (doc-model.mjs): the current
+//   join's style and whoosh, else the seed's, else Kilat putih + whoosh (the auto clips' default).
 import {
   ASSET_ID_PATTERN,
   CAPTION_OVERRIDE_RULES,
   EDITOR_ID,
   ITEM_ORIGIN_PATTERN,
+  JOIN_STYLES,
   LAYOUT_MODES,
   LIMITS,
   PACK_DEFAULT_CASE,
   PACK_IDS,
   REMOVAL_ORIGIN_PATTERN,
+  SFX_WHOOSH,
   TRACKS,
   body,
   checkDoc,
   coldOpen,
+  coldOpenJoin,
   documentIds,
   freeId,
   hookItem,
+  joinTemplate,
   logoItem,
   musicItem,
   nextId,
@@ -47,10 +53,13 @@ import {
 } from "./doc-model.mjs";
 import { divRoundHalfUp, logoBox, pieces, sfCeil, sfFloor } from "./timemap.mjs";
 
-/** Appendix B, in the order of the table (the same list as `__dev__/fakes.mjs`). */
+/**
+ * Appendix B, in the order of the table (the same list as `__dev__/fakes.mjs`), with the
+ * cold-open transition commands after NudgeColdOpen (docs/plans/2026-10-02-transisi-cold-open.md §7.2).
+ */
 export const COMMANDS = Object.freeze([
   "TrimStart", "TrimEnd", "RemoveWords", "RemoveGap", "RestoreRemoval", "ApplyCleanup",
-  "SetColdOpen", "NudgeColdOpen", "EditWordText", "SetWordHidden", "SetWordEmphasis",
+  "SetColdOpen", "NudgeColdOpen", "SetJoinStyle", "SetJoinSfx", "EditWordText", "SetWordHidden", "SetWordEmphasis",
   "SetCaptionsEnabled", "SetCaptionPack", "SetCaptionOverride", "SetHookEnabled", "SetHookText",
   "SetHookDuration", "SetHookY", "SetLayout", "SetLogo", "RemoveLogo", "MoveLogo", "ResizeLogo",
   "SetLogoOpacity", "SnapLogo", "SetMusic", "RemoveMusic", "SetMusicGain", "SetMusicOffset",
@@ -206,6 +215,13 @@ function clampRemovals(removals, segId, lo, hi) {
     result.push(inSf === removal.in_sf && outSf === removal.out_sf ? removal : { ...removal, in_sf: inSf, out_sf: outSf });
   }
   return result;
+}
+
+/** The cold-open join with `patch(join)` applied; the precondition of the transition commands. */
+function withJoin(doc, patch) {
+  const join = coldOpen(doc) ? doc.main.joins[0] : null;
+  need(join, "cold_open_missing");
+  return withMain(doc, { joins: [patch(join)] });
 }
 
 function replaceSegment(doc, segment, next) {
@@ -597,7 +613,7 @@ const HANDLERS = {
       doc: withMain(doc, {
         segments: [segment, ...doc.main.segments.filter((item) => item.role !== "cold_open")],
         removals: co ? doc.main.removals.filter((removal) => removal.seg !== co.id) : doc.main.removals,
-        joins: [{ after: id, style: "cut", audio_fade_ms: fade }],
+        joins: [coldOpenJoin(id, fade, joinTemplate(doc, ctx.seed))],
       }),
       args: { firstWord: args.firstWord, lastWord: args.lastWord },
     };
@@ -628,6 +644,22 @@ const HANDLERS = {
         removals: clampRemovals(doc.main.removals, co.id, next.in_sf, next.out_sf),
       }),
       args: { edge: args.edge, words: args.words },
+    };
+  },
+
+  // The transition never touches segments, removals or captions: duration and the time map stay.
+  SetJoinStyle(doc, args) {
+    need(coldOpen(doc), "cold_open_missing");
+    need(JOIN_STYLES.includes(args.style), "value_out_of_range", { arg: "style" });
+    return { doc: withJoin(doc, (join) => ({ ...join, style: args.style })), args: { style: args.style } };
+  },
+
+  SetJoinSfx(doc, args) {
+    need(coldOpen(doc), "cold_open_missing");
+    const on = boolArg(args, "on");
+    return {
+      doc: withJoin(doc, ({ sfx: _sfx, ...join }) => (on ? { ...join, sfx: { ...SFX_WHOOSH } } : join)),
+      args: { on },
     };
   },
 

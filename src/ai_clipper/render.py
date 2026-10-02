@@ -11,10 +11,14 @@ import stat
 import subprocess
 import tempfile
 from collections.abc import Sequence
+from fractions import Fraction
 from numbers import Real
 from pathlib import Path
 
 from .captions_ass import CAPTION_STYLES, build_ass
+from .edit_v2 import errors as _edit_errors
+from .edit_v2 import transitions as _transitions
+from .edit_v2.glyphs import RESOURCES_DIR as SFX_RESOURCES_DIR
 from .face_tracking import build_crop_expression, detect_face_track
 from .models import TranscriptSegment
 from .subtitles import build_caption_cues, cues_to_srt
@@ -32,6 +36,10 @@ _COLD_OPEN_SAME_START_TOLERANCE_SECONDS = 0.01
 _LENGTH_EPSILON_SECONDS = 1e-9
 _SILENT_AUDIO = "anullsrc=channel_layout=stereo:sample_rate=48000"
 _CAPTIONS_FILTER = "ass=filename='captions.ass'"
+_SFX_FORMAT = "aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo"
+# Mono speech goes to both channels at 1.0 (edit-v2's pan), not swresample's −3 dB upmix.
+_SPEECH_TO_STEREO = "pan=stereo|FL=FL+FC|FR=FR+FC"
+_SUM_TWO_STEREO = "pan=stereo|c0=c0+c2|c1=c1+c3"  # amerge's 4 channels: unity sum
 _ENCODE_ARGUMENTS = (
     "-map",
     "[video]",
@@ -388,6 +396,73 @@ def _single_range_command(
     return command
 
 
+def _milliseconds(value: int) -> str:
+    return f"{value // 1000}.{value % 1000:03d}"
+
+
+def _microseconds(value: int) -> str:
+    return f"{value // 1_000_000}.{value % 1_000_000:06d}"
+
+
+def _cold_open_join_s(source: Path, video_index: int, start: float, length: float) -> str | None:
+    """Where the body starts in the cold-open range's own time: the end of its last frame, as
+    ``%d.%06d`` seconds, decoded with the render's own seek (``-ss``/``-t`` before ``-i``).
+
+    The range holds the source frames the seek keeps, so its end is a frame boundary that a
+    guess from the frame rate misses by a frame at about a third of seek points; the effect on
+    the cold-open side and the whoosh's hit are placed against it. ``None`` when it cannot be
+    read."""
+    command = ["ffmpeg", "-nostdin", "-v", "error", "-ss", f"{start:.3f}", "-t",
+               f"{length:.3f}", "-i", str(source), "-map", f"0:{video_index}", "-f",
+               "framecrc", "-"]
+    try:
+        result = subprocess.run(command, check=True, capture_output=True, text=True,
+                                timeout=FFMPEG_TIMEOUT_SECONDS)
+        time_base = None
+        frames: list[tuple[int, int]] = []
+        for line in result.stdout.splitlines():
+            if line.startswith("#tb 0:"):
+                time_base = Fraction(line.split(":", 1)[1].strip())
+            elif line and not line.startswith("#"):
+                fields = [field.strip() for field in line.split(",")]
+                frames.append((int(fields[2]), int(fields[3])))
+    except (OSError, subprocess.SubprocessError, ValueError, IndexError, ZeroDivisionError):
+        return None
+    if time_base is None or not frames or frames[-1][1] <= 0 or time_base <= 0:
+        return None
+    end = (frames[-1][0] - frames[0][0] + frames[-1][1]) * time_base * 1_000_000
+    micro = (2 * end.numerator + end.denominator) // (2 * end.denominator)
+    return _microseconds(micro) if micro > 0 else None
+
+
+def _join_effect(style: str, index: int, cold_open_ms: int, join_s: str | None = None) -> str:
+    """The cold-open effect of range ``index`` (0: the cold open, 1: the body), appended to its
+    layout (spec 2026-10-02 §4.3): ``alpha(τ) = max(0, 1 − |τ|/W)`` at the range's own frame
+    times, blended toward the style's 8-bit TV-range colour in ``yuv420p``; ``""`` for a cut
+    or a later range. ``join_s`` is the cold open's measured end (:func:`_cold_open_join_s`);
+    without it the range length as written stands for it."""
+    if style == "cut" or index > 1:
+        return ""
+    width_ms = _transitions.HALF_WIDTH_MS[style]
+    width = _milliseconds(width_ms)
+    if index == 0:
+        if join_s is None:
+            join, start = _milliseconds(cold_open_ms), _milliseconds(cold_open_ms - width_ms)
+        else:
+            whole, _, fraction = join_s.partition(".")
+            join_us = int(whole) * 1_000_000 + int(fraction)
+            join, start = join_s, _microseconds(max(0, join_us - width_ms * 1000))
+        alpha = f"clip(floor(1000-1000*({join}-T)/{width}+0.5),0,1000)"
+        enable = f"gte(t,{start})"
+    else:
+        alpha = f"clip(floor(1000-1000*T/{width}+0.5),0,1000)"
+        enable = f"lt(t,{width})"
+    planes = ":".join(
+        f"{plane}='st(0,{alpha});floor(({plane}(X,Y)*(1000-ld(0))+{colour}*ld(0)+500)/1000)'"
+        for plane, colour in zip(("lum", "cb", "cr"), _transitions.YUV_TV[style], strict=True))
+    return f",format=yuv420p,geq={planes}:enable='{enable}'"
+
+
 def _multi_range_command(
     source: Path,
     *,
@@ -398,17 +473,38 @@ def _multi_range_command(
     height: int,
     render_mode: str,
     output_path: str,
+    join_style: str = "cut",
+    join_sfx_path: Path | None = None,
+    cold_open_join_s: str | None = None,
 ) -> list[str]:
     """Play source ranges back to back (cold open, then main) with one caption pass on top.
 
     Each range is its own seeked input, gets its own layout (a face-track crop is computed
     per range), and its audio is padded/trimmed to the range length so concat stays in sync.
     Short fades at each join avoid clicks; audio-less sources get generated silence.
+
+    ``join_style`` (``flash_white``/``dip_black``) adds the cold-open effect at the end of the
+    cold open and the start of the body; ``join_sfx_path`` (the checked whoosh file) is one
+    more input, mixed at unity gain with its hit on the join. With the defaults the command is
+    byte-identical to the one before the transition existed.
+
+    The join is where concat starts the body: the later of the cold open's measured end
+    (``cold_open_join_s``) and its length as written, since concat pads the shorter stream.
     """
     command = ["ffmpeg", "-y"]
     parts: list[str] = []
     last = len(ranges) - 1
     fade = AUDIO_JOIN_FADE_SECONDS
+    # The cold open's length exactly as written for -t, in milliseconds.
+    cold_open_ms = int(f"{ranges[0][1] - ranges[0][0]:.3f}".replace(".", ""))
+    join_us = cold_open_ms * 1000
+    if cold_open_join_s is not None:
+        whole, _, fraction = cold_open_join_s.partition(".")
+        measured_us = int(whole) * 1_000_000 + int(fraction)
+        if measured_us >= join_us:
+            join_us = measured_us
+        else:
+            cold_open_join_s = None
     for index, (range_start, range_end) in enumerate(ranges):
         length = range_end - range_start
         command.extend(["-ss", f"{range_start:.3f}", "-t", f"{length:.3f}", "-i", str(source)])
@@ -423,7 +519,8 @@ def _multi_range_command(
             render_mode=render_mode,
             label_suffix=str(index),
         )
-        parts.append(f"{layout}[video{index}]")
+        effect = _join_effect(join_style, index, cold_open_ms, cold_open_join_s)
+        parts.append(f"{layout}{effect}[video{index}]")
         audio = (
             f"[{index}:{audio_stream_index}]asetpts=PTS-STARTPTS,apad"
             if audio_stream_index is not None
@@ -436,7 +533,21 @@ def _multi_range_command(
             audio += f",afade=t=out:st={max(0.0, length - fade):.3f}:d={fade:.3f}"
         parts.append(f"{audio}[audio{index}]")
     pads = "".join(f"[video{index}][audio{index}]" for index in range(len(ranges)))
-    parts.append(f"{pads}concat=n={len(ranges)}:v=1:a=1[joined][audio]")
+    if join_sfx_path is None:
+        parts.append(f"{pads}concat=n={len(ranges)}:v=1:a=1[joined][audio]")
+    else:
+        # The whoosh (spec §4.4): its hit (file sample 11 520) on the join's sample at 48 kHz.
+        spec = _transitions.SFX[("whoosh", _transitions.LATEST_SFX["whoosh"])]
+        delay = (join_us * 48 + 500) // 1000 - spec.hit_smp
+        if delay < 0:
+            raise ValueError("the cold open is too short for the sound effect")
+        command.extend(["-i", str(join_sfx_path)])
+        parts.append(f"{pads}concat=n={len(ranges)}:v=1:a=1[joined][speech]")
+        parts.append(f"[speech]{_SPEECH_TO_STEREO},{_SFX_FORMAT}[sp]")
+        parts.append(f"[{len(ranges)}:a]{_SFX_FORMAT},adelay=delays={delay}S:all=1,apad[wh]")
+        # amerge keeps the speech queued until the whoosh branch has the same samples, so the
+        # speech ends the mix on its last sample (amix drops what it holds at that EOF).
+        parts.append(f"[sp][wh]amerge=inputs=2,{_SUM_TWO_STEREO}[audio]")
     parts.append(f"[joined]{_CAPTIONS_FILTER}[video]")
     command.extend(["-filter_complex", ";".join(parts), *_ENCODE_ARGUMENTS, output_path])
     return command
@@ -456,6 +567,8 @@ def render_vertical(
     hook_text: str | None = None,
     hook_duration: float = 4.0,
     caption_style: str = "classic",
+    join_style: str = "cut",
+    join_sfx: str | None = None,
 ) -> Path:
     """Render a portrait clip using secure temporary files and no-clobber publication.
 
@@ -463,7 +576,15 @@ def render_vertical(
     ``start``-``end``; captions (and the sidecar ``.srt``) follow that timeline. ``hook_text``
     is shown in the top safe area for the first ``hook_duration`` seconds. ``caption_style``
     is ``"classic"`` or ``"karaoke"`` (word-by-word highlight when word timestamps exist).
+
+    ``join_style`` (``cut``, ``flash_white`` or ``dip_black``) and ``join_sfx`` (``None`` or
+    ``"whoosh"``) are the cold-open transition (spec 2026-10-02 §4.3, §4.4); without a cold open
+    they change nothing, and with their defaults the command is the one of before.
     """
+    if join_style not in _transitions.JOIN_STYLES:
+        raise ValueError(f"unknown cold-open join style: {join_style!r}")
+    if join_sfx is not None and join_sfx not in _transitions.LATEST_SFX:
+        raise ValueError(f"unknown cold-open sound effect: {join_sfx!r}")
     source = Path(source).resolve()
     output = Path(output).absolute()
     if not source.is_file():
@@ -477,6 +598,13 @@ def render_vertical(
         raise ValueError("output dimensions must be positive even numbers")
     validated_cold_open = _validate_cold_open(cold_open, start=start)
     _validate_packaging(hook_text, hook_duration, caption_style)
+    sfx_path = None
+    if validated_cold_open is not None and join_sfx is not None:
+        spec = _transitions.SFX[(join_sfx, _transitions.LATEST_SFX[join_sfx])]
+        try:
+            sfx_path = _transitions.sfx_file(SFX_RESOURCES_DIR, spec)
+        except _edit_errors.RenderFailed as exc:
+            raise RuntimeError("cold-open sound effect is missing or changed") from exc
 
     output.parent.mkdir(parents=True, exist_ok=True)
     subtitle_path = output.with_suffix(".srt")
@@ -548,6 +676,10 @@ def render_vertical(
                 output_path=output_path,
             )
         else:
+            join_s = None
+            if join_style != "cut" or sfx_path is not None:
+                join_s = _cold_open_join_s(source, video_stream_index, ranges[0][0],
+                                           ranges[0][1] - ranges[0][0])
             command = _multi_range_command(
                 source,
                 ranges=ranges,
@@ -557,6 +689,9 @@ def render_vertical(
                 height=height,
                 render_mode=render_mode,
                 output_path=output_path,
+                join_style=join_style,
+                join_sfx_path=sfx_path,
+                cold_open_join_s=join_s,
             )
         with tempfile.TemporaryDirectory(prefix="ai-clipper-") as temporary_directory:
             filter_captions_path = Path(temporary_directory) / "captions.ass"

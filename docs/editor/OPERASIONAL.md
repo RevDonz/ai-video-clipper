@@ -54,6 +54,28 @@ lagi saat editor dinyalakan kembali. Revert itu jangan ikut mengembalikan penjag
 ekspor yang pernah dibatalkan menahan deploy rollback-nya. Commit penjaga itu sudah masuk `main`
 lebih dulu lewat PR #19, jadi revert `5064831` tidak menyentuhnya.
 
+**Transisi cold open dan rollback.** Sejak transisi cold open (2026-10-02), klip otomatis baru
+yang punya cold open dirender dengan Kilat putih dan whoosh di sambungannya (kedua mesin), dan
+manifest-nya mencatat `cold_open_join`; seed klip itu ikut membawa transisinya. Kalau rilis ini
+di-revert ke image sebelumnya, dokumen edit atau seed yang **memakai** transisi (Kilat putih,
+Gelap sebentar) atau whoosh tidak bisa dibaca image lama (422 `op_disabled` untuk gayanya,
+`unknown_key` untuk `sfx`): klip itu tidak bisa dibuka di editor sampai rilis ini kembali. Klip
+yang tidak memakainya (semua klip lama, klip tanpa cold open, dan dokumen Potong langsung tanpa
+whoosh) tidak terpengaruh, kecuali kasus di bawah. File klip otomatis dan hasil ekspor yang sudah
+ada tetap utuh dan bisa diunduh.
+
+Kasusnya: seed klip mesin `legacy` (bawaan produksi) baru dibuat saat klip pertama kali dibuka di
+editor. Klip otomatis yang dirender rilis ini lalu pertama kali dibuka saat image lama terpasang
+mendapat seed Potong langsung dari image lama, dan seed tidak pernah ditulis ulang. Setelah rilis
+ini kembali, ekspor tanpa edit tetap file otomatisnya (Kilat putih + whoosh), tapi pratinjau,
+"Kembali ke versi AI" dan setiap ekspor hasil edit memakai potong langsung. Jadi selama revert,
+jangan buka di editor klip yang dirender rilis ini. Kalau sudah terlanjur dan klip itu belum
+pernah disimpan atau diekspor dari editor (tidak ada `edit/` di foldernya dan tidak ada
+`output/edits/<clip_id>/`), hapus folder `analysis/clips/<clip_id>/` yang `seed.json`-nya dibuat
+selama revert, sebelum rilis ini dipasang lagi: pembukaan berikutnya membuat seed dengan
+transisinya dari manifest. Klip yang sudah diedit biarkan; transisinya bisa dipilih lagi di panel
+Cold open.
+
 **Kuota CPU render otomatis.** Mesin `edit-v2` memakai ± 2,2–2,5× waktu CPU `legacy` untuk potong
 tengah dan ikuti wajah (byte hasilnya sama dengan sebelum percepatan; tidak ada lagi percepatan
 yang menjaga byte). Di PC acuan dengan semua CPU, batas PF-PIPELINE terpenuhi. Dengan kuota

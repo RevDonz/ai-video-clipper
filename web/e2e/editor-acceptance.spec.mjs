@@ -40,6 +40,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { crc32, deflateSync } from "node:zlib";
 
+import { coldOpenJoin, joinTemplate } from "../lib/editor/doc-model.mjs";
 import { login, settings } from "./support/harness.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -601,7 +602,9 @@ test("Kemampuan 3, cold open: from a selection, edges by a word, the 0,5–8 dtk
   const cold = coldOf(saved.doc);
   expect(cold).not.toBeNull();
   expect(saved.doc.main.segments[0].role).toBe("cold_open");
-  expect(saved.doc.main.joins[0]).toMatchObject({ after: cold.id, style: "cut", audio_fade_ms: 30 });
+  // The join takes the seed's transition (a cut for clips rendered before transitions), else the
+  // auto clips' Kilat putih + whoosh (docs/plans/2026-10-02-transisi-cold-open.md §7.2).
+  expect(saved.doc.main.joins[0]).toEqual(coldOpenJoin(cold.id, 30, joinTemplate(saved.seed, saved.seed)));
 
   await openTab(page, "Cold open");
   const panel = panelOf(page, "coldopen");

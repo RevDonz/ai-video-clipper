@@ -46,6 +46,7 @@ from ai_clipper.edit_v2 import (
 from ai_clipper.edit_v2 import doc as doc_module
 from ai_clipper.edit_v2.glyphs import RESOURCES_DIR
 from ai_clipper.edit_v2.plan import Resources
+from ai_clipper.edit_v2.transitions import AUTO_COLD_OPEN_JOIN, CUT_JOIN
 from ai_clipper.selection_types import (
     ClipFocus,
     FocusSummary,
@@ -425,6 +426,11 @@ def test_the_edit_v2_pipeline_writes_every_artifact_and_manifest_field(auto_job)
     assert first["cold_open"] == {"start": 18.3, "end": 20.0}
     assert second["cold_open"] is None
     assert first["clip_id"] != second["clip_id"]
+    # the cold-open transition (spec 2026-10-02 §6.2): seeded, rendered and recorded
+    assert first["cold_open_join"] == AUTO_COLD_OPEN_JOIN.to_json()
+    assert "cold_open_join" not in second
+    first_seed, _etag = store.seed(clip_dir(job_dir, first["clip_id"]))
+    assert first_seed["main"]["joins"] == [AUTO_COLD_OPEN_JOIN.doc_join("seg_co", 30)]
 
 
 def test_the_seed_file_is_what_was_rendered_and_passes_g1_g2(auto_job):
@@ -620,6 +626,9 @@ def test_a_legacy_engine_clip_exports_its_auto_file(legacy_job, tmp_path):
         directory = clip_dir(job_dir, entry["clip_id"])
         seed_doc, etag = store.seed(directory)
         assert seed_doc["base"]["engine"]["compiler"] == "legacy"
+        # a new legacy clip seeds the join its manifest entry names (spec 2026-10-02 §6.3)
+        assert seed_doc["main"]["joins"] == (
+            [AUTO_COLD_OPEN_JOIN.doc_join("seg_co", 30)] if entry["index"] == 1 else [])
         relative, revision = store.archive_for_render(directory, etag)
         request = request_for(job_dir, entry["clip_id"], relative, etag, revision)
         result = render_edit.render_request(job_dir, request, heartbeat=lambda *_: None,
@@ -627,6 +636,41 @@ def test_a_legacy_engine_clip_exports_its_auto_file(legacy_job, tmp_path):
         auto = job_dir / "output" / f"clip-{entry['index']:02d}.mp4"
         assert result.reused == "auto_file" and result.render_engine == "legacy"
         assert os.stat(result.output).st_ino == os.stat(auto).st_ino
+
+
+def test_a_legacy_clip_from_before_the_transition_seeds_a_cut_and_keeps_r10(legacy_job,
+                                                                           tmp_path):
+    """§6.3, first row: a manifest written before the transition has no ``cold_open_join``;
+    prepare seeds a plain cut and the unchanged clip still exports the auto file itself."""
+    job_dir = copy_job(legacy_job, tmp_path)
+    path = job_dir / "output" / "manifest.json"
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    for entry in manifest["clips"]:
+        entry.pop("cold_open_join", None)
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    first = seed.prepare_legacy_job(job_dir)[0]
+    directory = clip_dir(job_dir, first["clip_id"])
+    seed_doc, etag = store.seed(directory)
+    assert seed_doc["main"]["joins"] == [CUT_JOIN.doc_join("seg_co", 30)]
+    relative, revision = store.archive_for_render(directory, etag)
+    request = request_for(job_dir, first["clip_id"], relative, etag, revision)
+    result = render_edit.render_request(job_dir, request, heartbeat=lambda *_: None,
+                                        cancel=threading.Event())
+    assert result.reused == "auto_file"
+    assert os.stat(result.output).st_ino == os.stat(job_dir / "output" / "clip-01.mp4").st_ino
+
+
+def test_auto_options_carry_the_cold_open_join_into_the_seed_context():
+    options = render_edit.AutoOptions(render_mode="fit-blur", caption_style="karaoke",
+                                      cold_open=True, hook_overlay=True, hook_duration=4.0,
+                                      width=720, height=1280)
+    assert options.cold_open_join == CUT_JOIN  # a construction without it keeps a cut
+    job_id = str(uuid.uuid4())
+    assert options.job(job_id, 1)["coldOpenJoin"] == {"style": "cut", "sfx": None}
+    auto = replace(options, cold_open_join=AUTO_COLD_OPEN_JOIN)
+    job = auto.job(job_id, 1)
+    assert job["coldOpenJoin"] == {"style": "flash_white", "sfx": {"id": "whoosh", "v": 1}}
+    assert seed._context(job).join == AUTO_COLD_OPEN_JOIN
 
 
 # --- render_request: edited documents -------------------------------------------------------------
@@ -766,7 +810,7 @@ def test_the_synthetic_job_render_option_records_engines(tmp_path, monkeypatch):
     make_job_module = _make_job_module()
     root = tmp_path / "fixture"
     jobs = {}
-    for name in ("main", "old", "stranded", "v1"):
+    for name in ("main", "old", "legacy_new", "stranded", "v1"):
         job_dir = root / "jobs" / name
         (job_dir / "output").mkdir(parents=True)
         manifest = {"clips": [{"index": 1, "output": "x"}],
@@ -775,9 +819,11 @@ def test_the_synthetic_job_render_option_records_engines(tmp_path, monkeypatch):
         (job_dir / "job.json").write_text(json.dumps({"id": name, "clips": []}))
         jobs[name] = {"dir": f"jobs/{name}"}
     calls = []
+    joins = {}
 
-    def fake(job_dir, *, render_engine):
+    def fake(job_dir, *, render_engine, cold_open_join):
         calls.append((Path(job_dir).name, render_engine))
+        joins[Path(job_dir).name] = cold_open_join
         engine = {"edit-v2": COMPILER_ID}.get(render_engine)
         entry = {"index": 1, "score": 1.0, "start": 1.0, "end": 9.0, "duration": 8.0,
                  "text": "t", "output": str(Path(job_dir) / "output" / "clip-01.mp4"),
@@ -789,7 +835,9 @@ def test_the_synthetic_job_render_option_records_engines(tmp_path, monkeypatch):
 
     monkeypatch.setattr(pipeline_module, "render_v3_job", fake)
     report = make_job_module.render_all(root, {"jobs": jobs}, stub_camera=False)
-    assert calls == [("main", "edit-v2"), ("old", "legacy")]
+    assert calls == [("main", "edit-v2"), ("old", "legacy"), ("legacy_new", "legacy")]
+    # old: the pipeline before the cold-open transition; the others: its flash and whoosh
+    assert joins == {"main": AUTO_COLD_OPEN_JOIN, "old": None, "legacy_new": AUTO_COLD_OPEN_JOIN}
     assert report["main"]["clips"][0]["render_engine"] == COMPILER_ID
     assert report["old"]["clips"][0]["render_engine"] == "legacy"
     main_job = json.loads((root / "jobs" / "main" / "job.json").read_text())
@@ -950,7 +998,9 @@ def auto_renderer(job_dir: Path, **options) -> render_edit.AutoRenderer:
         job_dir=job_dir, source=job_dir / "input" / "source.mp4", output_dir=job_dir / "output",
         options=render_edit.AutoOptions(render_mode="fit-blur", caption_style="karaoke",
                                         cold_open=True, hook_overlay=True, hook_duration=4.0,
-                                        width=720, height=1280), **options)
+                                        width=720, height=1280,
+                                        cold_open_join=AUTO_COLD_OPEN_JOIN),  # the pipeline's
+        **options)
 
 
 class FinalRuns:

@@ -1,11 +1,16 @@
 name: Editor gates (manual)
 
 # Heavy test runs for work branches, so agents do not load the owner's PC.
-# Trigger: gh workflow run editor-gates.yml -f ref=<branch> -f suite=full|image|command [-f command='...']
-# suite=full: ruff, pytest (Python 3.11), web tests and build, as in CI/CD.
+# Trigger: gh workflow run editor-gates.yml -f ref=<branch> -f suite=full|image|command|e2e [-f command='...']
+# suite=full: ruff, pytest (Python 3.11), web tests and build, as in CI/CD. The web suites run
+# even when the Python suites failed, so one run shows every failure (the job still fails).
 # suite=image: the whole pytest inside the production image (pinned FFmpeg/libass toolchain).
 # suite=command: one shell command from the repo root inside the production image; whatever it
 # writes to /out is uploaded as the run's artifact.
+# suite=e2e: browser specs on the editor fakes. The production web build runs with
+# POTONGIN_EDITOR_V3=on and POTONGIN_EDITOR_FAKES=1 and throwaway credentials; `command` names the
+# spec file(s) under web/ (e.g. command='e2e/editor-transition.spec.mjs'), run in Chrome for
+# Testing (the parity pin) with axe-core. EDITOR_GATES_OUT and the server log are uploaded.
 
 on:
   workflow_dispatch:
@@ -19,9 +24,9 @@ on:
         required: true
         default: full
         type: choice
-        options: [full, image, command]
+        options: [full, image, command, e2e]
       command:
-        description: For suite=command, a shell command run from the repo root inside the image
+        description: For suite=command, a shell command run from the repo root inside the image; for suite=e2e, the spec file(s) under web/
         required: false
         default: ""
         type: string
@@ -71,7 +76,7 @@ jobs:
           uv run pytest
 
       - name: Set up Node.js
-        if: inputs.suite == 'full'
+        if: ${{ !cancelled() && (inputs.suite == 'full' || inputs.suite == 'e2e') }}
         uses: actions/setup-node@v5
         with:
           node-version: "20"
@@ -79,7 +84,7 @@ jobs:
           cache-dependency-path: web/package-lock.json
 
       - name: Web suites
-        if: inputs.suite == 'full'
+        if: ${{ !cancelled() && inputs.suite == 'full' }}
         working-directory: web
         env:
           PYTHON_BIN: ${{ github.workspace }}/.venv/bin/python
@@ -88,12 +93,73 @@ jobs:
           npm test
           npm run build
 
+      - name: Web build, Chrome for Testing and axe-core
+        if: inputs.suite == 'e2e'
+        working-directory: web
+        env:
+          CHROME_FOR_TESTING: "147.0.7727.15"
+          AXE_CORE_VERSION: "4.10.3"
+        run: |
+          test -n "$GATE_COMMAND" || { echo "suite=e2e needs -f command='<spec file(s) under web/>'"; exit 1; }
+          npm ci
+          npm run build
+          npx playwright install-deps chromium
+          # The parity pin is Playwright's chromium build 1217; the specs look for it there.
+          target="$HOME/.cache/ms-playwright/chromium-1217"
+          mkdir -p "$target"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/cft.zip" \
+            "https://storage.googleapis.com/chrome-for-testing-public/$CHROME_FOR_TESTING/linux64/chrome-linux64.zip"
+          unzip -q -o "$RUNNER_TEMP/cft.zip" -d "$target"
+          echo "PARITY_CHROME=$target/chrome-linux64/chrome" >> "$GITHUB_ENV"
+          version=$(PARITY_CHROME="$target/chrome-linux64/chrome" node -e 'import("@playwright/test").then(async ({ chromium }) => { const b = await chromium.launch({ executablePath: process.env.PARITY_CHROME }); console.log(b.version()); await b.close(); })')
+          echo "Chrome for Testing $version"
+          test "$version" = "$CHROME_FOR_TESTING"
+          # axe-core is not a web dependency: the registry tarball, outside node_modules.
+          npm pack "axe-core@$AXE_CORE_VERSION" --pack-destination "$RUNNER_TEMP" > /dev/null
+          tar -xzf "$RUNNER_TEMP/axe-core-$AXE_CORE_VERSION.tgz" -C "$RUNNER_TEMP"
+          test -s "$RUNNER_TEMP/package/axe.min.js"
+          echo "AXE_CORE_PATH=$RUNNER_TEMP/package/axe.min.js" >> "$GITHUB_ENV"
+
+      - name: Start the web app on the editor fakes
+        if: inputs.suite == 'e2e'
+        working-directory: web
+        run: |
+          user=e2e-fakes
+          password=$(openssl rand -hex 24)
+          secret=$(openssl rand -hex 32)
+          echo "::add-mask::$password"
+          echo "::add-mask::$secret"
+          echo "E2E_USERNAME=$user" >> "$GITHUB_ENV"
+          echo "E2E_PASSWORD=$password" >> "$GITHUB_ENV"
+          mkdir -p "$GITHUB_WORKSPACE/gate-output" "$RUNNER_TEMP/jobs" "$RUNNER_TEMP/settings"
+          # An empty jobs root and settings directory: the project list after login reads them.
+          APP_USERNAME="$user" APP_PASSWORD="$password" APP_SESSION_SECRET="$secret" \
+            JOBS_ROOT="$RUNNER_TEMP/jobs" POTONGIN_SETTINGS_DIR="$RUNNER_TEMP/settings" \
+            POTONGIN_EDITOR_V3=on POTONGIN_EDITOR_FAKES=1 \
+            nohup npx next start --hostname 127.0.0.1 --port 3217 > "$GITHUB_WORKSPACE/gate-output/next.log" 2>&1 &
+          for attempt in $(seq 1 60); do
+            curl -fsS http://127.0.0.1:3217/api/health > /dev/null && exit 0
+            sleep 2
+          done
+          tail -n 40 "$GITHUB_WORKSPACE/gate-output/next.log"
+          exit 1
+
+      - name: Browser specs on the editor fakes
+        if: inputs.suite == 'e2e'
+        working-directory: web
+        env:
+          E2E_BASE_URL: http://127.0.0.1:3217
+          E2E_NO_WEB_SERVER: "1"
+          E2E_EDITOR_FAKES: "1"
+        run: |
+          EDITOR_GATES_OUT="$GITHUB_WORKSPACE/gate-output/e2e" npx playwright test $GATE_COMMAND --project=desktop-chromium
+
       - name: Build the production image
-        if: inputs.suite != 'full'
+        if: inputs.suite == 'image' || inputs.suite == 'command'
         run: docker build --tag potongin-gates .
 
       - name: Run inside the production image
-        if: inputs.suite != 'full'
+        if: inputs.suite == 'image' || inputs.suite == 'command'
         env:
           SUITE: ${{ inputs.suite }}
         run: |

@@ -9,7 +9,7 @@ import { loadContext, mulberry32, randomCommand, randomTwoTabs, runConflictPrope
 import { CommandRejected } from "../lib/editor/commands.mjs";
 import { body, checkDoc, coldOpen, contentJson, hookItem } from "../lib/editor/doc-model.mjs";
 import { createEditSession } from "../lib/editor/history.mjs";
-import { GROUP_LABELS, applyParts, diffParts, partGroup, partValues, rebase, replaySteps } from "../lib/editor/rebase.mjs";
+import { GROUP_LABELS, PARTS, applyParts, diffParts, partGroup, partValue, partValues, rebase, replaySteps } from "../lib/editor/rebase.mjs";
 
 const C30 = loadContext("c30");
 const C25 = loadContext("c25");
@@ -63,8 +63,191 @@ test("every part belongs to a labelled dialog group", () => {
   assert.equal(partGroup("logo.transform"), "logo");
   assert.equal(partGroup("music.duck"), "music");
   assert.equal(partGroup("audio.master"), "audio");
-  for (const group of ["trim", "coldopen", "removals:body", "captions", "hook", "layout", "logo", "music", "audio"]) {
+  assert.equal(partGroup("join.style"), "join");
+  assert.equal(partGroup("join.sfx"), "join");
+  for (const group of ["trim", "coldopen", "join", "removals:body", "captions", "hook", "layout", "logo", "music", "audio"]) {
     assert.ok(GROUP_LABELS[group], group);
+  }
+  assert.equal(GROUP_LABELS.join, "Transisi cold open");
+});
+
+// --- the cold-open transition (docs/plans/2026-10-02-transisi-cold-open.md §7.3) ---------------
+
+const WHOOSH = { id: "whoosh", v: 1 };
+
+function c25WithColdOpen() {
+  const words = bodyWords(C25);
+  const session = tab(C25);
+  session.dispatch("SetColdOpen", { firstWord: words[60].id, lastWord: words[64].id });
+  return session.doc;
+}
+
+test("transition parts: set after the cold open, their values, and a new cold open's whoosh is a part", () => {
+  const at = PARTS.indexOf("coldopen");
+  assert.deepEqual(PARTS.slice(at, at + 3), ["coldopen", "join.style", "join.sfx"]);
+  assert.equal(partValue(C30.seed, "join.style"), "cut");
+  assert.equal(partValue(C30.seed, "join.sfx"), null);
+  assert.equal(partValue(C25.seed, "join.style"), null);
+  assert.equal(partValue(C25.seed, "join.sfx"), null);
+  const auto = c25WithColdOpen();
+  assert.equal(partValue(auto, "join.style"), "flash_white");
+  assert.deepEqual(partValue(auto, "join.sfx"), WHOOSH);
+  // A cold open without the whoosh differs from no cold open in join.sfx too, so rebuilding it
+  // from parts never gets the template's whoosh.
+  const quiet = applyParts(auto, { "join.sfx": null }, C25.ctx);
+  assert.ok(!Object.hasOwn(quiet.main.joins[0], "sfx"));
+  assert.deepEqual(diffParts(C25.seed, quiet).filter((part) => part.startsWith("join.") || part === "coldopen"),
+    ["coldopen", "join.style", "join.sfx"]);
+  const rebuilt = applyParts(C25.seed, partValues(quiet, diffParts(C25.seed, quiet)), C25.ctx);
+  assert.equal(contentJson(rebuilt), contentJson(quiet));
+  assert.equal(contentJson(applyParts(quiet, partValues(C25.seed, diffParts(quiet, C25.seed)), C25.ctx)), contentJson(C25.seed));
+  // Style and sound need the cold open; null changes nothing without one.
+  assert.throws(() => applyParts(C25.seed, { "join.style": "dip_black" }, C25.ctx), (error) => error.code === "cold_open_missing");
+  assert.throws(() => applyParts(C25.seed, { "join.sfx": WHOOSH }, C25.ctx), (error) => error.code === "cold_open_missing");
+  assert.equal(contentJson(applyParts(C25.seed, { "join.style": null, "join.sfx": null }, C25.ctx)), contentJson(C25.seed));
+  // A cold open set as a part keeps the current join's transition (a trim does not reset it).
+  const styled = applyParts(C30.seed, { "join.style": "dip_black", "join.sfx": WHOOSH }, C30.ctx);
+  const moved = { ...partValue(C30.seed, "coldopen"), in_sf: coldOpen(C30.seed).in_sf + 3 };
+  const trimmed = applyParts(styled, { coldopen: moved }, C30.ctx);
+  assert.deepEqual(trimmed.main.joins, [{ after: "seg_co", style: "dip_black", audio_fade_ms: 30, sfx: WHOOSH }]);
+});
+
+test("a style chosen in one tab and a cold-open trim in the other both survive", () => {
+  const mine = tab(C30);
+  mine.dispatch("SetJoinStyle", { style: "dip_black" });
+  mine.dispatch("SetJoinSfx", { on: true });
+  const theirs = tab(C30);
+  theirs.dispatch("NudgeColdOpen", { edge: "in", words: 1 });
+  const result = rebaseTabs(C30, mine, theirs);
+  assert.equal(result.status, "merged");
+  assert.equal(coldOpen(result.doc).in_sf, coldOpen(theirs.doc).in_sf);
+  assert.deepEqual(result.doc.main.joins, [{ after: "seg_co", style: "dip_black", audio_fade_ms: 30, sfx: WHOOSH }]);
+  assert.equal(contentJson(replaySteps(theirs.doc, result.steps, C30.ctx).doc), contentJson(result.doc));
+  // And the other way round: my trim, their transition.
+  const back = rebaseTabs(C30, theirs, mine);
+  assert.equal(back.status, "merged");
+  assert.equal(contentJson(back.doc), contentJson(result.doc));
+});
+
+test("both tabs choosing a style is one 'Transisi cold open' conflict; the same choice is none", () => {
+  const mine = tab(C30);
+  mine.dispatch("SetJoinStyle", { style: "dip_black" });
+  const theirs = tab(C30);
+  theirs.dispatch("SetJoinStyle", { style: "flash_white" });
+  theirs.dispatch("SetJoinSfx", { on: true });
+  const result = rebaseTabs(C30, mine, theirs);
+  assert.equal(result.status, "conflict");
+  assert.deepEqual(result.conflicts.map((group) => [group.id, group.label, group.parts]),
+    [["join", "Transisi cold open", ["join.style"]]]);
+  assert.equal(result.conflicts[0].mine, "Gelap sebentar");
+  assert.equal(result.conflicts[0].theirs, "Kilat putih + whoosh");
+  const mineWins = result.resolve({});
+  assert.deepEqual(mineWins.doc.main.joins, [{ after: "seg_co", style: "dip_black", audio_fade_ms: 30, sfx: WHOOSH }]);
+  assert.equal(contentJson(replaySteps(theirs.doc, mineWins.steps, C30.ctx).doc), contentJson(mineWins.doc));
+  const theirsWin = result.resolve({ join: "theirs" });
+  assert.equal(contentJson(theirsWin.doc), contentJson(theirs.doc));
+  // The same style in both tabs, or the whoosh switched on in both, merges.
+  const same = tab(C30);
+  same.dispatch("SetJoinStyle", { style: "flash_white" });
+  same.dispatch("SetJoinSfx", { on: true });
+  const merged = rebaseTabs(C30, same, theirs);
+  assert.equal(merged.status, "merged");
+  assert.equal(contentJson(merged.doc), contentJson(theirs.doc));
+});
+
+test("a style set after the other tab removed the cold open is grouped with the cold open", () => {
+  const mine = tab(C30);
+  mine.dispatch("SetJoinStyle", { style: "dip_black" });
+  mine.dispatch("SetJoinSfx", { on: true });
+  const theirs = tab(C30);
+  theirs.dispatch("SetColdOpen", null);
+  const result = rebaseTabs(C30, mine, theirs);
+  assert.equal(result.status, "conflict");
+  assert.deepEqual(result.conflicts.map((group) => [group.id, group.label]), [["coldopen", "Cold open"]]);
+  assert.deepEqual(result.conflicts[0].parts, ["coldopen", "join.style", "join.sfx"]);
+  const mineWins = result.resolve({ coldopen: "mine" });
+  assert.equal(coldOpen(mineWins.doc).in_sf, coldOpen(C30.seed).in_sf);
+  assert.deepEqual(mineWins.doc.main.joins, [{ after: "seg_co", style: "dip_black", audio_fade_ms: 30, sfx: WHOOSH }]);
+  assert.equal(contentJson(replaySteps(theirs.doc, mineWins.steps, C30.ctx).doc), contentJson(mineWins.doc));
+  assert.equal(coldOpen(result.resolve({ coldopen: "theirs" }).doc), null);
+});
+
+test("undo past a save logs the transition as parts; the log replays to the same document", () => {
+  // c25: a new cold open gets Kilat putih + whoosh; the user mutes it, picks Gelap sebentar,
+  // removes the cold open and saves, then undoes everything past the save and redoes it. Bringing
+  // back the muted cold open from parts must not bring back the template's whoosh.
+  const words = bodyWords(C25);
+  const session = tab(C25);
+  session.dispatch("SetColdOpen", { firstWord: words[60].id, lastWord: words[64].id });
+  session.dispatch("SetJoinSfx", { on: false });
+  session.dispatch("SetJoinStyle", { style: "dip_black" });
+  session.dispatch("SetColdOpen", null);
+  session.seal();
+  session.saved(session.pending.length);
+  const saved = session.doc;
+  const states = [];
+  const replays = () => contentJson(replaySteps(saved, session.pending, C25.ctx).doc) === contentJson(session.doc);
+  while (session.undo()) {
+    states.push(session.doc);
+    assert.ok(session.pending.every((step) => step.type === "__parts"));
+    assert.ok(replays(), `undo ${states.length}`);
+  }
+  assert.equal(coldOpen(session.doc), null);
+  while (session.redo()) {
+    states.push(session.doc);
+    assert.ok(replays(), `redo ${states.length}`);
+  }
+  assert.equal(coldOpen(session.doc), null);
+  // Every state on the way is valid, and the whoosh came back only where it was on.
+  for (const doc of states) assert.deepEqual(checkDoc(doc, C25.ctx), []);
+  assert.deepEqual(states.map((doc) => doc.main.joins[0] ?? null).map((join) => join && [join.style, Boolean(join.sfx)]), [
+    ["dip_black", false], ["flash_white", false], ["flash_white", true], null,
+    ["flash_white", true], ["flash_white", false], ["dip_black", false], null,
+  ]);
+});
+
+test("a cold open brought back by 'Pakai punyaku' brings its transition along", () => {
+  // Both tabs start from a saved revision with Gelap sebentar + whoosh; mine only trims the cold
+  // open, theirs removes it: restoring mine restores the transition, not the seed's cut.
+  const start = tab(C30);
+  start.dispatch("SetJoinStyle", { style: "dip_black" });
+  start.dispatch("SetJoinSfx", { on: true });
+  const base = start.doc;
+  const mine = tab(C30, base);
+  mine.dispatch("NudgeColdOpen", { edge: "out", words: -1 });
+  const theirs = tab(C30, base);
+  theirs.dispatch("SetColdOpen", null);
+  const result = rebase({ base, mine: mine.doc, theirs: theirs.doc, steps: mine.pending, ctx: C30.ctx });
+  assert.equal(result.status, "conflict");
+  assert.deepEqual(result.conflicts.map((group) => [group.id, group.parts]), [["coldopen", ["coldopen", "join.style", "join.sfx"]]]);
+  const mineWins = result.resolve({});
+  assert.equal(contentJson(mineWins.doc), contentJson(mine.doc));
+  assert.equal(contentJson(replaySteps(theirs.doc, mineWins.steps, C30.ctx).doc), contentJson(mineWins.doc));
+});
+
+test("a whoosh switched off survives the other tab removing the cold open", () => {
+  // c25: the saved cold open has the template's Kilat putih + whoosh. Mine switches the whoosh
+  // off (and trims the cold open in the first case); theirs removes the cold open. "No whoosh"
+  // and "no cold open" are different values here, so the dialog lists the sound and "Pakai
+  // punyaku" brings back the cold open without it, never the template's whoosh.
+  const base = c25WithColdOpen();
+  assert.deepEqual(partValue(base, "join.sfx"), WHOOSH);
+  const theirs = tab(C25, base);
+  theirs.dispatch("SetColdOpen", null);
+  const trimmed = tab(C25, base);
+  trimmed.dispatch("SetJoinSfx", { on: false });
+  trimmed.dispatch("NudgeColdOpen", { edge: "out", words: -1 });
+  const muted = tab(C25, base);
+  muted.dispatch("SetJoinSfx", { on: false });
+  for (const mine of [trimmed, muted]) {
+    const result = rebase({ base, mine: mine.doc, theirs: theirs.doc, steps: mine.pending, ctx: C25.ctx });
+    assert.equal(result.status, "conflict");
+    assert.deepEqual(result.conflicts.map((group) => [group.id, group.parts]), [["coldopen", ["coldopen", "join.style", "join.sfx"]]]);
+    const mineWins = result.resolve({});
+    assert.ok(!Object.hasOwn(mineWins.doc.main.joins[0], "sfx"));
+    assert.equal(contentJson(mineWins.doc), contentJson(mine.doc));
+    assert.equal(contentJson(replaySteps(theirs.doc, mineWins.steps, C25.ctx).doc), contentJson(mineWins.doc));
+    assert.equal(contentJson(result.resolve({ coldopen: "theirs" }).doc), contentJson(theirs.doc));
   }
 });
 

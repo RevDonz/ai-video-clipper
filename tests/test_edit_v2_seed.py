@@ -26,6 +26,7 @@ from support import edit_v2_fixtures as fixtures
 from ai_clipper.audio_timeline import read_audio_timeline
 from ai_clipper.edit_v2 import COMPILER_ID, DOC_FPS, PACK_DEFAULT_OVERRIDES, camera
 from ai_clipper.edit_v2 import timemap as tm
+from ai_clipper.edit_v2 import transitions as tr
 from ai_clipper.edit_v2.clip_id import clip_id, ms_from_seconds
 from ai_clipper.edit_v2.seed import (
     DEFAULT_RENDER_SIZE,
@@ -40,6 +41,7 @@ from ai_clipper.edit_v2.seed import (
 )
 from ai_clipper.edit_v2.source_info import SOURCE_INFO_RELATIVE_PATH, file_sha256
 from ai_clipper.edit_v2.timemap import Fps
+from ai_clipper.edit_v2.transitions import AUTO_COLD_OPEN_JOIN, CUT_JOIN
 from ai_clipper.pipeline import DEFAULT_HOOK_DURATION
 from ai_clipper.selection_types import SCORE_DIMENSIONS, SelectedClip
 from ai_clipper.selection_v3 import read_selection_artifact
@@ -325,6 +327,39 @@ def test_seed_options_from_the_job():
         _seed(clip, _job(renderMode="face-track"))
     with pytest.raises(SeedError):
         _seed(clip, _job(), camera_sha="d" * 64)
+
+
+def test_the_seed_join_comes_from_the_cold_open_join_key():
+    """Spec 2026-10-02 §6.1: ``coldOpenJoin`` (the manifest form); missing means a cut."""
+    clip = _clip(cold_open=(40.5, 43.25))
+    plain = _seed(clip)
+    assert plain["main"]["joins"] == [{"after": "seg_co", "style": "cut", "audio_fade_ms": 30}]
+    auto = _seed(clip, {**_job(), "coldOpenJoin": AUTO_COLD_OPEN_JOIN.to_json()})
+    assert auto["main"]["joins"] == [{"after": "seg_co", "style": "flash_white",
+                                      "audio_fade_ms": 30, "sfx": {"id": "whoosh", "v": 1}}]
+    dip = _seed(clip, {**_job(), "coldOpenJoin": {"style": "dip_black", "sfx": None}})
+    assert dip["main"]["joins"] == [{"after": "seg_co", "style": "dip_black",
+                                     "audio_fade_ms": 30}]
+    cut = _seed(clip, {**_job(), "coldOpenJoin": CUT_JOIN.to_json()})
+    assert cut == plain  # the explicit cut is the missing key, byte for byte
+    # everything but the join is the cut seed's (the clip id included)
+    without = copy.deepcopy(auto)
+    without["main"]["joins"] = plain["main"]["joins"]
+    without["base"]["seed_sha256"] = plain["base"]["seed_sha256"]
+    assert without == plain
+    assert auto["base"]["seed_sha256"] != plain["base"]["seed_sha256"]
+    # no cold open: no join, whatever the key says
+    no_teaser = _seed(_clip(), {**_job(), "coldOpenJoin": AUTO_COLD_OPEN_JOIN.to_json()})
+    assert no_teaser["main"]["joins"] == []
+    off = _seed(clip, {**_job(coldOpen=False), "coldOpenJoin": AUTO_COLD_OPEN_JOIN.to_json()})
+    assert off["main"]["joins"] == []
+
+
+@pytest.mark.parametrize("value", [None, {}, {"style": "xfade", "sfx": None}, "flash_white",
+                                   {"style": "cut", "sfx": {"id": "whoosh", "v": 2}}])
+def test_a_malformed_cold_open_join_key_is_refused(value):
+    with pytest.raises(SeedError):
+        _seed(_clip(cold_open=(40.5, 43.25)), {**_job(), "coldOpenJoin": value})
 
 
 def test_seed_prepare_marks_the_legacy_engine():
@@ -747,6 +782,84 @@ def test_prepared_seeds_have_the_documented_shape(prepared):
             assert segment["out_sf"] <= tm.sf_ceil(window[1], fps)
         assert seed["tracks"][0]["items"][0]["dur_f"] == 120
         assert os.path.basename(str(job_dir)) != seed["base"]["job_id"]  # a copy keeps the id
+        # a manifest written before the transition has no cold_open_join: a plain cut
+        assert all(join["style"] == "cut" and "sfx" not in join
+                   for join in seed["main"]["joins"])
+    assert any(seed_of(job_dir, entry)["main"]["joins"] for entry in results)
+
+
+def seed_of(job_dir: Path, entry: dict) -> dict:
+    return json.loads(
+        (job_dir / "analysis" / "clips" / entry["clip_id"] / "seed.json").read_text())
+
+
+def _manifest_with(job_dir: Path, joins: dict[int, object]) -> None:
+    """Give the manifest clips of these indices a ``cold_open_join`` value."""
+    path = job_dir / "output" / "manifest.json"
+    manifest = json.loads(path.read_text())
+    for clip in manifest["clips"]:
+        if clip["index"] in joins:
+            clip["cold_open_join"] = joins[clip["index"]]
+    path.write_text(json.dumps(manifest))
+
+
+def test_prepare_seeds_the_join_the_manifest_names(synthetic, tmp_path):
+    """Spec §6.1: a clip rendered with the transition seeds that join, matched by clip id."""
+    job_dir = _copy_job(synthetic, "main", tmp_path)
+    _manifest_with(job_dir, {1: AUTO_COLD_OPEN_JOIN.to_json()})
+    results = prepare_legacy_job(job_dir)
+    first = seed_of(job_dir, results[0])
+    assert first["main"]["joins"] == [{"after": "seg_co", "style": "flash_white",
+                                       "audio_fade_ms": 30, "sfx": {"id": "whoosh", "v": 1}}]
+    assert first["base"]["engine"]["compiler"] == "legacy"
+    assert all(seed_of(job_dir, entry)["main"]["joins"] == [] for entry in results[1:])
+
+
+@pytest.mark.parametrize("value", [{"style": "flash_white"}, "flash_white",
+                                   {"style": "wipe", "sfx": None}, None])
+def test_prepare_seeds_a_cut_for_a_garbled_manifest_join(value):
+    from ai_clipper.edit_v2.seed import manifest_joins
+
+    source = "a" * 64
+    entry = {"index": 1, "start": 20.0, "end": 50.0, "cold_open": {"start": 40.5, "end": 43.25},
+             "cold_open_join": value}
+    expected_id = clip_id(source, 20_000, 50_000, (40_500, 43_250))
+    assert manifest_joins({"clips": [entry]}, source) == {}
+    entry["cold_open_join"] = {"style": "dip_black", "sfx": None}
+    assert manifest_joins({"clips": [entry]}, source) == {
+        expected_id: tr.ColdOpenJoin("dip_black", None)}
+    # an entry with its own clip id is matched by it
+    named = {"index": 2, "clip_id": "clip_" + "1" * 24, "start": 1.0, "end": 9.0,
+             "cold_open_join": AUTO_COLD_OPEN_JOIN.to_json()}
+    assert manifest_joins({"clips": [named]}, source) == {"clip_" + "1" * 24:
+                                                          AUTO_COLD_OPEN_JOIN}
+    for broken in (None, [], {"clips": "x"}, {"clips": [1, "x", None]}, {}):
+        assert manifest_joins(broken, source) == {}
+
+
+def test_a_clip_rendered_with_an_older_whoosh_seeds_that_whoosh(monkeypatch):
+    """After whoosh v2 ships, a clip whose auto file has v1 seeds v1 (its R10 file), not a cut."""
+    from ai_clipper.edit_v2.seed import manifest_joins
+
+    v1 = tr.SFX[("whoosh", 1)]
+    monkeypatch.setitem(tr.SFX, ("whoosh", 2), tr.SfxSpec(id="whoosh", v=2, sha256="0" * 64,
+                                                          samples=v1.samples,
+                                                          hit_smp=v1.hit_smp))
+    monkeypatch.setitem(tr.LATEST_SFX, "whoosh", 2)
+    named = {"index": 1, "clip_id": "clip_" + "1" * 24, "start": 1.0, "end": 9.0,
+             "cold_open_join": {"style": "flash_white", "sfx": {"id": "whoosh", "v": 1}}}
+    joins = manifest_joins({"clips": [named]}, "a" * 64)
+    assert joins == {"clip_" + "1" * 24: tr.ColdOpenJoin("flash_white", "whoosh", 1)}
+    assert joins["clip_" + "1" * 24].doc_join("seg_co", 30)["sfx"] == {"id": "whoosh", "v": 1}
+
+
+def test_prepare_without_a_readable_manifest_seeds_cuts(synthetic, tmp_path):
+    job_dir = _copy_job(synthetic, "main", tmp_path)
+    (job_dir / "output" / "manifest.json").write_text("{not json")
+    results = prepare_legacy_job(job_dir)
+    assert all(entry["openable"] for entry in results)
+    assert seed_of(job_dir, results[0])["main"]["joins"] == [
+        {"after": "seg_co", "style": "cut", "audio_fade_ms": 30}]
 
 
 # --- the frame-rate variants of the synthetic job ------------------------------------------------

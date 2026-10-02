@@ -45,6 +45,7 @@ STUB_MODULES = (
     "peaks",
     "camera",
     "seed",
+    "transitions",
 )
 
 P = inspect.Parameter
@@ -237,6 +238,19 @@ SIGNATURES = {
         ("selection_sha", KW, NO_DEFAULT),
     ],
     ("seed", "prepare_legacy_job"): [("job_dir", POS, NO_DEFAULT)],
+    # The cold-open transition (spec 2026-10-02 §1.6, §3.4, §6.1; CONTRACTS §5.26).
+    ("transitions", "alpha_pm"): [("style", POS, NO_DEFAULT), ("k", POS, NO_DEFAULT),
+                                  ("fps", POS, NO_DEFAULT)],
+    ("transitions", "join_alpha"): [("style", POS, NO_DEFAULT), ("at_f", POS, NO_DEFAULT),
+                                    ("total_frames", POS, NO_DEFAULT), ("fps", POS, NO_DEFAULT)],
+    ("transitions", "plan_joins"): [("doc", POS, NO_DEFAULT), ("pieces", POS, NO_DEFAULT),
+                                    ("fps", POS, NO_DEFAULT), ("total_frames", POS, NO_DEFAULT)],
+    ("transitions", "lut_chain"): [("joins", POS, NO_DEFAULT), ("fps", POS, NO_DEFAULT),
+                                   ("composite", POS, "gbrp")],
+    ("transitions", "joins_dto"): [("joins", POS, NO_DEFAULT)],
+    ("transitions", "sfx_file"): [("resources_root", POS, NO_DEFAULT), ("spec", POS, NO_DEFAULT)],
+    ("transitions", "load_sfx_pcm"): [("resources_root", POS, NO_DEFAULT),
+                                      ("spec", POS, NO_DEFAULT)],
 }
 
 DATACLASS_FIELDS = {
@@ -249,6 +263,11 @@ DATACLASS_FIELDS = {
     ("loudness", "Loudness"): ("i_clufs", "tp_cdb"),
     ("compile_ffmpeg", "InputSpec"): ("kind", "name", "options"),
     ("compile_ffmpeg", "FfmpegJob"): ("argv", "filter_script", "inputs", "sidecars", "expected"),
+    ("transitions", "SfxSpec"): ("id", "v", "sha256", "samples", "hit_smp"),
+    ("transitions", "SfxPlan"): ("id", "v", "sha256", "start_smp", "skip_smp", "samples",
+                                 "hit_smp"),
+    ("transitions", "JoinPlan"): ("after", "style", "at_f", "alpha", "sfx"),
+    ("transitions", "ColdOpenJoin"): ("style", "sfx", "v"),
 }
 
 RENDER_PLAN_REQUIRED = (
@@ -310,6 +329,42 @@ def test_render_plan_carries_the_fields_other_tasks_read():
     for field in dataclasses.fields(RenderPlan)[len(RENDER_PLAN_REQUIRED) :]:
         assert field.default is not dataclasses.MISSING or field.default_factory is not dataclasses.MISSING
     assert callable(RenderPlan.to_json)
+
+
+def test_render_plan_ends_with_the_document_joins():
+    """Spec 2026-10-02 §1.6: one field at the end, defaulted, so older builders keep working."""
+    from ai_clipper.edit_v2.plan import RenderPlan
+
+    last = dataclasses.fields(RenderPlan)[-1]
+    assert last.name == "joins" and last.default == ()
+
+
+def test_the_transition_names_are_frozen():
+    from ai_clipper.edit_v2 import transitions
+
+    for name in ("JOIN_STYLES", "DISABLED_JOIN_STYLES", "HALF_WIDTH_MS", "RGB", "YUV_TV",
+                 "SfxSpec", "SFX", "SfxPlan", "JoinPlan", "ColdOpenJoin", "AUTO_COLD_OPEN_JOIN",
+                 "CUT_JOIN", "alpha_pm", "join_alpha", "plan_joins", "lut_chain", "joins_dto",
+                 "sfx_file", "load_sfx_pcm"):
+        assert hasattr(transitions, name), name
+    assert transitions.JOIN_STYLES == ("cut", "flash_white", "dip_black")
+    assert transitions.DISABLED_JOIN_STYLES == ("xfade",)
+    assert set(transitions.SFX) == {("whoosh", 1)}
+    for method in ("to_json", "from_json", "doc_join"):
+        assert callable(getattr(transitions.ColdOpenJoin, method))
+    # transitions never imports plan, compile_ffmpeg or render (render.py imports it)
+    tree = ast.parse((PACKAGE / "transitions.py").read_text(encoding="utf-8"))
+    imported = {alias.name for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)
+                and node.level for alias in node.names}
+    imported |= {node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)
+                 and node.level and node.module}
+    assert imported <= {"errors", "timemap", "glyphs", "RESOURCES_DIR", "Fps", "Piece"}
+
+
+def test_sfx_unknown_is_a_blocking_code_with_its_message():
+    assert "sfx_unknown" in errors.SEMANTIC_CODES
+    assert errors.message("sfx_unknown") == "Efek suara transisi tidak dikenal"
+    assert errors.message_id("sfx_unknown") == "edit.sfx_unknown"
 
 
 def test_compile_modes_and_api_ops_are_frozen():
@@ -414,6 +469,7 @@ def test_every_documented_code_has_an_indonesian_message():
         "unknown_word",
         "asset_missing",
         "pack_unknown",
+        "sfx_unknown",
         "op_disabled",
         "item_out_of_frame",
         "revision_mismatch",
