@@ -518,7 +518,8 @@ index is `len(ranges)`. The concat's audio label is renamed, and three chains fo
 - `amerge` + `pan` adds the two at unity (the sum `amix … normalize=0` gave). `amix …
   duration=first` drops the samples it still holds when its first input ends: on a test source
   the speech lost 21 ms at the tail, and 0.59 s once the `pan` changed the scheduling (FFmpeg
-  6.1). `amerge` keeps the speech queued until the whoosh branch has the same samples, so the
+  6.1); a real 39.1 s clip at 60 fps lost 0.24 s, just inside the render's ±0.25 s duration
+  check. `amerge` keeps the speech queued until the whoosh branch has the same samples, so the
   mix ends on the speech's last sample.
 - Without a whoosh, the audio chains are byte-identical to today.
 - The legacy duration check (±0.25 s) is unaffected.

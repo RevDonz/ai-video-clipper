@@ -1699,3 +1699,41 @@ Checks on the files:
 - the dip covers 9 frames;
 - both edit-v2 files are 39.133 s;
 - the whoosh starts at 6.857 s, which is `hit − 240 ms`.
+
+### Review fixes (PR #23)
+
+Five review findings, each confirmed first and fixed test-first (spec "Decisions after review"):
+- **Two-tab merge (major).** `rebase.mjs` compared conflict parts by value only, and `join.sfx` is
+  null both for "no cold open" and for "a cold open without the whoosh". A whoosh switched off in
+  one tab came back with "Pakai punyaku" after the other tab removed the cold open, or was lost
+  with no dialog. Parts are now compared by value and by identity; the "Cold open" group lists
+  the sound and restores it as it was.
+- **Legacy mono level.** With the whoosh, a mono source went through swresample's upmix (−3 dB
+  per channel). The speech now goes through edit-v2's `pan` (mono at 1.0 on both channels;
+  stereo bit for bit). The `pan` exposed `amix … duration=first` dropping the samples it still
+  held when the speech ended (21 ms on a test source, 0.59 s with the `pan`, and 0.24 s on the
+  owner's real 39.1 s clip, just inside the ±0.25 s duration check). The whoosh is now added by
+  `amerge` + `pan` (the same unity sum); a silent source with the whoosh decodes bit-identical to
+  the whoosh encoded alone.
+- **Legacy whoosh placement.** The hit was placed against the cold open's length as written,
+  while concat starts the body at the cold open's last frame's end (up to a frame later). The
+  hit, like the effect, is now on the later of the two; a cut with the whoosh measures it too.
+  P-LOOK-JOIN expected legacy's onset from the same length the code wrote; it now expects the
+  join decoded from the source with the render's own seek.
+- **Sound version.** `ColdOpenJoin` keeps the version of its sound, so a clip rendered with
+  whoosh v1 seeds v1 after a v2 ships instead of a cut.
+- **Rollback note.** `OPERASIONAL.md` covers legacy clips first opened in the editor while the
+  release is reverted (they get the old image's cut seed for good) and how to reseed one.
+
+All runs are at `8b685e4`, on GitHub Actions:
+
+| Run | Result |
+|---|---|
+| editor-gates `full` 36987961634 | **pass**: pytest 4,476 passed, 3 skipped, 1 xfailed (Python 3.11); web 1,244/1,245 pass, 1 skipped; build |
+| editor-gates `image` 36987965686 | **pass**: pytest 4,475 passed, 4 skipped, 1 xfailed in the production image (FFmpeg 5.1.9), the mono-level, whole-length and hit-placement renders included |
+| ci-cd `nightly` 36987969652 | `summary.json` **ok** (every required gate). P-LOOK-JOIN 3/3: alpha within 1–2 per mille at offset 0; each whoosh onset 0 samples from its hit on that engine's join (legacy `main` now at 3.4034 s, the 102nd frame's end, where the hit used to sit at 3.388 s); loudness Δ 0.0/0.0/−0.1 LU. P-JOIN 10/10, G-WHOOSH 4/4, P-JOIN-B, P-RT and the rest pass. PF-RENDER-JOIN (report): edit-v2 +0.05 s, legacy +0.96 s on 10.3 s. Red only on the app's P-AUD `02-vfr-bed` (16 samples short on preview and reference alike, md5 equal): Open 12, as before |
+| PR #23 checks 36987960494 | **pass**: Test and build, Parity (smoke), Toolchain evidence guard |
+
+The owner's legacy sample was rendered again (`artifacts/handoff/transisi/`): the picture is
+frame-for-frame the same; the whoosh hits at 7.067 s (the cold open's 424th frame's end, 7 ms
+later than before), and the audio now runs to 39.086 s instead of 38.857 s.
