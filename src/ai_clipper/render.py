@@ -11,6 +11,7 @@ import stat
 import subprocess
 import tempfile
 from collections.abc import Sequence
+from fractions import Fraction
 from numbers import Real
 from pathlib import Path
 
@@ -396,19 +397,59 @@ def _milliseconds(value: int) -> str:
     return f"{value // 1000}.{value % 1000:03d}"
 
 
-def _join_effect(style: str, index: int, cold_open_ms: int) -> str:
+def _microseconds(value: int) -> str:
+    return f"{value // 1_000_000}.{value % 1_000_000:06d}"
+
+
+def _cold_open_join_s(source: Path, video_index: int, start: float, length: float) -> str | None:
+    """Where the body starts in the cold-open range's own time: the end of its last frame, as
+    ``%d.%06d`` seconds, decoded with the render's own seek (``-ss``/``-t`` before ``-i``).
+
+    The range holds the source frames the seek keeps, so its end is a frame boundary that a
+    guess from the frame rate misses by a frame at about a third of seek points; the effect on
+    the cold-open side is placed against it. ``None`` when it cannot be read."""
+    command = ["ffmpeg", "-nostdin", "-v", "error", "-ss", f"{start:.3f}", "-t",
+               f"{length:.3f}", "-i", str(source), "-map", f"0:{video_index}", "-f",
+               "framecrc", "-"]
+    try:
+        result = subprocess.run(command, check=True, capture_output=True, text=True,
+                                timeout=FFMPEG_TIMEOUT_SECONDS)
+        time_base = None
+        frames: list[tuple[int, int]] = []
+        for line in result.stdout.splitlines():
+            if line.startswith("#tb 0:"):
+                time_base = Fraction(line.split(":", 1)[1].strip())
+            elif line and not line.startswith("#"):
+                fields = [field.strip() for field in line.split(",")]
+                frames.append((int(fields[2]), int(fields[3])))
+    except (OSError, subprocess.SubprocessError, ValueError, IndexError, ZeroDivisionError):
+        return None
+    if time_base is None or not frames or frames[-1][1] <= 0 or time_base <= 0:
+        return None
+    end = (frames[-1][0] - frames[0][0] + frames[-1][1]) * time_base * 1_000_000
+    micro = (2 * end.numerator + end.denominator) // (2 * end.denominator)
+    return _microseconds(micro) if micro > 0 else None
+
+
+def _join_effect(style: str, index: int, cold_open_ms: int, join_s: str | None = None) -> str:
     """The cold-open effect of range ``index`` (0: the cold open, 1: the body), appended to its
     layout (spec 2026-10-02 §4.3): ``alpha(τ) = max(0, 1 − |τ|/W)`` at the range's own frame
     times, blended toward the style's 8-bit TV-range colour in ``yuv420p``; ``""`` for a cut
-    or a later range."""
+    or a later range. ``join_s`` is the cold open's measured end (:func:`_cold_open_join_s`);
+    without it the range length as written stands for it."""
     if style == "cut" or index > 1:
         return ""
     width_ms = _transitions.HALF_WIDTH_MS[style]
     width = _milliseconds(width_ms)
     if index == 0:
-        alpha = (f"clip(floor(1000-1000*({_milliseconds(cold_open_ms)}-T)/{width}+0.5),"
-                 "0,1000)")
-        enable = f"gte(t,{_milliseconds(cold_open_ms - width_ms)})"
+        if join_s is None:
+            join, start = _milliseconds(cold_open_ms), _milliseconds(cold_open_ms - width_ms)
+        else:
+            whole, _, fraction = join_s.partition(".")
+            join_us = int(whole) * 1_000_000 + int(fraction)
+            join, start = join_s, _microseconds(max(0, join_us - width_ms * 1000))
+        alpha = f"clip(floor(1000-1000*({join}-T)/{width}+0.5),0,1000)"
+        enable = f"gte(t,{start})"
     else:
         alpha = f"clip(floor(1000-1000*T/{width}+0.5),0,1000)"
         enable = f"lt(t,{width})"
@@ -430,6 +471,7 @@ def _multi_range_command(
     output_path: str,
     join_style: str = "cut",
     join_sfx_path: Path | None = None,
+    cold_open_join_s: str | None = None,
 ) -> list[str]:
     """Play source ranges back to back (cold open, then main) with one caption pass on top.
 
@@ -462,7 +504,8 @@ def _multi_range_command(
             render_mode=render_mode,
             label_suffix=str(index),
         )
-        parts.append(f"{layout}{_join_effect(join_style, index, cold_open_ms)}[video{index}]")
+        effect = _join_effect(join_style, index, cold_open_ms, cold_open_join_s)
+        parts.append(f"{layout}{effect}[video{index}]")
         audio = (
             f"[{index}:{audio_stream_index}]asetpts=PTS-STARTPTS,apad"
             if audio_stream_index is not None
@@ -616,6 +659,10 @@ def render_vertical(
                 output_path=output_path,
             )
         else:
+            join_s = None
+            if join_style != "cut":
+                join_s = _cold_open_join_s(source, video_stream_index, ranges[0][0],
+                                           ranges[0][1] - ranges[0][0])
             command = _multi_range_command(
                 source,
                 ranges=ranges,
@@ -627,6 +674,7 @@ def render_vertical(
                 output_path=output_path,
                 join_style=join_style,
                 join_sfx_path=sfx_path,
+                cold_open_join_s=join_s,
             )
         with tempfile.TemporaryDirectory(prefix="ai-clipper-") as temporary_directory:
             filter_captions_path = Path(temporary_directory) / "captions.ass"

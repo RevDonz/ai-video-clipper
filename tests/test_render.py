@@ -1144,11 +1144,17 @@ def test_render_vertical_passes_the_checked_whoosh(tmp_path: Path, monkeypatch):
     source = tmp_path / "source.mp4"
     source.write_bytes(b"source")
     captured = _fake_render_tools(monkeypatch, output_duration=7.002)
+    measured = []
+    monkeypatch.setattr(render_module, "_cold_open_join_s",
+                        lambda *args: measured.append(args) or "2.035367")
     render_vertical(source, tmp_path / "clip.mp4", start=4.0, end=9.0, transcript=[],
                     width=360, height=640, cold_open=(10.0, 12.002), join_style="flash_white",
                     join_sfx="whoosh")
     [command] = captured["commands"]
     assert _inputs(command)[2] == ["-i", str(WHOOSH.resolve())]
+    assert measured == [(source.resolve(), 0, 10.0, pytest.approx(2.002))]
+    graph = command[command.index("-filter_complex") + 1]
+    assert "(2.035367-T)/0.100" in graph and "enable='gte(t,1.935367)'" in graph
 
 
 def test_a_changed_whoosh_fails_the_legacy_render(tmp_path: Path, monkeypatch):
@@ -1161,6 +1167,38 @@ def test_a_changed_whoosh_fails_the_legacy_render(tmp_path: Path, monkeypatch):
         render_vertical(source, tmp_path / "clip.mp4", start=4.0, end=9.0, transcript=[],
                         cold_open=(10.0, 12.0), join_style="cut", join_sfx="whoosh")
     assert calls == []
+
+
+def test_the_visible_join_is_measured_from_the_cold_open_frames(tmp_path: Path):
+    """The cold open's last frame ends where the body starts: legacy measures that time with the
+    render's own seek (a CFR guess is off by a frame for about a third of seek points)."""
+    source = tmp_path / "source.mp4"
+    _make_source(source, duration=8.0)  # 24 fps CFR
+    for start, length in ((4.004, 2.002), (4.0, 2.0), (3.99, 1.234), (1.033, 0.5)):
+        listing = subprocess.run(
+            ["ffmpeg", "-nostdin", "-v", "error", "-ss", f"{start:.3f}", "-t", f"{length:.3f}",
+             "-i", str(source), "-map", "0:v", "-f", "framemd5", "-"],
+            check=True, capture_output=True, text=True).stdout
+        frames = sum(1 for line in listing.splitlines() if line and not line.startswith("#"))
+        micro = round(frames * 1_000_000 / 24)
+        assert render_module._cold_open_join_s(source, 0, start, length) == (
+            f"{micro // 1_000_000}.{micro % 1_000_000:06d}")
+        assert abs(frames / 24 - length) < 1 / 24 + 1e-9
+    assert render_module._cold_open_join_s(tmp_path / "missing.mp4", 0, 4.0, 2.0) is None
+
+
+def test_the_cold_open_effect_follows_the_measured_join():
+    command = render_module._multi_range_command(
+        Path("/src/source.mp4"), ranges=((4.004, 6.006), (1.0, 3.0)), video_stream_index=0,
+        audio_stream_index=1, width=360, height=640, render_mode="center-crop",
+        output_path="/proc/self/fd/9", join_style="flash_white", join_sfx_path=WHOOSH,
+        cold_open_join_s="2.041667")
+    graph = command[command.index("-filter_complex") + 1]
+    assert "clip(floor(1000-1000*(2.041667-T)/0.100+0.5),0,1000)" in graph
+    assert "enable='gte(t,1.941667)'[video0]" in graph
+    assert "enable='lt(t,0.100)'[video1]" in graph
+    # the whoosh follows the audio join, the range length as written (2.002 s)
+    assert "adelay=delays=84576S:all=1" in graph
 
 
 def test_a_flash_and_whoosh_render_lights_the_join_and_keeps_the_duration(tmp_path: Path):
