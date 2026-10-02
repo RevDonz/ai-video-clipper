@@ -1751,10 +1751,11 @@ class JoinPlan:
 
 @dataclass(frozen=True)
 class ColdOpenJoin:                # the manifest / seed-context form of an auto render's join
-    style: str; sfx: str | None    # sfx: None or "whoosh" (its latest version)
+    style: str; sfx: str | None    # sfx: None or "whoosh"
+    v: int | None = None           # the sound's pinned version; left out, its latest
     def to_json(self) -> dict: ...                      # {"style", "sfx": {id, v} | null}
     @classmethod
-    def from_json(cls, value) -> ColdOpenJoin | None: ...   # strict, else None
+    def from_json(cls, value) -> ColdOpenJoin | None: ...   # strict (any pinned (id, v)), else None
     def doc_join(self, after: str, audio_fade_ms: int) -> dict: ...
 AUTO_COLD_OPEN_JOIN = ColdOpenJoin("flash_white", "whoosh"); CUT_JOIN = ColdOpenJoin("cut", None)
 

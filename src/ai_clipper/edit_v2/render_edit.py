@@ -1110,7 +1110,8 @@ class AutoRenderer:
         join = None
         if cold_open and joins:
             sound = joins[0].get("sfx")
-            join = ColdOpenJoin(joins[0]["style"], None if sound is None else sound["id"])
+            join = (ColdOpenJoin(joins[0]["style"], None) if sound is None
+                    else ColdOpenJoin(joins[0]["style"], sound["id"], sound["v"]))
         return AutoClip(clip_id=document["clip_id"], render_engine=COMPILER_ID,
                         render_key=result.render_key, plan_sha256=result.plan_sha256,
                         cold_open=cold_open, result=result, cold_open_join=join)

@@ -267,7 +267,7 @@ DATACLASS_FIELDS = {
     ("transitions", "SfxPlan"): ("id", "v", "sha256", "start_smp", "skip_smp", "samples",
                                  "hit_smp"),
     ("transitions", "JoinPlan"): ("after", "style", "at_f", "alpha", "sfx"),
-    ("transitions", "ColdOpenJoin"): ("style", "sfx"),
+    ("transitions", "ColdOpenJoin"): ("style", "sfx", "v"),
 }
 
 RENDER_PLAN_REQUIRED = (
