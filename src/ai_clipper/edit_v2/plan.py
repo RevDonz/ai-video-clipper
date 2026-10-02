@@ -37,10 +37,12 @@ from . import COMPILER_ID, COMPILER_VERSION, OUTPUT_SIZES, RENDER_SEMANTICS, err
 from . import captions as _captions
 from . import envelope as _envelope
 from . import timemap as tm
+from . import transitions as _transitions
 from .captions import CaptionResult
 from .doc import Issue
 from .layouts import LAYOUT_MODES
 from .timemap import Fps, Piece
+from .transitions import JoinPlan
 
 PLAN_SCHEMA = "potongin.render-plan/1"
 RENDER_KEY_PREFIX = b"potongin-render-v1\0"
@@ -153,6 +155,9 @@ class RenderPlan:
     # Set by the render path (dataclasses.replace) when loudness.output_gain reported
     # ``loudness_clamped``: the integrated loudness the master stage achieves (G3).
     loudness_clamped_clufs: int | None = None
+    # One per document join, in document order (Essentials: 0 or 1): the cold-open
+    # transition's frame, effect alphas and sound (transitions.plan_joins).
+    joins: tuple[JoinPlan, ...] = ()
 
     @property
     def layout(self) -> str:
@@ -171,8 +176,11 @@ class RenderPlan:
         return "" if self.captions is None else srt_text(self.captions.cues, self.fps)
 
     def to_json(self) -> dict[str, Any]:
-        """Deterministic JSON form hashed into ``plan_sha256`` (``plan_sha256`` excluded)."""
-        return {
+        """Deterministic JSON form hashed into ``plan_sha256`` (``plan_sha256`` excluded).
+
+        ``joins`` is present only when a join has an effect or a sound, so a document without
+        a transition keeps the plan sha it had before transitions existed."""
+        body = {
             "schema": PLAN_SCHEMA,
             "compiler": COMPILER_ID,
             "render_semantics": RENDER_SEMANTICS,
@@ -193,6 +201,9 @@ class RenderPlan:
             "music_envelope_sha256": None if self.music_envelope is None
             else _sha([list(point) for point in self.music_envelope]),
         }
+        if any(join.visible for join in self.joins):
+            body["joins"] = [join.to_json() for join in self.joins]
+        return body
 
 
 def srt_text(cues: Sequence[Any], fps: Fps) -> str:
@@ -384,6 +395,7 @@ def build_plan(
         fonts_sha256=_file_sha(resources.fonts_dir / "fonts.json"),
         packs_sha256=_packs_sha(doc, resources),
         resources=resources,
+        joins=_transitions.plan_joins(doc, pieces, fps, total),
     )
     return dataclasses.replace(plan, plan_sha256=_sha(plan.to_json()))
 
