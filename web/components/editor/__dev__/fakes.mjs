@@ -11,6 +11,7 @@
 // setSelection, dismissNotice and the state fields conflict, notice, otherTab, readOnlyReason).
 import { CommandRejected } from "../../../lib/editor/commands.mjs";
 import { DEFAULT_EMPHASIS, DEFAULT_HIGHLIGHT } from "../../../lib/editor/content-colours.mjs";
+import { divRoundHalfUp, smp } from "../../../lib/editor/timemap.mjs";
 
 export { CommandRejected };
 
@@ -115,6 +116,44 @@ export function fakeDoc() {
   };
 }
 
+// The cold-open transition of the plan DTO: a dev-only port of edit_v2/transitions.py
+// (docs/plans/2026-10-02-transisi-cold-open.md §1.6, §2.1). The real DTO comes from the server.
+const JOIN_HALF_WIDTH_MS = Object.freeze({ flash_white: 100, dip_black: 150 });
+const JOIN_RGB = Object.freeze({ flash_white: Object.freeze([255, 255, 255]), dip_black: Object.freeze([0, 0, 0]) });
+const WHOOSH_SAMPLES = 20160;
+const WHOOSH_HIT_SMP = 11520;
+
+/** alpha_pm of output frame J + k: a triangle of half-width W in time, 1000 on frame J. */
+export function fakeAlphaPm(style, k, fps = FPS) {
+  const w = JOIN_HALF_WIDTH_MS[style];
+  if (!w) return 0;
+  const v = w * fps[0] - 1000 * Math.abs(k) * fps[1];
+  return v > 0 ? divRoundHalfUp(1000 * v, w * fps[0]) : 0;
+}
+
+/** The DTO `joins` of `doc` laid out as `pieces` ([] without a join). */
+export function fakeJoins(doc, pieces, totalFrames, fps = FPS) {
+  return doc.main.joins.map((join) => {
+    const atF = pieces.filter((piece) => piece.seg === join.after).reduce((sum, piece) => sum + piece.frames, 0);
+    const alphaPm = [];
+    const w = JOIN_HALF_WIDTH_MS[join.style];
+    if (w) {
+      const reach = Math.ceil((w * fps[0]) / (1000 * fps[1]));
+      for (let k = -reach; k <= reach; k += 1) {
+        const alpha = fakeAlphaPm(join.style, k, fps);
+        if (alpha > 0 && atF + k >= 0 && atF + k < totalFrames) alphaPm.push([atF + k, alpha]);
+      }
+    }
+    let sfx = null;
+    if (join.sfx) {
+      const hitSmp = smp(atF, fps);
+      sfx = { id: join.sfx.id, v: join.sfx.v, startSmp: Math.max(0, hitSmp - WHOOSH_HIT_SMP), hitSmp,
+        samples: WHOOSH_SAMPLES - Math.max(0, WHOOSH_HIT_SMP - hitSmp) };
+    }
+    return { after: join.after, style: join.style, atF, rgb: JOIN_RGB[join.style] ? [...JOIN_RGB[join.style]] : null, alphaPm, sfx };
+  });
+}
+
 // The fake plan hash covers the content only (revision, parent and audit excluded), like R10.
 function planShaOf(doc) {
   return fakeSha256(`plan:${JSON.stringify({ ...doc, revision: null, parent_sha256: null, audit: null })}`);
@@ -154,6 +193,7 @@ export function fakePlan(doc = fakeDoc()) {
     text: { assSha256, ass: "[Script Info]\nScriptType: v4.00+\n", url: `/api/jobs/${FAKE_JOB_ID}/clips/${doc.clip_id}/media/ass/${assSha256.slice(0, 16)}.ass`, fonts: [] },
     plate: { plateKey: fakeSha256(`plate:${doc.layout.default.mode}`), cellFrames: 60, w: doc.output.w, h: doc.output.h, cells: [] },
     logo: null,
+    joins: fakeJoins(doc, pieces, totalFrames),
     audio: { mixSha256: fakeSha256("mix"), state: "ready", url: null, samples, musicGainPoints: [], speechSpans: [] },
     rev0: { planSha256: planShaOf(fakeDoc()), autoRenderUrl: null, exact: false },
     warnings: [], errors: [],
