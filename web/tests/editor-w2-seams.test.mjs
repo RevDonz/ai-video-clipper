@@ -302,15 +302,23 @@ test("the shell hands every panel its clients and the uploads flag, and mounts t
   // <QuickPanel> alike, so a Lengkap panel and a Cepat card always receive the same props.
   const bundle = /const panelProps = useMemo\(\(\) => \(\{([\s\S]*?)\}\), \[/.exec(source)?.[1] ?? "";
   const entries = bundle.split(",").map((part) => part.trim()).filter(Boolean);
-  assert.deepEqual(entries, ["state", "dispatch", "player", "api", "previewClient: runtime.previewClient",
+  // `getState` reads the store as it is now: work that outlives its panel or card (a music upload,
+  // a face analysis) applies to the document as it is when it finishes (§4.1), never a stale copy.
+  assert.deepEqual(entries, ["state", "getState: snapshot", "dispatch", "player", "api", "previewClient: runtime.previewClient",
     "uploadAsset: runtime.uploadAsset ?? null", "uploadsEnabled", "notify", "readOnly"]);
+  assert.match(source, /const snapshot = useCallback\(\(\) => store\.getState\(\), \[store\]\);/);
   const panel = /<Panel\s([\s\S]*?)\/>/.exec(source)?.[1] ?? "";
   assert.equal(panel.trim(), "{...panelProps}", "a Lengkap panel gets exactly the bundle");
   const quick = /<QuickPanel\s([\s\S]*?)\/>/.exec(source)?.[1] ?? "";
   assert.match(quick, /^\{\.\.\.panelProps\}\s/, "a Cepat card gets the same bundle first");
   for (const prop of ["frameBus={frameBus}", "showLengkap={showLengkap}"]) assert.ok(quick.includes(prop), `card prop ${prop}`);
-  assert.doesNotMatch(quick, /\b(?:state|dispatch|player|api|previewClient|uploadAsset|uploadsEnabled|notify|readOnly)=/,
+  assert.doesNotMatch(quick, /\b(?:state|getState|dispatch|player|api|previewClient|uploadAsset|uploadsEnabled|notify|readOnly)=/,
     "no bundle prop is passed again (or differently) to the cards");
+  // The clip's music upload and face analysis read the live store, not the starter's last render.
+  for (const file of ["panels/MusicPanel.jsx", "quick/ExtrasCard.jsx", "quick/LayoutCard.jsx", "panels/LayoutPanel.jsx"]) {
+    const starter = await readFile(new URL(`../components/editor/${file}`, import.meta.url), "utf8");
+    assert.doesNotMatch(starter, /getState: \(\) => stateRef\.current/, `${file} starts its work with the bundle's getState`);
+  }
   assert.match(source, /const uploadsEnabled = runtime\.kind === "fake" \|\| features\.uploads === true;/);
   assert.match(source, /const gizmos = useMemo\(\(\) => liveEntries\(GIZMOS, runtime\.kind\)/);
   assert.match(source, /gizmos=\{gizmos\.map\(/);

@@ -662,6 +662,38 @@ test.describe("Mode Cepat cards (harness: real store and commands)", () => {
     expect(errors).toEqual([]);
   });
 
+  // §4.1: the replacement applies to the document as it is when the file arrives, though the
+  // Musik panel that started it is gone (a view switch) and the strength changed in the card.
+  test("AC16: a music replacement started in the panel lands on the document as it is then: the card's new strength stays", async ({ page }) => {
+    test.setTimeout(60_000);
+    const errors = await openQuick(page, { musicStepMs: 700 });
+    await page.evaluate(() => { try { localStorage.setItem("potongin-editor-music-notice", "1"); } catch { /* private mode */ } });
+    const card = await openCard(page, "extras");
+    const music = card.locator('[data-extras="music"]');
+    let chooser = page.waitForEvent("filechooser");
+    await music.getByRole("button", { name: "Tambah musik" }).click();
+    await (await chooser).setFiles(MUSIC);
+    await expect(music.locator("[data-music-name]")).toHaveText(MUSIC.name, { timeout: 15_000 });
+
+    await music.getByRole("button", { name: "Atur detail di Mode Lengkap" }).click();
+    const panel = page.locator('[data-panel="music"]');
+    const second = { ...MUSIC, name: "lagu-pengganti.m4a" };
+    chooser = page.waitForEvent("filechooser");
+    await panel.getByRole("button", { name: "Ganti musik" }).click();
+    await (await chooser).setFiles(second);
+    await expect(panel.getByRole("progressbar", { name: `Mengunggah ${second.name}` })).toBeVisible();
+    await page.getByRole("radiogroup", { name: "Tampilan editor" }).getByRole("radio", { name: "Cepat", exact: true }).check();
+    const strength = (await openCard(page, "extras")).getByRole("group", { name: "Saat ada suara" });
+    await strength.getByRole("radio", { name: "Kuat" }).check();
+    expect(await lastSent(page)).toEqual({ type: "SetDuck", args: { preset: "kuat" }, mergeKey: "music:duck" });
+
+    await expect(card.locator('[data-extras="music"] [data-music-name]')).toHaveText(second.name, { timeout: 15_000 });
+    await expect(strength.getByRole("radio", { name: "Kuat" })).toBeChecked();
+    const replaced = (await sent(page)).slice(-2);
+    expect(replaced.map((entry) => entry.type)).toEqual(["SetMusic", "SetDuck"]);
+    expect(errors).toEqual([]);
+  });
+
   test("U4: a hook suggestion and a pack in Mode Cepat within 30 s", async ({ page }) => {
     const started = Date.now();
     const steps = [];

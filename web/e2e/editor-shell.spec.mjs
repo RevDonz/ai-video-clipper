@@ -759,7 +759,15 @@ test("a clip whose auto file came before the editor: no notice, an empty status,
   await page.evaluate(() => window.__potonginEditor.store.dispatch("SetCaptionsEnabled", { on: false }));
   await expect(badge(page)).toHaveText("Sesuai hasil akhir");
   await expect(page.getByRole("status").filter({ hasText: "Gagal menyimpan; perubahan aman di browser ini" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Coba simpan lagi" })).toBeVisible();
+  const retry = page.getByRole("button", { name: "Coba simpan lagi" });
+  await expect(retry).toBeVisible();
+  // A top-bar control (Mode Cepat spec §8.4): at least 44×44, inside the 64 px bar.
+  const box = await retry.boundingBox();
+  expect(box.height, "Coba simpan lagi height").toBeGreaterThanOrEqual(43.5);
+  expect(box.width, "Coba simpan lagi width").toBeGreaterThanOrEqual(43.5);
+  const bar = await page.locator('[data-slot="topBar"]').boundingBox();
+  expect(box.y).toBeGreaterThanOrEqual(bar.y);
+  expect(box.y + box.height).toBeLessThanOrEqual(bar.y + bar.height);
 });
 
 // Mode Cepat spec §5.3: "Klip ini terbuka di tab lain" above the stage becomes the top bar's chip.
@@ -1038,6 +1046,9 @@ test("QG-A11Y: axe finds no critical or serious violation in any editor state", 
     serious: results.reduce((sum, item) => sum + item.serious, 0), results });
   for (const item of results) {
     expect(item.violations.filter((violation) => ["critical", "serious"].includes(violation.impact)), item.state).toEqual([]);
+    // Every control sits in a landmark (Mode Lengkap's transport row in the bottom region's footer),
+    // as before the two views: screen-reader users who move by landmarks reach play and frame step.
+    expect(item.violations.filter((violation) => violation.id === "region"), `${item.state}: outside a landmark`).toEqual([]);
   }
 });
 

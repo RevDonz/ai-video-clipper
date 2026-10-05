@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 
 import { ICONS, ICON_NAMES } from "../components/editor/ui/icon-paths.mjs";
 import { accordionIds, menuItemRole, menuMove } from "../components/editor/ui/kit-model.mjs";
+import { cssRules } from "./support/ui-guards.mjs";
 
 const editorDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "components", "editor");
 const KIT_DIRS = ["ui", "quick", "rail", "scrubber"];
@@ -199,4 +200,85 @@ test("every control of the cards is at least var(--ed-target) (44 px) tall", () 
   }
   const coldOpen = css("panels/ColdOpenPanel.module.css");
   assert.match(ruleOf(coldOpen, "[data-touch] .preset") ?? "", new RegExp(String.raw`min-height:\s*${AT_LEAST_TARGET}`), "a transition style in the card");
+});
+
+// --- forced colours (§8.4; fixer, findings 5 and 6) ------------------------------------------------
+// Forced colours (Windows high contrast) replace every colour with the user's palette and drop
+// box-shadow. A control whose focus or chosen state is drawn only with colours or a shadow loses it.
+
+/** Every stylesheet under components/editor, as paths relative to it. */
+function editorCss(dir = "") {
+  return readdirSync(path.join(editorDir, dir), { withFileTypes: true }).flatMap((entry) => {
+    const relative = path.join(dir, entry.name);
+    if (entry.isDirectory()) return editorCss(relative);
+    return entry.name.endsWith(".css") ? [relative] : [];
+  });
+}
+
+/** A selector list split on its top-level commas. */
+function selectorList(list) {
+  const parts = [];
+  let depth = 0;
+  let current = "";
+  for (const char of list) {
+    if (char === "(" || char === "[") depth += 1;
+    if (char === ")" || char === "]") depth -= 1;
+    if (char === "," && depth === 0) {
+      parts.push(current.trim().replace(/\s+/g, " "));
+      current = "";
+    } else current += char;
+  }
+  if (current.trim()) parts.push(current.trim().replace(/\s+/g, " "));
+  return parts;
+}
+
+const inForcedColours = (rule) => rule.at.some((at) => /forced-colors:\s*active/.test(at));
+
+test("a control drawn by its label or track shows focus with an outline there, which forced colours keep", () => {
+  const missing = [];
+  let seen = 0;
+  for (const file of editorCss()) {
+    const declsBySelector = new Map();
+    for (const rule of cssRules(readFileSync(path.join(editorDir, file), "utf8")).filter((item) => !inForcedColours(item))) {
+      for (const selector of selectorList(rule.selector)) declsBySelector.set(selector, [...(declsBySelector.get(selector) ?? []), ...rule.decls]);
+    }
+    for (const [selector, decls] of declsBySelector) {
+      // The focused element is an invisible input; the ring is drawn on its label or the track beside it.
+      if (!/:has\([^)]*:focus-visible[^)]*\)|:focus-visible\s*[+~]/.test(selector)) continue;
+      seen += 1;
+      const outline = decls.some((decl) => ["outline", "outline-style"].includes(decl.prop) && !/^(?:none|0)\b/.test(decl.value));
+      if (!outline) missing.push(`${file} ${selector}`);
+    }
+  }
+  assert.ok(seen >= 8, `the scan reaches the drawn controls (${seen})`);
+  assert.deepEqual(missing, []);
+});
+
+const CHOSEN = /:checked|\[aria-(?:pressed|selected|checked)="true"\]/;
+const COLOUR_PROPS = /^(?:background(?:-color)?|border(?:-(?:top|right|bottom|left))?-color|box-shadow|color|fill|stroke)$/;
+
+test("under forced colours a chosen or pressed control keeps a mark of its own", () => {
+  const missing = [];
+  let seen = 0;
+  for (const file of editorCss()) {
+    const rules = cssRules(readFileSync(path.join(editorDir, file), "utf8"));
+    const plain = rules.filter((rule) => !inForcedColours(rule));
+    const forced = rules.filter(inForcedColours).flatMap((rule) => selectorList(rule.selector));
+    const textMark = (head) => plain.some((rule) => selectorList(rule.selector).some((selector) => selector.startsWith(head))
+      && rule.decls.some((decl) => decl.prop === "content" && /^["'][^"']+["']/.test(decl.value)));
+    for (const rule of plain) {
+      if (!rule.decls.some((decl) => COLOUR_PROPS.test(decl.prop))) continue;
+      for (const selector of selectorList(rule.selector)) {
+        const match = CHOSEN.exec(selector);
+        if (!match) continue;
+        // The chosen element's part of the selector: `.pill:has(input:checked`, `.cover:checked`.
+        const head = selector.slice(0, match.index + match[0].length);
+        seen += 1;
+        if (textMark(head)) continue; // a visible word marks it ("Dipakai")
+        if (!forced.some((item) => item.startsWith(head))) missing.push(`${file} ${selector}`);
+      }
+    }
+  }
+  assert.ok(seen >= 12, `the scan reaches the chosen states (${seen})`);
+  assert.deepEqual([...new Set(missing)], []);
 });
