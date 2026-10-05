@@ -95,7 +95,8 @@ async function currentDoc(page) {
 // toolbar to the word under it.
 async function selectRange(page, first, last) {
   await word(page, first).waitFor(); // the panel (and the toolbar of a kept selection) has mounted
-  if (await page.getByRole("toolbar", { name: "Aksi kata terpilih" }).count()) {
+  // Counted by its attribute: until its first frame places it, the toolbar is hidden (no role).
+  if (await page.locator("[data-word-toolbar]").count()) {
     await wordList(page).focus();
     await page.keyboard.press("Escape");
   }
