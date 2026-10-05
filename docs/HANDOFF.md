@@ -81,8 +81,9 @@ dan operasional: `docs/editor/{CONTRACTS,GATES,PANDUAN-EDITOR,OPERASIONAL,UJI-PE
   editor dengan dua tampilan; keputusan pemilik 2026-10-02 (mockup disetujui, semua jawaban §11
   spek diterima). Dibangun empat tugas paralel (A shell, B kartu, C Teks caption, D rel, bilah aksi
   dan bilah posisi) lalu diintegrasikan; semua suite CI hijau (GATES "Mode Cepat and Mode
-  Lengkap"). Rollback: revert commit PR itu lewat PR baru; tidak ada perubahan mesin, data atau
-  flag.
+  Lengkap"). Review PR menemukan 10 cacat (1 major, 9 minor); semuanya diperbaiki dengan uji yang
+  merah dulu (spek §19, GATES "Review fixes"), screenshot diperbarui. Rollback: revert commit PR
+  itu lewat PR baru; tidak ada perubahan mesin, data atau flag.
 
 Langkah berikutnya:
 1. **Titik cek pemilik 3** (± 60 menit; paketnya di luar repo, di PC pemilik:

@@ -1,0 +1,19 @@
+{
+  "task": "Fixes for the review of PR #25 (docs/plans/2026-10-02-editor-mode-cepat.md §19)",
+  "branch": "mode-cepat-integrasi (worked on as mode-cepat-fix)",
+  "reviewed": "1b68213",
+  "tests_only_commit": "7f6aacf",
+  "final_code_commit": "60174f5",
+  "runs": [
+    { "run": 37304299519, "suite": "e2e editor-views, editor-quick, editor-quick-lines, editor-shell", "commit": "7f6aacf (tests only, before the fixes)", "result": "failure as intended: 9 failed, the 9 new browser checks (findings 1 twice, 3, 4, 5, 6, 7, 8, 9), 111 passed, 2 skipped; finding 2's checks are node tests (editor-caption-lines.test), red locally before its fix" },
+    { "run": 37304606724, "suite": "e2e e2e/editor-*.spec.mjs", "commit": "43e7c82", "result": "failure: 270 passed, 4 failed in editor-shell (the Lengkap <footer> took the app's page-footer padding: Timeline 24 px shorter, drag and ruler 1 to 3 frames off); fixed in 60174f5" },
+    { "run": 37304610219, "suite": "full", "commit": "43e7c82", "result": "success: pytest 4476 passed, 3 skipped, 1 xfailed; web 1422/1423 pass, 1 skipped; build" },
+    { "run": 37305027213, "suite": "image", "commit": "a3a4343", "result": "success: pytest 4475 passed, 4 skipped, 1 xfailed in the production image" },
+    { "run": 37305034566, "suite": "e2e gates=true PF-OPEN", "commit": "a3a4343", "result": "success" },
+    { "run": 37305030909, "suite": "player e2e/editor-first-frame.spec.mjs", "commit": "a3a4343", "result": "success: 6 passed" },
+    { "run": 37305821329, "suite": "e2e e2e/editor-*.spec.mjs", "commit": "60174f5", "result": "success: 274 passed, 58 skipped; QG-A11Y with no finding in any of its 16 states; the owner's screenshots come from this run" },
+    { "run": 37306830832, "suite": "e2e gates=true PF-OPEN", "commit": "60174f5", "result": "success: first/repeat p95 Lengkap 560/438 ms, Cepat 550/434 ms (no latency); 631/504 and 617/512 ms (simulated latency)" },
+    { "run": 37306834060, "suite": "player e2e/editor-first-frame.spec.mjs", "commit": "60174f5", "result": "success: 6 passed" }
+  ],
+  "not_run": "web/e2e/editor-flow.spec.mjs and web/e2e/editor-acceptance.spec.mjs (real stack; pending an owner-approved run on the owner's PC). They load and skip in the e2e runs above."
+}

@@ -1756,17 +1756,17 @@ fakes (the app built with `POTONGIN_EDITOR_FAKES=1`), Chrome for Testing 147.0.7
 
 | Gate | What | Threshold | Result |
 |---|---|---|---|
-| Browser specs on the fakes | every `e2e/editor-*.spec.mjs`: the views (A), the cards (B), Teks caption (C), the rail, toolbar and scrubber (D), the shell, transcript, cleanup, AI, layout, logo, music, transition and marker specs, and the screenshots | all pass | **pass**: 267 passed, 58 skipped (the real-stack specs below, and cases that need a variable), run 37293989108 at `a620a0b` |
-| QG-A11Y (fakes) | axe in Mode Cepat with each card open and in Mode Lengkap, at 1366×650 and 1920×960 (A); the cards (B); the Teks caption card (C); the rail and the toolbar (D) | 0 critical, 0 serious | **pass** in the same run. Evidence `A-QG-A11Y.json` (16 states), `B-AC13-*.json`, `C-QG-A11Y-*.json` |
-| PF-OPEN per view (fakes, `-f gates=true`) | first and repeat visit to the interactive moment: Lengkap `[data-panel="transcript"]`, Cepat a control in the Caption card; 20 runs each, without and with simulated server latency | p95 first ≤ 3.0 s, repeat ≤ 2.0 s | **pass**, run 37294975556 at `a620a0b`, first/repeat p95: Lengkap 607/462 ms, Cepat 845/441 ms without server latency; 669/519 and 645/524 ms with it. Evidence `Z-PF-OPEN-{lengkap,cepat}.json`. The first run at `fecc1a9` (37290705450) also passed |
+| Browser specs on the fakes | every `e2e/editor-*.spec.mjs`: the views (A), the cards (B), Teks caption (C), the rail, toolbar and scrubber (D), the shell, transcript, cleanup, AI, layout, logo, music, transition and marker specs, and the screenshots | all pass | **pass**: 274 passed, 58 skipped (the real-stack specs below, and cases that need a variable), run 37305821329 at `60174f5` after the review fixes (before them: 267 passed, run 37293989108 at `a620a0b`) |
+| QG-A11Y (fakes) | axe in Mode Cepat with each card open and in Mode Lengkap, at 1366×650 and 1920×960 (A); the cards (B); the Teks caption card (C); the rail and the toolbar (D) | 0 critical, 0 serious; no `region` finding (since the review) | **pass** in the same run, with no finding at all in the shell's 16 states (the Lengkap transport row's `region` finding is gone). Evidence `A-QG-A11Y.json` (16 states), `B-AC13-*.json`, `C-QG-A11Y-*.json` |
+| PF-OPEN per view (fakes, `-f gates=true`) | first and repeat visit to the interactive moment: Lengkap `[data-panel="transcript"]`, Cepat a control in the Caption card; 20 runs each, without and with simulated server latency | p95 first ≤ 3.0 s, repeat ≤ 2.0 s | **pass**, run 37306830832 at `60174f5`, first/repeat p95: Lengkap 560/438 ms, Cepat 550/434 ms without server latency; 631/504 and 617/512 ms with it. Before the review fixes, run 37294975556 at `a620a0b`: Lengkap 607/462 ms, Cepat 845/441 ms; 669/519 and 645/524 ms. Evidence `Z-PF-OPEN-{lengkap,cepat}.json` (`a620a0b`) |
 | AC12 lime | computed styles with every card and every panel open, every control at rest and hovered | lime only on Ekspor and the progress fills | **pass**, strict in every panel now that B's hover clean-up is in |
-| AC13 | 44 px targets in the top bar, the overlays, both bottom regions, the cards, the rail and the toolbar; a visible outline under forced colours; no accordion animation under reduced motion | as the spec | **pass** |
+| AC13 | 44 px targets in the top bar (with "Coba simpan lagi" after a failed save), the overlays, both bottom regions, the cards, the rail and the toolbar; a visible outline under forced colours, also on the Cold open card's styles and whoosh switch; a chosen or pressed control keeps a mark under forced colours; no accordion animation under reduced motion | as the spec | **pass** |
 | Layout (new, Z) | at 1366×650 and 1920×960: every top-bar control inside the 64 px bar on one row; with an 89-character hook and an 80-character music file name, no sideways overflow or scroll in the cards column with any card open or a caption line in focus | 0 px | **pass** at `a620a0b`. Red before the fix (run 37294101955 at `125ae24`): 371 and 348 px of sideways overflow, scrolled 17 px, top-bar controls outside the bar |
 | Scripted U-tests on the fakes | U1 and U2 through the toolbar (D): 0.10 to 0.12 s at 1366×768 and 1920×1080; U3 0.98 s, U4 1.75 s, U5 2.20 s in Mode Cepat (B, harness, 1366×650); U8 preview 38 ms, saved 1.91 s (C) | U1, U2, U8 ≤ 20 s; U3 ≤ 45 s; U4 ≤ 30 s; U5 ≤ 60 s | **pass** at automation speed. The owner's stopwatch decides QG-UX |
 | R1 | requests to the AI route when the editor opens in Mode Cepat | 0 | **pass** (`B-R1.json`) |
-| Player | `e2e/editor-first-frame.spec.mjs` with the parity harness in the production image | pass | **pass**: 6 passed (run 37294971471 at `a620a0b`; run 37290709387 at `fecc1a9`: 6 passed) |
-| `suite=full` | ruff, pytest (Python 3.11), the web unit tests, the production build | pass | **pass**, run 37294001381 at `a620a0b`: pytest 4,476 passed, 3 skipped, 1 xfailed; web 1,417 of 1,418 pass, 1 skipped; build |
-| `suite=image` | pytest in the production image | pass | **pass**, run 37294967712 at `a620a0b`: 4,475 passed, 4 skipped, 1 xfailed (FFmpeg 5.1.9; run 37290678419 at `fecc1a9`: 4,475 passed, 4 skipped, 1 xfailed) |
+| Player | `e2e/editor-first-frame.spec.mjs` with the parity harness in the production image | pass | **pass**: 6 passed (run 37306834060 at `60174f5`; run 37294971471 at `a620a0b`: 6 passed) |
+| `suite=full` | ruff, pytest (Python 3.11), the web unit tests, the production build | pass | **pass**, run 37304610219 at `43e7c82` (the review fixes; the later `60174f5` changes one stylesheet): pytest 4,476 passed, 3 skipped, 1 xfailed; web 1,422 of 1,423 pass, 1 skipped; build. Before: run 37294001381 at `a620a0b`, web 1,417 of 1,418 |
+| `suite=image` | pytest in the production image | pass | **pass**, run 37305027213 at `a3a4343`: 4,475 passed, 4 skipped, 1 xfailed (no Python changed after it; run 37294967712 at `a620a0b`: the same) |
 
 ### Real-stack specs: pending an owner-approved run
 
@@ -1805,8 +1805,36 @@ E2E_NO_WEB_SERVER=1 npx playwright test e2e/editor-flow.spec.mjs e2e/editor-acce
    body's column are `minmax(0, 1fr)`; summaries and long file names are cut with an ellipsis.
 5. **Rail.** D's bridge rule is gone: A's side grid places the rail.
 
-Screenshots for the owner, from run 37293989108 at `a620a0b`: `artifacts/handoff/mode-cepat/` (not
-in git; 14 full-page PNGs, Mode Cepat with each card open and Mode Lengkap with the rail and the
+### Review fixes
+
+A review of `1b68213` found one major and nine minor defects. Each got a failing check first
+(`7f6aacf`; run 37304299519 failed exactly the 9 new browser checks, finding 2's node checks were
+red locally), then its fix; spec §19 records the decisions. Evidence `Z-review-CI.json`.
+
+1. **Teks caption drafts** (minor): a draft keeps the line and document of its first keystroke and
+   is diffed against them; a field whose line leaves commits its draft. Before: a regroup that
+   landed while typing hid a word the field never showed, or threw the draft away.
+2. **Retyping a word that carried an insertion** (minor): a word pairs with the tokens that spell
+   it, so it comes back unhidden with its own timing. A 2,000-row property covers it.
+3. **Music replacement after a view switch** (minor): the props bundle carries the store's
+   `getState`; the upload and the face analysis read the document as it is when they finish.
+4. **Focus after a way to Mode Lengkap** (major): focus goes to the opened panel's rail tab, and
+   the live region names the view on every change.
+5. **Forced-colours focus** (minor): the transition styles, the whoosh switch, and Lengkap's pack
+   and layout cards draw focus with an outline.
+6. **Forced-colours chosen state** (minor): underlined names, switches in system colours, an
+   outlined swatch. `editor-ui-kit.test` reads every editor stylesheet for 5 and 6.
+7. **Transisi's look** (minor): the chosen style and the whoosh switch use the neutral selected
+   state, in both views.
+8. **"Coba simpan lagi"** (minor): a 44 px target.
+9. **Lengkap's transport row** (minor): its bottom region is a `<footer>` landmark; the first try
+   took the app's page-footer padding and shortened the Timeline by 24 px (run 37304606724), so
+   `.lengkapBottom` resets it.
+10. **Screenshots** (minor): taken with reduced motion and after every card body is at rest; 2b
+    shows Posisi and the hook hint, 6 shows both "Tambah" buttons.
+
+Screenshots for the owner, from run 37305821329 at `60174f5`: `artifacts/handoff/mode-cepat/` (not
+in git; 16 full-page PNGs, Mode Cepat with each card open and Mode Lengkap with the rail and the
 word toolbar, at 1366×768 and 1920×1080, with a README). The fakes' player draws no video, so the
 9:16 stage is empty in them.
 
