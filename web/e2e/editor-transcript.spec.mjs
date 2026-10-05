@@ -94,6 +94,7 @@ async function currentDoc(page) {
 // the words clears that selection first, and a held Shift lets the Shift+click through the
 // toolbar to the word under it.
 async function selectRange(page, first, last) {
+  await word(page, first).waitFor(); // the panel (and the toolbar of a kept selection) has mounted
   if (await page.getByRole("toolbar", { name: "Aksi kata terpilih" }).count()) {
     await wordList(page).focus();
     await page.keyboard.press("Escape");
