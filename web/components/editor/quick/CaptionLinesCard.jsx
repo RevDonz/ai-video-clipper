@@ -137,18 +137,19 @@ export default function CaptionLinesCard({ state, dispatch, player, frameBus, re
   useEffect(() => {
     const list = listRef.current;
     if (!frameBus || !list) return undefined;
+    let markedKey = null;
     let marked = null;
     const unsubscribe = frameBus.subscribe((frame) => {
-      const row = rowAtFrame(rows, frame);
-      const element = row ? list.querySelector(`[data-line-key="${CSS.escape(row.key)}"]`) : null;
-      if (element === marked) return;
+      const rowKey = rowAtFrame(rows, frame)?.key ?? null;
+      if (rowKey === markedKey) return;
+      markedKey = rowKey;
       marked?.removeAttribute("data-current");
-      marked = element;
-      if (!element) return;
-      element.setAttribute("data-current", "true");
+      marked = rowKey ? list.querySelector(`[data-line-key="${CSS.escape(rowKey)}"]`) : null;
+      if (!marked) return;
+      marked.setAttribute("data-current", "true");
       const active = document.activeElement;
       const typing = active?.tagName === "INPUT" && list.contains(active);
-      if (!typing && !pointerInside.current && !list.closest("[inert]")) element.scrollIntoView({ block: "nearest" });
+      if (!typing && !pointerInside.current && !list.closest("[inert]")) marked.scrollIntoView({ block: "nearest" });
     });
     return () => {
       unsubscribe();
