@@ -139,7 +139,10 @@
   transform: translateX(14px);
 }
 
+/* The focused checkbox is invisible: the track draws the ring, an outline that forced colours keep. */
 .switchInput:focus-visible + .switchTrack {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
   box-shadow: var(--ed-focus-ring);
 }
 
@@ -191,6 +194,8 @@
 }
 
 .pack:has(input:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
   box-shadow: var(--ed-focus-ring);
 }
 
@@ -428,4 +433,33 @@
   color: var(--text-muted);
   font-size: var(--ed-font-size-note, 13px);
   font-weight: 400;
+}
+
+/* Forced colours (Windows high contrast) drop fills and box-shadow: a chosen pack underlines its
+   name, as a chosen pill does, and the switch draws its knob in system colours and fills its track
+   when on, as the kit's Switch does. */
+@media (forced-colors: active) {
+  .pack:has(input:checked) .packName {
+    text-decoration: underline 2px;
+    text-underline-offset: 3px;
+  }
+
+  .switchTrack::after {
+    forced-color-adjust: none;
+    background: CanvasText;
+  }
+
+  .switchInput:checked + .switchTrack {
+    forced-color-adjust: none;
+    border-color: Highlight;
+    background: Highlight;
+  }
+
+  .switchInput:checked + .switchTrack::after {
+    background: HighlightText;
+  }
+
+  .switchInput:focus-visible + .switchTrack {
+    outline-color: CanvasText;
+  }
 }

@@ -72,6 +72,14 @@
   box-shadow: inset 0 0 0 1px var(--text-muted);
 }
 
+/* Forced colours drop the fill and the ring: the pressed name is underlined, as a pressed pill's is. */
+@media (forced-colors: active) {
+  .button[aria-pressed="true"] {
+    text-decoration: underline 2px;
+    text-underline-offset: 3px;
+  }
+}
+
 .button[aria-disabled="true"] {
   opacity: 0.55;
   cursor: not-allowed;

@@ -292,6 +292,16 @@
   cursor: pointer;
 }
 
+/* Forced colours drop the chosen segment's fill (and a chosen text tab's surface): its name is
+   underlined instead, as the rail's chosen tab and the kit's chosen pills are. */
+@media (forced-colors: active) {
+  .viewOption:has(input:checked),
+  .tab[aria-selected="true"] {
+    text-decoration: underline 2px;
+    text-underline-offset: 3px;
+  }
+}
+
 /* Urungkan and Ulangi side by side. Its own name: `.history` is the export dialog's list below. */
 .historyButtons {
   display: flex;
