@@ -1,0 +1,16 @@
+{
+  "gate": "AC13 for the cards (44 px targets, axe)",
+  "viewport": {
+    "width": 1920,
+    "height": 960
+  },
+  "small": [],
+  "axe": {
+    "hook": [],
+    "caption": [],
+    "coldopen": [],
+    "layout": [],
+    "extras": []
+  },
+  "pass": true
+}

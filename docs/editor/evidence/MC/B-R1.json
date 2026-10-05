@@ -1,0 +1,6 @@
+{
+  "gate": "R1 (no LLM request on load in Mode Cepat; one per clip across views)",
+  "aiHooksOnLoad": 0,
+  "aiHooksAfterHookCardAndPanel": 1,
+  "pass": true
+}
