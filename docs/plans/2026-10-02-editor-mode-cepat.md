@@ -1370,3 +1370,68 @@ Task B built the cards, the shared kit's adoption and the panel extractions on
     "Atur di Mode Lengkap"; the real Caption card has none (decision 3). A's branch already takes
     the Logo & Musik card's "Atur detail di Mode Lengkap" instead, and matches the region by
     `/^Caption/`; with decision 2 the exact name "Caption" holds too.
+
+## 16. Decisions during build (D)
+
+D built the rail, the word toolbar and the scrubber on `mode-cepat-d-lengkap`. Where the spec was
+silent or the base differed:
+
+1. **The rail before A's grid.** Z0 mounts `Rail` as the first child of the panels aside, which
+   stacks its children. One rule in `rail/rail.module.css`, `[data-slot="panels"]:has(> .rail)`,
+   lays that aside out as a row, so the rail sits beside the panel on D's branch alone. It stops
+   matching once A gives the rail its own grid area (§1.1), and any rule of A's on the aside wins
+   over it. Until then the panel is 84 px narrower. The `.tabs` and `.tab` rules of
+   `shell.module.css` are no longer used (A's file).
+2. **Rail keys and look.** ↑/↓ move and select as §6.1 says; ←/→ still do, as the text tabs did
+   (Z0's views spec checks them), and a key with a modifier is left to the editor. The rail is on
+   `--bg` with a `--border` edge (the mockup); under forced colours the selected tab's label is
+   underlined, since its surface is dropped there.
+3. **Toolbar surface.** The toolbar is the menus' popover surface (`--surface-2`, a
+   `--border-strong` edge, the popover shadow, because it floats over the words it acts on). The
+   mockup's light toolbar would leave §8.1's inverted primary (`--text` fill, `--bg` text)
+   indistinguishable from it, so the spec's colours win. "Kata kunci" pressed is `--bg` with a
+   `--text-muted` inset ring.
+4. **Unavailable actions** stay focusable: `aria-disabled`, the reason as the description and in
+   the `title` with the shortcut. A click on one shows its reason in the panel's message line, as
+   the chips' reason did. `toBeDisabled()` in the specs reads `aria-disabled`.
+5. **Flip rule.** The toolbar flips below when the room above the first line is under
+   `max(56, its own height + 8)`. A narrow panel wraps it onto two rows; 56 px is the one-row case
+   of §6.2. The first line's box is the word span's box grown to the list's line-height. The room
+   is measured from the visible top: the scroll container's top or the sticky header's bottom,
+   whichever is lower.
+6. **The menu** opens toward the side of the panel with more room (`menuAlign`): a 240 px menu
+   opened leftward from a button near the panel's left edge would be clipped by the scroll
+   container. The "▾" of "Lainnya ▾" is drawn in CSS, so the button's name stays "Lainnya".
+7. **Keys on the toolbar.** I, O and the selection's modifier shortcuts (Ctrl+E, Ctrl+Shift+X,
+   Ctrl+Shift+H) act on the selection from the toolbar; Delete and Enter stay the words list's
+   (Enter presses the focused button). After an action from the toolbar or its menu, focus goes
+   back to the words, as after a chip; "Edit kata" focuses the word editor. A Tab pressed right
+   after a click places the toolbar at once instead of waiting for the next frame; when no
+   selected word is on screen, Tab moves on as usual.
+8. **The header** keeps a visible "TRANSKRIP" label (`aria-hidden`: the shell's `h2` names the
+   panel) and "Rapikan · n" (44 px tall) on one row, the status line under them.
+9. **The scrubber's control** is a native range input laid transparent over the drawing. Its
+   role, `aria-valuenow`, `min`/`max` and the screen reader's own adjustments stay the browser's,
+   and Z0's views spec (`fill`) keeps working. The scrubber takes the pointer (snapping) and its
+   §7 keys itself; the track draws the focus ring (`:has(.input:focus-visible)`). The drawn
+   playhead moves on every frame; while playing, the value and `aria-valuetext` move at most
+   every 250 ms, with a trailing update.
+10. **Play or pause from the scrubber** asks the player's `state().playing`; a player that does
+    not report it (the fakes' `createFakePlayer`) is followed by the scrubber's own Space and K.
+11. **Scrubber labels and stops.** One mark shows the marker lane's text and time ("Jeda 0,8 dtk ·
+    00:12,3"); a merged dot names its kinds with counts ("Tawa (2), Jeda · 00:12,3"); the join
+    reads "Transisi: Kilat putih + whoosh · 00:03,6". A key that lands on a mark shows the same
+    label. Merging anchors to a group's first mark, so every merged mark is under 6 px from the
+    drawn dot; the join diamond never merges. PageUp/PageDown stop at every mark, the cold-open
+    edges (0 and J) and the join; with no stop that way they stay. A press snaps to the marks and
+    the join, not to the cold-open edges. A hidden description gives screen readers the keys:
+    "PageUp dan PageDown pindah ke penanda; Spasi atau K memutar."
+12. **Specs.** `editor-scrubber.spec.mjs` runs the real Scrubber in a harness page over the marker
+    fixtures (`scrubber/__dev__/scrubber-harness-entry.jsx`) and in the editor at `?mode=cepat`.
+    `editor-lengkap.spec.mjs` runs in the editor on its fakes, whose store records commands
+    without applying the transcript ones, so its checks read the commands sent; the transcript
+    harness spec replays the real ones. The fakes' clip is about 5 s, so scripted U2 cuts its 2 s
+    second sentence there; U2's 5 s ramble stays in the transcript harness spec.
+13. **For A:** the shortcut help dialog (EditorApp) should list the scrubber's keys (§4.5). Until
+    A's shortcut filter lands, a focused scrubber turns the other global shortcuts off, as Z0
+    noted; the scrubber's own keys work either way.
