@@ -1,0 +1,48 @@
+{
+  "gate": "PF-OPEN",
+  "view": "cepat",
+  "interactive": "#card-caption-region :is(input, button, select, textarea)",
+  "browser": "147.0.7727.15",
+  "executable": "/home/runner/.cache/ms-playwright/chromium-1217/chrome-linux64/chrome",
+  "runs": 20,
+  "variants": [
+    {
+      "name": "fakes, no server latency",
+      "config": null,
+      "first_visit_ms": {
+        "p50": 252.6149999999907,
+        "p95": 517.8549999999959,
+        "max": 525.7149999999965
+      },
+      "repeat_visit_ms": {
+        "p50": 137.48000000001048,
+        "p95": 702.6199999999953,
+        "max": 710.5200000000041
+      }
+    },
+    {
+      "name": "fakes + simulated server latency",
+      "config": {
+        "api": {
+          "getEdit": 90,
+          "words": 90,
+          "clips": 90
+        },
+        "preview": {
+          "plan": 200
+        }
+      },
+      "first_visit_ms": {
+        "p50": 588.8800000000047,
+        "p95": 598.1849999999977,
+        "max": 599.1700000000128
+      },
+      "repeat_visit_ms": {
+        "p50": 480.33499999999185,
+        "p95": 485.1849999999977,
+        "max": 499.4649999999965
+      }
+    }
+  ],
+  "pass": true
+}
