@@ -1,0 +1,109 @@
+/* The contextual word toolbar (docs/plans/2026-10-02-editor-mode-cepat.md §6.2, §8): a small
+   popover surface over the transcript, the same surface and edge as the menus, lifted by the
+   popover shadow because it floats over the words it acts on. The primary action is the neutral
+   inverted pair (--text fill, --bg text); the accent stays with Ekspor. 44 px targets; it fades
+   in over --dur-1 and is hidden while a drag selects (it appears on mouseup). Tokens only. */
+
+.toolbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1; /* over the words, under the panel's sticky header */
+  box-sizing: border-box;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  max-width: 100%;
+  padding: 2px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-m);
+  background: var(--surface-2);
+  color: var(--text);
+  box-shadow: var(--ed-shadow-popover);
+  animation: toolbarIn var(--dur-1) var(--ease-out);
+}
+
+.toolbar[data-placement="none"],
+[data-dragging] > .toolbar {
+  visibility: hidden;
+  animation: none;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ed-target, 44px);
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--text);
+  font: 600 var(--ed-font-size-md, 14px) / 1.2 var(--ed-font-ui, var(--font));
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+}
+
+.button:hover:not([aria-disabled="true"]) {
+  background: var(--surface-3);
+}
+
+.button[data-primary] {
+  background: var(--text);
+  color: var(--bg);
+}
+
+.button[data-primary]:hover:not([aria-disabled="true"]) {
+  background: var(--text-muted);
+  color: var(--bg);
+}
+
+/* Kata kunci while every selected word is a keyword: pressed in, ringed. */
+.button[aria-pressed="true"] {
+  background: var(--bg);
+  box-shadow: inset 0 0 0 1px var(--text-muted);
+}
+
+.button[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.menu {
+  display: inline-flex;
+}
+
+/* "Lainnya ▾": the chevron is drawn, so the button's name stays "Lainnya". */
+.menu button[aria-haspopup="menu"]::after {
+  content: "";
+  box-sizing: border-box;
+  width: 7px;
+  height: 7px;
+  margin: -3px 0 0 2px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@keyframes toolbarIn {
+  from {
+    opacity: 0;
+  }
+}

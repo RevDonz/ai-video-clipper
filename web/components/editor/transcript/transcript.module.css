@@ -30,10 +30,25 @@
   border-bottom: 1px solid var(--border);
 }
 
-.toolbar {
+/* The header row: the panel's label and Rapikan. The word actions are on the toolbar over the
+   selection (WordToolbar.module.css). */
+.headRow {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--ed-space-1, 4px);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ed-space-2, 8px);
+}
+
+.label {
+  font: 700 var(--ed-font-size-sm, 12px) / 1 var(--ed-font-ui, var(--font));
+  letter-spacing: var(--ed-label-tracking, 0.08em);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* The box the toolbar is positioned in: the words and the toolbar scroll together. */
+.wordsBox {
+  position: relative;
 }
 
 .tool {
@@ -57,14 +72,6 @@
 .tool:disabled {
   opacity: 0.45;
   cursor: not-allowed;
-}
-
-/* A pressed toggle inverts the neutral pair instead of spending the accent. */
-.tool[aria-pressed="true"],
-.tool[aria-pressed="true"]:hover:not(:disabled) {
-  background: var(--text);
-  border-color: var(--text);
-  color: var(--surface);
 }
 
 .tool:focus-visible,
@@ -262,38 +269,18 @@
 
 /* --- Rapikan (plan §7.3) ------------------------------------------------------------------ */
 
-.cleanupBar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--ed-space-2, 8px);
-}
-
-.cleanupBar .status {
-  flex: 1 1 auto;
-}
-
 .cleanupToggle {
   flex: none;
+  min-height: var(--ed-target, 44px);
+  padding: 0 14px;
+  font-size: var(--ed-font-size-md, 14px);
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .cleanupToggle[aria-expanded="true"] {
   background: var(--surface-2);
   border-color: var(--text-muted);
-}
-
-.cleanupCount {
-  display: inline-block;
-  min-width: 1.6em;
-  padding: 0 5px;
-  border-radius: 999px;
-  background: var(--surface-2);
-  color: var(--text);
-  font-size: var(--ed-font-size-xs, 11px);
-  line-height: 1.5;
-  text-align: center;
-  box-shadow: inset 0 0 0 1px var(--border);
 }
 
 /* Words and gaps the open review proposes to cut: one "proposed" colour, told apart by the line
