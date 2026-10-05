@@ -1187,3 +1187,59 @@ The first draft (`6edfd83`) was reviewed in 23 points. Each was checked against 
 | 21 | Layout math assumes a 768 px viewport | Fixed: 1366×650 numbers, rail rows 44–64 px, scrolling rules, new spec viewports (§1.1, §6.1, AC9) |
 | 22 | Deep links lost across login | Fixed by scope: §4.4 states the limit and AC3 covers logged-in viewers. Rejected: changing `page.jsx`, because `web/app/**` stays out of this build and deep links are made inside the editor |
 | 23 | "Pisahkan di baris lain" cannot be followed; M is another single-key shortcut | Fixed: a followable message (§2.4); M dropped (§4.5). The existing single-key shortcuts are out of scope: §11 Q7 |
+
+## 13. Decisions during build (Z0)
+
+Z0 built the scaffold of §10 step 1 on `mode-cepat-base`. Where the spec was silent:
+
+1. **Seeded test files.** Z0 starts three files that belong to other tasks, with only the checks
+   that already hold at the base; each owner extends or replaces its file, as C does with
+   `caption-lines.mjs`:
+   - `web/tests/editor-caption-lines.test.mjs` (C): `captionRows` and `linesSummary`;
+   - `web/tests/editor-ui-kit.test.mjs` (B): the icon names, the menu keys, the accordion ids, and
+     the kit's CSS rules of §9.2 (duration tokens only, no lime, 44 px);
+   - `web/e2e/editor-views.spec.mjs` (A): the default URL is today's Lengkap; `?mode=cepat`
+     mounts the cards (Caption open, one at a time, closed bodies inert), the scrubber seeks, a
+     card's way to Lengkap keeps the canvas and the undo history; axe on the Cepat scaffold.
+     A replaces the default-URL check when it flips the default.
+
+   Z0's own structural test is `web/tests/editor-mode-cepat-scaffold.test.mjs` (Z). It checks
+   only the shapes of §10, so A to D never need to edit it.
+2. **Testable kit.** The icon paths live in `ui/icon-paths.mjs` and the menu and accordion rules
+   in `ui/kit-model.mjs` (`menuMove`, `menuItemRole`, `accordionIds`), so node tests read them;
+   `Icon` also takes an optional `className`. `more` (three dots) and `help` (a circled ?) are
+   not in the mockup and are drawn in its style.
+3. **Kit details.** A closed accordion body hides with `visibility var(--dur-2)` in the same
+   transition as its rows (visibility is discrete, so no literal `0s` is needed); the 56 px header
+   is `calc(var(--ed-target) + 12px)`. Legends inside cards are 13/400 `--text-muted`, as in the
+   mockup and the "Help, notes, legends" row of §8.3. A `MenuButton` item that is unavailable
+   shows its reason under its label as well as in its description; a checked
+   `menuitemcheckbox` shows ✓ before its label.
+4. **Card registry.** Entries also carry `component` (as `PANELS` do) and `panel`, the Lengkap
+   panel that does the same work. Each placeholder body says "Kartu ini belum tersedia di Mode
+   Cepat." with "Atur di Mode Lengkap", which calls `showLengkap(panel)`. In Z0,
+   `showLengkap` switches the view in place (no URL change); A adds `urlWithView` and the
+   preference. QuickPanel summarises only Teks caption; B moves every summary to
+   `quick/quick-model.mjs`.
+5. **Line model.** `captionRows` without `model` gives empty `hiddenIds`: only the transcript
+   model knows which hidden words the cuts keep. `linesSummary` takes the same
+   `{ plan, doc, words }` and says "Caption mati" whenever captions are off, even before a plan.
+   `focusAfterRegroup` throws "not built" too, so the whole API of §2 is importable.
+6. **The Cepat frame** for `?mode=cepat` is in `shell.module.css`, scoped to
+   `.shell[data-editor-view="cepat"]` (`.quickSide`, `.quickBottom`); the root carries
+   `data-editor-view`. The stage keeps its element, so a switch never remounts the canvas.
+   StageControls stay in the stage region in both views until A moves them. A replaces all of
+   this with the named areas of §1.1. The scrubber is a native range input, so while it has focus
+   today's `isEditableTarget` turns the global shortcuts off; A's filter (§4.5) fixes that.
+7. **e2e helpers.** Only actions moved into the helpers; checks on a control's state stay in the
+   owner's spec. `openChecks(page, count?)` returns the button (focus comes back to it);
+   `safeZone(page)` returns the toggle, to click or to check `aria-pressed`; `switchView`
+   reloads with `?mode=` until A's switch exists; `wordAction` matches today's chip names as the
+   specs did.
+8. **URL constants.** Every `EDITOR` and `editorUrl` constant of `e2e/editor-*.spec.mjs`
+   (the real-stack flow and acceptance specs included) and the logo spec's real-stack capture URL
+   end in `?mode=lengkap`. The `klip-<n>` prepare URLs are unchanged: A makes the prepare flow
+   keep the query (§4.4).
+9. **For A:** the logo harness (`gizmos/__dev__/logo-harness-entry.jsx`) mounts `EditorApp` at a
+   URL without a query and passes `initialPanel`. When the default flips, an `initialPanel` prop
+   should resolve as `?panel=` does (Lengkap), or `editor-logo.spec.mjs` lands in Cepat.
