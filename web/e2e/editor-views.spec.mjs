@@ -13,7 +13,6 @@ import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { FAKE_CLIP_ID, FAKE_JOB_ID, fakeDoc, fakeWords } from "../components/editor/__dev__/fakes.mjs";
 import { applyCommand } from "../lib/editor/commands.mjs";
@@ -29,10 +28,6 @@ const PANEL_TABS = ["Transkrip", "Teks", "Cold open", "Tata letak", "Logo", "Mus
 const LEGACY_HELP = "Klip ini belum diubah, jadi ekspor memakai file klip otomatis apa adanya. File itu dibuat sebelum editor "
   + "dibuka, jadi bisa sedikit berbeda dari pratinjau ini (misalnya posisi video, warna teks). Setelah Anda mengubah apa "
   + "saja, hasil ekspor sama dengan pratinjau ini.";
-const WEB_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-// Task B's lime clean-up of the panels' hover (spec §8.1) lands with its caption model; until then
-// the hover sweep reports what it finds inside a Lengkap panel without failing on it.
-const B_LANDED = existsSync(path.join(WEB_DIR, "components", "editor", "panels", "caption-model.mjs"));
 
 // A document with a cold open, so the Transisi section of the Cold open panel is on.
 const COLD_OPEN_DOC = applyCommand(fakeDoc(), "SetColdOpen", { firstWord: "w048127", lastWord: "w048132" },
@@ -640,13 +635,9 @@ test("AC12: lime only on Ekspor, at rest and hovered, with every card and every 
   await page.setViewportSize({ width: 1920, height: 960 });
   const rest = [];
   const hover = [];
-  const pending = [];
   const record = async (state) => {
     rest.push(...(await limeAtRest(page)).map((hit) => ({ state, ...hit })));
-    for (const hit of await limeOnHover(page)) {
-      if (!B_LANDED && hit.panel) pending.push({ state, ...hit });
-      else hover.push({ state, ...hit });
-    }
+    hover.push(...(await limeOnHover(page)).map((hit) => ({ state, ...hit })));
   };
   await openEditor(page, `${BASE}?mode=cepat`);
   for (const id of CARD_IDS) {
@@ -668,7 +659,6 @@ test("AC12: lime only on Ekspor, at rest and hovered, with every card and every 
     return [getComputedStyle(element).backgroundColor, accent];
   });
   expect(exportBg[0]).toBe(exportBg[1]);
-  if (pending.length) process.stderr.write(`AC12: lime on hover inside the Lengkap panels until task B lands:\n${JSON.stringify(pending, null, 2)}\n`);
   expect(rest, "lime at rest").toEqual([]);
   expect(hover, "lime on hover").toEqual([]);
 });
