@@ -69,7 +69,13 @@ async function openHarness(page, config = {}) {
 const transcript = (page) => page.locator('[data-panel="transcript"]');
 const word = (page, index) => transcript(page).locator(`[data-w="${index}"]`);
 const wordList = (page) => transcript(page).locator("[data-transcript-words]");
-const toolbar = (page) => page.getByRole("toolbar", { name: "Aksi kata" });
+const toolbar = (page) => page.getByRole("toolbar", { name: "Aksi kata terpilih" });
+
+/** The item `name` of the toolbar's "Lainnya" menu, opened. Esc closes it again. */
+async function menuItem(page, name, role = "menuitem") {
+  await toolbar(page).getByRole("button", { name: "Lainnya", exact: true }).click();
+  return toolbar(page).getByRole("menu", { name: "Lainnya" }).getByRole(role, { name });
+}
 
 async function commands(page) {
   return page.evaluate(() => window.__harness.store.log.filter((entry) => entry.ok)
@@ -166,7 +172,10 @@ test.describe("transcript panel", () => {
     await selectRange(page, first + 2, first + 3);
     await page.keyboard.press("Delete");
     await selectRange(page, first, first + 6);
-    await expect(toolbar(page).getByRole("button", { name: "Pulihkan" })).toBeEnabled();
+    // Cut and kept words: Hapus is the primary action, Pulihkan waits in the menu.
+    await expect(toolbar(page).getByRole("button", { name: "Hapus", exact: true })).toHaveAttribute("data-primary", "");
+    await expect(await menuItem(page, "Pulihkan")).toBeEnabled();
+    await page.keyboard.press("Escape");
     await wordAction(page, "Hapus");
     const doc = await currentDoc(page);
     const body = doc.main.removals.filter((removal) => removal.seg === "seg_b1");
@@ -216,7 +225,9 @@ test.describe("transcript panel", () => {
     await page.keyboard.press("Control+Shift+X");
     expect(await lastCommand(page)).toEqual({ type: "SetWordHidden", args: { wordId: demoWords[index].id, on: true }, mergeKey: expect.any(String) });
     await expect(word(page, index)).toHaveAttribute("data-hidden", "");
-    await expect(toolbar(page).getByRole("button", { name: "Sembunyikan" })).toHaveAttribute("aria-pressed", "true");
+    await expect(await menuItem(page, "Sembunyikan dari caption", "menuitemcheckbox")).toHaveAttribute("aria-checked", "true");
+    await page.keyboard.press("Escape");
+    await wordList(page).focus();
     await page.keyboard.press("Control+Shift+X");
     expect(await lastCommand(page)).toMatchObject({ type: "SetWordHidden", args: { on: false } });
     await expect(word(page, index)).not.toHaveAttribute("data-hidden", /.*/);
@@ -302,6 +313,128 @@ test.describe("transcript panel", () => {
     await openTab(page, "Cold open");
     await expect(page.getByRole("switch", { name: "Cold open aktif" })).toBeDisabled();
     expect(await commands(page)).toEqual([]);
+  });
+});
+
+// The contextual word toolbar (docs/plans/2026-10-02-editor-mode-cepat.md §6.2, AC10): no chip
+// row; with a selection the toolbar floats 8 px above its first line, or below its last line when
+// the room above is short, and never covers a selected word. The primary action follows the
+// selection. Keyboard use is in editor-lengkap.spec.mjs, in the editor itself.
+test.describe("word toolbar", () => {
+  async function boxes(page, first, last) {
+    const bar = await toolbar(page).boundingBox();
+    const selected = [];
+    for (let i = first; i <= last; i += 1) selected.push(await word(page, i).boundingBox());
+    return { bar, selected };
+  }
+
+  const overlaps = (a, b) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+
+  test("no chip row: the header holds Rapikan only, and the toolbar shows only with a selection", async ({ page }) => {
+    await openHarness(page);
+    await expect(transcript(page).getByRole("toolbar")).toHaveCount(0);
+    await expect(transcript(page).getByRole("button", { name: /^Rapikan/ })).toBeVisible();
+    for (const name of ["Hapus", "Pulihkan", "Edit kata", "Sembunyikan", "Kata kunci", "Mulai di sini", "Akhiri di sini"]) {
+      await expect(transcript(page).getByRole("button", { name, exact: true })).toHaveCount(0);
+    }
+    const [first] = unit(DEMO.newColdOpen);
+    await word(page, first).click();
+    await expect(toolbar(page)).toBeVisible();
+    await expect(toolbar(page).getByRole("button")).toHaveText(["Hapus", "Jadikan cold open", "Kata kunci", "Lainnya"]);
+    await page.keyboard.press("Escape");
+    await expect(toolbar(page)).toHaveCount(0);
+  });
+
+  test("above the first selected line, 8 px clear, its left edge on the first word; it never covers the selection", async ({ page }) => {
+    await openHarness(page);
+    const [first] = unit(DEMO.newColdOpen);
+    await selectRange(page, first, first + 3);
+    await expect(toolbar(page)).toHaveAttribute("data-placement", "above");
+    const { bar, selected } = await boxes(page, first, first + 3);
+    expect(bar.y + bar.height).toBeLessThanOrEqual(selected[0].y - 8 + 0.5);
+    expect(Math.abs(bar.x - selected[0].x)).toBeLessThanOrEqual(1);
+    for (const box of selected) expect(overlaps(bar, box)).toBe(false);
+    const panel = await page.locator('[role="tabpanel"]').boundingBox();
+    expect(bar.x + bar.width).toBeLessThanOrEqual(panel.x + panel.width + 0.5);
+  });
+
+  test("it flips below the selection when the first line is right under the header", async ({ page }) => {
+    await openHarness(page);
+    const top = Number(await transcript(page).locator("[data-w]").first().getAttribute("data-w"));
+    await selectRange(page, top, top + 1);
+    await expect(toolbar(page)).toHaveAttribute("data-placement", "below");
+    const { bar, selected } = await boxes(page, top, top + 1);
+    expect(bar.y).toBeGreaterThanOrEqual(Math.max(...selected.map((box) => box.y + box.height)) + 8 - 0.5);
+    for (const box of selected) expect(overlaps(bar, box)).toBe(false);
+  });
+
+  test("the primary action: Perpanjang ke sini on dimmed words, Pulihkan on cut words, else Hapus", async ({ page }) => {
+    await openHarness(page);
+    const primary = () => toolbar(page).locator("[data-primary]");
+    const [before] = unit(DEMO.contextBefore);
+    await word(page, before).click();
+    await expect(primary()).toHaveText("Perpanjang ke sini");
+    const ramble = unit(DEMO.ramble);
+    await selectRange(page, ramble[0], ramble[0] + 2);
+    await expect(primary()).toHaveText("Hapus");
+    await page.keyboard.press("Delete");
+    await selectRange(page, ramble[0], ramble[0] + 2);
+    await expect(primary()).toHaveText("Pulihkan");
+    await primary().click();
+    expect(await lastCommand(page)).toMatchObject({ type: "RestoreRemoval" });
+    await expect(word(page, ramble[0])).not.toHaveAttribute("data-removed", /.*/);
+  });
+
+  test("while a drag selects the toolbar waits, and it appears on mouseup", async ({ page }) => {
+    await openHarness(page);
+    const [first, last] = unit(DEMO.newColdOpen);
+    const from = await word(page, first).boundingBox();
+    const to = await word(page, last).boundingBox();
+    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 5 });
+    await expect(transcript(page).locator("[data-selected]")).toHaveCount(last - first + 1);
+    await expect(toolbar(page)).toBeHidden();
+    await page.mouse.up();
+    await expect(toolbar(page)).toBeVisible();
+  });
+
+  test("every former chip runs from the toolbar or its menu with the mouse", async ({ page }) => {
+    await openHarness(page);
+    const [coFirst, coLast] = unit(DEMO.newColdOpen);
+    const run = async (first, last, name) => {
+      await selectRange(page, first, last);
+      await wordAction(page, name);
+    };
+    // The trims of the "set the trim" test above, through the toolbar.
+    const [second] = unit(DEMO.bodyFirst + 1);
+    await run(second, second + 1, "Mulai di sini");
+    expect(await lastCommand(page)).toEqual({ type: "TrimStart", args: { gapWord: demoWords[second].id }, mergeKey: null });
+    const [opening] = unit(DEMO.bodyFirst);
+    await run(opening, opening, "Perpanjang ke sini");
+    expect(await lastCommand(page)).toEqual({ type: "TrimStart", args: { gapWord: demoWords[opening].id }, mergeKey: null });
+    const [, penultimateLast] = unit(DEMO.bodyLast - 1);
+    await run(penultimateLast - 1, penultimateLast, "Akhiri di sini");
+    expect(await lastCommand(page)).toEqual({ type: "TrimEnd", args: { gapWord: demoWords[penultimateLast].id }, mergeKey: null });
+    await page.evaluate(() => window.__harness.store.undo());
+    const [rFirst] = unit(DEMO.ramble);
+    await run(rFirst, rFirst + 1, "Hapus");
+    expect(await lastCommand(page)).toMatchObject({ type: "RemoveWords", args: { wordIds: idsOf([rFirst, rFirst + 1]) } });
+    await run(rFirst, rFirst + 1, "Pulihkan");
+    expect(await lastCommand(page)).toMatchObject({ type: "RestoreRemoval" });
+    await run(coFirst, coFirst, "Kata kunci");
+    expect(await lastCommand(page)).toMatchObject({ type: "SetWordEmphasis", args: { wordId: demoWords[coFirst].id, on: true } });
+    await run(coFirst, coFirst, "Sembunyikan");
+    expect(await lastCommand(page)).toMatchObject({ type: "SetWordHidden", args: { wordId: demoWords[coFirst].id, on: true } });
+    await run(coFirst, coLast, "Jadikan cold open");
+    expect(await lastCommand(page)).toMatchObject({ type: "SetColdOpen", args: { firstWord: demoWords[coFirst].id, lastWord: demoWords[coLast].id } });
+    await run(rFirst + 3, rFirst + 3, "Edit kata");
+    const editor = transcript(page).locator("input[data-word-editor]");
+    await expect(editor).toBeFocused();
+    await editor.fill("pagi");
+    await editor.press("Enter");
+    expect(await lastCommand(page)).toEqual({ type: "EditWordText", args: { wordId: demoWords[rFirst + 3].id, text: "pagi" },
+      mergeKey: `word:${demoWords[rFirst + 3].id}` });
   });
 });
 
