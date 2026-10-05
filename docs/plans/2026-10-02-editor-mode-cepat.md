@@ -1471,7 +1471,10 @@ literally:
    `?mode=lengkap`, so a reload stays there, but it does not write the preference: only the switch
    does (§4.2).
 8. **`?card=` opens its card once**, the first time Cepat shows. After any switch Caption opens,
-   because the open card is not remembered (§1.3). The URL wins over an `initialPanel` prop.
+   because the open card is not remembered (§1.3). The URL wins over an `initialPanel` prop. The
+   view is resolved in the shell's state initialiser, before its first render; the shell renders
+   only on the client once the runtime is ready, so this is the "before EditorShell mounts" of
+   §4.2: no flash of the other view, and the server render never reads storage.
 9. **The scrubber's keys in the help.** `SHORTCUTS` gains two rows of scope `scrubber` (Home/End,
    PageUp/PageDown), shown with "(di bilah posisi)". The shell never maps them.
 10. **Non-text inputs.** Besides the spec's list, `image` (a button-type input) is a control, not a
