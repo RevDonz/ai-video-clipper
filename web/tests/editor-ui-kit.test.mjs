@@ -89,8 +89,12 @@ test("a menu item with a checked state is a menuitemcheckbox", () => {
   assert.equal(menuItemRole({ id: "c", label: "Sembunyikan dari caption", checked: true }), "menuitemcheckbox");
 });
 
-test("an accordion's header button and its region name each other", () => {
-  assert.deepEqual(accordionIds("card-hook"), { button: "card-hook-button", region: "card-hook-region" });
+test("an accordion's header controls its region, and the region is named by the header's label alone", () => {
+  assert.deepEqual(accordionIds("card-hook"), { button: "card-hook-button", label: "card-hook-label", region: "card-hook-region" });
+  const source = readFileSync(path.join(editorDir, "ui", "AccordionCard.jsx"), "utf8");
+  assert.match(source, /aria-controls=\{ids\.region\}/);
+  assert.match(source, /<span id=\{ids\.label\}/);
+  assert.match(source, /role="region" aria-labelledby=\{ids\.label\}/);
 });
 
 test("the kit's stylesheets exist where the components import them", () => {
