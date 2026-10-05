@@ -1243,3 +1243,80 @@ Z0 built the scaffold of §10 step 1 on `mode-cepat-base`. Where the spec was si
 9. **For A:** the logo harness (`gizmos/__dev__/logo-harness-entry.jsx`) mounts `EditorApp` at a
    URL without a query and passes `initialPanel`. When the default flips, an `initialPanel` prop
    should resolve as `?panel=` does (Lengkap), or `editor-logo.spec.mjs` lands in Cepat.
+
+## Decisions during build (B)
+
+Task B built the cards, the shared kit's adoption and the panel extractions on
+`mode-cepat-b-cards`. Where the spec was silent or could not be followed literally:
+
+1. **The hook rules have their own module.** `panels/hook-model.mjs` holds what HOOK reuses from
+   TextPanel (the cleaned text, the 90-point limit, `hookTextCommand` with `hook:text`,
+   `hookEnabledCommand`, `hookFit`, the missing glyphs), beside `panels/caption-model.mjs`. The Hook
+   card and TextPanel both call them, as the caption controls call `caption-model.mjs`.
+2. **A card's region is named by its label.** The region's `aria-labelledby` points at the label
+   inside the header (`accordionIds` gains `label: <id>-label`), not at the whole button, so a
+   screen reader hears "Caption", not "Caption Karaoke · Sedang · Bawah". The button still holds the
+   label, the summary and the chevron.
+3. **Caption card.** The packs stay radio tiles with the FFmpeg thumbnails under a visible legend
+   "Gaya caption", as in TextPanel. "Ukuran" and "Posisi" are `PillGroup`s with visible legends;
+   the zone note and the hook hint sit under Posisi and are its group's description. The card has
+   no way to Lengkap of its own (§1.4, the mockup).
+4. **Hook card.** The list's heading is "Saran" (mockup). The lists keep the panel's names: "Saran
+   otomatis" (`aria-label`) and "Saran AI" (a visible label, since the AI list sits under its
+   status line). The pressed suggestion also shows "Dipakai" (decorative, hidden from screen
+   readers) so its state does not rest on colour; a click on it does nothing. A suggestion that
+   does not fit shows "Akan terpotong". "Coba lagi" and "Perbarui saran" are 44 px pills under
+   their line, not inline links. The controller and view state are `use-hook-suggestions.js`,
+   which both lists call; it also resolves the API client as TextPanel did (`useEditorApi`).
+5. **Cold open card.**
+   - The Transisi section shows with or without a cold open, as in Lengkap (without one it is
+     disabled and says "Aktifkan cold open dulu."), so both views show the same section for the
+     same document (AC5).
+   - The suggestion list mounts with the card (§1.3: the candidates are asked for when the card
+     opens) and shows under "Ganti kalimat" or "Pilih kalimat" (`aria-expanded`).
+   - "Putar" plays the cold open alone (`useAudition` over `[0, J)`) and reads "Hentikan" while it
+     plays, as a suggestion's "Putar" does.
+   - After "Pakai" the new quote is the visible answer; the status line is for screen readers only.
+   - `ColdOpenSuggestions` and `TransitionSection` take a `touch` prop (`data-touch`) that gives
+     their controls the card's 44 px targets and type scale; in the panel they keep their sizes.
+     The suggestions' empty state keeps the panel's text ("Pilih sendiri dari Transkrip"), one
+     text in both views.
+6. **Tata letak card.** The three pills follow the mockup's order (`quick-model.mjs`
+   `CARD_LAYOUTS`); the panel keeps its own. The group's legend "Pilih tata letak" is for screen
+   readers, as in the panel, with "Berlaku untuk seluruh klip." as its description. A face-track
+   document missing its camera plan is analysed when the card opens too, as LayoutPanel does,
+   once per clip.
+7. **`layoutAnalysisFor(clipId)`.** Besides the spec's fields the state has `code`, `range` and
+   `cameraReady` (a run that succeeded, so face-track needs no second one). `phase` is "starting"
+   for the first 250 ms (an existing plan answers faster: no flicker), then "running";
+   `cancelSwitch()` is "another choice wins" (the run goes on and still marks the plan as known);
+   `start({ …, auto: true })` is the automatic run, once per clip; a `SetLayout` the store refuses
+   after a run sets `message` with phase "idle". `getState` is the starter's latest state.
+8. **`musicUploadFor(clipId)`.** State `{ phase, name, progress, replace, message, names }`, phase
+   "idle", "uploading" or "processing". The copyright notice is a step in each view, not part of
+   the store; `musicNoticeRead`, `markMusicNoticeRead` and the file names moved from MusicPanel into
+   `music-upload.mjs` with the same storage keys, so the notice is shown once across both views.
+9. **Logo & Musik card.** Logo and Musik each have their own "Atur detail di Mode Lengkap",
+   described by their part's title. The add buttons carry the kit's `logo` and `music` icons (the
+   mockup's plus is not among §8.2's icon names). "Hapus" reads "Hapus logo" or "Hapus musik" to
+   screen readers. Uploads that are off on the server disable the add buttons with the panels'
+   texts.
+10. **The kit in the Lengkap panels.** `Switch` (TextPanel, "Cold open aktif", MusicPanel),
+    `Swatches` (TextPanel) and `PillGroup` (MusicPanel's ducking presets with their dB as detail,
+    LogoPanel's corners with the corner frame) replace the panels' own; roles, names and order are
+    unchanged. The pack tiles and the layout cards keep their thumbnail tiles: they are image
+    choices (the Caption card shows the same tiles) and the specs read their thumbnails;
+    `TransitionSection` keeps T3's markup. `PillGroup` gains `legendHidden`, `Switch` gains `title`.
+11. **Lime.** Besides the two `.primary:hover` rules, the panels' CSS comments that still said
+    "accent" for the chosen card or corner now say what the rules do: lime fills only the three
+    progress bars.
+12. **e2e on the harness.** `editor-quick.spec.mjs` opens the logo harness at `?mode=cepat`, so the
+    cards run on the real store and the real Appendix B commands. Its init script patches the fake
+    API and preview client through the `window.__harness` assignment, before the store's first
+    plan: a caption TikTok-zone warning at the seed spot, a stand-in music envelope, a slow camera
+    analysis and slow uploads, and the hook suggestions' answers. Reduced motion and the lime check
+    run on the Next fakes, which carry the app's CSS.
+13. **For A and Z:** the base's `editor-views.spec.mjs` still clicks the Caption placeholder's
+    "Atur di Mode Lengkap"; the real Caption card has none (decision 3). A's branch already takes
+    the Logo & Musik card's "Atur detail di Mode Lengkap" instead, and matches the region by
+    `/^Caption/`; with decision 2 the exact name "Caption" holds too.
