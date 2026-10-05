@@ -159,8 +159,9 @@ test("Logo & Musik sums up what the clip has", async () => {
 test("cardSummary answers for every card id, Teks caption through linesSummary", () => {
   const doc = fakeDoc();
   const state = { status: "ready", doc, seed: fakeDoc(), plan: fakePlan(doc), words: fakeWords() };
+  // The fakes caption like the engine (spec §2.6): a break after "sendiri?" makes 4 lines.
   assert.deepEqual(["hook", "caption", "lines", "coldopen", "layout", "extras"].map((id) => cardSummary(id, { state })), [
-    "Kenapa sutradara ditahan di film sendiri?", "Karaoke · Sedang · Bawah", "3 baris", "Mati", "Latar blur", "Belum ada",
+    "Kenapa sutradara ditahan di film sendiri?", "Karaoke · Sedang · Bawah", "4 baris", "Mati", "Latar blur", "Belum ada",
   ]);
   assert.equal(cardSummary("layout", { state, analysis: { phase: "running" } }), "Latar blur · menganalisis…");
   assert.equal(cardSummary("lines", { state: { ...state, plan: null } }), "Menyiapkan…");

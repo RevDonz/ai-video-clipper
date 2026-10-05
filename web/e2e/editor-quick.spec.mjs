@@ -324,9 +324,10 @@ test.describe("Mode Cepat cards (harness: real store and commands)", () => {
     await card.getByRole("group", { name: "Posisi" }).getByRole("radio", { name: "Tengah" }).check();
     expect(await lastSent(page)).toEqual({ type: "SetCaptionOverride", args: { key: "y_e5", value: 60000 }, mergeKey: null });
     await expect(header(page, "caption")).toContainText("Bold · Besar · Tengah");
-    // Bold's own case is upper case (SetCaptionPack), and the preview's cues follow it.
+    // Bold's own case is upper case (SetCaptionPack), and the preview's cues follow it. The fakes
+    // caption like the engine (spec §2.6): a break after "sendiri?".
     let plan = await planFollows(page);
-    expect(plan.cues.map((cue) => cue.text)).toEqual(["KENAPA SUTRADARA DITAHAN DI", "FILM SENDIRI? JADI WAKTU", "ITU KITA DATANG SUBUH"]);
+    expect(plan.cues.map((cue) => cue.text)).toEqual(["KENAPA SUTRADARA DITAHAN DI", "FILM SENDIRI?", "JADI WAKTU ITU KITA", "DATANG SUBUH"]);
     // Box does not light the spoken word: the note says the colour is unused there.
     await packs.getByRole("radio", { name: "Box" }).check();
     await expect(card.getByText("Dipakai oleh Karaoke dan Bold; tidak tampak di gaya ini.")).toBeVisible();
