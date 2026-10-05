@@ -298,11 +298,19 @@ test("the real runtime wires the A.2 modules: API client, preview client, store 
 
 test("the shell hands every panel its clients and the uploads flag, and mounts the live gizmos (W3 wiring)", async () => {
   const source = await readFile(new URL("../components/editor/EditorApp.jsx", import.meta.url), "utf8");
+  // Mode Cepat spec §1.2: the shell builds the props bundle once and spreads it onto <Panel> and
+  // <QuickPanel> alike, so a Lengkap panel and a Cepat card always receive the same props.
+  const bundle = /const panelProps = useMemo\(\(\) => \(\{([\s\S]*?)\}\), \[/.exec(source)?.[1] ?? "";
+  const entries = bundle.split(",").map((part) => part.trim()).filter(Boolean);
+  assert.deepEqual(entries, ["state", "dispatch", "player", "api", "previewClient: runtime.previewClient",
+    "uploadAsset: runtime.uploadAsset ?? null", "uploadsEnabled", "notify", "readOnly"]);
   const panel = /<Panel\s([\s\S]*?)\/>/.exec(source)?.[1] ?? "";
-  for (const prop of ["state={state}", "dispatch={dispatch}", "player={player}", "api={api}", "previewClient={runtime.previewClient}",
-    "uploadAsset={runtime.uploadAsset ?? null}", "uploadsEnabled={uploadsEnabled}", "notify={notify}", "readOnly={readOnly}"]) {
-    assert.ok(panel.includes(prop), `panel prop ${prop}`);
-  }
+  assert.equal(panel.trim(), "{...panelProps}", "a Lengkap panel gets exactly the bundle");
+  const quick = /<QuickPanel\s([\s\S]*?)\/>/.exec(source)?.[1] ?? "";
+  assert.match(quick, /^\{\.\.\.panelProps\}\s/, "a Cepat card gets the same bundle first");
+  for (const prop of ["frameBus={frameBus}", "showLengkap={showLengkap}"]) assert.ok(quick.includes(prop), `card prop ${prop}`);
+  assert.doesNotMatch(quick, /\b(?:state|dispatch|player|api|previewClient|uploadAsset|uploadsEnabled|notify|readOnly)=/,
+    "no bundle prop is passed again (or differently) to the cards");
   assert.match(source, /const uploadsEnabled = runtime\.kind === "fake" \|\| features\.uploads === true;/);
   assert.match(source, /const gizmos = useMemo\(\(\) => liveEntries\(GIZMOS, runtime\.kind\)/);
   assert.match(source, /gizmos=\{gizmos\.map\(/);
@@ -317,9 +325,13 @@ test("the conflict dialog reads the store's groups (T2.5 shape) and the fakes' p
   assert.deepEqual(conflictParts(null), []);
 });
 
-test("another tab and the merge notice come from the store", () => {
-  const notices = noticesView({ doc: null, playerMode: "live", otherTab: true });
-  assert.deepEqual(notices.map((notice) => notice.code), ["other_tab"]);
+test("another tab comes from the store and shows as the top bar's chip (Mode Cepat spec §5.3)", async () => {
+  assert.deepEqual(noticesView({ doc: null, playerMode: "live", otherTab: true }), [], "no longer a notice above the stage");
+  const app = await readFile(new URL("../components/editor/EditorApp.jsx", import.meta.url), "utf8");
+  assert.match(app, /const otherTab = state\.otherTab === true;/);
+  assert.match(/<TopBar\s([\s\S]*?)\/>/.exec(app)?.[1] ?? "", /\botherTab=\{otherTab\}/);
+  const bar = await readFile(new URL("../components/editor/TopBar.jsx", import.meta.url), "utf8");
+  assert.match(bar, /\{otherTab && [\s\S]*?\{OTHER_TAB_TEXT\}/);
 });
 
 test("the badge claims 'Sesuai hasil akhir' only when the player shows the playhead frame", () => {
@@ -338,7 +350,9 @@ test("an unchanged legacy-engine clip never claims 'Sesuai hasil akhir': its exp
   const legacyUnchanged = { ...plan, rev0: { planSha256: plan.planSha256, autoRenderUrl: "/api/jobs/x/files/output/clip-01.mp4", exact: false } };
   const view = badgeView({ status: "ready", plan: legacyUnchanged, player });
   assert.equal(view.tone, "legacy");
-  assert.equal(view.text, "● Belum diubah: ekspor = klip otomatis");
+  // Mode Cepat spec §5.3: the status is empty; the "?" help explains the auto file.
+  assert.equal(view.text, "");
+  assert.doesNotMatch(view.text, /Sesuai/);
   const edited = { ...legacyUnchanged, rev0: { ...legacyUnchanged.rev0, planSha256: "f".repeat(64) } };
   assert.equal(badgeView({ status: "ready", plan: edited, player }).tone, "exact");
   const newEngine = { ...legacyUnchanged, rev0: { ...legacyUnchanged.rev0, exact: true } };
