@@ -142,9 +142,19 @@ const focused = (page) => page.evaluate(() => {
     words: element?.hasAttribute("data-transcript-words") ?? false };
 });
 
+// The toolbar floats over the words next to the last selection, as a user sees it: Esc on the
+// words clears that selection first, and a held Shift lets the Shift+click through the toolbar.
 async function selectRange(page, first, last) {
+  if (await toolbar(page).count()) {
+    await wordList(page).focus();
+    await page.keyboard.press("Escape");
+  }
   await word(page, first).click();
-  if (last !== first) await word(page, last).click({ modifiers: ["Shift"] });
+  if (last !== first) {
+    await page.keyboard.down("Shift");
+    await word(page, last).click();
+    await page.keyboard.up("Shift");
+  }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -266,6 +276,15 @@ test.describe("word toolbar", () => {
     const items = toolbar(page).getByRole("menu", { name: "Lainnya" }).locator('[role^="menuitem"]');
     await expect(items).toHaveCount(6);
     for (const item of await items.all()) expect((await item.boundingBox()).height).toBeGreaterThanOrEqual(44);
+    // Holding Shift (focus on the words) fades the toolbar and lets a Shift+click through it.
+    await page.keyboard.press("Escape");
+    await wordList(page).focus();
+    await page.keyboard.down("Shift");
+    await expect(toolbar(page)).toHaveAttribute("data-pass-through", "");
+    await expect(toolbar(page)).toHaveCSS("pointer-events", "none");
+    await page.keyboard.up("Shift");
+    await expect(toolbar(page)).not.toHaveAttribute("data-pass-through", /.*/);
+    await expect(toolbar(page)).toHaveCSS("pointer-events", "auto");
   });
 
   test("the primary action follows the selection: Perpanjang ke sini, Pulihkan, Hapus", async ({ page }) => {

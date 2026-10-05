@@ -123,6 +123,32 @@ export default function WordToolbar({ actions, onAction, onLeave, boxRef, header
     schedule();
   }, [first, last, model, schedule]);
 
+  // Shift+click extends the selection, often onto words under the toolbar: while Shift is held
+  // (and focus is not in the toolbar) it fades and lets clicks through to the words.
+  useEffect(() => {
+    const passThrough = (on) => {
+      const root = rootRef.current;
+      if (!root) return;
+      if (on) root.dataset.passThrough = "";
+      else delete root.dataset.passThrough;
+    };
+    const down = (event) => {
+      if (event.key === "Shift" && !rootRef.current?.contains(document.activeElement)) passThrough(true);
+    };
+    const up = (event) => {
+      if (event.key === "Shift") passThrough(false);
+    };
+    const reset = () => passThrough(false);
+    window.addEventListener("keydown", down, true);
+    window.addEventListener("keyup", up, true);
+    window.addEventListener("blur", reset);
+    return () => {
+      window.removeEventListener("keydown", down, true);
+      window.removeEventListener("keyup", up, true);
+      window.removeEventListener("blur", reset);
+    };
+  }, []);
+
   useEffect(() => {
     const box = boxRef.current;
     window.addEventListener("scroll", schedule, true);
