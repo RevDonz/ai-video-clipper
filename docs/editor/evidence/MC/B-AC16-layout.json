@@ -1,0 +1,6 @@
+{
+  "gate": "AC16 (face analysis outlives the card and the view)",
+  "setLayout": 1,
+  "prepare": 1,
+  "pass": true
+}

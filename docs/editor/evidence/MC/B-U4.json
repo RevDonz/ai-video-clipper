@@ -1,0 +1,30 @@
+{
+  "gate": "QG-UX U4 (hook and pack in Mode Cepat, scripted on the harness)",
+  "limit_ms": 30000,
+  "elapsed_ms": 1754,
+  "steps": [
+    {
+      "step": "editor ready",
+      "ms": 474
+    },
+    {
+      "step": "hook suggestion",
+      "ms": 1327
+    },
+    {
+      "step": "pack Bold",
+      "ms": 1642
+    },
+    {
+      "step": "preview current",
+      "ms": 1754
+    }
+  ],
+  "viewport": {
+    "width": 1366,
+    "height": 650
+  },
+  "browser": "147.0.7727.15",
+  "note": "harness page: EditorApp on the real store and commands, fake API; automation speed, the owner times U4",
+  "pass": true
+}
