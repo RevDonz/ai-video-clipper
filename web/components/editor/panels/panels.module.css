@@ -247,35 +247,6 @@
   cursor: pointer;
 }
 
-.swatchRow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.swatch {
-  position: relative;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: var(--swatch);
-  border: 1px solid var(--border-strong);
-  cursor: pointer;
-}
-
-.swatch:has(input:checked) {
-  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--text);
-}
-
-.swatch:has(input:focus-visible) {
-  box-shadow: var(--ed-focus-ring);
-}
-
-.fieldset:disabled .swatch {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
 .stack {
   display: grid;
   gap: 4px;
