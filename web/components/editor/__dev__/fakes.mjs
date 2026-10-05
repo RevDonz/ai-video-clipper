@@ -11,7 +11,7 @@
 // setSelection, dismissNotice and the state fields conflict, notice, otherTab, readOnlyReason).
 import { CommandRejected } from "../../../lib/editor/commands.mjs";
 import { DEFAULT_EMPHASIS, DEFAULT_HIGHLIGHT } from "../../../lib/editor/content-colours.mjs";
-import { divRoundHalfUp, smp } from "../../../lib/editor/timemap.mjs";
+import { divRoundHalfUp, pieces as piecesOf, smp, totalFrames as totalFramesOf, wordFrames } from "../../../lib/editor/timemap.mjs";
 
 export { CommandRejected };
 
@@ -159,28 +159,77 @@ function planShaOf(doc) {
   return fakeSha256(`plan:${JSON.stringify({ ...doc, revision: null, parent_sha256: null, audit: null })}`);
 }
 
-/** The plan DTO (plan §4.3) of a fake document: pieces without removals, 4-word cues. */
-export function fakePlan(doc = fakeDoc()) {
-  let outF0 = 0;
-  const pieces = doc.main.segments.map((segment, i) => {
-    const frames = segment.out_sf - segment.in_sf;
-    const piece = { i, seg: segment.id, role: segment.role, inSf: segment.in_sf, outSf: segment.out_sf, outF0, frames };
-    outF0 += frames;
-    return piece;
-  });
-  const totalFrames = outF0;
-  const words = fakeWords().words;
-  const toFrame = (ms) => Math.max(0, Math.min(totalFrames,
-    Math.round((ms * FPS[0]) / (1000 * FPS[1])) - pieces[0].inSf));
-  const cues = [];
-  if (doc.captions.enabled) {
-    for (let i = 0; i < words.length; i += 4) {
-      const group = words.slice(i, i + 4);
-      const text = group.map((word) => doc.captions.word_edits[word.id]?.text ?? word.t).join(" ");
-      cues.push({ f0: toFrame(group[0].s), f1: toFrame(group.at(-1).e), text: doc.captions.overrides.case === "upper" ? text.toUpperCase() : text,
-        words: group.map((word) => word.id) });
-    }
+// The caption cues of the plan DTO, like the engine's `subtitles.build_frame_cues` and
+// `captions_ass.fit_cues` in small (docs/plans/2026-10-02-editor-mode-cepat.md §2.6): per segment,
+// a word whose midpoint lies in one of its pieces is captioned there (a cold-open word twice);
+// hidden words are skipped; a cue breaks after 4 words and after a sentence end.
+const CUE_MAX_WORDS = 4;
+const SENTENCE_END = ".?!…";
+const TRAILING_CLOSERS = "\"')]}»”’";
+// Dev-only stand-in for the Box pack's font measure: the engine splits a cue wider than the pack's
+// max width; the fakes split one whose shown text is over 24 characters.
+const BOX_MAX_CHARS = 24;
+
+function endsSentence(text) {
+  let end = text.length;
+  while (end > 0 && TRAILING_CLOSERS.includes(text[end - 1])) end -= 1;
+  return end > 0 && SENTENCE_END.includes(text[end - 1]);
+}
+
+function boxParts(cue, shown) {
+  const chunks = [];
+  for (const word of cue.placed) {
+    const last = chunks.at(-1);
+    if (last && [...[...last, word].map((item) => shown(item.text)).join(" ")].length <= BOX_MAX_CHARS) last.push(word);
+    else chunks.push([word]);
   }
+  const starts = [cue.f0, ...chunks.slice(1).map((chunk) => chunk[0].f0)];
+  return chunks.map((chunk, index) => ({ placed: chunk, f0: starts[index], f1: starts[index + 1] ?? cue.f1 }))
+    .filter((part) => part.f0 < part.f1);
+}
+
+function fakeCues(doc, list) {
+  if (!doc.captions.enabled) return [];
+  const fps = doc.output.fps;
+  const edits = doc.captions.word_edits;
+  const shown = (text) => (doc.captions.overrides.case === "upper" ? text.toUpperCase() : text);
+  const cues = [];
+  for (const seg of [...new Set(list.map((piece) => piece.seg))]) {
+    const scope = list.filter((piece) => piece.seg === seg);
+    const placed = [];
+    for (const word of fakeWords().words) {
+      if (edits[word.id]?.hidden === true) continue;
+      const frames = wordFrames(word.s, word.e, scope, fps);
+      if (frames) placed.push({ id: word.id, text: edits[word.id]?.text ?? word.t, f0: frames[0], f1: frames[1] });
+    }
+    placed.sort((a, b) => a.f0 - b.f0);
+    const groups = [];
+    for (const word of placed) {
+      const current = groups.at(-1);
+      if (current && current.length < CUE_MAX_WORDS && !endsSentence(current.at(-1).text)) current.push(word);
+      else groups.push([word]);
+    }
+    const segmentEnd = scope.at(-1).outF0 + scope.at(-1).frames;
+    groups.forEach((group, index) => {
+      const limit = groups[index + 1]?.[0].f0 ?? segmentEnd;
+      const f0 = group[0].f0;
+      const f1 = Math.min(Math.max(...group.map((word) => word.f1), f0 + 1), limit);
+      if (f1 <= f0) return;
+      const cue = { placed: group, f0, f1 };
+      for (const part of doc.captions.pack.id === "box" ? boxParts(cue, shown) : [cue]) {
+        cues.push({ f0: part.f0, f1: part.f1, text: shown(part.placed.map((word) => word.text).join(" ")),
+          words: part.placed.map((word) => word.id) });
+      }
+    });
+  }
+  return cues;
+}
+
+/** The plan DTO (plan §4.3) of a fake document: the document's pieces and engine-like cues. */
+export function fakePlan(doc = fakeDoc()) {
+  const pieces = piecesOf(doc);
+  const totalFrames = totalFramesOf(pieces);
+  const cues = fakeCues(doc, pieces);
   const hookItem = doc.tracks.find((track) => track.kind === "hook")?.items[0] ?? null;
   const docSha256 = fakeSha256(JSON.stringify(doc));
   const planSha256 = planShaOf(doc);
