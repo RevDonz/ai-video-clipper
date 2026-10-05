@@ -1741,7 +1741,7 @@ later than before), and the audio now runs to 39.086 s instead of 38.857 s.
 ## Mode Cepat and Mode Lengkap (2026-10-05)
 
 Spec: `docs/plans/2026-10-02-editor-mode-cepat.md` (owner decisions of 2026-10-02; decisions during
-build §13 to §18); contract: CONTRACTS §5.27; guide: PANDUAN-EDITOR; owner's test: UJI-PENERIMAAN
+build §13 to §19); contract: CONTRACTS §5.27; guide: PANDUAN-EDITOR; owner's test: UJI-PENERIMAAN
 U1 to U8. The editor opens in Mode Cepat (six cards beside the preview, a position bar below it)
 unless the address or the viewer's last choice says Mode Lengkap (the icon rail, the transcript
 with its word toolbar, the timeline). Both are views of one editor: one document, store, undo

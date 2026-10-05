@@ -1884,7 +1884,7 @@ the meta's sha are the committed ones. `v1.wav` is immutable: another sound or l
 ## 5.27 Editor views: Mode Cepat and Mode Lengkap (2026-10-05)
 
 Spec: `docs/plans/2026-10-02-editor-mode-cepat.md` (owner decisions of 2026-10-02 and the
-"Decisions during build" sections 13 to 18). No engine, Python, command, rebase, plan or seed
+"Decisions during build" sections 13 to 19). No engine, Python, command, rebase, plan or seed
 changes: every plan sha and golden is unchanged.
 
 ### One editor, two views
@@ -1900,9 +1900,14 @@ changes: every plan sha and golden is unchanged.
   Lengkap). Its children come in a fixed order: TopBar, side, `StageRegion`, bottom. The stage
   keeps its element, parent and key in both views, so a switch never remounts the canvas or calls
   `createPlayer` again.
-- The props bundle (`state`, `dispatch`, `player`, `api`, `previewClient`, `uploadAsset`,
-  `uploadsEnabled`, `notify`, `readOnly`) is built once and spread onto `<Panel>` and
-  `<QuickPanel>` alike; cards also get `frameBus` and `showLengkap(panelId)`.
+- The props bundle (`state`, `getState`, `dispatch`, `player`, `api`, `previewClient`,
+  `uploadAsset`, `uploadsEnabled`, `notify`, `readOnly`) is built once and spread onto `<Panel>` and
+  `<QuickPanel>` alike; cards also get `frameBus` and `showLengkap(panelId)`. `getState` is the
+  store's own: work that outlives its panel or card (a music upload, a face analysis) reads the
+  document as it is when it finishes.
+- `showLengkap` moves focus to the opened panel's rail tab when the pressed control left with Mode
+  Cepat. The view switch's polite live region names the view on every change of view, never on
+  load. Both bottom regions are `<footer>` landmarks.
 
 ### Preference and address (`web/lib/editor/view-mode.mjs`)
 
@@ -1962,9 +1967,11 @@ changes: every plan sha and golden is unchanged.
   `linesSummary({plan, doc, words})`.
 - `lineEdit({row, draft, doc, words, upper})` → `{ok: true, commands}` or
   `{ok: false, code, message}`. Tokens are `draft.normalize("NFC").trim().split(/\s+/u)`. Anchors
-  are a longest common subsequence of the old words (visible and `hiddenIds`) and the tokens,
-  under `===` or, with `upper`, `toLocaleUpperCase("id")` equality; among the longest, the fewest
-  hidden anchors, then the earliest pairing. A hidden anchor is unhidden. Between anchors,
+  are a longest common subsequence of the old words (visible and `hiddenIds`) and the tokens: a
+  word pairs with the run of tokens that spells its stored text (two or more once an insertion
+  rode on it), each token under `===` or, with `upper`, `toLocaleUpperCase("id")` equality, and the
+  length counts tokens; among the longest, the fewest hidden anchors, then the earliest pairing. A
+  hidden anchor is unhidden. Between anchors,
   unmatched old words take the tokens in order; extra old words are hidden; extra tokens ride on a
   host word (appended to the hunk's last old word or the preceding anchor, or prepended to the
   next anchor at the start of the row). Commands come word by word in word order:
@@ -1977,7 +1984,10 @@ changes: every plan sha and golden is unchanged.
   command catalogue.
 - `checkCommands(doc, ctx, commands)` folds `applyCommand` over the document (all or nothing);
   `commitLine(...)` is `lineEdit`, the dry run and one merge key on every command
-  (`actionKey("captionLine")` through `runCommands`), so one commit is one Urungkan. Two tabs
+  (`actionKey("captionLine")` through `runCommands`), so one commit is one Urungkan. With
+  `base: {row, doc}` (the line and document of the draft's first keystroke) the draft is diffed
+  against them and the dry run runs on `doc`; the card passes it, and a field whose line leaves the
+  page commits its draft that way, as a blur would. Two tabs
   merge per word (`word:<id>.text`, `word:<id>.hidden`). `focusAfterRegroup(oldRows, newRows,
   focusedKey)`: the row now holding the focused row's first visible word, else the first row at or
   after the old `f0` in the segment, else the previous row, else the card's status line.
