@@ -1,0 +1,13 @@
+{
+  "viewport": {
+    "width": 1920,
+    "height": 960
+  },
+  "card": "lines",
+  "fields": 5,
+  "min_height": 44,
+  "blocking": [],
+  "source": "web/e2e/editor-quick-lines.spec.mjs on the editor fakes (editor-gates suite=e2e)",
+  "ci_run": "37283626722",
+  "ref": "mode-cepat-c-lines@976735b"
+}
