@@ -145,6 +145,7 @@ const focused = (page) => page.evaluate(() => {
 // The toolbar floats over the words next to the last selection, as a user sees it: Esc on the
 // words clears that selection first, and a held Shift lets the Shift+click through the toolbar.
 async function selectRange(page, first, last) {
+  await word(page, first).waitFor(); // the panel (and the toolbar of a kept selection) has mounted
   if (await toolbar(page).count()) {
     await wordList(page).focus();
     await page.keyboard.press("Escape");
