@@ -104,9 +104,13 @@ for (const viewport of VIEWPORTS) {
       const settled = await settle(page);
       await page.screenshot({ path: path.join(dir, file), fullPage: true });
       manifest.push({ file, viewport: size, view, state, settled,
-        summary: card ? (await page.locator(`#card-${card}-button`).textContent()).trim() : null,
+        card: card ? await page.locator(`#card-${card}-button`).evaluate((button) => [...button.querySelectorAll("span")]
+          .map((span) => span.textContent.trim()).filter(Boolean).join(" · ")) : null,
+        save: (await page.getByTestId("save-status").textContent()).trim(),
         status: (await page.getByTestId("stage-badge").textContent()).trim() });
     };
+    // After an edit, wait for autosave, so the picture shows the saved state.
+    const saved = () => expect(page.getByTestId("save-status")).toHaveText(/^Tersimpan/, { timeout: 15_000 });
 
     await page.setViewportSize(viewport);
     await page.addInitScript(installScreensScenario, { doc: DOC });
@@ -136,6 +140,7 @@ for (const viewport of VIEWPORTS) {
     await expect.poll(async () => (await editorState(page)).doc.captions.word_edits[ID[1]]?.text ?? null).toBe("sutradaranya");
     await expect.poll(async () => (await editorState(page)).cues).toContain("Kenapa sutradaranya ditahan di");
     await expect(page.locator("#card-lines-button")).toContainText("1 diubah");
+    await saved();
     await capture(`${size}-cepat-3-teks-caption.png`, "cepat", "Teks caption card, one line edited", "lines");
 
     // Cold open, its transition on Kilat putih.
@@ -145,6 +150,7 @@ for (const viewport of VIEWPORTS) {
     await flash.check();
     await expect(flash).toBeChecked();
     await expect(page.locator("#card-coldopen-button")).toContainText("Kilat putih");
+    await saved();
     await capture(`${size}-cepat-4-cold-open.png`, "cepat", "Cold open card, Kilat putih", "coldopen");
 
     // Tata letak.

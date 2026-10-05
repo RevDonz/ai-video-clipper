@@ -14,7 +14,9 @@ import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 
-import { FAKE_CLIP_ID, FAKE_JOB_ID, fakeDoc, fakeWords } from "../components/editor/__dev__/fakes.mjs";
+import { FAKE_CLIP_ID, FAKE_JOB_ID, createFakeUploadClient, fakeDoc, fakeWords } from "../components/editor/__dev__/fakes.mjs";
+import { musicCommands } from "../components/editor/panels/music-model.mjs";
+import { MUSIC_NAMES_KEY } from "../components/editor/panels/music-upload.mjs";
 import { applyCommand } from "../lib/editor/commands.mjs";
 import { createContext } from "../lib/editor/doc-model.mjs";
 import { CARD_IDS, PANEL_IDS, VIEW_KEY } from "../lib/editor/view-mode.mjs";
@@ -415,13 +417,18 @@ test("the top bar: the switch, Urungkan and Ulangi as 44 px icon buttons, Perlu 
 });
 
 // Integration checks (spec §18): the top bar's controls sit on one row inside the 64 px bar, and the
-// cards column never scrolls sideways, however long a card's one-line summary is.
+// cards column never scrolls sideways, however long a card's one-line text is (a hook near its
+// limit, a music file with a long name).
 const LONG_HOOK = "Kenapa sutradara film ini malah ditahan security di depan lokasi syuting filmnya sendiri?";
-const LONG_HOOK_DOC = (() => {
-  const doc = fakeDoc();
+const LONG_MUSIC_NAME = "lagu-latar-santai-untuk-video-pendek-tiktok-dan-reels-versi-akhir-2026.m4a";
+const LONG_DOC = await (async () => {
+  const ctx = createContext({ words: fakeWords(), seed: fakeDoc() });
+  const music = await createFakeUploadClient().uploadAsset(FAKE_JOB_ID, { name: "lagu.m4a", size: 4096, type: "audio/mp4" }, "music");
+  const doc = musicCommands.add(music).reduce((current, command) => applyCommand(current, command.type, command.args, ctx).doc, fakeDoc());
   doc.tracks.find((track) => track.kind === "hook").items[0].payload.text = LONG_HOOK;
   return doc;
 })();
+const LONG_MUSIC_ASSET = LONG_DOC.tracks.find((track) => track.kind === "audio").items[0].payload.asset;
 
 for (const viewport of [{ width: 1366, height: 650 }, { width: 1920, height: 960 }]) {
   const size = `${viewport.width}×${viewport.height}`;
@@ -448,7 +455,9 @@ for (const viewport of [{ width: 1366, height: 650 }, { width: 1920, height: 960
 
   test(`at ${size} the cards column never scrolls sideways: a long hook, every card open in turn, a caption line in focus`, async ({ page }) => {
     await page.setViewportSize(viewport);
-    await openEditor(page, `${BASE}?mode=cepat`, { doc: LONG_HOOK_DOC });
+    await page.addInitScript(({ key, names }) => window.localStorage.setItem(key, JSON.stringify(names)),
+      { key: MUSIC_NAMES_KEY, names: { [LONG_MUSIC_ASSET]: LONG_MUSIC_NAME } });
+    await openEditor(page, `${BASE}?mode=cepat`, { doc: LONG_DOC });
     const side = page.locator('[data-slot="cards"]');
     const overflow = () => side.evaluate((element) => {
       const box = element.getBoundingClientRect();
@@ -477,6 +486,17 @@ for (const viewport of [{ width: 1366, height: 650 }, { width: 1920, height: 960
       return text ? { clipped: text.scrollWidth > text.clientWidth, overflow: getComputedStyle(text).textOverflow } : null;
     });
     expect(summary).toEqual({ clipped: true, overflow: "ellipsis" });
+    // The music file's long name is cut too; "Hapus" stays whole inside the card.
+    const extras = await openCard(page, "extras");
+    await expect(extras.locator("[data-music-name]")).toHaveText(LONG_MUSIC_NAME);
+    const music = await extras.evaluate((element) => {
+      const card = element.closest("[data-card]").getBoundingClientRect();
+      const name = element.querySelector("[data-music-name]");
+      const remove = element.querySelector('button[aria-label="Hapus musik"]').getBoundingClientRect();
+      return { nameCut: name.scrollWidth > name.clientWidth, removeInside: remove.left >= card.left && remove.right <= card.right };
+    });
+    expect(music).toEqual({ nameCut: true, removeInside: true });
+    expect(await overflow(), "with the long music name").toEqual(fits);
   });
 }
 
