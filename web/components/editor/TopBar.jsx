@@ -1,11 +1,16 @@
 "use client";
 
-// The editor's top bar (plan Appendix C.1): "← Proyek", the clip title, the save state, Undo and
-// Redo, "Kembali ke versi AI", "Perlu dicek (n)", the shortcut help and "Ekspor".
+// The editor's top bar, the same in both views (Mode Cepat spec §5.1): "← Proyek", the clip title
+// with its save state and, while another tab has the clip, "Terbuka di tab lain"; the view switch;
+// Urungkan and Ulangi; "Perlu dicek (n)", always shown; the ⋯ Lainnya menu ("Kembali ke versi AI",
+// "Pintasan keyboard"); and Ekspor, the one lime control.
 import { forwardRef, useEffect, useState } from "react";
 
 import styles from "./shell.module.css";
-import { saveStatusView } from "./shell-model.mjs";
+import { OTHER_TAB_TEXT, saveStatusView } from "./shell-model.mjs";
+import Icon from "./ui/icons.jsx";
+import MenuButton from "./ui/MenuButton.jsx";
+import ViewSwitch from "./ViewSwitch.jsx";
 
 function useNow(active) {
   const [now, setNow] = useState(() => Date.now());
@@ -19,12 +24,17 @@ function useNow(active) {
 }
 
 const TopBar = forwardRef(function TopBar({
-  jobId, title, save, savedAtMs, canUndo, canRedo, onUndo, onRedo, onReset, resetDisabled, onRetrySave,
-  checksCount, checksOpen, onToggleChecks, onHelp, onExport, exportDisabled, exportBusy, checksButtonRef,
+  jobId, title, save, savedAtMs, otherTab = false, view, onViewChange, canUndo, canRedo, onUndo, onRedo,
+  onReset, resetDisabled, resetReason = null, onRetrySave, checksCount, checksOpen, onToggleChecks, checksButtonRef,
+  onHelp, onExport, exportDisabled, exportBusy,
 }, exportButtonRef) {
   const now = useNow(save === "saved");
   const status = saveStatusView({ save, savedAtMs }, now);
   const hasChecks = checksCount > 0;
+  const more = [
+    { id: "reset", label: "Kembali ke versi AI", disabled: resetDisabled, reason: resetDisabled ? resetReason : null, onSelect: onReset },
+    { id: "help", label: "Pintasan keyboard", shortcut: "?", onSelect: onHelp },
+  ];
   return (
     <header className={styles.topBar} data-slot="topBar">
       <a className={styles.backLink} href={`/projects/${encodeURIComponent(jobId)}`}>← Proyek</a>
@@ -34,42 +44,42 @@ const TopBar = forwardRef(function TopBar({
           {status.text}
         </span>
         {status.retry && <button type="button" className={styles.linkButton} onClick={onRetrySave}>Coba simpan lagi</button>}
+        {otherTab && <span className={styles.otherTab} data-other-tab="">{OTHER_TAB_TEXT}</span>}
       </div>
-      <div className={styles.toolbar}>
-        <button type="button" className={`${styles.button} ${styles.quiet}`} onClick={onUndo} disabled={!canUndo} aria-keyshortcuts="Control+Z">
-          Urungkan
+      <ViewSwitch view={view} onChange={onViewChange} />
+      <div className={styles.history}>
+        <button type="button" className={styles.iconButton} onClick={onUndo} disabled={!canUndo} aria-label="Urungkan"
+          title="Urungkan (Ctrl+Z)" aria-keyshortcuts="Control+Z">
+          <Icon name="undo" />
         </button>
-        <button type="button" className={`${styles.button} ${styles.quiet}`} onClick={onRedo} disabled={!canRedo} aria-keyshortcuts="Control+Shift+Z Control+Y">
-          Ulangi
+        <button type="button" className={styles.iconButton} onClick={onRedo} disabled={!canRedo} aria-label="Ulangi"
+          title="Ulangi (Ctrl+Shift+Z)" aria-keyshortcuts="Control+Shift+Z Control+Y">
+          <Icon name="redo" />
         </button>
-        <span className={styles.divider} aria-hidden="true" />
-        <button type="button" className={styles.button} onClick={onReset} disabled={resetDisabled}>Kembali ke versi AI</button>
-        <button
-          ref={checksButtonRef}
-          type="button"
-          className={`${styles.button} ${hasChecks ? styles.warnButton : ""}`}
-          aria-expanded={checksOpen}
-          aria-haspopup="dialog"
-          onClick={onToggleChecks}
-        >
-          {`Perlu dicek (${checksCount})`}
-        </button>
-        <button type="button" className={`${styles.button} ${styles.iconButton}`} aria-label="Pintasan keyboard" aria-keyshortcuts="?" onClick={onHelp}>
-          ?
-        </button>
-        <button
-          ref={exportButtonRef}
-          type="button"
-          className={`${styles.button} ${styles.primary}`}
-          onClick={onExport}
-          disabled={exportDisabled}
-          aria-keyshortcuts="Control+Shift+E"
-          aria-describedby={exportBusy ? "editor-export-busy" : undefined}
-        >
-          Ekspor
-        </button>
-        {exportBusy && <span id="editor-export-busy" className={styles.visuallyHidden}>Ekspor sedang berjalan</span>}
       </div>
+      <button
+        ref={checksButtonRef}
+        type="button"
+        className={`${styles.button} ${styles.barButton} ${hasChecks ? styles.warnButton : ""}`}
+        aria-expanded={checksOpen}
+        aria-haspopup="dialog"
+        onClick={onToggleChecks}
+      >
+        {`Perlu dicek (${checksCount})`}
+      </button>
+      <MenuButton label="Lainnya" icon="more" items={more} align="end" />
+      <button
+        ref={exportButtonRef}
+        type="button"
+        className={`${styles.button} ${styles.primary} ${styles.exportButton}`}
+        onClick={onExport}
+        disabled={exportDisabled}
+        aria-keyshortcuts="Control+Shift+E"
+        aria-describedby={exportBusy ? "editor-export-busy" : undefined}
+      >
+        Ekspor
+      </button>
+      {exportBusy && <span id="editor-export-busy" className={styles.visuallyHidden}>Ekspor sedang berjalan</span>}
     </header>
   );
 });

@@ -23,13 +23,13 @@
   --ed-radius-md: var(--radius-m);
   --ed-radius-lg: var(--radius-l);
 
-  --ed-topbar-height: 56px;
+  --ed-topbar-height: 64px; /* both views (Mode Cepat spec §5.1) */
   --ed-panel-width: 380px;
   --ed-timeline-height: 240px;
   --ed-lane-height: 36px;
   --ed-ruler-height: 26px;
   --ed-lane-label-width: 72px;
-  --ed-controls-height: 52px;
+  --ed-controls-height: 56px; /* Mode Lengkap's transport row above the timeline (spec §6.3) */
   --ed-min-width: 1024px;
 
   /* Mode Cepat and Mode Lengkap (docs/plans/2026-10-02-editor-mode-cepat.md §8.1). */
