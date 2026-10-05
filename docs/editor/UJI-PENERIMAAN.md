@@ -1,8 +1,12 @@
-# Uji penerimaan editor (U1–U7)
+# Uji penerimaan editor (U1–U8)
 
-Protokol ini untuk pemilik Potongin di titik cek 3 (rencana §11.0 dan §10.2 QG-UX). Tujuh tugas
+Protokol ini untuk pemilik Potongin di titik cek 3 (rencana §11.0 dan §10.2 QG-UX). Delapan tugas
 diukur dengan stopwatch di laptop yang dipakai sehari-hari, di dua ukuran jendela. Hasilnya menjadi
-gerbang QG-UX: editor siap rilis kalau ketujuh tugas lulus di kedua ukuran.
+gerbang QG-UX: editor siap rilis kalau kedelapan tugas lulus di kedua ukuran.
+
+Editor terbuka di **Mode Cepat** (kartu di kanan pratinjau). Transkrip dan timeline ada di **Mode
+Lengkap**: pindah lewat sakelar **Cepat | Lengkap** di bar atas. Setiap tugas menulis tampilan
+yang dipakai. U8 baru, sejak Mode Cepat (`docs/plans/2026-10-02-editor-mode-cepat.md` §9.6).
 
 Waktu yang dibutuhkan: sekitar 30 menit. Panduan fitur ada di `docs/editor/PANDUAN-EDITOR.md`; angka
 pengujian otomatis ada di `docs/editor/GATES.md`.
@@ -22,55 +26,62 @@ pengujian otomatis ada di `docs/editor/GATES.md`.
 
 - Setiap tugas punya titik **mulai** dan titik **berhenti** yang ditulis di bawah. Waktu persiapan
   sebelum titik mulai tidak dihitung.
-- "Tersimpan" berarti tulisan di kiri atas, di bawah judul klip, berubah menjadi "Tersimpan".
+- "Tersimpan" berarti tulisan di kiri atas, di sebelah judul klip, berubah menjadi "Tersimpan".
 - Hitung percobaan pertama. Kalau gagal karena salah klik, catat waktunya, lalu ulangi sekali dan
   catat juga waktu kedua. Yang menentukan lulus adalah percobaan pertama.
-- Mulai setiap tugas dari versi AI: klik **Kembali ke versi AI** di kanan atas, tunggu "Tersimpan".
+- Mulai setiap tugas dari versi AI: buka menu **⋯ Lainnya** di kanan atas, klik **Kembali ke versi
+  AI**, tunggu "Tersimpan".
 - Kalau lewat batas, tulis di kolom catatan apa yang membuat lambat (tombol tidak ketemu, menunggu
   pratinjau, salah paham tulisan, dan sebagainya). Catatan itu yang paling berguna untuk perbaikan.
 
-## 3. Tujuh tugas
+## 3. Delapan tugas
 
 ### U1. Perbaiki kata pertama yang terpotong (batas 20 detik)
 
-- Persiapan: buat kata pertama terpotong. Di tab Transkrip klik kata kedua, tekan **I**, tunggu
-  "Tersimpan", lalu muat ulang halaman (F5).
-- Mulai: editor sudah terbuka setelah muat ulang dan tanda di bawah pratinjau sudah tampil.
+- Persiapan: buat kata pertama terpotong. Pindah ke Mode Lengkap, di panel Transkrip klik kata
+  kedua, tekan **I**, tunggu "Tersimpan", lalu muat ulang halaman (F5). Halaman terbuka lagi di
+  Mode Lengkap.
+- Mulai: editor sudah terbuka setelah muat ulang dan status di kiri atas pratinjau sudah tampil.
 - Tugas: kembalikan kata pertama ke klip. Caranya bebas: klik kata yang redup lalu **Perpanjang ke
-  sini**, atau pilih kata itu lalu tekan **I**, atau seret gagang awal di timeline.
+  sini** di bilah aksi yang muncul di atasnya, atau pilih kata itu lalu tekan **I**, atau seret
+  gagang awal di timeline.
 - Berhenti: kata pertama tidak redup lagi dan tulisan "Tersimpan" tampil.
 
 ### U2. Buang omongan sekitar 5 detik lewat transkrip (batas 20 detik)
 
 - Mulai: editor terbuka di versi AI.
-- Tugas: di tab Transkrip, pilih satu kalimat atau beberapa kata yang lamanya sekitar 5 detik (klik
-  kata pertama, Shift+klik kata terakhir; lama pilihan tertulis di atas transkrip), lalu tekan
-  **Delete**.
+- Tugas: di Mode Lengkap, panel Transkrip, pilih satu kalimat atau beberapa kata yang lamanya
+  sekitar 5 detik (klik kata pertama, Shift+klik kata terakhir; lama pilihan tertulis di atas
+  transkrip), lalu tekan **Delete** atau klik **Hapus** di bilah aksi.
 - Berhenti: kata-kata itu tercoret, muncul tombol "⋯ x dtk", dan "Tersimpan" tampil.
 
 ### U3. Ganti cold open (batas 45 detik)
 
 - Mulai: editor terbuka di versi AI.
-- Tugas: jadikan kalimat lain sebagai cold open. Pilih kalimat 0,5 sampai 8 detik di Transkrip lalu
-  tekan **Ctrl+Shift+H**, atau buka tab Cold open, dengarkan saran dengan **Putar**, lalu klik
-  **Pakai**.
-- Berhenti: kalimat baru tertulis di tab Cold open (atau ditandai di transkrip) dan "Tersimpan"
-  tampil.
+- Tugas: jadikan kalimat lain sebagai cold open. Di Mode Cepat: kartu **Cold open**, **Ganti
+  kalimat** (atau **Pilih kalimat**), dengarkan saran dengan **Putar**, lalu klik **Pakai**. Atau
+  di Mode Lengkap: pilih kalimat 0,5 sampai 8 detik di Transkrip, lalu **Jadikan cold open** di
+  bilah aksi atau **Ctrl+Shift+H**.
+- Berhenti: kalimat baru tertulis di kartu atau panel Cold open (atau ditandai di transkrip) dan
+  "Tersimpan" tampil.
 
 ### U4. Pakai saran hook dan ganti gaya caption (batas 30 detik)
 
 - Mulai: editor terbuka di versi AI.
-- Tugas: di tab Teks, klik **Pakai** pada salah satu saran hook, lalu pilih gaya caption lain
-  (Klasik, Karaoke, Bold, atau Box).
+- Tugas: di Mode Cepat, buka kartu **Hook** dan klik salah satu saran, lalu di kartu **Caption**
+  pilih gaya caption lain (Klasik, Karaoke, Bold, atau Box).
 - Berhenti: teks hook berganti, gaya caption terpilih, dan "Tersimpan" tampil.
 
 ### U5. Tambah logo dan musik yang mengecil saat ada suara (batas 60 detik)
 
 - Mulai: editor terbuka di versi AI.
-- Tugas: di tab Logo klik **Unggah logo** dan pilih file logo; di tab Musik klik **Tambah musik**,
-  baca catatan hak cipta, pilih lagu, lalu pilih kekuatan **Sedang** atau **Kuat**.
+- Tugas: di Mode Cepat, kartu **Logo & Musik**: klik **Tambah logo** dan pilih file logo; klik
+  **Tambah musik**, baca catatan hak cipta, pilih lagu, lalu di **Saat ada suara** pilih **Sedang**
+  atau **Kuat**. Untuk melihat lajur Musik, pindah ke Mode Lengkap (**Atur detail di Mode Lengkap**
+  di bagian Musik, atau sakelar **Lengkap**); waktunya ikut dihitung.
 - Berhenti: logo tampil di pratinjau, lajur Musik di timeline menunjukkan garis volume yang turun
-  saat ada suara, dan "Tersimpan" tampil.
+  saat ada suara, dan "Tersimpan" tampil. Titik berhenti ini tidak berubah (keputusan pemilik,
+  2 Oktober 2026).
 
 ### U6. Ekspor dan unduh (batas: durasi klip + 30 detik)
 
@@ -84,11 +95,18 @@ pengujian otomatis ada di `docs/editor/GATES.md`.
 
 ### U7. Muat ulang di tengah mengedit, lalu kembali ke versi AI (batas 20 detik untuk bagian kedua)
 
-- Bagian pertama (tanpa stopwatch): ubah teks hook dan gaya caption, lalu langsung muat ulang
-  halaman (F5) sebelum tulisan "Tersimpan" muncul. Lulus kalau setelah halaman terbuka lagi kedua
-  perubahan masih ada.
-- Bagian kedua: mulai stopwatch saat halaman sudah terbuka. Cari dan klik **Kembali ke versi AI**.
-  Berhenti saat "Tersimpan" tampil dan perubahan tadi hilang.
+- Bagian pertama (tanpa stopwatch, Mode Cepat): ubah teks hook di kartu Hook dan gaya caption di
+  kartu Caption, lalu langsung muat ulang halaman (F5) sebelum tulisan "Tersimpan" muncul. Lulus
+  kalau setelah halaman terbuka lagi kedua perubahan masih ada.
+- Bagian kedua: mulai stopwatch saat halaman sudah terbuka. Cari dan klik **Kembali ke versi AI**
+  (di menu **⋯ Lainnya**). Berhenti saat "Tersimpan" tampil dan perubahan tadi hilang.
+
+### U8. Betulkan satu kata caption (batas 20 detik)
+
+- Mulai: editor terbuka di versi AI, di Mode Cepat.
+- Tugas: buka kartu **Teks caption**, klik baris yang memuat kata yang mau dibetulkan, ubah kata
+  itu, lalu tekan **Enter**.
+- Berhenti: caption di pratinjau menampilkan kata yang sudah dibetulkan dan "Tersimpan" tampil.
 
 ## 4. Lembar hasil
 
@@ -104,40 +122,50 @@ Proyek: ________  Klip: ________  Durasi klip: ________ detik  Browser: ________
 | U6 ekspor + unduh | durasi + 30 dtk | | | | |
 | U7 muat ulang | tidak ada yang hilang | | | | |
 | U7 kembali ke versi AI | 20 dtk | | | | |
+| U8 betulkan kata caption | 20 dtk | | | | |
 
 Kirim lembar ini ke agen berikutnya (atau tulis ke `docs/editor/evidence/W4/T4.5-QG-UX-owner.json`),
 lengkap dengan catatannya.
 
-## 5. Tur singkat 13 kemampuan (tanpa stopwatch, sekitar 10 menit)
+## 5. Tur singkat 13 kemampuan dan dua tampilan (tanpa stopwatch, sekitar 12 menit)
 
-Satu baris per kemampuan rencana §1.1. Centang kalau berjalan seperti yang tertulis.
+Satu baris per kemampuan rencana §1.1, plus baris 14 untuk dua tampilan. Baris 1 sampai 13 memakai
+panel di Mode Lengkap (rel kiri), kecuali disebut lain. Centang kalau berjalan seperti yang tertulis.
 
 | # | Kemampuan | Coba ini | Yang harus terlihat |
 |---|---|---|---|
 | 1 | Buka klip | **Edit klip** di kartu klip dan di Riwayat | Klip terbuka tanpa langkah "Siapkan"; klip yang tidak bisa diedit menulis alasannya |
 | 2 | Trim menempel ke kata | Tekan **I** / **O** pada kata, atau seret gagang di timeline | Awal dan akhir selalu jatuh di celah antar kata |
-| 3 | Cold open | Tab Cold open: **Pakai** saran, **Buang kata terakhir** | Kalimat cold open diputar paling awal; pilihan di atas 8 detik ditolak dengan alasan |
-| 4 | Hook + saran AI | Tab Teks: tulis hook, **Pakai** saran | "Muat" atau "Akan terpotong"; saran otomatis langsung tampil, saran AI menyusul (sekitar 10 detik) |
-| 5 | Caption + 4 gaya | Tab Teks: Klasik, Karaoke, Bold, Box; **Ctrl+E** pada kata | Pratinjau berganti; kata kunci berwarna |
+| 3 | Cold open | Panel Cold open: **Pakai** saran, **Buang kata terakhir** | Kalimat cold open diputar paling awal; pilihan di atas 8 detik ditolak dengan alasan |
+| 4 | Hook + saran AI | Panel Teks: tulis hook, **Pakai** saran | "Muat" atau "Akan terpotong"; saran otomatis langsung tampil, saran AI menyusul (sekitar 10 detik) |
+| 5 | Caption + 4 gaya | Panel Teks: Klasik, Karaoke, Bold, Box; **Ctrl+E** pada kata | Pratinjau berganti; kata kunci berwarna |
 | 6 | Potong lewat transkrip | Pilih kata, **Delete**; **Rapikan** | Kata tercoret dengan tombol pulihkan; Rapikan memotong yang dicentang dalam satu langkah |
-| 7 | Tata letak | Tab Tata letak: Potong tengah, Ikuti wajah, Latar blur | Pratinjau berganti; bagian tanpa wajah didaftar |
-| 8 | Logo | Tab Logo: unggah, pilih sudut, geser dengan panah | Logo di pratinjau dan di hasil ekspor |
-| 9 | Musik + ducking | Tab Musik: unggah, **Kuat**, **Samakan kenyaringan** | Garis volume turun saat ada suara; hasil ekspor tidak pecah |
+| 7 | Tata letak | Panel Tata letak: Potong tengah, Ikuti wajah, Latar blur | Pratinjau berganti; bagian tanpa wajah didaftar |
+| 8 | Logo | Panel Logo: unggah, pilih sudut, geser dengan panah | Logo di pratinjau dan di hasil ekspor |
+| 9 | Musik + ducking | Panel Musik: unggah, **Kuat**, **Samakan kenyaringan** | Garis volume turun saat ada suara; hasil ekspor tidak pecah |
 | 10 | Waveform + penanda | Lihat lajur Audio dan Penanda, klik penanda | Waveform tampil; klik penanda memindah posisi putar |
 | 11 | Delapan bug lama | Gaya Box, kata berisi `{` atau `\`, kata kunci, logo | Kotak caption tembus pandang, tulisan tampil apa adanya, warna kata kunci dan logo muncul di hasil |
 | 12 | Urungkan dan simpan | **Ctrl+Z**, **Ctrl+Shift+Z**, buka klip yang sama di dua tab | Urungkan sampai 200 langkah; dua tab diberi tahu dan perubahannya digabung |
 | 13 | Ekspor | **Ekspor** sampai Selesai, **Unduh MP4** dan **Unduh SRT** | Tahap Antre, Merender, Memverifikasi, Selesai; klip tanpa perubahan memakai file klip otomatis |
+| 14 | Dua tampilan | Pindah Cepat ↔ Lengkap dengan mouse, lalu dengan keyboard (Tab ke sakelar, ←/→); ubah sesuatu di satu tampilan dan Urungkan di tampilan lain; muat ulang | Tidak ada yang hilang, Urungkan berlaku di kedua tampilan, dan halaman terbuka lagi di tampilan terakhir |
 
 Catatan tentang caption: posisi bawaan caption sama dengan klip otomatis dan bagian bawahnya
 sedikit masuk area tombol TikTok. Editor menuliskannya sebagai catatan biru di "Perlu dicek" dan di
-dialog Ekspor, tanpa perlu dicentang. Kalau caption tertutup tombol, geser ke atas di tab Teks.
+dialog Ekspor, tanpa perlu dicentang. Kalau caption tertutup tombol, geser ke atas di kartu Caption
+(Posisi) atau di panel Teks.
 
 ## 6. Versi otomatis
 
 `web/e2e/editor-acceptance.spec.mjs` menjalankan 13 kemampuan di atas plus QG-A11Y dengan bot
 (aplikasi produksi, salinan job asli, Chrome for Testing 147). `web/e2e/editor-flow.spec.mjs`
-menjalankan U1–U7 versi skrip dengan batas waktu yang sama. Bot jauh lebih cepat dari manusia, jadi
-angka pemilik yang menentukan gerbang ini.
+menjalankan U1–U8 versi skrip dengan batas waktu yang sama; sejak Mode Cepat, U4, U5, U7 dan U8
+berjalan di Mode Cepat seperti tertulis di atas. Bot jauh lebih cepat dari manusia, jadi angka
+pemilik yang menentukan gerbang ini.
+
+Versi Mode Cepat dari kedua spec itu belum dijalankan: keduanya butuh job asli di PC pemilik dan
+menunggu izin pemilik (`docs/editor/GATES.md`, bagian "Mode Cepat"). Di CI, U1 dan U2
+(`editor-lengkap.spec.mjs`), U3 sampai U5 (`editor-quick.spec.mjs`) dan U8
+(`editor-quick-lines.spec.mjs`) sudah berjalan di data uji editor.
 
 Hasil bot terakhir (2 Oktober 2026, PC pemilik, salinan baru job `e7f0d37b` yang belum pernah
 dibuka di editor, render di FFmpeg PC): 13 dari 13 kemampuan lulus dalam 9,2 menit; QG-A11Y lulus

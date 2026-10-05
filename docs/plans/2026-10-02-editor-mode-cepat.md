@@ -1,7 +1,8 @@
 # Editor Mode Cepat and Mode Lengkap: build spec
 
 Date: 2026-10-02, revised the same day after review (§12). Status: approved by the owner; both
-prerequisites merged (§10); building from `mode-cepat-base`. Branch of this spec: `mode-cepat-spec`.
+prerequisites merged (§10); built from `mode-cepat-base` and integrated on `mode-cepat-integrasi`
+(§18), waiting for the owner's U1–U8 and merge. Branch of this spec: `mode-cepat-spec`.
 
 On 2026-10-02 the owner approved the "Mode Cepat" mockup ("oke sih ini mode cepat"). The mockup has
 two boards:
@@ -1503,3 +1504,48 @@ literally:
     terbuka di tab lain" (now the chip "Terbuka di tab lain"), and walk `[data-slot="stage"]` for
     the play and frame-step buttons, which now sit in `[data-slot="transport"]` (Lengkap) or the
     Cepat bottom bar.
+
+## 18. Decisions during build (Z)
+
+Z integrated the four branches on `mode-cepat-integrasi` (§10 steps 3 and 4). Where the spec was
+silent:
+
+1. **Merge.** C, B, D and A were cherry-picked onto `mode-cepat-base` in that order, so the history
+   stays linear. The only conflicts were the four "Decisions during build" sections, each appended
+   at the end of this file; they are numbered in merge order: C §14, B §15, D §16, A §17. A
+   reference inside a section ("item 14") points at that section's own list.
+2. **Wiring between tasks.** Three changes in other owners' files, each the follow-up the owner
+   asked for in its decisions:
+   - `e2e/editor-shell.spec.mjs` counts the 4 caption cues the engine-like fakes make (C §14 item
+     11), not 3;
+   - `e2e/editor-views.spec.mjs` drops AC12's pre-B allowance (A §17 item 14): with B's clean-up
+     in, the hover sweep is strict in every panel too;
+   - `rail/rail.module.css` drops D's bridge rule (D §16 item 1): A's side grid places the rail.
+   The shell's `.tabs` and `.tab` rules stay: the markers harness
+   (`timeline/lanes/__dev__/markers-harness.jsx`, under `timeline/**`, which nobody touches) still
+   uses them.
+3. **The real-stack specs** (Z's, not run in this build: they need real jobs on the owner's PC):
+   - `editor-flow.spec.mjs`: the entry opens a clip the owner's way and checks the default (Mode
+     Cepat, the Caption card open, the address unchanged). U4, U5, U7 and the new U8 run in Mode
+     Cepat as §9.6 describes them; U5 stops on its unchanged condition, the music lane in Mode
+     Lengkap reached through the card's "Atur detail di Mode Lengkap". U1, U2, U3 and U6 stay in
+     Mode Lengkap (U3 through the toolbar, which §9.6 allows). PF-OPEN measures both views at their
+     AC15 interactive moments, and its first visit on never-opened clips uses the plain address,
+     so Mode Cepat. QG-A11Y adds every card. Their evidence is named `MC-Z-*`.
+   - `editor-acceptance.spec.mjs`: capability 1 opens clips from their cards and so meets Mode
+     Cepat; the old engine's notice and the legacy status text are asserted absent (AC11) instead
+     of present. QG-A11Y walks the transport row and, in Mode Cepat, the bottom bar and every card.
+     The other capabilities keep `?mode=lengkap`.
+   - Both: the trimmed status (no "● "), the empty legacy status with its tone, and the top bar's
+     "Terbuka di tab lain" chip.
+4. **Screenshots for the owner** come from a new spec, `e2e/editor-screens.spec.mjs` (Z): the app
+   on the editor fakes with the real store (so the line edit and the transition choice are real
+   commands), full-page PNGs at 1366×768 and 1920×1080 in `EDITOR_GATES_OUT/screens` with a
+   manifest. The fakes' player draws no video, so the stage itself is empty in them.
+5. **Left as built, for the owner to confirm:** B §15 item 5 (the cold-open suggestions' empty
+   state says "Pilih sendiri dari Transkrip" in Mode Cepat too, where the transcript is one switch
+   away) and B §15 item 10 (in Mode Lengkap the caption pack tiles and the layout cards stay
+   thumbnail tiles, not `PillGroup`). Also noted, owned by nobody in this build: after a two-tab
+   merge the merged edit is saved on the next autosave round, 1.5 s later, rather than at once
+   (C's open issue; no work is lost); the fakes' player does not report `playing`, so the scrubber
+   tracks its own Space and K (D's open issue; the real player reports it).
