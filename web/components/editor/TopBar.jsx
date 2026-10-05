@@ -47,7 +47,7 @@ const TopBar = forwardRef(function TopBar({
         {otherTab && <span className={styles.otherTab} data-other-tab="">{OTHER_TAB_TEXT}</span>}
       </div>
       <ViewSwitch view={view} onChange={onViewChange} />
-      <div className={styles.history}>
+      <div className={styles.historyButtons}>
         <button type="button" className={styles.iconButton} onClick={onUndo} disabled={!canUndo} aria-label="Urungkan"
           title="Urungkan (Ctrl+Z)" aria-keyshortcuts="Control+Z">
           <Icon name="undo" />

@@ -275,7 +275,8 @@
   cursor: pointer;
 }
 
-.history {
+/* Urungkan and Ulangi side by side. Its own name: `.history` is the export dialog's list below. */
+.historyButtons {
   display: flex;
   flex: none;
   gap: 4px;
