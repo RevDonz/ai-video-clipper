@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { fakeDoc, fakePlan, fakeWords } from "../components/editor/__dev__/fakes.mjs";
+import { createRealEditorStore, fakeDoc, fakePlan, fakeWords } from "../components/editor/__dev__/fakes.mjs";
 import { buildTranscriptModel } from "../components/editor/transcript/model.mjs";
 import {
   LINE_LIMITS, LINE_MESSAGES, captionRows, checkCommands, commitLine, focusAfterRegroup, lineEdit, linesSummary, rowAtFrame,
@@ -450,6 +450,31 @@ test("one commit is one undo step, inside the history's merge window; the next c
   assert.equal(contentJson(session.doc), once);
   session.undo();
   assert.equal(contentJson(session.doc), contentJson(seed));
+});
+
+test("the real store over the fakes: a line commit is one undo step, and the next plan regroups the lines", async () => {
+  const store = createRealEditorStore({ channel: null, lifecycle: null, tabStorage: null });
+  try {
+    await store.ready;
+    const planned = async (check) => {
+      for (let attempt = 0; attempt < 50 && !check(store.getState().plan); attempt += 1) await new Promise((resolve) => { setTimeout(resolve, 5); });
+      return store.getState().plan;
+    };
+    const first = await planned((plan) => plan !== null);
+    const state = store.getState();
+    const rows = captionRows({ plan: first, doc: state.doc, words: state.words, model: buildTranscriptModel(state.words, state.doc) });
+    const ctx = createContext({ words: state.words, seed: state.seed });
+    const result = commitLine({ row: rows[0], draft: "Yuk Kenapa sutradara. ditahan", doc: state.doc, words: state.words, upper: false, ctx, mergeKey: "tx:captionLine:9" });
+    assert.equal(result.commands.length, 3);
+    for (const { type, args, mergeKey } of result.commands) store.dispatch(type, args, { mergeKey });
+    const next = await planned((plan) => plan.cues[0].words.length === 2);
+    assert.deepEqual(next.cues.slice(0, 2).map((cue) => cue.text), ["Yuk Kenapa sutradara.", "ditahan film sendiri?"]);
+    store.undo();
+    assert.equal(store.getState().canUndo, false, "one entry for the three commands");
+    assert.deepEqual(store.getState().doc.captions.word_edits, {});
+  } finally {
+    store.destroy();
+  }
 });
 
 test("two tabs editing different words of one row merge (per-word parts)", () => {
