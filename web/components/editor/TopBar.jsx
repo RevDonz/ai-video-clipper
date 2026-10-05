@@ -43,7 +43,7 @@ const TopBar = forwardRef(function TopBar({
         <span className={`${styles.saveStatus} ${styles[`save_${status.tone}`] ?? ""}`} role="status" aria-live="polite" data-testid="save-status">
           {status.text}
         </span>
-        {status.retry && <button type="button" className={styles.linkButton} onClick={onRetrySave}>Coba simpan lagi</button>}
+        {status.retry && <button type="button" className={`${styles.linkButton} ${styles.retryButton}`} onClick={onRetrySave}>Coba simpan lagi</button>}
         {otherTab && <span className={styles.otherTab} data-other-tab="">{OTHER_TAB_TEXT}</span>}
       </div>
       <ViewSwitch view={view} onChange={onViewChange} />
