@@ -1,5 +1,6 @@
-/* The Logo panel (plan §11.3 T3.2). Every colour is an editor token (editor.module.css); one
-   accent: the upload button and the chosen corner. Sizes follow the panel column (320–380 px). */
+/* The Logo panel (plan §11.3 T3.2). Every colour is an editor token (editor.module.css); lime only
+   fills the upload's progress bar (Ekspor keeps the rest). Sizes follow the panel column
+   (320–380 px). */
 
 .panel {
   display: grid;
@@ -34,7 +35,7 @@
   border-top: 1px solid var(--border);
 }
 
-/* Buttons: the accent only on the upload action. */
+/* Buttons: the upload is the panel's main action (.primary, the text colour). */
 .button {
   display: inline-flex;
   align-items: center;
@@ -77,9 +78,9 @@
 }
 
 .primary:hover:not(:disabled) {
-  border-color: var(--accent-hover);
-  background: var(--accent-hover);
-  color: var(--accent-ink);
+  border-color: var(--text-muted);
+  background: var(--text-muted);
+  color: var(--bg);
 }
 
 .danger {

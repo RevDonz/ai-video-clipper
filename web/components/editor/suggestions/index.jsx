@@ -3,26 +3,11 @@
 // Hook suggestions under the "Teks hook" field (plan §7.1 "UI"): ghost cards, the instant ones at
 // once and the AI ones when the task is done, each with its source label, the fit badge and
 // "Pakai" (one undoable command, origin `suggestion:<id>`). The AI lines are hidden while the
-// LLM part is off. Props: { state, dispatch, api } (api: createApiClient of Appendix A.2).
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
-
-import { runCommands } from "../transcript/actions.mjs";
-import {
-  COPY,
-  SOURCE_HINTS,
-  SOURCE_LABELS,
-  TASK_SECONDS,
-  aiView,
-  applyCommand,
-  contentKey,
-  hookItem,
-  sameText,
-  suggestionsFor,
-} from "./model.mjs";
+// LLM part is off. Props: { state, dispatch, api } (api: createApiClient of Appendix A.2). The
+// controller and view state are use-hook-suggestions.js, shared with the Hook card's compact list.
+import { COPY, SOURCE_HINTS, SOURCE_LABELS, TASK_SECONDS } from "./model.mjs";
 import styles from "./suggestions.module.css";
-
-const IDLE = Object.freeze({ phase: "idle", heuristic: [], key: null, error: null, llm: { state: "off", suggestions: [] } });
-const noop = () => () => {};
+import { useHookSuggestions } from "./use-hook-suggestions.js";
 
 function Card({ suggestion, current, disabled, onUse }) {
   const label = SOURCE_LABELS[suggestion.source] ?? SOURCE_LABELS.heuristic;
@@ -50,46 +35,25 @@ function Card({ suggestion, current, disabled, onUse }) {
 }
 
 export default function HookSuggestions({ state, dispatch, api }) {
-  const doc = state?.doc ?? null;
-  const clipId = state?.clipId ?? doc?.clip_id ?? null;
-  const controller = useMemo(() => suggestionsFor(api, clipId), [api, clipId]);
-  const subscribe = useCallback((listener) => (controller ? controller.subscribe(listener) : noop()), [controller]);
-  const snapshot = useCallback(() => (controller ? controller.getState() : IDLE), [controller]);
-  const view = useSyncExternalStore(subscribe, snapshot, () => IDLE);
-  const [message, setMessage] = useState(null);
-  const readOnly = state?.status !== "ready";
-
-  useEffect(() => {
-    if (controller && doc) controller.ensure(doc);
-  }, [controller, doc]);
-
-  if (!controller || !doc) return null;
-
-  const current = hookItem(doc)?.payload?.text ?? null;
-  const ai = aiView(view.llm);
-  const stale = view.phase === "ready" && view.key !== null && view.key !== contentKey(doc);
-  const loadingFirst = view.phase === "loading" && view.heuristic.length === 0;
-  const use = (suggestion) => {
-    const result = runCommands(dispatch, [{ ...applyCommand(doc, suggestion), mergeKey: null }]);
-    setMessage(result.ok ? null : result.message);
-  };
-  const refresh = () => controller.request(doc);
+  const hook = useHookSuggestions({ state, dispatch, api });
+  if (!hook.ready) return null;
+  const { view, ai, readOnly } = hook;
 
   return (
     <section className={styles.section} aria-labelledby="hook-suggestions-title" data-hook-suggestions=""
       data-phase={view.phase}>
       <div className={styles.head}>
         <h4 id="hook-suggestions-title" className={styles.title}>{COPY.title}</h4>
-        {stale ? (
-          <button type="button" className={styles.link} onClick={refresh} aria-describedby="hook-suggestions-stale">
+        {hook.stale ? (
+          <button type="button" className={styles.link} onClick={hook.refresh} aria-describedby="hook-suggestions-stale">
             {COPY.refresh}
           </button>
         ) : null}
       </div>
-      {stale ? <p id="hook-suggestions-stale" className={styles.muted}>{COPY.stale}</p> : null}
-      {message ? <p className={styles.problem} role="alert">{message}</p> : null}
+      {hook.stale ? <p id="hook-suggestions-stale" className={styles.muted}>{COPY.stale}</p> : null}
+      {hook.message ? <p className={styles.problem} role="alert">{hook.message}</p> : null}
 
-      {loadingFirst ? (
+      {hook.loadingFirst ? (
         <div className={styles.loading} role="status">
           <p className={styles.muted}>{COPY.loading}</p>
           <div className={styles.placeholder} aria-hidden="true" />
@@ -99,18 +63,16 @@ export default function HookSuggestions({ state, dispatch, api }) {
       {view.phase === "error" ? (
         <p className={styles.problem} role="alert">
           {COPY.error}{" "}
-          <button type="button" className={styles.link} onClick={refresh}>{COPY.retry}</button>
+          <button type="button" className={styles.link} onClick={hook.refresh}>{COPY.retry}</button>
         </p>
       ) : null}
-      {view.phase === "ready" && view.heuristic.length === 0 && !ai.visible ? (
-        <p className={styles.muted}>{COPY.empty}</p>
-      ) : null}
+      {hook.empty ? <p className={styles.muted}>{COPY.empty}</p> : null}
 
       {view.heuristic.length ? (
         <ul className={styles.list} aria-label="Saran otomatis" aria-busy={view.phase === "loading"}>
           {view.heuristic.map((suggestion) => (
-            <Card key={suggestion.id} suggestion={suggestion} current={sameText(current, suggestion.text)}
-              disabled={readOnly} onUse={use} />
+            <Card key={suggestion.id} suggestion={suggestion} current={hook.isCurrent(suggestion)}
+              disabled={readOnly} onUse={hook.use} />
           ))}
         </ul>
       ) : null}
@@ -133,7 +95,7 @@ export default function HookSuggestions({ state, dispatch, api }) {
                 {ai.status === "failed" ? (
                   <>
                     {" "}
-                    <button type="button" className={styles.link} onClick={refresh}>{COPY.retry}</button>
+                    <button type="button" className={styles.link} onClick={hook.refresh}>{COPY.retry}</button>
                   </>
                 ) : null}
               </p>
@@ -142,12 +104,12 @@ export default function HookSuggestions({ state, dispatch, api }) {
           {view.llm.suggestions.length ? (
             <ul className={styles.list} aria-label="Saran AI">
               {view.llm.suggestions.map((suggestion) => (
-                <Card key={suggestion.id} suggestion={suggestion} current={sameText(current, suggestion.text)}
-                  disabled={readOnly} onUse={use} />
+                <Card key={suggestion.id} suggestion={suggestion} current={hook.isCurrent(suggestion)}
+                  disabled={readOnly} onUse={hook.use} />
               ))}
             </ul>
           ) : null}
-          {ai.status !== "notice" ? <p className={styles.privacy}>{COPY.privacy}</p> : null}
+          {hook.privacy ? <p className={styles.privacy}>{COPY.privacy}</p> : null}
         </div>
       ) : null}
     </section>

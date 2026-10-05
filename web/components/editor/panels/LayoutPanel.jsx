@@ -10,18 +10,20 @@
 //   first (instant when the plan exists), with its progress on the card, and only then
 //   `SetLayout`. The stage keeps the current layout meanwhile, a failure keeps it too, and another
 //   choice made during the analysis wins. A face-track document whose plan is missing is analysed
-//   on its own.
+//   on its own. The run is the clip's (layout-analysis.mjs `layoutAnalysisFor`), not this
+//   panel's: it goes on when the panel closes, and Mode Cepat's Tata letak card shows it too.
 // - Under face-track the runs without a face (the plan's `no_face` warnings) are listed with a
 //   jump-to button each; the video is centred there (§3.7).
 //
 // Props: { state, dispatch, player } (panels/index.mjs), plus the optional seams `api` (prepare
 // and `cameraProgress()`) and `previewClient` (thumbnails). Without them the fake runtime's
 // objects (window.__potonginEditor) are used, and in the app the panel's own clients.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { createApiClient } from "../../../lib/editor/api-client.mjs";
 import { createPreviewClient } from "../../../lib/editor/preview-client.mjs";
 import { formatClock, frameToMs, rejectionText } from "../shell-model.mjs";
+import { analysisBusy, analysisForView, layoutAnalysisFor } from "./layout-analysis.mjs";
 import styles from "./layout.module.css";
 import {
   ANALYSIS_TEXT,
@@ -30,6 +32,7 @@ import {
   analysisView,
   cameraReadyFromState,
   contentKey,
+  layoutCommand,
   noFaceList,
   rangeText,
   switchSteps,
@@ -39,8 +42,6 @@ import {
 } from "./layout-model.mjs";
 
 const THUMB_REST_MS = 400; // the playhead rests this long before the thumbnails follow it
-const PROGRESS_POLL_MS = 500;
-const SHOW_ANALYSIS_AFTER_MS = 250; // an existing camera plan answers faster: no flicker
 const RATE_LIMIT_RETRIES = 2; // preview/frame allows 4 per second per session (plan §9.1)
 const RATE_LIMIT_WAIT_MS = 350;
 
@@ -207,133 +208,69 @@ function CardProgress({ view }) {
   );
 }
 
-function LayoutPanelBody({ state, dispatch, player, api: apiProp, previewClient }) {
+function LayoutPanelBody({ state, dispatch, player, api: apiProp, previewClient, analysisStore }) {
   const doc = state.doc;
   const readOnly = state.status !== "ready";
   const layout = doc.layout.default.mode;
   const fps = doc.output.fps;
   const services = useServices(state, { api: apiProp, previewClient });
-  const [cameraKnown, setCameraKnown] = useState(() => cameraReadyFromState(state));
-  const [analysis, setAnalysis] = useState(null);
-  const [choice, setChoice] = useState(null); // face-track while its analysis runs
+  // The clip's face analysis (layout-analysis.mjs): it outlives this panel and Mode Cepat's
+  // Tata letak card, so either shows a run the other started.
+  const run = useSyncExternalStore(analysisStore.subscribe, analysisStore.get, analysisStore.get);
   const [message, setMessage] = useState(null);
   const [now, setNow] = useState(() => Date.now());
-  const target = useRef(null); // the layout the analysis will switch to (null: none)
-  const token = useRef(0);
-  const analysing = useRef(false);
-  const autoTried = useRef(false);
   const stateRef = useLatest(state);
   const dispatchRef = useLatest(dispatch);
   const frame = useRestingPlayhead(player);
-  const cameraReady = cameraKnown || cameraReadyFromState(state);
+  const cameraReady = run.cameraReady || cameraReadyFromState(state);
   const { thumbs, at } = useThumbnails({ state, services, frame, cameraReady });
+  const choice = analysisBusy(run) && run.target === "camera" ? "camera" : null; // face-track while its analysis runs
+  const running = run.phase === "running";
 
   useEffect(() => {
-    if (analysis?.state !== "running") return undefined;
+    if (!running) return undefined;
+    setNow(Date.now());
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
-  }, [analysis?.state]);
+  }, [running]);
 
-  useEffect(() => () => { token.current += 1; }, []);
-
-  const switchTo = useCallback((mode) => {
+  const switchTo = (mode) => {
+    const { type, args, mergeKey } = layoutCommand(mode);
     try {
-      dispatchRef.current("SetLayout", { mode });
+      dispatchRef.current(type, args, { mergeKey });
       setMessage(null);
-      return true;
     } catch (error) {
       setMessage(rejectionText(error));
-      return false;
     }
-  }, [dispatchRef]);
+  };
 
-  const analyse = useCallback(async ({ switchAfter = true } = {}) => {
-    const api = services.api();
-    const run = ++token.current;
-    analysing.current = true;
-    target.current = switchAfter ? "camera" : null;
-    if (switchAfter) setChoice("camera");
+  const analyse = useCallback(({ switchAfter = true, auto = false } = {}) => {
     setMessage(null);
-    const startedAt = Date.now();
-    const show = setTimeout(() => {
-      if (run !== token.current || (switchAfter && target.current !== "camera")) return;
-      setNow(Date.now());
-      setAnalysis({ state: "running", startedAt, range: analysisRangeMs(stateRef.current.doc) });
-    }, SHOW_ANALYSIS_AFTER_MS);
-    let poll = null;
-    if (typeof api?.cameraProgress === "function") {
-      const tick = async () => {
-        try {
-          const progress = await api.cameraProgress();
-          if (run === token.current && progress?.state === "building" && Number.isSafeInteger(progress.total)) {
-            setAnalysis((current) => (current?.state === "running" ? { ...current, done: progress.done, total: progress.total } : current));
-          }
-        } catch {
-          // progress is advice: the analysis itself decides
-        }
-        if (run === token.current) poll = setTimeout(tick, PROGRESS_POLL_MS);
-      };
-      poll = setTimeout(tick, SHOW_ANALYSIS_AFTER_MS);
-    }
-    let outcome;
-    try {
-      if (!api || typeof api.prepare !== "function") throw Object.assign(new Error("no api"), { code: "backend_unavailable" });
-      const result = await api.prepare({ layout: "camera" });
-      if (result && result.camera !== undefined && result.camera !== "ready") {
-        throw Object.assign(new Error("camera not ready"), { code: "analysis_missing" });
-      }
-      outcome = { ok: true };
-    } catch (error) {
-      outcome = { ok: false, code: error?.code ?? "internal_error" };
-    } finally {
-      clearTimeout(show);
-      clearTimeout(poll);
-    }
-    if (run !== token.current) {
-      if (outcome.ok) setCameraKnown(true);
-      return;
-    }
-    token.current += 1; // ends this run's progress poll
-    analysing.current = false;
-    const wanted = target.current;
-    target.current = null;
-    setChoice(null);
-    if (outcome.ok) {
-      setCameraKnown(true);
-      setAnalysis(null);
-      if (wanted === "camera" && stateRef.current.doc?.layout?.default?.mode !== "camera") switchTo("camera");
-    } else if (wanted === "camera" || !switchAfter) {
-      setAnalysis({ state: "failed", code: outcome.code });
-    } else {
-      setAnalysis(null);
-    }
-  }, [services, stateRef, switchTo]);
+    return analysisStore.start({ api: services.api(), dispatch: (...args) => dispatchRef.current(...args),
+      getState: () => stateRef.current, switchAfter, auto });
+  }, [analysisStore, services, dispatchRef, stateRef]);
 
   const choose = (mode) => {
     if (readOnly) return;
     const steps = switchSteps({ target: mode, current: layout, cameraReady });
     if (steps === "analyze") {
-      if (analysing.current && target.current === "camera") return; // already on its way
       analyse();
       return;
     }
     // any other choice ends a pending face-track switch (its analysis finishes on the server)
-    target.current = null;
-    setChoice(null);
-    if (analysis) setAnalysis(null);
+    analysisStore.cancelSwitch();
     if (steps === "dispatch") switchTo(mode);
   };
 
-  // A face-track document whose camera plan is missing (the plan request says so): analyse it.
+  // A face-track document whose camera plan is missing (the plan request says so): analyse it,
+  // once per clip.
   const missing = state.previewError?.code === "analysis_missing" && layout === "camera";
   useEffect(() => {
-    if (!missing || autoTried.current || analysing.current) return;
-    autoTried.current = true;
-    analyse({ switchAfter: false });
+    if (missing) analyse({ switchAfter: false, auto: true });
   }, [missing, analyse]);
 
-  const view = analysisView(analysis, now);
-  const running = analysis?.state === "running";
+  const view = analysisView(analysisForView(run), now);
+  const refused = message ?? (run.phase !== "failed" ? run.message : null);
   const shownLayout = choice ?? layout;
   const shown = LAYOUT_OPTIONS.find((entry) => entry.id === shownLayout) ?? LAYOUT_OPTIONS[0];
   const pending = choice !== null && choice !== layout;
@@ -343,7 +280,7 @@ function LayoutPanelBody({ state, dispatch, player, api: apiProp, previewClient 
 
   return (
     <section data-panel="layout" className={styles.panel} aria-busy={running}>
-      {message ? <p className={styles.message} role="alert">{message}</p> : null}
+      {refused ? <p className={styles.message} role="alert">{refused}</p> : null}
       <div className={styles.section}>
         <div className={styles.head}>
           <h3 className={styles.title}>Tata letak video</h3>
@@ -378,12 +315,12 @@ function LayoutPanelBody({ state, dispatch, player, api: apiProp, previewClient 
             <progress className={styles.progress} aria-label="Analisis wajah"
               max={view.determinate ? view.max : undefined} value={view.determinate ? view.value : undefined} />
             <span data-layout-analysis-text="">{view.text}</span>
-            {target.current === "camera" ? (
+            {run.target === "camera" ? (
               <span className={styles.note}>Tata letak berganti setelah analisis selesai. Pilih yang lain untuk membatalkan.</span>
             ) : null}
           </div>
         ) : null}
-        {view && analysis?.state === "failed" ? (
+        {view && run.phase === "failed" ? (
           <div className={styles.failure} role="alert" data-layout-analysis-error="">
             <span>{view.text}</span>
             <button type="button" className={styles.button} disabled={readOnly && layout !== "camera"}
@@ -421,12 +358,13 @@ function LayoutPanelBody({ state, dispatch, player, api: apiProp, previewClient 
 
 export default function LayoutPanel(props) {
   const { state } = props;
-  if (!state?.doc) {
+  const analysisStore = layoutAnalysisFor(state?.clipId ?? state?.doc?.clip_id ?? null);
+  if (!state?.doc || !analysisStore) {
     return (
       <section data-panel="layout" className={styles.panel} aria-busy={state?.status === "loading"}>
         <p className={styles.note}>Membuka tata letak…</p>
       </section>
     );
   }
-  return <LayoutPanelBody {...props} />;
+  return <LayoutPanelBody {...props} analysisStore={analysisStore} />;
 }

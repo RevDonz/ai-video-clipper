@@ -139,6 +139,11 @@
   opacity: 0.5;
 }
 
+/* In Mode Cepat's Cold open card (TransitionSection with data-touch): the card's 44 px targets. */
+[data-touch] .preset {
+  min-height: var(--ed-target, 44px);
+}
+
 .presetName {
   align-self: center;
   color: var(--text);
