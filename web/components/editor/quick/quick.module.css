@@ -217,6 +217,14 @@
   box-shadow: var(--ed-focus-ring);
 }
 
+/* Forced colours drop the chosen tile's ring: its name is underlined, as a chosen pill's is. */
+@media (forced-colors: active) {
+  .tile:has(input:checked) .tileName {
+    text-decoration: underline 2px;
+    text-underline-offset: 3px;
+  }
+}
+
 .tile:has(input:disabled) {
   cursor: not-allowed;
   opacity: 0.55;

@@ -256,6 +256,16 @@ input:checked ~ span .glyph::after {
 .glyph[data-corner="bottom_left"]::after { bottom: 2px; left: 2px; }
 .glyph[data-corner="bottom_right"]::after { bottom: 2px; right: 2px; }
 
+/* Forced colours paint over the corner dot's fill: it is drawn in the text's system colour in
+   both states, since the chosen corner pill underlines its name there (ui.module.css). */
+@media (forced-colors: active) {
+  .glyph::after,
+  input:checked ~ span .glyph::after {
+    forced-color-adjust: none;
+    background: CanvasText;
+  }
+}
+
 /* Sliders. */
 .field {
   display: grid;

@@ -469,3 +469,45 @@
   outline-offset: 2px;
   box-shadow: var(--ed-focus-ring);
 }
+
+/* ---------- Forced colours ----------
+   Windows high contrast paints every control in the user's palette and drops box-shadow, so a fill
+   or a ring cannot mark a choice there. A chosen pill and a pressed toggle underline their text, as
+   the rail's chosen tab does. A switch draws its knob in system colours and fills its track when
+   on. A swatch keeps the colour it stands for and rings the chosen one. */
+@media (forced-colors: active) {
+  .pill:has(input:checked),
+  .toggle[aria-pressed="true"] {
+    text-decoration: underline 2px;
+    text-underline-offset: 3px;
+  }
+
+  .switchTrack::after {
+    forced-color-adjust: none;
+    background: CanvasText;
+  }
+
+  .cover:checked + .switchTrack {
+    forced-color-adjust: none;
+    border-color: Highlight;
+    background: Highlight;
+  }
+
+  .cover:checked + .switchTrack::after {
+    background: HighlightText;
+  }
+
+  .cover:focus-visible + .switchTrack {
+    outline-color: CanvasText;
+  }
+
+  .dot {
+    forced-color-adjust: none;
+  }
+
+  .swatch:has(input:checked) .dot {
+    outline: 2px solid CanvasText;
+    outline-offset: 2px;
+    box-shadow: none;
+  }
+}
