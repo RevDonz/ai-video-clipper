@@ -98,8 +98,9 @@
   font-size: var(--ed-font-size-xs);
 }
 
-/* Transisi: three equal choices, the Musik duck presets' pattern. The chosen card is marked by
-   the text colour on the raised surface; the lime accent stays with Ekspor (DESIGN.md). */
+/* Transisi: three equal choices, the Musik duck presets' pattern. The chosen card takes the
+   neutral selected fill of every chosen pill (--text with --bg text, spec §8.1); the lime accent
+   stays with Ekspor (DESIGN.md). */
 .presets {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -127,7 +128,13 @@
 
 .preset:has(input:checked) {
   border-color: var(--text);
-  background: var(--surface-3);
+  background: var(--text);
+}
+
+.preset:has(input:checked) .presetName,
+.preset:has(input:checked) .presetDetail {
+  /* on: --text */
+  color: var(--bg);
 }
 
 /* The radio is invisible: the card draws the ring, an outline that forced colours keep. */
