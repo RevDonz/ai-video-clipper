@@ -73,10 +73,3 @@
     text-underline-offset: 3px;
   }
 }
-
-/* Until the shell gives the rail its own grid column (task A, §1.1), the scaffold mounts the rail
-   as the first child of the panels aside; that aside then lays the rail and the panel side by
-   side instead of stacking them. */
-[data-slot="panels"]:has(> .rail) {
-  flex-direction: row;
-}

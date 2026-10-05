@@ -407,7 +407,9 @@ test("the untouched T1.Z fakes open the editor live with every layer current", a
   await expect(timeText(page)).toHaveText("00:00,0 / 00:10,0");
   await expect(page.getByRole("tab", { name: "Transkrip" })).toHaveAttribute("aria-selected", "true");
   await expect(page.locator('[data-lane="video"] [data-piece-role="body"]')).toHaveCount(1);
-  await expect(page.locator('[data-lane="captions"] [data-cue]')).toHaveCount(3);
+  // The fakes caption like the engine (spec §2.6): a break after "sendiri?" makes 4 cues, not
+  // 3 groups of four.
+  await expect(page.locator('[data-lane="captions"] [data-cue]')).toHaveCount(4);
   await expect(page.locator('[data-lane="hook"] [data-hook-block]')).toContainText("Kenapa sutradara ditahan di film sendiri?");
 });
 
