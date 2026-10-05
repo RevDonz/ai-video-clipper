@@ -414,6 +414,72 @@ test("the top bar: the switch, Urungkan and Ulangi as 44 px icon buttons, Perlu 
   expect(edged.border).toBe(edged.warning);
 });
 
+// Integration checks (spec §18): the top bar's controls sit on one row inside the 64 px bar, and the
+// cards column never scrolls sideways, however long a card's one-line summary is.
+const LONG_HOOK = "Kenapa sutradara film ini malah ditahan security di depan lokasi syuting filmnya sendiri?";
+const LONG_HOOK_DOC = (() => {
+  const doc = fakeDoc();
+  doc.tracks.find((track) => track.kind === "hook").items[0].payload.text = LONG_HOOK;
+  return doc;
+})();
+
+for (const viewport of [{ width: 1366, height: 650 }, { width: 1920, height: 960 }]) {
+  const size = `${viewport.width}×${viewport.height}`;
+  test(`at ${size} the top bar keeps every control on one row inside it, Urungkan beside Ulangi`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await openEditor(page, BASE);
+    const bar = page.locator('[data-slot="topBar"]');
+    const outside = await bar.evaluate((element) => {
+      const box = element.getBoundingClientRect();
+      return [...element.querySelectorAll("a[href], button, [role='radiogroup']")]
+        .filter((control) => control.getClientRects().length > 0)
+        .filter((control) => {
+          const rect = control.getBoundingClientRect();
+          return rect.top < box.top - 0.5 || rect.bottom > box.bottom + 0.5;
+        })
+        .map((control) => control.getAttribute("aria-label") || control.textContent.trim());
+    });
+    expect(outside).toEqual([]);
+    const undo = await bar.getByRole("button", { name: "Urungkan" }).boundingBox();
+    const redo = await bar.getByRole("button", { name: "Ulangi" }).boundingBox();
+    expect(Math.abs(undo.y - redo.y)).toBeLessThan(1);
+    expect(redo.x).toBeGreaterThanOrEqual(undo.x + undo.width);
+  });
+
+  test(`at ${size} the cards column never scrolls sideways: a long hook, every card open in turn, a caption line in focus`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await openEditor(page, `${BASE}?mode=cepat`, { doc: LONG_HOOK_DOC });
+    const side = page.locator('[data-slot="cards"]');
+    const overflow = () => side.evaluate((element) => {
+      const box = element.getBoundingClientRect();
+      return {
+        sideways: element.scrollWidth - element.clientWidth,
+        scrolled: element.scrollLeft,
+        outside: [...element.querySelectorAll("[data-card]")].filter((card) => {
+          const rect = card.getBoundingClientRect();
+          return rect.left < box.left - 0.5 || rect.right > box.right + 0.5;
+        }).map((card) => card.getAttribute("data-card")),
+      };
+    });
+    const fits = { sideways: 0, scrolled: 0, outside: [] };
+    for (const id of CARD_IDS) {
+      const body = await openCard(page, id);
+      await expect(body.getByText("Membuka kartu…")).toHaveCount(0);
+      expect(await overflow(), `with the ${id} card open`).toEqual(fits);
+    }
+    // A focused field is scrolled into view; the column must not move sideways for it.
+    const lines = await openCard(page, "lines");
+    await lines.locator("[data-line-key] input").first().focus();
+    expect(await overflow(), "with a caption line in focus").toEqual(fits);
+    // The Hook card's summary is cut with an ellipsis instead of widening its card.
+    const summary = await header(page, "hook").evaluate((element) => {
+      const text = [...element.querySelectorAll("span")].find((span) => span.textContent.startsWith("Kenapa sutradara film"));
+      return text ? { clipped: text.scrollWidth > text.clientWidth, overflow: getComputedStyle(text).textOverflow } : null;
+    });
+    expect(summary).toEqual({ clipped: true, overflow: "ellipsis" });
+  });
+}
+
 for (const view of ["cepat", "lengkap"]) {
   test(`the stage overlays in ${view}: the status and '?' at the top left, Frame akhir and Zona aman at the top right`, async ({ page }) => {
     await openEditor(page, `${BASE}?mode=${view}`);
