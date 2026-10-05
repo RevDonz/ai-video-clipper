@@ -1,0 +1,37 @@
+{
+  "task": "D (Mode Lengkap rail, word toolbar, scrubber), docs/plans/2026-10-02-editor-mode-cepat.md §10",
+  "branch": "mode-cepat-d-lengkap",
+  "commit": "e676ff83b3677dbce3251668f094202f38ba9090",
+  "runs": [
+    {
+      "id": "37286159699",
+      "suite": "full",
+      "result": "success",
+      "python": { "passed": 4476, "skipped": 3, "xfailed": 1 },
+      "web_unit": { "tests": 1337, "passed": 1336 },
+      "web_build": "success"
+    },
+    {
+      "id": "37286154298",
+      "suite": "e2e",
+      "command": "e2e/editor-*.spec.mjs",
+      "result": "success",
+      "passed": 196,
+      "skipped": 56,
+      "failed": 0,
+      "browser": "Chrome for Testing 147.0.7727.15"
+    }
+  ],
+  "unit_tests": ["web/tests/editor-word-toolbar.test.mjs", "web/tests/editor-scrubber.test.mjs"],
+  "e2e_specs": [
+    "web/e2e/editor-lengkap.spec.mjs",
+    "web/e2e/editor-scrubber.spec.mjs",
+    "web/e2e/editor-transcript.spec.mjs",
+    "web/e2e/editor-cleanup.spec.mjs"
+  ],
+  "acceptance": {
+    "AC8": "editor-scrubber.spec.mjs: marks against buildMarkers on the marker fixtures, merging, snapping, drag, keys, Space and K, aria-valuetext and its rate, the analysis note; and in Mode Cepat on the fakes",
+    "AC9": "editor-lengkap.spec.mjs: one column at 1366x650, 1920x960, 1366x768 and 1920x1080 (D-AC9-rail-*.json), vertical keys, ids and names, forced-colours outline",
+    "AC10": "editor-lengkap.spec.mjs and editor-transcript.spec.mjs: placement above or below, never over the selection, primary action, all nine former chips by mouse and by keyboard, I and O from the toolbar, no chip row, axe with the menu open"
+  }
+}

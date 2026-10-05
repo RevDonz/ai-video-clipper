@@ -1,0 +1,24 @@
+{
+  "gate": "AC9 rail: one column, rows 44-64 px, no scroll",
+  "viewport": {
+    "width": 1920,
+    "height": 960
+  },
+  "rail_px": {
+    "w": 84,
+    "h": 664
+  },
+  "rows_px": [
+    64,
+    64,
+    64,
+    64,
+    64,
+    64
+  ],
+  "scroll": {
+    "scrollHeight": 664,
+    "clientHeight": 664
+  },
+  "pass": true
+}
