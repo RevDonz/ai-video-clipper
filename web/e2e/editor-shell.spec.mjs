@@ -19,9 +19,10 @@ import os from "node:os";
 import path from "node:path";
 
 import { FAKE_CLIP_ID, FAKE_JOB_ID } from "../components/editor/__dev__/fakes.mjs";
+import { openChecks, resetToAi, safeZone } from "./support/editor-topbar.mjs";
 import { login, settings } from "./support/harness.mjs";
 
-const EDITOR = `/projects/${FAKE_JOB_ID}/clips/${FAKE_CLIP_ID}/edit`;
+const EDITOR = `/projects/${FAKE_JOB_ID}/clips/${FAKE_CLIP_ID}/edit?mode=lengkap`;
 const AUTO_RENDER = `/api/jobs/${FAKE_JOB_ID}/files/output/clip-01.mp4`;
 const EXPORT_MP4 = `/api/jobs/${FAKE_JOB_ID}/files/output/edits/${FAKE_CLIP_ID}/0123456789abcdef.mp4`;
 const EXPORT_SRT = `/api/jobs/${FAKE_JOB_ID}/files/output/edits/${FAKE_CLIP_ID}/0123456789abcdef.srt`;
@@ -578,7 +579,7 @@ test("shortcuts drive playback, undo/redo, the safe zone, truth frame, export an
 
   await page.keyboard.press("'");
   await expect(page.locator("[data-safe-zone]")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Zona aman" })).toHaveAttribute("aria-pressed", "true");
+  await expect(safeZone(page)).toHaveAttribute("aria-pressed", "true");
   await page.keyboard.press("'");
   await expect(page.locator("[data-safe-zone]")).toHaveCount(0);
 
@@ -634,8 +635,7 @@ test("I and O trim at the playhead to the word under it", async ({ page }) => {
 
 test("the checks panel lists warnings with their messages and jumps to their frame", async ({ page }) => {
   await openEditor(page, { planWarnings: [{ code: "tight_cut", ref: "rm_01", f: 120 }, { code: "hook_overflow", ref: "it_hook", f: 0 }] });
-  const open = page.getByRole("button", { name: "Perlu dicek (2)" });
-  await open.click();
+  const open = await openChecks(page, 2);
   const panel = page.getByRole("dialog", { name: "Perlu dicek" });
   await expect(panel).toBeVisible();
   await expect(panel.getByRole("listitem")).toHaveCount(2);
@@ -653,8 +653,7 @@ test("the checks panel lists warnings with their messages and jumps to their fra
 test("the caption at its auto-clip spot is a note: not counted, no tick before export (K5)", async ({ page }) => {
   const note = "Caption di posisi bawaan, dekat tombol TikTok. Kalau tertutup, geser ke atas di tab Teks.";
   await openEditor(page, { planWarnings: [{ code: "unsafe_zone", path: "/captions/overrides/y_e5", f: 3 }] });
-  const open = page.getByRole("button", { name: "Perlu dicek (0)" });
-  await open.click();
+  const open = await openChecks(page, 0);
   const panel = page.getByRole("dialog", { name: "Perlu dicek" });
   await expect(panel.getByText("Tidak ada yang perlu dicek.")).toBeVisible();
   await expect(panel.getByRole("list", { name: "Catatan" }).getByRole("listitem")).toHaveText(new RegExp(`^${note.replace(/[.]/g, "\\.")}`));
@@ -717,7 +716,7 @@ test("a clip whose auto file came before the editor says so; save errors offer a
 test("'Kembali ke versi AI' is one visible, undoable command", async ({ page }) => {
   await openEditor(page, { scenarioStore: true });
   await page.evaluate(() => window.__potonginEditor.store.dispatch("SetCaptionsEnabled", { on: false }));
-  await page.getByRole("button", { name: "Kembali ke versi AI" }).click();
+  await resetToAi(page);
   const state = await editorState(page);
   expect(state.commands.at(-1).type).toBe("ResetToSeed");
   expect(state.doc.captions.enabled).toBe(true);
@@ -917,7 +916,7 @@ test("QG-A11Y: axe finds no critical or serious violation in any editor state", 
     await page.getByRole("button", { name: "Apa artinya?" }).click();
     await record("badge help open");
     await page.keyboard.press("Escape");
-    await page.getByRole("button", { name: "Perlu dicek (1)" }).click();
+    await openChecks(page, 1);
     await record("checks panel open");
     await page.keyboard.press("Escape");
     await page.keyboard.press("?");

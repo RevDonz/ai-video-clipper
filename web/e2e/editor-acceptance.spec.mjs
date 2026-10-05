@@ -41,6 +41,8 @@ import { fileURLToPath } from "node:url";
 import { crc32, deflateSync } from "node:zlib";
 
 import { coldOpenJoin, joinTemplate } from "../lib/editor/doc-model.mjs";
+import { openChecks, resetToAi, safeZone } from "./support/editor-topbar.mjs";
+import { wordAction } from "./support/editor-words.mjs";
 import { login, settings } from "./support/harness.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -126,7 +128,7 @@ async function ensureClips(page) {
 const shortest = () => [...clips].sort((a, b) => a.durationMs - b.durationMs)[0];
 const longest = () => [...clips].sort((a, b) => b.durationMs - a.durationMs)[0];
 
-const editorUrl = (clipId) => `/projects/${JOB_ID}/clips/${clipId}/edit`;
+const editorUrl = (clipId) => `/projects/${JOB_ID}/clips/${clipId}/edit?mode=lengkap`;
 
 const inspect = (page) => page.evaluate(() => {
   const hook = globalThis.__potonginEditorInspect;
@@ -179,7 +181,7 @@ async function blur(page) {
 async function resetToSeed(page) {
   const state = await inspect(page);
   if (state.seed && contentOf(state.doc) === contentOf(state.seed)) return;
-  await page.getByRole("button", { name: "Kembali ke versi AI" }).click();
+  await resetToAi(page);
   const reset = await waitSaved(page);
   expect(contentOf(reset.doc)).toBe(contentOf(reset.seed));
 }
@@ -567,7 +569,7 @@ test("Kemampuan 2, trim menempel ke kata: I/O, 'Perpanjang ke sini' and the hand
   // "Perpanjang ke sini" on a word outside the clip brings it back, again at its bounds frame.
   await word(page, body[1]).scrollIntoViewIfNeeded();
   await word(page, body[1]).click();
-  await toolbar(page).getByRole("button", { name: "Perpanjang ke sini" }).click();
+  await wordAction(page, "Perpanjang ke sini");
   await expect(word(page, body[1])).toHaveAttribute("data-zone", "body");
   saved = await waitSaved(page);
   expect(bodyOf(saved.doc).in_sf).toBe(before(body[1]));
@@ -1208,7 +1210,7 @@ test("Kemampuan 12, urungkan, simpan otomatis, konflik: 200 steps, merged drags,
   await page.reload();
   await expect(page.locator('[data-editor-ready="true"]')).toBeVisible({ timeout: 60_000 });
   const edited = await waitSaved(page);
-  await page.getByRole("button", { name: "Kembali ke versi AI" }).click();
+  await resetToAi(page);
   saved = await waitSaved(page);
   expect(contentOf(saved.doc)).toBe(contentOf(saved.seed));
   await page.getByRole("button", { name: "Urungkan" }).click();
@@ -1274,7 +1276,7 @@ test("Kemampuan 13, ekspor lewat antrean: stages, MP4 + SRT, G1–G3, the same k
   await dialog.getByRole("button", { name: "Tutup" }).click();
 
   // An unchanged clip exports the auto file itself (R10, same inode).
-  await page.getByRole("button", { name: "Kembali ke versi AI" }).click();
+  await resetToAi(page);
   await waitSaved(page);
   await page.getByRole("button", { name: "Ekspor", exact: true }).click();
   await expect(dialog.getByText("Tanpa perubahan: file klip otomatis dipakai langsung")).toBeVisible();
@@ -1414,7 +1416,7 @@ test("QG-A11Y: axe finds no critical or serious violation in any panel or dialog
     await transcript(page).getByRole("button", { name: /^Rapikan/ }).click();
     await expect(page.getByRole("region", { name: "Rapikan" })).toBeVisible({ timeout: 30_000 });
     await record("Rapikan review");
-    await page.getByRole("button", { name: /^Perlu dicek/ }).click();
+    await openChecks(page);
     await record("Perlu dicek");
     await page.keyboard.press("Escape");
     await page.getByRole("button", { name: "Apa artinya?" }).click();
@@ -1425,9 +1427,9 @@ test("QG-A11Y: axe finds no critical or serious violation in any panel or dialog
     await expect(page.getByRole("dialog", { name: "Pintasan keyboard" })).toBeVisible();
     await record("shortcut help");
     await page.keyboard.press("Escape");
-    await page.getByRole("button", { name: "Zona aman" }).click();
+    await safeZone(page).click();
     await record("safe zone on");
-    await page.getByRole("button", { name: "Zona aman" }).click();
+    await safeZone(page).click();
     await page.getByRole("button", { name: "Ekspor", exact: true }).click();
     await expect(page.getByRole("dialog", { name: "Ekspor klip" })).toBeVisible();
     await record("export dialog");

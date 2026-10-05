@@ -24,7 +24,7 @@ import { createContext } from "../lib/editor/doc-model.mjs";
 import { pieces } from "../lib/editor/timemap.mjs";
 import { login, settings } from "./support/harness.mjs";
 
-const EDITOR = `/projects/${FAKE_JOB_ID}/clips/${FAKE_CLIP_ID}/edit`;
+const EDITOR = `/projects/${FAKE_JOB_ID}/clips/${FAKE_CLIP_ID}/edit?mode=lengkap`;
 const gatesOut = process.env.EDITOR_GATES_OUT || "";
 
 function defaultChrome() {

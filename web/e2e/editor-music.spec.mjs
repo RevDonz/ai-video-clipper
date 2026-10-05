@@ -25,7 +25,7 @@ import { applyCommand } from "../lib/editor/commands.mjs";
 import { createContext, musicItem } from "../lib/editor/doc-model.mjs";
 import { login, settings } from "./support/harness.mjs";
 
-const EDITOR = `/projects/${FAKE_JOB_ID}/clips/${FAKE_CLIP_ID}/edit`;
+const EDITOR = `/projects/${FAKE_JOB_ID}/clips/${FAKE_CLIP_ID}/edit?mode=lengkap`;
 const U5_LIMIT_MS = 60_000; // plan §10.2 QG-UX U5: logo and ducked music together
 const P_AUD_MAX_LSB = 1;
 const gatesOut = process.env.EDITOR_GATES_OUT || "";
