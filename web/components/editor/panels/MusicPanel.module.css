@@ -1,7 +1,7 @@
-/* The Musik panel's own pieces (T3.3). Shared controls (switch, button, section) come from
-   panels.module.css; every colour here is an editor token (editor.module.css), so the panel
-   follows the editor's theme. Motion: a short fade for things that appear and colour transitions
-   on the presets, both off under prefers-reduced-motion. */
+/* The Musik panel's own pieces (T3.3). Buttons and sections come from panels.module.css, the
+   switches and the ducking presets from the editor kit (ui/); every colour here is an editor token
+   (editor.module.css), so the panel follows the editor's theme. Motion: a short fade for things
+   that appear, off under prefers-reduced-motion. */
 
 .panel {
   min-width: 0;
@@ -171,58 +171,10 @@
   box-shadow: var(--ed-focus-ring);
 }
 
-/* Ducking presets: three equal choices, the chosen one marked by the accent. */
+/* Ducking: the three presets are the kit's pill group (ui/PillGroup), then the detail sliders. */
 .duckSet {
   display: grid;
   gap: var(--ed-space-2, 8px);
-}
-
-.presets {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.preset {
-  position: relative;
-  display: grid;
-  gap: 2px;
-  padding: 8px 4px;
-  text-align: center;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--ed-radius-sm, 4px);
-  background: var(--surface);
-  cursor: pointer;
-  transition: border-color var(--ed-duration-fast, 120ms), background-color var(--ed-duration-fast, 120ms);
-}
-
-.preset:hover {
-  border-color: var(--text);
-}
-
-.preset:has(input:checked) {
-  border-color: var(--text);
-  background: var(--surface-3);
-}
-
-.preset:has(input:focus-visible) {
-  box-shadow: var(--ed-focus-ring);
-}
-
-.duckSet:disabled .preset {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
-.presetName {
-  font-size: var(--ed-font-size-sm, 12px);
-  font-weight: 700;
-}
-
-.presetValue {
-  font-size: var(--ed-font-size-xs, 11px);
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
 }
 
 .details {
@@ -266,9 +218,5 @@
   .notice,
   .warning {
     animation: none;
-  }
-
-  .preset {
-    transition: none;
   }
 }

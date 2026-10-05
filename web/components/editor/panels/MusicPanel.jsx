@@ -4,84 +4,31 @@
 // start, loop and fades; ducking with the Halus/Sedang/Kuat presets and the detail sliders; the
 // clip's own volume; normalize with the loudness it reached; the peak_reduced and music-shorter
 // notes; the one-time copyright notice. Every change is one Appendix B command (sliders merge into
-// one undo step through their merge keys); the rules live in music-model.mjs.
+// one undo step through their merge keys); the rules live in music-model.mjs. The upload is the
+// clip's (music-upload.mjs `musicUploadFor`), not this panel's: it goes on when the panel closes,
+// and Mode Cepat's Logo & Musik card shows and starts the same one.
 // Props: { state, dispatch, player } (panels/index.mjs); optional `uploadAsset` (replaces the
 // upload) and `uploadsEnabled` (POTONGIN_EDITOR_UPLOADS as a boolean, for the W3 integrator).
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 
+import PillGroup from "../ui/PillGroup.jsx";
+import Switch from "../ui/Switch.jsx";
 import {
   DUCK_PRESET_LIST,
-  FILE_PROBLEM_TEXT,
   MUSIC_ACCEPT,
   RANGES,
-  formatDb,
   formatFrames,
   formatMs,
   formatPosition,
   musicCommands,
-  musicFileProblem,
-  musicFileType,
   musicView,
-  uploadErrorText,
 } from "./music-model.mjs";
-import { resolveUploadAsset } from "./music-upload.mjs";
+import { markMusicNoticeRead, musicNoticeRead, musicUploadFor } from "./music-upload.mjs";
 import styles from "./MusicPanel.module.css";
 import base from "./panels.module.css";
 
-const NOTICE_KEY = "potongin-editor-music-notice";
-const NAMES_KEY = "potongin-editor-music-names";
 const MINUS = "−";
-
-// Per-viewer conveniences only: the notice was read, and the file names of uploaded tracks (the
-// document keeps only the asset's sha). Storage may be missing (private mode); nothing depends on it.
-function noticeRead() {
-  try {
-    return window.localStorage.getItem(NOTICE_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-function markNoticeRead() {
-  try {
-    window.localStorage.setItem(NOTICE_KEY, "1");
-  } catch {
-    // the notice shows again next time
-  }
-}
-
-function storedNames() {
-  try {
-    const names = JSON.parse(window.localStorage.getItem(NAMES_KEY) || "{}");
-    return names && typeof names === "object" ? names : {};
-  } catch {
-    return {};
-  }
-}
-
-function rememberName(assetId, name) {
-  try {
-    const names = storedNames();
-    delete names[assetId];
-    names[assetId] = name;
-    const keys = Object.keys(names);
-    for (const key of keys.slice(0, Math.max(0, keys.length - 50))) delete names[key];
-    window.localStorage.setItem(NAMES_KEY, JSON.stringify(names));
-  } catch {
-    // the card falls back to "Musik terunggah"
-  }
-}
-
-function Switch({ label, checked, disabled, onChange }) {
-  return (
-    <label className={base.switch}>
-      <input type="checkbox" role="switch" className={base.switchInput} checked={checked} disabled={disabled}
-        onChange={(event) => onChange(event.target.checked)} />
-      <span className={base.switchTrack} aria-hidden="true" />
-      <span>{label}</span>
-    </label>
-  );
-}
+const DUCK_OPTIONS = DUCK_PRESET_LIST.map((preset) => ({ id: preset.id, label: preset.name, detail: `${MINUS}${preset.depthCdb / 100} dB` }));
 
 function Slider({ label, value, min, max, step, valueText, disabled, onChange, extra = null, note = null }) {
   const id = useId();
@@ -99,32 +46,27 @@ function Slider({ label, value, min, max, step, valueText, disabled, onChange, e
   );
 }
 
-function presetDb(cdb) {
-  return `${MINUS}${cdb / 100} dB`;
-}
-
-function MusicPanelBody({ state, dispatch, uploadAsset, uploadsEnabled }) {
+function MusicPanelBody({ state, dispatch, uploadAsset, uploadsEnabled, music }) {
   const view = musicView(state);
   const uid = useId();
   const fileRef = useRef(null);
   const noticeButtonRef = useRef(null);
-  const [upload, setUpload] = useState(null); // {phase: "notice"|"uploading"|"processing", replace, name, progress}
-  const [message, setMessage] = useState(null); // {tone: "error"|"info", text}
-  const [names, setNames] = useState(() => storedNames());
-  const controllerRef = useRef(null);
+  const upload = useSyncExternalStore(music.subscribe, music.get, music.get);
+  const [notice, setNotice] = useState(null); // { replace } while the copyright notice shows
+  const [message, setMessage] = useState(null); // a refused command: { tone: "error", text }
   const replaceRef = useRef(false);
-  // An upload outlives this panel (switching tabs does not cancel it); it applies to the
-  // document as it is when the file arrives.
+  // The upload applies to the document as it is when the file arrives.
   const stateRef = useRef(state);
   stateRef.current = state;
   const fps = state.doc.output.fps;
   const readOnly = view.readOnly;
-  const busy = upload !== null && upload.phase !== "notice";
+  const busy = upload.phase !== "idle";
   const canUpload = !readOnly && !busy && uploadsEnabled;
+  const shown = message ?? upload.message;
 
   useEffect(() => {
-    if (upload?.phase === "notice") noticeButtonRef.current?.focus();
-  }, [upload?.phase]);
+    if (notice) noticeButtonRef.current?.focus();
+  }, [notice]);
 
   const run = (commands) => {
     for (const { type, args, mergeKey } of commands) {
@@ -136,60 +78,33 @@ function MusicPanelBody({ state, dispatch, uploadAsset, uploadsEnabled }) {
       }
     }
     setMessage(null);
+    music.clearMessage();
     return true;
   };
 
   const openPicker = (replace) => {
     replaceRef.current = replace;
-    setUpload(null);
+    setNotice(null);
     fileRef.current?.click();
   };
 
   const start = (replace) => {
     setMessage(null);
-    if (noticeRead()) openPicker(replace);
-    else setUpload({ phase: "notice", replace });
+    music.clearMessage();
+    if (musicNoticeRead()) openPicker(replace);
+    else setNotice({ replace });
   };
 
-  const onFile = async (event) => {
+  const onFile = (event) => {
     const picked = event.target.files?.[0] ?? null;
     event.target.value = "";
     if (!picked) return;
-    const problem = musicFileProblem(picked);
-    if (problem) {
-      setMessage({ tone: "error", text: FILE_PROBLEM_TEXT[problem] });
-      return;
-    }
-    const type = musicFileType(picked);
-    const file = picked.type === type ? picked : new File([picked], picked.name, { type });
-    const controller = new AbortController();
-    controllerRef.current = controller;
-    const replace = replaceRef.current;
     setMessage(null);
-    setUpload({ phase: "uploading", replace, name: picked.name, progress: 0 });
-    try {
-      const send = uploadAsset ?? (await resolveUploadAsset());
-      const dto = await send(stateRef.current.doc.base.job_id, file, "music", {
-        signal: controller.signal,
-        onProgress: (value) => setUpload((current) => (current && current.phase !== "notice"
-          ? { ...current, progress: value, phase: value >= 1 ? "processing" : "uploading" } : current)),
-      });
-      const current = replace ? musicCommands.replace(stateRef.current.doc, dto) : musicCommands.add(dto);
-      if (run(current)) {
-        const assetId = `sha256:${String(dto.sha256).replace(/^sha256:/, "")}`;
-        rememberName(assetId, picked.name);
-        setNames((previous) => ({ ...previous, [assetId]: picked.name }));
-      }
-    } catch (error) {
-      const text = uploadErrorText(error);
-      setMessage(text === null ? { tone: "info", text: "Unggahan dibatalkan." } : { tone: "error", text });
-    } finally {
-      if (controllerRef.current === controller) controllerRef.current = null;
-      setUpload(null);
-    }
+    music.start({ file: picked, jobId: stateRef.current.doc.base.job_id, upload: uploadAsset, dispatch,
+      getState: () => stateRef.current, replace: replaceRef.current });
   };
 
-  const progressText = upload && upload.phase !== "notice"
+  const progressText = busy
     ? upload.phase === "processing" ? `Memproses ${upload.name}…` : `Mengunggah ${upload.name} · ${Math.round(upload.progress * 100)}%`
     : null;
 
@@ -201,7 +116,7 @@ function MusicPanelBody({ state, dispatch, uploadAsset, uploadsEnabled }) {
         <h2 className={base.title}>Musik latar</h2>
         {view.hasMusic ? (
           <div className={styles.card} data-music-card="">
-            <p className={styles.name} data-music-name="">{names[view.assetId] ?? "Musik terunggah"}</p>
+            <p className={styles.name} data-music-name="">{upload.names[view.assetId] ?? "Musik terunggah"}</p>
             <p className={styles.meta}>
               <span data-music-duration="">{view.durationText}</span>
               {view.lufsText ? <span>{` · kenyaringan lagu ${view.lufsText}`}</span> : null}
@@ -223,7 +138,7 @@ function MusicPanelBody({ state, dispatch, uploadAsset, uploadsEnabled }) {
         )}
         {uploadsEnabled ? null : <p className={styles.hint}>Unggah file belum diaktifkan di server ini.</p>}
 
-        {upload?.phase === "notice" ? (
+        {notice ? (
           <div className={styles.notice} role="group" aria-labelledby={`${uid}-notice`}>
             <p id={`${uid}-notice`} className={styles.noticeText}>
               Pakai musik yang boleh Anda gunakan. Lagu berhak cipta bisa membuat video dibisukan atau diblokir
@@ -231,10 +146,10 @@ function MusicPanelBody({ state, dispatch, uploadAsset, uploadsEnabled }) {
             </p>
             <div className={base.row}>
               <button ref={noticeButtonRef} type="button" className={`${base.button} ${base.primary}`}
-                onClick={() => { markNoticeRead(); openPicker(upload.replace); }}>
+                onClick={() => { markMusicNoticeRead(); openPicker(notice.replace); }}>
                 Pilih file musik
               </button>
-              <button type="button" className={base.button} onClick={() => setUpload(null)}>Batal</button>
+              <button type="button" className={base.button} onClick={() => setNotice(null)}>Batal</button>
             </div>
           </div>
         ) : null}
@@ -244,16 +159,15 @@ function MusicPanelBody({ state, dispatch, uploadAsset, uploadsEnabled }) {
             <p className={styles.uploadText} aria-live="polite">{progressText}</p>
             <progress className={styles.progress} max={1} value={upload.phase === "processing" ? undefined : upload.progress}
               aria-label={`Mengunggah ${upload.name}`} />
-            <button type="button" className={base.button} aria-label="Batalkan unggahan"
-              onClick={() => controllerRef.current?.abort()}>
+            <button type="button" className={base.button} aria-label="Batalkan unggahan" onClick={() => music.cancel()}>
               Batal
             </button>
           </div>
         ) : null}
 
-        {message ? (
-          <p className={message.tone === "error" ? styles.error : styles.info} role={message.tone === "error" ? "alert" : "status"}>
-            {message.text}
+        {shown ? (
+          <p className={shown.tone === "error" ? styles.error : styles.info} role={shown.tone === "error" ? "alert" : "status"}>
+            {shown.text}
           </p>
         ) : null}
 
@@ -297,18 +211,9 @@ function MusicPanelBody({ state, dispatch, uploadAsset, uploadsEnabled }) {
           </div>
           <Switch label="Kecilkan musik saat ada suara" checked={view.duck.on} disabled={readOnly}
             onChange={(on) => run(musicCommands.duckOn(on))} />
-          <fieldset className={`${base.fieldset} ${styles.duckSet}`} disabled={readOnly || !view.duck.on}>
-            <legend className={base.legend}>Kekuatan</legend>
-            <div className={styles.presets}>
-              {DUCK_PRESET_LIST.map((preset) => (
-                <label key={preset.id} className={styles.preset}>
-                  <input type="radio" className={base.cover} name={`${uid}-duck`} value={preset.id}
-                    checked={view.duck.preset === preset.id} onChange={() => run(musicCommands.duckPreset(preset.id))} />
-                  <span className={styles.presetName}>{preset.name}</span>
-                  <span className={styles.presetValue}>{presetDb(preset.depthCdb)}</span>
-                </label>
-              ))}
-            </div>
+          <div className={styles.duckSet}>
+            <PillGroup legend="Kekuatan" name={`${uid}-duck`} options={DUCK_OPTIONS} value={view.duck.preset} columns={3}
+              disabled={readOnly || !view.duck.on} onChange={(id) => run(musicCommands.duckPreset(id))} />
             {view.duck.preset === "custom" ? <p className={styles.hint}>{`Kustom: ${view.duck.depthText}`}</p> : null}
             <details className={styles.details}>
               <summary className={styles.summary}>Atur detail</summary>
@@ -325,7 +230,7 @@ function MusicPanelBody({ state, dispatch, uploadAsset, uploadsEnabled }) {
                   note="Jeda bicara yang lebih pendek dari ini tidak membuat musik naik lagi." />
               </div>
             </details>
-          </fieldset>
+          </div>
         </div>
       ) : null}
 
@@ -347,12 +252,14 @@ function MusicPanelBody({ state, dispatch, uploadAsset, uploadsEnabled }) {
 }
 
 export default function MusicPanel({ state, dispatch, uploadAsset = null, uploadsEnabled = true }) {
-  if (!state?.doc) {
+  const music = musicUploadFor(state?.clipId ?? state?.doc?.clip_id ?? null);
+  if (!state?.doc || !music) {
     return (
       <section data-panel="music" className={base.panel} aria-busy="true">
         <p className={base.note}>Membuka panel Musik…</p>
       </section>
     );
   }
-  return <MusicPanelBody state={state} dispatch={dispatch} uploadAsset={uploadAsset} uploadsEnabled={uploadsEnabled !== false} />;
+  return <MusicPanelBody state={state} dispatch={dispatch} uploadAsset={uploadAsset} uploadsEnabled={uploadsEnabled !== false}
+    music={music} />;
 }

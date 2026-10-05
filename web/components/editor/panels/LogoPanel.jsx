@@ -13,24 +13,14 @@ import {
 } from "../gizmos/logo-geometry.mjs";
 import { LOGO_ACCEPT, logoUploader, logoUploads } from "../gizmos/logo-upload.mjs";
 import styles from "./logo.module.css";
-import { logoPanelView, opacityLabel, sizeLabel } from "./logo-model.mjs";
+import {
+  logoPanelView, logoUploadCommand, logoUploadMessage, opacityLabel, runLogoSteps as apply, sizeLabel,
+} from "./logo-model.mjs";
 
 const CORNERS = [
   { id: "top_left", label: "Kiri atas" }, { id: "top_right", label: "Kanan atas" },
   { id: "bottom_left", label: "Kiri bawah" }, { id: "bottom_right", label: "Kanan bawah" },
 ];
-const TOO_TALL = "Logo ini terlalu tinggi untuk video. Pakai gambar yang lebih lebar.";
-const REFUSED = "Perubahan ini tidak bisa diterapkan.";
-
-/** Runs commands through the store; returns null, or the refusal `{ code, message }`. */
-function apply(dispatch, steps, mergeKey = null) {
-  try {
-    for (const step of steps) dispatch(step.type, step.args, { mergeKey });
-    return null;
-  } catch (error) {
-    return { code: error?.code ?? null, message: typeof error?.message === "string" && error.message ? error.message : REFUSED };
-  }
-}
 
 export default function LogoPanel({ state, dispatch, uploadAsset: uploadProp = null, uploadsEnabled = true }) {
   const view = logoPanelView(state);
@@ -62,11 +52,7 @@ export default function LogoPanel({ state, dispatch, uploadAsset: uploadProp = n
     // The dispatch outlives this panel (it is the store's), so a finished upload still lands.
     logoUploads.start({
       owner, upload, jobId: view.jobId, file,
-      onUploaded: (dto) => {
-        const refused = apply(dispatch, [{ type: "SetLogo", args: { asset: dto.sha256, meta: dto } }]);
-        if (!refused) return null;
-        return refused.code === "item_out_of_frame" ? TOO_TALL : refused.message;
-      },
+      onUploaded: (dto) => logoUploadMessage(apply(dispatch, [logoUploadCommand(dto)])),
     });
   }, [canUpload, locked, owner, upload, view.jobId, dispatch]);
 

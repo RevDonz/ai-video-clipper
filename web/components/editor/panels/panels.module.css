@@ -418,7 +418,8 @@
   box-shadow: var(--ed-focus-ring);
 }
 
-/* A panel's main action; lime stays with Ekspor, the one primary action of the screen. */
+/* A panel's main action; lime stays with Ekspor, the one primary action of the screen, so the
+   hover only dims the fill. */
 .primary {
   background: var(--text);
   border-color: var(--text);
@@ -427,7 +428,33 @@
 }
 
 .primary:hover:not(:disabled) {
-  background: var(--accent-hover);
-  border-color: var(--accent-hover);
-  color: var(--accent-ink);
+  background: var(--text-muted);
+  border-color: var(--text-muted);
+  color: var(--bg);
+}
+
+/* Inside Mode Cepat's Cold open card (data-touch on TransitionSection and ColdOpenSuggestions):
+   the shared parts take the card's 44 px targets and its type scale; the panel keeps its sizes. */
+[data-touch] .button {
+  min-height: var(--ed-target, 44px);
+  padding: 0 16px;
+  border-radius: var(--radius-pill);
+  font-size: var(--ed-font-size-md, 14px);
+  font-weight: 600;
+}
+
+[data-touch] .switch {
+  min-height: var(--ed-target, 44px);
+  font-size: var(--ed-font-size-md, 14px);
+  font-weight: 600;
+}
+
+[data-touch] .note {
+  font-size: var(--ed-font-size-note, 13px);
+}
+
+[data-touch] .legend {
+  color: var(--text-muted);
+  font-size: var(--ed-font-size-note, 13px);
+  font-weight: 400;
 }

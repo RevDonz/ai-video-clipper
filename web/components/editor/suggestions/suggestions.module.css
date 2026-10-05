@@ -1,6 +1,7 @@
 /* Hook suggestion cards (plan §7.1 "UI"). Editor tokens only (editor.module.css on the editor
    root), so the cards follow the editor's theme. Ghost cards (dashed edge) read as offers until
-   one is used; the used card takes the accent, the only place the accent fills a surface. */
+   one is used; the used card takes the text edge on the raised surface. Lime fills only the AI
+   task's progress bar. */
 
 .section {
   display: grid;
@@ -230,6 +231,127 @@
   clip: rect(0 0 0 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* ---------- The Hook card's compact list (CompactSuggestions) ----------
+   One 44 px button per suggestion, the card's type scale (notes 13/400). The pressed one is the
+   hook in use: the text edge and the raised surface, with "Dipakai" spelled out so the state
+   never rests on colour alone. */
+
+.compact {
+  display: grid;
+  gap: var(--ed-space-2);
+}
+
+.compactTitle {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--ed-font-size-note, 13px);
+  font-weight: 400;
+}
+
+.compactRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ed-space-2);
+}
+
+.compactNote {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--ed-font-size-note, 13px);
+  line-height: var(--ed-line-height);
+}
+
+.compactList {
+  display: grid;
+  gap: var(--ed-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.compactButton {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  min-height: var(--ed-target, 44px);
+  padding: 8px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--ed-radius-md);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--dur-1), background-color var(--dur-1);
+}
+
+.compactButton:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+
+.compactButton[aria-pressed="true"] {
+  border-color: var(--text);
+  background: var(--surface-3);
+  cursor: default;
+}
+
+.compactButton[aria-pressed="true"]::after {
+  content: "Dipakai" / "";
+  color: var(--text-muted);
+  font-size: var(--ed-font-size-sm);
+  font-weight: 600;
+}
+
+.compactButton:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  box-shadow: var(--ed-focus-ring);
+}
+
+.compactButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.compactText {
+  font-size: var(--ed-font-size-md);
+  font-weight: 600;
+  line-height: var(--ed-line-height);
+  overflow-wrap: anywhere;
+}
+
+.compactFit {
+  color: var(--warning);
+  font-size: var(--ed-font-size-sm);
+  font-weight: 600;
+}
+
+.compactAi {
+  display: grid;
+  gap: var(--ed-space-2);
+  padding-top: var(--ed-space-2);
+  border-top: 1px solid var(--border);
+}
+
+.compactLabel {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--ed-font-size-sm);
+  font-weight: 600;
+}
+
+.compactNotice {
+  margin: 0;
+  padding: var(--ed-space-2);
+  border-radius: var(--ed-radius-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: var(--ed-font-size-note, 13px);
+  line-height: var(--ed-line-height);
 }
 
 @keyframes arrive {
