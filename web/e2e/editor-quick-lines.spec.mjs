@@ -56,6 +56,12 @@ function writeGate(name, value) {
   writeFileSync(path.join(gatesOut, name), `${JSON.stringify(value, null, 2)}\n`);
 }
 
+async function shot(locator, name) {
+  if (!gatesOut) return;
+  mkdirSync(gatesOut, { recursive: true });
+  await locator.screenshot({ path: path.join(gatesOut, name) });
+}
+
 // The clips the tests open, and their lines as the card should list them.
 const boxDoc = () => {
   const doc = fakeDoc();
@@ -270,6 +276,7 @@ test("a refusal keeps the draft, marks the field and dispatches nothing; Esc res
   const draft = "Kenapa sutradara ditahan di satu dua tiga empat lima enam tujuh delapan";
   await commitLine(card, key(0), draft);
   await expect(card.getByRole("alert")).toHaveText(TOO_LONG);
+  await shot(page.locator('[data-slot="cards"]'), "C-lines-refusal.png");
   await expect(input).toHaveAttribute("aria-invalid", "true");
   await expect(input).toHaveAttribute("aria-describedby", /error$/);
   await expect(input).toHaveValue(draft);
@@ -344,14 +351,17 @@ test("focusing a line seeks the paused preview to it, and the line under the pla
   await expect(card.locator('[data-current="true"]')).toHaveCount(1);
 });
 
+// The store's own autosave timing here: after a merged 409 the rebased edit is saved by the next
+// autosave round (resume() schedules it), not by the failed flush.
 test("two tabs editing different words of one line merge", async ({ page, context }) => {
-  const cardA = await openLines(page);
+  const cardA = await openLines(page, { autosaveMs: 0 });
   const second = await context.newPage();
-  const cardB = await openLines(second);
+  const cardB = await openLines(second, { autosaveMs: 0 });
   await commitLine(cardA, key(0), "Kenapa sutradaranya ditahan di");
   await page.evaluate(() => window.__potonginEditor.store.flush());
   await commitLine(cardB, key(0), "Kenapa sutradara ditahan di sini");
   await second.evaluate(() => window.__potonginEditor.store.flush().catch(() => null));
+  await expect(second.getByText("Digabung dengan perubahan dari tab lain")).toBeVisible();
   const merged = { [ID[1]]: { text: "sutradaranya" }, [ID[3]]: { text: "di sini" } };
   await expect.poll(async () => {
     const state = await editor(second);
@@ -393,6 +403,10 @@ for (const viewport of [{ width: 1366, height: 650 }, { width: 1920, height: 960
     await field(card, key(0)).focus();
     const ring = await card.locator(`[data-line-key="${key(0)}"]`).evaluate((row) => getComputedStyle(row).outlineStyle);
     expect(ring).not.toBe("none");
+    // The picture shows the focus ring on one line and the playhead's edge on another.
+    await page.evaluate((frame) => window.__potonginEditor.player.seek(frame), rowsOf(coldOpenDoc())[3].f0);
+    await expect(card.locator(`[data-line-key="${key(6)}"]`)).toHaveAttribute("data-current", "true");
+    await shot(page.locator('[data-slot="cards"]'), `C-lines-${viewport.width}x${viewport.height}.png`);
     test.skip(!AXE, "axe-core is not a web dependency: set AXE_CORE_PATH to an axe.min.js");
     await page.addScriptTag({ content: AXE });
     const blocking = await page.evaluate(async () => {
