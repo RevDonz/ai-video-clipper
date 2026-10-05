@@ -1,9 +1,14 @@
 {
   "task": "Z (integration)",
   "branch": "mode-cepat-integrasi",
-  "commit": "fecc1a9",
-  "run": 37290705450,
+  "commit": "a620a0b",
+  "run": 37294975556,
   "suite": "e2e -f gates=true, command 'e2e/editor-shell.spec.mjs --grep PF-OPEN'",
+  "earlier_run": {
+    "run": 37290705450,
+    "commit": "fecc1a9",
+    "pass": true
+  },
   "gate": "PF-OPEN",
   "view": "cepat",
   "interactive": "#card-caption-region :is(input, button, select, textarea)",
@@ -15,14 +20,14 @@
       "name": "fakes, no server latency",
       "config": null,
       "first_visit_ms": {
-        "p50": 516.9749999999767,
-        "p95": 532.7799999999988,
-        "max": 539.6399999999849
+        "p50": 553.8600000000151,
+        "p95": 845.3600000000151,
+        "max": 855.25
       },
       "repeat_visit_ms": {
-        "p50": 408.0850000000064,
-        "p95": 422.8099999999977,
-        "max": 426.9349999999977
+        "p50": 431.2149999999965,
+        "p95": 441.25,
+        "max": 448.9800000000105
       }
     },
     {
@@ -38,14 +43,14 @@
         }
       },
       "first_visit_ms": {
-        "p50": 586.6199999999953,
-        "p95": 600.2399999999907,
-        "max": 610.9899999999907
+        "p50": 625.8949999999895,
+        "p95": 645.0500000000175,
+        "max": 648.585000000021
       },
       "repeat_visit_ms": {
-        "p50": 483.4750000000058,
-        "p95": 498.9199999999837,
-        "max": 499.63000000000466
+        "p50": 508.320000000007,
+        "p95": 524.140000000014,
+        "max": 528.0050000000047
       }
     }
   ],

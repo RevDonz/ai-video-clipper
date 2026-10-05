@@ -1549,3 +1549,19 @@ silent:
    merge the merged edit is saved on the next autosave round, 1.5 s later, rather than at once
    (C's open issue; no work is lost); the fakes' player does not report `playing`, so the scrubber
    tracks its own Space and K (D's open issue; the real player reports it).
+6. **Defects only the integrated build showed**, each fixed test-first in A's and B's files:
+   - B's `editor-quick-model.test` and `editor-quick.spec` also counted the old 3 caption groups
+     (C §14 item 11 named only A's two checks); they count C's 4 lines now.
+   - AC12's hover sweep (A) awaited controls by index; once B's real cards were in, a control that
+     left the page mid-sweep cost two 15 s waits and the test timed out. It holds each control's
+     element and sweeps late arrivals in a further round, so every control is still hovered.
+   - The top bar's Urungkan/Ulangi group (A) reused `.history`, the export dialog's list class in
+     `shell.module.css`; the list's `display: grid` stacked the two buttons out of the 64 px bar.
+     The group is `.historyButtons`; `web/tests/editor-css-collisions.test.mjs` (Z) refuses a class
+     given two `display` values by two top-level rules in any editor CSS module.
+   - The card column (B's `quick.module.css` `.cards`) was a grid column sized `auto`, so a card
+     was never narrower than its one-line header summary (§1.3, "ellipsis"): a long hook text made
+     every card wider than the side column, which scrolled sideways and cut the cards' left edge
+     once a caption line took focus. `.cards` and the card bodies' `.body` are
+     `minmax(0, 1fr)`, so the summary and a long music file name are cut with their ellipsis.
+     `editor-views.spec` checks the top bar and the column at 1366×650 and 1920×960.
