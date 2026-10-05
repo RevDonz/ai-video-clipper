@@ -1,7 +1,7 @@
 name: Editor gates (manual)
 
 # Heavy test runs for work branches, so agents do not load the owner's PC.
-# Trigger: gh workflow run editor-gates.yml -f ref=<branch> -f suite=full|image|command|e2e|player [-f command='...']
+# Trigger: gh workflow run editor-gates.yml -f ref=<branch> -f suite=full|image|command|e2e|player [-f command='...'] [-f gates=true]
 # suite=full: ruff, pytest (Python 3.11), web tests and build, as in CI/CD. The web suites run
 # even when the Python suites failed, so one run shows every failure (the job still fails).
 # suite=image: the whole pytest inside the production image (pinned FFmpeg/libass toolchain).
@@ -11,6 +11,7 @@ name: Editor gates (manual)
 # POTONGIN_EDITOR_V3=on and POTONGIN_EDITOR_FAKES=1 and throwaway credentials; `command` names the
 # spec file(s) under web/ (e.g. command='e2e/editor-transition.spec.mjs'), run in Chrome for
 # Testing (the parity pin) with axe-core. EDITOR_GATES_OUT and the server log are uploaded.
+# -f gates=true also runs the specs' timing gates (EDITOR_GATES=1), e.g. PF-OPEN.
 # suite=player: browser specs of the editor player. The image makes the player fixtures
 # (scripts/parity/player_fixtures.py, cases in `cases`) and serves its own app with the parity
 # harness; Chrome for Testing (`chrome`: a version or a milestone, default the parity pin) runs
@@ -45,6 +46,11 @@ on:
         required: false
         default: ""
         type: string
+      gates:
+        description: For suite=e2e, also run the timing gates (EDITOR_GATES=1), e.g. PF-OPEN
+        required: false
+        default: false
+        type: boolean
 
 run-name: "${{ inputs.suite }} @ ${{ inputs.ref }}"
 
@@ -166,6 +172,7 @@ jobs:
           E2E_BASE_URL: http://127.0.0.1:3217
           E2E_NO_WEB_SERVER: "1"
           E2E_EDITOR_FAKES: "1"
+          EDITOR_GATES: ${{ inputs.gates && '1' || '' }}
         run: |
           EDITOR_GATES_OUT="$GITHUB_WORKSPACE/gate-output/e2e" npx playwright test $GATE_COMMAND --project=desktop-chromium
 
