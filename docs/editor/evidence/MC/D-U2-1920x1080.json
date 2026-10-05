@@ -1,0 +1,14 @@
+{
+  "gate": "U2 scripted (toolbar)",
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "limit_s": 20,
+  "elapsed_s": 0.12,
+  "removed_ms": 2080,
+  "user_actions": {
+    "clicks": 3
+  },
+  "pass": true
+}
