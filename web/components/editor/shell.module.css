@@ -1,18 +1,37 @@
-/* Editor V3 shell layout (plan Appendix C.1, T2.6). Values come from the tokens on `.tokens`
-   (editor.module.css); this file holds the rules. */
+/* Editor shell layout (plan Appendix C.1, T2.6; Mode Cepat spec §1.1, §5, §8). Values come from the
+   tokens on `.tokens` (editor.module.css); this file holds the rules. */
 
-/* ---------- Frame ---------- */
+/* ---------- Frame ----------
+   One grid with named areas per view. The children keep one order (top bar, side region, stage
+   region, bottom region), so a view switch never moves the stage.
+   - Mode Lengkap: the rail and the panel share the side region (the rail is its first column),
+     the stage fills the rest, the transport row and the timeline make the bottom region.
+   - Mode Cepat: the stage on the left, the cards on the right, the 96 px bottom bar below. */
 
 .shell {
+  --ed-bottom-region: calc(var(--ed-controls-height) + var(--ed-timeline-height));
   display: grid;
-  grid-template-rows: var(--ed-topbar-height) minmax(0, 1fr) var(--ed-timeline-height);
-  grid-template-columns: var(--ed-panel-width) minmax(0, 1fr);
+  grid-template-areas:
+    "top top top"
+    "rail side stage"
+    "bottom bottom bottom";
+  grid-template-rows: var(--ed-topbar-height) minmax(0, 1fr) var(--ed-bottom-region);
+  grid-template-columns: var(--ed-rail-width) var(--ed-panel-width) minmax(0, 1fr);
   height: 100vh;
   min-width: var(--ed-min-width);
   overflow: hidden;
   background: var(--bg);
   color: var(--text);
   font: var(--ed-font-size-md) / var(--ed-line-height) var(--ed-font-ui);
+}
+
+.shell[data-editor-view="cepat"] {
+  --ed-bottom-region: var(--ed-bottom-height);
+  grid-template-areas:
+    "top top"
+    "stage side"
+    "bottom bottom";
+  grid-template-columns: minmax(0, 1fr) var(--ed-side-width);
 }
 
 .shell *,
@@ -67,6 +86,7 @@
   opacity: 0.55;
 }
 
+/* Lime: Ekspor and one primary per dialog only (DESIGN.md, Mode Cepat spec §8.1). */
 .primary {
   border-color: var(--text);
   background: var(--accent);
@@ -78,20 +98,26 @@
   background: var(--accent-hover);
 }
 
+/* The neutral strong action (the read-only banner's "Mulai dari versi AI"): --text fill. */
+.strong {
+  border-color: var(--text);
+  background: var(--text);
+  color: var(--bg);
+}
+
+.strong:hover:not(:disabled) {
+  border-color: var(--text-muted);
+  background: var(--text-muted);
+  color: var(--bg);
+}
+
 .quiet {
   border-color: transparent;
   background: transparent;
 }
 
-.iconButton {
-  width: 34px;
-  padding: 0;
-}
-
 .warnButton {
   border-color: var(--warning);
-  background: var(--warning-bg);
-  color: var(--warning);
 }
 
 .linkButton {
@@ -104,38 +130,43 @@
   cursor: pointer;
 }
 
-/* ---------- Top bar ---------- */
+/* ---------- Top bar (both views) ---------- */
 
 .topBar {
-  grid-column: 1 / -1;
+  grid-area: top;
   display: flex;
   align-items: center;
-  gap: var(--ed-space-2);
+  gap: var(--ed-space-3);
   min-width: 0;
-  padding: 0 var(--ed-space-3);
+  padding: 0 var(--ed-space-4);
   border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--bg);
 }
 
 .backLink {
+  display: inline-flex;
   flex: none;
-  padding: 6px 8px;
-  border-radius: var(--ed-radius-sm);
-  color: var(--text);
-  font-weight: 600;
-  font-size: var(--ed-font-size-sm);
+  align-items: center;
+  min-height: var(--ed-target);
+  padding: 0 8px;
+  border-radius: var(--ed-radius-md);
+  color: var(--text-muted);
+  font-size: var(--ed-font-size-md);
+  font-weight: 500;
   text-decoration: none;
+  transition: background var(--dur-1), color var(--dur-1);
 }
 
 .backLink:hover {
   background: var(--surface-2);
+  color: var(--text);
 }
 
 .titleBlock {
   display: flex;
   flex: 1 1 auto;
-  align-items: baseline;
-  gap: var(--ed-space-2);
+  align-items: center;
+  gap: var(--ed-space-3);
   min-width: 0;
 }
 
@@ -149,103 +180,223 @@
   white-space: nowrap;
 }
 
+/* The save state: a dot of its tone and the text, on the top bar's --bg. */
 .saveStatus {
+  display: inline-flex;
   flex: none;
-  padding: 2px 8px;
-  border-radius: 99px;
-  font-size: var(--ed-font-size-xs);
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: var(--ed-font-size-note);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.saveStatus::before {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
+}
+
+.save_ok { /* on: --bg */ color: var(--text-muted); }
+.save_busy { /* on: --bg */ color: var(--info); }
+.save_warn { /* on: --bg */ color: var(--warning); }
+.save_danger { /* on: --bg */ color: var(--danger); }
+
+/* While another tab has the clip open (the store's BroadcastChannel). */
+.otherTab {
+  flex: none;
+  padding: 2px 10px;
+  border: 1px solid var(--warning-border);
+  border-radius: var(--radius-pill);
+  background: var(--warning-bg);
+  color: var(--warning);
+  font-size: var(--ed-font-size-note);
   font-weight: 600;
   white-space: nowrap;
 }
 
-.save_ok { background: var(--success-bg); color: var(--success); }
-.save_busy { background: var(--surface-3); color: var(--info); }
-.save_warn { background: var(--warning-bg); color: var(--warning); }
-.save_danger { background: var(--danger-bg); color: var(--danger); }
+/* The view switch: one segmented pill of native radios, each 44 px tall. */
+.viewSwitchWrap {
+  flex: none;
+}
 
-.toolbar {
+.viewSwitch {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+}
+
+.viewOption {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 88px;
+  min-height: var(--ed-target);
+  padding: 0 18px;
+  border-radius: var(--radius-pill);
+  color: var(--text-muted);
+  font-size: var(--ed-font-size-md);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--dur-1), color var(--dur-1);
+}
+
+.viewOption:hover {
+  /* on: --bg */
+  color: var(--text);
+}
+
+.viewOption:has(input:checked) {
+  background: var(--text);
+  color: var(--bg);
+  font-weight: 700;
+}
+
+.viewOption:has(input:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  box-shadow: var(--ed-focus-ring);
+}
+
+.viewRadio {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.history {
   display: flex;
   flex: none;
+  gap: 4px;
+}
+
+.iconButton {
+  display: inline-flex;
+  flex: none;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  width: var(--ed-target);
+  height: var(--ed-target);
+  padding: 0;
+  border: 0;
+  border-radius: var(--ed-radius-md);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background var(--dur-1), color var(--dur-1);
 }
 
-.divider {
-  width: 1px;
-  height: 24px;
-  margin: 0 2px;
-  background: var(--border);
+.iconButton:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--text);
 }
 
-/* ---------- Left panel ---------- */
+.iconButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* "Perlu dicek (n)": neutral at 0, a --warning edge while something needs the user. */
+.barButton {
+  min-height: var(--ed-target);
+  padding: 0 16px;
+  border-color: var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  font-size: var(--ed-font-size-md);
+}
+
+.barButton.warnButton {
+  border-color: var(--warning);
+}
+
+.exportButton {
+  min-height: var(--ed-target);
+  padding: 0 22px;
+  border-color: var(--accent);
+  border-radius: var(--radius-pill);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.exportButton:hover:not(:disabled) {
+  border-color: var(--accent-hover);
+}
+
+/* ---------- Mode Lengkap: rail and panel ---------- */
 
 .panels {
-  grid-row: 2;
-  grid-column: 1;
-  display: flex;
-  flex-direction: column;
+  grid-row: side;
+  grid-column: rail-start / side-end;
+  display: grid;
+  grid-template-columns: var(--ed-rail-width) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   min-height: 0;
   border-right: 1px solid var(--border);
   background: var(--surface);
 }
 
+/* The panel tabs as a column in the rail's place (the rail component draws its own rows). */
 .tabs {
   display: flex;
-  flex: none;
-  flex-wrap: wrap; /* six tabs with the W3 entries: two rows in the 320 px panel, never clipped */
-  gap: 2px;
-  padding: 0 var(--ed-space-2);
-  border-bottom: 1px solid var(--border);
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--ed-space-2) 6px;
+  border-right: 1px solid var(--border);
+  background: var(--bg);
 }
 
 .tab {
-  position: relative;
-  padding: 12px 10px 10px;
-  white-space: nowrap;
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--ed-target);
+  padding: 6px 4px;
   border: 0;
+  border-radius: var(--ed-radius-md);
   background: none;
   color: var(--text-muted);
-  font: 600 var(--ed-font-size-sm) var(--ed-font-ui);
+  font: 600 var(--ed-font-size-sm) / 1.2 var(--ed-font-ui);
+  text-align: center;
   cursor: pointer;
+  transition: background var(--dur-1), color var(--dur-1);
 }
 
-.tab[aria-selected="true"] {
+.tab:hover {
+  /* on: --bg */
   color: var(--text);
 }
 
-.tab[aria-selected="true"]::after {
-  position: absolute;
-  right: 8px;
-  bottom: -1px;
-  left: 8px;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--text);
-  content: "";
+.tab[aria-selected="true"] {
+  background: var(--surface-3);
+  color: var(--text);
 }
 
 .tabPanel {
-  flex: 1 1 auto;
+  min-width: 0;
   min-height: 0;
   overflow: auto;
   padding: var(--ed-space-3);
 }
 
-/* Mode Cepat (spec §1.1): stage on the left, the cards column on the right, the scrubber bar below.
-   Z0's frame for `?mode=cepat`; task A builds both views on named grid areas. */
-
-.shell[data-editor-view="cepat"] {
-  grid-template-rows: var(--ed-topbar-height) minmax(0, 1fr) var(--ed-bottom-height);
-  grid-template-columns: minmax(0, 1fr) var(--ed-side-width);
-}
-
-.shell[data-editor-view="cepat"] .stageRegion {
-  grid-column: 1;
-}
+/* ---------- Mode Cepat: cards and the bottom bar ---------- */
 
 .quickSide {
-  grid-row: 2;
-  grid-column: 2;
+  grid-area: side;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -255,22 +406,115 @@
 }
 
 .quickBottom {
-  grid-row: 3;
-  grid-column: 1 / -1;
+  grid-area: bottom;
   display: flex;
   align-items: center;
   gap: var(--ed-space-4);
   min-width: 0;
   padding: 0 var(--ed-space-4);
   border-top: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--bg);
+}
+
+/* The scrubber takes the bar's free width and its own height (marks and legend below the track). */
+.scrubberSlot {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+}
+
+/* ---------- Mode Lengkap: transport row and timeline ---------- */
+
+.lengkapBottom {
+  grid-area: bottom;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.lengkapBottom > [data-slot="timeline"] {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.controls {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--ed-space-2);
+  height: var(--ed-controls-height);
+  padding: 0 var(--ed-space-4);
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.playButton {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--ed-target);
+  height: var(--ed-target);
+  padding: 0;
+  border: 1px solid var(--text);
+  border-radius: 50%;
+  background: var(--text);
+  color: var(--bg);
+  cursor: pointer;
+  transition: background var(--dur-1), border-color var(--dur-1);
+}
+
+.playButton:hover:not(:disabled) {
+  border-color: var(--text-muted);
+  background: var(--text-muted);
+}
+
+.playButton:disabled,
+.stepButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.stepButton {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--ed-target);
+  height: var(--ed-target);
+  padding: 0;
+  border: 0;
+  border-radius: var(--ed-radius-md);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  transition: background var(--dur-1);
+}
+
+.stepButton:hover:not(:disabled) {
+  background: var(--surface-3);
+}
+
+.time {
+  flex: none;
+  color: var(--text);
+  font-size: var(--ed-font-size-md);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.timeTotal {
+  /* on: --bg */
+  color: var(--text-muted);
 }
 
 /* ---------- Stage ---------- */
 
 .stageRegion {
-  grid-row: 2;
-  grid-column: 2;
+  grid-area: stage;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -304,32 +548,57 @@
   color: var(--warning);
 }
 
+/* The read-only banner: neutral; its one action is the strong neutral button (spec §5.3, §8.1). */
 .banner {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--ed-space-3);
-  padding: 8px 12px;
-  border: 1px solid var(--warning);
+  padding: 8px 8px 8px 14px;
+  border: 1px solid var(--border-strong);
   border-radius: var(--ed-radius-md);
-  background: var(--warning-bg);
-  color: var(--warning);
-  font-size: var(--ed-font-size-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: var(--ed-font-size-md);
   font-weight: 600;
 }
 
+.banner .button {
+  min-height: var(--ed-target);
+  padding: 0 16px;
+  border-radius: var(--radius-pill);
+  font-size: var(--ed-font-size-md);
+}
+
+/* The stage centred between two overlay columns of equal width: the overlays sit beside the 9:16
+   frame, never over the video. */
 .stageArea {
   position: relative;
   display: flex;
   flex: 1 1 auto;
-  align-items: center;
   justify-content: center;
+  gap: var(--ed-space-3);
   min-height: 0;
-  padding: var(--ed-space-3);
+  padding: var(--ed-space-3) var(--ed-space-4);
+}
+
+.stageSide {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--ed-space-2);
+  min-width: 0;
+}
+
+.stageSideEnd {
+  align-items: flex-end;
 }
 
 .stageFrame {
   position: relative;
+  flex: none;
+  align-self: center;
   height: 100%;
   max-width: 100%;
   max-height: 100%;
@@ -377,115 +646,84 @@
   pointer-events: none;
 }
 
-/* ---------- Stage controls ---------- */
-
-.controls {
+/* Frame akhir and Zona aman (ui/PillToggle), stacked at the top right. */
+.stageToggles {
   display: flex;
-  flex: none;
-  align-items: center;
-  gap: 6px;
-  min-height: var(--ed-controls-height);
-  padding: 0 var(--ed-space-3);
-  border-top: 1px solid var(--border);
-  background: var(--surface-2);
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--ed-space-2);
 }
 
-.stageButton {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-width: 34px;
-  height: 34px;
-  padding: 0 10px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--ed-radius-md);
-  background: transparent;
-  color: var(--text);
-  font: 600 var(--ed-font-size-sm) / 1 var(--ed-font-ui);
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.stageButton:hover:not(:disabled) {
-  background: var(--surface-3);
-}
-
-.stageButton[aria-pressed="true"] {
-  border-color: var(--text);
-  background: var(--surface-3);
-}
-
-.stageButton:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
-.time {
-  min-width: 132px;
-  color: var(--text);
-  font: 600 var(--ed-font-size-sm) var(--ed-font-mono);
-  font-variant-numeric: tabular-nums;
-}
-
-.spacer {
-  flex: 1 1 auto;
-}
-
-/* ---------- Badge ---------- */
+/* ---------- Status (top left of the stage) ---------- */
 
 .badge {
   position: relative;
   display: flex;
-  align-items: center;
-  gap: 8px;
+  align-items: flex-start;
+  align-self: stretch;
+  gap: 4px;
   min-width: 0;
+}
+
+.badgeLines {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding-top: 11px;
 }
 
 .badgeText {
-  overflow: hidden;
-  font-size: var(--ed-font-size-sm);
-  font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: var(--ed-font-size-md);
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
-/* The detail shrinks first when the controls row is short (1366 px): it ends in "…" and the full
-   line stays in its title and in the "Apa artinya?" popover. */
 .badgeDetail {
-  min-width: 0;
-  overflow: hidden;
+  /* on: --bg */
   color: var(--text-muted);
-  font-size: var(--ed-font-size-xs);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: var(--ed-font-size-note);
+  line-height: 1.35;
 }
 
 .badge_exact .badgeText,
-.badge_truth .badgeText { color: var(--success); }
+.badge_truth .badgeText { /* on: --bg */ color: var(--success); }
 .badge_pending .badgeText,
-.badge_loading .badgeText { color: var(--warning); }
-.badge_unsupported .badgeText { color: var(--text); white-space: normal; }
-.badge_legacy .badgeText { color: var(--text); white-space: normal; }
-.badge_failed .badgeText { color: var(--danger); }
+.badge_loading .badgeText { /* on: --bg */ color: var(--warning); }
+.badge_unsupported .badgeText { /* on: --bg */ color: var(--text); }
+.badge_failed .badgeText { /* on: --bg */ color: var(--danger); }
 
 .helpButton {
+  display: inline-flex;
   flex: none;
-  padding: 2px 6px;
-  border: 1px solid var(--border-strong);
-  border-radius: 99px;
+  align-items: center;
+  justify-content: center;
+  width: var(--ed-target);
+  height: var(--ed-target);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
   background: transparent;
-  color: var(--text);
-  font: 600 var(--ed-font-size-xs) var(--ed-font-ui);
+  color: var(--text-muted);
   cursor: pointer;
+  transition: background var(--dur-1), color var(--dur-1);
+}
+
+.helpButton:hover,
+.helpButton[aria-expanded="true"] {
+  background: var(--surface-3);
+  color: var(--text);
 }
 
 .popover {
   position: absolute;
   z-index: 20;
+  top: calc(100% + 6px);
   right: 0;
-  bottom: calc(100% + 10px);
-  width: 320px;
+  left: 0;
+  min-width: 220px;
+  max-width: 340px;
   padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: var(--ed-radius-md);
@@ -1106,7 +1344,7 @@
 .toast {
   position: fixed;
   z-index: 40;
-  bottom: calc(var(--ed-timeline-height) + 16px);
+  bottom: calc(var(--ed-bottom-region) + 16px);
   left: 50%;
   max-width: 520px;
   padding: 10px 14px;

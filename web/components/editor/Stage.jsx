@@ -4,7 +4,9 @@
 // player composites into; the revision-0 `<video>` of the auto render, shown while the player
 // reports mode "auto_render" (§6.1 "Revision 0 before plate cells exist"); the TikTok safe-zone
 // overlay (§5.9 G5 zone); and the gizmo slot W3 mounts into (T3.2's LogoGizmo), so this file needs
-// no edit in W3.
+// no edit in W3. Beside the stage, never over the video, sit two overlay columns (Mode Cepat spec
+// §5.2): `overlayStart` (the status, top left) and `overlayEnd` (Frame akhir and Zona aman, top
+// right). Both sides share the free width equally, so the stage stays centred.
 import { useEffect, useRef } from "react";
 
 import styles from "./shell.module.css";
@@ -32,7 +34,7 @@ function SafeZone({ w, h }) {
   );
 }
 
-export default function Stage({ output, plan, playerMode, safeZone = false, onMedia, gizmos = null }) {
+export default function Stage({ output, plan, playerMode, safeZone = false, onMedia, gizmos = null, overlayStart = null, overlayEnd = null }) {
   const canvasRef = useRef(null);
   const videoRef = useRef(null);
   const w = output?.w ?? 720;
@@ -47,6 +49,7 @@ export default function Stage({ output, plan, playerMode, safeZone = false, onMe
 
   return (
     <div className={styles.stageArea}>
+      <div className={styles.stageSide} data-stage-overlay="start">{overlayStart}</div>
       <div className={styles.stageFrame} style={{ aspectRatio: `${w} / ${h}` }}>
         <canvas
           ref={canvasRef}
@@ -72,6 +75,7 @@ export default function Stage({ output, plan, playerMode, safeZone = false, onMe
         {safeZone && <SafeZone w={w} h={h} />}
         <div className={styles.gizmoLayer} data-slot="gizmos">{gizmos}</div>
       </div>
+      <div className={`${styles.stageSide} ${styles.stageSideEnd}`} data-stage-overlay="end">{overlayEnd}</div>
     </div>
   );
 }
