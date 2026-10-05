@@ -13,6 +13,14 @@ import { accordionIds, menuItemRole, menuMove } from "../components/editor/ui/ki
 
 const editorDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "components", "editor");
 const KIT_DIRS = ["ui", "quick", "rail", "scrubber"];
+// Lime off the editor screen but Ekspor (§8.1): the transient progress fills of B's directories
+// are the only rules that may name an --accent token.
+const LIME_DIRS = [...KIT_DIRS, "panels", "suggestions"];
+const LIME_ALLOWED = Object.freeze({
+  "suggestions/suggestions.module.css": [".fill"],
+  "panels/layout.module.css": [".cardFill"],
+  "panels/logo.module.css": [".bar"],
+});
 
 function cssFiles(dirs) {
   return dirs.flatMap((dir) => {
@@ -20,6 +28,24 @@ function cssFiles(dirs) {
     if (!existsSync(full)) return [];
     return readdirSync(full).filter((name) => name.endsWith(".css")).map((name) => path.join(dir, name));
   });
+}
+
+/** The word toolbar's stylesheets (task D), when they exist on this branch. */
+function wordToolbarCss() {
+  const dir = path.join(editorDir, "transcript");
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir).filter((name) => /^WordToolbar.*\.css$/.test(name)).map((name) => path.join("transcript", name));
+}
+
+/** Every rule of a stylesheet as `{ selectors, body }`, the rules inside @media included. */
+function rulesOf(source) {
+  const rules = [];
+  for (const match of source.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const prelude = match[1].trim();
+    if (prelude.startsWith("@")) continue;
+    rules.push({ selectors: prelude.split(",").map((item) => item.trim().replace(/\s+/g, " ")), body: match[2] });
+  }
+  return rules;
 }
 
 const css = (file) => readFileSync(path.join(editorDir, file), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
@@ -78,7 +104,7 @@ test("the kit's stylesheets exist where the components import them", () => {
 });
 
 test("motion in the kit comes from the duration tokens only (reduced motion sets them to 0 ms)", () => {
-  const files = cssFiles(KIT_DIRS);
+  const files = [...cssFiles(KIT_DIRS), ...wordToolbarCss()];
   assert.ok(files.length >= 2, "the scan reaches the kit's stylesheets");
   for (const file of files) {
     for (const [, prop, value] of css(file).matchAll(/(transition[\w-]*|animation[\w-]*)\s*:\s*([^;}]+)/g)) {
@@ -116,4 +142,57 @@ test("the accordion animates its rows over --dur-2 and hides a closed body after
   const open = ruleOf(source, '.cardBody[data-open="true"]');
   assert.match(open, /grid-template-rows:\s*1fr/);
   assert.match(open, /visibility:\s*visible/);
+});
+
+// --- task B: the cards, the panels' lime and the card-sized controls (§8.1, §8.4, §9.2) -------------
+
+test("--accent appears only on the allow-listed progress fills, and nowhere in ui/, quick/, rail/ or scrubber/", () => {
+  const files = cssFiles(LIME_DIRS);
+  assert.ok(files.includes(path.join("panels", "panels.module.css")) && files.includes(path.join("suggestions", "suggestions.module.css")),
+    "the scan reaches the panels and the suggestions");
+  const seen = [];
+  for (const file of files) {
+    const key = file.split(path.sep).join("/");
+    for (const rule of rulesOf(css(file))) {
+      if (!/--accent/.test(rule.body)) continue;
+      for (const selector of rule.selectors) {
+        seen.push(`${key} ${selector}`);
+        assert.ok((LIME_ALLOWED[key] ?? []).includes(selector), `${key} ${selector} uses an --accent token`);
+      }
+    }
+  }
+  assert.deepEqual(seen.sort(), ["panels/layout.module.css .cardFill", "panels/logo.module.css .bar", "suggestions/suggestions.module.css .fill"]);
+});
+
+test("a panel's main action stays neutral on hover: no .primary:hover with --accent in panels/", () => {
+  let checked = 0;
+  for (const file of cssFiles(["panels"])) {
+    for (const rule of rulesOf(css(file))) {
+      if (!rule.selectors.some((selector) => /\.primary:hover/.test(selector))) continue;
+      checked += 1;
+      assert.doesNotMatch(rule.body, /--accent/, `${file}: ${rule.selectors.join(", ")}`);
+      assert.match(rule.body, /background:\s*var\(--text-muted\)/, `${file}: the neutral hover fill`);
+      assert.match(rule.body, /(?:^|[;\s])color:\s*var\(--bg\)/, `${file}: the neutral hover text`);
+    }
+  }
+  assert.equal(checked, 2, "panels.module.css and logo.module.css keep a hover for their main action");
+});
+
+test("every control of the cards is at least var(--ed-target) (44 px) tall", () => {
+  const quick = css("quick/quick.module.css");
+  for (const selector of [".textInput", ".tile", ".addButton"]) {
+    const rule = ruleOf(quick, selector);
+    assert.ok(rule, `quick ${selector} has its own rule`);
+    assert.match(rule, new RegExp(String.raw`min-height:\s*${AT_LEAST_TARGET}`), `quick ${selector} min-height`);
+  }
+  const suggestions = css("suggestions/suggestions.module.css");
+  assert.match(ruleOf(suggestions, ".compactButton") ?? "", new RegExp(String.raw`min-height:\s*${AT_LEAST_TARGET}`), "a compact suggestion");
+  // The panel parts the Cold open card renders (TransitionSection, ColdOpenSuggestions) grow to the
+  // card's targets under data-touch; the Lengkap panel keeps its own sizes.
+  const panels = css("panels/panels.module.css");
+  for (const selector of ["[data-touch] .button", "[data-touch] .switch"]) {
+    assert.match(ruleOf(panels, selector) ?? "", new RegExp(String.raw`min-height:\s*${AT_LEAST_TARGET}`), `panels ${selector}`);
+  }
+  const coldOpen = css("panels/ColdOpenPanel.module.css");
+  assert.match(ruleOf(coldOpen, "[data-touch] .preset") ?? "", new RegExp(String.raw`min-height:\s*${AT_LEAST_TARGET}`), "a transition style in the card");
 });
