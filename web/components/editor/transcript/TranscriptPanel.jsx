@@ -6,7 +6,9 @@
 // words are outlined, keywords take their colour, and the active word follows playback (outside
 // React). Selection: click, Shift+click or drag; arrows move, Shift+arrows extend. Actions on a
 // selection: Delete/Backspace cut, Enter or double-click edits, Ctrl+Shift+X hides from captions,
-// Ctrl+E marks a keyword, I / O trim, Ctrl+Shift+H makes a cold open. Each also has a button.
+// Ctrl+E marks a keyword, I / O trim, Ctrl+Shift+H makes a cold open. Each is also on the
+// contextual toolbar over the selection (WordToolbar.jsx; docs/plans/2026-10-02-editor-mode-cepat.md
+// §6.2), which Tab reaches from the words and Esc leaves.
 //
 // Props: { state, dispatch, player, api? } (panels/index.mjs). Everything the panel shows comes
 // from `state.doc` and `state.words` through `model.mjs`, synchronously, so a command updates the
@@ -26,6 +28,8 @@ import { commandsFor, keyAction, runCommands, selectionActions } from "./actions
 import { followActiveWord } from "./active-word.mjs";
 import { auditionRange, badgeMarks, cleanupView, planApply } from "./cleanup-model.mjs";
 import CleanupReview from "./CleanupReview.jsx";
+import { TOOLBAR_TAB_HELP } from "./word-toolbar.mjs";
+import WordToolbar from "./WordToolbar.jsx";
 import { buildTranscriptModel, coldOpenInfo, formatDuration, seekFrameOf } from "./model.mjs";
 import RemovalChip from "./RemovalChip.jsx";
 import {
@@ -184,6 +188,9 @@ function Transcript({ state, dispatch, player, api }) {
   const [expanded, setExpanded] = useState({ before: false, after: false });
   const dragging = useRef(false);
   const revealFocus = useRef(false);
+  const boxRef = useRef(null);
+  const headerRef = useRef(null);
+  const toolbarControl = useRef(null);
 
   // Callbacks read the latest dispatch through a ref, so they (and the memoised paragraphs) stay
   // stable even when the shell passes a new dispatch function on every render.
@@ -336,8 +343,12 @@ function Transcript({ state, dispatch, player, api }) {
   // The active word, outside React.
   useEffect(() => followActiveWord({ list: listRef.current, player, getModel: () => modelRef.current }), [player]);
 
+  // While a drag selects, the toolbar waits (it appears on mouseup).
   useEffect(() => {
-    const stop = () => { dragging.current = false; };
+    const stop = () => {
+      dragging.current = false;
+      if (boxRef.current) delete boxRef.current.dataset.dragging;
+    };
     window.addEventListener("mouseup", stop);
     return () => window.removeEventListener("mouseup", stop);
   }, []);
@@ -372,6 +383,7 @@ function Transcript({ state, dispatch, player, api }) {
     focusList();
     selectionStore.set(event.shiftKey ? extendTo(selectionStore.get(), index) : selectOne(index));
     dragging.current = !event.shiftKey;
+    if (dragging.current && boxRef.current) boxRef.current.dataset.dragging = "";
   };
   const onMouseOver = (event) => {
     if (!dragging.current || !(event.buttons & 1)) return;
@@ -390,6 +402,12 @@ function Transcript({ state, dispatch, player, api }) {
   };
   const onKeyDown = (event) => {
     if (event.target !== event.currentTarget) return;
+    if (event.key === "Tab" && !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey
+      && toolbarControl.current?.focusFirst()) {
+      // With a selection, Tab goes to its toolbar first and on through the page from there.
+      event.preventDefault();
+      return;
+    }
     const name = keyAction(event);
     if (!name) return;
     event.preventDefault();
@@ -421,10 +439,10 @@ function Transcript({ state, dispatch, player, api }) {
     }
   };
 
-  const toolbarAction = (name) => () => {
+  const toolbarAction = useCallback((name) => {
     perform(name);
     focusList();
-  };
+  }, [perform, focusList]);
 
   const selFirst = range ? range[0] : -1;
   const selLast = range ? range[1] : -1;
@@ -440,39 +458,20 @@ function Transcript({ state, dispatch, player, api }) {
     const last = paras.at(-1).end - 1;
     return `Tampilkan ${paras.length} kalimat ${side} (${SECONDS.format(spanMs(list, first, last) / 1000)} dtk)`;
   };
-  const tool = (name, label, shortcut, extra = {}) => {
-    const entry = actions[name];
-    return (
-      <button type="button" className={styles.tool} disabled={!entry.enabled}
-        title={[shortcut, entry.enabled ? null : entry.reason].filter(Boolean).join(" · ") || undefined}
-        onClick={toolbarAction(name)} {...extra}>
-        {label}
-      </button>
-    );
-  };
 
   return (
     <section data-panel="transcript" className={styles.panel} aria-busy={false}>
-      <div className={styles.header}>
-        <div role="toolbar" aria-label="Aksi kata" className={styles.toolbar}>
-          {tool("remove", "Hapus", "Delete")}
-          {tool("restore", "Pulihkan", null)}
-          {tool("edit", "Edit kata", "Enter")}
-          {tool("hide", "Sembunyikan", "Ctrl+Shift+X", { "aria-pressed": actions.hide.enabled ? !actions.hide.on : undefined })}
-          {tool("emphasis", "Kata kunci", "Ctrl+E", { "aria-pressed": actions.emphasis.enabled ? !actions.emphasis.on : undefined })}
-          {tool("trimStart", "Mulai di sini", "I")}
-          {tool("trimEnd", "Akhiri di sini", "O")}
-          {tool("extend", "Perpanjang ke sini", null)}
-          {tool("coldOpen", "Jadikan cold open", "Ctrl+Shift+H")}
-        </div>
-        <div className={styles.cleanupBar}>
-          <p className={styles.status} role="status" data-transcript-status="">{status}</p>
+      <div ref={headerRef} className={styles.header}>
+        <div className={styles.headRow}>
+          {/* The panel's name is the shell's heading (the rail tab names it too); this is its visible label. */}
+          <span className={styles.label} aria-hidden="true">Transkrip</span>
           <button type="button" className={`${styles.tool} ${styles.cleanupToggle}`} aria-expanded={reviewOpen}
             aria-controls="cleanup-review" data-cleanup-toggle="" onClick={toggleReview}
             title="Kata pengisi, pengulangan dan jeda panjang yang bisa dipotong">
-            Rapikan{openCount !== null ? <> <span className={styles.cleanupCount}>{openCount}</span></> : null}
+            {openCount !== null ? `Rapikan · ${openCount}` : "Rapikan"}
           </button>
         </div>
+        <p className={styles.status} role="status" data-transcript-status="">{status}</p>
         {message ? <p className={styles.message} role="alert" data-transcript-message="">{message}</p> : null}
         {coldOpen ? (
           <p className={styles.coldNote}>
@@ -488,59 +487,65 @@ function Transcript({ state, dispatch, player, api }) {
       <p id={HELP_ID} className={styles.srOnly}>
         Panah memindah pilihan, Shift+panah memperluas. Delete memotong kata, Enter mengedit, Ctrl+Shift+X
         menyembunyikan dari caption, Ctrl+E menandai kata kunci, I dan O memotong awal dan akhir klip, Ctrl+Shift+H
-        menjadikan cold open.
+        menjadikan cold open. {TOOLBAR_TAB_HELP}
       </p>
-      <div
-        ref={listRef}
-        className={styles.words}
-        role="group"
-        aria-label="Transkrip"
-        aria-describedby={HELP_ID}
-        tabIndex={0}
-        data-transcript-words=""
-        style={{ "--tr-emphasis": doc.captions?.overrides?.emphasis ?? DEFAULT_EMPHASIS }}
-        onMouseDown={onMouseDown}
-        onMouseOver={onMouseOver}
-        onClick={onClick}
-        onDoubleClick={onDoubleClick}
-        onKeyDown={onKeyDown}
-      >
-        {model.paragraphs.length === 0 ? <p className={styles.loading}>Transkrip klip ini kosong.</p> : null}
-        {hiddenBefore.length ? (
-          <button type="button" className={styles.context} onClick={() => setExpanded((value) => ({ ...value, before: true }))}>
-            {contextLabel(hiddenBefore, "sebelumnya")}
-          </button>
-        ) : null}
-        {expanded.before && folded.before > 0 ? (
-          <button type="button" className={styles.context} onClick={() => setExpanded((value) => ({ ...value, before: false }))}>
-            Sembunyikan kalimat sebelumnya
-          </button>
-        ) : null}
-        {model.paragraphs.slice(showFrom, showTo).map((para) => {
-          const inside = selFirst < para.end && selLast >= para.start;
-          return (
-            <Paragraph
-              key={para.key}
-              para={para}
-              selFirst={inside ? selFirst : -1}
-              selLast={inside ? selLast : -1}
-              editing={editing >= para.start && editing < para.end ? editing : -1}
-              onEditDone={onEditDone}
-              onRestore={onRestore}
-              readOnly={readOnly}
-              marks={marks}
-            />
-          );
-        })}
-        {hiddenAfter.length ? (
-          <button type="button" className={styles.context} onClick={() => setExpanded((value) => ({ ...value, after: true }))}>
-            {contextLabel(hiddenAfter, "sesudahnya")}
-          </button>
-        ) : null}
-        {expanded.after && folded.after < model.paragraphs.length ? (
-          <button type="button" className={styles.context} onClick={() => setExpanded((value) => ({ ...value, after: false }))}>
-            Sembunyikan kalimat sesudahnya
-          </button>
+      <div ref={boxRef} className={styles.wordsBox}>
+        <div
+          ref={listRef}
+          className={styles.words}
+          role="group"
+          aria-label="Transkrip"
+          aria-describedby={HELP_ID}
+          tabIndex={0}
+          data-transcript-words=""
+          style={{ "--tr-emphasis": doc.captions?.overrides?.emphasis ?? DEFAULT_EMPHASIS }}
+          onMouseDown={onMouseDown}
+          onMouseOver={onMouseOver}
+          onClick={onClick}
+          onDoubleClick={onDoubleClick}
+          onKeyDown={onKeyDown}
+        >
+          {model.paragraphs.length === 0 ? <p className={styles.loading}>Transkrip klip ini kosong.</p> : null}
+          {hiddenBefore.length ? (
+            <button type="button" className={styles.context} onClick={() => setExpanded((value) => ({ ...value, before: true }))}>
+              {contextLabel(hiddenBefore, "sebelumnya")}
+            </button>
+          ) : null}
+          {expanded.before && folded.before > 0 ? (
+            <button type="button" className={styles.context} onClick={() => setExpanded((value) => ({ ...value, before: false }))}>
+              Sembunyikan kalimat sebelumnya
+            </button>
+          ) : null}
+          {model.paragraphs.slice(showFrom, showTo).map((para) => {
+            const inside = selFirst < para.end && selLast >= para.start;
+            return (
+              <Paragraph
+                key={para.key}
+                para={para}
+                selFirst={inside ? selFirst : -1}
+                selLast={inside ? selLast : -1}
+                editing={editing >= para.start && editing < para.end ? editing : -1}
+                onEditDone={onEditDone}
+                onRestore={onRestore}
+                readOnly={readOnly}
+                marks={marks}
+              />
+            );
+          })}
+          {hiddenAfter.length ? (
+            <button type="button" className={styles.context} onClick={() => setExpanded((value) => ({ ...value, after: true }))}>
+              {contextLabel(hiddenAfter, "sesudahnya")}
+            </button>
+          ) : null}
+          {expanded.after && folded.after < model.paragraphs.length ? (
+            <button type="button" className={styles.context} onClick={() => setExpanded((value) => ({ ...value, after: false }))}>
+              Sembunyikan kalimat sesudahnya
+            </button>
+          ) : null}
+        </div>
+        {range && editing < 0 ? (
+          <WordToolbar actions={actions} onAction={toolbarAction} onLeave={focusList} boxRef={boxRef} headerRef={headerRef}
+            controlRef={toolbarControl} range={range} model={model} />
         ) : null}
       </div>
     </section>
