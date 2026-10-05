@@ -90,9 +90,20 @@ async function currentDoc(page) {
   return page.evaluate(() => window.__harness.store.getState().doc);
 }
 
+// The word toolbar floats over the words next to the last selection, as a user sees it: Esc on
+// the words clears that selection first, and a held Shift lets the Shift+click through the
+// toolbar to the word under it.
 async function selectRange(page, first, last) {
+  if (await page.getByRole("toolbar", { name: "Aksi kata terpilih" }).count()) {
+    await wordList(page).focus();
+    await page.keyboard.press("Escape");
+  }
   await word(page, first).click();
-  if (last !== first) await word(page, last).click({ modifiers: ["Shift"] });
+  if (last !== first) {
+    await page.keyboard.down("Shift");
+    await word(page, last).click();
+    await page.keyboard.up("Shift");
+  }
 }
 
 async function openTab(page, name) {
@@ -352,7 +363,10 @@ test.describe("word toolbar", () => {
     await expect(toolbar(page)).toHaveAttribute("data-placement", "above");
     const { bar, selected } = await boxes(page, first, first + 3);
     expect(bar.y + bar.height).toBeLessThanOrEqual(selected[0].y - 8 + 0.5);
-    expect(Math.abs(bar.x - selected[0].x)).toBeLessThanOrEqual(1);
+    // Its left edge on the first word's, clamped so it stays inside the box around the words.
+    const words = await wordList(page).boundingBox();
+    const left = Math.max(0, Math.min(selected[0].x - words.x, words.width - bar.width));
+    expect(Math.abs(bar.x - (words.x + left))).toBeLessThanOrEqual(1);
     for (const box of selected) expect(overlaps(bar, box)).toBe(false);
     const panel = await page.locator('[role="tabpanel"]').boundingBox();
     expect(bar.x + bar.width).toBeLessThanOrEqual(panel.x + panel.width + 0.5);
@@ -475,7 +489,7 @@ test.describe("cold-open panel", () => {
     await expect(panel.locator("[data-coldopen-reason]")).toContainText("maksimal 8 dtk");
     await openTab(page, "Transkrip");
     const [single] = unit(DEMO.newColdOpen);
-    await word(page, single).click();
+    await selectRange(page, single, single);
     await expect(toolbar(page).getByRole("button", { name: "Jadikan cold open" })).toBeDisabled();
     await openTab(page, "Cold open");
     await expect(panel.locator("[data-coldopen-reason]")).toContainText("minimal 0,5 dtk");

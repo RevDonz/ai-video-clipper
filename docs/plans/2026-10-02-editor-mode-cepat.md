@@ -1281,6 +1281,11 @@ silent or the base differed:
    back to the words, as after a chip; "Edit kata" focuses the word editor. A Tab pressed right
    after a click places the toolbar at once instead of waiting for the next frame; when no
    selected word is on screen, Tab moves on as usual.
+   The toolbar covers the words next to the selection, below it in most short panels, where a
+   Shift+click to extend the range usually lands ("Shift+klik untuk rentang"). While Shift is
+   held and focus is not in the toolbar, it fades to 35 % and lets clicks through to the words.
+   A plain click on a covered word needs the selection cleared first (Esc), as with any floating
+   toolbar; the specs do the same.
 8. **The header** keeps a visible "TRANSKRIP" label (`aria-hidden`: the shell's `h2` names the
    panel) and "Rapikan · n" (44 px tall) on one row, the status line under them.
 9. **The scrubber's control** is a native range input laid transparent over the drawing. Its
