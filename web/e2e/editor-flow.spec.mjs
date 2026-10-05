@@ -15,6 +15,12 @@
 // waveform, markers and cold-open suggestions. The entry flow runs first so it can meet the job
 // unprepared (copy a job without its analysis/clips folder to see the progress).
 //
+// Mode Cepat (docs/plans/2026-10-02-editor-mode-cepat.md): the editor opens in Mode Cepat unless
+// the address or the viewer's last choice says Lengkap. The entry flow checks that default; U4, U5
+// and the new U8 run in Mode Cepat as UJI-PENERIMAAN describes them (U5 keeps its stop condition,
+// the music lane in Mode Lengkap); the flows that work on the transcript open Mode Lengkap by
+// address; PF-OPEN and QG-A11Y measure both views.
+//
 // Setup (every value is required unless marked optional):
 //   E2E_BASE_URL, E2E_USERNAME, E2E_PASSWORD      a private server (never the owner's :3000)
 //   E2E_EDITOR_JOB_ID                            a V3 job in that server's JOBS_ROOT (a copy)
@@ -36,6 +42,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { crc32, deflateSync } from "node:zlib";
 
+import { openCard } from "./support/editor-cards.mjs";
 import { resetToAi } from "./support/editor-topbar.mjs";
 import { wordAction } from "./support/editor-words.mjs";
 import { login, settings } from "./support/harness.mjs";
@@ -56,6 +63,7 @@ const U4_MS = 30_000;
 const U5_MS = 60_000;
 const U6_EXTRA_MS = 30_000;
 const U7_RESET_MS = 20_000;
+const U8_MS = 20_000;
 const PF_OPEN_FIRST_MS = 3_000;
 const PF_OPEN_REPEAT_MS = 2_000;
 const PF_OPEN_CELL_MS = 2_000;
@@ -129,6 +137,14 @@ function percentile(values, p) {
 }
 
 const editorUrl = (clipId) => `/projects/${JOB_ID}/clips/${clipId}/edit?mode=lengkap`;
+const cepatUrl = (clipId) => `/projects/${JOB_ID}/clips/${clipId}/edit?mode=cepat`;
+// The moment each view is interactive (Mode Cepat spec AC15): Lengkap's transcript panel, Cepat's
+// Caption card body with a control in it.
+const INTERACTIVE = Object.freeze({
+  lengkap: '[data-panel="transcript"]',
+  cepat: "#card-caption-region :is(input, button, select, textarea)",
+});
+const editorRoot = (page) => page.locator("[data-editor-root]");
 const inspect = (page) => page.evaluate(() => {
   const hook = globalThis.__potonginEditorInspect;
   if (!hook) return null;
@@ -149,10 +165,12 @@ function contentOf(doc) {
   return canonical(rest);
 }
 
-async function openEditor(page, clipId) {
+/** Opens a clip in Mode Lengkap (the default here) or, with `view: "cepat"`, in Mode Cepat. */
+async function openEditor(page, clipId, { view = "lengkap" } = {}) {
   const started = Date.now();
-  await page.goto(editorUrl(clipId));
+  await page.goto(view === "cepat" ? cepatUrl(clipId) : editorUrl(clipId));
   await expect(page.locator('[data-editor-ready="true"]')).toBeVisible({ timeout: 60_000 });
+  await expect(editorRoot(page)).toHaveAttribute("data-editor-view", view);
   return Date.now() - started;
 }
 
@@ -304,6 +322,10 @@ test("entry: 'Edit klip' on every clip card and in the history; a clip opens wit
   await expect(page.locator('[data-editor-ready="true"]')).toBeVisible({ timeout: 12 * 60_000 });
   const openMs = Date.now() - started;
   expect(new URL(page.url()).pathname).toMatch(new RegExp(`^/projects/${JOB_ID}/clips/clip_[0-9a-f]{24}/edit$`));
+  // A fresh profile opens Mode Cepat with the Caption card open, and the address stays as it was.
+  await expect(editorRoot(page)).toHaveAttribute("data-editor-view", "cepat");
+  await expect(page.locator("#card-caption-button")).toHaveAttribute("aria-expanded", "true");
+  expect(new URL(page.url()).search).toBe("");
   await ensureClips(page);
   writeEvidence("W3-e2e-entry", { schema: "potongin.gate/1", gate: "e2e entry: Edit klip and the automatic prepare (real stack)",
     ...browserInfo(browser), cards: count, unpreparedAtStart, openMs, openableAfter: clips.length, pass: true });
@@ -468,8 +490,9 @@ test("QG-CONFLICT: two tabs edit the same clip; both edits survive or the per-pa
   await resetToSeed(a);
   const b = await context.newPage();
   await openEditor(b, clip.clipId);
-  await expect(a.getByText("Klip ini terbuka di tab lain")).toBeVisible();
-  await expect(b.getByText("Klip ini terbuka di tab lain")).toBeVisible();
+  // The top bar's chip (Mode Cepat spec §5.3).
+  await expect(a.locator('[data-slot="topBar"]').getByText("Terbuka di tab lain", { exact: true })).toBeVisible();
+  await expect(b.locator('[data-slot="topBar"]').getByText("Terbuka di tab lain", { exact: true })).toBeVisible();
 
   // Different parts: A the hook text, B a caption word, saved at the same time → merged.
   await openTab(a, "Teks");
@@ -624,19 +647,21 @@ test("QG-UX U6 (scripted): export and download in ≤ clip length + 30 s", async
   await resetToSeed(page);
 });
 
+// U7 (UJI-PENERIMAAN §9.6): part 1 in Mode Cepat's Hook and Caption cards; part 2 through ⋯ Lainnya.
 test("QG-UX U7 (scripted): reload mid-edit loses nothing; 'Kembali ke versi AI' found in ≤ 20 s", async ({ page, browser }) => {
   const clip = clips[0];
-  await openEditor(page, clip.clipId);
+  await openEditor(page, clip.clipId, { view: "cepat" });
   await resetToSeed(page);
-  await openTab(page, "Teks");
-  await page.getByRole("textbox", { name: "Teks hook" }).fill("Hook sebelum muat ulang");
+  const hook = await openCard(page, "hook");
+  await hook.getByRole("textbox", { name: "Teks di awal klip" }).fill("Hook sebelum muat ulang");
   await blur(page);
-  const packs = page.getByRole("group", { name: "Gaya caption" });
-  await packs.getByRole("radio", { name: "Box" }).check();
+  const caption = await openCard(page, "caption");
+  await caption.getByRole("group", { name: "Gaya caption" }).getByRole("radio", { name: "Box" }).check();
   const before = await inspect(page);
   expect(before.commands).toBeGreaterThan(0); // not saved yet: the reload comes before autosave
   await page.reload();
   await expect(page.locator('[data-editor-ready="true"]')).toBeVisible({ timeout: 60_000 });
+  await expect(editorRoot(page)).toHaveAttribute("data-editor-view", "cepat");
   const after = await waitSaved(page);
   const lost = contentOf(after.doc) === contentOf(before.doc) ? 0 : 1;
   expect(lost).toBe(0);
@@ -645,10 +670,40 @@ test("QG-UX U7 (scripted): reload mid-edit loses nothing; 'Kembali ke versi AI' 
   const reset = await waitSaved(page);
   const elapsed = Date.now() - started;
   expect(contentOf(reset.doc)).toBe(contentOf(reset.seed));
-  writeEvidence("T2.Z-QG-UX-U7", { schema: "potongin.gate/1", gate: "QG-UX U7 (scripted, real stack)", ...browserInfo(browser),
-    viewport: "1366x768", unsavedCommandsAtReload: before.commands, lostCommands: lost, resetFoundMs: elapsed, limitMs: U7_RESET_MS,
+  writeEvidence("MC-Z-QG-UX-U7", { schema: "potongin.gate/1", gate: "QG-UX U7 (scripted, real stack, Mode Cepat)", ...browserInfo(browser),
+    viewport: "1366x768", view: "cepat", unsavedCommandsAtReload: before.commands, lostCommands: lost, resetFoundMs: elapsed, limitMs: U7_RESET_MS,
     pass: lost === 0 && elapsed <= U7_RESET_MS });
   expect(elapsed).toBeLessThanOrEqual(U7_RESET_MS);
+});
+
+// U8 (new with Mode Cepat, UJI-PENERIMAAN §9.6): fix one caption word in the Teks caption card. It
+// stops when the preview's caption shows the word and the top bar says "Tersimpan".
+test("QG-UX U8 (scripted): fix one caption word in Mode Cepat in ≤ 20 s", async ({ page, browser }) => {
+  const clip = clips[0];
+  await openEditor(page, clip.clipId, { view: "cepat" });
+  await resetToSeed(page);
+  const card = await openCard(page, "lines");
+  const field = card.locator("[data-line-key] input").first();
+  await expect(field).toBeVisible({ timeout: 60_000 });
+  const tokens = (await field.inputValue()).split(/\s+/u);
+  const at = tokens.findIndex((token) => /^\p{L}{3,}$/u.test(token));
+  expect(at, `a plain word in "${tokens.join(" ")}"`).toBeGreaterThanOrEqual(0);
+  const fixed = `${tokens[at]}lah`;
+  const started = Date.now();
+  await field.click();
+  await field.fill(tokens.map((token, index) => (index === at ? fixed : token)).join(" "));
+  await field.press("Enter");
+  const shown = (word) => page.evaluate((text) => (globalThis.__potonginEditorInspect.state().plan?.cues ?? [])
+    .some((cue) => cue.text.split(/\s+/u).some((token) => token.toLocaleLowerCase("id") === text)), word.toLocaleLowerCase("id"));
+  await expect.poll(() => shown(fixed), { timeout: U8_MS }).toBe(true);
+  await expect(page.getByRole("status").filter({ hasText: /^Tersimpan/ })).toBeVisible({ timeout: U8_MS });
+  const saved = await waitSaved(page);
+  const elapsed = Date.now() - started;
+  expect(Object.values(saved.doc.captions.word_edits ?? {}).some((edit) => edit.text === fixed)).toBe(true);
+  writeEvidence("MC-Z-QG-UX-U8", { schema: "potongin.gate/1", gate: "QG-UX U8 (scripted, real stack, Mode Cepat)", ...browserInfo(browser),
+    viewport: "1366x768", view: "cepat", elapsedMs: elapsed, limitMs: U8_MS, pass: elapsed <= U8_MS });
+  expect(elapsed).toBeLessThanOrEqual(U8_MS);
+  await resetToSeed(page);
 });
 
 /** The job's clips that were never opened in the editor (no `preview/` directory yet). */
@@ -718,10 +773,17 @@ const hookTextOf = (doc) => doc.tracks.find((track) => track.kind === "hook")?.i
 const panelOf = (page, id) => page.locator(`[data-panel="${id}"]`);
 
 // "Sesuai hasil akhir"; back at the AI version of a clip whose auto file came before the editor
-// (the engine stays legacy until K1) the badge says the export is that file instead.
+// (the engine stays legacy until K1) the status is the legacy one instead: empty, its "?" help says
+// the export is that file (Mode Cepat spec §5.2, §5.3).
 async function exactBadge(page, { timeout = 120_000, unchangedOk = false } = {}) {
-  const text = unchangedOk ? /^● (?:Sesuai hasil akhir|Belum diubah: ekspor = klip otomatis)$/ : "● Sesuai hasil akhir";
-  await expect(page.getByTestId("stage-badge")).toHaveText(text, { timeout });
+  const status = page.getByTestId("stage-badge");
+  if (!unchangedOk) {
+    await expect(status).toHaveText("Sesuai hasil akhir", { timeout });
+    return;
+  }
+  await expect(page.locator("[data-badge-tone]")).toHaveAttribute("data-badge-tone", /^(?:exact|legacy)$/, { timeout });
+  const tone = await page.locator("[data-badge-tone]").getAttribute("data-badge-tone");
+  await expect(status).toHaveText(tone === "exact" ? "Sesuai hasil akhir" : "");
 }
 
 test("W3 logo: upload, a corner, size and opacity; the stage shows it exactly", async ({ page }) => {
@@ -770,51 +832,58 @@ test("W3 music: upload a bed, the Kuat duck preset, the lane follows; the stage 
   writeEvidence("W3-e2e-music", { schema: "potongin.gate/1", gate: "e2e music (real stack)", uploadMs, payload: music.payload, pass: true });
 });
 
-test("QG-UX U4 (scripted): apply a suggested hook and switch the pack in ≤ 30 s", async ({ page, browser }) => {
-  await openEditor(page, clips[0].clipId);
+// U4 in Mode Cepat (UJI-PENERIMAAN §9.6): the Hook card's suggestion, then a pack in the Caption card.
+test("QG-UX U4 (scripted): apply a suggested hook and switch the pack in Mode Cepat in ≤ 30 s", async ({ page, browser }) => {
+  await openEditor(page, clips[0].clipId, { view: "cepat" });
   await resetToSeed(page);
-  const seedPack = (await inspect(page)).doc.captions.pack.id;
-  const target = seedPack === "bold" ? "Box" : "Bold";
+  const seed = (await inspect(page)).doc;
+  const target = seed.captions.pack.id === "bold" ? "Box" : "Bold";
   const started = Date.now();
-  await openTab(page, "Teks");
-  const card = page.locator('[data-hook-suggestions] [data-suggestion][data-current="false"]').first();
-  await card.getByRole("button", { name: /^Pakai hook: / }).click();
-  const packs = page.getByRole("group", { name: "Gaya caption" });
-  await packs.getByRole("radio", { name: target }).check();
+  const hook = await openCard(page, "hook");
+  await hook.locator('[data-hook-suggestions] button[data-suggestion][aria-pressed="false"]').first().click();
+  const caption = await openCard(page, "caption");
+  await caption.getByRole("group", { name: "Gaya caption" }).getByRole("radio", { name: target }).check();
   const saved = await waitSaved(page);
   const elapsed = Date.now() - started;
   expect(saved.doc.captions.pack.id).toBe(target.toLowerCase());
-  writeEvidence("W3Z-QG-UX-U4", { schema: "potongin.gate/1", gate: "QG-UX U4 (scripted, real stack)", ...browserInfo(browser),
-    viewport: "1366x768", pack: target, elapsedMs: elapsed, limitMs: U4_MS, pass: elapsed <= U4_MS });
+  expect(hookTextOf(saved.doc)).not.toBe(hookTextOf(seed));
+  writeEvidence("MC-Z-QG-UX-U4", { schema: "potongin.gate/1", gate: "QG-UX U4 (scripted, real stack, Mode Cepat)", ...browserInfo(browser),
+    viewport: "1366x768", view: "cepat", pack: target, elapsedMs: elapsed, limitMs: U4_MS, pass: elapsed <= U4_MS });
   expect(elapsed).toBeLessThanOrEqual(U4_MS);
   await resetToSeed(page);
 });
 
-test("QG-UX U5 (scripted): add a logo and ducked music in ≤ 60 s", async ({ page, browser }) => {
+// U5 in Mode Cepat (UJI-PENERIMAAN §9.6): the Logo & Musik card adds both and picks the strength. The
+// stop condition is unchanged (spec §11 Q5): the music lane, in Mode Lengkap, shows the lowered line.
+test("QG-UX U5 (scripted): add a logo and ducked music in Mode Cepat in ≤ 60 s", async ({ page, browser }) => {
   test.skip(!UPLOADS, "set E2E_EDITOR_UPLOADS=1 for a server with POTONGIN_EDITOR_UPLOADS=on");
   test.setTimeout(5 * 60_000);
-  await openEditor(page, clips[0].clipId);
+  await openEditor(page, clips[0].clipId, { view: "cepat" });
   await resetToSeed(page);
   const started = Date.now();
-  await openTab(page, "Logo");
-  await panelOf(page, "logo").locator('input[type="file"]').setInputFiles({ name: "logo-u5.png", mimeType: "image/png", buffer: pngLogo(180, 72) });
-  await expect(panelOf(page, "logo").getByRole("radio", { name: "Kanan atas" })).toBeEnabled({ timeout: 60_000 });
-  await panelOf(page, "logo").getByRole("radio", { name: "Kanan atas" }).check();
-  await openTab(page, "Musik");
-  const chooser = page.waitForEvent("filechooser");
-  await panelOf(page, "music").getByRole("button", { name: "Tambah musik" }).click();
-  if (await panelOf(page, "music").getByRole("button", { name: "Pilih file musik" }).isVisible()) {
-    await panelOf(page, "music").getByRole("button", { name: "Pilih file musik" }).click();
-  }
+  const card = await openCard(page, "extras");
+  let chooser = page.waitForEvent("filechooser");
+  await card.getByRole("button", { name: "Tambah logo" }).click();
+  await (await chooser).setFiles({ name: "logo-u5.png", mimeType: "image/png", buffer: pngLogo(180, 72) });
+  await expect(card.getByRole("button", { name: "Hapus logo" })).toBeVisible({ timeout: 60_000 });
+  chooser = page.waitForEvent("filechooser");
+  await card.getByRole("button", { name: "Tambah musik" }).click();
+  // A fresh profile reads the one-time copyright notice first (the same key in both views).
+  await card.getByRole("button", { name: "Pilih file musik" }).click();
   await (await chooser).setFiles({ name: "latar-u5.wav", mimeType: "audio/wav", buffer: wavTone(15) });
-  await expect(panelOf(page, "music").locator("[data-music-card]")).toBeVisible({ timeout: 60_000 });
-  await panelOf(page, "music").getByRole("radio", { name: /Sedang/ }).check();
-  const saved = await waitSaved(page);
+  await expect(card.locator("[data-music-name]")).toBeVisible({ timeout: 60_000 });
+  await card.getByRole("group", { name: "Saat ada suara" }).getByRole("radio", { name: /Sedang/ }).check();
+  await card.locator('[data-extras="music"]').getByRole("button", { name: "Atur detail di Mode Lengkap" }).click();
+  await expect(editorRoot(page)).toHaveAttribute("data-editor-view", "lengkap");
+  await expect(page.locator('[data-lane="music"]').getByRole("img", { name: "Volume musik sepanjang klip: turun saat ada suara" }))
+    .toBeVisible({ timeout: 60_000 });
   const elapsed = Date.now() - started;
+  const saved = await waitSaved(page);
   expect(visualItem(saved.doc)).toBeTruthy();
   expect(musicItem(saved.doc)?.payload?.duck?.on).toBe(true);
-  writeEvidence("W3Z-QG-UX-U5", { schema: "potongin.gate/1", gate: "QG-UX U5 (scripted, real stack)", ...browserInfo(browser),
-    viewport: "1366x768", elapsedMs: elapsed, limitMs: U5_MS, pass: elapsed <= U5_MS });
+  writeEvidence("MC-Z-QG-UX-U5", { schema: "potongin.gate/1", gate: "QG-UX U5 (scripted, real stack, Mode Cepat)", ...browserInfo(browser),
+    viewport: "1366x768", view: "cepat", stopCondition: "lajur Musik di timeline menunjukkan garis volume yang turun",
+    elapsedMs: elapsed, limitMs: U5_MS, pass: elapsed <= U5_MS });
   expect(elapsed).toBeLessThanOrEqual(U5_MS);
 });
 
@@ -932,9 +1001,17 @@ test("W3 waveform, markers and cold-open suggestions: lanes drawn, a marker seek
     markers: count, seekOk, suggestionUsed: used, pass: true });
 });
 
-test("PF-OPEN on the real stack: first visit ≤ 3.0 s, repeat ≤ 2.0 s (p95); first playhead cell ≤ 2.0 s after prepare", async ({ browser }) => {
-  test.setTimeout(10 * 60_000);
+// PF-OPEN per view (Mode Cepat spec AC15): the editor is interactive when the store is ready, the
+// view is the one asked for and its first control shows (INTERACTIVE). The first visit as the
+// owner has it opens the plain address, so Mode Cepat, the default.
+test("PF-OPEN on the real stack, both views: first visit ≤ 3.0 s, repeat ≤ 2.0 s (p95); first playhead cell ≤ 2.0 s after prepare", async ({ browser }) => {
+  test.setTimeout(20 * 60_000);
   const runs = Number(process.env.EDITOR_PF_OPEN_RUNS || 10);
+  const interactive = async (page, view) => {
+    await expect(page.locator('[data-editor-ready="true"]')).toBeVisible({ timeout: 60_000 });
+    await expect(editorRoot(page)).toHaveAttribute("data-editor-view", view);
+    await expect(page.locator(INTERACTIVE[view]).first()).toBeVisible({ timeout: 60_000 });
+  };
   // The first visit as the owner has it (W2 verifier): a clip never opened before (no cells, no
   // mix, no plan cached), a fresh browser context, until the stage presents its first frame.
   const cold = coldClips().slice(0, Math.max(1, runs)).slice(0, -1);
@@ -945,29 +1022,41 @@ test("PF-OPEN on the real stack: first visit ≤ 3.0 s, repeat ≤ 2.0 s (p95); 
     const page = await context.newPage();
     await login(page);
     const started = Date.now();
-    await page.goto(editorUrl(clip.clipId));
-    await expect(page.locator('[data-editor-ready="true"]')).toBeVisible({ timeout: 60_000 });
+    await page.goto(`/projects/${JOB_ID}/clips/${clip.clipId}/edit`);
+    await interactive(page, "cepat");
     coldReady.push(Date.now() - started);
     await expect.poll(async () => (await inspect(page))?.player?.presentedFrame ?? null, { timeout: 60_000, intervals: [20] }).not.toBeNull();
     coldFirst.push(Date.now() - started);
     await context.close();
   }
   const clip = clips[0];
-  const first = [];
-  const repeat = [];
-  const shown = [];
-  for (let run = 0; run < runs; run += 1) {
-    const context = await browser.newContext({ viewport: { width: 1366, height: 768 } });
-    const page = await context.newPage();
-    await login(page);
-    first.push(await openEditor(page, clip.clipId));
-    const started = Date.now();
-    await page.reload();
-    await expect(page.locator('[data-editor-ready="true"]')).toBeVisible({ timeout: 60_000 });
-    repeat.push(Date.now() - started);
-    await expect.poll(async () => (await inspect(page))?.player?.presentedFrame ?? null, { timeout: 30_000 }).not.toBeNull();
-    shown.push(Date.now() - started);
-    await context.close();
+  const views = {};
+  for (const view of ["cepat", "lengkap"]) {
+    const first = [];
+    const repeat = [];
+    const shown = [];
+    for (let run = 0; run < runs; run += 1) {
+      const context = await browser.newContext({ viewport: { width: 1366, height: 768 } });
+      const page = await context.newPage();
+      await login(page);
+      let started = Date.now();
+      await page.goto(view === "cepat" ? cepatUrl(clip.clipId) : editorUrl(clip.clipId));
+      await interactive(page, view);
+      first.push(Date.now() - started);
+      started = Date.now();
+      await page.reload();
+      await interactive(page, view);
+      repeat.push(Date.now() - started);
+      await expect.poll(async () => (await inspect(page))?.player?.presentedFrame ?? null, { timeout: 30_000 }).not.toBeNull();
+      shown.push(Date.now() - started);
+      await context.close();
+    }
+    views[view] = {
+      interactive: INTERACTIVE[view],
+      firstMs: { p50: percentile(first, 50), p95: percentile(first, 95), max: Math.max(...first) },
+      repeatMs: { p50: percentile(repeat, 50), p95: percentile(repeat, 95), max: Math.max(...repeat) },
+      repeatFrameOnStageMs: { p50: percentile(shown, 50), p95: percentile(shown, 95) },
+    };
   }
   // The first plate cell at the playhead after `prepare`, on a clip whose cells were never built.
   const context = await browser.newContext();
@@ -991,24 +1080,25 @@ test("PF-OPEN on the real stack: first visit ≤ 3.0 s, repeat ≤ 2.0 s (p95); 
   }
   await context.close();
   const result = {
-    schema: "potongin.gate/1", gate: "PF-OPEN (real stack)", ...browserInfo(browser), viewport: "1366x768", runs,
-    firstVisitColdToFrameMs: coldFirst.length ? { clips: coldFirst.length, p50: percentile(coldFirst, 50),
+    schema: "potongin.gate/1", gate: "PF-OPEN (real stack, both views)", ...browserInfo(browser), viewport: "1366x768", runs,
+    firstVisitColdToFrameMs: coldFirst.length ? { view: "cepat", clips: coldFirst.length, p50: percentile(coldFirst, 50),
       p95: percentile(coldFirst, 95), max: Math.max(...coldFirst) } : null,
-    firstVisitColdToReadyMs: coldReady.length ? { p50: percentile(coldReady, 50), p95: percentile(coldReady, 95) } : null,
-    firstMs: { p50: percentile(first, 50), p95: percentile(first, 95), max: Math.max(...first) },
-    repeatMs: { p50: percentile(repeat, 50), p95: percentile(repeat, 95), max: Math.max(...repeat) },
-    repeatFrameOnStageMs: { p50: percentile(shown, 50), p95: percentile(shown, 95) },
+    firstVisitColdToInteractiveMs: coldReady.length ? { p50: percentile(coldReady, 50), p95: percentile(coldReady, 95) } : null,
+    views,
     firstCellAfterPrepareMs: cellMs, prepareMs: afterPrepare - prepareStarted, cellsReadyBeforePlan: cellsBefore,
     limits: { firstMs: PF_OPEN_FIRST_MS, repeatMs: PF_OPEN_REPEAT_MS, cellMs: PF_OPEN_CELL_MS },
     load: os.loadavg().map((value) => Math.round(value * 10) / 10),
   };
-  const firstVisit = result.firstVisitColdToFrameMs?.p95 ?? result.firstMs.p95;
-  result.pass = firstVisit <= PF_OPEN_FIRST_MS && result.firstMs.p95 <= PF_OPEN_FIRST_MS
-    && result.repeatMs.p95 <= PF_OPEN_REPEAT_MS && cellMs !== null && cellMs <= PF_OPEN_CELL_MS;
-  writeEvidence(process.env.EDITOR_PF_OPEN_NAME || "T2.Z-PF-OPEN", result);
+  const firstVisit = result.firstVisitColdToFrameMs?.p95 ?? views.cepat.firstMs.p95;
+  result.pass = firstVisit <= PF_OPEN_FIRST_MS
+    && Object.values(views).every((entry) => entry.firstMs.p95 <= PF_OPEN_FIRST_MS && entry.repeatMs.p95 <= PF_OPEN_REPEAT_MS)
+    && cellMs !== null && cellMs <= PF_OPEN_CELL_MS;
+  writeEvidence(process.env.EDITOR_PF_OPEN_NAME || "MC-Z-PF-OPEN-real", result);
   expect(firstVisit).toBeLessThanOrEqual(PF_OPEN_FIRST_MS);
-  expect(result.firstMs.p95).toBeLessThanOrEqual(PF_OPEN_FIRST_MS);
-  expect(result.repeatMs.p95).toBeLessThanOrEqual(PF_OPEN_REPEAT_MS);
+  for (const [view, entry] of Object.entries(views)) {
+    expect(entry.firstMs.p95, `${view}: first visit p95`).toBeLessThanOrEqual(PF_OPEN_FIRST_MS);
+    expect(entry.repeatMs.p95, `${view}: repeat visit p95`).toBeLessThanOrEqual(PF_OPEN_REPEAT_MS);
+  }
   expect(cellMs).not.toBeNull();
   expect(cellMs).toBeLessThanOrEqual(PF_OPEN_CELL_MS);
 });
@@ -1017,11 +1107,16 @@ test("PF-OPEN on the real stack: first visit ≤ 3.0 s, repeat ≤ 2.0 s (p95); 
 // 240 ms, and axe would read the fading text (as the Rapikan harness spec also waits). A panel's
 // code loads on first open ("Membuka panel…") and its content can arrive after a fetch (the
 // cold-open suggestions), both later than one animation check, so the wait first lets the open
-// panel mount and finish loading, then asks for 300 ms without a running animation.
+// panel mount and finish loading, then asks for 300 ms without a running animation. In Mode Cepat
+// the open card's body takes the panel's place.
 async function settledForAxe(page) {
-  await expect(page.getByText("Membuka panel…")).toHaveCount(0, { timeout: 30_000 });
-  await expect(page.locator("[data-panel]").first()).toBeVisible({ timeout: 30_000 });
-  await expect(page.locator('[data-panel][aria-busy="true"], [data-panel] [aria-busy="true"]')).toHaveCount(0, { timeout: 45_000 });
+  if ((await editorRoot(page).getAttribute("data-editor-view")) === "cepat") {
+    await expect(page.locator('[data-slot="cards"] [aria-busy="true"]')).toHaveCount(0, { timeout: 45_000 });
+  } else {
+    await expect(page.getByText("Membuka panel…")).toHaveCount(0, { timeout: 30_000 });
+    await expect(page.locator("[data-panel]").first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-panel][aria-busy="true"], [data-panel] [aria-busy="true"]')).toHaveCount(0, { timeout: 45_000 });
+  }
   await page.evaluate(() => { globalThis.__axeQuietSince = null; });
   await page.waitForFunction(() => {
     const now = performance.now();
@@ -1051,7 +1146,12 @@ test("QG-A11Y on the real editor: axe finds no critical or serious violation", a
       await openTab(page, "Transkrip");
       await transcript(page).getByRole("button", { name: /^Rapikan/ }).click();
       await expect(page.getByRole("region", { name: "Rapikan" })).toBeVisible({ timeout: 30_000 });
-    }]]) {
+    }],
+    // Mode Cepat, each card open (the Caption card is open on load).
+    ["Mode Cepat, Caption card", async () => { await openEditor(page, clips[0].clipId, { view: "cepat" }); }],
+    ...["hook", "lines", "coldopen", "layout", "extras"].map((id) => [`Mode Cepat, ${id} card`, async () => {
+      await expect(await openCard(page, id)).toBeVisible();
+    }])]) {
       if (open) await open();
       await settledForAxe(page);
       await page.addScriptTag({ content: AXE });

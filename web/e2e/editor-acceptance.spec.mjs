@@ -11,6 +11,10 @@
 //   4 Hook + saran AI              8 Logo                         12 Urungkan, simpan otomatis, konflik
 //                                                                 13 Ekspor lewat antrean
 //
+// Mode Cepat (docs/plans/2026-10-02-editor-mode-cepat.md): capability 1 opens clips the way the
+// owner does, so it meets the default view, Mode Cepat; the other capabilities work in Mode Lengkap
+// by address (?mode=lengkap), and QG-A11Y covers both views.
+//
 // Every test starts from the AI version of its clip and leaves the clip there. The checks are the
 // observable outcomes of §1.1 (and §8 for capability 11): what the screen shows, what the saved
 // document holds, what the exported file contains. Time limits and thresholds are the plan's.
@@ -41,7 +45,8 @@ import { fileURLToPath } from "node:url";
 import { crc32, deflateSync } from "node:zlib";
 
 import { coldOpenJoin, joinTemplate } from "../lib/editor/doc-model.mjs";
-import { openChecks, resetToAi, safeZone } from "./support/editor-topbar.mjs";
+import { CARD_IDS, openCard } from "./support/editor-cards.mjs";
+import { openChecks, resetToAi, safeZone, switchView } from "./support/editor-topbar.mjs";
 import { wordAction } from "./support/editor-words.mjs";
 import { login, settings } from "./support/harness.mjs";
 
@@ -193,7 +198,7 @@ async function start(page, clip) {
 }
 
 const transcript = (page) => page.locator('[data-panel="transcript"]');
-const toolbar = (page) => page.getByRole("toolbar", { name: "Aksi kata" });
+const toolbar = (page) => page.getByRole("toolbar", { name: "Aksi kata terpilih", exact: true });
 const panelOf = (page, id) => page.locator(`[data-panel="${id}"]`);
 const word = (page, index) => transcript(page).locator(`[data-w="${index}"]`);
 
@@ -236,13 +241,20 @@ const hookOf = (doc) => doc.tracks.find((track) => track.kind === "hook")?.items
 const logoOf = (doc) => doc.tracks.find((track) => track.kind === "visual")?.items?.[0] ?? null;
 const musicOf = (doc) => doc.tracks.find((track) => track.kind === "audio")?.items?.[0] ?? null;
 
-// "● Sesuai hasil akhir"; a document whose content is the AI version's exports the auto file itself,
-// which came before the editor (engine still legacy), so there the badge says so instead.
+// "Sesuai hasil akhir"; a document whose content is the AI version's exports the auto file itself,
+// which came before the editor (engine still legacy), so there the status is the legacy one: empty,
+// with its "?" help saying so (Mode Cepat spec §5.2, §5.3).
 async function exactBadge(page, { timeout = 120_000, unchangedOk = false } = {}) {
   const state = await inspect(page);
   const unchanged = unchangedOk || (state?.seed && contentOf(state.doc) === contentOf(state.seed));
-  const text = unchanged ? /^● (?:Sesuai hasil akhir|Belum diubah: ekspor = klip otomatis)$/ : "● Sesuai hasil akhir";
-  await expect(page.getByTestId("stage-badge")).toHaveText(text, { timeout });
+  const status = page.getByTestId("stage-badge");
+  if (!unchanged) {
+    await expect(status).toHaveText("Sesuai hasil akhir", { timeout });
+    return;
+  }
+  await expect(page.locator("[data-badge-tone]")).toHaveAttribute("data-badge-tone", /^(?:exact|legacy)$/, { timeout });
+  const tone = await page.locator("[data-badge-tone]").getAttribute("data-badge-tone");
+  await expect(status).toHaveText(tone === "exact" ? "Sesuai hasil akhir" : "");
 }
 
 /** The ASS bytes of the current plan (the same bytes libass draws in the browser and FFmpeg burns). */
@@ -512,13 +524,16 @@ test("Kemampuan 1, buka klip: every clip opens from its card, ids are stable, a 
     await expect(page.locator('[data-editor-ready="true"]')).toBeVisible({ timeout: 120_000 });
     const clipId = new URL(page.url()).pathname.split("/")[4];
     expect(clipId).toMatch(/^clip_[0-9a-f]{24}$/);
+    // The owner's way in meets the default view: Mode Cepat with the Caption card open.
+    await expect(page.locator("[data-editor-root]")).toHaveAttribute("data-editor-view", "cepat");
+    await expect(page.locator("#card-caption-button")).toHaveAttribute("aria-expanded", "true");
     await resetToSeed(page);
-    // Revision 0 is the auto clip: the badge says so (or that the stage matches the export).
+    // Revision 0 is the auto clip: the status says the stage matches the export, or is the empty
+    // legacy one. The old engine's notice never shows (Mode Cepat spec §5.3, AC11).
     await exactBadge(page, { unchangedOk: true });
     const state = await inspect(page);
-    if (state.doc.base.engine.compiler === "legacy") {
-      await expect(page.getByText("Klip otomatis ini dibuat sebelum editor dibuka; setelah klip diubah, tampilan teks hasil ekspor bisa sedikit berbeda")).toBeVisible();
-    }
+    await expect(page.getByText("Klip otomatis ini dibuat sebelum editor dibuka", { exact: false })).toHaveCount(0);
+    await expect(page.getByText("Belum diubah: ekspor = klip otomatis", { exact: false })).toHaveCount(0);
     await expect(page.getByRole("heading", { level: 1 })).not.toHaveText("");
     opened.push({ index: index + 1, clipId, openMs: Date.now() - started, engine: state.doc.base.engine.compiler });
   }
@@ -623,7 +638,7 @@ test("Kemampuan 3, cold open: from a selection, edges by a word, the 0,5–8 dtk
   if (long) {
     await openTab(page, "Transkrip");
     await selectRange(page, long[0], long[1]);
-    await expect(toolbar(page).getByRole("button", { name: "Jadikan cold open" })).toBeDisabled();
+    await expect(toolbar(page).getByRole("button", { name: "Jadikan cold open" })).toHaveAttribute("aria-disabled", "true");
     await openTab(page, "Cold open");
     await expect(panel.locator("[data-coldopen-reason]")).toContainText("8");
   }
@@ -1190,8 +1205,8 @@ test("Kemampuan 12, urungkan, simpan otomatis, konflik: 200 steps, merged drags,
   // Two tabs: both see the warning; edits to different parts both survive.
   const second = await page.context().newPage();
   await openEditor(second, clip.clipId);
-  await expect(page.getByText("Klip ini terbuka di tab lain")).toBeVisible();
-  await expect(second.getByText("Klip ini terbuka di tab lain")).toBeVisible();
+  await expect(page.locator('[data-slot="topBar"]').getByText("Terbuka di tab lain", { exact: true })).toBeVisible();
+  await expect(second.locator('[data-slot="topBar"]').getByText("Terbuka di tab lain", { exact: true })).toBeVisible();
   await openTab(page, "Teks");
   await page.getByRole("textbox", { name: "Teks hook" }).fill("Hook dari tab A");
   await blur(page);
@@ -1360,14 +1375,19 @@ async function keyboardWalk(page, scope, maxStops = 160) {
   return { stops: visited.length, noRing: visited.filter((entry) => !entry.ring).map((entry) => entry.name), ...report };
 }
 
-// Contrast is measured on the settled page: the open panel mounted (its code loads on first
-// open) and done loading (content that arrives after a fetch, like the cold-open suggestions, fades
+// Contrast is measured on the settled page: the open panel (in Mode Cepat, the open card) mounted
+// (its code loads on first open) and done loading (content that arrives after a fetch, like the cold-open suggestions, fades
 // in late), then 300 ms without a running animation (a fading panel is see-through and axe would
 // read its text).
 async function axeRun(page) {
-  await expect(page.getByText("Membuka panel…")).toHaveCount(0, { timeout: 30_000 });
-  await expect(page.locator("[data-panel]").first()).toBeVisible({ timeout: 30_000 });
-  await expect(page.locator('[data-panel][aria-busy="true"], [data-panel] [aria-busy="true"]')).toHaveCount(0, { timeout: 45_000 });
+  if ((await page.locator("[data-editor-root]").getAttribute("data-editor-view")) === "cepat") {
+    // Mode Cepat: the open card's body takes the panel's place.
+    await expect(page.locator('[data-slot="cards"] [aria-busy="true"]')).toHaveCount(0, { timeout: 45_000 });
+  } else {
+    await expect(page.getByText("Membuka panel…")).toHaveCount(0, { timeout: 30_000 });
+    await expect(page.locator("[data-panel]").first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-panel][aria-busy="true"], [data-panel] [aria-busy="true"]')).toHaveCount(0, { timeout: 45_000 });
+  }
   await page.evaluate(() => { globalThis.__axeQuietSince = null; });
   await page.waitForFunction(() => {
     const now = performance.now();
@@ -1403,7 +1423,8 @@ test("QG-A11Y: axe finds no critical or serious violation in any panel or dialog
     };
     await record("ready");
     await walk("top bar", '[data-slot="topBar"]');
-    await walk("stage controls", '[data-slot="stage"]');
+    await walk("stage overlays", '[data-slot="stage"]');
+    await walk("transport", '[data-slot="transport"]');
     await walk("timeline", '[data-slot="timeline"]');
     for (const [tab, id] of [["Transkrip", "transcript"], ["Teks", "text"], ["Cold open", "coldopen"], ["Tata letak", "layout"],
       ["Logo", "logo"], ["Musik", "music"]]) {
@@ -1436,6 +1457,17 @@ test("QG-A11Y: axe finds no critical or serious violation in any panel or dialog
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog", { name: "Ekspor klip" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Ekspor", exact: true })).toBeFocused();
+    // Mode Cepat: each card open, its body and the bottom bar walked by keyboard.
+    await switchView(page, "cepat");
+    await walk("bottom bar (Mode Cepat)", '[data-slot="bottom"]');
+    for (const id of CARD_IDS) {
+      const body = await openCard(page, id);
+      await expect(body).toBeVisible();
+      await expect(page.locator('[data-slot="cards"] [aria-busy="true"]')).toHaveCount(0, { timeout: 45_000 });
+      await record(`${id} card`);
+      await walk(`${id} card`, `#card-${id}-region`);
+    }
+    await switchView(page, "lengkap");
     await resetToSeed(page);
   }
   const blocking = results.flatMap((entry) => entry.violations.filter((item) => ["critical", "serious"].includes(item.impact))
