@@ -1737,3 +1737,89 @@ All runs are at `8b685e4`, on GitHub Actions:
 The owner's legacy sample was rendered again (`artifacts/handoff/transisi/`): the picture is
 frame-for-frame the same; the whoosh hits at 7.067 s (the cold open's 424th frame's end, 7 ms
 later than before), and the audio now runs to 39.086 s instead of 38.857 s.
+
+## Mode Cepat and Mode Lengkap (2026-10-05)
+
+Spec: `docs/plans/2026-10-02-editor-mode-cepat.md` (owner decisions of 2026-10-02; decisions during
+build §13 to §18); contract: CONTRACTS §5.27; guide: PANDUAN-EDITOR; owner's test: UJI-PENERIMAAN
+U1 to U8. The editor opens in Mode Cepat (six cards beside the preview, a position bar below it)
+unless the address or the viewer's last choice says Mode Lengkap (the icon rail, the transcript
+with its word toolbar, the timeline). Both are views of one editor: one document, store, undo
+history, autosave, player and export. No engine, Python, command, plan or seed changed, so every
+engine gate above keeps its cases and numbers (`suite=full` and `suite=image` run the Python suites
+unchanged).
+
+Where it was measured: GitHub Actions, branch `mode-cepat-integrasi` (`mode-cepat-base` from Z0,
+then C, B, D and A cherry-picked in that order, then Z's commits). Browser specs run on the editor
+fakes (the app built with `POTONGIN_EDITOR_FAKES=1`), Chrome for Testing 147.0.7727.15, axe-core
+4.10.3. Evidence: `evidence/MC/<task>-*.json` (numbers only).
+
+| Gate | What | Threshold | Result |
+|---|---|---|---|
+| Browser specs on the fakes | every `e2e/editor-*.spec.mjs`: the views (A), the cards (B), Teks caption (C), the rail, toolbar and scrubber (D), the shell, transcript, cleanup, AI, layout, logo, music, transition and marker specs, and the screenshots | all pass | **pass**: 267 passed, 58 skipped (the real-stack specs below, and cases that need a variable), run 37293989108 at `a620a0b` |
+| QG-A11Y (fakes) | axe in Mode Cepat with each card open and in Mode Lengkap, at 1366×650 and 1920×960 (A); the cards (B); the Teks caption card (C); the rail and the toolbar (D) | 0 critical, 0 serious | **pass** in the same run. Evidence `A-QG-A11Y.json` (16 states), `B-AC13-*.json`, `C-QG-A11Y-*.json` |
+| PF-OPEN per view (fakes, `-f gates=true`) | first and repeat visit to the interactive moment: Lengkap `[data-panel="transcript"]`, Cepat a control in the Caption card; 20 runs each, without and with simulated server latency | p95 first ≤ 3.0 s, repeat ≤ 2.0 s | **pass**, run 37294975556 at `a620a0b`, first/repeat p95: Lengkap 607/462 ms, Cepat 845/441 ms without server latency; 669/519 and 645/524 ms with it. Evidence `Z-PF-OPEN-{lengkap,cepat}.json`. The first run at `fecc1a9` (37290705450) also passed |
+| AC12 lime | computed styles with every card and every panel open, every control at rest and hovered | lime only on Ekspor and the progress fills | **pass**, strict in every panel now that B's hover clean-up is in |
+| AC13 | 44 px targets in the top bar, the overlays, both bottom regions, the cards, the rail and the toolbar; a visible outline under forced colours; no accordion animation under reduced motion | as the spec | **pass** |
+| Layout (new, Z) | at 1366×650 and 1920×960: every top-bar control inside the 64 px bar on one row; with an 89-character hook and an 80-character music file name, no sideways overflow or scroll in the cards column with any card open or a caption line in focus | 0 px | **pass** at `a620a0b`. Red before the fix (run 37294101955 at `125ae24`): 371 and 348 px of sideways overflow, scrolled 17 px, top-bar controls outside the bar |
+| Scripted U-tests on the fakes | U1 and U2 through the toolbar (D): 0.10 to 0.12 s at 1366×768 and 1920×1080; U3 0.98 s, U4 1.75 s, U5 2.20 s in Mode Cepat (B, harness, 1366×650); U8 preview 38 ms, saved 1.91 s (C) | U1, U2, U8 ≤ 20 s; U3 ≤ 45 s; U4 ≤ 30 s; U5 ≤ 60 s | **pass** at automation speed. The owner's stopwatch decides QG-UX |
+| R1 | requests to the AI route when the editor opens in Mode Cepat | 0 | **pass** (`B-R1.json`) |
+| Player | `e2e/editor-first-frame.spec.mjs` with the parity harness in the production image | pass | **pass**: 6 passed (run 37294971471 at `a620a0b`; run 37290709387 at `fecc1a9`: 6 passed) |
+| `suite=full` | ruff, pytest (Python 3.11), the web unit tests, the production build | pass | **pass**, run 37294001381 at `a620a0b`: pytest 4,476 passed, 3 skipped, 1 xfailed; web 1,417 of 1,418 pass, 1 skipped; build |
+| `suite=image` | pytest in the production image | pass | **pass**, run 37294967712 at `a620a0b`: 4,475 passed, 4 skipped, 1 xfailed (FFmpeg 5.1.9; run 37290678419 at `fecc1a9`: 4,475 passed, 4 skipped, 1 xfailed) |
+
+### Real-stack specs: pending an owner-approved run
+
+`editor-flow.spec.mjs` and `editor-acceptance.spec.mjs` need a private server holding copies of real
+jobs, which runs on the owner's PC; it was busy, so they were updated and not run (spec §18 item 3).
+In CI they load and skip (no job variables), which shows they parse. What changed in them:
+- flow: the entry meets Mode Cepat with the Caption card open; U4, U5, U7 and the new U8 run in
+  Mode Cepat (U5 stops on the music lane in Mode Lengkap, unchanged); PF-OPEN measures both views
+  (`MC-Z-PF-OPEN-real.json`); QG-A11Y adds every card;
+- acceptance: capability 1 meets Mode Cepat and asserts the old engine's notice absent; QG-A11Y
+  walks the transport row, the Cepat bottom bar and every card;
+- both: the trimmed status, the empty legacy status, the "Terbuka di tab lain" chip.
+
+To run them when the owner agrees (one browser, one worker; each spec's header lists its variables):
+
+```
+E2E_NO_WEB_SERVER=1 npx playwright test e2e/editor-flow.spec.mjs e2e/editor-acceptance.spec.mjs --project=desktop-chromium
+```
+
+### Integration fixes (Z)
+
+1. **The fakes' 4 caption lines.** C's engine-like fakes break after "sendiri?", so the seed has 4
+   lines, not 3 groups of four: `editor-shell.spec` (4 cues), `editor-quick-model.test` ("4 baris")
+   and `editor-quick.spec` (Bold's cues).
+2. **AC12's sweep.** It held its controls by index; a control that left the page while it ran was
+   awaited for the 15 s action timeout, twice, and the test ran out of time once B's real cards
+   were in (run 37290683638). It now holds each control's element and sweeps late arrivals in a
+   further round; every control is still hovered. The pre-B allowance for the panels is gone.
+3. **Top bar.** Urungkan and Ulangi stacked out of the 64 px bar: the top bar's group and the
+   export dialog's history list both used `.history` in `shell.module.css`, and the list's
+   `display: grid` won. The group is `.historyButtons`; `editor-css-collisions.test.mjs` (new)
+   refuses a class given two `display` values by two top-level rules in any editor CSS module.
+4. **The cards column.** The cards sat in a grid column sized `auto`, so a long one-line header
+   summary (the hook text) made every card wider than the side column, which then scrolled
+   sideways and cut the cards' left edge once a caption line took focus. The column and each card
+   body's column are `minmax(0, 1fr)`; summaries and long file names are cut with an ellipsis.
+5. **Rail.** D's bridge rule is gone: A's side grid places the rail.
+
+Screenshots for the owner, from run 37293989108 at `a620a0b`: `artifacts/handoff/mode-cepat/` (not
+in git; 14 full-page PNGs, Mode Cepat with each card open and Mode Lengkap with the rail and the
+word toolbar, at 1366×768 and 1920×1080, with a README). The fakes' player draws no video, so the
+9:16 stage is empty in them.
+
+### Open (Mode Cepat)
+
+- Owner: U1 to U8 with the stopwatch at 1366×768 and 1920×1080 (UJI-PENERIMAAN), the real-stack run
+  above, then the merge.
+- For the owner to confirm (spec §18 item 5): the cold-open suggestions' empty state names the
+  transcript in Mode Cepat too; the caption pack tiles and layout cards in Mode Lengkap stay
+  thumbnail tiles. Also seen in the screenshots: in Mode Lengkap's narrow panel the word toolbar
+  wraps onto two rows and covers the words just below the selection (never the selection; Shift
+  lets a Shift+click through; D §16).
+- Later tasks the owner chose (spec §11): an exact caption-vs-hook pixel check (Q6), an off switch
+  for single-key shortcuts (Q7).
+- No owner yet: after a two-tab merge the merged edit is saved on the next autosave round (1.5 s)
+  rather than at once; the fakes' player does not report `playing`.

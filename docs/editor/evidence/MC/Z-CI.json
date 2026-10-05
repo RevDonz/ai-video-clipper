@@ -1,0 +1,23 @@
+{
+  "task": "Z (integration), docs/plans/2026-10-02-editor-mode-cepat.md §10 steps 3 and 4",
+  "branch": "mode-cepat-integrasi",
+  "base": "mode-cepat-base 6c8cfce (main 3faf2f9 + Z0)",
+  "merge_order": ["C mode-cepat-c-lines 975b507", "B mode-cepat-b-cards 9b6e729", "D mode-cepat-d-lengkap 02dbd41", "A mode-cepat-a-shell 0e60a86"],
+  "final_code_commit": "a620a0b",
+  "runs": [
+    { "run": 37290673771, "suite": "full", "commit": "fecc1a9", "result": "failure: web unit 1414/1415, editor-quick-model expected the old fakes' 3 caption lines (fixed in a following commit); Python passed" },
+    { "run": 37290678419, "suite": "image", "commit": "fecc1a9", "result": "success: pytest 4475 passed, 4 skipped, 1 xfailed" },
+    { "run": 37290683638, "suite": "e2e e2e/editor-*.spec.mjs", "commit": "fecc1a9", "result": "failure: 261 passed, 2 failed (editor-quick Caption card expected the old cue grouping; AC12 sweep timed out waiting on controls that left the page); both fixed" },
+    { "run": 37290705450, "suite": "e2e gates=true PF-OPEN", "commit": "fecc1a9", "result": "success: PF-OPEN (lengkap), PF-OPEN (cepat)" },
+    { "run": 37290709387, "suite": "player e2e/editor-first-frame.spec.mjs", "commit": "fecc1a9", "result": "success: 6 passed" },
+    { "run": 37292967050, "suite": "full", "commit": "7eecfa1", "result": "success" },
+    { "run": 37292970046, "suite": "e2e e2e/editor-*.spec.mjs", "commit": "7eecfa1", "result": "success: 263 passed, 58 skipped" },
+    { "run": 37294101955, "suite": "e2e editor-views layout checks", "commit": "125ae24 (tests only, before the fix)", "result": "failure as intended: 4 failed (cards column 371 and 348 px of sideways overflow, scrolled 17 px; top-bar controls outside the bar)" },
+    { "run": 37293989108, "suite": "e2e e2e/editor-*.spec.mjs", "commit": "a620a0b", "result": "success: 267 passed, 58 skipped; the owner's screenshots come from this run" },
+    { "run": 37294001381, "suite": "full", "commit": "a620a0b", "result": "success: pytest 4476 passed, 3 skipped, 1 xfailed; web 1417/1418 pass, 1 skipped; build" },
+    { "run": 37294975556, "suite": "e2e gates=true PF-OPEN", "commit": "a620a0b", "result": "success: first/repeat p95 Lengkap 607/462 ms, Cepat 845/441 ms (no latency); 669/519 and 645/524 ms (simulated latency)" },
+    { "run": 37294971471, "suite": "player e2e/editor-first-frame.spec.mjs", "commit": "a620a0b", "result": "success: 6 passed" },
+    { "run": 37294967712, "suite": "image", "commit": "a620a0b", "result": "success: pytest 4475 passed, 4 skipped, 1 xfailed in the production image" }
+  ],
+  "not_run": "web/e2e/editor-flow.spec.mjs and web/e2e/editor-acceptance.spec.mjs (real stack; pending an owner-approved run on the owner's PC). They load and skip in the e2e runs above."
+}
