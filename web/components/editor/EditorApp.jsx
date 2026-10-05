@@ -7,15 +7,24 @@
 //
 // Seams (Appendix A.2): `runtime` (runtime.mjs) provides the store (createEditorStore), the API
 // and preview clients, the upload client and createPlayer. The page passes `runtimeKind` and the
-// server's `features` (uploads on or off); tests may inject a runtime. Every panel receives
-// { state, dispatch, player } plus the clients it may use (`api`, `previewClient`, `uploadAsset`,
-// `uploadsEnabled`), every lane { plan, state, dispatch, player, pxPerFrame }, and both `notify`
-// and `readOnly`; `player` is the facade of runtime.mjs, which adds `subscribeFrame(fn)` and
-// `frame()` so that DOM can follow playback outside React (§6.2).
+// server's `features` (uploads on or off); tests may inject a runtime. Every panel and every Mode
+// Cepat card receives one props bundle, { state, dispatch, player, api, previewClient, uploadAsset,
+// uploadsEnabled, notify, readOnly } (cards also `frameBus` and `showLengkap`); every lane
+// { plan, state, dispatch, player, pxPerFrame }. `player` is the facade of runtime.mjs, which adds
+// `subscribeFrame(fn)` and `frame()` so that DOM can follow playback outside React (§6.2).
+//
+// Two views of this one editor (docs/plans/2026-10-02-editor-mode-cepat.md §1, §4): Mode Cepat
+// (cards beside the stage, the scrubber below) and Mode Lengkap (rail and panel, transport and
+// timeline). The shell's children keep one order, top bar, side region, stage region, bottom
+// region, and only the side and bottom children change with the view, so a switch never remounts
+// the canvas, the player, the store or the export flow.
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { editorHref, prepareForEditor } from "../../lib/editor/open-clip.mjs";
 import { SHORTCUTS, globalShortcut } from "../../lib/editor/shortcuts.mjs";
+import {
+  PANEL_IDS, browserStorage, readStoredView, resolveView, urlWithView, viewFromUrl, writeStoredView,
+} from "../../lib/editor/view-mode.mjs";
 import ChecksPanel from "./ChecksPanel.jsx";
 import ConflictDialog from "./ConflictDialog.jsx";
 import tokens from "./editor.module.css";
@@ -30,15 +39,17 @@ import { createEditorRuntime, createFrameBus, createPlayerFacade } from "./runti
 import styles from "./shell.module.css";
 import {
   actionableChecks, badgeView, checksView, conflictParts, exportMatchesSeed, exportRevision, liveEntries, messageFor, noticesView,
-  playerView, rejectionText,
+  playerView, rejectionText, selectionTrimWord,
 } from "./shell-model.mjs";
 import Scrubber from "./scrubber/Scrubber.jsx";
 import Stage from "./Stage.jsx";
-import StageControls from "./StageControls.jsx";
+import StageBadge from "./StageBadge.jsx";
+import StageControls, { PlayButton, StageToggles, TimeReadout } from "./StageControls.jsx";
 import { LANES } from "./timeline/lanes.mjs";
 import Timeline from "./timeline/Timeline.jsx";
 import { wordForTrimAt } from "./timeline/timeline-model.mjs";
 import TopBar from "./TopBar.jsx";
+import { selectionStoreFor } from "./transcript/selection.mjs";
 import PillButton from "./ui/PillButton.jsx";
 
 const components = new Map();
@@ -61,14 +72,29 @@ const TERMINAL_EXPORT = new Set(["completed", "failed", "cancelled", "error"]);
 const PREPARE_CODES = new Set(["not_found", "analysis_missing"]);
 const BUSY_EXPORT = new Set(["saving", "submitting", "running"]);
 
-// Mode Cepat opens only from `?mode=cepat` until task A lands the view switch and the stored
-// preference (docs/plans/2026-10-02-editor-mode-cepat.md §4); every other URL opens Lengkap.
-function viewFromLocation() {
-  if (typeof window === "undefined") return "lengkap";
+// The view, Lengkap panel and Cepat card the editor opens with (Mode Cepat spec §4.2–§4.4): the
+// URL (`?mode`, else implied by `?panel` or `?card`), then the stored preference, then Cepat. An
+// `initialPanel` prop (the logo harness) counts as `?panel`. Read once, before the shell's first
+// render; the shell renders only on the client, after the runtime is ready, so there is no flash
+// of the wrong view and the server render never reads storage. A deep link never writes the
+// preference.
+function openingView(initialPanel) {
+  let url = { view: null, panel: null, card: null };
   try {
-    return new URLSearchParams(window.location.search).get("mode") === "cepat" ? "cepat" : "lengkap";
+    url = viewFromUrl(window.location.search);
   } catch {
-    return "lengkap";
+    // no window: open with the stored preference or Cepat
+  }
+  if (!url.panel && PANEL_IDS.includes(initialPanel)) url = { ...url, panel: initialPanel };
+  return { view: resolveView({ url, stored: readStoredView(browserStorage()) }), panel: url.panel, card: url.card };
+}
+
+// The address after a switch (Mode Cepat spec §4.4): `?mode=<view>`, so a reload stays in the view.
+function replaceUrlView(view) {
+  try {
+    window.history.replaceState(window.history.state, "", urlWithView(window.location.href, view));
+  } catch {
+    // a sandboxed frame may refuse; the view still switches for this page
   }
 }
 
@@ -95,11 +121,7 @@ function StatePage({ title, children, jobId, busy = false }) {
   );
 }
 
-function selectionWordIds(selection) {
-  if (Array.isArray(selection)) return selection.filter((id) => typeof id === "string");
-  if (Array.isArray(selection?.wordIds)) return selection.wordIds.filter((id) => typeof id === "string");
-  return [];
-}
+const SCOPE_NOTE = Object.freeze({ transcript: " (di transkrip)", scrubber: " (di bilah posisi)" });
 
 function ShortcutHelp({ open, onClose }) {
   const dialogRef = useRef(null);
@@ -124,7 +146,7 @@ function ShortcutHelp({ open, onClose }) {
                 {SHORTCUTS.map((shortcut) => (
                   <tr key={shortcut.id}>
                     <td>{shortcut.keys.map((key) => <kbd key={key} className={styles.kbd}>{key}</kbd>)}</td>
-                    <td>{shortcut.description}{shortcut.scope === "transcript" ? " (di transkrip)" : ""}</td>
+                    <td>{shortcut.description}{SCOPE_NOTE[shortcut.scope] ?? ""}</td>
                   </tr>
                 ))}
               </tbody>
@@ -155,8 +177,11 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
   }), [frameBus]);
   const [playerState, setPlayerState] = useState(null);
   const [media, setMedia] = useState(null);
-  const [panelId, setPanelId] = useState(initialPanel ?? panels[0].id);
-  const [view, setView] = useState(viewFromLocation);
+  const [opening] = useState(() => openingView(initialPanel));
+  const [panelId, setPanelId] = useState(opening.panel ?? panels[0].id);
+  const [view, setView] = useState(opening.view);
+  // A `?card=` deep link opens its card the first time Cepat shows; after a switch Caption opens.
+  const openingCardRef = useRef(opening.card);
   const [safeZone, setSafeZone] = useState(false);
   const [checksOpen, setChecksOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -316,18 +341,23 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
     else player.play();
   }, [player, playerState]);
 
+  // I and O (Mode Cepat spec §4.1): the transcript's selection, shared per clip, while the
+  // transcript is on screen (Lengkap's Transkrip panel), as "Mulai di sini" and "Akhiri di sini";
+  // otherwise, or without a selection, the word under the playhead.
+  const clipKey = state.doc?.clip_id ?? clipId;
+  const transcriptShown = view === "lengkap" && panelId === "transcript";
   const trimAtPlayhead = useCallback((edge) => {
     if (status !== "ready") return;
-    const selected = selectionWordIds(state.selection);
-    const gapWord = selected.length
-      ? (edge === "start" ? selected[0] : selected.at(-1))
-      : wordForTrimAt({ edge, frame: frameBus.get(), plan, words: state.words });
+    const selected = transcriptShown
+      ? selectionTrimWord({ selection: selectionStoreFor(clipKey).get(), words: state.words, edge })
+      : null;
+    const gapWord = selected ?? wordForTrimAt({ edge, frame: frameBus.get(), plan, words: state.words });
     if (!gapWord) {
       notify("Tidak ada kata di posisi ini");
       return;
     }
     safeDispatch(edge === "start" ? "TrimStart" : "TrimEnd", { gapWord });
-  }, [status, state.selection, state.words, plan, frameBus, notify, safeDispatch]);
+  }, [status, transcriptShown, clipKey, state.words, plan, frameBus, notify, safeDispatch]);
 
   const second = Math.max(1, Math.round(fps[0] / fps[1]));
   const actions = {
@@ -367,7 +397,7 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
   const badge = badgeView({ status, plan, storePending: Array.isArray(state.pending) ? state.pending : [], player: playerState });
   const checks = useMemo(() => checksView({ warnings: state.warnings, plan, doc: state.doc, seed: state.seed }),
     [state.warnings, plan, state.doc, state.seed]);
-  const notices = noticesView({ doc: state.doc, playerMode: playerState?.mode, otherTab });
+  const notices = noticesView({ doc: state.doc, playerMode: playerState?.mode });
   const unchanged = exportMatchesSeed({ plan, doc: state.doc, seed: state.seed });
   const earlier = useMemo(() => earlierExports({ history: exportState?.history ?? [], current: exportState?.render ?? null,
     latest: clipInfo?.latestRender ?? null }), [exportState, clipInfo]);
@@ -375,6 +405,12 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
   const panel = panels.find((entry) => entry.id === panelId) ?? panels[0];
   const Panel = lazyComponent(panel);
   const onMedia = useCallback((next) => setMedia(next), []);
+  // One bundle for every Lengkap panel and every Cepat card (Mode Cepat spec §1.2).
+  const previewClient = runtime.previewClient;
+  const uploadAsset = runtime.uploadAsset ?? null;
+  const panelProps = useMemo(() => ({
+    state, dispatch, player, api, previewClient: runtime.previewClient, uploadAsset: runtime.uploadAsset ?? null, uploadsEnabled, notify, readOnly,
+  }), [state, dispatch, player, api, previewClient, uploadAsset, uploadsEnabled, notify, readOnly]);
 
   const errorCode = status === "error" ? (state.error?.code ?? state.errorCode ?? "internal_error") : null;
   const preparesNow = typeof onNeedsPrepare === "function" && PREPARE_CODES.has(errorCode);
@@ -382,10 +418,20 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
     if (preparesNow) onNeedsPrepare();
   }, [preparesNow, onNeedsPrepare]);
 
-  // A Cepat card or link opens the panel that does the same work in Lengkap.
+  // The top-bar switch (Mode Cepat spec §4.2, §4.4): the only place that writes the preference.
+  const changeView = useCallback((next) => {
+    openingCardRef.current = null;
+    setView(next);
+    writeStoredView(browserStorage(), next);
+    replaceUrlView(next);
+  }, []);
+
+  // A Cepat card or link opens the panel that does the same work in Lengkap (no preference write).
   const showLengkap = useCallback((nextPanel) => {
+    openingCardRef.current = null;
     if (panels.some((entry) => entry.id === nextPanel)) setPanelId(nextPanel);
     setView("lengkap");
+    replaceUrlView("lengkap");
   }, [panels]);
 
   if (status === "error") {
@@ -411,12 +457,16 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
         title={clipInfo?.title || "Klip"}
         save={state.save}
         savedAtMs={state.savedAtMs}
+        otherTab={otherTab}
+        view={view}
+        onViewChange={changeView}
         canUndo={Boolean(state.canUndo) && !readOnly}
         canRedo={Boolean(state.canRedo) && !readOnly}
         onUndo={() => store.undo()}
         onRedo={() => store.redo()}
         onReset={() => safeDispatch("ResetToSeed", {})}
         resetDisabled={status !== "ready"}
+        resetReason={readOnly ? "Tidak bisa saat klip baca-saja" : "Klip masih dibuka"}
         onRetrySave={() => { Promise.resolve().then(() => store.flush()).catch(() => {}); }}
         checksCount={actionableChecks(checks).length}
         checksOpen={checksOpen}
@@ -429,45 +479,23 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
       />
 
       {view === "cepat" ? (
-        <aside className={styles.quickSide} data-slot="cards" aria-label="Pengaturan klip">
-          <QuickPanel
-            state={state}
-            dispatch={dispatch}
-            player={player}
-            api={api}
-            previewClient={runtime.previewClient}
-            uploadAsset={runtime.uploadAsset ?? null}
-            uploadsEnabled={uploadsEnabled}
-            notify={notify}
-            readOnly={readOnly}
-            frameBus={frameBus}
-            showLengkap={showLengkap}
-          />
+        <aside key="cards" className={styles.quickSide} data-slot="cards" aria-label="Pengaturan klip">
+          <QuickPanel {...panelProps} frameBus={frameBus} showLengkap={showLengkap} initialCard={openingCardRef.current} />
         </aside>
       ) : (
-        <aside className={styles.panels} data-slot="panels" aria-label="Panel editor">
+        <aside key="panels" className={styles.panels} data-slot="panels" aria-label="Panel editor">
           <Rail panels={panels} value={panel.id} onChange={setPanelId} />
           <div className={styles.tabPanel} role="tabpanel" id="editor-panel" aria-labelledby={`editor-tab-${panel.id}`}>
             {/* The panel's name as the level-2 heading its sections (h3) sit under (QG-A11Y heading order). */}
             <h2 className={styles.visuallyHidden}>{panel.label}</h2>
             <Suspense fallback={<p className={styles.muted}>Membuka panel…</p>}>
-              <Panel
-                state={state}
-                dispatch={dispatch}
-                player={player}
-                api={api}
-                previewClient={runtime.previewClient}
-                uploadAsset={runtime.uploadAsset ?? null}
-                uploadsEnabled={uploadsEnabled}
-                notify={notify}
-                readOnly={readOnly}
-              />
+              <Panel {...panelProps} />
             </Suspense>
           </div>
         </aside>
       )}
 
-      <main className={styles.stageRegion} data-slot="stage">
+      <main key="stage" className={styles.stageRegion} data-slot="stage">
         {(notices.length > 0 || readOnly) && (
           <div className={styles.notices}>
             {readOnly && (
@@ -490,6 +518,16 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
           playerMode={playerState?.mode}
           safeZone={safeZone}
           onMedia={onMedia}
+          overlayStart={<StageBadge view={badge} />}
+          overlayEnd={(
+            <StageToggles
+              truth={playerState?.mode === "truth"}
+              onTruth={toggleTruth}
+              safeZone={safeZone}
+              onToggleSafeZone={() => setSafeZone((value) => !value)}
+              disabled={!plan}
+            />
+          )}
           gizmos={gizmos.map((entry) => {
             // W3 gizmos (T3.2's LogoGizmo) mount here from their registry (gizmos/index.mjs).
             const Gizmo = lazyComponent(entry);
@@ -500,29 +538,30 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
             );
           })}
         />
-        <StageControls
-          fps={fps}
-          totalFrames={plan?.totalFrames ?? 0}
-          frameBus={frameBus}
-          playing={Boolean(playerState?.playing)}
-          onPlayPause={playPause}
-          onStep={(delta) => player.step(delta)}
-          safeZone={safeZone}
-          onToggleSafeZone={() => setSafeZone((value) => !value)}
-          truth={playerState?.mode === "truth"}
-          onTruth={toggleTruth}
-          badge={badge}
-          disabled={!plan}
-        />
       </main>
 
       {view === "cepat" ? (
-        <footer className={styles.quickBottom} data-slot="bottom">
-          <Scrubber plan={plan} state={state} player={player} frameBus={frameBus} disabled={!plan} />
+        <footer key="cepat-bottom" className={styles.quickBottom} data-slot="bottom">
+          <PlayButton playing={Boolean(playerState?.playing)} onPlayPause={playPause} disabled={!plan} />
+          <TimeReadout frameBus={frameBus} fps={fps} totalFrames={plan?.totalFrames ?? 0} />
+          <div className={styles.scrubberSlot}>
+            <Scrubber plan={plan} state={state} player={player} frameBus={frameBus} disabled={!plan} />
+          </div>
           <PillButton variant="quiet" onClick={() => showLengkap("transcript")}>Potong per kata di Mode Lengkap →</PillButton>
         </footer>
       ) : (
-        <Timeline plan={plan} state={state} dispatch={dispatch} player={player} frameBus={frameBus} notify={notify} readOnly={readOnly} lanes={lanes} />
+        <div key="lengkap-bottom" className={styles.lengkapBottom} data-slot="bottom">
+          <StageControls
+            fps={fps}
+            totalFrames={plan?.totalFrames ?? 0}
+            frameBus={frameBus}
+            playing={Boolean(playerState?.playing)}
+            onPlayPause={playPause}
+            onStep={(delta) => player.step(delta)}
+            disabled={!plan}
+          />
+          <Timeline plan={plan} state={state} dispatch={dispatch} player={player} frameBus={frameBus} notify={notify} readOnly={readOnly} lanes={lanes} />
+        </div>
       )}
 
       <ChecksPanel
@@ -628,8 +667,11 @@ export default function EditorApp({
           setFailure({ code: result.code, message: result.message });
           return;
         }
+        // The clip's own address, keeping the query (?mode, ?panel, ?card) and the hash (Mode Cepat spec §4.4).
         const href = editorHref(jobId, { clipId: result.clipId });
-        if (href && window.location.pathname !== href) window.history.replaceState(window.history.state, "", href);
+        if (href && window.location.pathname !== href) {
+          window.history.replaceState(window.history.state, "", `${href}${window.location.search}${window.location.hash}`);
+        }
         setClipId(result.clipId);
       })
       .catch((error) => {
