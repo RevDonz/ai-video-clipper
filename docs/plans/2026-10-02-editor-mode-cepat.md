@@ -1243,3 +1243,53 @@ Z0 built the scaffold of §10 step 1 on `mode-cepat-base`. Where the spec was si
 9. **For A:** the logo harness (`gizmos/__dev__/logo-harness-entry.jsx`) mounts `EditorApp` at a
    URL without a query and passes `initialPanel`. When the default flips, an `initialPanel` prop
    should resolve as `?panel=` does (Lengkap), or `editor-logo.spec.mjs` lands in Cepat.
+
+## 14. Decisions during build (C)
+
+C built §2 on `mode-cepat-c-lines`. Where the spec was silent:
+
+1. **Command order (§2.3 step 6).** Commands come word by word in word order; for one word, the
+   unhide comes before its text edit. A word is never both edited and hidden.
+2. **Earliest pairing (§2.3 step 4).** Among the longest anchor sets with the fewest hidden words,
+   the earliest old word is paired first, with its earliest token.
+3. **More exports in `caption-lines.mjs`.** `commitLine` is the card's whole commit: `lineEdit`,
+   the dry run, then one merge key on every command, plus `hidesRow` (the draft was empty).
+   `rowAtFrame` finds the line under the playhead; `draftTokens`, `LINE_LIMITS` and
+   `LINE_MESSAGES` hold the §2.3 and §2.4 rules. `lineEdit` refuses `text_invalid` on the raw
+   draft, so a tab character is refused, not read as a space. `too_many_word_edits` comes from the
+   dry run, with the command's message.
+4. **"Equal to the row's text" (§2.2)** compares the draft's tokens with the tokens of the row's
+   visible texts, so a word edited into two tokens ("dulu ya") still matches when it is retyped.
+5. **Card states the spec did not name.** With captions on but no line (every word hidden): "Tidak
+   ada kata yang tampil di caption. Kata yang disembunyikan bisa ditampilkan lagi di transkrip."
+   and a "Buka transkrip" button (`showLengkap("transcript")`). With no plan yet and a failed
+   preview request: "Baris caption belum bisa dimuat; editor mencoba lagi." (`role="alert"`; the
+   store asks again). A successful edit clears the status line; only the hidden-line message is
+   announced there.
+6. **The field.** As in the mockup, the time label sits inside the line's box. The box is the
+   field of §8.1 (`--surface-2`, `--border-strong` edge, at least 44 px); it carries the shell's
+   focus ring (`:has(> input:focus-visible)`) so the input does not draw a second one inside it;
+   its edge turns `--text` under the playhead and `--danger` on a refusal. The "Cold open" tag is
+   inside the label, so such a field is named "00:00,4 Cold open".
+7. **The line under the playhead** is marked whenever the frame changes, paused or playing. It
+   scrolls into view (nearest) only while no field of the card has focus, the pointer is not over
+   the card, and the card is open (not `inert`). Focusing a line seeks only when
+   `player.state().playing` is not true.
+8. **Focus across regrouping.** The card tracks the focused line from focus and blur. A blur
+   towards another line (Tab, a click) records that line at once (`relatedTarget`), so when the
+   commit's new plan regroups before focus lands there, §2.5 still applies to it.
+9. **The fakes' cues (§2.6).** `fakePlan` takes its pieces from `timemap.pieces` (cuts
+   honoured). A cue ends at its last word's end, capped at the next cue's start in the segment, so
+   cues never overlap. Box splits greedily while the shown text fits 24 characters, like
+   `captions_ass.fit_cues`. The engine's 600 ms gap break is not modelled; the fakes' only long gap
+   follows "sendiri?", which breaks anyway.
+10. **The real store over the fakes.** `__dev__/fakes.mjs` exports `createRealEditorStore`: the
+    real store over the fake API and preview client. `editor-quick-lines.spec.mjs` returns it from
+    its scenario's `store` hook, and its API keeps one fake server in `localStorage`, so two tabs of
+    one browser context conflict and merge as on the real stack.
+11. **Seed line count (outside C's files).** The engine-like cues give the fakes' seed 4 lines
+    ("Kenapa sutradara ditahan di", "film sendiri?", "Jadi waktu itu kita", "datang subuh")
+    instead of today's 3 groups of four. Two assertions owned by A count the old groups:
+    `e2e/editor-views.spec.mjs` ("3 baris", and its comment) and `e2e/editor-shell.spec.mjs`
+    (`[data-lane="captions"] [data-cue]` count 3). They become 4 when C merges with A (§10 step 3);
+    C does not edit them.
