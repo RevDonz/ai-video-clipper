@@ -655,6 +655,32 @@ test("the bottom bar's link opens the transcript in Mode Lengkap", async ({ page
   await expect(page.locator('[data-panel="transcript"]')).toBeVisible();
 });
 
+// The control that leads to Mode Lengkap leaves the page with Mode Cepat: focus goes to the opened
+// panel's tab (the next Tab is the panel), and the live region names the view every time it changes.
+test("a way to Mode Lengkap from the keyboard lands on the opened panel's tab, and every view change is announced", async ({ page }) => {
+  await openEditor(page, `${BASE}?mode=cepat`);
+  const announcement = page.getByTestId("view-announcement");
+  await page.getByRole("button", { name: "Potong per kata di Mode Lengkap →" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(root(page)).toHaveAttribute("data-editor-view", "lengkap");
+  await expect(page.getByRole("tab", { name: "Transkrip" })).toBeFocused();
+  await expect(announcement).toHaveText("Tampilan Lengkap");
+  await expect(page.locator('[data-panel="transcript"]')).toBeVisible();
+  await page.keyboard.press("Tab");
+  expect(await page.evaluate(() => Boolean(document.activeElement?.closest("#editor-panel"))), "the next Tab is the panel").toBe(true);
+
+  await switchView(page, "cepat");
+  await expect(announcement).toHaveText("Tampilan Cepat");
+  const extras = await openCard(page, "extras");
+  await extras.getByRole("button", { name: /Mode Lengkap/ }).first().focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("tab", { name: "Logo" })).toBeFocused();
+  await expect(announcement).toHaveText("Tampilan Lengkap");
+  await switchView(page, "cepat");
+  await expect(announcement).toHaveText("Tampilan Cepat");
+  await expect(viewRadio(page, "Cepat")).toBeFocused();
+});
+
 // ---------------------------------------------------------------------------------------------
 // AC12: lime only on Ekspor (and transient progress fills, none at rest)
 
@@ -817,6 +843,115 @@ test("AC13: under forced colours a focused pill, card header and rail tab keep a
   const tab = page.getByRole("tab", { name: "Transkrip" });
   await expect(tab).toBeFocused();
   expect(await outline(tab)).not.toBe("none");
+});
+
+// The radio and the checkbox of the Transisi section are invisible covers: their focus is drawn on
+// the style's card and on the switch's track, where forced colours must keep it (an outline).
+test("AC13: under forced colours the Cold open card's transition styles and whoosh switch keep a visible focus", async ({ page }) => {
+  await page.emulateMedia({ forcedColors: "active" });
+  await openEditor(page, `${BASE}?mode=cepat`, { doc: COLD_OPEN_DOC });
+  const transition = (await openCard(page, "coldopen")).locator("[data-coldopen-transition]");
+  const drawn = (locator, which) => locator.evaluate((element, part) => {
+    const target = part === "label" ? element.closest("label") : element.nextElementSibling;
+    return getComputedStyle(target).outlineStyle;
+  }, which);
+  await page.keyboard.press("Tab"); // keyboard modality, so :focus-visible applies
+  const style = transition.getByRole("radio", { name: /Kilat putih/ });
+  await style.focus();
+  await expect(style).toBeFocused();
+  expect(await drawn(style, "label"), "the focused style's card").not.toBe("none");
+  const whoosh = transition.getByRole("switch", { name: "Suara whoosh" });
+  await whoosh.focus();
+  await expect(whoosh).toBeFocused();
+  expect(await drawn(whoosh, "track"), "the whoosh switch's track").not.toBe("none");
+});
+
+// Forced colours drop fills and box-shadow, so a chosen control needs a mark of its own there: an
+// underlined name (pills, the view switch, tiles, pressed toggles), a knob and track drawn in
+// system colours (switches), a ring that is an outline (swatches).
+test("AC13: under forced colours a chosen view, pill, tile, pressed toggle, switch and swatch keep a mark", async ({ page }) => {
+  await page.emulateMedia({ forcedColors: "active" });
+  await openEditor(page, `${BASE}?mode=cepat`, { doc: COLD_OPEN_DOC });
+  const underlined = (locator) => locator.evaluate((element) => [element, ...element.querySelectorAll("*")]
+    .some((node) => getComputedStyle(node).textDecorationLine.includes("underline")));
+  const label = (group, name) => group.locator("label").filter({ hasText: name }).first();
+
+  const views = page.locator("[data-view-switch] label");
+  expect(await underlined(views.filter({ hasText: "Cepat" })), "the chosen view").toBe(true);
+  expect(await underlined(views.filter({ hasText: "Lengkap" }))).toBe(false);
+
+  const caption = page.locator("#card-caption-region");
+  const size = caption.getByRole("group", { name: "Ukuran" });
+  expect(await underlined(label(size, "Sedang")), "the chosen pill").toBe(true);
+  expect(await underlined(label(size, "Kecil"))).toBe(false);
+  const packs = caption.getByRole("group", { name: "Gaya caption" });
+  expect(await underlined(label(packs, "Karaoke")), "the chosen tile").toBe(true);
+  expect(await underlined(label(packs, "Klasik"))).toBe(false);
+
+  const zone = safeZone(page);
+  expect(await underlined(zone)).toBe(false);
+  await zone.click();
+  await expect(zone).toHaveAttribute("aria-pressed", "true");
+  expect(await underlined(zone), "the pressed toggle").toBe(true);
+  await zone.click();
+
+  // The switch: a knob in system colours in both states, and a filled track when on.
+  const switchMark = (name) => caption.getByRole("switch", { name }).evaluate((input) => {
+    const track = input.nextElementSibling;
+    const knob = getComputedStyle(track, "::after");
+    return { trackAdjust: getComputedStyle(track).forcedColorAdjust, knobAdjust: knob.forcedColorAdjust, knob: knob.backgroundColor };
+  });
+  const on = await switchMark("Tampilkan caption");
+  expect(on.trackAdjust, "the on track is filled in system colours").toBe("none");
+  expect([on.knobAdjust, on.knob === "rgba(0, 0, 0, 0)"]).toEqual(["none", false]);
+  await caption.getByRole("switch", { name: "Tampilkan caption" }).click();
+  await expect(caption.getByRole("switch", { name: "Tampilkan caption" })).not.toBeChecked();
+  const off = await switchMark("Tampilkan caption");
+  expect([off.knobAdjust, off.knob === "rgba(0, 0, 0, 0)"], "the off knob is drawn").toEqual(["none", false]);
+  expect(off.trackAdjust).not.toBe("none");
+  await caption.getByRole("switch", { name: "Tampilkan caption" }).click();
+
+  const swatches = caption.getByRole("radiogroup", { name: "Warna sorot" }).or(caption.getByRole("group", { name: "Warna sorot" }));
+  const rings = await swatches.locator("label").evaluateAll((labels) => labels.map((element) => ({
+    checked: element.querySelector("input").checked,
+    ring: [...element.querySelectorAll("*")].some((node) => getComputedStyle(node).outlineStyle !== "none" && node.tagName !== "INPUT"),
+  })));
+  expect(rings.filter((entry) => entry.checked).map((entry) => entry.ring), "the chosen swatch").toEqual([true]);
+  expect(rings.filter((entry) => !entry.checked).some((entry) => entry.ring)).toBe(false);
+
+  // The Cold open card's chosen style and its whoosh switch, as every chosen pill and switch.
+  const transition = (await openCard(page, "coldopen")).locator("[data-coldopen-transition]");
+  expect(await underlined(label(transition, "Kilat putih")), "the chosen transition style").toBe(true);
+  expect(await underlined(label(transition, "Potong langsung"))).toBe(false);
+  const whoosh = await transition.getByRole("switch", { name: "Suara whoosh" }).evaluate((input) => ({
+    checked: input.checked, track: getComputedStyle(input.nextElementSibling).forcedColorAdjust,
+  }));
+  expect(whoosh).toEqual({ checked: true, track: "none" });
+});
+
+// Spec §8.1: one neutral selected state. The chosen transition style is filled like a chosen pill,
+// and the whoosh switch on looks like every other switch on (no green).
+test("the Cold open card's chosen style and whoosh switch use the neutral selected state of the other cards", async ({ page }) => {
+  await openEditor(page, `${BASE}?mode=cepat`, { doc: COLD_OPEN_DOC });
+  const fill = (locator) => locator.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { background: style.backgroundColor, border: style.borderTopColor };
+  });
+  const caption = page.locator("#card-caption-region");
+  const pill = await fill(caption.getByRole("group", { name: "Ukuran" }).locator("label").filter({ hasText: "Sedang" }));
+  const captionTrack = await caption.getByRole("switch", { name: "Tampilkan caption" }).evaluate((input) => {
+    const style = getComputedStyle(input.nextElementSibling);
+    return { background: style.backgroundColor, border: style.borderTopColor, knob: getComputedStyle(input.nextElementSibling, "::after").backgroundColor };
+  });
+  const transition = (await openCard(page, "coldopen")).locator("[data-coldopen-transition]");
+  await page.waitForFunction(() => document.getAnimations().every((animation) => !(animation instanceof CSSTransition)
+    || animation.playState !== "running"));
+  expect(await fill(transition.locator("label").filter({ hasText: "Kilat putih" })), "the chosen style").toEqual(pill);
+  const whooshTrack = await transition.getByRole("switch", { name: "Suara whoosh" }).evaluate((input) => {
+    const style = getComputedStyle(input.nextElementSibling);
+    return { background: style.backgroundColor, border: style.borderTopColor, knob: getComputedStyle(input.nextElementSibling, "::after").backgroundColor };
+  });
+  expect(whooshTrack, "the whoosh switch on").toEqual(captionTrack);
 });
 
 async function axeBlocking(page) {

@@ -360,6 +360,36 @@ test("a hidden word that is not an anchor stays hidden; among equal anchors the 
   assert.deepEqual(lineEdit({ row, draft: "ya ya oke dong", doc, words, upper: false }), { ok: true, commands: [hide(W1, false)] });
 });
 
+// Fixer, finding 2: a word whose stored text is two tokens (an insertion rode on it) pairs with the
+// run of draft tokens that spells it, so deleting it and typing it back unhides it with its text.
+test("a deleted word that carried an insertion, typed back, is unhidden with its text and no EditWordText", () => {
+  const w3TwoTokens = withEdits(fakeDoc(), { [W3]: { text: "dulu ya", hidden: true } });
+  const row = tableRows(w3TwoTokens)[0];
+  assert.deepEqual([row.text, row.hiddenIds], ["mulai aja dari", [W3]]);
+  assert.deepEqual(editRow(w3TwoTokens, "mulai aja dulu ya dari"), { ok: true, commands: [hide(W3, false)] });
+  assert.deepEqual(editRow(withEdits(boldDoc(), { [W3]: { text: "dulu ya", hidden: true } }), "MULAI AJA DULU YA DARI"),
+    { ok: true, commands: [hide(W3, false)] }, "under upper case each token matches case-insensitively");
+  // Only part of the hidden word typed: it stays hidden and the token rides on the word before.
+  assert.deepEqual(editRow(w3TwoTokens, "mulai aja dulu dari"), { ok: true, commands: [edit(W2, "aja dulu")] });
+  // A visible two-token word keeps its tokens when one is changed next to it.
+  const visible = withEdits(fakeDoc(), { [W3]: { text: "dulu ya" } });
+  assert.deepEqual(editRow(visible, "mulai saja dulu ya dari"), { ok: true, commands: [edit(W2, "saja")] });
+  assert.deepEqual(editRow(visible, "mulai aja dulu ya deh"), { ok: true, commands: [edit(W4, "deh")] });
+
+  // The reviewer's case on the fakes' cues: insert "banget", delete "ditahan banget", retype it.
+  let doc = fakeDoc();
+  const apply = (commands) => { doc = checkCommands(doc, CTX, commands).doc; };
+  const first = () => rowsFor(doc)[0];
+  apply(lineEdit({ row: first(), draft: "Kenapa sutradara ditahan banget di", doc, words: WORDS }).commands);
+  apply(lineEdit({ row: first(), draft: "Kenapa sutradara di", doc, words: WORDS }).commands);
+  assert.equal(first().text, "Kenapa sutradara di film", "the hidden word shifts the 4-word group");
+  const retyped = lineEdit({ row: first(), draft: "Kenapa sutradara ditahan banget di film", doc, words: WORDS });
+  assert.deepEqual(retyped, { ok: true, commands: [hide(ID[2], false)] });
+  apply(retyped.commands);
+  assert.deepEqual(doc.captions.word_edits, { [ID[2]]: { text: "ditahan banget" } });
+  assert.equal(first().text, "Kenapa sutradara ditahan banget di");
+});
+
 // ---------------------------------------------------------------------------------------------
 // Limits and messages (§2.4).
 
@@ -492,6 +522,49 @@ test("two tabs editing different words of one row merge (per-word parts)", () =>
   const merged = rebase({ base: seed, mine: mine.doc, theirs: theirs.doc, steps: mine.pending, ctx: CTX });
   assert.equal(merged.status, "merged");
   assert.deepEqual(merged.doc.captions.word_edits, { [ID[0]]: { hidden: true }, [ID[1]]: { text: "sutradaranya" }, [ID[3]]: { text: "di sini" } });
+});
+
+// Fixer, finding 1: a draft is diffed against the line and document it was typed against, and the
+// dry run runs on the document as it is now. A regroup or a merge that lands while the viewer types
+// never edits or hides a word the field did not show.
+test("commitLine with a base: the draft is diffed against the line it was typed against, the dry run is on the document now", () => {
+  const doc0 = fakeDoc();
+  const plan0 = fakePlan(doc0);
+  const rowsWith = (plan, doc) => captionRows({ plan, doc, words: WORDS, model: buildTranscriptModel(WORDS, doc) });
+  const hidden = commitLine({ row: rowsWith(plan0, doc0)[0], draft: "Kenapa sutradara di", doc: doc0, words: WORDS, ctx: CTX, mergeKey: "k1" });
+  const doc1 = checkCommands(doc0, CTX, hidden.commands).doc;
+  // Enter kept the focus; the viewer types again before the commit's new plan arrives.
+  const typed = rowsWith(plan0, doc1)[0];
+  assert.equal(typed.text, "Kenapa sutradara di");
+  const regrouped = rowsWith(fakePlan(doc1), doc1)[0];
+  assert.deepEqual([regrouped.key, regrouped.text], [typed.key, "Kenapa sutradara di film"]);
+  const draft = "Kenapa sutradara dari";
+  const result = commitLine({ row: regrouped, draft, doc: doc1, words: WORDS, ctx: CTX, mergeKey: "k2", base: { row: typed, doc: doc1 } });
+  assert.deepEqual(result, { ok: true, hidesRow: false, commands: [{ ...edit(ID[3], "dari"), mergeKey: "k2" }] },
+    "\"film\" joined the line after the draft began; it is not hidden");
+
+  // Another tab changed a word the draft did not touch: the commit keeps that change.
+  const row = rowsWith(plan0, doc0)[0];
+  const merged = checkCommands(doc0, CTX, [edit(ID[1], "sutradaranya")]).doc;
+  const kept = commitLine({ row: rowsWith(fakePlan(merged), merged)[0], draft: "Kenapa sutradara ditahan dari", doc: merged, words: WORDS,
+    ctx: CTX, mergeKey: "k3", base: { row, doc: doc0 } });
+  assert.deepEqual(kept.commands, [{ ...edit(ID[3], "dari"), mergeKey: "k3" }]);
+
+  // The dry run is on the current document: one that reached the word-edit limit since the draft
+  // began refuses the commit, though the base document had room.
+  const count = LIMITS.wordEdits + 1;
+  const big = { ...fakeWords(), words: Array.from({ length: count }, (_, index) => ({
+    id: `w${200000 + index}`, s: 1181900 + index * 30, e: 1181920 + index * 30, t: `kata${index}`, p_pm: 900, u: "S0011", z: false,
+  })), bounds: [], gaps: [] };
+  const bigCtx = createContext({ words: big, seed: fakeDoc() });
+  const last = big.words.at(-1);
+  const lone = { key: `seg_b1:${last.id}`, seg: "seg_b1", cold: false, f0: 0, f1: 10, wordIds: [last.id], hiddenIds: [], text: last.t, edited: false };
+  const roomy = fakeDoc();
+  const full = fakeDoc();
+  full.captions.word_edits = Object.fromEntries(big.words.slice(0, LIMITS.wordEdits).map((word) => [word.id, { hidden: true }]));
+  assert.equal(commitLine({ row: lone, draft: "baru", doc: roomy, words: big, ctx: bigCtx, mergeKey: "k4" }).ok, true);
+  assert.deepEqual(commitLine({ row: lone, draft: "baru", doc: full, words: big, ctx: bigCtx, mergeKey: "k4", base: { row: lone, doc: roomy } }),
+    { ok: false, code: "too_many_word_edits", message: COMMAND_MESSAGES.too_many_word_edits });
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -668,4 +741,29 @@ test("property: applying a line's commands gives back the draft's tokens; deleti
   }
   assert.ok(checked >= 1800, `checked ${checked}`);
   assert.ok(refused <= 100, `refused ${refused}`);
+});
+
+// Fixer, finding 2: retyping every hidden neighbour in place, whatever its stored text (one or two
+// tokens), unhides each of them and edits no word's text.
+test("property: retyping a line with all its hidden neighbours in place only unhides them", () => {
+  const rng = mulberry32(20261005);
+  const order = new Map(ID.map((id, position) => [id, position]));
+  let checked = 0;
+  for (let round = 0; round < 2000; round += 1) {
+    const doc = randomDoc(rng);
+    const rows = captionRows({ plan: fakePlan(doc), doc, words: WORDS, model: buildTranscriptModel(WORDS, doc) });
+    const candidates = rows.filter((entry) => entry.hiddenIds.length);
+    if (!candidates.length) continue;
+    const row = candidates[Math.floor(rng() * candidates.length)];
+    const upper = doc.captions.overrides.case === "upper";
+    const ids = [...row.wordIds, ...row.hiddenIds].sort((a, b) => order.get(a) - order.get(b));
+    const textOf = (id) => doc.captions.word_edits[id]?.text ?? WORDS.words[order.get(id)].t;
+    const draft = ids.map(textOf).map((text) => (upper && rng() < 0.5 ? text.toLocaleUpperCase("id") : text)).join(" ");
+    const label = `round ${round}: ${JSON.stringify({ row: row.text, hidden: row.hiddenIds, draft, upper })}`;
+    const result = lineEdit({ row, draft, doc, words: WORDS, upper });
+    assert.equal(result.ok, true, label);
+    assert.deepEqual(result.commands, row.hiddenIds.slice().sort((a, b) => order.get(a) - order.get(b)).map((id) => hide(id, false)), label);
+    checked += 1;
+  }
+  assert.ok(checked >= 500, `checked ${checked}`);
 });

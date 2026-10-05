@@ -118,6 +118,23 @@ function installLinesScenario(config) {
         },
       };
     },
+    // While window.__holdPlans is true, plan requests wait for window.__releasePlans(): the time
+    // between a commit and its new plan, when the lines on screen still have the old grouping.
+    previewClient(client) {
+      const waiting = [];
+      window.__holdPlans = false;
+      window.__releasePlans = () => {
+        window.__holdPlans = false;
+        for (const release of waiting.splice(0)) release();
+      };
+      return {
+        ...client,
+        async plan(doc) {
+          if (window.__holdPlans) await new Promise((resolve) => { waiting.push(resolve); });
+          return client.plan(doc);
+        },
+      };
+    },
     store(store, fakes, parts) {
       store.destroy();
       // A long autosave keeps the pending steps inspectable; `flush()` saves on demand.
@@ -313,6 +330,36 @@ test("Box regrouping: Tab commits and moves on, and focus follows the next line'
   await expect.poll(() => lineTexts(card)).toEqual(["Kenapa sutradaranya", "ditahan di", "film sendiri?", "Jadi waktu itu kita", "datang subuh"]);
   await expect(field(card, key(2))).toBeFocused();
   expect((await editor(page)).edits).toEqual({ [ID[1]]: { text: "sutradaranya" } });
+});
+
+// The commit's new plan lands while the viewer types again (the spec's "no draft is lost", §2.5).
+test("lines that regroup under a draft: the draft is diffed against what its field showed", async ({ page }) => {
+  const card = await openLines(page);
+  await page.evaluate(() => { window.__holdPlans = true; });
+  await commitLine(card, key(0), "Kenapa sutradara di");
+  await expect.poll(async () => (await editor(page)).edits).toEqual({ [ID[2]]: { hidden: true } });
+  await expect(field(card, key(0))).toBeFocused();
+  await expect.poll(() => lineTexts(card)).toEqual(["Kenapa sutradara di", "film sendiri?", "Jadi waktu itu kita", "datang subuh"]);
+  await field(card, key(0)).fill("Kenapa sutradara dari");
+  await page.evaluate(() => window.__releasePlans());
+  // "film" joins the first line's group; the field keeps what the viewer is typing.
+  await expect.poll(() => lineKeys(card)).toEqual([key(0), key(5), key(6), key(10)]);
+  await expect(field(card, key(0))).toHaveValue("Kenapa sutradara dari");
+  await field(card, key(0)).press("Enter");
+  await expect.poll(async () => (await editor(page)).edits).toEqual({ [ID[2]]: { hidden: true }, [ID[3]]: { text: "dari" } });
+  await expect.poll(() => lineTexts(card)).toEqual(["Kenapa sutradara dari film", "sendiri?", "Jadi waktu itu kita", "datang subuh"]);
+});
+
+test("a line that leaves while its draft is typed: the draft commits as a blur would, and focus follows its words", async ({ page }) => {
+  const card = await openLines(page);
+  await page.evaluate(() => { window.__holdPlans = true; });
+  await commitLine(card, key(0), "Kenapa sutradara di", "Tab");
+  await expect(field(card, key(4))).toBeFocused();
+  await field(card, key(4)).fill("film sendiri banget?");
+  await page.evaluate(() => window.__releasePlans());
+  await expect.poll(async () => (await editor(page)).edits).toEqual({ [ID[2]]: { hidden: true }, [ID[5]]: { text: "sendiri banget?" } });
+  await expect.poll(() => lineTexts(card)).toEqual(["Kenapa sutradara di film", "sendiri banget?", "Jadi waktu itu kita", "datang subuh"]);
+  await expect(field(card, key(0))).toBeFocused();
 });
 
 test("a cold-open line and its body twin: editing either changes both", async ({ page }) => {
