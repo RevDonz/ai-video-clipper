@@ -1,0 +1,82 @@
+/* Mode Lengkap's icon rail (docs/plans/2026-10-02-editor-mode-cepat.md §6.1, §8): one column of
+   tabs, 64 px tall when there is room and never under 44 px; the rail scrolls only when six
+   44 px rows do not fit. The selected tab is a neutral surface, never the accent. Tokens only;
+   motion from the duration tokens (0 ms under reduced motion). */
+
+.rail {
+  box-sizing: border-box;
+  display: grid;
+  grid-auto-rows: minmax(var(--ed-target, 44px), 64px);
+  align-content: start;
+  gap: var(--ed-space-1, 4px);
+  flex: none;
+  width: var(--ed-rail-width, 84px);
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: var(--ed-space-2, 8px) 6px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-right: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.tab {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ed-space-1, 4px);
+  min-width: 0;
+  min-height: var(--ed-target, 44px);
+  padding: 4px 2px;
+  border: 0;
+  border-radius: var(--radius-m);
+  background: transparent;
+  color: var(--text-muted);
+  font: 600 var(--ed-font-size-sm, 12px) / 1.2 var(--ed-font-ui, var(--font));
+  text-align: center;
+  cursor: pointer;
+  transition: background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+}
+
+.tab:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.tab[aria-selected="true"] {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.icon {
+  flex: none;
+}
+
+.label {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+/* Forced colours drop the selected surface: the selected tab keeps a mark of its own. */
+@media (forced-colors: active) {
+  .tab[aria-selected="true"] .label {
+    text-decoration: underline 2px;
+    text-underline-offset: 3px;
+  }
+}
+
+/* Until the shell gives the rail its own grid column (task A, §1.1), the scaffold mounts the rail
+   as the first child of the panels aside; that aside then lays the rail and the panel side by
+   side instead of stacking them. */
+[data-slot="panels"]:has(> .rail) {
+  flex-direction: row;
+}
