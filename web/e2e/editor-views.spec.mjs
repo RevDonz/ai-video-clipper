@@ -139,6 +139,8 @@ const editorState = (page) => page.evaluate(() => {
 });
 const storedView = (page) => page.evaluate((key) => window.localStorage.getItem(key), VIEW_KEY);
 const playerFrame = (page) => page.evaluate(() => window.__potonginEditor.player.frame());
+// Play / pause of the bottom region (panels have "Putar" buttons of their own).
+const playButton = (page, name) => page.locator('[data-slot="bottom"]').getByRole("button", { name, exact: true });
 
 // ---------------------------------------------------------------------------------------------
 // AC1: the default view and the preference
@@ -169,6 +171,8 @@ test("AC1: a switch to Lengkap is remembered across a reload; a deep link wins a
   await openEditor(page, `${BASE}?mode=cepat`);
   await expect(root(page)).toHaveAttribute("data-editor-view", "cepat");
   expect(await storedView(page)).toBe("lengkap");
+  // Using the switch writes it again.
+  await switchView(page, "lengkap");
   await switchView(page, "cepat");
   expect(await storedView(page)).toBe("cepat");
   await openEditor(page, BASE);
@@ -301,9 +305,9 @@ test("AC4: after a click on a pack pill or a swatch, Ctrl+Z, ', ? and K still wo
   await page.keyboard.press("'");
   await expect(safeZone(page)).toHaveAttribute("aria-pressed", "false");
   await page.keyboard.press("k");
-  await expect(page.getByRole("button", { name: "Jeda" })).toBeVisible();
+  await expect(playButton(page, "Jeda")).toBeVisible();
   await page.keyboard.press("k");
-  await expect(page.getByRole("button", { name: "Putar" })).toBeVisible();
+  await expect(playButton(page, "Putar")).toBeVisible();
   await page.keyboard.press("?");
   const help = page.getByRole("dialog", { name: "Pintasan keyboard" });
   await expect(help).toBeVisible();
@@ -317,7 +321,7 @@ test("AC4: after a click on a pack pill or a swatch, Ctrl+Z, ', ? and K still wo
   expect(await playerFrame(page)).toBe(before);
   // Space on the focused radio is the radio's: nothing plays.
   await page.keyboard.press(" ");
-  await expect(page.getByRole("button", { name: "Putar" })).toBeVisible();
+  await expect(playButton(page, "Putar")).toBeVisible();
   // A swatch: Ctrl+Z undoes it from the swatch itself.
   const swatches = page.getByRole("group", { name: "Warna sorot" }).getByRole("radio");
   const highlight = (await editorState(page)).doc.captions.overrides.highlight;
@@ -337,9 +341,9 @@ test("AC4: after a click on a transition style or the whoosh switch, Ctrl+Z and 
   await page.keyboard.press("Control+z");
   await expect.poll(async () => (await editorState(page)).canUndo).toBe(false);
   await page.keyboard.press("k");
-  await expect(page.getByRole("button", { name: "Jeda" })).toBeVisible();
+  await expect(playButton(page, "Jeda")).toBeVisible();
   await page.keyboard.press("k");
-  await expect(page.getByRole("button", { name: "Putar" })).toBeVisible();
+  await expect(playButton(page, "Putar")).toBeVisible();
   const whoosh = section.getByRole("switch", { name: "Suara whoosh" });
   await whoosh.click();
   await expect.poll(async () => (await editorState(page)).commands.at(-1)?.type).toBe("SetJoinSfx");
@@ -347,7 +351,7 @@ test("AC4: after a click on a transition style or the whoosh switch, Ctrl+Z and 
   const sfx = (await editorState(page)).commands.filter((command) => command.type === "SetJoinSfx").length;
   await page.keyboard.press(" ");
   await expect.poll(async () => (await editorState(page)).commands.filter((command) => command.type === "SetJoinSfx").length).toBe(sfx + 1);
-  await expect(page.getByRole("button", { name: "Putar" })).toBeVisible();
+  await expect(playButton(page, "Putar")).toBeVisible();
   expect((await editorState(page)).canRedo).toBe(false);
   await page.keyboard.press("Control+z");
   await expect.poll(async () => (await editorState(page)).canRedo, "Ctrl+Z from the switch undid a step").toBe(true);
@@ -721,12 +725,18 @@ test("AC13: under forced colours a focused pill, card header and rail tab keep a
   await segment.focus();
   expect(await outline(segment)).not.toBe("none");
   await switchView(page, "lengkap");
+  // The switch was clicked: a key press puts the page back in keyboard modality (:focus-visible).
+  await page.getByRole("button", { name: "Ekspor", exact: true }).focus();
+  await page.keyboard.press("Tab");
   const tab = page.getByRole("tab", { name: "Transkrip" });
-  await tab.focus();
+  await expect(tab).toBeFocused();
   expect(await outline(tab)).not.toBe("none");
 });
 
 async function axeBlocking(page) {
+  // Cards open and pills fade over var(--dur-*): axe reads the colours once the transitions end.
+  await page.waitForFunction(() => document.getAnimations().every((animation) => !(animation instanceof CSSTransition)
+    || animation.playState !== "running"));
   await page.addScriptTag({ content: AXE });
   return page.evaluate(async () => {
     const result = await window.axe.run(document, { resultTypes: ["violations"] });
