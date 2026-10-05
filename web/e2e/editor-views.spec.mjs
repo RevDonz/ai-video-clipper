@@ -613,19 +613,29 @@ async function limeAtRest(page) {
 }
 
 // Hovers every visible, enabled control of the editor (Ekspor aside) and scans it while hovered.
+// The sweep holds each control's element, so a control that leaves the page while it runs (a list
+// that finished loading) is skipped at once instead of awaited by index; controls that appeared
+// meanwhile are swept in a further round, until none is new.
 async function limeOnHover(page) {
   const found = [];
-  const targets = page.locator('[data-editor-root] :is(button, a[href], [role="tab"], label:has(input[type="radio"]), label:has(input[type="checkbox"])):visible');
-  const count = await targets.count();
-  for (let i = 0; i < count; i += 1) {
-    const target = targets.nth(i);
-    const skip = await target.evaluate((element) => element.disabled === true || Boolean(element.closest("dialog"))
-      || element.textContent.trim() === "Ekspor").catch(() => true);
-    if (skip) continue;
-    await target.scrollIntoViewIfNeeded({ timeout: 2_000 }).catch(() => {});
-    await target.hover({ force: true, timeout: 2_000 }).catch(() => {});
-    found.push(...(await target.evaluate(limeScan).catch(() => [])));
+  const controls = page.locator('[data-editor-root] :is(button, a[href], [role="tab"], label:has(input[type="radio"]), '
+    + 'label:has(input[type="checkbox"])):not([data-lime-swept]):visible');
+  for (let round = 0; round < 5; round += 1) {
+    const handles = await controls.elementHandles();
+    if (!handles.length) break;
+    for (const handle of handles) {
+      const skip = await handle.evaluate((element) => {
+        element.setAttribute("data-lime-swept", "");
+        return !element.isConnected || element.disabled === true || Boolean(element.closest("dialog"))
+          || element.textContent.trim() === "Ekspor";
+      }).catch(() => true);
+      if (skip) continue;
+      await handle.scrollIntoViewIfNeeded({ timeout: 2_000 }).catch(() => {});
+      await handle.hover({ force: true, timeout: 2_000 }).catch(() => {});
+      found.push(...(await handle.evaluate(limeScan).catch(() => [])));
+    }
   }
+  await page.evaluate(() => document.querySelectorAll("[data-lime-swept]").forEach((element) => element.removeAttribute("data-lime-swept")));
   await page.mouse.move(1, 1);
   return found;
 }
