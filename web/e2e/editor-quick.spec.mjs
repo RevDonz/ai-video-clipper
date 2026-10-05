@@ -757,7 +757,8 @@ test.describe("Mode Cepat cards (harness: real store and commands)", () => {
         if (id === "coldopen") await body.getByRole("button", { name: "Pilih kalimat" }).click();
         if (id === "hook") await expect(body.getByRole("list", { name: "Saran otomatis" }).getByRole("button")).toHaveCount(2);
         if (id === "coldopen") await expect(body.locator("[data-coldopen-suggestion]")).toHaveCount(1);
-        await expect(page.locator('[data-slot="cards"] [aria-expanded="true"]')).toHaveCount(1);
+        // One card open: exactly one header says so ("Pilih kalimat" inside a card expands too).
+        await expect(page.locator('[data-slot="cards"] h2 > button[aria-expanded="true"]')).toHaveCount(1);
         const found = await body.evaluate((root) => {
           const out = [];
           const controls = root.querySelectorAll("button, input, textarea, select, [role='switch']");
