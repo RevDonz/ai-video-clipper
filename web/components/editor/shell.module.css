@@ -130,6 +130,23 @@
   cursor: pointer;
 }
 
+/* "Coba simpan lagi" after a failed save: a top-bar control, so a 44 px target (spec §8.4). */
+.retryButton {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  min-height: var(--ed-target);
+  padding: 0 8px;
+  border-radius: var(--ed-radius-md);
+  white-space: nowrap;
+  transition: background var(--dur-1);
+}
+
+.retryButton:hover {
+  background: var(--surface-2);
+  color: var(--info);
+}
+
 /* ---------- Top bar (both views) ---------- */
 
 .topBar {
