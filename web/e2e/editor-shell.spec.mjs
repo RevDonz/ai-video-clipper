@@ -980,6 +980,9 @@ test("every action is reachable by keyboard with a visible focus ring", async ({
 });
 
 async function axeViolations(page) {
+  // The pressed pills fade their colours (MOTION 2): axe reads the colours once the fade is over.
+  await page.waitForFunction(() => document.getAnimations().every((animation) => !(animation instanceof CSSTransition)
+    || animation.playState !== "running"));
   await page.addScriptTag({ content: AXE });
   return page.evaluate(async () => {
     const result = await window.axe.run(document, { resultTypes: ["violations"] });
