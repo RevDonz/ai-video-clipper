@@ -16,7 +16,11 @@ export function menuItemRole(item) {
   return typeof item?.checked === "boolean" ? "menuitemcheckbox" : "menuitem";
 }
 
-/** The ids that tie an accordion's header button to its region (aria-controls, aria-labelledby). */
+/**
+ * The ids that tie an accordion's header to its region: the button controls the region
+ * (aria-controls), and the region is named by the header's label alone (aria-labelledby), so it
+ * reads "Caption", not the card's summary with it.
+ */
 export function accordionIds(id) {
-  return { button: `${id}-button`, region: `${id}-region` };
+  return { button: `${id}-button`, label: `${id}-label`, region: `${id}-region` };
 }
