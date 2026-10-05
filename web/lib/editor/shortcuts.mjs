@@ -26,6 +26,9 @@ export const SHORTCUTS = Object.freeze([
   entry({ id: "truthFrame", keys: ["Ctrl+Shift+R"], description: "Frame akhir (piksel persis)", scope: "global" }),
   entry({ id: "export", keys: ["Ctrl+Shift+E"], description: "Ekspor", scope: "global" }),
   entry({ id: "help", keys: ["?"], description: "Bantuan pintasan", scope: "global" }),
+  // Mode Cepat's position bar handles these itself while it has focus (spec §7); listed for help.
+  entry({ id: "scrubEnds", keys: ["Home", "End"], description: "Ke awal / akhir klip", scope: "scrubber" }),
+  entry({ id: "scrubMarks", keys: ["PageUp", "PageDown"], description: "Ke tanda sebelumnya / berikutnya", scope: "scrubber" }),
 ]);
 
 const SCOPE = new Map(SHORTCUTS.map((item) => [item.id, item.scope]));
@@ -35,6 +38,21 @@ const ACTIVATES_ON_SPACE = new Set(["BUTTON", "A", "SUMMARY"]);
 const SPACE_ROLES = new Set(["button", "link", "tab", "slider", "checkbox", "radio", "switch", "menuitem", "option"]);
 const ARROW_ROLES = new Set(["slider", "tab", "radio", "option", "menuitem", "spinbutton", "scrollbar"]);
 const ARROW_CONTAINERS = '[role="tablist"], [role="radiogroup"], [role="listbox"], [role="menu"], [role="slider"]';
+
+// Input types that take no typed text (Mode Cepat spec §4.5): every other type, a missing one and
+// an unknown one are text fields. Space toggles or presses all of them; arrows move radios and ranges.
+const CONTROL_INPUTS = new Set(["checkbox", "radio", "range", "button", "submit", "reset", "color", "file", "image"]);
+const ARROW_INPUTS = new Set(["radio", "range"]);
+
+function inputType(target) {
+  const raw = typeof target?.type === "string" ? target.type
+    : typeof target?.getAttribute === "function" ? target.getAttribute("type") : null;
+  return typeof raw === "string" ? raw.trim().toLowerCase() : "";
+}
+
+function tagOf(target) {
+  return typeof target?.tagName === "string" ? target.tagName.toUpperCase() : "";
+}
 
 function lower(key) {
   return typeof key === "string" ? key.toLowerCase() : "";
@@ -72,12 +90,16 @@ export function shortcutFor(event) {
   return null;
 }
 
-/** True for a text field or any other element that takes typed input. */
+/**
+ * True for an element that takes typed input: content-editable, TEXTAREA, SELECT and text-entry
+ * INPUTs. A checkbox, radio, range, button-type, colour or file input is a control, not a field.
+ */
 export function isEditableTarget(target) {
   if (!target || typeof target !== "object") return false;
   if (target.isContentEditable) return true;
-  const tag = typeof target.tagName === "string" ? target.tagName.toUpperCase() : "";
-  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+  const tag = tagOf(target);
+  if (tag === "TEXTAREA" || tag === "SELECT") return true;
+  return tag === "INPUT" && !CONTROL_INPUTS.has(inputType(target));
 }
 
 function role(target) {
@@ -100,10 +122,11 @@ export function globalShortcut(event) {
   if (isEditableTarget(target)) return null;
   const id = shortcutFor(event);
   if (!id || SCOPE.get(id) !== "global") return null;
-  const tag = typeof target?.tagName === "string" ? target.tagName.toUpperCase() : "";
+  const tag = tagOf(target);
+  const control = tag === "INPUT" ? inputType(target) : "";
   if (id === "playPause" && (event.key === " " || event.code === "Space")
-    && (ACTIVATES_ON_SPACE.has(tag) || SPACE_ROLES.has(role(target)))) return null;
+    && (ACTIVATES_ON_SPACE.has(tag) || SPACE_ROLES.has(role(target)) || CONTROL_INPUTS.has(control))) return null;
   if (["frameBack", "frameForward", "secondBack", "secondForward"].includes(id)
-    && (ARROW_ROLES.has(role(target)) || insideArrowWidget(target))) return null;
+    && (ARROW_ROLES.has(role(target)) || ARROW_INPUTS.has(control) || insideArrowWidget(target))) return null;
   return id;
 }
