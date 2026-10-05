@@ -1,0 +1,53 @@
+{
+  "task": "Z (integration)",
+  "branch": "mode-cepat-integrasi",
+  "commit": "fecc1a9",
+  "run": 37290705450,
+  "suite": "e2e -f gates=true, command 'e2e/editor-shell.spec.mjs --grep PF-OPEN'",
+  "gate": "PF-OPEN",
+  "view": "cepat",
+  "interactive": "#card-caption-region :is(input, button, select, textarea)",
+  "browser": "147.0.7727.15",
+  "executable": "/home/runner/.cache/ms-playwright/chromium-1217/chrome-linux64/chrome",
+  "runs": 20,
+  "variants": [
+    {
+      "name": "fakes, no server latency",
+      "config": null,
+      "first_visit_ms": {
+        "p50": 516.9749999999767,
+        "p95": 532.7799999999988,
+        "max": 539.6399999999849
+      },
+      "repeat_visit_ms": {
+        "p50": 408.0850000000064,
+        "p95": 422.8099999999977,
+        "max": 426.9349999999977
+      }
+    },
+    {
+      "name": "fakes + simulated server latency",
+      "config": {
+        "api": {
+          "getEdit": 90,
+          "words": 90,
+          "clips": 90
+        },
+        "preview": {
+          "plan": 200
+        }
+      },
+      "first_visit_ms": {
+        "p50": 586.6199999999953,
+        "p95": 600.2399999999907,
+        "max": 610.9899999999907
+      },
+      "repeat_visit_ms": {
+        "p50": 483.4750000000058,
+        "p95": 498.9199999999837,
+        "max": 499.63000000000466
+      }
+    }
+  ],
+  "pass": true
+}
