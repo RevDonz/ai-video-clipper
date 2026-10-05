@@ -3,8 +3,11 @@
    the text colour, never lime (lime is Ekspor's). Notes and legends are 13/400 --text-muted;
    every control is at least --ed-target (44 px) tall. */
 
+/* One column exactly as wide as the side region: a card's min-content (its header's one-line
+   summary, cut with an ellipsis) must never widen it, or the column scrolls sideways. */
 .cards {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: 10px;
 }
@@ -24,8 +27,10 @@
 
 /* ---------- Card bodies ---------- */
 
+/* The column is the card's width, so a one-line name inside (a music file) is cut, not widening. */
 .body {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
   min-width: 0;
 }
