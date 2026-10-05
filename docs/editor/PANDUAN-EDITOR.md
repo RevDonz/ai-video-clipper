@@ -16,6 +16,11 @@ mengonfirmasi labelnya. Daftar flag, syaratnya dan cara mematikannya: `docs/edit
 
 Proyek lama tetap bisa dilihat dan diunduh dari Riwayat. Editor kandidat yang lama sudah tidak ada.
 
+Editor punya dua tampilan untuk klip yang sama: **Mode Cepat** (bawaan), enam kartu untuk pekerjaan
+sehari-hari, dan **Mode Lengkap**, untuk memotong per kata di transkrip, timeline dan pengaturan
+detail. Keduanya memakai dokumen, riwayat Urungkan, simpan otomatis dan ekspor yang sama, jadi
+pindah tampilan tidak menghilangkan apa pun. Rencananya: `docs/plans/2026-10-02-editor-mode-cepat.md`.
+
 ## 1. Membuka klip
 
 - Di halaman proyek, setiap kartu klip punya tombol **"Edit klip"** (tombol pertama, paling
@@ -30,17 +35,102 @@ Proyek lama tetap bisa dilihat dan diunduh dari Riwayat. Editor kandidat yang la
   membuka klip.
 - Klip yang memang tidak bisa diedit (misalnya video sumbernya sudah dihapus) menulis alasannya di
   kartu dan di editor, dengan tautan kembali ke proyek.
+- Klip terbuka di **Mode Cepat**, kecuali terakhir kali Anda memilih Mode Lengkap di browser ini.
+  Pindah lewat sakelar **Cepat | Lengkap** di bar atas: dengan mouse, atau Tab ke sakelar lalu
+  ←/→. Pilihan itu diingat per browser, dan alamatnya ikut berubah (`?mode=cepat` atau
+  `?mode=lengkap`), jadi muat ulang tetap di tampilan yang sama.
+- Alamat langsung: `?panel=transcript` (juga `text`, `coldopen`, `layout`, `logo`, `music`) membuka
+  Mode Lengkap dengan panel itu; `?card=lines` (juga `hook`, `caption`, `coldopen`, `layout`,
+  `extras`) membuka Mode Cepat dengan kartu itu. Alamat langsung tidak mengubah pilihan yang
+  diingat. Kalau harus login dulu, editor terbuka di tampilan yang diingat tanpa panel atau kartu
+  pilihan.
 
 ## 2. Yang bisa dipakai
 
-**Transkrip (tab kiri).** Klik kata untuk memilih, Shift+klik untuk rentang.
+### Mode Cepat
+
+Kartu ada di kanan pratinjau, dan hanya satu yang terbuka: klik judul kartu untuk membuka atau
+menutupnya. Saat editor dibuka, kartu **Caption** yang terbuka. Judul tiap kartu menulis
+ringkasannya, misalnya "Karaoke · Sedang · Bawah" atau "Kilat putih + whoosh". Di bawah pratinjau
+ada Putar, waktu, bilah posisi (penjelasannya di bawah), dan **"Potong per kata di Mode Lengkap →"**
+yang membuka transkrip.
+
+**Hook.** Sakelar **Tampilkan hook** dan kolom **Teks di awal klip** (maks. 90 karakter, tanda
+"Muat" / "Akan terpotong"). Di bawahnya **Saran**: klik satu saran untuk memakainya (bisa
+diurungkan). Saran AI baru diminta saat kartu ini dibuka, jadi membuka editor tidak memakai kuota AI.
+Durasi dan posisi hook diatur di Mode Lengkap.
+
+**Caption.** Sakelar **Tampilkan caption**, empat gaya, **Warna sorot**, **Ukuran** (Kecil, Sedang,
+Besar) dan **Posisi** (Atas, Tengah, Bawah; Bawah adalah posisi bawaan klip otomatis). Ukuran atau
+posisi yang diatur halus di Mode Lengkap tampil sebagai persen di ringkasan, dan tidak ada tombol
+yang tertekan. Kalau caption terlalu dekat dengan teks hook, kartu menulis "Caption dekat teks hook.
+Kalau bertumpuk di pratinjau, turunkan caption." Catatan ini hanya petunjuk: pratinjau yang
+menentukan.
+
+**Teks caption.** Satu kolom per baris caption, diberi label waktunya. Ketik untuk membetulkan
+kata, lalu Enter, Tab atau klik di luar untuk menyimpan; Esc membatalkan. Saat diam, mengeklik
+baris memindah pratinjau ke baris itu; saat diputar, baris yang sedang tampil diberi garis tepi.
+- Waktu kata tidak berubah dan suara tidak dipotong: ini hanya tulisan caption.
+- Menghapus kata menyembunyikannya dari caption. Mengetik ulang kata yang tadi dihapus
+  memunculkannya lagi dengan waktunya sendiri.
+- Kata yang benar-benar baru menempel ke kata di sebelahnya, jadi di Karaoke dan Bold keduanya
+  menyala bersamaan.
+- Mengosongkan baris menyembunyikan seluruh baris ("Baris disembunyikan dari caption."). Satu
+  Urungkan membatalkan satu baris yang disimpan.
+- Baris dibagi seperti di hasil akhir: maks. 4 kata, putus setelah akhir kalimat, dan di Box juga
+  menurut lebar. Mengetik titik atau tanda tanya, atau menghapus kata, bisa memecah atau
+  menggabungkan baris; kursor tetap di baris yang memuat kata Anda.
+- Kalimat cold open muncul dua kali (di cold open dan di isi klip), bertanda "Cold open". Mengubah
+  salah satunya mengubah keduanya.
+- Di gaya Bold kolomnya huruf besar, seperti pratinjau; mengetik ulang teks yang sama tidak
+  mengubah apa pun.
+- Batas: maks. 40 kata per baris dan 40 huruf per kata (termasuk tambahannya). Baris yang ditolak
+  tetap berisi ketikan Anda, bertepi merah, dengan alasannya di bawahnya.
+
+**Cold open.** Kalimat cold open dan panjangnya, **Putar**, **Ganti kalimat** (daftar saran, tiap
+saran dengan Putar dan Pakai), lalu bagian **Transisi** yang sama persis dengan Mode Lengkap, dan
+**Hapus cold open**. Tanpa cold open kartu menulis "Belum ada cold open." dengan tombol **Pilih
+kalimat**. Menambah atau membuang kata di ujung kalimat ada di Mode Lengkap.
+
+**Tata letak.** **Latar blur**, **Potong tengah** dan **Ikuti wajah**. Analisis wajah tetap berjalan
+walau kartu ditutup atau tampilan dipindah; progresnya juga tampil di panel Tata letak.
+
+**Logo & Musik.** **Tambah logo** (lalu geser logo langsung di pratinjau), **Tambah musik** (catatan
+hak cipta muncul sekali, sama dengan di Mode Lengkap), kekuatan **Saat ada suara** (Halus, Sedang,
+Kuat) dan **Hapus**. Unggahan tetap berjalan walau kartu ditutup. **"Atur detail di Mode Lengkap"**
+membuka panel Logo atau Musik untuk sudut, ukuran, opasitas, volume, fade dan lainnya.
+
+**Bilah posisi** (bawah). Klik atau seret untuk pindah posisi; klik dekat tanda menempel ke tanda
+itu. Tandanya: titik tawa, garis jeda, palang cold open di awal, dan belah ketupat transisi di
+sambungan cold open. Arahkan kursor ke tanda untuk namanya; tanda yang berdekatan digabung jadi
+satu titik. Tombolnya ada di §5. Kalau job lama tidak punya data tawa/jeda, ada catatannya di bawah
+bilah.
+
+### Mode Lengkap
+
+**Rel panel (kiri).** Enam ikon bernama: Transkrip, Teks, Cold open, Tata letak, Logo, Musik. Dengan
+keyboard: ↑/↓ pindah panel, Home/End ke ujung.
+
+**Transkrip.** Klik kata untuk memilih, Shift+klik untuk rentang. Begitu ada pilihan, **bilah aksi**
+muncul tepat di atasnya (di bawahnya kalau tidak ada tempat) dan tidak pernah menutupi kata yang
+dipilih:
+- tombol utama: **Hapus**, atau **Pulihkan** / **Perpanjang ke sini** kalau itu yang cocok untuk
+  pilihan ini;
+- **Jadikan cold open** (abu-abu dengan alasannya kalau tidak bisa), **Kata kunci**;
+- **Lainnya**: Edit kata, Sembunyikan dari caption, Mulai di sini, Akhiri di sini, dan aksi
+  potong yang tidak sedang jadi tombol utama.
+
+Dari daftar kata, **Tab** masuk ke bilah aksi, ←/→ pindah tombol, **Esc** atau Shift+Tab kembali ke
+kata dengan pilihan tetap. Bilah aksi bisa menutupi kata di sebelah pilihan: tahan Shift untuk
+Shift+klik kata di bawahnya, atau tekan Esc dulu untuk mengeklik kata itu.
 - **Delete/Backspace** memotong kata terpilih (jump cut); klik chip "⋯ 1,4 dtk" untuk
   memulihkannya.
 - **Enter** atau klik dua kali memperbaiki tulisan kata (caption saja; suara tetap).
 - **Ctrl+Shift+X** menyembunyikan kata dari caption; **Ctrl+E** menandai kata kunci (tebal dan
   bergaris bawah warna kata kunci).
-- **I / O** memindah awal atau akhir klip ke kata terpilih; kata di luar klip redup dengan tombol
-  "Perpanjang ke sini". **Ctrl+Shift+H** menjadikan pilihan 0,5–8 detik sebagai cold open.
+- **I / O** memindah awal atau akhir klip ke kata terpilih, juga saat fokus di bilah aksi. Kata di
+  luar klip redup: pilih, lalu **Perpanjang ke sini**. **Ctrl+Shift+H** menjadikan pilihan 0,5–8
+  detik sebagai cold open.
 - **Rapikan** (tombol di atas transkrip): daftar kata pengisi ("eh", "anu"), pengulangan
   ("saya saya") dan jeda hening yang bisa dipotong di titik yang tenang. Jeda hening sudah
   tercentang, kata pengisi dan pengulangan belum (kata pengisi ikut tercentang setelah pemilik
@@ -49,18 +139,19 @@ Proyek lama tetap bisa dilihat dan diunduh dari Riwayat. Editor kandidat yang la
   satu Urungkan mengembalikan semuanya. Partikel ("kan", "sih", "mah", "toh", …) dan kata ulang
   ("anak-anak") tidak pernah didaftar. Jeda yang masih ada suaranya hanya bisa didengarkan.
 
-**Teks (tab).** Caption: nyala/mati, gaya (Karaoke, Classic, Bold, Box), posisi, ukuran, huruf
-besar, warna sorot dan warna kata kunci. Hook: teks (maks. 90 karakter, tanda "Muat" / "Akan
+**Teks.** Caption: nyala/mati, gaya (Karaoke, Classic, Bold, Box), posisi, ukuran, huruf
+besar, warna sorot dan warna kata kunci, dengan catatan yang sama seperti kartu Caption (posisi
+bawaan, area tombol TikTok, dekat teks hook). Hook: teks (maks. 90 karakter, tanda "Muat" / "Akan
 terpotong"), durasi dan posisi. **Saran hook** di bawah kolom teks: saran otomatis langsung
 muncul dengan sumbernya ("AI seleksi" dari pemilihan klip, "Heuristik" dari transkrip); **"Pakai"**
 mengganti teks hook (bisa diurungkan). Dengan `POTONGIN_EDITOR_LLM=on`, AI gratis di Pengaturan
 juga menulis saran dari transkrip yang sudah diedit (sekitar 10 detik).
 
-**Cold open (tab).** Nyala/mati, kalimat dan panjangnya, tambah/buang satu kata di tiap ujung.
+**Cold open.** Nyala/mati, kalimat dan panjangnya, tambah/buang satu kata di tiap ujung.
 **Saran cold open** mengusulkan kalimat terkuat dari klip; **Putar** memperdengarkannya,
 **Pakai** menjadikannya cold open.
 
-**Transisi** (di tab Cold open) mengatur efek di sambungan cold open ke awal klip: **Potong
+**Transisi** (di panel Cold open, dan di kartu Cold open Mode Cepat) mengatur efek di sambungan cold open ke awal klip: **Potong
 langsung** (tanpa efek), **Kilat putih** (layar memutih sekitar 0,2 detik) atau **Gelap sebentar**
 (layar menggelap sekitar 0,3 detik), plus sakelar **Suara whoosh**. **Putar transisi** memutar satu
 detik sebelum dan sesudah sambungan. Klip otomatis yang punya cold open memakai Kilat putih dengan
@@ -69,52 +160,64 @@ mengembalikan transisi yang dipakai file otomatisnya. Efeknya hanya menutup gamb
 hook dan logo tetap di atasnya); durasi klip dan waktu caption tidak bergeser. Tanpa cold open,
 bagian ini mati dengan keterangan "Aktifkan cold open dulu."
 
-**Tata letak (tab).** **Latar blur**, **Ikuti wajah** dan **Potong tengah**, masing-masing dengan
+**Tata letak.** **Latar blur**, **Ikuti wajah** dan **Potong tengah**, masing-masing dengan
 contoh gambar di posisi putar. Berlaku untuk seluruh klip. "Ikuti wajah" pada proyek yang belum
 punya analisis wajah menganalisis dulu (hitungan persen); bagian tanpa wajah didaftar dengan
 tombol lompat, dan di bagian itu video dipusatkan.
 
-**Logo (tab).** **"Unggah logo"** (PNG, JPEG atau WebP, maks. 10 MB; PNG transparan paling rapi)
+**Logo.** **"Unggah logo"** (PNG, JPEG atau WebP, maks. 10 MB; PNG transparan paling rapi)
 atau seret file ke panel. Logo baru muncul di kanan atas, di luar area tombol TikTok/Reels. Posisi
 cepat di empat sudut (semuanya di luar area itu), **Ukuran** dan **Opasitas**; di layar pratinjau
 logo bisa digeser dan diubah ukurannya (panah 1 px, Shift+panah 10 px). Kalau logo digeser masuk
 area tombol TikTok/Reels, muncul peringatan dengan tombol **"Geser ke area aman"**.
 
-**Musik (tab).** **"Tambah musik"** (MP3, M4A, WAV, OGG atau FLAC, maks. 50 MB; baca dulu
+**Musik.** **"Tambah musik"** (MP3, M4A, WAV, OGG atau FLAC, maks. 50 MB; baca dulu
 catatan hak cipta). Volume musik, mulai dari, ulangi sampai klip selesai, muncul/hilang perlahan.
 **Kecilkan musik saat ada suara** dengan kekuatan **Halus** (−6 dB), **Sedang** (−10 dB) atau
 **Kuat** (−16 dB), plus "Atur detail" (waktu turun, naik, jeda tahan). Volume suara asli dan
 **Samakan kenyaringan** (−14 LUFS) dengan hasil yang tercapai; kalau volume diturunkan supaya
 tidak pecah, panel menuliskannya.
 
-**Timeline (bawah).** Lajur video, teks, hook, **Audio** (waveform suara klip), **Penanda** (😂
+**Timeline (bawah).** Di atasnya: Putar, mundur/maju satu frame dan waktu. Lajur video, teks, hook, **Audio** (waveform suara klip), **Penanda** (😂
 tawa, jeda ≥ 0,6 detik, potongan kamera; klik untuk lompat; arahkan kursor untuk asal tandanya) dan
 **Musik** (waveform musik dengan garis volume yang turun saat ada suara). Klik untuk pindah posisi,
 seret gagang awal/akhir (menempel ke batas kata), Ctrl+scroll untuk zoom; scroll timeline ke bawah
 untuk lajur Musik di layar pendek. Kalau job lama tidak punya data tawa/jeda, ada catatan "tidak
 tersedia untuk job ini" (di lajurnya, atau di baris atas timeline bila lajurnya berisi penanda).
 
-**Lainnya.** Urungkan / Ulangi (Ctrl+Z, Ctrl+Shift+Z) sampai 200 langkah; simpan otomatis
-(± 1,5 detik setelah berhenti, juga disimpan di browser); **"Kembali ke versi AI"**; **Ekspor**
+### Di kedua tampilan
+
+**Bar atas.** Dari kiri: "← Proyek", judul klip dengan status simpan (dan "Terbuka di tab lain"
+kalau klip ini juga terbuka di tab lain), sakelar **Cepat | Lengkap**, Urungkan / Ulangi (ikon),
+**Perlu dicek (n)**, menu **⋯ Lainnya** (**Kembali ke versi AI**, **Pintasan keyboard**) dan
+**Ekspor**.
+
+**Lainnya.** Urungkan / Ulangi (Ctrl+Z, Ctrl+Shift+Z) sampai 200 langkah, juga untuk perubahan
+yang dibuat di tampilan lain; simpan otomatis (± 1,5 detik setelah berhenti, juga disimpan di
+browser); **"Kembali ke versi AI"** (di ⋯ Lainnya); **Ekspor**
 (centang tiap item "Perlu dicek"; catatan biru tidak perlu dicentang, begitu juga semua item klip
 yang belum diubah, karena ekspornya file klip otomatis itu sendiri; lalu Antre → Merender →
 Memverifikasi → Selesai, **"Unduh MP4"** dan **"Unduh SRT"**, tersimpan sebagai
 `klip-02-revisi-5.mp4` dan seterusnya; bisa dibatalkan); dua tab pada klip yang sama digabung per
 bagian.
 
-## 3. Arti tanda di bawah layar pratinjau
+## 3. Status di atas pratinjau
 
-| Tanda | Artinya |
+Status ada di kiri atas, di samping pratinjau (tidak menutupi video), dan tiap perubahannya
+dibacakan pembaca layar. Tombol **?** di sebelahnya menampilkan penjelasan status itu; Esc
+menutupnya. Di kanan atas ada dua tombol: **Frame akhir** (Ctrl+Shift+R, piksel persis hasil
+render) dan **Zona aman** (', area tombol TikTok/Reels di atas pratinjau). Tampilannya sama di
+kedua mode.
+
+| Status | Artinya |
 |---|---|
-| **● Sesuai hasil akhir** | Frame, teks, logo dan audio yang Anda lihat sama dengan hasil ekspor. File MP4 akhir dikompresi (H.264, warna 4:2:0), jadi tepi teks berwarna sedikit lebih lembut. **"Frame akhir"** (Ctrl+Shift+R) menampilkan piksel persisnya. Tanda ini hanya muncul kalau semua lapisan sudah terbaru. |
+| **Sesuai hasil akhir** | Frame, teks, logo dan audio yang Anda lihat sama dengan hasil ekspor. File MP4 akhir dikompresi (H.264, warna 4:2:0), jadi tepi teks berwarna sedikit lebih lembut. **"Frame akhir"** (Ctrl+Shift+R) menampilkan piksel persisnya. Tanda ini hanya muncul kalau semua lapisan sudah terbaru. |
 | **Menyiapkan video (7/30)…** | Potongan video pratinjau masih dibuat server. Frame terakhir yang pasti tetap tampil. |
 | **Memperbarui teks… / logo… / Menyiapkan audio…** | Lapisan itu sedang diperbarui (biasanya < 1 detik). |
 | **Menyiapkan frame…** | Frame di posisi ini sedang digambar. |
 | **Frame gagal dimuat** | Browser belum bisa menampilkan frame di posisi ini, juga setelah dicoba ulang (gagal, atau terlalu lama, misalnya saat memori komputer penuh). Kalau akhirnya selesai, frame langsung tampil. Putar atau geser playhead untuk mencoba lagi; **"Frame akhir"** menampilkan piksel dari server. |
-| **● Belum diubah: ekspor = klip otomatis** | Klip belum diedit, jadi ekspornya adalah file klip otomatis apa adanya. Klip otomatis dari proyek yang dirender sebelum render disamakan dengan editor bisa sedikit berbeda dari pratinjau. Setelah ada perubahan, tanda kembali ke "Sesuai hasil akhir". |
-| **● Frame akhir** | Piksel hasil render akhir untuk frame ini. |
-
-Tombol **"Apa artinya?"** di sebelah tanda menampilkan penjelasan yang sama.
+| **Frame akhir** | Piksel hasil render akhir untuk frame ini. |
+| (kosong) | Klip belum diubah dan file klip otomatisnya dibuat sebelum editor ada. Ekspornya adalah file itu apa adanya, jadi bisa sedikit berbeda dari pratinjau (misalnya posisi video, warna teks). Tombol **?** menjelaskannya. Setelah ada perubahan apa pun, status menjadi "Sesuai hasil akhir". |
 
 ### Apa yang dijamin "Sesuai hasil akhir"
 
@@ -202,18 +305,40 @@ untuk saran hook; kosong berarti rantai di Pengaturan.
 | ' | Zona aman TikTok |
 | Ctrl+Shift+R | Frame akhir |
 | Ctrl+Shift+E | Ekspor |
-| ? | Bantuan pintasan |
+| ? | Bantuan pintasan (juga di ⋯ Lainnya) |
 
-Setiap aksi juga punya tombol di layar. Pintasan tidak aktif saat Anda mengetik di kolom teks.
+Setiap aksi juga punya tombol di layar. Pintasan tidak aktif saat Anda mengetik di kolom teks, dan
+tetap bekerja setelah Anda mengeklik tombol pilihan (gaya caption, warna, sakelar, efek transisi):
+Spasi dan panah tetap milik tombol yang sedang fokus, Ctrl+Z, ', ? dan K tetap jalan. Tidak ada
+pintasan satu huruf baru.
+
+Tombol yang bekerja saat fokus di satu tempat:
+
+| Di mana | Tombol | Aksi |
+|---|---|---|
+| Sakelar Cepat \| Lengkap | ← / → | Pindah tampilan (fokus tetap di sakelar) |
+| Bilah posisi (Mode Cepat) | ← / →, Shift+← / → | Satu frame, satu detik |
+| Bilah posisi | Home / End | Ke awal / akhir klip |
+| Bilah posisi | PageUp / PageDown | Ke tanda sebelumnya / berikutnya (termasuk ujung cold open) |
+| Bilah posisi | Spasi / K | Putar / jeda |
+| Rel panel (Mode Lengkap) | ↑ / ↓, Home / End | Pindah panel |
+| Daftar kata (Mode Lengkap) | Tab | Masuk ke bilah aksi |
+| Bilah aksi | ← / →, Home / End | Pindah tombol |
+| Bilah aksi | Esc, Shift+Tab | Kembali ke kata, pilihan tetap |
+| Bilah aksi, tombol Lainnya | ↓, Enter, Spasi | Buka menu (↑/↓ pilih, Enter jalankan, Esc tutup) |
+| Teks caption (Mode Cepat) | Enter, Tab | Simpan baris (Tab lalu ke baris berikutnya) |
+| Teks caption | Esc | Batalkan ketikan di baris itu |
 
 ## 6. Kalau ada masalah
 
 | Yang terlihat | Penyebab dan jalan keluar |
 |---|---|
+| Tidak menemukan transkrip | Transkrip ada di Mode Lengkap: sakelar **Lengkap** di bar atas, atau **"Potong per kata di Mode Lengkap →"** di bawah pratinjau Mode Cepat. |
 | "Menyiapkan klip untuk diedit" lama sekali | Proyek panjang dengan face-track. Tunggu; setelah 12 menit editor menyerah dan meminta muat ulang. |
 | "Video sumber tidak bisa dibaca; proses ulang videonya" | FFmpeg gagal membaca video sumber proyek ini (filenya masih ada). Proses ulang videonya dari dashboard. |
-| Catatan biru "Caption di posisi bawaan, dekat tombol TikTok" | Hanya pemberitahuan, bukan kesalahan, dan tidak perlu dicentang saat ekspor: caption bawaan memang di posisi yang sama dengan klip otomatis, supaya klip yang tidak diubah tetap diekspor sebagai file klip otomatis. Kalau di aplikasi caption tertutup tombol, geser caption ke atas di tab Teks. Caption yang Anda geser sendiri ke area itu tetap muncul di "Perlu dicek" dan perlu dicentang. |
+| Catatan biru "Caption di posisi bawaan, dekat tombol TikTok" | Hanya pemberitahuan, bukan kesalahan, dan tidak perlu dicentang saat ekspor: caption bawaan memang di posisi yang sama dengan klip otomatis, supaya klip yang tidak diubah tetap diekspor sebagai file klip otomatis. Kalau di aplikasi caption tertutup tombol, geser caption ke atas (kartu Caption: Posisi, atau panel Teks di Mode Lengkap). Caption yang Anda geser sendiri ke area itu tetap muncul di "Perlu dicek" dan perlu dicentang. |
 | "Transkrip berubah sejak klip diedit" (baca saja) | Proyek dijalankan ulang dan transkripnya berubah. Klik "Mulai dari versi AI". |
+| "Terbuka di tab lain" (bar atas) | Klip ini juga terbuka di tab lain. Perubahan di bagian yang berbeda digabung otomatis. |
 | "Klip ini diubah di tab lain" | Dua tab mengubah bagian yang sama. Pilih versi per bagian; draf Anda tidak hilang. |
 | "Gagal menyimpan; perubahan aman di browser ini" | Server tidak terjangkau. Perubahan tersimpan di browser dan dikirim lagi otomatis. |
 | "Unggah logo belum tersedia di server ini" / "Unggah file belum diaktifkan di server ini" | `POTONGIN_EDITOR_UPLOADS` belum `on`. |

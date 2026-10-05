@@ -1687,8 +1687,8 @@ The seed keeps the auto clip's caption position (K5: an unchanged clip exports t
 R10), which sits inside the TikTok button zone. The warning about it is now informative:
 
 - `shell-model.checksView({warnings, plan, doc, seed})` returns `severity: "info"` (message
-  `CAPTION_SPOT_NOTE`: "Caption di posisi bawaan, dekat tombol TikTok. Kalau tertutup, geser ke atas
-  di tab Teks.") for an `unsafe_zone` warning on a `/captions/…` pointer when
+  `CAPTION_SPOT_NOTE`: "Caption di posisi bawaan, dekat tombol TikTok. Kalau tertutup, geser caption
+  ke atas.", since §5.27; it no longer names a tab) for an `unsafe_zone` warning on a `/captions/…` pointer when
   `captionAtSeedSpot(doc, seed)` (`doc.captions.overrides.y_e5` equals the seed's). Notes sort last.
 - `actionableChecks(checks)` drops notes: "Perlu dicek (n)" counts only errors and warnings, and
   notes appear under "Catatan" with a jump button.
@@ -1880,3 +1880,151 @@ self-made, no third-party material) with `v1.meta.json` (`potongin.sfx/1`: sha25
 loudness −29.00 LUFS / −17.20 dBTP measured with FFmpeg 5.1.9). `scripts/sfx/make_whoosh.py`
 (stdlib, integers and `Fraction` only) regenerates it; `--check` exits 1 unless the bytes and
 the meta's sha are the committed ones. `v1.wav` is immutable: another sound or level is `v2`.
+
+## 5.27 Editor views: Mode Cepat and Mode Lengkap (2026-10-05)
+
+Spec: `docs/plans/2026-10-02-editor-mode-cepat.md` (owner decisions of 2026-10-02 and the
+"Decisions during build" sections 13 to 18). No engine, Python, command, rebase, plan or seed
+changes: every plan sha and golden is unchanged.
+
+### One editor, two views
+
+- `EditorApp` resolves the view before the shell mounts; the root carries
+  `data-editor-view="cepat"|"lengkap"`. Shared, never forked: the store (document, history,
+  autosave, draft, two-tab merge), the player and frame bus, the export flow, the conflict dialog,
+  "Perlu dicek", the toast, the transcript selection (`selectionStoreFor(clipId)`, which I and O
+  also read), and the per-clip clients and stores below. Per view: the side region (cards, or the
+  rail and a panel), the bottom region (the scrubber bar, or the transport row and the Timeline),
+  the open card or panel.
+- The shell is one grid with named areas (`top`, `side`, `stage`, `bottom`, plus `rail` in
+  Lengkap). Its children come in a fixed order: TopBar, side, `StageRegion`, bottom. The stage
+  keeps its element, parent and key in both views, so a switch never remounts the canvas or calls
+  `createPlayer` again.
+- The props bundle (`state`, `dispatch`, `player`, `api`, `previewClient`, `uploadAsset`,
+  `uploadsEnabled`, `notify`, `readOnly`) is built once and spread onto `<Panel>` and
+  `<QuickPanel>` alike; cards also get `frameBus` and `showLengkap(panelId)`.
+
+### Preference and address (`web/lib/editor/view-mode.mjs`)
+
+- `VIEWS = ["cepat", "lengkap"]`, `VIEW_KEY = "potongin-editor-view"` (localStorage, per viewer),
+  `PANEL_IDS`, `CARD_IDS`, `readStoredView(storage)` (null on a throw or an unknown value),
+  `writeStoredView(storage, view)` (boolean, never throws), `viewFromUrl(search)` →
+  `{view, panel, card}` (unknown ids are null), `resolveView({url, stored})`,
+  `urlWithView(href, view)` (sets `?mode`, drops `panel` and `card`), `browserStorage()`.
+- Order: `?mode`, else `?panel` (Lengkap) or `?card` (Cepat), then the stored view, then Cepat.
+  An `initialPanel` prop counts as `?panel`.
+- Only the top bar's switch writes the preference; it replaces the address with
+  `urlWithView(location.href, view)` through `history.replaceState`. A card's way to Lengkap
+  (`showLengkap`) changes the view and the address, never the preference. Opening never rewrites
+  the address. The prepare flow's `replaceState` keeps `location.search` and the hash.
+- Login limit: `page.jsx` (out of scope) builds the login `next` without the query, so a
+  logged-out deep link lands in the resolved view with no panel or card chosen.
+
+### Cards (`web/components/editor/quick/`)
+
+- Registry `quick/cards.mjs`: `{id, label, owner, component, panel, file, load}` for `hook`,
+  `caption`, `lines`, `coldopen`, `layout`, `extras`; `DEFAULT_CARD = "caption"` (no card asks the
+  LLM on load, R1); `?card=` overrides; the open card is not remembered.
+- Accordion: one card open, a header click on the open card closes it. A body mounts on first
+  open and stays mounted while Cepat shows; a closed body is `inert` and hidden after its
+  transition. A view switch unmounts every card. Summaries come from `quick/quick-model.mjs`
+  (`cardSummary(id, {state, analysis})`).
+- Shared rules, one function per control for both views: `panels/caption-model.mjs`
+  (`captionCommand(key, value, {drag})`: merge key `null` for a preset pick, `cap:<key>` for a
+  slider drag; sizes Kecil 850, Sedang 1000, Besar 1200 (`size_pm`); positions Atas 38000,
+  Tengah 60000, Bawah 83000 (`y_e5`, the seed spot); `presetId` is null off the presets;
+  `highlightNote`, `captionZoneNote(doc, seed, plan)`, `hookNearNote(doc)`: the note when captions
+  and the hook are on and `captions.overrides.y_e5 < hook.transform.y_e5 + 35000`
+  (`HOOK_NEAR_BAND_E5`); a hint only, no warning code, check or export tick) and
+  `panels/hook-model.mjs` (cleaned text, 90-point limit, `hookTextCommand` with `hook:text`,
+  `hookFit`).
+- Extracted once, rendered by both views: `panels/TransitionSection.jsx` (T3's markup and copy),
+  `panels/ColdOpenSuggestions.jsx`, `panels/use-audition.js`,
+  `suggestions/use-hook-suggestions.js` with `suggestions/CompactSuggestions.jsx` (every state and
+  the privacy line of the panel).
+- Per-clip stores that outlive a card, a panel and a view switch (read with
+  `useSyncExternalStore`): `panels/layout-analysis.mjs` `layoutAnalysisFor(clipId)`
+  (`subscribe`, `get`, `start({api, dispatch, getState, switchAfter, auto})`, `cancelSwitch()`;
+  state `{phase, startedAt, done, total, target, message, code, range, cameraReady}`; a finished
+  run applies `SetLayout` once unless a newer run or choice superseded it) and
+  `panels/music-upload.mjs` `musicUploadFor(clipId)` (`{phase: "idle"|"uploading"|"processing",
+  name, progress, replace, message, names}`; the finished upload applies `SetMusic` to the
+  document as it is then). `musicNoticeRead` / `markMusicNoticeRead` keep the keys
+  `potongin-editor-music-notice` and `potongin-editor-music-names`, so the copyright notice shows
+  once across both views.
+
+### Caption lines as word edits (`web/lib/editor/caption-lines.mjs`)
+
+- `captionRows({plan, doc, words, model})`: one row per `plan.cues` entry,
+  `{key: "<seg>:<firstWordId>", seg, cold, f0, f1, wordIds, hiddenIds, text, edited}`. `seg` and
+  `cold` come from the plan piece holding `cue.f0`; hidden words are dropped before the next plan;
+  `hiddenIds` are the caption-hidden words kept by the cuts next to or between the visible ones.
+  `linesSummary({plan, doc, words})`.
+- `lineEdit({row, draft, doc, words, upper})` → `{ok: true, commands}` or
+  `{ok: false, code, message}`. Tokens are `draft.normalize("NFC").trim().split(/\s+/u)`. Anchors
+  are a longest common subsequence of the old words (visible and `hiddenIds`) and the tokens,
+  under `===` or, with `upper`, `toLocaleUpperCase("id")` equality; among the longest, the fewest
+  hidden anchors, then the earliest pairing. A hidden anchor is unhidden. Between anchors,
+  unmatched old words take the tokens in order; extra old words are hidden; extra tokens ride on a
+  host word (appended to the hunk's last old word or the preceding anchor, or prepended to the
+  next anchor at the start of the row). Commands come word by word in word order:
+  `SetWordHidden {on: false}`, then `EditWordText` when the final text differs under the same
+  equality (a case-only change under `upper` keeps the stored text), and `SetWordHidden {on: true}`
+  for deletions. An empty draft hides every visible word; a draft equal to the row commits nothing.
+- Limits (`LINE_LIMITS`, `LINE_MESSAGES`): over 40 tokens `too_many_tokens`; a final word text
+  over 40 code points `text_too_long`; control or lone-surrogate characters `text_invalid`;
+  `too_many_word_edits` from the dry run. These codes belong to `caption-lines.mjs`, not to the
+  command catalogue.
+- `checkCommands(doc, ctx, commands)` folds `applyCommand` over the document (all or nothing);
+  `commitLine(...)` is `lineEdit`, the dry run and one merge key on every command
+  (`actionKey("captionLine")` through `runCommands`), so one commit is one Urungkan. Two tabs
+  merge per word (`word:<id>.text`, `word:<id>.hidden`). `focusAfterRegroup(oldRows, newRows,
+  focusedKey)`: the row now holding the focused row's first visible word, else the first row at or
+  after the old `f0` in the segment, else the previous row, else the card's status line.
+- The editor fakes caption like the engine (`fakePlan`: per segment, hidden words skipped, a break
+  after 4 words and after `.?!…`, Box split over 24 characters as a dev-only width stand-in), and
+  `createRealEditorStore` runs the real store over the fake API.
+
+### Keyboard (`web/lib/editor/shortcuts.mjs`)
+
+- `isEditableTarget` is true for content-editable elements, `TEXTAREA`, `SELECT` and text-entry
+  `INPUT`s (text, search, email, url, tel, password, number, the date and time types, a missing or
+  unknown type); false for checkbox, radio, range, button, submit, reset, color, file and image.
+- Space belongs to a focused checkbox, radio, range or button input (as to buttons and the
+  `SPACE_ROLES`); arrows belong to a focused radio or range input. Every other global shortcut
+  stays global, in both views. No new single-key shortcut.
+- The scrubber's own keys are listed in the help with scope `scrubber` (`scrubEnds`,
+  `scrubMarks`).
+
+### Mode Lengkap rail, word toolbar; Mode Cepat scrubber
+
+- `rail/Rail.jsx` `Rail({panels, value, onChange})`: a vertical tablist (`aria-label="Panel
+  editor"`), tabs `editor-tab-<id>` with `aria-controls="editor-panel"`, names unchanged; ↑/↓ (and
+  ←/→) move and select, Home/End, one tab stop. Rows `minmax(var(--ed-target), 64px)`.
+- `transcript/word-toolbar.mjs`: `primaryAction(actions)` (extend, else restore when remove is
+  off, else remove), `toolbarButtons`, `menuItems` (fixed order, unavailable items keep their
+  place with the reason), `toolbarKey`, `toolbarPosition` (8 px above the first selected word,
+  below the selection when less than 56 px is free above, clamped). `TOOLBAR_LABEL` "Aksi kata
+  terpilih". Every action runs `commandsFor` and `perform`; no command changed.
+- `scrubber/scrubber-model.mjs`: `scrubberMarks({doc, words})` (laughs and pauses from
+  `buildMarkers`, camera cuts left out; the cold-open range `[0, J)`; the join mark when the style
+  is not `cut` or the whoosh is on; `unavailable` passed through), `drawGroups` (marks closer than
+  `MERGE_PX` 6 merge at the earliest frame), `nearestMark` (`SNAP_PX` 6), `nextMark`,
+  `valueText` ("00:02,2 dari 01:00,6"), `scrubberKey`. `Scrubber({plan, state, player, frameBus,
+  disabled})` is a native range input under the drawing.
+
+### Top bar, stage and removed texts
+
+- `--ed-topbar-height` is 64 px. TopBar: "← Proyek", title and save status, the chip
+  `OTHER_TAB_TEXT` "Terbuka di tab lain", the view switch (`role="radiogroup"`,
+  `aria-label="Tampilan editor"`, native radios, a polite live region "Tampilan Cepat" /
+  "Tampilan Lengkap"), Urungkan and Ulangi icon buttons, "Perlu dicek (n)" (always rendered), the
+  ⋯ "Lainnya" menu ("Kembali ke versi AI", "Pintasan keyboard") and Ekspor.
+- Stage: the status sits top left beside the stage (`data-testid="stage-badge"`, `role="status"`,
+  no "● " prefix), with a 44 px "?" button named "Apa artinya?"; "Frame akhir" and "Zona aman"
+  are pressed-state toggles top right. Tone `legacy` has an empty text and no detail; its help is
+  unchanged. `noticesView` never returns `legacy_engine` (the message stays in the JS mirror);
+  "Klip ini terbuka di tab lain" is the chip now.
+- Lime (`--accent*`) only on Ekspor and the three progress fills; ReadOnlyBanner's button and the
+  panels' `.primary:hover` are neutral. The version guard adds `/editor (?:lama|baru)/i` and
+  `/tampilan (?:lama|baru)/i`.
