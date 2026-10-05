@@ -12,6 +12,7 @@ import {
   LOGO_WIDTH_E5, OPACITY_PM, anchorFor, positionFor, resizeTo, transformSteps,
 } from "../gizmos/logo-geometry.mjs";
 import { LOGO_ACCEPT, logoUploader, logoUploads } from "../gizmos/logo-upload.mjs";
+import PillGroup from "../ui/PillGroup.jsx";
 import styles from "./logo.module.css";
 import {
   logoPanelView, logoUploadCommand, logoUploadMessage, opacityLabel, runLogoSteps as apply, sizeLabel,
@@ -190,20 +191,17 @@ export default function LogoPanel({ state, dispatch, uploadAsset: uploadProp = n
       )}
 
       <div className={styles.section}>
-        <fieldset className={styles.fieldset} disabled={locked} aria-describedby={ids.help}>
-          <legend className={styles.legend}>Posisi cepat</legend>
-          <div className={styles.corners}>
-            {CORNERS.map((corner) => (
-              <label key={corner.id} className={styles.corner}>
-                <input type="radio" className={styles.cover} name={ids.corners} value={corner.id}
-                  checked={logo.corner === corner.id}
-                  onChange={() => run([{ type: "SnapLogo", args: { corner: corner.id } }])} />
+        <PillGroup legend="Posisi cepat" name={ids.corners} columns={2} disabled={locked} describedBy={ids.help}
+          value={logo.corner} onChange={(corner) => run([{ type: "SnapLogo", args: { corner } }])}
+          options={CORNERS.map((corner) => ({
+            id: corner.id,
+            label: (
+              <span className={styles.cornerLabel}>
                 <span className={styles.glyph} data-corner={corner.id} aria-hidden="true" />
-                <span>{corner.label}</span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
+                {corner.label}
+              </span>
+            ),
+          }))} />
         <p className={styles.note} id={ids.help}>
           Seret logo di pratinjau untuk menaruhnya di mana saja; Alt mematikan magnet. Panah menggeser 1 px, Shift+panah 10 px.
         </p>
