@@ -1,7 +1,7 @@
 # Editor Mode Cepat and Mode Lengkap: build spec
 
-Date: 2026-10-02, revised the same day after review (§12). Status: ready to build after the
-cold-open transition and the first-frame fix merge (§10). Branch of this spec: `mode-cepat-spec`.
+Date: 2026-10-02, revised the same day after review (§12). Status: approved by the owner; both
+prerequisites merged (§10); building from `mode-cepat-base`. Branch of this spec: `mode-cepat-spec`.
 
 On 2026-10-02 the owner approved the "Mode Cepat" mockup ("oke sih ini mode cepat"). The mockup has
 two boards:
@@ -19,6 +19,18 @@ the first edit. They follow the antislop core skill plus the ui, copywriting and
 Everything below was checked on 2026-10-02 against `origin/main` `8996a1b`, the transition branches
 `origin/transisi-spec` `8f39873`, `-t1` `27ac46d`, `-t2` `2884cf8`, `-t3` `ce24721`, and the
 first-frame fix `origin/fix/editor-first-frame` `c1e8383`. §10 says how both land first.
+
+Both prerequisites are on `main` now: the cold-open transition as PR #23 (`53d6656`) and the
+first-frame fix as PR #24 (`3faf2f9`, which replaces `c1e8383` everywhere this spec names it).
+Z0 branched `mode-cepat-base` from `3faf2f9`.
+
+**Owner decisions (2026-10-02).** The mockup is approved ("oke sih ini mode cepat"), and the owner
+accepted every proposed answer of §11 as written: "Kembali ke versi AI" and "Pintasan keyboard" go
+into the ⋯ Lainnya menu (Q1); the Cold open card uses T3's Transisi wording in both views (Q2); the
+caption positions are Atas 38 %, Tengah 60 %, Bawah 83 % (Q3); an inserted word shares its
+neighbour's timing for now (Q4); U5 keeps its stop condition (Q5); the exact caption-vs-hook pixel
+check (Q6) and an off switch for single-key shortcuts (Q7) are later, separate tasks, not part of
+this build.
 
 ## 0. Decisions at a glance
 
@@ -943,6 +955,9 @@ Evidence goes to `docs/editor/evidence/MC/<task>-*.json`.
 
    T3 also edits `editor-gates.yml` (`suite=e2e`); whichever of the two merges second resolves
    that file. Z0 branches from `main` after both.
+
+   Done: the transition merged as PR #23 (`53d6656`) and the first-frame fix as PR #24
+   (`3faf2f9`). `editor-gates.yml` on `main` has `suite=full|image|command|e2e|player`.
 1. **Z0 scaffold** on `mode-cepat-base` (from `main`). No visible change at the default URL. It
    lands:
    - every `ui/*` component of §8.2 as a minimal working version (`PillGroup`, `PillToggle`,
@@ -1120,6 +1135,9 @@ Commits end with the `Co-Authored-By` trailer the session gives.
     every panel e2e stays green.
 
 ### Open questions for the owner (the build can start with the proposed answer)
+
+**Answered 2026-10-02:** the owner accepted every proposed answer below as written. Q1 to Q5 are
+built as proposed; Q6 and Q7 are later, separate tasks and are not part of this build.
 
 1. **"Kembali ke versi AI" and "Pintasan keyboard" move into the ⋯ Lainnya menu.** They are not
    on the mockup's top bar. U7 and the start of every U-test then take one more click. Proposed:
