@@ -19,6 +19,30 @@ export function opacityLabel(opacityPm) {
   return `${tenths(opacityPm)}%`;
 }
 
+export const LOGO_TOO_TALL = "Logo ini terlalu tinggi untuk video. Pakai gambar yang lebih lebar.";
+const REFUSED = "Perubahan ini tidak bisa diterapkan.";
+
+/** The command that puts an uploaded logo (the POST /assets DTO) in the clip. */
+export function logoUploadCommand(dto) {
+  return { type: "SetLogo", args: { asset: dto.sha256, meta: dto }, mergeKey: null };
+}
+
+/** Runs logo commands through the store; returns null, or the refusal `{ code, message }`. */
+export function runLogoSteps(dispatch, steps, mergeKey = null) {
+  try {
+    for (const step of steps) dispatch(step.type, step.args, { mergeKey: step.mergeKey ?? mergeKey });
+    return null;
+  } catch (error) {
+    return { code: error?.code ?? null, message: typeof error?.message === "string" && error.message ? error.message : REFUSED };
+  }
+}
+
+/** What an upload's `onUploaded` answers after SetLogo: null when applied, else the message. */
+export function logoUploadMessage(refused) {
+  if (!refused) return null;
+  return refused.code === "item_out_of_frame" ? LOGO_TOO_TALL : refused.message;
+}
+
 /**
  * `{ status, ready, readOnly, jobId, output, logo }`; `logo` is null without a logo, else
  * `{ item, meta, transform, assetId, box, corner, unsafe, safeTarget, thumbUrl }`. `unsafe` is

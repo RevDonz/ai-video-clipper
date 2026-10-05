@@ -33,6 +33,11 @@ function knownLayout(mode) {
   return mode;
 }
 
+/** `SetLayout` for the whole clip, one undo step; the Tata letak card and panel both send it. */
+export function layoutCommand(mode) {
+  return { type: "SetLayout", args: { mode: knownLayout(mode) }, mergeKey: null };
+}
+
 /** The document with only `layout.default.mode` changed (the same object when unchanged). */
 export function withLayout(doc, mode) {
   knownLayout(mode);
