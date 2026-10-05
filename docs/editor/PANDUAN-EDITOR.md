@@ -80,6 +80,8 @@ baris memindah pratinjau ke baris itu; saat diputar, baris yang sedang tampil di
 - Baris dibagi seperti di hasil akhir: maks. 4 kata, putus setelah akhir kalimat, dan di Box juga
   menurut lebar. Mengetik titik atau tanda tanya, atau menghapus kata, bisa memecah atau
   menggabungkan baris; kursor tetap di baris yang memuat kata Anda.
+- Kalau susunan baris berubah saat Anda masih mengetik, ketikan Anda tetap disimpan dan hanya
+  mengubah kata yang tampil di kolom itu waktu Anda mulai mengetik.
 - Kalimat cold open muncul dua kali (di cold open dan di isi klip), bertanda "Cold open". Mengubah
   salah satunya mengubah keduanya.
 - Di gaya Bold kolomnya huruf besar, seperti pratinjau; mengetik ulang teks yang sama tidak

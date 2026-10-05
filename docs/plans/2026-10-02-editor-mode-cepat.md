@@ -2,7 +2,8 @@
 
 Date: 2026-10-02, revised the same day after review (§12). Status: approved by the owner; both
 prerequisites merged (§10); built from `mode-cepat-base` and integrated on `mode-cepat-integrasi`
-(§18), waiting for the owner's U1–U8 and merge. Branch of this spec: `mode-cepat-spec`.
+(§18), its review fixed (§19), waiting for the owner's U1–U8 and merge. Branch of this spec:
+`mode-cepat-spec`.
 
 On 2026-10-02 the owner approved the "Mode Cepat" mockup ("oke sih ini mode cepat"). The mockup has
 two boards:
@@ -1565,3 +1566,56 @@ silent:
      once a caption line took focus. `.cards` and the card bodies' `.body` are
      `minmax(0, 1fr)`, so the summary and a long music file name are cut with their ellipsis.
      `editor-views.spec` checks the top bar and the column at 1366×650 and 1920×960.
+
+## 19. Decisions during build (fixer)
+
+A review of PR #25 (`mode-cepat-integrasi` at `1b68213`) found ten defects. Each got a failing
+check first (`7f6aacf`), then its fix, on the same branch. Where the spec was silent:
+
+1. **Drafts keep what their field showed (§2.2, §2.5).** A commit's new plan, or a two-tab
+   merge, can regroup the lines while the viewer types again. A draft keeps the line and the
+   document of its first keystroke, and `commitLine` takes them as `base`: the draft is diffed
+   against them, the dry run runs on the document as it is now. A word that joined the line while
+   the viewer typed is never edited or hidden, and another tab's edit of a word the draft did not
+   touch stays. The field keeps showing the draft; the joined word shows again after the commit. A
+   field whose line leaves the page (its key is gone) commits its draft as a blur would, against
+   its base, then focus follows §2.5; a refusal at that point shows in the card's status line,
+   since the field is gone.
+2. **A word pairs with the tokens that spell it (§2.3 step 4).** A host word that took an
+   insertion stores two or more tokens ("ditahan banget"). The anchors pair a word with the run of
+   draft tokens that spells its text, and the longest common subsequence counts tokens. Deleting
+   such a word and typing it back unhides it with no `EditWordText` (AC6). Typing back only part
+   of it does not pair: it stays hidden and the typed token rides on a neighbour (step 5).
+3. **The props bundle carries `getState` (§1.2, §4.1).** `getState` is the store's own, so work
+   that outlives the panel or card that started it reads the document as it is when it finishes:
+   a music replacement keeps the strength chosen meanwhile in the other view. MusicPanel, the Logo
+   & Musik card, LayoutPanel and the Tata letak card pass it to `musicUploadFor(clipId).start` and
+   `layoutAnalysisFor(clipId).start`; a panel mounted alone (a harness) falls back to its last
+   render. This replaces B §15 item 7's "getState is the starter's latest state".
+4. **A way to Mode Lengkap keeps the keyboard's place (§4.5).** "Potong per kata di Mode Lengkap
+   →", "Atur detail di Mode Lengkap" and "Buka transkrip" leave the page with Mode Cepat. Focus
+   then goes to the opened panel's rail tab (the next Tab is the panel), unless focus survived the
+   switch. The view switch's live region names the view whenever the view changes, by the switch
+   or by a card's way, never on load. A §17 item 7 holds: only the switch writes the preference.
+5. **Forced colours (§8.4).** Two rules for every editor stylesheet, read by
+   `editor-ui-kit.test`:
+   - a control drawn by its label or by a track beside an invisible input shows focus with the
+     shell's outline there (the transition styles, the whoosh switch, and Lengkap's pack and layout
+     cards had only a box-shadow);
+   - a chosen or pressed control keeps a mark of its own: the name is underlined (pills, the view
+     switch, caption and pack tiles, transition styles, layout cards, Zona aman, Frame akhir and
+     Kata kunci when pressed), as D §16 item 2 did for the rail; a switch draws its knob in system
+     colours and fills its track with `Highlight` when on (`forced-color-adjust: none`); a swatch
+     keeps the colour it stands for and rings the chosen one with an outline. A pressed suggestion
+     already shows "Dipakai".
+6. **One selected state for Transisi (§8.1, Q2).** `TransitionSection` keeps T3's markup and copy;
+   only its look changes, in both views: the chosen style is filled like a chosen pill, and the
+   whoosh switch is drawn as the kit's `Switch` (44×26, off dark with a muted knob, on `--text`
+   with a `--bg` knob), so no green switch sits in the cards column or under "Cold open aktif".
+7. **"Coba simpan lagi"** is a 44 px target (`.retryButton`) inside the 64 px top bar.
+8. **Mode Lengkap's bottom region is a `<footer>`,** as Mode Cepat's is, so the transport row sits
+   in a landmark; QG-A11Y refuses any axe `region` finding.
+9. **The owner's screenshots** are taken with reduced motion and after every card body is at rest,
+   and a picture that does not settle fails `editor-screens.spec`. Two pictures show what lay below
+   the fold: 2b (the Caption card at Posisi Atas with the hook hint; Bawah is set back after it)
+   and 6 (the column scrolled so "Tambah logo" and "Tambah musik" both show). Eight per size.
