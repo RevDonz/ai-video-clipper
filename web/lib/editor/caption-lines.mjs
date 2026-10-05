@@ -126,16 +126,22 @@ function sameRule(upper) {
   return upper ? (a, b) => a === b || a.toLocaleUpperCase("id") === b.toLocaleUpperCase("id") : (a, b) => a === b;
 }
 
-// §2.3 step 4: a longest common subsequence of the row's words and the draft's tokens. Among the
+// §2.3 step 4: a longest common subsequence of the row's words and the draft's tokens. A word pairs
+// with the run of tokens that spells its text, so a word that carries an inserted word ("ditahan
+// banget") still pairs when it is typed back; the length counts the tokens matched. Among the
 // longest, the one that matches the fewest hidden words, then the earliest pairing (the earliest
-// old word, at its earliest token), so the result is deterministic. Returns [oldIndex, tokenIndex].
+// old word, at its earliest token), so the result is deterministic.
+// Returns [oldIndex, tokenIndex, tokenCount].
 function anchorsOf(old, tokens, same) {
   const width = tokens.length + 1;
   const size = (old.length + 1) * width;
   const matched = new Int32Array(size);
   const hidden = new Int32Array(size);
   const at = (i, j) => i * width + j;
-  const pairs = (i, j) => same(old[i].text, tokens[j]);
+  const pairs = (i, j) => {
+    const { parts } = old[i];
+    return parts.length > 0 && j + parts.length <= tokens.length && parts.every((part, k) => same(part, tokens[j + k]));
+  };
   const cost = (i) => (old[i].hidden ? 1 : 0);
   for (let i = old.length - 1; i >= 0; i -= 1) {
     for (let j = tokens.length - 1; j >= 0; j -= 1) {
@@ -144,7 +150,8 @@ function anchorsOf(old, tokens, same) {
       const skipToken = [matched[at(i, j + 1)], hidden[at(i, j + 1)]];
       if (skipToken[0] > length || (skipToken[0] === length && skipToken[1] < hid)) [length, hid] = skipToken;
       if (pairs(i, j)) {
-        const take = [matched[at(i + 1, j + 1)] + 1, hidden[at(i + 1, j + 1)] + cost(i)];
+        const n = old[i].parts.length;
+        const take = [matched[at(i + 1, j + n)] + n, hidden[at(i + 1, j + n)] + cost(i)];
         if (take[0] > length || (take[0] === length && take[1] < hid)) [length, hid] = take;
       }
       matched[at(i, j)] = length;
@@ -156,10 +163,11 @@ function anchorsOf(old, tokens, same) {
   let j = 0;
   while (i < old.length && j < tokens.length) {
     const here = at(i, j);
-    if (pairs(i, j) && matched[at(i + 1, j + 1)] + 1 === matched[here] && hidden[at(i + 1, j + 1)] + cost(i) === hidden[here]) {
-      anchors.push([i, j]);
+    const n = old[i].parts.length;
+    if (pairs(i, j) && matched[at(i + 1, j + n)] + n === matched[here] && hidden[at(i + 1, j + n)] + cost(i) === hidden[here]) {
+      anchors.push([i, j, n]);
       i += 1;
-      j += 1;
+      j += n;
     } else if (matched[at(i, j + 1)] === matched[here] && hidden[at(i, j + 1)] === hidden[here]) j += 1;
     else i += 1;
   }
@@ -194,7 +202,7 @@ export function lineEdit({ row, draft, doc, words, upper = false } = {}) {
 
   const ids = [...new Set([...row.wordIds, ...(row.hiddenIds ?? [])])].filter(known)
     .sort((a, b) => positions.get(a) - positions.get(b));
-  const old = ids.map((id) => ({ id, text: textOf(id), hidden: isHidden(id) }));
+  const old = ids.map((id) => ({ id, text: textOf(id), hidden: isHidden(id), parts: draftTokens(textOf(id)) }));
   const anchors = anchorsOf(old, tokens, same);
 
   // Step 5: one final text per word, as `pre … base … post` so a host can take both ends.
@@ -208,7 +216,7 @@ export function lineEdit({ row, draft, doc, words, upper = false } = {}) {
   let from = 0;
   let tokenFrom = 0;
   let previous = null;
-  for (const [anchor, token] of [...anchors, [old.length, tokens.length]]) {
+  for (const [anchor, token, spelled] of [...anchors, [old.length, tokens.length, 0]]) {
     const gone = [];
     for (let index = from; index < anchor; index += 1) if (!old[index].hidden) gone.push(index);
     const typed = tokens.slice(tokenFrom, token);
@@ -228,7 +236,7 @@ export function lineEdit({ row, draft, doc, words, upper = false } = {}) {
       previous = anchor;
     }
     from = anchor + 1;
-    tokenFrom = token + 1;
+    tokenFrom = token + spelled;
   }
 
   // Step 6: in word order; a case-only change under upper case keeps the stored text.
