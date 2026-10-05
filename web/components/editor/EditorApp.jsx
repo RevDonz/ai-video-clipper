@@ -426,12 +426,22 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
   }, []);
 
   // A Cepat card or link opens the panel that does the same work in Lengkap (no preference write).
+  // The control that was pressed leaves with Mode Cepat, so focus goes to the opened panel's rail
+  // tab: the next Tab is the panel itself.
+  const [railFocus, setRailFocus] = useState(0);
   const showLengkap = useCallback((nextPanel) => {
     openingCardRef.current = null;
     if (panels.some((entry) => entry.id === nextPanel)) setPanelId(nextPanel);
     setView("lengkap");
     replaceUrlView("lengkap");
+    setRailFocus((count) => count + 1);
   }, [panels]);
+  useEffect(() => {
+    if (!railFocus) return;
+    const active = document.activeElement;
+    if (active && active !== document.body && active.isConnected) return; // focus survived the switch
+    document.getElementById(`editor-tab-${panelId}`)?.focus();
+  }, [railFocus]); // panelId is the one showLengkap set in the same render
 
   if (status === "error") {
     if (preparesNow) return <StatePage title="Menyiapkan klip untuk diedit" jobId={jobId} busy><p>Memeriksa analisis klip…</p></StatePage>;

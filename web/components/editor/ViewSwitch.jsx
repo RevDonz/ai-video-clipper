@@ -3,8 +3,9 @@
 // The top bar's view switch (Mode Cepat spec §4.5, §5.1): "Cepat | Lengkap" as one native radio
 // group drawn as a segmented pill. Tab reaches the checked radio, ←/→ switch the view (selection
 // follows focus, as native radios do) and focus stays on the switch. A polite live region names the
-// view after a switch; nothing is announced on load. No shortcut of its own (WCAG 2.1.4).
-import { useId, useState } from "react";
+// view whenever it changes, by this switch or by a card's way to Mode Lengkap; nothing is announced
+// on load. No shortcut of its own (WCAG 2.1.4).
+import { useEffect, useId, useRef, useState } from "react";
 
 import styles from "./shell.module.css";
 
@@ -16,6 +17,12 @@ const OPTIONS = Object.freeze([
 export default function ViewSwitch({ view, onChange }) {
   const name = useId();
   const [spoken, setSpoken] = useState("");
+  const shown = useRef(view);
+  useEffect(() => {
+    if (shown.current === view) return;
+    shown.current = view;
+    setSpoken(OPTIONS.find((option) => option.id === view)?.spoken ?? "");
+  }, [view]);
   return (
     <div className={styles.viewSwitchWrap}>
       <div role="radiogroup" aria-label="Tampilan editor" className={styles.viewSwitch} data-view-switch="">
@@ -27,10 +34,7 @@ export default function ViewSwitch({ view, onChange }) {
               name={name}
               value={option.id}
               checked={view === option.id}
-              onChange={() => {
-                setSpoken(option.spoken);
-                onChange(option.id);
-              }}
+              onChange={() => onChange(option.id)}
             />
             <span>{option.label}</span>
           </label>
