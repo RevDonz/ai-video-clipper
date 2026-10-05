@@ -13,16 +13,7 @@
         "width": 1920,
         "height": 1080
       },
-      "violations": [
-        {
-          "id": "region",
-          "impact": "moderate",
-          "nodes": 1,
-          "targets": [
-            ".shell-module__0UDvAW__controls"
-          ]
-        }
-      ],
+      "violations": [],
       "critical": 0,
       "serious": 0
     },
@@ -32,16 +23,7 @@
         "width": 1920,
         "height": 1080
       },
-      "violations": [
-        {
-          "id": "region",
-          "impact": "moderate",
-          "nodes": 1,
-          "targets": [
-            ".shell-module__0UDvAW__controls"
-          ]
-        }
-      ],
+      "violations": [],
       "critical": 0,
       "serious": 0
     },
@@ -51,16 +33,7 @@
         "width": 1920,
         "height": 1080
       },
-      "violations": [
-        {
-          "id": "region",
-          "impact": "moderate",
-          "nodes": 1,
-          "targets": [
-            ".shell-module__0UDvAW__controls"
-          ]
-        }
-      ],
+      "violations": [],
       "critical": 0,
       "serious": 0
     },
@@ -80,16 +53,7 @@
         "width": 1920,
         "height": 1080
       },
-      "violations": [
-        {
-          "id": "region",
-          "impact": "moderate",
-          "nodes": 1,
-          "targets": [
-            ".shell-module__0UDvAW__controls"
-          ]
-        }
-      ],
+      "violations": [],
       "critical": 0,
       "serious": 0
     },
@@ -119,16 +83,7 @@
         "width": 1366,
         "height": 768
       },
-      "violations": [
-        {
-          "id": "region",
-          "impact": "moderate",
-          "nodes": 1,
-          "targets": [
-            ".shell-module__0UDvAW__controls"
-          ]
-        }
-      ],
+      "violations": [],
       "critical": 0,
       "serious": 0
     },
@@ -138,16 +93,7 @@
         "width": 1366,
         "height": 768
       },
-      "violations": [
-        {
-          "id": "region",
-          "impact": "moderate",
-          "nodes": 1,
-          "targets": [
-            ".shell-module__0UDvAW__controls"
-          ]
-        }
-      ],
+      "violations": [],
       "critical": 0,
       "serious": 0
     },
@@ -157,16 +103,7 @@
         "width": 1366,
         "height": 768
       },
-      "violations": [
-        {
-          "id": "region",
-          "impact": "moderate",
-          "nodes": 1,
-          "targets": [
-            ".shell-module__0UDvAW__controls"
-          ]
-        }
-      ],
+      "violations": [],
       "critical": 0,
       "serious": 0
     },
@@ -186,16 +123,7 @@
         "width": 1366,
         "height": 768
       },
-      "violations": [
-        {
-          "id": "region",
-          "impact": "moderate",
-          "nodes": 1,
-          "targets": [
-            ".shell-module__0UDvAW__controls"
-          ]
-        }
-      ],
+      "violations": [],
       "critical": 0,
       "serious": 0
     },
@@ -235,16 +163,7 @@
         "width": 1366,
         "height": 768
       },
-      "violations": [
-        {
-          "id": "region",
-          "impact": "moderate",
-          "nodes": 1,
-          "targets": [
-            ".shell-module__0UDvAW__controls"
-          ]
-        }
-      ],
+      "violations": [],
       "critical": 0,
       "serious": 0
     }
