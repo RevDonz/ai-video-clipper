@@ -1,6 +1,6 @@
 /* The layout panel "Tata letak" (plan §11.3 T3.6). Every colour, size and duration is an editor
    token (editor.module.css on the editor root), so the panel follows the palette the tokens set.
-   The accent marks the chosen card and the analysis bar only; hover and status stay neutral.
+   Lime fills the analysis bar on the card only; the chosen card, hover and status stay neutral.
    Motion (hover, the chosen card, a thumbnail arriving, the analysis) runs only without
    prefers-reduced-motion. */
 
