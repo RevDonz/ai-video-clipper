@@ -559,7 +559,8 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
           <PillButton variant="quiet" onClick={() => showLengkap("transcript")}>Potong per kata di Mode Lengkap →</PillButton>
         </footer>
       ) : (
-        <div key="lengkap-bottom" className={styles.lengkapBottom} data-slot="bottom">
+        // A footer, as Cepat's bottom bar: the transport row sits in a landmark (QG-A11Y "region").
+        <footer key="lengkap-bottom" className={styles.lengkapBottom} data-slot="bottom">
           <StageControls
             fps={fps}
             totalFrames={plan?.totalFrames ?? 0}
@@ -570,7 +571,7 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
             disabled={!plan}
           />
           <Timeline plan={plan} state={state} dispatch={dispatch} player={player} frameBus={frameBus} notify={notify} readOnly={readOnly} lanes={lanes} />
-        </div>
+        </footer>
       )}
 
       <ChecksPanel
