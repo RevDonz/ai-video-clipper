@@ -1243,3 +1243,63 @@ Z0 built the scaffold of §10 step 1 on `mode-cepat-base`. Where the spec was si
 9. **For A:** the logo harness (`gizmos/__dev__/logo-harness-entry.jsx`) mounts `EditorApp` at a
    URL without a query and passes `initialPanel`. When the default flips, an `initialPanel` prop
    should resolve as `?panel=` does (Lengkap), or `editor-logo.spec.mjs` lands in Cepat.
+
+## 14. Decisions during build (A)
+
+Task A built the shell on `mode-cepat-a-shell`. Where the spec was silent or could not be followed
+literally:
+
+1. **The rail sits in the side region.** Lengkap's grid names the areas `rail side stage`. The
+   shell's children keep their fixed order and the Rail lives inside the side region, so that
+   region (`aside`, `data-slot="panels"`) spans `rail-start / side-end` and lays the Rail and the
+   panel out as its two columns (84 px and `--ed-panel-width`). Until D's rail lands, Z0's text
+   tabs are restyled as a column in the rail's place (`.tabs`, `.tab` in `shell.module.css`); D's
+   rail brings its own CSS.
+2. **Lengkap's bottom region is one wrapper.** The transport row and the Timeline sit in a flex
+   column (`.lengkapBottom`, `data-slot="bottom"`), so the Timeline's own classes stay untouched.
+   The transport row is the existing `--ed-controls-height`, changed from 52 to 56 px (§6.3).
+   The toast sits above whichever bottom region is shown (`--ed-bottom-region`).
+3. **The stage overlays are two columns.** The stage area is a row: status column, 9:16 frame,
+   toggles column. Both columns share the free width equally, so the frame stays centred and no
+   overlay can cover the video. Frame akhir and Zona aman stack at the top right; the "?" help
+   opens below the status.
+4. **The legacy status stays mounted.** Its text is empty, but the live region element is never
+   hidden, so the next status is still announced.
+5. **The other-tab chip.** `noticesView` no longer returns `other_tab`; the top bar shows
+   `OTHER_TAB_TEXT` ("Terbuka di tab lain") from `state.otherTab`.
+6. **I and O and the selection.** They read `selectionStoreFor(clipId)` only while the selection
+   is on screen (Lengkap with the Transkrip panel); elsewhere they act at the playhead, as the help
+   says ("di pilihan atau playhead"). An unseen selection never decides a trim.
+7. **A card's way to Lengkap** (and "Potong per kata di Mode Lengkap →") replaces the address with
+   `?mode=lengkap`, so a reload stays there, but it does not write the preference: only the switch
+   does (§4.2).
+8. **`?card=` opens its card once**, the first time Cepat shows. After any switch Caption opens,
+   because the open card is not remembered (§1.3). The URL wins over an `initialPanel` prop.
+9. **The scrubber's keys in the help.** `SHORTCUTS` gains two rows of scope `scrubber` (Home/End,
+   PageUp/PageDown), shown with "(di bilah posisi)". The shell never maps them.
+10. **Non-text inputs.** Besides the spec's list, `image` (a button-type input) is a control, not a
+    text field.
+11. **`view-mode.mjs` extras.** `urlWithView` returns the same-origin path (path, query, hash) that
+    `history.replaceState` takes. The module also exports `PANEL_IDS` and `CARD_IDS` (read from the
+    registries, so `?panel` and `?card` can never drift from them) and `browserStorage()`, which
+    guards reading `window.localStorage` itself.
+12. **"Kembali ke versi AI" when unavailable** keeps its place in ⋯ Lainnya with a reason: "Tidak
+    bisa saat klip baca-saja", or "Klip masih dibuka" while loading.
+13. **"← Proyek" keeps its arrow text**, as §5.1 writes it, rather than the mockup's chevron icon,
+    so its accessible name stays the same.
+14. **AC12 before B lands.** The lime sweep is strict at rest everywhere and on hover outside the
+    Lengkap panels. The panels' own `.primary:hover` is B's clean-up (§8.1): until B's
+    `panels/caption-model.mjs` exists, lime found on hover inside a Lengkap panel is reported in
+    the run's log, not failed. Once the file exists, the sweep is strict everywhere.
+15. **PF-OPEN per view** is two tests, `PF-OPEN (lengkap)` and `PF-OPEN (cepat)`, still matched by
+    `--grep PF-OPEN`. Cepat opens from the plain address (a first visit), and its interactive
+    moment is a control inside the Caption card's region (`#card-caption-region`), not its
+    loading line. The results go to `PF-OPEN-<view>.json`.
+16. **Specs left alone.** `read-only.spec.mjs` covers the project pages on a real stack, and
+    `editor-first-frame.spec.mjs` runs the player harness without the shell, so neither changed.
+    The editor's read-only banner is checked in `editor-shell.spec.mjs`.
+17. **For Z:** the real-stack specs `editor-flow` and `editor-acceptance` still assert
+    "● Sesuai hasil akhir" (now "Sesuai hasil akhir", or an empty legacy status), "Klip ini
+    terbuka di tab lain" (now the chip "Terbuka di tab lain"), and walk `[data-slot="stage"]` for
+    the play and frame-step buttons, which now sit in `[data-slot="transport"]` (Lengkap) or the
+    Cepat bottom bar.
