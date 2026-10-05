@@ -18,13 +18,15 @@ import styles from "./quick.module.css";
 
 const OPTIONS = CARD_LAYOUTS.map((option) => ({ id: option.id, label: option.name, title: option.note }));
 
-function LayoutBody({ state, dispatch, api, analysis }) {
+function LayoutBody({ state, getState, dispatch, api, analysis }) {
   const doc = state.doc;
   const locked = state.status !== "ready";
   const layout = doc.layout.default.mode;
   const run = useSyncExternalStore(analysis.subscribe, analysis.get, analysis.get);
+  // The analysis outlives this card: it reads the store as it is when the run ends.
   const stateRef = useRef(state);
   stateRef.current = state;
+  const liveState = typeof getState === "function" ? getState : () => stateRef.current;
   const [message, setMessage] = useState(null);
   const [now, setNow] = useState(() => Date.now());
   const uid = useId();
@@ -39,7 +41,7 @@ function LayoutBody({ state, dispatch, api, analysis }) {
   }, [run.phase]);
 
   const start = (switchAfter, auto = false) => analysis.start({
-    api: analysisApi(api), dispatch, getState: () => stateRef.current, switchAfter, auto,
+    api: analysisApi(api), dispatch, getState: liveState, switchAfter, auto,
   });
   const startRef = useRef(start);
   startRef.current = start;
@@ -99,8 +101,8 @@ function LayoutBody({ state, dispatch, api, analysis }) {
   );
 }
 
-export default function LayoutCard({ state, dispatch, api = null }) {
+export default function LayoutCard({ state, getState = null, dispatch, api = null }) {
   const analysis = layoutAnalysisFor(state?.clipId ?? state?.doc?.clip_id ?? null);
   if (!state?.doc || !analysis) return <p className={styles.note} role="status">Membuka tata letak…</p>;
-  return <LayoutBody state={state} dispatch={dispatch} api={api} analysis={analysis} />;
+  return <LayoutBody state={state} getState={getState} dispatch={dispatch} api={api} analysis={analysis} />;
 }

@@ -208,7 +208,7 @@ function CardProgress({ view }) {
   );
 }
 
-function LayoutPanelBody({ state, dispatch, player, api: apiProp, previewClient, analysisStore }) {
+function LayoutPanelBody({ state, getState = null, dispatch, player, api: apiProp, previewClient, analysisStore }) {
   const doc = state.doc;
   const readOnly = state.status !== "ready";
   const layout = doc.layout.default.mode;
@@ -244,11 +244,14 @@ function LayoutPanelBody({ state, dispatch, player, api: apiProp, previewClient,
     }
   };
 
+  // The run outlives this panel: it reads the store as it is when the run ends (`getState`);
+  // outside the editor, this panel's last render.
   const analyse = useCallback(({ switchAfter = true, auto = false } = {}) => {
     setMessage(null);
+    const liveState = typeof getState === "function" ? getState : () => stateRef.current;
     return analysisStore.start({ api: services.api(), dispatch: (...args) => dispatchRef.current(...args),
-      getState: () => stateRef.current, switchAfter, auto });
-  }, [analysisStore, services, dispatchRef, stateRef]);
+      getState: liveState, switchAfter, auto });
+  }, [analysisStore, services, dispatchRef, stateRef, getState]);
 
   const choose = (mode) => {
     if (readOnly) return;

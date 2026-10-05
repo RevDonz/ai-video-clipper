@@ -108,13 +108,15 @@ function LogoSection({ state, dispatch, uploadAsset, uploadsEnabled, showLengkap
   );
 }
 
-function MusicSection({ state, dispatch, uploadAsset, uploadsEnabled, showLengkap }) {
+function MusicSection({ state, getState, dispatch, uploadAsset, uploadsEnabled, showLengkap }) {
   const view = musicView(state);
   const clipId = state.clipId ?? state.doc.clip_id;
   const music = musicUploadFor(clipId);
   const upload = useSyncExternalStore(music.subscribe, music.get, music.get);
+  // The upload outlives this card: it reads the store as it is when the file arrives.
   const stateRef = useRef(state);
   stateRef.current = state;
+  const liveState = typeof getState === "function" ? getState : () => stateRef.current;
   const [notice, setNotice] = useState(false);
   const [refusal, setRefusal] = useState(null);
   const inputRef = useRef(null);
@@ -143,7 +145,7 @@ function MusicSection({ state, dispatch, uploadAsset, uploadsEnabled, showLengka
     event.target.value = "";
     if (!file) return;
     setRefusal(null);
-    music.start({ file, jobId: stateRef.current.doc.base.job_id, upload: uploadAsset, dispatch, getState: () => stateRef.current });
+    music.start({ file, jobId: stateRef.current.doc.base.job_id, upload: uploadAsset, dispatch, getState: liveState });
   };
   const send = (commands) => {
     for (const { type, args, mergeKey } of commands) {
