@@ -1,0 +1,19 @@
+{
+  "task": "B (Mode Cepat cards, the shared kit, the panel extractions)",
+  "branch": "mode-cepat-b-cards",
+  "evidence_from": {
+    "run": "https://github.com/RevDonz/ai-video-clipper/actions/runs/37284930781",
+    "suite": "e2e",
+    "command": "e2e/editor-quick.spec.mjs e2e/editor-logo.spec.mjs e2e/editor-views.spec.mjs",
+    "head": "da0af00",
+    "files": ["B-R1.json", "B-U3.json", "B-U4.json", "B-U5.json", "B-AC13-1366x650.json", "B-AC13-1920x960.json",
+      "B-AC16-layout.json", "B-AC16-music.json"],
+    "note": "editor-quick.spec.mjs: 25 passed. The one failure of that run is the base's editor-views.spec.mjs test that clicks the Caption placeholder's button (task A's file; A's branch already retargets it, spec 'Decisions during build (B)' 13)."
+  },
+  "other_runs": [
+    { "run": "https://github.com/RevDonz/ai-video-clipper/actions/runs/37282889091", "suite": "full", "head": "3ace0e0", "result": "success" },
+    { "run": "https://github.com/RevDonz/ai-video-clipper/actions/runs/37283759027", "suite": "e2e",
+      "command": "editor-ai, editor-layout, editor-logo, editor-music, editor-transition, editor-transcript, editor-markers, editor-views",
+      "head": "287ffd7", "result": "105 passed, 7 skipped; 2 failed in task A's editor-views.spec.mjs (the region name, fixed in e3c29f9, and the placeholder button)" }
+  ]
+}
