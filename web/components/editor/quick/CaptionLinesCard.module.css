@@ -1,0 +1,126 @@
+/* Teks caption (spec §2.1, §8). Tokens only. Each line is one field: the time label and the text
+   input share a --surface-2 box with a --border-strong edge (3:1 on the card), so the focus ring is
+   drawn on that box and the line under the playhead turns its edge --text. */
+
+.lines {
+  display: grid;
+  gap: var(--ed-space-3, 12px);
+}
+
+.help,
+.note,
+.status {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--ed-font-size-note, 13px);
+  font-weight: 400;
+  line-height: var(--ed-line-height, 1.45);
+}
+
+.status:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.empty {
+  display: grid;
+  justify-items: start;
+  gap: var(--ed-space-3, 12px);
+}
+
+.rows {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: grid;
+  gap: 4px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--ed-space-2, 8px);
+  min-height: var(--ed-target, 44px);
+  padding-left: 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-m);
+  background: var(--surface-2);
+  transition: border-color var(--dur-1);
+}
+
+.row:hover {
+  border-color: var(--text-muted);
+}
+
+.row[data-current="true"] {
+  border-color: var(--text);
+}
+
+.row[data-invalid="true"] {
+  border-color: var(--danger);
+}
+
+/* The box carries the focus ring (the shell's rule), so the input does not draw a second one. */
+.row:has(> .input:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  box-shadow: var(--ed-focus-ring);
+}
+
+.row > input.input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.time {
+  display: grid;
+  flex: none;
+  gap: 1px;
+  min-width: 4.25rem;
+  /* on: --surface-2 */
+  color: var(--text-muted);
+  font-size: var(--ed-font-size-sm, 12px);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  cursor: text;
+}
+
+.cold {
+  /* on: --surface-2 */
+  color: var(--cold-open);
+  font-weight: 600;
+}
+
+.input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--ed-target, 44px);
+  padding: 0 10px 0 0;
+  border: 0;
+  border-radius: 0 var(--radius-m) var(--radius-m) 0;
+  /* on: --surface-2 */
+  background: transparent;
+  color: var(--text);
+  font: 600 15px / 1.3 var(--ed-font-ui, var(--font));
+}
+
+.input[data-upper] {
+  text-transform: uppercase;
+}
+
+.input[readonly] {
+  cursor: default;
+}
+
+.error {
+  margin: 0;
+  color: var(--danger);
+  font-size: var(--ed-font-size-note, 13px);
+  line-height: var(--ed-line-height, 1.45);
+}
