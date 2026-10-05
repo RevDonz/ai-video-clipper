@@ -255,8 +255,14 @@ function installScenario(config) {
       return out;
     },
     previewClient(client) {
+      let loadedSha = null;
       const plan = async (doc) => {
         const dto = await client.plan(doc);
+        // An auto file from before the editor (rev0.exact false) of the loaded, unchanged document.
+        if (config.legacyAuto) {
+          loadedSha ??= dto.planSha256;
+          dto.rev0 = { planSha256: loadedSha, autoRenderUrl: config.autoRenderUrl, exact: false };
+        }
         if (config.rev0Exact) {
           const seedSha = dto.rev0.planSha256;
           dto.rev0 = { planSha256: seedSha, autoRenderUrl: config.autoRenderUrl, exact: doc.revision === 0 || dto.planSha256 === seedSha };
@@ -301,10 +307,13 @@ function installScenario(config) {
     },
   };
 
-  // PF-OPEN: the moment the editor is interactive (store ready, stage loaded, transcript panel shown).
+  // PF-OPEN: the moment the editor is interactive (store ready, stage loaded and, per view, the first
+  // thing to work in shown: Lengkap's transcript panel, or Cepat's Caption card body with its
+  // controls, not its loading line; Mode Cepat spec AC15).
+  const interactive = config.openWhen ?? '[data-panel="transcript"]';
   const observer = new MutationObserver(() => {
     if (window.__openMs !== undefined) return;
-    if (document.querySelector('[data-editor-ready="true"]') && document.querySelector('[data-panel="transcript"]')) {
+    if (document.querySelector('[data-editor-ready="true"]') && document.querySelector(interactive)) {
       window.__openMs = performance.now();
       observer.disconnect();
     }
@@ -390,7 +399,7 @@ const timeText = (page) => page.getByTestId("stage-time");
 test("the untouched T1.Z fakes open the editor live with every layer current", async ({ page }) => {
   await openEditor(page);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Sutradara ditahan security");
-  await expect(badge(page)).toHaveText("● Sesuai hasil akhir");
+  await expect(badge(page)).toHaveText("Sesuai hasil akhir");
   await expect(page.getByRole("img", { name: "Pratinjau klip" })).toBeVisible();
   await expect(page.locator('video[data-stage="auto-render"]')).toBeHidden();
   await expect(page.getByRole("status").filter({ hasText: /^Tersimpan/ })).toBeVisible();
@@ -402,13 +411,13 @@ test("the untouched T1.Z fakes open the editor live with every layer current", a
   await expect(page.locator('[data-lane="hook"] [data-hook-block]')).toContainText("Kenapa sutradara ditahan di film sendiri?");
 });
 
-test("opening revision 0 shows the auto render and '● Sesuai hasil akhir'; the help popover text", async ({ page }) => {
+test("opening revision 0 shows the auto render and 'Sesuai hasil akhir'; the help popover text", async ({ page }) => {
   await openEditor(page, { rev0Exact: true, autoRenderUrl: AUTO_RENDER });
   const video = page.locator('video[data-stage="auto-render"]');
   await expect(video).toBeVisible();
   await expect(video).toHaveAttribute("src", AUTO_RENDER);
   await expect(page.getByRole("img", { name: "Pratinjau klip" })).toBeHidden();
-  await expect(badge(page)).toHaveText("● Sesuai hasil akhir");
+  await expect(badge(page)).toHaveText("Sesuai hasil akhir");
   await expect(page.getByText("Memutar klip otomatis (identik)")).toBeVisible();
   const help = page.getByRole("button", { name: "Apa artinya?" });
   await expect(help).toHaveAttribute("aria-expanded", "false");
@@ -426,7 +435,7 @@ test("a pending layer replaces the badge with what is pending, never an approxim
     { k: 622, state: "building" }, { k: 623, state: "queued" }, { k: 624, state: "queued" }, { k: 625, state: "queued" }];
   await openEditor(page, { scenarioStore: true, pending: ["text", "plate"], cells });
   await expect(badge(page)).toHaveText("Memperbarui teks… · Menyiapkan video (2/6)…");
-  await expect(page.getByText("● Sesuai hasil akhir")).toHaveCount(0);
+  await expect(page.getByText("Sesuai hasil akhir", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Apa artinya?" }).click();
   await expect(page.getByRole("note")).not.toHaveText(HELP_TEXT);
   await expect(page.getByRole("note")).toContainText("belum");
@@ -584,10 +593,10 @@ test("shortcuts drive playback, undo/redo, the safe zone, truth frame, export an
   await expect(page.locator("[data-safe-zone]")).toHaveCount(0);
 
   await page.keyboard.press("Control+Shift+R");
-  await expect(badge(page)).toHaveText("● Frame akhir");
+  await expect(badge(page)).toHaveText("Frame akhir");
   await expect(page.getByRole("button", { name: "Frame akhir" })).toHaveAttribute("aria-pressed", "true");
   await page.keyboard.press("Control+Shift+R");
-  await expect(badge(page)).toHaveText("● Sesuai hasil akhir");
+  await expect(badge(page)).toHaveText("Sesuai hasil akhir");
 
   await page.keyboard.press("Control+Shift+E");
   await expect(page.getByRole("dialog", { name: "Ekspor klip" })).toBeVisible();
@@ -651,7 +660,7 @@ test("the checks panel lists warnings with their messages and jumps to their fra
 // Owner decision (W4, K5): the caption keeps the auto clip's spot, inside the TikTok zone. There the
 // zone warning informs: it is not counted, export asks no tick, and the Teks panel says it calmly.
 test("the caption at its auto-clip spot is a note: not counted, no tick before export (K5)", async ({ page }) => {
-  const note = "Caption di posisi bawaan, dekat tombol TikTok. Kalau tertutup, geser ke atas di tab Teks.";
+  const note = "Caption di posisi bawaan, dekat tombol TikTok. Kalau tertutup, geser caption ke atas.";
   await openEditor(page, { planWarnings: [{ code: "unsafe_zone", path: "/captions/overrides/y_e5", f: 3 }] });
   const open = await openChecks(page, 0);
   const panel = page.getByRole("dialog", { name: "Perlu dicek" });
@@ -681,36 +690,95 @@ test("a caption moved into the TikTok zone is still a check that export asks abo
   await expect(dialog.getByRole("button", { name: "Mulai ekspor" })).toBeDisabled();
 });
 
-test("the conflict dialog asks per part and resolves with the choices", async ({ page }) => {
-  await openEditor(page, { scenarioStore: true, conflict: { parts: [
-    { id: "hook", label: "Teks hook" }, { id: "rm_01", label: "Potongan 00:12" }, { id: "w048121", label: "Caption kata 'Kenapa'" },
-  ] } });
-  const dialog = page.getByRole("dialog", { name: "Klip ini diubah di tab lain" });
-  await expect(dialog).toBeVisible();
-  await expect(page.getByTestId("save-status")).toHaveText("Konflik");
-  await expect(dialog.getByRole("group")).toHaveCount(3);
-  await dialog.getByRole("group", { name: "Potongan 00:12" }).getByRole("radio", { name: "Pakai yang tersimpan" }).check();
-  await dialog.getByRole("button", { name: "Terapkan pilihan" }).click();
-  await expect(dialog).toHaveCount(0);
-  expect(await scenarioCalls(page)).toContainEqual(["resolveConflict", { hook: "mine", rm_01: "theirs", w048121: "mine" }]);
-});
+// One store and one two-tab merge for both views (Mode Cepat spec AC2): the conflict asks the same.
+for (const view of ["lengkap", "cepat"]) {
+  test(`the conflict dialog asks per part and resolves with the choices (${view})`, async ({ page }) => {
+    await openEditor(page, { scenarioStore: true, conflict: { parts: [
+      { id: "hook", label: "Teks hook" }, { id: "rm_01", label: "Potongan 00:12" }, { id: "w048121", label: "Caption kata 'Kenapa'" },
+    ] } }, { path: `/projects/${FAKE_JOB_ID}/clips/${FAKE_CLIP_ID}/edit?mode=${view}` });
+    await expect(page.locator("[data-editor-root]")).toHaveAttribute("data-editor-view", view);
+    const dialog = page.getByRole("dialog", { name: "Klip ini diubah di tab lain" });
+    await expect(dialog).toBeVisible();
+    await expect(page.getByTestId("save-status")).toHaveText("Konflik");
+    await expect(dialog.getByRole("group")).toHaveCount(3);
+    await dialog.getByRole("group", { name: "Potongan 00:12" }).getByRole("radio", { name: "Pakai yang tersimpan" }).check();
+    await dialog.getByRole("button", { name: "Terapkan pilihan" }).click();
+    await expect(dialog).toHaveCount(0);
+    expect(await scenarioCalls(page)).toContainEqual(["resolveConflict", { hook: "mine", rm_01: "theirs", w048121: "mine" }]);
+  });
+}
 
 test("a changed transcript opens read-only with 'Mulai dari versi AI'", async ({ page }) => {
   await openEditor(page, { scenarioStore: true, readOnly: "transcript_changed" });
   await expect(page.getByText("Transkrip berubah sejak klip diedit")).toBeVisible();
   await expect(page.getByRole("slider", { name: "Awal klip" })).toHaveAttribute("aria-disabled", "true");
   await expect(page.getByRole("button", { name: "Ekspor", exact: true })).toBeDisabled();
-  await page.getByRole("button", { name: "Mulai dari versi AI" }).click();
+  // The banner is neutral (Mode Cepat spec §5.3, §8.1): lime stays with Ekspor.
+  const start = page.getByRole("button", { name: "Mulai dari versi AI" });
+  const [background, lime, text] = await start.evaluate((element) => {
+    const probe = document.createElement("i");
+    element.append(probe);
+    const resolve = (name) => { probe.style.color = `var(${name})`; return getComputedStyle(probe).color; };
+    const values = [getComputedStyle(element).backgroundColor, resolve("--accent"), resolve("--text")];
+    probe.remove();
+    return values;
+  });
+  expect(background).not.toBe(lime);
+  expect(background).toBe(text);
+  // ⋯ Lainnya keeps "Kembali ke versi AI" in place, unavailable, with its reason.
+  await page.locator('[data-slot="topBar"]').getByRole("button", { name: "Lainnya" }).click();
+  const reset = page.getByRole("menuitem", { name: /Kembali ke versi AI/ });
+  await expect(reset).toHaveAttribute("aria-disabled", "true");
+  await expect(reset).toHaveAccessibleDescription("Tidak bisa saat klip baca-saja");
+  await page.keyboard.press("Escape");
+  await start.click();
   expect(await scenarioCalls(page)).toContainEqual(["startFromSeed"]);
   await expect(page.getByText("Transkrip berubah sejak klip diedit")).toHaveCount(0);
 });
 
-test("a clip whose auto file came before the editor says so; save errors offer a retry", async ({ page }) => {
-  await openEditor(page, { scenarioStore: true, saveFails: true, autosaveMs: 50, docPatch: { "base.engine.compiler": "legacy" } });
-  await expect(page.getByText("Klip otomatis ini dibuat sebelum editor dibuka; setelah klip diubah, tampilan teks hasil ekspor bisa sedikit berbeda")).toBeVisible();
+// Mode Cepat spec §5.3 (AC11): the two legacy texts leave the screen. The status is empty and
+// its "?" keeps today's legacy help; an edit makes the export the preview's, and the status says so.
+test("a clip whose auto file came before the editor: no notice, an empty status, the '?' help; save errors offer a retry", async ({ page }) => {
+  await openEditor(page, { scenarioStore: true, saveFails: true, autosaveMs: 50, legacyAuto: true, autoRenderUrl: AUTO_RENDER,
+    docPatch: { "base.engine.compiler": "legacy" } });
+  await expect(page.locator("[data-badge-tone]")).toHaveAttribute("data-badge-tone", "legacy");
+  await expect(badge(page)).toHaveText("");
+  for (const removed of [/Klip otomatis ini dibuat sebelum editor dibuka/, /Belum diubah/, /ekspor = klip otomatis/,
+    /Ubah apa saja agar ekspor sama persis/]) {
+    await expect(page.getByText(removed)).toHaveCount(0);
+  }
+  const help = page.getByRole("button", { name: "Apa artinya?" });
+  await help.click();
+  await expect(page.getByRole("note")).toHaveText("Klip ini belum diubah, jadi ekspor memakai file klip otomatis apa adanya. File itu "
+    + "dibuat sebelum editor dibuka, jadi bisa sedikit berbeda dari pratinjau ini (misalnya posisi video, warna teks). "
+    + "Setelah Anda mengubah apa saja, hasil ekspor sama dengan pratinjau ini.");
+  await page.keyboard.press("Escape");
+  await expect(help).toBeFocused();
   await page.evaluate(() => window.__potonginEditor.store.dispatch("SetCaptionsEnabled", { on: false }));
+  await expect(badge(page)).toHaveText("Sesuai hasil akhir");
   await expect(page.getByRole("status").filter({ hasText: "Gagal menyimpan; perubahan aman di browser ini" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Coba simpan lagi" })).toBeVisible();
+});
+
+// Mode Cepat spec §5.3: "Klip ini terbuka di tab lain" above the stage becomes the top bar's chip.
+test("another tab with the clip shows the top bar's chip 'Terbuka di tab lain'", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__potonginEditorScenario = {
+      store(store) {
+        let seen = null;
+        let shown = null;
+        return { ...store, getState() {
+          const state = store.getState();
+          if (state !== seen) { seen = state; shown = { ...state, otherTab: true }; }
+          return shown;
+        } };
+      },
+    };
+  });
+  await openEditor(page);
+  await expect(page.locator('[data-slot="topBar"]').getByText("Terbuka di tab lain", { exact: true })).toBeVisible();
+  await expect(page.getByText("Klip ini terbuka di tab lain")).toHaveCount(0);
+  await expect(page.locator('[data-slot="stage"]').getByText(/tab lain/)).toHaveCount(0);
 });
 
 test("'Kembali ke versi AI' is one visible, undoable command", async ({ page }) => {
@@ -836,23 +904,39 @@ for (const viewport of [{ width: 1920, height: 1080, panel: 380, timeline: 240 }
   test(`layout at ${viewport.width}×${viewport.height}: every region visible, nothing hidden`, async ({ page }) => {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await openEditor(page);
-    const boxes = await page.evaluate(() => Object.fromEntries(["topBar", "panels", "stage", "timeline"].map((slot) => {
+    const boxes = await page.evaluate(() => Object.fromEntries(["topBar", "panels", "stage", "transport", "timeline"].map((slot) => {
       const rect = document.querySelector(`[data-slot="${slot}"]`).getBoundingClientRect();
       return [slot, { x: rect.x, y: rect.y, w: rect.width, h: rect.height }];
     })));
-    expect(boxes.topBar.h).toBe(56);
-    expect(boxes.panels.w).toBe(viewport.panel);
+    // Mode Cepat spec §5.1, §6.1, §6.3: a 64 px top bar, the 84 px rail beside the panel, the 56 px
+    // transport row above the timeline.
+    expect(boxes.topBar.h).toBe(64);
+    expect(boxes.panels.w).toBe(84 + viewport.panel);
+    expect(boxes.transport.h).toBe(56);
     expect(boxes.timeline.h).toBe(viewport.timeline);
     for (const box of Object.values(boxes)) {
       expect(box.x).toBeGreaterThanOrEqual(0);
       expect(box.x + box.w).toBeLessThanOrEqual(viewport.width + 0.5);
       expect(box.y + box.h).toBeLessThanOrEqual(viewport.height + 0.5);
     }
-    for (const name of ["Ekspor", "Kembali ke versi AI", "Perlu dicek (0)", "Pintasan keyboard", "Frame akhir", "Zona aman", "Putar"]) {
+    for (const name of ["Ekspor", "Lainnya", "Perlu dicek (0)", "Frame akhir", "Zona aman", "Putar", "Apa artinya?"]) {
       await expect(page.getByRole("button", { name, exact: true })).toBeInViewport({ ratio: 1 });
     }
+    await page.locator('[data-slot="topBar"]').getByRole("button", { name: "Lainnya" }).click();
+    for (const name of ["Kembali ke versi AI", "Pintasan keyboard"]) {
+      await expect(page.getByRole("menuitem", { name })).toBeInViewport({ ratio: 1 });
+    }
+    await page.keyboard.press("Escape");
     const stage = await page.getByRole("img", { name: "Pratinjau klip" }).boundingBox();
     expect(Math.abs(stage.width / stage.height - 720 / 1280)).toBeLessThan(0.01);
+    // The status and the toggles sit beside the 9:16 frame, never over the video (§5.2).
+    for (const locator of [page.getByTestId("stage-badge"), page.getByRole("button", { name: "Apa artinya?" }),
+      page.getByRole("button", { name: "Frame akhir" }), page.getByRole("button", { name: "Zona aman" })]) {
+      const box = await locator.boundingBox();
+      if (!box || box.width === 0) continue;
+      const apart = box.x + box.width <= stage.x + 0.5 || box.x >= stage.x + stage.width - 0.5;
+      expect(apart, await locator.evaluate((element) => element.textContent || element.getAttribute("aria-label"))).toBe(true);
+    }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });
 }
@@ -874,18 +958,24 @@ test("every action is reachable by keyboard with a visible focus ring", async ({
     const focused = await page.evaluate(() => {
       const element = document.activeElement;
       const style = getComputedStyle(element);
-      const name = element.getAttribute("aria-label") || element.textContent.trim();
-      return { role: element.getAttribute("role") || element.tagName.toLowerCase(), name,
-        ring: style.outlineStyle !== "none" || style.boxShadow !== "none" };
+      const name = element.getAttribute("aria-label") || element.labels?.[0]?.textContent.trim() || element.textContent.trim();
+      // A native radio pill draws its ring on its label (`:has(input:focus-visible)`).
+      const ringOf = (style) => style.outlineStyle !== "none" || style.boxShadow !== "none";
+      const label = element.type === "radio" ? element.closest("label") : null;
+      return { role: element.getAttribute("role") || element.type || element.tagName.toLowerCase(), name,
+        ring: label ? ringOf(getComputedStyle(label)) : ringOf(style) };
     });
     seen.push(focused);
   }
   const names = seen.map((item) => item.name);
-  for (const name of ["← Proyek", "Urungkan", "Kembali ke versi AI", "Perlu dicek (0)", "Pintasan keyboard", "Ekspor",
+  // "Kembali ke versi AI" and "Pintasan keyboard" are items of ⋯ Lainnya (Mode Cepat spec §5.1);
+  // the view switch's checked radio is its one tab stop.
+  for (const name of ["← Proyek", "Lengkap", "Urungkan", "Perlu dicek (0)", "Lainnya", "Ekspor",
     "Transkrip", "Putar", "Frame sebelumnya", "Frame berikutnya", "Zona aman", "Apa artinya?", "Frame akhir",
     "Posisi pemutaran", "Awal klip", "Akhir klip", "Durasi hook", "Perbesar timeline", "Perkecil timeline"]) {
     expect(names, name).toContain(name);
   }
+  expect(names.filter((name) => name === "Cepat"), "the unchecked radio is not a tab stop").toEqual([]);
   expect(seen.filter((entry) => entry.role !== "body" && !entry.ring).map((entry) => `${entry.role}: ${entry.name}`), "focused without a ring").toEqual([]);
 });
 
@@ -936,7 +1026,7 @@ test("QG-A11Y: axe finds no critical or serious violation in any editor state", 
   await openEditor(page, { scenarioStore: true, conflict: { parts: [{ id: "hook", label: "Teks hook" }] } });
   await record("conflict dialog");
   await openEditor(page, { scenarioStore: true, readOnly: "transcript_changed", docPatch: { "base.engine.compiler": "legacy" } });
-  await record("read-only + legacy notice");
+  await record("read-only, legacy engine");
   const version = await axeVersion(page);
   writeGate("QG-A11Y.json", { gate: "QG-A11Y", axe: version, browser: browser.version(), executable: chrome ?? "playwright-default",
     states: results.length, critical: results.reduce((sum, item) => sum + item.critical, 0),
@@ -958,45 +1048,58 @@ function percentile(values, p) {
   return sorted[Math.min(sorted.length - 1, Math.ceil((p / 100) * sorted.length) - 1)];
 }
 
-test("PF-OPEN: interactive ≤ 3.0 s p95 on a first visit and ≤ 2.0 s p95 on a repeat visit", async ({ browser, workerStorageState }) => {
-  test.skip(!runGates, "EDITOR_GATES=1 runs the timing gates");
-  test.setTimeout(600_000);
-  const runs = Number(process.env.EDITOR_GATES_RUNS || 20);
-  // Simulated server time per open, from the W1 numbers: CLI round trip 90 ms per call [R1] and
-  // the PF-PLAN server budget (200 ms p95) for the plan.
-  const variants = [
-    { name: "fakes, no server latency", config: { rev0Exact: true, autoRenderUrl: AUTO_RENDER } },
-    { name: "fakes + simulated server latency", config: { rev0Exact: true, autoRenderUrl: AUTO_RENDER,
-      latency: { api: { getEdit: 90, words: 90, clips: 90 }, preview: { plan: 200 } } } },
-  ];
-  const report = { gate: "PF-OPEN", browser: browser.version(), executable: chrome ?? "playwright-default", runs, variants: [] };
-  for (const variant of variants) {
-    const first = [];
-    const repeat = [];
-    for (let run = 0; run < runs; run += 1) {
-      const context = await browser.newContext({ baseURL: settings.baseURL, storageState: workerStorageState, viewport: { width: 1366, height: 768 } });
-      const page = await context.newPage();
-      await page.addInitScript(installScenario, variant.config);
-      await page.route(`**${AUTO_RENDER}`, (route) => route.fulfill({ status: 200, contentType: "video/mp4", body: tinyMp4 }));
-      await page.goto(EDITOR);
-      await page.waitForFunction(() => window.__openMs !== undefined, null, { timeout: 30_000 });
-      first.push(await page.evaluate(() => window.__openMs));
-      await page.goto(EDITOR);
-      await page.waitForFunction(() => window.__openMs !== undefined, null, { timeout: 30_000 });
-      repeat.push(await page.evaluate(() => window.__openMs));
-      await context.close();
+// PF-OPEN per view (Mode Cepat spec AC15). Lengkap's interactive moment stays the transcript panel
+// shown; Cepat's is the Caption card's body shown with its controls. Cepat opens from the plain
+// address, as a first visit does (no stored preference, no query).
+const PF_OPEN_VIEWS = [
+  { view: "lengkap", path: EDITOR, openWhen: '[data-panel="transcript"]' },
+  { view: "cepat", path: `/projects/${FAKE_JOB_ID}/clips/${FAKE_CLIP_ID}/edit`,
+    openWhen: "#card-caption-region :is(input, button, select, textarea)" },
+];
+
+for (const target of PF_OPEN_VIEWS) {
+  test(`PF-OPEN (${target.view}): interactive ≤ 3.0 s p95 on a first visit and ≤ 2.0 s p95 on a repeat visit`, async ({ browser, workerStorageState }) => {
+    test.skip(!runGates, "EDITOR_GATES=1 runs the timing gates");
+    test.setTimeout(600_000);
+    const runs = Number(process.env.EDITOR_GATES_RUNS || 20);
+    // Simulated server time per open, from the W1 numbers: CLI round trip 90 ms per call [R1] and
+    // the PF-PLAN server budget (200 ms p95) for the plan.
+    const variants = [
+      { name: "fakes, no server latency", config: { rev0Exact: true, autoRenderUrl: AUTO_RENDER, openWhen: target.openWhen } },
+      { name: "fakes + simulated server latency", config: { rev0Exact: true, autoRenderUrl: AUTO_RENDER, openWhen: target.openWhen,
+        latency: { api: { getEdit: 90, words: 90, clips: 90 }, preview: { plan: 200 } } } },
+    ];
+    const report = { gate: "PF-OPEN", view: target.view, interactive: target.openWhen, browser: browser.version(),
+      executable: chrome ?? "playwright-default", runs, variants: [] };
+    for (const variant of variants) {
+      const first = [];
+      const repeat = [];
+      for (let run = 0; run < runs; run += 1) {
+        const context = await browser.newContext({ baseURL: settings.baseURL, storageState: workerStorageState, viewport: { width: 1366, height: 768 } });
+        const page = await context.newPage();
+        await page.addInitScript(installScenario, variant.config);
+        await page.route(`**${AUTO_RENDER}`, (route) => route.fulfill({ status: 200, contentType: "video/mp4", body: tinyMp4 }));
+        await page.goto(target.path);
+        await page.waitForFunction(() => window.__openMs !== undefined, null, { timeout: 30_000 });
+        first.push(await page.evaluate(() => window.__openMs));
+        await expect(page.locator("[data-editor-root]")).toHaveAttribute("data-editor-view", target.view);
+        await page.goto(target.path);
+        await page.waitForFunction(() => window.__openMs !== undefined, null, { timeout: 30_000 });
+        repeat.push(await page.evaluate(() => window.__openMs));
+        await context.close();
+      }
+      report.variants.push({ name: variant.name, config: variant.config.latency ?? null,
+        first_visit_ms: { p50: percentile(first, 50), p95: percentile(first, 95), max: Math.max(...first) },
+        repeat_visit_ms: { p50: percentile(repeat, 50), p95: percentile(repeat, 95), max: Math.max(...repeat) } });
     }
-    report.variants.push({ name: variant.name, config: variant.config.latency ?? null,
-      first_visit_ms: { p50: percentile(first, 50), p95: percentile(first, 95), max: Math.max(...first) },
-      repeat_visit_ms: { p50: percentile(repeat, 50), p95: percentile(repeat, 95), max: Math.max(...repeat) } });
-  }
-  report.pass = report.variants.every((variant) => variant.first_visit_ms.p95 <= 3000 && variant.repeat_visit_ms.p95 <= 2000);
-  writeGate("PF-OPEN.json", report);
-  for (const variant of report.variants) {
-    expect(variant.first_visit_ms.p95, variant.name).toBeLessThanOrEqual(3000);
-    expect(variant.repeat_visit_ms.p95, variant.name).toBeLessThanOrEqual(2000);
-  }
-});
+    report.pass = report.variants.every((variant) => variant.first_visit_ms.p95 <= 3000 && variant.repeat_visit_ms.p95 <= 2000);
+    writeGate(`PF-OPEN-${target.view}.json`, report);
+    for (const variant of report.variants) {
+      expect(variant.first_visit_ms.p95, variant.name).toBeLessThanOrEqual(3000);
+      expect(variant.repeat_visit_ms.p95, variant.name).toBeLessThanOrEqual(2000);
+    }
+  });
+}
 
 test("QG-UX U1 (scripted): fix a clipped first word in ≤ 20 s", async ({ page, browser }) => {
   test.setTimeout(60_000);
@@ -1012,7 +1115,7 @@ test("QG-UX U1 (scripted): fix a clipped first word in ≤ 20 s", async ({ page,
     return [state.revision, state.save]; // the saved revision (the store's `doc` keeps the loaded one)
   }, { timeout: 10_000 }).toEqual([1, "saved"]);
   await expect(page.getByTestId("save-status")).toHaveText(/^Tersimpan/);
-  await expect(badge(page)).toHaveText("● Sesuai hasil akhir");
+  await expect(badge(page)).toHaveText("Sesuai hasil akhir");
   const elapsed = (await page.evaluate(() => performance.now())) - t0;
   writeGate("QG-UX-U1.json", { gate: "QG-UX U1 (scripted)", limit_ms: 20_000, elapsed_ms: Math.round(elapsed),
     viewport: page.viewportSize(), browser: browser.version(), steps: ["drag Awal klip left to the word gap", "autosave (1.5 s debounce)"],
@@ -1148,6 +1251,20 @@ test("opening a clip that was never prepared prepares it in the editor, with pro
   await expect(page.locator('[data-editor-ready="true"]')).toBeVisible({ timeout: 30_000 });
   // The address becomes the clip's own, so a reload opens it directly.
   expect(new URL(page.url()).pathname).toBe(`/projects/${PROJECT_JOB}/clips/${FAKE_CLIP_ID}/edit`);
+  expect(posts).toEqual(["{}"]);
+});
+
+// Mode Cepat spec §4.4 (AC3): the prepare flow's new address keeps the deep link's query.
+test("a deep link to a clip that was never prepared keeps its query after the prepare", async ({ page }) => {
+  const posts = await mockProject(page);
+  await page.goto(`/projects/${PROJECT_JOB}/clips/klip-4/edit?card=lines#catatan`);
+  await expect(page.locator('[data-editor-ready="true"]')).toBeVisible({ timeout: 30_000 });
+  const url = new URL(page.url());
+  expect(url.pathname).toBe(`/projects/${PROJECT_JOB}/clips/${FAKE_CLIP_ID}/edit`);
+  expect(url.search).toBe("?card=lines");
+  expect(url.hash).toBe("#catatan");
+  await expect(page.locator("[data-editor-root]")).toHaveAttribute("data-editor-view", "cepat");
+  await expect(page.locator("#card-lines-button")).toHaveAttribute("aria-expanded", "true");
   expect(posts).toEqual(["{}"]);
 });
 

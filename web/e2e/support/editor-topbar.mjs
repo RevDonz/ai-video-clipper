@@ -1,11 +1,19 @@
 // The editor's top-bar and stage actions, in one place (docs/plans/2026-10-02-editor-mode-cepat.md
-// §9.5): the specs call these instead of clicking the controls, so task A changes only this file
-// when the controls move (⋯ Lainnya, the view switch, the stage overlays). Z0 implements them
-// against today's UI.
+// §9.5): the specs call these instead of clicking the controls, so only this file changes when the
+// controls move. Task A moved them: "Kembali ke versi AI" and "Pintasan keyboard" into the ⋯
+// Lainnya menu, the view switch into the top bar, Frame akhir and Zona aman beside the stage.
+import { expect } from "@playwright/test";
 
-/** "Kembali ke versi AI". */
+/** Opens the top bar's ⋯ Lainnya and runs its item `name` (the word toolbar has a "Lainnya" too). */
+async function moreMenu(page, name) {
+  const bar = page.locator('[data-slot="topBar"]');
+  await bar.getByRole("button", { name: "Lainnya", exact: true }).click();
+  await bar.getByRole("menu", { name: "Lainnya" }).getByRole("menuitem", { name }).click();
+}
+
+/** "Kembali ke versi AI" (⋯ Lainnya). */
 export async function resetToAi(page) {
-  await page.getByRole("button", { name: "Kembali ke versi AI" }).click();
+  await moreMenu(page, "Kembali ke versi AI");
 }
 
 /**
@@ -18,21 +26,17 @@ export async function openChecks(page, count = null) {
   return button;
 }
 
-/** Opens the "Pintasan keyboard" dialog from its button. */
+/** Opens the "Pintasan keyboard" dialog (⋯ Lainnya). */
 export async function openShortcutHelp(page) {
-  await page.getByRole("button", { name: "Pintasan keyboard" }).click();
+  await moreMenu(page, "Pintasan keyboard");
 }
 
-/**
- * Shows the editor in `view` ("cepat" or "lengkap"). Z0 has no switch on screen yet, so this
- * reloads the page with ?mode=<view>; task A clicks the top-bar switch instead.
- */
+/** Shows the editor in `view` ("cepat" or "lengkap") with the top bar's switch. */
 export async function switchView(page, view) {
-  const url = new URL(page.url());
-  url.searchParams.set("mode", view);
-  url.searchParams.delete("panel");
-  url.searchParams.delete("card");
-  await page.goto(`${url.pathname}${url.search}`);
+  if (!["cepat", "lengkap"].includes(view)) throw new Error(`unknown view: ${view}`);
+  const name = view === "cepat" ? "Cepat" : "Lengkap";
+  await page.getByRole("radiogroup", { name: "Tampilan editor" }).getByRole("radio", { name, exact: true }).check();
+  await expect(page.locator("[data-editor-root]")).toHaveAttribute("data-editor-view", view);
 }
 
 /** Toggles "Frame akhir". */
