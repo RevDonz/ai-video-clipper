@@ -36,6 +36,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { crc32, deflateSync } from "node:zlib";
 
+import { resetToAi } from "./support/editor-topbar.mjs";
+import { wordAction } from "./support/editor-words.mjs";
 import { login, settings } from "./support/harness.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -126,7 +128,7 @@ function percentile(values, p) {
   return sorted[Math.min(sorted.length - 1, Math.ceil((p / 100) * sorted.length) - 1)];
 }
 
-const editorUrl = (clipId) => `/projects/${JOB_ID}/clips/${clipId}/edit`;
+const editorUrl = (clipId) => `/projects/${JOB_ID}/clips/${clipId}/edit?mode=lengkap`;
 const inspect = (page) => page.evaluate(() => {
   const hook = globalThis.__potonginEditorInspect;
   if (!hook) return null;
@@ -167,7 +169,6 @@ async function blur(page) {
 }
 
 const transcript = (page) => page.locator('[data-panel="transcript"]');
-const toolbar = (page) => page.getByRole("toolbar", { name: "Aksi kata" });
 
 async function openTab(page, name) {
   await page.getByRole("tab", { name, exact: true }).click();
@@ -194,7 +195,7 @@ async function selectRange(page, first, last) {
 async function resetToSeed(page) {
   const state = await inspect(page);
   if (state.seed && contentOf(state.doc) === contentOf(state.seed)) return;
-  await page.getByRole("button", { name: "Kembali ke versi AI" }).click();
+  await resetToAi(page);
   await waitSaved(page);
 }
 
@@ -427,7 +428,7 @@ test("the W2 flow: edit, undo/redo, reload, export, G1–G3, back to the AI vers
   await exported.dialog.getByRole("button", { name: "Tutup" }).click();
 
   await step("undo everything (back to the AI version)", async () => {
-    await page.getByRole("button", { name: "Kembali ke versi AI" }).click();
+    await resetToAi(page);
     const reset = await waitSaved(page);
     expect(contentOf(reset.doc)).toBe(contentOf(reset.seed));
   });
@@ -526,7 +527,7 @@ test("QG-UX U1 (scripted): fix a clipped first word in ≤ 20 s", async ({ page,
   await expect(word(page, body[0])).toHaveAttribute("data-zone", "before");
   await word(page, body[0]).scrollIntoViewIfNeeded();
   await word(page, body[0]).click();
-  await toolbar(page).getByRole("button", { name: "Perpanjang ke sini" }).click();
+  await wordAction(page, "Perpanjang ke sini");
   await expect(word(page, body[0])).toHaveAttribute("data-zone", "body");
   const state = await waitSaved(page);
   const elapsed = Date.now() - started;
@@ -587,7 +588,7 @@ test("QG-UX U3 (scripted): replace the cold open in ≤ 45 s", async ({ page, br
   const started = Date.now();
   await openEditor(page, clip.clipId);
   await selectRange(page, range[0], range[1]);
-  await toolbar(page).getByRole("button", { name: "Jadikan cold open" }).click();
+  await wordAction(page, "Jadikan cold open");
   await expect(word(page, range[0])).toHaveAttribute("data-cold", "");
   const saved = await waitSaved(page);
   const elapsed = Date.now() - started;
@@ -640,7 +641,7 @@ test("QG-UX U7 (scripted): reload mid-edit loses nothing; 'Kembali ke versi AI' 
   const lost = contentOf(after.doc) === contentOf(before.doc) ? 0 : 1;
   expect(lost).toBe(0);
   const started = Date.now();
-  await page.getByRole("button", { name: "Kembali ke versi AI" }).click();
+  await resetToAi(page);
   const reset = await waitSaved(page);
   const elapsed = Date.now() - started;
   expect(contentOf(reset.doc)).toBe(contentOf(reset.seed));

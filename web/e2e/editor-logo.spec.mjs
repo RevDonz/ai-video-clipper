@@ -39,6 +39,7 @@ import { fakeDoc, fakeSha256, fakeWords } from "../components/editor/__dev__/fak
 import { HARNESS_HTML, bundleHarness } from "../components/editor/transcript/__dev__/bundle.mjs";
 import { applyCommand } from "../lib/editor/commands.mjs";
 import { createContext } from "../lib/editor/doc-model.mjs";
+import { openChecks } from "./support/editor-topbar.mjs";
 import { login, settings } from "./support/harness.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -476,7 +477,7 @@ test.describe("logo panel and gizmo (harness)", () => {
     await expect(warning).toBeVisible();
     await expect(warning).toContainText("tombol TikTok");
     await expect(page.getByRole("button", { name: /Perlu dicek \(1\)/ })).toBeVisible();
-    await page.getByRole("button", { name: /Perlu dicek/ }).click();
+    await openChecks(page);
     await expect(page.getByText("Logo masuk ke area tombol TikTok")).toBeVisible();
     await page.keyboard.press("Escape");
     await warning.getByRole("button", { name: "Geser ke area aman" }).click();
@@ -774,7 +775,7 @@ test.describe("real stack", () => {
         json: doc, headers: { "If-Match": `"${current.body.etag}"`, "Idempotency-Key": crypto.randomUUID() } });
       expect(saved.status, JSON.stringify(saved.body)).toBe(200);
       current = { body: { doc: saved.body.doc, etag: saved.body.etag } };
-      await page.goto(`/projects/${JOB_ID}/clips/${clip.clipId}/edit`);
+      await page.goto(`/projects/${JOB_ID}/clips/${clip.clipId}/edit?mode=lengkap`);
       await expect(page.locator('[data-editor-ready="true"]')).toBeVisible({ timeout: 60_000 });
       const view = await inspect(page);
       const total = view.plan.totalFrames;

@@ -21,6 +21,7 @@ import { fileURLToPath } from "node:url";
 
 import { HARNESS_HTML, bundleHarness } from "../components/editor/transcript/__dev__/bundle.mjs";
 import { DEMO, dataset, unitWords } from "../components/editor/transcript/__dev__/harness-data.mjs";
+import { wordAction } from "./support/editor-words.mjs";
 
 const ORIGIN = "http://editor-harness.test";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -166,7 +167,7 @@ test.describe("transcript panel", () => {
     await page.keyboard.press("Delete");
     await selectRange(page, first, first + 6);
     await expect(toolbar(page).getByRole("button", { name: "Pulihkan" })).toBeEnabled();
-    await toolbar(page).getByRole("button", { name: "Hapus" }).click();
+    await wordAction(page, "Hapus");
     const doc = await currentDoc(page);
     const body = doc.main.removals.filter((removal) => removal.seg === "seg_b1");
     expect(body).toHaveLength(1);
@@ -236,7 +237,7 @@ test.describe("transcript panel", () => {
     const [firstFirst] = unit(DEMO.bodyFirst);
     await expect(word(page, firstFirst)).toHaveAttribute("data-zone", "before");
     await word(page, firstFirst).click();
-    await toolbar(page).getByRole("button", { name: "Perpanjang ke sini" }).click();
+    await wordAction(page, "Perpanjang ke sini");
     expect(await lastCommand(page)).toEqual({ type: "TrimStart", args: { gapWord: demoWords[firstFirst].id }, mergeKey: null });
     await expect(word(page, firstFirst)).toHaveAttribute("data-zone", "body");
     const [, penultimateLast] = unit(DEMO.bodyLast - 1);
