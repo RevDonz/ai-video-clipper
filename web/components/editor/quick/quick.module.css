@@ -1,0 +1,20 @@
+/* Mode Cepat's card column (spec §1.1, §8.1). Tokens only. */
+
+.cards {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.note {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--ed-font-size-note, 13px);
+  line-height: var(--ed-line-height, 1.45);
+}
+
+.placeholder {
+  display: grid;
+  justify-items: start;
+  gap: var(--ed-space-3, 12px);
+}

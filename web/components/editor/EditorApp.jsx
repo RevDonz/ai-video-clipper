@@ -23,6 +23,8 @@ import ExportDialog from "./ExportDialog.jsx";
 import { createExportFlow, earlierExports } from "./export-flow.mjs";
 import { GIZMOS } from "./gizmos/index.mjs";
 import { PANELS } from "./panels/index.mjs";
+import QuickPanel from "./quick/QuickPanel.jsx";
+import Rail from "./rail/Rail.jsx";
 import ReadOnlyBanner from "./ReadOnlyBanner.jsx";
 import { createEditorRuntime, createFrameBus, createPlayerFacade } from "./runtime.mjs";
 import styles from "./shell.module.css";
@@ -30,12 +32,14 @@ import {
   actionableChecks, badgeView, checksView, conflictParts, exportMatchesSeed, exportRevision, liveEntries, messageFor, noticesView,
   playerView, rejectionText,
 } from "./shell-model.mjs";
+import Scrubber from "./scrubber/Scrubber.jsx";
 import Stage from "./Stage.jsx";
 import StageControls from "./StageControls.jsx";
 import { LANES } from "./timeline/lanes.mjs";
 import Timeline from "./timeline/Timeline.jsx";
 import { wordForTrimAt } from "./timeline/timeline-model.mjs";
 import TopBar from "./TopBar.jsx";
+import PillButton from "./ui/PillButton.jsx";
 
 const components = new Map();
 
@@ -56,6 +60,17 @@ const TERMINAL_EXPORT = new Set(["completed", "failed", "cancelled", "error"]);
 // A clip of a job that was never prepared has no document or words yet: the editor prepares it.
 const PREPARE_CODES = new Set(["not_found", "analysis_missing"]);
 const BUSY_EXPORT = new Set(["saving", "submitting", "running"]);
+
+// Mode Cepat opens only from `?mode=cepat` until task A lands the view switch and the stored
+// preference (docs/plans/2026-10-02-editor-mode-cepat.md §4); every other URL opens Lengkap.
+function viewFromLocation() {
+  if (typeof window === "undefined") return "lengkap";
+  try {
+    return new URLSearchParams(window.location.search).get("mode") === "cepat" ? "cepat" : "lengkap";
+  } catch {
+    return "lengkap";
+  }
+}
 
 function useNarrow() {
   const [narrow, setNarrow] = useState(false);
@@ -141,6 +156,7 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
   const [playerState, setPlayerState] = useState(null);
   const [media, setMedia] = useState(null);
   const [panelId, setPanelId] = useState(initialPanel ?? panels[0].id);
+  const [view, setView] = useState(viewFromLocation);
   const [safeZone, setSafeZone] = useState(false);
   const [checksOpen, setChecksOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -152,7 +168,6 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
   const exportButtonRef = useRef(null);
   const checksButtonRef = useRef(null);
   const helpReturnRef = useRef(null);
-  const tabRefs = useRef(new Map());
 
   const status = state.status;
   const readOnly = status === "readOnly";
@@ -367,14 +382,11 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
     if (preparesNow) onNeedsPrepare();
   }, [preparesNow, onNeedsPrepare]);
 
-  const onTabKey = (event, index) => {
-    const moves = { ArrowRight: index + 1, ArrowLeft: index - 1, Home: 0, End: panels.length - 1 };
-    if (!(event.key in moves)) return;
-    event.preventDefault();
-    const target = panels[(moves[event.key] + panels.length) % panels.length];
-    setPanelId(target.id);
-    tabRefs.current.get(target.id)?.focus();
-  };
+  // A Cepat card or link opens the panel that does the same work in Lengkap.
+  const showLengkap = useCallback((nextPanel) => {
+    if (panels.some((entry) => entry.id === nextPanel)) setPanelId(nextPanel);
+    setView("lengkap");
+  }, [panels]);
 
   if (status === "error") {
     if (preparesNow) return <StatePage title="Menyiapkan klip untuk diedit" jobId={jobId} busy><p>Memeriksa analisis klip…</p></StatePage>;
@@ -389,6 +401,7 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
     <div
       className={`${tokens.tokens} ${styles.shell}`}
       data-editor-root=""
+      data-editor-view={view}
       data-editor-status={status}
       data-editor-ready={isReady ? "true" : "false"}
     >
@@ -415,44 +428,44 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
         exportBusy={BUSY_EXPORT.has(exportState?.phase)}
       />
 
-      <aside className={styles.panels} data-slot="panels" aria-label="Panel editor">
-        <div className={styles.tabs} role="tablist" aria-label="Panel editor">
-          {panels.map((entry, index) => (
-            <button
-              key={entry.id}
-              ref={(element) => { if (element) tabRefs.current.set(entry.id, element); else tabRefs.current.delete(entry.id); }}
-              type="button"
-              role="tab"
-              id={`editor-tab-${entry.id}`}
-              className={styles.tab}
-              aria-selected={entry.id === panel.id}
-              aria-controls="editor-panel"
-              tabIndex={entry.id === panel.id ? 0 : -1}
-              onClick={() => setPanelId(entry.id)}
-              onKeyDown={(event) => onTabKey(event, index)}
-            >
-              {entry.label}
-            </button>
-          ))}
-        </div>
-        <div className={styles.tabPanel} role="tabpanel" id="editor-panel" aria-labelledby={`editor-tab-${panel.id}`}>
-          {/* The panel's name as the level-2 heading its sections (h3) sit under (QG-A11Y heading order). */}
-          <h2 className={styles.visuallyHidden}>{panel.label}</h2>
-          <Suspense fallback={<p className={styles.muted}>Membuka panel…</p>}>
-            <Panel
-              state={state}
-              dispatch={dispatch}
-              player={player}
-              api={api}
-              previewClient={runtime.previewClient}
-              uploadAsset={runtime.uploadAsset ?? null}
-              uploadsEnabled={uploadsEnabled}
-              notify={notify}
-              readOnly={readOnly}
-            />
-          </Suspense>
-        </div>
-      </aside>
+      {view === "cepat" ? (
+        <aside className={styles.quickSide} data-slot="cards" aria-label="Pengaturan klip">
+          <QuickPanel
+            state={state}
+            dispatch={dispatch}
+            player={player}
+            api={api}
+            previewClient={runtime.previewClient}
+            uploadAsset={runtime.uploadAsset ?? null}
+            uploadsEnabled={uploadsEnabled}
+            notify={notify}
+            readOnly={readOnly}
+            frameBus={frameBus}
+            showLengkap={showLengkap}
+          />
+        </aside>
+      ) : (
+        <aside className={styles.panels} data-slot="panels" aria-label="Panel editor">
+          <Rail panels={panels} value={panel.id} onChange={setPanelId} />
+          <div className={styles.tabPanel} role="tabpanel" id="editor-panel" aria-labelledby={`editor-tab-${panel.id}`}>
+            {/* The panel's name as the level-2 heading its sections (h3) sit under (QG-A11Y heading order). */}
+            <h2 className={styles.visuallyHidden}>{panel.label}</h2>
+            <Suspense fallback={<p className={styles.muted}>Membuka panel…</p>}>
+              <Panel
+                state={state}
+                dispatch={dispatch}
+                player={player}
+                api={api}
+                previewClient={runtime.previewClient}
+                uploadAsset={runtime.uploadAsset ?? null}
+                uploadsEnabled={uploadsEnabled}
+                notify={notify}
+                readOnly={readOnly}
+              />
+            </Suspense>
+          </div>
+        </aside>
+      )}
 
       <main className={styles.stageRegion} data-slot="stage">
         {(notices.length > 0 || readOnly) && (
@@ -503,7 +516,14 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
         />
       </main>
 
-      <Timeline plan={plan} state={state} dispatch={dispatch} player={player} frameBus={frameBus} notify={notify} readOnly={readOnly} lanes={lanes} />
+      {view === "cepat" ? (
+        <footer className={styles.quickBottom} data-slot="bottom">
+          <Scrubber plan={plan} state={state} player={player} frameBus={frameBus} disabled={!plan} />
+          <PillButton variant="quiet" onClick={() => showLengkap("transcript")}>Potong per kata di Mode Lengkap →</PillButton>
+        </footer>
+      ) : (
+        <Timeline plan={plan} state={state} dispatch={dispatch} player={player} frameBus={frameBus} notify={notify} readOnly={readOnly} lanes={lanes} />
+      )}
 
       <ChecksPanel
         open={checksOpen}
