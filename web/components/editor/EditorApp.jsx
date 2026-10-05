@@ -406,11 +406,9 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
   const Panel = lazyComponent(panel);
   const onMedia = useCallback((next) => setMedia(next), []);
   // One bundle for every Lengkap panel and every Cepat card (Mode Cepat spec §1.2).
-  const previewClient = runtime.previewClient;
-  const uploadAsset = runtime.uploadAsset ?? null;
   const panelProps = useMemo(() => ({
     state, dispatch, player, api, previewClient: runtime.previewClient, uploadAsset: runtime.uploadAsset ?? null, uploadsEnabled, notify, readOnly,
-  }), [state, dispatch, player, api, previewClient, uploadAsset, uploadsEnabled, notify, readOnly]);
+  }), [state, dispatch, player, api, runtime, uploadsEnabled, notify, readOnly]);
 
   const errorCode = status === "error" ? (state.error?.code ?? state.errorCode ?? "internal_error") : null;
   const preparesNow = typeof onNeedsPrepare === "function" && PREPARE_CODES.has(errorCode);
