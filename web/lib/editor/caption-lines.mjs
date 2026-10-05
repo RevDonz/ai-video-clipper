@@ -185,6 +185,7 @@ export function lineEdit({ row, draft, doc, words, upper = false } = {}) {
   const known = (id) => positions.has(id);
   const visible = row.wordIds.filter((id) => known(id) && !isHidden(id));
   const setHidden = (wordId, on) => ({ type: "SetWordHidden", args: { wordId, on } });
+  if (!visible.length) return { ok: true, commands: [] }; // such a row is dropped (§2.1); nothing to edit
   if (!tokens.length) return { ok: true, commands: visible.map((id) => setHidden(id, true)) };
 
   const same = sameRule(upper);
