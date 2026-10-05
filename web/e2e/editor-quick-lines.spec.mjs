@@ -393,6 +393,17 @@ test("captions off: the card says where to turn them on", async ({ page }) => {
   await expect(card.locator("[data-line-key]")).toHaveCount(0);
 });
 
+test("no line left: the card says why, and 'Buka transkrip' opens the transcript in Mode Lengkap", async ({ page }) => {
+  const card = await openLines(page);
+  await page.evaluate((ids) => {
+    for (const wordId of ids) window.__potonginEditor.store.dispatch("SetWordHidden", { wordId, on: true }, { mergeKey: "tx:e2e:1" });
+  }, ID);
+  await expect(card.getByText("Tidak ada kata yang tampil di caption. Kata yang disembunyikan bisa ditampilkan lagi di transkrip.")).toBeVisible();
+  await card.getByRole("button", { name: "Buka transkrip" }).click();
+  await expect(page.locator("[data-editor-root]")).toHaveAttribute("data-editor-view", "lengkap");
+  await expect(page.locator('[data-panel="transcript"]')).toBeVisible();
+});
+
 for (const viewport of [{ width: 1366, height: 650 }, { width: 1920, height: 960 }]) {
   test(`QG-A11Y at ${viewport.width}×${viewport.height}: 44 px fields, a visible focus ring, no critical or serious axe finding`, async ({ page }) => {
     await page.setViewportSize(viewport);
