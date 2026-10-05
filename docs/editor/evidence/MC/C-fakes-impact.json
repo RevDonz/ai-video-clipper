@@ -1,0 +1,31 @@
+{
+  "what": "The other editor specs on the fakes after C's engine-like fake cues (spec §2.6, decisions during build (C) 11)",
+  "ci_run": "37283653532",
+  "ref": "mode-cepat-c-lines@976735b",
+  "specs": [
+    "e2e/editor-views.spec.mjs", "e2e/editor-shell.spec.mjs", "e2e/editor-transition.spec.mjs", "e2e/editor-layout.spec.mjs",
+    "e2e/editor-music.spec.mjs", "e2e/editor-logo.spec.mjs", "e2e/editor-ai.spec.mjs", "e2e/editor-markers.spec.mjs",
+    "e2e/editor-transcript.spec.mjs", "e2e/editor-cleanup.spec.mjs", "e2e/editor-security.spec.mjs"
+  ],
+  "passed": 160,
+  "skipped": 8,
+  "failed": 2,
+  "failures": [
+    {
+      "spec": "e2e/editor-shell.spec.mjs:401",
+      "owner": "A",
+      "assertion": "[data-lane=\"captions\"] [data-cue] count",
+      "expected": 3,
+      "received": 4,
+      "cause": "the fakes' seed now has 4 caption cues (a break after \"sendiri?\"), as the engine groups them"
+    },
+    {
+      "spec": "e2e/editor-views.spec.mjs:127",
+      "owner": "A",
+      "assertion": "Teks caption header summary",
+      "expected": "3 baris",
+      "received": "4 baris",
+      "cause": "the same 4 cues, summed up by linesSummary"
+    }
+  ]
+}
