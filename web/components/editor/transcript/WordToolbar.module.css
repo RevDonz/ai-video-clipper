@@ -2,7 +2,8 @@
    popover surface over the transcript, the same surface and edge as the menus, lifted by the
    popover shadow because it floats over the words it acts on. The primary action is the neutral
    inverted pair (--text fill, --bg text); the accent stays with Ekspor. 44 px targets; it fades
-   in over --dur-1 and is hidden while a drag selects (it appears on mouseup). Tokens only. */
+   in over --dur-1, is hidden while a drag selects (it appears on mouseup) and steps aside while
+   Shift is held. Tokens only. */
 
 .toolbar {
   position: absolute;
@@ -21,12 +22,19 @@
   color: var(--text);
   box-shadow: var(--ed-shadow-popover);
   animation: toolbarIn var(--dur-1) var(--ease-out);
+  transition: opacity var(--dur-1) var(--ease-out);
 }
 
 .toolbar[data-placement="none"],
 [data-dragging] > .toolbar {
   visibility: hidden;
   animation: none;
+}
+
+/* While Shift is held, a Shift+click reaches the words under the toolbar. */
+.toolbar[data-pass-through] {
+  opacity: 0.35;
+  pointer-events: none;
 }
 
 .button {
