@@ -231,6 +231,41 @@
   padding: var(--ed-space-3);
 }
 
+/* Mode Cepat (spec §1.1): stage on the left, the cards column on the right, the scrubber bar below.
+   Z0's frame for `?mode=cepat`; task A builds both views on named grid areas. */
+
+.shell[data-editor-view="cepat"] {
+  grid-template-rows: var(--ed-topbar-height) minmax(0, 1fr) var(--ed-bottom-height);
+  grid-template-columns: minmax(0, 1fr) var(--ed-side-width);
+}
+
+.shell[data-editor-view="cepat"] .stageRegion {
+  grid-column: 1;
+}
+
+.quickSide {
+  grid-row: 2;
+  grid-column: 2;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--ed-space-4);
+  border-left: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.quickBottom {
+  grid-row: 3;
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: var(--ed-space-4);
+  min-width: 0;
+  padding: 0 var(--ed-space-4);
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
 /* ---------- Stage ---------- */
 
 .stageRegion {
