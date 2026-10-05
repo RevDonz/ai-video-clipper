@@ -280,9 +280,12 @@ export function checkCommands(doc, ctx, commands) {
  * (one `actionKey("captionLine")` per commit) so the store keeps them as one undo step.
  * → `{ ok: true, hidesRow, commands: [{ type, args, mergeKey }] }` or `{ ok: false, code, message }`.
  * `hidesRow`: the draft was empty, so the whole line leaves the caption.
+ * `base` (`{ row, doc }`): the line and document the draft was typed against. The draft is diffed
+ * against them, the dry run runs on `doc`, so a regroup or a merge that landed while the viewer
+ * typed never edits or hides a word the field did not show.
  */
-export function commitLine({ row, draft, doc, words, upper = false, ctx, mergeKey = null } = {}) {
-  const edit = lineEdit({ row, draft, doc, words, upper });
+export function commitLine({ row, draft, doc, words, upper = false, ctx, mergeKey = null, base = null } = {}) {
+  const edit = lineEdit({ row: base?.row ?? row, draft, doc: base?.doc ?? doc, words, upper });
   if (!edit.ok) return edit;
   if (!edit.commands.length) return { ok: true, hidesRow: false, commands: [] };
   const check = checkCommands(doc, ctx, edit.commands);

@@ -2,8 +2,11 @@
 
 // Mode Cepat's Teks caption card (docs/plans/2026-10-02-editor-mode-cepat.md §2): one field per
 // caption line of the plan. Enter, blur and Tab commit a line as word edits (dry run first, one
-// merge key, so one Urungkan undoes it); Esc restores it. When the lines regroup, focus follows the
-// focused line's words (§2.5). The line under the playhead is marked by the frame bus, outside React.
+// merge key, so one Urungkan undoes it); Esc restores it. A draft keeps the line and document it was
+// typed against and is diffed against them, so lines that regroup while the viewer types never
+// change a word the field did not show; a field that leaves the page commits its draft as a blur
+// would. When the lines regroup, focus follows the focused line's words (§2.5). The line under the
+// playhead is marked by the frame bus, outside React.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { captionRows, commitLine, focusAfterRegroup, rowAtFrame } from "../../../lib/editor/caption-lines.mjs";
@@ -62,28 +65,34 @@ export default function CaptionLinesCard({ state, dispatch, player, frameBus, re
   const focusedKey = useRef(null);
   const previousRows = useRef(rows);
   const pointerInside = useRef(false);
+  const committed = useRef(new WeakSet());
 
   const forget = (key) => {
     setDrafts((current) => without(current, key));
     setErrors((current) => without(current, key));
   };
 
-  const commit = (row, draft) => {
-    if (readOnly || !ctx || !doc) return;
-    const result = commitLine({ row, draft, doc, words, upper, ctx, mergeKey: actionKey("captionLine") });
-    if (!result.ok) {
-      setErrors((current) => withEntry(current, row.key, result.message));
-      return;
-    }
+  // A draft is diffed against the line and document of its first keystroke (`base`); the dry run
+  // runs on the document as it is now. → null once committed, else the refusal's message.
+  const send = (row, draft, base) => {
+    const result = commitLine({ row, draft, doc, words, upper, ctx, mergeKey: actionKey("captionLine"), base });
+    if (!result.ok) return result.message;
     if (result.commands.length) {
       // The dry run passed, so the store refuses only after a concurrent change; the commands it
       // took share the merge key, so one Urungkan removes them.
       const run = runCommands(dispatch, result.commands);
-      if (!run.ok) {
-        setErrors((current) => withEntry(current, row.key, run.message));
-        return;
-      }
+      if (!run.ok) return run.message;
       setStatus(result.hidesRow ? ROW_HIDDEN : "");
+    }
+    return null;
+  };
+
+  const commit = (row, draft) => {
+    if (readOnly || !ctx || !doc) return;
+    const message = send(row, draft, drafts.get(row.key) ?? null);
+    if (message) {
+      setErrors((current) => withEntry(current, row.key, message));
+      return;
     }
     forget(row.key);
   };
@@ -113,16 +122,26 @@ export default function CaptionLinesCard({ state, dispatch, player, frameBus, re
   };
 
   // §2.5: when the focused line's key is gone, focus the line that now holds its words, else the
-  // next or previous line of its segment, else the status line. Drafts of vanished lines go too.
+  // next or previous line of its segment, else the status line. A vanished line's field lost its
+  // focus without a blur event (React fires none for a removed element), so its draft commits here,
+  // as a blur would, against the line it was typed against: no draft is lost.
   useLayoutEffect(() => {
     const before = previousRows.current;
     previousRows.current = rows;
     const keys = new Set(rows.map((row) => row.key));
+    const orphans = [...drafts.values()].filter((entry) => !keys.has(entry.row.key) && !committed.current.has(entry));
     const stale = (map) => [...map.keys()].some((key) => !keys.has(key));
     if (stale(drafts) || stale(errors)) {
       const keep = (map) => new Map([...map].filter(([key]) => keys.has(key)));
       setDrafts(keep);
       setErrors(keep);
+    }
+    if (!readOnly && ctx && doc) {
+      for (const entry of orphans) {
+        committed.current.add(entry);
+        const message = send(entry.row, entry.text, entry);
+        if (message) setStatus(message);
+      }
     }
     const focused = focusedKey.current;
     if (!focused || keys.has(focused)) return;
@@ -179,7 +198,7 @@ export default function CaptionLinesCard({ state, dispatch, player, frameBus, re
           {rows.map((row) => {
             const id = inputIdOf(row.key);
             const error = errors.get(row.key) ?? null;
-            const draft = drafts.get(row.key);
+            const draft = drafts.get(row.key)?.text;
             return (
               <li key={row.key} className={styles.item}>
                 <div className={styles.row} data-line-key={row.key} data-invalid={error ? "true" : undefined}>
@@ -193,7 +212,11 @@ export default function CaptionLinesCard({ state, dispatch, player, frameBus, re
                     aria-describedby={error ? `${id}-error` : undefined}
                     onChange={(event) => {
                       const { value } = event.currentTarget;
-                      setDrafts((current) => withEntry(current, row.key, value));
+                      // The first keystroke fixes what the draft was typed against.
+                      setDrafts((current) => {
+                        const typed = current.get(row.key);
+                        return new Map(current).set(row.key, typed ? { ...typed, text: value } : { text: value, row, doc });
+                      });
                     }}
                     onFocus={() => onFocus(row)} onBlur={(event) => onBlur(event, row)} onKeyDown={(event) => onKeyDown(event, row)} />
                 </div>
