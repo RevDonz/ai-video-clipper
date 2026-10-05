@@ -11,6 +11,7 @@
 // setSelection, dismissNotice and the state fields conflict, notice, otherTab, readOnlyReason).
 import { CommandRejected } from "../../../lib/editor/commands.mjs";
 import { DEFAULT_EMPHASIS, DEFAULT_HIGHLIGHT } from "../../../lib/editor/content-colours.mjs";
+import { createEditorStore } from "../../../lib/editor/store.mjs";
 import { divRoundHalfUp, pieces as piecesOf, smp, totalFrames as totalFramesOf, wordFrames } from "../../../lib/editor/timemap.mjs";
 
 export { CommandRejected };
@@ -414,6 +415,16 @@ const FAKE_REDUCERS = {
   SetHookText: (doc, { text }) => { doc.tracks.find((track) => track.kind === "hook").items[0].payload.text = text; },
   SetSourceGain: (doc, { gain_cdb: gain }) => { doc.audio.source.gain_cdb = gain; },
 };
+
+/**
+ * The real store (`lib/editor/store.mjs`: commands, undo merging, autosave, the IndexedDB draft
+ * and the two-tab merge) over the fake API and preview client. A spec's scenario `store` hook
+ * returns it when recorded commands are not enough (the Teks caption spec edits real words).
+ */
+export function createRealEditorStore({ jobId = FAKE_JOB_ID, clipId = FAKE_CLIP_ID, api = createFakeApiClient(),
+  previewClient = createFakePreviewClient(), ...options } = {}) {
+  return createEditorStore({ jobId, clipId, api, previewClient, ...options });
+}
 
 /**
  * `createEditorStore` (Appendix A.2) over the fake API. Commands of Appendix B are accepted;
