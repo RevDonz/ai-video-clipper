@@ -9,8 +9,10 @@ import { fileURLToPath } from "node:url";
 import { fakeDoc, fakePlan } from "../components/editor/__dev__/fakes.mjs";
 import {
   BADGE_HELP,
+  CAPTION_SPOT_NOTE,
   LIVE_WAVES,
   MESSAGES,
+  OTHER_TAB_TEXT,
   actionableChecks,
   badgeHelp,
   badgeView,
@@ -29,6 +31,7 @@ import {
   rejectionText,
   safeApiHref,
   saveStatusView,
+  selectionTrimWord,
   validEditorIds,
 } from "../components/editor/shell-model.mjs";
 
@@ -111,10 +114,10 @@ test("the save state follows Appendix C.1 and C.6", () => {
     { text: "Gagal menyimpan; perubahan aman di browser ini", tone: "danger", retry: true });
 });
 
-test("the stage badge says '● Sesuai hasil akhir' only when every layer is current (§6.1)", () => {
+test("the stage status says 'Sesuai hasil akhir' only when every layer is current (§6.1)", () => {
   const plan = fakePlan();
   assert.deepEqual(badgeView({ status: "ready", plan, storePending: [], player: LIVE }),
-    { tone: "exact", text: "● Sesuai hasil akhir", detail: null });
+    { tone: "exact", text: "Sesuai hasil akhir", detail: null });
   const textPending = badgeView({ status: "ready", plan, storePending: ["text"], player: LIVE });
   assert.equal(textPending.tone, "pending");
   assert.equal(textPending.text, "Memperbarui teks…");
@@ -133,7 +136,7 @@ test("the stage badge says '● Sesuai hasil akhir' only when every layer is cur
   assert.equal(badgeView({ status: "ready", plan: logoPlan, storePending: [], player: { mode: "live", current: { ...LIVE.current, logo: false } } }).text,
     "Memperbarui logo…");
   assert.equal(badgeView({ status: "ready", plan, storePending: [], player: { mode: "live", current: { ...LIVE.current, logo: false } } }).text,
-    "● Sesuai hasil akhir", "no logo in the plan: the logo layer is trivially current");
+    "Sesuai hasil akhir", "no logo in the plan: the logo layer is trivially current");
 });
 
 test("a playhead frame the player gave up on is named, not 'Menyiapkan frame…' forever", () => {
@@ -178,11 +181,11 @@ test("the shell keeps the player state it shows, including a frame the player ga
 test("revision 0 on the auto render, truth frames, unsupported browsers and loading", () => {
   const plan = { ...fakePlan(), rev0: { planSha256: "a".repeat(64), autoRenderUrl: "/api/jobs/x/files/output/clip-01.mp4", exact: true } };
   assert.deepEqual(badgeView({ status: "ready", plan, storePending: [], player: { mode: "auto_render", current: {} } }),
-    { tone: "exact", text: "● Sesuai hasil akhir", detail: "Memutar klip otomatis (identik)" });
+    { tone: "exact", text: "Sesuai hasil akhir", detail: "Memutar klip otomatis (identik)" });
   const inexact = { ...plan, rev0: { ...plan.rev0, exact: false } };
   assert.notEqual(badgeView({ status: "ready", plan: inexact, storePending: [], player: { mode: "auto_render", current: {} } }).tone, "exact");
   assert.deepEqual(badgeView({ status: "ready", plan, storePending: ["text"], player: { mode: "truth", current: {} } }),
-    { tone: "truth", text: "● Frame akhir", detail: "Piksel persis hasil render akhir" });
+    { tone: "truth", text: "Frame akhir", detail: "Piksel persis hasil render akhir" });
   assert.deepEqual(badgeView({ status: "ready", plan, storePending: [], player: { mode: "unsupported", current: {} } }),
     { tone: "unsupported", text: "Pratinjau langsung butuh Chrome/Edge desktop. Anda tetap bisa mengedit dan mengekspor.", detail: null });
   assert.equal(badgeView({ status: "loading", plan: null, storePending: [], player: null }).text, "Membuka klip…");
@@ -238,7 +241,10 @@ test("the caption at its auto-clip spot in the TikTok zone is a note, not a chec
   const atSeed = checksView({ warnings: [], plan, doc: structuredClone(seed), seed });
   const note = atSeed.find((check) => check.code === "unsafe_zone");
   assert.equal(note.severity, "info");
-  assert.equal(note.message, "Caption di posisi bawaan, dekat tombol TikTok. Kalau tertutup, geser ke atas di tab Teks.");
+  // Mode Cepat spec §5.3: the note names no tab, because Cepat has none.
+  assert.equal(note.message, "Caption di posisi bawaan, dekat tombol TikTok. Kalau tertutup, geser caption ke atas.");
+  assert.equal(CAPTION_SPOT_NOTE, note.message);
+  assert.doesNotMatch(CAPTION_SPOT_NOTE, /\btab\b/);
   assert.equal(note.timeText, "00:00,1");
   assert.equal(atSeed.at(-1), note, "notes come after the checks");
   assert.deepEqual(actionableChecks(atSeed).map((check) => check.code), ["tight_cut"]);
@@ -275,17 +281,78 @@ test("content identity ignores revision, parent and audit (R10)", () => {
   assert.equal(exportMatchesSeed({ plan: { ...plan, rev0: { ...plan.rev0, planSha256: "c".repeat(64) } }, doc: edited, seed }), false);
 });
 
-test("notices: legacy engine, other tab, unsupported browser", () => {
+// Mode Cepat spec §5.3: the legacy notice leaves the screen (the "?" help says it), and the
+// other-tab notice moves into the top bar as the chip "Terbuka di tab lain".
+test("notices above the stage: never the legacy engine, the other tab is a top-bar chip", () => {
   const doc = fakeDoc();
   assert.deepEqual(noticesView({ doc, playerMode: "live", otherTab: false }), []);
   const legacy = structuredClone(doc);
   legacy.base.engine.compiler = "legacy";
-  assert.deepEqual(noticesView({ doc: legacy, playerMode: "live", otherTab: true }).map((notice) => notice.code),
-    ["legacy_engine", "other_tab"]);
-  assert.equal(noticesView({ doc: legacy, playerMode: "live", otherTab: false })[0].text,
-    "Klip otomatis ini dibuat sebelum editor dibuka; setelah klip diubah, tampilan teks hasil ekspor bisa sedikit berbeda");
-  assert.equal(noticesView({ doc, playerMode: "live", otherTab: true })[0].text, "Klip ini terbuka di tab lain");
+  for (const otherTab of [false, true]) {
+    for (const playerMode of ["live", "auto_render", "truth", "unsupported", null]) {
+      const codes = noticesView({ doc: legacy, playerMode, otherTab }).map((notice) => notice.code);
+      assert.ok(!codes.includes("legacy_engine"), `${playerMode} ${otherTab}`);
+      assert.ok(!codes.includes("other_tab"), `${playerMode} ${otherTab}`);
+    }
+  }
+  assert.deepEqual(noticesView({ doc: legacy, playerMode: "live", otherTab: true }), []);
+  assert.equal(OTHER_TAB_TEXT, "Terbuka di tab lain");
   assert.deepEqual(noticesView({ doc, playerMode: "unsupported", otherTab: false }).map((notice) => notice.code), ["unsupported_browser"]);
+  // The mirror of errors.py keeps the code (the drift test above still lists it).
+  assert.equal(MESSAGES.legacy_engine,
+    "Klip otomatis ini dibuat sebelum editor dibuka; setelah klip diubah, tampilan teks hasil ekspor bisa sedikit berbeda");
+});
+
+// Mode Cepat spec §5.2, §5.3: the status at the stage's top left. No "● " prefix; the legacy
+// tone shows no text and no detail, only the "?" help, which keeps today's legacy text.
+test("no status text starts with '● ', and the legacy tone is empty but keeps its help", () => {
+  const plan = fakePlan();
+  const paused = { ...LIVE, playing: false, exact: false };
+  const legacyPlan = { ...plan, rev0: { planSha256: plan.planSha256, autoRenderUrl: "/api/jobs/x/files/output/clip-01.mp4", exact: false } };
+  const exactPlan = { ...plan, rev0: { ...legacyPlan.rev0, exact: true } };
+  const views = [
+    badgeView({ status: "loading", plan: null }),
+    badgeView({ status: "ready", plan, player: null }),
+    badgeView({ status: "ready", plan, player: LIVE }),
+    badgeView({ status: "ready", plan, storePending: ["text", "plate", "audio"], player: LIVE }),
+    badgeView({ status: "ready", plan, player: paused }),
+    badgeView({ status: "ready", plan, player: { ...paused, frameError: true } }),
+    badgeView({ status: "ready", plan: exactPlan, player: { mode: "auto_render", current: {} } }),
+    badgeView({ status: "ready", plan, player: { mode: "truth", current: {} } }),
+    badgeView({ status: "ready", plan, player: { mode: "unsupported", current: {} } }),
+    badgeView({ status: "ready", plan: legacyPlan, player: LIVE }),
+  ];
+  assert.deepEqual(views.map((view) => view.tone),
+    ["loading", "pending", "exact", "pending", "pending", "failed", "exact", "truth", "unsupported", "legacy"]);
+  for (const view of views) {
+    assert.doesNotMatch(view.text, /^●/, view.tone);
+    assert.doesNotMatch(view.text, /Belum diubah|ekspor = klip otomatis/, view.tone);
+    assert.doesNotMatch(view.detail ?? "", /Ubah apa saja agar ekspor/, view.tone);
+  }
+  assert.deepEqual(views.at(-1), { tone: "legacy", text: "", detail: null });
+  assert.equal(badgeHelp(views.at(-1)), "Klip ini belum diubah, jadi ekspor memakai file klip otomatis apa adanya. File itu "
+    + "dibuat sebelum editor dibuka, jadi bisa sedikit berbeda dari pratinjau ini (misalnya posisi video, warna teks). "
+    + "Setelah Anda mengubah apa saja, hasil ekspor sama dengan pratinjau ini.");
+  // No help text promises a status with the old dot.
+  for (const tone of ["exact", "pending", "legacy", "truth", "unsupported", "loading", "failed"]) {
+    assert.doesNotMatch(badgeHelp({ tone }), /●/, tone);
+  }
+  assert.match(badgeHelp({ tone: "pending" }), /'Sesuai hasil akhir'/);
+});
+
+// Mode Cepat spec §4.1: I and O act on the transcript's shared selection (selectionStoreFor),
+// as "Mulai di sini" and "Akhiri di sini" do: the first selected word starts, the last one ends.
+test("I and O read the transcript selection: its first word starts the clip, its last word ends it", () => {
+  const words = { words: ["w1", "w2", "w3", "w4", "w5"].map((id) => ({ id, t: id })) };
+  assert.equal(selectionTrimWord({ selection: { anchor: 1, focus: 3 }, words, edge: "start" }), "w2");
+  assert.equal(selectionTrimWord({ selection: { anchor: 1, focus: 3 }, words, edge: "end" }), "w4");
+  assert.equal(selectionTrimWord({ selection: { anchor: 3, focus: 1 }, words, edge: "start" }), "w2", "a backwards drag");
+  assert.equal(selectionTrimWord({ selection: { anchor: 2, focus: 2 }, words, edge: "end" }), "w3");
+  assert.equal(selectionTrimWord({ selection: { anchor: 3, focus: 9 }, words, edge: "end" }), "w5", "clamped to the words");
+  assert.equal(selectionTrimWord({ selection: { anchor: -1, focus: -1 }, words, edge: "start" }), null);
+  assert.equal(selectionTrimWord({ selection: { anchor: 7, focus: 9 }, words, edge: "start" }), null);
+  assert.equal(selectionTrimWord({ selection: null, words, edge: "start" }), null);
+  assert.equal(selectionTrimWord({ selection: { anchor: 0, focus: 1 }, words: null, edge: "start" }), null);
 });
 
 test("the editor page is behind POTONGIN_EDITOR_V3 and fakes only with the dev flag", () => {

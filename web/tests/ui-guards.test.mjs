@@ -69,6 +69,36 @@ test("the version guard catches labels in JSX text, strings and templates, not i
   ]);
 });
 
+// Mode Cepat spec §5.4 (AC14): two views of one editor, so neither may be called the old or the
+// new editor (or view) on screen. Comments may still say it.
+const PLANTED_VIEWS = `
+// The editor lama and the tampilan baru may be named in a comment.
+const views = { cepat: "Cepat", lengkap: "Lengkap" };
+const legacy = /tampilan lama/;
+export function ViewSwitch() {
+  return (
+    <div aria-label="Tampilan editor">
+      <button title="Kembali ke Editor Lama">{views.lengkap}</button>
+      {\`Coba tampilan baru\`}
+      <p>Mode Lengkap adalah editor baru</p>
+      <small>{"Tampilan Lama"}</small>
+    </div>
+  );
+}
+`;
+
+test("the version guard catches 'editor lama/baru' and 'tampilan lama/baru' in strings and JSX text", () => {
+  const found = findVersionWording("planted-views.jsx", PLANTED_VIEWS).map((hit) => [hit.line, hit.text]);
+  assert.deepEqual(found.sort((a, b) => a[0] - b[0]), [
+    [8, "Editor Lama"],
+    [9, "tampilan baru"],
+    [10, "editor baru"],
+    [11, "Tampilan Lama"],
+  ]);
+  // "Tampilan editor" (the switch's name) and the view names themselves are not version wording.
+  assert.deepEqual(findVersionWording("ok.jsx", 'const a = "Tampilan editor"; const b = <p>Tampilan Cepat</p>;'), []);
+});
+
 test("the version guard reads the real pages: JSX text and strings are seen, comments are not", async () => {
   const source = await readFile(path.join(WEB, "app/dashboard/page.jsx"), "utf8");
   const segments = jsSegments(source);
