@@ -141,6 +141,9 @@ export const VERSION_WORDING = Object.freeze([
   /Mode lama/i,
   /mesin (?:lama|baru)/i,
   /llm-select/i,
+  // Mode Cepat and Mode Lengkap are two views of one editor, never an old and a new one.
+  /editor (?:lama|baru)/i,
+  /tampilan (?:lama|baru)/i,
 ]);
 
 /** Version wording in the strings and JSX text of one JS/JSX source. */

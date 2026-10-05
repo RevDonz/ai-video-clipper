@@ -71,10 +71,13 @@ export const MESSAGES = Object.freeze({
 
 // Shell-only copy (no Python code carries these).
 const SHELL_TEXT = Object.freeze({
-  other_tab: "Klip ini terbuka di tab lain",
+  other_tab: "Terbuka di tab lain",
   unsupported_browser: "Pratinjau langsung butuh Chrome/Edge desktop. Anda tetap bisa mengedit dan mengekspor.",
   command_rejected: "Perubahan ini tidak bisa diterapkan",
 });
+
+/** The top bar's chip while the clip is open in another tab (Mode Cepat spec §5.1, §5.3). */
+export const OTHER_TAB_TEXT = SHELL_TEXT.other_tab;
 
 // A measured value in a code's detail ("-3.80 dB", "-16.30 LUFS"): sign, number, unit.
 const MEASURE = /^([+-]?)(\d+(?:\.\d+)?)(?: ([A-Za-z]+))?$/;
@@ -116,8 +119,9 @@ function checkMessage(issue) {
 
 // Owner decision K5 (kept in W4): the seed keeps the auto clip's caption spot (83 % down, inside
 // the zone that starts at 78 %), so an unchanged clip exports the auto file (R10). At that spot the
-// zone warning is a note: it informs, and export does not ask for a tick.
-export const CAPTION_SPOT_NOTE = "Caption di posisi bawaan, dekat tombol TikTok. Kalau tertutup, geser ke atas di tab Teks.";
+// zone warning is a note: it informs, and export does not ask for a tick. It names no tab: Mode
+// Cepat has none (Mode Cepat spec §5.3).
+export const CAPTION_SPOT_NOTE = "Caption di posisi bawaan, dekat tombol TikTok. Kalau tertutup, geser caption ke atas.";
 
 /** Whether the caption sits where the auto clip put it (the seed's bottom anchor). */
 export function captionAtSeedSpot(doc, seed) {
@@ -217,18 +221,18 @@ const PENDING_TEXT = {
   logo: () => "Memperbarui logo…",
 };
 
-export const EXACT_TEXT = "● Sesuai hasil akhir";
-export const LEGACY_UNCHANGED_TEXT = "● Belum diubah: ekspor = klip otomatis";
+export const EXACT_TEXT = "Sesuai hasil akhir";
 
 /**
- * The stage badge (plan §6.1): "● Sesuai hasil akhir" only when every layer is current (or the
- * exact auto render plays); otherwise it names what is pending. Never an approximate claim.
+ * The stage status (plan §6.1; at the stage's top left since Mode Cepat, spec §5.2): "Sesuai
+ * hasil akhir" only when every layer is current (or the exact auto render plays); otherwise it
+ * names what is pending. Never an approximate claim.
  */
 export function badgeView({ status, plan, storePending = [], player = null }) {
   if (status === "loading" || !plan) return { tone: "loading", text: "Membuka klip…", detail: null };
   const mode = player?.mode ?? null;
   if (mode === "unsupported") return { tone: "unsupported", text: SHELL_TEXT.unsupported_browser, detail: null };
-  if (mode === "truth") return { tone: "truth", text: "● Frame akhir", detail: "Piksel persis hasil render akhir" };
+  if (mode === "truth") return { tone: "truth", text: "Frame akhir", detail: "Piksel persis hasil render akhir" };
   if (mode === "auto_render") {
     if (plan.rev0?.exact === true) return { tone: "exact", text: EXACT_TEXT, detail: "Memutar klip otomatis (identik)" };
     return { tone: "pending", text: plateProgress(plan), detail: null };
@@ -246,10 +250,11 @@ export function badgeView({ status, plan, storePending = [], player = null }) {
   }
   // An unchanged clip exports its auto file itself (R10). When that file is not the new
   // engine's (rev0.exact false: a legacy-engine clip), the stage shows the new engine and the
-  // export is the old file, so the badge says so instead of claiming exactness (T2.Z).
+  // export is the old file, so no exactness is claimed (T2.Z). The status stays empty: the "?"
+  // help explains it (Mode Cepat spec §5.3, the owner's brief removed the on-screen line).
   if (!pending.length && plan.rev0 && plan.rev0.exact === false && plan.rev0.autoRenderUrl
     && plan.rev0.planSha256 === plan.planSha256) {
-    return { tone: "legacy", text: LEGACY_UNCHANGED_TEXT, detail: "Ubah apa saja agar ekspor sama persis dengan pratinjau ini" };
+    return { tone: "legacy", text: "", detail: null };
   }
   if (!pending.length) return { tone: "exact", text: EXACT_TEXT, detail: null };
   return { tone: "pending", text: pending.map((layer) => PENDING_TEXT[layer](plan)).join(" · "), detail: null };
@@ -261,8 +266,8 @@ export const BADGE_HELP = "Frame, teks, logo dan audio sama dengan hasil akhir. 
 
 const BADGE_HELP_BY_TONE = Object.freeze({
   exact: BADGE_HELP,
-  pending: "Pratinjau belum selesai disiapkan: bagian yang disebut di lencana belum sama dengan hasil akhir. "
-    + "Setelah semuanya siap, lencana berubah menjadi '● Sesuai hasil akhir'. Tekan 'Frame akhir' untuk melihat "
+  pending: "Pratinjau belum selesai disiapkan: bagian yang disebut di status belum sama dengan hasil akhir. "
+    + "Setelah semuanya siap, status berubah menjadi 'Sesuai hasil akhir'. Tekan 'Frame akhir' untuk melihat "
     + "piksel persis hasil akhir sekarang juga.",
   legacy: "Klip ini belum diubah, jadi ekspor memakai file klip otomatis apa adanya. File itu dibuat sebelum editor "
     + "dibuka, jadi bisa sedikit berbeda dari pratinjau ini (misalnya posisi video, warna teks). Setelah Anda "
@@ -271,7 +276,7 @@ const BADGE_HELP_BY_TONE = Object.freeze({
     + "Putar atau geser playhead untuk kembali ke pratinjau.",
   unsupported: "Browser ini tidak bisa menampilkan pratinjau langsung, jadi tidak ada yang bisa dibandingkan dengan "
     + "hasil akhir di sini. Anda tetap bisa mengedit dan mengekspor; hasil ekspor tidak terpengaruh.",
-  loading: "Klip sedang dibuka. Lencana ini memberi tahu kapan pratinjau sama dengan hasil akhir.",
+  loading: "Klip sedang dibuka. Status ini memberi tahu kapan pratinjau sama dengan hasil akhir.",
   failed: "Frame di posisi playhead belum tampil, juga setelah dicoba ulang: browser gagal menyiapkan gambar atau "
     + "teksnya, atau prosesnya terlalu lama. Kalau akhirnya selesai, frame langsung tampil. Putar atau geser "
     + "playhead untuk mencoba lagi, atau tekan 'Frame akhir' untuk melihat piksel persis hasil akhir dari server.",
@@ -387,13 +392,31 @@ export function conflictParts(conflict) {
     .map(({ id, label }) => ({ id, label }));
 }
 
-/** Informational notices above the stage (Appendix C.6). */
-export function noticesView({ doc, playerMode, otherTab }) {
+/**
+ * Informational notices above the stage (Appendix C.6). Since Mode Cepat (spec §5.3) the legacy
+ * engine has none (its "?" help says it; provenance stays in the document and the logs), and the
+ * other tab is the top bar's chip (OTHER_TAB_TEXT). The arguments stay for the codes still here.
+ */
+export function noticesView({ playerMode } = {}) {
   const notices = [];
-  if (doc?.base?.engine?.compiler === "legacy") notices.push({ code: "legacy_engine", text: MESSAGES.legacy_engine, tone: "info" });
-  if (otherTab) notices.push({ code: "other_tab", text: SHELL_TEXT.other_tab, tone: "warn" });
   if (playerMode === "unsupported") notices.push({ code: "unsupported_browser", text: SHELL_TEXT.unsupported_browser, tone: "info" });
   return notices;
+}
+
+/**
+ * The word I or O trims to from the transcript's selection (`selectionStoreFor(clipId)`, a range
+ * of indices into `words.words`): its first word for "start", its last for "end", as the toolbar's
+ * "Mulai di sini" and "Akhiri di sini" do; null without a selection (the shell then uses the
+ * word under the playhead).
+ */
+export function selectionTrimWord({ selection, words, edge }) {
+  const list = Array.isArray(words?.words) ? words.words : [];
+  if (!selection || !(selection.anchor >= 0) || !(selection.focus >= 0) || !list.length) return null;
+  const first = Math.min(selection.anchor, selection.focus);
+  if (first >= list.length) return null;
+  const last = Math.min(Math.max(selection.anchor, selection.focus), list.length - 1);
+  const word = list[edge === "start" ? first : last];
+  return typeof word?.id === "string" ? word.id : null;
 }
 
 /**
