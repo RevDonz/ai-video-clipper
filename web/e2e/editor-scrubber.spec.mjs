@@ -307,7 +307,7 @@ const test = base.extend({
 });
 
 test.describe("scrubber (editor fakes, Mode Cepat)", () => {
-  test.use({ launchOptions: chrome ? { executablePath: chrome } : {}, viewport: { width: 1366, height: 650 }, deviceScaleFactor: 1 });
+  test.use({ viewport: { width: 1366, height: 650 } });
   test.skip(process.env.E2E_EDITOR_FAKES !== "1",
     "E2E_EDITOR_FAKES=1 is required (server with POTONGIN_EDITOR_V3=on and POTONGIN_EDITOR_FAKES=1)");
   test.skip(!settings.username || !settings.password, "E2E_USERNAME and E2E_PASSWORD are required");
