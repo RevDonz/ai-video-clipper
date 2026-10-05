@@ -79,15 +79,22 @@ const editorState = (page) => page.evaluate(() => {
   return { doc: state.doc, cues: state.plan?.cues.map((cue) => cue.text) ?? [] };
 });
 
-// Waits until nothing animates for 300 ms (the accordion, the toolbar's fade), with the pointer
-// parked on the empty corner of the preview area so no hover shows.
+// Waits until nothing animates for 300 ms (the accordion, the toolbar's fade) and every card body is
+// at rest (an open one as tall as its content, a closed one flat), with the pointer parked on the
+// empty corner of the preview area so no hover shows. The pictures are taken with reduced motion
+// (the duration tokens are 0 ms), so each shows a card's end state, never a frame of its opening.
 async function settle(page) {
   const box = await page.locator('[data-slot="stage"]').boundingBox();
   if (box) await page.mouse.move(box.x + 4, box.y + box.height - 4);
   await page.evaluate(() => { globalThis.__screensQuietSince = null; });
   return page.waitForFunction(() => {
     const now = performance.now();
-    if (document.getAnimations().some((animation) => animation.playState === "running")) globalThis.__screensQuietSince = null;
+    const resting = [...document.querySelectorAll('[data-card] > [role="region"]')].every((body) => {
+      const height = body.getBoundingClientRect().height;
+      return body.dataset.open === "true" ? Math.abs(height - body.firstElementChild.scrollHeight) <= 1 : height === 0;
+    });
+    const moving = document.getAnimations().some((animation) => animation.playState === "running");
+    if (moving || !resting) globalThis.__screensQuietSince = null;
     else globalThis.__screensQuietSince ??= now;
     return now - globalThis.__screensQuietSince >= 300;
   }, null, { polling: 50, timeout: 10_000 }).then(() => true, () => false);
@@ -103,16 +110,20 @@ for (const viewport of VIEWPORTS) {
     const capture = async (file, view, state, card = null) => {
       const settled = await settle(page);
       await page.screenshot({ path: path.join(dir, file), fullPage: true });
-      manifest.push({ file, viewport: size, view, state, settled,
+      manifest.push({ file, viewport: size, view, state, settled, reducedMotion: true,
         card: card ? await page.locator(`#card-${card}-button`).evaluate((button) => [...button.querySelectorAll("span")]
           .map((span) => span.textContent.trim()).filter(Boolean).join(" · ")) : null,
+        cardsScrollTop: view === "cepat" ? await page.locator('[data-slot="cards"]').evaluate((element) => Math.round(element.scrollTop)) : null,
         save: (await page.getByTestId("save-status").textContent()).trim(),
         status: (await page.getByTestId("stage-badge").textContent()).trim() });
     };
     // After an edit, wait for autosave, so the picture shows the saved state.
     const saved = () => expect(page.getByTestId("save-status")).toHaveText(/^Tersimpan/, { timeout: 15_000 });
+    /** The part of the cards column below the fold, scrolled into view inside the column. */
+    const reveal = (locator) => locator.evaluate((element) => element.scrollIntoView({ block: "nearest" }));
 
     await page.setViewportSize(viewport);
+    await page.emulateMedia({ reducedMotion: "reduce" });
     await page.addInitScript(installScreensScenario, { doc: DOC });
     await page.goto(CEPAT);
     await expect(page.locator('[data-editor-ready="true"]')).toBeVisible({ timeout: 30_000 });
@@ -127,6 +138,19 @@ for (const viewport of VIEWPORTS) {
     const caption = await openCard(page, "caption");
     await expect(caption.getByRole("group", { name: "Gaya caption" })).toBeVisible();
     await capture(`${size}-cepat-2-caption.png`, "cepat", "Caption card", "caption");
+
+    // Caption, lower down: Posisi on Atas, with the hint that the caption is near the hook text.
+    const position = caption.getByRole("group", { name: "Posisi" });
+    await position.getByRole("radio", { name: "Atas" }).check();
+    const hint = caption.getByText("Caption dekat teks hook. Kalau bertumpuk di pratinjau, turunkan caption.");
+    await expect(hint).toBeVisible();
+    await reveal(hint);
+    await saved();
+    await capture(`${size}-cepat-2b-caption-posisi.png`, "cepat", "Caption card scrolled: Posisi on Atas, the hook hint", "caption");
+    await position.getByRole("radio", { name: "Bawah" }).check();
+    await expect(hint).toHaveCount(0);
+    await saved();
+    await page.locator('[data-slot="cards"]').evaluate((element) => { element.scrollTop = 0; });
 
     // Teks caption, one line edited ("sutradara" → "sutradaranya").
     const lines = await openCard(page, "lines");
@@ -158,10 +182,14 @@ for (const viewport of VIEWPORTS) {
     await expect(layout.getByRole("radio").first()).toBeVisible();
     await capture(`${size}-cepat-5-tata-letak.png`, "cepat", "Tata letak card", "layout");
 
-    // Logo & Musik.
+    // Logo & Musik, both parts in view (the column scrolls when they do not fit below the fold).
     const extras = await openCard(page, "extras");
     await expect(extras.getByRole("button", { name: "Tambah logo" })).toBeVisible();
+    await reveal(extras.getByRole("button", { name: "Tambah musik" }));
     await capture(`${size}-cepat-6-logo-musik.png`, "cepat", "Logo & Musik card", "extras");
+    for (const name of ["Tambah logo", "Tambah musik"]) {
+      expect(await inView(page, extras.getByRole("button", { name })), `${name} in the picture`).toBe(true);
+    }
 
     // Mode Lengkap: the rail, the transcript and the word toolbar over "ditahan di film".
     await switchView(page, "lengkap");
@@ -177,6 +205,17 @@ for (const viewport of VIEWPORTS) {
     await capture(`${size}-lengkap-rail-toolbar.png`, "lengkap", "Transkrip panel, three words selected, the word toolbar");
 
     writeFileSync(path.join(dir, `manifest-${size}.json`), `${JSON.stringify(manifest, null, 2)}\n`);
-    expect(manifest).toHaveLength(7);
+    expect(manifest).toHaveLength(8);
+    expect(manifest.filter((entry) => !entry.settled).map((entry) => entry.file), "every picture at rest").toEqual([]);
+  });
+}
+
+/** Whether the element is wholly inside the cards column's visible part (and the viewport). */
+function inView(page, locator) {
+  return locator.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    const column = element.closest('[data-slot="cards"]')?.getBoundingClientRect();
+    if (!column) return false;
+    return box.top >= column.top - 0.5 && box.bottom <= column.bottom + 0.5 && box.bottom <= window.innerHeight;
   });
 }
