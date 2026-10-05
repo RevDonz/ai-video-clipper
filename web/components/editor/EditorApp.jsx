@@ -8,8 +8,8 @@
 // Seams (Appendix A.2): `runtime` (runtime.mjs) provides the store (createEditorStore), the API
 // and preview clients, the upload client and createPlayer. The page passes `runtimeKind` and the
 // server's `features` (uploads on or off); tests may inject a runtime. Every panel and every Mode
-// Cepat card receives one props bundle, { state, dispatch, player, api, previewClient, uploadAsset,
-// uploadsEnabled, notify, readOnly } (cards also `frameBus` and `showLengkap`); every lane
+// Cepat card receives one props bundle, { state, getState, dispatch, player, api, previewClient,
+// uploadAsset, uploadsEnabled, notify, readOnly } (cards also `frameBus` and `showLengkap`); every lane
 // { plan, state, dispatch, player, pxPerFrame }. `player` is the facade of runtime.mjs, which adds
 // `subscribeFrame(fn)` and `frame()` so that DOM can follow playback outside React (§6.2).
 //
@@ -405,10 +405,11 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
   const panel = panels.find((entry) => entry.id === panelId) ?? panels[0];
   const Panel = lazyComponent(panel);
   const onMedia = useCallback((next) => setMedia(next), []);
-  // One bundle for every Lengkap panel and every Cepat card (Mode Cepat spec §1.2).
+  // One bundle for every Lengkap panel and every Cepat card (Mode Cepat spec §1.2). `getState` reads
+  // the store as it is now, for work that outlives the panel or card that started it (§4.1).
   const panelProps = useMemo(() => ({
-    state, dispatch, player, api, previewClient: runtime.previewClient, uploadAsset: runtime.uploadAsset ?? null, uploadsEnabled, notify, readOnly,
-  }), [state, dispatch, player, api, runtime, uploadsEnabled, notify, readOnly]);
+    state, getState: snapshot, dispatch, player, api, previewClient: runtime.previewClient, uploadAsset: runtime.uploadAsset ?? null, uploadsEnabled, notify, readOnly,
+  }), [state, snapshot, dispatch, player, api, runtime, uploadsEnabled, notify, readOnly]);
 
   const errorCode = status === "error" ? (state.error?.code ?? state.errorCode ?? "internal_error") : null;
   const preparesNow = typeof onNeedsPrepare === "function" && PREPARE_CODES.has(errorCode);

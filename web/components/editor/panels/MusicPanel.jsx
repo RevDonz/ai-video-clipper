@@ -7,8 +7,9 @@
 // one undo step through their merge keys); the rules live in music-model.mjs. The upload is the
 // clip's (music-upload.mjs `musicUploadFor`), not this panel's: it goes on when the panel closes,
 // and Mode Cepat's Logo & Musik card shows and starts the same one.
-// Props: { state, dispatch, player } (panels/index.mjs); optional `uploadAsset` (replaces the
-// upload) and `uploadsEnabled` (POTONGIN_EDITOR_UPLOADS as a boolean, for the W3 integrator).
+// Props: { state, dispatch, player } (panels/index.mjs); optional `getState` (the store's live
+// state, read when an upload lands), `uploadAsset` (replaces the upload) and `uploadsEnabled`
+// (POTONGIN_EDITOR_UPLOADS as a boolean, for the W3 integrator).
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 
 import PillGroup from "../ui/PillGroup.jsx";
@@ -46,7 +47,7 @@ function Slider({ label, value, min, max, step, valueText, disabled, onChange, e
   );
 }
 
-function MusicPanelBody({ state, dispatch, uploadAsset, uploadsEnabled, music }) {
+function MusicPanelBody({ state, getState, dispatch, uploadAsset, uploadsEnabled, music }) {
   const view = musicView(state);
   const uid = useId();
   const fileRef = useRef(null);
@@ -55,9 +56,11 @@ function MusicPanelBody({ state, dispatch, uploadAsset, uploadsEnabled, music })
   const [notice, setNotice] = useState(null); // { replace } while the copyright notice shows
   const [message, setMessage] = useState(null); // a refused command: { tone: "error", text }
   const replaceRef = useRef(false);
-  // The upload applies to the document as it is when the file arrives.
+  // The upload applies to the document as it is when the file arrives: the store's, read then
+  // (`getState`), since this panel may be gone by then; outside the editor, its last render.
   const stateRef = useRef(state);
   stateRef.current = state;
+  const liveState = typeof getState === "function" ? getState : () => stateRef.current;
   const fps = state.doc.output.fps;
   const readOnly = view.readOnly;
   const busy = upload.phase !== "idle";
@@ -101,7 +104,7 @@ function MusicPanelBody({ state, dispatch, uploadAsset, uploadsEnabled, music })
     if (!picked) return;
     setMessage(null);
     music.start({ file: picked, jobId: stateRef.current.doc.base.job_id, upload: uploadAsset, dispatch,
-      getState: () => stateRef.current, replace: replaceRef.current });
+      getState: liveState, replace: replaceRef.current });
   };
 
   const progressText = busy
@@ -251,7 +254,7 @@ function MusicPanelBody({ state, dispatch, uploadAsset, uploadsEnabled, music })
   );
 }
 
-export default function MusicPanel({ state, dispatch, uploadAsset = null, uploadsEnabled = true }) {
+export default function MusicPanel({ state, getState = null, dispatch, uploadAsset = null, uploadsEnabled = true }) {
   const music = musicUploadFor(state?.clipId ?? state?.doc?.clip_id ?? null);
   if (!state?.doc || !music) {
     return (
@@ -260,6 +263,6 @@ export default function MusicPanel({ state, dispatch, uploadAsset = null, upload
       </section>
     );
   }
-  return <MusicPanelBody state={state} dispatch={dispatch} uploadAsset={uploadAsset} uploadsEnabled={uploadsEnabled !== false}
-    music={music} />;
+  return <MusicPanelBody state={state} getState={getState} dispatch={dispatch} uploadAsset={uploadAsset}
+    uploadsEnabled={uploadsEnabled !== false} music={music} />;
 }
