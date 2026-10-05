@@ -1,10 +1,10 @@
 # Handoff: status dan cara melanjutkan
 
-Terakhir diperbarui 2026-10-02 (editor sudah live, lihat §4). Semua hasil ada di branch GitHub di
+Terakhir diperbarui 2026-10-05 (editor live, Mode Cepat menunggu merge, lihat §4). Semua hasil ada di branch GitHub di
 bawah. Dokumen ini untuk agen atau device mana pun yang melanjutkan. Aturan proyek: `AGENTS.md`;
 arah desain: `DESIGN.md`.
 
-**Menunggu merge pemilik:** PR #23 (branch `transisi-integration`), transisi di sambungan cold open (Kilat putih / Gelap sebentar + whoosh; klip otomatis baru memakai Kilat putih + whoosh, klip lama tetap potong langsung); spek `docs/plans/2026-10-02-transisi-cold-open.md`, hasil gerbang `docs/editor/GATES.md` "Transisi cold open", contoh video di `artifacts/handoff/transisi/`.
+**Menunggu merge pemilik:** PR #25 (branch `mode-cepat-integrasi`), editor dengan dua tampilan: **Mode Cepat** (bawaan, enam kartu di samping pratinjau) dan **Mode Lengkap** (rel ikon, bilah aksi kata, timeline). Spek `docs/plans/2026-10-02-editor-mode-cepat.md`, hasil gerbang `docs/editor/GATES.md` "Mode Cepat and Mode Lengkap", screenshot di `artifacts/handoff/mode-cepat/` (README di dalamnya). Sebelum merge: uji U1–U8 dengan stopwatch (`docs/editor/UJI-PENERIMAAN.md`) dan, kalau pemilik setuju, run real-stack `editor-flow` + `editor-acceptance` (belum dijalankan; perintahnya di GATES).
 
 ## 1. Sudah live di produksi (`main`)
 
@@ -20,6 +20,8 @@ arah desain: `DESIGN.md`.
 - Editor klip (Esensial, W1–W4), PR #20, live sejak 2026-10-02: tombol **Edit klip** di kartu
   klip dan riwayat. Editor, unggahan aset dan saran AI menyala; render otomatis klip memakai
   mesin `legacy` sampai pemilik memutuskan kuota CPU (§4).
+- Transisi di sambungan cold open (PR #23: Kilat putih / Gelap sebentar + whoosh) dan perbaikan
+  frame pertama pratinjau (PR #24).
 
 Deploy terjadi otomatis lewat CI setiap ada merge ke `main`.
 
@@ -75,10 +77,19 @@ dan operasional: `docs/editor/{CONTRACTS,GATES,PANDUAN-EDITOR,OPERASIONAL,UJI-PE
   `docs/editor/OPERASIONAL.md` §2 (baris di `.env`, lalu `docker compose up -d`, tanpa build).
 - Branch tugas `editor-w4-t4.1` … `editor-w4-t4.5` sudah masuk; tidak perlu dilanjutkan.
 
+- **Mode Cepat dan Mode Lengkap** (PR #25, branch `mode-cepat-integrasi`, belum di `main`): satu
+  editor dengan dua tampilan; keputusan pemilik 2026-10-02 (mockup disetujui, semua jawaban §11
+  spek diterima). Dibangun empat tugas paralel (A shell, B kartu, C Teks caption, D rel, bilah aksi
+  dan bilah posisi) lalu diintegrasikan; semua suite CI hijau (GATES "Mode Cepat and Mode
+  Lengkap"). Rollback: revert commit PR itu lewat PR baru; tidak ada perubahan mesin, data atau
+  flag.
+
 Langkah berikutnya:
 1. **Titik cek pemilik 3** (± 60 menit; paketnya di luar repo, di PC pemilik:
    `artifacts/handoff/checkpoint3/`):
-   - uji U1–U7 dengan stopwatch di 1366×768 dan 1920×1080 (`docs/editor/UJI-PENERIMAAN.md`);
+   - uji U1–U8 dengan stopwatch di 1366×768 dan 1920×1080 (`docs/editor/UJI-PENERIMAAN.md`;
+     U8 dan alur Mode Cepat baru, jadi jalankan di branch `mode-cepat-integrasi` atau setelah
+     PR #25 digabung);
    - penilaian 30 saran hook AI (lulus ≥ 21/30). Flag LLM sudah menyala karena gerbang otomatisnya
      lolos; kalau penilaian gagal, matikan `POTONGIN_EDITOR_LLM` dan perbaiki prompt di W5;
    - konfirmasi 490 label kata pengisi; kalau presisi tetap ≥ 0,9, ubah `precheck` di
@@ -98,7 +109,8 @@ Gerbang berat jalan di GitHub Actions, bukan di PC pemilik: `editor-gates.yml` (
 `suite=image`, `suite=command`) dan `ci-cd.yml` (PR: tes + penjaga toolchain + smoke paritas;
 `-f suite=nightly|toolchain` lewat dispatch). Di worktree, perintah pemindai rahasia (gitleaks)
 perlu folder `.git` repo utama ikut di-mount (beserta `safe.directory`); tanpa itu ia memindai 0
-commit.
+commit. Docker image gitleaks bisa dipakai dengan mode `dir` atas salinan file yang diubah
+(`git diff --name-only origin/main HEAD`), memakai `.gitleaks.toml` dari `origin/main`.
 
 ## 5. Lain-lain yang tertunda
 
