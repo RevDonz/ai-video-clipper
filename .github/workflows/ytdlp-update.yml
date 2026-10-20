@@ -1,0 +1,183 @@
+name: yt-dlp update
+
+# Weekly: bump yt-dlp in uv.lock, download one short public video with the new version the way
+# production does (scripts/ytdlp/ytdlp_smoke.py), and propose the bump from deps/yt-dlp-<version>.
+# yt-dlp only changes through uv.lock and a merged PR, never at runtime, so the image stays
+# reproducible. Emergency procedure: docs/editor/OPERASIONAL.md §8.
+# Manual run: gh workflow run ytdlp-update.yml (on a work branch it only bumps and smoke-tests).
+on:
+  schedule:
+    - cron: "0 2 * * 1" # Monday 09:00 WIB
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ytdlp-update
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    # Runs the new yt-dlp against YouTube, so it holds a read-only token and no git credentials.
+    name: Bump and smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    outputs:
+      before: ${{ steps.bump.outputs.before }}
+      version: ${{ steps.bump.outputs.version }}
+      changed: ${{ steps.bump.outputs.changed }}
+      smoke: ${{ steps.smoke.outputs.status }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ffmpeg
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.6"
+
+      - name: Set up Node.js
+        # yt-dlp runs YouTube's player JavaScript with Node (--js-runtimes node), as in the image.
+        uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+
+      - name: Bump yt-dlp in uv.lock
+        id: bump
+        run: |
+          mkdir -p "$RUNNER_TEMP/bump"
+          cp uv.lock "$RUNNER_TEMP/uv.lock.before"
+          uv lock --upgrade-package yt-dlp
+          python3 scripts/ytdlp/ytdlp_smoke.py compare-locks "$RUNNER_TEMP/uv.lock.before" uv.lock \
+            --github-output "$GITHUB_OUTPUT" --summary "$GITHUB_STEP_SUMMARY"
+          test -z "$(git status --porcelain -- . ':(exclude)uv.lock')" \
+            || { git status --porcelain; echo "uv lock changed files other than uv.lock"; exit 1; }
+          cp uv.lock "$RUNNER_TEMP/bump/uv.lock"
+
+      - name: Install the locked yt-dlp
+        run: uv sync --frozen --no-dev --no-install-project --extra web
+
+      - name: Smoke download
+        id: smoke
+        env:
+          VERSION: ${{ steps.bump.outputs.version }}
+        run: |
+          python3 scripts/ytdlp/ytdlp_smoke.py run --yt-dlp .venv/bin/yt-dlp --expect-version "$VERSION" \
+            --out "$RUNNER_TEMP/smoke" --github-output "$GITHUB_OUTPUT" --summary "$GITHUB_STEP_SUMMARY" \
+            || test $? -eq 3
+          cp "$RUNNER_TEMP/smoke/summary.md" "$RUNNER_TEMP/smoke/result.json" "$RUNNER_TEMP/bump/"
+
+      - name: Keep the bumped lock
+        if: steps.bump.outputs.changed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ytdlp-bump
+          path: ${{ runner.temp }}/bump
+          if-no-files-found: error
+          retention-days: 7
+
+  propose:
+    # A push or PR made with GITHUB_TOKEN starts no other workflow (workflow_dispatch excepted),
+    # so the PR checks are dispatched on the branch.
+    name: Propose the bump
+    needs: bump
+    if: needs.bump.outputs.changed == 'true' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # push deps/yt-dlp-<version>
+      pull-requests: write # open the PR; refused while Actions may not create PRs in this repo
+      actions: write # dispatch ci-cd.yml on the branch
+    env:
+      GH_REPO: ${{ github.repository }}
+      BEFORE: ${{ needs.bump.outputs.before }}
+      VERSION: ${{ needs.bump.outputs.version }}
+      SMOKE: ${{ needs.bump.outputs.smoke }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+
+      - name: Fetch the bumped lock
+        uses: actions/download-artifact@v4
+        with:
+          name: ytdlp-bump
+          path: ${{ runner.temp }}/bump
+
+      - name: Push the branch
+        id: push
+        run: |
+          branch="deps/yt-dlp-$VERSION"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          compare="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/main...$branch?expand=1"
+          if git ls-remote --exit-code --heads origin "refs/heads/$branch" > /dev/null; then
+            echo "Cabang \`$branch\` sudah ada dari run sebelumnya, tidak di-push ulang: $compare" >> "$GITHUB_STEP_SUMMARY"
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          cp uv.lock "$RUNNER_TEMP/uv.lock.main"
+          cp "$RUNNER_TEMP/bump/uv.lock" uv.lock
+          # main may have moved since the bump job: the tested lock must still differ only in yt-dlp.
+          python3 scripts/ytdlp/ytdlp_smoke.py compare-locks "$RUNNER_TEMP/uv.lock.main" uv.lock --expect-version "$VERSION"
+          {
+            echo "Pembaruan mingguan yt-dlp: $BEFORE → $VERSION. Hanya \`uv.lock\` yang berubah."
+            echo
+            cat "$RUNNER_TEMP/bump/summary.md"
+            echo
+            echo "Sebelum merge (merge = deploy ke produksi):"
+            echo "- [ ] CI di cabang ini hijau (Test and build, Toolchain evidence guard, Parity)."
+            echo "- [ ] Smoke di image produksi lolos:"
+            echo "  \`gh workflow run editor-gates.yml -f ref=$branch -f suite=command -f command='python3 scripts/ytdlp/ytdlp_smoke.py run --expect-lock uv.lock --out /out/ytdlp-smoke'\`"
+            echo
+            echo "Dibuat oleh workflow \`ytdlp-update.yml\`. Prosedur: \`docs/editor/OPERASIONAL.md\` §8."
+          } > "$RUNNER_TEMP/body.md"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch --create "$branch"
+          git commit --quiet --cleanup=verbatim --message "chore(deps): yt-dlp $VERSION" \
+            --message "$(cat "$RUNNER_TEMP/body.md")" -- uv.lock
+          git push origin "$branch"
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Open the pull request
+        if: steps.push.outputs.pushed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.push.outputs.branch }}
+        run: |
+          compare="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/main...$BRANCH?expand=1"
+          draft=()
+          [ "$SMOKE" = pass ] || draft=(--draft)
+          if url=$(gh pr create --base main --head "$BRANCH" --title "chore(deps): yt-dlp $VERSION" \
+              --body-file "$RUNNER_TEMP/body.md" "${draft[@]}" 2> "$RUNNER_TEMP/pr-error.txt"); then
+            echo "PR: $url" >> "$GITHUB_STEP_SUMMARY"
+          else
+            cat "$RUNNER_TEMP/pr-error.txt"
+            echo "::warning title=PR tidak dibuka::GitHub menolak PR dari Actions. Buka PR lewat $compare"
+            {
+              echo "PR tidak bisa dibuka dari Actions; penyebabnya ada di log langkah ini (biasanya izin \"Allow GitHub Actions to create and approve pull requests\" mati)."
+              echo "Buka PR lewat tautan ini; judul dan isinya terisi dari commit: $compare"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Run the PR checks on the branch
+        if: steps.push.outputs.pushed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.push.outputs.branch }}
+        run: |
+          gh workflow run ci-cd.yml --ref "$BRANCH" -f suite=pr
+          echo "CI di cabang ini: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/workflows/ci-cd.yml?query=branch%3A$BRANCH" >> "$GITHUB_STEP_SUMMARY"

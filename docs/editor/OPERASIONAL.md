@@ -2,7 +2,8 @@
 
 Untuk pemilik dan siapa pun yang menjalankan server Potongin: layanan yang dipakai editor, flag
 dan bawaannya, toolchain render yang dikunci, gerbang CI (setiap PR, setiap malam, dan saat
-toolchain berubah), bukti pengujian, serta lisensi pihak ketiga. Cara memakai editor ada di
+toolchain berubah), bukti pengujian, lisensi pihak ketiga, serta pembaruan yt-dlp dan prosedur
+saat unduhan YouTube rusak (§8). Cara memakai editor ada di
 `docs/editor/PANDUAN-EDITOR.md`; angka gerbang di `docs/editor/GATES.md`; kontrak teknis di
 `docs/editor/CONTRACTS.md`.
 
@@ -150,6 +151,8 @@ default `cfr_25,cfr_30`), `command` berisi argumen Playwright (default
 paritas). Contoh: `-f suite=player -f cases=cfr_29.97,cfr_25,cfr_30,vfr_30,edge_end_29.97,edge_start_23.976
 -f command='e2e/editor-player.spec.mjs -g "P-FRAME|PF-SEEK"'`.
 
+Workflow `ytdlp-update.yml` menaikkan yt-dlp setiap Senin dan menguji unduhannya (§8).
+
 ## 5. Bukti dan GATES
 
 Setiap gerbang menulis bukti berupa JSON kecil (angka saja). Bukti gelombang ada di
@@ -183,4 +186,61 @@ Kewajiban yang perlu dijaga:
 | PR gagal di Toolchain evidence guard | Kunci toolchain atau JASSUB berubah tanpa bukti baru: ikuti §3. |
 | Parity gagal di "Install Chrome for Testing" | Unduhan Chrome for Testing 147.0.7727.15 gagal; jalankan ulang job. Versi browser ini bagian dari kunci paritas, jadi jangan diganti tanpa mengukur ulang P-TIME dan P-TXT. |
 | Saran hook hanya "AI seleksi"/"Heuristik" | `POTONGIN_EDITOR_LLM` mati, atau penyedia AI gratis di Pengaturan sedang tidak bisa dipakai. |
+| Unduhan YouTube gagal untuk banyak video sekaligus | Biasanya YouTube berubah dan yt-dlp perlu dinaikkan: §8. |
 | Deploy berhenti: "Deployment blocked: durable work is active or unreadable" | Sebelum dan sesudah memasang image baru, `deploy/production.sh` memeriksa folder job dan mencetak `DURABLE_ACTIVE_JOBS=…`. Yang dihitung selesai: job `completed`, `failed`, `deleting`, dan ekspor `completed`, `failed`, `cancelled`. Ada job atau ekspor yang masih jalan: tunggu sampai selesai, lalu jalankan ulang deploy. Ada `errors`: ada file yang tidak terbaca, path-nya tercetak. File antrean ekspor yang rusak (`analysis/render-requests/<id>.json`) boleh dipindah keluar dari folder job (simpan salinannya); `job.json` yang rusak diperbaiki dulu. Lalu deploy ulang. |
+
+## 8. YouTube rusak: naikkan yt-dlp
+
+yt-dlp hanya berubah lewat `uv.lock` dan PR yang di-merge. Image tidak pernah memperbaruinya
+sendiri saat jalan, jadi build ulang selalu memasang versi yang sama.
+
+**Pembaruan mingguan.** Workflow `ytdlp-update.yml` jalan setiap Senin 09.00 WIB (atau
+`gh workflow run ytdlp-update.yml`). Isinya:
+
+1. Menaikkan yt-dlp di `uv.lock` dengan `uv lock --upgrade-package yt-dlp` (uv 0.11.6, sama
+   dengan CI). Hanya rilis stabil; rilis nightly (`.dev0`) dilewati. Selain yt-dlp, tidak boleh
+   ada yang berubah.
+2. Mengunduh satu video uji pendek berlisensi Creative Commons dengan flag unduhan produksi
+   (`scripts/ytdlp/ytdlp_smoke.py`). Smoke ini tetap jalan walau tidak ada versi baru, jadi
+   sekaligus mengecek versi yang dipakai produksi.
+3. Kalau ada versi baru: push cabang `deps/yt-dlp-<versi>`, membuka PR, dan menjalankan cek PR
+   (`ci-cd.yml`, `suite=pr`) di cabang itu. PR dan push dari Actions tidak memicu CI sendiri.
+   Kalau tidak ada versi baru, tidak ada PR.
+
+| Hasil smoke (Summary run) | Arti | Lanjutannya |
+|---|---|---|
+| lolos | Video uji terunduh lengkap, ada video dan audio | PR biasa |
+| gagal | yt-dlp versi itu tidak bisa mengunduh | Run merah, tidak ada PR. Tunggu rilis yt-dlp berikutnya |
+| tidak meyakinkan | YouTube meminta cek bot atau membatasi IP runner, jaringan gagal, atau video uji hilang | PR dibuka sebagai draft. Jalankan smoke di image produksi (langkah 3 di bawah) sebelum merge |
+
+Selama izin "Allow GitHub Actions to create and approve pull requests" (Settings > Actions >
+General) mati, GitHub menolak PR dari Actions. Summary run lalu memuat tautan compare: buka PR
+dari sana, judul dan isinya terisi dari commit.
+
+**Kalau unduhan YouTube gagal untuk banyak video sekaligus:**
+
+1. Cek versi di produksi, dari folder deploy di server:
+   `docker compose exec primary-worker yt-dlp --version`. Layar menulis `2026.08.19` untuk
+   `2026.8.19` di `uv.lock`; keduanya versi yang sama.
+2. Naikkan versinya. Cara cepat: `gh workflow run ytdlp-update.yml`, lalu `gh run watch`. Cara
+   manual, misalnya untuk versi tertentu (uv 0.11.6):
+
+   ```bash
+   git fetch origin && git switch -c deps/yt-dlp-<versi> origin/main
+   uv lock --upgrade-package yt-dlp       # versi tertentu: --upgrade-package yt-dlp==<versi>
+   python3 scripts/ytdlp/ytdlp_smoke.py locked-version uv.lock
+   git commit -am "chore(deps): yt-dlp <versi>" && git push -u origin HEAD
+   gh pr create --fill
+   ```
+
+3. Uji di image produksi cabang itu:
+   `gh workflow run editor-gates.yml -f ref=deps/yt-dlp-<versi> -f suite=command -f command='python3 scripts/ytdlp/ytdlp_smoke.py run --expect-lock uv.lock --out /out/ytdlp-smoke'`.
+   Hasilnya di artifact `gate-output` (`ytdlp-smoke/result.json`). Run hijau hanya kalau lolos.
+   Kalau tidak meyakinkan karena cek bot, coba sekali lagi; kalau server produksi juga mendapat
+   "Sign in to confirm you're not a bot", masalahnya IP server, bukan versi yt-dlp.
+4. CI: semua cek PR harus hijau. Untuk PR dari workflow, cek itu datang dari run `ci-cd.yml`
+   yang dijalankan workflow di cabangnya.
+5. Merge dengan rebase (`gh pr merge --rebase`). Merge berarti deploy ke produksi; pantau dengan
+   `gh run watch`, lalu ulangi langkah 1.
+
+Rollback: revert commit PR itu lewat PR baru.
