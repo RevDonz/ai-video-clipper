@@ -27,6 +27,9 @@ PACK_IDS = ("classic", "karaoke", "bold", "box", "sorot")
 SWATCHES = ("#FFE14D", "#FFFFFF", "#3DF5A6", "#52C7FF", "#FF5C8A", "#FF9F1C")
 # The optional override ``words_max`` ("Kata per baris"): absent means the pack's words_per_cue.
 WORDS_MAX_RANGE = (1, 4)
+# Hook designs (resources/hook-designs/<id>/v1.json), every one at v 1: the bar the seeds write,
+# then Kicker, Blok and Kotak kata (CONTRACTS §5.31).
+HOOK_DESIGN_IDS = ("legacy-bar", "kicker", "blok", "kotak")
 
 # Plan §3.5 ("overrides at the pack defaults") and §5.4: every pack's default overrides. The
 # seed builder (T1.5) writes these; the pack files resources/caption-packs/<id>/v1.json (T1.2a)
@@ -51,6 +54,7 @@ __all__ = [
     "COMPILER_ID",
     "COMPILER_VERSION",
     "DOC_FPS",
+    "HOOK_DESIGN_IDS",
     "OUTPUT_SIZES",
     "PACK_DEFAULT_OVERRIDES",
     "PACK_IDS",

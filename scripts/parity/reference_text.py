@@ -4,10 +4,10 @@
 Writes everything the browser harness (``web/app/parity-harness``) and the scoring scripts
 (``compare.py``, ``enc_check.py``, ``s_color.py``) need, into one directory:
 
-* ``ass/<clip>.ass``: the ASS samples. Every gated clip (the 5 packs × 3 lengths, the hook and
-  the fallback glyph) is the shipped bytes: ``captions_ass.fit_cues`` + ``build_ass_v2`` with
-  the pack files and their default overrides (W1 integration; T1.2b first measured hand-written
-  samples with T1.2a's pack numbers). The pack variants of the spike (DejaVu Sans Bold instead
+* ``ass/<clip>.ass``: the ASS samples. Every gated clip (the 5 packs × 3 lengths, the hook in
+  each of its four designs and the fallback glyph) is the shipped bytes:
+  ``captions_ass.fit_cues`` + ``build_ass_v2`` with the pack files and their default overrides
+  (W1 integration; T1.2b first measured hand-written samples with T1.2a's pack numbers). The pack variants of the spike (DejaVu Sans Bold instead
   of Montserrat ExtraBold; a ``\\p`` vector box instead of ``BorderStyle 3``) and the P-COLOR
   swatch sheet stay hand-written.
 * the P-TIME timing fixtures (one per document frame rate): five lanes of events whose edges
@@ -55,7 +55,7 @@ import compare
 from compare import Box
 
 from ai_clipper import captions_ass
-from ai_clipper.edit_v2 import PACK_DEFAULT_OVERRIDES, compile_ffmpeg
+from ai_clipper.edit_v2 import HOOK_DESIGN_IDS, PACK_DEFAULT_OVERRIDES, compile_ffmpeg
 from ai_clipper.edit_v2.timemap import Fps, now_ms, safe_cs
 from ai_clipper.subtitles import CaptionCue, CaptionWord, FrameCue, FrameWord
 
@@ -76,6 +76,14 @@ SAMPLE_TEXTS = {
     90: "Ternyata AVATAR dibuat 12 tahun, dan sutradaranya bilang: jangan pernah menyerah ya kawan.",
 }
 HOOK_TEXT = "Dia ditahan security di film-nya sendiri"
+# The hook designs next to the bar (CONTRACTS §5.31), each with a text that shows its rule: a
+# kicker closed by a colon, the bar's text on boxes, a word in capitals in the box.
+HOOK_DESIGN_TEXTS = {
+    "kicker": "Ternyata: dia ditahan security di film-nya sendiri",
+    "blok": HOOK_TEXT,
+    "kotak": "Dia ditahan SECURITY di film-nya sendiri",
+}
+assert tuple(HOOK_DESIGN_TEXTS) == HOOK_DESIGN_IDS[1:]
 FALLBACK_TEXT = "Suka {} banget"
 # Characters DejaVu Sans has and a pack font may lack, in order of preference.
 FALLBACK_CANDIDATES = "♥★♪→Ω"
@@ -379,16 +387,18 @@ def frame_cues(cues: Sequence[Cue]) -> tuple[FrameCue, ...]:
 
 
 def shipped_ass(cues: Sequence[Cue], *, pack: str, fps: Fps, total_frames: int,
-                hook_text: str | None = None) -> tuple[str, tuple[FrameCue, ...]]:
+                hook_text: str | None = None,
+                hook_design: tuple[str, int] = captions_ass.LEGACY_HOOK_DESIGN,
+                ) -> tuple[str, tuple[FrameCue, ...]]:
     """The production ASS of ``cues`` in ``pack`` (``fit_cues`` + ``build_ass_v2``, the pack's
-    default overrides) and the cues as the pack shows them; ``hook_text`` adds the legacy-bar
-    hook over the whole clip."""
+    default overrides) and the cues as the pack shows them; ``hook_text`` adds the hook over the
+    whole clip in ``hook_design`` (the bar by default)."""
     pack_file = captions_ass.load_pack(pack, 1)
     overrides = PACK_DEFAULT_OVERRIDES[pack]
     fitted = captions_ass.fit_cues(frame_cues(cues), pack=pack_file, play_res=(WIDTH, HEIGHT),
                                    overrides=overrides)
     hook = (None if hook_text is None
-            else captions_ass.HookSpec(hook_text, 0, total_frames, HOOK_Y_E5))
+            else captions_ass.HookSpec(hook_text, 0, total_frames, HOOK_Y_E5, hook_design))
     ass = captions_ass.build_ass_v2(fitted, play_res=(WIDTH, HEIGHT), fps=fps,
                                     total_frames=total_frames, pack=pack_file,
                                     overrides=overrides, hook=hook)
@@ -673,8 +683,8 @@ def _caption_clip(pack: str, length: int, *, variant: str | None, family: str,
 
 def build_clips(*, fallback_char: str,
                 measures: dict[str, Callable[[str], float]] | None = None) -> list[Clip]:
-    """The P-TXT matrix (5 packs × 3 lengths × 5 probes, hook, fallback glyph), the pack
-    variants of the spike, the P-COLOR sheet and one P-TIME fixture per frame rate.
+    """The P-TXT matrix (5 packs × 3 lengths × 5 probes, every hook design, fallback glyph),
+    the pack variants of the spike, the P-COLOR sheet and one P-TIME fixture per frame rate.
 
     ``measures`` maps a family to its advance-width function at the Box size (from the font's
     ``hmtx``); without it, a DejaVu-based estimate is used.
@@ -703,6 +713,15 @@ def build_clips(*, fallback_char: str,
                       ass=shipped_ass((), pack="karaoke", fps=fps, total_frames=total,
                                       hook_text=HOOK_TEXT)[0],
                       plate="fitblur", family=DEJAVU))
+    # The other hook designs (Montserrat ExtraBold, boxes drawn with \p): the bar's timing.
+    for design, text in HOOK_DESIGN_TEXTS.items():
+        clips.append(Clip(id=f"hook-{design}", kind="ptxt", pack="hook", chars=len(text),
+                          variant=None, fps=(fps.num, fps.den), total_frames=total,
+                          probe_frames=choose_probes(edges, (fade_in, fade_out)),
+                          edges=tuple(sorted(edges)),
+                          ass=shipped_ass((), pack="karaoke", fps=fps, total_frames=total,
+                                          hook_text=text, hook_design=(design, 1))[0],
+                          plate="fitblur", family=MONTSERRAT))
     # Fallback glyph: a character Montserrat lacks, drawn from DejaVu Sans on both sides (the
     # shipped Bold pack, so the active-word colour changes at each word too).
     total = 60

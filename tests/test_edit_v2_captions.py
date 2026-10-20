@@ -184,6 +184,58 @@ def test_hook_overflow_warning_names_the_item():
                 if i.code == "hook_overflow"]
 
 
+# --- hook designs (CONTRACTS §5.31) ---------------------------------------------------------
+
+
+def _with_design(design: str, text: str | None = None) -> dict:
+    doc = _doc("seed__c30")
+    item = doc["tracks"][0]["items"][0]
+    item["payload"]["design"] = {"id": design, "v": 1}
+    if text is not None:
+        item["payload"]["text"] = text
+    return doc
+
+
+@pytest.mark.parametrize("design", ["kicker", "blok", "kotak"])
+def test_the_items_hook_design_draws_the_hook(design):
+    doc = _with_design(design)
+    item = doc["tracks"][0]["items"][0]
+    fps = Fps.from_json(doc["output"]["fps"])
+
+    result = _track(doc, "c30")
+
+    layout = layout_hook(item["payload"]["text"], play_res=(720, 1280),
+                         y_e5=item["transform"]["y_e5"], design=(design, 1))
+    assert result.hook_lines == layout.lines
+    hook_events = [fields for fields in _dialogues(result.ass) if fields[3] == "Hook"]
+    assert [fields[9] for fields in hook_events] == list(layout.events)
+    assert {(_cs(f[1]), _cs(f[2])) for f in hook_events} == {(0, safe_cs(item["dur_f"], fps))}
+    assert result.ass != _track(_doc("seed__c30"), "c30").ass
+
+
+@pytest.mark.parametrize("design", ["kicker", "blok", "kotak"])
+def test_hook_overflow_is_reported_for_every_design(design):
+    result = _track(_with_design(design, ("WWWWWWWWWWWWW " * 6).strip()), "c30")
+
+    overflow = [issue for issue in result.warnings if issue.code == "hook_overflow"]
+    assert overflow == [Issue("hook_overflow", "/tracks/0/items/0/payload/text", "it_hook", 0)]
+    assert result.hook_lines[-1].endswith("…")
+    assert not [issue for issue in _track(_with_design(design), "c30").warnings
+                if issue.code == "hook_overflow"]
+
+
+def test_glyph_unsupported_follows_the_hook_designs_font():
+    # DejaVu Sans Bold (the bar) has ♥; Montserrat ExtraBold (the other designs) lacks it.
+    text = "Suka ♥ banget"
+    bar = _track(_with_design("legacy-bar", text), "c30")
+    assert not [issue for issue in bar.warnings if issue.code.startswith("glyph")]
+    for design in ("kicker", "blok", "kotak"):
+        result = _track(_with_design(design, text), "c30")
+        assert [(i.code, i.path, i.ref) for i in result.warnings
+                if i.code.startswith("glyph")] == [
+            ("glyph_unsupported:U+2665", "/tracks/0/items/0/payload/text", "it_hook")], design
+
+
 def _with_word_text(doc: dict, context_id: str, text: str, pack: str | None = None) -> tuple:
     doc = copy.deepcopy(doc)
     if pack is not None:
@@ -325,13 +377,13 @@ def test_sorot_seed_document_compiles_one_box_per_spoken_word():
     assert {fields[3] for fields in events} == {"Sorot", "Hook"}
 
 
-# --- gate: ASS goldens (5 packs + hook) ------------------------------------------------------
+# --- gate: ASS goldens (5 packs + every hook design) ----------------------------------------
 
 
 def test_ass_goldens_cover_every_pack_and_the_hook():
     names = {name for name, _file, _context in edit_v2_text.GOLDEN_CASES}
     assert {"classic__c30", "karaoke__c30", "bold__c30", "box__c30", "sorot__c30", "hook__c30",
-            "words_max_1__c30"} <= names
+            "words_max_1__c30", "hook_kicker__c30", "hook_blok__c30", "hook_kotak__c30"} <= names
     styles = set()
     for name in names:
         text = (edit_v2_text.GOLDEN_DIR / f"{name}.ass").read_text(encoding="utf-8")

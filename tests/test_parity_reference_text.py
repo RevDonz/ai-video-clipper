@@ -19,6 +19,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
+RUN_ALL = ROOT / "scripts" / "parity" / "run_all.sh"
 sys.path.insert(0, str(ROOT / "scripts" / "parity"))
 
 import compare
@@ -280,6 +281,16 @@ def test_clip_matrix_covers_every_pack_length_hook_fallback_and_variant() -> Non
             assert len(matching) == 1, (pack, length)
             assert len(matching[0].probe_frames) == 5
     assert any(c.pack == "hook" for c in ptxt)
+    # Every hook design is gated (CONTRACTS §5.31), and the smoke subset of run_all.sh names it.
+    designs = {c.id: c for c in ptxt if c.id.startswith("hook-")}
+    assert set(designs) == {"hook-kicker", "hook-blok", "hook-kotak"}
+    smoke = next(line for line in RUN_ALL.read_text(encoding="utf-8").splitlines()
+                 if line.startswith("SMOKE_TEXT="))
+    for clip_id, clip in designs.items():
+        assert clip.gate and clip.variant is None and len(clip.probe_frames) == 5
+        assert "Montserrat ExtraBold" in clip.ass
+        assert ("\\p1}" in clip.ass) is (clip_id != "hook-kicker")  # Blok and Kotak draw boxes
+        assert clip_id in smoke.removeprefix("SMOKE_TEXT=").split(",")
     assert any(c.pack == "fallback" and "\u2665" in c.ass for c in ptxt)
     variants = {(c.pack, c.variant) for c in ptxt if c.variant}
     assert {("bold", "dejavu"), ("box", "pbox")} <= variants

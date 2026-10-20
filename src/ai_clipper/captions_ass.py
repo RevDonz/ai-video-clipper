@@ -17,6 +17,7 @@ import unicodedata
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from dataclasses import replace as dataclass_replace
+from itertools import pairwise
 from numbers import Real
 from pathlib import Path
 from types import MappingProxyType
@@ -435,6 +436,16 @@ _OVERRIDE_KEYS = ("y_e5", "size_pm", "case", "highlight", "emphasis")
 _WORD_BOX_KEYS = frozenset({"pad_x_pm", "top_pm", "radius_pm", "dark_text", "light_text",
                             "dark_from_lstar"})
 _E5 = 100_000
+# Hook designs (CONTRACTS §5.31): the seeds' bar, whose geometry is the code below, and the
+# layouts of the designs whose geometry is their file.
+LEGACY_HOOK_DESIGN = ("legacy-bar", 1)
+HOOK_LAYOUTS = ("kicker", "block", "keyword")
+_DESIGN_KEYS = frozenset({"schema", "id", "v", "name", "layout", "font", "font_ratios_e5",
+                          "max_lines", "max_chars", "side_margin_pm", "line_pitch_pm", "outline",
+                          "colours", "box", "kicker", "fade_in_ms", "fade_out_ms", "default_y_e5",
+                          "layer"})
+# A kicker ends at the first of its leading words that ends with one of these marks.
+_KICKER_MARKS = (":", "?", "!", ".", ",", ";", "…")
 
 
 @dataclass(frozen=True)
@@ -497,23 +508,87 @@ class CaptionPack:
 
 @dataclass(frozen=True)
 class HookSpec:
-    """The hook of a document: ``text`` shown on output frames ``[f0, f1)``, top at ``y_e5``."""
+    """The hook of a document: ``text`` shown on output frames ``[f0, f1)``, top at ``y_e5``,
+    drawn by the hook design ``design`` (``(id, v)``; the bar by default)."""
 
     text: str
     f0: int
     f1: int
     y_e5: int
+    design: tuple[str, int] = LEGACY_HOOK_DESIGN
 
 
 @dataclass(frozen=True)
 class HookLayout:
-    """``legacy-bar@1`` geometry: font size, box padding and top (px), lines, and overflow."""
+    """A hook's geometry: font size, padding and top (px), lines, and overflow.
+
+    The bar (``legacy-bar@1``) is drawn from these by ``_hook_style``/``_hook_events``; every
+    other design also carries its ``Hook`` style line and its event texts (CONTRACTS §5.31).
+    """
 
     font_size: int
     padding: int
     top: int
     lines: tuple[str, ...]
     overflow: bool
+    style: str = ""
+    events: tuple[str, ...] = ()
+    layer: int = 1
+
+
+@dataclass(frozen=True)
+class HookBox:
+    """The accent box of a design, per mille of the font size: side padding, the inset from the
+    line's top to the box's top (the box ends at the line's bottom) and the corner radius."""
+
+    pad_x_pm: int
+    top_pm: int
+    radius_pm: int
+
+
+@dataclass(frozen=True)
+class HookKicker:
+    """The kicker line: its size per mille of the punchline's, how many leading words a closing
+    mark may span, and its gap to the punchline per mille of the punchline size."""
+
+    scale_pm: int
+    max_words: int
+    gap_pm: int
+
+
+@dataclass(frozen=True)
+class HookDesign:
+    """A hook design file other than the bar (``resources/hook-designs/<id>/v<v>.json``).
+
+    ``layout`` is ``kicker`` (a small accent line over the punchline), ``block`` (each line on
+    its own accent box) or ``keyword`` (one word on an accent box). Sizes are ratios of the
+    output height (``font_ratios_e5``, largest first: the first size whose lines fit wins) and
+    per mille of the width (side margin) or of the font size (pitch, box, kicker).
+    """
+
+    id: str
+    v: int
+    name: str
+    layout: str
+    font_family: str
+    font_file: str
+    bold: bool
+    font_ratios_e5: tuple[int, ...]
+    max_lines: int
+    side_margin_pm: int
+    line_pitch_pm: int
+    outline_ratio: tuple[int, int]
+    text_colour: str
+    outline_colour: str
+    accent: str
+    on_accent: str
+    box: HookBox | None
+    kicker: HookKicker | None
+    fade_in_ms: int
+    fade_out_ms: int
+    default_y_e5: int
+    layer: int
+    sha256: str
 
 
 def _is_int(value: object) -> bool:
@@ -662,24 +737,133 @@ def _check_word_box(word_box: WordBox | None, *, border_style: int, reveal: str,
                          "(border_style 1, max_width_pm)")
 
 
-def load_hook_design(design_id: str, version: int) -> dict[str, Any]:
-    """The hook design file ``resources/hook-designs/<id>/v<version>.json`` (checked).
-
-    Essentials has one design, ``legacy-bar@1``; its geometry is the code of ``layout_hook``
-    (today's hook, so revision 0 looks the same), and the file records the same constants
-    (a test keeps them equal).
-    """
+def _check_design_ref(design_id: object, version: object) -> None:
     if not isinstance(design_id, str) or not _RESOURCE_ID.fullmatch(design_id):
         raise ValueError("unknown hook design")
-    if not _is_int(version) or version < 1:
+    if not _is_int(version) or version < 1:  # checked outside the cache: True == 1
         raise ValueError("hook design version must be a positive integer")
-    data, _sha = _read_resource(HOOK_DESIGNS_DIR / design_id / f"v{version}.json",
-                                "hook design")
+
+
+def _hook_design_file(design_id: str, version: int) -> tuple[dict[str, Any], str]:
+    _check_design_ref(design_id, version)
+    data, sha = _read_resource(HOOK_DESIGNS_DIR / design_id / f"v{version}.json",
+                               "hook design")
     if data.get("schema") != HOOK_DESIGN_SCHEMA or (data.get("id"), data.get("v")) != (
         design_id, version
     ):
         raise ValueError("hook design file does not follow potongin.hook-design/1")
+    return data, sha
+
+
+def load_hook_design(design_id: str, version: int) -> dict[str, Any]:
+    """The hook design file ``resources/hook-designs/<id>/v<version>.json`` (checked).
+
+    The bar, ``legacy-bar@1``, is today's hook, so revision 0 looks the same: its geometry is
+    the code of ``layout_hook`` and its file records the same constants (a test keeps them
+    equal). Every other design carries a ``layout`` and is checked field by field
+    (``hook_design``).
+    """
+    data, _sha = _hook_design_file(design_id, version)
+    if "layout" in data or (design_id, version) != LEGACY_HOOK_DESIGN:
+        hook_design(design_id, version)
     return data
+
+
+def hook_design(design_id: str, version: int) -> HookDesign | None:
+    """The checked design file as a ``HookDesign`` (cached); None for the bar, whose geometry
+    is code."""
+    _check_design_ref(design_id, version)
+    return _hook_design(design_id, version)
+
+
+@functools.cache
+def _hook_design(design_id: str, version: int) -> HookDesign | None:
+    data, sha = _hook_design_file(design_id, version)
+    if (design_id, version) == LEGACY_HOOK_DESIGN and "layout" not in data:
+        return None
+    if set(data) != _DESIGN_KEYS:
+        raise ValueError("hook design file does not follow potongin.hook-design/1")
+    layout = data["layout"]
+    if layout not in HOOK_LAYOUTS:
+        raise ValueError("hook design layout must be kicker, block or keyword")
+    font = data["font"]
+    if (not isinstance(font, dict) or set(font) != {"family", "file", "bold"}
+            or not isinstance(font["bold"], bool) or not isinstance(font["family"], str)
+            or not isinstance(font["file"], str)):
+        raise ValueError("hook design font must be {family, file, bold}")
+    try:
+        font_path(font["file"])
+    except (TypeError, ValueError):
+        raise ValueError("hook design font must be a pinned font of fonts.json") from None
+    if not isinstance(data["name"], str) or not data["name"].strip():
+        raise ValueError("hook design name must be a non-empty string")
+    ratios = data["font_ratios_e5"]
+    if (not isinstance(ratios, list) or not ratios
+            or not all(_is_int(value) and 0 < value <= 20_000 for value in ratios)
+            or any(later >= earlier for earlier, later in pairwise(ratios))):
+        raise ValueError("hook design font_ratios_e5 must be decreasing integers 1-20000")
+    for key, low, high in (("max_lines", 1, 5), ("max_chars", HOOK_TEXT_MAX_CHARS,
+                                                  HOOK_TEXT_MAX_CHARS),
+                           ("side_margin_pm", 0, 499), ("line_pitch_pm", 500, 2000),
+                           ("fade_in_ms", 0, 2000), ("fade_out_ms", 0, 2000),
+                           ("default_y_e5", 6000, 40_000), ("layer", 1, 9)):
+        if not _is_int(data[key]) or not low <= data[key] <= high:
+            raise ValueError(f"hook design {key} must be an integer {low}-{high}")
+    outline = data["outline"]
+    if (not isinstance(outline, dict) or set(outline) != {"num", "den"}
+            or not _is_int(outline["num"]) or not _is_int(outline["den"])
+            or outline["num"] < 0 or outline["den"] <= 0):
+        raise ValueError("hook design outline must be a non-negative integer ratio {num, den}")
+    colours = data["colours"]
+    if (not isinstance(colours, dict) or set(colours) != {"text", "outline", "accent", "on_accent"}
+            or not all(isinstance(value, str) and _COLOUR.fullmatch(value)
+                       for value in colours.values())):
+        raise ValueError("hook design colours must be {text, outline, accent, on_accent} "
+                         "as #RRGGBB")
+    box = _design_part(data["box"], "box", HookBox, {"pad_x_pm": (0, 999), "top_pm": (0, 999),
+                                                      "radius_pm": (0, 999)})
+    kicker = _design_part(data["kicker"], "kicker", HookKicker,
+                          {"scale_pm": (1, 1000), "max_words": (1, 10), "gap_pm": (-500, 500)})
+    if (layout == "kicker") != (kicker is not None):
+        raise ValueError("hook design kicker comes with the kicker layout and only with it")
+    if (layout == "kicker") == (box is not None):
+        raise ValueError("hook design box comes with the block and keyword layouts only")
+    if layout == "block" and colours["text"] != colours["on_accent"]:
+        raise ValueError("a block design draws its lines in colours.on_accent: text must equal it")
+    return HookDesign(
+        id=design_id, v=version, name=data["name"], layout=layout,
+        font_family=font["family"], font_file=font["file"], bold=font["bold"],
+        font_ratios_e5=tuple(ratios), max_lines=data["max_lines"],
+        side_margin_pm=data["side_margin_pm"], line_pitch_pm=data["line_pitch_pm"],
+        outline_ratio=(outline["num"], outline["den"]), text_colour=colours["text"],
+        outline_colour=colours["outline"], accent=colours["accent"],
+        on_accent=colours["on_accent"], box=box, kicker=kicker,
+        fade_in_ms=data["fade_in_ms"], fade_out_ms=data["fade_out_ms"],
+        default_y_e5=data["default_y_e5"], layer=data["layer"], sha256=sha,
+    )
+
+
+def _design_part(value: object, name: str, kind: type, ranges: Mapping[str, tuple[int, int]]):
+    if value is None:
+        return None
+    if not isinstance(value, dict) or set(value) != set(ranges):
+        raise ValueError(f"hook design {name} must be null or {{{', '.join(ranges)}}}")
+    for key, (low, high) in ranges.items():
+        if not _is_int(value[key]) or not low <= value[key] <= high:
+            raise ValueError(f"hook design {name}.{key} must be an integer {low}-{high}")
+    return kind(**value)
+
+
+def _design_of(design: object) -> HookDesign | None:
+    if not isinstance(design, (tuple, list)) or len(design) != 2:
+        raise ValueError("hook design must be (id, version)")
+    return hook_design(design[0], design[1])
+
+
+def hook_font_file(design: Sequence) -> str:
+    """The font file a hook design draws with (the font ``glyph_unsupported`` checks)."""
+    spec = _design_of(design)
+    return load_hook_design(*LEGACY_HOOK_DESIGN)["font"]["file"] if spec is None else spec.font_file
 
 
 def _margin_v(height: int, y_e5: int) -> int:
@@ -798,21 +982,210 @@ def fit_cues(
     return tuple(fitted)
 
 
-def layout_hook(text: str, *, play_res: tuple[int, int], y_e5: int) -> HookLayout:
-    """``legacy-bar@1`` layout of a hook text: today's ``_hook_layout`` with its top at y_e5.
+def layout_hook(text: str, *, play_res: tuple[int, int], y_e5: int,
+                design: Sequence = LEGACY_HOOK_DESIGN) -> HookLayout:
+    """The layout of a hook text in ``design``, its top at y_e5.
 
-    ``overflow`` is true when the text does not fit three lines at the smallest size and its
-    tail is cut with "…" (the ``hook_overflow`` warning).
+    The bar (``legacy-bar@1``) is today's ``_hook_layout``. Every design takes the largest of
+    its sizes whose lines fit (at most ``max_lines``); ``overflow`` is true when the text does
+    not fit at the smallest size and its tail is cut with "…" (the ``hook_overflow`` warning).
     """
     width, height = play_res
+    spec = _design_of(design)
     top = div_round_half_up(y_e5 * height, _E5)
     cleaned = clean_caption_text(text)
     hook = shorten_hook_text(text) if cleaned else ""
+    if spec is not None:
+        if not hook:
+            return HookLayout(1, 0, top, (), False, layer=spec.layer)
+        return _design_layout(spec, hook, play_res=(width, height), top=top,
+                              cut=hook != cleaned)
     if not hook:
         return HookLayout(1, max(1, round(height * _HOOK_BOX_PADDING_RATIO)), top, (), False)
     font_size, padding, lines, overflow = _hook_layout_checked(hook, width=width,
                                                                height=height)
     return HookLayout(font_size, padding, top, lines, overflow or hook != cleaned)
+
+
+def boxed_word_index(tokens: Sequence[str]) -> int:
+    """The word Kotak kata boxes: the first written in capitals (two letters or more) unless
+    every word is, else the longest by letters and digits (the last of equals)."""
+    letters = [[character for character in token if character.isalpha()] for token in tokens]
+    lettered = [index for index, chars in enumerate(letters) if chars]
+    capitals = [index for index in lettered
+                if len(letters[index]) >= 2 and all(char.isupper() for char in letters[index])]
+    if capitals and len(capitals) < len(lettered):
+        return capitals[0]
+    sizes = [sum(character.isalnum() for character in token) for token in tokens]
+    longest = max(sizes)
+    return max(index for index, size in enumerate(sizes) if size == longest)
+
+
+def _kicker_count(words: Sequence[str], kicker: HookKicker) -> int:
+    """How many leading words form the kicker line: through the first word ending with a mark
+    (``: ? ! . , ; …``) among the first ``max_words`` (never the last word), else a third of the
+    words (one to three). Fewer than three words have no kicker."""
+    if len(words) < 3:
+        return 0
+    for index in range(min(kicker.max_words, len(words) - 1)):
+        if words[index].endswith(_KICKER_MARKS):
+            return index + 1
+    return max(1, min(len(words) // 3, 3))
+
+
+def _fits_units(text: str, font: Path, font_size: int, usable: int) -> bool:
+    units, height_units = advance_units(_drawn_text(text), font)
+    return units * font_size <= usable * height_units
+
+
+def _wrap_units(words: Sequence[str], font: Path, font_size: int, usable: int) -> list[str]:
+    """Greedy word wrap by exact ``hmtx`` advances; a word wider than a line is split."""
+    lines: list[str] = []
+    current = ""
+    for word in words:
+        candidate = f"{current} {word}" if current else word
+        if _fits_units(candidate, font, font_size, usable):
+            current = candidate
+            continue
+        if current:
+            lines.append(current)
+        pieces: list[str] = []
+        piece = ""
+        for character in word:
+            if piece and not _fits_units(piece + character, font, font_size, usable):
+                pieces.append(piece)
+                piece = ""
+            piece += character
+        pieces.append(piece)
+        lines.extend(pieces[:-1])
+        current = pieces[-1]
+    if current:
+        lines.append(current)
+    return lines
+
+
+def _design_layout(spec: HookDesign, hook: str, *, play_res: tuple[int, int], top: int,
+                   cut: bool) -> HookLayout:
+    """Lines, style and events of ``hook`` in a design other than the bar (CONTRACTS §5.31)."""
+    width, height = play_res
+    font = font_path(spec.font_file)
+    side = div_round_half_up(width * spec.side_margin_pm, 1000)
+    num, den = spec.outline_ratio
+    outline_cp = div_round_half_up(100 * height * num, den)
+    words = hook.split(" ")
+    lead = _kicker_count(words, spec.kicker) if spec.kicker is not None else 0
+    body = words[lead:]
+    overflow = cut
+    size, usable, lines = 1, 1, []
+    for ratio in spec.font_ratios_e5:
+        size = max(1, div_round_half_up(height * ratio, _E5))
+        edge = -(-outline_cp // 100)
+        if spec.box is not None:
+            edge = max(edge, div_round_half_up(size * spec.box.pad_x_pm, 1000))
+        usable = max(1, width - 2 * side - 2 * edge)
+        lines = _wrap_units(body, font, size, usable)
+        if len(lines) <= spec.max_lines:
+            break
+    else:
+        tail = " ".join(lines[spec.max_lines - 1:])
+        while len(tail) > 2 and not _fits_units(tail, font, size, usable):
+            tail = shorten_hook_text(tail, max_chars=len(tail) - 1)
+        lines = [*lines[:spec.max_lines - 1], tail]
+        overflow = True
+
+    fade = f"\\fad({spec.fade_in_ms},{spec.fade_out_ms})"
+    centre = _centi_text(50 * width)
+    pitch = div_round_half_up(size * spec.line_pitch_pm, 1000)
+    events: list[str] = []
+    shown = tuple(lines)
+    if spec.kicker is not None:
+        first = top + size
+        if lead:
+            kicker = " ".join(words[:lead])
+            kicker_size = max(1, div_round_half_up(size * spec.kicker.scale_pm, 1000))
+            if not _fits_units(kicker, font, kicker_size, usable):
+                units, height_units = advance_units(_drawn_text(kicker), font)
+                kicker_size = max(1, usable * height_units // units)
+            outline = _centi_text(div_round_half_up(outline_cp * kicker_size, size))
+            events.append(f"{{{fade}\\an2\\pos({centre},{top + kicker_size})\\q2"
+                          f"\\fs{kicker_size}\\bord{outline}\\1c{_inline_colour(spec.accent)}}}"
+                          f"{ass_escape(kicker)}")
+            first = (top + kicker_size + div_round_half_up(size * spec.kicker.gap_pm, 1000)
+                     + size)
+            shown = (kicker, *lines)
+        events += [f"{{{fade}\\an2\\pos({centre},{first + index * pitch})\\q2}}{ass_escape(line)}"
+                   for index, line in enumerate(lines)]
+    else:
+        box = spec.box
+        box_h = size - div_round_half_up(size * box.top_pm, 1000)
+        pad = div_round_half_up(size * box.pad_x_pm, 1000)
+        radius = div_round_half_up(size * box.radius_pm, 1000)
+        accent = _inline_colour(spec.accent)
+        first = top + box_h  # the first line's bottom: its box's top is the hook's top
+
+        def box_event(x: str, bottom: int, units: int, height_units: int) -> str:
+            box_w = div_round_half_up(size * units, height_units) + 2 * pad
+            return (f"{{{fade}\\an2\\pos({x},{bottom})\\bord0\\shad0\\1c{accent}\\p1}}"
+                    f"{_box_path(box_w, box_h, radius)}{{\\p0}}")
+
+        tokens = [token for line in lines for token in line.split(" ")]
+        boxed = boxed_word_index(tokens) if spec.layout == "keyword" else None
+        seen = 0
+        for index, line in enumerate(lines):
+            bottom = first + index * pitch
+            parts = line.split(" ")
+            if spec.layout == "block":
+                units, height_units = advance_units(_drawn_text(line), font)
+                events.append(box_event(centre, bottom, units, height_units))
+            if boxed is None or not seen <= boxed < seen + len(parts):
+                events.append(f"{{{fade}\\an2\\pos({centre},{bottom})\\q2}}{ass_escape(line)}")
+            else:
+                events += _keyword_line(parts, boxed - seen, font=font, size=size,
+                                        width=width, bottom=bottom, fade=fade,
+                                        on_accent=_inline_colour(spec.on_accent),
+                                        box_event=box_event)
+            seen += len(parts)
+    style = _style_line(
+        "Hook",
+        font_name=spec.font_family,
+        font_size=size,
+        primary=_ass_color(spec.text_colour),
+        secondary=_ass_color(spec.text_colour),
+        outline_color=_ass_color(spec.outline_colour),
+        back_color=_ass_color(spec.outline_colour),
+        bold=spec.bold,
+        border_style=1,
+        outline=_centi_text(outline_cp),
+        shadow="0",
+        alignment=2,
+        margin_side=side,
+        margin_vertical=0,
+    )
+    padding = div_round_half_up(size * spec.box.pad_x_pm, 1000) if spec.box is not None else 0
+    return HookLayout(size, padding, top, shown, overflow, style=style, events=tuple(events),
+                      layer=spec.layer)
+
+
+def _keyword_line(parts: Sequence[str], boxed: int, *, font: Path, size: int, width: int,
+                  bottom: int, fade: str, on_accent: str,
+                  box_event: Callable[[str, int, int, int], str]) -> list[str]:
+    """The line holding the boxed word, one ``\\pos`` event per word at its place in the line
+    centred on ``W/2`` (``hmtx`` advances, as Sorot), the box right before its word."""
+    advances = [advance_units(_drawn_text(part), font)[0] for part in parts]
+    space, height_units = advance_units(" ", font)
+    total = sum(advances) + space * (len(parts) - 1)
+    events, left = [], 0
+    for index, (part, advance) in enumerate(zip(parts, advances, strict=True)):
+        x = _centi_text(50 * width + div_round_half_up(100 * size * (2 * left + advance - total),
+                                                       2 * height_units))
+        if index == boxed:
+            events.append(box_event(x, bottom, advance, height_units))
+            events.append(f"{{{fade}\\an2\\pos({x},{bottom})\\q2\\bord0\\shad0\\1c{on_accent}}}"
+                          f"{ass_escape(part)}")
+        else:
+            events.append(f"{{{fade}\\an2\\pos({x},{bottom})\\q2}}{ass_escape(part)}")
+        left += advance + space
+    return events
 
 
 def _ass_time_cs(centiseconds: int) -> str:
@@ -1043,7 +1416,8 @@ def build_ass_v2(
     Emphasised words get the ``emphasis`` colour (defect #6); all text goes through
     ``ass_escape``. A ``box_style: vector`` pack draws each box as a ``\\p`` rectangle event
     right before its line (plan §5.4, the fallback if BorderStyle 3 fails P-TXT); a
-    ``word_box`` pack draws a rounded ``\\p`` box behind the spoken word (CONTRACTS §5.30).
+    ``word_box`` pack draws a rounded ``\\p`` box behind the spoken word (CONTRACTS §5.30). A
+    hook in a design other than the bar writes that design's style and events (§5.31).
     """
     if (not isinstance(play_res, (tuple, list)) or len(play_res) != 2
             or not all(_is_int(value) and value > 0 for value in play_res)):
@@ -1078,8 +1452,15 @@ def build_ass_v2(
             raise ValueError("hook starts after the clip")
         if not _is_int(hook.y_e5) or not 0 <= hook.y_e5 <= _E5:
             raise ValueError("hook y_e5 must be an integer 0-100000")
-        layout = layout_hook(hook.text, play_res=(width, height), y_e5=hook.y_e5)
-        if layout.lines:
+        layout = layout_hook(hook.text, play_res=(width, height), y_e5=hook.y_e5,
+                             design=hook.design)
+        if layout.events:
+            start = _ass_time_cs(max(0, safe_cs(hook.f0, fps)))
+            end_cs = _ass_time_cs(safe_cs(min(hook.f1, total_frames), fps))
+            events += [f"Dialogue: {layout.layer},{start},{end_cs},Hook,,0,0,0,,{text}"
+                       for text in layout.events]
+            styles.append(layout.style)
+        elif layout.lines:
             end = min(hook.f1, total_frames)
             events += _hook_events(
                 layout.lines, start=_ass_time_cs(max(0, safe_cs(hook.f0, fps))),

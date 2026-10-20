@@ -55,6 +55,7 @@ from pathlib import Path
 from typing import Any
 
 from ai_clipper.captions_ass import (
+    LEGACY_HOOK_DESIGN,
     CaptionPack,
     HookSpec,
     build_ass_v2,
@@ -62,7 +63,7 @@ from ai_clipper.captions_ass import (
     layout_hook,
     load_pack,
 )
-from ai_clipper.edit_v2 import PACK_DEFAULT_OVERRIDES, PACK_IDS
+from ai_clipper.edit_v2 import HOOK_DESIGN_IDS, PACK_DEFAULT_OVERRIDES, PACK_IDS
 from ai_clipper.edit_v2 import timemap as tm
 from ai_clipper.edit_v2.captions import caption_track
 from ai_clipper.edit_v2.glyphs import FONTS_DIR, RESOURCES_DIR
@@ -167,9 +168,11 @@ class PtimeCase:
 
     @property
     def background(self) -> str:
-        """FFmpeg colour behind the text: grey for the vector box (black on black is not seen)
-        and for Sorot, whose spoken word is dark and has no outline."""
-        return "gray" if self.box_style == "vector" or self.pack == "sorot" else "black"
+        """FFmpeg colour behind the text: grey for the vector box (black on black is not seen),
+        for Sorot, whose spoken word is dark and has no outline, and for the hook designs
+        other than the bar, which draw dark text on boxes (CONTRACTS §5.31)."""
+        designed = self.hook is not None and self.hook.design != LEGACY_HOOK_DESIGN
+        return "gray" if self.box_style == "vector" or self.pack == "sorot" or designed else "black"
 
 
 @dataclass(frozen=True)
@@ -209,6 +212,10 @@ def ptime_cases(quick: bool = False) -> tuple[PtimeCase, ...]:
                                box_style="vector"))
         cases.append(PtimeCase(f"{label}/hook0", fps, "classic", (),
                                HookSpec(HOOK_TEXT, 0, 120, 13000), 180))
+        # Every other hook design: its boxes, words and kicker switch on the bar's frames.
+        cases += [PtimeCase(f"{label}/hook0-{design}", fps, "classic", (),
+                            HookSpec(HOOK_TEXT, 0, 120, 13000, (design, 1)), 180)
+                  for design in HOOK_DESIGN_IDS if (design, 1) != LEGACY_HOOK_DESIGN]
     return tuple(cases)
 
 
@@ -250,8 +257,11 @@ def expected_events(case: PtimeCase) -> list[ExpectedEvent]:
             events += [ExpectedEvent(cue.f0, cue.f1, (), False, "caption")] * copies
     if case.hook is not None:
         end = min(case.hook.f1, case.total_frames)
-        lines = layout_hook(case.hook.text, play_res=case.play_res, y_e5=case.hook.y_e5).lines
-        events += [ExpectedEvent(case.hook.f0, end, (), True, "hook") for _ in lines]
+        layout = layout_hook(case.hook.text, play_res=case.play_res, y_e5=case.hook.y_e5,
+                             design=case.hook.design)
+        # The bar writes one event per line; the other designs their own events (§5.31).
+        events += [ExpectedEvent(case.hook.f0, end, (), True, "hook")
+                   for _ in layout.events or layout.lines]
     return events
 
 
@@ -670,6 +680,9 @@ GOLDEN_CASES = (
     ("sorot__c30", "valid/pack_sorot__c30.json", "c30"),
     ("words_max_1__c30", "valid/words_max_1__c30.json", "c30"),
     ("hook__c30", "valid/captions_disabled__c30.json", "c30"),
+    ("hook_kicker__c30", "valid/hook_design_kicker__c30.json", "c30"),
+    ("hook_blok__c30", "valid/hook_design_blok__c30.json", "c30"),
+    ("hook_kotak__c30", "valid/hook_design_kotak__c30.json", "c30"),
     ("full_example__c30", "valid/full_example__c30.json", "c30"),
     ("word_edits__c30", "valid/word_edits__c30.json", "c30"),
     ("karaoke__c24", "valid/seed__c24.json", "c24"),

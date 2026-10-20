@@ -162,6 +162,7 @@ class HookContext:
     selection: Mapping[str, str] | None  # title, hook_text, archetype, source of the V3 clip
     play_res: tuple[int, int]
     hook_y_e5: int
+    hook_design: tuple[str, int] = ("legacy-bar", 1)  # the item's design: fit and font follow it
 
 
 # --- the request -----------------------------------------------------------------------------------
@@ -470,6 +471,8 @@ def load_context(job: Path, clip: Path, request_raw: bytes) -> HookContext:
         current_hook=item["payload"]["text"] if item else None, seed_hook=seed_hook,
         selection=selection, play_res=(doc["output"]["w"], doc["output"]["h"]),
         hook_y_e5=item["transform"]["y_e5"] if item else DEFAULT_HOOK_Y_E5,
+        hook_design=((item["payload"]["design"]["id"], item["payload"]["design"]["v"]) if item
+                     else ("legacy-bar", 1)),
     )
 
 
@@ -495,10 +498,11 @@ def estimate_tokens(text: str) -> int:
 
 
 def fits(text: str, ctx: HookContext) -> bool:
-    """Whether ``text`` fits three hook lines at the render layout (``hook_overflow`` otherwise)."""
+    """Whether ``text`` fits the hook's design at the render layout (``hook_overflow`` otherwise)."""
     from .captions_ass import layout_hook
 
-    return not layout_hook(text, play_res=ctx.play_res, y_e5=ctx.hook_y_e5).overflow
+    return not layout_hook(text, play_res=ctx.play_res, y_e5=ctx.hook_y_e5,
+                           design=ctx.hook_design).overflow
 
 
 def _forms(token: str) -> set[str]:
@@ -674,12 +678,12 @@ def grounding_problem(text: str, clip_text: str) -> str | None:
     return None
 
 
-def _missing_glyphs(text: str) -> bool:
-    from .edit_v2.captions import HOOK_FONT_FILE
+def _missing_glyphs(text: str, ctx: HookContext) -> bool:
+    from .captions_ass import hook_font_file
     from .edit_v2.glyphs import font_path, missing_glyphs
 
     return any(not character.isspace() for character in
-               missing_glyphs(text, font_path(HOOK_FONT_FILE)))
+               missing_glyphs(text, font_path(hook_font_file(ctx.hook_design))))
 
 
 def hook_problem(text: str, ctx: HookContext) -> str | None:
@@ -697,7 +701,7 @@ def hook_problem(text: str, ctx: HookContext) -> str | None:
         return "handle"
     if _HASHTAG.search(text):
         return "hashtag"
-    if _EMOJI.search(text) or _missing_glyphs(text):
+    if _EMOJI.search(text) or _missing_glyphs(text, ctx):
         return "emoji"
     packaging = packaging_problem(text, ctx.clip_text, title=False)
     if packaging in {"disfluent", "truncated_quote"}:

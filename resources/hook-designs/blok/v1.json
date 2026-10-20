@@ -1,0 +1,21 @@
+{
+  "schema": "potongin.hook-design/1",
+  "id": "blok",
+  "v": 1,
+  "name": "Blok",
+  "layout": "block",
+  "font": {"family": "Montserrat ExtraBold", "file": "Montserrat-ExtraBold.ttf", "bold": false},
+  "font_ratios_e5": [5200, 4800, 4400, 4000, 3600, 3300, 3000, 2700],
+  "max_lines": 3,
+  "max_chars": 90,
+  "side_margin_pm": 60,
+  "line_pitch_pm": 1100,
+  "outline": {"num": 0, "den": 1},
+  "colours": {"text": "#111111", "outline": "#000000", "accent": "#FFE14D", "on_accent": "#111111"},
+  "box": {"pad_x_pm": 260, "top_pm": 60, "radius_pm": 120},
+  "kicker": null,
+  "fade_in_ms": 150,
+  "fade_out_ms": 250,
+  "default_y_e5": 13000,
+  "layer": 1
+}
