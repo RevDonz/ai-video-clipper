@@ -8,7 +8,7 @@ Reaching the application quota or minimum-free-space watermark blocks admission 
 
 ## The one exception: explicit user-initiated deletion
 
-An authenticated person may delete a specific project through `DELETE /api/jobs/<id>`, from the delete control on the project history page. This is the only path that removes job data, and it is deliberately the opposite of automated retention: one named job, chosen by a person, never triggered by age, quota, failure, or a schedule. Nothing in the application may call it on its own behalf.
+An authenticated person may delete a specific project through `DELETE /api/jobs/<id>`, from the delete control on the project history page. This is the only path that removes a job ("Batalkan", below, removes only the partial files of the run it stops), and it is deliberately the opposite of automated retention: one named job, chosen by a person, never triggered by age, quota, failure, or a schedule. Nothing in the application may call it on its own behalf.
 
 Deletion is permanent and asynchronous:
 
@@ -23,6 +23,30 @@ A reservation stops counting once its request resolves to an export that complet
 
 A crash between any two steps is safe. The tombstone survives, and the next purge pass finishes the work; a tombstone whose directory is already gone is simply retired.
 
+## Cancelling a job
+
+"Batalkan" on a queued or running job (dashboard and project page; `POST /api/jobs/<id>/cancel`)
+is a person's action on one named job too, and it removes less than deletion:
+
+1. Under the primary queue lock the job is marked `cancelled` (a terminal state, distinct from
+   `failed`), its lease is revoked and `cancellation.safeAfter` records when the old lease would
+   have lapsed. A leftover `.primary-reservations/<id>.json` is removed, and the job stops
+   counting as active, so its work reserve is released at once. Cancelling a finished job changes
+   nothing (`409 job_finished`); cancelling twice answers the same.
+2. The runner checks its lease every second without the lock. Once it is gone the runner sends
+   SIGTERM to the child's process group and to every descendant that left the group (the engine
+   runs some FFmpeg passes in their own session), and SIGKILL to whatever is still running after
+   five seconds. Processes are found through `/proc` and identified by pid and start time, so a
+   reused pid is never signalled.
+3. With its processes stopped, the runner removes only its own attempt directory,
+   `.attempts/<attempt>/`: the partial download, analysis and output of the run that was stopped.
+   `job.json`, `worker.log`, an uploaded source in `input/` and the work of earlier attempts stay.
+4. Deleting the project afterwards still waits for `cancellation.safeAfter`, so the purge never
+   races a runner that is still stopping.
+
+If the runner is gone before step 3 (a worker restart), the attempt directory stays as retained
+data; deleting the project removes it.
+
 ## What is and is not retained job data
 
 A published job root and everything beneath it are retained job data, including inputs, download results, analysis, attempt work, partial artifacts, outputs, metadata, and terminal failure evidence. Hidden, malformed, or incomplete directories beneath the jobs root still consume quota and must not be treated as disposable.
@@ -33,7 +57,7 @@ The queue protocol may clean up only protocol metadata that is not a job or arti
 - an expired queue lock; or
 - a reservation record before any job root or job bytes exist.
 
-That narrow protocol cleanup is not a retention mechanism. Once bytes have been written to a UUID job root, the root and partial data must be preserved; protocol cleanup must never recurse into it.
+That narrow protocol cleanup is not a retention mechanism. Once bytes have been written to a UUID job root, the root and partial data must be preserved; protocol cleanup must never recurse into it. Only the two person-initiated actions above remove job bytes.
 
 ## The editor's own retention (plan §4.1, §4.4, K11)
 
