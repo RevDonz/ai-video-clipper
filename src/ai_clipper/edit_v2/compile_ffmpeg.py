@@ -437,9 +437,12 @@ class _Compiler:
         filter contexts however many cuts there are. The camera crop x of output frame ``n``
         is the plan's value at the source frame it shows, so a plate cell and a final render
         crop any source frame at the same x. ``suffix`` keeps fit_blur's internal labels unique
-        when a job holds several chains (plate runs).
+        when a job holds several chains (plate runs). With the no-face fallback (§5.28) the
+        frames of the camera plan's runs without a face are chosen the same way, per source
+        frame.
         """
         crop = None
+        fallback = None
         if self.plan.layout == "camera":
             if self.plan.camera is None:
                 raise errors.AnalysisMissing("analysis_missing", ref="camera")
@@ -448,10 +451,15 @@ class _Compiler:
                 crop.extend(layouts.crop_positions(
                     self.plan.camera, self.fps, source=(self.streams.width, self.streams.height),
                     output=self.plan.output, first_sf=in_sf, count=out_sf - in_sf))
+            if self.plan.no_face == "fit_blur":
+                fallback = []
+                for in_sf, out_sf in ranges:
+                    fallback.extend(layouts.no_face_frames(
+                        self.plan.camera, self.fps, first_sf=in_sf, count=out_sf - in_sf))
         return layouts.layout_chain(
             self.plan.layout, label_in=label_in, label_out=label_out, suffix=suffix,
             output=self.plan.output, source=(self.streams.width, self.streams.height),
-            matrix=self.matrix, in_range=self.in_range, crop=crop)
+            matrix=self.matrix, in_range=self.in_range, crop=crop, fallback=fallback)
 
     def decoded(self, branches: Sequence[tuple[int, int, int]],
                 runs: Sequence[Sequence[int]], *, video: bool, audio: bool) -> None:

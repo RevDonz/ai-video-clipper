@@ -121,6 +121,27 @@ def test_plate_key_names_the_camera_plan_and_the_toolchain(contexts):
         plates.plate_key(seed, toolchain_sha256="nope")
 
 
+def test_plate_key_names_the_no_face_fallback_of_face_track_only(contexts):
+    """The latar blur fallback changes face-track pixels, so it is part of that key; every key
+    without it is the one computed before the fallback existed (pinned), so cached cells stay."""
+    seed = contexts["c30"].seed
+    camera = with_layout(seed, "camera")
+    assert plates.plate_key(seed) == (
+        "d7652b0314bba8191537175eb59413c9edef18e3b99492e20e7b36cd6786b115")
+    assert plates.plate_key(camera, camera_sha256="1" * 64) == (
+        "97adf1de49c9aecc6e7ce09e63e2e15e0bf9c1a238b01a88bddc32f660b3c666")
+    assert plates.plate_key(camera, camera_sha256="1" * 64, toolchain_sha256="3" * 64) == (
+        "ceb895cc4bdc7bc79181e3abd802f2f03276d97479bbc3daf3230bce924e4b34")
+    blurred = copy.deepcopy(camera)
+    blurred["layout"]["default"]["no_face"] = "fit_blur"
+    assert plates.plate_key(blurred, camera_sha256="1" * 64) != plates.plate_key(
+        camera, camera_sha256="1" * 64)
+    # the other layouts show no camera, so the fallback means nothing to them
+    plain = copy.deepcopy(seed)
+    plain["layout"]["default"]["no_face"] = "fit_blur"
+    assert plates.plate_key(plain) == plates.plate_key(seed)
+
+
 def test_cell_names_are_flat_content_keyed_names():
     assert plates.cell_name(KEY, 0) == "abababababababab-c0000000.mp4"
     assert plates.cell_name(KEY, 620) == "abababababababab-c0000620.mp4"

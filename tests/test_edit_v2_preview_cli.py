@@ -136,6 +136,12 @@ CLIP = "clip_" + "a" * 24
     b'{"op": "cells", "jobId": "' + JOB.encode() + b'", "clipId": "' + CLIP.encode()
     + b'", "layout": "fit_blur", "cells": [1], "cancelToken": "../x"}',
     b'{"op": "cells", "jobId": "' + JOB.encode() + b'", "clipId": "' + CLIP.encode()
+    + b'", "layout": "camera", "noFace": "left", "cells": [1], "cancelToken": null}',
+    b'{"op": "cells", "jobId": "' + JOB.encode() + b'", "clipId": "' + CLIP.encode()
+    + b'", "layout": "camera", "noFace": "center", "cells": [1], "cancelToken": null}',
+    b'{"op": "prepare", "jobId": "' + JOB.encode() + b'", "clipId": "' + CLIP.encode()
+    + b'", "layout": "camera", "noFace": "fit_blur"}',
+    b'{"op": "cells", "jobId": "' + JOB.encode() + b'", "clipId": "' + CLIP.encode()
     + b'", "layout": "fit_blur", "cells": ' + json.dumps(list(range(65))).encode()
     + b', "cancelToken": null}',
     b'{"op": "derive", "jobId": "' + JOB.encode() + b'", "clipId": "' + CLIP.encode()
@@ -269,9 +275,9 @@ def test_the_ass_is_omitted_when_the_client_already_has_it(c30):
 def test_the_lane_section_tells_node_what_to_build(c30):
     result = ok(plan(c30, playhead=150))
     dto, lane = result["dto"], result["lane"]
-    assert set(lane) == {"playhead", "layout", "plateKey", "cellFrames", "cells", "missing",
-                         "audio", "logo", "frameKey"}
-    assert lane["playhead"] == 150
+    assert set(lane) == {"playhead", "layout", "noFace", "plateKey", "cellFrames", "cells",
+                         "missing", "audio", "logo", "frameKey"}
+    assert lane["playhead"] == 150 and lane["noFace"] is None
     assert lane["layout"] == "fit_blur" and lane["plateKey"] == dto["plate"]["plateKey"]
     assert lane["cells"] == [cell["k"] for cell in dto["plate"]["cells"]] == lane["missing"]
     assert lane["audio"] == {"key": dto["audio"]["mixSha256"], "ready": False}
@@ -629,6 +635,32 @@ def test_the_camera_layout_needs_a_camera_plan(c30):
     assert dto["plate"]["plateKey"] != ok(plan(c30))["dto"]["plate"]["plateKey"]
 
 
+def test_the_blur_fallback_has_its_own_plate_and_notes(c30):
+    """CONTRACTS §5.28: face-track with ``no_face: "fit_blur"`` names the fallback to the lane
+    (the cells op builds that plate) and lists its runs as ``no_face_blur``."""
+    doc = valid("layout_camera_no_face_blur__c30")
+    centred = valid("layout_camera__c30")
+    window = c30["seed"]["base"]["window_ms"]
+    body = c30["seed"]["main"]["segments"][-1]
+    start = body["in_sf"] * 1001 // 30 + 2000
+    spans = [[start, start + 2500], [start + 6000, start + 8000]]
+    sha, _path = write_camera(c30["clip"], camera_plan(doc, no_face=spans))
+    assert window[0] < start < window[1]
+    result = ok(plan(c30, doc))
+    dto, lane = result["dto"], result["lane"]
+    assert lane["layout"] == "camera" and lane["noFace"] == "fit_blur"
+    assert lane["plateKey"] == dto["plate"]["plateKey"] == plates.plate_key(doc, camera_sha256=sha)
+    # one entry per run: the frame tells two runs apart (they share code and path)
+    notes = [w for w in dto["warnings"] if w["code"].startswith("no_face")]
+    assert [w["code"] for w in notes] == ["no_face_blur", "no_face_blur"]
+    assert notes[0]["f"] < notes[1]["f"]
+    other = ok(plan(c30, centred))
+    assert other["lane"]["noFace"] is None
+    assert other["lane"]["plateKey"] != lane["plateKey"]
+    assert [(w["code"], w["f"]) for w in other["dto"]["warnings"]
+            if w["code"].startswith("no_face")] == [("no_face", note["f"]) for note in notes]
+
+
 def test_a_read_only_document_is_planned_with_its_own_words(tmp_path, contexts):
     context = contexts["c30"]
     clip = make_clip(tmp_path, context)
@@ -694,10 +726,13 @@ def test_prepare_reports_the_artifacts_and_the_cells_of_the_current_document(job
 
 def test_prepare_builds_the_camera_plan_for_the_face_track_layout(job):
     case = job_case(job, 1)
+    # the document SetLayout makes: face-track chosen in the editor uses the blur fallback
     doc = with_layout(case["seed"], "camera")
+    doc["layout"]["default"]["no_face"] = "fit_blur"
     assert_error(plan(case, doc), 8, "analysis_missing")
     result = ok(op(case, "prepare", layout="camera"))
     assert result["camera"] == "ready" and result["layout"] == "camera"
+    assert result["noFace"] == "fit_blur"
     files = sorted(case["clip"].glob("camera.*.json"))
     assert len(files) == 1 and stat.S_IMODE(files[0].stat().st_mode) == 0o600
     camera = json.loads(files[0].read_bytes())
@@ -708,6 +743,23 @@ def test_prepare_builds_the_camera_plan_for_the_face_track_layout(job):
     again = ok(op(case, "prepare", layout="camera"))  # idempotent: nothing new is written
     assert again["plateKey"] == result["plateKey"]
     assert sorted(case["clip"].glob("camera.*.json")) == files
+
+
+def test_prepare_and_cells_build_the_plate_of_the_blur_fallback(job):
+    case = job_case(job, 1)
+    doc = with_layout(case["seed"], "camera")
+    doc["layout"]["default"]["no_face"] = "fit_blur"
+    prepared = ok(op(case, "prepare", layout="camera"))
+    lane = ok(plan(case, doc))["lane"]
+    assert lane["noFace"] == "fit_blur" and lane["plateKey"] == prepared["plateKey"]
+    wanted = lane["cells"][:1]
+    built = ok(op(case, "cells", layout="camera", noFace="fit_blur", cells=wanted,
+                  cancelToken=None))
+    assert built == {"plateKey": lane["plateKey"], "built": wanted, "present": []}
+    # without noFace the cells op builds the centred face-track plate, as before
+    centred = ok(op(case, "cells", layout="camera", cells=wanted, cancelToken=None))
+    assert centred["plateKey"] == ok(plan(case, with_layout(case["seed"], "camera")))[
+        "lane"]["plateKey"] != lane["plateKey"]
 
 
 def test_cells_are_published_once_under_their_plate_key(job):

@@ -148,7 +148,7 @@ class RenderPlan:
     music: Mapping[str, Any] | None = None  # the music item of the document, if any
     speech_envelope: tuple[tuple[int, int], ...] = ()  # envelope.speech_envelope (T1.4)
     music_envelope: tuple[tuple[int, int], ...] | None = None  # envelope.music_envelope
-    warnings: tuple[Issue, ...] = ()  # caption, camera (no_face) and logo (unsafe_zone)
+    warnings: tuple[Issue, ...] = ()  # caption, camera (no_face[_blur]), logo (unsafe_zone)
     fonts_sha256: str | None = None  # resources/fonts/fonts.json; None when missing
     packs_sha256: str | None = None  # the pack and hook design the document uses
     resources: Resources | None = None
@@ -162,6 +162,11 @@ class RenderPlan:
     @property
     def layout(self) -> str:
         return self.doc["layout"]["default"]["mode"]
+
+    @property
+    def no_face(self) -> str:
+        """What face-track shows where no face was found: ``center`` or ``fit_blur`` (§5.28)."""
+        return self.doc["layout"]["default"]["no_face"]
 
     @property
     def ass(self) -> str | None:
@@ -300,16 +305,22 @@ def unsafe_zone_issues(doc: Mapping, assets: Mapping[str, Mapping], output: tupl
     return tuple(issues)
 
 
-def _no_face(camera: Mapping, pieces: Sequence[Piece], fps: Fps) -> tuple[Issue, ...]:
-    """One ``no_face`` warning per (span, piece) overlap, at the output frame where it starts."""
+def _no_face(camera: Mapping, pieces: Sequence[Piece], fps: Fps,
+             no_face: str = "center") -> tuple[Issue, ...]:
+    """One issue per (span, piece) overlap, at the output frame where it starts: the warning
+    ``no_face`` (the video is centred there) or, with the blur fallback, ``no_face_blur``
+    (shown with latar blur; the editor lists it as a note, §5.28)."""
+    if no_face == "fit_blur":
+        code, path = "no_face_blur", "/layout/default/no_face"
+    else:
+        code, path = "no_face", "/layout/default/mode"
     issues = []
     scale = 1000 * fps.den
     for start_ms, end_ms in camera.get("no_face", ()):
         for piece in pieces:
             if start_ms * fps.num < piece.out_sf * scale and end_ms * fps.num > piece.in_sf * scale:
                 first = max(tm.sf_floor(start_ms, fps), piece.in_sf)
-                issues.append(Issue("no_face", "/layout/default/mode",
-                                    f=piece.out_f0 + first - piece.in_sf))
+                issues.append(Issue(code, path, f=piece.out_f0 + first - piece.in_sf))
     return tuple(issues)
 
 
@@ -370,7 +381,8 @@ def build_plan(
             spans, music_item, total_samples, fps))
     warnings = [*caption.warnings]
     if used_camera is not None:
-        warnings.extend(_no_face(used_camera, pieces, fps))
+        warnings.extend(_no_face(used_camera, pieces, fps,
+                                 doc["layout"]["default"]["no_face"]))
     warnings.extend(unsafe_zone_issues(doc, assets, output, parts=("logo",)))
     plan = RenderPlan(
         doc=doc,

@@ -7,7 +7,9 @@ of a compiled render (plate cells and final) is decoded, its barcode frame index
 (``support.edit_v2_media``) and compared with the grid frame the time map says it must show.
 Two cases put the body on the source edges with the production rule (``source_info`` grid,
 ``seed.grid_window_ms``): a 29.97 source whose last frame ends between two ms, and a 23.976
-video that starts 41 ms late (no grid frame 0). Plate-cell frames below the document's window
+video that starts 41 ms late (no grid frame 0). The ``no_face_blur`` cases run face-track with
+the latar blur fallback (CONTRACTS §5.28): a frame of a run without a face is read with the
+fit-blur geometry, and P-PLATE checks the crop x of the other frames only. Plate-cell frames below the document's window
 (the cloned head of a late-starting source's cell 0) are counted, never compared: no document
 can show them.
 
@@ -465,12 +467,16 @@ class Case:
     # The cold-open transition (spec 2026-10-02): the join's style and the whoosh.
     join_style: str = "cut"
     whoosh: bool = False
+    # layout.default.no_face (CONTRACTS §5.28): "fit_blur" shows face-track's runs without a
+    # face (make_camera has one at 3.0-5.25 s) with the fit-blur layout.
+    no_face: str = "center"
 
 
 P_FRAME_CASES = (
     Case("cfr_29.97", (30000, 1001), 900, "fit_blur", hook=True),
     Case("cfr_25", (25, 1), 760, "fill_center"),
     Case("cfr_30", (30, 1), 900, "camera"),
+    Case("cfr_30_no_face_blur", (30, 1), 900, "camera", no_face="fit_blur"),
     Case("vfr_30", (30, 1), 900, "fit_blur", vfr=True, drop_every=11),
     # the source edges: 902 frames at 29.97 end at 30,096.73 ms (duration_ms 30,097 rounds up),
     # and a 23.976 video that starts 41 ms after the audio has no grid frame 0
@@ -491,10 +497,11 @@ JOIN_DET_CASES = (
     Case("join_29.97_flash_whoosh", (30000, 1001), 900, "fit_blur", hook=True,
          join_style="flash_white", whoosh=True),
 )
-P_PLATE_CASES = tuple(
+P_PLATE_CASES = (*(
     Case(f"plate_{layout}", (30000, 1001), 900, layout, cuts=10, captions=False)
     for layout in ("fit_blur", "fill_center", "camera")
-)
+), Case("plate_camera_no_face_blur", (30000, 1001), 900, "camera", cuts=10, captions=False,
+        no_face="fit_blur"))
 PF_RENDER_CASES = tuple(
     Case(f"pf_60s_{layout}", (30000, 1001), 2_000, layout, source_size=(1280, 720), cuts=5,
          hook=True)
@@ -604,6 +611,7 @@ class Workspace:
                        hook=("Hook sintetis", 45) if case.hook else None, logo=logo,
                        assets=assets, join_style=case.join_style, whoosh=case.whoosh)
         doc["base"]["window_ms"] = window_ms
+        doc["layout"]["default"]["no_face"] = case.no_face
         camera = (make_camera(duration_ms, case.fps, case.source_size, case.output)
                   if case.layout == "camera" else None)
         self.clips[case.name] = {"case": case, "source": source, "doc": doc,
@@ -690,11 +698,23 @@ def geometry(layout: str, source: tuple[int, int], output: tuple[int, int]) -> d
     return {"scale": scaled_h / src_h, "top": (out_h - scaled_h) / 2}
 
 
-def index_decoder(case: Case) -> Callable[[bytes], int | None]:
-    """Frame index of an output luma plane of ``case`` (``None`` when unreadable)."""
+def fallback_frames(case: Case, plan: Any) -> frozenset[int]:
+    """The source-grid frames ``case`` shows with the no-face fallback (fit-blur geometry)."""
+    from ai_clipper.edit_v2 import layouts
+
+    if case.layout != "camera" or case.no_face != "fit_blur":
+        return frozenset()
+    count = max(piece.out_sf for piece in plan.pieces)
+    flags = layouts.no_face_frames(plan.camera, plan.fps, first_sf=0, count=count)
+    return frozenset(sf for sf, shown in enumerate(flags) if shown)
+
+
+def index_decoder(case: Case, layout: str | None = None) -> Callable[[bytes], int | None]:
+    """Frame index of an output luma plane of ``case`` (``None`` when unreadable), read with
+    the geometry of ``layout`` (default: the case's)."""
     media = _media()
     pattern = media.Pattern.for_size(*case.source_size)
-    where = geometry(case.layout, case.source_size, case.output)
+    where = geometry(layout or case.layout, case.source_size, case.output)
     width, height = case.output
 
     def decode(plane: bytes) -> int | None:
@@ -753,17 +773,25 @@ def p_frame(ws: Workspace, cases: Sequence[Case] = P_FRAME_CASES) -> dict[str, A
         def at(sf: int, grid=grid, first=first, end=end) -> int | None:
             return grid[sf - first] if first <= sf < end else None
 
-        index_of = index_decoder(case)
-        expected = [at(tm.out_to_src(n, plan.pieces)[1]) for n in range(plan.total_frames)]
-        final = [index_of(p) for p in iter_gray_frames(ws.render(case, "final")["path"],
-                                                        case.output)]
+        fallback = fallback_frames(case, plan)
+        decoders = {False: index_decoder(case), True: index_decoder(case, "fit_blur")}
+
+        def index_of(plane: bytes, sf: int, fallback=fallback, decoders=decoders) -> int | None:
+            return decoders[sf in fallback](plane)
+
+        sources = [tm.out_to_src(n, plan.pieces)[1] for n in range(plan.total_frames)]
+        expected = [at(sf) for sf in sources]
+        final = [index_of(p, sources[n]) if n < len(sources) else None
+                 for n, p in enumerate(iter_gray_frames(ws.render(case, "final")["path"],
+                                                        case.output))]
         cells = ws.cells(case)
         size = cells["cell_frames"]
         decoded: dict[int, list[int | None]] = {}
         cell_frames = cell_mismatches = short_cells = padded = 0
         for k in cells["cells"]:
             path = cells["dir"] / f"c{k:07d}.mp4"
-            decoded[k] = [index_of(p) for p in iter_gray_frames(path, case.output)]
+            decoded[k] = [index_of(p, k * size + i)
+                          for i, p in enumerate(iter_gray_frames(path, case.output))]
             within = max(0, min(size, end - k * size))
             short_cells += len(decoded[k]) != within
             for i, value in enumerate(decoded[k][:within]):
@@ -806,6 +834,8 @@ def p_frame(ws: Workspace, cases: Sequence[Case] = P_FRAME_CASES) -> dict[str, A
             "body": [plan.doc["main"]["segments"][-1]["in_sf"],
                      plan.doc["main"]["segments"][-1]["out_sf"]],
             "plate_frames_below_window": padded,
+            "no_face": case.no_face,
+            "fallback_output_frames": sum(sf in fallback for sf in sources),
         })
     totals = {
         "final_frames": sum(r["final_frames"] for r in results),
@@ -914,6 +944,7 @@ def p_plate(ws: Workspace, cases: Sequence[Case] = P_PLATE_CASES) -> dict[str, A
                 table = None
             center = (scaled[0] - case.output[0]) // 2
             crop_x = crop_decoder(case)
+            fallback = fallback_frames(case, plan)  # fit-blur frames: no crop x to read
             cell_frames = tm.cell_frames(plan.fps)
             boundaries = {"cut_frames": 0, "cell_edge_frames": 0}
             counts = {"plate": 0, "reference": 0, "final": 0}
@@ -921,16 +952,20 @@ def p_plate(ws: Workspace, cases: Sequence[Case] = P_PLATE_CASES) -> dict[str, A
                                  for f in plate_sequence(ws, case)),
                        "reference": iter_gray_frames(reference, case.output),
                        "final": iter_gray_frames(final, case.output)}
+            checked = 0
             for n, planes in enumerate(zip(sources["plate"], sources["reference"],
                                            sources["final"])):
                 piece, sf = tm.out_to_src(n, plan.pieces)
                 want = table[sf] if table is not None else center
-                for name, plane in zip(("plate", "reference", "final"), planes):
-                    counts[name] += crop_x(plane) != want
+                if sf not in fallback:
+                    checked += 1
+                    for name, plane in zip(("plate", "reference", "final"), planes):
+                        counts[name] += crop_x(plane) != want
                 boundaries["cut_frames"] += n in (piece.out_f0, piece.out_f0 + piece.frames - 1)
                 boundaries["cell_edge_frames"] += sf % cell_frames in (0, cell_frames - 1)
             entry["crop_x_mismatches"] = counts
-            entry["crop_x_frames_checked"] = plan.total_frames
+            entry["crop_x_frames_checked"] = checked
+            entry["fallback_output_frames"] = plan.total_frames - checked
             entry.update(boundaries)
             entry["distinct_crop_x"] = (len({table[tm.out_to_src(n, plan.pieces)[1]]
                                              for n in range(plan.total_frames)})

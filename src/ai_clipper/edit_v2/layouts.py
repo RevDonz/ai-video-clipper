@@ -17,6 +17,14 @@ The chains start from ``render.py``'s filter strings, imported and not modified
 
 The compiler applies one chain per plate run and one per render, after the pieces are joined
 (``compile_ffmpeg``, R4): the chain is per frame, so this equals a chain per piece.
+
+**The no-face fallback** (``layout.default.no_face: "fit_blur"``, CONTRACTS §5.28). Under
+``camera`` a source-grid frame that a camera-plan ``no_face`` span touches
+(:func:`no_face_frames`) is shown as ``fit_blur``. The chain is fit-blur's with three switches
+indexed by ``n`` like the crop: the crop x is the centre there (fit-blur's background crop),
+``gblur`` is enabled there, and the foreground's alpha is cleared elsewhere (``lutyuv=a=0``), so
+``overlay`` leaves the camera crop untouched. Each frame is therefore exactly the camera frame
+or the fit-blur frame. Without such a frame the chain is today's camera chain, byte for byte.
 """
 
 from __future__ import annotations
@@ -25,12 +33,15 @@ from bisect import bisect_right
 from collections.abc import Mapping, Sequence
 from itertools import pairwise
 from pathlib import Path
+from typing import Any
 
 from ..render import _layout_filter
 from .timemap import Fps, div_round_half_up
 
 # layout.default.mode values (plan §3.3): fit-blur, face-track, center-crop.
 LAYOUT_MODES = ("fit_blur", "camera", "fill_center")
+# layout.default.no_face values: what face-track shows where no face was found (§5.28).
+NO_FACE_MODES = ("center", "fit_blur")
 
 WORKING_FORMAT = "yuv444p"  # every layout branch leaves in 4:4:4, BT.709, tv range
 OVERLAY_FORMAT = "yuva444p"  # the fit-blur foreground: overlay's yuv444 mode needs alpha
@@ -79,6 +90,28 @@ def scaled_size(source: tuple[int, int], output: tuple[int, int]) -> tuple[int, 
     width = (out_h * src_w + src_h // 2) // src_h
     height = (out_w * src_h + src_w // 2) // src_w
     return max(width, out_w), max(height, out_h)
+
+
+def centre_x(source: tuple[int, int], output: tuple[int, int]) -> int:
+    """The x of a centred crop of the scaled source: ``crop``'s default ``(in_w-out_w)/2``,
+    which FFmpeg stores in an int (truncated); fit-blur's background and center-crop use it."""
+    return (scaled_size(source, output)[0] - output[0]) // 2
+
+
+def no_face_frames(camera: Mapping, fps: Fps, *, first_sf: int,
+                   count: int) -> tuple[bool, ...]:
+    """Whether source-grid frames ``first_sf … first_sf+count−1`` show a run without a face.
+
+    A camera-plan span ``[s_ms, e_ms)`` covers the frames it touches, ``[sf_floor(s),
+    sf_ceil(e))`` (a segment edge's rule, §3.4), so the first one is the frame the plan's
+    ``no_face`` warning jumps to. Integers only: ``k`` is inside when ``k·1000·den < e·num``
+    and ``(k+1)·1000·den > s·num``.
+    """
+    scale = 1000 * fps.den
+    spans = [(start * fps.num, end * fps.num) for start, end in camera.get("no_face", ())]
+    return tuple(
+        any(sf * scale < end and (sf + 1) * scale > start for start, end in spans)
+        for sf in range(first_sf, first_sf + count))
 
 
 def crop_positions(
@@ -180,9 +213,11 @@ def layout_chain(
     matrix: str,
     in_range: str,
     crop: Sequence[int] | None = None,
+    fallback: Sequence[bool] | None = None,
 ) -> str:
     """The layout chain of one branch, from ``label_in`` to ``label_out`` (yuv444p, BT.709, tv,
-    SAR 1). ``crop`` holds the camera crop x per frame of the branch (``camera`` only).
+    SAR 1). ``crop`` holds the camera crop x per frame of the branch (``camera`` only), and
+    ``fallback`` per frame whether it shows the no-face fallback (``camera`` only, §5.28).
 
     ``suffix`` keeps the internal labels of fit-blur unique (``[background<suffix>]`` …).
     """
@@ -190,6 +225,13 @@ def layout_chain(
         raise ValueError(f"unknown layout mode: {mode}")
     if in_range not in ("tv", "pc"):
         raise ValueError("in_range must be tv or pc")
+    if fallback is not None:
+        if mode != "camera" or crop is None or len(fallback) != len(crop):
+            raise ValueError("the fallback needs the camera layout and one flag per crop x")
+        if any(fallback):
+            return _fallback_chain(crop, fallback, label_in=label_in, label_out=label_out,
+                                   suffix=suffix, output=output, source=source, matrix=matrix,
+                                   in_range=in_range)
     width, height = output
     legacy = _layout_filter(Path(), input_label=label_in, start=0.0, end=0.0, width=width,
                             height=height, render_mode=_LEGACY_MODE[mode], label_suffix=suffix)
@@ -216,12 +258,36 @@ def layout_chain(
     return chain + label_out
 
 
+def _fallback_chain(crop: Sequence[int], fallback: Sequence[bool], **chain: Any) -> str:
+    """The camera chain with the no-face fallback (module notes): fit-blur's chain whose
+    background crop follows the camera, blurred only on fallback frames, and whose foreground
+    is transparent on the others. Every fallback frame: the fit-blur chain."""
+    output, source = chain["output"], chain["source"]
+    fit_blur = layout_chain("fit_blur", **chain)
+    if all(fallback):
+        return fit_blur
+    width, height = output
+    sigma = blur_sigma(height)
+    centre = centre_x(source, output)
+    x = crop_expression([centre if shown else value for value, shown in zip(crop, fallback)])
+    blurred = crop_expression([int(shown) for shown in fallback])
+    hidden = crop_expression([int(not shown) for shown in fallback])
+    fit_blur = _replace_once(fit_blur, f"crop={width}:{height},gblur=sigma={sigma}[",
+                             f"crop={width}:{height}:x='{x}':y=(ih-oh)/2,"
+                             f"gblur=sigma={sigma}:enable='{blurred}'[")
+    return _replace_once(fit_blur, f"{OVERLAY_FORMAT}[",
+                         f"{OVERLAY_FORMAT},lutyuv=a=0:enable='{hidden}'[")
+
+
 __all__ = [
     "LAYOUT_MODES",
+    "NO_FACE_MODES",
     "blur_sigma",
+    "centre_x",
     "color_matrix",
     "crop_expression",
     "crop_positions",
     "layout_chain",
+    "no_face_frames",
     "scaled_size",
 ]
