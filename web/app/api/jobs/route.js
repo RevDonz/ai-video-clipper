@@ -10,6 +10,7 @@ import { readEditorFlags } from "../../../lib/editor/flags.mjs";
 import { sameOriginMutation } from "../../../lib/request-security.mjs";
 import {
   RetiredSelectionModeError,
+  TimeRangeError,
   jobOptionInputFromForm,
   normalizeYouTubeUrl,
   parseJobOptions,
@@ -64,7 +65,8 @@ export function validatePrimaryRequestLength(headers, env = process.env) {
 }
 
 export function parseJobFormOptions(form) {
-  // Every job form field parseJobOptions reads, including the Fokus klip focusTerms/focusNote.
+  // Every job form field parseJobOptions reads, including the Fokus klip focusTerms/focusNote
+  // and the Rentang waktu timeRanges.
   return parseJobOptions(jobOptionInputFromForm(form));
 }
 
@@ -302,6 +304,10 @@ export async function POST(request) {
     }
     if (error instanceof RetiredSelectionModeError) {
       return postJson({ error: RETIRED_SELECTION_MESSAGE, code: error.code }, { status: 400 });
+    }
+    // Rentang waktu: the same Indonesian message the dashboard shows under the field.
+    if (error instanceof TimeRangeError) {
+      return postJson({ error: error.message, code: error.code }, { status: 400 });
     }
     const status = error instanceof QueueCapacityError ? 429
       : /configuration/i.test(error.message || "") ? 503
