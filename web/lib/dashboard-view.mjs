@@ -149,8 +149,8 @@ export function durationProblem(minimum, maximum) {
   return null;
 }
 
-// The job API accepts https links from these hosts only (lib/jobs.mjs validateYouTubeUrl).
-const YOUTUBE_HOSTS = new Set(["youtu.be", "youtube.com", "www.youtube.com"]);
+// The job API accepts https links from these hosts only (lib/jobs.mjs YOUTUBE_HOSTS).
+const YOUTUBE_HOSTS = new Set(["youtu.be", "youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com"]);
 
 function youtubeUrlProblem(value) {
   const text = typeof value === "string" ? value.trim() : "";

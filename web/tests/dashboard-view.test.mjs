@@ -22,7 +22,7 @@ import {
   jobStageText,
   submitErrorMessage,
 } from "../lib/dashboard-view.mjs";
-import { serializePublicJob } from "../lib/jobs.mjs";
+import { serializePublicJob, validateYouTubeUrl } from "../lib/jobs.mjs";
 
 const WEB = fileURLToPath(new URL("..", import.meta.url));
 const read = (relative) => readFile(path.join(WEB, relative), "utf8");
@@ -146,8 +146,13 @@ test("the form is checked in Indonesian before anything is sent, like the job AP
   assert.deepEqual(jobFormProblems(valid), {});
   assert.deepEqual(jobFormProblems({ ...valid, sourceType: "upload", youtubeUrl: "", video: { name: "a.mp4" } }), {});
   assert.deepEqual(jobFormProblems({ ...valid, youtubeUrl: "" }), { youtubeUrl: "Tempel link YouTube dulu." });
-  for (const url of ["http://youtu.be/x", "https://m.youtube.com/watch?v=x", "https://youtube.com.evil.test/x", "youtu.be/x"]) {
+  for (const url of ["http://youtu.be/x", "https://youtube.com.evil.test/x", "youtu.be/x", "https://gaming.youtube.com/watch?v=x", "http://m.youtube.com/watch?v=x"]) {
     assert.deepEqual(jobFormProblems({ ...valid, youtubeUrl: url }), { youtubeUrl: "Link harus https:// dari youtube.com atau youtu.be." }, url);
+  }
+  // Mobile and YouTube Music links are YouTube links too (the job API stores them canonical).
+  for (const url of ["https://m.youtube.com/watch?v=rBg0ZcwjVKQ", "https://music.youtube.com/watch?v=rBg0ZcwjVKQ", "https://youtube.com/shorts/rBg0ZcwjVKQ"]) {
+    assert.deepEqual(jobFormProblems({ ...valid, youtubeUrl: url }), {}, url);
+    assert.equal(validateYouTubeUrl(url), true, url);
   }
   assert.deepEqual(jobFormProblems({ ...valid, sourceType: "upload", video: null }), { video: "Pilih file video dulu." });
   assert.deepEqual(jobFormProblems({ ...valid, limit: "11" }), { limit: "Isi 1 sampai 10 klip." });
