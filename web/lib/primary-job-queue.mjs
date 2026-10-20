@@ -716,6 +716,26 @@ export async function cancelPrimaryJob({ jobsRoot, id, now = Date.now() }) {
   } finally { await release(); }
 }
 
+// A person's change to a finished job's own data (the clip text of the project page), under the
+// queue lock so it cannot cross "Hapus" or any other writer of job.json. `change(job)` returns
+// the next job, or null when there is nothing to change. Only a completed job is touched.
+export async function updateCompletedJob({ jobsRoot, id }, change) {
+  if (!UUID.test(id || "")) return { outcome: "not_found" };
+  const release = await acquireQueueLock(jobsRoot);
+  try {
+    const jobPath = path.join(path.resolve(jobsRoot), id, "job.json");
+    let current;
+    try { current = await readNoFollowJson(jobPath); }
+    catch (error) { if (error.code === "ENOENT") return { outcome: "not_found" }; throw error; }
+    validateJobIdentity(current, id);
+    if (current.status !== "completed") return { outcome: "not_completed", job: current };
+    const next = change(current);
+    if (!next) return { outcome: "unchanged", job: current };
+    await durableWriteJson(jobPath, next);
+    return { outcome: "updated", job: next };
+  } finally { await release(); }
+}
+
 export async function withFencedLease({ jobsRoot, id, token }, callback) {
   const release = await acquireQueueLock(jobsRoot);
   try {

@@ -727,6 +727,30 @@ const JOB_V3_ONLY_KEYS = [
   "trends", "focus", "clipId", "renderEngine", "fallbacks", "manual",
 ];
 
+// --- The owner's own title and description ----------------------------------------------------
+// "Ubah" and "Tulis ulang" on the project page (plan 2026-10-20 P2) store
+// `clip.textEdit = {title, description, editedAt}` beside the engine's packaging, which stays as
+// it was. The edit is served in its place: the title, the whole description (its closing hashtag
+// line included, the convention of every description) and the hashtags written in it.
+const WRITTEN_HASHTAG = /(?<![\p{L}\p{N}_&#])#[\p{L}\p{N}_]+/gu;
+
+/** `{title, description, hashtags}` of a stored edit, or null when it has no usable title. */
+export function clipTextEdit(value) {
+  if (!isPlainObject(value)) return null;
+  const title = sanitizeLine(value.title, CLIP_TEXT_LIMITS.title);
+  if (!title) return null;
+  const description = sanitizeMultiline(value.description, CLIP_TEXT_LIMITS.storedDescription) ?? "";
+  return { title, description, hashtags: sanitizeHashtags(description.match(WRITTEN_HASHTAG) ?? []) };
+}
+
+/** `clip` as served: the owner's edit in place of its title, description and hashtags. */
+export function withClipTextEdit(clip) {
+  if (!isPlainObject(clip) || !Object.hasOwn(clip, "textEdit")) return clip;
+  const { textEdit, ...rest } = clip;
+  const edit = clipTextEdit(textEdit);
+  return edit ? { ...rest, ...edit } : rest;
+}
+
 /** A manifest clip's Selection V3 packaging, sanitized, as camelCase job-clip fields. */
 export function sanitizeManifestClipFields(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
@@ -894,13 +918,14 @@ export function serializePublicJob(job) {
   const selectionV3 = sanitizeSelectionV3Summary(rawSelectionV3);
   const stageSummary = sanitizeStageSummary(rawStageSummary);
   if (Array.isArray(safe.clips)) safe.clips = safe.clips.map((clip) => sanitizeStoredClip(clip, safe.id));
-  return enrichJobSocialMetadata({
+  const served = enrichJobSocialMetadata({
     ...safe,
     options,
     ...(selectionV2 ? { selectionV2 } : {}),
     ...(selectionV3 ? { selectionV3 } : {}),
     ...(stageSummary ? { stageSummary } : {}),
   });
+  return { ...served, clips: served.clips.map(withClipTextEdit) };
 }
 
 // https links from these hosts only (lib/dashboard-view.mjs checks the same list in the form).

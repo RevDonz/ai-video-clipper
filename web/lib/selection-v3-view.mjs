@@ -89,13 +89,16 @@ export function captionParts(clip) {
   return { body: description, hashtags: hashtags.filter((tag) => !description.includes(tag)) };
 }
 
-/** The text every "Salin caption" button copies: title, blank line, description (+ missing hashtags). */
+/**
+ * The text every "Salin caption" button copies: title, blank line, description (+ missing
+ * hashtags); the title alone when the owner emptied the description.
+ */
 export function clipCaptionText(clip) {
   const title = typeof clip?.title === "string" ? clip.title : "";
   const description = typeof clip?.description === "string" ? clip.description : "";
   const missing = captionParts(clip).hashtags.filter((tag) => !description.includes(tag));
   const body = missing.length ? `${description}${description ? "\n\n" : ""}${missing.join(" ")}` : description;
-  return `${title}\n\n${body}`;
+  return body ? `${title}\n\n${body}` : title;
 }
 
 // A poster the engine wrote beside the clip (clip-XX.jpg), served by the job

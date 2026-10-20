@@ -989,13 +989,21 @@ def _editor_models(raw: str | None) -> dict[str, list[str]]:
 
 
 def editor_client(env: Mapping[str, str], *, cache_dir: Path) -> Any:
+    """:func:`editor_chain`, cached in the job's ``analysis/llm-cache``. None when the LLM is off
+    or unset; ``LLMUnavailable`` for an unusable configuration."""
+    from .llm import CachedLLMClient
+
+    inner = editor_chain(env)
+    return None if inner is None else CachedLLMClient(inner, cache_dir)
+
+
+def editor_chain(env: Mapping[str, str]) -> Any:
     """The editor's LLM client over the configured chain (the saved Pengaturan settings reach
     this process as its environment): each request bounded by ``REQUEST_TIMEOUT_S`` without
     retries, reasoning effort at most ``low``, optional fast models from
-    ``POTONGIN_LLM_EDITOR_MODELS``, cached in the job's ``analysis/llm-cache``. None when the LLM
-    is off or unset; ``LLMUnavailable`` for an unusable configuration."""
+    ``POTONGIN_LLM_EDITOR_MODELS``, without a response cache. None when the LLM is off or unset;
+    ``LLMUnavailable`` for an unusable configuration."""
     from .llm import (
-        CachedLLMClient,
         FailoverLLMClient,
         OpenAICompatibleClient,
         is_free_model,
@@ -1022,8 +1030,7 @@ def editor_client(env: Mapping[str, str], *, cache_dir: Path) -> Any:
         config = dataclass_replace(config, timeout=min(config.timeout, REQUEST_TIMEOUT_S),
                                    max_retries=0, reasoning_effort=effort)
         clients.append(OpenAICompatibleClient(config))
-    inner = clients[0] if len(clients) == 1 else FailoverLLMClient(clients)
-    return CachedLLMClient(inner, cache_dir)
+    return clients[0] if len(clients) == 1 else FailoverLLMClient(clients)
 
 
 def _within(call: Callable[[], Any], timeout_s: float) -> Any:
@@ -1327,6 +1334,7 @@ __all__ = [
     "Line",
     "TaskExists",
     "build_prompt",
+    "editor_chain",
     "editor_client",
     "fits",
     "grounding_problem",

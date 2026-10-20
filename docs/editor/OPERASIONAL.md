@@ -108,6 +108,13 @@ ZIP64), nilai yang bukan bilangan bulat positif membuat rute menjawab "Batas uku
 tetap bisa diunduh satu per satu. ZIP berisi file klip otomatis (`output/clip-NN.mp4`), sama
 dengan "Unduh MP4"; hasil ekspor editor tetap diunduh lewat "Ekspor terakhir".
 
+**Judul dan deskripsi klip.** "Ubah" di halaman proyek tidak punya flag: teksnya tersimpan di
+`job.json` klip itu (`textEdit`) dan ikut terhapus bersama proyeknya. "Tulis ulang" memakai rantai
+AI yang tersimpan di Pengaturan (penyedia gratis, "Hanya model gratis" ikut berlaku) lewat
+`python -m ai_clipper.post_text`, bukan `POTONGIN_EDITOR_LLM`; mematikan "Aktifkan AI" di
+Pengaturan mematikannya juga. Batasnya 30 permintaan per proyek per jam dan 3 sekaligus per
+container `app`; satu permintaan berhenti setelah 20 detik.
+
 ## 3. Toolchain render yang dikunci
 
 Cara teks dan video dirender bergantung pada versi persis FFmpeg, libass, FreeType, HarfBuzz,
@@ -210,6 +217,7 @@ Kewajiban yang perlu dijaga:
 | Parity gagal di "Install Chrome for Testing" | Unduhan Chrome for Testing 147.0.7727.15 gagal; jalankan ulang job. Versi browser ini bagian dari kunci paritas, jadi jangan diganti tanpa mengukur ulang P-TIME dan P-TXT. |
 | Saran hook hanya "AI seleksi"/"Heuristik" | `POTONGIN_EDITOR_LLM` mati, atau penyedia AI gratis di Pengaturan sedang tidak bisa dipakai. |
 | Cek ejaan: "belum bisa dipakai (kuota/koneksi AI)" | Sama dengan saran hook: penyedia gratis penuh atau lebih dari 20 detik. File tugasnya (`analysis/clips/<klip>/suggestions/<id>.json`, `task: "spelling"`) mencatat kode galat dan saran yang dibuang beserta alasannya. |
+| "Tulis ulang gagal" di halaman proyek | Pesannya menyebut sebabnya; "Cara memperbaiki" membuka entri `/bantuan` untuk kode galat AI-nya (kuota, batas waktu, model). "AI mati atau belum diatur": nyalakan AI dan isi penyedia di Pengaturan. "Batas Tulis ulang … (30 per jam)": tunggu sesuai menit yang disebut. |
 | Unduhan YouTube gagal untuk banyak video sekaligus | Biasanya YouTube berubah dan yt-dlp perlu dinaikkan: §8. |
 | Deploy berhenti: "Deployment blocked: durable work is active or unreadable" | Sebelum dan sesudah memasang image baru, `deploy/production.sh` memeriksa folder job dan mencetak `DURABLE_ACTIVE_JOBS=…`. Yang dihitung selesai: job `completed`, `failed`, `deleting`, `cancelled`, dan ekspor `completed`, `failed`, `cancelled`. Ada job atau ekspor yang masih jalan: tunggu sampai selesai, lalu jalankan ulang deploy. Ada `errors`: ada file yang tidak terbaca, path-nya tercetak. File antrean ekspor yang rusak (`analysis/render-requests/<id>.json`) boleh dipindah keluar dari folder job (simpan salinannya); `job.json` yang rusak diperbaiki dulu. Lalu deploy ulang. |
 

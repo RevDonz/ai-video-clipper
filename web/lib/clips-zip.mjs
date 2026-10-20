@@ -16,6 +16,7 @@ import {
   isFinalJobId,
   openFinalFile,
 } from "./final-files.mjs";
+import { withClipTextEdit } from "./jobs.mjs";
 import { ZIP32_MAX_BYTES, ZipTooLargeError, storedZipLayout, storedZipStream } from "./zip-store.mjs";
 
 export const DEFAULT_MAX_ZIP_BYTES = 2 * 1024 ** 3;
@@ -97,11 +98,14 @@ async function readJob(jobsRoot, jobId) {
   }
 }
 
-/** A name per entry; a repeated one (two clips with one number) gets "-2", "-3", ... */
-function entryNames(clips) {
+/**
+ * A name per entry, from the title the page shows (the owner's edit when there is one); a repeated
+ * name (two clips with one number) gets "-2", "-3", ...
+ */
+export function zipEntryNames(clips) {
   const used = new Set();
   return clips.map((clip) => {
-    const base = clipSaveName(clip) || `${clipNumber(clip.index)}-klip`;
+    const base = clipSaveName(withClipTextEdit(clip)) || `${clipNumber(clip.index)}-klip`;
     let name = `${base}.mp4`;
     for (let n = 2; used.has(name); n += 1) name = `${base}-${n}.mp4`;
     used.add(name);
@@ -149,7 +153,7 @@ export async function clipsZipRoute(request, { params }, deps = {}) {
   if (selection.code) return refusal(selection.code, 400);
   const wanted = new Set(selection.indexes);
   const picked = clips.filter((clip) => wanted.has(clip.index));
-  const names = entryNames(picked);
+  const names = zipEntryNames(picked);
 
   const opened = [];
   for (const [position, clip] of picked.entries()) {
