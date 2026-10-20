@@ -189,7 +189,10 @@ suite) run on GitHub Actions: `ci-cd.yml` on every pull request and `editor-gate
 - **Cold open.** Kalimat terkuat bisa diputar lebih dulu, lalu klip berjalan dari awal.
 - **Teks hook.** Kalimat pemancing singkat tampil di atas layar selama 4 detik pertama.
 - **Subtitle karaoke.** Subtitle mengikuti waktu per kata, dan kata yang sedang diucapkan
-  menyala. Gaya klasik masih tersedia.
+  menyala. Gaya Klasik juga tersedia. Di **Pengaturan klip**, setiap gaya punya thumbnail hasil
+  render, dan pratinjau 9:16 menunjukkan letak subtitle, teks hook, dan area tombol TikTok untuk
+  layout yang dipilih. Klip otomatis selalu menaruh subtitle di bawah dengan ukuran tetap; posisi
+  dan ukurannya diatur per klip di editor.
 - **Kemasan siap posting.** Setiap klip punya judul, teks hook, deskripsi, hashtag,
   arketipe, alasan dipilih, dan skor 0–10 (hook, berdiri sendiri, payoff, emosi, layak
   dibagikan). Semua tampil di halaman detail proyek dan bisa disalin sekali klik.
@@ -226,7 +229,10 @@ suite) run on GitHub Actions: `ci-cd.yml` on every pull request and `editor-gate
   Titles, hooks and descriptions are still written in Indonesian.
 - **Hook packaging.** An optional cold open (`--cold-open`), a 4-second on-screen hook
   (`--hook-overlay`), and word-timed karaoke captions (`--caption-style karaoke`). Clip
-  length follows the dashboard's minimum and maximum duration.
+  length follows the dashboard's minimum and maximum duration. The dashboard previews the
+  choices on a 9:16 frame (`web/lib/look-preview.mjs`): the subtitle styles' rendered
+  thumbnails at the automatic render's fixed bottom spot, the hook, the layout and the TikTok
+  button zone. Subtitle position and size are not job options; the editor sets them per clip.
 - **Manifest.** Each clip gains `title`, `hook_text`, `description`, `hashtags`,
   `archetype`, `selection_source`, `reasons`, `scores`, `cold_open`, `source_start` and
   `source_end`, plus `fallbacks` (`no_face`, `engine_fallback`) only when something fell back
