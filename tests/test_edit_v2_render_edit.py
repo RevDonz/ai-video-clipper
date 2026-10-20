@@ -831,6 +831,8 @@ def test_the_synthetic_job_render_option_records_engines(tmp_path, monkeypatch):
         if engine:
             entry.update(clip_id="clip_" + "a" * 24, render_engine=engine, render_key=None,
                          plan_sha256="b" * 64)
+        else:
+            entry["fallbacks"] = ["no_face"]
         return pipeline_module.V3RenderRun([entry], [], {1: 1.0}, 1.0)
 
     monkeypatch.setattr(pipeline_module, "render_v3_job", fake)
@@ -845,6 +847,9 @@ def test_the_synthetic_job_render_option_records_engines(tmp_path, monkeypatch):
     assert main_job["clips"][0]["renderEngine"] == COMPILER_ID
     old_job = json.loads((root / "jobs" / "old" / "job.json").read_text())
     assert "clipId" not in old_job["clips"][0] and "renderEngine" not in old_job["clips"][0]
+    # The job clip mirrors run-job.mjs: a clip's fallbacks reach the project page.
+    assert old_job["clips"][0]["fallbacks"] == ["no_face"]
+    assert "fallbacks" not in main_job["clips"][0]
     index = json.loads((root / "fixture.json").read_text())
     assert index["jobs"]["main"]["rendered"] == "edit-v2"
     assert "rendered" not in index["jobs"]["v1"]
@@ -955,6 +960,7 @@ def test_a_clip_the_new_engine_cannot_render_falls_back_to_the_legacy_engine(sou
     assert second["render_engine"] == "legacy"
     assert second["render_key"] is None and second["plan_sha256"] is None
     assert "engine_fallback:2" in manifest["selection_v3"]["warnings"]
+    assert second["fallbacks"] == ["engine_fallback"] and "fallbacks" not in first
     assert Path(second["output"]).is_file() and Path(second["subtitles"]).is_file()
     # The clip keeps its id, but no seed claims the new engine for the legacy file: the
     # editor's prepare seeds it later as a legacy-engine clip.
@@ -980,6 +986,7 @@ def test_a_face_track_clip_gets_a_camera_plan_and_renders(source, tmp_path):
                        patches=[(camera, "detect_face_track", detector)])
     (entry,) = manifest["clips"]
     assert entry["render_engine"] == COMPILER_ID
+    assert "fallbacks" not in entry  # a face in every sample
     directory = clip_dir(job_dir, entry["clip_id"])
     seed_doc, _etag = store.seed(directory)
     assert seed_doc["layout"]["default"]["mode"] == "camera"
@@ -988,6 +995,53 @@ def test_a_face_track_clip_gets_a_camera_plan_and_renders(source, tmp_path):
     assert hashlib.sha256(plan_file.read_bytes()).hexdigest() == camera_sha
     assert render_edit.verify_file(Path(entry["output"]),
                                    render_edit.load_render_inputs(job_dir, seed_doc).plan).ok
+
+
+def no_face_before(seconds: float):
+    """A raw detector (legacy render and camera plan alike) with no face before ``seconds`` of
+    the source and a centred face after it."""
+
+    def detector(path, *, start, end, sample_interval=0.75, **_options):
+        times = [index * sample_interval for index in range(int((end - start) / sample_interval))]
+        centres = [None if start + time < seconds else 0.5 for time in times]
+        return times, centres, [False] * len(times), 320, 180
+
+    return detector
+
+
+@pytest.mark.parametrize("engine", ["edit-v2", "legacy"])
+def test_a_face_track_clip_mostly_without_a_face_is_noted(source, tmp_path, engine):
+    from ai_clipper import render
+    from ai_clipper.edit_v2 import camera
+
+    detector = no_face_before(12.2)
+    job_dir = make_job(tmp_path, str(uuid.uuid4()), source, render_mode="face-track")
+    manifest = run_job(job_dir, engine=engine, render_mode="face-track",
+                       patches=[(camera, "detect_face_track", detector),
+                                (render, "detect_face_track", detector)])
+
+    first, second = manifest["clips"]
+    # No engine fallback here: the legacy engine adds no engine fields at all.
+    assert [clip.get("render_engine") for clip in (first, second)] == [
+        COMPILER_ID if engine == "edit-v2" else None] * 2
+    # Clip 1: its 8.7 s body has no face, its 1.7 s cold open has one. Clip 2 has a face.
+    assert first["fallbacks"] == ["no_face"]
+    assert "fallbacks" not in second
+
+
+def test_the_no_face_length_counts_every_played_segment_inside_the_spans():
+    document = {"output": {"fps": [25, 1]}, "main": {"segments": [
+        {"id": "seg_co", "role": "cold_open", "in_sf": 250, "out_sf": 300},  # 10–12 s
+        {"id": "seg_b1", "role": "body", "in_sf": 200, "out_sf": 400},  # 8–16 s
+    ]}}
+    spans = [[0, 9000], [11000, 13000], [20000, 30000]]
+
+    # The cold open 1 s (11–12), the body 1 s (8–9) and 2 s (11–13); the last span is unused.
+    assert render_edit._no_face_ms(spans, document) == 4000
+    assert render_edit._no_face_ms([], document) == 0
+    ntsc = {"output": {"fps": [30000, 1001]}, "main": {"segments": [
+        {"id": "seg_b1", "role": "body", "in_sf": 0, "out_sf": 30}]}}
+    assert render_edit._no_face_ms([[0, 5000]], ntsc) == 1001
 
 
 # --- concurrent auto renders (T4.3, PF-PIPELINE) ------------------------------------------------

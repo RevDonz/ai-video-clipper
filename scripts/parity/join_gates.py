@@ -678,11 +678,14 @@ def look(work: Path) -> dict[str, Any]:
     make_job = _make_job()
 
     def legacy_track(source: Path, *, start: float, end: float, sample_interval: float = 0.75,
-                     **_options: Any):
-        """The stub track as the legacy detector returns it: smoothed (it has no ``None``)."""
+                     smooth: bool = True, **_options: Any):
+        """The stub track as the legacy detector returns it: smoothed, or raw for
+        ``smooth=False`` (the legacy render smooths it itself)."""
         times, centres, cuts, width, height = make_job._stub_detector(
             source, start=start, end=end, sample_interval=sample_interval)
-        return times, smooth_face_track(centres, cuts=cuts), cuts, width, height
+        if smooth:
+            centres = smooth_face_track(centres, cuts=cuts)
+        return times, centres, cuts, width, height
 
     camera.detect_face_track = make_job._stub_detector  # deterministic face track (fps60)
     legacy_render.detect_face_track = legacy_track

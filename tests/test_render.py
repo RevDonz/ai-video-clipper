@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 import ai_clipper.render as render_module
+from ai_clipper import face_tracking
 from ai_clipper.models import TranscriptSegment, TranscriptWord
 from ai_clipper.render import render_vertical
 from ai_clipper.subtitles import build_caption_cues, cues_to_srt
@@ -798,7 +799,7 @@ def test_cold_open_face_track_computes_a_crop_track_per_range(tmp_path: Path, mo
     captured = _fake_render_tools(monkeypatch, output_duration=4.0)
     tracked = []
 
-    def detect(path, *, start, end):
+    def detect(path, *, start, end, smooth=True):
         tracked.append((start, end))
         return [0.0, 1.0], [0.5, 0.5], [False, False], 640, 360
 
@@ -826,6 +827,68 @@ def test_cold_open_face_track_computes_a_crop_track_per_range(tmp_path: Path, mo
     graph = captured["commands"][0][captured["commands"][0].index("-filter_complex") + 1]
     assert "[source0]scale=360:640" in graph and "x='crop1'" in graph
     assert "[source1]scale=360:640" in graph and "x='crop2'" in graph
+
+
+def test_face_track_reports_each_ranges_seconds_without_a_face(tmp_path: Path, monkeypatch):
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"source")
+    _fake_render_tools(monkeypatch, output_duration=5.0)
+    raw = {8.0: [None, None, None], 2.0: [0.3, None, None, None]}  # cold open, then the body
+    asked = []
+    crops = []
+
+    def detect(path, *, start, end, smooth=True):
+        asked.append(smooth)
+        times = [index * 0.75 for index in range(len(raw[start]))]
+        centres = raw[start] if not smooth else face_tracking.smooth_face_track(raw[start])
+        return times, centres, [False] * len(times), 640, 360
+
+    monkeypatch.setattr(render_module, "validate_render_mode", lambda mode: None)
+    monkeypatch.setattr(render_module, "detect_face_track", detect)
+    monkeypatch.setattr(
+        render_module,
+        "build_crop_expression",
+        lambda times, centers, **kwargs: crops.append(list(centers)) or "0",
+    )
+    reports: list[float] = []
+
+    render_vertical(
+        source,
+        tmp_path / "clip.mp4",
+        start=2.0,
+        end=5.0,
+        transcript=[],
+        width=360,
+        height=640,
+        render_mode="face-track",
+        cold_open=(8.0, 10.0),
+        no_face_report=reports.append,
+    )
+
+    # The whole 2 s cold open, and the body from its first miss to its end (2.25 s of 3 s).
+    assert reports == [pytest.approx(2.0), pytest.approx(2.25)]
+    # The crop follows the same smoothed track as before: only the report is new.
+    assert asked == [False, False]
+    assert crops == [face_tracking.smooth_face_track(raw[8.0]),
+                     face_tracking.smooth_face_track(raw[2.0])]
+
+
+def test_only_face_track_reports_seconds_without_a_face(tmp_path: Path, monkeypatch):
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"source")
+    _fake_render_tools(monkeypatch, output_duration=3.0)
+    monkeypatch.setattr(render_module, "detect_face_track", _never_called)
+    reports: list[float] = []
+
+    for mode in ("fit-blur", "center-crop"):
+        render_vertical(source, tmp_path / f"{mode}.mp4", start=2.0, end=5.0, transcript=[],
+                        width=360, height=640, render_mode=mode, no_face_report=reports.append)
+
+    assert reports == []
+
+
+def _never_called(*args, **kwargs):
+    raise AssertionError("no face detection outside face-track")
 
 
 def test_hook_text_and_karaoke_are_burned_while_srt_stays_plain(tmp_path: Path, monkeypatch):

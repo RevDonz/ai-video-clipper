@@ -1,5 +1,6 @@
 // The project page as a workspace (/projects/[id]): the poster grid and its one detail panel,
-// the "Semua" and "Skor 8+" filters, left/right between clips, and "Pilih" mode for the ZIP.
+// the "Semua" and "Skor 8+" filters, left/right between clips, "Pilih" mode for the ZIP, and the
+// notes of clips that fell back.
 // Client-safe: no Node built-ins.
 
 import { zipHref } from "./clip-download.mjs";
@@ -26,6 +27,21 @@ export function scorePill(clip) {
 
 export function isHighScore(clip) {
   return scorePill(clip)?.high === true;
+}
+
+// The engine's per-clip fallbacks (lib/jobs.mjs CLIP_FALLBACKS) as neutral notes: `text` in the
+// detail panel, `card` on the poster only when the picture itself changed.
+const FALLBACK_NOTES = Object.freeze({
+  no_face: Object.freeze({ card: "Potong tengah", text: "Wajah tidak terdeteksi · potong tengah" }),
+  engine_fallback: Object.freeze({ card: null, text: "Dirender dengan cara cadangan" }),
+});
+
+/** `[{code, card, text}]` for the clip's fallbacks, in a fixed order; [] without any. */
+export function clipFallbackNotes(clip) {
+  const codes = Array.isArray(clip?.fallbacks) ? clip.fallbacks : [];
+  return Object.entries(FALLBACK_NOTES)
+    .filter(([code]) => codes.includes(code))
+    .map(([code, note]) => ({ code, card: note.card, text: note.text }));
 }
 
 /**

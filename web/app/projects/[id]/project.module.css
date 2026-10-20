@@ -405,6 +405,12 @@
   color: var(--info);
   font: 600 12px/1.4 var(--font);
 }
+/* How a clip was made when something fell back (no face, backup render): plain muted text, so it
+   informs without reading as a warning. */
+.posterNote {
+  color: var(--text-muted);
+  font: 600 12px/1.4 var(--font);
+}
 
 .filterEmpty {
   display: grid;
@@ -512,6 +518,16 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 6px 8px;
+}
+.clipNotes {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.45;
 }
 .clipNumber {
   margin-right: 4px;

@@ -22,6 +22,7 @@ import {
 import {
   arrowDelta,
   checkZip,
+  clipFallbackNotes,
   clipFilterView,
   clipPosition,
   keepSelection,
@@ -149,7 +150,9 @@ function PosterCard({ clip, entry, selected, picking, picked, onActivate, button
   const length = formatTimestamp(clip.duration);
   const number = String(clip.index).padStart(2, "0");
   const edited = entry?.editBadge?.tone === "edited";
-  const meta = [`Klip ${number}`, length, pill && `skor ${pill.text}`, edited && "diedit"].filter(Boolean).join(", ");
+  const cardNotes = clipFallbackNotes(clip).filter((note) => note.card);
+  const meta = [`Klip ${number}`, length, pill && `skor ${pill.text}`, edited && "diedit",
+    ...cardNotes.map((note) => note.card.toLowerCase())].filter(Boolean).join(", ");
   return (
     <li>
       <article className={styles.poster} aria-labelledby={titleId} data-selected={(!picking && selected) || undefined} data-picked={(picking && picked) || undefined}>
@@ -174,10 +177,11 @@ function PosterCard({ clip, entry, selected, picking, picked, onActivate, button
           </span>
           <span className={styles.posterText}>
             <span id={titleId} className={styles.posterTitle}>{clip.title || clipLabel(clip)}</span>
-            {(pill || edited) && (
+            {(pill || edited || cardNotes.length > 0) && (
               <span className={styles.posterMeta} aria-hidden="true">
                 {pill && <span className={styles.scorePill} data-high={pill.high || undefined}>{pill.high && <i />}{pill.text}</span>}
                 {edited && <span className={styles.posterEdited}>Diedit</span>}
+                {cardNotes.map((note) => <span key={note.code} className={styles.posterNote}>{note.card}</span>)}
               </span>
             )}
             <span id={metaId} className="visuallyHidden">{meta}</span>
@@ -200,6 +204,7 @@ function ClipDetail({ clip, job, entry = null, copied, onCopy, position, onStep,
   const trendChips = clipTrendChips(clip);
   const focusChip = clipFocusChip(clip, job);
   const downloads = clipDownloads(clip);
+  const notes = clipFallbackNotes(clip);
   const from = formatTimestamp(clip.sourceStart);
   const to = formatTimestamp(clip.sourceEnd);
   const titleState = copied?.what === "title" ? copied.status : "";
@@ -232,6 +237,11 @@ function ClipDetail({ clip, job, entry = null, copied, onCopy, position, onStep,
             {focusChip && <span className={`${focusStyles.chip} ${focusStyles[focusChip.tone]}`} data-focus={focusChip.tone}>{focusChip.label}</span>}
             {entry?.editBadge?.tone === "edited" && <span className="chip info">{entry.editBadge.text}</span>}
           </div>
+        )}
+        {notes.length > 0 && (
+          <ul className={styles.clipNotes} aria-label="Catatan klip">
+            {notes.map((note) => <li key={note.code}>{note.text}</li>)}
+          </ul>
         )}
         <div className={styles.titleRow}>
           <h3 id={titleId}>{clip.title || label}</h3>

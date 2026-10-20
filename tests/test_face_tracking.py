@@ -1,6 +1,13 @@
 import pytest
 
-from ai_clipper.face_tracking import build_crop_expression, choose_prominent_face, smooth_face_track
+from ai_clipper.edit_v2 import camera
+from ai_clipper.face_tracking import (
+    NO_FACE_MIN_SECONDS,
+    build_crop_expression,
+    choose_prominent_face,
+    no_face_seconds,
+    smooth_face_track,
+)
 
 
 def test_smooth_face_track_fills_gaps_and_limits_small_jitter():
@@ -69,3 +76,42 @@ def test_crop_expression_supports_an_already_portrait_source():
         output_width=720,
         output_height=1280,
     ) == "0"
+
+
+def _grid(count: int, step: float = 0.75) -> list[float]:
+    times, t = [], 0.0
+    for _ in range(count):
+        times.append(t)
+        t += step  # the detector's own accumulation
+    return times
+
+
+def test_no_face_seconds_counts_only_the_runs_the_crop_centres():
+    times = _grid(12)
+    # 2 misses (1.5 s, the last face is held), then 3 misses (2.25 s), then a trailing run.
+    centres = [0.4, None, None, 0.4, None, None, None, 0.4, 0.4, 0.4, None, None]
+
+    assert no_face_seconds(times, centres, 9.5) == pytest.approx(2.25 + (9.5 - 7.5))
+    assert no_face_seconds(times, centres, 9.0) == pytest.approx(2.25)  # 1.5 s at the end: held
+    assert NO_FACE_MIN_SECONDS == camera.NO_FACE_MIN_MS / 1000
+
+
+def test_no_face_seconds_is_the_whole_track_without_any_face_and_zero_with_faces():
+    times = _grid(8)
+
+    assert no_face_seconds(times, [None] * 8, 6.0) == pytest.approx(6.0)
+    assert no_face_seconds(times, [0.5] * 8, 6.0) == 0.0
+    assert no_face_seconds([0.0], [None], 1.2) == 0.0  # shorter than a held gap
+
+
+@pytest.mark.parametrize("pattern", [
+    "x..xxx.xxxx..x", "......", "xxxxxx", "x.x.x.x.", "..xxx...xxxx", "xxx..x",
+])
+def test_no_face_seconds_matches_the_camera_plans_no_face_spans(pattern):
+    times = _grid(len(pattern))
+    centres = [None if mark == "x" else 0.5 for mark in pattern]
+    end = len(pattern) * 0.75 - 0.2
+    spans = camera._no_face([round(t * 1000) for t in times], centres, round(end * 1000))
+
+    expected = sum(b - a for a, b in spans) / 1000
+    assert no_face_seconds(times, centres, end) == pytest.approx(expected)

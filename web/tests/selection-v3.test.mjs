@@ -9,6 +9,7 @@ import test from "node:test";
 import { parseJobFormOptions } from "../app/api/jobs/route.js";
 import { createLlmStatusHandler } from "../app/api/llm/status/route.js";
 import {
+  CLIP_FALLBACKS,
   DEFAULT_V3_OPTIONS,
   clipSocialMetadata,
   clipThumbnailUrl,
@@ -996,6 +997,36 @@ test("no view names the render engine of a clip (latest only)", async () => {
   assert.equal("renderEngineView" in view, false);
   const entry = await readFile(new URL("../lib/clip-entry-view.mjs", import.meta.url), "utf8");
   assert.doesNotMatch(entry, /engineLegacy|mesin (?:lama|baru)/i);
+});
+
+// --- Per-clip fallbacks (pipeline.py `fallbacks`, plan 2026-10-20 A2) ----------------------------
+
+test("manifest fallbacks pass through as the known codes, once each, in the engine's order", () => {
+  assert.deepEqual(CLIP_FALLBACKS, ["no_face", "engine_fallback"]);
+  const both = jobClipFromManifest({ ...MANIFEST_CLIP, fallbacks: ["no_face", "engine_fallback"] }, JOB_ID);
+  assert.deepEqual(both, { ...jobClipFromManifest(MANIFEST_CLIP, JOB_ID), fallbacks: ["no_face", "engine_fallback"] });
+  const shuffled = jobClipFromManifest({ ...MANIFEST_CLIP, fallbacks: ["engine_fallback", "no_face", "no_face"] }, JOB_ID);
+  assert.deepEqual(shuffled.fallbacks, ["no_face", "engine_fallback"]);
+  // A clip without a fallback keeps the historical shape; unknown or malformed codes are dropped.
+  assert.equal("fallbacks" in jobClipFromManifest(MANIFEST_CLIP, JOB_ID), false);
+  for (const value of [[], ["No_face"], ["no_face:3"], [" engine_fallback"], [{ code: "no_face" }], "no_face", null, 7, { 0: "no_face" }]) {
+    assert.equal("fallbacks" in jobClipFromManifest({ ...MANIFEST_CLIP, fallbacks: value }, JOB_ID), false, JSON.stringify(value));
+  }
+  assert.deepEqual(sanitizeManifestClipFields({ fallbacks: ["tight_cut", "no_face", "<b>"] }), { fallbacks: ["no_face"] });
+});
+
+test("stored clips re-validate their fallbacks before they are served", () => {
+  const clip = jobClipFromManifest({ ...MANIFEST_CLIP, fallbacks: ["no_face"] }, JOB_ID);
+  const served = serializePublicJob({
+    id: JOB_ID, options: V3,
+    clips: [clip, { ...clip, fallbacks: ["engine_fallback", "<script>"] }, { ...clip, fallbacks: "no_face" }],
+  }).clips;
+  assert.deepEqual(served[0], clip);
+  assert.deepEqual(served[1].fallbacks, ["engine_fallback"]);
+  assert.equal("fallbacks" in served[2], false);
+  assert.equal(served[2].title, clip.title);
+  assert.equal("fallbacks" in sanitizeStoredClip({ index: 1, text: "Klip lama", fallbacks: ["rm -rf"] }, JOB_ID), false);
+  assert.deepEqual(sanitizeStoredClip({ index: 1, text: "Klip lama", fallbacks: ["no_face"] }, JOB_ID).fallbacks, ["no_face"]);
 });
 
 // --- Where the engine meets Konteks Tren and Fokus klip (the W3 base on main) --------------

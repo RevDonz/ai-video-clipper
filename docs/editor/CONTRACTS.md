@@ -1105,7 +1105,9 @@ Recorded by the W1 integrator; each is logged with its evidence in `docs/editor/
   without a pinned toolchain).
 - **`face_tracking.detect_face_track(…, smooth=True)`** gained `smooth=False` (raw centres,
   `None` without a face), which `camera.build_camera_plan` uses so `no_face` spans are reported
-  for today's detector too (plan §5.7). The legacy render path keeps the default.
+  for today's detector too (plan §5.7). The legacy render path asks for the raw centres too and
+  smooths them with `smooth_face_track` itself (the same crop), so it can report the seconds
+  without a face (§5.31).
 - **Editor routes spawn Python only through `web/lib/python-cli.mjs`** (`runPythonCli`):
   `CHILD_ENV_ALLOWLIST` = `PATH HOME LANG TZ TMPDIR JOBS_ROOT FONTCONFIG_FILE
   POTONGIN_RENDER_ENGINE POTONGIN_EDITOR_V3 POTONGIN_EDITOR_UPLOADS POTONGIN_EDITOR_LLM`
@@ -1177,8 +1179,9 @@ signatures stay; everything below is additive unless marked **changed**.
   job_source, job_id_for, AutoRenderer, AutoOptions, AutoClip`.
 - Pipeline: `run_pipeline(render_engine=None)` and `pipeline.render_v3_job`. With `edit-v2` a
   manifest clip gains `clip_id`, `render_engine` (`"edit-v2/1"` or `"legacy"`), `render_key`,
-  `plan_sha256`; the summary warning `engine_fallback:<index>` marks a per-clip fallback.
-  `POTONGIN_RENDER_ENGINE` stays `legacy` by default (K1 pending).
+  `plan_sha256`; the summary warning `engine_fallback:<index>` marks a per-clip fallback, and the
+  clip itself gets `fallbacks` (§5.31). `POTONGIN_RENDER_ENGINE` stays `legacy` by default (K1
+  pending).
 
 ### render-request-v3 and its routes (T2.2)
 
@@ -2238,3 +2241,34 @@ pack's own count compiles to the same cues and ASS bytes as one without the key.
   `CAPTION_PACKS` ("Sorot", "Kotak warna di kata terucap"), `HIGHLIGHT_PACKS`, `PACK_IMAGES`, the
   transcript harness store. The highlight note for the other packs reads "Dipakai oleh Karaoke,
   Bold dan Sorot; tidak tampak di gaya ini."
+
+## 5.31 Per-clip fallback notes (2026-10-21)
+
+Plan `docs/plans/2026-10-20-lanjutan-sesi.md` A2. Engine and web; no flag. A clip without a
+fallback keeps its exact manifest and job shape.
+
+- **Manifest.** `pipeline._render_v3_clips` gives a V3 clip `"fallbacks": [codes]` only when
+  something fell back, in this order (the editor's code names):
+  - `no_face`: the job's layout is face-track and the clip had no face for at least
+    `NO_FACE_CLIP_SHARE` (0.5) of its rendered length, so the crop stayed centred there. Both
+    engines count "without a face" with the camera plan's rule: runs of samples without a face
+    longer than 1.5 s (`face_tracking.NO_FACE_MIN_SECONDS` = `camera.NO_FACE_MIN_MS`), from the
+    run's first sample to the next sample or the end of the range.
+  - `engine_fallback`: the edit-v2 engine failed for the clip and the legacy engine rendered it
+    (the summary keeps `engine_fallback:<index>`).
+- **Legacy engine.** `render_vertical(…, no_face_report=callable)`: under face-track the callable
+  gets each source range's seconds without a face (`face_tracking.no_face_seconds`), cold open
+  first, before FFmpeg runs. Other layouts never call it.
+- **edit-v2 engine.** `AutoClip.no_face_ms` (face-track only, else None): the ms of the seed's main
+  segments, each counted as often as it plays, inside the camera plan's `no_face` spans
+  (`render_edit._no_face_ms`; the plan's window is wider than the clip).
+- **Web.** `lib/jobs.mjs` `CLIP_FALLBACKS` (`no_face`, `engine_fallback`): the manifest's and the
+  stored clip's `fallbacks` keep only these codes, once each, in this order; an empty result
+  drops the field. `lib/project-workspace.mjs` `clipFallbackNotes(clip)` → `[{code, card, text}]`:
+  - `no_face`: poster "Potong tengah", detail "Wajah tidak terdeteksi · potong tengah";
+  - `engine_fallback`: detail only, "Dirender dengan cara cadangan" (the editor's wording; the
+    picture is the usual one, so the poster stays quiet).
+- **Project page.** The poster adds its note to the meta row and to the poster button's
+  description; the detail panel lists every note under the tags (`<ul aria-label="Catatan
+  klip">`). Both are muted text (`--text-muted`, 7.6:1 on `--surface`), with no colour, badge or
+  icon of their own.

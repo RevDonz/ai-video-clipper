@@ -528,6 +528,9 @@ const ARCHETYPE_CODE = /^[a-z][a-z0-9_]{0,39}$/;
 // Editor V3 clip identity and render engines (python edit_v2: CLIP_ID_PATTERN, COMPILER_ID).
 export const CLIP_ID = /^clip_[0-9a-f]{24}$/;
 export const RENDER_ENGINES = Object.freeze(["edit-v2/1", "legacy"]);
+// What fell back for one clip (pipeline.py `fallbacks`, the editor's codes): face-track found no
+// face for half of it or more (centre crop), or the backup render path made it. In this order.
+export const CLIP_FALLBACKS = Object.freeze(["no_face", "engine_fallback"]);
 const HASHTAG_BODY = /^[\p{L}\p{N}_]+$/u;
 const MAX_COLD_OPEN_SECONDS = 30;
 
@@ -629,6 +632,10 @@ function sanitizeColdOpen(value) {
   return { start: round(start, 3), end: round(end, 3) };
 }
 
+function sanitizeFallbacks(value) {
+  return Array.isArray(value) ? CLIP_FALLBACKS.filter((code) => value.includes(code)) : [];
+}
+
 function sanitizeArchetype(value) {
   if (typeof value !== "string") return null;
   const code = value.trim().toLowerCase().replace(/-/g, "_");
@@ -674,6 +681,8 @@ function sanitizeV3ClipFields(raw, names, descriptionLimit) {
   // file. Exact values only; the render key and plan sha stay on the server.
   if (typeof raw[names.clipId] === "string" && CLIP_ID.test(raw[names.clipId])) fields.clipId = raw[names.clipId];
   if (RENDER_ENGINES.includes(raw[names.renderEngine])) fields.renderEngine = raw[names.renderEngine];
+  const fallbacks = sanitizeFallbacks(raw[names.fallbacks]);
+  if (fallbacks.length) fields.fallbacks = fallbacks;
   return fields;
 }
 
@@ -681,17 +690,17 @@ const MANIFEST_V3_NAMES = Object.freeze({
   title: "title", hookText: "hook_text", description: "description", hashtags: "hashtags",
   archetype: "archetype", selectionSource: "selection_source", reasons: "reasons", scores: "scores",
   coldOpen: "cold_open", sourceStart: "source_start", sourceEnd: "source_end", trends: "trends", focus: "focus",
-  clipId: "clip_id", renderEngine: "render_engine",
+  clipId: "clip_id", renderEngine: "render_engine", fallbacks: "fallbacks",
 });
 const JOB_V3_NAMES = Object.freeze({
   title: "title", hookText: "hookText", description: "description", hashtags: "hashtags",
   archetype: "archetype", selectionSource: "selectionSource", reasons: "reasons", scores: "scores",
   coldOpen: "coldOpen", sourceStart: "sourceStart", sourceEnd: "sourceEnd", trends: "trends", focus: "focus",
-  clipId: "clipId", renderEngine: "renderEngine",
+  clipId: "clipId", renderEngine: "renderEngine", fallbacks: "fallbacks",
 });
 const JOB_V3_ONLY_KEYS = [
   "hookText", "archetype", "selectionSource", "reasons", "scores", "coldOpen", "sourceStart", "sourceEnd",
-  "trends", "focus", "clipId", "renderEngine",
+  "trends", "focus", "clipId", "renderEngine", "fallbacks",
 ];
 
 /** A manifest clip's Selection V3 packaging, sanitized, as camelCase job-clip fields. */
