@@ -289,6 +289,9 @@ body {
 .appNav a[aria-current="page"] { background: var(--surface-3); color: var(--text); box-shadow: inset 0 0 0 1px var(--border-strong); }
 .appLogout { margin: 0; }
 .appLogout .btn { min-height: 36px; padding: 6px 12px; }
+/* The help page is reached from error messages; the header keeps only a quiet link to it. */
+.appHelp { min-height: 36px; padding: 6px 12px; }
+.appHelp[aria-current="page"] { color: var(--text); }
 
 footer {
   display: flex;
@@ -307,7 +310,7 @@ footer {
   .appHeaderInner { flex-wrap: wrap; gap: 8px 12px; padding: 8px 0 12px; }
   .appNav { order: 3; width: 100%; }
   .appNav a { flex: 1 1 auto; min-height: 44px; padding: 6px 8px; font-size: 13px; }
-  .appLogout .btn { min-height: 44px; }
+  .appLogout .btn, .appHelp { min-height: 44px; }
 }
 
 /* Shared by signed-in pages (the dashboard's own styles are in app/dashboard/dashboard.module.css) */
