@@ -1105,6 +1105,104 @@ def test_v3_progress_stage_order_with_whisper_and_llm(env, monkeypatch):
     assert all(isinstance(detail, str) and detail for *_rest, detail in env.progress)
 
 
+# --- stage summaries (the job progress shows them per stage) ----------------------------------
+
+# Mirror of sanitizeStageSummary in web/lib/stage-summary.mjs.
+WEB_SUMMARY_LANGUAGE = re.compile(r"[a-z]{2,3}")
+WORDS = sum(len(sentence(index).split()) for index in range(SENTENCES))
+
+
+def run_logged(env, **options) -> list[tuple]:
+    """Run with progress and stage summaries written to one ordered log."""
+    log: list[tuple] = []
+    run(
+        env,
+        progress=lambda stage, percent, detail: log.append(("progress", stage)),
+        stage_summary=lambda kind, values: log.append(("summary", kind, values)),
+        **options,
+    )
+    return log
+
+
+def summaries(log: list[tuple]) -> dict[str, dict]:
+    return {entry[1]: entry[2] for entry in log if entry[0] == "summary"}
+
+
+def assert_web_stage_summary(found: dict[str, dict]) -> None:
+    for kind, values in found.items():
+        json.dumps(values, allow_nan=False)
+        if kind == "video":
+            assert set(values) == {"duration"} and values["duration"] > 0
+        elif kind == "transcript":
+            assert set(values) <= {"words", "source", "language"}
+            assert type(values["words"]) is int and values["words"] >= 0
+            assert values["source"] in {"youtube-captions", "whisper"}
+            assert "language" not in values or WEB_SUMMARY_LANGUAGE.fullmatch(values["language"])
+        else:
+            assert kind == "moments" and set(values) == {"count", "source"}
+            assert type(values["count"]) is int and values["count"] > 0
+            assert values["source"] in {"llm", "heuristic"}
+
+
+@pytest.mark.parametrize("word_timestamps", [True, False])
+def test_stage_summaries_name_the_video_the_transcript_and_the_moments(env, word_timestamps):
+    log = run_logged(env, word_timestamps=word_timestamps)
+
+    found = summaries(log)
+    clips = manifest_of(env.output / "manifest.json")["clips"]
+    assert found == {
+        "video": {"duration": pytest.approx(DURATION)},
+        "transcript": {"words": WORDS, "source": "whisper", "language": "id"},
+        "moments": {"count": len(clips), "source": "heuristic"},
+    }
+    assert_web_stage_summary(found)
+    # Each summary arrives when its stage is done, before the next stage starts.
+    kinds = [entry[1] if entry[0] == "summary" else None for entry in log]
+    seen = [entry[1] if entry[0] == "progress" else None for entry in log]
+    assert seen.index("transcribing") < kinds.index("transcript") < seen.index("audio")
+    assert seen.index("selecting") < kinds.index("moments") < seen.index("packaging")
+    assert kinds.index("video") < kinds.index("transcript")
+
+
+def test_caption_transcripts_and_ai_moments_name_their_source(env, monkeypatch):
+    captions = env.tmp / "input" / "captions"
+    write_captions(captions, "manual", "source.id.json3", json3())
+    monkeypatch.setattr(
+        pipeline_module,
+        "select_clips_v3",
+        lambda *a, **k: result(selected(1, 100.0, 130.0), selected(2, 200.0, 230.0)),
+    )
+
+    found = summaries(run_logged(env, model=ForbiddenWhisper(), captions_dir=captions))
+
+    assert found["transcript"] == {"words": WORDS, "source": "youtube-captions", "language": "id"}
+    assert found["moments"] == {"count": 2, "source": "llm"}
+    assert_web_stage_summary(found)
+
+
+def test_only_what_the_run_learned_is_summarized(env, monkeypatch):
+    env.media_duration = None  # the probe failed: no video length
+    empty = result(source="heuristic", provider=None, model=None, prompt_version="heuristic-v3.1")
+    monkeypatch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: empty)
+
+    log: list[tuple] = []
+    with pytest.raises(ValueError, match="Tidak ada momen"):
+        run(env, stage_summary=lambda kind, values: log.append(("summary", kind, values)))
+
+    assert list(summaries(log)) == ["transcript"]
+
+
+def test_an_unknown_transcript_language_is_left_out(env):
+    class Unnamed(FakeWhisper):
+        def transcribe(self, source: str, **options):
+            raw, _info = super().transcribe(source, **options)
+            return raw, SimpleNamespace(language="Bahasa Indonesia", duration=DURATION)
+
+    found = summaries(run_logged(env, model=Unnamed()))
+
+    assert found["transcript"] == {"words": WORDS, "source": "whisper"}
+
+
 def test_v3_writes_quality_artifact_with_transcript(env):
     run(env)
 

@@ -3,6 +3,7 @@
 import { use, useEffect, useRef, useState } from "react";
 
 import AppHeader from "../../../components/AppHeader.jsx";
+import StageSummary from "../../../components/StageSummary.jsx";
 import TrendChips from "../../../components/trends/TrendChips.jsx";
 import { clipDownloads, formatSize } from "../../../lib/clip-download.mjs";
 import { clipEntryFor, loadClipEntries } from "../../../lib/clip-entry-view.mjs";
@@ -514,6 +515,7 @@ function ProjectView({ job, copyState, onCopy, entries }) {
             <b>{progress}%</b>
           </div>
           <div className="progress" role="progressbar" aria-labelledby="progress-title" aria-valuemin="0" aria-valuemax="100" aria-valuenow={progress}><i style={{ width: `${progress}%` }} /></div>
+          <StageSummary job={job} className={styles.stageSummary} />
           <p>Progres diperbarui otomatis. Klip muncul di sini setelah selesai.</p>
         </section>
       )}
