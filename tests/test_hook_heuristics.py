@@ -11,6 +11,7 @@ from ai_clipper.hook_heuristics import (
     _analyse_unit,
     _clean_line,
     opening_end,
+    package_spans,
     propose_heuristic,
     teaser_end,
 )
@@ -1415,3 +1416,74 @@ def test_heuristic_packaging_passes_the_llm_packaging_check():
         source = " ".join(unit.text for unit in units[item.start_unit : item.end_unit + 1])
         assert packaging_problem(item.hook_text, source, title=False) is None
         assert packaging_problem(item.title, source, title=False) is None
+
+
+# --- Rentang waktu: a span the person chose (plan 2026-10-20 P2) ------------------------------
+
+
+def test_package_spans_scores_and_packages_exactly_the_given_units():
+    lines = neutral(12) + qa_moment() + neutral(12, offset=40)
+    units, events = build(lines)
+    spans = [(12, 18), (3, 9)]
+
+    proposals = package_spans(units, spans, events=events)
+
+    assert [(item.start_unit, item.end_unit) for item in proposals] == spans
+    for item in proposals:
+        assert isinstance(item, ClipProposal)
+        assert item.source == "heuristic"
+        assert item.start_unit <= item.hook_unit <= item.end_unit
+        assert item.payoff_unit is None or item.start_unit <= item.payoff_unit <= item.end_unit
+        assert item.archetype in ARCHETYPES
+        assert set(item.scores) == set(SCORE_DIMENSIONS)
+        assert all(0 <= value <= 10 for value in item.scores.values())
+        assert item.title.strip() and item.hook_text.strip() and item.description.strip()
+        assert 3 <= len(item.hashtags) <= 6
+        assert 1 <= len(item.reasons) <= 8
+    # The answered host question with its confession outscores the neutral span.
+    assert proposals[0].archetype == "confession"
+    assert "ketangkap polisi" in proposals[0].hook_text
+    assert proposals[0].scores["hook"] > proposals[1].scores["hook"]
+    assert proposals[0].score > proposals[1].score
+
+
+def test_package_spans_scores_a_span_like_the_heuristic_scores_the_same_window():
+    lines = neutral(12) + qa_moment() + neutral(12, offset=40)
+    units, events = build(lines)
+    best = propose_heuristic(units, min_duration=20, max_duration=60, k=1, events=events)[0]
+
+    span = [(best.start_unit, best.end_unit)]
+    (again,) = package_spans(units, span, events=events, max_duration=60)
+
+    assert again.scores == best.scores
+    assert (again.archetype, again.title, again.hook_text, again.hook_unit, again.payoff_unit) == (
+        best.archetype, best.title, best.hook_text, best.hook_unit, best.payoff_unit
+    )
+    assert again.reasons == best.reasons
+
+
+def test_package_spans_leads_with_the_given_reason_instead_of_the_opener():
+    units, events = build(neutral(12) + qa_moment() + neutral(12, offset=40))
+    lead = "Rentang waktu yang kamu ketik: 0:05–0:40."
+
+    (plain,) = package_spans(units, [(12, 18)], events=events)
+    (led,) = package_spans(units, [(12, 18)], events=events, lead_reasons=[lead])
+
+    assert led.reasons[0] == lead
+    assert led.reasons[1:] == plain.reasons[1:]
+    assert plain.reasons[0] != lead
+
+
+def test_package_spans_is_deterministic_and_checks_its_spans():
+    units, _events = build(neutral(20))
+    assert package_spans(units, [(2, 8)]) == package_spans(units, [(2, 8)])
+    assert package_spans(units, []) == ()
+    for bad in ([(5, 4)], [(-1, 3)], [(0, 20)], [(1.0, 3)]):
+        with pytest.raises((ValueError, TypeError)):
+            package_spans(units, bad)
+    with pytest.raises(ValueError):
+        package_spans([], [(0, 0)])
+    with pytest.raises(ValueError):
+        package_spans(units, [(2, 8), (9, 12)], lead_reasons=["satu"])
+    with pytest.raises(TypeError):
+        package_spans(units, [(2, 8)], lead_reasons="satu")

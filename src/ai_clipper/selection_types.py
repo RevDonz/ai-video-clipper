@@ -286,6 +286,8 @@ class SelectedClip:
     ``trends`` are the trends the clip's own transcript mentions (empty without a trend
     context); :meth:`to_dict` writes the key only when there is at least one. ``focus`` is the
     clip's relation to the job's focus terms, ``None`` (and no key) for a job without focus.
+    ``manual`` marks a clip cut from a time range the person typed (Rentang waktu, plan
+    2026-10-20 P2); :meth:`to_dict` writes ``"manual": true`` only for those clips.
     """
 
     rank: int
@@ -306,6 +308,7 @@ class SelectedClip:
     text: str
     trends: tuple[TrendRef, ...] = ()
     focus: ClipFocus | None = None
+    manual: bool = False
 
     def __post_init__(self) -> None:
         if not isinstance(self.rank, int) or isinstance(self.rank, bool) or self.rank <= 0:
@@ -337,6 +340,8 @@ class SelectedClip:
         _trends(self.trends)
         if self.focus is not None and not isinstance(self.focus, ClipFocus):
             raise TypeError("focus must be a ClipFocus or None")
+        if not isinstance(self.manual, bool):
+            raise TypeError("manual must be a boolean")
 
     @property
     def duration(self) -> float:
@@ -367,6 +372,8 @@ class SelectedClip:
             payload["trends"] = [item.to_dict() for item in self.trends]
         if self.focus is not None:  # optional: only a job with focus terms has it
             payload["focus"] = self.focus.to_dict()
+        if self.manual:  # optional: only a clip from the person's own time range
+            payload["manual"] = True
         return payload
 
 

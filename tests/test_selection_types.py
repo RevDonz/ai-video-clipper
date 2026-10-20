@@ -339,3 +339,21 @@ def test_the_selection_focus_and_the_clip_focus_go_together():
     ):
         with pytest.raises((TypeError, ValueError)):
             FocusSummary(**bad)
+
+
+# --- Rentang waktu (plan 2026-10-20 P2) -------------------------------------------------------
+
+
+def test_a_clip_from_the_persons_range_is_marked_manual_and_others_keep_their_shape():
+    assert selected().manual is False
+    assert "manual" not in selected().to_dict()
+    item = selected(trends=(trend(1),), focus=ClipFocus("none"), manual=True)
+    payload = item.to_dict()
+    assert list(payload)[-3:] == ["trends", "focus", "manual"]
+    assert payload["manual"] is True
+
+
+@pytest.mark.parametrize("value", [1, "yes", None])
+def test_the_manual_mark_is_a_boolean(value):
+    with pytest.raises(TypeError):
+        selected(manual=value)
