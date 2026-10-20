@@ -2,7 +2,7 @@
 // ZIP, each saved as "NN-judul.mp4" (A5). Only this job's own output/clip-NN.mp4 files, opened
 // through the final-file helpers (no symlink, contained in output/); every file is opened and
 // the size checked before the first byte is sent. `check=1` answers {count, bytes, filename}.
-// The session, the id and the header set come from secureRoute (route.js).
+// The session and the header set come from secureRoute (route.js).
 import { close } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
