@@ -29,6 +29,7 @@ from .ranking import MAX_RANKING_INPUTS
 from .render import HOOK_DURATION_MAX_SECONDS, RENDER_MODES
 from .selection_types import MAX_FOCUS_TERM_CHARS, MAX_FOCUS_TERMS, MIN_FOCUS_TERM_CHARS
 from .selection_v3 import LLM_MODES
+from .time_ranges import MAX_RANGES, TimeRange, TimeRangeError, check_ranges, parse_time_range
 from .transcribe import (
     ENV_CONDITION_ON_PREVIOUS_TEXT,
     ENV_INITIAL_PROMPT,
@@ -60,6 +61,13 @@ def _media_timeout(value: str) -> float:
 def _language(value: str) -> str | None:
     """The Whisper language; ``auto`` is ``None``, which lets Whisper detect it."""
     return None if value == "auto" else value
+
+
+def _time_range(value: str) -> TimeRange:
+    try:
+        return parse_time_range(value)
+    except TimeRangeError as error:
+        raise argparse.ArgumentTypeError(str(error)) from None
 
 
 def _hook_duration(value: str) -> float:
@@ -195,6 +203,18 @@ def build_parser() -> argparse.ArgumentParser:
             "characters; needs --focus-term)"
         ),
     )
+    v3.add_argument(
+        "--range",
+        dest="ranges",
+        action="append",
+        type=_time_range,
+        metavar="START-END",
+        help=(
+            "Rentang waktu: a time range kept as a clip, such as 10.30-12.05, 1:02:10-1:03:00 or "
+            f"630-725 seconds (repeatable, at most {MAX_RANGES} and at most --limit, no "
+            "overlaps); the selection fills the other slots"
+        ),
+    )
     parser.add_argument(
         "--caption-style",
         choices=CAPTION_STYLES,
@@ -236,7 +256,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
-    """Parse ``argv``; ``focus`` is the Fokus klip option built from the focus flags, or None.
+    """Parse ``argv``; ``focus`` is the Fokus klip option built from the focus flags, or None,
+    and ``ranges`` the typed time ranges (a tuple, empty without ``--range``).
 
     The focus text is only ever parsed here and handed to the pipeline as data; it never
     reaches a subprocess command line.
@@ -249,6 +270,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         parser.error(f"--focus-term/--focus-note: {error}")
     if args.focus is not None and args.selection_mode != SelectionMode.V3.value:
         parser.error("--focus-term needs --selection-mode v3")
+    try:
+        args.ranges = check_ranges(args.ranges or (), args.limit)
+    except TimeRangeError as error:
+        parser.error(f"--range: {error}")
+    if args.ranges and args.selection_mode != SelectionMode.V3.value:
+        parser.error("--range needs --selection-mode v3")
     return args
 
 
@@ -316,6 +343,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             stage_summary=emit_stage_summary,
             trend_context=args.trend_context,
             focus=args.focus,
+            ranges=args.ranges,
         )
     except (FileNotFoundError, RuntimeError, ValueError, LLMError) as exc:
         print(f"Error: {exc}", file=sys.stderr)

@@ -44,6 +44,7 @@ import {
   captionParts,
   clipCaptionText,
   clipFocusChip,
+  clipRangeChip,
   clipPosterUrl,
   clipReasons,
   clipScoreView,
@@ -198,13 +199,14 @@ function ClipDetail({ clip, job, entry = null, copied, onCopy, position, onStep,
   const reasons = clipReasons(clip);
   const trendChips = clipTrendChips(clip);
   const focusChip = clipFocusChip(clip, job);
+  const rangeChip = clipRangeChip(clip);
   const downloads = clipDownloads(clip);
   const notes = clipFallbackNotes(clip);
   const from = formatTimestamp(clip.sourceStart);
   const to = formatTimestamp(clip.sourceEnd);
   const titleState = copied?.what === "title" ? copied.status : "";
   const captionState = copied?.what === "caption" ? copied.status : "";
-  const hasTags = archetype || coldOpen !== null || focusChip || entry?.editBadge?.tone === "edited";
+  const hasTags = rangeChip || archetype || coldOpen !== null || focusChip || entry?.editBadge?.tone === "edited";
 
   return (
     <section ref={panelRef} id={DETAIL_ID} className={styles.detail} aria-labelledby={titleId} data-clip-detail={clip.index}>
@@ -227,6 +229,7 @@ function ClipDetail({ clip, job, entry = null, copied, onCopy, position, onStep,
         </div>
         {hasTags && (
           <div className={styles.tags}>
+            {rangeChip && <span className="chip">{rangeChip}</span>}
             {archetype && <span className="chip">{archetype}</span>}
             {coldOpen !== null && <span className="chip">Dibuka kalimat terkuat · {formatTenths(coldOpen)} dtk</span>}
             {focusChip && <span className={`${focusStyles.chip} ${focusStyles[focusChip.tone]}`} data-focus={focusChip.tone}>{focusChip.label}</span>}

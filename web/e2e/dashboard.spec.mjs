@@ -134,6 +134,33 @@ test.describe("Dashboard form (faked job API)", () => {
     expect(await submitJob(page, posts)).toMatchObject({ minDuration: "25", maxDuration: "45", videoLanguage: "en" });
   });
 
+  test("time ranges are checked before anything is sent and reach the job as typed", async ({ page }) => {
+    const posts = await fakeDashboardApi(page);
+    await openDashboard(page);
+    await optionsButton(page).click();
+    await page.getByLabel("Jumlah klip").fill("2");
+    const ranges = page.getByLabel("Rentang waktu (opsional)");
+    await ranges.fill("10.30-12.05, 1:00-1:30, 2:00-2:30");
+    await expect(optionsButton(page)).toContainText("2 klip · Otomatis 20–60 detik · Utuh + latar blur · Karaoke · Bahasa Indonesia · 3 rentang waktu");
+    await optionsButton(page).click();
+    await page.getByLabel("Link video").fill(LINK);
+    await submitButton(page).click();
+    // The folded options open again on the field, with the reason under it; nothing is sent.
+    await expect(ranges).toBeFocused();
+    await expect(ranges).toHaveAttribute("aria-invalid", "true");
+    await expect(page.getByText("Ada 3 rentang waktu, tetapi jumlah klip 2. Naikkan jumlah klip atau kurangi rentang.", { exact: true })).toBeVisible();
+    expect(posts).toHaveLength(0);
+
+    await ranges.fill("10.30-12.05\n1:02:10-1:03:00");
+    await expect(ranges).not.toHaveAttribute("aria-invalid", "true");
+    const sent = await submitJob(page, posts);
+    expect(sent.limit).toBe("2");
+    expect(sent.timeRanges.replace(/\r\n/g, "\n")).toBe("10.30-12.05\n1:02:10-1:03:00");
+    // The ranges belong to this video: the browser keeps no copy of them.
+    const stored = await page.evaluate((key) => window.localStorage.getItem(key), CHOICES_KEY);
+    expect(stored).not.toContain("10.30");
+  });
+
   test("a problem inside the folded options opens them and focuses the field", async ({ page }) => {
     const posts = await fakeDashboardApi(page);
     await openDashboard(page);

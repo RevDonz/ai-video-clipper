@@ -1,7 +1,8 @@
 // The job options on the dashboard (app/dashboard/page.jsx): what is offered, the defaults, the
 // one-line summary shown while the options are folded, and the last choices kept per browser.
 // Client-safe and DOM-free: the storage is passed in, and every access is guarded, so blocked
-// storage only means today's defaults. The video link, the file and the focus are never stored.
+// storage only means today's defaults. The video link, the file, the time ranges and the focus
+// are never stored.
 
 export const CHOICES_KEY = "potongin-dashboard-choices";
 
@@ -95,7 +96,7 @@ export function normalizeChoices(raw) {
 }
 
 /** "3 klip · Otomatis 20–60 detik · Utuh + latar blur · Karaoke · Bahasa Indonesia"; values being typed are left out. */
-export function choicesSummary(choices, { focusTerms = 0 } = {}) {
+export function choicesSummary(choices, { focusTerms = 0, ranges = 0 } = {}) {
   const parts = [];
   const limit = numberText(choices.limit, 1, 10, true);
   if (limit !== null) parts.push(`${limit} klip`);
@@ -113,6 +114,7 @@ export function choicesSummary(choices, { focusTerms = 0 } = {}) {
   if (language) parts.push(language.summary);
   if (choices.coldOpen === false) parts.push("tanpa kalimat pembuka");
   if (choices.hookOverlay === false) parts.push("tanpa teks hook");
+  if (ranges > 0) parts.push(`${ranges} rentang waktu`);
   if (focusTerms > 0) parts.push(`fokus ${focusTerms} kata kunci`);
   return parts.join(" · ");
 }

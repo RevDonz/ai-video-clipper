@@ -44,6 +44,7 @@ import {
 import { jobHelpHref, storageHelpHref } from "../../lib/help-catalog.mjs";
 import { jobCancellable } from "../../lib/job-cancel.mjs";
 import { lookPreview } from "../../lib/look-preview.mjs";
+import { typedRangeCount } from "../../lib/time-ranges.mjs";
 import {
   FOCUS_LIMITS,
   addFocusTerms,
@@ -61,7 +62,7 @@ import lookStyles from "./look.module.css";
 import LookPreview from "./LookPreview.jsx";
 
 // Fields in the order the page checks them; the first invalid one gets focus.
-const FIELD_IDS = { youtubeUrl: "youtube-url", video: "video-file", limit: "clip-limit", minDuration: "min-duration", maxDuration: "max-duration" };
+const FIELD_IDS = { youtubeUrl: "youtube-url", video: "video-file", limit: "clip-limit", minDuration: "min-duration", maxDuration: "max-duration", timeRanges: "time-ranges" };
 // These two sit in the source row; the others are inside the folded options.
 const SOURCE_FIELDS = new Set(["youtubeUrl", "video"]);
 
@@ -209,6 +210,7 @@ export default function DashboardPage() {
   const [focusDraft, setFocusDraft] = useState("");
   const [focusNote, setFocusNote] = useState("");
   const [focusError, setFocusError] = useState("");
+  const [timeRanges, setTimeRanges] = useState("");
   const [problems, setProblems] = useState({});
   const [aiStatus, setAiStatus] = useState(null);
   const [jobs, setJobs] = useState([]);
@@ -396,7 +398,7 @@ export default function DashboardPage() {
   async function submit(event) {
     event.preventDefault();
     setMessage(null);
-    const found = jobFormProblems({ sourceType, youtubeUrl, video, limit, minDuration, maxDuration });
+    const found = jobFormProblems({ sourceType, youtubeUrl, video, limit, minDuration, maxDuration, timeRanges });
     setProblems(found);
     const firstInvalid = Object.keys(FIELD_IDS).find((name) => found[name]);
     if (firstInvalid) {
@@ -423,6 +425,7 @@ export default function DashboardPage() {
       data.set("captionStyle", captionStyle);
       data.set("videoLanguage", videoLanguage);
       for (const [name, value] of Object.entries(focus.fields)) data.set(name, value);
+      if (timeRanges.trim()) data.set("timeRanges", timeRanges.trim());
       if (sourceType === "youtube") data.set("youtubeUrl", youtubeUrl.trim());
       else data.set("video", video);
       const response = await fetch("/api/jobs", { method: "POST", body: data });
@@ -483,7 +486,7 @@ export default function DashboardPage() {
   }
 
   const describedBy = (name, extra) => [extra, problems[name] ? `${FIELD_IDS[name]}-error` : null].filter(Boolean).join(" ") || undefined;
-  const summary = choicesSummary(choices, { focusTerms: focusTerms.length });
+  const summary = choicesSummary(choices, { focusTerms: focusTerms.length, ranges: typedRangeCount(timeRanges) });
   const look = lookPreview(choices, { editor: editorOn });
 
   return (
@@ -574,7 +577,7 @@ export default function DashboardPage() {
               <h2 id="clips-title" className={styles.sectionTitle}>Klip</h2>
               <div className={`${styles.field} ${styles.limitField}`}>
                 <label htmlFor="clip-limit">Jumlah klip</label>
-                <input id="clip-limit" className={styles.input} type="number" inputMode="numeric" min="1" max="10" step="1" value={limit} aria-invalid={problems.limit ? "true" : undefined} aria-describedby={describedBy("limit")} onChange={(event) => { updateChoices({ limit: event.target.value }); clearProblem("limit"); }} />
+                <input id="clip-limit" className={styles.input} type="number" inputMode="numeric" min="1" max="10" step="1" value={limit} aria-invalid={problems.limit ? "true" : undefined} aria-describedby={describedBy("limit")} onChange={(event) => { updateChoices({ limit: event.target.value }); clearProblem("limit"); clearProblem("timeRanges"); }} />
                 <FieldError id="clip-limit-error" message={problems.limit} />
               </div>
               <fieldset className={styles.group}>
@@ -672,6 +675,23 @@ export default function DashboardPage() {
 
             <section className={styles.section} aria-labelledby="moments-title">
               <h2 id="moments-title" className={styles.sectionTitle}>Momen</h2>
+              <div className={styles.field}>
+                <label htmlFor="time-ranges">Rentang waktu (opsional)</label>
+                <textarea
+                  id="time-ranges"
+                  className={`${styles.input} ${styles.ranges}`}
+                  rows={2}
+                  value={timeRanges}
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder="contoh: 10.30-12.05, 1:02:10-1:03:00"
+                  aria-invalid={problems.timeRanges ? "true" : undefined}
+                  aria-describedby={describedBy("timeRanges", "time-ranges-help")}
+                  onChange={(event) => { setTimeRanges(event.target.value); clearProblem("timeRanges"); }}
+                />
+                <p id="time-ranges-help" className={styles.help}>Tiap rentang jadi satu klip apa adanya; sisa slot diisi momen terbaik lain. Pisahkan dengan koma atau baris baru, 5–180 detik per rentang.</p>
+                <FieldError id="time-ranges-error" message={problems.timeRanges} />
+              </div>
               <FocusField
                 terms={focusTerms}
                 draft={focusDraft}
