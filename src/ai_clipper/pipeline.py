@@ -9,7 +9,10 @@ shadow keep their historical behaviour. Selection V3 (``selection_mode="v3"``) r
    ``<lang>-orig`` track, :func:`choose_original_caption_file`) and judged against the probed
    video duration. A usable track replaces Whisper (``transcript_source="youtube-captions"``)
    and its sound tags become ``analysis/sound-events.json``; otherwise Whisper runs with word
-   timestamps. The captions directory is only ever read.
+   timestamps. The captions directory is only ever read. With ``groq`` (Pengaturan
+   "Transkripsi", opt-in) Groq's hosted Whisper is tried first (:func:`transcribe_with_groq`,
+   ``transcript_source="groq"``); any failure adds ``groq_fallback:<code>`` and local Whisper
+   runs as before. Captions that are usable never reach Groq.
 2. **Audio** (stage ``audio``). :func:`analyze_audio_timeline` starts on a daemon thread before
    the transcript step, so it overlaps Whisper, and is awaited for at most
    ``AUDIO_TIMELINE_TIMEOUT + AUDIO_WAIT_GRACE`` seconds. Any failure only adds a warning.
@@ -91,7 +94,8 @@ only values the web sanitizers accept (see :func:`_selection_v3_summary`).
 
 V3 summary warning codes added here, before the selector's own codes: ``media_probe_failed``,
 ``captions_missing``, ``captions_rejected:<reason>`` (``invalid`` or a caption quality
-code), the transcript-quality file codes (``no_word_timestamps``,
+code), ``groq_fallback:<code>`` (a ``transcribe_groq.FALLBACK_REASONS`` code, or ``error``),
+the transcript-quality file codes (``no_word_timestamps``,
 ``quantized_timestamps``, ``punctuation_collapse:<a>-<b>``) and ``suspect_segments:<n>``,
 ``audio_unavailable`` (``:timeout``/``:error``), ``trend_context_invalid``,
 ``trend_items_skipped:<n>``, ``llm_unavailable:<code>``, ``llm_disabled``,
@@ -104,7 +108,8 @@ starts with ``pipeline_failed:<stage>``.
 **Stage summaries** (V3, ``stage_summary``): once a stage has a result the run already knows,
 ``stage_summary(kind, values)`` reports it for the job progress. ``video`` after the probe
 (``duration`` in seconds), ``transcript`` after the transcript (``words``, ``source``:
-``youtube-captions`` or ``whisper``, and ``language`` when it is a two- or three-letter code),
+``youtube-captions``, ``groq`` or ``whisper``, and ``language`` when it is a two- or
+three-letter code),
 ``moments`` after selection (``count``, ``source``: ``llm`` or ``heuristic``). A value the run
 did not learn is not reported. The CLI prints each one on the current progress line.
 """
@@ -174,6 +179,7 @@ from .selection_v3 import (
 from .sound_events import SoundEvent, write_sound_events
 from .time_ranges import TimeRange, TimeRangeError, check_ranges, check_within_video
 from .transcribe import transcribe_video
+from .transcribe_groq import GroqTranscription, GroqTranscriptionError, transcribe_with_groq
 from .transcript_io import read_transcript_json, write_transcript_json
 from .transcript_quality import (
     TranscriptQuality,
@@ -783,6 +789,44 @@ def _load_captions(
     return transcription, events
 
 
+def _groq_transcript(
+    source: Path,
+    *,
+    groq: GroqTranscription,
+    language: str | None,
+    media_duration: float | None,
+    word_timestamps: bool,
+    report: Callable[[str, int, str], None],
+    state: _V3State,
+) -> Transcription | None:
+    """Groq's transcript, or None after a ``groq_fallback:<code>`` warning and one log line."""
+    report("transcribing", 30, "Mengirim audio ke Groq")
+    try:
+        transcription = transcribe_with_groq(
+            source,
+            config=groq,
+            language=language,
+            word_timestamps=word_timestamps,
+            media_duration=media_duration,
+            progress_callback=lambda fraction: report(
+                "transcribing",
+                30 + round(fraction * 27),
+                f"Transkripsi audio lewat Groq {round(fraction * 100)}%",
+            ),
+        )
+    except Exception as error:  # noqa: BLE001 - any failure means local Whisper, not a failed job
+        code = error.code if isinstance(error, GroqTranscriptionError) else "error"
+        state.warnings.append(f"groq_fallback:{code}")
+        print(
+            f"potongin: transkripsi Groq dilewati ({code}); Whisper lokal dipakai.",
+            file=sys.stderr,
+            flush=True,
+        )
+        return None
+    print(f"potongin: transkrip dari Groq ({groq.model}).", file=sys.stderr, flush=True)
+    return transcription
+
+
 def _v3_transcript(
     source: Path,
     *,
@@ -793,6 +837,7 @@ def _v3_transcript(
     word_timestamps: bool,
     report: Callable[[str, int, str], None],
     state: _V3State,
+    groq: GroqTranscription | None = None,
 ) -> tuple[Transcription, tuple[SoundEvent, ...]]:
     if captions_dir is not None:
         state.stage = "captions"
@@ -807,6 +852,19 @@ def _v3_transcript(
             state.transcript_source = "youtube-captions"
             return captions
     state.stage = "transcribing"
+    if groq is not None:
+        hosted = _groq_transcript(
+            source,
+            groq=groq,
+            language=language,
+            media_duration=media_duration,
+            word_timestamps=word_timestamps,
+            report=report,
+            state=state,
+        )
+        if hosted is not None:
+            state.transcript_source = "groq"
+            return hosted, ()
     report("transcribing", 30, "Mendengarkan dan menulis transkrip")
     transcription = transcribe_video(
         source,
@@ -1159,6 +1217,7 @@ def _run_v3(
     ranges: tuple[TimeRange, ...] = (),
     render_engine: str = render_edit.ENGINE_LEGACY,
     summarize: StageSummary = _no_stage_summary,
+    groq: GroqTranscription | None = None,
 ) -> tuple[Transcription, Path, list[dict[str, object]]]:
     """Transcript, audio, selection, and rendering for Selection V3 (see the module docstring)."""
     media_duration = _probe_video_duration(source)
@@ -1180,6 +1239,7 @@ def _run_v3(
         word_timestamps=word_timestamps,
         report=report,
         state=state,
+        groq=groq,
     )
     if not transcription.segments:
         raise ValueError("Transcription produced no usable segments")
@@ -1584,12 +1644,14 @@ def run_pipeline(
     render_engine: str | None = None,
     stage_summary: StageSummary | None = None,
     ranges: Sequence[TimeRange] = (),
+    groq: GroqTranscription | None = None,
 ) -> Path:
     """Transcribe, select highlights, render clips, and publish a status manifest.
 
     ``llm_mode``, ``cold_open``, ``hook_overlay``, ``hook_duration``, ``captions_dir``,
     ``trend_context`` (a Konteks Tren snapshot), ``focus`` (the Fokus klip option), ``ranges``
-    (the Rentang waktu option; refused for other modes),
+    (the Rentang waktu option; refused for other modes), ``groq`` (the opt-in Groq
+    transcription, from :func:`ai_clipper.transcribe_groq.groq_from_env`),
     ``render_engine`` and ``stage_summary`` (module docstring, "Stage summaries") only apply to
     ``selection_mode="v3"``. ``caption_style`` defaults to
     ``"karaoke"`` for V3 and ``"classic"`` otherwise; ``word_timestamps`` applies to every
@@ -1642,6 +1704,8 @@ def run_pipeline(
         trend_context = _optional_path(trend_context, "trend_context")
         if focus is not None and not isinstance(focus, FocusSpec):
             raise TypeError("focus must be a FocusSpec or None")
+        if groq is not None and not isinstance(groq, GroqTranscription):
+            raise TypeError("groq must be a GroqTranscription or None")
         if isinstance(ranges, (str, bytes)) or not isinstance(ranges, Sequence):
             raise TypeError("ranges must be a sequence of TimeRange values")
         ranges = check_ranges(ranges, limit)
@@ -1679,6 +1743,7 @@ def run_pipeline(
                 ranges=ranges,
                 render_engine=render_engine,
                 summarize=stage_summary or _no_stage_summary,
+                groq=groq,
             )
             report("finalizing", 96, "Menyimpan hasil, subtitle, dan metadata")
             _publish_manifest(
