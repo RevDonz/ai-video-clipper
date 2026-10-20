@@ -3,6 +3,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      # deploy/production.sh builds with IMAGE_TAG set to the deployed commit; Pengaturan shows
+      # its first seven characters under "Tentang sistem". Any other tag shows as unknown.
+      args:
+        POTONGIN_APP_COMMIT: ${IMAGE_TAG:-}
     image: ai-video-clipper:${IMAGE_TAG:-latest}
     container_name: ai-video-clipper
     restart: unless-stopped
