@@ -4,6 +4,7 @@
 
 import { downloadErrorMessage } from "./download-errors.mjs";
 import { shownStageDetail, shownWorkerText } from "./stage-detail.mjs";
+import { timeRangesProblem } from "./time-ranges.mjs";
 
 export const JOB_STATUS_LABELS = Object.freeze({
   queued: "Dalam antrean",
@@ -204,7 +205,7 @@ function inRange(value, minimum, maximum, integer = false) {
  * Problems of the job form as { field: message }, empty when it can be sent. Mirrors the job
  * API's checks, so the owner sees Indonesian messages instead of the browser's.
  */
-export function jobFormProblems({ sourceType, youtubeUrl, video, limit, minDuration, maxDuration } = {}) {
+export function jobFormProblems({ sourceType, youtubeUrl, video, limit, minDuration, maxDuration, timeRanges = "" } = {}) {
   const problems = {};
   if (sourceType === "upload") {
     const problem = videoFileProblem(video);
@@ -220,6 +221,9 @@ export function jobFormProblems({ sourceType, youtubeUrl, video, limit, minDurat
     const order = durationProblem(minDuration, maxDuration);
     if (order) problems.maxDuration = order;
   }
+  // Rentang waktu: the job API's own check and message; the count only once it is a count.
+  const ranges = timeRangesProblem(timeRanges, problems.limit ? null : Number(limit));
+  if (ranges) problems.timeRanges = ranges;
   return problems;
 }
 

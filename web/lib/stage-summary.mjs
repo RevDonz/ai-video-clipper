@@ -37,7 +37,13 @@ function transcript(raw) {
 function moments(raw) {
   const kept = count(raw?.count, MAX_MOMENTS);
   if (kept === null) return null;
-  return MOMENT_SOURCES.includes(raw.source) ? { count: kept, source: raw.source } : { count: kept };
+  // Rentang waktu: how many of the clips came from ranges the person typed.
+  const typed = count(raw.ranges, kept);
+  return {
+    count: kept,
+    ...(MOMENT_SOURCES.includes(raw.source) ? { source: raw.source } : {}),
+    ...(typed ? { ranges: typed } : {}),
+  };
 }
 
 const KINDS = Object.freeze({ video, transcript, moments });
@@ -84,8 +90,10 @@ export function stageSummaryRows(job) {
   if (summary?.video) rows.push({ key: "video", label: "Video", text: formatTimestamp(summary.video.duration) });
   if (summary?.transcript) rows.push({ key: "transcript", label: "Transkrip", text: transcriptText(summary.transcript, job) });
   if (summary?.moments) {
-    const { count: kept, source } = summary.moments;
-    rows.push({ key: "moments", label: "Momen", text: `${NUMBER.format(kept)} dipilih${source === "llm" ? " AI" : ""}` });
+    const { count: kept, source, ranges = 0 } = summary.moments;
+    const parts = ranges ? [`${NUMBER.format(ranges)} dari rentang waktu`] : [];
+    if (kept > ranges || !ranges) parts.push(`${NUMBER.format(kept - ranges)} dipilih${source === "llm" ? " AI" : ""}`);
+    rows.push({ key: "moments", label: "Momen", text: parts.join(" · ") });
   }
   const clips = job?.status === "completed" && Array.isArray(job.clips) ? job.clips.length : 0;
   if (clips) rows.push({ key: "clips", label: "Klip", text: `${NUMBER.format(clips)} siap` });

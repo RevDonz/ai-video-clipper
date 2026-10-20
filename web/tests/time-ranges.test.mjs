@@ -246,3 +246,56 @@ test("a clip from a typed range keeps its manual mark; any other value is droppe
   const forged = sanitizeStoredClip({ index: 1, selectionSource: "heuristic", title: "Judul", manual: "ya" }, "d23e4567-e89b-42d3-a456-426614174000");
   assert.equal("manual" in forged, false);
 });
+
+// --- On screen ------------------------------------------------------------------------------
+
+test("the dashboard checks the field before anything is sent, against the clip count it shows", async () => {
+  const { jobFormProblems } = await import("../lib/dashboard-view.mjs");
+  const valid = { sourceType: "youtube", youtubeUrl: "https://youtu.be/rBg0ZcwjVKQ", video: null, limit: "3", minDuration: "20", maxDuration: "60" };
+  assert.deepEqual(jobFormProblems({ ...valid, timeRanges: "" }), {});
+  assert.deepEqual(jobFormProblems({ ...valid, timeRanges: "10.30-12.05, 1:02:10-1:03:00" }), {});
+  assert.deepEqual(jobFormProblems({ ...valid, timeRanges: "besok" }), { timeRanges: "“besok” tidak dikenali. Contoh: 10.30-12.05 atau 1:02:10-1:03:00." });
+  assert.deepEqual(jobFormProblems({ ...valid, limit: "1", timeRanges: "1:00-1:30, 2:00-2:30" }), {
+    timeRanges: "Ada 2 rentang waktu, tetapi jumlah klip 1. Naikkan jumlah klip atau kurangi rentang.",
+  });
+  // A clip count still being typed is its own problem; the ranges are checked on their own.
+  assert.deepEqual(jobFormProblems({ ...valid, limit: "", timeRanges: "1:00-1:30, 2:00-2:30" }), { limit: "Isi 1 sampai 10 klip." });
+});
+
+test("the folded options' summary counts the typed ranges", async () => {
+  const { DEFAULT_CHOICES, choicesSummary } = await import("../lib/dashboard-choices.mjs");
+  assert.equal(choicesSummary(DEFAULT_CHOICES, { ranges: 2, focusTerms: 1 }), "3 klip · Otomatis 20–60 detik · Utuh + latar blur · Karaoke · Bahasa Indonesia · 2 rentang waktu · fokus 1 kata kunci");
+  assert.equal(choicesSummary(DEFAULT_CHOICES, { ranges: 0 }), choicesSummary(DEFAULT_CHOICES));
+});
+
+test("the moments row says how many clips came from the typed ranges", async () => {
+  const { sanitizeStageSummary, stageSummaryRows } = await import("../lib/stage-summary.mjs");
+  const text = (moments) => stageSummaryRows({ stageSummary: { moments } })[0]?.text;
+  assert.equal(text({ count: 5, source: "llm", ranges: 2 }), "2 dari rentang waktu · 3 dipilih AI");
+  assert.equal(text({ count: 4, source: "heuristic", ranges: 1 }), "1 dari rentang waktu · 3 dipilih");
+  assert.equal(text({ count: 2, source: "heuristic", ranges: 2 }), "2 dari rentang waktu");
+  assert.equal(text({ count: 5, source: "llm" }), "5 dipilih AI");
+  for (const ranges of [0, 6, 1.5, "2", null]) {
+    assert.deepEqual(sanitizeStageSummary({ moments: { count: 5, source: "llm", ranges } }), { moments: { count: 5, source: "llm" } }, String(ranges));
+  }
+});
+
+test("a job made only of typed ranges is not called a job made without AI", async () => {
+  const { clipRangeChip, selectionNotices } = await import("../lib/selection-v3-view.mjs");
+  const summary = { mode: "v3", status: "completed", source: "heuristic", warnings: [] };
+  const job = (clips) => ({ options: { llmMode: "auto" }, selectionV3: summary, clips });
+  assert.deepEqual(selectionNotices(job([{ index: 1, manual: true }, { index: 2, manual: true }])), []);
+  assert.equal(selectionNotices(job([{ index: 1, manual: true }, { index: 2 }]))[0].title, "Dibuat tanpa AI");
+  assert.equal(selectionNotices(job([]))[0].title, "Dibuat tanpa AI");
+  assert.equal(clipRangeChip({ manual: true }), "Rentang waktu kamu");
+  for (const clip of [{}, { manual: "true" }, null]) assert.equal(clipRangeChip(clip), null);
+});
+
+test("the dashboard field and the project chip are wired", async () => {
+  const dashboard = await readFile(new URL("../app/dashboard/page.jsx", import.meta.url), "utf8");
+  assert.match(dashboard, /htmlFor="time-ranges"/);
+  assert.match(dashboard, /data\.set\("timeRanges"/);
+  assert.match(dashboard, /timeRanges: "time-ranges"/, "the field takes focus when it is the first problem");
+  const project = await readFile(new URL("../app/projects/[id]/page.jsx", import.meta.url), "utf8");
+  assert.match(project, /clipRangeChip\(clip\)/);
+});

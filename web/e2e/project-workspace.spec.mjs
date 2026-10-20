@@ -20,6 +20,8 @@ const TITLES = ["Rahasia hook di 3 detik", "Jangan menyerah", "Ngopi di café", 
 const SCORES = [8.4, 6.1, 7.95, 9];
 // Clips 2 and 4 fell back (pipeline.py `fallbacks`): no face found, and the backup render too.
 const FALLBACKS = [null, ["no_face"], null, ["no_face", "engine_fallback"]];
+// Clip 3 was cut from a time range the person typed (Rentang waktu, plan 2026-10-20 P2).
+const TYPED = [false, false, true, false];
 
 function clip(index) {
   const base = `/api/jobs/${JOB_ID}/files/output/clip-0${index}`;
@@ -29,6 +31,7 @@ function clip(index) {
     sourceStart: 60 * index, sourceEnd: 60 * index + 30,
     videoUrl: `${base}.mp4`, downloadUrl: `${base}.mp4?download=1`, subtitleUrl: `${base}.srt?download=1`,
     ...(FALLBACKS[index - 1] ? { fallbacks: FALLBACKS[index - 1] } : {}),
+    ...(TYPED[index - 1] ? { manual: true, selectionSource: "heuristic" } : {}),
   };
 }
 
@@ -141,9 +144,12 @@ test.describe("project workspace (faked job API)", () => {
     await posters(page).nth(1).getByRole("button").click();
     await expect(detailNotes(page).getByRole("listitem")).toHaveText(["Wajah tidak terdeteksi · potong tengah"]);
 
+    await expect(detail(page).getByText("Rentang waktu kamu", { exact: true })).toHaveCount(0);
     await posters(page).nth(2).getByRole("button").click();
     await expect(detailTitle(page)).toHaveText(TITLES[2]);
     await expect(posters(page).nth(2).getByRole("button")).toHaveAttribute("aria-current", "true");
+    // A clip cut from the person's own range says so among its tags.
+    await expect(detail(page).getByText("Rentang waktu kamu", { exact: true })).toBeVisible();
     await expect(detail(page).getByRole("link", { name: "Unduh MP4" }))
       .toHaveAttribute("href", `/api/jobs/${JOB_ID}/files/output/clip-03.mp4?download=1&name=03-ngopi-di-cafe`);
     await expect(detail(page).getByRole("link", { name: /Unduh subtitle SRT/ }))
