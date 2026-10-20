@@ -1,0 +1,40 @@
+/* "Tampilan klip": the subtitle styles and hook switches beside a 9:16 preview of the next clips
+   (LookPreview.jsx). The preview pictures the output and is not a control, so it carries no accent;
+   its stand-in video colours come from lib/editor/content-colours.mjs, the TikTok zone uses the
+   editor's Zona aman colours. Below 560px the preview leads, with its key beside it. */
+
+.look {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 164px;
+  grid-template-areas: "controls preview";
+  gap: 16px 20px;
+  align-items: start;
+}
+.controls { grid-area: controls; display: grid; gap: 12px; min-width: 0; }
+
+.preview { grid-area: preview; display: grid; gap: 8px; min-width: 0; margin: 0; }
+.frame { overflow: hidden; border: 1px solid var(--border-strong); border-radius: var(--radius-m); }
+.canvas { display: block; width: 100%; height: auto; aspect-ratio: 9 / 16; }
+/* A choice that changes the picture fades its part in, so the eye finds what moved. */
+.appear { animation: fade-in var(--dur-2) var(--ease-out); }
+.hookBox { fill: var(--shadow); }
+.hookText { fill: var(--text); font-family: var(--font); font-weight: 700; }
+.veil { fill: var(--danger-veil); }
+/* In output pixels: about 1.5px lines with 6/4px dashes at the preview's width. */
+.edge { fill: none; stroke: var(--danger); stroke-width: 7; stroke-dasharray: 28 20; }
+
+.key { display: flex; align-items: center; gap: 6px; color: var(--text-muted); font-size: 12px; line-height: 1.45; }
+.key i { flex: none; width: 12px; height: 12px; border: 1px dashed var(--danger); border-radius: 2px; background: var(--danger-veil); }
+
+/* The subtitle styles side by side while each keeps room for its thumbnail, else stacked. */
+.styles { grid-template-columns: repeat(auto-fit, minmax(156px, 1fr)); }
+/* A subtitle style: its rendered thumbnail on top, the radio and the name under it. */
+.style { grid-template-areas: "thumb thumb" "radio text"; }
+.style > input { grid-area: radio; }
+.style > span { grid-area: text; }
+.thumb { grid-area: thumb; display: block; width: 100%; max-width: 240px; height: auto; aspect-ratio: 4 / 1; border-radius: var(--radius-s); }
+
+@media (max-width: 560px) {
+  .look { grid-template-columns: minmax(0, 1fr); grid-template-areas: "preview" "controls"; }
+  .preview { grid-template-columns: 112px minmax(0, 1fr); align-items: center; gap: 12px; }
+}
