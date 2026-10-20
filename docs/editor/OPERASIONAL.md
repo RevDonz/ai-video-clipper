@@ -217,7 +217,8 @@ Selama izin "Allow GitHub Actions to create and approve pull requests" (Settings
 General) mati, GitHub menolak PR dari Actions. Summary run lalu memuat tautan compare: buka PR
 dari sana, judul dan isinya terisi dari commit.
 
-**Kalau unduhan YouTube gagal untuk banyak video sekaligus:**
+**Kalau unduhan YouTube gagal untuk banyak video sekaligus**, biasanya dengan kode
+`download_ytdlp_outdated` (arti tiap kode: `docs/operations/UNDUHAN_YOUTUBE.md`):
 
 1. Cek versi di produksi, dari folder deploy di server:
    `docker compose exec primary-worker yt-dlp --version`. Layar menulis `2026.08.19` untuk

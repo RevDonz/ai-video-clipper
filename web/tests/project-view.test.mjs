@@ -17,6 +17,7 @@ import {
   ProjectDetailLoadError,
   clipLabel,
   failureDetail,
+  failureHint,
   formatProjectDate,
   historySummary,
   isActiveStatus,
@@ -29,6 +30,7 @@ import {
   projectStageText,
   statusLabel,
 } from "../lib/project-view.mjs";
+import { DOWNLOAD_ERROR_CODES, downloadErrorMessage } from "../lib/download-errors.mjs";
 import {
   clipReasons,
   clipScoreView,
@@ -442,7 +444,34 @@ test("a failed project says why it stopped: the worker's message under the notic
   const source = await read("app/projects/[id]/page.jsx");
   assert.match(source, /job\.status === "failed"/);
   assert.match(source, /const serverError = failureDetail\(job\);/);
-  assert.match(source, /serverError && <span className=\{styles\.errorDetail\}>Pesan dari server: \{serverError\}<\/span>/);
+  assert.match(source, /const hint = failureHint\(job\);/);
+  assert.match(source, /<span>\{projectStageText\(job\)\}<\/span>\s*\{hint && <span>\{hint\}<\/span>\}\s*\{serverError && <span className=\{styles\.errorDetail\}>Pesan dari server: \{serverError\}<\/span>\}/);
+});
+
+test("a failed download names its reason and one suggestion from the stored code", () => {
+  for (const code of DOWNLOAD_ERROR_CODES) {
+    const job = { status: "failed", stageDetail: "Proses berhenti karena terjadi kesalahan", errorCode: code, error: "[youtube] AbCdEfGhIjK: Video unavailable" };
+    const { text, hint } = downloadErrorMessage(code);
+    assert.equal(projectStageText(job), text, code);
+    assert.equal(projectRowDetail(job), text, code);
+    assert.equal(failureHint(job), hint, code);
+    assert.equal(failureDetail(job), "[youtube] AbCdEfGhIjK: Video unavailable", code);
+  }
+  const stalled = { status: "failed", stageDetail: "Unduhan macet.", errorCode: "download_stalled", error: "yt-dlp tidak bergerak selama 120 detik" };
+  assert.equal(projectStageText(stalled), "Unduhan macet.");
+  assert.equal(failureDetail(stalled), "yt-dlp tidak bergerak selama 120 detik");
+  // No code, an unknown code, or a job that is not failed: no suggestion and the old texts.
+  for (const job of [
+    { status: "failed", stageDetail: "Penyimpanan server tidak cukup", errorCode: null },
+    { status: "failed", stageDetail: "Penyimpanan server tidak cukup", errorCode: "download_new_kind" },
+    { status: "failed", stageDetail: "Penyimpanan server tidak cukup" },
+  ]) {
+    assert.equal(failureHint(job), null, JSON.stringify(job));
+    assert.equal(projectStageText(job), "Penyimpanan server tidak cukup");
+  }
+  assert.equal(failureHint({ status: "processing", errorCode: "download_private" }), null);
+  assert.equal(projectStageText({ status: "processing", stageDetail: "Mengunduh", errorCode: "download_private" }), "Mengunduh");
+  assert.equal(failureHint(null), null);
 });
 
 test("every clip card offers 'Edit klip' from the clips listing; the page has no prepare step", async () => {

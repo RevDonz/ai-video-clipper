@@ -10,10 +10,10 @@ import { sameOriginMutation } from "../../../lib/request-security.mjs";
 import {
   RetiredSelectionModeError,
   jobOptionInputFromForm,
+  normalizeYouTubeUrl,
   parseJobOptions,
   serializePublicJob,
   sortJobsNewest,
-  validateYouTubeUrl,
 } from "../../../lib/jobs.mjs";
 import {
   QueueCapacityError,
@@ -260,8 +260,9 @@ export async function POST(request) {
     const youtubeUrl = String(parsed.form.get("youtubeUrl") || "").trim();
     const hasUpload = Boolean(parsed.upload && parsed.upload.size > 0);
     if ((hasUpload && youtubeUrl) || (!hasUpload && !youtubeUrl)) throw new Error("Pilih tepat satu sumber: upload video atau URL YouTube");
-    if (youtubeUrl && !validateYouTubeUrl(youtubeUrl)) throw new Error("URL harus berasal dari youtube.com atau youtu.be");
-    const source = hasUpload ? { type: "upload", name: parsed.upload.name, size: parsed.upload.size } : { type: "youtube", url: youtubeUrl };
+    const storedUrl = youtubeUrl ? normalizeYouTubeUrl(youtubeUrl) : null;
+    if (youtubeUrl && !storedUrl) throw new Error("URL harus berasal dari youtube.com atau youtu.be");
+    const source = hasUpload ? { type: "upload", name: parsed.upload.name, size: parsed.upload.size } : { type: "youtube", url: storedUrl };
     const sourcePath = hasUpload ? parsed.upload.path : null;
     const now = new Date().toISOString();
     const job = { id, status: "queued", progress: 0, createdAt: now, updatedAt: now, source, sourcePath, options, clips: [] };

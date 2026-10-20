@@ -8,6 +8,7 @@ import { clipEntryFor, loadClipEntries } from "../../../lib/clip-entry-view.mjs"
 import {
   clipLabel,
   failureDetail,
+  failureHint,
   formatProjectDate,
   isActiveStatus,
   loadProjectDetail,
@@ -193,6 +194,7 @@ function ProjectView({ job, copyState, onCopy, entries }) {
   const notices = selectionNotices(job);
   const notes = selectionNotes(job);
   const serverError = failureDetail(job);
+  const hint = failureHint(job);
   const clipCount = Array.isArray(job.clips) ? job.clips.length : 0;
 
   return (
@@ -225,6 +227,7 @@ function ProjectView({ job, copyState, onCopy, entries }) {
         <div className={`notice error ${styles.failed}`}>
           <strong>Proses gagal</strong>
           <span>{projectStageText(job)}</span>
+          {hint && <span>{hint}</span>}
           {serverError && <span className={styles.errorDetail}>Pesan dari server: {serverError}</span>}
           <a className={styles.noticeLink} href="/dashboard">Buat ulang di Buat Klip</a>
         </div>
