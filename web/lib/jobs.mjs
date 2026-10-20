@@ -20,6 +20,8 @@ const RETIRED_SELECTION_MODES = ["v1", "v2-shadow"];
 export const CLIP_PROFILES = ["viral-short", "standard", "deep-dive"];
 export const LLM_MODES = ["auto", "off"];
 export const CAPTION_STYLES = ["karaoke", "classic"];
+/** "Bahasa video": the spoken language; "auto" lets the engine detect it. Mirrored in dashboard-choices.mjs. */
+export const VIDEO_LANGUAGES = ["id", "en", "auto"];
 export const DEFAULT_V3_OPTIONS = Object.freeze({
   llmMode: "auto",
   coldOpen: true,
@@ -30,6 +32,8 @@ const V2_OPTION_KEYS = ["clipProfile", "maxCandidates", "maxMediaCandidates", "m
 const V3_OPTION_KEYS = ["llmMode", "coldOpen", "hookOverlay", "captionStyle"];
 // Fokus klip (docs/plans/2026-09-25-fokus-klip.md §1): V3 only, persisted as options.focus.
 const FOCUS_FORM_KEYS = ["focusTerms", "focusNote"];
+// Optional: a job without it keeps the worker's WHISPER_LANGUAGE (else id) and Indonesian captions.
+const LANGUAGE_KEY = "videoLanguage";
 const FOCUS_KEYS = ["terms", "note", "mode"];
 // Bounds on what the job API reads before normalising: form text, or a list of terms.
 const MAX_FOCUS_TERMS_INPUT = 4096;
@@ -51,7 +55,7 @@ export class RetiredSelectionModeError extends Error {
 /** Every field of the job creation form that parseJobOptions reads (retired ones only to refuse them). */
 export const JOB_FORM_FIELDS = Object.freeze([
   "renderMode", "limit", "minDuration", "maxDuration", "selectionMode",
-  ...V2_OPTION_KEYS, ...V3_OPTION_KEYS, ...FOCUS_FORM_KEYS,
+  ...V2_OPTION_KEYS, ...V3_OPTION_KEYS, LANGUAGE_KEY, ...FOCUS_FORM_KEYS,
 ]);
 
 /** The parseJobOptions input of a job creation form (FormData): each field or null. */
@@ -332,6 +336,9 @@ export function validatePersistedJobOptions(input) {
   if (input.focus !== undefined && input.selectionMode !== "v3") {
     throw new Error("Invalid persisted job options: focus requires v3 mode");
   }
+  if (input.videoLanguage !== undefined && input.selectionMode !== "v3") {
+    throw new Error("Invalid persisted job options: video language requires v3 mode");
+  }
   if (input.selectionMode === undefined) return options;
   if (typeof input.selectionMode !== "string" || !SELECTION_MODES.includes(input.selectionMode)) {
     throw new Error("Invalid persisted job options: unsupported selection mode");
@@ -354,6 +361,9 @@ export function validatePersistedJobOptions(input) {
     if (typeof input.captionStyle !== "string" || !CAPTION_STYLES.includes(input.captionStyle)) {
       throw new Error("Invalid persisted job options: unsupported caption style");
     }
+    if (input.videoLanguage !== undefined && !VIDEO_LANGUAGES.includes(input.videoLanguage)) {
+      throw new Error("Invalid persisted job options: unsupported video language");
+    }
     const focus = input.focus === undefined ? null : persistedFocus(input.focus);
     return {
       ...options,
@@ -361,6 +371,7 @@ export function validatePersistedJobOptions(input) {
       coldOpen: input.coldOpen,
       hookOverlay: input.hookOverlay,
       captionStyle: input.captionStyle,
+      ...(input.videoLanguage !== undefined ? { videoLanguage: input.videoLanguage } : {}),
       ...(focus ? { focus } : {}),
     };
   }
@@ -406,6 +417,8 @@ export function parseJobOptions(input = {}) {
   if (typeof llmMode !== "string" || !LLM_MODES.includes(llmMode)) throw new Error("Unsupported LLM mode");
   const captionStyle = provided("captionStyle") ? input.captionStyle : DEFAULT_V3_OPTIONS.captionStyle;
   if (typeof captionStyle !== "string" || !CAPTION_STYLES.includes(captionStyle)) throw new Error("Unsupported caption style");
+  const videoLanguage = provided(LANGUAGE_KEY) ? input.videoLanguage : null;
+  if (videoLanguage !== null && !VIDEO_LANGUAGES.includes(videoLanguage)) throw new Error("Unsupported video language");
   const focus = parseFocusOption(input.focusTerms, input.focusNote);
   return {
     renderMode,
@@ -417,6 +430,7 @@ export function parseJobOptions(input = {}) {
     coldOpen: formBoolean(input.coldOpen, DEFAULT_V3_OPTIONS.coldOpen, "cold open"),
     hookOverlay: formBoolean(input.hookOverlay, DEFAULT_V3_OPTIONS.hookOverlay, "hook overlay"),
     captionStyle,
+    ...(videoLanguage ? { videoLanguage } : {}),
     ...(focus ? { focus } : {}),
   };
 }

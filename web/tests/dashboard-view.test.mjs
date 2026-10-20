@@ -146,7 +146,7 @@ test("the form is checked in Indonesian before anything is sent, like the job AP
   const valid = { sourceType: "youtube", youtubeUrl: " https://youtu.be/rBg0ZcwjVKQ ", video: null, limit: "3", minDuration: "20", maxDuration: "60" };
   assert.deepEqual(jobFormProblems(valid), {});
   assert.deepEqual(jobFormProblems({ ...valid, sourceType: "upload", youtubeUrl: "", video: { name: "a.mp4" } }), {});
-  assert.deepEqual(jobFormProblems({ ...valid, youtubeUrl: "" }), { youtubeUrl: "Tempel link YouTube dulu." });
+  assert.deepEqual(jobFormProblems({ ...valid, youtubeUrl: "" }), { youtubeUrl: "Tempel link YouTube atau pilih file video." });
   for (const url of ["http://youtu.be/x", "https://youtube.com.evil.test/x", "youtu.be/x", "https://gaming.youtube.com/watch?v=x", "http://m.youtube.com/watch?v=x"]) {
     assert.deepEqual(jobFormProblems({ ...valid, youtubeUrl: url }), { youtubeUrl: "Link harus https:// dari youtube.com atau youtu.be." }, url);
   }
@@ -215,10 +215,10 @@ test("the dashboard is one form for the current method", async () => {
   assert.doesNotMatch(source, /\bV[1-3]\b|Mode lama|Klasik V1|AI Hook|shadow|selectionMode|clipProfile|llmMode|legacyModes|Disarankan/);
   assert.doesNotMatch(source, /selectionSource|selectionSourceLabel/, "no technical provenance on screen");
   assert.doesNotMatch(source, /—/);
-  for (const field of ["renderMode", "limit", "minDuration", "maxDuration", "coldOpen", "hookOverlay", "captionStyle"]) {
+  for (const field of ["renderMode", "limit", "minDuration", "maxDuration", "coldOpen", "hookOverlay", "captionStyle", "videoLanguage"]) {
     assert.match(source, new RegExp(`data\\.set\\("${field}"`), field);
   }
-  for (const text of ["Link YouTube", "Unggah file", "Jumlah klip", "Durasi minimum", "Durasi maksimum", "Layout", "Gaya subtitle", "Buka dengan kalimat terkuat", "Teks hook di 4 detik pertama", "Cari momen tentang… (opsional)"]) {
+  for (const text of ["Link video", "Pilih file", "Pengaturan klip", "Jumlah klip", "Durasi klip", "Durasi minimum", "Durasi maksimum", "Bahasa video", "Layout", "Gaya subtitle", "Buka dengan kalimat terkuat", "Teks hook di 4 detik pertama", "Cari momen tentang… (opsional)"]) {
     assert.ok(source.includes(text), text);
   }
   // The focus fields are sent only through focusFormFields: an empty focus sends nothing.
@@ -235,11 +235,35 @@ test("the dashboard is one form for the current method", async () => {
 test("the dashboard's radio groups and toggles are real form controls", async () => {
   const source = await read("app/dashboard/page.jsx");
   assert.match(source, /<fieldset[^>]*>\s*<legend[^>]*>Layout<\/legend>/);
-  assert.match(source, /type="radio" name="renderMode"/);
-  assert.match(source, /type="radio" name="captionStyle"/);
+  for (const group of ["Durasi klip", "Bahasa video"]) assert.match(source, new RegExp(`<fieldset[^>]*>\\s*<legend[^>]*>${group}</legend>`), group);
+  for (const name of ["renderMode", "captionStyle", "duration", "videoLanguage"]) assert.match(source, new RegExp(`type="radio" name="${name}"`), name);
   assert.match(source, /type="checkbox"[^>]*checked=\{coldOpen\}/);
   assert.match(source, /type="checkbox"[^>]*checked=\{hookOverlay\}/);
-  assert.match(source, /aria-pressed=\{sourceType === "youtube"\}/);
+  assert.match(source, /id="video-file"[^>]*type="file"/);
+});
+
+test("link, file and Buat klip come first; the other options fold under a one-line summary", async () => {
+  const source = await read("app/dashboard/page.jsx");
+  const form = /<form [^>]*onSubmit=\{submit\}[^>]*>([\s\S]*?)<\/form>/.exec(source)[1];
+  const at = (pattern) => form.search(pattern);
+  assert.ok(at(/id="youtube-url"/) >= 0 && at(/type="submit"/) > at(/id="youtube-url"/), "link field, then Buat klip");
+  assert.ok(at(/aria-controls="job-options"/) > at(/type="submit"/), "the fold comes after Buat klip");
+  assert.ok(at(/id="job-options"/) > at(/aria-controls="job-options"/));
+  assert.match(form, /aria-expanded=\{optionsOpen\}/);
+  assert.match(form, /id="job-options"[^>]*hidden=\{!optionsOpen\}/, "folded, not unmounted: typed focus terms survive");
+  assert.match(source, /choicesSummary\(/);
+  // Choices are read after hydration and written through the guarded helpers only.
+  assert.match(source, /readStoredChoices\(browserStorage\(\)\)/);
+  assert.match(source, /writeStoredChoices\(browserStorage\(\), /);
+  assert.doesNotMatch(source, /localStorage/);
+  // A file dropped anywhere in the window becomes the video (checked like a picked file).
+  assert.match(source, /\["drop", drop\]/);
+  assert.match(source, /window\.addEventListener\(name, listener\)/);
+  assert.match(source, /videoFileProblem\(file\)/);
+  // Lime stays on Buat klip alone.
+  const css = await read("app/dashboard/dashboard.module.css");
+  const lime = css.replace(/\/\*[\s\S]*?\*\//g, "").match(/^[^{}]*\{[^}]*var\(--accent\)[^}]*\}/gm).map((rule) => rule.split("{")[0].trim());
+  assert.deepEqual(lime.filter((selector) => !/progress/.test(selector)), [".submit"]);
 });
 
 test("dashboard, login and landing styles use design tokens, not literal colours", async () => {

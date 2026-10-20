@@ -14,6 +14,7 @@ from ai_clipper.youtube_captions import (
     CaptionQuality,
     assess_captions,
     choose_caption_file,
+    choose_original_caption_file,
     load_youtube_captions,
     main,
     parse_json3,
@@ -441,6 +442,31 @@ def test_choose_prefers_manual_then_orig_then_exact_and_translations_last(tmp_pa
     assert choose_caption_file([]) is None
     assert choose_caption_file([str(candidates[2])], language="en") == candidates[2]
     assert choose_caption_file([candidates[1], candidates[0]]) == candidates[1]
+
+
+def test_choose_original_takes_only_the_auto_orig_track_and_its_language(tmp_path: Path):
+    """A detected-language job: manual and plain auto tracks may be translations, -orig is not."""
+    auto = tmp_path / "auto"
+    manual = tmp_path / "manual"
+
+    assert choose_original_caption_file(
+        [manual / "source.en.json3", auto / "source.id.json3", auto / "source.en-orig.json3"]
+    ) == (auto / "source.en-orig.json3", "en")
+    assert choose_original_caption_file([str(auto / "source.pt-BR-orig.json3")]) == (
+        auto / "source.pt-BR-orig.json3",
+        "pt-BR",
+    )
+    # Two original tracks: the first path wins, so the choice is stable.
+    assert choose_original_caption_file(
+        [auto / "source.ja-orig.json3", auto / "source.de-orig.json3"]
+    ) == (auto / "source.de-orig.json3", "de")
+    for paths in (
+        [],
+        [manual / "source.en-orig.json3"],
+        [auto / "source.en.json3", auto / "source.id-en.json3"],
+        [auto / "source.orig.json3", auto / "source.-orig.json3", auto / "source.en-orig.vtt"],
+    ):
+        assert choose_original_caption_file(paths) is None, paths
 
 
 def test_load_derives_language_from_the_file_name(tmp_path: Path):

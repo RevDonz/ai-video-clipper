@@ -483,6 +483,84 @@ def test_manual_captions_win_over_auto_captions(env):
     assert [event.time for event in events] == [pytest.approx(rows()[9][1] + 0.1, abs=0.01)]
 
 
+def _laugh_times(env) -> list[float]:
+    events, _source = read_sound_events(env.job / "analysis" / "sound-events.json")
+    return [event.time for event in events]
+
+
+def test_english_jobs_read_english_captions(env):
+    captions = env.tmp / "input" / "captions"
+    write_captions(captions, "auto", "source.id-orig.json3", json3(laugh_after=9))
+    write_captions(captions, "auto", "source.en-orig.json3", json3(laugh_after=1))
+
+    manifest = manifest_of(run(env, model=ForbiddenWhisper(), captions_dir=captions, language="en"))
+
+    assert manifest["selection_v3"]["transcript_source"] == "youtube-captions"
+    assert manifest["language"] == "en"
+    assert read_transcript_json(env.output / "transcript.json").language == "en"
+    assert _laugh_times(env) == [pytest.approx(rows()[1][1] + 0.1, abs=0.01)]
+
+
+def test_a_detected_language_reads_only_the_original_auto_track(env):
+    # Manual tracks and plain auto tracks can be translations; "<lang>-orig" is the speech itself.
+    captions = env.tmp / "input" / "captions"
+    write_captions(captions, "manual", "source.id.json3", json3(laugh_after=9))
+    write_captions(captions, "auto", "source.id.json3", json3(laugh_after=9))
+    write_captions(captions, "auto", "source.en-orig.json3", json3(laugh_after=1))
+
+    manifest = manifest_of(run(env, model=ForbiddenWhisper(), captions_dir=captions, language=None))
+
+    summary = manifest["selection_v3"]
+    assert summary["transcript_source"] == "youtube-captions"
+    assert not any(code.startswith("captions_") for code in summary["warnings"])
+    assert manifest["language"] == "en"
+    assert read_transcript_json(env.output / "transcript.json").language == "en"
+    assert _laugh_times(env) == [pytest.approx(rows()[1][1] + 0.1, abs=0.01)]
+
+
+def test_a_detected_language_without_an_original_track_lets_whisper_detect(env):
+    captions = env.tmp / "input" / "captions"
+    write_captions(captions, "manual", "source.en.json3", json3())
+    write_captions(captions, "auto", "source.id.json3", json3())
+    model = FakeWhisper()
+
+    manifest = manifest_of(run(env, model=model, captions_dir=captions, language=None))
+
+    summary = manifest["selection_v3"]
+    assert summary["transcript_source"] == "whisper"
+    assert [code for code in summary["warnings"] if code.startswith("captions_")] == [
+        "captions_missing"
+    ]
+    assert model.calls[0]["language"] is None
+    assert manifest["language"] == "id"  # what Whisper detected
+
+
+def test_an_english_video_runs_end_to_end_on_the_indonesian_first_heuristics(env, monkeypatch):
+    """Selection, packaging and quality checks are tuned for Indonesian; English must not break them."""
+
+    def english(index: int) -> str:
+        if index % 6 == 3:
+            return f"Why did you pick road{index} back then?"
+        return f"I told the story{index} with friend{index} in town{index} that year."
+
+    class EnglishWhisper(FakeWhisper):
+        def transcribe(self, source: str, **options):
+            raw, _info = super().transcribe(source, **options)
+            return raw, SimpleNamespace(language="en", duration=DURATION)
+
+    monkeypatch.setitem(globals(), "sentence", english)  # rows() and FakeWhisper read it
+    model = EnglishWhisper()
+
+    manifest = manifest_of(run(env, model=model, language=None))
+
+    assert model.calls[0]["language"] is None
+    assert manifest["status"] == "completed"
+    assert manifest["language"] == "en"
+    assert manifest["clips"]
+    assert all(clip["title"] and clip["text"] for clip in manifest["clips"])
+    assert read_transcript_json(env.output / "transcript.json").segments[0].text.startswith("I told")
+
+
 def test_without_captions_whisper_runs_and_can_skip_word_timestamps(env):
     model = FakeWhisper()
 

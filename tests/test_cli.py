@@ -310,6 +310,45 @@ def test_cli_forwards_web_v3_command_and_loads_whisper_lazily(monkeypatch, tmp_p
     assert loaded == [(("small",), {"device": "cpu", "decoding": WhisperDecoding()})]
 
 
+@pytest.mark.parametrize(
+    ("value", "expected"), [("id", "id"), ("en", "en"), ("auto", None)]
+)  # fmt: skip
+def test_cli_language_auto_means_detect(value: str, expected: str | None):
+    assert parse_args(["video.mp4", "--language", value]).language == expected
+    assert parse_args(["video.mp4"]).language == "id"
+
+
+def _web_args(language: str, base: list[str]) -> list[str]:
+    args = list(base)
+    args[args.index("--language") + 1] = language
+    return args
+
+
+def test_cli_passes_the_video_language_to_whisper_and_the_pipeline(monkeypatch, tmp_path: Path):
+    loaded = []
+
+    class Model:
+        def transcribe(self, source, **options):
+            return ()
+
+    monkeypatch.setattr(cli, "load_whisper_model", lambda *a, **k: loaded.append(k) or Model())
+    received = _capture_pipeline(monkeypatch, tmp_path)
+
+    assert cli.main(_web_args("auto", WEB_V3_ARGS)) == 0
+    assert received["language"] is None
+    received["model"].transcribe("a.mp4")
+    # A detected language gets no built-in Indonesian prompt; Indonesian keeps it.
+    assert loaded[-1]["decoding"] == WhisperDecoding(initial_prompt=None)
+
+    assert cli.main(_web_args("en", WEB_V1_ARGS)) == 0
+    assert received["language"] == "en"
+    assert loaded[-1]["decoding"] == WhisperDecoding(initial_prompt=None)
+
+    assert cli.main(WEB_V1_ARGS) == 0
+    assert received["language"] == "id"
+    assert loaded[-1]["decoding"] == WhisperDecoding()
+
+
 def test_cli_forwards_the_trend_context_path_only(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(cli, "load_whisper_model", lambda *a, **k: "M")
     received = _capture_pipeline(monkeypatch, tmp_path)

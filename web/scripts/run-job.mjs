@@ -41,7 +41,8 @@ export function buildClipperInvocation(job, sourcePath, outputRoot, env = proces
     "--device",
     env.WHISPER_DEVICE || "cpu",
     "--language",
-    env.WHISPER_LANGUAGE || "id",
+    // The job's "Bahasa video" ("auto": the engine detects it); older jobs keep the worker's default.
+    options.videoLanguage ?? (env.WHISPER_LANGUAGE || "id"),
     "--min-duration",
     String(options.minDuration),
     "--max-duration",
@@ -113,11 +114,26 @@ export async function prepareTrendContext(attemptRoot, env, { now = new Date(), 
 }
 
 // --- YouTube captions (Selection V3 fast path) --------------------------------
-// Two optional yt-dlp runs after the video download: uploaded (manual) Indonesian
-// subtitles and YouTube's automatic captions, both as json3. They never fail the
-// job; the engine decides whether the captions are good enough to skip Whisper.
+// Two optional yt-dlp runs after the video download: uploaded (manual) subtitles and
+// YouTube's automatic captions in the job's language, both as json3. They never fail
+// the job; the engine decides whether the captions are good enough to skip Whisper.
 
+/** Indonesian, also for jobs that name no language. */
 export const CAPTION_LANGUAGES = Object.freeze({ manual: "id,id-ID,in", auto: "id,id-orig" });
+const CAPTION_LANGUAGES_BY_VIDEO = Object.freeze({
+  id: CAPTION_LANGUAGES,
+  en: Object.freeze({ manual: "en,en-US,en-GB", auto: "en,en-orig" }),
+  // A detected language: manual and plain auto tracks may be translations, so only YouTube's
+  // original speech track ("<lang>-orig") is asked for.
+  auto: Object.freeze({ manual: null, auto: ".*-orig" }),
+});
+
+/** The yt-dlp --sub-langs lists for a job's videoLanguage; `manual: null` skips that run. */
+export function captionLanguages(videoLanguage) {
+  if (videoLanguage === undefined) return CAPTION_LANGUAGES;
+  if (!Object.hasOwn(CAPTION_LANGUAGES_BY_VIDEO, videoLanguage)) throw new Error("Unsupported video language");
+  return CAPTION_LANGUAGES_BY_VIDEO[videoLanguage];
+}
 const DEFAULT_CAPTIONS_TIMEOUT_MS = 120_000;
 
 export function captionsTimeoutMs(env = process.env) {
@@ -131,15 +147,16 @@ export function captionsTimeoutMs(env = process.env) {
 
 // --ignore-errors keeps one failing language (an HTTP 429 on "id-ID", say) from
 // aborting the rest of that run; whatever .json3 files landed are used.
-export function buildCaptionDownloads(url, inputRoot) {
+export function buildCaptionDownloads(url, inputRoot, videoLanguage = undefined) {
+  const languages = captionLanguages(videoLanguage);
   const captionsRoot = path.join(inputRoot, "captions");
   const common = ["--no-playlist", "--js-runtimes", "node", "--skip-download", "--ignore-errors"];
-  return [
+  const downloads = [
     {
       kind: "manual",
       directory: path.join(captionsRoot, "manual"),
       args: [
-        ...common, "--write-subs", "--no-write-auto-subs", "--sub-langs", CAPTION_LANGUAGES.manual,
+        ...common, "--write-subs", "--no-write-auto-subs", "--sub-langs", languages.manual,
         "--sub-format", "json3", "--output", path.join(captionsRoot, "manual", "source.%(ext)s"), url,
       ],
     },
@@ -147,11 +164,12 @@ export function buildCaptionDownloads(url, inputRoot) {
       kind: "auto",
       directory: path.join(captionsRoot, "auto"),
       args: [
-        ...common, "--write-auto-subs", "--no-write-subs", "--sub-langs", CAPTION_LANGUAGES.auto,
+        ...common, "--write-auto-subs", "--no-write-subs", "--sub-langs", languages.auto,
         "--sub-format", "json3", "--output", path.join(captionsRoot, "auto", "source.%(ext)s"), url,
       ],
     },
   ];
+  return languages.manual === null ? downloads.slice(1) : downloads;
 }
 
 /** `<inputRoot>/captions` when it holds at least one non-empty .json3 file, else null. */
@@ -174,8 +192,8 @@ export async function findCaptionsDir(inputRoot) {
   return null;
 }
 
-export async function fetchYouTubeCaptions({ url, inputRoot, run, timeoutMs, log = console.warn }) {
-  for (const download of buildCaptionDownloads(url, inputRoot)) {
+export async function fetchYouTubeCaptions({ url, inputRoot, run, timeoutMs, videoLanguage = undefined, log = console.warn }) {
+  for (const download of buildCaptionDownloads(url, inputRoot, videoLanguage)) {
     try {
       await mkdir(download.directory, { recursive: true, mode: 0o700 });
       await run("yt-dlp", download.args, { timeoutMs });
@@ -433,6 +451,7 @@ export async function main(argv = process.argv, env = process.env) {
           url: job.source.url,
           inputRoot: downloadRoot,
           timeoutMs: captionsTimeoutMs(env),
+          videoLanguage: validatePersistedJobOptions(job.options).videoLanguage,
           run: (command, args, options) => run(command, args, { ...options, processEnv: downloaderEnv(env) }),
         });
       }

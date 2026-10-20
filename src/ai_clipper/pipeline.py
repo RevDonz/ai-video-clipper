@@ -5,10 +5,11 @@ shadow keep their historical behaviour. Selection V3 (``selection_mode="v3"``) r
 
 1. **Transcript** (stages ``captions``, ``transcribing``). With ``captions_dir`` the best json3
    track in ``<captions_dir>/manual`` and ``<captions_dir>/auto`` is chosen
-   (:func:`choose_caption_file`) and judged against the probed video duration. A usable track
-   replaces Whisper (``transcript_source="youtube-captions"``) and its sound tags become
-   ``analysis/sound-events.json``; otherwise Whisper runs with word timestamps. The captions
-   directory is only ever read.
+   (:func:`choose_caption_file`; with a detected language, ``language=None``, only an auto
+   ``<lang>-orig`` track, :func:`choose_original_caption_file`) and judged against the probed
+   video duration. A usable track replaces Whisper (``transcript_source="youtube-captions"``)
+   and its sound tags become ``analysis/sound-events.json``; otherwise Whisper runs with word
+   timestamps. The captions directory is only ever read.
 2. **Audio** (stage ``audio``). :func:`analyze_audio_timeline` starts on a daemon thread before
    the transcript step, so it overlaps Whisper, and is awaited for at most
    ``AUDIO_TIMELINE_TIMEOUT + AUDIO_WAIT_GRACE`` seconds. Any failure only adds a warning.
@@ -72,8 +73,8 @@ Always written by V3: ``<output>/transcript.json``, ``analysis/transcript-qualit
 only values the web sanitizers accept (see :func:`_selection_v3_summary`).
 
 V3 summary warning codes added here, before the selector's own codes: ``media_probe_failed``,
-``captions_missing``, ``captions_rejected:<reason>`` (``invalid``, ``no_language`` or a
-caption quality code), the transcript-quality file codes (``no_word_timestamps``,
+``captions_missing``, ``captions_rejected:<reason>`` (``invalid`` or a caption quality
+code), the transcript-quality file codes (``no_word_timestamps``,
 ``quantized_timestamps``, ``punctuation_collapse:<a>-<b>``) and ``suspect_segments:<n>``,
 ``audio_unavailable`` (``:timeout``/``:error``), ``trend_context_invalid``,
 ``trend_items_skipped:<n>``, ``llm_unavailable:<code>``, ``llm_disabled``,
@@ -159,6 +160,7 @@ from .youtube_captions import (
     SOUND_EVENTS_RELATIVE_PATH,
     CaptionFormatError,
     choose_caption_file,
+    choose_original_caption_file,
     load_youtube_captions,
 )
 from .youtube_captions import SOURCE_NAME as CAPTIONS_SOURCE_NAME
@@ -728,17 +730,22 @@ def _load_captions(
     media_duration: float | None,
     warnings: list[str],
 ) -> tuple[Transcription, tuple[SoundEvent, ...]] | None:
-    """A usable caption track and its sound events, or ``None`` (with a warning code)."""
-    if language is None:
-        warnings.append("captions_rejected:no_language")
-        return None
+    """A usable caption track and its sound events, or ``None`` (with a warning code).
+
+    ``language=None`` (detected) reads only the original auto track, in its own language.
+    """
     try:
-        chosen = _choose_captions(_caption_files(captions_dir), language)
+        files = _caption_files(captions_dir)
+        if language is None:
+            original = choose_original_caption_file(files)
+            chosen, track_language = original if original is not None else (None, None)
+        else:
+            chosen, track_language = _choose_captions(files, language), language
         if chosen is None:
             warnings.append("captions_missing")
             return None
         transcription, events, quality = load_youtube_captions(
-            chosen, media_duration=media_duration, language=language
+            chosen, media_duration=media_duration, language=track_language
         )
     except (CaptionFormatError, OSError, TypeError, ValueError):
         warnings.append("captions_rejected:invalid")
