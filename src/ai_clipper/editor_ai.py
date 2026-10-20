@@ -1,4 +1,4 @@
-"""Hook suggestions for the clip editor (plan §7, §7.1, K13; owner T3.4).
+"""Hook suggestions and Cek ejaan for the clip editor (plan §7, §7.1, K13; owner T3.4).
 
 ``python -m ai_clipper.editor_ai`` is spawned by ``web/lib/editor-ai.mjs`` through
 ``web/lib/python-cli.mjs``. stdin is one JSON envelope, stdout one JSON object; the exit codes are
@@ -12,9 +12,10 @@ those of ``edit_v2.errors`` (2 = a malformed envelope).
   ``analysis/clips/<clip>/suggestions/<taskId>.json`` (0600, kept 30 days). Only this op gets the
   LLM variables (``engineProcessEnv(await loadLlmEnv())`` in Node).
 
-``requestRaw`` is the route body in base64: exactly ``{"task": "hooks", "doc": {…}}``. The
-document is validated as the preview lane validates an unsaved one. Only the clip's visible
-transcript is sent to the model.
+``requestRaw`` is the route body in base64: exactly ``{"task": "hooks"|"spelling", "doc": {…}}``.
+The document is validated as the preview lane validates an unsaved one. Only the clip's visible
+transcript is sent to the model. ``spelling`` (Cek ejaan, ``editor_spelling``) has no instant
+part: ``run-task`` alone, with the same deadline, task file and error codes.
 """
 
 from __future__ import annotations
@@ -57,6 +58,7 @@ from .edit_v2.errors import (
 )
 
 TASK = "hooks"
+TASKS = (TASK, "spelling")
 OPS = ("heuristic", "run-task")
 TASK_SCHEMA = "potongin.editor-ai-task/1"
 PROMPT_RESOURCE = ("prompts", "editor_hooks_v1.md")
@@ -226,19 +228,26 @@ def _members(text: str) -> dict[str, tuple[int, int]]:
     return spans
 
 
-def doc_bytes(request_raw: bytes) -> bytes:
-    """The ``doc`` bytes of a request body that is exactly ``{"task": "hooks", "doc": {…}}``."""
+def request_parts(request_raw: bytes) -> tuple[str, bytes]:
+    """``(task, doc bytes)`` of a request body that is exactly ``{"task": …, "doc": {…}}`` with
+    a task of ``TASKS``."""
     if not isinstance(request_raw, (bytes, bytearray)) or len(request_raw) > MAX_REQUEST_BYTES:
         raise _invalid()
     try:
         text = bytes(request_raw).decode("utf-8")
         spans = _members(text)
-        if set(spans) != {"task", "doc"} or _strict(text[slice(*spans["task"])]) != TASK:
+        task = _strict(text[slice(*spans["task"])]) if set(spans) == {"task", "doc"} else None
+        if task not in TASKS:
             raise _invalid()
-    except (UnicodeDecodeError, ValueError, RecursionError, IndexError):
+    except (UnicodeDecodeError, ValueError, RecursionError, IndexError, TypeError):
         raise _invalid() from None
     start, end = spans["doc"]
-    return text[start:end].encode("utf-8")
+    return task, text[start:end].encode("utf-8")
+
+
+def doc_bytes(request_raw: bytes) -> bytes:
+    """The ``doc`` bytes of a well-formed request body (``request_parts``)."""
+    return request_parts(request_raw)[1]
 
 
 # --- paths and files ---------------------------------------------------------------------------------
@@ -299,9 +308,11 @@ def _hook_item(doc: Mapping[str, Any]) -> Mapping[str, Any] | None:
     return None
 
 
-def visible_lines(doc: Mapping[str, Any], words: Mapping[str, Any]) -> tuple[Line, ...]:
-    """The words the edited clip shows (plan §3.4: not hidden, midpoint inside a piece, word
-    edits applied), in output order, one line per sentence unit and segment."""
+def _visible_groups(doc: Mapping[str, Any], words: Mapping[str, Any],
+                    ) -> list[tuple[str, str, bool, list[tuple[int, Mapping[str, Any], str]]]]:
+    """``(segment, unit, cold open, [(index, word, current text)])`` of the words the edited clip
+    shows (plan §3.4: not hidden, midpoint inside a piece, word edits applied), in output order,
+    one group per sentence unit and segment."""
     fps = tm.Fps.from_json(doc["output"]["fps"])
     scale = 2 * 1000 * fps.den
     edits = doc["captions"].get("word_edits", {})
@@ -314,20 +325,42 @@ def visible_lines(doc: Mapping[str, Any], words: Mapping[str, Any]) -> tuple[Lin
         entries.append((mid_sf, order, word, edit.get("text", word["t"])))
     entries.sort(key=lambda entry: (entry[0], entry[1]))
     mids = [entry[0] for entry in entries]
-    grouped: list[tuple[str, str, bool, list[str]]] = []
+    grouped: list[tuple[str, str, bool, list[tuple[int, Mapping[str, Any], str]]]] = []
     for piece in tm.pieces(doc):
         cold_open = piece.role == "cold_open"
-        for _mid, _order, word, text in entries[bisect_left(mids, piece.in_sf):
-                                                bisect_left(mids, piece.out_sf)]:
+        for _mid, order, word, text in entries[bisect_left(mids, piece.in_sf):
+                                               bisect_left(mids, piece.out_sf)]:
             if grouped and grouped[-1][0] == piece.seg and grouped[-1][1] == word["u"]:
-                grouped[-1][3].append(text)
+                grouped[-1][3].append((order, word, text))
             else:
-                grouped.append((piece.seg, word["u"], cold_open, [text]))
+                grouped.append((piece.seg, word["u"], cold_open, [(order, word, text)]))
+    return grouped
+
+
+def visible_lines(doc: Mapping[str, Any], words: Mapping[str, Any]) -> tuple[Line, ...]:
+    """The words the edited clip shows, in output order, one line per sentence unit and segment."""
     lines = []
-    for seg_unit_text in grouped:
-        text = _prompt_safe(" ".join(seg_unit_text[3]))
+    for _seg, unit, cold_open, items in _visible_groups(doc, words):
+        text = _prompt_safe(" ".join(text for _order, _word, text in items))
         if text:
-            lines.append(Line(f"L{len(lines) + 1:04d}", text, seg_unit_text[1], seg_unit_text[2]))
+            lines.append(Line(f"L{len(lines) + 1:04d}", text, unit, cold_open))
+    return tuple(lines)
+
+
+def spelling_lines(doc: Mapping[str, Any], words: Mapping[str, Any]) -> tuple[Any, ...]:
+    """``visible_lines`` with each line's words (id, index, current text) for Cek ejaan. A word
+    whose prompt form differs from its stored text is shown but takes no fix."""
+    from .editor_spelling import SpellLine, SpellWord
+
+    lines = []
+    for _seg, _unit, cold_open, items in _visible_groups(doc, words):
+        line_words = []
+        for order, word, text in items:
+            shown = _prompt_safe(text)
+            if shown:
+                line_words.append(SpellWord(word["id"], order, text, shown, shown == text))
+        if line_words:
+            lines.append(SpellLine(f"L{len(lines) + 1:04d}", tuple(line_words), cold_open))
     return tuple(lines)
 
 
@@ -1093,12 +1126,50 @@ def _prune(folder: Path, now_s: float) -> None:
                 pass
 
 
+@dataclass(frozen=True)
+class _TaskPlan:
+    """What one task asks and how its answer is checked: the hook task or Cek ejaan."""
+
+    task: str
+    system: str
+    user: str
+    prompt_version: str
+    max_output_tokens: int
+    temperature: float
+    validate: Callable[[object], tuple[list[dict], list[dict]]]
+    fields: Mapping[str, Any]  # extra task-file fields
+    public: tuple[str, ...]  # of those, the ones the answer carries
+
+
+def _task_plan(task: str, ctx: HookContext, task_id: str) -> _TaskPlan:
+    if task == TASK:
+        system, user = build_prompt(ctx)
+        return _TaskPlan(TASK, system, user, PROMPT_VERSION, MAX_OUTPUT_TOKENS, TEMPERATURE,
+                         lambda data: validate_hooks(data, ctx, taken=instant_variants(ctx),
+                                                     task_id=task_id), {}, ())
+    from . import editor_spelling as spelling
+
+    lines = spelling_lines(ctx.doc, ctx.words)
+    system, user, kept = spelling.build_prompt(lines)
+
+    def validate(data: object) -> tuple[list[dict], list[dict]]:
+        try:
+            return spelling.validate_fixes(data, lines[:kept], task_id=task_id)
+        except spelling.InvalidOutput:
+            raise InvalidOutput() from None
+
+    return _TaskPlan(spelling.TASK, system, user, spelling.PROMPT_VERSION,
+                     spelling.MAX_OUTPUT_TOKENS, spelling.TEMPERATURE, validate,
+                     spelling.task_fields(lines, kept), ("truncated",))
+
+
 def run_task(job: Path, clip: Path, *, task_id: str, request_raw: bytes,
              env: Mapping[str, str] | None = None,
              client_factory: Callable[[Mapping[str, str], Path], Any] | None = None,
              deadline_s: float = DEADLINE_S, now_ms: Callable[[], int] | None = None,
              clock: Callable[[], float] = time.monotonic) -> dict:
-    """One LLM hook task; writes ``suggestions/<task_id>.json`` and returns its public part."""
+    """One LLM task (hooks or Cek ejaan); writes ``suggestions/<task_id>.json`` and returns its
+    public part."""
     from .edit_v2.doc import doc_sha256
     from .llm import LLMError, llm_disabled
 
@@ -1113,14 +1184,14 @@ def run_task(job: Path, clip: Path, *, task_id: str, request_raw: bytes,
     if os.path.lexists(folder / name):
         raise TaskExists()
     ctx = load_context(job, clip, request_raw)
-    system, user = build_prompt(ctx)
+    plan = _task_plan(request_parts(request_raw)[0], ctx, task_id)
     record: dict[str, Any] = {
-        "schema": TASK_SCHEMA, "taskId": task_id, "task": TASK, "clipId": ctx.doc["clip_id"],
+        "schema": TASK_SCHEMA, "taskId": task_id, "task": plan.task, "clipId": ctx.doc["clip_id"],
         "state": "failed", "createdAtMs": created_ms, "finishedAtMs": None, "suggestions": [],
         "dropped": [], "error": None, "llmCode": None, "llm": None,
-        "promptVersion": PROMPT_VERSION,
-        "promptSha256": hashlib.sha256(system.encode("utf-8")).hexdigest(),
-        "docSha256": doc_sha256(ctx.doc),
+        "promptVersion": plan.prompt_version,
+        "promptSha256": hashlib.sha256(plan.system.encode("utf-8")).hexdigest(),
+        "docSha256": doc_sha256(ctx.doc), **plan.fields,
     }
     try:
         if llm_disabled(env):
@@ -1135,8 +1206,8 @@ def run_task(job: Path, clip: Path, *, task_id: str, request_raw: bytes,
             raise _Failed("llm_unavailable")
         try:
             response = _within(lambda: client.complete_json(
-                system=system, user=user, max_output_tokens=MAX_OUTPUT_TOKENS,
-                temperature=TEMPERATURE), deadline_s - (clock() - started))
+                system=plan.system, user=plan.user, max_output_tokens=plan.max_output_tokens,
+                temperature=plan.temperature), deadline_s - (clock() - started))
         except LLMError as error:
             raise _llm_failure(error) from None
         record["llm"] = {"provider": response.provider, "model": response.model,
@@ -1145,8 +1216,7 @@ def run_task(job: Path, clip: Path, *, task_id: str, request_raw: bytes,
                          "inputTokens": response.input_tokens,
                          "outputTokens": response.output_tokens}
         try:
-            accepted, dropped = validate_hooks(response.data, ctx, taken=instant_variants(ctx),
-                                               task_id=task_id)
+            accepted, dropped = plan.validate(response.data)
         except InvalidOutput:
             raise _Failed("invalid_output") from None
         record.update(state="done", suggestions=accepted, dropped=dropped)
@@ -1161,7 +1231,7 @@ def run_task(job: Path, clip: Path, *, task_id: str, request_raw: bytes,
     _write_new(folder, name, data.encode("utf-8"))
     _prune(folder, time.time())
     return {"taskId": task_id, "state": record["state"], "suggestions": record["suggestions"],
-            "error": record["error"]}
+            "error": record["error"], **{key: record[key] for key in plan.public}}
 
 
 # --- entry points ---------------------------------------------------------------------------------------
@@ -1218,6 +1288,8 @@ def handle(raw: bytes, *, jobs_root: str | os.PathLike | None,
         job = _job_dir(jobs_root, envelope["jobId"])
         clip = _clip_dir(job, envelope["clipId"])
         if envelope["op"] == "heuristic":
+            if request_parts(request)[0] != TASK:
+                raise _invalid()  # Cek ejaan has no instant part
             ctx = load_context(job, clip, request)
             return EXIT_OK, {"heuristic": instant_variants(ctx)}
         return EXIT_OK, run_task(job, clip, task_id=envelope["taskId"], request_raw=request,
@@ -1248,6 +1320,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 __all__ = [
     "DEADLINE_S",
     "OPS",
+    "TASKS",
     "TASK_SCHEMA",
     "HookContext",
     "InvalidOutput",
@@ -1263,8 +1336,10 @@ __all__ = [
     "load_context",
     "load_prompt",
     "main",
+    "request_parts",
     "run_task",
     "similarity",
+    "spelling_lines",
     "validate_hooks",
     "visible_lines",
 ]
