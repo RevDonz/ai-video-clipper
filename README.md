@@ -327,10 +327,11 @@ clips (at most 48) behind a cursor, so a project that finishes in between does n
 
 **Bahasa Indonesia.** Tombol **Edit klip** di setiap klip membuka editor (desktop, Chrome atau
 Edge, layar ≥ 1024 px): potong lewat transkrip, rapikan kata pengisi dan jeda, perbaiki
-caption, pilih gaya caption dan teks hook (dengan saran), cold open, tata letak (latar blur,
-ikuti wajah, potong tengah), logo, musik dengan ducking, lalu ekspor MP4 + SRT. Pratinjau
-memakai kompiler yang sama dengan ekspor; tanda **"Sesuai hasil akhir"** berarti frame, waktu
-teks, gambar teks dan audio yang terlihat sama dengan file akhir, kecuali kompresi MP4.
+caption (Cek ejaan dengan AI gratis), pilih gaya caption dan teks hook (dengan saran), cold
+open, tata letak (latar blur, ikuti wajah, potong tengah), logo, musik dengan ducking, lalu
+ekspor MP4 + SRT. Pratinjau memakai kompiler yang sama dengan ekspor; tanda **"Sesuai hasil
+akhir"** berarti frame, waktu teks, gambar teks dan audio yang terlihat sama dengan file akhir,
+kecuali kompresi MP4.
 
 - Memakai editor dan arti setiap tanda: [`docs/editor/PANDUAN-EDITOR.md`](docs/editor/PANDUAN-EDITOR.md).
 - Flag (`POTONGIN_EDITOR_V3`, `POTONGIN_EDITOR_UPLOADS`, `POTONGIN_EDITOR_LLM`,

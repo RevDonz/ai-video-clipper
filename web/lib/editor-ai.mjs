@@ -1,8 +1,10 @@
-// Hook suggestions for the clip editor (plan §7, §7.1, §4.2, K13; T3.4).
+// Hook suggestions and Cek ejaan for the clip editor (plan §7, §7.1, §4.2, K13; T3.4).
 //
 //   POST /api/jobs/:id/clips/:clipId/ai            body exactly {task: "hooks", doc}
 //        → 202 {taskId | null, heuristic: [variant], llm: {state, retryAfterMs?, message?}}
-//   GET  /api/jobs/:id/clips/:clipId/ai/:taskId     → {state, suggestions, error}
+//   POST /api/jobs/:id/clips/:clipId/ai            body exactly {task: "spelling", doc}
+//        → 202 {taskId | null, llm: {state, retryAfterMs?, message?}} (no instant part)
+//   GET  /api/jobs/:id/clips/:clipId/ai/:taskId     → {state, suggestions, error} (+ truncated)
 //
 // The instant variants come from `python -m ai_clipper.editor_ai heuristic` with the allowlisted
 // child environment. The LLM part runs only when POTONGIN_EDITOR_LLM=on, POTONGIN_LLM is not off
@@ -10,7 +12,8 @@
 // provider: `run-task` is then spawned with `engineProcessEnv(await loadLlmEnv())`, the only
 // child that receives LLM variables (E11). Python stops the request at 20 s; this process kills
 // the child's group at 25 s and reports `failed/timeout` when no task file was written. At most
-// 30 tasks per job per hour and 3 at once. No request field can name a provider, model or URL.
+// 30 tasks per job per hour and 3 at once, both tasks counted together. No request field can name
+// a provider, model or URL.
 import { randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { lstat, open, realpath } from "node:fs/promises";
@@ -48,6 +51,11 @@ const SOURCES = new Set(["ai_selection", "heuristic", "llm"]);
 const KINDS = new Set(["v3_hook", "v3_title", "hook_unit", "question", "strongest", "llm"]);
 export const STYLES = Object.freeze(["pertanyaan", "klaim", "penasaran", "angka", "kutipan", "lucu"]);
 export const TASK_ERROR_CODES = Object.freeze(["timeout", "llm_unavailable", "llm_disabled", "invalid_output", "internal_error"]);
+export const AI_TASKS = Object.freeze(["hooks", "spelling"]);
+export const MAX_SPELLING_SUGGESTIONS = 60;
+const SPELL_ID = /^sp_[0-9a-z]{1,16}$/;
+const WORD_ID = /^w[0-9]{6,7}$/;
+const SPELL_KINDS = new Set(["case", "spacing", "spelling"]);
 const OFF = new Set(["off", "0", "false", "no", "disabled", "disable", "none"]);
 
 export const MESSAGES = Object.freeze({
@@ -69,7 +77,7 @@ function failure(code, status, headers = {}) {
 const isTaskId = (value) => typeof value === "string" && UUID.test(value);
 const isPlainObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 
-/** `{task: "hooks", doc: {…}}` and nothing else (a provider, model or URL field is refused). */
+/** `{task: "hooks" | "spelling", doc: {…}}` and nothing else (a provider, model or URL field is refused). */
 export function parseAiBody(raw) {
   let value;
   try {
@@ -80,7 +88,7 @@ export function parseAiBody(raw) {
   if (!isPlainObject(value)) return null;
   const keys = Object.keys(value);
   if (keys.length !== 2 || !keys.includes("task") || !keys.includes("doc")) return null;
-  if (value.task !== "hooks" || !isPlainObject(value.doc)) return null;
+  if (!AI_TASKS.includes(value.task) || !isPlainObject(value.doc)) return null;
   return value;
 }
 
@@ -105,12 +113,24 @@ export function sanitizeSuggestion(item, { llm }) {
   return out;
 }
 
-function sanitizeList(list, options, limit) {
+/** One Cek ejaan suggestion `{id, wordIds, from, to, kind}`; null when anything is off. */
+export function sanitizeSpelling(item) {
+  if (!isPlainObject(item) || typeof item.id !== "string" || !SPELL_ID.test(item.id)) return null;
+  const ids = item.wordIds;
+  if (!Array.isArray(ids) || ids.length < 1 || ids.length > 3 || new Set(ids).size !== ids.length
+    || !ids.every((id) => typeof id === "string" && WORD_ID.test(id))) return null;
+  const from = cleanText(item.from, 160);
+  const to = cleanText(item.to, 40);
+  if (!from || !to || from === to || !SPELL_KINDS.has(item.kind)) return null;
+  return { id: item.id, wordIds: [...ids], from, to, kind: item.kind };
+}
+
+function sanitizeList(list, options, limit, clean = (item) => sanitizeSuggestion(item, options)) {
   if (!Array.isArray(list)) return [];
   const out = [];
   for (const item of list.slice(0, limit)) {
-    const clean = sanitizeSuggestion(item, options);
-    if (clean && !out.some((other) => other.id === clean.id)) out.push(clean);
+    const kept = clean(item);
+    if (kept && !out.some((other) => other.id === kept.id)) out.push(kept);
   }
   return out;
 }
@@ -124,8 +144,14 @@ function taskError(code) {
 export function taskView(record, { taskId, clipId }) {
   if (!isPlainObject(record) || record.schema !== "potongin.editor-ai-task/1" || record.taskId !== taskId
     || record.clipId !== clipId || !["done", "failed"].includes(record.state)) return null;
+  const task = record.task ?? "hooks";
+  if (!AI_TASKS.includes(task)) return null;
   if (record.state === "failed") {
     return { state: "failed", suggestions: [], error: taskError(record.error?.code) };
+  }
+  if (task === "spelling") {
+    return { state: "done", suggestions: sanitizeList(record.suggestions, null, MAX_SPELLING_SUGGESTIONS, sanitizeSpelling),
+      error: null, truncated: record.truncated === true };
   }
   return { state: "done", suggestions: sanitizeList(record.suggestions, { llm: true }, 6), error: null };
 }
@@ -285,19 +311,24 @@ export function createAiRoute(options = {}) {
       try { raw = await readBoundedBody(request, MAX_AI_BODY_BYTES); } catch (error) {
         return error instanceof BodyTooLargeError ? failure("payload_too_large", 413) : failure("invalid_request", 400);
       }
-      if (!parseAiBody(raw)) return failure("invalid_request", 400);
+      const body = parseAiBody(raw);
+      if (!body) return failure("invalid_request", 400);
       const { id: jobId, clipId } = checked.params;
       const requestRaw = Buffer.from(raw).toString("base64");
-      const result = await callCli(deps, AI_MODULE, "heuristic", { jobId, clipId, requestRaw },
-        { timeoutMs: HEURISTIC_TIMEOUT_MS, maxStdoutBytes: 256 * 1024 });
-      if (result?.exitCode !== 0) return apiFailure(result);
-      const heuristic = sanitizeList(result.json.heuristic, { llm: false }, 5);
+      let heuristic = null;
+      if (body.task === "hooks") {
+        const result = await callCli(deps, AI_MODULE, "heuristic", { jobId, clipId, requestRaw },
+          { timeoutMs: HEURISTIC_TIMEOUT_MS, maxStdoutBytes: 256 * 1024 });
+        if (result?.exitCode !== 0) return apiFailure(result);
+        heuristic = sanitizeList(result.json.heuristic, { llm: false }, 5);
+      }
       const plan = await llmPlan(deps, jobId);
       const llm = { state: plan.state };
       if (plan.retryAfterMs !== undefined) llm.retryAfterMs = Math.max(1000, plan.retryAfterMs);
       if (plan.message) llm.message = plan.message;
       const taskId = plan.state === "pending" ? startTask(deps, { jobId, clipId, requestRaw, loaded: plan.loaded }) : null;
-      return editorResponse({ taskId, heuristic, llm }, 202);
+      // Cek ejaan has no instant part: the document is checked by the task itself.
+      return editorResponse(heuristic ? { taskId, heuristic, llm } : { taskId, llm }, 202);
     },
   };
 }

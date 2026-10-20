@@ -201,7 +201,7 @@ export function createPlayer({ canvas, fetchImpl, onState, onFrame }) {}
 export function createApiClient({ jobId, clipId, fetchImpl }) {}
 // → { clips(), getEdit({ seed }), putEdit(doc, { etag, key }), words(url), prepare({ layout }),
 //     createRender({ editEtag }, key), getRender(id), cancelRender(id),
-//     cleanup(), coldOpenSuggestions(), aiHooks(doc), aiTask(taskId) }
+//     cleanup(), coldOpenSuggestions(), aiHooks(doc), aiSpelling(doc), aiTask(taskId) }
 
 // web/lib/editor/preview-client.mjs
 export function createPreviewClient({ jobId, clipId, fetchImpl, debounceMs = 120 }) {}
@@ -530,8 +530,8 @@ timeout + SIGKILL, fixed exit-code map as in `edit-document.mjs`, and an **allow
 | `POST /clips/:clipId/renders` | Enqueue an export | `Idempotency-Key`; body exactly `{"editEtag":"<64 hex>"}` ≤ 1 KiB (size and quality are fixed to the auto clip's in Essentials); storage reservation first (existing admission). `202 RenderDTO`, or `200` with `state:"completed"` when the document content equals the seed (R10) or the render key already exists |
 | `GET /renders/:renderId` (extended) | Status of a v3 request; 404 for a missing one and for a v1/v2 request of the retired candidate editor (W4, T4.1) | `RenderDTO {renderId, clipId, state, stage, progressPm, revision, errorCode, resultUrl, srtUrl}` |
 | `DELETE /renders/:renderId` (new) | Cancel a v3 request | Same-origin; queued → `cancelled`; rendering → the worker kills FFmpeg within 2 s and marks `cancelled` |
-| `POST /clips/:clipId/ai` | AI hook suggestions (§7) | Body exactly `{task:"hooks", doc}` (no provider, model or URL field is accepted; those come only from the sealed LLM settings); `202 {taskId, heuristic:[…], llm:{state:"pending"\|"disabled"\|"rate_limited"}}` |
-| `GET /clips/:clipId/ai/:taskId` | Poll an AI task | `taskId` is a UUID (checked in Node and Python); `{state:"pending"\|"done"\|"failed", suggestions:[…], error:{code, messageId}\|null}` |
+| `POST /clips/:clipId/ai` | AI hook suggestions (§7) and Cek ejaan (§5.35) | Body exactly `{task:"hooks"\|"spelling", doc}` (no provider, model or URL field is accepted; those come only from the sealed LLM settings); hooks: `202 {taskId, heuristic:[…], llm:{state:"pending"\|"disabled"\|"rate_limited"}}`; spelling: `202 {taskId, llm:{…}}` (no instant part) |
+| `GET /clips/:clipId/ai/:taskId` | Poll an AI task | `taskId` is a UUID (checked in Node and Python); `{state:"pending"\|"done"\|"failed", suggestions:[…], error:{code, messageId}\|null}`, plus `truncated` for a done spelling task |
 | `GET /clips/:clipId/cleanup` | Rapikan review list (§7.3) | Immutable per `(words sha, lexicon version)` |
 | `GET /clips/:clipId/coldopen-suggestions` | Cold-open candidates (§7.2) | Immutable per words sha |
 | `POST /assets` | Upload a logo or music file (§9.2) | Raw body; `Content-Type` allowlist; `Content-Length` required; `X-Asset-Kind: logo\|music`; `Idempotency-Key`; `201 {sha256, kind, mime, w, h, durationMs, lufsC, peaksUrl}` |
@@ -1916,8 +1916,8 @@ changes: every plan sha and golden is unchanged.
   keeps its element, parent and key in both views, so a switch never remounts the canvas or calls
   `createPlayer` again.
 - The props bundle (`state`, `getState`, `dispatch`, `player`, `api`, `previewClient`,
-  `uploadAsset`, `uploadsEnabled`, `notify`, `readOnly`) is built once and spread onto `<Panel>` and
-  `<QuickPanel>` alike; cards also get `frameBus` and `showLengkap(panelId)`. `getState` is the
+  `uploadAsset`, `uploadsEnabled`, `llmEnabled` (§5.35), `notify`, `readOnly`) is built once and
+  spread onto `<Panel>` and `<QuickPanel>` alike; cards also get `frameBus` and `showLengkap(panelId)`. `getState` is the
   store's own: work that outlives its panel or card (a music upload, a face analysis) reads the
   document as it is when it finishes.
 - `showLengkap` moves focus to the opened panel's rail tab when the pressed control left with Mode
@@ -2482,3 +2482,75 @@ Nothing in it reaches the network or names a host, a path or a user.
   "Memuat info sistem…" (`role="status"`), "Info sistem tidak bisa dimuat." with a plain
   "Coba lagi" (`role="alert"`), and the `<dl className="systemList">`. No lime: the accent stays
   on Simpan.
+
+## 5.35 Cek ejaan (2026-10-20)
+
+Spelling suggestions for the clip's caption words through the free LLM chain (plan
+`docs/plans/2026-10-20-lanjutan-sesi.md` P2). No engine, plan, seed or command change: an accepted
+suggestion is an `EditWordText` (plus `SetWordHidden` for merged words), so every golden and plan
+sha is unchanged.
+
+### Route and flags
+
+- `POST /clips/:clipId/ai` takes `{task: "spelling", doc}` beside `{task: "hooks", doc}`, under
+  the same prologue (session, `POTONGIN_EDITOR_V3`, same origin, ids, JSON type, 1 MiB + 4 KiB).
+  Spelling has no instant part: no `heuristic` child, the answer is `202 {taskId, llm}` with the
+  hook task's `llm` states (`pending`, `disabled` with the settings notice, `rate_limited` with
+  `retryAfterMs` and Retry-After). The LLM part runs under the same rule (`POTONGIN_EDITOR_LLM=on`,
+  `POTONGIN_LLM` not off, a provider in the saved Pengaturan settings), the same per-job limit
+  (30 tasks per hour, hooks and spelling together) and at most 3 tasks at once; the child is
+  `run-task` with `engineProcessEnv(await loadLlmEnv())` and the 25 s kill.
+- The page passes `features.llm` (`readEditorFlags().llm`); the shell's props bundle carries
+  `llmEnabled = runtime.kind === "fake" || features.llm === true`. Without it neither view shows
+  the "Cek ejaan" button.
+
+### Python (`ai_clipper.editor_ai` + `ai_clipper.editor_spelling`)
+
+- `editor_ai.request_parts(raw) → (task, doc bytes)` accepts `TASKS = ("hooks", "spelling")`; the
+  `heuristic` op refuses a spelling body (`invalid_json`, exit 3). `run_task` builds a
+  `_TaskPlan` per task: the spelling one sends `spelling_lines(doc, words)` (the hook task's
+  visible lines, each word with its id, index and current text; a word whose prompt-cleaned text
+  differs from the stored one is shown but takes no fix), cut from the end to
+  `PROMPT_TOKEN_BUDGET` 4000, with `prompts/editor_spelling_v1.md`, `MAX_OUTPUT_TOKENS` 1500 and
+  temperature 0, inside the same 20 s deadline. The task file (`potongin.editor-ai-task/1`) has
+  `task: "spelling"`, `promptVersion: "editor-spelling-v1"`, `truncated`, `linesSent`,
+  `linesTotal`; the answer adds `truncated`. Error codes are the hook task's.
+- The model answers `{"fixes": [{"line", "from", "to"}]}`; `{"fixes": []}` is a clean transcript.
+  `validate_fixes` keeps a fix when `from` (outer punctuation stripped) is one to three adjacent,
+  visible words of that line (exact match first, case-folded only when nothing matches exactly;
+  every non-overlapping occurrence) and `to` stays a spelling of them: letters, marks, digits,
+  space, `-`, `'`, `’`, `.`, `&` only; at most `words + 1` tokens (≤ 3); the same digit runs; on the
+  words without spaces, hyphens and apostrophes, case-folded, an edit distance with adjacent
+  transpositions of at most one per three letters (at least one). The words' own leading and
+  trailing punctuation is kept; the new text is at most 40 characters. Dropped codes: `format`,
+  `line`, `not_found`, `empty`, `text`, `too_many_words`, `number`, `too_different`, `unchanged`,
+  `too_long`, `overlap`, `limit` (60 suggestions). An answer that is not a `fixes` list, or a list
+  with no well-formed item, is `invalid_output`.
+- A suggestion is `{id: "sp_<task prefix><n>", wordIds: [1–3], from, to, kind}` in transcript
+  order: `from` the words' current text joined by spaces, `to` the first word's new text (the
+  other words are merged into it), `kind` `case` (capital letters only), `spacing` (word boundary
+  or hyphen) or `spelling`.
+
+### Node and the client
+
+- `taskView` reads the record's `task`: a spelling record is sanitised by `sanitizeSpelling`
+  (`sp_` id, 1–3 distinct word ids `w\d{6,7}`, `from` ≤ 160 and `to` ≤ 40 characters after
+  cleaning, `from ≠ to`, a known kind; other fields dropped), at most 60, plus `truncated`.
+- `createApiClient().aiSpelling(doc)` posts `{task: "spelling", doc}`; the fakes answer a pending
+  task that `aiTask` completes with two suggestions on the fake words.
+- `components/editor/spelling/model.mjs`: `createSpellCheck({api})` (phases `idle`, `checking`,
+  `done`, `failed` with a code, `error`, `off` with the settings notice, `rate_limited`; polls
+  every second for 30 s; `skip(id)` and `restoreSkipped()` are the viewer's own and a new check
+  clears them), `spellingFor(api, clipId)` (one controller per clip and client for the page),
+  `spellingRows({suggestions, model, skipped})` → `{rows, applied, stale, skipped}`: open while the
+  words read `from` and show (body or cold open, not hidden), applied once the first reads `to` and
+  the others are hidden, else stale; rows carry three words of context each side within the
+  sentence unit and the source span for "Putar". `acceptCommands(row, mergeKey)` and
+  `planAccept({rows, doc, ctx, mergeKey})` (a dry run per row; a refused row is skipped with its
+  message).
+- `use-spell-check.js` and `SpellingReview.jsx` (region "Cek ejaan", list "Saran ejaan"): rows
+  "…context salah → benar context…" with the kind ("Huruf kapital", "Spasi", "Ejaan") and
+  Terima, Lewati, Putar; "Terima semua (n)" and "Periksa lagi"; one `actionKey("spelling")` per
+  accept, so one Urungkan. After a row leaves, focus goes to the next row's Terima, else the status
+  line. The review opens from the transcript header (beside Rapikan; one review open at a time) and
+  from the Teks caption card; the first opening asks the LLM, never the editor's load (R1).

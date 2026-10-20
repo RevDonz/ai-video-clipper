@@ -139,6 +139,10 @@ export function createApiClient({ jobId, clipId, fetchImpl = globalThis.fetch?.b
     async aiHooks(doc) {
       return request("POST", `${clipRoot}/ai`, { body: { task: "hooks", doc } });
     },
+    /** Cek ejaan: starts the LLM spelling task for the document (`{taskId, llm}`). */
+    async aiSpelling(doc) {
+      return request("POST", `${clipRoot}/ai`, { body: { task: "spelling", doc } });
+    },
     async aiTask(taskId) {
       check(UUID, taskId, "taskId");
       return request("GET", `${clipRoot}/ai/${taskId}`);
