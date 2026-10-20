@@ -1,4 +1,4 @@
-"""End-to-end orchestration for the technical spike.
+"""End-to-end orchestration of one clip job.
 
 ``run_pipeline`` transcribes, selects, renders, and publishes ``manifest.json``. V1 and the V2
 shadow keep their historical behaviour. Selection V3 (``selection_mode="v3"``) runs:
