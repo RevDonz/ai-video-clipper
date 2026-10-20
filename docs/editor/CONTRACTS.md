@@ -2949,3 +2949,50 @@ captions to Groq's hosted Whisper; local Whisper stays the fallback. Operations:
 - **Project page** (`selection-v3-view.mjs`): every `groq_fallback` code is a note ("Groq tidak
   dipakai (…); transkrip dibuat dengan Whisper di server ini."); `no_key` and `auth` are notices
   with "Buka Pengaturan". The progress row reads "dari audio lewat Groq".
+
+## 5.42 Face-track follows the speaker: YuNet and mouth motion (2026-10-21)
+
+Evaluation and numbers: `docs/evaluation/SPEAKER_FRAMING.md`. The camera plan's schema, file name
+and fields (§5.7) are unchanged; its samples now come from another detector, so a new seed gets
+another camera plan (existing seeds keep theirs, content-addressed as before). Every FFmpeg
+argument is unchanged.
+
+- **Model.** `resources/models/face_detection_yunet_2023mar.onnx` (OpenCV Zoo commit
+  `f12e12798e8314f7c074a6656816c048dcc95b7a`, MIT, `LICENSE-YuNet.txt`), listed with its sha256
+  in `resources/models/models.json` (`potongin.models/1`). `face_model.model_path()` checks the
+  sha256 before OpenCV reads the file and raises `RuntimeError` when the file is missing or
+  different. No new Python dependency: `cv2.FaceDetectorYN` is in the pinned
+  `opencv-python-headless` 4.14 (the `vision` extra); the image copies `resources/` as before.
+- **`face_model`** (OpenCV and NumPy passed in or imported lazily): `YuNet(cv2, w, h).detect(bgr)`
+  → `Detection(x, y, w, h, score, landmarks)` in source pixels, sorted by position; detection runs
+  on the frame scaled to at most 640 px on the long side (score 0.6, NMS 0.3, top 50).
+  `mouth_region`, `mouth_patch` (grey 40×28, clipped to the frame) and `mouth_motion` (the earlier
+  patch matched inside the later one within 4 px, then the mean absolute difference over the
+  patches' contrast).
+- **`speaker_track`** (stdlib only): `Face(x, y, w, h, activity)`, `Sample(time, cut, faces)`,
+  `Rules(window=3, margin=0.03, jump=0.22, link_iou=0.3, min_relative=0.5)`,
+  `link_tracks(samples)` and `choose(samples, *, width, rules=RULES) → (centres, switches)`: faces
+  lower than half the sample's tallest are ignored; one face is framed whatever it does; among
+  several, the track with the highest mean activity over ±3 samples of the same shot, kept until
+  another leads by 0.03; no activity anywhere → the largest face (equal areas: leftmost, then
+  topmost). `switches[i]` is true when the framed track changes and the centre moves at least 0.22
+  of the width (a lone face appearing that far away included).
+- **`face_window`** **changed**: `scan_window(source, *, start, end, sample_interval=0.75,
+  progress=None) → Scan(times, samples, width, height)` decodes the window once (one seek), takes
+  the sample frames exactly as before (`int(seconds·fps + 0.5)`) with the same cut flags, runs
+  YuNet on each and measures each face's mouth motion over the frames until the next sample, about
+  15 a second (after a cut-like change the rest of the interval is not measured).
+  `detect_window(source, *, start, end, sample_interval=0.75, progress=None, rules=RULES)` returns
+  `(times, centres, cuts, w, h)` with `cuts[i] = scene cut or speaker switch`. The `workers`
+  keyword and `DETECT_WORKERS_MAX` are gone (the scan is one thread; `one_opencv_thread` still
+  holds OpenCV's pool at one thread). A source without a frame rate is sampled by seeking,
+  without mouth motion (the largest face is framed).
+- **`face_tracking.detect_face_track(source, *, start, end, sample_interval=0.75, smooth=True)`**
+  **changed**: it returns `face_window.detect_window`'s track (smoothed unless `smooth=False`); the
+  `sequential` keyword and `choose_prominent_face` are gone, and the legacy render's face-track
+  goes through the same scan as the camera plan (one decode instead of a seek per sample).
+  `camera.build_camera_plan` still passes `sequential=True` to another detector that accepts it.
+- **Evaluation harness** `scripts/eval/speaker_framing.py` (`select`, `fetch`, `run`, `time`):
+  the set `docs/evaluation/speaker-framing/set-val.json` lists film windows of AVA ActiveSpeaker
+  v1.0 (annotations CC BY 4.0, sha256-pinned; the footage is downloaded into a cache, never
+  committed). It keeps the Haar detector as a frozen baseline.

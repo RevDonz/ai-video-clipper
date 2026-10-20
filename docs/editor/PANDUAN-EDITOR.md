@@ -206,12 +206,14 @@ bagian ini mati dengan keterangan "Aktifkan cold open dulu."
 **Tata letak.** **Latar blur**, **Ikuti wajah** dan **Potong tengah**, masing-masing dengan
 contoh gambar di posisi putar. Berlaku untuk seluruh klip. "Ikuti wajah" pada proyek yang belum
 punya analisis wajah menganalisis dulu (hitungan persen); bagian tanpa wajah didaftar dengan
-tombol lompat. Di bawah pilihan tata letak ada **Bagian tanpa wajah**: **Latar blur** (seluruh
-gambar 16:9 di tengah, atas dan bawah diisi versi blur dari gambar yang sama) atau **Dipusatkan**
-(potongan 9:16 di tengah, seperti klip otomatis). Memilih "Ikuti wajah" di editor langsung memakai
-Latar blur; klip otomatis "Ikuti wajah" tetap Dipusatkan sampai diganti. Dengan Latar blur, bagian
-tanpa wajah hanya jadi catatan (tanpa centang saat ekspor); satu klik di "Dipusatkan" mengembalikan
-tampilan klip otomatis, dan sebaliknya.
+tombol lompat. Kalau ada beberapa orang, gambar mengikuti yang sedang bicara (dari gerak
+mulutnya); saat pembicara berganti, gambar pindah dengan potongan, bukan geser. Di bawah pilihan
+tata letak ada **Bagian tanpa wajah**: **Latar blur** (seluruh gambar 16:9 di tengah, atas dan
+bawah diisi versi blur dari gambar yang sama) atau **Dipusatkan** (potongan 9:16 di tengah, seperti
+klip otomatis). Memilih "Ikuti wajah" di editor langsung memakai Latar blur; klip otomatis "Ikuti
+wajah" tetap Dipusatkan sampai diganti. Dengan Latar blur, bagian tanpa wajah hanya jadi catatan
+(tanpa centang saat ekspor); satu klik di "Dipusatkan" mengembalikan tampilan klip otomatis, dan
+sebaliknya.
 
 **Logo.** **"Unggah logo"** (PNG, JPEG atau WebP, maks. 10 MB; PNG transparan paling rapi)
 atau seret file ke panel. Logo baru muncul di kanan atas, di luar area tombol TikTok/Reels. Posisi
