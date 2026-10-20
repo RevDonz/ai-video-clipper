@@ -476,27 +476,30 @@ def transcribe_with_groq(
         if duration > MAX_AUDIO_SECONDS:
             raise GroqTranscriptionError("too_long")
         if duration <= max_chunk_seconds:
-            parts = [(0.0, duration, audio)]
+            windows = [(0.0, duration)]
         else:
             silences = _silences(ffmpeg, audio, duration)
-            parts = []
-            for index, (start, stop) in enumerate(
-                plan_chunks(
-                    duration, silences, max_seconds=max_chunk_seconds, snap_seconds=snap_seconds
-                )
-            ):
-                chunk = work / f"part-{index:03d}.flac"
-                _flac(ffmpeg, audio, chunk, start=start, length=stop - start)
-                parts.append((start, stop, chunk))
-        if any(path.stat().st_size > max_upload_bytes for *_, path in parts):
-            raise GroqTranscriptionError("too_large")
+            windows = plan_chunks(
+                duration, silences, max_seconds=max_chunk_seconds, snap_seconds=snap_seconds
+            )
 
         segments: list[TranscriptSegment] = []
         detected: str | None = None
-        for start, stop, path in parts:
+        for index, (start, stop) in enumerate(windows):
+            # Parts are cut one at a time and removed once sent: the folder holds at most two files.
+            path = audio if len(windows) == 1 else work / f"part-{index:03d}.flac"
+            if path != audio:
+                _flac(ffmpeg, audio, path, start=start, length=stop - start)
+            try:
+                if path.stat().st_size > max_upload_bytes:
+                    raise GroqTranscriptionError("too_large")
+            except OSError:
+                raise GroqTranscriptionError("audio_failed") from None
             payload = request_transcription(
                 config, path, language=language, word_timestamps=word_timestamps, sleep=sleep
             )
+            if path != audio:
+                path.unlink(missing_ok=True)
             found, code = normalize_groq_response(
                 payload, offset=start, end=stop, word_timestamps=word_timestamps
             )

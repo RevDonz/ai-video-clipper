@@ -457,11 +457,16 @@ def test_a_short_video_is_one_request_of_16_khz_mono_flac(groq, tmp_path: Path):
 @needs_ffmpeg
 def test_a_long_video_is_cut_at_silences_and_put_back_in_place(groq, tmp_path: Path):
     source = tone_with_pauses(tmp_path / "source.wav", 27)
-    fake = groq(chunk_reply)
-    progress = []
-
     work = tmp_path / "work"
     work.mkdir()
+    files_while_sending = []
+
+    def reply(index):
+        files_while_sending.append(sorted(path.name for path in work.glob("*/*")))
+        return chunk_reply(index)
+
+    fake = groq(reply)
+    progress = []
 
     result = transcribe_with_groq(
         source,
@@ -479,7 +484,13 @@ def test_a_long_video_is_cut_at_silences_and_put_back_in_place(groq, tmp_path: P
     assert [round(w.start, 3) for w in result.segments[1].words] == [8.6, 9.1]
     assert result.language == "id"  # detected, from the answer
     assert progress == sorted(progress) and progress[-1] == 1.0 and len(progress) == 3
-    assert list(work.iterdir()) == []  # the extracted audio is gone
+    # One part at a time beside the extracted audio, and nothing left afterwards.
+    assert files_while_sending == [
+        ["audio.flac", "part-000.flac"],
+        ["audio.flac", "part-001.flac"],
+        ["audio.flac", "part-002.flac"],
+    ]
+    assert list(work.iterdir()) == []
 
 
 def test_without_a_key_nothing_is_sent(groq, tmp_path: Path):
