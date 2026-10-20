@@ -5,11 +5,11 @@
 ```bash
 git clone git@github.com:RevDonz/ai-video-clipper.git
 cd ai-video-clipper
-cp .env.example .env
+cp .env.example .env   # isi APP_USERNAME, APP_PASSWORD, APP_SESSION_SECRET, JOBS_STORAGE_*
 docker compose build
 docker compose up -d
 docker compose ps
-curl -fsS http://127.0.0.1:3000/api/health
+curl -fsS http://127.0.0.1:8100/api/health
 ```
 
 Data input, status job, transcript, dan hasil klip disimpan pada named volume
@@ -50,8 +50,9 @@ Pada tab SSL, minta sertifikat Let's Encrypt dan aktifkan **Force SSL** serta
 **HTTP/2 Support**. Jika memakai Cloudflare Origin Certificate, pasang
 sertifikat origin tersebut di NPM dan gunakan mode SSL Cloudflare `Full (strict)`.
 
-> Web MVP ini belum memiliki akun/login. Lindungi dengan Cloudflare Access atau
-> Access List Nginx Proxy Manager sebelum membuka domain ke publik.
+> Aplikasi punya login sendiri (`APP_USERNAME` dan `APP_PASSWORD` di `.env`). Cookie sesinya
+> `Secure`, jadi domain wajib lewat HTTPS. Cloudflare Access atau Access List Nginx Proxy
+> Manager boleh ditambahkan sebagai lapisan kedua.
 
 ## 3. Cloudflare DNS
 
@@ -73,7 +74,7 @@ docker compose logs -f app
 
 # Status dan health
 docker compose ps
-curl -fsS http://127.0.0.1:3000/api/health
+curl -fsS http://127.0.0.1:8100/api/health
 
 # Update aplikasi
 git pull --ff-only origin main
