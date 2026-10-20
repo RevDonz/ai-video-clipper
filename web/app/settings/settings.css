@@ -227,6 +227,8 @@ html:has(.settingsSaveBar) { scroll-padding-bottom: 150px; }
 .testResult.ok { color: var(--success); font-weight: 600; }
 .testResult.error { color: var(--danger); font-weight: 600; }
 .testResult.muted { color: var(--text-muted); }
+/* A failed test's entry on /bantuan, in the link colour so it reads apart from the red result. */
+.testHelp { border-radius: var(--radius-s); white-space: nowrap; }
 .providerEmpty {
   padding: 20px;
   border: 1px dashed var(--border-strong);

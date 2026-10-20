@@ -41,6 +41,7 @@ const SIGNED_IN_PAGES = [
   ["app/projects/[id]/page.jsx", "/projects"],
   ["app/trends/page.jsx", "/trends"],
   ["app/settings/page.jsx", "/settings"],
+  ["app/bantuan/page.jsx", "/bantuan"],
 ];
 
 test("every signed-in page renders the shared header instead of its own nav", async () => {
