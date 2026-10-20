@@ -221,6 +221,16 @@ def test_a_fix_matches_every_occurrence_and_case_only_as_a_fallback(case):
     assert [d["code"] for d in dropped] == ["unchanged"], "the folded match reaches 'Iya' too"
 
 
+def test_a_line_may_be_named_by_its_number_or_without_zeros(case):
+    lines = lines_of(case)
+    data = {"fixes": [{"line": 4, "from": "flim", "to": "film"},
+                      {"line": "l6", "from": "ngak", "to": "nggak"},
+                      {"line": True, "from": "kefilm", "to": "ke film"}]}
+    accepted, dropped = editor_spelling.validate_fixes(data, lines, task_id=TASK)
+    assert [s["to"] for s in accepted] == ["film", "nggak"]
+    assert [d["code"] for d in dropped] == ["line"]
+
+
 def test_a_merge_never_crosses_a_hidden_word(case):
     doc = copy.deepcopy(case["seed"])
     doc["captions"]["word_edits"] = {word_id(case, "S0419", 2): {"hidden": True}}

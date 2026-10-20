@@ -199,6 +199,9 @@ def _runs(words: Sequence[SpellWord], target: str, *, fold: bool) -> list[tuple[
 
 
 def _line_ref(value: object, lines: Mapping[str, SpellLine]) -> SpellLine | None:
+    """The line named "L0004", "l4" or 4."""
+    if isinstance(value, int) and not isinstance(value, bool):
+        return lines.get(f"L{value:04d}") if 0 < value < 10**6 else None
     match = _LINE_REF.fullmatch(value.strip()) if isinstance(value, str) else None
     return lines.get(f"L{int(match.group(1)):04d}") if match else None
 
