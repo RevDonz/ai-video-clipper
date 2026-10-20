@@ -514,6 +514,11 @@ test.describe("text panel", () => {
     await words.getByRole("radio", { name: "1" }).check();
     expect(await lastCommand(page)).toEqual({ type: "SetCaptionOverride", args: { key: "words_max", value: 1 }, mergeKey: null });
     await expect(words.getByRole("radio", { name: "1" })).toBeChecked();
+    const entrance = page.getByRole("group", { name: "Animasi masuk" });
+    await expect(entrance.getByRole("radio", { name: "Tanpa" })).toBeChecked();
+    await entrance.getByRole("radio", { name: "Blur" }).check();
+    expect(await lastCommand(page)).toEqual({ type: "SetCaptionOverride", args: { key: "entrance", value: "blur" }, mergeKey: null });
+    await expect(entrance.getByRole("radio", { name: "Blur" })).toBeChecked();
     await page.getByRole("switch", { name: "Tampilkan caption" }).click();
     expect(await lastCommand(page)).toEqual({ type: "SetCaptionsEnabled", args: { on: false }, mergeKey: null });
   });

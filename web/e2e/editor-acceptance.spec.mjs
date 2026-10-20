@@ -767,6 +767,18 @@ test("Kemampuan 5, caption + 5 gaya: each pack, position, size, words per line, 
   await exactBadge(page);
   await words.getByRole("radio", { name: "3" }).check();
   expect(Object.hasOwn((await waitSaved(page)).doc.captions.overrides, "words_max")).toBe(false);
+  // Animasi masuk (CONTRACTS §5.34): the engine opens every line; Tanpa gives the same bytes back.
+  const entrance = text.getByRole("group", { name: "Animasi masuk" });
+  await expect(entrance.getByRole("radio", { name: "Tanpa" })).toBeChecked();
+  const withoutEntrance = (await settledPlan(page)).text.assSha256;
+  await entrance.getByRole("radio", { name: "Fade" }).check();
+  expect((await waitSaved(page)).doc.captions.overrides.entrance).toBe("fade");
+  await expect.poll(async () => (await settledPlan(page)).text.assSha256).not.toBe(withoutEntrance);
+  expect(await currentAss(page)).toMatch(/\{\\fad\(\d+,0\)\}/); // the hook's own fade is (150,250)
+  await exactBadge(page);
+  await entrance.getByRole("radio", { name: "Tanpa" }).check();
+  expect(Object.hasOwn((await waitSaved(page)).doc.captions.overrides, "entrance")).toBe(false);
+  await expect.poll(async () => (await settledPlan(page)).text.assSha256).toBe(withoutEntrance);
   const before = (await inspect(page)).doc.captions.overrides;
   await nudgeSlider(text.getByRole("slider", { name: "Posisi caption" }), "ArrowLeft", 4);
   await nudgeSlider(text.getByRole("slider", { name: "Ukuran caption" }), "ArrowRight", 2);

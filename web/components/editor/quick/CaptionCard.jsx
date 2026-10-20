@@ -2,19 +2,22 @@
 
 // Mode Cepat's Caption card (docs/plans/2026-10-02-editor-mode-cepat.md §1.4 Caption, §3): the
 // "Tampilkan caption" switch, the packs (the FFmpeg thumbnails), the highlight colour, three
-// sizes, words per line (CONTRACTS §5.30) and three positions. A size or position set off the
-// presets in Mode Lengkap presses no pill. The commands, the notes and the hook hint are
-// caption-model.mjs, shared with the Teks panel, so both views send the same command and show the
-// same text. Props: the card bundle of cards.mjs.
+// sizes, words per line (CONTRACTS §5.30), the entrance (§5.34) and three positions. A size or
+// position set off the presets in Mode Lengkap presses no pill. The commands, the notes and the
+// hook hint are caption-model.mjs, shared with the Teks panel, so both views send the same command
+// and show the same text. Props: the card bundle of cards.mjs.
 import { useId, useState } from "react";
 
 import {
+  CAPTION_ENTRANCE_OPTIONS,
   CAPTION_PACKS,
   CAPTION_POSITIONS,
   CAPTION_SIZES,
   CAPTION_SWATCHES,
   CAPTION_WORDS,
   captionCommand,
+  captionEntranceCommand,
+  captionEntranceId,
   captionPackCommand,
   captionWordsCommand,
   captionWordsId,
@@ -74,6 +77,8 @@ function CaptionBody({ state, dispatch }) {
         disabled={locked} onChange={(id) => send(captionCommand("size_pm", valueOf(CAPTION_SIZES, id)))} />
       <PillGroup legend="Kata per baris" name={`${uid}-words`} options={pills(CAPTION_WORDS)} value={captionWordsId(doc)}
         disabled={locked} columns={4} onChange={(id) => send(captionWordsCommand(id))} />
+      <PillGroup legend="Animasi masuk" name={`${uid}-entrance`} options={pills(CAPTION_ENTRANCE_OPTIONS)}
+        value={captionEntranceId(doc)} disabled={locked} columns={4} onChange={(id) => send(captionEntranceCommand(id))} />
       <div className={styles.stack}>
         <PillGroup legend="Posisi" name={`${uid}-position`} options={pills(CAPTION_POSITIONS)}
           value={presetId(CAPTION_POSITIONS, overrides.y_e5)} disabled={locked} describedBy={notes}

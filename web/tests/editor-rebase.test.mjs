@@ -337,6 +337,36 @@ test("Kata per baris merges as its own caption part; 'yang tersimpan' without it
   assert.deepEqual(diffParts(C30.seed, mine.doc), ["captions.override.words_max"]);
 });
 
+test("Animasi masuk merges as its own caption part; word parts still come after the captions", () => {
+  assert.ok(PARTS.includes("captions.override.entrance"));
+  const overrides = PARTS.filter((part) => part.startsWith("captions.override."));
+  assert.equal(overrides.at(-1), "captions.override.entrance");
+  const mine = tab(C30);
+  mine.dispatch("SetCaptionOverride", { key: "entrance", value: "fade" });
+  const theirs = tab(C30);
+  theirs.dispatch("SetCaptionOverride", { key: "words_max", value: 2 });
+  const merged = rebaseTabs(C30, mine, theirs);
+  assert.equal(merged.status, "merged");
+  assert.equal(merged.doc.captions.overrides.entrance, "fade");
+  assert.equal(merged.doc.captions.overrides.words_max, 2);
+
+  const other = tab(C30);
+  other.dispatch("SetCaptionOverride", { key: "entrance", value: "pop" });
+  const result = rebaseTabs(C30, mine, other);
+  assert.equal(result.status, "conflict");
+  assert.deepEqual(result.conflicts.map((group) => [group.id, group.label, group.parts]), [
+    ["captions", "Gaya caption", ["captions.override.entrance"]]]);
+  assert.equal(result.resolve({}).doc.captions.overrides.entrance, "fade");
+  assert.equal(result.resolve({ captions: "theirs" }).doc.captions.overrides.entrance, "pop");
+
+  // The part's value is null while the key is absent; setting null removes it.
+  assert.equal(partValue(C30.seed, "captions.override.entrance"), null);
+  const back = applyParts(mine.doc, { "captions.override.entrance": null }, C30.ctx);
+  assert.equal(Object.hasOwn(back.captions.overrides, "entrance"), false);
+  assert.deepEqual(checkDoc(back, C30.ctx), []);
+  assert.deepEqual(diffParts(C30.seed, mine.doc), ["captions.override.entrance"]);
+});
+
 test("the hook design merges as its own hook part; two different picks are one 'Teks hook' conflict", () => {
   assert.ok(PARTS.includes("hook.design"));
   assert.equal(partGroup("hook.design"), "hook");

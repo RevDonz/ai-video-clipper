@@ -18,6 +18,8 @@
 // - "Kata per baris" is `SetCaptionOverride {key: "words_max"}` (CONTRACTS §5.30): the key is
 //   present only while it differs from the pack's own count, so picking that count drops it (a
 //   manual revert equals the seed, R10) and SetCaptionPack drops it when the new pack has it.
+// - "Animasi masuk" is `SetCaptionOverride {key: "entrance"}` (CONTRACTS §5.34): "none" drops the
+//   key (R10); a pack switch keeps it.
 // - SetHookText / SetHookEnabled restore the seed item's origin when the text equals the seed's
 //   hook text, and EditWordText drops the edit when the text equals the ASR text, so a manual
 //   revert gives content equal to the seed (R10).
@@ -197,10 +199,16 @@ function withCaptions(doc, patch) {
   return { ...doc, captions: { ...doc.captions, ...patch } };
 }
 
-function withoutWordsMax(overrides) {
-  if (!Object.hasOwn(overrides, "words_max")) return overrides;
-  const { words_max: _wordsMax, ...rest } = overrides;
+function withoutOverride(overrides, key) {
+  if (!Object.hasOwn(overrides, key)) return overrides;
+  const { [key]: _value, ...rest } = overrides;
   return rest;
+}
+
+/** An optional override at its default is no key at all (R10): the pack's count, no entrance. */
+function atDefault(doc, key, value) {
+  if (key === "words_max") return value === PACK_WORDS_PER_LINE[doc.captions.pack.id];
+  return key === "entrance" && value === "none";
 }
 
 function segmentOrder(doc) {
@@ -705,7 +713,7 @@ const HANDLERS = {
     let overrides = doc.captions.overrides.case === PACK_DEFAULT_CASE[previous]
       && PACK_DEFAULT_CASE[previous] !== PACK_DEFAULT_CASE[args.id]
       ? { ...doc.captions.overrides, case: PACK_DEFAULT_CASE[args.id] } : doc.captions.overrides;
-    if (overrides.words_max === PACK_WORDS_PER_LINE[args.id]) overrides = withoutWordsMax(overrides);
+    if (overrides.words_max === PACK_WORDS_PER_LINE[args.id]) overrides = withoutOverride(overrides, "words_max");
     return { doc: withCaptions(doc, { pack: { id: args.id, v: 1 }, overrides }), args: { id: args.id } };
   },
 
@@ -714,8 +722,8 @@ const HANDLERS = {
     need(rule, "invalid_args", { arg: "key" });
     if (args.key === "y_e5" || args.key === "size_pm") need(Number.isSafeInteger(args.value), "invalid_args", { arg: "value" });
     need(rule(args.value), "value_out_of_range");
-    const overrides = args.key === "words_max" && args.value === PACK_WORDS_PER_LINE[doc.captions.pack.id]
-      ? withoutWordsMax(doc.captions.overrides) : { ...doc.captions.overrides, [args.key]: args.value };
+    const overrides = atDefault(doc, args.key, args.value)
+      ? withoutOverride(doc.captions.overrides, args.key) : { ...doc.captions.overrides, [args.key]: args.value };
     return { doc: withCaptions(doc, { overrides }), args: { key: args.key, value: args.value } };
   },
 

@@ -32,7 +32,7 @@ import {
 } from "./doc-model.mjs";
 import { pieces, srcToOut } from "./timemap.mjs";
 
-const OVERRIDE_KEYS = ["y_e5", "size_pm", "case", "highlight", "emphasis", "words_max"];
+const OVERRIDE_KEYS = ["y_e5", "size_pm", "case", "highlight", "emphasis", "words_max", "entrance"];
 const WORD_FIELDS = ["text", "hidden", "emphasis"];
 
 /**
@@ -48,7 +48,7 @@ export const PARTS = Object.freeze([
   "audio.source", "audio.master",
 ]);
 const ORDER = new Map(PARTS.map((part, index) => [part, index]));
-const WORD_ORDER = ORDER.get("captions.override.words_max") + 0.5;
+const WORD_ORDER = ORDER.get(`captions.override.${OVERRIDE_KEYS.at(-1)}`) + 0.5;
 
 /** Dialog labels per group (plan §4.5). */
 export const GROUP_LABELS = Object.freeze({
@@ -251,7 +251,7 @@ function setPart(doc, part, value, assets, ctx) {
     return { ...doc, captions: { ...doc.captions, word_edits: edits } };
   }
   if (part.startsWith("captions.override.")) {
-    // An optional override (words_max) is null while absent: null removes the key.
+    // An optional override (words_max, entrance) is null while absent: null removes the key.
     const { [part.slice(18)]: _old, ...rest } = doc.captions.overrides;
     const overrides = value === null ? rest : { ...doc.captions.overrides, [part.slice(18)]: value };
     return { ...doc, captions: { ...doc.captions, overrides } };

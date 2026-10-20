@@ -23,6 +23,7 @@ import {
 } from "../lib/editor/commands.mjs";
 import {
   AUTO_JOIN,
+  CAPTION_ENTRANCES,
   EDITOR_ID,
   HOOK_DESIGN_IDS,
   JOIN_STYLES,
@@ -32,6 +33,7 @@ import {
   SFX_WHOOSH,
   body,
   canonicalJson,
+  captionEntrance,
   captionWordsPerLine,
   checkDoc,
   coldOpen,
@@ -702,6 +704,33 @@ test("Kata per baris: words_max 1–4, absent while it is the pack's own count",
   const extra = { ...C30.seed, captions: { ...C30.seed.captions, overrides: { ...C30.seed.captions.overrides, words_per_chunk: 2 } } };
   assert.deepEqual(checkDoc(extra, C30.ctx), [{ code: "range_invalid", path: "/captions/overrides" }]);
   assert.equal(defaultMergeKey("SetCaptionOverride", { key: "words_max", value: 2 }), "cap:words_max");
+});
+
+test("Animasi masuk: entrance fade, pop or blur; none drops the key", () => {
+  // The seed carries no entrance (CONTRACTS §5.34): it reads as none.
+  assert.deepEqual(CAPTION_ENTRANCES, ["none", "fade", "pop", "blur"]);
+  assert.equal(Object.hasOwn(C30.seed.captions.overrides, "entrance"), false);
+  assert.equal(captionEntrance(C30.seed), "none");
+  const doc = run(C30, C30.seed, "SetCaptionOverride", { key: "entrance", value: "pop" });
+  assert.equal(doc.captions.overrides.entrance, "pop");
+  assert.equal(captionEntrance(doc), "pop");
+  // Picking none again drops the key, so the clip equals the AI version (R10).
+  const back = run(C30, doc, "SetCaptionOverride", { key: "entrance", value: "none" });
+  assert.equal(Object.hasOwn(back.captions.overrides, "entrance"), false);
+  assert.ok(contentEquals(back, C30.seed));
+  // The entrance is the clip's, not the pack's: it survives every pack switch.
+  for (const id of PACK_IDS) assert.equal(run(C30, doc, "SetCaptionPack", { id }).captions.overrides.entrance, "pop", id);
+  for (const bad of ["bounce", "Fade", "", 1, null, true]) {
+    rejects(C30, C30.seed, "SetCaptionOverride", { key: "entrance", value: bad }, "value_out_of_range");
+  }
+  // checkDoc: the five keys plus the optional words_max and entrance.
+  const withKeys = (keys) => ({ ...C30.seed, captions: { ...C30.seed.captions, overrides: { ...C30.seed.captions.overrides, ...keys } } });
+  for (const entrance of CAPTION_ENTRANCES) assert.deepEqual(checkDoc(withKeys({ entrance }), C30.ctx), [], entrance);
+  assert.deepEqual(checkDoc(withKeys({ entrance: "blur", words_max: 2 }), C30.ctx), []);
+  assert.deepEqual(checkDoc(withKeys({ entrance: "bounce" }), C30.ctx), [{ code: "range_invalid", path: "/captions/overrides/entrance" }]);
+  assert.equal(captionEntrance(withKeys({ entrance: "bounce" })), "none");
+  assert.equal(captionEntrance(null), "none");
+  assert.equal(defaultMergeKey("SetCaptionOverride", { key: "entrance", value: "fade" }), "cap:entrance");
 });
 
 // --- hook ----------------------------------------------------------------------------------

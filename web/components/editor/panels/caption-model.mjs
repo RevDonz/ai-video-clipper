@@ -4,7 +4,7 @@
 // Teks panel both call these, so the two views build the same command and show the same text for
 // the same document. Pure; no DOM.
 import { CAPTION_SWATCHES } from "../../../lib/editor/content-colours.mjs";
-import { captionWordsPerLine } from "../../../lib/editor/doc-model.mjs";
+import { CAPTION_ENTRANCES, captionEntrance, captionWordsPerLine } from "../../../lib/editor/doc-model.mjs";
 import { captionAtSeedSpot } from "../shell-model.mjs";
 
 export { CAPTION_SWATCHES };
@@ -25,6 +25,14 @@ export const HIGHLIGHT_PACKS = Object.freeze(["karaoke", "bold", "sorot"]);
 
 /** "Kata per baris" (`words_max`, CONTRACTS §5.30): at most this many words on a caption line. */
 export const CAPTION_WORDS = freeze([1, 2, 3, 4].map((value) => ({ id: String(value), label: String(value), value })));
+
+/** "Animasi masuk" (`entrance`, CONTRACTS §5.34): how each caption line appears; Tanpa is the seed's. */
+export const CAPTION_ENTRANCE_OPTIONS = freeze([
+  { id: "none", label: "Tanpa" },
+  { id: "fade", label: "Fade" },
+  { id: "pop", label: "Pop" },
+  { id: "blur", label: "Blur" },
+]);
 
 /** Mode Cepat's "Ukuran" (`size_pm`): Sedang is the seed size. */
 export const CAPTION_SIZES = freeze([
@@ -75,6 +83,17 @@ export function captionWordsCommand(id) {
   const option = CAPTION_WORDS.find((entry) => entry.id === id);
   if (!option) throw new TypeError(`unknown words per line: ${id}`);
   return captionCommand("words_max", option.value);
+}
+
+/** The pressed "Animasi masuk" pill: the document's entrance, Tanpa without one. */
+export function captionEntranceId(doc) {
+  return captionEntrance(doc);
+}
+
+/** A pill pick; Tanpa clears the override (commands.mjs). */
+export function captionEntranceCommand(id) {
+  if (!CAPTION_ENTRANCES.includes(id)) throw new TypeError(`unknown caption entrance: ${id}`);
+  return captionCommand("entrance", id);
 }
 
 export function captionPackCommand(id) {
