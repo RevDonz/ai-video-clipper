@@ -13,7 +13,6 @@ import hashlib
 import inspect
 import json
 from decimal import ROUND_HALF_UP, Decimal
-from typing import ClassVar
 
 import pytest
 
@@ -153,11 +152,10 @@ def counting_capture(real):
     return Capture
 
 
-def test_todays_detector_decodes_the_window_once_in_sequential_mode(tmp_path, edit_v2_ffmpeg,
-                                                                     monkeypatch):
+def test_todays_detector_decodes_the_window_once(tmp_path, edit_v2_ffmpeg, monkeypatch):
     """W1 verifier: a 3 min window of a long-GOP AV1 720p source took 16.35 s (budget 15 s),
-    most of it one seek per 0.75 s sample. The camera plan decodes the window once and keeps
-    the frame at each sample time; the legacy render keeps its per-sample seeks."""
+    most of it one seek per 0.75 s sample. The detector decodes the window once and keeps the
+    frame at each sample time; the legacy render goes through the same scan."""
     cv2 = pytest.importorskip("cv2")
     from support import edit_v2_media as media
 
@@ -171,14 +169,10 @@ def test_todays_detector_decodes_the_window_once_in_sequential_mode(tmp_path, ed
 
     Capture = counting_capture(cv2.VideoCapture)
     monkeypatch.setattr(cv2, "VideoCapture", Capture)
-    sequential = face_tracking.detect_face_track(path, start=0.4, end=5.4, smooth=False,
-                                                 sequential=True)
+    track = face_tracking.detect_face_track(path, start=0.4, end=5.4, smooth=False)
     assert Capture.seeks == 1
-    Capture.seeks = 0
-    seeking = face_tracking.detect_face_track(path, start=0.4, end=5.4, smooth=False)
-    assert Capture.seeks == len(seeking[0]) == 7
-    assert sequential == seeking  # same sample times, cut flags (scene cuts), no faces, size
-    assert any(seeking[2])
+    assert len(track[0]) == 7 and track[1] == [None] * 7  # no faces, sample times, size
+    assert any(track[2])  # the scene cuts
 
 
 def test_the_default_detector_is_todays_face_tracker():
@@ -253,50 +247,29 @@ def test_rejects_a_bad_window(source):
 
 # --- T3.6: the window detector, progress reporting ----------------------------------------------
 #
-# The camera plan's own detector (``camera.detect_window``) runs today's detection (the same
-# cascade, parameters, sampled frames and cut flags as ``face_tracking.detect_face_track`` with
-# ``smooth=False, sequential=True``) with the Haar work spread over worker threads, each with its
-# own classifier (a shared ``CascadeClassifier`` is not thread-safe: it returns wrong boxes).
-# Equal-area faces are chosen by position, not by OpenCV's detection order.
+# The camera plan's own detector (``camera.detect_window``) is today's detection: the window
+# decoded once, YuNet faces per sample and the speaking face (``face_window``, tested in
+# test_face_window.py). ``ContentFaces`` stands in for ``cv2.FaceDetectorYN`` here.
 
 
-class ContentCascade:
-    """Stands in for ``cv2.CascadeClassifier``: one face whose position follows the pixels it is
-    given, so two detectors agree only when they looked at the same frames. Pure (thread-safe)."""
+class ContentFaces:
+    """Stands in for ``cv2.FaceDetectorYN``: one face whose position follows the pixels it is
+    given, so two runs agree only when they looked at the same frames."""
 
-    seen: ClassVar[list] = []
+    @classmethod
+    def create(cls, model, config, size, score, nms, top_k):
+        return cls()
 
-    def __init__(self, *_args):
-        pass
-
-    def detectMultiScale(self, image, **kwargs):  # OpenCV's method name
+    def detect(self, image):
         import numpy as np
 
-        type(self).seen.append(tuple(sorted(kwargs.items())))
         digest = hashlib.sha256(image.tobytes()).digest()
         width = image.shape[1]
         x = digest[0] * (width - 40) // 255
         if digest[1] < 40:  # some frames have no face
-            return ()
-        return np.array([[x, 4, 40, 40]], dtype=np.int32)
-
-
-class TwoEqualFacesCascade:
-    """Two faces of the same size, reported in an order that changes from call to call."""
-
-    calls = 0
-
-    def __init__(self, *_args):
-        pass
-
-    def detectMultiScale(self, image, **_kwargs):  # OpenCV's method name
-        import numpy as np
-
-        type(self).calls += 1
-        faces = [[200, 10, 50, 50], [20, 12, 50, 50]]
-        if type(self).calls % 2:
-            faces.reverse()
-        return np.array(faces, dtype=np.int32)
+            return 1, None
+        row = [x, 4, 40, 40, x + 12, 16, x + 28, 16, x + 20, 24, x + 13, 33, x + 27, 33, 0.9]
+        return 1, np.array([row], dtype=np.float32)
 
 
 @pytest.fixture
@@ -310,44 +283,18 @@ def cut_video(tmp_path, edit_v2_ffmpeg):
                         gop=250, audio=None))
 
 
-def test_the_window_detector_samples_todays_frames_and_decisions(cut_video, monkeypatch):
+def test_the_window_detector_is_todays_track_without_smoothing(cut_video, monkeypatch):
     import cv2
 
     from ai_clipper import face_tracking
 
-    monkeypatch.setattr(cv2, "CascadeClassifier", ContentCascade)
-    ContentCascade.seen = []
-    today = face_tracking.detect_face_track(cut_video, start=0.4, end=7.4, smooth=False,
-                                            sequential=True)
-    today_kwargs = set(ContentCascade.seen)
-    ContentCascade.seen = []
+    monkeypatch.setattr(cv2, "FaceDetectorYN", ContentFaces)
+    today = face_tracking.detect_face_track(cut_video, start=0.4, end=7.4, smooth=False)
     window = camera.detect_window(cut_video, start=0.4, end=7.4, sample_interval=0.75)
     assert window == today
-    assert set(ContentCascade.seen) == today_kwargs  # scaleFactor, minNeighbors, minSize
     times, centres, cuts, width, height = window
     assert (width, height) == (320, 180) and len(times) == 10
     assert any(cuts) and any(c is None for c in centres) and any(c is not None for c in centres)
-
-
-def test_the_window_detector_does_not_depend_on_the_number_of_workers(cut_video, monkeypatch):
-    import cv2
-
-    real = camera.detect_window(cut_video, start=0.0, end=6.0, sample_interval=0.75, workers=1)
-    assert real == camera.detect_window(cut_video, start=0.0, end=6.0, sample_interval=0.75,
-                                        workers=3)
-    monkeypatch.setattr(cv2, "CascadeClassifier", ContentCascade)
-    one = camera.detect_window(cut_video, start=0.0, end=7.9, sample_interval=0.75, workers=1)
-    assert one == camera.detect_window(cut_video, start=0.0, end=7.9, sample_interval=0.75,
-                                       workers=4)
-
-
-def test_equal_faces_are_chosen_by_position_not_by_detection_order(cut_video, monkeypatch):
-    import cv2
-
-    monkeypatch.setattr(cv2, "CascadeClassifier", TwoEqualFacesCascade)
-    _times, centres, *_rest = camera.detect_window(cut_video, start=0.0, end=3.0,
-                                                   sample_interval=0.75, workers=2)
-    assert centres == [(20 + 25) / 320] * 4
 
 
 def test_the_window_detector_leaves_opencv_threads_as_it_found_them(cut_video):
@@ -356,7 +303,7 @@ def test_the_window_detector_leaves_opencv_threads_as_it_found_them(cut_video):
     before = cv2.getNumThreads()
     cv2.setNumThreads(3)
     try:
-        camera.detect_window(cut_video, start=0.0, end=2.0, sample_interval=0.75, workers=2)
+        camera.detect_window(cut_video, start=0.0, end=2.0, sample_interval=0.75)
         assert cv2.getNumThreads() == 3
     finally:
         cv2.setNumThreads(before)
@@ -403,7 +350,7 @@ def test_the_window_detector_refuses_a_source_it_cannot_open(tmp_path):
 def test_the_default_detector_takes_the_window_path(source, monkeypatch):
     calls = []
 
-    def spy(path, *, start, end, sample_interval, progress=None, workers=None):
+    def spy(path, *, start, end, sample_interval, progress=None):
         calls.append((path, start, end, sample_interval))
         return [0.0, 0.75, 1.5], [0.5, None, 0.6], [False, False, True], 640, 360
 

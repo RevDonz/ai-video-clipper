@@ -1,20 +1,23 @@
-"""Today's face detection over a whole clip window, reporting its progress per sample.
+"""The face-track scan of one clip window: faces, mouth motion and scene cuts per sample.
 
-The Editor V3 camera plan (``edit_v2.camera``, plan §5.7; T3.6) samples a clip window every
-0.75 s. :func:`detect_window` returns exactly what ``face_tracking.detect_face_track(…,
-smooth=False, sequential=True)`` returns (same cascade, parameters, sampled frames, equalisation
-and cut flags; 0 of 1,202 samples differ on the five real sources), and adds:
+The window is decoded once, front to back. Every ``sample_interval`` (0.75 s) the frame the old
+per-sample seek would land on (OpenCV's rounding, ``int(seconds·fps + 0.5)``) is a sample:
 
-* ``progress(done, total)`` after every sample, for the editor's analysis progress;
-* the Haar work on up to four worker threads, each with its own ``CascadeClassifier`` (one
-  classifier shared by threads returns wrong boxes), while the main thread decodes;
-* OpenCV's own pool held at one thread during the run (restored after the last of several
-  overlapping runs ends: the auto render plans several clips at once, T4.3), and equal-area
-  faces chosen by position (the leftmost, then the topmost) instead of by OpenCV's detection
-  order, so the result does not depend on the CPU count.
+* its scene-cut flag compares a 64×36 grey thumbnail with the previous sample's (unchanged);
+* YuNet (``face_model``) finds its faces;
+* until the next sample, about 15 frames a second are cut around each face's mouth, and the
+  mouth motion between consecutive frames is averaged into the face's ``activity``. When the
+  picture changes like a cut before the next sample, the rest of the interval is not measured.
 
-The work is CPU-bound either way: a 3 min window of the 1280×720 AV1 source costs ~40 CPU-s of
-Haar (~160 ms per sample) and ~9 CPU-s of decoding, about 13 s at 4 CPUs with either detector.
+:func:`detect_window` then lets ``speaker_track.choose`` pick the speaking face per sample and
+returns ``(times, centres, cuts, source_w, source_h)``: the shape ``face_tracking`` and the
+camera plan use, with a speaker switch that jumps across the frame flagged as a cut, so the crop
+cuts to the other person instead of panning. ``progress(done, total)`` is reported per sample.
+
+A source whose frame rate OpenCV cannot read is sampled by seeking; it gets no mouth motion and
+the largest face is framed. OpenCV's own pool is held at one thread while any scan runs (the
+auto render scans several clips at once, T4.3), which also keeps YuNet's results independent of
+the CPU count.
 
 Like ``face_tracking``, OpenCV is imported lazily (the ``vision`` extra); the Editor V3 package
 itself stays stdlib-only.
@@ -25,28 +28,22 @@ from __future__ import annotations
 import math
 import os
 import threading
-from collections import deque
-from collections.abc import Callable, Iterator
-from concurrent.futures import Future, ThreadPoolExecutor
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .face_tracking import choose_prominent_face
+from .speaker_track import RULES, Face, Rules, Sample, choose
 
-DETECT_WORKERS_MAX = 4
-# face_tracking.detect_face_track's detection and cut constants (kept identical).
-SCALE_FACTOR = 1.1
-MIN_NEIGHBORS = 4
-MIN_FACE_SHARE = 0.08
-MIN_FACE_PX = 24
 THUMBNAIL = (64, 36)
-CUT_CHANGE = 0.18
-CASCADE_FILE = "haarcascade_frontalface_default.xml"
+CUT_CHANGE = 0.18  # mean thumbnail difference (share of 255) that counts as a scene cut
+MOTION_RATE = 15.0  # mouth frames per second between samples
 
 
 def sample_times(start: float, end: float, interval: float) -> list[float]:
-    """The sample times of ``face_tracking.detect_face_track`` (its float accumulation)."""
+    """The sample times of the window (seconds from ``start``, the float accumulation the
+    detector always used)."""
     times: list[float] = []
     relative = 0.0
     while relative < end - start:
@@ -109,35 +106,85 @@ def _silent(_done: int, _total: int) -> None:
     return None
 
 
-def detect_window(
+@dataclass(frozen=True, slots=True)
+class Scan:
+    """What :func:`scan_window` measured: sample times (seconds from the window start), one
+    :class:`speaker_track.Sample` per time, and the source size."""
+
+    times: list[float]
+    samples: list[Sample]
+    width: int
+    height: int
+
+
+class _Interval:
+    """The faces of one sample and their mouth motion until the next sample."""
+
+    def __init__(self, cv2: Any, face_model: Any, frame: Any, detections: Sequence[Any]) -> None:
+        self._cv2 = cv2
+        self._model = face_model
+        self.detections = list(detections)
+        self._regions = [face_model.mouth_region(face) for face in self.detections]
+        self._patches = [None if region is None else face_model.mouth_patch(cv2, frame, region)
+                         for region in self._regions]
+        self._sums = [0.0] * len(self.detections)
+        self._counts = [0] * len(self.detections)
+        self._thumbnail = self._small(frame)
+        self._shot_changed = False
+
+    def _small(self, frame: Any) -> Any:
+        cv2 = self._cv2
+        tiny = cv2.resize(frame, THUMBNAIL, interpolation=cv2.INTER_LINEAR)
+        return cv2.cvtColor(tiny, cv2.COLOR_BGR2GRAY)
+
+    def add(self, frame: Any) -> None:
+        """A frame between this sample and the next. After a cut-like change the faces are no
+        longer where the sample found them, so the rest of the interval is not measured."""
+        if not self.detections or self._shot_changed:
+            return
+        cv2 = self._cv2
+        thumbnail = self._small(frame)
+        if cv2.absdiff(thumbnail, self._thumbnail).mean() / 255 >= CUT_CHANGE:
+            self._shot_changed = True
+            return
+        self._thumbnail = thumbnail
+        for index, region in enumerate(self._regions):
+            if region is None:
+                continue
+            patch = self._model.mouth_patch(cv2, frame, region)
+            previous = self._patches[index]
+            if patch is not None and previous is not None:
+                self._sums[index] += self._model.mouth_motion(cv2, previous, patch)
+                self._counts[index] += 1
+            self._patches[index] = patch
+
+    def faces(self) -> tuple[Face, ...]:
+        return tuple(Face(face.x, face.y, face.w, face.h,
+                          self._sums[index] / self._counts[index] if self._counts[index] else None)
+                     for index, face in enumerate(self.detections))
+
+
+def scan_window(
     source: Path,
     *,
     start: float,
     end: float,
     sample_interval: float = 0.75,
     progress: Callable[[int, int], None] | None = None,
-    workers: int | None = None,
-) -> tuple[list[float], list[float | None], list[bool], int, int]:
-    """Faces over ``[start, end)`` (seconds): ``(times, raw centres, cuts, source_w, source_h)``
-    as ``face_tracking.detect_face_track(…, smooth=False, sequential=True)`` returns them,
-    except that equal-area faces are chosen by position (see the module docstring).
-
-    ``workers`` defaults to the CPU budget, at most ``DETECT_WORKERS_MAX``. ``progress(done,
-    total)`` is called from this thread with ``(0, total)`` first and then once per sample as
-    the samples finish, in order. Raises ``RuntimeError`` when OpenCV cannot read the source.
-    """
+) -> Scan:
+    """Faces, mouth motion and cut flags over ``[start, end)`` (seconds). Raises
+    ``RuntimeError`` when OpenCV cannot read the source or the face model is missing.
+    ``progress(done, total)`` is called with ``(0, total)`` first and then once per sample as
+    its interval ends, in order."""
     try:
         import cv2
     except ImportError as exc:  # pragma: no cover - exercised without optional extra
         raise RuntimeError(
             "face-track mode requires the vision extra: uv sync --extra vision"
         ) from exc
-    if workers is None:
-        workers = min(DETECT_WORKERS_MAX, cpu_budget())
-    if type(workers) is not int or workers < 1:
-        raise ValueError("workers must be a positive integer")
-    report = _silent if progress is None else progress
+    from . import face_model
 
+    report = _silent if progress is None else progress
     capture = cv2.VideoCapture(str(source))
     if not capture.isOpened():
         raise RuntimeError(f"OpenCV could not open source video: {source}")
@@ -150,76 +197,94 @@ def detect_window(
         sequential = fps > 0
         times = sample_times(start, end, sample_interval)
         total = len(times)
-        minimum_face = max(round(min(source_width, source_height) * MIN_FACE_SHARE), MIN_FACE_PX)
-        cascade_file = str(Path(cv2.data.haarcascades) / CASCADE_FILE)
-        local = threading.local()
-
-        def detect(gray: Any) -> float | None:
-            cascade = getattr(local, "cascade", None)
-            if cascade is None:
-                cascade = local.cascade = cv2.CascadeClassifier(cascade_file)
-            equalized = cv2.equalizeHist(gray)
-            faces = cascade.detectMultiScale(equalized, scaleFactor=SCALE_FACTOR,
-                                             minNeighbors=MIN_NEIGHBORS,
-                                             minSize=(minimum_face, minimum_face))
-            if not len(faces):
-                return None
-            ordered = sorted(tuple(int(value) for value in face) for face in faces)
-            return choose_prominent_face(ordered, source_width=source_width)
-
-        centres: list[float | None] = [None] * total
-        cuts: list[bool] = [False] * total
-        pending: deque[tuple[int, Future | None]] = deque()
-        finished = 0
-
-        def collect(limit: int) -> None:
-            nonlocal finished
-            while len(pending) > limit:
-                index, future = pending.popleft()
-                if future is not None:
-                    centres[index] = future.result()
-                finished += 1
-                report(finished, total)
-
+        samples: list[Sample] = []
         report(0, total)
-        with one_opencv_thread(cv2), ThreadPoolExecutor(
-                max_workers=workers, thread_name_prefix="face-window") as pool:
+        with one_opencv_thread(cv2):
+            detector = face_model.YuNet(cv2, source_width, source_height)
             previous_thumbnail = None
+            interval: _Interval | None = None
             current = -1  # index of the frame last grabbed in sequential mode
             exhausted = False
+            stride = max(1, round(fps / MOTION_RATE)) if sequential else 0
+            stop = int(end * fps + 0.5) if sequential else 0  # the first frame after the window
             if sequential:
                 capture.set(cv2.CAP_PROP_POS_MSEC, start * 1000)
+            anchor = 0  # the frame index of the open interval's sample
+
+            def advance(target: int) -> None:
+                """Grab up to ``target``, feeding the open interval its mouth frames."""
+                nonlocal current, exhausted
+                while not exhausted and current < target:
+                    if not capture.grab():
+                        exhausted = True
+                        break
+                    current = round(capture.get(cv2.CAP_PROP_POS_FRAMES)) - 1
+                    if (interval is not None and anchor < current < target
+                            and (current - anchor) % stride == 0):
+                        ok, frame = capture.retrieve()
+                        if ok:
+                            interval.add(frame)
+
+            def close(index: int, cut: bool) -> None:
+                nonlocal interval
+                faces = () if interval is None else interval.faces()
+                samples.append(Sample(time=times[index], cut=cut, faces=faces))
+                interval = None
+                report(len(samples), total)
+
+            open_cut = False
             for index, relative_time in enumerate(times):
                 ok, frame = False, None
                 if sequential:
                     seconds = ((start + relative_time) * 1000) / 1000.0
                     target = int(seconds * fps + 0.5)  # where CAP_PROP_POS_MSEC would land
-                    while not exhausted and current < target:
-                        if not capture.grab():
-                            exhausted = True
-                            break
-                        current = round(capture.get(cv2.CAP_PROP_POS_FRAMES)) - 1
+                    advance(target)
+                    if index > 0:
+                        close(index - 1, open_cut)
                     if not exhausted and current >= target:
                         ok, frame = capture.retrieve()
+                        anchor = current
                 else:
+                    if index > 0:
+                        close(index - 1, open_cut)
                     capture.set(cv2.CAP_PROP_POS_MSEC, (start + relative_time) * 1000)
                     ok, frame = capture.read()
-                future = None
+                open_cut = False
                 if ok:
                     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                     thumbnail = cv2.resize(gray, THUMBNAIL)
                     if previous_thumbnail is not None:
                         change = cv2.absdiff(thumbnail, previous_thumbnail).mean() / 255
-                        cuts[index] = bool(change >= CUT_CHANGE)
+                        open_cut = bool(change >= CUT_CHANGE)
                     previous_thumbnail = thumbnail
-                    future = pool.submit(detect, gray)
-                pending.append((index, future))
-                collect(2 * workers)  # bounds the frames held in memory
-            collect(0)
+                    interval = _Interval(cv2, face_model, frame, detector.detect(frame))
+            if sequential and interval is not None:
+                last = int((start + times[-1] + sample_interval) * fps + 0.5)
+                advance(min(last, stop))
+            if times:
+                close(len(times) - 1, open_cut)
     finally:
         capture.release()
-    return times, centres, cuts, source_width, source_height
+    return Scan(times=times, samples=samples, width=source_width, height=source_height)
 
 
-__all__ = ["DETECT_WORKERS_MAX", "cpu_budget", "detect_window", "one_opencv_thread",
-           "sample_times"]
+def detect_window(
+    source: Path,
+    *,
+    start: float,
+    end: float,
+    sample_interval: float = 0.75,
+    progress: Callable[[int, int], None] | None = None,
+    rules: Rules = RULES,
+) -> tuple[list[float], list[float | None], list[bool], int, int]:
+    """The speaking face over ``[start, end)`` (seconds): ``(times, raw centres, cuts,
+    source_w, source_h)`` with ``None`` where no face was found. See the module docstring."""
+    scan = scan_window(source, start=start, end=end, sample_interval=sample_interval,
+                       progress=progress)
+    centres, switches = choose(scan.samples, width=scan.width, rules=rules)
+    cuts = [sample.cut or switch for sample, switch in zip(scan.samples, switches, strict=True)]
+    return scan.times, centres, cuts, scan.width, scan.height
+
+
+__all__ = ["MOTION_RATE", "Scan", "cpu_budget", "detect_window", "one_opencv_thread",
+           "sample_times", "scan_window"]

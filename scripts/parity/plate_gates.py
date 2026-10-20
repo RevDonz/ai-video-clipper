@@ -7,10 +7,9 @@ Sub-commands (evidence ``T3.6-<gate>.json`` under ``--evidence``, numbers only):
 ``camera-plan`` (offline)
     The camera plan of a 180 s window around the middle of each real source, built with the
     camera plan's own detector (``face_window.detect_window``, the default of
-    ``camera.build_camera_plan``) and with today's ``face_tracking.detect_face_track`` (one
-    decode, as W1 measured it). Budget: ≤ 15 s per window in the image at ``--cpus 4``. The two
-    plans are compared sample by sample (they may differ only where two faces have the same
-    size, which today's detector orders by OpenCV's thread scheduling). ``--runs 1
+    ``camera.build_camera_plan``) and through ``face_tracking.detect_face_track`` (the legacy
+    render's entry, the same scan since 2026-10). Budget: ≤ 15 s per window in the image at
+    ``--cpus 4``. The two plans are compared sample by sample and must be identical. ``--runs 1
     --no-compare --jobs <one job>``: one plan of one source, light enough for the owner's PC.
 
 ``switch`` (through the app)
@@ -161,7 +160,7 @@ def environment() -> dict[str, Any]:
         pass
     return {"ffmpeg": first[0] if first else None, "python": platform.python_version(),
             "cpus_visible": os.cpu_count(), "cpu_quota": quota,
-            "camera_workers": min(face_window.DETECT_WORKERS_MAX, face_window.cpu_budget()),
+            "cpu_budget": face_window.cpu_budget(),
             "loadavg": [round(x, 2) for x in os.getloadavg()]}
 
 
@@ -181,12 +180,11 @@ def write_evidence(directory: Path, gate: str, label: str, result: Mapping[str, 
 # --- camera-plan (offline) -------------------------------------------------------------------------
 
 
-def todays_detector(source, *, start, end, sample_interval=0.75, smooth=True, sequential=False):
-    """``face_tracking.detect_face_track`` as W1 measured it (one decode), called through a
-    wrapper so that ``build_camera_plan`` does not take its window path."""
+def todays_detector(source, *, start, end, sample_interval=0.75, smooth=True):
+    """``face_tracking.detect_face_track``, called through a wrapper so that
+    ``build_camera_plan`` does not take its window path."""
     return face_tracking.detect_face_track(source, start=start, end=end,
-                                           sample_interval=sample_interval, smooth=smooth,
-                                           sequential=sequential)
+                                           sample_interval=sample_interval, smooth=smooth)
 
 
 def _probe(source: Path) -> dict[str, Any]:
@@ -262,7 +260,7 @@ def camera_plan_gate(jobs_root: Path, jobs: Sequence[str], runs: int = 2,
         print(json.dumps({job[:8]: entry}), flush=True)
     return {"budget_s": CAMERA_BUDGET_S, "window_ms": CAMERA_WINDOW_MS, "runs": runs,
             "compared_with_today": compare,
-            "detector": "face_window.detect_window (Haar, 0.75 s samples, worker threads)",
+            "detector": "face_window.detect_window (YuNet, speaking face, 0.75 s samples)",
             "baseline": "face_tracking.detect_face_track(sequential=True), W1: 14.62 s on e7f0d37b",
             "sources": sources,
             "pass": bool(sources) and all(entry["pass"] for entry in sources.values())}
