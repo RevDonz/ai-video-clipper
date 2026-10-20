@@ -108,6 +108,8 @@ baris memindah pratinjau ke baris itu; saat diputar, baris yang sedang tampil di
   tidak mengubah apa pun.
 - Batas: maks. 40 kata per baris dan 40 huruf per kata (termasuk tambahannya). Baris yang ditolak
   tetap berisi ketikan Anda, bertepi merah, dengan alasannya di bawahnya.
+- **Cek ejaan** (tombol di atas baris, hanya dengan `POTONGIN_EDITOR_LLM=on`) membuka daftar yang
+  sama dengan Cek ejaan di transkrip Mode Lengkap (lihat di bawah).
 
 **Cold open.** Kalimat cold open dan panjangnya, **Putar**, **Ganti kalimat** (daftar saran, tiap
 saran dengan Putar dan Pakai), lalu bagian **Transisi** yang sama persis dengan Mode Lengkap, dan
@@ -160,6 +162,18 @@ Shift+klik kata di bawahnya, atau tekan Esc dulu untuk mengeklik kata itu.
   menandainya di transkrip. **"Terapkan (n)"** memotong semua yang dicentang dalam satu langkah, dan
   satu Urungkan mengembalikan semuanya. Partikel ("kan", "sih", "mah", "toh", …) dan kata ulang
   ("anak-anak") tidak pernah didaftar. Jeda yang masih ada suaranya hanya bisa didengarkan.
+- **Cek ejaan** (tombol di sebelah Rapikan, hanya dengan `POTONGIN_EDITOR_LLM=on`): AI gratis di
+  Pengaturan memeriksa tulisan kata di caption, yaitu salah ketik ("flim" jadi "film"), spasi
+  antarkata ("kefilm" jadi "ke film", "di omongin" jadi "diomongin") dan penulisan nama
+  ("jakarta" jadi "Jakarta"). Pemeriksaan berjalan saat daftar pertama kali dibuka (sekitar 10
+  detik) dan hasilnya tetap ada saat pindah tampilan. Tiap saran tampil "salah → benar" dengan
+  kata di sekitarnya: **Terima** mengganti tulisan kata (caption saja; suara dan waktu tetap),
+  **Lewati** menyembunyikannya dari daftar (**Tampilkan lagi** memunculkannya), **Putar**
+  memperdengarkan kata itu. **"Terima semua (n)"** menerima semuanya dalam satu langkah, dan satu
+  Urungkan mengembalikannya. Arti, angka, tanda baca dan bahasa santai (gue, nggak) tidak diubah;
+  saran yang terlalu jauh dari tulisan aslinya dibuang sebelum tampil. Saran untuk kata yang sudah
+  Anda ubah sendiri tidak ditampilkan lagi. **Periksa lagi** meminta pemeriksaan baru setelah
+  Anda mengedit. Pemeriksaan ikut batas saran AI proyek (30 per jam, bersama saran hook).
 
 **Teks.** Caption: nyala/mati, gaya (Klasik, Karaoke, Bold, Box, Sorot), posisi, ukuran, kata
 per baris, huruf besar, warna sorot dan warna kata kunci, dengan catatan yang sama seperti kartu Caption (posisi
@@ -375,6 +389,10 @@ Tombol yang bekerja saat fokus di satu tempat:
 | "Gagal menyimpan; perubahan aman di browser ini" | Server tidak terjangkau. Perubahan tersimpan di browser dan dikirim lagi otomatis. |
 | "Unggah logo belum tersedia di server ini" / "Unggah file belum diaktifkan di server ini" | `POTONGIN_EDITOR_UPLOADS` belum `on`. |
 | Saran hook hanya "AI seleksi"/"Heuristik" | `POTONGIN_EDITOR_LLM` belum `on`, atau AI di Pengaturan sedang tidak bisa dipakai. |
+| Tombol "Cek ejaan" tidak ada | `POTONGIN_EDITOR_LLM` belum `on`. |
+| "Cek ejaan butuh AI yang aktif" | AI di Pengaturan mati atau belum punya penyedia. |
+| "Cek ejaan belum bisa dipakai (kuota/koneksi AI)" | Penyedia AI gratis sedang penuh atau lambat (batas 20 detik). Coba lagi nanti. |
+| "Klip ini panjang: hanya bagian awalnya yang diperiksa" | Transkripnya melebihi batas satu permintaan; kata setelah bagian itu tidak diperiksa. |
 | Lajur Penanda: "tidak tersedia untuk job ini" | Job lama tanpa analisis audio; jalankan ulang proyeknya kalau butuh penanda. |
 | Ekspor: "Layanan editor sedang tidak tersedia" | Di lokal: `resources/toolchain.json` belum dibuat (langkah 2). |
 | Ekspor tetap "Antre" | Render worker belum berjalan (langkah 4). |

@@ -33,9 +33,9 @@ musik dan hasil ekspor yang sudah tersimpan tidak hilang saat flag dimatikan.
 |---|---|---|---|
 | `POTONGIN_EDITOR_V3` | Tombol "Edit klip" dan semua rute editor | `on` | `off`: tombol "Edit klip" dan tautan "Ekspor terakhir" di panel detail klip hilang, rute editor menjawab 404; klip otomatis dan unduhannya tetap ada. File ekspor tetap tersimpan di `output/edits/` dan tautannya muncul lagi saat flag dinyalakan |
 | `POTONGIN_EDITOR_UPLOADS` | Unggah logo dan musik | `on` (QG-SEC lengkap, tinjauan keamanan W4) | `off`: panel Logo dan Musik menulis "Unggah … belum tersedia di server ini"; logo dan musik yang sudah dipakai tetap ikut dirender |
-| `POTONGIN_EDITOR_LLM` | Saran hook yang ditulis AI gratis di Pengaturan | `on` (gerbang keras QG-AI lolos; penilaian 30 klip oleh pemilik menyusul) | `off`: hanya saran instan ("AI seleksi"/"Heuristik") |
+| `POTONGIN_EDITOR_LLM` | Saran hook yang ditulis AI gratis di Pengaturan, dan Cek ejaan caption | `on` (gerbang keras QG-AI lolos; penilaian 30 klip oleh pemilik menyusul) | `off`: hanya saran instan ("AI seleksi"/"Heuristik"); tombol Cek ejaan tidak tampil |
 | `POTONGIN_RENDER_ENGINE` | `edit-v2`: klip otomatis dirender dengan kompiler yang sama dengan ekspor editor | `legacy` di rilis ini: keputusan pemilik soal kuota CPU masih menunggu. `edit-v2` masuk anggaran PF-PIPELINE di PC acuan (latar blur 1,03×, potong tengah 1,28×, ikuti wajah 1,12×), tapi dengan kuota `cpus: 6` potong tengah 1,99× dan ikuti wajah 1,82× (lihat di bawah) | `edit-v2`: proyek **baru** dirender dengan kompiler editor; klip yang sudah ada tidak berubah. Ekspor editor selalu memakai kompiler editor |
-| `POTONGIN_LLM_EDITOR_MODELS` | Opsional: daftar `provider/model` gratis khusus saran hook; kosong = rantai di Pengaturan | kosong | — |
+| `POTONGIN_LLM_EDITOR_MODELS` | Opsional: daftar `provider/model` gratis khusus saran hook dan Cek ejaan; kosong = rantai di Pengaturan | kosong | — |
 | `POTONGIN_PARITY_HARNESS` | Halaman uji paritas untuk CI | tidak diteruskan | **Jangan pernah** dinyalakan di produksi |
 
 Cara mematikan satu flag di server (contoh: unggahan):
@@ -198,6 +198,7 @@ Kewajiban yang perlu dijaga:
 | PR gagal di Toolchain evidence guard | Kunci toolchain atau JASSUB berubah tanpa bukti baru: ikuti §3. |
 | Parity gagal di "Install Chrome for Testing" | Unduhan Chrome for Testing 147.0.7727.15 gagal; jalankan ulang job. Versi browser ini bagian dari kunci paritas, jadi jangan diganti tanpa mengukur ulang P-TIME dan P-TXT. |
 | Saran hook hanya "AI seleksi"/"Heuristik" | `POTONGIN_EDITOR_LLM` mati, atau penyedia AI gratis di Pengaturan sedang tidak bisa dipakai. |
+| Cek ejaan: "belum bisa dipakai (kuota/koneksi AI)" | Sama dengan saran hook: penyedia gratis penuh atau lebih dari 20 detik. File tugasnya (`analysis/clips/<klip>/suggestions/<id>.json`, `task: "spelling"`) mencatat kode galat dan saran yang dibuang beserta alasannya. |
 | Unduhan YouTube gagal untuk banyak video sekaligus | Biasanya YouTube berubah dan yt-dlp perlu dinaikkan: §8. |
 | Deploy berhenti: "Deployment blocked: durable work is active or unreadable" | Sebelum dan sesudah memasang image baru, `deploy/production.sh` memeriksa folder job dan mencetak `DURABLE_ACTIVE_JOBS=…`. Yang dihitung selesai: job `completed`, `failed`, `deleting`, `cancelled`, dan ekspor `completed`, `failed`, `cancelled`. Ada job atau ekspor yang masih jalan: tunggu sampai selesai, lalu jalankan ulang deploy. Ada `errors`: ada file yang tidak terbaca, path-nya tercetak. File antrean ekspor yang rusak (`analysis/render-requests/<id>.json`) boleh dipindah keluar dari folder job (simpan salinannya); `job.json` yang rusak diperbaiki dulu. Lalu deploy ulang. |
 
