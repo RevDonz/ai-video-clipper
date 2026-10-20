@@ -44,11 +44,11 @@ export default function WatermarkSection({ state, dispatch, locked }) {
       <div className={styles.head}>
         <h3 id={ids.title} className={styles.subtitle}>Teks watermark</h3>
         <p id={ids.note} className={styles.note}>
-          Satu baris sepanjang klip, misalnya nama akunmu. Setiap posisi ada di luar area tombol TikTok/Reels.
+          Satu baris sepanjang klip, misalnya nama akun Anda. Setiap posisi ada di luar area tombol TikTok/Reels.
         </p>
       </div>
       <div className={styles.textRow}>
-        <input type="text" className={styles.input} value={draft} maxLength={WATERMARK_MAX} placeholder="@akunmu"
+        <input type="text" className={styles.input} value={draft} maxLength={WATERMARK_MAX} placeholder="@akun"
           autoComplete="off" spellCheck={false} disabled={locked} aria-labelledby={ids.title}
           aria-describedby={`${ids.note} ${ids.counter}`} data-watermark-text=""
           onChange={(event) => {

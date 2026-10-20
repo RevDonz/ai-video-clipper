@@ -120,11 +120,12 @@ export function contentEquals(a, b) {
 
 /**
  * Whether R10 may hand out the auto file for this seed (edit_v2.doc.auto_file_is_seed): the
- * legacy renderer never draws a logo, so a legacy seed with the Pengaturan default logo is not it.
+ * legacy renderer never draws a logo or a text watermark, so a legacy seed with the Pengaturan
+ * default logo or watermark is not it.
  */
 export function autoFileIsSeed(seed) {
   if (seed?.base?.engine?.compiler !== "legacy") return true;
-  return !(seed.tracks ?? []).some((track) => track?.kind === "visual" && track.items?.length > 0);
+  return seed.watermark == null && !(seed.tracks ?? []).some((track) => track?.kind === "visual" && track.items?.length > 0);
 }
 
 /** JSON equality that keeps types apart (true is not 1). */

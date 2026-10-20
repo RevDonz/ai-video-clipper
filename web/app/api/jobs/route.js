@@ -6,6 +6,7 @@ import Busboy from "busboy";
 
 import { requireAuth } from "../../../lib/auth.mjs";
 import { snapshotDefaultLogo } from "../../../lib/default-logo.mjs";
+import { snapshotDefaultWatermark } from "../../../lib/default-watermark.mjs";
 import { readEditorFlags } from "../../../lib/editor/flags.mjs";
 import { sameOriginMutation } from "../../../lib/request-security.mjs";
 import {
@@ -269,8 +270,10 @@ export async function POST(request) {
     const sourcePath = hasUpload ? parsed.upload.path : null;
     const now = new Date().toISOString();
     const job = { id, status: "queued", progress: 0, createdAt: now, updatedAt: now, source, sourcePath, options, clips: [] };
-    // The Pengaturan default logo as it is now: this job's clips seed it (never fails the job).
+    // The Pengaturan default logo and text watermark as they are now: this job's clips seed them
+    // (never fails the job).
     await snapshotDefaultLogo(jobRoot);
+    await snapshotDefaultWatermark(jobRoot);
     const queued = await publishReservedQueuedJob(jobsRoot(), job, reservation);
     published = true;
     return postJson({ job: publicJob(queued) }, { status: 202 });
