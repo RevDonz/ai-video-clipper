@@ -38,6 +38,7 @@ from ai_clipper.edit_v2.seed import (
     default_logo_transform,
     encode_seed,
     inspect_job,
+    job_watermark,
     output_fps,
     prepare_legacy_job,
     seed_window_ms,
@@ -499,6 +500,72 @@ def test_a_seed_with_the_default_logo_validates_outside_the_tiktok_zone(context_
         assert unsafe_zone_issues(seed, context.assets, output, parts=("logo",)) == ()
 
 
+# --- the default text watermark (Pengaturan, CONTRACTS §5.40) ------------------------------------
+
+
+def test_a_seed_carries_the_default_watermark():
+    from support.default_watermark import WATERMARK
+
+    seed = _seed(job={**_job(), "watermark": dict(WATERMARK)})
+    plain = _seed()
+    assert seed["watermark"] == WATERMARK
+    rest = {key: value for key, value in seed.items() if key not in ("watermark", "base")}
+    assert rest == {key: value for key, value in plain.items() if key != "base"}
+    assert seed["clip_id"] == plain["clip_id"]
+    assert seed["base"]["seed_sha256"] != plain["base"]["seed_sha256"]
+    assert _seed(job={**_job(), "watermark": None}) == plain
+
+
+@pytest.mark.parametrize("change", [
+    {"text": ""}, {"text": " @akun"}, {"text": "x" * 41}, {"text": "Cafe\u0301"}, {"text": "a\u0007b"},
+    {"text": 7}, {"pos": "center"}, {"size_pm": 499}, {"size_pm": 2001}, {"size_pm": 1000.0},
+    {"opacity_pm": True}, {"opacity_pm": 1001}, {"colour": "#FFFFFF"},
+])
+def test_a_malformed_watermark_key_is_refused(change):
+    from support.default_watermark import WATERMARK
+
+    with pytest.raises(SeedError):
+        _seed(job={**_job(), "watermark": {**WATERMARK, **change}})
+    with pytest.raises(SeedError):
+        _seed(job={**_job(), "watermark": "@akun"})
+
+
+@pytest.mark.parametrize("context_id", fixtures.CONTEXT_IDS)
+def test_a_seed_with_the_default_watermark_validates(context_id, edit_v2_doc_contexts):
+    from support.default_watermark import WATERMARK
+
+    context = edit_v2_doc_contexts[context_id]
+    for pos in ("top_center", "bottom_right"):
+        seed = _fixture_seed(context_id, edit_v2_doc_contexts,
+                             watermark={**WATERMARK, "pos": pos})
+        validation = validate_doc(seed, words=context.words, assets=context.assets, seed=None)
+        assert validation.errors == (), validation.errors
+
+
+def test_the_job_copy_of_the_default_watermark_is_read_strictly(tmp_path):
+    from support.default_watermark import WATERMARK, write_job_watermark
+
+    assert job_watermark(tmp_path) is None
+    path = write_job_watermark(tmp_path)
+    assert job_watermark(tmp_path) == WATERMARK
+    for value, schema in (({**WATERMARK, "pos": "center"}, None), ({**WATERMARK, "extra": 1}, None),
+                          ({k: v for k, v in WATERMARK.items() if k != "text"}, None),
+                          (WATERMARK, "potongin.job-watermark/2")):
+        write_job_watermark(tmp_path, value, **({"schema": schema} if schema else {}))
+        assert job_watermark(tmp_path) is None, (value, schema)
+    path.write_bytes(b"{" + b" " * 5000 + b"}")
+    assert job_watermark(tmp_path) is None
+    path.write_bytes(b"\xff\xfe")
+    assert job_watermark(tmp_path) is None
+    path.unlink()
+    (tmp_path / "other").mkdir()
+    path.symlink_to(write_job_watermark(tmp_path / "other"))
+    assert job_watermark(tmp_path) is None
+    path.unlink()
+    path.mkdir()
+    assert job_watermark(tmp_path) is None
+
+
 # --- the synthetic job ---------------------------------------------------------------------------
 
 
@@ -954,6 +1021,24 @@ def test_prepare_seeds_the_default_logo_the_job_was_created_with(synthetic, tmp_
         assert item["transform"] == default_logo_transform(output, 400, 100)
         assert seed["assets"] == {f"sha256:{sha}": {"kind": "image", "mime": "image/png",
                                                     "w": 400, "h": 100}}
+        assert seed["base"]["engine"]["compiler"] == "legacy"
+        words = store.load_words(clip, seed["base"]["words"]["sha256"])
+        validation = validate_doc(seed, words=words, assets=store.load_assets(clip, seed["assets"]),
+                                  seed=None)
+        assert validation.errors == ()
+
+
+def test_prepare_seeds_the_default_watermark_the_job_was_created_with(synthetic, tmp_path):
+    from support.default_watermark import WATERMARK, write_job_watermark
+
+    job_dir = _copy_job(synthetic, "main", tmp_path)
+    write_job_watermark(job_dir)
+    results = prepare_legacy_job(job_dir)
+    assert results and all(entry["openable"] for entry in results)
+    for entry in results:
+        seed = seed_of(job_dir, entry)
+        clip = job_dir / "analysis" / "clips" / entry["clip_id"]
+        assert seed["watermark"] == WATERMARK
         assert seed["base"]["engine"]["compiler"] == "legacy"
         words = store.load_words(clip, seed["base"]["words"]["sha256"])
         validation = validate_doc(seed, words=words, assets=store.load_assets(clip, seed["assets"]),

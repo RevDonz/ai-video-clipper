@@ -435,6 +435,17 @@ def test_a_legacy_auto_file_stands_for_its_seed_only_without_a_logo(contexts):
     assert auto_file_is_seed(seed)
 
 
+def test_a_legacy_auto_file_stands_for_its_seed_only_without_a_watermark(contexts):
+    """The legacy renderer draws no text watermark either (CONTRACTS §5.40)."""
+    seed = copy.deepcopy(contexts["c30"].seed)
+    seed["watermark"] = dict(WATERMARK)
+    assert auto_file_is_seed(seed)
+    seed["base"]["engine"]["compiler"] = "legacy"
+    assert not auto_file_is_seed(seed)
+    del seed["watermark"]
+    assert auto_file_is_seed(seed)
+
+
 def test_rev1_unchanged_fixtures_equal_their_seed_content(contexts):
     for context_id in fixtures.CONTEXT_IDS:
         raw = (fixtures.DOC_FIXTURES_DIR / "valid" / f"rev1_unchanged__{context_id}.json").read_bytes()

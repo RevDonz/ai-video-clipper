@@ -25,6 +25,9 @@ take the dashboard's V3 defaults) plus optional seed-context keys that never occ
   2026-10-20 A6), already in the job's asset store (``assets.seed_logo``). The seed carries it
   as ``it_logo`` (origin ``seed``) where the editor's SetLogo puts a new logo
   (:func:`default_logo_transform`); a logo no size fits is left out. Missing or null: no logo.
+* ``watermark``: ``{"text", "pos", "size_pm", "opacity_pm"}``, the job's default text watermark
+  (Pengaturan, CONTRACTS §5.40) as :func:`job_watermark` reads it. The seed carries it as its
+  ``watermark``; anything outside the document's ranges is refused. Missing or null: none.
 
 **Rules beyond the plan table** (each keeps the seed valid for the validator):
 
@@ -52,7 +55,8 @@ take the dashboard's V3 defaults) plus optional seed-context keys that never occ
 :func:`prepare_legacy_job` persists ``analysis/source.json``, then per clip the peaks, the words
 artifact, the camera plan (face-track jobs only) and ``seed.json``, each once and never
 overwritten, under a job-level ``flock``. A job created with a default logo (``<job>/logo/``)
-gets it in its asset store and in every seed written. Every clip that cannot be opened is named
+gets it in its asset store and in every seed written, and one created with a default text
+watermark (``<job>/watermark.json``) gets that in every seed. Every clip that cannot be opened is named
 with the first matching reason: ``not_v3`` (the job did not run Selection V3),
 ``analysis_incomplete``
 (no ``analysis/selection.v3.json`` but one stranded in ``.attempts/*/analysis/``, or an existing
@@ -96,6 +100,10 @@ from . import (
     RENDER_SEMANTICS,
     SCHEMA,
     SCHEMA_MINOR,
+    WATERMARK_OPACITY_RANGE,
+    WATERMARK_POSITIONS,
+    WATERMARK_SIZE_RANGE,
+    WATERMARK_TEXT_MAX,
 )
 from . import assets as _assets
 from . import camera as _camera
@@ -152,6 +160,12 @@ COLD_OPEN_FADE_MS = 30  # the cold-open join's audio fade (plan §3.5)
 # A new logo's size and opacity (the editor's SetLogo, web/lib/editor/commands.mjs DEFAULT_LOGO).
 DEFAULT_LOGO = {"x_e5": 50000, "y_e5": 50000, "w_e5": 16000, "opacity_pm": 850}
 LOGO_MIN_W_E5 = 4000
+# The job's copy of the Pengaturan text watermark (web/lib/default-watermark.mjs).
+JOB_WATERMARK_FILE = "watermark.json"
+JOB_WATERMARK_SCHEMA = "potongin.job-watermark/1"
+MAX_JOB_WATERMARK_BYTES = 4096
+_WATERMARK_KEYS = frozenset({"text", "pos", "size_pm", "opacity_pm"})
+_CONTROL = re.compile("[\x00-\x1f\x7f-\x9f\ud800-\udfff]")
 _UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 _SHA = re.compile(r"[0-9a-f]{64}")
 
@@ -457,6 +471,63 @@ def _logo(job: Mapping) -> tuple[str, int, int] | None:
     return sha, value["w"], value["h"]
 
 
+def _watermark_value(value: object) -> dict[str, Any] | None:
+    """A text watermark of exactly its four keys within the document's ranges, or None."""
+    if not isinstance(value, Mapping) or set(value) != _WATERMARK_KEYS:
+        return None
+    text, pos = value["text"], value["pos"]
+    if not (isinstance(text, str) and 1 <= len(text) <= WATERMARK_TEXT_MAX
+            and text.strip() == text and _CONTROL.search(text) is None
+            and unicodedata.is_normalized("NFC", text)):
+        return None
+    if not isinstance(pos, str) or pos not in WATERMARK_POSITIONS:
+        return None
+    for key, (low, high) in (("size_pm", WATERMARK_SIZE_RANGE),
+                             ("opacity_pm", WATERMARK_OPACITY_RANGE)):
+        if type(value[key]) is not int or not low <= value[key] <= high:
+            return None
+    return {"text": text, "pos": pos, "size_pm": value["size_pm"],
+            "opacity_pm": value["opacity_pm"]}
+
+
+def _watermark(job: Mapping) -> dict[str, Any] | None:
+    """The seed-context ``watermark`` (the job's default text watermark), or None."""
+    value = job.get("watermark")
+    if value is None:
+        return None
+    found = _watermark_value(value)
+    if found is None:
+        raise SeedError("watermark must be {text, pos, size_pm, opacity_pm} in the document's "
+                        "ranges")
+    return found
+
+
+def job_watermark(job_root: Path) -> dict[str, Any] | None:
+    """The text watermark the web copied into ``<job>/watermark.json`` when the job was created,
+    or None unless that file is a small regular file with the job-copy schema and a valid
+    watermark (a broken copy seeds no watermark)."""
+    try:
+        fd = os.open(Path(job_root) / JOB_WATERMARK_FILE, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except OSError:
+        return None
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_JOB_WATERMARK_BYTES:
+            return None
+        raw = os.read(fd, MAX_JOB_WATERMARK_BYTES + 1)
+    except OSError:
+        return None
+    finally:
+        os.close(fd)
+    try:
+        value = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError):
+        return None
+    if not isinstance(value, dict) or value.get("schema") != JOB_WATERMARK_SCHEMA:
+        return None
+    return _watermark_value({key: item for key, item in value.items() if key != "schema"})
+
+
 def _hook_text(text: str) -> str:
     cleaned = unicodedata.normalize("NFC", clean_caption_text(text))
     if len(cleaned) > HOOK_TEXT_MAX:
@@ -533,6 +604,7 @@ def build_seed(
             }],
         })
         assets[asset] = {"kind": "image", "mime": "image/png", "w": logo[1], "h": logo[2]}
+    watermark = _watermark(job)
     hook_unit = clip.hook_unit_id if 1 <= len(clip.hook_unit_id) <= 16 else None
     joins = ([context.join.doc_join("seg_co", COLD_OPEN_FADE_MS)]
              if plan.teaser_ms is not None else [])
@@ -573,6 +645,8 @@ def build_seed(
         "audit": {"created_at_ms": context.seed_at_ms, "updated_at_ms": context.seed_at_ms,
                   "editor": EDITORS[context.by], "last_command": "Seed"},
     }
+    if watermark is not None:
+        seed["watermark"] = watermark
     seed["base"]["seed_sha256"] = seed_sha256(seed)
     return seed
 
@@ -844,7 +918,8 @@ def _read_manifest(job_dir: Path) -> Any:
 
 def _prepare_clip(job_dir: Path, state: _JobState, clip: SelectedClip, source_info: Mapping,
                   transcription: Any, audio: Any, events: Any,
-                  joins: Mapping[str, ColdOpenJoin], logo: Mapping | None) -> dict[str, Any]:
+                  joins: Mapping[str, ColdOpenJoin], logo: Mapping | None,
+                  watermark: Mapping | None) -> dict[str, Any]:
     context = state.context
     try:
         plan = _clip_plan(clip, context, _source(source_info), source_info)
@@ -882,7 +957,8 @@ def _prepare_clip(job_dir: Path, state: _JobState, clip: SelectedClip, source_in
         _write_or_match(clip_dir / _camera.camera_file_name(camera_raw), camera_raw)
         camera_sha = sha256_hex(camera_raw)
     job = {**state.job, "seedBy": "prepare", "seedAtMs": time.time_ns() // 1_000_000,
-           "coldOpenJoin": joins.get(plan.clip_id, CUT_JOIN).to_json(), "logo": logo}
+           "coldOpenJoin": joins.get(plan.clip_id, CUT_JOIN).to_json(), "logo": logo,
+           "watermark": watermark}
     new_seed = build_seed(clip=clip, job=job, source_info=source_info, words_sha=words_sha,
                           words_count=len(words["words"]), camera_sha=camera_sha,
                           selection_sha=state.selection_sha)
@@ -916,9 +992,10 @@ def prepare_legacy_job(job_dir: Path) -> list[dict]:
             return [_entry(None, clip.rank, reason) for clip in state.selection.clips]
         joins = manifest_joins(_read_manifest(job_dir), source_info["content_sha256"])
         logo = _assets.seed_logo(job_dir, job_dir)
+        watermark = job_watermark(job_dir)
         return [
             _prepare_clip(job_dir, state, clip, source_info, transcription, audio, events, joins,
-                          logo)
+                          logo, watermark)
             for clip in state.selection.clips
         ]
 
@@ -931,6 +1008,7 @@ __all__ = [
     "encode_seed",
     "grid_window_ms",
     "inspect_job",
+    "job_watermark",
     "manifest_joins",
     "output_fps",
     "prepare_legacy_job",

@@ -140,11 +140,12 @@ def content_equals_seed(doc: Mapping, seed: Mapping) -> bool:
 
 def auto_file_is_seed(seed: Mapping) -> bool:
     """Whether R10 may hand out the clip's auto file for this seed: the legacy renderer never
-    draws a logo, so a legacy seed with one (the Pengaturan default logo) is not that file."""
+    draws a logo or a text watermark, so a legacy seed with one (the Pengaturan defaults) is not
+    that file."""
     if seed["base"]["engine"]["compiler"] != "legacy":
         return True
-    return not any(track.get("kind") == "visual" and track.get("items")
-                   for track in seed["tracks"])
+    return seed.get("watermark") is None and not any(
+        track.get("kind") == "visual" and track.get("items") for track in seed["tracks"])
 
 
 # --- parse level ----------------------------------------------------------------------------------

@@ -724,6 +724,31 @@ def test_the_new_engine_draws_the_default_logo_into_the_auto_clip(tmp_path_facto
     assert result.reused == "auto_file"  # R10: the auto clip already carries the logo
 
 
+def test_the_new_engine_draws_the_default_watermark_into_the_auto_clip(tmp_path_factory, source):
+    """The Pengaturan text watermark (CONTRACTS §5.40) is in every seed, so the auto clip's ASS
+    carries it and an unchanged clip exports that file (R10)."""
+    from support.default_watermark import WATERMARK, write_job_watermark
+
+    root = tmp_path_factory.mktemp("watermark-jobs")
+    job_id = str(uuid.uuid4())
+    job_dir = make_job(root, job_id, source)
+    write_job_watermark(job_dir)
+    manifest = run_job(job_dir, engine="edit-v2", clips=(clip(1, 12.3, 17.95),))
+    (entry,) = manifest["clips"]
+    assert entry["render_engine"] == COMPILER_ID
+    directory = clip_dir(job_dir, entry["clip_id"])
+    seed_doc, etag = store.seed(directory)
+    assert seed_doc["watermark"] == WATERMARK
+    inputs = render_edit.load_render_inputs(job_dir, seed_doc)
+    assert inputs.plan.ass.count(",Watermark,,") == 1
+    assert inputs.plan.plan_sha256 == entry["plan_sha256"]
+    relative, revision = store.archive_for_render(directory, etag)
+    request = request_for(job_dir, entry["clip_id"], relative, etag, revision)
+    result = render_edit.render_request(job_dir, request, heartbeat=lambda *_: None,
+                                        cancel=threading.Event())
+    assert result.reused == "auto_file"
+
+
 # --- render_request: edited documents -------------------------------------------------------------
 
 
