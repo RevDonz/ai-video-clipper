@@ -55,6 +55,7 @@ const DISPLAY_LIBS = [
   "app/api/context/trends/settings/route.js", "app/api/context/tokens/route.js", "app/api/context/tokens/[id]/route.js",
   "lib/system-info.mjs", "lib/system-info-view.mjs", "app/api/settings/system/route.js",
   "lib/default-logo.mjs", "lib/default-logo-view.mjs", "app/api/settings/logo/route.js", "app/api/settings/logo/[sha]/route.js",
+  "lib/youtube-cookies.mjs", "lib/youtube-cookies-file.mjs", "lib/youtube-cookies-view.mjs", "app/api/settings/youtube-cookies/route.js",
 ];
 
 // --- Latest only ----------------------------------------------------------------------------
@@ -64,6 +65,15 @@ test("Pengaturan, Konteks Tren and the error pages show no version or engine wor
   for (const [file, source] of await pageSources()) {
     assert.doesNotMatch(source, /(?<!\/)\b[Vv][1-3]\b|Selection V|\bversi\b|\bmesin\b|Mode lama|\blegacy\b/i, file);
   }
+});
+
+test("Pengaturan shows the Cookies YouTube card on its own, like Logo bawaan", async () => {
+  const page = withoutComments(await read("app/settings/page.jsx"));
+  assert.match(page, /<YoutubeCookiesCard \/>/);
+  const card = withoutComments(await read("app/settings/YoutubeCookiesCard.jsx"));
+  assert.match(card, /\/api\/settings\/youtube-cookies/);
+  // The card never reads a cookie value: the API returns none, and nothing asks for one.
+  assert.doesNotMatch(card, /\.text\(\)|readAsText|FileReader/);
 });
 
 test("Konteks Tren says its switch applies to the next job, without naming an engine", async () => {
