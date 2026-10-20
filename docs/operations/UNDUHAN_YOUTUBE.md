@@ -38,8 +38,8 @@ Kode ini stabil dan nanti menjadi jangkar halaman bantuan (`/bantuan#<kode>`).
 Tindakan operator:
 
 - `download_ytdlp_outdated` yang muncul di banyak video berarti `yt-dlp` di image sudah
-  tertinggal dari perubahan YouTube. Versinya dikunci di `uv.lock`; naikkan lalu bangun ulang
-  image lewat PR.
+  tertinggal dari perubahan YouTube. Versinya dikunci di `uv.lock`; naikkan lewat PR dengan
+  langkah "YouTube rusak: naikkan yt-dlp" (`docs/editor/OPERASIONAL.md` §8).
 - `download_bot_check` biasanya soal reputasi IP server. Belum ada dukungan cookies; pengguna
   bisa mengunggah file videonya langsung.
 
