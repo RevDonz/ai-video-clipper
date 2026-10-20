@@ -1940,3 +1940,34 @@ with the latar blur layout. Existing documents keep their graph, plan sha and pl
 | P-FRAME with the fallback | 0 mismatches | case `cfr_30_no_face_blur` (58 fallback output frames of 610) added | `scripts/parity/frame_identity.py` | pending: `editor-gates suite=command` (`frame_identity.py p-frame`) |
 | P-PLATE with the fallback | SSIM margin ≥ 0; crop x 0 px on the camera frames | case `plate_camera_no_face_blur` (68 fallback output frames of 710) added | `scripts/parity/frame_identity.py` | pending: `editor-gates suite=command` (`frame_identity.py p-plate`) |
 | Layout panel (browser, fakes) | the choice switches in one click, keeps focus, axe clean | `e2e/editor-layout.spec.mjs` extended | | pending: `editor-gates suite=e2e` |
+
+## Ikuti wajah follows the speaker: YuNet and mouth motion (2026-10-21)
+
+Contract: CONTRACTS §5.42; method, set and every number: `docs/evaluation/SPEAKER_FRAMING.md`.
+The face-track detector is YuNet (OpenCV Zoo, MIT) plus mouth motion; the auto render (both
+engines) and the editor's camera plan use the same scan. Camera-plan schema, FFmpeg arguments,
+goldens and render keys are unchanged; a new seed gets a new camera plan. Measured on the owner's
+PC with Python 3.11 and OpenCV 4.14.0 under `nice -n 10`; the window timings with `taskset` on 4
+CPUs while other work ran (load 7 to 10). Evidence:
+`docs/evaluation/speaker-framing/result-val-2026-10-21.json` (numbers and window ids only, no
+footage).
+
+| Gate | Threshold | Result |
+|---|---|---|
+| Speaker error, held-out AVA val windows with ≥ 2 faces (24 × 20 s) | ≤ 0.8 × Haar, bootstrap 97.5th percentile of the difference < 0 | **pass**: 20.7 % against Haar 39.0 % (YuNet largest face 36.9 %); difference −27.2 to −10.2 points |
+| Speaker error, one-face windows (26 × 20 s) | ≤ Haar + 1 point | **pass**: 1.6 % against 8.4 % |
+| Windows | better by > 10 points ≥ 3 × worse by > 10 points | **pass**: 22 better, 2 worse (`IzvOYVMltkI-multi`, `kMy-6RtoOVU-multi`) |
+| Scan time of the 50 windows | ≤ Haar | **pass**: 36.4 s against 49.9 s |
+| T1.5 camera plan, 3 min window (`speaker_framing.py time`, 4 CPUs) | ≤ 15 s | **pass**: 720p AV1 30 fps 8.13 / 8.72 s (Haar 13.34 / 12.26 s; CPU 15 against 51 s); 1080p H.264 13.52 / 12.94 s (Haar 15.64 / 16.97 s; CPU 31 against 61 s) |
+| Targeted tests | pass | `test_speaker_track.py`, `test_face_model.py`, `test_face_window.py`, `test_edit_v2_camera.py`, `test_face_tracking.py` and the covering seed, layout switch, render, contracts and CLI files |
+
+To run on GitHub Actions (the image's OpenCV and the network for the footage):
+`editor-gates suite=image` and `suite=command` with the harness's `fetch` and `run` (see the
+evaluation document). Footage stays outside the repository.
+
+### Open (speaker framing)
+
+- The set is films, not podcasts; a podcast set from the owner's own projects (without committing
+  footage) would measure the target content directly.
+- Audio silences and speaker changes (`analysis/speaker-changes.json`) did not measurably help on
+  the development set, so the render does not read them; see the evaluation document.

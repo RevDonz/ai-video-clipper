@@ -206,6 +206,9 @@ Kewajiban yang perlu dijaga:
 - FreeType meminta kalimat kredit di dokumentasi produk; kalimat itu ada di halaman lisensi.
 - File JASSUB dan Mediabunny dikirim tanpa diubah. Kalau suatu saat diubah, perubahan pada file
   MPL (Mediabunny) harus dibuka dengan lisensi yang sama.
+- Model deteksi wajah YuNet (`resources/models/face_detection_yunet_2023mar.onnx`, OpenCV Zoo,
+  MIT) hanya dipakai di server. Teks lisensinya (`LICENSE-YuNet.txt`) harus ikut bersama file
+  modelnya; sha256 dan sumbernya ada di `resources/models/models.json`.
 
 ## 7. Masalah yang sering muncul
 
@@ -215,6 +218,7 @@ Kewajiban yang perlu dijaga:
 | Ekspor: "Layanan editor sedang tidak tersedia" (lokal) | `resources/toolchain.json` belum dibuat (PANDUAN langkah 2). Image Docker membuatnya sendiri. |
 | PR gagal di Toolchain evidence guard | Kunci toolchain atau JASSUB berubah tanpa bukti baru: ikuti §3. |
 | Parity gagal di "Install Chrome for Testing" | Unduhan Chrome for Testing 147.0.7727.15 gagal; jalankan ulang job. Versi browser ini bagian dari kunci paritas, jadi jangan diganti tanpa mengukur ulang P-TIME dan P-TXT. |
+| Klip "Ikuti wajah" gagal dengan `face model missing` atau `does not match its sha256` | File `resources/models/face_detection_yunet_2023mar.onnx` tidak ada atau berubah. Image Docker menyalin `resources/` apa adanya; di lokal, ambil ulang file itu dari git. |
 | Saran hook hanya "AI seleksi"/"Heuristik" | `POTONGIN_EDITOR_LLM` mati, atau penyedia AI gratis di Pengaturan sedang tidak bisa dipakai. |
 | Cek ejaan: "belum bisa dipakai (kuota/koneksi AI)" | Sama dengan saran hook: penyedia gratis penuh atau lebih dari 20 detik. File tugasnya (`analysis/clips/<klip>/suggestions/<id>.json`, `task: "spelling"`) mencatat kode galat dan saran yang dibuang beserta alasannya. |
 | "Tulis ulang gagal" di halaman proyek | Pesannya menyebut sebabnya; "Cara memperbaiki" membuka entri `/bantuan` untuk kode galat AI-nya (kuota, batas waktu, model). "AI mati atau belum diatur": nyalakan AI dan isi penyedia di Pengaturan. "Batas Tulis ulang … (30 per jam)": tunggu sesuai menit yang disebut. |

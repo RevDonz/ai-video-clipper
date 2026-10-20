@@ -146,7 +146,8 @@ Dokumen rujukan:
 - ✅ Kata di tepi segmen tidak lagi hilang dari caption.
 - ✅ Thumbnail tiap klip (`clip-XX.jpg`, frame detik ke-1, lebar 720) dipakai sebagai poster
   video di dashboard dan halaman proyek. Job lama tetap tanpa poster.
-- ⬜ Face-track memakai active speaker (sekarang mengikuti wajah terbesar).
+- ✅ Face-track mengikuti pembicara: deteksi wajah YuNet dan gerak mulut, pindah pembicara
+  dengan potongan. Set evaluasi dan angkanya: `docs/evaluation/SPEAKER_FRAMING.md`.
 
 ## 6. Pipeline & CLI
 

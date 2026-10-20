@@ -422,7 +422,8 @@ evidence (`gh workflow run ci-cd.yml --ref <branch> -f suite=toolchain`).
   and a deterministic heuristic fallback; older V1 and V2 shadow jobs stay viewable
 - Cold open, on-screen hook text, and karaoke or classic burned-in captions
 - Selectable portrait layout: `face-track`, `fit-blur`, or `center-crop`
-- OpenCV face tracking with smoothed crop movement across speaker shots
+- Face tracking with OpenCV's YuNet detector that frames the person whose mouth moves, and
+  cuts (instead of panning) when the speaker changes sides
 - H.264/AAC MP4 rendering with downloadable SRT that matches the burned captions
 - Machine-readable, fail-closed manifest (`processing`, `completed`, or `failed`)
 - Authenticated Next.js dashboard, durable job queue with fenced leases, persistent
@@ -449,8 +450,10 @@ evidence (`gh workflow run ci-cd.yml --ref <branch> -f suite=toolchain`).
   when this happened.
 - The benchmark gold labels were written by an LLM acting as an editor. They are a proxy
   until owner labels and real retention analytics exist.
-- Face tracking follows the most prominent detected face; there is no audio diarization,
-  so it cannot prove which visible person is speaking.
+- The speaker is picked from mouth motion alone (no audio diarization). On the film windows
+  of the evaluation set with two or more faces, the crop still misses the speaker in about a
+  fifth of the speech time (the Haar detector before it: two fifths); see
+  `docs/evaluation/SPEAKER_FRAMING.md`.
 - Scores rank moments against each other. They are not a prediction or guarantee of
   virality and must never be marketed as one.
 - The worker is designed for one trusted self-hosted instance. There is no database,

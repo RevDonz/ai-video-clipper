@@ -1,4 +1,8 @@
-"""Face detection and crop-path helpers for portrait reframing."""
+"""Face-track crop paths for portrait reframing: smoothing, the crop expression and the track.
+
+OpenCV stays out of this module's import: the detection (``face_window``) is imported when a
+track is asked for.
+"""
 
 from __future__ import annotations
 
@@ -56,14 +60,6 @@ def smooth_face_track(
         previous = smoothed
         has_detection = True
     return filled
-
-
-def choose_prominent_face(faces, *, source_width: int) -> float:
-    """Return the normalized x center of the largest detected face."""
-    if source_width <= 0 or len(faces) == 0:
-        raise ValueError("at least one face and a positive source width are required")
-    x, _y, width, _height = max(faces, key=lambda face: face[2] * face[3])
-    return (x + width / 2) / source_width
 
 
 def build_crop_expression(
@@ -137,89 +133,21 @@ def detect_face_track(
     end: float,
     sample_interval: float = 0.75,
     smooth: bool = True,
-    sequential: bool = False,
 ) -> tuple[list[float], list[float | None], list[bool], int, int]:
-    """Sample faces and scene changes, returning a safe clip-relative crop track.
+    """Sample the speaking face and scene changes, returning a clip-relative crop track.
+
+    The work is ``face_window.detect_window``: the window decoded once, YuNet faces every
+    ``sample_interval`` seconds and the face whose mouth moves (see ``speaker_track``). A switch
+    to a speaker far across the frame is flagged in ``cuts`` like a scene cut, so the crop jumps
+    instead of panning.
 
     ``smooth=False`` returns the raw centres instead (``None`` where no face was found), so the
     Editor V3 camera plan can smooth them itself and report the no-face runs (plan §5.7); the
     legacy render path keeps the default.
-
-    ``sequential=True`` seeks once and decodes the window front to back, keeping for each
-    sample the frame that the per-sample seek would land on (OpenCV's own rounding,
-    ``int(seconds·fps + 0.5)``). A seek decodes from the previous keyframe, so on a long-GOP
-    source the per-sample seeks decode most frames many times (a 3 min AV1 720p window: 10.2 s
-    of seeking against 1.7 s decoded once). The Editor V3 camera plan uses it; the legacy render
-    keeps the per-sample seeks, so its crop track cannot change.
     """
-    try:
-        import cv2
-    except ImportError as exc:  # pragma: no cover - exercised without optional extra
-        raise RuntimeError(
-            "face-track mode requires the vision extra: uv sync --extra vision"
-        ) from exc
+    from .face_window import detect_window
 
-    capture = cv2.VideoCapture(str(source))
-    if not capture.isOpened():
-        raise RuntimeError(f"OpenCV could not open source video: {source}")
-    source_width = round(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
-    source_height = round(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    if source_width <= 0 or source_height <= 0:
-        capture.release()
-        raise RuntimeError("OpenCV could not determine source dimensions")
-
-    cascade = cv2.CascadeClassifier(
-        str(Path(cv2.data.haarcascades) / "haarcascade_frontalface_default.xml")
-    )
-    times: list[float] = []
-    raw_centers: list[float | None] = []
-    cuts: list[bool] = []
-    relative_time = 0.0
-    previous_thumbnail = None
-    minimum_face = max(round(min(source_width, source_height) * 0.08), 24)
-    fps = capture.get(cv2.CAP_PROP_FPS)
-    sequential = sequential and fps > 0
-    exhausted = False
-    current = -1  # index of the frame last grabbed in sequential mode
-    if sequential:
-        capture.set(cv2.CAP_PROP_POS_MSEC, start * 1000)
-    while relative_time < end - start:
-        if sequential:
-            seconds = ((start + relative_time) * 1000) / 1000.0
-            target = int(seconds * fps + 0.5)  # the frame CAP_PROP_POS_MSEC would seek to
-            ok, frame = False, None
-            while not exhausted and current < target:
-                if not capture.grab():
-                    exhausted = True
-                    break
-                current = round(capture.get(cv2.CAP_PROP_POS_FRAMES)) - 1
-            if not exhausted and current >= target:
-                ok, frame = capture.retrieve()
-        else:
-            capture.set(cv2.CAP_PROP_POS_MSEC, (start + relative_time) * 1000)
-            ok, frame = capture.read()
-        center: float | None = None
-        is_cut = False
-        if ok:
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            thumbnail = cv2.resize(gray, (64, 36))
-            if previous_thumbnail is not None:
-                change = cv2.absdiff(thumbnail, previous_thumbnail).mean() / 255
-                is_cut = change >= 0.18
-            previous_thumbnail = thumbnail
-            equalized = cv2.equalizeHist(gray)
-            faces = cascade.detectMultiScale(
-                equalized,
-                scaleFactor=1.1,
-                minNeighbors=4,
-                minSize=(minimum_face, minimum_face),
-            )
-            if len(faces):
-                center = choose_prominent_face(faces, source_width=source_width)
-        times.append(relative_time)
-        raw_centers.append(center)
-        cuts.append(is_cut)
-        relative_time += sample_interval
-    capture.release()
+    times, raw_centers, cuts, source_width, source_height = detect_window(
+        source, start=start, end=end, sample_interval=sample_interval)
     centers = smooth_face_track(raw_centers, cuts=cuts) if smooth else raw_centers
     return times, centers, cuts, source_width, source_height

@@ -1,0 +1,461 @@
+{
+ "schema": "potongin.speaker-framing-set/1",
+ "split": "val",
+ "licence": "AVA ActiveSpeaker v1.0 annotations: Google, CC BY 4.0. Films: not redistributed.",
+ "annotations": {
+  "url": "https://research.google.com/ava/download/ava_activespeaker_val_v1.0.tar.bz2",
+  "sha256": "ced431ed2006deacd3968954d309c5b780179866b0f63d5d17d4df8a8ec81622"
+ },
+ "clips": [
+  {
+   "id": "053oq2xB3oU-multi",
+   "kind": "multi",
+   "video": "053oq2xB3oU",
+   "file": "053oq2xB3oU.mkv",
+   "start": 1189.0,
+   "duration": 20.0,
+   "steps": 168
+  },
+  {
+   "id": "1j20qq1JyX4-single",
+   "kind": "single",
+   "video": "1j20qq1JyX4",
+   "file": "1j20qq1JyX4.mp4",
+   "start": 918.5,
+   "duration": 20.0,
+   "steps": 131
+  },
+  {
+   "id": "2DUITARAsWQ-single",
+   "kind": "single",
+   "video": "2DUITARAsWQ",
+   "file": "2DUITARAsWQ.mp4",
+   "start": 1373.0,
+   "duration": 20.0,
+   "steps": 128
+  },
+  {
+   "id": "2qQs3Y9OJX0-multi",
+   "kind": "multi",
+   "video": "2qQs3Y9OJX0",
+   "file": "2qQs3Y9OJX0.mkv",
+   "start": 1100.0,
+   "duration": 20.0,
+   "steps": 148
+  },
+  {
+   "id": "2qQs3Y9OJX0-single",
+   "kind": "single",
+   "video": "2qQs3Y9OJX0",
+   "file": "2qQs3Y9OJX0.mkv",
+   "start": 1599.0,
+   "duration": 20.0,
+   "steps": 129
+  },
+  {
+   "id": "4ZpjKfu6Cl8-multi",
+   "kind": "multi",
+   "video": "4ZpjKfu6Cl8",
+   "file": "4ZpjKfu6Cl8.mkv",
+   "start": 1638.5,
+   "duration": 20.0,
+   "steps": 158
+  },
+  {
+   "id": "4ZpjKfu6Cl8-single",
+   "kind": "single",
+   "video": "4ZpjKfu6Cl8",
+   "file": "4ZpjKfu6Cl8.mkv",
+   "start": 969.5,
+   "duration": 20.0,
+   "steps": 157
+  },
+  {
+   "id": "5milLu-6bWI-multi",
+   "kind": "multi",
+   "video": "5milLu-6bWI",
+   "file": "5milLu-6bWI.mp4",
+   "start": 1392.5,
+   "duration": 20.0,
+   "steps": 117
+  },
+  {
+   "id": "5milLu-6bWI-single",
+   "kind": "single",
+   "video": "5milLu-6bWI",
+   "file": "5milLu-6bWI.mp4",
+   "start": 1611.5,
+   "duration": 20.0,
+   "steps": 138
+  },
+  {
+   "id": "7YpF6DntOYw-multi",
+   "kind": "multi",
+   "video": "7YpF6DntOYw",
+   "file": "7YpF6DntOYw.mkv",
+   "start": 987.0,
+   "duration": 20.0,
+   "steps": 158
+  },
+  {
+   "id": "8nO5FFbIAog-single",
+   "kind": "single",
+   "video": "8nO5FFbIAog",
+   "file": "8nO5FFbIAog.webm",
+   "start": 1412.0,
+   "duration": 20.0,
+   "steps": 141
+  },
+  {
+   "id": "C25wkwAMB-w-multi",
+   "kind": "multi",
+   "video": "C25wkwAMB-w",
+   "file": "C25wkwAMB-w.mkv",
+   "start": 1665.0,
+   "duration": 20.0,
+   "steps": 164
+  },
+  {
+   "id": "C25wkwAMB-w-single",
+   "kind": "single",
+   "video": "C25wkwAMB-w",
+   "file": "C25wkwAMB-w.mkv",
+   "start": 976.0,
+   "duration": 20.0,
+   "steps": 151
+  },
+  {
+   "id": "HKjR70GCRPE-multi",
+   "kind": "multi",
+   "video": "HKjR70GCRPE",
+   "file": "HKjR70GCRPE.mp4",
+   "start": 1676.0,
+   "duration": 20.0,
+   "steps": 190
+  },
+  {
+   "id": "HKjR70GCRPE-single",
+   "kind": "single",
+   "video": "HKjR70GCRPE",
+   "file": "HKjR70GCRPE.mp4",
+   "start": 1498.0,
+   "duration": 20.0,
+   "steps": 142
+  },
+  {
+   "id": "HV0H6oc4Kvs-multi",
+   "kind": "multi",
+   "video": "HV0H6oc4Kvs",
+   "file": "HV0H6oc4Kvs.mkv",
+   "start": 998.0,
+   "duration": 20.0,
+   "steps": 165
+  },
+  {
+   "id": "HV0H6oc4Kvs-single",
+   "kind": "single",
+   "video": "HV0H6oc4Kvs",
+   "file": "HV0H6oc4Kvs.mkv",
+   "start": 1280.0,
+   "duration": 20.0,
+   "steps": 183
+  },
+  {
+   "id": "IKdBLciu_-A-multi",
+   "kind": "multi",
+   "video": "IKdBLciu_-A",
+   "file": "IKdBLciu_-A.mp4",
+   "start": 1046.0,
+   "duration": 20.0,
+   "steps": 135
+  },
+  {
+   "id": "IKdBLciu_-A-single",
+   "kind": "single",
+   "video": "IKdBLciu_-A",
+   "file": "IKdBLciu_-A.mp4",
+   "start": 901.0,
+   "duration": 20.0,
+   "steps": 129
+  },
+  {
+   "id": "IzvOYVMltkI-multi",
+   "kind": "multi",
+   "video": "IzvOYVMltkI",
+   "file": "IzvOYVMltkI.mp4",
+   "start": 1657.3,
+   "duration": 20.0,
+   "steps": 149
+  },
+  {
+   "id": "IzvOYVMltkI-single",
+   "kind": "single",
+   "video": "IzvOYVMltkI",
+   "file": "IzvOYVMltkI.mp4",
+   "start": 1308.3,
+   "duration": 20.0,
+   "steps": 136
+  },
+  {
+   "id": "JNb4nWexD0I-multi",
+   "kind": "multi",
+   "video": "JNb4nWexD0I",
+   "file": "JNb4nWexD0I.mkv",
+   "start": 1250.0,
+   "duration": 20.0,
+   "steps": 166
+  },
+  {
+   "id": "JNb4nWexD0I-single",
+   "kind": "single",
+   "video": "JNb4nWexD0I",
+   "file": "JNb4nWexD0I.mkv",
+   "start": 1152.0,
+   "duration": 20.0,
+   "steps": 155
+  },
+  {
+   "id": "KHHgQ_Pe4cI-multi",
+   "kind": "multi",
+   "video": "KHHgQ_Pe4cI",
+   "file": "KHHgQ_Pe4cI.mkv",
+   "start": 1603.0,
+   "duration": 20.0,
+   "steps": 110
+  },
+  {
+   "id": "KHHgQ_Pe4cI-single",
+   "kind": "single",
+   "video": "KHHgQ_Pe4cI",
+   "file": "KHHgQ_Pe4cI.mkv",
+   "start": 1122.0,
+   "duration": 20.0,
+   "steps": 138
+  },
+  {
+   "id": "P60OxWahxBQ-multi",
+   "kind": "multi",
+   "video": "P60OxWahxBQ",
+   "file": "P60OxWahxBQ.mkv",
+   "start": 1162.0,
+   "duration": 20.0,
+   "steps": 128
+  },
+  {
+   "id": "P60OxWahxBQ-single",
+   "kind": "single",
+   "video": "P60OxWahxBQ",
+   "file": "P60OxWahxBQ.mkv",
+   "start": 1364.0,
+   "duration": 20.0,
+   "steps": 119
+  },
+  {
+   "id": "PmElx9ZVByw-multi",
+   "kind": "multi",
+   "video": "PmElx9ZVByw",
+   "file": "PmElx9ZVByw.mp4",
+   "start": 939.0,
+   "duration": 20.0,
+   "steps": 140
+  },
+  {
+   "id": "PmElx9ZVByw-single",
+   "kind": "single",
+   "video": "PmElx9ZVByw",
+   "file": "PmElx9ZVByw.mp4",
+   "start": 1054.0,
+   "duration": 20.0,
+   "steps": 103
+  },
+  {
+   "id": "UrsCy6qIGoo-multi",
+   "kind": "multi",
+   "video": "UrsCy6qIGoo",
+   "file": "UrsCy6qIGoo.mkv",
+   "start": 1748.0,
+   "duration": 20.0,
+   "steps": 149
+  },
+  {
+   "id": "UrsCy6qIGoo-single",
+   "kind": "single",
+   "video": "UrsCy6qIGoo",
+   "file": "UrsCy6qIGoo.mkv",
+   "start": 1550.0,
+   "duration": 20.0,
+   "steps": 140
+  },
+  {
+   "id": "_7oWZq_s_Sk-single",
+   "kind": "single",
+   "video": "_7oWZq_s_Sk",
+   "file": "_7oWZq_s_Sk.mkv",
+   "start": 1773.0,
+   "duration": 20.0,
+   "steps": 113
+  },
+  {
+   "id": "ax3q-RkVIt4-multi",
+   "kind": "multi",
+   "video": "ax3q-RkVIt4",
+   "file": "ax3q-RkVIt4.mp4",
+   "start": 1688.1,
+   "duration": 20.0,
+   "steps": 139
+  },
+  {
+   "id": "ax3q-RkVIt4-single",
+   "kind": "single",
+   "video": "ax3q-RkVIt4",
+   "file": "ax3q-RkVIt4.mp4",
+   "start": 1484.1,
+   "duration": 20.0,
+   "steps": 155
+  },
+  {
+   "id": "g1wyIcLPbq0-multi",
+   "kind": "multi",
+   "video": "g1wyIcLPbq0",
+   "file": "g1wyIcLPbq0.mp4",
+   "start": 1476.3,
+   "duration": 20.0,
+   "steps": 139
+  },
+  {
+   "id": "j5jmjhGBW44-single",
+   "kind": "single",
+   "video": "j5jmjhGBW44",
+   "file": "j5jmjhGBW44.mkv",
+   "start": 1740.0,
+   "duration": 20.0,
+   "steps": 121
+  },
+  {
+   "id": "kMy-6RtoOVU-multi",
+   "kind": "multi",
+   "video": "kMy-6RtoOVU",
+   "file": "kMy-6RtoOVU.mkv",
+   "start": 1154.1,
+   "duration": 20.0,
+   "steps": 130
+  },
+  {
+   "id": "kMy-6RtoOVU-single",
+   "kind": "single",
+   "video": "kMy-6RtoOVU",
+   "file": "kMy-6RtoOVU.mkv",
+   "start": 939.1,
+   "duration": 20.0,
+   "steps": 132
+  },
+  {
+   "id": "qrkff49p4E4-multi",
+   "kind": "multi",
+   "video": "qrkff49p4E4",
+   "file": "qrkff49p4E4.mp4",
+   "start": 1714.0,
+   "duration": 20.0,
+   "steps": 151
+  },
+  {
+   "id": "qrkff49p4E4-single",
+   "kind": "single",
+   "video": "qrkff49p4E4",
+   "file": "qrkff49p4E4.mp4",
+   "start": 971.0,
+   "duration": 20.0,
+   "steps": 151
+  },
+  {
+   "id": "rJKeqfTlAeY-multi",
+   "kind": "multi",
+   "video": "rJKeqfTlAeY",
+   "file": "rJKeqfTlAeY.mkv",
+   "start": 1060.0,
+   "duration": 20.0,
+   "steps": 165
+  },
+  {
+   "id": "rJKeqfTlAeY-single",
+   "kind": "single",
+   "video": "rJKeqfTlAeY",
+   "file": "rJKeqfTlAeY.mkv",
+   "start": 1541.0,
+   "duration": 20.0,
+   "steps": 159
+  },
+  {
+   "id": "xJmRNZVDDCY-multi",
+   "kind": "multi",
+   "video": "xJmRNZVDDCY",
+   "file": "xJmRNZVDDCY.mkv",
+   "start": 1159.8,
+   "duration": 20.0,
+   "steps": 111
+  },
+  {
+   "id": "xJmRNZVDDCY-single",
+   "kind": "single",
+   "video": "xJmRNZVDDCY",
+   "file": "xJmRNZVDDCY.mkv",
+   "start": 955.8,
+   "duration": 20.0,
+   "steps": 135
+  },
+  {
+   "id": "yn9WN9lsHRE-multi",
+   "kind": "multi",
+   "video": "yn9WN9lsHRE",
+   "file": "yn9WN9lsHRE.mkv",
+   "start": 1004.0,
+   "duration": 20.0,
+   "steps": 143
+  },
+  {
+   "id": "z-fsLpGHq6o-multi",
+   "kind": "multi",
+   "video": "z-fsLpGHq6o",
+   "file": "z-fsLpGHq6o.mkv",
+   "start": 1355.2,
+   "duration": 20.0,
+   "steps": 164
+  },
+  {
+   "id": "z-fsLpGHq6o-single",
+   "kind": "single",
+   "video": "z-fsLpGHq6o",
+   "file": "z-fsLpGHq6o.mkv",
+   "start": 1690.2,
+   "duration": 20.0,
+   "steps": 106
+  },
+  {
+   "id": "zC5Fh2tTS1U-single",
+   "kind": "single",
+   "video": "zC5Fh2tTS1U",
+   "file": "zC5Fh2tTS1U.mp4",
+   "start": 1685.0,
+   "duration": 20.0,
+   "steps": 114
+  },
+  {
+   "id": "zR725veL-DI-multi",
+   "kind": "multi",
+   "video": "zR725veL-DI",
+   "file": "zR725veL-DI.mkv",
+   "start": 1002.0,
+   "duration": 20.0,
+   "steps": 124
+  },
+  {
+   "id": "zR725veL-DI-single",
+   "kind": "single",
+   "video": "zR725veL-DI",
+   "file": "zR725veL-DI.mkv",
+   "start": 1672.0,
+   "duration": 20.0,
+   "steps": 132
+  }
+ ]
+}

@@ -135,9 +135,10 @@ PREDICTED_X = {"fit_blur": 0.5, "camera": 0.5, "fill_center": 0.4}
 PIPELINE_MIN_TIMEOUT_S = float(_legacy.FFMPEG_TIMEOUT_SECONDS)  # never stricter than legacy
 # PF-PIPELINE (T4.3): the auto render runs several clips at once. A "heavy slot" is one final
 # encode or one camera plan, each about FFMPEG_THREADS CPUs busy (x264 and the filters at
-# 4 threads; the Haar detection on 4 workers). Every FFmpeg argument stays as it was, so the
-# pixels do not change; only the clips overlap. Four slots fill the K15 PC (16 threads): a
-# job of four clips encodes them all at once (measured: 3 slots left the fourth clip alone).
+# 4 threads; the camera scan's decoding threads and YuNet). Every FFmpeg argument stays as it
+# was, so the pixels do not change; only the clips overlap. Four slots fill the K15 PC (16
+# threads): a job of four clips encodes them all at once (measured: 3 slots left the fourth
+# clip alone).
 RENDER_SLOTS_MAX = 4
 
 MAX_JOB_BYTES = 4 * 1024 * 1024
@@ -1070,7 +1071,7 @@ class AutoRenderer:
         camera_sha = None
         if face_track:
             detector = _camera.detect_face_track if self.detector is None else self.detector
-            with self._heavy:  # the Haar detection keeps about as many CPUs busy as an encode
+            with self._heavy:  # the camera scan keeps several CPUs busy, like an encode
                 camera_plan = _camera.build_camera_plan(
                     self.source, window, fps, out_w=self.options.width,
                     out_h=self.options.height, detector=detector)
