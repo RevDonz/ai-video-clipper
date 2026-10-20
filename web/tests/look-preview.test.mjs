@@ -1,0 +1,165 @@
+// The dashboard's 9:16 preview under "Tampilan klip" (lib/look-preview.mjs): it draws only what the
+// job options change in the automatic render (layout, subtitle style, hook text), at the spots the
+// engine uses, with the TikTok button zone over them. The engine numbers are read from the Python
+// sources and the pack files, so the preview cannot drift from the output.
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import test from "node:test";
+import { fileURLToPath } from "node:url";
+
+import { CAPTION_STYLE_CHOICES, DEFAULT_CHOICES, readStoredChoices } from "../lib/dashboard-choices.mjs";
+import { PREVIEW_BACKDROP } from "../lib/editor/content-colours.mjs";
+import { CAPTION_STYLES, JOB_FORM_FIELDS, parseJobOptions, validatePersistedJobOptions } from "../lib/jobs.mjs";
+import {
+  AUTO_TEXT,
+  LOOK_NOTES,
+  PREVIEW_FRAME,
+  THUMB_CROP,
+  TIKTOK_ZONE,
+  lookPreview,
+} from "../lib/look-preview.mjs";
+
+const WEB = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const REPO = path.resolve(WEB, "..");
+const read = (...parts) => readFileSync(path.join(REPO, ...parts), "utf8");
+const json = (...parts) => JSON.parse(read(...parts));
+
+/** A Python module-level constant's literal text (`NAME = <value>` up to the end of the line). */
+function pythonConstant(source, name) {
+  const match = new RegExp(`^${name}\\s*=\\s*(.+)$`, "m").exec(source);
+  assert.ok(match, `${name} in the Python source`);
+  return match[1].trim();
+}
+
+const choices = (patch = {}) => ({ ...DEFAULT_CHOICES, ...patch });
+
+test("today's defaults: Karaoke at the bottom, the hook at the top, the landscape picture whole in the middle", () => {
+  const look = lookPreview(choices());
+  assert.deepEqual(look.frame, { w: 720, h: 1280 });
+  assert.deepEqual(look.picture, { mode: "fit", band: { x: 0, y: 437.5, w: 720, h: 405 } });
+  assert.deepEqual(look.caption, { pack: "karaoke", name: "Karaoke", image: { x: 80, y: 950, w: 560, h: 140 }, bottom: 1062.4 });
+  assert.equal(look.hook.text, "Teks hook");
+  assert.equal(look.hook.box.y, 166.4);
+  assert.equal(look.hook.fontSize, 58.88);
+  assert.deepEqual(look.zone, { top: 93, bottom: 280, right: 93 });
+});
+
+test("the hook bar is centred and stays inside the side margins of the automatic render", () => {
+  const { hook, frame } = lookPreview(choices());
+  const side = AUTO_TEXT.side * frame.w;
+  assert.ok(hook.box.x >= side && hook.box.x + hook.box.w <= frame.w - side, JSON.stringify(hook.box));
+  assert.ok(Math.abs(hook.box.x + hook.box.w / 2 - frame.w / 2) < 0.01, "centred");
+  assert.ok(hook.box.h > hook.fontSize, "the text fits the bar's height");
+});
+
+test("the layout choice decides the picture: whole with a blurred fill, or cropped to fill the frame", () => {
+  assert.equal(lookPreview(choices({ renderMode: "fit-blur" })).picture.mode, "fit");
+  for (const renderMode of ["face-track", "center-crop"]) {
+    assert.deepEqual(lookPreview(choices({ renderMode })).picture, { mode: "fill", band: null }, renderMode);
+  }
+});
+
+test("the subtitle style picks the thumbnail; the hook switch adds or removes the hook bar", () => {
+  assert.equal(lookPreview(choices({ captionStyle: "classic" })).caption.pack, "classic");
+  assert.equal(lookPreview(choices({ captionStyle: "classic" })).caption.name, "Klasik");
+  assert.equal(lookPreview(choices({ hookOverlay: false })).hook, null);
+  // The subtitle never moves: its spot and size are the same for every choice.
+  const spots = new Set(["fit-blur", "face-track", "center-crop"].flatMap((renderMode) => ["karaoke", "classic"].flatMap((captionStyle) => [true, false].map((hookOverlay) => (
+    JSON.stringify(lookPreview(choices({ renderMode, captionStyle, hookOverlay })).caption.image)
+  )))));
+  assert.equal(spots.size, 1);
+});
+
+test("unknown or retired values fall back like the stored choices do", () => {
+  const look = lookPreview({ renderMode: "split", captionStyle: "sorot", hookOverlay: "ya" });
+  assert.equal(look.picture.mode, "fit");
+  assert.equal(look.caption.pack, "karaoke");
+  assert.ok(look.hook, "hook on by default");
+  assert.deepEqual(lookPreview(undefined), lookPreview(DEFAULT_CHOICES));
+});
+
+test("the TikTok zone: the subtitle's bottom is inside it, the hook is clear of it", () => {
+  const look = lookPreview(choices());
+  assert.equal(look.captionInZone, true, "1062.4 px is below the zone's top edge at 1000 px");
+  assert.equal(look.hookInZone, false, "166.4 px is below the zone's 93 px");
+  assert.equal(lookPreview(choices({ hookOverlay: false })).hookInZone, false);
+});
+
+test("the note says where the subtitle sits, and where to move it only while the editor is on", () => {
+  assert.equal(lookPreview(choices()).note, LOOK_NOTES.zone);
+  assert.equal(lookPreview(choices(), { editor: true }).note, `${LOOK_NOTES.zone} ${LOOK_NOTES.editor}`);
+  assert.equal(lookPreview(choices(), { editor: "on" }).note, LOOK_NOTES.zone, "only a real true turns the hint on");
+  assert.equal(LOOK_NOTES.zone, "Subtitle ada di bawah, dekat area tombol TikTok.");
+  assert.equal(LOOK_NOTES.editor, "Geser atau ubah ukurannya per klip lewat Edit klip.");
+  for (const text of Object.values(LOOK_NOTES)) {
+    assert.doesNotMatch(text, /—|\bV[1-3]\b|baru|viral|Hot/);
+  }
+});
+
+test("the preview's accessible name reads what it shows", () => {
+  assert.equal(lookPreview(choices()).label, "Pratinjau klip 9:16: Utuh + latar blur, subtitle Karaoke di bawah, teks hook di atas.");
+  assert.equal(
+    lookPreview(choices({ renderMode: "center-crop", captionStyle: "classic", hookOverlay: false })).label,
+    "Pratinjau klip 9:16: Crop tengah, subtitle Klasik di bawah, tanpa teks hook.",
+  );
+});
+
+test("the preview's numbers are the engine's: render size, text spots, zone and thumbnail crop", () => {
+  const ass = read("src", "ai_clipper", "captions_ass.py");
+  assert.equal(Number(pythonConstant(ass, "_CAPTION_MARGIN_BOTTOM_RATIO")), AUTO_TEXT.captionBottom);
+  assert.equal(Number(pythonConstant(ass, "_CAPTION_SIDE_MARGIN_RATIO")), AUTO_TEXT.side);
+  assert.equal(Number(pythonConstant(ass, "_HOOK_MARGIN_TOP_RATIO")), AUTO_TEXT.hookTop);
+  assert.equal(Number(pythonConstant(ass, "_HOOK_SIDE_MARGIN_RATIO")), AUTO_TEXT.side);
+  assert.equal(Number(pythonConstant(ass, "_HOOK_BOX_PADDING_RATIO")), AUTO_TEXT.hookPadding);
+  assert.equal(Number(/^\(([\d.]+),/.exec(pythonConstant(ass, "_HOOK_FONT_RATIOS"))[1]), AUTO_TEXT.hookFont);
+
+  const plan = read("src", "ai_clipper", "edit_v2", "plan.py");
+  assert.equal(pythonConstant(plan, "UI_ZONE_720"), `(${TIKTOK_ZONE.top}, ${TIKTOK_ZONE.bottom}, ${TIKTOK_ZONE.right})`);
+  const stage = read("web", "components", "editor", "Stage.jsx");
+  assert.match(stage, new RegExp(`const ZONE = \\{ top: ${TIKTOK_ZONE.top}, bottom: ${TIKTOK_ZONE.bottom}, right: ${TIKTOK_ZONE.right}, width: ${PREVIEW_FRAME.w} \\};`), "the editor's Zona aman");
+
+  const seed = read("src", "ai_clipper", "edit_v2", "seed.py");
+  assert.equal(pythonConstant(seed, "DEFAULT_RENDER_SIZE").split("#")[0].trim(), `(${PREVIEW_FRAME.w}, ${PREVIEW_FRAME.h})`);
+
+  // The editor opens an automatic clip with its pack at the same spot (CONTRACTS §3.5).
+  for (const pack of ["karaoke", "classic"]) {
+    assert.equal(json("resources", "caption-packs", pack, "v1.json").defaults.y_e5, Math.round((1 - AUTO_TEXT.captionBottom) * 100_000), pack);
+  }
+  assert.equal(json("resources", "hook-designs", "legacy-bar", "v1.json").default_y_e5, Math.round(AUTO_TEXT.hookTop * 100_000));
+
+  const thumbs = json("web", "components", "editor", "panels", "pack-thumbs", "manifest.json");
+  assert.deepEqual(thumbs.crop, [THUMB_CROP.x, THUMB_CROP.y, THUMB_CROP.w, THUMB_CROP.h]);
+  assert.equal(thumbs.size[0] / thumbs.size[1], THUMB_CROP.w / THUMB_CROP.h, "the thumbnail keeps the crop's shape");
+  assert.equal(PREVIEW_BACKDROP.toLowerCase(), thumbs.background.toLowerCase(), "the thumbnails sit seamlessly on the frame");
+});
+
+test("the dashboard offers only the subtitle styles the automatic render draws, each with a thumbnail and a pack", () => {
+  const python = pythonConstant(read("src", "ai_clipper", "captions_ass.py"), "CAPTION_STYLES");
+  const engine = [...python.matchAll(/"([a-z]+)"/g)].map((match) => match[1]);
+  const offered = CAPTION_STYLE_CHOICES.map((choice) => choice.id);
+  assert.deepEqual([...offered].sort(), [...engine].sort());
+  assert.deepEqual(offered, CAPTION_STYLES);
+
+  const seed = pythonConstant(read("src", "ai_clipper", "edit_v2", "seed.py"), "PACK_BY_CAPTION_STYLE");
+  const packs = Object.fromEntries([...seed.matchAll(/"([a-z]+)":\s*"([a-z]+)"/g)].map((match) => [match[1], match[2]]));
+  assert.deepEqual(Object.keys(packs).sort(), [...offered].sort(), "the editor seeds every offered style");
+  const thumbs = json("web", "components", "editor", "panels", "pack-thumbs", "manifest.json");
+  for (const style of offered) assert.ok(thumbs.packs[packs[style]], `${style} has a rendered thumbnail`);
+});
+
+test("a pack only the editor draws, or a caption position or size, is not a job option", () => {
+  for (const captionStyle of ["bold", "box", "sorot"]) {
+    assert.throws(() => parseJobOptions({ captionStyle }), /Unsupported caption style/, captionStyle);
+    assert.throws(() => validatePersistedJobOptions({
+      renderMode: "fit-blur", limit: 3, minDuration: 20, maxDuration: 60, selectionMode: "v3",
+      llmMode: "auto", coldOpen: true, hookOverlay: true, captionStyle,
+    }), /unsupported caption style/, captionStyle);
+    assert.equal(readStoredChoices({ getItem: () => JSON.stringify({ captionStyle }) }).captionStyle, "karaoke", captionStyle);
+  }
+  assert.deepEqual(JOB_FORM_FIELDS.filter((field) => /caption/i.test(field)), ["captionStyle"]);
+  const parsed = parseJobOptions({ captionStyle: "classic", captionPosition: "atas", captionSize: "besar" });
+  assert.equal(parsed.captionStyle, "classic");
+  assert.ok(!("captionPosition" in parsed) && !("captionSize" in parsed));
+});
+
