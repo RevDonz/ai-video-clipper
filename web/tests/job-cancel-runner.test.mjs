@@ -10,7 +10,7 @@ import path from "node:path";
 import test from "node:test";
 
 import { createProcessTree, parseProcStat } from "../lib/process-tree.mjs";
-import { LeaseLostError, cancelPrimaryJob, claimNextJob } from "../lib/primary-job-queue.mjs";
+import { LeaseLostError, cancelPrimaryJob, claimNextJob, withPrimaryQueueLock } from "../lib/primary-job-queue.mjs";
 import { main, runFencedProcess } from "../scripts/run-job.mjs";
 
 const LINUX = existsSync("/proc/self/stat");
@@ -252,12 +252,16 @@ test("a lease lost to another worker still fails the runner and keeps the attemp
   const pids = await waitFor(() => readJsonFile(fixture.pidsFile), { what: "the fake engine" });
   procs = [identity(pids.engine), identity(pids.helper)];
 
-  // Another worker took the job over: same status, someone else's lease.
+  // Another worker took the job over: same status, someone else's lease. A real takeover holds
+  // the queue lock (claimNextJob); without it the runner's progress write, which read the job
+  // before this rename, could put its own lease back after it and the engine would never stop.
   const jobPath = path.join(fixture.jobRoot, "job.json");
-  const current = JSON.parse(await readFile(jobPath, "utf8"));
-  current.queue.lease = { ...current.queue.lease, tokenHash: "d".repeat(64), owner: "worker-b" };
-  await writeFile(`${jobPath}.tmp`, JSON.stringify(current));
-  await rename(`${jobPath}.tmp`, jobPath);
+  await withPrimaryQueueLock(fixture.root, async () => {
+    const current = JSON.parse(await readFile(jobPath, "utf8"));
+    current.queue.lease = { ...current.queue.lease, tokenHash: "d".repeat(64), owner: "worker-b" };
+    await writeFile(`${jobPath}.tmp`, JSON.stringify(current));
+    await rename(`${jobPath}.tmp`, jobPath);
+  });
 
   await assert.rejects(run, LeaseLostError);
   for (const proc of procs) assert.equal(running(proc), false, `pid ${proc.pid}`);
