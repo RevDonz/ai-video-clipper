@@ -1,6 +1,6 @@
 """Caption and hook track of a document (plan §3.4, §5.4; T1.2a).
 
-Gates: the ASS goldens (all 4 packs + hook) and P-TIME, FFmpeg side. The full P-TIME run is
+Gates: the ASS goldens (every pack + hook) and P-TIME, FFmpeg side. The full P-TIME run is
 measured in the reference image (``python -m support.edit_v2_text ptime``); the PR subset below
 runs on any FFmpeg with libass.
 """
@@ -266,17 +266,77 @@ def test_caption_track_is_build_frame_cues_plus_build_ass_v2():
                                       overrides=overrides, hook=hook)
 
 
-# --- gate: ASS goldens (4 packs + hook) ------------------------------------------------------
+# --- "Kata per baris" (words_max) and the existing packs (CONTRACTS §5.28) ----------------------
+
+
+@pytest.mark.parametrize("words_max", [1, 2, 3, 4])
+def test_words_max_caps_every_line_and_keeps_every_word(words_max):
+    seed = _doc("seed__c30")
+    doc = copy.deepcopy(seed)
+    doc["captions"]["overrides"]["words_max"] = words_max
+
+    result = _track(doc, "c30")
+
+    reference = _track(seed, "c30")
+    assert _cue_ids(result) == _cue_ids(reference)
+    assert all(1 <= len(cue.words) <= words_max for cue in result.cues)
+    assert max(len(cue.words) for cue in result.cues) == words_max
+    if words_max < 4:
+        assert len(result.cues) > len(reference.cues)
+        assert result.ass != reference.ass
+
+
+@pytest.mark.parametrize("pack", ["classic", "karaoke", "bold", "box"])
+def test_the_pack_count_written_out_changes_no_cue_and_no_byte(pack):
+    # Automatic clips stay as they were: their seeds carry no words_max, and a document that
+    # names the pack's own count compiles to the same cues, ASS and warnings.
+    doc = _doc("seed__c30")
+    doc["captions"]["pack"]["id"] = pack
+    assert "words_max" not in doc["captions"]["overrides"]
+    explicit = copy.deepcopy(doc)
+    explicit["captions"]["overrides"]["words_max"] = load_pack(pack, 1).words_per_cue
+
+    assert _track(explicit, "c30") == _track(doc, "c30")
+
+
+def test_seeds_and_pack_defaults_of_the_existing_packs_are_unchanged():
+    from ai_clipper.edit_v2 import PACK_DEFAULT_OVERRIDES
+
+    for pack in ("classic", "karaoke", "bold", "box"):
+        assert dict(PACK_DEFAULT_OVERRIDES[pack]) == {
+            "y_e5": 83000, "size_pm": 1000, "case": "upper" if pack == "bold" else "asis",
+            "highlight": "#FFE14D", "emphasis": "#FF5C8A"}
+    for context_id in ("c24", "c25", "c30"):
+        seed = json.loads((fixtures.DOC_FIXTURES_DIR / "contexts" / f"{context_id}.seed.json")
+                          .read_bytes())
+        assert set(seed["captions"]["overrides"]) == {"y_e5", "size_pm", "case", "highlight",
+                                                      "emphasis"}
+
+
+def test_sorot_seed_document_compiles_one_box_per_spoken_word():
+    doc = _doc("pack_sorot__c30")
+
+    result = _track(doc, "c30")
+
+    events = _dialogues(result.ass)
+    boxes = [fields for fields in events if "\\p1}" in fields[9]]
+    words = sum(len(cue.words) for cue in result.cues)
+    assert 0 < len(boxes) <= words
+    assert {fields[3] for fields in events} == {"Sorot", "Hook"}
+
+
+# --- gate: ASS goldens (5 packs + hook) ------------------------------------------------------
 
 
 def test_ass_goldens_cover_every_pack_and_the_hook():
     names = {name for name, _file, _context in edit_v2_text.GOLDEN_CASES}
-    assert {"classic__c30", "karaoke__c30", "bold__c30", "box__c30", "hook__c30"} <= names
+    assert {"classic__c30", "karaoke__c30", "bold__c30", "box__c30", "sorot__c30", "hook__c30",
+            "words_max_1__c30"} <= names
     styles = set()
     for name in names:
         text = (edit_v2_text.GOLDEN_DIR / f"{name}.ass").read_text(encoding="utf-8")
         styles |= {fields[3] for fields in _dialogues(text)}
-    assert styles == {"Caption", "Karaoke", "Bold", "Box", "Hook"}
+    assert styles == {"Caption", "Karaoke", "Bold", "Box", "Sorot", "Hook"}
 
 
 def test_ass_goldens_on_disk_equal_a_fresh_render():
@@ -325,7 +385,7 @@ def test_quick_ptime_is_a_subset_with_hazard_frames():
     cases = edit_v2_text.ptime_cases(quick=True)
     assert all(case.cues or case.hook for case in cases)
     assert {f"{c.fps.num}/{c.fps.den}" for c in cases} == {"25/1", "30000/1001"}
-    assert {case.pack for case in cases} == {"classic", "karaoke", "bold", "box"}
+    assert {case.pack for case in cases} == {"classic", "karaoke", "bold", "box", "sorot"}
     counts = edit_v2_text.ptime_counts(cases)
     assert counts["hazard_boundaries"] > 0
     assert counts["events"] < edit_v2_text.ptime_counts(edit_v2_text.ptime_cases())["events"]

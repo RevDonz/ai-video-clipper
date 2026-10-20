@@ -27,7 +27,14 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from ..captions_ass import HookSpec, build_ass_v2, fit_cues, layout_hook, load_pack
+from ..captions_ass import (
+    HookSpec,
+    build_ass_v2,
+    fit_cues,
+    layout_hook,
+    load_pack,
+    words_per_cue,
+)
 from ..subtitles import FrameCue, SourceWord, build_frame_cues
 from .doc import Issue
 from .glyphs import font_path, missing_glyphs
@@ -92,8 +99,9 @@ def _hook(doc: Mapping[str, Any], total: int) -> tuple[HookSpec, str, str] | Non
 
 
 def caption_track(doc: Mapping, words: Mapping, pieces: Sequence[Piece]) -> CaptionResult:
-    """Cues (≤ 4 words, 600 ms output-time gaps, never across the cold-open join), hook lines and
-    the ASS document of ``doc`` over ``pieces`` (plan §3.4 word visibility, §5.4)."""
+    """Cues (at most ``words_max`` words, else the pack's count; 600 ms output-time gaps; never
+    across the cold-open join), hook lines and the ASS document of ``doc`` over ``pieces``
+    (plan §3.4 word visibility, §5.4; CONTRACTS §5.28)."""
     pieces = tuple(pieces)
     output = doc["output"]
     play_res = (output["w"], output["h"])
@@ -110,7 +118,7 @@ def caption_track(doc: Mapping, words: Mapping, pieces: Sequence[Piece]) -> Capt
         edits = captions.get("word_edits", {})
         cues = fit_cues(
             build_frame_cues(_source_words(words, edits), pieces, fps,
-                             max_words=pack.words_per_cue),
+                             max_words=words_per_cue(pack, overrides)),
             pack=pack, play_res=play_res, overrides=overrides,
         )
         for cue in cues:

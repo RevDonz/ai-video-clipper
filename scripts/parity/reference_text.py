@@ -4,7 +4,7 @@
 Writes everything the browser harness (``web/app/parity-harness``) and the scoring scripts
 (``compare.py``, ``enc_check.py``, ``s_color.py``) need, into one directory:
 
-* ``ass/<clip>.ass``: the ASS samples. Every gated clip (the 4 packs × 3 lengths, the hook and
+* ``ass/<clip>.ass``: the ASS samples. Every gated clip (the 5 packs × 3 lengths, the hook and
   the fallback glyph) is the shipped bytes: ``captions_ass.fit_cues`` + ``build_ass_v2`` with
   the pack files and their default overrides (W1 integration; T1.2b first measured hand-written
   samples with T1.2a's pack numbers). The pack variants of the spike (DejaVu Sans Bold instead
@@ -63,7 +63,7 @@ SCHEMA = "potongin.parity-text/1"
 WIDTH, HEIGHT = 720, 1280
 PTXT_FPS = Fps(30000, 1001)
 TIMING_FPS = (Fps(24, 1), Fps(25, 1), Fps(30, 1), Fps(24000, 1001), Fps(30000, 1001))
-PACKS = ("classic", "karaoke", "bold", "box")
+PACKS = ("classic", "karaoke", "bold", "box", "sorot")
 LENGTHS = (10, 40, 90)
 CANDIDATES = ("yuv420p", "yuv444p", "gbrp")
 PROBES_PER_CLIP = 5
@@ -99,7 +99,9 @@ MARGIN_SIDE = round(WIDTH * 0.06)  # 43
 MARGIN_V = HEIGHT - round(HEIGHT * 83000 / 100000)  # 218: bottom of the block at y_e5 = 83%
 BOX_ALPHA = 0x40  # black at 75% opacity (defect #1 fix: alpha on OutlineColour)
 BOX_MAX_WIDTH = WIDTH * 88 // 100
-WORDS_PER_CUE = {"classic": 4, "karaoke": 4, "bold": 3, "box": 3}
+WORDS_PER_CUE = {"classic": 4, "karaoke": 4, "bold": 3, "box": 3, "sorot": 3}
+# Packs whose picture changes at every word onset (P-TXT probes stay clear of them).
+WORD_REVEAL_PACKS = ("karaoke", "bold", "sorot")
 
 _STYLE_FORMAT = ("Format: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,"
                  "BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,"
@@ -660,7 +662,7 @@ def _caption_clip(pack: str, length: int, *, variant: str | None, family: str,
         else:
             ass = box_ass(cues, fps=fps, family=family,
                           variant="pbox" if variant == "pbox" else "border3", measure=measure)
-    edges = _cue_edges(cues, words=pack in ("karaoke", "bold")) | {0, total}
+    edges = _cue_edges(cues, words=pack in WORD_REVEAL_PACKS) | {0, total}
     probes = choose_probes(edges, (cues[0].f0, cues[-1].f1))
     suffix = f"-{variant}" if variant else ""
     return Clip(id=f"{pack}{suffix}-{length}", kind="ptxt", pack=pack, chars=length,
@@ -671,7 +673,7 @@ def _caption_clip(pack: str, length: int, *, variant: str | None, family: str,
 
 def build_clips(*, fallback_char: str,
                 measures: dict[str, Callable[[str], float]] | None = None) -> list[Clip]:
-    """The P-TXT matrix (4 packs × 3 lengths × 5 probes, hook, fallback glyph), the pack
+    """The P-TXT matrix (5 packs × 3 lengths × 5 probes, hook, fallback glyph), the pack
     variants of the spike, the P-COLOR sheet and one P-TIME fixture per frame rate.
 
     ``measures`` maps a family to its advance-width function at the Box size (from the font's
@@ -681,7 +683,7 @@ def build_clips(*, fallback_char: str,
     fps = PTXT_FPS
     clips: list[Clip] = []
     for pack in PACKS:
-        family = MONTSERRAT if pack in ("bold", "box") else DEJAVU
+        family = MONTSERRAT if pack in ("bold", "box", "sorot") else DEJAVU
         for length in LENGTHS:
             clips.append(_caption_clip(pack, length, variant=None, family=family,
                                        measure=measures.get(family)))

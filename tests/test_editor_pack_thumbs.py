@@ -55,7 +55,7 @@ def _chunks(raw: bytes) -> list[str]:
 
 
 def test_the_script_covers_every_pack_with_the_production_generator(thumbs):
-    from ai_clipper.edit_v2 import PACK_IDS
+    from ai_clipper.edit_v2 import PACK_DEFAULT_OVERRIDES, PACK_IDS
 
     assert thumbs.PACKS == PACK_IDS
     for pack in PACK_IDS:
@@ -65,7 +65,7 @@ def test_the_script_covers_every_pack_with_the_production_generator(thumbs):
         dialogue = [line for line in ass.splitlines() if line.startswith("Dialogue:")]
         assert dialogue, pack
         plain = re.sub(r"\{[^}]*\}", "", " ".join(dialogue))
-        word = "HALO" if pack == "bold" else "Halo"
+        word = "HALO" if PACK_DEFAULT_OVERRIDES[pack]["case"] == "upper" else "Halo"
         assert word in plain, (pack, plain)
     # Same inputs, same bytes.
     assert thumbs.thumb_ass("karaoke") == thumbs.thumb_ass("karaoke")
