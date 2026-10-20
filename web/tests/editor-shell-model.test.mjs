@@ -7,6 +7,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { fakeDoc, fakePlan } from "../components/editor/__dev__/fakes.mjs";
+import { autoFileIsSeed } from "../lib/editor/doc-model.mjs";
 import {
   BADGE_HELP,
   CAPTION_SPOT_NOTE,
@@ -279,6 +280,25 @@ test("content identity ignores revision, parent and audit (R10)", () => {
   assert.equal(exportMatchesSeed({ plan: { ...plan, rev0: { ...plan.rev0, planSha256: plan.planSha256 } }, doc: edited, seed: null }), true);
   assert.equal(exportMatchesSeed({ plan: { ...plan, rev0: { ...plan.rev0, planSha256: "c".repeat(64) } }, doc: saved, seed }), true);
   assert.equal(exportMatchesSeed({ plan: { ...plan, rev0: { ...plan.rev0, planSha256: "c".repeat(64) } }, doc: edited, seed }), false);
+});
+
+test("an unchanged legacy clip seeded with the default logo exports a render, not the auto file", () => {
+  // The legacy renderer never drew the Pengaturan default logo, so its auto file is not the seed.
+  const seed = fakeDoc();
+  seed.tracks.push({ id: "tr_ovr", kind: "visual", band: "over_text", role: "overlay", items: [{
+    id: "it_logo", type: "image", start: { at: "clip_start" }, end: { at: "clip_end" },
+    transform: { x_e5: 79097, y_e5: 11758, w_e5: 16000, opacity_pm: 850 },
+    payload: { asset: `sha256:${"e".repeat(64)}`, mode: "free" }, origin: "seed" }] });
+  const plan = fakePlan(seed);
+  assert.equal(autoFileIsSeed(seed), true);
+  assert.equal(exportMatchesSeed({ plan, doc: structuredClone(seed), seed }), true);
+  const legacy = structuredClone(seed);
+  legacy.base.engine.compiler = "legacy";
+  assert.equal(autoFileIsSeed(legacy), false);
+  assert.equal(exportMatchesSeed({ plan, doc: structuredClone(legacy), seed: legacy }), false);
+  legacy.tracks = legacy.tracks.filter((track) => track.kind !== "visual");
+  assert.equal(autoFileIsSeed(legacy), true);
+  assert.equal(exportMatchesSeed({ plan, doc: structuredClone(legacy), seed: legacy }), true);
 });
 
 // Mode Cepat spec §5.3: the legacy notice leaves the screen (the "?" help says it), and the

@@ -17,7 +17,9 @@ the seed ``prepare`` would build for the same job use the same inputs. Per clip 
 ``analysis/source.json`` (once per job), the peaks, the words artifact, the camera plan
 (face-track only) and ``seed.json`` (``seed.build_seed``, engine ``edit-v2/1``, editor
 ``pipeline/edit-v2/1``), each immutable, then renders **from the seed file** into
-``output/clip-NN.mp4``. When the new engine fails for a clip the pipeline renders that clip
+``output/clip-NN.mp4``. A job created with a Pengaturan default logo (``<job>/logo/``) gets it
+in its asset store and in every seed, so the auto clip carries it. When the new engine fails
+for a clip the pipeline renders that clip
 with the legacy engine (``engine_fallback:<rank>``); :meth:`AutoRenderer.fallback` first removes
 the ``seed.json`` this run wrote for it, so no seed claims the new engine for a legacy file (the
 editor's ``prepare`` later seeds it as a legacy-engine clip; the analysis files stay). A
@@ -37,7 +39,9 @@ revision and clip id (``ref="document"``), then, in this order:
    version. An edit-v2 auto file is re-verified with G1–G2 against the seed's plan; a
    legacy-engine auto file (a job rendered before the switch, or a fallback clip) with the legacy
    contract (H.264/AAC, size, SAR 1:1, duration within 0.25 s of the manifest). A missing or
-   failing auto file renders normally and the result carries ``auto_file_unavailable``;
+   failing auto file renders normally and the result carries ``auto_file_unavailable``. A
+   legacy-engine seed with a logo (the Pengaturan default logo, ``doc.auto_file_is_seed``)
+   skips this step: the legacy renderer never drew it;
 3. otherwise the document is rendered and published at ``output_relative`` (the name carries the
    request's render key, R9), from the source snapshot when the request names one (its content
    sha is checked) or else from the job's own source.
@@ -80,12 +84,20 @@ from ..selection_v3 import SELECTION_ARTIFACT_RELATIVE_PATH, selection_from_dict
 from ..sound_events import events_from_dict
 from ..transcript_io import MAX_TRANSCRIPT_BYTES, transcription_from_json_bytes
 from . import COMPILER_ID, OUTPUT_SIZES, compile_ffmpeg, errors, execute, store, verify
+from . import assets as _assets
 from . import camera as _camera
 from . import loudness as _loudness
 from . import seed as _seed
 from . import timemap as tm
 from .clip_id import CLIP_ID_PATTERN, manifest_clip_id
-from .doc import MAX_DOC_BYTES, canonical_bytes, content_equals_seed, parse_doc, validate_doc
+from .doc import (
+    MAX_DOC_BYTES,
+    auto_file_is_seed,
+    canonical_bytes,
+    content_equals_seed,
+    parse_doc,
+    validate_doc,
+)
 from .glyphs import RESOURCES_DIR
 from .loudness import Loudness
 from .peaks import build_peaks, peaks_file_name
@@ -359,10 +371,7 @@ def _read_json(path: Path, limit: int) -> Any:
         return None
 
 
-def job_id_for(artifact_root: Path) -> str | None:
-    """The id of the job whose artifacts go to ``artifact_root``: the job directory itself
-    (legacy runner) or a queue attempt ``<job>/.attempts/<attempt>`` of it. The id comes from
-    the job's ``job.json`` and must name its directory; anything else is ``None``."""
+def _job_for(artifact_root: Path) -> tuple[Path, str] | None:
     root = Path(artifact_root)
     candidates = [root]
     if root.parent.name == ".attempts":
@@ -371,8 +380,22 @@ def job_id_for(artifact_root: Path) -> str | None:
         job = _read_json(directory / "job.json", MAX_JOB_BYTES)
         value = job.get("id") if isinstance(job, dict) else None
         if isinstance(value, str) and _UUID.fullmatch(value) and directory.name == value:
-            return value
+            return directory, value
     return None
+
+
+def job_id_for(artifact_root: Path) -> str | None:
+    """The id of the job whose artifacts go to ``artifact_root``: the job directory itself
+    (legacy runner) or a queue attempt ``<job>/.attempts/<attempt>`` of it. The id comes from
+    the job's ``job.json`` and must name its directory; anything else is ``None``."""
+    found = _job_for(artifact_root)
+    return None if found is None else found[1]
+
+
+def job_dir_for(artifact_root: Path) -> Path | None:
+    """The job directory :func:`job_id_for` finds (where the web keeps ``logo/``), or None."""
+    found = _job_for(artifact_root)
+    return None if found is None else found[0]
 
 
 def _regular(path: Path) -> bool:
@@ -725,7 +748,8 @@ def _export_auto_file(job_dir: Path, inputs: RenderInputs, output: Path) -> Rend
 
 
 def _is_seed_content(inputs: RenderInputs) -> bool:
-    return inputs.seed is not None and content_equals_seed(inputs.doc, inputs.seed)
+    return (inputs.seed is not None and auto_file_is_seed(inputs.seed)
+            and content_equals_seed(inputs.doc, inputs.seed))
 
 
 def _existing_export(job_dir: Path, output: Path, inputs: RenderInputs) -> RenderResult | None:
@@ -1005,6 +1029,9 @@ class AutoRenderer:
         self.written: dict[int, tuple[Path, tuple[int, int]]] = {}
         self.clip_ids: dict[int, str] = {}
         self.no_face: dict[int, list[list[int]]] = {}  # face-track: the camera plan's spans
+        # The Pengaturan default logo the job was created with, stored where the seeds render.
+        job_root = job_dir_for(self.job_dir)
+        self.logo = None if job_root is None else _assets.seed_logo(job_root, self.job_dir)
 
     def _audio(self) -> AudioTimeline | None:
         payload = _read_json(self.job_dir / AUDIO_TIMELINE_RELATIVE_PATH,
@@ -1023,7 +1050,7 @@ class AutoRenderer:
 
     def _seed(self, rank: int) -> tuple[Path, dict[str, Any]]:
         clip = self.clips[rank]
-        job = self.options.job(self.job_id, time.time_ns() // 1_000_000)
+        job = {**self.options.job(self.job_id, time.time_ns() // 1_000_000), "logo": self.logo}
         face_track = self.options.render_mode == "face-track"
         common = {"clip": clip, "job": job, "source_info": self.source_info,
                   "selection_sha": self.selection_sha}
@@ -1170,6 +1197,7 @@ __all__ = [
     "RenderResult",
     "auto_file",
     "engine_from_env",
+    "job_dir_for",
     "job_id_for",
     "job_source",
     "load_render_inputs",

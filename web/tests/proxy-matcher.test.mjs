@@ -41,6 +41,18 @@ test("the asset upload route bypasses the proxy: logos up to 10 MB, music up to 
   assert.equal(proxyRuns(`/api/jobs/${JOB}/assets/`), false);
 });
 
+test("the default logo upload route bypasses the proxy: a logo up to 10 MB is streamed", () => {
+  // POST /api/settings/logo (Pengaturan "Logo bawaan") streams the raw body into a scratch
+  // store with its own cap. GET, POST and DELETE there all check the session (and mutations
+  // their origin) themselves; serving the image (/api/settings/logo/:sha) still runs the proxy.
+  assert.equal(proxyRuns("/api/settings/logo"), false);
+  assert.equal(proxyRuns("/api/settings/logo/"), false);
+  for (const pathname of [
+    `/api/settings/logo/${SHA}`, `/api/settings/logo/${SHA}/`, "/api/settings/logox", "/api/settings/logo/x/y",
+    "/api/settings/llm", "/api/settings/system", "/api/settings", "/settings/logo", "/api/settingslogo",
+  ]) assert.equal(proxyRuns(pathname), true, pathname);
+});
+
 test("serving an asset and every other job route still runs the proxy", () => {
   for (const pathname of [
     `/api/jobs/${JOB}/assets/${SHA}`, `/api/jobs/${JOB}/assets/${SHA}/`, `/api/jobs/${JOB}/assetsx`,
@@ -68,7 +80,7 @@ test("the matcher excludes exactly the listed routes", () => {
   const [matcher] = config.matcher;
   const excluded = /^\/\(\(\?!(.*)\)\.\*\)$/.exec(matcher)[1].split("|");
   assert.deepEqual(excluded, [
-    "api/health", "api/auth/login", "api/jobs/?$", "api/jobs/[^/]+/assets/?$", "api/ingest/trends/?$", "login",
+    "api/health", "api/auth/login", "api/jobs/?$", "api/jobs/[^/]+/assets/?$", "api/settings/logo/?$", "api/ingest/trends/?$", "login",
     "_next/static", "_next/image", "favicon.ico",
   ]);
 });

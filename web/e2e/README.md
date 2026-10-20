@@ -109,3 +109,15 @@ E2E_BASE_URL=http://127.0.0.1:3417 E2E_NO_WEB_SERVER=1 \
 E2E_USERNAME=... E2E_PASSWORD=... \
 npx playwright test --project=desktop-chromium e2e/history-clips.spec.mjs
 ```
+
+## Pengaturan: Logo bawaan
+
+`e2e/settings-logo.spec.mjs` covers the "Logo bawaan" card on Pengaturan (CONTRACTS §5.36). It fakes `/api/settings/logo` and the logo image inside the browser, so it changes no server data; only the login is real. It checks the empty state, an upload through the hidden file input (the POST carries the asset transport headers) that shows the logo with its name and size, "Hapus" by keyboard, a GIF refused before anything is sent, the copy for automatic clips on the editor's engine, the card with uploads off (replace disabled, remove still possible), "Coba lagi" after a failed load, and at 390 px 44 px buttons with no horizontal scroll. The real routes, the store and the job copy are covered by `web/tests/default-logo.test.mjs`.
+
+```bash
+E2E_BASE_URL=http://127.0.0.1:3417 E2E_NO_WEB_SERVER=1 \
+E2E_USERNAME=... E2E_PASSWORD=... \
+npx playwright test --project=desktop-chromium e2e/settings-logo.spec.mjs
+```
+
+In CI: `gh workflow run editor-gates.yml -f ref=<branch> -f suite=e2e -f command=e2e/settings-logo.spec.mjs`.

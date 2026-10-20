@@ -698,7 +698,7 @@ def _rev0_plan_sha(ctx: _Context, validated: _Validated) -> str | None:
 
 
 def _rev0(ctx: _Context, validated: _Validated, plan: Any) -> dict[str, Any]:
-    from .doc import content_equals_seed
+    from .doc import auto_file_is_seed, content_equals_seed
 
     seed_doc = validated.seed
     rev0_sha: str | None
@@ -706,7 +706,8 @@ def _rev0(ctx: _Context, validated: _Validated, plan: Any) -> dict[str, Any]:
         rev0_sha = plan.plan_sha256
     else:
         rev0_sha = _rev0_plan_sha(ctx, validated)
-    url, entry = _auto_render(ctx, seed_doc)
+    # A legacy auto file without the seed's logo is not revision 0: no URL, nothing exact.
+    url, entry = _auto_render(ctx, seed_doc) if auto_file_is_seed(seed_doc) else (None, {})
     exact = bool(url is not None and rev0_sha is not None and plan.plan_sha256 == rev0_sha
                  and seed_doc["base"]["engine"]["compiler"] == COMPILER_ID
                  and entry.get("render_engine", COMPILER_ID) == COMPILER_ID

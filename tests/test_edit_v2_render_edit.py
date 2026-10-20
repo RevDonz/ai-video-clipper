@@ -673,6 +673,57 @@ def test_auto_options_carry_the_cold_open_join_into_the_seed_context():
     assert seed._context(job).join == AUTO_COLD_OPEN_JOIN
 
 
+# --- the Pengaturan default logo (plan 2026-10-20 A6) ----------------------------------------------
+
+
+def test_a_legacy_clip_seeded_with_the_default_logo_exports_a_render_with_it(legacy_job,
+                                                                              tmp_path):
+    """The legacy renderer drew no logo, so the unchanged clip's export is a fresh render."""
+    from support.default_logo import write_job_logo
+
+    job_dir = copy_job(legacy_job, tmp_path)
+    sha = write_job_logo(job_dir, 256, 128)
+    first = seed.prepare_legacy_job(job_dir)[0]
+    directory = clip_dir(job_dir, first["clip_id"])
+    seed_doc, etag = store.seed(directory)
+    assert seed_doc["assets"] == {f"sha256:{sha}": {"kind": "image", "mime": "image/png",
+                                                    "w": 256, "h": 128}}
+    relative, revision = store.archive_for_render(directory, etag)
+    request = request_for(job_dir, first["clip_id"], relative, etag, revision)
+    result = render_edit.render_request(job_dir, request, heartbeat=lambda *_: None,
+                                        cancel=threading.Event())
+    assert result.reused is None and "auto_file_unavailable" not in result.warnings
+    assert result.render_engine == COMPILER_ID and result.verify["ok"]
+    inputs = render_edit.load_render_inputs(job_dir, seed_doc)
+    assert inputs.plan.logo is not None and result.plan_sha256 == inputs.plan.plan_sha256
+    auto = job_dir / "output" / f"clip-{first['index']:02d}.mp4"
+    assert os.stat(result.output).st_ino != os.stat(auto).st_ino
+
+
+def test_the_new_engine_draws_the_default_logo_into_the_auto_clip(tmp_path_factory, source,
+                                                                   tmp_path):
+    from support.default_logo import write_job_logo
+
+    root = tmp_path_factory.mktemp("logo-jobs")
+    job_id = str(uuid.uuid4())
+    job_dir = make_job(root, job_id, source)
+    sha = write_job_logo(job_dir, 256, 128)
+    manifest = run_job(job_dir, engine="edit-v2", clips=(clip(1, 12.3, 17.95),))
+    (entry,) = manifest["clips"]
+    assert entry["render_engine"] == COMPILER_ID
+    directory = clip_dir(job_dir, entry["clip_id"])
+    seed_doc, etag = store.seed(directory)
+    assert seed_doc["assets"] == {f"sha256:{sha}": {"kind": "image", "mime": "image/png",
+                                                    "w": 256, "h": 128}}
+    inputs = render_edit.load_render_inputs(job_dir, seed_doc)
+    assert inputs.plan.logo is not None and inputs.plan.plan_sha256 == entry["plan_sha256"]
+    relative, revision = store.archive_for_render(directory, etag)
+    request = request_for(job_dir, entry["clip_id"], relative, etag, revision)
+    result = render_edit.render_request(job_dir, request, heartbeat=lambda *_: None,
+                                        cancel=threading.Event())
+    assert result.reused == "auto_file"  # R10: the auto clip already carries the logo
+
+
 # --- render_request: edited documents -------------------------------------------------------------
 
 

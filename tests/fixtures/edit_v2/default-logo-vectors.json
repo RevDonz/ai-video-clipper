@@ -1,0 +1,29 @@
+{
+  "description": "SetLogo default placement of a new logo (web/lib/editor/commands.mjs defaultLogo): the transform a seed gives the Pengaturan default logo (edit_v2.seed.default_logo_transform). null: no size fits the frame. Written by the editor commands; both languages check it.",
+  "vectors": [
+    {"output":[720,1280],"asset":[512,512],"transform":{"x_e5":79097,"y_e5":11758,"w_e5":16000,"opacity_pm":850}},
+    {"output":[720,1280],"asset":[1024,256],"transform":{"x_e5":79097,"y_e5":8398,"w_e5":16000,"opacity_pm":850}},
+    {"output":[720,1280],"asset":[256,1024],"transform":{"x_e5":79097,"y_e5":25234,"w_e5":16000,"opacity_pm":850}},
+    {"output":[720,1280],"asset":[1024,1024],"transform":{"x_e5":79097,"y_e5":11758,"w_e5":16000,"opacity_pm":850}},
+    {"output":[720,1280],"asset":[300,200],"transform":{"x_e5":79097,"y_e5":10273,"w_e5":16000,"opacity_pm":850}},
+    {"output":[720,1280],"asset":[37,991],"transform":{"x_e5":83819,"y_e5":50820,"w_e5":6597,"opacity_pm":850}},
+    {"output":[720,1280],"asset":[1024,1],"transform":{"x_e5":79097,"y_e5":7266,"w_e5":16000,"opacity_pm":850}},
+    {"output":[720,1280],"asset":[1,1024],"transform":null},
+    {"output":[720,1280],"asset":[1,300],"transform":null},
+    {"output":[720,1280],"asset":[7,1024],"transform":null},
+    {"output":[720,1280],"asset":[64,1024],"transform":{"x_e5":81528,"y_e5":50000,"w_e5":11180,"opacity_pm":850}},
+    {"output":[720,1280],"asset":[20,1024],"transform":null},
+    {"output":[1080,1920],"asset":[512,512],"transform":{"x_e5":79028,"y_e5":11797,"w_e5":16000,"opacity_pm":850}},
+    {"output":[1080,1920],"asset":[1024,256],"transform":{"x_e5":79028,"y_e5":8411,"w_e5":16000,"opacity_pm":850}},
+    {"output":[1080,1920],"asset":[256,1024],"transform":{"x_e5":79028,"y_e5":25313,"w_e5":16000,"opacity_pm":850}},
+    {"output":[1080,1920],"asset":[1024,1024],"transform":{"x_e5":79028,"y_e5":11797,"w_e5":16000,"opacity_pm":850}},
+    {"output":[1080,1920],"asset":[300,200],"transform":{"x_e5":79028,"y_e5":10286,"w_e5":16000,"opacity_pm":850}},
+    {"output":[1080,1920],"asset":[37,991],"transform":{"x_e5":83750,"y_e5":50469,"w_e5":6620,"opacity_pm":850}},
+    {"output":[1080,1920],"asset":[1024,1],"transform":{"x_e5":79028,"y_e5":7292,"w_e5":16000,"opacity_pm":850}},
+    {"output":[1080,1920],"asset":[1,1024],"transform":null},
+    {"output":[1080,1920],"asset":[1,300],"transform":null},
+    {"output":[1080,1920],"asset":[7,1024],"transform":null},
+    {"output":[1080,1920],"asset":[64,1024],"transform":{"x_e5":81481,"y_e5":50000,"w_e5":11157,"opacity_pm":850}},
+    {"output":[1080,1920],"asset":[20,1024],"transform":null}
+  ]
+}

@@ -54,6 +54,7 @@ const DISPLAY_LIBS = [
   "app/api/settings/llm/import-env/route.js", "app/api/context/trends/route.js", "app/api/context/trends/[id]/route.js",
   "app/api/context/trends/settings/route.js", "app/api/context/tokens/route.js", "app/api/context/tokens/[id]/route.js",
   "lib/system-info.mjs", "lib/system-info-view.mjs", "app/api/settings/system/route.js",
+  "lib/default-logo.mjs", "lib/default-logo-view.mjs", "app/api/settings/logo/route.js", "app/api/settings/logo/[sha]/route.js",
 ];
 
 // --- Latest only ----------------------------------------------------------------------------

@@ -300,6 +300,61 @@ html:has(.settingsSaveBar) { scroll-padding-bottom: 150px; }
 }
 .systemItem.unknown dd { color: var(--text-muted); font-size: 14px; font-weight: 500; }
 
+/* Logo bawaan: the logo sits on the editor Logo panel's checkerboard so its transparent parts
+   show; the row outlines while a file is dragged over it. No lime: the accent stays on Simpan. */
+.logoBody {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  margin: 0 -12px;
+  padding: 12px;
+  border: 1px dashed transparent;
+  border-radius: var(--radius-l);
+  transition: border-color var(--dur-1) var(--ease-out);
+}
+.logoBody[data-over="true"] { border-color: var(--text-muted); }
+.logoThumb {
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 96px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  background-color: var(--surface);
+  background-image:
+    linear-gradient(45deg, var(--surface-3) 25%, transparent 25%, transparent 75%, var(--surface-3) 75%),
+    linear-gradient(45deg, var(--surface-3) 25%, transparent 25%, transparent 75%, var(--surface-3) 75%);
+  background-position: 0 0, 8px 8px;
+  background-size: 16px 16px;
+}
+.logoThumb.empty { border: 1px dashed var(--border-strong); background-image: none; }
+.logoThumb img { max-width: 100%; max-height: 100%; object-fit: contain; animation: fade-in var(--dur-2) var(--ease-out); }
+.logoText { display: grid; gap: 4px; min-width: 0; }
+.logoName { font: 600 15px/1.35 var(--font); overflow-wrap: anywhere; }
+.logoMeta { color: var(--text-muted); font-size: 13px; line-height: 1.5; font-variant-numeric: tabular-nums; }
+.logoActions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.logoProgress { display: grid; gap: 8px; margin-top: 12px; }
+.logoProgressHead { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.logoProgressName { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.logoTrack { height: 6px; overflow: hidden; border-radius: 3px; background: var(--surface-3); }
+.logoBar { height: 100%; background: var(--text); transition: width var(--dur-2) var(--ease-out); }
+.logoProgress .btn { justify-self: start; }
+.logoStatus { margin: 12px 0 0; color: var(--text-muted); font-size: 13px; line-height: 1.5; animation: rise-in var(--dur-2) var(--ease-out); }
+.logoStatus.ok { color: var(--success); }
+.logoFacts {
+  display: grid;
+  gap: 4px;
+  margin: 14px 0 0;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+  list-style: none;
+}
+
 /* Save bar: it floats over the scrolling form, so it is the page's one raised surface.
    The border brightens and the lime Simpan wakes up only when there is something to save. */
 .settingsSaveBar {
@@ -357,6 +412,9 @@ html:has(.settingsSaveBar) { scroll-padding-bottom: 150px; }
   .providerTools .providerTool.danger { margin-left: auto; }
   .providerFields, .advancedGrid, .presetGrid, .modelPickers { grid-template-columns: 1fr; }
   .systemList { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .logoBody { grid-template-columns: 72px minmax(0, 1fr); gap: 12px; }
+  .logoThumb { width: 72px; height: 72px; }
+  .logoActions .btn { flex: 1; }
   .settingsPage .settingsImport { display: grid; }
   .inlineRow { flex-wrap: wrap; }
   .inlineRow input { flex-basis: 100%; }

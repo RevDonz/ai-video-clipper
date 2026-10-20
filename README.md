@@ -217,7 +217,10 @@ suite) run on GitHub Actions: `ci-cd.yml` on every pull request and `editor-gate
   calls, and never key values. Pengaturan's "Tentang sistem" section
   (`GET /api/settings/system`, authenticated) shows the yt-dlp, FFmpeg and libass versions, the
   Whisper model and the deployed commit, read from package metadata, `resources/toolchain.json`
-  and the environment.
+  and the environment. Its "Logo bawaan" card (`/api/settings/logo`, authenticated, streamed
+  upload normalised by the editor's ingest) holds one logo in `/data/settings/default-logo/`;
+  every new job gets a copy and its clips start with that logo in the editor (and in the
+  automatic clip files when `POTONGIN_RENDER_ENGINE=edit-v2`).
 - **YouTube captions fast path.** After the video download, two best-effort `yt-dlp` runs
   fetch manual and automatic json3 captions into `input/captions/{manual,auto}`. The engine
   gets `--captions-dir` only when a caption file exists, uses the captions when they pass

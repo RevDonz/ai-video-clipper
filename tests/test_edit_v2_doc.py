@@ -19,6 +19,7 @@ from ai_clipper.edit_v2 import timemap as tm
 from ai_clipper.edit_v2.doc import (
     MAX_DOC_BYTES,
     Issue,
+    auto_file_is_seed,
     canonical_bytes,
     content_equals_seed,
     content_sha256,
@@ -390,6 +391,28 @@ def test_content_hash_ignores_revision_parent_and_audit_only(contexts):
     assert content_sha256(edited) != content_sha256(doc)
     content = {k: v for k, v in doc.items() if k not in ("revision", "parent_sha256", "audit")}
     assert content_sha256(doc) == hashlib.sha256(canonical_bytes(content)).hexdigest()
+
+
+def _logo_track(asset: str = fixtures.LOGO) -> dict:
+    return {"id": "tr_ovr", "kind": "visual", "band": "over_text", "role": "overlay",
+            "items": [{"id": "it_logo", "type": "image", "start": {"at": "clip_start"},
+                       "end": {"at": "clip_end"},
+                       "transform": {"x_e5": 79097, "y_e5": 11758, "w_e5": 16000,
+                                     "opacity_pm": 850},
+                       "payload": {"asset": asset, "mode": "free"}, "origin": "seed"}]}
+
+
+def test_a_legacy_auto_file_stands_for_its_seed_only_without_a_logo(contexts):
+    """The legacy renderer draws no logo: a legacy seed with the Pengaturan default logo is not
+    its auto file (R10 renders instead); every edit-v2 seed is."""
+    seed = copy.deepcopy(contexts["c30"].seed)
+    assert auto_file_is_seed(seed)
+    seed["tracks"].append(_logo_track())
+    assert auto_file_is_seed(seed)
+    seed["base"]["engine"]["compiler"] = "legacy"
+    assert not auto_file_is_seed(seed)
+    seed["tracks"] = [track for track in seed["tracks"] if track["kind"] != "visual"]
+    assert auto_file_is_seed(seed)
 
 
 def test_rev1_unchanged_fixtures_equal_their_seed_content(contexts):

@@ -24,15 +24,18 @@ import pytest
 from support import edit_v2_fixtures as fixtures
 
 from ai_clipper.audio_timeline import read_audio_timeline
-from ai_clipper.edit_v2 import COMPILER_ID, DOC_FPS, PACK_DEFAULT_OVERRIDES, camera
+from ai_clipper.edit_v2 import COMPILER_ID, DOC_FPS, PACK_DEFAULT_OVERRIDES, camera, store
 from ai_clipper.edit_v2 import timemap as tm
 from ai_clipper.edit_v2 import transitions as tr
 from ai_clipper.edit_v2.clip_id import clip_id, ms_from_seconds
+from ai_clipper.edit_v2.doc import validate_doc
+from ai_clipper.edit_v2.plan import unsafe_zone_issues
 from ai_clipper.edit_v2.seed import (
     DEFAULT_RENDER_SIZE,
     HOOK_DURATION_DEFAULT_S,
     SeedError,
     build_seed,
+    default_logo_transform,
     encode_seed,
     inspect_job,
     output_fps,
@@ -163,11 +166,11 @@ def test_hook_default_matches_the_pipeline():
 # --- build_seed ----------------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("context_id", fixtures.CONTEXT_IDS)
-def test_build_seed_reproduces_the_t1_0_fixture_seeds(context_id, edit_v2_doc_contexts):
+def _fixture_seed(context_id, contexts, **extra):
+    """``build_seed`` with the inputs the T1.0 fixture seed of ``context_id`` was built from,
+    plus ``extra`` seed-context keys."""
     spec = fixtures.SPECS[context_id]
-    expected = edit_v2_doc_contexts[context_id].seed
-    base = expected["base"]
+    base = contexts[context_id].seed["base"]
     cold = spec.cold_open_ms
     clip = _clip(
         rank=spec.rank, start=spec.start_ms / 1000, end=spec.end_ms / 1000,
@@ -189,10 +192,16 @@ def test_build_seed_reproduces_the_t1_0_fixture_seeds(context_id, edit_v2_doc_co
                              "fps_native": list(spec.fps_native), "vfr": False,
                              "duration_ms": spec.duration_ms, "has_audio": True,
                              "grid_sf": _grid(spec.duration_ms)}}
-    built = build_seed(clip=clip, job=job, source_info=source_info,
-                       words_sha=base["words"]["sha256"], words_count=base["words"]["count"],
-                       camera_sha=base["camera"]["sha256"],
-                       selection_sha=base["origin"]["selection_artifact_sha256"])
+    return build_seed(clip=clip, job={**job, **extra}, source_info=source_info,
+                      words_sha=base["words"]["sha256"], words_count=base["words"]["count"],
+                      camera_sha=base["camera"]["sha256"],
+                      selection_sha=base["origin"]["selection_artifact_sha256"])
+
+
+@pytest.mark.parametrize("context_id", fixtures.CONTEXT_IDS)
+def test_build_seed_reproduces_the_t1_0_fixture_seeds(context_id, edit_v2_doc_contexts):
+    expected = edit_v2_doc_contexts[context_id].seed
+    built = _fixture_seed(context_id, edit_v2_doc_contexts)
     assert built == expected
     assert encode_seed(built) == fixtures.canonical_bytes(expected)
 
@@ -415,6 +424,79 @@ def test_a_body_outside_the_duration_limits_is_refused():
         _seed(_clip(start=20.0, end=330.0), source_info=_source_info(duration_ms=400_000))
     with pytest.raises(SeedError):
         _seed(_clip(start=20.0, end=50.0), source_info=_source_info(duration_ms=40_000))
+
+
+# --- the default logo (Pengaturan "Logo bawaan", plan 2026-10-20 A6) -----------------------------
+
+LOGO_VECTORS = ROOT / "tests" / "fixtures" / "edit_v2" / "default-logo-vectors.json"
+LOGO_SHA = "e" * 64
+
+
+def _logo_job(width=512, height=512, **options):
+    return {**_job(**options), "logo": {"sha256": LOGO_SHA, "w": width, "h": height}}
+
+
+def test_the_default_logo_sits_where_the_editor_places_a_new_logo():
+    """The vectors come from the editor's SetLogo (web/tests/default-logo.test.mjs checks them
+    against it): the default size, fitted to the frame, at the top-right preset."""
+    vectors = json.loads(LOGO_VECTORS.read_text())["vectors"]
+    assert len(vectors) == 24 and any(vector["transform"] is None for vector in vectors)
+    for vector in vectors:
+        found = default_logo_transform(tuple(vector["output"]), *vector["asset"])
+        assert found == vector["transform"], vector
+
+
+def test_a_seed_places_the_default_logo():
+    seed = _seed(job=_logo_job())
+    plain = _seed()
+    assert seed["tracks"][0] == plain["tracks"][0]
+    assert seed["tracks"][1] == {
+        "id": "tr_ovr", "kind": "visual", "band": "over_text", "role": "overlay",
+        "items": [{"id": "it_logo", "type": "image", "start": {"at": "clip_start"},
+                   "end": {"at": "clip_end"},
+                   "transform": {"x_e5": 79097, "y_e5": 11758, "w_e5": 16000, "opacity_pm": 850},
+                   "payload": {"asset": f"sha256:{LOGO_SHA}", "mode": "free"}, "origin": "seed"}],
+    }
+    assert seed["assets"] == {f"sha256:{LOGO_SHA}": {"kind": "image", "mime": "image/png",
+                                                    "w": 512, "h": 512}}
+    assert seed["clip_id"] == plain["clip_id"]
+    assert seed["base"]["seed_sha256"] != plain["base"]["seed_sha256"]
+    without_hook = _seed(job=_logo_job(hookOverlay=False))
+    assert [track["kind"] for track in without_hook["tracks"]] == ["visual"]
+    large = _logo_job(1024, 256)
+    large["renderSize"] = [1080, 1920]
+    assert _seed(job=large)["tracks"][1]["items"][0]["transform"] == {
+        "x_e5": 79028, "y_e5": 8411, "w_e5": 16000, "opacity_pm": 850}
+
+
+def test_a_logo_no_size_fits_is_left_out_of_the_seed():
+    assert _seed(job=_logo_job(1, 1024)) == _seed()
+    assert _seed(job={**_job(), "logo": None}) == _seed()
+
+
+@pytest.mark.parametrize("value", [
+    "sha256:" + LOGO_SHA, {"sha256": "E" * 64, "w": 5, "h": 5}, {"sha256": LOGO_SHA, "w": 0, "h": 5},
+    {"sha256": LOGO_SHA, "w": 5, "h": 4097}, {"sha256": LOGO_SHA, "w": True, "h": 5},
+    {"sha256": LOGO_SHA, "w": 5.0, "h": 5}, {"sha256": LOGO_SHA, "w": 5},
+    {"sha256": LOGO_SHA, "w": 5, "h": 5, "name": "x"},
+])
+def test_a_malformed_logo_key_is_refused(value):
+    with pytest.raises(SeedError):
+        _seed(job={**_job(), "logo": value})
+
+
+@pytest.mark.parametrize("context_id", fixtures.CONTEXT_IDS)
+def test_a_seed_with_the_default_logo_validates_outside_the_tiktok_zone(context_id,
+                                                                        edit_v2_doc_contexts):
+    context = edit_v2_doc_contexts[context_id]
+    for asset in (fixtures.LOGO, fixtures.LOGO_WIDE):
+        meta = context.assets[asset]
+        seed = _fixture_seed(context_id, edit_v2_doc_contexts,
+                             logo={"sha256": asset[7:], "w": meta["w"], "h": meta["h"]})
+        validation = validate_doc(seed, words=context.words, assets=context.assets, seed=None)
+        assert validation.errors == (), validation.errors
+        output = (seed["output"]["w"], seed["output"]["h"])
+        assert unsafe_zone_issues(seed, context.assets, output, parts=("logo",)) == ()
 
 
 # --- the synthetic job ---------------------------------------------------------------------------
@@ -851,6 +933,47 @@ def test_a_clip_rendered_with_an_older_whoosh_seeds_that_whoosh(monkeypatch):
     joins = manifest_joins({"clips": [named]}, "a" * 64)
     assert joins == {"clip_" + "1" * 24: tr.ColdOpenJoin("flash_white", "whoosh", 1)}
     assert joins["clip_" + "1" * 24].doc_join("seg_co", 30)["sfx"] == {"id": "whoosh", "v": 1}
+
+
+def test_prepare_seeds_the_default_logo_the_job_was_created_with(synthetic, tmp_path):
+    from support.default_logo import write_job_logo
+
+    job_dir = _copy_job(synthetic, "main", tmp_path)
+    sha = write_job_logo(job_dir, 400, 100)
+    results = prepare_legacy_job(job_dir)
+    assert results and all(entry["openable"] for entry in results)
+    stored = job_dir / "analysis" / "assets" / f"{sha}.png"
+    assert stored.read_bytes() == (job_dir / "logo" / f"{sha}.png").read_bytes()
+    for entry in results:
+        seed = seed_of(job_dir, entry)
+        clip = job_dir / "analysis" / "clips" / entry["clip_id"]
+        (visual,) = [track for track in seed["tracks"] if track["kind"] == "visual"]
+        (item,) = visual["items"]
+        output = (seed["output"]["w"], seed["output"]["h"])
+        assert item["payload"] == {"asset": f"sha256:{sha}", "mode": "free"}
+        assert item["transform"] == default_logo_transform(output, 400, 100)
+        assert seed["assets"] == {f"sha256:{sha}": {"kind": "image", "mime": "image/png",
+                                                    "w": 400, "h": 100}}
+        assert seed["base"]["engine"]["compiler"] == "legacy"
+        words = store.load_words(clip, seed["base"]["words"]["sha256"])
+        validation = validate_doc(seed, words=words, assets=store.load_assets(clip, seed["assets"]),
+                                  seed=None)
+        assert validation.errors == ()
+
+
+def test_prepare_seeds_no_logo_from_a_broken_copy(synthetic, tmp_path):
+    from support.default_logo import write_job_logo
+
+    job_dir = _copy_job(synthetic, "main", tmp_path)
+    sha = write_job_logo(job_dir, 400, 100)
+    (job_dir / "logo" / f"{sha}.json").write_bytes(b"{}")
+    results = prepare_legacy_job(job_dir)
+    assert results and all(entry["openable"] for entry in results)
+    for entry in results:
+        seed = seed_of(job_dir, entry)
+        assert seed["assets"] == {}
+        assert all(track["kind"] != "visual" for track in seed["tracks"])
+    assert not (job_dir / "analysis" / "assets").exists()
 
 
 def test_prepare_without_a_readable_manifest_seeds_cuts(synthetic, tmp_path):

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import AppHeader from "../../components/AppHeader.jsx";
+import DefaultLogoCard from "./DefaultLogoCard.jsx";
 import { helpHref } from "../../lib/help-catalog.mjs";
 import { CUSTOM_PROVIDERS, LLM_PRESETS, MAX_DISPLAY_NAME_LENGTH, REASONING_EFFORTS, SERVER_TEMPLATES, isFreeModel } from "../../lib/llm-presets.mjs";
 import {
@@ -857,6 +858,7 @@ export default function SettingsPage() {
         </div>
       )}
 
+      <div className="settingsAbout shell"><DefaultLogoCard /></div>
       <div className="settingsAbout shell"><SystemInfo /></div>
 
       {loadState === "ready" && (
