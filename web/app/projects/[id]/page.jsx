@@ -3,6 +3,7 @@
 import { use, useEffect, useRef, useState } from "react";
 
 import AppHeader from "../../../components/AppHeader.jsx";
+import { PosterText, PosterThumb, posterFrame } from "../../../components/ClipPoster.jsx";
 import StageSummary from "../../../components/StageSummary.jsx";
 import TrendChips from "../../../components/trends/TrendChips.jsx";
 import { clipDownloads, formatSize } from "../../../lib/clip-download.mjs";
@@ -25,6 +26,7 @@ import {
   checkZip,
   clipFallbackNotes,
   clipFilterView,
+  clipFromParam,
   clipPosition,
   keepSelection,
   pickAll,
@@ -60,6 +62,7 @@ const COPY_RESET_MS = 2200;
 // At this width the detail panel sits under the grid, so picking a poster scrolls to it.
 const STACKED = "(max-width: 720px)";
 const DETAIL_ID = "klip-detail";
+const NO_SEARCH = Promise.resolve({});
 
 function Notice({ notice }) {
   return (
@@ -147,7 +150,6 @@ function PosterCard({ clip, entry, selected, picking, picked, onActivate, button
   const titleId = `poster-${clip.index}-title`;
   const metaId = `poster-${clip.index}-meta`;
   const pill = scorePill(clip);
-  const poster = clipPosterUrl(clip);
   const length = formatTimestamp(clip.duration);
   const number = String(clip.index).padStart(2, "0");
   const edited = entry?.editBadge?.tone === "edited";
@@ -160,7 +162,7 @@ function PosterCard({ clip, entry, selected, picking, picked, onActivate, button
         <button
           type="button"
           ref={buttonRef}
-          className={styles.posterButton}
+          className={`${posterFrame} ${styles.posterButton}`}
           data-poster={clip.index}
           tabIndex={selected ? 0 : -1}
           aria-labelledby={titleId}
@@ -170,23 +172,13 @@ function PosterCard({ clip, entry, selected, picking, picked, onActivate, button
           aria-controls={picking ? undefined : DETAIL_ID}
           onClick={() => onActivate(clip.index)}
         >
-          <span className={styles.thumb}>
-            {poster ? <img src={poster} alt="" loading="lazy" decoding="async" /> : <i className={styles.play} aria-hidden="true" />}
-            <span className={styles.posterNumber} aria-hidden="true">{number}</span>
-            {length && <span className={styles.posterLength} aria-hidden="true">{length}</span>}
+          <PosterThumb poster={clipPosterUrl(clip)} number={number} length={length}>
             {picking && <span className={styles.check} aria-hidden="true" />}
-          </span>
-          <span className={styles.posterText}>
-            <span id={titleId} className={styles.posterTitle}>{clip.title || clipLabel(clip)}</span>
-            {(pill || edited || cardNotes.length > 0) && (
-              <span className={styles.posterMeta} aria-hidden="true">
-                {pill && <span className={styles.scorePill} data-high={pill.high || undefined}>{pill.high && <i />}{pill.text}</span>}
-                {edited && <span className={styles.posterEdited}>Diedit</span>}
-                {cardNotes.map((note) => <span key={note.code} className={styles.posterNote}>{note.card}</span>)}
-              </span>
-            )}
+          </PosterThumb>
+          <PosterText titleId={titleId} title={clip.title || clipLabel(clip)} pill={pill} edited={edited}
+            flags={cardNotes.map((note) => <span key={note.code} className={styles.posterNote}>{note.card}</span>)}>
             <span id={metaId} className="visuallyHidden">{meta}</span>
-          </span>
+          </PosterText>
         </button>
       </article>
     </li>
@@ -291,10 +283,10 @@ function saveFile(href, filename) {
   link.remove();
 }
 
-function ClipsSection({ job, copyState, onCopy, entries }) {
+function ClipsSection({ job, copyState, onCopy, entries, initialClip = null }) {
   const clips = Array.isArray(job.clips) ? job.clips : [];
   const [filter, setFilter] = useState("all");
-  const [selected, setSelected] = useState(null);
+  const [selected, setSelected] = useState(initialClip);
   const [picking, setPicking] = useState(false);
   const [picks, setPicks] = useState(() => new Set());
   const [zip, setZip] = useState({ state: "idle", message: "" });
@@ -398,6 +390,16 @@ function ClipsSection({ job, copyState, onCopy, entries }) {
 
   useEffect(() => () => zipRequest.current?.abort(), []);
 
+  // Opened from the Riwayat clip grid (?klip=N): on the first render only, that clip's poster
+  // takes the focus and the clip comes into view.
+  useEffect(() => {
+    if (initialClip === null || !clips.some((clip) => clip.index === initialClip)) return;
+    const stacked = window.matchMedia?.(STACKED).matches;
+    const poster = posterRefs.current.get(initialClip);
+    poster?.focus({ preventScroll: true });
+    (stacked ? detailRef.current : poster)?.scrollIntoView({ block: stacked ? "start" : "center" });
+  }, []);
+
   // The panel scrolls on its own on wide screens: another clip starts at its top.
   useEffect(() => {
     if (detailRef.current) detailRef.current.scrollTop = 0;
@@ -483,7 +485,7 @@ function ClipsSection({ job, copyState, onCopy, entries }) {
   );
 }
 
-function ProjectView({ job, copyState, onCopy, entries }) {
+function ProjectView({ job, copyState, onCopy, entries, initialClip }) {
   const active = isActiveStatus(job.status);
   const progress = projectProgress(job);
   const notices = selectionNotices(job);
@@ -541,13 +543,14 @@ function ProjectView({ job, copyState, onCopy, entries }) {
         </details>
       )}
       <FocusSummary job={job} />
-      <ClipsSection job={job} copyState={copyState} onCopy={onCopy} entries={entries} />
+      <ClipsSection job={job} copyState={copyState} onCopy={onCopy} entries={entries} initialClip={initialClip} />
     </div>
   );
 }
 
-export default function ProjectPage({ params }) {
+export default function ProjectPage({ params, searchParams }) {
   const { id } = use(params);
+  const initialClip = clipFromParam(use(searchParams ?? NO_SEARCH)?.klip);
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -653,7 +656,7 @@ export default function ProjectPage({ params }) {
           </div>
         </section>
       )}
-      {!loading && job && <ProjectView job={job} copyState={copyState} onCopy={copyText} entries={entries} />}
+      {!loading && job && <ProjectView job={job} copyState={copyState} onCopy={copyText} entries={entries} initialClip={initialClip} />}
     </main>
   );
 }

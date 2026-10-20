@@ -263,30 +263,8 @@
   height: 100%;
   animation: rise var(--dur-3) var(--ease-out) both;
 }
-.posterButton {
-  display: grid;
-  grid-template-rows: auto 1fr;
-  width: 100%;
-  height: 100%;
-  padding: 0;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-l);
-  background: var(--surface);
-  color: var(--text);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition: border-color var(--dur-2) var(--ease-out), background-color var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out);
-}
-.posterButton:hover {
-  border-color: var(--border-strong);
-  transform: translateY(-2px);
-}
-.posterButton:active {
-  transform: translateY(0);
-}
-/* The clip in the detail panel, or a clip picked for the ZIP: a full-strength edge. */
+/* The poster is components/ClipPoster.module.css; this page adds its states. The clip in the
+   detail panel, or a clip picked for the ZIP: a full-strength edge. */
 .poster[data-selected] .posterButton,
 .poster[data-picked] .posterButton {
   border-color: var(--text);
@@ -294,49 +272,6 @@
 }
 .poster[data-picked] .posterButton {
   background: var(--surface-2);
-}
-.thumb {
-  position: relative;
-  display: grid;
-  place-items: center;
-  aspect-ratio: 3 / 4;
-  overflow: hidden;
-  background: var(--surface-3);
-}
-.thumb img {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-/* Clips without a poster (older projects) get a play mark in its place. */
-.play {
-  width: 0;
-  height: 0;
-  margin-left: 3px;
-  border-top: 10px solid transparent;
-  border-bottom: 10px solid transparent;
-  border-left: 16px solid var(--text-muted);
-}
-/* Number and length sit on solid chips, so they read on any frame. */
-.posterNumber,
-.posterLength {
-  position: absolute;
-  padding: 2px 7px;
-  border-radius: var(--radius-s);
-  background: var(--bg);
-  color: var(--text);
-  font: 600 12px/1.4 var(--font);
-  font-variant-numeric: tabular-nums;
-}
-.posterNumber {
-  top: 8px;
-  left: 8px;
-}
-.posterLength {
-  right: 8px;
-  bottom: 8px;
 }
 .check {
   position: absolute;
@@ -364,50 +299,8 @@
   transform: rotate(45deg);
   animation: pop var(--dur-2) var(--ease-out);
 }
-.posterText {
-  display: grid;
-  gap: 8px;
-  align-content: start;
-  padding: 10px 10px 12px;
-}
-.posterTitle {
-  display: -webkit-box;
-  overflow: hidden;
-  font: 600 14px/1.35 var(--font);
-  overflow-wrap: anywhere;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-.posterMeta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 8px;
-}
-/* The score stays neutral; a small lime dot marks 8 and up (the number says the rest). */
-.scorePill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 9px;
-  border-radius: var(--radius-pill);
-  background: var(--surface-3);
-  color: var(--text);
-  font: 600 12px/1.4 var(--font);
-  font-variant-numeric: tabular-nums;
-}
-.scorePill i {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--accent);
-}
-.posterEdited {
-  color: var(--info);
-  font: 600 12px/1.4 var(--font);
-}
-/* How a clip was made when something fell back (no face, backup render): plain muted text, so it
-   informs without reading as a warning. */
+/* How a clip was made when something fell back (no face, backup render), beside the shared
+   poster's score pill: plain muted text, so it informs without reading as a warning. */
 .posterNote {
   color: var(--text-muted);
   font: 600 12px/1.4 var(--font);
