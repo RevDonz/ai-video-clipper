@@ -4,7 +4,6 @@ from ai_clipper.edit_v2 import camera
 from ai_clipper.face_tracking import (
     NO_FACE_MIN_SECONDS,
     build_crop_expression,
-    choose_prominent_face,
     no_face_seconds,
     smooth_face_track,
 )
@@ -29,12 +28,6 @@ def test_smooth_face_track_resets_to_center_on_cut_without_detection():
         [0.2, None, None],
         cuts=[False, True, False],
     ) == pytest.approx([0.2, 0.5, 0.5])
-
-
-def test_choose_prominent_face_uses_largest_area_not_previous_location():
-    faces = [(20, 10, 80, 80), (400, 10, 160, 160)]
-
-    assert choose_prominent_face(faces, source_width=640) == pytest.approx(0.75)
 
 
 def test_crop_expression_interpolates_instead_of_jumping_between_samples():

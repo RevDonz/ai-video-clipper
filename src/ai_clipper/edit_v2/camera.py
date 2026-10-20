@@ -13,10 +13,10 @@ increasing seconds), ``centres`` the normalised x centre of the face per sample 
 no face was found) and ``cuts`` the scene-change flags.
 
 * The default, today's ``face_tracking.detect_face_track`` (as long as no caller replaced it),
-  runs as ``face_window.detect_window`` (re-exported here as :func:`detect_window`): today's
-  detection with one decode of the window (``sequential=True``) and a progress report per
-  sample. Equal-area faces are chosen by position, not by OpenCV's detection order, so the plan
-  does not depend on the CPU count. OpenCV stays outside this stdlib-only package.
+  runs as ``face_window.detect_window`` (re-exported here as :func:`detect_window`): YuNet faces
+  with one decode of the window, the speaking face per sample (``speaker_track``) and a progress
+  report per sample. A switch to a speaker far across the frame is a cut flag. OpenCV stays
+  outside this stdlib-only package.
 * A detector that accepts a ``smooth`` keyword is called with ``smooth=False`` and must return
   raw centres; the plan then applies ``face_tracking.smooth_face_track`` itself and lists every
   run of samples without a face that lasts longer than 1.5 s (from the first missing sample to
@@ -54,7 +54,7 @@ from pathlib import Path
 from typing import Any
 
 from ..face_tracking import detect_face_track, smooth_face_track
-from ..face_window import DETECT_WORKERS_MAX, detect_window, sample_times
+from ..face_window import detect_window, sample_times
 from . import CAMERA_SCHEMA
 from .clip_id import ms_from_seconds
 from .source_info import canonical_json, ensure_private_dir, file_sha256
@@ -297,7 +297,6 @@ def build_camera_plan(
 
 
 __all__ = [
-    "DETECT_WORKERS_MAX",
     "NO_FACE_MIN_MS",
     "PROGRESS_SCHEMA",
     "SAMPLE_MS",
