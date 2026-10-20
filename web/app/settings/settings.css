@@ -341,9 +341,9 @@ html:has(.settingsSaveBar) { scroll-padding-bottom: 150px; }
 .logoTrack { height: 6px; overflow: hidden; border-radius: 3px; background: var(--surface-3); }
 .logoBar { height: 100%; background: var(--text); transition: width var(--dur-2) var(--ease-out); }
 .logoProgress .btn { justify-self: start; }
-.logoStatus { margin: 12px 0 0; color: var(--text-muted); font-size: 13px; line-height: 1.5; animation: rise-in var(--dur-2) var(--ease-out); }
-.logoStatus.ok { color: var(--success); }
-.logoFacts {
+.logoStatus, .cookiesStatus { margin: 12px 0 0; color: var(--text-muted); font-size: 13px; line-height: 1.5; animation: rise-in var(--dur-2) var(--ease-out); }
+.logoStatus.ok, .cookiesStatus.ok { color: var(--success); }
+.logoFacts, .cookiesFacts {
   display: grid;
   gap: 4px;
   margin: 14px 0 0;
@@ -354,6 +354,26 @@ html:has(.settingsSaveBar) { scroll-padding-bottom: 150px; }
   line-height: 1.5;
   list-style: none;
 }
+
+/* Cookies YouTube: Logo bawaan's row without a picture. The count leads, the buttons sit at its
+   end and drop below it on a phone; the row outlines while a file is dragged over it. */
+.cookiesBody {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
+  margin: 0 -12px;
+  padding: 12px;
+  border: 1px dashed transparent;
+  border-radius: var(--radius-l);
+  transition: border-color var(--dur-1) var(--ease-out);
+}
+.cookiesBody[data-over="true"] { border-color: var(--text-muted); }
+.cookiesText { display: grid; flex: 1 1 260px; gap: 4px; min-width: 0; }
+.cookiesCount { font: 600 15px/1.35 var(--font); font-variant-numeric: tabular-nums; }
+.cookiesMeta { color: var(--text-muted); font-size: 13px; line-height: 1.5; font-variant-numeric: tabular-nums; }
+.cookiesActions { display: flex; flex-wrap: wrap; gap: 8px; }
 
 /* Save bar: it floats over the scrolling form, so it is the page's one raised surface.
    The border brightens and the lime Simpan wakes up only when there is something to save. */
@@ -415,6 +435,8 @@ html:has(.settingsSaveBar) { scroll-padding-bottom: 150px; }
   .logoBody { grid-template-columns: 72px minmax(0, 1fr); gap: 12px; }
   .logoThumb { width: 72px; height: 72px; }
   .logoActions .btn { flex: 1; }
+  .cookiesActions { flex: 1 1 100%; }
+  .cookiesActions .btn { flex: 1; }
   .settingsPage .settingsImport { display: grid; }
   .inlineRow { flex-wrap: wrap; }
   .inlineRow input { flex-basis: 100%; }

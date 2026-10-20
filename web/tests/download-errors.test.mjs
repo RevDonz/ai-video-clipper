@@ -120,6 +120,10 @@ test("every message is short Indonesian with exactly one suggestion", () => {
   assert.equal(downloadErrorMessage("download_stalled").text, "Unduhan macet.");
 });
 
+test("a bot check points to the YouTube cookies in Pengaturan", () => {
+  assert.equal(downloadErrorMessage("download_bot_check").hint, "Unggah cookies YouTube di Pengaturan.");
+});
+
 test("WARNING lines never decide the code, even when they come first", () => {
   const stderr = [
     "WARNING: [youtube] AbCdEfGhIjK: Sign in to confirm you’re not a bot. Retrying",

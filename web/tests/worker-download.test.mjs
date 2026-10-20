@@ -2,7 +2,7 @@
 // on the job (scripts/run-job.mjs). The downloaders here are small fake node scripts.
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
-import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { PassThrough } from "node:stream";
@@ -11,7 +11,9 @@ import test from "node:test";
 import { DownloadError } from "../lib/download-errors.mjs";
 import { PROGRESS_TEMPLATE, createDownloadMonitor } from "../lib/download-monitor.mjs";
 import { claimNextJob } from "../lib/primary-job-queue.mjs";
-import { buildVideoDownload, main, runFencedProcess } from "../scripts/run-job.mjs";
+import { COOKIES_FILE_HEADER } from "../lib/youtube-cookies-file.mjs";
+import { saveYoutubeCookies } from "../lib/youtube-cookies.mjs";
+import { buildCaptionDownloads, buildVideoDownload, main, runFencedProcess } from "../scripts/run-job.mjs";
 
 test("the video download reads progress line by line and keeps its format and output", () => {
   assert.deepEqual(buildVideoDownload("https://youtu.be/abc", "/j/input"), [
@@ -19,6 +21,20 @@ test("the video download reads progress line by line and keeps its format and ou
     "--format", "bv*[height<=720]+ba/b[height<=720]",
     "--merge-output-format", "mp4", "--output", "/j/input/source.%(ext)s", "https://youtu.be/abc",
   ]);
+});
+
+test("a cookies copy goes to the video and caption downloads as --cookies, before the link", () => {
+  const cookiesFile = "/tmp/potongin-yt-cookies-1-abcdef/cookies.txt";
+  const video = buildVideoDownload("https://youtu.be/abc", "/j/input", { cookiesFile });
+  assert.deepEqual(video.slice(-3), ["--cookies", cookiesFile, "https://youtu.be/abc"]);
+  for (const download of buildCaptionDownloads("https://youtu.be/abc", "/j/input", "id", { cookiesFile })) {
+    assert.deepEqual(download.args.slice(-3), ["--cookies", cookiesFile, "https://youtu.be/abc"], download.kind);
+  }
+  // Only an absolute path the worker wrote; anything else adds no flag.
+  for (const value of [null, undefined, "", "cookies.txt", 42]) {
+    assert.ok(!buildVideoDownload("https://youtu.be/abc", "/j/input", { cookiesFile: value }).includes("--cookies"), String(value));
+    assert.ok(buildCaptionDownloads("https://youtu.be/abc", "/j/input", "id", { cookiesFile: value }).every((download) => !download.args.includes("--cookies")));
+  }
 });
 
 function fakeChild(pid) {
@@ -107,10 +123,24 @@ await writeFile(path.join(output, "manifest.json"), JSON.stringify({
 
 // FAKE_YT_DLP_MODE: "hang" prints the same progress forever, "merge" merges quietly for
 // FAKE_MERGE_MS, "private" fails like a private video; anything else downloads at once.
+// FAKE_YT_DLP_RECORD: a file that gets one JSON line per run: the --cookies path, the copy's and
+// its folder's modes and text, and whether a sealing secret reached the process.
 const FAKE_YT_DLP = `#!/usr/bin/env node
-import { writeFile } from "node:fs/promises";
+import { appendFile, readFile, stat, writeFile } from "node:fs/promises";
+import path from "node:path";
 const argv = process.argv.slice(2);
 const template = argv[argv.indexOf("--output") + 1];
+if (process.env.FAKE_YT_DLP_RECORD) {
+  const at = argv.indexOf("--cookies");
+  const cookies = at >= 0 ? argv[at + 1] : null;
+  const entry = { cookies, secretSeen: Boolean(process.env.APP_SESSION_SECRET || process.env.POTONGIN_SETTINGS_SECRET) };
+  if (cookies) {
+    entry.mode = (await stat(cookies)).mode & 0o777;
+    entry.dirMode = (await stat(path.dirname(cookies))).mode & 0o777;
+    entry.text = await readFile(cookies, "utf8");
+  }
+  await appendFile(process.env.FAKE_YT_DLP_RECORD, JSON.stringify(entry) + "\\n");
+}
 const video = () => writeFile(template.replace("%(ext)s", "mp4"), Buffer.concat([Buffer.from([0, 0, 0, 0x18]), Buffer.from("ftypisom"), Buffer.alloc(20)]));
 const mode = process.env.FAKE_YT_DLP_MODE;
 if (process.env.FAKE_YT_DLP_PID) await writeFile(process.env.FAKE_YT_DLP_PID, String(process.pid));
@@ -200,4 +230,67 @@ test("a failure outside the download stores no download code", async () => {
   assert.equal(job.status, "failed");
   assert.equal(job.errorCode, null);
   assert.equal(job.stageDetail, "Proses berhenti karena terjadi kesalahan");
+});
+
+// --- Cookies YouTube --------------------------------------------------------------------------
+
+const COOKIE_SECRET = "worker-cookies-".padEnd(48, "w");
+const LOGIN_COOKIE = [".youtube.com", "TRUE", "/", "TRUE", "4102444800", "LOGIN_INFO", "nilai-login-uji"].join("\t");
+
+async function cookiesSetup({ store = true } = {}) {
+  const base = await mkdtemp(path.join(os.tmpdir(), "clipper-download-cookies-"));
+  const settings = path.join(base, "settings");
+  const record = path.join(base, "record.jsonl");
+  const extra = { POTONGIN_SETTINGS_DIR: settings, APP_SESSION_SECRET: COOKIE_SECRET, FAKE_YT_DLP_RECORD: record };
+  if (store) await saveYoutubeCookies(Buffer.from(`${COOKIES_FILE_HEADER}\n${LOGIN_COOKIE}\n`), { env: { JOBS_ROOT: path.join(base, "jobs"), ...extra } });
+  const runs = async () => (await readFile(record, "utf8")).trim().split("\n").map((entry) => JSON.parse(entry));
+  return { base, extra, runs };
+}
+
+async function gone(target) {
+  await assert.rejects(lstat(target), { code: "ENOENT" }, target);
+}
+
+test("stored cookies reach yt-dlp as a private 0600 copy that is gone after the download", async () => {
+  const { base, extra, runs } = await cookiesSetup();
+  try {
+    const { job } = await youtubeJob("clipper-download-cookies-ok-", extra);
+    assert.equal(job.status, "completed", job.error);
+    const [run] = await runs();
+    assert.ok(path.isAbsolute(run.cookies));
+    assert.equal(run.mode, 0o600);
+    assert.equal(run.dirMode, 0o700);
+    assert.equal(run.text, `${COOKIES_FILE_HEADER}\n${LOGIN_COOKIE}\n`);
+    assert.equal(run.secretSeen, false, "yt-dlp gets the copy, never the secret that seals it");
+    await gone(run.cookies);
+    await gone(path.dirname(run.cookies));
+    assert.doesNotMatch(JSON.stringify(job), /nilai-login-uji|LOGIN_INFO|potongin-yt-cookies/);
+  } finally {
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("the cookies copy is deleted when the download fails, too", async () => {
+  const { base, extra, runs } = await cookiesSetup();
+  try {
+    const { job } = await youtubeJob("clipper-download-cookies-fail-", { ...extra, FAKE_YT_DLP_MODE: "private" });
+    assert.equal(job.status, "failed");
+    assert.equal(job.errorCode, "download_private");
+    const [run] = await runs();
+    assert.ok(run.cookies);
+    await gone(path.dirname(run.cookies));
+  } finally {
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("without stored cookies yt-dlp runs without --cookies", async () => {
+  const { base, extra, runs } = await cookiesSetup({ store: false });
+  try {
+    const { job } = await youtubeJob("clipper-download-cookies-none-", extra);
+    assert.equal(job.status, "completed", job.error);
+    assert.deepEqual(await runs(), [{ cookies: null, secretSeen: false }]);
+  } finally {
+    await rm(base, { recursive: true, force: true });
+  }
 });

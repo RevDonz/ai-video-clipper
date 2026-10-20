@@ -173,6 +173,10 @@ suite) run on GitHub Actions: `ci-cd.yml` on every pull request and `editor-gate
   API key, URL, dan model diatur di halaman **Pengaturan** (`/settings`), jadi `.env` tidak
   perlu diedit (key disimpan terenkripsi di `/data/settings`; `.env` bisa diimpor sekali klik).
   Setup: [`docs/operations/LLM_PROVIDERS.md`](docs/operations/LLM_PROVIDERS.md).
+- **Cookies YouTube.** Kalau YouTube menahan unduhan dari server, unggah `cookies.txt` dari
+  akun Google terpisah di **Pengaturan**. File diperiksa saat diunggah, disimpan terenkripsi,
+  dan hanya diberikan ke `yt-dlp` lewat salinan sementara selama unduhan berjalan:
+  [`docs/operations/UNDUHAN_YOUTUBE.md`](docs/operations/UNDUHAN_YOUTUBE.md).
 - **Jalur cepat subtitle YouTube.** Untuk URL YouTube, worker mencoba mengunduh subtitle
   manual dan otomatis (json3) setelah videonya. Kalau kualitasnya cukup, engine melewati
   Whisper. Kalau tidak ada atau kualitasnya buruk, Whisper lokal tetap dipakai.
@@ -221,7 +225,12 @@ suite) run on GitHub Actions: `ci-cd.yml` on every pull request and `editor-gate
   and the environment. Its "Logo bawaan" card (`/api/settings/logo`, authenticated, streamed
   upload normalised by the editor's ingest) holds one logo in `/data/settings/default-logo/`;
   every new job gets a copy and its clips start with that logo in the editor (and in the
-  automatic clip files when `POTONGIN_RENDER_ENGINE=edit-v2`).
+  automatic clip files when `POTONGIN_RENDER_ENGINE=edit-v2`). Its "Cookies YouTube" card
+  (`/api/settings/youtube-cookies`, authenticated, at most 1 MB) checks an uploaded Netscape
+  `cookies.txt`, keeps only unexpired youtube.com and google.com cookies, and seals them like
+  the LLM keys; the page only ever sees the count and the upload time. The worker hands
+  `yt-dlp` a 0600 temporary copy through `--cookies` for the video and caption downloads and
+  deletes it when they end, failed or not.
 - **YouTube captions fast path.** After the video download, two best-effort `yt-dlp` runs
   fetch manual and automatic json3 captions into `input/captions/{manual,auto}`. The engine
   gets `--captions-dir` only when a caption file exists, uses the captions when they pass

@@ -33,6 +33,7 @@ import {
 import { systemProcessTree } from "../lib/process-tree.mjs";
 import { RANGE_FAILURE_CODES } from "../lib/time-ranges.mjs";
 import { writeTrendSnapshot } from "../lib/trend-context.mjs";
+import { prepareYoutubeCookies } from "../lib/youtube-cookies.mjs";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -167,19 +168,26 @@ export function captionsTimeoutMs(env = process.env) {
     : DEFAULT_CAPTIONS_TIMEOUT_MS;
 }
 
+// The Pengaturan cookies copy (lib/youtube-cookies.mjs) for this job's yt-dlp runs: only an
+// absolute path the worker wrote. The cookies themselves never enter argv.
+function cookiesArgs(cookiesFile) {
+  return typeof cookiesFile === "string" && path.isAbsolute(cookiesFile) ? ["--cookies", cookiesFile] : [];
+}
+
 // --ignore-errors keeps one failing language (an HTTP 429 on "id-ID", say) from
 // aborting the rest of that run; whatever .json3 files landed are used.
-export function buildCaptionDownloads(url, inputRoot, videoLanguage = undefined) {
+export function buildCaptionDownloads(url, inputRoot, videoLanguage = undefined, { cookiesFile = null } = {}) {
   const languages = captionLanguages(videoLanguage);
   const captionsRoot = path.join(inputRoot, "captions");
   const common = ["--no-playlist", "--js-runtimes", "node", "--skip-download", "--ignore-errors"];
+  const cookies = cookiesArgs(cookiesFile);
   const downloads = [
     {
       kind: "manual",
       directory: path.join(captionsRoot, "manual"),
       args: [
         ...common, "--write-subs", "--no-write-auto-subs", "--sub-langs", languages.manual,
-        "--sub-format", "json3", "--output", path.join(captionsRoot, "manual", "source.%(ext)s"), url,
+        "--sub-format", "json3", "--output", path.join(captionsRoot, "manual", "source.%(ext)s"), ...cookies, url,
       ],
     },
     {
@@ -187,7 +195,7 @@ export function buildCaptionDownloads(url, inputRoot, videoLanguage = undefined)
       directory: path.join(captionsRoot, "auto"),
       args: [
         ...common, "--write-auto-subs", "--no-write-subs", "--sub-langs", languages.auto,
-        "--sub-format", "json3", "--output", path.join(captionsRoot, "auto", "source.%(ext)s"), url,
+        "--sub-format", "json3", "--output", path.join(captionsRoot, "auto", "source.%(ext)s"), ...cookies, url,
       ],
     },
   ];
@@ -214,8 +222,8 @@ export async function findCaptionsDir(inputRoot) {
   return null;
 }
 
-export async function fetchYouTubeCaptions({ url, inputRoot, run, timeoutMs, videoLanguage = undefined, log = console.warn }) {
-  for (const download of buildCaptionDownloads(url, inputRoot, videoLanguage)) {
+export async function fetchYouTubeCaptions({ url, inputRoot, run, timeoutMs, videoLanguage = undefined, cookiesFile = null, log = console.warn }) {
+  for (const download of buildCaptionDownloads(url, inputRoot, videoLanguage, { cookiesFile })) {
     try {
       await mkdir(download.directory, { recursive: true, mode: 0o700 });
       await run("yt-dlp", download.args, { timeoutMs });
@@ -246,11 +254,11 @@ export function downloaderEnv(env) {
 
 // The source video. --newline and the progress template give one progress line per update,
 // which the download monitor reads to stop a download that no longer moves.
-export function buildVideoDownload(url, downloadRoot) {
+export function buildVideoDownload(url, downloadRoot, { cookiesFile = null } = {}) {
   return [
     "--no-playlist", "--js-runtimes", "node", "--newline", "--progress-template", PROGRESS_TEMPLATE,
     "--format", "bv*[height<=720]+ba/b[height<=720]",
-    "--merge-output-format", "mp4", "--output", path.join(downloadRoot, "source.%(ext)s"), url,
+    "--merge-output-format", "mp4", "--output", path.join(downloadRoot, "source.%(ext)s"), ...cookiesArgs(cookiesFile), url,
   ];
 }
 
@@ -540,20 +548,27 @@ export async function main(argv = process.argv, env = process.env) {
       await update({ status: "downloading", progress: 10 });
       const downloadRoot = queueManaged ? path.join(attemptRoot, "input") : path.join(jobRoot, "input");
       await mkdir(downloadRoot, { recursive: true, mode: 0o700 });
-      await runVideoDownload(buildVideoDownload(job.source.url, downloadRoot));
-      const files = await readdir(downloadRoot);
-      const sourceFile = files.find((name) => name.startsWith("source.") && !name.endsWith(".part"));
-      if (!sourceFile) throw new Error("Video YouTube selesai diunduh tetapi file sumber tidak ditemukan");
-      sourcePath = path.join(downloadRoot, sourceFile);
-      if (job.options?.selectionMode === "v3") {
-        await update({ sourcePath, progress: 20, stage: "captions", stageDetail: "Mengambil subtitle YouTube (opsional)" });
-        captionsDir = await fetchYouTubeCaptions({
-          url: job.source.url,
-          inputRoot: downloadRoot,
-          timeoutMs: captionsTimeoutMs(env),
-          videoLanguage: validatePersistedJobOptions(job.options).videoLanguage,
-          run: (command, args, options) => run(command, args, { ...options, processEnv: downloaderEnv(env) }),
-        });
+      // The cookies copy lives only while yt-dlp runs: deleted before the engine starts, and on failure.
+      const cookies = await prepareYoutubeCookies(env);
+      try {
+        await runVideoDownload(buildVideoDownload(job.source.url, downloadRoot, { cookiesFile: cookies?.file }));
+        const files = await readdir(downloadRoot);
+        const sourceFile = files.find((name) => name.startsWith("source.") && !name.endsWith(".part"));
+        if (!sourceFile) throw new Error("Video YouTube selesai diunduh tetapi file sumber tidak ditemukan");
+        sourcePath = path.join(downloadRoot, sourceFile);
+        if (job.options?.selectionMode === "v3") {
+          await update({ sourcePath, progress: 20, stage: "captions", stageDetail: "Mengambil subtitle YouTube (opsional)" });
+          captionsDir = await fetchYouTubeCaptions({
+            url: job.source.url,
+            inputRoot: downloadRoot,
+            timeoutMs: captionsTimeoutMs(env),
+            videoLanguage: validatePersistedJobOptions(job.options).videoLanguage,
+            cookiesFile: cookies?.file,
+            run: (command, args, options) => run(command, args, { ...options, processEnv: downloaderEnv(env) }),
+          });
+        }
+      } finally {
+        await cookies?.dispose();
       }
       job = await update({ sourcePath, status: "processing", progress: 25, stage: "analyzing", stageDetail: "Menyiapkan engine AI" });
     } else {
