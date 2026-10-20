@@ -105,8 +105,8 @@ await writeFile(path.join(output, "manifest.json"), JSON.stringify({
 }));
 `;
 
-// FAKE_YT_DLP_MODE: "hang" prints the same progress forever, "merge" merges for longer than the
-// stall window, "private" fails like a private video; anything else downloads at once.
+// FAKE_YT_DLP_MODE: "hang" prints the same progress forever, "merge" merges quietly for
+// FAKE_MERGE_MS, "private" fails like a private video; anything else downloads at once.
 const FAKE_YT_DLP = `#!/usr/bin/env node
 import { writeFile } from "node:fs/promises";
 const argv = process.argv.slice(2);
@@ -122,7 +122,7 @@ if (mode === "hang") {
   console.log("[download-progress] downloading 2500/5000");
   console.log("[download-progress] finished 5000/5000");
   console.log('[Merger] Merging formats into "' + template.replace("%(ext)s", "mp4") + '"');
-  setTimeout(async () => { await video(); process.exit(0); }, 900);
+  setTimeout(async () => { await video(); process.exit(0); }, Number(process.env.FAKE_MERGE_MS));
 } else if (mode === "private") {
   console.error("WARNING: [youtube] AbCdEfGhIjK: Sign in to confirm you’re not a bot");
   console.error("ERROR: [youtube] AbCdEfGhIjK: Private video. Sign in if you've been granted access to this video. Use --cookies-from-browser or --cookies for the authentication.");
@@ -151,7 +151,8 @@ async function youtubeJob(prefix, extraEnv = {}) {
   await chmod(path.join(bin, "yt-dlp"), 0o755);
   const env = {
     ...process.env, JOBS_ROOT: root, PRIMARY_LEASE_MS: "60000", AI_CLIPPER_BIN: path.join(bin, "engine.mjs"),
-    PATH: `${bin}${path.delimiter}${process.env.PATH}`, POTONGIN_DOWNLOAD_STALL_MS: "300", ...extraEnv,
+    // A window long enough that a slow process start never looks stalled; stall tests shorten it.
+    PATH: `${bin}${path.delimiter}${process.env.PATH}`, POTONGIN_DOWNLOAD_STALL_MS: "60000", ...extraEnv,
   };
   const claim = await claimNextJob({ jobsRoot: root, workerId: "worker", leaseMs: 60_000, maxAttempts: 3, legacyQuiescenceMs: 0 });
   const previousExitCode = process.exitCode;
@@ -169,7 +170,7 @@ function alive(pid) {
 
 test("a download whose progress stops moving fails as 'Unduhan macet' and its process is gone", async () => {
   const pidFile = path.join(await mkdtemp(path.join(os.tmpdir(), "clipper-download-pid-")), "pid");
-  const { job } = await youtubeJob("clipper-download-stall-", { FAKE_YT_DLP_MODE: "hang", FAKE_YT_DLP_PID: pidFile });
+  const { job } = await youtubeJob("clipper-download-stall-", { FAKE_YT_DLP_MODE: "hang", FAKE_YT_DLP_PID: pidFile, POTONGIN_DOWNLOAD_STALL_MS: "300" });
   assert.equal(job.status, "failed");
   assert.equal(job.errorCode, "download_stalled");
   assert.equal(job.stageDetail, "Unduhan macet.");
@@ -180,7 +181,7 @@ test("a download whose progress stops moving fails as 'Unduhan macet' and its pr
 });
 
 test("merging takes longer than the stall window without failing the download", async () => {
-  const { job } = await youtubeJob("clipper-download-merge-", { FAKE_YT_DLP_MODE: "merge" });
+  const { job } = await youtubeJob("clipper-download-merge-", { FAKE_YT_DLP_MODE: "merge", FAKE_MERGE_MS: "1600", POTONGIN_DOWNLOAD_STALL_MS: "1000" });
   assert.equal(job.status, "completed", job.error);
   assert.equal(job.errorCode, undefined);
 });
