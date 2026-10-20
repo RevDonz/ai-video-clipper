@@ -26,6 +26,11 @@ const TYPES = new Map([
 export class FinalFileNotFoundError extends Error {}
 export class FinalFileInvalidError extends Error {}
 
+/** Whether `value` is a download name the route accepts (see SAVE_NAME). */
+export function isSaveName(value) {
+  return typeof value === "string" && SAVE_NAME.test(value);
+}
+
 export function isFinalJobId(value) {
   return typeof value === "string" && UUID.test(value);
 }
@@ -95,6 +100,7 @@ export async function openFinalFile(jobId, segments, jobsRoot = process.env.JOBS
     return {
       fd,
       size: info.size,
+      modified: info.mtime,
       extension,
       contentType: TYPES.get(extension) || "application/octet-stream",
       filename: path.basename(target),
@@ -125,7 +131,7 @@ export async function finalFileResponse(
   const attachment = download || !TYPES.has(opened.extension);
   // `name`: the saved file's name without extension (an edited export is stored under a hash).
   const name = query.get("name");
-  const filename = name !== null && SAVE_NAME.test(name) ? `${name}${opened.extension}` : opened.filename;
+  const filename = isSaveName(name) ? `${name}${opened.extension}` : opened.filename;
   const headers = {
     "Accept-Ranges": "bytes",
     "Content-Type": opened.contentType,
