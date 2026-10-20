@@ -89,6 +89,13 @@ After the selector's codes: ``clip_trimmed_to_media:<rank>``, ``cold_open_beyond
 ``clip_beyond_media:<rank>``, then ``llm_providers:<n>`` and ``llm_models:<n>`` (several
 engines answered; the summary names the first), then ``thumbnail_failed:<index>``. A failed run
 starts with ``pipeline_failed:<stage>``.
+
+**Stage summaries** (V3, ``stage_summary``): once a stage has a result the run already knows,
+``stage_summary(kind, values)`` reports it for the job progress. ``video`` after the probe
+(``duration`` in seconds), ``transcript`` after the transcript (``words``, ``source``:
+``youtube-captions`` or ``whisper``, and ``language`` when it is a two- or three-letter code),
+``moments`` after selection (``count``, ``source``: ``llm`` or ``heuristic``). A value the run
+did not learn is not reported. The CLI prints each one on the current progress line.
 """
 
 from __future__ import annotations
@@ -804,6 +811,26 @@ def _v3_transcript(
     return transcription, ()
 
 
+StageSummary = Callable[[str, dict[str, object]], None]
+_SUMMARY_LANGUAGE = re.compile(r"[a-z]{2,3}")
+
+
+def _no_stage_summary(kind: str, values: dict[str, object]) -> None:
+    return None
+
+
+def _transcript_summary(transcription: Transcription, source: str | None) -> dict[str, object]:
+    """Word count (a segment's timed words, else the words of its text), source and language."""
+    words = sum(
+        len(segment.words) or len(segment.text.split()) for segment in transcription.segments
+    )
+    values: dict[str, object] = {"words": words, "source": source}
+    language = transcription.language
+    if isinstance(language, str) and _SUMMARY_LANGUAGE.fullmatch(language):
+        values["language"] = language
+    return values
+
+
 def _quality_codes(quality: TranscriptQuality) -> list[str]:
     """File-level transcript-quality codes plus one count for the per-segment ones."""
     codes = [code for code in quality.warnings if code.split(":", 1)[0] in _QUALITY_FILE_CODES]
@@ -1116,11 +1143,14 @@ def _run_v3(
     trend_context: Path | None = None,
     focus: FocusSpec | None = None,
     render_engine: str = render_edit.ENGINE_LEGACY,
+    summarize: StageSummary = _no_stage_summary,
 ) -> tuple[Transcription, Path, list[dict[str, object]]]:
     """Transcript, audio, selection, and rendering for Selection V3 (see the module docstring)."""
     media_duration = _probe_video_duration(source)
     if media_duration is None:
         state.warnings.append("media_probe_failed")
+    else:
+        summarize("video", {"duration": round(media_duration, 3)})
     audio_job = _BackgroundCall(
         lambda: analyze_audio_timeline(source, timeout=AUDIO_TIMELINE_TIMEOUT),
         name="potongin-audio-timeline",
@@ -1137,6 +1167,7 @@ def _run_v3(
     )
     if not transcription.segments:
         raise ValueError("Transcription produced no usable segments")
+    summarize("transcript", _transcript_summary(transcription, state.transcript_source))
     transcript_path = output_dir / "transcript.json"
     write_transcript_json(transcript_path, transcription)
     quality = assess_transcript(transcription.segments, language=transcription.language or "id")
@@ -1208,6 +1239,7 @@ def _run_v3(
             "Tidak ada momen yang bisa dijadikan klip dalam batas durasi "
             f"{min_duration:g}-{max_duration:g} detik."
         )
+    summarize("moments", {"count": len(result.clips), "source": result.source})
 
     state.stage = "packaging"
     report("packaging", 63, "Menyiapkan judul, hook, dan caption klip")
@@ -1517,12 +1549,14 @@ def run_pipeline(
     trend_context: Path | str | None = None,
     focus: FocusSpec | None = None,
     render_engine: str | None = None,
+    stage_summary: StageSummary | None = None,
 ) -> Path:
     """Transcribe, select highlights, render clips, and publish a status manifest.
 
     ``llm_mode``, ``cold_open``, ``hook_overlay``, ``hook_duration``, ``captions_dir``,
-    ``trend_context`` (a Konteks Tren snapshot), ``focus`` (the Fokus klip option) and
-    ``render_engine`` only apply to ``selection_mode="v3"``. ``caption_style`` defaults to
+    ``trend_context`` (a Konteks Tren snapshot), ``focus`` (the Fokus klip option),
+    ``render_engine`` and ``stage_summary`` (module docstring, "Stage summaries") only apply to
+    ``selection_mode="v3"``. ``caption_style`` defaults to
     ``"karaoke"`` for V3 and ``"classic"`` otherwise; ``word_timestamps`` applies to every
     Whisper run. ``render_engine`` is ``"legacy"`` or ``"edit-v2"``; ``None`` reads
     ``POTONGIN_RENDER_ENGINE`` (``render_edit.engine_from_env``: legacy unless exactly
@@ -1603,6 +1637,7 @@ def run_pipeline(
                 trend_context=trend_context,
                 focus=focus,
                 render_engine=render_engine,
+                summarize=stage_summary or _no_stage_summary,
             )
             report("finalizing", 96, "Menyimpan hasil, subtitle, dan metadata")
             _publish_manifest(
