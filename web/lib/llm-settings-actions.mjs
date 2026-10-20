@@ -69,6 +69,9 @@ const CHECK_MESSAGES = Object.freeze({
   content_filter: "Jawaban diblokir filter konten penyedia.",
 });
 
+// Every result code with its own message; the help page (help-catalog.mjs) has an entry for each.
+export const CHECK_CODES = Object.freeze(Object.keys(CHECK_MESSAGES));
+
 export function checkMessage(code) {
   if (CHECK_MESSAGES[code]) return CHECK_MESSAGES[code];
   if (/^http_5\d\d$/.test(code)) return "Server penyedia sedang error (5xx). Coba lagi nanti.";

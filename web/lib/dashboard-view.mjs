@@ -37,6 +37,9 @@ const STORAGE_MESSAGES = Object.freeze({
   storage_admission_unavailable: "Status penyimpanan server tidak dapat diverifikasi. Coba lagi nanti.",
 });
 
+// The help page (help-catalog.mjs) has an entry for each code.
+export const STORAGE_ERROR_CODES = Object.freeze(Object.keys(STORAGE_MESSAGES));
+
 export function storageMessage(code) {
   return STORAGE_MESSAGES[code] || STORAGE_MESSAGES.storage_admission_unavailable;
 }
