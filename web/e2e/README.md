@@ -54,4 +54,14 @@ E2E_USERNAME=... E2E_PASSWORD=... \
 npx playwright test --project=desktop-chromium e2e/focus.spec.mjs
 ```
 
-Run it against a production build (`npm run build` then `next start`), like the Konteks Tren spec. Because the job API is faked, it does not prove that the real route stores the focus; `web/tests/focus.test.mjs` does that with a real `POST /api/jobs` into a temp `JOBS_ROOT`.
+Run it against a production build (`npm run build` then `next start`), like the Konteks Tren spec. Because the job API is faked, it does not prove that the real route stores the focus; `web/tests/focus.test.mjs` does that with a real `POST /api/jobs` into a temp `JOBS_ROOT`. The focus field sits in the dashboard's folded "Pengaturan klip", so the spec opens it first.
+
+## Dashboard form
+
+`e2e/dashboard.spec.mjs` covers the "Buat klip" form: the link (or the chosen file) and Buat klip in one row, the other options folded under a one-line summary, the duration presets and "Atur sendiri", "Bahasa video", and the last choices kept in `localStorage` (`potongin-dashboard-choices`). It fakes the same three APIs as the focus spec. It checks that the choices reach the job POST and come back after a reload while the link does not, that a problem inside the folded options opens them and focuses the field, that the page runs on the defaults when the stored choices cannot be read or written, that a video dropped on the page becomes the source (another file is refused), and that at 360 px nothing scrolls sideways and the form's controls are 44 px targets.
+
+```bash
+E2E_BASE_URL=http://127.0.0.1:3417 E2E_NO_WEB_SERVER=1 \
+E2E_USERNAME=... E2E_PASSWORD=... \
+npx playwright test --project=desktop-chromium e2e/dashboard.spec.mjs
+```

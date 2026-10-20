@@ -1,6 +1,8 @@
 /* Buat klip: one form on the left, the job's progress and clips on the right (stacked below
-   900px). Tokens and building blocks (.panel, .btn, .segmented) come from app/globals.css.
-   RHYTHM 1: every form section has the same shape, title then controls, split by a hairline.
+   900px). Tokens and building blocks (.panel, .btn) come from app/globals.css.
+   The form opens with the one decision made every time, the video and Buat klip in one row;
+   the options the owner rarely changes fold under a summary of what is chosen.
+   RHYTHM 1: every option section has the same shape, title then controls, split by a hairline.
    Lime appears once, on the submit button; selected options use the light edge instead. */
 
 .head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 20px; padding: 28px 0 20px; }
@@ -30,7 +32,15 @@
 .workspace { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); gap: 20px; align-items: start; padding-bottom: 48px; }
 
 /* Form */
-.form { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; padding: 8px 24px 24px; }
+.form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  padding: 20px 24px 24px;
+  transition: border-color var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out);
+}
+/* A file dragged over the page: the form is where it lands. */
+.form.dragging { border-color: var(--text); box-shadow: inset 0 0 0 1px var(--text); }
 .section { display: grid; gap: 12px; min-width: 0; margin: 0; padding: 20px 0; border: 0; border-top: 1px solid var(--border); }
 .section:first-child { border-top: 0; }
 /* A legend floats so the fieldset lays it out like the other sections' h2. */
@@ -40,44 +50,114 @@ legend.sectionTitle + *, legend.groupTitle + * { clear: both; }
 .group { display: grid; gap: 8px; min-width: 0; margin: 0; padding: 0; border: 0; }
 .groupTitle { margin: 0 0 8px; color: var(--text); font: 600 13px/1.3 var(--font); }
 
-.segmented > button { min-height: 44px; }
-.segmented > button[aria-pressed="true"] { background: var(--surface-3); color: var(--text); box-shadow: inset 0 0 0 1px var(--border-strong); }
+/* Source row: link (or the chosen file), "Pilih file", then Buat klip. */
+.source { display: grid; gap: 8px; padding-bottom: 16px; }
+.sourceRow { display: flex; flex-wrap: wrap; gap: 8px; }
+.sourceRow > .url, .fileBox { flex: 1 1 220px; width: auto; min-width: 0; }
+.fileBox {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 48px;
+  padding: 2px 2px 2px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-m);
+  background: var(--surface-2);
+  animation: fade-in var(--dur-2) var(--ease-out);
+}
+.fileBox span { flex: 1; min-width: 0; overflow: hidden; color: var(--text); font: 500 15px/1.3 var(--font); text-overflow: ellipsis; white-space: nowrap; }
+.fileBox button {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--text-muted);
+  font: 400 22px/1 var(--font);
+  cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+}
+.fileBox button:hover { background: var(--surface-3); color: var(--text); }
+.pick { position: relative; flex: none; min-height: 48px; }
+/* Visually hidden, not display:none: Tab still reaches the file input, and the label shows its focus. */
+.pick input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.pick:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
+.pick.pickInvalid { border-color: var(--danger); }
+.help { margin: 0; color: var(--text-muted); font-size: 13px; line-height: 1.45; }
+
+/* The folded options: one button carries the summary of what the next job will use. */
+.optionsToggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  margin-top: 14px;
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  background: var(--surface-2);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out);
+}
+.optionsToggle:hover { border-color: var(--border-strong); background: var(--surface-3); }
+.optionsToggle > span { display: grid; gap: 2px; min-width: 0; }
+.optionsToggle strong { font: 600 14px/1.3 var(--font); }
+.optionsToggle > span > span { color: var(--text-muted); font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
+.chevron {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  margin: 0 4px 4px;
+  border-right: 2px solid var(--text-muted);
+  border-bottom: 2px solid var(--text-muted);
+  transform: rotate(45deg);
+  transition: transform var(--dur-2) var(--ease-out);
+}
+.optionsToggle[aria-expanded="true"] .chevron { margin: 4px 4px 0; transform: rotate(-135deg); }
+.options { display: grid; grid-template-columns: minmax(0, 1fr); animation: rise-in var(--dur-3) var(--ease-out); }
+/* The class sets display, so the hidden attribute needs its own rule. */
+.options[hidden] { display: none; }
+.options > .section:first-child { margin-top: 4px; }
 
 .field { display: grid; gap: 6px; min-width: 0; align-content: start; }
-.field > label:not(.drop) { color: var(--text); font: 600 13px/1.3 var(--font); }
+.field > label { color: var(--text); font: 600 13px/1.3 var(--font); }
 .input { width: 100%; min-height: 48px; padding: 12px 14px; font: 500 15px var(--font); }
 .input:focus-visible { border-color: var(--focus); }
 .input[aria-invalid="true"] { border-color: var(--danger); }
 .fieldError { margin: 0; color: var(--danger); font: 600 13px/1.45 var(--font); animation: fade-in var(--dur-2) var(--ease-out); }
 
-.drop {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  min-height: 104px;
-  padding: 16px;
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--radius-l);
-  background: var(--surface-2);
-  text-align: center;
-  cursor: pointer;
-  transition: border-color var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out);
-}
-.drop:hover { border-color: var(--text-muted); background: var(--surface-3); }
-.drop:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
-.dropInvalid { border-color: var(--danger); }
-/* Visually hidden, not display:none: Tab still reaches the file input. */
-.drop input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.drop strong { font: 600 15px/1.35 var(--font); overflow-wrap: anywhere; }
-.drop small { color: var(--text-muted); font-size: 13px; }
-
-.numbers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.limitField { max-width: 160px; }
+.numbers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 4px; animation: rise-in var(--dur-2) var(--ease-out); }
 .unit { position: relative; }
 .unit .input { padding-right: 58px; }
 .unit > span { position: absolute; top: 50%; right: 14px; transform: translateY(-50%); color: var(--text-muted); font-size: 13px; pointer-events: none; }
+
+/* Duration presets and video language: short radio pills, the radio itself hidden but focusable. */
+.pills { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 8px; }
+.pill {
+  position: relative;
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  min-height: 48px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  background: var(--surface-2);
+  cursor: pointer;
+  transition: border-color var(--dur-2) var(--ease-out), background-color var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out);
+}
+.pill input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; }
+.pill strong { color: var(--text); font: 600 14px/1.3 var(--font); }
+.pill small { color: var(--text-muted); font-size: 12px; line-height: 1.35; }
+.pill:hover { border-color: var(--border-strong); background: var(--surface-3); }
+.pill.selected { border-color: var(--text); background: var(--surface-3); box-shadow: inset 0 0 0 1px var(--text); }
+.pill:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
 
 .choices { display: grid; gap: 8px; }
 .pair { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -136,11 +216,10 @@ legend.sectionTitle + *, legend.groupTitle + * { clear: both; }
 }
 .aiStatus a:hover, .resultsHead a:hover, .projectLink:hover { text-decoration: underline; }
 
-.submitRow { display: grid; gap: 10px; padding-top: 4px; }
 .submit {
-  width: 100%;
-  min-height: 52px;
-  padding: 14px 18px;
+  flex: none;
+  min-height: 48px;
+  padding: 12px 22px;
   border: 0;
   border-radius: var(--radius-l);
   background: var(--accent);
@@ -152,7 +231,7 @@ legend.sectionTitle + *, legend.groupTitle + * { clear: both; }
 .submit:hover { background: var(--accent-hover); }
 .submit:active { transform: translateY(1px); }
 .submit:disabled { background: var(--surface-3); color: var(--text-muted); cursor: not-allowed; transform: none; }
-.message { margin: 0; color: var(--success); font: 600 14px/1.45 var(--font); text-align: center; animation: fade-in var(--dur-2) var(--ease-out); }
+.message { margin: 0; color: var(--success); font: 600 14px/1.45 var(--font); animation: fade-in var(--dur-2) var(--ease-out); }
 .messageError { color: var(--danger); }
 
 /* Hasil */
@@ -260,10 +339,12 @@ legend.sectionTitle + *, legend.groupTitle + * { clear: both; }
   .head { padding: 20px 0 16px; }
   .head p { font-size: 14px; }
   .banner { flex-direction: column; align-items: stretch; }
-  .form { padding: 4px 16px 20px; }
+  .form { padding: 16px 16px 20px; }
+  /* The link takes the whole width; "Pilih file" and Buat klip share the line under it. */
+  .sourceRow > .url, .fileBox { flex-basis: 100%; }
+  .pick, .submit { flex: 1 1 0; padding-inline: 12px; }
+  .optionsToggle { padding: 10px 12px; }
   .results { padding: 16px; }
-  .numbers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .limitField { grid-column: 1 / -1; }
   .pair { grid-template-columns: minmax(0, 1fr); }
   .clip video { height: 300px; }
 }

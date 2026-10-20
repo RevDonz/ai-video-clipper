@@ -215,6 +215,26 @@ def test_decoding_from_env_parses_booleans(raw: str, expected: bool):
     assert decoding.condition_on_previous_text is DEFAULT_CONDITION_ON_PREVIOUS_TEXT
 
 
+@pytest.mark.parametrize("language", ["id", "ID", "id-ID", "in"])
+def test_the_built_in_prompt_is_for_indonesian_audio(language: str):
+    assert whisper_decoding_from_env({}, language=language) == WhisperDecoding()
+
+
+@pytest.mark.parametrize("language", ["en", "en-US", None])
+def test_other_or_detected_languages_get_no_built_in_indonesian_prompt(language: str | None):
+    # The prompt is primed into the transcript; Indonesian slang has no place in English audio.
+    assert whisper_decoding_from_env({}, language=language) == WhisperDecoding(initial_prompt=None)
+    blank = whisper_decoding_from_env({ENV_INITIAL_PROMPT: "  "}, language=language)
+    assert blank.initial_prompt is None
+
+
+def test_an_own_prompt_applies_to_every_language():
+    env = {ENV_INITIAL_PROMPT: "Okay, so. Right?"}
+    assert whisper_decoding_from_env(env, language="en").initial_prompt == "Okay, so. Right?"
+    explicit = whisper_decoding_from_env({}, language=None, initial_prompt="Hi, there.")
+    assert explicit.initial_prompt == "Hi, there."
+
+
 @pytest.mark.parametrize("raw", ["off", "OFF", " none ", "None"])
 def test_env_prompt_can_be_switched_off(raw: str):
     assert whisper_decoding_from_env({ENV_INITIAL_PROMPT: raw}).initial_prompt is None

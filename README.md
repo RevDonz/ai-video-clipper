@@ -127,6 +127,10 @@ uv run ai-clipper /path/to/source.mp4 \
 
 On a CUDA machine, add `--device cuda`.
 
+`--language` takes the spoken language (`id`, `en`, …) or `auto`, which lets Whisper detect it.
+The built-in Whisper prompt is Indonesian, so it is only used for `id`; other languages run
+without a prompt unless `WHISPER_INITIAL_PROMPT` or `--initial-prompt` sets one.
+
 The CLI defaults to the current selection (`--selection-mode v3`). The optional flags are
 `--llm auto|off|required`, `--no-cold-open`, `--no-hook-overlay`,
 `--caption-style classic|karaoke`, and `--captions-dir DIR`, where `DIR` holds YouTube json3
@@ -172,6 +176,16 @@ suite) run on GitHub Actions: `ci-cd.yml` on every pull request and `editor-gate
 - **Jalur cepat subtitle YouTube.** Untuk URL YouTube, worker mencoba mengunduh subtitle
   manual dan otomatis (json3) setelah videonya. Kalau kualitasnya cukup, engine melewati
   Whisper. Kalau tidak ada atau kualitasnya buruk, Whisper lokal tetap dipakai.
+- **Bahasa video.** Dashboard menawarkan Indonesia (bawaan), Inggris, atau Deteksi otomatis.
+  Pilihan ini dipakai Whisper dan menentukan subtitle YouTube yang diambil: Inggris mengambil
+  track Inggris, Deteksi otomatis hanya mengambil track asli (`<bahasa>-orig`). Job lama dan
+  job dari API tanpa pilihan ini tetap memakai `WHISPER_LANGUAGE` (bawaan `id`). Judul, hook,
+  dan deskripsi masih ditulis dalam bahasa Indonesia.
+- **Form dashboard.** Link atau file dan tombol **Buat klip** ada di satu baris paling atas.
+  Opsi lain dilipat di **Pengaturan klip** dengan ringkasan satu baris. Durasi memakai preset
+  (Otomatis 20–60, Pendek 15–30, Sedang 30–60, Panjang 60–90 detik, atau Atur sendiri). Pilihan
+  terakhir diingat di browser itu (`localStorage`); link, file, dan fokus tidak disimpan. File
+  video bisa ditarik ke halaman.
 - **Cold open.** Kalimat terkuat bisa diputar lebih dulu, lalu klip berjalan dari awal.
 - **Teks hook.** Kalimat pemancing singkat tampil di atas layar selama 4 detik pertama.
 - **Subtitle karaoke.** Subtitle mengikuti waktu per kata, dan kata yang sedang diucapkan
@@ -202,6 +216,11 @@ suite) run on GitHub Actions: `ci-cd.yml` on every pull request and `editor-gate
   fetch manual and automatic json3 captions into `input/captions/{manual,auto}`. The engine
   gets `--captions-dir` only when a caption file exists, uses the captions when they pass
   its quality gate, and otherwise runs Whisper. Caption failures never fail a job.
+- **Video language.** A job may carry `videoLanguage` (`id`, `en` or `auto`; anything else is
+  refused). The worker passes it to `--language` and asks for captions in that language; for
+  `auto` only the original `<lang>-orig` auto track is fetched and read, in its own language.
+  Jobs without it keep `WHISPER_LANGUAGE` (default `id`) and the Indonesian caption lists.
+  Titles, hooks and descriptions are still written in Indonesian.
 - **Hook packaging.** An optional cold open (`--cold-open`), a 4-second on-screen hook
   (`--hook-overlay`), and word-timed karaoke captions (`--caption-style karaoke`). Clip
   length follows the dashboard's minimum and maximum duration.

@@ -160,7 +160,7 @@ const YOUTUBE_HOSTS = new Set(["youtu.be", "youtube.com", "www.youtube.com", "m.
 
 function youtubeUrlProblem(value) {
   const text = typeof value === "string" ? value.trim() : "";
-  if (!text) return "Tempel link YouTube dulu.";
+  if (!text) return "Tempel link YouTube atau pilih file video.";
   try {
     const url = new URL(text);
     if (url.protocol === "https:" && YOUTUBE_HOSTS.has(url.hostname.toLowerCase())) return null;
@@ -168,6 +168,16 @@ function youtubeUrlProblem(value) {
     // Not a URL at all: same message.
   }
   return "Link harus https:// dari youtube.com atau youtu.be.";
+}
+
+// The upload route takes these extensions only (app/api/jobs/route.js VIDEO_EXTENSIONS). A file
+// picked through "All files" or dropped on the page skips the input's accept list.
+const VIDEO_FILE = /\.(?:mp4|mov|mkv|webm|m4v)$/i;
+
+/** Why `file` cannot be sent as the job's video, or null. */
+export function videoFileProblem(file) {
+  if (!file) return "Pilih file video dulu.";
+  return typeof file.name === "string" && VIDEO_FILE.test(file.name) ? null : "Format tidak didukung. Pakai MP4, MOV, MKV atau WEBM.";
 }
 
 function inRange(value, minimum, maximum, integer = false) {
@@ -184,7 +194,8 @@ function inRange(value, minimum, maximum, integer = false) {
 export function jobFormProblems({ sourceType, youtubeUrl, video, limit, minDuration, maxDuration } = {}) {
   const problems = {};
   if (sourceType === "upload") {
-    if (!video) problems.video = "Pilih file video dulu.";
+    const problem = videoFileProblem(video);
+    if (problem) problems.video = problem;
   } else {
     const problem = youtubeUrlProblem(youtubeUrl);
     if (problem) problems.youtubeUrl = problem;

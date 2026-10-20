@@ -913,6 +913,22 @@ test("a V3 YouTube job without any captions runs Whisper (no --captions-dir) and
   assert.ok(!argv.includes("--captions-dir"));
 });
 
+test("a V3 YouTube job's video language reaches the caption runs and the engine", async () => {
+  for (const [videoLanguage, subLangs] of [["en", ["en,en-US,en-GB", "en,en-orig"]], ["auto", [".*-orig"]], [undefined, ["id,id-ID,in", "id,id-orig"]]]) {
+    const options = videoLanguage ? { ...V3, videoLanguage } : V3;
+    const { root, jobRoot, env, log } = await v3Fixture("clipper-v3-language-", { options });
+    const claim = await claimNextJob({ jobsRoot: root, workerId: "worker", leaseMs: 60_000, maxAttempts: 3, legacyQuiescenceMs: 0 });
+    await main(["node", "run-job.mjs", JOB_ID, claim.token], { ...env, WHISPER_LANGUAGE: "" });
+
+    const runs = (await readFile(log, "utf8")).trim().split("\n").map((line) => JSON.parse(line).argv);
+    assert.deepEqual(runs.slice(1).map((argv) => argv[argv.indexOf("--sub-langs") + 1]), subLangs, String(videoLanguage));
+    const persisted = JSON.parse(await readFile(path.join(jobRoot, "job.json"), "utf8"));
+    assert.equal(persisted.status, "completed", String(videoLanguage));
+    const argv = JSON.parse(await readFile(path.join(jobRoot, "output", "argv.json"), "utf8"));
+    assert.equal(argv[argv.indexOf("--language") + 1], videoLanguage || "id");
+  }
+});
+
 // --- Render engine (Editor V3 T2.1, plan §5.8) ------------------------------------
 
 const CLIP_ID = "clip_0123456789abcdef01234567";

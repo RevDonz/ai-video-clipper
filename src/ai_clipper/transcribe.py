@@ -9,7 +9,8 @@ Decoding defaults (measured in ``docs/operations/TRANSCRIPTION.md``):
 - A short, punctuated, casual Indonesian prompt in front of *every* window (faster-whisper's
   ``hotwords`` slot). Whisper's ``initial_prompt`` reaches only the first window once
   conditioning is off, which left ~20% of segments unpunctuated with ``small`` and most of
-  them with ``large-v3-turbo``.
+  them with ``large-v3-turbo``. The prompt's words are primed into the transcript, so audio in
+  another language, or a language left to detection, gets no built-in prompt.
 
 ``load_whisper_model`` returns a :class:`WhisperEngine` that applies these defaults to every
 ``transcribe`` call; ``WHISPER_INITIAL_PROMPT``, ``WHISPER_CONDITION_ON_PREVIOUS_TEXT`` and
@@ -43,6 +44,8 @@ MAX_INITIAL_PROMPT_CHARS = 400
 _PROMPT_OFF_VALUES = frozenset({"off", "none"})
 _TRUE_VALUES = frozenset({"1", "true", "yes", "on"})
 _FALSE_VALUES = frozenset({"0", "false", "no", "off"})
+# Language codes the built-in prompt is written for ("in" is the legacy ISO 639 code).
+_PROMPT_LANGUAGES = frozenset({"id", "in"})
 
 
 def _prompt_problem(prompt: str) -> bool:
@@ -131,8 +134,12 @@ def whisper_decoding_from_env(
     initial_prompt: str | None = None,
     condition_on_previous_text: bool | None = None,
     prompt_every_window: bool | None = None,
+    language: str | None = "id",
 ) -> WhisperDecoding:
     """Decoding defaults from explicit values (CLI flags), else the environment, else built in.
+
+    The built-in prompt is Indonesian and only applies when ``language`` is Indonesian; any
+    other language, or ``None`` (detected), gets no prompt unless one is given.
 
     ``WHISPER_INITIAL_PROMPT`` (and ``initial_prompt``) is whitespace-normalized; ``off`` or
     ``none`` means no prompt. ``WHISPER_CONDITION_ON_PREVIOUS_TEXT`` and
@@ -146,8 +153,10 @@ def whisper_decoding_from_env(
         prompt = _parse_prompt("--initial-prompt", initial_prompt)
     elif (raw_prompt := env.get(ENV_INITIAL_PROMPT, "")).strip():
         prompt = _parse_prompt(ENV_INITIAL_PROMPT, raw_prompt)
-    else:
+    elif isinstance(language, str) and language.split("-", 1)[0].casefold() in _PROMPT_LANGUAGES:
         prompt = defaults.initial_prompt
+    else:
+        prompt = None
     condition = _resolve_bool(
         env,
         ENV_CONDITION_ON_PREVIOUS_TEXT,
