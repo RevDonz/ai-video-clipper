@@ -265,14 +265,18 @@ test.describe("Konteks Tren page (faked API)", () => {
     });
     await login(page, "/projects");
     await page.goto(`/projects/${jobId}`);
-    const first = page.getByRole("article", { name: "Judul klip 1", exact: true });
-    const second = page.getByRole("article", { name: "Judul klip 2", exact: true });
-    const chips = first.getByRole("list", { name: "Tren yang disebut di klip ini" });
+    // One clip at a time in the detail panel: each poster opens its clip there.
+    const detail = page.locator("[data-clip-detail]");
+    await page.getByRole("article", { name: "Judul klip 1", exact: true }).getByRole("button").click();
+    await expect(detail.getByRole("heading", { level: 3 })).toHaveText("Judul klip 1");
+    const chips = detail.getByRole("list", { name: "Tren yang disebut di klip ini" });
     await expect(chips.getByRole("listitem")).toHaveText(["Nyambung tren: Kabur Aja Dulu", `Nyambung tren: ${HOSTILE_TITLE}`]);
-    await expect(first.locator("img")).toHaveCount(0);
+    await expect(detail.locator("img")).toHaveCount(0);
     expect(await page.evaluate(() => window.__trendXss)).toBeUndefined();
-    await expect(second.getByRole("list", { name: "Tren yang disebut di klip ini" })).toHaveCount(0);
-    await expect(second.getByText(/Nyambung tren/)).toHaveCount(0);
+    await page.getByRole("article", { name: "Judul klip 2", exact: true }).getByRole("button").click();
+    await expect(detail.getByRole("heading", { level: 3 })).toHaveText("Judul klip 2");
+    await expect(detail.getByRole("list", { name: "Tren yang disebut di klip ini" })).toHaveCount(0);
+    await expect(detail.getByText(/Nyambung tren/)).toHaveCount(0);
   });
 });
 

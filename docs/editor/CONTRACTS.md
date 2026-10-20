@@ -2038,3 +2038,86 @@ changes: every plan sha and golden is unchanged.
 - Lime (`--accent*`) only on Ekspor and the three progress fills; ReadOnlyBanner's button and the
   panels' `.primary:hover` are neutral. The version guard adds `/editor (?:lama|baru)/i` and
   `/tampilan (?:lama|baru)/i`.
+
+## 5.28 Project page workspace and clip downloads (2026-10-20)
+
+Plan `docs/plans/2026-10-20-lanjutan-sesi.md` P1 #7 and A5. Web only; no engine, data or flag
+change.
+
+### Download names (`web/lib/clip-download.mjs`, client-safe)
+
+- `slugify(text, limit = 48)`: NFKD, combining marks and apostrophes dropped, lower-case ASCII
+  words of `[a-z0-9]` joined by `-`, cut after the last whole word within `limit` (a first word
+  longer than `limit` is cut inside it).
+- `clipSaveName(clip)` → `"NN-slug"`: the clip number in two digits at least (1–9999, else null)
+  and the title's slug (≤ min(48, 64 − number − 1)); `"NN-klip"` without a usable title. Every
+  name passes `final-files.isSaveName` (the route's `SAVE_NAME`, now exported).
+- `namedDownloadHref(href, name)` sets `download=1&name=<name>` on the files route link;
+  `clipDownloads(clip)` → `{name, mp4, mp4File, srt, srtFile}`. The project page's "Unduh MP4" and
+  "Subtitle SRT" use it, so they save as `NN-judul.mp4` / `.srt`.
+- `zipHref(jobId, indexes = null, {check})`, `zipSaveName(job)` (`<project slug>-klip.zip`, the
+  video extension of an upload dropped, `proyek-<id8>` without a usable name), `formatSize(bytes)`
+  ("2,4 GB", "18 MB", "98 KB").
+
+### ZIP route (`GET /api/jobs/:id/zip`, `web/lib/clips-zip.mjs`, `web/lib/zip-store.mjs`)
+
+- Behind `secureRoute(…, {params: ["id"]})`: session, lower-case UUID, nosniff, CORP same-origin,
+  `Cache-Control: no-store`; no rate-limit bucket (like the files route). The handler checks the
+  id again (`invalid_request` 400). It runs behind `web/proxy.js` (a GET download, not an
+  upload). `HEAD` answers 405 `Allow: GET` (it would open every file for a body nobody reads).
+- `?clips=1,3`: 1–4 digit clip numbers without a leading zero, each once, ≤ 1000 characters,
+  every one in the job; the archive keeps the job's order. Without `clips`, every clip.
+- Only a `completed` job; each clip's file is its own `output/clip-NN.mp4`, taken from its
+  `videoUrl`/`downloadUrl` when they point at this job's `/files/output/<name>` (`clipOutputName`),
+  opened with `openFinalFile` (no symlink, contained in `output/`). Every file is opened and the
+  total checked before the first byte; any refusal closes what was opened.
+- `MAX_ZIP_BYTES` (`maxZipBytes(env)`): blank = 2 GiB (`DEFAULT_MAX_ZIP_BYTES`), capped at
+  `HARD_MAX_ZIP_BYTES` 0xFFFF0000; anything but a positive whole number is `zip_config_invalid`.
+- `?check=1` → `200 {count, bytes, filename}` without opening a stream. The download: `200`,
+  `application/zip`, the exact `Content-Length`, `Content-Disposition: attachment;
+  filename="<zipSaveName>"`.
+- Errors (`{error, code}`, Indonesian): `invalid_request` 400, `not_found` 404, `not_ready` 409
+  (not completed), `no_clips` 404, `invalid_clips` 400, `unknown_clip` 404 ("Klip 07 tidak ada di
+  proyek ini."),
+  `file_missing` 404 ("File Klip 03 tidak ditemukan di server."), `zip_too_large` 413 ("ZIP-nya
+  2,4 GB, batasnya 2 GB. Pilih lebih sedikit klip, atau unduh satu per satu."),
+  `zip_config_invalid` 500, `read_failed` 503.
+- `storedZipLayout(entries)` → `{entries (with offset), centralOffset, centralSize, total}`; flat
+  ASCII names `^(?!\.)[A-Za-z0-9._-]{1,128}$`, unique; ≤ 65534 entries; every size, offset and the
+  total ≤ 0xFFFFFFFE (no ZIP64), else `ZipTooLargeError`.
+- `storedZipStream(entries, {signal, chunkSize = 256 KiB, readImpl, closeImpl})`: store method,
+  version needed 1.0, made by 2.0 (MS-DOS), no data descriptor, DOS time from the file's mtime
+  (UTC). Per entry a CRC pass, then the local header and the data, checked against that CRC
+  (`ZipSourceChangedError` before the last chunk on a mismatch or a short read). One chunk per
+  pull (`highWaterMark` 1). The stream closes each descriptor after its entry and all of them on
+  completion, error, cancel or abort. `crc32` is `zlib.crc32` when Node has it (≥ 20.15), else
+  `crc32Table`.
+
+### Project page (`web/app/projects/[id]/page.jsx`, `web/lib/project-workspace.mjs`)
+
+- `<section id="klip">`: the heading, the download actions, the filters, then a poster grid
+  (`<ul aria-label="Daftar klip">`, one `<article>` per clip labelled by its title, one button
+  inside) and one detail panel (`<section id="klip-detail" data-clip-detail=<index>>`, labelled by
+  the clip's `<h3>`). The detail panel holds what the card held: video, tags (jenis hook, cold
+  open, fokus, "Diedit · revisi n"), title with "Salin judul", hook text, trend chips, score
+  block, "Kenapa dipilih", caption with "Salin caption", "Edit klip" first, the latest export,
+  "Unduh MP4", "Subtitle SRT", the source range; plus a stepper "‹ n/m ›".
+- `scorePill(clip)` → `{text, high}` from the current selection's 0–10 total rounded to tenths
+  (`high` from 8,0); null for older clips. The pill is neutral; a lime dot marks `high`. No score
+  is called "Hot" or "viral" (README "Important limitations").
+- `clipFilterView(clips, filter)`: chips "Semua" and "Skor 8+" with counts, shown only when a clip
+  has a score; `keepSelection`, `stepSelection` (no wrap), `clipPosition`.
+- `arrowDelta(event)`: ←/→ without a modifier, except in fields, a video or audio element, a
+  slider, spin button, list box, menu, tab list, radio group, text box or grid. A keydown on the
+  document steps the shown clips; from a poster, the focus follows. Only the current poster is a
+  tab stop (`tabIndex` 0, the others −1).
+- "Pilih" mode: the posters become toggles (`aria-pressed`), the bar reads "n dipilih · Pilih
+  semua · Batal · Unduh (n)"; "Pilih semua" picks the shown clips, a filter change drops hidden
+  picks (`prunePicks`), Escape or "Batal" leaves, focus goes to the first poster and back to
+  "Pilih". "Unduh semua" zips every clip of the project.
+- `checkZip(jobId, indexes)` asks `?check=1` first: a refusal shows the route's message in an
+  alert, 401 goes to login, success starts the download with a same-origin `<a download>` and the
+  status line "ZIP n klip (size) mulai diunduh.".
+- Below 721 px: one column, posters two across (`minmax(132px, 1fr)`), the detail panel under the
+  grid; tapping a poster scrolls the panel into view. From 1100 px the video sits beside the text
+  and the panel scrolls on its own (sticky, `100dvh − 32px`).

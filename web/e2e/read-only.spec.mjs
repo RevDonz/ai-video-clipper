@@ -34,13 +34,20 @@ test.describe("read-only production-safe flows", () => {
     const target = await resolveTarget(page);
     await page.goto(projectPath(target.jobId));
 
+    // One poster per clip; each opens its clip in the one detail panel, ready to post and saved
+    // under its "NN-judul" name.
     const cards = page.getByRole("article");
     await expect(cards).toHaveCount(target.clipCount);
+    const detail = page.locator("[data-clip-detail]");
     for (const card of await cards.all()) {
-      await expect(card.getByRole("heading", { level: 3 })).toBeVisible();
-      await expect(card.getByRole("link", { name: "Unduh MP4" })).toHaveAttribute("href", /^\/api\/jobs\/[^/]+\/files\/output\//);
-      await expect(card.getByRole("button", { name: "Salin caption" })).toBeVisible();
+      const title = await card.locator("[id^='poster-'][id$='-title']").textContent();
+      await card.getByRole("button").click();
+      await expect(detail.getByRole("heading", { level: 3 })).toHaveText(title);
+      await expect(detail.getByRole("link", { name: "Unduh MP4" }))
+        .toHaveAttribute("href", /^\/api\/jobs\/[^/]+\/files\/output\/[^?]+\?download=1&name=\d{2,}-[a-z0-9]+(?:-[a-z0-9]+)*$/);
+      await expect(detail.getByRole("button", { name: "Salin caption" })).toBeVisible();
     }
+    await expect(page.getByRole("button", { name: "Unduh semua" })).toBeVisible();
     await expect(page.getByText(/\bV[1-3]\b|Selection V|kandidat|Versi prompt|Kode peringatan/i)).toHaveCount(0);
     await expectPlaybackAdvances(page.locator("video").first());
   });

@@ -162,41 +162,279 @@
   text-decoration: underline;
 }
 
-.clips > h2,
+.clipsHead h2,
 .empty h2 {
-  margin: 0 0 14px;
+  margin: 0;
   font: 600 18px/1.3 var(--font);
   letter-spacing: -.01em;
 }
-.clipList {
-  display: grid;
-  gap: 16px;
+
+/* The clip count, then the download actions: the toolbar of the workspace. */
+.clipsHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  margin-bottom: 12px;
+}
+.pickBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.pickCount {
+  min-width: 76px;
+  font: 600 14px/1.2 var(--font);
+  font-variant-numeric: tabular-nums;
 }
 
-/* One clip: the video beside everything needed to post it. */
-.clip {
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.filters button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--bg);
+  color: var(--text-muted);
+  font: 600 14px/1.2 var(--font);
+  cursor: pointer;
+  transition: background-color var(--dur-2) var(--ease-out), border-color var(--dur-2) var(--ease-out), color var(--dur-2) var(--ease-out);
+}
+.filters button:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+.filters button[aria-pressed="true"] {
+  border-color: var(--border-strong);
+  background: var(--surface-3);
+  color: var(--text);
+}
+.count {
+  font-variant-numeric: tabular-nums;
+}
+
+.zipStatus {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+.zipStatus:not(:empty) {
+  margin-bottom: 12px;
+  animation: fade var(--dur-2) var(--ease-out);
+}
+.zipError {
+  margin-bottom: 12px;
+}
+
+/* The posters on the left, the selected clip's detail on the right (it stays in view while the
+   grid scrolls). */
+.workspace {
   display: grid;
-  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
-  gap: 24px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
+  gap: 20px;
   align-items: start;
+}
+.posterGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.poster {
+  height: 100%;
+  animation: rise var(--dur-3) var(--ease-out) both;
+}
+.posterButton {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--dur-2) var(--ease-out), background-color var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out);
+}
+.posterButton:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-2px);
+}
+.posterButton:active {
+  transform: translateY(0);
+}
+/* The clip in the detail panel, or a clip picked for the ZIP: a full-strength edge. */
+.poster[data-selected] .posterButton,
+.poster[data-picked] .posterButton {
+  border-color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--text);
+}
+.poster[data-picked] .posterButton {
+  background: var(--surface-2);
+}
+.thumb {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  background: var(--surface-3);
+}
+.thumb img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* Clips without a poster (older projects) get a play mark in its place. */
+.play {
+  width: 0;
+  height: 0;
+  margin-left: 3px;
+  border-top: 10px solid transparent;
+  border-bottom: 10px solid transparent;
+  border-left: 16px solid var(--text-muted);
+}
+/* Number and length sit on solid chips, so they read on any frame. */
+.posterNumber,
+.posterLength {
+  position: absolute;
+  padding: 2px 7px;
+  border-radius: var(--radius-s);
+  background: var(--bg);
+  color: var(--text);
+  font: 600 12px/1.4 var(--font);
+  font-variant-numeric: tabular-nums;
+}
+.posterNumber {
+  top: 8px;
+  left: 8px;
+}
+.posterLength {
+  right: 8px;
+  bottom: 8px;
+}
+.check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--text);
+  border-radius: var(--radius-s);
+  background: var(--bg);
+  transition: background-color var(--dur-1) var(--ease-out);
+}
+.poster[data-picked] .check {
+  background: var(--text);
+}
+.poster[data-picked] .check::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 6px;
+  width: 6px;
+  height: 11px;
+  border: solid var(--bg);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  animation: pop var(--dur-2) var(--ease-out);
+}
+.posterText {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding: 10px 10px 12px;
+}
+.posterTitle {
+  display: -webkit-box;
+  overflow: hidden;
+  font: 600 14px/1.35 var(--font);
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.posterMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+/* The score stays neutral; a small lime dot marks 8 and up (the number says the rest). */
+.scorePill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 9px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  color: var(--text);
+  font: 600 12px/1.4 var(--font);
+  font-variant-numeric: tabular-nums;
+}
+.scorePill i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.posterEdited {
+  color: var(--info);
+  font: 600 12px/1.4 var(--font);
+}
+
+.filterEmpty {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  padding: 24px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-xl);
+  color: var(--text-muted);
+}
+.filterEmpty p {
+  margin: 0;
+}
+
+/* The selected clip: the video above (or, on wide screens, beside) everything needed to post it. */
+.detail {
+  position: sticky;
+  top: 16px;
+  display: grid;
+  gap: 16px;
+  align-content: start;
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 16px;
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   background: var(--surface);
-  animation: rise var(--dur-3) var(--ease-out) both;
-  transition: border-color var(--dur-2) var(--ease-out);
+  animation: fade var(--dur-2) var(--ease-out);
 }
-.clip:hover,
-.clip:focus-within {
-  border-color: var(--border-strong);
-}
-/* The video stays in view while the caption beside it is read and copied. */
 .video {
-  position: sticky;
-  top: 16px;
   display: block;
-  width: 100%;
-  max-height: 500px;
+  justify-self: center;
+  width: auto;
+  max-width: 100%;
+  height: min(60dvh, 520px);
   aspect-ratio: 9 / 16;
   border-radius: var(--radius-l);
   background: var(--bg);
@@ -207,6 +445,61 @@
   gap: 16px;
   align-content: start;
   min-width: 0;
+}
+.detailBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.step {
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  background: var(--surface-2);
+  color: var(--text);
+  font: 600 20px/1 var(--font);
+  cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out);
+}
+.step:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-3);
+}
+.step[aria-disabled="true"] {
+  color: var(--text-muted);
+  cursor: default;
+}
+.step[aria-disabled="true"]:hover {
+  border-color: var(--border);
+  background: var(--surface-2);
+}
+.stepCount {
+  min-width: 44px;
+  color: var(--text-muted);
+  font: 600 13px/1.2 var(--font);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.titleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+.titleRow h3 {
+  flex: 1 1 220px;
 }
 .tags {
   display: flex;
@@ -312,12 +605,18 @@
   transform-origin: left;
   animation: grow var(--dur-3) var(--ease-out) both;
 }
-/* Bars grow in once when the card appears: they read as a measure, not as decoration. */
+/* Bars grow in once when a clip opens: they read as a measure, not as decoration. */
 @keyframes grow {
   from { transform: scaleX(0); }
 }
 @keyframes rise {
   from { opacity: 0; transform: translateY(6px); }
+}
+@keyframes fade {
+  from { opacity: 0; }
+}
+@keyframes pop {
+  from { opacity: 0; transform: rotate(45deg) scale(.6); }
 }
 
 .reasons h4,
@@ -363,12 +662,12 @@
   overflow-wrap: anywhere;
 }
 /* "Tersalin" confirms the copy in green for a moment; the word carries it too. */
-.caption .copy[data-state="copied"] {
+.detail .copy[data-state="copied"] {
   border-color: var(--success-border);
   background: var(--success-bg);
   color: var(--success);
 }
-.caption .copy[data-state="failed"] {
+.detail .copy[data-state="failed"] {
   border-color: var(--danger-border);
   background: var(--danger-bg);
   color: var(--danger);
@@ -446,19 +745,55 @@
   margin-top: 8px;
 }
 
+/* Wide screens: three poster columns, and the video sits beside the clip's text. */
+@media (min-width: 1100px) {
+  .workspace {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 640px);
+  }
+  .detail {
+    grid-template-columns: 240px minmax(0, 1fr);
+    align-items: start;
+  }
+  .video {
+    position: sticky;
+    top: 0;
+    width: 100%;
+    height: auto;
+  }
+}
+
+/* Phones: one column, the posters first (two across), the detail panel under them. */
 @media (max-width: 720px) {
   .page {
     padding-top: 12px;
   }
-  .clip {
+  .workspace {
     grid-template-columns: minmax(0, 1fr);
     gap: 16px;
+  }
+  .posterGrid {
+    grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+    gap: 10px;
+  }
+  .pickBar {
+    width: 100%;
+  }
+  .pickBar :global(.btn) {
+    flex: 1 1 auto;
+  }
+  .pickCount {
+    flex-basis: 100%;
+  }
+  .detail {
+    position: static;
+    max-height: none;
+    overflow: visible;
     padding: 12px;
     border-radius: var(--radius-l);
+    scroll-margin-top: 12px;
   }
   .video {
-    position: static;
-    max-height: 70vh;
+    height: min(70dvh, 560px);
   }
   .score {
     grid-template-columns: minmax(0, 1fr);

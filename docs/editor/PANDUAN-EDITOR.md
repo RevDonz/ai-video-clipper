@@ -23,18 +23,20 @@ pindah tampilan tidak menghilangkan apa pun. Rencananya: `docs/plans/2026-10-02-
 
 ## 1. Membuka klip
 
-- Di halaman proyek, setiap kartu klip punya tombol **"Edit klip"** (tombol pertama, paling
-  terang). Klip yang sudah diedit memberi label "Diedit · revisi n" dan tautan "Ekspor terakhir".
+- Halaman proyek berisi grid poster klip dan satu panel detail. Klik poster (atau ←/→) untuk
+  membuka klip itu di panel; di panel detail ada tombol **"Edit klip"** (tombol pertama, paling
+  terang). Klip yang sudah diedit memberi label "Diedit · revisi n" dan tautan "Ekspor terakhir";
+  posternya bertanda "Diedit".
 - Di **Riwayat**, proyek yang selesai punya tombol **"Edit klip"** yang membuka daftar klipnya.
-  Proyek lama yang dibuat sebelum editor ada tidak punya tombol ini; di halaman proyeknya, setiap
-  kartu klip menyebut alasannya.
+  Proyek lama yang dibuat sebelum editor ada tidak punya tombol ini; di halaman proyeknya, panel
+  detail setiap klip menyebut alasannya.
 - Tidak ada langkah "Siapkan" lagi. Kalau proyeknya belum pernah dibuka di editor, editor
   menyiapkannya sendiri saat klip dibuka: layar "Menyiapkan klip untuk diedit" dengan hitungan
   detik. Ini hanya sekali per proyek: beberapa detik, sampai ± 1 menit untuk video panjang dengan
   face-track. Setelah itu alamatnya pindah ke alamat klip itu sendiri, jadi muat ulang langsung
   membuka klip.
 - Klip yang memang tidak bisa diedit (misalnya video sumbernya sudah dihapus) menulis alasannya di
-  kartu dan di editor, dengan tautan kembali ke proyek.
+  panel detail klip dan di editor, dengan tautan kembali ke proyek.
 - Klip terbuka di **Mode Cepat**, kecuali terakhir kali Anda memilih Mode Lengkap di browser ini.
   Pindah lewat sakelar **Cepat | Lengkap** di bar atas: dengan mouse, atau Tab ke sakelar lalu
   ←/→. Pilihan itu diingat per browser, dan alamatnya ikut berubah (`?mode=cepat` atau
@@ -280,7 +282,7 @@ Syarat: Chrome atau Edge desktop, jendela minimal 1024 px.
    ```
 
 5. Buka `http://127.0.0.1:3000/projects`, klik **"Edit klip"** di proyek mana pun yang selesai,
-   lalu **"Edit klip"** di kartu klipnya.
+   lalu **"Edit klip"** di panel detail klipnya.
 
 Tanpa `POTONGIN_EDITOR_V3=on`, tombol "Edit klip", tautan "Ekspor terakhir" dan semua rute editor
 hilang (404); file ekspornya tetap ada dan tautannya kembali saat flag dinyalakan. Dokumen edit

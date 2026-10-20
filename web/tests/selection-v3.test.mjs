@@ -666,14 +666,14 @@ test("project page: focus line and per-clip focus labels come from the view help
   const source = await readFile(new URL("../app/projects/[id]/page.jsx", import.meta.url), "utf8");
   assert.match(source, /focusSummaryLine\(job\)/);
   assert.match(source, /clipFocusChip\(clip, job\)/);
-  assert.match(source, /<ClipCard key=\{clip\.index\} clip=\{clip\} job=\{job\}/);
+  assert.match(source, /<ClipDetail clip=\{current\} job=\{job\}/);
   assert.doesNotMatch(source, /dangerouslySetInnerHTML/);
 });
 
-test("project page: each card shows the focus chip, the trend chips and the editor entry together", async () => {
+test("project page: the detail panel shows the focus chip, the trend chips and the editor entry together", async () => {
   const source = await readFile(new URL("../app/projects/[id]/page.jsx", import.meta.url), "utf8");
-  const card = /function ClipCard\(\{ clip, job, copied, onCopy, entry = null \}\) \{([\s\S]*?)\n\}\n/.exec(source);
-  assert.ok(card, "ClipCard takes the job (focus) and the editor entry");
+  const card = /function ClipDetail\(\{ clip, job, entry = null, copied, onCopy, position, onStep, panelRef \}\) \{([\s\S]*?)\n\}\n/.exec(source);
+  assert.ok(card, "ClipDetail takes the job (focus) and the editor entry");
   const body = card[1];
   const focusChip = body.indexOf("{focusChip && <span");
   const edited = body.indexOf("{entry?.editBadge?.tone === \"edited\"");
