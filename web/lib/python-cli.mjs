@@ -41,6 +41,8 @@ export const PYTHON_CLI_MODULES = Object.freeze([
   "ai_clipper.render_queue",
   // The editor janitor, run by the primary worker between jobs (T4.3).
   "ai_clipper.edit_v2.janitor",
+  // The yt-dlp version for Pengaturan "Tentang sistem" (package metadata only, CONTRACTS §5.28).
+  "ai_clipper.system_info",
 ]);
 
 // CONTRACTS §5.3: CLI exit code → [code name, HTTP status].
