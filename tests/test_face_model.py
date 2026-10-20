@@ -61,6 +61,8 @@ def test_yunet_runs_on_this_opencv_and_finds_nothing_in_a_faceless_frame():
     frame = np.zeros((720, 1280, 3), dtype=np.uint8)
     frame[:, ::40] = 255  # stripes, no face
     assert detector.detect(frame) == []
+    assert detector.detect(np.zeros((480, 640, 3), dtype=np.uint8)) == []  # another size
+    assert detector.analysis == (640, 480)
 
 
 class ScaledStub:
@@ -72,6 +74,11 @@ class ScaledStub:
     def create(cls, model, config, size, score, nms, top_k):
         cls.created.append((size, score, nms, top_k))
         return cls()
+
+    sizes: ClassVar[list] = []
+
+    def setInputSize(self, size):  # OpenCV's method name
+        type(self).sizes.append(size)
 
     def detect(self, image):
         assert image.shape[:2] == (360, 640)
@@ -90,6 +97,9 @@ def test_boxes_and_landmarks_come_back_in_source_pixels_sorted_by_position(monke
     assert left.score == pytest.approx(0.8)
     assert left.landmarks[3] == pytest.approx((354, 465))  # right mouth corner, × 3
     assert (right.x, right.w) == pytest.approx((1200, 240))
+    # a decoded frame of another size than announced is detected at its own scale
+    (left, _right) = detector.detect(np.zeros((720, 1280, 3), dtype=np.uint8))
+    assert ScaledStub.sizes == [] and left.x == pytest.approx(200)
 
 
 def face_at(x, y, size):

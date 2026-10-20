@@ -74,32 +74,36 @@ def analysis_size(width: int, height: int) -> tuple[int, int]:
 
 
 class YuNet:
-    """``cv2.FaceDetectorYN`` for frames of one size; not shared between threads."""
+    """``cv2.FaceDetectorYN`` for one video's frames; not shared between threads. A frame of
+    another size than announced (OpenCV's reported size can differ from the decoded frames) is
+    detected at its own size."""
 
     def __init__(self, cv2: Any, width: int, height: int) -> None:
         if width <= 0 or height <= 0:
             raise ValueError("the frame size must be positive")
-        self._cv2 = cv2
-        self.size = (width, height)
-        self.analysis = analysis_size(width, height)
-        self._scale_x = width / self.analysis[0]
-        self._scale_y = height / self.analysis[1]
         if not hasattr(cv2, "FaceDetectorYN"):
             raise RuntimeError("this OpenCV build has no FaceDetectorYN")
+        self._cv2 = cv2
+        self.analysis = analysis_size(width, height)
         self._detector = cv2.FaceDetectorYN.create(str(model_path()), "", self.analysis,
                                                    SCORE_THRESHOLD, NMS_THRESHOLD, TOP_K)
 
     def detect(self, frame: Any) -> list[Detection]:
-        """The faces of a BGR frame of this detector's size, sorted by position."""
+        """The faces of a BGR frame in its own pixels, sorted by position."""
         cv2 = self._cv2
+        height, width = frame.shape[:2]
+        size = analysis_size(width, height)
+        if size != self.analysis:
+            self._detector.setInputSize(size)
+            self.analysis = size
         image = frame
-        if self.analysis != self.size:
-            image = cv2.resize(frame, self.analysis, interpolation=cv2.INTER_AREA)
+        if size != (width, height):
+            image = cv2.resize(frame, size, interpolation=cv2.INTER_AREA)
         _status, faces = self._detector.detect(image)
+        sx, sy = width / size[0], height / size[1]
         found: list[Detection] = []
         for row in [] if faces is None else faces:
             values = [float(value) for value in row[:15]]
-            sx, sy = self._scale_x, self._scale_y
             landmarks = tuple((values[4 + 2 * k] * sx, values[5 + 2 * k] * sy) for k in range(5))
             found.append(Detection(values[0] * sx, values[1] * sy, values[2] * sx,
                                    values[3] * sy, values[14], landmarks))
