@@ -30,12 +30,19 @@
   border-bottom: 1px solid var(--border);
 }
 
-/* The header row: the panel's label and Rapikan. The word actions are on the toolbar over the
-   selection (WordToolbar.module.css). */
+/* The header row: the panel's label, Rapikan and Cek ejaan. The word actions are on the toolbar
+   over the selection (WordToolbar.module.css). */
 .headRow {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: var(--ed-space-2, 8px);
+}
+
+.headTools {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: var(--ed-space-2, 8px);
 }
 
@@ -310,6 +317,10 @@
 .gapMark[data-cleanup-gap="gap_voiced"] {
   color: var(--text-muted);
   background: var(--surface-2);
+}
+
+.reviewSlot {
+  padding: 0 var(--ed-space-3, 12px);
 }
 
 .review {

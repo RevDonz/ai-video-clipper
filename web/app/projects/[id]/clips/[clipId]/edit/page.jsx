@@ -31,5 +31,5 @@ export default async function EditorPage({ params }) {
     redirect(`/login?next=${encodeURIComponent(here)}`);
   }
   const flags = readEditorFlags(process.env);
-  return <EditorApp jobId={id} clipId={ref.clipId} clipIndex={ref.index} runtimeKind={mode} features={{ uploads: flags.uploads }} />;
+  return <EditorApp jobId={id} clipId={ref.clipId} clipIndex={ref.index} runtimeKind={mode} features={{ uploads: flags.uploads, llm: flags.llm }} />;
 }

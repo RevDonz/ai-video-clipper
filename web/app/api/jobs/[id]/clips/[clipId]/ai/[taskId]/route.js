@@ -1,4 +1,4 @@
-// GET: the state of one LLM hook task (plan §7.1): pending, done with its suggestions, or failed.
+// GET: the state of one LLM task, hooks or Cek ejaan (plan §7.1): pending, done with its suggestions, or failed.
 import { createAiTaskRoute } from "../../../../../../../../lib/editor-ai.mjs";
 import { secureRoute } from "../../../../../../../../lib/security-headers.mjs";
 

@@ -22,6 +22,19 @@
   outline-offset: 2px;
 }
 
+/* The help line and Cek ejaan share a row; the button wraps under the line on a narrow card. */
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ed-space-2, 8px);
+}
+
+.tools > .help {
+  flex: 1 1 12rem;
+}
+
 .empty {
   display: grid;
   justify-items: start;

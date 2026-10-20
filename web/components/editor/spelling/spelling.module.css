@@ -1,0 +1,290 @@
+/* Cek ejaan review (SpellingReview.jsx), in the transcript panel and the Teks caption card. Tokens
+   only, the Rapikan review's look: a --surface box, the wrong spelling struck through in --danger,
+   the fix in bold --text. The review's one decision, "Terima semua", is the inverted --text button
+   (lime stays with Ekspor); the AI task's progress is the thin lime bar of the hook suggestions. */
+
+.review {
+  display: grid;
+  gap: var(--ed-space-2, 8px);
+  margin: var(--ed-space-2, 8px) 0 0;
+  padding: var(--ed-space-3, 12px);
+  border: 1px solid var(--border);
+  border-radius: var(--ed-radius-md, 8px);
+  background: var(--surface);
+  animation: reviewIn var(--ed-duration-slow, 240ms) ease-out;
+}
+
+.head {
+  display: grid;
+  gap: 2px;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--ed-font-size-lg, 16px);
+}
+
+.note,
+.meta {
+  margin: 0;
+  font-size: var(--ed-font-size-sm, 12px);
+  line-height: 1.45;
+  /* on: --surface */
+  color: var(--text-muted);
+}
+
+.error {
+  margin: 0;
+  font-size: var(--ed-font-size-sm, 12px);
+  line-height: 1.45;
+  /* on: --surface */
+  color: var(--danger);
+}
+
+.busy {
+  display: grid;
+  gap: var(--ed-space-2, 8px);
+}
+
+.track {
+  height: 3px;
+  overflow: hidden;
+  border-radius: var(--ed-radius-sm, 4px);
+  background: var(--surface-2);
+}
+
+.fill {
+  height: 100%;
+  background: var(--accent);
+  transform-origin: left center;
+  animation: fill var(--task-seconds, 20s) linear both;
+}
+
+.list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: var(--ed-space-2, 8px) 0 0;
+  border-top: 1px solid var(--border);
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 4px var(--ed-space-2, 8px);
+  padding: 4px 2px;
+  border-radius: var(--ed-radius-sm, 4px);
+  transition: background var(--ed-duration-fast, 120ms);
+  animation: fadeIn var(--ed-duration-slow, 240ms) ease-out;
+}
+
+.row:hover {
+  background: var(--surface-2);
+}
+
+.text {
+  flex: 1 1 12rem;
+  min-width: 0;
+  margin: 0;
+  padding-top: 3px;
+  font-size: var(--ed-font-size-sm, 12px);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.around {
+  color: var(--text-muted);
+}
+
+.from {
+  font-weight: 600;
+  color: var(--danger);
+  text-decoration-thickness: 1px;
+}
+
+.arrow {
+  color: var(--text-muted);
+}
+
+.to {
+  font-weight: 700;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.kind {
+  margin-left: var(--ed-space-2, 8px);
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+
+.actions {
+  display: flex;
+  flex: none;
+  gap: var(--ed-space-1, 4px);
+}
+
+.button {
+  font: inherit;
+  font-size: var(--ed-font-size-sm, 12px);
+  line-height: 1.3;
+  padding: 4px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--ed-radius-sm, 4px);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color var(--ed-duration-fast, 120ms), background var(--ed-duration-fast, 120ms);
+}
+
+.button:hover:not(:disabled) {
+  border-color: var(--text-muted);
+  background: var(--surface-2);
+}
+
+.button[aria-pressed="true"] {
+  border-color: var(--text);
+  background: var(--surface-2);
+}
+
+.button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.foot {
+  display: grid;
+  gap: 4px;
+  padding-top: var(--ed-space-2, 8px);
+  border-top: 1px solid var(--border);
+}
+
+.footActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ed-space-2, 8px);
+  margin: 0;
+}
+
+.apply {
+  padding: 6px 14px;
+  font: inherit;
+  font-weight: 700;
+  color: var(--bg);
+  background: var(--text);
+  border: 1px solid var(--text);
+  border-radius: var(--ed-radius-sm, 4px);
+  cursor: pointer;
+  transition: filter var(--ed-duration-fast, 120ms), transform var(--ed-duration-fast, 120ms);
+}
+
+.apply:hover:not(:disabled) {
+  filter: brightness(0.92);
+}
+
+.apply:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.apply:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.linkButton {
+  padding: 0;
+  font: inherit;
+  color: var(--text);
+  background: none;
+  border: 0;
+  text-decoration: underline;
+  text-decoration-color: var(--text-muted);
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.linkButton:hover {
+  text-decoration-color: var(--text);
+}
+
+.status {
+  min-height: 1.3em;
+  margin: 0;
+  font-size: var(--ed-font-size-sm, 12px);
+  /* on: --surface */
+  color: var(--text);
+}
+
+.status:not(:empty) {
+  animation: fadeIn var(--ed-duration-slow, 240ms) ease-out;
+}
+
+.button:focus-visible,
+.apply:focus-visible,
+.linkButton:focus-visible,
+.status:focus-visible {
+  outline: none;
+  box-shadow: var(--ed-focus-ring);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* The review unfolds from its toggle; rows and messages fade in where they appear. */
+@keyframes reviewIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes fill {
+  from {
+    transform: scaleX(0);
+  }
+
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* Forced colours drop the pressed fill: "Putar" while playing keeps an underline of its own. */
+@media (forced-colors: active) {
+  .button[aria-pressed="true"] {
+    text-decoration: underline 2px;
+    text-underline-offset: 3px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .review,
+  .row,
+  .status:not(:empty) {
+    animation: none;
+  }
+
+  .row,
+  .button,
+  .apply {
+    transition: none;
+  }
+
+  .track {
+    display: none;
+  }
+}
