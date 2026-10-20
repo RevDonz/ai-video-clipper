@@ -58,3 +58,21 @@ Jadi setiap baris tetap satu event progres utuh, dan pembaca lama mengabaikan `s
 
 Job lama tanpa `stageSummary` tidak menampilkan baris apa pun selain "Klip" untuk job yang
 selesai.
+
+## Membatalkan job
+
+Job yang masih dalam antrean atau sedang berjalan punya tombol **Batalkan** di dashboard dan di
+panel progres halaman proyek. Konfirmasinya muncul di halaman itu sendiri ("Batalkan proses
+ini?"), bukan dialog browser.
+
+- `POST /api/jobs/<id>/cancel` (perlu sesi dan origin yang sama) menandai job `cancelled` dan
+  mencabut lease-nya. Jawabannya 200 untuk job yang dibatalkan (juga kalau ditekan dua kali), 409
+  `job_finished` untuk job yang sudah selesai atau gagal, 409 `job_deleting` untuk proyek yang
+  sedang dihapus, dan 404 untuk job yang tidak ada.
+- Worker (`web/scripts/run-job.mjs`) memeriksa lease setiap detik. Begitu lease dicabut, semua
+  proses job (yt-dlp, engine, FFmpeg, termasuk yang berjalan di sesi sendiri) dihentikan dalam
+  beberapa detik, lalu file percobaan yang belum jadi dihapus. Rinciannya:
+  `docs/operations/STORAGE_RETENTION.md` "Cancelling a job".
+- Di layar job itu tampil **Dibatalkan**: bilah progres berhenti di posisi terakhir dengan warna
+  netral, tanpa persen, dan halaman proyek menampilkan "Proses dibatalkan" dengan tautan untuk
+  membuat ulang. Status ini terpisah dari **Gagal**.

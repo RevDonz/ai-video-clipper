@@ -8,6 +8,7 @@ import { evaluateStorageAdmission, readAvailableBytes, scanJobsStorage, StorageA
 import { readSharedStorageAccounting } from "./shared-storage-accounting.mjs";
 
 export const ACTIVE_PRIMARY_STATUSES = Object.freeze(["queued", "preparing", "downloading", "processing"]);
+export const CANCELLED_STATUS = "cancelled";
 const ACTIVE = new Set(ACTIVE_PRIMARY_STATUSES);
 const TERMINAL = new Set(["completed", "failed"]);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -661,6 +662,57 @@ export async function fencedUpdateJob({ jobsRoot, id, token, patch, leaseMs, now
     const next = { ...current, ...patch, queue, updatedAt: new Date(now).toISOString() };
     await durableWriteJson(jobPath, next);
     return next;
+  } finally { await release(); }
+}
+
+// Lock-free, so a runner can ask often: job.json is only ever replaced by rename. True while
+// `token` holds the lease, false once it was revoked or taken over, null when unreadable.
+export async function leaseHeld({ jobsRoot, id, token }) {
+  if (!UUID.test(id || "") || typeof token !== "string") return false;
+  let current;
+  try { current = await readNoFollowJson(path.join(path.resolve(jobsRoot), id, "job.json")); }
+  catch (error) { return error?.code === "ENOENT" ? false : null; }
+  return current?.queue?.lease?.tokenHash === tokenHash(token);
+}
+
+// "Batalkan": a person takes a queued or running job out of the queue for good. Revoking the
+// lease is what stops a runner (leaseHeld, fencedUpdateJob); `safeAfter` keeps the moment the
+// old lease would have lapsed, so a deletion that follows still waits for that runner. Finished
+// and deleting jobs are left as they are.
+export async function cancelPrimaryJob({ jobsRoot, id, now = Date.now() }) {
+  if (!UUID.test(id || "")) return { outcome: "not_found" };
+  const release = await acquireQueueLock(jobsRoot);
+  try {
+    const root = path.resolve(jobsRoot);
+    const jobPath = path.join(root, id, "job.json");
+    let current;
+    try { current = await readNoFollowJson(jobPath); }
+    catch (error) { if (error.code === "ENOENT") return { outcome: "not_found" }; throw error; }
+    validateJobIdentity(current, id);
+    if (current.status === CANCELLED_STATUS) return { outcome: "already_cancelled", job: current };
+    if (current.status === "deleting") return { outcome: "deleting", job: current };
+    if (!ACTIVE.has(current.status)) return { outcome: "finished", job: current };
+
+    const at = new Date(now).toISOString();
+    const leaseExpiresAt = Date.parse(current.queue?.lease?.expiresAt ?? "");
+    const safeAfter = new Date(Number.isFinite(leaseExpiresAt) ? Math.max(leaseExpiresAt, now) : now).toISOString();
+    const next = {
+      ...current,
+      status: CANCELLED_STATUS,
+      stage: CANCELLED_STATUS,
+      stageDetail: "Dibatalkan sebelum selesai",
+      error: null,
+      errorCode: null,
+      cancellation: { requestedAt: at, previousStatus: current.status, safeAfter },
+      updatedAt: at,
+      // Queue state also fences a legacy runner, which stops once it sees any.
+      queue: { version: 1, attempts: queueAttempts(current) },
+    };
+    await durableWriteJson(jobPath, next);
+    // A published job's admission record is stale; left behind it would count against the quota
+    // now that the job is no longer active.
+    await unlink(path.join(root, RESERVATIONS, `${id}.json`)).catch((error) => { if (error.code !== "ENOENT") throw error; });
+    return { outcome: "cancelled", job: next };
   } finally { await release(); }
 }
 

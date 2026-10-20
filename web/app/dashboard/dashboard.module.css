@@ -280,7 +280,12 @@ legend.sectionTitle + *, legend.groupTitle + * { clear: both; }
 }
 .progressDone i::after { display: none; }
 .progressFailed i { background: var(--danger); }
+/* A cancelled bar stays where the job stopped, neutral: nobody failed. */
+.progressCancelled i { background: var(--text-muted); }
 
+/* The live line, with "Batalkan" at its end; the confirmation takes the full width below. */
+.activityRow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; }
+.activityRow > .activity { flex: 1 1 12rem; min-width: 0; }
 .activity { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--text-muted); font-size: 14px; line-height: 1.45; }
 .activity > i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--success); }
 .activity.queued > i { background: var(--text-muted); }
