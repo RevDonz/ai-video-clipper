@@ -189,7 +189,7 @@ test("a plan runs the plan op once and schedules cells, audio and the logo", asy
   }
 });
 
-// CONTRACTS §5.28: face-track with the latar blur fallback has its own plate; the cells op is told.
+// CONTRACTS §5.40: face-track with the latar blur fallback has its own plate; the cells op is told.
 test("the cells of face-track's blur fallback ask for it; other plates do not name it", async () => {
   const { dir, clip, cleanup } = root();
   readyAudio(clip);

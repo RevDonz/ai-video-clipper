@@ -30,7 +30,7 @@
 // - SetColdOpen gives the join the transition of `joinTemplate` (doc-model.mjs): the current
 //   join's style and whoosh, else the seed's, else Kilat putih + whoosh (the auto clips' default).
 // - SetLayout into face-track turns the latar blur fallback on (`no_face: "fit_blur"`,
-//   `switchedLayout`); SetNoFace switches it back to centred, or on again (CONTRACTS §5.28).
+//   `switchedLayout`); SetNoFace switches it back to centred, or on again (CONTRACTS §5.40).
 import {
   ASSET_ID_PATTERN,
   CAPTION_OVERRIDE_RULES,
@@ -67,7 +67,7 @@ import { divRoundHalfUp, logoBox, pieces, sfCeil, sfFloor } from "./timemap.mjs"
 /**
  * Appendix B, in the order of the table (the same list as `__dev__/fakes.mjs`), with the
  * cold-open transition commands after NudgeColdOpen (docs/plans/2026-10-02-transisi-cold-open.md §7.2)
- * SetHookDesign after SetHookY (CONTRACTS §5.33) and SetNoFace after SetLayout (CONTRACTS §5.28).
+ * SetHookDesign after SetHookY (CONTRACTS §5.33) and SetNoFace after SetLayout (CONTRACTS §5.40).
  */
 export const COMMANDS = Object.freeze([
   "TrimStart", "TrimEnd", "RemoveWords", "RemoveGap", "RestoreRemoval", "ApplyCleanup",

@@ -636,7 +636,7 @@ def test_the_camera_layout_needs_a_camera_plan(c30):
 
 
 def test_the_blur_fallback_has_its_own_plate_and_notes(c30):
-    """CONTRACTS §5.28: face-track with ``no_face: "fit_blur"`` names the fallback to the lane
+    """CONTRACTS §5.40: face-track with ``no_face: "fit_blur"`` names the fallback to the lane
     (the cells op builds that plate) and lists its runs as ``no_face_blur``."""
     doc = valid("layout_camera_no_face_blur__c30")
     centred = valid("layout_camera__c30")

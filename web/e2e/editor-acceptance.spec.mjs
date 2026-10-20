@@ -898,7 +898,7 @@ test("Kemampuan 7, tata letak: Potong tengah, Ikuti wajah and back to Latar blur
     let noFace = null;
     if (mode === "camera") {
       // Spans without a face are reported, never silent: listed in the panel with a jump each.
-      // Chosen here, face-track shows them with latar blur (CONTRACTS §5.28): notes, not checks.
+      // Chosen here, face-track shows them with latar blur (CONTRACTS §5.40): notes, not checks.
       await expect(panel.locator("[data-layout-noface]")).toBeVisible();
       expect((await inspect(page)).doc.layout.default.no_face).toBe("fit_blur"); // switched from Potong tengah
       const listed = ((await settledPlan(page)).warnings ?? [])

@@ -885,7 +885,7 @@ def test_camera_crop_is_the_same_in_plate_cells_and_in_final_pieces(harness, pro
     assert len(plan.pieces) == 4  # the cuts are crossed: output n and source sf diverge
 
 
-# --- the face-track fallback: latar blur where no face was found (CONTRACTS §5.28) -------------------
+# --- the face-track fallback: latar blur where no face was found (CONTRACTS §5.40) -------------------
 
 
 def test_no_face_frames_are_the_grid_frames_a_span_touches():
@@ -1144,7 +1144,7 @@ def frame_md5s(path: Path) -> list[str]:
 
 def test_a_fallback_frame_is_the_fit_blur_frame_and_every_other_the_camera_frame(
         harness, tmp_path, edit_v2_libass):
-    """The latar blur fallback (CONTRACTS §5.28) in exact pixels: lossless reference renders of
+    """The latar blur fallback (CONTRACTS §5.40) in exact pixels: lossless reference renders of
     one document as Ikuti wajah with the fallback, Ikuti wajah centred and Latar blur. A frame of
     a run without a face equals the Latar blur frame, every other frame the Ikuti wajah frame.
     Plate cells are the same layout graph per frame (P-PLATE covers their encode)."""

@@ -36,7 +36,7 @@ ready} | null, frameKey}``. Publishes the ASS as ``preview/ass/<sha16>.ass``. No
 ``cells`` ``{jobId, clipId, layout, noFace?, cells: [k] (1–64), cancelToken|null}`` →
 ``{plateKey, built, present}``: encodes the missing cells of the seed's plate in ``layout`` in one
 FFmpeg run (the lane's two threads) and publishes ``preview/plates/<key16>-c<k:07d>.mp4``.
-``noFace: "fit_blur"`` asks for face-track's latar blur fallback (CONTRACTS §5.28); without it
+``noFace: "fit_blur"`` asks for face-track's latar blur fallback (CONTRACTS §5.40); without it
 the runs without a face are centred, as before. ``plan`` and ``prepare`` name the plate's
 ``noFace`` (``"fit_blur"`` or ``null``) next to its ``layout``, and ``prepare`` with a switch to
 face-track reports the document ``SetLayout`` makes (the fallback on).
@@ -506,7 +506,7 @@ def _with_layout(doc: Mapping[str, Any], layout: str, no_face: str | None = None
 
 def _switched(doc: Mapping[str, Any], layout: str) -> dict:
     """``doc`` after ``SetLayout {mode: layout}`` (web/lib/editor/commands.mjs): a switch to
-    face-track from another layout turns the latar blur fallback on (CONTRACTS §5.28)."""
+    face-track from another layout turns the latar blur fallback on (CONTRACTS §5.40)."""
     if layout == "camera" and doc["layout"]["default"]["mode"] != "camera":
         return _with_layout(doc, layout, "fit_blur")
     return _with_layout(doc, layout)

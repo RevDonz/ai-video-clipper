@@ -415,7 +415,7 @@ def test_no_face_is_only_reported_for_the_camera_layout(harness, resources):
 
 
 def test_with_the_blur_fallback_a_run_without_a_face_is_a_note(harness, resources):
-    """``no_face: "fit_blur"`` (CONTRACTS §5.28): the run is shown with latar blur, so the plan
+    """``no_face: "fit_blur"`` (CONTRACTS §5.40): the run is shown with latar blur, so the plan
     names it ``no_face_blur`` at the same output frame, and never ``no_face``."""
     name = "layout_camera_no_face_blur__c30"
     doc = load_doc(name)

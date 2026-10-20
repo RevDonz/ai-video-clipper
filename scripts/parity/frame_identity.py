@@ -8,7 +8,7 @@ of a compiled render (plate cells and final) is decoded, its barcode frame index
 Two cases put the body on the source edges with the production rule (``source_info`` grid,
 ``seed.grid_window_ms``): a 29.97 source whose last frame ends between two ms, and a 23.976
 video that starts 41 ms late (no grid frame 0). The ``no_face_blur`` cases run face-track with
-the latar blur fallback (CONTRACTS §5.28): a frame of a run without a face is read with the
+the latar blur fallback (CONTRACTS §5.40): a frame of a run without a face is read with the
 fit-blur geometry, and P-PLATE checks the crop x of the other frames only. Plate-cell frames below the document's window
 (the cloned head of a late-starting source's cell 0) are counted, never compared: no document
 can show them.
@@ -467,7 +467,7 @@ class Case:
     # The cold-open transition (spec 2026-10-02): the join's style and the whoosh.
     join_style: str = "cut"
     whoosh: bool = False
-    # layout.default.no_face (CONTRACTS §5.28): "fit_blur" shows face-track's runs without a
+    # layout.default.no_face (CONTRACTS §5.40): "fit_blur" shows face-track's runs without a
     # face (make_camera has one at 3.0-5.25 s) with the fit-blur layout.
     no_face: str = "center"
 

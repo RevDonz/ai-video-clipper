@@ -483,7 +483,7 @@ test("ResetToSeed replays as the parts it changed, not as a wipe of theirs' edit
     "the rebased log replays to the merged document");
 });
 
-test("face-track's no-face choice is part of the layout and named in the dialog (§5.28)", () => {
+test("face-track's no-face choice is part of the layout and named in the dialog (§5.40)", () => {
   const mine = tab(C30);
   mine.dispatch("SetLayout", { mode: "camera" });
   const theirs = tab(C30);

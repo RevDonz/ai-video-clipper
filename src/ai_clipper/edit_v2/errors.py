@@ -71,7 +71,7 @@ WARNING_CODES = frozenset(
         "hook_overflow",
         "glyph_unsupported",
         "no_face",
-        "no_face_blur",  # a note in the editor (§5.28): the run is shown with latar blur
+        "no_face_blur",  # a note in the editor (§5.40): the run is shown with latar blur
         "unsafe_zone",
         "loudness_clamped",
         "peak_reduced",

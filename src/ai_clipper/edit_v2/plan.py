@@ -165,7 +165,7 @@ class RenderPlan:
 
     @property
     def no_face(self) -> str:
-        """What face-track shows where no face was found: ``center`` or ``fit_blur`` (§5.28)."""
+        """What face-track shows where no face was found: ``center`` or ``fit_blur`` (§5.40)."""
         return self.doc["layout"]["default"]["no_face"]
 
     @property
@@ -309,7 +309,7 @@ def _no_face(camera: Mapping, pieces: Sequence[Piece], fps: Fps,
              no_face: str = "center") -> tuple[Issue, ...]:
     """One issue per (span, piece) overlap, at the output frame where it starts: the warning
     ``no_face`` (the video is centred there) or, with the blur fallback, ``no_face_blur``
-    (shown with latar blur; the editor lists it as a note, §5.28)."""
+    (shown with latar blur; the editor lists it as a note, §5.40)."""
     if no_face == "fit_blur":
         code, path = "no_face_blur", "/layout/default/no_face"
     else:

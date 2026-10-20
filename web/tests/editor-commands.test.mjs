@@ -822,7 +822,7 @@ test("checkDoc accepts the four hook designs at v 1 and nothing else", () => {
 test("SetLayout switches between the three layouts; into face-track with the latar blur fallback", () => {
   for (const mode of ["fit_blur", "camera", "fill_center"]) {
     const doc = run(C30, C30.seed, "SetLayout", { mode });
-    // CONTRACTS §5.28: face-track chosen in the editor shows its runs without a face with latar blur
+    // CONTRACTS §5.40: face-track chosen in the editor shows its runs without a face with latar blur
     assert.deepEqual(doc.layout, { default: { mode, no_face: mode === "camera" ? "fit_blur" : "center" } });
   }
   // the face-track seed keeps the auto clip's centred runs until the user switches them

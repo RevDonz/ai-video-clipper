@@ -344,7 +344,7 @@ Duplicate keys, NaN and unknown keys are rejected at every level.
 | `captions.overrides.words_max` | optional; 1–4 (amended 2026-10-20, §5.30) | "Kata per baris": at most this many words per caption line; absent = the pack's `words_per_cue`. Seeds never write it |
 | `captions.overrides.entrance` | optional; `none`, `fade`, `pop`, `blur` (amended 2026-10-21, §5.39) | "Animasi masuk": how each caption line appears, at most 120 ms; absent = `none`. Seeds never write it |
 | `captions.word_edits` | ≤ 6,000 keys (word ids); values `{text?, hidden?, emphasis?}` with ≥ 1 key | `text` 1–40 chars. `emphasis` fixes defect #6 (§8) |
-| `layout.default.mode` | `fit_blur`, `camera` (face-track), `fill_center` (center-crop) | `no_face` is `"center"` (today's behaviour) or `"fit_blur"` (face-track shows its runs without a face as `fit_blur`, §5.28); no-face spans are *reported*, never silent |
+| `layout.default.mode` | `fit_blur`, `camera` (face-track), `fill_center` (center-crop) | `no_face` is `"center"` (today's behaviour) or `"fit_blur"` (face-track shows its runs without a face as `fit_blur`, §5.40); no-face spans are *reported*, never silent |
 | `tracks` | ≤ 3 tracks: ≤ 1 `hook`, ≤ 1 `visual/over_text/overlay`, ≤ 1 `audio/music`; ≤ 1 item each | Stage 2 lifts the counts; the shapes stay |
 | hook item | `start {"at":"out","f":0}`; `dur_f` 15 to `floor(30·F)`; `transform.x_e5` 50000; `y_e5` 6000–40000 (top of the hook stack; seed 13000); `payload.text` 1–90; `design {"id": "legacy-bar"|"kicker"|"blok"|"kotak", "v": 1}` (the three new designs amended 2026-10-20, §5.33; seeds write `legacy-bar`) | Fixed start at 0 as today |
 | logo item | `start clip_start`, `end clip_end`; `x_e5, y_e5` 0–100000 (box centre); `w_e5` 4000–40000; `opacity_pm` 200–1000; `payload.mode` `"free"` | The resolved box must lie inside the frame (`item_out_of_frame`) |
@@ -452,7 +452,7 @@ every later reader sees.
 |---|---|---|
 | Parse | `invalid_json`, `float_not_allowed`, `duplicate_key`, `unknown_key`, `too_large`, `not_nfc`, `control_char` | 422 `{errors:[{path, code}]}` |
 | Semantic, blocking | `base_changed`, `outside_window`, `range_invalid`, `cold_open_invalid`, `duration_out_of_bounds`, `removal_outside_segment`, `removal_overlap`, `unknown_word`, `asset_missing`, `pack_unknown`, `sfx_unknown` (2026-10-02, §5.26), `op_disabled`, `item_out_of_frame`, `revision_mismatch`, `parent_mismatch` | 422 |
-| Warning (save allowed; export asks for acknowledgement in "Perlu dicek") | `tight_cut`, `laughter_cut` (a cut inside a laughter span or within 300 ms of a laughter point), `hook_overflow` (the hook does not fit 3 lines at the smallest size and will be shortened with "…"), `glyph_unsupported:U+XXXX` (the pack font lacks a character, e.g. emoji), `no_face` (face-track spans with no face; listed with jump-to), `unsafe_zone` (caption, hook or logo box inside the TikTok UI zone), `loudness_clamped`, `peak_reduced` (§5.6 step 5), `music_shorter_than_clip` (loop off), `no_face_blur` (a face-track run without a face shown with latar blur, §5.28; the editor lists it as a note) | Listed with a jump-to target; nothing is silently changed |
+| Warning (save allowed; export asks for acknowledgement in "Perlu dicek") | `tight_cut`, `laughter_cut` (a cut inside a laughter span or within 300 ms of a laughter point), `hook_overflow` (the hook does not fit 3 lines at the smallest size and will be shortened with "…"), `glyph_unsupported:U+XXXX` (the pack font lacks a character, e.g. emoji), `no_face` (face-track spans with no face; listed with jump-to), `unsafe_zone` (caption, hook or logo box inside the TikTok UI zone), `loudness_clamped`, `peak_reduced` (§5.6 step 5), `music_shorter_than_clip` (loop off), `no_face_blur` (a face-track run without a face shown with latar blur, §5.40; the editor lists it as a note) | Listed with a jump-to target; nothing is silently changed |
 
 ### 3.8 Forward compatibility with FINAL (Stage 2)
 
@@ -610,7 +610,7 @@ annotations may be spelled differently).
 | `edit_v2.loudness` | `Loudness`, `parse_ebur128`, `master_gain`, `needs_measurement`, `output_gain` | T1.4 |
 | `edit_v2.plan` | `Resources`, `RenderPlan`, `build_plan`, `render_key` | T1.3 |
 | `edit_v2.compile_ffmpeg` | `MODES`, `QUALITIES`, `InputSpec`, `FfmpegJob`, `compile_job` | T1.3 |
-| `edit_v2.layouts` | `LAYOUT_MODES`, `NO_FACE_MODES` (§5.28; the builders are internal to T1.3) | T1.3 |
+| `edit_v2.layouts` | `LAYOUT_MODES`, `NO_FACE_MODES` (§5.40; the builders are internal to T1.3) | T1.3 |
 | `edit_v2.execute` | `ExecResult`, `run` | T1.3 |
 | `edit_v2.verify` | `VerifyReport`, `verify_output` | T1.3 |
 | `edit_v2.derive` | `derive_image` | T1.3 |
@@ -779,7 +779,7 @@ yields `range_invalid` only, with no duration or window issue).
   `effect`; an anchor `{"at": "word", …}` or a hook start with `f` ≠ 0; hook design other than
   `{"id": <one of HOOK_DESIGN_IDS>, "v": 1}` (§5.33); logo `payload.mode` `pip`, `cutaway`, `split_top`,
   `split_bottom`; `captions.overrides.case` `lower`, `sentence`; layout mode `smart_speaker`,
-  `fit_black`, `split`, `branded`; `no_face` `fail` (`fit_blur` is valid since §5.28); duck
+  `fit_black`, `split`, `branded`; `no_face` `fail` (`fit_blur` is valid since §5.40); duck
   detector `rms`.
 - **`pack_unknown`**: `captions.pack.id` (a string) not in `PACK_IDS`, or `v` (an int) ≠ 1.
 - **`base_changed`** (only when `seed` is given): any difference from the seed in `base`,

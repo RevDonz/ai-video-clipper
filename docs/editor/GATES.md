@@ -1930,7 +1930,7 @@ Actions when the branch is pushed.
 
 ## Face-track latar blur fallback (2026-10-21)
 
-`layout.default.no_face: "fit_blur"` (CONTRACTS §5.28): face-track shows its runs without a face
+`layout.default.no_face: "fit_blur"` (CONTRACTS §5.40): face-track shows its runs without a face
 with the latar blur layout. Existing documents keep their graph, plan sha and plate key, so
 `RENDER_SEMANTICS` stays 1 and the goldens are unchanged.
 

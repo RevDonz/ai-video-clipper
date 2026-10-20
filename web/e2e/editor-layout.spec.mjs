@@ -2,7 +2,7 @@
 // Appendix B `SetLayout`, Appendix C.6). Runs against the T1.Z fakes (plan §11.0 "TDD protocol"):
 // switching between the three layouts, face-track analysed before the switch (with its progress,
 // a failure and a change of mind), the truth-frame thumbnails at the playhead, the runs without a
-// face with jump-to and their latar blur / centred choice (CONTRACTS §5.28), undo, read-only and axe.
+// face with jump-to and their latar blur / centred choice (CONTRACTS §5.40), undo, read-only and axe.
 //
 // Prerequisites (as web/e2e/editor-shell.spec.mjs): a server with POTONGIN_EDITOR_V3=on and
 // POTONGIN_EDITOR_FAKES=1, E2E_EDITOR_FAKES=1 to run this file, E2E_USERNAME/E2E_PASSWORD; optional

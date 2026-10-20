@@ -18,7 +18,7 @@ The chains start from ``render.py``'s filter strings, imported and not modified
 The compiler applies one chain per plate run and one per render, after the pieces are joined
 (``compile_ffmpeg``, R4): the chain is per frame, so this equals a chain per piece.
 
-**The no-face fallback** (``layout.default.no_face: "fit_blur"``, CONTRACTS §5.28). Under
+**The no-face fallback** (``layout.default.no_face: "fit_blur"``, CONTRACTS §5.40). Under
 ``camera`` a source-grid frame that a camera-plan ``no_face`` span touches
 (:func:`no_face_frames`) is shown as ``fit_blur``. The chain is fit-blur's with three switches
 indexed by ``n`` like the crop: the crop x is the centre there (fit-blur's background crop),
@@ -40,7 +40,7 @@ from .timemap import Fps, div_round_half_up
 
 # layout.default.mode values (plan §3.3): fit-blur, face-track, center-crop.
 LAYOUT_MODES = ("fit_blur", "camera", "fill_center")
-# layout.default.no_face values: what face-track shows where no face was found (§5.28).
+# layout.default.no_face values: what face-track shows where no face was found (§5.40).
 NO_FACE_MODES = ("center", "fit_blur")
 
 WORKING_FORMAT = "yuv444p"  # every layout branch leaves in 4:4:4, BT.709, tv range
@@ -217,7 +217,7 @@ def layout_chain(
 ) -> str:
     """The layout chain of one branch, from ``label_in`` to ``label_out`` (yuv444p, BT.709, tv,
     SAR 1). ``crop`` holds the camera crop x per frame of the branch (``camera`` only), and
-    ``fallback`` per frame whether it shows the no-face fallback (``camera`` only, §5.28).
+    ``fallback`` per frame whether it shows the no-face fallback (``camera`` only, §5.40).
 
     ``suffix`` keeps the internal labels of fit-blur unique (``[background<suffix>]`` …).
     """

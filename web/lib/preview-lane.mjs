@@ -40,7 +40,7 @@ export const PREVIEW_MODULE = "ai_clipper.edit_v2.preview_cli";
 export const PREVIEW_SERVER_MODULE = "ai_clipper.edit_v2.preview_server";
 export const LAYOUTS = Object.freeze(["fit_blur", "camera", "fill_center"]);
 // A plate's `noFace` from preview_cli: "fit_blur" for face-track's latar blur fallback (CONTRACTS
-// §5.28), null otherwise; the cells op is told only about the fallback.
+// §5.40), null otherwise; the cells op is told only about the fallback.
 const plateNoFace = (value) => (value === undefined || value === null ? null : value === "fit_blur" ? value : undefined);
 export const DEFAULT_CACHE_CAP_BYTES = 1024 * 1024 * 1024; // K11
 export const HEAVY_SLOTS = 2;

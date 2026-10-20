@@ -531,7 +531,7 @@ _JOIN_STYLES = (set(transitions.JOIN_STYLES), set(transitions.DISABLED_JOIN_STYL
 _CASES = ({"asis", "upper"}, {"lower", "sentence"})
 _LAYOUT_MODES = ({"fit_blur", "camera", "fill_center"},
                  {"smart_speaker", "fit_black", "split", "branded"})
-_NO_FACE = ({"center", "fit_blur"}, {"fail"})  # fit_blur: CONTRACTS §5.28
+_NO_FACE = ({"center", "fit_blur"}, {"fail"})  # fit_blur: CONTRACTS §5.40
 _DETECTORS = ({"words"}, {"rms"})
 _LOGO_MODES = ({"free"}, {"pip", "cutaway", "split_top", "split_bottom"})
 _BANDS = ({"over_text"}, {"under_text"})

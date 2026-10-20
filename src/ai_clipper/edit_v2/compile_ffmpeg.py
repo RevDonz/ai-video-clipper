@@ -437,7 +437,7 @@ class _Compiler:
         filter contexts however many cuts there are. The camera crop x of output frame ``n``
         is the plan's value at the source frame it shows, so a plate cell and a final render
         crop any source frame at the same x. ``suffix`` keeps fit_blur's internal labels unique
-        when a job holds several chains (plate runs). With the no-face fallback (§5.28) the
+        when a job holds several chains (plate runs). With the no-face fallback (§5.40) the
         frames of the camera plan's runs without a face are chosen the same way, per source
         frame.
         """

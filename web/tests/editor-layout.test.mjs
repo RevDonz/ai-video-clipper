@@ -56,7 +56,7 @@ test("SetLayout changes only layout.default.mode and refuses an unknown mode", (
   assert.equal(applyCommand(next, "SetLayout", { mode: "camera" }, ctx).doc.layout.default.mode, "camera");
 });
 
-// CONTRACTS §5.28: face-track chosen in the editor shows the runs without a face with latar blur.
+// CONTRACTS §5.40: face-track chosen in the editor shows the runs without a face with latar blur.
 test("SetLayout into face-track turns the latar blur fallback on; every other switch keeps it", () => {
   const doc = fakeDoc();
   const ctx = createContext({ words: fakeWords(), seed: doc });

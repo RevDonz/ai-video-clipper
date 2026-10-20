@@ -2,7 +2,7 @@
 ``layout.default.mode``, Appendix B ``SetLayout``).
 
 A switch changes ``layout.default.mode`` (a switch into face-track also turns the latar blur
-fallback on, CONTRACTS §5.28). The plate key follows it (the layout is part of the plate pixels)
+fallback on, CONTRACTS §5.40). The plate key follows it (the layout is part of the plate pixels)
 while the text and the audio mix stay as they are; switching back finds the plate cells built
 before. The face-track layout of a clip seeded with another layout needs a
 camera plan: ``prepare`` builds it once for the clip window and every later plan, preview and
@@ -57,7 +57,7 @@ def revision(case: dict, layout: str | None = None) -> dict:
 
 def face_track(case: dict) -> dict:
     """Revision 1 after ``SetLayout {mode: "camera"}`` from the seed's layout: face-track with the
-    latar blur fallback where no face was found (CONTRACTS §5.28)."""
+    latar blur fallback where no face was found (CONTRACTS §5.40)."""
     doc = revision(case, "camera")
     doc["layout"]["default"]["no_face"] = "fit_blur"
     return doc

@@ -14,7 +14,7 @@
 //   panel's: it goes on when the panel closes, and Mode Cepat's Tata letak card shows it too.
 // - Under face-track a choice says what the runs without a face show: latar blur (what choosing
 //   face-track here sets) or centred (a face-track auto clip), one click each (`SetNoFace`,
-//   CONTRACTS §5.28). The runs (the plan's `no_face` or `no_face_blur`) are listed with a jump-to
+//   CONTRACTS §5.40). The runs (the plan's `no_face` or `no_face_blur`) are listed with a jump-to
 //   button each; with latar blur they are notes, not checks.
 //
 // Props: { state, dispatch, player } (panels/index.mjs), plus the optional seams `api` (prepare

@@ -738,7 +738,7 @@ def _valid(contexts: Mapping[str, Context]) -> list[_Fixture]:
         d = _Doc(c30, "SetLayout")
         d.doc["layout"]["default"]["mode"] = mode
         add(f"layout_{mode}", d)
-    # face-track chosen in the editor: SetLayout turns on the latar blur fallback (§5.28)
+    # face-track chosen in the editor: SetLayout turns on the latar blur fallback (§5.40)
     d = _Doc(c30, "SetLayout")
     d.doc["layout"]["default"].update(mode="camera", no_face="fit_blur")
     add("layout_camera_no_face_blur", d)

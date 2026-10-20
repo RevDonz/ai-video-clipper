@@ -23,7 +23,7 @@ export const HOOK_DESIGN_IDS = Object.freeze(["legacy-bar", "kicker", "blok", "k
 /** What the editor calls each hook design (Hook card, Teks panel, conflict dialog). */
 export const HOOK_DESIGN_NAMES = Object.freeze({ "legacy-bar": "Bar", kicker: "Kicker", blok: "Blok", kotak: "Kotak kata" });
 export const LAYOUT_MODES = Object.freeze(["fit_blur", "camera", "fill_center"]);
-/** What face-track shows where no face was found (CONTRACTS §5.28): centred, or latar blur. */
+/** What face-track shows where no face was found (CONTRACTS §5.40): centred, or latar blur. */
 export const NO_FACE_MODES = Object.freeze(["center", "fit_blur"]);
 
 /**

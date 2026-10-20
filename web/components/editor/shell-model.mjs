@@ -131,7 +131,7 @@ export function captionAtSeedSpot(doc, seed) {
   return Number.isInteger(at) && at === seed?.captions?.overrides?.y_e5;
 }
 
-// A run without a face that face-track shows with latar blur (CONTRACTS §5.28): the whole picture
+// A run without a face that face-track shows with latar blur (CONTRACTS §5.40): the whole picture
 // is there, so it informs and needs no tick before export.
 const NOTE_CODES = Object.freeze(["no_face_blur"]);
 
@@ -337,7 +337,7 @@ export function liveEntries(entries, runtimeKind, liveWaves = LIVE_WAVES) {
  * "Perlu dicek": store warnings (save results) and plan warnings, deduplicated, sorted by
  * frame (items without a frame last); plan errors come first as blocking items, notes last.
  * With the document and its seed, the caption's zone warning at the auto clip's spot is a note
- * (severity "info", K5); so is a run without a face shown with latar blur (`no_face_blur`, §5.28).
+ * (severity "info", K5); so is a run without a face shown with latar blur (`no_face_blur`, §5.40).
  */
 export function checksView({ warnings = [], plan = null, doc = null, seed = null } = {}) {
   const fps = plan?.fps;

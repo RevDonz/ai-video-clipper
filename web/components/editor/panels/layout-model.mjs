@@ -11,7 +11,7 @@
 // - The runs without a face are the plan's `no_face` warnings (one per run and piece, at the output
 //   frame where it starts); each is a jump-to target. Face-track chosen here shows them with latar
 //   blur (`no_face: "fit_blur"`, the plan says `no_face_blur`); one click centres them instead, and
-//   back (`SetNoFace`, CONTRACTS §5.28).
+//   back (`SetNoFace`, CONTRACTS §5.40).
 import { NO_FACE_MODES, switchedLayout } from "../../../lib/editor/doc-model.mjs";
 import { formatClock, frameToMs, messageFor } from "../shell-model.mjs";
 

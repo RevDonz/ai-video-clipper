@@ -13,7 +13,7 @@ those inputs, and an edit of the cuts reuses every cell it still shows.
   and render semantics, the composite format and the plate encode, the lane's thread count (x264
   bits depend on it), the source content, the window's first grid frame, fps, output size,
   layout, the camera plan's sha (camera layout only), the no-face blur fallback (camera layout
-  with ``no_face: "fit_blur"`` only, CONTRACTS §5.28) and ``toolchain.json``'s sha.
+  with ``no_face: "fit_blur"`` only, CONTRACTS §5.40) and ``toolchain.json``'s sha.
 * ``cell_name`` is the flat file name ``<key16>-c<k:07d>.mp4`` under ``preview/plates``.
 * ``camera_for`` finds the camera plan of a document: the one ``base.camera.sha256`` names, else
   (a clip seeded with another layout and switched to face-track in the editor) the valid plan of

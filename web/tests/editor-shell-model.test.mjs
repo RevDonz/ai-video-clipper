@@ -265,7 +265,7 @@ test("the caption at its auto-clip spot in the TikTok zone is a note, not a chec
   assert.deepEqual(others.map((item) => item.severity), ["warning", "warning"]);
 });
 
-// CONTRACTS §5.28: with face-track's latar blur fallback a run without a face is shown whole, so it
+// CONTRACTS §5.40: with face-track's latar blur fallback a run without a face is shown whole, so it
 // informs (a note, no tick before export); the centred run stays a check.
 test("a run without a face shown with latar blur is a note; a centred one stays a check", () => {
   const plan = { fps: FPS, errors: [], warnings: [
