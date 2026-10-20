@@ -345,6 +345,7 @@ Duplicate keys, NaN and unknown keys are rejected at every level.
 | `captions.overrides.entrance` | optional; `none`, `fade`, `pop`, `blur` (amended 2026-10-21, §5.39) | "Animasi masuk": how each caption line appears, at most 120 ms; absent = `none`. Seeds never write it |
 | `captions.word_edits` | ≤ 6,000 keys (word ids); values `{text?, hidden?, emphasis?}` with ≥ 1 key | `text` 1–40 chars. `emphasis` fixes defect #6 (§8) |
 | `layout.default.mode` | `fit_blur`, `camera` (face-track), `fill_center` (center-crop) | `no_face` is `"center"` (today's behaviour) or `"fit_blur"` (face-track shows its runs without a face as `fit_blur`, §5.40); no-face spans are *reported*, never silent |
+| `layout.keyframes` | optional; 1–100 `{sf, pan_e5 0–100000, move "cut"\|"slide"}`, `sf` strictly increasing inside the window (amended 2026-10-21, §5.41) | "Atur bingkai": the crop of the two crop layouts set by hand; with `fit_blur` `range_invalid`; absent = the layout's own framing. Seeds never write it |
 | `tracks` | ≤ 3 tracks: ≤ 1 `hook`, ≤ 1 `visual/over_text/overlay`, ≤ 1 `audio/music`; ≤ 1 item each | Stage 2 lifts the counts; the shapes stay |
 | hook item | `start {"at":"out","f":0}`; `dur_f` 15 to `floor(30·F)`; `transform.x_e5` 50000; `y_e5` 6000–40000 (top of the hook stack; seed 13000); `payload.text` 1–90; `design {"id": "legacy-bar"|"kicker"|"blok"|"kotak", "v": 1}` (the three new designs amended 2026-10-20, §5.33; seeds write `legacy-bar`) | Fixed start at 0 as today |
 | logo item | `start clip_start`, `end clip_end`; `x_e5, y_e5` 0–100000 (box centre); `w_e5` 4000–40000; `opacity_pm` 200–1000; `payload.mode` `"free"` | The resolved box must lie inside the frame (`item_out_of_frame`) |
@@ -477,6 +478,9 @@ every later reader sees.
 - *Amended 2026-10-21 (§5.43):* the optional root key `watermark` (the text watermark) is valid
   under `schema_minor: 0`. A document without it is unchanged in meaning (no watermark); an older
   server refuses the key with `unknown_key`.
+- *Amended 2026-10-21 (§5.41):* manual framing landed as the optional `layout.keyframes` under
+  `schema_minor: 0`, in place of Stage 2's `camera.manual_keys`. A document without it is
+  unchanged in meaning; an older server refuses the key with `unknown_key`.
 - The pack ids `classic` and `karaoke` are the FINAL `legacy-classic@1` and `legacy-karaoke@1`
   (an alias table is added in Stage 2).
 - FINAL puts the resolver in JS. If Stage 2 adopts that, the Python resolver becomes the
@@ -793,7 +797,8 @@ yields `range_invalid` only, with no duration or window issue).
   `parent_sha256 == current etag` else `parent_mismatch` (both 422).
 - **`outside_window`**: with `window_sf = [sf_floor(window_ms[0]), sf_ceil(window_ms[1])]`, every
   segment needs `window_sf[0] ≤ in_sf` and `out_sf ≤ window_sf[1]` (frame-covering, so a seed
-  that ends at the end of the source is inside). The seed narrows `window_ms` to the source-grid
+  that ends at the end of the source is inside), and every framing keyframe `window_sf[0] ≤ sf
+  < window_sf[1]` (§5.41). The seed narrows `window_ms` to the source-grid
   frames that exist (§5.6, §5.16), so `window_sf` never reaches a frame the compiler cannot
   decode.
 - **Segments**: 1–2 items, exactly one `body` (zero or two bodies → `range_invalid`),
@@ -863,6 +868,7 @@ captions  enabled bool · pack {id, v} · overrides {y_e5, size_pm, case, highli
           words_max (optional, §5.30), entrance (optional, §5.39)}
           · word_edits {<word id>: {text?, hidden?, emphasis?}} (values: 1–3 keys)
 layout    default {mode, no_face "center"|"fit_blur"}
+          · keyframes [{sf, pan_e5, move "cut"|"slide"}] (optional, 1–100, §5.41)
 tracks    hook   {id, kind "hook", items}
           visual {id, kind "visual", band "over_text", role "overlay", items}
           audio  {id, kind "audio", role "music", items}
@@ -3115,3 +3121,122 @@ auto render is unchanged: without the key `build_ass_v2` writes the bytes it wro
   the first two in the smoke subset; the player fixtures add the variant `watermark`
   (`middle_right`, 140 %).
 - The 1,000-sequence crosscheck draws the five commands, valid and not.
+
+## 5.41 Manual framing: "Atur bingkai" (2026-10-21)
+
+Plan `docs/plans/2026-10-20-lanjutan-sesi.md` P2 ("Reframe manual"). The two crop layouts
+(`camera`, `fill_center`) can be framed by hand with keyframes: the 9:16 crop is placed on the
+source picture at chosen frames and either holds until the next keyframe or moves to it. Nothing
+that renders today changes: a document without `layout.keyframes` keeps its graph, plan sha and
+plate key, so `RENDER_SEMANTICS` stays 1 and no golden moves.
+
+### The document (§3.3, §5.5)
+
+- Optional `layout.keyframes`: 1–100 (`MAX_KEYFRAMES`) objects `{sf, pan_e5, move}`, with exactly
+  those keys (another is `unknown_key` at parse level).
+  - `sf`: a source-grid frame at the output rate, strictly increasing (else `range_invalid` at
+    `/layout/keyframes/<i>/sf`), inside the window: `window_sf[0] ≤ sf < window_sf[1]` (else
+    `outside_window`). A keyframe follows the source, so cuts and trims never move it; one
+    inside a cut keeps framing the frames around it but has no place on the timeline.
+  - `pan_e5`: 0–100000 (`PAN_E5_MAX`), the crop from the left edge (0) to the right edge
+    (100000) of its travel; 50000 is the centre.
+  - `move` (`KEYFRAME_MOVES`): `cut` holds the crop of the keyframe before until this one's
+    frame ("Potong"); `slide` moves linearly from the keyframe before ("Geser"). The first
+    keyframe's `move` is never read.
+- An empty list is `range_invalid` (no keyframes is no key, R10). With `fit_blur` the list is
+  `range_invalid` at `/layout/keyframes`. `schema_minor` stays 0 (§3.8 amendment).
+- Constants in `edit_v2/__init__.py`; the client's in `web/lib/editor/doc-model.mjs`
+  (`CROP_MODES`, `KEYFRAME_MOVES`, `MAX_KEYFRAMES`, `PAN_E5_MAX`).
+
+### Frames (`layouts.py`)
+
+- `pan_limit(source, output)`: the camera crop's travel, `scaled_w − W` floored to even (0 for a
+  source that is 9:16 or taller: nothing to pan).
+- `keyframe_positions(keyframes, *, source, output, first_sf, count)`: the even crop x of every
+  source-grid frame. Keyframe `i` is at `pan_e5·limit/100000` on its frame; before the first the
+  first holds, after the last the last holds; towards the next keyframe the crop holds (`cut`, or
+  the same pan) or moves linearly in the frame index (`slide`). Exact rationals, rounded once to
+  the nearest even integer (half up), as `crop_positions`. `pan_e5` 50000 is `centre_x` for a
+  16:9 source (an odd centre, 4:3 at 720 wide, is one pixel off).
+- `check_keyframes`: the rules above without the window (`ValueError`; `TypeError` for an item
+  that is not an object).
+- `tests/fixtures/edit_v2/framing-vectors.json` (`potongin.framing-vectors/1`): 29 inputs with
+  their crop x (hand-picked and seeded random cases over 7 source/output sizes), written by
+  `tests/test_edit_v2_framing.py` (`EDIT_V2_UPDATE_VECTORS=1`); `web/tests/editor-framing.test.mjs`
+  checks `web/lib/editor/framing.mjs` against the same file.
+
+### Compiler, plan and keys
+
+- `compile_ffmpeg` (`layout`): with keyframes, either crop layout uses the camera chain (`crop`
+  with an x expression of the frame counter `n`) with the keyframe x of the source frame each
+  output frame shows, in every mode with a layout (final, reference, plate cells, frame). So a
+  plate cell, the truth frame and the final crop any source frame at the same x. Face-track's
+  camera plan is still required (as before) but neither its crop nor its no-face fallback is
+  used.
+- `RenderPlan.keyframes`; `build_plan` lists no `no_face`/`no_face_blur` issue while keyframes
+  exist (the manual framing covers those runs). `RenderPlan.to_json` is unchanged; the content
+  sha carries the keyframes.
+- `plates.plate_key` adds `"keyframes": [[sf, pan_e5, move], …]` only when there are keyframes,
+  and then never `no_face` (the fallback is off); every other key is the one before (pinned in
+  `tests/test_edit_v2_plates.py`).
+- `preview_cli`: `plan`'s `lane` and `prepare` name `keyframes` (the triples, or `null`) next to
+  `noFace` (always `null` with keyframes); `cells` takes an optional `keyframes` (triples; a
+  malformed list is a usage error, a frame outside the window `outside_window`, keyframes with
+  `fit_blur` `range_invalid`, both exit 6). `prepare` with a switch to `fit_blur` reports the
+  document without keyframes (`_switched`, as `SetLayout`). `web/lib/preview-lane.mjs` keeps the
+  plate's keyframes and sends them with every cells batch of that plate; a plan or prepare
+  result with malformed keyframes is not trusted (503).
+
+### Commands and the two-tab merge (`web/lib/editor/commands.mjs`, `rebase.mjs`)
+
+- `SetKeyframe {sf, pan_e5, move?}`: adds a keyframe at a source frame of the window (sorted), or
+  moves the one at that frame (keeping its `move` unless given); a new keyframe is `cut`. Needs a
+  crop layout (`framing_unavailable`, "Atur bingkai hanya untuk Ikuti wajah dan Potong
+  tengah."); at most 100 (`too_many_keyframes`); `outside_window`, `value_out_of_range`,
+  `invalid_args` as the other commands. Merge key `frame:<sf>`: a drag or the keys at one frame
+  are one undo step.
+- `RemoveKeyframe {sf}`, `SetKeyframeMove {sf, move}` (`keyframe_missing` when there is none at
+  `sf`) and `ClearKeyframes {}` ("Kembali ke otomatis"; nothing to clear is no change). The last
+  keyframe gone is no `keyframes` key (R10).
+- `SetLayout` keeps the keyframes between `camera` and `fill_center` and drops them for
+  `fit_blur` (`layoutAfterSwitch`; the layout thumbnails and `preview_cli` `_switched` do the
+  same). `checkDoc` mirrors the validator's rules (an unknown key is `range_invalid` there); the
+  cross-check generator sends the four commands.
+- Two tabs: part `layout.keyframes` (value: the list or `null`) in the "Tata letak" group; the
+  dialog names `<mode> + bingkai manual (<n> keyframe)`. "Pakai punyaku" for mine's keyframes
+  over the other tab's latar blur brings mine's crop layout along.
+
+### Editor
+
+- `web/lib/editor/framing.mjs`: the JS mirror (integer math, BigInt products) plus
+  `framingAvailability`, `keyframeMarks` (the output frame of each keyframe the clip shows) and
+  `sourceFrameAt`.
+- "Atur bingkai" (`FramingDialog.jsx` and its model `framing-model.mjs` in
+  `web/components/editor/`, a shell dialog like the export), opened from the Tata letak panel
+  (section "Bingkai") and Mode Cepat's Tata letak card under a crop layout (`openFraming` in the
+  panel props bundle). The picture is the truth frame (`preview/frame`) of
+  `sourceFrameDoc`: the document with `fit_blur`, no keyframes, captions off, no tracks or
+  assets and the cold-open join as a plain cut, so the band in the middle is the whole source and
+  nothing covers it; it is asked 150 ms after the playhead rests (its own preview client in the
+  app). The gizmo (`gizmos/FrameGizmo.jsx`, `gizmos/frame-geometry.mjs`) draws the 9:16 box at
+  `x / scaled_w` with a grid of thirds and dims the rest; a drag (magnet on the centre, Alt
+  frees it; a press outside brings the box's middle there) is drawn locally and stored once, on
+  release; ←/→ 1 %, Shift or PageUp/PageDown 10 %, Home/End store at once. "Hasil" is a CSS crop
+  of the same picture at the box (`resultBackground`), shown for Potong tengah and for every
+  frame once a keyframe exists; face-track without keyframes says "Mengikuti wajah" instead
+  (its crop is the camera plan's, which the dialog does not draw). The scrubber marks each
+  keyframe with a lime diamond; "Tambah keyframe", "Hapus keyframe", "Ke keyframe ini" (Potong /
+  Geser, from the second keyframe on), "Kembali ke otomatis" and "Selesai". The dialog's
+  playhead is the player's; Ctrl+Z / Ctrl+Shift+Z undo and redo inside it.
+- Mode Lengkap's video lane draws a lime diamond at each keyframe; the Tata letak card's summary
+  adds " · bingkai manual". With keyframes the panel hides face-track's "Bagian tanpa wajah"
+  choice and says the manual framing covers those runs.
+
+### Gates
+
+P-FRAME gains `cfr_30_keyframes` and P-PLATE gains `plate_fill_center_keyframes` and
+`plate_camera_keyframes` (face-track with its fallback on, which the keyframes turn off): crop x
+of every plate, reference and final frame against `keyframe_positions`
+(`scripts/parity/frame_identity.py`). `tests/test_edit_v2_compile.py` decodes the crop x of the
+plate cells and the lossless reference of a framed synthetic clip with real FFmpeg (0 px).
+Browser spec: `web/e2e/editor-framing.spec.mjs` on the editor fakes.
