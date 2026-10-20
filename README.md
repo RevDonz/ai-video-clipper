@@ -211,7 +211,10 @@ suite) run on GitHub Actions: `ci-cd.yml` on every pull request and `editor-gate
   are sealed with AES-256-GCM in `/data/settings` and the worker hands them only to the
   engine process. Without a settings file the environment is used (one-click import).
   `GET /api/llm/status` (authenticated) reports the effective configuration: no network
-  calls, and never key values.
+  calls, and never key values. Pengaturan's "Tentang sistem" section
+  (`GET /api/settings/system`, authenticated) shows the yt-dlp, FFmpeg and libass versions, the
+  Whisper model and the deployed commit, read from package metadata, `resources/toolchain.json`
+  and the environment.
 - **YouTube captions fast path.** After the video download, two best-effort `yt-dlp` runs
   fetch manual and automatic json3 captions into `input/captions/{manual,auto}`. The engine
   gets `--captions-dir` only when a caption file exists, uses the captions when they pass

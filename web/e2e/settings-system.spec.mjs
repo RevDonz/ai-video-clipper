@@ -1,4 +1,4 @@
-// Pengaturan "Tentang sistem" (docs/editor/CONTRACTS.md §5.28). GET /api/settings/system is faked
+// Pengaturan "Tentang sistem" (docs/editor/CONTRACTS.md §5.34). GET /api/settings/system is faked
 // in the browser (page.route), so the values are fixed; the AI form keeps talking to the server.
 // Optional: AXE_CORE_PATH=<axe.min.js> runs axe on the section (skipped without it).
 import { expect, test as base } from "@playwright/test";

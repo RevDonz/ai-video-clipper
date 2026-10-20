@@ -171,6 +171,7 @@ CLIs (stdin JSON envelope → stdout JSON, bounded; exit codes as in T1.1):
 | `python -m ai_clipper.edit_v2.cleanup` / `coldopen` | `list` |
 | `python -m ai_clipper.editor_ai` | `heuristic`, `run-task` |
 | `python -m ai_clipper.render_queue` (added in W2, T2.2; §5.17) | `estimate`, `create`, `get`, `cancel`, `list` (no arguments: the Editor V3 envelope; any argument exits 2 `render_queue_usage`: the candidate editor's `--job-dir` protocol was retired in W4, T4.1) |
+| `python -m ai_clipper.system_info` (Pengaturan "Tentang sistem"; §5.34) | `versions` |
 
 ### A.2 JavaScript (browser; ESM; no new dependency except jassub and mediabunny)
 
@@ -2441,3 +2442,43 @@ nothing else about the hook changes (start 0, `dur_f`, `y_e5`, at most 90 code p
   layout's `events` (the bar: one per line).
 - ASS goldens `hook_kicker__c30`, `hook_blok__c30` and `hook_kotak__c30` from the fixtures
   `valid/hook_design_<id>__c30.json`.
+
+## 5.34 Pengaturan "Tentang sistem" (2026-10-20)
+
+A read-only section at the bottom of Pengaturan (`/settings`) shows the tools this server runs.
+Nothing in it reaches the network or names a host, a path or a user.
+
+- **`python -m ai_clipper.system_info`** (in `PYTHON_CLI_MODULES`, stdlib only): envelope exactly
+  `{"op": "versions"}` (≤ 1 KiB, no duplicate keys), answer `{"yt_dlp": "<version>" | null}`
+  with exit 0. The version is `importlib.metadata.version("yt-dlp")` when it matches
+  `[0-9A-Za-z][0-9A-Za-z.+!_-]{0,39}`; a missing package or broken metadata is `null`. Any other
+  envelope exits 2 with the fixed `internal_error` body of §5.9.
+- **`web/lib/system-info.mjs`** (server only): `readSystemInfo({env, resources, ytDlp})` resolves
+  `{ytDlp, ffmpeg, libass, whisperModel, whisperModelCustom, commit}` and never rejects; each
+  unknown value is `null`.
+  - `ytDlp`: `createYtDlpReader()` runs the CLI through `runPythonCli` (10 s timeout, 1 KiB of
+    stdout), keeps a version for 10 minutes and a failure for 1 minute, and shares one call
+    between concurrent readers.
+  - `ffmpeg`, `libass`: the upstream part (no epoch, no Debian revision) of `packages.ffmpeg`
+    and `packages.libass9` in `<resourcesDir()>/toolchain.json` with schema
+    `potongin.toolchain/1`, read with a 64 KiB cap. No file (local runs), odd JSON or an odd
+    version string is `null`.
+  - `whisperModel`: `WHISPER_MODEL`, `small` when blank (as `run-job.mjs`). A value that is not
+    a plain model name (`[A-Za-z0-9][A-Za-z0-9._-]{0,63}`, so any path or repository id) is
+    `null` with `whisperModelCustom: true`.
+  - `commit`: the first 7 hex digits (lower case) of `POTONGIN_APP_COMMIT` when it is 7 to 40 hex
+    digits. The image sets it from the build argument of the same name; compose passes
+    `${IMAGE_TAG:-}`, which `deploy/production.sh` sets to the deployed commit. The `ARG` and
+    `ENV` lines sit after the Dockerfile's last `RUN`, so a new commit rebuilds no layer.
+- **`GET /api/settings/system`**: the session first (`requireAuth`, 401 `no-store`, the reader
+  does not run), then `readSystemInfo()` as JSON with `Cache-Control: no-store`; a reader failure
+  is 500 `{error: "Info sistem tidak bisa dibaca", code: "system_info_failed"}`.
+- **`web/lib/system-info-view.mjs`** (browser-safe): `systemInfoRows(info)` gives five rows in
+  order (`yt-dlp`, `FFmpeg`, `libass`, `Whisper`, `Build`), each `{id, label, hint, value,
+  known}`. A missing value, or one that is not a short plain token, is `UNKNOWN`
+  ("tidak diketahui"); a custom Whisper model shows "Model kustom". The labels carry no version
+  wording (the "latest only" guard of `settings-trends-ui.test.mjs` forbids "versi" on the page).
+- The page loads the section on its own (`SystemInfo`), independent of the AI settings: states
+  "Memuat info sistem…" (`role="status"`), "Info sistem tidak bisa dimuat." with a plain
+  "Coba lagi" (`role="alert"`), and the `<dl className="systemList">`. No lime: the accent stays
+  on Simpan.

@@ -105,6 +105,10 @@ snapshot (`DEBIAN_SNAPSHOT`) dan enam paket per versi. Saat image dibangun, vers
 `/app/resources/toolchain.json`, dan hash file itu masuk ke kunci setiap render. Di sisi browser,
 pratinjau memakai JASSUB dengan versi persis (`web/package.json`).
 
+Versi FFmpeg dan libass dari file itu, versi yt-dlp, model Whisper dan commit yang berjalan
+tampil di **Pengaturan → Tentang sistem** (`GET /api/settings/system`, CONTRACTS §5.34). Di
+lokal tanpa `toolchain.json` atau tanpa paket yt-dlp di `.venv`, nilainya "tidak diketahui".
+
 Setiap perubahan pada kunci itu (snapshot Debian baru, versi paket, image dasar, atau JASSUB)
 wajib disertai bukti P-TIME, P-TXT, P-ENC, P-COLOR dan P-RT yang diukur ulang pada kunci baru
 (rencana §10). Job **Toolchain evidence guard** di CI menegakkannya:
