@@ -853,15 +853,27 @@ export function serializePublicJob(job) {
   });
 }
 
-export function validateYouTubeUrl(value) {
+// https links from these hosts only (lib/dashboard-view.mjs checks the same list in the form).
+// Mobile and YouTube Music links are stored on www.youtube.com, the form the pipeline expects.
+export const YOUTUBE_HOSTS = Object.freeze(["youtu.be", "youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com"]);
+const REWRITTEN_HOSTS = new Set(["m.youtube.com", "music.youtube.com"]);
+
+/** The link as the job stores it, or null when it is not an https YouTube link. */
+export function normalizeYouTubeUrl(value) {
+  let url;
   try {
-    const url = new URL(value);
-    if (url.protocol !== "https:") return false;
-    const host = url.hostname.toLowerCase();
-    return host === "youtu.be" || host === "youtube.com" || host === "www.youtube.com";
+    url = new URL(value);
   } catch {
-    return false;
+    return null;
   }
+  if (url.protocol !== "https:" || !YOUTUBE_HOSTS.includes(url.hostname)) return null;
+  if (!REWRITTEN_HOSTS.has(url.hostname)) return value;
+  url.hostname = "www.youtube.com";
+  return url.href;
+}
+
+export function validateYouTubeUrl(value) {
+  return normalizeYouTubeUrl(value) !== null;
 }
 
 export function safeJobFile(jobRoot, relativePath) {

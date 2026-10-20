@@ -150,6 +150,8 @@ services:
       PRIMARY_WORKER_HEALTH_PATH: /tmp/primary-worker-health.json
       PRIMARY_WORKER_HEALTH_MAX_AGE_MS: ${PRIMARY_WORKER_HEALTH_MAX_AGE_MS:-15000}
       POTONGIN_CAPTIONS_TIMEOUT_MS: ${POTONGIN_CAPTIONS_TIMEOUT_MS:-}
+      # Blank = 120 s without download progress stops yt-dlp (docs/operations/UNDUHAN_YOUTUBE.md).
+      POTONGIN_DOWNLOAD_STALL_MS: ${POTONGIN_DOWNLOAD_STALL_MS:-}
       # Which engine renders the auto clips: legacy (release default until the owner decides the
       # CPU quota) or edit-v2 (the editor's compiler).
       POTONGIN_RENDER_ENGINE: ${POTONGIN_RENDER_ENGINE:-legacy}

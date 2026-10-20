@@ -1,6 +1,7 @@
 // Presentation helpers for the project history (/projects) and one project's page
 // (/projects/[id]). Client-safe: no Node built-ins.
 
+import { downloadErrorMessage } from "./download-errors.mjs";
 import { formatTimestamp } from "./selection-v3-view.mjs";
 import { shownStageDetail, shownWorkerText } from "./stage-detail.mjs";
 
@@ -62,20 +63,32 @@ export function clipLabel(clip) {
   return length ? `${number} · ${length}` : number;
 }
 
+// A failed download's reason and suggestion come from its code, so old jobs read the current text.
+function downloadFailure(job) {
+  return job?.status === "failed" ? downloadErrorMessage(job.errorCode) : null;
+}
+
 /** The history row's second line after the date: the clip count, or where an unfinished job stands. */
 export function projectRowDetail(job) {
   const stage = shownStageDetail(job);
   if (job?.status === "completed") return `${Array.isArray(job.clips) ? job.clips.length : 0} klip`;
   if (job?.status === "deleting") return "Sedang dihapus";
-  if (job?.status === "failed") return stage || "Berhenti sebelum selesai";
+  if (job?.status === "failed") return downloadFailure(job)?.text || stage || "Berhenti sebelum selesai";
   return stage || "Sedang diproses";
 }
 
 /** The project page's progress title, or the reason in its failure notice. */
 export function projectStageText(job) {
+  const download = downloadFailure(job);
+  if (download) return download.text;
   const stage = shownStageDetail(job);
   if (stage) return stage;
   return job?.status === "failed" ? "Proyek ini berhenti sebelum klip selesai." : "Sedang diproses";
+}
+
+/** The one suggestion under a failure notice, when the failure has a known code; else null. */
+export function failureHint(job) {
+  return downloadFailure(job)?.hint ?? null;
 }
 
 // A machine code such as "storage_admission_unavailable" or "llm_error:rate_limited".

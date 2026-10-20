@@ -33,6 +33,7 @@ import {
   serializePublicJob,
   safeJobFile,
   sortJobsNewest,
+  normalizeYouTubeUrl,
   validateYouTubeUrl,
 } from "../lib/jobs.mjs";
 import { TREND_KINDS } from "../lib/trend-context.mjs";
@@ -256,8 +257,45 @@ test("rejects invalid render modes and duration ranges", () => {
 test("only accepts public YouTube hostnames", () => {
   assert.equal(validateYouTubeUrl("https://youtu.be/Ive926sC6mc"), true);
   assert.equal(validateYouTubeUrl("https://www.youtube.com/watch?v=Ive926sC6mc"), true);
+  assert.equal(validateYouTubeUrl("https://m.youtube.com/watch?v=Ive926sC6mc"), true);
+  assert.equal(validateYouTubeUrl("https://music.youtube.com/watch?v=Ive926sC6mc"), true);
   assert.equal(validateYouTubeUrl("https://youtube.com.evil.test/watch?v=x"), false);
   assert.equal(validateYouTubeUrl("file:///etc/passwd"), false);
+  for (const url of [
+    "http://m.youtube.com/watch?v=x", "https://gaming.youtube.com/watch?v=x", "https://m.youtube.com.evil.test/watch?v=x",
+    "https://music.youtube.co/watch?v=x", "https://evil.test/?u=https://m.youtube.com/watch?v=x", "m.youtube.com/watch?v=x", "",
+  ]) {
+    assert.equal(validateYouTubeUrl(url), false, url);
+    assert.equal(normalizeYouTubeUrl(url), null, url);
+  }
+});
+
+test("mobile and YouTube Music links become the canonical www.youtube.com form", () => {
+  assert.equal(normalizeYouTubeUrl("https://m.youtube.com/watch?v=Ive926sC6mc"), "https://www.youtube.com/watch?v=Ive926sC6mc");
+  assert.equal(normalizeYouTubeUrl("https://M.YouTube.com/watch?v=Ive926sC6mc&t=42s"), "https://www.youtube.com/watch?v=Ive926sC6mc&t=42s");
+  assert.equal(normalizeYouTubeUrl("https://music.youtube.com/watch?v=Ive926sC6mc&list=RDAMVM1"), "https://www.youtube.com/watch?v=Ive926sC6mc&list=RDAMVM1");
+  assert.equal(normalizeYouTubeUrl("https://m.youtube.com/shorts/Ive926sC6mc"), "https://www.youtube.com/shorts/Ive926sC6mc");
+  // The hosts the pipeline already took stay exactly as they were sent.
+  for (const url of ["https://youtu.be/Ive926sC6mc", "https://www.youtube.com/watch?v=Ive926sC6mc", "https://youtube.com/watch?v=Ive926sC6mc"]) {
+    assert.equal(normalizeYouTubeUrl(url), url);
+  }
+});
+
+test("POST /api/jobs stores a mobile or YouTube Music link in canonical form", async () => {
+  await withJobsApi(async ({ root, post }) => {
+    for (const [sent, stored] of [
+      ["https://m.youtube.com/watch?v=rBg0ZcwjVKQ", "https://www.youtube.com/watch?v=rBg0ZcwjVKQ"],
+      ["https://music.youtube.com/watch?v=rBg0ZcwjVKQ", "https://www.youtube.com/watch?v=rBg0ZcwjVKQ"],
+    ]) {
+      const response = await post({ youtubeUrl: sent });
+      assert.equal(response.status, 202, sent);
+      const { job } = await response.json();
+      assert.equal(job.source.url, stored);
+      assert.equal(JSON.parse(await readFile(path.join(root, job.id, "job.json"), "utf8")).source.url, stored);
+    }
+    const refused = await post({ youtubeUrl: "https://gaming.youtube.com/watch?v=rBg0ZcwjVKQ" });
+    assert.equal(refused.status, 400);
+  });
 });
 
 test("job file paths cannot escape their job directory", () => {

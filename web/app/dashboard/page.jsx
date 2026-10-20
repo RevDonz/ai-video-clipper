@@ -583,6 +583,7 @@ export default function DashboardPage() {
               {failure && (
                 <div className={styles.failure} role="alert">
                   <strong>{failure.text}</strong>
+                  {failure.hint && <span>{failure.hint}</span>}
                   {failure.detail && (
                     <details>
                       <summary>Detail teknis</summary>

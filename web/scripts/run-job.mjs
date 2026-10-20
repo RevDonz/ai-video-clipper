@@ -19,6 +19,8 @@ import {
   sanitizeSelectionV3Summary,
   validatePersistedJobOptions,
 } from "../lib/jobs.mjs";
+import { DownloadError, downloadErrorMessage } from "../lib/download-errors.mjs";
+import { PROGRESS_TEMPLATE, createDownloadMonitor, downloadStallMs } from "../lib/download-monitor.mjs";
 import { engineProcessEnv, loadLlmEnv } from "../lib/llm-settings.mjs";
 import { LeaseLostError, fencedUpdateJob, publishAttemptAndComplete, validateClaimForExecution } from "../lib/primary-job-queue.mjs";
 import { writeTrendSnapshot } from "../lib/trend-context.mjs";
@@ -202,6 +204,16 @@ export function downloaderEnv(env) {
   return Object.fromEntries(Object.entries(env).filter(([name]) => !DOWNLOADER_SECRET.test(name)));
 }
 
+// The source video. --newline and the progress template give one progress line per update,
+// which the download monitor reads to stop a download that no longer moves.
+export function buildVideoDownload(url, downloadRoot) {
+  return [
+    "--no-playlist", "--js-runtimes", "node", "--newline", "--progress-template", PROGRESS_TEMPLATE,
+    "--format", "bv*[height<=720]+ba/b[height<=720]",
+    "--merge-output-format", "mp4", "--output", path.join(downloadRoot, "source.%(ext)s"), url,
+  ];
+}
+
 // --- Manifest -> job clips ---------------------------------------------------
 
 function manifestNumber(value) {
@@ -279,9 +291,12 @@ export class ProcessTimeoutError extends Error {
   }
 }
 
-export function runFencedProcess({ command, args, env, heartbeatMs, progress, initialProgress = 0, update, spawnImpl = spawn, killImpl = process.kill.bind(process), escalationMs = 5_000, timeoutMs = null }) {
+// `monitor` (lib/download-monitor.mjs) reads a downloader's output: its stall verdict
+// terminates the process group like a lease loss, and it explains a non-zero exit.
+export function runFencedProcess({ command, args, env, heartbeatMs, progress, initialProgress = 0, update, spawnImpl = spawn, killImpl = process.kill.bind(process), escalationMs = 5_000, timeoutMs = null, monitor = null }) {
   return new Promise((resolve, reject) => {
-    const child = spawnImpl(command, args, { stdio: progress ? ["ignore", "pipe", "pipe"] : "inherit", shell: false, env, detached: true });
+    const piped = progress || monitor !== null;
+    const child = spawnImpl(command, args, { stdio: piped ? ["ignore", "pipe", "pipe"] : "inherit", shell: false, env, detached: true });
     let current = { progress: initialProgress, stage: "analyzing" };
     let updateQueue = Promise.resolve();
     let updateError = null;
@@ -310,7 +325,21 @@ export function runFencedProcess({ command, args, env, heartbeatMs, progress, in
         }
       });
       child.stderr.on("data", (chunk) => process.stderr.write(chunk));
+    } else if (monitor) {
+      createInterface({ input: child.stdout }).on("line", (line) => monitor.stdoutLine(line));
+      child.stderr.on("data", (chunk) => {
+        process.stderr.write(chunk);
+        monitor.stderrChunk(chunk);
+      });
     }
+    const watchdog = monitor
+      ? setInterval(() => {
+        if (terminating) return;
+        const stalled = monitor.stalled();
+        if (stalled) terminate(stalled);
+      }, monitor.checkMs)
+      : null;
+    watchdog?.unref?.();
     const heartbeat = setInterval(() => publish(progress
       ? nextWorkerProgress(current, { progress: current.progress, stage: current.stage, detail: "Engine AI masih aktif pada tahap ini" })
       : {}), heartbeatMs);
@@ -318,15 +347,19 @@ export function runFencedProcess({ command, args, env, heartbeatMs, progress, in
       ? setTimeout(() => terminate(new ProcessTimeoutError(command, timeoutMs)), timeoutMs)
       : null;
     deadline?.unref?.();
-    child.once("error", (error) => { clearInterval(heartbeat); if (deadline) clearTimeout(deadline); if (escalation) clearTimeout(escalation); reject(error); });
-    child.once("close", async (code, signal) => {
+    const stopTimers = () => {
       clearInterval(heartbeat);
+      if (watchdog) clearInterval(watchdog);
       if (deadline) clearTimeout(deadline);
       if (escalation) clearTimeout(escalation);
+    };
+    child.once("error", (error) => { stopTimers(); reject(error); });
+    child.once("close", async (code, signal) => {
+      stopTimers();
       await updateQueue;
       if (updateError) reject(updateError);
       else if (code === 0) resolve();
-      else reject(new Error(`${command} gagal (${signal || `exit ${code}`})`));
+      else reject(monitor ? monitor.failure(code, signal) : new Error(`${command} gagal (${signal || `exit ${code}`})`));
     });
   });
 }
@@ -376,6 +409,11 @@ export async function main(argv = process.argv, env = process.env) {
     return runFencedProcess({ command, args, env: processEnv, heartbeatMs, progress: true, initialProgress, update });
   }
 
+  function runVideoDownload(args) {
+    const monitor = createDownloadMonitor({ stallMs: downloadStallMs(env) });
+    return runFencedProcess({ command: "yt-dlp", args, env: downloaderEnv(env), heartbeatMs, progress: false, update, monitor });
+  }
+
   try {
     let job = await update({ status: "preparing", progress: 5, error: null });
     let sourcePath = job.sourcePath;
@@ -384,12 +422,7 @@ export async function main(argv = process.argv, env = process.env) {
       await update({ status: "downloading", progress: 10 });
       const downloadRoot = queueManaged ? path.join(attemptRoot, "input") : path.join(jobRoot, "input");
       await mkdir(downloadRoot, { recursive: true, mode: 0o700 });
-      const template = path.join(downloadRoot, "source.%(ext)s");
-      await run("yt-dlp", [
-        "--no-playlist", "--js-runtimes", "node",
-        "--format", "bv*[height<=720]+ba/b[height<=720]",
-        "--merge-output-format", "mp4", "--output", template, job.source.url,
-      ], { processEnv: downloaderEnv(env) });
+      await runVideoDownload(buildVideoDownload(job.source.url, downloadRoot));
       const files = await readdir(downloadRoot);
       const sourceFile = files.find((name) => name.startsWith("source.") && !name.endsWith(".part"));
       if (!sourceFile) throw new Error("Video YouTube selesai diunduh tetapi file sumber tidak ditemukan");
@@ -437,12 +470,16 @@ export async function main(argv = process.argv, env = process.env) {
     } catch {
       // The pipeline may fail before publishing an output manifest.
     }
+    // A download failure keeps its code (lib/download-errors.mjs) and says why in Indonesian;
+    // `error` stays the technical line (already sanitized for a download).
+    const download = error instanceof DownloadError ? error : null;
     await update({
       status: "failed",
       progress: 100,
       stage: "failed",
-      stageDetail: "Proses berhenti karena terjadi kesalahan",
+      stageDetail: download ? downloadErrorMessage(download.code).text : "Proses berhenti karena terjadi kesalahan",
       ...pipelineSummary,
+      errorCode: download ? download.code : null,
       error: error.message || "Worker gagal",
     });
     process.exitCode = 1;
