@@ -6,8 +6,8 @@ Writes everything the browser harness (``web/app/parity-harness``) and the scori
 
 * ``ass/<clip>.ass``: the ASS samples. Every gated clip (the 5 packs × 3 lengths, each caption
   entrance on every pack, the hook in each of its four designs and the fallback glyph) is the
-  shipped bytes:
-  ``captions_ass.fit_cues`` + ``build_ass_v2`` with the pack files and their default overrides
+  shipped bytes: ``captions_ass.fit_cues`` + ``build_ass_v2`` with the pack files and their
+  default overrides
   (W1 integration; T1.2b first measured hand-written samples with T1.2a's pack numbers). The pack variants of the spike (DejaVu Sans Bold instead
   of Montserrat ExtraBold; a ``\\p`` vector box instead of ``BorderStyle 3``) and the P-COLOR
   swatch sheet stay hand-written.

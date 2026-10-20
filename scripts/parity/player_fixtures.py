@@ -13,8 +13,8 @@ through ``/api/parity-fixtures/player/…`` and ``web/e2e/editor-player.spec.mjs
   frame, the barcode index of the whole-file ``fps`` grid and the crop x;
 * on the 29.97 case, document variants over the same plate cells (the 5 packs, a logo, a
   fallback glyph, the hook in each design other than the bar, each caption entrance): the
-  server composite of each
-  probe frame computed from the **decoded plate cell frame** with the compiler's own strings
+  server composite of each probe frame computed from the **decoded plate cell frame** with the
+  compiler's own strings
   (R5: ``gbrp``, ``ass``, the derived logo overlay) before the 4:2:0 step (P-TXT, P-LOGO), the plate alone and the composite without the logo; the
   derived logo PNG (``derive_image``); truth frames (``frame`` mode) and the auto render
   (``final`` mode) for the revision-0 fallback;
