@@ -10,7 +10,7 @@ import path from "node:path";
 import test from "node:test";
 import { promisify } from "node:util";
 
-import { GET } from "../app/api/jobs/[id]/zip/route.js";
+import { GET, HEAD } from "../app/api/jobs/[id]/zip/route.js";
 import { createSessionToken } from "../lib/auth.mjs";
 import {
   DEFAULT_MAX_ZIP_BYTES,
@@ -131,6 +131,27 @@ test("every answer needs a session and is never cached", async (t) => {
   const invalid = await call(root, { id: "not-a-job" });
   assert.equal(invalid.status, 400);
   assertHeaders(invalid, "400");
+  // The handler checks the id itself too, whatever wraps it.
+  const direct = await clipsZipRoute(new Request("http://local/api/jobs/x/zip"), { params: Promise.resolve({ id: "../x" }) }, { jobsRoot: root });
+  assert.equal(direct.status, 400);
+  assert.equal((await direct.json()).code, "invalid_request");
+});
+
+test("HEAD is refused: it would open every file for a body nobody reads", async (t) => {
+  const { root } = await fixture(t);
+  const previous = Object.fromEntries(["JOBS_ROOT", ...Object.keys(AUTH_ENV)].map((name) => [name, process.env[name]]));
+  Object.assign(process.env, AUTH_ENV, { JOBS_ROOT: root });
+  try {
+    const cookie = `potongin_session=${createSessionToken(AUTH_ENV, 2_000_000_000)}`;
+    const response = await HEAD(new Request(`http://local/api/jobs/${JOB_ID}/zip`, { method: "HEAD", headers: { Cookie: cookie } }), { params: Promise.resolve({ id: JOB_ID }) });
+    assert.equal(response.status, 405);
+    assert.equal(response.headers.get("allow"), "GET");
+    assertHeaders(response, "HEAD");
+    const denied = await HEAD(new Request(`http://local/api/jobs/${JOB_ID}/zip`, { method: "HEAD" }), { params: Promise.resolve({ id: JOB_ID }) });
+    assert.equal(denied.status, 401);
+  } finally {
+    for (const [name, value] of Object.entries(previous)) value === undefined ? delete process.env[name] : process.env[name] = value;
+  }
 });
 
 test("a missing, unfinished or empty project answers with what is wrong, in Indonesian", async (t) => {

@@ -13,6 +13,7 @@ import {
   FinalFileInvalidError,
   FinalFileNotFoundError,
   isBoundedOutputPath,
+  isFinalJobId,
   openFinalFile,
 } from "./final-files.mjs";
 import { ZIP32_MAX_BYTES, ZipTooLargeError, storedZipLayout, storedZipStream } from "./zip-store.mjs";
@@ -70,6 +71,7 @@ export function clipOutputName(clip, jobId) {
 }
 
 const MESSAGES = Object.freeze({
+  invalid_request: "Permintaan tidak valid.",
   not_found: "Proyek ini tidak ada atau sudah dihapus.",
   not_ready: "Klip proyek ini belum siap diunduh.",
   no_clips: "Proyek ini tidak punya klip untuk diunduh.",
@@ -107,6 +109,11 @@ function entryNames(clips) {
   });
 }
 
+/** HEAD would open every file for a body nobody reads: the route is GET only. */
+export function clipsZipHead() {
+  return new Response(null, { status: 405, headers: { Allow: "GET", "Cache-Control": "no-store" } });
+}
+
 async function closeAll(opened, closeFile) {
   await Promise.all(opened.map((item) => closeFile(item.fd).catch(() => {})));
 }
@@ -121,6 +128,7 @@ export async function clipsZipRoute(request, { params }, deps = {}) {
   const openFile = deps.openFile || openFinalFile;
   const closeFile = deps.closeFile || closeFd;
   const { id } = await params;
+  if (!isFinalJobId(id)) return refusal("invalid_request", 400);
 
   let limit;
   try {

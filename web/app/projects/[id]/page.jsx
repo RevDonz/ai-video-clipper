@@ -413,14 +413,14 @@ function ClipsSection({ job, copyState, onCopy, entries }) {
             <span className={styles.pickCount} aria-live="polite">{pickSummary(picks.size)}</span>
             <button type="button" className="btn ghost" onClick={() => setPicks(pickAll(visible))}>Pilih semua</button>
             <button type="button" className="btn ghost" onClick={stopPicking}>Batal</button>
-            <button type="button" className="btn primary" disabled={!picks.size || busy} onClick={() => download(pickedInOrder(clips, picks))}>
+            <button type="button" className="btn primary" disabled={!picks.size} aria-disabled={busy || undefined} onClick={() => download(pickedInOrder(clips, picks))}>
               Unduh ({picks.size})
             </button>
           </div>
         ) : (
           <div className={styles.pickBar}>
             <button type="button" ref={pickButton} className="btn" onClick={startPicking}>Pilih</button>
-            <button type="button" className="btn" disabled={busy} onClick={() => download(null)}>Unduh semua</button>
+            <button type="button" className="btn" aria-disabled={busy || undefined} onClick={() => download(null)}>Unduh semua</button>
           </div>
         ))}
       </div>
@@ -444,7 +444,10 @@ function ClipsSection({ job, copyState, onCopy, entries }) {
             {visible.map((clip) => (
               <PosterCard key={clip.index} clip={clip} entry={clipEntryFor(entries, job, clip.index)} selected={clip.index === currentIndex}
                 picking={picking} picked={picks.has(clip.index)} onActivate={activate}
-                buttonRef={(node) => (node ? posterRefs.current.set(clip.index, node) : posterRefs.current.delete(clip.index))} />
+                buttonRef={(node) => {
+                  posterRefs.current.set(clip.index, node);
+                  return () => posterRefs.current.delete(clip.index);
+                }} />
             ))}
           </ul>
           {current && (

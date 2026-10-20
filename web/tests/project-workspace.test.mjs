@@ -183,8 +183,11 @@ test("the page: 'Pilih' reads 'n dipilih · Pilih semua · Batal · Unduh (n)', 
   }
   assert.match(source, /\{pickSummary\(picks\.size\)\}/);
   assert.match(source, /Unduh \(\{picks\.size\}\)/);
-  assert.match(source, /disabled=\{!picks\.size \|\| busy\} onClick=\{\(\) => download\(pickedInOrder\(clips, picks\)\)\}/);
-  assert.match(source, /onClick=\{\(\) => download\(null\)\}>Unduh semua/);
+  assert.match(source, /disabled=\{!picks\.size\} aria-disabled=\{busy \|\| undefined\} onClick=\{\(\) => download\(pickedInOrder\(clips, picks\)\)\}/);
+  // While the ZIP is checked the buttons only say they are busy: a disabled button would drop the
+  // keyboard focus. download() ignores a second press.
+  assert.match(source, /aria-disabled=\{busy \|\| undefined\} onClick=\{\(\) => download\(null\)\}>Unduh semua/);
+  assert.match(source, /const download = async \(indexes\) => \{\n\s*if \(busy\) return;/);
   assert.match(source, /result = await checkZip\(job\.id, indexes, \{ signal: controller\.signal \}\);/);
   assert.match(source, /role="alert">\{zip\.message\}/);
   // The ZIP buttons only on a finished project.

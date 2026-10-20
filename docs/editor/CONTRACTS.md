@@ -2062,8 +2062,9 @@ change.
 ### ZIP route (`GET /api/jobs/:id/zip`, `web/lib/clips-zip.mjs`, `web/lib/zip-store.mjs`)
 
 - Behind `secureRoute(…, {params: ["id"]})`: session, lower-case UUID, nosniff, CORP same-origin,
-  `Cache-Control: no-store`; no rate-limit bucket (like the files route). It runs behind
-  `web/proxy.js` (a GET download, not an upload).
+  `Cache-Control: no-store`; no rate-limit bucket (like the files route). The handler checks the
+  id again (`invalid_request` 400). It runs behind `web/proxy.js` (a GET download, not an
+  upload). `HEAD` answers 405 `Allow: GET` (it would open every file for a body nobody reads).
 - `?clips=1,3`: 1–4 digit clip numbers without a leading zero, each once, ≤ 1000 characters,
   every one in the job; the archive keeps the job's order. Without `clips`, every clip.
 - Only a `completed` job; each clip's file is its own `output/clip-NN.mp4`, taken from its
@@ -2075,8 +2076,9 @@ change.
 - `?check=1` → `200 {count, bytes, filename}` without opening a stream. The download: `200`,
   `application/zip`, the exact `Content-Length`, `Content-Disposition: attachment;
   filename="<zipSaveName>"`.
-- Errors (`{error, code}`, Indonesian): `not_found` 404, `not_ready` 409 (not completed),
-  `no_clips` 404, `invalid_clips` 400, `unknown_clip` 404 ("Klip 07 tidak ada di proyek ini."),
+- Errors (`{error, code}`, Indonesian): `invalid_request` 400, `not_found` 404, `not_ready` 409
+  (not completed), `no_clips` 404, `invalid_clips` 400, `unknown_clip` 404 ("Klip 07 tidak ada di
+  proyek ini."),
   `file_missing` 404 ("File Klip 03 tidak ditemukan di server."), `zip_too_large` 413 ("ZIP-nya
   2,4 GB, batasnya 2 GB. Pilih lebih sedikit klip, atau unduh satu per satu."),
   `zip_config_invalid` 500, `read_failed` 503.
