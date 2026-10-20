@@ -46,6 +46,12 @@ test("the transcript names Whisper as the audio and moments without AI say only 
   assert.deepEqual(stageSummaryRows({ stageSummary: { moments: { count: 1 } } })[0].text, "1 dipilih");
 });
 
+test("a transcript from Groq says it came from the audio through Groq", () => {
+  const job = { stageSummary: { transcript: { words: 2304, source: "groq", language: "id" } } };
+  assert.equal(stageSummaryRows(job)[0].text, "2.304 kata · dari audio lewat Groq");
+  assert.equal(sanitizeStageSummary(job.stageSummary).transcript.source, "groq");
+});
+
 test("the detected language is shown only when the owner asked for detection", () => {
   const detected = (language) => ({
     options: { videoLanguage: "auto" },

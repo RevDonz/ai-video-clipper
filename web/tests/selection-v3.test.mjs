@@ -507,6 +507,9 @@ test("selection_v3 summaries drop invalid structure and unsafe descriptive value
   assert.equal(cleaned.model, null);
   assert.equal(cleaned.prompt_version, null);
   assert.equal(cleaned.transcript_source, null);
+  for (const source of ["youtube-captions", "whisper", "groq"]) {
+    assert.equal(sanitizeSelectionV3Summary({ ...SUMMARY, transcript_source: source }).transcript_source, source);
+  }
   assert.equal(cleaned.warnings[0], "llm_unavailable");
   assert.equal(cleaned.warnings.length, 50);
   assert.doesNotMatch(JSON.stringify(cleaned), /secret|sk-123|UPPER|rm -rf/);

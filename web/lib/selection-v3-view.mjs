@@ -158,9 +158,34 @@ const FOCUS_TOPUP_SKIPPED = Object.freeze({
   context: "Permintaan tambahan ke AI untuk momen fokus dilewati karena potongan transkripnya tidak muat di konteks model.",
 });
 
-/** An Indonesian explanation of a trend or focus warning code of the selection summary, or null. */
+// Transkripsi lewat Groq (engine: pipeline.py, transcribe_groq.py): why Groq was not used. Local
+// Whisper always made the transcript instead.
+const GROQ_FALLBACK_REASONS = Object.freeze({
+  no_key: "belum ada API key Groq",
+  auth: "Groq menolak API key-nya",
+  rate_limited: "kuota gratis Groq sedang habis",
+  too_long: "video lebih dari 2 jam, melewati batas gratis Groq per jam",
+  too_large: "file audio melewati batas ukuran Groq",
+  audio_failed: "audio video tidak bisa disiapkan",
+  model_unavailable: "model Whisper di Groq tidak tersedia",
+  server_error: "server Groq sedang bermasalah",
+  http_error: "Groq menolak permintaannya",
+  timeout: "Groq tidak menjawab tepat waktu",
+  network: "server ini tidak bisa menghubungi Groq",
+  malformed: "jawaban Groq tidak terbaca",
+  empty: "Groq tidak menemukan ucapan",
+  error: "ada kesalahan tak terduga",
+});
+
+/** An Indonesian explanation of a trend, focus or Groq warning code of the selection summary, or null. */
 export function selectionWarningLabel(code) {
   if (code === "trend_context_invalid") return "File konteks tren job rusak atau hilang; job jalan tanpa tren.";
+  const groq = typeof code === "string" ? /^groq_fallback:([a-z_]{1,32})$/.exec(code) : null;
+  if (groq) {
+    return Object.hasOwn(GROQ_FALLBACK_REASONS, groq[1])
+      ? `Groq tidak dipakai (${GROQ_FALLBACK_REASONS[groq[1]]}); transkrip dibuat dengan Whisper di server ini.`
+      : null;
+  }
   if (code === "focus_few_matches:0") return "Tidak ada momen yang cocok dengan fokus; semua klip adalah momen terbaik lain dan diberi label “Di luar fokus”.";
   if (code === "focus_topup:0") return "AI diminta sekali lagi mencari momen di sekitar sebutan fokus yang belum tercakup, tetapi tidak ada momen fokus tambahan yang layak.";
   const topup = typeof code === "string" ? /^focus_topup_(failed|skipped):([a-z][a-z0-9_]{0,63})$/.exec(code) : null;
@@ -173,7 +198,9 @@ export function selectionWarningLabel(code) {
 
 // Explained warnings the owner acts on: shown as notices above the clips. Every other explained
 // warning is a note in a closed list; unexplained codes stay in the artifact.
-const ACTIONABLE_WARNINGS = /^(trend_sensitive_humor|focus_terms_unmatchable):|^trend_items_skipped:|^trend_context_invalid$/;
+const ACTIONABLE_WARNINGS = /^(trend_sensitive_humor|focus_terms_unmatchable):|^trend_items_skipped:|^trend_context_invalid$|^groq_fallback:(no_key|auth)$/;
+// A Groq key that is missing or refused is fixed in Pengaturan.
+const SETTINGS_PAGE_WARNINGS = /^groq_fallback:(no_key|auth)$/;
 // Warnings fixed on the Konteks Tren page link there.
 const TREND_PAGE_WARNINGS = /^trend_(context_invalid|items_skipped)(?::|$)/;
 
@@ -486,9 +513,9 @@ export function selectionNotices(job) {
   }
   for (const code of summaryWarnings(job).filter((item) => ACTIONABLE_WARNINGS.test(item))) {
     const text = selectionWarningLabel(code);
-    notices.push(TREND_PAGE_WARNINGS.test(code)
-      ? { tone: "warning", text, href: "/trends", action: "Buka Konteks Tren" }
-      : { tone: "warning", text });
+    if (TREND_PAGE_WARNINGS.test(code)) notices.push({ tone: "warning", text, href: "/trends", action: "Buka Konteks Tren" });
+    else if (SETTINGS_PAGE_WARNINGS.test(code)) notices.push({ tone: "warning", text, href: "/settings", action: "Buka Pengaturan" });
+    else notices.push({ tone: "warning", text });
   }
   return notices;
 }
