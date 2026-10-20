@@ -11,7 +11,7 @@
 // setSelection, dismissNotice and the state fields conflict, notice, otherTab, readOnlyReason).
 import { CommandRejected } from "../../../lib/editor/commands.mjs";
 import { DEFAULT_EMPHASIS, DEFAULT_HIGHLIGHT } from "../../../lib/editor/content-colours.mjs";
-import { switchedLayout } from "../../../lib/editor/doc-model.mjs";
+import { DEFAULT_WATERMARK, switchedLayout } from "../../../lib/editor/doc-model.mjs";
 import { createEditorStore } from "../../../lib/editor/store.mjs";
 import { divRoundHalfUp, pieces as piecesOf, smp, totalFrames as totalFramesOf, wordFrames } from "../../../lib/editor/timemap.mjs";
 
@@ -23,14 +23,15 @@ const FPS = [30000, 1001];
 const SHA = (seed) => fakeSha256(`fake:${seed}`);
 
 // Appendix B: every command name the real store knows (T2.5 implements them all), with the
-// cold-open transition commands (docs/plans/2026-10-02-transisi-cold-open.md §7.2) and
-// SetHookDesign (CONTRACTS §5.33).
+// cold-open transition commands (docs/plans/2026-10-02-transisi-cold-open.md §7.2),
+// SetHookDesign (CONTRACTS §5.33), SetNoFace (§5.40) and the text watermark's (§5.43).
 export const COMMANDS = Object.freeze([
   "TrimStart", "TrimEnd", "RemoveWords", "RemoveGap", "RestoreRemoval", "ApplyCleanup",
   "SetColdOpen", "NudgeColdOpen", "SetJoinStyle", "SetJoinSfx", "EditWordText", "SetWordHidden", "SetWordEmphasis",
   "SetCaptionsEnabled", "SetCaptionPack", "SetCaptionOverride", "SetHookEnabled", "SetHookText",
   "SetHookDuration", "SetHookY", "SetHookDesign", "SetLayout", "SetNoFace", "SetLogo", "RemoveLogo", "MoveLogo", "ResizeLogo",
-  "SetLogoOpacity", "SnapLogo", "SetMusic", "RemoveMusic", "SetMusicGain", "SetMusicOffset",
+  "SetLogoOpacity", "SnapLogo", "SetWatermarkText", "SetWatermarkPosition", "SetWatermarkSize", "SetWatermarkOpacity",
+  "RemoveWatermark", "SetMusic", "RemoveMusic", "SetMusicGain", "SetMusicOffset",
   "SetMusicLoop", "SetMusicFades", "SetDuck", "SetSourceGain", "SetLoudness", "ResetToSeed",
 ]);
 
@@ -437,6 +438,11 @@ const FAKE_REDUCERS = {
   SetHookText: (doc, { text }) => { doc.tracks.find((track) => track.kind === "hook").items[0].payload.text = text; },
   SetHookDesign: (doc, { id }) => { doc.tracks.find((track) => track.kind === "hook").items[0].payload.design = { id, v: 1 }; },
   SetSourceGain: (doc, { gain_cdb: gain }) => { doc.audio.source.gain_cdb = gain; },
+  SetWatermarkText: (doc, { text }) => { doc.watermark = { ...DEFAULT_WATERMARK, ...doc.watermark, text }; },
+  SetWatermarkPosition: (doc, { pos }) => { doc.watermark.pos = pos; },
+  SetWatermarkSize: (doc, { size_pm: size }) => { doc.watermark.size_pm = size; },
+  SetWatermarkOpacity: (doc, { opacity_pm: opacity }) => { doc.watermark.opacity_pm = opacity; },
+  RemoveWatermark: (doc) => { delete doc.watermark; },
 };
 
 /**

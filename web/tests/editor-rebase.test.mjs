@@ -399,6 +399,59 @@ test("the hook design merges as its own hook part; two different picks are one '
   assert.equal(hookItem(gone.resolve({ hook: "theirs" }).doc), null);
 });
 
+test("the text watermark merges field by field; both tabs adding one is one 'Teks watermark' conflict", () => {
+  const fields = ["watermark.on", "watermark.text", "watermark.pos", "watermark.size", "watermark.opacity"];
+  assert.deepEqual(PARTS.slice(PARTS.indexOf("logo.opacity") + 1, PARTS.indexOf("music.asset")), fields);
+  for (const part of fields) assert.equal(partGroup(part), "watermark");
+  assert.equal(GROUP_LABELS.watermark, "Teks watermark");
+  for (const part of fields) assert.equal(partValue(C30.seed, part), null);
+
+  const base = tab(C30);
+  base.dispatch("SetWatermarkText", { text: "@akun" });
+  const start = base.doc;
+  assert.deepEqual(diffParts(C30.seed, start), fields);
+  assert.deepEqual(partValue(start, "watermark.on"), start.watermark);
+  const ctx = C30.ctx;
+  const mine = createEditSession({ doc: start, ctx });
+  mine.dispatch("SetWatermarkPosition", { pos: "bottom_left" });
+  const theirs = createEditSession({ doc: start, ctx });
+  theirs.dispatch("SetWatermarkText", { text: "@tersimpan" });
+  theirs.dispatch("SetWatermarkOpacity", { opacity_pm: 500 });
+  const merged = rebase({ base: start, mine: mine.doc, theirs: theirs.doc, steps: mine.pending, ctx });
+  assert.equal(merged.status, "merged");
+  assert.deepEqual(merged.doc.watermark, { text: "@tersimpan", pos: "bottom_left", size_pm: 1000, opacity_pm: 500 });
+
+  const other = createEditSession({ doc: start, ctx });
+  other.dispatch("SetWatermarkPosition", { pos: "middle_right" });
+  const clash = rebase({ base: start, mine: mine.doc, theirs: other.doc, steps: mine.pending, ctx });
+  assert.deepEqual(clash.conflicts.map((group) => [group.id, group.label, group.parts]), [["watermark", "Teks watermark", ["watermark.pos"]]]);
+  assert.deepEqual([clash.conflicts[0].mine, clash.conflicts[0].theirs], ["@akun (Kiri bawah, ukuran 100%, opasitas 85%)",
+    "@akun (Kanan tengah, ukuran 100%, opasitas 85%)"]);
+  assert.equal(clash.resolve({}).doc.watermark.pos, "bottom_left");
+  assert.equal(clash.resolve({ watermark: "theirs" }).doc.watermark.pos, "middle_right");
+
+  // A field changed in a tab whose watermark the other tab removed brings it back on "mine".
+  const gone = createEditSession({ doc: start, ctx });
+  gone.dispatch("RemoveWatermark", {});
+  const removed = rebase({ base: start, mine: mine.doc, theirs: gone.doc, steps: mine.pending, ctx });
+  assert.deepEqual(removed.conflicts.map((group) => [group.id, group.parts]), [["watermark", ["watermark.on", "watermark.pos"]]]);
+  assert.equal(removed.conflicts[0].theirs, "Tanpa teks watermark");
+  assert.deepEqual(removed.resolve({}).doc.watermark, mine.doc.watermark);
+  assert.equal(Object.hasOwn(removed.resolve({ watermark: "theirs" }).doc, "watermark"), false);
+
+  // Both tabs adding a different watermark from the seed: one group for every field.
+  const a = tab(C30);
+  a.dispatch("SetWatermarkText", { text: "@satu" });
+  const b = tab(C30);
+  b.dispatch("SetWatermarkText", { text: "@dua" });
+  const both = rebaseTabs(C30, a, b);
+  assert.deepEqual(both.conflicts.map((group) => group.id), ["watermark"]);
+  assert.equal(both.resolve({}).doc.watermark.text, "@satu");
+  const back = applyParts(a.doc, { "watermark.on": null }, ctx);
+  assert.equal(Object.hasOwn(back, "watermark"), false);
+  assert.deepEqual(checkDoc(back, ctx), []);
+});
+
 test("the same edit in both tabs is not a conflict", () => {
   const mine = tab(C30);
   mine.dispatch("SetLayout", { mode: "fill_center" });

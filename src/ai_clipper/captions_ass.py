@@ -23,7 +23,15 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any
 
-from .edit_v2 import CAPTION_ENTRANCES, WORDS_MAX_RANGE
+from .edit_v2 import (
+    CAPTION_ENTRANCES,
+    UI_ZONE_720,
+    WATERMARK_OPACITY_RANGE,
+    WATERMARK_POSITIONS,
+    WATERMARK_SIZE_RANGE,
+    WATERMARK_TEXT_MAX,
+    WORDS_MAX_RANGE,
+)
 from .edit_v2.glyphs import RESOURCES_DIR, advance_units, font_path
 from .edit_v2.timemap import Fps, div_round_half_up, safe_cs
 from .subtitles import CaptionCue, FrameCue, FrameWord, clean_caption_text
@@ -451,6 +459,13 @@ _DESIGN_KEYS = frozenset({"schema", "id", "v", "name", "layout", "font", "font_r
                           "layer"})
 # A kicker ends at the first of its leading words that ends with one of these marks.
 _KICKER_MARKS = (":", "?", "!", ".", ",", ";", "…")
+# The text watermark (CONTRACTS §5.43): DejaVu Sans Bold at H/40 × size_pm/1000 with an outline
+# of S/16, kept out of the TikTok zone and a 4 % left margin (the logo presets'), shrunk to fit.
+WATERMARK_FONT_FILE = "DejaVuSans-Bold.ttf"
+_WATERMARK_SIZE_DIVISOR = 40_000
+_WATERMARK_OUTLINE_DIVISOR = 16
+_WATERMARK_LEFT_PM = 40
+_WATERMARK_ALIGNMENT = MappingProxyType({"left": 1, "center": 2, "right": 3})
 
 
 @dataclass(frozen=True)
@@ -594,6 +609,30 @@ class HookDesign:
     default_y_e5: int
     layer: int
     sha256: str
+
+
+@dataclass(frozen=True)
+class WatermarkSpec:
+    """A document's text watermark: one line over the whole clip at ``pos`` (one of
+    ``WATERMARK_POSITIONS``), ``size_pm`` of H/40 and ``opacity_pm`` (CONTRACTS §5.43)."""
+
+    text: str
+    pos: str
+    size_pm: int
+    opacity_pm: int
+
+
+@dataclass(frozen=True)
+class WatermarkLayout:
+    """Where the watermark line is drawn: its font size, outline (centipixels), ``\\pos``
+    anchor (``x`` as written, ``y`` the line's bottom), ``\\an`` and ASS alpha."""
+
+    font_size: int
+    outline_cp: int
+    x: str
+    y: int
+    alignment: int
+    alpha: int
 
 
 def _is_int(value: object) -> bool:
@@ -1034,6 +1073,75 @@ def layout_hook(text: str, *, play_res: tuple[int, int], y_e5: int,
     return HookLayout(font_size, padding, top, lines, overflow or hook != cleaned)
 
 
+def _check_watermark(spec: object) -> WatermarkSpec:
+    if not isinstance(spec, WatermarkSpec):
+        raise TypeError("watermark must be a WatermarkSpec")
+    if (not isinstance(spec.text, str) or not spec.text.strip()
+            or len(spec.text) > WATERMARK_TEXT_MAX):
+        raise ValueError(f"watermark text must be 1-{WATERMARK_TEXT_MAX} characters")
+    if spec.pos not in WATERMARK_POSITIONS:
+        raise ValueError(f"watermark pos must be one of {', '.join(WATERMARK_POSITIONS)}")
+    for name, (low, high) in (("size_pm", WATERMARK_SIZE_RANGE),
+                              ("opacity_pm", WATERMARK_OPACITY_RANGE)):
+        value = getattr(spec, name)
+        if not _is_int(value) or not low <= value <= high:
+            raise ValueError(f"watermark {name} must be an integer {low}-{high}")
+    return spec
+
+
+def _watermark_outline(font_size: int) -> int:
+    return div_round_half_up(100 * font_size, _WATERMARK_OUTLINE_DIVISOR)
+
+
+def layout_watermark(spec: WatermarkSpec, *, play_res: tuple[int, int]) -> WatermarkLayout:
+    """The watermark line at ``play_res``: the size ``max(1, rhu(H·size_pm, 40000))``, shrunk
+    until its ``hmtx`` advance fits its column, anchored by its bottom edge just inside the safe
+    area (top, middle or bottom; the 4 % margin, the centre or the right zone's edge)."""
+    _check_watermark(spec)
+    width, height = play_res
+    zone_top, zone_bottom, zone_right = UI_ZONE_720
+    top = div_round_half_up(zone_top * height, 1280)
+    bottom = div_round_half_up(zone_bottom * height, 1280)
+    right = div_round_half_up(zone_right * width, 720)
+    left = div_round_half_up(width * _WATERMARK_LEFT_PM, 1000)
+    row, column = spec.pos.split("_")
+    size = max(1, div_round_half_up(height * spec.size_pm, _WATERMARK_SIZE_DIVISOR))
+    edge = -(-_watermark_outline(size) // 100)
+    span = width - 2 * right if column == "center" else width - right - left
+    usable = max(1, span - 2 * edge)
+    units, height_units = advance_units(_drawn_text(spec.text), font_path(WATERMARK_FONT_FILE))
+    if units * size > usable * height_units:
+        size = max(1, usable * height_units // units)
+    outline = _watermark_outline(size)
+    edge = -(-outline // 100)
+    x = {"left": str(left + edge), "center": _centi_text(50 * width),
+         "right": str(width - right - edge)}[column]
+    y = {"top": top + edge + size, "middle": div_round_half_up(height + size, 2),
+         "bottom": height - bottom - edge}[row]
+    alpha = 255 - div_round_half_up(255 * spec.opacity_pm, 1000)
+    return WatermarkLayout(size, outline, x, y, _WATERMARK_ALIGNMENT[column], alpha)
+
+
+def _watermark_style(layout: WatermarkLayout) -> str:
+    white = _ass_color(CAPTION_TEXT_COLOR, alpha=layout.alpha)
+    black = _ass_color("#000000", alpha=layout.alpha)
+    return _style_line(
+        "Watermark",
+        font_size=layout.font_size,
+        primary=white,
+        secondary=white,
+        outline_color=black,
+        back_color=black,
+        bold=True,
+        border_style=1,
+        outline=_centi_text(layout.outline_cp),
+        shadow="0",
+        alignment=layout.alignment,
+        margin_side=0,
+        margin_vertical=0,
+    )
+
+
 def boxed_word_index(tokens: Sequence[str]) -> int:
     """The word Kotak kata boxes: the first written in capitals (two letters or more) unless
     every word is, else the longest by letters and digits (the last of equals)."""
@@ -1436,6 +1544,7 @@ def build_ass_v2(
     pack: CaptionPack,
     overrides: Mapping,
     hook: HookSpec | None,
+    watermark: WatermarkSpec | None = None,
 ) -> str:
     """The ASS document of a clip-edit-v2 document (plan §5.4): captions plus the hook.
 
@@ -1451,7 +1560,9 @@ def build_ass_v2(
     ``word_box`` pack draws a rounded ``\\p`` box behind the spoken word (CONTRACTS §5.30). A
     hook in a design other than the bar writes that design's style and events (§5.33). The
     override ``entrance`` opens the first window of every caption line with a fade, pop or blur
-    of at most ``ENTRANCE_MS``; no event moves (§5.39).
+    of at most ``ENTRANCE_MS``; no event moves (§5.39). A ``watermark`` adds its style and one
+    event over the whole clip, first in the file at layer 0, so everything else is drawn over
+    it (§5.43).
     """
     if (not isinstance(play_res, (tuple, list)) or len(play_res) != 2
             or not all(_is_int(value) and value > 0 for value in play_res)):
@@ -1502,4 +1613,11 @@ def build_ass_v2(
                 font_size=layout.font_size, padding=layout.padding)
             styles.append(_hook_style(font_size=layout.font_size, padding=layout.padding,
                                       width=width, top=layout.top))
+    if watermark is not None:
+        mark = layout_watermark(watermark, play_res=(width, height))
+        styles.append(_watermark_style(mark))
+        events.insert(0, f"Dialogue: 0,{_ass_time_cs(0)},"
+                         f"{_ass_time_cs(safe_cs(total_frames, fps))},Watermark,,0,0,0,,"
+                         f"{{\\an{mark.alignment}\\pos({mark.x},{mark.y})\\q2}}"
+                         f"{ass_escape(watermark.text)}")
     return _script_header(width, height, styles) + "\n".join(events) + ("\n" if events else "")

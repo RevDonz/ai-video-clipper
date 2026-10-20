@@ -18,7 +18,8 @@ the seed ``prepare`` would build for the same job use the same inputs. Per clip 
 (face-track only) and ``seed.json`` (``seed.build_seed``, engine ``edit-v2/1``, editor
 ``pipeline/edit-v2/1``), each immutable, then renders **from the seed file** into
 ``output/clip-NN.mp4``. A job created with a Pengaturan default logo (``<job>/logo/``) gets it
-in its asset store and in every seed, so the auto clip carries it. When the new engine fails
+in its asset store and in every seed, so the auto clip carries it; a default text watermark
+(``<job>/watermark.json``) likewise. When the new engine fails
 for a clip the pipeline renders that clip
 with the legacy engine (``engine_fallback:<rank>``); :meth:`AutoRenderer.fallback` first removes
 the ``seed.json`` this run wrote for it, so no seed claims the new engine for a legacy file (the
@@ -40,8 +41,8 @@ revision and clip id (``ref="document"``), then, in this order:
    legacy-engine auto file (a job rendered before the switch, or a fallback clip) with the legacy
    contract (H.264/AAC, size, SAR 1:1, duration within 0.25 s of the manifest). A missing or
    failing auto file renders normally and the result carries ``auto_file_unavailable``. A
-   legacy-engine seed with a logo (the Pengaturan default logo, ``doc.auto_file_is_seed``)
-   skips this step: the legacy renderer never drew it;
+   legacy-engine seed with a logo or a text watermark (the Pengaturan defaults,
+   ``doc.auto_file_is_seed``) skips this step: the legacy renderer never drew them;
 3. otherwise the document is rendered and published at ``output_relative`` (the name carries the
    request's render key, R9), from the source snapshot when the request names one (its content
    sha is checked) or else from the job's own source.
@@ -1030,9 +1031,11 @@ class AutoRenderer:
         self.written: dict[int, tuple[Path, tuple[int, int]]] = {}
         self.clip_ids: dict[int, str] = {}
         self.no_face: dict[int, list[list[int]]] = {}  # face-track: the camera plan's spans
-        # The Pengaturan default logo the job was created with, stored where the seeds render.
+        # The Pengaturan default logo the job was created with, stored where the seeds render,
+        # and its default text watermark.
         job_root = job_dir_for(self.job_dir)
         self.logo = None if job_root is None else _assets.seed_logo(job_root, self.job_dir)
+        self.watermark = None if job_root is None else _seed.job_watermark(job_root)
 
     def _audio(self) -> AudioTimeline | None:
         payload = _read_json(self.job_dir / AUDIO_TIMELINE_RELATIVE_PATH,
@@ -1051,7 +1054,8 @@ class AutoRenderer:
 
     def _seed(self, rank: int) -> tuple[Path, dict[str, Any]]:
         clip = self.clips[rank]
-        job = {**self.options.job(self.job_id, time.time_ns() // 1_000_000), "logo": self.logo}
+        job = {**self.options.job(self.job_id, time.time_ns() // 1_000_000), "logo": self.logo,
+               "watermark": self.watermark}
         face_track = self.options.render_mode == "face-track"
         common = {"clip": clip, "job": job, "source_info": self.source_info,
                   "selection_sha": self.selection_sha}

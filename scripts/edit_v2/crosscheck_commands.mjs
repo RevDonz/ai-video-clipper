@@ -28,6 +28,7 @@ import { COMMANDS, CommandRejected, applyCommand } from "../../web/lib/editor/co
 import {
   HOOK_DESIGN_IDS,
   JOIN_STYLES,
+  WATERMARK_POSITIONS,
   PACK_IDS,
   SWATCHES,
   body,
@@ -81,6 +82,8 @@ const WORD_TEXTS = ["Ijal", "  spasi ", "Café", "😂", "x".repeat(40), "x".re
   "Kata-kata", "HALO", "été", "日本語", "a​b", " ", "tab\tdi", "{\\b1}", "\\N", "gua"];
 const HOOK_TEXTS = ["Dia ditahan security di film-nya sendiri", "Kenapa sutradara ditahan?", "😂 lucu banget",
   "y".repeat(90), "y".repeat(91), "  spasi di tepi  ", "", "Café kopi", "{\\an8}\\N baris", "Sutradara"];
+const WATERMARK_TEXTS = ["@potongin.klip", "Ikuti @akun", "  spasi  ", "😂".repeat(40), "x".repeat(41), "", "Café",
+  "a\u0007b", "{\\b1}@akun", "@a"];
 const REASONS = ["user", "user", "user", "filler", "repeat"];
 const CORNERS = ["top_left", "top_right", "bottom_left", "bottom_right"];
 
@@ -274,6 +277,21 @@ const GENERATORS = {
   SnapLogo(rng) {
     return { corner: pick(rng, CORNERS) };
   },
+  SetWatermarkText(rng) {
+    return { text: pick(rng, WATERMARK_TEXTS) };
+  },
+  SetWatermarkPosition(rng) {
+    return { pos: chance(rng, 0.05) ? pick(rng, ["center", "top"]) : pick(rng, WATERMARK_POSITIONS) };
+  },
+  SetWatermarkSize(rng) {
+    return { size_pm: int(rng, 450, 2050) };
+  },
+  SetWatermarkOpacity(rng) {
+    return { opacity_pm: int(rng, 150, 1050) };
+  },
+  RemoveWatermark() {
+    return {};
+  },
   SetMusic(rng, _doc, context) {
     const asset = pick(rng, assetsOf(context, "audio"));
     return { asset: asset.id, meta: asset.meta };
@@ -327,7 +345,8 @@ const WEIGHTS = {
   RemoveWords: 16, RestoreRemoval: 5, TrimStart: 5, TrimEnd: 5, RemoveGap: 4, ApplyCleanup: 3, SetColdOpen: 4,
   NudgeColdOpen: 4, SetJoinStyle: 3, SetJoinSfx: 2, EditWordText: 7, SetWordHidden: 3, SetWordEmphasis: 3, SetCaptionsEnabled: 1, SetCaptionPack: 2,
   SetCaptionOverride: 4, SetHookEnabled: 2, SetHookText: 4, SetHookDuration: 2, SetHookY: 2, SetHookDesign: 2, SetLayout: 2, SetNoFace: 1, SetLogo: 3,
-  RemoveLogo: 1, MoveLogo: 3, ResizeLogo: 2, SetLogoOpacity: 2, SnapLogo: 2, SetMusic: 3, RemoveMusic: 1,
+  RemoveLogo: 1, MoveLogo: 3, ResizeLogo: 2, SetLogoOpacity: 2, SnapLogo: 2, SetWatermarkText: 3, SetWatermarkPosition: 2,
+  SetWatermarkSize: 2, SetWatermarkOpacity: 2, RemoveWatermark: 1, SetMusic: 3, RemoveMusic: 1,
   SetMusicGain: 2, SetMusicOffset: 2, SetMusicLoop: 1, SetMusicFades: 2, SetDuck: 2, SetSourceGain: 2, SetLoudness: 2,
   ResetToSeed: 1,
 };

@@ -353,6 +353,7 @@ Duplicate keys, NaN and unknown keys are rejected at every level.
 | `audio.master` | `mode` `off`/`normalize`; `target_clufs` −2400 to −900; `tp_cdb` −300–0 | Seed `off` (= today's auto render) |
 | `assets` | map of the assets the document references; metadata copied from the asset store | `asset_missing` if the store lacks the sha |
 | `audit` | `created_at_ms` immutable; `updated_at_ms` **stamped by the server**; `editor`; `last_command` (≤ 40 chars, `^[A-Za-z]+$`) | The server stamp removes client-clock issues |
+| `watermark` | optional `{text, pos, size_pm, opacity_pm}` (amended 2026-10-21, §5.43) | The text watermark: `text` 1–40 code points (the hook's text rules), `pos` one of nine places, `size_pm` 500–2000, `opacity_pm` 200–1000; absent = none. Seeds write it only for a job created with the Pengaturan default |
 
 ### 3.4 Integer and frame rules
 
@@ -473,6 +474,9 @@ every later reader sees.
 - *Amended 2026-10-21 (§5.39):* the optional override `captions.overrides.entrance` (`none`,
   `fade`, `pop`, `blur`) is valid under `schema_minor: 0`. A document without it is unchanged in
   meaning (absent = `none`); an older server refuses the key with `unknown_key`.
+- *Amended 2026-10-21 (§5.43):* the optional root key `watermark` (the text watermark) is valid
+  under `schema_minor: 0`. A document without it is unchanged in meaning (no watermark); an older
+  server refuses the key with `unknown_key`.
 - The pack ids `classic` and `karaoke` are the FINAL `legacy-classic@1` and `legacy-karaoke@1`
   (an alias table is added in Stage 2).
 - FINAL puts the resolver in JS. If Stage 2 adopts that, the Python resolver becomes the
@@ -594,7 +598,7 @@ annotations may be spelled differently).
 
 | Module | Names | Owner |
 |---|---|---|
-| `ai_clipper.edit_v2` (`__init__`) | `COMPILER_VERSION`, `COMPILER_ID` (`"edit-v2/1"`), `RENDER_SEMANTICS`, `SCHEMA`, `SCHEMA_MINOR`, `WORDS_SCHEMA`, `CAMERA_SCHEMA`, `DOC_FPS`, `OUTPUT_SIZES`, `PACK_IDS`, `SWATCHES`, `PACK_DEFAULT_OVERRIDES`, `WORDS_MAX_RANGE` (§5.30), `HOOK_DESIGN_IDS` (§5.33), `CAPTION_ENTRANCES` (§5.39) | T1.0 |
+| `ai_clipper.edit_v2` (`__init__`) | `COMPILER_VERSION`, `COMPILER_ID` (`"edit-v2/1"`), `RENDER_SEMANTICS`, `SCHEMA`, `SCHEMA_MINOR`, `WORDS_SCHEMA`, `CAMERA_SCHEMA`, `DOC_FPS`, `OUTPUT_SIZES`, `PACK_IDS`, `SWATCHES`, `PACK_DEFAULT_OVERRIDES`, `WORDS_MAX_RANGE` (§5.30), `HOOK_DESIGN_IDS` (§5.33), `CAPTION_ENTRANCES` (§5.39), `WATERMARK_TEXT_MAX`, `WATERMARK_POSITIONS`, `WATERMARK_SIZE_RANGE`, `WATERMARK_OPACITY_RANGE`, `UI_ZONE_720` (§5.43) | T1.0 |
 | `edit_v2.errors` | exceptions, code sets, `MESSAGES`, `message`, `message_id`, `base_code`, `exit_code_for`, `EXIT_*` | T1.0 |
 | `edit_v2.timemap` | Appendix A names plus `SAMPLE_RATE`, `MIN_PIECE_FRAMES`, `div_round_half_up`, `speech_spans`, `logo_box`, `Fps.from_json`, `Fps.to_json`, `Piece.to_dto` | T1.0 |
 | `edit_v2.clip_id` | `clip_id`, `is_clip_id`, `ms_from_seconds`, `CLIP_ID_PATTERN` | T1.0 |
@@ -602,7 +606,7 @@ annotations may be spelled differently).
 | `edit_v2.store` | `get`, `seed`, `put`, `archive_for_render`, `prune_receipts`, the §4.1 path constants | T1.1 |
 | `edit_v2.api` | `OPS`, `main` (CLI) | T1.1 |
 | `ai_clipper.subtitles` (additions) | `SourceWord`, `FrameWord`, `FrameCue`, `build_frame_cues` | T1.2a |
-| `ai_clipper.captions_ass` (additions) | `CaptionPack`, `load_pack`, `HookSpec`, `build_ass_v2`; `WordBox`, `words_per_cue`, `lightness`, `word_box_text` (§5.30); `LEGACY_HOOK_DESIGN`, `HOOK_LAYOUTS`, `HookDesign`, `HookBox`, `HookKicker`, `hook_design`, `hook_font_file`, `boxed_word_index` (§5.33); `ENTRANCE_MS` (§5.39) | T1.2a |
+| `ai_clipper.captions_ass` (additions) | `CaptionPack`, `load_pack`, `HookSpec`, `build_ass_v2`; `WordBox`, `words_per_cue`, `lightness`, `word_box_text` (§5.30); `LEGACY_HOOK_DESIGN`, `HOOK_LAYOUTS`, `HookDesign`, `HookBox`, `HookKicker`, `hook_design`, `hook_font_file`, `boxed_word_index` (§5.33); `ENTRANCE_MS` (§5.39); `WATERMARK_FONT_FILE`, `WatermarkSpec`, `WatermarkLayout`, `layout_watermark` (§5.43) | T1.2a |
 | `edit_v2.captions` | `CaptionResult`, `caption_track` | T1.2a |
 | `edit_v2.glyphs` | `missing_glyphs`, `advance_px` | T1.2a |
 | `edit_v2.envelope` | `Envelope`, `speech_envelope`, `music_envelope`, `expand_f32` | T1.4 |
@@ -816,6 +820,10 @@ yields `range_invalid` only, with no duration or window issue).
 - **Logo item**: `x_e5`, `y_e5` 0…100000, `w_e5` 4000…40000, `opacity_pm` 200…1000;
   `timemap.logo_box` with the asset's `w`/`h` and the document's output size must give
   `x0 ≥ 0`, `y0 ≥ 0`, `x0 + w ≤ W`, `y0 + h ≤ H`, else `item_out_of_frame`.
+- **Watermark** (optional, §5.43): an object (else `range_invalid` at `/watermark`; `null` is
+  not "absent"); `text` 1…40 code points without leading or trailing whitespace, `pos` in
+  `WATERMARK_POSITIONS`, `size_pm` 500…2000, `opacity_pm` 200…1000, each else `range_invalid` at
+  `/watermark/<key>`.
 - **Music item**: `src_in_smp` 0…`duration_ms·48 − 1`; `gain_cdb` −4800…600; `fade_in_f`,
   `fade_out_f` 0…`sf_floor(10000)`; `duck` complete: `depth_cdb` 300…2400, `attack_ms` 5…500,
   `release_ms` 50…2000, `hold_ms` 0…1000, `detector` `words`.
@@ -872,6 +880,7 @@ audio     source {gain_cdb −2400…1200} · master {mode "off"|"normalize",
 assets    {"sha256:<64 hex>": {kind "image", mime "image/png", w, h (1…4096)}
                             | {kind "audio", mime "audio/mp4", duration_ms int≥1, lufs_c int}}
 audit     created_at_ms · updated_at_ms · editor · last_command
+watermark (optional, §5.43) {text, pos, size_pm, opacity_pm}
 ```
 
 `origin.kind` `"v2_candidate"` is reserved for T4.1 (`seed_from_candidate`) and is not valid
@@ -900,7 +909,8 @@ in W1. Canonical bytes, hashes and the document size limit are as in §3.1.
   `dur_f = round_half_up(hook_duration_ms · num / (1000·den))`,
   `hook_duration_ms = ms_from_seconds(hook_duration)`.
 - `assets` {} (a job created with a Pengaturan default logo: one entry and the `tr_ovr` track,
-  §5.36); `audio` `{source {gain_cdb 0}, master {mode "off", target_clufs −1400,
+  §5.36); no `watermark` (a job created with a Pengaturan default text watermark: that one,
+  §5.43); `audio` `{source {gain_cdb 0}, master {mode "off", target_clufs −1400,
   tp_cdb −100}}`; `base.words` = sha256 of the words file bytes and the word count;
   `base.camera.sha256` = sha256 of the camera plan file bytes (face-track only), else null.
 
@@ -2996,3 +3006,112 @@ argument is unchanged.
   the set `docs/evaluation/speaker-framing/set-val.json` lists film windows of AVA ActiveSpeaker
   v1.0 (annotations CC BY 4.0, sha256-pinned; the footage is downloaded into a cache, never
   committed). It keeps the Haar detector as a frozen baseline.
+
+## 5.43 Text watermark: "Teks watermark" (2026-10-21)
+
+Plan `docs/plans/2026-10-20-lanjutan-sesi.md` P2 ("Watermark teks satu baris"). One line of text
+over the whole clip, drawn by the same ASS as the captions and the hook, so the preview (JASSUB)
+and the export (FFmpeg) draw the same bytes. Every existing document, seed, plan sha, golden and
+auto render is unchanged: without the key `build_ass_v2` writes the bytes it wrote before.
+
+### Document
+
+- Optional root key `watermark` `{text, pos, size_pm, opacity_pm}` (§3.3, §5.4, §5.5): `text`
+  1–40 code points (`WATERMARK_TEXT_MAX`, the hook's text rules), `pos` one of
+  `WATERMARK_POSITIONS` = `top_left`, `top_center`, `top_right`, `middle_left`, `middle_center`,
+  `middle_right`, `bottom_left`, `bottom_center`, `bottom_right`, `size_pm` 500–2000
+  (`WATERMARK_SIZE_RANGE`), `opacity_pm` 200–1000 (`WATERMARK_OPACITY_RANGE`). Another key inside
+  is `unknown_key` at parse; `schema_minor` stays 0 (§3.8 amendment).
+
+### Layout (`captions_ass.layout_watermark(spec, *, play_res)`)
+
+- DejaVu Sans Bold (`WATERMARK_FONT_FILE`; family "DejaVu Sans", Bold), white with a black
+  outline, BorderStyle 1, no shadow.
+- The zones of `UI_ZONE_720` scaled like `plan.ui_zone`: `top = rhu(93·H, 1280)`,
+  `bottom = rhu(280·H, 1280)`, `right = rhu(93·W, 720)`; the left margin `L = rhu(40·W, 1000)`
+  (the logo presets' 4 %).
+- Size `S0 = max(1, rhu(H·size_pm, 40000))` (H/40 at 100 %: 32 px at 1280, 48 at 1920); outline
+  `O(S) = rhu(100·S, 16)` centipixels, edge `E(S) = ⌈O/100⌉`.
+- Column: `usable = W − 2·right − 2·E(S0)` in the centre, `W − right − L − 2·E(S0)` at the left
+  and the right. With `units, hu = advance_units(text)` (the font's `hmtx`), a line wider than
+  its column (`units·S0 > usable·hu`) takes `S = max(1, ⌊usable·hu / units⌋)`; then `O = O(S)`
+  and `E = E(S)`.
+- Anchor at the bottom of the line: `\an1` at `x = L + E`, `\an2` at `x = W/2`, `\an3` at
+  `x = W − right − E`; `y = top + E + S` (top row), `rhu(H + S, 2)` (middle row) or
+  `H − bottom − E` (bottom row). The line never reaches the TikTok zone, so no `unsafe_zone` is
+  computed for it.
+- Alpha `A = 255 − rhu(255·opacity_pm, 1000)` on all four colours of the style.
+
+### Events (`build_ass_v2(…, watermark=None)`)
+
+- Style `Watermark,DejaVu Sans,S,&H<A>FFFFFF,&H<A>FFFFFF,&H<A>000000,&H<A>000000,-1,0,0,0,100,100,0,0,1,<O>,0,<an>,0,0,0,1`,
+  after the other styles.
+- One event, the first of `[Events]`:
+  `Dialogue: 0,0:00:00.00,<safe_cs(total)>,Watermark,,0,0,0,,{\an<n>\pos(x,y)\q2}<ass_escape(text)>`.
+  libass draws by layer, then in file order, so the captions (layer 0, later in the file) and the
+  hook (layer 1) are drawn over it.
+- `edit_v2.captions.caption_track` reads the key and adds `glyph_unsupported:U+XXXX` against
+  DejaVu Sans Bold at `/watermark/text` (no `ref`, frame 0). The preview's font list
+  (`preview_cli._font_entries`) adds DejaVu Sans Bold whenever the key is present.
+
+### Editor
+
+- Commands, after SnapLogo: `SetWatermarkText {text}` (trimmed NFC, 1–40 code points) adds the
+  watermark at `DEFAULT_WATERMARK` (Tengah atas, 100 %, 85 %) or changes only its text (merge key
+  `wm:text`); `SetWatermarkPosition {pos}`, `SetWatermarkSize {size_pm}` (`wm:size`),
+  `SetWatermarkOpacity {opacity_pm}` (`wm:opacity`) and `RemoveWatermark {}` need one
+  (`watermark_missing`, "Belum ada teks watermark."). `checkDoc` mirrors the validator (a wrong
+  key set is `range_invalid` at `/watermark`). Removing it drops the key, so a clip without one
+  equals its seed again (R10).
+- Two tabs: the parts `watermark.on` (presence; its value is the whole object),
+  `watermark.text`, `watermark.pos`, `watermark.size` and `watermark.opacity` after the logo's,
+  each field with the prerequisite `watermark.on`, group "Teks watermark". The dialog describes a
+  side as "@akun (Kiri bawah, ukuran 100%, opasitas 85%)" or "Tanpa teks watermark".
+- UI: the section "Teks watermark" at the end of the Logo panel in both of its states
+  (`panels/WatermarkSection.jsx`, `panels/watermark-model.mjs`): the text field (at most 40
+  characters, a counter), then, once there is a text, the 3×3 place grid (radios named Kiri atas
+  … Kanan bawah), Ukuran (50–200 %, steps of 5 %), Opasitas (20–100 %, steps of 1 %) and "Hapus
+  teks". Typing is one undo step; an emptied field sends nothing and shows the stored text again
+  when it loses focus. Characters the font lacks are named under the field. Mode Cepat has no
+  watermark control: its Logo & Musik card leads to the Logo panel.
+
+### Pengaturan "Teks watermark bawaan"
+
+- Store (`web/lib/default-watermark.mjs`, server only): `<settings>/default-watermark.json`
+  (0600, the settings folder 0700): `{"schema": "potongin.default-watermark/1", text, pos,
+  size_pm, opacity_pm, updatedAtMs}`, written to a temporary file and renamed, one change at a
+  time in the web process. A file that is not valid reads as none.
+- `GET /api/settings/watermark` → `{watermark: {text, pos, size_pm, opacity_pm, updatedAtMs} |
+  null, autoClips}`. `PUT` with `{text, pos, size_pm, opacity_pm}` (JSON, at most 4 KiB; the
+  document's rules, the text trimmed in NFC; else `400 invalid_watermark` with `field`) answers
+  the same; `DELETE` answers `watermark: null`. The small body goes through `web/proxy.js`; the
+  handlers check the session again and the origin of a change (403). A settings folder that
+  cannot be used is `503 settings_unavailable`.
+- The job's copy: `POST /api/jobs` calls `snapshotDefaultWatermark(jobRoot)` after the logo's
+  and writes `<job>/watermark.json` (O_EXCL, 0600) `{"schema": "potongin.job-watermark/1", text,
+  pos, size_pm, opacity_pm}`. It never fails the job and never overwrites.
+- Seeding: `edit_v2.seed.job_watermark(job_root)` accepts only a regular file of at most 4 KiB
+  with that schema and a valid watermark (NFC, no control character), else none;
+  `prepare_legacy_job` and `AutoRenderer` hand it to `build_seed` as the seed-context key
+  `watermark`, which becomes the seed's `watermark`. The clip id does not change;
+  `base.seed_sha256` does.
+- R10: the legacy renderer draws no text watermark, so `doc.auto_file_is_seed` (and JS
+  `autoFileIsSeed`) is false for a legacy seed with one, as for the default logo (§5.36).
+- Card (`web/app/settings/DefaultWatermarkCard.jsx`, `web/lib/default-watermark-view.mjs`):
+  loading, an error with "Coba lagi", the form (Teks with a counter, Posisi as a list of the nine
+  places, Ukuran, Opasitas), Simpan (plain: the page's lime stays on its own save bar) and Hapus.
+  The copy says only new clips get the text and, by `autoClips`, whether the automatic clip files
+  carry it.
+
+### Gates
+
+- ASS goldens `watermark__c30` (the default), `watermark_max__c30` (40 characters,
+  `bottom_right`, 200 % shrunk to its column, 20 %) and `watermark_min__c24` (1080×1920,
+  `middle_left`, 50 %, 100 %) from `valid/watermark*`; the invalid fixtures
+  `range_invalid__watermark_{text_empty,text_long,text_edge_space,pos,size_low,size_high,opacity_low,opacity_high,null}`,
+  `unknown_key__watermark` and `not_nfc__watermark_text`.
+- P-TXT: the gated clips `watermark-top_center`, `watermark-bottom_right` and
+  `watermark-middle_left` (`reference_text.WATERMARK_CLIPS`: the watermark alone over the plate),
+  the first two in the smoke subset; the player fixtures add the variant `watermark`
+  (`middle_right`, 140 %).
+- The 1,000-sequence crosscheck draws the five commands, valid and not.

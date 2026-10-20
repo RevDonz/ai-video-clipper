@@ -14,6 +14,7 @@ import json
 import pytest
 from support import edit_v2_fixtures as fixtures
 
+from ai_clipper.edit_v2 import WATERMARK_POSITIONS
 from ai_clipper.edit_v2 import doc as docmod
 from ai_clipper.edit_v2 import timemap as tm
 from ai_clipper.edit_v2.doc import (
@@ -35,6 +36,7 @@ from ai_clipper.edit_v2.errors import (
 )
 
 CASES = fixtures.load_cases()
+WATERMARK = {"text": "@potongin.klip", "pos": "top_center", "size_pm": 1000, "opacity_pm": 850}
 # Checked against the stored revision by store.put, not by validate_doc.
 STORE_LEVEL = {"revision_mismatch__skip", "revision_mismatch__large", "parent_mismatch__other_sha"}
 
@@ -250,6 +252,17 @@ def test_the_caption_entrance_is_a_known_override_key(contexts):
     assert parse_doc(_raw(doc))["captions"]["overrides"]["entrance"] == "pop"
 
 
+def test_the_text_watermark_is_a_known_root_key_with_four_keys(contexts):
+    # The optional text watermark (CONTRACTS §5.43) parses under schema_minor 0; any other key
+    # inside it is unknown.
+    doc = rev1(contexts["c30"])
+    doc["watermark"] = dict(WATERMARK)
+    assert parse_doc(_raw(doc))["watermark"] == WATERMARK
+    doc["watermark"]["colour"] = "#FFFFFF"
+    error = parse_error(_raw(doc))
+    assert (error.code, error.path) == ("unknown_key", "/watermark/colour")
+
+
 def _logo_and_music(context) -> dict:
     doc = rev1(context)
     doc["tracks"].append({"id": "tr_ovr", "kind": "visual", "band": "over_text",
@@ -419,6 +432,17 @@ def test_a_legacy_auto_file_stands_for_its_seed_only_without_a_logo(contexts):
     seed["base"]["engine"]["compiler"] = "legacy"
     assert not auto_file_is_seed(seed)
     seed["tracks"] = [track for track in seed["tracks"] if track["kind"] != "visual"]
+    assert auto_file_is_seed(seed)
+
+
+def test_a_legacy_auto_file_stands_for_its_seed_only_without_a_watermark(contexts):
+    """The legacy renderer draws no text watermark either (CONTRACTS §5.43)."""
+    seed = copy.deepcopy(contexts["c30"].seed)
+    seed["watermark"] = dict(WATERMARK)
+    assert auto_file_is_seed(seed)
+    seed["base"]["engine"]["compiler"] = "legacy"
+    assert not auto_file_is_seed(seed)
+    del seed["watermark"]
     assert auto_file_is_seed(seed)
 
 
@@ -610,6 +634,22 @@ RULES = [
     *[("c30", lambda d, value=value: d["captions"]["overrides"].update(entrance=value),
        "range_invalid", "/captions/overrides/entrance")
       for value in ("bounce", "Fade", "", 1, True, None, ["fade"])],
+    # The text watermark: optional, absent = none; every key required (CONTRACTS §5.43)
+    *[("c30", lambda d, fields=fields: d.update(watermark={**WATERMARK, **fields}), None, None)
+      for fields in ({}, {"text": "x" * 40}, {"text": "Ikuti @akun ✓"}, {"size_pm": 500},
+                     {"size_pm": 2000}, {"opacity_pm": 200}, {"opacity_pm": 1000},
+                     *[{"pos": pos} for pos in WATERMARK_POSITIONS])],
+    *[("c30", lambda d, fields=fields: d.update(watermark={**WATERMARK, **fields}),
+       "range_invalid", f"/watermark/{next(iter(fields))}")
+      for fields in ({"text": ""}, {"text": "x" * 41}, {"text": " @akun"}, {"text": "@akun "},
+                     {"text": 7}, {"text": None}, {"pos": "center"}, {"pos": "TOP_LEFT"},
+                     {"pos": 1}, {"size_pm": 499}, {"size_pm": 2001}, {"size_pm": "1000"},
+                     {"size_pm": True}, {"opacity_pm": 199}, {"opacity_pm": 1001},
+                     {"opacity_pm": None})],
+    ("c30", lambda d: d.update(watermark=None), "range_invalid", "/watermark"),
+    ("c30", lambda d: d.update(watermark=["@akun"]), "range_invalid", "/watermark"),
+    ("c30", lambda d: d.update(watermark={k: v for k, v in WATERMARK.items() if k != "pos"}),
+     "range_invalid", "/watermark/pos"),
     ("c30", lambda d: d["captions"]["pack"].update(id="neon"), "pack_unknown", "/captions/pack"),
     ("c30", lambda d: d["captions"].update(word_edits={f"w{n:06d}": {"hidden": True}
                                                         for n in range(6001)}),

@@ -9,7 +9,7 @@ import { CAPTION_STYLE_CHOICES, LAYOUT_CHOICES, normalizeChoices } from "./dashb
 /** The dashboard's render size (web/scripts/run-job.mjs, edit_v2/seed.py DEFAULT_RENDER_SIZE). */
 export const PREVIEW_FRAME = Object.freeze({ w: 720, h: 1280 });
 
-/** The TikTok button zone at 720×1280 (edit_v2/plan.py UI_ZONE_720, the editor's Zona aman). */
+/** The TikTok button zone at 720×1280 (edit_v2/__init__.py UI_ZONE_720, the editor's Zona aman). */
 export const TIKTOK_ZONE = Object.freeze({ top: 93, bottom: 280, right: 93 });
 
 /**

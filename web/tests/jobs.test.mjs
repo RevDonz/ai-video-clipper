@@ -272,6 +272,25 @@ test("POST /api/jobs gives a new job a copy of the Pengaturan default logo, and 
   });
 });
 
+test("POST /api/jobs gives a new job a copy of the Pengaturan text watermark, and none without one", async () => {
+  await withJobsApi(async ({ root, post, env }) => {
+    const plain = (await (await post({ youtubeUrl: "https://youtu.be/rBg0ZcwjVKQ" })).json()).job;
+    assert.equal((await readdir(path.join(root, plain.id))).includes("watermark.json"), false);
+
+    const mark = { text: "@potongin.klip", pos: "bottom_right", size_pm: 1200, opacity_pm: 700 };
+    await mkdir(env.POTONGIN_SETTINGS_DIR, { recursive: true, mode: 0o700 });
+    await writeFile(path.join(env.POTONGIN_SETTINGS_DIR, "default-watermark.json"),
+      JSON.stringify({ schema: "potongin.default-watermark/1", ...mark, updatedAtMs: 1 }), { mode: 0o600 });
+
+    const response = await post({ youtubeUrl: "https://youtu.be/rBg0ZcwjVKQ" });
+    assert.equal(response.status, 202);
+    const { job } = await response.json();
+    assert.deepEqual(JSON.parse(await readFile(path.join(root, job.id, "watermark.json"), "utf8")),
+      { schema: "potongin.job-watermark/1", ...mark });
+    assert.equal(JSON.stringify(job).includes("potongin.klip"), false); // the job's public shape is unchanged
+  });
+});
+
 test("POST /api/jobs refuses a time range with the dashboard's message and stores valid ones", async () => {
   await withJobsApi(async ({ root, post }) => {
     const refused = await post({ youtubeUrl: "https://youtu.be/rBg0ZcwjVKQ", limit: "2", timeRanges: "10.30-12.05, 1:00-1:30, 2:00-2:30" });

@@ -14,18 +14,20 @@ from ai_clipper.captions_ass import (
     HOOK_TEXT_MAX_CHARS,
     CaptionPack,
     HookSpec,
+    WatermarkSpec,
     ass_escape,
     build_ass,
     build_ass_v2,
     estimate_text_width,
     fit_cues,
     layout_hook,
+    layout_watermark,
     load_hook_design,
     load_pack,
     shorten_hook_text,
 )
-from ai_clipper.edit_v2 import DOC_FPS, PACK_DEFAULT_OVERRIDES, PACK_IDS
-from ai_clipper.edit_v2.glyphs import advance_px, font_path
+from ai_clipper.edit_v2 import DOC_FPS, PACK_DEFAULT_OVERRIDES, PACK_IDS, WATERMARK_POSITIONS
+from ai_clipper.edit_v2.glyphs import advance_px, advance_units, font_path
 from ai_clipper.edit_v2.timemap import Fps, safe_cs
 from ai_clipper.models import TranscriptSegment, TranscriptWord
 from ai_clipper.subtitles import (
@@ -1240,3 +1242,135 @@ def test_blur_starts_at_one_128th_of_the_output_height():
                         entrance="blur"))[0]["Text"]
     assert small.startswith("{\\fad(120,0)\\blur10\\t(0,120,\\blur0)}")
     assert large.startswith("{\\fad(120,0)\\blur15\\t(0,120,\\blur0)}")
+
+
+# --- The text watermark: one line over the whole clip (CONTRACTS §5.43) ------------------------
+
+WATERMARK_FONT = font_path("DejaVuSans-Bold.ttf")
+WATERMARK_CUES = ENTRANCE_CUES[:2]
+
+
+def _mark(text="@potongin.klip", pos="top_center", size_pm=1000, opacity_pm=850):
+    return WatermarkSpec(text, pos, size_pm, opacity_pm)
+
+
+def _with_mark(watermark, pack="classic", *, size=(720, 1280), hook=None, total=200):
+    return build_ass_v2(WATERMARK_CUES, play_res=size, fps=NTSC, total_frames=total,
+                        pack=load_pack(pack, 1), overrides=dict(OVERRIDES[pack]), hook=hook,
+                        watermark=watermark)
+
+
+def _expected_mark(spec, size=(720, 1280)):
+    """Font size, outline (centipixels), anchor x and bottom y, \\an and alpha from the
+    contract's numbers (not from the module)."""
+    width, height = size
+    top, bottom = _rhu(93 * height, 1280), _rhu(280 * height, 1280)
+    right, left = _rhu(93 * width, 720), _rhu(4 * width, 100)
+    row, column = spec.pos.split("_")
+    font_size = max(1, _rhu(height * spec.size_pm, 40_000))
+    edge = -(-_rhu(100 * font_size, 16) // 100)
+    usable = (width - 2 * right if column == "center" else width - right - left) - 2 * edge
+    units, height_units = advance_units(spec.text, WATERMARK_FONT)
+    if units * font_size > usable * height_units:
+        font_size = max(1, usable * height_units // units)
+    outline = _rhu(100 * font_size, 16)
+    edge = -(-outline // 100)
+    x = {"left": left + edge, "center": width // 2, "right": width - right - edge}[column]
+    y = {"top": top + edge + font_size, "middle": _rhu(height + font_size, 2),
+         "bottom": height - bottom - edge}[row]
+    alignment = {"left": 1, "center": 2, "right": 3}[column]
+    return font_size, outline, x, y, alignment, 255 - _rhu(255 * spec.opacity_pm, 1000)
+
+
+def test_without_a_watermark_the_bytes_do_not_change():
+    hook = HookSpec("Dia ditahan security", 0, 60, 13000)
+    assert _with_mark(None, "karaoke", hook=hook) == _v2(WATERMARK_CUES, "karaoke", hook=hook,
+                                                         total=200)
+
+
+@pytest.mark.parametrize("pack", PACK_IDS)
+def test_the_watermark_is_one_event_over_the_whole_clip_drawn_under_the_rest(pack):
+    hook = HookSpec("Dia ditahan security", 0, 60, 13000)
+    plain = _with_mark(None, pack, hook=hook)
+
+    marked = _with_mark(_mark(), pack, hook=hook)
+
+    # One more style line and one more event, first in the file at layer 0, so the captions
+    # (layer 0, read later) and the hook (layer 1) are drawn over it. Nothing else moves.
+    assert _sections(marked)["[V4+ Styles]"] == [*_sections(plain)["[V4+ Styles]"],
+                                                 _style_line(marked, "Watermark")]
+    first, *rest = _events(marked)
+    assert rest == _events(plain)
+    font_size, _outline, x, y, alignment, _alpha = _expected_mark(_mark())
+    assert first == {"Layer": "0", "Start": "0:00:00.00",
+                     "End": captions_ass._ass_time_cs(safe_cs(200, NTSC)), "Style": "Watermark",
+                     "Name": "", "MarginL": "0", "MarginR": "0", "MarginV": "0", "Effect": "",
+                     "Text": f"{{\\an{alignment}\\pos({x},{y})\\q2}}@potongin.klip"}
+    assert (font_size, x, y) == (32, 360, 127)
+
+
+def test_the_watermark_style_is_white_dejavu_bold_with_an_outline_at_its_opacity():
+    for spec, size in ((_mark(), (720, 1280)), (_mark(size_pm=2000, opacity_pm=200), (720, 1280)),
+                       (_mark(size_pm=500, opacity_pm=1000), (1080, 1920))):
+        font_size, outline, _x, _y, _alignment, alpha = _expected_mark(spec, size)
+        style = _styles(_with_mark(spec, size=size))["Watermark"]
+        assert style["Fontname"] == "DejaVu Sans" and style["Bold"] == "-1"
+        assert style["Fontsize"] == str(font_size)
+        assert style["PrimaryColour"] == style["SecondaryColour"] == f"&H{alpha:02X}FFFFFF"
+        assert style["OutlineColour"] == style["BackColour"] == f"&H{alpha:02X}000000"
+        assert (style["BorderStyle"], style["Shadow"]) == ("1", "0")
+        assert style["Outline"] == (str(outline // 100) if outline % 100 == 0
+                                    else f"{outline / 100:g}")
+    assert _styles(_with_mark(_mark()))["Watermark"]["PrimaryColour"] == "&H26FFFFFF"  # 85%
+
+
+@pytest.mark.parametrize("size", [(720, 1280), (1080, 1920)])
+@pytest.mark.parametrize("size_pm", [500, 1000, 2000])
+@pytest.mark.parametrize("pos", WATERMARK_POSITIONS)
+def test_every_position_keeps_the_line_out_of_the_tiktok_zone(pos, size_pm, size):
+    width, height = size
+    spec = _mark("Ikuti @potongin.klip", pos, size_pm)
+    font_size, outline, x, y, alignment, _alpha = _expected_mark(spec, size)
+
+    layout = layout_watermark(spec, play_res=size)
+
+    assert (layout.font_size, layout.outline_cp, layout.y, layout.alignment) == (
+        font_size, outline, y, alignment)
+    [event] = [e for e in _events(_with_mark(spec, size=size)) if e["Style"] == "Watermark"]
+    assert event["Text"] == f"{{\\an{alignment}\\pos({x},{y})\\q2}}Ikuti @potongin.klip"
+    # The drawn line (its advance plus the outline) stays inside the frame and outside the
+    # top, bottom and right zones (93, 280 and 93 px at 720×1280).
+    edge = -(-outline // 100)
+    line = font_size * advance_px("Ikuti @potongin.klip", WATERMARK_FONT, 1)
+    x0 = {1: x, 2: x - line / 2, 3: x - line}[alignment]
+    assert x0 - edge >= 0 and x0 + line + edge <= width - _rhu(93 * width, 720) + 1e-6
+    assert y - font_size - edge >= _rhu(93 * height, 1280)
+    assert y + edge <= height - _rhu(280 * height, 1280)
+
+
+def test_a_wide_watermark_shrinks_to_fit_its_column():
+    wide = _mark("W" * 40, "top_left", 2000)
+    font_size, _outline, _x, _y, _alignment, _alpha = _expected_mark(wide)
+
+    layout = layout_watermark(wide, play_res=(720, 1280))
+
+    assert layout.font_size == font_size < _rhu(1280 * 2000, 40_000)
+    assert font_size * advance_px("W" * 40, WATERMARK_FONT, 1) <= 720 - 93 - 29
+
+
+def test_the_watermark_text_is_escaped():
+    [event] = [e for e in _events(_with_mark(_mark("{\\b1}@akun\\N"))) if e["Style"] == "Watermark"]
+    assert event["Text"].endswith("}\\{\\⁠b1\\}@akun\\⁠N")
+
+
+@pytest.mark.parametrize("change", [
+    {"text": ""}, {"text": " "}, {"text": 7}, {"pos": "center"}, {"pos": "top"},
+    {"size_pm": 499}, {"size_pm": 2001}, {"size_pm": 1000.0}, {"size_pm": True},
+    {"opacity_pm": 199}, {"opacity_pm": 1001},
+])
+def test_build_ass_v2_rejects_an_invalid_watermark(change):
+    spec = dataclasses.replace(_mark(), **change)
+    with pytest.raises(ValueError, match="watermark"):
+        _with_mark(spec)
+    with pytest.raises(TypeError, match="watermark"):
+        _with_mark({"text": "@akun"})
