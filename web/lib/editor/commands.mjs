@@ -31,6 +31,7 @@ import {
   ASSET_ID_PATTERN,
   CAPTION_OVERRIDE_RULES,
   EDITOR_ID,
+  HOOK_DESIGN_IDS,
   ITEM_ORIGIN_PATTERN,
   JOIN_STYLES,
   LAYOUT_MODES,
@@ -59,13 +60,14 @@ import { divRoundHalfUp, logoBox, pieces, sfCeil, sfFloor } from "./timemap.mjs"
 
 /**
  * Appendix B, in the order of the table (the same list as `__dev__/fakes.mjs`), with the
- * cold-open transition commands after NudgeColdOpen (docs/plans/2026-10-02-transisi-cold-open.md §7.2).
+ * cold-open transition commands after NudgeColdOpen (docs/plans/2026-10-02-transisi-cold-open.md §7.2)
+ * and SetHookDesign after SetHookY (CONTRACTS §5.31).
  */
 export const COMMANDS = Object.freeze([
   "TrimStart", "TrimEnd", "RemoveWords", "RemoveGap", "RestoreRemoval", "ApplyCleanup",
   "SetColdOpen", "NudgeColdOpen", "SetJoinStyle", "SetJoinSfx", "EditWordText", "SetWordHidden", "SetWordEmphasis",
   "SetCaptionsEnabled", "SetCaptionPack", "SetCaptionOverride", "SetHookEnabled", "SetHookText",
-  "SetHookDuration", "SetHookY", "SetLayout", "SetLogo", "RemoveLogo", "MoveLogo", "ResizeLogo",
+  "SetHookDuration", "SetHookY", "SetHookDesign", "SetLayout", "SetLogo", "RemoveLogo", "MoveLogo", "ResizeLogo",
   "SetLogoOpacity", "SnapLogo", "SetMusic", "RemoveMusic", "SetMusicGain", "SetMusicOffset",
   "SetMusicLoop", "SetMusicFades", "SetDuck", "SetSourceGain", "SetLoudness", "ResetToSeed",
 ]);
@@ -763,6 +765,12 @@ const HANDLERS = {
     requireItem(doc, "hook", "hook_missing");
     const y = intArg(args, "y_e5", 6000, 40000);
     return { doc: withItem(doc, "hook", (item) => ({ transform: { ...item.transform, y_e5: y } })), args: { y_e5: y } };
+  },
+
+  SetHookDesign(doc, args) {
+    requireItem(doc, "hook", "hook_missing");
+    need(HOOK_DESIGN_IDS.includes(args.id), "value_out_of_range");
+    return { doc: withItem(doc, "hook", (item) => ({ payload: { ...item.payload, design: { id: args.id, v: 1 } } })), args: { id: args.id } };
   },
 
   SetLayout(doc, args) {

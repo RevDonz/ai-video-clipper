@@ -24,6 +24,7 @@ import {
 import {
   AUTO_JOIN,
   EDITOR_ID,
+  HOOK_DESIGN_IDS,
   JOIN_STYLES,
   PACK_DEFAULT_CASE,
   PACK_IDS,
@@ -102,9 +103,10 @@ function bodyFrames(doc) {
 
 // --- model ---------------------------------------------------------------------------------
 
-test("the command list is Appendix B with the transition commands, the same 37 names the fakes know", () => {
+test("the command list is Appendix B with the transition commands and SetHookDesign, the same 38 names the fakes know", () => {
   assert.deepEqual([...COMMANDS], [...FAKE_COMMANDS]);
-  assert.equal(COMMANDS.length, 37);
+  assert.equal(COMMANDS.length, 38);
+  assert.deepEqual(COMMANDS.slice(16, 21), ["SetHookEnabled", "SetHookText", "SetHookDuration", "SetHookY", "SetHookDesign"]);
   assert.deepEqual(COMMANDS.slice(6, 10), ["SetColdOpen", "NudgeColdOpen", "SetJoinStyle", "SetJoinSfx"]);
   for (const [code, message] of Object.entries(COMMAND_MESSAGES)) {
     assert.match(code, /^[a-z_]+$/);
@@ -188,7 +190,7 @@ test("defaultMergeKey follows Appendix B", () => {
   assert.equal(defaultMergeKey("SetSourceGain", { gain_cdb: 100 }), "audio:source");
   assert.equal(defaultMergeKey("SetLoudness", { mode: "off" }), "audio:master");
   for (const type of ["TrimStart", "TrimEnd", "RemoveWords", "RemoveGap", "RestoreRemoval", "ApplyCleanup",
-    "SetColdOpen", "SetJoinStyle", "SetJoinSfx", "SetWordHidden", "SetWordEmphasis", "SetCaptionPack", "SetLayout",
+    "SetColdOpen", "SetJoinStyle", "SetJoinSfx", "SetWordHidden", "SetWordEmphasis", "SetCaptionPack", "SetHookDesign", "SetLayout",
     "SetLogo", "RemoveLogo", "SnapLogo", "SetMusic", "RemoveMusic", "ResetToSeed"]) {
     assert.equal(defaultMergeKey(type, {}), null, type);
   }
@@ -744,6 +746,45 @@ test("hook text, duration and position follow §3.3", () => {
   rejects(C30, C30.seed, "SetHookDuration", { dur_f: max + 1 }, "value_out_of_range");
   assert.equal(hookItem(run(C30, C30.seed, "SetHookY", { y_e5: 6000 })).transform.y_e5, 6000);
   rejects(C30, C30.seed, "SetHookY", { y_e5: 40001 }, "value_out_of_range");
+});
+
+// Hook designs (CONTRACTS §5.31): the bar the seeds write, then Kicker, Blok and Kotak kata.
+const withHookDesign = (doc, design) => ({ ...doc, tracks: doc.tracks.map((track) => (track.kind !== "hook" ? track
+  : { ...track, items: [{ ...track.items[0], payload: { ...track.items[0].payload, design } }] })) });
+
+test("the client's hook design list is the design files'", () => {
+  assert.deepEqual([...HOOK_DESIGN_IDS], ["legacy-bar", "kicker", "blok", "kotak"]);
+  const designsDir = path.join(root, "resources", "hook-designs");
+  assert.deepEqual(readdirSync(designsDir).sort(), [...HOOK_DESIGN_IDS].sort());
+  for (const id of HOOK_DESIGN_IDS) {
+    const design = JSON.parse(readFileSync(path.join(designsDir, id, "v1.json"), "utf8"));
+    assert.deepEqual([design.id, design.v], [id, 1]);
+  }
+});
+
+test("SetHookDesign picks one of the four designs and keeps the text; the bar again equals the seed", () => {
+  const text = hookItem(C30.seed).payload.text;
+  for (const id of HOOK_DESIGN_IDS) {
+    const doc = run(C30, C30.seed, "SetHookDesign", { id });
+    assert.deepEqual(hookItem(doc).payload, { text, design: { id, v: 1 } });
+    assert.equal(hookItem(doc).origin, hookItem(C30.seed).origin);
+  }
+  const kotak = run(C30, C30.seed, "SetHookDesign", { id: "kotak" });
+  assert.ok(!contentEquals(kotak, C30.seed));
+  assert.ok(contentEquals(run(C30, kotak, "SetHookDesign", { id: "legacy-bar" }), C30.seed), "R10");
+  for (const bad of ["neon", "KICKER", 3, null, undefined]) rejects(C30, C30.seed, "SetHookDesign", { id: bad }, "value_out_of_range");
+  rejects(C25, C25.seed, "SetHookDesign", { id: "kicker" }, "hook_missing");
+  // Text, duration and position commands leave the design as it is.
+  const moved = run(C30, run(C30, kotak, "SetHookText", { text: "Dia ditahan SECURITY" }), "SetHookY", { y_e5: 20000 });
+  assert.deepEqual(hookItem(moved).payload.design, { id: "kotak", v: 1 });
+});
+
+test("checkDoc accepts the four hook designs at v 1 and nothing else", () => {
+  for (const id of HOOK_DESIGN_IDS) assert.deepEqual(checkDoc(withHookDesign(C30.seed, { id, v: 1 }), C30.ctx), []);
+  for (const design of [{ id: "kotak", v: 2 }, { id: "neon", v: 1 }, { id: "KICKER", v: 1 }, null]) {
+    assert.deepEqual(checkDoc(withHookDesign(C30.seed, design), C30.ctx),
+      [{ code: "op_disabled", path: "/tracks/0/items/0/payload/design" }], JSON.stringify(design));
+  }
 });
 
 // --- layout, logo, music, audio ------------------------------------------------------------

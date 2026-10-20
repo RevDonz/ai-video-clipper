@@ -337,6 +337,38 @@ test("Kata per baris merges as its own caption part; 'yang tersimpan' without it
   assert.deepEqual(diffParts(C30.seed, mine.doc), ["captions.override.words_max"]);
 });
 
+test("the hook design merges as its own hook part; two different picks are one 'Teks hook' conflict", () => {
+  assert.ok(PARTS.includes("hook.design"));
+  assert.equal(partGroup("hook.design"), "hook");
+  const mine = tab(C30);
+  mine.dispatch("SetHookDesign", { id: "kotak" });
+  assert.deepEqual(diffParts(C30.seed, mine.doc), ["hook.design"]);
+  assert.deepEqual(partValue(mine.doc, "hook.design"), { id: "kotak", v: 1 });
+  assert.equal(partValue(C25.seed, "hook.design"), null);
+  const theirs = tab(C30);
+  theirs.dispatch("SetHookText", { text: "Tersimpan" });
+  const merged = rebaseTabs(C30, mine, theirs);
+  assert.equal(merged.status, "merged");
+  assert.deepEqual(hookItem(merged.doc).payload, { text: "Tersimpan", design: { id: "kotak", v: 1 } });
+
+  const other = tab(C30);
+  other.dispatch("SetHookDesign", { id: "blok" });
+  const result = rebaseTabs(C30, mine, other);
+  assert.equal(result.status, "conflict");
+  assert.deepEqual(result.conflicts.map((group) => [group.id, group.label, group.parts]), [["hook", "Teks hook", ["hook.design"]]]);
+  const text = hookItem(C30.seed).payload.text;
+  assert.deepEqual([result.conflicts[0].mine, result.conflicts[0].theirs], [`${text} (Kotak kata)`, `${text} (Blok)`]);
+  assert.deepEqual(hookItem(result.resolve({}).doc).payload.design, { id: "kotak", v: 1 });
+  assert.deepEqual(hookItem(result.resolve({ hook: "theirs" }).doc).payload.design, { id: "blok", v: 1 });
+  // A design picked in a tab whose hook the other tab switched off brings the hook back on "mine".
+  const off = tab(C30);
+  off.dispatch("SetHookEnabled", { on: false });
+  const gone = rebaseTabs(C30, mine, off);
+  assert.deepEqual(gone.conflicts.map((group) => group.id), ["hook"]);
+  assert.deepEqual(hookItem(gone.resolve({}).doc).payload.design, { id: "kotak", v: 1 });
+  assert.equal(hookItem(gone.resolve({ hook: "theirs" }).doc), null);
+});
+
 test("the same edit in both tabs is not a conflict", () => {
   const mine = tab(C30);
   mine.dispatch("SetLayout", { mode: "fill_center" });

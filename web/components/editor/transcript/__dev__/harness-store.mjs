@@ -14,6 +14,8 @@ const SWATCHES = CAPTION_SWATCHES.map((swatch) => swatch.value);
 const PACKS = ["classic", "karaoke", "bold", "box", "sorot"];
 // Each pack's words per line while the document sets no words_max (the pack files).
 const PACK_WORDS = { classic: 4, karaoke: 4, bold: 3, box: 3, sorot: 3 };
+// The hook design files (resources/hook-designs), all at v 1.
+const HOOK_DESIGNS = ["legacy-bar", "kicker", "blok", "kotak"];
 const MERGE_WINDOW_MS = 500;
 
 function reject(code) {
@@ -313,6 +315,12 @@ export function createHarnessStore({ words, doc, readOnly = false, planDelayMs =
       if (!item) reject("not_found");
       if (!Number.isInteger(y) || y < 6000 || y > 40000) reject("range_invalid");
       item.transform.y_e5 = y;
+    },
+    SetHookDesign(d, { id }) {
+      const item = hookItem(d);
+      if (!item) reject("not_found");
+      if (!HOOK_DESIGNS.includes(id)) reject("range_invalid");
+      item.payload.design = { id, v: 1 };
     },
   };
 

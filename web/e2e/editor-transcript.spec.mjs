@@ -572,6 +572,25 @@ test.describe("text panel", () => {
     await page.getByRole("switch", { name: "Tampilkan hook" }).click();
     expect(await lastCommand(page)).toEqual({ type: "SetHookEnabled", args: { on: true, text: "Dia ditahan security" }, mergeKey: null });
   });
+
+  test("hook design: four cards with thumbnails, the pick in the document, the Kicker and Kotak kata hints", async ({ page }) => {
+    await openHarness(page, { panel: "text" });
+    const group = page.getByRole("group", { name: "Desain hook" });
+    await expect(group.getByRole("radio")).toHaveCount(4);
+    await expect(group.locator("img")).toHaveCount(4);
+    await expect(group.getByRole("radio", { name: /^Bar/ })).toBeChecked();
+    await group.getByRole("radio", { name: /^Kicker/ }).check();
+    expect(await lastCommand(page)).toEqual({ type: "SetHookDesign", args: { id: "kicker" }, mergeKey: null });
+    expect((await currentDoc(page)).tracks[0].items[0].payload.design).toEqual({ id: "kicker", v: 1 });
+    await expect(page.locator("[data-hook-design-hint]")).toContainText("tanda baca");
+    await group.getByRole("radio", { name: /^Blok/ }).check();
+    await expect(page.locator("[data-hook-design-hint]")).toHaveCount(0);
+    await group.getByRole("radio", { name: /^Kotak kata/ }).check();
+    await expect(page.locator("[data-hook-design-hint]")).toContainText("kapital");
+    await expect(page.locator("[data-hook-fit]")).toHaveText("Muat");
+    await page.getByRole("switch", { name: "Tampilkan hook" }).click();
+    await expect(group.getByRole("radio", { name: /^Kotak kata/ })).toBeDisabled();
+  });
 });
 
 // --- gates ------------------------------------------------------------------------------------

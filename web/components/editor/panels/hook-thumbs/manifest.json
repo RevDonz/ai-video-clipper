@@ -1,0 +1,46 @@
+{
+  "background": "#4B5563",
+  "crop": [
+    0,
+    160,
+    720,
+    180
+  ],
+  "designs": {
+    "blok": {
+      "bytes": 9785,
+      "design_sha256": "b6a56b4ec4e5f9cebaa9ef2d96bf7ce562ad24cf9651a23aed9f61cf0120533e",
+      "file": "blok.png",
+      "png_sha256": "a46c37797a38904aff4fe82019eb219f16f574982bf0a62dda407412c2fa38b6"
+    },
+    "kicker": {
+      "bytes": 9577,
+      "design_sha256": "697801e025b3fe0f721c3942264cc156727a418ec43d59e6618936eecb4f1b24",
+      "file": "kicker.png",
+      "png_sha256": "b2167a6ec063fc9734d3f5317bef8fc3256c3d463d29221a754a4126522e3796"
+    },
+    "kotak": {
+      "bytes": 11726,
+      "design_sha256": "4308eeb7b41f1511ab96d16cc2075390d15984dfafaf28403e6a342fe1b6499f",
+      "file": "kotak.png",
+      "png_sha256": "d63d0be831ef8bc658b741348d729046677605b375de6882d287cde240c7f5a5"
+    },
+    "legacy-bar": {
+      "bytes": 9455,
+      "design_sha256": "1750e4d259946c6017e66c5a05629196fb853c521b182c11dc826e028efed4b0",
+      "file": "legacy-bar.png",
+      "png_sha256": "505a228b7fe0698d225c0ef823307a4883c552dffa833dfb77924a9f92e413ce"
+    }
+  },
+  "frame": 30,
+  "sample": "Ternyata: dia DITAHAN",
+  "schema": "potongin.hook-thumbs/1",
+  "size": [
+    320,
+    80
+  ],
+  "toolchain": {
+    "ffmpeg": "5.1.9-0+deb12u1",
+    "libass9": "1:0.17.1-1"
+  }
+}

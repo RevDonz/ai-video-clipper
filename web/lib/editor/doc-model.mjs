@@ -16,6 +16,10 @@ export const PACK_DEFAULT_CASE = Object.freeze({ classic: "asis", karaoke: "asis
 export const PACK_WORDS_PER_LINE = Object.freeze({ classic: 4, karaoke: 4, bold: 3, box: 3, sorot: 3 });
 /** "Kata per baris" (`overrides.words_max`, optional; CONTRACTS §5.30). */
 export const WORDS_MAX_RANGE = Object.freeze([1, 4]);
+/** Hook designs (resources/hook-designs/<id>/v1.json, all at v 1; CONTRACTS §5.31): the seeds' bar first. */
+export const HOOK_DESIGN_IDS = Object.freeze(["legacy-bar", "kicker", "blok", "kotak"]);
+/** What the editor calls each hook design (Hook card, Teks panel, conflict dialog). */
+export const HOOK_DESIGN_NAMES = Object.freeze({ "legacy-bar": "Bar", kicker: "Kicker", blok: "Blok", kotak: "Kotak kata" });
 export const LAYOUT_MODES = Object.freeze(["fit_blur", "camera", "fill_center"]);
 /** Cold-open join styles (docs/plans/2026-10-02-transisi-cold-open.md §1.1); `xfade` stays op_disabled. */
 export const JOIN_STYLES = Object.freeze(["cut", "flash_white", "dip_black"]);
@@ -521,7 +525,7 @@ function checkHook(item, path, fps, add) {
   if (!isInt(item.dur_f, 15, sfFloor(30000, fps))) add("range_invalid", `${path}/dur_f`);
   if (item.transform?.x_e5 !== 50000 || !isInt(item.transform?.y_e5, 6000, 40000)) add("range_invalid", `${path}/transform`);
   if (!textOk(item.payload?.text, LIMITS.hookText)) add("range_invalid", `${path}/payload/text`);
-  if (item.payload?.design?.id !== "legacy-bar" || item.payload?.design?.v !== 1) add("op_disabled", `${path}/payload/design`);
+  if (!HOOK_DESIGN_IDS.includes(item.payload?.design?.id) || item.payload?.design?.v !== 1) add("op_disabled", `${path}/payload/design`);
 }
 
 function anchorsOk(item) {

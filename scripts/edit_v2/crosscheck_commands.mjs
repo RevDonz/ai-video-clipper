@@ -26,6 +26,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { ApiError } from "../../web/lib/editor/api-client.mjs";
 import { COMMANDS, CommandRejected, applyCommand } from "../../web/lib/editor/commands.mjs";
 import {
+  HOOK_DESIGN_IDS,
   JOIN_STYLES,
   PACK_IDS,
   SWATCHES,
@@ -244,6 +245,9 @@ const GENERATORS = {
   SetHookY(rng) {
     return { y_e5: int(rng, 5000, 41000) };
   },
+  SetHookDesign(rng) {
+    return { id: chance(rng, 0.05) ? "neon" : pick(rng, HOOK_DESIGN_IDS) };
+  },
   SetLayout(rng) {
     return { mode: pick(rng, ["fit_blur", "camera", "fill_center", "fill_center", "split"]) };
   },
@@ -318,17 +322,21 @@ const GENERATORS = {
 const WEIGHTS = {
   RemoveWords: 16, RestoreRemoval: 5, TrimStart: 5, TrimEnd: 5, RemoveGap: 4, ApplyCleanup: 3, SetColdOpen: 4,
   NudgeColdOpen: 4, SetJoinStyle: 3, SetJoinSfx: 2, EditWordText: 7, SetWordHidden: 3, SetWordEmphasis: 3, SetCaptionsEnabled: 1, SetCaptionPack: 2,
-  SetCaptionOverride: 4, SetHookEnabled: 2, SetHookText: 4, SetHookDuration: 2, SetHookY: 2, SetLayout: 2, SetLogo: 3,
+  SetCaptionOverride: 4, SetHookEnabled: 2, SetHookText: 4, SetHookDuration: 2, SetHookY: 2, SetHookDesign: 2, SetLayout: 2, SetLogo: 3,
   RemoveLogo: 1, MoveLogo: 3, ResizeLogo: 2, SetLogoOpacity: 2, SnapLogo: 2, SetMusic: 3, RemoveMusic: 1,
   SetMusicGain: 2, SetMusicOffset: 2, SetMusicLoop: 1, SetMusicFades: 2, SetDuck: 2, SetSourceGain: 2, SetLoudness: 2,
   ResetToSeed: 1,
 };
+// A command without a weight would turn the roll into NaN and silently pick only the first one.
+for (const name of COMMANDS) {
+  if (!(WEIGHTS[name] > 0) || typeof GENERATORS[name] !== "function") throw new Error(`no random generator for ${name}`);
+}
 const TOTAL_WEIGHT = Object.values(WEIGHTS).reduce((sum, weight) => sum + weight, 0);
 
 const NEEDS = [
   [["MoveLogo", "ResizeLogo", "SetLogoOpacity", "SnapLogo", "RemoveLogo"], logoItem, "SetLogo"],
   [["SetMusicGain", "SetMusicOffset", "SetMusicLoop", "SetMusicFades", "SetDuck", "RemoveMusic"], musicItem, "SetMusic"],
-  [["SetHookText", "SetHookDuration", "SetHookY"], hookItem, "SetHookEnabled"],
+  [["SetHookText", "SetHookDuration", "SetHookY", "SetHookDesign"], hookItem, "SetHookEnabled"],
   [["SetJoinStyle", "SetJoinSfx"], coldOpen, "SetColdOpen"],
 ];
 
