@@ -2025,8 +2025,8 @@ changes: every plan sha and golden is unchanged.
 
 ### Top bar, stage and removed texts
 
-- `--ed-topbar-height` is 64 px. TopBar: "← Proyek", title and save status, the chip
-  `OTHER_TAB_TEXT` "Terbuka di tab lain", the view switch (`role="radiogroup"`,
+- `--ed-topbar-height` is 64 px. TopBar: "← Proyek", "Klip n/total ‹ ›" (§5.29), title and save
+  status, the chip `OTHER_TAB_TEXT` "Terbuka di tab lain", the view switch (`role="radiogroup"`,
   `aria-label="Tampilan editor"`, native radios, a polite live region "Tampilan Cepat" /
   "Tampilan Lengkap"), Urungkan and Ulangi icon buttons, "Perlu dicek (n)" (always rendered), the
   ⋯ "Lainnya" menu ("Kembali ke versi AI", "Pintasan keyboard") and Ekspor.
@@ -2121,3 +2121,47 @@ change.
 - Below 721 px: one column, posters two across (`minmax(132px, 1fr)`), the detail panel under the
   grid; tapping a poster scrolls the panel into view. From 1100 px the video sits beside the text
   and the panel scrolls on its own (sticky, `100dvh − 32px`).
+
+## 5.29 Moving between clips in the editor (2026-10-20)
+
+"Klip 3/8 ‹ ›" in the top bar opens the project's previous or next clip without going back to the
+project page. Nothing changes on the server: the order and the neighbours come from the
+`GET /clips` listing the shell already loads for the title, so there is no extra request.
+
+### Model (`web/lib/editor/clip-nav.mjs`, DOM-free)
+
+- `clipNavigation({jobId, clipId, clips})`: the listing in clip-number order (the project page's
+  order; equal numbers keep the listing's order), `position` and `total`, and `previous` / `next`
+  = `{href, position}` of the nearest clip on that side the editor can open, or null. A target
+  follows the project page's "Edit klip" rule (`clipEntryView(...).editHref`): an openable clip by
+  id, a clip the editor prepares on open by id or `klip-<n>`; any other clip is skipped. Null for
+  a one-clip project or a clip the listing does not name: the top bar then shows no group.
+- `clipNavHref(href, {view, panel, card})`: the neighbour's path with `?mode=<view>`, plus
+  Lengkap's `panel` or Cepat's open `card` (QuickPanel reports it through `onCardChange`); other
+  params and the hash are dropped.
+- `saveBeforeLeaving({flush, getState, exportPhase})` → `{ok: true}` or `{ok: false, reason}`.
+  An export in `saving` or `submitting`: `export`, no flush (leaving could cut the request off).
+  Otherwise up to three rounds of `store.flush()`: state `conflict` → `conflict`; state `error`, or
+  a rejection that is not a 409 revision conflict → `error`; `saved` with no rejection → ok. A 409
+  that merged by itself, or work added while saving, gets another round. `LEAVE_TEXT[reason]` is a
+  toast; the store's own UI stays (save status with "Coba simpan lagi", the conflict dialog) and
+  nothing is discarded.
+
+### Shell and top bar
+
+- TopBar, right after "← Proyek": `role="group"` `aria-label="Pindah klip"`, `aria-busy` while
+  the leave saves; the visible "Klip n/total" (`aria-hidden`) with a visually hidden "Klip n dari
+  total"; then two 44 px icon buttons "Klip sebelumnya" / "Klip berikutnya" (icons `back` /
+  `forward`, `title` with the shortcut, `aria-keyshortcuts`), `disabled` when that side has no
+  target. `.titleBlock` clips sideways, so a long save error, its retry button and the other-tab
+  chip never draw over the view switch.
+- `goToClip` (EditorApp) runs one leave at a time: it awaits `saveBeforeLeaving`, then
+  `window.location.assign`s the neighbour. A full page load gives the next clip a fresh runtime,
+  player and store, and the browser's Back returns to the clip before.
+- Keyboard: Ctrl+Shift+← / Ctrl+Shift+→ (⌘ on a Mac), ids `previousClip` / `nextClip`, scope
+  `global`; like the frame arrows they are left to text fields and focused arrow widgets (radios,
+  ranges, sliders, tabs, menus), and the shell ignores them while a dialog is open. The modifier
+  keeps the rule of no new single-key shortcut (WCAG 2.1.4).
+- Tests: `web/tests/editor-clip-nav.test.mjs` (the model, and the real store over the fake server:
+  save, failure, conflict, merge), `web/tests/editor-shortcuts.test.mjs`; in the browser
+  `web/e2e/editor-clip-nav.spec.mjs` on the fakes (`editor-gates.yml` `suite=e2e`).
