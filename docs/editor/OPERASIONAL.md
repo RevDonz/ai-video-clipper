@@ -118,7 +118,8 @@ kosong = 2 GiB, nilai di atas 4 GiB dikurangi 64 KiB dipotong ke batas itu (ZIP 
 ZIP64), nilai yang bukan bilangan bulat positif membuat rute menjawab "Batas ukuran ZIP di server
 (MAX_ZIP_BYTES) tidak valid." ZIP yang lebih besar ditolak dengan ukurannya dan batasnya; klip
 tetap bisa diunduh satu per satu. ZIP berisi file klip otomatis (`output/clip-NN.mp4`), sama
-dengan "Unduh MP4"; hasil ekspor editor tetap diunduh lewat "Ekspor terakhir".
+dengan "Unduh MP4"; hasil ekspor editor tetap diunduh lewat "Ekspor terakhir". Klip yang gagal
+dirender tidak punya file dan tidak ikut.
 
 **Judul dan deskripsi klip.** "Ubah" di halaman proyek tidak punya flag: teksnya tersimpan di
 `job.json` klip itu (`textEdit`) dan ikut terhapus bersama proyeknya. "Tulis ulang" memakai rantai
@@ -235,6 +236,7 @@ Kewajiban yang perlu dijaga:
 | Cek ejaan: "belum bisa dipakai (kuota/koneksi AI)" | Sama dengan saran hook: penyedia gratis penuh atau lebih dari 20 detik. File tugasnya (`analysis/clips/<klip>/suggestions/<id>.json`, `task: "spelling"`) mencatat kode galat dan saran yang dibuang beserta alasannya. |
 | "Tulis ulang gagal" di halaman proyek | Pesannya menyebut sebabnya; "Cara memperbaiki" membuka entri `/bantuan` untuk kode galat AI-nya (kuota, batas waktu, model). "AI mati atau belum diatur": nyalakan AI dan isi penyedia di Pengaturan. "Batas Tulis ulang … (30 per jam)": tunggu sesuai menit yang disebut. |
 | Unduhan YouTube gagal untuk banyak video sekaligus | Biasanya YouTube berubah dan yt-dlp perlu dinaikkan: §8. |
+| Proyek selesai, tapi satu kartu klip bertanda "Gagal" | Render klip itu gagal; klip lain tetap jadi. Log `primary-worker` punya baris `potongin: clip_failed:<n>: <jenis galat> render_failed` (atau `render_timeout` kalau FFmpeg melewati batas waktu); `job.json` menyimpan klip itu dengan `status: "failed"` dan `errorCode`, tanpa file. Untuk mencoba lagi, proses ulang videonya. Kalau semua klip gagal, job-nya gagal seperti biasa. |
 | Deploy berhenti: "Deployment blocked: durable work is active or unreadable" | Sebelum dan sesudah memasang image baru, `deploy/production.sh` memeriksa folder job dan mencetak `DURABLE_ACTIVE_JOBS=…`. Yang dihitung selesai: job `completed`, `failed`, `deleting`, `cancelled`, dan ekspor `completed`, `failed`, `cancelled`. Ada job atau ekspor yang masih jalan: tunggu sampai selesai, lalu jalankan ulang deploy. Ada `errors`: ada file yang tidak terbaca, path-nya tercetak. File antrean ekspor yang rusak (`analysis/render-requests/<id>.json`) boleh dipindah keluar dari folder job (simpan salinannya); `job.json` yang rusak diperbaiki dulu. Lalu deploy ulang. |
 
 ## 8. YouTube rusak: naikkan yt-dlp
