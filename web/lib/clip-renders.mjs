@@ -47,7 +47,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 const WARNING = /^([a-z][a-z_]{0,39})(?::[0-9A-Za-z .+-]{1,32})?$/;
 const WARNING_CODES = new Set(["tight_cut", "laughter_cut", "hook_overflow", "glyph_unsupported", "no_face",
-  "unsafe_zone", "loudness_clamped", "peak_reduced", "music_shorter_than_clip", "auto_file_unavailable",
+  "no_face_blur", "unsafe_zone", "loudness_clamped", "peak_reduced", "music_shorter_than_clip", "auto_file_unavailable",
   "engine_fallback"]);
 const STATES = new Set(["queued", "claimed", "rendering", "completed", "failed", "cancelled"]);
 const STAGES = new Set(["antre", "merender", "memverifikasi", "selesai"]);

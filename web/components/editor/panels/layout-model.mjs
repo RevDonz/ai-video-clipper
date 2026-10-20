@@ -9,14 +9,17 @@
 //   the clip window (idempotent: instant when it exists), so the panel analyses first and switches
 //   after; the stage never shows a layout the server cannot plan.
 // - The runs without a face are the plan's `no_face` warnings (one per run and piece, at the output
-//   frame where it starts); each is a jump-to target.
+//   frame where it starts); each is a jump-to target. Face-track chosen here shows them with latar
+//   blur (`no_face: "fit_blur"`, the plan says `no_face_blur`); one click centres them instead, and
+//   back (`SetNoFace`, CONTRACTS §5.40).
+import { NO_FACE_MODES, switchedLayout } from "../../../lib/editor/doc-model.mjs";
 import { formatClock, frameToMs, messageFor } from "../shell-model.mjs";
 
 const option = (fields) => Object.freeze(fields);
 
 export const LAYOUT_OPTIONS = Object.freeze([
   option({ id: "fit_blur", name: "Latar blur", note: "Seluruh gambar terlihat. Bagian atas dan bawah diisi versi blur dari gambar yang sama." }),
-  option({ id: "camera", name: "Ikuti wajah", note: "Potongan 9:16 bergeser mengikuti wajah. Butuh analisis wajah sekali per klip; bagian tanpa wajah dipusatkan." }),
+  option({ id: "camera", name: "Ikuti wajah", note: "Potongan 9:16 bergeser mengikuti wajah. Butuh analisis wajah sekali per klip; bagian tanpa wajah tampil dengan latar blur." }),
   option({ id: "fill_center", name: "Potong tengah", note: "Potongan 9:16 tetap di tengah gambar. Sisi kiri dan kanan terpotong." }),
 ]);
 const IDS = LAYOUT_OPTIONS.map((entry) => entry.id);
@@ -38,11 +41,42 @@ export function layoutCommand(mode) {
   return { type: "SetLayout", args: { mode: knownLayout(mode) }, mergeKey: null };
 }
 
-/** The document with only `layout.default.mode` changed (the same object when unchanged). */
+/**
+ * The document in layout `mode` as `SetLayout` makes it (the same object when unchanged): only
+ * `layout.default` changes, and a switch into face-track turns the latar blur fallback on.
+ */
 export function withLayout(doc, mode) {
   knownLayout(mode);
   if (doc.layout.default.mode === mode) return doc;
-  return { ...doc, layout: { ...doc.layout, default: { ...doc.layout.default, mode } } };
+  return { ...doc, layout: { ...doc.layout, default: switchedLayout(doc.layout.default, mode) } };
+}
+
+// The face-track note of a clip whose runs without a face are centred (a face-track auto clip).
+const CENTRED_NOTE = "Potongan 9:16 bergeser mengikuti wajah. Butuh analisis wajah sekali per klip; bagian tanpa wajah dipusatkan.";
+
+/** What a layout does for this clip: the option's note, or for centred face-track that variant. */
+export function layoutNote(entry, doc) {
+  const current = doc?.layout?.default;
+  if (entry.id === "camera" && current?.mode === "camera" && current.no_face === "center") return CENTRED_NOTE;
+  return entry.note;
+}
+
+/** What face-track shows where no face was found: a choice of two, and what the runs then show. */
+export const NO_FACE_OPTIONS = Object.freeze([
+  option({ id: "fit_blur", label: "Latar blur", note: "Di bagian ini seluruh gambar tampil dengan latar blur." }),
+  option({ id: "center", label: "Dipusatkan", note: "Di bagian ini video dipusatkan." }),
+]);
+
+/** `SetNoFace`: face-track's runs without a face centred or with latar blur, one undo step. */
+export function noFaceCommand(mode) {
+  if (!NO_FACE_MODES.includes(mode)) throw new TypeError(`unknown no-face mode: ${mode}`);
+  return { type: "SetNoFace", args: { mode }, mergeKey: null };
+}
+
+/** The face-track section: `{mode, runs, note}` for the document and its plan. */
+export function noFaceView(doc, plan) {
+  const mode = doc?.layout?.default?.no_face === "fit_blur" ? "fit_blur" : "center";
+  return { mode, runs: noFaceList(plan), note: NO_FACE_OPTIONS.find((entry) => entry.id === mode).note };
 }
 
 function canonical(value) {
@@ -147,13 +181,18 @@ export function analysisView(analysis, nowMs) {
     text: `${ANALYSIS_TEXT.running} ${elapsed} dtk${tail}` };
 }
 
-/** The runs without a face of a plan: `[{f, time}]`, one per start frame inside the clip, sorted. */
+const NO_FACE_CODES = Object.freeze(["no_face", "no_face_blur"]);
+
+/**
+ * The runs without a face of a plan (`no_face`, or `no_face_blur` with the fallback): `[{f, time}]`,
+ * one per start frame inside the clip, sorted.
+ */
 export function noFaceList(plan) {
   const warnings = Array.isArray(plan?.warnings) ? plan.warnings : [];
   const total = Number.isSafeInteger(plan?.totalFrames) ? plan.totalFrames : 0;
   const frames = new Set();
   for (const warning of warnings) {
-    if (warning?.code !== "no_face" || !Number.isSafeInteger(warning.f)) continue;
+    if (!NO_FACE_CODES.includes(warning?.code) || !Number.isSafeInteger(warning.f)) continue;
     if (warning.f < 0 || warning.f >= total) continue;
     frames.add(warning.f);
   }

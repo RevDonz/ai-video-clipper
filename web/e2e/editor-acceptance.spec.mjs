@@ -889,7 +889,8 @@ test("Kemampuan 7, tata letak: Potong tengah, Ikuti wajah and back to Latar blur
   const switches = [];
   for (const [name, mode] of [["Potong tengah", "fill_center"], ["Ikuti wajah", "camera"], ["Latar blur", "fit_blur"]]) {
     const started = Date.now();
-    await panel.getByRole("radio", { name: new RegExp(`^${name}`) }).check();
+    // the layout cards (face-track's own no-face choice below them has a "Latar blur" option too)
+    await panel.getByRole("group", { name: "Pilih tata letak" }).getByRole("radio", { name: new RegExp(`^${name}`) }).check();
     await expect.poll(async () => (await inspect(page)).doc.layout.default.mode, { timeout: 8 * 60_000 }).toBe(mode);
     const saved = await waitSaved(page);
     expect(saved.doc.layout.default.mode).toBe(mode);
@@ -897,10 +898,13 @@ test("Kemampuan 7, tata letak: Potong tengah, Ikuti wajah and back to Latar blur
     let noFace = null;
     if (mode === "camera") {
       // Spans without a face are reported, never silent: listed in the panel with a jump each.
+      // Chosen here, face-track shows them with latar blur (CONTRACTS §5.40): notes, not checks.
       await expect(panel.locator("[data-layout-noface]")).toBeVisible();
-      const listed = ((await settledPlan(page)).warnings ?? []).filter((warning) => warning.code === "no_face");
+      expect((await inspect(page)).doc.layout.default.no_face).toBe("fit_blur"); // switched from Potong tengah
+      const listed = ((await settledPlan(page)).warnings ?? [])
+        .filter((warning) => warning.code === "no_face" || warning.code === "no_face_blur");
       noFace = listed.length;
-      if (noFace) await expect(page.getByRole("button", { name: /^Perlu dicek \(\d+\)$/ })).not.toHaveText("Perlu dicek (0)");
+      if (noFace) await expect(panel.locator("[data-layout-noface]").getByRole("button", { name: /^Lompat ke / })).not.toHaveCount(0);
       else await expect(panel.getByText("Wajah terdeteksi di seluruh klip.")).toBeVisible();
     }
     switches.push({ mode, exactMs: Date.now() - started, noFace });

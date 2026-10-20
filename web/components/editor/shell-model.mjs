@@ -24,6 +24,7 @@ export const MESSAGES = Object.freeze({
   hook_overflow: "Teks hook terlalu panjang dan akan dipendekkan dengan \"…\"",
   glyph_unsupported: "Ada karakter yang tidak tersedia di font caption dan tidak akan tampil",
   no_face: "Tidak ada wajah terdeteksi di bagian ini; video dipusatkan",
+  no_face_blur: "Tidak ada wajah terdeteksi di bagian ini; tampil dengan latar blur",
   unsafe_zone: "Caption, hook, atau logo masuk ke area tombol TikTok",
   loudness_clamped: "Target kenyaringan tidak tercapai tanpa pecah; volume dibatasi",
   peak_reduced: "Volume diturunkan agar audio tidak pecah",
@@ -129,6 +130,10 @@ export function captionAtSeedSpot(doc, seed) {
   const at = doc?.captions?.overrides?.y_e5;
   return Number.isInteger(at) && at === seed?.captions?.overrides?.y_e5;
 }
+
+// A run without a face that face-track shows with latar blur (CONTRACTS §5.40): the whole picture
+// is there, so it informs and needs no tick before export.
+const NOTE_CODES = Object.freeze(["no_face_blur"]);
 
 function isCaptionZone(issue) {
   return issue.code === "unsafe_zone" && typeof issue.path === "string" && issue.path.startsWith("/captions/");
@@ -332,7 +337,7 @@ export function liveEntries(entries, runtimeKind, liveWaves = LIVE_WAVES) {
  * "Perlu dicek": store warnings (save results) and plan warnings, deduplicated, sorted by
  * frame (items without a frame last); plan errors come first as blocking items, notes last.
  * With the document and its seed, the caption's zone warning at the auto clip's spot is a note
- * (severity "info", K5).
+ * (severity "info", K5); so is a run without a face shown with latar blur (`no_face_blur`, §5.40).
  */
 export function checksView({ warnings = [], plan = null, doc = null, seed = null } = {}) {
   const fps = plan?.fps;
@@ -342,7 +347,7 @@ export function checksView({ warnings = [], plan = null, doc = null, seed = null
   const add = (issue, given) => {
     if (!issue || typeof issue.code !== "string") return;
     const note = given === "warning" && captionNote && isCaptionZone(issue);
-    const severity = note ? "info" : given;
+    const severity = note || (given === "warning" && NOTE_CODES.includes(issue.code)) ? "info" : given;
     const f = Number.isInteger(issue.f) ? issue.f : null;
     const key = `${severity}|${issue.code}|${issue.ref ?? ""}|${f ?? ""}|${f === null ? issue.path ?? "" : ""}`;
     if (seen.has(key)) return;

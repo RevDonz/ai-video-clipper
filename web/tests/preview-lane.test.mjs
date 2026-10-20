@@ -54,7 +54,7 @@ function planBody(extra = {}, doc = DOC) {
 
 // A plan-op result as preview_cli returns it.
 function planResult({ cells = [10, 11, 12, 13, 14, 15, 16, 17], missing = cells, plateKey = KEY, audio = { key: AUDIO, ready: false },
-  logo = null, playhead = 0, pieces = null } = {}) {
+  logo = null, playhead = 0, pieces = null, layout = "fit_blur", noFace = null } = {}) {
   const prefix = `/api/jobs/${JOB}/clips/${CLIP}/media`;
   return {
     dto: {
@@ -71,7 +71,7 @@ function planResult({ cells = [10, 11, 12, 13, 14, 15, 16, 17], missing = cells,
       rev0: { planSha256: "1".repeat(64), autoRenderUrl: null, exact: false },
       warnings: [], errors: [],
     },
-    lane: { playhead, layout: "fit_blur", plateKey, cellFrames: 60, cells, missing, audio, logo, frameKey: "4".repeat(16) },
+    lane: { playhead, layout, noFace, plateKey, cellFrames: 60, cells, missing, audio, logo, frameKey: "4".repeat(16) },
   };
 }
 
@@ -183,6 +183,57 @@ test("a plan runs the plan op once and schedules cells, audio and the logo", asy
     for (const c of second) c.resolve(cellsResult(c.payload));
     await lane.idle();
     assert.equal(cli.pending().length, 0);
+  } finally {
+    lane.close();
+    cleanup();
+  }
+});
+
+// CONTRACTS §5.40: face-track with the latar blur fallback has its own plate; the cells op is told.
+test("the cells of face-track's blur fallback ask for it; other plates do not name it", async () => {
+  const { dir, clip, cleanup } = root();
+  readyAudio(clip);
+  const cli = fakeCli();
+  const lane = createPreviewLane({ jobsRoot: dir, runCli: cli.run, heavySlots: 1 });
+  try {
+    const pending = lane.plan({ jobId: JOB, clipId: CLIP, body: planBody() });
+    await settle();
+    cli.pending("plan")[0].resolve({ exitCode: 0, json: planResult({ cells: [10], layout: "camera", noFace: "fit_blur",
+      audio: { key: AUDIO, ready: true } }) });
+    assert.equal((await pending).status, 200);
+    await settle();
+    const [cells] = cli.pending("cells");
+    assert.deepEqual({ layout: cells.payload.layout, noFace: cells.payload.noFace, cells: cells.payload.cells },
+      { layout: "camera", noFace: "fit_blur", cells: [10] });
+    cells.resolve(cellsResult(cells.payload));
+    await settle();
+    // the same clip centred: another plate, and the cells op is not told about a fallback
+    const again = lane.plan({ jobId: JOB, clipId: CLIP, body: planBody({}, DOC2) });
+    await settle();
+    cli.pending("plan")[0].resolve({ exitCode: 0, json: planResult({ cells: [11], layout: "camera", plateKey: KEY2,
+      audio: { key: AUDIO, ready: true } }) });
+    assert.equal((await again).status, 200);
+    await settle();
+    const [centred] = cli.pending("cells");
+    assert.equal(centred.payload.layout, "camera");
+    assert.ok(!("noFace" in centred.payload));
+    centred.resolve({ exitCode: 0, json: { plateKey: KEY2, built: [11], present: [] } });
+    await lane.idle();
+  } finally {
+    lane.close();
+    cleanup();
+  }
+});
+
+test("a plan whose lane names another no-face value is not trusted", async () => {
+  const { dir, cleanup } = root();
+  const cli = fakeCli();
+  const lane = createPreviewLane({ jobsRoot: dir, runCli: cli.run, heavySlots: 0 });
+  try {
+    const pending = lane.plan({ jobId: JOB, clipId: CLIP, body: planBody() });
+    await settle();
+    cli.pending("plan")[0].resolve({ exitCode: 0, json: planResult({ layout: "camera", noFace: "center" }) });
+    assert.equal((await pending).status, 503);
   } finally {
     lane.close();
     cleanup();
@@ -510,9 +561,21 @@ test("prepare returns the artifact states and queues the first cells", async () 
     const [cells] = cli.pending("cells");
     assert.deepEqual(cells.payload.cells, [4]);
     assert.equal(cells.payload.layout, "camera");
+    assert.ok(!("noFace" in cells.payload));
     cells.resolve(cellsResult(cells.payload));
     await settle();
     cli.pending("cells")[0].resolve(cellsResult(cli.pending("cells")[0].payload));
+    await lane.idle();
+    // a switch into face-track prepares the plate SetLayout will show: with the blur fallback
+    const blur = lane.prepare({ jobId: JOB, clipId: CLIP, layout: "camera" });
+    await settle();
+    cli.pending("prepare")[0].resolve({ exitCode: 0, json: { words: "ready", camera: "ready", layout: "camera",
+      noFace: "fit_blur", plateKey: KEY2, cellFrames: 60, cells: [7], ready: [] } });
+    assert.equal((await blur).status, 202);
+    await settle();
+    const [blurCells] = cli.pending("cells");
+    assert.deepEqual([blurCells.payload.layout, blurCells.payload.noFace, blurCells.payload.cells], ["camera", "fit_blur", [7]]);
+    blurCells.resolve({ exitCode: 0, json: { plateKey: KEY2, built: [7], present: [] } });
     await lane.idle();
     const done = createPreviewLane({ jobsRoot: dir, runCli: async () => ({ exitCode: 0, json: { words: "ready", camera: "not_needed", layout: "fit_blur", plateKey: KEY, cellFrames: 60, cells: [1], ready: [1] } }), heavySlots: 1 });
     assert.deepEqual((await done.prepare({ jobId: JOB, clipId: CLIP, layout: null })).json.plate, { state: "ready", ready: 1, total: 1 });

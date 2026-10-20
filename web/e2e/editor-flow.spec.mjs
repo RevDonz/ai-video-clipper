@@ -958,7 +958,7 @@ test("W3 layout: Potong tengah and back to Latar blur, the stage exact after eac
   for (const [name, mode] of initial === "fill_center" ? [["Latar blur", "fit_blur"], ["Potong tengah", "fill_center"]]
     : [["Potong tengah", "fill_center"], ["Latar blur", "fit_blur"]]) {
     const started = Date.now();
-    await panel.getByRole("radio", { name: new RegExp(`^${name}`) }).check();
+    await panel.getByRole("group", { name: "Pilih tata letak" }).getByRole("radio", { name: new RegExp(`^${name}`) }).check();
     expect((await waitSaved(page)).doc.layout.default.mode).toBe(mode);
     await exactBadge(page, { unchangedOk: mode === initial });
     switches.push({ mode, exactMs: Date.now() - started });

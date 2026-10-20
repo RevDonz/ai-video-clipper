@@ -738,6 +738,10 @@ def _valid(contexts: Mapping[str, Context]) -> list[_Fixture]:
         d = _Doc(c30, "SetLayout")
         d.doc["layout"]["default"]["mode"] = mode
         add(f"layout_{mode}", d)
+    # face-track chosen in the editor: SetLayout turns on the latar blur fallback (§5.40)
+    d = _Doc(c30, "SetLayout")
+    d.doc["layout"]["default"].update(mode="camera", no_face="fit_blur")
+    add("layout_camera_no_face_blur", d)
     d = _Doc(c30, "SetHookEnabled")
     d.doc["tracks"] = []
     add("hook_removed", d)
@@ -1210,6 +1214,8 @@ def _invalid(contexts: Mapping[str, Context]) -> list[_Fixture]:
         mutated(music(duck={"detector": "rms"})))
     add("op_disabled", "layout_split", "/layout/default/mode",
         mutated(lambda b: b.doc["layout"]["default"].update(mode="split")))
+    add("op_disabled", "no_face_fail", "/layout/default/no_face",
+        mutated(lambda b: b.doc["layout"]["default"].update(no_face="fail")))
     add("op_disabled", "removal_reason_gap_voiced", "/main/removals/0/reason",
         mutated(removal_with(reason="gap_voiced")))
     add("op_disabled", "case_lower", "/captions/overrides/case",
