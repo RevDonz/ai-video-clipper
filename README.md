@@ -184,7 +184,8 @@ suite) run on GitHub Actions: `ci-cd.yml` on every pull request and `editor-gate
 - **Form dashboard.** Link atau file dan tombol **Buat klip** ada di satu baris paling atas.
   Opsi lain dilipat di **Pengaturan klip** dengan ringkasan satu baris. Durasi memakai preset
   (Otomatis 20–60, Pendek 15–30, Sedang 30–60, Panjang 60–90 detik, atau Atur sendiri). Pilihan
-  terakhir diingat di browser itu (`localStorage`); link, file, dan fokus tidak disimpan. File
+  terakhir diingat di browser itu (`localStorage`); link, file, rentang waktu, dan fokus tidak
+  disimpan. File
   video bisa ditarik ke halaman.
 - **Cold open.** Kalimat terkuat bisa diputar lebih dulu, lalu klip berjalan dari awal.
 - **Teks hook.** Kalimat pemancing singkat tampil di atas layar selama 4 detik pertama.
@@ -290,6 +291,26 @@ mentions it left out (the focus top-up). The episode's opening (teaser montage, 
 greeting) never counts for the focus. Each clip gets
 `focus: {match, terms, at}` and the summary `focus: {terms, matched, requested}`. Without focus
 terms every output is unchanged.
+
+## Rentang waktu: klip dari bagian yang sudah kamu pilih
+
+**Bahasa Indonesia.** Di **Pengaturan klip → Momen** ada isian opsional **Rentang waktu**, misalnya
+`10.30-12.05, 1:02:10-1:03:00` (titik atau titik dua; digit lebar juga diterima). Setiap rentang
+jadi satu klip persis seperti diketik dan tampil paling depan; sisa slot diisi momen terbaik lain
+seperti biasa, tanpa mode terpisah. Satu rentang 5–180 detik, jumlahnya paling banyak sama dengan
+Jumlah klip, dan rentang tidak boleh tumpang tindih. Isian yang salah ditolak sebelum video
+diunduh, dengan pesan yang menyebut rentangnya; rentang yang melewati panjang video atau tidak
+berisi ucapan menggagalkan job dengan alasan yang jelas. Klipnya bertanda "Rentang waktu kamu" di
+halaman proyek. Aturan lengkap:
+[`docs/operations/STANDAR_KLIP_AI.md`](docs/operations/STANDAR_KLIP_AI.md), bagian "Rentang waktu".
+
+**English.** A V3 job may carry up to `limit` typed ranges (`timeRanges` form field,
+`options.ranges` in whole seconds, CLI `--range START-END`), parsed by one grammar in
+`src/ai_clipper/time_ranges.py` and `web/lib/time-ranges.mjs`. Each range is a clip as typed,
+first, marked `"manual": true`; the selection fills the other slots and never picks a moment
+inside a range. A range past the probed video (`range_beyond_video`) or without speech
+(`range_no_speech`) fails the job with the engine's Indonesian reason. Without ranges every
+output is unchanged. Contract: `docs/editor/CONTRACTS.md` §5.37.
 
 ## Halaman proyek: tinjau, pilih, unduh
 

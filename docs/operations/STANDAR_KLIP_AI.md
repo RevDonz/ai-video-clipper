@@ -416,6 +416,28 @@ sungguhan. Harganya: pada kata kunci yang sering diucapkan tetapi jarang dibahas
 yang di luar fokus. Hasil ukurnya ada di `docs/evaluation/SELECTION_BENCHMARK.md`, bagian "Fokus
 klip", "Top-up fokus", dan "Setelah review kedua".
 
+## Rentang waktu: bagian yang sudah dipilih sendiri
+
+Di **Pengaturan klip → Momen** pengguna bisa mengetik rentang waktu, misalnya `10.30-12.05` atau
+`1:02:10-1:03:00` (titik atau titik dua, digit lebar juga diterima). Pisahkan beberapa rentang
+dengan koma atau baris baru. Aturannya:
+
+- Setiap rentang jadi satu klip, dipotong persis seperti diketik, dan tampil paling depan sesuai
+  urutan ketikan. Aturan durasi job (Otomatis, Pendek, dan seterusnya) tidak berlaku untuk rentang
+  ini; batasnya 5–180 detik per rentang.
+- Jumlah rentang paling banyak sama dengan **Jumlah klip** (dan paling banyak 10), dan rentang
+  tidak boleh tumpang tindih. Dashboard dan API menolak isian yang salah sebelum video diunduh,
+  dengan pesan yang menyebut rentangnya.
+- Sisa slot diisi seperti biasa (AI, atau heuristik kalau AI mati). Momen yang beririsan lebih
+  dari 0,5 detik dengan rentang ketikan tidak dipilih, jadi tidak ada klip ganda. Kalau semua slot
+  sudah terisi rentang, AI tidak dipanggil sama sekali.
+- Judul, teks hook, deskripsi, skor, dan alasan klip rentang dibuat heuristik lokal dari isi
+  rentang itu; alasan pertamanya "Rentang waktu yang kamu ketik: …". Cold open, label fokus, dan
+  tren berlaku seperti klip lain. Halaman proyek memberi tanda "Rentang waktu kamu".
+- Job gagal dengan alasan yang jelas kalau rentang melewati panjang video (dicek tepat setelah
+  video dibaca, sebelum transkrip; selisih sampai 1 detik dipotong ke akhir video) atau kalau
+  rentang tidak berisi ucapan sama sekali.
+
 ## Mengubah standar dengan aman
 
 **Boleh diubah bebas:** bagian 1–10, yaitu peran, cara membaca transkrip, awal dan akhir klip,
