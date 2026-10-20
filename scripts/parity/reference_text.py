@@ -76,7 +76,7 @@ SAMPLE_TEXTS = {
     90: "Ternyata AVATAR dibuat 12 tahun, dan sutradaranya bilang: jangan pernah menyerah ya kawan.",
 }
 HOOK_TEXT = "Dia ditahan security di film-nya sendiri"
-# The hook designs next to the bar (CONTRACTS §5.31), each with a text that shows its rule: a
+# The hook designs next to the bar (CONTRACTS §5.33), each with a text that shows its rule: a
 # kicker closed by a colon, the bar's text on boxes, a word in capitals in the box.
 HOOK_DESIGN_TEXTS = {
     "kicker": "Ternyata: dia ditahan security di film-nya sendiri",

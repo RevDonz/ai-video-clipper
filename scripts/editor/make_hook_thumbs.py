@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Hook-design thumbnails for the editor's Hook card and Teks panel (CONTRACTS §5.31).
+"""Hook-design thumbnails for the editor's Hook card and Teks panel (CONTRACTS §5.33).
 
 One small PNG per hook design, rendered from the design files by the production pipeline: the
 sample hook goes through ``captions_ass.build_ass_v2`` (exactly what an export would burn) and

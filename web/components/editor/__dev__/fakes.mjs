@@ -23,7 +23,7 @@ const SHA = (seed) => fakeSha256(`fake:${seed}`);
 
 // Appendix B: every command name the real store knows (T2.5 implements them all), with the
 // cold-open transition commands (docs/plans/2026-10-02-transisi-cold-open.md §7.2) and
-// SetHookDesign (CONTRACTS §5.31).
+// SetHookDesign (CONTRACTS §5.33).
 export const COMMANDS = Object.freeze([
   "TrimStart", "TrimEnd", "RemoveWords", "RemoveGap", "RestoreRemoval", "ApplyCleanup",
   "SetColdOpen", "NudgeColdOpen", "SetJoinStyle", "SetJoinSfx", "EditWordText", "SetWordHidden", "SetWordEmphasis",

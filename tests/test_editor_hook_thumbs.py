@@ -1,4 +1,4 @@
-"""Tests for the hook-design thumbnails of the Hook card and the Teks panel (CONTRACTS §5.31).
+"""Tests for the hook-design thumbnails of the Hook card and the Teks panel (CONTRACTS §5.33).
 
 ``scripts/editor/make_hook_thumbs.py`` renders one small PNG per hook design with the production
 ASS generator (``build_ass_v2``) and FFmpeg's ``ass`` filter, inside the toolchain image, as

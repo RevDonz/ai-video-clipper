@@ -170,7 +170,7 @@ class PtimeCase:
     def background(self) -> str:
         """FFmpeg colour behind the text: grey for the vector box (black on black is not seen),
         for Sorot, whose spoken word is dark and has no outline, and for the hook designs
-        other than the bar, which draw dark text on boxes (CONTRACTS §5.31)."""
+        other than the bar, which draw dark text on boxes (CONTRACTS §5.33)."""
         designed = self.hook is not None and self.hook.design != LEGACY_HOOK_DESIGN
         return "gray" if self.box_style == "vector" or self.pack == "sorot" or designed else "black"
 
@@ -259,7 +259,7 @@ def expected_events(case: PtimeCase) -> list[ExpectedEvent]:
         end = min(case.hook.f1, case.total_frames)
         layout = layout_hook(case.hook.text, play_res=case.play_res, y_e5=case.hook.y_e5,
                              design=case.hook.design)
-        # The bar writes one event per line; the other designs their own events (§5.31).
+        # The bar writes one event per line; the other designs their own events (§5.33).
         events += [ExpectedEvent(case.hook.f0, end, (), True, "hook")
                    for _ in layout.events or layout.lines]
     return events

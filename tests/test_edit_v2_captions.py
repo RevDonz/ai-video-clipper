@@ -184,7 +184,7 @@ def test_hook_overflow_warning_names_the_item():
                 if i.code == "hook_overflow"]
 
 
-# --- hook designs (CONTRACTS §5.31) ---------------------------------------------------------
+# --- hook designs (CONTRACTS §5.33) ---------------------------------------------------------
 
 
 def _with_design(design: str, text: str | None = None) -> dict:

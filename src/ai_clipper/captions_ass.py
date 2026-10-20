@@ -436,7 +436,7 @@ _OVERRIDE_KEYS = ("y_e5", "size_pm", "case", "highlight", "emphasis")
 _WORD_BOX_KEYS = frozenset({"pad_x_pm", "top_pm", "radius_pm", "dark_text", "light_text",
                             "dark_from_lstar"})
 _E5 = 100_000
-# Hook designs (CONTRACTS §5.31): the seeds' bar, whose geometry is the code below, and the
+# Hook designs (CONTRACTS §5.33): the seeds' bar, whose geometry is the code below, and the
 # layouts of the designs whose geometry is their file.
 LEGACY_HOOK_DESIGN = ("legacy-bar", 1)
 HOOK_LAYOUTS = ("kicker", "block", "keyword")
@@ -523,7 +523,7 @@ class HookLayout:
     """A hook's geometry: font size, padding and top (px), lines, and overflow.
 
     The bar (``legacy-bar@1``) is drawn from these by ``_hook_style``/``_hook_events``; every
-    other design also carries its ``Hook`` style line and its event texts (CONTRACTS §5.31).
+    other design also carries its ``Hook`` style line and its event texts (CONTRACTS §5.33).
     """
 
     font_size: int
@@ -1066,7 +1066,7 @@ def _wrap_units(words: Sequence[str], font: Path, font_size: int, usable: int) -
 
 def _design_layout(spec: HookDesign, hook: str, *, play_res: tuple[int, int], top: int,
                    cut: bool) -> HookLayout:
-    """Lines, style and events of ``hook`` in a design other than the bar (CONTRACTS §5.31)."""
+    """Lines, style and events of ``hook`` in a design other than the bar (CONTRACTS §5.33)."""
     width, height = play_res
     font = font_path(spec.font_file)
     side = div_round_half_up(width * spec.side_margin_pm, 1000)
@@ -1417,7 +1417,7 @@ def build_ass_v2(
     ``ass_escape``. A ``box_style: vector`` pack draws each box as a ``\\p`` rectangle event
     right before its line (plan §5.4, the fallback if BorderStyle 3 fails P-TXT); a
     ``word_box`` pack draws a rounded ``\\p`` box behind the spoken word (CONTRACTS §5.30). A
-    hook in a design other than the bar writes that design's style and events (§5.31).
+    hook in a design other than the bar writes that design's style and events (§5.33).
     """
     if (not isinstance(play_res, (tuple, list)) or len(play_res) != 2
             or not all(_is_int(value) and value > 0 for value in play_res)):

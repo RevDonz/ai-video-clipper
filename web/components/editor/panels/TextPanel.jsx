@@ -4,7 +4,7 @@
 // (thumbnails rendered by FFmpeg from the pack files, pack-thumbs/), position, size, words per line
 // (CONTRACTS §5.30), uppercase, and the highlight and keyword swatches; the hook on/off, its text
 // with a counter and the fit badge from the server's layout ("Muat" / "Akan terpotong"), the hook
-// suggestions under the text field, the design (thumbnails from hook-thumbs/, CONTRACTS §5.31),
+// suggestions under the text field, the design (thumbnails from hook-thumbs/, CONTRACTS §5.33),
 // duration and position. Every change is one Appendix B command; sliders and typing merge into
 // one undo step through their merge keys. The caption and hook rules (commands, notes, the hint
 // that the caption sits near the hook) are caption-model.mjs and hook-model.mjs, shared with Mode

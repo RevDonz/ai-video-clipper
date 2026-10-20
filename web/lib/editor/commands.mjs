@@ -61,7 +61,7 @@ import { divRoundHalfUp, logoBox, pieces, sfCeil, sfFloor } from "./timemap.mjs"
 /**
  * Appendix B, in the order of the table (the same list as `__dev__/fakes.mjs`), with the
  * cold-open transition commands after NudgeColdOpen (docs/plans/2026-10-02-transisi-cold-open.md §7.2)
- * and SetHookDesign after SetHookY (CONTRACTS §5.31).
+ * and SetHookDesign after SetHookY (CONTRACTS §5.33).
  */
 export const COMMANDS = Object.freeze([
   "TrimStart", "TrimEnd", "RemoveWords", "RemoveGap", "RestoreRemoval", "ApplyCleanup",

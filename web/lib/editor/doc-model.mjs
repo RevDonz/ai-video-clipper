@@ -16,7 +16,7 @@ export const PACK_DEFAULT_CASE = Object.freeze({ classic: "asis", karaoke: "asis
 export const PACK_WORDS_PER_LINE = Object.freeze({ classic: 4, karaoke: 4, bold: 3, box: 3, sorot: 3 });
 /** "Kata per baris" (`overrides.words_max`, optional; CONTRACTS §5.30). */
 export const WORDS_MAX_RANGE = Object.freeze([1, 4]);
-/** Hook designs (resources/hook-designs/<id>/v1.json, all at v 1; CONTRACTS §5.31): the seeds' bar first. */
+/** Hook designs (resources/hook-designs/<id>/v1.json, all at v 1; CONTRACTS §5.33): the seeds' bar first. */
 export const HOOK_DESIGN_IDS = Object.freeze(["legacy-bar", "kicker", "blok", "kotak"]);
 /** What the editor calls each hook design (Hook card, Teks panel, conflict dialog). */
 export const HOOK_DESIGN_NAMES = Object.freeze({ "legacy-bar": "Bar", kicker: "Kicker", blok: "Blok", kotak: "Kotak kata" });

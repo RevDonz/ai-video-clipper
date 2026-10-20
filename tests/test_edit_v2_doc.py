@@ -615,7 +615,7 @@ RULES = [
      "range_invalid", "/tracks/0/items/0/payload/design/v"),
     ("c30", lambda d: d["tracks"][0]["items"][0]["payload"]["design"].update(v=-2), "op_disabled",
      "/tracks/0/items/0/payload/design"),
-    # Hook designs Kicker, Blok and Kotak kata (CONTRACTS §5.31); any other id or version stays
+    # Hook designs Kicker, Blok and Kotak kata (CONTRACTS §5.33); any other id or version stays
     # op_disabled.
     ("c30", lambda d: d["tracks"][0]["items"][0]["payload"]["design"].update(id="kicker"),
      None, None),

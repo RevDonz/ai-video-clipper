@@ -1,6 +1,6 @@
 // The hook rules both editor views share (docs/plans/2026-10-02-editor-mode-cepat.md §1.2 HOOK,
 // AC5): the text as stored (cleaned, at most 90 code points), the commands of the text field, the
-// on/off switch and the design picker (CONTRACTS §5.31), the fit badge from the plan, and the
+// on/off switch and the design picker (CONTRACTS §5.33), the fit badge from the plan, and the
 // characters the hook font lacks. Mode Cepat's Hook card and Mode Lengkap's Teks panel both call
 // these. Pure; no DOM.
 import { HOOK_DESIGN_IDS, HOOK_DESIGN_NAMES, LIMITS } from "../../../lib/editor/doc-model.mjs";

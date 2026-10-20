@@ -748,7 +748,7 @@ def _valid(contexts: Mapping[str, Context]) -> list[_Fixture]:
     d.hook()["payload"]["text"] = text
     d.hook()["origin"] = "suggestion:sg_2"
     add("hook_text_90", d)
-    # Hook designs next to the bar (CONTRACTS §5.31), with a text that shows each one's rule.
+    # Hook designs next to the bar (CONTRACTS §5.33), with a text that shows each one's rule.
     for design, text in (("kicker", "Ternyata: dia ditahan security di film-nya sendiri"),
                          ("blok", None), ("kotak", "Dia ditahan SECURITY di film-nya sendiri")):
         d = _Doc(c30, "SetHookDesign")

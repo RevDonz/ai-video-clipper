@@ -748,7 +748,7 @@ test("hook text, duration and position follow §3.3", () => {
   rejects(C30, C30.seed, "SetHookY", { y_e5: 40001 }, "value_out_of_range");
 });
 
-// Hook designs (CONTRACTS §5.31): the bar the seeds write, then Kicker, Blok and Kotak kata.
+// Hook designs (CONTRACTS §5.33): the bar the seeds write, then Kicker, Blok and Kotak kata.
 const withHookDesign = (doc, design) => ({ ...doc, tracks: doc.tracks.map((track) => (track.kind !== "hook" ? track
   : { ...track, items: [{ ...track.items[0], payload: { ...track.items[0].payload, design } }] })) });
 

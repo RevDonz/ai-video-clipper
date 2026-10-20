@@ -3,7 +3,7 @@
 Each design is a file ``resources/hook-designs/<id>/v1.json`` drawn by ``captions_ass``
 (``layout_hook`` + ``build_ass_v2``). Every design keeps the bar's auto-fit (the largest font
 whose lines fit, else the tail cut with "…" and ``overflow``), so the "Muat / Akan terpotong"
-badge reads the same plan field for all of them (CONTRACTS §5.31).
+badge reads the same plan field for all of them (CONTRACTS §5.33).
 """
 
 from __future__ import annotations

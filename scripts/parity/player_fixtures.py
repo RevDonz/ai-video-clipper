@@ -74,7 +74,7 @@ from ai_clipper.edit_v2.timemap import Fps
 SCHEMA = "potongin.parity-player/1"
 BASE = "/api/parity-fixtures/player"
 PACKS = ("classic", "karaoke", "bold", "box", "sorot")
-# The hook designs next to the bar (CONTRACTS §5.31) over the same cells, each with a text that
+# The hook designs next to the bar (CONTRACTS §5.33) over the same cells, each with a text that
 # shows its rule (a kicker closed by a colon, a word in capitals in the box).
 HOOK_VARIANTS = {"hook-kicker": ("kicker", "Ternyata: hook sintetis"),
                  "hook-blok": ("blok", "Hook sintetis"),

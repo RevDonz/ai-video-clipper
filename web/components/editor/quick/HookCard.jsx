@@ -2,7 +2,7 @@
 
 // Mode Cepat's Hook card (docs/plans/2026-10-02-editor-mode-cepat.md §1.4 Hook): the "Tampilkan hook"
 // switch, the text at the start of the clip with its counter and fit badge, the suggestions
-// (CompactSuggestions) and the design tiles (FFmpeg thumbnails, CONTRACTS §5.31). The rules are
+// (CompactSuggestions) and the design tiles (FFmpeg thumbnails, CONTRACTS §5.33). The rules are
 // hook-model.mjs, shared with the Teks panel, so both views send the same command for the same
 // edit. Duration and position stay in Mode Lengkap. The suggestions ask the server only once this
 // card opens (R1). Props: the card bundle of cards.mjs.

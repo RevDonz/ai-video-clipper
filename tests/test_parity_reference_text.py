@@ -281,7 +281,7 @@ def test_clip_matrix_covers_every_pack_length_hook_fallback_and_variant() -> Non
             assert len(matching) == 1, (pack, length)
             assert len(matching[0].probe_frames) == 5
     assert any(c.pack == "hook" for c in ptxt)
-    # Every hook design is gated (CONTRACTS §5.31), and the smoke subset of run_all.sh names it.
+    # Every hook design is gated (CONTRACTS §5.33), and the smoke subset of run_all.sh names it.
     designs = {c.id: c for c in ptxt if c.id.startswith("hook-")}
     assert set(designs) == {"hook-kicker", "hook-blok", "hook-kotak"}
     smoke = next(line for line in RUN_ALL.read_text(encoding="utf-8").splitlines()
