@@ -141,7 +141,7 @@ panel di Mode Lengkap (rel kiri), kecuali disebut lain. Centang kalau berjalan s
 | 5 | Caption + 5 gaya | Panel Teks: Klasik, Karaoke, Bold, Box, Sorot; **Kata per baris** 1 lalu 4; **Animasi masuk** Pop lalu Tanpa; **Ctrl+E** pada kata | Pratinjau berganti; di Sorot kotak berwarna mengikuti kata yang diucapkan; baris caption langsung tersusun ulang; dengan Pop tiap baris muncul membesar sebentar, dengan Tanpa langsung tampil; kata kunci berwarna |
 | 6 | Potong lewat transkrip | Pilih kata, **Delete**; **Rapikan** | Kata tercoret dengan tombol pulihkan; Rapikan memotong yang dicentang dalam satu langkah |
 | 7 | Tata letak | Panel Tata letak: Potong tengah, Ikuti wajah, Latar blur | Pratinjau berganti; bagian tanpa wajah didaftar, tampil dengan latar blur, dan "Dipusatkan" mengembalikannya ke tengah |
-| 8 | Logo | Panel Logo: unggah, pilih sudut, geser dengan panah | Logo di pratinjau dan di hasil ekspor |
+| 8 | Logo + teks watermark | Panel Logo: unggah, pilih sudut, geser dengan panah; **Teks watermark** `@akun`, pilih Kanan bawah, ukuran 120% | Logo dan teks di pratinjau dan di hasil ekspor; teks tetap di luar area tombol TikTok/Reels |
 | 9 | Musik + ducking | Panel Musik: unggah, **Kuat**, **Samakan kenyaringan** | Garis volume turun saat ada suara; hasil ekspor tidak pecah |
 | 10 | Waveform + penanda | Lihat lajur Audio dan Penanda, klik penanda | Waveform tampil; klik penanda memindah posisi putar |
 | 11 | Delapan bug lama | Gaya Box, kata berisi `{` atau `\`, kata kunci, logo | Kotak caption tembus pandang, tulisan tampil apa adanya, warna kata kunci dan logo muncul di hasil |

@@ -228,6 +228,21 @@ Proyek yang dibuat sebelum logo diisi (atau sesudah logo dihapus) tidak berubah.
 otomatis dirender mesin lama (bawaan rilis), file klip otomatisnya tanpa logo: klip yang belum
 diubah pun diekspor dengan render baru supaya logonya ikut, bukan dengan file otomatis itu.
 
+**Teks watermark.** Di bagian bawah panel Logo: ketik satu baris, misalnya `@akun` (maks. 40
+karakter). Teksnya langsung tampil di pratinjau dan ikut di hasil ekspor, sepanjang klip, di bawah
+caption dan hook. Pilih tempatnya di kisi 3×3 (sembilan posisi, semuanya di luar area tombol
+TikTok/Reels), lalu atur **Ukuran** dan **Opasitas**. Teks yang terlalu lebar untuk posisinya
+otomatis diperkecil supaya tetap satu baris. **"Hapus teks"** menghilangkannya; mengosongkan kolom
+saja tidak menghapusnya. Karakter yang tidak ada di font watermark disebut di bawah kolom. Mode
+Cepat tidak punya kontrolnya: buka panel ini lewat **Atur detail di Mode Lengkap** di kartu
+Logo & Musik.
+
+**Teks watermark bawaan.** Isi di **Pengaturan → Teks watermark bawaan** (teks, posisi, ukuran,
+opasitas): klip dari proyek yang dibuat sesudahnya sudah membawa teks itu, dan bisa diubah atau
+dihapus per klip di panel Logo. Proyek yang sudah ada tidak berubah. Seperti Logo bawaan, selama
+klip otomatis dirender mesin lama, file klip otomatisnya tanpa teks itu dan klip yang belum diubah
+diekspor dengan render baru.
+
 **Musik.** **"Tambah musik"** (MP3, M4A, WAV, OGG atau FLAC, maks. 50 MB; baca dulu
 catatan hak cipta). Volume musik, mulai dari, ulangi sampai klip selesai, muncul/hilang perlahan.
 **Kecilkan musik saat ada suara** dengan kekuatan **Halus** (−6 dB), **Sedang** (−10 dB) atau
@@ -301,8 +316,8 @@ setiap perubahan kode (setiap PR) dan setiap malam:
   sedikit lebih lembut. Batasnya diuji: kemiripan seluruh frame ≥ 0,990 dan area teks ≥ 0,980.
   Untuk melihat piksel persisnya, pakai **"Frame akhir"**.
 - Klip yang belum diubah diekspor sebagai file klip otomatis itu sendiri (tidak dirender ulang),
-  kecuali klip dengan logo bawaan yang file otomatisnya dibuat mesin lama: file itu tanpa logo,
-  jadi ekspornya dirender.
+  kecuali klip dengan logo atau teks watermark bawaan yang file otomatisnya dibuat mesin lama:
+  file itu tanpa keduanya, jadi ekspornya dirender.
 
 ## 4. Mencoba editor di aplikasi lokal
 

@@ -57,6 +57,7 @@ const DISPLAY_LIBS = [
   "lib/default-logo.mjs", "lib/default-logo-view.mjs", "app/api/settings/logo/route.js", "app/api/settings/logo/[sha]/route.js",
   "lib/youtube-cookies.mjs", "lib/youtube-cookies-file.mjs", "lib/youtube-cookies-view.mjs", "app/api/settings/youtube-cookies/route.js",
   "lib/transcription-settings.mjs", "lib/transcription-settings-view.mjs", "app/api/settings/transcription/route.js",
+  "lib/default-watermark.mjs", "lib/default-watermark-view.mjs", "app/api/settings/watermark/route.js",
 ];
 
 // --- Latest only ----------------------------------------------------------------------------

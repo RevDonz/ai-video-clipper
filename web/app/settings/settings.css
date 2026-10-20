@@ -355,6 +355,11 @@ html:has(.settingsSaveBar) { scroll-padding-bottom: 150px; }
   list-style: none;
 }
 
+/* Teks watermark bawaan: the provider fields' grid; the sliders keep a 44 px target without the
+   text inputs' padding. Simpan stays plain: the page's lime is its own save bar. */
+.watermarkCard .settingsField input[type="range"] { min-height: 44px; padding: 0; }
+.watermarkActions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+
 /* Cookies YouTube: Logo bawaan's row without a picture. The count leads, the buttons sit at its
    end and drop below it on a phone; the row outlines while a file is dragged over it. */
 .cookiesBody {
@@ -441,7 +446,7 @@ html:has(.settingsSaveBar) { scroll-padding-bottom: 150px; }
   .systemList { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
   .logoBody { grid-template-columns: 72px minmax(0, 1fr); gap: 12px; }
   .logoThumb { width: 72px; height: 72px; }
-  .logoActions .btn { flex: 1; }
+  .logoActions .btn, .watermarkActions .btn { flex: 1; }
   .cookiesActions { flex: 1 1 100%; }
   .cookiesActions .btn { flex: 1; }
   .settingsPage .settingsImport { display: grid; }

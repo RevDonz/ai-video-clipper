@@ -22,6 +22,22 @@ export const CAPTION_ENTRANCES = Object.freeze(["none", "fade", "pop", "blur"]);
 export const HOOK_DESIGN_IDS = Object.freeze(["legacy-bar", "kicker", "blok", "kotak"]);
 /** What the editor calls each hook design (Hook card, Teks panel, conflict dialog). */
 export const HOOK_DESIGN_NAMES = Object.freeze({ "legacy-bar": "Bar", kicker: "Kicker", blok: "Blok", kotak: "Kotak kata" });
+/** The text watermark's places (`watermark.pos`, CONTRACTS §5.43), row by row, and their names. */
+export const WATERMARK_POSITIONS = Object.freeze([
+  "top_left", "top_center", "top_right",
+  "middle_left", "middle_center", "middle_right",
+  "bottom_left", "bottom_center", "bottom_right",
+]);
+export const WATERMARK_POSITION_NAMES = Object.freeze({
+  top_left: "Kiri atas", top_center: "Tengah atas", top_right: "Kanan atas",
+  middle_left: "Kiri tengah", middle_center: "Tengah", middle_right: "Kanan tengah",
+  bottom_left: "Kiri bawah", bottom_center: "Tengah bawah", bottom_right: "Kanan bawah",
+});
+export const WATERMARK_SIZE_RANGE = Object.freeze([500, 2000]);
+export const WATERMARK_OPACITY_RANGE = Object.freeze([200, 1000]);
+/** A new watermark's place, size and opacity (the editor's SetWatermarkText). */
+export const DEFAULT_WATERMARK = Object.freeze({ pos: "top_center", size_pm: 1000, opacity_pm: 850 });
+const WATERMARK_KEYS = Object.freeze(["text", "pos", "size_pm", "opacity_pm"]);
 export const LAYOUT_MODES = Object.freeze(["fit_blur", "camera", "fill_center"]);
 /** What face-track shows where no face was found (CONTRACTS §5.40): centred, or latar blur. */
 export const NO_FACE_MODES = Object.freeze(["center", "fit_blur"]);
@@ -45,7 +61,7 @@ export const AUTO_JOIN = Object.freeze({ style: "flash_white", sfx: SFX_WHOOSH }
 export const JOIN_STYLE_NAMES = Object.freeze({ cut: "Potong langsung", flash_white: "Kilat putih", dip_black: "Gelap sebentar" });
 const JOIN_KEYS = Object.freeze(["after", "style", "audio_fade_ms", "sfx"]);
 export const REMOVAL_REASONS = Object.freeze(["user", "filler", "repeat", "gap_silent"]);
-export const LIMITS = Object.freeze({ removals: 2000, removalWords: 400, wordEdits: 6000, wordText: 40, hookText: 90 });
+export const LIMITS = Object.freeze({ removals: 2000, removalWords: 400, wordEdits: 6000, wordText: 40, hookText: 90, watermarkText: 40 });
 export const ID_PATTERN = /^[a-z]{2,3}_[0-9a-z]{1,16}$/;
 export const WORD_ID_PATTERN = /^w[0-9]{6,7}$/;
 export const ASSET_ID_PATTERN = /^sha256:[0-9a-f]{64}$/;
@@ -104,11 +120,12 @@ export function contentEquals(a, b) {
 
 /**
  * Whether R10 may hand out the auto file for this seed (edit_v2.doc.auto_file_is_seed): the
- * legacy renderer never draws a logo, so a legacy seed with the Pengaturan default logo is not it.
+ * legacy renderer never draws a logo or a text watermark, so a legacy seed with the Pengaturan
+ * default logo or watermark is not it.
  */
 export function autoFileIsSeed(seed) {
   if (seed?.base?.engine?.compiler !== "legacy") return true;
-  return !(seed.tracks ?? []).some((track) => track?.kind === "visual" && track.items?.length > 0);
+  return seed.watermark == null && !(seed.tracks ?? []).some((track) => track?.kind === "visual" && track.items?.length > 0);
 }
 
 /** JSON equality that keeps types apart (true is not 1). */
@@ -194,6 +211,11 @@ export function logoItem(doc) {
 
 export function musicItem(doc) {
   return trackOf(doc, "audio")?.items[0] ?? null;
+}
+
+/** The document's text watermark `{ text, pos, size_pm, opacity_pm }`, or null (absent). */
+export function watermarkOf(doc) {
+  return doc?.watermark ?? null;
 }
 
 function joinOf(doc) {
@@ -517,6 +539,9 @@ export function checkDoc(doc, ctx) {
     else checkMusic(item, itemPath, doc, fps, add, referenced);
   });
 
+  // the text watermark: optional; when present exactly its four keys
+  if (doc.watermark !== undefined) checkWatermark(doc.watermark, add);
+
   // audio
   if (!isInt(doc.audio?.source?.gain_cdb, -2400, 1200)) add("range_invalid", "/audio/source/gain_cdb");
   const master = doc.audio?.master ?? {};
@@ -556,6 +581,19 @@ function checkHook(item, path, fps, add) {
   if (item.transform?.x_e5 !== 50000 || !isInt(item.transform?.y_e5, 6000, 40000)) add("range_invalid", `${path}/transform`);
   if (!textOk(item.payload?.text, LIMITS.hookText)) add("range_invalid", `${path}/payload/text`);
   if (!HOOK_DESIGN_IDS.includes(item.payload?.design?.id) || item.payload?.design?.v !== 1) add("op_disabled", `${path}/payload/design`);
+}
+
+function checkWatermark(watermark, add) {
+  if (!watermark || typeof watermark !== "object" || Array.isArray(watermark)) {
+    add("range_invalid", "/watermark");
+    return;
+  }
+  if (!textOk(watermark.text, LIMITS.watermarkText)) add("range_invalid", "/watermark/text");
+  if (!WATERMARK_POSITIONS.includes(watermark.pos)) add("range_invalid", "/watermark/pos");
+  if (!isInt(watermark.size_pm, ...WATERMARK_SIZE_RANGE)) add("range_invalid", "/watermark/size_pm");
+  if (!isInt(watermark.opacity_pm, ...WATERMARK_OPACITY_RANGE)) add("range_invalid", "/watermark/opacity_pm");
+  const keys = Object.keys(watermark);
+  if (keys.length !== WATERMARK_KEYS.length || !keys.every((key) => WATERMARK_KEYS.includes(key))) add("range_invalid", "/watermark");
 }
 
 function anchorsOk(item) {

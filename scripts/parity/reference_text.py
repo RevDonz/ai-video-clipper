@@ -5,8 +5,8 @@ Writes everything the browser harness (``web/app/parity-harness``) and the scori
 (``compare.py``, ``enc_check.py``, ``s_color.py``) need, into one directory:
 
 * ``ass/<clip>.ass``: the ASS samples. Every gated clip (the 5 packs × 3 lengths, each caption
-  entrance on every pack, the hook in each of its four designs and the fallback glyph) is the
-  shipped bytes: ``captions_ass.fit_cues`` + ``build_ass_v2`` with the pack files and their
+  entrance on every pack, the hook in each of its four designs, the text watermark at three
+  places and the fallback glyph) is the shipped bytes: ``captions_ass.fit_cues`` + ``build_ass_v2`` with the pack files and their
   default overrides
   (W1 integration; T1.2b first measured hand-written samples with T1.2a's pack numbers). The pack variants of the spike (DejaVu Sans Bold instead
   of Montserrat ExtraBold; a ``\\p`` vector box instead of ``BorderStyle 3``) and the P-COLOR
@@ -115,6 +115,15 @@ WORD_REVEAL_PACKS = ("karaoke", "bold", "sorot")
 # the line is still opening (frames 1-3 of the first line, 1-2 of the second).
 ENTRANCES = ("fade", "pop", "blur")
 ENTRANCE_PROBES = ((0, 1), (0, 2), (0, 3), (1, 1), (1, 2))  # (line, frames after its start)
+# The text watermark (CONTRACTS §5.43) alone over the plate: the editor's default, the longest
+# text shrunk to its column at the lowest opacity, and the smallest size.
+WATERMARK_CLIPS = {
+    "watermark-top_center": captions_ass.WatermarkSpec("@potongin.klip", "top_center", 1000, 850),
+    "watermark-bottom_right": captions_ass.WatermarkSpec(
+        "Ikuti @potongin.klip untuk klip lainnya!", "bottom_right", 2000, 200),
+    "watermark-middle_left": captions_ass.WatermarkSpec("@potongin.klip", "middle_left", 500,
+                                                        1000),
+}
 
 _STYLE_FORMAT = ("Format: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,"
                  "BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,"
@@ -394,10 +403,13 @@ def frame_cues(cues: Sequence[Cue]) -> tuple[FrameCue, ...]:
 def shipped_ass(cues: Sequence[Cue], *, pack: str, fps: Fps, total_frames: int,
                 hook_text: str | None = None,
                 hook_design: tuple[str, int] = captions_ass.LEGACY_HOOK_DESIGN,
-                entrance: str | None = None) -> tuple[str, tuple[FrameCue, ...]]:
+                entrance: str | None = None,
+                watermark: captions_ass.WatermarkSpec | None = None,
+                ) -> tuple[str, tuple[FrameCue, ...]]:
     """The production ASS of ``cues`` in ``pack`` (``fit_cues`` + ``build_ass_v2``, the pack's
     default overrides plus ``entrance`` when given) and the cues as the pack shows them;
-    ``hook_text`` adds the hook over the whole clip in ``hook_design`` (the bar by default)."""
+    ``hook_text`` adds the hook over the whole clip in ``hook_design`` (the bar by default),
+    ``watermark`` the text watermark."""
     pack_file = captions_ass.load_pack(pack, 1)
     overrides = dict(PACK_DEFAULT_OVERRIDES[pack])
     if entrance is not None:
@@ -408,7 +420,7 @@ def shipped_ass(cues: Sequence[Cue], *, pack: str, fps: Fps, total_frames: int,
             else captions_ass.HookSpec(hook_text, 0, total_frames, HOOK_Y_E5, hook_design))
     ass = captions_ass.build_ass_v2(fitted, play_res=(WIDTH, HEIGHT), fps=fps,
                                     total_frames=total_frames, pack=pack_file,
-                                    overrides=overrides, hook=hook)
+                                    overrides=overrides, hook=hook, watermark=watermark)
     return ass, fitted
 
 
@@ -709,8 +721,8 @@ def _entrance_clip(pack: str, entrance: str, *, family: str, length: int = 40) -
 def build_clips(*, fallback_char: str,
                 measures: dict[str, Callable[[str], float]] | None = None) -> list[Clip]:
     """The P-TXT matrix (5 packs × 3 lengths × 5 probes, 3 entrances × 5 packs, every hook
-    design, fallback glyph), the pack variants of the spike, the P-COLOR sheet and one P-TIME
-    fixture per frame rate.
+    design, 3 text watermarks, fallback glyph), the pack variants of the spike, the P-COLOR
+    sheet and one P-TIME fixture per frame rate.
 
     ``measures`` maps a family to its advance-width function at the Box size (from the font's
     ``hmtx``); without it, a DejaVu-based estimate is used.
@@ -752,6 +764,17 @@ def build_clips(*, fallback_char: str,
                           ass=shipped_ass((), pack="karaoke", fps=fps, total_frames=total,
                                           hook_text=text, hook_design=(design, 1))[0],
                           plate="fitblur", family=MONTSERRAT))
+    # The text watermark (DejaVu Sans Bold) over the whole clip, without captions.
+    total = 60
+    edges = {0, total}
+    for clip_id, spec in WATERMARK_CLIPS.items():
+        clips.append(Clip(id=clip_id, kind="ptxt", pack="watermark", chars=len(spec.text),
+                          variant=None, fps=(fps.num, fps.den), total_frames=total,
+                          probe_frames=choose_probes(edges, (0, total)),
+                          edges=tuple(sorted(edges)),
+                          ass=shipped_ass((), pack="karaoke", fps=fps, total_frames=total,
+                                          watermark=spec)[0],
+                          plate="fitblur", family=DEJAVU))
     # Fallback glyph: a character Montserrat lacks, drawn from DejaVu Sans on both sides (the
     # shipped Bold pack, so the active-word colour changes at each word too).
     total = 60

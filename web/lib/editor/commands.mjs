@@ -31,9 +31,12 @@
 //   join's style and whoosh, else the seed's, else Kilat putih + whoosh (the auto clips' default).
 // - SetLayout into face-track turns the latar blur fallback on (`no_face: "fit_blur"`,
 //   `switchedLayout`); SetNoFace switches it back to centred, or on again (CONTRACTS §5.40).
+// - The text watermark (CONTRACTS §5.43): SetWatermarkText adds it at DEFAULT_WATERMARK or changes
+//   only its text; RemoveWatermark drops the key, so a clip without one equals its seed (R10).
 import {
   ASSET_ID_PATTERN,
   CAPTION_OVERRIDE_RULES,
+  DEFAULT_WATERMARK,
   EDITOR_ID,
   HOOK_DESIGN_IDS,
   ITEM_ORIGIN_PATTERN,
@@ -47,6 +50,9 @@ import {
   REMOVAL_ORIGIN_PATTERN,
   SFX_WHOOSH,
   TRACKS,
+  WATERMARK_OPACITY_RANGE,
+  WATERMARK_POSITIONS,
+  WATERMARK_SIZE_RANGE,
   body,
   checkDoc,
   coldOpen,
@@ -61,20 +67,23 @@ import {
   normalizeText,
   switchedLayout,
   trackOf,
+  watermarkOf,
 } from "./doc-model.mjs";
 import { divRoundHalfUp, logoBox, pieces, sfCeil, sfFloor } from "./timemap.mjs";
 
 /**
  * Appendix B, in the order of the table (the same list as `__dev__/fakes.mjs`), with the
- * cold-open transition commands after NudgeColdOpen (docs/plans/2026-10-02-transisi-cold-open.md §7.2)
- * SetHookDesign after SetHookY (CONTRACTS §5.33) and SetNoFace after SetLayout (CONTRACTS §5.40).
+ * cold-open transition commands after NudgeColdOpen (docs/plans/2026-10-02-transisi-cold-open.md §7.2),
+ * SetHookDesign after SetHookY (CONTRACTS §5.33), SetNoFace after SetLayout (CONTRACTS §5.40) and
+ * the text watermark's after SnapLogo (§5.43).
  */
 export const COMMANDS = Object.freeze([
   "TrimStart", "TrimEnd", "RemoveWords", "RemoveGap", "RestoreRemoval", "ApplyCleanup",
   "SetColdOpen", "NudgeColdOpen", "SetJoinStyle", "SetJoinSfx", "EditWordText", "SetWordHidden", "SetWordEmphasis",
   "SetCaptionsEnabled", "SetCaptionPack", "SetCaptionOverride", "SetHookEnabled", "SetHookText",
   "SetHookDuration", "SetHookY", "SetHookDesign", "SetLayout", "SetNoFace", "SetLogo", "RemoveLogo", "MoveLogo", "ResizeLogo",
-  "SetLogoOpacity", "SnapLogo", "SetMusic", "RemoveMusic", "SetMusicGain", "SetMusicOffset",
+  "SetLogoOpacity", "SnapLogo", "SetWatermarkText", "SetWatermarkPosition", "SetWatermarkSize", "SetWatermarkOpacity",
+  "RemoveWatermark", "SetMusic", "RemoveMusic", "SetMusicGain", "SetMusicOffset",
   "SetMusicLoop", "SetMusicFades", "SetDuck", "SetSourceGain", "SetLoudness", "ResetToSeed",
 ]);
 
@@ -107,6 +116,7 @@ export const COMMAND_MESSAGES = Object.freeze({
   pack_unknown: "Preset caption tidak dikenal.",
   hook_missing: "Hook belum aktif.",
   logo_missing: "Belum ada logo.",
+  watermark_missing: "Belum ada teks watermark.",
   music_missing: "Belum ada musik.",
   asset_invalid: "Berkas aset tidak cocok untuk perintah ini.",
   item_out_of_frame: "Logo harus berada di dalam frame.",
@@ -852,6 +862,36 @@ const HANDLERS = {
     };
   },
 
+  SetWatermarkText(doc, args) {
+    const text = textArg(args.text, LIMITS.watermarkText);
+    const current = watermarkOf(doc) ?? DEFAULT_WATERMARK;
+    return { doc: { ...doc, watermark: { ...current, text } }, args: { text } };
+  },
+
+  SetWatermarkPosition(doc, args) {
+    need(watermarkOf(doc), "watermark_missing");
+    need(WATERMARK_POSITIONS.includes(args.pos), "value_out_of_range");
+    return { doc: { ...doc, watermark: { ...doc.watermark, pos: args.pos } }, args: { pos: args.pos } };
+  },
+
+  SetWatermarkSize(doc, args) {
+    need(watermarkOf(doc), "watermark_missing");
+    const size = intArg(args, "size_pm", ...WATERMARK_SIZE_RANGE);
+    return { doc: { ...doc, watermark: { ...doc.watermark, size_pm: size } }, args: { size_pm: size } };
+  },
+
+  SetWatermarkOpacity(doc, args) {
+    need(watermarkOf(doc), "watermark_missing");
+    const opacity = intArg(args, "opacity_pm", ...WATERMARK_OPACITY_RANGE);
+    return { doc: { ...doc, watermark: { ...doc.watermark, opacity_pm: opacity } }, args: { opacity_pm: opacity } };
+  },
+
+  RemoveWatermark(doc) {
+    need(watermarkOf(doc), "watermark_missing");
+    const { watermark: _watermark, ...rest } = doc;
+    return { doc: rest, args: {} };
+  },
+
   SetMusic(doc, args, ctx) {
     const { id, meta } = assetArg(args.asset, args.meta, "audio");
     const origin = originArg(args.origin, ITEM_ORIGIN_PATTERN, "user");
@@ -982,6 +1022,9 @@ export function defaultMergeKey(type, args = {}) {
     case "MoveLogo": return "logo:move";
     case "ResizeLogo": return "logo:size";
     case "SetLogoOpacity": return "logo:opacity";
+    case "SetWatermarkText": return "wm:text";
+    case "SetWatermarkSize": return "wm:size";
+    case "SetWatermarkOpacity": return "wm:opacity";
     case "SetMusicGain": return "music:gain";
     case "SetMusicOffset": return "music:offset";
     case "SetMusicLoop": return "music:loop";

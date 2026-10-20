@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import AppHeader from "../../components/AppHeader.jsx";
 import DefaultLogoCard from "./DefaultLogoCard.jsx";
+import DefaultWatermarkCard from "./DefaultWatermarkCard.jsx";
 import TranscriptionCard from "./TranscriptionCard.jsx";
 import YoutubeCookiesCard from "./YoutubeCookiesCard.jsx";
 import { helpHref } from "../../lib/help-catalog.mjs";
@@ -862,6 +863,7 @@ export default function SettingsPage() {
 
       <div className="settingsAbout shell"><TranscriptionCard /></div>
       <div className="settingsAbout shell"><DefaultLogoCard /></div>
+      <div className="settingsAbout shell"><DefaultWatermarkCard /></div>
       <div className="settingsAbout shell"><YoutubeCookiesCard /></div>
       <div className="settingsAbout shell"><SystemInfo /></div>
 

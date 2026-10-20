@@ -14,6 +14,9 @@ frame to jump to:
   word and character.
 * ``hook_overflow``: the hook does not fit three lines at the smallest size; its tail is cut
   with "…".
+* ``glyph_unsupported:U+XXXX`` on ``/watermark/text`` (no item id, frame 0) for the text
+  watermark's characters that DejaVu Sans Bold lacks. The watermark is never in the TikTok
+  zone: ``captions_ass.layout_watermark`` keeps it out (CONTRACTS §5.43).
 * ``unsafe_zone``: the bottom of the caption block lies in the TikTok UI zone (the lowest
   280 px of 1280, scaled to the output height), or the top of the hook in its top zone (93 px).
   Seeds keep today's 17% bottom margin (K5), so every seed carries the caption warning. The
@@ -29,7 +32,9 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..captions_ass import (
+    WATERMARK_FONT_FILE,
     HookSpec,
+    WatermarkSpec,
     build_ass_v2,
     fit_cues,
     hook_font_file,
@@ -66,7 +71,8 @@ def _draws_nothing(character: str) -> bool:
             or 0xFE00 <= code <= 0xFE0F or 0xE0100 <= code <= 0xE01EF)
 
 
-def _glyph_issues(text: str, font_file: str, *, path: str, ref: str, frame: int) -> list[Issue]:
+def _glyph_issues(text: str, font_file: str, *, path: str, ref: str | None,
+                  frame: int) -> list[Issue]:
     return [
         Issue(f"glyph_unsupported:U+{ord(character):04X}", path, ref, frame)
         for character in missing_glyphs(text, font_path(font_file))
@@ -155,8 +161,16 @@ def caption_track(doc: Mapping, words: Mapping, pieces: Sequence[Piece]) -> Capt
     else:
         hook_spec = None
 
+    watermark = doc.get("watermark")
+    watermark_spec = None
+    if watermark is not None:
+        watermark_spec = WatermarkSpec(watermark["text"], watermark["pos"],
+                                       watermark["size_pm"], watermark["opacity_pm"])
+        issues += _glyph_issues(watermark["text"], WATERMARK_FONT_FILE, path="/watermark/text",
+                                ref=None, frame=0)
+
     ass = build_ass_v2(cues, play_res=play_res, fps=fps, total_frames=total, pack=pack,
-                       overrides=overrides, hook=hook_spec)
+                       overrides=overrides, hook=hook_spec, watermark=watermark_spec)
     unique: dict[tuple[str, str, str | None], Issue] = {}
     for issue in issues:
         unique.setdefault((issue.code, issue.path, issue.ref), issue)

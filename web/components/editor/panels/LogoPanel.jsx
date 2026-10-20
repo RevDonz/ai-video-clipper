@@ -5,7 +5,8 @@
 // through Appendix B's commands. The G5 note comes from the plan's `unsafe_zone` warning for the
 // logo item (the server's check) and offers to move the logo just out of the TikTok zone.
 // Props: { state, dispatch, player } (panels/index.mjs), plus optional `uploadAsset` (Appendix
-// A.2) and `uploadsEnabled` (POTONGIN_EDITOR_UPLOADS) when the shell passes them.
+// A.2) and `uploadsEnabled` (POTONGIN_EDITOR_UPLOADS) when the shell passes them. The text
+// watermark (WatermarkSection) follows the logo in both states.
 import { useCallback, useId, useRef, useState, useSyncExternalStore } from "react";
 
 import {
@@ -14,6 +15,7 @@ import {
 import { LOGO_ACCEPT, logoUploader, logoUploads } from "../gizmos/logo-upload.mjs";
 import PillGroup from "../ui/PillGroup.jsx";
 import styles from "./logo.module.css";
+import WatermarkSection from "./WatermarkSection.jsx";
 import {
   logoPanelView, logoUploadCommand, logoUploadMessage, opacityLabel, runLogoSteps as apply, sizeLabel,
 } from "./logo-model.mjs";
@@ -134,6 +136,7 @@ export default function LogoPanel({ state, dispatch, uploadAsset: uploadProp = n
         {unavailable}
         {progressView}
         {notice}
+        <WatermarkSection state={state} dispatch={dispatch} locked={locked} />
       </section>
     );
   }
@@ -224,6 +227,8 @@ export default function LogoPanel({ state, dispatch, uploadAsset: uploadProp = n
             onChange={(event) => run([{ type: "SetLogoOpacity", args: { opacity_pm: Number(event.target.value) } }], "logo:opacity")} />
         </div>
       </div>
+
+      <WatermarkSection state={state} dispatch={dispatch} locked={locked} />
     </section>
   );
 }

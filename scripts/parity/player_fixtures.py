@@ -12,9 +12,9 @@ through ``/api/parity-fixtures/player/…`` and ``web/e2e/editor-player.spec.mjs
   (``reference`` → ``reference.pcm``, s16le stereo), the plan DTO (plan §4.3) and, per output
   frame, the barcode index of the whole-file ``fps`` grid and the crop x;
 * on the 29.97 case, document variants over the same plate cells (the 5 packs, a logo, a
-  fallback glyph, the hook in each design other than the bar, each caption entrance): the
-  server composite of each probe frame computed from the **decoded plate cell frame** with the
-  compiler's own strings
+  fallback glyph, the hook in each design other than the bar, each caption entrance, the text
+  watermark): the server composite of each probe frame computed from the **decoded plate cell
+  frame** with the compiler's own strings
   (R5: ``gbrp``, ``ass``, the derived logo overlay) before the 4:2:0 step (P-TXT, P-LOGO), the plate alone and the composite without the logo; the
   derived logo PNG (``derive_image``); truth frames (``frame`` mode) and the auto render
   (``final`` mode) for the revision-0 fallback;
@@ -84,6 +84,8 @@ HOOK_VARIANTS = {"hook-kicker": ("kicker", "Ternyata: hook sintetis"),
 # event shape (one line, a line per spoken word, a box per spoken word).
 ENTRANCE_VARIANTS = {"entrance-fade": ("karaoke", "fade"), "entrance-pop": ("bold", "pop"),
                      "entrance-blur": ("sorot", "blur")}
+# The text watermark (CONTRACTS §5.43) over the same cells, beside the captions and the hook.
+WATERMARK = {"text": "@potongin.klip", "pos": "middle_right", "size_pm": 1400, "opacity_pm": 850}
 # The §3.2 example's logo, top right (plan §3.2, §3.3).
 LOGO_TRANSFORM = {"x_e5": 88000, "y_e5": 7000, "w_e5": 16000, "opacity_pm": 850}
 P_LOGO = {"mean_abs": 2.0, "max": 8, "box_px": 0}
@@ -143,6 +145,11 @@ def set_entrance(doc: dict[str, Any], pack: str, entrance: str) -> None:
     """Switch to ``pack`` (its default overrides) and open every caption line with ``entrance``."""
     set_pack(doc, pack)
     doc["captions"]["overrides"]["entrance"] = entrance
+
+
+def set_watermark(doc: dict[str, Any]) -> None:
+    """Draw the text watermark ``WATERMARK`` over the whole clip."""
+    doc["watermark"] = dict(WATERMARK)
 
 
 def cells_needed(plan: Any) -> list[int]:
@@ -912,6 +919,8 @@ class Generator:
             set_hook_design(doc, *HOOK_VARIANTS[name])
         elif name in ENTRANCE_VARIANTS:
             set_entrance(doc, *ENTRANCE_VARIANTS[name])
+        elif name == "watermark":
+            set_watermark(doc)
         return build_plan(doc, words=clip["words"], camera=clip["camera"], assets=assets,
                           resources=self.resources)
 
@@ -921,7 +930,8 @@ class Generator:
         source = clip["source"]
         size = tm.cell_frames(Fps(*case.fps))
         cell_dir = self.out / case.name / "cells"
-        for name in (*PACKS, "logo", "fallback", *HOOK_VARIANTS, *ENTRANCE_VARIANTS):
+        for name in (*PACKS, "logo", "fallback", *HOOK_VARIANTS, *ENTRANCE_VARIANTS,
+                     "watermark"):
             plan = self.variant_plan(case, name)
             logo_file = None
             logo_input = None

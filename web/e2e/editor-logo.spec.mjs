@@ -1,5 +1,5 @@
 // Logo and watermark (plan §11.3 T3.2, §5.5, §3.3 logo item, Appendix B logo commands, §5.9 G5,
-// §10.1 P-LOGO, §10.2 QG-UX U5). Two parts:
+// §10.1 P-LOGO, §10.2 QG-UX U5; the text watermark of CONTRACTS §5.43). Two parts:
 //
 // 1. The editor shell (EditorApp) on the real store and the real commands over the fakes, in a
 //    self-contained harness page (no Next server, no login): gizmos/__dev__/logo-harness-entry.jsx
@@ -586,6 +586,76 @@ test.describe("logo panel and gizmo (harness)", () => {
     await logoBoxEl(page).focus();
     await page.keyboard.press("ArrowRight");
     expect(await planBox(page)).toEqual(start);
+    expect((await snapshot(page)).commands).toEqual([]);
+  });
+
+  test("text watermark: typed once, placed on the grid, sized and faded, removed; undo brings it back", async ({ page }) => {
+    const errors = await openHarness(page);
+    const section = panel(page).locator("[data-watermark]");
+    const mark = () => page.evaluate(() => window.__harness.store.getState().doc.watermark ?? null);
+    await expect(section.getByRole("heading", { name: "Teks watermark" })).toBeVisible();
+    await expect(section.getByRole("radio")).toHaveCount(0);
+    const field = section.getByRole("textbox", { name: "Teks watermark" });
+    await field.pressSequentially("@potongin");
+    await expect(section.locator("[data-watermark-counter]")).toHaveText("9/40");
+    expect(await mark()).toEqual({ text: "@potongin", pos: "top_center", size_pm: 1000, opacity_pm: 850 });
+    const typed = await snapshot(page);
+    expect(new Set(typed.commands.map((entry) => entry.type))).toEqual(new Set(["SetWatermarkText"]));
+    expect(new Set(typed.mergeKeys)).toEqual(new Set(["wm:text"]));
+    // Nine places; the arrows move between them like any radio group.
+    const place = (name) => section.getByRole("radio", { name, exact: true });
+    await expect(section.getByRole("radio")).toHaveCount(9);
+    await expect(place("Tengah atas")).toBeChecked();
+    await place("Kanan bawah").check();
+    expect((await mark()).pos).toBe("bottom_right");
+    await place("Kanan bawah").focus();
+    await page.keyboard.press("ArrowLeft");
+    await expect(place("Tengah bawah")).toBeChecked();
+    expect((await mark()).pos).toBe("bottom_center");
+    const size = section.getByRole("slider", { name: "Teks watermark Ukuran" });
+    await size.focus();
+    await page.keyboard.press("ArrowRight");
+    await page.keyboard.press("ArrowRight");
+    expect((await mark()).size_pm).toBe(1100);
+    await expect(section.getByText("110%")).toBeVisible();
+    const opacity = section.getByRole("slider", { name: "Teks watermark Opasitas" });
+    await opacity.focus();
+    await page.keyboard.press("ArrowLeft");
+    expect((await mark()).opacity_pm).toBe(840);
+    const sized = await snapshot(page);
+    expect(sized.mergeKeys.slice(-3)).toEqual(["wm:size", "wm:size", "wm:opacity"]);
+    // An emptied field keeps the watermark and shows its text again when it loses focus.
+    await field.fill("");
+    expect((await mark()).text).toBe("@potongin");
+    await blur(page);
+    await expect(field).toHaveValue("@potongin");
+    // "Hapus teks" removes it; one undo brings it back where it was.
+    await section.getByRole("button", { name: "Hapus teks" }).click();
+    expect(await mark()).toBeNull();
+    await expect(field).toHaveValue("");
+    await expect(section.getByRole("radio")).toHaveCount(0);
+    await blur(page);
+    await page.keyboard.press("Control+z");
+    await expect(field).toHaveValue("@potongin");
+    expect(await mark()).toEqual({ text: "@potongin", pos: "bottom_center", size_pm: 1100, opacity_pm: 840 });
+    // The logo's own controls keep their names next to the watermark's.
+    await expect(panel(page).getByRole("slider", { name: "Ukuran", exact: true })).toHaveCount(0);
+    expect(errors).toEqual([]);
+  });
+
+  test("read-only: the text watermark is shown but cannot be changed", async ({ page }) => {
+    const seed = fakeDoc();
+    const ctx = createContext({ words: fakeWords(), seed });
+    const doc = applyCommand(seed, "SetWatermarkText", { text: "@potongin" }, ctx).doc;
+    await openHarness(page, { readOnly: true, doc });
+    await expect(page.locator('[data-editor-status="readOnly"]')).toBeVisible();
+    const section = panel(page).locator("[data-watermark]");
+    await expect(section.getByRole("textbox", { name: "Teks watermark" })).toHaveValue("@potongin");
+    await expect(section.getByRole("textbox", { name: "Teks watermark" })).toBeDisabled();
+    for (const name of ["Kiri atas", "Tengah", "Kanan bawah"]) await expect(section.getByRole("radio", { name, exact: true })).toBeDisabled();
+    await expect(section.getByRole("slider", { name: "Teks watermark Ukuran" })).toBeDisabled();
+    await expect(section.getByRole("slider", { name: "Teks watermark Opasitas" })).toBeDisabled();
+    await expect(section.getByRole("button", { name: "Hapus teks" })).toBeDisabled();
     expect((await snapshot(page)).commands).toEqual([]);
   });
 

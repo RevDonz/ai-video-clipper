@@ -114,8 +114,12 @@ test("the preview's numbers are the engine's: render size, text spots, zone and 
   assert.equal(Number(pythonConstant(ass, "_HOOK_BOX_PADDING_RATIO")), AUTO_TEXT.hookPadding);
   assert.equal(Number(/^\(([\d.]+),/.exec(pythonConstant(ass, "_HOOK_FONT_RATIOS"))[1]), AUTO_TEXT.hookFont);
 
+  // The zone lives in the edit_v2 package (the plan and the text watermark's layout share it).
+  const editV2 = read("src", "ai_clipper", "edit_v2", "__init__.py");
+  assert.equal(pythonConstant(editV2, "UI_ZONE_720"), `(${TIKTOK_ZONE.top}, ${TIKTOK_ZONE.bottom}, ${TIKTOK_ZONE.right})`);
   const plan = read("src", "ai_clipper", "edit_v2", "plan.py");
-  assert.equal(pythonConstant(plan, "UI_ZONE_720"), `(${TIKTOK_ZONE.top}, ${TIKTOK_ZONE.bottom}, ${TIKTOK_ZONE.right})`);
+  assert.match(plan, /^from \. import [^\n]*\bUI_ZONE_720\b/m, "the plan uses the package's zone");
+  assert.doesNotMatch(plan, /^UI_ZONE_720\s*=/m, "the plan has no zone of its own");
   const stage = read("web", "components", "editor", "Stage.jsx");
   assert.match(stage, new RegExp(`const ZONE = \\{ top: ${TIKTOK_ZONE.top}, bottom: ${TIKTOK_ZONE.bottom}, right: ${TIKTOK_ZONE.right}, width: ${PREVIEW_FRAME.w} \\};`), "the editor's Zona aman");
 
