@@ -2678,3 +2678,97 @@ summaries (tests compare them byte for byte).
   focus field; `jobFormProblems({…, timeRanges})` checks it with the API's rules (the count only
   when Jumlah klip is a count) and focuses it as the first problem inside the folded options; the
   summary line adds "n rentang waktu". The text is never stored in the browser.
+
+## 5.38 Clip title and description: Ubah and Tulis ulang (2026-10-21)
+
+Plan `docs/plans/2026-10-20-lanjutan-sesi.md` P2 ("Judul dan deskripsi klip bisa diedit, dengan
+tombol Tulis ulang"). No engine render, flag or schema change: the clip video, its hook text and
+the editor document are untouched.
+
+### Stored edit and what serves it (`web/lib/jobs.mjs`)
+
+- `job.json` `clips[i].textEdit = {title, description, editedAt}` beside the engine's packaging,
+  which stays as it was. Only `PATCH /clip-text` writes it.
+- `clipTextEdit(value)` → `{title, description, hashtags}` or null: `title` through
+  `sanitizeLine(…, 100)` and required (an edit without a usable title is ignored), `description`
+  through `sanitizeMultiline(…, 1200)` (may be empty), `hashtags` = the `#tag`s written in the
+  description through `sanitizeHashtags` (≤ 10, first spelling kept).
+- `serializePublicJob` applies `withClipTextEdit` last (after `enrichJobSocialMetadata`), so the
+  edit wins for packaged and older clips alike and `textEdit` itself is never served. Every
+  consumer follows: `clipDownloads` names (`NN-judul`), "Salin judul"/"Salin caption",
+  `zipEntryNames` (`web/lib/clips-zip.mjs`, now exported), `libraryItems` (Riwayat, search), and
+  `GET /api/jobs/:id/clips`, which overlays `title`, `description` and `hashtags` by clip number
+  from `job.json` (the editor's export dialog copies them).
+- `clipCaptionText` copies the title alone when the description is empty.
+
+### `PATCH /api/jobs/:id/clip-text` (`web/lib/clip-text-api.mjs`)
+
+- `secureRoute(…, {params: ["id"], limit: "api"})`: session, same origin, lower-case UUID,
+  nosniff, CORP, no-store. Runs behind `web/proxy.js` (a small JSON body).
+- Body: JSON, ≤ 32 KiB, exactly `{index, title, description}`; `index` 1–9999, both texts
+  strings. Over-long text is refused, not cut (the form counts the same code points).
+- Written by `updateCompletedJob({jobsRoot, id}, change)` (`web/lib/primary-job-queue.mjs`): the
+  queue lock, a no-follow read, the job's identity checked, only `status: "completed"`, then
+  `durableWriteJson`. `updatedAt` is left alone (editing text is not a run of the job).
+- `200 {clip}`: the clip as `serializePublicJob` serves it. Errors `{error, code}`:
+  `invalid_request` 400, `title_empty` 400 ("Judul tidak boleh kosong."), `title_too_long` 400,
+  `description_too_long` 400 ("Deskripsi paling banyak 1.200 karakter."), `unsupported_media_type`
+  415, `payload_too_large` 413, `not_found` 404, `clip_not_found` 404, `not_ready` 409 (not
+  completed), `save_failed` 500.
+
+### `POST /api/jobs/:id/clip-text/rewrite`
+
+- Same guard; body JSON ≤ 256 B, exactly `{index}`. No field can name a provider, model or URL.
+- Before any spawn: the job is read (`not_found` 404, `read_failed` 503), must be completed
+  (`not_ready` 409), have the clip (`clip_not_found` 404) and its transcript (`no_transcript`
+  409). The LLM plan: `POTONGIN_LLM` off, saved settings off or without a provider → `llm_disabled`
+  409; unreadable settings → `llm_settings` 409. Then at most 3 running in the process (`429
+  rate_limited`, retry 5 s) and 30 per job per hour (`EDITOR_RATE_LIMITS.ai`, its own bucket; `429`
+  with `Retry-After` and the minutes in the message).
+- `runPythonCli("ai_clipper.post_text", "rewrite", {jobId, index})` with `withLlmEnv` (the loaded
+  settings, plus `POTONGIN_LLM_EDITOR_MODELS` when set), a 25 s kill and no grace. The module is in
+  `PYTHON_CLI_MODULES`.
+- `200 {suggestion: {title, description}}`, re-cleaned with the PATCH limits (otherwise
+  `invalid_output` 502). A failed state answers `{error, code, llmCode}`: `timeout` 504,
+  `invalid_output` 502, `llm_unavailable` 502 (also any unknown code), `llm_disabled` 409,
+  `no_transcript` 409; `llmCode` is the LLM error code (`^[a-z][a-z0-9_]{0,39}$`) or null. CLI exit
+  4 → `clip_not_found` 404; a killed child → `timeout` 504; anything else `backend_unavailable`
+  503. A suggestion is never written anywhere.
+
+### `python -m ai_clipper.post_text` (`src/ai_clipper/post_text.py`)
+
+- stdin `{"op": "rewrite", "jobId", "index"}` (strict JSON: no float, no doubled key, no other
+  member); exit 2 for anything else, 4 when the job is not a completed job with that clip (no
+  symlinked job directory, `job.json` ≤ 2 MiB), 0 with `{state: "done", suggestion, error: null}`
+  or `{state: "failed", suggestion: null, error: {code, llmCode}}` (`code` in `ERRORS`).
+- The prompt `prompts/post_text_v1.md` (`post-text-v1`) restates the packaging rules of the
+  editorial standard; the user message is the current title, the current description without
+  hashtags (the owner's edit when there is one) and the clip's `text`, marked as data.
+- One `complete_json` (600 tokens, temperature 0.8) on `editor_ai.editor_chain(env)`, the editor's
+  chain without the response cache (asking again gives another variant), inside a 20 s deadline.
+- The answer: `title` 1–100 characters, no URL, @account, hashtag or emoji, no
+  `packaging_problem` (disfluent, cut quote, verbatim copy) and grounded (`grounding_problem`),
+  not the current title; `description` 1–600 characters, no URL, @account or emoji, grounded;
+  hashtags written in it move out (closing ones join the list, inline ones lose the `#`); the
+  hashtags go through the engine's rule (`_clean_hashtags`: lower case, 2–38, ≤ 6) and close the
+  description on their own line.
+
+### Project page (`web/components/ClipText.jsx`, `web/lib/clip-text.mjs`)
+
+- In the detail panel's caption box, for a completed project: "Salin caption", **Ubah** (accessible
+  name "Ubah judul dan deskripsi") and **Tulis ulang**.
+- **Ubah**: Judul (input) and Deskripsi (textarea, the whole description with its hashtag line),
+  each with a counter ("29/100", "1.201/1.200" in red past the limit), its problem under it
+  (`aria-invalid`, `aria-describedby`), a hint for hashtags; **Simpan** (sends only a real change),
+  **Batal**, **Tulis ulang**. The focus goes to Judul on open and back to Ubah after Simpan or
+  Batal; "Judul dan deskripsi tersimpan." in the status line. A save is not aborted when another
+  clip is shown; the page replaces the clip with the saved one (`replaceClip`).
+- **Tulis ulang**: "Menulis…" with the status line, then a "Saran AI" region with the title and
+  description, **Pakai** (fills the form, nothing saved) and **Buang** (focus back to Tulis ulang).
+  A failure is a warning notice "Tulis ulang gagal" with the route's message, "Cara memperbaiki"
+  (`helpHref(llmCode)`; timeout and AI off have their own entries) and "Buka Pengaturan" for
+  `llm_disabled`, `llm_settings` and `llm_unavailable`.
+- An open draft or suggestion waits in a per-page map while another clip is shown; a running
+  rewrite is aborted then.
+- No "Hook di video" switch: the hook text is part of the rendered clip and changes only through
+  the editor's Hook card and an export.

@@ -326,11 +326,25 @@ pembicara" tidak menemukan wajah di separuh klip atau lebih, posternya bertulisk
 tengah" dan panel detailnya "Wajah tidak terdeteksi · potong tengah"; klip dari render cadangan
 bertuliskan "Dirender dengan cara cadangan" di panel detail.
 
+**Judul dan deskripsi.** Setelah proyek selesai, kotak Caption di panel detail punya **Ubah** dan
+**Tulis ulang**. **Ubah** membuka Judul dan Deskripsi di tempatnya (penghitung karakter, batas 100
+dan 1.200 karakter; tagar ditulis di baris terakhir deskripsi). **Simpan** menyimpannya ke job,
+dan poster, nama unduhan `NN-judul`, ZIP, Riwayat, "Salin judul", "Salin caption" serta dialog
+ekspor editor langsung memakai teks itu; kemasan asli dari mesin tetap tersimpan. **Tulis ulang**
+meminta judul dan deskripsi baru dari transkrip klip itu ke rantai AI gratis di Pengaturan (paling
+banyak 30 kali per proyek per jam). Hasilnya tampil sebagai "Saran AI": **Pakai** memasukkannya ke
+form (baru tersimpan setelah **Simpan**), **Buang** menutupnya. Teks hook di video tidak ikut
+berubah karena sudah menjadi bagian dari video; teks itu diubah lewat editor (kartu Hook).
+
 **English.** The ZIP is store-only (MP4 does not compress), built with Node built-ins (CRC-32
 from `zlib.crc32`, a table fallback), classic format below 4 GiB, streamed one chunk at a time
 from the job's own `output/clip-NN.mp4` files; each file is read once for its CRC and again
 while it is sent. `MAX_ZIP_BYTES` (default 2 GiB) limits it with an Indonesian message
-(`docs/editor/OPERASIONAL.md` §2).
+(`docs/editor/OPERASIONAL.md` §2). An edited title and description are stored as
+`clip.textEdit` in `job.json` (`PATCH /api/jobs/<id>/clip-text`, written under the queue lock) and
+served in place of the engine's packaging; "Tulis ulang" is `POST /api/jobs/<id>/clip-text/rewrite`,
+which runs `python -m ai_clipper.post_text` on the saved Pengaturan chain within 20 s
+(`docs/editor/CONTRACTS.md` §5.38).
 
 ## Riwayat: proyek atau klip
 
