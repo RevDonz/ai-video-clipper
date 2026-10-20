@@ -9,9 +9,11 @@ Two cases put the body on the source edges with the production rule (``source_in
 ``seed.grid_window_ms``): a 29.97 source whose last frame ends between two ms, and a 23.976
 video that starts 41 ms late (no grid frame 0). The ``no_face_blur`` cases run face-track with
 the latar blur fallback (CONTRACTS §5.40): a frame of a run without a face is read with the
-fit-blur geometry, and P-PLATE checks the crop x of the other frames only. Plate-cell frames below the document's window
-(the cloned head of a late-starting source's cell 0) are counted, never compared: no document
-can show them.
+fit-blur geometry, and P-PLATE checks the crop x of the other frames only. The ``keyframes``
+cases frame the clip by hand (§5.41): P-PLATE checks every frame's crop x against
+``layouts.keyframe_positions``, the crop the editor's gizmo draws. Plate-cell frames below the
+document's window (the cloned head of a late-starting source's cell 0) are counted, never
+compared: no document can show them.
 
 **Modules.** The gates run the real chain: ``captions.caption_track`` (T1.2a), the envelopes
 and ``audio_graph.audio_fragment`` (T1.4) and the pinned resources (fonts, packs, fontconfig
@@ -470,6 +472,15 @@ class Case:
     # layout.default.no_face (CONTRACTS §5.40): "fit_blur" shows face-track's runs without a
     # face (make_camera has one at 3.0-5.25 s) with the fit-blur layout.
     no_face: str = "center"
+    # layout.keyframes (CONTRACTS §5.41): (sf, pan_e5, move) of the manual framing, none = the
+    # layout's own framing. They turn the no-face fallback off.
+    keyframes: tuple[tuple[int, int, str], ...] = ()
+
+
+# Manual framing over a 900-frame source: a hold, two cuts across the cold open's frames and two
+# slides that cross several cuts of the body.
+KEYFRAMES_900 = ((40, 0, "cut"), (150, 100_000, "cut"), (330, 30_000, "slide"),
+                 (600, 85_000, "slide"), (640, 15_000, "cut"), (820, 60_000, "slide"))
 
 
 P_FRAME_CASES = (
@@ -477,6 +488,7 @@ P_FRAME_CASES = (
     Case("cfr_25", (25, 1), 760, "fill_center"),
     Case("cfr_30", (30, 1), 900, "camera"),
     Case("cfr_30_no_face_blur", (30, 1), 900, "camera", no_face="fit_blur"),
+    Case("cfr_30_keyframes", (30, 1), 900, "fill_center", keyframes=KEYFRAMES_900),
     Case("vfr_30", (30, 1), 900, "fit_blur", vfr=True, drop_every=11),
     # the source edges: 902 frames at 29.97 end at 30,096.73 ms (duration_ms 30,097 rounds up),
     # and a 23.976 video that starts 41 ms after the audio has no grid frame 0
@@ -501,7 +513,11 @@ P_PLATE_CASES = (*(
     Case(f"plate_{layout}", (30000, 1001), 900, layout, cuts=10, captions=False)
     for layout in ("fit_blur", "fill_center", "camera")
 ), Case("plate_camera_no_face_blur", (30000, 1001), 900, "camera", cuts=10, captions=False,
-        no_face="fit_blur"))
+        no_face="fit_blur"),
+    Case("plate_fill_center_keyframes", (30000, 1001), 900, "fill_center", cuts=10,
+         captions=False, keyframes=KEYFRAMES_900),
+    Case("plate_camera_keyframes", (30000, 1001), 900, "camera", cuts=10, captions=False,
+         no_face="fit_blur", keyframes=KEYFRAMES_900))
 PF_RENDER_CASES = tuple(
     Case(f"pf_60s_{layout}", (30000, 1001), 2_000, layout, source_size=(1280, 720), cuts=5,
          hook=True)
@@ -612,6 +628,9 @@ class Workspace:
                        assets=assets, join_style=case.join_style, whoosh=case.whoosh)
         doc["base"]["window_ms"] = window_ms
         doc["layout"]["default"]["no_face"] = case.no_face
+        if case.keyframes:
+            doc["layout"]["keyframes"] = [{"sf": sf, "pan_e5": pan, "move": move}
+                                          for sf, pan, move in case.keyframes]
         camera = (make_camera(duration_ms, case.fps, case.source_size, case.output)
                   if case.layout == "camera" else None)
         self.clips[case.name] = {"case": case, "source": source, "doc": doc,
@@ -702,7 +721,7 @@ def fallback_frames(case: Case, plan: Any) -> frozenset[int]:
     """The source-grid frames ``case`` shows with the no-face fallback (fit-blur geometry)."""
     from ai_clipper.edit_v2 import layouts
 
-    if case.layout != "camera" or case.no_face != "fit_blur":
+    if case.layout != "camera" or case.no_face != "fit_blur" or case.keyframes:
         return frozenset()
     count = max(piece.out_sf for piece in plan.pieces)
     flags = layouts.no_face_frames(plan.camera, plan.fps, first_sf=0, count=count)
@@ -927,7 +946,8 @@ def p_plate(ws: Workspace, cases: Sequence[Case] = P_PLATE_CASES) -> dict[str, A
         ssim_plate = ssim_stream(plate_sequence(ws, case), case.output, case.fps, reference,
                                  ws.root)
         entry: dict[str, Any] = {
-            "case": case.name, "layout": case.layout, "output_frames": plan.total_frames,
+            "case": case.name, "layout": case.layout, "keyframes": len(case.keyframes),
+            "output_frames": plan.total_frames,
             "removals": len(plan.doc["main"]["removals"]), "joins": len(plan.pieces) - 1,
             "plate_cells": len(ws.cells(case)["cells"]),
             "ssim_final_vs_reference": ssim_final, "ssim_plate_vs_reference": ssim_plate,
@@ -936,7 +956,11 @@ def p_plate(ws: Workspace, cases: Sequence[Case] = P_PLATE_CASES) -> dict[str, A
         ok = ssim_plate["All"] >= ssim_final["All"] - P_PLATE_SSIM_MARGIN
         if case.layout in ("camera", "fill_center"):
             scaled = layouts.scaled_size(case.source_size, case.output)
-            if case.layout == "camera":
+            if case.keyframes:
+                table = layouts.keyframe_positions(
+                    plan.keyframes, source=case.source_size, output=case.output, first_sf=0,
+                    count=max(p.out_sf for p in plan.pieces))
+            elif case.layout == "camera":
                 table = layouts.crop_positions(plan.camera, plan.fps, source=case.source_size,
                                                output=case.output, first_sf=0,
                                                count=max(p.out_sf for p in plan.pieces))
