@@ -275,6 +275,31 @@ html:has(.settingsSaveBar) { scroll-padding-bottom: 150px; }
 .presetActions a { display: inline-flex; align-items: center; min-height: 44px; }
 .addProviderNote { margin: 0; padding: 0 16px 14px; color: var(--text-muted); font-size: 13px; line-height: 1.5; }
 
+/* Tentang sistem: facts to copy into a bug report, so a quiet spec sheet with no accent. Unknown
+   values step back to muted text, so a missing source is visible at a glance. */
+.settingsAbout { margin-top: 16px; }
+.systemState { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 0; color: var(--text-muted); font-size: 14px; line-height: 1.5; }
+.systemState p { margin: 0; }
+.systemState.error p { color: var(--text); }
+.systemList {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0 20px;
+  margin: 0;
+  animation: rise-in var(--dur-2) var(--ease-out);
+}
+.systemItem { display: grid; align-content: start; gap: 6px; min-width: 0; padding-top: 12px; border-top: 1px solid var(--border); }
+.systemItem dt { display: grid; gap: 2px; color: var(--text); font: 600 13px/1.35 var(--font); }
+.systemItem dt small { color: var(--text-muted); font: 500 12px/1.4 var(--font); }
+.systemItem dd {
+  margin: 0;
+  color: var(--text);
+  font: 700 16px/1.3 var(--font);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.systemItem.unknown dd { color: var(--text-muted); font-size: 14px; font-weight: 500; }
+
 /* Save bar: it floats over the scrolling form, so it is the page's one raised surface.
    The border brightens and the lime Simpan wakes up only when there is something to save. */
 .settingsSaveBar {
@@ -318,6 +343,7 @@ html:has(.settingsSaveBar) { scroll-padding-bottom: 150px; }
 @media (max-width: 900px) {
   .settingsTop { grid-template-columns: 1fr; }
   .advancedGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .systemList { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 20px; }
 }
 @media (max-width: 620px) {
   html:has(.settingsSaveBar) { scroll-padding-bottom: 190px; }
@@ -330,6 +356,7 @@ html:has(.settingsSaveBar) { scroll-padding-bottom: 150px; }
   .providerTools { grid-column: 1 / -1; flex-wrap: wrap; }
   .providerTools .providerTool.danger { margin-left: auto; }
   .providerFields, .advancedGrid, .presetGrid, .modelPickers { grid-template-columns: 1fr; }
+  .systemList { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
   .settingsPage .settingsImport { display: grid; }
   .inlineRow { flex-wrap: wrap; }
   .inlineRow input { flex-basis: 100%; }

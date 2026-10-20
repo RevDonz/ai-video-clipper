@@ -53,6 +53,8 @@ Semua variabel boleh kosong; kosong berarti memakai default.
 - Nilai yang tidak valid menggagalkan job sejak awal dengan pesan
   `Error: WHISPER_… harus …`. Isi nilainya tidak ditampilkan.
 - Flag CLI menang atas variabel lingkungan.
+- Model yang dipakai server tampil di **Pengaturan → Tentang sistem**. Path atau ID repositori
+  ditampilkan sebagai "Model kustom", jadi nama folder tidak terlihat.
 
 Prompt bawaan (versi 2):
 

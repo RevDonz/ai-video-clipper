@@ -23,6 +23,7 @@ import {
   subscriptionModels,
 } from "../../lib/llm-settings-view.mjs";
 import { llmStatusView } from "../../lib/selection-v3-view.mjs";
+import { systemInfoRows } from "../../lib/system-info-view.mjs";
 import "./settings.css";
 
 const SESSION_TEXT = "Sesi login berakhir. Muat ulang halaman untuk masuk lagi.";
@@ -461,6 +462,54 @@ function AddProvider({ available, serversUsed, serverSlot, freeOnly, open, onAdd
   );
 }
 
+// Read-only, loaded on its own: the AI form failing to load must not hide it, and its own
+// failure must not touch the form.
+function SystemInfo() {
+  const [system, setSystem] = useState({ phase: "loading", info: null, error: null });
+  const alive = useRef(true);
+
+  async function loadSystem() {
+    setSystem({ phase: "loading", info: null, error: null });
+    try {
+      const { ok, status, payload } = await requestJson("/api/settings/system");
+      if (!alive.current) return;
+      if (ok && payload) setSystem({ phase: "ready", info: payload, error: null });
+      else setSystem({ phase: "error", info: null, error: status === 401 ? SESSION_TEXT : "Info sistem tidak bisa dimuat." });
+    } catch {
+      if (alive.current) setSystem({ phase: "error", info: null, error: "Info sistem tidak bisa dimuat." });
+    }
+  }
+
+  useEffect(() => {
+    alive.current = true;
+    void loadSystem();
+    return () => { alive.current = false; };
+  }, []);
+
+  return (
+    <section className="panel settingsCard" aria-labelledby="system-title">
+      <div className="settingsCardHead"><h2 id="system-title">Tentang sistem</h2><p>Komponen yang dipakai server ini. Sertakan saat melaporkan masalah.</p></div>
+      {system.phase === "loading" && <p className="systemState" role="status">Memuat info sistem…</p>}
+      {system.phase === "error" && (
+        <div className="systemState error" role="alert">
+          <p>{system.error}</p>
+          <button type="button" className="btn" onClick={loadSystem}>Coba lagi</button>
+        </div>
+      )}
+      {system.phase === "ready" && (
+        <dl className="systemList">
+          {systemInfoRows(system.info).map((row) => (
+            <div key={row.id} className={row.known ? "systemItem" : "systemItem unknown"}>
+              <dt>{row.label} <small>{row.hint}</small></dt>
+              <dd>{row.value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </section>
+  );
+}
+
 export default function SettingsPage() {
   const [loadState, setLoadState] = useState("loading");
   const [loaded, setLoaded] = useState(null);
@@ -807,6 +856,8 @@ export default function SettingsPage() {
           </section>
         </div>
       )}
+
+      <div className="settingsAbout shell"><SystemInfo /></div>
 
       {loadState === "ready" && (
         <div className={`settingsSaveBar${dirty ? " dirty" : ""}`} role="region" aria-label="Simpan pengaturan AI">
