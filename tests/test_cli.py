@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -428,6 +429,68 @@ def test_cli_without_focus_forwards_none(monkeypatch, tmp_path: Path):
     received = _capture_pipeline(monkeypatch, tmp_path)
     assert cli.main(WEB_V3_ARGS) == 0
     assert received["focus"] is None
+
+
+def _progress_events(stdout: str) -> list[dict]:
+    prefix = "POTONGIN_PROGRESS "
+    return [
+        json.loads(line[len(prefix) :]) for line in stdout.splitlines() if line.startswith(prefix)
+    ]
+
+
+def test_cli_prints_stage_summaries_on_the_current_progress_line(monkeypatch, tmp_path, capsys):
+    """web/lib/jobs.mjs parseWorkerProgress reads both lines; older readers ignore `summary`."""
+    monkeypatch.setattr(cli, "load_whisper_model", lambda *a, **k: "M")
+
+    def pipeline(*args, progress, stage_summary, **kwargs):
+        progress("transcribing", 57, "Transkripsi audio 100%")
+        stage_summary("transcript", {"words": 2304, "source": "youtube-captions", "language": "id"})
+        progress("audio", 58, "Menganalisis jeda dan energi audio")
+        manifest = tmp_path / "manifest.json"
+        manifest.touch()
+        return manifest
+
+    monkeypatch.setattr(cli, "run_pipeline", pipeline)
+
+    assert cli.main(WEB_V3_ARGS) == 0
+
+    assert _progress_events(capsys.readouterr().out) == [
+        {"stage": "transcribing", "progress": 57, "detail": "Transkripsi audio 100%"},
+        {
+            "stage": "transcribing",
+            "progress": 57,
+            "detail": "Transkripsi audio 100%",
+            "summary": {
+                "transcript": {"words": 2304, "source": "youtube-captions", "language": "id"}
+            },
+        },
+        {"stage": "audio", "progress": 58, "detail": "Menganalisis jeda dan energi audio"},
+    ]
+
+
+def test_cli_a_summary_before_any_progress_rides_on_the_workers_own_stage(
+    monkeypatch, tmp_path, capsys
+):
+    monkeypatch.setattr(cli, "load_whisper_model", lambda *a, **k: "M")
+
+    def pipeline(*args, stage_summary, **kwargs):
+        stage_summary("video", {"duration": 125.5})
+        manifest = tmp_path / "manifest.json"
+        manifest.touch()
+        return manifest
+
+    monkeypatch.setattr(cli, "run_pipeline", pipeline)
+
+    assert cli.main(WEB_V3_ARGS) == 0
+
+    assert _progress_events(capsys.readouterr().out) == [
+        {
+            "stage": "analyzing",
+            "progress": 0,
+            "detail": "Menyiapkan engine AI",
+            "summary": {"video": {"duration": 125.5}},
+        }
+    ]
 
 
 def test_cli_reports_llm_errors_without_traceback(monkeypatch, capsys):

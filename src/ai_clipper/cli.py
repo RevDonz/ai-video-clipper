@@ -269,12 +269,24 @@ def main(argv: Sequence[str] | None = None) -> int:
         else:
             model = load_whisper_model(args.model, device=args.device, decoding=decoding)
 
-        def emit_progress(stage: str, progress: int, detail: str) -> None:
-            payload = json.dumps(
-                {"stage": stage, "progress": progress, "detail": detail},
-                ensure_ascii=False,
-            )
+        # A stage summary repeats the latest progress line, so every line stays a full progress
+        # event; before the first one the worker's own line (web/scripts/run-job.mjs) applies.
+        latest: dict[str, object] = {
+            "stage": "analyzing",
+            "progress": 0,
+            "detail": "Menyiapkan engine AI",
+        }
+
+        def emit(event: dict[str, object]) -> None:
+            payload = json.dumps(event, ensure_ascii=False)
             print(f"POTONGIN_PROGRESS {payload}", flush=True)
+
+        def emit_progress(stage: str, progress: int, detail: str) -> None:
+            latest.update(stage=stage, progress=progress, detail=detail)
+            emit(latest)
+
+        def emit_stage_summary(kind: str, values: dict[str, object]) -> None:
+            emit({**latest, "summary": {kind: values}})
 
         manifest = run_pipeline(
             args.source,
@@ -301,6 +313,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             word_timestamps=args.word_timestamps,
             hook_duration=args.hook_duration,
             progress=emit_progress,
+            stage_summary=emit_stage_summary,
             trend_context=args.trend_context,
             focus=args.focus,
         )

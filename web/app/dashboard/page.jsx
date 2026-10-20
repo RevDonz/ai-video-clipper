@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import AppHeader from "../../components/AppHeader.jsx";
+import StageSummary from "../../components/StageSummary.jsx";
 import {
   AI_STATUS_UNREADABLE,
   aiStatusView,
@@ -695,6 +696,7 @@ export default function DashboardPage() {
               {!jobFinished(activeJob) && (
                 <p className={`${styles.activity} ${activeJob.status === "queued" ? styles.queued : ""}`} role="status" aria-live="polite"><i aria-hidden="true" /><span>{jobActivityText(activeJob)}</span></p>
               )}
+              <StageSummary job={activeJob} />
               {failure && (
                 <div className={styles.failure} role="alert">
                   <strong>{failure.text}</strong>

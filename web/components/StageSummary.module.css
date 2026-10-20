@@ -1,0 +1,24 @@
+/* Results per stage under a job's progress bar (dashboard, project page). Tokens from app/globals.css. */
+.stageSummary {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 14px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+/* Each row's label and value line up in the two columns. */
+.stageSummary > div { display: contents; }
+.stageSummary dt,
+.stageSummary dd {
+  /* A row appears when its stage finishes; reduced motion drops it (globals.css). */
+  animation: row-in var(--dur-2) var(--ease-out);
+}
+.stageSummary dt { color: var(--text-muted); }
+.stageSummary dd {
+  margin: 0;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+@keyframes row-in { from { opacity: 0; transform: translateY(4px); } }

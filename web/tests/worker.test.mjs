@@ -106,6 +106,17 @@ test("candidate-ready progress remains processing and never decreases percentage
   });
 });
 
+test("a stage summary joins the ones the job already has; plain progress leaves them alone", () => {
+  const video = { duration: 312 };
+  const transcript = { words: 2304, source: "whisper" };
+  const current = { progress: 57, stage: "transcribing", stageSummary: { video } };
+  assert.deepEqual(nextWorkerProgress(current, { progress: 57, stage: "transcribing", detail: "Transkripsi audio 100%", summary: { transcript } }), {
+    status: "processing", progress: 57, stage: "transcribing", stageDetail: "Transkripsi audio 100%", stageSummary: { video, transcript },
+  });
+  assert.deepEqual(nextWorkerProgress({ progress: 26, stage: "analyzing" }, { progress: 26, stage: "analyzing", detail: "x", summary: { video } }).stageSummary, { video });
+  assert.equal(Object.hasOwn(nextWorkerProgress(current, { progress: 58, stage: "audio", detail: "Menganalisis audio" }), "stageSummary"), false);
+});
+
 test("completed manifest persists selection_v2 summary while V1 clips stay unchanged", () => {
   const selection = {
     mode: "v2-shadow", status: "completed", analysis_id: "0123456789abcdef0123456789abcdef",
@@ -300,6 +311,43 @@ test("queue-managed runs publish the attempt analysis where every web reader loo
     // A real directory under the job, not a link into the attempt the worker has just removed.
     assert.ok((await lstat(path.join(jobRoot, "analysis"))).isDirectory());
     assert.equal(await realpath(path.join(root, id, "analysis")), path.join(await realpath(root), id, "analysis"));
+  }
+});
+
+// The engine's progress lines (src/ai_clipper/cli.py): a summary repeats the current line.
+const SUMMARY_LINES = [
+  { stage: "analyzing", progress: 26, detail: "Memeriksa video dan memuat model AI" },
+  { stage: "analyzing", progress: 26, detail: "Memeriksa video dan memuat model AI", summary: { video: { duration: 312.5 } } },
+  { stage: "transcribing", progress: 57, detail: "Transkripsi audio 100%" },
+  { stage: "transcribing", progress: 57, detail: "Transkripsi audio 100%", summary: { transcript: { words: 2304, source: "whisper", language: "id", path: "/data/x" } } },
+  { stage: "selecting", progress: 60, detail: "Memilih momen terbaik dengan heuristik lokal", summary: { moments: { count: -3 } } },
+];
+
+test("the worker keeps every stage summary the engine reports, on success and on failure", async () => {
+  for (const fail of [false, true]) {
+    const id = "b23e4567-e89b-42d3-a456-426614174000";
+    const { root, jobRoot, env } = await engineFixture("clipper-worker-summary-", { id });
+    const stored = JSON.parse(await readFile(path.join(jobRoot, "job.json"), "utf8"));
+    // A summary left by an earlier attempt must not survive into this one.
+    await writeFile(path.join(jobRoot, "job.json"), JSON.stringify({ ...stored, stageSummary: { moments: { count: 9, source: "llm" } } }));
+    await writeFile(env.AI_CLIPPER_BIN, FAKE_ENGINE.replace(
+      "await mkdir(output, { recursive: true });",
+      `await mkdir(output, { recursive: true });\nfor (const line of ${JSON.stringify(SUMMARY_LINES)}) console.log("POTONGIN_PROGRESS " + JSON.stringify(line));`,
+    ));
+    const claim = await claimNextJob({ jobsRoot: root, workerId: "worker", leaseMs: 60_000, maxAttempts: 3, legacyQuiescenceMs: 0 });
+    const previousExitCode = process.exitCode;
+    try {
+      await main(["node", "run-job.mjs", id, claim.token], { ...env, FAKE_ENGINE_FAIL: fail ? "1" : "" });
+    } finally {
+      process.exitCode = previousExitCode;
+    }
+
+    const persisted = JSON.parse(await readFile(path.join(jobRoot, "job.json"), "utf8"));
+    assert.equal(persisted.status, fail ? "failed" : "completed");
+    assert.deepEqual(persisted.stageSummary, {
+      video: { duration: 312.5 },
+      transcript: { words: 2304, source: "whisper", language: "id" },
+    }, `fail=${fail}`);
   }
 });
 

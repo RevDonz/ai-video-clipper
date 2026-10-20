@@ -96,6 +96,25 @@ async function axeSerious(target) {
 test.describe("project workspace (faked job API)", () => {
   test.beforeEach(() => skipWithoutCredentials(test));
 
+  test("a running project lists what its finished stages found in the progress panel", async ({ page }) => {
+    const id = "9d3f5a71-8b2c-4d4e-8f60-1b2c3d4e5f60";
+    const running = {
+      id, status: "processing", progress: 63, stage: "packaging", stageDetail: "Menyiapkan judul, hook, dan caption klip",
+      createdAt: iso(NOW), updatedAt: iso(NOW), source: { type: "upload", name: "Podcast 13.mp4" },
+      options: { selectionMode: "v3", llmMode: "auto" }, clips: [],
+      stageSummary: { transcript: { words: 2304, source: "whisper", language: "id" }, moments: { count: 4, source: "llm" } },
+    };
+    await page.route(new RegExp(`/api/jobs/${id}(?:[/?].*)?$`), (route) => route.fulfill({
+      status: 200, contentType: "application/json", headers: { "Cache-Control": "no-store" }, body: JSON.stringify({ job: running }),
+    }));
+    await login(page, "/projects");
+    await page.goto(`/projects/${id}`);
+    const panel = page.getByRole("region", { name: "Menyiapkan judul, hook, dan caption klip" });
+    const summary = panel.getByLabel("Hasil per tahap");
+    await expect(summary.locator("dt")).toHaveText(["Transkrip", "Momen"]);
+    await expect(summary.locator("dd")).toHaveText(["2.304 kata · dari audio", "4 dipilih AI"]);
+  });
+
   test("posters open one detail panel; the arrows move between clips; 'Skor 8+' filters", async ({ page }) => {
     await fakeProject(page);
     await login(page, "/projects");

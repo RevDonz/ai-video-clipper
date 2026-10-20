@@ -39,8 +39,8 @@ async function recordJobForms(page) {
   return async () => Object.fromEntries((await page.evaluate(() => window.__jobForms)).at(-1) || []);
 }
 
-/** Fakes /api/jobs, /api/llm/status and /api/storage/status. Returns the job POSTs. */
-async function fakeDashboardApi(page) {
+/** Fakes /api/jobs (listing `jobs`), /api/llm/status and /api/storage/status. Returns the job POSTs. */
+async function fakeDashboardApi(page, { jobs = [] } = {}) {
   const posts = [];
   const job = (id) => ({ id, status: "queued", progress: 0, createdAt: NOW, updatedAt: NOW, source: { type: "youtube", url: LINK }, options: { selectionMode: "v3" }, clips: [] });
   await page.route(/\/api\/(?:jobs|llm\/status|storage\/status)(?:[/?]|$)/, (route) => {
@@ -53,8 +53,9 @@ async function fakeDashboardApi(page) {
       posts.push(multipartFields(request));
       return json(202, { job: job(`00000000-0000-4000-8000-${String(posts.length).padStart(12, "0")}`) });
     }
-    if (pathname === "/api/jobs") return json(200, { jobs: [] });
-    return json(200, { job: job(pathname.split("/")[3]) });
+    if (pathname === "/api/jobs") return json(200, { jobs });
+    const id = pathname.split("/")[3];
+    return json(200, { job: jobs.find((item) => item.id === id) || job(id) });
   });
   return posts;
 }
@@ -193,6 +194,27 @@ test.describe("Dashboard form (faked job API)", () => {
 
     await page.getByRole("button", { name: "Hapus file podcast-ep12.mp4" }).click();
     await expect(page.getByLabel("Link video")).toBeFocused();
+  });
+
+  test("a running job lists what its finished stages found under the progress bar", async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 780 });
+    const running = {
+      id: "00000000-0000-4000-8000-000000000101", status: "processing", progress: 60, stage: "llm", stageDetail: "AI (LLM) memilih momen terbaik",
+      createdAt: NOW, updatedAt: NOW, source: { type: "youtube", url: LINK }, options: { selectionMode: "v3", videoLanguage: "auto" }, clips: [],
+      stageSummary: { video: { duration: 2892.4 }, transcript: { words: 2304, source: "youtube-captions", language: "en" } },
+    };
+    await fakeDashboardApi(page, { jobs: [running] });
+    await openDashboard(page);
+    const results = page.getByRole("complementary", { name: "Hasil" });
+    const summary = results.getByLabel("Hasil per tahap");
+    await expect(summary).toBeVisible();
+    await expect(summary.locator("dt")).toHaveText(["Video", "Transkrip"]);
+    await expect(summary.locator("dd")).toHaveText(["48:12", "2.304 kata · dari subtitle YouTube · bahasa Inggris"]);
+    // Under the bar and the live line, before the clips.
+    const bar = await results.getByRole("progressbar", { name: "Progres job" }).boundingBox();
+    const box = await summary.boundingBox();
+    expect(box.y).toBeGreaterThan(bar.y + bar.height);
+    expect(await overflow(page)).toBeLessThanOrEqual(0);
   });
 
   test("at 360 px nothing scrolls sideways and every control is a 44 px target", async ({ page }) => {
