@@ -1861,3 +1861,18 @@ word toolbar, at 1366×768 and 1920×1080, with a README). The fakes' player dra
 | The model, and the real store over the fake server (save first; a failed save, a conflict and an export being sent keep the editor on the clip; a merged 409 saves, then leaves) | `web/tests/editor-clip-nav.test.mjs` (local) | pass, 18 tests |
 | Ctrl+Shift+← / → map to the clip actions; text fields and arrow widgets keep them | `web/tests/editor-shortcuts.test.mjs` (local) | pass |
 | The top bar in the browser: names, ends, Tab order, save first, the same view with its panel or card, Back, a failed save, a conflict, one 64 px row of 44 px targets at 1366 and 1920 | `web/e2e/editor-clip-nav.spec.mjs` (`editor-gates.yml` `suite=e2e`) | pending: runs on GitHub Actions when the branch is pushed |
+
+## Caption: Kata per baris and Sorot (2026-10-20)
+
+Plan `docs/plans/2026-10-20-lanjutan-sesi.md` P1 #9; contract CONTRACTS §5.30; guide
+PANDUAN-EDITOR "Caption". Built on branch `adopsi/caption` with targeted local tests only; the
+gates that need the production image or a browser run on GitHub Actions when the branch is pushed.
+
+| Gate | What | Threshold | Result |
+|---|---|---|---|
+| Auto clips unchanged | plan shas of every older fixture (`plan-shas.json`), the ASS goldens of the four older packs, `PACK_DEFAULT_OVERRIDES` and the seeds (no `words_max`); a document naming its pack's own count compiles to the same cues and ASS bytes | identical | **pass** (local pytest) |
+| Document rules | `words_max` 1–4 valid; 0, 5, `"3"`, `true`, `null` `range_invalid`; `sorot` valid; the client's commands against the Python validator in the 1,000-sequence crosscheck with `words_max` and `sorot` in the generator | 0 rejected documents | **pass** (local) |
+| P-TIME, FFmpeg side (quick subset) | Sorot's per-word events and boxes appear and disappear on their planned frames | 0 mismatches | **pass** on the local FFmpeg 6.1.1 + libass 0.17.1; the full matrix runs in the image (pending) |
+| P-TXT | JASSUB against FFmpeg on `sorot-10`, `sorot-40`, `sorot-90` (smoke: `sorot-40`), player variant `sorot` | SSIM ≥ 0.999, PSNR ≥ 45 dB, max ≤ 16, 0 px > 16 | **pending**: `Parity (smoke)` of the PR and `editor-gates suite=image` |
+| Thumbnail | `pack-thumbs/sorot.png` from `make_pack_thumbs.py` in an older local image (FFmpeg 5.1.9, libass 0.17.1-1) that re-rendered the four committed thumbnails byte for byte | bytes equal on the pinned toolchain | **pending**: `suite=image` re-renders all five |
+| Browser specs (fakes) | five pack tiles, the "Kata per baris" pills in the Caption card and the Teks panel, the regrouped lines | pass | **pending**: `editor-gates suite=e2e` |

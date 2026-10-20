@@ -733,7 +733,7 @@ test("Kemampuan 4, hook + saran AI: text, fit, duration, position, on/off, insta
   await resetToSeed(page);
 });
 
-test("Kemampuan 5, caption + 4 gaya: each pack, position, size, case, colours, word fix, hide, keyword", async ({ page }) => {
+test("Kemampuan 5, caption + 5 gaya: each pack, position, size, words per line, case, colours, word fix, hide, keyword", async ({ page }) => {
   test.setTimeout(4 * 60_000);
   const clip = shortest();
   await start(page, clip);
@@ -747,15 +747,26 @@ test("Kemampuan 5, caption + 4 gaya: each pack, position, size, case, colours, w
   await openTab(page, "Teks");
   const packs = page.getByRole("group", { name: "Gaya caption" });
   const shas = {};
-  for (const [name, id] of [["Klasik", "classic"], ["Karaoke", "karaoke"], ["Bold", "bold"], ["Box", "box"]]) {
+  for (const [name, id] of [["Klasik", "classic"], ["Karaoke", "karaoke"], ["Bold", "bold"], ["Box", "box"], ["Sorot", "sorot"]]) {
     await packs.getByRole("radio", { name }).check();
     const saved = await waitSaved(page);
     expect(saved.doc.captions.pack.id).toBe(id);
     shas[id] = (await settledPlan(page)).text.assSha256;
     await exactBadge(page);
   }
-  expect(new Set(Object.values(shas)).size, "four packs, four distinct ASS").toBe(4);
+  expect(new Set(Object.values(shas)).size, "five packs, five distinct ASS").toBe(5);
   const text = panelOf(page, "text");
+  // Kata per baris: the engine regroups the lines at once (CONTRACTS §5.30); Sorot's own count is 3.
+  const words = text.getByRole("group", { name: "Kata per baris" });
+  await expect(words.getByRole("radio", { name: "3" })).toBeChecked();
+  await words.getByRole("radio", { name: "1" }).check();
+  expect((await waitSaved(page)).doc.captions.overrides.words_max).toBe(1);
+  const oneWord = await settledPlan(page);
+  expect(oneWord.cues.length).toBeGreaterThan(0);
+  expect(oneWord.cues.every((cue) => cue.words.length === 1)).toBe(true);
+  await exactBadge(page);
+  await words.getByRole("radio", { name: "3" }).check();
+  expect(Object.hasOwn((await waitSaved(page)).doc.captions.overrides, "words_max")).toBe(false);
   const before = (await inspect(page)).doc.captions.overrides;
   await nudgeSlider(text.getByRole("slider", { name: "Posisi caption" }), "ArrowLeft", 4);
   await nudgeSlider(text.getByRole("slider", { name: "Ukuran caption" }), "ArrowRight", 2);

@@ -14,7 +14,7 @@ import math
 import re
 import string
 import unicodedata
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from dataclasses import replace as dataclass_replace
 from numbers import Real
@@ -22,6 +22,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any
 
+from .edit_v2 import WORDS_MAX_RANGE
 from .edit_v2.glyphs import RESOURCES_DIR, advance_units, font_path
 from .edit_v2.timemap import Fps, div_round_half_up, safe_cs
 from .subtitles import CaptionCue, FrameCue, FrameWord, clean_caption_text
@@ -423,14 +424,35 @@ HOOK_DESIGNS_DIR = RESOURCES_DIR / "hook-designs"
 PACK_SCHEMA = "potongin.caption-pack/1"
 HOOK_DESIGN_SCHEMA = "potongin.hook-design/1"
 CASES = ("asis", "upper")
-REVEALS = ("static", "karaoke", "word")
+# "word_box": each word placed on its own and a box behind the spoken one (the Sorot pack).
+REVEALS = ("static", "karaoke", "word", "word_box")
 # How a boxed pack (border_style 3) draws its box: libass' BorderStyle 3 ("border"), or a \\p
 # vector rectangle event behind each line ("vector", the P-TXT fallback of plan §5.4).
 BOX_STYLES = ("border", "vector")
 _COLOUR = re.compile(r"#[0-9A-F]{6}")
 _RESOURCE_ID = re.compile(r"[a-z][a-z0-9-]{0,31}")
 _OVERRIDE_KEYS = ("y_e5", "size_pm", "case", "highlight", "emphasis")
+_WORD_BOX_KEYS = frozenset({"pad_x_pm", "top_pm", "radius_pm", "dark_text", "light_text",
+                            "dark_from_lstar"})
 _E5 = 100_000
+
+
+@dataclass(frozen=True)
+class WordBox:
+    """The box a ``word_box`` pack draws behind the spoken word (pack field ``word_box``).
+
+    ``pad_x_pm`` (each side), ``top_pm`` (from the line's top down to the box's top; the box
+    ends at the line's bottom) and ``radius_pm`` are per mille of the font size. The box takes
+    the highlight colour, or the emphasis colour on a keyword; the word on it is ``dark_text``
+    when the box's CIE lightness L* is at least ``dark_from_lstar``, else ``light_text``.
+    """
+
+    pad_x_pm: int
+    top_pm: int
+    radius_pm: int
+    dark_text: str
+    light_text: str
+    dark_from_lstar: int
 
 
 @dataclass(frozen=True)
@@ -442,7 +464,8 @@ class CaptionPack:
     outline and shadow ``H · ratio`` pixels (centipixel precision). ``max_width_pm`` set means
     one line per cue: cues wider than that per-mille of ``W`` are split (``fit_cues``).
     ``box_style`` is how a boxed pack draws its box (``BOX_STYLES``); only boxed pack files
-    carry the field, and ``"vector"`` needs a one-line static boxed pack.
+    carry the field, and ``"vector"`` needs a one-line static boxed pack. ``word_box`` is the
+    spoken word's box of a ``word_box`` reveal (one-line packs without a border box only).
     """
 
     id: str
@@ -469,6 +492,7 @@ class CaptionPack:
     defaults: Mapping[str, Any]
     sha256: str
     box_style: str = "border"
+    word_box: WordBox | None = None
 
 
 @dataclass(frozen=True)
@@ -535,7 +559,7 @@ def _load_pack(pack_id: str, version: int) -> CaptionPack:
     expected = {"schema", "id", "v", "name", "style_name", "font", "size", "outline", "shadow",
                 "border_style", "colours", "margin_side_pm", "reveal", "words_per_cue",
                 "max_width_pm", "defaults"}
-    if set(data) - {"box_style"} != expected or data["schema"] != PACK_SCHEMA:
+    if set(data) - {"box_style", "word_box"} != expected or data["schema"] != PACK_SCHEMA:
         raise ValueError("caption pack file does not follow potongin.caption-pack/1")
     if "box_style" in data and data["border_style"] != 3:
         raise ValueError("pack box_style is only for boxed packs (border_style 3)")
@@ -568,6 +592,9 @@ def _load_pack(pack_id: str, version: int) -> CaptionPack:
     box_style = data.get("box_style", "border")
     _check_box_style(box_style, border_style=data["border_style"], reveal=data["reveal"],
                      max_width_pm=max_width)
+    word_box = _word_box(data.get("word_box"))
+    _check_word_box(word_box, border_style=data["border_style"], reveal=data["reveal"],
+                    max_width_pm=max_width)
     defaults = data["defaults"]
     _check_overrides(defaults)
     return CaptionPack(
@@ -595,6 +622,7 @@ def _load_pack(pack_id: str, version: int) -> CaptionPack:
         defaults=MappingProxyType({key: defaults[key] for key in _OVERRIDE_KEYS}),
         sha256=sha,
         box_style=box_style,
+        word_box=word_box,
     )
 
 
@@ -606,6 +634,32 @@ def _check_box_style(box_style: object, *, border_style: int, reveal: str,
                                   or max_width_pm is None):
         raise ValueError("pack box_style vector needs a one-line static boxed pack "
                          "(border_style 3, max_width_pm)")
+
+
+def _word_box(value: object) -> WordBox | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict) or set(value) != _WORD_BOX_KEYS:
+        raise ValueError("pack word_box must be {pad_x_pm, top_pm, radius_pm, dark_text, "
+                         "light_text, dark_from_lstar}")
+    for key in ("pad_x_pm", "top_pm", "radius_pm"):
+        if not _is_int(value[key]) or not 0 <= value[key] < 1000:
+            raise ValueError(f"pack word_box.{key} must be an integer 0-999")
+    for key in ("dark_text", "light_text"):
+        if not isinstance(value[key], str) or not _COLOUR.fullmatch(value[key]):
+            raise ValueError(f"pack word_box.{key} must be #RRGGBB")
+    if not _is_int(value["dark_from_lstar"]) or not 0 <= value["dark_from_lstar"] <= 100:
+        raise ValueError("pack word_box.dark_from_lstar must be an integer 0-100")
+    return WordBox(**{key: value[key] for key in sorted(_WORD_BOX_KEYS)})
+
+
+def _check_word_box(word_box: WordBox | None, *, border_style: int, reveal: str,
+                    max_width_pm: int | None) -> None:
+    if (reveal == "word_box") != (word_box is not None):
+        raise ValueError("pack word_box comes with the word_box reveal and only with it")
+    if word_box is not None and (border_style != 1 or max_width_pm is None):
+        raise ValueError("pack word_box needs a one-line pack without a border box "
+                         "(border_style 1, max_width_pm)")
 
 
 def load_hook_design(design_id: str, version: int) -> dict[str, Any]:
@@ -648,6 +702,35 @@ def _check_overrides(overrides: Mapping[str, Any]) -> None:
     for key in ("highlight", "emphasis"):
         if not isinstance(overrides[key], str) or not _COLOUR.fullmatch(overrides[key]):
             raise ValueError(f"overrides.{key} must be #RRGGBB (uppercase)")
+    if "words_max" in overrides:
+        low, high = WORDS_MAX_RANGE
+        if not _is_int(overrides["words_max"]) or not low <= overrides["words_max"] <= high:
+            raise ValueError(f"overrides.words_max must be an integer {low}-{high}")
+
+
+def words_per_cue(pack: CaptionPack, overrides: Mapping[str, Any]) -> int:
+    """At most this many words per caption line: ``words_max`` when set, else the pack's."""
+    return overrides.get("words_max", pack.words_per_cue)
+
+
+def _srgb_linear(channel: int) -> float:
+    value = channel / 255
+    return value / 12.92 if value <= 0.04045 else ((value + 0.055) / 1.055) ** 2.4
+
+
+def lightness(colour: str) -> float:
+    """CIE L* (0-100) of an sRGB ``#RRGGBB`` colour, from its relative luminance (D65)."""
+    red, green, blue = (int(colour[index:index + 2], 16) for index in (1, 3, 5))
+    luminance = (0.2126 * _srgb_linear(red) + 0.7152 * _srgb_linear(green)
+                 + 0.0722 * _srgb_linear(blue))
+    if luminance <= (6 / 29) ** 3:
+        return luminance * (29 / 3) ** 3
+    return 116 * luminance ** (1 / 3) - 16
+
+
+def word_box_text(colour: str, box: WordBox) -> str:
+    """The colour of the spoken word on a box of ``colour``: dark on a light box."""
+    return box.dark_text if lightness(colour) >= box.dark_from_lstar else box.light_text
 
 
 def _display(text: str, case: str) -> str:
@@ -789,6 +872,9 @@ def _caption_events(cues: Sequence[FrameCue], *, pack: CaptionPack, fps: Fps,
                 cue, start_cs=start_cs, end_cs=safe_cs(cue.f1, fps), fps=fps, case=case,
                 primary=_inline_colour(overrides["highlight"]), secondary=text_colour,
                 emphasis=emphasis)))
+        elif pack.reveal == "word_box":
+            events += _word_box_events(cue, pack=pack, play_res=play_res, overrides=overrides,
+                                       event=event)
         elif pack.reveal == "word":
             # One event per active word, the whole cue in each, only \1c differs: the glyphs
             # never reflow between events.
@@ -832,7 +918,79 @@ def _vector_box(text: str, font: Path, font_size: int, *, pack: CaptionPack,
     bottom = height - _margin_v(height, overrides["y_e5"]) + pad
     return (f"{{\\an2\\pos({_centi_text(50 * width)},{bottom})\\bord0\\shad0"
             f"\\1c{_inline_colour(pack.outline_colour)}\\1a&H{pack.outline_alpha:02X}&\\p1}}"
-            f"m 0 0 l {box_w} 0 {box_w} {box_h} 0 {box_h}{{\\p0}}")
+            f"{_box_path(box_w, box_h, 0)}{{\\p0}}")
+
+
+def _box_path(width: int, height: int, radius: int) -> str:
+    """A ``\\p1`` rectangle from (0, 0) to (width, height); corners rounded by ``radius``
+    (capped at half the shorter side) with one cubic Bézier each."""
+    radius = min(radius, width // 2, height // 2)
+    if radius <= 0:
+        return f"m 0 0 l {width} 0 {width} {height} 0 {height}"
+    w, h, r = width, height, radius
+    k = div_round_half_up(r * 4477, 10_000)  # 1 − 0.5523: the circle's control-point offset
+    return (f"m {r} 0 l {w - r} 0 b {w - k} 0 {w} {k} {w} {r} l {w} {h - r} "
+            f"b {w} {h - k} {w - k} {h} {w - r} {h} l {r} {h} b {k} {h} 0 {h - k} 0 {h - r} "
+            f"l 0 {r} b 0 {k} {k} 0 {r} 0")
+
+
+def _word_box_events(cue: FrameCue, *, pack: CaptionPack, play_res: tuple[int, int],
+                     overrides: Mapping[str, Any],
+                     event: Callable[[int, int, str], str]) -> list[str]:
+    """One window per spoken word: every other word of the line, the box, then the spoken word.
+
+    Each word is its own ``\\pos`` event at its place in the centred line (``hmtx``
+    advances), so no word moves between windows and the box shares the spoken word's centre:
+    kerning inside a word only makes the box a little wider on both sides.
+    """
+    box = pack.word_box
+    width, height = play_res
+    case = overrides["case"]
+    font = font_path(pack.font_file)
+    size = _pack_font_size(pack, height, overrides["size_pm"])
+    shown = [_display(word.text, case) for word in cue.words]
+    size_tag = ""
+    line = " ".join(shown)
+    if len(cue.words) == 1 and not _fits(line, font, size, pack.max_width_pm, width):
+        units, height_units = advance_units(line, font)
+        size = max(1, pack.max_width_pm * width * height_units // (1000 * units))
+        size_tag = f"\\fs{size}"
+    advances = [advance_units(_drawn_text(text), font)[0] for text in shown]
+    space, height_units = advance_units(" ", font)
+    total = sum(advances) + space * (len(advances) - 1)
+    centres, left = [], 0
+    for advance in advances:  # 2 × the word's centre from the line's left edge, in font units
+        twice = 2 * left + advance
+        centres.append(_centi_text(50 * width + div_round_half_up(
+            100 * size * (twice - total), 2 * height_units)))
+        left += advance + space
+    bottom = height - _margin_v(height, overrides["y_e5"])
+    pad = div_round_half_up(size * box.pad_x_pm, 1000)
+    box_h = size - div_round_half_up(size * box.top_pm, 1000)
+    radius = div_round_half_up(size * box.radius_pm, 1000)
+
+    def word_event(first: int, last: int, index: int, extra: str) -> str:
+        return event(first, last, f"{{\\an2\\pos({centres[index]},{bottom})\\q2{size_tag}"
+                                  f"{extra}}}{ass_escape(shown[index])}")
+
+    starts = [cue.f0] + [word.f0 for word in cue.words[1:]]
+    ends = starts[1:] + [cue.f1]
+    events = []
+    for active, (first, last) in enumerate(zip(starts, ends, strict=True)):
+        if first >= last:
+            continue
+        for index, word in enumerate(cue.words):
+            if index != active:
+                colour = f"\\1c{_inline_colour(overrides['emphasis'])}" if word.emphasis else ""
+                events.append(word_event(first, last, index, colour))
+        colour = overrides["emphasis"] if cue.words[active].emphasis else overrides["highlight"]
+        box_w = div_round_half_up(size * advances[active], height_units) + 2 * pad
+        events.append(event(first, last, f"{{\\an2\\pos({centres[active]},{bottom})"
+                                         f"\\bord0\\shad0\\1c{_inline_colour(colour)}\\p1}}"
+                                         f"{_box_path(box_w, box_h, radius)}{{\\p0}}"))
+        text = _inline_colour(word_box_text(colour, box))
+        events.append(word_event(first, last, active, f"\\bord0\\shad0\\1c{text}"))
+    return events
 
 
 def _pack_style(pack: CaptionPack, *, play_res: tuple[int, int],
@@ -884,7 +1042,8 @@ def build_ass_v2(
     ``legacy-bar`` hook equal ``build_ass`` for the same size, so revision 0 looks the same.
     Emphasised words get the ``emphasis`` colour (defect #6); all text goes through
     ``ass_escape``. A ``box_style: vector`` pack draws each box as a ``\\p`` rectangle event
-    right before its line (plan §5.4, the fallback if BorderStyle 3 fails P-TXT).
+    right before its line (plan §5.4, the fallback if BorderStyle 3 fails P-TXT); a
+    ``word_box`` pack draws a rounded ``\\p`` box behind the spoken word (CONTRACTS §5.30).
     """
     if (not isinstance(play_res, (tuple, list)) or len(play_res) != 2
             or not all(_is_int(value) and value > 0 for value in play_res)):
@@ -898,6 +1057,8 @@ def build_ass_v2(
         raise TypeError("pack must be a CaptionPack (load_pack)")
     _check_box_style(pack.box_style, border_style=pack.border_style, reveal=pack.reveal,
                      max_width_pm=pack.max_width_pm)
+    _check_word_box(pack.word_box, border_style=pack.border_style, reveal=pack.reveal,
+                    max_width_pm=pack.max_width_pm)
     _check_overrides(overrides)
     for cue in cues:
         if not isinstance(cue, FrameCue):

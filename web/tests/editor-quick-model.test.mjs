@@ -15,9 +15,12 @@ import {
   CAPTION_POSITIONS,
   CAPTION_SIZES,
   CAPTION_NOTES,
+  CAPTION_WORDS,
   HOOK_NEAR_BAND_E5,
   captionCommand,
   captionPackCommand,
+  captionWordsCommand,
+  captionWordsId,
   captionZoneNote,
   captionsEnabledCommand,
   highlightNote,
@@ -97,13 +100,31 @@ test("a preset value presses its pill; a value off the presets presses none", ()
   assert.equal(presetId(CAPTION_SIZES, "1000"), null, "a string is not the stored integer");
 });
 
-test("the four packs keep the Teks panel's names and notes", () => {
+test("the five packs keep the Teks panel's names and notes", () => {
   assert.deepEqual(CAPTION_PACKS.map((pack) => [pack.id, pack.name, pack.note]), [
     ["classic", "Klasik", "Putih bergaris hitam"],
     ["karaoke", "Karaoke", "Kata terucap menyala"],
     ["bold", "Bold", "Tebal, kata aktif berwarna"],
     ["box", "Box", "Teks di kotak gelap"],
+    ["sorot", "Sorot", "Kotak warna di kata terucap"],
   ]);
+});
+
+test("Kata per baris: four pills, the pack's count pressed until the clip sets its own", () => {
+  assert.deepEqual(CAPTION_WORDS.map((option) => [option.id, option.label, option.value]),
+    [["1", "1", 1], ["2", "2", 2], ["3", "3", 3], ["4", "4", 4]]);
+  assert.equal(captionWordsId(fakeDoc()), "4", "Karaoke shows four words a line");
+  assert.equal(captionWordsId(run(fakeDoc(), "SetCaptionPack", { id: "sorot" })), "3");
+  const two = run(fakeDoc(), "SetCaptionOverride", { key: "words_max", value: 2 });
+  assert.equal(captionWordsId(two), "2");
+  assert.equal(captionWordsId(null), null);
+  assert.deepEqual(captionWordsCommand("2"), { type: "SetCaptionOverride", args: { key: "words_max", value: 2 }, mergeKey: null });
+  assert.throws(() => captionWordsCommand("5"), TypeError);
+  // The fake plan regroups at once, like the engine (one word a line here).
+  const one = run(fakeDoc(), "SetCaptionOverride", { key: "words_max", value: 1 });
+  const cues = fakePlan(one).cues;
+  assert.ok(cues.length > fakePlan(fakeDoc()).cues.length);
+  assert.ok(cues.every((cue) => cue.words.length === 1));
 });
 
 // --- summaries -----------------------------------------------------------------------------------
@@ -248,6 +269,8 @@ test("both views call the same model function for every shared control", () => {
     ["captionCommand(", card("CaptionCard"), source("panels/TextPanel.jsx")],
     ["captionPackCommand(", card("CaptionCard"), source("panels/TextPanel.jsx")],
     ["captionsEnabledCommand(", card("CaptionCard"), source("panels/TextPanel.jsx")],
+    ["captionWordsCommand(", card("CaptionCard"), source("panels/TextPanel.jsx")],
+    ["captionWordsId(", card("CaptionCard"), source("panels/TextPanel.jsx")],
     ["highlightNote(", card("CaptionCard"), source("panels/TextPanel.jsx")],
     ["captionZoneNote(", card("CaptionCard"), source("panels/TextPanel.jsx")],
     ["hookNearNote(", card("CaptionCard"), source("panels/TextPanel.jsx")],
@@ -275,11 +298,12 @@ test("both views call the same model function for every shared control", () => {
 
 // --- notes and the hook hint (§1.4, §3) --------------------------------------------------------------
 
-test("highlightNote: Karaoke and Bold light the spoken word; the other packs say the colour is unused", () => {
+test("highlightNote: Karaoke, Bold and Sorot light the spoken word; the other packs say the colour is unused", () => {
   assert.equal(highlightNote("karaoke"), "Kata yang sedang diucapkan.");
   assert.equal(highlightNote("bold"), "Kata yang sedang diucapkan.");
-  assert.equal(highlightNote("classic"), "Dipakai oleh Karaoke dan Bold; tidak tampak di gaya ini.");
-  assert.equal(highlightNote("box"), "Dipakai oleh Karaoke dan Bold; tidak tampak di gaya ini.");
+  assert.equal(highlightNote("sorot"), "Kata yang sedang diucapkan.");
+  assert.equal(highlightNote("classic"), "Dipakai oleh Karaoke, Bold dan Sorot; tidak tampak di gaya ini.");
+  assert.equal(highlightNote("box"), "Dipakai oleh Karaoke, Bold dan Sorot; tidak tampak di gaya ini.");
   assert.equal(CAPTION_NOTES.highlightOn, highlightNote("karaoke"));
 });
 

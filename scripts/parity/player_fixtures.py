@@ -11,7 +11,7 @@ through ``/api/parity-fixtures/player/…`` and ``web/e2e/editor-player.spec.mjs
   preview mix (``audio_preview`` → ``mix.flac``), the final graph's pre-encode PCM
   (``reference`` → ``reference.pcm``, s16le stereo), the plan DTO (plan §4.3) and, per output
   frame, the barcode index of the whole-file ``fps`` grid and the crop x;
-* on the 29.97 case, document variants over the same plate cells (the 4 packs, a logo, a
+* on the 29.97 case, document variants over the same plate cells (the 5 packs, a logo, a
   fallback glyph): the server composite of each probe frame computed from the **decoded plate
   cell frame** with the compiler's own strings (R5: ``gbrp``, ``ass``, the derived logo overlay)
   before the 4:2:0 step (P-TXT, P-LOGO), the plate alone and the composite without the logo; the
@@ -73,7 +73,7 @@ from ai_clipper.edit_v2.timemap import Fps
 
 SCHEMA = "potongin.parity-player/1"
 BASE = "/api/parity-fixtures/player"
-PACKS = ("classic", "karaoke", "bold", "box")
+PACKS = ("classic", "karaoke", "bold", "box", "sorot")
 # The §3.2 example's logo, top right (plan §3.2, §3.3).
 LOGO_TRANSFORM = {"x_e5": 88000, "y_e5": 7000, "w_e5": 16000, "opacity_pm": 850}
 P_LOGO = {"mean_abs": 2.0, "max": 8, "box_px": 0}

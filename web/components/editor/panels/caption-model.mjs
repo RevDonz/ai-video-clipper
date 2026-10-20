@@ -4,22 +4,27 @@
 // Teks panel both call these, so the two views build the same command and show the same text for
 // the same document. Pure; no DOM.
 import { CAPTION_SWATCHES } from "../../../lib/editor/content-colours.mjs";
+import { captionWordsPerLine } from "../../../lib/editor/doc-model.mjs";
 import { captionAtSeedSpot } from "../shell-model.mjs";
 
 export { CAPTION_SWATCHES };
 
 const freeze = (list) => Object.freeze(list.map((entry) => Object.freeze(entry)));
 
-/** The four packs, in the panel's order; their thumbnails live with the components (pack-thumbs/). */
+/** The packs, in the panel's order; their thumbnails live with the components (pack-thumbs/). */
 export const CAPTION_PACKS = freeze([
   { id: "classic", name: "Klasik", note: "Putih bergaris hitam" },
   { id: "karaoke", name: "Karaoke", note: "Kata terucap menyala" },
   { id: "bold", name: "Bold", note: "Tebal, kata aktif berwarna" },
   { id: "box", name: "Box", note: "Teks di kotak gelap" },
+  { id: "sorot", name: "Sorot", note: "Kotak warna di kata terucap" },
 ]);
 
-/** The packs that light the spoken word in the highlight colour. */
-export const HIGHLIGHT_PACKS = Object.freeze(["karaoke", "bold"]);
+/** The packs that light the spoken word in the highlight colour (Sorot: the box behind it). */
+export const HIGHLIGHT_PACKS = Object.freeze(["karaoke", "bold", "sorot"]);
+
+/** "Kata per baris" (`words_max`, CONTRACTS §5.30): at most this many words on a caption line. */
+export const CAPTION_WORDS = freeze([1, 2, 3, 4].map((value) => ({ id: String(value), label: String(value), value })));
 
 /** Mode Cepat's "Ukuran" (`size_pm`): Sedang is the seed size. */
 export const CAPTION_SIZES = freeze([
@@ -40,7 +45,7 @@ export const HOOK_NEAR_BAND_E5 = 35000;
 
 export const CAPTION_NOTES = Object.freeze({
   highlightOn: "Kata yang sedang diucapkan.",
-  highlightOff: "Dipakai oleh Karaoke dan Bold; tidak tampak di gaya ini.",
+  highlightOff: "Dipakai oleh Karaoke, Bold dan Sorot; tidak tampak di gaya ini.",
   zoneAtSeed: "Posisi bawaan, dekat tombol TikTok. Kalau tertutup, geser caption ke atas.",
   zoneMoved: "Caption masuk area tombol TikTok/Reels; geser ke atas bila tertutup.",
   hookNear: "Caption dekat teks hook. Kalau bertumpuk di pratinjau, turunkan caption.",
@@ -57,6 +62,19 @@ export function presetId(options, value) {
  */
 export function captionCommand(key, value, { drag = false } = {}) {
   return { type: "SetCaptionOverride", args: { key, value }, mergeKey: drag ? `cap:${key}` : null };
+}
+
+/** The pressed "Kata per baris" pill: the document's words_max, else its pack's count. */
+export function captionWordsId(doc) {
+  const words = captionWordsPerLine(doc);
+  return CAPTION_WORDS.find((option) => option.value === words)?.id ?? null;
+}
+
+/** A pill pick; the pack's own count clears the override (commands.mjs). */
+export function captionWordsCommand(id) {
+  const option = CAPTION_WORDS.find((entry) => entry.id === id);
+  if (!option) throw new TypeError(`unknown words per line: ${id}`);
+  return captionCommand("words_max", option.value);
 }
 
 export function captionPackCommand(id) {

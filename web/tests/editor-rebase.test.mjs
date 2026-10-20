@@ -309,6 +309,34 @@ test("the same part edited differently opens the per-part dialog", () => {
   assert.throws(() => result.resolve({ hook: "both" }), CommandRejected);
 });
 
+test("Kata per baris merges as its own caption part; 'yang tersimpan' without it drops the key", () => {
+  assert.ok(PARTS.includes("captions.override.words_max"));
+  const mine = tab(C30);
+  mine.dispatch("SetCaptionOverride", { key: "words_max", value: 2 });
+  const theirs = tab(C30);
+  theirs.dispatch("SetCaptionOverride", { key: "size_pm", value: 1200 });
+  const merged = rebaseTabs(C30, mine, theirs);
+  assert.equal(merged.status, "merged");
+  assert.equal(merged.doc.captions.overrides.words_max, 2);
+  assert.equal(merged.doc.captions.overrides.size_pm, 1200);
+
+  const other = tab(C30);
+  other.dispatch("SetCaptionOverride", { key: "words_max", value: 1 });
+  const result = rebaseTabs(C30, mine, other);
+  assert.equal(result.status, "conflict");
+  assert.deepEqual(result.conflicts.map((group) => [group.id, group.label, group.parts]), [
+    ["captions", "Gaya caption", ["captions.override.words_max"]]]);
+  assert.equal(result.resolve({}).doc.captions.overrides.words_max, 2);
+  assert.equal(result.resolve({ captions: "theirs" }).doc.captions.overrides.words_max, 1);
+
+  // The part's value is null while the key is absent; setting null removes it.
+  assert.equal(partValue(C30.seed, "captions.override.words_max"), null);
+  const back = applyParts(mine.doc, { "captions.override.words_max": null }, C30.ctx);
+  assert.equal(Object.hasOwn(back.captions.overrides, "words_max"), false);
+  assert.deepEqual(checkDoc(back, C30.ctx), []);
+  assert.deepEqual(diffParts(C30.seed, mine.doc), ["captions.override.words_max"]);
+});
+
 test("the same edit in both tabs is not a conflict", () => {
   const mine = tab(C30);
   mine.dispatch("SetLayout", { mode: "fill_center" });

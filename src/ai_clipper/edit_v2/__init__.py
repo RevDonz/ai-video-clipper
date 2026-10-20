@@ -21,9 +21,12 @@ CAMERA_SCHEMA = "potongin.camera-plan/1"
 DOC_FPS = ((24, 1), (25, 1), (30, 1), (24000, 1001), (30000, 1001))
 OUTPUT_SIZES = ((720, 1280), (1080, 1920))
 
-# Plan §3.3: caption packs and the colour swatches of ``highlight`` and ``emphasis``.
-PACK_IDS = ("classic", "karaoke", "bold", "box")
+# Plan §3.3: caption packs and the colour swatches of ``highlight`` and ``emphasis``. ``sorot``
+# (a box behind the spoken word) came with "Kata per baris" (CONTRACTS §5.30).
+PACK_IDS = ("classic", "karaoke", "bold", "box", "sorot")
 SWATCHES = ("#FFE14D", "#FFFFFF", "#3DF5A6", "#52C7FF", "#FF5C8A", "#FF9F1C")
+# The optional override ``words_max`` ("Kata per baris"): absent means the pack's words_per_cue.
+WORDS_MAX_RANGE = (1, 4)
 
 # Plan §3.5 ("overrides at the pack defaults") and §5.4: every pack's default overrides. The
 # seed builder (T1.5) writes these; the pack files resources/caption-packs/<id>/v1.json (T1.2a)
@@ -34,7 +37,7 @@ PACK_DEFAULT_OVERRIDES = MappingProxyType(
             {
                 "y_e5": 83000,  # bottom of the caption block at 83% = today's 17% margin
                 "size_pm": 1000,
-                "case": "upper" if pack == "bold" else "asis",
+                "case": "upper" if pack in ("bold", "sorot") else "asis",
                 "highlight": "#FFE14D",  # today's KARAOKE_HIGHLIGHT_COLOR
                 "emphasis": "#FF5C8A",
             }
@@ -55,5 +58,6 @@ __all__ = [
     "SCHEMA",
     "SCHEMA_MINOR",
     "SWATCHES",
+    "WORDS_MAX_RANGE",
     "WORDS_SCHEMA",
 ]

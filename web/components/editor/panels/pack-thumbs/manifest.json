@@ -31,6 +31,12 @@
       "file": "karaoke.png",
       "pack_sha256": "10db9308ced1f900fd0b59e2c6c03d32ebb83f6cf34bb036e2aa243ffa756ee5",
       "png_sha256": "c2681fa0987217e522f76cea445e0c7a4c35ec18421c69b3242c6eae70e5d27c"
+    },
+    "sorot": {
+      "bytes": 8347,
+      "file": "sorot.png",
+      "pack_sha256": "b878a0faf68fbdafab148c14397c3c8c6d7434c6fed433ae99bf7b0cb442e6ad",
+      "png_sha256": "e97d2bed8ede39b91202b7447789c88aeda37c8720ccfa399587039aa4398576"
     }
   },
   "sample": "Halo semua",

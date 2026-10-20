@@ -3,7 +3,7 @@
 // CommandRejected(code), every result keeps the plan §3.3/§3.4 rules (checkDoc) so the Python
 // validator accepts it (the 1,000-sequence cross-check in tests/test_edit_v2_crosscheck.py).
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -25,9 +25,13 @@ import {
   AUTO_JOIN,
   EDITOR_ID,
   JOIN_STYLES,
+  PACK_DEFAULT_CASE,
+  PACK_IDS,
+  PACK_WORDS_PER_LINE,
   SFX_WHOOSH,
   body,
   canonicalJson,
+  captionWordsPerLine,
   checkDoc,
   coldOpen,
   contentEquals,
@@ -647,6 +651,55 @@ test("caption packs, overrides and the enabled flag", () => {
   }
   rejects(C30, C30.seed, "SetCaptionOverride", { key: "font", value: 1 }, "invalid_args");
   rejects(C30, C30.seed, "SetCaptionsEnabled", { on: 1 }, "invalid_args");
+});
+
+test("the client's pack constants are the pack files' (ids, default case, words per line)", () => {
+  const packsDir = path.join(root, "resources", "caption-packs");
+  assert.deepEqual(readdirSync(packsDir).sort(), [...PACK_IDS].sort());
+  for (const id of PACK_IDS) {
+    const pack = JSON.parse(readFileSync(path.join(packsDir, id, "v1.json"), "utf8"));
+    assert.equal(pack.words_per_cue, PACK_WORDS_PER_LINE[id], id);
+    assert.equal(pack.defaults.case, PACK_DEFAULT_CASE[id], id);
+  }
+});
+
+test("Sorot is a pack like the others: upper-case by default, three words per line", () => {
+  assert.deepEqual(PACK_IDS, ["classic", "karaoke", "bold", "box", "sorot"]);
+  assert.deepEqual(PACK_WORDS_PER_LINE, { classic: 4, karaoke: 4, bold: 3, box: 3, sorot: 3 });
+  const doc = run(C30, C30.seed, "SetCaptionPack", { id: "sorot" });
+  assert.deepEqual(doc.captions.pack, { id: "sorot", v: 1 });
+  assert.equal(doc.captions.overrides.case, "upper");
+  assert.equal(run(C30, doc, "SetCaptionPack", { id: "karaoke" }).captions.overrides.case, "asis");
+});
+
+test("Kata per baris: words_max 1–4, absent while it is the pack's own count", () => {
+  // The seed (Karaoke) carries no words_max: it reads as the pack's 4.
+  assert.equal(Object.hasOwn(C30.seed.captions.overrides, "words_max"), false);
+  assert.equal(captionWordsPerLine(C30.seed), 4);
+  let doc = run(C30, C30.seed, "SetCaptionOverride", { key: "words_max", value: 2 });
+  assert.equal(doc.captions.overrides.words_max, 2);
+  assert.equal(captionWordsPerLine(doc), 2);
+  // Picking the pack's own count again drops the key, so the clip equals the AI version (R10).
+  const back = run(C30, doc, "SetCaptionOverride", { key: "words_max", value: 4 });
+  assert.equal(Object.hasOwn(back.captions.overrides, "words_max"), false);
+  assert.ok(contentEquals(back, C30.seed));
+  // A user's count survives a pack switch unless it is the new pack's own count.
+  doc = run(C30, doc, "SetCaptionPack", { id: "classic" });
+  assert.equal(doc.captions.overrides.words_max, 2);
+  doc = run(C30, run(C30, doc, "SetCaptionOverride", { key: "words_max", value: 3 }), "SetCaptionPack", { id: "bold" });
+  assert.equal(Object.hasOwn(doc.captions.overrides, "words_max"), false);
+  assert.equal(captionWordsPerLine(doc), 3);
+  for (const bad of [0, 5, "3", 2.5, null, true]) {
+    rejects(C30, C30.seed, "SetCaptionOverride", { key: "words_max", value: bad }, "value_out_of_range");
+  }
+  // checkDoc: an override set of the five keys plus an optional words_max.
+  const withKey = (value) => ({ ...C30.seed, captions: { ...C30.seed.captions, overrides: { ...C30.seed.captions.overrides, words_max: value } } });
+  assert.deepEqual(checkDoc(withKey(1), C30.ctx), []);
+  assert.deepEqual(checkDoc(withKey(4), C30.ctx), []);
+  assert.deepEqual(checkDoc(withKey(5), C30.ctx), [{ code: "range_invalid", path: "/captions/overrides/words_max" }]);
+  const extra = { ...C30.seed, captions: { ...C30.seed.captions, overrides: { ...C30.seed.captions.overrides, words_per_chunk: 2 } } };
+  assert.deepEqual(checkDoc(extra, C30.ctx), [{ code: "range_invalid", path: "/captions/overrides" }]);
+  assert.equal(defaultMergeKey("SetCaptionOverride", { key: "words_max", value: 2 }), "cap:words_max");
 });
 
 // --- hook ----------------------------------------------------------------------------------

@@ -11,7 +11,9 @@ import { CommandRejected, fakePlan } from "../../__dev__/fakes.mjs";
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const SWATCHES = CAPTION_SWATCHES.map((swatch) => swatch.value);
-const PACKS = ["classic", "karaoke", "bold", "box"];
+const PACKS = ["classic", "karaoke", "bold", "box", "sorot"];
+// Each pack's words per line while the document sets no words_max (the pack files).
+const PACK_WORDS = { classic: 4, karaoke: 4, bold: 3, box: 3, sorot: 3 };
 const MERGE_WINDOW_MS = 500;
 
 function reject(code) {
@@ -263,6 +265,7 @@ export function createHarnessStore({ words, doc, readOnly = false, planDelayMs =
     SetCaptionPack(d, { id }) {
       if (!PACKS.includes(id)) reject("pack_unknown");
       d.captions.pack = { id, v: 1 };
+      if (d.captions.overrides.words_max === PACK_WORDS[id]) delete d.captions.overrides.words_max;
     },
     SetCaptionOverride(d, { key, value }) {
       const ok = {
@@ -271,9 +274,11 @@ export function createHarnessStore({ words, doc, readOnly = false, planDelayMs =
         case: () => value === "asis" || value === "upper",
         highlight: () => SWATCHES.includes(value),
         emphasis: () => SWATCHES.includes(value),
+        words_max: () => Number.isInteger(value) && value >= 1 && value <= 4,
       }[key];
       if (!ok || !ok()) reject("range_invalid");
-      d.captions.overrides[key] = value;
+      if (key === "words_max" && value === PACK_WORDS[d.captions.pack.id]) delete d.captions.overrides.words_max;
+      else d.captions.overrides[key] = value;
     },
     SetHookEnabled(d, { on, text }) {
       const existing = hookItem(d);

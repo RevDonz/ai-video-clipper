@@ -335,11 +335,12 @@ Duplicate keys, NaN and unknown keys are rejected at every level.
 | `main.removals` | ≤ 2,000; `reason` ∈ {`user`, `filler`, `repeat`, `gap_silent`}; `origin` `user` or `suggestion:<id>` | Sorted by `in_sf` within a segment; no overlap; `words` must exist in the words artifact |
 | `main.joins` | 0–1 item: `after` = cold-open id; `style` `"cut"`, `"flash_white"` or `"dip_black"`; `audio_fade_ms` 0–250 (seed 30); optional `sfx` `{"id": "whoosh", "v": 1}` (absent = no sound) | The cold-open transition (§5.26, amended 2026-10-02). `xfade` stays `op_disabled`; another `{id, v}` is `sfx_unknown` |
 | `main.cut_fade_ms` | 0–50 (default 8) | Micro-fade at every jump cut (G-CLICK) |
-| `captions.pack` | `{id ∈ {classic, karaoke, bold, box}, v: 1}` | Packs are immutable per version (§5.4) |
+| `captions.pack` | `{id ∈ {classic, karaoke, bold, box, sorot}, v: 1}` (`sorot` amended 2026-10-20, §5.30) | Packs are immutable per version (§5.4) |
 | `captions.overrides.y_e5` | 20000–92000 (bottom anchor of the caption block) | Seed 83000 (= today's 17% bottom margin) |
 | `captions.overrides.size_pm` | 700–1400 | Seed 1000 |
 | `captions.overrides.case` | `asis`, `upper` | Case is a display transform; text is never rewritten |
-| `captions.overrides.highlight`, `.emphasis` | swatch `#FFE14D #FFFFFF #3DF5A6 #52C7FF #FF5C8A #FF9F1C` | `highlight` is used by karaoke and bold |
+| `captions.overrides.highlight`, `.emphasis` | swatch `#FFE14D #FFFFFF #3DF5A6 #52C7FF #FF5C8A #FF9F1C` | `highlight` is used by karaoke, bold and sorot (the box behind the spoken word) |
+| `captions.overrides.words_max` | optional; 1–4 (amended 2026-10-20, §5.30) | "Kata per baris": at most this many words per caption line; absent = the pack's `words_per_cue`. Seeds never write it |
 | `captions.word_edits` | ≤ 6,000 keys (word ids); values `{text?, hidden?, emphasis?}` with ≥ 1 key | `text` 1–40 chars. `emphasis` fixes defect #6 (§8) |
 | `layout.default.mode` | `fit_blur`, `camera` (face-track), `fill_center` (center-crop) | `no_face` is `"center"` (today's behaviour), and no-face spans are *reported*, never silent |
 | `tracks` | ≤ 3 tracks: ≤ 1 `hook`, ≤ 1 `visual/over_text/overlay`, ≤ 1 `audio/music`; ≤ 1 item each | Stage 2 lifts the counts; the shapes stay |
@@ -460,6 +461,10 @@ every later reader sees.
   join key `sfx` are valid under `schema_minor: 0`. Every minor-0 document stays valid and
   means what it meant; an older server refuses the new values with `op_disabled` (style) and
   `unknown_key` (`sfx`). `xfade` and a join `dur_f` remain Stage 2.
+- *Amended 2026-10-20 (§5.30):* the optional override `captions.overrides.words_max` (1–4) and
+  the pack id `sorot` are valid under `schema_minor: 0`. A document without them is unchanged in
+  meaning (absent `words_max` = the pack's own count); an older server refuses the key with
+  `unknown_key` and the pack with `pack_unknown`.
 - The pack ids `classic` and `karaoke` are the FINAL `legacy-classic@1` and `legacy-karaoke@1`
   (an alias table is added in Stage 2).
 - FINAL puts the resolver in JS. If Stage 2 adopts that, the Python resolver becomes the
@@ -581,7 +586,7 @@ annotations may be spelled differently).
 
 | Module | Names | Owner |
 |---|---|---|
-| `ai_clipper.edit_v2` (`__init__`) | `COMPILER_VERSION`, `COMPILER_ID` (`"edit-v2/1"`), `RENDER_SEMANTICS`, `SCHEMA`, `SCHEMA_MINOR`, `WORDS_SCHEMA`, `CAMERA_SCHEMA`, `DOC_FPS`, `OUTPUT_SIZES`, `PACK_IDS`, `SWATCHES`, `PACK_DEFAULT_OVERRIDES` | T1.0 |
+| `ai_clipper.edit_v2` (`__init__`) | `COMPILER_VERSION`, `COMPILER_ID` (`"edit-v2/1"`), `RENDER_SEMANTICS`, `SCHEMA`, `SCHEMA_MINOR`, `WORDS_SCHEMA`, `CAMERA_SCHEMA`, `DOC_FPS`, `OUTPUT_SIZES`, `PACK_IDS`, `SWATCHES`, `PACK_DEFAULT_OVERRIDES`, `WORDS_MAX_RANGE` (§5.30) | T1.0 |
 | `edit_v2.errors` | exceptions, code sets, `MESSAGES`, `message`, `message_id`, `base_code`, `exit_code_for`, `EXIT_*` | T1.0 |
 | `edit_v2.timemap` | Appendix A names plus `SAMPLE_RATE`, `MIN_PIECE_FRAMES`, `div_round_half_up`, `speech_spans`, `logo_box`, `Fps.from_json`, `Fps.to_json`, `Piece.to_dto` | T1.0 |
 | `edit_v2.clip_id` | `clip_id`, `is_clip_id`, `ms_from_seconds`, `CLIP_ID_PATTERN` | T1.0 |
@@ -589,7 +594,7 @@ annotations may be spelled differently).
 | `edit_v2.store` | `get`, `seed`, `put`, `archive_for_render`, `prune_receipts`, the §4.1 path constants | T1.1 |
 | `edit_v2.api` | `OPS`, `main` (CLI) | T1.1 |
 | `ai_clipper.subtitles` (additions) | `SourceWord`, `FrameWord`, `FrameCue`, `build_frame_cues` | T1.2a |
-| `ai_clipper.captions_ass` (additions) | `CaptionPack`, `load_pack`, `HookSpec`, `build_ass_v2` | T1.2a |
+| `ai_clipper.captions_ass` (additions) | `CaptionPack`, `load_pack`, `HookSpec`, `build_ass_v2`; `WordBox`, `words_per_cue`, `lightness`, `word_box_text` (§5.30) | T1.2a |
 | `edit_v2.captions` | `CaptionResult`, `caption_track` | T1.2a |
 | `edit_v2.glyphs` | `missing_glyphs`, `advance_px` | T1.2a |
 | `edit_v2.envelope` | `Envelope`, `speech_envelope`, `music_envelope`, `expand_f32` | T1.4 |
@@ -837,7 +842,8 @@ main      segments · removals · joins · cut_fade_ms 0…50
   segment id · role "cold_open"|"body" · in_sf · out_sf (ints ≥ 0)
   removal id · seg · in_sf · out_sf · words [word id] · reason · origin
   join    after · style "cut" · audio_fade_ms 0…250
-captions  enabled bool · pack {id, v} · overrides {y_e5, size_pm, case, highlight, emphasis}
+captions  enabled bool · pack {id, v} · overrides {y_e5, size_pm, case, highlight, emphasis,
+          words_max (optional, §5.30)}
           · word_edits {<word id>: {text?, hidden?, emphasis?}} (values: 1–3 keys)
 layout    default {mode, no_face "center"}
 tracks    hook   {id, kind "hook", items}
@@ -878,8 +884,8 @@ in W1. Canonical bytes, hashes and the document size limit are as in §3.1.
   `[max(a, ⌈first_sf·1000·den/num⌉), min(b, ⌊end_sf·1000·den/num⌋)]`
   (`seed.grid_window_ms`), so `window_sf` is exactly the frames that exist at the source edges.
 - `captions`: `enabled` true, `pack {id, v: 1}`, `overrides = PACK_DEFAULT_OVERRIDES[pack]`
-  (every pack: `y_e5` 83000, `size_pm` 1000, `case` `asis` (`upper` for `bold`),
-  `highlight` `#FFE14D`, `emphasis` `#FF5C8A`), `word_edits` {}.
+  (every pack: `y_e5` 83000, `size_pm` 1000, `case` `asis` (`upper` for `bold` and `sorot`),
+  `highlight` `#FFE14D`, `emphasis` `#FF5C8A`; never `words_max`), `word_edits` {}.
 - Hook: track `{"id": "tr_hook", "kind": "hook"}` with item `it_hook`, origin `seed`,
   `dur_f = round_half_up(hook_duration_ms · num / (1000·den))`,
   `hook_duration_ms = ms_from_seconds(hook_duration)`.
@@ -2165,3 +2171,70 @@ project page. Nothing changes on the server: the order and the neighbours come f
 - Tests: `web/tests/editor-clip-nav.test.mjs` (the model, and the real store over the fake server:
   save, failure, conflict, merge), `web/tests/editor-shortcuts.test.mjs`; in the browser
   `web/e2e/editor-clip-nav.spec.mjs` on the fakes (`editor-gates.yml` `suite=e2e`).
+
+## 5.30 Caption: "Kata per baris" and the Sorot pack (2026-10-20)
+
+Plan `docs/plans/2026-10-20-lanjutan-sesi.md` P1 #9. Every existing document, seed, plan sha,
+golden and auto render is unchanged: `PACK_DEFAULT_OVERRIDES` of the four older packs, the seeds
+(no `words_max`) and `tests/fixtures/edit_v2/plan-shas.json` are pinned by
+`tests/test_edit_v2_captions.py` and `tests/test_edit_v2_plan.py`; a document that writes a
+pack's own count compiles to the same cues and ASS bytes as one without the key.
+
+### The override `words_max` ("Kata per baris")
+
+- Document: optional `captions.overrides.words_max`, an integer `WORDS_MAX_RANGE` = 1–4 (§3.3,
+  §3.8 amendment). Anything else at the key is `range_invalid` at
+  `/captions/overrides/words_max`; `schema_minor` stays 0.
+- Engine: `caption_track` builds cues with `max_words = captions_ass.words_per_cue(pack,
+  overrides)` (`words_max`, else `pack.words_per_cue`); one-line packs (`max_width_pm`) still
+  split wider cues. `build_ass_v2` checks the key like the other overrides.
+- Migration: none on disk. Seeds, older documents and the revision-0 ETag stay byte for byte;
+  the client reads an absent key as the pack's count (`captionWordsPerLine(doc)` in
+  `web/lib/editor/doc-model.mjs`, `PACK_WORDS_PER_LINE` = each pack file's `words_per_cue`).
+- Commands: `SetCaptionOverride {key: "words_max", value}` (merge key `cap:words_max`; a value
+  outside 1–4 is `value_out_of_range`). The key is present only while it differs from the pack's
+  count: choosing that count removes it (a manual revert equals the seed, R10), and
+  `SetCaptionPack` removes it when the new pack's count equals it (as `case` follows a pack
+  default). `checkDoc` accepts the five keys plus an optional valid `words_max`.
+- Two tabs: part `captions.override.words_max` in the "Gaya caption" group; its value is `null`
+  while absent and setting `null` removes the key (`rebase.mjs`).
+- UI: a `PillGroup` "Kata per baris" (1, 2, 3, 4; four columns) after Ukuran in the Caption card
+  and the Teks panel (`CAPTION_WORDS`, `captionWordsId`, `captionWordsCommand` in
+  `caption-model.mjs`). The pressed pill is the effective count; the preview regroups with the
+  next plan. The editor fakes group by `words_max` when it is set.
+
+### The Sorot pack (`resources/caption-packs/sorot/v1.json`)
+
+- Montserrat ExtraBold at 1.2× (64 px at 720×1280), white with a black outline (H/150),
+  `case` `upper` by default, 3 words per cue, one line (`max_width_pm` 880), reveal
+  `word_box` with the pack field `word_box` `{pad_x_pm 160, top_pm 110, radius_pm 140,
+  dark_text "#111111", light_text "#FFFFFF", dark_from_lstar 60}` (per mille of the font size;
+  required with `word_box`, refused otherwise, and only on a `border_style` 1 pack with
+  `max_width_pm`).
+- Events: per active word window (the Bold windows), every other word of the line as its own
+  event, then the box, then the active word, all layer 0 and `\an2\pos(x, bottom)` with
+  `bottom = H − MarginV` and `x` the word's centre in the line centred on `W/2` (`hmtx`
+  advances in exact integers, centipixels). Words never move between windows; the box shares
+  the active word's centre, so kerning inside the word only widens the box on both sides. A
+  word event is `{\an2\pos(x,y)\q2[\fsN]…}` (`\1c` emphasis colour on an inactive keyword);
+  the active word adds `\bord0\shad0\1c<text>`.
+- Box: `{\an2\pos(x,bottom)\bord0\shad0\1c<colour>\p1}` + `_box_path(w, h, r)` +
+  `{\p0}`; `w` = the word's advance + 2·pad, `h` = font size − top inset (the box ends at the
+  line's bottom), corners rounded with one cubic Bézier each (control offset
+  `round_half_up(r·4477/10000)`; `r` capped at half the shorter side; `r` 0 is the plain
+  rectangle the Box pack's vector variant draws). Colour: `highlight` ("Warna sorot"), or
+  `emphasis` on a keyword. A single word wider than the line limit shrinks with `\fsN` and the
+  box follows.
+- Text on the box: `word_box_text(colour, box)` is `dark_text` when the CIE L* of the colour
+  (`lightness`, from its WCAG relative luminance) is at least `dark_from_lstar` (60), else
+  `light_text`. All six swatches are at L* ≥ 62.3, so the spoken word is dark on each (contrast
+  6.4:1 on `#FF5C8A` to 18.9:1 on white); a box at L* < 60 gets white text.
+- Gates: P-TXT covers `sorot` at 10, 40 and 90 characters (`reference_text.PACKS`, word onsets
+  are probe edges), the smoke subset adds `sorot-40` (`run_all.sh`), the player fixtures add the
+  `sorot` variant, P-TIME (`support.edit_v2_text`) expects `len(words) + 1` events per window and
+  renders Sorot on grey; ASS goldens `sorot__c30` and `words_max_1__c30`; the thumbnail
+  `pack-thumbs/sorot.png` comes from `make_pack_thumbs.py`.
+- Pack lists: `PACK_IDS` (Python and JS), `PACK_DEFAULT_CASE`, `PACK_WORDS_PER_LINE`,
+  `CAPTION_PACKS` ("Sorot", "Kotak warna di kata terucap"), `HIGHLIGHT_PACKS`, `PACK_IMAGES`, the
+  transcript harness store. The highlight note for the other packs reads "Dipakai oleh Karaoke,
+  Bold dan Sorot; tidak tampak di gaya ini."
