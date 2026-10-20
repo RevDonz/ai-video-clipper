@@ -165,7 +165,7 @@ export default function LogoPanel({ state, dispatch, uploadAsset: uploadProp = n
           )}
         </div>
         <div className={styles.assetText}>
-          <span className={styles.assetName}>{uploads.names[logo.assetId] ?? "Logo"}</span>
+          <span className={styles.assetName}>{uploads.names[logo.assetId] ?? logo.label}</span>
           <span className={styles.note}>{`${meta.w} × ${meta.h} px`}</span>
           <div className={styles.row}>
             <button type="button" className={styles.button} disabled={locked || !canUpload || uploading} onClick={chooseFile}>Ganti logo</button>

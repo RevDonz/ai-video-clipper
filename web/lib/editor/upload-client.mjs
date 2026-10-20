@@ -2,7 +2,8 @@
 // `uploadAsset`; T3.1).
 //
 // `uploadAsset(jobId, file, kind, { onProgress, signal, key })` sends the file as the raw body of
-// POST /api/jobs/:id/assets through XMLHttpRequest (fetch reports no upload progress). The type
+// POST /api/jobs/:id/assets through XMLHttpRequest (fetch reports no upload progress);
+// `uploadDefaultLogo(file, options)` sends a logo the same way to POST /api/settings/logo. The type
 // and size are checked against the server's allowlist first, so a wrong file never goes out;
 // `key` reuses an Idempotency-Key to retry the same upload. X-Asset-Name is percent-encoded:
 // header values are ASCII.
@@ -155,8 +156,17 @@ function responseBody(xhr) {
 }
 
 export function createUploadClient({ xhrFactory = () => new XMLHttpRequest(), base = "", randomUuid = defaultRandomUuid } = {}) {
-  async function uploadAsset(jobId, file, kind, { onProgress, signal, key } = {}) {
+  async function uploadAsset(jobId, file, kind, options = {}) {
     if (typeof jobId !== "string" || !UUID.test(jobId)) throw new TypeError("jobId is invalid");
+    return send(`${base}/api/jobs/${jobId}/assets`, file, kind, options);
+  }
+
+  // Pengaturan "Logo bawaan": the same transport into the settings route.
+  async function uploadDefaultLogo(file, options = {}) {
+    return send(`${base}/api/settings/logo`, file, "logo", options);
+  }
+
+  async function send(url, file, kind, { onProgress, signal, key } = {}) {
     if (signal?.aborted) throw abortError();
     if (!Object.hasOwn(UPLOAD_RULES, kind)) throw new UploadError(400, "invalid_request");
     const mime = canonicalType(file, kind);
@@ -181,7 +191,7 @@ export function createUploadClient({ xhrFactory = () => new XMLHttpRequest(), ba
         try { xhr.abort(); } catch { /* already done */ }
         finish(() => reject(abortError()));
       }
-      xhr.open("POST", `${base}/api/jobs/${jobId}/assets`);
+      xhr.open("POST", url);
       xhr.setRequestHeader("Accept", "application/json");
       xhr.setRequestHeader("Content-Type", mime);
       xhr.setRequestHeader("X-Asset-Kind", kind);
@@ -215,7 +225,7 @@ export function createUploadClient({ xhrFactory = () => new XMLHttpRequest(), ba
       xhr.send(file);
     });
   }
-  return { uploadAsset };
+  return { uploadAsset, uploadDefaultLogo };
 }
 
 let defaultClient = null;
@@ -224,4 +234,10 @@ let defaultClient = null;
 export function uploadAsset(jobId, file, kind, options = {}) {
   defaultClient ??= createUploadClient();
   return defaultClient.uploadAsset(jobId, file, kind, options);
+}
+
+/** `POST /api/settings/logo` with the page's XHR; resolves with the logo DTO. */
+export function uploadDefaultLogo(file, options = {}) {
+  defaultClient ??= createUploadClient();
+  return defaultClient.uploadDefaultLogo(file, options);
 }

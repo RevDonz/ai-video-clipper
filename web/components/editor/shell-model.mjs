@@ -1,6 +1,7 @@
 // Presentation rules of the Editor V3 shell (T2.6): the stage badge of plan §6.1, the save state
 // and the copy of Appendix C.1/C.6, the "Perlu dicek" list (§3.7 warnings), content identity for
 // R10 and the page gate. Pure functions, no DOM; client- and server-safe.
+import { autoFileIsSeed } from "../../lib/editor/doc-model.mjs";
 
 // The Indonesian messages the shell shows, copied from src/ai_clipper/edit_v2/errors.py
 // (`_MESSAGES`); web/tests/editor-shell-model.test.mjs fails if one drifts.
@@ -377,7 +378,7 @@ export function contentEqualsSeed(doc, seed) {
 
 /** Whether an export of this document returns the auto clip's own file (R10). */
 export function exportMatchesSeed({ plan, doc, seed }) {
-  if (doc && seed) return contentEqualsSeed(doc, seed);
+  if (doc && seed) return contentEqualsSeed(doc, seed) && autoFileIsSeed(seed);
   return Boolean(plan?.planSha256) && plan.planSha256 === plan?.rev0?.planSha256;
 }
 

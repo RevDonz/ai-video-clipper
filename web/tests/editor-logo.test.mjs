@@ -528,6 +528,11 @@ test("the panel's view: the logo, its box, the preset it sits on and the server'
   const hookOnly = logoPanelView({ status: "ready", doc, plan: { ...plan, warnings: [plan.warnings[1]] }, jobId: FAKE_JOB_ID });
   assert.equal(hookOnly.logo.unsafe, false, "the hook's warning is not the logo's");
   assert.equal(logoPanelView({ status: "readOnly", doc, plan, jobId: FAKE_JOB_ID }).readOnly, true);
+  // A logo the clip was seeded with is the Pengaturan default logo; an uploaded one is "Logo".
+  assert.equal(view.logo.label, "Logo");
+  const seeded = structuredClone(doc);
+  seeded.tracks.find((track) => track.kind === "visual").items[0].origin = "seed";
+  assert.equal(logoPanelView({ status: "ready", doc: seeded, plan, jobId: FAKE_JOB_ID }).logo.label, "Logo bawaan");
   assert.equal(sizeLabel(16000, { w: 115 }), "16% lebar video · 115 px");
   assert.equal(sizeLabel(4050, { w: 29 }), "4,1% lebar video · 29 px");
   assert.equal(opacityLabel(850), "85%");

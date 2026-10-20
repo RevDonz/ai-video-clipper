@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readdir, readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -166,9 +167,9 @@ const POST_ENV = {
   JOBS_STORAGE_SCAN_MAX_ENTRIES: "10000", JOBS_STORAGE_SCAN_MAX_DEPTH: "12",
 };
 
-async function withJobsApi(run) {
+async function withJobsApi(run, extra = {}) {
   const root = await mkdtemp(path.join(os.tmpdir(), "clipper-job-api-"));
-  const env = { ...POST_ENV, JOBS_ROOT: root };
+  const env = { ...POST_ENV, JOBS_ROOT: root, POTONGIN_SETTINGS_DIR: path.join(path.dirname(root), `${path.basename(root)}-settings`), ...extra };
   const previous = Object.fromEntries(Object.keys(env).map((key) => [key, process.env[key]]));
   Object.assign(process.env, env);
   try {
@@ -187,7 +188,7 @@ async function withJobsApi(run) {
         return createJob(new Request("http://clips.example/api/jobs", { method: "POST", headers, body: bytes }));
       });
     };
-    await run({ root, post });
+    await run({ root, post, env });
   } finally {
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) delete process.env[key]; else process.env[key] = value;
@@ -243,6 +244,31 @@ test("POST /api/jobs stores new jobs with the current selection, with or without
     assert.equal(explicit.status, 202);
     assert.deepEqual((await explicit.json()).job.options.focus, { terms: ["jomok"], mode: "prefer" });
     assert.equal((await jobDirectories(root)).length, 2);
+  });
+});
+
+test("POST /api/jobs gives a new job a copy of the Pengaturan default logo, and none without one", async () => {
+  await withJobsApi(async ({ root, post, env }) => {
+    const plain = (await (await post({ youtubeUrl: "https://youtu.be/rBg0ZcwjVKQ" })).json()).job;
+    assert.deepEqual((await readdir(path.join(root, plain.id))).includes("logo"), false);
+
+    const png = Buffer.from("89504e470d0a1a0a0000000d49484452", "hex");
+    const sha = createHash("sha256").update(png).digest("hex");
+    const dir = path.join(env.POTONGIN_SETTINGS_DIR, "default-logo");
+    await mkdir(dir, { recursive: true, mode: 0o700 });
+    await writeFile(path.join(dir, `${sha}.png`), png, { mode: 0o600 });
+    const meta = JSON.stringify({ schema: "potongin.asset/1", kind: "image", mime: "image/png", w: 4, h: 2, name: "logo.png", bytes: png.length, created_at_ms: 1 });
+    await writeFile(path.join(dir, `${sha}.json`), meta, { mode: 0o600 });
+    await writeFile(path.join(dir, "current.json"), JSON.stringify({ schema: "potongin.default-logo/1", sha256: sha, updatedAtMs: 1 }), { mode: 0o600 });
+
+    const response = await post({ youtubeUrl: "https://youtu.be/rBg0ZcwjVKQ" });
+    assert.equal(response.status, 202);
+    const { job } = await response.json();
+    const copy = path.join(root, job.id, "logo");
+    assert.deepEqual((await readdir(copy)).sort(), [`${sha}.json`, `${sha}.png`]);
+    assert.deepEqual(await readFile(path.join(copy, `${sha}.png`)), png);
+    assert.equal(await readFile(path.join(copy, `${sha}.json`), "utf8"), meta);
+    assert.equal(JSON.stringify(job).includes(sha), false); // the job's public shape is unchanged
   });
 });
 
