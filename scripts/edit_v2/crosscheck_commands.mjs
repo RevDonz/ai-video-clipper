@@ -252,6 +252,9 @@ const GENERATORS = {
   SetLayout(rng) {
     return { mode: pick(rng, ["fit_blur", "camera", "fill_center", "fill_center", "split"]) };
   },
+  SetNoFace(rng) {
+    return { mode: pick(rng, ["center", "fit_blur", "fit_blur", "fail"]) };
+  },
   SetLogo(rng, _doc, context) {
     const asset = pick(rng, assetsOf(context, "image"));
     return { asset: asset.id, meta: asset.meta };
@@ -323,7 +326,7 @@ const GENERATORS = {
 const WEIGHTS = {
   RemoveWords: 16, RestoreRemoval: 5, TrimStart: 5, TrimEnd: 5, RemoveGap: 4, ApplyCleanup: 3, SetColdOpen: 4,
   NudgeColdOpen: 4, SetJoinStyle: 3, SetJoinSfx: 2, EditWordText: 7, SetWordHidden: 3, SetWordEmphasis: 3, SetCaptionsEnabled: 1, SetCaptionPack: 2,
-  SetCaptionOverride: 4, SetHookEnabled: 2, SetHookText: 4, SetHookDuration: 2, SetHookY: 2, SetHookDesign: 2, SetLayout: 2, SetLogo: 3,
+  SetCaptionOverride: 4, SetHookEnabled: 2, SetHookText: 4, SetHookDuration: 2, SetHookY: 2, SetHookDesign: 2, SetLayout: 2, SetNoFace: 1, SetLogo: 3,
   RemoveLogo: 1, MoveLogo: 3, ResizeLogo: 2, SetLogoOpacity: 2, SnapLogo: 2, SetMusic: 3, RemoveMusic: 1,
   SetMusicGain: 2, SetMusicOffset: 2, SetMusicLoop: 1, SetMusicFades: 2, SetDuck: 2, SetSourceGain: 2, SetLoudness: 2,
   ResetToSeed: 1,

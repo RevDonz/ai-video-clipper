@@ -629,7 +629,10 @@ RULES = [
      "/layout/default/mode"),
     ("c30", lambda d: d["layout"]["default"].update(no_face="fail"), "op_disabled",
      "/layout/default/no_face"),
-    ("c30", lambda d: d["layout"]["default"].update(no_face="fit_blur"), "op_disabled",
+    # the face-track fallback (CONTRACTS §5.40): valid with every layout, used by face-track
+    ("c30", lambda d: d["layout"]["default"].update(no_face="fit_blur"), None, None),
+    ("c25", lambda d: d["layout"]["default"].update(no_face="fit_blur"), None, None),
+    ("c30", lambda d: d["layout"]["default"].update(no_face="blur"), "range_invalid",
      "/layout/default/no_face"),
     # tracks and items
     ("c30", lambda d: d["tracks"][0].update(kind="banner"), "range_invalid", "/tracks/0/kind"),

@@ -121,7 +121,9 @@ saran dengan Putar dan Pakai), lalu bagian **Transisi** yang sama persis dengan 
 kalimat**. Menambah atau membuang kata di ujung kalimat ada di Mode Lengkap.
 
 **Tata letak.** **Latar blur**, **Potong tengah** dan **Ikuti wajah**. Analisis wajah tetap berjalan
-walau kartu ditutup atau tampilan dipindah; progresnya juga tampil di panel Tata letak.
+walau kartu ditutup atau tampilan dipindah; progresnya juga tampil di panel Tata letak. Ikuti wajah
+yang dipilih di sini menampilkan bagian tanpa wajah dengan latar blur; daftar bagian itu dan pilihan
+"Dipusatkan" ada di panel Tata letak Mode Lengkap.
 
 **Logo & Musik.** **Tambah logo** (lalu geser logo langsung di pratinjau), **Tambah musik** (catatan
 hak cipta muncul sekali, sama dengan di Mode Lengkap), kekuatan **Saat ada suara** (Halus, Sedang,
@@ -204,7 +206,12 @@ bagian ini mati dengan keterangan "Aktifkan cold open dulu."
 **Tata letak.** **Latar blur**, **Ikuti wajah** dan **Potong tengah**, masing-masing dengan
 contoh gambar di posisi putar. Berlaku untuk seluruh klip. "Ikuti wajah" pada proyek yang belum
 punya analisis wajah menganalisis dulu (hitungan persen); bagian tanpa wajah didaftar dengan
-tombol lompat, dan di bagian itu video dipusatkan.
+tombol lompat. Di bawah pilihan tata letak ada **Bagian tanpa wajah**: **Latar blur** (seluruh
+gambar 16:9 di tengah, atas dan bawah diisi versi blur dari gambar yang sama) atau **Dipusatkan**
+(potongan 9:16 di tengah, seperti klip otomatis). Memilih "Ikuti wajah" di editor langsung memakai
+Latar blur; klip otomatis "Ikuti wajah" tetap Dipusatkan sampai diganti. Dengan Latar blur, bagian
+tanpa wajah hanya jadi catatan (tanpa centang saat ekspor); satu klik di "Dipusatkan" mengembalikan
+tampilan klip otomatis, dan sebaliknya.
 
 **Logo.** **"Unggah logo"** (PNG, JPEG atau WebP, maks. 10 MB; PNG transparan paling rapi)
 atau seret file ke panel. Logo baru muncul di kanan atas, di luar area tombol TikTok/Reels. Posisi

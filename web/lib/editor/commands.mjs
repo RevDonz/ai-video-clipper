@@ -29,6 +29,8 @@
 //   `{ id, kind: "gap_silent", afterWord, inSf, outSf }`; origin `suggestion:<id>`.
 // - SetColdOpen gives the join the transition of `joinTemplate` (doc-model.mjs): the current
 //   join's style and whoosh, else the seed's, else Kilat putih + whoosh (the auto clips' default).
+// - SetLayout into face-track turns the latar blur fallback on (`no_face: "fit_blur"`,
+//   `switchedLayout`); SetNoFace switches it back to centred, or on again (CONTRACTS §5.40).
 import {
   ASSET_ID_PATTERN,
   CAPTION_OVERRIDE_RULES,
@@ -38,6 +40,7 @@ import {
   JOIN_STYLES,
   LAYOUT_MODES,
   LIMITS,
+  NO_FACE_MODES,
   PACK_DEFAULT_CASE,
   PACK_IDS,
   PACK_WORDS_PER_LINE,
@@ -56,6 +59,7 @@ import {
   musicItem,
   nextId,
   normalizeText,
+  switchedLayout,
   trackOf,
 } from "./doc-model.mjs";
 import { divRoundHalfUp, logoBox, pieces, sfCeil, sfFloor } from "./timemap.mjs";
@@ -63,13 +67,13 @@ import { divRoundHalfUp, logoBox, pieces, sfCeil, sfFloor } from "./timemap.mjs"
 /**
  * Appendix B, in the order of the table (the same list as `__dev__/fakes.mjs`), with the
  * cold-open transition commands after NudgeColdOpen (docs/plans/2026-10-02-transisi-cold-open.md §7.2)
- * and SetHookDesign after SetHookY (CONTRACTS §5.33).
+ * SetHookDesign after SetHookY (CONTRACTS §5.33) and SetNoFace after SetLayout (CONTRACTS §5.40).
  */
 export const COMMANDS = Object.freeze([
   "TrimStart", "TrimEnd", "RemoveWords", "RemoveGap", "RestoreRemoval", "ApplyCleanup",
   "SetColdOpen", "NudgeColdOpen", "SetJoinStyle", "SetJoinSfx", "EditWordText", "SetWordHidden", "SetWordEmphasis",
   "SetCaptionsEnabled", "SetCaptionPack", "SetCaptionOverride", "SetHookEnabled", "SetHookText",
-  "SetHookDuration", "SetHookY", "SetHookDesign", "SetLayout", "SetLogo", "RemoveLogo", "MoveLogo", "ResizeLogo",
+  "SetHookDuration", "SetHookY", "SetHookDesign", "SetLayout", "SetNoFace", "SetLogo", "RemoveLogo", "MoveLogo", "ResizeLogo",
   "SetLogoOpacity", "SnapLogo", "SetMusic", "RemoveMusic", "SetMusicGain", "SetMusicOffset",
   "SetMusicLoop", "SetMusicFades", "SetDuck", "SetSourceGain", "SetLoudness", "ResetToSeed",
 ]);
@@ -783,7 +787,12 @@ const HANDLERS = {
 
   SetLayout(doc, args) {
     need(LAYOUT_MODES.includes(args.mode), "value_out_of_range");
-    return { doc: { ...doc, layout: { ...doc.layout, default: { ...doc.layout.default, mode: args.mode } } }, args: { mode: args.mode } };
+    return { doc: { ...doc, layout: { ...doc.layout, default: switchedLayout(doc.layout.default, args.mode) } }, args: { mode: args.mode } };
+  },
+
+  SetNoFace(doc, args) {
+    need(NO_FACE_MODES.includes(args.mode), "value_out_of_range");
+    return { doc: { ...doc, layout: { ...doc.layout, default: { ...doc.layout.default, no_face: args.mode } } }, args: { mode: args.mode } };
   },
 
   SetLogo(doc, args, ctx) {

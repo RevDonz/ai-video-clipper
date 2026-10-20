@@ -1,12 +1,14 @@
 """Layout switch and face-track through the preview lane (plan §11.3 T3.6, §5.7, §3.3
 ``layout.default.mode``, Appendix B ``SetLayout``).
 
-A switch changes only ``layout.default.mode``. The plate key follows it (the layout is part of
-the plate pixels) while the text and the audio mix stay as they are; switching back finds the
-plate cells built before. The face-track layout of a clip seeded with another layout needs a
+A switch changes ``layout.default.mode`` (a switch into face-track also turns the latar blur
+fallback on, CONTRACTS §5.40). The plate key follows it (the layout is part of the plate pixels)
+while the text and the audio mix stay as they are; switching back finds the plate cells built
+before. The face-track layout of a clip seeded with another layout needs a
 camera plan: ``prepare`` builds it once for the clip window and every later plan, preview and
 export reuses that file. Runs of the plan without a face become ``no_face`` warnings at the
-output frame where they start (per piece), so the editor can list them with a jump-to target.
+output frame where they start (per piece), so the editor can list them with a jump-to target;
+with the fallback they are ``no_face_blur`` notes at the same frames.
 
 The media tests run on the synthetic V3 job of ``scripts/editor_fixture/make_job.py`` (a 180 s
 barcode source at 29.97, fit-blur seeds).
@@ -50,6 +52,14 @@ def revision(case: dict, layout: str | None = None) -> dict:
     doc["audit"]["last_command"] = "SetLayout"
     if layout is not None:
         doc["layout"]["default"]["mode"] = layout
+    return doc
+
+
+def face_track(case: dict) -> dict:
+    """Revision 1 after ``SetLayout {mode: "camera"}`` from the seed's layout: face-track with the
+    latar blur fallback where no face was found (CONTRACTS §5.40)."""
+    doc = revision(case, "camera")
+    doc["layout"]["default"]["no_face"] = "fit_blur"
     return doc
 
 
@@ -108,7 +118,7 @@ def test_the_camera_plan_is_built_once_for_the_window_and_reused(job, monkeypatc
         return original(*args, **kwargs)
 
     monkeypatch.setattr(camera, "detect_window", counting)
-    doc = revision(case, "camera")
+    doc = face_track(case)
     status, payload = call(case["root"], op="plan", jobId=case["jobId"], clipId=case["clipId"],
                            requestRaw=b64(body(doc)))
     assert status == 8 and payload["error"]["code"] == "analysis_missing"
@@ -127,7 +137,7 @@ def test_the_camera_plan_is_built_once_for_the_window_and_reused(job, monkeypatc
     # prepare again, switch away and back: the same file, the same key, no second analysis
     assert lane_op(case, "prepare", layout="camera")["plateKey"] == key
     plan_of(case, revision(case, "fill_center"))
-    assert plan_of(case, revision(case, "camera"))["dto"]["plate"]["plateKey"] == key
+    assert plan_of(case, face_track(case))["dto"]["plate"]["plateKey"] == key
     assert len(calls) == 1
     assert sorted(case["clip"].glob("camera.*.json")) == files
     assert plates.camera_for(case["clip"], doc)[1] == sha
@@ -202,14 +212,24 @@ def test_no_face_runs_are_listed_at_their_output_frames(no_face_case):
         assert not [w for w in other["warnings"] if w["code"] == "no_face"]
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "preview_cli._plan de-duplicates the DTO warnings by (code, path, ref), so every no_face run "
-    "after the first (same code and path, no ref, another f) is dropped; the fix is to include "
-    "'f' in that marker (request to the W3 integrator: preview_cli.py is T2.3's)"))
 def test_the_plan_dto_lists_every_no_face_run(no_face_case):
+    """The DTO keeps one warning per run: its de-duplication includes the frame."""
     case, doc, expected = no_face_case
     dto = plan_of(case, doc)["dto"]
     assert sorted(w["f"] for w in dto["warnings"] if w["code"] == "no_face") == expected
+
+
+def test_with_the_blur_fallback_every_run_is_a_note_at_the_same_frame(no_face_case):
+    case, doc, expected = no_face_case
+    blurred = copy.deepcopy(doc)
+    blurred["layout"]["default"]["no_face"] = "fit_blur"
+    plan = render_edit.load_render_inputs(case["job_dir"], blurred).plan
+    assert not [w for w in plan.warnings if w.code == "no_face"]
+    notes = [w for w in plan.warnings if w.code == "no_face_blur"]
+    assert sorted(w.f for w in notes) == expected
+    assert all(w.path == "/layout/default/no_face" and w.ref is None for w in notes)
+    dto = plan_of(case, blurred)["dto"]
+    assert sorted(w["f"] for w in dto["warnings"] if w["code"] == "no_face_blur") == expected
 
 
 def test_the_plan_dto_lists_the_first_no_face_run(no_face_case):

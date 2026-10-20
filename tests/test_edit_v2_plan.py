@@ -414,6 +414,35 @@ def test_no_face_is_only_reported_for_the_camera_layout(harness, resources):
     assert not [issue for issue in plan.warnings if issue.code == "no_face"]
 
 
+def test_with_the_blur_fallback_a_run_without_a_face_is_a_note(harness, resources):
+    """``no_face: "fit_blur"`` (CONTRACTS §5.40): the run is shown with latar blur, so the plan
+    names it ``no_face_blur`` at the same output frame, and never ``no_face``."""
+    name = "layout_camera_no_face_blur__c30"
+    doc = load_doc(name)
+    assert doc["layout"]["default"] == {"mode": "camera", "no_face": "fit_blur"}
+    camera = camera_for(doc)
+    fps = tm.Fps.from_json(doc["output"]["fps"])
+    body = doc["main"]["segments"][1]
+    start_ms = body["in_sf"] * 1000 * fps.den // fps.num + 2000
+    camera["no_face"] = [[start_ms, start_ms + 2500]]
+    plan = plan_for(name, resources, doc=doc, camera=camera)
+    assert not [issue for issue in plan.warnings if issue.code == "no_face"]
+    notes = [issue for issue in plan.warnings if issue.code == "no_face_blur"]
+    piece = next(p for p in plan.pieces if p.seg == "seg_b1")
+    assert [(issue.f, issue.path) for issue in notes] == [
+        (piece.out_f0 + tm.sf_floor(start_ms, fps) - piece.in_sf, "/layout/default/no_face")]
+    centred = copy.deepcopy(doc)
+    centred["layout"]["default"]["no_face"] = "center"
+    assert plan_for(name, resources, doc=centred, camera=camera).warnings == tuple(
+        dataclasses.replace(issue, code="no_face", path="/layout/default/mode")
+        if issue.code == "no_face_blur" else issue for issue in plan.warnings)
+    # another layout has no camera, so neither
+    other = copy.deepcopy(doc)
+    other["layout"]["default"]["mode"] = "fit_blur"
+    assert not {"no_face", "no_face_blur"} & {
+        issue.code for issue in plan_for(name, resources, doc=other, camera=camera).warnings}
+
+
 def test_caption_warnings_are_carried(harness, resources, monkeypatch):
     real = harness.harness_caption_track
     issue = doc_module.Issue("hook_overflow", "/tracks/0/items/0/payload/text", ref="it_hook")

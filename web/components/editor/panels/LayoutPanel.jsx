@@ -12,28 +12,34 @@
 //   choice made during the analysis wins. A face-track document whose plan is missing is analysed
 //   on its own. The run is the clip's (layout-analysis.mjs `layoutAnalysisFor`), not this
 //   panel's: it goes on when the panel closes, and Mode Cepat's Tata letak card shows it too.
-// - Under face-track the runs without a face (the plan's `no_face` warnings) are listed with a
-//   jump-to button each; the video is centred there (§3.7).
+// - Under face-track a choice says what the runs without a face show: latar blur (what choosing
+//   face-track here sets) or centred (a face-track auto clip), one click each (`SetNoFace`,
+//   CONTRACTS §5.40). The runs (the plan's `no_face` or `no_face_blur`) are listed with a jump-to
+//   button each; with latar blur they are notes, not checks.
 //
 // Props: { state, dispatch, player } (panels/index.mjs), plus the optional seams `api` (prepare
 // and `cameraProgress()`) and `previewClient` (thumbnails). Without them the fake runtime's
 // objects (window.__potonginEditor) are used, and in the app the panel's own clients.
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { createApiClient } from "../../../lib/editor/api-client.mjs";
 import { createPreviewClient } from "../../../lib/editor/preview-client.mjs";
 import { formatClock, frameToMs, rejectionText } from "../shell-model.mjs";
+import PillGroup from "../ui/PillGroup.jsx";
 import { analysisBusy, analysisForView, layoutAnalysisFor } from "./layout-analysis.mjs";
 import styles from "./layout.module.css";
 import {
   ANALYSIS_TEXT,
   LAYOUT_OPTIONS,
+  NO_FACE_OPTIONS,
   analysisRangeMs,
   analysisView,
   cameraReadyFromState,
   contentKey,
   layoutCommand,
-  noFaceList,
+  layoutNote,
+  noFaceCommand,
+  noFaceView,
   rangeText,
   switchSteps,
   thumbnailFrame,
@@ -226,6 +232,7 @@ function LayoutPanelBody({ state, getState = null, dispatch, player, api: apiPro
   const { thumbs, at } = useThumbnails({ state, services, frame, cameraReady });
   const choice = analysisBusy(run) && run.target === "camera" ? "camera" : null; // face-track while its analysis runs
   const running = run.phase === "running";
+  const uid = useId();
 
   useEffect(() => {
     if (!running) return undefined;
@@ -234,8 +241,7 @@ function LayoutPanelBody({ state, getState = null, dispatch, player, api: apiPro
     return () => clearInterval(timer);
   }, [running]);
 
-  const switchTo = (mode) => {
-    const { type, args, mergeKey } = layoutCommand(mode);
+  const send = ({ type, args, mergeKey }) => {
     try {
       dispatchRef.current(type, args, { mergeKey });
       setMessage(null);
@@ -262,7 +268,7 @@ function LayoutPanelBody({ state, getState = null, dispatch, player, api: apiPro
     }
     // any other choice ends a pending face-track switch (its analysis finishes on the server)
     analysisStore.cancelSwitch();
-    if (steps === "dispatch") switchTo(mode);
+    if (steps === "dispatch") send(layoutCommand(mode));
   };
 
   // A face-track document whose camera plan is missing (the plan request says so): analyse it,
@@ -279,7 +285,8 @@ function LayoutPanelBody({ state, getState = null, dispatch, player, api: apiPro
   const pending = choice !== null && choice !== layout;
   const rangeLabel = rangeText(analysisRangeMs(doc));
   const planCurrent = !(state.pending ?? []).includes("text") && !state.previewError && Boolean(state.plan);
-  const noFace = noFaceList(state.plan);
+  const noFace = noFaceView(doc, state.plan);
+  const noFaceNote = `${uid}-noface-note`;
 
   return (
     <section data-panel="layout" className={styles.panel} aria-busy={running}>
@@ -305,13 +312,13 @@ function LayoutPanelBody({ state, getState = null, dispatch, player, api: apiPro
                 </span>
                 <span className={styles.name} id={`layout-name-${option.id}`}>{option.name}</span>
                 {pending && option.id === layout ? <span className={styles.badge}>Dipakai</span> : null}
-                <span className={styles.srOnly} id={`layout-note-${option.id}`}>{option.note}</span>
+                <span className={styles.srOnly} id={`layout-note-${option.id}`}>{layoutNote(option, doc)}</span>
               </label>
             ))}
           </div>
         </fieldset>
         <p className={styles.about} data-layout-about="" aria-hidden="true">
-          <strong>{`${shown.name}:`}</strong>{` ${shown.note}`}
+          <strong>{`${shown.name}:`}</strong>{` ${layoutNote(shown, doc)}`}
         </p>
         {view && running ? (
           <div className={styles.analysis} data-layout-analysis="" role="status">
@@ -333,19 +340,25 @@ function LayoutPanelBody({ state, getState = null, dispatch, player, api: apiPro
         <p className={styles.note}>{`Contoh diambil dari frame akhir di posisi ${formatClock(frameToMs(at ?? 0, fps))}.`}</p>
       </div>
       {layout === "camera" ? (
-        <div className={styles.section} data-layout-noface="">
+        <div className={styles.section} data-layout-noface="" data-no-face={noFace.mode}>
+          {/* Always shown under face-track, above the list that a re-plan replaces: the choice keeps
+              its place and its focus while the new plan arrives. */}
+          <PillGroup legend="Bagian tanpa wajah" name={`${uid}-noface`} options={NO_FACE_OPTIONS} value={noFace.mode}
+            disabled={readOnly} describedBy={planCurrent && noFace.runs.length ? noFaceNote : undefined}
+            onChange={(mode) => send(noFaceCommand(mode))} />
           {!planCurrent ? (
             <p className={styles.note}>Memeriksa hasil analisis wajah…</p>
-          ) : noFace.length === 0 ? (
+          ) : noFace.runs.length === 0 ? (
             <p className={styles.note}>Wajah terdeteksi di seluruh klip.</p>
           ) : (
             <>
-              <h4 className={styles.subtitle}>{`Tanpa wajah terdeteksi (${noFace.length})`}</h4>
-              <p className={styles.note}>Di bagian ini video dipusatkan.</p>
+              <h4 className={styles.subtitle}>{`Tanpa wajah terdeteksi (${noFace.runs.length})`}</h4>
+              <p className={styles.note} id={noFaceNote}>{noFace.note}</p>
               <ul className={styles.jumps}>
-                {noFace.map((entry) => (
+                {noFace.runs.map((entry) => (
                   <li key={entry.f}>
-                    <button type="button" className={styles.jump} onClick={() => player?.seek?.(entry.f)}>
+                    <button type="button" className={`${styles.jump} ${noFace.mode === "fit_blur" ? styles.jumpNote : ""}`}
+                      onClick={() => player?.seek?.(entry.f)}>
                       {`Lompat ke ${entry.time}`}
                     </button>
                   </li>

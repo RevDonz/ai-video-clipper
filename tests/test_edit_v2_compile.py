@@ -883,6 +883,125 @@ def test_camera_crop_is_the_same_in_plate_cells_and_in_final_pieces(harness, pro
             checked += 1
     assert checked > 200
     assert len(plan.pieces) == 4  # the cuts are crossed: output n and source sf diverge
+
+
+# --- the face-track fallback: latar blur where no face was found (CONTRACTS §5.40) -------------------
+
+
+def test_no_face_frames_are_the_grid_frames_a_span_touches():
+    fps = Fps(30000, 1001)
+    camera = {"no_face": [[1000, 2500], [4000, 4001]]}
+    flags = layouts.no_face_frames(camera, fps, first_sf=0, count=150)
+    assert len(flags) == 150 and all(type(flag) is bool for flag in flags)
+    # a span [s, e) ms covers frames [sf_floor(s), sf_ceil(e)), like a segment edge (§3.4):
+    # frame 29 runs 967.6-1001.0 ms and frame 74 runs 2469.1-2502.5 ms
+    assert [sf for sf, flag in enumerate(flags) if flag] == [*range(29, 75), 119]
+    assert layouts.no_face_frames(camera, fps, first_sf=20, count=40) == flags[20:60]
+    assert layouts.no_face_frames({"no_face": []}, fps, first_sf=0, count=3) == (False,) * 3
+    assert layouts.no_face_frames({}, fps, first_sf=0, count=2) == (False, False)
+    # integers only: a span ending exactly on a frame start does not reach that frame
+    exact = layouts.no_face_frames({"no_face": [[0, 40]]}, Fps(25, 1), first_sf=0, count=3)
+    assert exact == (True, False, False)
+
+
+def test_centre_x_is_crops_default_centre():
+    assert layouts.centre_x((1280, 720), (720, 1280)) == 778  # (2276 − 720) / 2
+    assert layouts.centre_x((1918, 1080), (720, 1280)) == 776  # 2273 − 720 = 1553: truncated
+    assert layouts.centre_x((720, 1280), (720, 1280)) == 0
+
+
+LAYOUT_ARGS = {"label_in": "[in]", "label_out": "[out]", "suffix": "_3", "output": (720, 1280),
+               "source": (1280, 720), "matrix": "bt709", "in_range": "tv"}
+
+
+def test_the_fallback_chain_is_the_fit_blur_chain_with_three_per_frame_switches():
+    crop = (100, 102, 104, 106, 108)
+    camera = layouts.layout_chain("camera", crop=crop, **LAYOUT_ARGS)
+    fit_blur = layouts.layout_chain("fit_blur", **LAYOUT_ARGS)
+    # no frame without a face: today's camera chain; only such frames: the fit-blur chain
+    for fallback in (None, (False,) * 5):
+        assert layouts.layout_chain("camera", crop=crop, fallback=fallback,
+                                    **LAYOUT_ARGS) == camera
+    assert layouts.layout_chain("camera", crop=crop, fallback=(True,) * 5,
+                                **LAYOUT_ARGS) == fit_blur
+    mixed = layouts.layout_chain("camera", crop=crop, fallback=(False, True, True, False, False),
+                                 **LAYOUT_ARGS)
+    x = re.search(r"crop=720:1280:x='([^']*)':y=\(ih-oh\)/2,gblur", mixed).group(1)
+    assert [evaluate(x, n) for n in range(5)] == [100, 778, 778, 106, 108]  # centred there
+    blur = re.search(r"gblur=sigma=35:enable='([^']*)'\[blurred_3\]", mixed).group(1)
+    assert [evaluate(blur, n) for n in range(5)] == [0, 1, 1, 0, 0]
+    hide = re.search(r"format=yuva444p,lutyuv=a=0:enable='([^']*)'\[fit_3\]", mixed).group(1)
+    assert [evaluate(hide, n) for n in range(5)] == [1, 0, 0, 1, 1]  # the camera frames
+    assert "t" not in (x + blur + hide).replace("lt(", "")  # frame counter only, never time
+    plain = re.sub(r":x='[^']*':y=\(ih-oh\)/2", "", mixed)
+    plain = re.sub(r":enable='[^']*'", "", plain).replace(",lutyuv=a=0", "")
+    assert plain == fit_blur  # everything else is the fit-blur chain, byte for byte
+    with pytest.raises(ValueError):
+        layouts.layout_chain("camera", crop=crop, fallback=(True, False), **LAYOUT_ARGS)
+    with pytest.raises(ValueError):
+        layouts.layout_chain("fit_blur", fallback=(True,), **LAYOUT_ARGS)
+
+
+def blur_doc(name: str) -> dict:
+    doc = load_doc(name)
+    doc["layout"]["default"].update(mode="camera", no_face="fit_blur")
+    return doc
+
+
+def test_the_fallback_follows_the_source_frame_in_plate_cells_and_final(harness, probe_stub):
+    doc = blur_doc("seed__c25")  # camera layout, 25 fps
+    body = doc["main"]["segments"][0]
+    doc["main"]["removals"] = [
+        {"id": f"rm_{k}", "seg": body["id"], "in_sf": body["in_sf"] + start,
+         "out_sf": body["in_sf"] + start + length, "words": [], "reason": "user",
+         "origin": "user"}
+        for k, (start, length) in enumerate(((40, 7), (95, 30), (171, 2)))]
+    camera = camera_for(doc)
+    start_ms = (body["in_sf"] + 30) * 40 + 13
+    camera["no_face"] = [[start_ms, start_ms + 2000], [start_ms + 3900, start_ms + 5200]]
+    plan = fixture_plan("seed__c25", doc=doc, camera=camera)
+    probe_stub["streams"] = fake_probe(plan.doc)
+    final = compile_job(plan, mode="final", source=SOURCE, assets_root=ASSETS_ROOT)
+    first = plan.pieces[0].in_sf // 50
+    cells = list(range(first, first + 6))
+    plate = compile_job(plan, mode="plate_cells", cells=cells, source=SOURCE,
+                        assets_root=ASSETS_ROOT)
+    blur = re.compile(r"gblur=sigma=[0-9.]+:enable='([^']*)'")
+    (final_expr,) = blur.findall(final.filter_script)  # one layout chain after the join
+    (plate_expr,) = blur.findall(plate.filter_script)  # the six cells are one run
+    run_start = int(re.search(r"trim=start_pts=(\d+):end_pts=\d+,setpts=PTS-STARTPTS\[pt0\]",
+                              plate.filter_script).group(1))
+    fps = plan.fps
+    shown = 0
+    for n in range(plan.total_frames):
+        sf = tm.out_to_src(n, plan.pieces)[1]
+        expected = any(tm.sf_floor(s, fps) <= sf < tm.sf_ceil(e, fps)
+                       for s, e in camera["no_face"])
+        shown += expected
+        assert evaluate(final_expr, n) == expected, n
+        if run_start <= sf < (first + 6) * 50:
+            assert evaluate(plate_expr, sf - run_start) == expected, n
+    assert 0 < shown < plan.total_frames
+    # the same document centred keeps today's camera graph
+    centred = copy.deepcopy(doc)
+    centred["layout"]["default"]["no_face"] = "center"
+    today = compile_job(fixture_plan("seed__c25", doc=centred, camera=camera), mode="final",
+                        source=SOURCE, assets_root=ASSETS_ROOT)
+    assert "gblur" not in today.filter_script and "lutyuv" not in today.filter_script
+
+
+def test_a_fallback_without_a_run_in_the_clip_is_todays_camera_graph(harness, probe_stub):
+    """The fixture camera plan's run without a face lies outside the c25 clip: the graph of the
+    fallback document is the centred one's, in every mode that has a layout."""
+    blurred = fixture_plan("seed__c25", doc=blur_doc("seed__c25"))
+    assert not blurred.warnings
+    centred = fixture_plan("seed__c25")
+    probe_stub["streams"] = fake_probe(centred.doc)
+    for kwargs in ({"mode": "final"}, {"mode": "plate_cells", "cells": (300, 301)},
+                   {"mode": "frame", "frame": 10}):
+        one = compile_job(blurred, source=SOURCE, assets_root=ASSETS_ROOT, **kwargs)
+        other = compile_job(centred, source=SOURCE, assets_root=ASSETS_ROOT, **kwargs)
+        assert one.filter_script == other.filter_script, kwargs
 # --- modes ------------------------------------------------------------------------------------------
 
 
@@ -1012,6 +1131,52 @@ def test_final_and_plate_frames_are_the_grid_frames(harness, tmp_path, edit_v2_l
         mismatches += decoded[sf // cell_frames][sf % cell_frames] != clip.grid[sf]
     assert mismatches == 0
     assert 2 * plan.total_frames >= 300
+
+
+def frame_md5s(path: Path) -> list[str]:
+    """The md5 of every decoded frame (``framemd5``): exact pixel identity, little memory."""
+    out = subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-i", str(path), "-map", "0:v:0",
+                          "-fps_mode", "passthrough", "-f", "framemd5", "-"],
+                         capture_output=True, text=True, check=True).stdout
+    return [line.rsplit(",", 1)[1].strip() for line in out.splitlines()
+            if line and not line.startswith("#")]
+
+
+def test_a_fallback_frame_is_the_fit_blur_frame_and_every_other_the_camera_frame(
+        harness, tmp_path, edit_v2_libass):
+    """The latar blur fallback (CONTRACTS §5.40) in exact pixels: lossless reference renders of
+    one document as Ikuti wajah with the fallback, Ikuti wajah centred and Latar blur. A frame of
+    a run without a face equals the Latar blur frame, every other frame the Ikuti wajah frame.
+    Plate cells are the same layout graph per frame (P-PLATE covers their encode)."""
+    clip = synthetic_clip(tmp_path, frames=180, layout="camera", cold_open=None, body=(20, 140),
+                          removals=((70, 80),))
+    duration_ms = clip.doc["base"]["source"]["duration_ms"]
+    camera = HARNESS.make_camera(duration_ms, (30000, 1001), (640, 360), (720, 1280))
+    camera["no_face"] = [[1500, 2300], [3300, 3900]]
+    renders = {}
+    for name, mode, no_face in (("blur", "camera", "fit_blur"), ("camera", "camera", "center"),
+                                ("fit", "fit_blur", "center")):
+        doc = copy.deepcopy(clip.doc)
+        doc["layout"]["default"].update(mode=mode, no_face=no_face)
+        plan = build_plan(doc, words=clip.words, camera=camera if mode == "camera" else None,
+                          assets={}, resources=Resources(RESOURCES_DIR))
+        job = compile_job(plan, mode="reference", source=clip.source, assets_root=tmp_path)
+        assert run_to_file(job, tmp_path / f"{name}.mkv").returncode == 0
+        renders[name] = frame_md5s(tmp_path / f"{name}.mkv")
+        if name == "blur":
+            blurred = plan
+    fps = blurred.fps
+    assert len(renders["blur"]) == len(renders["camera"]) == blurred.total_frames
+    shown = {"fit": 0, "camera": 0}
+    for n in range(blurred.total_frames):
+        sf = tm.out_to_src(n, blurred.pieces)[1]
+        fallback = any(tm.sf_floor(s, fps) <= sf < tm.sf_ceil(e, fps)
+                       for s, e in camera["no_face"])
+        expected = "fit" if fallback else "camera"
+        shown[expected] += 1
+        assert renders["blur"][n] == renders[expected][n], (n, expected)
+    assert shown["fit"] >= 30 and shown["camera"] >= 30
+    assert renders["camera"] != renders["fit"]
 
 
 def test_probe_uses_the_legacy_stream_selection(tmp_path, edit_v2_ffmpeg):

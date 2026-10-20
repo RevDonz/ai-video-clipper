@@ -325,6 +325,12 @@
    "warnings": []
   },
   {
+   "file": "valid/layout_camera_no_face_blur__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
    "file": "valid/hook_removed__c30.json",
    "context": "c30",
    "check": "put",
@@ -1345,6 +1351,13 @@
    "check": "put",
    "code": "op_disabled",
    "path": "/layout/default/mode"
+  },
+  {
+   "file": "invalid/op_disabled__no_face_fail.json",
+   "context": "c30",
+   "check": "put",
+   "code": "op_disabled",
+   "path": "/layout/default/no_face"
   },
   {
    "file": "invalid/op_disabled__removal_reason_gap_voiced.json",

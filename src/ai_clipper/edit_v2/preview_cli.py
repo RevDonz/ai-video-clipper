@@ -33,9 +33,13 @@ plate cells of the current document in that layout. Idempotent.
 plateKey, cellFrames, cells, missing, audio: {key, ready}, logo: {asset, w, h, opacityPm, name,
 ready} | null, frameKey}``. Publishes the ASS as ``preview/ass/<sha16>.ass``. Nothing heavy runs.
 
-``cells`` ``{jobId, clipId, layout, cells: [k] (1–64), cancelToken|null}`` → ``{plateKey, built,
-present}``: encodes the missing cells of the seed's plate in ``layout`` in one FFmpeg run (the
-lane's two threads) and publishes ``preview/plates/<key16>-c<k:07d>.mp4``.
+``cells`` ``{jobId, clipId, layout, noFace?, cells: [k] (1–64), cancelToken|null}`` →
+``{plateKey, built, present}``: encodes the missing cells of the seed's plate in ``layout`` in one
+FFmpeg run (the lane's two threads) and publishes ``preview/plates/<key16>-c<k:07d>.mp4``.
+``noFace: "fit_blur"`` asks for face-track's latar blur fallback (CONTRACTS §5.40); without it
+the runs without a face are centred, as before. ``plan`` and ``prepare`` name the plate's
+``noFace`` (``"fit_blur"`` or ``null``) next to its ``layout``, and ``prepare`` with a switch to
+face-track reports the document ``SetLayout`` makes (the fallback on).
 
 ``audio`` ``{jobId, clipId, requestRaw, cancelToken|null}`` → ``{audioKey, name, built, samples,
 gainCdb, warnings}``: the ``audio_preview`` FLAC of the document (``preview/audio/<key16>.flac``
@@ -145,6 +149,7 @@ _CHECKS: dict[str, Callable[[object], bool]] = {
     "clipId": lambda v: isinstance(v, str) and CLIP_ID_PATTERN.fullmatch(v) is not None,
     "layoutOrNull": lambda v: v is None or v in LAYOUTS,
     "layout": lambda v: v in LAYOUTS,
+    "noFace": lambda v: v == "fit_blur",
     "requestRaw": lambda v: (isinstance(v, str) and len(v) <= (MAX_REQUEST_BYTES * 4) // 3 + 4
                              and _B64.fullmatch(v) is not None),
     "cells": _cells_field,
@@ -167,6 +172,8 @@ _FIELDS: dict[str, dict[str, str]] = {
     "derive": {"jobId": "jobId", "clipId": "clipId", "asset": "asset", "w": "w", "h": "h",
                "opacityPm": "opacityPm", "cancelToken": "cancelToken"},
 }
+# Fields an op may leave out (absent = the earlier behaviour).
+_OPTIONAL: dict[str, dict[str, str]] = {"cells": {"noFace": "noFace"}}
 
 
 def _pairs(items: list[tuple[str, Any]]) -> dict:
@@ -191,10 +198,13 @@ def _envelope(raw: bytes) -> dict[str, Any]:
     if type(value) is not dict:
         raise _Usage()
     op = value.get("op")
-    if not isinstance(op, str) or op not in _FIELDS or set(value) != {"op", *_FIELDS[op]}:
+    if not isinstance(op, str) or op not in _FIELDS:
         raise _Usage()
-    for name, check in _FIELDS[op].items():
-        if not _CHECKS[check](value[name]):
+    fields, optional = _FIELDS[op], _OPTIONAL.get(op, {})
+    if not {"op", *fields} <= set(value) <= {"op", *fields, *optional}:
+        raise _Usage()
+    for name, check in (*fields.items(), *optional.items()):
+        if name in value and not _CHECKS[check](value[name]):
             raise _Usage()
     return value
 
@@ -485,10 +495,27 @@ def _validated(clip: Path, doc_raw: bytes) -> _Validated:
     return _Validated(doc, seed_doc, seed_etag, reference, words, assets, validation.warnings)
 
 
-def _with_layout(doc: Mapping[str, Any], layout: str) -> dict:
+def _with_layout(doc: Mapping[str, Any], layout: str, no_face: str | None = None) -> dict:
     changed = dict(doc)
-    changed["layout"] = {**doc["layout"], "default": {**doc["layout"]["default"], "mode": layout}}
+    default = {**doc["layout"]["default"], "mode": layout}
+    if no_face is not None:
+        default["no_face"] = no_face
+    changed["layout"] = {**doc["layout"], "default": default}
     return changed
+
+
+def _switched(doc: Mapping[str, Any], layout: str) -> dict:
+    """``doc`` after ``SetLayout {mode: layout}`` (web/lib/editor/commands.mjs): a switch to
+    face-track from another layout turns the latar blur fallback on (CONTRACTS §5.40)."""
+    if layout == "camera" and doc["layout"]["default"]["mode"] != "camera":
+        return _with_layout(doc, layout, "fit_blur")
+    return _with_layout(doc, layout)
+
+
+def _plate_no_face(doc: Mapping[str, Any]) -> str | None:
+    """The lane's ``noFace``: ``"fit_blur"`` for the face-track plate with the fallback."""
+    default = doc["layout"]["default"]
+    return "fit_blur" if default["mode"] == "camera" and default["no_face"] == "fit_blur" else None
 
 
 def _hook_item(doc: Mapping[str, Any]) -> Mapping[str, Any] | None:
@@ -795,14 +822,15 @@ def _plan(ctx: _Context, envelope: Mapping[str, Any]) -> dict[str, Any]:
 
     warnings: list[dict[str, Any]] = []
     seen = set()
+    # One entry per issue: the frame is part of it (each run without a face is its own).
     for issue in [*validated.warnings, *plan.warnings]:
         entry = _issue_json(issue)
-        marker = (entry.get("code"), entry.get("path"), entry.get("ref"))
+        marker = (entry.get("code"), entry.get("path"), entry.get("ref"), entry.get("f"))
         if marker not in seen:
             seen.add(marker)
             warnings.append(entry)
     for entry in meta["warnings"] if meta else ():
-        marker = (entry.get("code"), entry.get("path"), entry.get("ref"))
+        marker = (entry.get("code"), entry.get("path"), entry.get("ref"), entry.get("f"))
         if marker not in seen:
             seen.add(marker)
             warnings.append(entry)
@@ -835,6 +863,7 @@ def _plan(ctx: _Context, envelope: Mapping[str, Any]) -> dict[str, Any]:
     lane = {
         "playhead": min(request.playhead, max(plan.total_frames - 1, 0)),
         "layout": doc["layout"]["default"]["mode"],
+        "noFace": _plate_no_face(doc),
         "plateKey": key,
         "cellFrames": tm.cell_frames(fps),
         "cells": list(cells),
@@ -859,7 +888,7 @@ def _prepare(ctx: _Context, envelope: Mapping[str, Any]) -> dict[str, Any]:
             raise AnalysisMissing()
     current, _current_etag, _is_seed = store.get(ctx.clip)
     layout = envelope["layout"] or current["layout"]["default"]["mode"]
-    doc = _with_layout(current, layout)
+    doc = _switched(current, layout)
     camera_state = "not_needed"
     camera_sha = None
     if layout == "camera":
@@ -880,15 +909,16 @@ def _prepare(ctx: _Context, envelope: Mapping[str, Any]) -> dict[str, Any]:
     key = plates.plate_key(doc, camera_sha256=camera_sha, toolchain_sha256=_toolchain())
     cells = plates.cells_for_pieces(tm.pieces(current), fps)
     ready = [k for k in cells if _is_file(ctx.preview / "plates" / plates.cell_name(key, k))]
-    return {"words": "ready", "camera": camera_state, "layout": layout, "plateKey": key,
-            "cellFrames": tm.cell_frames(fps), "cells": list(cells), "ready": ready}
+    return {"words": "ready", "camera": camera_state, "layout": layout,
+            "noFace": _plate_no_face(doc), "plateKey": key, "cellFrames": tm.cell_frames(fps),
+            "cells": list(cells), "ready": ready}
 
 
 def _cells(ctx: _Context, envelope: Mapping[str, Any]) -> dict[str, Any]:
     from . import plates, store
 
     seed_doc, _etag = store.seed(ctx.clip)
-    doc = _with_layout(seed_doc, envelope["layout"])
+    doc = _with_layout(seed_doc, envelope["layout"], envelope.get("noFace", "center"))
     camera, camera_sha = plates.camera_for(ctx.clip, doc)
     key = plates.plate_key(doc, camera_sha256=camera_sha, toolchain_sha256=_toolchain())
     fps = tm.Fps.from_json(doc["output"]["fps"])

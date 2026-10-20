@@ -2,7 +2,7 @@
 // Appendix B `SetLayout`, Appendix C.6). Runs against the T1.Z fakes (plan §11.0 "TDD protocol"):
 // switching between the three layouts, face-track analysed before the switch (with its progress,
 // a failure and a change of mind), the truth-frame thumbnails at the playhead, the runs without a
-// face with jump-to, undo, read-only and axe.
+// face with jump-to and their latar blur / centred choice (CONTRACTS §5.40), undo, read-only and axe.
 //
 // Prerequisites (as web/e2e/editor-shell.spec.mjs): a server with POTONGIN_EDITOR_V3=on and
 // POTONGIN_EDITOR_FAKES=1, E2E_EDITOR_FAKES=1 to run this file, E2E_USERNAME/E2E_PASSWORD; optional
@@ -98,7 +98,13 @@ function installScenario(config) {
         const next = clone(state.doc);
         if (type === "SetLayout") {
           if (!["fit_blur", "camera", "fill_center"].includes(args.mode)) throw new fakes.CommandRejected("value_out_of_range");
+          // a switch into face-track turns the latar blur fallback on (commands.mjs SetLayout)
+          if (args.mode === "camera" && next.layout.default.mode !== "camera") next.layout.default.no_face = "fit_blur";
           next.layout.default.mode = args.mode;
+        }
+        if (type === "SetNoFace") {
+          if (!["center", "fit_blur"].includes(args.mode)) throw new fakes.CommandRejected("value_out_of_range");
+          next.layout.default.no_face = args.mode;
         }
         next.audit.last_command = type;
         calls.push(["dispatch", type, clone(args)]);
@@ -190,8 +196,10 @@ function installScenario(config) {
         async plan(doc) {
           if (doc.layout.default.mode === "camera" && !cameraReady) throw new fakes.FakeApiError(409, "analysis_missing");
           const dto = await client.plan(doc);
+          const blurred = doc.layout.default.no_face === "fit_blur";
           dto.warnings = doc.layout.default.mode === "camera"
-            ? (config.noFace ?? []).map((f) => ({ code: "no_face", path: "/layout/default/mode", f }))
+            ? (config.noFace ?? []).map((f) => (blurred ? { code: "no_face_blur", path: "/layout/default/no_face", f }
+              : { code: "no_face", path: "/layout/default/mode", f }))
             : [];
           return dto;
         },
@@ -275,9 +283,12 @@ async function openLayoutPanel(page, config = {}, { planned = true } = {}) {
 }
 
 const layoutOf = (page) => page.evaluate(() => window.__potonginEditor.store.getState().doc.layout.default.mode);
+const noFaceOf = (page) => page.evaluate(() => window.__potonginEditor.store.getState().doc.layout.default.no_face);
 const calls = (page) => page.evaluate(() => window.__scenarioCalls);
 const thumbCalls = (page) => page.evaluate(() => window.__thumbCalls);
-const radio = (panel, name) => panel.getByRole("radio", { name: new RegExp(`^${name}`) });
+// the layout cards; face-track's own choice below them has a "Latar blur" option too
+const radio = (panel, name) => panel.getByRole("group", { name: "Pilih tata letak" }).getByRole("radio", { name: new RegExp(`^${name}`) });
+const noFaceRadio = (panel, name) => panel.getByRole("group", { name: "Bagian tanpa wajah" }).getByRole("radio", { name });
 
 test("Tata letak lists the three layouts, the clip's own chosen, with thumbnails at the playhead", async ({ page }) => {
   const panel = await openLayoutPanel(page);
@@ -439,21 +450,47 @@ test("the runs without a face are listed with jump-to, only for face-track", asy
   await expect(radio(panel, "Ikuti wajah")).toBeChecked();
   const list = panel.locator("[data-layout-noface]");
   await expect(list.getByRole("heading", { name: "Tanpa wajah terdeteksi (2)" })).toBeVisible();
+  // a face-track seed keeps the auto clip's centred runs
+  await expect(noFaceRadio(panel, "Dipusatkan")).toBeChecked();
   await expect(list).toContainText("Di bagian ini video dipusatkan.");
   const jumps = list.getByRole("button");
   await expect(jumps).toHaveText(["Lompat ke 00:01,5", "Lompat ke 00:06,6"]);
   await jumps.nth(1).click();
   await expect.poll(() => page.evaluate(() => window.__potonginEditor.player.frame())).toBe(200);
   await expect(page.getByTestId("stage-time")).toContainText("00:06,6");
-  // other layouts have no list; back on face-track it returns, and the seed names its camera
-  // plan, so nothing is analysed
+  // other layouts have no list; back on face-track it returns with latar blur (SetLayout's
+  // fallback), and the seed names its camera plan, so nothing is analysed
   await radio(panel, "Latar blur").check();
   await expect.poll(() => layoutOf(page)).toBe("fit_blur");
   await expect(panel.locator("[data-layout-noface]")).toHaveCount(0);
   await radio(panel, "Ikuti wajah").check();
   await expect.poll(() => layoutOf(page)).toBe("camera");
+  await expect.poll(() => noFaceOf(page)).toBe("fit_blur");
   await expect(list.getByRole("button")).toHaveCount(2);
+  await expect(noFaceRadio(panel, "Latar blur")).toBeChecked();
   expect((await calls(page)).filter((entry) => entry[0] === "prepare")).toEqual([]);
+});
+
+test("the runs without a face switch between latar blur and centred in one click, a note with blur", async ({ page }) => {
+  const panel = await openLayoutPanel(page, { cameraSeed: true, noFace: [45, 200] });
+  const list = panel.locator("[data-layout-noface]");
+  await expect(list).toContainText("Di bagian ini video dipusatkan.");
+  await noFaceRadio(panel, "Latar blur").check();
+  await expect.poll(() => noFaceOf(page)).toBe("fit_blur");
+  expect(await layoutOf(page)).toBe("camera");
+  await expect(list).toContainText("Di bagian ini seluruh gambar tampil dengan latar blur.");
+  await expect(list.getByRole("button")).toHaveCount(2);
+  // the choice keeps the keyboard focus while the plan is asked again
+  await expect(noFaceRadio(panel, "Latar blur")).toBeFocused();
+  expect((await calls(page)).filter((entry) => entry[0] === "dispatch").map((entry) => entry.slice(1)))
+    .toEqual([["SetNoFace", { mode: "fit_blur" }]]);
+  // one click back; undo restores the other choice
+  await noFaceRadio(panel, "Dipusatkan").check();
+  await expect.poll(() => noFaceOf(page)).toBe("center");
+  await expect(list).toContainText("Di bagian ini video dipusatkan.");
+  await page.evaluate(() => window.__potonginEditor.store.undo());
+  await expect.poll(() => noFaceOf(page)).toBe("fit_blur");
+  await expect(noFaceRadio(panel, "Latar blur")).toBeChecked();
 });
 
 test("face-track with every face found says so", async ({ page }) => {
