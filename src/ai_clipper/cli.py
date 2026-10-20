@@ -57,6 +57,11 @@ def _media_timeout(value: str) -> float:
     return result
 
 
+def _language(value: str) -> str | None:
+    """The Whisper language; ``auto`` is ``None``, which lets Whisper detect it."""
+    return None if value == "auto" else value
+
+
 def _hook_duration(value: str) -> float:
     result = float(value)
     if not math.isfinite(result) or not 0 < result <= HOOK_DURATION_MAX_SECONDS:
@@ -89,7 +94,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--artifact-root", type=Path)
     parser.add_argument("--model", default="tiny", help="faster-whisper model name")
     parser.add_argument("--device", choices=("cpu", "cuda"), default="cpu")
-    parser.add_argument("--language", default="id")
+    parser.add_argument(
+        "--language",
+        type=_language,
+        default="id",
+        help="spoken language code, or auto to detect it (default: id)",
+    )
     parser.add_argument("--min-duration", type=float, default=20.0)
     parser.add_argument("--max-duration", type=float, default=60.0)
     parser.add_argument("--limit", type=int, default=5)
@@ -201,7 +211,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--initial-prompt",
         help=(
             f"Whisper style prompt, 'off' for none (default: ${ENV_INITIAL_PROMPT} "
-            "or a short punctuated casual Indonesian prompt)"
+            "or, for Indonesian, a short punctuated casual Indonesian prompt)"
         ),
     )
     parser.add_argument(
@@ -250,6 +260,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             initial_prompt=args.initial_prompt,
             condition_on_previous_text=args.condition_on_previous_text,
             prompt_every_window=args.prompt_every_window,
+            language=args.language,
         )
         if args.selection_mode == SelectionMode.V3.value:
             model: Any = _LazyWhisperModel(

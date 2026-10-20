@@ -57,10 +57,14 @@ never a translation) then ``<lang>`` then variants; translated tracks such as ``
 language's ASR. The worker still requests auto ``id``; ranking prefers ``id-orig`` whenever
 both exist, so such a translation is only used when it is all there is, and then only if it
 passes the quality gate below. The pipeline also accepts the legacy code ``in`` when no
-``id`` track exists (``choose_caption_file`` itself does not).
+``id`` track exists (``choose_caption_file`` itself does not). A job whose language is detected
+(``--language auto``) reads only an auto ``<lang>-orig`` track and takes its language from the
+file name (:func:`choose_original_caption_file`); without one, Whisper detects the language.
 
-Worker recipe, exactly as ``web/scripts/run-job.mjs`` runs it (``buildCaptionDownloads``;
-``CAPTION_LANGUAGES`` holds the language lists), with yt-dlp 2026.08.19 or newer (the ``web``
+Worker recipe, exactly as ``web/scripts/run-job.mjs`` runs it for an Indonesian job
+(``buildCaptionDownloads``; ``captionLanguages`` holds the lists per video language: English
+asks for ``en,en-US,en-GB`` and ``en,en-orig``, a detected language makes only the auto run,
+with ``.*-orig``), with yt-dlp 2026.08.19 or newer (the ``web``
 extra). Both runs happen after the video download, never in the same run: without
 ``--ignore-errors`` a subtitle HTTP error aborts the whole yt-dlp run. Each run is best effort
 (a failure or its timeout, ``POTONGIN_CAPTIONS_TIMEOUT_MS``, default 120 s, is only logged)
@@ -784,6 +788,27 @@ def choose_caption_file(paths: Iterable[str | Path], *, language: str = "id") ->
         rank = (_MANUAL_RANK if manual else _AUTO_RANK).get(form, 3)
         ranked.append(((form == _TRANSLATION, 0 if manual else 1, rank, str(path)), path))
     return min(ranked)[1] if ranked else None
+
+
+def choose_original_caption_file(paths: Iterable[str | Path]) -> tuple[Path, str] | None:
+    """The auto ``<lang>-orig`` track and its language, for a job whose language is detected.
+
+    Manual tracks and plain auto tracks can be translations; only the original ASR track is
+    known to be the spoken language. Several such tracks: the first path in order wins.
+    """
+    found: list[tuple[str, Path, str]] = []
+    for item in paths:
+        path = Path(item)
+        tag = caption_language_tag(path)
+        if tag is None or path.parent.name.casefold() == "manual":
+            continue
+        language, separator, suffix = tag.rpartition("-")
+        if separator and language and suffix.casefold() == "orig":
+            found.append((str(path), path, language))
+    if not found:
+        return None
+    _key, path, language = min(found)
+    return path, language
 
 
 def _read_bounded(path: Path, limit: int) -> bytes:
