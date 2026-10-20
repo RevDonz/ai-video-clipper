@@ -56,8 +56,8 @@ take the dashboard's V3 defaults) plus optional seed-context keys that never occ
 artifact, the camera plan (face-track jobs only) and ``seed.json``, each once and never
 overwritten, under a job-level ``flock``. A job created with a default logo (``<job>/logo/``)
 gets it in its asset store and in every seed written, and one created with a default text
-watermark (``<job>/watermark.json``) gets that in every seed. Every clip that cannot be opened is named
-with the first matching reason: ``not_v3`` (the job did not run Selection V3),
+watermark (``<job>/watermark.json``) gets that in every seed. Every clip that cannot be opened
+is named with the first matching reason: ``not_v3`` (the job did not run Selection V3),
 ``analysis_incomplete``
 (no ``analysis/selection.v3.json`` but one stranded in ``.attempts/*/analysis/``, or an existing
 seed whose words artifact is gone), ``selection_unreadable``, ``transcript_missing``,
@@ -506,8 +506,9 @@ def job_watermark(job_root: Path) -> dict[str, Any] | None:
     """The text watermark the web copied into ``<job>/watermark.json`` when the job was created,
     or None unless that file is a small regular file with the job-copy schema and a valid
     watermark (a broken copy seeds no watermark)."""
+    flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
     try:
-        fd = os.open(Path(job_root) / JOB_WATERMARK_FILE, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        fd = os.open(Path(job_root) / JOB_WATERMARK_FILE, flags)
     except OSError:
         return None
     try:
