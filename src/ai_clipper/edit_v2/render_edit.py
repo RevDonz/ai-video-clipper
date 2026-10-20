@@ -20,7 +20,9 @@ the seed ``prepare`` would build for the same job use the same inputs. Per clip 
 ``output/clip-NN.mp4``. When the new engine fails for a clip the pipeline renders that clip
 with the legacy engine (``engine_fallback:<rank>``); :meth:`AutoRenderer.fallback` first removes
 the ``seed.json`` this run wrote for it, so no seed claims the new engine for a legacy file (the
-editor's ``prepare`` later seeds it as a legacy-engine clip; the analysis files stay).
+editor's ``prepare`` later seeds it as a legacy-engine clip; the analysis files stay). A
+face-track clip's result also carries ``no_face_ms``, its length inside the camera plan's
+``no_face`` spans, for the manifest's ``fallbacks``.
 
 **Exports (plan §4.6).** :func:`render_request` runs one ``render-request-v3`` for the
 render-worker: it checks every field it reads before any work (``RenderFailed``,
@@ -67,6 +69,7 @@ from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import Future, ThreadPoolExecutor
 from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass
+from fractions import Fraction
 from pathlib import Path
 from typing import Any, Self
 
@@ -923,10 +926,25 @@ class AutoClip:
     result: RenderResult
     # The seed's join when it kept the cold open (the manifest's cold_open_join), else None.
     cold_open_join: ColdOpenJoin | None = None
+    # Face-track: the ms of the rendered clip inside the camera plan's no_face spans, else None.
+    no_face_ms: int | None = None
 
     def manifest_fields(self) -> dict[str, Any]:
         return {"clip_id": self.clip_id, "render_engine": self.render_engine,
                 "render_key": self.render_key, "plan_sha256": self.plan_sha256}
+
+
+def _no_face_ms(spans: Sequence[Sequence[int]], document: Mapping[str, Any]) -> int:
+    """The ms of ``document``'s main segments (each as often as it plays) inside the camera
+    plan's ``no_face`` spans (source ms; the plan's window is wider than the clip)."""
+    fps = Fps.from_json(document["output"]["fps"])
+    total = Fraction(0)
+    for segment in document["main"]["segments"]:
+        low = Fraction(segment["in_sf"] * 1000 * fps.den, fps.num)
+        high = Fraction(segment["out_sf"] * 1000 * fps.den, fps.num)
+        for start, end in spans:
+            total += max(Fraction(0), min(high, end) - max(low, start))
+    return round(total)
 
 
 def _write_or_match(path: Path, data: bytes) -> None:
@@ -986,6 +1004,7 @@ class AutoRenderer:
         self.clips = {clip.rank: clip for clip in selection_from_dict(_strict_json(raw)).clips}
         self.written: dict[int, tuple[Path, tuple[int, int]]] = {}
         self.clip_ids: dict[int, str] = {}
+        self.no_face: dict[int, list[list[int]]] = {}  # face-track: the camera plan's spans
 
     def _audio(self) -> AudioTimeline | None:
         payload = _read_json(self.job_dir / AUDIO_TIMELINE_RELATIVE_PATH,
@@ -1031,6 +1050,7 @@ class AutoRenderer:
             camera_raw = _camera.encode_camera_plan(camera_plan)
             _write_or_match(directory / _camera.camera_file_name(camera_raw), camera_raw)
             camera_sha = sha256_hex(camera_raw)
+            self.no_face[rank] = camera_plan["no_face"]
         seed_doc = _seed.build_seed(words_sha=sha256_hex(words_raw),
                                     words_count=len(words["words"]), camera_sha=camera_sha,
                                     **common)
@@ -1112,9 +1132,11 @@ class AutoRenderer:
             sound = joins[0].get("sfx")
             join = (ColdOpenJoin(joins[0]["style"], None) if sound is None
                     else ColdOpenJoin(joins[0]["style"], sound["id"], sound["v"]))
+        spans = self.no_face.get(rank)
         return AutoClip(clip_id=document["clip_id"], render_engine=COMPILER_ID,
                         render_key=result.render_key, plan_sha256=result.plan_sha256,
-                        cold_open=cold_open, result=result, cold_open_join=join)
+                        cold_open=cold_open, result=result, cold_open_join=join,
+                        no_face_ms=None if spans is None else _no_face_ms(spans, document))
 
     def fallback(self, rank: int) -> str | None:
         """Before the legacy engine renders the clip of ``rank``: remove the ``seed.json`` this

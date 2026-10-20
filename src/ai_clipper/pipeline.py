@@ -22,8 +22,8 @@ shadow keep their historical behaviour. Selection V3 (``selection_mode="v3"``) r
 4. **Packaging and rendering** (stages ``packaging``, ``rendering``): cold open, hook overlay,
    and caption style per clip; the manifest gets every packaging field. The render engine is
    ``render_engine`` (default: ``POTONGIN_RENDER_ENGINE``; anything but ``edit-v2`` is
-   ``legacy``). ``legacy`` calls ``render_vertical`` exactly as before and the manifest keeps its
-   shape. ``edit-v2`` (Editor V3, plan §5.8) seeds every clip and renders revision 0 through the
+   ``legacy``). ``legacy`` calls ``render_vertical`` as before (plus ``no_face_report``) and the
+   manifest keeps its shape (a clip that fell back adds ``fallbacks``, below). ``edit-v2`` (Editor V3, plan §5.8) seeds every clip and renders revision 0 through the
    edit-v2 compiler (``edit_v2.render_edit.AutoRenderer``: ``analysis/source.json``, the clip's
    peaks, words, camera plan for face-track and ``seed.json`` under
    ``analysis/clips/<clip_id>/``); each clip entry then also carries ``clip_id``,
@@ -38,6 +38,12 @@ open with a white flash and the whoosh at the join (``transitions.AUTO_COLD_OPEN
 option, latest only), and its manifest entry records it as ``"cold_open_join": {"style",
 "sfx"}``. Clips without a cold open are unchanged and have no such key. ``prepare`` later seeds
 that join, so the auto file stays revision 0 (R10).
+
+**Fallbacks per clip** (plan 2026-10-20 A2). A clip gets ``"fallbacks": [codes]`` only when
+something fell back, in this order: ``no_face`` (face-track, and no face for at least
+``NO_FACE_CLIP_SHARE`` of the rendered clip, counted as runs longer than 1.5 s: the legacy
+engine's ``no_face_report``, the new engine's ``AutoClip.no_face_ms``) and ``engine_fallback``
+(rendered by ``render_vertical`` after the new engine failed). Other clips keep their shape.
 
 **Konteks Tren.** With ``trend_context`` (the worker's ``analysis/trend-context.json``
 snapshot, CLI ``--trend-context``), the active trend items are read with
@@ -205,6 +211,8 @@ _ARCHETYPE_CODE = re.compile(r"[a-z][a-z0-9_]{0,39}")
 MAX_SUMMARY_WARNINGS = 50
 MAX_SUMMARY_WARNING_CHARS = 160
 MAX_MANIFEST_HASHTAGS = 10
+# A face-track clip without a face for at least this share of its length is noted ``no_face``.
+NO_FACE_CLIP_SHARE = 0.5
 
 THUMBNAIL_SUFFIX = ".jpg"
 THUMBNAIL_WIDTH = 720  # never upscaled: a narrower render keeps its own width
@@ -959,6 +967,20 @@ def _rendered_seconds(clip: SelectedClip, cold_open: tuple[float, float] | None)
     return rendered
 
 
+def _clip_fallbacks(
+    render_mode: str, no_face: list[float], rendered: float, engine_fallback: bool
+) -> list[str]:
+    """The clip's ``fallbacks`` codes, in this order: ``no_face`` (face-track found no face for
+    at least ``NO_FACE_CLIP_SHARE`` of the clip, so the crop stayed centred) and
+    ``engine_fallback`` (the new engine failed and the legacy one rendered it)."""
+    codes = []
+    if render_mode == "face-track" and no_face and sum(no_face) >= NO_FACE_CLIP_SHARE * rendered:
+        codes.append("no_face")
+    if engine_fallback:
+        codes.append("engine_fallback")
+    return codes
+
+
 def _v3_manifest_clip(
     index: int,
     clip: SelectedClip,
@@ -1284,6 +1306,7 @@ def _render_v3_clips(
             clip_path = output_dir / f"clip-{index:02d}.mp4"
             engine_fields: dict[str, object] | None = None
             join = cold_open_join
+            no_face: list[float] = []  # seconds without a face, per rendered range
             if render_engine == render_edit.ENGINE_EDIT_V2:
                 auto = _render_edit_v2(renderer, clip.rank, clip_path, index)
                 if auto is None:
@@ -1305,7 +1328,10 @@ def _render_v3_clips(
                         teaser = None
                     # the join the seed kept (equal to cold_open_join by construction)
                     join = getattr(auto, "cold_open_join", None) or cold_open_join
-            if engine_fields is None or engine_fields["render_engine"] == "legacy":
+                    if getattr(auto, "no_face_ms", None) is not None:
+                        no_face.append(auto.no_face_ms / 1000)
+            engine_fallback = engine_fields is not None and engine_fields["render_engine"] == "legacy"
+            if engine_fields is None or engine_fallback:
                 render_vertical(
                     source,
                     clip_path,
@@ -1319,6 +1345,7 @@ def _render_v3_clips(
                     hook_text=clip.hook_text if hook_overlay else None,
                     hook_duration=hook_duration,
                     caption_style=caption_style,
+                    no_face_report=no_face.append,
                     **join_options,
                 )
             avoid = None
@@ -1334,6 +1361,11 @@ def _render_v3_clips(
                 entry.update(engine_fields)
             if teaser is not None and join is not None:
                 entry["cold_open_join"] = join.to_json()
+            fallbacks = _clip_fallbacks(
+                render_mode, no_face, _rendered_seconds(clip, teaser), engine_fallback
+            )
+            if fallbacks:
+                entry["fallbacks"] = fallbacks
             clips.append(entry)
             if timings is not None:
                 timings[clip.rank] = time.monotonic() - started

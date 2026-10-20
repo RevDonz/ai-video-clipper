@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+# A gap without a face up to this long keeps the last framing; a longer run is cropped at the
+# centre (edit_v2.camera lists such runs as ``no_face`` with the same rule).
+NO_FACE_MIN_SECONDS = 1.5
+
 
 def smooth_face_track(
     centers: list[float | None],
@@ -105,6 +109,25 @@ def build_crop_expression(
             )
         expression = f"if(lt(t,{times[index + 1]:.3f}),{segment},{expression})"
     return expression
+
+
+def no_face_seconds(times: list[float], centres: list[float | None], end: float) -> float:
+    """Seconds of a raw track (``detect_face_track(..., smooth=False)``) inside runs without a
+    face longer than ``NO_FACE_MIN_SECONDS``: from a run's first sample to the next sample, or
+    to ``end`` (the range's length) for a run at the end."""
+    total = 0.0
+    run_start: float | None = None
+    for time, centre in zip(times, centres, strict=True):
+        if centre is None:
+            if run_start is None:
+                run_start = time
+            continue
+        if run_start is not None and time - run_start > NO_FACE_MIN_SECONDS:
+            total += time - run_start
+        run_start = None
+    if run_start is not None and end - run_start > NO_FACE_MIN_SECONDS:
+        total += end - run_start
+    return total
 
 
 def detect_face_track(
