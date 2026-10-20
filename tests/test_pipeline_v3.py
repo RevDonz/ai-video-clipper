@@ -23,6 +23,7 @@ from ai_clipper.models import SelectionMode, TranscriptSegment, TranscriptWord
 from ai_clipper.selection_types import ClipFocus, FocusSummary, SelectedClip, SelectionResult
 from ai_clipper.selection_v3 import read_selection_artifact
 from ai_clipper.sound_events import read_sound_events
+from ai_clipper.time_ranges import TimeRange, TimeRangeError
 from ai_clipper.transcript_io import read_transcript_json
 from ai_clipper.trend_context import TREND_CONTEXT_RELATIVE_PATH
 
@@ -1139,9 +1140,12 @@ def assert_web_stage_summary(found: dict[str, dict]) -> None:
             assert values["source"] in {"youtube-captions", "whisper"}
             assert "language" not in values or WEB_SUMMARY_LANGUAGE.fullmatch(values["language"])
         else:
-            assert kind == "moments" and set(values) == {"count", "source"}
+            assert kind == "moments"
+            assert {"count", "source"} <= set(values) <= {"count", "source", "ranges"}
             assert type(values["count"]) is int and values["count"] > 0
             assert values["source"] in {"llm", "heuristic"}
+            if "ranges" in values:  # a job with typed ranges: how many clips they gave
+                assert type(values["ranges"]) is int and 0 < values["ranges"] <= values["count"]
 
 
 @pytest.mark.parametrize("word_timestamps", [True, False])
@@ -2259,3 +2263,148 @@ def test_without_a_join_the_rendering_stage_is_the_one_before_the_transition(env
     assert all("join_style" not in render and "join_sfx" not in render
                for render in env.renders)
     assert env.poster_times == [pytest.approx(1.0), pytest.approx(1.0)]
+
+
+
+# --- Rentang waktu (plan 2026-10-20 P2) -------------------------------------------------------
+
+TYPED = (TimeRange(150, 180), TimeRange(30, 60))  # the fake transcript's units 19-22 and 4-7
+
+
+def assert_typed_clip(clip: dict, item: TimeRange) -> None:
+    """A typed range's manifest clip: the web contract plus ``manual``, cut exactly as typed."""
+    assert clip.pop("manual") is True
+    assert_web_clip(clip)
+    assert (clip["start"], clip["end"]) == (item.start, item.end)
+    assert clip["selection_source"] == "heuristic"
+    assert clip["reasons"][0] == f"Rentang waktu yang kamu ketik: {item.label}."
+
+
+def test_typed_ranges_are_the_first_clips_and_the_heuristic_fills_the_rest(env):
+    log = run_logged(env, ranges=TYPED, cold_open=False)
+
+    manifest = manifest_of(env.output / "manifest.json")
+    assert manifest["status"] == "completed"
+    first, second, third = manifest["clips"]
+    assert_typed_clip(first, TYPED[0])
+    assert_typed_clip(second, TYPED[1])
+    assert_web_clip(third)  # no "manual" key on a clip the selection chose
+    assert all(
+        min(third["end"], item.end) - max(third["start"], item.start) <= 0.5 for item in TYPED
+    )
+    assert [(render["start"], render["end"]) for render in env.renders[:2]] == [
+        (150.0, 180.0), (30.0, 60.0)
+    ]  # fmt: skip
+    assert summaries(log)["moments"] == {"count": 3, "source": "heuristic", "ranges": 2}
+    assert_web_stage_summary(summaries(log))
+    assert_web_summary(manifest["selection_v3"])
+    artifact = read_selection_artifact(env.job / "analysis" / "selection.v3.json")
+    assert [clip.manual for clip in artifact.clips] == [True, True, False]
+
+
+def test_the_pipeline_hands_the_ranges_to_the_selection_and_fills_the_rest(env, monkeypatch):
+    seen = {}
+
+    def select(segments, **options):  # a fake selection: the person's range, then one AI clip
+        seen.update(options)
+        return result(
+            selected(1, 150.0, 180.0, source="heuristic", manual=True),
+            selected(2, 200.0, 230.0),
+        )
+
+    monkeypatch.setattr(pipeline_module, "select_clips_v3", select)
+
+    manifest = manifest_of(run(env, ranges=TYPED[:1], limit=2))
+
+    assert seen["ranges"] == TYPED[:1] and seen["k"] == 2
+    typed, chosen = manifest["clips"]
+    assert typed["manual"] is True and "manual" not in chosen
+    assert (typed["start"], typed["end"], chosen["start"]) == (150.0, 180.0, 200.0)
+    assert chosen["selection_source"] == "llm"
+
+
+def test_a_range_past_the_end_of_the_video_fails_before_the_transcript(env):
+    env.media_duration = 100.4
+    model = FakeWhisper()
+
+    with pytest.raises(TimeRangeError) as caught:
+        run(env, model=model, ranges=(TimeRange(30, 60), TimeRange(90, 130)))
+
+    assert caught.value.code == "range_beyond_video"
+    assert model.calls == [] and env.renders == []
+    manifest = manifest_of(env.output / "manifest.json")
+    assert manifest["status"] == "failed"
+    assert manifest["error_code"] == "range_beyond_video"
+    assert manifest["error"] == (
+        "Rentang 1:30–2:10 melewati panjang video (1:40). Perbaiki rentangnya lalu buat job lagi."
+    )
+    assert manifest["selection_v3"]["status"] == "failed"
+    assert_web_summary(manifest["selection_v3"])
+
+
+def test_a_range_at_the_rounded_end_of_the_video_is_trimmed_to_it(env):
+    env.media_duration = 299.6  # a player shows 4:59; the transcript reaches 5:12 (DURATION)
+
+    manifest = manifest_of(run(env, ranges=(TimeRange(270, 300),), cold_open=False))
+
+    typed = manifest["clips"][0]
+    assert typed["manual"] is True and (typed["start"], typed["end"]) == (270.0, 299.6)
+    assert "clip_trimmed_to_media:1" in manifest["selection_v3"]["warnings"]
+
+
+def test_a_range_without_speech_fails_with_its_code_and_asks_no_llm(env):
+    env.media_duration = DURATION + 120.0  # silence after the last line
+    env.llm_client = ScriptedLLMClient([])
+
+    with pytest.raises(TimeRangeError):
+        run(env, llm_mode="auto", ranges=(TimeRange(330, 360),))
+
+    assert env.llm_client.calls == []
+    manifest = manifest_of(env.output / "manifest.json")
+    assert manifest["error_code"] == "range_no_speech"
+    assert manifest["error"].startswith("Rentang 5:30–6:00 tidak berisi ucapan.")
+
+
+def test_ranges_that_take_every_slot_ask_no_llm(env):
+    env.llm_client = ScriptedLLMClient([])
+
+    log = run_logged(env, llm_mode="auto", ranges=TYPED, limit=2)
+
+    assert env.llm_factory_calls == []
+    assert "llm" not in [entry[1] for entry in log if entry[0] == "progress"]
+    manifest = manifest_of(env.output / "manifest.json")
+    assert [clip["manual"] for clip in manifest["clips"]] == [True, True]
+    summary = manifest["selection_v3"]
+    assert summary["status"] == "completed" and summary["source"] == "heuristic"
+    assert not any(code.startswith("llm") for code in summary["warnings"])
+    assert summaries(log)["moments"] == {"count": 2, "source": "heuristic", "ranges": 2}
+
+
+@pytest.mark.parametrize(
+    ("options", "error"),
+    [
+        ({"ranges": [(30, 60)]}, TypeError),
+        ({"ranges": "30-60"}, TypeError),
+        ({"ranges": TYPED, "limit": 1}, TimeRangeError),
+        ({"ranges": (TimeRange(30, 60), TimeRange(50, 80))}, TimeRangeError),
+        ({"ranges": TYPED, "selection_mode": "v1", "max_duration": 60.0}, ValueError),
+    ],
+)
+def test_ranges_are_checked_before_any_work(env, options, error):
+    model = FakeWhisper()
+
+    with pytest.raises(error):
+        run(env, model=model, **options)
+
+    assert model.calls == [] and env.renders == []
+    assert manifest_of(env.output / "manifest.json")["status"] == "failed"
+
+
+def test_without_ranges_the_manifest_and_selection_are_unchanged(env):
+    baseline = manifest_of(run(env))
+    baseline_selection = selection_bytes(env)
+
+    manifest = manifest_of(run(env, ranges=()))
+
+    assert manifest == baseline
+    assert selection_bytes(env) == baseline_selection

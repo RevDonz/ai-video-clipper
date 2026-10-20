@@ -2634,3 +2634,47 @@ with (plan 2026-10-20 A6). Each clip keeps it replaceable and removable in the L
   editor (and in its export) while the automatic clip file stays without it. `accept` equals the
   Logo panel's. No lime: the accent stays on Simpan. The Logo panel names a seeded logo
   "Logo bawaan".
+
+## 5.37 Rentang waktu: time ranges kept as clips (2026-10-21)
+
+Plan `docs/plans/2026-10-20-lanjutan-sesi.md` P2 "Rentang waktu manual". Engine and web; no flag.
+A job without ranges keeps its exact options, argv, selection artifact, manifest and stage
+summaries (tests compare them byte for byte).
+
+- **Grammar** (`src/ai_clipper/time_ranges.py` and `web/lib/time-ranges.mjs`, one grammar and the
+  same Indonesian messages; `web/tests/time-ranges.test.mjs` runs both on the same inputs). A
+  range is `<start>-<end>`; a time is whole seconds (`90`), `m.ss`/`m:ss` or `h.mm.ss`/`h:mm:ss`,
+  parts after the first exactly two digits 00–59. NFKC first (full-width digits, `．`, `：`,
+  `－`); hyphen, `‐`, `‑`, `‒`, en dash, em dash or `−` between the times. Ranges are split on
+  `,`, `;` and line breaks and keep the typed order. Each lasts 5–180 s; at most 10 ranges, at
+  most the job's `limit`, none overlapping (touching is fine); the text is at most 500 code
+  points. Refusals are `TimeRangeError` with code `time_range_invalid`.
+- **Job API.** Form field `timeRanges` (in `JOB_FORM_FIELDS`); stored as `options.ranges: [{start,
+  end}]` in whole seconds, V3 only, omitted when empty. `POST /api/jobs` answers a refused range
+  `400 {error: <the message>, code: "time_range_invalid"}` and queues nothing.
+  `validatePersistedJobOptions` re-checks stored ranges (`validStoredRanges`).
+- **Worker → engine.** One `--range=<start>-<end>` per stored range, in order. CLI `--range`
+  (repeatable, V3 only, at most `--limit`) reads the same grammar.
+- **Engine.** `run_pipeline(ranges=…)` (`TimeRange` values) refuses a range that ends more than
+  1 s past the probed video before any transcript work (`range_beyond_video`). `select_clips_v3`
+  makes each range a clip exactly as typed, first, `manual=True`: units whose middle lies inside
+  the range (else those it touches), packaging, scores and reasons from
+  `hook_heuristics.package_spans` (first reason "Rentang waktu yang kamu ketik: m:ss–m:ss."),
+  cold open, focus label and trends as for a heuristic clip. A range without a unit is refused
+  (`range_no_speech`) before the LLM is asked. The other `limit - n` slots are filled as without
+  ranges from proposals asked for `limit`; a candidate sharing more than 0.5 s with a range, or a
+  unit with its clip, is never chosen. Ranges that take every slot create no LLM client (stage
+  `selecting`, "Menyiapkan klip dari rentang waktu").
+- **Outputs.** `SelectedClip.manual` (artifact key `"manual": true` only when set; the reader
+  refuses any other value), manifest clip `"manual": true`, stage summary `moments.ranges` (how
+  many clips came from ranges). A refused range's failed manifest adds `error_code` beside the
+  Indonesian `error`; the worker stores `errorCode` and that line as `stageDetail` for
+  `RANGE_FAILURE_CODES` only.
+- **Web.** `sanitizeV3ClipFields` keeps `manual` only when exactly `true`.
+  `stageSummaryRows`: "2 dari rentang waktu · 3 dipilih AI". `clipRangeChip(clip)` → "Rentang
+  waktu kamu" (project page tag). `selectionNotices` drops "Dibuat tanpa AI" when every clip is
+  typed.
+- **Dashboard.** Momen section, "Rentang waktu (opsional)" textarea (`#time-ranges`) above the
+  focus field; `jobFormProblems({…, timeRanges})` checks it with the API's rules (the count only
+  when Jumlah klip is a count) and focuses it as the first problem inside the folded options; the
+  summary line adds "n rentang waktu". The text is never stored in the browser.

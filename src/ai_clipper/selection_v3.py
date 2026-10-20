@@ -145,6 +145,25 @@
      can never match literally (see :mod:`ai_clipper.focus`), and ``focus_few_matches:<n>``
      when fewer than ``k`` clips are ``literal`` or ``semantic``.
 
+9. **Rentang waktu** (``ranges``, :class:`ai_clipper.time_ranges.TimeRange`, plan 2026-10-20
+   P2): time ranges the person typed. Without them nothing below happens. Otherwise:
+
+   - each range is a clip exactly as typed (no snapping, and the job's duration rule does not
+     apply), first and in the typed order, marked ``manual``. Its units are those whose middle
+     lies inside the range (else those it touches); a range without any is refused with
+     :func:`ai_clipper.time_ranges.no_speech_error` before the LLM is asked. Its packaging,
+     scores and reasons come from :func:`ai_clipper.hook_heuristics.package_spans` (the first
+     reason names the range), its cold open follows the rule above, and its focus label and
+     trends are checked like a heuristic clip's;
+   - the remaining ``k - len(ranges)`` slots are filled as without ranges, from proposals asked
+     for ``k`` (so moments inside a range have stand-ins): a candidate sharing more than
+     :data:`RANGE_OVERLAP_SECONDS` with a range, or a unit with its clip, is never chosen, and
+     a near-duplicate of a range's clip is deferred. The LLM still "led" when one of its
+     moments survived snapping, even if every such moment lay inside a range;
+   - ranges that take every slot ask no LLM and propose nothing: the result is the heuristic's,
+     ``completed``, with no warning;
+   - the focus summary and ``few_clips`` count every clip, typed or not.
+
 Warning codes (in this order): the LLM's own ``llm_*`` codes, ``llm_unavailable`` or
 ``llm_failed:<code>`` (auto-mode fallback), ``llm_filled:<n>`` (heuristic clips in a selection
 the LLM led: one of its moments survived snapping), ``snap_dropped:<n>``,
@@ -176,6 +195,7 @@ from .hook_heuristics import (
     archetype_label,
     clean_hook_line,
     opening_end,
+    package_spans,
     propose_heuristic,
 )
 from .llm import (
@@ -208,6 +228,7 @@ from .selection_types import (
 )
 from .sentences import SentenceUnit, build_sentence_units
 from .sound_events import SoundEvent, sort_events
+from .time_ranges import TimeRange, check_ranges, no_speech_error
 from .transcript_io import atomic_write_bytes
 from .transcript_quality import TranscriptQuality, assess_transcript, ends_with_terminal_punctuation
 from .trend_context import (
@@ -268,6 +289,10 @@ FOCUS_FILL_REASON = (
 )
 FOCUS_WINDOW_OPTIONS = 6
 FOCUS_QUALITY_GAP = 1.0
+# Rentang waktu: a candidate may share at most this much time with a typed range (a pre-roll or
+# a tail touching it); the first reason of a typed range's clip.
+RANGE_OVERLAP_SECONDS = 0.5
+MANUAL_REASON = "Rentang waktu yang kamu ketik: {label}."
 _TOLERANCE = 1e-6
 _TIME_DIGITS = 3
 _WORD = re.compile(r"[^\W\d_]+", re.UNICODE)
@@ -624,15 +649,18 @@ def _rank(
     candidates: Sequence[_Candidate],
     k: int,
     key: Callable[[_Candidate], object] = _by_source,
+    taken: Sequence[_Candidate] = (),
 ) -> list[_Candidate]:
     """Up to ``k`` candidates that share no unit, near-duplicates deferred within their group.
 
     Candidates arrive LLM first, then heuristic, each in its own rank order (with a focus, per
     focus part; ``key`` then groups by source and part). A near-duplicate of an accepted clip
     moves to the end of its own group, so a distinct LLM moment goes first but a repeated LLM
-    topic still beats a heuristic filler.
+    topic still beats a heuristic filler. ``taken`` (the typed ranges' clips) count as accepted
+    already and are not returned.
     """
-    accepted: list[_Candidate] = []
+    accepted: list[_Candidate] = list(taken)
+    limit = len(accepted) + k
 
     def overlaps(item: _Candidate) -> bool:
         return any(
@@ -647,8 +675,8 @@ def _rank(
     for group in groups.values():
         deferred: list[_Candidate] = []
         for item in group:
-            if len(accepted) >= k:
-                return accepted
+            if len(accepted) >= limit:
+                return accepted[len(taken) :]
             if overlaps(item):
                 continue
             if any(
@@ -659,11 +687,11 @@ def _rank(
                 continue
             accepted.append(item)
         for item in deferred:
-            if len(accepted) >= k:
-                return accepted
+            if len(accepted) >= limit:
+                return accepted[len(taken) :]
             if not overlaps(item):
                 accepted.append(item)
-    return accepted
+    return accepted[len(taken) :]
 
 
 def _clock(seconds: float) -> str:
@@ -935,6 +963,7 @@ def _focus_extras(
     windows: HeuristicWindows,
     snapper: _Snapper,
     build: Callable[[ClipProposal, float, _Span], tuple[_Candidate, int]],
+    reserved: Sequence[_Candidate] = (),
 ) -> list[_Candidate]:
     """Heuristic windows for the mention clusters nobody looked at, for the slots they may take.
 
@@ -947,12 +976,14 @@ def _focus_extras(
     starts in the opening, touches one of those clips, or scores below ``floor`` (see
     :func:`_focus_floors`) is skipped. The survivors are taken covering the most mentions of
     open clusters first, then best score first, one per cluster, never two that share a unit,
-    at most one per free slot.
+    at most one per free slot. The typed ranges' clips (``reserved``) stay and block like
+    the clips that stay, and the clusters they say are taken.
     """
     fixed = [item for item in chosen if item.part != "none"]
     blocking = [item for item in chosen if item.part != "none" or item.proposal.source == "llm"]
+    blocking += reserved
     room = k - len(fixed)
-    taken = set(judged).union(*(focus.touched(item.span) for item in chosen))
+    taken = set(judged).union(*(focus.touched(item.span) for item in [*chosen, *reserved]))
     open_clusters = [
         number for number in range(len(focus.clusters)) if number not in taken
     ]
@@ -1013,6 +1044,7 @@ def _selected(
     filler: bool,
     shown: Sequence[TrendItem] = (),
     focus: _Focus | None = None,
+    manual: bool = False,
 ) -> SelectedClip:
     proposal = item.proposal
     span = item.span
@@ -1066,6 +1098,58 @@ def _selected(
         text=text,
         trends=trends,
         focus=None if focus is None else _clip_focus(item, focus),
+        manual=manual,
+    )
+
+
+# --- Rentang waktu ---------------------------------------------------------------------------
+
+
+def _range_units(units: Sequence[SentenceUnit], item: TimeRange) -> tuple[int, int] | None:
+    """The first and last unit whose middle lies inside the range, else the first and last it
+    touches (a short range inside one long line), else ``None`` (no speech)."""
+    inside = [unit.index for unit in units if item.start <= (unit.start + unit.end) / 2 <= item.end]
+    if not inside:
+        inside = [unit.index for unit in units if unit.start < item.end and item.start < unit.end]
+    return (inside[0], inside[-1]) if inside else None
+
+
+def _typed_candidates(
+    units: Sequence[SentenceUnit],
+    typed: Sequence[TimeRange],
+    *,
+    events: Sequence[SoundEvent],
+    audio: AudioTimeline | None,
+    max_duration: float,
+    build: Callable[[ClipProposal, float, _Span], tuple[_Candidate, int]],
+) -> list[_Candidate]:
+    """One candidate per typed range, its span exactly the range; a range without speech is
+    refused with :func:`ai_clipper.time_ranges.no_speech_error`."""
+    spans = []
+    for item in typed:
+        found = _range_units(units, item)
+        if found is None:
+            raise no_speech_error(item)
+        spans.append(found)
+    proposals = package_spans(
+        units,
+        spans,
+        events=events,
+        audio=audio,
+        max_duration=max_duration,
+        lead_reasons=[MANUAL_REASON.format(label=item.label) for item in typed],
+    )
+    return [
+        build(proposal, proposal.score, _Span(first, last, float(item.start), float(item.end)))[0]
+        for item, (first, last), proposal in zip(typed, spans, proposals, strict=True)
+    ]
+
+
+def _in_typed_range(span: _Span, typed: Sequence[TimeRange]) -> bool:
+    """Whether ``span`` shares more than :data:`RANGE_OVERLAP_SECONDS` with a typed range."""
+    return any(
+        min(span.end, item.end) - max(span.start, item.start) > RANGE_OVERLAP_SECONDS
+        for item in typed
     )
 
 
@@ -1108,6 +1192,7 @@ def select_clips_v3(
     trends: Sequence[TrendItem] = (),
     focus: FocusSpec | None = None,
     focus_topup: bool = True,
+    ranges: Sequence[TimeRange] = (),
 ) -> SelectionResult:
     """Select up to ``k`` snapped, packaged clips; see the module docstring for the rules.
 
@@ -1121,11 +1206,16 @@ def select_clips_v3(
     (:func:`ai_clipper.trend_context.read_trend_context`); only those the transcript mentions
     are used. ``focus`` is the job's Fokus klip option (:func:`ai_clipper.focus.parse_focus`);
     ``focus_topup`` allows its single top-up request to the LLM (never without a focus).
+    ``ranges`` are the person's own time ranges (at most ``k``): each becomes a clip as typed,
+    first, and the other clips fill the remaining slots (module docstring, "Rentang waktu").
     """
     trend_items = _check_trends(trends)
     focus = _check_focus(focus)
     items = _check_segments(segments)
     k = _integer(k, "k", 1)
+    if isinstance(ranges, (str, bytes)) or not isinstance(ranges, Sequence):
+        raise TypeError("ranges must be a sequence of TimeRange values")
+    typed = check_ranges(ranges, k)
     low = _positive(min_duration, "min_duration")
     high = _positive(max_duration, "max_duration")
     if high < low:
@@ -1152,6 +1242,8 @@ def select_clips_v3(
     unmatchable = 0 if matcher is None else len(matcher.unmatchable)
     focus_notes = (f"focus_terms_unmatchable:{unmatchable}",) if unmatchable else ()
     if not units:
+        if typed:
+            raise no_speech_error(typed[0])
         return SelectionResult(
             clips=(),
             source="heuristic",
@@ -1162,9 +1254,6 @@ def select_clips_v3(
             warnings=(*focus_notes, "no_transcript"),
             focus=summary,
         )
-    heuristic = propose_heuristic(
-        units, min_duration=low, max_duration=high, k=k, events=ordered_events, audio=audio
-    )
     # The trends this episode mentions, in prompt order (T1, T2, ...); empty means no trends.
     shown: tuple[TrendItem, ...] = ()
     if trend_items:
@@ -1172,6 +1261,35 @@ def select_clips_v3(
     focused: _Focus | None = None
     if matcher is not None:
         focused = _Focus.of(matcher, units)
+    snapper = _Snapper(
+        units,
+        events=ordered_events,
+        audio=audio,
+        media_end=_media_end(items, audio),
+        min_duration=low,
+        max_duration=high,
+    )
+
+    def build(proposal: ClipProposal, value: float, span: _Span) -> tuple[_Candidate, int]:
+        """A snapped candidate and the number of its LLM trend refs that were dropped."""
+        text = " ".join(unit.text for unit in units[span.start_unit : span.end_unit + 1])
+        mentioned = tuple(match.item for match in match_trends(shown, text)) if shown else ()
+        grounded, refused = _ground(proposal, mentioned, shown)
+        match = None if focused is None else _focus_match(proposal, span, focused)
+        candidate = _Candidate(
+            proposal, span, _topic_words(text), grounded, value, mentioned, match
+        )
+        return candidate, refused
+
+    manual = _typed_candidates(
+        units, typed, events=ordered_events, audio=audio, max_duration=high, build=build
+    )
+    slots = k - len(manual)
+    heuristic: tuple[ClipProposal, ...] = ()
+    if slots:  # asked for k, so moments inside a typed range have stand-ins
+        heuristic = propose_heuristic(
+            units, min_duration=low, max_duration=high, k=k, events=ordered_events, audio=audio
+        )
 
     warnings: list[str] = []
     llm_proposals: tuple[ClipProposal, ...] = ()
@@ -1179,7 +1297,7 @@ def select_clips_v3(
     provider = model = None
     usage: Mapping[str, int] = {}
     status = "completed"
-    if llm_mode != "off":
+    if llm_mode != "off" and slots:
         try:
             if llm_client is None:
                 raise LLMUnavailable(
@@ -1226,31 +1344,13 @@ def select_clips_v3(
             warnings.append(f"llm_failed:{error.code}")
             status = "fallback"
 
-    snapper = _Snapper(
-        units,
-        events=ordered_events,
-        audio=audio,
-        media_end=_media_end(items, audio),
-        min_duration=low,
-        max_duration=high,
-    )
     if len(llm_values) != len(llm_proposals):
         llm_values = tuple(proposal.score for proposal in llm_proposals)
     values = (*llm_values, *(proposal.score for proposal in heuristic))
 
-    def build(proposal: ClipProposal, value: float, span: _Span) -> tuple[_Candidate, int]:
-        """A snapped candidate and the number of its LLM trend refs that were dropped."""
-        text = " ".join(unit.text for unit in units[span.start_unit : span.end_unit + 1])
-        mentioned = tuple(match.item for match in match_trends(shown, text)) if shown else ()
-        grounded, refused = _ground(proposal, mentioned, shown)
-        match = None if focused is None else _focus_match(proposal, span, focused)
-        candidate = _Candidate(
-            proposal, span, _topic_words(text), grounded, value, mentioned, match
-        )
-        return candidate, refused
-
     candidates: list[_Candidate] = []
     dropped = ungrounded = 0
+    llm_snapped = False
     for proposal, value in zip((*llm_proposals, *heuristic), values, strict=True):
         payoff = proposal.hook_unit if proposal.payoff_unit is None else proposal.payoff_unit
         protect = (min(proposal.hook_unit, payoff), max(proposal.hook_unit, payoff))
@@ -1258,26 +1358,31 @@ def select_clips_v3(
         if span is None:
             dropped += 1
             continue
+        llm_snapped = llm_snapped or proposal.source == "llm"
+        if _in_typed_range(span, typed):
+            continue
         candidate, refused = build(proposal, value, span)
         ungrounded += refused
         candidates.append(candidate)
 
     group = _by_source
     floors: dict[str, _Floor] = {}
-    judged: set[int] = set()  # mention clusters an LLM moment says: the LLM's call
+    judged: set[int] = set()  # mention clusters an LLM moment or a typed range says
     if focused is not None:
         group = _by_source_and_part
-        floors = _focus_floors(candidates, k)
+        floors = _focus_floors(candidates, slots)
         for item in candidates:
             if item.proposal.source == "llm":
                 judged |= focused.touched(item.span)
+        for item in manual:
+            judged |= focused.touched(item.span)
         candidates = [_with_part(item, floors, focused, judged) for item in candidates]
-    chosen = _rank(_ordered(candidates, focused is not None), k, group)
-    if focused is not None and focused.clusters:
+    chosen = _rank(_ordered(candidates, focused is not None), slots, group, manual)
+    if focused is not None and focused.clusters and slots:
         extras = _focus_extras(
             chosen,
             focused,
-            k=k,
+            k=slots,
             floor=floors.get("heuristic", _Floor()).score,
             judged=judged,
             windows=HeuristicWindows(
@@ -1285,13 +1390,16 @@ def select_clips_v3(
             ),
             snapper=snapper,
             build=build,
+            reserved=manual,
         )
+        extras = [item for item in extras if not _in_typed_range(item.span, typed)]
         if extras:  # after the heuristic's other literal candidates, before every none part
             candidates.extend(extras)
-            chosen = _rank(_ordered(candidates, True), k, group)
+            chosen = _rank(_ordered(candidates, True), slots, group, manual)
     # The LLM led when one of its moments survived snapping (without a focus that moment is
-    # the first clip; with one, focus matches of the heuristic may come before it).
-    llm_led = any(item.proposal.source == "llm" for item in candidates)
+    # the first clip; with one, focus matches of the heuristic may come before it), also when
+    # every such moment lay inside a typed range.
+    llm_led = llm_snapped
     if not llm_led and llm_proposals and status == "completed":
         # Every LLM moment was lost to snapping.
         if llm_mode == "required":
@@ -1304,17 +1412,19 @@ def select_clips_v3(
         status = "fallback"
         warnings.append("llm_failed:no_moments")
     fillers = sum(item.proposal.source == "heuristic" for item in chosen) if llm_led else 0
+    picked = [*manual, *chosen]
     clips = tuple(
         _selected(
             rank,
             item,
             units,
             snapper.cold_open(item.span, item.proposal.hook_unit) if cold_open else None,
-            filler=llm_led and item.proposal.source == "heuristic",
+            filler=llm_led and rank > len(manual) and item.proposal.source == "heuristic",
             shown=shown,
             focus=focused,
+            manual=rank <= len(manual),
         )
-        for rank, item in enumerate(chosen, 1)
+        for rank, item in enumerate(picked, 1)
     )
     if fillers:
         warnings.append(f"llm_filled:{fillers}")
@@ -1323,7 +1433,7 @@ def select_clips_v3(
     if ungrounded:
         warnings.append(f"trend_ref_ungrounded:{ungrounded}")
     repackaged = focus_repackaged = 0
-    for clip, item in zip(clips, chosen, strict=True):
+    for clip, item in zip(clips, picked, strict=True):
         packaging = (item.proposal.title, item.proposal.hook_text, item.proposal.description)
         if (clip.title, clip.hook_text, clip.description) == packaging:
             continue
@@ -1341,7 +1451,7 @@ def select_clips_v3(
         warnings.append(f"trend_packaging_ungrounded:{repackaged}")
     sensitive_humor = sum(
         item.proposal.archetype == "humor" and any(trend.sensitive for trend in item.mentioned)
-        for item in chosen
+        for item in picked
     )
     if sensitive_humor:
         warnings.append(f"trend_sensitive_humor:{sensitive_humor}")
@@ -1357,7 +1467,7 @@ def select_clips_v3(
             warnings.append(f"focus_literal_ungrounded:{claimed}")
         if focus_repackaged:
             warnings.append(f"focus_packaging_ungrounded:{focus_repackaged}")
-        matched = sum(item.focus != "none" for item in chosen)
+        matched = sum(item.focus != "none" for item in picked)
         if matched < k:
             warnings.append(f"focus_few_matches:{matched}")
     if len(clips) < k:
@@ -1417,8 +1527,9 @@ _CLIP_FIELDS = frozenset(
 )
 
 
-# Written only when a clip has trends, and only for a job with focus terms.
-_CLIP_OPTIONAL_FIELDS = frozenset({"trends", "focus"})
+# Written only when a clip has trends, only for a job with focus terms, and only (true) for a
+# clip from a typed range.
+_CLIP_OPTIONAL_FIELDS = frozenset({"trends", "focus", "manual"})
 _RESULT_OPTIONAL_FIELDS = frozenset({"focus"})  # only for a job with focus terms
 _TREND_FIELDS = frozenset({"id", "title", "kind"})
 _CLIP_FOCUS_FIELDS = frozenset({"match", "terms", "at"})
@@ -1478,6 +1589,8 @@ def _clip_from_dict(payload: object, index: int) -> SelectedClip:
     unit_ids = _string_tuple(value["unit_ids"], f"clip {index} unit_ids")
     if type(value["scores"]) is not dict:
         raise SelectionArtifactError(f"clip {index} scores must be an object")
+    if "manual" in value and value["manual"] is not True:
+        raise SelectionArtifactError(f"clip {index} manual must be true when present")
     return SelectedClip(
         rank=value["rank"],
         start=value["start"],
@@ -1497,6 +1610,7 @@ def _clip_from_dict(payload: object, index: int) -> SelectedClip:
         text=value["text"],
         trends=_trend_refs(value["trends"], index) if "trends" in value else (),
         focus=_clip_focus_from_dict(value["focus"], index) if "focus" in value else None,
+        manual="manual" in value,
     )
 
 

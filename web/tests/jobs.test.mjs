@@ -272,6 +272,28 @@ test("POST /api/jobs gives a new job a copy of the Pengaturan default logo, and 
   });
 });
 
+test("POST /api/jobs refuses a time range with the dashboard's message and stores valid ones", async () => {
+  await withJobsApi(async ({ root, post }) => {
+    const refused = await post({ youtubeUrl: "https://youtu.be/rBg0ZcwjVKQ", limit: "2", timeRanges: "10.30-12.05, 1:00-1:30, 2:00-2:30" });
+    assert.equal(refused.status, 400);
+    assert.deepEqual(await refused.json(), {
+      error: "Ada 3 rentang waktu, tetapi jumlah klip 2. Naikkan jumlah klip atau kurangi rentang.",
+      code: "time_range_invalid",
+    });
+    const unknown = await post({ youtubeUrl: "https://youtu.be/rBg0ZcwjVKQ", timeRanges: "<b>besok</b>-12" });
+    assert.equal(unknown.status, 400);
+    assert.equal((await unknown.json()).code, "time_range_invalid");
+    assert.deepEqual(await jobDirectories(root), []);
+
+    const accepted = await post({ youtubeUrl: "https://youtu.be/rBg0ZcwjVKQ", limit: "3", timeRanges: "10.30-12.05\n1:02:10-1:03:00" });
+    assert.equal(accepted.status, 202);
+    const { job } = await accepted.json();
+    assert.deepEqual(job.options.ranges, [{ start: 630, end: 725 }, { start: 3730, end: 3780 }]);
+    const stored = JSON.parse(await readFile(path.join(root, job.id, "job.json"), "utf8"));
+    assert.deepEqual(stored.options.ranges, job.options.ranges);
+  });
+});
+
 test("rejects invalid render modes and duration ranges", () => {
   assert.throws(() => parseJobOptions({ renderMode: "stretch" }), /render mode/i);
   assert.throws(

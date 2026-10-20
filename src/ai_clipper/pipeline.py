@@ -63,6 +63,17 @@ the video before its first mention is no longer ``literal`` but ``none``). The f
 only data for the selector: it never reaches argv, FFmpeg or the renderer. Without ``focus``
 the manifest and ``selection.v3.json`` are exactly as before.
 
+**Rentang waktu** (plan 2026-10-20 P2). With ``ranges`` (:class:`ai_clipper.time_ranges.TimeRange`
+values, CLI ``--range``; at most ``limit``, V3 only) the ranges are checked against the probed
+video right after the probe, before any transcript work: one that ends more than
+:data:`ai_clipper.time_ranges.BEYOND_VIDEO_TOLERANCE_SECONDS` past the video fails the job
+(``range_beyond_video``). :func:`select_clips_v3` makes each range a clip as typed, first, and
+fills the other slots (a range without speech fails the job, ``range_no_speech``); when the
+ranges take every slot no LLM client is created and the stage is ``selecting``. Their manifest
+clips add ``"manual": true`` and the ``moments`` stage summary adds ``ranges`` (how many clips
+came from them). A failed manifest of either refusal carries ``error_code`` beside ``error``
+(the Indonesian message), which the web worker shows. Without ranges every output is as before.
+
 Every mode writes a poster next to each rendered clip: :func:`write_clip_thumbnail` grabs one
 frame of ``clip-XX.mp4`` at :func:`thumbnail_time` (1.0 s, so the hook text and the first
 captions are on it; earlier for very short clips; 0.25 s after a cold-open flash that would
@@ -110,7 +121,7 @@ import sys
 import threading
 import time
 import uuid
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field, replace
 from numbers import Real
 from pathlib import Path
@@ -161,6 +172,7 @@ from .selection_v3 import (
     write_selection_artifact,
 )
 from .sound_events import SoundEvent, write_sound_events
+from .time_ranges import TimeRange, TimeRangeError, check_ranges, check_within_video
 from .transcribe import transcribe_video
 from .transcript_io import read_transcript_json, write_transcript_json
 from .transcript_quality import (
@@ -1045,6 +1057,8 @@ def _v3_manifest_clip(
         entry["trends"] = [item.to_dict() for item in clip.trends]
     if clip.focus is not None:  # optional: only a job with focus terms has it
         entry["focus"] = clip.focus.to_dict()
+    if clip.manual:  # optional: only a clip cut from the person's own time range
+        entry["manual"] = True
     return entry
 
 
@@ -1142,6 +1156,7 @@ def _run_v3(
     word_timestamps: bool,
     trend_context: Path | None = None,
     focus: FocusSpec | None = None,
+    ranges: tuple[TimeRange, ...] = (),
     render_engine: str = render_edit.ENGINE_LEGACY,
     summarize: StageSummary = _no_stage_summary,
 ) -> tuple[Transcription, Path, list[dict[str, object]]]:
@@ -1151,6 +1166,7 @@ def _run_v3(
         state.warnings.append("media_probe_failed")
     else:
         summarize("video", {"duration": round(media_duration, 3)})
+    check_within_video(ranges, media_duration)  # before any transcript work
     audio_job = _BackgroundCall(
         lambda: analyze_audio_timeline(source, timeout=AUDIO_TIMELINE_TIMEOUT),
         name="potongin-audio-timeline",
@@ -1188,13 +1204,26 @@ def _run_v3(
     context_options: dict[str, object] = {"trends": trends} if trends else {}
     if focus is not None:
         context_options["focus"] = focus
+    if ranges:
+        context_options["ranges"] = ranges
     state.stage = "llm"
-    client, budget, selector_mode = _v3_llm_client(llm_mode, artifact_root, state.warnings)
+    typed_only = len(ranges) >= limit  # the typed ranges take every slot: no AI is asked
+    client: LLMClient | None = None
+    budget: tuple[int, int] | None = None
+    selector_mode = "off"
+    if not typed_only:
+        client, budget, selector_mode = _v3_llm_client(llm_mode, artifact_root, state.warnings)
     if client is not None:
         report("llm", 60, "AI (LLM) memilih momen terbaik")
     else:
         state.stage = "selecting"
-        report("selecting", 60, "Memilih momen terbaik dengan heuristik lokal")
+        report(
+            "selecting",
+            60,
+            "Menyiapkan klip dari rentang waktu"
+            if typed_only
+            else "Memilih momen terbaik dengan heuristik lokal",
+        )
     budget_options = (
         {} if budget is None else {"context_tokens": budget[0], "max_output_tokens": budget[1]}
     )
@@ -1239,7 +1268,11 @@ def _run_v3(
             "Tidak ada momen yang bisa dijadikan klip dalam batas durasi "
             f"{min_duration:g}-{max_duration:g} detik."
         )
-    summarize("moments", {"count": len(result.clips), "source": result.source})
+    moments: dict[str, object] = {"count": len(result.clips), "source": result.source}
+    typed = sum(clip.manual for clip in result.clips)
+    if typed:  # only a job with typed ranges
+        moments["ranges"] = typed
+    summarize("moments", moments)
 
     state.stage = "packaging"
     report("packaging", 63, "Menyiapkan judul, hook, dan caption klip")
@@ -1550,11 +1583,13 @@ def run_pipeline(
     focus: FocusSpec | None = None,
     render_engine: str | None = None,
     stage_summary: StageSummary | None = None,
+    ranges: Sequence[TimeRange] = (),
 ) -> Path:
     """Transcribe, select highlights, render clips, and publish a status manifest.
 
     ``llm_mode``, ``cold_open``, ``hook_overlay``, ``hook_duration``, ``captions_dir``,
-    ``trend_context`` (a Konteks Tren snapshot), ``focus`` (the Fokus klip option),
+    ``trend_context`` (a Konteks Tren snapshot), ``focus`` (the Fokus klip option), ``ranges``
+    (the Rentang waktu option; refused for other modes),
     ``render_engine`` and ``stage_summary`` (module docstring, "Stage summaries") only apply to
     ``selection_mode="v3"``. ``caption_style`` defaults to
     ``"karaoke"`` for V3 and ``"classic"`` otherwise; ``word_timestamps`` applies to every
@@ -1607,6 +1642,11 @@ def run_pipeline(
         trend_context = _optional_path(trend_context, "trend_context")
         if focus is not None and not isinstance(focus, FocusSpec):
             raise TypeError("focus must be a FocusSpec or None")
+        if isinstance(ranges, (str, bytes)) or not isinstance(ranges, Sequence):
+            raise TypeError("ranges must be a sequence of TimeRange values")
+        ranges = check_ranges(ranges, limit)
+        if ranges and selection_mode is not SelectionMode.V3:
+            raise ValueError("ranges need selection_mode v3")
         if selection_mode is SelectionMode.V3:
             min_duration, max_duration = _clip_bounds(min_duration, max_duration)
         report("analyzing", 26, "Memeriksa video dan memuat model AI")
@@ -1636,6 +1676,7 @@ def run_pipeline(
                 word_timestamps=word_timestamps,
                 trend_context=trend_context,
                 focus=focus,
+                ranges=ranges,
                 render_engine=render_engine,
                 summarize=stage_summary or _no_stage_summary,
             )
@@ -1748,6 +1789,8 @@ def run_pipeline(
             "status": "failed",
             "error": str(exc),
         }
+        if isinstance(exc, TimeRangeError):  # the person can fix it: the worker shows why
+            failed_manifest["error_code"] = exc.code
         if selection_v2_summary is not None:
             failed_manifest["selection_v2"] = selection_v2_summary
         if v3_state is not None:

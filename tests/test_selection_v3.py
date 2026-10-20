@@ -53,6 +53,7 @@ from ai_clipper.selection_v3 import (
 )
 from ai_clipper.sentences import SentenceUnit, build_sentence_units, looks_like_question
 from ai_clipper.sound_events import SoundEvent
+from ai_clipper.time_ranges import TimeRange, TimeRangeError
 from ai_clipper.trend_context import TrendItem, match_trends
 
 SCORES = {"hook": 8, "standalone": 7, "payoff": 6, "emotion": 5, "shareability": 4}
@@ -2002,3 +2003,179 @@ def test_the_opening_greeting_gets_no_heuristic_window_and_moves_nothing_up(monk
     assert FixedWindows.asked == [(30, 30)]  # the mention at 00:00 is never asked about
     assert starts(result) == ["S0029", "S0001"]
     assert [clip.focus.match for clip in result.clips] == ["literal", "literal"]
+
+
+# --- Rentang waktu (plan 2026-10-20 P2) -------------------------------------------------------
+
+
+def apart(clip: SelectedClip, ranges) -> bool:
+    """The clip shares no more than half a second with any of the person's ranges."""
+    return all(min(clip.end, item.end) - max(clip.start, item.start) <= 0.5 for item in ranges)
+
+
+def test_typed_ranges_become_the_first_clips_and_the_heuristic_fills_the_rest():
+    segments = episode(40, gap=0.5)  # unit i: 7.5 i to 7.5 i + 7
+    ranges = (TimeRange(150, 180), TimeRange(30, 60))
+
+    result = select_clips_v3(
+        segments, k=4, min_duration=20.0, max_duration=40.0, llm_mode="off", ranges=ranges
+    )
+
+    check_result(result, k=4, low=20.0, high=40.0)
+    assert len(result.clips) == 4
+    first, second, *rest = result.clips
+    assert [(clip.start, clip.end) for clip in (first, second)] == [(150.0, 180.0), (30.0, 60.0)]
+    assert first.manual and second.manual and not any(clip.manual for clip in rest)
+    # The units whose middle lies inside the range.
+    assert first.unit_ids == ("S0021", "S0024") and second.unit_ids == ("S0005", "S0008")
+    assert first.text == " ".join(statement(index) for index in range(20, 24))
+    assert first.reasons[0] == "Rentang waktu yang kamu ketik: 2:30–3:00."
+    assert first.source == "heuristic" and first.title and first.hook_text
+    assert first.score == combined_score(first.scores)
+    for clip in (first, second):
+        if clip.cold_open is not None:
+            assert clip.start < clip.cold_open[0] < clip.cold_open[1] <= clip.end
+    assert all(apart(clip, ranges) for clip in rest)
+    assert result.source == "heuristic" and result.status == "completed"
+    assert not any(code.startswith("few_clips") for code in result.warnings)
+
+
+def test_a_typed_range_is_kept_whatever_the_jobs_duration_rule():
+    ranges = (TimeRange(30, 150),)  # two minutes, the job asks for 20-40 s clips
+
+    result = select_clips_v3(
+        episode(40, gap=0.5), k=2, min_duration=20.0, max_duration=40.0, llm_mode="off",
+        ranges=ranges, cold_open=False,
+    )
+
+    assert (result.clips[0].start, result.clips[0].end) == (30.0, 150.0)
+    assert result.clips[0].cold_open is None
+    assert 20.0 <= result.clips[1].duration <= 40.0 and apart(result.clips[1], ranges)
+
+
+def test_llm_moments_inside_a_typed_range_give_way_to_the_llms_other_moments():
+    ranges = (TimeRange(70, 98),)  # units 10-13 of episode(40)
+    moments = [moment(10, 13, hook=12), moment(20, 23, hook=21)]
+
+    result, client = llm_run(moments, k=2, ranges=ranges)
+
+    assert len(client.calls) == 1
+    assert [clip.manual for clip in result.clips] == [True, False]
+    assert result.clips[0].unit_ids == ("S0011", "S0014")
+    assert result.clips[1].source == "llm" and result.clips[1].unit_ids == ("S0021", "S0024")
+    assert result.source == "llm" and result.status == "completed"
+
+
+def test_when_every_llm_moment_lies_in_a_typed_range_the_heuristic_fills_without_a_failure():
+    ranges = (TimeRange(70, 98),)
+
+    result, _client = llm_run([moment(10, 13, hook=12)], k=2, ranges=ranges)
+
+    assert [clip.manual for clip in result.clips] == [True, False]
+    assert result.clips[1].source == "heuristic" and apart(result.clips[1], ranges)
+    assert result.status == "completed" and result.source == "llm"
+    assert not any(code.startswith("llm_failed") for code in result.warnings)
+    assert "llm_filled:1" in result.warnings
+
+
+@pytest.mark.parametrize("mode", ["auto", "required"])
+def test_ranges_that_fill_every_slot_ask_no_ai(mode):
+    client = ScriptedLLMClient([])  # any request would fail with script_exhausted
+    ranges = (TimeRange(30, 60), TimeRange(150, 180))
+
+    result = select_clips_v3(
+        episode(40, gap=0.5), k=2, min_duration=20.0, max_duration=40.0, llm_client=client,
+        llm_mode=mode, ranges=ranges,
+    )
+
+    assert client.calls == []
+    assert [clip.manual for clip in result.clips] == [True, True]
+    assert result.source == "heuristic" and result.status == "completed"
+    assert result.prompt_version == HEURISTIC_VERSION and result.provider is None
+    assert result.warnings == ()
+
+
+def test_a_range_without_speech_is_refused_with_its_time():
+    segments = [segment(7.0 * index, statement(index), 7.0) for index in range(10)]
+    segments += [segment(200.0 + 7.0 * index, statement(10 + index), 7.0) for index in range(10)]
+
+    with pytest.raises(TimeRangeError) as caught:
+        select_clips_v3(
+            segments, k=3, min_duration=20.0, max_duration=40.0, llm_mode="off",
+            ranges=(TimeRange(30, 60), TimeRange(100, 130)),
+        )
+    assert caught.value.code == "range_no_speech"
+    assert "1:40–2:10" in str(caught.value)
+    with pytest.raises(TimeRangeError, match="tidak berisi ucapan"):
+        select_clips_v3(
+            [], k=1, min_duration=20.0, max_duration=40.0, llm_mode="off",
+            ranges=(TimeRange(30, 60),),
+        )
+
+
+def test_a_short_range_inside_one_long_line_takes_that_line():
+    segments = [segment(0.0, statement(0), 7.0), segment(7.0, statement(1) * 3, 30.0)]
+    segments.append(segment(37.0, statement(2), 7.0))
+
+    result = select_clips_v3(
+        segments, k=1, min_duration=20.0, max_duration=40.0, llm_mode="off",
+        ranges=(TimeRange(10, 16),),
+    )
+
+    assert result.clips[0].unit_ids == ("S0002", "S0002")
+    assert (result.clips[0].start, result.clips[0].end) == (10.0, 16.0)
+
+
+@pytest.mark.parametrize(
+    ("ranges", "error"),
+    [
+        ([(30, 60)], TypeError),
+        ("30-60", TypeError),
+        ((TimeRange(30, 60), TimeRange(50, 80)), TimeRangeError),
+        ((TimeRange(30, 60), TimeRange(90, 120), TimeRange(150, 180)), TimeRangeError),
+    ],
+)
+def test_ranges_are_checked(ranges, error):
+    with pytest.raises(error):
+        select_clips_v3(
+            episode(40), k=2, min_duration=20.0, max_duration=40.0, llm_mode="off", ranges=ranges
+        )
+
+
+def test_typed_ranges_get_focus_labels_and_count_toward_the_focus_summary():
+    ranges = (TimeRange(145, 175), TimeRange(30, 60))  # units 19-22 (kota21) and 4-7
+
+    result = select_clips_v3(
+        episode(40, gap=0.5), k=3, min_duration=20.0, max_duration=40.0, llm_mode="off",
+        ranges=ranges, focus=parse_focus(["kota21"]),
+    )
+
+    first, second, third = result.clips
+    assert first.manual and first.focus == ClipFocus("literal", ("kota21",), first.focus.at)
+    assert second.manual and second.focus == ClipFocus("none")
+    assert not third.manual and third.focus is not None and apart(third, ranges)
+    assert result.focus == FocusSummary(terms=("kota21",), requested=3)
+    assert result.focus_matched >= 1
+
+
+def test_a_selection_with_typed_ranges_round_trips_through_the_artifact(tmp_path):
+    result = select_clips_v3(
+        episode(40, gap=0.5), k=3, min_duration=20.0, max_duration=40.0, llm_mode="off",
+        ranges=(TimeRange(150, 180),),
+    )
+    path = tmp_path / SELECTION_ARTIFACT_RELATIVE_PATH
+
+    write_selection_artifact(path, result)
+
+    assert read_selection_artifact(path) == result
+    payload = result.to_dict()
+    assert payload["clips"][0]["manual"] is True and "manual" not in payload["clips"][1]
+    for value in (False, "true", 1):
+        broken = json.loads(json.dumps(payload))
+        broken["clips"][0]["manual"] = value
+        with pytest.raises(SelectionArtifactError):
+            selection_from_dict(broken)
+
+
+def test_without_ranges_every_selection_is_unchanged():
+    assert selection_scenarios(ranges=()) == PRE_FOCUS_SELECTIONS

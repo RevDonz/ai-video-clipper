@@ -31,6 +31,7 @@ import {
   validateClaimForExecution,
 } from "../lib/primary-job-queue.mjs";
 import { systemProcessTree } from "../lib/process-tree.mjs";
+import { RANGE_FAILURE_CODES } from "../lib/time-ranges.mjs";
 import { writeTrendSnapshot } from "../lib/trend-context.mjs";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -101,8 +102,21 @@ export function buildClipperInvocation(job, sourcePath, outputRoot, env = proces
       for (const term of options.focus.terms) args.push(`--focus-term=${term}`);
       if (options.focus.note) args.push(`--focus-note=${options.focus.note}`);
     }
+    // Rentang waktu: validated whole seconds, in the order the person typed them.
+    for (const range of options.ranges ?? []) args.push(`--range=${range.start}-${range.end}`);
   }
   return { command: env.AI_CLIPPER_BIN || "/app/.venv/bin/ai-clipper", args };
+}
+
+/**
+ * A typed range the engine refused once it read the video (its failed manifest's `error_code`,
+ * src/ai_clipper/time_ranges.py): `{ code, text }` with the engine's Indonesian line, else null.
+ */
+export function engineRangeFailure(manifest) {
+  if (!manifest || typeof manifest !== "object" || manifest.status !== "failed") return null;
+  if (!RANGE_FAILURE_CODES.includes(manifest.error_code)) return null;
+  const text = sanitizeLine(manifest.error, 300);
+  return text ? { code: manifest.error_code, text } : null;
 }
 
 // --- Konteks Tren (Selection V3) ------------------------------------------------
@@ -576,22 +590,26 @@ export async function main(argv = process.argv, env = process.env) {
       return;
     }
     let pipelineSummary = {};
+    let rangeFailure = null;
     try {
       const failedManifest = JSON.parse(await readFile(path.join(outputRoot, "manifest.json"), "utf8"));
       pipelineSummary = manifestJobPatch(failedManifest);
+      rangeFailure = engineRangeFailure(failedManifest);
     } catch {
       // The pipeline may fail before publishing an output manifest.
     }
-    // A download failure keeps its code (lib/download-errors.mjs) and says why in Indonesian;
-    // `error` stays the technical line (already sanitized for a download).
+    // A download failure keeps its code (lib/download-errors.mjs) and says why in Indonesian, and
+    // so does a typed range the engine refused; `error` stays the technical line (already
+    // sanitized for a download).
     const download = error instanceof DownloadError ? error : null;
+    const reason = download ? { code: download.code, text: downloadErrorMessage(download.code).text } : rangeFailure;
     await update({
       status: "failed",
       progress: 100,
       stage: "failed",
-      stageDetail: download ? downloadErrorMessage(download.code).text : "Proses berhenti karena terjadi kesalahan",
+      stageDetail: reason ? reason.text : "Proses berhenti karena terjadi kesalahan",
       ...pipelineSummary,
-      errorCode: download ? download.code : null,
+      errorCode: reason ? reason.code : null,
       error: error.message || "Worker gagal",
     });
     process.exitCode = 1;

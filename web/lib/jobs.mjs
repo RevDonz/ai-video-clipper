@@ -11,6 +11,9 @@ import {
   normalizeFocusText,
 } from "./selection-v3-view.mjs";
 import { sanitizeStageSummary } from "./stage-summary.mjs";
+import { TimeRangeError, parseTimeRanges, validStoredRanges } from "./time-ranges.mjs";
+
+export { TimeRangeError };
 
 export const RENDER_MODES = ["face-track", "fit-blur", "center-crop"];
 /** Every selection mode a stored job may carry. Only CURRENT_SELECTION_MODE is accepted for new jobs. */
@@ -35,6 +38,8 @@ const V3_OPTION_KEYS = ["llmMode", "coldOpen", "hookOverlay", "captionStyle"];
 const FOCUS_FORM_KEYS = ["focusTerms", "focusNote"];
 // Optional: a job without it keeps the worker's WHISPER_LANGUAGE (else id) and Indonesian captions.
 const LANGUAGE_KEY = "videoLanguage";
+// Rentang waktu (plan 2026-10-20 P2): the typed text, stored as options.ranges in whole seconds.
+const RANGES_FORM_KEY = "timeRanges";
 const FOCUS_KEYS = ["terms", "note", "mode"];
 // Bounds on what the job API reads before normalising: form text, or a list of terms.
 const MAX_FOCUS_TERMS_INPUT = 4096;
@@ -56,7 +61,7 @@ export class RetiredSelectionModeError extends Error {
 /** Every field of the job creation form that parseJobOptions reads (retired ones only to refuse them). */
 export const JOB_FORM_FIELDS = Object.freeze([
   "renderMode", "limit", "minDuration", "maxDuration", "selectionMode",
-  ...V2_OPTION_KEYS, ...V3_OPTION_KEYS, LANGUAGE_KEY, ...FOCUS_FORM_KEYS,
+  ...V2_OPTION_KEYS, ...V3_OPTION_KEYS, LANGUAGE_KEY, ...FOCUS_FORM_KEYS, RANGES_FORM_KEY,
 ]);
 
 /** The parseJobOptions input of a job creation form (FormData): each field or null. */
@@ -345,6 +350,9 @@ export function validatePersistedJobOptions(input) {
   if (input.videoLanguage !== undefined && input.selectionMode !== "v3") {
     throw new Error("Invalid persisted job options: video language requires v3 mode");
   }
+  if (input.ranges !== undefined && input.selectionMode !== "v3") {
+    throw new Error("Invalid persisted job options: time ranges require v3 mode");
+  }
   if (input.selectionMode === undefined) return options;
   if (typeof input.selectionMode !== "string" || !SELECTION_MODES.includes(input.selectionMode)) {
     throw new Error("Invalid persisted job options: unsupported selection mode");
@@ -371,6 +379,9 @@ export function validatePersistedJobOptions(input) {
       throw new Error("Invalid persisted job options: unsupported video language");
     }
     const focus = input.focus === undefined ? null : persistedFocus(input.focus);
+    if (input.ranges !== undefined && !validStoredRanges(input.ranges, limit)) {
+      throw new Error("Invalid persisted job options: invalid time ranges");
+    }
     return {
       ...options,
       llmMode: input.llmMode,
@@ -379,6 +390,7 @@ export function validatePersistedJobOptions(input) {
       captionStyle: input.captionStyle,
       ...(input.videoLanguage !== undefined ? { videoLanguage: input.videoLanguage } : {}),
       ...(focus ? { focus } : {}),
+      ...(input.ranges !== undefined ? { ranges: input.ranges.map(({ start, end }) => ({ start, end })) } : {}),
     };
   }
   const clipProfile = input.clipProfile;
@@ -426,6 +438,9 @@ export function parseJobOptions(input = {}) {
   const videoLanguage = provided(LANGUAGE_KEY) ? input.videoLanguage : null;
   if (videoLanguage !== null && !VIDEO_LANGUAGES.includes(videoLanguage)) throw new Error("Unsupported video language");
   const focus = parseFocusOption(input.focusTerms, input.focusNote);
+  // Refused with the dashboard's own Indonesian message (TimeRangeError), before any download.
+  const timeRanges = input[RANGES_FORM_KEY];
+  const ranges = timeRanges === undefined || timeRanges === null || timeRanges === "" ? [] : parseTimeRanges(timeRanges, limit);
   return {
     renderMode,
     limit,
@@ -438,6 +453,7 @@ export function parseJobOptions(input = {}) {
     captionStyle,
     ...(videoLanguage ? { videoLanguage } : {}),
     ...(focus ? { focus } : {}),
+    ...(ranges.length ? { ranges } : {}),
   };
 }
 
@@ -689,6 +705,8 @@ function sanitizeV3ClipFields(raw, names, descriptionLimit) {
   if (RENDER_ENGINES.includes(raw[names.renderEngine])) fields.renderEngine = raw[names.renderEngine];
   const fallbacks = sanitizeFallbacks(raw[names.fallbacks]);
   if (fallbacks.length) fields.fallbacks = fallbacks;
+  // Rentang waktu: a clip cut from a range the person typed. Exactly true, or no key.
+  if (raw[names.manual] === true) fields.manual = true;
   return fields;
 }
 
@@ -696,17 +714,17 @@ const MANIFEST_V3_NAMES = Object.freeze({
   title: "title", hookText: "hook_text", description: "description", hashtags: "hashtags",
   archetype: "archetype", selectionSource: "selection_source", reasons: "reasons", scores: "scores",
   coldOpen: "cold_open", sourceStart: "source_start", sourceEnd: "source_end", trends: "trends", focus: "focus",
-  clipId: "clip_id", renderEngine: "render_engine", fallbacks: "fallbacks",
+  clipId: "clip_id", renderEngine: "render_engine", fallbacks: "fallbacks", manual: "manual",
 });
 const JOB_V3_NAMES = Object.freeze({
   title: "title", hookText: "hookText", description: "description", hashtags: "hashtags",
   archetype: "archetype", selectionSource: "selectionSource", reasons: "reasons", scores: "scores",
   coldOpen: "coldOpen", sourceStart: "sourceStart", sourceEnd: "sourceEnd", trends: "trends", focus: "focus",
-  clipId: "clipId", renderEngine: "renderEngine", fallbacks: "fallbacks",
+  clipId: "clipId", renderEngine: "renderEngine", fallbacks: "fallbacks", manual: "manual",
 });
 const JOB_V3_ONLY_KEYS = [
   "hookText", "archetype", "selectionSource", "reasons", "scores", "coldOpen", "sourceStart", "sourceEnd",
-  "trends", "focus", "clipId", "renderEngine", "fallbacks",
+  "trends", "focus", "clipId", "renderEngine", "fallbacks", "manual",
 ];
 
 /** A manifest clip's Selection V3 packaging, sanitized, as camelCase job-clip fields. */

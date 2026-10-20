@@ -75,6 +75,12 @@ thresholds and "topic-shift" boundaries were at chance level):
   ``humor`` needs laughter well above the episode's own rate
   (:data:`HUMOR_LAUGH_EXCESS`), so a banter-heavy episode does not call everything funny.
 
+**A span the person chose** (Rentang waktu, :func:`package_spans`): the same scores and
+packaging for fixed units, so a typed range reads like any other clip of the job. Its opener
+is the kind its first unit would have as a start (``plain`` otherwise, no credit), its hook
+the best line of the hook zone above (sized by the job's ``max_duration``), and the first
+reason may name the range instead of the opener.
+
 The weights were set on the two tuning episodes only (``Ive926sC6mc``, ``0dzvz9JZFIM``); the
 comments on the constants note the few choices the benchmark moved. The split-line, question
 and number rules were re-checked on the production caption parser (``yt/transcript.json``,
@@ -88,7 +94,7 @@ import re
 from bisect import bisect_left, bisect_right
 from collections import Counter
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from numbers import Real
 
 from .audio_timeline import AudioTimeline
@@ -1907,3 +1913,63 @@ def propose_heuristic(
         _proposal(ctx, window, adjusted, similarity)
         for window, adjusted, similarity in _diverse(ctx, windows, limit)
     )
+
+
+def package_spans(
+    units: Sequence[SentenceUnit],
+    spans: Sequence[tuple[int, int]],
+    *,
+    events: Sequence[SoundEvent] = (),
+    audio: AudioTimeline | None = None,
+    max_duration: float | None = None,
+    lead_reasons: Sequence[str] = (),
+) -> tuple[ClipProposal, ...]:
+    """A scored, packaged proposal for every ``(first, last)`` unit span, in the given order.
+
+    The spans are fixed (a person's own time ranges): nothing is searched, moved or ranked. The
+    hook zone is sized like :func:`propose_heuristic`'s for ``max_duration`` (default: the
+    span's own length). ``lead_reasons``, one per span when given, replace the opener reason.
+    """
+    items = _validate_units(units)
+    if isinstance(lead_reasons, str) or any(not isinstance(item, str) for item in lead_reasons):
+        raise TypeError("lead_reasons must be strings")
+    if lead_reasons and len(lead_reasons) != len(spans):
+        raise ValueError("lead_reasons must name one reason per span")
+    pairs = []
+    for pair in spans:
+        if not isinstance(pair, tuple) or len(pair) != 2:
+            raise TypeError("spans must be (first, last) unit index pairs")
+        first, last = pair
+        if any(not isinstance(value, int) or isinstance(value, bool) for value in pair):
+            raise TypeError("span units must be integers")
+        if not 0 <= first <= last < len(items):
+            raise ValueError("span units must lie inside the transcript, first before last")
+        pairs.append((first, last))
+    if not pairs:
+        return ()
+    if isinstance(events, (str, bytes)) or not isinstance(events, Sequence):
+        raise TypeError("events must be a sequence of SoundEvent values")
+    if audio is not None and not isinstance(audio, AudioTimeline):
+        raise TypeError("audio must be an AudioTimeline or None")
+    if max_duration is not None:
+        max_duration = _duration(max_duration, "max_duration")
+    ctx = _context([_analyse_unit(unit) for unit in items], sort_events(events), audio)
+    kinds = dict(_starts(ctx))
+    proposals = []
+    for position, (first, last) in enumerate(pairs):
+        origin = ctx.units[first].start
+        length = max_duration if max_duration is not None else ctx.units[last].end - origin
+        reach = min(HOOK_ZONE_MAX_SECONDS, max(HOOK_ZONE_MIN_SECONDS, HOOK_ZONE_SHARE * length))
+        zone, hook_unit, hook_value = first, first, -1.0
+        while zone <= last and (zone == first or ctx.units[zone].start <= origin + reach):
+            if ctx.line_value[zone] > hook_value + _EPSILON:
+                hook_unit, hook_value = zone, ctx.line_value[zone]
+            zone += 1
+        window = _assess(ctx, first, last, kinds.get(first, "plain"), hook_unit, hook_value)
+        window.zone_end = zone - 1
+        proposal = _proposal(ctx, window, window.score, 0.0)
+        if lead_reasons:
+            reasons = (lead_reasons[position][:300], *proposal.reasons[1:])
+            proposal = replace(proposal, reasons=reasons)
+        proposals.append(proposal)
+    return tuple(proposals)

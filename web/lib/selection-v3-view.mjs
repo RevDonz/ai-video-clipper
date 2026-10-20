@@ -434,6 +434,16 @@ export function clipFocusChip(clip, job) {
   return { tone: "literal", label: at ? `${named} · ${at}` : named };
 }
 
+/** "Rentang waktu kamu" for a clip cut from a range the person typed, else null. */
+export function clipRangeChip(clip) {
+  return clip?.manual === true ? "Rentang waktu kamu" : null;
+}
+
+// Every clip came from a typed range: no moment was chosen, by AI or otherwise.
+function typedRangesOnly(job) {
+  return Array.isArray(job?.clips) && job.clips.length > 0 && job.clips.every((clip) => clip?.manual === true);
+}
+
 export function coldOpenLength(clip) {
   const coldOpen = clip?.coldOpen;
   if (!coldOpen || typeof coldOpen.start !== "number" || typeof coldOpen.end !== "number") return null;
@@ -462,7 +472,7 @@ export function selectionNotices(job) {
       action: "Buka Pengaturan",
       help: llmWarningHelpHref(summary.warnings),
     });
-  } else if (summary.status === "completed" && summary.source === "heuristic" && job?.options?.llmMode !== "off") {
+  } else if (summary.status === "completed" && summary.source === "heuristic" && job?.options?.llmMode !== "off" && !typedRangesOnly(job)) {
     notices.push({
       tone: "info",
       title: "Dibuat tanpa AI",
