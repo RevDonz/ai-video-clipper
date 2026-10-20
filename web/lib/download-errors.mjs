@@ -10,7 +10,7 @@ const MESSAGES = Object.freeze({
   download_age_restricted: Object.freeze({ text: "YouTube meminta login karena video ini dibatasi usia.", hint: UPLOAD_INSTEAD }),
   download_members_only: Object.freeze({ text: "Video ini khusus member atau berbayar.", hint: UPLOAD_INSTEAD }),
   download_geo_blocked: Object.freeze({ text: "Video ini tidak tersedia di wilayah server.", hint: UPLOAD_INSTEAD }),
-  download_bot_check: Object.freeze({ text: "YouTube sedang menahan unduhan dari server ini.", hint: UPLOAD_INSTEAD }),
+  download_bot_check: Object.freeze({ text: "YouTube sedang menahan unduhan dari server ini.", hint: "Unggah cookies YouTube di Pengaturan." }),
   download_ytdlp_outdated: Object.freeze({ text: "Pengunduh YouTube di server perlu diperbarui.", hint: "Sementara itu, unggah file videonya langsung." }),
   download_stalled: Object.freeze({ text: "Unduhan macet.", hint: "Buat ulang proyek ini beberapa menit lagi." }),
   download_failed: Object.freeze({ text: "Video YouTube gagal diunduh.", hint: "Periksa link-nya, lalu buat ulang proyek ini." }),

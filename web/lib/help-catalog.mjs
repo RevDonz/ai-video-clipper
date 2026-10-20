@@ -61,8 +61,8 @@ const ENTRIES = [
   }),
   download("download_age_restricted", {
     title: "Video dibatasi usia",
-    cause: "YouTube meminta login untuk video yang dibatasi usia. Server mengunduh tanpa akun YouTube, jadi permintaan itu tidak bisa dipenuhi.",
-    steps: [UPLOAD],
+    cause: "YouTube meminta login untuk video yang dibatasi usia. Tanpa cookies YouTube, server mengunduh tanpa akun, jadi permintaan itu tidak bisa dipenuhi.",
+    steps: [UPLOAD, "Atau unggah cookies YouTube di Pengaturan, dari akun yang sudah lolos verifikasi usia."],
   }),
   download("download_members_only", {
     title: "Video khusus member atau berbayar",
@@ -76,12 +76,14 @@ const ENTRIES = [
   }),
   download("download_bot_check", {
     title: "YouTube menahan unduhan dari server",
-    cause: "YouTube menahan permintaan dari alamat IP server: meminta bukti bukan bot atau membatasi jumlah permintaan (HTTP 429).",
+    cause: "YouTube menahan permintaan dari alamat IP server: meminta bukti bukan bot atau membatasi jumlah permintaan (HTTP 429). Cookies dari akun YouTube membantu server lolos pemeriksaan itu.",
     steps: [
-      UPLOAD,
+      "Unggah cookies YouTube di Pengaturan: ekspor cookies.txt dari browser yang sudah masuk ke YouTube.",
+      "Pakai akun Google terpisah, bukan akun utama Anda. Kalau unduhan ditahan lagi, ekspor ulang cookies-nya.",
+      `Atau ${UPLOAD.charAt(0).toLowerCase()}${UPLOAD.slice(1)}`,
       "Atau buat ulang proyeknya nanti.",
-      "Pemilik server: kalau terjadi di banyak video, alamat IP server sedang ditandai YouTube. Potongin belum mendukung cookies YouTube.",
     ],
+    action: PENGATURAN,
   }),
   download("download_ytdlp_outdated", {
     title: "Pengunduh YouTube perlu diperbarui",
