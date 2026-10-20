@@ -289,9 +289,9 @@ dan **Skor 8+** menyaring grid; skor tampil netral dengan titik lime untuk 8 ke 
 lewat `GET /api/jobs/<id>/zip` (`?clips=1,3` untuk klip terpilih, `?check=1` hanya ukurannya).
 Setiap klip tersimpan sebagai `NN-judul-klip.mp4`, di ZIP maupun lewat "Unduh MP4" dan "Subtitle
 SRT". Klip yang dibuat lewat jalur cadangan diberi catatan netral: kalau mode "Ikuti
-pembicara" tidak menemukan wajah di sebagian besar klip, posternya bertuliskan "Potong tengah" dan
-panel detailnya "Wajah tidak terdeteksi · potong tengah"; klip dari render cadangan bertuliskan
-"Dirender dengan cara cadangan" di panel detail.
+pembicara" tidak menemukan wajah di separuh klip atau lebih, posternya bertuliskan "Potong
+tengah" dan panel detailnya "Wajah tidak terdeteksi · potong tengah"; klip dari render cadangan
+bertuliskan "Dirender dengan cara cadangan" di panel detail.
 
 **English.** The ZIP is store-only (MP4 does not compress), built with Node built-ins (CRC-32
 from `zlib.crc32`, a table fallback), classic format below 4 GiB, streamed one chunk at a time
