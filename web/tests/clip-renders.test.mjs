@@ -33,9 +33,9 @@ const JOB_ID = "8f0c2a1e-5b7d-4c3a-9e21-6d4f0b8a7c55";
 const CLIP_ID = "clip_62654c2c2fa04f125391464a";
 const OTHER_CLIP = "clip_" + "1".repeat(24);
 const RENDER_ID = "923e4567-e89b-42d3-a456-426614174000";
-const KEY = "323e4567-e89b-42d3-a456-426614174000";
+const KEY = "3a3a3a3a-3a3a-4a3a-8a3a-3a3a3a3a3a3a";
 const RESERVATION_ID = "423e4567-e89b-42d3-a456-426614174000";
-const RESERVATION_TOKEN = "523e4567-e89b-42d3-a456-426614174000";
+const RESERVATION_TOKEN = "5b5b5b5b-5b5b-4b5b-8b5b-5b5b5b5b5b5b";
 const DOC_SHA = "d".repeat(64);
 const SOURCE_SHA = "5".repeat(64);
 const RENDER_KEY = "e".repeat(64);
@@ -99,7 +99,7 @@ function v3Request(overrides = {}) {
 
 function rendering(overrides = {}) {
   return v3Request({ state: "rendering", stage: "merender", progress_pm: 420, attempts: 1, claimed_at: T1, rendering_at: T1,
-    lease_token: "623e4567-e89b-42d3-a456-426614174000", heartbeat_at: T1, updated_at: T1, ...overrides });
+    lease_token: "6c6c6c6c-6c6c-4c6c-8c6c-6c6c6c6c6c6c", heartbeat_at: T1, updated_at: T1, ...overrides });
 }
 
 function completed(overrides = {}) {
@@ -303,7 +303,7 @@ test("POST renders completes at once (200) by R10 or an existing key and release
 test("POST renders replay releases only its own unused reservation", async () => {
   const events = [];
   const earlier = rendering({ storage_reservation_id: "723e4567-e89b-42d3-a456-426614174000",
-    storage_reservation_token: "823e4567-e89b-42d3-a456-426614174000", storage_reserved_bytes: 99 });
+    storage_reservation_token: "8d8d8d8d-8d8d-4d8d-8d8d-8d8d8d8d8d8d", storage_reserved_bytes: 99 });
   const { runCli } = recorder({ estimate: { exitCode: 0, json: { bytes: "1" } }, create: { exitCode: 0, json: { request: earlier } } });
   const result = await post(createClipRendersRoute({ authorize, env: env(), runCli, ...storage(events) }));
   assert.equal(result.status, 202);
