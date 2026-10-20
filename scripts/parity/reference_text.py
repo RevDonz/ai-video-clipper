@@ -115,7 +115,7 @@ WORD_REVEAL_PACKS = ("karaoke", "bold", "sorot")
 # the line is still opening (frames 1-3 of the first line, 1-2 of the second).
 ENTRANCES = ("fade", "pop", "blur")
 ENTRANCE_PROBES = ((0, 1), (0, 2), (0, 3), (1, 1), (1, 2))  # (line, frames after its start)
-# The text watermark (CONTRACTS §5.40) alone over the plate: the editor's default, the longest
+# The text watermark (CONTRACTS §5.43) alone over the plate: the editor's default, the longest
 # text shrunk to its column at the lowest opacity, and the smallest size.
 WATERMARK_CLIPS = {
     "watermark-top_center": captions_ass.WatermarkSpec("@potongin.klip", "top_center", 1000, 850),

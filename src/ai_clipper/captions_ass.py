@@ -459,7 +459,7 @@ _DESIGN_KEYS = frozenset({"schema", "id", "v", "name", "layout", "font", "font_r
                           "layer"})
 # A kicker ends at the first of its leading words that ends with one of these marks.
 _KICKER_MARKS = (":", "?", "!", ".", ",", ";", "…")
-# The text watermark (CONTRACTS §5.40): DejaVu Sans Bold at H/40 × size_pm/1000 with an outline
+# The text watermark (CONTRACTS §5.43): DejaVu Sans Bold at H/40 × size_pm/1000 with an outline
 # of S/16, kept out of the TikTok zone and a 4 % left margin (the logo presets'), shrunk to fit.
 WATERMARK_FONT_FILE = "DejaVuSans-Bold.ttf"
 _WATERMARK_SIZE_DIVISOR = 40_000
@@ -614,7 +614,7 @@ class HookDesign:
 @dataclass(frozen=True)
 class WatermarkSpec:
     """A document's text watermark: one line over the whole clip at ``pos`` (one of
-    ``WATERMARK_POSITIONS``), ``size_pm`` of H/40 and ``opacity_pm`` (CONTRACTS §5.40)."""
+    ``WATERMARK_POSITIONS``), ``size_pm`` of H/40 and ``opacity_pm`` (CONTRACTS §5.43)."""
 
     text: str
     pos: str
@@ -1562,7 +1562,7 @@ def build_ass_v2(
     override ``entrance`` opens the first window of every caption line with a fade, pop or blur
     of at most ``ENTRANCE_MS``; no event moves (§5.39). A ``watermark`` adds its style and one
     event over the whole clip, first in the file at layer 0, so everything else is drawn over
-    it (§5.40).
+    it (§5.43).
     """
     if (not isinstance(play_res, (tuple, list)) or len(play_res) != 2
             or not all(_is_int(value) and value > 0 for value in play_res)):

@@ -332,7 +332,7 @@ def test_every_entrance_is_gated_on_every_pack_inside_its_120_ms() -> None:
 
 
 def test_the_text_watermark_is_gated_at_three_places_and_sizes() -> None:
-    # The text watermark (CONTRACTS §5.40) alone over the plate, as the production bytes: the
+    # The text watermark (CONTRACTS §5.43) alone over the plate, as the production bytes: the
     # editor's default, the longest text shrunk at its lowest opacity, the smallest size.
     clips = {c.id: c for c in rt.build_clips(fallback_char="\u2665") if c.pack == "watermark"}
     assert set(clips) == {"watermark-top_center", "watermark-bottom_right",

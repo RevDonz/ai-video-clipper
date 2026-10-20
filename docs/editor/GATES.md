@@ -1975,7 +1975,7 @@ evaluation document). Footage stays outside the repository.
 ## Teks watermark (2026-10-21)
 
 Plan `docs/plans/2026-10-20-lanjutan-sesi.md` P2 ("Watermark teks satu baris"); contract
-CONTRACTS §5.40; guide PANDUAN-EDITOR "Logo", "Teks watermark" and "Teks watermark bawaan". Built
+CONTRACTS §5.43; guide PANDUAN-EDITOR "Logo", "Teks watermark" and "Teks watermark bawaan". Built
 on branch `adopsi/watermark-teks` with targeted local tests only; the gates that need the
 production image or a browser run on GitHub Actions when the branch is pushed.
 

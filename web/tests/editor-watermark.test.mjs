@@ -1,4 +1,4 @@
-// The text watermark in the Logo panel (CONTRACTS §5.40): the panel's view of the document and the
+// The text watermark in the Logo panel (CONTRACTS §5.43): the panel's view of the document and the
 // commands its text field, place grid and sliders send (web/components/editor/panels/watermark-model.mjs).
 import assert from "node:assert/strict";
 import test from "node:test";

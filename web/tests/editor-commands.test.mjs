@@ -924,7 +924,7 @@ test("replacing and removing the logo keeps assets exactly the referenced ones",
   assert.equal(contentJson(removed), contentJson(C30.seed));
 });
 
-// --- the text watermark (CONTRACTS §5.40) ----------------------------------------------------
+// --- the text watermark (CONTRACTS §5.43) ----------------------------------------------------
 
 test("SetWatermarkText adds the default watermark or changes its text; RemoveWatermark gives the seed back", () => {
   assert.equal(watermarkOf(C30.seed), null);
@@ -949,7 +949,7 @@ test("SetWatermarkText adds the default watermark or changes its text; RemoveWat
   }
 });
 
-test("watermark position, size and opacity follow §5.40 and need a watermark", () => {
+test("watermark position, size and opacity follow §5.43 and need a watermark", () => {
   const doc = run(C30, C30.seed, "SetWatermarkText", { text: "@akun" });
   for (const pos of WATERMARK_POSITIONS) assert.equal(run(C30, doc, "SetWatermarkPosition", { pos }).watermark.pos, pos);
   assert.equal(WATERMARK_POSITIONS.length, 9);

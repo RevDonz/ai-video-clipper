@@ -1,4 +1,4 @@
-// The text watermark section of the Logo panel (CONTRACTS §5.40): the text as stored, the
+// The text watermark section of the Logo panel (CONTRACTS §5.43): the text as stored, the
 // commands of its field, place grid and sliders, and its view of the store state. Pure; no DOM.
 import {
   LIMITS,

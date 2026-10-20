@@ -1,4 +1,4 @@
-// Pengaturan "Teks watermark bawaan" (docs/editor/CONTRACTS.md §5.40). /api/settings/watermark is
+// Pengaturan "Teks watermark bawaan" (docs/editor/CONTRACTS.md §5.43). /api/settings/watermark is
 // faked in the browser (page.route), so nothing on the server changes; the AI form keeps talking
 // to the server.
 import { expect, test as base } from "@playwright/test";

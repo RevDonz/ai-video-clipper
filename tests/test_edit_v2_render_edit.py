@@ -725,7 +725,7 @@ def test_the_new_engine_draws_the_default_logo_into_the_auto_clip(tmp_path_facto
 
 
 def test_the_new_engine_draws_the_default_watermark_into_the_auto_clip(tmp_path_factory, source):
-    """The Pengaturan text watermark (CONTRACTS §5.40) is in every seed, so the auto clip's ASS
+    """The Pengaturan text watermark (CONTRACTS §5.43) is in every seed, so the auto clip's ASS
     carries it and an unchanged clip exports that file (R10)."""
     from support.default_watermark import WATERMARK, write_job_watermark
 

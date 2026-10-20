@@ -1,5 +1,5 @@
 """The Pengaturan default text watermark in a job, as ``web/lib/default-watermark.mjs`` copies it
-(CONTRACTS §5.40): ``<job>/watermark.json``."""
+(CONTRACTS §5.43): ``<job>/watermark.json``."""
 
 from __future__ import annotations
 

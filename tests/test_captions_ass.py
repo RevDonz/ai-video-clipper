@@ -1244,7 +1244,7 @@ def test_blur_starts_at_one_128th_of_the_output_height():
     assert large.startswith("{\\fad(120,0)\\blur15\\t(0,120,\\blur0)}")
 
 
-# --- The text watermark: one line over the whole clip (CONTRACTS §5.40) ------------------------
+# --- The text watermark: one line over the whole clip (CONTRACTS §5.43) ------------------------
 
 WATERMARK_FONT = font_path("DejaVuSans-Bold.ttf")
 WATERMARK_CUES = ENTRANCE_CUES[:2]

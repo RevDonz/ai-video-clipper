@@ -1,4 +1,4 @@
-// Pengaturan "Teks watermark bawaan" (CONTRACTS §5.40): one line of text that the seeds of every
+// Pengaturan "Teks watermark bawaan" (CONTRACTS §5.43): one line of text that the seeds of every
 // new job's clips carry (edit_v2.seed), changeable or removable per clip in the editor's Logo panel.
 //
 //   GET    /api/settings/watermark   {watermark: {text, pos, size_pm, opacity_pm, updatedAtMs} | null, autoClips}

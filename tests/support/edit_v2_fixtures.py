@@ -76,7 +76,7 @@ LOGO_WIDE = "sha256:" + _tag("fixture-logo-wide")
 MUSIC = "sha256:" + _tag("fixture-music-long")
 MUSIC_SHORT = "sha256:" + _tag("fixture-music-short")
 LOGO_NOT_IN_STORE = "sha256:" + _tag("fixture-logo-not-in-store")
-# The text watermark a new one starts as in the editor (CONTRACTS §5.40).
+# The text watermark a new one starts as in the editor (CONTRACTS §5.43).
 WATERMARK = {"text": "@potongin.klip", "pos": "top_center", "size_pm": 1000, "opacity_pm": 850}
 
 
@@ -773,7 +773,7 @@ def _valid(contexts: Mapping[str, Context]) -> list[_Fixture]:
     d = _Doc(c25, "SetHookEnabled")
     d.set_hook("Pokoknya jangan pulang dulu", dur_f=100, origin="user")
     add("hook_added", d)
-    # The text watermark (CONTRACTS §5.40): the editor's default and both ends of every range.
+    # The text watermark (CONTRACTS §5.43): the editor's default and both ends of every range.
     for name, context, fields in (
             ("watermark", c30, {}),
             ("watermark_max", c30, {"text": "Ikuti @potongin.klip untuk klip lainnya!",
@@ -982,7 +982,7 @@ def _invalid(contexts: Mapping[str, Context]) -> list[_Fixture]:
             mutated(lambda b, key=key, value=value: b.doc["captions"]["overrides"].update(
                 {key: value})))
 
-    # The text watermark (CONTRACTS §5.40).
+    # The text watermark (CONTRACTS §5.43).
     def watermark(**fields: Any) -> Callable[[_Doc], None]:
         return lambda b: b.doc.update(watermark={**WATERMARK, **fields})
 

@@ -416,7 +416,7 @@ def test_an_entrance_opens_every_line_and_moves_no_cue(name, opening):
     assert all(not fields[9].startswith(opening) for fields in captions if fields not in opened)
 
 
-# --- The text watermark on a document (CONTRACTS §5.40) ---------------------------------------
+# --- The text watermark on a document (CONTRACTS §5.43) ---------------------------------------
 
 
 def test_the_documents_watermark_is_the_first_event_and_moves_nothing_else():

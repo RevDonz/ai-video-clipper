@@ -31,7 +31,7 @@
 //   join's style and whoosh, else the seed's, else Kilat putih + whoosh (the auto clips' default).
 // - SetLayout into face-track turns the latar blur fallback on (`no_face: "fit_blur"`,
 //   `switchedLayout`); SetNoFace switches it back to centred, or on again (CONTRACTS §5.40).
-// - The text watermark (CONTRACTS §5.42): SetWatermarkText adds it at DEFAULT_WATERMARK or changes
+// - The text watermark (CONTRACTS §5.43): SetWatermarkText adds it at DEFAULT_WATERMARK or changes
 //   only its text; RemoveWatermark drops the key, so a clip without one equals its seed (R10).
 import {
   ASSET_ID_PATTERN,
@@ -75,7 +75,7 @@ import { divRoundHalfUp, logoBox, pieces, sfCeil, sfFloor } from "./timemap.mjs"
  * Appendix B, in the order of the table (the same list as `__dev__/fakes.mjs`), with the
  * cold-open transition commands after NudgeColdOpen (docs/plans/2026-10-02-transisi-cold-open.md §7.2),
  * SetHookDesign after SetHookY (CONTRACTS §5.33), SetNoFace after SetLayout (CONTRACTS §5.40) and
- * the text watermark's after SnapLogo (§5.42).
+ * the text watermark's after SnapLogo (§5.43).
  */
 export const COMMANDS = Object.freeze([
   "TrimStart", "TrimEnd", "RemoveWords", "RemoveGap", "RestoreRemoval", "ApplyCleanup",

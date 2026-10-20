@@ -26,7 +26,7 @@ take the dashboard's V3 defaults) plus optional seed-context keys that never occ
   as ``it_logo`` (origin ``seed``) where the editor's SetLogo puts a new logo
   (:func:`default_logo_transform`); a logo no size fits is left out. Missing or null: no logo.
 * ``watermark``: ``{"text", "pos", "size_pm", "opacity_pm"}``, the job's default text watermark
-  (Pengaturan, CONTRACTS §5.40) as :func:`job_watermark` reads it. The seed carries it as its
+  (Pengaturan, CONTRACTS §5.43) as :func:`job_watermark` reads it. The seed carries it as its
   ``watermark``; anything outside the document's ranges is refused. Missing or null: none.
 
 **Rules beyond the plan table** (each keeps the seed valid for the validator):

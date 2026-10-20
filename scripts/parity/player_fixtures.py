@@ -84,7 +84,7 @@ HOOK_VARIANTS = {"hook-kicker": ("kicker", "Ternyata: hook sintetis"),
 # event shape (one line, a line per spoken word, a box per spoken word).
 ENTRANCE_VARIANTS = {"entrance-fade": ("karaoke", "fade"), "entrance-pop": ("bold", "pop"),
                      "entrance-blur": ("sorot", "blur")}
-# The text watermark (CONTRACTS §5.40) over the same cells, beside the captions and the hook.
+# The text watermark (CONTRACTS §5.43) over the same cells, beside the captions and the hook.
 WATERMARK = {"text": "@potongin.klip", "pos": "middle_right", "size_pm": 1400, "opacity_pm": 850}
 # The §3.2 example's logo, top right (plan §3.2, §3.3).
 LOGO_TRANSFORM = {"x_e5": 88000, "y_e5": 7000, "w_e5": 16000, "opacity_pm": 850}

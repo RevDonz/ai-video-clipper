@@ -1,6 +1,6 @@
 "use client";
 
-// The text watermark in the Logo panel (CONTRACTS §5.40): one line typed once, a place on the 3×3
+// The text watermark in the Logo panel (CONTRACTS §5.43): one line typed once, a place on the 3×3
 // grid, its size and its opacity. Every place keeps the line out of the TikTok/Reels buttons, so
 // it never needs the zone warning the logo has. Props: { state, dispatch, locked }.
 import { useEffect, useId, useRef, useState } from "react";

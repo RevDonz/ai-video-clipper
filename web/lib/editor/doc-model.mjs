@@ -22,7 +22,7 @@ export const CAPTION_ENTRANCES = Object.freeze(["none", "fade", "pop", "blur"]);
 export const HOOK_DESIGN_IDS = Object.freeze(["legacy-bar", "kicker", "blok", "kotak"]);
 /** What the editor calls each hook design (Hook card, Teks panel, conflict dialog). */
 export const HOOK_DESIGN_NAMES = Object.freeze({ "legacy-bar": "Bar", kicker: "Kicker", blok: "Blok", kotak: "Kotak kata" });
-/** The text watermark's places (`watermark.pos`, CONTRACTS §5.40), row by row, and their names. */
+/** The text watermark's places (`watermark.pos`, CONTRACTS §5.43), row by row, and their names. */
 export const WATERMARK_POSITIONS = Object.freeze([
   "top_left", "top_center", "top_right",
   "middle_left", "middle_center", "middle_right",

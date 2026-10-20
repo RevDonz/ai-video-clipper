@@ -1,5 +1,5 @@
 // Logo and watermark (plan §11.3 T3.2, §5.5, §3.3 logo item, Appendix B logo commands, §5.9 G5,
-// §10.1 P-LOGO, §10.2 QG-UX U5; the text watermark of CONTRACTS §5.40). Two parts:
+// §10.1 P-LOGO, §10.2 QG-UX U5; the text watermark of CONTRACTS §5.43). Two parts:
 //
 // 1. The editor shell (EditorApp) on the real store and the real commands over the fakes, in a
 //    self-contained harness page (no Next server, no login): gizmos/__dev__/logo-harness-entry.jsx

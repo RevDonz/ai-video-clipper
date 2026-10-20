@@ -211,7 +211,7 @@ def test_the_entrance_variants_are_probed_while_their_lines_open():
 
 
 def test_the_watermark_variant_draws_the_text_watermark_over_the_same_cells():
-    # The text watermark (CONTRACTS §5.40): one more style and one event over the whole clip.
+    # The text watermark (CONTRACTS §5.43): one more style and one event over the whole clip.
     plain, marked = _plan(), _plan(watermark=True)
     assert marked.doc["watermark"] == pf.WATERMARK
     assert marked.plan_sha256 != plain.plan_sha256

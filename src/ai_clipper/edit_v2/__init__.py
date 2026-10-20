@@ -32,7 +32,7 @@ CAPTION_ENTRANCES = ("none", "fade", "pop", "blur")
 # Hook designs (resources/hook-designs/<id>/v1.json), every one at v 1: the bar the seeds write,
 # then Kicker, Blok and Kotak kata (CONTRACTS §5.33).
 HOOK_DESIGN_IDS = ("legacy-bar", "kicker", "blok", "kotak")
-# The optional text watermark (CONTRACTS §5.40): one line of at most 40 code points at one of
+# The optional text watermark (CONTRACTS §5.43): one line of at most 40 code points at one of
 # nine places inside the TikTok-safe area, its size per mille of H/40 and its opacity.
 WATERMARK_TEXT_MAX = 40
 WATERMARK_POSITIONS = (

@@ -148,7 +148,7 @@ In CI: `gh workflow run editor-gates.yml -f ref=<branch> -f suite=e2e -f command
 
 ## Pengaturan: Teks watermark bawaan
 
-`e2e/settings-watermark.spec.mjs` covers the "Teks watermark bawaan" card on Pengaturan (CONTRACTS §5.40). It fakes `/api/settings/watermark` inside the browser, so it changes no server data; only the login is real. It checks the empty form, an empty text refused before anything is sent, typing, the place list, the size and opacity sliders by keyboard, the PUT body (the text trimmed), "Hapus" by keyboard, a saved watermark filling the form, the copy for automatic clips on the editor's engine, "Coba lagi" after a failed load, and at 390 px 44 px controls with no horizontal scroll. The real route, the settings file and the job copy are covered by `web/tests/default-watermark.test.mjs`. The editor's own section is in `e2e/editor-logo.spec.mjs` (harness).
+`e2e/settings-watermark.spec.mjs` covers the "Teks watermark bawaan" card on Pengaturan (CONTRACTS §5.43). It fakes `/api/settings/watermark` inside the browser, so it changes no server data; only the login is real. It checks the empty form, an empty text refused before anything is sent, typing, the place list, the size and opacity sliders by keyboard, the PUT body (the text trimmed), "Hapus" by keyboard, a saved watermark filling the form, the copy for automatic clips on the editor's engine, "Coba lagi" after a failed load, and at 390 px 44 px controls with no horizontal scroll. The real route, the settings file and the job copy are covered by `web/tests/default-watermark.test.mjs`. The editor's own section is in `e2e/editor-logo.spec.mjs` (harness).
 
 ```bash
 E2E_BASE_URL=http://127.0.0.1:3417 E2E_NO_WEB_SERVER=1 \

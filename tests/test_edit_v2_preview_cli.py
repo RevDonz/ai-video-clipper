@@ -248,7 +248,7 @@ def test_plan_of_the_seed_is_the_frozen_dto(c30):
 
 
 def test_a_watermark_brings_its_font_to_the_browser(c30):
-    # The text watermark is DejaVu Sans Bold (CONTRACTS §5.40); with a Montserrat pack and hook
+    # The text watermark is DejaVu Sans Bold (CONTRACTS §5.43); with a Montserrat pack and hook
     # design, JASSUB must still get that file, not a bold synthesised from the fallback.
     doc = valid("hook_design_kicker__c30")
     doc["captions"]["pack"]["id"] = "bold"

@@ -389,7 +389,7 @@ _ROOT = _compile(_keys(
     audio=_keys(source=_keys("gain_cdb"), master=_keys("mode", "target_clufs", "tp_cdb")),
     assets=_Map(_Kind(_ASSETS, _ASSET_ANY)),
     audit=_keys("created_at_ms", "updated_at_ms", "editor", "last_command"),
-    watermark=_keys("text", "pos", "size_pm", "opacity_pm"),  # optional (CONTRACTS §5.40)
+    watermark=_keys("text", "pos", "size_pm", "opacity_pm"),  # optional (CONTRACTS §5.43)
 ))
 
 

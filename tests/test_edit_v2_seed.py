@@ -500,7 +500,7 @@ def test_a_seed_with_the_default_logo_validates_outside_the_tiktok_zone(context_
         assert unsafe_zone_issues(seed, context.assets, output, parts=("logo",)) == ()
 
 
-# --- the default text watermark (Pengaturan, CONTRACTS §5.40) ------------------------------------
+# --- the default text watermark (Pengaturan, CONTRACTS §5.43) ------------------------------------
 
 
 def test_a_seed_carries_the_default_watermark():

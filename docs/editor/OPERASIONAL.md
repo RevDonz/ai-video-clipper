@@ -44,7 +44,7 @@ baik seed dari salinan itu maupun revisi yang disimpan dengan teks watermark, da
 bisa dibuka. Sebelum revert, hapus teksnya di Pengaturan dan di klip yang memakainya; klip dari job
 yang punya salinan dan belum pernah disimpan dari editor dibuat ulang dengan menghapus folder
 `analysis/clips/<clip_id>/`-nya dan file `watermark.json` job itu. Kontrak lengkapnya: CONTRACTS
-§5.40.
+§5.43.
 
 ## 2. Flag
 

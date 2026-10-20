@@ -1,6 +1,6 @@
 "use client";
 
-// Pengaturan "Teks watermark bawaan" (CONTRACTS §5.40): one line of text with its place, size and
+// Pengaturan "Teks watermark bawaan" (CONTRACTS §5.43): one line of text with its place, size and
 // opacity, written into the clips of every new job. Loaded on its own, like "Logo bawaan".
 import { useEffect, useId, useRef, useState } from "react";
 

@@ -253,7 +253,7 @@ def test_the_caption_entrance_is_a_known_override_key(contexts):
 
 
 def test_the_text_watermark_is_a_known_root_key_with_four_keys(contexts):
-    # The optional text watermark (CONTRACTS §5.40) parses under schema_minor 0; any other key
+    # The optional text watermark (CONTRACTS §5.43) parses under schema_minor 0; any other key
     # inside it is unknown.
     doc = rev1(contexts["c30"])
     doc["watermark"] = dict(WATERMARK)
@@ -436,7 +436,7 @@ def test_a_legacy_auto_file_stands_for_its_seed_only_without_a_logo(contexts):
 
 
 def test_a_legacy_auto_file_stands_for_its_seed_only_without_a_watermark(contexts):
-    """The legacy renderer draws no text watermark either (CONTRACTS §5.40)."""
+    """The legacy renderer draws no text watermark either (CONTRACTS §5.43)."""
     seed = copy.deepcopy(contexts["c30"].seed)
     seed["watermark"] = dict(WATERMARK)
     assert auto_file_is_seed(seed)
@@ -634,7 +634,7 @@ RULES = [
     *[("c30", lambda d, value=value: d["captions"]["overrides"].update(entrance=value),
        "range_invalid", "/captions/overrides/entrance")
       for value in ("bounce", "Fade", "", 1, True, None, ["fade"])],
-    # The text watermark: optional, absent = none; every key required (CONTRACTS §5.40)
+    # The text watermark: optional, absent = none; every key required (CONTRACTS §5.43)
     *[("c30", lambda d, fields=fields: d.update(watermark={**WATERMARK, **fields}), None, None)
       for fields in ({}, {"text": "x" * 40}, {"text": "Ikuti @akun ✓"}, {"size_pm": 500},
                      {"size_pm": 2000}, {"opacity_pm": 200}, {"opacity_pm": 1000},

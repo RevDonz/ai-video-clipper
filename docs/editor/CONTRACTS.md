@@ -353,7 +353,7 @@ Duplicate keys, NaN and unknown keys are rejected at every level.
 | `audio.master` | `mode` `off`/`normalize`; `target_clufs` −2400 to −900; `tp_cdb` −300–0 | Seed `off` (= today's auto render) |
 | `assets` | map of the assets the document references; metadata copied from the asset store | `asset_missing` if the store lacks the sha |
 | `audit` | `created_at_ms` immutable; `updated_at_ms` **stamped by the server**; `editor`; `last_command` (≤ 40 chars, `^[A-Za-z]+$`) | The server stamp removes client-clock issues |
-| `watermark` | optional `{text, pos, size_pm, opacity_pm}` (amended 2026-10-21, §5.40) | The text watermark: `text` 1–40 code points (the hook's text rules), `pos` one of nine places, `size_pm` 500–2000, `opacity_pm` 200–1000; absent = none. Seeds write it only for a job created with the Pengaturan default |
+| `watermark` | optional `{text, pos, size_pm, opacity_pm}` (amended 2026-10-21, §5.43) | The text watermark: `text` 1–40 code points (the hook's text rules), `pos` one of nine places, `size_pm` 500–2000, `opacity_pm` 200–1000; absent = none. Seeds write it only for a job created with the Pengaturan default |
 
 ### 3.4 Integer and frame rules
 
@@ -474,7 +474,7 @@ every later reader sees.
 - *Amended 2026-10-21 (§5.39):* the optional override `captions.overrides.entrance` (`none`,
   `fade`, `pop`, `blur`) is valid under `schema_minor: 0`. A document without it is unchanged in
   meaning (absent = `none`); an older server refuses the key with `unknown_key`.
-- *Amended 2026-10-21 (§5.40):* the optional root key `watermark` (the text watermark) is valid
+- *Amended 2026-10-21 (§5.43):* the optional root key `watermark` (the text watermark) is valid
   under `schema_minor: 0`. A document without it is unchanged in meaning (no watermark); an older
   server refuses the key with `unknown_key`.
 - The pack ids `classic` and `karaoke` are the FINAL `legacy-classic@1` and `legacy-karaoke@1`
@@ -598,7 +598,7 @@ annotations may be spelled differently).
 
 | Module | Names | Owner |
 |---|---|---|
-| `ai_clipper.edit_v2` (`__init__`) | `COMPILER_VERSION`, `COMPILER_ID` (`"edit-v2/1"`), `RENDER_SEMANTICS`, `SCHEMA`, `SCHEMA_MINOR`, `WORDS_SCHEMA`, `CAMERA_SCHEMA`, `DOC_FPS`, `OUTPUT_SIZES`, `PACK_IDS`, `SWATCHES`, `PACK_DEFAULT_OVERRIDES`, `WORDS_MAX_RANGE` (§5.30), `HOOK_DESIGN_IDS` (§5.33), `CAPTION_ENTRANCES` (§5.39), `WATERMARK_TEXT_MAX`, `WATERMARK_POSITIONS`, `WATERMARK_SIZE_RANGE`, `WATERMARK_OPACITY_RANGE`, `UI_ZONE_720` (§5.40) | T1.0 |
+| `ai_clipper.edit_v2` (`__init__`) | `COMPILER_VERSION`, `COMPILER_ID` (`"edit-v2/1"`), `RENDER_SEMANTICS`, `SCHEMA`, `SCHEMA_MINOR`, `WORDS_SCHEMA`, `CAMERA_SCHEMA`, `DOC_FPS`, `OUTPUT_SIZES`, `PACK_IDS`, `SWATCHES`, `PACK_DEFAULT_OVERRIDES`, `WORDS_MAX_RANGE` (§5.30), `HOOK_DESIGN_IDS` (§5.33), `CAPTION_ENTRANCES` (§5.39), `WATERMARK_TEXT_MAX`, `WATERMARK_POSITIONS`, `WATERMARK_SIZE_RANGE`, `WATERMARK_OPACITY_RANGE`, `UI_ZONE_720` (§5.43) | T1.0 |
 | `edit_v2.errors` | exceptions, code sets, `MESSAGES`, `message`, `message_id`, `base_code`, `exit_code_for`, `EXIT_*` | T1.0 |
 | `edit_v2.timemap` | Appendix A names plus `SAMPLE_RATE`, `MIN_PIECE_FRAMES`, `div_round_half_up`, `speech_spans`, `logo_box`, `Fps.from_json`, `Fps.to_json`, `Piece.to_dto` | T1.0 |
 | `edit_v2.clip_id` | `clip_id`, `is_clip_id`, `ms_from_seconds`, `CLIP_ID_PATTERN` | T1.0 |
@@ -606,7 +606,7 @@ annotations may be spelled differently).
 | `edit_v2.store` | `get`, `seed`, `put`, `archive_for_render`, `prune_receipts`, the §4.1 path constants | T1.1 |
 | `edit_v2.api` | `OPS`, `main` (CLI) | T1.1 |
 | `ai_clipper.subtitles` (additions) | `SourceWord`, `FrameWord`, `FrameCue`, `build_frame_cues` | T1.2a |
-| `ai_clipper.captions_ass` (additions) | `CaptionPack`, `load_pack`, `HookSpec`, `build_ass_v2`; `WordBox`, `words_per_cue`, `lightness`, `word_box_text` (§5.30); `LEGACY_HOOK_DESIGN`, `HOOK_LAYOUTS`, `HookDesign`, `HookBox`, `HookKicker`, `hook_design`, `hook_font_file`, `boxed_word_index` (§5.33); `ENTRANCE_MS` (§5.39); `WATERMARK_FONT_FILE`, `WatermarkSpec`, `WatermarkLayout`, `layout_watermark` (§5.40) | T1.2a |
+| `ai_clipper.captions_ass` (additions) | `CaptionPack`, `load_pack`, `HookSpec`, `build_ass_v2`; `WordBox`, `words_per_cue`, `lightness`, `word_box_text` (§5.30); `LEGACY_HOOK_DESIGN`, `HOOK_LAYOUTS`, `HookDesign`, `HookBox`, `HookKicker`, `hook_design`, `hook_font_file`, `boxed_word_index` (§5.33); `ENTRANCE_MS` (§5.39); `WATERMARK_FONT_FILE`, `WatermarkSpec`, `WatermarkLayout`, `layout_watermark` (§5.43) | T1.2a |
 | `edit_v2.captions` | `CaptionResult`, `caption_track` | T1.2a |
 | `edit_v2.glyphs` | `missing_glyphs`, `advance_px` | T1.2a |
 | `edit_v2.envelope` | `Envelope`, `speech_envelope`, `music_envelope`, `expand_f32` | T1.4 |
@@ -820,7 +820,7 @@ yields `range_invalid` only, with no duration or window issue).
 - **Logo item**: `x_e5`, `y_e5` 0…100000, `w_e5` 4000…40000, `opacity_pm` 200…1000;
   `timemap.logo_box` with the asset's `w`/`h` and the document's output size must give
   `x0 ≥ 0`, `y0 ≥ 0`, `x0 + w ≤ W`, `y0 + h ≤ H`, else `item_out_of_frame`.
-- **Watermark** (optional, §5.40): an object (else `range_invalid` at `/watermark`; `null` is
+- **Watermark** (optional, §5.43): an object (else `range_invalid` at `/watermark`; `null` is
   not "absent"); `text` 1…40 code points without leading or trailing whitespace, `pos` in
   `WATERMARK_POSITIONS`, `size_pm` 500…2000, `opacity_pm` 200…1000, each else `range_invalid` at
   `/watermark/<key>`.
@@ -880,7 +880,7 @@ audio     source {gain_cdb −2400…1200} · master {mode "off"|"normalize",
 assets    {"sha256:<64 hex>": {kind "image", mime "image/png", w, h (1…4096)}
                             | {kind "audio", mime "audio/mp4", duration_ms int≥1, lufs_c int}}
 audit     created_at_ms · updated_at_ms · editor · last_command
-watermark (optional, §5.40) {text, pos, size_pm, opacity_pm}
+watermark (optional, §5.43) {text, pos, size_pm, opacity_pm}
 ```
 
 `origin.kind` `"v2_candidate"` is reserved for T4.1 (`seed_from_candidate`) and is not valid
@@ -910,7 +910,7 @@ in W1. Canonical bytes, hashes and the document size limit are as in §3.1.
   `hook_duration_ms = ms_from_seconds(hook_duration)`.
 - `assets` {} (a job created with a Pengaturan default logo: one entry and the `tr_ovr` track,
   §5.36); no `watermark` (a job created with a Pengaturan default text watermark: that one,
-  §5.40); `audio` `{source {gain_cdb 0}, master {mode "off", target_clufs −1400,
+  §5.43); `audio` `{source {gain_cdb 0}, master {mode "off", target_clufs −1400,
   tp_cdb −100}}`; `base.words` = sha256 of the words file bytes and the word count;
   `base.camera.sha256` = sha256 of the camera plan file bytes (face-track only), else null.
 
@@ -3007,7 +3007,7 @@ argument is unchanged.
   v1.0 (annotations CC BY 4.0, sha256-pinned; the footage is downloaded into a cache, never
   committed). It keeps the Haar detector as a frozen baseline.
 
-## 5.40 Text watermark: "Teks watermark" (2026-10-21)
+## 5.43 Text watermark: "Teks watermark" (2026-10-21)
 
 Plan `docs/plans/2026-10-20-lanjutan-sesi.md` P2 ("Watermark teks satu baris"). One line of text
 over the whole clip, drawn by the same ASS as the captions and the hook, so the preview (JASSUB)

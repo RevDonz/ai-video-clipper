@@ -16,7 +16,7 @@ frame to jump to:
   with "…".
 * ``glyph_unsupported:U+XXXX`` on ``/watermark/text`` (no item id, frame 0) for the text
   watermark's characters that DejaVu Sans Bold lacks. The watermark is never in the TikTok
-  zone: ``captions_ass.layout_watermark`` keeps it out (CONTRACTS §5.40).
+  zone: ``captions_ass.layout_watermark`` keeps it out (CONTRACTS §5.43).
 * ``unsafe_zone``: the bottom of the caption block lies in the TikTok UI zone (the lowest
   280 px of 1280, scaled to the output height), or the top of the hook in its top zone (93 px).
   Seeds keep today's 17% bottom margin (K5), so every seed carries the caption warning. The

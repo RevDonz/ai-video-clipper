@@ -1,4 +1,4 @@
-// Pengaturan "Teks watermark bawaan" (CONTRACTS §5.40): web/lib/default-watermark.mjs (the settings
+// Pengaturan "Teks watermark bawaan" (CONTRACTS §5.43): web/lib/default-watermark.mjs (the settings
 // file, the route, the copy a new job gets), the card's view model, and the Python seeder reading
 // the job copy back.
 import assert from "node:assert/strict";
