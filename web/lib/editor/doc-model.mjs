@@ -9,9 +9,13 @@ import { floorDiv, logoBox, pieces, sfCeil, sfFloor } from "./timemap.mjs";
 
 export const SCHEMA = "clip-edit-v2";
 export const EDITOR_ID = "editor-v3/1.0.0";
-export const PACK_IDS = Object.freeze(["classic", "karaoke", "bold", "box"]);
+export const PACK_IDS = Object.freeze(["classic", "karaoke", "bold", "box", "sorot"]);
 export const SWATCHES = Object.freeze(["#FFE14D", "#FFFFFF", "#3DF5A6", "#52C7FF", "#FF5C8A", "#FF9F1C"]);
-export const PACK_DEFAULT_CASE = Object.freeze({ classic: "asis", karaoke: "asis", bold: "upper", box: "asis" });
+export const PACK_DEFAULT_CASE = Object.freeze({ classic: "asis", karaoke: "asis", bold: "upper", box: "asis", sorot: "upper" });
+/** Each pack file's `words_per_cue`: the line length while `overrides.words_max` is absent. */
+export const PACK_WORDS_PER_LINE = Object.freeze({ classic: 4, karaoke: 4, bold: 3, box: 3, sorot: 3 });
+/** "Kata per baris" (`overrides.words_max`, optional; CONTRACTS §5.30). */
+export const WORDS_MAX_RANGE = Object.freeze([1, 4]);
 export const LAYOUT_MODES = Object.freeze(["fit_blur", "camera", "fill_center"]);
 /** Cold-open join styles (docs/plans/2026-10-02-transisi-cold-open.md §1.1); `xfade` stays op_disabled. */
 export const JOIN_STYLES = Object.freeze(["cut", "flash_white", "dip_black"]);
@@ -306,7 +310,17 @@ const OVERRIDE_RULES = Object.freeze({
   highlight: (value) => SWATCHES.includes(value),
   emphasis: (value) => SWATCHES.includes(value),
 });
-export const CAPTION_OVERRIDE_RULES = OVERRIDE_RULES;
+const OPTIONAL_OVERRIDE_RULES = Object.freeze({
+  words_max: (value) => Number.isSafeInteger(value) && value >= WORDS_MAX_RANGE[0] && value <= WORDS_MAX_RANGE[1],
+});
+/** The rule of every caption override a command may set (the five keys and `words_max`). */
+export const CAPTION_OVERRIDE_RULES = Object.freeze({ ...OVERRIDE_RULES, ...OPTIONAL_OVERRIDE_RULES });
+
+/** Words per caption line: the document's `words_max`, else its pack's count. */
+export function captionWordsPerLine(doc) {
+  const set = doc?.captions?.overrides?.words_max;
+  return Number.isSafeInteger(set) ? set : PACK_WORDS_PER_LINE[doc?.captions?.pack?.id] ?? null;
+}
 
 const isInt = (value, lo, hi) => Number.isSafeInteger(value) && value >= lo && value <= hi;
 
@@ -414,10 +428,15 @@ export function checkDoc(doc, ctx) {
   const captions = doc.captions;
   if (typeof captions.enabled !== "boolean") add("range_invalid", "/captions/enabled");
   if (!PACK_IDS.includes(captions.pack?.id) || captions.pack?.v !== 1) add("pack_unknown", "/captions/pack");
+  const overrides = captions.overrides ?? {};
   for (const [key, rule] of Object.entries(OVERRIDE_RULES)) {
-    if (!rule(captions.overrides?.[key])) add("range_invalid", `/captions/overrides/${key}`);
+    if (!rule(overrides[key])) add("range_invalid", `/captions/overrides/${key}`);
   }
-  if (Object.keys(captions.overrides ?? {}).length !== 5) add("range_invalid", "/captions/overrides");
+  for (const [key, rule] of Object.entries(OPTIONAL_OVERRIDE_RULES)) {
+    if (Object.hasOwn(overrides, key) && !rule(overrides[key])) add("range_invalid", `/captions/overrides/${key}`);
+  }
+  if (Object.keys(OVERRIDE_RULES).some((key) => !Object.hasOwn(overrides, key))
+    || Object.keys(overrides).some((key) => !Object.hasOwn(CAPTION_OVERRIDE_RULES, key))) add("range_invalid", "/captions/overrides");
   const edits = captions.word_edits;
   const editIds = Object.keys(edits);
   if (editIds.length > LIMITS.wordEdits) add("range_invalid", "/captions/word_edits");

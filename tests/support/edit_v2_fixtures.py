@@ -694,10 +694,16 @@ def _valid(contexts: Mapping[str, Context]) -> list[_Fixture]:
     d = _Doc(c30, "SetCaptionsEnabled")
     d.doc["captions"]["enabled"] = False
     add("captions_disabled", d)
-    for pack in ("classic", "bold", "box"):
+    for pack in ("classic", "bold", "box", "sorot"):
         d = _Doc(c30, "SetCaptionPack")
         d.doc["captions"]["pack"]["id"] = pack
+        if pack == "sorot":
+            d.doc["captions"]["overrides"]["case"] = "upper"
         add(f"pack_{pack}", d)
+    for words_max in (1, 4):
+        d = _Doc(c30, "SetCaptionOverride")
+        d.doc["captions"]["overrides"]["words_max"] = words_max
+        add(f"words_max_{words_max}", d)
     d = _Doc(c30, "SetCaptionOverride")
     d.doc["captions"]["overrides"].update(y_e5=20000, size_pm=700)
     add("overrides_min", d)
@@ -936,6 +942,8 @@ def _invalid(contexts: Mapping[str, Context]) -> list[_Fixture]:
         ("case_value", "case", "title"), ("highlight_not_swatch", "highlight", "#123456"),
         ("highlight_lowercase", "highlight", "#ffe14d"),
         ("emphasis_not_string", "emphasis", 16751242),
+        ("words_max_zero", "words_max", 0), ("words_max_five", "words_max", 5),
+        ("words_max_string", "words_max", "3"),
     ):
         add("range_invalid", variant, f"/captions/overrides/{key}",
             mutated(lambda b, key=key, value=value: b.doc["captions"]["overrides"].update(

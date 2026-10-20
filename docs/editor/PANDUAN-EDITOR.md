@@ -62,12 +62,19 @@ yang membuka transkrip.
 diurungkan). Saran AI baru diminta saat kartu ini dibuka, jadi membuka editor tidak memakai kuota AI.
 Durasi dan posisi hook diatur di Mode Lengkap.
 
-**Caption.** Sakelar **Tampilkan caption**, empat gaya, **Warna sorot**, **Ukuran** (Kecil, Sedang,
-Besar) dan **Posisi** (Atas, Tengah, Bawah; Bawah adalah posisi bawaan klip otomatis). Ukuran atau
-posisi yang diatur halus di Mode Lengkap tampil sebagai persen di ringkasan, dan tidak ada tombol
-yang tertekan. Kalau caption terlalu dekat dengan teks hook, kartu menulis "Caption dekat teks hook.
-Kalau bertumpuk di pratinjau, turunkan caption." Catatan ini hanya petunjuk: pratinjau yang
-menentukan.
+**Caption.** Sakelar **Tampilkan caption**, lima gaya, **Warna sorot**, **Ukuran** (Kecil, Sedang,
+Besar), **Kata per baris** (1 sampai 4) dan **Posisi** (Atas, Tengah, Bawah; Bawah adalah posisi
+bawaan klip otomatis). Ukuran atau posisi yang diatur halus di Mode Lengkap tampil sebagai persen
+di ringkasan, dan tidak ada tombol yang tertekan. Kalau caption terlalu dekat dengan teks hook,
+kartu menulis "Caption dekat teks hook. Kalau bertumpuk di pratinjau, turunkan caption." Catatan
+ini hanya petunjuk: pratinjau yang menentukan.
+
+- **Kata per baris** awalnya mengikuti gaya: 4 untuk Klasik dan Karaoke, 3 untuk Bold, Box dan
+  Sorot. Pilihan lain langsung menyusun ulang baris caption di pratinjau. Memilih lagi angka
+  bawaan gaya mengembalikannya ke bawaan.
+- **Sorot**: kotak berwarna di belakang kata yang sedang diucapkan; kata-kata lain tetap di
+  tempatnya. Warna kotak dari **Warna sorot**, dan kata kunci mendapat kotak berwarna kata kunci.
+  Tulisan di atas kotak otomatis gelap kalau kotaknya terang (keenam warna pilihan terang).
 
 **Teks caption.** Satu kolom per baris caption, diberi label waktunya. Ketik untuk membetulkan
 kata, lalu Enter, Tab atau klik di luar untuk menyimpan; Esc membatalkan. Saat diam, mengeklik
@@ -86,8 +93,8 @@ baris memindah pratinjau ke baris itu; saat diputar, baris yang sedang tampil di
   mengubah kata yang tampil di kolom itu waktu Anda mulai mengetik.
 - Kalimat cold open muncul dua kali (di cold open dan di isi klip), bertanda "Cold open". Mengubah
   salah satunya mengubah keduanya.
-- Di gaya Bold kolomnya huruf besar, seperti pratinjau; mengetik ulang teks yang sama tidak
-  mengubah apa pun.
+- Di gaya Bold dan Sorot kolomnya huruf besar, seperti pratinjau; mengetik ulang teks yang sama
+  tidak mengubah apa pun.
 - Batas: maks. 40 kata per baris dan 40 huruf per kata (termasuk tambahannya). Baris yang ditolak
   tetap berisi ketikan Anda, bertepi merah, dengan alasannya di bawahnya.
 
@@ -143,8 +150,8 @@ Shift+klik kata di bawahnya, atau tekan Esc dulu untuk mengeklik kata itu.
   satu Urungkan mengembalikan semuanya. Partikel ("kan", "sih", "mah", "toh", …) dan kata ulang
   ("anak-anak") tidak pernah didaftar. Jeda yang masih ada suaranya hanya bisa didengarkan.
 
-**Teks.** Caption: nyala/mati, gaya (Karaoke, Classic, Bold, Box), posisi, ukuran, huruf
-besar, warna sorot dan warna kata kunci, dengan catatan yang sama seperti kartu Caption (posisi
+**Teks.** Caption: nyala/mati, gaya (Klasik, Karaoke, Bold, Box, Sorot), posisi, ukuran, kata
+per baris, huruf besar, warna sorot dan warna kata kunci, dengan catatan yang sama seperti kartu Caption (posisi
 bawaan, area tombol TikTok, dekat teks hook). Hook: teks (maks. 90 karakter, tanda "Muat" / "Akan
 terpotong"), durasi dan posisi. **Saran hook** di bawah kolom teks: saran otomatis langsung
 muncul dengan sumbernya ("AI seleksi" dari pemilihan klip, "Heuristik" dari transkrip); **"Pakai"**

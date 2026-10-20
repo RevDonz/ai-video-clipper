@@ -163,13 +163,15 @@ function planShaOf(doc) {
 // The caption cues of the plan DTO, like the engine's `subtitles.build_frame_cues` and
 // `captions_ass.fit_cues` in small (docs/plans/2026-10-02-editor-mode-cepat.md §2.6): per segment,
 // a word whose midpoint lies in one of its pieces is captioned there (a cold-open word twice);
-// hidden words are skipped; a cue breaks after 4 words and after a sentence end.
+// hidden words are skipped; a cue breaks after 4 words (the document's words_max when set) and
+// after a sentence end.
 const CUE_MAX_WORDS = 4;
 const SENTENCE_END = ".?!…";
 const TRAILING_CLOSERS = "\"')]}»”’";
-// Dev-only stand-in for the Box pack's font measure: the engine splits a cue wider than the pack's
-// max width; the fakes split one whose shown text is over 24 characters.
+// Dev-only stand-in for the one-line packs' (Box, Sorot) font measure: the engine splits a cue
+// wider than the pack's max width; the fakes split one whose shown text is over 24 characters.
 const BOX_MAX_CHARS = 24;
+const ONE_LINE_PACKS = ["box", "sorot"];
 
 function endsSentence(text) {
   let end = text.length;
@@ -194,6 +196,7 @@ function fakeCues(doc, list) {
   const fps = doc.output.fps;
   const edits = doc.captions.word_edits;
   const shown = (text) => (doc.captions.overrides.case === "upper" ? text.toUpperCase() : text);
+  const maxWords = doc.captions.overrides.words_max ?? CUE_MAX_WORDS;
   const cues = [];
   for (const seg of [...new Set(list.map((piece) => piece.seg))]) {
     const scope = list.filter((piece) => piece.seg === seg);
@@ -207,7 +210,7 @@ function fakeCues(doc, list) {
     const groups = [];
     for (const word of placed) {
       const current = groups.at(-1);
-      if (current && current.length < CUE_MAX_WORDS && !endsSentence(current.at(-1).text)) current.push(word);
+      if (current && current.length < maxWords && !endsSentence(current.at(-1).text)) current.push(word);
       else groups.push([word]);
     }
     const segmentEnd = scope.at(-1).outF0 + scope.at(-1).frames;
@@ -217,7 +220,7 @@ function fakeCues(doc, list) {
       const f1 = Math.min(Math.max(...group.map((word) => word.f1), f0 + 1), limit);
       if (f1 <= f0) return;
       const cue = { placed: group, f0, f1 };
-      for (const part of doc.captions.pack.id === "box" ? boxParts(cue, shown) : [cue]) {
+      for (const part of ONE_LINE_PACKS.includes(doc.captions.pack.id) ? boxParts(cue, shown) : [cue]) {
         cues.push({ f0: part.f0, f1: part.f1, text: shown(part.placed.map((word) => word.text).join(" ")),
           words: part.placed.map((word) => word.id) });
       }

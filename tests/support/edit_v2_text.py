@@ -167,8 +167,9 @@ class PtimeCase:
 
     @property
     def background(self) -> str:
-        """FFmpeg colour behind the text: grey for the vector box (black on black is not seen)."""
-        return "gray" if self.box_style == "vector" else "black"
+        """FFmpeg colour behind the text: grey for the vector box (black on black is not seen)
+        and for Sorot, whose spoken word is dark and has no outline."""
+        return "gray" if self.box_style == "vector" or self.pack == "sorot" else "black"
 
 
 @dataclass(frozen=True)
@@ -229,11 +230,14 @@ def expected_events(case: PtimeCase) -> list[ExpectedEvent]:
     overrides = PACK_DEFAULT_OVERRIDES[case.pack]
     events: list[ExpectedEvent] = []
     for cue in fit_cues(case.cues, pack=pack, play_res=case.play_res, overrides=overrides):
-        if case.pack == "bold":
+        if case.pack in ("bold", "sorot"):
+            # Sorot: per spoken word, every word of the line and the box are their own events.
+            copies = len(cue.words) + 1 if case.pack == "sorot" else 1
             starts = [cue.f0] + [word.f0 for word in cue.words[1:]]
             ends = starts[1:] + [cue.f1]
             events += [ExpectedEvent(a, b, (), False, "caption")
-                       for a, b in zip(starts, ends, strict=True) if a < b]
+                       for a, b in zip(starts, ends, strict=True) if a < b
+                       for _copy in range(copies)]
         elif case.pack == "karaoke":
             # An emphasised word keeps the emphasis colour before and after its switch, so only
             # the other words change the picture at their onset.
@@ -663,6 +667,8 @@ GOLDEN_CASES = (
     ("karaoke__c30", "valid/seed__c30.json", "c30"),
     ("bold__c30", "valid/pack_bold__c30.json", "c30"),
     ("box__c30", "valid/pack_box__c30.json", "c30"),
+    ("sorot__c30", "valid/pack_sorot__c30.json", "c30"),
+    ("words_max_1__c30", "valid/words_max_1__c30.json", "c30"),
     ("hook__c30", "valid/captions_disabled__c30.json", "c30"),
     ("full_example__c30", "valid/full_example__c30.json", "c30"),
     ("word_edits__c30", "valid/word_edits__c30.json", "c30"),
@@ -693,7 +699,7 @@ def write_goldens(root: Path = GOLDEN_DIR) -> None:
 
 def golden_evidence() -> dict[str, Any]:
     """Hashes of every golden plus an FFmpeg render of a few frames of each (fonts checked)."""
-    report: dict[str, Any] = {"task": "T1.2a", "gate": "ASS goldens (4 packs + hook)",
+    report: dict[str, Any] = {"task": "T1.2a", "gate": "ASS goldens (every pack + hook)",
                               "goldens": {}, "failures": 0}
     logs = []
     for name, file, context in GOLDEN_CASES:

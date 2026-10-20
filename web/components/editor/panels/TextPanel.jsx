@@ -1,10 +1,10 @@
 "use client";
 
-// The text panel (plan §11.2 T2.7, §3.3, §5.4; T3.4 §7.1): captions on/off, the four packs
-// (thumbnails rendered by FFmpeg from the pack files, pack-thumbs/), position, size, uppercase, and
-// the highlight and keyword swatches; the hook on/off, its text with a counter and the fit badge
-// from the server's layout ("Muat" / "Akan terpotong"), the hook suggestions under the text field,
-// duration and position. Every change is one Appendix B command; sliders and typing merge into
+// The text panel (plan §11.2 T2.7, §3.3, §5.4; T3.4 §7.1): captions on/off, the packs
+// (thumbnails rendered by FFmpeg from the pack files, pack-thumbs/), position, size, words per line
+// (CONTRACTS §5.30), uppercase, and the highlight and keyword swatches; the hook on/off, its text
+// with a counter and the fit badge from the server's layout ("Muat" / "Akan terpotong"), the hook
+// suggestions under the text field, duration and position. Every change is one Appendix B command; sliders and typing merge into
 // one undo step through their merge keys. The caption and hook rules (commands, notes, the hint
 // that the caption sits near the hook) are caption-model.mjs and hook-model.mjs, shared with Mode
 // Cepat's Caption and Hook cards (docs/plans/2026-10-02-editor-mode-cepat.md §1.4, §3).
@@ -14,13 +14,17 @@ import { useEffect, useRef, useState } from "react";
 
 import HookSuggestions from "../suggestions/index.jsx";
 import { runCommands } from "../transcript/actions.mjs";
+import PillGroup from "../ui/PillGroup.jsx";
 import Swatches from "../ui/Swatches.jsx";
 import Switch from "../ui/Switch.jsx";
 import {
   CAPTION_PACKS,
   CAPTION_SWATCHES,
+  CAPTION_WORDS,
   captionCommand,
   captionPackCommand,
+  captionWordsCommand,
+  captionWordsId,
   captionZoneNote,
   captionsEnabledCommand,
   highlightNote,
@@ -128,6 +132,8 @@ function TextPanelBody({ state, dispatch, api }) {
           <input type="range" className={styles.range} min={700} max={1400} step={50} value={overrides.size_pm}
             disabled={readOnly} onChange={(event) => send(captionCommand("size_pm", Number(event.target.value), { drag: true }))} />
         </label>
+        <PillGroup legend="Kata per baris" name="caption-words" options={CAPTION_WORDS.map(({ id, label }) => ({ id, label }))}
+          value={captionWordsId(doc)} disabled={readOnly} columns={4} onChange={(id) => send(captionWordsCommand(id))} />
         <label className={styles.check}>
           <input type="checkbox" checked={overrides.case === "upper"} disabled={readOnly}
             onChange={(event) => send(captionCommand("case", event.target.checked ? "upper" : "asis"))} />

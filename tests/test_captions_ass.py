@@ -443,9 +443,14 @@ ROOT = Path(__file__).resolve().parents[1]
 PACKS_DIR = ROOT / "resources" / "caption-packs"
 HOOK_DESIGN = ROOT / "resources" / "hook-designs" / "legacy-bar" / "v1.json"
 OVERRIDES = {pack: dict(PACK_DEFAULT_OVERRIDES[pack]) for pack in PACK_IDS}
-STYLE_NAMES = {"classic": "Caption", "karaoke": "Karaoke", "bold": "Bold", "box": "Box"}
+STYLE_NAMES = {"classic": "Caption", "karaoke": "Karaoke", "bold": "Bold", "box": "Box",
+               "sorot": "Sorot"}
 _OWN_TAG = re.compile(r"(?<!\\)\{([^}]*)\}")
 _CAPTION_TAG = re.compile(r"(\\(k\d+|1c&H[0-9A-F]{6}&|2c&H[0-9A-F]{6}&|q2|fs\d+))+")
+# The Sorot pack places each word and its box itself: position, no border on the spoken word,
+# and the box drawing (plus the tags of the other packs).
+_SOROT_TAG = re.compile(r"(\\(an2|pos\(\d+(\.\d{1,2})?,\d+\)|q2|fs\d+|bord0|shad0|p[01]"
+                        r"|1c&H[0-9A-F]{6}&))+")
 WHITE = "&HFFFFFF&"
 YELLOW = "&H4DE1FF&"  # #FFE14D, the default highlight
 PINK = "&H8A5CFF&"  # #FF5C8A, the default emphasis
@@ -486,15 +491,18 @@ def _strip(text: str) -> str:
 
 
 def _windows(cues, pack):
-    """The frame window of every caption event, in emission order (bold: one per word)."""
+    """The frame window of every caption event, in emission order (bold: one per word; sorot:
+    per word, one event per word of the cue plus the box)."""
     windows = []
     for cue in cues:
-        if pack != "bold":
+        if pack not in ("bold", "sorot"):
             windows.append((cue.f0, cue.f1))
             continue
         starts = [cue.f0] + [word.f0 for word in cue.words[1:]]
         ends = starts[1:] + [cue.f1]
-        windows.extend((a, b) for a, b in zip(starts, ends, strict=True) if a < b)
+        copies = len(cue.words) + 1 if pack == "sorot" else 1
+        windows.extend((a, b) for a, b in zip(starts, ends, strict=True) if a < b
+                       for _copy in range(copies))
     return windows
 
 
@@ -529,9 +537,11 @@ def test_legacy_bar_hook_equals_the_legacy_hook(size, text):
     assert {event["Layer"] for event in hook_events} == {"1"}
 
 
-def test_the_four_packs_load_with_the_seed_defaults_and_their_fonts():
+def test_every_pack_loads_with_the_seed_defaults_and_its_font():
     fonts = {"classic": "DejaVuSans.ttf", "karaoke": "DejaVuSans-Bold.ttf",
-             "bold": "Montserrat-ExtraBold.ttf", "box": "Montserrat-ExtraBold.ttf"}
+             "bold": "Montserrat-ExtraBold.ttf", "box": "Montserrat-ExtraBold.ttf",
+             "sorot": "Montserrat-ExtraBold.ttf"}
+    assert PACK_IDS == ("classic", "karaoke", "bold", "box", "sorot")
     for pack_id in PACK_IDS:
         pack = load_pack(pack_id, 1)
         assert isinstance(pack, CaptionPack)
@@ -542,7 +552,7 @@ def test_the_four_packs_load_with_the_seed_defaults_and_their_fonts():
         raw = (PACKS_DIR / pack_id / "v1.json").read_bytes()
         assert pack.sha256 == hashlib.sha256(raw).hexdigest()
         assert load_pack(pack_id, 1) is pack
-    assert [load_pack(p, 1).words_per_cue for p in PACK_IDS] == [4, 4, 3, 3]
+    assert [load_pack(p, 1).words_per_cue for p in PACK_IDS] == [4, 4, 3, 3, 3]
 
 
 @pytest.mark.parametrize(("pack_id", "version"),
@@ -897,16 +907,20 @@ def test_escape_fuzz_keeps_every_event_on_one_line_without_foreign_tags(pack):
         body = document.split("[Events]\n", 1)[1]
         dialogues = [line for line in body.split("\n")[1:] if line]
         assert all(line.startswith("Dialogue: ") for line in dialogues)
-        if pack == "box":
+        if pack in ("box", "sorot"):
             expected = fit_cues((cue,), pack=loaded, play_res=(720, 1280),
                                 overrides=OVERRIDES[pack])
-            assert len(dialogues) == len(expected)
+            # Sorot: per spoken word, one event per word of the line plus its box.
+            per_cue = [len(part.words) * (len(part.words) + 1) if pack == "sorot" else 1
+                       for part in expected]
+            assert len(dialogues) == sum(per_cue)
         else:
             assert len(dialogues) == (len(words) if pack == "bold" else 1)
+        allowed = _SOROT_TAG if pack == "sorot" else _CAPTION_TAG
         for line in dialogues:
             text = line.split(",", 9)[9]
             assert not any(unicodedata.category(c) in ("Cc", "Cs", "Zl", "Zp") for c in text)
-            assert all(_CAPTION_TAG.fullmatch(tag) for tag in _OWN_TAG.findall(text)), text
+            assert all(allowed.fullmatch(tag) for tag in _OWN_TAG.findall(text)), text
             stripped = _strip(text)
             for position, character in enumerate(stripped):
                 if character == "\\":
@@ -945,3 +959,190 @@ def test_build_ass_v2_rejects_invalid_input(change):
     arguments.update(change)
     with pytest.raises((TypeError, ValueError)):
         build_ass_v2((_fcue((0, 30, "halo")),), **arguments)
+
+
+# --- Sorot: a box behind the spoken word (P1 #9) -----------------------------------------------
+
+_POS = re.compile(r"\\pos\((\d+(?:\.\d+)?),(\d+)\)")
+_DRAWING = re.compile(r"\\p1\}(m [0-9 mlb]+)\{\\p0\}$")
+DARK = "&H111111&"
+
+
+def _word_boxes(document):
+    """Per event: ("box", x, y, path, colour) or ("word", x, y, text, tags)."""
+    found = []
+    for event in _events(document):
+        text = event["Text"]
+        x, y = _POS.search(text).groups()
+        drawing = _DRAWING.search(text)
+        if drawing:
+            colour = re.search(r"\\1c(&H[0-9A-F]{6}&)", text).group(1)
+            found.append(("box", float(x), int(y), drawing.group(1), colour))
+        else:
+            tags = "".join(_OWN_TAG.findall(text))
+            found.append(("word", float(x), int(y), _strip(text), tags))
+    return found
+
+
+def _extent(path):
+    numbers = [int(value) for value in re.findall(r"\d+", path)]
+    return max(numbers[0::2]), max(numbers[1::2])
+
+
+def _centres(words, size, font):
+    """Each word's centre x when the line of ``words`` is centred on the frame (hmtx)."""
+    space = advance_px(" ", font, size)
+    widths = [advance_px(word, font, size) for word in words]
+    left = 360 - (sum(widths) + space * (len(words) - 1)) / 2
+    centres = []
+    for width in widths:
+        centres.append(left + width / 2)
+        left += width + space
+    return centres, widths
+
+
+def test_sorot_pack_file_loads_a_one_line_pack_with_its_word_box():
+    pack = load_pack("sorot", 1)
+
+    assert (pack.name, pack.style_name, pack.reveal) == ("Sorot", "Sorot", "word_box")
+    assert (pack.border_style, pack.box_style, pack.max_width_pm) == (1, "border", 880)
+    assert pack.word_box == captions_ass.WordBox(pad_x_pm=160, top_pm=110, radius_pm=140,
+                                                 dark_text="#111111", light_text="#FFFFFF",
+                                                 dark_from_lstar=60)
+    assert dict(pack.defaults) == dict(PACK_DEFAULT_OVERRIDES["sorot"])
+    assert PACK_DEFAULT_OVERRIDES["sorot"]["case"] == "upper"
+    for other in ("classic", "karaoke", "bold", "box"):
+        assert load_pack(other, 1).word_box is None
+
+
+def test_sorot_draws_each_word_in_place_and_a_box_behind_the_spoken_one():
+    fps = Fps(30000, 1001)
+    cue = _fcue((100, 110, "ini"), (110, 118, "caranya"), (118, 140, "biar."), f1=150)
+
+    document = _v2((cue,), "sorot", fps=fps)
+
+    style = _styles(document)["Sorot"]
+    assert style["Fontname"] == "Montserrat ExtraBold"
+    assert (style["Fontsize"], style["Outline"], style["Shadow"]) == ("64", "8.53", "0")
+    assert (style["BorderStyle"], style["Alignment"], style["PrimaryColour"]) == (
+        "1", "2", "&H00FFFFFF")
+    events = _events(document)
+    assert {event["Style"] for event in events} == {"Sorot"}
+    assert {event["Layer"] for event in events} == {"0"}
+    windows = [(safe_cs(100, fps), safe_cs(110, fps)), (safe_cs(110, fps), safe_cs(118, fps)),
+               (safe_cs(118, fps), safe_cs(150, fps))]
+    assert [(_centiseconds(e["Start"]), _centiseconds(e["End"])) for e in events] == [
+        window for window in windows for _copy in range(4)]
+    font = font_path(load_pack("sorot", 1).font_file)
+    shown = ["INI", "CARANYA", "BIAR."]
+    centres, widths = _centres(shown, 64, font)
+    parsed = _word_boxes(document)
+    for active in range(3):
+        window = parsed[4 * active:4 * active + 4]
+        # The other words first, then the box, then the spoken word on top of it.
+        kinds = [entry[0] for entry in window]
+        assert kinds == ["word", "word", "box", "word"]
+        words = [entry for entry in window if entry[0] == "word"]
+        assert [entry[3] for entry in words] == [w for i, w in enumerate(shown) if i != active] + [
+            shown[active]]
+        for entry in words:
+            index = shown.index(entry[3])
+            assert abs(entry[1] - centres[index]) <= 0.005  # the line's natural place
+            assert entry[2] == 1280 - 218
+            assert entry[4].startswith("\\an2\\pos(") and "\\q2" in entry[4]
+        spoken = words[-1]
+        assert "\\bord0\\shad0\\1c" + DARK in spoken[4]
+        assert all("\\bord0" not in entry[4] for entry in words[:-1])
+        _kind, x, y, path, colour = window[2]
+        assert (x, y, colour) == (spoken[1], 1062, YELLOW)
+        width, height = _extent(path)
+        assert abs(width - (widths[active] + 2 * 10)) <= 0.5  # the word plus 16% of 64 a side
+        assert height == 64 - 7  # top 11% of the line inset; the box ends at the line bottom
+        assert path.startswith("m 9 0 l ") and " b " in path  # rounded corners, radius 9
+
+
+def test_sorot_box_path_is_a_rounded_rectangle_that_fits_its_extent():
+    path = captions_ass._box_path(120, 57, 9)
+    assert path == ("m 9 0 l 111 0 b 116 0 120 4 120 9 l 120 48 b 120 53 116 57 111 57 "
+                    "l 9 57 b 4 57 0 53 0 48 l 0 9 b 0 4 4 0 9 0")
+    assert captions_ass._box_path(30, 20, 0) == "m 0 0 l 30 0 30 20 0 20"
+    assert _extent(captions_ass._box_path(18, 10, 9)) == (18, 10)  # radius capped at half
+
+
+@pytest.mark.parametrize("swatch", ["#FFE14D", "#FFFFFF", "#3DF5A6", "#52C7FF", "#FF5C8A",
+                                    "#FF9F1C"])
+def test_every_highlight_swatch_is_light_so_the_spoken_word_turns_dark(swatch):
+    box = load_pack("sorot", 1).word_box
+    assert captions_ass.lightness(swatch) >= 60
+    assert captions_ass.word_box_text(swatch, box) == "#111111"
+    cue = _fcue((0, 10, "gue"), (10, 20, "bukan"))
+    document = _v2((cue,), "sorot", highlight=swatch)
+    spoken = [entry for entry in _word_boxes(document) if entry[0] == "word"][1]
+    box_entry = next(entry for entry in _word_boxes(document) if entry[0] == "box")
+    assert box_entry[4] == captions_ass._inline_colour(swatch)
+    assert spoken[4].endswith("\\1c" + DARK)
+
+
+def test_a_dark_box_gets_light_text_by_cie_lightness():
+    box = load_pack("sorot", 1).word_box
+    assert round(captions_ass.lightness("#FFFFFF"), 6) == 100
+    assert round(captions_ass.lightness("#000000"), 6) == 0
+    assert abs(captions_ass.lightness("#777777") - 50.03) < 0.01
+    for colour in ("#3F5EFB", "#E44E3F", "#000000", "#777777"):
+        assert captions_ass.lightness(colour) < 60
+        assert captions_ass.word_box_text(colour, box) == "#FFFFFF"
+    # The threshold is the pack's: the same colour flips when the pack asks for less.
+    softer = dataclasses.replace(box, dark_from_lstar=50)
+    assert captions_ass.word_box_text("#777777", softer) == "#111111"
+
+
+def test_sorot_keyword_keeps_its_colour_and_gets_its_own_box_when_spoken():
+    cue = _fcue((0, 10, "gue"), (10, 20, "bukan", True), (20, 30, "jambret."))
+
+    parsed = _word_boxes(_v2((cue,), "sorot"))
+
+    first, second = parsed[:4], parsed[4:8]
+    keyword = next(entry for entry in first if entry[0] == "word" and entry[3] == "BUKAN")
+    assert keyword[4].endswith("\\1c" + PINK)  # not spoken yet: the keyword colour
+    box = next(entry for entry in second if entry[0] == "box")
+    assert box[4] == PINK  # spoken: the box takes the keyword colour
+    assert second[-1][3] == "BUKAN" and second[-1][4].endswith("\\1c" + DARK)
+
+
+def test_sorot_splits_wide_lines_and_shrinks_a_single_wide_word():
+    pack = load_pack("sorot", 1)
+    font = font_path(pack.font_file)
+    cue = _fcue((0, 12, "SEPERTINYA"), (12, 30, "BERKEPANJANGAN"), (30, 44, "SEKALI"), f1=50)
+    fitted = fit_cues((cue,), pack=pack, play_res=(720, 1280), overrides=OVERRIDES["sorot"])
+    assert len(fitted) >= 2
+    for piece in fitted:
+        assert len(piece.words) == 1 or advance_px(piece.text, font, 64) <= 0.88 * 720
+
+    word = "Supercalifragilisticexpialidocious"
+    events = _events(_v2((_fcue((0, 20, word)),), "sorot"))
+    size = int(re.search(r"\\fs(\d+)", events[-1]["Text"]).group(1))
+    assert size < 64
+    assert advance_px(word.upper(), font, size) <= 0.88 * 720
+    _kind, x, _y, path, _colour = _word_boxes(_v2((_fcue((0, 20, word)),), "sorot"))[0]
+    assert x == 360
+    assert _extent(path)[1] == size - _rhu(size * 110, 1000)
+
+
+def test_sorot_follows_position_size_and_case_overrides():
+    cue = _fcue((0, 10, "gue"), (10, 20, "Bukan"))
+
+    raised = _v2((cue,), "sorot", y_e5=70000, size_pm=1400, case="asis")
+
+    assert _styles(raised)["Sorot"]["Fontsize"] == str(_rhu(1280 * 12 * 1200 * 1400,
+                                                             288 * 1_000_000))
+    parsed = _word_boxes(raised)
+    assert {entry[2] for entry in parsed} == {1280 - _rhu(30000 * 1280, 100000)}
+    assert [entry[3] for entry in parsed if entry[0] == "word"][:2] == ["Bukan", "gue"]
+
+
+def test_overrides_accept_words_max_from_one_to_four_only():
+    for value in (1, 2, 3, 4):
+        _v2((_fcue((0, 30, "halo")),), "classic", words_max=value)
+    for value in (0, 5, "3", True, None):
+        with pytest.raises(ValueError, match="words_max"):
+            _v2((_fcue((0, 30, "halo")),), "classic", words_max=value)

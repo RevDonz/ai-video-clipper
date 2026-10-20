@@ -1,0 +1,19 @@
+{
+  "schema": "potongin.caption-pack/1",
+  "id": "sorot",
+  "v": 1,
+  "name": "Sorot",
+  "style_name": "Sorot",
+  "font": {"family": "Montserrat ExtraBold", "file": "Montserrat-ExtraBold.ttf", "bold": false},
+  "size": {"num": 12, "den": 288, "scale_pm": 1200},
+  "outline": {"num": 1, "den": 150},
+  "shadow": {"num": 0, "den": 1},
+  "border_style": 1,
+  "colours": {"text": "#FFFFFF", "outline": "#000000", "outline_alpha": 0, "back": "#000000", "back_alpha": 0},
+  "margin_side_pm": 60,
+  "reveal": "word_box",
+  "words_per_cue": 3,
+  "max_width_pm": 880,
+  "word_box": {"pad_x_pm": 160, "top_pm": 110, "radius_pm": 140, "dark_text": "#111111", "light_text": "#FFFFFF", "dark_from_lstar": 60},
+  "defaults": {"y_e5": 83000, "size_pm": 1000, "case": "upper", "highlight": "#FFE14D", "emphasis": "#FF5C8A"}
+}

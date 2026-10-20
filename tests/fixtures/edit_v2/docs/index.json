@@ -235,6 +235,24 @@
    "warnings": []
   },
   {
+   "file": "valid/pack_sorot__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/words_max_1__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/words_max_4__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
    "file": "valid/overrides_min__c30.json",
    "context": "c30",
    "check": "put",
@@ -781,6 +799,27 @@
    "check": "put",
    "code": "range_invalid",
    "path": "/captions/overrides/emphasis"
+  },
+  {
+   "file": "invalid/range_invalid__words_max_zero.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/captions/overrides/words_max"
+  },
+  {
+   "file": "invalid/range_invalid__words_max_five.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/captions/overrides/words_max"
+  },
+  {
+   "file": "invalid/range_invalid__words_max_string.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/captions/overrides/words_max"
   },
   {
    "file": "invalid/range_invalid__cut_fade_high.json",
