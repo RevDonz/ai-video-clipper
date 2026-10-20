@@ -1,6 +1,7 @@
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+import { clipErrorCode, isFailedClip } from "./clip-status.mjs";
 import {
   CLIP_THUMBNAIL_URL,
   FOCUS_LIMITS,
@@ -780,6 +781,20 @@ function isOwnThumbnailUrl(value, jobId) {
   return Boolean(match) && (jobId === undefined || match[1] === jobId);
 }
 
+const FILE_LINKS = ["videoUrl", "downloadUrl", "subtitleUrl", "thumbnailUrl"];
+
+/**
+ * A failed clip (lib/clip-status.mjs) keeps `status: "failed"` and a known code and loses
+ * every file link; any other clip loses a stray `status` or `errorCode`.
+ */
+function sanitizeClipState(clip) {
+  if (!("status" in clip) && !("errorCode" in clip)) return clip;
+  const { status: _status, errorCode, ...rest } = clip;
+  if (!isFailedClip(clip)) return rest;
+  for (const key of FILE_LINKS) delete rest[key];
+  return { ...rest, status: "failed", errorCode: clipErrorCode(errorCode) };
+}
+
 /**
  * Re-validates a persisted clip before it is served. Clips without any V3
  * field (every job created before Selection V3) are returned untouched,
@@ -787,6 +802,7 @@ function isOwnThumbnailUrl(value, jobId) {
  */
 export function sanitizeStoredClip(clip, jobId) {
   if (!clip || typeof clip !== "object" || Array.isArray(clip)) return clip;
+  clip = sanitizeClipState(clip);
   if ("thumbnailUrl" in clip && !isOwnThumbnailUrl(clip.thumbnailUrl, jobId)) {
     const { thumbnailUrl: _unsafe, ...rest } = clip;
     clip = rest;

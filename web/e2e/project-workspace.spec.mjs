@@ -48,19 +48,26 @@ const JOB = {
 
 const ZIP_BYTES = Buffer.from("504b0506000000000000000000000000000000000000", "hex");
 
+// Clip 2 failed to render: the job keeps it without any file (lib/clip-status.mjs).
+function failedClip(index) {
+  const { videoUrl: _video, downloadUrl: _download, subtitleUrl: _subtitle, ...rest } = clip(index);
+  return { ...rest, status: "failed", errorCode: "render_timeout" };
+}
+const PARTLY_FAILED_JOB = { ...JOB, clips: [clip(1), failedClip(2), clip(3), clip(4)] };
+
 /** Fakes the job, its clips listing and the ZIP route; returns the ZIP downloads it saw. */
-async function fakeProject(target, { zipCheck = null } = {}) {
+async function fakeProject(target, { zipCheck = null, job = JOB } = {}) {
   const downloads = [];
   await target.route(new RegExp(`/api/jobs/${JOB_ID}(?:[/?].*)?$`), (route) => {
     const url = new URL(route.request().url());
     const json = (status, body) => route.fulfill({ status, contentType: "application/json", headers: { "Cache-Control": "no-store" }, body: JSON.stringify(body) });
-    if (url.pathname === `/api/jobs/${JOB_ID}`) return json(200, { job: JOB });
+    if (url.pathname === `/api/jobs/${JOB_ID}`) return json(200, { job });
     if (url.pathname === `/api/jobs/${JOB_ID}/clips`) {
       return json(200, { clips: [{ index: 1, clipId: CLIP_ID, openable: true, reason: null, edit: { state: "edited", revision: 2 }, latestRender: null }] });
     }
     if (url.pathname === `/api/jobs/${JOB_ID}/zip`) {
       const picked = url.searchParams.get("clips");
-      const count = picked ? picked.split(",").length : JOB.clips.length;
+      const count = picked ? picked.split(",").length : job.clips.filter((item) => item.status !== "failed").length;
       if (url.searchParams.get("check") === "1") {
         return zipCheck ? json(zipCheck.status, zipCheck.body) : json(200, { count, bytes: count * 3_000_000, filename: "podcast-12-klip.zip" });
       }
@@ -182,6 +189,37 @@ test.describe("project workspace (faked job API)", () => {
   });
 });
 
+test.describe("project workspace with a clip that failed to render (faked job API)", () => {
+  test.beforeEach(() => skipWithoutCredentials(test));
+
+  test("the failed clip says 'Gagal' and why, with nothing to play, download or edit", async ({ page }) => {
+    await fakeProject(page, { job: PARTLY_FAILED_JOB });
+    await login(page, "/projects");
+    await page.goto(`/projects/${JOB_ID}`);
+    await expect(posters(page)).toHaveCount(4);
+    await expect(page.getByRole("heading", { level: 2, name: "3 dari 4 klip siap diunggah" })).toBeVisible();
+    await expect(page.getByText("3 klip · 1 gagal", { exact: true })).toBeVisible();
+    await expect(posters(page).nth(1)).toHaveAttribute("data-failed", "true");
+    await expect(posters(page).nth(1)).toContainText("Gagal");
+    await expect(page.locator("[data-failed]")).toHaveCount(1);
+
+    await posters(page).nth(1).getByRole("button").click();
+    await expect(detailTitle(page)).toHaveText(TITLES[1]);
+    await expect(detail(page).locator("video")).toHaveCount(0);
+    await expect(detail(page)).toContainText("Render klip ini melewati batas waktu.");
+    await expect(detail(page)).toContainText("Klip lain tidak terpengaruh. Untuk mencoba lagi, proses ulang videonya.");
+    for (const name of ["Unduh MP4", /Unduh subtitle SRT/, "Edit klip"]) {
+      await expect(detail(page).getByRole("link", { name })).toHaveCount(0);
+    }
+    // The next clip plays as before.
+    await page.keyboard.press("ArrowRight");
+    await expect(detailTitle(page)).toHaveText(TITLES[2]);
+    await expect(detail(page).locator("video")).toHaveCount(1);
+    await posters(page).nth(1).getByRole("button").click();
+    if (AXE) expect(await axeSerious(page)).toEqual([]);
+  });
+});
+
 test.describe("project workspace downloads (faked ZIP route)", () => {
   test.beforeEach(() => skipWithoutCredentials(test));
 
@@ -230,6 +268,25 @@ test.describe("project workspace downloads (faked ZIP route)", () => {
     await probe.getByRole("button", { name: "Unduh semua" }).click();
     await expect.poll(() => downloads.length).toBe(2);
     expect(downloads[1].searchParams.has("clips")).toBe(false);
+    expect(errors).toEqual([]);
+    await probe.close();
+  });
+
+  test("in 'Pilih' a clip that failed to render cannot be picked; 'Pilih semua' leaves it out", async ({ context, page }) => {
+    const { probe, errors, downloads } = await openProbe(context, page, { job: PARTLY_FAILED_JOB });
+    await probe.getByRole("button", { name: "Pilih", exact: true }).click();
+    const bar = probe.getByRole("group", { name: "Pilih klip untuk diunduh" });
+    const failed = posters(probe).nth(1).getByRole("button");
+    await expect(failed).toHaveAttribute("aria-disabled", "true");
+    await expect(failed).not.toHaveAttribute("aria-pressed", /.*/);
+    // aria-disabled: Playwright would wait for it to turn enabled; a person can still press it.
+    await failed.click({ force: true });
+    await expect(bar).toContainText("0 dipilih");
+    await bar.getByRole("button", { name: "Pilih semua" }).click();
+    await expect(bar).toContainText("3 dipilih");
+    await bar.getByRole("button", { name: "Unduh (3)" }).click();
+    await expect.poll(() => downloads.length).toBe(1);
+    expect(downloads[0].searchParams.get("clips")).toBe("1,3,4");
     expect(errors).toEqual([]);
     await probe.close();
   });

@@ -19,6 +19,7 @@ import {
   sanitizeSelectionV3Summary,
   validatePersistedJobOptions,
 } from "../lib/jobs.mjs";
+import { clipCounts, clipErrorCode } from "../lib/clip-status.mjs";
 import { DownloadError, downloadErrorMessage } from "../lib/download-errors.mjs";
 import { PROGRESS_TEMPLATE, createDownloadMonitor, downloadStallMs } from "../lib/download-monitor.mjs";
 import { engineProcessEnv, loadLlmEnv } from "../lib/llm-settings.mjs";
@@ -293,6 +294,7 @@ export async function existingThumbnails(outputRoot, manifestClips) {
 
 export function jobClipFromManifest(clip, id, position = 0, { thumbnails = null } = {}) {
   if (!clip || typeof clip !== "object" || Array.isArray(clip)) throw new Error("Manifest klip tidak valid");
+  if (clip.status === "failed") return failedJobClip(clip, position);
   const filename = path.basename(clip.output);
   const text = sanitizeLine(clip.text, CLIP_TEXT_LIMITS.text) || "";
   // Only the clip's own poster (clip-01.mp4 -> clip-01.jpg), and only when it exists.
@@ -313,6 +315,30 @@ export function jobClipFromManifest(clip, id, position = 0, { thumbnails = null 
   const packaging = sanitizeManifestClipFields(clip);
   const merged = { ...base, ...packaging };
   return { ...merged, ...clipSocialMetadata(merged) };
+}
+
+// A clip the engine could not render (lib/clip-status.mjs): its selection and packaging, the
+// failure's code, and no link to any file, whatever the entry names.
+function failedJobClip(clip, position) {
+  const { clipId: _clipId, renderEngine: _renderEngine, ...packaging } = sanitizeManifestClipFields(clip);
+  const merged = {
+    index: Number.isSafeInteger(clip.index) && clip.index > 0 ? clip.index : position + 1,
+    score: manifestNumber(clip.score),
+    start: manifestNumber(clip.start),
+    end: manifestNumber(clip.end),
+    duration: manifestNumber(clip.duration),
+    text: sanitizeLine(clip.text, CLIP_TEXT_LIMITS.text) || "",
+    status: "failed",
+    errorCode: clipErrorCode(clip.error_code),
+    ...packaging,
+  };
+  return { ...merged, ...clipSocialMetadata(merged) };
+}
+
+/** The finished job's stage line: every clip ready, or how many are and how many failed. */
+export function completedStageDetail(clips) {
+  const { total, ready, failed } = clipCounts(clips);
+  return failed ? `${ready} dari ${total} klip siap; ${failed} gagal dirender` : "Semua klip siap digunakan";
 }
 
 /** The job patch for one engine progress event; a stage summary joins the job's earlier ones. */
@@ -587,11 +613,13 @@ export async function main(argv = process.argv, env = process.env) {
     }
     const thumbnails = await existingThumbnails(outputRoot, manifest.clips);
     const clips = manifest.clips.map((clip, position) => jobClipFromManifest(clip, id, position, { thumbnails }));
+    // The engine fails a job whose every clip failed; a manifest that says otherwise is not trusted.
+    if (!clipCounts(clips).ready) throw new Error("Semua klip gagal dirender");
     const completedPatch = {
       status: "completed",
       progress: 100,
       stage: "completed",
-      stageDetail: "Semua klip siap digunakan",
+      stageDetail: completedStageDetail(clips),
       ...manifestJobPatch(manifest, clips),
       completedAt: new Date().toISOString(),
     };

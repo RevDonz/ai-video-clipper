@@ -254,12 +254,15 @@ if (process.env.FAKE_ENGINE_FAIL === "1") {
 }
 const poster = process.env.FAKE_ENGINE_THUMBNAIL;
 if (poster === "write") await writeFile(path.join(output, "clip-01.jpg"), Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+// FAKE_ENGINE_CLIP_FAILED: "one" adds a clip that failed to render, "all" fails the only clip.
+const failedClip = (index) => ({ index, score: 8, start: 40, end: 70, duration: 30, text: "Klip gagal", output: null, subtitles: null, thumbnail: null, status: "failed", error_code: "render_timeout" });
+const clipFailed = process.env.FAKE_ENGINE_CLIP_FAILED;
 await writeFile(path.join(output, "manifest.json"), JSON.stringify({
   status: "completed",
-  clips: [{
+  clips: clipFailed === "all" ? [failedClip(1)] : [{
     index: 1, score: 9, start: 0, end: 30, duration: 30, text: "Klip uji", output: path.join(output, "clip-01.mp4"), subtitles: path.join(output, "clip-01.srt"),
     ...(poster ? { thumbnail: path.join(output, "clip-01.jpg") } : {}),
-  }],
+  }, ...(clipFailed === "one" ? [failedClip(2)] : [])],
 }));
 `;
 
@@ -366,6 +369,35 @@ test("clip posters written by the engine are published and advertised; missing o
     assert.equal(clip.videoUrl, `/api/jobs/${id}/files/output/clip-01.mp4`);
     if (suffix) assert.equal((await lstat(path.join(jobRoot, "output", "clip-01.jpg"))).size, 4);
   }
+});
+
+test("a clip that failed to render is kept as failed; a job whose every clip failed fails", async () => {
+  const id = "b23e4567-e89b-42d3-a456-426614174000";
+  const partial = await engineFixture("clipper-worker-clip-failed-", { id });
+  const claim = await claimNextJob({ jobsRoot: partial.root, workerId: "worker", leaseMs: 60_000, maxAttempts: 3, legacyQuiescenceMs: 0 });
+  await main(["node", "run-job.mjs", id, claim.token], { ...partial.env, FAKE_ENGINE_CLIP_FAILED: "one" });
+
+  const persisted = JSON.parse(await readFile(path.join(partial.jobRoot, "job.json"), "utf8"));
+  assert.equal(persisted.status, "completed");
+  assert.equal(persisted.stageDetail, "1 dari 2 klip siap; 1 gagal dirender");
+  const [ready, failed] = persisted.clips;
+  assert.equal(ready.videoUrl, `/api/jobs/${id}/files/output/clip-01.mp4`);
+  assert.equal(failed.status, "failed");
+  assert.equal(failed.errorCode, "render_timeout");
+  for (const key of ["videoUrl", "downloadUrl", "subtitleUrl", "thumbnailUrl"]) assert.equal(key in failed, false, key);
+
+  const allId = "c23e4567-e89b-42d3-a456-426614174000";
+  const all = await engineFixture("clipper-worker-all-failed-", { id: allId });
+  const allClaim = await claimNextJob({ jobsRoot: all.root, workerId: "worker", leaseMs: 60_000, maxAttempts: 3, legacyQuiescenceMs: 0 });
+  const previousExitCode = process.exitCode;
+  try {
+    await main(["node", "run-job.mjs", allId, allClaim.token], { ...all.env, FAKE_ENGINE_CLIP_FAILED: "all" });
+  } finally {
+    process.exitCode = previousExitCode;
+  }
+  const failedJob = JSON.parse(await readFile(path.join(all.jobRoot, "job.json"), "utf8"));
+  assert.equal(failedJob.status, "failed");
+  assert.equal(failedJob.error, "Semua klip gagal dirender");
 });
 
 test("a failed queue attempt publishes neither output nor analysis", async () => {

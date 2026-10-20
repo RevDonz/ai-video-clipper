@@ -1,6 +1,7 @@
 // Presentation helpers for the project history (/projects) and one project's page
 // (/projects/[id]). Client-safe: no Node built-ins.
 
+import { clipCountText, readyClips } from "./clip-status.mjs";
 import { downloadErrorMessage } from "./download-errors.mjs";
 import { formatTimestamp } from "./selection-v3-view.mjs";
 import { shownStageDetail, shownWorkerText } from "./stage-detail.mjs";
@@ -72,7 +73,7 @@ function downloadFailure(job) {
 /** The history row's second line after the date: the clip count, or where an unfinished job stands. */
 export function projectRowDetail(job) {
   const stage = shownStageDetail(job);
-  if (job?.status === "completed") return `${Array.isArray(job.clips) ? job.clips.length : 0} klip`;
+  if (job?.status === "completed") return clipCountText(job.clips);
   if (job?.status === "deleting") return "Sedang dihapus";
   if (job?.status === "cancelled") return "Dibatalkan sebelum selesai";
   if (job?.status === "failed") return downloadFailure(job)?.text || stage || "Berhenti sebelum selesai";
@@ -109,7 +110,7 @@ export function failureDetail(job) {
 
 export function historySummary(jobs) {
   const list = Array.isArray(jobs) ? jobs : [];
-  const clips = list.reduce((total, job) => total + (Array.isArray(job?.clips) ? job.clips.length : 0), 0);
+  const clips = list.reduce((total, job) => total + readyClips(job?.clips).length, 0);
   return clips ? `${list.length} proyek · ${clips} klip` : `${list.length} proyek`;
 }
 

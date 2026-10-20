@@ -5,11 +5,14 @@ import styles from "./ClipPoster.module.css";
 
 export const posterFrame = styles.frame;
 
-/** The clip's frame (or a play mark for an old clip), with its number and length on solid chips. */
-export function PosterThumb({ poster, number, length, children = null }) {
+/**
+ * The clip's frame (or a play mark for an old clip), with its number and length on solid chips.
+ * A `badge` (the "Gagal" chip of a clip that failed to render) takes the frame's place.
+ */
+export function PosterThumb({ poster, number, length, badge = null, children = null }) {
   return (
     <span className={styles.thumb}>
-      {poster ? <img src={poster} alt="" loading="lazy" decoding="async" /> : <i className={styles.play} aria-hidden="true" />}
+      {badge || (poster ? <img src={poster} alt="" loading="lazy" decoding="async" /> : <i className={styles.play} aria-hidden="true" />)}
       <span className={styles.number} aria-hidden="true">{number}</span>
       {length && <span className={styles.length} aria-hidden="true">{length}</span>}
       {children}

@@ -302,6 +302,10 @@ legend.sectionTitle + *, legend.groupTitle + * { clear: both; }
 .clips { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .clip { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-l); background: var(--surface-2); animation: rise-in var(--dur-3) var(--ease-out); }
 .clip video { display: block; width: 100%; height: 260px; background: var(--bg); object-fit: contain; }
+/* A clip that failed to render: a short frame saying so where the video would be (there is
+   nothing to play, so it takes less room than a player). */
+.clipFailed { display: grid; align-content: center; justify-items: center; gap: 8px; min-height: 140px; padding: 16px; background: var(--bg); text-align: center; }
+.clipFailed p { margin: 0; color: var(--text); font: 600 14px/1.5 var(--font); }
 .clipBody { display: grid; gap: 6px; padding: 14px; }
 .clipBody > small { color: var(--text-muted); font-size: 13px; }
 .clipBody h3 { margin: 0; font: 600 15px/1.35 var(--font); letter-spacing: -.01em; overflow-wrap: anywhere; }

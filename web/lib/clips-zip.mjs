@@ -2,6 +2,7 @@
 // ZIP, each saved as "NN-judul.mp4" (A5). Only this job's own output/clip-NN.mp4 files, opened
 // through the final-file helpers (no symlink, contained in output/); every file is opened and
 // the size checked before the first byte is sent. `check=1` answers {count, bytes, filename}.
+// A clip that failed to render has no file: every clip means every rendered clip.
 // The session and the header set come from secureRoute (route.js).
 import { close } from "node:fs";
 import { readFile } from "node:fs/promises";
@@ -9,6 +10,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 import { clipSaveName, formatSize, zipSaveName } from "./clip-download.mjs";
+import { isFailedClip } from "./clip-status.mjs";
 import {
   FinalFileInvalidError,
   FinalFileNotFoundError,
@@ -144,11 +146,15 @@ export async function clipsZipRoute(request, { params }, deps = {}) {
   const { job, failure } = await readJob(jobsRoot, id);
   if (failure) return failure;
   if (job?.status !== "completed") return refusal("not_ready", 409);
-  const clips = (Array.isArray(job.clips) ? job.clips : []).filter((clip) => Number.isSafeInteger(clip?.index) && clip.index > 0);
+  const numbered = (Array.isArray(job.clips) ? job.clips : []).filter((clip) => Number.isSafeInteger(clip?.index) && clip.index > 0);
+  const clips = numbered.filter((clip) => !isFailedClip(clip));
   if (!clips.length) return refusal("no_clips", 404);
 
   const query = new URL(request.url).searchParams;
   const selection = parseClipSelection(query.get("clips"), clips.map((clip) => clip.index));
+  if (selection.code === "unknown_clip" && numbered.some((clip) => clip.index === selection.index)) {
+    return refusal("clip_failed", 409, `Klip ${clipNumber(selection.index)} gagal dirender, jadi tidak bisa diunduh.`);
+  }
   if (selection.code === "unknown_clip") return refusal("unknown_clip", 404, `Klip ${clipNumber(selection.index)} tidak ada di proyek ini.`);
   if (selection.code) return refusal(selection.code, 400);
   const wanted = new Set(selection.indexes);

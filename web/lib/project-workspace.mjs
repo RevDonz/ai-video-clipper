@@ -4,9 +4,17 @@
 // Client-safe: no Node built-ins.
 
 import { zipHref } from "./clip-download.mjs";
+import { clipCounts, readyClips } from "./clip-status.mjs";
 import { clipScoreView, formatTenths } from "./selection-v3-view.mjs";
 
 export const HIGH_SCORE = 8;
+
+/** "4 klip siap diunggah", or "3 dari 4 klip siap diunggah" when a clip failed to render. */
+export function clipsHeading(clips, status) {
+  const { total, ready, failed } = clipCounts(clips);
+  if (status !== "completed") return `${total} klip`;
+  return failed ? `${ready} dari ${total} klip siap diunggah` : `${total} klip siap diunggah`;
+}
 
 const FILTERS = Object.freeze([
   Object.freeze({ value: "all", label: "Semua" }),
@@ -125,12 +133,12 @@ export function togglePick(picks, index) {
   return next;
 }
 
-/** "Pilih semua": every clip the grid shows. */
+/** "Pilih semua": every clip the grid shows that has a file (a failed clip has none to zip). */
 export function pickAll(visible) {
-  return new Set((Array.isArray(visible) ? visible : []).map((clip) => clip.index));
+  return new Set(readyClips(visible).map((clip) => clip.index));
 }
 
-/** Only shown clips stay picked, so a hidden clip never lands in the ZIP unseen. */
+/** Only shown clips with a file stay picked, so a hidden clip never lands in the ZIP unseen. */
 export function prunePicks(picks, visible) {
   const shown = pickAll(visible);
   return new Set([...picks].filter((index) => shown.has(index)));
