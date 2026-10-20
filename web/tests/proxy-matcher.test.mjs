@@ -78,7 +78,7 @@ test("serving an asset and every other job route still runs the proxy", () => {
 test("every other protected path still runs the proxy", () => {
   for (const pathname of [
     "/dashboard", "/settings", "/projects/abc", "/api/jobs/abc", "/api/jobs/abc/files/output/clip-01.mp4",
-    "/api/jobsx", "/api/settings/llm", "/api/llm/status", "/api/storage/status",
+    "/api/jobsx", "/api/settings/llm", "/api/settings/transcription", "/api/llm/status", "/api/storage/status",
     "/trends", "/api/ingest", "/api/ingest/", "/api/ingest/trendsx", "/api/ingest/trends/abc", "/api/ingest/other",
     "/api/context/trends", "/api/context/trends/abc", "/api/context/trends/settings", "/api/context/tokens",
     "/api/context/tokens/abc", "/api/ingest/trends.json", "/bantuan", "/bantuan/", "/api/clips", "/api/clips/",

@@ -37,6 +37,7 @@ from .transcribe import (
     load_whisper_model,
     whisper_decoding_from_env,
 )
+from .transcribe_groq import groq_from_env
 
 
 def _bounded_int(name: str, maximum: int):
@@ -289,11 +290,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             prompt_every_window=args.prompt_every_window,
             language=args.language,
         )
+        # Pengaturan "Transkripsi" (opt-in): the worker sets the switch and the key in the env.
+        groq = groq_from_env(os.environ, prompt=decoding.initial_prompt)
         if args.selection_mode == SelectionMode.V3.value:
             model: Any = _LazyWhisperModel(
                 lambda: load_whisper_model(args.model, device=args.device, decoding=decoding)
             )
         else:
+            groq = None
             model = load_whisper_model(args.model, device=args.device, decoding=decoding)
 
         # A stage summary repeats the latest progress line, so every line stays a full progress
@@ -344,6 +348,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             trend_context=args.trend_context,
             focus=args.focus,
             ranges=args.ranges,
+            groq=groq,
         )
     except (FileNotFoundError, RuntimeError, ValueError, LLMError) as exc:
         print(f"Error: {exc}", file=sys.stderr)

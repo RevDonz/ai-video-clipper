@@ -180,6 +180,10 @@ suite) run on GitHub Actions: `ci-cd.yml` on every pull request and `editor-gate
 - **Jalur cepat subtitle YouTube.** Untuk URL YouTube, worker mencoba mengunduh subtitle
   manual dan otomatis (json3) setelah videonya. Kalau kualitasnya cukup, engine melewati
   Whisper. Kalau tidak ada atau kualitasnya buruk, Whisper lokal tetap dipakai.
+- **Transkripsi lewat Groq (opsional).** Di **Pengaturan → Transkripsi**, video tanpa subtitle
+  YouTube yang layak bisa ditranskrip oleh Whisper di Groq (paket gratis), tanpa membebani CPU
+  server. Bawaannya mati karena audio dikirim ke pihak ketiga. Kalau gagal, Whisper lokal
+  dipakai: [`docs/operations/TRANSCRIPTION.md`](docs/operations/TRANSCRIPTION.md).
 - **Bahasa video.** Dashboard menawarkan Indonesia (bawaan), Inggris, atau Deteksi otomatis.
   Pilihan ini dipakai Whisper dan menentukan subtitle YouTube yang diambil: Inggris mengambil
   track Inggris, Deteksi otomatis hanya mengambil track asli (`<bahasa>-orig`). Job lama dan
@@ -235,6 +239,13 @@ suite) run on GitHub Actions: `ci-cd.yml` on every pull request and `editor-gate
   fetch manual and automatic json3 captions into `input/captions/{manual,auto}`. The engine
   gets `--captions-dir` only when a caption file exists, uses the captions when they pass
   its quality gate, and otherwise runs Whisper. Caption failures never fail a job.
+- **Groq transcription (opt-in).** Pengaturan's "Transkripsi" card (`/api/settings/transcription`,
+  authenticated, off by default) lets a video without usable captions go to Groq's hosted
+  Whisper first (`whisper-large-v3`, free tier, stdlib HTTP, 16 kHz FLAC cut at silences under
+  25 MB). The key is the Groq key of the LLM settings, or one sealed in
+  `/data/settings/transcription.json`; the worker passes it to the engine in the environment
+  only. Any failure records `groq_fallback:<code>` and runs local Whisper
+  (`transcript_source` is `groq` when Groq wrote the transcript).
 - **Video language.** A job may carry `videoLanguage` (`id`, `en` or `auto`; anything else is
   refused). The worker passes it to `--language` and asks for captions in that language; for
   `auto` only the original `<lang>-orig` auto track is fetched and read, in its own language.

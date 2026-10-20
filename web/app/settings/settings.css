@@ -341,8 +341,8 @@ html:has(.settingsSaveBar) { scroll-padding-bottom: 150px; }
 .logoTrack { height: 6px; overflow: hidden; border-radius: 3px; background: var(--surface-3); }
 .logoBar { height: 100%; background: var(--text); transition: width var(--dur-2) var(--ease-out); }
 .logoProgress .btn { justify-self: start; }
-.logoStatus, .cookiesStatus { margin: 12px 0 0; color: var(--text-muted); font-size: 13px; line-height: 1.5; animation: rise-in var(--dur-2) var(--ease-out); }
-.logoStatus.ok, .cookiesStatus.ok { color: var(--success); }
+.logoStatus, .cookiesStatus, .transcriptionStatus { margin: 12px 0 0; color: var(--text-muted); font-size: 13px; line-height: 1.5; animation: rise-in var(--dur-2) var(--ease-out); }
+.logoStatus.ok, .cookiesStatus.ok, .transcriptionStatus.ok { color: var(--success); }
 .logoFacts, .cookiesFacts {
   display: grid;
   gap: 4px;
@@ -374,6 +374,13 @@ html:has(.settingsSaveBar) { scroll-padding-bottom: 150px; }
 .cookiesCount { font: 600 15px/1.35 var(--font); font-variant-numeric: tabular-nums; }
 .cookiesMeta { color: var(--text-muted); font-size: 13px; line-height: 1.5; font-variant-numeric: tabular-nums; }
 .cookiesActions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Transkripsi: the Groq switch, then where its key comes from (Pengaturan AI or this card). */
+.transcriptionKey { margin-top: 8px; }
+.transcriptionKeySource { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+.transcriptionKeySource p { margin: 0; color: var(--text-muted); font-size: 13px; line-height: 1.5; }
+.transcriptionKey small a { color: var(--info); font-weight: 600; text-decoration: none; white-space: nowrap; }
+.transcriptionKey small a:hover { text-decoration: underline; }
 
 /* Save bar: it floats over the scrolling form, so it is the page's one raised surface.
    The border brightens and the lime Simpan wakes up only when there is something to save. */

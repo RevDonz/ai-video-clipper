@@ -13,6 +13,7 @@ from ai_clipper.transcribe import (
     ENV_PROMPT_EVERY_WINDOW,
     WhisperDecoding,
 )
+from ai_clipper.transcribe_groq import ENV_API_KEY, ENV_SWITCH, GroqTranscription
 
 
 @pytest.fixture(autouse=True)
@@ -21,6 +22,8 @@ def _no_whisper_env(monkeypatch):
     monkeypatch.delenv(ENV_INITIAL_PROMPT, raising=False)
     monkeypatch.delenv(ENV_CONDITION_ON_PREVIOUS_TEXT, raising=False)
     monkeypatch.delenv(ENV_PROMPT_EVERY_WINDOW, raising=False)
+    monkeypatch.delenv(ENV_SWITCH, raising=False)
+    monkeypatch.delenv(ENV_API_KEY, raising=False)
 
 
 def test_cli_parses_source_and_processing_options():
@@ -655,4 +658,68 @@ def test_cli_rejects_invalid_whisper_decoding_before_any_work(
     assert "WHISPER_" in err or "--initial-prompt" in err
     assert "rahasia" not in err and "kadang" not in err
     assert "Traceback" not in err
+    assert calls == []
+
+
+# --- Transkripsi lewat Groq ------------------------------------------------------------------
+
+GROQ_KEY = "groq-test-key-0000"
+
+
+def test_cli_hands_the_workers_groq_switch_and_key_to_the_pipeline(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(cli, "load_whisper_model", lambda *a, **k: "M")
+    received = _capture_pipeline(monkeypatch, tmp_path)
+    monkeypatch.setenv(ENV_SWITCH, "on")
+    monkeypatch.setenv(ENV_API_KEY, GROQ_KEY)
+
+    assert cli.main(WEB_V3_ARGS) == 0
+
+    # The Groq request gets the same style prompt as local Whisper.
+    expected = GroqTranscription(api_key=GROQ_KEY, prompt=WhisperDecoding().initial_prompt)
+    assert received["groq"] == expected
+
+
+def test_cli_a_detected_language_sends_groq_no_indonesian_prompt(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(cli, "load_whisper_model", lambda *a, **k: "M")
+    received = _capture_pipeline(monkeypatch, tmp_path)
+    monkeypatch.setenv(ENV_SWITCH, "on")
+    monkeypatch.setenv(ENV_API_KEY, GROQ_KEY)
+
+    assert cli.main(_web_args("auto", WEB_V3_ARGS)) == 0
+
+    assert received["groq"] == GroqTranscription(api_key=GROQ_KEY, prompt=None)
+
+
+def test_cli_without_the_switch_forwards_no_groq(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(cli, "load_whisper_model", lambda *a, **k: "M")
+    received = _capture_pipeline(monkeypatch, tmp_path)
+    monkeypatch.setenv(ENV_API_KEY, GROQ_KEY)  # a key alone switches nothing on
+
+    assert cli.main(WEB_V3_ARGS) == 0
+
+    assert received["groq"] is None
+
+
+def test_cli_older_selection_modes_never_use_groq(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(cli, "load_whisper_model", lambda *a, **k: "M")
+    received = _capture_pipeline(monkeypatch, tmp_path)
+    monkeypatch.setenv(ENV_SWITCH, "on")
+    monkeypatch.setenv(ENV_API_KEY, GROQ_KEY)
+
+    assert cli.main(WEB_V1_ARGS) == 0
+
+    assert received["groq"] is None
+
+
+def test_cli_refuses_an_invalid_groq_switch_before_any_work(monkeypatch, capsys):
+    calls = []
+    monkeypatch.setattr(cli, "load_whisper_model", lambda *a, **k: calls.append("load"))
+    monkeypatch.setattr(cli, "run_pipeline", lambda *a, **k: calls.append("pipeline"))
+    monkeypatch.setenv(ENV_SWITCH, "kadang")
+    monkeypatch.setenv(ENV_API_KEY, GROQ_KEY)
+
+    assert cli.main(["video.mp4"]) == 1
+
+    err = capsys.readouterr().err
+    assert ENV_SWITCH in err and "kadang" not in err and GROQ_KEY not in err
     assert calls == []
