@@ -161,7 +161,6 @@ legend.sectionTitle + *, legend.groupTitle + * { clear: both; }
 .pill:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
 
 .choices { display: grid; gap: 8px; }
-.pair { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .choice {
   display: grid;
   grid-template-columns: 18px 34px minmax(0, 1fr);
@@ -356,6 +355,5 @@ legend.sectionTitle + *, legend.groupTitle + * { clear: both; }
   .pick, .submit { flex: 1 1 0; padding-inline: 12px; }
   .optionsToggle { padding: 10px 12px; }
   .results { padding: 16px; }
-  .pair { grid-template-columns: minmax(0, 1fr); }
   .clip video { height: 300px; }
 }

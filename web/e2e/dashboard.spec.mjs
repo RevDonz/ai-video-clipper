@@ -39,8 +39,8 @@ async function recordJobForms(page) {
   return async () => Object.fromEntries((await page.evaluate(() => window.__jobForms)).at(-1) || []);
 }
 
-/** Fakes /api/jobs (listing `jobs`), /api/llm/status and /api/storage/status. Returns the job POSTs. */
-async function fakeDashboardApi(page, { jobs = [] } = {}) {
+/** Fakes /api/jobs (listing `jobs`), /api/llm/status and /api/storage/status; `editor` is the jobs list's editor flag. Returns the job POSTs. */
+async function fakeDashboardApi(page, { jobs = [], editor = false } = {}) {
   const posts = [];
   const job = (id) => ({ id, status: "queued", progress: 0, createdAt: NOW, updatedAt: NOW, source: { type: "youtube", url: LINK }, options: { selectionMode: "v3" }, clips: [] });
   await page.route(/\/api\/(?:jobs|llm\/status|storage\/status)(?:[/?]|$)/, (route) => {
@@ -53,7 +53,7 @@ async function fakeDashboardApi(page, { jobs = [] } = {}) {
       posts.push(multipartFields(request));
       return json(202, { job: job(`00000000-0000-4000-8000-${String(posts.length).padStart(12, "0")}`) });
     }
-    if (pathname === "/api/jobs") return json(200, { jobs });
+    if (pathname === "/api/jobs") return json(200, { jobs, total: jobs.length, editor });
     const id = pathname.split("/")[3];
     return json(200, { job: jobs.find((item) => item.id === id) || job(id) });
   });
@@ -215,6 +215,38 @@ test.describe("Dashboard form (faked job API)", () => {
     const box = await summary.boundingBox();
     expect(box.y).toBeGreaterThan(bar.y + bar.height);
     expect(await overflow(page)).toBeLessThanOrEqual(0);
+  });
+
+  test("the 9:16 preview follows the layout, the subtitle style and the hook switch", async ({ page }) => {
+    const posts = await fakeDashboardApi(page);
+    await openDashboard(page);
+    await optionsButton(page).click();
+    const preview = page.getByRole("img", { name: /^Pratinjau klip 9:16/ });
+    await expect(preview).toHaveAccessibleName("Pratinjau klip 9:16: Utuh + latar blur, subtitle Karaoke di bawah, teks hook di atas.");
+    await expect(preview).toHaveAttribute("data-layout", "fit");
+    await expect(page.getByText("Area tombol TikTok", { exact: true })).toBeVisible();
+    // Without the editor the note names no Edit klip.
+    await expect(page.getByText("Subtitle ada di bawah, dekat area tombol TikTok.", { exact: true })).toBeVisible();
+    // Both style thumbnails are real images.
+    expect(await page.evaluate(() => [...document.querySelectorAll("#job-options img")].map((img) => img.complete && img.naturalWidth === 320))).toEqual([true, true]);
+
+    await choose(page, "Klasik");
+    await expect(preview).toHaveAttribute("data-pack", "classic");
+    await choose(page, "Crop tengah");
+    await expect(preview).toHaveAttribute("data-layout", "fill");
+    await choose(page, "Teks hook di 4 detik pertama");
+    await expect(preview).toHaveAttribute("data-hook", "off");
+    await expect(preview).toHaveAccessibleName("Pratinjau klip 9:16: Crop tengah, subtitle Klasik di bawah, tanpa teks hook.");
+    await page.getByLabel("Link video").fill(LINK);
+    expect(await submitJob(page, posts)).toMatchObject({ captionStyle: "classic", renderMode: "center-crop", hookOverlay: "false" });
+  });
+
+  test("with the editor on, the note says where to move the subtitle", async ({ page }) => {
+    await fakeDashboardApi(page, { editor: true });
+    await openDashboard(page);
+    await optionsButton(page).click();
+    await expect(page.getByText("Subtitle ada di bawah, dekat area tombol TikTok. Geser atau ubah ukurannya per klip lewat Edit klip.", { exact: true })).toBeVisible();
+    await expect(page.getByRole("group", { name: "Gaya subtitle" })).toHaveAccessibleDescription(/Edit klip/);
   });
 
   test("at 360 px nothing scrolls sideways and every control is a 44 px target", async ({ page }) => {
