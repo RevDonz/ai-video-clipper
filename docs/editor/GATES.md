@@ -1927,3 +1927,16 @@ Actions when the branch is pushed.
 | ASS goldens | `entrance_fade__c30`, `entrance_pop__c30`, `entrance_blur__c30` equal a fresh render; the golden evidence renders them in the image | bytes equal; text visible | **pass** (bytes, local); evidence **pending** (`suite=image`) |
 | Editor model | `SetCaptionOverride {key: "entrance"}`, `checkDoc`, the `captions.override.entrance` rebase part, both views calling `caption-model.mjs` | pass | **pass** (`node --test`: commands, rebase, quick model and the other editor files touched) |
 | Browser specs | the "Animasi masuk" pills in the Caption card and the Teks panel (fakes); the acceptance tour's Fade on the real stack changes the ASS and Tanpa brings the same bytes back | pass | **pending**: `editor-gates suite=e2e` (`editor-quick.spec.mjs`, `editor-transcript.spec.mjs`); `editor-acceptance` runs with the real stack when the owner runs it |
+
+## Face-track latar blur fallback (2026-10-21)
+
+`layout.default.no_face: "fit_blur"` (CONTRACTS §5.28): face-track shows its runs without a face
+with the latar blur layout. Existing documents keep their graph, plan sha and plate key, so
+`RENDER_SEMANTICS` stays 1 and the goldens are unchanged.
+
+| Gate | Threshold | Result | Where | Verdict |
+|---|---|---|---|---|
+| Pixel identity of the fallback (pytest, real FFmpeg) | every frame equals the camera or the fit-blur render, 0 differences | local FFmpeg 6.1.1: 0 differences over the clip (two runs without a face and a cut; ≥ 30 frames of each kind); a one-frame shift of the blur switch fails it | `tests/test_edit_v2_compile.py::test_a_fallback_frame_is_the_fit_blur_frame_and_every_other_the_camera_frame` | **pass** (local); pinned toolchain: `editor-gates suite=image` |
+| P-FRAME with the fallback | 0 mismatches | case `cfr_30_no_face_blur` (58 fallback output frames of 610) added | `scripts/parity/frame_identity.py` | pending: `editor-gates suite=command` (`frame_identity.py p-frame`) |
+| P-PLATE with the fallback | SSIM margin ≥ 0; crop x 0 px on the camera frames | case `plate_camera_no_face_blur` (68 fallback output frames of 710) added | `scripts/parity/frame_identity.py` | pending: `editor-gates suite=command` (`frame_identity.py p-plate`) |
+| Layout panel (browser, fakes) | the choice switches in one click, keeps focus, axe clean | `e2e/editor-layout.spec.mjs` extended | | pending: `editor-gates suite=e2e` |

@@ -344,7 +344,7 @@ Duplicate keys, NaN and unknown keys are rejected at every level.
 | `captions.overrides.words_max` | optional; 1–4 (amended 2026-10-20, §5.30) | "Kata per baris": at most this many words per caption line; absent = the pack's `words_per_cue`. Seeds never write it |
 | `captions.overrides.entrance` | optional; `none`, `fade`, `pop`, `blur` (amended 2026-10-21, §5.39) | "Animasi masuk": how each caption line appears, at most 120 ms; absent = `none`. Seeds never write it |
 | `captions.word_edits` | ≤ 6,000 keys (word ids); values `{text?, hidden?, emphasis?}` with ≥ 1 key | `text` 1–40 chars. `emphasis` fixes defect #6 (§8) |
-| `layout.default.mode` | `fit_blur`, `camera` (face-track), `fill_center` (center-crop) | `no_face` is `"center"` (today's behaviour), and no-face spans are *reported*, never silent |
+| `layout.default.mode` | `fit_blur`, `camera` (face-track), `fill_center` (center-crop) | `no_face` is `"center"` (today's behaviour) or `"fit_blur"` (face-track shows its runs without a face as `fit_blur`, §5.28); no-face spans are *reported*, never silent |
 | `tracks` | ≤ 3 tracks: ≤ 1 `hook`, ≤ 1 `visual/over_text/overlay`, ≤ 1 `audio/music`; ≤ 1 item each | Stage 2 lifts the counts; the shapes stay |
 | hook item | `start {"at":"out","f":0}`; `dur_f` 15 to `floor(30·F)`; `transform.x_e5` 50000; `y_e5` 6000–40000 (top of the hook stack; seed 13000); `payload.text` 1–90; `design {"id": "legacy-bar"|"kicker"|"blok"|"kotak", "v": 1}` (the three new designs amended 2026-10-20, §5.33; seeds write `legacy-bar`) | Fixed start at 0 as today |
 | logo item | `start clip_start`, `end clip_end`; `x_e5, y_e5` 0–100000 (box centre); `w_e5` 4000–40000; `opacity_pm` 200–1000; `payload.mode` `"free"` | The resolved box must lie inside the frame (`item_out_of_frame`) |
@@ -452,7 +452,7 @@ every later reader sees.
 |---|---|---|
 | Parse | `invalid_json`, `float_not_allowed`, `duplicate_key`, `unknown_key`, `too_large`, `not_nfc`, `control_char` | 422 `{errors:[{path, code}]}` |
 | Semantic, blocking | `base_changed`, `outside_window`, `range_invalid`, `cold_open_invalid`, `duration_out_of_bounds`, `removal_outside_segment`, `removal_overlap`, `unknown_word`, `asset_missing`, `pack_unknown`, `sfx_unknown` (2026-10-02, §5.26), `op_disabled`, `item_out_of_frame`, `revision_mismatch`, `parent_mismatch` | 422 |
-| Warning (save allowed; export asks for acknowledgement in "Perlu dicek") | `tight_cut`, `laughter_cut` (a cut inside a laughter span or within 300 ms of a laughter point), `hook_overflow` (the hook does not fit 3 lines at the smallest size and will be shortened with "…"), `glyph_unsupported:U+XXXX` (the pack font lacks a character, e.g. emoji), `no_face` (face-track spans with no face; listed with jump-to), `unsafe_zone` (caption, hook or logo box inside the TikTok UI zone), `loudness_clamped`, `peak_reduced` (§5.6 step 5), `music_shorter_than_clip` (loop off) | Listed with a jump-to target; nothing is silently changed |
+| Warning (save allowed; export asks for acknowledgement in "Perlu dicek") | `tight_cut`, `laughter_cut` (a cut inside a laughter span or within 300 ms of a laughter point), `hook_overflow` (the hook does not fit 3 lines at the smallest size and will be shortened with "…"), `glyph_unsupported:U+XXXX` (the pack font lacks a character, e.g. emoji), `no_face` (face-track spans with no face; listed with jump-to), `unsafe_zone` (caption, hook or logo box inside the TikTok UI zone), `loudness_clamped`, `peak_reduced` (§5.6 step 5), `music_shorter_than_clip` (loop off), `no_face_blur` (a face-track run without a face shown with latar blur, §5.28; the editor lists it as a note) | Listed with a jump-to target; nothing is silently changed |
 
 ### 3.8 Forward compatibility with FINAL (Stage 2)
 
@@ -610,7 +610,7 @@ annotations may be spelled differently).
 | `edit_v2.loudness` | `Loudness`, `parse_ebur128`, `master_gain`, `needs_measurement`, `output_gain` | T1.4 |
 | `edit_v2.plan` | `Resources`, `RenderPlan`, `build_plan`, `render_key` | T1.3 |
 | `edit_v2.compile_ffmpeg` | `MODES`, `QUALITIES`, `InputSpec`, `FfmpegJob`, `compile_job` | T1.3 |
-| `edit_v2.layouts` | `LAYOUT_MODES` (the builders are internal to T1.3) | T1.3 |
+| `edit_v2.layouts` | `LAYOUT_MODES`, `NO_FACE_MODES` (§5.28; the builders are internal to T1.3) | T1.3 |
 | `edit_v2.execute` | `ExecResult`, `run` | T1.3 |
 | `edit_v2.verify` | `VerifyReport`, `verify_output` | T1.3 |
 | `edit_v2.derive` | `derive_image` | T1.3 |
@@ -779,7 +779,8 @@ yields `range_invalid` only, with no duration or window issue).
   `effect`; an anchor `{"at": "word", …}` or a hook start with `f` ≠ 0; hook design other than
   `{"id": <one of HOOK_DESIGN_IDS>, "v": 1}` (§5.33); logo `payload.mode` `pip`, `cutaway`, `split_top`,
   `split_bottom`; `captions.overrides.case` `lower`, `sentence`; layout mode `smart_speaker`,
-  `fit_black`, `split`, `branded`; `no_face` `fail`, `fit_blur`; duck detector `rms`.
+  `fit_black`, `split`, `branded`; `no_face` `fail` (`fit_blur` is valid since §5.28); duck
+  detector `rms`.
 - **`pack_unknown`**: `captions.pack.id` (a string) not in `PACK_IDS`, or `v` (an int) ≠ 1.
 - **`base_changed`** (only when `seed` is given): any difference from the seed in `base`,
   `output`, `clip_id` or `audit.created_at_ms` (the plan fixes all four at seed time).
@@ -853,7 +854,7 @@ main      segments · removals · joins · cut_fade_ms 0…50
 captions  enabled bool · pack {id, v} · overrides {y_e5, size_pm, case, highlight, emphasis,
           words_max (optional, §5.30), entrance (optional, §5.39)}
           · word_edits {<word id>: {text?, hidden?, emphasis?}} (values: 1–3 keys)
-layout    default {mode, no_face "center"}
+layout    default {mode, no_face "center"|"fit_blur"}
 tracks    hook   {id, kind "hook", items}
           visual {id, kind "visual", band "over_text", role "overlay", items}
           audio  {id, kind "audio", role "music", items}
@@ -2838,3 +2839,82 @@ a document with `entrance` `none` compiles to the same cues and ASS bytes as one
 - P-TIME is unchanged: no event edge moves (the Start and End fields are checked byte for byte
   against the document without the key).
 - The 1,000-sequence crosscheck draws `entrance` values, valid and not.
+
+## 5.40 Face-track's latar blur fallback (2026-10-21)
+
+Where face-track (`camera`) finds no face, the clip can show the whole 16:9 picture over its own
+blurred copy (the `fit_blur` layout) instead of a centred 9:16 crop. The value was reserved in
+`doc.py` (`_NO_FACE`); this section enables it. Nothing that renders today changes: documents
+with `no_face: "center"` keep their graph, plan sha and plate key, so `RENDER_SEMANTICS` stays 1
+and no golden moves.
+
+### The document (§3.3)
+
+`layout.default.no_face` ∈ {`center`, `fit_blur`} (`layouts.NO_FACE_MODES`); `fail` stays
+`op_disabled`; another string is `range_invalid`. Valid with every layout under `schema_minor: 0`
+(§3.8, like the 2026-10-02 amendment); only `camera` renders it.
+
+### Where the fallback is decided
+
+- **Editor, `SetLayout`** (`web/lib/editor/doc-model.mjs` `switchedLayout`): a switch into
+  `camera` from another layout sets `no_face: "fit_blur"`; every other switch keeps `no_face`.
+  Mode Cepat's Tata letak card and the Mode Lengkap panel both send `SetLayout`, and the panel's
+  thumbnails (`withLayout`) and `preview_cli` `prepare` (`_switched`) apply the same rule, so the
+  plate a switch prepares is the plate it shows.
+- **`SetNoFace {mode: "center"|"fit_blur"}`** (new command after `SetLayout`, `null` merge key,
+  `value_out_of_range` otherwise): the one-click switch in the panel's "Bagian tanpa wajah"
+  choice. It changes only `layout.default.no_face`; the two-tab merge treats it as part of the
+  `layout` part (the dialog names `camera + latar blur`).
+- **Seeds are unchanged** (`no_face: "center"`): an auto clip, either engine, renders exactly as
+  before, and an unchanged face-track clip still exports the auto file (R10). Turning the
+  fallback on for auto clips needs the legacy face-track render to do the same first (owner
+  decision, not taken here).
+
+### Frames and graph (`layouts.py`, `compile_ffmpeg.py`)
+
+- A camera-plan span `[s_ms, e_ms)` covers the source-grid frames it touches, `[sf_floor(s),
+  sf_ceil(e))` (integers: `k·1000·den < e·num` and `(k+1)·1000·den > s·num`;
+  `layouts.no_face_frames`). Its first frame is the frame the plan's issue jumps to.
+- `layout_chain("camera", …, crop, fallback)`: no flagged frame gives today's camera chain byte
+  for byte; every frame flagged gives the `fit_blur` chain; otherwise fit-blur's chain with three
+  switches indexed by the frame counter `n` (balanced `if(lt(n,K),A,B)` trees, as the crop): the
+  background crop x is the camera's, or `centre_x` (`(scaled_w − W) // 2`, crop's default) on
+  fallback frames; `gblur` carries `enable` on fallback frames; the foreground gets
+  `lutyuv=a=0:enable=<the other frames>` after its `format=yuva444p`, so `overlay` leaves the
+  camera crop untouched there. Each output frame is therefore exactly the camera frame or the
+  `fit_blur` frame (`tests/test_edit_v2_compile.py`, real FFmpeg, `framemd5` of lossless
+  renders).
+- The flags follow the source frame like the crop table, so plate cells, the truth frame and
+  the final render agree per frame.
+
+### Plan, keys and the lane
+
+- `RenderPlan.no_face`; the runs become `no_face_blur` at `/layout/default/no_face` (same output
+  frames as `no_face`), a warning code (`errors.WARNING_CODES`, so render records accept it) that
+  the editor shows as a note. `RenderPlan.to_json` is unchanged; the content sha carries the
+  value.
+- `plates.plate_key` adds `"no_face": "fit_blur"` to the identity for `camera` with the fallback
+  only; every other key is the one before (pinned in `tests/test_edit_v2_plates.py`).
+- `preview_cli`: the plan's `lane` and `prepare` name `noFace` (`"fit_blur"` or `null`); `cells`
+  takes an optional `noFace: "fit_blur"` (absent: centred, as before; another value is a usage
+  error). `web/lib/preview-lane.mjs` keeps it on the clip's plate and sends it with every cells
+  batch of that plate; a lane result with another `noFace` is not trusted (503).
+- The plan DTO keeps one warning per `(code, path, ref, f)`: every run without a face is listed
+  (before, the runs after the first were dropped; the xfail that recorded it now passes).
+
+### Client
+
+- `shell-model.checksView`: `no_face_blur` is `severity: "info"` (a note under "Catatan", no tick
+  before export, §5.24); `no_face` stays a check. Message "Tidak ada wajah terdeteksi di bagian
+  ini; tampil dengan latar blur".
+- `layout-model`: `NO_FACE_OPTIONS` ("Latar blur", "Dipusatkan"), `noFaceView(doc, plan)` →
+  `{mode, runs, note}`, `noFaceCommand(mode)`, `noFaceList` reads both codes, `layoutNote` (the
+  face-track note of a centred clip says "dipusatkan"). The panel shows the choice (`PillGroup`
+  "Bagian tanpa wajah") above the list whenever face-track is chosen, so it keeps its place and
+  focus while the plan is asked again; with latar blur the jump buttons take the info tone.
+
+### Gates
+
+`P-FRAME` gains `cfr_30_no_face_blur` (fallback frames read with the fit-blur geometry) and
+`P-PLATE` gains `plate_camera_no_face_blur` (crop x checked on the other frames, SSIM on all):
+`scripts/parity/frame_identity.py`. The pytest pixel test runs wherever FFmpeg is installed.
