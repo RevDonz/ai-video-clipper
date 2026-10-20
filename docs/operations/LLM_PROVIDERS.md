@@ -377,6 +377,9 @@ mengizinkan.
   mengulang tanpa `response_format`.
 - Privasi: input/output tidak disimpan secara default (kecuali log sementara ≤30 hari untuk
   investigasi). Bisa mengaktifkan Zero Data Retention.
+- API key Groq di sini juga dipakai **Transkrip lewat Groq** (Pengaturan → Transkripsi) kalau
+  tombol itu dinyalakan, selama base URL-nya tetap `api.groq.com`
+  ([`TRANSCRIPTION.md`](TRANSCRIPTION.md#transkripsi-lewat-groq-opsional)).
 
 ### Cerebras (`cerebras`)
 

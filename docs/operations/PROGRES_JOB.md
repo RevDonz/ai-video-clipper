@@ -27,7 +27,7 @@ Jadi setiap baris tetap satu event progres utuh, dan pembaca lama mengabaikan `s
 | Jenis | Kapan | Isi | Di layar |
 |---|---|---|---|
 | `video` | setelah durasi video terbaca | `duration` (detik) | Video: 48:12 |
-| `transcript` | setelah transkrip jadi | `words`, `source` (`youtube-captions` atau `whisper`), `language` (kode 2–3 huruf) | Transkrip: 2.304 kata · dari subtitle YouTube |
+| `transcript` | setelah transkrip jadi | `words`, `source` (`youtube-captions`, `groq` atau `whisper`), `language` (kode 2–3 huruf) | Transkrip: 2.304 kata · dari subtitle YouTube (`groq`: dari audio lewat Groq) |
 | `moments` | setelah momen dipilih | `count`, `source` (`llm` atau `heuristic`) | Momen: 5 dipilih AI |
 
 - Hanya job dengan seleksi terbaru (V3) yang mengirim ringkasan.
