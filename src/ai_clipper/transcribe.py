@@ -43,9 +43,9 @@ DEFAULT_PROMPT_EVERY_WINDOW = True
 MAX_INITIAL_PROMPT_CHARS = 400
 _PROMPT_OFF_VALUES = frozenset({"off", "none"})
 _TRUE_VALUES = frozenset({"1", "true", "yes", "on"})
+_FALSE_VALUES = frozenset({"0", "false", "no", "off"})
 # Language codes the built-in prompt is written for ("in" is the legacy ISO 639 code).
 _PROMPT_LANGUAGES = frozenset({"id", "in"})
-_FALSE_VALUES = frozenset({"0", "false", "no", "off"})
 
 
 def _prompt_problem(prompt: str) -> bool:

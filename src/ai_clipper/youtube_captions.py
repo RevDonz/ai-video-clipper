@@ -64,12 +64,12 @@ file name (:func:`choose_original_caption_file`); without one, Whisper detects t
 Worker recipe, exactly as ``web/scripts/run-job.mjs`` runs it for an Indonesian job
 (``buildCaptionDownloads``; ``captionLanguages`` holds the lists per video language: English
 asks for ``en,en-US,en-GB`` and ``en,en-orig``, a detected language makes only the auto run,
-with ``.*-orig``), with yt-dlp 2026.08.19 or newer (the ``web``
-extra). Both runs happen after the video download, never in the same run: without
-``--ignore-errors`` a subtitle HTTP error aborts the whole yt-dlp run. Each run is best effort
-(a failure or its timeout, ``POTONGIN_CAPTIONS_TIMEOUT_MS``, default 120 s, is only logged)
-and gets the downloader environment without LLM keys or dashboard secrets. "No subtitles"
-also exits 0 without writing a file, so check for files, not exit codes::
+with ``.*-orig``), with yt-dlp 2026.08.19 or newer (the ``web`` extra). Both runs happen
+after the video download, never in the same run: without ``--ignore-errors`` a subtitle HTTP
+error aborts the whole yt-dlp run. Each run is best effort (a failure or its timeout,
+``POTONGIN_CAPTIONS_TIMEOUT_MS``, default 120 s, is only logged) and gets the downloader
+environment without LLM keys or dashboard secrets. "No subtitles" also exits 0 without
+writing a file, so check for files, not exit codes::
 
     yt-dlp --no-playlist --js-runtimes node --skip-download --ignore-errors \\
       --write-subs --no-write-auto-subs --sub-langs "id,id-ID,in" --sub-format json3 \\
