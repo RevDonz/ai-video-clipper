@@ -66,6 +66,18 @@ E2E_USERNAME=... E2E_PASSWORD=... \
 npx playwright test --project=desktop-chromium e2e/dashboard.spec.mjs
 ```
 
+## Batalkan
+
+`e2e/cancel-job.spec.mjs` covers "Batalkan" on a running job, on the dashboard and in the project page's progress panel. It fakes the job API and `POST /api/jobs/<id>/cancel` inside the browser, so it changes no server data; only the login is real. It checks that the confirmation opens inside the page (a browser dialog fails the test) with the focus on "Lanjutkan proses", that Escape closes it and returns the focus to "Batalkan", that "Ya, batalkan" sends one same-origin POST, that the dashboard then reads "Dibatalkan" without a percentage and the project page shows "Proses dibatalkan" with the focus on it, and that at 360 px the confirmation fits with 44 px buttons and no horizontal scroll. The real route and the runner (processes that must die, partial files removed) are covered by `web/tests/job-cancel.test.mjs` and `web/tests/job-cancel-runner.test.mjs`.
+
+```bash
+E2E_BASE_URL=http://127.0.0.1:3417 E2E_NO_WEB_SERVER=1 \
+E2E_USERNAME=... E2E_PASSWORD=... \
+npx playwright test --project=desktop-chromium e2e/cancel-job.spec.mjs
+```
+
+In CI: `gh workflow run editor-gates.yml -f ref=<branch> -f suite=e2e -f command=e2e/cancel-job.spec.mjs`.
+
 ## Halaman proyek
 
 `e2e/project-workspace.spec.mjs` covers the project page as a workspace: posters that open one detail panel, left/right between clips (the focus follows on the posters, one tab stop), the "Semua" and "Skor 8+" filters, the neutral score pill with its mark for 8 and up, "NN-judul" download links, "Pilih" mode by click and keyboard with "Unduh (n)", "Pilih semua", Escape and "Unduh semua", the size-limit refusal shown on the page, and at 390 px one column with posters two across, the panel under them, 44 px targets and no horizontal scroll. It fakes the job, its clips listing and the ZIP route inside the browser, so it changes no server data; the download tests run in a second tab because a started download and the faked 413 are the point there. With `AXE_CORE_PATH` it also runs axe on the clip section. The real ZIP route is covered by `web/tests/clips-zip.test.mjs` (Python's `zipfile` reads every archive).

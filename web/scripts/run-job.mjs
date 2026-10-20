@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import crypto from "node:crypto";
-import { lstat, mkdir, readdir, readFile } from "node:fs/promises";
+import { lstat, mkdir, readdir, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { createInterface } from "node:readline";
 import { pathToFileURL } from "node:url";
@@ -22,7 +22,15 @@ import {
 import { DownloadError, downloadErrorMessage } from "../lib/download-errors.mjs";
 import { PROGRESS_TEMPLATE, createDownloadMonitor, downloadStallMs } from "../lib/download-monitor.mjs";
 import { engineProcessEnv, loadLlmEnv } from "../lib/llm-settings.mjs";
-import { LeaseLostError, fencedUpdateJob, publishAttemptAndComplete, validateClaimForExecution } from "../lib/primary-job-queue.mjs";
+import {
+  CANCELLED_STATUS,
+  LeaseLostError,
+  fencedUpdateJob,
+  leaseHeld,
+  publishAttemptAndComplete,
+  validateClaimForExecution,
+} from "../lib/primary-job-queue.mjs";
+import { systemProcessTree } from "../lib/process-tree.mjs";
 import { writeTrendSnapshot } from "../lib/trend-context.mjs";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -311,9 +319,16 @@ export class ProcessTimeoutError extends Error {
   }
 }
 
+// How often a running child's lease is read (without the queue lock), so "Batalkan" stops it
+// within seconds instead of at the next heartbeat, a third of the lease later.
+export const LEASE_CHECK_MS = 1_000;
+const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+
 // `monitor` (lib/download-monitor.mjs) reads a downloader's output: its stall verdict
 // terminates the process group like a lease loss, and it explains a non-zero exit.
-export function runFencedProcess({ command, args, env, heartbeatMs, progress, initialProgress = 0, update, spawnImpl = spawn, killImpl = process.kill.bind(process), escalationMs = 5_000, timeoutMs = null, monitor = null }) {
+// `leaseCheck` resolves false once the lease is gone (null: no verdict, the heartbeat decides).
+// `processTree` (lib/process-tree.mjs) extends termination to descendants that left the group.
+export function runFencedProcess({ command, args, env, heartbeatMs, progress, initialProgress = 0, update, spawnImpl = spawn, killImpl = process.kill.bind(process), escalationMs = 5_000, timeoutMs = null, monitor = null, leaseCheck = null, leaseCheckMs = LEASE_CHECK_MS, processTree = null }) {
   return new Promise((resolve, reject) => {
     const piped = progress || monitor !== null;
     const child = spawnImpl(command, args, { stdio: piped ? ["ignore", "pipe", "pipe"] : "inherit", shell: false, env, detached: true });
@@ -321,14 +336,49 @@ export function runFencedProcess({ command, args, env, heartbeatMs, progress, in
     let updateQueue = Promise.resolve();
     let updateError = null;
     let terminating = false;
+    let closed = false;
     let escalation = null;
+    let tree = [];
+    const signalEach = (procs, signal) => {
+      for (const proc of procs) {
+        try { killImpl(proc.pid, signal); } catch { /* gone already */ }
+      }
+    };
+    // The group signal reaches every member; these are the descendants in a session of their own.
+    const strays = () => tree.filter((proc) => proc.pgid !== child.pid && processTree.alive(proc));
     const terminate = (error) => {
       updateError ||= error;
-      if (terminating || !child.pid) return;
+      if (closed || terminating || !child.pid) return;
       terminating = true;
+      if (processTree) tree = processTree.descendants(child.pid);
       try { killImpl(-child.pid, "SIGTERM"); } catch (killError) { if (killError.code !== "ESRCH") updateError ||= killError; }
-      escalation = setTimeout(() => { escalation = null; try { killImpl(-child.pid, "SIGKILL"); } catch {} }, escalationMs);
+      if (processTree) signalEach(strays(), "SIGTERM");
+      escalation = setTimeout(() => {
+        escalation = null;
+        try { killImpl(-child.pid, "SIGKILL"); } catch {}
+        if (processTree) {
+          const known = new Set(tree.map((proc) => `${proc.pid}:${proc.start}`));
+          tree = [...tree, ...processTree.descendants(child.pid).filter((proc) => !known.has(`${proc.pid}:${proc.start}`))];
+          signalEach(strays(), "SIGKILL");
+        }
+      }, escalationMs);
       escalation.unref?.();
+    };
+    // Once the child has exited its group id may be reused, so the group is never signalled
+    // again; a descendant still running after the grace gets SIGKILL by pid and start time.
+    const reapTree = async () => {
+      let left = tree.filter((proc) => processTree.alive(proc));
+      const graceEnds = Date.now() + escalationMs;
+      while (left.length && Date.now() < graceEnds) {
+        await delay(50);
+        left = left.filter((proc) => processTree.alive(proc));
+      }
+      signalEach(left, "SIGKILL");
+      const killEnds = Date.now() + 1_000;
+      while (left.length && Date.now() < killEnds) {
+        await delay(20);
+        left = left.filter((proc) => processTree.alive(proc));
+      }
     };
     const publish = (patch) => {
       updateQueue = updateQueue.then(() => update({ ...patch, activityAt: new Date().toISOString() })).catch(terminate);
@@ -363,19 +413,36 @@ export function runFencedProcess({ command, args, env, heartbeatMs, progress, in
     const heartbeat = setInterval(() => publish(progress
       ? nextWorkerProgress(current, { progress: current.progress, stage: current.stage, detail: "Engine AI masih aktif pada tahap ini" })
       : {}), heartbeatMs);
+    let checking = false;
+    const leaseWatch = leaseCheck
+      ? setInterval(async () => {
+        if (terminating || checking) return;
+        checking = true;
+        try {
+          if (await leaseCheck() === false) terminate(new LeaseLostError("Primary job lease was revoked"));
+        } catch {
+          // No verdict; the fenced heartbeat still guards the lease.
+        } finally {
+          checking = false;
+        }
+      }, leaseCheckMs)
+      : null;
     const deadline = Number.isSafeInteger(timeoutMs) && timeoutMs > 0
       ? setTimeout(() => terminate(new ProcessTimeoutError(command, timeoutMs)), timeoutMs)
       : null;
     deadline?.unref?.();
     const stopTimers = () => {
       clearInterval(heartbeat);
+      if (leaseWatch) clearInterval(leaseWatch);
       if (watchdog) clearInterval(watchdog);
       if (deadline) clearTimeout(deadline);
       if (escalation) clearTimeout(escalation);
     };
     child.once("error", (error) => { stopTimers(); reject(error); });
     child.once("close", async (code, signal) => {
+      closed = true;
       stopTimers();
+      if (terminating && processTree) await reapTree();
       await updateQueue;
       if (updateError) reject(updateError);
       else if (code === 0) resolve();
@@ -421,17 +488,33 @@ export async function main(argv = process.argv, env = process.env) {
     return next;
   }
 
+  // Every child stops within seconds of a revoked lease ("Batalkan", deletion), with its whole tree.
+  const fence = {
+    heartbeatMs,
+    update,
+    processTree: systemProcessTree(),
+    leaseCheck: queueManaged
+      ? () => leaseHeld({ jobsRoot, id, token: leaseToken })
+      : async () => {
+        try { return (await readJob()).queue === undefined; } catch { return null; }
+      },
+  };
+
   function run(command, args, { timeoutMs = null, processEnv = env } = {}) {
-    return runFencedProcess({ command, args, env: processEnv, heartbeatMs, progress: false, update, timeoutMs });
+    return runFencedProcess({ ...fence, command, args, env: processEnv, progress: false, timeoutMs });
   }
 
   function runWithProgress(command, args, initialProgress, processEnv = env) {
-    return runFencedProcess({ command, args, env: processEnv, heartbeatMs, progress: true, initialProgress, update });
+    return runFencedProcess({ ...fence, command, args, env: processEnv, progress: true, initialProgress });
   }
 
   function runVideoDownload(args) {
     const monitor = createDownloadMonitor({ stallMs: downloadStallMs(env) });
-    return runFencedProcess({ command: "yt-dlp", args, env: downloaderEnv(env), heartbeatMs, progress: false, update, monitor });
+    return runFencedProcess({ ...fence, command: "yt-dlp", args, env: downloaderEnv(env), progress: false, monitor });
+  }
+
+  async function cancelledByPerson() {
+    try { return (await readJob()).status === CANCELLED_STATUS; } catch { return false; }
   }
 
   try {
@@ -484,7 +567,14 @@ export async function main(argv = process.argv, env = process.env) {
     if (queueManaged) await publishAttemptAndComplete({ jobsRoot, id, token: leaseToken, attemptOutput: outputRoot, patch: completedPatch });
     else await update(completedPatch);
   } catch (error) {
-    if (error instanceof LeaseLostError) throw error;
+    if (error instanceof LeaseLostError) {
+      if (!await cancelledByPerson()) throw error;
+      // "Batalkan": the processes are stopped by now. This attempt's partial download, analysis
+      // and output go; job.json, worker.log and an uploaded source stay with the project.
+      if (queueManaged) await rm(attemptRoot, { recursive: true, force: true });
+      console.log("Job dibatalkan: proses dihentikan, file percobaan ini dihapus.");
+      return;
+    }
     let pipelineSummary = {};
     try {
       const failedManifest = JSON.parse(await readFile(path.join(outputRoot, "manifest.json"), "utf8"));

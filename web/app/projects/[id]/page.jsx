@@ -3,12 +3,14 @@
 import { use, useEffect, useRef, useState } from "react";
 
 import AppHeader from "../../../components/AppHeader.jsx";
+import CancelJob from "../../../components/CancelJob.jsx";
 import { PosterText, PosterThumb, posterFrame } from "../../../components/ClipPoster.jsx";
 import StageSummary from "../../../components/StageSummary.jsx";
 import TrendChips from "../../../components/trends/TrendChips.jsx";
 import { clipDownloads, formatSize } from "../../../lib/clip-download.mjs";
 import { clipEntryFor, loadClipEntries } from "../../../lib/clip-entry-view.mjs";
 import { jobHelpHref } from "../../../lib/help-catalog.mjs";
+import { jobCancellable } from "../../../lib/job-cancel.mjs";
 import {
   clipLabel,
   failureDetail,
@@ -485,7 +487,7 @@ function ClipsSection({ job, copyState, onCopy, entries, initialClip = null }) {
   );
 }
 
-function ProjectView({ job, copyState, onCopy, entries, initialClip }) {
+function ProjectView({ job, copyState, onCopy, entries, initialClip, cancelNote, onCancelSettled }) {
   const active = isActiveStatus(job.status);
   const progress = projectProgress(job);
   const notices = selectionNotices(job);
@@ -518,9 +520,23 @@ function ProjectView({ job, copyState, onCopy, entries, initialClip }) {
           </div>
           <div className="progress" role="progressbar" aria-labelledby="progress-title" aria-valuemin="0" aria-valuemax="100" aria-valuenow={progress}><i style={{ width: `${progress}%` }} /></div>
           <StageSummary job={job} className={styles.stageSummary} />
-          <p>Progres diperbarui otomatis. Klip muncul di sini setelah selesai.</p>
+          <div className={styles.progressFoot}>
+            <p>Progres diperbarui otomatis. Klip muncul di sini setelah selesai.</p>
+            {jobCancellable(job) && <CancelJob key={job.id} job={job} next={`/projects/${job.id}`} onSettled={onCancelSettled} />}
+          </div>
         </section>
       )}
+
+      {job.status === "cancelled" && (
+        <div className={`notice ${styles.cancelled}`}>
+          <strong id="cancelled-title" tabIndex={-1}>Proses dibatalkan</strong>
+          <span>Proses dihentikan sebelum klip selesai.</span>
+          <span className={styles.noticeLinks}>
+            <a className={styles.noticeLink} href="/dashboard">Buat ulang di Buat Klip</a>
+          </span>
+        </div>
+      )}
+      {cancelNote && <p id="cancel-note" tabIndex={-1} className={`notice ${styles.cancelled}`} role="status">{cancelNote}</p>}
 
       {job.status === "failed" && (
         <div className={`notice error ${styles.failed}`}>
@@ -557,7 +573,9 @@ export default function ProjectPage({ params, searchParams }) {
   const [generation, setGeneration] = useState(0);
   const [copyState, setCopyState] = useState({ index: null, what: null, status: "" });
   const [entries, setEntries] = useState(() => ({ state: "idle", byIndex: new Map() }));
+  const [cancelNote, setCancelNote] = useState(null);
   const copyTimer = useRef(null);
+  const pendingFocus = useRef(null);
   const editable = job?.status === "completed" && Array.isArray(job?.clips) && job.clips.length > 0;
 
   useEffect(() => () => {
@@ -581,7 +599,10 @@ export default function ProjectPage({ params, searchParams }) {
           window.location.assign(result.location);
           return;
         }
-        setJob(result.job);
+        // A poll sent before "Batalkan" answered must not bring the finished job back to life.
+        setJob((current) => (current?.id === result.job.id && !isActiveStatus(current.status) && isActiveStatus(result.job.status)
+          ? current
+          : result.job));
         if (isActiveStatus(result.job.status)) pollTimer = setTimeout(() => load(false), POLL_MS);
       } catch (loadError) {
         if (!active || loadError?.name === "AbortError") return;
@@ -603,6 +624,21 @@ export default function ProjectPage({ params, searchParams }) {
   useEffect(() => {
     if (job) document.title = `${projectName(job)} · Potongin`;
   }, [job]);
+
+  // After "Batalkan" focus moves to what replaced the progress panel.
+  useEffect(() => {
+    if (!pendingFocus.current) return;
+    const target = document.getElementById(pendingFocus.current);
+    if (!target) return;
+    pendingFocus.current = null;
+    target.focus();
+  });
+
+  const settleCancel = (next, note) => {
+    setJob(next);
+    setCancelNote(note);
+    pendingFocus.current = note ? "cancel-note" : "cancelled-title";
+  };
 
   // The editor entries come from the clips listing, which answers only when the editor is on (a
   // 404 leaves the cards as they are).
@@ -656,7 +692,17 @@ export default function ProjectPage({ params, searchParams }) {
           </div>
         </section>
       )}
-      {!loading && job && <ProjectView job={job} copyState={copyState} onCopy={copyText} entries={entries} initialClip={initialClip} />}
+      {!loading && job && (
+        <ProjectView
+          job={job}
+          copyState={copyState}
+          onCopy={copyText}
+          entries={entries}
+          initialClip={initialClip}
+          cancelNote={cancelNote}
+          onCancelSettled={settleCancel}
+        />
+      )}
     </main>
   );
 }

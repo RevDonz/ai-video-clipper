@@ -78,7 +78,8 @@ export async function requestJobDeletion(jobsRoot, id, { now = Date.now() } = {}
     }
     if (!job || job.id !== id) throw new JobNotFoundError();
 
-    const leaseExpiresAt = Date.parse(job.queue?.lease?.expiresAt ?? "");
+    // A cancelled job's lease is already gone; its cancellation keeps the old lease window.
+    const leaseExpiresAt = Date.parse(job.queue?.lease?.expiresAt ?? job.cancellation?.safeAfter ?? "");
     const safeAfter = new Date(Number.isFinite(leaseExpiresAt) ? Math.max(leaseExpiresAt, now) : now).toISOString();
     const deletion = { requestedAt: new Date(now).toISOString(), safeAfter, previousStatus: job.status };
 

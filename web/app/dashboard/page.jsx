@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import AppHeader from "../../components/AppHeader.jsx";
+import CancelJob from "../../components/CancelJob.jsx";
 import StageSummary from "../../components/StageSummary.jsx";
 import {
   AI_STATUS_UNREADABLE,
@@ -16,6 +17,7 @@ import {
   jobPercentText,
   jobSourceLabel,
   jobStageText,
+  jobWaitingText,
   JOB_STATUS_LABELS,
   storageMessage,
   submitErrorMessage,
@@ -39,6 +41,7 @@ import {
   storageStatusView,
 } from "../../lib/dashboard-storage-status.mjs";
 import { jobHelpHref, storageHelpHref } from "../../lib/help-catalog.mjs";
+import { jobCancellable } from "../../lib/job-cancel.mjs";
 import {
   FOCUS_LIMITS,
   addFocusTerms,
@@ -210,6 +213,7 @@ export default function DashboardPage() {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState(null);
   const [copied, setCopied] = useState(null);
+  const [cancelNote, setCancelNote] = useState(null);
   const [storageView, setStorageView] = useState(null);
   const storageRecovery = useRef(null);
   const resultsRef = useRef(null);
@@ -365,8 +369,9 @@ export default function DashboardPage() {
         if (controller.signal.aborted) return;
         setJobs((current) => {
           const exists = current.some((job) => job.id === activeId);
+          // A poll sent before "Batalkan" answered must not bring the finished job back to life.
           return exists
-            ? current.map((job) => (job.id === activeId ? payload.job : job))
+            ? current.map((job) => (job.id === activeId ? (jobFinished(job) && !jobFinished(payload.job) ? job : payload.job) : job))
             : [payload.job, ...current];
         });
       } catch {
@@ -457,6 +462,13 @@ export default function DashboardPage() {
       copiedTimer.current = null;
       setCopied(null);
     }, result === "ok" ? 1800 : 6000);
+  }
+
+  // After "Batalkan" the job shows as the server has it; focus moves to its new state.
+  function settleCancel(job, note) {
+    setJobs((current) => current.map((item) => (item.id === job.id ? job : item)));
+    setCancelNote(note ? { id: job.id, text: note } : null);
+    pendingFocus.current = "job-state";
   }
 
   function clearProblem(name) {
@@ -688,14 +700,18 @@ export default function DashboardPage() {
               <div className={`${styles.jobState} ${styles[activeJob.status] || ""}`}>
                 <div>
                   <small title={jobSourceLabel(activeJob)}>{jobSourceLabel(activeJob)}</small>
-                  <strong>{jobStageText(activeJob)}</strong>
+                  <strong id="job-state" tabIndex={-1}>{jobStageText(activeJob)}</strong>
                 </div>
                 {jobPercentText(activeJob) && <b>{jobPercentText(activeJob)}</b>}
               </div>
-              <div className={`${styles.progress} ${jobFinished(activeJob) ? styles.progressDone : ""} ${activeJob.status === "failed" ? styles.progressFailed : ""}`} role="progressbar" aria-label="Progres job" aria-valuemin="0" aria-valuemax="100" aria-valuenow={activeJob.progress || 0}><i style={{ width: `${activeJob.progress || 0}%` }} /></div>
+              <div className={`${styles.progress} ${jobFinished(activeJob) ? styles.progressDone : ""} ${activeJob.status === "failed" ? styles.progressFailed : ""} ${activeJob.status === "cancelled" ? styles.progressCancelled : ""}`} role="progressbar" aria-label="Progres job" aria-valuemin="0" aria-valuemax="100" aria-valuenow={activeJob.progress || 0}><i style={{ width: `${activeJob.progress || 0}%` }} /></div>
               {!jobFinished(activeJob) && (
-                <p className={`${styles.activity} ${activeJob.status === "queued" ? styles.queued : ""}`} role="status" aria-live="polite"><i aria-hidden="true" /><span>{jobActivityText(activeJob)}</span></p>
+                <div className={styles.activityRow}>
+                  <p className={`${styles.activity} ${activeJob.status === "queued" ? styles.queued : ""}`} role="status" aria-live="polite"><i aria-hidden="true" /><span>{jobActivityText(activeJob)}</span></p>
+                  {jobCancellable(activeJob) && <CancelJob key={activeJob.id} job={activeJob} next="/dashboard" onSettled={settleCancel} />}
+                </div>
               )}
+              {cancelNote?.id === activeJob.id && <p className={styles.waiting} role="status">{cancelNote.text}</p>}
               <StageSummary job={activeJob} />
               {failure && (
                 <div className={styles.failure} role="alert">
@@ -716,7 +732,7 @@ export default function DashboardPage() {
                 ))}
               </div>
               {!activeJob.clips?.length && !failure && (
-                <p className={styles.waiting}>Klip muncul di sini setelah selesai dirender.</p>
+                <p className={styles.waiting}>{jobWaitingText(activeJob)}</p>
               )}
               <a className={styles.projectLink} href={`/projects/${activeJob.id}`}>Buka proyek</a>
               <p className="visuallyHidden" role="status">{copied?.result === "ok" ? `Caption klip ${copied.index} tersalin.` : ""}</p>

@@ -1713,8 +1713,9 @@ R10), which sits inside the TikTok button zone. The warning about it is now info
 ## 5.25 W4 verifier fixes (2026-10-02)
 
 - **Deploy guard.** `deploy/production.sh` (`active_jobs`) treats render-request-v3 `cancelled`
-  as finished, like `completed` and `failed`; jobs `completed`, `failed` and `deleting` stay
-  quiet. Anything else, and any file it cannot read, still blocks the deploy.
+  as finished, like `completed` and `failed`; jobs `completed`, `failed`, `deleting` and (since
+  "Batalkan", `docs/operations/PROGRES_JOB.md`) `cancelled` stay quiet. Anything else, and any
+  file it cannot read, still blocks the deploy.
   `tests/test_deploy_guard.py` runs the script's embedded Python unchanged on a temporary jobs
   root and ties the allow-list to `render_queue.V3_TERMINAL`.
 - **Render worker.** `run_one` skips a job without `analysis/render-requests/` instead of calling
