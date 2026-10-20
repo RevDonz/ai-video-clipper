@@ -483,6 +483,20 @@ test("ResetToSeed replays as the parts it changed, not as a wipe of theirs' edit
     "the rebased log replays to the merged document");
 });
 
+test("face-track's no-face choice is part of the layout and named in the dialog (§5.28)", () => {
+  const mine = tab(C30);
+  mine.dispatch("SetLayout", { mode: "camera" });
+  const theirs = tab(C30);
+  theirs.dispatch("SetLayout", { mode: "camera" });
+  theirs.dispatch("SetNoFace", { mode: "center" });
+  const result = rebaseTabs(C30, mine, theirs);
+  assert.equal(result.status, "conflict");
+  assert.deepEqual(result.conflicts.map((group) => [group.id, group.mine, group.theirs]), [
+    ["layout", "camera + latar blur", "camera"]]);
+  assert.deepEqual(result.resolve({}).doc.layout.default, { mode: "camera", no_face: "fit_blur" });
+  assert.deepEqual(result.resolve({ layout: "theirs" }).doc.layout.default, { mode: "camera", no_face: "center" });
+});
+
 test("choosing 'mine' for a field of an item the other tab removed brings the item back", () => {
   const mine = tab(C30);
   mine.dispatch("SetHookDuration", { dur_f: 200 });

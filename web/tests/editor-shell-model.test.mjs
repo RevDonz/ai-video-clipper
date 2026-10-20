@@ -59,7 +59,7 @@ test("every shell message equals the Python message of the same code", () => {
   for (const [code, text] of Object.entries(MESSAGES)) {
     assert.equal(text, python[code], code);
   }
-  for (const code of ["tight_cut", "laughter_cut", "hook_overflow", "glyph_unsupported", "no_face", "unsafe_zone",
+  for (const code of ["tight_cut", "laughter_cut", "hook_overflow", "glyph_unsupported", "no_face", "no_face_blur", "unsafe_zone",
     "loudness_clamped", "peak_reduced", "music_shorter_than_clip", "render_failed", "render_timeout", "render_stalled",
     "verification_failed", "cancelled", "auto_file_unavailable", "needs_prepare", "source_missing",
     "source_unreadable", "selection_unreadable", "transcript_missing", "analysis_incomplete", "not_v3", "transcript_changed",
@@ -263,6 +263,25 @@ test("the caption at its auto-clip spot in the TikTok zone is a note, not a chec
     { code: "unsafe_zone", path: "/tracks/1/items/0/transform", ref: "it_logo" },
   ] } });
   assert.deepEqual(others.map((item) => item.severity), ["warning", "warning"]);
+});
+
+// CONTRACTS §5.28: with face-track's latar blur fallback a run without a face is shown whole, so it
+// informs (a note, no tick before export); the centred run stays a check.
+test("a run without a face shown with latar blur is a note; a centred one stays a check", () => {
+  const plan = { fps: FPS, errors: [], warnings: [
+    { code: "no_face_blur", path: "/layout/default/no_face", f: 45 },
+    { code: "no_face_blur", path: "/layout/default/no_face", f: 200 },
+    { code: "tight_cut", ref: "rm_01", f: 9 },
+  ] };
+  const checks = checksView({ warnings: [], plan });
+  assert.deepEqual(checks.map((check) => [check.code, check.severity, check.f]), [
+    ["tight_cut", "warning", 9], ["no_face_blur", "info", 45], ["no_face_blur", "info", 200]]);
+  assert.equal(checks[1].message, "Tidak ada wajah terdeteksi di bagian ini; tampil dengan latar blur");
+  assert.equal(checks[1].message, MESSAGES.no_face_blur);
+  assert.deepEqual(actionableChecks(checks).map((check) => check.code), ["tight_cut"]);
+  const centred = checksView({ warnings: [], plan: { fps: FPS, errors: [], warnings: [
+    { code: "no_face", path: "/layout/default/mode", f: 45 }] } });
+  assert.deepEqual(centred.map((check) => [check.severity, check.message]), [["warning", MESSAGES.no_face]]);
 });
 
 test("content identity ignores revision, parent and audit (R10)", () => {

@@ -183,7 +183,9 @@ test("the v3 validator accepts every state and rejects what the Python validator
     rendering({ cancel_requested_at: T2 }),
     v3Request({ state: "failed", attempts: 1, claimed_at: T1, failed_at: T2, error_code: "verification_failed", stage: "memverifikasi" }),
     v3Request({ storage_reservation_id: RESERVATION_ID, storage_reservation_token: RESERVATION_TOKEN, storage_reserved_bytes: 4096 }),
-    completed({ warnings: ["peak_reduced:-3.80 dB", "auto_file_unavailable"] })]) {
+    completed({ warnings: ["peak_reduced:-3.80 dB", "auto_file_unavailable"] }),
+    // face-track's runs without a face, centred or with the latar blur fallback (CONTRACTS §5.28)
+    completed({ warnings: ["no_face"] }), completed({ warnings: ["no_face_blur"] })]) {
     assert.deepEqual(validateRenderRequestV3(value), value);
   }
   const bad = [

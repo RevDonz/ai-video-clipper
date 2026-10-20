@@ -171,8 +171,7 @@ _MESSAGES = {
     "hook_overflow": "Teks hook terlalu panjang dan akan dipendekkan dengan \"…\"",
     "glyph_unsupported": "Ada karakter yang tidak tersedia di font caption dan tidak akan tampil",
     "no_face": "Tidak ada wajah terdeteksi di bagian ini; video dipusatkan",
-    "no_face_blur": "Tidak ada wajah terdeteksi di bagian ini; seluruh gambar tampil dengan "
-    "latar blur",
+    "no_face_blur": "Tidak ada wajah terdeteksi di bagian ini; tampil dengan latar blur",
     "unsafe_zone": "Caption, hook, atau logo masuk ke area tombol TikTok",
     "loudness_clamped": "Target kenyaringan tidak tercapai tanpa pecah; volume dibatasi",
     "peak_reduced": "Volume diturunkan agar audio tidak pecah",

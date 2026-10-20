@@ -10,18 +10,22 @@ import {
   ANALYSIS_TEXT,
   CAMERA_SECONDS_PER_180S,
   LAYOUT_OPTIONS,
+  NO_FACE_OPTIONS,
   analysisRangeMs,
   analysisView,
   cameraReadyFromState,
   contentKey,
+  layoutNote,
+  noFaceCommand,
   noFaceList,
+  noFaceView,
   switchSteps,
   thumbnailFrame,
   thumbnailOrder,
   withLayout,
 } from "../components/editor/panels/layout-model.mjs";
 import { COMMANDS, CommandRejected, applyCommand } from "../lib/editor/commands.mjs";
-import { LAYOUT_MODES, createContext } from "../lib/editor/doc-model.mjs";
+import { LAYOUT_MODES, NO_FACE_MODES, checkDoc, createContext, switchedLayout } from "../lib/editor/doc-model.mjs";
 
 test("the three layouts of plan §3.3, in the order of Appendix C.1, with Indonesian copy", () => {
   assert.deepEqual(LAYOUT_OPTIONS.map((option) => option.id), ["fit_blur", "camera", "fill_center"]);
@@ -52,10 +56,52 @@ test("SetLayout changes only layout.default.mode and refuses an unknown mode", (
   assert.equal(applyCommand(next, "SetLayout", { mode: "camera" }, ctx).doc.layout.default.mode, "camera");
 });
 
+// CONTRACTS §5.28: face-track chosen in the editor shows the runs without a face with latar blur.
+test("SetLayout into face-track turns the latar blur fallback on; every other switch keeps it", () => {
+  const doc = fakeDoc();
+  const ctx = createContext({ words: fakeWords(), seed: doc });
+  assert.deepEqual(doc.layout.default, { mode: "fit_blur", no_face: "center" });
+  const camera = applyCommand(doc, "SetLayout", { mode: "camera" }, ctx).doc;
+  assert.deepEqual(camera.layout.default, { mode: "camera", no_face: "fit_blur" });
+  const centred = applyCommand(camera, "SetNoFace", { mode: "center" }, ctx).doc;
+  assert.deepEqual(centred.layout.default, { mode: "camera", no_face: "center" });
+  // leaving face-track keeps the choice (it matters again only under face-track)
+  const fill = applyCommand(centred, "SetLayout", { mode: "fill_center" }, ctx).doc;
+  assert.deepEqual(fill.layout.default, { mode: "fill_center", no_face: "center" });
+  // a face-track seed (the auto clip) keeps its own choice
+  const seed = { ...doc, layout: { default: { mode: "camera", no_face: "center" } } };
+  assert.deepEqual(switchedLayout(seed.layout.default, "camera"), { mode: "camera", no_face: "center" });
+  assert.deepEqual(switchedLayout(doc.layout.default, "camera"), { mode: "camera", no_face: "fit_blur" });
+  assert.deepEqual(switchedLayout(camera.layout.default, "fill_center"), { mode: "fill_center", no_face: "fit_blur" });
+  for (const next of [camera, centred, fill]) assert.deepEqual(checkDoc(next, ctx), []);
+});
+
+test("SetNoFace changes only layout.default.no_face and refuses another value", () => {
+  assert.ok(COMMANDS.includes("SetNoFace"));
+  assert.deepEqual([...NO_FACE_MODES], ["center", "fit_blur"]);
+  const doc = withLayout(fakeDoc(), "camera");
+  const ctx = createContext({ words: fakeWords(), seed: fakeDoc() });
+  const { doc: next, args } = applyCommand(doc, "SetNoFace", { mode: "center" }, ctx);
+  assert.deepEqual(args, { mode: "center" });
+  assert.deepEqual(next.layout.default, { mode: "camera", no_face: "center" });
+  const { layout: _a, audit: _b, ...rest } = next;
+  const { layout: _c, audit: _d, ...before } = doc;
+  assert.deepEqual(rest, before);
+  for (const mode of ["fail", "left", undefined]) {
+    assert.throws(() => applyCommand(doc, "SetNoFace", { mode }, ctx),
+      (error) => error instanceof CommandRejected && error.code === "value_out_of_range");
+  }
+  assert.deepEqual(noFaceCommand("center"), { type: "SetNoFace", args: { mode: "center" }, mergeKey: null });
+  assert.throws(() => noFaceCommand("fail"), TypeError);
+  const invalid = { ...doc, layout: { default: { mode: "camera", no_face: "fail" } } };
+  assert.ok(checkDoc(invalid, ctx).some((issue) => issue.path === "/layout/default"));
+});
+
 test("a thumbnail asks for the document with only the layout changed", () => {
   const doc = fakeDoc();
   const camera = withLayout(doc, "camera");
   assert.equal(camera.layout.default.mode, "camera");
+  assert.equal(camera.layout.default.no_face, "fit_blur"); // what SetLayout would make
   assert.equal(doc.layout.default.mode, "fit_blur");
   assert.notEqual(camera, doc);
   assert.equal(camera.main, doc.main); // shared, untouched
@@ -167,4 +213,44 @@ test("runs without a face: one entry per warning frame, sorted, with its clock",
   ]);
   assert.deepEqual(noFaceList(null), []);
   assert.deepEqual(noFaceList({ fps: [30, 1], totalFrames: 10, warnings: null }), []);
+  // with the latar blur fallback the plan names them no_face_blur, at the same frames
+  const blurred = { ...plan, warnings: plan.warnings.map((warning) => (warning.code === "no_face"
+    ? { ...warning, code: "no_face_blur", path: "/layout/default/no_face" } : warning)) };
+  assert.deepEqual(noFaceList(blurred), noFaceList(plan));
+});
+
+test("the runs without a face say what they show; the other choice is one click away", () => {
+  const plan = { fps: [30000, 1001], totalFrames: 900, warnings: [
+    { code: "no_face_blur", path: "/layout/default/no_face", f: 600 },
+    { code: "no_face_blur", path: "/layout/default/no_face", f: 45 },
+  ] };
+  const blurred = withLayout(fakeDoc(), "camera");
+  const view = noFaceView(blurred, plan);
+  assert.equal(view.mode, "fit_blur");
+  assert.deepEqual(view.runs.map((run) => run.f), [45, 600]);
+  assert.equal(view.note, "Di bagian ini seluruh gambar tampil dengan latar blur.");
+  const centred = { ...blurred, layout: { default: { mode: "camera", no_face: "center" } } };
+  const back = noFaceView(centred, { ...plan, warnings: plan.warnings.map((w) => ({ ...w, code: "no_face" })) });
+  assert.equal(back.mode, "center");
+  assert.equal(back.note, "Di bagian ini video dipusatkan.");
+  assert.deepEqual(back.runs, view.runs);
+  // the choice: latar blur first (what face-track gets in the editor), each one SetNoFace
+  assert.deepEqual(NO_FACE_OPTIONS.map((entry) => [entry.id, entry.label]), [["fit_blur", "Latar blur"], ["center", "Dipusatkan"]]);
+  assert.deepEqual(NO_FACE_OPTIONS.map((entry) => entry.id), [...NO_FACE_MODES].reverse());
+  for (const entry of NO_FACE_OPTIONS) {
+    assert.ok(Object.isFrozen(entry));
+    assert.deepEqual(noFaceCommand(entry.id), { type: "SetNoFace", args: { mode: entry.id }, mergeKey: null });
+    assert.doesNotMatch(`${entry.label} ${entry.note}`, /[\u2013\u2014]|V[0-9]/);
+  }
+});
+
+test("the face-track note says what this clip does where no face is found", () => {
+  const camera = LAYOUT_OPTIONS.find((option) => option.id === "camera");
+  assert.match(camera.note, /latar blur/); // choosing it turns the fallback on
+  const blurred = withLayout(fakeDoc(), "camera");
+  assert.equal(layoutNote(camera, blurred), camera.note);
+  const centred = { ...blurred, layout: { default: { mode: "camera", no_face: "center" } } };
+  assert.match(layoutNote(camera, centred), /dipusatkan\.$/);
+  const fit = LAYOUT_OPTIONS.find((option) => option.id === "fit_blur");
+  assert.equal(layoutNote(fit, centred), fit.note);
 });

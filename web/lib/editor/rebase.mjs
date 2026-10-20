@@ -510,7 +510,10 @@ function describe(doc, group, ctx) {
       const design = hook.payload.design.id;
       return design === "legacy-bar" ? hook.payload.text : `${hook.payload.text} (${HOOK_DESIGN_NAMES[design] ?? design})`;
     }
-    case "layout": return doc.layout.default.mode;
+    case "layout": {
+      const { mode, no_face: noFace } = doc.layout.default;
+      return mode === "camera" && noFace === "fit_blur" ? `${mode} + latar blur` : mode;
+    }
     case "logo": return item(doc, "visual") ? "Dengan logo" : "Tanpa logo";
     case "music": return item(doc, "audio") ? "Dengan musik" : "Tanpa musik";
     case "audio": return `Suara ${doc.audio.source.gain_cdb / 100} dB, ${doc.audio.master.mode}`;

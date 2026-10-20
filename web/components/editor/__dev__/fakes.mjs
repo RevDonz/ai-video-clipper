@@ -11,6 +11,7 @@
 // setSelection, dismissNotice and the state fields conflict, notice, otherTab, readOnlyReason).
 import { CommandRejected } from "../../../lib/editor/commands.mjs";
 import { DEFAULT_EMPHASIS, DEFAULT_HIGHLIGHT } from "../../../lib/editor/content-colours.mjs";
+import { switchedLayout } from "../../../lib/editor/doc-model.mjs";
 import { createEditorStore } from "../../../lib/editor/store.mjs";
 import { divRoundHalfUp, pieces as piecesOf, smp, totalFrames as totalFramesOf, wordFrames } from "../../../lib/editor/timemap.mjs";
 
@@ -28,7 +29,7 @@ export const COMMANDS = Object.freeze([
   "TrimStart", "TrimEnd", "RemoveWords", "RemoveGap", "RestoreRemoval", "ApplyCleanup",
   "SetColdOpen", "NudgeColdOpen", "SetJoinStyle", "SetJoinSfx", "EditWordText", "SetWordHidden", "SetWordEmphasis",
   "SetCaptionsEnabled", "SetCaptionPack", "SetCaptionOverride", "SetHookEnabled", "SetHookText",
-  "SetHookDuration", "SetHookY", "SetHookDesign", "SetLayout", "SetLogo", "RemoveLogo", "MoveLogo", "ResizeLogo",
+  "SetHookDuration", "SetHookY", "SetHookDesign", "SetLayout", "SetNoFace", "SetLogo", "RemoveLogo", "MoveLogo", "ResizeLogo",
   "SetLogoOpacity", "SnapLogo", "SetMusic", "RemoveMusic", "SetMusicGain", "SetMusicOffset",
   "SetMusicLoop", "SetMusicFades", "SetDuck", "SetSourceGain", "SetLoudness", "ResetToSeed",
 ]);
@@ -431,7 +432,8 @@ const FAKE_REDUCERS = {
   SetCaptionsEnabled: (doc, { on }) => { doc.captions.enabled = Boolean(on); },
   SetCaptionPack: (doc, { id }) => { doc.captions.pack = { id, v: 1 }; },
   SetCaptionOverride: (doc, { key, value }) => { doc.captions.overrides[key] = value; },
-  SetLayout: (doc, { mode }) => { doc.layout.default.mode = mode; },
+  SetLayout: (doc, { mode }) => { doc.layout.default = switchedLayout(doc.layout.default, mode); },
+  SetNoFace: (doc, { mode }) => { doc.layout.default.no_face = mode; },
   SetHookText: (doc, { text }) => { doc.tracks.find((track) => track.kind === "hook").items[0].payload.text = text; },
   SetHookDesign: (doc, { id }) => { doc.tracks.find((track) => track.kind === "hook").items[0].payload.design = { id, v: 1 }; },
   SetSourceGain: (doc, { gain_cdb: gain }) => { doc.audio.source.gain_cdb = gain; },

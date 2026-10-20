@@ -306,6 +306,13 @@
   cursor: pointer;
 }
 
+/* With latar blur the runs are notes (Catatan), so their jumps take the info tone, not the warning's. */
+.jumpNote {
+  color: var(--info);
+  border-color: var(--info);
+  background: var(--info-bg);
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .option,
   .button,

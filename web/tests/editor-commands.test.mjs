@@ -105,10 +105,11 @@ function bodyFrames(doc) {
 
 // --- model ---------------------------------------------------------------------------------
 
-test("the command list is Appendix B with the transition commands and SetHookDesign, the same 38 names the fakes know", () => {
+test("the command list is Appendix B with the transition, SetHookDesign and no-face commands, the same 39 names the fakes know", () => {
   assert.deepEqual([...COMMANDS], [...FAKE_COMMANDS]);
-  assert.equal(COMMANDS.length, 38);
+  assert.equal(COMMANDS.length, 39);
   assert.deepEqual(COMMANDS.slice(16, 21), ["SetHookEnabled", "SetHookText", "SetHookDuration", "SetHookY", "SetHookDesign"]);
+  assert.deepEqual(COMMANDS.slice(21, 23), ["SetLayout", "SetNoFace"]);
   assert.deepEqual(COMMANDS.slice(6, 10), ["SetColdOpen", "NudgeColdOpen", "SetJoinStyle", "SetJoinSfx"]);
   for (const [code, message] of Object.entries(COMMAND_MESSAGES)) {
     assert.match(code, /^[a-z_]+$/);
@@ -818,12 +819,26 @@ test("checkDoc accepts the four hook designs at v 1 and nothing else", () => {
 
 // --- layout, logo, music, audio ------------------------------------------------------------
 
-test("SetLayout switches between the three layouts", () => {
+test("SetLayout switches between the three layouts; into face-track with the latar blur fallback", () => {
   for (const mode of ["fit_blur", "camera", "fill_center"]) {
-    const doc = applyCommand(C30.seed, "SetLayout", { mode }, C30.ctx).doc;
-    assert.deepEqual(doc.layout, { default: { mode, no_face: "center" } });
+    const doc = run(C30, C30.seed, "SetLayout", { mode });
+    // CONTRACTS §5.28: face-track chosen in the editor shows its runs without a face with latar blur
+    assert.deepEqual(doc.layout, { default: { mode, no_face: mode === "camera" ? "fit_blur" : "center" } });
   }
+  // the face-track seed keeps the auto clip's centred runs until the user switches them
+  assert.deepEqual(C25.seed.layout, { default: { mode: "camera", no_face: "center" } });
+  assert.deepEqual(run(C25, C25.seed, "SetLayout", { mode: "camera" }).layout.default.no_face, "center");
+  const away = run(C25, C25.seed, "SetLayout", { mode: "fit_blur" });
+  assert.deepEqual(run(C25, away, "SetLayout", { mode: "camera" }).layout.default.no_face, "fit_blur");
   rejects(C30, C30.seed, "SetLayout", { mode: "split" }, "value_out_of_range");
+});
+
+test("SetNoFace sets what face-track shows where no face was found", () => {
+  const camera = run(C25, C25.seed, "SetNoFace", { mode: "fit_blur" });
+  assert.deepEqual(camera.layout, { default: { mode: "camera", no_face: "fit_blur" } });
+  assert.deepEqual(run(C25, camera, "SetNoFace", { mode: "center" }).layout, C25.seed.layout);
+  rejects(C25, C25.seed, "SetNoFace", { mode: "fail" }, "value_out_of_range");
+  rejects(C25, C25.seed, "SetNoFace", {}, "value_out_of_range");
 });
 
 test("SetLogo places the logo top-right inside the frame and registers the asset", () => {

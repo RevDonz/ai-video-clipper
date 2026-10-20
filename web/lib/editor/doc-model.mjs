@@ -23,6 +23,18 @@ export const HOOK_DESIGN_IDS = Object.freeze(["legacy-bar", "kicker", "blok", "k
 /** What the editor calls each hook design (Hook card, Teks panel, conflict dialog). */
 export const HOOK_DESIGN_NAMES = Object.freeze({ "legacy-bar": "Bar", kicker: "Kicker", blok: "Blok", kotak: "Kotak kata" });
 export const LAYOUT_MODES = Object.freeze(["fit_blur", "camera", "fill_center"]);
+/** What face-track shows where no face was found (CONTRACTS §5.28): centred, or latar blur. */
+export const NO_FACE_MODES = Object.freeze(["center", "fit_blur"]);
+
+/**
+ * `layout.default` after a switch to `mode` (SetLayout, and the thumbnail of each layout): a switch
+ * into face-track from another layout turns the latar blur fallback on; every other switch keeps
+ * `no_face` (preview_cli `_switched` mirrors this for `prepare`).
+ */
+export function switchedLayout(current, mode) {
+  if (mode === "camera" && current.mode !== "camera") return { ...current, mode, no_face: "fit_blur" };
+  return { ...current, mode };
+}
 /** Cold-open join styles (docs/plans/2026-10-02-transisi-cold-open.md §1.1); `xfade` stays op_disabled. */
 export const JOIN_STYLES = Object.freeze(["cut", "flash_white", "dip_black"]);
 /** The one sound a join can carry; no sound is the absent `sfx` key, never null. */
@@ -475,7 +487,7 @@ export function checkDoc(doc, ctx) {
   }
 
   // layout
-  if (!LAYOUT_MODES.includes(doc.layout?.default?.mode) || doc.layout?.default?.no_face !== "center") {
+  if (!LAYOUT_MODES.includes(doc.layout?.default?.mode) || !NO_FACE_MODES.includes(doc.layout?.default?.no_face)) {
     add("range_invalid", "/layout/default");
   }
 
