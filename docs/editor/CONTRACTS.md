@@ -344,7 +344,7 @@ Duplicate keys, NaN and unknown keys are rejected at every level.
 | `captions.word_edits` | ≤ 6,000 keys (word ids); values `{text?, hidden?, emphasis?}` with ≥ 1 key | `text` 1–40 chars. `emphasis` fixes defect #6 (§8) |
 | `layout.default.mode` | `fit_blur`, `camera` (face-track), `fill_center` (center-crop) | `no_face` is `"center"` (today's behaviour), and no-face spans are *reported*, never silent |
 | `tracks` | ≤ 3 tracks: ≤ 1 `hook`, ≤ 1 `visual/over_text/overlay`, ≤ 1 `audio/music`; ≤ 1 item each | Stage 2 lifts the counts; the shapes stay |
-| hook item | `start {"at":"out","f":0}`; `dur_f` 15 to `floor(30·F)`; `transform.x_e5` 50000; `y_e5` 6000–40000 (top of the hook stack; seed 13000); `payload.text` 1–90; `design {"id":"legacy-bar","v":1}` | Fixed start at 0 as today |
+| hook item | `start {"at":"out","f":0}`; `dur_f` 15 to `floor(30·F)`; `transform.x_e5` 50000; `y_e5` 6000–40000 (top of the hook stack; seed 13000); `payload.text` 1–90; `design {"id": "legacy-bar"|"kicker"|"blok"|"kotak", "v": 1}` (the three new designs amended 2026-10-20, §5.33; seeds write `legacy-bar`) | Fixed start at 0 as today |
 | logo item | `start clip_start`, `end clip_end`; `x_e5, y_e5` 0–100000 (box centre); `w_e5` 4000–40000; `opacity_pm` 200–1000; `payload.mode` `"free"` | The resolved box must lie inside the frame (`item_out_of_frame`) |
 | music item | `start clip_start`, `end clip_end`; `src_in_smp` 0 to asset length − 1; `loop` bool; `gain_cdb` −4800–600; `fade_in_f`/`fade_out_f` 0 to `10·F`; `duck` fully specified: `depth_cdb` 300–2400, `attack_ms` 5–500, `release_ms` 50–2000, `hold_ms` 0–1000, `detector` `"words"` | Default gain `clamp(−2600 − lufs_c, −4800, 600)` |
 | `audio.source.gain_cdb` | −2400–1200 | Seed 0 |
@@ -465,6 +465,9 @@ every later reader sees.
   the pack id `sorot` are valid under `schema_minor: 0`. A document without them is unchanged in
   meaning (absent `words_max` = the pack's own count); an older server refuses the key with
   `unknown_key` and the pack with `pack_unknown`.
+- *Amended 2026-10-20 (§5.33):* the hook designs `kicker`, `blok` and `kotak` (each `v` 1) are
+  valid under `schema_minor: 0`; a document with the bar means what it meant, and an older
+  server refuses the new designs with `op_disabled`.
 - The pack ids `classic` and `karaoke` are the FINAL `legacy-classic@1` and `legacy-karaoke@1`
   (an alias table is added in Stage 2).
 - FINAL puts the resolver in JS. If Stage 2 adopts that, the Python resolver becomes the
@@ -586,7 +589,7 @@ annotations may be spelled differently).
 
 | Module | Names | Owner |
 |---|---|---|
-| `ai_clipper.edit_v2` (`__init__`) | `COMPILER_VERSION`, `COMPILER_ID` (`"edit-v2/1"`), `RENDER_SEMANTICS`, `SCHEMA`, `SCHEMA_MINOR`, `WORDS_SCHEMA`, `CAMERA_SCHEMA`, `DOC_FPS`, `OUTPUT_SIZES`, `PACK_IDS`, `SWATCHES`, `PACK_DEFAULT_OVERRIDES`, `WORDS_MAX_RANGE` (§5.30) | T1.0 |
+| `ai_clipper.edit_v2` (`__init__`) | `COMPILER_VERSION`, `COMPILER_ID` (`"edit-v2/1"`), `RENDER_SEMANTICS`, `SCHEMA`, `SCHEMA_MINOR`, `WORDS_SCHEMA`, `CAMERA_SCHEMA`, `DOC_FPS`, `OUTPUT_SIZES`, `PACK_IDS`, `SWATCHES`, `PACK_DEFAULT_OVERRIDES`, `WORDS_MAX_RANGE` (§5.30), `HOOK_DESIGN_IDS` (§5.33) | T1.0 |
 | `edit_v2.errors` | exceptions, code sets, `MESSAGES`, `message`, `message_id`, `base_code`, `exit_code_for`, `EXIT_*` | T1.0 |
 | `edit_v2.timemap` | Appendix A names plus `SAMPLE_RATE`, `MIN_PIECE_FRAMES`, `div_round_half_up`, `speech_spans`, `logo_box`, `Fps.from_json`, `Fps.to_json`, `Piece.to_dto` | T1.0 |
 | `edit_v2.clip_id` | `clip_id`, `is_clip_id`, `ms_from_seconds`, `CLIP_ID_PATTERN` | T1.0 |
@@ -594,7 +597,7 @@ annotations may be spelled differently).
 | `edit_v2.store` | `get`, `seed`, `put`, `archive_for_render`, `prune_receipts`, the §4.1 path constants | T1.1 |
 | `edit_v2.api` | `OPS`, `main` (CLI) | T1.1 |
 | `ai_clipper.subtitles` (additions) | `SourceWord`, `FrameWord`, `FrameCue`, `build_frame_cues` | T1.2a |
-| `ai_clipper.captions_ass` (additions) | `CaptionPack`, `load_pack`, `HookSpec`, `build_ass_v2`; `WordBox`, `words_per_cue`, `lightness`, `word_box_text` (§5.30) | T1.2a |
+| `ai_clipper.captions_ass` (additions) | `CaptionPack`, `load_pack`, `HookSpec`, `build_ass_v2`; `WordBox`, `words_per_cue`, `lightness`, `word_box_text` (§5.30); `LEGACY_HOOK_DESIGN`, `HOOK_LAYOUTS`, `HookDesign`, `HookBox`, `HookKicker`, `hook_design`, `hook_font_file`, `boxed_word_index` (§5.33) | T1.2a |
 | `edit_v2.captions` | `CaptionResult`, `caption_track` | T1.2a |
 | `edit_v2.glyphs` | `missing_glyphs`, `advance_px` | T1.2a |
 | `edit_v2.envelope` | `Envelope`, `speech_envelope`, `music_envelope`, `expand_f32` | T1.4 |
@@ -769,7 +772,7 @@ yields `range_invalid` only, with no duration or window issue).
   tracks; more than one item in a track; visual band `under_text`; visual role `broll`; audio
   role `sfx`, `voice`; item types `text`, `credit`, `label`, `sticker`, `emoji`, `video`,
   `effect`; an anchor `{"at": "word", …}` or a hook start with `f` ≠ 0; hook design other than
-  `{"id": "legacy-bar", "v": 1}`; logo `payload.mode` `pip`, `cutaway`, `split_top`,
+  `{"id": <one of HOOK_DESIGN_IDS>, "v": 1}` (§5.33); logo `payload.mode` `pip`, `cutaway`, `split_top`,
   `split_bottom`; `captions.overrides.case` `lower`, `sentence`; layout mode `smart_speaker`,
   `fit_black`, `split`, `branded`; `no_face` `fail`, `fit_blur`; duck detector `rms`.
 - **`pack_unknown`**: `captions.pack.id` (a string) not in `PACK_IDS`, or `v` (an int) ≠ 1.
@@ -850,7 +853,8 @@ tracks    hook   {id, kind "hook", items}
           visual {id, kind "visual", band "over_text", role "overlay", items}
           audio  {id, kind "audio", role "music", items}
   hook    {id, type "hook", start {at "out", f 0}, dur_f, transform {x_e5, y_e5},
-           payload {text, design {id "legacy-bar", v 1}}, origin}
+           payload {text, design {id "legacy-bar"|"kicker"|"blok"|"kotak" (§5.33), v 1}},
+           origin}
   image   {id, type "image", start {at "clip_start"}, end {at "clip_end"},
            transform {x_e5, y_e5, w_e5, opacity_pm}, payload {asset, mode "free"}, origin}
   audio   {id, type "audio", start {at "clip_start"}, end {at "clip_end"},
@@ -2327,3 +2331,112 @@ Plan `docs/plans/2026-10-20-lanjutan-sesi.md` A7. Web only; no engine, data or f
 - The shared poster's `PosterText` takes a page's own `flags` on its meta row: the project page
   passes its fallback notes there (§5.31). The listing carries no fallbacks, so the Klip grid shows
   none.
+
+## 5.33 Hook designs: Kicker, Blok and Kotak kata (2026-10-20)
+
+Plan `docs/plans/2026-10-20-lanjutan-sesi.md` P1 #10. The bar (`legacy-bar@1`) stays the
+seeds' design and its bytes do not change: the seeds, `tests/fixtures/edit_v2/plan-shas.json`,
+the older ASS goldens and `LEGACY_PIN` are pinned by `tests/test_hook_designs.py`,
+`tests/test_edit_v2_plan.py` and `tests/test_captions_ass.py`. A document picks a design and
+nothing else about the hook changes (start 0, `dur_f`, `y_e5`, at most 90 code points).
+
+### Document
+
+- `payload.design` is `{id, v: 1}` with `id` in `HOOK_DESIGN_IDS` = `legacy-bar`, `kicker`,
+  `blok`, `kotak` (`edit_v2/__init__.py`, `web/lib/editor/doc-model.mjs`). Any other id or
+  version stays `op_disabled` at `/tracks/N/items/0/payload/design`; a non-string id or a
+  non-integer `v` is `range_invalid`. `schema_minor` stays 0 (§3.8 amendment).
+
+### Design files (`resources/hook-designs/<id>/v1.json`, `potongin.hook-design/1`)
+
+- The bar's file records the constants of its code and is unchanged. Every other file has
+  exactly the keys `schema id v name layout font font_ratios_e5 max_lines max_chars
+  side_margin_pm line_pitch_pm outline colours box kicker fade_in_ms fade_out_ms default_y_e5
+  layer`, integers only, checked by `captions_ass.hook_design` (cached; `HookDesign`, `HookBox`,
+  `HookKicker`): `layout` is `kicker`, `block` or `keyword`; `font` is a pinned font of
+  `fonts.json`; `font_ratios_e5` strictly decreasing (largest first); `max_chars` 90; `colours
+  {text, outline, accent, on_accent}`; `box {pad_x_pm, top_pm, radius_pm}` with `block` and
+  `keyword` only; `kicker {scale_pm, max_words, gap_pm}` with `kicker` only; a `block` design's
+  `text` colour equals `on_accent`.
+- All three use Montserrat ExtraBold (OFL-1.1, already pinned), at most 3 lines, a 6% side
+  margin, accent `#FFE14D` with `#111111` on it, outlined text white with a black outline H/150,
+  `\fad(150,250)` like the bar, and layer 1 (over the captions).
+
+| Design | id / layout | `font_ratios_e5` | Look |
+|---|---|---|---|
+| Kicker | `kicker` / `kicker` | 5800 … 2900 (8 sizes) | A kicker line at 600‰ of the punchline size in the accent colour (outline scaled to it), gap −40‰, then the punchline; pitch 960‰ |
+| Blok | `blok` / `block` | 5200 … 2700 (8 sizes) | Every line on its own rounded accent box, dark text without outline; pad 260‰, top inset 60‰, radius 120‰, pitch 1100‰ |
+| Kotak kata | `kotak` / `keyword` | 5800 … 2900 (8 sizes) | Outlined white lines; one word on a rounded accent box, dark without outline; pad 160‰, top inset 60‰, radius 140‰, pitch 1000‰ |
+
+### Layout (`captions_ass.layout_hook(text, *, play_res, y_e5, design)`)
+
+- The text is `shorten_hook_text` (90 code points, "…"), as for the bar. Sizes
+  `S = max(1, rhu(H·ratio, 10⁵))` are tried largest first. A line fits when
+  `units·S ≤ usable·height_units` (`hmtx` advances of the drawn text), with
+  `usable = W − 2·rhu(W·side_margin_pm, 1000) − 2·edge` and `edge` the outline rounded up (or,
+  for a box design, at least `rhu(S·pad_x_pm, 1000)`). Greedy word wrap; a word wider than a
+  line is split by characters. The first size with at most `max_lines` lines wins. Otherwise, at
+  the smallest size, the lines after the second are joined and shortened with "…" until they
+  fit, and `overflow` is true: the `hook_overflow` warning, the plan's `hook.overflow` and the
+  "Muat / Akan terpotong" badge work as for the bar.
+- Kicker: with three words or more, the kicker is the leading words through the first word that
+  ends with `: ? ! . , ; …` among the first `max_words` (5), never the last word; without one,
+  the first `max(1, min(⌊n/3⌋, 3))` words. Its size is `rhu(S·scale_pm, 1000)`, shrunk to
+  `⌊usable·height_units/units⌋` when wider than a line. Only the rest wraps and auto-fits. The
+  layout's `lines` (the plan DTO's `hook.lines`) list the kicker first.
+- Kotak kata: the boxed word is `boxed_word_index(tokens)` over the shown lines: the first token
+  written in capitals (two letters or more) unless every token with letters is, else the
+  longest by letters and digits (the last of equals).
+- Vertical, with `top = rhu(y_e5·H, 10⁵)`: Kicker puts the kicker's bottom at `top + K` and the
+  first punchline line's bottom at `top + K + rhu(S·gap_pm, 1000) + S` (`top + S` without a
+  kicker). Blok and Kotak kata put the first box's top at `top`, so the first line's bottom is
+  `top + S − rhu(S·top_pm, 1000)`. Each next line is `rhu(S·line_pitch_pm, 1000)` lower.
+
+### Events (`build_ass_v2`)
+
+- Style `Hook`: the design's font at `S`, primary `colours.text`, outline colour
+  `colours.outline`, outline `H·num/den` in centipixels, BorderStyle 1, shadow 0, MarginV 0.
+  Every event is `Dialogue: 1,<safe_cs(f0)>,<safe_cs(f1)>,Hook,,0,0,0,,` and then
+  `{\fad(150,250)\an2\pos(x,bottom)…}`, all on the hook's frame window.
+- Kicker: the kicker line `…\q2\fsK\bordO\1c<accent>}`, then one event per punchline line
+  `…\q2}` centred on `W/2`.
+- Blok: per line a box `…\bord0\shad0\1c<accent>\p1}` +
+  `_box_path(rhu(S·units, height_units) + 2·pad, S − inset, radius)` + `{\p0}`, then the line
+  `…\q2}`.
+- Kotak kata: a line without the boxed word is one event; the line with it is one `\pos` event
+  per word at its place in the line centred on `W/2` (as Sorot, §5.30), the box right before the
+  boxed word, which is drawn `…\q2\bord0\shad0\1c<on_accent>}`.
+- `HookSpec` gains `design` (default `LEGACY_HOOK_DESIGN`); `HookLayout` gains `style`, `events`
+  and `layer`, empty for the bar, which keeps `_hook_style` and `_hook_events`.
+- `glyph_unsupported` checks the design's font (`hook_font_file`: DejaVu Sans Bold for the bar,
+  Montserrat ExtraBold for the others). The AI hook suggestions measure `fits` and missing glyphs
+  against the item's design (`editor_ai.HookContext.hook_design`).
+
+### Editor
+
+- Command `SetHookDesign {id}` (after `SetHookY`; merge key null): `hook_missing` without a hook,
+  `value_out_of_range` for an id outside `HOOK_DESIGN_IDS`; it replaces `payload.design` only.
+  Picking the bar again equals the seed (R10). `SetHookEnabled` still brings back the seed's item
+  (the bar).
+- Two tabs: part `hook.design` after `hook.y`, prerequisite `hook.on`, group "Teks hook";
+  `hook.on`'s identity no longer includes the design. The dialog shows the text with the design
+  name when it is not the bar.
+- UI: "Desain hook" in Mode Cepat's Hook card (four tiles after the suggestions) and in Mode
+  Lengkap's Teks panel (four cards with a note, before "Durasi hook"), both from
+  `hook-model.mjs` (`HOOK_DESIGNS`, `hookDesignId`, `hookDesignCommand`, `hookDesignHint`).
+  Names (`HOOK_DESIGN_NAMES`): Bar, Kicker, Blok, Kotak kata. Kicker and Kotak kata add a line
+  under the picker on which words they set apart. The picker is disabled while the hook is off.
+- Thumbnails: `web/components/editor/panels/hook-thumbs/<id>.png` (320×80; the sample
+  "Ternyata: dia DITAHAN" at `y_e5` 13000 over the pack thumbnails' flat plate, band
+  `0,160,720,180`) from `scripts/editor/make_hook_thumbs.py` in the toolchain image, with a
+  `manifest.json` that pins the design files (`tests/test_editor_hook_thumbs.py`).
+
+### Gates
+
+- P-TXT: the gated clips `hook-kicker`, `hook-blok` and `hook-kotak`
+  (`reference_text.HOOK_DESIGN_TEXTS`), all three in the smoke subset of `run_all.sh`; the player
+  fixtures add the variants `hook-kicker`, `hook-blok` and `hook-kotak` on the 29.97 case.
+- P-TIME: `<rate>/hook0-<design>` cases, rendered on grey; a hook's expected events are its
+  layout's `events` (the bar: one per line).
+- ASS goldens `hook_kicker__c30`, `hook_blok__c30` and `hook_kotak__c30` from the fixtures
+  `valid/hook_design_<id>__c30.json`.

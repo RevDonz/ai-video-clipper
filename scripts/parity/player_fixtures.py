@@ -12,9 +12,9 @@ through ``/api/parity-fixtures/player/…`` and ``web/e2e/editor-player.spec.mjs
   (``reference`` → ``reference.pcm``, s16le stereo), the plan DTO (plan §4.3) and, per output
   frame, the barcode index of the whole-file ``fps`` grid and the crop x;
 * on the 29.97 case, document variants over the same plate cells (the 5 packs, a logo, a
-  fallback glyph): the server composite of each probe frame computed from the **decoded plate
-  cell frame** with the compiler's own strings (R5: ``gbrp``, ``ass``, the derived logo overlay)
-  before the 4:2:0 step (P-TXT, P-LOGO), the plate alone and the composite without the logo; the
+  fallback glyph, the hook in each design other than the bar): the server composite of each
+  probe frame computed from the **decoded plate cell frame** with the compiler's own strings
+  (R5: ``gbrp``, ``ass``, the derived logo overlay) before the 4:2:0 step (P-TXT, P-LOGO), the plate alone and the composite without the logo; the
   derived logo PNG (``derive_image``); truth frames (``frame`` mode) and the auto render
   (``final`` mode) for the revision-0 fallback;
 * the five P-TIME timing fixtures of ``reference_text.timing_ass`` (hazard frames included) over
@@ -74,6 +74,11 @@ from ai_clipper.edit_v2.timemap import Fps
 SCHEMA = "potongin.parity-player/1"
 BASE = "/api/parity-fixtures/player"
 PACKS = ("classic", "karaoke", "bold", "box", "sorot")
+# The hook designs next to the bar (CONTRACTS §5.33) over the same cells, each with a text that
+# shows its rule (a kicker closed by a colon, a word in capitals in the box).
+HOOK_VARIANTS = {"hook-kicker": ("kicker", "Ternyata: hook sintetis"),
+                 "hook-blok": ("blok", "Hook sintetis"),
+                 "hook-kotak": ("kotak", "Hook SINTETIS ini")}
 # The §3.2 example's logo, top right (plan §3.2, §3.3).
 LOGO_TRANSFORM = {"x_e5": 88000, "y_e5": 7000, "w_e5": 16000, "opacity_pm": 850}
 P_LOGO = {"mean_abs": 2.0, "max": 8, "box_px": 0}
@@ -119,6 +124,14 @@ def set_pack(doc: dict[str, Any], pack: str) -> None:
     """Switch the document's caption pack, overrides at the pack defaults (plan §3.3)."""
     doc["captions"]["pack"] = {"id": pack, "v": 1}
     doc["captions"]["overrides"] = dict(PACK_DEFAULT_OVERRIDES[pack])
+
+
+def set_hook_design(doc: dict[str, Any], design: str, text: str) -> None:
+    """Draw the document's hook in ``design`` (v 1) with ``text``."""
+    item = next(track["items"][0] for track in doc["tracks"]
+                if track["kind"] == "hook" and track["items"])
+    item["payload"]["design"] = {"id": design, "v": 1}
+    item["payload"]["text"] = text
 
 
 def cells_needed(plan: Any) -> list[int]:
@@ -881,6 +894,8 @@ class Generator:
             set_pack(doc, "bold")
             first_word = clip["words"]["words"][0]["id"]
             doc["captions"]["word_edits"] = {first_word: {"text": FALLBACK_TEXT}}
+        elif name in HOOK_VARIANTS:
+            set_hook_design(doc, *HOOK_VARIANTS[name])
         return build_plan(doc, words=clip["words"], camera=clip["camera"], assets=assets,
                           resources=self.resources)
 
@@ -890,7 +905,7 @@ class Generator:
         source = clip["source"]
         size = tm.cell_frames(Fps(*case.fps))
         cell_dir = self.out / case.name / "cells"
-        for name in (*PACKS, "logo", "fallback"):
+        for name in (*PACKS, "logo", "fallback", *HOOK_VARIANTS):
             plan = self.variant_plan(case, name)
             logo_file = None
             logo_input = None

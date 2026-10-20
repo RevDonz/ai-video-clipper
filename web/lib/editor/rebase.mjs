@@ -14,6 +14,7 @@
 // (part values set as a whole: an undo past the last save, or a conflict resolution).
 import { CommandRejected, applyCommand } from "./commands.mjs";
 import {
+  HOOK_DESIGN_NAMES,
   JOIN_STYLE_NAMES,
   TRACKS,
   body,
@@ -41,7 +42,7 @@ const WORD_FIELDS = ["text", "hidden", "emphasis"];
 export const PARTS = Object.freeze([
   "base", "coldopen", "join.style", "join.sfx", "trim", "removals:cold_open", "removals:body", "cut_fade",
   "captions.enabled", "captions.pack", ...OVERRIDE_KEYS.map((key) => `captions.override.${key}`),
-  "hook.on", "hook.text", "hook.dur", "hook.y", "layout",
+  "hook.on", "hook.text", "hook.dur", "hook.y", "hook.design", "layout",
   "logo.asset", "logo.transform", "logo.opacity",
   "music.asset", "music.gain", "music.offset", "music.loop", "music.fades", "music.duck",
   "audio.source", "audio.master",
@@ -68,7 +69,7 @@ export const GROUP_LABELS = Object.freeze({
 
 /** Parts that only make sense with another one: an item's fields need the item. */
 const PREREQUISITES = Object.freeze({
-  "hook.text": "hook.on", "hook.dur": "hook.on", "hook.y": "hook.on",
+  "hook.text": "hook.on", "hook.dur": "hook.on", "hook.y": "hook.on", "hook.design": "hook.on",
   "logo.transform": "logo.asset", "logo.opacity": "logo.asset",
   "music.gain": "music.asset", "music.offset": "music.asset", "music.loop": "music.asset",
   "music.fades": "music.asset", "music.duck": "music.asset",
@@ -105,8 +106,7 @@ function identity(doc, part) {
       const track = trackOf(doc, "hook");
       if (!track) return null;
       const hook = track.items[0];
-      return { track: withoutItems(track), id: hook?.id ?? null, type: hook?.type, start: hook?.start, x: hook?.transform?.x_e5,
-        design: hook?.payload?.design };
+      return { track: withoutItems(track), id: hook?.id ?? null, type: hook?.type, start: hook?.start, x: hook?.transform?.x_e5 };
     }
     case "logo.asset":
     case "music.asset": {
@@ -163,6 +163,7 @@ export function partValue(doc, part) {
     case "hook.text": return hook ? { text: hook.payload.text, origin: hook.origin } : null;
     case "hook.dur": return hook ? hook.dur_f : null;
     case "hook.y": return hook ? hook.transform.y_e5 : null;
+    case "hook.design": return hook ? hook.payload.design : null;
     case "layout": return doc.layout.default;
     case "logo.asset":
     case "music.asset": {
@@ -303,6 +304,7 @@ function setPart(doc, part, value, assets, ctx) {
     case "hook.text": return value === null ? doc : setItem(doc, "hook", (hook) => ({ payload: { ...hook.payload, text: value.text }, origin: value.origin }), "hook_missing");
     case "hook.dur": return value === null ? doc : setItem(doc, "hook", () => ({ dur_f: value }), "hook_missing");
     case "hook.y": return value === null ? doc : setItem(doc, "hook", (hook) => ({ transform: { ...hook.transform, y_e5: value } }), "hook_missing");
+    case "hook.design": return value === null ? doc : setItem(doc, "hook", (hook) => ({ payload: { ...hook.payload, design: value } }), "hook_missing");
     case "layout": return { ...doc, layout: { ...doc.layout, default: value } };
     case "logo.asset":
     case "music.asset": {
@@ -502,7 +504,12 @@ function describe(doc, group, ctx) {
       return `${JOIN_STYLE_NAMES[join.style] ?? join.style}${join.sfx ? " + whoosh" : ""}`;
     }
     case "captions": return `${doc.captions.enabled ? doc.captions.pack.id : "caption mati"}`;
-    case "hook": return item(doc, "hook")?.payload.text ?? "Hook mati";
+    case "hook": {
+      const hook = item(doc, "hook");
+      if (!hook) return "Hook mati";
+      const design = hook.payload.design.id;
+      return design === "legacy-bar" ? hook.payload.text : `${hook.payload.text} (${HOOK_DESIGN_NAMES[design] ?? design})`;
+    }
     case "layout": return doc.layout.default.mode;
     case "logo": return item(doc, "visual") ? "Dengan logo" : "Tanpa logo";
     case "music": return item(doc, "audio") ? "Dengan musik" : "Tanpa musik";

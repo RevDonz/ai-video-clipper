@@ -1,16 +1,22 @@
 "use client";
 
 // Mode Cepat's Hook card (docs/plans/2026-10-02-editor-mode-cepat.md §1.4 Hook): the "Tampilkan hook"
-// switch, the text at the start of the clip with its counter and fit badge, and the suggestions
-// (CompactSuggestions). The rules are hook-model.mjs, shared with the Teks panel, so both views
-// send the same command for the same edit. Duration and position stay in Mode Lengkap. The
-// suggestions ask the server only once this card opens (R1). Props: the card bundle of cards.mjs.
+// switch, the text at the start of the clip with its counter and fit badge, the suggestions
+// (CompactSuggestions) and the design tiles (FFmpeg thumbnails, CONTRACTS §5.33). The rules are
+// hook-model.mjs, shared with the Teks panel, so both views send the same command for the same
+// edit. Duration and position stay in Mode Lengkap. The suggestions ask the server only once this
+// card opens (R1). Props: the card bundle of cards.mjs.
 import { useEffect, useId, useRef, useState } from "react";
 
+import { HOOK_IMAGES } from "../panels/hook-images.js";
 import {
+  HOOK_DESIGNS,
   HOOK_FIT_TEXT,
   HOOK_MAX,
   cleanHookText,
+  hookDesignCommand,
+  hookDesignHint,
+  hookDesignId,
   hookEnableText,
   hookEnabledCommand,
   hookFit,
@@ -19,6 +25,7 @@ import {
   hookPoints,
   hookTextCommand,
 } from "../panels/hook-model.mjs";
+import { imageSrc } from "../panels/pack-images.js";
 import CompactSuggestions from "../suggestions/CompactSuggestions.jsx";
 import { runCommands } from "../transcript/actions.mjs";
 import Switch from "../ui/Switch.jsx";
@@ -55,6 +62,12 @@ function HookBody({ state, dispatch, api }) {
   const fit = hookFit({ doc, plan: state.plan, pending: state.pending });
   const enableText = hookEnableText(draftText, state.seed);
   const glyphs = hookMissingGlyphs(state.plan, doc);
+  const designId = hookDesignId(doc);
+  const designHint = hookDesignHint(designId);
+  const pickDesign = (id) => {
+    const command = hookDesignCommand(doc, id);
+    if (command) send(command);
+  };
 
   return (
     <div className={styles.body} data-quick-body="hook">
@@ -79,6 +92,21 @@ function HookBody({ state, dispatch, api }) {
         ) : null}
       </div>
       <CompactSuggestions state={state} dispatch={dispatch} api={api} />
+      <fieldset className={styles.group} disabled={locked || hook === null}
+        aria-describedby={designHint ? `${uid}-design-hint` : undefined}>
+        <legend className={styles.legend}>Desain hook</legend>
+        <div className={styles.tiles}>
+          {HOOK_DESIGNS.map((design) => (
+            <label key={design.id} className={styles.tile} data-hook-design={design.id} title={design.note}>
+              <input type="radio" className={styles.cover} name={`${uid}-design`} value={design.id}
+                checked={designId === design.id} onChange={() => pickDesign(design.id)} />
+              <img className={styles.tileThumb} src={imageSrc(HOOK_IMAGES[design.id])} width={160} height={40} alt="" draggable={false} />
+              <span className={styles.tileName}>{design.name}</span>
+            </label>
+          ))}
+        </div>
+        {designHint ? <p id={`${uid}-design-hint`} className={styles.note} data-hook-design-hint="">{designHint}</p> : null}
+      </fieldset>
     </div>
   );
 }

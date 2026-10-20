@@ -1,0 +1,21 @@
+{
+  "schema": "potongin.hook-design/1",
+  "id": "kotak",
+  "v": 1,
+  "name": "Kotak kata",
+  "layout": "keyword",
+  "font": {"family": "Montserrat ExtraBold", "file": "Montserrat-ExtraBold.ttf", "bold": false},
+  "font_ratios_e5": [5800, 5300, 4800, 4400, 4000, 3600, 3200, 2900],
+  "max_lines": 3,
+  "max_chars": 90,
+  "side_margin_pm": 60,
+  "line_pitch_pm": 1000,
+  "outline": {"num": 1, "den": 150},
+  "colours": {"text": "#FFFFFF", "outline": "#000000", "accent": "#FFE14D", "on_accent": "#111111"},
+  "box": {"pad_x_pm": 160, "top_pm": 60, "radius_pm": 140},
+  "kicker": null,
+  "fade_in_ms": 150,
+  "fade_out_ms": 250,
+  "default_y_e5": 13000,
+  "layer": 1
+}

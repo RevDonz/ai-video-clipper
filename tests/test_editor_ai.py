@@ -275,6 +275,22 @@ def test_the_fit_flag_comes_from_the_render_layout(case):
     assert editor_ai.fits(long_text, ctx) is False
 
 
+def test_the_fit_and_font_checks_follow_the_documents_hook_design(case):
+    from ai_clipper.captions_ass import layout_hook
+
+    doc = copy.deepcopy(case["seed"])
+    doc["tracks"][0]["items"][0]["payload"]["design"] = {"id": "kotak", "v": 1}
+    ctx = context(case, doc)
+    assert (ctx.hook_design, context(case).hook_design) == (("kotak", 1), ("legacy-bar", 1))
+    for text in ("Dia ditahan security", " ".join(["sutradaranya"] * 12)[:90], "W" * 60):
+        layout = layout_hook(text, play_res=ctx.play_res, y_e5=ctx.hook_y_e5,
+                             design=("kotak", 1))
+        assert editor_ai.fits(text, ctx) is not layout.overflow, text
+    # ₿ is in Montserrat ExtraBold (Kotak kata) and missing from DejaVu Sans Bold (the bar).
+    assert editor_ai.hook_problem("Harga ₿ naik", context(case)) == "emoji"
+    assert editor_ai.hook_problem("Harga ₿ naik", ctx) != "emoji"
+
+
 def test_without_a_selection_artifact_the_title_variant_is_skipped(tmp_path):
     case = make_job(tmp_path, selection=False)
     variants = editor_ai.instant_variants(context(case))

@@ -28,7 +28,7 @@ from ai_clipper.edit_v2.plan import Resources, build_plan
 
 
 def _plan(*, hook: bool = True, cuts: int = 20, layout: str = "fit_blur", pack: str | None = None,
-          logo: bool = False):
+          logo: bool = False, hook_variant: str | None = None):
     case = fi.Case("unit", (30000, 1001), 900, layout, hook=hook, cuts=cuts)
     info = fi.SourceInfo(640, 360, (30000, 1001), False, 30030, True)
     edges = fi.case_edges(case)
@@ -43,6 +43,8 @@ def _plan(*, hook: bool = True, cuts: int = 20, layout: str = "fit_blur", pack: 
                       hook=("Hook sintetis", 45) if hook else None, logo=logo_spec, assets=assets)
     if pack is not None:
         pf.set_pack(doc, pack)
+    if hook_variant is not None:
+        pf.set_hook_design(doc, *pf.HOOK_VARIANTS[hook_variant])
     words = fi.make_words(30030)
     camera = fi.make_camera(30030, case.fps, (640, 360), (720, 1280)) if layout == "camera" else None
     return build_plan(doc, words=words, camera=camera, assets=assets,
@@ -161,6 +163,24 @@ def test_set_pack_uses_the_pack_defaults():
     assert "BorderStyle" in plan.ass or "Box" in plan.ass
     bold = _plan(pack="bold")
     assert bold.doc["captions"]["overrides"]["case"] == "upper"
+
+
+def test_the_hook_variants_draw_every_design_next_to_the_bar():
+    from ai_clipper.edit_v2 import HOOK_DESIGN_IDS
+
+    assert [design for design, _text in pf.HOOK_VARIANTS.values()] == list(HOOK_DESIGN_IDS[1:])
+    bar = _plan()
+    for name, (design, text) in pf.HOOK_VARIANTS.items():
+        plan = _plan(hook_variant=name)
+        item = plan.doc["tracks"][0]["items"][0]
+        assert item["payload"] == {"text": text, "design": {"id": design, "v": 1}}
+        assert plan.plan_sha256 != bar.plan_sha256 and "Montserrat ExtraBold" in plan.ass
+        dto = pf.plan_dto(plan, case="cfr_29.97", variant=name, plate_key="k" * 64, ready=set(),
+                          mix=None, fonts=pf.font_entries(Resources(RESOURCES_DIR)),
+                          logo_file=None, auto_render=None)
+        assert " ".join(dto["hook"]["lines"]) == text
+        assert pf.probe_frames(plan, count=8)
+    assert _plan(hook_variant="hook-kicker").captions.hook_lines[0] == "Ternyata:"
 
 
 def _image(width, height, rgb):

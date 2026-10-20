@@ -337,6 +337,24 @@
    "warnings": []
   },
   {
+   "file": "valid/hook_design_kicker__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/hook_design_blok__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/hook_design_kotak__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
    "file": "valid/hook_added__c25.json",
    "context": "c25",
    "check": "put",

@@ -8,9 +8,10 @@ Owner: T1.2a. The cue builder (``subtitles.build_frame_cues``) and the ASS emitt
 Warnings (plan §3.7), each an ``Issue`` with a JSON pointer, the item or word id and the output
 frame to jump to:
 
-* ``glyph_unsupported:U+XXXX``: the pack font (or, for the hook, DejaVu Sans Bold) lacks a
-  character of the displayed text. libass then draws it with DejaVu Sans, the only fallback, or
-  not at all. One issue per word and character.
+* ``glyph_unsupported:U+XXXX``: the pack font (or, for the hook, its design's font: DejaVu
+  Sans Bold for the bar, Montserrat ExtraBold for the others) lacks a character of the displayed
+  text. libass then draws it with DejaVu Sans, the only fallback, or not at all. One issue per
+  word and character.
 * ``hook_overflow``: the hook does not fit three lines at the smallest size; its tail is cut
   with "…".
 * ``unsafe_zone``: the bottom of the caption block lies in the TikTok UI zone (the lowest
@@ -31,6 +32,7 @@ from ..captions_ass import (
     HookSpec,
     build_ass_v2,
     fit_cues,
+    hook_font_file,
     layout_hook,
     load_pack,
     words_per_cue,
@@ -40,7 +42,7 @@ from .doc import Issue
 from .glyphs import font_path, missing_glyphs
 from .timemap import Fps, Piece, div_round_half_up, total_frames
 
-HOOK_FONT_FILE = "DejaVuSans-Bold.ttf"  # legacy-bar@1 (DejaVu Sans, bold)
+HOOK_FONT_FILE = "DejaVuSans-Bold.ttf"  # legacy-bar@1; other designs: captions_ass.hook_font_file
 # TikTok UI zone at 720×1280 (plan §5.9 G5), scaled with the output height.
 _ZONE_HEIGHT = 1280
 _ZONE_TOP = 93
@@ -92,8 +94,9 @@ def _hook(doc: Mapping[str, Any], total: int) -> tuple[HookSpec, str, str] | Non
         start = item["start"].get("f", 0)
         if start >= total:
             return None
+        design = item["payload"]["design"]
         spec = HookSpec(item["payload"]["text"], start, min(start + item["dur_f"], total),
-                        item["transform"]["y_e5"])
+                        item["transform"]["y_e5"], (design["id"], design["v"]))
         return spec, f"/tracks/{track_index}/items/0", item["id"]
     return None
 
@@ -137,10 +140,10 @@ def caption_track(doc: Mapping, words: Mapping, pieces: Sequence[Piece]) -> Capt
     found = _hook(doc, total)
     if found is not None:
         hook, pointer, item_id = found
-        layout = layout_hook(hook.text, play_res=play_res, y_e5=hook.y_e5)
+        layout = layout_hook(hook.text, play_res=play_res, y_e5=hook.y_e5, design=hook.design)
         hook_lines = layout.lines
         if layout.lines:
-            issues += _glyph_issues(" ".join(layout.lines), HOOK_FONT_FILE,
+            issues += _glyph_issues(" ".join(layout.lines), hook_font_file(hook.design),
                                     path=f"{pointer}/payload/text", ref=item_id, frame=hook.f0)
             if layout.overflow:
                 issues.append(Issue("hook_overflow", f"{pointer}/payload/text", item_id,
