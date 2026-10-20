@@ -12,10 +12,11 @@ export const STATUS_LABELS = Object.freeze({
   processing: "Diproses",
   completed: "Selesai",
   failed: "Gagal",
+  cancelled: "Dibatalkan",
   deleting: "Menghapus",
 });
 
-const FINISHED = new Set(["completed", "failed", "deleting"]);
+const FINISHED = new Set(["completed", "failed", "cancelled", "deleting"]);
 
 export function statusLabel(status) {
   return Object.hasOwn(STATUS_LABELS, status) ? STATUS_LABELS[status] : "Status tidak dikenal";
@@ -73,6 +74,7 @@ export function projectRowDetail(job) {
   const stage = shownStageDetail(job);
   if (job?.status === "completed") return `${Array.isArray(job.clips) ? job.clips.length : 0} klip`;
   if (job?.status === "deleting") return "Sedang dihapus";
+  if (job?.status === "cancelled") return "Dibatalkan sebelum selesai";
   if (job?.status === "failed") return downloadFailure(job)?.text || stage || "Berhenti sebelum selesai";
   return stage || "Sedang diproses";
 }

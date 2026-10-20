@@ -12,6 +12,7 @@ export const JOB_STATUS_LABELS = Object.freeze({
   processing: "Memproses",
   completed: "Selesai",
   failed: "Gagal",
+  cancelled: "Dibatalkan",
   deleting: "Sedang dihapus",
 });
 
@@ -29,6 +30,7 @@ export const JOB_STAGE_LABELS = Object.freeze({
   finalizing: "Menyimpan hasil",
   completed: "Selesai",
   failed: "Gagal",
+  cancelled: "Dibatalkan",
 });
 
 const STORAGE_MESSAGES = Object.freeze({
@@ -72,15 +74,23 @@ export function jobActivityText(job) {
   return job?.status === "queued" ? "Menunggu giliran diproses." : "Video sedang diproses.";
 }
 
-/** The job's progress as "42%", or null for a failed job (its bar stays, the number would read as done). */
+/**
+ * The job's progress as "42%", or null for a failed or cancelled job: its bar stays where it
+ * stopped, and the number would read as progress still being made.
+ */
 export function jobPercentText(job) {
-  if (job?.status === "failed") return null;
+  if (job?.status === "failed" || job?.status === "cancelled") return null;
   const progress = typeof job?.progress === "number" && Number.isFinite(job.progress) ? job.progress : 0;
   return `${Math.round(Math.min(100, Math.max(0, progress)))}%`;
 }
 
 export function jobFinished(job) {
-  return job?.status === "completed" || job?.status === "failed";
+  return job?.status === "completed" || job?.status === "failed" || job?.status === "cancelled";
+}
+
+/** The line where the clips will appear, for a job that has none (yet). */
+export function jobWaitingText(job) {
+  return job?.status === "cancelled" ? "Proses dibatalkan sebelum klip selesai." : "Klip muncul di sini setelah selesai dirender.";
 }
 
 /** "Klip 2 · 34 detik": number and length only. */

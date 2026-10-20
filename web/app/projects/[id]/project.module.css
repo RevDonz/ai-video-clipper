@@ -103,8 +103,18 @@
   font-size: 14px;
 }
 .stageSummary { margin-bottom: 10px; }
+/* The note on updates, with "Batalkan" at its end; the confirmation takes the full width below. */
+.progressFoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+.progressFoot > p { flex: 1 1 16rem; min-width: 0; }
 
 .failed,
+.cancelled,
 .notices {
   margin-bottom: 20px;
 }
