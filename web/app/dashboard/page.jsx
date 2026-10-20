@@ -524,7 +524,7 @@ export default function DashboardPage() {
             <FieldError id="youtube-url-error" message={problems.youtubeUrl} />
             <FieldError id="video-file-error" message={problems.video} />
             <p id="source-help" className={styles.help}>
-              {dragging ? "Lepaskan untuk memakai file ini." : video ? "Batas ukuran file mengikuti server." : "Atau pilih file MP4, MOV, MKV, WEBM, bisa juga ditarik ke halaman ini."}
+              {dragging ? "Lepaskan untuk memakai file ini." : video ? "Batas ukuran file mengikuti server." : "Atau pilih file MP4, MOV, MKV, WEBM, atau tarik ke halaman ini."}
             </p>
             {message && <p className={`${styles.message} ${message.tone === "error" ? styles.messageError : ""}`} role={message.tone === "error" ? "alert" : "status"}>{message.text}</p>}
           </div>
