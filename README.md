@@ -451,7 +451,8 @@ evidence (`gh workflow run ci-cd.yml --ref <branch> -f suite=toolchain`).
 - The benchmark gold labels were written by an LLM acting as an editor. They are a proxy
   until owner labels and real retention analytics exist.
 - The speaker is picked from mouth motion alone (no audio diarization). On the film windows
-  of the evaluation set the crop still misses the speaker in part of the speech time; see
+  of the evaluation set with two or more faces, the crop still misses the speaker in about a
+  fifth of the speech time (the Haar detector before it: two fifths); see
   `docs/evaluation/SPEAKER_FRAMING.md`.
 - Scores rank moments against each other. They are not a prediction or guarantee of
   virality and must never be marketed as one.
