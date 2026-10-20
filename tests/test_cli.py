@@ -6,6 +6,7 @@ import pytest
 from ai_clipper import cli
 from ai_clipper.cli import parse_args
 from ai_clipper.focus import FocusSpec
+from ai_clipper.time_ranges import TimeRange
 from ai_clipper.transcribe import (
     ENV_CONDITION_ON_PREVIOUS_TEXT,
     ENV_INITIAL_PROMPT,
@@ -429,6 +430,60 @@ def test_cli_without_focus_forwards_none(monkeypatch, tmp_path: Path):
     received = _capture_pipeline(monkeypatch, tmp_path)
     assert cli.main(WEB_V3_ARGS) == 0
     assert received["focus"] is None
+
+
+# --- Rentang waktu ---------------------------------------------------------------------------
+
+
+def test_cli_ranges_default_to_none_typed():
+    assert parse_args(["video.mp4"]).ranges == ()
+
+
+def test_cli_parses_repeatable_ranges_in_the_typed_order():
+    args = parse_args([
+        "video.mp4", "--limit", "3", "--range=630-725", "--range", "1:02:10-1:03:00",
+        "--range=１０．００－１０．３０",
+    ])  # fmt: skip
+    assert args.ranges == (TimeRange(630, 725), TimeRange(3730, 3780), TimeRange(600, 630))
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ["--range", "10.30"],
+        ["--range", "12.05-10.30"],
+        ["--range", "10.00-10.02"],
+        ["--range", "10.00-14.00"],
+        ["--range", "1:00-1:30", "--range", "1:20-2:00"],
+        ["--limit", "1", "--range", "1:00-1:30", "--range", "2:00-2:30"],
+        ["--range"],
+    ],
+)
+def test_cli_rejects_invalid_ranges(arguments, capsys):
+    with pytest.raises(SystemExit, match="2"):
+        parse_args(["video.mp4", "--selection-mode", "v3", *arguments])
+    assert "--range" in capsys.readouterr().err
+
+
+def test_cli_ranges_are_only_for_selection_v3():
+    with pytest.raises(SystemExit, match="2"):
+        parse_args(["video.mp4", "--selection-mode", "v1", "--range", "1:00-1:30"])
+
+
+def test_cli_forwards_the_ranges_to_the_pipeline(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(cli, "load_whisper_model", lambda *a, **k: "M")
+    received = _capture_pipeline(monkeypatch, tmp_path)
+
+    assert cli.main([*WEB_V3_ARGS, "--range=630-725", "--range=60-90"]) == 0
+
+    assert received["ranges"] == (TimeRange(630, 725), TimeRange(60, 90))
+
+
+def test_cli_without_ranges_forwards_none(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(cli, "load_whisper_model", lambda *a, **k: "M")
+    received = _capture_pipeline(monkeypatch, tmp_path)
+    assert cli.main(WEB_V3_ARGS) == 0
+    assert received["ranges"] == ()
 
 
 def _progress_events(stdout: str) -> list[dict]:
