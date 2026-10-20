@@ -13,6 +13,9 @@ export const SHORTCUTS = Object.freeze([
   entry({ id: "frameForward", keys: ["→"], description: "Maju satu frame", scope: "global" }),
   entry({ id: "secondBack", keys: ["Shift+←"], description: "Mundur 1 detik", scope: "global" }),
   entry({ id: "secondForward", keys: ["Shift+→"], description: "Maju 1 detik", scope: "global" }),
+  // The top bar's ‹ › (clip-nav.mjs): the editor saves first, then opens the neighbour.
+  entry({ id: "previousClip", keys: ["Ctrl+Shift+←"], description: "Klip sebelumnya", scope: "global" }),
+  entry({ id: "nextClip", keys: ["Ctrl+Shift+→"], description: "Klip berikutnya", scope: "global" }),
   entry({ id: "undo", keys: ["Ctrl+Z"], description: "Urungkan", scope: "global" }),
   entry({ id: "redo", keys: ["Ctrl+Shift+Z", "Ctrl+Y"], description: "Ulangi", scope: "global" }),
   entry({ id: "removeWords", keys: ["Delete", "Backspace"], description: "Hapus kata terpilih (jump cut)", scope: "transcript" }),
@@ -38,6 +41,7 @@ const ACTIVATES_ON_SPACE = new Set(["BUTTON", "A", "SUMMARY"]);
 const SPACE_ROLES = new Set(["button", "link", "tab", "slider", "checkbox", "radio", "switch", "menuitem", "option"]);
 const ARROW_ROLES = new Set(["slider", "tab", "radio", "option", "menuitem", "spinbutton", "scrollbar"]);
 const ARROW_CONTAINERS = '[role="tablist"], [role="radiogroup"], [role="listbox"], [role="menu"], [role="slider"]';
+const ARROW_ACTIONS = new Set(["frameBack", "frameForward", "secondBack", "secondForward", "previousClip", "nextClip"]);
 
 // Input types that take no typed text (Mode Cepat spec §4.5): every other type, a missing one and
 // an unknown one are text fields. Space toggles or presses all of them; arrows move radios and ranges.
@@ -75,6 +79,8 @@ export function shortcutFor(event) {
     if (name === "e") return shift ? "export" : "emphasis";
     if (name === "x" && shift) return "hideWord";
     if (name === "r" && shift) return "truthFrame";
+    if (key === "ArrowLeft" && shift) return "previousClip";
+    if (key === "ArrowRight" && shift) return "nextClip";
     return null;
   }
   if (key === "?") return "help";
@@ -126,7 +132,7 @@ export function globalShortcut(event) {
   const control = tag === "INPUT" ? inputType(target) : "";
   if (id === "playPause" && (event.key === " " || event.code === "Space")
     && (ACTIVATES_ON_SPACE.has(tag) || SPACE_ROLES.has(role(target)) || CONTROL_INPUTS.has(control))) return null;
-  if (["frameBack", "frameForward", "secondBack", "secondForward"].includes(id)
+  if (ARROW_ACTIONS.has(id)
     && (ARROW_ROLES.has(role(target)) || ARROW_INPUTS.has(control) || insideArrowWidget(target))) return null;
   return id;
 }
