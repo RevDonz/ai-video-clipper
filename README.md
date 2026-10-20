@@ -345,6 +345,9 @@ evidence (`gh workflow run ci-cd.yml --ref <branch> -f suite=toolchain`).
   failed download gets a fixed code with an Indonesian reason and one suggestion, and a
   download whose progress stops moving is stopped as "Unduhan macet"
   ([`docs/operations/UNDUHAN_YOUTUBE.md`](docs/operations/UNDUHAN_YOUTUBE.md))
+- A help page (`/bantuan`) with one entry per error code (download, storage and AI): cause and
+  fix steps, a search box that opens the entry for a pasted error, and "Cara memperbaiki" links
+  from the failure messages ([`docs/operations/BANTUAN.md`](docs/operations/BANTUAN.md))
 - Clip editor (desktop): cuts from the transcript, captions, hook, layout, logo and music, with
   a preview that uses the export's FFmpeg compiler
 

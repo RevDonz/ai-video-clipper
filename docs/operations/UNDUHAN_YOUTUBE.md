@@ -21,7 +21,9 @@ memetakan baris `ERROR:` ke satu kode tetap (`web/lib/download-errors.mjs`). Bar
 tidak pernah menentukan kode. Baris `ERROR:` pertama yang dikenali menang; kalau tidak ada yang
 dikenali, kodenya `download_failed`.
 
-Kode ini stabil dan nanti menjadi jangkar halaman bantuan (`/bantuan#<kode>`).
+Kode ini stabil dan menjadi jangkar halaman bantuan (`/bantuan#<kode>`, lihat
+[`BANTUAN.md`](BANTUAN.md)). Pesan gagal yang punya kode di Buat Klip dan di halaman proyek
+menautkan ke entrinya lewat "Cara memperbaiki".
 
 | Kode | Pesan di layar | Saran di layar | Contoh isi baris `ERROR:` |
 |---|---|---|---|
