@@ -344,7 +344,9 @@ evidence (`gh workflow run ci-cd.yml --ref <branch> -f suite=toolchain`).
 - Machine-readable, fail-closed manifest (`processing`, `completed`, or `failed`)
 - Authenticated Next.js dashboard, durable job queue with fenced leases, persistent
   project history with every clip ready to post, and project deletion
-- YouTube and direct upload ingestion through the web worker, with stage-based progress;
+- YouTube and direct upload ingestion through the web worker, with stage-based progress and
+  what each finished stage found (video length, transcript words and source, moments chosen;
+  [`docs/operations/PROGRES_JOB.md`](docs/operations/PROGRES_JOB.md));
   `youtu.be`, `youtube.com`, `m.youtube.com` and `music.youtube.com` links are accepted, a
   failed download gets a fixed code with an Indonesian reason and one suggestion, and a
   download whose progress stops moving is stopped as "Unduhan macet"
