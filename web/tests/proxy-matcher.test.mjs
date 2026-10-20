@@ -53,6 +53,18 @@ test("the default logo upload route bypasses the proxy: a logo up to 10 MB is st
   ]) assert.equal(proxyRuns(pathname), true, pathname);
 });
 
+test("the YouTube cookies upload route bypasses the proxy and checks the session itself", () => {
+  // POST /api/settings/youtube-cookies (Pengaturan "Cookies YouTube") reads its text body with
+  // its own 1 MB cap. GET, POST and DELETE there all check the session (and mutations their
+  // origin) themselves, like the default logo route.
+  assert.equal(proxyRuns("/api/settings/youtube-cookies"), false);
+  assert.equal(proxyRuns("/api/settings/youtube-cookies/"), false);
+  for (const pathname of [
+    "/api/settings/youtube-cookies/x", "/api/settings/youtube-cookiesx", "/api/settings/youtube", "/settings/youtube-cookies",
+    "/api/settings/youtube-cookies/x/y", "/api/youtube-cookies",
+  ]) assert.equal(proxyRuns(pathname), true, pathname);
+});
+
 test("serving an asset and every other job route still runs the proxy", () => {
   for (const pathname of [
     `/api/jobs/${JOB}/assets/${SHA}`, `/api/jobs/${JOB}/assets/${SHA}/`, `/api/jobs/${JOB}/assetsx`,
@@ -80,7 +92,8 @@ test("the matcher excludes exactly the listed routes", () => {
   const [matcher] = config.matcher;
   const excluded = /^\/\(\(\?!(.*)\)\.\*\)$/.exec(matcher)[1].split("|");
   assert.deepEqual(excluded, [
-    "api/health", "api/auth/login", "api/jobs/?$", "api/jobs/[^/]+/assets/?$", "api/settings/logo/?$", "api/ingest/trends/?$", "login",
+    "api/health", "api/auth/login", "api/jobs/?$", "api/jobs/[^/]+/assets/?$", "api/settings/logo/?$",
+    "api/settings/youtube-cookies/?$", "api/ingest/trends/?$", "login",
     "_next/static", "_next/image", "favicon.ico",
   ]);
 });
