@@ -68,8 +68,8 @@ export default async function HelpPage({ searchParams }) {
         <nav className={styles.index} aria-label="Kelompok bantuan">
           {HELP_GROUPS.map((group) => (
             <a key={group.id} href={`#grup-${group.id}`}>
-              {group.title}
-              <span>{HELP_ENTRIES.filter((entry) => entry.group === group.id).length}</span>
+              {group.title}{" "}
+              <span>{HELP_ENTRIES.filter((entry) => entry.group === group.id).length}<span className="visuallyHidden"> entri</span></span>
             </a>
           ))}
         </nav>
