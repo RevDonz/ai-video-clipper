@@ -311,8 +311,8 @@ test.describe("Mode Cepat cards (harness: real store and commands)", () => {
     await expect(card.getByRole("group", { name: "Posisi" }).getByRole("radio", { name: "Bawah" })).toBeChecked();
     // The packs are the FFmpeg thumbnails, one radio each.
     const packs = card.getByRole("group", { name: "Gaya caption" });
-    await expect(packs.getByRole("radio")).toHaveCount(4);
-    await expect.poll(() => packs.locator("img").evaluateAll((images) => images.map((image) => image.naturalWidth))).toEqual([320, 320, 320, 320]);
+    await expect(packs.getByRole("radio")).toHaveCount(5);
+    await expect.poll(() => packs.locator("img").evaluateAll((images) => images.map((image) => image.naturalWidth))).toEqual([320, 320, 320, 320, 320]);
 
     await packs.getByRole("radio", { name: "Bold" }).check();
     expect(await lastSent(page)).toEqual({ type: "SetCaptionPack", args: { id: "bold" }, mergeKey: null });
@@ -321,16 +321,27 @@ test.describe("Mode Cepat cards (harness: real store and commands)", () => {
     await expect(card.getByText("Kata yang sedang diucapkan.")).toBeVisible();
     await card.getByRole("group", { name: "Ukuran" }).getByRole("radio", { name: "Besar" }).check();
     expect(await lastSent(page)).toEqual({ type: "SetCaptionOverride", args: { key: "size_pm", value: 1200 }, mergeKey: null });
+    // Kata per baris: the pack's count is pressed (Bold: 3); a pick sends words_max and the lines
+    // regroup; picking the pack's count again clears it.
+    const words = card.getByRole("group", { name: "Kata per baris" });
+    await expect(words.getByRole("radio", { name: "3" })).toBeChecked();
+    await words.getByRole("radio", { name: "2" }).check();
+    expect(await lastSent(page)).toEqual({ type: "SetCaptionOverride", args: { key: "words_max", value: 2 }, mergeKey: null });
+    await expect(words.getByRole("radio", { name: "2" })).toBeChecked();
+    let plan = await planFollows(page);
+    expect(plan.cues.map((cue) => cue.text)).toEqual(["KENAPA SUTRADARA", "DITAHAN DI", "FILM SENDIRI?", "JADI WAKTU", "ITU KITA", "DATANG SUBUH"]);
+    await words.getByRole("radio", { name: "3" }).check();
+    expect(await lastSent(page)).toEqual({ type: "SetCaptionOverride", args: { key: "words_max", value: 3 }, mergeKey: null });
     await card.getByRole("group", { name: "Posisi" }).getByRole("radio", { name: "Tengah" }).check();
     expect(await lastSent(page)).toEqual({ type: "SetCaptionOverride", args: { key: "y_e5", value: 60000 }, mergeKey: null });
     await expect(header(page, "caption")).toContainText("Bold · Besar · Tengah");
     // Bold's own case is upper case (SetCaptionPack), and the preview's cues follow it. The fakes
     // caption like the engine (spec §2.6): a break after "sendiri?".
-    let plan = await planFollows(page);
+    plan = await planFollows(page);
     expect(plan.cues.map((cue) => cue.text)).toEqual(["KENAPA SUTRADARA DITAHAN DI", "FILM SENDIRI?", "JADI WAKTU ITU KITA", "DATANG SUBUH"]);
     // Box does not light the spoken word: the note says the colour is unused there.
     await packs.getByRole("radio", { name: "Box" }).check();
-    await expect(card.getByText("Dipakai oleh Karaoke dan Bold; tidak tampak di gaya ini.")).toBeVisible();
+    await expect(card.getByText("Dipakai oleh Karaoke, Bold dan Sorot; tidak tampak di gaya ini.")).toBeVisible();
 
     await card.getByRole("switch", { name: "Tampilkan caption" }).click();
     expect(await lastSent(page)).toEqual({ type: "SetCaptionsEnabled", args: { on: false }, mergeKey: null });

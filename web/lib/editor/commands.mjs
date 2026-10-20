@@ -14,7 +14,10 @@
 //   (longer runs become touching removals). Optional `seg` picks the segment; default: the body
 //   when a word is visible there, else the cold open.
 // - SetCaptionPack switches `case` to the new pack's default when the current case is the old
-//   pack's default (Bold is upper-case by default, plan §5.4); a user's own case is kept.
+//   pack's default (Bold and Sorot are upper-case by default, plan §5.4); a user's own case is kept.
+// - "Kata per baris" is `SetCaptionOverride {key: "words_max"}` (CONTRACTS §5.28): the key is
+//   present only while it differs from the pack's own count, so picking that count drops it (a
+//   manual revert equals the seed, R10) and SetCaptionPack drops it when the new pack has it.
 // - SetHookText / SetHookEnabled restore the seed item's origin when the text equals the seed's
 //   hook text, and EditWordText drops the edit when the text equals the ASR text, so a manual
 //   revert gives content equal to the seed (R10).
@@ -34,6 +37,7 @@ import {
   LIMITS,
   PACK_DEFAULT_CASE,
   PACK_IDS,
+  PACK_WORDS_PER_LINE,
   REMOVAL_ORIGIN_PATTERN,
   SFX_WHOOSH,
   TRACKS,
@@ -189,6 +193,12 @@ function withMain(doc, patch) {
 
 function withCaptions(doc, patch) {
   return { ...doc, captions: { ...doc.captions, ...patch } };
+}
+
+function withoutWordsMax(overrides) {
+  if (!Object.hasOwn(overrides, "words_max")) return overrides;
+  const { words_max: _wordsMax, ...rest } = overrides;
+  return rest;
 }
 
 function segmentOrder(doc) {
@@ -690,9 +700,10 @@ const HANDLERS = {
   SetCaptionPack(doc, args) {
     need(PACK_IDS.includes(args.id), "pack_unknown");
     const previous = doc.captions.pack.id;
-    const overrides = doc.captions.overrides.case === PACK_DEFAULT_CASE[previous]
+    let overrides = doc.captions.overrides.case === PACK_DEFAULT_CASE[previous]
       && PACK_DEFAULT_CASE[previous] !== PACK_DEFAULT_CASE[args.id]
       ? { ...doc.captions.overrides, case: PACK_DEFAULT_CASE[args.id] } : doc.captions.overrides;
+    if (overrides.words_max === PACK_WORDS_PER_LINE[args.id]) overrides = withoutWordsMax(overrides);
     return { doc: withCaptions(doc, { pack: { id: args.id, v: 1 }, overrides }), args: { id: args.id } };
   },
 
@@ -701,7 +712,9 @@ const HANDLERS = {
     need(rule, "invalid_args", { arg: "key" });
     if (args.key === "y_e5" || args.key === "size_pm") need(Number.isSafeInteger(args.value), "invalid_args", { arg: "value" });
     need(rule(args.value), "value_out_of_range");
-    return { doc: withCaptions(doc, { overrides: { ...doc.captions.overrides, [args.key]: args.value } }), args: { key: args.key, value: args.value } };
+    const overrides = args.key === "words_max" && args.value === PACK_WORDS_PER_LINE[doc.captions.pack.id]
+      ? withoutWordsMax(doc.captions.overrides) : { ...doc.captions.overrides, [args.key]: args.value };
+    return { doc: withCaptions(doc, { overrides }), args: { key: args.key, value: args.value } };
   },
 
   SetHookEnabled(doc, args, ctx) {
