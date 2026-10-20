@@ -253,6 +253,24 @@ test("warnings the owner can act on become notices; every other explained one is
   assert.deepEqual(selectionNotes(null), []);
 });
 
+test("a Groq fallback is a note; a missing or refused Groq key is a notice that links to Pengaturan", () => {
+  const job = { options: V3_OPTIONS, selectionV3: { ...SUMMARY, transcript_source: "whisper", warnings: ["groq_fallback:no_key", "groq_fallback:rate_limited"] } };
+  const notices = selectionNotices(job);
+  assert.equal(notices.length, 1);
+  assert.deepEqual([notices[0].tone, notices[0].href, notices[0].action], ["warning", "/settings", "Buka Pengaturan"]);
+  assert.match(notices[0].text, /API key Groq/);
+  assert.deepEqual(selectionNotes(job), [selectionWarningLabel("groq_fallback:rate_limited")]);
+  assert.equal(selectionNotices({ ...job, selectionV3: { ...job.selectionV3, warnings: ["groq_fallback:auth"] } })[0].href, "/settings");
+  for (const code of ["no_key", "auth", "rate_limited", "too_long", "too_large", "audio_failed", "model_unavailable",
+    "server_error", "http_error", "timeout", "network", "malformed", "empty", "error"]) {
+    const label = selectionWarningLabel(`groq_fallback:${code}`);
+    assert.match(label, /Whisper di server ini/, code);
+    assert.doesNotMatch(label, /groq_fallback|_|—/, code);
+  }
+  assert.equal(selectionWarningLabel("groq_fallback:something_new"), null);
+  assert.equal(selectionWarningLabel("groq_fallback"), null);
+});
+
 test("the focus line separates the count with a middle dot, not an em dash", () => {
   const job = { options: V3_OPTIONS, selectionV3: { ...SUMMARY, focus: { terms: ["jomok", "jomokers"], matched: 5, requested: 8 } } };
   assert.equal(focusSummaryLine(job).text, "Fokus: jomok, jomokers · 5 dari 8 klip cocok");

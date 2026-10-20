@@ -2918,3 +2918,34 @@ and no golden moves.
 `P-FRAME` gains `cfr_30_no_face_blur` (fallback frames read with the fit-blur geometry) and
 `P-PLATE` gains `plate_camera_no_face_blur` (crop x checked on the other frames, SSIM on all):
 `scripts/parity/frame_identity.py`. The pytest pixel test runs wherever FFmpeg is installed.
+
+## 5.41 Pengaturan "Transkripsi": Groq opt-in (2026-10-21)
+
+An opt-in switch (plan 2026-10-20 P2) that sends the audio of a V3 video without usable YouTube
+captions to Groq's hosted Whisper; local Whisper stays the fallback. Operations:
+`docs/operations/TRANSCRIPTION.md` "Transkripsi lewat Groq".
+
+- **Store** (`web/lib/transcription-settings.mjs`): `<settings>/transcription.json` (0600 in a
+  0700 directory, atomic) `{"schema": "potongin.transcription/1", "groq": bool, "apiKey"?:
+  {ciphertext, iv, tag}, "updatedAt"}`. The key is sealed by `encryptApiKey` under the label
+  `transcription:groq`. A file that does not validate is `problem: "corrupt"` (the switch reads
+  off) and the next save overwrites it.
+- **`GET /api/settings/transcription`** → `{enabled, key, ownKey, llmKey, secretConfigured,
+  updatedAt, problem}`. `key` is the key a job would use: `llm` (the Groq entry of the LLM
+  settings, or of the environment without a settings file, whose key goes to `api.groq.com`),
+  `own` (this file), `unreadable` (a key that no longer opens) or `missing`. Never a key value.
+- **`PUT /api/settings/transcription`** `{enabled, apiKey?: {action: keep|replace|clear,
+  value?}}`, JSON of at most 8 KiB. Session (401), same origin (403); `invalid` 422 (the key's
+  problem as the message, never the value), `secret_missing` and `settings_unavailable` 503. The
+  answer is the new view. The route runs behind `web/proxy.js` and checks the session itself.
+- **Worker** (`run-job.mjs` `engineEnvironment` → `transcriptionEngineEnv`): drops inherited
+  `POTONGIN_TRANSCRIBE_GROQ*`; with the switch on sets `POTONGIN_TRANSCRIBE_GROQ=on` and, when a
+  key resolves, `POTONGIN_TRANSCRIBE_GROQ_API_KEY`. Only the engine child gets them
+  (`downloaderEnv` drops `*API_KEY`).
+- **Engine** (`transcribe_groq.groq_from_env`, `pipeline._v3_transcript`): V3 only, after the
+  captions step. Success: `selection_v3.transcript_source = "groq"` and the stage summary
+  `transcript.source = "groq"`. Any failure: the summary warning `groq_fallback:<code>` (codes in
+  `transcribe_groq.FALLBACK_REASONS`, plus `error`) and the local Whisper run, unchanged.
+- **Project page** (`selection-v3-view.mjs`): every `groq_fallback` code is a note ("Groq tidak
+  dipakai (…); transkrip dibuat dengan Whisper di server ini."); `no_key` and `auth` are notices
+  with "Buka Pengaturan". The progress row reads "dari audio lewat Groq".

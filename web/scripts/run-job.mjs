@@ -32,6 +32,7 @@ import {
 } from "../lib/primary-job-queue.mjs";
 import { systemProcessTree } from "../lib/process-tree.mjs";
 import { RANGE_FAILURE_CODES } from "../lib/time-ranges.mjs";
+import { transcriptionEngineEnv } from "../lib/transcription-settings.mjs";
 import { writeTrendSnapshot } from "../lib/trend-context.mjs";
 import { prepareYoutubeCookies } from "../lib/youtube-cookies.mjs";
 
@@ -240,12 +241,13 @@ export async function fetchYouTubeCaptions({ url, inputRoot, run, timeoutMs, vid
 const DOWNLOADER_SECRET = /^(?:POTONGIN_LLM|POTONGIN_LLM_.*|POTONGIN_SETTINGS_.*|[A-Z0-9_]*API_KEY|APP_PASSWORD|APP_SESSION_SECRET)$/;
 
 // The engine environment for this job: the LLM settings saved on the
-// Pengaturan page (or, without a settings file, the inherited environment),
-// minus the dashboard's own credentials.
+// Pengaturan page (or, without a settings file, the inherited environment)
+// and the Groq transcription switch with its key, minus the dashboard's own
+// credentials.
 export async function engineEnvironment(env, log = console.warn) {
   const llm = await loadLlmEnv(env);
   if (llm.problem) log(`Pengaturan AI tidak bisa dibaca (${llm.problem}); LLM dimatikan untuk job ini dan heuristik dipakai.`);
-  return engineProcessEnv(llm.env);
+  return engineProcessEnv(await transcriptionEngineEnv(llm.env, env, { log }));
 }
 
 export function downloaderEnv(env) {

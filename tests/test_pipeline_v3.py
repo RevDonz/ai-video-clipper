@@ -19,11 +19,12 @@ from ai_clipper.edit_v2.transitions import AUTO_COLD_OPEN_JOIN, ColdOpenJoin
 from ai_clipper.focus import parse_focus
 from ai_clipper.llm import LLMError, LLMUnavailable, ScriptedLLMClient
 from ai_clipper.llm_selection import PROMPT_VERSION
-from ai_clipper.models import SelectionMode, TranscriptSegment, TranscriptWord
+from ai_clipper.models import SelectionMode, Transcription, TranscriptSegment, TranscriptWord
 from ai_clipper.selection_types import ClipFocus, FocusSummary, SelectedClip, SelectionResult
 from ai_clipper.selection_v3 import read_selection_artifact
 from ai_clipper.sound_events import read_sound_events
 from ai_clipper.time_ranges import TimeRange, TimeRangeError
+from ai_clipper.transcribe_groq import GroqTranscription, GroqTranscriptionError
 from ai_clipper.transcript_io import read_transcript_json
 from ai_clipper.trend_context import TREND_CONTEXT_RELATIVE_PATH
 
@@ -323,7 +324,7 @@ def assert_web_summary(summary: dict) -> None:
     for warning in summary["warnings"]:
         assert len(warning) <= 160 and WEB_WARNING.fullmatch(warning), warning
     assert summary["artifact"] in {None, "analysis/selection.v3.json"}
-    assert summary["transcript_source"] in {None, "youtube-captions", "whisper"}
+    assert summary["transcript_source"] in {None, "youtube-captions", "whisper", "groq"}
 
 
 def join_keys(clip: dict) -> set[str]:
@@ -383,6 +384,7 @@ def test_selection_mode_accepts_v3():
         ("hook_duration", float("nan"), ValueError),
         ("hook_duration", True, TypeError),
         ("captions_dir", 42, TypeError),
+        ("groq", "groq-test-key-0000", TypeError),
         ("min_duration", -1.0, ValueError),
         ("max_duration", 10.0, ValueError),
         ("max_duration", float("inf"), ValueError),
@@ -573,6 +575,119 @@ def test_without_captions_whisper_runs_and_can_skip_word_timestamps(env):
     transcript_text = (env.output / "transcript.json").read_text(encoding="utf-8")
     assert '"words"' not in transcript_text
     assert stages(env)[:3] == ["analyzing", "transcribing", "audio"]
+
+
+# --- Groq transcription (opt-in) -------------------------------------------------------------
+
+GROQ_KEY = "groq-test-key-0000"
+GROQ = GroqTranscription(api_key=GROQ_KEY, prompt="Oke, jadi gini.")
+
+
+def forbidden_groq(source, **options):
+    raise AssertionError("Groq must not be called")
+
+
+def test_groq_transcribes_a_video_without_usable_captions_and_whisper_is_skipped(
+    env, monkeypatch, capsys
+):
+    calls = []
+
+    def groq(source, **options):
+        calls.append((source, options))
+        options["progress_callback"](0.5)
+        options["progress_callback"](1.0)
+        return Transcription("id", segments())
+
+    monkeypatch.setattr(pipeline_module, "transcribe_with_groq", groq)
+    captions = env.tmp / "input" / "captions"
+    captions.mkdir(parents=True)
+
+    log = run_logged(env, model=ForbiddenWhisper(), groq=GROQ, captions_dir=captions)
+
+    manifest = manifest_of(env.output / "manifest.json")
+    assert manifest["status"] == "completed"
+    summary = manifest["selection_v3"]
+    assert summary["transcript_source"] == "groq"
+    assert "captions_missing" in summary["warnings"]
+    assert not any(code.startswith("groq_fallback") for code in summary["warnings"])
+    assert_web_summary(summary)
+    [(source, options)] = calls
+    assert source == env.source
+    assert options["config"] is GROQ
+    assert (options["language"], options["word_timestamps"]) == ("id", True)
+    assert options["media_duration"] == DURATION
+    found = summaries(log)
+    assert found["transcript"] == {"words": WORDS, "source": "groq", "language": "id"}
+    assert_web_stage_summary(found)
+    assert read_transcript_json(env.output / "transcript.json").segments[0].words
+    assert GROQ_KEY not in capsys.readouterr().err
+
+
+def test_groq_progress_reads_as_its_own_transcription(env, monkeypatch):
+    def groq(source, **options):
+        options["progress_callback"](0.5)
+        return Transcription("id", segments())
+
+    monkeypatch.setattr(pipeline_module, "transcribe_with_groq", groq)
+
+    run(env, model=ForbiddenWhisper(), groq=GROQ)
+
+    transcribing = [(pct, detail) for stage, pct, detail in env.progress if stage == "transcribing"]
+    assert transcribing[0] == (30, "Mengirim audio ke Groq")
+    assert (44, "Transkripsi audio lewat Groq 50%") in transcribing
+    assert stages(env)[:3] == ["analyzing", "transcribing", "audio"]
+
+
+def test_usable_captions_never_reach_groq(env, monkeypatch):
+    monkeypatch.setattr(pipeline_module, "transcribe_with_groq", forbidden_groq)
+    captions = env.tmp / "input" / "captions"
+    write_captions(captions, "manual", "source.id.json3", json3())
+
+    manifest = manifest_of(run(env, model=ForbiddenWhisper(), groq=GROQ, captions_dir=captions))
+
+    assert manifest["selection_v3"]["transcript_source"] == "youtube-captions"
+
+
+@pytest.mark.parametrize("code", ["rate_limited", "too_large", "no_key", "malformed", "empty"])
+def test_a_groq_failure_falls_back_to_local_whisper_and_says_why(env, monkeypatch, capsys, code):
+    def groq(source, **options):
+        raise GroqTranscriptionError(code)
+
+    monkeypatch.setattr(pipeline_module, "transcribe_with_groq", groq)
+    model = FakeWhisper()
+
+    manifest = manifest_of(run(env, model=model, groq=GROQ))
+
+    assert manifest["status"] == "completed"
+    summary = manifest["selection_v3"]
+    assert summary["transcript_source"] == "whisper"
+    assert summary["warnings"][0] == f"groq_fallback:{code}"
+    assert_web_summary(summary)
+    assert model.calls and model.calls[0]["word_timestamps"] is True
+    assert stages(env)[:3] == ["analyzing", "transcribing", "audio"]
+    err = capsys.readouterr().err
+    assert f"Groq dilewati ({code})" in err and GROQ_KEY not in err
+
+
+def test_an_unexpected_groq_error_also_falls_back_without_leaking_it(env, monkeypatch, capsys):
+    def groq(source, **options):
+        raise RuntimeError(f"boom {GROQ_KEY} /data/jobs/secret-folder")
+
+    monkeypatch.setattr(pipeline_module, "transcribe_with_groq", groq)
+
+    manifest = manifest_of(run(env, model=FakeWhisper(), groq=GROQ))
+
+    assert "groq_fallback:error" in manifest["selection_v3"]["warnings"]
+    assert manifest["selection_v3"]["transcript_source"] == "whisper"
+    err = capsys.readouterr().err
+    assert "Groq dilewati (error)" in err
+    assert GROQ_KEY not in err and "secret-folder" not in err
+
+
+def test_without_groq_nothing_is_sent(env, monkeypatch):
+    monkeypatch.setattr(pipeline_module, "transcribe_with_groq", forbidden_groq)
+    manifest = manifest_of(run(env))
+    assert manifest["selection_v3"]["transcript_source"] == "whisper"
 
 
 def test_empty_transcript_fails_clearly(env):
@@ -1137,7 +1252,7 @@ def assert_web_stage_summary(found: dict[str, dict]) -> None:
         elif kind == "transcript":
             assert set(values) <= {"words", "source", "language"}
             assert type(values["words"]) is int and values["words"] >= 0
-            assert values["source"] in {"youtube-captions", "whisper"}
+            assert values["source"] in {"youtube-captions", "whisper", "groq"}
             assert "language" not in values or WEB_SUMMARY_LANGUAGE.fullmatch(values["language"])
         else:
             assert kind == "moments"

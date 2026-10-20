@@ -1,10 +1,13 @@
 # Transkripsi Whisper: default, hasil uji, dan cara menggantinya
 
-Terakhir diperbarui: 2026-09-24.
+Terakhir diperbarui: 2026-10-21 (Transkripsi lewat Groq).
 
 Dokumen ini untuk video **tanpa subtitle YouTube** (upload sendiri, atau YouTube tanpa
 caption). Video yang subtitle YouTube-nya layak tidak memakai Whisper sama sekali
-(`--captions-dir`, lihat `docs/plans/2026-09-24-selection-v3-llm-hooks.md`).
+(`--captions-dir`, lihat `docs/plans/2026-09-24-selection-v3-llm-hooks.md`). Kalau pemilik
+menyalakan **Transkrip lewat Groq** di Pengaturan, video seperti ini dicoba dulu di Groq
+(bagian [Transkripsi lewat Groq](#transkripsi-lewat-groq-opsional)); Whisper di server tetap
+menjadi cadangannya.
 
 ## Ringkasan
 
@@ -90,6 +93,46 @@ ke service `app` dan `primary-worker` (kosong = default), jadi cukup isi di `.en
       WHISPER_INITIAL_PROMPT: ${WHISPER_INITIAL_PROMPT:-}
       WHISPER_PROMPT_EVERY_WINDOW: ${WHISPER_PROMPT_EVERY_WINDOW:-}
 ```
+
+## Transkripsi lewat Groq (opsional)
+
+**Pengaturan → Transkripsi → Transkrip lewat Groq.** Bawaannya mati, karena audio video dikirim
+ke Groq, layanan pihak ketiga. Kalau menyala, video tanpa subtitle YouTube yang layak
+ditranskrip dulu oleh Whisper yang dijalankan Groq (`whisper-large-v3`, paket gratis). Kalau
+gagal karena apa pun, Whisper di server ini menulis transkripnya seperti biasa. Subtitle YouTube
+yang layak tetap dipakai lebih dulu, dan audionya tidak dikirim.
+
+- **API key.** Kalau Pengaturan AI punya penyedia Groq dengan API key untuk `api.groq.com`, key
+  itu dipakai (juga saat penyedianya nonaktif di urutan LLM). Kalau belum ada, isi API key Groq di
+  kartu Transkripsi. Key itu disegel seperti API key LLM di `<folder pengaturan>/transcription.json`
+  (Docker: `/data/settings`, file `0600` di folder `0700`, ditulis atomik) dan tidak pernah
+  dikirim balik ke halaman. Key penyedia Groq yang diarahkan ke server lain tidak dipakai.
+- **Ke engine.** Worker memberi engine `POTONGIN_TRANSCRIBE_GROQ=on` dan
+  `POTONGIN_TRANSCRIBE_GROQ_API_KEY` lewat environment, tidak lewat argumen, dan membuang
+  variabel yang sama yang diwarisi dari server. `yt-dlp` tidak pernah menerima key ini. Tombol
+  menyala tanpa key membuat job memakai Whisper lokal dengan catatan `no_key`.
+- **Audio.** FFmpeg mengambil audio pertama sebagai FLAC 16 kHz mono di folder sementara yang
+  dihapus setelah selesai. Audio sampai 10 menit dikirim sekali. Audio yang lebih panjang dipotong
+  sama rata, dan setiap potongan digeser ke tengah jeda sunyi terdekat (dalam ±30 detik), jadi
+  kata tidak terpotong dan setiap file pasti di bawah 25 MB, batas paket gratis. Video lebih dari
+  2 jam tidak dikirim, karena paket gratis Groq membatasi 7.200 detik audio per jam.
+- **Permintaan** (`src/ai_clipper/transcribe_groq.py`, HTTP bawaan Python): `verbose_json` dengan
+  timestamp per kata dan per segmen, bahasa job (tanpa bahasa untuk Deteksi otomatis), dan prompt
+  gaya yang sama dengan Whisper lokal. Batas kecepatan dengan `Retry-After` paling lama 10 detik
+  ditunggu sekali. Redirect tidak diikuti.
+- **Hasil** dinormalkan ke bentuk `transcript.json` yang sama: segmen berurutan tanpa tumpang
+  tindih di dalam potongannya, setiap kata masuk ke segmen di sekitar titik tengahnya, dan segmen
+  yang menurut aturan Whisper hanya sunyi (`no_speech_prob` > 0,6 dengan `avg_logprob` < -1)
+  dibuang beserta katanya.
+- **Cadangan.** Setiap kegagalan menambah `groq_fallback:<kode>` ke ringkasan job, satu baris di
+  log worker (`potongin: transkripsi Groq dilewati (<kode>); Whisper lokal dipakai.`) dan satu
+  catatan di halaman proyek. Kode: `no_key`, `auth`, `rate_limited`, `too_long`, `too_large`,
+  `audio_failed`, `model_unavailable`, `server_error`, `http_error`, `timeout`, `network`,
+  `malformed`, `empty`, `error`. Untuk `no_key` dan `auth`, catatannya berupa pemberitahuan
+  dengan tombol ke Pengaturan. Key, path, dan teks jawaban server tidak pernah ditulis.
+- **Di layar.** Ringkasan tahap menulis "Transkrip: … kata · dari audio lewat Groq".
+- **Mematikan.** Matikan tombolnya di Pengaturan. Job berikutnya kembali ke Whisper lokal saja.
+  API key yang tersimpan tetap ada sampai dihapus.
 
 ## Cara pindah ke `large-v3-turbo`
 

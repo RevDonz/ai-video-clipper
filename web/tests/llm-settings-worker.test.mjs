@@ -6,6 +6,7 @@ import test from "node:test";
 
 import { saveLlmSettings } from "../lib/llm-settings.mjs";
 import { claimNextJob } from "../lib/primary-job-queue.mjs";
+import { saveTranscriptionSettings } from "../lib/transcription-settings.mjs";
 import { downloaderEnv, main } from "../scripts/run-job.mjs";
 
 const JOB_ID = "a23e4567-e89b-42d3-a456-426614174111";
@@ -119,6 +120,29 @@ test("a corrupt settings file switches the LLM off for the job instead of using 
   const engine = JSON.parse(await readFile(path.join(root, "engine.json"), "utf8"));
   assert.equal(engine.POTONGIN_LLM, "off");
   assert.equal(engine.GEMINI_API_KEY, undefined);
+});
+
+test("Groq transcription switched on reaches the engine with its key, never yt-dlp", async () => {
+  const { root, jobsRoot, jobRoot, env } = await fixture();
+  const groqKey = "groq-worker-key-3333cccc";
+  await saveTranscriptionSettings({ enabled: true, apiKey: { action: "replace", value: groqKey } }, { env });
+  await runJob({ jobsRoot, env: { ...env, POTONGIN_TRANSCRIBE_GROQ_API_KEY: "inherited-groq-key" } });
+
+  assert.equal(JSON.parse(await readFile(path.join(jobRoot, "job.json"), "utf8")).status, "completed");
+  const engine = JSON.parse(await readFile(path.join(root, "engine.json"), "utf8"));
+  assert.equal(engine.POTONGIN_TRANSCRIBE_GROQ, "on");
+  assert.equal(engine.POTONGIN_TRANSCRIBE_GROQ_API_KEY, groqKey, "the saved key, not an inherited one");
+  const downloads = (await readFile(path.join(root, "yt-dlp.log"), "utf8")).trim().split("\n").map((line) => JSON.parse(line));
+  for (const seen of downloads) assert.equal(seen.POTONGIN_TRANSCRIBE_GROQ_API_KEY, undefined, "yt-dlp never gets the Groq key");
+  assert.doesNotMatch(await readFile(path.join(jobRoot, "job.json"), "utf8"), /groq-worker-key/);
+});
+
+test("Groq transcription left off sends the engine no Groq variable", async () => {
+  const { root, jobsRoot, env } = await fixture();
+  await runJob({ jobsRoot, env: { ...env, POTONGIN_TRANSCRIBE_GROQ: "on", POTONGIN_TRANSCRIBE_GROQ_API_KEY: "inherited-groq-key" } });
+  const engine = JSON.parse(await readFile(path.join(root, "engine.json"), "utf8"));
+  assert.equal(engine.POTONGIN_TRANSCRIBE_GROQ, undefined);
+  assert.equal(engine.POTONGIN_TRANSCRIBE_GROQ_API_KEY, undefined);
 });
 
 test("the downloader environment drops every LLM variable and dashboard secret", () => {
