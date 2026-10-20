@@ -1111,7 +1111,7 @@ class _Validator:
             self.string(overrides, "emphasis", op, choices=SWATCHES)
             if "words_max" in overrides:  # optional; absent = the pack's words_per_cue
                 self.integer(overrides, "words_max", op, *WORDS_MAX_RANGE)
-            if "entrance" in overrides:  # optional; absent = "none" (CONTRACTS §5.34)
+            if "entrance" in overrides:  # optional; absent = "none" (CONTRACTS §5.39)
                 self.string(overrides, "entrance", op, choices=CAPTION_ENTRANCES)
         edits = self.field(captions, "word_edits", path)
         if edits is _MISSING or self.obj(edits, "/captions/word_edits") is None:

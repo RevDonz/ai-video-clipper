@@ -111,7 +111,7 @@ BOX_MAX_WIDTH = WIDTH * 88 // 100
 WORDS_PER_CUE = {"classic": 4, "karaoke": 4, "bold": 3, "box": 3, "sorot": 3}
 # Packs whose picture changes at every word onset (P-TXT probes stay clear of them).
 WORD_REVEAL_PACKS = ("karaoke", "bold", "sorot")
-# "Animasi masuk" (CONTRACTS §5.34): every entrance on every pack at 40 characters, probed while
+# "Animasi masuk" (CONTRACTS §5.39): every entrance on every pack at 40 characters, probed while
 # the line is still opening (frames 1-3 of the first line, 1-2 of the second).
 ENTRANCES = ("fade", "pop", "blur")
 ENTRANCE_PROBES = ((0, 1), (0, 2), (0, 3), (1, 1), (1, 2))  # (line, frames after its start)
@@ -626,7 +626,7 @@ class Clip:
     family: str | None = None
     lanes: dict | None = None
     transitions: list[dict] | None = field(default=None)
-    entrance: str | None = None  # the caption entrance of an entrance clip (§5.34)
+    entrance: str | None = None  # the caption entrance of an entrance clip (§5.39)
 
     def to_json(self) -> dict:
         entry = {"id": self.id, "kind": self.kind, "pack": self.pack, "chars": self.chars,

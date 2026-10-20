@@ -27,7 +27,7 @@ PACK_IDS = ("classic", "karaoke", "bold", "box", "sorot")
 SWATCHES = ("#FFE14D", "#FFFFFF", "#3DF5A6", "#52C7FF", "#FF5C8A", "#FF9F1C")
 # The optional override ``words_max`` ("Kata per baris"): absent means the pack's words_per_cue.
 WORDS_MAX_RANGE = (1, 4)
-# The optional override ``entrance`` ("Animasi masuk", CONTRACTS §5.34): absent means "none".
+# The optional override ``entrance`` ("Animasi masuk", CONTRACTS §5.39): absent means "none".
 CAPTION_ENTRANCES = ("none", "fade", "pop", "blur")
 # Hook designs (resources/hook-designs/<id>/v1.json), every one at v 1: the bar the seeds write,
 # then Kicker, Blok and Kotak kata (CONTRACTS §5.33).

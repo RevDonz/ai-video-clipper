@@ -18,7 +18,7 @@
 // - "Kata per baris" is `SetCaptionOverride {key: "words_max"}` (CONTRACTS §5.30): the key is
 //   present only while it differs from the pack's own count, so picking that count drops it (a
 //   manual revert equals the seed, R10) and SetCaptionPack drops it when the new pack has it.
-// - "Animasi masuk" is `SetCaptionOverride {key: "entrance"}` (CONTRACTS §5.34): "none" drops the
+// - "Animasi masuk" is `SetCaptionOverride {key: "entrance"}` (CONTRACTS §5.39): "none" drops the
 //   key (R10); a pack switch keeps it.
 // - SetHookText / SetHookEnabled restore the seed item's origin when the text equals the seed's
 //   hook text, and EditWordText drops the edit when the text equals the ASR text, so a manual

@@ -308,7 +308,7 @@ def test_clip_matrix_covers_every_pack_length_hook_fallback_and_variant() -> Non
 
 
 def test_every_entrance_is_gated_on_every_pack_inside_its_120_ms() -> None:
-    # "Animasi masuk" (CONTRACTS §5.34): JASSUB and FFmpeg must draw the same frame while a line
+    # "Animasi masuk" (CONTRACTS §5.39): JASSUB and FFmpeg must draw the same frame while a line
     # is still fading, popping or sharpening, so every probe sits inside an entrance.
     clips = rt.build_clips(fallback_char="\u2665")
     entrance = {c.id: c for c in clips if c.kind == "ptxt" and c.entrance is not None}

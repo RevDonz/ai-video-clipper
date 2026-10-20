@@ -2,7 +2,7 @@
 
 // Mode Cepat's Caption card (docs/plans/2026-10-02-editor-mode-cepat.md §1.4 Caption, §3): the
 // "Tampilkan caption" switch, the packs (the FFmpeg thumbnails), the highlight colour, three
-// sizes, words per line (CONTRACTS §5.30), the entrance (§5.34) and three positions. A size or
+// sizes, words per line (CONTRACTS §5.30), the entrance (§5.39) and three positions. A size or
 // position set off the presets in Mode Lengkap presses no pill. The commands, the notes and the
 // hook hint are caption-model.mjs, shared with the Teks panel, so both views send the same command
 // and show the same text. Props: the card bundle of cards.mjs.

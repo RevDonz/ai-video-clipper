@@ -244,7 +244,7 @@ def test_unknown_keys_are_rejected_at_every_level(contexts, mutate, path):
 
 
 def test_the_caption_entrance_is_a_known_override_key(contexts):
-    # "Animasi masuk" (CONTRACTS §5.34) parses under schema_minor 0; its values are validated.
+    # "Animasi masuk" (CONTRACTS §5.39) parses under schema_minor 0; its values are validated.
     doc = rev1(contexts["c30"])
     doc["captions"]["overrides"]["entrance"] = "pop"
     assert parse_doc(_raw(doc))["captions"]["overrides"]["entrance"] == "pop"
@@ -604,7 +604,7 @@ RULES = [
     ("c30", lambda d: d["captions"]["overrides"].update(words_max=None), "range_invalid",
      "/captions/overrides/words_max"),
     ("c30", lambda d: d["captions"]["pack"].update(id="sorot"), None, None),
-    # "Animasi masuk": optional, none / fade / pop / blur; absent is none (CONTRACTS §5.34)
+    # "Animasi masuk": optional, none / fade / pop / blur; absent is none (CONTRACTS §5.39)
     *[("c30", lambda d, value=value: d["captions"]["overrides"].update(entrance=value), None, None)
       for value in ("none", "fade", "pop", "blur")],
     *[("c30", lambda d, value=value: d["captions"]["overrides"].update(entrance=value),

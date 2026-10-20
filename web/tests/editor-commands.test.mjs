@@ -707,7 +707,7 @@ test("Kata per baris: words_max 1–4, absent while it is the pack's own count",
 });
 
 test("Animasi masuk: entrance fade, pop or blur; none drops the key", () => {
-  // The seed carries no entrance (CONTRACTS §5.34): it reads as none.
+  // The seed carries no entrance (CONTRACTS §5.39): it reads as none.
   assert.deepEqual(CAPTION_ENTRANCES, ["none", "fade", "pop", "blur"]);
   assert.equal(Object.hasOwn(C30.seed.captions.overrides, "entrance"), false);
   assert.equal(captionEntrance(C30.seed), "none");

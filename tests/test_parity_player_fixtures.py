@@ -186,7 +186,7 @@ def test_the_hook_variants_draw_every_design_next_to_the_bar():
 
 
 def test_the_entrance_variants_are_probed_while_their_lines_open():
-    # "Animasi masuk" (CONTRACTS §5.34): each entrance on a pack with another event shape, and
+    # "Animasi masuk" (CONTRACTS §5.39): each entrance on a pack with another event shape, and
     # the browser composite taken while the first lines are still opening.
     from ai_clipper.edit_v2 import CAPTION_ENTRANCES
 

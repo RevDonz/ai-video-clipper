@@ -26,7 +26,7 @@ export const HIGHLIGHT_PACKS = Object.freeze(["karaoke", "bold", "sorot"]);
 /** "Kata per baris" (`words_max`, CONTRACTS §5.30): at most this many words on a caption line. */
 export const CAPTION_WORDS = freeze([1, 2, 3, 4].map((value) => ({ id: String(value), label: String(value), value })));
 
-/** "Animasi masuk" (`entrance`, CONTRACTS §5.34): how each caption line appears; Tanpa is the seed's. */
+/** "Animasi masuk" (`entrance`, CONTRACTS §5.39): how each caption line appears; Tanpa is the seed's. */
 export const CAPTION_ENTRANCE_OPTIONS = freeze([
   { id: "none", label: "Tanpa" },
   { id: "fade", label: "Fade" },

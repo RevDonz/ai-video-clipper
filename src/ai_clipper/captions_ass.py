@@ -435,7 +435,7 @@ _RESOURCE_ID = re.compile(r"[a-z][a-z0-9-]{0,31}")
 _OVERRIDE_KEYS = ("y_e5", "size_pm", "case", "highlight", "emphasis")
 _WORD_BOX_KEYS = frozenset({"pad_x_pm", "top_pm", "radius_pm", "dark_text", "light_text",
                             "dark_from_lstar"})
-# "Animasi masuk" (CONTRACTS §5.34): every line opens within this many milliseconds. Pop starts at
+# "Animasi masuk" (CONTRACTS §5.39): every line opens within this many milliseconds. Pop starts at
 # 70% and overshoots to 108% before it settles; Blur starts at a radius of H/128.
 ENTRANCE_MS = 120
 _POP_SCALES = (70, 108)
@@ -907,7 +907,7 @@ def words_per_cue(pack: CaptionPack, overrides: Mapping[str, Any]) -> int:
 
 def _entrance_tags(entrance: str, window_ms: int, height: int) -> str:
     """The block that opens a caption line: empty for ``none``, otherwise an entrance of at most
-    ``ENTRANCE_MS`` that never outlasts the line's first window (CONTRACTS §5.34)."""
+    ``ENTRANCE_MS`` that never outlasts the line's first window (CONTRACTS §5.39)."""
     duration = min(ENTRANCE_MS, window_ms)
     if entrance == "none" or duration <= 0:
         return ""
@@ -1451,7 +1451,7 @@ def build_ass_v2(
     ``word_box`` pack draws a rounded ``\\p`` box behind the spoken word (CONTRACTS §5.30). A
     hook in a design other than the bar writes that design's style and events (§5.33). The
     override ``entrance`` opens the first window of every caption line with a fade, pop or blur
-    of at most ``ENTRANCE_MS``; no event moves (§5.34).
+    of at most ``ENTRANCE_MS``; no event moves (§5.39).
     """
     if (not isinstance(play_res, (tuple, list)) or len(play_res) != 2
             or not all(_is_int(value) and value > 0 for value in play_res)):

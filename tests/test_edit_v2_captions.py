@@ -377,7 +377,7 @@ def test_sorot_seed_document_compiles_one_box_per_spoken_word():
     assert {fields[3] for fields in events} == {"Sorot", "Hook"}
 
 
-# --- "Animasi masuk" (entrance) on a document (CONTRACTS §5.34) -------------------------------
+# --- "Animasi masuk" (entrance) on a document (CONTRACTS §5.39) -------------------------------
 
 
 @pytest.mark.parametrize("pack", ["classic", "karaoke", "bold", "box", "sorot"])

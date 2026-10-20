@@ -342,7 +342,7 @@ Duplicate keys, NaN and unknown keys are rejected at every level.
 | `captions.overrides.case` | `asis`, `upper` | Case is a display transform; text is never rewritten |
 | `captions.overrides.highlight`, `.emphasis` | swatch `#FFE14D #FFFFFF #3DF5A6 #52C7FF #FF5C8A #FF9F1C` | `highlight` is used by karaoke, bold and sorot (the box behind the spoken word) |
 | `captions.overrides.words_max` | optional; 1–4 (amended 2026-10-20, §5.30) | "Kata per baris": at most this many words per caption line; absent = the pack's `words_per_cue`. Seeds never write it |
-| `captions.overrides.entrance` | optional; `none`, `fade`, `pop`, `blur` (amended 2026-10-21, §5.34) | "Animasi masuk": how each caption line appears, at most 120 ms; absent = `none`. Seeds never write it |
+| `captions.overrides.entrance` | optional; `none`, `fade`, `pop`, `blur` (amended 2026-10-21, §5.39) | "Animasi masuk": how each caption line appears, at most 120 ms; absent = `none`. Seeds never write it |
 | `captions.word_edits` | ≤ 6,000 keys (word ids); values `{text?, hidden?, emphasis?}` with ≥ 1 key | `text` 1–40 chars. `emphasis` fixes defect #6 (§8) |
 | `layout.default.mode` | `fit_blur`, `camera` (face-track), `fill_center` (center-crop) | `no_face` is `"center"` (today's behaviour), and no-face spans are *reported*, never silent |
 | `tracks` | ≤ 3 tracks: ≤ 1 `hook`, ≤ 1 `visual/over_text/overlay`, ≤ 1 `audio/music`; ≤ 1 item each | Stage 2 lifts the counts; the shapes stay |
@@ -470,7 +470,7 @@ every later reader sees.
 - *Amended 2026-10-20 (§5.33):* the hook designs `kicker`, `blok` and `kotak` (each `v` 1) are
   valid under `schema_minor: 0`; a document with the bar means what it meant, and an older
   server refuses the new designs with `op_disabled`.
-- *Amended 2026-10-21 (§5.34):* the optional override `captions.overrides.entrance` (`none`,
+- *Amended 2026-10-21 (§5.39):* the optional override `captions.overrides.entrance` (`none`,
   `fade`, `pop`, `blur`) is valid under `schema_minor: 0`. A document without it is unchanged in
   meaning (absent = `none`); an older server refuses the key with `unknown_key`.
 - The pack ids `classic` and `karaoke` are the FINAL `legacy-classic@1` and `legacy-karaoke@1`
@@ -594,7 +594,7 @@ annotations may be spelled differently).
 
 | Module | Names | Owner |
 |---|---|---|
-| `ai_clipper.edit_v2` (`__init__`) | `COMPILER_VERSION`, `COMPILER_ID` (`"edit-v2/1"`), `RENDER_SEMANTICS`, `SCHEMA`, `SCHEMA_MINOR`, `WORDS_SCHEMA`, `CAMERA_SCHEMA`, `DOC_FPS`, `OUTPUT_SIZES`, `PACK_IDS`, `SWATCHES`, `PACK_DEFAULT_OVERRIDES`, `WORDS_MAX_RANGE` (§5.30), `HOOK_DESIGN_IDS` (§5.33), `CAPTION_ENTRANCES` (§5.34) | T1.0 |
+| `ai_clipper.edit_v2` (`__init__`) | `COMPILER_VERSION`, `COMPILER_ID` (`"edit-v2/1"`), `RENDER_SEMANTICS`, `SCHEMA`, `SCHEMA_MINOR`, `WORDS_SCHEMA`, `CAMERA_SCHEMA`, `DOC_FPS`, `OUTPUT_SIZES`, `PACK_IDS`, `SWATCHES`, `PACK_DEFAULT_OVERRIDES`, `WORDS_MAX_RANGE` (§5.30), `HOOK_DESIGN_IDS` (§5.33), `CAPTION_ENTRANCES` (§5.39) | T1.0 |
 | `edit_v2.errors` | exceptions, code sets, `MESSAGES`, `message`, `message_id`, `base_code`, `exit_code_for`, `EXIT_*` | T1.0 |
 | `edit_v2.timemap` | Appendix A names plus `SAMPLE_RATE`, `MIN_PIECE_FRAMES`, `div_round_half_up`, `speech_spans`, `logo_box`, `Fps.from_json`, `Fps.to_json`, `Piece.to_dto` | T1.0 |
 | `edit_v2.clip_id` | `clip_id`, `is_clip_id`, `ms_from_seconds`, `CLIP_ID_PATTERN` | T1.0 |
@@ -602,7 +602,7 @@ annotations may be spelled differently).
 | `edit_v2.store` | `get`, `seed`, `put`, `archive_for_render`, `prune_receipts`, the §4.1 path constants | T1.1 |
 | `edit_v2.api` | `OPS`, `main` (CLI) | T1.1 |
 | `ai_clipper.subtitles` (additions) | `SourceWord`, `FrameWord`, `FrameCue`, `build_frame_cues` | T1.2a |
-| `ai_clipper.captions_ass` (additions) | `CaptionPack`, `load_pack`, `HookSpec`, `build_ass_v2`; `WordBox`, `words_per_cue`, `lightness`, `word_box_text` (§5.30); `LEGACY_HOOK_DESIGN`, `HOOK_LAYOUTS`, `HookDesign`, `HookBox`, `HookKicker`, `hook_design`, `hook_font_file`, `boxed_word_index` (§5.33); `ENTRANCE_MS` (§5.34) | T1.2a |
+| `ai_clipper.captions_ass` (additions) | `CaptionPack`, `load_pack`, `HookSpec`, `build_ass_v2`; `WordBox`, `words_per_cue`, `lightness`, `word_box_text` (§5.30); `LEGACY_HOOK_DESIGN`, `HOOK_LAYOUTS`, `HookDesign`, `HookBox`, `HookKicker`, `hook_design`, `hook_font_file`, `boxed_word_index` (§5.33); `ENTRANCE_MS` (§5.39) | T1.2a |
 | `edit_v2.captions` | `CaptionResult`, `caption_track` | T1.2a |
 | `edit_v2.glyphs` | `missing_glyphs`, `advance_px` | T1.2a |
 | `edit_v2.envelope` | `Envelope`, `speech_envelope`, `music_envelope`, `expand_f32` | T1.4 |
@@ -851,7 +851,7 @@ main      segments · removals · joins · cut_fade_ms 0…50
   removal id · seg · in_sf · out_sf · words [word id] · reason · origin
   join    after · style "cut" · audio_fade_ms 0…250
 captions  enabled bool · pack {id, v} · overrides {y_e5, size_pm, case, highlight, emphasis,
-          words_max (optional, §5.30), entrance (optional, §5.34)}
+          words_max (optional, §5.30), entrance (optional, §5.39)}
           · word_edits {<word id>: {text?, hidden?, emphasis?}} (values: 1–3 keys)
 layout    default {mode, no_face "center"}
 tracks    hook   {id, kind "hook", items}
@@ -2777,7 +2777,7 @@ the editor document are untouched.
 - No "Hook di video" switch: the hook text is part of the rendered clip and changes only through
   the editor's Hook card and an export.
 
-## 5.34 Caption entrance: "Animasi masuk" (2026-10-21)
+## 5.39 Caption entrance: "Animasi masuk" (2026-10-21)
 
 Plan `docs/plans/2026-10-20-lanjutan-sesi.md` P2 ("Animasi masuk caption"). Every existing
 document, seed, plan sha, golden and auto render is unchanged: the seeds carry no `entrance`, and

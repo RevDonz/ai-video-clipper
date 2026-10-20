@@ -1148,7 +1148,7 @@ def test_overrides_accept_words_max_from_one_to_four_only():
             _v2((_fcue((0, 30, "halo")),), "classic", words_max=value)
 
 
-# --- "Animasi masuk": a short entrance per caption line (CONTRACTS §5.34) -------------------------
+# --- "Animasi masuk": a short entrance per caption line (CONTRACTS §5.39) -------------------------
 
 ENTRANCE_CUES = (
     _fcue((0, 2, "gue"), (2, 20, "bukan"), (20, 31, "jambret.")),  # a 2-frame first window

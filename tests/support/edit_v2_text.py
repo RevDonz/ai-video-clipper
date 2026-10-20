@@ -728,7 +728,7 @@ def golden_evidence() -> dict[str, Any]:
         size = (doc["output"]["w"], doc["output"]["h"])
         # Frames inside events: the first and a middle cue, and the hook past its fade-in
         # start (its first frame is transparent by design, \fad at now == Start). A line that
-        # fades in (the Fade and Blur entrances, CONTRACTS §5.34) is probed in its middle.
+        # fades in (the Fade and Blur entrances, CONTRACTS §5.39) is probed in its middle.
         fades_in = doc["captions"]["overrides"].get("entrance") in ("fade", "blur")
         probe = {(cue.f0 + cue.f1) // 2 if fades_in else cue.f0
                  for cue in result.cues[:1] + result.cues[len(result.cues) // 2:][:1]}

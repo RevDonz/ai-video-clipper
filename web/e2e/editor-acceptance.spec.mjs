@@ -767,7 +767,7 @@ test("Kemampuan 5, caption + 5 gaya: each pack, position, size, words per line, 
   await exactBadge(page);
   await words.getByRole("radio", { name: "3" }).check();
   expect(Object.hasOwn((await waitSaved(page)).doc.captions.overrides, "words_max")).toBe(false);
-  // Animasi masuk (CONTRACTS §5.34): the engine opens every line; Tanpa gives the same bytes back.
+  // Animasi masuk (CONTRACTS §5.39): the engine opens every line; Tanpa gives the same bytes back.
   const entrance = text.getByRole("group", { name: "Animasi masuk" });
   await expect(entrance.getByRole("radio", { name: "Tanpa" })).toBeChecked();
   const withoutEntrance = (await settledPlan(page)).text.assSha256;

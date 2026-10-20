@@ -1913,7 +1913,7 @@ changed, so every engine gate above keeps its cases and numbers.
 ## Caption: Animasi masuk (2026-10-21)
 
 Plan `docs/plans/2026-10-20-lanjutan-sesi.md` P2 ("Animasi masuk caption"); contract CONTRACTS
-§5.34; guide PANDUAN-EDITOR "Caption" and "Teks". Built on branch `adopsi/animasi-caption` with
+§5.39; guide PANDUAN-EDITOR "Caption" and "Teks". Built on branch `adopsi/animasi-caption` with
 targeted local tests only; the gates that need the production image or a browser run on GitHub
 Actions when the branch is pushed.
 

@@ -80,7 +80,7 @@ PACKS = ("classic", "karaoke", "bold", "box", "sorot")
 HOOK_VARIANTS = {"hook-kicker": ("kicker", "Ternyata: hook sintetis"),
                  "hook-blok": ("blok", "Hook sintetis"),
                  "hook-kotak": ("kotak", "Hook SINTETIS ini")}
-# "Animasi masuk" (CONTRACTS §5.34) over the same cells: each entrance on a pack with another
+# "Animasi masuk" (CONTRACTS §5.39) over the same cells: each entrance on a pack with another
 # event shape (one line, a line per spoken word, a box per spoken word).
 ENTRANCE_VARIANTS = {"entrance-fade": ("karaoke", "fade"), "entrance-pop": ("bold", "pop"),
                      "entrance-blur": ("sorot", "blur")}

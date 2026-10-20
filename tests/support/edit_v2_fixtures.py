@@ -704,7 +704,7 @@ def _valid(contexts: Mapping[str, Context]) -> list[_Fixture]:
         d = _Doc(c30, "SetCaptionOverride")
         d.doc["captions"]["overrides"]["words_max"] = words_max
         add(f"words_max_{words_max}", d)
-    # "Animasi masuk" (CONTRACTS §5.34): each entrance on a pack with another event shape.
+    # "Animasi masuk" (CONTRACTS §5.39): each entrance on a pack with another event shape.
     for entrance, pack in (("none", "karaoke"), ("fade", "karaoke"), ("pop", "bold"),
                            ("blur", "sorot")):
         d = _Doc(c30, "SetCaptionOverride")
