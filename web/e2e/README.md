@@ -87,3 +87,13 @@ npx playwright test --project=desktop-chromium e2e/bantuan.spec.mjs
 ```
 
 In CI: `gh workflow run editor-gates.yml -f ref=<branch> -f suite=e2e -f command=e2e/bantuan.spec.mjs`.
+
+## Riwayat: Klip
+
+`e2e/history-clips.spec.mjs` covers the "Proyek | Klip" switch on Riwayat: the clip grid with the project page's posters (neutral score pill, its mark for 8 and up, the project name on each card), the choice kept across a reload, "Muat lagi" appending the next page and moving the focus to its first card, the search and the "Skor 8+" and "Minggu ini" chips reaching the request, "Tampilkan semua klip" after an empty result, a card opening its clip on the project page (`?klip=N`, that poster focused), a refused listing with "Coba lagi" (in a second tab, as the refusal is the point), and at 390 px posters two across, 44 px targets and no horizontal scroll. It fakes `GET /api/clips` and the opened job inside the browser; the real listing is covered by `web/tests/clip-library.test.mjs`.
+
+```bash
+E2E_BASE_URL=http://127.0.0.1:3417 E2E_NO_WEB_SERVER=1 \
+E2E_USERNAME=... E2E_PASSWORD=... \
+npx playwright test --project=desktop-chromium e2e/history-clips.spec.mjs
+```

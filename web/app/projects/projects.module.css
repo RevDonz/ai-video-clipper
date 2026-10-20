@@ -25,6 +25,16 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Proyek | Klip: the two views of the history, sized to their words. */
+.views {
+  width: fit-content;
+  margin-bottom: 16px;
+}
+.views button {
+  min-width: 96px;
+  min-height: 44px;
+}
+
 .tools {
   display: grid;
   grid-template-columns: minmax(220px, 1fr) auto auto;
@@ -249,6 +259,9 @@
   }
   .head > a {
     flex: 1 1 100%;
+  }
+  .views {
+    width: auto;
   }
   .tools {
     grid-template-columns: minmax(0, 1fr);

@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import AppHeader from "../../components/AppHeader.jsx";
+import ClipLibrary from "../../components/ClipLibrary.jsx";
 import { historyOffersEdit } from "../../lib/clip-entry-view.mjs";
+import { browserStorage, readHistoryView, writeHistoryView } from "../../lib/clip-library-view.mjs";
 import {
   PROJECT_FILTERS,
   formatProjectDate,
@@ -85,6 +87,9 @@ function ProjectRow({ job, editor, confirming, busy, onAskDelete, onCancelDelete
 }
 
 export default function ProjectsPage() {
+  // "projects" or "clips"; null until the remembered choice is read (the browser only).
+  const [view, setView] = useState(null);
+  const [clipSummary, setClipSummary] = useState("");
   const [jobs, setJobs] = useState([]);
   const [editor, setEditor] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -98,6 +103,16 @@ export default function ProjectsPage() {
   const [generation, setGeneration] = useState(0);
 
   useEffect(() => {
+    setView(readHistoryView(browserStorage()) ?? "projects");
+  }, []);
+
+  const chooseView = (next) => {
+    setView(next);
+    writeHistoryView(browserStorage(), next);
+  };
+
+  useEffect(() => {
+    if (view !== "projects") return undefined;
     const controller = new AbortController();
     let alive = true;
     let pollTimer = null;
@@ -135,7 +150,7 @@ export default function ProjectsPage() {
       controller.abort();
       if (pollTimer !== null) clearTimeout(pollTimer);
     };
-  }, [generation]);
+  }, [generation, view]);
 
   // Deletion is permanent and covers running jobs: the server revokes the
   // worker's lease, then reclaims the bytes once that worker has stopped.
@@ -167,72 +182,88 @@ export default function ProjectsPage() {
   );
   const filtered = query.trim() !== "" || filter !== "all";
 
+  const summary = view === "clips" ? clipSummary : view === "projects" && loaded ? historySummary(jobs) : "";
+  const title = view === "clips" ? "Riwayat klip" : view === "projects" ? "Riwayat proyek" : "Riwayat";
+
   return (
     <main>
       <AppHeader current="/projects" />
       <div className={`shell ${styles.page}`}>
         <header className={styles.head}>
           <div>
-            <h1>Riwayat proyek</h1>
-            {loaded && <p>{historySummary(jobs)}</p>}
+            <h1>{title}</h1>
+            {summary && <p>{summary}</p>}
           </div>
           <a className="btn primary" href="/dashboard">Buat klip baru</a>
         </header>
 
-        <div className={styles.tools}>
-          <label className={styles.search}>
-            <span className="visuallyHidden">Cari proyek</span>
-            <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Cari nama, ID, URL, atau isi klip" />
-          </label>
-          <div className={`segmented ${styles.filters}`} role="group" aria-label="Saring status">
-            {PROJECT_FILTERS.map((item) => (
-              <button key={item.value} type="button" aria-pressed={filter === item.value} onClick={() => setFilter(item.value)}>{item.label}</button>
-            ))}
-          </div>
-          <button type="button" className="btn" onClick={() => setGeneration((value) => value + 1)} disabled={loading}>{loading ? "Memuat…" : "Muat ulang"}</button>
+        <div className={`segmented ${styles.views}`} role="group" aria-label="Tampilan riwayat">
+          <button type="button" aria-pressed={view === "projects"} onClick={() => chooseView("projects")}>Proyek</button>
+          <button type="button" aria-pressed={view === "clips"} onClick={() => chooseView("clips")}>Klip</button>
         </div>
 
-        {actionError && <div className={`notice error ${styles.notice}`} role="alert">{actionError}</div>}
-
-        {loading && !loaded && (
+        {view === null && (
           <div className={styles.state} role="status" aria-live="polite"><span className="pulse" aria-hidden="true" /><p>Memuat riwayat…</p></div>
         )}
-        {!loading && error && (
-          <div className={`notice error ${styles.notice}`} role="alert">
-            <strong>Riwayat tidak bisa dimuat</strong>
-            <span>{error}</span>
-            <button type="button" className={`btn ${styles.retry}`} onClick={() => setGeneration((value) => value + 1)}>Coba lagi</button>
-          </div>
-        )}
-        {loaded && jobs.length === 0 && (
-          <div className={styles.state}>
-            <strong>Belum ada proyek</strong>
-            <p>Proyek yang kamu buat di Buat Klip muncul di sini, lengkap dengan klipnya.</p>
-          </div>
-        )}
-        {loaded && jobs.length > 0 && visible.length === 0 && (
-          <div className={styles.state}>
-            <strong>Tidak ada proyek yang cocok</strong>
-            <p>Ubah kata pencarian atau pilih status lain.</p>
-            {filtered && <button type="button" className="btn" onClick={() => { setQuery(""); setFilter("all"); }}>Tampilkan semua</button>}
-          </div>
-        )}
+        {view === "clips" && <ClipLibrary onSummary={setClipSummary} />}
+        {view === "projects" && (
+          <>
+            <div className={styles.tools}>
+              <label className={styles.search}>
+                <span className="visuallyHidden">Cari proyek</span>
+                <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Cari nama, ID, URL, atau isi klip" />
+              </label>
+              <div className={`segmented ${styles.filters}`} role="group" aria-label="Saring status">
+                {PROJECT_FILTERS.map((item) => (
+                  <button key={item.value} type="button" aria-pressed={filter === item.value} onClick={() => setFilter(item.value)}>{item.label}</button>
+                ))}
+              </div>
+              <button type="button" className="btn" onClick={() => setGeneration((value) => value + 1)} disabled={loading}>{loading ? "Memuat…" : "Muat ulang"}</button>
+            </div>
 
-        {visible.length > 0 && (
-          <ul className={styles.list} aria-label="Proyek">
-            {visible.map((job) => (
-              <ProjectRow
-                key={job.id}
-                job={job}
-                editor={editor}
-                confirming={confirmingId === job.id}
-                busy={busyId === job.id}
-                onAskDelete={() => { setActionError(""); setConfirmingId(job.id); }}
-                onCancelDelete={() => setConfirmingId(null)}
-                onDelete={() => deleteProject(job)}
-              />
-            ))}
-          </ul>
+            {actionError && <div className={`notice error ${styles.notice}`} role="alert">{actionError}</div>}
+
+            {loading && !loaded && (
+              <div className={styles.state} role="status" aria-live="polite"><span className="pulse" aria-hidden="true" /><p>Memuat riwayat…</p></div>
+            )}
+            {!loading && error && (
+              <div className={`notice error ${styles.notice}`} role="alert">
+                <strong>Riwayat tidak bisa dimuat</strong>
+                <span>{error}</span>
+                <button type="button" className={`btn ${styles.retry}`} onClick={() => setGeneration((value) => value + 1)}>Coba lagi</button>
+              </div>
+            )}
+            {loaded && jobs.length === 0 && (
+              <div className={styles.state}>
+                <strong>Belum ada proyek</strong>
+                <p>Proyek yang kamu buat di Buat Klip muncul di sini, lengkap dengan klipnya.</p>
+              </div>
+            )}
+            {loaded && jobs.length > 0 && visible.length === 0 && (
+              <div className={styles.state}>
+                <strong>Tidak ada proyek yang cocok</strong>
+                <p>Ubah kata pencarian atau pilih status lain.</p>
+                {filtered && <button type="button" className="btn" onClick={() => { setQuery(""); setFilter("all"); }}>Tampilkan semua</button>}
+              </div>
+            )}
+
+            {visible.length > 0 && (
+              <ul className={styles.list} aria-label="Proyek">
+                {visible.map((job) => (
+                  <ProjectRow
+                    key={job.id}
+                    job={job}
+                    editor={editor}
+                    confirming={confirmingId === job.id}
+                    busy={busyId === job.id}
+                    onAskDelete={() => { setActionError(""); setConfirmingId(job.id); }}
+                    onCancelDelete={() => setConfirmingId(null)}
+                    onDelete={() => deleteProject(job)}
+                  />
+                ))}
+              </ul>
+            )}
+          </>
         )}
       </div>
     </main>

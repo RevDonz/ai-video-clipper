@@ -13,16 +13,20 @@ const FILTERS = Object.freeze([
   Object.freeze({ value: "high", label: "Skor 8+" }),
 ]);
 
-// The total as the pill shows it (one decimal), so the mark and the number always agree.
-function shownTotal(clip) {
+/** The total as the pill shows it (one decimal), so the mark and the number always agree; else null. */
+export function shownScore(clip) {
   const total = clipScoreView(clip)?.total;
   return typeof total === "number" ? Math.round(total * 10) / 10 : null;
 }
 
-/** The poster's score pill: `{text: "8,4", high}` (high from 8,0 up), or null for an unscored clip. */
+/** The pill for a shown total: `{text: "8,4", high}` (high from 8,0 up), or null without a score. */
+export function scorePillFor(total) {
+  return typeof total === "number" && Number.isFinite(total) ? { text: formatTenths(total), high: total >= HIGH_SCORE } : null;
+}
+
+/** The poster's score pill, or null for an unscored clip. */
 export function scorePill(clip) {
-  const total = shownTotal(clip);
-  return total === null ? null : { text: formatTenths(total), high: total >= HIGH_SCORE };
+  return scorePillFor(shownScore(clip));
 }
 
 export function isHighScore(clip) {
@@ -63,6 +67,14 @@ export function clipFilterView(clips, filter) {
     })),
     visible: active === "high" ? high : list,
   };
+}
+
+const CLIP_PARAM = /^[1-9]\d{0,3}$/;
+
+/** The clip a link names (`?klip=3`, from the Riwayat clip grid), or null. */
+export function clipFromParam(value) {
+  const raw = Array.isArray(value) ? (value.length === 1 ? value[0] : null) : value;
+  return typeof raw === "string" && CLIP_PARAM.test(raw) ? Number(raw) : null;
 }
 
 /** The clip shown in the detail panel: `selected` while the grid shows it, else the first shown. */

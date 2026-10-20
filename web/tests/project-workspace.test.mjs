@@ -173,9 +173,16 @@ test("the page: one poster button per clip, the current one marked, a toggle in 
   assert.match(source, /aria-current=\{!picking && selected \? "true" : undefined\}/);
   assert.match(source, /aria-pressed=\{picking \? picked : undefined\}/);
   assert.match(source, /const pill = scorePill\(clip\);/);
-  assert.match(source, /data-high=\{pill\.high \|\| undefined\}>\{pill\.high && <i \/>\}\{pill\.text\}/);
+  // The poster itself is the shared one the Riwayat clip grid draws too.
+  assert.match(source, /<PosterThumb poster=\{clipPosterUrl\(clip\)\} number=\{number\} length=\{length\}>/);
+  assert.match(source, /<PosterText titleId=\{titleId\} title=\{clip\.title \|\| clipLabel\(clip\)\} pill=\{pill\} edited=\{edited\}\n\s*flags=\{cardNotes\.map\(/);
+  const poster = await readFile(new URL("../components/ClipPoster.jsx", import.meta.url), "utf8");
+  // The page's fallback notes sit on the shared poster's meta row, beside the score pill.
+  assert.match(poster, /\{\(pill \|\| edited \|\| hasFlags\) && \(/);
+  assert.match(poster, /\{hasFlags && flags\}/);
+  assert.match(poster, /data-high=\{pill\.high \|\| undefined\}>\{pill\.high && <i \/>\}\{pill\.text\}/);
   // Poster images are decoration: the title beside them names the clip.
-  assert.match(source, /<img src=\{poster\} alt="" loading="lazy" decoding="async" \/>/);
+  assert.match(poster, /<img src=\{poster\} alt="" loading="lazy" decoding="async" \/>/);
 });
 
 test("the page: filters as pressed buttons, the arrows step the shown clips, Escape leaves 'Pilih'", async () => {

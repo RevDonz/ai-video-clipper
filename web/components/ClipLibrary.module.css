@@ -1,0 +1,153 @@
+/* The Riwayat clip grid (components/ClipLibrary.jsx). The poster is ClipPoster.module.css; the
+   tokens and .btn, .notice, .pulse come from app/globals.css. */
+
+.tools {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.search input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  font-size: 15px;
+}
+.search input:focus-visible {
+  border-color: var(--focus);
+}
+
+/* Two independent toggles: an "on" chip gets a check mark, not only a lighter fill. */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.chips button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--bg);
+  color: var(--text-muted);
+  font: 600 14px/1.2 var(--font);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--dur-2) var(--ease-out), border-color var(--dur-2) var(--ease-out), color var(--dur-2) var(--ease-out);
+}
+.chips button:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+.chips button[aria-pressed="true"] {
+  border-color: var(--border-strong);
+  background: var(--surface-3);
+  color: var(--text);
+}
+.chips button[aria-pressed="true"]::before {
+  content: "";
+  width: 5px;
+  height: 10px;
+  margin: -3px 1px 0 2px;
+  border: solid currentColor;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  animation: pop var(--dur-2) var(--ease-out);
+}
+
+.notice {
+  margin-bottom: 16px;
+}
+.retry {
+  justify-self: start;
+  margin-top: 6px;
+}
+
+.state {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 56px 16px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-xl);
+  color: var(--text-muted);
+  text-align: center;
+  animation: fade var(--dur-2) var(--ease-out);
+}
+.state strong {
+  color: var(--text);
+  font: 600 16px/1.3 var(--font);
+}
+.state p {
+  max-width: 420px;
+  margin: 0 0 4px;
+  font-size: 14px;
+}
+
+/* Six posters across on a wide screen, two on a phone (one on the narrowest). */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  transition: opacity var(--dur-2) var(--ease-out);
+}
+/* A new search is on its way: the old result stays readable but steps back. */
+.grid[aria-busy="true"] {
+  opacity: .6;
+}
+.card {
+  height: 100%;
+  animation: rise var(--dur-3) var(--ease-out) both;
+}
+
+.more {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  margin-top: 20px;
+}
+.more p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.more .moreError {
+  color: var(--danger);
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(6px); }
+}
+@keyframes fade {
+  from { opacity: 0; }
+}
+@keyframes pop {
+  from { transform: rotate(45deg) scale(.4); }
+}
+
+@media (max-width: 860px) {
+  .tools {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 600px) {
+  .chips button {
+    flex: 1 1 0;
+  }
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 10px;
+  }
+  .more :global(.btn) {
+    width: 100%;
+  }
+}

@@ -1,0 +1,151 @@
+// The "Klip" view of Riwayat (/projects) in the browser: the remembered view, the request behind
+// the search, the chips and "Muat lagi", and the poster card's text. Client-safe: no Node built-ins.
+
+import { clipLabel } from "./project-view.mjs";
+import { scorePillFor } from "./project-workspace.mjs";
+import { formatTimestamp } from "./selection-v3-view.mjs";
+
+export const HISTORY_VIEWS = Object.freeze(["projects", "clips"]);
+export const HISTORY_VIEW_KEY = "potongin-history-view";
+
+const knownView = (value) => (HISTORY_VIEWS.includes(value) ? value : null);
+
+/** window.localStorage, or null where reading it throws (blocked site data, some private windows). */
+export function browserStorage() {
+  try {
+    return typeof window === "undefined" ? null : window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+/** "projects" | "clips" | null; null on any throw or unknown value. */
+export function readHistoryView(storage) {
+  try {
+    return knownView(storage?.getItem(HISTORY_VIEW_KEY) ?? null);
+  } catch {
+    return null;
+  }
+}
+
+/** Stores the view; false when the view is unknown or the storage refuses. Never throws. */
+export function writeHistoryView(storage, view) {
+  if (!knownView(view) || !storage) return false;
+  try {
+    storage.setItem(HISTORY_VIEW_KEY, view);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Monday 00:00 of the week `now` falls in, in the viewer's time zone ("Minggu ini"). */
+export function startOfWeek(now = new Date()) {
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+  return start;
+}
+
+/** The listing request of one page: the search, "Skor 8+", "Minggu ini" and the cursor of "Muat lagi". */
+export function clipLibraryHref({ query = "", high = false, week = false, cursor = null, now = new Date() } = {}) {
+  const params = new URLSearchParams();
+  const q = String(query ?? "").trim();
+  if (q) params.set("q", q);
+  if (high) params.set("high", "1");
+  if (week) params.set("since", startOfWeek(now).toISOString());
+  if (cursor) params.set("cursor", cursor);
+  const search = params.toString();
+  return search ? `/api/clips?${search}` : "/api/clips";
+}
+
+export class ClipLibraryLoadError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "ClipLibraryLoadError";
+  }
+}
+
+async function readJson(response) {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * One page of the clip grid: `{type: "loaded", clips, matched, total, projects, nextCursor,
+ * partial}` or `{type: "redirect", location}` when the session ended; a failure throws
+ * ClipLibraryLoadError with the text to show (an abort is rethrown as is).
+ */
+export async function loadClipLibrary(options = {}, { fetchImpl = fetch, signal } = {}) {
+  let response;
+  try {
+    response = await fetchImpl(clipLibraryHref(options), { cache: "no-store", signal });
+  } catch (error) {
+    if (error?.name === "AbortError") throw error;
+    throw new ClipLibraryLoadError("Klip tidak bisa dimuat. Periksa koneksi, lalu coba lagi.");
+  }
+  if (response.status === 401) return { type: "redirect", location: `/login?next=${encodeURIComponent("/projects")}` };
+  const body = await readJson(response);
+  if (!response.ok || !Array.isArray(body?.clips)) throw new ClipLibraryLoadError("Klip tidak bisa dimuat. Coba lagi sebentar lagi.");
+  return {
+    type: "loaded",
+    clips: body.clips,
+    matched: Number.isSafeInteger(body.matched) ? body.matched : body.clips.length,
+    total: Number.isSafeInteger(body.total) ? body.total : body.clips.length,
+    projects: Number.isSafeInteger(body.projects) ? body.projects : 0,
+    nextCursor: typeof body.nextCursor === "string" && body.nextCursor ? body.nextCursor : null,
+    partial: body.partial === true,
+  };
+}
+
+const itemKey = (item) => `${item.jobId}#${item.index}`;
+
+/** The grid after "Muat lagi": the next page appended, a clip already shown kept once. */
+export function mergeClipPages(current, next) {
+  const seen = new Set(current.map(itemKey));
+  return [...current, ...next.filter((item) => !seen.has(itemKey(item)))];
+}
+
+/** The clip in its project: the project page opens with it in the detail panel. */
+export function clipHref(item) {
+  return `/projects/${encodeURIComponent(item.jobId)}?klip=${item.index}`;
+}
+
+const DAY_FORMAT = new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short" });
+const DAY_YEAR_FORMAT = new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", year: "numeric" });
+
+function shortDay(value, now) {
+  const date = typeof value === "string" ? new Date(value) : null;
+  if (!date || Number.isNaN(date.valueOf())) return null;
+  return (date.getFullYear() === now.getFullYear() ? DAY_FORMAT : DAY_YEAR_FORMAT).format(date).replace(/\./g, "");
+}
+
+/** What a poster card shows, and its one-line description for screen readers. */
+export function clipCardView(item, now = new Date()) {
+  const number = String(item.index).padStart(2, "0");
+  const length = formatTimestamp(item.duration);
+  const pill = scorePillFor(item.score);
+  const project = typeof item.projectName === "string" && item.projectName ? item.projectName : null;
+  const day = shortDay(item.createdAt, now);
+  return {
+    number,
+    title: item.title || clipLabel({ index: item.index }),
+    length,
+    pill,
+    project,
+    day,
+    meta: [`Klip ${number}`, length, pill && `skor ${pill.text}`, project, day].filter(Boolean).join(", "),
+  };
+}
+
+/** The line under "Riwayat klip": every clip and the projects they come from. */
+export function librarySummary({ total, projects }) {
+  return total > 0 ? `${total} klip dari ${projects} proyek` : "Belum ada klip";
+}
+
+/** How much of the result the grid shows ("24 dari 128 klip"). */
+export function shownSummary({ shown, matched }) {
+  return shown < matched ? `${shown} dari ${matched} klip` : `${matched} klip`;
+}

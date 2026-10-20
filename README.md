@@ -299,6 +299,21 @@ from the job's own `output/clip-NN.mp4` files; each file is read once for its CR
 while it is sent. `MAX_ZIP_BYTES` (default 2 GiB) limits it with an Indonesian message
 (`docs/editor/OPERASIONAL.md` §2).
 
+## Riwayat: proyek atau klip
+
+**Bahasa Indonesia.** Riwayat (`/projects`) punya dua tampilan, **Proyek | Klip**; pilihan
+terakhir diingat browser. **Klip** menampilkan klip dari semua proyek yang selesai dengan poster
+yang sama seperti di halaman proyek, proyek terbaru di atas. Kolom cari menerima judul klip, nama
+proyek, atau URL sumber (tautan YouTube dalam bentuk lain tetap ketemu). Chip **Skor 8+** dan
+**Minggu ini** (sejak Senin 00.00) menyaring grid, dan **Muat lagi** menambah 24 klip berikutnya.
+Setiap poster membuka klipnya di halaman proyek (`/projects/<id>?klip=N`).
+
+**English.** `GET /api/clips?q=&high=1&since=<ISO>&cursor=&limit=` (`web/lib/clip-library.mjs`)
+reads `job.json` through `serializePublicJob` and returns only what a poster needs. Job files are
+cached by inode, size and mtime; one request reads at most 400 changed files and 24 MiB (2 MiB
+each), newest first, and answers `partial` when some are left for the next request. Pages hold 24
+clips (at most 48) behind a cursor, so a project that finishes in between does not shift them.
+
 ## Editor klip
 
 **Bahasa Indonesia.** Tombol **Edit klip** di setiap klip membuka editor (desktop, Chrome atau
