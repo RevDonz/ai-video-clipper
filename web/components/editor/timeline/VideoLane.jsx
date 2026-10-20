@@ -1,7 +1,8 @@
 "use client";
 
 // The video lane (plan Appendix C.3): the pieces of the plan, ⋯ markers at jump cuts, the cold-open
-// block in its own colour and the trim handles on the body's edges. A dragged edge is magnet-
+// block in its own colour, the manual framing keyframes as lime diamonds (CONTRACTS §5.41) and
+// the trim handles on the body's edges. A dragged edge is magnet-
 // snapped to the words artifact's `bounds` table; holding Alt frees the ghost for the view only,
 // because the stored value is always a `bounds` frame (TrimStart/TrimEnd take the word next to the
 // gap, Appendix B). Arrow keys on a handle move the edge to the adjacent word gap.
@@ -9,6 +10,7 @@
 // `notify` and `readOnly`.
 import { useRef, useState } from "react";
 
+import { keyframeMarks } from "../../../lib/editor/framing.mjs";
 import styles from "../shell.module.css";
 import { formatClock, rejectionText, sfToMs } from "../shell-model.mjs";
 import { bodySegment, cutMarkers, edgeFrames, pieceBlocks, snapTrim, stepTrim } from "./timeline-model.mjs";
@@ -30,6 +32,7 @@ export default function VideoLane({ plan, state, dispatch, pxPerFrame = 1, notif
   const edges = edgeFrames(plan);
   const blocks = pieceBlocks(plan);
   const markers = cutMarkers(plan);
+  const keyframes = keyframeMarks(doc, plan);
   const fps = doc?.output?.fps ?? plan?.fps;
   const disabled = readOnly || !body || !words || state?.status !== "ready";
   const windowSf = windowFrames(doc);
@@ -126,6 +129,16 @@ export default function VideoLane({ plan, state, dispatch, pxPerFrame = 1, notif
           role="img"
           aria-label={`${marker.kind === "join" ? "Sambungan cold open" : "Potongan"} di ${formatClock(sfToMs(marker.f, plan?.fps))}`}
           data-marker={marker.kind}
+        />
+      ))}
+      {keyframes.map((mark) => (
+        <span
+          key={`keyframe-${mark.sf}`}
+          className={styles.keyframeMark}
+          style={{ left: mark.f * pxPerFrame }}
+          role="img"
+          aria-label={`Keyframe bingkai di ${formatClock(sfToMs(mark.f, plan?.fps))}`}
+          data-keyframe-mark={mark.f}
         />
       ))}
       {handle("start")}

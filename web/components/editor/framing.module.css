@@ -1,0 +1,180 @@
+/* The "Atur bingkai" dialog (FramingDialog.jsx). Header, body padding and footer come from
+   shell.module.css; this file lays out the picture and its result, the scrubber with the
+   keyframes and the keyframe row. Lime: the box (gizmos/frame.module.css), the keyframe diamonds
+   (asked for by the plan, as on the timeline) and "Selesai", the dialog's one primary. */
+
+.dialog {
+  width: min(1040px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  padding: 0;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--ed-radius-lg);
+  background: var(--surface);
+  box-shadow: var(--ed-shadow-popover);
+  color: var(--text);
+}
+
+.dialog::backdrop {
+  background: var(--shadow);
+}
+
+.body {
+  gap: var(--ed-space-3);
+}
+
+.status {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--ed-font-size-sm);
+}
+
+.message {
+  margin: 0;
+  padding: var(--ed-space-1) var(--ed-space-2);
+  border-radius: var(--ed-radius-sm);
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: var(--ed-font-size-sm);
+}
+
+/* The picture takes the room; the result keeps a fixed 9:16 column beside it. */
+.stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 160px;
+  gap: var(--ed-space-4);
+  align-items: start;
+}
+
+.pictureSlot {
+  width: 100%;
+  justify-self: center;
+}
+
+.result {
+  display: grid;
+  gap: var(--ed-space-1);
+  margin: 0;
+}
+
+.resultLabel {
+  color: var(--text-muted);
+  font-size: var(--ed-font-size-xs);
+  font-weight: 600;
+}
+
+.resultFrame {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 9 / 16;
+  border-radius: var(--ed-radius-md);
+  background-color: var(--bg);
+  background-repeat: no-repeat;
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+.resultFrame[data-empty] span {
+  padding: var(--ed-space-2);
+  color: var(--text-muted);
+  font-size: var(--ed-font-size-xs);
+  text-align: center;
+}
+
+.transport {
+  display: grid;
+  grid-template-columns: auto auto auto minmax(0, 1fr);
+  gap: var(--ed-space-2);
+  align-items: center;
+}
+
+.time {
+  min-width: 15ch;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--ed-font-size-sm);
+  text-align: center;
+}
+
+/* The keyframes sit on the track as lime diamonds; the native range input stays the control. */
+.scrub {
+  position: relative;
+  display: grid;
+  align-items: center;
+  min-height: var(--ed-target);
+}
+
+.range {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--text);
+  cursor: pointer;
+}
+
+.range:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 4px;
+}
+
+.marks {
+  position: absolute;
+  inset: 0 8px;
+  pointer-events: none;
+}
+
+.mark {
+  position: absolute;
+  top: calc(50% - 16px);
+  width: 9px;
+  height: 9px;
+  margin-left: -4.5px;
+  border-radius: 1px;
+  background: var(--accent);
+  box-shadow: 0 0 0 1.5px var(--bg);
+  transform: rotate(45deg);
+}
+
+.mark[data-here] {
+  box-shadow: 0 0 0 1.5px var(--bg), 0 0 0 3px var(--text);
+}
+
+.keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ed-space-3);
+  align-items: flex-end;
+}
+
+.keyNav,
+.keyEdit {
+  display: flex;
+  gap: var(--ed-space-2);
+}
+
+.note {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--ed-font-size-xs);
+}
+
+.footer {
+  justify-content: space-between;
+}
+
+@media (max-width: 760px) {
+  .stage {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .result {
+    width: 120px;
+    justify-self: center;
+  }
+
+  .transport {
+    grid-template-columns: auto auto auto;
+  }
+
+  .scrub {
+    grid-column: 1 / -1;
+  }
+}

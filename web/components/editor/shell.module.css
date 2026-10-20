@@ -1009,6 +1009,21 @@
   content: "";
 }
 
+/* A manual framing keyframe (CONTRACTS §5.41): a small lime diamond at the lane's foot. */
+.keyframeMark {
+  position: absolute;
+  z-index: 2;
+  bottom: 3px;
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  border-radius: 1px;
+  background: var(--accent);
+  box-shadow: 0 0 0 1.5px var(--bg);
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+
 .handle {
   position: absolute;
   z-index: 3;
