@@ -16,6 +16,8 @@ const PACKS = ["classic", "karaoke", "bold", "box", "sorot"];
 const PACK_WORDS = { classic: 4, karaoke: 4, bold: 3, box: 3, sorot: 3 };
 // The hook design files (resources/hook-designs), all at v 1.
 const HOOK_DESIGNS = ["legacy-bar", "kicker", "blok", "kotak"];
+// "Animasi masuk": "none" is no key at all.
+const ENTRANCES = ["none", "fade", "pop", "blur"];
 const MERGE_WINDOW_MS = 500;
 
 function reject(code) {
@@ -277,9 +279,11 @@ export function createHarnessStore({ words, doc, readOnly = false, planDelayMs =
         highlight: () => SWATCHES.includes(value),
         emphasis: () => SWATCHES.includes(value),
         words_max: () => Number.isInteger(value) && value >= 1 && value <= 4,
+        entrance: () => ENTRANCES.includes(value),
       }[key];
       if (!ok || !ok()) reject("range_invalid");
       if (key === "words_max" && value === PACK_WORDS[d.captions.pack.id]) delete d.captions.overrides.words_max;
+      else if (key === "entrance" && value === "none") delete d.captions.overrides.entrance;
       else d.captions.overrides[key] = value;
     },
     SetHookEnabled(d, { on, text }) {

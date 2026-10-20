@@ -243,6 +243,13 @@ def test_unknown_keys_are_rejected_at_every_level(contexts, mutate, path):
     assert (error.code, error.path) == ("unknown_key", path)
 
 
+def test_the_caption_entrance_is_a_known_override_key(contexts):
+    # "Animasi masuk" (CONTRACTS §5.39) parses under schema_minor 0; its values are validated.
+    doc = rev1(contexts["c30"])
+    doc["captions"]["overrides"]["entrance"] = "pop"
+    assert parse_doc(_raw(doc))["captions"]["overrides"]["entrance"] == "pop"
+
+
 def _logo_and_music(context) -> dict:
     doc = rev1(context)
     doc["tracks"].append({"id": "tr_ovr", "kind": "visual", "band": "over_text",
@@ -597,6 +604,12 @@ RULES = [
     ("c30", lambda d: d["captions"]["overrides"].update(words_max=None), "range_invalid",
      "/captions/overrides/words_max"),
     ("c30", lambda d: d["captions"]["pack"].update(id="sorot"), None, None),
+    # "Animasi masuk": optional, none / fade / pop / blur; absent is none (CONTRACTS §5.39)
+    *[("c30", lambda d, value=value: d["captions"]["overrides"].update(entrance=value), None, None)
+      for value in ("none", "fade", "pop", "blur")],
+    *[("c30", lambda d, value=value: d["captions"]["overrides"].update(entrance=value),
+       "range_invalid", "/captions/overrides/entrance")
+      for value in ("bounce", "Fade", "", 1, True, None, ["fade"])],
     ("c30", lambda d: d["captions"]["pack"].update(id="neon"), "pack_unknown", "/captions/pack"),
     ("c30", lambda d: d["captions"].update(word_edits={f"w{n:06d}": {"hidden": True}
                                                         for n in range(6001)}),

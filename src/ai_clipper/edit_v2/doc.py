@@ -31,6 +31,7 @@ from json.decoder import scanstring
 from typing import Any
 
 from . import (
+    CAPTION_ENTRANCES,
     COMPILER_ID,
     DOC_FPS,
     HOOK_DESIGN_IDS,
@@ -376,7 +377,7 @@ _ROOT = _compile(_keys(
                joins=_List(_keys("after", "style", "audio_fade_ms", sfx=_keys("id", "v")))),
     captions=_keys("enabled", pack=_keys("id", "v"),
                    overrides=_keys("y_e5", "size_pm", "case", "highlight", "emphasis",
-                                   "words_max"),
+                                   "words_max", "entrance"),
                    word_edits=_Map(_keys("text", "hidden", "emphasis"))),
     layout=_keys(default=_keys("mode", "no_face")),
     tracks=_List(_Kind(_TRACKS, _TRACK_ANY)),
@@ -1110,6 +1111,8 @@ class _Validator:
             self.string(overrides, "emphasis", op, choices=SWATCHES)
             if "words_max" in overrides:  # optional; absent = the pack's words_per_cue
                 self.integer(overrides, "words_max", op, *WORDS_MAX_RANGE)
+            if "entrance" in overrides:  # optional; absent = "none" (CONTRACTS §5.39)
+                self.string(overrides, "entrance", op, choices=CAPTION_ENTRANCES)
         edits = self.field(captions, "word_edits", path)
         if edits is _MISSING or self.obj(edits, "/captions/word_edits") is None:
             return

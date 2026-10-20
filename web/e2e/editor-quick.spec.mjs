@@ -332,6 +332,15 @@ test.describe("Mode Cepat cards (harness: real store and commands)", () => {
     expect(plan.cues.map((cue) => cue.text)).toEqual(["KENAPA SUTRADARA", "DITAHAN DI", "FILM SENDIRI?", "JADI WAKTU", "ITU KITA", "DATANG SUBUH"]);
     await words.getByRole("radio", { name: "3" }).check();
     expect(await lastSent(page)).toEqual({ type: "SetCaptionOverride", args: { key: "words_max", value: 3 }, mergeKey: null });
+    // Animasi masuk: Tanpa is pressed until a pick; Tanpa again sends "none" (the key goes).
+    const entrance = card.getByRole("group", { name: "Animasi masuk" });
+    await expect(entrance.getByRole("radio")).toHaveCount(4);
+    await expect(entrance.getByRole("radio", { name: "Tanpa" })).toBeChecked();
+    await entrance.getByRole("radio", { name: "Pop" }).check();
+    expect(await lastSent(page)).toEqual({ type: "SetCaptionOverride", args: { key: "entrance", value: "pop" }, mergeKey: null });
+    await expect(entrance.getByRole("radio", { name: "Pop" })).toBeChecked();
+    await entrance.getByRole("radio", { name: "Tanpa" }).check();
+    expect(await lastSent(page)).toEqual({ type: "SetCaptionOverride", args: { key: "entrance", value: "none" }, mergeKey: null });
     await card.getByRole("group", { name: "Posisi" }).getByRole("radio", { name: "Tengah" }).check();
     expect(await lastSent(page)).toEqual({ type: "SetCaptionOverride", args: { key: "y_e5", value: 60000 }, mergeKey: null });
     await expect(header(page, "caption")).toContainText("Bold · Besar · Tengah");

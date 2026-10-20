@@ -704,6 +704,14 @@ def _valid(contexts: Mapping[str, Context]) -> list[_Fixture]:
         d = _Doc(c30, "SetCaptionOverride")
         d.doc["captions"]["overrides"]["words_max"] = words_max
         add(f"words_max_{words_max}", d)
+    # "Animasi masuk" (CONTRACTS §5.39): each entrance on a pack with another event shape.
+    for entrance, pack in (("none", "karaoke"), ("fade", "karaoke"), ("pop", "bold"),
+                           ("blur", "sorot")):
+        d = _Doc(c30, "SetCaptionOverride")
+        d.doc["captions"]["pack"]["id"] = pack
+        d.doc["captions"]["overrides"]["case"] = "upper" if pack in ("bold", "sorot") else "asis"
+        d.doc["captions"]["overrides"]["entrance"] = entrance
+        add(f"entrance_{entrance}", d)
     d = _Doc(c30, "SetCaptionOverride")
     d.doc["captions"]["overrides"].update(y_e5=20000, size_pm=700)
     add("overrides_min", d)
@@ -952,6 +960,7 @@ def _invalid(contexts: Mapping[str, Context]) -> list[_Fixture]:
         ("emphasis_not_string", "emphasis", 16751242),
         ("words_max_zero", "words_max", 0), ("words_max_five", "words_max", 5),
         ("words_max_string", "words_max", "3"),
+        ("entrance_value", "entrance", "bounce"), ("entrance_not_string", "entrance", 1),
     ):
         add("range_invalid", variant, f"/captions/overrides/{key}",
             mutated(lambda b, key=key, value=value: b.doc["captions"]["overrides"].update(
