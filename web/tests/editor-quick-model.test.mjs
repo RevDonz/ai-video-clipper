@@ -14,10 +14,13 @@ import {
   CAPTION_PACKS,
   CAPTION_POSITIONS,
   CAPTION_SIZES,
+  CAPTION_ENTRANCE_OPTIONS,
   CAPTION_NOTES,
   CAPTION_WORDS,
   HOOK_NEAR_BAND_E5,
   captionCommand,
+  captionEntranceCommand,
+  captionEntranceId,
   captionPackCommand,
   captionWordsCommand,
   captionWordsId,
@@ -129,6 +132,19 @@ test("Kata per baris: four pills, the pack's count pressed until the clip sets i
   const cues = fakePlan(one).cues;
   assert.ok(cues.length > fakePlan(fakeDoc()).cues.length);
   assert.ok(cues.every((cue) => cue.words.length === 1));
+});
+
+test("Animasi masuk: four pills, Tanpa pressed until the clip picks an entrance", () => {
+  assert.deepEqual(CAPTION_ENTRANCE_OPTIONS.map((option) => [option.id, option.label]),
+    [["none", "Tanpa"], ["fade", "Fade"], ["pop", "Pop"], ["blur", "Blur"]]);
+  assert.equal(captionEntranceId(fakeDoc()), "none");
+  const pop = run(fakeDoc(), "SetCaptionOverride", { key: "entrance", value: "pop" });
+  assert.equal(captionEntranceId(pop), "pop");
+  assert.equal(captionEntranceId(run(pop, "SetCaptionPack", { id: "box" })), "pop", "a pack switch keeps it");
+  assert.equal(captionEntranceId(null), "none");
+  assert.deepEqual(captionEntranceCommand("blur"), { type: "SetCaptionOverride", args: { key: "entrance", value: "blur" }, mergeKey: null });
+  assert.deepEqual(captionEntranceCommand("none"), { type: "SetCaptionOverride", args: { key: "entrance", value: "none" }, mergeKey: null });
+  assert.throws(() => captionEntranceCommand("bounce"), TypeError);
 });
 
 // --- summaries -----------------------------------------------------------------------------------

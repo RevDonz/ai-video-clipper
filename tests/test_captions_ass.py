@@ -1146,3 +1146,97 @@ def test_overrides_accept_words_max_from_one_to_four_only():
     for value in (0, 5, "3", True, None):
         with pytest.raises(ValueError, match="words_max"):
             _v2((_fcue((0, 30, "halo")),), "classic", words_max=value)
+
+
+# --- "Animasi masuk": a short entrance per caption line (CONTRACTS §5.39) -------------------------
+
+ENTRANCE_CUES = (
+    _fcue((0, 2, "gue"), (2, 20, "bukan"), (20, 31, "jambret.")),  # a 2-frame first window
+    _fcue((40, 52, "Dia"), (52, 60, "ditahan"), (60, 70, "security"), (70, 90, "SENDIRI")),
+    _fcue((120, 150, "Supercalifragilisticexpialidocious"), (150, 170, "kawan")),
+)
+
+
+def _entrance(entrance, window_ms, height=1280):
+    """The opening block of a line, from the contract's numbers (not from the module)."""
+    duration = min(120, window_ms)
+    if entrance == "fade":
+        return f"{{\\fad({duration},0)}}"
+    if entrance == "pop":
+        turn = _rhu(2 * duration, 3)
+        return (f"{{\\fscx70\\fscy70\\t(0,{turn},\\fscx108\\fscy108)"
+                f"\\t({turn},{duration},\\fscx100\\fscy100)}}")
+    radius = _rhu(100 * height, 128)
+    radius = str(radius // 100) if radius % 100 == 0 else f"{radius / 100:g}"
+    return f"{{\\fad({duration},0)\\blur{radius}\\t(0,{duration},\\blur0)}}"
+
+
+def test_overrides_accept_the_four_entrances_only():
+    for value in ("none", "fade", "pop", "blur"):
+        _v2((_fcue((0, 30, "halo")),), "classic", entrance=value)
+    for value in ("bounce", "Fade", "", 1, True, None):
+        with pytest.raises(ValueError, match="entrance"):
+            _v2((_fcue((0, 30, "halo")),), "classic", entrance=value)
+
+
+@pytest.mark.parametrize("pack", PACK_IDS)
+def test_no_entrance_and_none_write_the_same_bytes(pack):
+    hook = HookSpec("Dia ditahan security", 0, 60, 13000)
+    assert (_v2(ENTRANCE_CUES, pack, hook=hook, entrance="none")
+            == _v2(ENTRANCE_CUES, pack, hook=hook))
+
+
+@pytest.mark.parametrize("entrance", ["fade", "pop", "blur"])
+@pytest.mark.parametrize("pack", PACK_IDS)
+def test_the_entrance_opens_only_the_first_window_of_each_line(pack, entrance):
+    hook = HookSpec("Dia ditahan security", 0, 60, 13000)
+    plain = _v2(ENTRANCE_CUES, pack, hook=hook)
+
+    animated = _v2(ENTRANCE_CUES, pack, hook=hook, entrance=entrance)
+
+    # Every event keeps its frames, layer and style: only the text of a line's first window
+    # gains the opening block, and the hook and the header do not change at all.
+    assert animated.split("[Events]")[0] == plain.split("[Events]")[0]
+    lines = fit_cues(ENTRANCE_CUES, pack=load_pack(pack, 1), play_res=(720, 1280),
+                     overrides=OVERRIDES[pack])
+    openings = {max(0, safe_cs(cue.f0, NTSC)) for cue in lines}
+    before, after = _events(plain), _events(animated)
+    assert len(before) == len(after)
+    opened = 0
+    for old, new in zip(before, after, strict=True):
+        assert {k: v for k, v in new.items() if k != "Text"} == {
+            k: v for k, v in old.items() if k != "Text"}
+        start = _centiseconds(old["Start"])
+        if old["Style"] != "Hook" and start in openings:
+            window = 10 * (_centiseconds(old["End"]) - start)
+            assert new["Text"] == _entrance(entrance, window) + old["Text"]
+            opened += 1
+        else:
+            assert new["Text"] == old["Text"]
+    # Sorot's first window is every word of the line plus the box; the other packs draw a line
+    # as one event.
+    if pack == "sorot":
+        assert opened == sum(len(cue.words) + 1 for cue in lines)
+    else:
+        assert opened == len(lines)
+
+
+def test_an_entrance_never_outlasts_the_first_window_of_its_line():
+    # "gue" is on screen for two frames (70 ms at 29.97): the entrance is that long, then the
+    # next word's window shows the line settled.
+    events = _events(_v2(ENTRANCE_CUES[:1], "bold", entrance="fade"))
+    first = 10 * (_centiseconds(events[0]["End"]) - _centiseconds(events[0]["Start"]))
+    assert first < 120
+    assert events[0]["Text"].startswith(f"{{\\fad({first},0)}}")
+    assert "\\fad" not in events[1]["Text"]
+    [line] = _events(_v2(ENTRANCE_CUES[1:2], "classic", entrance="pop"))
+    assert line["Text"].startswith("{\\fscx70\\fscy70\\t(0,80,\\fscx108\\fscy108)"
+                                   "\\t(80,120,\\fscx100\\fscy100)}")
+
+
+def test_blur_starts_at_one_128th_of_the_output_height():
+    small = _events(_v2(ENTRANCE_CUES[1:2], "classic", entrance="blur"))[0]["Text"]
+    large = _events(_v2(ENTRANCE_CUES[1:2], "classic", size=(1080, 1920),
+                        entrance="blur"))[0]["Text"]
+    assert small.startswith("{\\fad(120,0)\\blur10\\t(0,120,\\blur0)}")
+    assert large.startswith("{\\fad(120,0)\\blur15\\t(0,120,\\blur0)}")

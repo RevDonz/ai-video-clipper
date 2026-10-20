@@ -23,7 +23,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any
 
-from .edit_v2 import WORDS_MAX_RANGE
+from .edit_v2 import CAPTION_ENTRANCES, WORDS_MAX_RANGE
 from .edit_v2.glyphs import RESOURCES_DIR, advance_units, font_path
 from .edit_v2.timemap import Fps, div_round_half_up, safe_cs
 from .subtitles import CaptionCue, FrameCue, FrameWord, clean_caption_text
@@ -435,6 +435,11 @@ _RESOURCE_ID = re.compile(r"[a-z][a-z0-9-]{0,31}")
 _OVERRIDE_KEYS = ("y_e5", "size_pm", "case", "highlight", "emphasis")
 _WORD_BOX_KEYS = frozenset({"pad_x_pm", "top_pm", "radius_pm", "dark_text", "light_text",
                             "dark_from_lstar"})
+# "Animasi masuk" (CONTRACTS §5.39): every line opens within this many milliseconds. Pop starts at
+# 70% and overshoots to 108% before it settles; Blur starts at a radius of H/128.
+ENTRANCE_MS = 120
+_POP_SCALES = (70, 108)
+_BLUR_START = (1, 128)
 _E5 = 100_000
 # Hook designs (CONTRACTS §5.33): the seeds' bar, whose geometry is the code below, and the
 # layouts of the designs whose geometry is their file.
@@ -890,11 +895,33 @@ def _check_overrides(overrides: Mapping[str, Any]) -> None:
         low, high = WORDS_MAX_RANGE
         if not _is_int(overrides["words_max"]) or not low <= overrides["words_max"] <= high:
             raise ValueError(f"overrides.words_max must be an integer {low}-{high}")
+    if "entrance" in overrides and not (isinstance(overrides["entrance"], str)
+                                        and overrides["entrance"] in CAPTION_ENTRANCES):
+        raise ValueError(f"overrides.entrance must be one of {', '.join(CAPTION_ENTRANCES)}")
 
 
 def words_per_cue(pack: CaptionPack, overrides: Mapping[str, Any]) -> int:
     """At most this many words per caption line: ``words_max`` when set, else the pack's."""
     return overrides.get("words_max", pack.words_per_cue)
+
+
+def _entrance_tags(entrance: str, window_ms: int, height: int) -> str:
+    """The block that opens a caption line: empty for ``none``, otherwise an entrance of at most
+    ``ENTRANCE_MS`` that never outlasts the line's first window (CONTRACTS §5.39)."""
+    duration = min(ENTRANCE_MS, window_ms)
+    if entrance == "none" or duration <= 0:
+        return ""
+    if entrance == "fade":
+        return f"{{\\fad({duration},0)}}"
+    if entrance == "pop":
+        start, peak = _POP_SCALES
+        turn = div_round_half_up(2 * duration, 3)
+        return (f"{{\\fscx{start}\\fscy{start}\\t(0,{turn},\\fscx{peak}\\fscy{peak})"
+                f"\\t({turn},{duration},\\fscx100\\fscy100)}}")
+    # libass blurs only the outline of outlined text, so the line also fades in.
+    num, den = _BLUR_START
+    radius = _centi_text(div_round_half_up(100 * height * num, den))
+    return f"{{\\fad({duration},0)\\blur{radius}\\t(0,{duration},\\blur0)}}"
 
 
 def _srgb_linear(channel: int) -> float:
@@ -1220,13 +1247,18 @@ def _karaoke_line(cue: FrameCue, *, start_cs: int, end_cs: int, fps: Fps, case: 
 def _caption_events(cues: Sequence[FrameCue], *, pack: CaptionPack, fps: Fps,
                     play_res: tuple[int, int], overrides: Mapping[str, Any]) -> list[str]:
     case = overrides["case"]
+    entrance = overrides.get("entrance", "none")
     text_colour = _inline_colour(pack.text_colour)
     emphasis = _inline_colour(overrides["emphasis"])
     highlight = _inline_colour(overrides["highlight"])
+    width, height = play_res
 
-    def event(first: int, last: int, text: str) -> str:
-        start, end = _ass_time_cs(max(0, safe_cs(first, fps))), _ass_time_cs(safe_cs(last, fps))
-        return f"Dialogue: 0,{start},{end},{pack.style_name},,0,0,0,,{text}"
+    def dialogue(first: int, last: int, text: str, *, opening: int) -> str:
+        start, end = max(0, safe_cs(first, fps)), safe_cs(last, fps)
+        if first == opening:  # every event of the line's first window carries its entrance
+            text = _entrance_tags(entrance, 10 * (end - start), height) + text
+        return (f"Dialogue: 0,{_ass_time_cs(start)},{_ass_time_cs(end)},{pack.style_name},,0,0,0,,"
+                f"{text}")
 
     def static(words: Sequence[FrameWord], active: int | None = None) -> str:
         return " ".join(
@@ -1237,8 +1269,8 @@ def _caption_events(cues: Sequence[FrameCue], *, pack: CaptionPack, fps: Fps,
         )
 
     events = []
-    width, height = play_res
     for cue in fit_cues(cues, pack=pack, play_res=play_res, overrides=overrides):
+        event = functools.partial(dialogue, opening=cue.f0)
         if pack.reveal == "karaoke":
             start_cs = max(0, safe_cs(cue.f0, fps))
             events.append(event(cue.f0, cue.f1, _karaoke_line(
@@ -1417,7 +1449,9 @@ def build_ass_v2(
     ``ass_escape``. A ``box_style: vector`` pack draws each box as a ``\\p`` rectangle event
     right before its line (plan §5.4, the fallback if BorderStyle 3 fails P-TXT); a
     ``word_box`` pack draws a rounded ``\\p`` box behind the spoken word (CONTRACTS §5.30). A
-    hook in a design other than the bar writes that design's style and events (§5.33).
+    hook in a design other than the bar writes that design's style and events (§5.33). The
+    override ``entrance`` opens the first window of every caption line with a fade, pop or blur
+    of at most ``ENTRANCE_MS``; no event moves (§5.39).
     """
     if (not isinstance(play_res, (tuple, list)) or len(play_res) != 2
             or not all(_is_int(value) and value > 0 for value in play_res)):

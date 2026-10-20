@@ -217,7 +217,7 @@ const GENERATORS = {
   SetCaptionPack(rng) {
     return { id: chance(rng, 0.05) ? "neon" : pick(rng, PACK_IDS) };
   },
-  SetCaptionOverride(rng, _doc, _context, key = pick(rng, ["y_e5", "size_pm", "case", "highlight", "emphasis", "words_max"])) {
+  SetCaptionOverride(rng, _doc, _context, key = pick(rng, ["y_e5", "size_pm", "case", "highlight", "emphasis", "words_max", "entrance"])) {
     const value = {
       y_e5: () => int(rng, 19000, 93000),
       size_pm: () => int(rng, 650, 1450),
@@ -225,6 +225,7 @@ const GENERATORS = {
       highlight: () => pick(rng, [...SWATCHES, "#123456"]),
       emphasis: () => pick(rng, [...SWATCHES, "#ff5c8a"]),
       words_max: () => pick(rng, [1, 2, 3, 3, 4, 4, 0, 5, "2"]),
+      entrance: () => pick(rng, ["none", "fade", "pop", "blur", "blur", "bounce", "Pop"]),
     }[key]();
     return { key, value };
   },

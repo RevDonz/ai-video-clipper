@@ -2,13 +2,14 @@
 
 // The text panel (plan §11.2 T2.7, §3.3, §5.4; T3.4 §7.1): captions on/off, the packs
 // (thumbnails rendered by FFmpeg from the pack files, pack-thumbs/), position, size, words per line
-// (CONTRACTS §5.30), uppercase, and the highlight and keyword swatches; the hook on/off, its text
-// with a counter and the fit badge from the server's layout ("Muat" / "Akan terpotong"), the hook
-// suggestions under the text field, the design (thumbnails from hook-thumbs/, CONTRACTS §5.33),
-// duration and position. Every change is one Appendix B command; sliders and typing merge into
-// one undo step through their merge keys. The caption and hook rules (commands, notes, the hint
-// that the caption sits near the hook) are caption-model.mjs and hook-model.mjs, shared with Mode
-// Cepat's Caption and Hook cards (docs/plans/2026-10-02-editor-mode-cepat.md §1.4, §3).
+// (CONTRACTS §5.30), the entrance (§5.39), uppercase, and the highlight and keyword swatches; the
+// hook on/off, its text with a counter and the fit badge from the server's layout ("Muat" / "Akan
+// terpotong"), the hook suggestions under the text field, the design (thumbnails from
+// hook-thumbs/, CONTRACTS §5.33), duration and position. Every change is one Appendix B command;
+// sliders and typing merge into one undo step through their merge keys. The caption and hook
+// rules (commands, notes, the hint that the caption sits near the hook) are caption-model.mjs and
+// hook-model.mjs, shared with Mode Cepat's Caption and Hook cards
+// (docs/plans/2026-10-02-editor-mode-cepat.md §1.4, §3).
 // Props: { state, dispatch, player, api? } (panels/index.mjs). Without an `api` prop the panel
 // uses the fake runtime's client (dev and CI) or its own client for the store's job and clip.
 import { useEffect, useRef, useState } from "react";
@@ -19,10 +20,13 @@ import PillGroup from "../ui/PillGroup.jsx";
 import Swatches from "../ui/Swatches.jsx";
 import Switch from "../ui/Switch.jsx";
 import {
+  CAPTION_ENTRANCE_OPTIONS,
   CAPTION_PACKS,
   CAPTION_SWATCHES,
   CAPTION_WORDS,
   captionCommand,
+  captionEntranceCommand,
+  captionEntranceId,
   captionPackCommand,
   captionWordsCommand,
   captionWordsId,
@@ -146,6 +150,8 @@ function TextPanelBody({ state, dispatch, api }) {
         </label>
         <PillGroup legend="Kata per baris" name="caption-words" options={CAPTION_WORDS.map(({ id, label }) => ({ id, label }))}
           value={captionWordsId(doc)} disabled={readOnly} columns={4} onChange={(id) => send(captionWordsCommand(id))} />
+        <PillGroup legend="Animasi masuk" name="caption-entrance" options={CAPTION_ENTRANCE_OPTIONS.map(({ id, label }) => ({ id, label }))}
+          value={captionEntranceId(doc)} disabled={readOnly} columns={4} onChange={(id) => send(captionEntranceCommand(id))} />
         <label className={styles.check}>
           <input type="checkbox" checked={overrides.case === "upper"} disabled={readOnly}
             onChange={(event) => send(captionCommand("case", event.target.checked ? "upper" : "asis"))} />
