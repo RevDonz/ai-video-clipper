@@ -1,1 +1,1 @@
-"""AI video clipper technical spike."""
+"""Potongin's engine: long videos into vertical captioned clips."""

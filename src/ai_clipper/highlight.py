@@ -1,4 +1,4 @@
-"""Transcript-first highlight selection for the technical spike."""
+"""Transcript-first highlight selection for old v1/v2-shadow jobs and the benchmark baselines."""
 
 from __future__ import annotations
 

@@ -1,32 +1,78 @@
-# AI Video Clipper — Technical Spike
+# Potongin
 
-Runnable proof of concept for this flow:
+Potongin cuts a long video (a YouTube link or an uploaded file) into short vertical clips with
+burned-in captions, an on-screen hook, and a title, description and hashtags ready to post. Every
+clip opens in a clip editor for cuts, captions, layout, logo and music before export.
 
 ```text
-long-form MP4 → faster-whisper transcription → transcript highlight scoring
-→ vertical 9:16 crop → short subtitle cues → FFmpeg H.264/AAC clips
+YouTube URL or upload → YouTube captions or faster-whisper transcript → moment selection
+(free LLM providers first, local heuristic as fallback) → 9:16 layout, hook and captions
+→ FFmpeg H.264/AAC clips
 ```
 
-This repository is intentionally a technical spike, not yet the production SaaS.
+It runs as one self-hosted instance with a single login.
 
-## Web dashboard (Docker)
-
-The repository now includes a self-hosted Next.js dashboard that runs the Python
-engine in background jobs. It supports YouTube URLs or uploaded files, live job
-status, selectable render layout, video preview, and MP4 download.
+## Run with Docker
 
 ```bash
-cp .env.example .env
+cp .env.example .env   # then set APP_USERNAME, APP_PASSWORD and APP_SESSION_SECRET
 docker compose build
 docker compose up -d
-curl -fsS http://127.0.0.1:3000/api/health
+curl -fsS http://127.0.0.1:8100/api/health
 ```
 
-Open `http://SERVER_IP:3000`. For VM deployment through Nginx Proxy Manager and
-Cloudflare, follow `deploy/VM_NGINX_CLOUDFLARE.md`.
+`compose.yaml` starts three containers from one image: `app` (the web app, published only on
+`127.0.0.1:8100`), `primary-worker` (turns new videos into clips) and `render-worker` (renders the
+editor's exports). Put an HTTPS reverse proxy in front of the app: `deploy/VM_NGINX_CLOUDFLARE.md`.
+`JOBS_STORAGE_*` bound the disk the jobs may use (size them to the disk); no job is ever deleted
+automatically (`docs/operations/STORAGE_RETENTION.md`).
 
-The web MVP is designed for one trusted self-hosted instance. Put Cloudflare
-Access or Nginx authentication in front of it before exposing it publicly.
+Every page and API route except the landing page, `/login` and `/api/health` needs a session.
+Sign in with `APP_USERNAME` and `APP_PASSWORD`; failed logins are rate limited
+(`AUTH_RATE_LIMIT_*`). `APP_SESSION_SECRET` (random, at least 32 characters) signs the session
+and, unless `POTONGIN_SETTINGS_SECRET` is set, also seals the LLM keys saved on Pengaturan, so
+changing it means entering those keys again. The session cookie is `Secure`: outside localhost the
+app needs HTTPS. The trend endpoint for the owner's agent checks its own `ptk_` token instead
+("Konteks Tren" below).
+
+## Run locally
+
+Requirements: Linux or macOS with `ffmpeg` and `ffprobe` on `PATH`, Python 3.11+, `uv` and
+Node.js 20. The first transcription downloads a faster-whisper model. No API key is needed:
+without LLM keys the local heuristic picks the moments.
+
+```bash
+uv sync --frozen --extra transcribe --extra vision --extra web
+(cd web && npm ci)
+cp .env.example .env   # as above
+```
+
+Without compose, every terminal loads `.env` plus the values compose fills in itself, from the
+repository root:
+
+```bash
+set -a; . ./.env; set +a
+export PATH="$PWD/.venv/bin:$PATH" PYTHON_BIN="$PWD/.venv/bin/python" \
+  AI_CLIPPER_BIN="$PWD/.venv/bin/ai-clipper" \
+  JOBS_ROOT="$PWD/artifacts/local/jobs" POTONGIN_SETTINGS_DIR="$PWD/artifacts/local/settings" \
+  RENDER_STORAGE_CLI="$PWD/web/scripts/render-storage-admission.mjs" \
+  PRIMARY_MAX_ACTIVE_JOBS=4 PRIMARY_WORKER_CONCURRENCY=1 PRIMARY_MAX_ATTEMPTS=3 \
+  PRIMARY_LEASE_MS=60000 POTONGIN_EDITOR_V3=on POTONGIN_EDITOR_UPLOADS=on POTONGIN_EDITOR_LLM=on
+mkdir -p "$JOBS_ROOT" "$POTONGIN_SETTINGS_DIR"
+```
+
+Then one process per terminal:
+
+```bash
+(cd web && npm run dev -- -H 127.0.0.1 -p 3000)        # the web app: http://127.0.0.1:3000
+(cd web && node scripts/primary-worker.mjs)            # turns new videos into clips
+.venv/bin/python -m ai_clipper.render_worker --watch   # renders the editor's exports
+```
+
+LLM providers and keys are set on the Pengaturan page (`/settings`). The editor's export also
+needs a local `resources/toolchain.json` (`docs/editor/PANDUAN-EDITOR.md` §4).
+
+## Design
 
 Every page uses the dark design in `DESIGN.md`: one palette of tokens on `:root` in
 `web/app/globals.css` (listed with their contrast in `docs/design/TOKENS.md`), DM Sans, one
@@ -35,6 +81,8 @@ when a page, component, view library or worker script puts version wording on sc
 (V1/V2/V3, "Selection V", "Mode lama", "mesin lama/baru"), when a stylesheet or component
 uses a colour outside those tokens, or when a text/background pair the stylesheets use drops
 below WCAG AA (4.5:1).
+
+## The retired candidate editor
 
 The web app shows only the current method. The old candidate editor and its routes
 (`/projects/<id>/candidates/...`, `/api/jobs/<id>/candidates/...`,
@@ -60,34 +108,9 @@ queue's `--job-dir` protocol, and `web/lib/render-requests.mjs`. What old jobs n
 The storage helpers the clip editor shared with the old store now live in
 `src/ai_clipper/job_files.py`. Details: `docs/editor/GATES.md`, section "W4 T4.1".
 
-## Verified result
+## Engine CLI
 
-The included Indonesian demo was exercised end to end using `faster-whisper` model `small` on CPU. It produced two playable portrait clips:
-
-- `artifacts/demo-output-verified/clip-01.mp4` — 720×1280, 44.47 s
-- `artifacts/demo-output-verified/clip-02.mp4` — 720×1280, 23.70 s
-- Both use H.264 video, AAC audio, square pixels, and burned-in subtitles.
-- `artifacts/demo-output-verified/manifest.json` records boundaries, scores, transcript, and output paths.
-
-Generated media is excluded from Git because it is reproducible and relatively large.
-
-## Requirements
-
-- Linux/macOS with `ffmpeg` and `ffprobe`
-- Python 3.11+
-- `uv`
-- Internet access on first run to download a faster-whisper model
-
-No API key is required for the local CPU path.
-
-## Setup
-
-```bash
-cd /home/revdonz/Projects/ai-video-clipper
-uv sync --dev --extra transcribe --extra vision
-```
-
-## Run
+The workers run the Python engine; it also runs on its own:
 
 ```bash
 uv run ai-clipper /path/to/source.mp4 \
@@ -102,7 +125,7 @@ uv run ai-clipper /path/to/source.mp4 \
   --render-mode face-track
 ```
 
-For a CUDA machine, add `--device cuda`. The current machine has no `nvidia-smi`, so the verified demo used CPU inference and `libx264` rendering.
+On a CUDA machine, add `--device cuda`.
 
 The CLI defaults to the current selection (`--selection-mode v3`). The optional flags are
 `--llm auto|off|required`, `--no-cold-open`, `--no-hook-overlay`,
@@ -111,8 +134,6 @@ captions in `manual/` and `auto/`. `--selection-mode v1|v2-shadow` stays for too
 old jobs; the web worker passes it for jobs created with those modes. New jobs from the web
 always use the current selection: the job API answers a request for `v1` or `v2-shadow` with
 400 (`selection_mode_retired`).
-
-## Outputs
 
 Each run writes:
 
@@ -125,15 +146,16 @@ output/
 └── ...
 ```
 
-## Tests and lint
+## Tests
 
 ```bash
-uv run pytest
-uv run ruff check .
+uv run ruff check src tests && uv run pytest   # pyproject already adds -q
+(cd web && npm test && npm run build)
 ```
 
-Current verified Python result: **58 tests passed**. Targeted Ruff checks for the
-new Selection V2 domain models pass.
+The heavy gates (FFmpeg parity inside the production image, browser end-to-end runs, the nightly
+suite) run on GitHub Actions: `ci-cd.yml` on every pull request and `editor-gates.yml` on demand
+(`docs/editor/OPERASIONAL.md` §4).
 
 ## Selection V3: AI hook clips (setiap job baru)
 
@@ -250,8 +272,9 @@ teks, gambar teks dan audio yang terlihat sama dengan file akhir, kecuali kompre
 - Flag (`POTONGIN_EDITOR_V3`, `POTONGIN_EDITOR_UPLOADS`, `POTONGIN_EDITOR_LLM`,
   `POTONGIN_RENDER_ENGINE`), layanan, toolchain render yang dikunci, gerbang CI dan lisensi:
   [`docs/editor/OPERASIONAL.md`](docs/editor/OPERASIONAL.md). Bawaan rilis di `compose.yaml`:
-  editor, unggahan dan saran AI `on`, mesin render `edit-v2`; tiap flag bisa dimatikan lewat
-  `.env` tanpa build ulang (OPERASIONAL §2).
+  editor, unggahan dan saran AI `on`; klip otomatis dirender mesin `legacy` sampai pemilik
+  memutuskan kuota CPU (`edit-v2` = kompiler editor). Tiap flag bisa diubah lewat `.env` tanpa
+  build ulang (OPERASIONAL §2).
 - Hasil gerbang: [`docs/editor/GATES.md`](docs/editor/GATES.md); kontrak:
   [`docs/editor/CONTRACTS.md`](docs/editor/CONTRACTS.md); rencana:
   [`docs/plans/2026-09-24-editor-v3-esensial.md`](docs/plans/2026-09-24-editor-v3-esensial.md).
@@ -282,6 +305,8 @@ evidence (`gh workflow run ci-cd.yml --ref <branch> -f suite=toolchain`).
 - Authenticated Next.js dashboard, durable job queue with fenced leases, persistent
   project history with every clip ready to post, and project deletion
 - YouTube and direct upload ingestion through the web worker, with stage-based progress
+- Clip editor (desktop): cuts from the transcript, captions, hook, layout, logo and music, with
+  a preview that uses the export's FFmpeg compiler
 
 ## Important limitations
 
@@ -297,4 +322,5 @@ evidence (`gh workflow run ci-cd.yml --ref <branch> -f suite=toolchain`).
 - The worker is designed for one trusted self-hosted instance. There is no database,
   billing, or multi-tenant isolation.
 
-See `spikes/001-transcribe-highlight-render/README.md` for the evidence and verdict.
+The first proof of concept, its demo clips and verdict:
+`spikes/001-transcribe-highlight-render/README.md`.

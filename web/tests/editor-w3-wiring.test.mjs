@@ -1,7 +1,7 @@
 // Deployment flags in compose.yaml and .env.example: the release defaults of plan §11.4 T4.Z as the
 // owner decided them for W4 (the editor, its uploads after QG-SEC, its LLM part after the QG-AI
-// hard gates, the new engine once PF-PIPELINE is within budget per layout). Each flag can still be
-// switched off in .env without a rebuild; the filler pre-check is not a flag and stays off.
+// hard gates; the auto clips' engine stays legacy until the owner decides the CPU quota). Each flag
+// can still be changed in .env without a rebuild; the filler pre-check is not a flag and stays off.
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
