@@ -32,6 +32,18 @@ CAPTION_ENTRANCES = ("none", "fade", "pop", "blur")
 # Hook designs (resources/hook-designs/<id>/v1.json), every one at v 1: the bar the seeds write,
 # then Kicker, Blok and Kotak kata (CONTRACTS §5.33).
 HOOK_DESIGN_IDS = ("legacy-bar", "kicker", "blok", "kotak")
+# The optional text watermark (CONTRACTS §5.40): one line of at most 40 code points at one of
+# nine places inside the TikTok-safe area, its size per mille of H/40 and its opacity.
+WATERMARK_TEXT_MAX = 40
+WATERMARK_POSITIONS = (
+    "top_left", "top_center", "top_right",
+    "middle_left", "middle_center", "middle_right",
+    "bottom_left", "bottom_center", "bottom_right",
+)
+WATERMARK_SIZE_RANGE = (500, 2000)
+WATERMARK_OPACITY_RANGE = (200, 1000)
+# TikTok UI zone at 720×1280 (plan §5.9 G5): top, bottom, right; scaled to other sizes.
+UI_ZONE_720 = (93, 280, 93)
 
 # Plan §3.5 ("overrides at the pack defaults") and §5.4: every pack's default overrides. The
 # seed builder (T1.5) writes these; the pack files resources/caption-packs/<id>/v1.json (T1.2a)
@@ -65,6 +77,11 @@ __all__ = [
     "SCHEMA",
     "SCHEMA_MINOR",
     "SWATCHES",
+    "UI_ZONE_720",
+    "WATERMARK_OPACITY_RANGE",
+    "WATERMARK_POSITIONS",
+    "WATERMARK_SIZE_RANGE",
+    "WATERMARK_TEXT_MAX",
     "WORDS_MAX_RANGE",
     "WORDS_SCHEMA",
 ]

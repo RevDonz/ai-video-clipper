@@ -17,6 +17,7 @@ from support import edit_v2_text
 
 from ai_clipper.captions_ass import (
     HookSpec,
+    WatermarkSpec,
     build_ass_v2,
     fit_cues,
     layout_hook,
@@ -415,6 +416,41 @@ def test_an_entrance_opens_every_line_and_moves_no_cue(name, opening):
     assert all(not fields[9].startswith(opening) for fields in captions if fields not in opened)
 
 
+# --- The text watermark on a document (CONTRACTS §5.40) ---------------------------------------
+
+
+def test_the_documents_watermark_is_the_first_event_and_moves_nothing_else():
+    doc = _doc("seed__c30")
+    plain = _track(doc, "c30")
+    doc["watermark"] = {"text": "@potongin.klip", "pos": "bottom_right", "size_pm": 1200,
+                        "opacity_pm": 700}
+
+    result = _track(doc, "c30")
+
+    item = doc["tracks"][0]["items"][0]
+    hook = HookSpec(item["payload"]["text"], 0, item["dur_f"], item["transform"]["y_e5"])
+    spec = WatermarkSpec("@potongin.klip", "bottom_right", 1200, 700)
+    assert result.ass == build_ass_v2(
+        result.cues, play_res=(720, 1280), fps=Fps(30000, 1001),
+        total_frames=total_frames(pieces(doc)), pack=load_pack("karaoke", 1),
+        overrides=doc["captions"]["overrides"], hook=hook, watermark=spec)
+    assert result.cues == plain.cues and result.warnings == plain.warnings
+    events = _dialogues(result.ass)
+    assert events[0][3] == "Watermark" and events[1:] == _dialogues(plain.ass)
+
+
+def test_glyph_unsupported_is_raised_for_the_watermark_text():
+    doc = _doc("captions_disabled__c30")
+    doc["watermark"] = {"text": "Harga ₿ naik", "pos": "top_left", "size_pm": 1000,
+                        "opacity_pm": 850}
+
+    result = _track(doc, "c30")
+
+    assert [(i.code, i.path, i.ref, i.f) for i in result.warnings
+            if i.path == "/watermark/text"] == [
+        ("glyph_unsupported:U+20BF", "/watermark/text", None, 0)]
+
+
 # --- gate: ASS goldens (5 packs + every hook design) ----------------------------------------
 
 
@@ -422,12 +458,13 @@ def test_ass_goldens_cover_every_pack_and_the_hook():
     names = {name for name, _file, _context in edit_v2_text.GOLDEN_CASES}
     assert {"classic__c30", "karaoke__c30", "bold__c30", "box__c30", "sorot__c30", "hook__c30",
             "words_max_1__c30", "hook_kicker__c30", "hook_blok__c30", "hook_kotak__c30",
-            "entrance_fade__c30", "entrance_pop__c30", "entrance_blur__c30"} <= names
+            "entrance_fade__c30", "entrance_pop__c30", "entrance_blur__c30",
+            "watermark__c30", "watermark_max__c30", "watermark_min__c24"} <= names
     styles = set()
     for name in names:
         text = (edit_v2_text.GOLDEN_DIR / f"{name}.ass").read_text(encoding="utf-8")
         styles |= {fields[3] for fields in _dialogues(text)}
-    assert styles == {"Caption", "Karaoke", "Bold", "Box", "Sorot", "Hook"}
+    assert styles == {"Caption", "Karaoke", "Bold", "Box", "Sorot", "Hook", "Watermark"}
 
 
 def test_ass_goldens_on_disk_equal_a_fresh_render():

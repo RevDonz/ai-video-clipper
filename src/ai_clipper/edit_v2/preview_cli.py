@@ -434,8 +434,9 @@ def _fonts_manifest() -> dict[str, Any]:
 
 
 def _font_entries(doc: Mapping[str, Any]) -> list[dict[str, str]]:
-    """The font files the ASS can use: the pack's, the hook design's and the fallback (R6)."""
-    from ..captions_ass import load_pack
+    """The font files the ASS can use: the pack's, the hook design's, the text watermark's and
+    the fallback (R6)."""
+    from ..captions_ass import WATERMARK_FONT_FILE, load_pack
 
     manifest = _fonts_manifest()
     by_file = {font.get("file"): font for font in manifest.get("fonts", [])
@@ -448,6 +449,8 @@ def _font_entries(doc: Mapping[str, Any]) -> list[dict[str, str]]:
         spec = _read_json(_resources().hook_design_file(design["id"], design["v"]), 1 << 20)
         font = spec.get("font", {}).get("file") if isinstance(spec, dict) else None
         files.append(font if isinstance(font, str) else HOOK_FONT_FALLBACK)
+    if doc.get("watermark") is not None:
+        files.append(WATERMARK_FONT_FILE)
     files.append(manifest.get("fallback", "DejaVuSans.ttf"))
     entries = []
     for name in dict.fromkeys(files):

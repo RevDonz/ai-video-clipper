@@ -76,6 +76,8 @@ LOGO_WIDE = "sha256:" + _tag("fixture-logo-wide")
 MUSIC = "sha256:" + _tag("fixture-music-long")
 MUSIC_SHORT = "sha256:" + _tag("fixture-music-short")
 LOGO_NOT_IN_STORE = "sha256:" + _tag("fixture-logo-not-in-store")
+# The text watermark a new one starts as in the editor (CONTRACTS §5.40).
+WATERMARK = {"text": "@potongin.klip", "pos": "top_center", "size_pm": 1000, "opacity_pm": 850}
 
 
 def asset_store() -> dict[str, dict[str, Any]]:
@@ -771,6 +773,16 @@ def _valid(contexts: Mapping[str, Context]) -> list[_Fixture]:
     d = _Doc(c25, "SetHookEnabled")
     d.set_hook("Pokoknya jangan pulang dulu", dur_f=100, origin="user")
     add("hook_added", d)
+    # The text watermark (CONTRACTS §5.40): the editor's default and both ends of every range.
+    for name, context, fields in (
+            ("watermark", c30, {}),
+            ("watermark_max", c30, {"text": "Ikuti @potongin.klip untuk klip lainnya!",
+                                    "pos": "bottom_right", "size_pm": 2000, "opacity_pm": 200}),
+            ("watermark_min", c24, {"text": "@a", "pos": "middle_left", "size_pm": 500,
+                                    "opacity_pm": 1000})):
+        d = _Doc(context, "SetWatermarkText")
+        d.doc["watermark"] = {**WATERMARK, **fields}
+        add(name, d)
     d = _Doc(c30, "SetLogo")
     d.add_logo()
     add("logo", d)
@@ -969,6 +981,23 @@ def _invalid(contexts: Mapping[str, Context]) -> list[_Fixture]:
         add("range_invalid", variant, f"/captions/overrides/{key}",
             mutated(lambda b, key=key, value=value: b.doc["captions"]["overrides"].update(
                 {key: value})))
+
+    # The text watermark (CONTRACTS §5.40).
+    def watermark(**fields: Any) -> Callable[[_Doc], None]:
+        return lambda b: b.doc.update(watermark={**WATERMARK, **fields})
+
+    for variant, key, value in (
+        ("watermark_text_empty", "text", ""), ("watermark_text_long", "text", "x" * 41),
+        ("watermark_text_edge_space", "text", "@akun "), ("watermark_pos", "pos", "center"),
+        ("watermark_size_low", "size_pm", 499), ("watermark_size_high", "size_pm", 2001),
+        ("watermark_opacity_low", "opacity_pm", 199),
+        ("watermark_opacity_high", "opacity_pm", 1001),
+    ):
+        add("range_invalid", variant, f"/watermark/{key}", mutated(watermark(**{key: value})))
+    add("range_invalid", "watermark_null", "/watermark",
+        mutated(lambda b: b.doc.update(watermark=None)))
+    add("unknown_key", "watermark", "/watermark/colour", mutated(watermark(colour="#FFFFFF")))
+    add("not_nfc", "watermark_text", "/watermark/text", mutated(watermark(text="Cafe\u0301")))
     add("range_invalid", "cut_fade_high", "/main/cut_fade_ms",
         mutated(lambda b: b.doc["main"].update(cut_fade_ms=51)))
     add("range_invalid", "join_fade_high", "/main/joins/0/audio_fade_ms",

@@ -33,7 +33,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from . import COMPILER_ID, COMPILER_VERSION, OUTPUT_SIZES, RENDER_SEMANTICS, errors
+from . import COMPILER_ID, COMPILER_VERSION, OUTPUT_SIZES, RENDER_SEMANTICS, UI_ZONE_720, errors
 from . import captions as _captions
 from . import envelope as _envelope
 from . import timemap as tm
@@ -46,8 +46,6 @@ from .transitions import JoinPlan
 
 PLAN_SCHEMA = "potongin.render-plan/1"
 RENDER_KEY_PREFIX = b"potongin-render-v1\0"
-# TikTok UI zone at 720×1280 (plan §5.9 G5): top, bottom, right; scaled to other sizes.
-UI_ZONE_720 = (93, 280, 93)
 
 _HEX64 = re.compile(r"[0-9a-f]{64}")
 _RESOURCE_ID = re.compile(r"[a-z0-9][a-z0-9-]{0,39}")

@@ -391,6 +391,24 @@
    "warnings": []
   },
   {
+   "file": "valid/watermark__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/watermark_max__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/watermark_min__c24.json",
+   "context": "c24",
+   "check": "put",
+   "warnings": []
+  },
+  {
    "file": "valid/logo__c30.json",
    "context": "c30",
    "check": "put",
@@ -882,6 +900,83 @@
    "check": "put",
    "code": "range_invalid",
    "path": "/captions/overrides/entrance"
+  },
+  {
+   "file": "invalid/range_invalid__watermark_text_empty.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/watermark/text"
+  },
+  {
+   "file": "invalid/range_invalid__watermark_text_long.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/watermark/text"
+  },
+  {
+   "file": "invalid/range_invalid__watermark_text_edge_space.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/watermark/text"
+  },
+  {
+   "file": "invalid/range_invalid__watermark_pos.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/watermark/pos"
+  },
+  {
+   "file": "invalid/range_invalid__watermark_size_low.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/watermark/size_pm"
+  },
+  {
+   "file": "invalid/range_invalid__watermark_size_high.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/watermark/size_pm"
+  },
+  {
+   "file": "invalid/range_invalid__watermark_opacity_low.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/watermark/opacity_pm"
+  },
+  {
+   "file": "invalid/range_invalid__watermark_opacity_high.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/watermark/opacity_pm"
+  },
+  {
+   "file": "invalid/range_invalid__watermark_null.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/watermark"
+  },
+  {
+   "file": "invalid/unknown_key__watermark.json",
+   "context": "c30",
+   "check": "put",
+   "code": "unknown_key",
+   "path": "/watermark/colour"
+  },
+  {
+   "file": "invalid/not_nfc__watermark_text.json",
+   "context": "c30",
+   "check": "put",
+   "code": "not_nfc",
+   "path": "/watermark/text"
   },
   {
    "file": "invalid/range_invalid__cut_fade_high.json",

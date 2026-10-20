@@ -247,6 +247,22 @@ def test_plan_of_the_seed_is_the_frozen_dto(c30):
                              "alphaPm": [], "sfx": None}]
 
 
+def test_a_watermark_brings_its_font_to_the_browser(c30):
+    # The text watermark is DejaVu Sans Bold (CONTRACTS §5.40); with a Montserrat pack and hook
+    # design, JASSUB must still get that file, not a bold synthesised from the fallback.
+    doc = valid("hook_design_kicker__c30")
+    doc["captions"]["pack"]["id"] = "bold"
+    names = [entry["url"].split("/")[-1].split("?")[0]
+             for entry in ok(plan(c30, doc))["dto"]["text"]["fonts"]]
+    assert names == ["Montserrat-ExtraBold.ttf", "DejaVuSans.ttf"]
+    doc["watermark"] = {"text": "@potongin.klip", "pos": "top_center", "size_pm": 1000,
+                        "opacity_pm": 850}
+    dto = ok(plan(c30, doc))["dto"]
+    names = [entry["url"].split("/")[-1].split("?")[0] for entry in dto["text"]["fonts"]]
+    assert names == ["Montserrat-ExtraBold.ttf", "DejaVuSans-Bold.ttf", "DejaVuSans.ttf"]
+    assert "Style: Watermark,DejaVu Sans," in dto["text"]["ass"]
+
+
 def test_plan_publishes_the_ass_bytes_it_names(c30):
     dto = ok(plan(c30))["dto"]
     name = dto["text"]["url"].rsplit("/", 1)[1]

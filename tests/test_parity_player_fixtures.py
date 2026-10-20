@@ -28,7 +28,8 @@ from ai_clipper.edit_v2.plan import Resources, build_plan
 
 
 def _plan(*, hook: bool = True, cuts: int = 20, layout: str = "fit_blur", pack: str | None = None,
-          logo: bool = False, hook_variant: str | None = None, entrance_variant: str | None = None):
+          logo: bool = False, hook_variant: str | None = None, entrance_variant: str | None = None,
+          watermark: bool = False):
     case = fi.Case("unit", (30000, 1001), 900, layout, hook=hook, cuts=cuts)
     info = fi.SourceInfo(640, 360, (30000, 1001), False, 30030, True)
     edges = fi.case_edges(case)
@@ -47,6 +48,8 @@ def _plan(*, hook: bool = True, cuts: int = 20, layout: str = "fit_blur", pack: 
         pf.set_hook_design(doc, *pf.HOOK_VARIANTS[hook_variant])
     if entrance_variant is not None:
         pf.set_entrance(doc, *pf.ENTRANCE_VARIANTS[entrance_variant])
+    if watermark:
+        pf.set_watermark(doc)
     words = fi.make_words(30030)
     camera = fi.make_camera(30030, case.fps, (640, 360), (720, 1280)) if layout == "camera" else None
     return build_plan(doc, words=words, camera=camera, assets=assets,
@@ -205,6 +208,16 @@ def test_the_entrance_variants_are_probed_while_their_lines_open():
             opening = [n for n in frames if 0 < tm.now_ms(n, fps) - tm.safe_cs(cue.f0, fps) * 10
                        < 120]
             assert len(opening) >= 2, (name, cue.f0, frames)
+
+
+def test_the_watermark_variant_draws_the_text_watermark_over_the_same_cells():
+    # The text watermark (CONTRACTS §5.40): one more style and one event over the whole clip.
+    plain, marked = _plan(), _plan(watermark=True)
+    assert marked.doc["watermark"] == pf.WATERMARK
+    assert marked.plan_sha256 != plain.plan_sha256
+    assert "\nStyle: Watermark,DejaVu Sans," in marked.ass
+    assert marked.ass.count(",Watermark,,") == 1 and ",Watermark,," not in plain.ass
+    assert marked.captions.cues == plain.captions.cues
 
 
 def _image(width, height, rgb):

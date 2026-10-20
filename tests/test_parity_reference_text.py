@@ -331,6 +331,24 @@ def test_every_entrance_is_gated_on_every_pack_inside_its_120_ms() -> None:
             assert 0 < now_ms(frame, fps) - safe_cs(start, fps) * 10 < 120, (clip_id, frame)
 
 
+def test_the_text_watermark_is_gated_at_three_places_and_sizes() -> None:
+    # The text watermark (CONTRACTS §5.40) alone over the plate, as the production bytes: the
+    # editor's default, the longest text shrunk at its lowest opacity, the smallest size.
+    clips = {c.id: c for c in rt.build_clips(fallback_char="\u2665") if c.pack == "watermark"}
+    assert set(clips) == {"watermark-top_center", "watermark-bottom_right",
+                          "watermark-middle_left"}
+    smoke = next(line for line in RUN_ALL.read_text(encoding="utf-8").splitlines()
+                 if line.startswith("SMOKE_TEXT=")).removeprefix("SMOKE_TEXT=").split(",")
+    assert {"watermark-top_center", "watermark-bottom_right"} <= set(smoke)
+    for clip_id, clip in clips.items():
+        spec = rt.WATERMARK_CLIPS[clip_id]
+        assert clip.gate and clip.kind == "ptxt" and len(clip.probe_frames) == 5, clip_id
+        assert clip.family == "DejaVu Sans" and clip.chars == len(spec.text)
+        assert clip.ass == rt.shipped_ass((), pack="karaoke", fps=rt.PTXT_FPS,
+                                          total_frames=clip.total_frames, watermark=spec)[0]
+        assert clip.ass.count(",Watermark,,") == 1 and clip_id.split("-")[1] == spec.pos
+
+
 # --- end to end with the local FFmpeg -----------------------------------------------------------
 
 

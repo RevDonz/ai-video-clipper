@@ -39,6 +39,10 @@ from . import (
     PACK_IDS,
     SCHEMA,
     SWATCHES,
+    WATERMARK_OPACITY_RANGE,
+    WATERMARK_POSITIONS,
+    WATERMARK_SIZE_RANGE,
+    WATERMARK_TEXT_MAX,
     WORDS_MAX_RANGE,
     transitions,
 )
@@ -384,6 +388,7 @@ _ROOT = _compile(_keys(
     audio=_keys(source=_keys("gain_cdb"), master=_keys("mode", "target_clufs", "tp_cdb")),
     assets=_Map(_Kind(_ASSETS, _ASSET_ANY)),
     audit=_keys("created_at_ms", "updated_at_ms", "editor", "last_command"),
+    watermark=_keys("text", "pos", "size_pm", "opacity_pm"),  # optional (CONTRACTS §5.40)
 ))
 
 
@@ -730,6 +735,9 @@ class _Validator:
         assets = self.field(doc, "assets", "")
         if assets is not _MISSING and self.obj(assets, "/assets") is not None:
             self.assets(assets)
+        watermark = doc.get("watermark", _MISSING)  # optional; absent = no watermark
+        if watermark is not _MISSING and self.obj(watermark, "/watermark") is not None:
+            self.watermark(watermark)
         if self.seed is not None:
             self.base_changed(doc, self.seed)
         errors = tuple(self.errors)
@@ -1152,6 +1160,12 @@ class _Validator:
             self.string(master, "mode", "/audio/master", choices={"off", "normalize"})
             self.integer(master, "target_clufs", "/audio/master", -2400, -900)
             self.integer(master, "tp_cdb", "/audio/master", -300, 0)
+
+    def watermark(self, watermark: Mapping) -> None:
+        self.text(watermark, "text", "/watermark", WATERMARK_TEXT_MAX)
+        self.string(watermark, "pos", "/watermark", choices=WATERMARK_POSITIONS)
+        self.integer(watermark, "size_pm", "/watermark", *WATERMARK_SIZE_RANGE)
+        self.integer(watermark, "opacity_pm", "/watermark", *WATERMARK_OPACITY_RANGE)
 
     def audit(self, audit: Mapping) -> None:
         created = self.integer(audit, "created_at_ms", "/audit")
