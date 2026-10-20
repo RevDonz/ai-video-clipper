@@ -165,8 +165,8 @@ Shift+klik kata di bawahnya, atau tekan Esc dulu untuk mengeklik kata itu.
 - **Cek ejaan** (tombol di sebelah Rapikan, hanya dengan `POTONGIN_EDITOR_LLM=on`): AI gratis di
   Pengaturan memeriksa tulisan kata di caption, yaitu salah ketik ("flim" jadi "film"), spasi
   antarkata ("kefilm" jadi "ke film", "di omongin" jadi "diomongin") dan penulisan nama
-  ("jakarta" jadi "Jakarta"). Pemeriksaan berjalan saat daftar pertama kali dibuka (sekitar 10
-  detik) dan hasilnya tetap ada saat pindah tampilan. Tiap saran tampil "salah → benar" dengan
+  ("jakarta" jadi "Jakarta"). Pemeriksaan berjalan saat daftar pertama kali dibuka (paling lama
+  20 detik) dan hasilnya tetap ada saat pindah tampilan. Tiap saran tampil "salah → benar" dengan
   kata di sekitarnya: **Terima** mengganti tulisan kata (caption saja; suara dan waktu tetap),
   **Lewati** menyembunyikannya dari daftar (**Tampilkan lagi** memunculkannya), **Putar**
   memperdengarkan kata itu. **"Terima semua (n)"** menerima semuanya dalam satu langkah, dan satu
