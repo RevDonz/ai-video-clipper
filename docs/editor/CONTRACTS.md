@@ -2272,3 +2272,58 @@ fallback keeps its exact manifest and job shape.
   description; the detail panel lists every note under the tags (`<ul aria-label="Catatan
   klip">`). Both are muted text (`--text-muted`, 7.6:1 on `--surface`), with no colour, badge or
   icon of their own.
+
+## 5.32 Riwayat clip view and the clip listing (2026-10-21)
+
+Plan `docs/plans/2026-10-20-lanjutan-sesi.md` A7. Web only; no engine, data or flag change.
+
+### Clip listing (`GET /api/clips`, `web/lib/clip-library.mjs`)
+
+- Behind `secureRoute(clipLibraryRoute)`: session, nosniff, CORP same-origin, `Cache-Control:
+  no-store`; no rate-limit bucket. It runs behind `web/proxy.js` (a GET, not an upload).
+- Query, each name at most once: `q` (trimmed, ≤ 200 characters), `high=1`, `since` (an ISO
+  moment with a time and a zone), `cursor` (`<createdAtMs>.<jobId>.<index>` from the previous
+  page), `limit` 1 to 48 (default 24). Anything else is `400 {error, code: "invalid_request"}`.
+- Answer `200 {clips, matched, total, projects, nextCursor, partial}`; a jobs root that cannot be
+  read is `503 read_failed` (the message names no directory). A missing root is an empty library.
+- Items: `{jobId, index, title, duration, posterUrl, score, projectName, sourceUrl, createdAt}`,
+  taken from `serializePublicJob` (so `sanitizeStoredClip`): only a `completed` job whose `id` is
+  its directory's name (a lower-case UUID, a real directory, `job.json` a regular file), clip
+  numbers 1 to 9999 once each; `title` through `sanitizeLine` (100), `posterUrl` only this job's
+  `clip-NN.jpg`, `score` the shown total (`shownScore`, one decimal, null for older clips),
+  `projectName` as the history names it (`sanitizeLine`, 160), `sourceUrl` only a stored https
+  YouTube link. Transcript, description, hashtags and server paths never leave.
+- Order: newest project first (`createdAt`, else `updatedAt`; the job id breaks a tie), then the
+  clip number. `nextCursor` is keyset: a project that finishes between two pages does not shift
+  them.
+- Filters: `high` keeps a shown score ≥ 8,0 (`HIGH_SCORE`, the project page's mark); `since` keeps
+  projects made at or after it; `q` matches the lower-cased title, project name and source URL,
+  except that a YouTube link (watch, youtu.be, shorts, live, embed, m. and music.) matches the
+  video id exactly (`youtubeVideoId`).
+- Bounded work: one `readdir` and one `lstat` per job directory per request; a file is read again
+  only when its (inode, size, mtime) changed. Changed files are read newest mtime first, at most
+  `MAX_READS_PER_REQUEST` (400) and `READ_BUDGET_BYTES` (24 MiB) per request (at least one), each
+  file at most `MAX_JOB_FILE_BYTES` (2 MiB, opened `O_NOFOLLOW`); the rest waits for the next
+  request and the answer says `partial: true`. A broken or oversized file lists nothing until it
+  changes. The cache holds only the items, per process, and starts again for another jobs root.
+
+### Riwayat page (`web/app/projects/page.jsx`, `web/components/ClipLibrary.jsx`, `web/lib/clip-library-view.mjs`)
+
+- "Proyek | Klip" (`role="group"`, `aria-pressed`) under the heading ("Riwayat proyek" / "Riwayat
+  klip"). The choice is kept in `localStorage` `potongin-history-view` (`projects` | `clips`),
+  every access in try/catch; nothing is shown until it is read, so a remembered "Klip" does not
+  flash the project list. The project list loads only in its own view.
+- Klip view: a search box (`maxLength` 200, 250 ms after typing), toggle chips "Skor 8+" and
+  "Minggu ini" (`since` = Monday 00:00 in the viewer's time zone, `startOfWeek`), a grid of
+  `<article>` posters (`components/ClipPoster.jsx`, the project page's), "n dari m klip" and "Muat
+  lagi" (the next page appended once per clip; the focus moves to its first new card). States:
+  "Memuat klip…", an error with "Coba lagi", "Belum ada klip", "Tidak ada klip yang cocok" with
+  "Tampilkan semua klip", and an info line with "Muat ulang" while `partial`.
+- A card is a link to `/projects/<id>?klip=N`; its accessible name is the title, its description
+  "Klip NN, length, skor x, project, day". Grid columns `minmax(168px, 1fr)` (six across at full
+  width), `minmax(140px, 1fr)` below 601 px (two across on a phone, one below about 330 px).
+- Project page: `clipFromParam` reads `?klip=N` (1 to 9999); that clip is selected on open, its
+  poster takes the focus once and the clip scrolls into view (the detail panel on a phone).
+- The shared poster's `PosterText` takes a page's own `flags` on its meta row: the project page
+  passes its fallback notes there (§5.31). The listing carries no fallbacks, so the Klip grid shows
+  none.

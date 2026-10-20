@@ -1,0 +1,124 @@
+/* One clip poster (components/ClipPoster.jsx): the project page's grid and the Riwayat clip grid.
+   Tokens from app/globals.css. */
+
+.frame {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color var(--dur-2) var(--ease-out), background-color var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out);
+}
+.frame:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-2px);
+}
+.frame:active {
+  transform: translateY(0);
+}
+
+.thumb {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  background: var(--surface-3);
+}
+.thumb img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* Clips without a poster (older projects) get a play mark in its place. */
+.play {
+  width: 0;
+  height: 0;
+  margin-left: 3px;
+  border-top: 10px solid transparent;
+  border-bottom: 10px solid transparent;
+  border-left: 16px solid var(--text-muted);
+}
+/* Number and length sit on solid chips, so they read on any frame. */
+.number,
+.length {
+  position: absolute;
+  padding: 2px 7px;
+  border-radius: var(--radius-s);
+  background: var(--bg);
+  color: var(--text);
+  font: 600 12px/1.4 var(--font);
+  font-variant-numeric: tabular-nums;
+}
+.number {
+  top: 8px;
+  left: 8px;
+}
+.length {
+  right: 8px;
+  bottom: 8px;
+}
+
+.text {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  align-content: start;
+  padding: 10px 10px 12px;
+}
+.title {
+  display: -webkit-box;
+  overflow: hidden;
+  font: 600 14px/1.35 var(--font);
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+/* The score stays neutral; a small lime dot marks 8 and up (the number says the rest). */
+.scorePill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 9px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  color: var(--text);
+  font: 600 12px/1.4 var(--font);
+  font-variant-numeric: tabular-nums;
+}
+.scorePill i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.edited {
+  color: var(--info);
+  font: 600 12px/1.4 var(--font);
+}
+/* Where a clip comes from, when the grid mixes projects: one line, cut short. */
+.note {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
