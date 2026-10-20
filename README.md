@@ -358,7 +358,9 @@ evidence (`gh workflow run ci-cd.yml --ref <branch> -f suite=toolchain`).
 - H.264/AAC MP4 rendering with downloadable SRT that matches the burned captions
 - Machine-readable, fail-closed manifest (`processing`, `completed`, or `failed`)
 - Authenticated Next.js dashboard, durable job queue with fenced leases, persistent
-  project history with every clip ready to post, and project deletion
+  project history with every clip ready to post, project deletion, and "Batalkan" for a queued
+  or running job, which stops all of its processes and keeps the project as "Dibatalkan"
+  ([`docs/operations/PROGRES_JOB.md`](docs/operations/PROGRES_JOB.md))
 - YouTube and direct upload ingestion through the web worker, with stage-based progress and
   what each finished stage found (video length, transcript words and source, moments chosen;
   [`docs/operations/PROGRES_JOB.md`](docs/operations/PROGRES_JOB.md));
