@@ -163,3 +163,18 @@ test("a pack only the editor draws, or a caption position or size, is not a job 
   assert.ok(!("captionPosition" in parsed) && !("captionSize" in parsed));
 });
 
+test("the page shows the preview beside the styles: a thumbnail on every style, the note under them", () => {
+  const page = read("web", "app", "dashboard", "page.jsx");
+  assert.match(page, /const look = lookPreview\(choices, \{ editor: editorOn \}\);/);
+  assert.match(page, /<LookPreview look=\{look\} \/>/);
+  assert.match(page, /setEditorOn\(payload\.editor === true\)/);
+  assert.match(page, /src=\{imageSrc\(PACK_IMAGES\[style\.id\]\)\}/);
+  assert.match(page, /<fieldset className=\{styles\.group\} aria-describedby=\{look\.note \? "caption-style-help" : undefined\}>/);
+  assert.match(page, /\{look\.note && <p id="caption-style-help" className=\{styles\.help\}>\{look\.note\}<\/p>\}/);
+  const preview = read("web", "app", "dashboard", "LookPreview.jsx");
+  assert.match(preview, /role="img"/);
+  assert.match(preview, /aria-label=\{look\.label\}/);
+  assert.match(preview, /viewBox=\{`0 0 \$\{look\.frame\.w\} \$\{look\.frame\.h\}`\}/);
+  assert.match(preview, /Area tombol TikTok/);
+  assert.doesNotMatch(preview, /—/);
+});

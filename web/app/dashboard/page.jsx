@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AppHeader from "../../components/AppHeader.jsx";
 import CancelJob from "../../components/CancelJob.jsx";
 import StageSummary from "../../components/StageSummary.jsx";
+import { PACK_IMAGES, imageSrc } from "../../components/editor/panels/pack-images.js";
 import {
   AI_STATUS_UNREADABLE,
   aiStatusView,
@@ -42,6 +43,7 @@ import {
 } from "../../lib/dashboard-storage-status.mjs";
 import { jobHelpHref, storageHelpHref } from "../../lib/help-catalog.mjs";
 import { jobCancellable } from "../../lib/job-cancel.mjs";
+import { lookPreview } from "../../lib/look-preview.mjs";
 import {
   FOCUS_LIMITS,
   addFocusTerms,
@@ -55,6 +57,8 @@ import {
 } from "../../lib/selection-v3-view.mjs";
 import styles from "./dashboard.module.css";
 import focusStyles from "./focus.module.css";
+import lookStyles from "./look.module.css";
+import LookPreview from "./LookPreview.jsx";
 
 // Fields in the order the page checks them; the first invalid one gets focus.
 const FIELD_IDS = { youtubeUrl: "youtube-url", video: "video-file", limit: "clip-limit", minDuration: "min-duration", maxDuration: "max-duration" };
@@ -209,6 +213,8 @@ export default function DashboardPage() {
   const [aiStatus, setAiStatus] = useState(null);
   const [jobs, setJobs] = useState([]);
   const [jobsState, setJobsState] = useState("loading");
+  // The jobs list says whether the editor is on: the preview names Edit klip only then.
+  const [editorOn, setEditorOn] = useState(false);
   const [activeId, setActiveId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState(null);
@@ -245,6 +251,7 @@ export default function DashboardPage() {
       if (signal?.aborted || generation !== jobsRefreshGeneration.current) return;
       setJobs(payload.jobs || []);
       setJobsState("ready");
+      setEditorOn(payload.editor === true);
       setActiveId((current) => selectedId || current || payload.jobs?.[0]?.id || null);
     } catch (error) {
       if (signal?.aborted || generation !== jobsRefreshGeneration.current) return;
@@ -477,6 +484,7 @@ export default function DashboardPage() {
 
   const describedBy = (name, extra) => [extra, problems[name] ? `${FIELD_IDS[name]}-error` : null].filter(Boolean).join(" ") || undefined;
   const summary = choicesSummary(choices, { focusTerms: focusTerms.length });
+  const look = lookPreview(choices, { editor: editorOn });
 
   return (
     <main>
@@ -632,26 +640,33 @@ export default function DashboardPage() {
 
             <section className={styles.section} aria-labelledby="look-title">
               <h2 id="look-title" className={styles.sectionTitle}>Tampilan klip</h2>
-              <fieldset className={styles.group}>
-                <legend className={styles.groupTitle}>Gaya subtitle</legend>
-                <div className={`${styles.choices} ${styles.pair}`}>
-                  {CAPTION_STYLE_CHOICES.map((style) => (
-                    <label key={style.id} className={`${styles.choice} ${styles.compact} ${captionStyle === style.id ? styles.selected : ""}`}>
-                      <input type="radio" name="captionStyle" value={style.id} checked={captionStyle === style.id} onChange={() => updateChoices({ captionStyle: style.id })} />
-                      <span className={styles.choiceText}><strong>{style.name}</strong><small>{style.description}</small></span>
+              <div className={lookStyles.look}>
+                <LookPreview look={look} />
+                <div className={lookStyles.controls}>
+                  <fieldset className={styles.group} aria-describedby={look.note ? "caption-style-help" : undefined}>
+                    <legend className={styles.groupTitle}>Gaya subtitle</legend>
+                    <div className={`${styles.choices} ${lookStyles.styles}`}>
+                      {CAPTION_STYLE_CHOICES.map((style) => (
+                        <label key={style.id} className={`${styles.choice} ${styles.compact} ${lookStyles.style} ${captionStyle === style.id ? styles.selected : ""}`}>
+                          <input type="radio" name="captionStyle" value={style.id} checked={captionStyle === style.id} onChange={() => updateChoices({ captionStyle: style.id })} />
+                          <img className={lookStyles.thumb} src={imageSrc(PACK_IMAGES[style.id])} width={160} height={40} alt="" draggable={false} />
+                          <span className={styles.choiceText}><strong>{style.name}</strong><small>{style.description}</small></span>
+                        </label>
+                      ))}
+                    </div>
+                    {look.note && <p id="caption-style-help" className={styles.help}>{look.note}</p>}
+                  </fieldset>
+                  <div className={styles.toggles}>
+                    <label className={styles.toggle}>
+                      <input type="checkbox" checked={coldOpen} onChange={(event) => updateChoices({ coldOpen: event.target.checked })} />
+                      <span className={styles.choiceText}><strong>Buka dengan kalimat terkuat</strong><small>Kalimat hook diputar dulu beberapa detik, lalu klip mulai dari awal.</small></span>
                     </label>
-                  ))}
+                    <label className={styles.toggle}>
+                      <input type="checkbox" checked={hookOverlay} onChange={(event) => updateChoices({ hookOverlay: event.target.checked })} />
+                      <span className={styles.choiceText}><strong>Teks hook di 4 detik pertama</strong><small>Kalimat pemancing singkat di bagian atas layar.</small></span>
+                    </label>
+                  </div>
                 </div>
-              </fieldset>
-              <div className={styles.toggles}>
-                <label className={styles.toggle}>
-                  <input type="checkbox" checked={coldOpen} onChange={(event) => updateChoices({ coldOpen: event.target.checked })} />
-                  <span className={styles.choiceText}><strong>Buka dengan kalimat terkuat</strong><small>Kalimat hook diputar dulu beberapa detik, lalu klip mulai dari awal.</small></span>
-                </label>
-                <label className={styles.toggle}>
-                  <input type="checkbox" checked={hookOverlay} onChange={(event) => updateChoices({ hookOverlay: event.target.checked })} />
-                  <span className={styles.choiceText}><strong>Teks hook di 4 detik pertama</strong><small>Kalimat pemancing singkat di bagian atas layar.</small></span>
-                </label>
               </div>
             </section>
 
