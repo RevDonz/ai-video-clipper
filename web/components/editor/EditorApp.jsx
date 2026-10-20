@@ -7,9 +7,10 @@
 //
 // Seams (Appendix A.2): `runtime` (runtime.mjs) provides the store (createEditorStore), the API
 // and preview clients, the upload client and createPlayer. The page passes `runtimeKind` and the
-// server's `features` (uploads on or off); tests may inject a runtime. Every panel and every Mode
-// Cepat card receives one props bundle, { state, getState, dispatch, player, api, previewClient,
-// uploadAsset, uploadsEnabled, notify, readOnly } (cards also `frameBus` and `showLengkap`); every lane
+// server's `features` (uploads and the editor's LLM on or off); tests may inject a runtime. Every
+// panel and every Mode Cepat card receives one props bundle, { state, getState, dispatch, player,
+// api, previewClient, uploadAsset, uploadsEnabled, llmEnabled, notify, readOnly } (cards also
+// `frameBus` and `showLengkap`); every lane
 // { plan, state, dispatch, player, pxPerFrame }. `player` is the facade of runtime.mjs, which adds
 // `subscribeFrame(fn)` and `frame()` so that DOM can follow playback outside React (§6.2).
 //
@@ -168,6 +169,8 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
   const gizmos = useMemo(() => liveEntries(GIZMOS, runtime.kind), [runtime.kind]);
   // Uploads follow POTONGIN_EDITOR_UPLOADS (the page passes it); the fakes always allow them.
   const uploadsEnabled = runtime.kind === "fake" || features.uploads === true;
+  // Cek ejaan follows POTONGIN_EDITOR_LLM the same way; the fakes answer it themselves.
+  const llmEnabled = runtime.kind === "fake" || features.llm === true;
   const subscribe = useCallback((onChange) => store.subscribe(() => onChange()), [store]);
   const snapshot = useCallback(() => store.getState(), [store]);
   const state = useSyncExternalStore(subscribe, snapshot, () => EMPTY_STATE);
@@ -441,8 +444,8 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
   // One bundle for every Lengkap panel and every Cepat card (Mode Cepat spec §1.2). `getState` reads
   // the store as it is now, for work that outlives the panel or card that started it (§4.1).
   const panelProps = useMemo(() => ({
-    state, getState: snapshot, dispatch, player, api, previewClient: runtime.previewClient, uploadAsset: runtime.uploadAsset ?? null, uploadsEnabled, notify, readOnly,
-  }), [state, snapshot, dispatch, player, api, runtime, uploadsEnabled, notify, readOnly]);
+    state, getState: snapshot, dispatch, player, api, previewClient: runtime.previewClient, uploadAsset: runtime.uploadAsset ?? null, uploadsEnabled, llmEnabled, notify, readOnly,
+  }), [state, snapshot, dispatch, player, api, runtime, uploadsEnabled, llmEnabled, notify, readOnly]);
 
   const errorCode = status === "error" ? (state.error?.code ?? state.errorCode ?? "internal_error") : null;
   const preparesNow = typeof onNeedsPrepare === "function" && PREPARE_CODES.has(errorCode);

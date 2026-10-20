@@ -19,11 +19,18 @@
 // and gaps it proposes. The list comes from `api.cleanup()` (Appendix A.2): with an `api` prop it
 // is fetched when the panel opens (so the button can count it); without one the panel builds an
 // API client for the clip and asks only when the review is opened.
+//
+// "Cek ejaan" (with `llmEnabled`): the header button next to Rapikan opens the spelling review
+// (spelling/SpellingReview.jsx), which asks the free LLM chain on its first opening. One review is
+// open at a time.
 import { Fragment, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { createApiClient } from "../../../lib/editor/api-client.mjs";
 import { DEFAULT_EMPHASIS } from "../../../lib/editor/content-colours.mjs";
 import { createContext } from "../../../lib/editor/doc-model.mjs";
+import { COPY as SPELLING_COPY } from "../spelling/model.mjs";
+import SpellingReview from "../spelling/SpellingReview.jsx";
+import { useSpellCheck } from "../spelling/use-spell-check.js";
 import { commandsFor, keyAction, runCommands, selectionActions } from "./actions.mjs";
 import { followActiveWord } from "./active-word.mjs";
 import { auditionRange, badgeMarks, cleanupView, planApply } from "./cleanup-model.mjs";
@@ -162,7 +169,7 @@ function useCleanupList({ api, jobId, clipId, wordsKey, eager, wanted }) {
   return { status: current.status, listing: current.listing, load };
 }
 
-function Transcript({ state, dispatch, player, api }) {
+function Transcript({ state, dispatch, player, api, llmEnabled }) {
   const { doc, words } = state;
   const readOnly = state.status !== "ready";
   const listRef = useRef(null);
@@ -315,11 +322,19 @@ function Transcript({ state, dispatch, player, api }) {
     revealFocus.current = true;
     selectionStore.set(extendTo(selectOne(first), last));
   }, [selectionStore]);
+  const [spellingOpen, setSpellingOpen] = useState(false);
+  const spelling = useSpellCheck({ state, dispatch, api, player, model, open: spellingOpen });
   const toggleReview = useCallback(() => {
     setReviewOpen((open) => !open);
+    setSpellingOpen(false);
     setReviewMessage(null);
   }, []);
+  const toggleSpelling = useCallback(() => {
+    setSpellingOpen((open) => !open);
+    setReviewOpen(false);
+  }, []);
   const openCount = view ? view.entries.length : null;
+  const spellingCount = spelling.view.phase === "done" ? spelling.rows.length : null;
 
   const onEditDone = useCallback((index, text, how) => {
     const states = modelRef.current.states;
@@ -465,11 +480,20 @@ function Transcript({ state, dispatch, player, api }) {
         <div className={styles.headRow}>
           {/* The panel's name is the shell's heading (the rail tab names it too); this is its visible label. */}
           <span className={styles.label} aria-hidden="true">Transkrip</span>
-          <button type="button" className={`${styles.tool} ${styles.cleanupToggle}`} aria-expanded={reviewOpen}
-            aria-controls="cleanup-review" data-cleanup-toggle="" onClick={toggleReview}
-            title="Kata pengisi, pengulangan dan jeda panjang yang bisa dipotong">
-            {openCount !== null ? `Rapikan · ${openCount}` : "Rapikan"}
-          </button>
+          <span className={styles.headTools}>
+            <button type="button" className={`${styles.tool} ${styles.cleanupToggle}`} aria-expanded={reviewOpen}
+              aria-controls="cleanup-review" data-cleanup-toggle="" onClick={toggleReview}
+              title="Kata pengisi, pengulangan dan jeda panjang yang bisa dipotong">
+              {openCount !== null ? `Rapikan · ${openCount}` : "Rapikan"}
+            </button>
+            {llmEnabled ? (
+              <button type="button" className={`${styles.tool} ${styles.cleanupToggle}`} aria-expanded={spellingOpen}
+                aria-controls="spelling-review-transcript" data-spelling-toggle="" onClick={toggleSpelling}
+                title={SPELLING_COPY.toggleTitle}>
+                {spellingCount !== null ? `${SPELLING_COPY.toggle} · ${spellingCount}` : SPELLING_COPY.toggle}
+              </button>
+            ) : null}
+          </span>
         </div>
         <p className={styles.status} role="status" data-transcript-status="">{status}</p>
         {message ? <p className={styles.message} role="alert" data-transcript-message="">{message}</p> : null}
@@ -483,6 +507,9 @@ function Transcript({ state, dispatch, player, api }) {
         <CleanupReview view={view} status={cleanup.status} isChecked={isChecked} onToggle={onToggle} onGroup={onGroup}
           onApply={onApply} onPlay={onPlay} playing={playing} onReveal={onReveal} onRetry={cleanup.load}
           readOnly={readOnly} message={reviewMessage} />
+      ) : null}
+      {spellingOpen && llmEnabled ? (
+        <div className={styles.reviewSlot}><SpellingReview id="spelling-review-transcript" check={spelling} /></div>
       ) : null}
       <p id={HELP_ID} className={styles.srOnly}>
         Panah memindah pilihan, Shift+panah memperluas. Delete memotong kata, Enter mengedit, Ctrl+Shift+X
@@ -552,7 +579,7 @@ function Transcript({ state, dispatch, player, api }) {
   );
 }
 
-export default function TranscriptPanel({ state, dispatch, player, api = null }) {
+export default function TranscriptPanel({ state, dispatch, player, api = null, llmEnabled = false }) {
   if (!state?.doc || !state?.words) {
     return (
       <section data-panel="transcript" className={styles.panel} aria-busy="true">
@@ -560,5 +587,5 @@ export default function TranscriptPanel({ state, dispatch, player, api = null })
       </section>
     );
   }
-  return <Transcript state={state} dispatch={dispatch} player={player} api={api} />;
+  return <Transcript state={state} dispatch={dispatch} player={player} api={api} llmEnabled={llmEnabled} />;
 }

@@ -269,6 +269,13 @@ const FAKE_HOOKS = Object.freeze([
   { id: "hk_1", text: "Kenapa sutradara ditahan?", source: "ai_selection", fits: true },
   { id: "hk_2", text: "Sutradara ditahan di film sendiri", source: "heuristic", fits: true },
 ]);
+// Cek ejaan on the fake words, open on the fake clip: the shapes of a merge and of a capital
+// letter (synthetic, not real Indonesian fixes; the e2e spec writes its own typos).
+const FAKE_SPELLING_TASK = "00000000-0000-4000-8000-000000000002";
+const FAKE_SPELLING = Object.freeze([
+  { id: "sp_1", wordIds: ["w048124", "w048125"], from: "di film", to: "di-film", kind: "spacing" },
+  { id: "sp_2", wordIds: ["w048132"], from: "subuh", to: "Subuh", kind: "case" },
+]);
 const UPLOAD_TYPES = Object.freeze({
   logo: Object.freeze({ types: ["image/png", "image/jpeg", "image/webp"], maxBytes: 10 * 1024 * 1024 }),
   music: Object.freeze({ types: ["audio/mpeg", "audio/mp4", "audio/wav", "audio/ogg", "audio/flac"], maxBytes: 50 * 1024 * 1024 }),
@@ -368,14 +375,23 @@ export function createFakeApiClient({ doc = fakeDoc(), words = fakeWords(), now 
       return clone(renders.get(renderId));
     },
     // W3 (T2.Z scaffolding): Rapikan items in the shapes ApplyCleanup takes (T2.5's note), §7.2
-    // cold-open candidates and §7.1 instant hook variants; the LLM part is off in the fakes.
+    // cold-open candidates and §7.1 instant hook variants; the hook LLM part is off in the fakes,
+    // Cek ejaan answers at once.
     async cleanup() { record("cleanup", []); return clone(FAKE_CLEANUP); },
     async coldOpenSuggestions() { record("coldOpenSuggestions", []); return clone(FAKE_COLD_OPEN); },
     async aiHooks(aiDoc) {
       record("aiHooks", [aiDoc]);
       return { taskId: "00000000-0000-4000-8000-000000000001", heuristic: clone(FAKE_HOOKS), llm: { state: "disabled" } };
     },
-    async aiTask(taskId) { record("aiTask", [taskId]); return { state: "done", suggestions: clone(FAKE_HOOKS), error: null }; },
+    async aiSpelling(spellDoc) {
+      record("aiSpelling", [spellDoc]);
+      return { taskId: FAKE_SPELLING_TASK, llm: { state: "pending" } };
+    },
+    async aiTask(taskId) {
+      record("aiTask", [taskId]);
+      if (taskId === FAKE_SPELLING_TASK) return { state: "done", suggestions: clone(FAKE_SPELLING), error: null, truncated: false };
+      return { state: "done", suggestions: clone(FAKE_HOOKS), error: null };
+    },
   };
 }
 

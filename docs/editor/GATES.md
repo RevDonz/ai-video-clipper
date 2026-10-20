@@ -1894,3 +1894,19 @@ branch is pushed.
 | Thumbnails | `hook-thumbs/<id>.png` from `make_hook_thumbs.py` in a local image (FFmpeg 5.1.9, libass 0.17.1-1) that re-rendered the five committed pack thumbnails byte for byte | bytes equal on the pinned toolchain | **pending**: `suite=image` re-renders all four |
 | Editor model | `SetHookDesign`, `checkDoc`, the `hook.design` rebase part, both views calling `hook-model.mjs` | pass | **pass** (`node --test`: commands, rebase, quick model and the other editor files touched) |
 | Browser specs (fakes) | four design tiles in the Hook card and four cards in the Teks panel, one undo step per pick, the Kicker and Kotak kata hints, disabled with the hook off | pass | **pending**: `editor-gates suite=e2e` (`editor-quick.spec.mjs`, `editor-transcript.spec.mjs`) |
+
+## Cek ejaan (2026-10-20)
+
+Contract: CONTRACTS §5.35; guide: PANDUAN-EDITOR (Transkrip, Teks caption). Spelling suggestions
+through the free LLM chain, reviewed and accepted as word edits. No engine, plan, seed or command
+changed, so every engine gate above keeps its cases and numbers.
+
+| Gate | What | Threshold | Result |
+|---|---|---|---|
+| Spelling rules offline | `tests/test_editor_spelling.py`: lines with word ids, prompt budget, the fix rules (meaning, numbers, characters, length, overlaps, the cap of 60), the task file, failures and the envelope, with scripted clients only | all pass; no fix that changes a number, adds characters outside letters and word punctuation, or goes past one edit per three letters is accepted | **pass** locally (Python 3.11): 45 passed, with `tests/test_editor_ai.py` unchanged and passing |
+| Route, DTO, client and review model | `web/tests/editor-spelling.test.mjs` | all pass | **pass** locally: 17 passed |
+| Browser spec on the fakes | `e2e/editor-spelling.spec.mjs`: both views, Terima/Lewati/Terima semua with one Urungkan, failure, limit and settings states, focus after a row leaves, reduced motion, axe | all pass; 0 critical, 0 serious | pending: `gh workflow run editor-gates.yml -f ref=<branch> -f suite=e2e -f command='e2e/editor-spelling.spec.mjs'` |
+| Regression on the fakes | the transcript header and the Teks caption card changed: `e2e/editor-lengkap.spec.mjs`, `e2e/editor-transcript.spec.mjs`, `e2e/editor-cleanup.spec.mjs`, `e2e/editor-quick-lines.spec.mjs`, `e2e/editor-views.spec.mjs`, `e2e/editor-ai.spec.mjs` | all pass | pending, same workflow |
+| `suite=full`, `suite=image` | ruff, pytest, web unit tests, build; pytest in the production image | pass | pending |
+| Quality of the suggestions | a real free provider on real clips | owner's judgement | not measured: no free-provider run was made for this change; the owner's review of real clips decides whether the rules need tuning |
+

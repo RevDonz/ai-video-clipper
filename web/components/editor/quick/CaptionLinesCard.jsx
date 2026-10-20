@@ -6,12 +6,16 @@
 // typed against and is diffed against them, so lines that regroup while the viewer types never
 // change a word the field did not show; a field that leaves the page commits its draft as a blur
 // would. When the lines regroup, focus follows the focused line's words (§2.5). The line under the
-// playhead is marked by the frame bus, outside React.
+// playhead is marked by the frame bus, outside React. With `llmEnabled`, "Cek ejaan" opens the
+// spelling review (spelling/SpellingReview.jsx) above the lines; it asks the LLM only when opened.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { captionRows, commitLine, focusAfterRegroup, rowAtFrame } from "../../../lib/editor/caption-lines.mjs";
 import { createContext } from "../../../lib/editor/doc-model.mjs";
 import { formatClock, frameToMs } from "../shell-model.mjs";
+import { COPY as SPELLING_COPY } from "../spelling/model.mjs";
+import SpellingReview from "../spelling/SpellingReview.jsx";
+import { useSpellCheck } from "../spelling/use-spell-check.js";
 import { actionKey, runCommands } from "../transcript/actions.mjs";
 import { buildTranscriptModel } from "../transcript/model.mjs";
 import PillButton from "../ui/PillButton.jsx";
@@ -35,7 +39,7 @@ function withEntry(map, key, value) {
   return new Map(map).set(key, value);
 }
 
-export default function CaptionLinesCard({ state, dispatch, player, frameBus, readOnly = false, showLengkap }) {
+export default function CaptionLinesCard({ state, dispatch, player, api = null, llmEnabled = false, frameBus, readOnly = false, showLengkap }) {
   const doc = state?.doc ?? null;
   const words = Array.isArray(state?.words?.words) ? state.words : null;
   const plan = state?.plan ?? null;
@@ -56,6 +60,10 @@ export default function CaptionLinesCard({ state, dispatch, player, frameBus, re
     const seed = seedDoc ?? firstDoc.current;
     return words && seed ? createContext({ words, seed }) : null;
   }, [words, seedDoc]);
+
+  const [spellingOpen, setSpellingOpen] = useState(false);
+  const spelling = useSpellCheck({ state, dispatch, api, player, model, open: spellingOpen && llmEnabled });
+  const spellingCount = spelling.view.phase === "done" ? spelling.rows.length : null;
 
   const [drafts, setDrafts] = useState(() => new Map());
   const [errors, setErrors] = useState(() => new Map());
@@ -193,7 +201,17 @@ export default function CaptionLinesCard({ state, dispatch, player, frameBus, re
   } else {
     body = (
       <>
-        <p className={styles.help}>{HELP}</p>
+        <div className={styles.tools}>
+          <p className={styles.help}>{HELP}</p>
+          {llmEnabled ? (
+            <PillButton variant={spellingOpen ? "strong" : "default"} aria-expanded={spellingOpen}
+              aria-controls="spelling-review-card" data-spelling-toggle="" title={SPELLING_COPY.toggleTitle}
+              onClick={() => setSpellingOpen((open) => !open)}>
+              {spellingCount !== null ? `${SPELLING_COPY.toggle} · ${spellingCount}` : SPELLING_COPY.toggle}
+            </PillButton>
+          ) : null}
+        </div>
+        {spellingOpen && llmEnabled ? <SpellingReview id="spelling-review-card" check={spelling} /> : null}
         <ol className={styles.rows} ref={listRef}>
           {rows.map((row) => {
             const id = inputIdOf(row.key);

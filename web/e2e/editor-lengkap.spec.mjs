@@ -253,7 +253,8 @@ test.describe("word toolbar", () => {
     await openEditor(page);
     await expect(page.getByRole("toolbar", { name: "Aksi kata", exact: true })).toHaveCount(0);
     await expect(toolbar(page)).toHaveCount(0);
-    await expect(transcript(page).getByRole("button")).toHaveText([/^Rapikan/]);
+    // The header's two reviews (Cek ejaan shows with the editor's LLM on, as on the fakes).
+    await expect(transcript(page).getByRole("button")).toHaveText([/^Rapikan/, /^Cek ejaan/]);
     await selectRange(page, 6, 8);
     await expect(toolbar(page)).toBeVisible();
     await expect(toolbar(page).getByRole("button")).toHaveText(["Hapus", "Jadikan cold open", "Kata kunci", "Lainnya"]);

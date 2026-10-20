@@ -104,11 +104,11 @@ test("an unknown clip, a disabled editor, a lost session and a failed prepare ar
   assert.equal(result.code, "network");
 });
 
-test("the editor page opens a clip id or klip-<n>, passes the uploads flag, and names no version", async () => {
+test("the editor page opens a clip id or klip-<n>, passes the uploads and LLM flags, and names no version", async () => {
   const source = await readFile(new URL("../app/projects/[id]/clips/[clipId]/edit/page.jsx", import.meta.url), "utf8");
   assert.match(source, /const ref = clipRefFromSegment\(segment\);/);
   assert.match(source, /if \(mode === "off" \|\| !here\) notFound\(\);/);
-  assert.match(source, /<EditorApp jobId=\{id\} clipId=\{ref\.clipId\} clipIndex=\{ref\.index\} runtimeKind=\{mode\} features=\{\{ uploads: flags\.uploads \}\} \/>/);
+  assert.match(source, /<EditorApp jobId=\{id\} clipId=\{ref\.clipId\} clipIndex=\{ref\.index\} runtimeKind=\{mode\} features=\{\{ uploads: flags\.uploads, llm: flags\.llm \}\} \/>/);
   assert.match(source, /title: "Edit klip · Potongin"/);
 });
 
