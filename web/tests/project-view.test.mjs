@@ -387,13 +387,17 @@ test("the history and project pages carry no version wording and no candidate re
   }
 });
 
-test("every clip of every job is shown with the same card, whatever made it", async () => {
+test("every clip of every job is shown with the same poster and detail panel, whatever made it", async () => {
   const source = await read("app/projects/[id]/page.jsx");
   assert.doesNotMatch(source, /isV3Job|const v3\b/);
-  assert.match(source, /clips\.map\(\(clip\) => <ClipCard key=\{clip\.index\} clip=\{clip\} job=\{job\}/);
+  assert.match(source, /visible\.map\(\(clip\) => \(\s*<PosterCard key=\{clip\.index\} clip=\{clip\}/);
+  assert.match(source, /<ClipDetail clip=\{current\} job=\{job\}/);
   assert.match(source, /<video [^>]*src=\{clip\.videoUrl\} poster=\{clipPosterUrl\(clip\)\}/);
-  assert.match(source, /href=\{clip\.downloadUrl\}/);
-  assert.match(source, /href=\{clip\.subtitleUrl\}/);
+  // Both downloads save under the clip's "NN-judul" name (A5).
+  assert.match(source, /const downloads = clipDownloads\(clip\);/);
+  assert.match(source, /href=\{downloads\.mp4\}/);
+  assert.match(source, /href=\{downloads\.srt\}/);
+  assert.doesNotMatch(source, /href=\{clip\.(?:downloadUrl|subtitleUrl)\}/);
   assert.doesNotMatch(source, /<track\b/);
   assert.match(source, /clipCaptionText\(clip\)/);
   assert.match(source, /selectionNotices\(job\)/);
@@ -474,10 +478,11 @@ test("a failed download names its reason and one suggestion from the stored code
   assert.equal(failureHint(null), null);
 });
 
-test("every clip card offers 'Edit klip' from the clips listing; the page has no prepare step", async () => {
+test("every clip's detail offers 'Edit klip' from the clips listing; the page has no prepare step", async () => {
   const source = await read("app/projects/[id]/page.jsx");
   assert.match(source, /loadClipEntries\(id, \{ signal: controller\.signal \}\)/);
-  assert.match(source, /<ClipCard key=\{clip\.index\} clip=\{clip\} job=\{job\}[^>]*\n\s*entry=\{clipEntryFor\(entries, job, clip\.index\)\} \/>/);
+  assert.match(source, /<ClipDetail clip=\{current\} job=\{job\} entry=\{clipEntryFor\(entries, job, current\.index\)\}/);
+  assert.match(source, /<PosterCard key=\{clip\.index\} clip=\{clip\} entry=\{clipEntryFor\(entries, job, clip\.index\)\}/);
   assert.match(source, /<a className=\{`btn \$\{styles\.edit\}`\} href=\{entry\.editHref\}>Edit klip<\/a>/);
   assert.match(source, /<section id="klip" className=\{styles\.clips\}/);
   assert.doesNotMatch(source, /Siapkan untuk editor|prepareClipEntries|method: "POST"/);
