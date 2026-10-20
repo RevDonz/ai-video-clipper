@@ -205,7 +205,7 @@ test.describe("Dashboard form (faked job API)", () => {
     expect(await overflow(page)).toBeLessThanOrEqual(0);
     // The controls this form adds: the source row, the fold, the presets and the number fields.
     const small = await page.evaluate(() => [...document.querySelectorAll(
-      "#youtube-url, label:has(> #video-file), button[type=submit], [aria-controls=job-options], #job-options label:has(> input[type=radio]), #job-options input[type=number]",
+      "#youtube-url, label:has(> #video-file), form[aria-label=\"Buat klip\"] button[type=submit], [aria-controls=job-options], #job-options label:has(> input[type=radio]), #job-options input[type=number]",
     )].filter((element) => element.getClientRects().length > 0).map((element) => {
       const box = element.getBoundingClientRect();
       return { control: element.id || element.textContent.trim().slice(0, 30), width: Math.round(box.width), height: Math.round(box.height) };
