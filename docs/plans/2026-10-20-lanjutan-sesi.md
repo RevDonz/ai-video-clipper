@@ -14,8 +14,13 @@ antrean ini.
 - Checkout utama tetap di branch `potongin-adopsi-scl`, yang berisi dokumen ini.
 - Setiap paket kerja dikerjakan di git worktree baru dari `origin/main`, dengan branch
   `adopsi/<nama>`. Paket yang file-nya tidak bertabrakan boleh dikerjakan paralel.
-- **Jangan push atau merge ke `main`.** Setiap merge ke `main` langsung deploy ke produksi.
-  Push branch paket, lalu buka draft PR. Pemilik yang me-review dan merge.
+- **Merge ke `main` diizinkan pemilik (2026-10-20)** selama aplikasi belum dipakai. Setiap merge
+  ke `main` langsung deploy ke produksi, dan pemilik memantau deploy-nya.
+  - Satu paket per PR. Merge dengan rebase (`gh pr merge --rebase`), hanya setelah semua check
+    CI hijau. Jangan pernah push langsung ke `main`.
+  - Setelah merge, pantau job deploy (`gh run watch`). Kalau deploy gagal, perbaiki lewat PR
+    berikutnya.
+  - Paket yang ditandai **KEPUTUSAN PEMILIK DIPERLUKAN** tetap draft PR dan tidak di-merge.
 - Tes dulu, baru kode. Di lokal hanya jalankan tes yang ditargetkan:
   - `uv run pytest tests/test_x.py`
   - `cd web && node --test tests/x.test.mjs`
@@ -153,4 +158,4 @@ Perbarui `docs/HANDOFF.md` di branch `potongin-adopsi-scl`. Isinya:
 - keputusan yang menunggu pemilik;
 - langkah berikutnya.
 
-Push branch itu, lalu buka draft PR.
+Push branch itu, buka PR, lalu merge dengan rebase setelah CI hijau.
