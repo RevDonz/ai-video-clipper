@@ -29,9 +29,13 @@ import {
 } from "../components/editor/panels/caption-model.mjs";
 import { transitionCommands } from "../components/editor/panels/coldopen-transition.mjs";
 import {
+  HOOK_DESIGNS,
   HOOK_FIT_TEXT,
   HOOK_MAX,
   cleanHookText,
+  hookDesignCommand,
+  hookDesignHint,
+  hookDesignId,
   hookEnableText,
   hookEnabledCommand,
   hookFit,
@@ -51,7 +55,7 @@ import {
 } from "../components/editor/quick/quick-model.mjs";
 import { applyCommand as suggestionCommand } from "../components/editor/suggestions/model.mjs";
 import { applyCommand } from "../lib/editor/commands.mjs";
-import { createContext } from "../lib/editor/doc-model.mjs";
+import { HOOK_DESIGN_IDS, HOOK_DESIGN_NAMES, createContext } from "../lib/editor/doc-model.mjs";
 
 const editorDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "components", "editor");
 const source = (file) => readFileSync(path.join(editorDir, file), "utf8");
@@ -244,6 +248,35 @@ test("the hook fit badge: Memeriksa… while the text plans, Akan terpotong on o
   assert.deepEqual(HOOK_FIT_TEXT, { checking: "Memeriksa…", overflow: "Akan terpotong", fits: "Muat" });
 });
 
+test("hook designs: the bar first, each with a name, a note and a thumbnail; a pick is its own undo step", () => {
+  assert.deepEqual(HOOK_DESIGNS.map((design) => design.id), [...HOOK_DESIGN_IDS]);
+  assert.deepEqual(HOOK_DESIGNS.map((design) => design.name), ["Bar", "Kicker", "Blok", "Kotak kata"]);
+  assert.deepEqual(Object.fromEntries(HOOK_DESIGNS.map((design) => [design.id, design.name])), { ...HOOK_DESIGN_NAMES });
+  for (const design of HOOK_DESIGNS) {
+    assert.ok(design.note.length > 5 && design.note.length <= 40, design.id);
+    assert.doesNotMatch(design.note, /—/);
+  }
+  const thumbs = JSON.parse(source("panels/hook-thumbs/manifest.json"));
+  assert.deepEqual(Object.keys(thumbs.designs).sort(), [...HOOK_DESIGN_IDS].sort());
+  for (const id of HOOK_DESIGN_IDS) assert.ok(source("panels/hook-images.js").includes(`./hook-thumbs/${id}.png`), id);
+
+  const doc = fakeDoc();
+  assert.equal(hookDesignId(doc), "legacy-bar");
+  assert.equal(hookDesignId(withoutHook()), null);
+  assert.deepEqual(hookDesignCommand(doc, "kotak"), { type: "SetHookDesign", args: { id: "kotak" }, mergeKey: null });
+  assert.equal(hookDesignCommand(doc, "legacy-bar"), null, "the design it already has");
+  assert.equal(hookDesignCommand(withoutHook(), "kotak"), null, "no hook to restyle");
+  assert.throws(() => hookDesignCommand(doc, "neon"), TypeError);
+  const kotak = run(doc, "SetHookDesign", hookDesignCommand(doc, "kotak").args);
+  assert.equal(hookDesignId(kotak), "kotak");
+  // How Kicker and Kotak kata pick their part of the text; the bar and Blok need no hint.
+  assert.match(hookDesignHint("kicker"), /tanda baca/);
+  assert.match(hookDesignHint("kotak"), /kapital/);
+  assert.equal(hookDesignHint("legacy-bar"), null);
+  assert.equal(hookDesignHint("blok"), null);
+  for (const id of ["kicker", "kotak"]) assert.doesNotMatch(hookDesignHint(id), /—/);
+});
+
 test("a suggestion, a layout, a transition and a duck strength each come from one model function", () => {
   const doc = fakeDoc();
   assert.deepEqual(suggestionCommand(doc, { id: "hk_2", text: "Sutradara ditahan" }),
@@ -277,6 +310,9 @@ test("both views call the same model function for every shared control", () => {
     ["hookTextCommand(", card("HookCard"), source("panels/TextPanel.jsx")],
     ["hookEnabledCommand(", card("HookCard"), source("panels/TextPanel.jsx")],
     ["hookFit(", card("HookCard"), source("panels/TextPanel.jsx")],
+    ["hookDesignCommand(", card("HookCard"), source("panels/TextPanel.jsx")],
+    ["hookDesignHint(", card("HookCard"), source("panels/TextPanel.jsx")],
+    ["HOOK_IMAGES[", card("HookCard"), source("panels/TextPanel.jsx")],
     ["useHookSuggestions(", source("suggestions/CompactSuggestions.jsx"), source("suggestions/index.jsx")],
     ["<TransitionSection", card("ColdOpenCard"), source("panels/ColdOpenPanel.jsx")],
     ["<ColdOpenSuggestions", card("ColdOpenCard"), source("panels/ColdOpenPanel.jsx")],

@@ -33,6 +33,7 @@ from typing import Any
 from . import (
     COMPILER_ID,
     DOC_FPS,
+    HOOK_DESIGN_IDS,
     OUTPUT_SIZES,
     PACK_IDS,
     SCHEMA,
@@ -1242,7 +1243,7 @@ class _Validator:
             design_id = self.string(design, "id", _join(pp, "design"))
             version = self.integer(design, "v", _join(pp, "design"), -MAX_SAFE_INTEGER)
             if design_id is not None and version is not None and (
-                    design_id, version) != ("legacy-bar", 1):
+                    design_id not in HOOK_DESIGN_IDS or version != 1):
                 self.error("op_disabled", _join(pp, "design"))
 
     def asset(self, payload: Mapping, path: str, kind: str) -> Mapping | None:

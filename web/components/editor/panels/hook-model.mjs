@@ -1,8 +1,9 @@
 // The hook rules both editor views share (docs/plans/2026-10-02-editor-mode-cepat.md §1.2 HOOK,
-// AC5): the text as stored (cleaned, at most 90 code points), the commands of the text field and
-// the on/off switch, the fit badge from the plan, and the characters the hook font lacks. Mode
-// Cepat's Hook card and Mode Lengkap's Teks panel both call these. Pure; no DOM.
-import { LIMITS } from "../../../lib/editor/doc-model.mjs";
+// AC5): the text as stored (cleaned, at most 90 code points), the commands of the text field, the
+// on/off switch and the design picker (CONTRACTS §5.33), the fit badge from the plan, and the
+// characters the hook font lacks. Mode Cepat's Hook card and Mode Lengkap's Teks panel both call
+// these. Pure; no DOM.
+import { HOOK_DESIGN_IDS, HOOK_DESIGN_NAMES, LIMITS } from "../../../lib/editor/doc-model.mjs";
 
 export const HOOK_MAX = LIMITS.hookText;
 
@@ -20,6 +21,41 @@ export function hookPoints(text) {
 
 export function hookItemOf(doc) {
   return doc?.tracks?.find((track) => track.kind === "hook")?.items?.[0] ?? null;
+}
+
+const DESIGN_NOTES = Object.freeze({
+  "legacy-bar": "Teks putih di bar gelap",
+  kicker: "Baris kecil di atas teks besar",
+  blok: "Tiap baris di kotak kuning",
+  kotak: "Satu kata di kotak kuning",
+});
+
+/** The designs in the picker's order, the seeds' bar first; their thumbnails live in hook-thumbs/. */
+export const HOOK_DESIGNS = Object.freeze(HOOK_DESIGN_IDS.map((id) => Object.freeze({ id, name: HOOK_DESIGN_NAMES[id], note: DESIGN_NOTES[id] })));
+
+// How Kicker and Kotak kata choose their part of the text (captions_ass.py: _kicker_count,
+// boxed_word_index); the bar and Blok draw every line alike.
+const DESIGN_HINTS = Object.freeze({
+  kicker: "Baris kecil: kata sampai tanda baca pertama, misalnya “Ternyata:”. Tanpa tanda baca, 1–3 kata pertama.",
+  kotak: "Kata berhuruf kapital masuk kotak, misalnya “SATPAM”. Tanpa itu, kata terpanjang.",
+});
+
+/** The hook's design id; null without a hook. */
+export function hookDesignId(doc) {
+  return hookItemOf(doc)?.payload?.design?.id ?? null;
+}
+
+/** A design pick, its own undo step; null without a hook or when the hook already has it. */
+export function hookDesignCommand(doc, id) {
+  if (!HOOK_DESIGN_IDS.includes(id)) throw new TypeError(`unknown hook design: ${id}`);
+  const current = hookDesignId(doc);
+  if (current === null || current === id) return null;
+  return { type: "SetHookDesign", args: { id }, mergeKey: null };
+}
+
+/** The line under the picker that says which words a design treats apart; null when none. */
+export function hookDesignHint(id) {
+  return DESIGN_HINTS[id] ?? null;
 }
 
 /**

@@ -22,12 +22,13 @@ const FPS = [30000, 1001];
 const SHA = (seed) => fakeSha256(`fake:${seed}`);
 
 // Appendix B: every command name the real store knows (T2.5 implements them all), with the
-// cold-open transition commands (docs/plans/2026-10-02-transisi-cold-open.md §7.2).
+// cold-open transition commands (docs/plans/2026-10-02-transisi-cold-open.md §7.2) and
+// SetHookDesign (CONTRACTS §5.33).
 export const COMMANDS = Object.freeze([
   "TrimStart", "TrimEnd", "RemoveWords", "RemoveGap", "RestoreRemoval", "ApplyCleanup",
   "SetColdOpen", "NudgeColdOpen", "SetJoinStyle", "SetJoinSfx", "EditWordText", "SetWordHidden", "SetWordEmphasis",
   "SetCaptionsEnabled", "SetCaptionPack", "SetCaptionOverride", "SetHookEnabled", "SetHookText",
-  "SetHookDuration", "SetHookY", "SetLayout", "SetLogo", "RemoveLogo", "MoveLogo", "ResizeLogo",
+  "SetHookDuration", "SetHookY", "SetHookDesign", "SetLayout", "SetLogo", "RemoveLogo", "MoveLogo", "ResizeLogo",
   "SetLogoOpacity", "SnapLogo", "SetMusic", "RemoveMusic", "SetMusicGain", "SetMusicOffset",
   "SetMusicLoop", "SetMusicFades", "SetDuck", "SetSourceGain", "SetLoudness", "ResetToSeed",
 ]);
@@ -416,6 +417,7 @@ const FAKE_REDUCERS = {
   SetCaptionOverride: (doc, { key, value }) => { doc.captions.overrides[key] = value; },
   SetLayout: (doc, { mode }) => { doc.layout.default.mode = mode; },
   SetHookText: (doc, { text }) => { doc.tracks.find((track) => track.kind === "hook").items[0].payload.text = text; },
+  SetHookDesign: (doc, { id }) => { doc.tracks.find((track) => track.kind === "hook").items[0].payload.design = { id, v: 1 }; },
   SetSourceGain: (doc, { gain_cdb: gain }) => { doc.audio.source.gain_cdb = gain; },
 };
 

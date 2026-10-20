@@ -437,6 +437,30 @@ test.describe("Mode Cepat cards (harness: real store and commands)", () => {
     expect(errors).toEqual([]);
   });
 
+  test("Hook card: four designs as tiles, a pick is one undo step, Kicker and Kotak kata say how they pick", async ({ page }) => {
+    const errors = await openQuick(page);
+    const card = await openCard(page, "hook");
+    const group = card.getByRole("group", { name: "Desain hook" });
+    await expect(group.getByRole("radio")).toHaveCount(4);
+    for (const name of ["Bar", "Kicker", "Blok", "Kotak kata"]) await expect(group.getByRole("radio", { name, exact: true })).toBeVisible();
+    await expect(group.getByRole("radio", { name: "Bar", exact: true })).toBeChecked();
+    await expect(card.locator("[data-hook-design-hint]")).toHaveCount(0);
+    await group.getByRole("radio", { name: "Kotak kata", exact: true }).check();
+    expect(await lastSent(page)).toEqual({ type: "SetHookDesign", args: { id: "kotak" }, mergeKey: null });
+    await expect(card.locator("[data-hook-design-hint]")).toContainText("kapital");
+    await group.getByRole("radio", { name: "Kicker", exact: true }).check();
+    expect(await lastSent(page)).toEqual({ type: "SetHookDesign", args: { id: "kicker" }, mergeKey: null });
+    await expect(card.locator("[data-hook-design-hint]")).toContainText("tanda baca");
+    await page.getByRole("button", { name: "Urungkan" }).click();
+    await expect(group.getByRole("radio", { name: "Kotak kata", exact: true })).toBeChecked();
+    // The fit badge reads the plan for every design.
+    await expect(card.locator("[data-hook-fit]")).toHaveText("Muat");
+    // Off, the hook has no design to pick.
+    await card.getByRole("switch", { name: "Tampilkan hook" }).click();
+    await expect(group.getByRole("radio", { name: "Blok", exact: true })).toBeDisabled();
+    expect(errors).toEqual([]);
+  });
+
   const AI_STATES = [
     { name: "pending, then done: the AI list arrives under its label; the privacy line shows",
       ai: { answer: { taskId: TASK_ID, heuristic: INSTANT, llm: { state: "pending" } }, pendingPolls: 1, task: { state: "done", suggestions: AI, error: null } },

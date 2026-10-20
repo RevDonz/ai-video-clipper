@@ -4,7 +4,8 @@
 // (thumbnails rendered by FFmpeg from the pack files, pack-thumbs/), position, size, words per line
 // (CONTRACTS §5.30), uppercase, and the highlight and keyword swatches; the hook on/off, its text
 // with a counter and the fit badge from the server's layout ("Muat" / "Akan terpotong"), the hook
-// suggestions under the text field, duration and position. Every change is one Appendix B command; sliders and typing merge into
+// suggestions under the text field, the design (thumbnails from hook-thumbs/, CONTRACTS §5.33),
+// duration and position. Every change is one Appendix B command; sliders and typing merge into
 // one undo step through their merge keys. The caption and hook rules (commands, notes, the hint
 // that the caption sits near the hook) are caption-model.mjs and hook-model.mjs, shared with Mode
 // Cepat's Caption and Hook cards (docs/plans/2026-10-02-editor-mode-cepat.md §1.4, §3).
@@ -30,10 +31,15 @@ import {
   highlightNote,
   hookNearNote,
 } from "./caption-model.mjs";
+import { HOOK_IMAGES } from "./hook-images.js";
 import {
+  HOOK_DESIGNS,
   HOOK_FIT_TEXT,
   HOOK_MAX,
   cleanHookText,
+  hookDesignCommand,
+  hookDesignHint,
+  hookDesignId,
   hookEnableText,
   hookEnabledCommand,
   hookFit,
@@ -90,6 +96,12 @@ function TextPanelBody({ state, dispatch, api }) {
     && (warning.path ? warning.path.startsWith("/tracks") : warning.ref === hook.id));
   const enableText = hookEnableText(draftText, state.seed);
   const missingGlyphs = hookMissingGlyphs(plan, doc);
+  const designId = hookDesignId(doc);
+  const designHint = hookDesignHint(designId);
+  const pickDesign = (id) => {
+    const command = hookDesignCommand(doc, id);
+    if (command) send(command);
+  };
 
   return (
     <section data-panel="text" className={styles.panel} aria-busy={false}>
@@ -170,6 +182,23 @@ function TextPanelBody({ state, dispatch, api }) {
           </p>
         ) : null}
         <HookSuggestions state={state} dispatch={dispatch} api={api} />
+        <fieldset className={styles.fieldset} disabled={readOnly || hook === null}
+          aria-describedby={designHint ? "hook-design-hint" : undefined}>
+          <legend className={styles.legend}>Desain hook</legend>
+          <div className={styles.packs}>
+            {HOOK_DESIGNS.map((design) => (
+              <label key={design.id} className={styles.pack} data-hook-design={design.id}>
+                <input type="radio" className={styles.cover} name="hook-design" value={design.id}
+                  aria-describedby={`hook-design-note-${design.id}`} checked={designId === design.id}
+                  onChange={() => pickDesign(design.id)} />
+                <img className={styles.packThumb} src={imageSrc(HOOK_IMAGES[design.id])} width={160} height={40} alt="" draggable={false} />
+                <span className={styles.packName}>{design.name}</span>
+                <span className={styles.packNote} id={`hook-design-note-${design.id}`}>{design.note}</span>
+              </label>
+            ))}
+          </div>
+          {designHint ? <p id="hook-design-hint" className={styles.note} data-hook-design-hint="">{designHint}</p> : null}
+        </fieldset>
         <label className={styles.field}>
           <span>Durasi hook</span>
           <span className={styles.value}>{hook ? `${SECONDS.format((hook.dur_f * fps[1]) / fps[0])} dtk` : "Mati"}</span>
