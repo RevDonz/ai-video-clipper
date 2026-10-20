@@ -1971,3 +1971,22 @@ evaluation document). Footage stays outside the repository.
   footage) would measure the target content directly.
 - Audio silences and speaker changes (`analysis/speaker-changes.json`) did not measurably help on
   the development set, so the render does not read them; see the evaluation document.
+
+## Teks watermark (2026-10-21)
+
+Plan `docs/plans/2026-10-20-lanjutan-sesi.md` P2 ("Watermark teks satu baris"); contract
+CONTRACTS §5.40; guide PANDUAN-EDITOR "Logo", "Teks watermark" and "Teks watermark bawaan". Built
+on branch `adopsi/watermark-teks` with targeted local tests only; the gates that need the
+production image or a browser run on GitHub Actions when the branch is pushed.
+
+| Gate | What | Threshold | Result |
+|---|---|---|---|
+| Auto clips unchanged | a document without `watermark` compiles to the bytes it compiled to before (every older ASS golden, `plan-shas.json`); seeds carry the key only for a job created with the Pengaturan default | identical | **pass** (local pytest) |
+| Safe area | nine places × 50, 100, 200 % × 720×1280 and 1080×1920: the line (advance plus outline) stays in the frame and out of the top, bottom and right zones; a 40-character line shrinks to its column; style and event equal the contract's numbers | inside | **pass** (`tests/test_captions_ass.py`); one frame of all nine places rendered with the local FFmpeg 6.1.1 + libass and looked at |
+| Document rules | the validator's RULES and the new fixtures (3 valid, 11 invalid); the client's five commands against the Python validator in the 1,000-sequence crosscheck | 0 rejected documents | **pass** (local) |
+| P-TXT references | `watermark-top_center`, `watermark-bottom_right` (20 % opacity) and `watermark-middle_left` draw text on every probe frame (generated with the local FFmpeg 6.1.1 + libass) | text on every probe | **pass** (local); the pinned image re-makes them in the runs below |
+| P-TXT | JASSUB against FFmpeg: the three clips (smoke: `watermark-top_center`, `watermark-bottom_right`) and the player variant `watermark` | SSIM ≥ 0.999, PSNR ≥ 45 dB, max ≤ 16, 0 px > 16 | **pending**: `Parity (smoke)` of the PR, `editor-gates suite=image` and `suite=player` |
+| ASS goldens | `watermark__c30`, `watermark_max__c30`, `watermark_min__c24` equal a fresh render; the golden evidence renders them in the image | bytes equal; text visible | **pass** (bytes, local); evidence **pending** (`suite=image`) |
+| Editor model | the five commands, `checkDoc`, the five rebase parts, the Logo panel's model; the store's two-tab property over 100 seeded runs (60 before; the threshold of more than 5 dialogs is unchanged) | pass | **pass** (`node --test`: commands, rebase, draft, watermark, logo, guards) |
+| Pengaturan default | the route (session, origin, body cap, validation, 0600 file, symlink refused), the job copy, Python's `job_watermark` reading it back, the seed with it, prepare of a real job and an edit-v2 auto clip whose ASS carries it (R10 hands out that file) | pass | **pass** (local `node --test` and pytest) |
+| Browser specs | the Logo panel's "Teks watermark" on the harness (type, grid, sliders, empty field, remove and undo, read-only) and the Pengaturan card (fakes) | pass | **pending**: `editor-gates suite=e2e` (`e2e/editor-logo.spec.mjs`, `e2e/settings-watermark.spec.mjs`) |
