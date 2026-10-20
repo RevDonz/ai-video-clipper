@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import AppHeader from "../../components/AppHeader.jsx";
+import { helpHref } from "../../lib/help-catalog.mjs";
 import { CUSTOM_PROVIDERS, LLM_PRESETS, MAX_DISPLAY_NAME_LENGTH, REASONING_EFFORTS, SERVER_TEMPLATES, isFreeModel } from "../../lib/llm-presets.mjs";
 import {
   availableProviders,
@@ -268,7 +269,7 @@ function ProviderCard({ item, index, count, freeOnly, errors, statusLine, locked
   if (test?.state === "running") result = { tone: "muted", text: "Menguji koneksi… Server lambat bisa butuh 1–2 menit." };
   else if (test?.state === "done" && test.result.status === "ok") {
     result = { tone: "ok", text: `✓ ${test.result.model || "Model"} menjawab dalam ${formatSeconds(test.result.latencyS)} detik.` };
-  } else if (test?.state === "done") result = { tone: "error", text: `✗ ${test.result.message}` };
+  } else if (test?.state === "done") result = { tone: "error", text: `✗ ${test.result.message}`, help: helpHref(test.result.code) };
   else if (test?.state === "error") result = { tone: "error", text: test.message };
 
   return (
@@ -404,6 +405,7 @@ function ProviderCard({ item, index, count, freeOnly, errors, statusLine, locked
         </button>
         <p className={`testResult ${result?.tone || "muted"}`} role="status" aria-live="polite">
           {result ? result.text : locked ? "Simpan dulu untuk mengetes nilai baru." : "Kirim ping JSON kecil dengan pengaturan tersimpan."}
+          {result?.help && <>{" "}<a className="testHelp" href={result.help}>Cara memperbaiki</a></>}
         </p>
       </div>
     </article>

@@ -37,3 +37,19 @@ test("the header offers the help page as a quiet link outside the main navigatio
   assert.match(header, /<a [^>]*href="\/bantuan"[^>]*aria-current=\{current === "\/bantuan" \? "page" : undefined\}/);
   assert.equal(header.match(/<nav\b/g)?.length, 1);
 });
+
+test("the project page, the dashboard and the settings test result link their errors to the help page", async () => {
+  const project = await read("app/projects/[id]/page.jsx");
+  assert.match(project, /const help = jobHelpHref\(job\);/);
+  assert.match(project, /\{help && <a [^>]*href=\{help\}/);
+  assert.match(project, /\{notice\.help && <a [^>]*href=\{notice\.help\}/);
+  const dashboard = await read("app/dashboard/page.jsx");
+  assert.match(dashboard, /const failureHelp = jobHelpHref\(activeJob\);/);
+  assert.match(dashboard, /\{failureHelp && <a [^>]*href=\{failureHelp\}/);
+  assert.match(dashboard, /storageHelpHref\(storage\.admission\.code\)/);
+  assert.match(dashboard, /help: storageHelpHref\(payload\.code\)/);
+  assert.match(dashboard, /message\.help && <a [^>]*href=\{message\.help\}/);
+  const settings = await read("app/settings/page.jsx");
+  assert.match(settings, /helpHref\(test\.result\.code\)/);
+  assert.match(settings, /result\?\.help && <>\{" "\}<a [^>]*href=\{result\.help\}/);
+});

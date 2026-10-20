@@ -37,6 +37,7 @@ import {
   recoverFailedJobSelection,
   storageStatusView,
 } from "../../lib/dashboard-storage-status.mjs";
+import { jobHelpHref, storageHelpHref } from "../../lib/help-catalog.mjs";
 import {
   FOCUS_LIMITS,
   addFocusTerms,
@@ -223,6 +224,7 @@ export default function DashboardPage() {
   const ai = aiStatusView(aiStatus);
   const aiMode = focusAiMode(aiStatus);
   const failure = jobFailureView(activeJob);
+  const failureHelp = jobHelpHref(activeJob);
 
   async function refreshJobs(selectedId = null, signal = undefined) {
     jobsRefreshGeneration.current += 1;
@@ -420,7 +422,7 @@ export default function DashboardPage() {
           });
         }
         if ([507, 503].includes(response.status)) await refreshStorageStatus();
-        setMessage({ tone: "error", text: submitErrorMessage(payload) });
+        setMessage({ tone: "error", text: submitErrorMessage(payload), help: storageHelpHref(payload.code) });
         return;
       }
       setJobs((current) => [payload.job, ...current]);
@@ -478,7 +480,10 @@ export default function DashboardPage() {
             <strong>{storageBlocked ? "Job baru dihentikan sementara" : "Status penyimpanan belum tersedia"}</strong>
             <span>{storageMessage(storage.admission.code)}</span>
           </div>
-          <button type="button" className="btn" onClick={refreshStorageStatus}>Periksa lagi</button>
+          <div className={styles.bannerActions}>
+            <a className="btn ghost" href={storageHelpHref(storage.admission.code) || storageHelpHref("storage_admission_unavailable")}>Cara memperbaiki</a>
+            <button type="button" className="btn" onClick={refreshStorageStatus}>Periksa lagi</button>
+          </div>
         </div>
       )}
 
@@ -526,7 +531,7 @@ export default function DashboardPage() {
             <p id="source-help" className={styles.help}>
               {dragging ? "Lepaskan untuk memakai file ini." : video ? "Batas ukuran file mengikuti server." : "Atau pilih file MP4, MOV, MKV, WEBM, atau tarik ke halaman ini."}
             </p>
-            {message && <p className={`${styles.message} ${message.tone === "error" ? styles.messageError : ""}`} role={message.tone === "error" ? "alert" : "status"}>{message.text}</p>}
+            {message && <p className={`${styles.message} ${message.tone === "error" ? styles.messageError : ""}`} role={message.tone === "error" ? "alert" : "status"}>{message.text}{message.help && " "}{message.help && <a className={styles.messageLink} href={message.help}>Cara memperbaiki</a>}</p>}
           </div>
 
           <p className={`${styles.aiStatus} ${styles[ai.tone] || ""}`} role="status">
@@ -700,6 +705,7 @@ export default function DashboardPage() {
                       <p>{failure.detail}</p>
                     </details>
                   )}
+                  {failureHelp && <a className={styles.failureLink} href={failureHelp}>Cara memperbaiki</a>}
                 </div>
               )}
               <div className={styles.clips}>
