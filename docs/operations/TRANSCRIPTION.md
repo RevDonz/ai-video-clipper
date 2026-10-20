@@ -64,6 +64,12 @@ Whisper mendengarnya sebelum setiap jendela, kata-kata di dalamnya sedikit "dipa
 transkrip. Karena itu prompt hanya memakai kata-kata yang memang sangat sering muncul di
 podcast.
 
+Prompt bawaan hanya dipakai untuk audio berbahasa Indonesia. Job dengan **Bahasa video**
+Inggris atau Deteksi otomatis (dipilih di dashboard, diteruskan sebagai `--language en` atau
+`--language auto`) berjalan tanpa prompt, karena kata-kata Indonesia di prompt bisa ikut
+terpancing ke transkrip. `WHISPER_INITIAL_PROMPT` yang diisi sendiri tetap berlaku untuk semua
+bahasa. `WHISPER_LANGUAGE` hanya dipakai untuk job yang tidak membawa pilihan bahasa.
+
 Versi 1 sempat memakai sapaan "Halo, apa kabar? Baik, alhamdulillah. …". Di satu episode
 penuh, ucapan "however, dok" jadi tertulis "Apa kabar? Apa kabar, dok?". Kalau Anda
 menulis prompt sendiri, pakai kalimat umum bertanda baca dan hindari frasa khas. Nama tamu
