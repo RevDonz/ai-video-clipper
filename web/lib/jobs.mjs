@@ -10,6 +10,7 @@ import {
   focusTermKey,
   normalizeFocusText,
 } from "./selection-v3-view.mjs";
+import { sanitizeStageSummary } from "./stage-summary.mjs";
 
 export const RENDER_MODES = ["face-track", "fit-blur", "center-crop"];
 /** Every selection mode a stored job may carry. Only CURRENT_SELECTION_MODE is accepted for new jobs. */
@@ -63,13 +64,18 @@ export function jobOptionInputFromForm(form) {
   return Object.fromEntries(JOB_FORM_FIELDS.map((name) => [name, form.get(name)]));
 }
 
+/**
+ * One engine progress line as { progress, stage, detail }, plus `summary` when the line carries a
+ * stage summary with something valid in it (lib/stage-summary.mjs); null for any other line.
+ */
 export function parseWorkerProgress(line) {
   if (typeof line !== "string" || !line.startsWith(WORKER_PROGRESS_PREFIX)) return null;
   try {
     const event = JSON.parse(line.slice(WORKER_PROGRESS_PREFIX.length));
     if (!Number.isInteger(event.progress) || event.progress < 0 || event.progress > 99) return null;
     if (typeof event.stage !== "string" || typeof event.detail !== "string") return null;
-    return { progress: event.progress, stage: event.stage, detail: event.detail };
+    const summary = sanitizeStageSummary(event.summary);
+    return { progress: event.progress, stage: event.stage, detail: event.detail, ...(summary ? { summary } : {}) };
   } catch {
     return null;
   }
@@ -855,6 +861,7 @@ export function serializePublicJob(job) {
     selection_v2: _legacyRawSelectionV2,
     selectionV3: rawSelectionV3,
     selection_v3: _legacyRawSelectionV3,
+    stageSummary: rawStageSummary,
     ...safe
   } = job;
   const options = safe.options && typeof safe.options === "object" && !Array.isArray(safe.options)
@@ -867,12 +874,14 @@ export function serializePublicJob(job) {
   }
   const selectionV2 = sanitizeSelectionV2Summary(rawSelectionV2);
   const selectionV3 = sanitizeSelectionV3Summary(rawSelectionV3);
+  const stageSummary = sanitizeStageSummary(rawStageSummary);
   if (Array.isArray(safe.clips)) safe.clips = safe.clips.map((clip) => sanitizeStoredClip(clip, safe.id));
   return enrichJobSocialMetadata({
     ...safe,
     options,
     ...(selectionV2 ? { selectionV2 } : {}),
     ...(selectionV3 ? { selectionV3 } : {}),
+    ...(stageSummary ? { stageSummary } : {}),
   });
 }
 

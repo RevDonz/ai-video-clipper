@@ -283,12 +283,14 @@ export function jobClipFromManifest(clip, id, position = 0, { thumbnails = null 
   return { ...merged, ...clipSocialMetadata(merged) };
 }
 
+/** The job patch for one engine progress event; a stage summary joins the job's earlier ones. */
 export function nextWorkerProgress(current, event) {
   return {
     status: "processing",
     progress: Math.max(current.progress, event.progress),
     stage: event.stage,
     stageDetail: event.detail,
+    ...(event.summary ? { stageSummary: { ...current.stageSummary, ...event.summary } } : {}),
   };
 }
 
@@ -336,7 +338,7 @@ export function runFencedProcess({ command, args, env, heartbeatMs, progress, in
       stdout.on("line", (line) => {
         const event = parseWorkerProgress(line);
         if (!event) { process.stdout.write(`${line}\n`); return; }
-        if (event.progress > current.progress || event.stage !== current.stage) {
+        if (event.progress > current.progress || event.stage !== current.stage || event.summary) {
           const patch = nextWorkerProgress(current, event);
           current = { ...current, ...patch };
           publish(patch);
@@ -433,7 +435,8 @@ export async function main(argv = process.argv, env = process.env) {
   }
 
   try {
-    let job = await update({ status: "preparing", progress: 5, error: null });
+    // A new attempt starts without the stage summaries of an earlier one.
+    let job = await update({ status: "preparing", progress: 5, error: null, stageSummary: null });
     let sourcePath = job.sourcePath;
     let captionsDir = null;
     if (job.source.type === "youtube") {

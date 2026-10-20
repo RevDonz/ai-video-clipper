@@ -333,6 +333,32 @@ test("worker progress events are parsed safely and reject unrelated output", () 
   );
 });
 
+test("a progress event may carry a stage summary; junk in it is dropped, the event is kept", () => {
+  const line = (summary) => `POTONGIN_PROGRESS ${JSON.stringify({ stage: "transcribing", progress: 57, detail: "Transkripsi audio 100%", summary })}`;
+  assert.deepEqual(parseWorkerProgress(line({ transcript: { words: 2304, source: "whisper", language: "id" } })), {
+    progress: 57, stage: "transcribing", detail: "Transkripsi audio 100%",
+    summary: { transcript: { words: 2304, source: "whisper", language: "id" } },
+  });
+  assert.deepEqual(parseWorkerProgress(line({ transcript: { words: 12, path: "/data/jobs/x" }, secret: { key: "abc" } })), {
+    progress: 57, stage: "transcribing", detail: "Transkripsi audio 100%", summary: { transcript: { words: 12 } },
+  });
+  for (const summary of [{ transcript: { words: -1 } }, [], "2304 kata", null, {}]) {
+    assert.deepEqual(parseWorkerProgress(line(summary)), { progress: 57, stage: "transcribing", detail: "Transkripsi audio 100%" }, JSON.stringify(summary));
+  }
+  assert.equal(parseWorkerProgress('POTONGIN_PROGRESS {"summary":{"moments":{"count":3}}}'), null, "a summary needs a full progress event");
+});
+
+test("the public job carries only a sanitized stage summary", () => {
+  const job = { id: "safe", options: {}, clips: [] };
+  assert.deepEqual(serializePublicJob({ ...job, stageSummary: { moments: { count: 3, source: "llm" }, raw: { x: 1 } } }).stageSummary, {
+    moments: { count: 3, source: "llm" },
+  });
+  for (const stageSummary of [null, { moments: { count: "3" } }, ["x"]]) {
+    assert.equal(Object.hasOwn(serializePublicJob({ ...job, stageSummary }), "stageSummary"), false, JSON.stringify(stageSummary));
+  }
+  assert.equal(Object.hasOwn(serializePublicJob(job), "stageSummary"), false);
+});
+
 test("AI social metadata derives a concise hook and caption from clip content", () => {
   const metadata = generateSocialMetadata(
     "Banyak orang tidak sadar kalau konsistensi jauh lebih penting daripada motivasi. "
