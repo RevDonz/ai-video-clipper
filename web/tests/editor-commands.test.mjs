@@ -109,13 +109,13 @@ function bodyFrames(doc) {
 
 // --- model ---------------------------------------------------------------------------------
 
-test("the command list is Appendix B with the transition, SetHookDesign, no-face and watermark commands, the same 44 names the fakes know", () => {
+test("the command list is Appendix B with the transition, SetHookDesign, no-face, framing and watermark commands, the same 48 names the fakes know", () => {
   assert.deepEqual([...COMMANDS], [...FAKE_COMMANDS]);
-  assert.equal(COMMANDS.length, 44);
-  assert.deepEqual(COMMANDS.slice(28, 34), ["SnapLogo", "SetWatermarkText", "SetWatermarkPosition", "SetWatermarkSize",
+  assert.equal(COMMANDS.length, 48);
+  assert.deepEqual(COMMANDS.slice(32, 38), ["SnapLogo", "SetWatermarkText", "SetWatermarkPosition", "SetWatermarkSize",
     "SetWatermarkOpacity", "RemoveWatermark"]);
   assert.deepEqual(COMMANDS.slice(16, 21), ["SetHookEnabled", "SetHookText", "SetHookDuration", "SetHookY", "SetHookDesign"]);
-  assert.deepEqual(COMMANDS.slice(21, 23), ["SetLayout", "SetNoFace"]);
+  assert.deepEqual(COMMANDS.slice(21, 27), ["SetLayout", "SetNoFace", "SetKeyframe", "RemoveKeyframe", "SetKeyframeMove", "ClearKeyframes"]);
   assert.deepEqual(COMMANDS.slice(6, 10), ["SetColdOpen", "NudgeColdOpen", "SetJoinStyle", "SetJoinSfx"]);
   for (const [code, message] of Object.entries(COMMAND_MESSAGES)) {
     assert.match(code, /^[a-z_]+$/);
@@ -201,9 +201,12 @@ test("defaultMergeKey follows Appendix B", () => {
   assert.equal(defaultMergeKey("SetWatermarkText", { text: "@akun" }), "wm:text");
   assert.equal(defaultMergeKey("SetWatermarkSize", { size_pm: 1200 }), "wm:size");
   assert.equal(defaultMergeKey("SetWatermarkOpacity", { opacity_pm: 600 }), "wm:opacity");
+  // a drag of the framing box at one frame is one undo step (CONTRACTS §5.41)
+  assert.equal(defaultMergeKey("SetKeyframe", { sf: 37300, pan_e5: 10 }), "frame:37300");
   for (const type of ["TrimStart", "TrimEnd", "RemoveWords", "RemoveGap", "RestoreRemoval", "ApplyCleanup",
     "SetColdOpen", "SetJoinStyle", "SetJoinSfx", "SetWordHidden", "SetWordEmphasis", "SetCaptionPack", "SetHookDesign", "SetLayout",
-    "SetLogo", "RemoveLogo", "SnapLogo", "SetWatermarkPosition", "RemoveWatermark", "SetMusic", "RemoveMusic", "ResetToSeed"]) {
+    "RemoveKeyframe", "SetKeyframeMove", "ClearKeyframes", "SetLogo", "RemoveLogo", "SnapLogo", "SetWatermarkPosition", "RemoveWatermark",
+    "SetMusic", "RemoveMusic", "ResetToSeed"]) {
     assert.equal(defaultMergeKey(type, {}), null, type);
   }
 });
@@ -848,6 +851,105 @@ test("SetNoFace sets what face-track shows where no face was found", () => {
   assert.deepEqual(run(C25, camera, "SetNoFace", { mode: "center" }).layout, C25.seed.layout);
   rejects(C25, C25.seed, "SetNoFace", { mode: "fail" }, "value_out_of_range");
   rejects(C25, C25.seed, "SetNoFace", {}, "value_out_of_range");
+});
+
+// --- manual framing, "Atur bingkai" (CONTRACTS §5.41) ------------------------------------------
+
+const centred = (context) => run(context, context.seed, "SetLayout", { mode: "fill_center" });
+
+test("SetKeyframe adds a keyframe at a source frame, in order, and moves the one already there", () => {
+  const start = body(C30.seed).in_sf;
+  let doc = run(C30, centred(C30), "SetKeyframe", { sf: start + 90, pan_e5: 80000 });
+  assert.deepEqual(doc.layout.keyframes, [{ sf: start + 90, pan_e5: 80000, move: "cut" }]);
+  doc = run(C30, doc, "SetKeyframe", { sf: start + 10, pan_e5: 5000, move: "slide" });
+  doc = run(C30, doc, "SetKeyframe", { sf: start + 40, pan_e5: 50000 });
+  assert.deepEqual(doc.layout.keyframes.map((k) => k.sf), [start + 10, start + 40, start + 90]);
+  // the keyframe at that frame moves and keeps how the crop reaches it
+  const moved = run(C30, doc, "SetKeyframe", { sf: start + 10, pan_e5: 6000 });
+  assert.deepEqual(moved.layout.keyframes[0], { sf: start + 10, pan_e5: 6000, move: "slide" });
+  assert.equal(moved.layout.keyframes[1], doc.layout.keyframes[1], "unchanged keyframes are shared");
+  assert.deepEqual(applyCommand(doc, "SetKeyframe", { sf: start + 90, pan_e5: 0 }, C30.ctx).args,
+    { sf: start + 90, pan_e5: 0, move: "cut" });
+  // face-track frames by hand too
+  const camera = run(C25, C25.seed, "SetKeyframe", { sf: body(C25.seed).in_sf, pan_e5: 100000 });
+  assert.equal(camera.layout.default.mode, "camera");
+  assert.equal(camera.layout.keyframes.length, 1);
+});
+
+test("SetKeyframe needs a crop layout, a frame of the window and values in range", () => {
+  const doc = centred(C30);
+  const [low, high] = C30.ctx.windowSf;
+  rejects(C30, C30.seed, "SetKeyframe", { sf: low, pan_e5: 0 }, "framing_unavailable"); // the seed is latar blur
+  rejects(C30, doc, "SetKeyframe", { sf: low - 1, pan_e5: 0 }, "outside_window");
+  rejects(C30, doc, "SetKeyframe", { sf: high, pan_e5: 0 }, "outside_window");
+  assert.equal(run(C30, doc, "SetKeyframe", { sf: high - 1, pan_e5: 0 }).layout.keyframes[0].sf, high - 1);
+  rejects(C30, doc, "SetKeyframe", { sf: low, pan_e5: 100001 }, "value_out_of_range");
+  rejects(C30, doc, "SetKeyframe", { sf: low, pan_e5: -1 }, "value_out_of_range");
+  rejects(C30, doc, "SetKeyframe", { sf: low, pan_e5: 1.5 }, "invalid_args");
+  rejects(C30, doc, "SetKeyframe", { sf: "1", pan_e5: 0 }, "invalid_args");
+  rejects(C30, doc, "SetKeyframe", { sf: low, pan_e5: 0, move: "fade" }, "value_out_of_range");
+  let full = doc;
+  for (let k = 0; k < 100; k += 1) full = applyCommand(full, "SetKeyframe", { sf: low + k, pan_e5: k * 1000 }, C30.ctx).doc;
+  assert.equal(full.layout.keyframes.length, 100);
+  assert.deepEqual(checkDoc(full, C30.ctx), []);
+  rejects(C30, full, "SetKeyframe", { sf: low + 100, pan_e5: 0 }, "too_many_keyframes");
+  assert.equal(run(C30, full, "SetKeyframe", { sf: low + 99, pan_e5: 0 }).layout.keyframes.length, 100);
+});
+
+test("RemoveKeyframe, SetKeyframeMove and ClearKeyframes; no keyframe left is no key at all", () => {
+  const start = body(C30.seed).in_sf;
+  let doc = run(C30, centred(C30), "SetKeyframe", { sf: start + 10, pan_e5: 0 });
+  doc = run(C30, doc, "SetKeyframe", { sf: start + 50, pan_e5: 100000 });
+  const slid = run(C30, doc, "SetKeyframeMove", { sf: start + 50, move: "slide" });
+  assert.deepEqual(slid.layout.keyframes[1], { sf: start + 50, pan_e5: 100000, move: "slide" });
+  rejects(C30, doc, "SetKeyframeMove", { sf: start + 51, move: "slide" }, "keyframe_missing");
+  rejects(C30, doc, "SetKeyframeMove", { sf: start + 50, move: "zoom" }, "value_out_of_range");
+  const one = run(C30, slid, "RemoveKeyframe", { sf: start + 10 });
+  assert.deepEqual(one.layout.keyframes, [{ sf: start + 50, pan_e5: 100000, move: "slide" }]);
+  rejects(C30, one, "RemoveKeyframe", { sf: start + 10 }, "keyframe_missing");
+  const none = run(C30, one, "RemoveKeyframe", { sf: start + 50 });
+  assert.ok(!Object.hasOwn(none.layout, "keyframes"));
+  assert.ok(contentEquals(none, centred(C30)), "the last keyframe removed is the layout's own framing (R10)");
+  // "Kembali ke otomatis"
+  const auto = run(C30, slid, "ClearKeyframes", {});
+  assert.deepEqual(auto.layout, centred(C30).layout);
+  assert.ok(contentEquals(applyCommand(auto, "ClearKeyframes", {}, C30.ctx).doc, auto), "nothing to clear: the same content");
+  // every framing change is a change of the "layout.keyframes" part, so it is one history step
+  assert.deepEqual(partValue(slid, "layout.keyframes"), slid.layout.keyframes);
+  assert.equal(partValue(auto, "layout.keyframes"), null);
+});
+
+test("SetLayout keeps the keyframes between the crop layouts and drops them for latar blur", () => {
+  const doc = run(C30, centred(C30), "SetKeyframe", { sf: body(C30.seed).in_sf, pan_e5: 25000 });
+  const camera = run(C30, doc, "SetLayout", { mode: "camera" });
+  assert.equal(camera.layout.keyframes, doc.layout.keyframes);
+  assert.deepEqual(run(C30, camera, "SetLayout", { mode: "fill_center" }).layout.keyframes, doc.layout.keyframes);
+  const blurred = run(C30, camera, "SetLayout", { mode: "fit_blur" });
+  assert.deepEqual(blurred.layout, { default: { mode: "fit_blur", no_face: "fit_blur" } });
+  rejects(C30, blurred, "SetKeyframeMove", { sf: body(C30.seed).in_sf, move: "slide" }, "framing_unavailable");
+});
+
+test("checkDoc mirrors the validator's keyframe rules", () => {
+  const start = body(C30.seed).in_sf;
+  const doc = run(C30, centred(C30), "SetKeyframe", { sf: start, pan_e5: 25000 });
+  const withKeyframes = (list, mode = "fill_center") => ({ ...doc, layout: { default: { ...doc.layout.default, mode }, keyframes: list } });
+  const k = (sf, pan_e5 = 0, move = "cut") => ({ sf, pan_e5, move });
+  const [low, high] = C30.ctx.windowSf;
+  for (const [list, mode, issues] of [
+    [[k(start)], "fill_center", []],
+    [[k(low), k(high - 1, 100000, "slide")], "camera", []],
+    [[], "fill_center", [["range_invalid", "/layout/keyframes"]]],
+    [[k(start)], "fit_blur", [["range_invalid", "/layout/keyframes"]]],
+    [[k(start), k(start)], "fill_center", [["range_invalid", "/layout/keyframes/1/sf"]]],
+    [[k(low - 1)], "fill_center", [["outside_window", "/layout/keyframes/0/sf"]]],
+    [[k(high)], "fill_center", [["outside_window", "/layout/keyframes/0/sf"]]],
+    [[k(start, 100001)], "fill_center", [["range_invalid", "/layout/keyframes/0/pan_e5"]]],
+    [[k(start, 0, "fade")], "fill_center", [["range_invalid", "/layout/keyframes/0/move"]]],
+    [[{ ...k(start), zoom_pm: 1000 }], "fill_center", [["range_invalid", "/layout/keyframes/0"]]],
+    [Array.from({ length: 101 }, (_x, i) => k(low + i)), "fill_center", [["range_invalid", "/layout/keyframes"]]],
+  ]) {
+    assert.deepEqual(checkDoc(withKeyframes(list, mode), C30.ctx).map((issue) => [issue.code, issue.path]), issues, JSON.stringify([list.length, mode]));
+  }
 });
 
 test("SetLogo places the logo top-right inside the frame and registers the asset", () => {

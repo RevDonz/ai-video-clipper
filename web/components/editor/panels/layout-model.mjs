@@ -12,7 +12,7 @@
 //   frame where it starts); each is a jump-to target. Face-track chosen here shows them with latar
 //   blur (`no_face: "fit_blur"`, the plan says `no_face_blur`); one click centres them instead, and
 //   back (`SetNoFace`, CONTRACTS §5.40).
-import { NO_FACE_MODES, switchedLayout } from "../../../lib/editor/doc-model.mjs";
+import { NO_FACE_MODES, layoutAfterSwitch } from "../../../lib/editor/doc-model.mjs";
 import { formatClock, frameToMs, messageFor } from "../shell-model.mjs";
 
 const option = (fields) => Object.freeze(fields);
@@ -43,12 +43,13 @@ export function layoutCommand(mode) {
 
 /**
  * The document in layout `mode` as `SetLayout` makes it (the same object when unchanged): only
- * `layout.default` changes, and a switch into face-track turns the latar blur fallback on.
+ * `layout` changes; a switch into face-track turns the latar blur fallback on, and latar blur
+ * drops the manual framing keyframes (CONTRACTS §5.41).
  */
 export function withLayout(doc, mode) {
   knownLayout(mode);
   if (doc.layout.default.mode === mode) return doc;
-  return { ...doc, layout: { ...doc.layout, default: switchedLayout(doc.layout.default, mode) } };
+  return { ...doc, layout: layoutAfterSwitch(doc.layout, mode) };
 }
 
 // The face-track note of a clip whose runs without a face are centred (a face-track auto clip).
@@ -88,14 +89,14 @@ function canonical(value) {
 }
 
 /**
- * What a thumbnail depends on besides its layout and frame: the document without its layout,
- * revision, parent and audit (canonical text), so an edit elsewhere refreshes the thumbnails and a
- * switch or a save does not.
+ * What a thumbnail depends on besides its layout and frame: the document without its layout
+ * choice, revision, parent and audit (canonical text), so an edit elsewhere (the framing keyframes
+ * included) refreshes the thumbnails and a switch or a save does not.
  */
 export function contentKey(doc) {
   if (!doc || typeof doc !== "object") return null;
-  const { layout: _layout, revision: _revision, parent_sha256: _parent, audit: _audit, ...rest } = doc;
-  return canonical(rest);
+  const { layout, revision: _revision, parent_sha256: _parent, audit: _audit, ...rest } = doc;
+  return canonical({ ...rest, keyframes: layout?.keyframes ?? null });
 }
 
 /** The layouts in the order their thumbnails are asked for: the current one first. */

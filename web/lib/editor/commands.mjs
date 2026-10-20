@@ -31,22 +31,30 @@
 //   join's style and whoosh, else the seed's, else Kilat putih + whoosh (the auto clips' default).
 // - SetLayout into face-track turns the latar blur fallback on (`no_face: "fit_blur"`,
 //   `switchedLayout`); SetNoFace switches it back to centred, or on again (CONTRACTS §5.40).
+// - Manual framing, "Atur bingkai" (CONTRACTS §5.41): SetKeyframe adds a keyframe at a source frame
+//   or moves the one there (keeping its `move`; a new one cuts), RemoveKeyframe, SetKeyframeMove and
+//   ClearKeyframes ("Kembali ke otomatis"). The last keyframe gone is no `keyframes` key at all
+//   (R10), and SetLayout to latar blur drops them (`layoutAfterSwitch`).
 // - The text watermark (CONTRACTS §5.43): SetWatermarkText adds it at DEFAULT_WATERMARK or changes
 //   only its text; RemoveWatermark drops the key, so a clip without one equals its seed (R10).
 import {
   ASSET_ID_PATTERN,
   CAPTION_OVERRIDE_RULES,
+  CROP_MODES,
   DEFAULT_WATERMARK,
   EDITOR_ID,
   HOOK_DESIGN_IDS,
   ITEM_ORIGIN_PATTERN,
   JOIN_STYLES,
+  KEYFRAME_MOVES,
   LAYOUT_MODES,
   LIMITS,
+  MAX_KEYFRAMES,
   NO_FACE_MODES,
   PACK_DEFAULT_CASE,
   PACK_IDS,
   PACK_WORDS_PER_LINE,
+  PAN_E5_MAX,
   REMOVAL_ORIGIN_PATTERN,
   SFX_WHOOSH,
   TRACKS,
@@ -61,11 +69,11 @@ import {
   freeId,
   hookItem,
   joinTemplate,
+  layoutAfterSwitch,
   logoItem,
   musicItem,
   nextId,
   normalizeText,
-  switchedLayout,
   trackOf,
   watermarkOf,
 } from "./doc-model.mjs";
@@ -74,14 +82,15 @@ import { divRoundHalfUp, logoBox, pieces, sfCeil, sfFloor } from "./timemap.mjs"
 /**
  * Appendix B, in the order of the table (the same list as `__dev__/fakes.mjs`), with the
  * cold-open transition commands after NudgeColdOpen (docs/plans/2026-10-02-transisi-cold-open.md §7.2),
- * SetHookDesign after SetHookY (CONTRACTS §5.33), SetNoFace after SetLayout (CONTRACTS §5.40) and
- * the text watermark's after SnapLogo (§5.43).
+ * SetHookDesign after SetHookY (CONTRACTS §5.33), SetNoFace after SetLayout (CONTRACTS §5.40), the
+ * framing commands after SetNoFace (CONTRACTS §5.41) and the text watermark's after SnapLogo (§5.43).
  */
 export const COMMANDS = Object.freeze([
   "TrimStart", "TrimEnd", "RemoveWords", "RemoveGap", "RestoreRemoval", "ApplyCleanup",
   "SetColdOpen", "NudgeColdOpen", "SetJoinStyle", "SetJoinSfx", "EditWordText", "SetWordHidden", "SetWordEmphasis",
   "SetCaptionsEnabled", "SetCaptionPack", "SetCaptionOverride", "SetHookEnabled", "SetHookText",
-  "SetHookDuration", "SetHookY", "SetHookDesign", "SetLayout", "SetNoFace", "SetLogo", "RemoveLogo", "MoveLogo", "ResizeLogo",
+  "SetHookDuration", "SetHookY", "SetHookDesign", "SetLayout", "SetNoFace",
+  "SetKeyframe", "RemoveKeyframe", "SetKeyframeMove", "ClearKeyframes", "SetLogo", "RemoveLogo", "MoveLogo", "ResizeLogo",
   "SetLogoOpacity", "SnapLogo", "SetWatermarkText", "SetWatermarkPosition", "SetWatermarkSize", "SetWatermarkOpacity",
   "RemoveWatermark", "SetMusic", "RemoveMusic", "SetMusicGain", "SetMusicOffset",
   "SetMusicLoop", "SetMusicFades", "SetDuck", "SetSourceGain", "SetLoudness", "ResetToSeed",
@@ -126,6 +135,9 @@ export const COMMAND_MESSAGES = Object.freeze({
   op_disabled: "Fitur ini belum tersedia di Editor Esensial.",
   asset_missing: "Aset tidak ditemukan.",
   conflict_unresolved: "Pilih versi untuk setiap bagian yang bentrok.",
+  framing_unavailable: "Atur bingkai hanya untuk Ikuti wajah dan Potong tengah.",
+  too_many_keyframes: "Terlalu banyak keyframe (maksimal 100).",
+  keyframe_missing: "Keyframe ini sudah tidak ada.",
 });
 
 export function commandMessage(code) {
@@ -151,6 +163,8 @@ const UI_ZONE_720 = Object.freeze({ top: 93, bottom: 280, right: 93 }); // plan 
 const DEFAULT_HOOK_MS = 4000; // today's hook duration (captions_ass.build_ass)
 const JOIN_FADE_MS = 30; // today's AUDIO_JOIN_FADE_SECONDS
 const CORNERS = Object.freeze(["top_left", "top_right", "bottom_left", "bottom_right"]);
+// A new keyframe holds the framing until it ("Potong"): a speaker change cuts, it does not drift.
+const NEW_KEYFRAME_MOVE = "cut";
 
 /** §3.3: `clamp(−2600 − lufs_c, −4800, 600)`. */
 export function defaultMusicGain(lufsC) {
@@ -207,6 +221,12 @@ function insideWindow(ctx, inSf, outSf) {
 
 function withMain(doc, patch) {
   return { ...doc, main: { ...doc.main, ...patch } };
+}
+
+/** `layout.keyframes` set to `list`; an empty list is no key at all (R10). */
+function withKeyframes(doc, list) {
+  const { keyframes: _keyframes, ...rest } = doc.layout;
+  return { ...doc, layout: list.length ? { ...doc.layout, keyframes: list } : rest };
 }
 
 function withCaptions(doc, patch) {
@@ -797,12 +817,53 @@ const HANDLERS = {
 
   SetLayout(doc, args) {
     need(LAYOUT_MODES.includes(args.mode), "value_out_of_range");
-    return { doc: { ...doc, layout: { ...doc.layout, default: switchedLayout(doc.layout.default, args.mode) } }, args: { mode: args.mode } };
+    return { doc: { ...doc, layout: layoutAfterSwitch(doc.layout, args.mode) }, args: { mode: args.mode } };
   },
 
   SetNoFace(doc, args) {
     need(NO_FACE_MODES.includes(args.mode), "value_out_of_range");
     return { doc: { ...doc, layout: { ...doc.layout, default: { ...doc.layout.default, no_face: args.mode } } }, args: { mode: args.mode } };
+  },
+
+  SetKeyframe(doc, args, ctx) {
+    need(CROP_MODES.includes(doc.layout.default.mode), "framing_unavailable");
+    const sf = intArg(args, "sf", 0, Number.MAX_SAFE_INTEGER);
+    need(sf >= ctx.windowSf[0] && sf < ctx.windowSf[1], "outside_window");
+    const pan = intArg(args, "pan_e5", 0, PAN_E5_MAX);
+    if (args.move !== undefined) need(KEYFRAME_MOVES.includes(args.move), "value_out_of_range");
+    const list = doc.layout.keyframes ?? [];
+    const at = list.findIndex((keyframe) => keyframe.sf === sf);
+    const move = args.move ?? (at >= 0 ? list[at].move : NEW_KEYFRAME_MOVE);
+    const keyframe = { sf, pan_e5: pan, move };
+    let next;
+    if (at >= 0) next = list.map((item, index) => (index === at ? keyframe : item));
+    else {
+      need(list.length < MAX_KEYFRAMES, "too_many_keyframes");
+      next = [...list, keyframe].sort((a, b) => a.sf - b.sf);
+    }
+    return { doc: withKeyframes(doc, next), args: { sf, pan_e5: pan, move } };
+  },
+
+  RemoveKeyframe(doc, args) {
+    const sf = intArg(args, "sf", 0, Number.MAX_SAFE_INTEGER);
+    const list = doc.layout.keyframes ?? [];
+    need(list.some((keyframe) => keyframe.sf === sf), "keyframe_missing");
+    return { doc: withKeyframes(doc, list.filter((keyframe) => keyframe.sf !== sf)), args: { sf } };
+  },
+
+  SetKeyframeMove(doc, args) {
+    need(CROP_MODES.includes(doc.layout.default.mode), "framing_unavailable");
+    const sf = intArg(args, "sf", 0, Number.MAX_SAFE_INTEGER);
+    need(KEYFRAME_MOVES.includes(args.move), "value_out_of_range");
+    const list = doc.layout.keyframes ?? [];
+    need(list.some((keyframe) => keyframe.sf === sf), "keyframe_missing");
+    const next = list.map((keyframe) => (keyframe.sf === sf ? { ...keyframe, move: args.move } : keyframe));
+    return { doc: withKeyframes(doc, next), args: { sf, move: args.move } };
+  },
+
+  ClearKeyframes(doc) {
+    if (!Object.hasOwn(doc.layout, "keyframes")) return { doc, args: {} };
+    return { doc: withKeyframes(doc, []), args: {} };
   },
 
   SetLogo(doc, args, ctx) {
@@ -1019,6 +1080,7 @@ export function defaultMergeKey(type, args = {}) {
     case "SetHookText": return "hook:text";
     case "SetHookDuration": return "hook:dur";
     case "SetHookY": return "hook:y";
+    case "SetKeyframe": return Number.isSafeInteger(args?.sf) ? `frame:${args.sf}` : null;
     case "MoveLogo": return "logo:move";
     case "ResizeLogo": return "logo:size";
     case "SetLogoOpacity": return "logo:opacity";

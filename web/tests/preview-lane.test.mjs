@@ -54,7 +54,7 @@ function planBody(extra = {}, doc = DOC) {
 
 // A plan-op result as preview_cli returns it.
 function planResult({ cells = [10, 11, 12, 13, 14, 15, 16, 17], missing = cells, plateKey = KEY, audio = { key: AUDIO, ready: false },
-  logo = null, playhead = 0, pieces = null, layout = "fit_blur", noFace = null } = {}) {
+  logo = null, playhead = 0, pieces = null, layout = "fit_blur", noFace = null, keyframes = null } = {}) {
   const prefix = `/api/jobs/${JOB}/clips/${CLIP}/media`;
   return {
     dto: {
@@ -71,7 +71,7 @@ function planResult({ cells = [10, 11, 12, 13, 14, 15, 16, 17], missing = cells,
       rev0: { planSha256: "1".repeat(64), autoRenderUrl: null, exact: false },
       warnings: [], errors: [],
     },
-    lane: { playhead, layout, noFace, plateKey, cellFrames: 60, cells, missing, audio, logo, frameKey: "4".repeat(16) },
+    lane: { playhead, layout, noFace, keyframes, plateKey, cellFrames: 60, cells, missing, audio, logo, frameKey: "4".repeat(16) },
   };
 }
 
@@ -222,6 +222,86 @@ test("the cells of face-track's blur fallback ask for it; other plates do not na
   } finally {
     lane.close();
     cleanup();
+  }
+});
+
+// CONTRACTS §5.41: manual framing has its own plate; every cells batch carries the keyframes.
+test("the cells of a framed plate carry its keyframes; other plates do not name them", async () => {
+  const { dir, clip, cleanup } = root();
+  readyAudio(clip);
+  const cli = fakeCli();
+  const lane = createPreviewLane({ jobsRoot: dir, runCli: cli.run, heavySlots: 1 });
+  const keyframes = [[600, 0, "cut"], [640, 100000, "slide"]];
+  try {
+    const pending = lane.plan({ jobId: JOB, clipId: CLIP, body: planBody() });
+    await settle();
+    cli.pending("plan")[0].resolve({ exitCode: 0, json: planResult({ cells: [10], layout: "fill_center", keyframes,
+      audio: { key: AUDIO, ready: true } }) });
+    assert.equal((await pending).status, 200);
+    await settle();
+    const [cells] = cli.pending("cells");
+    assert.deepEqual({ layout: cells.payload.layout, keyframes: cells.payload.keyframes, cells: cells.payload.cells },
+      { layout: "fill_center", keyframes, cells: [10] });
+    assert.ok(!("noFace" in cells.payload));
+    cells.resolve(cellsResult(cells.payload));
+    await settle();
+    const again = lane.plan({ jobId: JOB, clipId: CLIP, body: planBody({}, DOC2) });
+    await settle();
+    cli.pending("plan")[0].resolve({ exitCode: 0, json: planResult({ cells: [11], layout: "fill_center", plateKey: KEY2,
+      audio: { key: AUDIO, ready: true } }) });
+    assert.equal((await again).status, 200);
+    await settle();
+    const [plain] = cli.pending("cells");
+    assert.ok(!("keyframes" in plain.payload));
+    plain.resolve({ exitCode: 0, json: { plateKey: KEY2, built: [11], present: [] } });
+    await lane.idle();
+  } finally {
+    lane.close();
+    cleanup();
+  }
+});
+
+test("prepare queues the cells of the framed plate with its keyframes", async () => {
+  const { dir, cleanup } = root();
+  const cli = fakeCli();
+  const lane = createPreviewLane({ jobsRoot: dir, runCli: cli.run, heavySlots: 1 });
+  try {
+    const pending = lane.prepare({ jobId: JOB, clipId: CLIP, layout: null });
+    await settle();
+    cli.pending("prepare")[0].resolve({ exitCode: 0, json: { words: "ready", camera: "not_needed", layout: "fill_center",
+      noFace: null, keyframes: [[200, 25000, "cut"]], plateKey: KEY, cellFrames: 60, cells: [4], ready: [] } });
+    assert.equal((await pending).status, 202);
+    await settle();
+    const [cells] = cli.pending("cells");
+    assert.deepEqual([cells.payload.layout, cells.payload.keyframes, cells.payload.cells], ["fill_center", [[200, 25000, "cut"]], [4]]);
+    cells.resolve(cellsResult(cells.payload));
+    await lane.idle();
+    const broken = lane.prepare({ jobId: JOB, clipId: CLIP, layout: null });
+    await settle();
+    cli.pending("prepare")[0].resolve({ exitCode: 0, json: { words: "ready", camera: "not_needed", layout: "fill_center",
+      noFace: null, keyframes: [[200, 25000, "zoom"]], plateKey: KEY, cellFrames: 60, cells: [4], ready: [] } });
+    assert.equal((await broken).status, 503);
+  } finally {
+    lane.close();
+    cleanup();
+  }
+});
+
+test("a plan whose lane names malformed keyframes is not trusted", async () => {
+  for (const keyframes of [[], [[1, 0]], [[1, 0, "fade"]], [[5, 0, "cut"], [5, 1, "cut"]], [[1, 100001, "cut"]], [[-1, 0, "cut"]],
+    [[1.5, 0, "cut"]], [{ sf: 1, pan_e5: 0, move: "cut" }], "x", Array.from({ length: 101 }, (_x, i) => [i, 0, "cut"])]) {
+    const { dir, cleanup } = root();
+    const cli = fakeCli();
+    const lane = createPreviewLane({ jobsRoot: dir, runCli: cli.run, heavySlots: 0 });
+    try {
+      const pending = lane.plan({ jobId: JOB, clipId: CLIP, body: planBody() });
+      await settle();
+      cli.pending("plan")[0].resolve({ exitCode: 0, json: planResult({ layout: "fill_center", keyframes }) });
+      assert.equal((await pending).status, 503, JSON.stringify(keyframes));
+    } finally {
+      lane.close();
+      cleanup();
+    }
   }
 });
 
