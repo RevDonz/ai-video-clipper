@@ -31,6 +31,9 @@ import {
   PACK_IDS,
   PACK_WORDS_PER_LINE,
   SFX_WHOOSH,
+  WATERMARK_OPACITY_RANGE,
+  WATERMARK_POSITIONS,
+  WATERMARK_SIZE_RANGE,
   body,
   canonicalJson,
   captionEntrance,
@@ -44,6 +47,7 @@ import {
   logoItem,
   musicItem,
   nearestTrimWord,
+  watermarkOf,
   wordStatus,
 } from "../lib/editor/doc-model.mjs";
 import { applyParts, partValue } from "../lib/editor/rebase.mjs";
@@ -105,9 +109,11 @@ function bodyFrames(doc) {
 
 // --- model ---------------------------------------------------------------------------------
 
-test("the command list is Appendix B with the transition, SetHookDesign and no-face commands, the same 39 names the fakes know", () => {
+test("the command list is Appendix B with the transition, SetHookDesign, no-face and watermark commands, the same 44 names the fakes know", () => {
   assert.deepEqual([...COMMANDS], [...FAKE_COMMANDS]);
-  assert.equal(COMMANDS.length, 39);
+  assert.equal(COMMANDS.length, 44);
+  assert.deepEqual(COMMANDS.slice(28, 34), ["SnapLogo", "SetWatermarkText", "SetWatermarkPosition", "SetWatermarkSize",
+    "SetWatermarkOpacity", "RemoveWatermark"]);
   assert.deepEqual(COMMANDS.slice(16, 21), ["SetHookEnabled", "SetHookText", "SetHookDuration", "SetHookY", "SetHookDesign"]);
   assert.deepEqual(COMMANDS.slice(21, 23), ["SetLayout", "SetNoFace"]);
   assert.deepEqual(COMMANDS.slice(6, 10), ["SetColdOpen", "NudgeColdOpen", "SetJoinStyle", "SetJoinSfx"]);
@@ -192,9 +198,12 @@ test("defaultMergeKey follows Appendix B", () => {
   assert.equal(defaultMergeKey("SetDuck", { depth_cdb: 900 }), "music:duck");
   assert.equal(defaultMergeKey("SetSourceGain", { gain_cdb: 100 }), "audio:source");
   assert.equal(defaultMergeKey("SetLoudness", { mode: "off" }), "audio:master");
+  assert.equal(defaultMergeKey("SetWatermarkText", { text: "@akun" }), "wm:text");
+  assert.equal(defaultMergeKey("SetWatermarkSize", { size_pm: 1200 }), "wm:size");
+  assert.equal(defaultMergeKey("SetWatermarkOpacity", { opacity_pm: 600 }), "wm:opacity");
   for (const type of ["TrimStart", "TrimEnd", "RemoveWords", "RemoveGap", "RestoreRemoval", "ApplyCleanup",
     "SetColdOpen", "SetJoinStyle", "SetJoinSfx", "SetWordHidden", "SetWordEmphasis", "SetCaptionPack", "SetHookDesign", "SetLayout",
-    "SetLogo", "RemoveLogo", "SnapLogo", "SetMusic", "RemoveMusic", "ResetToSeed"]) {
+    "SetLogo", "RemoveLogo", "SnapLogo", "SetWatermarkPosition", "RemoveWatermark", "SetMusic", "RemoveMusic", "ResetToSeed"]) {
     assert.equal(defaultMergeKey(type, {}), null, type);
   }
 });
@@ -913,6 +922,66 @@ test("replacing and removing the logo keeps assets exactly the referenced ones",
   assert.equal(logoItem(replaced).transform.x_e5, 50000);
   const removed = run(C30, replaced, "RemoveLogo", {});
   assert.equal(contentJson(removed), contentJson(C30.seed));
+});
+
+// --- the text watermark (CONTRACTS §5.40) ----------------------------------------------------
+
+test("SetWatermarkText adds the default watermark or changes its text; RemoveWatermark gives the seed back", () => {
+  assert.equal(watermarkOf(C30.seed), null);
+  const doc = run(C30, C30.seed, "SetWatermarkText", { text: "  @potongin.klip " });
+  assert.deepEqual(doc.watermark, { text: "@potongin.klip", pos: "top_center", size_pm: 1000, opacity_pm: 850 });
+  assert.deepEqual(watermarkOf(doc), doc.watermark);
+  assert.equal(doc.tracks, C30.seed.tracks, "nothing else changes");
+  assert.equal(doc.captions, C30.seed.captions);
+  const placed = run(C30, doc, "SetWatermarkPosition", { pos: "bottom_left" });
+  const renamed = run(C30, placed, "SetWatermarkText", { text: "@akun" });
+  assert.deepEqual(renamed.watermark, { ...placed.watermark, text: "@akun" });
+  const removed = run(C30, renamed, "RemoveWatermark", {});
+  assert.equal(Object.hasOwn(removed, "watermark"), false);
+  assert.equal(contentJson(removed), contentJson(C30.seed));
+  rejects(C30, C30.seed, "RemoveWatermark", {}, "watermark_missing");
+  // At most 40 code points (an emoji counts once), trimmed NFC text without control characters.
+  assert.equal(run(C30, C30.seed, "SetWatermarkText", { text: "😂".repeat(40) }).watermark.text, "😂".repeat(40));
+  assert.equal(run(C30, C30.seed, "SetWatermarkText", { text: "Cafe\u0301" }).watermark.text, "Café");
+  for (const [text, code] of [["", "text_empty"], ["   ", "text_empty"], ["x".repeat(41), "text_too_long"],
+    ["a\u0007b", "text_invalid"], [7, "invalid_args"], [undefined, "invalid_args"]]) {
+    rejects(C30, C30.seed, "SetWatermarkText", { text }, code);
+  }
+});
+
+test("watermark position, size and opacity follow §5.40 and need a watermark", () => {
+  const doc = run(C30, C30.seed, "SetWatermarkText", { text: "@akun" });
+  for (const pos of WATERMARK_POSITIONS) assert.equal(run(C30, doc, "SetWatermarkPosition", { pos }).watermark.pos, pos);
+  assert.equal(WATERMARK_POSITIONS.length, 9);
+  for (const pos of ["center", "TOP_LEFT", "", 3]) rejects(C30, doc, "SetWatermarkPosition", { pos }, "value_out_of_range");
+  for (const value of WATERMARK_SIZE_RANGE) assert.equal(run(C30, doc, "SetWatermarkSize", { size_pm: value }).watermark.size_pm, value);
+  rejects(C30, doc, "SetWatermarkSize", { size_pm: 499 }, "value_out_of_range");
+  rejects(C30, doc, "SetWatermarkSize", { size_pm: 2001 }, "value_out_of_range");
+  rejects(C30, doc, "SetWatermarkSize", { size_pm: 1000.5 }, "invalid_args");
+  for (const value of WATERMARK_OPACITY_RANGE) {
+    assert.equal(run(C30, doc, "SetWatermarkOpacity", { opacity_pm: value }).watermark.opacity_pm, value);
+  }
+  rejects(C30, doc, "SetWatermarkOpacity", { opacity_pm: 199 }, "value_out_of_range");
+  rejects(C30, doc, "SetWatermarkOpacity", { opacity_pm: 1001 }, "value_out_of_range");
+  for (const [type, args] of [["SetWatermarkPosition", { pos: "top_left" }], ["SetWatermarkSize", { size_pm: 1000 }],
+    ["SetWatermarkOpacity", { opacity_pm: 850 }]]) {
+    rejects(C30, C30.seed, type, args, "watermark_missing");
+  }
+});
+
+test("checkDoc accepts a watermark of exactly its four keys and nothing else", () => {
+  const good = { text: "@akun", pos: "middle_right", size_pm: 1400, opacity_pm: 600 };
+  const issues = (watermark) => checkDoc({ ...C30.seed, watermark }, C30.ctx);
+  assert.deepEqual(issues(good), []);
+  assert.deepEqual(issues({ ...good, text: "x".repeat(40) }), []);
+  assert.deepEqual(issues(null), [{ code: "range_invalid", path: "/watermark" }]);
+  assert.deepEqual(issues({ ...good, colour: "#FFFFFF" }), [{ code: "range_invalid", path: "/watermark" }]);
+  const { pos: _pos, ...noPos } = good;
+  assert.deepEqual(issues(noPos), [{ code: "range_invalid", path: "/watermark/pos" }, { code: "range_invalid", path: "/watermark" }]);
+  for (const [key, value] of [["text", ""], ["text", " @akun"], ["text", "x".repeat(41)], ["pos", "center"], ["size_pm", 499],
+    ["size_pm", 2001], ["opacity_pm", 199], ["opacity_pm", 1001], ["size_pm", "1000"]]) {
+    assert.deepEqual(issues({ ...good, [key]: value }), [{ code: "range_invalid", path: `/watermark/${key}` }], `${key}=${value}`);
+  }
 });
 
 test("SetMusic adds a ducked music bed with the defaults of Appendix B", () => {

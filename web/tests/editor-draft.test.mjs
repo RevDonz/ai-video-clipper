@@ -491,7 +491,9 @@ export async function twoTabRun(seed, steps = 40) {
 
 test("QG-CONFLICT (store): two live tabs, random edits, saves, conflicts and reloads lose nothing", async () => {
   const total = { runs: 0, dispatched: 0, conflicts: 0, reloads: 0, merges: 0, draftChecks: 0 };
-  for (let run = 0; run < 60; run += 1) {
+  // 100 seeded runs: the command table grows with each feature, which spreads the edits over
+  // more parts, so the property needs more runs to reach the same number of dialogs.
+  for (let run = 0; run < 100; run += 1) {
     const stats = await twoTabRun(9000 + run);
     total.runs += 1;
     for (const key of ["dispatched", "conflicts", "reloads", "merges", "draftChecks"]) total[key] += stats[key];

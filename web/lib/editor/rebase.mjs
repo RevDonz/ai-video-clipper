@@ -5,7 +5,7 @@
 //
 // A document is seen as a set of *parts* (the conflict units): the body trim, the cold open, the
 // removals of each segment, each word edit field, each caption setting, the hook fields, layout,
-// logo, music and audio fields. A step conflicts when it changes a part the other tab changed
+// logo, the text watermark's fields, music and audio fields. A step conflicts when it changes a part the other tab changed
 // too (removal lists excepted: removals merge semantically, and a replayed removal re-checks
 // that it still fits), or when its preconditions fail on the new document. A conflict is shown
 // only when the two final values really differ. Parts are grouped for the dialog (`partGroup`).
@@ -17,6 +17,7 @@ import {
   HOOK_DESIGN_NAMES,
   JOIN_STYLE_NAMES,
   TRACKS,
+  WATERMARK_POSITION_NAMES,
   body,
   checkDoc,
   coldOpen,
@@ -29,6 +30,7 @@ import {
   nextId,
   segmentOf,
   trackOf,
+  watermarkOf,
 } from "./doc-model.mjs";
 import { pieces, srcToOut } from "./timemap.mjs";
 
@@ -44,6 +46,7 @@ export const PARTS = Object.freeze([
   "captions.enabled", "captions.pack", ...OVERRIDE_KEYS.map((key) => `captions.override.${key}`),
   "hook.on", "hook.text", "hook.dur", "hook.y", "hook.design", "layout",
   "logo.asset", "logo.transform", "logo.opacity",
+  "watermark.on", "watermark.text", "watermark.pos", "watermark.size", "watermark.opacity",
   "music.asset", "music.gain", "music.offset", "music.loop", "music.fades", "music.duck",
   "audio.source", "audio.master",
 ]);
@@ -63,6 +66,7 @@ export const GROUP_LABELS = Object.freeze({
   hook: "Teks hook",
   layout: "Tata letak",
   logo: "Logo",
+  watermark: "Teks watermark",
   music: "Musik",
   audio: "Volume suara",
 });
@@ -71,6 +75,8 @@ export const GROUP_LABELS = Object.freeze({
 const PREREQUISITES = Object.freeze({
   "hook.text": "hook.on", "hook.dur": "hook.on", "hook.y": "hook.on", "hook.design": "hook.on",
   "logo.transform": "logo.asset", "logo.opacity": "logo.asset",
+  "watermark.text": "watermark.on", "watermark.pos": "watermark.on", "watermark.size": "watermark.on",
+  "watermark.opacity": "watermark.on",
   "music.gain": "music.asset", "music.offset": "music.asset", "music.loop": "music.asset",
   "music.fades": "music.asset", "music.duck": "music.asset",
   "removals:cold_open": "coldopen", "join.style": "coldopen", "join.sfx": "coldopen",
@@ -118,6 +124,8 @@ function identity(doc, part) {
       return { track: withoutItems(track), id: entry?.id ?? null, type: entry?.type, start: entry?.start, end: entry?.end,
         origin: entry?.origin, asset, mode: entry?.payload?.mode, meta: doc.assets[asset] ?? null };
     }
+    // Whether there is a watermark; its fields are parts of their own.
+    case "watermark.on": return watermarkOf(doc) ? true : null;
     // "No whoosh" and "no cold open" are both null as values; as a change they differ, so a
     // cold open added or removed always lists join.sfx and is rebuilt with its own sound.
     case "join.sfx": {
@@ -173,6 +181,11 @@ export function partValue(doc, part) {
     }
     case "logo.transform": return logo ? { x_e5: logo.transform.x_e5, y_e5: logo.transform.y_e5, w_e5: logo.transform.w_e5 } : null;
     case "logo.opacity": return logo ? logo.transform.opacity_pm : null;
+    case "watermark.on": return watermarkOf(doc);
+    case "watermark.text": return watermarkOf(doc)?.text ?? null;
+    case "watermark.pos": return watermarkOf(doc)?.pos ?? null;
+    case "watermark.size": return watermarkOf(doc)?.size_pm ?? null;
+    case "watermark.opacity": return watermarkOf(doc)?.opacity_pm ?? null;
     case "music.gain": return music ? music.payload.gain_cdb : null;
     case "music.offset": return music ? music.payload.src_in_smp : null;
     case "music.loop": return music ? music.payload.loop : null;
@@ -316,6 +329,15 @@ function setPart(doc, part, value, assets, ctx) {
     }
     case "logo.transform": return value === null ? doc : setItem(doc, "visual", (logo) => ({ transform: { ...logo.transform, ...value } }), "logo_missing");
     case "logo.opacity": return value === null ? doc : setItem(doc, "visual", (logo) => ({ transform: { ...logo.transform, opacity_pm: value } }), "logo_missing");
+    case "watermark.on": {
+      if (value) return { ...doc, watermark: { ...value } };
+      const { watermark: _watermark, ...rest } = doc;
+      return rest;
+    }
+    case "watermark.text": return watermarkField(doc, value, "text");
+    case "watermark.pos": return watermarkField(doc, value, "pos");
+    case "watermark.size": return watermarkField(doc, value, "size_pm");
+    case "watermark.opacity": return watermarkField(doc, value, "opacity_pm");
     case "music.gain": return musicField(doc, value, { gain_cdb: value });
     case "music.offset": return musicField(doc, value, { src_in_smp: value });
     case "music.loop": return musicField(doc, value, { loop: value });
@@ -325,6 +347,12 @@ function setPart(doc, part, value, assets, ctx) {
     case "audio.master": return { ...doc, audio: { ...doc.audio, master: value } };
     default: throw new TypeError(`unknown part ${part}`);
   }
+}
+
+function watermarkField(doc, value, key) {
+  if (value === null) return doc;
+  if (!watermarkOf(doc)) return reject("watermark_missing");
+  return { ...doc, watermark: { ...doc.watermark, [key]: value } };
 }
 
 function musicField(doc, value, patch) {
@@ -515,6 +543,12 @@ function describe(doc, group, ctx) {
       return mode === "camera" && noFace === "fit_blur" ? `${mode} + latar blur` : mode;
     }
     case "logo": return item(doc, "visual") ? "Dengan logo" : "Tanpa logo";
+    case "watermark": {
+      const mark = watermarkOf(doc);
+      if (!mark) return "Tanpa teks watermark";
+      const place = WATERMARK_POSITION_NAMES[mark.pos] ?? mark.pos;
+      return `${mark.text} (${place}, ukuran ${mark.size_pm / 10}%, opasitas ${mark.opacity_pm / 10}%)`;
+    }
     case "music": return item(doc, "audio") ? "Dengan musik" : "Tanpa musik";
     case "audio": return `Suara ${doc.audio.source.gain_cdb / 100} dB, ${doc.audio.master.mode}`;
     case "cuts": return `${doc.main.cut_fade_ms} ms`;
