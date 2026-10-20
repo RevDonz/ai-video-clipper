@@ -88,6 +88,18 @@ E2E_USERNAME=... E2E_PASSWORD=... \
 npx playwright test --project=desktop-chromium e2e/project-workspace.spec.mjs
 ```
 
+## Judul dan deskripsi
+
+`e2e/clip-text.spec.mjs` covers "Ubah" and "Tulis ulang" in the project page's caption box. It fakes the job API, `PATCH /api/jobs/<id>/clip-text` and `POST /api/jobs/<id>/clip-text/rewrite` inside the browser, so it changes no server data and asks no LLM; only the login is real. It checks that "Ubah" opens Judul and Deskripsi with the focus on Judul and the character count, that an empty title is named and not sent, that "Simpan" sends one JSON PATCH and the heading, poster, "Unduh MP4" name and "Salin caption" follow with the focus back on "Ubah", that an unsaved draft waits while another clip is shown and "Batal" drops it, that "Tulis ulang" shows "Saran AI" where "Pakai" fills the form without saving and "Buang" returns the focus, that a failure links to `/bantuan#llm_<code>` and Pengaturan, and that at 390 px the form has 44 px targets and no horizontal scroll. With `AXE_CORE_PATH` it runs axe on the clip section with a suggestion open. The real routes and the CLI are covered by `web/tests/clip-text-api.test.mjs` and `tests/test_post_text.py`.
+
+```bash
+E2E_BASE_URL=http://127.0.0.1:3417 E2E_NO_WEB_SERVER=1 \
+E2E_USERNAME=... E2E_PASSWORD=... \
+npx playwright test --project=desktop-chromium e2e/clip-text.spec.mjs
+```
+
+In CI: `gh workflow run editor-gates.yml -f ref=<branch> -f suite=e2e -f command=e2e/clip-text.spec.mjs`.
+
 ## Bantuan
 
 `e2e/bantuan.spec.mjs` covers the help page (`/bantuan`, `docs/operations/BANTUAN.md`). It needs no server data; the failed project it opens is faked inside the browser, so it changes nothing and runs against any target. It checks that a pasted yt-dlp line opens its entry (the address gets `#<code>`, the entry is the `:target` and takes the focus), that a text nothing fits says so and keeps the focus in the box, that anchors and the search work with JavaScript off (the GET form is redirected to the entry), that the "Cara memperbaiki" link of a failed download leads to its entry, keyboard reach, and no horizontal scroll at 390 px.

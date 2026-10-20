@@ -14,10 +14,11 @@
 // the tests can inject the session check, the environment and the CLI runner.
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
-import { lstat, open, realpath } from "node:fs/promises";
+import { lstat, open, readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 
 import { requireAuth } from "./auth.mjs";
+import { clipTextEdit } from "./jobs.mjs";
 import { PythonCliError, runPythonCli } from "./python-cli.mjs";
 import { TokenBucketLimiter } from "./rate-limit.mjs";
 import { sameOriginMutation } from "./request-security.mjs";
@@ -269,6 +270,23 @@ export function createPrepareGate({ slots = 1, rate = PREPARE_RATE, now = Date.n
   };
 }
 
+// The title and description the owner set on the project page (job.json `textEdit`), by clip
+// number, so the editor's export dialog copies the same text; an unreadable job adds nothing.
+async function editedClipTexts(jobsRoot, jobId) {
+  let job;
+  try {
+    job = JSON.parse(await readFile(path.join(path.resolve(/* turbopackIgnore: true */ jobsRoot), jobId, "job.json"), "utf8"));
+  } catch {
+    return new Map();
+  }
+  const texts = new Map();
+  for (const clip of Array.isArray(job?.clips) ? job.clips : []) {
+    const edit = Number.isInteger(clip?.index) ? clipTextEdit(clip.textEdit) : null;
+    if (edit && !texts.has(clip.index)) texts.set(clip.index, edit);
+  }
+  return texts;
+}
+
 export function createClipsRoute(options = {}) {
   const deps = editorDeps(options);
   const prepareGate = options.prepareGate ?? createPrepareGate();
@@ -286,8 +304,12 @@ export function createClipsRoute(options = {}) {
       if (!Array.isArray(result.json.clips)) return apiFailure(null);
       let renders = new Map();
       try { renders = await latest(jobId); } catch { renders = new Map(); }
-      const clips = result.json.clips.map((entry) => sanitizeClip(entry,
-        isClipId(entry?.clipId) ? renders.get(entry.clipId) ?? null : null));
+      const texts = await editedClipTexts(deps.jobsRoot, jobId);
+      const clips = result.json.clips.map((entry) => {
+        const clip = sanitizeClip(entry, isClipId(entry?.clipId) ? renders.get(entry.clipId) ?? null : null);
+        const text = texts.get(clip.index);
+        return text ? { ...clip, title: text.title, description: text.description, hashtags: text.hashtags } : clip;
+      });
       return editorResponse({ clips });
     },
     async POST(request, { params }) {

@@ -250,8 +250,9 @@ browser); **"Kembali ke versi AI"** (di ⋯ Lainnya); **Ekspor**
 (centang tiap item "Perlu dicek"; catatan biru tidak perlu dicentang, begitu juga semua item klip
 yang belum diubah, karena ekspornya file klip otomatis itu sendiri; lalu Antre → Merender →
 Memverifikasi → Selesai, **"Unduh MP4"** dan **"Unduh SRT"**, tersimpan sebagai
-`klip-02-revisi-5.mp4` dan seterusnya; bisa dibatalkan); dua tab pada klip yang sama digabung per
-bagian.
+`klip-02-revisi-5.mp4` dan seterusnya; bisa dibatalkan; kalau judul dan deskripsi klip diubah
+lewat **Ubah** di halaman proyek, teks itulah yang tampil untuk disalin); dua tab pada klip yang
+sama digabung per bagian.
 
 ## 3. Status di atas pratinjau
 

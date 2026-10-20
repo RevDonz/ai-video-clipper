@@ -1,0 +1,140 @@
+/* The caption block's edit form, "Tulis ulang" suggestion and failure (components/ClipText.jsx).
+   It sits inside the detail panel's caption box (surface-2): fields and the suggestion step down
+   to the darker surface so they read as places to type or choose, not as more caption text. */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.form {
+  display: grid;
+  gap: 14px;
+}
+.field {
+  display: grid;
+  gap: 6px;
+}
+.fieldHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.fieldHead label {
+  color: var(--text);
+  font: 600 13px/1.3 var(--font);
+}
+.count {
+  color: var(--text-muted);
+  font: 500 12px/1.3 var(--font);
+  font-variant-numeric: tabular-nums;
+}
+.count[data-over] {
+  color: var(--danger);
+}
+.input,
+.textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  background: var(--surface);
+  font-size: 15px;
+  line-height: 1.5;
+}
+.textarea {
+  min-height: 160px;
+  resize: vertical;
+}
+.input[aria-invalid="true"],
+.textarea[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+.hint,
+.problem {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.hint {
+  color: var(--text-muted);
+}
+.problem {
+  color: var(--danger);
+}
+.formProblem {
+  margin: 0;
+}
+
+/* Empty most of the time; it carries the "Tulis ulang" progress and the saved note. */
+.status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.status:empty {
+  margin: 0;
+}
+.status .pending {
+  flex: none;
+  width: 10px;
+  height: 10px;
+}
+
+.suggestion {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  animation: rise-in var(--dur-2) var(--ease-out);
+}
+.suggestionLabel {
+  margin: 0;
+  color: var(--text-muted);
+  font: 600 12px/1.4 var(--font);
+}
+.suggestionTitle {
+  margin: 0;
+  font: 700 15px/1.4 var(--font);
+  overflow-wrap: anywhere;
+}
+.suggestionBody {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.failure {
+  margin-top: 12px;
+}
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 20px;
+}
+.links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  border-radius: var(--radius-s);
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+@media (max-width: 720px) {
+  .actions :global(.btn) {
+    flex: 1 1 auto;
+  }
+}

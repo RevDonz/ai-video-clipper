@@ -5,10 +5,12 @@ import { use, useEffect, useRef, useState } from "react";
 import AppHeader from "../../../components/AppHeader.jsx";
 import CancelJob from "../../../components/CancelJob.jsx";
 import { PosterText, PosterThumb, posterFrame } from "../../../components/ClipPoster.jsx";
+import ClipText from "../../../components/ClipText.jsx";
 import StageSummary from "../../../components/StageSummary.jsx";
 import TrendChips from "../../../components/trends/TrendChips.jsx";
 import { clipDownloads, formatSize } from "../../../lib/clip-download.mjs";
 import { clipEntryFor, loadClipEntries } from "../../../lib/clip-entry-view.mjs";
+import { replaceClip } from "../../../lib/clip-text.mjs";
 import { jobHelpHref } from "../../../lib/help-catalog.mjs";
 import { jobCancellable } from "../../../lib/job-cancel.mjs";
 import {
@@ -188,8 +190,9 @@ function PosterCard({ clip, entry, selected, picking, picked, onActivate, button
   );
 }
 
-// The selected clip: the video beside everything needed to post it.
-function ClipDetail({ clip, job, entry = null, copied, onCopy, position, onStep, panelRef }) {
+// The selected clip: the video beside everything needed to post it. Its title and description
+// can be changed in the caption box ("Ubah", "Tulis ulang") once the project is finished.
+function ClipDetail({ clip, job, entry = null, copied, onCopy, position, onStep, panelRef, textDrafts, onClipSaved }) {
   const label = clipLabel(clip);
   const titleId = `clip-${clip.index}-title`;
   const score = clipScoreView(clip);
@@ -258,9 +261,15 @@ function ClipDetail({ clip, job, entry = null, copied, onCopy, position, onStep,
 
         <section className={styles.caption} aria-labelledby={`${titleId}-caption`}>
           <h4 id={`${titleId}-caption`}>Caption</h4>
-          {caption.body && <p className={styles.captionBody}>{caption.body}</p>}
-          {caption.hashtags.length > 0 && <p className={styles.hashtags}>{caption.hashtags.map((tag) => <span key={tag}>{tag}</span>)}</p>}
-          <CopyButton state={captionState} label="Salin caption" done="Tersalin" onClick={() => onCopy(clip, "caption")} />
+          <ClipText key={clip.index} jobId={job.id} clip={clip} editable={job.status === "completed"} drafts={textDrafts}
+            onSaved={onClipSaved}
+            view={(caption.body || caption.hashtags.length > 0) && (
+              <>
+                {caption.body && <p className={styles.captionBody}>{caption.body}</p>}
+                {caption.hashtags.length > 0 && <p className={styles.hashtags}>{caption.hashtags.map((tag) => <span key={tag}>{tag}</span>)}</p>}
+              </>
+            )}
+            copy={<CopyButton state={captionState} label="Salin caption" done="Tersalin" onClick={() => onCopy(clip, "caption")} />} />
         </section>
         <span className="visuallyHidden" role="status" aria-live="polite">
           {copied?.status === "copied" ? `${copied.what === "title" ? "Judul" : "Caption"} tersalin.`
@@ -288,7 +297,7 @@ function saveFile(href, filename) {
   link.remove();
 }
 
-function ClipsSection({ job, copyState, onCopy, entries, initialClip = null }) {
+function ClipsSection({ job, copyState, onCopy, entries, initialClip = null, onClipSaved }) {
   const clips = Array.isArray(job.clips) ? job.clips : [];
   const [filter, setFilter] = useState("all");
   const [selected, setSelected] = useState(initialClip);
@@ -301,6 +310,8 @@ function ClipsSection({ job, copyState, onCopy, entries, initialClip = null }) {
   const focusAfter = useRef(null);
   const zipRequest = useRef(null);
   const keyHandler = useRef(null);
+  // Unsaved title/description drafts and open suggestions, by clip number, while another clip shows.
+  const textDrafts = useRef(new Map());
 
   const view = clipFilterView(clips, filter);
   const visible = view.visible;
@@ -477,7 +488,7 @@ function ClipsSection({ job, copyState, onCopy, entries, initialClip = null }) {
           {current && (
             <ClipDetail clip={current} job={job} entry={clipEntryFor(entries, job, current.index)}
               copied={copyState.index === current.index ? copyState : null} onCopy={onCopy} position={position}
-              onStep={(delta) => move(delta)} panelRef={detailRef} />
+              onStep={(delta) => move(delta)} panelRef={detailRef} textDrafts={textDrafts.current} onClipSaved={onClipSaved} />
           )}
         </div>
       ) : (
@@ -490,7 +501,7 @@ function ClipsSection({ job, copyState, onCopy, entries, initialClip = null }) {
   );
 }
 
-function ProjectView({ job, copyState, onCopy, entries, initialClip, cancelNote, onCancelSettled }) {
+function ProjectView({ job, copyState, onCopy, entries, initialClip, cancelNote, onCancelSettled, onClipSaved }) {
   const active = isActiveStatus(job.status);
   const progress = projectProgress(job);
   const notices = selectionNotices(job);
@@ -562,7 +573,7 @@ function ProjectView({ job, copyState, onCopy, entries, initialClip, cancelNote,
         </details>
       )}
       <FocusSummary job={job} />
-      <ClipsSection job={job} copyState={copyState} onCopy={onCopy} entries={entries} initialClip={initialClip} />
+      <ClipsSection job={job} copyState={copyState} onCopy={onCopy} entries={entries} initialClip={initialClip} onClipSaved={onClipSaved} />
     </div>
   );
 }
@@ -637,6 +648,9 @@ export default function ProjectPage({ params, searchParams }) {
     target.focus();
   });
 
+  // A saved title and description: the clip as the job now serves it (posters, downloads, copy).
+  const onClipSaved = (clip) => setJob((current) => replaceClip(current, clip));
+
   const settleCancel = (next, note) => {
     setJob(next);
     setCancelNote(note);
@@ -704,6 +718,7 @@ export default function ProjectPage({ params, searchParams }) {
           initialClip={initialClip}
           cancelNote={cancelNote}
           onCancelSettled={settleCancel}
+          onClipSaved={onClipSaved}
         />
       )}
     </main>

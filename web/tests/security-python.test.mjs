@@ -46,7 +46,7 @@ for case in json.load(sys.stdin):
     raw = case["raw"].encode("utf-8") if "raw" in case else json.dumps({"op": case["op"], **case["envelope"]}).encode("utf-8")
     if case["module"] == "ai_clipper.render_queue":
         code, payload = module.handle_v3(raw, jobs_root=root)
-    elif case["module"] == "ai_clipper.editor_ai":
+    elif case["module"] in ("ai_clipper.editor_ai", "ai_clipper.post_text"):
         code, payload = module.handle(raw, jobs_root=root, env={})
     else:
         code, payload = module.handle(raw, jobs_root=root)
@@ -77,6 +77,7 @@ const BASES = [
   ["ai_clipper.render_queue", "get", { jobId: JOB, renderId: RENDER }],
   ["ai_clipper.render_queue", "cancel", { jobId: JOB, renderId: RENDER }],
   ["ai_clipper.render_queue", "list", { jobId: JOB, clipId: CLIP }],
+  ["ai_clipper.post_text", "rewrite", { jobId: JOB, index: 1 }],
 ];
 const ID_FIELDS = ["jobId", "clipId", "taskId", "renderId", "incomingId", "idempotencyKey", "sha256", "expectedEtag", "editEtag"];
 
@@ -115,9 +116,10 @@ test("Node and Python agree on the id shapes, and both refuse every traversal va
 import json, sys
 from ai_clipper.edit_v2 import api, assets, cleanup, coldopen, preview_cli, store
 from ai_clipper.edit_v2.clip_id import CLIP_ID_PATTERN
-from ai_clipper import editor_ai, render_queue
+from ai_clipper import editor_ai, post_text, render_queue
 patterns = {
-  "job": [api._UUID, preview_cli._UUID, assets._UUID, cleanup._UUID, coldopen._UUID, editor_ai._UUID, render_queue._V3_UUID],
+  "job": [api._UUID, preview_cli._UUID, assets._UUID, cleanup._UUID, coldopen._UUID, editor_ai._UUID, render_queue._V3_UUID,
+          post_text._UUID],
   "clip": [CLIP_ID_PATTERN],
   "task": [editor_ai._UUID],
   "render": [render_queue._V3_UUID],

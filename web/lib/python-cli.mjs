@@ -4,8 +4,9 @@
 // - stdin is one JSON envelope `{"op": <op>, ...payload}`, bounded; stdout is one JSON object,
 //   bounded; stderr is drained (bounded) and never returned, so no path or text leaks.
 // - The child gets an allowlisted environment: `CHILD_ENV_ALLOWLIST`, never APP_*,
-//   POTONGIN_SETTINGS_*, POTONGIN_LLM* or *_API_KEY. Only the AI task (`withLlmEnv`) adds the
-//   LLM variables of `engineProcessEnv(await loadLlmEnv())`, as run-job.mjs does for the engine.
+//   POTONGIN_SETTINGS_*, POTONGIN_LLM* or *_API_KEY. Only the AI tasks (`withLlmEnv`: the editor's
+//   hook task and "Tulis ulang") add the LLM variables of `engineProcessEnv(await loadLlmEnv())`,
+//   as run-job.mjs does for the engine.
 // - The child leads its own process group; a timeout or an abort sends SIGTERM to the whole
 //   group, then SIGKILL after `killGraceMs` (2 s). SIGTERM first lets `preview_cli` kill FFmpeg,
 //   which runs in a session of its own (execute.run), before it exits with 12 (T2.3).
@@ -37,6 +38,8 @@ export const PYTHON_CLI_MODULES = Object.freeze([
   "ai_clipper.edit_v2.cleanup",
   "ai_clipper.edit_v2.coldopen",
   "ai_clipper.editor_ai",
+  // "Tulis ulang" of a clip's title and description on the project page (web/lib/clip-text-api.mjs).
+  "ai_clipper.post_text",
   // Editor V3 exports: the render-request-v3 envelope (CONTRACTS §5.17; T2.2 request R1).
   "ai_clipper.render_queue",
   // The editor janitor, run by the primary worker between jobs (T4.3).
