@@ -1,5 +1,8 @@
 # Handoff: status dan cara melanjutkan
 
+**Sesi 2026-10-20:** antrean kerja berikutnya ada di `docs/plans/2026-10-20-lanjutan-sesi.md`
+(branch `potongin-adopsi-scl`). Belum ada kode yang diubah.
+
 Terakhir diperbarui 2026-10-05 (editor live, Mode Cepat menunggu merge, lihat §4). Semua hasil ada di branch GitHub di
 bawah. Dokumen ini untuk agen atau device mana pun yang melanjutkan. Aturan proyek: `AGENTS.md`;
 arah desain: `DESIGN.md`.
