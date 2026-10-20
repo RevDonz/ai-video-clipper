@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import AppHeader from "../../components/AppHeader.jsx";
 import {
@@ -18,7 +18,20 @@ import {
   JOB_STATUS_LABELS,
   storageMessage,
   submitErrorMessage,
+  videoFileProblem,
 } from "../../lib/dashboard-view.mjs";
+import {
+  CAPTION_STYLE_CHOICES,
+  DEFAULT_CHOICES,
+  DURATION_PRESETS,
+  LAYOUT_CHOICES,
+  VIDEO_LANGUAGE_CHOICES,
+  browserStorage,
+  choicesSummary,
+  readStoredChoices,
+  withDuration,
+  writeStoredChoices,
+} from "../../lib/dashboard-choices.mjs";
 import {
   createStorageStatusRecovery,
   recoverFailedJobSelection,
@@ -38,19 +51,12 @@ import {
 import styles from "./dashboard.module.css";
 import focusStyles from "./focus.module.css";
 
-const layouts = [
-  { id: "fit-blur", name: "Utuh + latar blur", description: "Video landscape tetap utuh, sisa layar diisi versi blur." },
-  { id: "face-track", name: "Ikuti pembicara", description: "Layar penuh, crop mengikuti wajah terbesar." },
-  { id: "center-crop", name: "Crop tengah", description: "Untuk video yang subjeknya selalu di tengah." },
-];
-
-const captionStyles = [
-  { id: "karaoke", name: "Karaoke", description: "Kata yang sedang diucapkan menyala." },
-  { id: "classic", name: "Klasik", description: "Beberapa kata per baris, tanpa sorotan." },
-];
-
 // Fields in the order the page checks them; the first invalid one gets focus.
 const FIELD_IDS = { youtubeUrl: "youtube-url", video: "video-file", limit: "clip-limit", minDuration: "min-duration", maxDuration: "max-duration" };
+// These two sit in the source row; the others are inside the folded options.
+const SOURCE_FIELDS = new Set(["youtubeUrl", "video"]);
+
+const draggingFiles = (event) => Array.from(event.dataTransfer?.types || []).includes("Files");
 
 function FieldError({ id, message }) {
   return message ? <p id={id} className={styles.fieldError}>{message}</p> : null;
@@ -184,16 +190,12 @@ function ClipCard({ clip, copied, onCopy }) {
 }
 
 export default function DashboardPage() {
-  const [sourceType, setSourceType] = useState("youtube");
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [video, setVideo] = useState(null);
-  const [renderMode, setRenderMode] = useState("fit-blur");
-  const [limit, setLimit] = useState("3");
-  const [minDuration, setMinDuration] = useState("20");
-  const [maxDuration, setMaxDuration] = useState("60");
-  const [coldOpen, setColdOpen] = useState(true);
-  const [hookOverlay, setHookOverlay] = useState(true);
-  const [captionStyle, setCaptionStyle] = useState("karaoke");
+  const [dragging, setDragging] = useState(false);
+  // The last choices come back after hydration (the page is prerendered with the defaults).
+  const [choices, setChoices] = useState(DEFAULT_CHOICES);
+  const { limit, duration, minDuration, maxDuration, renderMode, captionStyle, coldOpen, hookOverlay, videoLanguage, optionsOpen } = choices;
   const [focusTerms, setFocusTerms] = useState([]);
   const [focusDraft, setFocusDraft] = useState("");
   const [focusNote, setFocusNote] = useState("");
@@ -212,6 +214,8 @@ export default function DashboardPage() {
   const copiedTimer = useRef(null);
   const mounted = useRef(false);
   const jobsRefreshGeneration = useRef(0);
+  const pendingFocus = useRef(null);
+  const sourceType = video ? "upload" : "youtube";
 
   const activeJob = useMemo(() => jobs.find((job) => job.id === activeId), [jobs, activeId]);
   const storage = storageView || storageStatusView(null);
@@ -245,6 +249,74 @@ export default function DashboardPage() {
   async function refreshStorageStatus() {
     await storageRecovery.current?.retry();
   }
+
+  function updateChoices(patch) {
+    const next = { ...choices, ...patch };
+    setChoices(next);
+    writeStoredChoices(browserStorage(), next);
+  }
+
+  /** Focuses a field once it is on screen; a field inside the folded options opens them first. */
+  function focusField(id, { inOptions = true } = {}) {
+    if (!inOptions || optionsOpen) {
+      document.getElementById(id)?.focus();
+      return;
+    }
+    pendingFocus.current = id;
+    updateChoices({ optionsOpen: true });
+  }
+
+  const chooseVideo = useCallback((file) => {
+    if (!file) return;
+    const problem = videoFileProblem(file);
+    if (problem) {
+      setProblems((current) => ({ ...current, video: problem }));
+      return;
+    }
+    setVideo(file);
+    setProblems(({ video: _video, youtubeUrl: _url, ...rest }) => rest);
+  }, []);
+
+  function clearVideo() {
+    setVideo(null);
+    clearProblem("video");
+    pendingFocus.current = "youtube-url";
+  }
+
+  useEffect(() => {
+    setChoices(readStoredChoices(browserStorage()));
+  }, []);
+
+  // A video dropped anywhere in the window becomes the source, instead of the browser opening it.
+  // Enter/leave fire for every element crossed, so a depth count tells when the drag left.
+  useEffect(() => {
+    let depth = 0;
+    const enter = (event) => { if (draggingFiles(event)) { depth += 1; setDragging(true); } };
+    const leave = (event) => { if (draggingFiles(event) && --depth <= 0) { depth = 0; setDragging(false); } };
+    const over = (event) => {
+      if (!draggingFiles(event)) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "copy";
+    };
+    const drop = (event) => {
+      if (!draggingFiles(event)) return;
+      event.preventDefault();
+      depth = 0;
+      setDragging(false);
+      chooseVideo(event.dataTransfer.files?.[0] || null);
+    };
+    const listeners = [["dragenter", enter], ["dragleave", leave], ["dragover", over], ["drop", drop]];
+    for (const [name, listener] of listeners) window.addEventListener(name, listener);
+    return () => { for (const [name, listener] of listeners) window.removeEventListener(name, listener); };
+  }, [chooseVideo]);
+
+  useEffect(() => {
+    if (!pendingFocus.current) return;
+    const target = document.getElementById(pendingFocus.current);
+    if (!target || target.closest("[hidden]")) return;
+    pendingFocus.current = null;
+    target.focus();
+  });
 
   useEffect(() => {
     mounted.current = true;
@@ -313,7 +385,7 @@ export default function DashboardPage() {
     setProblems(found);
     const firstInvalid = Object.keys(FIELD_IDS).find((name) => found[name]);
     if (firstInvalid) {
-      document.getElementById(FIELD_IDS[firstInvalid])?.focus();
+      focusField(FIELD_IDS[firstInvalid], { inOptions: !SOURCE_FIELDS.has(firstInvalid) });
       return;
     }
     const focus = focusFormFields({ terms: focusTerms, pending: focusDraft, note: focusNote });
@@ -321,7 +393,7 @@ export default function DashboardPage() {
     setFocusDraft(focus.pending);
     if (!focus.fields) {
       setFocusError(focus.error);
-      document.getElementById("focus-terms-input")?.focus();
+      focusField("focus-terms-input");
       return;
     }
     setSubmitting(true);
@@ -334,6 +406,7 @@ export default function DashboardPage() {
       data.set("coldOpen", String(coldOpen));
       data.set("hookOverlay", String(hookOverlay));
       data.set("captionStyle", captionStyle);
+      data.set("videoLanguage", videoLanguage);
       for (const [name, value] of Object.entries(focus.fields)) data.set(name, value);
       if (sourceType === "youtube") data.set("youtubeUrl", youtubeUrl.trim());
       else data.set("video", video);
@@ -388,6 +461,7 @@ export default function DashboardPage() {
   }
 
   const describedBy = (name, extra) => [extra, problems[name] ? `${FIELD_IDS[name]}-error` : null].filter(Boolean).join(" ") || undefined;
+  const summary = choicesSummary(choices, { focusTerms: focusTerms.length });
 
   return (
     <main>
@@ -409,138 +483,174 @@ export default function DashboardPage() {
       )}
 
       <div className={`shell ${styles.workspace}`}>
-        <form className={`panel ${styles.form}`} onSubmit={submit} noValidate aria-label="Buat klip">
-          <section className={styles.section} aria-labelledby="source-title">
-            <h2 id="source-title" className={styles.sectionTitle}>Sumber video</h2>
-            <div className={`segmented ${styles.segmented}`}>
-              <button type="button" aria-pressed={sourceType === "youtube"} onClick={() => setSourceType("youtube")}>Link YouTube</button>
-              <button type="button" aria-pressed={sourceType === "upload"} onClick={() => setSourceType("upload")}>Unggah file</button>
-            </div>
-            {sourceType === "youtube" ? (
-              <div className={styles.field}>
-                <label htmlFor="youtube-url">Link video</label>
-                <input
-                  id="youtube-url"
-                  className={styles.input}
-                  type="url"
-                  inputMode="url"
-                  autoComplete="off"
-                  placeholder="https://youtu.be/…"
-                  value={youtubeUrl}
-                  aria-invalid={problems.youtubeUrl ? "true" : undefined}
-                  aria-describedby={describedBy("youtubeUrl")}
-                  onChange={(event) => { setYoutubeUrl(event.target.value); clearProblem("youtubeUrl"); }}
-                />
-                <FieldError id="youtube-url-error" message={problems.youtubeUrl} />
-              </div>
-            ) : (
-              <div className={styles.field}>
-                <label className={`${styles.drop} ${problems.video ? styles.dropInvalid : ""}`}>
+        <form className={`panel ${styles.form} ${dragging ? styles.dragging : ""}`} onSubmit={submit} noValidate aria-label="Buat klip">
+          <div className={styles.source}>
+            <div className={styles.sourceRow}>
+              {video ? (
+                <div className={styles.fileBox}>
+                  <span title={video.name}>{video.name}</span>
+                  <button type="button" aria-label={`Hapus file ${video.name}`} onClick={clearVideo}>×</button>
+                </div>
+              ) : (
+                <>
+                  <label htmlFor="youtube-url" className="visuallyHidden">Link video</label>
                   <input
-                    id="video-file"
-                    type="file"
-                    accept="video/mp4,video/quicktime,video/webm,.mkv,.m4v"
-                    aria-invalid={problems.video ? "true" : undefined}
-                    aria-describedby={describedBy("video", "video-file-help")}
-                    onChange={(event) => { setVideo(event.target.files?.[0] || null); clearProblem("video"); }}
+                    id="youtube-url"
+                    className={`${styles.input} ${styles.url}`}
+                    type="url"
+                    inputMode="url"
+                    autoComplete="off"
+                    placeholder="Tempel link YouTube"
+                    value={youtubeUrl}
+                    aria-invalid={problems.youtubeUrl ? "true" : undefined}
+                    aria-describedby={describedBy("youtubeUrl", "source-help")}
+                    onChange={(event) => { setYoutubeUrl(event.target.value); clearProblem("youtubeUrl"); }}
                   />
-                  <strong>{video ? video.name : "Pilih file video"}</strong>
-                  <small id="video-file-help">MP4, MOV, MKV atau WEBM. Batas ukuran mengikuti server.</small>
-                </label>
-                <FieldError id="video-file-error" message={problems.video} />
-              </div>
-            )}
-          </section>
+                </>
+              )}
+              <label className={`btn ${styles.pick} ${problems.video ? styles.pickInvalid : ""}`}>
+                <input
+                  id="video-file"
+                  type="file"
+                  accept="video/mp4,video/quicktime,video/webm,.mkv,.m4v"
+                  aria-invalid={problems.video ? "true" : undefined}
+                  aria-describedby={describedBy("video", "source-help")}
+                  onChange={(event) => { chooseVideo(event.target.files?.[0] || null); event.target.value = ""; }}
+                />
+                {video ? "Ganti file" : "Pilih file"}
+              </label>
+              <button type="submit" className={styles.submit} disabled={submitting || storageBlocked}>{submitting ? "Membuat job…" : "Buat klip"}</button>
+            </div>
+            <FieldError id="youtube-url-error" message={problems.youtubeUrl} />
+            <FieldError id="video-file-error" message={problems.video} />
+            <p id="source-help" className={styles.help}>
+              {dragging ? "Lepaskan untuk memakai file ini." : video ? "Batas ukuran file mengikuti server." : "Atau pilih file MP4, MOV, MKV, WEBM, bisa juga ditarik ke halaman ini."}
+            </p>
+            {message && <p className={`${styles.message} ${message.tone === "error" ? styles.messageError : ""}`} role={message.tone === "error" ? "alert" : "status"}>{message.text}</p>}
+          </div>
 
-          <section className={styles.section} aria-labelledby="clips-title">
-            <h2 id="clips-title" className={styles.sectionTitle}>Klip</h2>
-            <div className={styles.numbers}>
+          <p className={`${styles.aiStatus} ${styles[ai.tone] || ""}`} role="status">
+            <i aria-hidden="true" />
+            <span>{ai.text}</span>
+            <a href="/settings">Atur AI</a>
+          </p>
+
+          <button type="button" className={styles.optionsToggle} aria-expanded={optionsOpen} aria-controls="job-options" onClick={() => updateChoices({ optionsOpen: !optionsOpen })}>
+            <span>
+              <strong>Pengaturan klip</strong>
+              <span>{summary}</span>
+            </span>
+            <i aria-hidden="true" className={styles.chevron} />
+          </button>
+
+          <div id="job-options" className={styles.options} hidden={!optionsOpen}>
+            <section className={styles.section} aria-labelledby="clips-title">
+              <h2 id="clips-title" className={styles.sectionTitle}>Klip</h2>
               <div className={`${styles.field} ${styles.limitField}`}>
                 <label htmlFor="clip-limit">Jumlah klip</label>
-                <input id="clip-limit" className={styles.input} type="number" inputMode="numeric" min="1" max="10" step="1" value={limit} aria-invalid={problems.limit ? "true" : undefined} aria-describedby={describedBy("limit")} onChange={(event) => { setLimit(event.target.value); clearProblem("limit"); }} />
+                <input id="clip-limit" className={styles.input} type="number" inputMode="numeric" min="1" max="10" step="1" value={limit} aria-invalid={problems.limit ? "true" : undefined} aria-describedby={describedBy("limit")} onChange={(event) => { updateChoices({ limit: event.target.value }); clearProblem("limit"); }} />
                 <FieldError id="clip-limit-error" message={problems.limit} />
               </div>
-              <div className={styles.field}>
-                <label htmlFor="min-duration">Durasi minimum</label>
-                <div className={styles.unit}>
-                  <input id="min-duration" className={styles.input} type="number" inputMode="decimal" min="5" max="180" value={minDuration} aria-invalid={problems.minDuration ? "true" : undefined} aria-describedby={describedBy("minDuration", "duration-unit")} onChange={(event) => { setMinDuration(event.target.value); clearProblem("minDuration"); clearProblem("maxDuration"); }} />
-                  <span aria-hidden="true">detik</span>
+              <fieldset className={styles.group}>
+                <legend className={styles.groupTitle}>Durasi klip</legend>
+                <div className={styles.pills}>
+                  {DURATION_PRESETS.map((preset) => (
+                    <label key={preset.id} className={`${styles.pill} ${duration === preset.id ? styles.selected : ""}`}>
+                      <input type="radio" name="duration" value={preset.id} checked={duration === preset.id} onChange={() => { updateChoices(withDuration(choices, preset.id)); clearProblem("minDuration"); clearProblem("maxDuration"); }} />
+                      <strong>{preset.name}</strong>
+                      <small>{preset.id === "custom" ? "Isi detiknya" : `${preset.min}–${preset.max} detik`}</small>
+                    </label>
+                  ))}
                 </div>
-                <FieldError id="min-duration-error" message={problems.minDuration} />
-              </div>
-              <div className={styles.field}>
-                <label htmlFor="max-duration">Durasi maksimum</label>
-                <div className={styles.unit}>
-                  <input id="max-duration" className={styles.input} type="number" inputMode="decimal" min="5" max="180" value={maxDuration} aria-invalid={problems.maxDuration ? "true" : undefined} aria-describedby={describedBy("maxDuration", "duration-unit")} onChange={(event) => { setMaxDuration(event.target.value); clearProblem("maxDuration"); }} />
-                  <span aria-hidden="true">detik</span>
-                </div>
-                <FieldError id="max-duration-error" message={problems.maxDuration} />
-              </div>
-            </div>
-            <p id="duration-unit" className="visuallyHidden">Dalam detik.</p>
-          </section>
+                {duration === "custom" && (
+                  <div className={styles.numbers}>
+                    <div className={styles.field}>
+                      <label htmlFor="min-duration">Durasi minimum</label>
+                      <div className={styles.unit}>
+                        <input id="min-duration" className={styles.input} type="number" inputMode="decimal" min="5" max="180" value={minDuration} aria-invalid={problems.minDuration ? "true" : undefined} aria-describedby={describedBy("minDuration", "duration-unit")} onChange={(event) => { updateChoices({ minDuration: event.target.value }); clearProblem("minDuration"); clearProblem("maxDuration"); }} />
+                        <span aria-hidden="true">detik</span>
+                      </div>
+                      <FieldError id="min-duration-error" message={problems.minDuration} />
+                    </div>
+                    <div className={styles.field}>
+                      <label htmlFor="max-duration">Durasi maksimum</label>
+                      <div className={styles.unit}>
+                        <input id="max-duration" className={styles.input} type="number" inputMode="decimal" min="5" max="180" value={maxDuration} aria-invalid={problems.maxDuration ? "true" : undefined} aria-describedby={describedBy("maxDuration", "duration-unit")} onChange={(event) => { updateChoices({ maxDuration: event.target.value }); clearProblem("maxDuration"); }} />
+                        <span aria-hidden="true">detik</span>
+                      </div>
+                      <FieldError id="max-duration-error" message={problems.maxDuration} />
+                    </div>
+                    <p id="duration-unit" className="visuallyHidden">Dalam detik, 5 sampai 180.</p>
+                  </div>
+                )}
+              </fieldset>
+            </section>
 
-          <fieldset className={styles.section}>
-            <legend className={styles.sectionTitle}>Layout</legend>
-            <div className={styles.choices}>
-              {layouts.map((layout) => (
-                <label key={layout.id} className={`${styles.choice} ${renderMode === layout.id ? styles.selected : ""}`}>
-                  <input type="radio" name="renderMode" value={layout.id} checked={renderMode === layout.id} onChange={() => setRenderMode(layout.id)} />
-                  <span className={`${styles.frame} ${styles[layout.id]}`} aria-hidden="true"><i /></span>
-                  <span className={styles.choiceText}><strong>{layout.name}</strong><small>{layout.description}</small></span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
+            <fieldset className={styles.section} aria-describedby="language-help">
+              <legend className={styles.sectionTitle}>Bahasa video</legend>
+              <div className={styles.pills}>
+                {VIDEO_LANGUAGE_CHOICES.map((language) => (
+                  <label key={language.id} className={`${styles.pill} ${videoLanguage === language.id ? styles.selected : ""}`}>
+                    <input type="radio" name="videoLanguage" value={language.id} checked={videoLanguage === language.id} onChange={() => updateChoices({ videoLanguage: language.id })} />
+                    <strong>{language.name}</strong>
+                  </label>
+                ))}
+              </div>
+              <p id="language-help" className={styles.help}>Bahasa yang diucapkan di video, untuk transkrip dan subtitle.</p>
+            </fieldset>
 
-          <section className={styles.section} aria-labelledby="look-title">
-            <h2 id="look-title" className={styles.sectionTitle}>Tampilan klip</h2>
-            <fieldset className={styles.group}>
-              <legend className={styles.groupTitle}>Gaya subtitle</legend>
-              <div className={`${styles.choices} ${styles.pair}`}>
-                {captionStyles.map((style) => (
-                  <label key={style.id} className={`${styles.choice} ${styles.compact} ${captionStyle === style.id ? styles.selected : ""}`}>
-                    <input type="radio" name="captionStyle" value={style.id} checked={captionStyle === style.id} onChange={() => setCaptionStyle(style.id)} />
-                    <span className={styles.choiceText}><strong>{style.name}</strong><small>{style.description}</small></span>
+            <fieldset className={styles.section}>
+              <legend className={styles.sectionTitle}>Layout</legend>
+              <div className={styles.choices}>
+                {LAYOUT_CHOICES.map((layout) => (
+                  <label key={layout.id} className={`${styles.choice} ${renderMode === layout.id ? styles.selected : ""}`}>
+                    <input type="radio" name="renderMode" value={layout.id} checked={renderMode === layout.id} onChange={() => updateChoices({ renderMode: layout.id })} />
+                    <span className={`${styles.frame} ${styles[layout.id]}`} aria-hidden="true"><i /></span>
+                    <span className={styles.choiceText}><strong>{layout.name}</strong><small>{layout.description}</small></span>
                   </label>
                 ))}
               </div>
             </fieldset>
-            <div className={styles.toggles}>
-              <label className={styles.toggle}>
-                <input type="checkbox" checked={coldOpen} onChange={(event) => setColdOpen(event.target.checked)} />
-                <span className={styles.choiceText}><strong>Buka dengan kalimat terkuat</strong><small>Kalimat hook diputar dulu beberapa detik, lalu klip mulai dari awal.</small></span>
-              </label>
-              <label className={styles.toggle}>
-                <input type="checkbox" checked={hookOverlay} onChange={(event) => setHookOverlay(event.target.checked)} />
-                <span className={styles.choiceText}><strong>Teks hook di 4 detik pertama</strong><small>Kalimat pemancing singkat di bagian atas layar.</small></span>
-              </label>
-            </div>
-          </section>
 
-          <section className={styles.section} aria-labelledby="moments-title">
-            <h2 id="moments-title" className={styles.sectionTitle}>Momen</h2>
-            <p className={`${styles.aiStatus} ${styles[ai.tone] || ""}`} role="status">
-              <i aria-hidden="true" />
-              <span>{ai.text}</span>
-              <a href="/settings">Atur AI</a>
-            </p>
-            <FocusField
-              terms={focusTerms}
-              draft={focusDraft}
-              note={focusNote}
-              error={focusError}
-              aiMode={aiMode}
-              onTermsChange={setFocusTerms}
-              onDraftChange={setFocusDraft}
-              onNoteChange={setFocusNote}
-              onErrorChange={setFocusError}
-            />
-          </section>
+            <section className={styles.section} aria-labelledby="look-title">
+              <h2 id="look-title" className={styles.sectionTitle}>Tampilan klip</h2>
+              <fieldset className={styles.group}>
+                <legend className={styles.groupTitle}>Gaya subtitle</legend>
+                <div className={`${styles.choices} ${styles.pair}`}>
+                  {CAPTION_STYLE_CHOICES.map((style) => (
+                    <label key={style.id} className={`${styles.choice} ${styles.compact} ${captionStyle === style.id ? styles.selected : ""}`}>
+                      <input type="radio" name="captionStyle" value={style.id} checked={captionStyle === style.id} onChange={() => updateChoices({ captionStyle: style.id })} />
+                      <span className={styles.choiceText}><strong>{style.name}</strong><small>{style.description}</small></span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+              <div className={styles.toggles}>
+                <label className={styles.toggle}>
+                  <input type="checkbox" checked={coldOpen} onChange={(event) => updateChoices({ coldOpen: event.target.checked })} />
+                  <span className={styles.choiceText}><strong>Buka dengan kalimat terkuat</strong><small>Kalimat hook diputar dulu beberapa detik, lalu klip mulai dari awal.</small></span>
+                </label>
+                <label className={styles.toggle}>
+                  <input type="checkbox" checked={hookOverlay} onChange={(event) => updateChoices({ hookOverlay: event.target.checked })} />
+                  <span className={styles.choiceText}><strong>Teks hook di 4 detik pertama</strong><small>Kalimat pemancing singkat di bagian atas layar.</small></span>
+                </label>
+              </div>
+            </section>
 
-          <div className={styles.submitRow}>
-            <button type="submit" className={styles.submit} disabled={submitting || storageBlocked}>{submitting ? "Membuat job…" : "Buat klip"}</button>
-            {message && <p className={`${styles.message} ${message.tone === "error" ? styles.messageError : ""}`} role={message.tone === "error" ? "alert" : "status"}>{message.text}</p>}
+            <section className={styles.section} aria-labelledby="moments-title">
+              <h2 id="moments-title" className={styles.sectionTitle}>Momen</h2>
+              <FocusField
+                terms={focusTerms}
+                draft={focusDraft}
+                note={focusNote}
+                error={focusError}
+                aiMode={aiMode}
+                onTermsChange={setFocusTerms}
+                onDraftChange={setFocusDraft}
+                onNoteChange={setFocusNote}
+                onErrorChange={setFocusError}
+              />
+            </section>
           </div>
         </form>
 
