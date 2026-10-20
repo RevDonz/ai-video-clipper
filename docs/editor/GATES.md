@@ -1876,3 +1876,21 @@ gates that need the production image or a browser run on GitHub Actions when the
 | P-TXT | JASSUB against FFmpeg on `sorot-10`, `sorot-40`, `sorot-90` (smoke: `sorot-40`), player variant `sorot` | SSIM ≥ 0.999, PSNR ≥ 45 dB, max ≤ 16, 0 px > 16 | **pending**: `Parity (smoke)` of the PR and `editor-gates suite=image` |
 | Thumbnail | `pack-thumbs/sorot.png` from `make_pack_thumbs.py` in an older local image (FFmpeg 5.1.9, libass 0.17.1-1) that re-rendered the four committed thumbnails byte for byte | bytes equal on the pinned toolchain | **pending**: `suite=image` re-renders all five |
 | Browser specs (fakes) | five pack tiles, the "Kata per baris" pills in the Caption card and the Teks panel, the regrouped lines | pass | **pending**: `editor-gates suite=e2e` |
+
+## Hook designs: Kicker, Blok and Kotak kata (2026-10-20)
+
+Plan `docs/plans/2026-10-20-lanjutan-sesi.md` P1 #10; contract CONTRACTS §5.33; guide
+PANDUAN-EDITOR "Hook" and "Teks". Built on branch `adopsi/hook-desain` with targeted local tests
+only; the gates that need the production image or a browser run on GitHub Actions when the
+branch is pushed.
+
+| Gate | What | Threshold | Result |
+|---|---|---|---|
+| Auto clips unchanged | seeds keep `legacy-bar@1`; plan shas of every older fixture (`plan-shas.json`), the older ASS goldens, `LEGACY_PIN`, and the bar's layout and bytes with the design given or left out | identical | **pass** (local pytest) |
+| Auto-fit and overflow | every design takes its largest size whose lines fit (exact `hmtx` widths, at most 3 lines), cuts an over-long tail with "…" and reports `hook_overflow`; the AI suggestions' fit and glyph checks follow the item's design | as the bar | **pass** (`tests/test_hook_designs.py`, `tests/test_edit_v2_captions.py`, `tests/test_editor_ai.py`) |
+| Document rules | `kicker`, `blok`, `kotak` at `v` 1 valid; another id or version `op_disabled`; `SetHookDesign` in the 1,000-sequence crosscheck against the Python validator | 0 rejected documents | **pass** (local) |
+| P-TIME, FFmpeg side (quick subset) | every box, word and kicker event of the three designs appears and disappears on the hook's planned frames (`hook0-<design>` at 25 and 30000/1001) | 0 mismatches | **pass** on the local FFmpeg 6.1.1 + libass 0.17.1; the full matrix runs in the image (pending) |
+| P-TXT | JASSUB against FFmpeg on `hook-kicker`, `hook-blok`, `hook-kotak` (all three in the smoke subset), player variants `hook-kicker`, `hook-blok`, `hook-kotak` | SSIM ≥ 0.999, PSNR ≥ 45 dB, max ≤ 16, 0 px > 16 | **pending**: `Parity (smoke)` of the PR, `editor-gates suite=image` and `suite=player` |
+| Thumbnails | `hook-thumbs/<id>.png` from `make_hook_thumbs.py` in a local image (FFmpeg 5.1.9, libass 0.17.1-1) that re-rendered the five committed pack thumbnails byte for byte | bytes equal on the pinned toolchain | **pending**: `suite=image` re-renders all four |
+| Editor model | `SetHookDesign`, `checkDoc`, the `hook.design` rebase part, both views calling `hook-model.mjs` | pass | **pass** (`node --test`: commands, rebase, quick model and the other editor files touched) |
+| Browser specs (fakes) | four design tiles in the Hook card and four cards in the Teks panel, one undo step per pick, the Kicker and Kotak kata hints, disabled with the hook off | pass | **pending**: `editor-gates suite=e2e` (`editor-quick.spec.mjs`, `editor-transcript.spec.mjs`) |

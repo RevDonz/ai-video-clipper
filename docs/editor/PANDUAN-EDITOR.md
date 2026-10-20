@@ -60,7 +60,18 @@ yang membuka transkrip.
 **Hook.** Sakelar **Tampilkan hook** dan kolom **Teks di awal klip** (maks. 90 karakter, tanda
 "Muat" / "Akan terpotong"). Di bawahnya **Saran**: klik satu saran untuk memakainya (bisa
 diurungkan). Saran AI baru diminta saat kartu ini dibuka, jadi membuka editor tidak memakai kuota AI.
-Durasi dan posisi hook diatur di Mode Lengkap.
+Lalu **Desain hook**, empat ubin dengan contoh tampilannya:
+
+- **Bar**: teks putih di bar gelap, bawaan klip otomatis.
+- **Kicker**: baris kecil kuning di atas teks besar. Baris kecilnya kata sampai tanda baca
+  pertama (misalnya "Ternyata:"); tanpa tanda baca, 1 sampai 3 kata pertama.
+- **Blok**: tiap baris di kotak kuning dengan teks gelap.
+- **Kotak kata**: satu kata di kotak kuning. Kata yang ditulis huruf kapital semua masuk kotak
+  (misalnya "SATPAM"); tanpa itu, kata terpanjang.
+
+Semua desain menyesuaikan ukuran huruf supaya muat 3 baris, jadi tanda "Muat" / "Akan terpotong"
+berlaku untuk desain mana pun. Ganti desain bisa diurungkan. Durasi dan posisi hook diatur di Mode
+Lengkap.
 
 **Caption.** Sakelar **Tampilkan caption**, lima gaya, **Warna sorot**, **Ukuran** (Kecil, Sedang,
 Besar), **Kata per baris** (1 sampai 4) dan **Posisi** (Atas, Tengah, Bawah; Bawah adalah posisi
@@ -153,7 +164,8 @@ Shift+klik kata di bawahnya, atau tekan Esc dulu untuk mengeklik kata itu.
 **Teks.** Caption: nyala/mati, gaya (Klasik, Karaoke, Bold, Box, Sorot), posisi, ukuran, kata
 per baris, huruf besar, warna sorot dan warna kata kunci, dengan catatan yang sama seperti kartu Caption (posisi
 bawaan, area tombol TikTok, dekat teks hook). Hook: teks (maks. 90 karakter, tanda "Muat" / "Akan
-terpotong"), durasi dan posisi. **Saran hook** di bawah kolom teks: saran otomatis langsung
+terpotong"), **Desain hook** (Bar, Kicker, Blok, Kotak kata, sama seperti kartu Hook), durasi dan
+posisi. **Saran hook** di bawah kolom teks: saran otomatis langsung
 muncul dengan sumbernya ("AI seleksi" dari pemilihan klip, "Heuristik" dari transkrip); **"Pakai"**
 mengganti teks hook (bisa diurungkan). Dengan `POTONGIN_EDITOR_LLM=on`, AI gratis di Pengaturan
 juga menulis saran dari transkrip yang sudah diedit (sekitar 10 detik).
