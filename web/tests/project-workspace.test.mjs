@@ -4,9 +4,11 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
+import { CLIP_FALLBACKS } from "../lib/jobs.mjs";
 import {
   arrowDelta,
   checkZip,
+  clipFallbackNotes,
   clipFilterView,
   clipPosition,
   isHighScore,
@@ -147,6 +149,19 @@ test("before the ZIP downloads, the page asks the route whether it can be made",
   await assert.rejects(checkZip(JOB_ID, null, { fetchImpl: async () => { throw aborted; } }), (error) => error === aborted);
 });
 
+test("fallback notes: one short neutral line per code; only the framing note goes on the poster", () => {
+  assert.deepEqual(clipFallbackNotes({ fallbacks: ["no_face", "engine_fallback"] }), [
+    { code: "no_face", card: "Potong tengah", text: "Wajah tidak terdeteksi · potong tengah" },
+    { code: "engine_fallback", card: null, text: "Dirender dengan cara cadangan" },
+  ]);
+  assert.deepEqual(clipFallbackNotes({ fallbacks: ["engine_fallback", "no_face"] }).map((note) => note.code), ["no_face", "engine_fallback"]);
+  for (const clip of [{}, { fallbacks: [] }, { fallbacks: ["tight_cut"] }, { fallbacks: "no_face" }, null, undefined]) {
+    assert.deepEqual(clipFallbackNotes(clip), [], JSON.stringify(clip));
+  }
+  // Every code the job API serves has its note.
+  for (const code of CLIP_FALLBACKS) assert.equal(clipFallbackNotes({ fallbacks: [code] }).length, 1, code);
+});
+
 const page = () => readFile(new URL("../app/projects/[id]/page.jsx", import.meta.url), "utf8");
 const stylesheet = () => readFile(new URL("../app/projects/[id]/project.module.css", import.meta.url), "utf8");
 
@@ -192,6 +207,22 @@ test("the page: 'Pilih' reads 'n dipilih · Pilih semua · Batal · Unduh (n)', 
   assert.match(source, /role="alert">\{zip\.message\}/);
   // The ZIP buttons only on a finished project.
   assert.match(source, /const downloadable = job\.status === "completed" && clips\.length > 0;/);
+});
+
+test("the page: the framing note on its poster (and in its label), every note in the detail panel", async () => {
+  const source = await page();
+  assert.match(source, /const cardNotes = clipFallbackNotes\(clip\)\.filter\(\(note\) => note\.card\);/);
+  assert.match(source, /\.\.\.cardNotes\.map\(\(note\) => note\.card\.toLowerCase\(\)\)/);
+  assert.match(source, /\{cardNotes\.map\(\(note\) => <span key=\{note\.code\} className=\{styles\.posterNote\}>\{note\.card\}<\/span>\)\}/);
+  assert.match(source, /const notes = clipFallbackNotes\(clip\);/);
+  assert.match(source, /<ul className=\{styles\.clipNotes\} aria-label="Catatan klip">/);
+  // Neutral: muted text, no colour or badge of its own.
+  const css = await stylesheet();
+  for (const rule of ["posterNote", "clipNotes"]) {
+    const block = new RegExp(`\\.${rule} \\{([^}]*)\\}`).exec(css)?.[1] || "";
+    assert.match(block, /color: var\(--text-muted\);/, rule);
+    assert.doesNotMatch(block, /background|border/, rule);
+  }
 });
 
 test("the page and its view model never call a score hot or viral", async () => {

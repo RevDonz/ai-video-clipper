@@ -7,9 +7,10 @@ import { login, skipWithoutCredentials, test } from "./support/harness.mjs";
 
 // The project page as a workspace (plan P1 #7 + A5): a poster grid and one detail panel, the
 // "Semua" / "Skor 8+" filters, left/right between clips, "Pilih" mode with "Unduh (n)" and
-// "Unduh semua" through the ZIP route, and "NN-judul" download names. The job API, the clips
-// listing and the ZIP route are faked inside the browser (page.route), so nothing on the server
-// changes; only the login is real. Run against a production build, like e2e/focus.spec.mjs.
+// "Unduh semua" through the ZIP route, "NN-judul" download names, and the notes of clips that
+// fell back (A2). The job API, the clips listing and the ZIP route are faked inside the browser
+// (page.route), so nothing on the server changes; only the login is real. Run against a
+// production build, like e2e/focus.spec.mjs.
 
 const JOB_ID = "8c2e4f60-7a1b-4c3d-9e5f-0a1b2c3d4e5f";
 const CLIP_ID = `clip_${"a".repeat(24)}`;
@@ -17,6 +18,8 @@ const NOW = Date.now();
 const iso = (ms) => new Date(ms).toISOString();
 const TITLES = ["Rahasia hook di 3 detik", "Jangan menyerah", "Ngopi di café", "Kenapa 90% orang gagal"];
 const SCORES = [8.4, 6.1, 7.95, 9];
+// Clips 2 and 4 fell back (pipeline.py `fallbacks`): no face found, and the backup render too.
+const FALLBACKS = [null, ["no_face"], null, ["no_face", "engine_fallback"]];
 
 function clip(index) {
   const base = `/api/jobs/${JOB_ID}/files/output/clip-0${index}`;
@@ -25,6 +28,7 @@ function clip(index) {
     title: TITLES[index - 1], description: "Deskripsi.\n\n#fyp", hashtags: ["#fyp"], selectionSource: "llm",
     sourceStart: 60 * index, sourceEnd: 60 * index + 30,
     videoUrl: `${base}.mp4`, downloadUrl: `${base}.mp4?download=1`, subtitleUrl: `${base}.srt?download=1`,
+    ...(FALLBACKS[index - 1] ? { fallbacks: FALLBACKS[index - 1] } : {}),
   };
 }
 
@@ -68,6 +72,7 @@ async function fakeProject(target, { zipCheck = null } = {}) {
 const posters = (target) => target.getByRole("article");
 const detail = (target) => target.locator("[data-clip-detail]");
 const detailTitle = (target) => detail(target).getByRole("heading", { level: 3 });
+const detailNotes = (target) => detail(target).getByRole("list", { name: "Catatan klip" });
 const overflow = (target) => target.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 
 function axeSource() {
@@ -108,6 +113,15 @@ test.describe("project workspace (faked job API)", () => {
     await expect(posters(page).nth(0)).toContainText("Diedit");
     await expect(detail(page).getByRole("link", { name: "Edit klip" })).toHaveAttribute("href", `/projects/${JOB_ID}/clips/${CLIP_ID}/edit`);
 
+    // A clip that fell back says so: the framing on its poster, every note in the detail panel.
+    await expect(detailNotes(page)).toHaveCount(0);
+    await expect(posters(page).nth(0)).not.toContainText("Potong tengah");
+    await expect(posters(page).nth(1)).toContainText("Potong tengah");
+    await expect(posters(page).nth(3)).toContainText("Potong tengah");
+    await expect(posters(page).nth(3)).not.toContainText("cadangan");
+    await posters(page).nth(1).getByRole("button").click();
+    await expect(detailNotes(page).getByRole("listitem")).toHaveText(["Wajah tidak terdeteksi · potong tengah"]);
+
     await posters(page).nth(2).getByRole("button").click();
     await expect(detailTitle(page)).toHaveText(TITLES[2]);
     await expect(posters(page).nth(2).getByRole("button")).toHaveAttribute("aria-current", "true");
@@ -119,6 +133,7 @@ test.describe("project workspace (faked job API)", () => {
     await page.keyboard.press("ArrowRight");
     await expect(detailTitle(page)).toHaveText(TITLES[3]);
     await expect(posters(page).nth(3).getByRole("button")).toBeFocused();
+    await expect(detailNotes(page).getByRole("listitem")).toHaveText(["Wajah tidak terdeteksi · potong tengah", "Dirender dengan cara cadangan"]);
     await page.keyboard.press("ArrowRight");
     await expect(detailTitle(page)).toHaveText(TITLES[3]);
     await page.keyboard.press("ArrowLeft");
