@@ -56,6 +56,7 @@ const DISPLAY_LIBS = [
   "lib/system-info.mjs", "lib/system-info-view.mjs", "app/api/settings/system/route.js",
   "lib/default-logo.mjs", "lib/default-logo-view.mjs", "app/api/settings/logo/route.js", "app/api/settings/logo/[sha]/route.js",
   "lib/youtube-cookies.mjs", "lib/youtube-cookies-file.mjs", "lib/youtube-cookies-view.mjs", "app/api/settings/youtube-cookies/route.js",
+  "lib/transcription-settings.mjs", "lib/transcription-settings-view.mjs", "app/api/settings/transcription/route.js",
 ];
 
 // --- Latest only ----------------------------------------------------------------------------
@@ -74,6 +75,15 @@ test("Pengaturan shows the Cookies YouTube card on its own, like Logo bawaan", a
   assert.match(card, /\/api\/settings\/youtube-cookies/);
   // The card never reads a cookie value: the API returns none, and nothing asks for one.
   assert.doesNotMatch(card, /\.text\(\)|readAsText|FileReader/);
+});
+
+test("Pengaturan shows the Transkripsi card on its own, and it never asks the server for a key", async () => {
+  const page = withoutComments(await read("app/settings/page.jsx"));
+  assert.match(page, /<TranscriptionCard \/>/);
+  const card = withoutComments(await read("app/settings/TranscriptionCard.jsx"));
+  assert.match(card, /\/api\/settings\/transcription/);
+  assert.doesNotMatch(card, /payload\??\.apiKey|payload\??\.key\b/);
+  assert.match(card, /type="password"/);
 });
 
 test("Konteks Tren says its switch applies to the next job, without naming an engine", async () => {
