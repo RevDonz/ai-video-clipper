@@ -538,6 +538,29 @@ def test_a_legacy_engine_seed_is_never_exact(tmp_path, contexts):
     assert rev0["autoRenderUrl"].endswith(name)
 
 
+def test_a_legacy_auto_file_is_not_revision_0_of_a_seed_with_the_default_logo(tmp_path,
+                                                                             contexts):
+    """The legacy renderer draws no logo, so the stage never offers its file for such a seed."""
+    context = contexts["c30"]
+    seed = copy.deepcopy(context.seed)
+    seed["base"]["engine"]["compiler"] = "legacy"
+    seed["tracks"].append({
+        "id": "tr_ovr", "kind": "visual", "band": "over_text", "role": "overlay",
+        "items": [{"id": "it_logo", "type": "image", "start": {"at": "clip_start"},
+                   "end": {"at": "clip_end"},
+                   "transform": {"x_e5": 79097, "y_e5": 11758, "w_e5": 16000, "opacity_pm": 850},
+                   "payload": {"asset": fixtures.LOGO, "mode": "free"}, "origin": "seed"}]})
+    seed["assets"] = {fixtures.LOGO: dict(context.assets[fixtures.LOGO])}
+    clip = make_clip(tmp_path, context, seed=seed)
+    job = clip.parents[2]
+    (job / "output").mkdir()
+    (job / "output" / f"clip-{seed['base']['origin']['rank_at_seed']:02d}.mp4").write_bytes(b"mp4")
+    case = {"root": tmp_path, "seed": seed, "jobId": seed["base"]["job_id"],
+            "clipId": seed["clip_id"]}
+    rev0 = ok(plan(case))["dto"]["rev0"]
+    assert rev0["autoRenderUrl"] is None and rev0["exact"] is False
+
+
 # --- plan: invalid requests and documents ----------------------------------------------------------
 
 

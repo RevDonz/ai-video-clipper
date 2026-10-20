@@ -45,7 +45,7 @@ from .edit_v2 import errors as edit_errors
 from .edit_v2 import store as edit_store
 from .edit_v2 import timemap as _timemap
 from .edit_v2.clip_id import CLIP_ID_PATTERN
-from .edit_v2.doc import content_equals_seed
+from .edit_v2.doc import auto_file_is_seed, content_equals_seed
 from .edit_v2.glyphs import RESOURCES_DIR
 from .edit_v2.plan import RenderPlan, Resources, build_plan, render_key, toolchain_sha256
 
@@ -403,7 +403,8 @@ def run(argv: list[str], stdin: BinaryIO, stdout: BinaryIO, stderr: TextIO) -> i
 #   * R10 first: a document whose content equals the seed completes at creation by hard-linking
 #     the auto clip (output/clip-NN.mp4 + .srt) after its G1–G2 re-verification against the
 #     seed's plan, whatever the toolchain or engine; an auto file that is missing or fails
-#     G1–G2 renders normally with the warning ``auto_file_unavailable``.
+#     G1–G2 renders normally with the warning ``auto_file_unavailable``. A legacy-engine seed
+#     with a logo (the Pengaturan default logo) has no auto file of its content: it renders.
 #   * Otherwise an existing export of the same render key (published only after verification,
 #     under a content-addressed name) completes it instantly (``completed_by: "key"``).
 #   * Otherwise the source is snapshotted by hard link (verified copy across devices) and the
@@ -1141,7 +1142,7 @@ def _prepare_v3(job: Path, clip_id: str, edit_etag: str, *, resources: Resources
     output_relative = _v3_output_relative(clip_id, key)
     warnings: list[str] = []
     completed_by = None
-    if content_equals_seed(doc, seed_doc):  # R10, checked first
+    if content_equals_seed(doc, seed_doc) and auto_file_is_seed(seed_doc):  # R10, checked first
         auto = _auto_file(job, clip_id, seed_doc)
         if auto is not None and (verify_auto or verify_auto_file)(auto, plan):
             completed_by = _publish_auto(job, clip_id, auto, output_relative, plan)

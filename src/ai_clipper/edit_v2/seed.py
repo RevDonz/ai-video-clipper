@@ -21,6 +21,10 @@ take the dashboard's V3 defaults) plus optional seed-context keys that never occ
   :func:`prepare_legacy_job` takes it from the clip's ``output/manifest.json`` entry
   (``cold_open_join``, matched by clip id), so a clip rendered before the transition seeds a
   cut and a newer one the join it was rendered with.
+* ``logo``: ``{"sha256", "w", "h"}`` of the job's default logo (Pengaturan "Logo bawaan", plan
+  2026-10-20 A6), already in the job's asset store (``assets.seed_logo``). The seed carries it
+  as ``it_logo`` (origin ``seed``) where the editor's SetLogo puts a new logo
+  (:func:`default_logo_transform`); a logo no size fits is left out. Missing or null: no logo.
 
 **Rules beyond the plan table** (each keeps the seed valid for the validator):
 
@@ -47,8 +51,10 @@ take the dashboard's V3 defaults) plus optional seed-context keys that never occ
 
 :func:`prepare_legacy_job` persists ``analysis/source.json``, then per clip the peaks, the words
 artifact, the camera plan (face-track jobs only) and ``seed.json``, each once and never
-overwritten, under a job-level ``flock``. Every clip that cannot be opened is named with the
-first matching reason: ``not_v3`` (the job did not run Selection V3), ``analysis_incomplete``
+overwritten, under a job-level ``flock``. A job created with a default logo (``<job>/logo/``)
+gets it in its asset store and in every seed written. Every clip that cannot be opened is named
+with the first matching reason: ``not_v3`` (the job did not run Selection V3),
+``analysis_incomplete``
 (no ``analysis/selection.v3.json`` but one stranded in ``.attempts/*/analysis/``, or an existing
 seed whose words artifact is gone), ``selection_unreadable``, ``transcript_missing``,
 ``source_missing`` (the source must be a regular file inside ``input/``; ``job.json``'s absolute
@@ -69,7 +75,7 @@ import re
 import stat
 import time
 import unicodedata
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
@@ -91,12 +97,14 @@ from . import (
     SCHEMA,
     SCHEMA_MINOR,
 )
+from . import assets as _assets
 from . import camera as _camera
 from . import timemap as tm
 from .clip_id import clip_id as _clip_id
 from .clip_id import manifest_clip_id, ms_from_seconds
 from .errors import NotFound
 from .peaks import build_peaks, peaks_file_name
+from .plan import ui_zone
 from .source_info import (
     SOURCE_INFO_RELATIVE_PATH,
     SourceInfoError,
@@ -141,6 +149,9 @@ MAX_SEED_BYTES = 1 << 20
 MANIFEST_RELATIVE_PATH = Path("output") / "manifest.json"
 MAX_MANIFEST_BYTES = 16 * 1024 * 1024
 COLD_OPEN_FADE_MS = 30  # the cold-open join's audio fade (plan §3.5)
+# A new logo's size and opacity (the editor's SetLogo, web/lib/editor/commands.mjs DEFAULT_LOGO).
+DEFAULT_LOGO = {"x_e5": 50000, "y_e5": 50000, "w_e5": 16000, "opacity_pm": 850}
+LOGO_MIN_W_E5 = 4000
 _UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 _SHA = re.compile(r"[0-9a-f]{64}")
 
@@ -354,6 +365,98 @@ def _clip_plan(clip: SelectedClip, context: _Context, source: Mapping[str, Any],
                      window, tuple(segments), teaser_ms)
 
 
+def _first_true(ok: Callable[[int], bool]) -> int | None:
+    """Smallest e5 in [0, 100000] with ``ok`` (false then true), or None."""
+    if not ok(100_000):
+        return None
+    low, high = 0, 100_000
+    while low < high:
+        middle = (low + high) // 2
+        if ok(middle):
+            high = middle
+        else:
+            low = middle + 1
+    return low
+
+
+def _last_true(ok: Callable[[int], bool]) -> int | None:
+    """Largest e5 in [0, 100000] with ``ok`` (true then false), or None."""
+    if not ok(0):
+        return None
+    low, high = 0, 100_000
+    while low < high:
+        middle = (low + high + 1) // 2
+        if ok(middle):
+            low = middle
+        else:
+            high = middle - 1
+    return low
+
+
+def default_logo_transform(output: tuple[int, int], asset_w: int, asset_h: int
+                           ) -> dict[str, int] | None:
+    """Where the editor's SetLogo puts a new logo (``commands.mjs`` ``defaultLogo``): the default
+    size, shrunk until it fits the frame, at the top-right preset just outside the TikTok zone.
+    None when no size from 4 % up fits (the editor refuses such a logo too)."""
+    width, height = output
+
+    def box(x: int, y: int, w: int) -> tuple[int, int, int, int]:
+        return tm.logo_box(x_e5=x, y_e5=y, w_e5=w, asset_w=asset_w, asset_h=asset_h,
+                           out_w=width, out_h=height)
+
+    def clamp(x: int, y: int, w: int) -> tuple[int, int] | None:
+        x_low = _first_true(lambda xe: box(xe, 50_000, w)[0] >= 0)
+        x_high = _last_true(lambda xe: sum(box(xe, 50_000, w)[0::2]) <= width)
+        y_low = _first_true(lambda ye: box(50_000, ye, w)[1] >= 0)
+        y_high = _last_true(lambda ye: sum(box(50_000, ye, w)[1::2]) <= height)
+        if None in (x_low, x_high, y_low, y_high) or x_low > x_high or y_low > y_high:
+            return None
+        return min(max(x, x_low), x_high), min(max(y, y_low), y_high)
+
+    def fits(w: int) -> bool:
+        _x0, _y0, w_px, h_px = box(50_000, 50_000, w)
+        return w_px <= width and h_px <= height
+
+    w_e5 = DEFAULT_LOGO["w_e5"]
+    if not fits(w_e5):
+        if not fits(LOGO_MIN_W_E5):
+            return None
+        low, high = LOGO_MIN_W_E5, w_e5
+        while low < high:
+            middle = (low + high + 1) // 2
+            if fits(middle):
+                low = middle
+            else:
+                high = middle - 1
+        w_e5 = low
+    if clamp(DEFAULT_LOGO["x_e5"], DEFAULT_LOGO["y_e5"], w_e5) is None:
+        return None
+    _x0, _y0, w_px, h_px = box(50_000, 50_000, w_e5)
+    top, _bottom, right = ui_zone((width, height))
+    x0 = min(max(width - right - w_px, 0), max(0, width - w_px))
+    y0 = min(max(top, 0), max(0, height - h_px))
+    position = clamp(tm.div_round_half_up((2 * x0 + w_px) * 100_000, 2 * width),
+                     tm.div_round_half_up((2 * y0 + h_px) * 100_000, 2 * height), w_e5)
+    if position is None:
+        return None
+    return {"x_e5": position[0], "y_e5": position[1], "w_e5": w_e5,
+            "opacity_pm": DEFAULT_LOGO["opacity_pm"]}
+
+
+def _logo(job: Mapping) -> tuple[str, int, int] | None:
+    """The seed-context ``logo`` ``{sha256, w, h}`` (the job's default logo, already in its
+    asset store), or None."""
+    value = job.get("logo")
+    if value is None:
+        return None
+    if not isinstance(value, Mapping) or set(value) != {"sha256", "w", "h"}:
+        raise SeedError("logo must be {sha256, w, h}")
+    sha = _sha(value["sha256"], "logo sha256")
+    if not all(type(value[key]) is int and 1 <= value[key] <= 4096 for key in ("w", "h")):
+        raise SeedError("logo w and h must be integers in 1 to 4096")
+    return sha, value["w"], value["h"]
+
+
 def _hook_text(text: str) -> str:
     cleaned = unicodedata.normalize("NFC", clean_caption_text(text))
     if len(cleaned) > HOOK_TEXT_MAX:
@@ -409,6 +512,27 @@ def build_seed(
                 "origin": "seed",
             }],
         })
+    assets: dict[str, Any] = {}
+    logo = _logo(job)
+    transform = None if logo is None else default_logo_transform(context.render_size, *logo[1:])
+    if transform is not None:
+        asset = f"sha256:{logo[0]}"
+        tracks.append({
+            "id": "tr_ovr",
+            "kind": "visual",
+            "band": "over_text",
+            "role": "overlay",
+            "items": [{
+                "id": "it_logo",
+                "type": "image",
+                "start": {"at": "clip_start"},
+                "end": {"at": "clip_end"},
+                "transform": transform,
+                "payload": {"asset": asset, "mode": "free"},
+                "origin": "seed",
+            }],
+        })
+        assets[asset] = {"kind": "image", "mime": "image/png", "w": logo[1], "h": logo[2]}
     hook_unit = clip.hook_unit_id if 1 <= len(clip.hook_unit_id) <= 16 else None
     joins = ([context.join.doc_join("seg_co", COLD_OPEN_FADE_MS)]
              if plan.teaser_ms is not None else [])
@@ -445,7 +569,7 @@ def build_seed(
         "tracks": tracks,
         "audio": {"source": {"gain_cdb": 0},
                   "master": {"mode": "off", "target_clufs": -1400, "tp_cdb": -100}},
-        "assets": {},
+        "assets": assets,
         "audit": {"created_at_ms": context.seed_at_ms, "updated_at_ms": context.seed_at_ms,
                   "editor": EDITORS[context.by], "last_command": "Seed"},
     }
@@ -720,7 +844,7 @@ def _read_manifest(job_dir: Path) -> Any:
 
 def _prepare_clip(job_dir: Path, state: _JobState, clip: SelectedClip, source_info: Mapping,
                   transcription: Any, audio: Any, events: Any,
-                  joins: Mapping[str, ColdOpenJoin]) -> dict[str, Any]:
+                  joins: Mapping[str, ColdOpenJoin], logo: Mapping | None) -> dict[str, Any]:
     context = state.context
     try:
         plan = _clip_plan(clip, context, _source(source_info), source_info)
@@ -758,7 +882,7 @@ def _prepare_clip(job_dir: Path, state: _JobState, clip: SelectedClip, source_in
         _write_or_match(clip_dir / _camera.camera_file_name(camera_raw), camera_raw)
         camera_sha = sha256_hex(camera_raw)
     job = {**state.job, "seedBy": "prepare", "seedAtMs": time.time_ns() // 1_000_000,
-           "coldOpenJoin": joins.get(plan.clip_id, CUT_JOIN).to_json()}
+           "coldOpenJoin": joins.get(plan.clip_id, CUT_JOIN).to_json(), "logo": logo}
     new_seed = build_seed(clip=clip, job=job, source_info=source_info, words_sha=words_sha,
                           words_count=len(words["words"]), camera_sha=camera_sha,
                           selection_sha=state.selection_sha)
@@ -791,8 +915,10 @@ def prepare_legacy_job(job_dir: Path) -> list[dict]:
             reason = "source_unreadable" if _is_regular(state.source) else "source_missing"
             return [_entry(None, clip.rank, reason) for clip in state.selection.clips]
         joins = manifest_joins(_read_manifest(job_dir), source_info["content_sha256"])
+        logo = _assets.seed_logo(job_dir, job_dir)
         return [
-            _prepare_clip(job_dir, state, clip, source_info, transcription, audio, events, joins)
+            _prepare_clip(job_dir, state, clip, source_info, transcription, audio, events, joins,
+                          logo)
             for clip in state.selection.clips
         ]
 

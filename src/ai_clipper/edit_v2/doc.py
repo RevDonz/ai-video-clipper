@@ -133,6 +133,15 @@ def content_equals_seed(doc: Mapping, seed: Mapping) -> bool:
     return content_sha256(doc) == content_sha256(seed)
 
 
+def auto_file_is_seed(seed: Mapping) -> bool:
+    """Whether R10 may hand out the clip's auto file for this seed: the legacy renderer never
+    draws a logo, so a legacy seed with one (the Pengaturan default logo) is not that file."""
+    if seed["base"]["engine"]["compiler"] != "legacy":
+        return True
+    return not any(track.get("kind") == "visual" and track.get("items")
+                   for track in seed["tracks"])
+
+
 # --- parse level ----------------------------------------------------------------------------------
 
 _WS = re.compile(r"[ \t\n\r]*")
@@ -1522,6 +1531,7 @@ __all__ = [
     "MAX_DOC_BYTES",
     "Issue",
     "Validation",
+    "auto_file_is_seed",
     "canonical_bytes",
     "content_equals_seed",
     "content_sha256",

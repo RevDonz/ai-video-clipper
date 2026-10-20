@@ -988,3 +988,133 @@ def test_the_module_uses_the_standard_library_only():
             imported.add((node.module or "").split(".")[0])
     allowed = set(sys.stdlib_module_names) | {"__future__"}
     assert imported <= allowed, imported - allowed
+
+
+# The Pengaturan default logo a job carries (plan 2026-10-20 A6): ``<job>/logo/<sha>.{png,json}``,
+# copied by the web at job creation, read strictly and adopted into the asset store at seeding.
+
+
+def test_a_job_logo_is_read_and_adopted_into_the_store(job):
+    from support.default_logo import write_job_logo
+
+    sha = write_job_logo(job.dir, 300, 200)
+    found = assets.job_logo(job.dir)
+    assert found is not None and found[0] == sha
+    assert assets.seed_logo(job.dir, job.dir) == {"sha256": sha, "w": 300, "h": 200}
+    stored = job.store / f"{sha}.png"
+    assert stored.read_bytes() == (job.dir / "logo" / f"{sha}.png").read_bytes()
+    assert (job.store / f"{sha}.json").read_bytes() == (job.dir / "logo" / f"{sha}.json").read_bytes()
+    assert stat.S_IMODE(stored.stat().st_mode) == 0o600
+    clip = job.dir / "analysis" / "clips" / "x"
+    clip.mkdir(parents=True)
+    assert store.load_assets(clip, [f"sha256:{sha}"]) == {
+        f"sha256:{sha}": {"kind": "image", "mime": "image/png", "w": 300, "h": 200}}
+    # again: nothing is rewritten
+    before = stored.stat().st_ino
+    assert assets.seed_logo(job.dir, job.dir) == {"sha256": sha, "w": 300, "h": 200}
+    assert stored.stat().st_ino == before
+
+
+def test_a_job_without_a_logo_has_none(job):
+    assert assets.job_logo(job.dir) is None
+    assert assets.seed_logo(job.dir, job.dir) is None
+    assert job.files() == []
+
+
+def _broken(directory: Path, sha: str, case: str) -> None:
+    from support.default_logo import logo_meta, rgba_png
+
+    png = directory / f"{sha}.png"
+    meta = directory / f"{sha}.json"
+    if case == "sha":
+        png.write_bytes(rgba_png(300, 200, colour=(1, 2, 3, 4)))
+    elif case == "size":
+        meta.write_bytes(logo_meta(png.read_bytes(), 301, 200))
+    elif case == "bytes":
+        value = json.loads(meta.read_bytes())
+        meta.write_bytes(json.dumps({**value, "bytes": 5}).encode())
+    elif case == "kind":
+        value = json.loads(meta.read_bytes())
+        meta.write_bytes(json.dumps({**value, "kind": "audio"}).encode())
+    elif case == "schema":
+        value = json.loads(meta.read_bytes())
+        meta.write_bytes(json.dumps({**value, "schema": "potongin.asset/2"}).encode())
+    elif case == "json":
+        meta.write_bytes(b"{")
+    elif case == "no_json":
+        meta.unlink()
+    elif case == "no_png":
+        png.unlink()
+    elif case == "second":
+        other = rgba_png(10, 10)
+        other_sha = hashlib.sha256(other).hexdigest()
+        (directory / f"{other_sha}.png").write_bytes(other)
+        (directory / f"{other_sha}.json").write_bytes(logo_meta(other, 10, 10))
+    elif case == "stray":
+        (directory / "notes.txt").write_bytes(b"x")
+    elif case == "png_symlink":
+        target = directory.parent / "elsewhere.png"
+        png.rename(target)
+        png.symlink_to(target)
+    elif case == "dir_symlink":
+        moved = directory.parent / "logo-real"
+        directory.rename(moved)
+        directory.symlink_to(moved)
+    elif case == "not_png":
+        data = b"GIF89a" + bytes(100)
+        png.write_bytes(data)
+        os.rename(png, directory / f"{hashlib.sha256(data).hexdigest()}.png")
+        os.rename(meta, directory / f"{hashlib.sha256(data).hexdigest()}.json")
+    elif case == "grey":
+        data = rgba_png(300, 200)
+        ihdr = struct.pack(">IIBBBBB", 300, 200, 8, 0, 0, 0, 0)
+        grey = data[:8] + struct.pack(">I", 13) + b"IHDR" + ihdr + struct.pack(
+            ">I", zlib.crc32(b"IHDR" + ihdr)) + data[33:]
+        new = hashlib.sha256(grey).hexdigest()
+        png.unlink()
+        meta.unlink()
+        (directory / f"{new}.png").write_bytes(grey)
+        (directory / f"{new}.json").write_bytes(logo_meta(grey, 300, 200))
+    elif case == "too_wide":
+        data = rgba_png(1025, 2)
+        new = hashlib.sha256(data).hexdigest()
+        png.unlink()
+        meta.unlink()
+        (directory / f"{new}.png").write_bytes(data)
+        (directory / f"{new}.json").write_bytes(logo_meta(data, 1025, 2))
+
+
+@pytest.mark.parametrize("case", ["sha", "size", "bytes", "kind", "schema", "json", "no_json",
+                                  "no_png", "second", "stray", "png_symlink", "dir_symlink",
+                                  "not_png", "grey", "too_wide"])
+def test_a_job_logo_that_is_not_one_intact_normalised_logo_is_ignored(job, case):
+    from support.default_logo import write_job_logo
+
+    sha = write_job_logo(job.dir, 300, 200)
+    _broken(job.dir / "logo", sha, case)
+    assert assets.job_logo(job.dir) is None
+    assert assets.seed_logo(job.dir, job.dir) is None
+    assert job.files() == []
+
+
+def test_a_job_logo_over_the_store_quota_is_left_out(job, monkeypatch):
+    from support.default_logo import write_job_logo
+
+    write_job_logo(job.dir, 64, 64)
+    monkeypatch.setattr(assets, "MAX_ASSETS_PER_JOB", 0)
+    assert assets.seed_logo(job.dir, job.dir) is None
+    assert job.files() == []
+
+
+def test_a_job_logo_is_adopted_into_another_artifact_root(tmp_path):
+    """A queue attempt stages ``analysis/`` under ``<job>/.attempts/<id>``: the logo comes from
+    the job, the store is the attempt's (published with its analysis)."""
+    from support.default_logo import write_job_logo
+
+    job_dir = tmp_path / "jobs" / JOB_ID
+    attempt = job_dir / ".attempts" / "a1"
+    (attempt / "analysis").mkdir(parents=True)
+    sha = write_job_logo(job_dir, 128, 32)
+    assert assets.seed_logo(job_dir, attempt) == {"sha256": sha, "w": 128, "h": 32}
+    assert (attempt / "analysis" / "assets" / f"{sha}.png").is_file()
+    assert not (job_dir / "analysis").exists()
