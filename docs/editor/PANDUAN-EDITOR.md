@@ -191,10 +191,18 @@ tersedia untuk job ini" (di lajurnya, atau di baris atas timeline bila lajurnya 
 
 ### Di kedua tampilan
 
-**Bar atas.** Dari kiri: "← Proyek", judul klip dengan status simpan (dan "Terbuka di tab lain"
-kalau klip ini juga terbuka di tab lain), sakelar **Cepat | Lengkap**, Urungkan / Ulangi (ikon),
-**Perlu dicek (n)**, menu **⋯ Lainnya** (**Kembali ke versi AI**, **Pintasan keyboard**) dan
-**Ekspor**.
+**Bar atas.** Dari kiri: "← Proyek", **Klip 3/8 ‹ ›** (kalau proyek punya lebih dari satu klip),
+judul klip dengan status simpan (dan "Terbuka di tab lain" kalau klip ini juga terbuka di tab
+lain), sakelar **Cepat | Lengkap**, Urungkan / Ulangi (ikon), **Perlu dicek (n)**, menu
+**⋯ Lainnya** (**Kembali ke versi AI**, **Pintasan keyboard**) dan **Ekspor**.
+
+**Pindah klip.** ‹ dan › (atau Ctrl+Shift+← / →) membuka klip sebelumnya atau berikutnya, urut
+nomor klip seperti di halaman proyek. Klip yang tidak bisa dibuka di editor dilewati; ‹ mati di
+klip pertama, › mati di klip terakhir. Perubahan disimpan dulu, lalu klip berikutnya terbuka di
+tampilan yang sama (panel Lengkap atau kartu Cepat yang sedang terbuka ikut). Kalau penyimpanan
+gagal atau ada konflik dengan tab lain, editor tetap di klip ini: status "Gagal menyimpan" dengan
+**Coba simpan lagi**, atau dialog konflik, tampil seperti biasa dan perubahan tidak hilang. Tombol
+Back browser kembali ke klip sebelumnya.
 
 **Lainnya.** Urungkan / Ulangi (Ctrl+Z, Ctrl+Shift+Z) sampai 200 langkah, juga untuk perubahan
 yang dibuat di tampilan lain; simpan otomatis (± 1,5 detik setelah berhenti, juga disimpan di
@@ -300,6 +308,7 @@ untuk saran hook; kosong berarti rantai di Pengaturan.
 |---|---|
 | Spasi / K | Putar / jeda |
 | ← / → | Mundur / maju satu frame (Shift: 1 detik) |
+| Ctrl+Shift+← / Ctrl+Shift+→ | Klip sebelumnya / berikutnya (disimpan dulu) |
 | Ctrl+Z, Ctrl+Shift+Z, Ctrl+Y | Urungkan / ulangi |
 | Delete / Backspace | Potong kata terpilih |
 | Enter | Edit kata |
@@ -313,8 +322,8 @@ untuk saran hook; kosong berarti rantai di Pengaturan.
 
 Setiap aksi juga punya tombol di layar. Pintasan tidak aktif saat Anda mengetik di kolom teks, dan
 tetap bekerja setelah Anda mengeklik tombol pilihan (gaya caption, warna, sakelar, efek transisi):
-Spasi dan panah tetap milik tombol yang sedang fokus, Ctrl+Z, ', ? dan K tetap jalan. Tidak ada
-pintasan satu huruf baru.
+Spasi dan panah (juga Ctrl+Shift+panah) tetap milik tombol yang sedang fokus, Ctrl+Z, ', ? dan K
+tetap jalan. Tidak ada pintasan satu huruf baru.
 
 Tombol yang bekerja saat fokus di satu tempat:
 

@@ -1,9 +1,10 @@
 "use client";
 
-// The editor's top bar, the same in both views (Mode Cepat spec §5.1): "← Proyek", the clip title
-// with its save state and, while another tab has the clip, "Terbuka di tab lain"; the view switch;
-// Urungkan and Ulangi; "Perlu dicek (n)", always shown; the ⋯ Lainnya menu ("Kembali ke versi AI",
-// "Pintasan keyboard"); and Ekspor, the one lime control.
+// The editor's top bar, the same in both views (Mode Cepat spec §5.1): "← Proyek"; "Klip 3/8 ‹ ›"
+// when the project has more clips (lib/editor/clip-nav.mjs); the clip title with its save state
+// and, while another tab has the clip, "Terbuka di tab lain"; the view switch; Urungkan and Ulangi;
+// "Perlu dicek (n)", always shown; the ⋯ Lainnya menu ("Kembali ke versi AI", "Pintasan
+// keyboard"); and Ekspor, the one lime control.
 import { forwardRef, useEffect, useState } from "react";
 
 import styles from "./shell.module.css";
@@ -26,7 +27,7 @@ function useNow(active) {
 const TopBar = forwardRef(function TopBar({
   jobId, title, save, savedAtMs, otherTab = false, view, onViewChange, canUndo, canRedo, onUndo, onRedo,
   onReset, resetDisabled, resetReason = null, onRetrySave, checksCount, checksOpen, onToggleChecks, checksButtonRef,
-  onHelp, onExport, exportDisabled, exportBusy,
+  onHelp, onExport, exportDisabled, exportBusy, clipNav = null, clipNavBusy = false, onPreviousClip, onNextClip,
 }, exportButtonRef) {
   const now = useNow(save === "saved");
   const status = saveStatusView({ save, savedAtMs }, now);
@@ -38,6 +39,22 @@ const TopBar = forwardRef(function TopBar({
   return (
     <header className={styles.topBar} data-slot="topBar">
       <a className={styles.backLink} href={`/projects/${encodeURIComponent(jobId)}`}>← Proyek</a>
+      {clipNav && (
+        <div className={styles.clipNav} role="group" aria-label="Pindah klip" aria-busy={clipNavBusy} data-clip-nav="">
+          <span className={styles.clipCount}>
+            <span aria-hidden="true">{`Klip ${clipNav.position}/${clipNav.total}`}</span>
+            <span className={styles.visuallyHidden}>{`Klip ${clipNav.position} dari ${clipNav.total}`}</span>
+          </span>
+          <button type="button" className={styles.iconButton} onClick={onPreviousClip} disabled={!clipNav.previous}
+            aria-label="Klip sebelumnya" title="Klip sebelumnya (Ctrl+Shift+←)" aria-keyshortcuts="Control+Shift+ArrowLeft">
+            <Icon name="back" />
+          </button>
+          <button type="button" className={styles.iconButton} onClick={onNextClip} disabled={!clipNav.next}
+            aria-label="Klip berikutnya" title="Klip berikutnya (Ctrl+Shift+→)" aria-keyshortcuts="Control+Shift+ArrowRight">
+            <Icon name="forward" />
+          </button>
+        </div>
+      )}
       <div className={styles.titleBlock}>
         <h1 className={styles.title} title={title}>{title}</h1>
         <span className={`${styles.saveStatus} ${styles[`save_${status.tone}`] ?? ""}`} role="status" aria-live="polite" data-testid="save-status">

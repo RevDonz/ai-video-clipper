@@ -27,6 +27,7 @@ export const ICONS = Object.freeze({
     part("M9.5 9.5a2.5 2.5 0 1 1 3.6 2.2c-.7.4-1.1.9-1.1 1.8"),
     part("M12 17h.01"),
   ]),
+  forward: Object.freeze([part("M9 18l6-6-6-6")]),
 });
 
 export const ICON_NAMES = Object.freeze(Object.keys(ICONS));

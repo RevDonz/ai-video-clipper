@@ -1851,3 +1851,13 @@ word toolbar, at 1366×768 and 1920×1080, with a README). The fakes' player dra
   for single-key shortcuts (Q7).
 - No owner yet: after a two-tab merge the merged edit is saved on the next autosave round (1.5 s)
   rather than at once; the fakes' player does not report `playing`.
+
+## Moving between clips (2026-10-20)
+
+"Klip 3/8 ‹ ›" in the top bar (CONTRACTS §5.29). No engine, data or flag change.
+
+| Gate | Where | Result |
+|---|---|---|
+| The model, and the real store over the fake server (save first; a failed save, a conflict and an export being sent keep the editor on the clip; a merged 409 saves, then leaves) | `web/tests/editor-clip-nav.test.mjs` (local) | pass, 18 tests |
+| Ctrl+Shift+← / → map to the clip actions; text fields and arrow widgets keep them | `web/tests/editor-shortcuts.test.mjs` (local) | pass |
+| The top bar in the browser: names, ends, Tab order, save first, the same view with its panel or card, Back, a failed save, a conflict, one 64 px row of 44 px targets at 1366 and 1920 | `web/e2e/editor-clip-nav.spec.mjs` (`editor-gates.yml` `suite=e2e`) | pending: runs on GitHub Actions when the branch is pushed |

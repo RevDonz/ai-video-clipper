@@ -5,7 +5,8 @@
 // card's header closes it. A body loads when its card first opens and stays mounted while Cepat
 // is shown. Every body gets the panel props bundle plus `frameBus` and `showLengkap`. Each header
 // sums up its card (quick-model.mjs), the Tata letak line from the clip's face analysis too.
-import { Suspense, lazy, useCallback, useState, useSyncExternalStore } from "react";
+// `onCardChange(id | null)` hears which card is open, so the next clip can open with the same one.
+import { Suspense, lazy, useCallback, useEffect, useState, useSyncExternalStore } from "react";
 
 import { IDLE_ANALYSIS, layoutAnalysisFor } from "../panels/layout-analysis.mjs";
 import AccordionCard from "../ui/AccordionCard.jsx";
@@ -23,8 +24,11 @@ function lazyCard(card) {
 const idle = () => IDLE_ANALYSIS;
 const quiet = () => () => {};
 
-export default function QuickPanel({ initialCard = null, ...props }) {
+export default function QuickPanel({ initialCard = null, onCardChange = null, ...props }) {
   const [openId, setOpenId] = useState(() => (cardById(initialCard) ? initialCard : DEFAULT_CARD));
+  useEffect(() => {
+    onCardChange?.(openId);
+  }, [openId, onCardChange]);
   const analysisStore = layoutAnalysisFor(props.state?.clipId ?? props.state?.doc?.clip_id ?? null);
   const subscribe = useCallback((listener) => (analysisStore ? analysisStore.subscribe(listener) : quiet()), [analysisStore]);
   const snapshot = useCallback(() => (analysisStore ? analysisStore.get() : IDLE_ANALYSIS), [analysisStore]);

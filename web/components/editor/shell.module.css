@@ -179,12 +179,33 @@
   color: var(--text);
 }
 
+/* "Klip 3/8 ‹ ›" beside "← Proyek": the count in the muted voice of the back link, then the two
+   44 px buttons close together, so stepping through clips is one spot for the pointer. */
+.clipNav {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+}
+
+.clipCount {
+  margin-right: 4px;
+  color: var(--text-muted);
+  font-size: var(--ed-font-size-note);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Clipped sideways, not drawn over the view switch, when a failed save, its retry button and the
+   other-tab chip need more room than the bar has left (the title is already cut to nothing). */
 .titleBlock {
   display: flex;
   flex: 1 1 auto;
   align-items: center;
   gap: var(--ed-space-3);
   min-width: 0;
+  overflow-x: clip;
 }
 
 .title {

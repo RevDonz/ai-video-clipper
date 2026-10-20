@@ -188,3 +188,35 @@ test("Ctrl+Z, ', ? and K still act from a focused radio, checkbox, range or butt
     assert.equal(globalShortcut(key("z", { ctrl: true, on })), null, type);
   }
 });
+
+// The top bar's "Klip 3/8 ‹ ›": Ctrl+Shift+← and Ctrl+Shift+→ (⌘ on a Mac) go to the previous and
+// next clip. A modifier keeps it off WCAG 2.1.4; Shift+arrows stay a second, Ctrl+arrows nothing.
+test("Ctrl+Shift+← and Ctrl+Shift+→ go to the previous and next clip; no other arrow takes them", () => {
+  const ids = SHORTCUTS.map((entry) => entry.id);
+  assert.ok(ids.indexOf("previousClip") > ids.indexOf("secondForward"));
+  assert.deepEqual(SHORTCUTS.filter((entry) => ["previousClip", "nextClip"].includes(entry.id))
+    .map((entry) => [entry.id, entry.keys, entry.description, entry.scope]), [
+    ["previousClip", ["Ctrl+Shift+←"], "Klip sebelumnya", "global"],
+    ["nextClip", ["Ctrl+Shift+→"], "Klip berikutnya", "global"],
+  ]);
+  assert.equal(shortcutFor(key("ArrowLeft", { ctrl: true, shift: true })), "previousClip");
+  assert.equal(shortcutFor(key("ArrowRight", { ctrl: true, shift: true })), "nextClip");
+  assert.equal(shortcutFor(key("ArrowLeft", { meta: true, shift: true })), "previousClip");
+  assert.equal(shortcutFor(key("ArrowRight", { meta: true, shift: true })), "nextClip");
+  assert.equal(shortcutFor(key("ArrowLeft", { ctrl: true })), null);
+  assert.equal(shortcutFor(key("ArrowRight", { ctrl: true })), null);
+  assert.equal(shortcutFor(key("ArrowRight", { ctrl: true, shift: true, alt: true })), null);
+  assert.equal(shortcutFor(key("ArrowRight", { shift: true })), "secondForward");
+  assert.equal(globalShortcut(key("ArrowLeft", { ctrl: true, shift: true })), "previousClip");
+  assert.equal(globalShortcut(key("ArrowRight", { ctrl: true, shift: true, on: target("BUTTON") })), "nextClip");
+});
+
+test("the clip keys leave text fields, sliders, tabs, radios and handled events alone", () => {
+  for (const on of [target("INPUT", { type: "text" }), target("TEXTAREA"), target("DIV", { editable: true }),
+    target("INPUT", { type: "range" }), target("INPUT", { type: "radio" }), target("DIV", { role: "slider" }),
+    target("BUTTON", { role: "tab", inside: ['[role="tablist"]'] }), target("BUTTON", { inside: ['[role="radiogroup"]'] })]) {
+    assert.equal(globalShortcut(key("ArrowRight", { ctrl: true, shift: true, on })), null, on.tagName);
+    assert.equal(globalShortcut(key("ArrowLeft", { ctrl: true, shift: true, on })), null, on.tagName);
+  }
+  assert.equal(globalShortcut(key("ArrowRight", { ctrl: true, shift: true, prevented: true })), null);
+});

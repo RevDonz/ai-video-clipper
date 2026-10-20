@@ -63,8 +63,10 @@ function ruleOf(source, selector) {
 test("the icon set has the spec's names, each a path on the 24 px grid", () => {
   assert.deepEqual(ICON_NAMES, [
     "back", "undo", "redo", "more", "play", "pause", "chevron", "transcript", "text", "coldopen", "layout", "logo",
-    "music", "safezone", "help",
+    "music", "safezone", "help", "forward",
   ]);
+  // "forward" is "back" mirrored (the top bar's › next clip beside ‹).
+  assert.equal(ICONS.forward[0].d, "M9 18l6-6-6-6");
   for (const name of ICON_NAMES) {
     assert.ok(ICONS[name].length > 0, name);
     for (const part of ICONS[name]) assert.match(part.d, /^M[\d.]/, name);

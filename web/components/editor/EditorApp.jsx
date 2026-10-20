@@ -20,6 +20,7 @@
 // the canvas, the player, the store or the export flow.
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
+import { LEAVE_TEXT, clipNavHref, clipNavigation, saveBeforeLeaving } from "../../lib/editor/clip-nav.mjs";
 import { editorHref, prepareForEditor } from "../../lib/editor/open-clip.mjs";
 import { SHORTCUTS, globalShortcut } from "../../lib/editor/shortcuts.mjs";
 import {
@@ -188,6 +189,7 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
   const [helpOpen, setHelpOpen] = useState(false);
   const [toast, setToast] = useState(null);
   const [clipInfo, setClipInfo] = useState(null);
+  const [clipList, setClipList] = useState(null);
   const [exportState, setExportState] = useState(null);
   const flowRef = useRef(null);
   const exportButtonRef = useRef(null);
@@ -290,16 +292,19 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
     };
   }, [api, store, runtime]);
 
-  // Title and packaging (read-only in Essentials) from the clips listing.
+  // Title and packaging (read-only in Essentials) from the clips listing, and from the same listing
+  // the clip's place among the project's clips for "Klip 3/8 ‹ ›".
   useEffect(() => {
     let alive = true;
     api.clips().then((result) => {
       if (!alive) return;
       const clips = Array.isArray(result?.clips) ? result.clips : [];
       setClipInfo(clips.find((clip) => clip.clipId === clipId) ?? (clips.length === 1 ? clips[0] : null));
+      setClipList(clips);
     }).catch(() => {});
     return () => { alive = false; };
   }, [api, clipId]);
+  const clipNav = useMemo(() => clipNavigation({ jobId, clipId, clips: clipList }), [jobId, clipId, clipList]);
 
   const openExport = useCallback(() => {
     if (!ready || readOnly) return;
@@ -359,6 +364,32 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
     safeDispatch(edge === "start" ? "TrimStart" : "TrimEnd", { gapWord });
   }, [status, transcriptShown, clipKey, state.words, plan, frameBus, notify, safeDispatch]);
 
+  // ‹ › and Ctrl+Shift+←/→ open the neighbour in the same view only after the save; a failed save or
+  // a conflict keeps the editor on this clip with the store's own error or dialog.
+  const leavingRef = useRef(false);
+  const [leaving, setLeaving] = useState(false);
+  const cardRef = useRef(null);
+  const onCardChange = useCallback((id) => { cardRef.current = id; }, []);
+  const goToClip = useCallback(async (side) => {
+    const target = side === "previous" ? clipNav?.previous : clipNav?.next;
+    if (!target || leavingRef.current) return;
+    leavingRef.current = true;
+    setLeaving(true);
+    try {
+      const result = await saveBeforeLeaving({
+        flush: () => store.flush(), getState: () => store.getState(), exportPhase: flowRef.current?.getState().phase ?? null,
+      });
+      if (result.ok) {
+        window.location.assign(clipNavHref(target.href, { view, panel: panelId, card: cardRef.current }));
+        return;
+      }
+      notify(LEAVE_TEXT[result.reason]);
+    } finally {
+      leavingRef.current = false;
+      setLeaving(false);
+    }
+  }, [clipNav, store, view, panelId, notify]);
+
   const second = Math.max(1, Math.round(fps[0] / fps[1]));
   const actions = {
     playPause,
@@ -366,6 +397,8 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
     frameForward: () => player.step(1),
     secondBack: () => player.step(-second),
     secondForward: () => player.step(second),
+    previousClip: () => goToClip("previous"),
+    nextClip: () => goToClip("next"),
     undo: () => { if (!readOnly) store.undo(); },
     redo: () => { if (!readOnly) store.redo(); },
     trimStart: () => trimAtPlayhead("start"),
@@ -485,11 +518,16 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
         onExport={openExport}
         exportDisabled={!ready || readOnly}
         exportBusy={BUSY_EXPORT.has(exportState?.phase)}
+        clipNav={clipNav}
+        clipNavBusy={leaving}
+        onPreviousClip={() => goToClip("previous")}
+        onNextClip={() => goToClip("next")}
       />
 
       {view === "cepat" ? (
         <aside key="cards" className={styles.quickSide} data-slot="cards" aria-label="Pengaturan klip">
-          <QuickPanel {...panelProps} frameBus={frameBus} showLengkap={showLengkap} initialCard={openingCardRef.current} />
+          <QuickPanel {...panelProps} frameBus={frameBus} showLengkap={showLengkap} initialCard={openingCardRef.current}
+            onCardChange={onCardChange} />
         </aside>
       ) : (
         <aside key="panels" className={styles.panels} data-slot="panels" aria-label="Panel editor">
