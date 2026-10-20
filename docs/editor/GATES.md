@@ -1910,3 +1910,20 @@ changed, so every engine gate above keeps its cases and numbers.
 | `suite=full`, `suite=image` | ruff, pytest, web unit tests, build; pytest in the production image | pass | pending |
 | Quality of the suggestions | a real free provider on real clips | owner's judgement | not measured: no free-provider run was made for this change; the owner's review of real clips decides whether the rules need tuning |
 
+## Caption: Animasi masuk (2026-10-21)
+
+Plan `docs/plans/2026-10-20-lanjutan-sesi.md` P2 ("Animasi masuk caption"); contract CONTRACTS
+§5.34; guide PANDUAN-EDITOR "Caption" and "Teks". Built on branch `adopsi/animasi-caption` with
+targeted local tests only; the gates that need the production image or a browser run on GitHub
+Actions when the branch is pushed.
+
+| Gate | What | Threshold | Result |
+|---|---|---|---|
+| Auto clips unchanged | seeds carry no `entrance` (the five override keys only); `entrance` `none` compiles to the same cues, ASS and warnings as no key on every pack; plan shas of every older fixture (`plan-shas.json`) and every older ASS golden | identical | **pass** (local pytest) |
+| Events keep their frames | every pack × Fade, Pop, Blur: the header, the hook and every event's layer, style, start and end equal the document without the key; only the first window of each line gains the opening block, at most 120 ms and never longer than that window | identical edges | **pass** (`tests/test_captions_ass.py`, `tests/test_edit_v2_captions.py`) |
+| Document rules | `none`, `fade`, `pop`, `blur` valid; `bounce`, `Fade`, `""`, `1`, `true`, `null`, a list `range_invalid`; the key parses under `schema_minor` 0; the client's commands against the Python validator in the 1,000-sequence crosscheck with `entrance` in the generator | 0 rejected documents | **pass** (local) |
+| P-TXT references | the 15 clips `<pack>-<entrance>-40` draw text on every probe frame inside the entrance (7 of them generated with the local FFmpeg 6.1.1 + libass 0.17.1) | text on every probe | **pass** (local); the pinned image re-makes them in the runs below |
+| P-TXT | JASSUB against FFmpeg while lines open: `<pack>-<entrance>-40` (smoke: `karaoke-fade-40`, `bold-pop-40`, `sorot-blur-40`), player variants `entrance-fade`, `entrance-pop`, `entrance-blur` | SSIM ≥ 0.999, PSNR ≥ 45 dB, max ≤ 16, 0 px > 16 | **pending**: `Parity (smoke)` of the PR, `editor-gates suite=image` and `suite=player` |
+| ASS goldens | `entrance_fade__c30`, `entrance_pop__c30`, `entrance_blur__c30` equal a fresh render; the golden evidence renders them in the image | bytes equal; text visible | **pass** (bytes, local); evidence **pending** (`suite=image`) |
+| Editor model | `SetCaptionOverride {key: "entrance"}`, `checkDoc`, the `captions.override.entrance` rebase part, both views calling `caption-model.mjs` | pass | **pass** (`node --test`: commands, rebase, quick model and the other editor files touched) |
+| Browser specs | the "Animasi masuk" pills in the Caption card and the Teks panel (fakes); the acceptance tour's Fade on the real stack changes the ASS and Tanpa brings the same bytes back | pass | **pending**: `editor-gates suite=e2e` (`editor-quick.spec.mjs`, `editor-transcript.spec.mjs`); `editor-acceptance` runs with the real stack when the owner runs it |

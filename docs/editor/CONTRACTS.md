@@ -342,6 +342,7 @@ Duplicate keys, NaN and unknown keys are rejected at every level.
 | `captions.overrides.case` | `asis`, `upper` | Case is a display transform; text is never rewritten |
 | `captions.overrides.highlight`, `.emphasis` | swatch `#FFE14D #FFFFFF #3DF5A6 #52C7FF #FF5C8A #FF9F1C` | `highlight` is used by karaoke, bold and sorot (the box behind the spoken word) |
 | `captions.overrides.words_max` | optional; 1–4 (amended 2026-10-20, §5.30) | "Kata per baris": at most this many words per caption line; absent = the pack's `words_per_cue`. Seeds never write it |
+| `captions.overrides.entrance` | optional; `none`, `fade`, `pop`, `blur` (amended 2026-10-21, §5.34) | "Animasi masuk": how each caption line appears, at most 120 ms; absent = `none`. Seeds never write it |
 | `captions.word_edits` | ≤ 6,000 keys (word ids); values `{text?, hidden?, emphasis?}` with ≥ 1 key | `text` 1–40 chars. `emphasis` fixes defect #6 (§8) |
 | `layout.default.mode` | `fit_blur`, `camera` (face-track), `fill_center` (center-crop) | `no_face` is `"center"` (today's behaviour), and no-face spans are *reported*, never silent |
 | `tracks` | ≤ 3 tracks: ≤ 1 `hook`, ≤ 1 `visual/over_text/overlay`, ≤ 1 `audio/music`; ≤ 1 item each | Stage 2 lifts the counts; the shapes stay |
@@ -469,6 +470,9 @@ every later reader sees.
 - *Amended 2026-10-20 (§5.33):* the hook designs `kicker`, `blok` and `kotak` (each `v` 1) are
   valid under `schema_minor: 0`; a document with the bar means what it meant, and an older
   server refuses the new designs with `op_disabled`.
+- *Amended 2026-10-21 (§5.34):* the optional override `captions.overrides.entrance` (`none`,
+  `fade`, `pop`, `blur`) is valid under `schema_minor: 0`. A document without it is unchanged in
+  meaning (absent = `none`); an older server refuses the key with `unknown_key`.
 - The pack ids `classic` and `karaoke` are the FINAL `legacy-classic@1` and `legacy-karaoke@1`
   (an alias table is added in Stage 2).
 - FINAL puts the resolver in JS. If Stage 2 adopts that, the Python resolver becomes the
@@ -590,7 +594,7 @@ annotations may be spelled differently).
 
 | Module | Names | Owner |
 |---|---|---|
-| `ai_clipper.edit_v2` (`__init__`) | `COMPILER_VERSION`, `COMPILER_ID` (`"edit-v2/1"`), `RENDER_SEMANTICS`, `SCHEMA`, `SCHEMA_MINOR`, `WORDS_SCHEMA`, `CAMERA_SCHEMA`, `DOC_FPS`, `OUTPUT_SIZES`, `PACK_IDS`, `SWATCHES`, `PACK_DEFAULT_OVERRIDES`, `WORDS_MAX_RANGE` (§5.30), `HOOK_DESIGN_IDS` (§5.33) | T1.0 |
+| `ai_clipper.edit_v2` (`__init__`) | `COMPILER_VERSION`, `COMPILER_ID` (`"edit-v2/1"`), `RENDER_SEMANTICS`, `SCHEMA`, `SCHEMA_MINOR`, `WORDS_SCHEMA`, `CAMERA_SCHEMA`, `DOC_FPS`, `OUTPUT_SIZES`, `PACK_IDS`, `SWATCHES`, `PACK_DEFAULT_OVERRIDES`, `WORDS_MAX_RANGE` (§5.30), `HOOK_DESIGN_IDS` (§5.33), `CAPTION_ENTRANCES` (§5.34) | T1.0 |
 | `edit_v2.errors` | exceptions, code sets, `MESSAGES`, `message`, `message_id`, `base_code`, `exit_code_for`, `EXIT_*` | T1.0 |
 | `edit_v2.timemap` | Appendix A names plus `SAMPLE_RATE`, `MIN_PIECE_FRAMES`, `div_round_half_up`, `speech_spans`, `logo_box`, `Fps.from_json`, `Fps.to_json`, `Piece.to_dto` | T1.0 |
 | `edit_v2.clip_id` | `clip_id`, `is_clip_id`, `ms_from_seconds`, `CLIP_ID_PATTERN` | T1.0 |
@@ -598,7 +602,7 @@ annotations may be spelled differently).
 | `edit_v2.store` | `get`, `seed`, `put`, `archive_for_render`, `prune_receipts`, the §4.1 path constants | T1.1 |
 | `edit_v2.api` | `OPS`, `main` (CLI) | T1.1 |
 | `ai_clipper.subtitles` (additions) | `SourceWord`, `FrameWord`, `FrameCue`, `build_frame_cues` | T1.2a |
-| `ai_clipper.captions_ass` (additions) | `CaptionPack`, `load_pack`, `HookSpec`, `build_ass_v2`; `WordBox`, `words_per_cue`, `lightness`, `word_box_text` (§5.30); `LEGACY_HOOK_DESIGN`, `HOOK_LAYOUTS`, `HookDesign`, `HookBox`, `HookKicker`, `hook_design`, `hook_font_file`, `boxed_word_index` (§5.33) | T1.2a |
+| `ai_clipper.captions_ass` (additions) | `CaptionPack`, `load_pack`, `HookSpec`, `build_ass_v2`; `WordBox`, `words_per_cue`, `lightness`, `word_box_text` (§5.30); `LEGACY_HOOK_DESIGN`, `HOOK_LAYOUTS`, `HookDesign`, `HookBox`, `HookKicker`, `hook_design`, `hook_font_file`, `boxed_word_index` (§5.33); `ENTRANCE_MS` (§5.34) | T1.2a |
 | `edit_v2.captions` | `CaptionResult`, `caption_track` | T1.2a |
 | `edit_v2.glyphs` | `missing_glyphs`, `advance_px` | T1.2a |
 | `edit_v2.envelope` | `Envelope`, `speech_envelope`, `music_envelope`, `expand_f32` | T1.4 |
@@ -847,7 +851,7 @@ main      segments · removals · joins · cut_fade_ms 0…50
   removal id · seg · in_sf · out_sf · words [word id] · reason · origin
   join    after · style "cut" · audio_fade_ms 0…250
 captions  enabled bool · pack {id, v} · overrides {y_e5, size_pm, case, highlight, emphasis,
-          words_max (optional, §5.30)}
+          words_max (optional, §5.30), entrance (optional, §5.34)}
           · word_edits {<word id>: {text?, hidden?, emphasis?}} (values: 1–3 keys)
 layout    default {mode, no_face "center"}
 tracks    hook   {id, kind "hook", items}
@@ -890,7 +894,7 @@ in W1. Canonical bytes, hashes and the document size limit are as in §3.1.
   (`seed.grid_window_ms`), so `window_sf` is exactly the frames that exist at the source edges.
 - `captions`: `enabled` true, `pack {id, v: 1}`, `overrides = PACK_DEFAULT_OVERRIDES[pack]`
   (every pack: `y_e5` 83000, `size_pm` 1000, `case` `asis` (`upper` for `bold` and `sorot`),
-  `highlight` `#FFE14D`, `emphasis` `#FF5C8A`; never `words_max`), `word_edits` {}.
+  `highlight` `#FFE14D`, `emphasis` `#FF5C8A`; never `words_max` or `entrance`), `word_edits` {}.
 - Hook: track `{"id": "tr_hook", "kind": "hook"}` with item `it_hook`, origin `seed`,
   `dur_f = round_half_up(hook_duration_ms · num / (1000·den))`,
   `hook_duration_ms = ms_from_seconds(hook_duration)`.
@@ -2772,3 +2776,65 @@ the editor document are untouched.
   rewrite is aborted then.
 - No "Hook di video" switch: the hook text is part of the rendered clip and changes only through
   the editor's Hook card and an export.
+
+## 5.34 Caption entrance: "Animasi masuk" (2026-10-21)
+
+Plan `docs/plans/2026-10-20-lanjutan-sesi.md` P2 ("Animasi masuk caption"). Every existing
+document, seed, plan sha, golden and auto render is unchanged: the seeds carry no `entrance`, and
+a document with `entrance` `none` compiles to the same cues and ASS bytes as one without the key
+(`tests/test_edit_v2_captions.py`, `tests/test_captions_ass.py`).
+
+### Document
+
+- Optional `captions.overrides.entrance`, one of `CAPTION_ENTRANCES` = `none`, `fade`, `pop`,
+  `blur` (`edit_v2/__init__.py`, `web/lib/editor/doc-model.mjs`). Another string or a
+  non-string is `range_invalid` at `/captions/overrides/entrance`; `schema_minor` stays 0 (§3.8
+  amendment).
+
+### Engine (`captions_ass.build_ass_v2`, ASS only)
+
+- `_check_overrides` refuses any other value. For each caption line (a cue after `fit_cues`),
+  every event of its first window (the events whose first frame is the line's `f0`: the line,
+  the vector box, Bold's first active-word event, Sorot's words and box) starts with one more
+  override block. Later windows are unchanged, so the line has settled by the time the next word
+  lights. No event's layer, style, start or end moves.
+- `d = min(ENTRANCE_MS, 10·(end_cs − start_cs))` of that window, `ENTRANCE_MS` = 120:
+  - Fade: `{\fad(d,0)}`.
+  - Pop: `{\fscx70\fscy70\t(0,t,\fscx108\fscy108)\t(t,d,\fscx100\fscy100)}` with
+    `t = rhu(2·d, 3)`. libass scales each event around its anchor: the bottom centre of a line,
+    Sorot's words and box around their own `\pos`.
+  - Blur: `{\fad(d,0)\blurB\t(0,d,\blur0)}` with `B` = H/128 pixels to two decimals (10 at
+    1280, 15 at 1920). libass blurs only the outline of outlined text, so the line also fades in;
+    boxes (`BorderStyle 3`, `\p`) and text without a border blur whole.
+- The hook (its own `\fad(150,250)`) and the legacy `build_ass` are untouched.
+
+### Editor
+
+- Command `SetCaptionOverride {key: "entrance", value}` (merge key `cap:entrance`; a value
+  outside the four is `value_out_of_range`). `none` removes the key (a manual revert equals the
+  seed, R10); `SetCaptionPack` keeps it. `checkDoc` accepts an optional valid `entrance`;
+  `captionEntrance(doc)` reads an absent or unknown value as `none`.
+- Two tabs: part `captions.override.entrance` (after `words_max`) in the "Gaya caption" group;
+  its value is `null` while absent and setting `null` removes the key. Word parts still come
+  after every caption part (`rebase.mjs`).
+- UI: a `PillGroup` "Animasi masuk" (Tanpa, Fade, Pop, Blur; four columns) after "Kata per
+  baris" in the Caption card and the Teks panel (`CAPTION_ENTRANCE_OPTIONS`,
+  `captionEntranceId`, `captionEntranceCommand` in `caption-model.mjs`). The preview plays the
+  entrance from the plan's ASS, the bytes FFmpeg burns.
+
+### Gates
+
+- ASS goldens `entrance_fade__c30` (Karaoke), `entrance_pop__c30` (Bold) and
+  `entrance_blur__c30` (Sorot) from `valid/entrance_<id>__c30.json`; also
+  `valid/entrance_none__c30.json` and `invalid/range_invalid__entrance_{value,not_string}.json`.
+  The golden evidence probes a line that fades in at its middle frame.
+- P-TXT: the gated clips `<pack>-<entrance>-40` (3 entrances × 5 packs,
+  `reference_text.ENTRANCES`), probed on frames 1–3 of the first line and 1–2 of the second
+  (`ENTRANCE_PROBES`), all inside the 120 ms, so JASSUB and FFmpeg are compared while the line
+  is still opening. The smoke subset adds `karaoke-fade-40`, `bold-pop-40` and
+  `sorot-blur-40`. The player fixtures add the variants `entrance-fade` (Karaoke),
+  `entrance-pop` (Bold) and `entrance-blur` (Sorot), whose first probes are frames 1–2 of the
+  first two lines.
+- P-TIME is unchanged: no event edge moves (the Start and End fields are checked byte for byte
+  against the document without the key).
+- The 1,000-sequence crosscheck draws `entrance` values, valid and not.

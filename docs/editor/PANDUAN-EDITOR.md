@@ -74,8 +74,8 @@ berlaku untuk desain mana pun. Ganti desain bisa diurungkan. Durasi dan posisi h
 Lengkap.
 
 **Caption.** Sakelar **Tampilkan caption**, lima gaya, **Warna sorot**, **Ukuran** (Kecil, Sedang,
-Besar), **Kata per baris** (1 sampai 4) dan **Posisi** (Atas, Tengah, Bawah; Bawah adalah posisi
-bawaan klip otomatis). Ukuran atau posisi yang diatur halus di Mode Lengkap tampil sebagai persen
+Besar), **Kata per baris** (1 sampai 4), **Animasi masuk** (Tanpa, Fade, Pop, Blur) dan **Posisi**
+(Atas, Tengah, Bawah; Bawah adalah posisi bawaan klip otomatis). Ukuran atau posisi yang diatur halus di Mode Lengkap tampil sebagai persen
 di ringkasan, dan tidak ada tombol yang tertekan. Kalau caption terlalu dekat dengan teks hook,
 kartu menulis "Caption dekat teks hook. Kalau bertumpuk di pratinjau, turunkan caption." Catatan
 ini hanya petunjuk: pratinjau yang menentukan.
@@ -86,6 +86,10 @@ ini hanya petunjuk: pratinjau yang menentukan.
 - **Sorot**: kotak berwarna di belakang kata yang sedang diucapkan; kata-kata lain tetap di
   tempatnya. Warna kotak dari **Warna sorot**, dan kata kunci mendapat kotak berwarna kata kunci.
   Tulisan di atas kotak otomatis gelap kalau kotaknya terang (keenam warna pilihan terang).
+- **Animasi masuk**: cara tiap baris caption muncul, paling lama 0,12 detik. Fade muncul
+  perlahan, Pop membesar sebentar lalu pas, Blur dari buram ke tajam. Bawaannya Tanpa, jadi klip
+  otomatis tidak berubah. Animasinya sama di pratinjau dan di hasil ekspor; memilih Tanpa lagi
+  mengembalikan caption ke bawaan.
 
 **Teks caption.** Satu kolom per baris caption, diberi label waktunya. Ketik untuk membetulkan
 kata, lalu Enter, Tab atau klik di luar untuk menyimpan; Esc membatalkan. Saat diam, mengeklik
@@ -176,7 +180,7 @@ Shift+klik kata di bawahnya, atau tekan Esc dulu untuk mengeklik kata itu.
   Anda mengedit. Pemeriksaan ikut batas saran AI proyek (30 per jam, bersama saran hook).
 
 **Teks.** Caption: nyala/mati, gaya (Klasik, Karaoke, Bold, Box, Sorot), posisi, ukuran, kata
-per baris, huruf besar, warna sorot dan warna kata kunci, dengan catatan yang sama seperti kartu Caption (posisi
+per baris, animasi masuk, huruf besar, warna sorot dan warna kata kunci, dengan catatan yang sama seperti kartu Caption (posisi
 bawaan, area tombol TikTok, dekat teks hook). Hook: teks (maks. 90 karakter, tanda "Muat" / "Akan
 terpotong"), **Desain hook** (Bar, Kicker, Blok, Kotak kata, sama seperti kartu Hook), durasi dan
 posisi. **Saran hook** di bawah kolom teks: saran otomatis langsung

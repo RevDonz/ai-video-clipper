@@ -138,7 +138,7 @@ panel di Mode Lengkap (rel kiri), kecuali disebut lain. Centang kalau berjalan s
 | 2 | Trim menempel ke kata | Tekan **I** / **O** pada kata, atau seret gagang di timeline | Awal dan akhir selalu jatuh di celah antar kata |
 | 3 | Cold open | Panel Cold open: **Pakai** saran, **Buang kata terakhir** | Kalimat cold open diputar paling awal; pilihan di atas 8 detik ditolak dengan alasan |
 | 4 | Hook + saran AI + desain | Panel Teks: tulis hook, **Pakai** saran; **Desain hook** Kicker, Blok, Kotak kata | "Muat" atau "Akan terpotong" di tiap desain; saran otomatis langsung tampil, saran AI menyusul (sekitar 10 detik); pratinjau menampilkan baris kecil di atas (Kicker), tiap baris di kotak kuning (Blok), satu kata di kotak (Kotak kata) |
-| 5 | Caption + 5 gaya | Panel Teks: Klasik, Karaoke, Bold, Box, Sorot; **Kata per baris** 1 lalu 4; **Ctrl+E** pada kata | Pratinjau berganti; di Sorot kotak berwarna mengikuti kata yang diucapkan; baris caption langsung tersusun ulang; kata kunci berwarna |
+| 5 | Caption + 5 gaya | Panel Teks: Klasik, Karaoke, Bold, Box, Sorot; **Kata per baris** 1 lalu 4; **Animasi masuk** Pop lalu Tanpa; **Ctrl+E** pada kata | Pratinjau berganti; di Sorot kotak berwarna mengikuti kata yang diucapkan; baris caption langsung tersusun ulang; dengan Pop tiap baris muncul membesar sebentar, dengan Tanpa langsung tampil; kata kunci berwarna |
 | 6 | Potong lewat transkrip | Pilih kata, **Delete**; **Rapikan** | Kata tercoret dengan tombol pulihkan; Rapikan memotong yang dicentang dalam satu langkah |
 | 7 | Tata letak | Panel Tata letak: Potong tengah, Ikuti wajah, Latar blur | Pratinjau berganti; bagian tanpa wajah didaftar |
 | 8 | Logo | Panel Logo: unggah, pilih sudut, geser dengan panah | Logo di pratinjau dan di hasil ekspor |
