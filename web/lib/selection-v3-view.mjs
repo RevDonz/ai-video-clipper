@@ -445,9 +445,9 @@ export function coldOpenLength(clip) {
  * What the owner can act on after a run, as `[{ tone, title?, text, href?, action?, help? }]`:
  * the AI failed (fix the key or quota; `help` is the /bantuan entry of the recorded reason, or
  * null), the job ran without AI, or a warning with a fix (the other
- * explained warnings are selectionNotes). A clean run has none. Provider, model, prompt version
- * and transcript source are provenance: they stay in the job's artifact and log. A failed job is
- * explained by its own error, not here.
+ * explained warnings are selectionNotes). A clean run has none. Provider, model and prompt version
+ * are provenance: they stay in the job's artifact and log (the transcript source shows only in the
+ * stage summary, lib/stage-summary.mjs). A failed job is explained by its own error, not here.
  */
 export function selectionNotices(job) {
   const summary = job?.selectionV3;
