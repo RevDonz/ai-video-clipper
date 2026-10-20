@@ -134,7 +134,7 @@ panel di Mode Lengkap (rel kiri), kecuali disebut lain. Centang kalau berjalan s
 
 | # | Kemampuan | Coba ini | Yang harus terlihat |
 |---|---|---|---|
-| 1 | Buka klip | **Edit klip** di kartu klip dan di Riwayat | Klip terbuka tanpa langkah "Siapkan"; klip yang tidak bisa diedit menulis alasannya |
+| 1 | Buka klip | **Edit klip** di panel detail klip (halaman proyek) dan di Riwayat | Klip terbuka tanpa langkah "Siapkan"; klip yang tidak bisa diedit menulis alasannya |
 | 2 | Trim menempel ke kata | Tekan **I** / **O** pada kata, atau seret gagang di timeline | Awal dan akhir selalu jatuh di celah antar kata |
 | 3 | Cold open | Panel Cold open: **Pakai** saran, **Buang kata terakhir** | Kalimat cold open diputar paling awal; pilihan di atas 8 detik ditolak dengan alasan |
 | 4 | Hook + saran AI | Panel Teks: tulis hook, **Pakai** saran | "Muat" atau "Akan terpotong"; saran otomatis langsung tampil, saran AI menyusul (sekitar 10 detik) |
