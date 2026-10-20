@@ -486,6 +486,8 @@ def _job_clip(job: str, clip: dict[str, Any]) -> dict[str, Any]:
         entry["clipId"] = clip["clip_id"]
     if clip.get("render_engine"):
         entry["renderEngine"] = clip["render_engine"]
+    if clip.get("fallbacks"):
+        entry["fallbacks"] = clip["fallbacks"]
     if "title" in clip:
         entry.update({
             "title": clip["title"], "hookText": clip["hook_text"],

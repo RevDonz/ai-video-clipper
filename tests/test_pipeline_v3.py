@@ -1723,6 +1723,7 @@ class FakeAutoRenderer:
     fail_init = False
     fail_ranks: ClassVar[set] = set()
     drop_cold_open: ClassVar[set] = set()
+    no_face_ms: ClassVar[dict] = {}
 
     def __init__(self, **options):
         if FakeAutoRenderer.fail_init:
@@ -1748,13 +1749,16 @@ class FakeAutoRenderer:
             from ai_clipper.edit_v2.errors import RenderFailed
 
             raise RenderFailed("render_failed")
-        return SimpleNamespace(
+        auto = SimpleNamespace(
             clip_id=f"clip_{rank:024x}",
             render_engine="edit-v2/1",
             render_key=None,
             plan_sha256=f"{rank:064x}",
             cold_open=rank not in FakeAutoRenderer.drop_cold_open,
         )
+        if rank in FakeAutoRenderer.no_face_ms:
+            auto.no_face_ms = FakeAutoRenderer.no_face_ms[rank]
+        return auto
 
     def fallback(self, rank):
         self.fallbacks.append(rank)
@@ -1769,6 +1773,7 @@ def fake_engine(monkeypatch):
     FakeAutoRenderer.fail_init = False
     FakeAutoRenderer.fail_ranks = set()
     FakeAutoRenderer.drop_cold_open = set()
+    FakeAutoRenderer.no_face_ms = {}
     monkeypatch.setattr(render_edit, "AutoRenderer", FakeAutoRenderer)
     return FakeAutoRenderer
 
@@ -1891,6 +1896,7 @@ def test_a_failing_clip_falls_back_to_the_legacy_engine(env, monkeypatch, fake_e
     assert second["render_engine"] == "legacy" and second["clip_id"] == f"clip_{2:024x}"
     assert second["render_key"] is None and second["plan_sha256"] is None
     assert "engine_fallback:2" in manifest["selection_v3"]["warnings"]
+    assert second["fallbacks"] == ["engine_fallback"] and "fallbacks" not in first
     assert_web_summary(manifest["selection_v3"])
 
 
@@ -1905,6 +1911,7 @@ def test_without_a_usable_job_context_every_clip_falls_back(env, monkeypatch, fa
     assert [clip["clip_id"] for clip in manifest["clips"]] == [None, None]
     warnings = manifest["selection_v3"]["warnings"]
     assert "engine_fallback:1" in warnings and "engine_fallback:2" in warnings
+    assert [clip["fallbacks"] for clip in manifest["clips"]] == [["engine_fallback"]] * 2
 
 
 def test_the_legacy_fallback_failing_still_fails_the_job(env, monkeypatch, fake_engine):
@@ -1969,11 +1976,12 @@ def test_trends_and_focus_reach_the_manifest_through_the_edit_v2_engine(env, fak
     assert renderer.fallbacks == [3]
     for text in ("Tren A", "kisah", "CATATAN-RAHASIA-FOKUS"):
         assert text not in repr(renderer.options)  # selection data never reaches the engine
-    # The engine only adds its four fields, to the fallback clip too; trends and focus stay.
+    # The engine only adds its four fields (and the fallback clip its note); trends and focus stay.
     assert [
-        {key: value for key, value in clip.items() if key not in ENGINE_KEYS}
+        {key: value for key, value in clip.items() if key not in ENGINE_KEYS | {"fallbacks"}}
         for clip in manifest["clips"]
     ] == legacy["clips"]
+    assert [clip.get("fallbacks") for clip in manifest["clips"]] == [None, None, ["engine_fallback"]]
     engines = [clip["render_engine"] for clip in manifest["clips"]]
     assert engines == ["edit-v2/1", "edit-v2/1", "legacy"]
     assert manifest["clips"][2]["clip_id"] == f"clip_{3:024x}"
@@ -1988,6 +1996,7 @@ def test_trends_and_focus_reach_the_manifest_through_the_edit_v2_engine(env, fak
     ]
     for clip in manifest["clips"]:
         extra = {"focus"} | ({"trends"} if "trends" in clip else set()) | join_keys(clip)
+        extra |= {"fallbacks"} if clip["render_engine"] == "legacy" else set()
         assert set(clip) == CLIP_KEYS | ENGINE_KEYS | extra
     summary = manifest["selection_v3"]
     assert summary["focus"] == {"terms": ["kisah25"], "matched": 1, "requested": 3}
@@ -1997,6 +2006,65 @@ def test_trends_and_focus_reach_the_manifest_through_the_edit_v2_engine(env, fak
         legacy["selection_v3"]["warnings"]
     )
     assert_web_summary({key: value for key, value in summary.items() if key != "focus"})
+
+
+# --- per-clip fallbacks the project page shows (plan 2026-10-20 A2) -------------------------------
+
+
+def legacy_no_face(env, monkeypatch, seconds: dict[float, list[float]]):
+    """render_vertical as in ``env``, reporting ``seconds[start]`` without a face per range."""
+
+    def render(*args, **kwargs):
+        env.renders.append(kwargs)
+        for value in seconds.get(kwargs["start"], []):
+            kwargs["no_face_report"](value)
+
+    monkeypatch.setattr(pipeline_module, "render_vertical", render)
+    monkeypatch.setattr(pipeline_module, "validate_render_mode", lambda mode: None)
+
+
+def test_a_face_track_clip_without_a_face_for_half_its_length_is_noted(env, monkeypatch):
+    monkeypatch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: result(*TWO_CLIPS))
+    # Clip 1 renders 33 s (3 s cold open + 30 s): 16.5 s without a face is half of it.
+    # Clip 2 renders 30 s: 14.9 s is just under half.
+    legacy_no_face(env, monkeypatch, {100.0: [3.0, 13.5], 200.0: [14.9]})
+
+    manifest = manifest_of(run(env, max_duration=60.0, render_mode="face-track"))
+
+    first, second = manifest["clips"]
+    assert first["fallbacks"] == ["no_face"]
+    assert "fallbacks" not in second  # clips without a fallback keep the exact shape
+    assert set(first) == CLIP_KEYS | join_keys(first) | {"fallbacks"}
+    assert_web_clip(second)
+    assert all(callable(render["no_face_report"]) for render in env.renders)
+
+
+def test_only_face_track_clips_can_be_noted_without_a_face(env, monkeypatch):
+    monkeypatch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: result(*TWO_CLIPS))
+    # Even a renderer that reported it outside face-track would not get a clip noted.
+    legacy_no_face(env, monkeypatch, {100.0: [33.0], 200.0: [30.0]})
+
+    manifest = manifest_of(run(env, max_duration=60.0, render_mode="fit-blur"))
+
+    for clip in manifest["clips"]:
+        assert_web_clip(clip)
+
+
+def test_the_new_engines_no_face_length_and_its_fallback_are_both_noted(env, monkeypatch,
+                                                                        fake_engine):
+    clips = (*TWO_CLIPS, selected(3, 300.0, 330.0))
+    monkeypatch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: result(*clips))
+    fake_engine.no_face_ms = {1: 16_500, 2: 14_900}
+    fake_engine.fail_ranks = {3}
+    legacy_no_face(env, monkeypatch, {300.0: [30.0]})
+
+    manifest = manifest_of(run(env, max_duration=60.0, render_mode="face-track",
+                               render_engine="edit-v2"))
+
+    assert [clip.get("fallbacks") for clip in manifest["clips"]] == [
+        ["no_face"], None, ["no_face", "engine_fallback"]]
+    (legacy,) = env.renders
+    assert legacy["start"] == 300.0
 
 
 # --- the cold-open transition (spec 2026-10-02 §4.5, §6.1, §6.2) ---------------------------------

@@ -10,7 +10,7 @@ import secrets
 import stat
 import subprocess
 import tempfile
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from fractions import Fraction
 from numbers import Real
 from pathlib import Path
@@ -19,7 +19,12 @@ from .captions_ass import CAPTION_STYLES, build_ass
 from .edit_v2 import errors as _edit_errors
 from .edit_v2 import transitions as _transitions
 from .edit_v2.glyphs import RESOURCES_DIR as SFX_RESOURCES_DIR
-from .face_tracking import build_crop_expression, detect_face_track
+from .face_tracking import (
+    build_crop_expression,
+    detect_face_track,
+    no_face_seconds,
+    smooth_face_track,
+)
 from .models import TranscriptSegment
 from .subtitles import build_caption_cues, cues_to_srt
 
@@ -280,8 +285,12 @@ def _layout_filter(
     height: int,
     render_mode: str,
     label_suffix: str = "",
+    no_face_report: Callable[[float], None] | None = None,
 ) -> str:
-    """Portrait layout chain for one source range; its output pad is left unlabelled."""
+    """Portrait layout chain for one source range; its output pad is left unlabelled.
+
+    Under face-track, ``no_face_report`` gets the range's seconds without a face
+    (:func:`no_face_seconds`); the crop is the smoothed track as ever."""
     if render_mode == "fit-blur":
         background = f"[background{label_suffix}]"
         foreground = f"[foreground{label_suffix}]"
@@ -295,14 +304,17 @@ def _layout_filter(
             f"{blurred}{fit}overlay=(W-w)/2:(H-h)/2,setsar=1"
         )
     if render_mode == "face-track":
-        times, centers, cuts, source_width, source_height = detect_face_track(
+        times, raw_centers, cuts, source_width, source_height = detect_face_track(
             source,
             start=start,
             end=end,
+            smooth=False,
         )
+        if no_face_report is not None:
+            no_face_report(no_face_seconds(times, raw_centers, end - start))
         crop_x = build_crop_expression(
             times,
-            centers,
+            smooth_face_track(raw_centers, cuts=cuts),
             cuts=cuts,
             source_width=source_width,
             source_height=source_height,
@@ -476,6 +488,7 @@ def _multi_range_command(
     join_style: str = "cut",
     join_sfx_path: Path | None = None,
     cold_open_join_s: str | None = None,
+    no_face_report: Callable[[float], None] | None = None,
 ) -> list[str]:
     """Play source ranges back to back (cold open, then main) with one caption pass on top.
 
@@ -518,6 +531,7 @@ def _multi_range_command(
             height=height,
             render_mode=render_mode,
             label_suffix=str(index),
+            no_face_report=no_face_report,
         )
         effect = _join_effect(join_style, index, cold_open_ms, cold_open_join_s)
         parts.append(f"{layout}{effect}[video{index}]")
@@ -569,6 +583,7 @@ def render_vertical(
     caption_style: str = "classic",
     join_style: str = "cut",
     join_sfx: str | None = None,
+    no_face_report: Callable[[float], None] | None = None,
 ) -> Path:
     """Render a portrait clip using secure temporary files and no-clobber publication.
 
@@ -580,6 +595,9 @@ def render_vertical(
     ``join_style`` (``cut``, ``flash_white`` or ``dip_black``) and ``join_sfx`` (``None`` or
     ``"whoosh"``) are the cold-open transition (spec 2026-10-02 §4.3, §4.4); without a cold open
     they change nothing, and with their defaults the command is the one of before.
+
+    ``no_face_report`` (face-track only) is called once per source range, cold open first, with
+    that range's seconds without a face (``face_tracking.no_face_seconds``), before FFmpeg runs.
     """
     if join_style not in _transitions.JOIN_STYLES:
         raise ValueError(f"unknown cold-open join style: {join_style!r}")
@@ -671,6 +689,7 @@ def render_vertical(
                     width=width,
                     height=height,
                     render_mode=render_mode,
+                    no_face_report=no_face_report,
                 ),
                 audio_stream_index=audio_stream_index,
                 output_path=output_path,
@@ -692,6 +711,7 @@ def render_vertical(
                 join_style=join_style,
                 join_sfx_path=sfx_path,
                 cold_open_join_s=join_s,
+                no_face_report=no_face_report,
             )
         with tempfile.TemporaryDirectory(prefix="ai-clipper-") as temporary_directory:
             filter_captions_path = Path(temporary_directory) / "captions.ass"
