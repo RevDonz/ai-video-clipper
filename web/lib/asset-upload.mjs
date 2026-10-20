@@ -37,13 +37,13 @@ export const MAX_STORE_BYTES = 1024 * 1024 * 1024;
 export const MAX_ASSET_NAME_CHARS = 80;
 export const SNIFF_BYTES = 64;
 // The Python ingest's own wall caps are 20 s (image) and 60 s (audio); these are the backstop.
-const INGEST_TIMEOUT_MS = Object.freeze({ logo: 30_000, music: 90_000 });
+export const INGEST_TIMEOUT_MS = Object.freeze({ logo: 30_000, music: 90_000 });
 // Room for the normalised output beside the quarantined upload (a 1024² RGBA PNG; 15 min of
 // AAC 192k + peaks), reserved together with the upload's own length.
 const OUTPUT_RESERVE_BYTES = Object.freeze({ logo: 5 * 1024 * 1024, music: 24 * 1024 * 1024 });
 const MAX_CONCURRENT_INGESTS = 2;
 // A refusal made after the session checks reads at most this much of the body first (drain).
-const MAX_DRAIN_BYTES = 64 * 1024 * 1024;
+export const MAX_DRAIN_BYTES = 64 * 1024 * 1024;
 const SHA = /^[0-9a-f]{64}$/;
 const STORE_FILE = /^([0-9a-f]{64})\.(png|m4a|json|peaks\.bin)$/;
 const REASONS = new Set(["empty", "dimensions", "duration", "short", "streams", "channels", "codec", "probe", "decode", "timeout"]);
@@ -169,7 +169,7 @@ export function assetDto(jobId, asset) {
   return { ...asset, peaksUrl: asset.kind === "music" ? `/api/jobs/${jobId}/assets/${asset.sha256}?part=peaks` : null };
 }
 
-function validAsset(value, kind) {
+export function validAsset(value, kind) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   if (JSON.stringify(Object.keys(value).sort()) !== JSON.stringify(DTO_KEYS)) return false;
   const int = (item, low, high) => Number.isSafeInteger(item) && item >= low && item <= high;
@@ -277,7 +277,7 @@ async function writeAll(handle, chunk) {
  * declared body is still read (and dropped): answering in the middle of an upload would reset
  * the connection, and the browser would report a network error instead of the 415.
  */
-async function streamToQuarantine(request, target, { length, format, maxBytes }) {
+export async function streamToQuarantine(request, target, { length, format, maxBytes }) {
   if (!request.body || request.bodyUsed) refuse(400, "invalid_request");
   const handle = await open(/* turbopackIgnore: true */ target,
     constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
@@ -325,7 +325,7 @@ async function streamToQuarantine(request, target, { length, format, maxBytes })
  * is still sending closes the connection and the browser reports a network error instead of
  * the answer, so refusals made after the session checks read the declared body first.
  */
-async function drain(request, limit) {
+export async function drain(request, limit) {
   if (!request.body || request.bodyUsed || !(limit > 0)) return;
   let reader;
   try { reader = request.body.getReader(); } catch { return; }
@@ -347,7 +347,7 @@ async function drain(request, limit) {
 const GATE = Symbol.for("potongin.assetIngestGate");
 const LIMITS = Symbol.for("potongin.editorRateLimits");
 
-function ingestGate() {
+export function ingestGate() {
   globalThis[GATE] ??= (() => {
     let running = 0;
     const waiting = [];

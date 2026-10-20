@@ -23,6 +23,7 @@ from ai_clipper.edit_v2 import store as edit_store
 from ai_clipper.edit_v2 import verify as edit_verify
 from ai_clipper.edit_v2.doc import canonical_bytes
 from ai_clipper.edit_v2.plan import Resources, build_plan, render_key, toolchain_sha256
+from ai_clipper.edit_v2.seed import default_logo_transform
 from ai_clipper.render_queue import (
     OUTPUT_BYTES_PER_SECOND,
     RENDER_COST_PERMILLE,
@@ -106,11 +107,21 @@ def v3_accept(_path: Path, _plan) -> bool:
 class V3Job:
     """A V3 job with one prepared clip (c30 context: rank 3, cold open, hook, fit_blur)."""
 
-    def __init__(self, tmp_path: Path, *, engine: str = "edit-v2/1", auto: bool = False):
+    def __init__(self, tmp_path: Path, *, engine: str = "edit-v2/1", auto: bool = False,
+                 logo: bool = False):
         self.context = fixtures.load_context("c30")
         seed = copy.deepcopy(self.context.seed)
         seed["base"]["source"]["content_sha256"] = v3_sha(V3_SOURCE_BYTES)
         seed["base"]["engine"]["compiler"] = engine
+        if logo:  # the Pengaturan default logo, as the seed places it
+            transform = default_logo_transform((720, 1280), 512, 512)
+            seed["tracks"].append({
+                "id": "tr_ovr", "kind": "visual", "band": "over_text", "role": "overlay",
+                "items": [{"id": "it_logo", "type": "image", "start": {"at": "clip_start"},
+                           "end": {"at": "clip_end"}, "transform": transform,
+                           "payload": {"asset": fixtures.LOGO, "mode": "free"},
+                           "origin": "seed"}]})
+            seed["assets"] = {fixtures.LOGO: dict(self.context.assets[fixtures.LOGO])}
         self.job_id = seed["base"]["job_id"]
         self.root = tmp_path / "jobs"
         self.clip = make_clip(self.root, self.context, seed=seed)
@@ -146,7 +157,8 @@ class V3Job:
 
     def expected_key(self, doc: dict, resources: Resources | None = None) -> str:
         resources = resources or self.resources
-        plan = build_plan(doc, words=self.context.words, camera=None, assets={},
+        plan = build_plan(doc, words=self.context.words, camera=None,
+                          assets={key: self.context.assets[key] for key in doc["assets"]},
                           resources=resources)
         return render_key(plan, size=(720, 1280), quality="standar", measure_sha=None,
                           toolchain_sha=toolchain_sha256(resources))
@@ -364,6 +376,26 @@ def test_v3_r10_after_every_edit_was_undone_and_with_a_changed_toolchain(tmp_pat
 
 def test_v3_r10_covers_a_legacy_engine_clip(tmp_path):
     job = V3Job(tmp_path, engine="legacy", auto=True)
+    request = job.create(job.seed_etag)
+    assert request["completed_by"] == "seed"
+    assert os.path.samestat((job.job / request["output_relative"]).stat(),
+                            (job.job / "output" / "clip-03.mp4").stat())
+
+
+def test_v3_a_legacy_auto_file_never_stands_for_a_seed_with_the_default_logo(tmp_path):
+    """The legacy renderer draws no logo: an unchanged clip seeded with the Pengaturan default
+    logo renders its export (no R10, and nothing to warn about)."""
+    job = V3Job(tmp_path, engine="legacy", auto=True, logo=True)
+    request = job.create(job.seed_etag)
+    assert (request["state"], request["completed_by"], request["warnings"]) == (
+        "queued", None, [])
+    assert request["render_key"] == job.expected_key(job.seed)
+    assert request["source_snapshot_relative"] is not None
+    assert not (job.job / request["output_relative"]).exists()
+
+
+def test_v3_r10_covers_an_edit_v2_seed_with_the_default_logo(tmp_path):
+    job = V3Job(tmp_path, auto=True, logo=True)
     request = job.create(job.seed_etag)
     assert request["completed_by"] == "seed"
     assert os.path.samestat((job.job / request["output_relative"]).stat(),

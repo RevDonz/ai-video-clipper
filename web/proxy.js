@@ -24,9 +24,11 @@ export function proxy(request) {
 // route is excluded here; it checks the session itself (requireAuth + sameOriginMutation).
 // POST /api/jobs/:id/assets (logo and music uploads, up to 50 MB) is excluded for the same reason
 // and checks the session itself; serving an asset (/api/jobs/:id/assets/:sha) still runs the proxy.
+// /api/settings/logo (the Pengaturan default logo, up to 10 MB) likewise: its GET, POST and
+// DELETE check the session (and mutations their origin) themselves.
 // /api/ingest/trends is the endpoint of the owner's agent (Hermes), which has no session
 // cookie: it is excluded too and authenticates every request itself with a ptk_ bearer token
 // (cookies are refused there), reading its body with a 256 KiB cap.
 export const config = {
-  matcher: ["/((?!api/health|api/auth/login|api/jobs/?$|api/jobs/[^/]+/assets/?$|api/ingest/trends/?$|login|_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!api/health|api/auth/login|api/jobs/?$|api/jobs/[^/]+/assets/?$|api/settings/logo/?$|api/ingest/trends/?$|login|_next/static|_next/image|favicon.ico).*)"],
 };

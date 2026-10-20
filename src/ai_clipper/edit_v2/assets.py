@@ -132,6 +132,9 @@ RECEIPTS_KEEP = 200
 INCOMING_MAX_AGE_S = 3600
 MAX_META_BYTES = 64 << 10
 MAX_ENVELOPE_BYTES = 16 << 10
+# <job>/logo/<sha>.{png,json}: the Pengaturan default logo, copied in by the web at job creation.
+JOB_LOGO_DIR = "logo"
+MAX_LOGO_PNG_BYTES = 8 << 20  # a normalised logo (RGBA, at most 1024 px a side) stays far below
 HEADER_BYTES = 256 << 10
 STDERR_TAIL_BYTES = 256 << 10
 REASONS = frozenset({"empty", "dimensions", "duration", "short", "streams", "channels", "codec",
@@ -936,6 +939,85 @@ def asset_meta(job_dir: Path, sha: str) -> dict:
         raise NotFound() from None
 
 
+# The job's default logo (Pengaturan "Logo bawaan", plan 2026-10-20 A6).
+
+
+def _logo_size(raw: bytes, png: bytes) -> tuple[int, int] | None:
+    try:
+        meta = json.loads(raw)
+    except ValueError:
+        return None
+    if not isinstance(meta, dict) or meta.get("schema") != SCHEMA or meta.get("kind") != "image" \
+            or meta.get("mime") != "image/png" or meta.get("bytes") != len(png):
+        return None
+    width, height = meta.get("w"), meta.get("h")
+    if not all(type(side) is int and 1 <= side <= NORMALISED_MAX_SIDE for side in (width, height)):
+        return None
+    try:
+        info = png_info(png)
+        intact = strip_png(png) == png
+    except PngError:
+        return None
+    if not intact or (info.width, info.height, info.color_type, info.bit_depth) != (
+            width, height, 6, 8):
+        return None
+    return width, height
+
+
+def job_logo(job_root: Path) -> tuple[str, bytes, bytes, int, int] | None:
+    """``(sha, png, meta, w, h)`` of the logo the web copied into ``<job>/logo/`` when the job
+    was created, or None unless that directory holds exactly one intact normalised logo."""
+    directory = Path(job_root) / JOB_LOGO_DIR
+    try:
+        _real_dir(directory)
+        with os.scandir(directory) as entries:
+            names = {entry.name for entry in entries}
+    except (NotFound, OSError):
+        return None
+    shas = {name[:-5] for name in names if name.endswith(".json")}
+    if len(shas) != 1:
+        return None
+    sha = shas.pop()
+    if _SHA.fullmatch(sha) is None or names != {f"{sha}.png", f"{sha}.json"}:
+        return None
+    png = _read_small(directory / f"{sha}.png", MAX_LOGO_PNG_BYTES)
+    raw = _read_small(directory / f"{sha}.json")
+    if png is None or raw is None or hashlib.sha256(png).hexdigest() != sha:
+        return None
+    size = _logo_size(raw, png)
+    return None if size is None else (sha, png, raw, *size)
+
+
+def adopt_logo(job_dir: Path, sha: str, png: bytes, meta: bytes) -> None:
+    """Store a logo read by :func:`job_logo` in ``job_dir``'s asset store, once (the upload
+    quota applies: ``asset_quota_exceeded``)."""
+    directory = store_dir(job_dir, create=True)
+    with _locked(directory):
+        if _stored(directory, sha) is not None:
+            return
+        count, used = _usage(directory)
+        if count + 1 > MAX_ASSETS_PER_JOB or used + len(png) + len(meta) > MAX_STORE_BYTES:
+            raise _reject(code="asset_quota_exceeded")
+        _write_atomic(directory, f"{sha}.png", png)
+        _write_atomic(directory, f"{sha}.json", meta)
+        _fsync_dir(directory)
+
+
+def seed_logo(job_root: Path, job_dir: Path) -> dict | None:
+    """``{"sha256", "w", "h"}`` of the job's default logo once it is in ``job_dir``'s store (the
+    job itself, or a queue attempt of it); None without one or when it cannot be stored: the
+    clips then seed without a logo."""
+    found = job_logo(job_root)
+    if found is None:
+        return None
+    sha, png, meta, width, height = found
+    try:
+        adopt_logo(job_dir, sha, png, meta)
+    except (EditV2Error, OSError):
+        return None
+    return {"sha256": sha, "w": width, "h": height}
+
+
 # CLI.
 
 
@@ -1022,12 +1104,12 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 __all__ = [
-    "ALLOWED_TYPES", "ASSET_CODES", "DEMUXERS", "FORMATS", "KINDS", "MAX_ASSETS_PER_JOB",
-    "MAX_AUDIO_MS", "MAX_IMAGE_PIXELS", "MAX_IMAGE_SIDE", "MAX_NAME_CHARS", "MAX_STORE_BYTES",
-    "MAX_UPLOAD_BYTES", "NORMALISED_MAX_SIDE", "OPS", "REASONS", "TIME_CAPS_S", "AssetRejected",
-    "asset_meta", "check_declared", "child_env", "handle", "header_size", "ingest",
-    "jpeg_orientation", "main", "message", "normalise_name", "normalised_size",
-    "orientation_filters", "oriented_size", "sniff", "store_dir",
+    "ALLOWED_TYPES", "ASSET_CODES", "DEMUXERS", "FORMATS", "JOB_LOGO_DIR", "KINDS",
+    "MAX_ASSETS_PER_JOB", "MAX_AUDIO_MS", "MAX_IMAGE_PIXELS", "MAX_IMAGE_SIDE", "MAX_NAME_CHARS",
+    "MAX_STORE_BYTES", "MAX_UPLOAD_BYTES", "NORMALISED_MAX_SIDE", "OPS", "REASONS", "TIME_CAPS_S",
+    "AssetRejected", "adopt_logo", "asset_meta", "check_declared", "child_env", "handle",
+    "header_size", "ingest", "job_logo", "jpeg_orientation", "main", "message", "normalise_name",
+    "normalised_size", "orientation_filters", "oriented_size", "seed_logo", "sniff", "store_dir",
 ]
 
 

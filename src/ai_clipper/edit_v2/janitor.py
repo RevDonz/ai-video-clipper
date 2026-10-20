@@ -21,10 +21,11 @@ skipping a job that is being deleted (``status: "deleting"`` or a ``.deletions``
   for 30 days go; then the job's cap (``capBytes``, default 1 GiB, K11) evicts the least recently
   used, never a file used in the last ``PROTECT_MS``. "Used" is the later of mtime and atime.
   Temporaries and ``preview/.cancel`` markers older than ``STALE_MS`` go too.
-* **Orphan assets**: an asset of ``analysis/assets`` that no current document and no kept
-  archive names is recorded with the time it was first seen unreferenced
-  (``analysis/assets/.janitor.json``); 30 days later it is deleted (media, peaks, metadata),
-  under the asset store's lock. A document that cannot be read keeps every asset of its job.
+* **Orphan assets**: an asset of ``analysis/assets`` that no seed (the Pengaturan default logo),
+  no current document and no kept archive names is recorded with the time it was first seen
+  unreferenced (``analysis/assets/.janitor.json``); 30 days later it is deleted (media, peaks,
+  metadata), under the asset store's lock. A document that cannot be read keeps every asset of
+  its job.
 
 ``budgetMs`` bounds a run: jobs are visited in name order after ``after`` and the report's
 ``next`` names the last job visited when the budget ran out (``complete: false``), ``null`` when
@@ -217,11 +218,12 @@ def _archive_doc(path: Path) -> Any:
 
 
 def _documents(clip: Path) -> Iterator[Any]:
-    """The clip's current document (when edited) and every kept archive; ``None`` for one that
-    cannot be read."""
-    path = clip / store.DOC_FILE
-    if os.path.lexists(path):
-        yield _json(_read(path, MAX_DOC_BYTES))
+    """The clip's seed, its current document (when edited) and every kept archive; ``None`` for
+    one that cannot be read."""
+    for name in (store.SEED_FILE, store.DOC_FILE):
+        path = clip / name
+        if os.path.lexists(path):
+            yield _json(_read(path, MAX_DOC_BYTES))
     for name in _archives(clip).values():
         yield _archive_doc(clip / store.ARCHIVE_DIR / name)
 
@@ -379,7 +381,7 @@ def clean_job(job_dir: Path, *, now_ms: int, cap_bytes: int = DEFAULT_CAP_BYTES)
             assets.update(asset.split(":", 1)[1] for asset in iter_asset_ids(document))
     for relative in referenced_requests:  # a requested revision kept for an export
         if _ARCHIVE_RELATIVE.fullmatch(relative) is None:
-            continue  # seed.json (no uploads) or not a path the queue writes
+            continue  # seed.json (read above with the clip) or not a path the queue writes
         path = job / relative
         if path.is_file():
             document = _archive_doc(path)

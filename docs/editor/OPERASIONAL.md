@@ -13,7 +13,7 @@ saat unduhan YouTube rusak (§8). Cara memakai editor ada di
 
 | Layanan | Tugas untuk editor |
 |---|---|
-| `app` (Next.js) | Halaman editor, semua rute `/api/jobs/:id/clips/**` dan `/api/jobs/:id/assets/**`, lane pratinjau (sel video, audio, teks), saran AI. Unggahan logo dan musik tidak lewat `web/proxy.js`; rutenya memeriksa sesi sendiri. |
+| `app` (Next.js) | Halaman editor, semua rute `/api/jobs/:id/clips/**` dan `/api/jobs/:id/assets/**`, lane pratinjau (sel video, audio, teks), saran AI, Logo bawaan di Pengaturan (`/api/settings/logo`). Unggahan logo dan musik (juga Logo bawaan) tidak lewat `web/proxy.js`; rutenya memeriksa sesi sendiri. |
 | `primary-worker` | Memproses video baru sampai klip otomatis jadi. |
 | `render-worker` | Mengerjakan antrean ekspor dari editor (`analysis/render-requests/`), lalu memverifikasi hasilnya (G1–G3b) sebelum ditandai selesai. Tanpa layanan ini ekspor tetap "Antre". |
 
@@ -22,6 +22,17 @@ Semua data editor ada di folder job (`JOBS_ROOT/<job>/`): dokumen edit dan arsip
 dibuat ulang), logo dan musik di `analysis/assets/`, hasil ekspor di `output/edits/<clip_id>/`.
 Klip otomatis (`output/clip-NN.mp4`) tidak pernah ditimpa editor. Kapasitas dan aturan hapus job:
 `docs/operations/STORAGE_RETENTION.md`.
+
+**Logo bawaan.** Logo dari Pengaturan tersimpan di folder pengaturan (`/data/settings/default-logo/`:
+`current.json` plus PNG hasil normalisasi dan metadatanya). Setiap job baru mendapat salinannya di
+`JOBS_ROOT/<job>/logo/`; seed kliknya (saat dibuka di editor dengan mesin `legacy`, saat render
+otomatis dengan `edit-v2`) memasangnya dan menyalinnya ke `analysis/assets/`. Menghapus atau
+mengganti logo di Pengaturan tidak mengubah job yang sudah ada. Untuk mematikan fitur ini tanpa
+rilis, hapus logonya di Pengaturan (atau hapus `current.json`); job baru lalu tanpa salinan. Kalau
+rilis ini di-revert, janitor lama tidak menghitung `seed.json`: aset logo yang hanya dipakai seed
+terhapus 30 hari kemudian dan klip itu gagal dibuka (`asset_missing`); untuk klip yang belum pernah
+disimpan atau diekspor dari editor, hapus folder `analysis/clips/<clip_id>/`-nya agar dibuat ulang.
+Kontrak lengkapnya: CONTRACTS §5.36.
 
 ## 2. Flag
 
@@ -32,9 +43,9 @@ musik dan hasil ekspor yang sudah tersimpan tidak hilang saat flag dimatikan.
 | Flag | Fungsi | Bawaan rilis (gerbangnya) | Kalau dimatikan |
 |---|---|---|---|
 | `POTONGIN_EDITOR_V3` | Tombol "Edit klip" dan semua rute editor | `on` | `off`: tombol "Edit klip" dan tautan "Ekspor terakhir" di panel detail klip hilang, rute editor menjawab 404; klip otomatis dan unduhannya tetap ada. File ekspor tetap tersimpan di `output/edits/` dan tautannya muncul lagi saat flag dinyalakan |
-| `POTONGIN_EDITOR_UPLOADS` | Unggah logo dan musik | `on` (QG-SEC lengkap, tinjauan keamanan W4) | `off`: panel Logo dan Musik menulis "Unggah … belum tersedia di server ini"; logo dan musik yang sudah dipakai tetap ikut dirender |
+| `POTONGIN_EDITOR_UPLOADS` | Unggah logo dan musik, juga Logo bawaan di Pengaturan | `on` (QG-SEC lengkap, tinjauan keamanan W4) | `off`: panel Logo dan Musik menulis "Unggah … belum tersedia di server ini", kartu Logo bawaan juga; logo dan musik yang sudah dipakai tetap ikut dirender, dan Logo bawaan yang tersimpan tetap disalin ke proyek baru (masih bisa dihapus) |
 | `POTONGIN_EDITOR_LLM` | Saran hook yang ditulis AI gratis di Pengaturan, dan Cek ejaan caption | `on` (gerbang keras QG-AI lolos; penilaian 30 klip oleh pemilik menyusul) | `off`: hanya saran instan ("AI seleksi"/"Heuristik"); tombol Cek ejaan tidak tampil |
-| `POTONGIN_RENDER_ENGINE` | `edit-v2`: klip otomatis dirender dengan kompiler yang sama dengan ekspor editor | `legacy` di rilis ini: keputusan pemilik soal kuota CPU masih menunggu. `edit-v2` masuk anggaran PF-PIPELINE di PC acuan (latar blur 1,03×, potong tengah 1,28×, ikuti wajah 1,12×), tapi dengan kuota `cpus: 6` potong tengah 1,99× dan ikuti wajah 1,82× (lihat di bawah) | `edit-v2`: proyek **baru** dirender dengan kompiler editor; klip yang sudah ada tidak berubah. Ekspor editor selalu memakai kompiler editor |
+| `POTONGIN_RENDER_ENGINE` | `edit-v2`: klip otomatis dirender dengan kompiler yang sama dengan ekspor editor | `legacy` di rilis ini: keputusan pemilik soal kuota CPU masih menunggu. `edit-v2` masuk anggaran PF-PIPELINE di PC acuan (latar blur 1,03×, potong tengah 1,28×, ikuti wajah 1,12×), tapi dengan kuota `cpus: 6` potong tengah 1,99× dan ikuti wajah 1,82× (lihat di bawah) | `edit-v2`: proyek **baru** dirender dengan kompiler editor; klip yang sudah ada tidak berubah. Ekspor editor selalu memakai kompiler editor. Logo bawaan ikut di file klip otomatis hanya dengan `edit-v2`; dengan `legacy` logo itu dipakai saat klip dibuka di editor dan ikut di ekspornya |
 | `POTONGIN_LLM_EDITOR_MODELS` | Opsional: daftar `provider/model` gratis khusus saran hook dan Cek ejaan; kosong = rantai di Pengaturan | kosong | — |
 | `POTONGIN_PARITY_HARNESS` | Halaman uji paritas untuk CI | tidak diteruskan | **Jangan pernah** dinyalakan di produksi |
 

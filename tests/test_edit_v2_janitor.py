@@ -303,6 +303,18 @@ def test_an_asset_unreferenced_for_30_days_is_deleted(tmp_path):
     assert asset_files(job, used) and asset_files(job, in_archive)
 
 
+def test_an_asset_a_seed_names_is_never_an_orphan(tmp_path):
+    """The Pengaturan default logo lives in the seed of every clip of a job created with it."""
+    job = make_job(tmp_path)
+    clip = make_clip(job)
+    logo = write_asset(job, "default-logo")
+    (clip / "seed.json").write_text(json.dumps(doc(0, (logo,)), sort_keys=True))
+    write_current(clip, 2)  # the user removed the logo from this clip
+    clean(job)
+    assert clean(job, now_ms=NOW_MS + 31 * DAY_MS)["assets"] == 0
+    assert asset_files(job, logo) == [f"{logo}.json", f"{logo}.png"]
+
+
 def test_an_asset_used_again_restarts_its_30_days(tmp_path):
     job = make_job(tmp_path)
     clip = make_clip(job)

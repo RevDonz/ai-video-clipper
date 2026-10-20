@@ -68,6 +68,8 @@ export function logoPanelView(state) {
     unsafe,
     safeTarget: safePlacement(box, output),
     thumbUrl: assetThumbUrl(view.jobId, found.assetId),
+    // A logo in the seed is the Pengaturan default logo the job was created with.
+    label: found.item.origin === "seed" ? "Logo bawaan" : "Logo",
   };
   return view;
 }
