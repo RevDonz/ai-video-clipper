@@ -1,4 +1,4 @@
-// Pengaturan "Logo bawaan" (docs/editor/CONTRACTS.md §5.35). /api/settings/logo and the image are
+// Pengaturan "Logo bawaan" (docs/editor/CONTRACTS.md §5.36). /api/settings/logo and the image are
 // faked in the browser (page.route), so nothing on the server changes; the AI form keeps talking
 // to the server.
 import { expect, test as base } from "@playwright/test";

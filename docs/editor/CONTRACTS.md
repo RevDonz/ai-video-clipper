@@ -894,7 +894,8 @@ in W1. Canonical bytes, hashes and the document size limit are as in §3.1.
 - Hook: track `{"id": "tr_hook", "kind": "hook"}` with item `it_hook`, origin `seed`,
   `dur_f = round_half_up(hook_duration_ms · num / (1000·den))`,
   `hook_duration_ms = ms_from_seconds(hook_duration)`.
-- `assets` {}; `audio` `{source {gain_cdb 0}, master {mode "off", target_clufs −1400,
+- `assets` {} (a job created with a Pengaturan default logo: one entry and the `tr_ovr` track,
+  §5.36); `audio` `{source {gain_cdb 0}, master {mode "off", target_clufs −1400,
   tp_cdb −100}}`; `base.words` = sha256 of the words file bytes and the word count;
   `base.camera.sha256` = sha256 of the camera plan file bytes (face-track only), else null.
 
@@ -2554,3 +2555,82 @@ sha is unchanged.
   accept, so one Urungkan. After a row leaves, focus goes to the next row's Terima, else the status
   line. The review opens from the transcript header (beside Rapikan; one review open at a time) and
   from the Teks caption card; the first opening asks the LLM, never the editor's load (R1).
+
+## 5.36 Pengaturan "Logo bawaan" (2026-10-21)
+
+One logo set in Pengaturan (`/settings`) that the clips of every job created afterwards start
+with (plan 2026-10-20 A6). Each clip keeps it replaceable and removable in the Logo panel.
+
+- **Store** (`web/lib/default-logo.mjs`, server only): `<settings>/default-logo/` (0700, files
+  0600) holds `current.json` `{"schema": "potongin.default-logo/1", "sha256", "updatedAtMs"}`
+  and the pair `<sha>.png` + `<sha>.json`, byte for byte what a job's asset store holds after an
+  upload (§9.2: RGBA PNG ≤ 1024 px, metadata `potongin.asset/1`). A logo reads as set only when
+  the pointer, the metadata (`kind image`, `mime image/png`, `w`/`h` 1…1024) and a regular PNG
+  of `bytes` bytes agree; anything else is no logo. Writes in the web process are serialised
+  (one in-process lock): install, removal and a job's copy never see half of another.
+- **`GET /api/settings/logo`** → `{logo: DTO | null, enabled, autoClips}`. DTO = the asset
+  upload's (`sha256, kind "logo", mime, w, h, durationMs null, lufsC null, name, peaksUrl null`)
+  plus `url` `/api/settings/logo/<sha>` and `updatedAtMs`. `enabled`: `POTONGIN_EDITOR_V3` and
+  `POTONGIN_EDITOR_UPLOADS` both `on`. `autoClips`: `POTONGIN_RENDER_ENGINE=edit-v2`.
+- **`POST /api/settings/logo`**: the transport of `POST /api/jobs/:id/assets` with
+  `X-Asset-Kind: logo` (types, 10 MiB cap, `Content-Length`, `Idempotency-Key`, `X-Asset-Name`,
+  the 64-byte sniff, the upload rate bucket, drain before a refusal). Order: session (401),
+  flags (404 `uploads_disabled`), same origin (403), rate (429), transport (400/411/413/415;
+  `music` is 415). The body goes to `<dir>/.work/<uuid>/analysis/assets/.incoming/<uuid>` and
+  `python -m ai_clipper.edit_v2.assets ingest` runs with `JOBS_ROOT=<dir>/.work` and that scratch
+  job id (the same normaliser, caps, prlimit and child env as a job upload; at most two ingests
+  at once, shared with the editor). Exit 3 keeps its code (`asset_rejected` with its `reason`,
+  415, 413); anything else is 503 `backend_unavailable`. On success the pair moves into `<dir>`,
+  `current.json` is replaced atomically, other pairs go, and the answer is `201` DTO. The scratch
+  job is always removed. A settings directory that cannot be used (inside `JOBS_ROOT`, a
+  symlink) is 503 `settings_unavailable`. No storage reservation: one file of at most 10 MiB
+  outside `JOBS_ROOT`.
+- **`DELETE /api/settings/logo`**: same origin; removes `current.json` and the pairs; `200` with
+  `logo: null`. Jobs created earlier keep their copy.
+- **`GET|HEAD /api/settings/logo/:sha`** (behind the proxy): only the current logo's PNG,
+  `private, max-age=31536000, immutable`, `Content-Security-Policy: default-src 'none';
+  sandbox`, `nosniff`, `ETag`; any other sha, a symlink or a broken pair is 404.
+- **Proxy**: `web/proxy.js` excludes exactly `api/settings/logo/?$` (the streamed body); every
+  method there checks the session itself (`secureRoute`, then the handler). The image route
+  still runs the proxy (`web/tests/proxy-matcher.test.mjs`).
+- **The job's copy**: `POST /api/jobs` calls `snapshotDefaultLogo(jobRoot)` before the job is
+  published: the current pair is copied (O_EXCL, 0600) into `<job>/logo/` (0700). It never fails
+  the job; without a logo nothing is written. `<job>/logo/` sits beside `input/`, `analysis/` and
+  `output/`, so a queue attempt's publication (which replaces `analysis/`) leaves it alone.
+- **Seeding** (`edit_v2.assets.job_logo` / `seed_logo`, `edit_v2.seed`): `job_logo(job_root)`
+  accepts exactly one `<sha>.png` + `<sha>.json` whose PNG hashes to `sha`, is an intact
+  stripped 8-bit RGBA PNG (`strip_png` round-trips) of the metadata's `w`×`h` (≤ 1024), with
+  `schema`, `kind`, `mime` and `bytes` as the ingest writes them; anything else is no logo.
+  `seed_logo(job_root, job_dir)` adopts it into `job_dir`'s store under the store lock (upload
+  quota; a failure means no logo) and gives the seed-context key `logo {sha256, w, h}`.
+  `prepare_legacy_job` resolves it once per run under the prepare lock; `AutoRenderer` resolves it
+  in its constructor from `render_edit.job_dir_for(artifact_root)` (the job, also for a queue
+  attempt) into the attempt's store. `build_seed` places it as track `{"id": "tr_ovr", "kind":
+  "visual", "band": "over_text", "role": "overlay"}` after the hook, item `it_logo`,
+  `{at clip_start}`…`{at clip_end}`, `payload {asset, mode "free"}`, origin `seed`, and the
+  `assets` entry `{kind image, mime image/png, w, h}`. The transform is
+  `seed.default_logo_transform(output, w, h)`, the editor's SetLogo placement (`commands.mjs`
+  `defaultLogo`): `w_e5` 16000 shrunk until the box fits, the top-right preset just outside the
+  TikTok zone, `opacity_pm` 850; a logo no size from 4 % fits is left out (the editor refuses
+  it too). `tests/fixtures/edit_v2/default-logo-vectors.json` holds 24 placements written by
+  SetLogo; Python and JS both check them. The logo changes `base.seed_sha256`, never the clip id.
+- **R10 with a logo** (`doc.auto_file_is_seed`, JS `doc-model.autoFileIsSeed`): the legacy
+  renderer never draws a logo, so a seed with `base.engine.compiler` `legacy` and a visual item
+  is not its auto file. The queue (`render_queue._prepare_v3`) and the worker
+  (`render_edit._is_seed_content`) skip R10 for it without `auto_file_unavailable` and render
+  the export; the preview's `rev0` has `autoRenderUrl: null`; the export dialog does not say
+  "Tanpa perubahan: file klip otomatis dipakai langsung" (`shell-model.exportMatchesSeed`).
+  An edit-v2 seed keeps R10: the auto clip was rendered from the seed, logo included.
+- **Janitor**: `seed.json` now counts as a document, so an asset only a seed names (the default
+  logo of a clip whose user removed it) is never an orphan.
+- **Card** (`web/app/settings/DefaultLogoCard.jsx`, `web/lib/default-logo-view.mjs`, browser
+  upload `upload-client.uploadDefaultLogo`): loaded on its own like "Tentang sistem". States:
+  "Memuat logo bawaan…", "Logo bawaan tidak bisa dimuat." with "Coba lagi", "Belum ada logo"
+  with the accepted types, the logo on the editor's checkerboard with name and `w × h px`,
+  "Pilih logo" / "Ganti logo", "Hapus", upload progress with "Batalkan unggahan", and
+  "Unggah logo belum diaktifkan di server ini." when `enabled` is false (removal still works).
+  The copy says where the logo goes, that existing clips do not change, and, by `autoClips`,
+  either that the automatic clip files carry it or that it is used when a clip opens in the
+  editor (and in its export) while the automatic clip file stays without it. `accept` equals the
+  Logo panel's. No lime: the accent stays on Simpan. The Logo panel names a seeded logo
+  "Logo bawaan".
