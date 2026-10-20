@@ -244,6 +244,13 @@ async function fakeProjectApi(page, jobs) {
 
 const focusLine = (page) => page.locator("p").filter({ hasText: /^Fokus:/ });
 const clipCard = (page, index) => page.getByRole("article", { name: `Judul klip ${index}`, exact: true });
+// The project page shows one clip at a time in its detail panel: a clip's poster opens it there.
+async function clipDetail(page, index) {
+  await clipCard(page, index).getByRole("button").click();
+  const detail = page.locator("[data-clip-detail]");
+  await expect(detail.getByRole("heading", { level: 3 })).toHaveText(`Judul klip ${index}`);
+  return detail;
+}
 
 test.describe("Fokus klip on the project page (faked job API)", () => {
   test.beforeEach(() => skipWithoutCredentials(test));
@@ -253,11 +260,11 @@ test.describe("Fokus klip on the project page (faked job API)", () => {
     await login(page, "/projects");
     await page.goto(`/projects/${FOCUS_JOB_ID}`);
     await expect(focusLine(page)).toHaveText(`Fokus: jomok, ${HOSTILE} · 2 dari 3 klip cocok`);
-    await expect(clipCard(page, 1).locator("[data-focus]")).toHaveText("Menyebut 'jomok' · 12:34");
-    await expect(clipCard(page, 1).locator("[data-focus]")).toHaveAttribute("data-focus", "literal");
-    await expect(clipCard(page, 2).locator("[data-focus]")).toHaveText(`Terkait 'jomok', '${HOSTILE}' (menurut AI)`);
-    await expect(clipCard(page, 3).locator("[data-focus]")).toHaveText("Di luar fokus");
-    await expect(page.locator("main article img")).toHaveCount(0);
+    await expect((await clipDetail(page, 1)).locator("[data-focus]")).toHaveText("Menyebut 'jomok' · 12:34");
+    await expect((await clipDetail(page, 1)).locator("[data-focus]")).toHaveAttribute("data-focus", "literal");
+    await expect((await clipDetail(page, 2)).locator("[data-focus]")).toHaveText(`Terkait 'jomok', '${HOSTILE}' (menurut AI)`);
+    await expect((await clipDetail(page, 3)).locator("[data-focus]")).toHaveText("Di luar fokus");
+    await expect(page.locator("main article img, [data-clip-detail] img")).toHaveCount(0);
     expect(await page.evaluate(() => window.__fx)).toBeUndefined();
     // The explanation sits in the closed notes list, as text: no warning code on the page.
     await page.getByText("Catatan pemilihan (1)").click();
@@ -307,7 +314,7 @@ test.describe("Fokus klip at 390 px", () => {
     await fakeProjectApi(page, { [FOCUS_JOB_ID]: job });
     await login(page, "/projects");
     await page.goto(`/projects/${FOCUS_JOB_ID}`);
-    await expect(clipCard(page, 1).locator("[data-focus]")).toHaveText(`Menyebut '${long}', 'jomok' · 1:02:03`);
+    await expect((await clipDetail(page, 1)).locator("[data-focus]")).toHaveText(`Menyebut '${long}', 'jomok' · 1:02:03`);
     await expect(focusLine(page)).toBeVisible();
     expect(await overflow(page)).toBeLessThanOrEqual(0);
   });

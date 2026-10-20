@@ -21,7 +21,7 @@ Install a matching browser once with `npx playwright install chromium`.
 
 `npm run test:e2e:list` explicitly enables local `E2E_ALLOW_SKIP=1` safety mode and only validates discovery. `npm run test:e2e:safe-skip` proves the no-credential skip path without starting a server. This opt-out is rejected in CI; CI and normal functional runs require both credentials.
 
-Desktop runs all specs. Mobile Chromium runs the smoke and read-only suites: a project deep link through login, every clip card of a project (video, caption, download), advancing playback of the first clip, an old candidate-editor link landing on the project page, and 404 from the retired candidate-editor API routes, its source preview included. All retries are disabled.
+Desktop runs all specs. Mobile Chromium runs the smoke and read-only suites: a project deep link through login, every clip of a project opened from its poster in the detail panel (video, caption, a download saved as `NN-judul`), advancing playback of the first clip, an old candidate-editor link landing on the project page, and 404 from the retired candidate-editor API routes, its source preview included. All retries are disabled.
 
 The candidate editor and its mutation spec were retired on 2026-09-30. `E2E_ALLOW_MUTATION=1` now only gates the live Konteks Tren block below.
 
@@ -64,4 +64,14 @@ Run it against a production build (`npm run build` then `next start`), like the 
 E2E_BASE_URL=http://127.0.0.1:3417 E2E_NO_WEB_SERVER=1 \
 E2E_USERNAME=... E2E_PASSWORD=... \
 npx playwright test --project=desktop-chromium e2e/dashboard.spec.mjs
+```
+
+## Halaman proyek
+
+`e2e/project-workspace.spec.mjs` covers the project page as a workspace: posters that open one detail panel, left/right between clips (the focus follows on the posters, one tab stop), the "Semua" and "Skor 8+" filters, the neutral score pill with its mark for 8 and up, "NN-judul" download links, "Pilih" mode by click and keyboard with "Unduh (n)", "Pilih semua", Escape and "Unduh semua", the size-limit refusal shown on the page, and at 390 px one column with posters two across, the panel under them, 44 px targets and no horizontal scroll. It fakes the job, its clips listing and the ZIP route inside the browser, so it changes no server data; the download tests run in a second tab because a started download and the faked 413 are the point there. With `AXE_CORE_PATH` it also runs axe on the clip section. The real ZIP route is covered by `web/tests/clips-zip.test.mjs` (Python's `zipfile` reads every archive).
+
+```bash
+E2E_BASE_URL=http://127.0.0.1:3417 E2E_NO_WEB_SERVER=1 \
+E2E_USERNAME=... E2E_PASSWORD=... \
+npx playwright test --project=desktop-chromium e2e/project-workspace.spec.mjs
 ```

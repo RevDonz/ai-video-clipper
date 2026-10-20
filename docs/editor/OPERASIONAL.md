@@ -31,7 +31,7 @@ musik dan hasil ekspor yang sudah tersimpan tidak hilang saat flag dimatikan.
 
 | Flag | Fungsi | Bawaan rilis (gerbangnya) | Kalau dimatikan |
 |---|---|---|---|
-| `POTONGIN_EDITOR_V3` | Tombol "Edit klip" dan semua rute editor | `on` | `off`: tombol "Edit klip" dan tautan "Ekspor terakhir" di kartu klip hilang, rute editor menjawab 404; klip otomatis dan unduhannya tetap ada. File ekspor tetap tersimpan di `output/edits/` dan tautannya muncul lagi saat flag dinyalakan |
+| `POTONGIN_EDITOR_V3` | Tombol "Edit klip" dan semua rute editor | `on` | `off`: tombol "Edit klip" dan tautan "Ekspor terakhir" di panel detail klip hilang, rute editor menjawab 404; klip otomatis dan unduhannya tetap ada. File ekspor tetap tersimpan di `output/edits/` dan tautannya muncul lagi saat flag dinyalakan |
 | `POTONGIN_EDITOR_UPLOADS` | Unggah logo dan musik | `on` (QG-SEC lengkap, tinjauan keamanan W4) | `off`: panel Logo dan Musik menulis "Unggah … belum tersedia di server ini"; logo dan musik yang sudah dipakai tetap ikut dirender |
 | `POTONGIN_EDITOR_LLM` | Saran hook yang ditulis AI gratis di Pengaturan | `on` (gerbang keras QG-AI lolos; penilaian 30 klip oleh pemilik menyusul) | `off`: hanya saran instan ("AI seleksi"/"Heuristik") |
 | `POTONGIN_RENDER_ENGINE` | `edit-v2`: klip otomatis dirender dengan kompiler yang sama dengan ekspor editor | `legacy` di rilis ini: keputusan pemilik soal kuota CPU masih menunggu. `edit-v2` masuk anggaran PF-PIPELINE di PC acuan (latar blur 1,03×, potong tengah 1,28×, ikuti wajah 1,12×), tapi dengan kuota `cpus: 6` potong tengah 1,99× dan ikuti wajah 1,82× (lihat di bawah) | `edit-v2`: proyek **baru** dirender dengan kompiler editor; klip yang sudah ada tidak berubah. Ekspor editor selalu memakai kompiler editor |
@@ -88,6 +88,14 @@ otomatis yang lebih lambat, atau pakai `POTONGIN_RENDER_ENGINE=legacy` dulu.
 Pra-centang kata pengisi di Rapikan bukan flag: nilainya `precheck` di
 `resources/lexicon/id-fillers.v1.json` (sekarang `false`). Nilainya diubah ke `true` lewat PR
 setelah pemilik mengonfirmasi label kata pengisi (presisi tetap ≥ 0,9).
+
+**Batas ukuran ZIP.** "Unduh semua" dan "Unduh (n)" di halaman proyek membuat satu ZIP lewat
+`GET /api/jobs/:id/zip` (dibaca `app`). `MAX_ZIP_BYTES` di `.env` membatasi ukurannya dalam byte:
+kosong = 2 GiB, nilai di atas 4 GiB dikurangi 64 KiB dipotong ke batas itu (ZIP klasik tanpa
+ZIP64), nilai yang bukan bilangan bulat positif membuat rute menjawab "Batas ukuran ZIP di server
+(MAX_ZIP_BYTES) tidak valid." ZIP yang lebih besar ditolak dengan ukurannya dan batasnya; klip
+tetap bisa diunduh satu per satu. ZIP berisi file klip otomatis (`output/clip-NN.mp4`), sama
+dengan "Unduh MP4"; hasil ekspor editor tetap diunduh lewat "Ekspor terakhir".
 
 ## 3. Toolchain render yang dikunci
 
