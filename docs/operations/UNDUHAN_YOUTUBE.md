@@ -88,9 +88,10 @@ akses ke akun tersebut.
 - **Pemeriksaan saat diunggah** (`web/lib/youtube-cookies-file.mjs`): BOM UTF-8 dibuang, akhir
   baris CRLF dirapikan, baris `#HttpOnly_` dihitung sebagai cookie (bukan komentar). File harus
   punya header `# Netscape HTTP Cookie File` atau seluruh barisnya tujuh kolom dipisah tab.
-  Perbaikan yang aman: flag subdomain mengikuti titik di depan domain (tanpa ini cookie jar
-  Python menolak seluruh file), expiry desimal dibulatkan ke bawah, dan baris yang tab-nya
-  berubah jadi spasi dibaca sebagai tujuh kolom. Yang disimpan hanya cookie `youtube.com` dan
+  Perbaikan yang aman: titik di depan domain atau flag subdomain `TRUE` menjadikannya cookie
+  domain yang ditulis dengan keduanya (cookie jar Python menolak seluruh file kalau keduanya
+  tidak cocok), expiry desimal dibulatkan ke bawah, dan baris yang tab-nya berubah jadi spasi
+  dibaca sebagai tujuh kolom. Yang disimpan hanya cookie `youtube.com` dan
   `google.com` (termasuk subdomain) yang belum kedaluwarsa; cookie situs lain, cookie
   kedaluwarsa, dan baris rusak dibuang dan jumlahnya dilaporkan. Ukuran file paling besar 1 MB.
 - **Ditolak dengan kode sendiri:** `cookies_json` (ekspor JSON), `cookies_utf16`,

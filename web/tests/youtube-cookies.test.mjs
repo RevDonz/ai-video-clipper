@@ -106,17 +106,23 @@ test("session cookies (expiry 0 or empty) are kept as 0", () => {
   assert.match(result.text, /\t0\tPREF\t/);
 });
 
-test("safe fixes: the subdomain flag follows the leading dot, a decimal expiry is truncated, spaces for tabs", () => {
-  const wrongFlag = line("www.youtube.com", "TRUE", "/", "TRUE", FUTURE, "PREF", "nilai-pref-uji");
+test("safe fixes: a dot or a TRUE flag makes a domain cookie, a decimal expiry is truncated, spaces for tabs", () => {
+  // Python's cookie jar refuses the whole file when the flag and the leading dot disagree; either
+  // one marks a cookie for the subdomains too (www.youtube.com is where yt-dlp asks).
+  const flagOnly = line("youtube.com", "TRUE", "/", "TRUE", FUTURE, "PREF", "nilai-pref-uji");
+  const dotOnly = line(".youtube.com", "FALSE", "/", "TRUE", FUTURE, "VISITOR_INFO1_LIVE", "nilai-tamu-uji");
   const decimal = line(".youtube.com", "true", "/", "true", `${FUTURE}.75`, "YSC", "nilai-ysc-uji");
   const spaced = [".google.com", "TRUE", "/", "TRUE", FUTURE, "SID", "nilai-sid-uji"].join("   ");
-  const result = parse(file(COOKIES_FILE_HEADER, wrongFlag, decimal, spaced));
-  assert.equal(result.count, 3);
+  const hostOnly = line("www.youtube.com", "FALSE", "/", "FALSE", FUTURE, "ST-abc", "nilai-host-uji");
+  const result = parse(file(COOKIES_FILE_HEADER, flagOnly, dotOnly, decimal, spaced, hostOnly));
+  assert.equal(result.count, 5);
   assert.equal(result.text, [
     COOKIES_FILE_HEADER,
-    line("www.youtube.com", "FALSE", "/", "TRUE", FUTURE, "PREF", "nilai-pref-uji"),
+    line(".youtube.com", "TRUE", "/", "TRUE", FUTURE, "PREF", "nilai-pref-uji"),
+    line(".youtube.com", "TRUE", "/", "TRUE", FUTURE, "VISITOR_INFO1_LIVE", "nilai-tamu-uji"),
     line(".youtube.com", "TRUE", "/", "TRUE", FUTURE, "YSC", "nilai-ysc-uji"),
     line(".google.com", "TRUE", "/", "TRUE", FUTURE, "SID", "nilai-sid-uji"),
+    hostOnly,
     "",
   ].join("\n"));
 });

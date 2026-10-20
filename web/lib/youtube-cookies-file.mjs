@@ -3,9 +3,10 @@
 //
 // Accepted: the Netscape format (seven tab-separated fields per cookie), with or without its
 // "# Netscape HTTP Cookie File" header, a UTF-8 BOM, CRLF line ends, and "#HttpOnly_" lines,
-// which are cookies, not comments. Safe fixes: the subdomain flag follows the domain's leading
-// dot (Python's cookie jar refuses the whole file otherwise), a decimal expiry is truncated, and
-// a line whose tabs became spaces is read as seven fields. Kept: cookies of youtube.com and
+// which are cookies, not comments. Safe fixes: a leading dot or a TRUE subdomain flag makes a
+// domain cookie written with both (Python's cookie jar refuses the whole file when they
+// disagree), a decimal expiry is truncated, and a line whose tabs became spaces is read as
+// seven fields. Kept: cookies of youtube.com and
 // google.com (where the login lives) that have not expired. Everything else is dropped and
 // counted. JSON exports, UTF-16 files and binary files are refused with their own code.
 
@@ -87,8 +88,9 @@ function cookieFields(raw) {
   if (!DOMAIN.test(domain) || !FLAG.test(flag) || !COOKIE_PATH.test(cookiePath) || !FLAG.test(secure)) return null;
   if (expires !== "" && !EXPIRES.test(expires)) return null;
   if (!NAME.test(name) || !VALUE.test(value)) return null;
+  const subdomains = domain.startsWith(".") || flag.toUpperCase() === "TRUE";
   return {
-    domain,
+    domain: subdomains && !domain.startsWith(".") ? `.${domain}` : domain,
     path: cookiePath,
     secure: secure.toUpperCase() === "TRUE",
     expires: expires === "" ? 0 : Math.trunc(Number(expires)),
