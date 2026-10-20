@@ -198,7 +198,8 @@ sendiri saat jalan, jadi build ulang selalu memasang versi yang sama.
 `gh workflow run ytdlp-update.yml`). Isinya:
 
 1. Menaikkan yt-dlp di `uv.lock` dengan `uv lock --upgrade-package yt-dlp` (uv 0.11.6, sama
-   dengan CI). Selain yt-dlp, tidak boleh ada yang berubah.
+   dengan CI). Hanya rilis stabil; rilis nightly (`.dev0`) dilewati. Selain yt-dlp, tidak boleh
+   ada yang berubah.
 2. Mengunduh satu video uji pendek berlisensi Creative Commons dengan flag unduhan produksi
    (`scripts/ytdlp/ytdlp_smoke.py`). Smoke ini tetap jalan walau tidak ada versi baru, jadi
    sekaligus mengecek versi yang dipakai produksi.
