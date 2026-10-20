@@ -55,6 +55,18 @@ test("every download code has its own entry, anchored at the code itself", () =>
   }
 });
 
+test("a bot check and an age gate point to the YouTube cookies in Pengaturan", () => {
+  const bot = helpEntry("download_bot_check");
+  assert.equal(bot.action.href, "/settings");
+  assert.match(bot.steps[0], /cookies YouTube di Pengaturan/);
+  assert.ok(bot.steps.some((step) => /akun Google terpisah/.test(step)), "a separate Google account");
+  assert.ok(bot.steps.some((step) => /Unggah file/.test(step)), "uploading the file stays an option");
+  assert.ok(helpEntry("download_age_restricted").steps.some((step) => /cookies YouTube/.test(step)));
+  for (const entry of HELP_ENTRIES) {
+    for (const text of [entry.cause, ...entry.steps]) assert.doesNotMatch(text, /belum mendukung cookies/i, entry.id);
+  }
+});
+
 test("every storage code has an entry, and the editor's lost reservation shares one", () => {
   assert.deepEqual(STORAGE_ERROR_CODES, ["storage_quota_exhausted", "storage_free_space_low", "storage_admission_unavailable"]);
   for (const code of STORAGE_ERROR_CODES) {

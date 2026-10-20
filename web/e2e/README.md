@@ -133,3 +133,15 @@ npx playwright test --project=desktop-chromium e2e/settings-logo.spec.mjs
 ```
 
 In CI: `gh workflow run editor-gates.yml -f ref=<branch> -f suite=e2e -f command=e2e/settings-logo.spec.mjs`.
+
+## Pengaturan: Cookies YouTube
+
+`e2e/settings-youtube-cookies.spec.mjs` covers the "Cookies YouTube" card on Pengaturan (`docs/operations/UNDUHAN_YOUTUBE.md`). It fakes `/api/settings/youtube-cookies` inside the browser, so it changes no server data; only the login is real. It checks the empty state with the separate-account advice, an upload through the hidden file input (the POST carries the file unchanged as `text/plain`) that shows the saved and dropped counts and the upload time, "Hapus" by keyboard, a file over 1 MB refused before anything is sent, the warning for cookies without a login cookie, the card without the sealing secret (upload off), stored cookies that no longer open (re-upload asked, removal still possible), a JSON export refused with its reason, "Coba lagi" after a failed load, and at 390 px 44 px buttons with no horizontal scroll. The real route, the check, the sealed store and the worker's copy are covered by `web/tests/youtube-cookies.test.mjs` and `web/tests/worker-download.test.mjs`.
+
+```bash
+E2E_BASE_URL=http://127.0.0.1:3417 E2E_NO_WEB_SERVER=1 \
+E2E_USERNAME=... E2E_PASSWORD=... \
+npx playwright test --project=desktop-chromium e2e/settings-youtube-cookies.spec.mjs
+```
+
+In CI: `gh workflow run editor-gates.yml -f ref=<branch> -f suite=e2e -f command=e2e/settings-youtube-cookies.spec.mjs`.
