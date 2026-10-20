@@ -46,7 +46,7 @@ test("serving an asset and every other job route still runs the proxy", () => {
     `/api/jobs/${JOB}/assets/${SHA}`, `/api/jobs/${JOB}/assets/${SHA}/`, `/api/jobs/${JOB}/assetsx`,
     `/api/jobs/${JOB}/assets/x/y`, `/api/jobs/${JOB}/x/assets`, `/api/jobs/a/b/assets`, `/api/jobs/${JOB}`,
     `/api/jobs/${JOB}/clips`, `/api/jobs/${JOB}/clips/clip_62654c2c2fa04f125391464a/edit`,
-    `/api/jobs/${JOB}/renders/${JOB}`, `/api/jobs/${JOB}/files/output/clip-01.mp4`, `/api/jobs/${JOB}/zip`, "/api/jobs/assets/x",
+    `/api/jobs/${JOB}/renders/${JOB}`, `/api/jobs/${JOB}/files/output/clip-01.mp4`, `/api/jobs/${JOB}/zip`, `/api/jobs/${JOB}/cancel`, "/api/jobs/assets/x",
     `/projects/${JOB}/assets`, `/api/assets`, `/api/jobs//assets`,
   ]) assert.equal(proxyRuns(pathname), true, pathname);
 });

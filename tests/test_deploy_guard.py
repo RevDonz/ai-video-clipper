@@ -89,7 +89,7 @@ def test_the_guard_follows_the_queue_states():
     assert set(json.loads(allowed.group(1).replace("{", "[").replace("}", "]"))) == quiet
 
 
-@pytest.mark.parametrize("status", ["completed", "failed", "deleting"])
+@pytest.mark.parametrize("status", ["completed", "failed", "deleting", "cancelled"])
 def test_finished_or_deleting_jobs_are_quiet(tmp_path, status):
     _job(tmp_path, status)
     assert _guard(tmp_path) == []
