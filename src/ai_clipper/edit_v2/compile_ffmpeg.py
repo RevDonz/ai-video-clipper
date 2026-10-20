@@ -439,8 +439,22 @@ class _Compiler:
         crop any source frame at the same x. ``suffix`` keeps fit_blur's internal labels unique
         when a job holds several chains (plate runs). With the no-face fallback (§5.40) the
         frames of the camera plan's runs without a face are chosen the same way, per source
-        frame.
+        frame. Manual framing (§5.41) gives either crop layout the camera chain with the crop x
+        of the keyframes, per source frame, and no fallback.
         """
+        source = (self.streams.width, self.streams.height)
+        if self.plan.keyframes:
+            if self.plan.layout not in layouts.CROP_MODES:
+                raise errors.DocSemanticInvalid("range_invalid", path="/layout/keyframes")
+            crop = []
+            for in_sf, out_sf in ranges:
+                crop.extend(layouts.keyframe_positions(
+                    self.plan.keyframes, source=source, output=self.plan.output,
+                    first_sf=in_sf, count=out_sf - in_sf))
+            return layouts.layout_chain(
+                "camera", label_in=label_in, label_out=label_out, suffix=suffix,
+                output=self.plan.output, source=source, matrix=self.matrix,
+                in_range=self.in_range, crop=crop)
         crop = None
         fallback = None
         if self.plan.layout == "camera":

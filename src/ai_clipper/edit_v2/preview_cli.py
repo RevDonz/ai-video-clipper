@@ -21,7 +21,7 @@ the stored revision when the job re-ran and the document is read-only (plan §3.
 Ops (arguments → result):
 
 ``prepare`` ``{jobId, clipId, layout|null}`` → ``{words: "ready", camera: "ready" |
-"not_needed", layout, plateKey, cellFrames, cells: [k], ready: [k]}``. Restores a missing words
+"not_needed", layout, noFace, keyframes, plateKey, cellFrames, cells: [k], ready: [k]}``. Restores a missing words
 artifact (``seed.prepare_legacy_job``), builds the camera plan when the layout (the requested
 one, else the current document's) is face-track and none exists
 (``camera.build_camera_plan``, written immutably as ``camera.<sha16>.json``), and reports the
@@ -30,16 +30,18 @@ plate cells of the current document in that layout. Idempotent.
 ``plan`` ``{jobId, clipId, requestRaw}`` → ``{dto, lane}``: ``dto`` is the plan DTO of plan §4.3
 (``text.ass`` omitted when ``known.assSha256`` is the new sha; cell, audio and logo states
 ``ready`` (with ``url``) or ``queued``), and ``lane`` what Node schedules: ``{playhead, layout,
-plateKey, cellFrames, cells, missing, audio: {key, ready}, logo: {asset, w, h, opacityPm, name,
-ready} | null, frameKey}``. Publishes the ASS as ``preview/ass/<sha16>.ass``. Nothing heavy runs.
+noFace, keyframes, plateKey, cellFrames, cells, missing, audio: {key, ready}, logo: {asset, w, h,
+opacityPm, name, ready} | null, frameKey}``. Publishes the ASS as ``preview/ass/<sha16>.ass``. Nothing heavy runs.
 
-``cells`` ``{jobId, clipId, layout, noFace?, cells: [k] (1–64), cancelToken|null}`` →
-``{plateKey, built, present}``: encodes the missing cells of the seed's plate in ``layout`` in one
-FFmpeg run (the lane's two threads) and publishes ``preview/plates/<key16>-c<k:07d>.mp4``.
+``cells`` ``{jobId, clipId, layout, noFace?, keyframes?, cells: [k] (1–64), cancelToken|null}``
+→ ``{plateKey, built, present}``: encodes the missing cells of the seed's plate in ``layout`` in
+one FFmpeg run (the lane's two threads) and publishes ``preview/plates/<key16>-c<k:07d>.mp4``.
 ``noFace: "fit_blur"`` asks for face-track's latar blur fallback (CONTRACTS §5.40); without it
-the runs without a face are centred, as before. ``plan`` and ``prepare`` name the plate's
-``noFace`` (``"fit_blur"`` or ``null``) next to its ``layout``, and ``prepare`` with a switch to
-face-track reports the document ``SetLayout`` makes (the fallback on).
+the runs without a face are centred, as before. ``keyframes: [[sf, pan_e5, move], …]`` asks for
+manual framing (§5.41): a crop layout and frames inside the clip window, else exit 6. ``plan``
+and ``prepare`` name the plate's ``noFace`` (``"fit_blur"`` or ``null``) and ``keyframes``
+(triples or ``null``) next to its ``layout``, and ``prepare`` with a switch reports the document
+``SetLayout`` makes (face-track: the fallback on; latar blur: no keyframes).
 
 ``audio`` ``{jobId, clipId, requestRaw, cancelToken|null}`` → ``{audioKey, name, built, samples,
 gainCdb, warnings}``: the ``audio_preview`` FLAC of the document (``preview/audio/<key16>.flac``
@@ -144,12 +146,37 @@ def _cells_field(value: object) -> bool:
             and all(_is_int(k, 0, 9_999_999) for k in value))
 
 
+def _keyframes_field(value: object) -> bool:
+    """``[[sf, pan_e5, move], …]``: the lane's form of ``layout.keyframes`` (CONTRACTS §5.41)."""
+    from . import layouts
+
+    if type(value) is not list or not all(type(item) is list and len(item) == 3
+                                          for item in value):
+        return False
+    try:
+        layouts.check_keyframes(_keyframe_objects(value))  # frames ≥ 0, strictly increasing
+    except ValueError:
+        return False
+    return True
+
+
+def _keyframe_objects(triples: Sequence[Sequence]) -> list[dict[str, Any]]:
+    return [{"sf": sf, "pan_e5": pan, "move": move} for sf, pan, move in triples]
+
+
+def _keyframe_triples(doc: Mapping[str, Any]) -> list[list] | None:
+    """The lane's ``keyframes``: the document's as triples, or null without manual framing."""
+    keyframes = doc["layout"].get("keyframes")
+    return [[k["sf"], k["pan_e5"], k["move"]] for k in keyframes] if keyframes else None
+
+
 _CHECKS: dict[str, Callable[[object], bool]] = {
     "jobId": lambda v: isinstance(v, str) and _UUID.fullmatch(v) is not None,
     "clipId": lambda v: isinstance(v, str) and CLIP_ID_PATTERN.fullmatch(v) is not None,
     "layoutOrNull": lambda v: v is None or v in LAYOUTS,
     "layout": lambda v: v in LAYOUTS,
     "noFace": lambda v: v == "fit_blur",
+    "keyframes": _keyframes_field,
     "requestRaw": lambda v: (isinstance(v, str) and len(v) <= (MAX_REQUEST_BYTES * 4) // 3 + 4
                              and _B64.fullmatch(v) is not None),
     "cells": _cells_field,
@@ -173,7 +200,7 @@ _FIELDS: dict[str, dict[str, str]] = {
                "opacityPm": "opacityPm", "cancelToken": "cancelToken"},
 }
 # Fields an op may leave out (absent = the earlier behaviour).
-_OPTIONAL: dict[str, dict[str, str]] = {"cells": {"noFace": "noFace"}}
+_OPTIONAL: dict[str, dict[str, str]] = {"cells": {"noFace": "noFace", "keyframes": "keyframes"}}
 
 
 def _pairs(items: list[tuple[str, Any]]) -> dict:
@@ -509,16 +536,24 @@ def _with_layout(doc: Mapping[str, Any], layout: str, no_face: str | None = None
 
 def _switched(doc: Mapping[str, Any], layout: str) -> dict:
     """``doc`` after ``SetLayout {mode: layout}`` (web/lib/editor/commands.mjs): a switch to
-    face-track from another layout turns the latar blur fallback on (CONTRACTS §5.40)."""
+    face-track from another layout turns the latar blur fallback on (CONTRACTS §5.40), and a
+    switch to latar blur drops the manual framing keyframes (§5.41)."""
     if layout == "camera" and doc["layout"]["default"]["mode"] != "camera":
-        return _with_layout(doc, layout, "fit_blur")
-    return _with_layout(doc, layout)
+        changed = _with_layout(doc, layout, "fit_blur")
+    else:
+        changed = _with_layout(doc, layout)
+    if layout == "fit_blur" and "keyframes" in changed["layout"]:
+        changed["layout"] = {key: value for key, value in changed["layout"].items()
+                             if key != "keyframes"}
+    return changed
 
 
 def _plate_no_face(doc: Mapping[str, Any]) -> str | None:
-    """The lane's ``noFace``: ``"fit_blur"`` for the face-track plate with the fallback."""
+    """The lane's ``noFace``: ``"fit_blur"`` for the face-track plate with the fallback (never
+    with manual framing, which turns it off)."""
     default = doc["layout"]["default"]
-    return "fit_blur" if default["mode"] == "camera" and default["no_face"] == "fit_blur" else None
+    fallback = default["mode"] == "camera" and default["no_face"] == "fit_blur"
+    return "fit_blur" if fallback and not doc["layout"].get("keyframes") else None
 
 
 def _hook_item(doc: Mapping[str, Any]) -> Mapping[str, Any] | None:
@@ -867,6 +902,7 @@ def _plan(ctx: _Context, envelope: Mapping[str, Any]) -> dict[str, Any]:
         "playhead": min(request.playhead, max(plan.total_frames - 1, 0)),
         "layout": doc["layout"]["default"]["mode"],
         "noFace": _plate_no_face(doc),
+        "keyframes": _keyframe_triples(doc),
         "plateKey": key,
         "cellFrames": tm.cell_frames(fps),
         "cells": list(cells),
@@ -913,8 +949,8 @@ def _prepare(ctx: _Context, envelope: Mapping[str, Any]) -> dict[str, Any]:
     cells = plates.cells_for_pieces(tm.pieces(current), fps)
     ready = [k for k in cells if _is_file(ctx.preview / "plates" / plates.cell_name(key, k))]
     return {"words": "ready", "camera": camera_state, "layout": layout,
-            "noFace": _plate_no_face(doc), "plateKey": key, "cellFrames": tm.cell_frames(fps),
-            "cells": list(cells), "ready": ready}
+            "noFace": _plate_no_face(doc), "keyframes": _keyframe_triples(doc), "plateKey": key,
+            "cellFrames": tm.cell_frames(fps), "cells": list(cells), "ready": ready}
 
 
 def _cells(ctx: _Context, envelope: Mapping[str, Any]) -> dict[str, Any]:
@@ -922,11 +958,21 @@ def _cells(ctx: _Context, envelope: Mapping[str, Any]) -> dict[str, Any]:
 
     seed_doc, _etag = store.seed(ctx.clip)
     doc = _with_layout(seed_doc, envelope["layout"], envelope.get("noFace", "center"))
+    fps = tm.Fps.from_json(doc["output"]["fps"])
+    window = doc["base"]["window_ms"]
+    layout = {key: value for key, value in doc["layout"].items() if key != "keyframes"}
+    if "keyframes" in envelope:
+        # manual framing (§5.41): a crop layout, every frame inside the clip window
+        if envelope["layout"] == "fit_blur":
+            raise DocSemanticInvalid("range_invalid", path="/keyframes")
+        if not all(tm.sf_floor(window[0], fps) <= sf < tm.sf_ceil(window[1], fps)
+                   for sf, _pan, _move in envelope["keyframes"]):
+            raise DocSemanticInvalid("outside_window", path="/keyframes")
+        layout["keyframes"] = _keyframe_objects(envelope["keyframes"])
+    doc["layout"] = layout
     camera, camera_sha = plates.camera_for(ctx.clip, doc)
     key = plates.plate_key(doc, camera_sha256=camera_sha, toolchain_sha256=_toolchain())
-    fps = tm.Fps.from_json(doc["output"]["fps"])
     size = tm.cell_frames(fps)
-    window = doc["base"]["window_ms"]
     low = tm.sf_floor(window[0], fps)
     high = min(tm.sf_ceil(window[1], fps), tm.sf_ceil(doc["base"]["source"]["duration_ms"], fps))
     wanted = sorted(set(envelope["cells"]))

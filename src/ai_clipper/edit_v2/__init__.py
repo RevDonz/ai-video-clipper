@@ -44,6 +44,12 @@ WATERMARK_SIZE_RANGE = (500, 2000)
 WATERMARK_OPACITY_RANGE = (200, 1000)
 # TikTok UI zone at 720×1280 (plan §5.9 G5): top, bottom, right; scaled to other sizes.
 UI_ZONE_720 = (93, 280, 93)
+# Manual framing, "Atur bingkai" (optional ``layout.keyframes``, CONTRACTS §5.41): how the crop
+# reaches a keyframe from the one before ("Potong" / "Geser"), at most this many keyframes, and
+# ``pan_e5`` from 0 (crop at the left edge) to PAN_E5_MAX (at the right edge).
+KEYFRAME_MOVES = ("cut", "slide")
+MAX_KEYFRAMES = 100
+PAN_E5_MAX = 100_000
 
 # Plan §3.5 ("overrides at the pack defaults") and §5.4: every pack's default overrides. The
 # seed builder (T1.5) writes these; the pack files resources/caption-packs/<id>/v1.json (T1.2a)
@@ -70,9 +76,12 @@ __all__ = [
     "COMPILER_VERSION",
     "DOC_FPS",
     "HOOK_DESIGN_IDS",
+    "KEYFRAME_MOVES",
+    "MAX_KEYFRAMES",
     "OUTPUT_SIZES",
     "PACK_DEFAULT_OVERRIDES",
     "PACK_IDS",
+    "PAN_E5_MAX",
     "RENDER_SEMANTICS",
     "SCHEMA",
     "SCHEMA_MINOR",

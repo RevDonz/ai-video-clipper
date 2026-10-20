@@ -141,6 +141,17 @@ CLIP = "clip_" + "a" * 24
     + b'", "layout": "camera", "noFace": "center", "cells": [1], "cancelToken": null}',
     b'{"op": "prepare", "jobId": "' + JOB.encode() + b'", "clipId": "' + CLIP.encode()
     + b'", "layout": "camera", "noFace": "fit_blur"}',
+    # manual framing (CONTRACTS §5.41): [sf, pan_e5, move] triples, strictly increasing frames
+    *[b'{"op": "cells", "jobId": "' + JOB.encode() + b'", "clipId": "' + CLIP.encode()
+      + b'", "layout": "fill_center", "keyframes": ' + keyframes
+      + b', "cells": [1], "cancelToken": null}'
+      for keyframes in (b"[]", b"null", b'[[1, 0]]', b'[[1, 0, "fade"]]', b'[[1, -1, "cut"]]',
+                        b'[[1, 100001, "cut"]]', b'[[1.0, 0, "cut"]]', b'[[true, 0, "cut"]]',
+                        b'[[5, 0, "cut"], [5, 1, "cut"]]', b'[[-1, 0, "cut"]]',
+                        b'{"sf": 1}', b'[{"sf": 1, "pan_e5": 0, "move": "cut"}]',
+                        json.dumps([[k, 0, "cut"] for k in range(101)]).encode())],
+    b'{"op": "prepare", "jobId": "' + JOB.encode() + b'", "clipId": "' + CLIP.encode()
+    + b'", "layout": "fill_center", "keyframes": [[1, 0, "cut"]]}',
     b'{"op": "cells", "jobId": "' + JOB.encode() + b'", "clipId": "' + CLIP.encode()
     + b'", "layout": "fit_blur", "cells": ' + json.dumps(list(range(65))).encode()
     + b', "cancelToken": null}',
@@ -291,9 +302,9 @@ def test_the_ass_is_omitted_when_the_client_already_has_it(c30):
 def test_the_lane_section_tells_node_what_to_build(c30):
     result = ok(plan(c30, playhead=150))
     dto, lane = result["dto"], result["lane"]
-    assert set(lane) == {"playhead", "layout", "noFace", "plateKey", "cellFrames", "cells",
-                         "missing", "audio", "logo", "frameKey"}
-    assert lane["playhead"] == 150 and lane["noFace"] is None
+    assert set(lane) == {"playhead", "layout", "noFace", "keyframes", "plateKey", "cellFrames",
+                         "cells", "missing", "audio", "logo", "frameKey"}
+    assert lane["playhead"] == 150 and lane["noFace"] is None and lane["keyframes"] is None
     assert lane["layout"] == "fit_blur" and lane["plateKey"] == dto["plate"]["plateKey"]
     assert lane["cells"] == [cell["k"] for cell in dto["plate"]["cells"]] == lane["missing"]
     assert lane["audio"] == {"key": dto["audio"]["mixSha256"], "ready": False}
@@ -677,6 +688,29 @@ def test_the_blur_fallback_has_its_own_plate_and_notes(c30):
             if w["code"].startswith("no_face")] == [("no_face", note["f"]) for note in notes]
 
 
+def test_manual_framing_tells_the_lane_its_keyframes(c30):
+    """CONTRACTS §5.41: the lane gets the keyframes as ``[sf, pan_e5, move]`` triples for the
+    cells op, and the plate key names them. Keyframes turn face-track's fallback off, so the
+    lane's ``noFace`` is null and no run is listed."""
+    doc = valid("layout_keyframes__c30")
+    result = ok(plan(c30, doc))
+    dto, lane = result["dto"], result["lane"]
+    assert lane["layout"] == "fill_center" and lane["noFace"] is None
+    assert lane["keyframes"] == [[k["sf"], k["pan_e5"], k["move"]]
+                                 for k in doc["layout"]["keyframes"]]
+    assert lane["plateKey"] == dto["plate"]["plateKey"] == plates.plate_key(doc)
+    assert lane["plateKey"] != ok(plan(c30, valid("layout_fill_center__c30")))["lane"]["plateKey"]
+    camera = copy.deepcopy(valid("layout_camera_no_face_blur__c30"))
+    camera["layout"]["keyframes"] = doc["layout"]["keyframes"]
+    body = c30["seed"]["main"]["segments"][-1]
+    start = body["in_sf"] * 1001 // 30 + 2000
+    sha, _path = write_camera(c30["clip"], camera_plan(camera, no_face=[[start, start + 2500]]))
+    framed = ok(plan(c30, camera))
+    assert framed["lane"]["noFace"] is None and framed["lane"]["keyframes"] == lane["keyframes"]
+    assert framed["lane"]["plateKey"] == plates.plate_key(camera, camera_sha256=sha)
+    assert not [w for w in framed["dto"]["warnings"] if w["code"].startswith("no_face")]
+
+
 def test_a_read_only_document_is_planned_with_its_own_words(tmp_path, contexts):
     context = contexts["c30"]
     clip = make_clip(tmp_path, context)
@@ -776,6 +810,46 @@ def test_prepare_and_cells_build_the_plate_of_the_blur_fallback(job):
     centred = ok(op(case, "cells", layout="camera", cells=wanted, cancelToken=None))
     assert centred["plateKey"] == ok(plan(case, with_layout(case["seed"], "camera")))[
         "lane"]["plateKey"] != lane["plateKey"]
+
+
+def test_prepare_and_cells_build_the_plate_of_manual_framing(job):
+    """CONTRACTS §5.41: the cells op builds the plate of the keyframes the lane passes, under the
+    plan's key; ``prepare`` reports the saved document's keyframes, and a switch to latar blur
+    drops them (SetLayout)."""
+    case = job_case(job, 2)
+    seed = case["seed"]
+    fps = tm.Fps.from_json(seed["output"]["fps"])
+    low = tm.sf_floor(seed["base"]["window_ms"][0], fps)
+    high = tm.sf_ceil(seed["base"]["window_ms"][1], fps)
+    body = seed["main"]["segments"][-1]
+    doc = with_layout(seed, "fill_center")
+    doc["layout"]["keyframes"] = [{"sf": body["in_sf"] + 5, "pan_e5": 0, "move": "cut"},
+                                  {"sf": body["in_sf"] + 50, "pan_e5": 100_000, "move": "slide"}]
+    lane = ok(plan(case, doc))["lane"]
+    assert lane["keyframes"] == [[body["in_sf"] + 5, 0, "cut"],
+                                 [body["in_sf"] + 50, 100_000, "slide"]]
+    wanted = lane["cells"][:1]
+    built = ok(op(case, "cells", layout="fill_center", keyframes=lane["keyframes"], cells=wanted,
+                  cancelToken=None))
+    assert built == {"plateKey": lane["plateKey"], "built": wanted, "present": []}
+    plain = ok(op(case, "cells", layout="fill_center", cells=wanted, cancelToken=None))
+    assert plain["plateKey"] != lane["plateKey"] and plain["built"] == wanted
+    for keyframes, layout, code in (([[low - 1, 0, "cut"]], "fill_center", "outside_window"),
+                                    ([[high, 0, "cut"]], "camera", "outside_window"),
+                                    (lane["keyframes"], "fit_blur", "range_invalid")):
+        assert_error(op(case, "cells", layout=layout, keyframes=keyframes, cells=wanted,
+                        cancelToken=None), 6, code)
+    # prepare reads the saved document
+    saved = copy.deepcopy(doc)
+    saved.update(revision=1, parent_sha256=store.seed(case["clip"])[1])
+    store.put(case["clip"], expected_etag=saved["parent_sha256"],
+              idempotency_key="00000000-0000-4000-8000-0000000000f1",
+              raw=json.dumps(saved).encode(), now_ms=saved["audit"]["created_at_ms"] + 1)
+    prepared = ok(op(case, "prepare", layout=None))
+    assert prepared["keyframes"] == lane["keyframes"] and prepared["plateKey"] == lane["plateKey"]
+    blurred = ok(op(case, "prepare", layout="fit_blur"))
+    assert blurred["keyframes"] is None
+    assert blurred["plateKey"] == plates.plate_key(seed)
 
 
 def test_cells_are_published_once_under_their_plate_key(job):

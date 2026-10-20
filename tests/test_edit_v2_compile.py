@@ -1002,6 +1002,80 @@ def test_a_fallback_without_a_run_in_the_clip_is_todays_camera_graph(harness, pr
         one = compile_job(blurred, source=SOURCE, assets_root=ASSETS_ROOT, **kwargs)
         other = compile_job(centred, source=SOURCE, assets_root=ASSETS_ROOT, **kwargs)
         assert one.filter_script == other.filter_script, kwargs
+
+
+# --- manual framing, "Atur bingkai": keyframes (CONTRACTS §5.41) -------------------------------------
+
+
+def with_removals(doc: dict, *spans: tuple[int, int]) -> dict:
+    body = next(segment for segment in doc["main"]["segments"] if segment["role"] == "body")
+    doc["main"]["removals"] = [
+        {"id": f"rm_{k}", "seg": body["id"], "in_sf": body["in_sf"] + start,
+         "out_sf": body["in_sf"] + start + length, "words": [], "reason": "user",
+         "origin": "user"}
+        for k, (start, length) in enumerate(spans)]
+    return doc
+
+
+def crop_expr(job) -> str:
+    """The x expression of the job's one crop chain (final: per output frame; a one-run plate
+    job: per frame from the run's first source frame)."""
+    (expr,) = re.findall(r"crop=\d+:\d+:x='([^']*)'", job.filter_script)
+    return expr
+
+
+@pytest.mark.parametrize("name", ["layout_keyframes__c30", "layout_camera_keyframes__c25"])
+def test_keyframes_set_the_crop_of_every_frame_in_plate_cells_and_final(harness, probe_stub,
+                                                                       name):
+    doc = with_removals(load_doc(name), (40, 7), (95, 30), (171, 2), (400, 25))
+    plan = fixture_plan(name, doc=doc)
+    assert plan.keyframes == tuple(doc["layout"]["keyframes"])
+    probe_stub["streams"] = fake_probe(plan.doc)
+    source = (doc["base"]["source"]["w"], doc["base"]["source"]["h"])
+    final = compile_job(plan, mode="final", source=SOURCE, assets_root=ASSETS_ROOT)
+    size = tm.cell_frames(plan.fps)
+    first = plan.pieces[-1].in_sf // size
+    cells = list(range(first, first + 8))
+    plate = compile_job(plan, mode="plate_cells", cells=cells, source=SOURCE,
+                        assets_root=ASSETS_ROOT)
+    final_expr = crop_expr(final)
+    plate_expr = crop_expr(plate)
+    run_start = int(re.search(r"trim=start_pts=(\d+):end_pts=\d+,setpts=PTS-STARTPTS\[pt0\]",
+                              plate.filter_script).group(1))
+    table = layouts.keyframe_positions(doc["layout"]["keyframes"], source=source,
+                                       output=(720, 1280), first_sf=0,
+                                       count=max(p.out_sf for p in plan.pieces))
+    checked = 0
+    for n in range(plan.total_frames):
+        sf = tm.out_to_src(n, plan.pieces)[1]
+        assert evaluate(final_expr, n) == table[sf], n
+        if run_start <= sf < (first + 8) * size:
+            assert evaluate(plate_expr, sf - run_start) == table[sf], n
+            checked += 1
+    assert checked > 100 and len({table[p.in_sf:p.out_sf] for p in plan.pieces}) > 1
+    # manual framing replaces face-track's crop and its latar blur fallback: no blur, no face
+    assert "gblur" not in final.filter_script and "lutyuv" not in final.filter_script
+    assert not {"no_face", "no_face_blur"} & {issue.code for issue in plan.warnings}
+
+
+def test_a_document_without_keyframes_keeps_its_graph(harness, probe_stub):
+    """The keyframes are the only change: removing them gives the layout's own graph back."""
+    framed = load_doc("layout_keyframes__c30")
+    plain = copy.deepcopy(framed)
+    del plain["layout"]["keyframes"]
+    plain_plan = fixture_plan("layout_keyframes__c30", doc=plain)
+    probe_stub["streams"] = fake_probe(plain)
+    plain_job = compile_job(plain_plan, mode="final", source=SOURCE, assets_root=ASSETS_ROOT)
+    same = compile_job(fixture_plan("layout_fill_center__c30"), mode="final", source=SOURCE,
+                       assets_root=ASSETS_ROOT)
+    assert plain_job.filter_script == same.filter_script
+    assert "crop=720:1280," in plain_job.filter_script  # Potong tengah's centred crop
+    framed_job = compile_job(fixture_plan("layout_keyframes__c30", doc=framed), mode="final",
+                             source=SOURCE, assets_root=ASSETS_ROOT)
+    assert framed_job.filter_script != plain_job.filter_script
+    # the only difference is the crop's x expression and y
+    assert re.sub(r":x='[^']*':y=\(ih-oh\)/2", "", framed_job.filter_script) == (
+        plain_job.filter_script)
 # --- modes ------------------------------------------------------------------------------------------
 
 
@@ -1378,6 +1452,46 @@ def test_camera_crop_decoded_from_the_ruler_matches_the_plan(harness, tmp_path, 
         sf = tm.out_to_src(n, plan.pieces)[1]
         assert crop_x(ref_planes[n]) == table[sf], n
         assert crop_x(cell_planes[sf // 60][sf % 60]) == table[sf], n
+
+
+def test_manual_crop_decoded_from_the_ruler_matches_the_keyframes(harness, tmp_path,
+                                                                  edit_v2_ffmpeg):
+    """Manual framing (CONTRACTS §5.41): the crop x the gizmo shows is the x of every plate and
+    reference frame (the final's graph, lossless; P-PLATE's crop part, on PR)."""
+    clip = synthetic_clip(tmp_path, frames=330, layout="fill_center", cold_open=(240, 270),
+                          body=(40, 200), removals=((90, 96), (130, 131)))
+    clip.doc["layout"]["keyframes"] = [
+        {"sf": 60, "pan_e5": 0, "move": "cut"},
+        {"sf": 100, "pan_e5": 100_000, "move": "cut"},
+        {"sf": 150, "pan_e5": 30_000, "move": "slide"},
+        {"sf": 250, "pan_e5": 70_000, "move": "slide"}]
+    plan = build_plan(clip.doc, words=clip.words, camera=None, assets={},
+                      resources=Resources(RESOURCES_DIR))
+    reference = compile_job(plan, mode="reference", source=clip.source, assets_root=tmp_path)
+    run_to_file(reference, tmp_path / "reference.mkv")
+    cells = sorted({sf // 60 for p in plan.pieces for sf in range(p.in_sf, p.out_sf)})
+    plate = compile_job(plan, mode="plate_cells", cells=cells, source=clip.source,
+                        assets_root=tmp_path)
+    run_cells(plate, tmp_path / "cells")
+    pattern = media.Pattern.for_size(640, 360)
+    scaled = layouts.scaled_size((640, 360), (720, 1280))[0]
+
+    def crop_x(plane):
+        return media.decode_crop_x(plane, 720, 1280, pattern, scale=scaled / 640)
+
+    table = layouts.keyframe_positions(clip.doc["layout"]["keyframes"], source=(640, 360),
+                                       output=(720, 1280), first_sf=0, count=330)
+    final_planes = list(HARNESS.iter_gray_frames(tmp_path / "reference.mkv", (720, 1280)))
+    assert len(final_planes) == plan.total_frames
+    cell_planes = {k: list(HARNESS.iter_gray_frames(tmp_path / "cells" / f"c{k:07d}.mp4",
+                                                    (720, 1280))) for k in cells}
+    shown = set()
+    for n in range(plan.total_frames):
+        sf = tm.out_to_src(n, plan.pieces)[1]
+        assert crop_x(final_planes[n]) == table[sf], n
+        assert crop_x(cell_planes[sf // 60][sf % 60]) == table[sf], n
+        shown.add(table[sf])
+    assert {0, layouts.pan_limit((640, 360), (720, 1280))} <= shown and len(shown) > 20
 
 
 def test_no_implicit_video_conversions(harness, tmp_path, monkeypatch, edit_v2_libass):
