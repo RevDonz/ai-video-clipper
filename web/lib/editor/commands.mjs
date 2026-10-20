@@ -15,7 +15,7 @@
 //   when a word is visible there, else the cold open.
 // - SetCaptionPack switches `case` to the new pack's default when the current case is the old
 //   pack's default (Bold and Sorot are upper-case by default, plan §5.4); a user's own case is kept.
-// - "Kata per baris" is `SetCaptionOverride {key: "words_max"}` (CONTRACTS §5.28): the key is
+// - "Kata per baris" is `SetCaptionOverride {key: "words_max"}` (CONTRACTS §5.30): the key is
 //   present only while it differs from the pack's own count, so picking that count drops it (a
 //   manual revert equals the seed, R10) and SetCaptionPack drops it when the new pack has it.
 // - SetHookText / SetHookEnabled restore the seed item's origin when the text equals the seed's

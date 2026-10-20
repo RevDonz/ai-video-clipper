@@ -560,7 +560,7 @@ RULES = [
     ("c30", lambda d: d["captions"]["pack"].update(v=0), "pack_unknown", "/captions/pack"),
     ("c30", lambda d: d["captions"]["overrides"].update(case="sentence"), "op_disabled",
      "/captions/overrides/case"),
-    # "Kata per baris": optional, 1–4; absent is the pack's own count (CONTRACTS §5.28)
+    # "Kata per baris": optional, 1–4; absent is the pack's own count (CONTRACTS §5.30)
     ("c30", lambda d: d["captions"]["overrides"].update(words_max=1), None, None),
     ("c30", lambda d: d["captions"]["overrides"].update(words_max=4), None, None),
     ("c30", lambda d: d["captions"]["overrides"].update(words_max=0), "range_invalid",

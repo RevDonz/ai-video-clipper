@@ -1043,7 +1043,7 @@ def build_ass_v2(
     Emphasised words get the ``emphasis`` colour (defect #6); all text goes through
     ``ass_escape``. A ``box_style: vector`` pack draws each box as a ``\\p`` rectangle event
     right before its line (plan §5.4, the fallback if BorderStyle 3 fails P-TXT); a
-    ``word_box`` pack draws a rounded ``\\p`` box behind the spoken word (CONTRACTS §5.28).
+    ``word_box`` pack draws a rounded ``\\p`` box behind the spoken word (CONTRACTS §5.30).
     """
     if (not isinstance(play_res, (tuple, list)) or len(play_res) != 2
             or not all(_is_int(value) and value > 0 for value in play_res)):

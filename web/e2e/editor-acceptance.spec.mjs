@@ -756,7 +756,7 @@ test("Kemampuan 5, caption + 5 gaya: each pack, position, size, words per line, 
   }
   expect(new Set(Object.values(shas)).size, "five packs, five distinct ASS").toBe(5);
   const text = panelOf(page, "text");
-  // Kata per baris: the engine regroups the lines at once (CONTRACTS §5.28); Sorot's own count is 3.
+  // Kata per baris: the engine regroups the lines at once (CONTRACTS §5.30); Sorot's own count is 3.
   const words = text.getByRole("group", { name: "Kata per baris" });
   await expect(words.getByRole("radio", { name: "3" })).toBeChecked();
   await words.getByRole("radio", { name: "1" }).check();

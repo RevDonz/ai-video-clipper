@@ -2,7 +2,7 @@
 
 // The text panel (plan §11.2 T2.7, §3.3, §5.4; T3.4 §7.1): captions on/off, the packs
 // (thumbnails rendered by FFmpeg from the pack files, pack-thumbs/), position, size, words per line
-// (CONTRACTS §5.28), uppercase, and the highlight and keyword swatches; the hook on/off, its text
+// (CONTRACTS §5.30), uppercase, and the highlight and keyword swatches; the hook on/off, its text
 // with a counter and the fit badge from the server's layout ("Muat" / "Akan terpotong"), the hook
 // suggestions under the text field, duration and position. Every change is one Appendix B command; sliders and typing merge into
 // one undo step through their merge keys. The caption and hook rules (commands, notes, the hint

@@ -14,7 +14,7 @@ export const SWATCHES = Object.freeze(["#FFE14D", "#FFFFFF", "#3DF5A6", "#52C7FF
 export const PACK_DEFAULT_CASE = Object.freeze({ classic: "asis", karaoke: "asis", bold: "upper", box: "asis", sorot: "upper" });
 /** Each pack file's `words_per_cue`: the line length while `overrides.words_max` is absent. */
 export const PACK_WORDS_PER_LINE = Object.freeze({ classic: 4, karaoke: 4, bold: 3, box: 3, sorot: 3 });
-/** "Kata per baris" (`overrides.words_max`, optional; CONTRACTS §5.28). */
+/** "Kata per baris" (`overrides.words_max`, optional; CONTRACTS §5.30). */
 export const WORDS_MAX_RANGE = Object.freeze([1, 4]);
 export const LAYOUT_MODES = Object.freeze(["fit_blur", "camera", "fill_center"]);
 /** Cold-open join styles (docs/plans/2026-10-02-transisi-cold-open.md §1.1); `xfade` stays op_disabled. */

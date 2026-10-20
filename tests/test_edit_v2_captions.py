@@ -266,7 +266,7 @@ def test_caption_track_is_build_frame_cues_plus_build_ass_v2():
                                       overrides=overrides, hook=hook)
 
 
-# --- "Kata per baris" (words_max) and the existing packs (CONTRACTS §5.28) ----------------------
+# --- "Kata per baris" (words_max) and the existing packs (CONTRACTS §5.30) ----------------------
 
 
 @pytest.mark.parametrize("words_max", [1, 2, 3, 4])

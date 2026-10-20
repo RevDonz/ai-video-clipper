@@ -101,7 +101,7 @@ def _hook(doc: Mapping[str, Any], total: int) -> tuple[HookSpec, str, str] | Non
 def caption_track(doc: Mapping, words: Mapping, pieces: Sequence[Piece]) -> CaptionResult:
     """Cues (at most ``words_max`` words, else the pack's count; 600 ms output-time gaps; never
     across the cold-open join), hook lines and the ASS document of ``doc`` over ``pieces``
-    (plan §3.4 word visibility, §5.4; CONTRACTS §5.28)."""
+    (plan §3.4 word visibility, §5.4; CONTRACTS §5.30)."""
     pieces = tuple(pieces)
     output = doc["output"]
     play_res = (output["w"], output["h"])

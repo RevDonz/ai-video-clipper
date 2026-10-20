@@ -23,7 +23,7 @@ export const CAPTION_PACKS = freeze([
 /** The packs that light the spoken word in the highlight colour (Sorot: the box behind it). */
 export const HIGHLIGHT_PACKS = Object.freeze(["karaoke", "bold", "sorot"]);
 
-/** "Kata per baris" (`words_max`, CONTRACTS §5.28): at most this many words on a caption line. */
+/** "Kata per baris" (`words_max`, CONTRACTS §5.30): at most this many words on a caption line. */
 export const CAPTION_WORDS = freeze([1, 2, 3, 4].map((value) => ({ id: String(value), label: String(value), value })));
 
 /** Mode Cepat's "Ukuran" (`size_pm`): Sedang is the seed size. */

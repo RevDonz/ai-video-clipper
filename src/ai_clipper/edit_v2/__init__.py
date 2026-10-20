@@ -22,7 +22,7 @@ DOC_FPS = ((24, 1), (25, 1), (30, 1), (24000, 1001), (30000, 1001))
 OUTPUT_SIZES = ((720, 1280), (1080, 1920))
 
 # Plan §3.3: caption packs and the colour swatches of ``highlight`` and ``emphasis``. ``sorot``
-# (a box behind the spoken word) came with "Kata per baris" (CONTRACTS §5.28).
+# (a box behind the spoken word) came with "Kata per baris" (CONTRACTS §5.30).
 PACK_IDS = ("classic", "karaoke", "bold", "box", "sorot")
 SWATCHES = ("#FFE14D", "#FFFFFF", "#3DF5A6", "#52C7FF", "#FF5C8A", "#FF9F1C")
 # The optional override ``words_max`` ("Kata per baris"): absent means the pack's words_per_cue.
