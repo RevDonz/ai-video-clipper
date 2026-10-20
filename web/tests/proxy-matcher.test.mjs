@@ -57,7 +57,7 @@ test("every other protected path still runs the proxy", () => {
     "/api/jobsx", "/api/settings/llm", "/api/llm/status", "/api/storage/status",
     "/trends", "/api/ingest", "/api/ingest/", "/api/ingest/trendsx", "/api/ingest/trends/abc", "/api/ingest/other",
     "/api/context/trends", "/api/context/trends/abc", "/api/context/trends/settings", "/api/context/tokens",
-    "/api/context/tokens/abc", "/api/ingest/trends.json",
+    "/api/context/tokens/abc", "/api/ingest/trends.json", "/bantuan", "/bantuan/",
   ]) assert.equal(proxyRuns(pathname), true, pathname);
   for (const pathname of ["/api/health", "/api/auth/login", "/login"]) assert.equal(proxyRuns(pathname), false, pathname);
 });

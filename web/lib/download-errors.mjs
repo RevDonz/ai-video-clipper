@@ -1,6 +1,6 @@
 // yt-dlp failures as fixed codes, each with one Indonesian reason and one suggestion.
 // Client-safe: the worker classifies, the dashboard and the project page show the text.
-// The codes are stable: a help page will link to them as /bantuan#<code>.
+// The codes are stable: the help page (help-catalog.mjs) links to them as /bantuan#<code>.
 
 const UPLOAD_INSTEAD = "Unggah file videonya langsung.";
 
@@ -38,6 +38,7 @@ export class DownloadError extends Error {
 
 // First match wins, so the narrower reasons come before "unavailable": a geo block also starts
 // with "Video unavailable", and YouTube's rate limit says "isn't available, try again later".
+// The help page's search (help-catalog.mjs) reads the same patterns.
 const PATTERNS = [
   ["download_private", /\bprivate video\b|\bvideo is private\b/i],
   ["download_age_restricted", /confirm your age|age[- ]restricted|inappropriate for some users/i],
@@ -47,6 +48,9 @@ const PATTERNS = [
   ["download_unavailable", /video unavailable|video is unavailable|no longer available|has been removed|been terminated|does not exist|incomplete youtube id|unsupported url/i],
   ["download_ytdlp_outdated", /requested format is not available|no video formats found|unable to extract|please report this issue|signature extraction failed|nsig extraction failed|challenge solving failed|HTTP Error 403/i],
 ];
+
+/** `[code, pattern]` pairs in the order the classifier tries them. */
+export const DOWNLOAD_ERROR_PATTERNS = Object.freeze(PATTERNS.map((pair) => Object.freeze([...pair])));
 
 // Colour codes and other control characters; a carriage return only moves the cursor.
 const CONTROL = /\u001b\[[0-9;?]*[A-Za-z]|[\u0000-\u0008\u000b-\u001f\u007f]/g;

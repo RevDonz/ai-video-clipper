@@ -6,6 +6,7 @@ import AppHeader from "../../../components/AppHeader.jsx";
 import TrendChips from "../../../components/trends/TrendChips.jsx";
 import { clipDownloads, formatSize } from "../../../lib/clip-download.mjs";
 import { clipEntryFor, loadClipEntries } from "../../../lib/clip-entry-view.mjs";
+import { jobHelpHref } from "../../../lib/help-catalog.mjs";
 import {
   clipLabel,
   failureDetail,
@@ -63,7 +64,12 @@ function Notice({ notice }) {
     <div className={`notice ${notice.tone}`}>
       {notice.title && <strong>{notice.title}</strong>}
       <span>{notice.text}</span>
-      {notice.href && <a className={styles.noticeLink} href={notice.href}>{notice.action}</a>}
+      {(notice.href || notice.help) && (
+        <span className={styles.noticeLinks}>
+          {notice.help && <a className={styles.noticeLink} href={notice.help}>Cara memperbaiki</a>}
+          {notice.href && <a className={styles.noticeLink} href={notice.href}>{notice.action}</a>}
+        </span>
+      )}
     </div>
   );
 }
@@ -473,6 +479,7 @@ function ProjectView({ job, copyState, onCopy, entries }) {
   const notes = selectionNotes(job);
   const serverError = failureDetail(job);
   const hint = failureHint(job);
+  const help = jobHelpHref(job);
   const clipCount = Array.isArray(job.clips) ? job.clips.length : 0;
 
   return (
@@ -507,7 +514,10 @@ function ProjectView({ job, copyState, onCopy, entries }) {
           <span>{projectStageText(job)}</span>
           {hint && <span>{hint}</span>}
           {serverError && <span className={styles.errorDetail}>Pesan dari server: {serverError}</span>}
-          <a className={styles.noticeLink} href="/dashboard">Buat ulang di Buat Klip</a>
+          <span className={styles.noticeLinks}>
+            {help && <a className={styles.noticeLink} href={help}>Cara memperbaiki</a>}
+            <a className={styles.noticeLink} href="/dashboard">Buat ulang di Buat Klip</a>
+          </span>
         </div>
       )}
 

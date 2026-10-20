@@ -116,6 +116,32 @@ _SECRET_PATTERNS = (
 
 # --- errors -----------------------------------------------------------------------------------
 
+# Every code an LLMError can carry, besides "http_<status>" for other HTTP failures. The help
+# page (/bantuan) has an entry for each one; tests/test_llm_error_codes.py checks this list
+# against the raise sites and web/tests/help-catalog.test.mjs checks the entries.
+ERROR_CODES = (
+    "auth",
+    "payment_required",
+    "quota_exhausted",
+    "rate_limited",
+    "model_not_found",
+    "context_length",
+    "too_large",
+    "context_too_small",
+    "timeout",
+    "network",
+    "bad_json",
+    "bad_response",
+    "truncated",
+    "content_filter",
+    "no_moments",
+    "missing_api_key",
+    "not_free",
+    "config_invalid",
+    "unknown_provider",
+    "not_configured",
+)
+
 
 class LLMError(Exception):
     """A sanitized LLM failure; its message is safe to show to users and store in artifacts."""

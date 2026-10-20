@@ -1,6 +1,7 @@
 // Presentation helpers for Selection V3 clips and summaries. Client-safe: no
 // Node built-ins, so both the dashboard and the project page can import it.
 
+import { llmWarningHelpHref } from "./help-catalog.mjs";
 import { TREND_KIND_LABELS, TREND_LIMITS, cleanLine } from "./trend-view.mjs";
 
 export const ARCHETYPE_LABELS = Object.freeze({
@@ -441,8 +442,9 @@ export function coldOpenLength(clip) {
 }
 
 /**
- * What the owner can act on after a run, as `[{ tone, title?, text, href?, action? }]`: the AI
- * failed (fix the key or quota), the job ran without AI, or a warning with a fix (the other
+ * What the owner can act on after a run, as `[{ tone, title?, text, href?, action?, help? }]`:
+ * the AI failed (fix the key or quota; `help` is the /bantuan entry of the recorded reason, or
+ * null), the job ran without AI, or a warning with a fix (the other
  * explained warnings are selectionNotes). A clean run has none. Provider, model, prompt version
  * and transcript source are provenance: they stay in the job's artifact and log. A failed job is
  * explained by its own error, not here.
@@ -458,6 +460,7 @@ export function selectionNotices(job) {
       text: "Momen dipilih tanpa AI, jadi judul dan hook bisa kurang tajam. Cek API key atau kuota di Pengaturan.",
       href: "/settings",
       action: "Buka Pengaturan",
+      help: llmWarningHelpHref(summary.warnings),
     });
   } else if (summary.status === "completed" && summary.source === "heuristic" && job?.options?.llmMode !== "off") {
     notices.push({

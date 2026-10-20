@@ -5,6 +5,7 @@ import test from "node:test";
 
 import {
   DOWNLOAD_ERROR_CODES,
+  DOWNLOAD_ERROR_PATTERNS,
   DownloadError,
   classifyDownloadError,
   downloadErrorMessage,
@@ -60,6 +61,23 @@ test("each ERROR line maps to its fixed code", () => {
     for (const line of lines) {
       assert.equal(classifyDownloadError(`[youtube] Extracting URL\n${line}\n`).code, code, line);
     }
+  }
+});
+
+test("the help page reads the same patterns, in the order the classifier tries them", () => {
+  assert.deepEqual(DOWNLOAD_ERROR_PATTERNS.map(([code]) => code), [
+    "download_private",
+    "download_age_restricted",
+    "download_members_only",
+    "download_geo_blocked",
+    "download_bot_check",
+    "download_unavailable",
+    "download_ytdlp_outdated",
+  ]);
+  assert.ok(Object.isFrozen(DOWNLOAD_ERROR_PATTERNS) && DOWNLOAD_ERROR_PATTERNS.every(Object.isFrozen));
+  for (const [code, lines] of Object.entries(SAMPLES)) {
+    const [, pattern] = DOWNLOAD_ERROR_PATTERNS.find(([name]) => name === code);
+    for (const line of lines) assert.match(line, pattern, line);
   }
 });
 

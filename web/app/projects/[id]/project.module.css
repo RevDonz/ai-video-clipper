@@ -149,6 +149,12 @@
   line-height: 1.55;
 }
 
+/* A notice's links on one line: its help entry first (what to change), then where to change it. */
+.noticeLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 20px;
+}
 .noticeLink {
   justify-self: start;
   display: inline-flex;

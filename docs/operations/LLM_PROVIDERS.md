@@ -30,7 +30,8 @@ mengedit `.env` dan tanpa restart container. Job berikutnya langsung memakai pen
   timeout, batas permintaan/menit, percobaan ulang, temperature, mode JSON).
 - **Tes koneksi**: menjalankan `python -m ai_clipper.llm --check --json` untuk satu penyedia
   saja memakai pengaturan tersimpan, lalu menampilkan model yang menjawab dan waktunya (atau
-  kode error seperti `auth`, `model_not_found`, `timeout`).
+  kode error seperti `auth`, `model_not_found`, `timeout`). Hasil yang gagal menautkan ke
+  entrinya di halaman bantuan (`/bantuan#llm_<kode>`, lihat [`BANTUAN.md`](BANTUAN.md)).
 
 > **Reasoning effort `none`** mematikan fase "berpikir" model reasoning. Untuk Hermes
 > (server `custom` milik sendiri) ini membuat jawaban ±0,4 detik, bukan ±20 detik, dan jawaban
