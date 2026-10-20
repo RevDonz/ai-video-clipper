@@ -377,13 +377,52 @@ def test_sorot_seed_document_compiles_one_box_per_spoken_word():
     assert {fields[3] for fields in events} == {"Sorot", "Hook"}
 
 
+# --- "Animasi masuk" (entrance) on a document (CONTRACTS §5.34) -------------------------------
+
+
+@pytest.mark.parametrize("pack", ["classic", "karaoke", "bold", "box", "sorot"])
+def test_no_entrance_and_an_explicit_none_compile_to_the_same_track(pack):
+    # Automatic clips stay as they were: their seeds carry no entrance, and "none" written out
+    # compiles to the same cues, ASS and warnings.
+    doc = _doc("seed__c30")
+    doc["captions"]["pack"]["id"] = pack
+    assert "entrance" not in doc["captions"]["overrides"]
+    explicit = copy.deepcopy(doc)
+    explicit["captions"]["overrides"]["entrance"] = "none"
+
+    assert _track(explicit, "c30") == _track(doc, "c30")
+
+
+@pytest.mark.parametrize(("name", "opening"), [
+    ("entrance_fade__c30", "{\\fad("),
+    ("entrance_pop__c30", "{\\fscx70\\fscy70\\t(0,"),
+    ("entrance_blur__c30", "{\\fad("),
+])
+def test_an_entrance_opens_every_line_and_moves_no_cue(name, opening):
+    doc = _doc(name)
+    plain = copy.deepcopy(doc)
+    del plain["captions"]["overrides"]["entrance"]
+
+    result, reference = _track(doc, "c30"), _track(plain, "c30")
+
+    assert result.cues == reference.cues and result.warnings == reference.warnings
+    events, before = _dialogues(result.ass), _dialogues(reference.ass)
+    assert [fields[:9] for fields in events] == [fields[:9] for fields in before]
+    starts = {max(0, safe_cs(cue.f0, Fps(30000, 1001))) for cue in result.cues}
+    captions = [fields for fields in events if fields[3] != "Hook"]
+    opened = [fields for fields in captions if _cs(fields[1]) in starts]
+    assert opened and all(fields[9].startswith(opening) for fields in opened)
+    assert all(not fields[9].startswith(opening) for fields in captions if fields not in opened)
+
+
 # --- gate: ASS goldens (5 packs + every hook design) ----------------------------------------
 
 
 def test_ass_goldens_cover_every_pack_and_the_hook():
     names = {name for name, _file, _context in edit_v2_text.GOLDEN_CASES}
     assert {"classic__c30", "karaoke__c30", "bold__c30", "box__c30", "sorot__c30", "hook__c30",
-            "words_max_1__c30", "hook_kicker__c30", "hook_blok__c30", "hook_kotak__c30"} <= names
+            "words_max_1__c30", "hook_kicker__c30", "hook_blok__c30", "hook_kotak__c30",
+            "entrance_fade__c30", "entrance_pop__c30", "entrance_blur__c30"} <= names
     styles = set()
     for name in names:
         text = (edit_v2_text.GOLDEN_DIR / f"{name}.ass").read_text(encoding="utf-8")

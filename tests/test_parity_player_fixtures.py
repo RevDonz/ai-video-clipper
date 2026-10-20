@@ -28,7 +28,7 @@ from ai_clipper.edit_v2.plan import Resources, build_plan
 
 
 def _plan(*, hook: bool = True, cuts: int = 20, layout: str = "fit_blur", pack: str | None = None,
-          logo: bool = False, hook_variant: str | None = None):
+          logo: bool = False, hook_variant: str | None = None, entrance_variant: str | None = None):
     case = fi.Case("unit", (30000, 1001), 900, layout, hook=hook, cuts=cuts)
     info = fi.SourceInfo(640, 360, (30000, 1001), False, 30030, True)
     edges = fi.case_edges(case)
@@ -45,6 +45,8 @@ def _plan(*, hook: bool = True, cuts: int = 20, layout: str = "fit_blur", pack: 
         pf.set_pack(doc, pack)
     if hook_variant is not None:
         pf.set_hook_design(doc, *pf.HOOK_VARIANTS[hook_variant])
+    if entrance_variant is not None:
+        pf.set_entrance(doc, *pf.ENTRANCE_VARIANTS[entrance_variant])
     words = fi.make_words(30030)
     camera = fi.make_camera(30030, case.fps, (640, 360), (720, 1280)) if layout == "camera" else None
     return build_plan(doc, words=words, camera=camera, assets=assets,
@@ -181,6 +183,28 @@ def test_the_hook_variants_draw_every_design_next_to_the_bar():
         assert " ".join(dto["hook"]["lines"]) == text
         assert pf.probe_frames(plan, count=8)
     assert _plan(hook_variant="hook-kicker").captions.hook_lines[0] == "Ternyata:"
+
+
+def test_the_entrance_variants_are_probed_while_their_lines_open():
+    # "Animasi masuk" (CONTRACTS §5.34): each entrance on a pack with another event shape, and
+    # the browser composite taken while the first lines are still opening.
+    from ai_clipper.edit_v2 import CAPTION_ENTRANCES
+
+    assert {entrance for _pack, entrance in pf.ENTRANCE_VARIANTS.values()} == set(
+        CAPTION_ENTRANCES[1:])
+    plain = _plan()
+    for name, (pack, entrance) in pf.ENTRANCE_VARIANTS.items():
+        plan = _plan(entrance_variant=name)
+        assert plan.doc["captions"]["pack"]["id"] == pack
+        assert plan.doc["captions"]["overrides"]["entrance"] == entrance
+        assert plan.plan_sha256 != plain.plan_sha256
+        frames = pf.probe_frames(plan, count=8)
+        assert len(frames) == 8 and frames == sorted(set(frames))
+        fps = tm.Fps(30000, 1001)
+        for cue in plan.captions.cues[:2]:
+            opening = [n for n in frames if 0 < tm.now_ms(n, fps) - tm.safe_cs(cue.f0, fps) * 10
+                       < 120]
+            assert len(opening) >= 2, (name, cue.f0, frames)
 
 
 def _image(width, height, rgb):

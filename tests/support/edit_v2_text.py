@@ -679,6 +679,9 @@ GOLDEN_CASES = (
     ("box__c30", "valid/pack_box__c30.json", "c30"),
     ("sorot__c30", "valid/pack_sorot__c30.json", "c30"),
     ("words_max_1__c30", "valid/words_max_1__c30.json", "c30"),
+    ("entrance_fade__c30", "valid/entrance_fade__c30.json", "c30"),
+    ("entrance_pop__c30", "valid/entrance_pop__c30.json", "c30"),
+    ("entrance_blur__c30", "valid/entrance_blur__c30.json", "c30"),
     ("hook__c30", "valid/captions_disabled__c30.json", "c30"),
     ("hook_kicker__c30", "valid/hook_design_kicker__c30.json", "c30"),
     ("hook_blok__c30", "valid/hook_design_blok__c30.json", "c30"),
@@ -724,8 +727,11 @@ def golden_evidence() -> dict[str, Any]:
         fps = Fps.from_json(doc["output"]["fps"])
         size = (doc["output"]["w"], doc["output"]["h"])
         # Frames inside events: the first and a middle cue, and the hook past its fade-in
-        # start (its first frame is transparent by design, \fad at now == Start).
-        probe = {cue.f0 for cue in result.cues[:1] + result.cues[len(result.cues) // 2:][:1]}
+        # start (its first frame is transparent by design, \fad at now == Start). A line that
+        # fades in (the Fade and Blur entrances, CONTRACTS §5.34) is probed in its middle.
+        fades_in = doc["captions"]["overrides"].get("entrance") in ("fade", "blur")
+        probe = {(cue.f0 + cue.f1) // 2 if fades_in else cue.f0
+                 for cue in result.cues[:1] + result.cues[len(result.cues) // 2:][:1]}
         if result.hook_lines:
             probe.add(5)
         probe = sorted(probe)

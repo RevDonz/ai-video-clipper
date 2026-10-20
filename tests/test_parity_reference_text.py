@@ -277,7 +277,8 @@ def test_clip_matrix_covers_every_pack_length_hook_fallback_and_variant() -> Non
     ptxt = [clip for clip in clips if clip.kind == "ptxt"]
     for pack in rt.PACKS:
         for length in (10, 40, 90):
-            matching = [c for c in ptxt if c.pack == pack and c.chars == length and c.variant is None]
+            matching = [c for c in ptxt if c.pack == pack and c.chars == length
+                        and c.variant is None and c.entrance is None]
             assert len(matching) == 1, (pack, length)
             assert len(matching[0].probe_frames) == 5
     assert any(c.pack == "hook" for c in ptxt)
@@ -299,9 +300,35 @@ def test_clip_matrix_covers_every_pack_length_hook_fallback_and_variant() -> Non
         (24, 1), (25, 1), (30, 1), (24000, 1001), (30000, 1001)}
     for clip in clips:
         assert all(0 <= f < clip.total_frames for f in clip.probe_frames)
+        if clip.entrance is not None:
+            continue  # probed inside the entrance on purpose (the next test)
         # Probe frames stay ≥ 3 frames from every event and karaoke boundary.
         for frame in clip.probe_frames:
             assert all(abs(frame - edge) >= 3 for edge in clip.edges), (clip.id, frame)
+
+
+def test_every_entrance_is_gated_on_every_pack_inside_its_120_ms() -> None:
+    # "Animasi masuk" (CONTRACTS §5.34): JASSUB and FFmpeg must draw the same frame while a line
+    # is still fading, popping or sharpening, so every probe sits inside an entrance.
+    clips = rt.build_clips(fallback_char="\u2665")
+    entrance = {c.id: c for c in clips if c.kind == "ptxt" and c.entrance is not None}
+    assert set(entrance) == {f"{pack}-{name}-40" for pack in rt.PACKS
+                             for name in ("fade", "pop", "blur")}
+    smoke = next(line for line in RUN_ALL.read_text(encoding="utf-8").splitlines()
+                 if line.startswith("SMOKE_TEXT=")).removeprefix("SMOKE_TEXT=").split(",")
+    assert {"karaoke-fade-40", "bold-pop-40", "sorot-blur-40"} <= set(smoke)
+    opening = {"fade": "\\fad(120,0)}", "pop": "\\fscx70\\fscy70",
+               "blur": "\\blur10\\t(0,120,\\blur0)}"}
+    for clip_id, clip in entrance.items():
+        assert clip.gate and clip.variant is None and len(clip.probe_frames) == 5, clip_id
+        assert clip.chars == 40 and opening[clip.entrance] in clip.ass, clip_id
+        plain = next(c for c in clips if c.id == f"{clip.pack}-40")
+        starts = sorted({e for e in plain.edges if e not in (0, plain.total_frames)})
+        fps = Fps(*clip.fps)
+        for frame in clip.probe_frames:
+            # The line's first frame is in the past and its 120 ms are not over yet.
+            start = max(e for e in starts if e < frame)
+            assert 0 < now_ms(frame, fps) - safe_cs(start, fps) * 10 < 120, (clip_id, frame)
 
 
 # --- end to end with the local FFmpeg -----------------------------------------------------------

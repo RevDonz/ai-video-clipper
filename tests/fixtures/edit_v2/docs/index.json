@@ -253,6 +253,30 @@
    "warnings": []
   },
   {
+   "file": "valid/entrance_none__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/entrance_fade__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/entrance_pop__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/entrance_blur__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
    "file": "valid/overrides_min__c30.json",
    "context": "c30",
    "check": "put",
@@ -838,6 +862,20 @@
    "check": "put",
    "code": "range_invalid",
    "path": "/captions/overrides/words_max"
+  },
+  {
+   "file": "invalid/range_invalid__entrance_value.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/captions/overrides/entrance"
+  },
+  {
+   "file": "invalid/range_invalid__entrance_not_string.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/captions/overrides/entrance"
   },
   {
    "file": "invalid/range_invalid__cut_fade_high.json",

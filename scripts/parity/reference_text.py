@@ -4,8 +4,9 @@
 Writes everything the browser harness (``web/app/parity-harness``) and the scoring scripts
 (``compare.py``, ``enc_check.py``, ``s_color.py``) need, into one directory:
 
-* ``ass/<clip>.ass``: the ASS samples. Every gated clip (the 5 packs × 3 lengths, the hook in
-  each of its four designs and the fallback glyph) is the shipped bytes:
+* ``ass/<clip>.ass``: the ASS samples. Every gated clip (the 5 packs × 3 lengths, each caption
+  entrance on every pack, the hook in each of its four designs and the fallback glyph) is the
+  shipped bytes:
   ``captions_ass.fit_cues`` + ``build_ass_v2`` with the pack files and their default overrides
   (W1 integration; T1.2b first measured hand-written samples with T1.2a's pack numbers). The pack variants of the spike (DejaVu Sans Bold instead
   of Montserrat ExtraBold; a ``\\p`` vector box instead of ``BorderStyle 3``) and the P-COLOR
@@ -110,6 +111,10 @@ BOX_MAX_WIDTH = WIDTH * 88 // 100
 WORDS_PER_CUE = {"classic": 4, "karaoke": 4, "bold": 3, "box": 3, "sorot": 3}
 # Packs whose picture changes at every word onset (P-TXT probes stay clear of them).
 WORD_REVEAL_PACKS = ("karaoke", "bold", "sorot")
+# "Animasi masuk" (CONTRACTS §5.34): every entrance on every pack at 40 characters, probed while
+# the line is still opening (frames 1-3 of the first line, 1-2 of the second).
+ENTRANCES = ("fade", "pop", "blur")
+ENTRANCE_PROBES = ((0, 1), (0, 2), (0, 3), (1, 1), (1, 2))  # (line, frames after its start)
 
 _STYLE_FORMAT = ("Format: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,"
                  "BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,"
@@ -389,12 +394,14 @@ def frame_cues(cues: Sequence[Cue]) -> tuple[FrameCue, ...]:
 def shipped_ass(cues: Sequence[Cue], *, pack: str, fps: Fps, total_frames: int,
                 hook_text: str | None = None,
                 hook_design: tuple[str, int] = captions_ass.LEGACY_HOOK_DESIGN,
-                ) -> tuple[str, tuple[FrameCue, ...]]:
+                entrance: str | None = None) -> tuple[str, tuple[FrameCue, ...]]:
     """The production ASS of ``cues`` in ``pack`` (``fit_cues`` + ``build_ass_v2``, the pack's
-    default overrides) and the cues as the pack shows them; ``hook_text`` adds the hook over the
-    whole clip in ``hook_design`` (the bar by default)."""
+    default overrides plus ``entrance`` when given) and the cues as the pack shows them;
+    ``hook_text`` adds the hook over the whole clip in ``hook_design`` (the bar by default)."""
     pack_file = captions_ass.load_pack(pack, 1)
-    overrides = PACK_DEFAULT_OVERRIDES[pack]
+    overrides = dict(PACK_DEFAULT_OVERRIDES[pack])
+    if entrance is not None:
+        overrides["entrance"] = entrance
     fitted = captions_ass.fit_cues(frame_cues(cues), pack=pack_file, play_res=(WIDTH, HEIGHT),
                                    overrides=overrides)
     hook = (None if hook_text is None
@@ -619,12 +626,15 @@ class Clip:
     family: str | None = None
     lanes: dict | None = None
     transitions: list[dict] | None = field(default=None)
+    entrance: str | None = None  # the caption entrance of an entrance clip (§5.34)
 
     def to_json(self) -> dict:
         entry = {"id": self.id, "kind": self.kind, "pack": self.pack, "chars": self.chars,
                  "variant": self.variant, "fps": list(self.fps), "total_frames": self.total_frames,
                  "probe_frames": list(self.probe_frames), "plate": self.plate, "gate": self.gate,
                  "family": self.family}
+        if self.entrance is not None:
+            entry["entrance"] = self.entrance
         if self.kind == "ptime":
             entry["lanes"] = self.lanes
             entry["transitions"] = self.transitions
@@ -681,10 +691,26 @@ def _caption_clip(pack: str, length: int, *, variant: str | None, family: str,
                 family=family)
 
 
+def _entrance_clip(pack: str, entrance: str, *, family: str, length: int = 40) -> Clip:
+    """The shipped bytes of ``pack`` with ``entrance``, probed inside the entrances."""
+    fps = PTXT_FPS
+    words = sample_words(SAMPLE_TEXTS[length], fps=fps, start_f=6)
+    cues = group_cues(words, pack=pack)
+    total = cues[-1].f1 + 12
+    ass, fitted = shipped_ass(cues, pack=pack, fps=fps, total_frames=total, entrance=entrance)
+    edges = _cue_edges(fitted, words=pack in WORD_REVEAL_PACKS) | {0, total}
+    probes = tuple(fitted[line].f0 + after for line, after in ENTRANCE_PROBES)
+    return Clip(id=f"{pack}-{entrance}-{length}", kind="ptxt", pack=pack, chars=length,
+                variant=None, fps=(fps.num, fps.den), total_frames=total, probe_frames=probes,
+                edges=tuple(sorted(edges)), ass=ass, plate="fitblur", family=family,
+                entrance=entrance)
+
+
 def build_clips(*, fallback_char: str,
                 measures: dict[str, Callable[[str], float]] | None = None) -> list[Clip]:
-    """The P-TXT matrix (5 packs × 3 lengths × 5 probes, every hook design, fallback glyph),
-    the pack variants of the spike, the P-COLOR sheet and one P-TIME fixture per frame rate.
+    """The P-TXT matrix (5 packs × 3 lengths × 5 probes, 3 entrances × 5 packs, every hook
+    design, fallback glyph), the pack variants of the spike, the P-COLOR sheet and one P-TIME
+    fixture per frame rate.
 
     ``measures`` maps a family to its advance-width function at the Box size (from the font's
     ``hmtx``); without it, a DejaVu-based estimate is used.
@@ -697,6 +723,10 @@ def build_clips(*, fallback_char: str,
         for length in LENGTHS:
             clips.append(_caption_clip(pack, length, variant=None, family=family,
                                        measure=measures.get(family)))
+    for entrance in ENTRANCES:
+        for pack in PACKS:
+            family = MONTSERRAT if pack in ("bold", "box", "sorot") else DEJAVU
+            clips.append(_entrance_clip(pack, entrance, family=family))
     for pack, variant, family in (("bold", "dejavu", DEJAVU), ("box", "dejavu", DEJAVU),
                                   ("box", "pbox", MONTSERRAT)):
         for length in LENGTHS:

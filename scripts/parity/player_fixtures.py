@@ -12,7 +12,8 @@ through ``/api/parity-fixtures/player/…`` and ``web/e2e/editor-player.spec.mjs
   (``reference`` → ``reference.pcm``, s16le stereo), the plan DTO (plan §4.3) and, per output
   frame, the barcode index of the whole-file ``fps`` grid and the crop x;
 * on the 29.97 case, document variants over the same plate cells (the 5 packs, a logo, a
-  fallback glyph, the hook in each design other than the bar): the server composite of each
+  fallback glyph, the hook in each design other than the bar, each caption entrance): the
+  server composite of each
   probe frame computed from the **decoded plate cell frame** with the compiler's own strings
   (R5: ``gbrp``, ``ass``, the derived logo overlay) before the 4:2:0 step (P-TXT, P-LOGO), the plate alone and the composite without the logo; the
   derived logo PNG (``derive_image``); truth frames (``frame`` mode) and the auto render
@@ -79,6 +80,10 @@ PACKS = ("classic", "karaoke", "bold", "box", "sorot")
 HOOK_VARIANTS = {"hook-kicker": ("kicker", "Ternyata: hook sintetis"),
                  "hook-blok": ("blok", "Hook sintetis"),
                  "hook-kotak": ("kotak", "Hook SINTETIS ini")}
+# "Animasi masuk" (CONTRACTS §5.34) over the same cells: each entrance on a pack with another
+# event shape (one line, a line per spoken word, a box per spoken word).
+ENTRANCE_VARIANTS = {"entrance-fade": ("karaoke", "fade"), "entrance-pop": ("bold", "pop"),
+                     "entrance-blur": ("sorot", "blur")}
 # The §3.2 example's logo, top right (plan §3.2, §3.3).
 LOGO_TRANSFORM = {"x_e5": 88000, "y_e5": 7000, "w_e5": 16000, "opacity_pm": 850}
 P_LOGO = {"mean_abs": 2.0, "max": 8, "box_px": 0}
@@ -132,6 +137,12 @@ def set_hook_design(doc: dict[str, Any], design: str, text: str) -> None:
                 if track["kind"] == "hook" and track["items"])
     item["payload"]["design"] = {"id": design, "v": 1}
     item["payload"]["text"] = text
+
+
+def set_entrance(doc: dict[str, Any], pack: str, entrance: str) -> None:
+    """Switch to ``pack`` (its default overrides) and open every caption line with ``entrance``."""
+    set_pack(doc, pack)
+    doc["captions"]["overrides"]["entrance"] = entrance
 
 
 def cells_needed(plan: Any) -> list[int]:
@@ -254,8 +265,9 @@ def expected_crop_x(plan: Any, source: tuple[int, int]) -> list[int] | None:
 
 
 def probe_frames(plan: Any, *, count: int = 8) -> list[int]:
-    """Frames for the composite comparison, most telling first: the hook fading in and out,
-    cue edges and word onsets (karaoke/bold switches), the first frames after cuts."""
+    """Frames for the composite comparison, most telling first: with a caption entrance, the
+    first two lines while they open; the hook fading in and out, cue edges and word onsets
+    (karaoke/bold switches), the first frames after cuts."""
     total = plan.total_frames
     hook_item = next((track["items"][0] for track in plan.doc["tracks"]
                       if track["kind"] == "hook" and track["items"]), None)
@@ -264,6 +276,8 @@ def probe_frames(plan: Any, *, count: int = 8) -> list[int]:
     onsets = [cue.words[1].f0 for cue in cues if len(cue.words) > 1]
     cuts = [piece.out_f0 for piece in plan.pieces[1:]]
     candidates: list[int] = []
+    if plan.doc["captions"]["overrides"].get("entrance", "none") != "none":
+        candidates += [cue.f0 + after for cue in cues[:2] for after in (1, 2)]
     if hook_end is not None:
         candidates += [1, hook_end - 2]
     candidates += [cue.f0 for cue in cues[:1]] + onsets[:1] + cuts[:1]
@@ -896,6 +910,8 @@ class Generator:
             doc["captions"]["word_edits"] = {first_word: {"text": FALLBACK_TEXT}}
         elif name in HOOK_VARIANTS:
             set_hook_design(doc, *HOOK_VARIANTS[name])
+        elif name in ENTRANCE_VARIANTS:
+            set_entrance(doc, *ENTRANCE_VARIANTS[name])
         return build_plan(doc, words=clip["words"], camera=clip["camera"], assets=assets,
                           resources=self.resources)
 
@@ -905,7 +921,7 @@ class Generator:
         source = clip["source"]
         size = tm.cell_frames(Fps(*case.fps))
         cell_dir = self.out / case.name / "cells"
-        for name in (*PACKS, "logo", "fallback", *HOOK_VARIANTS):
+        for name in (*PACKS, "logo", "fallback", *HOOK_VARIANTS, *ENTRANCE_VARIANTS):
             plan = self.variant_plan(case, name)
             logo_file = None
             logo_input = None
