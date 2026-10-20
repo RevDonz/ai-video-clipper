@@ -22,6 +22,7 @@ import {
   jobStageText,
   submitErrorMessage,
 } from "../lib/dashboard-view.mjs";
+import { DOWNLOAD_ERROR_CODES, downloadErrorMessage } from "../lib/download-errors.mjs";
 import { serializePublicJob, validateYouTubeUrl } from "../lib/jobs.mjs";
 
 const WEB = fileURLToPath(new URL("..", import.meta.url));
@@ -95,7 +96,7 @@ test("the live line says what the worker is doing, and a queued job is waiting, 
 
 test("a failed job never shows a worker detail with version wording", () => {
   assert.deepEqual(jobFailureView({ status: "failed", stageDetail: "Mengukur media hanya untuk shortlist V2", error: "x" }), {
-    text: "Proses berhenti karena terjadi kesalahan.", detail: "x",
+    text: "Proses berhenti karena terjadi kesalahan.", hint: null, detail: "x",
   });
 });
 
@@ -175,19 +176,39 @@ test("form problems and API errors become short Indonesian messages", () => {
 
 test("a failed job shows an Indonesian reason; the raw error stays behind a disclosure", () => {
   assert.deepEqual(jobFailureView({ status: "failed", stageDetail: "Proses berhenti karena terjadi kesalahan", error: "yt-dlp exited with 1" }), {
-    text: "Proses berhenti karena terjadi kesalahan", detail: "yt-dlp exited with 1",
+    text: "Proses berhenti karena terjadi kesalahan", hint: null, detail: "yt-dlp exited with 1",
   });
   assert.deepEqual(jobFailureView({ status: "failed", error: "storage_free_space_low" }), {
-    text: "Ruang kosong penyimpanan server terlalu rendah.", detail: null,
+    text: "Ruang kosong penyimpanan server terlalu rendah.", hint: null, detail: null,
   });
-  assert.deepEqual(jobFailureView({ status: "failed" }), { text: "Proses berhenti karena terjadi kesalahan.", detail: null });
+  assert.deepEqual(jobFailureView({ status: "failed" }), { text: "Proses berhenti karena terjadi kesalahan.", hint: null, detail: null });
   assert.deepEqual(jobFailureView({ status: "failed", error: "Invalid persisted job options: V2 options require v2-shadow mode" }), {
-    text: "Proses berhenti karena terjadi kesalahan.", detail: null,
+    text: "Proses berhenti karena terjadi kesalahan.", hint: null, detail: null,
   });
   assert.equal(jobFailureView({ status: "completed", error: "x" }), null);
 });
 
+test("a failed download says why in Indonesian, with one suggestion, from its code", () => {
+  for (const code of DOWNLOAD_ERROR_CODES) {
+    const job = { status: "failed", stageDetail: "teks lama yang tersimpan", errorCode: code, error: "[youtube] AbCdEfGhIjK: Private video" };
+    const { text, hint } = downloadErrorMessage(code);
+    assert.deepEqual(jobFailureView(job), { text, hint, detail: "[youtube] AbCdEfGhIjK: Private video" }, code);
+  }
+  assert.deepEqual(jobFailureView({ status: "failed", stageDetail: "Unduhan macet.", errorCode: "download_stalled", error: "yt-dlp tidak bergerak selama 120 detik" }), {
+    text: "Unduhan macet.", hint: downloadErrorMessage("download_stalled").hint, detail: "yt-dlp tidak bergerak selama 120 detik",
+  });
+  // An unknown code from a newer worker falls back to the stored stage text.
+  assert.deepEqual(jobFailureView({ status: "failed", stageDetail: "Sesuatu berhenti", errorCode: "download_new_kind", error: "x" }), {
+    text: "Sesuatu berhenti", hint: null, detail: "x",
+  });
+});
+
 // --- Page source --------------------------------------------------------------------------
+
+test("the dashboard's failure box shows the reason, its one suggestion, then the technical detail", async () => {
+  const source = await read("app/dashboard/page.jsx");
+  assert.match(source, /<strong>\{failure\.text\}<\/strong>\s*\{failure\.hint && <span>\{failure\.hint\}<\/span>\}\s*\{failure\.detail && \(/);
+});
 
 test("the dashboard is one form for the current method", async () => {
   const source = await read("app/dashboard/page.jsx");

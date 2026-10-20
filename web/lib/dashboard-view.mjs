@@ -2,6 +2,7 @@
 // Client-safe. The owner's rule: only the current method on screen, no version labels and no
 // technical provenance (selection source, prompt or engine versions); old jobs stay viewable.
 
+import { downloadErrorMessage } from "./download-errors.mjs";
 import { shownStageDetail, shownWorkerText } from "./stage-detail.mjs";
 
 export const JOB_STATUS_LABELS = Object.freeze({
@@ -88,12 +89,17 @@ export function clipMetaText(clip) {
   return `Klip${index}${seconds}`;
 }
 
-/** A failed job's reason in Indonesian, plus the worker's raw error for the disclosure, or null. */
+/**
+ * A failed job's reason in Indonesian, one suggestion when the failure has a known code (null
+ * otherwise), and the worker's raw error for the disclosure; null for a job that did not fail.
+ */
 export function jobFailureView(job) {
   if (job?.status !== "failed") return null;
   const error = shownWorkerText(job.error);
-  if (error && Object.hasOwn(STORAGE_MESSAGES, error)) return { text: STORAGE_MESSAGES[error], detail: null };
-  return { text: shownStageDetail(job) || "Proses berhenti karena terjadi kesalahan.", detail: error };
+  if (error && Object.hasOwn(STORAGE_MESSAGES, error)) return { text: STORAGE_MESSAGES[error], hint: null, detail: null };
+  const download = downloadErrorMessage(job.errorCode);
+  if (download) return { text: download.text, hint: download.hint, detail: error };
+  return { text: shownStageDetail(job) || "Proses berhenti karena terjadi kesalahan.", hint: null, detail: error };
 }
 
 // --- AI status (GET /api/llm/status) ---------------------------------------------------------
