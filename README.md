@@ -226,7 +226,8 @@ suite) run on GitHub Actions: `ci-cd.yml` on every pull request and `editor-gate
   length follows the dashboard's minimum and maximum duration.
 - **Manifest.** Each clip gains `title`, `hook_text`, `description`, `hashtags`,
   `archetype`, `selection_source`, `reasons`, `scores`, `cold_open`, `source_start` and
-  `source_end`. The top level gains `selection_v3`. The web worker sanitizes every string
+  `source_end`, plus `fallbacks` (`no_face`, `engine_fallback`) only when something fell back
+  for that clip. The top level gains `selection_v3`. The web worker sanitizes every string
   (length caps, control and bidi characters stripped) and allowlists the summary before it
   persists anything.
 - **Benchmark.** Gold-label evaluation is described in
@@ -287,7 +288,10 @@ dan **Skor 8+** menyaring grid; skor tampil netral dengan titik lime untuk 8 ke 
 **Pilih** ("n dipilih · Pilih semua · Batal · Unduh (n)") dan **Unduh semua** mengunduh satu ZIP
 lewat `GET /api/jobs/<id>/zip` (`?clips=1,3` untuk klip terpilih, `?check=1` hanya ukurannya).
 Setiap klip tersimpan sebagai `NN-judul-klip.mp4`, di ZIP maupun lewat "Unduh MP4" dan "Subtitle
-SRT".
+SRT". Klip yang dibuat lewat jalur cadangan diberi catatan netral: kalau mode "Ikuti
+pembicara" tidak menemukan wajah di sebagian besar klip, posternya bertuliskan "Potong tengah" dan
+panel detailnya "Wajah tidak terdeteksi · potong tengah"; klip dari render cadangan bertuliskan
+"Dirender dengan cara cadangan" di panel detail.
 
 **English.** The ZIP is store-only (MP4 does not compress), built with Node built-ins (CRC-32
 from `zlib.crc32`, a table fallback), classic format below 4 GiB, streamed one chunk at a time
