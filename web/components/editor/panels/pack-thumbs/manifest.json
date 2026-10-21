@@ -33,10 +33,10 @@
       "png_sha256": "7d9e2d57d8eb4775e9ffe8998cb5673b266f427364fd56f1b4340524033ccd62"
     },
     "sinar": {
-      "bytes": 10838,
+      "bytes": 10773,
       "file": "sinar.png",
-      "pack_sha256": "2879681b07f1001be1e71cc29f3eaaabcc045c53b825bf350d6ed6185477ca48",
-      "png_sha256": "38281d1b3fd3e32c996ad431e0098a8d1e7069fbd5b9eadc0d454920bb65f266"
+      "pack_sha256": "9320c27676d7e0b11cb97c15fa92d257107625ac4a251ac650f48eab720143c1",
+      "png_sha256": "cb758760fcb456a075c9feb6ae59b630809a95da567783cc579167abc4035d4b"
     },
     "sorot": {
       "bytes": 8347,
