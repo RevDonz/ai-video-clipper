@@ -112,6 +112,14 @@ npx playwright test --project=desktop-chromium e2e/clip-text.spec.mjs
 
 In CI: `gh workflow run editor-gates.yml -f ref=<branch> -f suite=e2e -f command=e2e/clip-text.spec.mjs`.
 
+`e2e/clip-hook.spec.mjs` covers the "Hook di video" switch in the same caption box. It fakes the job API, the clips listing, `POST /api/jobs/<id>/clips/<clipId>/hook` and `POST …/renders` inside the browser, so it changes no server data; only the login is real. It checks that a click sends one JSON save from the listed revision and one export of the saved revision, that the status line and "Ekspor sedang diproses" follow, that Space and Enter switch it, that a clip without a hook has no switch, that a conflict says so and keeps the switch as it was, and that at 390 px the switch is a 44 px target with no horizontal scroll. With `AXE_CORE_PATH` it runs axe on the clip section. The real route and the CLI are covered by `web/tests/clip-hook-api.test.mjs` and `tests/test_edit_v2_hook_toggle.py`.
+
+```bash
+npx playwright test --project=desktop-chromium e2e/clip-hook.spec.mjs
+```
+
+In CI: `gh workflow run editor-gates.yml -f ref=<branch> -f suite=e2e -f command=e2e/clip-hook.spec.mjs`.
+
 ## Bantuan
 
 `e2e/bantuan.spec.mjs` covers the help page (`/bantuan`, `docs/operations/BANTUAN.md`). It needs no server data; the failed project it opens is faked inside the browser, so it changes nothing and runs against any target. It checks that a pasted yt-dlp line opens its entry (the address gets `#<code>`, the entry is the `:target` and takes the focus), that a text nothing fits says so and keeps the focus in the box, that anchors and the search work with JavaScript off (the GET form is redirected to the entry), that the "Cara memperbaiki" link of a failed download leads to its entry, keyboard reach, and no horizontal scroll at 390 px.

@@ -19,6 +19,7 @@ export const CLIP_REASON_TEXT = Object.freeze({
 
 const GENERIC_REASON = "Klip ini belum bisa dibuka di editor";
 const CLIP_ID = /^clip_[0-9a-f]{24}$/;
+const ETAG = /^[0-9a-f]{64}$/;
 const IN_PROGRESS = new Set(["queued", "claimed", "rendering"]);
 // Reasons the editor resolves by itself when the clip is opened (it prepares the job).
 const PREPARED_ON_OPEN = new Set(["needs_prepare", "analysis_incomplete"]);
@@ -92,7 +93,20 @@ export function clipEntryView(jobId, clip) {
     needsPrepare: !openable && reason === "needs_prepare",
     editBadge: editBadge(clip?.edit),
     latestExport: latestExportView(jobId, clip?.latestRender, clip?.index),
+    // "Hook di video" (§5.57): the clip's hook state and the revision the switch saves from.
+    hook: typeof clip?.hook?.on === "boolean" && typeof clip.hook.available === "boolean"
+      ? { on: clip.hook.on, available: clip.hook.available } : null,
+    editEtag: typeof clip?.edit?.etag === "string" && ETAG.test(clip.edit.etag) ? clip.edit.etag : null,
   };
+}
+
+/** Whether a loaded listing has an export still running: the page then reloads it after a while. */
+export function entriesExporting(listing) {
+  if (listing?.state !== "available") return false;
+  for (const entry of listing.byIndex.values()) {
+    if (IN_PROGRESS.has(entry?.latestExport?.state)) return true;
+  }
+  return false;
 }
 
 /**
