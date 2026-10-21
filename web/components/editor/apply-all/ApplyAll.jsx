@@ -37,8 +37,9 @@ export default function ApplyAll({ applyAll, group, disabled = false }) {
 
   return (
     <div className={styles.applyAll} data-apply-all={group}>
-      <PillButton aria-describedby={noteId} disabled={disabled || busy} aria-busy={view.phase === "running"}
-        onClick={() => { applyAll.apply(group); }}>
+      {/* aria-disabled while busy, not disabled: the button keeps keyboard focus for the retry. */}
+      <PillButton aria-describedby={noteId} disabled={disabled} aria-disabled={busy || undefined}
+        aria-busy={view.phase === "running"} onClick={() => { if (!busy) applyAll.apply(group); }}>
         {view.phase === "running" ? "Menerapkan…" : texts.button}
       </PillButton>
       <p id={noteId} className={styles.applyNote}>{texts.note}</p>

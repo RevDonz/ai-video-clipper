@@ -533,9 +533,10 @@ export function createFakeEditorStore({ jobId = FAKE_JOB_ID, clipId = FAKE_CLIP_
       set({ doc: future.pop(), save: "dirty" });
     },
     async flush() {
-      if (state.save !== "dirty") return;
+      if (state.save !== "dirty") return state.etag;
       set({ save: "saving" });
       set({ save: "saved", savedAtMs: now(), plan: await previewClient.plan(state.doc) });
+      return state.etag;
     },
     async resolveConflict() { set({ conflict: null, save: "dirty" }); },
     async startFromSeed() {
