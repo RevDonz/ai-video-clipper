@@ -6,6 +6,7 @@ import AppHeader from "../../components/AppHeader.jsx";
 import CancelJob from "../../components/CancelJob.jsx";
 import StageSummary from "../../components/StageSummary.jsx";
 import { PACK_IMAGES, imageSrc } from "../../components/editor/panels/pack-images.js";
+import { failedClipView } from "../../lib/clip-status.mjs";
 import {
   AI_STATUS_UNREADABLE,
   aiStatusView,
@@ -180,7 +181,26 @@ function FocusField({ terms, draft, note, error, aiMode, onTermsChange, onDraftC
   );
 }
 
+// A clip that failed to render shows why in place of the video, with nothing to download or copy.
+function FailedClipCard({ clip, failed }) {
+  return (
+    <article className={styles.clip} data-failed="true">
+      <div className={styles.clipFailed}>
+        <span className="chip error">{failed.label}</span>
+        <p>{failed.text}</p>
+      </div>
+      <div className={styles.clipBody}>
+        <small>{clipMetaText(clip)}</small>
+        {clip.title && <h3>{clip.title}</h3>}
+        <p className={styles.description}>{failed.hint}</p>
+      </div>
+    </article>
+  );
+}
+
 function ClipCard({ clip, copied, onCopy }) {
+  const failed = failedClipView(clip);
+  if (failed) return <FailedClipCard clip={clip} failed={failed} />;
   return (
     <article className={styles.clip}>
       <video controls preload="metadata" src={clip.videoUrl} poster={clipPosterUrl(clip)} />

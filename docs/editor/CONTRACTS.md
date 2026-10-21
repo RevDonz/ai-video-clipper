@@ -3361,3 +3361,65 @@ The player fixtures read the split's index through the same band and expect no s
 `tests/test_edit_v2_compile.py` reads both bands' rulers, the top band's frame index and the line
 row from the plate cells and the lossless reference of a split synthetic clip with real FFmpeg.
 Browser spec: `web/e2e/editor-split.spec.mjs` on the editor fakes.
+
+## 5.46 A clip that fails to render (2026-10-21, waits for the owner)
+
+Plan `docs/plans/2026-10-20-lanjutan-sesi.md` P1 #4. It reverses the deliberate fail-closed
+render of the automatic clips, so it ships only when the owner accepts it (draft PR). No flag,
+no data migration; jobs made before it are unchanged.
+
+### Engine (`src/ai_clipper/pipeline.py`)
+
+- `_render_v3_clips(..., isolate: bool = False)`. `run_pipeline` (V3) passes `True`;
+  `render_v3_job` (P-LOOK, PF-PIPELINE, fixtures) keeps `False` and still raises the first
+  failure. V1 and the V2 shadow are unchanged.
+- With `isolate`, an exception from `render_vertical` (the legacy engine, also as the fallback of
+  `edit-v2`) is caught per clip. `render_vertical` publishes nothing when it fails, so no file of
+  that clip exists. The clip's manifest entry is `_v3_manifest_clip(...)` with `output`,
+  `subtitles` and `thumbnail` null, plus `"status": "failed"` and `"error_code"`:
+  `render_timeout` when a `subprocess.TimeoutExpired` or `TimeoutError` is anywhere in the
+  error's `__cause__`/`__context__` chain, else `render_failed` (`CLIP_RENDER_TIMEOUT`,
+  `CLIP_RENDER_FAILED`). No engine fields (`clip_id`, `render_engine`, ...), no poster, no
+  `cold_open_join`. Rendered clips keep their exact shape: no `status` key.
+- The summary warning `clip_failed:<index>` (after that clip's `engine_fallback:<index>`), and
+  one stderr line `potongin: clip_failed:<index>: <ExceptionType> <code>` (never the error's text).
+- At least one clip rendered: the manifest is `completed` with every entry, failed ones
+  included, in rank order. No clip rendered: the first clip's exception is raised after every
+  clip was tried, so the manifest is `failed` with that error and `pipeline_failed:rendering`
+  first, as before.
+- Readers of `output/manifest.json` need no change: `render_edit.auto_file` and
+  `render_queue._auto_file` find no file for a failed entry, `seed.manifest_joins` skips an
+  entry without `cold_open_join`, the editor listing (`edit_v2.api` `clips`) reads the
+  selection, not the manifest.
+
+### Web
+
+- `web/lib/clip-status.mjs` (client-safe): `CLIP_ERROR_CODES` (`render_failed`,
+  `render_timeout`), `clipErrorCode(value)` (unknown → `render_failed`), `isFailedClip(clip)`
+  (`status === "failed"` only), `readyClips`, `clipCounts` → `{total, ready, failed}`,
+  `clipCountText` ("5 klip", "4 klip · 1 gagal"), `failedClipView(clip)` → `{label: "Gagal",
+  text, hint}` or null.
+- Worker (`web/scripts/run-job.mjs`): a manifest entry with `status: "failed"` becomes
+  `{index, score, start, end, duration, text, status: "failed", errorCode, ...packaging}` with
+  no `videoUrl`, `downloadUrl`, `subtitleUrl`, `thumbnailUrl`, `clipId` or `renderEngine`,
+  whatever the entry names. A completed manifest without a ready clip fails the job ("Semua klip
+  gagal dirender"). `completedStageDetail(clips)`: "Semua klip siap digunakan", or "n dari m klip
+  siap; k gagal dirender".
+- Job API (`sanitizeStoredClip`): a failed clip keeps `status: "failed"` and a known
+  `errorCode` and loses every file link; any other clip loses a stray `status` or `errorCode`.
+- ZIP route: every clip means every ready clip; `?clips=` naming a failed clip answers 409
+  `clip_failed` ("Klip 02 gagal dirender, jadi tidak bisa diunduh."); a job without a ready clip
+  answers `no_clips`.
+- Project page: the heading "n dari m klip siap diunggah" (`clipsHeading`), the header
+  "n klip · k gagal"; a failed poster shows "Gagal" (`chip error`, the shared poster's `badge`
+  in place of its frame, `components/ClipPoster.jsx`), `data-failed`, "gagal dirender" in its
+  description, and in "Pilih" `aria-disabled` instead of `aria-pressed` (`pickAll`/`prunePicks`
+  skip it). Its detail panel has a frame of the video's size with "Gagal", the reason and one
+  suggestion in place of the player; no "Edit klip", latest export, "Unduh MP4" or "Subtitle
+  SRT", and the caption box has no "Ubah" or "Tulis ulang" (§5.38): there is no video to post.
+- Riwayat "Klip" (§5.32): `libraryItems` leaves a failed clip out of `GET /api/clips`, so it is
+  not in the grid, the search, "Skor 8+" or the total; its project row still says "n klip · k
+  gagal".
+- Dashboard: a failed clip's card shows "Gagal" and the reason in a short frame in place of the
+  video, then its title and the suggestion; no download or copy. History rows and the summary
+  count ready clips; "Edit klip" in the history needs a ready clip.

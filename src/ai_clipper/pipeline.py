@@ -36,6 +36,16 @@ shadow keep their historical behaviour. Selection V3 (``selection_mode="v3"``) r
    and the summary warning ``engine_fallback:<index>``: the job never fails because of the
    editor path.
 
+**One clip failing to render.** A clip that ``render_vertical`` cannot render (also as the
+fallback of ``edit-v2``) does not stop the job: the other clips still render, and its manifest
+entry keeps the selection and packaging fields with ``"output"``, ``"subtitles"`` and
+``"thumbnail"`` null, plus ``"status": "failed"`` and ``"error_code"`` (``render_timeout`` when
+FFmpeg ran out of time, else ``render_failed``). No file of it is published. The summary gets
+``clip_failed:<index>`` and the worker log one line with the error's type, never its text. The
+job completes while at least one clip rendered; when every clip failed it fails with the first
+clip's error, as before. Rendered clips keep their exact shape (no ``status`` key).
+:func:`render_v3_job` (tools and fixtures) still stops at the first failure.
+
 **Cold-open transition** (spec 2026-10-02 §6.2). Both engines render a clip that keeps its cold
 open with a white flash and the whoosh at the join (``transitions.AUTO_COLD_OPEN_JOIN``; no
 option, latest only), and its manifest entry records it as ``"cold_open_join": {"style",
@@ -102,8 +112,9 @@ the transcript-quality file codes (``no_word_timestamps``,
 ``llm_not_configured``, ``llm_failed:<code>`` (``deadline`` when the wall-clock bound ran out).
 After the selector's codes: ``clip_trimmed_to_media:<rank>``, ``cold_open_beyond_media:<rank>``,
 ``clip_beyond_media:<rank>``, then ``llm_providers:<n>`` and ``llm_models:<n>`` (several
-engines answered; the summary names the first), then ``thumbnail_failed:<index>``. A failed run
-starts with ``pipeline_failed:<stage>``.
+engines answered; the summary names the first), then ``engine_fallback:<index>``,
+``clip_failed:<index>`` and ``thumbnail_failed:<index>`` in clip order. A failed run starts with
+``pipeline_failed:<stage>``.
 
 **Stage summaries** (V3, ``stage_summary``): once a stage has a result the run already knows,
 ``stage_summary(kind, values)`` reports it for the job progress. ``video`` after the probe
@@ -238,6 +249,9 @@ MAX_SUMMARY_WARNING_CHARS = 160
 MAX_MANIFEST_HASHTAGS = 10
 # A face-track clip without a face for at least this share of its length is noted ``no_face``.
 NO_FACE_CLIP_SHARE = 0.5
+# The manifest's ``error_code`` of a clip that failed to render (web/lib/clip-status.mjs).
+CLIP_RENDER_FAILED = "render_failed"
+CLIP_RENDER_TIMEOUT = "render_timeout"
 
 THUMBNAIL_SUFFIX = ".jpg"
 THUMBNAIL_WIDTH = 720  # never upscaled: a narrower render keeps its own width
@@ -1120,6 +1134,29 @@ def _v3_manifest_clip(
     return entry
 
 
+def _clip_failure_code(error: BaseException) -> str:
+    """``render_timeout`` when a timeout is anywhere in the error's chain, else
+    ``render_failed`` (``render_vertical`` wraps FFmpeg's ``TimeoutExpired``)."""
+    seen: set[int] = set()
+    current: BaseException | None = error
+    while current is not None and id(current) not in seen:
+        if isinstance(current, (subprocess.TimeoutExpired, TimeoutError)):
+            return CLIP_RENDER_TIMEOUT
+        seen.add(id(current))
+        current = current.__cause__ or current.__context__
+    return CLIP_RENDER_FAILED
+
+
+def _failed_manifest_clip(
+    index: int, clip: SelectedClip, cold_open: tuple[float, float] | None, code: str
+) -> dict[str, object]:
+    """The manifest entry of a clip that failed to render: its selection and packaging, no
+    file (``output``, ``subtitles`` and ``thumbnail`` null) and the failure's code."""
+    entry = _v3_manifest_clip(index, clip, cold_open, Path(f"clip-{index:02d}.mp4"), None)
+    entry.update(output=None, subtitles=None, status="failed", error_code=code)
+    return entry
+
+
 def _summary_warnings(codes: Iterable[str]) -> list[str]:
     """Stable codes only: a code with an unsafe detail keeps its bare code, others are dropped."""
     kept: list[str] = []
@@ -1356,6 +1393,7 @@ def _run_v3(
         report=report,
         warnings=state.warnings,
         cold_open_join=AUTO_COLD_OPEN_JOIN,  # always on (latest only): no option for it
+        isolate=True,
     )
     state.stage = "finalizing"
     return transcription, transcript_path, clips
@@ -1381,6 +1419,7 @@ def _render_v3_clips(
     cold_open_join: ColdOpenJoin | None,
     ranks: Iterable[int] | None = None,
     timings: dict[int, float] | None = None,
+    isolate: bool = False,
 ) -> list[dict[str, object]]:
     """The V3 rendering stage: every clip (or the given ``ranks``) with ``render_engine``,
     the manifest entry of each, its poster and, per clip, the wall time in ``timings``.
@@ -1388,7 +1427,12 @@ def _render_v3_clips(
     ``cold_open_join`` is the transition at a clip's cold-open join (spec 2026-10-02 §6.2):
     both engines render it and the manifest entry of a clip with a cold open records it as
     ``cold_open_join``. ``None`` is the stage before transitions existed (a cut, no sound, no
-    manifest field), kept for fixtures only."""
+    manifest field), kept for fixtures only.
+
+    With ``isolate`` (the pipeline) a clip that ``render_vertical`` cannot render gets a failed
+    entry (:func:`_failed_manifest_clip`) and ``clip_failed:<index>``, and the next clip
+    renders; when no clip rendered, the first clip's error is raised. Without it (the tools)
+    the first failure is raised at once."""
     renderer = None
     if render_engine == render_edit.ENGINE_EDIT_V2:
         renderer = _edit_v2_renderer(
@@ -1418,6 +1462,7 @@ def _render_v3_clips(
         if wanted is None or clip.rank in wanted
     ])
     clips: list[dict[str, object]] = []
+    failures: list[Exception] = []
     try:
         for index, (clip, teaser) in enumerate(plans, start=1):
             if wanted is not None and clip.rank not in wanted:
@@ -1457,22 +1502,38 @@ def _render_v3_clips(
                         no_face.append(auto.no_face_ms / 1000)
             engine_fallback = engine_fields is not None and engine_fields["render_engine"] == "legacy"
             if engine_fields is None or engine_fallback:
-                render_vertical(
-                    source,
-                    clip_path,
-                    start=clip.start,
-                    end=clip.end,
-                    transcript=transcription.segments,
-                    width=width,
-                    height=height,
-                    render_mode=render_mode,
-                    cold_open=teaser,
-                    hook_text=clip.hook_text if hook_overlay else None,
-                    hook_duration=hook_duration,
-                    caption_style=caption_style,
-                    no_face_report=no_face.append,
-                    **join_options,
-                )
+                try:
+                    render_vertical(
+                        source,
+                        clip_path,
+                        start=clip.start,
+                        end=clip.end,
+                        transcript=transcription.segments,
+                        width=width,
+                        height=height,
+                        render_mode=render_mode,
+                        cold_open=teaser,
+                        hook_text=clip.hook_text if hook_overlay else None,
+                        hook_duration=hook_duration,
+                        caption_style=caption_style,
+                        no_face_report=no_face.append,
+                        **join_options,
+                    )
+                except Exception as error:
+                    if not isolate:
+                        raise
+                    # render_vertical publishes nothing when it fails, so there is no file to
+                    # remove; the entry tells the web the clip exists but has no video.
+                    code = _clip_failure_code(error)
+                    warnings.append(f"clip_failed:{index}")
+                    print(
+                        f"potongin: clip_failed:{index}: {type(error).__name__} {code}",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                    failures.append(error)
+                    clips.append(_failed_manifest_clip(index, clip, teaser, code))
+                    continue
             avoid = None
             if teaser is not None and join is not None and join.style != "cut":
                 at_join = teaser[1] - teaser[0]  # the join, in seconds of the rendered clip
@@ -1494,6 +1555,8 @@ def _render_v3_clips(
             clips.append(entry)
             if timings is not None:
                 timings[clip.rank] = time.monotonic() - started
+        if failures and len(failures) == len(clips):
+            raise failures[0]
     finally:
         if renderer is not None:
             renderer.close()  # stops whatever was scheduled and never taken

@@ -283,6 +283,13 @@
 .poster[data-picked] .posterButton {
   background: var(--surface-2);
 }
+/* In "Pilih" a clip that failed to render cannot be picked: it still opens, without the lift. */
+.posterButton[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+.posterButton[aria-disabled="true"]:hover {
+  transform: none;
+}
 .check {
   position: absolute;
   top: 8px;
@@ -355,6 +362,27 @@
   border-radius: var(--radius-l);
   background: var(--bg);
   object-fit: contain;
+}
+/* A clip that failed to render: the frame keeps the video's size (stepping between clips does
+   not move the text) and says why in the player's place. */
+.failedFrame {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 10px;
+  padding: 16px;
+  border: 1px dashed var(--danger-border);
+  text-align: center;
+}
+.failedFrame p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.failedFrame strong {
+  color: var(--text);
+  font-weight: 600;
 }
 .clipBody {
   display: grid;

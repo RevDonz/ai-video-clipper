@@ -1,5 +1,6 @@
-// GET /api/clips: the "Klip" view of Riwayat. Every clip of every finished project, newest
-// project first and in clip order within it, read from serializePublicJob's sanitized job only.
+// GET /api/clips: the "Klip" view of Riwayat. Every rendered clip of every finished project,
+// newest project first and in clip order within it, read from serializePublicJob's sanitized job
+// only.
 // Search (clip title, project name, source URL), "Skor 8+", "Minggu ini" and the "Muat lagi"
 // pages run here. Work per request is bounded: job files are cached by (inode, size, mtime), a
 // request reads at most `maxReads` changed files and `readBudgetBytes` (newest first, the rest on
@@ -8,6 +9,7 @@ import { constants } from "node:fs";
 import { lstat, open, readdir } from "node:fs/promises";
 import path from "node:path";
 
+import { isFailedClip } from "./clip-status.mjs";
 import { CLIP_TEXT_LIMITS, normalizeYouTubeUrl, sanitizeLine, serializePublicJob } from "./jobs.mjs";
 import { projectName } from "./project-view.mjs";
 import { HIGH_SCORE, shownScore } from "./project-workspace.mjs";
@@ -62,8 +64,9 @@ function sourceUrlOf(job) {
 
 /**
  * The listing items of one job file, read from its sanitized form. Only a finished job whose id
- * is its own directory's name; each clip once, numbered 1 to 9999. `haystack` and `videoId` stay
- * on the server (search); publicItem drops them.
+ * is its own directory's name; each clip once, numbered 1 to 9999. A clip that failed to render
+ * (lib/clip-status.mjs) is left out: it has no video to find or post. `haystack` and `videoId`
+ * stay on the server (search); publicItem drops them.
  */
 export function libraryItems(raw, directoryName) {
   if (!isPlainObject(raw) || raw.id !== directoryName || !JOB_ID.test(directoryName) || raw.status !== "completed") return [];
@@ -82,6 +85,7 @@ export function libraryItems(raw, directoryName) {
   const seen = new Set();
   const items = [];
   for (const clip of job.clips) {
+    if (isFailedClip(clip)) continue;
     const index = clip.index;
     if (!Number.isSafeInteger(index) || index < 1 || index > MAX_CLIP_INDEX || seen.has(index)) continue;
     seen.add(index);

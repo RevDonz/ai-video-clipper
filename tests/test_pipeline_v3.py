@@ -1202,6 +1202,131 @@ def test_unexpected_thumbnail_errors_still_fail_the_job(env, monkeypatch):
     assert summary["warnings"][0] == "pipeline_failed:rendering"
 
 
+# --- one clip failing to render (per-clip isolation) ------------------------------------------
+
+THREE_CLIPS = (
+    selected(1, 100.0, 130.0),
+    selected(2, 160.0, 190.0, title="Klip yang gagal"),
+    selected(3, 230.0, 260.0),
+)
+FAILED_CLIP_KEYS = CLIP_KEYS | {"status", "error_code"}
+
+
+def failing_render(env, *names: str, error: Exception | None = None):
+    """The env's recording render, except that the clip files named in ``names`` fail."""
+
+    def render(source, output, **kwargs):
+        if Path(output).name in names:
+            raise error or RuntimeError("FFmpeg render failed in /data/jobs/secret/clip.mp4")
+        env.renders.append(kwargs)
+
+    return render
+
+
+def test_one_failing_clip_is_marked_failed_and_the_others_are_kept(env, monkeypatch, capsys):
+    monkeypatch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: result(*THREE_CLIPS))
+    monkeypatch.setattr(pipeline_module, "render_vertical", failing_render(env, "clip-02.mp4"))
+
+    manifest = manifest_of(run(env, max_duration=60.0))
+
+    assert manifest["status"] == "completed" and "error" not in manifest
+    first, failed, third = manifest["clips"]
+    for clip in (first, third):  # the rendered clips keep exactly their shape
+        assert_web_clip(clip)
+        assert "status" not in clip and "error_code" not in clip
+    assert [first["index"], failed["index"], third["index"]] == [1, 2, 3]
+    assert set(failed) == FAILED_CLIP_KEYS
+    assert failed["status"] == "failed" and failed["error_code"] == "render_failed"
+    assert failed["output"] is None and failed["subtitles"] is None
+    assert failed["thumbnail"] is None
+    assert failed["title"] == "Klip yang gagal" and failed["hook_text"] == "Hook singkat"
+    assert (failed["start"], failed["end"], failed["duration"]) == (160.0, 190.0, 30.0)
+    assert len(env.renders) == 2
+    assert [clip.name for clip, _duration in env.thumbnails] == ["clip-01.mp4", "clip-03.mp4"]
+    assert ("rendering", 84, "Merender klip 3 dari 3") in env.progress
+    summary = manifest["selection_v3"]
+    assert summary["status"] == "completed" and "clip_failed:2" in summary["warnings"]
+    assert not any(code.startswith("pipeline_failed") for code in summary["warnings"])
+    assert_web_summary(summary)
+    # The worker log names the clip and the error's type, never its text (paths, user text).
+    logged = capsys.readouterr().err
+    assert "potongin: clip_failed:2: RuntimeError render_failed" in logged
+    assert "/data/jobs" not in logged and "/data/jobs" not in json.dumps(manifest)
+
+
+def test_a_clip_whose_render_timed_out_says_so(env, monkeypatch):
+    monkeypatch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: result(*THREE_CLIPS))
+    timeout = RuntimeError("FFmpeg render timed out")
+    timeout.__cause__ = subprocess.TimeoutExpired(["ffmpeg"], 300)
+    monkeypatch.setattr(
+        pipeline_module, "render_vertical", failing_render(env, "clip-03.mp4", error=timeout)
+    )
+
+    manifest = manifest_of(run(env, max_duration=60.0))
+
+    assert manifest["status"] == "completed"
+    assert [clip.get("error_code") for clip in manifest["clips"]] == [None, None, "render_timeout"]
+    assert "clip_failed:3" in manifest["selection_v3"]["warnings"]
+
+
+def test_every_clip_failing_still_fails_the_job_with_the_first_error(env, monkeypatch):
+    monkeypatch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: result(*TWO_CLIPS))
+    tried = []
+
+    def broken(source, output, **kwargs):
+        tried.append(Path(output).name)
+        raise RuntimeError(f"FFmpeg render failed ({Path(output).stem})")
+
+    monkeypatch.setattr(pipeline_module, "render_vertical", broken)
+
+    with pytest.raises(RuntimeError, match=r"\(clip-01\)"):
+        run(env, max_duration=60.0)
+
+    assert tried == ["clip-01.mp4", "clip-02.mp4"]  # every clip had its chance
+    manifest = manifest_of(env.output / "manifest.json")
+    assert manifest["status"] == "failed" and "clips" not in manifest
+    assert manifest["error"] == "FFmpeg render failed (clip-01)"
+    warnings = manifest["selection_v3"]["warnings"]
+    assert warnings[0] == "pipeline_failed:rendering"
+    assert "clip_failed:1" in warnings and "clip_failed:2" in warnings
+    assert_web_summary(manifest["selection_v3"])
+
+
+def test_the_tools_rendering_stage_still_stops_at_the_first_failure(env, monkeypatch):
+    """``render_v3_job`` (P-LOOK, PF-PIPELINE, fixtures) keeps failing loudly: a tool that
+    measured a half-rendered job would report numbers for clips that do not exist."""
+    tried = []
+
+    def broken(source, output, **kwargs):
+        tried.append(Path(output).name)
+        raise RuntimeError("FFmpeg render failed")
+
+    monkeypatch.setattr(pipeline_module, "render_vertical", broken)
+    env.output.mkdir(parents=True)
+
+    with pytest.raises(RuntimeError, match="FFmpeg render failed"):
+        pipeline_module._render_v3_clips(
+            env.source,
+            env.output,
+            env.job,
+            plans=[(clip, None) for clip in TWO_CLIPS],
+            transcription=SimpleNamespace(segments=segments()),
+            width=720,
+            height=1280,
+            render_mode="center-crop",
+            cold_open=False,
+            hook_overlay=True,
+            hook_duration=4.0,
+            caption_style="karaoke",
+            render_engine="legacy",
+            report=lambda *_: None,
+            warnings=[],
+            cold_open_join=None,
+        )
+
+    assert tried == ["clip-01.mp4"]
+
+
 def test_v3_progress_stage_order_with_whisper_and_llm(env, monkeypatch):
     env.llm_client = ScriptedLLMClient([])  # exhausted -> auto fallback, still the LLM stage
     manifest = manifest_of(run(env, llm_mode="auto"))
@@ -2131,9 +2256,33 @@ def test_without_a_usable_job_context_every_clip_falls_back(env, monkeypatch, fa
     assert [clip["fallbacks"] for clip in manifest["clips"]] == [["engine_fallback"]] * 2
 
 
-def test_the_legacy_fallback_failing_still_fails_the_job(env, monkeypatch, fake_engine):
+def test_a_clip_failing_on_both_engines_fails_alone(env, monkeypatch, fake_engine):
     monkeypatch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: result(*TWO_CLIPS))
     fake_engine.fail_ranks = {1}
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("FFmpeg render failed")
+
+    monkeypatch.setattr(pipeline_module, "render_vertical", broken)
+
+    manifest = manifest_of(run(env, max_duration=60.0, render_engine="edit-v2"))
+
+    assert manifest["status"] == "completed"
+    failed, rendered = manifest["clips"]
+    # No engine fields: nothing was rendered, and the seed the new engine wrote is gone.
+    assert set(failed) == FAILED_CLIP_KEYS
+    assert failed["status"] == "failed" and failed["error_code"] == "render_failed"
+    assert rendered["render_engine"] == "edit-v2/1" and "status" not in rendered
+    warnings = manifest["selection_v3"]["warnings"]
+    assert "engine_fallback:1" in warnings and "clip_failed:1" in warnings
+    (renderer,) = fake_engine.instances
+    assert renderer.fallbacks == [1]
+    assert renderer.events == ["schedule", "render:1", "render:2", "close"]
+
+
+def test_every_clip_failing_on_both_engines_fails_the_job(env, monkeypatch, fake_engine):
+    monkeypatch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: result(*TWO_CLIPS))
+    fake_engine.fail_ranks = {1, 2}
 
     def broken(*args, **kwargs):
         raise RuntimeError("FFmpeg render failed")
@@ -2145,9 +2294,11 @@ def test_the_legacy_fallback_failing_still_fails_the_job(env, monkeypatch, fake_
 
     summary = manifest_of(env.output / "manifest.json")["selection_v3"]
     assert summary["warnings"][0] == "pipeline_failed:rendering"
-    assert "engine_fallback:1" in summary["warnings"]
+    assert {"engine_fallback:1", "engine_fallback:2", "clip_failed:1", "clip_failed:2"} <= set(
+        summary["warnings"]
+    )
     (renderer,) = fake_engine.instances
-    assert renderer.events == ["schedule", "render:1", "close"]  # the rest is stopped
+    assert renderer.events == ["schedule", "render:1", "render:2", "close"]
 
 
 def test_a_renderer_that_cannot_schedule_renders_one_clip_at_a_time(

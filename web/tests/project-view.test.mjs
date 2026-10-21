@@ -499,8 +499,10 @@ test("a failed download names its reason and one suggestion from the stored code
 test("every clip's detail offers 'Edit klip' from the clips listing; the page has no prepare step", async () => {
   const source = await read("app/projects/[id]/page.jsx");
   assert.match(source, /loadClipEntries\(id, \{ signal: controller\.signal \}\)/);
-  assert.match(source, /<ClipDetail clip=\{current\} job=\{job\} entry=\{clipEntryFor\(entries, job, current\.index\)\}/);
-  assert.match(source, /<PosterCard key=\{clip\.index\} clip=\{clip\} entry=\{clipEntryFor\(entries, job, clip\.index\)\}/);
+  // Every clip that rendered; a clip that failed to render has no editor entry.
+  assert.match(source, /const entryFor = \(clip\) => \(isFailedClip\(clip\) \? null : clipEntryFor\(entries, job, clip\.index\)\);/);
+  assert.match(source, /<ClipDetail clip=\{current\} job=\{job\} entry=\{entryFor\(current\)\}/);
+  assert.match(source, /<PosterCard key=\{clip\.index\} clip=\{clip\} entry=\{entryFor\(clip\)\}/);
   assert.match(source, /<a className=\{`btn \$\{styles\.edit\}`\} href=\{entry\.editHref\}>Edit klip<\/a>/);
   assert.match(source, /<section id="klip" className=\{styles\.clips\}/);
   assert.doesNotMatch(source, /Siapkan untuk editor|prepareClipEntries|method: "POST"/);
