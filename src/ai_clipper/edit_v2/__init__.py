@@ -34,7 +34,7 @@ WORDS_MAX_RANGE = (1, 4)
 CAPTION_ENTRANCES = ("none", "fade", "pop", "blur")
 # The caption's positions Atas, Tengah and Bawah (``captions.overrides.y_e5``, the block's
 # bottom), as the editor's Posisi pills offer them; the caption-over-face check moves the caption
-# to one of these (CONTRACTS §5.48).
+# to one of these (CONTRACTS §5.50).
 CAPTION_PRESETS = (("atas", 38000), ("tengah", 60000), ("bawah", 83000))
 # Hook designs (resources/hook-designs/<id>/v1.json), every one at v 1: the bar the seeds write,
 # then Kicker, Blok and Kotak kata (CONTRACTS §5.33).

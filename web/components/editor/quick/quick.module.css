@@ -344,7 +344,7 @@
   font-weight: 400;
 }
 
-/* The caption over the face (CONTRACTS §5.48): the warning line and its one-click fix. */
+/* The caption over the face (CONTRACTS §5.50): the warning line and its one-click fix. */
 .faceNote {
   display: flex;
   flex-wrap: wrap;

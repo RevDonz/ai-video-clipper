@@ -301,7 +301,7 @@ def test_a_symlinked_or_misnamed_camera_plan_is_ignored(tmp_path, contexts):
 
 
 def test_the_other_layouts_read_a_camera_plan_for_its_faces_only(tmp_path, contexts):
-    """``faces_for`` (CONTRACTS §5.48): the camera plan face-track would use, for the caption
+    """``faces_for`` (CONTRACTS §5.50): the camera plan face-track would use, for the caption
     check under another layout; ``None`` without one (it is never built for this) and under
     face-track itself, whose own plan carries the faces."""
     seed = contexts["c30"].seed

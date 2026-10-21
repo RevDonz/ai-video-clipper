@@ -35,7 +35,7 @@ reads it back (``None`` when missing, malformed or a symlink).
 ``centre_pm = round_half_up(centre · 1000)``; ``source_content_sha256`` is the sha256 of the
 source file.
 
-``faces`` (CONTRACTS §5.48) is the framed face per sample, ``[x_pm, y_pm, w_pm, h_pm]`` of the
+``faces`` (CONTRACTS §5.50) is the framed face per sample, ``[x_pm, y_pm, w_pm, h_pm]`` of the
 source frame or ``None``, unsmoothed: the caption check maps it through the clip's layout. The
 window detector gives it when asked with ``boxes=True``; another detector may return it as a
 sixth value. A plan without it (older plans, detectors without boxes) has no ``faces`` key.

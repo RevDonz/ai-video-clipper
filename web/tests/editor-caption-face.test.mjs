@@ -1,4 +1,4 @@
-// The caption over the speaker's face (CONTRACTS §5.48): the plan's `caption_over_face` warning,
+// The caption over the speaker's face (CONTRACTS §5.50): the plan's `caption_over_face` warning,
 // its message, and the one-click fix that moves the caption to the preset the warning names.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";

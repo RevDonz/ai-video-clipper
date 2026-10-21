@@ -163,7 +163,7 @@ SIGNATURES = {
         ("camera", KW, NO_DEFAULT),
         ("assets", KW, NO_DEFAULT),
         ("resources", KW, NO_DEFAULT),
-        ("faces", KW, None),  # CONTRACTS §5.48
+        ("faces", KW, None),  # CONTRACTS §5.50
     ],
     ("plan", "render_key"): [
         ("plan", POS, NO_DEFAULT),

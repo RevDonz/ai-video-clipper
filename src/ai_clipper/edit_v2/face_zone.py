@@ -1,4 +1,4 @@
-"""The caption over the speaker's face: the ``caption_over_face`` warning (CONTRACTS §5.48).
+"""The caption over the speaker's face: the ``caption_over_face`` warning (CONTRACTS §5.50).
 
 The camera plan's ``faces`` holds the framed face per sample (``[x_pm, y_pm, w_pm, h_pm]`` of
 the source frame, or ``None``). Each sample whose source frame is kept and shows a caption is

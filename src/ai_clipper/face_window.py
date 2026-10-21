@@ -283,7 +283,7 @@ def detect_window(
 
     With ``boxes=True`` a sixth value follows: the framed face per sample as ``(x, y, w, h)``
     shares of the source frame (``None`` without a face), for the caption check
-    (CONTRACTS §5.48)."""
+    (CONTRACTS §5.50)."""
     scan = scan_window(source, start=start, end=end, sample_interval=sample_interval,
                        progress=progress)
     faces, switches = choose_faces(scan.samples, width=scan.width, rules=rules)

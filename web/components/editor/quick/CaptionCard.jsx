@@ -4,7 +4,7 @@
 // "Tampilkan caption" switch, the packs (the FFmpeg thumbnails), the highlight colour, three
 // sizes, words per line (CONTRACTS §5.30), the entrance (§5.39) and three positions. A size or
 // position set off the presets in Mode Lengkap presses no pill. Under the positions, a caption over
-// the speaker's face shows its one-click fix (§5.48). The commands, the notes and the
+// the speaker's face shows its one-click fix (§5.50). The commands, the notes and the
 // hook hint are caption-model.mjs, shared with the Teks panel, so both views send the same command
 // and show the same text. Props: the card bundle of cards.mjs.
 import { useId, useState } from "react";

@@ -773,7 +773,7 @@ def _with_cues(monkeypatch):
 
 
 def test_a_caption_over_the_face_is_a_warning_with_its_fix(harness, resources, monkeypatch):
-    """CONTRACTS §5.48: the camera plan's faces, mapped through the layout, under the caption
+    """CONTRACTS §5.50: the camera plan's faces, mapped through the layout, under the caption
     block for a share of the clip. The warning names the preset that clears the face; like every
     warning it is not part of the plan sha."""
     _with_cues(monkeypatch)

@@ -142,7 +142,7 @@ def test_choose_rejects_a_frame_without_width():
 
 
 def test_choose_faces_returns_the_framed_face_itself():
-    """The caption check (CONTRACTS §5.48) needs the framed face's box, not just its centre:
+    """The caption check (CONTRACTS §5.50) needs the framed face's box, not just its centre:
     ``choose_faces`` returns that face per sample, and ``choose`` is its centres."""
     from ai_clipper.speaker_track import choose_faces
 

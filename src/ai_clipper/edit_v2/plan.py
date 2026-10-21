@@ -147,7 +147,7 @@ class RenderPlan:
     music: Mapping[str, Any] | None = None  # the music item of the document, if any
     speech_envelope: tuple[tuple[int, int], ...] = ()  # envelope.speech_envelope (T1.4)
     music_envelope: tuple[tuple[int, int], ...] | None = None  # envelope.music_envelope
-    # caption, camera (no_face[_blur]), logo (unsafe_zone), caption over face (§5.48)
+    # caption, camera (no_face[_blur]), logo (unsafe_zone), caption over face (§5.50)
     warnings: tuple[Issue, ...] = ()
     fonts_sha256: str | None = None  # resources/fonts/fonts.json; None when missing
     packs_sha256: str | None = None  # the pack and hook design the document uses
@@ -363,7 +363,7 @@ def build_plan(
     """Resolve a validated document into a render plan (pieces, captions, audio, logo, camera).
 
     ``faces`` is a camera plan read only for its ``faces`` (the ``caption_over_face`` warning,
-    CONTRACTS §5.48) under a layout that does not crop with it; without it the ``camera`` plan
+    CONTRACTS §5.50) under a layout that does not crop with it; without it the ``camera`` plan
     given is used. It never changes the plan or its sha.
 
     Raises ``AnalysisMissing`` (``ref="camera"``) for the camera layout without a camera plan

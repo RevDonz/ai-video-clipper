@@ -100,7 +100,7 @@ function TextPanelBody({ state, dispatch, api }) {
   // warning carries the hook item id.
   const zone = captionZoneNote(doc, state.seed, plan);
   const nearHook = hookNearNote(doc);
-  const face = captionFaceNote(plan); // the caption over the speaker's face (§5.48)
+  const face = captionFaceNote(plan); // the caption over the speaker's face (§5.50)
   const unsafeHook = hook !== null && (plan?.warnings ?? []).some((warning) => warning.code === "unsafe_zone"
     && (warning.path ? warning.path.startsWith("/tracks") : warning.ref === hook.id));
   const enableText = hookEnableText(draftText, state.seed);

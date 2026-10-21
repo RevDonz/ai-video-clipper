@@ -141,7 +141,7 @@ export function captionZoneNote(doc, seed, plan) {
 }
 
 /**
- * The fix of the plan's `caption_over_face` warning (CONTRACTS §5.48): the engine names in `ref`
+ * The fix of the plan's `caption_over_face` warning (CONTRACTS §5.50): the engine names in `ref`
  * the nearest of Atas, Tengah and Bawah that clears the face, and the fix sends that preset as
  * the Posisi pills do. `{ id, label, command }`, or null (another warning, or no preset clears).
  */

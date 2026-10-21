@@ -148,7 +148,7 @@ def choose_faces(
     rules: Rules = RULES,
 ) -> tuple[list[Face | None], list[bool]]:
     """:func:`choose` with the framed face itself per sample (``None`` without a face): its box
-    is what the caption check compares with the caption (CONTRACTS §5.48)."""
+    is what the caption check compares with the caption (CONTRACTS §5.50)."""
     if width <= 0:
         raise ValueError("the frame width must be positive")
     tracks = link_tracks(samples, link_iou=rules.link_iou)

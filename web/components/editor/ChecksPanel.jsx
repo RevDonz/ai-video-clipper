@@ -4,7 +4,7 @@
 // its frame; blocking plan errors on top; notes (severity "info": the caption at the auto clip's
 // spot, K5) last, under "Catatan", informative only. A non-modal popover under the top bar; Escape
 // closes it and focus returns to the button that opened it (EditorApp). A caption over the
-// speaker's face carries its one-click fix (CONTRACTS §5.48); `onFix` is null when read-only.
+// speaker's face carries its one-click fix (CONTRACTS §5.50); `onFix` is null when read-only.
 import { useEffect, useRef } from "react";
 
 import { captionFaceFix } from "./panels/caption-model.mjs";

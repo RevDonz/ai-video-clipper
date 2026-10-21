@@ -1359,7 +1359,7 @@ test("history: 'Edit klip' on a finished project opens its clip list, only while
   await expect(page.getByRole("link", { name: /^Edit klip/ })).toHaveCount(0);
 });
 
-// CONTRACTS §5.48: a caption over the speaker's face is a check with its one-click fix, in Perlu
+// CONTRACTS §5.50: a caption over the speaker's face is a check with its one-click fix, in Perlu
 // dicek and under the caption controls; the fix moves the caption to the preset the plan names.
 test("a caption over the face is a check whose fix moves the caption", async ({ page }) => {
   const face = { code: "caption_over_face", path: "/captions/overrides/y_e5", ref: "tengah", f: 3 };

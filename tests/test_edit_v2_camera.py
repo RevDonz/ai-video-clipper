@@ -448,7 +448,7 @@ def test_a_symlinked_progress_file_is_not_followed(tmp_path):
     assert camera.read_progress(link) is None
 
 
-# --- the framed face's box (CONTRACTS §5.48) ------------------------------------------------------
+# --- the framed face's box (CONTRACTS §5.50) ------------------------------------------------------
 
 
 def test_a_detector_with_boxes_adds_the_framed_face_per_sample(source):

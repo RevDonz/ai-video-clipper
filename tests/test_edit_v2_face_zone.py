@@ -1,4 +1,4 @@
-"""The caption over the speaker's face (``face_zone``, CONTRACTS §5.48).
+"""The caption over the speaker's face (``face_zone``, CONTRACTS §5.50).
 
 The camera plan's ``faces`` (the framed face per sample, per mille of the source frame) is mapped
 through the clip's layout into the 9:16 output and compared with the caption block. Fake face

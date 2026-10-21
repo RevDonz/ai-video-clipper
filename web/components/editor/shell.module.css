@@ -1202,7 +1202,7 @@
   background: var(--danger-bg);
 }
 
-/* The one-click fix of a check (the caption over the face, CONTRACTS §5.48): a 44 px target. */
+/* The one-click fix of a check (the caption over the face, CONTRACTS §5.50): a 44 px target. */
 .checkFix {
   flex: none;
   min-height: var(--ed-target);

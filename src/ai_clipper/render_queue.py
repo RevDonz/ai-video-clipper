@@ -854,7 +854,7 @@ def _plan(clip: Path, doc: Mapping[str, Any], resources: Resources) -> RenderPla
         words = edit_store.load_words(clip, doc["base"]["words"]["sha256"])
         camera = _camera_for(clip, doc)
         assets = edit_store.load_assets(clip, doc["assets"].keys())
-        # the caption check reads the faces of a camera plan under the other layouts (§5.48)
+        # the caption check reads the faces of a camera plan under the other layouts (§5.50)
         faces = None if camera is not None else edit_plates.faces_for(clip, doc)
         return build_plan(doc, words=words, camera=camera, assets=assets, resources=resources,
                           faces=faces)

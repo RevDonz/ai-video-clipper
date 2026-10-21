@@ -249,7 +249,7 @@ def camera_plan_gate(jobs_root: Path, jobs: Sequence[str], runs: int = 2,
             differing = [i for i, (a, b) in enumerate(zip(samples_fast, samples_old)) if a != b]
             entry.update({
                 "todays_detector_s": today["seconds"], "todays_load_before": today["load_before"],
-                # the window path adds the framed face boxes (``faces``, CONTRACTS §5.48)
+                # the window path adds the framed face boxes (``faces``, CONTRACTS §5.50)
                 "identical_to_today": {key: value for key, value in fast.items()
                                        if key != "faces"} == old,
                 "samples_differing_from_today": len(differing),

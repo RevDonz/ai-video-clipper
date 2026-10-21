@@ -184,7 +184,7 @@ def camera_for(clip_dir: Path, doc: Mapping[str, Any]) -> tuple[dict | None, str
 
 def faces_for(clip_dir: Path, doc: Mapping[str, Any]) -> dict | None:
     """A camera plan of ``doc``'s window for its ``faces`` only (``build_plan(faces=…)``, the
-    caption check of CONTRACTS §5.48) under a layout that does not crop with it: the one
+    caption check of CONTRACTS §5.50) under a layout that does not crop with it: the one
     face-track would use, when one was built; ``None`` otherwise. Never builds one."""
     if doc["layout"]["default"]["mode"] == "camera":
         return None
