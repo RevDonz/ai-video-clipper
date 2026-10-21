@@ -197,11 +197,12 @@ suite) run on GitHub Actions: `ci-cd.yml` on every pull request and `editor-gate
   video bisa ditarik ke halaman.
 - **Cold open.** Kalimat terkuat bisa diputar lebih dulu, lalu klip berjalan dari awal.
 - **Teks hook.** Kalimat pemancing singkat tampil di atas layar selama 4 detik pertama.
-- **Subtitle karaoke.** Subtitle mengikuti waktu per kata, dan kata yang sedang diucapkan
-  menyala. Gaya Klasik juga tersedia. Di **Pengaturan klip**, setiap gaya punya thumbnail hasil
-  render, dan pratinjau 9:16 menunjukkan letak subtitle, teks hook, dan area tombol TikTok untuk
-  layout yang dipilih. Klip otomatis selalu menaruh subtitle di bawah dengan ukuran tetap; posisi
-  dan ukurannya diatur per klip di editor.
+- **Subtitle per kata.** Subtitle mengikuti waktu per kata. Di **Pengaturan klip** ada lima gaya
+  (Klasik, Karaoke, Bold, Box, Sorot), posisi Atas/Tengah/Bawah dan ukuran Kecil/Sedang/Besar;
+  setiap gaya punya thumbnail hasil render, dan pratinjau 9:16 menunjukkan letak dan ukuran
+  subtitle, teks hook, dan area tombol TikTok untuk layout yang dipilih. File klip otomatis sama
+  dengan yang dibuka editor, dan per klip semuanya bisa diubah lagi di editor. Dengan mesin
+  `legacy` (rollback) dashboard hanya menawarkan Klasik dan Karaoke di bawah.
 - **Kemasan siap posting.** Setiap klip punya judul, teks hook, deskripsi, hashtag,
   arketipe, alasan dipilih, dan skor 0–10 (hook, berdiri sendiri, payoff, emosi, layak
   dibagikan). Semua tampil di halaman detail proyek dan bisa disalin sekali klik.
@@ -229,7 +230,7 @@ suite) run on GitHub Actions: `ci-cd.yml` on every pull request and `editor-gate
   and the environment. Its "Logo bawaan" card (`/api/settings/logo`, authenticated, streamed
   upload normalised by the editor's ingest) holds one logo in `/data/settings/default-logo/`;
   every new job gets a copy and its clips start with that logo in the editor (and in the
-  automatic clip files when `POTONGIN_RENDER_ENGINE=edit-v2`). Its "Teks watermark bawaan" card
+  automatic clip files, unless `POTONGIN_RENDER_ENGINE=legacy` rolls the engine back). Its "Teks watermark bawaan" card
   (`/api/settings/watermark`, authenticated) keeps one line of text with its place, size and
   opacity in `/data/settings/default-watermark.json` on the same terms; in the editor the Logo
   panel adds, changes or removes a clip's text watermark, drawn with the captions' ASS. Its
@@ -408,8 +409,8 @@ kecuali kompresi MP4.
 - Flag (`POTONGIN_EDITOR_V3`, `POTONGIN_EDITOR_UPLOADS`, `POTONGIN_EDITOR_LLM`,
   `POTONGIN_RENDER_ENGINE`), layanan, toolchain render yang dikunci, gerbang CI dan lisensi:
   [`docs/editor/OPERASIONAL.md`](docs/editor/OPERASIONAL.md). Bawaan rilis di `compose.yaml`:
-  editor, unggahan dan saran AI `on`; klip otomatis dirender mesin `legacy` sampai pemilik
-  memutuskan kuota CPU (`edit-v2` = kompiler editor). Tiap flag bisa diubah lewat `.env` tanpa
+  editor, unggahan dan saran AI `on`; klip otomatis dirender `edit-v2` (kompiler editor),
+  `legacy` hanya untuk rollback. Tiap flag bisa diubah lewat `.env` tanpa
   build ulang (OPERASIONAL §2).
 - Hasil gerbang: [`docs/editor/GATES.md`](docs/editor/GATES.md); kontrak:
   [`docs/editor/CONTRACTS.md`](docs/editor/CONTRACTS.md); rencana:
