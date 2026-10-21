@@ -44,8 +44,8 @@ MAX_SRT_BYTES = 2 * 1024 * 1024
 SOURCE_NAME = "srt-upload"
 
 _TIME = r"(\d{1,3}):([0-5]\d):([0-5]\d)[,.](\d{1,3})"
-_TIMING = re.compile(rf"^\s*{_TIME}\s*-->\s*{_TIME}(?:\s.*)?$")
-_INDEX = re.compile(r"^\s*\d+\s*$")
+_TIMING = re.compile(rf"^\s*{_TIME}\s*-->\s*{_TIME}(?:\s.*)?$", re.ASCII)
+_INDEX = re.compile(r"^\s*\d+\s*$", re.ASCII)
 _BLANK = re.compile(r"\n[ \t]*\n")
 _MARKUP = re.compile(r"<[^<>\n]{0,100}>|\{\\[^{}\n]{0,200}\}")
 
