@@ -212,3 +212,30 @@ test("docs/design/TOKENS.md records every colour token with the same hex", async
   for (const [name, hex] of colours) assert.equal(documented[name], hex, `TOKENS.md row for --${name}`);
   for (const name of Object.keys(documented)) assert.ok(tokens[name], `TOKENS.md documents --${name}, which globals.css does not define`);
 });
+
+// Phone checks (360-390 px): the header's links stay one-line and every lone link is a 44 px target.
+const cssRule = (css, selector) => {
+  const at = css.indexOf(`${selector} {`);
+  assert.ok(at >= 0, `a rule for ${selector}`);
+  return css.slice(at, css.indexOf("}", at));
+};
+
+test("the brand link is a 44 px target even when only its letter mark shows", async () => {
+  const css = (await read("app/globals.css")).replace(/\/\*[\s\S]*?\*\//g, "");
+  assert.match(cssRule(css, ".brand"), /min-width:\s*44px/);
+  assert.match(cssRule(css, ".brand"), /min-height:\s*44px/);
+});
+
+test("the menu's labels never wrap onto two lines on a 360 px phone", async () => {
+  const css = (await read("app/globals.css")).replace(/\/\*[\s\S]*?\*\//g, "");
+  assert.match(cssRule(css, ".appNav a"), /white-space:\s*nowrap/);
+  const narrow = /@media \(max-width: 383px\) \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
+  assert.match(narrow, /\.appNav a \{[^}]*padding:\s*6px 4px/, "less side padding where four labels share 360 px");
+});
+
+test("the editor's state page links back to the project with a 44 px target", async () => {
+  const css = (await read("components/editor/shell.module.css")).replace(/\/\*[\s\S]*?\*\//g, "");
+  const rule = cssRule(css, ".state a");
+  assert.match(rule, /min-height:\s*44px/);
+  assert.match(rule, /display:\s*inline-flex/);
+});
