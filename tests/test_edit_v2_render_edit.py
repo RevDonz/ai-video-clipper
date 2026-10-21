@@ -1137,6 +1137,103 @@ def test_the_no_face_length_counts_every_played_segment_inside_the_spans():
     assert render_edit._no_face_ms([[0, 5000]], ntsc) == 1001
 
 
+def test_the_no_face_length_and_the_output_length_skip_the_removed_frames():
+    document = {"output": {"fps": [25, 1]}, "main": {"segments": [
+        {"id": "seg_b1", "role": "body", "in_sf": 200, "out_sf": 400},  # 8–16 s
+    ], "removals": [{"id": "rm_1", "seg": "seg_b1", "in_sf": 225, "out_sf": 275, "words": [],
+                     "reason": "gap_silent", "origin": "suggestion:cl_1"}]}}  # 9–11 s cut
+    assert render_edit._no_face_ms([[0, 12000]], document) == 2000  # 8–9 and 11–12
+    assert render_edit.output_seconds(document) == pytest.approx(6.0)
+    document["main"]["removals"] = []
+    assert render_edit.output_seconds(document) == pytest.approx(8.0)
+
+
+# --- automatic pause trims (CONTRACTS §5.57) -----------------------------------------------------
+
+
+@pytest.mark.parametrize(("value", "on"), [
+    (None, True), ("", True), ("on", True), ("ON", True), ("1", True), ("anything", True),
+    ("off", False), (" Off ", False), ("0", False), ("false", False), ("no", False)])
+def test_pause_trims_are_on_unless_the_flag_turns_them_off(value, on):
+    env = {} if value is None else {"POTONGIN_AUTO_PAUSE_TRIM": value}
+    assert render_edit.pause_trim_from_env(env) is on
+
+
+def test_auto_options_trim_pauses_by_default():
+    options = render_edit.AutoOptions(render_mode="fit-blur", caption_style="karaoke",
+                                      cold_open=False, hook_overlay=False, hook_duration=4.0,
+                                      width=720, height=1280)
+    assert options.trim_pauses is True
+
+
+@pytest.mark.parametrize("trim", [True, False])
+def test_the_auto_seed_carries_the_pause_trims_the_editor_opens(auto_job, tmp_path, monkeypatch,
+                                                                trim):
+    job_dir = copy_job(auto_job, tmp_path)
+    shutil.rmtree(job_dir / "analysis" / "clips")
+    calls = []
+
+    def fake(words, *, body, peaks=None, lexicon=None):
+        calls.append((words["clip_id"], dict(body), peaks is not None))
+        return [{"id": "rm_1", "seg": body["id"], "in_sf": body["in_sf"] + 10,
+                 "out_sf": body["in_sf"] + 20, "words": [], "reason": "gap_silent",
+                 "origin": "suggestion:cl_1"}]
+
+    monkeypatch.setattr(render_edit._cleanup, "auto_pause_removals", fake)
+    renderer = render_edit.AutoRenderer(
+        job_dir=job_dir, source=job_dir / "input" / "source.mp4", output_dir=job_dir / "output",
+        options=render_edit.AutoOptions(render_mode="fit-blur", caption_style="karaoke",
+                                        cold_open=True, hook_overlay=True, hook_duration=4.0,
+                                        width=720, height=1280,
+                                        cold_open_join=AUTO_COLD_OPEN_JOIN, trim_pauses=trim))
+    try:
+        directory, document = renderer._seed(1)
+    finally:
+        renderer.close()
+    on_disk, _etag = store.seed(directory)
+    assert on_disk == document
+    body = next(s for s in document["main"]["segments"] if s["role"] == "body")
+    if trim:
+        assert calls == [(document["clip_id"], body, True)]  # with the clip's peaks
+        assert document["main"]["removals"] == [
+            {"id": "rm_1", "seg": "seg_b1", "in_sf": body["in_sf"] + 10,
+             "out_sf": body["in_sf"] + 20, "words": [], "reason": "gap_silent",
+             "origin": "suggestion:cl_1"}]
+    else:
+        assert calls == [] and document["main"]["removals"] == []
+    words = store.load_words(directory, document["base"]["words"]["sha256"])
+    assert doc_module.validate_doc(document, words=words, assets={}, seed=document).ok
+
+
+def test_a_trimmed_auto_clip_renders_its_pieces_and_reports_their_length(auto_job, tmp_path,
+                                                                        monkeypatch):
+    job_dir = copy_job(auto_job, tmp_path)
+    shutil.rmtree(job_dir / "analysis" / "clips")
+    for old in (job_dir / "output").glob("clip-*"):
+        old.unlink()
+
+    def fake(words, *, body, peaks=None, lexicon=None):
+        # 1 s out of the body, as a pause trim would cut it
+        return [{"id": "rm_1", "seg": body["id"], "in_sf": body["in_sf"] + 50,
+                 "out_sf": body["in_sf"] + 75, "words": [], "reason": "gap_silent",
+                 "origin": "suggestion:cl_1"}]
+
+    monkeypatch.setattr(render_edit._cleanup, "auto_pause_removals", fake)
+    renderer = auto_renderer(job_dir)
+    output = job_dir / "output" / "clip-02.mp4"
+    try:
+        auto = renderer.render(2, output)
+    finally:
+        renderer.close()
+    document, _etag = store.seed(clip_dir(job_dir, auto.clip_id))
+    plan = render_edit.load_render_inputs(job_dir, document).plan
+    assert auto.result.verify["ok"] and auto.result.frames == plan.total_frames
+    body = document["main"]["segments"][0]
+    assert plan.total_frames == body["out_sf"] - body["in_sf"] - 25
+    assert auto.seconds == pytest.approx(plan.total_frames / FPS)
+    assert render_edit.verify_file(output, plan).ok
+
+
 # --- concurrent auto renders (T4.3, PF-PIPELINE) ------------------------------------------------
 
 

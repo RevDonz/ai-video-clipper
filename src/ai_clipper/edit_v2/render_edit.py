@@ -19,7 +19,10 @@ the seed ``prepare`` would build for the same job use the same inputs. Per clip 
 ``pipeline/edit-v2/1``), each immutable, then renders **from the seed file** into
 ``output/clip-NN.mp4``. A job created with a Pengaturan default logo (``<job>/logo/``) gets it
 in its asset store and in every seed, so the auto clip carries it; a default text watermark
-(``<job>/watermark.json``) likewise. When the new engine fails
+(``<job>/watermark.json``) likewise. Unless ``POTONGIN_AUTO_PAUSE_TRIM`` is off
+(:func:`pause_trim_from_env`, ``AutoOptions.trim_pauses``) the seed also trims the body's silent
+pauses to 0.2 s (``cleanup.auto_pause_removals``, CONTRACTS §5.57), so the file and the editor's
+revision 0 have the same cuts; ``AutoClip.seconds`` is the trimmed length. When the new engine fails
 for a clip the pipeline renders that clip
 with the legacy engine (``engine_fallback:<rank>``); :meth:`AutoRenderer.fallback` first removes
 the ``seed.json`` this run wrote for it, so no seed claims the new engine for a legacy file (the
@@ -87,6 +90,7 @@ from ..transcript_io import MAX_TRANSCRIPT_BYTES, transcription_from_json_bytes
 from . import COMPILER_ID, OUTPUT_SIZES, compile_ffmpeg, errors, execute, store, verify
 from . import assets as _assets
 from . import camera as _camera
+from . import cleanup as _cleanup
 from . import loudness as _loudness
 from . import plates as _plates
 from . import seed as _seed
@@ -121,6 +125,8 @@ ENGINE_ENV = "POTONGIN_RENDER_ENGINE"
 ENGINE_LEGACY = "legacy"
 ENGINE_EDIT_V2 = "edit-v2"
 ENGINES = (ENGINE_LEGACY, ENGINE_EDIT_V2)
+PAUSE_TRIM_ENV = "POTONGIN_AUTO_PAUSE_TRIM"
+PAUSE_TRIM_OFF = frozenset({"off", "0", "false", "no"})
 LEGACY_ENGINE_ID = "legacy"  # manifest render_engine / seed base.engine.compiler of old files
 
 REQUEST_VERSION = "render-request-v3"
@@ -177,6 +183,14 @@ def engine_from_env(env: Mapping[str, str] | None = None) -> str:
     if isinstance(value, str) and value.strip().lower() == ENGINE_LEGACY:
         return ENGINE_LEGACY
     return ENGINE_EDIT_V2
+
+
+def pause_trim_from_env(env: Mapping[str, str] | None = None) -> bool:
+    """Whether the automatic clips trim their silent pauses (CONTRACTS §5.57): on unless
+    ``POTONGIN_AUTO_PAUSE_TRIM`` is ``off``, ``0``, ``false`` or ``no`` (any case, outer spaces
+    ignored: the rollback switch)."""
+    value = (os.environ if env is None else env).get(PAUSE_TRIM_ENV)
+    return not (isinstance(value, str) and value.strip().lower() in PAUSE_TRIM_OFF)
 
 
 # --- results ---------------------------------------------------------------------------------------
@@ -938,6 +952,8 @@ class AutoOptions:
     cold_open_join: ColdOpenJoin = CUT_JOIN
     caption_position: str = "bottom"  # CAPTION_POSITIONS (CONTRACTS §5.48)
     caption_size: str = "medium"  # CAPTION_SIZES
+    # Silent pauses in the body shrink to 0.2 s (CONTRACTS §5.57; pause_trim_from_env).
+    trim_pauses: bool = True
 
     def job(self, job_id: str, seed_at_ms: int) -> dict[str, Any]:
         """The ``job`` mapping of ``seed.build_seed``."""
@@ -965,20 +981,29 @@ class AutoClip:
     cold_open_join: ColdOpenJoin | None = None
     # Face-track: the ms of the rendered clip inside the camera plan's no_face spans, else None.
     no_face_ms: int | None = None
+    # The rendered length (seconds): the seed's pieces, so pause trims are left out.
+    seconds: float | None = None
 
     def manifest_fields(self) -> dict[str, Any]:
         return {"clip_id": self.clip_id, "render_engine": self.render_engine,
                 "render_key": self.render_key, "plan_sha256": self.plan_sha256}
 
 
+def output_seconds(document: Mapping[str, Any]) -> float:
+    """The length of ``document``'s output: its pieces (segments minus removals)."""
+    fps = Fps.from_json(document["output"]["fps"])
+    return tm.total_frames(tm.pieces(document)) * fps.den / fps.num
+
+
 def _no_face_ms(spans: Sequence[Sequence[int]], document: Mapping[str, Any]) -> int:
-    """The ms of ``document``'s main segments (each as often as it plays) inside the camera
-    plan's ``no_face`` spans (source ms; the plan's window is wider than the clip)."""
+    """The ms of ``document``'s pieces (each as often as it plays; removals are not played)
+    inside the camera plan's ``no_face`` spans (source ms; the plan's window is wider than the
+    clip)."""
     fps = Fps.from_json(document["output"]["fps"])
     total = Fraction(0)
-    for segment in document["main"]["segments"]:
-        low = Fraction(segment["in_sf"] * 1000 * fps.den, fps.num)
-        high = Fraction(segment["out_sf"] * 1000 * fps.den, fps.num)
+    for piece in tm.pieces(document):
+        low = Fraction(piece.in_sf * 1000 * fps.den, fps.num)
+        high = Fraction(piece.out_sf * 1000 * fps.den, fps.num)
         for start, end in spans:
             total += max(Fraction(0), min(high, end) - max(low, start))
     return round(total)
@@ -1083,6 +1108,12 @@ class AutoRenderer:
                                      fps=fps, audio=self.audio, events=self.events, peaks=peaks)
         words_raw = encode_words(words)
         _write_or_match(directory / words_file_name(words_raw), words_raw)
+        removals: list[dict[str, Any]] = []
+        if self.options.trim_pauses:
+            body = next(segment for segment in provisional["main"]["segments"]
+                        if segment["role"] == "body")
+            removals = _cleanup.auto_pause_removals(words, body=body, peaks=peaks)
+        common["job"] = {**job, "pauseRemovals": removals}
         camera_sha = None
         if face_track:
             detector = _camera.detect_face_track if self.detector is None else self.detector
@@ -1179,7 +1210,8 @@ class AutoRenderer:
         return AutoClip(clip_id=document["clip_id"], render_engine=COMPILER_ID,
                         render_key=result.render_key, plan_sha256=result.plan_sha256,
                         cold_open=cold_open, result=result, cold_open_join=join,
-                        no_face_ms=None if spans is None else _no_face_ms(spans, document))
+                        no_face_ms=None if spans is None else _no_face_ms(spans, document),
+                        seconds=output_seconds(document))
 
     def fallback(self, rank: int) -> str | None:
         """Before the legacy engine renders the clip of ``rank``: remove the ``seed.json`` this
@@ -1218,6 +1250,8 @@ __all__ = [
     "job_source",
     "load_render_inputs",
     "measure_sha256",
+    "output_seconds",
+    "pause_trim_from_env",
     "render_document",
     "render_key_for",
     "render_request",

@@ -160,6 +160,9 @@ services:
       # Which engine renders the auto clips: edit-v2 (the editor's compiler, release default) or
       # legacy (the rollback switch).
       POTONGIN_RENDER_ENGINE: ${POTONGIN_RENDER_ENGINE:-edit-v2}
+      # Silent pauses in the auto clips shrink to 0.2 s (on, release default); off is the
+      # rollback switch (docs/editor/OPERASIONAL.md §2).
+      POTONGIN_AUTO_PAUSE_TRIM: ${POTONGIN_AUTO_PAUSE_TRIM:-on}
       # LLM settings saved on the Pengaturan page (docs/operations/LLM_PROVIDERS.md):
       # run-job.mjs opens the sealed keys with the same secret as the app and hands
       # them only to the engine process; yt-dlp never receives keys or secrets.

@@ -29,6 +29,11 @@ pack defaults, CONTRACTS §5.48) plus optional seed-context keys that never occu
 * ``watermark``: ``{"text", "pos", "size_pm", "opacity_pm"}``, the job's default text watermark
   (Pengaturan, CONTRACTS §5.43) as :func:`job_watermark` reads it. The seed carries it as its
   ``watermark``; anything outside the document's ranges is refused. Missing or null: none.
+* ``pauseRemovals``: the pause trims of an automatic clip (``cleanup.auto_pause_removals``,
+  CONTRACTS §5.57), the seed's ``main.removals``. Only a pipeline seed takes them (a ``prepare``
+  seed describes a file the legacy engine rendered without trims); each must be a ``gap_silent``
+  removal from a Rapikan suggestion inside the body, sorted and apart, and the body must keep at
+  least 3 s. Missing, null or empty: none (``removals`` stays ``[]``).
 
 **Rules beyond the plan table** (each keeps the seed valid for the validator):
 
@@ -172,6 +177,10 @@ _WATERMARK_KEYS = frozenset({"text", "pos", "size_pm", "opacity_pm"})
 _CONTROL = re.compile("[\x00-\x1f\x7f-\x9f\ud800-\udfff]")
 _UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 _SHA = re.compile(r"[0-9a-f]{64}")
+_REMOVAL_KEYS = frozenset({"id", "seg", "in_sf", "out_sf", "words", "reason", "origin"})
+_REMOVAL_ID = re.compile(r"rm_[0-9a-z]{1,16}")
+_SUGGESTION = re.compile(r"suggestion:[a-z]{2,3}_[0-9a-z]{1,16}")
+MAX_PAUSE_REMOVALS = 2000  # the document's removal limit
 
 
 class SeedError(ValueError):
@@ -564,6 +573,43 @@ def _hook_text(text: str) -> str:
     return cleaned.strip()[:HOOK_TEXT_MAX].strip()
 
 
+def _pause_removals(job: Mapping, plan: _ClipPlan, by: str) -> list[dict[str, Any]]:
+    """The seed's ``main.removals``: the job's ``pauseRemovals`` (CONTRACTS §5.57), checked to
+    be pause trims (``gap_silent`` from a Rapikan suggestion) inside the body, sorted and apart,
+    that leave the body at least 3 s long. Missing, null or empty: none."""
+    removals = job.get("pauseRemovals")
+    if removals is None or (isinstance(removals, (list, tuple)) and not removals):
+        return []
+    if not isinstance(removals, (list, tuple)) or len(removals) > MAX_PAUSE_REMOVALS:
+        raise SeedError("pauseRemovals must be a list of at most 2,000 removals")
+    if by != "pipeline":
+        raise SeedError("only the pipeline's seed trims pauses (its file was rendered so)")
+    body = next(segment for segment in plan.segments if segment["role"] == "body")
+    result: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    previous_out = body["in_sf"]
+    for removal in removals:
+        if not isinstance(removal, Mapping) or set(removal) != _REMOVAL_KEYS:
+            raise SeedError("a pause removal has exactly the removal keys")
+        in_sf, out_sf = removal["in_sf"], removal["out_sf"]
+        if (not isinstance(removal["id"], str) or not _REMOVAL_ID.fullmatch(removal["id"])
+                or removal["id"] in seen or removal["seg"] != body["id"]
+                or type(in_sf) is not int or type(out_sf) is not int
+                or not previous_out <= in_sf < out_sf <= body["out_sf"]
+                or removal["words"] != [] or removal["reason"] != "gap_silent"
+                or not isinstance(removal["origin"], str)
+                or not _SUGGESTION.fullmatch(removal["origin"])):
+            raise SeedError("a pause removal must be a sorted gap_silent cut inside the body")
+        seen.add(removal["id"])
+        previous_out = out_sf
+        result.append({"id": removal["id"], "seg": body["id"], "in_sf": in_sf, "out_sf": out_sf,
+                       "words": [], "reason": "gap_silent", "origin": removal["origin"]})
+    kept = tm.total_frames(tm.pieces({"main": {"segments": [body], "removals": result}}))
+    if kept < tm.sf_ceil(3000, plan.fps):
+        raise SeedError("the pause trims would leave the body shorter than 3 s")
+    return result
+
+
 def _sha(value: object, name: str, *, optional: bool = False) -> str | None:
     if value is None and optional:
         return None
@@ -594,6 +640,7 @@ def build_seed(
         raise SeedError("a camera plan is required for, and only for, the face-track layout")
     plan = _clip_plan(clip, context, source, source_info)
     fps = plan.fps
+    removals = _pause_removals(job, plan, context.by)
     tracks: list[dict[str, Any]] = []
     text = _hook_text(clip.hook_text) if context.hook else ""
     if text:
@@ -662,7 +709,7 @@ def build_seed(
         },
         "output": {"w": context.render_size[0], "h": context.render_size[1],
                    "fps": fps.to_json(), "sample_rate": 48000, "channels": 2},
-        "main": {"segments": [dict(segment) for segment in plan.segments], "removals": [],
+        "main": {"segments": [dict(segment) for segment in plan.segments], "removals": removals,
                  "joins": joins, "cut_fade_ms": 8},
         "captions": {"enabled": True, "pack": {"id": context.pack, "v": 1},
                      "overrides": {**PACK_DEFAULT_OVERRIDES[context.pack],

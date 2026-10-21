@@ -44,10 +44,17 @@ test(".env.example names every flag with its release default and how to switch i
     ["POTONGIN_EDITOR_UPLOADS", "on", "off"],
     ["POTONGIN_EDITOR_LLM", "on", "off"],
     ["POTONGIN_RENDER_ENGINE", "edit-v2", "legacy"],
+    ["POTONGIN_AUTO_PAUSE_TRIM", "on", "off"],
   ]) {
     assert.match(text, new RegExp(`^# ${name}=${value}$`, "m"), name);
     assert.match(text, new RegExp(`${name}=${off}\\b`), `${name} names its off value`);
   }
+});
+
+test("the primary worker trims the automatic clips' silent pauses unless .env turns it off (CONTRACTS §5.57)", async () => {
+  const source = await compose();
+  assert.match(service(source, "primary-worker"), /^ {6}POTONGIN_AUTO_PAUSE_TRIM: \$\{POTONGIN_AUTO_PAUSE_TRIM:-on\}$/m);
+  for (const name of ["app", "render-worker"]) assert.doesNotMatch(service(source, name), /POTONGIN_AUTO_PAUSE_TRIM/, name);
 });
 
 test("the filler pre-check of Rapikan stays off until the owner confirms the labels", async () => {

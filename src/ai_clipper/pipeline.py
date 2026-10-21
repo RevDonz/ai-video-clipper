@@ -1162,9 +1162,13 @@ def _v3_manifest_clip(
     cold_open: tuple[float, float] | None,
     clip_path: Path,
     thumbnail: str | None,
+    rendered: float | None = None,
 ) -> dict[str, object]:
-    """V1-compatible clip fields plus the Selection V3 packaging (the web contract)."""
-    rendered = _rendered_seconds(clip, cold_open)
+    """V1-compatible clip fields plus the Selection V3 packaging (the web contract).
+    ``rendered`` is the file's length when the renderer knows it (pause trims), else the
+    selection's."""
+    if rendered is None:
+        rendered = _rendered_seconds(clip, cold_open)
     entry: dict[str, object] = {
         "index": index,
         "start": round(clip.start, 3),
@@ -1523,6 +1527,7 @@ def _render_v3_clips(
                 cold_open_join=CUT_JOIN if cold_open_join is None else cold_open_join,
                 caption_position=caption_position,
                 caption_size=caption_size,
+                trim_pauses=render_edit.pause_trim_from_env(),
             ),
         )
     join_options: dict[str, object] = (
@@ -1552,6 +1557,7 @@ def _render_v3_clips(
             engine_fields: dict[str, object] | None = None
             join = cold_open_join
             no_face: list[float] = []  # seconds without a face, per rendered range
+            rendered: float | None = None  # the new engine's length (its pause trims)
             if render_engine == render_edit.ENGINE_EDIT_V2:
                 auto = _render_edit_v2(renderer, clip.rank, clip_path, index)
                 if auto is None:
@@ -1575,6 +1581,7 @@ def _render_v3_clips(
                     join = getattr(auto, "cold_open_join", None) or cold_open_join
                     if getattr(auto, "no_face_ms", None) is not None:
                         no_face.append(auto.no_face_ms / 1000)
+                    rendered = getattr(auto, "seconds", None)
             engine_fallback = engine_fields is not None and engine_fields["render_engine"] == "legacy"
             if engine_fields is None or engine_fallback:
                 try:
@@ -1614,17 +1621,15 @@ def _render_v3_clips(
                 at_join = teaser[1] - teaser[0]  # the join, in seconds of the rendered clip
                 avoid = (at_join - THUMBNAIL_JOIN_MARGIN_SECONDS,
                          at_join + THUMBNAIL_JOIN_MARGIN_SECONDS)
-            thumbnail = _clip_thumbnail(
-                clip_path, _rendered_seconds(clip, teaser), index, warnings, avoid
-            )
-            entry = _v3_manifest_clip(index, clip, teaser, clip_path, thumbnail)
+            if engine_fields is None or engine_fallback or rendered is None:
+                rendered = _rendered_seconds(clip, teaser)
+            thumbnail = _clip_thumbnail(clip_path, rendered, index, warnings, avoid)
+            entry = _v3_manifest_clip(index, clip, teaser, clip_path, thumbnail, rendered)
             if engine_fields is not None:
                 entry.update(engine_fields)
             if teaser is not None and join is not None:
                 entry["cold_open_join"] = join.to_json()
-            fallbacks = _clip_fallbacks(
-                render_mode, no_face, _rendered_seconds(clip, teaser), engine_fallback
-            )
+            fallbacks = _clip_fallbacks(render_mode, no_face, rendered, engine_fallback)
             if fallbacks:
                 entry["fallbacks"] = fallbacks
             clips.append(entry)

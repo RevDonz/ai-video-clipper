@@ -53,12 +53,13 @@ FILLERS = ("eh", "ee", "eee", "e", "em", "emm", "ehm", "hmm", "hm", "anu")
 def build(tokens: Sequence[str | tuple[str, int]], *, start_ms: int = 100_000, word_ms: int = 300,
           gap_ms: int = 100, silences: Sequence[tuple[int, int]] = (),
           silent_before: Sequence[int] = (), laughs: Sequence[int] = (),
-          fps: Fps = NTSC, audio: bool = True, events: bool = True) -> dict:
+          tags: Sequence[tuple[int, str]] = (), fps: Fps = NTSC, audio: bool = True,
+          events: bool = True) -> dict:
     """A words artifact over ``tokens`` (text, or ``(text, gap before in ms)``).
 
     ``silent_before`` lists word indices whose preceding gap is wholly silent (an audio-timeline
     silence spans it); ``silences`` adds absolute spans; ``laughs`` are laughter caption tags at
-    absolute ms.
+    absolute ms, ``tags`` other caption tags as ``(ms, kind)``.
     """
     timed = []
     t = start_ms
@@ -79,10 +80,12 @@ def build(tokens: Sequence[str | tuple[str, int]], *, start_ms: int = 100_000, w
     if audio:
         timeline = AudioTimeline(ANALYZER_VERSION, (window[1] + 5000) / 1000, 0.1, (), (),
                                  tuple(sorted((s / 1000, e / 1000) for s, e in spans)), (), ())
-    tags = [SoundEvent(at / 1000, "laughter", "tertawa") for at in laughs] if events else None
+    caption_tags = ([SoundEvent(at / 1000, "laughter", "tertawa") for at in laughs]
+                    + [SoundEvent(at / 1000, kind, kind) for at, kind in tags]
+                    if events else None)
     return words.build_words_artifact(
         Transcription("id", segments), clip_id=CLIP, window_ms=window, fps=fps, audio=timeline,
-        events=tags, peaks=bytes(2 * bin_count(window)))
+        events=caption_tags, peaks=bytes(2 * bin_count(window)))
 
 
 def listing(tokens, **kwargs) -> dict:
