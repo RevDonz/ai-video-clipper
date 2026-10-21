@@ -2254,3 +2254,17 @@ CONTRACTS §5.55. One new command (`NudgeEdge`); no schema, validator, engine or
 | QG-UNDO / QG-CONFLICT (unit) | 10,000 sequences undo/redo exact; 2,000 two-tab scenarios lose no edit | pass; `words_max` compared by its effect across a pack switch (§5.30) | `web/tests/editor-history.test.mjs`, `editor-rebase.test.mjs` | **pass** (local) |
 | Models | source clock through cuts and the cold open; handle keys; Ctrl/Cmd+klik; help scopes | pass | `editor-shell-model`, `editor-timeline-model`, `editor-transcript`, `editor-shortcuts` tests | **pass** (local) |
 | Editor (browser, fakes) | readout, handle Shift+arrows and header buttons, cold-open buttons, Ctrl+klik without selecting | `e2e/editor-nudge.spec.mjs` (4 tests) | | pending: `editor-gates suite=e2e command=e2e/editor-nudge.spec.mjs` |
+
+## Logo or watermark over the caption (2026-10-21)
+
+The plan warns `logo_over_caption` when the logo or the text watermark covers the caption block
+(CONTRACTS §5.56); the editor offers the corner or place that clears it. The warning is not part of
+the plan sha, so nothing that renders changes and `RENDER_SEMANTICS` stays. Built on branch
+`adopsi/konsistensi` with targeted local tests only.
+
+| Gate | Threshold | Result | Where | Verdict |
+|---|---|---|---|---|
+| Boxes | the SnapLogo corners are the editor's (same literal boxes in Python and JS); the watermark box follows its layout | pass | `tests/test_edit_v2_overlay_zone.py`, `web/tests/editor-logo-caption.test.mjs` | **pass** (local) |
+| Warning | 15 % overlap of the smaller box; one warning per part at the first cue; the nearest clearing corner or place, or none; nothing without captions | pass | `tests/test_edit_v2_overlay_zone.py`, `tests/test_edit_v2_plan.py` | **pass** (local) |
+| Editor | messages per part, check before export, fix commands, one undo step, render records accept the code | pass | `web/tests/editor-logo-caption.test.mjs`, `web/tests/clip-renders.test.mjs` | **pass** (local) |
+| Browser (fakes) | Perlu dicek and the watermark section show the fix; a click moves the watermark | `e2e/editor-shell.spec.mjs` "a watermark over the caption…" | | pending: `editor-gates suite=e2e` |

@@ -4116,3 +4116,51 @@ cold-open rules, bad args, merge key), `editor-history.test.mjs` (one undo step,
 (`trimHandleKey`), `editor-transcript.test.mjs` (Ctrl/Cmd+klik), `editor-shortcuts.test.mjs`;
 `tests/test_edit_v2_crosscheck.py`. Browser spec `web/e2e/editor-nudge.spec.mjs` on the editor
 fakes.
+## 5.56 Logo or text watermark over the caption (2026-10-21)
+
+The logo is drawn above the caption and the text watermark beside it, both for the whole clip, so
+either one on the caption block hides words. The plan warns `logo_over_caption` and the editor
+moves the part to the nearest spot that clears the caption, in one click. The document, the schema
+and the render do not change; warnings are not part of the plan sha, so `RENDER_SEMANTICS` stays.
+
+### The check (`edit_v2/overlay_zone.py`, stdlib)
+
+- The caption block is `face_zone.caption_box` (§5.50, the caption gizmo's box). Nothing is
+  checked when captions are off or the caption track has no cue.
+- The logo box is `timemap.logo_box`; the watermark box is `captions_ass.watermark_box`: the line
+  as `layout_watermark` places it, its `hmtx` advance at the laid-out size, one DejaVu line
+  (1.164 em) above its bottom, plus the outline.
+- A part covers the caption when the overlap is at least 15 % (`face_zone.OVERLAP_PM`) of the
+  smaller of the two boxes, the face check's rule.
+- At most one issue per part, the logo's first:
+  `{code: "logo_over_caption", path, ref, f}`. `f` is the first caption cue's frame.
+  - Logo: `path` is `/tracks/<i>/items/0/transform`; `ref` is the SnapLogo corner
+    (`overlay_zone.corner_box`, the same box as `snapTarget` in `web/lib/editor/commands.mjs`)
+    nearest to the logo's centre, other than the box it already has, that clears the caption
+    (ties: top before bottom, left before right).
+  - Watermark: `path` is `/watermark/pos`; `ref` is the nearest other place on the 3×3 grid that
+    clears it (fewest steps, the same column first, then the higher row).
+  - `ref` is absent when nothing clears.
+- `errors.WARNING_CODES`, `render_queue.V3_WARNING_CODES` (through it) and
+  `web/lib/clip-renders.mjs` accept the code. Message: "Logo atau teks watermark menutupi caption".
+  A document the check cannot read gives no warning; it never stops the plan.
+
+### Client
+
+- `logo-model.logoCaptionFix(warning)` → `{id, part, label, command}`: `SnapLogo {corner}` for
+  the logo ("Pindah ke Kanan atas"), `SetWatermarkPosition {pos}` for the watermark ("Pindah ke
+  Kanan tengah"), merge key `null` (one undo step); null for another code or an unknown `ref`.
+  `logoCaptionNote(plan, part)` → `{text, fix}` for `"logo"` or `"watermark"`.
+- Perlu dicek names the part ("Logo menutupi caption", "Teks watermark menutupi caption", from
+  the path) and keeps the two apart even when both name the same place. It is a check (severity
+  `warning`, a tick before export) with the fix beside the jump.
+- The Logo panel and its watermark section (Mode Lengkap) and the Logo & Musik card (Mode Cepat,
+  logo only, 44 px button) show the line and the button.
+
+### Gates
+
+`tests/test_edit_v2_overlay_zone.py` (corners, watermark box, cover rule, fixes, no caption, no
+fix, unreadable documents), `tests/test_edit_v2_plan.py` (the plan carries it; the sha stays);
+`web/tests/editor-logo-caption.test.mjs` (messages, fixes, the same corner boxes as the Python
+test, one undo step, the views), `web/tests/clip-renders.test.mjs`; browser spec
+`web/e2e/editor-shell.spec.mjs` ("a watermark over the caption…") on the editor fakes.
