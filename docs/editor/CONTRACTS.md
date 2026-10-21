@@ -3411,11 +3411,15 @@ no data migration; jobs made before it are unchanged.
   `clip_failed` ("Klip 02 gagal dirender, jadi tidak bisa diunduh."); a job without a ready clip
   answers `no_clips`.
 - Project page: the heading "n dari m klip siap diunggah" (`clipsHeading`), the header
-  "n klip · k gagal"; a failed poster shows "Gagal" (`chip error`) in its frame, `data-failed`,
-  "gagal dirender" in its description, and in "Pilih" `aria-disabled` instead of `aria-pressed`
-  (`pickAll`/`prunePicks` skip it). Its detail panel has a frame of the video's size with "Gagal",
-  the reason and one suggestion in place of the player; no "Edit klip", latest export, "Unduh
-  MP4" or "Subtitle SRT".
+  "n klip · k gagal"; a failed poster shows "Gagal" (`chip error`, the shared poster's `badge`
+  in place of its frame, `components/ClipPoster.jsx`), `data-failed`, "gagal dirender" in its
+  description, and in "Pilih" `aria-disabled` instead of `aria-pressed` (`pickAll`/`prunePicks`
+  skip it). Its detail panel has a frame of the video's size with "Gagal", the reason and one
+  suggestion in place of the player; no "Edit klip", latest export, "Unduh MP4" or "Subtitle
+  SRT", and the caption box has no "Ubah" or "Tulis ulang" (§5.38): there is no video to post.
+- Riwayat "Klip" (§5.32): `libraryItems` leaves a failed clip out of `GET /api/clips`, so it is
+  not in the grid, the search, "Skor 8+" or the total; its project row still says "n klip · k
+  gagal".
 - Dashboard: a failed clip's card shows "Gagal" and the reason in a short frame in place of the
   video, then its title and the suggestion; no download or copy. History rows and the summary
   count ready clips; "Edit klip" in the history needs a ready clip.

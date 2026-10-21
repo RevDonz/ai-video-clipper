@@ -138,6 +138,22 @@ test("libraryItems drops clips without a usable number and repeats, and jobs tha
   for (const value of [null, [], "job", 7]) assert.deepEqual(libraryItems(value, record.id), []);
 });
 
+test("a clip that failed to render is left out: it has no video to find or post", async (t) => {
+  const record = job(1, { clips: 0 });
+  const failed = { index: 2, status: "failed", errorCode: "render_timeout", score: 9.1, duration: 30, title: "Klip gagal" };
+  record.clips = [clip(record.id, 1), failed, clip(record.id, 3)];
+  assert.deepEqual(libraryItems(record, record.id).map((item) => item.index), [1, 3]);
+  const directory = await root(t);
+  await put(directory, record);
+  const library = createClipLibrary();
+  assert.deepEqual(keys((await library.list(directory, query())).clips), ["00000001#1", "00000001#3"]);
+  const high = await library.list(directory, query({ high: "1" }));
+  assert.deepEqual(high.clips, [], "'Skor 8+' does not bring it back");
+  const search = await library.list(directory, query({ q: "gagal" }));
+  assert.deepEqual(search.clips, []);
+  assert.equal(search.total, 2, "the total counts the clips that rendered");
+});
+
 test("only job directories are read: no other names, no symlinks, no oversized or broken files", async (t) => {
   const directory = await root(t);
   await put(directory, job(1, { clips: 1 }));
