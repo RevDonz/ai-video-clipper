@@ -526,6 +526,10 @@ export function createPreviewLane({
     for (const task of running) {
       if (task.kind === "cells" && task.clip === clip && task.plateKey !== key) cancel(task);
     }
+    // A cell the old plate was building is not running for the new one: the new plate queues it.
+    for (const [k, task] of clip.runningCells) {
+      if (task.plateKey !== key) clip.runningCells.delete(k);
+    }
     clip.plate = { key, layout, noFace: plateNoFace(noFace) ?? null, keyframes: plateKeyframes(keyframes) ?? null,
       split: plateSplit(layout, split) ?? null, zoom: plateZoom(layout, zoom) ?? null };
     clip.order = [];

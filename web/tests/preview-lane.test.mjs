@@ -614,6 +614,48 @@ test("a new plate key cancels the old cells through a cancel marker", async () =
   }
 });
 
+test("after a plate switch the cells the old plate was building are built for the new one", async () => {
+  // Without another plan call: the store polls, but a plan must not depend on it to finish.
+  const { dir, clip, cleanup } = root();
+  const cli = fakeCli();
+  const lane = createPreviewLane({ jobsRoot: dir, runCli: cli.run, heavySlots: 2 });
+  readyAudio(clip);
+  try {
+    const one = lane.plan({ jobId: JOB, clipId: CLIP, body: planBody({ playhead: 1 }) });
+    await settle();
+    cli.pending("plan")[0].resolve({ exitCode: 0, json: planResult({ audio: { key: AUDIO, ready: true } }) });
+    await one;
+    await settle();
+    const superseded = cli.pending("cells");
+    const held = superseded.flatMap((call) => call.payload.cells);
+    assert.ok(held.length > 0);
+    const two = lane.plan({ jobId: JOB, clipId: CLIP, body: planBody({ playhead: 1 }, DOC2) });
+    await settle();
+    cli.pending("plan")[0].resolve({ exitCode: 0, json: planResult({ plateKey: KEY2, audio: { key: AUDIO, ready: true } }) });
+    await two;
+    await settle();
+    const built = new Set();
+    for (const call of cli.pending("cells")) {
+      if (!superseded.includes(call)) for (const k of call.payload.cells) built.add(k);
+    }
+    for (const call of superseded) call.resolve({ exitCode: 12, json: { error: { code: "cancelled" } } });
+    for (let round = 0; round < 20; round += 1) {
+      await settle();
+      const next = cli.pending("cells");
+      if (!next.length) break;
+      for (const call of next) {
+        for (const k of call.payload.cells) built.add(k);
+        call.resolve(cellsResult(call.payload));
+      }
+    }
+    for (const k of held) assert.ok(built.has(k), `cell ${k} is built for the new plate`);
+    assert.deepEqual([...built].sort((a, b) => a - b), [10, 11, 12, 13, 14, 15, 16, 17]);
+  } finally {
+    lane.close();
+    cleanup();
+  }
+});
+
 test("an interactive job preempts the newest cell job when every slot is busy", async () => {
   const { dir, clip, cleanup } = root();
   const cli = fakeCli();
