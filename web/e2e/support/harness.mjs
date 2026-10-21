@@ -97,8 +97,8 @@ function failureCount(failures) {
 export function pinnedChrome() {
   const explicit = process.env.EDITOR_CHROME || process.env.PARITY_CHROME;
   if (explicit) return explicit;
-  const candidate = path.join(os.homedir(), ".cache", "ms-playwright", "chromium-1217", "chrome-linux64", "chrome");
-  return existsSync(candidate) ? candidate : undefined;
+  const pin = path.join(os.homedir(), ".cache", "ms-playwright", "chromium-1217", "chrome-linux64", "chrome");
+  return existsSync(pin) ? pin : undefined;
 }
 
 const chrome = pinnedChrome();
