@@ -595,3 +595,58 @@ def test_frame_types_validate_their_fields():
         SourceWord("w000001", 1.5, 5, "halo", False)
     with pytest.raises((TypeError, ValueError)):
         SourceWord("w000001", 1, 5, "halo", "no")
+
+
+def _spoken(texts, start_ms=0, step_ms=300):
+    return tuple(SourceWord(f"w{index:06d}", start_ms + index * step_ms,
+                            start_ms + index * step_ms + 250, text, False)
+                 for index, text in enumerate(texts))
+
+
+def _whole(frames=400):
+    return (Piece(0, "seg_b1", "body", 0, frames, 0, frames),)
+
+
+@pytest.mark.parametrize("texts, shown", [
+    (["[musik]", "halo", "semua"], ["halo", "semua"]),
+    (["[Music]", "halo"], ["halo"]),
+    (["halo", "[tepuk", "tangan]", "semua"], ["halo", "semua"]),
+    (["(tepuk", "tangan)", "halo"], ["halo"]),
+    (["(tertawa)", "lucu", "banget"], ["lucu", "banget"]),
+    (["(Laughter)", "ok."], ["ok."]),
+    (["♪", "halo", "♪♪"], ["halo"]),
+    (["♪", "la", "la", "♪"], ["la", "la"]),  # sung words stay; the notes go
+    (["halo♪", "semua"], ["halo", "semua"]),
+    (["[MUSIK]."], []),
+    (["[", "musik", "]", "halo"], ["halo"]),
+])
+def test_whisper_sound_tags_are_never_caption_words(texts, shown):
+    """Whisper writes non-speech as bracketed tags and music notes; YouTube captions turn the
+    same tags into sound events (youtube_captions.py), so the captions never show them."""
+    cues = build_frame_cues(_spoken(texts), _whole(), Fps(25, 1))
+    assert [word.text for cue in cues for word in cue.words] == shown
+
+
+@pytest.mark.parametrize("texts", [
+    ["AI", "(artificial", "intelligence)", "itu"],  # spoken words in parentheses
+    ["harga", "(50", "ribu)"],
+    ["[ini", "tidak", "pernah", "ditutup", "sama", "sekali", "lho", "ya"],
+    ["(sic)"],
+])
+def test_spoken_words_in_brackets_stay(texts):
+    cues = build_frame_cues(_spoken(texts), _whole(), Fps(25, 1))
+    assert [word.text for cue in cues for word in cue.words] == texts
+
+
+def test_a_tag_keeps_the_timing_of_the_words_around_it():
+    words = _spoken(["halo", "[musik]", "semua"])
+    [cue] = build_frame_cues(words, _whole(), Fps(25, 1))
+    assert [(word.id, word.text) for word in cue.words] == [
+        ("w000000", "halo"), ("w000002", "semua")]
+
+
+def test_legacy_cues_drop_the_same_tags():
+    segment = _segment((0.0, 0.4, "[Musik]"), (0.5, 0.9, "halo"), (1.0, 1.3, "(tepuk"),
+                       (1.3, 1.6, "tangan)"), (1.7, 2.0, "semua"))
+    cues = build_caption_cues([segment], [(0.0, 3.0)])
+    assert [cue.text for cue in cues] == ["halo", "semua"]  # the 0.8 s gap splits them

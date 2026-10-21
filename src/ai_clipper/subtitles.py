@@ -11,6 +11,7 @@ milliseconds and output frames over the pieces of a ``clip-edit-v2`` document.
 from __future__ import annotations
 
 import math
+import re
 import unicodedata
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
@@ -19,6 +20,7 @@ from numbers import Real
 
 from .edit_v2.timemap import Fps, Piece, word_frames
 from .models import TranscriptSegment
+from .sound_events import sound_kind
 
 CUE_MAX_WORDS = 4
 CUE_MAX_GAP_SECONDS = 0.6
@@ -30,6 +32,14 @@ _SEGMENT_SEARCH_MARGIN_SECONDS = 1.0
 _SENTENCE_END_CHARACTERS = ".?!…"
 _TRAILING_CLOSERS = "\"')]}»”’"
 _DROPPED_CATEGORIES = frozenset({"Cc", "Cs"})
+# Non-speech in a transcript (see caption_texts): music notes, and tags of at most four words in
+# brackets. Square brackets hold a label (letters, spaces, hyphens, underscores: "[Musik]",
+# "[BLANK_AUDIO]"); parentheses only a sound the YouTube tags name ("(tepuk tangan)").
+_MUSIC_NOTES = frozenset("♩♪♫♬\U0001f3b5\U0001f3b6\U0001f3bc")
+_TAG_CLOSERS = {"[": "]", "(": ")"}
+_TAG_MAX_WORDS = 4
+_TAG_TRAILING = ".,!?…:;"
+_SQUARE_LABEL = re.compile(r"[^\W\d]+(?:[ -][^\W\d]+)*")
 
 TimelineRange = tuple[float, float]
 
@@ -54,6 +64,43 @@ def clean_caption_text(text: str) -> str:
         if character.isspace() or unicodedata.category(character) not in _DROPPED_CATEGORIES
     )
     return " ".join(kept.split())
+
+
+def _tag_end(texts: Sequence[str], start: int) -> int | None:
+    """The index of the last word of the non-speech tag opening at ``start``, or None."""
+    opener = texts[start][:1]
+    closer = _TAG_CLOSERS.get(opener)
+    if closer is None:
+        return None
+    for end in range(start, min(len(texts), start + _TAG_MAX_WORDS)):
+        if not texts[end].rstrip(_TAG_TRAILING).endswith(closer):
+            continue
+        content = " ".join(" ".join(texts[start : end + 1]).rstrip(_TAG_TRAILING)[1:-1].split())
+        if len(content) > 40:
+            return None
+        if opener == "[":
+            return end if _SQUARE_LABEL.fullmatch(content) else None
+        return end if content and sound_kind(content) != "other" else None
+    return None
+
+
+def caption_texts(texts: Sequence[str]) -> list[str]:
+    """The caption text of each transcript word: ``clean_caption_text`` without music notes, and
+    ``""`` (not shown) for the words of a non-speech tag such as ``[Musik]``, ``[tepuk tangan]``
+    or ``(tertawa)``. Whisper writes non-speech this way; YouTube captions turn the same tags
+    into sound events (``youtube_captions``), so neither path shows them as words. Spoken words
+    in parentheses ("(50 ribu)") stay."""
+    shown = [clean_caption_text("".join(char for char in text if char not in _MUSIC_NOTES))
+             for text in texts]
+    index = 0
+    while index < len(shown):
+        end = _tag_end(shown, index) if shown[index] else None
+        if end is None:
+            index += 1
+            continue
+        shown[index : end + 1] = [""] * (end + 1 - index)
+        index = end + 1
+    return shown
 
 
 @dataclass(frozen=True, slots=True)
@@ -167,11 +214,12 @@ def _range_words(
             or segment.start > range_end + _SEGMENT_SEARCH_MARGIN_SECONDS
         ):
             continue
-        for start, end, raw_text in _segment_words(segment):
+        timed = _segment_words(segment)
+        texts = caption_texts([raw_text for _start, _end, raw_text in timed])
+        for (start, end, _raw), text in zip(timed, texts, strict=True):
             midpoint = (start + end) / 2
             if not range_start <= midpoint < range_end:
                 continue
-            text = clean_caption_text(raw_text)
             if not text:
                 continue
             clamped_start = max(start, range_start) - range_start + offset
@@ -558,7 +606,7 @@ def build_frame_cues(
     segments: dict[str, list[Piece]] = {}
     for piece in pieces:
         segments.setdefault(piece.seg, []).append(piece)
-    cleaned = [(word, clean_caption_text(word.text)) for word in words]
+    cleaned = list(zip(words, caption_texts([word.text for word in words]), strict=True))
 
     cues: list[FrameCue] = []
     for seg, group in segments.items():
