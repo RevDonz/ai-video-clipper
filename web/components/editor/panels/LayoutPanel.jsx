@@ -16,16 +16,20 @@
 //   face-track here sets) or centred (a face-track auto clip), one click each (`SetNoFace`,
 //   CONTRACTS §5.40). The runs (the plan's `no_face` or `no_face_blur`) are listed with a jump-to
 //   button each; with latar blur they are notes, not checks.
+// - "Bingkai" says where the crop comes from and opens "Atur bingkai" (../FramingDialog.jsx,
+//   CONTRACTS §5.44) for the crop layouts; with keyframes, "Kembali ke otomatis" clears them, and
+//   the no-face choice gives way (the keyframes frame those runs too).
 //
-// Props: { state, dispatch, player } (panels/index.mjs), plus the optional seams `api` (prepare
-// and `cameraProgress()`) and `previewClient` (thumbnails). Without them the fake runtime's
-// objects (window.__potonginEditor) are used, and in the app the panel's own clients.
+// Props: { state, dispatch, player, openFraming } (panels/index.mjs), plus the optional seams `api`
+// (prepare and `cameraProgress()`) and `previewClient` (thumbnails). Without them the fake
+// runtime's objects (window.__potonginEditor) are used, and in the app the panel's own clients.
 import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { createApiClient } from "../../../lib/editor/api-client.mjs";
 import { createPreviewClient } from "../../../lib/editor/preview-client.mjs";
 import { formatClock, frameToMs, rejectionText } from "../shell-model.mjs";
 import PillGroup from "../ui/PillGroup.jsx";
+import { clearKeyframesCommand, framingSummary } from "../framing-model.mjs";
 import { analysisBusy, analysisForView, layoutAnalysisFor } from "./layout-analysis.mjs";
 import styles from "./layout.module.css";
 import {
@@ -214,7 +218,7 @@ function CardProgress({ view }) {
   );
 }
 
-function LayoutPanelBody({ state, getState = null, dispatch, player, api: apiProp, previewClient, analysisStore }) {
+function LayoutPanelBody({ state, getState = null, dispatch, player, api: apiProp, previewClient, analysisStore, openFraming = null }) {
   const doc = state.doc;
   const readOnly = state.status !== "ready";
   const layout = doc.layout.default.mode;
@@ -287,6 +291,8 @@ function LayoutPanelBody({ state, getState = null, dispatch, player, api: apiPro
   const planCurrent = !(state.pending ?? []).includes("text") && !state.previewError && Boolean(state.plan);
   const noFace = noFaceView(doc, state.plan);
   const noFaceNote = `${uid}-noface-note`;
+  const framing = framingSummary(doc);
+  const framingNote = `${uid}-framing-note`;
 
   return (
     <section data-panel="layout" className={styles.panel} aria-busy={running}>
@@ -339,7 +345,21 @@ function LayoutPanelBody({ state, getState = null, dispatch, player, api: apiPro
         ) : null}
         <p className={styles.note}>{`Contoh diambil dari frame akhir di posisi ${formatClock(frameToMs(at ?? 0, fps))}.`}</p>
       </div>
-      {layout === "camera" ? (
+      <div className={styles.section} data-layout-framing="" data-keyframes={framing.count}>
+        <h3 className={styles.subtitle}>Bingkai</h3>
+        <p className={styles.note} id={framingNote}>{framing.text}</p>
+        {framing.available ? (
+          <div className={styles.actions}>
+            <button type="button" className={styles.button} aria-describedby={framingNote} disabled={readOnly || !openFraming}
+              onClick={() => openFraming?.()}>Atur bingkai</button>
+            {framing.count ? (
+              <button type="button" className={`${styles.button} ${styles.quietButton}`} disabled={readOnly}
+                onClick={() => send(clearKeyframesCommand())}>Kembali ke otomatis</button>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+      {layout === "camera" && !framing.count ? (
         <div className={styles.section} data-layout-noface="" data-no-face={noFace.mode}>
           {/* Always shown under face-track, above the list that a re-plan replaces: the choice keeps
               its place and its focus while the new plan arrives. */}

@@ -270,6 +270,16 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* ---------- Tata letak: manual framing (CONTRACTS §5.44) ---------- */
+
+.framing {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ed-space-2, 8px);
+}
+
 /* ---------- Tata letak: the face analysis ---------- */
 
 .analysis {

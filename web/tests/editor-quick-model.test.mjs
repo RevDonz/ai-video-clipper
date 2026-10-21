@@ -187,6 +187,10 @@ test("Tata letak sums up the layout, and says so while the face analysis runs", 
   }
   for (const phase of ["idle", "failed"]) assert.equal(layoutSummary(fakeDoc(), { phase }), "Latar blur", phase);
   assert.equal(layoutSummary(null), "");
+  // manual framing (CONTRACTS §5.44) is named after the layout
+  const centred = run(fakeDoc(), "SetLayout", { mode: "fill_center" });
+  const framed = run(centred, "SetKeyframe", { sf: centred.main.segments[0].in_sf, pan_e5: 20000 });
+  assert.equal(layoutSummary(framed), "Potong tengah · bingkai manual");
 });
 
 test("Logo & Musik sums up what the clip has", async () => {

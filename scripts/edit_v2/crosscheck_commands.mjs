@@ -26,6 +26,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { ApiError } from "../../web/lib/editor/api-client.mjs";
 import { COMMANDS, CommandRejected, applyCommand } from "../../web/lib/editor/commands.mjs";
 import {
+  CROP_MODES,
   HOOK_DESIGN_IDS,
   JOIN_STYLES,
   WATERMARK_POSITIONS,
@@ -258,6 +259,29 @@ const GENERATORS = {
   SetNoFace(rng) {
     return { mode: pick(rng, ["center", "fit_blur", "fit_blur", "fail"]) };
   },
+  // Manual framing (CONTRACTS §5.44): frames of the window and a few just outside it, an existing
+  // keyframe now and then, pans and moves mostly in range.
+  SetKeyframe(rng, doc, context) {
+    const [low, high] = context.ctx.windowSf;
+    const existing = doc.layout.keyframes ?? [];
+    const sf = existing.length && chance(rng, 0.3) ? pick(rng, existing).sf
+      : chance(rng, 0.05) ? pick(rng, [low - 1, high]) : int(rng, low, high - 1);
+    const args = { sf, pan_e5: chance(rng, 0.05) ? pick(rng, [-1, 100001]) : int(rng, 0, 100000) };
+    if (chance(rng, 0.5)) args.move = pick(rng, ["cut", "slide", "slide", "fade"]);
+    return args;
+  },
+  RemoveKeyframe(rng, doc, context) {
+    const existing = doc.layout.keyframes ?? [];
+    return { sf: existing.length && chance(rng, 0.9) ? pick(rng, existing).sf : context.ctx.windowSf[0] };
+  },
+  SetKeyframeMove(rng, doc, context) {
+    const existing = doc.layout.keyframes ?? [];
+    return { sf: existing.length && chance(rng, 0.9) ? pick(rng, existing).sf : context.ctx.windowSf[0],
+      move: pick(rng, ["cut", "slide", "slide", "fade"]) };
+  },
+  ClearKeyframes() {
+    return {};
+  },
   SetLogo(rng, _doc, context) {
     const asset = pick(rng, assetsOf(context, "image"));
     return { asset: asset.id, meta: asset.meta };
@@ -344,7 +368,8 @@ const GENERATORS = {
 const WEIGHTS = {
   RemoveWords: 16, RestoreRemoval: 5, TrimStart: 5, TrimEnd: 5, RemoveGap: 4, ApplyCleanup: 3, SetColdOpen: 4,
   NudgeColdOpen: 4, SetJoinStyle: 3, SetJoinSfx: 2, EditWordText: 7, SetWordHidden: 3, SetWordEmphasis: 3, SetCaptionsEnabled: 1, SetCaptionPack: 2,
-  SetCaptionOverride: 4, SetHookEnabled: 2, SetHookText: 4, SetHookDuration: 2, SetHookY: 2, SetHookDesign: 2, SetLayout: 2, SetNoFace: 1, SetLogo: 3,
+  SetCaptionOverride: 4, SetHookEnabled: 2, SetHookText: 4, SetHookDuration: 2, SetHookY: 2, SetHookDesign: 2, SetLayout: 2, SetNoFace: 1,
+  SetKeyframe: 4, RemoveKeyframe: 2, SetKeyframeMove: 2, ClearKeyframes: 1, SetLogo: 3,
   RemoveLogo: 1, MoveLogo: 3, ResizeLogo: 2, SetLogoOpacity: 2, SnapLogo: 2, SetWatermarkText: 3, SetWatermarkPosition: 2,
   SetWatermarkSize: 2, SetWatermarkOpacity: 2, RemoveWatermark: 1, SetMusic: 3, RemoveMusic: 1,
   SetMusicGain: 2, SetMusicOffset: 2, SetMusicLoop: 1, SetMusicFades: 2, SetDuck: 2, SetSourceGain: 2, SetLoudness: 2,
@@ -361,6 +386,8 @@ const NEEDS = [
   [["SetMusicGain", "SetMusicOffset", "SetMusicLoop", "SetMusicFades", "SetDuck", "RemoveMusic"], musicItem, "SetMusic"],
   [["SetHookText", "SetHookDuration", "SetHookY", "SetHookDesign"], hookItem, "SetHookEnabled"],
   [["SetJoinStyle", "SetJoinSfx"], coldOpen, "SetColdOpen"],
+  [["SetKeyframe"], (doc) => CROP_MODES.includes(doc.layout.default.mode) || null, "SetLayout"],
+  [["RemoveKeyframe", "SetKeyframeMove", "ClearKeyframes"], (doc) => doc.layout.keyframes ?? null, "SetKeyframe"],
 ];
 
 /** One random command for `doc`: mostly valid arguments, some out of range on purpose. */

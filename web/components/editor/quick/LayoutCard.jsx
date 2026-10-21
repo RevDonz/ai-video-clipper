@@ -5,9 +5,12 @@
 // the clip's camera plan runs the face analysis first, through the clip's own analysis store
 // (layout-analysis.mjs), and switches after; the run keeps going when the card closes or the view
 // switches, and LayoutPanel shows the same progress. Another choice during the analysis wins.
-// The thumbnails and the runs without a face stay in Mode Lengkap. Props: the card bundle.
+// The thumbnails and the runs without a face stay in Mode Lengkap. Under the crop layouts the
+// card says where the crop comes from and opens "Atur bingkai" (CONTRACTS §5.44), the same dialog
+// as Mode Lengkap's panel. Props: the card bundle (`openFraming` among them).
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 
+import { framingSummary } from "../framing-model.mjs";
 import { analysisApi, analysisBusy, analysisForView, layoutAnalysisFor } from "../panels/layout-analysis.mjs";
 import { analysisView, cameraReadyFromState, layoutCommand, switchSteps } from "../panels/layout-model.mjs";
 import { rejectionText } from "../shell-model.mjs";
@@ -18,7 +21,7 @@ import styles from "./quick.module.css";
 
 const OPTIONS = CARD_LAYOUTS.map((option) => ({ id: option.id, label: option.name, title: option.note }));
 
-function LayoutBody({ state, getState, dispatch, api, analysis }) {
+function LayoutBody({ state, getState, dispatch, api, analysis, openFraming }) {
   const doc = state.doc;
   const locked = state.status !== "ready";
   const layout = doc.layout.default.mode;
@@ -74,6 +77,7 @@ function LayoutBody({ state, getState, dispatch, api, analysis }) {
 
   const view = analysisView(analysisForView(run), now);
   const refused = message ?? (run.phase !== "failed" ? run.message : null);
+  const framing = framingSummary(doc);
 
   return (
     <div className={styles.body} data-quick-body="layout">
@@ -81,6 +85,14 @@ function LayoutBody({ state, getState, dispatch, api, analysis }) {
       <PillGroup legend="Pilih tata letak" legendHidden name={`${uid}-layout`} options={OPTIONS} value={choice ?? layout}
         disabled={locked} describedBy={`${uid}-about`} onChange={choose} />
       <p id={`${uid}-about`} className={styles.note}>Berlaku untuk seluruh klip.</p>
+      {framing.available ? (
+        <div className={styles.framing} data-quick-framing="" data-keyframes={framing.count}>
+          <p id={`${uid}-framing`} className={styles.note}>{framing.text}</p>
+          <PillButton aria-describedby={`${uid}-framing`} disabled={locked || !openFraming} onClick={() => openFraming?.()}>
+            Atur bingkai
+          </PillButton>
+        </div>
+      ) : null}
       {view && run.phase === "running" ? (
         <div className={styles.analysis} data-layout-analysis="" role="status">
           <progress className={styles.progress} aria-label="Analisis wajah"
@@ -101,8 +113,8 @@ function LayoutBody({ state, getState, dispatch, api, analysis }) {
   );
 }
 
-export default function LayoutCard({ state, getState = null, dispatch, api = null }) {
+export default function LayoutCard({ state, getState = null, dispatch, api = null, openFraming = null }) {
   const analysis = layoutAnalysisFor(state?.clipId ?? state?.doc?.clip_id ?? null);
   if (!state?.doc || !analysis) return <p className={styles.note} role="status">Membuka tata letak…</p>;
-  return <LayoutBody state={state} getState={getState} dispatch={dispatch} api={api} analysis={analysis} />;
+  return <LayoutBody state={state} getState={getState} dispatch={dispatch} api={api} analysis={analysis} openFraming={openFraming} />;
 }

@@ -123,7 +123,9 @@ kalimat**. Menambah atau membuang kata di ujung kalimat ada di Mode Lengkap.
 **Tata letak.** **Latar blur**, **Potong tengah** dan **Ikuti wajah**. Analisis wajah tetap berjalan
 walau kartu ditutup atau tampilan dipindah; progresnya juga tampil di panel Tata letak. Ikuti wajah
 yang dipilih di sini menampilkan bagian tanpa wajah dengan latar blur; daftar bagian itu dan pilihan
-"Dipusatkan" ada di panel Tata letak Mode Lengkap.
+"Dipusatkan" ada di panel Tata letak Mode Lengkap. Pada Potong tengah dan Ikuti wajah, tombol **Atur
+bingkai** membuka jendela yang sama dengan Mode Lengkap (lihat di bawah); ringkasan kartu menulis
+"· bingkai manual" selama ada keyframe.
 
 **Logo & Musik.** **Tambah logo** (lalu geser logo langsung di pratinjau), **Tambah musik** (catatan
 hak cipta muncul sekali, sama dengan di Mode Lengkap), kekuatan **Saat ada suara** (Halus, Sedang,
@@ -214,6 +216,23 @@ klip otomatis). Memilih "Ikuti wajah" di editor langsung memakai Latar blur; kli
 wajah" tetap Dipusatkan sampai diganti. Dengan Latar blur, bagian tanpa wajah hanya jadi catatan
 (tanpa centang saat ekspor); satu klik di "Dipusatkan" mengembalikan tampilan klip otomatis, dan
 sebaliknya.
+
+**Atur bingkai.** Bagian **Bingkai** di panel Tata letak menulis dari mana potongan 9:16 berasal
+("Otomatis: bingkai di tengah.", "Otomatis: bingkai mengikuti wajah." atau "Diatur manual: 3
+keyframe."). Untuk Potong tengah dan Ikuti wajah, **Atur bingkai** membuka gambar sumber utuh di
+posisi putar dengan kotak 9:16 bergaris sepertiga; di sebelahnya **Hasil**. Seret kotak (magnet di
+tengah, tahan Alt untuk bebas; klik di luar kotak memindahkan kotak ke situ), atau pakai panah
+(1%, Shift 10%, Home/End ke tepi): keyframe tersimpan di frame itu saat kotak dilepas. Pindah posisi
+dengan penggeser atau tombol frame, lalu atur kotak lagi untuk keyframe berikutnya; **Tambah
+keyframe** menyimpan bingkai yang tampil, **Hapus keyframe** membuangnya, **‹ Keyframe** dan
+**Keyframe ›** melompat. **Ke keyframe ini**: **Potong** (bingkai pindah tepat di keyframe, bawaan)
+atau **Geser** (bingkai bergeser pelan dari keyframe sebelumnya). Keyframe tampil sebagai belah
+ketupat lime di penggeser dan di jalur Video timeline. **Kembali ke otomatis** menghapus semua
+keyframe; **Selesai** atau Esc menutup jendela, Ctrl+Z membatalkan di dalamnya. Bingkai manual
+berlaku untuk seluruh klip, termasuk bagian tanpa wajah (pilihan "Bagian tanpa wajah" disembunyikan
+selama ada keyframe). Pindah ke Latar blur menghapus keyframe (Urungkan mengembalikannya); pindah
+antara Potong tengah dan Ikuti wajah menyimpannya. Ikuti wajah tanpa keyframe menulis "Mengikuti
+wajah" di Hasil karena potongan wajah otomatis hanya tampil di pratinjau utama.
 
 **Logo.** **"Unggah logo"** (PNG, JPEG atau WebP, maks. 10 MB; PNG transparan paling rapi)
 atau seret file ke panel. Logo baru muncul di kanan atas, di luar area tombol TikTok/Reels. Posisi

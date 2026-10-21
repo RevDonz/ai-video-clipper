@@ -51,6 +51,24 @@ export function switchedLayout(current, mode) {
   if (mode === "camera" && current.mode !== "camera") return { ...current, mode, no_face: "fit_blur" };
   return { ...current, mode };
 }
+
+/** The layouts that crop the source: manual framing ("Atur bingkai", `layout.keyframes`) is theirs. */
+export const CROP_MODES = Object.freeze(["camera", "fill_center"]);
+/** How the crop reaches a keyframe from the one before: "Potong" holds, "Geser" moves (CONTRACTS §5.44). */
+export const KEYFRAME_MOVES = Object.freeze(["cut", "slide"]);
+export const MAX_KEYFRAMES = 100;
+/** `pan_e5`: the crop from the left edge (0) to the right edge of its travel. */
+export const PAN_E5_MAX = 100000;
+
+/**
+ * The whole `layout` after SetLayout to `mode` (`switchedLayout` for `default`): a switch to latar
+ * blur drops the manual framing keyframes, which only the crop layouts carry (preview_cli
+ * `_switched` mirrors this for `prepare`).
+ */
+export function layoutAfterSwitch(layout, mode) {
+  const { keyframes: _keyframes, ...rest } = layout;
+  return { ...(mode === "fit_blur" ? rest : layout), default: switchedLayout(layout.default, mode) };
+}
 /** Cold-open join styles (docs/plans/2026-10-02-transisi-cold-open.md §1.1); `xfade` stays op_disabled. */
 export const JOIN_STYLES = Object.freeze(["cut", "flash_white", "dip_black"]);
 /** The one sound a join can carry; no sound is the absent `sfx` key, never null. */
@@ -512,6 +530,7 @@ export function checkDoc(doc, ctx) {
   if (!LAYOUT_MODES.includes(doc.layout?.default?.mode) || !NO_FACE_MODES.includes(doc.layout?.default?.no_face)) {
     add("range_invalid", "/layout/default");
   }
+  if (doc.layout && Object.hasOwn(doc.layout, "keyframes")) checkKeyframes(doc.layout, ctx, add);
 
   // tracks
   const referenced = new Map();
@@ -572,6 +591,38 @@ function joinOk(join, after) {
   return join.after === after && JOIN_STYLES.includes(join.style) && isInt(join.audio_fade_ms, 0, 250)
     && Object.keys(join).every((key) => JOIN_KEYS.includes(key))
     && (!Object.hasOwn(join, "sfx") || deepEqual(join.sfx, SFX_WHOOSH));
+}
+
+const KEYFRAME_KEYS = Object.freeze(["sf", "pan_e5", "move"]);
+
+// Manual framing (CONTRACTS §5.44): edit_v2/doc.py `keyframes`; an unknown key, which Python
+// rejects at parse level, is range_invalid here.
+function checkKeyframes(layout, ctx, add) {
+  const path = "/layout/keyframes";
+  const list = layout.keyframes;
+  if (!Array.isArray(list) || list.length < 1 || list.length > MAX_KEYFRAMES) {
+    add("range_invalid", path);
+    return;
+  }
+  if (layout.default?.mode === "fit_blur") add("range_invalid", path);
+  let previous = null;
+  list.forEach((keyframe, index) => {
+    const item = `${path}/${index}`;
+    if (!keyframe || typeof keyframe !== "object" || Array.isArray(keyframe)
+      || Object.keys(keyframe).some((key) => !KEYFRAME_KEYS.includes(key))) {
+      add("range_invalid", item);
+      return;
+    }
+    if (!isInt(keyframe.pan_e5, 0, PAN_E5_MAX)) add("range_invalid", `${item}/pan_e5`);
+    if (!KEYFRAME_MOVES.includes(keyframe.move)) add("range_invalid", `${item}/move`);
+    if (!isInt(keyframe.sf, 0, Number.MAX_SAFE_INTEGER)) {
+      add("range_invalid", `${item}/sf`);
+      return;
+    }
+    if (previous !== null && keyframe.sf <= previous) add("range_invalid", `${item}/sf`);
+    else if (keyframe.sf < ctx.windowSf[0] || keyframe.sf >= ctx.windowSf[1]) add("outside_window", `${item}/sf`);
+    previous = previous === null ? keyframe.sf : Math.max(previous, keyframe.sf);
+  });
 }
 
 function checkHook(item, path, fps, add) {

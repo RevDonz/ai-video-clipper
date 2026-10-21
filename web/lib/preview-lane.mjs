@@ -42,6 +42,22 @@ export const LAYOUTS = Object.freeze(["fit_blur", "camera", "fill_center"]);
 // A plate's `noFace` from preview_cli: "fit_blur" for face-track's latar blur fallback (CONTRACTS
 // §5.40), null otherwise; the cells op is told only about the fallback.
 const plateNoFace = (value) => (value === undefined || value === null ? null : value === "fit_blur" ? value : undefined);
+// A plate's `keyframes` from preview_cli (CONTRACTS §5.44): `[[sf, pan_e5, move], …]` for manual
+// framing, null otherwise; undefined when malformed (the result is then not trusted).
+const KEYFRAME_MOVES = Object.freeze(["cut", "slide"]);
+function plateKeyframes(value) {
+  if (value === undefined || value === null) return null;
+  if (!Array.isArray(value) || value.length < 1 || value.length > 100) return undefined;
+  let previous = -1;
+  for (const item of value) {
+    if (!Array.isArray(item) || item.length !== 3) return undefined;
+    const [sf, pan, move] = item;
+    if (!Number.isSafeInteger(sf) || sf <= previous || !Number.isSafeInteger(pan) || pan < 0 || pan > 100000
+      || !KEYFRAME_MOVES.includes(move)) return undefined;
+    previous = sf;
+  }
+  return value.map((item) => [...item]);
+}
 export const DEFAULT_CACHE_CAP_BYTES = 1024 * 1024 * 1024; // K11
 export const HEAVY_SLOTS = 2;
 export const PLAN_SLOTS = 4;
@@ -404,7 +420,8 @@ export function createPreviewLane({
       }
       clip.head = false;
       for (const k of cells) clip.queued.delete(k);
-      const plate = { layout: clip.plate.layout, ...(clip.plate.noFace ? { noFace: clip.plate.noFace } : {}) };
+      const plate = { layout: clip.plate.layout, ...(clip.plate.noFace ? { noFace: clip.plate.noFace } : {}),
+        ...(clip.plate.keyframes ? { keyframes: clip.plate.keyframes } : {}) };
       const task = makeTask("cells", clip, { ...plate, cells }, { plateKey: clip.plate.key, cells });
       for (const k of cells) clip.runningCells.set(k, task);
       return task;
@@ -486,11 +503,11 @@ export function createPreviewLane({
 
   // --- what a plan asks for ----------------------------------------------------------------------
 
-  function switchPlate(clip, key, layout, noFace = null) {
+  function switchPlate(clip, key, layout, noFace = null, keyframes = null) {
     for (const task of running) {
       if (task.kind === "cells" && task.clip === clip && task.plateKey !== key) cancel(task);
     }
-    clip.plate = { key, layout, noFace: plateNoFace(noFace) ?? null };
+    clip.plate = { key, layout, noFace: plateNoFace(noFace) ?? null, keyframes: plateKeyframes(keyframes) ?? null };
     clip.order = [];
     clip.queued = new Set();
     clip.doneCells = new Map();
@@ -498,7 +515,7 @@ export function createPreviewLane({
   }
 
   function ensure(clip, lane, pieces, missingCells, audioReady, logoReady, body) {
-    if (!clip.plate || clip.plate.key !== lane.plateKey) switchPlate(clip, lane.plateKey, lane.layout, lane.noFace);
+    if (!clip.plate || clip.plate.key !== lane.plateKey) switchPlate(clip, lane.plateKey, lane.layout, lane.noFace, lane.keyframes);
     const missing = new Set(missingCells);
     const order = cellOrder(lane.cells, pieces, lane.cellFrames, lane.playhead).filter((k) => missing.has(k));
     const wanted = order.filter((k) => !clip.runningCells.has(k)
@@ -558,6 +575,7 @@ export function createPreviewLane({
     const lane = json?.lane;
     return isObject(json?.dto) && isObject(lane) && typeof lane.plateKey === "string" && HEX64.test(lane.plateKey)
       && typeof lane.layout === "string" && LAYOUTS.includes(lane.layout) && plateNoFace(lane.noFace) !== undefined
+      && plateKeyframes(lane.keyframes) !== undefined
       && Array.isArray(lane.cells) && lane.cells.every(Number.isSafeInteger)
       && Array.isArray(lane.missing) && Number.isSafeInteger(lane.cellFrames) && Number.isSafeInteger(lane.playhead)
       && isObject(json.dto.plate) && Array.isArray(json.dto.plate.cells);
@@ -684,11 +702,12 @@ export function createPreviewLane({
     if (result.exitCode !== 0) return { status: httpStatusForExit(result.exitCode), json: errorJson(result.json) };
     const json = result.json;
     if (!(typeof json?.plateKey === "string" && HEX64.test(json.plateKey) && LAYOUTS.includes(json.layout)
-      && plateNoFace(json.noFace) !== undefined
+      && plateNoFace(json.noFace) !== undefined && plateKeyframes(json.keyframes) !== undefined
       && Array.isArray(json.cells) && Array.isArray(json.ready) && Number.isSafeInteger(json.cellFrames))) return unavailable();
     const ready = new Set(json.ready);
     const missing = json.cells.filter((k) => !ready.has(k));
-    ensure(clip, { plateKey: json.plateKey, layout: json.layout, noFace: json.noFace, cells: json.cells, cellFrames: json.cellFrames, playhead: 0 },
+    ensure(clip, { plateKey: json.plateKey, layout: json.layout, noFace: json.noFace, keyframes: json.keyframes, cells: json.cells,
+      cellFrames: json.cellFrames, playhead: 0 },
       null, missing, true, true, null);
     return {
       status: 202,

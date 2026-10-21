@@ -744,6 +744,21 @@ def _valid(contexts: Mapping[str, Context]) -> list[_Fixture]:
     d = _Doc(c30, "SetLayout")
     d.doc["layout"]["default"].update(mode="camera", no_face="fit_blur")
     add("layout_camera_no_face_blur", d)
+    # manual framing, "Atur bingkai" (§5.44): keyframes on source-grid frames of the window
+    d = _Doc(c30, "SetKeyframe")
+    start = d.body["in_sf"]
+    d.doc["layout"]["default"]["mode"] = "fill_center"
+    d.doc["layout"]["keyframes"] = [
+        {"sf": d.window_sf()[0], "pan_e5": 0, "move": "slide"},
+        {"sf": start + 30, "pan_e5": 20000, "move": "cut"},
+        {"sf": start + 300, "pan_e5": 85000, "move": "cut"},
+        {"sf": start + 900, "pan_e5": 50000, "move": "slide"}]
+    add("layout_keyframes", d)
+    d = _Doc(c25, "SetKeyframeMove")
+    d.doc["layout"]["keyframes"] = [
+        {"sf": d.body["in_sf"] + 10, "pan_e5": 100000, "move": "cut"},
+        {"sf": d.body["in_sf"] + 200, "pan_e5": 0, "move": "slide"}]
+    add("layout_camera_keyframes", d)
     d = _Doc(c30, "SetHookEnabled")
     d.doc["tracks"] = []
     add("hook_removed", d)
@@ -904,6 +919,9 @@ def _invalid(contexts: Mapping[str, Context]) -> list[_Fixture]:
         mutated(lambda b: b.doc.update(markers=[])))
     add("unknown_key", "segment", "/main/segments/1/src",
         mutated(lambda b: b.body.update(src="S")))
+    add("unknown_key", "keyframe", "/layout/keyframes/0/zoom_pm",
+        mutated(lambda b: b.doc["layout"].update(keyframes=[
+            {"sf": b.body["in_sf"], "pan_e5": 50000, "move": "cut", "zoom_pm": 1000}])))
     add("unknown_key", "layout_ranges", "/layout/ranges",
         mutated(lambda b: b.doc["layout"].update(ranges=[])))
     add("unknown_key", "overrides", "/captions/overrides/words_per_chunk",
@@ -950,7 +968,21 @@ def _invalid(contexts: Mapping[str, Context]) -> list[_Fixture]:
     add("outside_window", "cold_open", "/main/segments/0/in_sf",
         mutated(lambda b: b.set_cold_open(b.window_sf()[0] - 5, b.window_sf()[0] + 131)))
 
+    def keyframes(*frames: int, mode: str = "fill_center") -> Callable[[_Doc], None]:
+        def apply(b: _Doc) -> None:
+            b.doc["layout"]["default"]["mode"] = mode
+            b.doc["layout"]["keyframes"] = [{"sf": sf, "pan_e5": 50000, "move": "cut"}
+                                            for sf in frames]
+        return apply
+
+    add("outside_window", "keyframe", "/layout/keyframes/1/sf",
+        mutated(lambda b: keyframes(b.body["in_sf"], b.window_sf()[1])(b)))
+
     # range_invalid.
+    add("range_invalid", "keyframes_fit_blur", "/layout/keyframes",
+        mutated(lambda b: keyframes(b.body["in_sf"], mode="fit_blur")(b)))
+    add("range_invalid", "keyframes_order", "/layout/keyframes/1/sf",
+        mutated(lambda b: keyframes(b.body["in_sf"] + 9, b.body["in_sf"])(b)))
     def empty_removal(b: _Doc) -> None:
         sf = b.after[b.body_words()[40]["id"]]["sf"]
         b.gap_removal(sf, sf)
@@ -1297,6 +1329,9 @@ def _check_semantics(doc: Mapping[str, Any], context: Context) -> set[str]:
         return {"range_invalid"}
     for segment in segments:
         if segment["in_sf"] < low or segment["out_sf"] > high:
+            codes.add("outside_window")
+    for keyframe in doc["layout"].get("keyframes", ()):
+        if not low <= keyframe["sf"] < high:
             codes.add("outside_window")
     body = [s for s in segments if s["role"] == "body"]
     if len(body) == 1:

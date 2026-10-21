@@ -142,6 +142,30 @@ def test_plate_key_names_the_no_face_fallback_of_face_track_only(contexts):
     assert plates.plate_key(plain) == plates.plate_key(seed)
 
 
+def test_plate_key_names_the_keyframes_of_manual_framing(contexts):
+    """Manual framing (CONTRACTS §5.44) sets the plate's crop, so its keyframes are part of the
+    key; the face-track fallback is not (keyframes turn it off). Keys without keyframes are the
+    pinned ones above."""
+    seed = contexts["c30"].seed
+    centre = with_layout(seed, "fill_center")
+    framed = copy.deepcopy(centre)
+    framed["layout"]["keyframes"] = [{"sf": 37300, "pan_e5": 10_000, "move": "cut"},
+                                     {"sf": 37400, "pan_e5": 90_000, "move": "slide"}]
+    key = plates.plate_key(framed)
+    assert key != plates.plate_key(centre)
+    for change in ({"sf": 37301}, {"pan_e5": 10_001}, {"move": "slide"}):
+        other = copy.deepcopy(framed)
+        other["layout"]["keyframes"][0].update(change)
+        assert plates.plate_key(other) != key, change
+    # face-track with the same keyframes crops the same pixels from its own plan; its fallback
+    # is off, so the fallback's value no longer changes the key
+    camera = with_layout(framed, "camera")
+    blurred = copy.deepcopy(camera)
+    blurred["layout"]["default"]["no_face"] = "fit_blur"
+    assert plates.plate_key(camera, camera_sha256="1" * 64) == plates.plate_key(
+        blurred, camera_sha256="1" * 64)
+
+
 def test_cell_names_are_flat_content_keyed_names():
     assert plates.cell_name(KEY, 0) == "abababababababab-c0000000.mp4"
     assert plates.cell_name(KEY, 620) == "abababababababab-c0000620.mp4"

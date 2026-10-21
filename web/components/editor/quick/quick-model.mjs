@@ -43,12 +43,13 @@ export function coldOpenSummary(doc) {
   return join.sfx ? `${name} + whoosh` : name;
 }
 
-/** The layout's name, plus " · menganalisis…" while the face analysis runs. */
+/** The layout's name, plus " · menganalisis…" while the face analysis runs, or " · bingkai manual". */
 export function layoutSummary(doc, analysis = null) {
   const mode = doc?.layout?.default?.mode;
   if (!mode) return "";
   const name = byId(LAYOUT_OPTIONS, mode)?.name ?? mode;
-  return analysisBusy(analysis) ? `${name} · menganalisis…` : name;
+  if (analysisBusy(analysis)) return `${name} · menganalisis…`;
+  return doc.layout.keyframes?.length ? `${name} · bingkai manual` : name;
 }
 
 /** "Belum ada", "Logo", "Musik" or "Logo dan musik". */

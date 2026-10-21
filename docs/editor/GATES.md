@@ -1990,3 +1990,21 @@ production image or a browser run on GitHub Actions when the branch is pushed.
 | Editor model | the five commands, `checkDoc`, the five rebase parts, the Logo panel's model; the store's two-tab property over 100 seeded runs (60 before; the threshold of more than 5 dialogs is unchanged) | pass | **pass** (`node --test`: commands, rebase, draft, watermark, logo, guards) |
 | Pengaturan default | the route (session, origin, body cap, validation, 0600 file, symlink refused), the job copy, Python's `job_watermark` reading it back, the seed with it, prepare of a real job and an edit-v2 auto clip whose ASS carries it (R10 hands out that file) | pass | **pass** (local `node --test` and pytest) |
 | Browser specs | the Logo panel's "Teks watermark" on the harness (type, grid, sliders, empty field, remove and undo, read-only) and the Pengaturan card (fakes) | pass | **pending**: `editor-gates suite=e2e` (`e2e/editor-logo.spec.mjs`, `e2e/settings-watermark.spec.mjs`) |
+
+## Atur bingkai: manual framing (2026-10-21)
+
+`layout.keyframes` (CONTRACTS §5.44): the crop of the two crop layouts set by hand. Documents
+without keyframes keep their graph, plan sha and plate key, so `RENDER_SEMANTICS` stays 1 and the
+goldens are unchanged. Built on branch `adopsi/atur-bingkai` with targeted local tests only; the
+gates that need the production image or a browser run on GitHub Actions when the branch is pushed.
+
+| Gate | Threshold | Result | Where | Verdict |
+|---|---|---|---|---|
+| Box = crop (shared vectors) | Python and JS give the same crop x on every frame of every vector | 29 vectors, 7 source/output sizes, > 1,000 frames: equal; the gizmo's box lands on the same x | `tests/test_edit_v2_framing.py`, `web/tests/editor-framing.test.mjs`, `web/tests/editor-frame-gizmo.test.mjs` | **pass** (local) |
+| Crop x of plate cells and render (pytest, real FFmpeg) | the decoded crop x of every frame equals `keyframe_positions`, 0 px | local FFmpeg 6.1.1: every plate-cell and lossless-reference frame of a framed synthetic clip (cuts, a cold open, two cuts and two slides), 0 px; x from 0 to the full travel | `tests/test_edit_v2_compile.py::test_manual_crop_decoded_from_the_ruler_matches_the_keyframes` | **pass** (local); pinned toolchain: `editor-gates suite=image` |
+| Graph | keyframes change only the crop's x expression; no keyframes is the layout's own graph; face-track's blur fallback is off | string checks on both crop layouts, final and plate cells | `tests/test_edit_v2_compile.py` | **pass** (local) |
+| Document rules | the validator's rules (order, window, ranges, `fit_blur`, keys) and `checkDoc` agree; the client's commands against the Python validator in the 1,000-sequence crosscheck with the four framing commands in the generator | 0 rejected documents | `tests/test_edit_v2_doc.py`, `tests/test_edit_v2_crosscheck.py` | **pass** (local) |
+| P-FRAME with keyframes | 0 mismatches | case `cfr_30_keyframes` (610 output frames, 355 distinct crop x) added | `scripts/parity/frame_identity.py` | pending: `editor-gates suite=command` (`frame_identity.py p-frame`) |
+| P-PLATE with keyframes | SSIM margin ≥ 0; crop x 0 px | cases `plate_fill_center_keyframes`, `plate_camera_keyframes` (710 output frames each, 403 distinct crop x) added | `scripts/parity/frame_identity.py` | pending: `editor-gates suite=command` (`frame_identity.py p-plate`) |
+| Lane and keys | the plate key names the keyframes; the cells op builds that plate; the lane passes the keyframes with every batch | pass | `tests/test_edit_v2_plates.py`, `tests/test_edit_v2_preview_cli.py`, `web/tests/preview-lane.test.mjs` | **pass** (local) |
+| Dialog and timeline (browser, fakes) | drag, keys, Geser, Hapus, Kembali ke otomatis, diamonds, focus return, Escape, undo, axe clean | `e2e/editor-framing.spec.mjs` (8 tests) | | pending: `editor-gates suite=e2e` |

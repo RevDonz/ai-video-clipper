@@ -331,6 +331,18 @@
    "warnings": []
   },
   {
+   "file": "valid/layout_keyframes__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/layout_camera_keyframes__c25.json",
+   "context": "c25",
+   "check": "put",
+   "warnings": []
+  },
+  {
    "file": "valid/hook_removed__c30.json",
    "context": "c30",
    "check": "put",
@@ -608,6 +620,13 @@
    "path": "/main/segments/1/src"
   },
   {
+   "file": "invalid/unknown_key__keyframe.json",
+   "context": "c30",
+   "check": "put",
+   "code": "unknown_key",
+   "path": "/layout/keyframes/0/zoom_pm"
+  },
+  {
    "file": "invalid/unknown_key__layout_ranges.json",
    "context": "c30",
    "check": "put",
@@ -753,6 +772,27 @@
    "check": "put",
    "code": "outside_window",
    "path": "/main/segments/0/in_sf"
+  },
+  {
+   "file": "invalid/outside_window__keyframe.json",
+   "context": "c30",
+   "check": "put",
+   "code": "outside_window",
+   "path": "/layout/keyframes/1/sf"
+  },
+  {
+   "file": "invalid/range_invalid__keyframes_fit_blur.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/layout/keyframes"
+  },
+  {
+   "file": "invalid/range_invalid__keyframes_order.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/layout/keyframes/1/sf"
   },
   {
    "file": "invalid/range_invalid__empty_removal.json",

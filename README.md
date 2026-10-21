@@ -390,7 +390,8 @@ clips (at most 48) behind a cursor, so a project that finishes in between does n
 **Bahasa Indonesia.** Tombol **Edit klip** di setiap klip membuka editor (desktop, Chrome atau
 Edge, layar ≥ 1024 px): potong lewat transkrip, rapikan kata pengisi dan jeda, perbaiki
 caption (Cek ejaan dengan AI gratis), pilih gaya caption dan teks hook (dengan saran), cold
-open, tata letak (latar blur, ikuti wajah, potong tengah), logo, musik dengan ducking, lalu
+open, tata letak (latar blur, ikuti wajah, potong tengah, dan bingkai yang diatur sendiri dengan
+keyframe lewat **Atur bingkai**), logo, musik dengan ducking, lalu
 ekspor MP4 + SRT. Pratinjau memakai kompiler yang sama dengan ekspor; tanda **"Sesuai hasil
 akhir"** berarti frame, waktu teks, gambar teks dan audio yang terlihat sama dengan file akhir,
 kecuali kompresi MP4.

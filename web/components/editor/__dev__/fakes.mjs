@@ -11,7 +11,7 @@
 // setSelection, dismissNotice and the state fields conflict, notice, otherTab, readOnlyReason).
 import { CommandRejected } from "../../../lib/editor/commands.mjs";
 import { DEFAULT_EMPHASIS, DEFAULT_HIGHLIGHT } from "../../../lib/editor/content-colours.mjs";
-import { DEFAULT_WATERMARK, switchedLayout } from "../../../lib/editor/doc-model.mjs";
+import { DEFAULT_WATERMARK, layoutAfterSwitch } from "../../../lib/editor/doc-model.mjs";
 import { createEditorStore } from "../../../lib/editor/store.mjs";
 import { divRoundHalfUp, pieces as piecesOf, smp, totalFrames as totalFramesOf, wordFrames } from "../../../lib/editor/timemap.mjs";
 
@@ -24,12 +24,14 @@ const SHA = (seed) => fakeSha256(`fake:${seed}`);
 
 // Appendix B: every command name the real store knows (T2.5 implements them all), with the
 // cold-open transition commands (docs/plans/2026-10-02-transisi-cold-open.md §7.2),
-// SetHookDesign (CONTRACTS §5.33), SetNoFace (§5.40) and the text watermark's (§5.43).
+// SetHookDesign (CONTRACTS §5.33), SetNoFace (§5.40), the framing commands (§5.44) and the text
+// watermark's (§5.43).
 export const COMMANDS = Object.freeze([
   "TrimStart", "TrimEnd", "RemoveWords", "RemoveGap", "RestoreRemoval", "ApplyCleanup",
   "SetColdOpen", "NudgeColdOpen", "SetJoinStyle", "SetJoinSfx", "EditWordText", "SetWordHidden", "SetWordEmphasis",
   "SetCaptionsEnabled", "SetCaptionPack", "SetCaptionOverride", "SetHookEnabled", "SetHookText",
-  "SetHookDuration", "SetHookY", "SetHookDesign", "SetLayout", "SetNoFace", "SetLogo", "RemoveLogo", "MoveLogo", "ResizeLogo",
+  "SetHookDuration", "SetHookY", "SetHookDesign", "SetLayout", "SetNoFace",
+  "SetKeyframe", "RemoveKeyframe", "SetKeyframeMove", "ClearKeyframes", "SetLogo", "RemoveLogo", "MoveLogo", "ResizeLogo",
   "SetLogoOpacity", "SnapLogo", "SetWatermarkText", "SetWatermarkPosition", "SetWatermarkSize", "SetWatermarkOpacity",
   "RemoveWatermark", "SetMusic", "RemoveMusic", "SetMusicGain", "SetMusicOffset",
   "SetMusicLoop", "SetMusicFades", "SetDuck", "SetSourceGain", "SetLoudness", "ResetToSeed",
@@ -433,7 +435,7 @@ const FAKE_REDUCERS = {
   SetCaptionsEnabled: (doc, { on }) => { doc.captions.enabled = Boolean(on); },
   SetCaptionPack: (doc, { id }) => { doc.captions.pack = { id, v: 1 }; },
   SetCaptionOverride: (doc, { key, value }) => { doc.captions.overrides[key] = value; },
-  SetLayout: (doc, { mode }) => { doc.layout.default = switchedLayout(doc.layout.default, mode); },
+  SetLayout: (doc, { mode }) => { doc.layout = layoutAfterSwitch(doc.layout, mode); },
   SetNoFace: (doc, { mode }) => { doc.layout.default.no_face = mode; },
   SetHookText: (doc, { text }) => { doc.tracks.find((track) => track.kind === "hook").items[0].payload.text = text; },
   SetHookDesign: (doc, { id }) => { doc.tracks.find((track) => track.kind === "hook").items[0].payload.design = { id, v: 1 }; },

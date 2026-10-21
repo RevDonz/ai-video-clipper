@@ -1,0 +1,151 @@
+/* The "Atur bingkai" gizmo (FrameGizmo.jsx): the source picture with the 9:16 box. Positions are
+   percentages of the picture. Colours are tokens only. The box is the one accent of the dialog's
+   picture (lime, the crop that renders); outside it the picture is dimmed, so the result reads at
+   a glance. MOTION 2: the box glides between keyframes (off while dragging and with reduced
+   motion, through the duration tokens). */
+
+.picture {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border-radius: var(--ed-radius-md);
+  background-color: var(--bg);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 100% auto;
+  box-shadow: 0 0 0 1px var(--border);
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+
+/* A new still is on its way: the last one stays, a little dimmer. */
+.picture[data-still="loading"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--shadow);
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.pictureNote {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ed-space-2);
+  padding: var(--ed-space-2) var(--ed-space-3);
+  transform: translate(-50%, -50%);
+  border-radius: var(--ed-radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--ed-font-size-sm);
+  white-space: nowrap;
+}
+
+.retry {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--ed-radius-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  font: 600 var(--ed-font-size-sm) / 1 var(--ed-font-ui);
+  cursor: pointer;
+}
+
+.retry:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.box {
+  position: absolute;
+  z-index: 1;
+  box-sizing: border-box;
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 0 100vmax var(--shadow);
+  cursor: grab;
+  touch-action: none;
+  transition: left var(--dur-2) var(--ease-out), border-color var(--ed-duration-fast);
+}
+
+.picture[data-dragging="true"] .box {
+  cursor: grabbing;
+  transition: none;
+}
+
+/* Without keyframes the box shows the layout's own framing: dashed, and tagged. */
+.box[data-auto="true"] {
+  border-style: dashed;
+  border-color: var(--text);
+}
+
+.box:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.box[aria-disabled="true"] {
+  cursor: default;
+}
+
+/* Thirds inside the box: the usual guide for placing a face. */
+.grid,
+.grid::before,
+.grid::after {
+  position: absolute;
+  pointer-events: none;
+}
+
+.grid {
+  inset: 0;
+  opacity: 0.6;
+}
+
+.grid::before {
+  content: "";
+  top: 0;
+  bottom: 0;
+  left: 33.333%;
+  right: 33.333%;
+  border-left: 1px solid var(--sheen);
+  border-right: 1px solid var(--sheen);
+}
+
+.grid::after {
+  content: "";
+  left: 0;
+  right: 0;
+  top: 33.333%;
+  bottom: 33.333%;
+  border-top: 1px solid var(--sheen);
+  border-bottom: 1px solid var(--sheen);
+}
+
+.tag {
+  position: absolute;
+  top: var(--ed-space-1);
+  left: var(--ed-space-1);
+  padding: 2px 6px;
+  border-radius: var(--ed-radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--ed-font-size-xs);
+  font-weight: 600;
+  pointer-events: none;
+}
+
+/* The magnet's line while a drag rests on the centre. */
+.centreGuide {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  z-index: 2;
+  border-left: 1px dashed var(--text);
+  pointer-events: none;
+}

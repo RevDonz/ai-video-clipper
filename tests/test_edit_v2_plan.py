@@ -443,6 +443,29 @@ def test_with_the_blur_fallback_a_run_without_a_face_is_a_note(harness, resource
         issue.code for issue in plan_for(name, resources, doc=other, camera=camera).warnings}
 
 
+def test_manual_framing_lists_no_run_without_a_face(harness, resources):
+    """``layout.keyframes`` (CONTRACTS §5.44) set the crop of every frame, so face-track's runs
+    without a face are neither centred nor blurred: no ``no_face`` and no ``no_face_blur``. The
+    keyframes are content, so the plan sha changes with them."""
+    name = "layout_camera_no_face_blur__c30"
+    camera = camera_for(load_doc(name))
+    fps = tm.Fps.from_json(load_doc(name)["output"]["fps"])
+    body = load_doc(name)["main"]["segments"][1]
+    start_ms = body["in_sf"] * 1000 * fps.den // fps.num + 2000
+    camera["no_face"] = [[start_ms, start_ms + 2500]]
+    for no_face in ("center", "fit_blur"):
+        doc = load_doc(name)
+        doc["layout"]["default"]["no_face"] = no_face
+        plain = plan_for(name, resources, doc=doc, camera=camera)
+        assert {"no_face", "no_face_blur"} & {issue.code for issue in plain.warnings}
+        assert plain.keyframes == ()
+        doc["layout"]["keyframes"] = [{"sf": body["in_sf"], "pan_e5": 25_000, "move": "cut"}]
+        framed = plan_for(name, resources, doc=doc, camera=camera)
+        assert not {"no_face", "no_face_blur"} & {issue.code for issue in framed.warnings}
+        assert framed.keyframes == tuple(doc["layout"]["keyframes"])
+        assert framed.plan_sha256 != plain.plan_sha256
+
+
 def test_caption_warnings_are_carried(harness, resources, monkeypatch):
     real = harness.harness_caption_track
     issue = doc_module.Issue("hook_overflow", "/tracks/0/items/0/payload/text", ref="it_hook")
