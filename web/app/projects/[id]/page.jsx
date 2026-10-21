@@ -12,8 +12,8 @@ import { clipDownloads, formatSize } from "../../../lib/clip-download.mjs";
 import { clipEntryFor, loadClipEntries } from "../../../lib/clip-entry-view.mjs";
 import { replaceClip } from "../../../lib/clip-text.mjs";
 import { clipCountText, failedClipView, isFailedClip, readyClips } from "../../../lib/clip-status.mjs";
-import { jobHelpHref } from "../../../lib/help-catalog.mjs";
 import { jobStepText } from "../../../lib/dashboard-view.mjs";
+import { jobHelpHref } from "../../../lib/help-catalog.mjs";
 import { jobCancellable } from "../../../lib/job-cancel.mjs";
 import {
   clipLabel,
