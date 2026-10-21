@@ -373,6 +373,7 @@ def test_clips_of_a_prepared_v3_job(tmp_path, contexts):
         "engine": COMPILER_ID,
         "edit": {"state": "seed", "revision": 0, "etag": clips[1]["edit"]["etag"],
                  "updatedAtMs": seed["audit"]["updated_at_ms"]},
+        "hook": {"on": True, "available": True},
         "latestRender": None, "openable": True, "reason": None,
     }
     assert {entry["clipId"] for entry in clips.values()} == {_clip_id(c) for c in CLIPS}

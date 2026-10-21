@@ -377,7 +377,10 @@ ekspor editor langsung memakai teks itu; kemasan asli dari mesin tetap tersimpan
 meminta judul dan deskripsi baru dari transkrip klip itu ke rantai AI gratis di Pengaturan (paling
 banyak 30 kali per proyek per jam). Hasilnya tampil sebagai "Saran AI": **Pakai** memasukkannya ke
 form (baru tersimpan setelah **Simpan**), **Buang** menutupnya. Teks hook di video tidak ikut
-berubah karena sudah menjadi bagian dari video; teks itu diubah lewat editor (kartu Hook).
+berubah karena sudah menjadi bagian dari video; teks itu diubah lewat editor (kartu Hook). Di kotak
+yang sama, sakelar **Hook di video** menampilkan atau menyembunyikan teks hook klip itu: perubahan
+disimpan ke dokumen edit klip (sama seperti kartu Hook di editor) lalu klip diekspor ulang, dan
+hasilnya muncul sebagai "Ekspor terakhir". Menyalakannya lagi mengembalikan hook bawaan klip.
 
 **English.** The ZIP is store-only (MP4 does not compress), built with Node built-ins (CRC-32
 from `zlib.crc32`, a table fallback), classic format below 4 GiB, streamed one chunk at a time
@@ -387,7 +390,9 @@ while it is sent. `MAX_ZIP_BYTES` (default 2 GiB) limits it with an Indonesian m
 `clip.textEdit` in `job.json` (`PATCH /api/jobs/<id>/clip-text`, written under the queue lock) and
 served in place of the engine's packaging; "Tulis ulang" is `POST /api/jobs/<id>/clip-text/rewrite`,
 which runs `python -m ai_clipper.post_text` on the saved Pengaturan chain within 20 s
-(`docs/editor/CONTRACTS.md` §5.38).
+(`docs/editor/CONTRACTS.md` §5.38). "Hook di video" is `POST /api/jobs/<id>/clips/<clipId>/hook`
+(the editor document's hook track off, or the seed's back on, through the document store), followed
+by an export of that revision (§5.57).
 
 ## Riwayat: proyek atau klip
 
