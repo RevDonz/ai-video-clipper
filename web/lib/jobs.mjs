@@ -2,6 +2,7 @@ import { mkdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { clipErrorCode, isFailedClip } from "./clip-status.mjs";
+import { PACK_IDS } from "./editor/doc-model.mjs";
 import {
   CLIP_THUMBNAIL_URL,
   FOCUS_LIMITS,
@@ -24,7 +25,16 @@ export const CURRENT_SELECTION_MODE = "v3";
 const RETIRED_SELECTION_MODES = ["v1", "v2-shadow"];
 export const CLIP_PROFILES = ["viral-short", "standard", "deep-dive"];
 export const LLM_MODES = ["auto", "off"];
-export const CAPTION_STYLES = ["karaoke", "classic"];
+/** "Gaya subtitle": every caption pack (edit_v2 PACK_IDS); the legacy engine draws the first two. */
+export const CAPTION_STYLES = Object.freeze([...PACK_IDS]);
+export const LEGACY_CAPTION_STYLES = Object.freeze(["karaoke", "classic"]);
+/**
+ * "Posisi" and "Ukuran" of the captions (CONTRACTS §5.47): optional V3 options, the seed's y_e5
+ * and size_pm (edit_v2 CAPTION_POSITIONS / CAPTION_SIZES). A job without them has the pack's
+ * own spot and size, bottom and medium.
+ */
+export const CAPTION_POSITIONS = Object.freeze(["top", "middle", "bottom"]);
+export const CAPTION_SIZES = Object.freeze(["small", "medium", "large"]);
 /** "Bahasa video": the spoken language; "auto" lets the engine detect it. Mirrored in dashboard-choices.mjs. */
 export const VIDEO_LANGUAGES = ["id", "en", "auto"];
 export const DEFAULT_V3_OPTIONS = Object.freeze({
@@ -34,7 +44,7 @@ export const DEFAULT_V3_OPTIONS = Object.freeze({
   captionStyle: "karaoke",
 });
 const V2_OPTION_KEYS = ["clipProfile", "maxCandidates", "maxMediaCandidates", "mediaTimeout"];
-const V3_OPTION_KEYS = ["llmMode", "coldOpen", "hookOverlay", "captionStyle"];
+const V3_OPTION_KEYS = ["llmMode", "coldOpen", "hookOverlay", "captionStyle", "captionPosition", "captionSize"];
 // Fokus klip (docs/plans/2026-09-25-fokus-klip.md §1): V3 only, persisted as options.focus.
 const FOCUS_FORM_KEYS = ["focusTerms", "focusNote"];
 // Optional: a job without it keeps the worker's WHISPER_LANGUAGE (else id) and Indonesian captions.
@@ -376,6 +386,12 @@ export function validatePersistedJobOptions(input) {
     if (typeof input.captionStyle !== "string" || !CAPTION_STYLES.includes(input.captionStyle)) {
       throw new Error("Invalid persisted job options: unsupported caption style");
     }
+    if (input.captionPosition !== undefined && !CAPTION_POSITIONS.includes(input.captionPosition)) {
+      throw new Error("Invalid persisted job options: unsupported caption position");
+    }
+    if (input.captionSize !== undefined && !CAPTION_SIZES.includes(input.captionSize)) {
+      throw new Error("Invalid persisted job options: unsupported caption size");
+    }
     if (input.videoLanguage !== undefined && !VIDEO_LANGUAGES.includes(input.videoLanguage)) {
       throw new Error("Invalid persisted job options: unsupported video language");
     }
@@ -389,6 +405,8 @@ export function validatePersistedJobOptions(input) {
       coldOpen: input.coldOpen,
       hookOverlay: input.hookOverlay,
       captionStyle: input.captionStyle,
+      ...(input.captionPosition !== undefined ? { captionPosition: input.captionPosition } : {}),
+      ...(input.captionSize !== undefined ? { captionSize: input.captionSize } : {}),
       ...(input.videoLanguage !== undefined ? { videoLanguage: input.videoLanguage } : {}),
       ...(focus ? { focus } : {}),
       ...(input.ranges !== undefined ? { ranges: input.ranges.map(({ start, end }) => ({ start, end })) } : {}),
@@ -436,6 +454,10 @@ export function parseJobOptions(input = {}) {
   if (typeof llmMode !== "string" || !LLM_MODES.includes(llmMode)) throw new Error("Unsupported LLM mode");
   const captionStyle = provided("captionStyle") ? input.captionStyle : DEFAULT_V3_OPTIONS.captionStyle;
   if (typeof captionStyle !== "string" || !CAPTION_STYLES.includes(captionStyle)) throw new Error("Unsupported caption style");
+  const captionPosition = provided("captionPosition") ? input.captionPosition : null;
+  if (captionPosition !== null && !CAPTION_POSITIONS.includes(captionPosition)) throw new Error("Unsupported caption position");
+  const captionSize = provided("captionSize") ? input.captionSize : null;
+  if (captionSize !== null && !CAPTION_SIZES.includes(captionSize)) throw new Error("Unsupported caption size");
   const videoLanguage = provided(LANGUAGE_KEY) ? input.videoLanguage : null;
   if (videoLanguage !== null && !VIDEO_LANGUAGES.includes(videoLanguage)) throw new Error("Unsupported video language");
   const focus = parseFocusOption(input.focusTerms, input.focusNote);
@@ -452,6 +474,8 @@ export function parseJobOptions(input = {}) {
     coldOpen: formBoolean(input.coldOpen, DEFAULT_V3_OPTIONS.coldOpen, "cold open"),
     hookOverlay: formBoolean(input.hookOverlay, DEFAULT_V3_OPTIONS.hookOverlay, "hook overlay"),
     captionStyle,
+    ...(captionPosition ? { captionPosition } : {}),
+    ...(captionSize ? { captionSize } : {}),
     ...(videoLanguage ? { videoLanguage } : {}),
     ...(focus ? { focus } : {}),
     ...(ranges.length ? { ranges } : {}),

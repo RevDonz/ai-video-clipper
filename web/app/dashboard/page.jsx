@@ -26,13 +26,14 @@ import {
   videoFileProblem,
 } from "../../lib/dashboard-view.mjs";
 import {
-  CAPTION_STYLE_CHOICES,
   DEFAULT_CHOICES,
   DURATION_PRESETS,
   LAYOUT_CHOICES,
   VIDEO_LANGUAGE_CHOICES,
   browserStorage,
   choicesSummary,
+  lookChoices,
+  normalizeChoices,
   readStoredChoices,
   withDuration,
   writeStoredChoices,
@@ -226,7 +227,7 @@ export default function DashboardPage() {
   const [dragging, setDragging] = useState(false);
   // The last choices come back after hydration (the page is prerendered with the defaults).
   const [choices, setChoices] = useState(DEFAULT_CHOICES);
-  const { limit, duration, minDuration, maxDuration, renderMode, captionStyle, coldOpen, hookOverlay, videoLanguage, optionsOpen } = choices;
+  const { limit, duration, minDuration, maxDuration, renderMode, coldOpen, hookOverlay, videoLanguage, optionsOpen } = choices;
   const [focusTerms, setFocusTerms] = useState([]);
   const [focusDraft, setFocusDraft] = useState("");
   const [focusNote, setFocusNote] = useState("");
@@ -238,6 +239,11 @@ export default function DashboardPage() {
   const [jobsState, setJobsState] = useState("loading");
   // The jobs list says whether the editor is on: the preview names Edit klip only then.
   const [editorOn, setEditorOn] = useState(false);
+  // ...and which engine renders the automatic clips: with the legacy one (the rollback switch)
+  // only the caption looks it draws are offered (CONTRACTS §5.47).
+  const [renderEngine, setRenderEngine] = useState("edit-v2");
+  const offered = lookChoices(renderEngine);
+  const { captionStyle, captionPosition, captionSize } = normalizeChoices(choices, { engine: renderEngine });
   const [activeId, setActiveId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState(null);
@@ -275,6 +281,7 @@ export default function DashboardPage() {
       setJobs(payload.jobs || []);
       setJobsState("ready");
       setEditorOn(payload.editor === true);
+      setRenderEngine(payload.renderEngine === "legacy" ? "legacy" : "edit-v2");
       setActiveId((current) => selectedId || current || payload.jobs?.[0]?.id || null);
     } catch (error) {
       if (signal?.aborted || generation !== jobsRefreshGeneration.current) return;
@@ -444,6 +451,8 @@ export default function DashboardPage() {
       data.set("coldOpen", String(coldOpen));
       data.set("hookOverlay", String(hookOverlay));
       data.set("captionStyle", captionStyle);
+      if (offered.positions) data.set("captionPosition", captionPosition);
+      if (offered.sizes) data.set("captionSize", captionSize);
       data.set("videoLanguage", videoLanguage);
       for (const [name, value] of Object.entries(focus.fields)) data.set(name, value);
       if (timeRanges.trim()) data.set("timeRanges", timeRanges.trim());
@@ -509,8 +518,8 @@ export default function DashboardPage() {
   }
 
   const describedBy = (name, extra) => [extra, problems[name] ? `${FIELD_IDS[name]}-error` : null].filter(Boolean).join(" ") || undefined;
-  const summary = choicesSummary(choices, { focusTerms: focusTerms.length, ranges: typedRangeCount(timeRanges) });
-  const look = lookPreview(choices, { editor: editorOn });
+  const summary = choicesSummary({ ...choices, captionStyle, captionPosition, captionSize }, { focusTerms: focusTerms.length, ranges: typedRangeCount(timeRanges) });
+  const look = lookPreview(choices, { editor: editorOn, engine: renderEngine });
 
   return (
     <main>
@@ -672,7 +681,7 @@ export default function DashboardPage() {
                   <fieldset className={styles.group} aria-describedby={look.note ? "caption-style-help" : undefined}>
                     <legend className={styles.groupTitle}>Gaya subtitle</legend>
                     <div className={`${styles.choices} ${lookStyles.styles}`}>
-                      {CAPTION_STYLE_CHOICES.map((style) => (
+                      {offered.styles.map((style) => (
                         <label key={style.id} className={`${styles.choice} ${styles.compact} ${lookStyles.style} ${captionStyle === style.id ? styles.selected : ""}`}>
                           <input type="radio" name="captionStyle" value={style.id} checked={captionStyle === style.id} onChange={() => updateChoices({ captionStyle: style.id })} />
                           <img className={lookStyles.thumb} src={imageSrc(PACK_IMAGES[style.id])} width={160} height={40} alt="" draggable={false} />
@@ -682,6 +691,36 @@ export default function DashboardPage() {
                     </div>
                     {look.note && <p id="caption-style-help" className={styles.help}>{look.note}</p>}
                   </fieldset>
+                  {(offered.positions || offered.sizes) && (
+                    <div className={lookStyles.spots}>
+                      {offered.positions && (
+                        <fieldset className={styles.group}>
+                          <legend className={styles.groupTitle}>Posisi subtitle</legend>
+                          <div className={`${styles.pills} ${lookStyles.spotPills}`}>
+                            {offered.positions.map((spot) => (
+                              <label key={spot.id} className={`${styles.pill} ${captionPosition === spot.id ? styles.selected : ""}`}>
+                                <input type="radio" name="captionPosition" value={spot.id} checked={captionPosition === spot.id} onChange={() => updateChoices({ captionPosition: spot.id })} />
+                                <strong>{spot.name}</strong>
+                              </label>
+                            ))}
+                          </div>
+                        </fieldset>
+                      )}
+                      {offered.sizes && (
+                        <fieldset className={styles.group}>
+                          <legend className={styles.groupTitle}>Ukuran subtitle</legend>
+                          <div className={`${styles.pills} ${lookStyles.spotPills}`}>
+                            {offered.sizes.map((size) => (
+                              <label key={size.id} className={`${styles.pill} ${captionSize === size.id ? styles.selected : ""}`}>
+                                <input type="radio" name="captionSize" value={size.id} checked={captionSize === size.id} onChange={() => updateChoices({ captionSize: size.id })} />
+                                <strong>{size.name}</strong>
+                              </label>
+                            ))}
+                          </div>
+                        </fieldset>
+                      )}
+                    </div>
+                  )}
                   <div className={styles.toggles}>
                     <label className={styles.toggle}>
                       <input type="checkbox" checked={coldOpen} onChange={(event) => updateChoices({ coldOpen: event.target.checked })} />

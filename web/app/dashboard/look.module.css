@@ -17,6 +17,9 @@
 .canvas { display: block; width: 100%; height: auto; aspect-ratio: 9 / 16; }
 /* A choice that changes the picture fades its part in, so the eye finds what moved. */
 .appear { animation: fade-in var(--dur-2) var(--ease-out); }
+/* The subtitle fades in with a new pack and glides to a new spot or size, so the eye follows it
+   (--dur-2 is 0 for reduced motion). */
+.caption { animation: fade-in var(--dur-2) var(--ease-out); transition: x var(--dur-2) var(--ease-out), y var(--dur-2) var(--ease-out), width var(--dur-2) var(--ease-out), height var(--dur-2) var(--ease-out); }
 .hookBox { fill: var(--shadow); }
 .hookText { fill: var(--text); font-family: var(--font); font-weight: 700; }
 .veil { fill: var(--danger-veil); }
@@ -28,6 +31,9 @@
 
 /* The subtitle styles side by side while each keeps room for its thumbnail, else stacked. */
 .styles { grid-template-columns: repeat(auto-fit, minmax(156px, 1fr)); }
+/* Posisi and Ukuran side by side where both rows of three pills fit, else stacked. */
+.spots { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px 16px; }
+.spotPills { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 /* A subtitle style: its rendered thumbnail on top, the radio and the name under it. */
 .style { grid-template-areas: "thumb thumb" "radio text"; }
 .style > input { grid-area: radio; }

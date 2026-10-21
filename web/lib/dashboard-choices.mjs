@@ -12,10 +12,42 @@ export const LAYOUT_CHOICES = Object.freeze([
   { id: "center-crop", name: "Crop tengah", description: "Untuk video yang subjeknya selalu di tengah." },
 ]);
 
+// Every caption pack, named as the editor names it (components/editor/panels/caption-model.mjs);
+// the ids are lib/jobs.mjs CAPTION_STYLES. The legacy engine (the rollback switch) draws only
+// Karaoke and Klasik, at the bottom in one size (CONTRACTS §5.47).
 export const CAPTION_STYLE_CHOICES = Object.freeze([
+  { id: "classic", name: "Klasik", description: "Putih bergaris hitam, tanpa sorotan." },
   { id: "karaoke", name: "Karaoke", description: "Kata yang sedang diucapkan menyala." },
-  { id: "classic", name: "Klasik", description: "Beberapa kata per baris, tanpa sorotan." },
+  { id: "bold", name: "Bold", description: "Huruf besar tebal, kata aktif berwarna." },
+  { id: "box", name: "Box", description: "Teks di kotak gelap." },
+  { id: "sorot", name: "Sorot", description: "Kotak warna di kata yang diucapkan." },
 ]);
+const LEGACY_STYLES = Object.freeze(["karaoke", "classic"]);
+
+// "Posisi" and "Ukuran": the seed's y_e5 (the caption block's bottom edge) and size_pm, the
+// editor's Atas/Tengah/Bawah and Kecil/Sedang/Besar presets.
+export const CAPTION_POSITION_CHOICES = Object.freeze([
+  { id: "top", name: "Atas", y_e5: 38000 },
+  { id: "middle", name: "Tengah", y_e5: 60000 },
+  { id: "bottom", name: "Bawah", y_e5: 83000 },
+]);
+export const CAPTION_SIZE_CHOICES = Object.freeze([
+  { id: "small", name: "Kecil", size_pm: 850 },
+  { id: "medium", name: "Sedang", size_pm: 1000 },
+  { id: "large", name: "Besar", size_pm: 1200 },
+]);
+
+/**
+ * The caption looks the automatic render of `engine` draws: every pack, spot and size with the
+ * editor's engine (the release default, also before the jobs list answers); with "legacy" only
+ * Karaoke and Klasik and no spot or size (null: the dashboard leaves those controls out).
+ */
+export function lookChoices(engine) {
+  if (engine === "legacy") {
+    return { styles: LEGACY_STYLES.map((id) => byId(CAPTION_STYLE_CHOICES, id)), positions: null, sizes: null };
+  }
+  return { styles: CAPTION_STYLE_CHOICES, positions: CAPTION_POSITION_CHOICES, sizes: CAPTION_SIZE_CHOICES };
+}
 
 // Ranges in seconds, inside the job API's 5 to 180 (lib/jobs.mjs). Otomatis is the range the
 // form always had; "custom" opens the two number fields.
@@ -41,6 +73,8 @@ export const DEFAULT_CHOICES = Object.freeze({
   maxDuration: "60",
   renderMode: "fit-blur",
   captionStyle: "karaoke",
+  captionPosition: "bottom",
+  captionSize: "medium",
   coldOpen: true,
   hookOverlay: true,
   videoLanguage: "id",
@@ -73,16 +107,22 @@ export function withDuration(choices, id) {
   return { ...choices, duration: id, minDuration: String(preset.min), maxDuration: String(preset.max) };
 }
 
-/** A complete set of choices from anything (stored JSON included); each unusable field is the default. */
-export function normalizeChoices(raw) {
+/**
+ * A complete set of choices from anything (stored JSON included); each unusable field is the
+ * default. `engine`: a caption look that engine does not draw is the default too.
+ */
+export function normalizeChoices(raw, { engine } = {}) {
   const value = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
   const pick = (list, id, fallback) => (byId(list, id) ? id : fallback);
   const flag = (name) => (typeof value[name] === "boolean" ? value[name] : DEFAULT_CHOICES[name]);
+  const look = lookChoices(engine);
   const choices = {
     ...DEFAULT_CHOICES,
     limit: numberText(value.limit, 1, 10, true) ?? DEFAULT_CHOICES.limit,
     renderMode: pick(LAYOUT_CHOICES, value.renderMode, DEFAULT_CHOICES.renderMode),
-    captionStyle: pick(CAPTION_STYLE_CHOICES, value.captionStyle, DEFAULT_CHOICES.captionStyle),
+    captionStyle: pick(look.styles, value.captionStyle, DEFAULT_CHOICES.captionStyle),
+    captionPosition: pick(look.positions ?? [], value.captionPosition, DEFAULT_CHOICES.captionPosition),
+    captionSize: pick(look.sizes ?? [], value.captionSize, DEFAULT_CHOICES.captionSize),
     coldOpen: flag("coldOpen"),
     hookOverlay: flag("hookOverlay"),
     videoLanguage: pick(VIDEO_LANGUAGE_CHOICES, value.videoLanguage, DEFAULT_CHOICES.videoLanguage),
@@ -109,6 +149,11 @@ export function choicesSummary(choices, { focusTerms = 0, ranges = 0 } = {}) {
   for (const [list, id] of [[LAYOUT_CHOICES, choices.renderMode], [CAPTION_STYLE_CHOICES, choices.captionStyle]]) {
     const entry = byId(list, id);
     if (entry) parts.push(entry.name);
+  }
+  // The pack's own spot and size (Bawah, Sedang) go unsaid.
+  for (const [list, id, fallback] of [[CAPTION_POSITION_CHOICES, choices.captionPosition, "bottom"], [CAPTION_SIZE_CHOICES, choices.captionSize, "medium"]]) {
+    const entry = byId(list, id);
+    if (entry && id !== fallback) parts.push(`subtitle ${entry.name.toLowerCase()}`);
   }
   const language = byId(VIDEO_LANGUAGE_CHOICES, choices.videoLanguage);
   if (language) parts.push(language.summary);

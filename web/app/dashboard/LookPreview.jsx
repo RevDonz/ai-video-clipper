@@ -1,9 +1,11 @@
 // The 9:16 preview under "Tampilan klip" (lib/look-preview.mjs). One SVG in output pixels, so
-// every spot scales with the frame. The subtitle is its pack's FFmpeg thumbnail placed where the
-// thumbnail was cut from the frame, on the backdrop it was rendered on, so it shows no edge. The
-// note on where the subtitle sits is the page's, under the subtitle styles.
+// every spot scales with the frame. The subtitle is its pack's FFmpeg thumbnail at the job's spot
+// and size; the filter keys out the backdrop it was rendered on (CAPTION_KEY), so over the picture
+// it shows only the pack's own ink. The note on where the subtitle sits is the page's, under the
+// subtitle styles.
 import { PACK_IMAGES, imageSrc } from "../../components/editor/panels/pack-images.js";
 import { PREVIEW_BACKDROP, PREVIEW_PICTURE } from "../../lib/editor/content-colours.mjs";
+import { CAPTION_KEY } from "../../lib/look-preview.mjs";
 import styles from "./look.module.css";
 
 export default function LookPreview({ look }) {
@@ -22,8 +24,18 @@ export default function LookPreview({ look }) {
           data-look-preview=""
           data-layout={picture.mode}
           data-pack={caption.pack}
+          data-position={caption.position}
+          data-size={caption.size}
           data-hook={hook ? "on" : "off"}
         >
+          <defs>
+            <filter id="look-caption-key" x="0" y="0" width="1" height="1" colorInterpolationFilters="sRGB">
+              <feColorMatrix in="SourceGraphic" type="matrix" values={CAPTION_KEY.brighter} result="brighter" />
+              <feColorMatrix in="SourceGraphic" type="matrix" values={CAPTION_KEY.darker} result="darker" />
+              <feComposite in="brighter" in2="darker" operator="arithmetic" k2="1" k3="1" result="ink" />
+              <feComposite in="SourceGraphic" in2="ink" operator="in" />
+            </filter>
+          </defs>
           <rect width={w} height={h} fill={PREVIEW_BACKDROP} />
           {picture.band && <rect key="band" className={styles.appear} x={picture.band.x} y={picture.band.y} width={picture.band.w} height={picture.band.h} fill={PREVIEW_PICTURE} />}
           {hook && (
@@ -34,7 +46,8 @@ export default function LookPreview({ look }) {
           )}
           <image
             key={caption.pack}
-            className={styles.appear}
+            className={styles.caption}
+            filter="url(#look-caption-key)"
             href={imageSrc(PACK_IMAGES[caption.pack])}
             x={caption.image.x}
             y={caption.image.y}

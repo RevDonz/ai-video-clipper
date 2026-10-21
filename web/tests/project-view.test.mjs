@@ -529,7 +529,9 @@ test("the history offers 'Edit klip' on finished projects while the editor is on
   assert.match(source, /const editable = historyOffersEdit\(job, editor\);/);
   assert.match(source, /href=\{`\/projects\/\$\{encodeURIComponent\(job\.id\)\}#klip`\}/);
   const route = await read("app/api/jobs/route.js");
-  assert.match(route, /editor: readEditorFlags\(process\.env\)\.editorV3/);
+  assert.match(route, /\.\.\.jobListFlags\(process\.env\)/);
+  const flags = await read("lib/editor/flags.mjs");
+  assert.match(flags, /return \{ editor: flags\.editorV3, renderEngine: flags\.renderEngine \};/);
 });
 
 test("the history links each project to its page and deletes without a browser dialog", async () => {
