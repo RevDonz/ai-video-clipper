@@ -2,7 +2,8 @@
 // Tata letak panel stores one SetZoom when it is let go (key or pointer), "Kembali ke 100%" drops
 // it, one undo brings it back, the split has no Zoom and drops it, the Mode Cepat card names it;
 // "Atur bingkai" draws a smaller box at the zoomed crop's row; a source with black bars says that
-// they are left out; nothing scrolls sideways at phone width, the slider is a 44 px target; axe.
+// they are left out; nothing scrolls sideways at the narrowest editor width (1024 px), the slider is a
+// 44 px target; axe.
 //
 // The store is the real one (commands, undo, autosave) over the fake API and preview client.
 // Prerequisites (as web/e2e/editor-framing.spec.mjs): a server with POTONGIN_EDITOR_V3=on and
@@ -202,8 +203,10 @@ test("a source with black bars says they are left out; Mode Cepat names the zoom
   await expect(page.locator("#card-layout-button")).toContainText("zoom 125%");
 });
 
-test("at phone width the Zoom section fits and nothing scrolls sideways", async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
+// The editor opens from 1024 px up (below it, EditorApp shows "Editor butuh layar minimal 1024
+// px"), so the narrowest editor is the width to check.
+test("at the narrowest editor width the Zoom section fits and nothing scrolls sideways", async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
   const panel = await openLayoutPanel(page);
   const section = panel.locator("[data-layout-zoom]");
   await section.scrollIntoViewIfNeeded();
