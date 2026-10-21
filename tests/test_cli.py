@@ -236,6 +236,7 @@ def test_cli_v3_defaults():
     # None: the pack's own spot and size (bottom, medium; CONTRACTS §5.48)
     assert args.caption_position is None and args.caption_size is None
     assert args.captions_dir is None
+    assert args.subtitle_file is None
     assert args.trend_context is None
     assert args.word_timestamps is True
     assert args.hook_duration == 4.0
@@ -258,6 +259,7 @@ def test_cli_v3_defaults():
         (["--caption-position", "middle"], {"caption_position": "middle"}),
         (["--caption-size", "large"], {"caption_size": "large"}),
         (["--captions-dir", "caps"], {"captions_dir": Path("caps")}),
+        (["--subtitle-file", "in/subtitle.srt"], {"subtitle_file": Path("in/subtitle.srt")}),
         (["--trend-context", "tc.json"], {"trend_context": Path("tc.json")}),
         (["--no-word-timestamps"], {"word_timestamps": False}),
         (["--hook-duration", "2.5"], {"hook_duration": 2.5}),
@@ -288,6 +290,8 @@ def test_cli_parses_v3_options(arguments: list[str], expected: dict):
         ["--hook-duration", "soon"],
         ["--cold-open=yes"],
         ["--captions-dir"],
+        ["--subtitle-file"],
+        ["--subtitle-file", "in/subtitle.srt", "--selection-mode", "v1"],
         ["--trend-context"],
     ],
 )
@@ -325,8 +329,18 @@ def test_cli_legacy_web_v1_command_keeps_v1_defaults(monkeypatch, tmp_path: Path
     assert received["selection_mode"] == "v1"
     assert received["caption_style"] is None
     assert received["captions_dir"] is None
+    assert received["subtitle_file"] is None
     assert received["trend_context"] is None
     assert received["word_timestamps"] is True
+
+
+def test_cli_forwards_an_uploaded_subtitle(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(cli, "load_whisper_model", lambda *a, **k: "M")
+    received = _capture_pipeline(monkeypatch, tmp_path)
+
+    assert cli.main([*WEB_V3_ARGS, "--subtitle-file", "/data/jobs/j/input/subtitle.srt"]) == 0
+
+    assert received["subtitle_file"] == Path("/data/jobs/j/input/subtitle.srt")
 
 
 def test_cli_forwards_web_v3_command_and_loads_whisper_lazily(monkeypatch, tmp_path: Path):

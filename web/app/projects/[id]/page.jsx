@@ -63,6 +63,7 @@ import {
   selectionNotes,
   selectionNotices,
 } from "../../../lib/selection-v3-view.mjs";
+import { videoLanguageNotice } from "../../../lib/source-language.mjs";
 import focusStyles from "./focus.module.css";
 import styles from "./project.module.css";
 
@@ -528,7 +529,8 @@ function ClipsSection({ job, copyState, onCopy, entries, initialClip = null, onC
 function ProjectView({ job, copyState, onCopy, entries, initialClip, cancelNote, onCancelSettled, onClipSaved }) {
   const active = isActiveStatus(job.status);
   const progress = projectProgress(job);
-  const notices = selectionNotices(job);
+  const languageNotice = videoLanguageNotice(job);
+  const notices = [...(languageNotice ? [languageNotice] : []), ...selectionNotices(job)];
   const notes = selectionNotes(job);
   const serverError = failureDetail(job);
   const hint = failureHint(job);

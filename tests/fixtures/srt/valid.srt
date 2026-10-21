@@ -1,0 +1,14 @@
+﻿1
+00:00:01,000 --> 00:00:03,500
+<i>Halo semua,</i> selamat datang.
+
+2
+00:00:04,000 --> 00:00:06,000 X1:10 X2:20
+- Gaji lo habis duluan?
+- Iya, karena ini.
+
+3
+00:00:07.250 --> 00:00:09,000
+{\an8}Kita bahas [tertawa] sekarang.
+
+

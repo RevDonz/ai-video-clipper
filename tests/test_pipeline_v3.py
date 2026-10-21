@@ -326,7 +326,13 @@ def assert_web_summary(summary: dict) -> None:
     for warning in summary["warnings"]:
         assert len(warning) <= 160 and WEB_WARNING.fullmatch(warning), warning
     assert summary["artifact"] in {None, "analysis/selection.v3.json"}
-    assert summary["transcript_source"] in {None, "youtube-captions", "whisper", "groq"}
+    assert summary["transcript_source"] in {
+        None,
+        "youtube-captions",
+        "srt-upload",
+        "whisper",
+        "groq",
+    }
 
 
 def join_keys(clip: dict) -> set[str]:
@@ -386,6 +392,7 @@ def test_selection_mode_accepts_v3():
         ("hook_duration", float("nan"), ValueError),
         ("hook_duration", True, TypeError),
         ("captions_dir", 42, TypeError),
+        ("subtitle_file", 42, TypeError),
         ("groq", "groq-test-key-0000", TypeError),
         ("min_duration", -1.0, ValueError),
         ("max_duration", 10.0, ValueError),
@@ -475,6 +482,124 @@ def test_unusable_captions_fall_back_to_whisper_with_word_timestamps(
     assert not (env.job / "analysis" / "sound-events.json").exists()
     transcript = read_transcript_json(env.output / "transcript.json")
     assert transcript.segments[0].words
+
+
+def srt(*, laugh_after: int | None = None, last_end: float | None = None) -> str:
+    """The test transcript as an uploaded .srt, one cue per sentence."""
+
+    def stamp(seconds: float) -> str:
+        total = round(seconds * 1000)
+        hours, rest = divmod(total, 3_600_000)
+        minutes, rest = divmod(rest, 60_000)
+        whole, millis = divmod(rest, 1000)
+        return f"{hours:02d}:{minutes:02d}:{whole:02d},{millis:03d}"
+
+    blocks = []
+    for index, (start, end, text) in enumerate(rows()):
+        body = f"{text} [tertawa]" if laugh_after == index else text
+        blocks.append(f"{index + 1}\n{stamp(start)} --> {stamp(end)}\n{body}\n")
+    if last_end is not None:
+        blocks.append(f"{len(blocks) + 1}\n{stamp(last_end - 1)} --> {stamp(last_end)}\nAkhir.\n")
+    return "\ufeff" + "\n".join(blocks)
+
+
+def write_subtitle(env, content: str | bytes) -> Path:
+    path = env.tmp / "input" / "subtitle.srt"
+    path.write_bytes(content if isinstance(content, bytes) else content.encode("utf-8"))
+    return path
+
+
+def test_an_uploaded_srt_replaces_whisper_and_youtube_captions(env):
+    subtitle = write_subtitle(env, srt(laugh_after=4))
+    captions = env.tmp / "input" / "captions"
+    write_captions(captions, "manual", "source.id.json3", json3())
+    before = subtitle.read_bytes()
+    log: list[tuple] = []
+
+    manifest = manifest_of(
+        run(
+            env,
+            model=ForbiddenWhisper(),
+            subtitle_file=subtitle,
+            captions_dir=captions,
+            progress=lambda stage, percent, detail: log.append((stage, percent, detail)),
+            stage_summary=lambda kind, values: log.append(("summary", kind, values)),
+        )
+    )
+
+    assert subtitle.read_bytes() == before
+    assert manifest["status"] == "completed"
+    summary = manifest["selection_v3"]
+    assert summary["transcript_source"] == "srt-upload"
+    assert not any(code.startswith(("captions_", "subtitle_")) for code in summary["warnings"])
+    assert_web_summary(summary)
+    transcript = read_transcript_json(env.output / "transcript.json")
+    assert transcript.language == "id"
+    assert transcript.segments[0].text == sentence(0)
+    assert all(segment.words for segment in transcript.segments)
+    events, source = read_sound_events(env.job / "analysis" / "sound-events.json")
+    assert [event.kind for event in events] == ["laughter"] and source == "srt-upload"
+    assert ("captions", 28, "Membaca subtitle .srt yang diunggah") in log
+    found = {entry[1]: entry[2] for entry in log if entry[0] == "summary"}
+    assert found["transcript"]["source"] == "srt-upload"
+    assert_web_stage_summary(found)
+
+
+def test_an_srt_for_a_detected_language_takes_the_language_of_its_words(env):
+    english = "\n".join(
+        f"{i + 1}\n00:00:{i * 4:02d},000 --> 00:00:{i * 4 + 3:02d},000\n"
+        f"So this is what you want to know about it, and that is the {i}th thing.\n"
+        for i in range(10)
+    )
+    subtitle = write_subtitle(env, english)
+    env.media_duration = 60.0
+
+    manifest = manifest_of(run(env, model=ForbiddenWhisper(), subtitle_file=subtitle, language=None))
+
+    assert manifest["selection_v3"]["transcript_source"] == "srt-upload"
+    assert read_transcript_json(env.output / "transcript.json").language == "en"
+
+
+@pytest.mark.parametrize(
+    ("content", "expected"),
+    [
+        (b"bukan subtitle\n", ["subtitle_rejected:invalid"]),
+        ("1\n00:00:01,000 --> 00:00:02,000\n<i></i>\n", ["subtitle_rejected:invalid"]),
+        (srt(last_end=DURATION + 600), ["subtitle_rejected:duration_mismatch"]),
+    ],
+    ids=["not-srt", "no-text", "longer-than-video"],
+)
+def test_an_unusable_srt_falls_back_to_whisper_and_says_why(env, content, expected):
+    subtitle = write_subtitle(env, content)
+    model = FakeWhisper()
+
+    manifest = manifest_of(run(env, model=model, subtitle_file=subtitle))
+
+    summary = manifest["selection_v3"]
+    assert manifest["status"] == "completed"
+    assert summary["transcript_source"] == "whisper"
+    assert [code for code in summary["warnings"] if code.startswith("subtitle_")] == expected
+    assert_web_summary(summary)
+    assert model.calls
+
+
+def test_an_srt_is_judged_only_on_emptiness_and_length(env):
+    # A sparse subtitle that YouTube captions would fail (coverage, gaps) is still the person's.
+    sparse = srt().split("\n\n")[:3]
+    subtitle = write_subtitle(env, "\n\n".join(sparse) + "\n")
+    env.media_duration = DURATION * 10
+
+    manifest = manifest_of(run(env, model=ForbiddenWhisper(), subtitle_file=subtitle))
+
+    assert manifest["selection_v3"]["transcript_source"] == "srt-upload"
+    assert not any(code.startswith("subtitle_") for code in manifest["selection_v3"]["warnings"])
+
+
+def test_a_missing_srt_file_falls_back_to_whisper(env):
+    model = FakeWhisper()
+    manifest = manifest_of(run(env, model=model, subtitle_file=env.tmp / "input" / "nope.srt"))
+    assert manifest["selection_v3"]["transcript_source"] == "whisper"
+    assert "subtitle_rejected:invalid" in manifest["selection_v3"]["warnings"]
 
 
 def test_manual_captions_win_over_auto_captions(env):
@@ -1379,7 +1504,7 @@ def assert_web_stage_summary(found: dict[str, dict]) -> None:
         elif kind == "transcript":
             assert set(values) <= {"words", "source", "language"}
             assert type(values["words"]) is int and values["words"] >= 0
-            assert values["source"] in {"youtube-captions", "whisper", "groq"}
+            assert values["source"] in {"youtube-captions", "srt-upload", "whisper", "groq"}
             assert "language" not in values or WEB_SUMMARY_LANGUAGE.fullmatch(values["language"])
         else:
             assert kind == "moments"

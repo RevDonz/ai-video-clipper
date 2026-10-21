@@ -40,7 +40,7 @@ import { prepareYoutubeCookies } from "../lib/youtube-cookies.mjs";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export function buildClipperInvocation(job, sourcePath, outputRoot, env = process.env, { captionsDir = null, trendContext = null } = {}) {
+export function buildClipperInvocation(job, sourcePath, outputRoot, env = process.env, { captionsDir = null, trendContext = null, subtitleFile = null } = {}) {
   if (!job || typeof job !== "object" || !job.options || typeof job.options !== "object" || Array.isArray(job.options)) {
     throw new Error("Invalid persisted job options");
   }
@@ -103,6 +103,8 @@ export function buildClipperInvocation(job, sourcePath, outputRoot, env = proces
     if (options.captionPosition) args.push("--caption-position", options.captionPosition);
     if (options.captionSize) args.push("--caption-size", options.captionSize);
     if (typeof captionsDir === "string" && path.isAbsolute(captionsDir)) args.push("--captions-dir", captionsDir);
+    // An uploaded video's .srt (app/api/jobs/route.js): the engine's transcript instead of Whisper.
+    if (typeof subtitleFile === "string" && path.isAbsolute(subtitleFile)) args.push("--subtitle-file", subtitleFile);
     // Only a snapshot path the worker wrote; the trend text itself never enters argv.
     if (typeof trendContext === "string" && path.isAbsolute(trendContext)) args.push("--trend-context", trendContext);
     // Fokus klip: the owner's validated terms and note go to our own CLI as single argv entries
@@ -282,8 +284,30 @@ export function buildVideoDownload(url, downloadRoot, { cookiesFile = null, maxH
   return [
     "--no-playlist", "--js-runtimes", "node", "--newline", "--progress-template", PROGRESS_TEMPLATE,
     "--format", `bv*[height<=${height}]+ba/b[height<=${height}]`,
+    // The language from the video's metadata, for the "Bahasa video terdeteksi" note; no extra request.
+    "--print-to-file", "video:%(language)s", path.join(downloadRoot, VIDEO_LANGUAGE_FILE),
     "--merge-output-format", "mp4", "--output", path.join(downloadRoot, "source.%(ext)s"), ...cookiesArgs(cookiesFile), url,
   ];
+}
+
+export const VIDEO_LANGUAGE_FILE = "video-language.txt";
+const MAX_VIDEO_LANGUAGE_BYTES = 64;
+
+/**
+ * The primary language code yt-dlp wrote ("en" for "en-US"), or null when it is missing, "NA"
+ * (unknown to YouTube) or not a plain code. Never fails the job.
+ */
+export async function readVideoLanguage(downloadRoot) {
+  try {
+    const file = path.join(downloadRoot, VIDEO_LANGUAGE_FILE);
+    const info = await lstat(file);
+    if (!info.isFile() || info.size > MAX_VIDEO_LANGUAGE_BYTES) return null;
+    const value = (await readFile(file, "utf8")).split("\n")[0].trim();
+    const match = /^([A-Za-z]{2,3})(?:[-_][A-Za-z0-9]{1,8})*$/.exec(value);
+    return match && value !== "NA" ? match[1].toLowerCase() : null;
+  } catch {
+    return null;
+  }
 }
 
 // --- Manifest -> job clips ---------------------------------------------------
@@ -593,6 +617,10 @@ export async function main(argv = process.argv, env = process.env) {
     let job = await update({ status: "preparing", progress: 5, error: null, stageSummary: null });
     let sourcePath = job.sourcePath;
     let captionsDir = null;
+    const subtitleFile = job.source.type === "upload" && job.subtitle && job.options?.selectionMode === "v3"
+      ? path.join(jobRoot, "input", "subtitle.srt")
+      : null;
+    let languagePatch = {};
     if (job.source.type === "youtube") {
       await update({ status: "downloading", progress: 10 });
       const downloadRoot = queueManaged ? path.join(attemptRoot, "input") : path.join(jobRoot, "input");
@@ -607,8 +635,10 @@ export async function main(argv = process.argv, env = process.env) {
         const sourceFile = files.find((name) => name.startsWith("source.") && !name.endsWith(".part"));
         if (!sourceFile) throw new Error("Video YouTube selesai diunduh tetapi file sumber tidak ditemukan");
         sourcePath = path.join(downloadRoot, sourceFile);
+        const sourceLanguage = await readVideoLanguage(downloadRoot);
+        if (sourceLanguage) languagePatch = { sourceLanguage };
         if (job.options?.selectionMode === "v3") {
-          await update({ sourcePath, progress: 20, stage: "captions", stageDetail: "Mengambil subtitle YouTube (opsional)" });
+          await update({ sourcePath, ...languagePatch, progress: 20, stage: "captions", stageDetail: "Mengambil subtitle YouTube (opsional)" });
           captionsDir = await fetchYouTubeCaptions({
             url: job.source.url,
             inputRoot: downloadRoot,
@@ -621,13 +651,14 @@ export async function main(argv = process.argv, env = process.env) {
       } finally {
         await cookies?.dispose();
       }
-      job = await update({ sourcePath, status: "processing", progress: 25, stage: "analyzing", stageDetail: "Menyiapkan engine AI" });
+      job = await update({ sourcePath, ...languagePatch, status: "processing", progress: 25, stage: "analyzing", stageDetail: "Menyiapkan engine AI" });
     } else {
-      job = await update({ status: "processing", progress: 20, stage: "analyzing", stageDetail: "Menyiapkan engine AI" });
+      const stageDetail = subtitleFile ? "Memakai subtitle .srt yang diunggah" : "Menyiapkan engine AI";
+      job = await update({ status: "processing", progress: 20, stage: "analyzing", stageDetail });
     }
 
     const trendContext = job.options?.selectionMode === "v3" ? await prepareTrendContext(attemptRoot, env) : null;
-    const invocation = buildClipperInvocation(job, sourcePath, outputRoot, env, { captionsDir, trendContext });
+    const invocation = buildClipperInvocation(job, sourcePath, outputRoot, env, { captionsDir, trendContext, subtitleFile });
     await runWithProgress(invocation.command, invocation.args, job.progress, await engineEnvironment(env));
 
     const manifest = JSON.parse(await readFile(path.join(outputRoot, "manifest.json"), "utf8"));

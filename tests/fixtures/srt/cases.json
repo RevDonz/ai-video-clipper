@@ -1,0 +1,9 @@
+{
+  "valid.srt": {"ok": true, "cues": 3},
+  "loose.srt": {"ok": true, "cues": 2},
+  "not-utf8.srt": {"ok": false, "code": "encoding"},
+  "no-timing.srt": {"ok": false, "code": "structure"},
+  "backwards.srt": {"ok": false, "code": "timing"},
+  "empty.srt": {"ok": false, "code": "empty"},
+  "text-only-tags.srt": {"ok": false, "code": "empty"}
+}
