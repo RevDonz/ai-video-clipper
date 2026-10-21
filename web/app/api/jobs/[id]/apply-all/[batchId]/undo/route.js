@@ -1,4 +1,4 @@
-// POST: undo one "Pakai di semua klip" batch on the clips nobody saved since (CONTRACTS §5.48).
+// POST: undo one "Pakai di semua klip" batch on the clips nobody saved since (CONTRACTS §5.53).
 import { createUndoApplyAllRoute } from "../../../../../../../lib/apply-all.mjs";
 import { secureRoute } from "../../../../../../../lib/security-headers.mjs";
 

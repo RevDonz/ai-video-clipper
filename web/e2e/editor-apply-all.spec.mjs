@@ -1,4 +1,4 @@
-// "Pakai di semua klip" in the editor (CONTRACTS §5.48) on the editor fakes: the button under
+// "Pakai di semua klip" in the editor (CONTRACTS §5.53) on the editor fakes: the button under
 // Caption, Logo and Tata letak in both views; the clip is saved before the batch; the result
 // "Dipakai di n klip · k dilewati" with the skipped clips and Urungkan; the result stays across a
 // view switch; a lost answer shows an error and the retry reuses the batch; a project with one clip

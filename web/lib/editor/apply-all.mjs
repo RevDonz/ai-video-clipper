@@ -1,4 +1,4 @@
-// "Pakai di semua klip" in the editor (CONTRACTS §5.48), DOM-free: the texts and the controller
+// "Pakai di semua klip" in the editor (CONTRACTS §5.53), DOM-free: the texts and the controller
 // the shell builds once per clip (`createApplyAll`). The controller saves the clip first (the
 // store's flush gives the etag the server copies from), sends one batch per click and keeps, per
 // group, `{phase: "idle"|"running"|"done"|"undoing"|"undone"|"error", result, undo, message}`,

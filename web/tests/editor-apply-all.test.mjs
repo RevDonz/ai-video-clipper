@@ -1,4 +1,4 @@
-// "Pakai di semua klip" in the editor (CONTRACTS §5.48): the texts of web/lib/editor/apply-all.mjs
+// "Pakai di semua klip" in the editor (CONTRACTS §5.53): the texts of web/lib/editor/apply-all.mjs
 // and its controller (save first, one batch per click, the same key after a lost answer, undo).
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";

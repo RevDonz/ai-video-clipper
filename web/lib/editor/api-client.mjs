@@ -115,7 +115,7 @@ export function createApiClient({ jobId, clipId, fetchImpl = globalThis.fetch?.b
       if (typeof url !== "string" || !url.startsWith(`/api/jobs/${jobId}/`) || url.includes("..")) throw new TypeError("words url is invalid");
       return request("GET", `${base}${url}`);
     },
-    /** "Pakai di semua klip" (CONTRACTS §5.48): `key` is the batch id, the same one on a retry. */
+    /** "Pakai di semua klip" (CONTRACTS §5.53): `key` is the batch id, the same one on a retry. */
     async applyToAll({ group, etag }, key) {
       if (!APPLY_GROUPS.includes(group)) throw new TypeError("group is invalid");
       check(ETAG, etag, "etag");

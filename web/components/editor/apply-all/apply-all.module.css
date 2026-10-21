@@ -1,4 +1,4 @@
-/* "Pakai di semua klip" (CONTRACTS §5.48): one button under a settings group, its note, and the
+/* "Pakai di semua klip" (CONTRACTS §5.53): one button under a settings group, its note, and the
    batch's result with Urungkan. Colours are the :root tokens (ui-guards checks the pairs). */
 
 .applyAll {

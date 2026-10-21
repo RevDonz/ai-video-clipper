@@ -58,7 +58,7 @@ when needed.
 
 ``apply_all`` ``{jobId, clipId, etag, group, batchId}`` → ``{batchId, group, applied: [{clipId,
 index}], skipped: [{clipId, index, reason}], unchanged: [{clipId, index}]}``: "Pakai di semua
-klip" (CONTRACTS §5.48, ``apply_all.apply``). ``clipId`` at ``etag`` is the source (exit 5 when
+klip" (CONTRACTS §5.53, ``apply_all.apply``). ``clipId`` at ``etag`` is the source (exit 5 when
 it is not current), ``group`` one of ``captions``, ``logo``, ``layout``, ``batchId`` the
 request's Idempotency-Key; the targets are the other clips of ``clips`` in its order.
 

@@ -305,7 +305,7 @@ test("the shell hands every panel its clients and the uploads flag, and mounts t
   // `getState` reads the store as it is now: work that outlives its panel or card (a music upload,
   // a face analysis) applies to the document as it is when it finishes (§4.1), never a stale copy.
   // `openFraming` opens the shell's "Atur bingkai" dialog from the Tata letak panel and card (CONTRACTS §5.44),
-  // `openSplit` its "Atur layar terbagi" (§5.45), `applyAll` the clip's "Pakai di semua klip" controller (§5.48).
+  // `openSplit` its "Atur layar terbagi" (§5.45), `applyAll` the clip's "Pakai di semua klip" controller (§5.53).
   assert.deepEqual(entries, ["state", "getState: snapshot", "dispatch", "player", "api", "previewClient: runtime.previewClient",
     "uploadAsset: runtime.uploadAsset ?? null", "uploadsEnabled", "llmEnabled", "notify", "readOnly", "openFraming", "openSplit",
     "applyAll"]);

@@ -1,4 +1,4 @@
-""""Pakai di semua klip": one batch over the clips of a job, and its undo (CONTRACTS §5.48)."""
+""""Pakai di semua klip": one batch over the clips of a job, and its undo (CONTRACTS §5.53)."""
 
 from __future__ import annotations
 

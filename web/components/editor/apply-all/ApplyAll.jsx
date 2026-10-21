@@ -1,6 +1,6 @@
 "use client";
 
-// "Pakai di semua klip" under a settings group (CONTRACTS §5.48): the button, the rule that clips
+// "Pakai di semua klip" under a settings group (CONTRACTS §5.53): the button, the rule that clips
 // changed by hand do not take it, then the batch's result ("Dipakai di n klip · k dilewati") with
 // Urungkan and the skipped clips. The state lives in the shell's controller (lib/editor/apply-all.mjs),
 // so the result stays when the card closes or the view switches. Hidden while the job has no

@@ -1,6 +1,6 @@
 """"Pakai di semua klip": one settings group of a clip copied to every other clip of its job.
 
-Owner: CONTRACTS §5.48. Stdlib only. Reached through ``api`` (ops ``apply_all`` and
+Owner: CONTRACTS §5.53. Stdlib only. Reached through ``api`` (ops ``apply_all`` and
 ``undo_apply_all``); every write is an ordinary ``store.put`` of the target clip, so each clip
 keeps its own revision chain, If-Match and receipts.
 

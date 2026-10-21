@@ -1,4 +1,4 @@
-// "Pakai di semua klip" (CONTRACTS §5.48): one clip's caption, logo or layout written to every
+// "Pakai di semua klip" (CONTRACTS §5.53): one clip's caption, logo or layout written to every
 // other clip of its job in one batch, and its undo.
 //
 //   POST /api/jobs/:id/clips/:clipId/apply-all     body {group, etag} ≤ 1 KiB, Idempotency-Key

@@ -203,7 +203,7 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
   const [clipList, setClipList] = useState(null);
   const [exportState, setExportState] = useState(null);
   const flowRef = useRef(null);
-  // "Pakai di semua klip" (CONTRACTS §5.48): one controller per clip, shared by both views.
+  // "Pakai di semua klip" (CONTRACTS §5.53): one controller per clip, shared by both views.
   const applyAll = useMemo(() => createApplyAll({ api, flush: () => store.flush(), newKey: runtime.newKey }), [api, store, runtime]);
   const exportButtonRef = useRef(null);
   const checksButtonRef = useRef(null);

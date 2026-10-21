@@ -1,4 +1,4 @@
-// "Pakai di semua klip" routes (CONTRACTS §5.48): POST /api/jobs/:id/clips/:clipId/apply-all and
+// "Pakai di semua klip" routes (CONTRACTS §5.53): POST /api/jobs/:id/clips/:clipId/apply-all and
 // POST /api/jobs/:id/apply-all/:batchId/undo. Unit cases use a recording CLI runner; the
 // integration case runs the real `python -m ai_clipper.edit_v2.api` on a three-clip job.
 import assert from "node:assert/strict";

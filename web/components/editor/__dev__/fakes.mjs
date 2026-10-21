@@ -20,7 +20,7 @@ export { CommandRejected };
 
 export const FAKE_JOB_ID = "8f0c2a1e-5b7d-4c3a-9e21-6d4f0b8a7c55";
 export const FAKE_CLIP_ID = "clip_9b2e41c07d3a5f18e6c2a0b4";
-/** Other clips of the fake job, for "Pakai di semua klip" (CONTRACTS §5.48). */
+/** Other clips of the fake job, for "Pakai di semua klip" (CONTRACTS §5.53). */
 export const FAKE_OTHER_CLIPS = Object.freeze(["clip_000000000000000000000002", "clip_000000000000000000000003", "clip_000000000000000000000004"]);
 const FPS = [30000, 1001];
 const SHA = (seed) => fakeSha256(`fake:${seed}`);
@@ -360,7 +360,7 @@ export function createFakeApiClient({ doc = fakeDoc(), words = fakeWords(), now 
       return clone(result);
     },
     async words(url) { record("words", [url]); return clone(words); },
-    // "Pakai di semua klip" (CONTRACTS §5.48): two clips take it, one was changed by hand.
+    // "Pakai di semua klip" (CONTRACTS §5.53): two clips take it, one was changed by hand.
     async applyToAll({ group, etag: from }, key) {
       record("applyToAll", [{ group, etag: from }, key]);
       const result = { batchId: key, group, applied: [{ clipId: FAKE_OTHER_CLIPS[0], index: 2 }, { clipId: FAKE_OTHER_CLIPS[2], index: 4 }],

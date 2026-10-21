@@ -1,5 +1,5 @@
 // POST: "Pakai di semua klip", this clip's caption, logo or layout on every other clip of the job
-// in one batch (CONTRACTS §5.48).
+// in one batch (CONTRACTS §5.53).
 import { createApplyAllRoute } from "../../../../../../../lib/apply-all.mjs";
 import { secureRoute } from "../../../../../../../lib/security-headers.mjs";
 
