@@ -2280,18 +2280,19 @@ shadow under fading or translucent fills (CONTRACTS §5.39, §5.43, §5.49). The
 fixture fixes were for the no-face latar blur frames in the player and for the 1:1 split case's ruler. No
 threshold was changed.
 
+Final runs at `b78e431`, after the four product fixes below:
+
 | Gate | Run | Verdict |
 |---|---|---|
-| `ci-cd` Test and build, toolchain guard (PR) | 39644650783 | **pass** |
-| `editor-gates suite=full` | 39644646776 | **pass** |
-| `editor-gates suite=image` | 39644653423 | **pass** |
-| `editor-gates suite=e2e`: page specs, two editor groups (every spec on the fakes) | 39644672665, 39644660097, 39644665952 | **pass** |
-| `editor-gates suite=command`: golden evidence, glyph probe, pack thumbnails, PF-SIZE | 39644743772 | **pass** |
-| `editor-gates suite=command`: speaker framing set-val | 39607530302 | **pass** |
-| `editor-gates suite=player`, all fixture cases | 39644678776 | P-FRAME, P-TIME, P-TXT/P-LOGO, P-AUD, P-JOIN-B, P-SYNC, PF-LIBASS, PF-MEM pass; **PF-SEEK** p95 57 ms > 50 ms, **red on main too** (39616032980: 73 ms) |
-| `ci-cd` nightly | 39644640135 | P-FRAME, P-PLATE, G1-G2, G-DET, app P-FRAME/P-PLATE pass; **P-TXT**, **P-ENC** open (below); app **P-AUD red on main too** (39503161234) |
-| `ci-cd` toolchain | 39644736411 | **P-TXT**, **P-ENC** open (below) |
-| `ci-cd` Parity (smoke) (PR) | 39644650783 | **P-TXT** open: `bold-pop-40`, `sinar-kunci-40` |
+| `ci-cd` Test and build, toolchain guard, Parity (smoke) (PR) | 39661730253 | **pass** |
+| `editor-gates suite=full` | 39661736627 | **pass** |
+| `editor-gates suite=image` | 39661730092 | **pass** |
+| `editor-gates suite=e2e`: page specs, two editor groups (every spec on the fakes) | 39661816483, 39661823001, 39661830185 | **pass** |
+| `editor-gates suite=command`: golden evidence, glyph probe, pack thumbnails | 39661743304 | **pass** |
+| `editor-gates suite=command`: PF-SIZE (39644743772), speaker framing set-val (39607530302) | | **pass** |
+| `ci-cd` toolchain (P-TIME, full P-TXT matrix, P-ENC, P-RT, R10) | 39661724196 | **pass** |
+| `ci-cd` nightly | 39661720122 | every gate passes except app **P-AUD**, which is **red on main too** (39503161234) |
+| `editor-gates suite=player`, all fixture cases | 39661750626 | every gate passes except **PF-SEEK** p95 (65 ms > 50 ms), **red on main too** (39616032980: 73 ms). PF-PLAY drops are runner noise: they failed once here and passed in 39674348344 and 39674360973; on main 39674323264 failed (7.4 drops/10 s) and 39674336046 passed |
 | yt-dlp smoke in the image | 39626542726 | inconclusive three times: YouTube's bot check on the runner IP |
 
 ### Diputuskan atas delegasi pemilik (2026-10-22): the four open reds, closed in the product
