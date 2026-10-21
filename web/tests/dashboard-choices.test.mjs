@@ -34,7 +34,7 @@ function memoryStorage(initial = {}, { fail = [] } = {}) {
 const formFields = (choices) => ({
   renderMode: choices.renderMode, limit: choices.limit, minDuration: choices.minDuration, maxDuration: choices.maxDuration,
   coldOpen: String(choices.coldOpen), hookOverlay: String(choices.hookOverlay), captionStyle: choices.captionStyle,
-  videoLanguage: choices.videoLanguage,
+  captionPosition: choices.captionPosition, captionSize: choices.captionSize, videoLanguage: choices.videoLanguage,
 });
 
 test("the offered choices are the ones the job API accepts", () => {
@@ -48,7 +48,8 @@ test("the offered choices are the ones the job API accepts", () => {
 test("today's form defaults are the defaults: Otomatis is 20 to 60 seconds, Indonesian, three clips", () => {
   assert.deepEqual(DEFAULT_CHOICES, {
     limit: "3", duration: "auto", minDuration: "20", maxDuration: "60", renderMode: "fit-blur",
-    captionStyle: "karaoke", coldOpen: true, hookOverlay: true, videoLanguage: "id", optionsOpen: false,
+    captionStyle: "karaoke", captionPosition: "bottom", captionSize: "medium", coldOpen: true, hookOverlay: true,
+    videoLanguage: "id", optionsOpen: false,
   });
   assert.deepEqual(normalizeChoices(undefined), DEFAULT_CHOICES);
 });
@@ -87,18 +88,19 @@ test("the summary names the current choices in one short line", () => {
 
 test("stored choices are read back field by field; anything unknown falls back to the default", () => {
   const stored = {
-    limit: 7, duration: "custom", minDuration: "25", maxDuration: 45, renderMode: "center-crop", captionStyle: "classic",
-    coldOpen: false, hookOverlay: true, videoLanguage: "en", optionsOpen: true,
+    limit: 7, duration: "custom", minDuration: "25", maxDuration: 45, renderMode: "center-crop", captionStyle: "sorot",
+    captionPosition: "top", captionSize: "small", coldOpen: false, hookOverlay: true, videoLanguage: "en", optionsOpen: true,
   };
   const storage = memoryStorage({ [CHOICES_KEY]: JSON.stringify(stored) });
   assert.deepEqual(readStoredChoices(storage), {
-    limit: "7", duration: "custom", minDuration: "25", maxDuration: "45", renderMode: "center-crop", captionStyle: "classic",
-    coldOpen: false, hookOverlay: true, videoLanguage: "en", optionsOpen: true,
+    limit: "7", duration: "custom", minDuration: "25", maxDuration: "45", renderMode: "center-crop", captionStyle: "sorot",
+    captionPosition: "top", captionSize: "small", coldOpen: false, hookOverlay: true, videoLanguage: "en", optionsOpen: true,
   });
   // A preset always carries its own range, whatever was stored next to it.
   assert.deepEqual(normalizeChoices({ duration: "short", minDuration: "100", maxDuration: "120" }), withDuration(DEFAULT_CHOICES, "short"));
   for (const bad of [
     { limit: 11 }, { limit: "2.5" }, { limit: "" }, { duration: "forever" }, { renderMode: "split" }, { captionStyle: "neon" },
+    { captionPosition: "atas" }, { captionSize: 1200 },
     { coldOpen: "false" }, { hookOverlay: 1 }, { videoLanguage: "fr" }, { optionsOpen: "yes" },
     { duration: "custom", minDuration: "4", maxDuration: "60" }, { duration: "custom", minDuration: "61", maxDuration: "60" },
     { duration: "custom", minDuration: "20", maxDuration: "181" }, { duration: "custom", minDuration: "abc", maxDuration: "60" },

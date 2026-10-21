@@ -57,7 +57,7 @@ musik dan hasil ekspor yang sudah tersimpan tidak hilang saat flag dimatikan.
 | `POTONGIN_EDITOR_V3` | Tombol "Edit klip" dan semua rute editor | `on` | `off`: tombol "Edit klip" dan tautan "Ekspor terakhir" di panel detail klip hilang, rute editor menjawab 404; klip otomatis dan unduhannya tetap ada. File ekspor tetap tersimpan di `output/edits/` dan tautannya muncul lagi saat flag dinyalakan |
 | `POTONGIN_EDITOR_UPLOADS` | Unggah logo dan musik, juga Logo bawaan di Pengaturan | `on` (QG-SEC lengkap, tinjauan keamanan W4) | `off`: panel Logo dan Musik menulis "Unggah … belum tersedia di server ini", kartu Logo bawaan juga; logo dan musik yang sudah dipakai tetap ikut dirender, dan Logo bawaan yang tersimpan tetap disalin ke proyek baru (masih bisa dihapus) |
 | `POTONGIN_EDITOR_LLM` | Saran hook yang ditulis AI gratis di Pengaturan, dan Cek ejaan caption | `on` (gerbang keras QG-AI lolos; penilaian 30 klip oleh pemilik menyusul) | `off`: hanya saran instan ("AI seleksi"/"Heuristik"); tombol Cek ejaan tidak tampil |
-| `POTONGIN_RENDER_ENGINE` | `edit-v2`: klip otomatis dirender dengan kompiler yang sama dengan ekspor editor | `legacy` di rilis ini: keputusan pemilik soal kuota CPU masih menunggu. `edit-v2` masuk anggaran PF-PIPELINE di PC acuan (latar blur 1,03×, potong tengah 1,28×, ikuti wajah 1,12×), tapi dengan kuota `cpus: 6` potong tengah 1,99× dan ikuti wajah 1,82× (lihat di bawah) | `edit-v2`: proyek **baru** dirender dengan kompiler editor; klip yang sudah ada tidak berubah. Ekspor editor selalu memakai kompiler editor. Logo bawaan dan Teks watermark bawaan ikut di file klip otomatis hanya dengan `edit-v2`; dengan `legacy` keduanya dipakai saat klip dibuka di editor dan ikut di ekspornya |
+| `POTONGIN_RENDER_ENGINE` | Mesin render klip otomatis. `edit-v2`: kompiler yang sama dengan ekspor editor | `edit-v2` (keputusan pemilik 2026-10-21: render otomatis yang lebih lambat di kuota `cpus: 6` diterima, kuota tidak dinaikkan; PF-PIPELINE di PC acuan: latar blur 1,03×, potong tengah 1,28×, ikuti wajah 1,12×; dengan `cpus: 6` potong tengah 1,99× dan ikuti wajah 1,82×, lihat di bawah) | `legacy` (rollback): proyek **baru** dirender mesin lama; klip yang sudah ada tidak berubah. Ekspor editor selalu memakai kompiler editor. Dengan `legacy`, Logo bawaan dan Teks watermark bawaan tidak ada di file klip otomatis (dipakai saat klip dibuka di editor dan ikut di ekspornya), dan dashboard hanya menawarkan subtitle Klasik dan Karaoke di bawah |
 | `POTONGIN_LLM_EDITOR_MODELS` | Opsional: daftar `provider/model` gratis khusus saran hook dan Cek ejaan; kosong = rantai di Pengaturan | kosong | — |
 | `POTONGIN_PARITY_HARNESS` | Halaman uji paritas untuk CI | tidak diteruskan | **Jangan pernah** dinyalakan di produksi |
 
@@ -88,8 +88,8 @@ yang tidak memakainya (semua klip lama, klip tanpa cold open, dan dokumen Potong
 whoosh) tidak terpengaruh, kecuali kasus di bawah. File klip otomatis dan hasil ekspor yang sudah
 ada tetap utuh dan bisa diunduh.
 
-Kasusnya: seed klip mesin `legacy` (bawaan produksi) baru dibuat saat klip pertama kali dibuka di
-editor. Klip otomatis yang dirender rilis ini lalu pertama kali dibuka saat image lama terpasang
+Kasusnya: seed klip mesin `legacy` (rollback, dan bawaan produksi sebelum 2026-10-21) baru dibuat
+saat klip pertama kali dibuka di editor. Klip otomatis yang dirender rilis ini lalu pertama kali dibuka saat image lama terpasang
 mendapat seed Potong langsung dari image lama, dan seed tidak pernah ditulis ulang. Setelah rilis
 ini kembali, ekspor tanpa edit tetap file otomatisnya (Kilat putih + whoosh), tapi pratinjau,
 "Kembali ke versi AI" dan setiap ekspor hasil edit memakai potong langsung. Jadi selama revert,
@@ -104,9 +104,31 @@ Cold open.
 tengah dan ikuti wajah (byte hasilnya sama dengan sebelum percepatan; tidak ada lagi percepatan
 yang menjaga byte). Di PC acuan dengan semua CPU, batas PF-PIPELINE terpenuhi. Dengan kuota
 `cpus: 6` milik `primary-worker` di `compose.yaml`, T4.3 mengukur potong tengah 1,99× dan ikuti
-wajah 1,82× (latar blur 1,34×/1,29×/0,65×). Pilihan pemilik sebelum produksi: naikkan `cpus`
-`primary-worker` (slot render mengikuti kuota: 16 CPU = 4 slot, 6 CPU = 2 slot), terima render
-otomatis yang lebih lambat, atau pakai `POTONGIN_RENDER_ENGINE=legacy` dulu.
+wajah 1,82× (latar blur 1,34×/1,29×/0,65×). Keputusan pemilik (2026-10-21): render otomatis yang
+lebih lambat ini diterima dan kuota **tidak** dinaikkan (server dipakai bersama). Slot render
+mengikuti kuota (16 CPU = 4 slot, 6 CPU = 2 slot).
+
+Batas waktu per klip tetap `max(300 detik, 3 × durasi × k)`, dihitung hanya selama FFmpeg klip
+itu berjalan (antre slot tidak dihitung). Dari CPU detik T4.3, di kuota `cpus: 6` satu klip
+`edit-v2` butuh ± 0,45 detik per detik klip, jadi klip 190 detik (180 + cold open) selesai
+± 85 detik dari batas 300 detik. Batas tidak perlu dinaikkan. File klip otomatis ± 2× lebih besar
+(kualitas lebih tinggi; uji verifier W4: 22,8 MB lawan 11,1 MB untuk klip yang sama). Cadangan per
+job aktif (`JOBS_STORAGE_ACTIVE_RESERVE_BYTES`) dan sisa disk minimal tetap menjaga penyimpanan;
+ukur ulang cadangannya (`docs/operations/STORAGE_RETENTION.md`) kalau job panjang mulai mendekati
+batas.
+
+**Rollback ke mesin lama.** Kalau klip otomatis `edit-v2` bermasalah di produksi:
+
+1. Di folder deploy, tambahkan `POTONGIN_RENDER_ENGINE=legacy` ke `.env`.
+2. Jalankan `docker compose up -d` (tanpa build). `app`, `primary-worker` dan `render-worker`
+   dibuat ulang dengan mesin lama.
+3. Cek: buka dashboard, Pengaturan klip hanya menawarkan Klasik dan Karaoke tanpa Posisi dan
+   Ukuran; kartu Logo bawaan di Pengaturan menulis "File klip otomatis tetap tanpa logo".
+4. Proyek baru dirender mesin lama. Proyek yang sudah dirender tidak berubah. Job yang dibuat
+   sebelum rollback dengan gaya Bold, Box atau Sorot, atau posisi/ukuran lain, tetap jalan:
+   mesin lama menggambarnya sebagai Klasik (Box) atau Karaoke di bawah, dan klipnya dirender ulang
+   saat diekspor dari editor.
+5. Untuk kembali ke `edit-v2`, hapus baris itu lalu `docker compose up -d` lagi.
 
 Pra-centang kata pengisi di Rapikan bukan flag: nilainya `precheck` di
 `resources/lexicon/id-fillers.v1.json` (sekarang `false`). Nilainya diubah ke `true` lewat PR

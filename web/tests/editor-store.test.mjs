@@ -638,12 +638,18 @@ test("truth frames are POSTed with the document and frame number", async () => {
 
 // --- flags ---------------------------------------------------------------------------------
 
-test("editor flags are off unless set to on", () => {
+test("editor flags are off unless set to on; the engine is edit-v2 unless it rolls back to legacy", () => {
   assert.deepEqual(EDITOR_FLAGS, ["POTONGIN_EDITOR_V3", "POTONGIN_EDITOR_UPLOADS", "POTONGIN_EDITOR_LLM", "POTONGIN_RENDER_ENGINE"]);
-  assert.deepEqual(readEditorFlags({}), { editorV3: false, uploads: false, llm: false, renderEngine: "legacy" });
+  assert.deepEqual(readEditorFlags({}), { editorV3: false, uploads: false, llm: false, renderEngine: "edit-v2" });
   assert.deepEqual(readEditorFlags({ POTONGIN_EDITOR_V3: "on", POTONGIN_EDITOR_UPLOADS: "ON", POTONGIN_EDITOR_LLM: "on", POTONGIN_RENDER_ENGINE: "edit-v2" }),
     { editorV3: true, uploads: true, llm: true, renderEngine: "edit-v2" });
   assert.equal(readEditorFlags({ POTONGIN_EDITOR_LLM: "on", POTONGIN_LLM: "off" }).llm, false, "POTONGIN_LLM=off wins");
   assert.equal(readEditorFlags({ POTONGIN_EDITOR_V3: "yes" }).editorV3, false);
-  assert.equal(readEditorFlags({ POTONGIN_RENDER_ENGINE: "v2" }).renderEngine, "legacy");
+  // The same reading as edit_v2.render_edit.engine_from_env (CONTRACTS §5.48).
+  for (const value of ["", "v2", "EDIT-V2", "legacy-v1", "on"]) {
+    assert.equal(readEditorFlags({ POTONGIN_RENDER_ENGINE: value }).renderEngine, "edit-v2", value);
+  }
+  for (const value of ["legacy", " Legacy ", "LEGACY"]) {
+    assert.equal(readEditorFlags({ POTONGIN_RENDER_ENGINE: value }).renderEngine, "legacy", value);
+  }
 });

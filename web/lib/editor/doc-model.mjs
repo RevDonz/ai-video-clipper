@@ -153,13 +153,21 @@ export function contentEquals(a, b) {
   return contentJson(a) === contentJson(b);
 }
 
+// What the legacy renderer draws: Klasik or Karaoke at the packs' default spot and size.
+const LEGACY_CAPTION_PACKS = Object.freeze(["classic", "karaoke"]);
+const LEGACY_CAPTION_SPOT = Object.freeze({ y_e5: 83000, size_pm: 1000 });
+
 /**
  * Whether R10 may hand out the auto file for this seed (edit_v2.doc.auto_file_is_seed): the
- * legacy renderer never draws a logo or a text watermark, so a legacy seed with the Pengaturan
- * default logo or watermark is not it.
+ * legacy renderer never draws a logo or a text watermark, nor another pack, spot or size than the
+ * above, so a legacy seed with the Pengaturan defaults or another look the job picked
+ * (CONTRACTS §5.48) is not it.
  */
 export function autoFileIsSeed(seed) {
   if (seed?.base?.engine?.compiler !== "legacy") return true;
+  const captions = seed.captions ?? {};
+  if (!LEGACY_CAPTION_PACKS.includes(captions.pack?.id)) return false;
+  if (Object.entries(LEGACY_CAPTION_SPOT).some(([key, value]) => captions.overrides?.[key] !== value)) return false;
   return seed.watermark == null && !(seed.tracks ?? []).some((track) => track?.kind === "visual" && track.items?.length > 0);
 }
 

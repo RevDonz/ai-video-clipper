@@ -391,7 +391,7 @@ AI" target of an existing clip.
 | `clip_id` | `"clip_" + sha256("potongin-clip-v1\0" ‖ source_content_sha256 ‖ "\0" ‖ start_ms ‖ "\0" ‖ end_ms ‖ "\0" ‖ (co_start_ms "-" co_end_ms, or "-"))[:24]` (FINAL §4.9; rank and selection version excluded, so a re-run that finds the same moment re-attaches the edits) |
 | `main.segments` | Cold open (when the job ran with cold open and the clip has one) + body, edges per §3.4 |
 | `main.joins` | With a kept cold open: `{"after": "seg_co", "style", "audio_fade_ms": 30}` (+ `sfx`) from the seed context `coldOpenJoin`: the pipeline's `flash_white` + whoosh; prepare: the clip's manifest `cold_open_join`, else `cut` without sound (§5.26, amended 2026-10-02). `audio_fade_ms` is today's `AUDIO_JOIN_FADE_SECONDS` |
-| `captions.pack` | `karaoke` or `classic` from the job's `captionStyle`; overrides at the pack defaults |
+| `captions.pack` | The job's `captionStyle` (any pack id); overrides at the pack defaults, with `y_e5`/`size_pm` from the job's `captionPosition`/`captionSize` when it has them (§5.48) |
 | hook item | When `hookOverlay` and `hook_text` exist: `[0, round_half_up(hook_duration·F))`, `legacy-bar`, `y_e5 13000` |
 | `layout.default.mode` | `face-track` → `camera`, `fit-blur` → `fit_blur`, `center-crop` → `fill_center` |
 | `output` | The job's render size (the dashboard passes 720×1280 [REPO run-job.mjs]); fps: native standard rates kept; 50 → 25, 60 → 30, 60000/1001 → 30000/1001; VFR or other → 30/1 |
@@ -1213,8 +1213,9 @@ signatures stay; everything below is additive unless marked **changed**.
 - Pipeline: `run_pipeline(render_engine=None)` and `pipeline.render_v3_job`. With `edit-v2` a
   manifest clip gains `clip_id`, `render_engine` (`"edit-v2/1"` or `"legacy"`), `render_key`,
   `plan_sha256`; the summary warning `engine_fallback:<index>` marks a per-clip fallback, and the
-  clip itself gets `fallbacks` (§5.31). `POTONGIN_RENDER_ENGINE` stays `legacy` by default (K1
-  pending).
+  clip itself gets `fallbacks` (§5.31). `POTONGIN_RENDER_ENGINE` is `edit-v2` by default since
+  2026-10-21; only `legacy` (any case, outer spaces ignored) selects the legacy engine, the
+  rollback switch (§5.48).
 
 ### render-request-v3 and its routes (T2.2)
 
@@ -2598,7 +2599,8 @@ with (plan 2026-10-20 A6). Each clip keeps it replaceable and removable in the L
 - **`GET /api/settings/logo`** → `{logo: DTO | null, enabled, autoClips}`. DTO = the asset
   upload's (`sha256, kind "logo", mime, w, h, durationMs null, lufsC null, name, peaksUrl null`)
   plus `url` `/api/settings/logo/<sha>` and `updatedAtMs`. `enabled`: `POTONGIN_EDITOR_V3` and
-  `POTONGIN_EDITOR_UPLOADS` both `on`. `autoClips`: `POTONGIN_RENDER_ENGINE=edit-v2`.
+  `POTONGIN_EDITOR_UPLOADS` both `on`. `autoClips`: the automatic clips render with `edit-v2`
+  (`POTONGIN_RENDER_ENGINE` is not `legacy`, §5.48).
 - **`POST /api/settings/logo`**: the transport of `POST /api/jobs/:id/assets` with
   `X-Asset-Kind: logo` (types, 10 MiB cap, `Content-Length`, `Idempotency-Key`, `X-Asset-Name`,
   the 64-byte sniff, the upload rate bucket, drain before a refusal). Order: session (401),
@@ -3475,3 +3477,86 @@ it.
 `web/tests/editor-caption-gizmo.test.mjs` (geometry against the pack files and the ASS bottom,
 snap, range, grid, keys, commands, undo steps through the real edit session); browser spec
 `web/e2e/editor-caption-gizmo.spec.mjs` on the editor fakes.
+
+## 5.48 Automatic clips on the edit-v2 engine, and the caption look at job creation (2026-10-21)
+
+Owner decision (2026-10-21, by delegation): the automatic clips render with the editor's compiler.
+The legacy engine stays as the rollback switch and as the per-clip fallback (`engine_fallback`).
+No schema change: a seed only takes other values of keys it always had.
+
+### Engine default
+
+- `render_edit.engine_from_env(env)`: `"legacy"` only when `POTONGIN_RENDER_ENGINE`, stripped and
+  lower-cased, is `legacy`; unset, empty or anything else is `"edit-v2"`. `web/lib/editor/flags.mjs`
+  `readEditorFlags(env).renderEngine` reads it the same way.
+- `compose.yaml` passes `${POTONGIN_RENDER_ENGINE:-edit-v2}` to `app`, `primary-worker` and
+  `render-worker`; `.env.example` shows `# POTONGIN_RENDER_ENGINE=edit-v2` and the rollback line.
+- Unchanged: a clip edit-v2 cannot render falls back to the legacy engine
+  (`engine_fallback:<index>`, `render_engine: "legacy"`); with §5.46 a clip legacy cannot render
+  either is failed on its own.
+- Per-clip timeout: unchanged, `max(300 s, 3 × output seconds × k(layout))` (the pipeline's
+  floor is the legacy FFmpeg timeout; it counts only the clip's own FFmpeg run, not the wait for a
+  render slot). From T4.3 (`T4.3-PF-PIPELINE.json`): the edit-v2 encode of the centre-crop job
+  used 297 CPU seconds for about 238 s of output (face-track 222 for about 219 s), so under the
+  production quota (`--cpus 6`, 2 render slots, about 3 CPUs each) a clip encodes at about
+  0.45 s of wall time per output second. A 190 s clip (180 s plus a cold open) then takes about
+  85 s of its 300 s, so no timeout or queue budget is raised.
+
+### Job options (`web/lib/jobs.mjs`)
+
+- `CAPTION_STYLES` is every caption pack (`PACK_IDS`, also `edit_v2.PACK_IDS`);
+  `LEGACY_CAPTION_STYLES` is `["karaoke", "classic"]`.
+- Two optional V3 keys: `captionPosition` (`top` | `middle` | `bottom`) and `captionSize`
+  (`small` | `medium` | `large`). `parseJobOptions` reads them from the form fields of the same
+  name, stores each only when given (an empty field is not given) and refuses any other value
+  ("Unsupported caption position" / "... size"). `validatePersistedJobOptions` keeps them when
+  stored, refuses unknown values and refuses them on a non-V3 job. Jobs stored before them have
+  neither and keep working: the pack's own spot and size.
+- The runner (`web/scripts/run-job.mjs`) adds `--caption-position <id>` and `--caption-size <id>`
+  to the V3 command only when the job has them. The CLI (`ai_clipper.cli`) takes
+  `--caption-style <pack>`, `--caption-position` and `--caption-size` (argparse choices) and
+  passes them to `run_pipeline(caption_position=, caption_size=)`; with a selection mode other
+  than V3, a pack other than `classic`/`karaoke`, a spot or a size is a `ValueError` before any
+  work.
+
+### Seed (`edit_v2/seed.py`) and render
+
+- `edit_v2.CAPTION_POSITIONS = {top: 38000, middle: 60000, bottom: 83000}` (`y_e5`, the bottom
+  edge of the caption block) and `CAPTION_SIZES = {small: 850, medium: 1000, large: 1200}`
+  (`size_pm`): the editor's Atas/Tengah/Bawah and Kecil/Sedang/Besar presets.
+- `build_seed`: `captions.pack` is the job's `captionStyle` (`PACK_BY_CAPTION_STYLE` maps every
+  pack id to itself); `captions.overrides` is the pack's defaults with `y_e5` and `size_pm` from
+  `captionPosition`/`captionSize` (absent: `bottom`, `medium`, the pack defaults, so an older
+  job's seed is byte-identical). An unknown value is a `SeedError`. The clip id does not depend
+  on the look; the seed sha does. `render_edit.AutoOptions` carries `caption_position` and
+  `caption_size` into the pipeline's seed, and `render_v3_job` reads them from `job.json`, so the
+  automatic file is the revision 0 the editor opens.
+- The legacy engine (rollback or fallback) draws a pack as `captions_ass.legacy_caption_style`:
+  the pack itself when it is `classic`/`karaoke`, else `classic` for a pack whose words do not
+  light up (`reveal: "static"`, Box) and `karaoke` for the others, always at the bottom in one
+  size. `edit_v2.doc.auto_file_is_seed` and `doc-model.mjs` `autoFileIsSeed` therefore hand out a
+  legacy clip's automatic file as the unchanged export only when its seed is Klasik or Karaoke at
+  `y_e5` 83000 and `size_pm` 1000 (and without a logo or a text watermark, §5.36/§5.43); other
+  seeds render.
+
+### Dashboard
+
+- `GET /api/jobs` adds `renderEngine` (`"edit-v2"` | `"legacy"`) beside `editor`
+  (`jobListFlags(env)` in `web/lib/editor/flags.mjs`).
+- `web/lib/dashboard-choices.mjs`: `CAPTION_STYLE_CHOICES` (every pack, the editor's names),
+  `CAPTION_POSITION_CHOICES` (Atas, Tengah, Bawah) and `CAPTION_SIZE_CHOICES` (Kecil, Sedang,
+  Besar); `lookChoices(engine)` gives all of them, or with `"legacy"` only Karaoke and Klasik and
+  `null` for spot and size; `normalizeChoices(raw, {engine})` turns a look the engine does not
+  draw into the default. `DEFAULT_CHOICES` gains `captionPosition: "bottom"` and
+  `captionSize: "medium"` (kept per browser with the other choices). The summary names a spot or
+  size only when it is not the pack's own ("subtitle atas", "subtitle besar").
+- The page (`app/dashboard/page.jsx`) offers `lookChoices(renderEngine)` (edit-v2 until the jobs
+  list answers) and sends `captionPosition`/`captionSize` only while they are offered. The groups
+  "Posisi subtitle" and "Ukuran subtitle" are radio pills (48 px).
+- The 9:16 preview (`lib/look-preview.mjs`, `LookPreview.jsx`) places the pack's thumbnail with
+  its bottom edge at `y_e5` and scales it by `size_pm` about the middle of that edge; an SVG
+  filter (`CAPTION_KEY`, two luminance rows of `feColorMatrix`) keys out the thumbnail's
+  backdrop so a subtitle over the picture shows only the pack's ink. `data-position` and
+  `data-size` name the choice. The zone note shows only for Bawah.
+- Pengaturan's Logo bawaan and Teks watermark bawaan cards already say from `autoClips` whether
+  they reach the automatic clip files; with the new default they say they do.

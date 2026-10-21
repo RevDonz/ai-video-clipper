@@ -663,6 +663,15 @@ def _ratio(value: object, name: str) -> tuple[int, int]:
     return num, den
 
 
+def legacy_caption_style(pack_id: str) -> str:
+    """The ``CAPTION_STYLES`` entry the legacy renderer draws for a caption pack (a rollback or
+    an engine fallback, CONTRACTS §5.48): a pack that lights no spoken word is ``classic``, any
+    other ``karaoke``. Raises ``ValueError`` for an unknown pack."""
+    if pack_id in CAPTION_STYLES:
+        return pack_id
+    return "classic" if load_pack(pack_id, 1).reveal == "static" else "karaoke"
+
+
 def load_pack(pack_id: str, version: int) -> CaptionPack:
     """Load and check ``resources/caption-packs/<pack_id>/v<version>.json`` (cached)."""
     if not isinstance(pack_id, str) or not _RESOURCE_ID.fullmatch(pack_id):

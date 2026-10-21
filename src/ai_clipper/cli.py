@@ -11,7 +11,7 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
-from .captions_ass import CAPTION_STYLES
+from .edit_v2 import CAPTION_POSITIONS, CAPTION_SIZES, PACK_IDS
 from .focus import MAX_FOCUS_NOTE_CHARS, parse_focus
 from .llm import LLMError
 from .models import ClipProfile, SelectionMode
@@ -218,9 +218,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--caption-style",
-        choices=CAPTION_STYLES,
+        choices=PACK_IDS,
         default=None,
-        help="burned captions (default: karaoke for v3, classic otherwise)",
+        help=(
+            "burned captions: a caption pack (default: karaoke for v3, classic otherwise; "
+            "other selection modes take classic or karaoke only)"
+        ),
+    )
+    parser.add_argument(
+        "--caption-position",
+        choices=tuple(CAPTION_POSITIONS),
+        default=None,
+        help="v3: where the captions sit (default: bottom, the pack's spot)",
+    )
+    parser.add_argument(
+        "--caption-size",
+        choices=tuple(CAPTION_SIZES),
+        default=None,
+        help="v3: caption size (default: medium, the pack's size)",
     )
     parser.add_argument(
         "--word-timestamps",
@@ -340,6 +355,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             cold_open=args.cold_open,
             hook_overlay=args.hook_overlay,
             caption_style=args.caption_style,
+            caption_position=args.caption_position,
+            caption_size=args.caption_size,
             captions_dir=args.captions_dir,
             word_timestamps=args.word_timestamps,
             hook_duration=args.hook_duration,
