@@ -6,6 +6,7 @@ import AppHeader from "../../components/AppHeader.jsx";
 import CancelJob from "../../components/CancelJob.jsx";
 import StageSummary from "../../components/StageSummary.jsx";
 import { PACK_IMAGES, imageSrc } from "../../components/editor/panels/pack-images.js";
+import { CLIP_LIMITS } from "../../lib/clip-limits.mjs";
 import { failedClipView } from "../../lib/clip-status.mjs";
 import {
   AI_STATUS_UNREADABLE,
@@ -51,7 +52,6 @@ import {
 import { jobHelpHref, storageHelpHref } from "../../lib/help-catalog.mjs";
 import { notifyJobsChanged } from "../../lib/job-badge.mjs";
 import { jobCancellable } from "../../lib/job-cancel.mjs";
-import { CLIP_LIMITS } from "../../lib/clip-limits.mjs";
 import { lookPreview } from "../../lib/look-preview.mjs";
 import { videoLanguageNotice } from "../../lib/source-language.mjs";
 import { typedRangeCount } from "../../lib/time-ranges.mjs";
