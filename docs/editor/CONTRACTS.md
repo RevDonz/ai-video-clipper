@@ -3113,7 +3113,12 @@ auto render is unchanged: without the key `build_ass_v2` writes the bytes it wro
 - Style `Watermark,DejaVu Sans,S,&H<A>FFFFFF,&H<A>FFFFFF,&HFF000000,&H<A>000000,-1,0,0,0,100,100,0,0,1,<O>,0.02,<an>,0,0,0,1`,
   after the other styles.
 - One event, the first of `[Events]`:
-  `Dialogue: 0,0:00:00.00,<safe_cs(total)>,Watermark,,0,0,0,,{\an<n>\pos(x,y)\q2}<ass_escape(text)>`.
+  `Dialogue: 0,0:00:00.00,<safe_cs(total)>,Watermark,,0,0,0,,{\an<n>\pos(x,y)\q2\blurE}<ass_escape(text)>`,
+  `E = H/1280` px to two decimals (H the text height; amended 2026-10-22). libass blurs the
+  border, so the outline (its shadow) is soft and the fill stays sharp: under 4:2:0 a hard
+  outline around small white text over the video rings in chroma, and P-ENC measured the 16 px
+  watermark at Tengah kiri at SSIM 0.9678 on its text (0.9866 with the blur). A larger minimum
+  size did not help (0.9564 at 32 px), so the size range stays 500–2000.
   libass draws by layer, then in file order, so the captions (layer 0, later in the file) and the
   hook (layer 1) are drawn over it.
 - `edit_v2.captions.caption_track` reads the key and adds `glyph_unsupported:U+XXXX` against

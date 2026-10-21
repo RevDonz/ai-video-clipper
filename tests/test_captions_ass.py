@@ -1694,7 +1694,7 @@ def test_the_watermark_is_one_event_over_the_whole_clip_drawn_under_the_rest(pac
     assert first == {"Layer": "0", "Start": "0:00:00.00",
                      "End": captions_ass._ass_time_cs(safe_cs(200, NTSC)), "Style": "Watermark",
                      "Name": "", "MarginL": "0", "MarginR": "0", "MarginV": "0", "Effect": "",
-                     "Text": f"{{\\an{alignment}\\pos({x},{y})\\q2}}@potongin.klip"}
+                     "Text": f"{{\\an{alignment}\\pos({x},{y})\\q2\\blur1}}@potongin.klip"}
     assert (font_size, x, y) == (32, 360, 127)
 
 
@@ -1729,7 +1729,9 @@ def test_every_position_keeps_the_line_out_of_the_tiktok_zone(pos, size_pm, size
     assert (layout.font_size, layout.outline_cp, layout.y, layout.alignment) == (
         font_size, outline, y, alignment)
     [event] = [e for e in _events(_with_mark(spec, size=size)) if e["Style"] == "Watermark"]
-    assert event["Text"] == f"{{\\an{alignment}\\pos({x},{y})\\q2}}Ikuti @potongin.klip"
+    blur = "1" if height == 1280 else "1.5"  # H/1280 (CONTRACTS §5.43)
+    assert event["Text"] == (f"{{\\an{alignment}\\pos({x},{y})\\q2\\blur{blur}}}"
+                             "Ikuti @potongin.klip")
     # The drawn line (its advance plus the outline) stays inside the frame and outside the
     # top, bottom and right zones (93, 280 and 93 px at 720×1280).
     edge = -(-outline // 100)
@@ -1748,6 +1750,18 @@ def test_a_wide_watermark_shrinks_to_fit_its_column():
 
     assert layout.font_size == font_size < _rhu(1280 * 2000, 40_000)
     assert font_size * advance_px("W" * 40, WATERMARK_FONT, 1) <= 720 - 93 - 29
+
+
+def test_the_watermark_outline_has_a_soft_edge_of_one_1280th_of_the_height():
+    # Under 4:2:0 a hard outline around small white text over the video rings in chroma: P-ENC
+    # measured the smallest watermark (16 px, Tengah kiri) at SSIM 0.9678 on its text, and a
+    # larger size did not help (0.9564 at 32 px). A blur of H/1280 on the outline (the border's
+    # shadow; the fill stays sharp) brings it to 0.9866 (CONTRACTS §5.43).
+    for size, blur in (((720, 1280), "\\blur1}"), ((1080, 1920), "\\blur1.5}"),
+                       ((1080, 1080), "\\blur1.5}")):
+        [event] = [e for e in _events(_with_mark(_mark(size_pm=500, pos="middle_left"),
+                                                 size=size)) if e["Style"] == "Watermark"]
+        assert blur in event["Text"]
 
 
 def test_the_watermark_text_is_escaped():

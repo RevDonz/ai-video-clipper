@@ -14,7 +14,7 @@ Style: Watermark,DejaVu Sans,24,&H00FFFFFF,&H00FFFFFF,&HFF000000,&H00000000,-1,0
 
 [Events]
 Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text
-Dialogue: 0,0:00:00.00,0:00:47.46,Watermark,,0,0,0,,{\an1\pos(45,972)\q2}@a
+Dialogue: 0,0:00:00.00,0:00:47.46,Watermark,,0,0,0,,{\an1\pos(45,972)\q2\blur1.5}@a
 Dialogue: 0,0:00:00.24,0:00:00.91,Karaoke,,0,0,0,,{\kf34}wkwk {\kf33}nahan?
 Dialogue: 0,0:00:01.70,0:00:02.54,Karaoke,,0,0,0,,{\kf42}eh {\kf42}masuk
 Dialogue: 0,0:00:02.79,0:00:04.25,Karaoke,,0,0,0,,{\kf41}syuting {\kf30}pelan {\kf41}kok {\kf34}ternyata
