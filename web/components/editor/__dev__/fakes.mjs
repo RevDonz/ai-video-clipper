@@ -20,6 +20,8 @@ export { CommandRejected };
 
 export const FAKE_JOB_ID = "8f0c2a1e-5b7d-4c3a-9e21-6d4f0b8a7c55";
 export const FAKE_CLIP_ID = "clip_9b2e41c07d3a5f18e6c2a0b4";
+/** Other clips of the fake job, for "Pakai di semua klip" (CONTRACTS §5.53). */
+export const FAKE_OTHER_CLIPS = Object.freeze(["clip_000000000000000000000002", "clip_000000000000000000000003", "clip_000000000000000000000004"]);
 const FPS = [30000, 1001];
 const SHA = (seed) => fakeSha256(`fake:${seed}`);
 
@@ -326,6 +328,7 @@ export function createFakeApiClient({ doc = fakeDoc(), words = fakeWords(), now 
   let etag = seedEtag;
   const receipts = new Map();
   const renders = new Map();
+  const batches = new Map();
   const calls = [];
   const record = (name, args) => { calls.push({ name, args }); };
   const clipDto = () => ({
@@ -357,6 +360,20 @@ export function createFakeApiClient({ doc = fakeDoc(), words = fakeWords(), now 
       return clone(result);
     },
     async words(url) { record("words", [url]); return clone(words); },
+    // "Pakai di semua klip" (CONTRACTS §5.53): two clips take it, one was changed by hand.
+    async applyToAll({ group, etag: from }, key) {
+      record("applyToAll", [{ group, etag: from }, key]);
+      const result = { batchId: key, group, applied: [{ clipId: FAKE_OTHER_CLIPS[0], index: 2 }, { clipId: FAKE_OTHER_CLIPS[2], index: 4 }],
+        skipped: [{ clipId: FAKE_OTHER_CLIPS[1], index: 3, reason: "edited" }], unchanged: [] };
+      batches.set(key, result);
+      return clone(result);
+    },
+    async undoApplyAll(batchId) {
+      record("undoApplyAll", [batchId]);
+      if (!batches.has(batchId)) throw new FakeApiError(404, "not_found");
+      const { group, applied } = batches.get(batchId);
+      return { batchId, group, restored: clone(applied), skipped: [] };
+    },
     async prepare({ layout } = {}) {
       record("prepare", [{ layout }]);
       return { words: "ready", camera: layout === "camera" ? "ready" : "not_needed", plate: { state: "ready", ready: 1, total: 1 } };
@@ -516,9 +533,10 @@ export function createFakeEditorStore({ jobId = FAKE_JOB_ID, clipId = FAKE_CLIP_
       set({ doc: future.pop(), save: "dirty" });
     },
     async flush() {
-      if (state.save !== "dirty") return;
+      if (state.save !== "dirty") return state.etag;
       set({ save: "saving" });
       set({ save: "saved", savedAtMs: now(), plan: await previewClient.plan(state.doc) });
+      return state.etag;
     },
     async resolveConflict() { set({ conflict: null, save: "dirty" }); },
     async startFromSeed() {

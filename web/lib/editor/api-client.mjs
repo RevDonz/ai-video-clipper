@@ -9,6 +9,7 @@
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const CLIP_ID = /^clip_[0-9a-f]{24}$/;
 const ETAG = /^[0-9a-f]{64}$/;
+const APPLY_GROUPS = Object.freeze(["captions", "logo", "layout"]);
 
 /**
  * A random UUID v4 for Idempotency-Keys: `crypto.randomUUID` where the page is a secure context,
@@ -113,6 +114,17 @@ export function createApiClient({ jobId, clipId, fetchImpl = globalThis.fetch?.b
     async words(url) {
       if (typeof url !== "string" || !url.startsWith(`/api/jobs/${jobId}/`) || url.includes("..")) throw new TypeError("words url is invalid");
       return request("GET", `${base}${url}`);
+    },
+    /** "Pakai di semua klip" (CONTRACTS §5.53): `key` is the batch id, the same one on a retry. */
+    async applyToAll({ group, etag }, key) {
+      if (!APPLY_GROUPS.includes(group)) throw new TypeError("group is invalid");
+      check(ETAG, etag, "etag");
+      check(UUID, key, "idempotency key");
+      return request("POST", `${clipRoot}/apply-all`, { body: { group, etag }, headers: { "Idempotency-Key": key } });
+    },
+    async undoApplyAll(batchId) {
+      check(UUID, batchId, "batchId");
+      return request("POST", `${jobRoot}/apply-all/${batchId}/undo`, { body: {} });
     },
     async prepare({ layout } = {}) {
       return request("POST", `${clipRoot}/prepare`, { body: layout === undefined ? {} : { layout } });

@@ -346,6 +346,19 @@ gagal atau ada konflik dengan tab lain, editor tetap di klip ini: status "Gagal 
 **Coba simpan lagi**, atau dialog konflik, tampil seperti biasa dan perubahan tidak hilang. Tombol
 Back browser kembali ke klip sebelumnya.
 
+**Pakai di semua klip.** Di bawah Caption (kartu Caption, panel Teks), Logo (kartu Logo & Musik,
+panel Logo; ikut teks watermark) dan Tata letak (kartu dan panel) ada tombol **Pakai caption /
+logo / tata letak di semua klip**. Klip ini disimpan dulu, lalu pengaturan itu dipasang ke semua
+klip lain di proyek dalam satu langkah. Klip yang bagian itu sudah diubah manual tidak ditimpa (pengaturan dari
+**Pakai di semua klip** sebelumnya tidak dihitung manual, jadi bisa diganti lagi),
+begitu juga klip yang belum disiapkan, yang transkripnya berubah, atau yang sedang disimpan di
+tab lain; hasilnya tertulis "Dipakai di 5 klip · 2 dilewati" dengan daftar klip yang dilewati di
+**Lihat yang dilewati**. **Urungkan** mengembalikan semua klip yang diubah dalam satu langkah,
+kecuali klip yang sudah diubah lagi sesudahnya. Kata yang diedit di tiap klip tetap; bingkai
+manual (Atur bingkai) tidak ikut karena waktunya milik klip ini. Klip yang berganti ke Ikuti wajah
+menganalisis wajahnya saat dibuka. Ekspor tiap klip tetap dari editornya. Tombol tidak tampil
+kalau proyek hanya punya satu klip.
+
 **Lainnya.** Urungkan / Ulangi (Ctrl+Z, Ctrl+Shift+Z) sampai 200 langkah, juga untuk perubahan
 yang dibuat di tampilan lain; simpan otomatis (± 1,5 detik setelah berhenti, juga disimpan di
 browser); **"Kembali ke versi AI"** (di ⋯ Lainnya); **Ekspor**

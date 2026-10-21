@@ -361,6 +361,20 @@ def seed(clip_dir: Path) -> tuple[dict, str]:
     return doc, etag
 
 
+def revision(clip_dir: Path, etag: str) -> dict | None:
+    """The document whose ETag is ``etag``: the current one, the seed or an archived revision;
+    None when it is none of them (an archive the janitor pruned). Writes nothing."""
+    clip = _clip(clip_dir)
+    doc, current, _raw, _is_seed = _current(clip)
+    if current == etag:
+        return doc
+    seed_doc, seed_etag, _seed_raw = _seed(clip)
+    if seed_etag == etag:
+        return seed_doc
+    found = _find_archive(clip, etag)
+    return None if found is None else found[1]
+
+
 def load_words(clip_dir: Path, words_sha256: str) -> dict:
     """The words artifact ``words.<sha16>.json`` whose bytes hash to ``words_sha256``.
 
@@ -868,6 +882,7 @@ __all__ = [
     "load_words",
     "prune_receipts",
     "put",
+    "revision",
     "seed",
     "words_exist",
 ]

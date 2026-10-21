@@ -104,6 +104,14 @@ export const ROUTES = Object.freeze([
   { name: "GET cleanup", file: "clips/[clipId]/cleanup/route.js", method: "GET", params: { id: JOB, clipId: CLIP }, limit: "api" },
   { name: "GET coldopen", file: "clips/[clipId]/coldopen-suggestions/route.js", method: "GET",
     params: { id: JOB, clipId: CLIP }, limit: "api" },
+  // "Pakai di semua klip" (CONTRACTS §5.53): the batch, and its undo in the fourth tree.
+  { name: "POST apply-all", file: "clips/[clipId]/apply-all/route.js", method: "POST", params: { id: JOB, clipId: CLIP },
+    mutation: true, limit: "api", cap: 1024,
+    body: () => ({ text: json({ group: "captions", etag: SHA }), type: "application/json",
+      headers: { "Idempotency-Key": "00000000-0000-4000-8000-000000000004" } }) },
+  { name: "POST apply-all undo", file: "apply-all/[batchId]/undo/route.js", method: "POST",
+    params: { id: JOB, batchId: "00000000-0000-4000-8000-000000000004" }, mutation: true, limit: "api", cap: 1024,
+    body: () => ({ text: "{}", type: "application/json" }) },
   { name: "POST assets", file: "assets/route.js", method: "POST", params: { id: JOB }, mutation: true, limit: "upload",
     cap: 10 * 1024 * 1024,
     body: () => ({ bytes: PNG, type: "image/png",
@@ -116,7 +124,7 @@ export const ROUTES = Object.freeze([
     mutation: true, limit: "api" },
 ]);
 
-/** Every route file under the three trees, relative to app/api/jobs/[id]/ (the table must list each). */
+/** Every route file under the four trees, relative to app/api/jobs/[id]/ (the table must list each). */
 export async function routeFiles() {
   const base = path.join(WEB, "app", "api", "jobs", "[id]");
   const found = [];
@@ -127,7 +135,7 @@ export async function routeFiles() {
       else if (entry.name === "route.js") found.push(path.relative(base, full).split(path.sep).join("/"));
     }
   }
-  for (const tree of ["clips", "assets", "renders"]) await walk(path.join(base, tree));
+  for (const tree of ["clips", "assets", "renders", "apply-all"]) await walk(path.join(base, tree));
   return found.sort();
 }
 

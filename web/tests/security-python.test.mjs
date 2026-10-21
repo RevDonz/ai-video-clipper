@@ -109,7 +109,7 @@ async function tree(dir) {
 }
 
 test("Node and Python agree on the id shapes, and both refuse every traversal value", async () => {
-  const VALID = { job: JOB, clip: CLIP, task: TASK, render: RENDER, sha: SHA, key: KEY };
+  const VALID = { job: JOB, clip: CLIP, task: TASK, render: RENDER, sha: SHA, key: KEY, batch: KEY };
   const vectors = {};
   for (const [kind, valid] of Object.entries(VALID)) vectors[kind] = [valid, ...traversal(valid), valid.toUpperCase()];
   const code = String.raw`
@@ -125,13 +125,14 @@ patterns = {
   "render": [render_queue._V3_UUID],
   "sha": [api._SHA, assets._SHA, preview_cli._HEX64, render_queue._SHA],
   "key": [store._KEY, assets._UUID, render_queue._V3_UUID],
+  "batch": [api._PATTERNS["batchId"]],
 }
 vectors = json.load(sys.stdin)
 print(json.dumps({kind: [[p.fullmatch(v) is not None for p in patterns[kind]] for v in vectors[kind]] for kind in patterns}))
 `;
   const python = JSON.parse(await runPython(code, [], JSON.stringify(vectors)));
   const node = { job: ROUTE_PARAMS.id, clip: ROUTE_PARAMS.clipId, task: ROUTE_PARAMS.taskId, render: ROUTE_PARAMS.renderId,
-    sha: ROUTE_PARAMS.sha, key: ROUTE_PARAMS.idempotencyKey };
+    sha: ROUTE_PARAMS.sha, key: ROUTE_PARAMS.idempotencyKey, batch: ROUTE_PARAMS.batchId };
   for (const [kind, values] of Object.entries(vectors)) {
     values.forEach((value, index) => {
       const label = `${kind} ${JSON.stringify(value)}`;

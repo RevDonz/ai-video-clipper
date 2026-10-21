@@ -29,6 +29,7 @@ import {
   hookNearNote,
   presetId,
 } from "../panels/caption-model.mjs";
+import ApplyAll from "../apply-all/ApplyAll.jsx";
 import { PACK_IMAGES, imageSrc } from "../panels/pack-images.js";
 import { runCommands } from "../transcript/actions.mjs";
 import PillGroup from "../ui/PillGroup.jsx";
@@ -39,7 +40,7 @@ import styles from "./quick.module.css";
 const pills = (options) => options.map((option) => ({ id: option.id, label: option.label }));
 const valueOf = (options, id) => options.find((option) => option.id === id)?.value;
 
-function CaptionBody({ state, dispatch }) {
+function CaptionBody({ state, dispatch, applyAll }) {
   const doc = state.doc;
   const locked = state.status !== "ready";
   const captions = doc.captions;
@@ -102,11 +103,12 @@ function CaptionBody({ state, dispatch }) {
           </div>
         ) : null}
       </div>
+      <ApplyAll applyAll={applyAll} group="captions" disabled={locked} />
     </div>
   );
 }
 
-export default function CaptionCard({ state, dispatch }) {
+export default function CaptionCard({ state, dispatch, applyAll = null }) {
   if (!state?.doc) return <p className={styles.note} role="status">Membuka caption…</p>;
-  return <CaptionBody state={state} dispatch={dispatch} />;
+  return <CaptionBody state={state} dispatch={dispatch} applyAll={applyAll} />;
 }

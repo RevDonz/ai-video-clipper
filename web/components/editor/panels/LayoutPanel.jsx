@@ -37,6 +37,7 @@ import { formatClock, frameToMs, rejectionText } from "../shell-model.mjs";
 import PillGroup from "../ui/PillGroup.jsx";
 import { clearKeyframesCommand, framingSummary } from "../framing-model.mjs";
 import { SPLIT_RATIOS, splitRatioCommand, splitSummary, swapSplitCommand } from "../split-model.mjs";
+import ApplyAll from "../apply-all/ApplyAll.jsx";
 import { analysisBusy, analysisForView, layoutAnalysisFor } from "./layout-analysis.mjs";
 import styles from "./layout.module.css";
 import {
@@ -267,6 +268,7 @@ function ZoomSection({ doc, readOnly, send }) {
 
 function LayoutPanelBody({
   state, getState = null, dispatch, player, api: apiProp, previewClient, analysisStore, openFraming = null, openSplit = null,
+  applyAll = null,
 }) {
   const doc = state.doc;
   const readOnly = state.status !== "ready";
@@ -397,6 +399,7 @@ function LayoutPanelBody({
         ) : null}
         <p className={styles.note}>{`Contoh diambil dari frame akhir di posisi ${formatClock(frameToMs(at ?? 0, fps))}.`}</p>
         {zoom.bars ? <p className={styles.note} data-layout-bars="">Garis hitam di tepi video sumber sudah dibuang.</p> : null}
+        <ApplyAll applyAll={applyAll} group="layout" disabled={readOnly || analysisBusy(run)} />
       </div>
       {zoom.available ? <ZoomSection doc={doc} readOnly={readOnly} send={send} /> : null}
       {split ? (

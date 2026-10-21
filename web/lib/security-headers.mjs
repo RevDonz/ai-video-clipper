@@ -37,6 +37,7 @@ export const ROUTE_PARAMS = Object.freeze({
   renderId: UUID,
   sha: /^[0-9a-f]{64}$/,
   idempotencyKey: UUID,
+  batchId: UUID,
 });
 
 const MESSAGES = Object.freeze({

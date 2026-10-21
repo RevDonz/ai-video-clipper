@@ -513,6 +513,7 @@ JOBS_ROOT/<job>/
       preview/frames/<plan_sha16>-<f>-<w>.png   truth frames (LRU cache)
       preview/derived/<asset_sha16>@<w>x<h>.png logo prescaled to its exact pixel box
       suggestions/<task_id>.json                AI tasks (30 days)
+  analysis/apply-all/<batchId>.json             "Pakai di semua klip" batches, newest 50 (§5.53)
   analysis/assets/<sha256>.{png,m4a} + <sha256>.json    job asset store (§9.2)
   analysis/render-requests/<render_id>.json     render-request-v3 (old jobs may keep v1/v2 files: never acted on)
   output/clip-NN.mp4 + .srt                     auto renders (unchanged paths; = revision 0)
@@ -551,6 +552,8 @@ timeout + SIGKILL, fixed exit-code map as in `edit-document.mjs`, and an **allow
 | `GET /clips/:clipId/ai/:taskId` | Poll an AI task | `taskId` is a UUID (checked in Node and Python); `{state:"pending"\|"done"\|"failed", suggestions:[…], error:{code, messageId}\|null}`, plus `truncated` for a done spelling task |
 | `GET /clips/:clipId/cleanup` | Rapikan review list (§7.3) | Immutable per `(words sha, lexicon version)` |
 | `GET /clips/:clipId/coldopen-suggestions` | Cold-open candidates (§7.2) | Immutable per words sha |
+| `POST /clips/:clipId/apply-all` (amended 2026-10-21, §5.53) | "Pakai di semua klip": this clip's caption, logo or layout on the job's other clips | Same-origin; body exactly `{group, etag}`; `Idempotency-Key` = batch id; `200 {batchId, group, applied, skipped, unchanged}` |
+| `POST /apply-all/:batchId/undo` (amended 2026-10-21, §5.53) | Undo that batch on the clips nobody saved since | Same-origin; empty body or `{}`; `200 {batchId, group, restored, skipped}` |
 | `POST /assets` | Upload a logo or music file (§9.2) | Raw body; `Content-Type` allowlist; `Content-Length` required; `X-Asset-Kind: logo\|music`; `Idempotency-Key`; `201 {sha256, kind, mime, w, h, durationMs, lufsC, peaksUrl}` |
 | `GET /assets/:sha` | Normalised asset bytes | §9.2 headers |
 | `GET /api/resources/:kind/:name` (global) | Font files and pack JSON: **the same bytes libass uses** | `kind` ∈ {`fonts`, `caption-packs`, `hook-designs`}; immutable; the sha is checked against `resources/fonts/fonts.json` in tests |
@@ -3891,3 +3894,86 @@ of the plate cells and the lossless reference of a zoomed, framed synthetic clip
 rect, and the frame index of latar blur at the same zoom, with real FFmpeg; and
 `tests/test_edit_v2_source_info.py` measures the bars of a letterboxed source and none on a plain
 one. Browser spec: `web/e2e/editor-zoom.spec.mjs` on the editor fakes.
+
+## 5.53 "Pakai di semua klip": one clip's settings on every other clip (2026-10-21)
+
+One button under Caption, Logo and Tata letak copies that settings group of the open clip to every
+other clip of its job in one batch, server-side. Each target is saved through the document store
+(§4.4: If-Match, `revision + 1`, `parent_sha256`, receipts), so the schema, the validators, the
+engine and the render do not change and `RENDER_SEMANTICS` stays.
+
+### Groups (`src/ai_clipper/edit_v2/apply_all.py`, stdlib)
+
+| Group | What is copied | What stays the target's |
+|---|---|---|
+| `captions` | `captions.enabled`, `captions.pack`, `captions.overrides` | `captions.word_edits` (word ids of its own transcript) |
+| `logo` | the `visual` overlay track (with its `assets` entry) and `watermark` (absent copies as absent) | the hook and music tracks and their assets |
+| `layout` | `layout` without `keyframes` (mode, `no_face`, `split`) | nothing; the source's keyframes are frames of its own window and are never copied |
+
+`part(doc, group)` is what is compared, `copied_part` what is written, `with_part` the result.
+Tracks keep the order hook, visual, audio; `assets` is exactly what the tracks reference.
+
+### The skip rule
+
+A target that already matches is `unchanged` and not written. Otherwise it is written only while
+that group is still its seed's (`part(doc) == part(seed)`) or exactly what an earlier batch of the
+group wrote to it and no undo took back (the job's batch records), so a second batch updates the
+first one's clips. Otherwise it is listed, never overwritten: `edited` (changed by hand), `not_ready` (no seed or
+words yet, or a clip without an id), `read_only` (the job re-ran with other words), `conflict`
+(saved elsewhere while the batch ran: the store's If-Match refused it), `invalid` (the result does
+not validate for that clip). The source clip is never written.
+
+### Batch record and idempotency
+
+`analysis/apply-all/<batchId>.json` (canonical JSON, 0600; directory 0700; one batch or undo at a
+time per job, `flock` on `analysis/apply-all/.lock`) is written before the first save with the
+group, the source clip and etag, the copied value and, per target, the etag it starts from and its
+group before. Each save uses an Idempotency-Key derived from the batch id (UUIDv5), and its
+document is built from that starting revision with `audit.updated_at_ms` unchanged (the server
+stamps it), so a retry after a crash replays the saves already made (§4.4 receipts) and finishes
+the rest. The request's own Idempotency-Key is the batch id: the same key with the same arguments
+answers the stored result; with other arguments `idempotency_conflict`. The newest 50 records are
+kept (`RECORDS_KEEP`). `audit.last_command` is `ApplyToAllClips`.
+
+### Undo
+
+For each applied clip still at the batch's revision (If-Match = the etag the batch wrote), a new
+revision with the group restored to its value before the batch (`UndoApplyToAllClips`). A clip
+saved since is skipped as `changed`; an asset the janitor removed makes it `invalid`. The result is
+stored in the record: a second undo answers it without writing.
+
+### API (`edit_v2.api`, `web/lib/apply-all.mjs`)
+
+| Op / route | Arguments | Answer |
+|---|---|---|
+| `apply_all` · `POST /api/jobs/:id/clips/:clipId/apply-all` | `{jobId, clipId, etag, group, batchId}`; HTTP: body exactly `{group, etag}` ≤ 1 KiB, `Content-Type: application/json`, `Idempotency-Key` UUID (the batch id) | `200 {batchId, group, applied: [{clipId, index}], skipped: [{clipId, index, reason}], unchanged: [{clipId, index}]}`; `409 revision_conflict` when `etag` is not the source's current revision (no document in the answer); `409 idempotency_conflict`; `404 not_found` |
+| `undo_apply_all` · `POST /api/jobs/:id/apply-all/:batchId/undo` | `{jobId, batchId}`; HTTP: empty body or `{}` | `200 {batchId, group, restored: [{clipId, index}], skipped: [{clipId, index, reason: "changed"\|"invalid"}]}`; `404 not_found` for an unknown or pruned batch |
+
+Both routes: session, `POTONGIN_EDITOR_V3`, same-origin (`sameOriginMutation`), ids by regex
+(`batchId` joins `ROUTE_PARAMS`), the editor rate-limit bucket, the CLI timeout 5 minutes. The
+targets are the job's clips listing (`clips` op) in its order.
+
+### Editor (`web/lib/editor/apply-all.mjs`, `components/editor/apply-all/ApplyAll.jsx`)
+
+- The shell builds one controller per clip (`createApplyAll`, in the panel props bundle as
+  `applyAll`), so the result stays across a card close and a view switch. Buttons: "Pakai caption
+  di semua klip" (Caption card, Teks panel), "Pakai logo di semua klip" (Logo & Musik card, Logo
+  panel; it carries the text watermark), "Pakai tata letak di semua klip" (Tata letak card and
+  panel). Hidden while the job has no other clip; disabled read-only and during a face analysis.
+- A click saves the clip first (`store.flush()`, whose etag is sent); a save that fails or waits on
+  a conflict sends nothing. After a lost answer (network, 5xx) the next click reuses the key while
+  the saved etag is the same, so the server replays the batch instead of skipping its own writes.
+- The result (`role="status"`): "Dipakai di n klip · k dilewati" (plus "· m sudah sama"), the
+  skipped clips by number and reason under "Lihat yang dilewati", and **Urungkan**, which becomes
+  "Dikembalikan di n klip" (plus "· k dilewati").
+- A clip switched to Ikuti wajah gets its face analysis when it is next opened (the editor's
+  prepare), as after any layout switch; its export needs that analysis.
+
+### Gates
+
+`tests/test_edit_v2_apply_all.py` (groups, skip reasons, unchanged, conflict, invalid, replay,
+resume after a crash, pruning, undo, undo after a later save, undo resume, the envelope);
+`web/tests/apply-all-api.test.mjs` (auth, flag, CSRF, ids, body, exit-code mapping, sanitizing,
+a real batch and undo through the routes); `web/tests/editor-apply-all.test.mjs` (texts,
+controller, API client, fakes, the six places); browser spec `web/e2e/editor-apply-all.spec.mjs`
+on the editor fakes.

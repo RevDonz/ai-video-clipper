@@ -12,6 +12,7 @@ import { useCallback, useId, useRef, useState, useSyncExternalStore } from "reac
 import {
   LOGO_WIDTH_E5, OPACITY_PM, anchorFor, positionFor, resizeTo, transformSteps,
 } from "../gizmos/logo-geometry.mjs";
+import ApplyAll from "../apply-all/ApplyAll.jsx";
 import { LOGO_ACCEPT, logoUploader, logoUploads } from "../gizmos/logo-upload.mjs";
 import PillGroup from "../ui/PillGroup.jsx";
 import styles from "./logo.module.css";
@@ -25,7 +26,7 @@ const CORNERS = [
   { id: "bottom_left", label: "Kiri bawah" }, { id: "bottom_right", label: "Kanan bawah" },
 ];
 
-export default function LogoPanel({ state, dispatch, uploadAsset: uploadProp = null, uploadsEnabled = true }) {
+export default function LogoPanel({ state, dispatch, uploadAsset: uploadProp = null, uploadsEnabled = true, applyAll = null }) {
   const view = logoPanelView(state);
   const logo = view.logo;
   const locked = !view.ready || view.readOnly;
@@ -137,6 +138,7 @@ export default function LogoPanel({ state, dispatch, uploadAsset: uploadProp = n
         {progressView}
         {notice}
         <WatermarkSection state={state} dispatch={dispatch} locked={locked} />
+        <ApplyAll applyAll={applyAll} group="logo" disabled={locked || uploading} />
       </section>
     );
   }
@@ -229,6 +231,7 @@ export default function LogoPanel({ state, dispatch, uploadAsset: uploadProp = n
       </div>
 
       <WatermarkSection state={state} dispatch={dispatch} locked={locked} />
+      <ApplyAll applyAll={applyAll} group="logo" disabled={locked || uploading} />
     </section>
   );
 }
