@@ -239,3 +239,13 @@ test("the editor's state page links back to the project with a 44 px target", as
   assert.match(rule, /min-height:\s*44px/);
   assert.match(rule, /display:\s*inline-flex/);
 });
+
+// Every page asks for /favicon.ico; without one each page load logged a 404. The icon is the
+// brand mark (lime square, dark "P") and stays outside the sign-in proxy, so the login page
+// gets it too.
+test("the app has a favicon.ico the browser can load without a session", async () => {
+  const icon = await readFile(path.join(WEB, "app", "favicon.ico"));
+  assert.deepEqual([...icon.subarray(0, 4)], [0, 0, 1, 0], "an ICO file");
+  assert.ok(icon.readUInt16LE(4) >= 2, "at least two sizes (16 and 32 px)");
+  assert.match(await read("proxy.js"), /\|favicon\.ico\)/);
+});
