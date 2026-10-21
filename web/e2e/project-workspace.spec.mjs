@@ -57,7 +57,13 @@ const PARTLY_FAILED_JOB = { ...JOB, clips: [clip(1), failedClip(2), clip(3), cli
 
 /** Fakes the job, its clips listing and the ZIP route; returns the ZIP downloads it saw. */
 async function fakeProject(target, { zipCheck = null, job = JOB } = {}) {
+  // A started download is a browser download, which page.route never sees: the downloads are
+  // read from the page's download events (the URL names the picked clips).
   const downloads = [];
+  target.on("download", (download) => {
+    downloads.push(new URL(download.url()));
+    void download.cancel();
+  });
   await target.route(new RegExp(`/api/jobs/${JOB_ID}(?:[/?].*)?$`), (route) => {
     const url = new URL(route.request().url());
     const json = (status, body) => route.fulfill({ status, contentType: "application/json", headers: { "Cache-Control": "no-store" }, body: JSON.stringify(body) });
@@ -71,7 +77,6 @@ async function fakeProject(target, { zipCheck = null, job = JOB } = {}) {
       if (url.searchParams.get("check") === "1") {
         return zipCheck ? json(zipCheck.status, zipCheck.body) : json(200, { count, bytes: count * 3_000_000, filename: "podcast-12-klip.zip" });
       }
-      downloads.push(url);
       return route.fulfill({ status: 200, contentType: "application/zip", headers: { "Content-Disposition": "attachment; filename=\"podcast-12-klip.zip\"", "Cache-Control": "no-store" }, body: ZIP_BYTES });
     }
     return route.fulfill({ status: 200, contentType: "video/mp4", body: "" });
