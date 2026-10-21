@@ -9,15 +9,15 @@
 //   TikTok UI zone); web/tests/editor-logo.test.mjs checks it against the Python compiler's
 //   vectors, so the live hint during a drag says what the server's G5 warning will say.
 // - Corner presets reproduce SnapLogo: 4 % from the left edge and against the TikTok zone's
-//   right, top and bottom edges, so a preset never brings the G5 warning. The "margin" guides
-//   (4 % of the width, 2.5 % of the height) stay as magnets for a deliberate placement.
+//   right, top and bottom edges, so a preset never brings the G5 warning; a 1:1 clip has no zone
+//   and keeps 4 % on every side (lib/output-frame.mjs frameMargins). The "margin" guides (4 % of
+//   the width, 2.5 % of the height) stay as magnets for a deliberate placement.
 import { divRoundHalfUp, logoBox } from "../../../lib/editor/timemap.mjs";
+import { frameMargins, uiZone } from "../../../lib/output-frame.mjs";
 
 export const LOGO_WIDTH_E5 = Object.freeze({ min: 4000, max: 40000 });
 export const OPACITY_PM = Object.freeze({ min: 200, max: 1000 });
 export const CORNERS = Object.freeze(["top_left", "top_right", "bottom_left", "bottom_right"]);
-// The TikTok UI zone at 720×1280 (plan §5.9 G5), scaled like plan.ui_zone.
-const UI_ZONE_720 = Object.freeze({ top: 93, bottom: 280, right: 93 });
 const E5 = 100000;
 
 const clamp = (value, low, high) => Math.min(Math.max(value, low), high);
@@ -48,13 +48,7 @@ export function insideFrame(box, output) {
 }
 
 /** The TikTok UI zone in output pixels: `{ top, bottom, right }` band sizes (plan.ui_zone). */
-export function uiZone(output) {
-  return {
-    top: divRoundHalfUp(UI_ZONE_720.top * output.h, 1280),
-    bottom: divRoundHalfUp(UI_ZONE_720.bottom * output.h, 1280),
-    right: divRoundHalfUp(UI_ZONE_720.right * output.w, 720),
-  };
-}
+export { uiZone };
 
 /** Which bands of the zone the box touches; `any` is the server's `unsafe_zone` for the logo. */
 export function zoneHits(box, output) {
@@ -77,10 +71,11 @@ function cornerMargins(output) {
   return { mx: divRoundHalfUp(4 * output.w, 100), my: divRoundHalfUp(25 * output.h, 1000) };
 }
 
-// SnapLogo's spots: 4 % from the left edge, against the TikTok zone's right, top and bottom edges.
+// SnapLogo's spots: 4 % from the left edge, against the TikTok zone's right, top and bottom edges
+// (at 1:1, 4 % from every edge).
 function cornerStart(corner, size, output) {
   const { mx } = cornerMargins(output);
-  const zone = uiZone(output);
+  const zone = frameMargins(output);
   return {
     x: clamp(corner.endsWith("left") ? mx : output.w - zone.right - size.w, 0, Math.max(0, output.w - size.w)),
     y: clamp(corner.startsWith("top") ? zone.top : output.h - zone.bottom - size.h, 0, Math.max(0, output.h - size.h)),
@@ -106,12 +101,12 @@ export function cornerOf(transform, meta, output) {
 /**
  * The magnet guides for a box of `size`: per axis `{ id, kind, at, line }`, where `at` is the box
  * start that aligns with the guide and `line` the coordinate drawn on the stage. Kinds: "margin"
- * (4 % / 2.5 % from the frame edges), "safe" (the TikTok zone's edges, where the corner presets
- * sit), "center" (x_e5 or y_e5 = 50000).
+ * (4 % / 2.5 % from the frame edges), "safe" (the TikTok zone's edges, at 1:1 the 4 % margins:
+ * where the corner presets sit), "center" (x_e5 or y_e5 = 50000).
  */
 export function guideLines(size, output) {
   const { mx, my } = cornerMargins(output);
-  const zone = uiZone(output);
+  const zone = frameMargins(output);
   const center = boxOf({ x_e5: E5 / 2, y_e5: E5 / 2, w_e5: divRoundHalfUp(size.w * E5, output.w) }, { w: size.w, h: size.h }, output);
   const x = [
     { id: "margin_left", kind: "margin", at: mx, line: mx },

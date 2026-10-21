@@ -271,6 +271,26 @@ test.describe("Dashboard form (faked job API)", () => {
     expect(await submitJob(page, posts)).toMatchObject({ captionStyle: "classic", renderMode: "center-crop", hookOverlay: "false" });
   });
 
+  test("Rasio and Resolusi reach the job as its output size; 1:1 previews square without the TikTok zone (CONTRACTS 5.53)", async ({ page }) => {
+    const posts = await fakeDashboardApi(page);
+    await openDashboard(page);
+    await optionsButton(page).click();
+    const format = page.getByRole("group", { name: "Format video" });
+    await expect(format.getByRole("radio", { name: "9:16" })).toBeChecked();
+    await expect(format.getByRole("radio", { name: "720p" })).toBeChecked();
+    await format.getByText("1:1", { exact: true }).click();
+    await format.getByText("1080p", { exact: true }).click();
+    const preview = page.getByRole("img", { name: /^Pratinjau klip 1:1/ });
+    await expect(preview).toHaveAttribute("data-ratio", "1:1");
+    await expect(page.getByText("Area tombol TikTok", { exact: true })).toHaveCount(0);
+    const box = await preview.boundingBox();
+    expect(Math.abs(box.width - box.height)).toBeLessThan(2);
+    await expect(optionsButton(page)).toContainText("1:1 · 1080p");
+    await page.getByLabel("Link video").fill(LINK);
+    expect(await submitJob(page, posts)).toMatchObject({ outputSize: "1080x1080" });
+    expect(await overflow(page)).toBeLessThanOrEqual(0);
+  });
+
   test("with the editor on, the note says Edit klip changes the subtitle per clip", async ({ page }) => {
     await fakeDashboardApi(page, { editor: true });
     await openDashboard(page);

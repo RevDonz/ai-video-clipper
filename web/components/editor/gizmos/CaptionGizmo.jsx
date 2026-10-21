@@ -102,7 +102,7 @@ export default function CaptionGizmo({ state, dispatch, output: outputProp, read
     <div ref={rootRef} className={styles.root} data-gizmo="caption" data-dragging={preview ? "true" : "false"}>
       {preview && (
         <>
-          <div className={styles.zoneBand} style={{ top: pct(output.h - zone.bottom, output.h) }} aria-hidden="true" />
+          {zone.bottom > 0 && <div className={styles.zoneBand} style={{ top: pct(output.h - zone.bottom, output.h) }} aria-hidden="true" />}
           {presetGuides(output).map((guide) => (
             <div key={guide.id} className={styles.guide} data-guide={guide.id} data-snapped={preview.preset === guide.id ? "true" : "false"}
               style={{ top: pct(guide.line, output.h) }} aria-hidden="true">

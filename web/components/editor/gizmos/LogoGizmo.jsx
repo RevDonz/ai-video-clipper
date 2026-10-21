@@ -12,6 +12,7 @@
 // Props: { plan, state, dispatch, player, output, readOnly } (gizmos/index.mjs).
 import { useCallback, useId, useRef, useState } from "react";
 
+import { isPortrait } from "../../../lib/output-frame.mjs";
 import styles from "./gizmos.module.css";
 import {
   CORNERS, boxOf, handleResize, logoOf, nudged, positionFor, snapDrag, transformSteps, uiZone, zoneHits,
@@ -167,13 +168,17 @@ export default function LogoGizmo({ state, dispatch, output: outputProp, readOnl
     <div ref={rootRef} className={styles.root} data-gizmo="logo" data-dragging={drag ? "true" : "false"}>
       {drag && (
         <>
-          <div className={styles.zoneBand} style={{ left: 0, top: 0, width: "100%", height: pct(zone.top, output.h) }} aria-hidden="true" />
-          <div className={styles.zoneBand} style={{ left: 0, bottom: 0, width: "100%", height: pct(zone.bottom, output.h) }} aria-hidden="true" />
-          <div className={styles.zoneBand} style={{ right: 0, top: pct(zone.top, output.h), width: pct(zone.right, output.w),
-            height: pct(output.h - zone.top - zone.bottom, output.h) }} aria-hidden="true" />
-          <div className={`${styles.guide} ${styles.guideY}`} data-guide-kind="zone" style={{ top: pct(zone.top, output.h) }} aria-hidden="true" />
-          <div className={`${styles.guide} ${styles.guideY}`} data-guide-kind="zone" style={{ top: pct(output.h - zone.bottom, output.h) }} aria-hidden="true" />
-          <div className={`${styles.guide} ${styles.guideX}`} data-guide-kind="zone" style={{ left: pct(output.w - zone.right, output.w) }} aria-hidden="true" />
+          {isPortrait(output) && (
+            <>
+              <div className={styles.zoneBand} style={{ left: 0, top: 0, width: "100%", height: pct(zone.top, output.h) }} aria-hidden="true" />
+              <div className={styles.zoneBand} style={{ left: 0, bottom: 0, width: "100%", height: pct(zone.bottom, output.h) }} aria-hidden="true" />
+              <div className={styles.zoneBand} style={{ right: 0, top: pct(zone.top, output.h), width: pct(zone.right, output.w),
+                height: pct(output.h - zone.top - zone.bottom, output.h) }} aria-hidden="true" />
+              <div className={`${styles.guide} ${styles.guideY}`} data-guide-kind="zone" style={{ top: pct(zone.top, output.h) }} aria-hidden="true" />
+              <div className={`${styles.guide} ${styles.guideY}`} data-guide-kind="zone" style={{ top: pct(output.h - zone.bottom, output.h) }} aria-hidden="true" />
+              <div className={`${styles.guide} ${styles.guideX}`} data-guide-kind="zone" style={{ left: pct(output.w - zone.right, output.w) }} aria-hidden="true" />
+            </>
+          )}
           {shown.map(({ guide, vertical }) => (
             <div
               key={`${vertical ? "x" : "y"}-${guide.id}`}

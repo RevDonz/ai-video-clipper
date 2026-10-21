@@ -27,6 +27,7 @@ import { createApplyAll } from "../../lib/editor/apply-all.mjs";
 import { LEAVE_TEXT, clipNavHref, clipNavigation, saveBeforeLeaving } from "../../lib/editor/clip-nav.mjs";
 import { editorHref, prepareForEditor } from "../../lib/editor/open-clip.mjs";
 import { SHORTCUTS, globalShortcut } from "../../lib/editor/shortcuts.mjs";
+import { isPortrait } from "../../lib/output-frame.mjs";
 import {
   PANEL_IDS, browserStorage, readStoredView, resolveView, urlWithView, viewFromUrl, writeStoredView,
 } from "../../lib/editor/view-mode.mjs";
@@ -216,6 +217,9 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
   const ready = status === "ready" || readOnly;
   const plan = state.plan ?? null;
   const fps = plan?.fps ?? state.doc?.output?.fps ?? [30, 1];
+  // A 1:1 clip has no TikTok zone (CONTRACTS §5.53): no Zona aman.
+  const frame = state.doc?.output ?? plan?.output;
+  const hasZone = !frame || isPortrait(frame);
   // The store's per-part conflict (T2.5 `groups`; the T2.6 specs' `parts`), shown as a dialog.
   const conflict = state.save === "conflict" && conflictParts(state.conflict).length ? state.conflict : null;
   // "Klip ini terbuka di tab lain" comes from the store's own BroadcastChannel (T2.5).
@@ -615,6 +619,7 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
               onTruth={toggleTruth}
               safeZone={safeZone}
               onToggleSafeZone={() => setSafeZone((value) => !value)}
+              zone={hasZone}
               disabled={!plan}
             />
           )}

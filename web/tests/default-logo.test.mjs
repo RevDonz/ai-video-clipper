@@ -416,7 +416,7 @@ test("a real upload goes through the editor's ingest and a job copy seeds in Pyt
 test("the shared placement vectors are what SetLogo does", async () => {
   const fixture = JSON.parse(await readFile(path.join(REPO, "tests", "fixtures", "edit_v2", "default-logo-vectors.json"), "utf8"));
   const hex = "5c1f".padEnd(64, "a");
-  assert.equal(fixture.vectors.length, 24);
+  assert.equal(fixture.vectors.length, 48); // 12 logos at 720×1280, 1080×1920, 720×720 and 1080×1080
   for (const vector of fixture.vectors) {
     const seed = fakeDoc();
     seed.output = { ...seed.output, w: vector.output[0], h: vector.output[1] };

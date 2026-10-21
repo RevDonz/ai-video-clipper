@@ -118,10 +118,12 @@ test("the preview's numbers are the engine's: render size, text spots, zone and 
   const editV2 = read("src", "ai_clipper", "edit_v2", "__init__.py");
   assert.equal(pythonConstant(editV2, "UI_ZONE_720"), `(${TIKTOK_ZONE.top}, ${TIKTOK_ZONE.bottom}, ${TIKTOK_ZONE.right})`);
   const plan = read("src", "ai_clipper", "edit_v2", "plan.py");
-  assert.match(plan, /^from \. import [^\n]*\bUI_ZONE_720\b/m, "the plan uses the package's zone");
-  assert.doesNotMatch(plan, /^UI_ZONE_720\s*=/m, "the plan has no zone of its own");
+  assert.match(plan, /^from \. import [^\n]*\bui_zone\b/m, "the plan uses the package's zone");
+  assert.doesNotMatch(plan, /^UI_ZONE_720\s*=|^def ui_zone/m, "the plan has no zone of its own");
+  // The editor's Zona aman is the shared zone (lib/output-frame.mjs, output-size.test.mjs).
   const stage = read("web", "components", "editor", "Stage.jsx");
-  assert.match(stage, new RegExp(`const ZONE = \\{ top: ${TIKTOK_ZONE.top}, bottom: ${TIKTOK_ZONE.bottom}, right: ${TIKTOK_ZONE.right}, width: ${PREVIEW_FRAME.w} \\};`), "the editor's Zona aman");
+  assert.match(stage, /^import \{ uiZone \} from "\.\.\/\.\.\/lib\/output-frame\.mjs";$/m, "the editor's Zona aman");
+  assert.match(stage, /const \{ top, bottom, right \} = uiZone\(\{ w, h \}\);/);
 
   const seed = read("src", "ai_clipper", "edit_v2", "seed.py");
   assert.equal(pythonConstant(seed, "DEFAULT_RENDER_SIZE").split("#")[0].trim(), `(${PREVIEW_FRAME.w}, ${PREVIEW_FRAME.h})`);

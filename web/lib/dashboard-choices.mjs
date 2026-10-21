@@ -50,6 +50,24 @@ export function lookChoices(engine) {
   return { styles: CAPTION_STYLE_CHOICES, positions: CAPTION_POSITION_CHOICES, sizes: CAPTION_SIZE_CHOICES };
 }
 
+// "Rasio" and "Resolusi" (CONTRACTS §5.53): together the job option `outputSize` (lib/jobs.mjs
+// OUTPUT_SIZE_IDS, lib/output-frame.mjs OUTPUT_SIZES).
+export const RATIO_CHOICES = Object.freeze([
+  { id: "9:16", name: "9:16", tall: true },
+  { id: "1:1", name: "1:1", tall: false },
+]);
+export const RESOLUTION_CHOICES = Object.freeze([
+  { id: "720p", name: "720p", width: 720 },
+  { id: "1080p", name: "1080p", width: 1080 },
+]);
+
+/** The job option `outputSize` ("720x1280", "1080x1080", …) of the Rasio and Resolusi choices. */
+export function outputSizeOf(choices) {
+  const ratio = byId(RATIO_CHOICES, choices?.ratio) ?? RATIO_CHOICES[0];
+  const { width } = byId(RESOLUTION_CHOICES, choices?.resolution) ?? RESOLUTION_CHOICES[0];
+  return `${width}x${ratio.tall ? (width * 16) / 9 : width}`;
+}
+
 // Ranges in seconds, inside the job API's 5 to 180 (lib/jobs.mjs). Otomatis is the range the
 // form always had; "custom" opens the two number fields.
 export const DURATION_PRESETS = Object.freeze([
@@ -76,6 +94,8 @@ export const DEFAULT_CHOICES = Object.freeze({
   captionStyle: "karaoke",
   captionPosition: "bottom",
   captionSize: "medium",
+  ratio: "9:16",
+  resolution: "720p",
   coldOpen: true,
   hookOverlay: true,
   videoLanguage: "id",
@@ -124,6 +144,8 @@ export function normalizeChoices(raw, { engine } = {}) {
     captionStyle: pick(look.styles, value.captionStyle, DEFAULT_CHOICES.captionStyle),
     captionPosition: pick(look.positions ?? [], value.captionPosition, DEFAULT_CHOICES.captionPosition),
     captionSize: pick(look.sizes ?? [], value.captionSize, DEFAULT_CHOICES.captionSize),
+    ratio: pick(RATIO_CHOICES, value.ratio, DEFAULT_CHOICES.ratio),
+    resolution: pick(RESOLUTION_CHOICES, value.resolution, DEFAULT_CHOICES.resolution),
     coldOpen: flag("coldOpen"),
     hookOverlay: flag("hookOverlay"),
     videoLanguage: pick(VIDEO_LANGUAGE_CHOICES, value.videoLanguage, DEFAULT_CHOICES.videoLanguage),
@@ -136,7 +158,10 @@ export function normalizeChoices(raw, { engine } = {}) {
   return withDuration(choices, presetOf(value.duration) && value.duration !== "custom" ? value.duration : DEFAULT_CHOICES.duration);
 }
 
-/** "3 klip · Otomatis 20–60 detik · Utuh + latar blur · Karaoke · Bahasa Indonesia"; values being typed are left out. */
+/**
+ * "3 klip · Otomatis 20–60 detik · Utuh + latar blur · Karaoke · Bahasa Indonesia"; values being
+ * typed are left out, and so are 9:16 and 720p (what every clip had before they could be chosen).
+ */
 export function choicesSummary(choices, { focusTerms = 0, ranges = 0 } = {}) {
   const parts = [];
   const limit = numberText(choices.limit, 1, 10, true);
@@ -146,6 +171,10 @@ export function choicesSummary(choices, { focusTerms = 0, ranges = 0 } = {}) {
   else {
     const range = customRange(choices.minDuration, choices.maxDuration);
     if (range) parts.push(`${range.min}–${range.max} detik`);
+  }
+  for (const [list, id, fallback] of [[RATIO_CHOICES, choices.ratio, "9:16"], [RESOLUTION_CHOICES, choices.resolution, "720p"]]) {
+    const entry = byId(list, id);
+    if (entry && id !== fallback) parts.push(entry.name);
   }
   for (const [list, id] of [[LAYOUT_CHOICES, choices.renderMode], [CAPTION_STYLE_CHOICES, choices.captionStyle]]) {
     const entry = byId(list, id);

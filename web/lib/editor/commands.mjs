@@ -42,6 +42,7 @@
 //   drops the key (R10), and SetLayout into the split drops it (`layoutAfterSwitch`).
 // - The text watermark (CONTRACTS §5.43): SetWatermarkText adds it at DEFAULT_WATERMARK or changes
 //   only its text; RemoveWatermark drops the key, so a clip without one equals its seed (R10).
+import { frameMargins } from "../output-frame.mjs";
 import {
   ASSET_ID_PATTERN,
   CAPTION_OVERRIDE_RULES,
@@ -173,7 +174,6 @@ export const DUCK_PRESETS = Object.freeze({ halus: 600, sedang: 1000, kuat: 1600
 const DEFAULT_DUCK = Object.freeze({ on: true, depth_cdb: 1000, attack_ms: 30, release_ms: 400, hold_ms: 250, detector: "words" });
 // A new logo's size and opacity; SetLogo places it at the top-right preset (snapTarget).
 const DEFAULT_LOGO = Object.freeze({ x_e5: 50000, y_e5: 50000, w_e5: 16000, opacity_pm: 850 });
-const UI_ZONE_720 = Object.freeze({ top: 93, bottom: 280, right: 93 }); // plan §5.9 G5
 const DEFAULT_HOOK_MS = 4000; // today's hook duration (captions_ass.build_ass)
 const JOIN_FADE_MS = 30; // today's AUDIO_JOIN_FADE_SECONDS
 const CORNERS = Object.freeze(["top_left", "top_right", "bottom_left", "bottom_right"]);
@@ -590,14 +590,13 @@ function requireItem(doc, kind, code) {
 
 // The corner presets sit just outside the TikTok/Reels UI zone (plan §5.9 G5: 93 px top, 280 px
 // bottom, 93 px right at 720×1280, scaled like plan.ui_zone), so a preset never brings the G5
-// warning; the left edge, which the zone does not cover, keeps a 4 % margin.
+// warning; the left edge, which the zone does not cover, keeps a 4 % margin. A 1:1 clip has no
+// zone and keeps 4 % from every edge (edit_v2.frame_margins, CONTRACTS §5.53).
 function snapTarget(ctx, transform, meta, corner) {
   const { w: width, h: height } = ctx.output;
   const [, , w, h] = box(ctx, transform, meta);
   const mx = divRoundHalfUp(4 * width, 100);
-  const top = divRoundHalfUp(UI_ZONE_720.top * height, 1280);
-  const bottom = divRoundHalfUp(UI_ZONE_720.bottom * height, 1280);
-  const right = divRoundHalfUp(UI_ZONE_720.right * width, 720);
+  const { top, bottom, right } = frameMargins(ctx.output);
   // A logo too large for the safe area starts at the frame edge instead.
   const x0 = Math.min(Math.max(corner.endsWith("left") ? mx : width - right - w, 0), Math.max(0, width - w));
   const y0 = Math.min(Math.max(corner.startsWith("top") ? top : height - bottom - h, 0), Math.max(0, height - h));

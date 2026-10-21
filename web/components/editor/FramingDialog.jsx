@@ -19,6 +19,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 
 import { framingSizes } from "../../lib/editor/framing.mjs";
 import { createPreviewClient } from "../../lib/editor/preview-client.mjs";
+import { ratioName } from "../../lib/output-frame.mjs";
 import {
   FRAMING_MOVES, clearKeyframesCommand, framingSummary, framingView, keyframeCommand, keyframeMoveCommand,
   removeKeyframeCommand, sourceFrameDoc, stillKey,
@@ -133,6 +134,8 @@ function FramingBody({ state, dispatch, player, frameBus, client, readOnly, onCl
   const [message, setMessage] = useState(null);
   const locked = readOnly || state.status !== "ready";
   const { source, output, zoom } = framingSizes(doc);
+  const ratio = ratioName({ w: output[0], h: output[1] });
+  const aspectRatio = `${output[0]} / ${output[1]}`;
   const sizeKey = `${source.join("x")}:${output.join("x")}:${zoom}`;
   const geometry = useMemo(() => frameGeometry(source, output, zoom), [sizeKey]); // the sizes, not the arrays
   const summary = framingSummary(doc);
@@ -186,10 +189,10 @@ function FramingBody({ state, dispatch, player, frameBus, client, readOnly, onCl
           <figure className={styles.result}>
             <figcaption className={styles.resultLabel}>Hasil</figcaption>
             {view.resultKnown && still.url ? (
-              <div className={styles.resultFrame} role="img" aria-label={`Hasil 9:16 di ${time(frame)}`} data-framing-result=""
-                style={{ backgroundImage: `url("${still.url}")`, backgroundSize: result.size, backgroundPosition: result.position }} />
+              <div className={styles.resultFrame} role="img" aria-label={`Hasil ${ratio} di ${time(frame)}`} data-framing-result=""
+                style={{ aspectRatio, backgroundImage: `url("${still.url}")`, backgroundSize: result.size, backgroundPosition: result.position }} />
             ) : (
-              <div className={styles.resultFrame} data-framing-result="" data-empty="">
+              <div className={styles.resultFrame} data-framing-result="" data-empty="" style={{ aspectRatio }}>
                 <span>{view.resultKnown ? "Memuat gambar…" : "Mengikuti wajah"}</span>
               </div>
             )}
