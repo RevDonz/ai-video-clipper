@@ -151,7 +151,7 @@ test("the words on screen are short Indonesian with no version label", () => {
 
 test("the detail panel edits the clip it shows and hands the saved clip to the page", async () => {
   const page = await readFile(new URL("../app/projects/[id]/page.jsx", import.meta.url), "utf8");
-  assert.match(page, /<ClipText key=\{clip\.index\}/);
+  assert.match(page, /<ClipText key=\{`text-\$\{clip\.index\}`\}/);
   assert.match(page, /onSaved=\{onClipSaved\}/);
   assert.match(page, /setJob\(\(current\) => replaceClip\(current, clip\)\)/);
   const component = await readFile(new URL("../components/ClipText.jsx", import.meta.url), "utf8");
