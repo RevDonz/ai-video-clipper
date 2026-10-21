@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 
 import { expect } from "@playwright/test";
 
-import { login, skipWithoutCredentials, test } from "./support/harness.mjs";
+import { expectFailedRequest, login, skipWithoutCredentials, test } from "./support/harness.mjs";
 
 // A clip's title and description on the project page (plan 2026-10-20 P2): "Ubah" edits them in
 // the caption box and "Simpan" saves through PATCH /clip-text; "Tulis ulang" shows the AI's
@@ -35,6 +35,8 @@ const SUGGESTION = { title: "Sutradara ditahan satpam di filmnya sendiri", descr
 /** Fakes the job, its clips listing, the save and the rewrite; returns the requests it saw. */
 async function fakeProject(target, { rewrite = { status: 200, body: { suggestion: SUGGESTION } } } = {}) {
   const seen = { saves: [], rewrites: [] };
+  // The clips listing answers as with the editor off, so the page shows no editor entry.
+  expectFailedRequest(target, 404, "GET", `/api/jobs/${JOB_ID}/clips`);
   await target.route(new RegExp(`/api/jobs/${JOB_ID}(?:[/?].*)?$`), async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -105,7 +107,10 @@ test.describe("clip title and description (faked routes)", () => {
     await title.fill("");
     await expect(box.getByText("Judul tidak boleh kosong.")).toBeVisible();
     await expect(title).toHaveAttribute("aria-invalid", "true");
-    await box.getByRole("button", { name: "Simpan" }).click();
+    // Simpan says it cannot save (aria-disabled, still focusable); a click on it sends nothing.
+    const store = box.getByRole("button", { name: "Simpan" });
+    await expect(store).toHaveAttribute("aria-disabled", "true");
+    await store.click({ force: true });
     expect(seen.saves).toHaveLength(0);
 
     await title.fill("Satpam nahan sutradara");
@@ -173,6 +178,7 @@ test.describe("clip title and description (faked routes)", () => {
     await openProject(page, { rewrite: { status: 502, body: {
       error: "AI tidak bisa dipakai sekarang. Cek penyedia di Pengaturan, lalu coba lagi.", code: "llm_unavailable", llmCode: "quota_exhausted",
     } } });
+    expectFailedRequest(page, 502, "POST", `/api/jobs/${JOB_ID}/clip-text/rewrite`); // the failed rewrite is the point
     await caption(page).getByRole("button", { name: "Tulis ulang" }).click();
     const alert = caption(page).getByRole("alert");
     await expect(alert).toContainText("Tulis ulang gagal");
