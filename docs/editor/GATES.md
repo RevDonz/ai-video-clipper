@@ -2268,3 +2268,40 @@ the plan sha, so nothing that renders changes and `RENDER_SEMANTICS` stays. Buil
 | Warning | 15 % overlap of the smaller box; one warning per part at the first cue; the nearest clearing corner or place, or none; nothing without captions | pass | `tests/test_edit_v2_overlay_zone.py`, `tests/test_edit_v2_plan.py` | **pass** (local) |
 | Editor | messages per part, check before export, fix commands, one undo step, render records accept the code | pass | `web/tests/editor-logo-caption.test.mjs`, `web/tests/clip-renders.test.mjs` | **pass** (local) |
 | Browser (fakes) | Perlu dicek and the watermark section show the fix; a click moves the watermark | `e2e/editor-shell.spec.mjs` "a watermark over the caption…" | | pending: `editor-gates suite=e2e` |
+
+## Combined adoption PR: CI and heavy gates (2026-10-22)
+
+PR #27 (branch `adopsi/gabungan-2026-10-21`). The first CI round ran the batch's browser and parity gates for the first
+time. The fixes that followed: page specs on the pinned Chrome; editor and page specs updated to
+the batch (six packs, the split layout, the project workspace); real bugs fixed in the transcript (words moved
+under the pointer), the split box focus, the Zoom undo step, the project page's duplicate React
+keys, the missing favicon, the preview lane after a plate switch, and the outline drawn as a
+shadow under fading or translucent fills (CONTRACTS §5.39, §5.43, §5.49). The P-FRAME and P-PLATE
+fixture fixes were for the no-face latar blur frames in the player and for the 1:1 split case's ruler. No
+threshold was changed.
+
+| Gate | Run | Verdict |
+|---|---|---|
+| `ci-cd` Test and build, toolchain guard (PR) | 39644650783 | **pass** |
+| `editor-gates suite=full` | 39644646776 | **pass** |
+| `editor-gates suite=image` | 39644653423 | **pass** |
+| `editor-gates suite=e2e`: page specs, two editor groups (every spec on the fakes) | 39644672665, 39644660097, 39644665952 | **pass** |
+| `editor-gates suite=command`: golden evidence, glyph probe, pack thumbnails, PF-SIZE | 39644743772 | **pass** |
+| `editor-gates suite=command`: speaker framing set-val | 39607530302 | **pass** |
+| `editor-gates suite=player`, all fixture cases | 39644678776 | P-FRAME, P-TIME, P-TXT/P-LOGO, P-AUD, P-JOIN-B, P-SYNC, PF-LIBASS, PF-MEM pass; **PF-SEEK** p95 57 ms > 50 ms, **red on main too** (39616032980: 73 ms) |
+| `ci-cd` nightly | 39644640135 | P-FRAME, P-PLATE, G1-G2, G-DET, app P-FRAME/P-PLATE pass; **P-TXT**, **P-ENC** open (below); app **P-AUD red on main too** (39503161234) |
+| `ci-cd` toolchain | 39644736411 | **P-TXT**, **P-ENC** open (below) |
+| `ci-cd` Parity (smoke) (PR) | 39644650783 | **P-TXT** open: `bold-pop-40`, `sinar-kunci-40` |
+| yt-dlp smoke in the image | 39626542726 | inconclusive three times: YouTube's bot check on the runner IP |
+
+### Open: owner decisions (no threshold changed)
+
+- **P-TXT, Pop:** `bold-pop-40`, `sinar-pop-40`: one pixel at 18 (limit 16) on an outline edge
+  at a fractional pop scale; the ~0.07 px glyph-shape difference between JASSUB's and Debian's
+  FreeType/HarfBuzz that keeps every clip at max 13–14.
+- **P-TXT, Sinar:** `sinar-90`, `sinar-kunci-40`, `sinar-pop-40`: SSIM 0.9989 (≥ 0.999). FFmpeg's
+  8-bit blend truncates where the browser rounds; across the glow halo that is ±1 noise. Options:
+  a 16-bit server composite, a smaller glow, or accepting ~0.9989 for Sinar.
+- **P-ENC:** `hook-blok` (ssim_all 0.9888 < 0.99: sharp chroma edges of dark text on yellow under
+  4:2:0) and `watermark-middle_left` (ssim_text 0.968 < 0.98: the 16 px watermark at crf 18).
+  Options: the encoder or chroma format, the Blok design, or a larger minimum watermark size.
