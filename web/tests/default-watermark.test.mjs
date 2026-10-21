@@ -116,21 +116,21 @@ test("session and origin are checked before the settings folder is touched", asy
 test("PUT saves the watermark (0600 in a 0700 folder), GET reads it back, DELETE removes it", async (t) => {
   const where = await roots(t);
   const handlers = route(where);
-  assert.deepEqual((await read(await handlers.GET(request("GET")))).body, { watermark: null, autoClips: false });
+  assert.deepEqual((await read(await handlers.GET(request("GET")))).body, { watermark: null, autoClips: true });
   const saved = await read(await handlers.PUT(request("PUT", { body: { ...MARK, text: " @potongin.klip " } })));
   assert.equal(saved.status, 200);
   assert.equal(saved.headers.get("cache-control"), "no-store");
-  assert.deepEqual(saved.body, { watermark: { ...MARK, updatedAtMs: 1_790_000_000_000 }, autoClips: false });
+  assert.deepEqual(saved.body, { watermark: { ...MARK, updatedAtMs: 1_790_000_000_000 }, autoClips: true });
   const file = path.join(where.settings, DEFAULT_WATERMARK_FILE);
   assert.equal((await stat(file)).mode & 0o777, 0o600);
   assert.equal((await stat(where.settings)).mode & 0o777, 0o700);
   assert.deepEqual(JSON.parse(await readFile(file, "utf8")),
     { schema: "potongin.default-watermark/1", ...MARK, updatedAtMs: 1_790_000_000_000 });
   assert.deepEqual(await readDefaultWatermark(env(where)), { ...MARK, updatedAtMs: 1_790_000_000_000 });
-  const again = await read(await route(where, { POTONGIN_RENDER_ENGINE: "edit-v2" }).GET(request("GET")));
-  assert.deepEqual(again.body, { watermark: { ...MARK, updatedAtMs: 1_790_000_000_000 }, autoClips: true });
+  const again = await read(await route(where, { POTONGIN_RENDER_ENGINE: "legacy" }).GET(request("GET")));
+  assert.deepEqual(again.body, { watermark: { ...MARK, updatedAtMs: 1_790_000_000_000 }, autoClips: false }, "the rollback switch");
   const removed = await read(await handlers.DELETE(request("DELETE")));
-  assert.deepEqual(removed.body, { watermark: null, autoClips: false });
+  assert.deepEqual(removed.body, { watermark: null, autoClips: true });
   await assert.rejects(stat(file), { code: "ENOENT" });
   assert.equal((await handlers.DELETE(request("DELETE"))).status, 200, "removing nothing is fine");
 });

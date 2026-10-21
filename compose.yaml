@@ -44,10 +44,9 @@ services:
       AUTH_TRUSTED_CLIENT_IP_HEADER: ${AUTH_TRUSTED_CLIENT_IP_HEADER:-}
       # Editor flags, release defaults (docs/editor/OPERASIONAL.md §2): the editor, its logo and
       # music uploads (QG-SEC complete) and its free-LLM hook suggestions (QG-AI hard gates) are
-      # on. The auto clips render with the legacy engine until the owner decides the CPU quota;
-      # edit-v2 would render them with the editor's compiler. Set any flag in .env (off, or
-      # edit-v2 for the engine) without a rebuild.
-      POTONGIN_RENDER_ENGINE: ${POTONGIN_RENDER_ENGINE:-legacy}
+      # on. The auto clips render with the editor's compiler (edit-v2); legacy is the rollback
+      # switch. Set any flag in .env (off, or legacy for the engine) without a rebuild.
+      POTONGIN_RENDER_ENGINE: ${POTONGIN_RENDER_ENGINE:-edit-v2}
       POTONGIN_EDITOR_V3: ${POTONGIN_EDITOR_V3:-on}
       POTONGIN_EDITOR_UPLOADS: ${POTONGIN_EDITOR_UPLOADS:-on}
       POTONGIN_EDITOR_LLM: ${POTONGIN_EDITOR_LLM:-on}
@@ -158,9 +157,9 @@ services:
       POTONGIN_CAPTIONS_TIMEOUT_MS: ${POTONGIN_CAPTIONS_TIMEOUT_MS:-}
       # Blank = 120 s without download progress stops yt-dlp (docs/operations/UNDUHAN_YOUTUBE.md).
       POTONGIN_DOWNLOAD_STALL_MS: ${POTONGIN_DOWNLOAD_STALL_MS:-}
-      # Which engine renders the auto clips: legacy (release default until the owner decides the
-      # CPU quota) or edit-v2 (the editor's compiler).
-      POTONGIN_RENDER_ENGINE: ${POTONGIN_RENDER_ENGINE:-legacy}
+      # Which engine renders the auto clips: edit-v2 (the editor's compiler, release default) or
+      # legacy (the rollback switch).
+      POTONGIN_RENDER_ENGINE: ${POTONGIN_RENDER_ENGINE:-edit-v2}
       # LLM settings saved on the Pengaturan page (docs/operations/LLM_PROVIDERS.md):
       # run-job.mjs opens the sealed keys with the same secret as the app and hands
       # them only to the engine process; yt-dlp never receives keys or secrets.
@@ -251,7 +250,7 @@ services:
     environment:
       JOBS_ROOT: /data/jobs
       RENDER_STORAGE_CLI: /app/scripts/render-storage-admission.mjs
-      POTONGIN_RENDER_ENGINE: ${POTONGIN_RENDER_ENGINE:-legacy}
+      POTONGIN_RENDER_ENGINE: ${POTONGIN_RENDER_ENGINE:-edit-v2}
       JOBS_STORAGE_QUOTA_BYTES: ${JOBS_STORAGE_QUOTA_BYTES:?required}
       JOBS_STORAGE_MIN_FREE_BYTES: ${JOBS_STORAGE_MIN_FREE_BYTES:?required}
       JOBS_STORAGE_ACTIVE_RESERVE_BYTES: ${JOBS_STORAGE_ACTIVE_RESERVE_BYTES:?required}
