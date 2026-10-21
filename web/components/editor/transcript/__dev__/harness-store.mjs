@@ -11,9 +11,9 @@ import { CommandRejected, fakePlan } from "../../__dev__/fakes.mjs";
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const SWATCHES = CAPTION_SWATCHES.map((swatch) => swatch.value);
-const PACKS = ["classic", "karaoke", "bold", "box", "sorot"];
+const PACKS = ["classic", "karaoke", "bold", "box", "sorot", "sinar"];
 // Each pack's words per line while the document sets no words_max (the pack files).
-const PACK_WORDS = { classic: 4, karaoke: 4, bold: 3, box: 3, sorot: 3 };
+const PACK_WORDS = { classic: 4, karaoke: 4, bold: 3, box: 3, sorot: 3, sinar: 3 };
 // The hook design files (resources/hook-designs), all at v 1.
 const HOOK_DESIGNS = ["legacy-bar", "kicker", "blok", "kotak"];
 // "Animasi masuk": "none" is no key at all.

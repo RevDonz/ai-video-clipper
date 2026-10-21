@@ -9,11 +9,11 @@ import { floorDiv, logoBox, pieces, sfCeil, sfFloor } from "./timemap.mjs";
 
 export const SCHEMA = "clip-edit-v2";
 export const EDITOR_ID = "editor-v3/1.0.0";
-export const PACK_IDS = Object.freeze(["classic", "karaoke", "bold", "box", "sorot"]);
+export const PACK_IDS = Object.freeze(["classic", "karaoke", "bold", "box", "sorot", "sinar"]);
 export const SWATCHES = Object.freeze(["#FFE14D", "#FFFFFF", "#3DF5A6", "#52C7FF", "#FF5C8A", "#FF9F1C"]);
-export const PACK_DEFAULT_CASE = Object.freeze({ classic: "asis", karaoke: "asis", bold: "upper", box: "asis", sorot: "upper" });
+export const PACK_DEFAULT_CASE = Object.freeze({ classic: "asis", karaoke: "asis", bold: "upper", box: "asis", sorot: "upper", sinar: "asis" });
 /** Each pack file's `words_per_cue`: the line length while `overrides.words_max` is absent. */
-export const PACK_WORDS_PER_LINE = Object.freeze({ classic: 4, karaoke: 4, bold: 3, box: 3, sorot: 3 });
+export const PACK_WORDS_PER_LINE = Object.freeze({ classic: 4, karaoke: 4, bold: 3, box: 3, sorot: 3, sinar: 3 });
 /** `overrides.y_e5`, the bottom of the caption block (CONTRACTS §3.3): the slider's and the gizmo's range. */
 export const CAPTION_Y_RANGE = Object.freeze([20000, 92000]);
 /** "Kata per baris" (`overrides.words_max`, optional; CONTRACTS §5.30). */
