@@ -173,7 +173,11 @@ test("Lewati hides a row until 'Tampilkan lagi'; Terima semua is one undo step",
   await expect(rows(review)).toHaveCount(3);
 
   await review.getByRole("button", { name: "Terima semua (3)" }).click();
-  await expect.poll(() => edits(page)).toEqual({ [ID[6]]: { text: "Jadi" }, [ID[11]]: { text: "subuh" } });
+  // Every fix gives the word back its ASR text, so no word edit is left (R10, as Terima for flim).
+  await expect.poll(() => edits(page)).toEqual({});
+  for (const [index, text] of [[4, "film"], [6, "Jadi"], [11, "subuh"]]) {
+    await expect(page.locator(`[data-panel="transcript"] [data-w="${index}"]`)).toHaveText(text);
+  }
   await expect(review.locator("[data-spelling-status]")).toHaveText("3 perbaikan diterapkan. Urungkan dengan Ctrl+Z.");
   await expect(review.locator('[data-spelling-state="done"]')).toHaveText("Semua saran sudah ditangani.");
   await expect(review.locator("[data-spelling-status]")).toBeFocused();
