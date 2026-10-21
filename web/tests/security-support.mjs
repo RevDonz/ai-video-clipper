@@ -109,6 +109,11 @@ export const ROUTES = Object.freeze([
     mutation: true, limit: "api", cap: 1024,
     body: () => ({ text: json({ group: "captions", etag: SHA }), type: "application/json",
       headers: { "Idempotency-Key": "00000000-0000-4000-8000-000000000004" } }) },
+  // "Hook di video" on the project page (CONTRACTS §5.57).
+  { name: "POST hook", file: "clips/[clipId]/hook/route.js", method: "POST", params: { id: JOB, clipId: CLIP },
+    mutation: true, limit: "api", cap: 1024,
+    body: () => ({ text: json({ on: false, etag: SHA }), type: "application/json",
+      headers: { "Idempotency-Key": "00000000-0000-4000-8000-000000000005" } }) },
   { name: "POST apply-all undo", file: "apply-all/[batchId]/undo/route.js", method: "POST",
     params: { id: JOB, batchId: "00000000-0000-4000-8000-000000000004" }, mutation: true, limit: "api", cap: 1024,
     body: () => ({ text: "{}", type: "application/json" }) },
