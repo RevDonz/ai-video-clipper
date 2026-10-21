@@ -211,10 +211,15 @@ test.describe("project workspace with a clip that failed to render (faked job AP
     for (const name of ["Unduh MP4", /Unduh subtitle SRT/, "Edit klip"]) {
       await expect(detail(page).getByRole("link", { name })).toHaveCount(0);
     }
-    // The next clip plays as before.
+    // Its title and description cannot be changed either: there is no video to post.
+    for (const name of ["Ubah judul dan deskripsi", "Tulis ulang"]) {
+      await expect(detail(page).getByRole("button", { name, exact: true })).toHaveCount(0);
+    }
+    // The next clip plays and can be changed as before.
     await page.keyboard.press("ArrowRight");
     await expect(detailTitle(page)).toHaveText(TITLES[2]);
     await expect(detail(page).locator("video")).toHaveCount(1);
+    await expect(detail(page).getByRole("button", { name: "Ubah judul dan deskripsi", exact: true })).toHaveCount(1);
     await posters(page).nth(1).getByRole("button").click();
     if (AXE) expect(await axeSerious(page)).toEqual([]);
   });
