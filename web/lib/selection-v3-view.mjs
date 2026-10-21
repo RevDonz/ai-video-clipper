@@ -177,8 +177,19 @@ const GROQ_FALLBACK_REASONS = Object.freeze({
   error: "ada kesalahan tak terduga",
 });
 
-/** An Indonesian explanation of a trend, focus or Groq warning code of the selection summary, or null. */
+// An uploaded .srt the engine could not use (pipeline.py): the transcript came from the audio.
+const SUBTITLE_REJECTED = Object.freeze({
+  invalid: "Subtitle .srt tidak bisa dibaca",
+  empty: "Subtitle .srt tidak berisi kata",
+  duration_mismatch: "Subtitle .srt lebih panjang dari video",
+});
+
+/** An Indonesian explanation of a trend, focus, Groq or subtitle warning code of the selection summary, or null. */
 export function selectionWarningLabel(code) {
+  const subtitle = typeof code === "string" ? /^subtitle_rejected:([a-z_]{1,32})$/.exec(code) : null;
+  if (subtitle) {
+    return Object.hasOwn(SUBTITLE_REJECTED, subtitle[1]) ? `${SUBTITLE_REJECTED[subtitle[1]]}; transkrip dibuat dari audio.` : null;
+  }
   if (code === "trend_context_invalid") return "File konteks tren job rusak atau hilang; job jalan tanpa tren.";
   const groq = typeof code === "string" ? /^groq_fallback:([a-z_]{1,32})$/.exec(code) : null;
   if (groq) {
@@ -198,7 +209,7 @@ export function selectionWarningLabel(code) {
 
 // Explained warnings the owner acts on: shown as notices above the clips. Every other explained
 // warning is a note in a closed list; unexplained codes stay in the artifact.
-const ACTIONABLE_WARNINGS = /^(trend_sensitive_humor|focus_terms_unmatchable):|^trend_items_skipped:|^trend_context_invalid$|^groq_fallback:(no_key|auth)$/;
+const ACTIONABLE_WARNINGS = /^(trend_sensitive_humor|focus_terms_unmatchable|subtitle_rejected):|^trend_items_skipped:|^trend_context_invalid$|^groq_fallback:(no_key|auth)$/;
 // A Groq key that is missing or refused is fixed in Pengaturan.
 const SETTINGS_PAGE_WARNINGS = /^groq_fallback:(no_key|auth)$/;
 // Warnings fixed on the Konteks Tren page link there.

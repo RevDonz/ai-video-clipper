@@ -6,6 +6,7 @@ import AppHeader from "../../components/AppHeader.jsx";
 import CancelJob from "../../components/CancelJob.jsx";
 import StageSummary from "../../components/StageSummary.jsx";
 import { PACK_IMAGES, imageSrc } from "../../components/editor/panels/pack-images.js";
+import { CLIP_LIMITS } from "../../lib/clip-limits.mjs";
 import { failedClipView } from "../../lib/clip-status.mjs";
 import {
   AI_STATUS_UNREADABLE,
@@ -24,6 +25,7 @@ import {
   JOB_STATUS_LABELS,
   storageMessage,
   submitErrorMessage,
+  subtitleFileProblem,
   videoFileProblem,
 } from "../../lib/dashboard-view.mjs";
 import {
@@ -51,6 +53,7 @@ import { jobHelpHref, storageHelpHref } from "../../lib/help-catalog.mjs";
 import { notifyJobsChanged } from "../../lib/job-badge.mjs";
 import { jobCancellable } from "../../lib/job-cancel.mjs";
 import { lookPreview } from "../../lib/look-preview.mjs";
+import { videoLanguageNotice } from "../../lib/source-language.mjs";
 import { typedRangeCount } from "../../lib/time-ranges.mjs";
 import {
   FOCUS_LIMITS,
@@ -69,9 +72,9 @@ import lookStyles from "./look.module.css";
 import LookPreview from "./LookPreview.jsx";
 
 // Fields in the order the page checks them; the first invalid one gets focus.
-const FIELD_IDS = { youtubeUrl: "youtube-url", video: "video-file", limit: "clip-limit", minDuration: "min-duration", maxDuration: "max-duration", timeRanges: "time-ranges" };
-// These two sit in the source row; the others are inside the folded options.
-const SOURCE_FIELDS = new Set(["youtubeUrl", "video"]);
+const FIELD_IDS = { youtubeUrl: "youtube-url", video: "video-file", subtitle: "subtitle-file", limit: "clip-limit", minDuration: "min-duration", maxDuration: "max-duration", timeRanges: "time-ranges" };
+// These sit in the source rows; the others are inside the folded options.
+const SOURCE_FIELDS = new Set(["youtubeUrl", "video", "subtitle"]);
 
 const draggingFiles = (event) => Array.from(event.dataTransfer?.types || []).includes("Files");
 
@@ -228,6 +231,7 @@ function ClipCard({ clip, copied, onCopy }) {
 export default function DashboardPage() {
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [video, setVideo] = useState(null);
+  const [subtitle, setSubtitle] = useState(null);
   const [dragging, setDragging] = useState(false);
   // The last choices come back after hydration (the page is prerendered with the defaults).
   const [choices, setChoices] = useState(DEFAULT_CHOICES);
@@ -261,6 +265,8 @@ export default function DashboardPage() {
   const jobsRefreshGeneration = useRef(0);
   const pendingFocus = useRef(null);
   const sourceType = video ? "upload" : "youtube";
+  const videoChosen = useRef(false);
+  videoChosen.current = Boolean(video);
 
   const activeJob = useMemo(() => jobs.find((job) => job.id === activeId), [jobs, activeId]);
   const storage = storageView || storageStatusView(null);
@@ -268,6 +274,7 @@ export default function DashboardPage() {
   const ai = aiStatusView(aiStatus);
   const aiMode = focusAiMode(aiStatus);
   const failure = jobFailureView(activeJob);
+  const languageNotice = videoLanguageNotice(activeJob);
   const failureHelp = jobHelpHref(activeJob);
 
   async function refreshJobs(selectedId = null, signal = undefined) {
@@ -327,8 +334,26 @@ export default function DashboardPage() {
 
   function clearVideo() {
     setVideo(null);
-    clearProblem("video");
+    setSubtitle(null);
+    setProblems(({ video: _video, subtitle: _subtitle, ...rest }) => rest);
     pendingFocus.current = "youtube-url";
+  }
+
+  const chooseSubtitle = useCallback((file) => {
+    if (!file) return;
+    const problem = subtitleFileProblem(file);
+    if (problem) {
+      setProblems((current) => ({ ...current, subtitle: problem }));
+      return;
+    }
+    setSubtitle(file);
+    setProblems(({ subtitle: _subtitle, ...rest }) => rest);
+  }, []);
+
+  function clearSubtitle() {
+    setSubtitle(null);
+    clearProblem("subtitle");
+    pendingFocus.current = "subtitle-file";
   }
 
   useEffect(() => {
@@ -351,12 +376,15 @@ export default function DashboardPage() {
       event.preventDefault();
       depth = 0;
       setDragging(false);
-      chooseVideo(event.dataTransfer.files?.[0] || null);
+      const file = event.dataTransfer.files?.[0] || null;
+      // A .srt dropped after the video is its subtitle.
+      if (videoChosen.current && /\.srt$/i.test(file?.name || "")) chooseSubtitle(file);
+      else chooseVideo(file);
     };
     const listeners = [["dragenter", enter], ["dragleave", leave], ["dragover", over], ["drop", drop]];
     for (const [name, listener] of listeners) window.addEventListener(name, listener);
     return () => { for (const [name, listener] of listeners) window.removeEventListener(name, listener); };
-  }, [chooseVideo]);
+  }, [chooseVideo, chooseSubtitle]);
 
   useEffect(() => {
     if (!pendingFocus.current) return;
@@ -430,7 +458,7 @@ export default function DashboardPage() {
   async function submit(event) {
     event.preventDefault();
     setMessage(null);
-    const found = jobFormProblems({ sourceType, youtubeUrl, video, limit, minDuration, maxDuration, timeRanges });
+    const found = jobFormProblems({ sourceType, youtubeUrl, video, subtitle, limit, minDuration, maxDuration, timeRanges });
     setProblems(found);
     const firstInvalid = Object.keys(FIELD_IDS).find((name) => found[name]);
     if (firstInvalid) {
@@ -462,7 +490,10 @@ export default function DashboardPage() {
       for (const [name, value] of Object.entries(focus.fields)) data.set(name, value);
       if (timeRanges.trim()) data.set("timeRanges", timeRanges.trim());
       if (sourceType === "youtube") data.set("youtubeUrl", youtubeUrl.trim());
-      else data.set("video", video);
+      else {
+        data.set("video", video);
+        if (subtitle) data.set("subtitle", subtitle);
+      }
       const response = await fetch("/api/jobs", { method: "POST", body: data });
       const payload = (await response.json().catch(() => null)) || {};
       if (!response.ok) {
@@ -590,8 +621,31 @@ export default function DashboardPage() {
             <FieldError id="youtube-url-error" message={problems.youtubeUrl} />
             <FieldError id="video-file-error" message={problems.video} />
             <p id="source-help" className={styles.help}>
-              {dragging ? "Lepaskan untuk memakai file ini." : video ? "Batas ukuran file mengikuti server." : "Atau pilih file MP4, MOV, MKV, WEBM, atau tarik ke halaman ini."}
+              {dragging ? (video ? "Lepaskan: video jadi sumber, file .srt jadi subtitle." : "Lepaskan untuk memakai file ini.") : video ? "Batas ukuran file mengikuti server." : "Atau pilih file MP4, MOV, MKV, WEBM, atau tarik ke halaman ini."}
             </p>
+            {video && (
+              <div className={styles.subtitleRow}>
+                {subtitle && (
+                  <div className={styles.fileBox}>
+                    <span title={subtitle.name}>{subtitle.name}</span>
+                    <button type="button" aria-label={`Hapus subtitle ${subtitle.name}`} onClick={clearSubtitle}>×</button>
+                  </div>
+                )}
+                <label className={`btn ghost ${styles.pick} ${problems.subtitle ? styles.pickInvalid : ""}`}>
+                  <input
+                    id="subtitle-file"
+                    type="file"
+                    accept=".srt,application/x-subrip"
+                    aria-invalid={problems.subtitle ? "true" : undefined}
+                    aria-describedby={describedBy("subtitle", "subtitle-help")}
+                    onChange={(event) => { chooseSubtitle(event.target.files?.[0] || null); event.target.value = ""; }}
+                  />
+                  {subtitle ? "Ganti .srt" : "Tambah subtitle .srt"}
+                </label>
+              </div>
+            )}
+            {video && <FieldError id="subtitle-file-error" message={problems.subtitle} />}
+            {video && <p id="subtitle-help" className={styles.help}>Opsional. Kalau ada, transkrip diambil dari file .srt ini, bukan dari audio. Maksimal 2 MB, UTF-8.</p>}
             {message && <p className={`${styles.message} ${message.tone === "error" ? styles.messageError : ""}`} role={message.tone === "error" ? "alert" : "status"}>{message.text}{message.help && " "}{message.help && <a className={styles.messageLink} href={message.help}>Cara memperbaiki</a>}</p>}
           </div>
 
@@ -614,7 +668,7 @@ export default function DashboardPage() {
               <h2 id="clips-title" className={styles.sectionTitle}>Klip</h2>
               <div className={`${styles.field} ${styles.limitField}`}>
                 <label htmlFor="clip-limit">Jumlah klip</label>
-                <input id="clip-limit" className={styles.input} type="number" inputMode="numeric" min="1" max="10" step="1" value={limit} aria-invalid={problems.limit ? "true" : undefined} aria-describedby={describedBy("limit")} onChange={(event) => { updateChoices({ limit: event.target.value }); clearProblem("limit"); clearProblem("timeRanges"); }} />
+                <input id="clip-limit" className={styles.input} type="number" inputMode="numeric" min={CLIP_LIMITS.count.min} max={CLIP_LIMITS.count.max} step="1" value={limit} aria-invalid={problems.limit ? "true" : undefined} aria-describedby={describedBy("limit")} onChange={(event) => { updateChoices({ limit: event.target.value }); clearProblem("limit"); clearProblem("timeRanges"); }} />
                 <FieldError id="clip-limit-error" message={problems.limit} />
               </div>
               <fieldset className={styles.group}>
@@ -633,7 +687,7 @@ export default function DashboardPage() {
                     <div className={styles.field}>
                       <label htmlFor="min-duration">Durasi minimum</label>
                       <div className={styles.unit}>
-                        <input id="min-duration" className={styles.input} type="number" inputMode="decimal" min="5" max="180" value={minDuration} aria-invalid={problems.minDuration ? "true" : undefined} aria-describedby={describedBy("minDuration", "duration-unit")} onChange={(event) => { updateChoices({ minDuration: event.target.value }); clearProblem("minDuration"); clearProblem("maxDuration"); }} />
+                        <input id="min-duration" className={styles.input} type="number" inputMode="decimal" min={CLIP_LIMITS.seconds.min} max={CLIP_LIMITS.seconds.max} value={minDuration} aria-invalid={problems.minDuration ? "true" : undefined} aria-describedby={describedBy("minDuration", "duration-unit")} onChange={(event) => { updateChoices({ minDuration: event.target.value }); clearProblem("minDuration"); clearProblem("maxDuration"); }} />
                         <span aria-hidden="true">detik</span>
                       </div>
                       <FieldError id="min-duration-error" message={problems.minDuration} />
@@ -641,12 +695,12 @@ export default function DashboardPage() {
                     <div className={styles.field}>
                       <label htmlFor="max-duration">Durasi maksimum</label>
                       <div className={styles.unit}>
-                        <input id="max-duration" className={styles.input} type="number" inputMode="decimal" min="5" max="180" value={maxDuration} aria-invalid={problems.maxDuration ? "true" : undefined} aria-describedby={describedBy("maxDuration", "duration-unit")} onChange={(event) => { updateChoices({ maxDuration: event.target.value }); clearProblem("maxDuration"); }} />
+                        <input id="max-duration" className={styles.input} type="number" inputMode="decimal" min={CLIP_LIMITS.seconds.min} max={CLIP_LIMITS.seconds.max} value={maxDuration} aria-invalid={problems.maxDuration ? "true" : undefined} aria-describedby={describedBy("maxDuration", "duration-unit")} onChange={(event) => { updateChoices({ maxDuration: event.target.value }); clearProblem("maxDuration"); }} />
                         <span aria-hidden="true">detik</span>
                       </div>
                       <FieldError id="max-duration-error" message={problems.maxDuration} />
                     </div>
-                    <p id="duration-unit" className="visuallyHidden">Dalam detik, 5 sampai 180.</p>
+                    <p id="duration-unit" className="visuallyHidden">Dalam detik, {CLIP_LIMITS.seconds.min} sampai {CLIP_LIMITS.seconds.max}.</p>
                   </div>
                 )}
               </fieldset>
@@ -785,7 +839,7 @@ export default function DashboardPage() {
                   aria-describedby={describedBy("timeRanges", "time-ranges-help")}
                   onChange={(event) => { setTimeRanges(event.target.value); clearProblem("timeRanges"); }}
                 />
-                <p id="time-ranges-help" className={styles.help}>Tiap rentang jadi satu klip apa adanya; sisa slot diisi momen terbaik lain. Pisahkan dengan koma atau baris baru, 5–180 detik per rentang.</p>
+                <p id="time-ranges-help" className={styles.help}>Tiap rentang jadi satu klip apa adanya; sisa slot diisi momen terbaik lain. Pisahkan dengan koma atau baris baru, {CLIP_LIMITS.seconds.min}–{CLIP_LIMITS.seconds.max} detik per rentang.</p>
                 <FieldError id="time-ranges-error" message={problems.timeRanges} />
               </div>
               <FocusField
@@ -847,6 +901,7 @@ export default function DashboardPage() {
               )}
               {cancelNote?.id === activeJob.id && <p className={styles.waiting} role="status">{cancelNote.text}</p>}
               <StageSummary job={activeJob} />
+              {languageNotice && <p className={`notice ${languageNotice.tone} ${styles.languageNotice}`}>{languageNotice.text}</p>}
               {failure && (
                 <div className={styles.failure} role="alert">
                   <strong>{failure.text}</strong>

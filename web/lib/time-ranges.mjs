@@ -9,7 +9,11 @@
 // en dash, em dash or minus sign separates the times. Ranges are separated by commas, semicolons
 // or line breaks and keep the typed order.
 
-export const TIME_RANGE_LIMITS = Object.freeze({ min: 5, max: 180, ranges: 10, text: 500 });
+import { CLIP_LIMITS } from "./clip-limits.mjs";
+
+export const TIME_RANGE_LIMITS = Object.freeze({
+  min: CLIP_LIMITS.seconds.min, max: CLIP_LIMITS.seconds.max, ranges: CLIP_LIMITS.count.max, text: 500,
+});
 // Codes of a failed job whose typed range the engine refused once the video was read; the
 // engine's own line says which range and why.
 export const RANGE_FAILURE_CODES = Object.freeze(["range_beyond_video", "range_no_speech"]);

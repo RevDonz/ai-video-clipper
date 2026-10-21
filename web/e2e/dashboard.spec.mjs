@@ -226,6 +226,46 @@ test.describe("Dashboard form (faked job API)", () => {
     await expect(page.getByLabel("Link video")).toBeFocused();
   });
 
+  test("an uploaded video takes an optional .srt that reaches the job; removing the video drops it", async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 780 });
+    const posts = await fakeDashboardApi(page);
+    const lastForm = await recordJobForms(page);
+    await openDashboard(page);
+    await expect(page.getByText("Tambah subtitle .srt", { exact: true })).toHaveCount(0);
+    await page.locator("#video-file").setInputFiles({ name: "podcast-ep12.mp4", mimeType: "video/mp4", buffer: Buffer.from("video") });
+    await page.locator("#subtitle-file").setInputFiles({ name: "catatan.txt", mimeType: "text/plain", buffer: Buffer.from("x") });
+    await expect(page.getByText("Subtitle harus file .srt.", { exact: true })).toBeVisible();
+    await page.locator("#subtitle-file").setInputFiles({ name: "podcast-ep12.srt", mimeType: "application/x-subrip", buffer: Buffer.from("1\n00:00:01,000 --> 00:00:02,000\nHalo.\n") });
+    await expect(page.getByText("podcast-ep12.srt", { exact: true })).toBeVisible();
+    await expect(page.getByText("Subtitle harus file .srt.", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("Ganti .srt", { exact: true })).toBeVisible();
+    expect(await overflow(page)).toBeLessThanOrEqual(0);
+    const small = await page.evaluate(() => [...document.querySelectorAll("label:has(> #subtitle-file), button[aria-label^=\"Hapus subtitle\"]")]
+      .map((element) => element.getBoundingClientRect()).filter((box) => box.width < 44 || box.height < 44).length);
+    expect(small).toBe(0);
+    await submitJob(page, posts);
+    const form = await lastForm();
+    expect(form.video).toEqual({ filename: "podcast-ep12.mp4" });
+    expect(form.subtitle).toEqual({ filename: "podcast-ep12.srt" });
+
+    await page.getByRole("button", { name: "Hapus subtitle podcast-ep12.srt" }).click();
+    await expect(page.getByText("Tambah subtitle .srt", { exact: true })).toBeVisible();
+    await page.locator("#subtitle-file").setInputFiles({ name: "lagi.srt", mimeType: "application/x-subrip", buffer: Buffer.from("1\n00:00:01,000 --> 00:00:02,000\nHalo.\n") });
+    await page.getByRole("button", { name: "Hapus file podcast-ep12.mp4" }).click();
+    await expect(page.getByText("lagi.srt", { exact: true })).toHaveCount(0);
+    await expect(page.locator("#subtitle-file")).toHaveCount(0);
+  });
+
+  test("a YouTube job whose video is not Indonesian shows the language note", async ({ page }) => {
+    const running = {
+      id: "00000000-0000-4000-8000-000000000102", status: "processing", progress: 30, stage: "analyzing", stageDetail: "Menyiapkan engine AI",
+      createdAt: NOW, updatedAt: NOW, source: { type: "youtube", url: LINK }, sourceLanguage: "en", options: { selectionMode: "v3", videoLanguage: "auto" }, clips: [],
+    };
+    await fakeDashboardApi(page, { jobs: [running] });
+    await openDashboard(page);
+    await expect(page.getByRole("complementary", { name: "Hasil" }).getByText("Bahasa video terdeteksi: Inggris. Hasil caption mengikuti bahasa ini.")).toBeVisible();
+  });
+
   test("a running job lists what its finished stages found under the progress bar", async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 780 });
     const running = {

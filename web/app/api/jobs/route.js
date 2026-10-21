@@ -28,6 +28,7 @@ import {
   recheckAdmission,
   reserveAdmission,
 } from "../../../lib/primary-job-queue.mjs";
+import { MAX_SUBTITLE_BYTES, SubtitleUploadError, validateSrt } from "../../../lib/srt.mjs";
 import { parseStorageAdmissionConfig, StorageAdmissionError } from "../../../lib/storage-admission.mjs";
 
 export const dynamic = "force-dynamic";
@@ -76,11 +77,17 @@ export async function streamPrimaryMultipart(request, inputRoot, maximumUploadBy
   await mkdir(inputRoot, { recursive: true });
   const fields = new Map();
   let upload = null;
+  let videoSeen = false;
   let uploadDone = Promise.resolve();
+  let subtitle = null;
+  let subtitleSeen = false;
+  let subtitleDone = Promise.resolve();
   let parserError = null;
+  // The video and, optionally, its .srt; one file more is allowed so that a second .srt or video
+  // gets its own message below.
   const parser = Busboy({
     headers: Object.fromEntries(request.headers.entries()),
-    limits: { files: 1, fields: 20, parts: 21, fieldNameSize: 100, fieldSize: 10_000, fileSize: maximumUploadBytes },
+    limits: { files: 3, fields: 20, parts: 23, fieldNameSize: 100, fieldSize: 10_000, fileSize: maximumUploadBytes },
   });
   const completed = new Promise((resolve, reject) => {
     parser.once("error", reject);
@@ -88,15 +95,53 @@ export async function streamPrimaryMultipart(request, inputRoot, maximumUploadBy
     parser.once("filesLimit", () => reject(new Error("Only one video upload is allowed")));
     parser.once("fieldsLimit", () => reject(new Error("Multipart field limit exceeded")));
     parser.once("finish", async () => {
-      try { await uploadDone; if (parserError) throw parserError; resolve(); } catch (error) { reject(error); }
+      try { await uploadDone; await subtitleDone; if (parserError) throw parserError; resolve(); } catch (error) { reject(error); }
     });
   });
   parser.on("field", (name, value, info) => {
     if (info.valueTruncated || fields.has(name)) { parserError ||= new Error("Invalid or duplicate multipart field"); return; }
     fields.set(name, value);
   });
+  // The .srt is small (MAX_SUBTITLE_BYTES): it is held in memory, checked, then written.
+  function receiveSubtitle(file, filename) {
+    if (subtitleSeen) { parserError ||= new SubtitleUploadError("duplicate", "Pilih satu file .srt saja."); file.resume(); return; }
+    subtitleSeen = true;
+    if (!filename || filename !== path.basename(filename) || filename.length > 255 || /[\0-\x1f\x7f]/.test(filename) || path.extname(filename).toLowerCase() !== ".srt") {
+      parserError ||= new SubtitleUploadError("extension", "Subtitle harus file .srt."); file.resume(); return;
+    }
+    const chunks = [];
+    let size = 0;
+    let tooLarge = false;
+    subtitleDone = new Promise((resolve, reject) => {
+      file.on("data", (chunk) => {
+        size += chunk.length;
+        if (size > MAX_SUBTITLE_BYTES) tooLarge = true;
+        else chunks.push(chunk);
+      });
+      file.once("limit", () => { tooLarge = true; });
+      file.once("error", reject);
+      file.once("end", async () => {
+        try {
+          if (tooLarge) throw new SubtitleUploadError("size", "Subtitle .srt maksimal 2 MB.");
+          const bytes = Buffer.concat(chunks);
+          const { cues } = validateSrt(bytes);
+          const target = path.join(inputRoot, "subtitle.srt");
+          const fd = await open(target, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
+          try { await fd.writeFile(bytes); await fd.sync(); } finally { await fd.close(); }
+          await syncDirectory(inputRoot);
+          subtitle = { name: filename, size, cues, path: target };
+        } catch (error) {
+          parserError ||= error;
+        }
+        resolve();
+      });
+    });
+  }
+
   parser.on("file", (name, file, info) => {
-    if (name !== "video" || upload) { parserError ||= new Error("Only one video upload is allowed"); file.resume(); return; }
+    if (name === "subtitle") { receiveSubtitle(file, info.filename); return; }
+    if (name !== "video" || videoSeen) { parserError ||= new Error("Only one video upload is allowed"); file.resume(); return; }
+    videoSeen = true;
     const filename = info.filename;
     const extension = path.extname(filename || "").toLowerCase();
     if (!filename || filename !== path.basename(filename) || filename.length > 255 || /[\0-\x1f\x7f]/.test(filename) || !VIDEO_EXTENSIONS.has(extension)) {
@@ -188,6 +233,7 @@ export async function streamPrimaryMultipart(request, inputRoot, maximumUploadBy
     parser.destroy(error);
     await completed.catch(() => {});
     await uploadDone.catch(() => {});
+    await subtitleDone.catch(() => {});
   }
   try { await stopHeartbeat(); }
   catch (error) {
@@ -196,6 +242,7 @@ export async function streamPrimaryMultipart(request, inputRoot, maximumUploadBy
       parser.destroy(error);
       await completed.catch(() => {});
       await uploadDone.catch(() => {});
+      await subtitleDone.catch(() => {});
     }
   }
   try {
@@ -207,7 +254,7 @@ export async function streamPrimaryMultipart(request, inputRoot, maximumUploadBy
     reader.releaseLock();
   }
 
-  return { form: { get: (name) => fields.get(name) ?? null }, upload, consumedBytes: consumed };
+  return { form: { get: (name) => fields.get(name) ?? null }, upload, subtitle, consumedBytes: consumed };
 }
 
 export async function GET(request) {
@@ -267,10 +314,13 @@ export async function POST(request) {
     if ((hasUpload && youtubeUrl) || (!hasUpload && !youtubeUrl)) throw new Error("Pilih tepat satu sumber: upload video atau URL YouTube");
     const storedUrl = youtubeUrl ? normalizeYouTubeUrl(youtubeUrl) : null;
     if (youtubeUrl && !storedUrl) throw new Error("URL harus berasal dari youtube.com atau youtu.be");
+    if (parsed.subtitle && !hasUpload) throw new SubtitleUploadError("youtube", "Subtitle .srt hanya untuk video yang diunggah.");
+    // The worker reads input/subtitle.srt; the job names the file only (no path is served).
+    const subtitle = parsed.subtitle ? { name: parsed.subtitle.name, size: parsed.subtitle.size, cues: parsed.subtitle.cues } : null;
     const source = hasUpload ? { type: "upload", name: parsed.upload.name, size: parsed.upload.size } : { type: "youtube", url: storedUrl };
     const sourcePath = hasUpload ? parsed.upload.path : null;
     const now = new Date().toISOString();
-    const job = { id, status: "queued", progress: 0, createdAt: now, updatedAt: now, source, sourcePath, options, clips: [] };
+    const job = { id, status: "queued", progress: 0, createdAt: now, updatedAt: now, source, sourcePath, ...(subtitle ? { subtitle } : {}), options, clips: [] };
     // The Pengaturan default logo and text watermark as they are now: this job's clips seed them
     // (never fails the job).
     await snapshotDefaultLogo(jobRoot);
@@ -308,6 +358,10 @@ export async function POST(request) {
     }
     if (error instanceof RetiredSelectionModeError) {
       return postJson({ error: RETIRED_SELECTION_MESSAGE, code: error.code }, { status: 400 });
+    }
+    // An attached .srt the engine could not read: the reason, in Indonesian.
+    if (error instanceof SubtitleUploadError) {
+      return postJson({ error: error.message, code: "subtitle_invalid" }, { status: 400 });
     }
     // Rentang waktu: the same Indonesian message the dashboard shows under the field.
     if (error instanceof TimeRangeError) {

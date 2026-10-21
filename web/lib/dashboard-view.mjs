@@ -2,7 +2,9 @@
 // Client-safe. The owner's rule: only the current method on screen, no version labels and no
 // technical provenance (selection source, prompt or engine versions); old jobs stay viewable.
 
+import { CLIP_LIMITS } from "./clip-limits.mjs";
 import { downloadErrorMessage } from "./download-errors.mjs";
+import { MAX_SUBTITLE_BYTES } from "./srt.mjs";
 import { shownStageDetail, shownWorkerText } from "./stage-detail.mjs";
 import { timeRangesProblem } from "./time-ranges.mjs";
 
@@ -65,6 +67,8 @@ export function jobSourceLabel(job) {
 }
 
 export function jobStageText(job) {
+  // The transcript step of a job with an uploaded .srt reads that file, not YouTube's subtitles.
+  if (job?.stage === "captions" && job.subtitle) return "Membaca subtitle .srt";
   return JOB_STAGE_LABELS[job?.stage] || JOB_STATUS_LABELS[job?.status] || "Memproses";
 }
 
@@ -217,6 +221,17 @@ export function videoFileProblem(file) {
   return typeof file.name === "string" && VIDEO_FILE.test(file.name) ? null : "Format tidak didukung. Pakai MP4, MOV, MKV atau WEBM.";
 }
 
+/**
+ * Why `file` cannot go with the video as its subtitle, or null (also for no file). The job API
+ * checks the content (lib/srt.mjs); this only catches what the browser already knows.
+ */
+export function subtitleFileProblem(file) {
+  if (!file) return null;
+  if (typeof file.name !== "string" || !/\.srt$/i.test(file.name)) return "Subtitle harus file .srt.";
+  if (!(file.size > 0)) return "File .srt kosong.";
+  return file.size > MAX_SUBTITLE_BYTES ? "Subtitle .srt maksimal 2 MB." : null;
+}
+
 function inRange(value, minimum, maximum, integer = false) {
   const text = typeof value === "number" ? String(value) : typeof value === "string" ? value.trim() : "";
   if (!/^\d+(?:\.\d+)?$/.test(text)) return false;
@@ -228,18 +243,22 @@ function inRange(value, minimum, maximum, integer = false) {
  * Problems of the job form as { field: message }, empty when it can be sent. Mirrors the job
  * API's checks, so the owner sees Indonesian messages instead of the browser's.
  */
-export function jobFormProblems({ sourceType, youtubeUrl, video, limit, minDuration, maxDuration, timeRanges = "" } = {}) {
+export function jobFormProblems({ sourceType, youtubeUrl, video, subtitle = null, limit, minDuration, maxDuration, timeRanges = "" } = {}) {
   const problems = {};
   if (sourceType === "upload") {
     const problem = videoFileProblem(video);
     if (problem) problems.video = problem;
+    const subtitleProblem = subtitleFileProblem(subtitle);
+    if (subtitleProblem) problems.subtitle = subtitleProblem;
   } else {
     const problem = youtubeUrlProblem(youtubeUrl);
     if (problem) problems.youtubeUrl = problem;
   }
-  if (!inRange(limit, 1, 10, true)) problems.limit = "Isi 1 sampai 10 klip.";
-  if (!inRange(minDuration, 5, 180)) problems.minDuration = "Isi 5 sampai 180 detik.";
-  if (!inRange(maxDuration, 5, 180)) problems.maxDuration = "Isi 5 sampai 180 detik.";
+  const { count, seconds } = CLIP_LIMITS;
+  const secondsText = `Isi ${seconds.min} sampai ${seconds.max} detik.`;
+  if (!inRange(limit, count.min, count.max, true)) problems.limit = `Isi ${count.min} sampai ${count.max} klip.`;
+  if (!inRange(minDuration, seconds.min, seconds.max)) problems.minDuration = secondsText;
+  if (!inRange(maxDuration, seconds.min, seconds.max)) problems.maxDuration = secondsText;
   if (!problems.minDuration && !problems.maxDuration) {
     const order = durationProblem(minDuration, maxDuration);
     if (order) problems.maxDuration = order;

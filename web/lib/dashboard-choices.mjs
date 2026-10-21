@@ -4,6 +4,7 @@
 // storage only means today's defaults. The video link, the file, the time ranges and the focus
 // are never stored.
 
+import { CLIP_LIMITS } from "./clip-limits.mjs";
 import { renderModeName } from "./layout-names.mjs";
 
 export const CHOICES_KEY = "potongin-dashboard-choices";
@@ -71,7 +72,7 @@ export function outputSizeOf(choices) {
   return `${width}x${ratio.tall ? (width * 16) / 9 : width}`;
 }
 
-// Ranges in seconds, inside the job API's 5 to 180 (lib/jobs.mjs). Otomatis is the range the
+// Ranges in seconds, inside the job API's CLIP_LIMITS.seconds (5 to 180). Otomatis is the range the
 // form always had; "custom" opens the two number fields.
 export const DURATION_PRESETS = Object.freeze([
   { id: "auto", name: "Otomatis", min: 20, max: 60 },
@@ -118,8 +119,8 @@ function numberText(value, minimum, maximum, integer = false) {
 
 /** The custom range as field texts, or null when it is not one the job API accepts. */
 function customRange(minimum, maximum) {
-  const min = numberText(minimum, 5, 180);
-  const max = numberText(maximum, 5, 180);
+  const min = numberText(minimum, CLIP_LIMITS.seconds.min, CLIP_LIMITS.seconds.max);
+  const max = numberText(maximum, CLIP_LIMITS.seconds.min, CLIP_LIMITS.seconds.max);
   return min !== null && max !== null && Number(min) <= Number(max) ? { min, max } : null;
 }
 
@@ -142,7 +143,7 @@ export function normalizeChoices(raw, { engine } = {}) {
   const look = lookChoices(engine);
   const choices = {
     ...DEFAULT_CHOICES,
-    limit: numberText(value.limit, 1, 10, true) ?? DEFAULT_CHOICES.limit,
+    limit: numberText(value.limit, CLIP_LIMITS.count.min, CLIP_LIMITS.count.max, true) ?? DEFAULT_CHOICES.limit,
     renderMode: pick(LAYOUT_CHOICES, value.renderMode, DEFAULT_CHOICES.renderMode),
     captionStyle: pick(look.styles, value.captionStyle, DEFAULT_CHOICES.captionStyle),
     captionPosition: pick(look.positions ?? [], value.captionPosition, DEFAULT_CHOICES.captionPosition),
@@ -167,7 +168,7 @@ export function normalizeChoices(raw, { engine } = {}) {
  */
 export function choicesSummary(choices, { focusTerms = 0, ranges = 0 } = {}) {
   const parts = [];
-  const limit = numberText(choices.limit, 1, 10, true);
+  const limit = numberText(choices.limit, CLIP_LIMITS.count.min, CLIP_LIMITS.count.max, true);
   if (limit !== null) parts.push(`${limit} klip`);
   const preset = presetOf(choices.duration);
   if (preset && choices.duration !== "custom") parts.push(`${preset.name} ${preset.min}–${preset.max} detik`);

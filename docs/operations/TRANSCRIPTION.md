@@ -9,6 +9,29 @@ menyalakan **Transkrip lewat Groq** di Pengaturan, video seperti ini dicoba dulu
 (bagian [Transkripsi lewat Groq](#transkripsi-lewat-groq-opsional)); Whisper di server tetap
 menjadi cadangannya.
 
+## Subtitle .srt dari pengguna
+
+Video yang diunggah boleh disertai satu file `.srt` (tombol **Tambah subtitle .srt** di Buat klip).
+Kalau ada, transkrip diambil dari file itu, bukan dari Whisper, Groq, atau subtitle YouTube.
+
+- API job (`web/app/api/jobs/route.js`, field `subtitle`) menolak file selain `.srt`, file di atas
+  2 MB, file yang bukan UTF-8 (BOM boleh), blok tanpa baris waktu, waktu yang mundur atau lewat 24
+  jam, dan file tanpa teks. Pesannya pendek dan berbahasa Indonesia (kode `subtitle_invalid`).
+  Subtitle untuk link YouTube juga ditolak.
+- File disimpan sebagai `input/subtitle.srt`; job hanya mencatat `subtitle: { name, size, cues }`.
+- Worker meneruskan `--subtitle-file` ke engine dan menulis "Memakai subtitle .srt yang
+  diunggah"; tahap transkrip menampilkan "Membaca subtitle .srt".
+- Engine (`src/ai_clipper/srt_captions.py`) membaca setiap cue seperti subtitle manual YouTube:
+  kata disebar di jendela cue sesuai panjangnya, `[tertawa]` jadi sound event, `-` di awal baris
+  jadi pergantian pembicara. Untuk "Deteksi otomatis" bahasanya ditebak dari kata-katanya
+  (`en` atau `id`).
+- File yang ternyata tidak terbaca, tidak berisi kata, atau lebih panjang dari videonya (file
+  video lain) tidak dipakai: Whisper berjalan seperti biasa dan halaman proyek memberi tahu
+  (`subtitle_rejected:<kode>`). Cakupan, kecepatan bicara, dan tanda baca tidak dinilai; itu
+  file milik pengguna sendiri.
+- Aturan baca ada di dua tempat dengan kasus uji yang sama: `web/lib/srt.mjs` dan
+  `src/ai_clipper/srt_captions.py`, keduanya menjalankan `tests/fixtures/srt/cases.json`.
+
 ## Ringkasan
 
 - **Masalah.** Whisper `small` dengan pengaturan bawaan kehilangan tanda baca di 3 dari 5
