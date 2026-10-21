@@ -76,3 +76,14 @@ test("splitOf, the ratio a pill shows and the swapped split", () => {
   assert.deepEqual(swappedSplit(swapped), doc.layout.split);
   assert.equal(swappedSplit({ ...doc.layout.split, top_pm: 500 }).top_pm, 500);
 });
+
+// The boxes keep one DOM order whichever is active: moving a focused node in the DOM blurs it,
+// so reordering on focus would drop the focus (and the keys) right after Tab or a click. The
+// active box is drawn and picked on top by its z-index (split.module.css) instead.
+test("the split gizmo keeps the boxes in band order; the active one is on top by z-index", () => {
+  const gizmo = readFileSync(new URL("../components/editor/gizmos/SplitGizmo.jsx", import.meta.url), "utf8");
+  const css = readFileSync(new URL("../components/editor/gizmos/split.module.css", import.meta.url), "utf8");
+  assert.match(gizmo, /\{SPLIT_BANDS\.map\(\(band\) => \{/);
+  assert.doesNotMatch(gizmo, /\.sort\(/);
+  assert.match(css, /\.box\[data-active="true"\]\s*\{[^}]*z-index:\s*2;/);
+});
