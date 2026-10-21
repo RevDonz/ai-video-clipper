@@ -64,7 +64,7 @@ const CENTRED_NOTE = "Potongan 9:16 bergeser mengikuti wajah. Butuh analisis waj
 
 /**
  * What a layout does for this clip: the option's note, or for centred face-track that variant,
- * naming the clip's ratio (a 1:1 clip's crop is 1:1, CONTRACTS §5.53).
+ * naming the clip's ratio (a 1:1 clip's crop is 1:1, CONTRACTS §5.54).
  */
 export function layoutNote(entry, doc) {
   const current = doc?.layout?.default;

@@ -20,7 +20,7 @@ WORDS_SCHEMA = "potongin.words/1"
 CAMERA_SCHEMA = "potongin.camera-plan/1"
 
 # Plan §3.1 and §3.3: the only document frame rates and output sizes: 9:16 and 1:1 (CONTRACTS
-# §5.53), each at 720 and 1080 wide.
+# §5.54), each at 720 and 1080 wide.
 DOC_FPS = ((24, 1), (25, 1), (30, 1), (24000, 1001), (30000, 1001))
 OUTPUT_SIZES = ((720, 1280), (1080, 1920), (720, 720), (1080, 1080))
 
@@ -51,7 +51,7 @@ WATERMARK_POSITIONS = (
 WATERMARK_SIZE_RANGE = (500, 2000)
 WATERMARK_OPACITY_RANGE = (200, 1000)
 # TikTok UI zone at 720×1280 (plan §5.9 G5): top, bottom, right; scaled to other 9:16 sizes. A
-# 1:1 clip has no zone (CONTRACTS §5.53): see ui_zone below.
+# 1:1 clip has no zone (CONTRACTS §5.54): see ui_zone below.
 UI_ZONE_720 = (93, 280, 93)
 # The left margin of a logo preset and of the text watermark, per mille of the width; a 1:1 clip
 # keeps it on every side (frame_margins).
@@ -106,7 +106,7 @@ def portrait(output: tuple[int, int]) -> bool:
 
 def ui_zone(output: tuple[int, int]) -> tuple[int, int, int]:
     """(top, bottom, right) of the TikTok UI zone in output pixels (plan §5.9 G5): 93/280/93 at
-    720×1280 scaled with the height and the width; none at 1:1 (CONTRACTS §5.53)."""
+    720×1280 scaled with the height and the width; none at 1:1 (CONTRACTS §5.54)."""
     width, height = output
     if not portrait(output):
         return (0, 0, 0)
@@ -117,7 +117,7 @@ def ui_zone(output: tuple[int, int]) -> tuple[int, int, int]:
 
 def frame_margins(output: tuple[int, int]) -> tuple[int, int, int]:
     """(top, bottom, right) a logo preset and the text watermark keep from the frame's edges:
-    the TikTok zone at 9:16, the 4 % left margin on every side at 1:1 (CONTRACTS §5.53)."""
+    the TikTok zone at 9:16, the 4 % left margin on every side at 1:1 (CONTRACTS §5.54)."""
     if portrait(output):
         return ui_zone(output)
     margin = _half_up(output[0] * EDGE_MARGIN_PM, 1000)
@@ -127,7 +127,7 @@ def frame_margins(output: tuple[int, int]) -> tuple[int, int, int]:
 def text_height(output: tuple[int, int]) -> int:
     """The height text is sized from (captions, hook, watermark): the output height at 9:16, the
     height of the 9:16 frame of the same width at 1:1, so a 1:1 clip's text is as large as the
-    9:16 clip's of its width (CONTRACTS §5.53)."""
+    9:16 clip's of its width (CONTRACTS §5.54)."""
     width, height = output
     return max(height, _half_up(16 * width, 9))
 

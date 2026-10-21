@@ -217,7 +217,7 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
   const ready = status === "ready" || readOnly;
   const plan = state.plan ?? null;
   const fps = plan?.fps ?? state.doc?.output?.fps ?? [30, 1];
-  // A 1:1 clip has no TikTok zone (CONTRACTS §5.53): no Zona aman.
+  // A 1:1 clip has no TikTok zone (CONTRACTS §5.54): no Zona aman.
   const frame = state.doc?.output ?? plan?.output;
   const hasZone = !frame || isPortrait(frame);
   // The store's per-part conflict (T2.5 `groups`; the T2.6 specs' `parts`), shown as a dialog.

@@ -1,4 +1,4 @@
-// Output sizes 9:16 and 1:1 at 720p and 1080p (CONTRACTS §5.53): the frame rules shared with the
+// Output sizes 9:16 and 1:1 at 720p and 1080p (CONTRACTS §5.54): the frame rules shared with the
 // edit_v2 package (lib/output-frame.mjs), the job option `outputSize` from the dashboard to the
 // engine's argv and the source download, the dashboard's Rasio and Resolusi with their preview,
 // and what the editor does at 1:1 (no TikTok zone, logo presets 4 % from every edge, the caption

@@ -14,7 +14,7 @@ import styles from "./shell.module.css";
 import { safeApiHref } from "./shell-model.mjs";
 
 // The TikTok UI zone (plan §5.9 G5): top 93 px, bottom 280 px, right 93 px at 720×1280, scaled
-// like plan.ui_zone; a 1:1 clip has none (CONTRACTS §5.53).
+// like plan.ui_zone; a 1:1 clip has none (CONTRACTS §5.54).
 function SafeZone({ w, h }) {
   const { top, bottom, right } = uiZone({ w, h });
   return (

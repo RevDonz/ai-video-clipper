@@ -591,7 +591,7 @@ function requireItem(doc, kind, code) {
 // The corner presets sit just outside the TikTok/Reels UI zone (plan §5.9 G5: 93 px top, 280 px
 // bottom, 93 px right at 720×1280, scaled like plan.ui_zone), so a preset never brings the G5
 // warning; the left edge, which the zone does not cover, keeps a 4 % margin. A 1:1 clip has no
-// zone and keeps 4 % from every edge (edit_v2.frame_margins, CONTRACTS §5.53).
+// zone and keeps 4 % from every edge (edit_v2.frame_margins, CONTRACTS §5.54).
 function snapTarget(ctx, transform, meta, corner) {
   const { w: width, h: height } = ctx.output;
   const [, , w, h] = box(ctx, transform, meta);

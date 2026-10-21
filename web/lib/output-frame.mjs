@@ -1,4 +1,4 @@
-// The output sizes of a clip and what each one means for the frame (CONTRACTS §5.53): the
+// The output sizes of a clip and what each one means for the frame (CONTRACTS §5.54): the
 // edit_v2 package's OUTPUT_SIZES, ui_zone, frame_margins and text_height in the browser. Pure;
 // web/tests/output-frame.test.mjs keeps the numbers equal to the Python ones.
 import { divRoundHalfUp } from "./editor/timemap.mjs";

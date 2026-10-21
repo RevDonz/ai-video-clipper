@@ -271,7 +271,7 @@ test.describe("Dashboard form (faked job API)", () => {
     expect(await submitJob(page, posts)).toMatchObject({ captionStyle: "classic", renderMode: "center-crop", hookOverlay: "false" });
   });
 
-  test("Rasio and Resolusi reach the job as its output size; 1:1 previews square without the TikTok zone (CONTRACTS 5.53)", async ({ page }) => {
+  test("Rasio and Resolusi reach the job as its output size; 1:1 previews square without the TikTok zone (CONTRACTS 5.54)", async ({ page }) => {
     const posts = await fakeDashboardApi(page);
     await openDashboard(page);
     await optionsButton(page).click();

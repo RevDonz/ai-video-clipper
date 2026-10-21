@@ -522,7 +522,7 @@ P_FRAME_CASES = (
     Case("edge_start_23.976", (24000, 1001), 480, "fit_blur", cuts=5, video_delay_ms=41,
          edges="source"),
 )
-# 1:1 (CONTRACTS §5.53): latar blur and face-track at 720×720, potong tengah with manual framing
+# 1:1 (CONTRACTS §5.54): latar blur and face-track at 720×720, potong tengah with manual framing
 # at 1080×1080. Kept out of P_FRAME_CASES, whose cases the browser player fixtures also draw at
 # 720×1280.
 SQUARE_CASES = (
@@ -562,7 +562,7 @@ P_PLATE_CASES = (*(
          zoom_pm=1200, content=PILLARBOX_43),
     Case("plate_split_content", (30000, 1001), 900, "split", cuts=10, captions=False,
          split=SPLIT_30_70, content=PILLARBOX_43),
-    # 1:1 (CONTRACTS §5.53)
+    # 1:1 (CONTRACTS §5.54)
     Case("plate_camera_square", (30000, 1001), 900, "camera", cuts=10, captions=False,
          output=(720, 720)),
     Case("plate_split_square", (30000, 1001), 900, "split", cuts=10, captions=False,

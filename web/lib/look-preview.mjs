@@ -1,5 +1,5 @@
 // The preview under "Tampilan klip" on the dashboard (app/dashboard/LookPreview.jsx). It draws
-// only what a job option changes in the automatic render: the ratio (CONTRACTS §5.53), the layout,
+// only what a job option changes in the automatic render: the ratio (CONTRACTS §5.54), the layout,
 // the subtitle's pack, spot and size (CONTRACTS §5.48) and the hook text. With the legacy engine
 // (the rollback switch) the subtitle keeps the one spot and size that engine draws. Geometry is in
 // output pixels of a 720-wide render (720×1280, or 720×720 at 1:1: the resolution scales it all);

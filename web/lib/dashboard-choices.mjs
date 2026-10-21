@@ -50,7 +50,7 @@ export function lookChoices(engine) {
   return { styles: CAPTION_STYLE_CHOICES, positions: CAPTION_POSITION_CHOICES, sizes: CAPTION_SIZE_CHOICES };
 }
 
-// "Rasio" and "Resolusi" (CONTRACTS §5.53): together the job option `outputSize` (lib/jobs.mjs
+// "Rasio" and "Resolusi" (CONTRACTS §5.54): together the job option `outputSize` (lib/jobs.mjs
 // OUTPUT_SIZE_IDS, lib/output-frame.mjs OUTPUT_SIZES).
 export const RATIO_CHOICES = Object.freeze([
   { id: "9:16", name: "9:16", tall: true },

@@ -389,7 +389,7 @@ def test_the_render_timeout_scales_with_the_clip_and_its_layout():
     assert render_edit.render_timeout_s(seed_doc) == pytest.approx(
         max(120.0, 3 * frames / 25 * render_edit.PREDICTED_X["camera"]))
     long_timeout = render_edit.render_timeout_s(seed_doc)
-    # a larger output has more pixels to render (PF-SIZE, CONTRACTS §5.53): never less than at
+    # a larger output has more pixels to render (PF-SIZE, CONTRACTS §5.54): never less than at
     # 720×1280, × its pixels over 720×1280's above that
     for size, scale in (((720, 720), 1.0), ((1080, 1080), 1.265625), ((1080, 1920), 2.25)):
         sized = copy.deepcopy(seed_doc)

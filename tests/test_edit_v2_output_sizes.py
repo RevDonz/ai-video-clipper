@@ -1,4 +1,4 @@
-"""Output sizes 9:16 and 1:1 at 720 and 1080 wide (CONTRACTS §5.53): the zone, the frame margins
+"""Output sizes 9:16 and 1:1 at 720 and 1080 wide (CONTRACTS §5.54): the zone, the frame margins
 and the text height of each size, the document, the seed, the captions, the hook, the watermark
 and a real render of a 1:1 clip."""
 

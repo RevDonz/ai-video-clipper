@@ -63,7 +63,7 @@ export function buildClipperInvocation(job, sourcePath, outputRoot, env = proces
     String(options.maxDuration),
     "--limit",
     String(options.limit),
-    // "Rasio" and "Resolusi" (CONTRACTS §5.53); a job without them renders at 720×1280.
+    // "Rasio" and "Resolusi" (CONTRACTS §5.54); a job without them renders at 720×1280.
     "--width",
     String(size.w),
     "--height",
@@ -263,7 +263,7 @@ export function downloaderEnv(env) {
 
 /**
  * The tallest source a job downloads: 1080 for a 1080-wide render ("Resolusi" 1080p, CONTRACTS
- * §5.53), else 720 (also for options that do not validate: the engine refuses those later).
+ * §5.54), else 720 (also for options that do not validate: the engine refuses those later).
  */
 export function sourceHeightFor(options) {
   try {

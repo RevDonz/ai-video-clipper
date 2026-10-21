@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PF-SIZE: the render cost of each output size of an automatic clip (CONTRACTS §5.53).
+"""PF-SIZE: the render cost of each output size of an automatic clip (CONTRACTS §5.54).
 
 One clip of the synthetic V3 job (``scripts/editor_fixture/make_job.py``, clip 2: 36 s with the
 hook and karaoke captions, no cold open) goes through the pipeline's rendering stage

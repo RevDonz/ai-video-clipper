@@ -20,7 +20,7 @@ frame to jump to:
 * ``unsafe_zone``: the bottom of the caption block lies in the TikTok UI zone (the lowest
   280 px of 1280, scaled to the output height), or the top of the hook in its top zone (93 px).
   Seeds keep today's 17% bottom margin (K5), so every 9:16 seed carries the caption warning; a
-  1:1 clip has no zone and never this warning (CONTRACTS §5.53). The right-hand zone and
+  1:1 clip has no zone and never this warning (CONTRACTS §5.54). The right-hand zone and
   multi-line caption tops are not estimated here (G5 in ``verify.py``).
 """
 

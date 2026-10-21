@@ -292,7 +292,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         parser.error(f"--range: {error}")
     if args.ranges and args.selection_mode != SelectionMode.V3.value:
         parser.error("--range needs --selection-mode v3")
-    # A V3 clip is a clip-edit-v2 document: 9:16 or 1:1 at 720 or 1080 wide (CONTRACTS §5.53).
+    # A V3 clip is a clip-edit-v2 document: 9:16 or 1:1 at 720 or 1080 wide (CONTRACTS §5.54).
     if args.selection_mode == SelectionMode.V3.value and (args.width, args.height) not in OUTPUT_SIZES:
         sizes = ", ".join(f"{w}x{h}" for w, h in OUTPUT_SIZES)
         parser.error(f"--width/--height: a V3 render size is one of {sizes}")

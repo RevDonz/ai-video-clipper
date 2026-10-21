@@ -37,7 +37,7 @@ export const LEGACY_CAPTION_STYLES = Object.freeze(["karaoke", "classic"]);
 export const CAPTION_POSITIONS = Object.freeze(["top", "middle", "bottom"]);
 export const CAPTION_SIZES = Object.freeze(["small", "medium", "large"]);
 /**
- * "Rasio" and "Resolusi" (CONTRACTS §5.53): the optional V3 option `outputSize`, the render size
+ * "Rasio" and "Resolusi" (CONTRACTS §5.54): the optional V3 option `outputSize`, the render size
  * of the clips (edit_v2 OUTPUT_SIZES). A job without it renders at 720×1280.
  */
 export const OUTPUT_SIZE_IDS = Object.freeze(Object.keys(OUTPUT_SIZES));

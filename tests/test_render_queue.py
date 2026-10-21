@@ -236,7 +236,7 @@ def test_v3_create_binds_the_archived_revision_render_key_and_hard_linked_source
 def test_v3_timeout_formula_is_the_scaled_prediction_with_a_floor():
     assert (TIMEOUT_FLOOR_MS, TIMEOUT_FACTOR) == (120_000, 3)
     for layout in ("fit_blur", "fill_center", "camera", "split"):
-        for size in OUTPUT_SIZES:  # 9:16 and 1:1 (CONTRACTS §5.53)
+        for size in OUTPUT_SIZES:  # 9:16 and 1:1 (CONTRACTS §5.54)
             cost = RENDER_COST_PERMILLE[(layout, size)]
             assert predicted_render_ms(60_000, layout, size) == -(-60_000 * cost // 1000)
             for duration in (3_000, 60_000, 300_000):
