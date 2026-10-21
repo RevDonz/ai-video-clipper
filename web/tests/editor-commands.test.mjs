@@ -109,15 +109,16 @@ function bodyFrames(doc) {
 
 // --- model ---------------------------------------------------------------------------------
 
-test("the command list is Appendix B with the transition, SetHookDesign, no-face, framing, split, zoom and watermark commands, the same 52 names the fakes know", () => {
+test("the command list is Appendix B with the edge nudge, transition, SetHookDesign, no-face, framing, split, zoom and watermark commands, the same 53 names the fakes know", () => {
   assert.deepEqual([...COMMANDS], [...FAKE_COMMANDS]);
-  assert.equal(COMMANDS.length, 52);
-  assert.deepEqual(COMMANDS.slice(36, 42), ["SnapLogo", "SetWatermarkText", "SetWatermarkPosition", "SetWatermarkSize",
+  assert.equal(COMMANDS.length, 53);
+  assert.deepEqual(COMMANDS.slice(0, 3), ["TrimStart", "TrimEnd", "NudgeEdge"]);
+  assert.deepEqual(COMMANDS.slice(37, 43), ["SnapLogo", "SetWatermarkText", "SetWatermarkPosition", "SetWatermarkSize",
     "SetWatermarkOpacity", "RemoveWatermark"]);
-  assert.deepEqual(COMMANDS.slice(16, 21), ["SetHookEnabled", "SetHookText", "SetHookDuration", "SetHookY", "SetHookDesign"]);
-  assert.deepEqual(COMMANDS.slice(21, 31), ["SetLayout", "SetNoFace", "SetKeyframe", "RemoveKeyframe", "SetKeyframeMove", "ClearKeyframes",
+  assert.deepEqual(COMMANDS.slice(17, 22), ["SetHookEnabled", "SetHookText", "SetHookDuration", "SetHookY", "SetHookDesign"]);
+  assert.deepEqual(COMMANDS.slice(22, 32), ["SetLayout", "SetNoFace", "SetKeyframe", "RemoveKeyframe", "SetKeyframeMove", "ClearKeyframes",
     "SetSplitRatio", "SwapSplit", "SetSplitCrop", "SetZoom"]);
-  assert.deepEqual(COMMANDS.slice(6, 10), ["SetColdOpen", "NudgeColdOpen", "SetJoinStyle", "SetJoinSfx"]);
+  assert.deepEqual(COMMANDS.slice(7, 11), ["SetColdOpen", "NudgeColdOpen", "SetJoinStyle", "SetJoinSfx"]);
   for (const [code, message] of Object.entries(COMMAND_MESSAGES)) {
     assert.match(code, /^[a-z_]+$/);
     assert.ok(message.length > 5, code);
@@ -478,6 +479,83 @@ test("NudgeColdOpen moves one edge by whole word gaps", () => {
   rejects(C30, C30.seed, "NudgeColdOpen", { edge: "middle", words: 1 }, "invalid_args");
   rejects(C30, C30.seed, "NudgeColdOpen", { edge: "in", words: 0 }, "invalid_args");
   rejects(C30, C30.seed, "NudgeColdOpen", { edge: "in", words: 40 }, "cold_open_invalid");
+});
+
+// --- edge nudge (CONTRACTS §5.55) --------------------------------------------------------------
+
+test("NudgeEdge moves a body edge by 0.1 s in whole frames, off the word gaps", () => {
+  const seg = body(C30.seed);
+  // 30000/1001 fps: 0.1 s is 2.997 frames, rounded to 3.
+  const later = run(C30, C30.seed, "NudgeEdge", { seg: "body", edge: "in", ms: 100 });
+  assert.equal(body(later).in_sf, seg.in_sf + 3);
+  assert.equal(body(later).out_sf, seg.out_sf);
+  const earlier = run(C30, C30.seed, "NudgeEdge", { seg: "body", edge: "out", ms: -100 });
+  assert.equal(body(earlier).out_sf, seg.out_sf - 3);
+  const back = run(C30, later, "NudgeEdge", { seg: "body", edge: "in", ms: -100 });
+  assert.equal(contentJson(back), contentJson(C30.seed), "a nudge and its opposite give the seed back (R10)");
+  // 25 fps: 2.5 frames round half up to 3; one second is 25 frames.
+  const c25 = body(C25.seed);
+  assert.equal(body(run(C25, C25.seed, "NudgeEdge", { seg: "body", edge: "out", ms: 100 })).out_sf, c25.out_sf + 3);
+  assert.equal(body(run(C25, C25.seed, "NudgeEdge", { seg: "body", edge: "in", ms: -1000 })).in_sf, c25.in_sf - 25);
+});
+
+test("NudgeEdge returns normalised args and the merge key of its edge", () => {
+  const result = applyCommand(C30.seed, "NudgeEdge", { seg: "body", edge: "out", ms: 100, extra: 1 }, C30.ctx);
+  assert.deepEqual(result.args, { seg: "body", edge: "out", ms: 100 });
+  assert.equal(defaultMergeKey("NudgeEdge", result.args), "edge:body:out");
+  assert.equal(defaultMergeKey("NudgeEdge", { seg: "cold_open", edge: "in", ms: -100 }), "edge:cold_open:in");
+  assert.equal(defaultMergeKey("NudgeEdge", { seg: "middle", edge: "in" }), null);
+});
+
+test("NudgeEdge moves a cold-open edge and keeps the cold-open rules", () => {
+  const co = coldOpen(C30.seed);
+  const shorter = run(C30, C30.seed, "NudgeEdge", { seg: "cold_open", edge: "out", ms: -100 });
+  assert.equal(coldOpen(shorter).out_sf, co.out_sf - 3);
+  assert.equal(coldOpen(shorter).in_sf, co.in_sf);
+  assert.deepEqual(shorter.main.joins, C30.seed.main.joins, "the join keeps its style and whoosh");
+  const longer = run(C30, C30.seed, "NudgeEdge", { seg: "cold_open", edge: "in", ms: -100 });
+  assert.equal(coldOpen(longer).in_sf, co.in_sf - 3);
+  // 136 frames (4.5 s) go below 0.5 s after enough nudges.
+  let doc = C30.seed;
+  let code = null;
+  for (let i = 0; i < 60 && !code; i += 1) {
+    try {
+      doc = applyCommand(doc, "NudgeEdge", { seg: "cold_open", edge: "out", ms: -100 }, C30.ctx).doc;
+    } catch (error) {
+      code = error.code;
+    }
+  }
+  assert.equal(code, "cold_open_invalid");
+  rejects(C25, C25.seed, "NudgeEdge", { seg: "cold_open", edge: "in", ms: 100 }, "cold_open_missing");
+});
+
+test("NudgeEdge keeps the body inside the window and clamps the removals it crosses", () => {
+  const words = C30.ctx.wordList;
+  let doc = run(C30, C30.seed, "TrimStart", { gapWord: words[0].id });
+  let code = null;
+  for (let i = 0; i < 400 && !code; i += 1) {
+    try {
+      doc = applyCommand(doc, "NudgeEdge", { seg: "body", edge: "in", ms: -1000 }, C30.ctx).doc;
+    } catch (error) {
+      code = error.code;
+    }
+  }
+  assert.equal(code, "outside_window");
+  const inside = wordsIn(C30, body(C30.seed));
+  let cut = run(C30, C30.seed, "RemoveWords", { wordIds: [inside[0].id] });
+  const removal = cut.main.removals.find((item) => item.seg === body(cut).id);
+  cut = run(C30, cut, "NudgeEdge", { seg: "body", edge: "in", ms: 1000 });
+  assert.ok(body(cut).in_sf > removal.in_sf, "the edge passed the removal's start");
+  const clamped = cut.main.removals.find((item) => item.id === removal.id);
+  assert.ok(!clamped || clamped.in_sf === body(cut).in_sf, "the removal starts at the new edge or is gone");
+});
+
+test("NudgeEdge rejects bad arguments", () => {
+  for (const args of [{ seg: "middle", edge: "in", ms: 100 }, { seg: "body", edge: "both", ms: 100 },
+    { seg: "body", edge: "in", ms: 0 }, { seg: "body", edge: "in", ms: 50.5 }, { seg: "body", edge: "in", ms: 1001 },
+    { seg: "body", edge: "in", ms: -1001 }, { seg: "body", edge: "in", ms: "100" }, { seg: "body", edge: "in" }]) {
+    rejects(C30, C30.seed, "NudgeEdge", args, "invalid_args");
+  }
 });
 
 // --- cold-open transition (docs/plans/2026-10-02-transisi-cold-open.md §1.1, §7.2) ------------

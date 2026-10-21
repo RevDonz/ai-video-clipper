@@ -42,6 +42,9 @@
 //   drops the key (R10), and SetLayout into the split drops it (`layoutAfterSwitch`).
 // - The text watermark (CONTRACTS §5.43): SetWatermarkText adds it at DEFAULT_WATERMARK or changes
 //   only its text; RemoveWatermark drops the key, so a clip without one equals its seed (R10).
+// - NudgeEdge (CONTRACTS §5.55) moves one edge of the body or the cold open by `ms` (±1…1000),
+//   rounded to whole frames (at least one), so the edge may leave the `bounds` table: it is the
+//   one cut point the user places by hand. TrimStart/TrimEnd still snap to a word gap.
 import { frameMargins } from "../output-frame.mjs";
 import {
   ASSET_ID_PATTERN,
@@ -91,14 +94,14 @@ import { swappedSplit } from "./split.mjs";
 import { divRoundHalfUp, logoBox, pieces, sfCeil, sfFloor } from "./timemap.mjs";
 
 /**
- * Appendix B, in the order of the table (the same list as `__dev__/fakes.mjs`), with the
- * cold-open transition commands after NudgeColdOpen (docs/plans/2026-10-02-transisi-cold-open.md §7.2),
+ * Appendix B, in the order of the table (the same list as `__dev__/fakes.mjs`), with NudgeEdge
+ * after the trims (CONTRACTS §5.55), the cold-open transition commands after NudgeColdOpen (docs/plans/2026-10-02-transisi-cold-open.md §7.2),
  * SetHookDesign after SetHookY (CONTRACTS §5.33), SetNoFace after SetLayout (CONTRACTS §5.40), the
  * framing commands after SetNoFace (CONTRACTS §5.44), the split's after them (§5.45), SetZoom after
  * the split's (§5.52) and the text watermark's after SnapLogo (§5.43).
  */
 export const COMMANDS = Object.freeze([
-  "TrimStart", "TrimEnd", "RemoveWords", "RemoveGap", "RestoreRemoval", "ApplyCleanup",
+  "TrimStart", "TrimEnd", "NudgeEdge", "RemoveWords", "RemoveGap", "RestoreRemoval", "ApplyCleanup",
   "SetColdOpen", "NudgeColdOpen", "SetJoinStyle", "SetJoinSfx", "EditWordText", "SetWordHidden", "SetWordEmphasis",
   "SetCaptionsEnabled", "SetCaptionPack", "SetCaptionOverride", "SetHookEnabled", "SetHookText",
   "SetHookDuration", "SetHookY", "SetHookDesign", "SetLayout", "SetNoFace",
@@ -516,6 +519,22 @@ function trimBody(doc, ctx, edge, sf) {
   });
 }
 
+// NudgeEdge: whole frames for `ms`, half up, never zero (25 fps: 100 ms is 3 frames).
+function nudgeFrames(ms, ctx) {
+  const [num, den] = ctx.fps;
+  return Math.sign(ms) * Math.max(1, divRoundHalfUp(Math.abs(ms) * num, 1000 * den));
+}
+
+function nudgeColdOpen(doc, ctx, co, edge, sf) {
+  const next = { ...co, [edge === "in" ? "in_sf" : "out_sf"]: sf };
+  need(next.in_sf < next.out_sf, "cold_open_invalid");
+  insideWindow(ctx, next.in_sf, next.out_sf);
+  return withMain(doc, {
+    segments: replaceSegment(doc, co, next),
+    removals: clampRemovals(doc.main.removals, co.id, next.in_sf, next.out_sf),
+  });
+}
+
 function removeWords(doc, args, ctx) {
   need(Array.isArray(args.wordIds) && args.wordIds.length > 0 && args.wordIds.length <= 10000, "invalid_args", { arg: "wordIds" });
   const indexes = [...new Set(args.wordIds.map((id) => wordIndex(ctx, id)))].sort((a, b) => a - b);
@@ -623,6 +642,24 @@ const HANDLERS = {
     return { doc: trimBody(doc, ctx, "out", bound(ctx.boundAfter(index))), args: { gapWord: args.gapWord } };
   },
 
+  NudgeEdge(doc, args, ctx) {
+    need(args.seg === "body" || args.seg === "cold_open", "invalid_args", { arg: "seg" });
+    need(args.edge === "in" || args.edge === "out", "invalid_args", { arg: "edge" });
+    need(Number.isSafeInteger(args.ms) && args.ms !== 0 && Math.abs(args.ms) <= 1000, "invalid_args", { arg: "ms" });
+    const frames = nudgeFrames(args.ms, ctx);
+    const normalised = { seg: args.seg, edge: args.edge, ms: args.ms };
+    if (args.seg === "body") {
+      const segment = body(doc);
+      need(segment, "range_invalid");
+      const sf = (args.edge === "in" ? segment.in_sf : segment.out_sf) + frames;
+      return { doc: trimBody(doc, ctx, args.edge, sf), args: normalised };
+    }
+    const co = coldOpen(doc);
+    need(co, "cold_open_missing");
+    const sf = (args.edge === "in" ? co.in_sf : co.out_sf) + frames;
+    return { doc: nudgeColdOpen(doc, ctx, co, args.edge, sf), args: normalised };
+  },
+
   RemoveWords: removeWords,
   RemoveGap: removeGap,
 
@@ -711,16 +748,7 @@ const HANDLERS = {
       target = position < 0 ? undefined : sfs[position + args.words + 1];
     }
     need(target !== undefined, "cold_open_invalid");
-    const next = { ...co, [args.edge === "in" ? "in_sf" : "out_sf"]: target };
-    need(next.in_sf < next.out_sf, "cold_open_invalid");
-    insideWindow(ctx, next.in_sf, next.out_sf);
-    return {
-      doc: withMain(doc, {
-        segments: replaceSegment(doc, co, next),
-        removals: clampRemovals(doc.main.removals, co.id, next.in_sf, next.out_sf),
-      }),
-      args: { edge: args.edge, words: args.words },
-    };
+    return { doc: nudgeColdOpen(doc, ctx, co, args.edge, target), args: { edge: args.edge, words: args.words } };
   },
 
   // The transition never touches segments, removals or captions: duration and the time map stay.
@@ -1127,6 +1155,9 @@ export function applyCommand(doc, type, args, ctx) {
 export function defaultMergeKey(type, args = {}) {
   switch (type) {
     case "NudgeColdOpen": return args?.edge ? `co:${args.edge}` : null;
+    case "NudgeEdge":
+      return (args?.seg === "body" || args?.seg === "cold_open") && (args?.edge === "in" || args?.edge === "out")
+        ? `edge:${args.seg}:${args.edge}` : null;
     case "EditWordText": return args?.wordId ? `word:${args.wordId}` : null;
     case "SetCaptionOverride": return args?.key ? `cap:${args.key}` : null;
     case "SetHookEnabled": return "hook:on";

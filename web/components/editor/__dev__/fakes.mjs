@@ -25,12 +25,12 @@ export const FAKE_OTHER_CLIPS = Object.freeze(["clip_000000000000000000000002", 
 const FPS = [30000, 1001];
 const SHA = (seed) => fakeSha256(`fake:${seed}`);
 
-// Appendix B: every command name the real store knows (T2.5 implements them all), with the
-// cold-open transition commands (docs/plans/2026-10-02-transisi-cold-open.md §7.2),
+// Appendix B: every command name the real store knows (T2.5 implements them all), with
+// NudgeEdge (CONTRACTS §5.55), the cold-open transition commands (docs/plans/2026-10-02-transisi-cold-open.md §7.2),
 // SetHookDesign (CONTRACTS §5.33), SetNoFace (§5.40), the framing commands (§5.44), the split's
 // (§5.45), SetZoom (§5.52) and the text watermark's (§5.43).
 export const COMMANDS = Object.freeze([
-  "TrimStart", "TrimEnd", "RemoveWords", "RemoveGap", "RestoreRemoval", "ApplyCleanup",
+  "TrimStart", "TrimEnd", "NudgeEdge", "RemoveWords", "RemoveGap", "RestoreRemoval", "ApplyCleanup",
   "SetColdOpen", "NudgeColdOpen", "SetJoinStyle", "SetJoinSfx", "EditWordText", "SetWordHidden", "SetWordEmphasis",
   "SetCaptionsEnabled", "SetCaptionPack", "SetCaptionOverride", "SetHookEnabled", "SetHookText",
   "SetHookDuration", "SetHookY", "SetHookDesign", "SetLayout", "SetNoFace",
