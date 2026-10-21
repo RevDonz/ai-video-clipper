@@ -2,7 +2,7 @@
 
 // The cold-open panel (plan §11.2 T2.7, §11.3 T3.7, §3.4, §7.2): on/off, the current line and
 // its length, one word more or less on each edge (NudgeColdOpen) or 0.1 s (NudgeEdge, CONTRACTS
-// §5.52), "Jadikan cold open" from the
+// §5.55), "Jadikan cold open" from the
 // transcript selection (shared through transcript/selection.mjs), disabled with its reason
 // outside 0.5–8 s or when it would only repeat the opening, and the suggestions
 // (ColdOpenSuggestions.jsx). The Transisi section (TransitionSection.jsx) sets the effect at the

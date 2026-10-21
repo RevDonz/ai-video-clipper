@@ -5,7 +5,7 @@
 // and the playhead (moved outside React through the frame bus). Ctrl+scroll zooms around the
 // pointer; the header buttons do the same from the keyboard. Until the user zooms, the clip fits
 // the width. The header's "Awal / Akhir" pair picks the selected trim edge (also set by focusing
-// or dragging a handle) and −0,1 / +0,1 move it by 0.1 s (NudgeEdge, CONTRACTS §5.52).
+// or dragging a handle) and −0,1 / +0,1 move it by 0.1 s (NudgeEdge, CONTRACTS §5.55).
 import { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import styles from "../shell.module.css";

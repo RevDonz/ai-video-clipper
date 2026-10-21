@@ -1,7 +1,7 @@
 // Timeline geometry and word-snapped trimming (plan Appendix C.3; §3.6 `bounds`; Appendix B
 // TrimStart/TrimEnd). Positions are output frames (the plan DTO's `pieces`, §4.3); a dragged or
 // stepped trim is a source-grid `bounds` frame. The one exception is the 0.1 s nudge (NudgeEdge,
-// CONTRACTS §5.52), where the command, not this file, computes the frame.
+// CONTRACTS §5.55), where the command, not this file, computes the frame.
 // Pure functions, unit-tested in web/tests/editor-timeline-model.test.mjs.
 import { formatClock } from "../shell-model.mjs";
 

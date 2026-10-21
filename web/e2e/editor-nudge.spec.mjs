@@ -1,4 +1,4 @@
-// Mode Lengkap's small edits (CONTRACTS §5.52), in the editor on its fakes: the 0.1 s nudge of a
+// Mode Lengkap's small edits (CONTRACTS §5.55), in the editor on its fakes: the 0.1 s nudge of a
 // trim edge (handle keys and the timeline header's buttons) and of a cold-open edge, the
 // "di sumber mm:ss" readout in the transport row, and Ctrl+click on a transcript word for Kata
 // kunci. The fakes' store records every command it is sent, so each check reads that command.

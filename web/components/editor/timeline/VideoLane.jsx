@@ -6,7 +6,7 @@
 // snapped to the words artifact's `bounds` table; holding Alt frees the ghost for the view only,
 // because the stored value is always a `bounds` frame (TrimStart/TrimEnd take the word next to the
 // gap, Appendix B). Arrow keys on a handle move the edge to the adjacent word gap; Shift+arrows
-// move it by 0.1 s (NudgeEdge, CONTRACTS §5.52). The handle last focused or dragged is the
+// move it by 0.1 s (NudgeEdge, CONTRACTS §5.55). The handle last focused or dragged is the
 // timeline's selected edge (`trimEdge`), which the header's −0,1 / +0,1 buttons move.
 // Props (timeline/lanes.mjs): { plan, state, dispatch, player, pxPerFrame } plus the shell's
 // `notify` and `readOnly`, and the timeline's `trimEdge` and `onTrimEdge`.

@@ -7,7 +7,7 @@
 // (`plan` is the plan DTO of §4.3; every position is an output frame), plus `notify` (a toast),
 // `readOnly` and `onNote(text | null)`, which shows a note about the lane in the timeline's
 // header, where nothing in the lane covers it. `trimEdge` ("start" | "end") and `onTrimEdge(edge)`
-// are the timeline's selected trim edge, which the video lane's handles set (CONTRACTS §5.52).
+// are the timeline's selected trim edge, which the video lane's handles set (CONTRACTS §5.55).
 // `load` is a lazy import, so this file stays importable outside the bundler (node tests).
 const entry = (fields) => Object.freeze(fields);
 

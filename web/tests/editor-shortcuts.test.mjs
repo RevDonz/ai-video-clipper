@@ -222,7 +222,7 @@ test("the clip keys leave text fields, sliders, tabs, radios and handled events 
 });
 
 // A focused trim handle (role "slider") keeps its own arrows: ←/→ to the next word gap and
-// Shift+←/→ by 0.1 s (CONTRACTS §5.52); the help lists both, and the shell takes neither there.
+// Shift+←/→ by 0.1 s (CONTRACTS §5.55); the help lists both, and the shell takes neither there.
 test("the help lists the trim handle's own keys, which no global shortcut takes on the handle", () => {
   const trim = SHORTCUTS.filter((entry) => entry.scope === "trim");
   assert.deepEqual(trim.map((entry) => entry.keys), [["←", "→"], ["Shift+←", "Shift+→"]]);
