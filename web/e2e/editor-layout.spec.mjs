@@ -15,6 +15,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { FAKE_CLIP_ID, FAKE_JOB_ID } from "../components/editor/__dev__/fakes.mjs";
+import { defaultSplit } from "../lib/editor/doc-model.mjs";
 import { login, settings } from "./support/harness.mjs";
 
 const EDITOR = `/projects/${FAKE_JOB_ID}/clips/${FAKE_CLIP_ID}/edit?mode=lengkap`;
@@ -97,10 +98,13 @@ function installScenario(config) {
         if (state.status !== "ready") throw new fakes.CommandRejected("read_only");
         const next = clone(state.doc);
         if (type === "SetLayout") {
-          if (!["fit_blur", "camera", "fill_center"].includes(args.mode)) throw new fakes.CommandRejected("value_out_of_range");
+          if (!["fit_blur", "camera", "fill_center", "split"].includes(args.mode)) throw new fakes.CommandRejected("value_out_of_range");
           // a switch into face-track turns the latar blur fallback on (commands.mjs SetLayout)
           if (args.mode === "camera" && next.layout.default.mode !== "camera") next.layout.default.no_face = "fit_blur";
           next.layout.default.mode = args.mode;
+          // the split's bands go with the split only, starting from defaultSplit() (layoutAfterSwitch)
+          if (args.mode === "split") next.layout.split = next.layout.split ?? clone(config.defaultSplit);
+          else delete next.layout.split;
         }
         if (type === "SetNoFace") {
           if (!["center", "fit_blur"].includes(args.mode)) throw new fakes.CommandRejected("value_out_of_range");
@@ -266,7 +270,7 @@ test.skip(process.env.E2E_EDITOR_FAKES !== "1",
 test.skip(!settings.username || !settings.password, "E2E_USERNAME and E2E_PASSWORD are required");
 
 async function openLayoutPanel(page, config = {}, { planned = true } = {}) {
-  await page.addInitScript(installScenario, config);
+  await page.addInitScript(installScenario, { ...config, defaultSplit: defaultSplit() });
   await page.goto(EDITOR);
   if (planned) {
     await expect(page.locator('[data-editor-ready="true"]')).toBeVisible({ timeout: 30_000 });
@@ -352,7 +356,7 @@ test("the thumbnails follow the playhead", async ({ page }) => {
   await page.getByRole("button", { name: "Frame berikutnya" }).click();
   await page.getByRole("button", { name: "Frame berikutnya" }).click();
   await expect.poll(async () => (await thumbCalls(page)).filter((entry) => entry.f === 2).map((entry) => entry.layout))
-    .toEqual(["fit_blur", "camera", "fill_center"]);
+    .toEqual(["fit_blur", "camera", "fill_center", "split"]);
   await expect(panel.locator('img[data-layout-thumb="fit_blur"]')).toHaveAttribute("alt", "Contoh Latar blur di 00:00,0");
 });
 
