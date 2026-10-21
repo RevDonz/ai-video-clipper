@@ -313,3 +313,14 @@ test("phones get one column, posters two across, and 44 px targets for every new
   }
   assert.match(/\.step \{([^}]*)\}/.exec(css)[1], /min-width: 44px;/);
 });
+
+// ClipText and HookSwitch sit side by side in the caption box and each is keyed by the clip, so
+// showing another clip starts both from that clip. Equal keys on siblings make React reuse one of
+// them: the title form of clip 1, draft and all, stayed open under clip 2.
+test("the caption box keys ClipText and HookSwitch apart", async () => {
+  const source = await page();
+  const keys = [...source.matchAll(/<(ClipText|HookSwitch) key=\{([^}]+)\}/g)].map((match) => [match[1], match[2]]);
+  assert.deepEqual(keys.map(([name]) => name), ["ClipText", "HookSwitch"]);
+  assert.notEqual(keys[0][1], keys[1][1]);
+  for (const [, key] of keys) assert.match(key, /clip\.index/);
+});
