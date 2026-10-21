@@ -4,8 +4,8 @@
 // "Pakai yang tersimpan". The draft is never discarded and the editor never locks.
 //
 // A document is seen as a set of *parts* (the conflict units): the body trim, the cold open, the
-// removals of each segment, each word edit field, each caption setting, the hook fields, layout
-// and its framing keyframes, logo, the text watermark's fields, music and audio fields. A step
+// removals of each segment, each word edit field, each caption setting, the hook fields, layout,
+// its framing keyframes and the split's bands, logo, the text watermark's fields, music and audio fields. A step
 // conflicts when it changes a part the other tab changed too (removal lists excepted: removals
 // merge semantically, and a replayed removal re-checks that it still fits), or when its
 // preconditions fail on the new document. A conflict is shown only when the two final values
@@ -46,7 +46,7 @@ const WORD_FIELDS = ["text", "hidden", "emphasis"];
 export const PARTS = Object.freeze([
   "base", "coldopen", "join.style", "join.sfx", "trim", "removals:cold_open", "removals:body", "cut_fade",
   "captions.enabled", "captions.pack", ...OVERRIDE_KEYS.map((key) => `captions.override.${key}`),
-  "hook.on", "hook.text", "hook.dur", "hook.y", "hook.design", "layout", "layout.keyframes",
+  "hook.on", "hook.text", "hook.dur", "hook.y", "hook.design", "layout", "layout.keyframes", "layout.split",
   "logo.asset", "logo.transform", "logo.opacity",
   "watermark.on", "watermark.text", "watermark.pos", "watermark.size", "watermark.opacity",
   "music.asset", "music.gain", "music.offset", "music.loop", "music.fades", "music.duck",
@@ -176,6 +176,7 @@ export function partValue(doc, part) {
     case "hook.design": return hook ? hook.payload.design : null;
     case "layout": return doc.layout.default;
     case "layout.keyframes": return doc.layout.keyframes ?? null;
+    case "layout.split": return doc.layout.split ?? null;
     case "logo.asset":
     case "music.asset": {
       const track = trackOf(doc, part === "logo.asset" ? "visual" : "audio");
@@ -325,6 +326,10 @@ function setPart(doc, part, value, assets, ctx) {
     case "layout.keyframes": {
       const { keyframes: _keyframes, ...rest } = doc.layout;
       return { ...doc, layout: value ? { ...doc.layout, keyframes: value } : rest };
+    }
+    case "layout.split": {
+      const { split: _split, ...rest } = doc.layout;
+      return { ...doc, layout: value ? { ...doc.layout, split: value } : rest };
     }
     case "logo.asset":
     case "music.asset": {
@@ -550,6 +555,8 @@ function describe(doc, group, ctx) {
       const count = doc.layout.keyframes?.length ?? 0;
       // manual framing turns face-track's fallback off (CONTRACTS §5.44), so it is named instead
       if (count) return `${mode} + bingkai manual (${count} keyframe)`;
+      const split = doc.layout.split;
+      if (mode === "split" && split) return `split ${split.top_pm / 10}/${100 - split.top_pm / 10}`;
       return mode === "camera" && noFace === "fit_blur" ? `${mode} + latar blur` : mode;
     }
     case "logo": return item(doc, "visual") ? "Dengan logo" : "Tanpa logo";
@@ -646,6 +653,11 @@ export function rebase({ base, mine, theirs, steps, ctx }) {
   // brings mine's layout with them.
   if (groups.get("layout")?.has("layout.keyframes") && partValue(mine, "layout.keyframes") !== null
     && !CROP_MODES.includes(doc.layout.default.mode) && differs("layout")) add("layout", "layout");
+  // The split's bands and the split layout go together (CONTRACTS §5.45): mine's bands bring mine's
+  // layout along, and mine's layout brings mine's bands (or their absence).
+  if (groups.get("layout")?.has("layout.split") && partValue(mine, "layout.split") !== null
+    && doc.layout.default.mode !== "split" && differs("layout")) add("layout", "layout");
+  if (groups.get("layout")?.has("layout") && differs("layout.split")) add("layout", "layout.split");
   for (const [group, parts] of groups) groups.set(group, [...parts].sort((a, b) => orderOf(a) - orderOf(b)));
   const conflicts = [...groups.entries()].map(([id, parts]) => ({
     id, label: groupLabel(id, mine, theirs, ctx), parts,

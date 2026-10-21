@@ -280,6 +280,19 @@
   gap: var(--ed-space-2, 8px);
 }
 
+/* ---------- Tata letak: layar terbagi (CONTRACTS §5.45) ---------- */
+
+.split {
+  display: grid;
+  gap: var(--ed-space-2, 8px);
+}
+
+.splitActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ed-space-2, 8px);
+}
+
 /* ---------- Tata letak: the face analysis ---------- */
 
 .analysis {

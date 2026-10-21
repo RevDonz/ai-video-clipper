@@ -8,12 +8,13 @@ import { CAPTION_PACKS, CAPTION_POSITIONS, CAPTION_SIZES, presetId } from "../pa
 import { hookItemOf } from "../panels/hook-model.mjs";
 import { analysisBusy } from "../panels/layout-analysis.mjs";
 import { LAYOUT_OPTIONS } from "../panels/layout-model.mjs";
+import { splitSummary } from "../split-model.mjs";
 
 const OFF = "Mati";
 const byId = (list, id) => list.find((entry) => entry.id === id) ?? null;
 
-/** The card's three layouts in the mockup's order (the panel lists face-track second). */
-export const CARD_LAYOUTS = Object.freeze(["fit_blur", "fill_center", "camera"].map((id) => byId(LAYOUT_OPTIONS, id)));
+/** The card's layouts in the mockup's order (the panel lists face-track second), then layar terbagi. */
+export const CARD_LAYOUTS = Object.freeze(["fit_blur", "fill_center", "camera", "split"].map((id) => byId(LAYOUT_OPTIONS, id)));
 
 /** "Karaoke · Sedang · Bawah"; an off-preset size or position shows its percent; "Mati" when off. */
 export function captionSummary(doc) {
@@ -43,12 +44,17 @@ export function coldOpenSummary(doc) {
   return join.sfx ? `${name} + whoosh` : name;
 }
 
-/** The layout's name, plus " · menganalisis…" while the face analysis runs, or " · bingkai manual". */
+/**
+ * The layout's name, plus " · menganalisis…" while the face analysis runs, " · bingkai manual", or
+ * the split's shares top first (" · 30/70").
+ */
 export function layoutSummary(doc, analysis = null) {
   const mode = doc?.layout?.default?.mode;
   if (!mode) return "";
   const name = byId(LAYOUT_OPTIONS, mode)?.name ?? mode;
   if (analysisBusy(analysis)) return `${name} · menganalisis…`;
+  const split = splitSummary(doc);
+  if (split) return `${name} · ${split.top}/${split.bottom}`;
   return doc.layout.keyframes?.length ? `${name} · bingkai manual` : name;
 }
 

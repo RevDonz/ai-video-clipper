@@ -41,6 +41,9 @@ from . import (
     PACK_IDS,
     PAN_E5_MAX,
     SCHEMA,
+    SPLIT_BANDS,
+    SPLIT_TOP_PM,
+    SPLIT_ZOOM_RANGE,
     SWATCHES,
     WATERMARK_OPACITY_RANGE,
     WATERMARK_POSITIONS,
@@ -388,7 +391,9 @@ _ROOT = _compile(_keys(
                                    "words_max", "entrance"),
                    word_edits=_Map(_keys("text", "hidden", "emphasis"))),
     layout=_keys(default=_keys("mode", "no_face"),
-                 keyframes=_List(_keys("sf", "pan_e5", "move"))),
+                 keyframes=_List(_keys("sf", "pan_e5", "move")),
+                 split=_keys("top_pm", **dict.fromkeys(SPLIT_BANDS,
+                                                       _keys("x_e5", "y_e5", "zoom_pm")))),
     tracks=_List(_Kind(_TRACKS, _TRACK_ANY)),
     audio=_keys(source=_keys("gain_cdb"), master=_keys("mode", "target_clufs", "tp_cdb")),
     assets=_Map(_Kind(_ASSETS, _ASSET_ANY)),
@@ -539,8 +544,8 @@ _REMOVAL_REASONS = ({"user", "filler", "repeat", "gap_silent"},
                     {"gap_voiced", "ai_condense", "timeline"})
 _JOIN_STYLES = (set(transitions.JOIN_STYLES), set(transitions.DISABLED_JOIN_STYLES))
 _CASES = ({"asis", "upper"}, {"lower", "sentence"})
-_LAYOUT_MODES = ({"fit_blur", "camera", "fill_center"},
-                 {"smart_speaker", "fit_black", "split", "branded"})
+_LAYOUT_MODES = ({"fit_blur", "camera", "fill_center", "split"},  # split: CONTRACTS §5.45
+                 {"smart_speaker", "fit_black", "branded"})
 _NO_FACE = ({"center", "fit_blur"}, {"fail"})  # fit_blur: CONTRACTS §5.40
 _DETECTORS = ({"words"}, {"rms"})
 _LOGO_MODES = ({"free"}, {"pip", "cutaway", "split_top", "split_bottom"})
@@ -1158,15 +1163,39 @@ class _Validator:
             self.enum(default, "no_face", "/layout/default", _NO_FACE)
         if "keyframes" in layout:
             self.keyframes(layout["keyframes"], mode)
+        if "split" in layout:
+            self.split(layout["split"], mode)
+        elif mode == "split":
+            self.error("range_invalid", "/layout/split")
+
+    def split(self, split: object, mode: str | None) -> None:
+        """Layar terbagi (CONTRACTS §5.45): exactly the split layout's, ``top_pm`` one of 300,
+        500 and 700, and per band ``x_e5``/``y_e5`` in 0–100000 and ``zoom_pm`` in 1000–5000."""
+        path = "/layout/split"
+        if self.obj(split, path) is None:
+            return
+        if mode is not None and mode != "split":
+            self.error("range_invalid", path)
+        self.integer(split, "top_pm", path, 0, 1000)
+        if type(split.get("top_pm")) is int and split["top_pm"] not in SPLIT_TOP_PM:
+            self.error("range_invalid", _join(path, "top_pm"))
+        for band in SPLIT_BANDS:
+            crop = self.field(split, band, path)
+            item = _join(path, band)
+            if crop is _MISSING or self.obj(crop, item) is None:
+                continue
+            self.integer(crop, "x_e5", item, 0, PAN_E5_MAX)
+            self.integer(crop, "y_e5", item, 0, PAN_E5_MAX)
+            self.integer(crop, "zoom_pm", item, *SPLIT_ZOOM_RANGE)
 
     def keyframes(self, keyframes: object, mode: str | None) -> None:
         """Manual framing (CONTRACTS §5.44): 1–100 keyframes, strictly increasing source-grid
-        frames inside the window, for a layout that crops (not ``fit_blur``)."""
+        frames inside the window, for a layout that crops (not ``fit_blur`` or ``split``)."""
         path = "/layout/keyframes"
         if not isinstance(keyframes, list) or not 1 <= len(keyframes) <= MAX_KEYFRAMES:
             self.error("range_invalid", path)
             return
-        if mode == "fit_blur":
+        if mode in ("fit_blur", "split"):
             self.error("range_invalid", path)
         window = None
         if self.window_ms is not None and self.fps is not None:

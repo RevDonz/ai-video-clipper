@@ -2,7 +2,8 @@
 // `SetLayout`, Appendix C.6). Pure functions, no DOM; the panel (LayoutPanel.jsx) and its node
 // tests use them.
 //
-// - Three layouts for the whole clip (Essentials): fit-blur, face-track (`camera`), center-crop.
+// - Four layouts for the whole clip: fit-blur, face-track (`camera`), center-crop and layar terbagi
+//   (`split`, CONTRACTS §5.45: two stacked crops, set in "Atur layar terbagi").
 // - A thumbnail is the truth frame (plan §4.2 `preview/frame`) of the current document with only
 //   its layout changed, at the playhead: the export's own pixels, text included.
 // - Face-track needs the clip's camera plan (§5.7). `prepare {layout: "camera"}` builds it once for
@@ -21,6 +22,7 @@ export const LAYOUT_OPTIONS = Object.freeze([
   option({ id: "fit_blur", name: "Latar blur", note: "Seluruh gambar terlihat. Bagian atas dan bawah diisi versi blur dari gambar yang sama." }),
   option({ id: "camera", name: "Ikuti wajah", note: "Potongan 9:16 bergeser mengikuti wajah. Butuh analisis wajah sekali per klip; bagian tanpa wajah tampil dengan latar blur." }),
   option({ id: "fill_center", name: "Potong tengah", note: "Potongan 9:16 tetap di tengah gambar. Sisi kiri dan kanan terpotong." }),
+  option({ id: "split", name: "Layar terbagi", note: "Dua potongan dari video yang sama, bertumpuk atas dan bawah dengan garis tipis di antaranya." }),
 ]);
 const IDS = LAYOUT_OPTIONS.map((entry) => entry.id);
 
@@ -43,8 +45,9 @@ export function layoutCommand(mode) {
 
 /**
  * The document in layout `mode` as `SetLayout` makes it (the same object when unchanged): only
- * `layout` changes; a switch into face-track turns the latar blur fallback on, and latar blur
- * drops the manual framing keyframes (CONTRACTS §5.44).
+ * `layout` changes; a switch into face-track turns the latar blur fallback on, the manual framing
+ * keyframes stay with the crop layouts (CONTRACTS §5.44) and the split starts from its default
+ * bands (§5.45).
  */
 export function withLayout(doc, mode) {
   knownLayout(mode);
@@ -91,12 +94,12 @@ function canonical(value) {
 /**
  * What a thumbnail depends on besides its layout and frame: the document without its layout
  * choice, revision, parent and audit (canonical text), so an edit elsewhere (the framing keyframes
- * included) refreshes the thumbnails and a switch or a save does not.
+ * and the split's bands included) refreshes the thumbnails and a switch or a save does not.
  */
 export function contentKey(doc) {
   if (!doc || typeof doc !== "object") return null;
   const { layout, revision: _revision, parent_sha256: _parent, audit: _audit, ...rest } = doc;
-  return canonical({ ...rest, keyframes: layout?.keyframes ?? null });
+  return canonical({ ...rest, keyframes: layout?.keyframes ?? null, split: layout?.split ?? null });
 }
 
 /** The layouts in the order their thumbnails are asked for: the current one first. */

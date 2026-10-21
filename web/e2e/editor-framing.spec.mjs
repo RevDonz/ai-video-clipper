@@ -179,8 +179,9 @@ test("Atur bingkai opens from Tata letak on the source picture, the box on the l
   await expect(box).toHaveAttribute("data-auto", "true");
   await expect(dialog.locator("[data-gizmo='frame']")).toHaveAttribute("data-still", "ready");
   // the still is the document with latar blur and nothing over it, at the playhead
-  const [first] = await page.evaluate(() => window.__framingFrames);
-  expect(first).toEqual({ layout: "fit_blur", keyframes: false, captions: false, tracks: 0, joins: 0, f: await playerFrame(page) });
+  // the panel's thumbnails share this client: the still is the request with nothing over the picture
+  expect(await page.evaluate(() => window.__framingFrames))
+    .toContainEqual({ layout: "fit_blur", keyframes: false, captions: false, tracks: 0, joins: 0, f: await playerFrame(page) });
   await expect(dialog.locator("[data-framing-result]")).toHaveAttribute("role", "img");
   await expect(dialog.getByRole("button", { name: "Kembali ke otomatis" })).toBeDisabled();
   await expect(dialog.getByRole("button", { name: "Hapus keyframe" })).toBeDisabled();

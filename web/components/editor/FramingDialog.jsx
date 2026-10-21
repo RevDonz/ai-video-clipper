@@ -44,7 +44,8 @@ function useLatest(value) {
   return ref;
 }
 
-function useStillClient(state, previewClient) {
+/** The dialog's own preview client (or `previewClient`), so its stills never cancel the stage's. */
+export function useStillClient(state, previewClient) {
   const own = useRef(null);
   const ids = useLatest({ jobId: state.jobId, clipId: state.clipId });
   useEffect(() => () => {
@@ -64,8 +65,11 @@ function useStillClient(state, previewClient) {
   }, [previewClient, ids]);
 }
 
-/** The source picture at `frame`: `{url, state}` with state "loading", "ready" or "failed". */
-function useStill({ client, doc, frame }) {
+/**
+ * The source picture at `frame`: `{url, state}` with state "loading", "ready" or "failed". "Atur
+ * layar terbagi" (SplitDialog.jsx) draws on the same still.
+ */
+export function useStill({ client, doc, frame }) {
   const [still, setStill] = useState({ url: null, state: "loading" });
   const [attempt, setAttempt] = useState(0);
   const urlRef = useRef(null);

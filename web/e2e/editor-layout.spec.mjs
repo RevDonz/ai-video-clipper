@@ -290,12 +290,13 @@ const thumbCalls = (page) => page.evaluate(() => window.__thumbCalls);
 const radio = (panel, name) => panel.getByRole("group", { name: "Pilih tata letak" }).getByRole("radio", { name: new RegExp(`^${name}`) });
 const noFaceRadio = (panel, name) => panel.getByRole("group", { name: "Bagian tanpa wajah" }).getByRole("radio", { name });
 
-test("Tata letak lists the three layouts, the clip's own chosen, with thumbnails at the playhead", async ({ page }) => {
+test("Tata letak lists the four layouts, the clip's own chosen, with thumbnails at the playhead", async ({ page }) => {
   const panel = await openLayoutPanel(page);
-  await expect(panel.getByRole("radio")).toHaveCount(3);
+  await expect(panel.getByRole("radio")).toHaveCount(4);
   await expect(radio(panel, "Latar blur")).toBeChecked();
   await expect(radio(panel, "Ikuti wajah")).not.toBeChecked();
   await expect(radio(panel, "Potong tengah")).not.toBeChecked();
+  await expect(radio(panel, "Layar terbagi")).not.toBeChecked(); // CONTRACTS §5.45
   await expect(panel.getByText("Berlaku untuk seluruh klip.")).toBeVisible();
   // truth frames of the document in each layout, the current one first
   await expect(panel.locator('img[data-layout-thumb="fit_blur"]')).toHaveJSProperty("complete", true);
@@ -305,8 +306,9 @@ test("Tata letak lists the three layouts, the clip's own chosen, with thumbnails
   // face-track has no camera plan yet: the thumbnail says so instead of guessing
   await expect(panel.locator('[data-layout-option="camera"]')).toContainText("Perlu analisis wajah");
   await expect(panel.locator('img[data-layout-thumb="camera"]')).toHaveCount(0);
-  const first = (await thumbCalls(page)).slice(0, 3);
-  expect(first).toEqual([{ layout: "fit_blur", f: 0 }, { layout: "camera", f: 0 }, { layout: "fill_center", f: 0 }]);
+  const first = (await thumbCalls(page)).slice(0, 4);
+  expect(first).toEqual([{ layout: "fit_blur", f: 0 }, { layout: "camera", f: 0 }, { layout: "fill_center", f: 0 },
+    { layout: "split", f: 0 }]);
 });
 
 test("the chosen layout is explained under the choices", async ({ page }) => {
@@ -515,15 +517,18 @@ test("a face-track document without its camera plan is analysed on its own", asy
 
 test("read-only: the layouts are shown but cannot be changed", async ({ page }) => {
   const panel = await openLayoutPanel(page, { readOnly: "transcript_changed" });
-  await expect(panel.getByRole("radio")).toHaveCount(3);
-  for (const name of ["Latar blur", "Ikuti wajah", "Potong tengah"]) await expect(radio(panel, name)).toBeDisabled();
+  await expect(panel.getByRole("radio")).toHaveCount(4);
+  for (const name of ["Latar blur", "Ikuti wajah", "Potong tengah", "Layar terbagi"]) await expect(radio(panel, name)).toBeDisabled();
   await expect(radio(panel, "Latar blur")).toBeChecked();
 });
 
 test("the choices work from the keyboard", async ({ page }) => {
   const panel = await openLayoutPanel(page);
   await radio(panel, "Latar blur").focus();
-  await page.keyboard.press("ArrowUp"); // wraps to the last option: Potong tengah
+  await page.keyboard.press("ArrowUp"); // wraps to the last option: Layar terbagi
+  await expect.poll(() => layoutOf(page)).toBe("split");
+  await expect(radio(panel, "Layar terbagi")).toBeFocused();
+  await page.keyboard.press("ArrowUp"); // and back up to Potong tengah
   await expect.poll(() => layoutOf(page)).toBe("fill_center");
   await expect(radio(panel, "Potong tengah")).toBeFocused();
 });

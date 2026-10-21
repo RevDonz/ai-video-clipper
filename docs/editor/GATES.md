@@ -2008,3 +2008,22 @@ gates that need the production image or a browser run on GitHub Actions when the
 | P-PLATE with keyframes | SSIM margin ≥ 0; crop x 0 px | cases `plate_fill_center_keyframes`, `plate_camera_keyframes` (710 output frames each, 403 distinct crop x) added | `scripts/parity/frame_identity.py` | pending: `editor-gates suite=command` (`frame_identity.py p-plate`) |
 | Lane and keys | the plate key names the keyframes; the cells op builds that plate; the lane passes the keyframes with every batch | pass | `tests/test_edit_v2_plates.py`, `tests/test_edit_v2_preview_cli.py`, `web/tests/preview-lane.test.mjs` | **pass** (local) |
 | Dialog and timeline (browser, fakes) | drag, keys, Geser, Hapus, Kembali ke otomatis, diamonds, focus return, Escape, undo, axe clean | `e2e/editor-framing.spec.mjs` (8 tests) | | pending: `editor-gates suite=e2e` |
+
+## Layar terbagi: two stacked crops (2026-10-21)
+
+`layout.default.mode: "split"` with `layout.split` (CONTRACTS §5.45). Every other document keeps
+its graph, plan sha and plate key, so `RENDER_SEMANTICS` stays 1 and the goldens are unchanged.
+Built on branch `adopsi/layar-terbagi` with targeted local tests only; the gates that need the
+production image or a browser run on GitHub Actions when the branch is pushed.
+
+| Gate | Threshold | Result | Where | Verdict |
+|---|---|---|---|---|
+| Boxes = crops (shared vectors) | Python and JS give the same line, bands and crops for every vector | 32 vectors, 8 source/output sizes, all three shares: equal | `tests/test_edit_v2_split.py`, `web/tests/editor-split.test.mjs`, `web/tests/editor-split-model.test.mjs` | **pass** (local) |
+| Bands of plate cells and render (pytest, real FFmpeg) | each band's ruler shows its crop (≥ 97 % of the columns within 1.5 px), the top band's frame index is the source frame, the line row is black | local FFmpeg 6.1.1: every plate-cell and lossless-reference frame of a split synthetic clip (cuts, a cold open, both bands zoomed, the lower one moved down) | `tests/test_edit_v2_compile.py::test_split_bands_decoded_from_the_ruler_match_their_crops` | **pass** (local); pinned toolchain: `editor-gates suite=image` |
+| Graph | the split changes only the layout chain; every mode with a layout uses it; no implicit conversion | string checks on two fixtures in final, reference, frame and plate cells; verbose FFmpeg log | `tests/test_edit_v2_compile.py` | **pass** (local) |
+| Document rules | the validator's rules (shares, ranges, the split's own key, keyframes) and `checkDoc` agree; the client's commands against the Python validator in the 1,000-sequence crosscheck with the three split commands in the generator | 0 rejected documents | `tests/test_edit_v2_doc.py`, `tests/test_edit_v2_crosscheck.py` | **pass** (local) |
+| P-FRAME with the split | 0 mismatches | case `cfr_30_split` added | `scripts/parity/frame_identity.py` | pending: `editor-gates suite=command` (`frame_identity.py p-frame`) |
+| P-PLATE with the split | SSIM margin ≥ 0; bands 0 frames off; line black | cases `plate_split`, `plate_split_swapped` added | `scripts/parity/frame_identity.py` | pending: `editor-gates suite=command` (`frame_identity.py p-plate`) |
+| Player P-FRAME | 0 mismatches | the split's index read through its top band; the keyframes case now expects its own crop x | `scripts/parity/player_fixtures.py`, `e2e/editor-player.spec.mjs` | pending: `editor-gates suite=e2e` |
+| Lane and keys | the plate key names the bands; the cells op builds that plate; the lane passes the bands with every batch | pass | `tests/test_edit_v2_plates.py`, `tests/test_edit_v2_preview_cli.py`, `web/tests/preview-lane.test.mjs` | **pass** (local) |
+| Panel, card and dialog (browser, fakes) | the fourth layout, Pembagian, Tukar, drag, keys, corner, zoom slider, result, focus return, Escape, undo, leaving the split, Mode Cepat, axe clean | `e2e/editor-split.spec.mjs` (9 tests); `e2e/editor-layout.spec.mjs` and `e2e/editor-quick.spec.mjs` list four layouts | | pending: `editor-gates suite=e2e` |

@@ -2,14 +2,16 @@
 
 // Editor V3 shell (plan §11.2 T2.6, Appendix C): the top bar, the left panel's tabs (registry
 // panels/index.mjs), the stage with its controls and badge (§6.1), the timeline (registry
-// timeline/lanes.mjs), "Perlu dicek", the export, framing ("Atur bingkai"), conflict and shortcut
-// dialogs, the read-only and notice states, and the keyboard map (Appendix C.4).
+// timeline/lanes.mjs), "Perlu dicek", the export, framing ("Atur bingkai"), split ("Atur layar
+// terbagi"), conflict and shortcut dialogs, the read-only and notice states, and the keyboard map
+// (Appendix C.4).
 //
 // Seams (Appendix A.2): `runtime` (runtime.mjs) provides the store (createEditorStore), the API
 // and preview clients, the upload client and createPlayer. The page passes `runtimeKind` and the
 // server's `features` (uploads and the editor's LLM on or off); tests may inject a runtime. Every
 // panel and every Mode Cepat card receives one props bundle, { state, getState, dispatch, player,
-// api, previewClient, uploadAsset, uploadsEnabled, llmEnabled, notify, readOnly, openFraming }
+// api, previewClient, uploadAsset, uploadsEnabled, llmEnabled, notify, readOnly, openFraming,
+// openSplit }
 // (cards also `frameBus` and `showLengkap`); every lane
 // { plan, state, dispatch, player, pxPerFrame }. `player` is the facade of runtime.mjs, which adds
 // `subscribeFrame(fn)` and `frame()` so that DOM can follow playback outside React (§6.2).
@@ -33,6 +35,7 @@ import tokens from "./editor.module.css";
 import ExportDialog from "./ExportDialog.jsx";
 import { createExportFlow, earlierExports } from "./export-flow.mjs";
 import FramingDialog from "./FramingDialog.jsx";
+import SplitDialog from "./SplitDialog.jsx";
 import { GIZMOS } from "./gizmos/index.mjs";
 import { PANELS } from "./panels/index.mjs";
 import QuickPanel from "./quick/QuickPanel.jsx";
@@ -192,6 +195,7 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
   const [exportOpen, setExportOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [framingOpen, setFramingOpen] = useState(false);
+  const [splitOpen, setSplitOpen] = useState(false);
   const [toast, setToast] = useState(null);
   const [clipInfo, setClipInfo] = useState(null);
   const [clipList, setClipList] = useState(null);
@@ -201,6 +205,7 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
   const checksButtonRef = useRef(null);
   const helpReturnRef = useRef(null);
   const framingReturnRef = useRef(null);
+  const splitReturnRef = useRef(null);
 
   const status = state.status;
   const readOnly = status === "readOnly";
@@ -211,7 +216,7 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
   const conflict = state.save === "conflict" && conflictParts(state.conflict).length ? state.conflict : null;
   // "Klip ini terbuka di tab lain" comes from the store's own BroadcastChannel (T2.5).
   const otherTab = state.otherTab === true;
-  const modalOpen = exportOpen || helpOpen || framingOpen || Boolean(conflict);
+  const modalOpen = exportOpen || helpOpen || framingOpen || splitOpen || Boolean(conflict);
 
   const notify = useCallback((text) => setToast({ text, id: Date.now() }), []);
   notifyRef.current = notify;
@@ -348,6 +353,19 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
     requestAnimationFrame(() => target?.focus?.());
   }, []);
 
+  // "Atur layar terbagi" (CONTRACTS §5.45): opened from the Tata letak panel or card, as Atur bingkai.
+  const openSplit = useCallback(() => {
+    splitReturnRef.current = document.activeElement;
+    setChecksOpen(false);
+    setSplitOpen(true);
+  }, []);
+
+  const closeSplit = useCallback(() => {
+    setSplitOpen(false);
+    const target = splitReturnRef.current;
+    requestAnimationFrame(() => target?.focus?.());
+  }, []);
+
   const closeHelp = useCallback(() => {
     setHelpOpen(false);
     const target = helpReturnRef.current;
@@ -461,8 +479,8 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
   // the store as it is now, for work that outlives the panel or card that started it (§4.1).
   const panelProps = useMemo(() => ({
     state, getState: snapshot, dispatch, player, api, previewClient: runtime.previewClient, uploadAsset: runtime.uploadAsset ?? null, uploadsEnabled, llmEnabled, notify, readOnly,
-    openFraming,
-  }), [state, snapshot, dispatch, player, api, runtime, uploadsEnabled, llmEnabled, notify, readOnly, openFraming]);
+    openFraming, openSplit,
+  }), [state, snapshot, dispatch, player, api, runtime, uploadsEnabled, llmEnabled, notify, readOnly, openFraming, openSplit]);
 
   const errorCode = status === "error" ? (state.error?.code ?? state.errorCode ?? "internal_error") : null;
   const preparesNow = typeof onNeedsPrepare === "function" && PREPARE_CODES.has(errorCode);
@@ -664,6 +682,18 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
       <FramingDialog
         open={framingOpen}
         onClose={closeFraming}
+        state={state}
+        dispatch={dispatch}
+        player={player}
+        frameBus={frameBus}
+        previewClient={runtime.kind === "fake" ? runtime.previewClient : null}
+        readOnly={readOnly}
+        onUndo={() => { if (!readOnly) store.undo(); }}
+        onRedo={() => { if (!readOnly) store.redo(); }}
+      />
+      <SplitDialog
+        open={splitOpen}
+        onClose={closeSplit}
         state={state}
         dispatch={dispatch}
         player={player}

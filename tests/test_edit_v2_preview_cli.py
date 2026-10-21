@@ -30,6 +30,7 @@ from ai_clipper.edit_v2 import (
     RENDER_SEMANTICS,
     compile_ffmpeg,
     execute,
+    layouts,
     plates,
     preview_cli,
     store,
@@ -128,7 +129,7 @@ CLIP = "clip_" + "a" * 24
     b'{"op": "plan", "jobId": "' + JOB.encode() + b'", "clipId": "' + CLIP.encode()
     + b'", "requestRaw": "e30=", "extra": 1}',
     b'{"op": "prepare", "jobId": "' + JOB.encode() + b'", "clipId": "' + CLIP.encode()
-    + b'", "layout": "split"}',
+    + b'", "layout": "smart_speaker"}',
     b'{"op": "cells", "jobId": "' + JOB.encode() + b'", "clipId": "' + CLIP.encode()
     + b'", "layout": "fit_blur", "cells": [], "cancelToken": null}',
     b'{"op": "cells", "jobId": "' + JOB.encode() + b'", "clipId": "' + CLIP.encode()
@@ -152,6 +153,17 @@ CLIP = "clip_" + "a" * 24
                         json.dumps([[k, 0, "cut"] for k in range(101)]).encode())],
     b'{"op": "prepare", "jobId": "' + JOB.encode() + b'", "clipId": "' + CLIP.encode()
     + b'", "layout": "fill_center", "keyframes": [[1, 0, "cut"]]}',
+    # layar terbagi (CONTRACTS §5.45): [top_pm, [x_e5, y_e5, zoom_pm] per band]
+    *[b'{"op": "cells", "jobId": "' + JOB.encode() + b'", "clipId": "' + CLIP.encode()
+      + b'", "layout": "split", "split": ' + split
+      + b', "cells": [1], "cancelToken": null}'
+      for split in (b"[]", b"null", b"[300]", b"[400, [0, 0, 1000], [0, 0, 1000]]",
+                    b"[300, [0, 0, 999], [0, 0, 1000]]", b"[300, [0, 0, 1000], [0, 0]]",
+                    b"[300, [-1, 0, 1000], [0, 0, 1000]]", b"[300, [0, 0, 1000.0], [0, 0, 1000]]",
+                    b'{"top_pm": 300}', b"[300, [0, 0, 1000], [0, 100001, 1000]]",
+                    b"[300, [0, 0, 1000], [0, 0, 1000], [0, 0, 1000]]")],
+    b'{"op": "prepare", "jobId": "' + JOB.encode() + b'", "clipId": "' + CLIP.encode()
+    + b'", "layout": "split", "split": [300, [0, 0, 1000], [0, 0, 1000]]}',
     b'{"op": "cells", "jobId": "' + JOB.encode() + b'", "clipId": "' + CLIP.encode()
     + b'", "layout": "fit_blur", "cells": ' + json.dumps(list(range(65))).encode()
     + b', "cancelToken": null}',
@@ -302,9 +314,10 @@ def test_the_ass_is_omitted_when_the_client_already_has_it(c30):
 def test_the_lane_section_tells_node_what_to_build(c30):
     result = ok(plan(c30, playhead=150))
     dto, lane = result["dto"], result["lane"]
-    assert set(lane) == {"playhead", "layout", "noFace", "keyframes", "plateKey", "cellFrames",
-                         "cells", "missing", "audio", "logo", "frameKey"}
+    assert set(lane) == {"playhead", "layout", "noFace", "keyframes", "split", "plateKey",
+                         "cellFrames", "cells", "missing", "audio", "logo", "frameKey"}
     assert lane["playhead"] == 150 and lane["noFace"] is None and lane["keyframes"] is None
+    assert lane["split"] is None
     assert lane["layout"] == "fit_blur" and lane["plateKey"] == dto["plate"]["plateKey"]
     assert lane["cells"] == [cell["k"] for cell in dto["plate"]["cells"]] == lane["missing"]
     assert lane["audio"] == {"key": dto["audio"]["mixSha256"], "ready": False}
@@ -711,6 +724,21 @@ def test_manual_framing_tells_the_lane_its_keyframes(c30):
     assert not [w for w in framed["dto"]["warnings"] if w["code"].startswith("no_face")]
 
 
+def test_the_split_tells_the_lane_its_bands(c30):
+    """CONTRACTS §5.45: the lane gets the split as ``[top_pm, [x_e5, y_e5, zoom_pm] per band]``
+    for the cells op, and the plate key names it."""
+    doc = valid("layout_split__c30")
+    result = ok(plan(c30, doc))
+    dto, lane = result["dto"], result["lane"]
+    assert lane["layout"] == "split" and lane["noFace"] is None and lane["keyframes"] is None
+    assert lane["split"] == layouts.split_lane(doc["layout"]["split"])
+    assert lane["plateKey"] == dto["plate"]["plateKey"] == plates.plate_key(doc)
+    moved = copy.deepcopy(doc)
+    moved["layout"]["split"]["top"]["zoom_pm"] = 2000
+    other = ok(plan(c30, moved))["lane"]
+    assert other["split"][1][2] == 2000 and other["plateKey"] != lane["plateKey"]
+
+
 def test_a_read_only_document_is_planned_with_its_own_words(tmp_path, contexts):
     context = contexts["c30"]
     clip = make_clip(tmp_path, context)
@@ -850,6 +878,44 @@ def test_prepare_and_cells_build_the_plate_of_manual_framing(job):
     blurred = ok(op(case, "prepare", layout="fit_blur"))
     assert blurred["keyframes"] is None
     assert blurred["plateKey"] == plates.plate_key(seed)
+
+
+def test_prepare_and_cells_build_the_plate_of_the_split(job):
+    """CONTRACTS §5.45: the cells op builds the plate of the split the lane passes, under the
+    plan's key; ``prepare`` with a switch to the split reports the default bands (SetLayout),
+    and the saved document's own bands once it is a split."""
+    case = job_case(job, 2)
+    seed = case["seed"]
+    doc = with_layout(seed, "split")
+    doc["layout"]["split"] = {"top_pm": 500, "top": {"x_e5": 0, "y_e5": 0, "zoom_pm": 2000},
+                              "bottom": {"x_e5": 100_000, "y_e5": 0, "zoom_pm": 1000}}
+    lane = ok(plan(case, doc))["lane"]
+    assert lane["split"] == [500, [0, 0, 2000], [100_000, 0, 1000]]
+    wanted = lane["cells"][:1]
+    built = ok(op(case, "cells", layout="split", split=lane["split"], cells=wanted,
+                  cancelToken=None))
+    assert built == {"plateKey": lane["plateKey"], "built": wanted, "present": []}
+    for layout, split in (("split", None), ("fill_center", lane["split"])):
+        fields = {} if split is None else {"split": split}
+        assert_error(op(case, "cells", layout=layout, cells=wanted, cancelToken=None, **fields),
+                     6, "range_invalid")
+    switched = ok(op(case, "prepare", layout="split"))
+    default = with_layout(seed, "split")
+    default["layout"]["split"] = layouts.default_split()
+    assert switched["layout"] == "split"
+    assert switched["split"] == layouts.split_lane(layouts.default_split())
+    assert switched["plateKey"] == plates.plate_key(default)
+    head, etag, _is_seed = store.get(case["clip"])  # the job is shared: save on its head
+    saved = copy.deepcopy(doc)
+    saved.update(revision=head["revision"] + 1, parent_sha256=etag)
+    store.put(case["clip"], expected_etag=etag,
+              idempotency_key="00000000-0000-4000-8000-0000000000f2",
+              raw=json.dumps(saved).encode(), now_ms=head["audit"]["updated_at_ms"] + 1)
+    prepared = ok(op(case, "prepare", layout=None))
+    assert prepared["split"] == lane["split"] and prepared["plateKey"] == lane["plateKey"]
+    assert ok(op(case, "prepare", layout="split"))["split"] == lane["split"]  # kept, not reset
+    blurred = ok(op(case, "prepare", layout="fit_blur"))
+    assert blurred["split"] is None and blurred["plateKey"] == plates.plate_key(seed)
 
 
 def test_cells_are_published_once_under_their_plate_key(job):

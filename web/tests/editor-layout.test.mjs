@@ -1,5 +1,5 @@
 // The layout panel's model (plan §11.3 T3.6, §5.7, §3.3 `layout.default.mode`, Appendix B
-// `SetLayout`, Appendix C.6): the three layouts and their copy, the document variant a thumbnail
+// `SetLayout`, Appendix C.6): the four layouts (layar terbagi, CONTRACTS §5.45) and their copy, the document variant a thumbnail
 // is asked for, the switch steps (face-track needs its camera analysis first), the progress of
 // that analysis, and the list of runs without a face with their jump-to frames.
 import assert from "node:assert/strict";
@@ -27,10 +27,10 @@ import {
 import { COMMANDS, CommandRejected, applyCommand } from "../lib/editor/commands.mjs";
 import { LAYOUT_MODES, NO_FACE_MODES, checkDoc, createContext, switchedLayout } from "../lib/editor/doc-model.mjs";
 
-test("the three layouts of plan §3.3, in the order of Appendix C.1, with Indonesian copy", () => {
-  assert.deepEqual(LAYOUT_OPTIONS.map((option) => option.id), ["fit_blur", "camera", "fill_center"]);
+test("the layouts of plan §3.3 in the order of Appendix C.1, then layar terbagi, with Indonesian copy", () => {
+  assert.deepEqual(LAYOUT_OPTIONS.map((option) => option.id), ["fit_blur", "camera", "fill_center", "split"]);
   assert.deepEqual([...LAYOUT_MODES].sort(), LAYOUT_OPTIONS.map((option) => option.id).sort());
-  assert.deepEqual(LAYOUT_OPTIONS.map((option) => option.name), ["Latar blur", "Ikuti wajah", "Potong tengah"]);
+  assert.deepEqual(LAYOUT_OPTIONS.map((option) => option.name), ["Latar blur", "Ikuti wajah", "Potong tengah", "Layar terbagi"]);
   for (const option of LAYOUT_OPTIONS) {
     assert.ok(Object.isFrozen(option));
     assert.match(option.note, /\S/);
@@ -51,8 +51,10 @@ test("SetLayout changes only layout.default.mode and refuses an unknown mode", (
   const { layout: _a, audit: _b, ...rest } = next;
   const { layout: _c, audit: _d, ...before } = doc;
   assert.deepEqual(rest, before);
-  assert.throws(() => applyCommand(doc, "SetLayout", { mode: "split" }, ctx), CommandRejected);
+  // layar terbagi (CONTRACTS §5.45) is a layout; its bands come with it
+  assert.equal(applyCommand(doc, "SetLayout", { mode: "split" }, ctx).doc.layout.split.top_pm, 300);
   assert.throws(() => applyCommand(doc, "SetLayout", { mode: "smart_speaker" }, ctx), CommandRejected);
+  assert.throws(() => applyCommand(doc, "SetLayout", { mode: "branded" }, ctx), CommandRejected);
   assert.equal(applyCommand(next, "SetLayout", { mode: "camera" }, ctx).doc.layout.default.mode, "camera");
 });
 
@@ -107,7 +109,13 @@ test("a thumbnail asks for the document with only the layout changed", () => {
   assert.equal(camera.main, doc.main); // shared, untouched
   assert.deepEqual({ ...camera, layout: doc.layout }, doc);
   assert.equal(withLayout(doc, "fit_blur"), doc);
-  assert.throws(() => withLayout(doc, "split"), TypeError);
+  assert.throws(() => withLayout(doc, "smart_speaker"), TypeError);
+  // layar terbagi (CONTRACTS §5.45): its thumbnail starts from the default bands, as SetLayout does
+  const split = withLayout(doc, "split");
+  assert.deepEqual(split.layout.split, { top_pm: 300, top: { x_e5: 50000, y_e5: 50000, zoom_pm: 1000 },
+    bottom: { x_e5: 50000, y_e5: 50000, zoom_pm: 1000 } });
+  assert.equal(withLayout(split, "split"), split);
+  assert.ok(!Object.hasOwn(withLayout(split, "camera").layout, "split"));
   // manual framing (CONTRACTS §5.44): the crop layouts keep the keyframes, latar blur drops them
   const framed = { ...doc, layout: { default: { mode: "fill_center", no_face: "center" },
     keyframes: [{ sf: 37300, pan_e5: 20000, move: "cut" }] } };
@@ -124,6 +132,10 @@ test("the thumbnail key ignores the layout, revision and audit and follows every
   const framed = { ...doc, layout: { ...doc.layout, keyframes: [{ sf: 37300, pan_e5: 20000, move: "cut" }] } };
   assert.notEqual(contentKey(framed), key);
   assert.equal(contentKey(withLayout(framed, "camera")), contentKey(framed));
+  // so do the split's bands (CONTRACTS §5.45)
+  const split = withLayout(doc, "split");
+  const cropped = { ...split, layout: { ...split.layout, split: { ...split.layout.split, top_pm: 500 } } };
+  assert.notEqual(contentKey(cropped), contentKey(split));
   const edited = structuredClone(doc);
   edited.captions.overrides.y_e5 = 70000;
   assert.notEqual(contentKey(edited), key);
@@ -131,9 +143,10 @@ test("the thumbnail key ignores the layout, revision and audit and follows every
 });
 
 test("thumbnails come in the order current layout first, then the others", () => {
-  assert.deepEqual(thumbnailOrder("fill_center"), ["fill_center", "fit_blur", "camera"]);
-  assert.deepEqual(thumbnailOrder("camera"), ["camera", "fit_blur", "fill_center"]);
-  assert.deepEqual(thumbnailOrder(null), ["fit_blur", "camera", "fill_center"]);
+  assert.deepEqual(thumbnailOrder("fill_center"), ["fill_center", "fit_blur", "camera", "split"]);
+  assert.deepEqual(thumbnailOrder("camera"), ["camera", "fit_blur", "fill_center", "split"]);
+  assert.deepEqual(thumbnailOrder("split"), ["split", "fit_blur", "camera", "fill_center"]);
+  assert.deepEqual(thumbnailOrder(null), ["fit_blur", "camera", "fill_center", "split"]);
 });
 
 test("the thumbnail frame is the playhead, kept inside the clip", () => {
@@ -152,7 +165,9 @@ test("the switch steps: nothing, a command, or the camera analysis before the co
   assert.equal(switchSteps({ target: "camera", current: "fit_blur", cameraReady: true }), "dispatch");
   assert.equal(switchSteps({ target: "camera", current: "fit_blur", cameraReady: false }), "analyze");
   assert.equal(switchSteps({ target: "camera", current: "camera", cameraReady: false }), "none");
-  assert.throws(() => switchSteps({ target: "split", current: "fit_blur", cameraReady: true }), TypeError);
+  // layar terbagi needs no analysis (CONTRACTS §5.45)
+  assert.equal(switchSteps({ target: "split", current: "camera", cameraReady: false }), "dispatch");
+  assert.throws(() => switchSteps({ target: "smart_speaker", current: "fit_blur", cameraReady: true }), TypeError);
 });
 
 test("the camera plan is known to exist when the seed names one (a face-track seed)", () => {

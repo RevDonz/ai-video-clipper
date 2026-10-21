@@ -25,6 +25,13 @@ indexed by ``n`` like the crop: the crop x is the centre there (fit-blur's backg
 ``gblur`` is enabled there, and the foreground's alpha is cleared elsewhere (``lutyuv=a=0``), so
 ``overlay`` leaves the camera crop untouched. Each frame is therefore exactly the camera frame
 or the fit-blur frame. Without such a frame the chain is today's camera chain, byte for byte.
+
+**Layar terbagi** (``split``, CONTRACTS §5.45). Two bands stacked in the output, a 1 px black line
+between them (:func:`split_bands`). Each band shows its own crop of the source
+(:func:`split_crop`): the largest box of the band's shape at zoom 1000, divided by the zoom, at a
+place from edge to edge; every side and offset even, so the crop is exact on 4:2:0 sources. The
+chain crops first and scales each crop to its band (:func:`split_chain`); the crops are the same
+on every frame.
 """
 
 from __future__ import annotations
@@ -36,11 +43,19 @@ from pathlib import Path
 from typing import Any
 
 from ..render import _layout_filter
-from . import KEYFRAME_MOVES, MAX_KEYFRAMES, PAN_E5_MAX
+from . import (
+    KEYFRAME_MOVES,
+    MAX_KEYFRAMES,
+    PAN_E5_MAX,
+    SPLIT_BANDS,
+    SPLIT_TOP_PM,
+    SPLIT_ZOOM_RANGE,
+)
 from .timemap import Fps, div_round_half_up
 
-# layout.default.mode values (plan §3.3): fit-blur, face-track, center-crop.
-LAYOUT_MODES = ("fit_blur", "camera", "fill_center")
+# layout.default.mode values (plan §3.3): fit-blur, face-track, center-crop, and layar terbagi
+# (§5.45).
+LAYOUT_MODES = ("fit_blur", "camera", "fill_center", "split")
 # The layouts that crop the source, the only ones manual framing (layout.keyframes) applies to.
 CROP_MODES = ("camera", "fill_center")
 # layout.default.no_face values: what face-track shows where no face was found (§5.40).
@@ -301,11 +316,12 @@ def layout_chain(
             return _fallback_chain(crop, fallback, label_in=label_in, label_out=label_out,
                                    suffix=suffix, output=output, source=source, matrix=matrix,
                                    in_range=in_range)
+    if mode == "split":
+        raise ValueError("the split layout has its own chain (split_chain)")
     width, height = output
     legacy = _layout_filter(Path(), input_label=label_in, start=0.0, end=0.0, width=width,
                             height=height, render_mode=_LEGACY_MODE[mode], label_suffix=suffix)
-    conversion = (f"in_color_matrix={matrix}:in_range={in_range}:"
-                  f"out_color_matrix={OUTPUT_MATRIX}:out_range=tv,format=")
+    conversion = _conversion(matrix, in_range)
     chain = _replace_once(legacy, "force_original_aspect_ratio=increase,",
                           f"force_original_aspect_ratio=increase:{conversion}{WORKING_FORMAT},")
     if mode == "fit_blur":
@@ -325,6 +341,12 @@ def layout_chain(
     elif crop is not None:
         raise ValueError("only the camera layout takes crop positions")
     return chain + label_out
+
+
+def _conversion(matrix: str, in_range: str) -> str:
+    """The layout scale's explicit conversion (R3), ending at ``format=`` for the target."""
+    return (f"in_color_matrix={matrix}:in_range={in_range}:"
+            f"out_color_matrix={OUTPUT_MATRIX}:out_range=tv,format=")
 
 
 def _fallback_chain(crop: Sequence[int], fallback: Sequence[bool], **chain: Any) -> str:
@@ -348,6 +370,149 @@ def _fallback_chain(crop: Sequence[int], fallback: Sequence[bool], **chain: Any)
                          f"{OVERLAY_FORMAT},lutyuv=a=0:enable='{hidden}'[")
 
 
+# --- layar terbagi (§5.45) ------------------------------------------------------------------
+
+_SPLIT_KEYS = frozenset({"top_pm", *SPLIT_BANDS})
+_CROP_KEYS = frozenset({"x_e5", "y_e5", "zoom_pm"})
+
+
+def default_split() -> dict[str, Any]:
+    """The ``layout.split`` a switch to layar terbagi starts from: 30/70, both crops at zoom 1
+    in the middle of the source (the top band shows nearly the whole 16:9 picture)."""
+    centre = PAN_E5_MAX // 2
+    return {"top_pm": SPLIT_TOP_PM[0],
+            **{band: {"x_e5": centre, "y_e5": centre, "zoom_pm": SPLIT_ZOOM_RANGE[0]}
+               for band in SPLIT_BANDS}}
+
+
+def _int_in(value: object, low: int, high: int) -> bool:
+    return type(value) is int and low <= value <= high
+
+
+def check_split(split: Mapping[str, Any]) -> None:
+    """Raises unless ``split`` is a valid ``layout.split``: exactly ``top_pm`` (one of
+    ``SPLIT_TOP_PM``) and one crop per band with exactly ``x_e5``/``y_e5`` in 0–``PAN_E5_MAX``
+    and ``zoom_pm`` in ``SPLIT_ZOOM_RANGE`` (``TypeError`` for a value that is not an object)."""
+    if not isinstance(split, Mapping):
+        raise TypeError("layout.split is an object")
+    if set(split) != _SPLIT_KEYS:
+        raise ValueError("layout.split holds top_pm, top and bottom")
+    if type(split["top_pm"]) is not int or split["top_pm"] not in SPLIT_TOP_PM:
+        raise ValueError("top_pm must be 300, 500 or 700")
+    for band in SPLIT_BANDS:
+        crop = split[band]
+        if not isinstance(crop, Mapping):
+            raise TypeError("a band's crop is an object")
+        if set(crop) != _CROP_KEYS:
+            raise ValueError("a band's crop holds x_e5, y_e5 and zoom_pm")
+        if not (_int_in(crop["x_e5"], 0, PAN_E5_MAX) and _int_in(crop["y_e5"], 0, PAN_E5_MAX)
+                and _int_in(crop["zoom_pm"], *SPLIT_ZOOM_RANGE)):
+            raise ValueError("x_e5 and y_e5 in 0..100000, zoom_pm in 1000..5000")
+
+
+def split_bands(output: tuple[int, int], top_pm: int) -> tuple[tuple[int, int], tuple[int, int]]:
+    """The two bands' sizes: ``top_pm`` per mille of the ``H − 1`` rows beside the line,
+    rounded half up, on top; the rest below. 300 and 700 are mirror images."""
+    if type(top_pm) is not int or top_pm not in SPLIT_TOP_PM:
+        raise ValueError("top_pm must be 300, 500 or 700")
+    width, height = output
+    top = div_round_half_up((height - 1) * top_pm, 1000)
+    return (width, top), (width, height - 1 - top)
+
+
+def _even(numerator: int, denominator: int) -> int:
+    """``numerator / denominator`` rounded to the nearest even integer (halves up)."""
+    return 2 * div_round_half_up(numerator, 2 * denominator)
+
+
+def split_crop(source: tuple[int, int], band: tuple[int, int],
+               crop: Mapping[str, int]) -> tuple[int, int, int, int]:
+    """``(x, y, w, h)`` of the source a band shows: the largest box of the band's shape (the
+    whole height of a source wider than the band, else the whole width) divided by
+    ``zoom_pm / 1000``, each side rounded to even; then ``x_e5`` and ``y_e5`` place it from
+    the left or top edge (0) to the right or bottom edge (100000) of its travel (floored to
+    even), rounded to even."""
+    (src_w, src_h), (band_w, band_h) = source, band
+    zoom = crop["zoom_pm"]
+    if src_w * band_h >= src_h * band_w:
+        w, h = _even(src_h * band_w * 1000, band_h * zoom), _even(src_h * 1000, zoom)
+    else:
+        w, h = _even(src_w * 1000, zoom), _even(src_w * band_h * 1000, band_w * zoom)
+    w = min(max(w, 2), src_w - src_w % 2)
+    h = min(max(h, 2), src_h - src_h % 2)
+    travel_x = (src_w - w) - (src_w - w) % 2
+    travel_y = (src_h - h) - (src_h - h) % 2
+    x = _even(crop["x_e5"] * travel_x, PAN_E5_MAX)
+    y = _even(crop["y_e5"] * travel_y, PAN_E5_MAX)
+    return min(x, travel_x), min(y, travel_y), w, h
+
+
+def split_geometry(split: Mapping[str, Any], *, source: tuple[int, int],
+                   output: tuple[int, int]) -> dict[str, Any]:
+    """The output rows of the line and of each band (``y``, ``size``) and each band's crop."""
+    check_split(split)
+    sizes = dict(zip(SPLIT_BANDS, split_bands(output, split["top_pm"]), strict=True))
+    line = sizes["top"][1]
+    return {
+        "line": line,
+        **{band: {"y": 0 if band == "top" else line + 1, "size": sizes[band],
+                  "crop": split_crop(source, sizes[band], split[band])}
+           for band in SPLIT_BANDS},
+    }
+
+
+def split_lane(split: Mapping[str, Any]) -> list:
+    """The lane's (and the plate key's) form: ``[top_pm, [x_e5, y_e5, zoom_pm] per band]``."""
+    return [split["top_pm"], *([split[band][key] for key in ("x_e5", "y_e5", "zoom_pm")]
+                               for band in SPLIT_BANDS)]
+
+
+def split_from_lane(value: Sequence) -> dict[str, Any]:
+    """``layout.split`` from its lane form; raises like :func:`check_split`."""
+    if not isinstance(value, list) or len(value) != 1 + len(SPLIT_BANDS):
+        raise ValueError("the lane split is [top_pm, top, bottom]")
+    bands = value[1:]
+    if not all(isinstance(item, list) and len(item) == 3 for item in bands):
+        raise ValueError("a lane band is [x_e5, y_e5, zoom_pm]")
+    split = {"top_pm": value[0],
+             **{band: dict(zip(("x_e5", "y_e5", "zoom_pm"), item, strict=True))
+                for band, item in zip(SPLIT_BANDS, bands, strict=True)}}
+    check_split(split)
+    return split
+
+
+def split_chain(
+    split: Mapping[str, Any],
+    *,
+    label_in: str,
+    label_out: str,
+    suffix: str,
+    output: tuple[int, int],
+    source: tuple[int, int],
+    matrix: str,
+    in_range: str,
+) -> str:
+    """The split layout from ``label_in`` to ``label_out`` (yuv444p, BT.709, tv, SAR 1): each
+    band's crop of the source scaled to the band (R3's explicit conversion), the top band padded
+    with the black line below it, then stacked. ``suffix`` keeps the internal labels unique."""
+    if in_range not in ("tv", "pc"):
+        raise ValueError("in_range must be tv or pc")
+    geometry = split_geometry(split, source=source, output=output)
+    conversion = _conversion(matrix, in_range)
+    width = output[0]
+
+    def band(name: str) -> str:
+        x, y, w, h = geometry[name]["crop"]
+        band_w, band_h = geometry[name]["size"]
+        return (f"[split_{name}{suffix}]crop={w}:{h}:{x}:{y},"
+                f"scale={band_w}:{band_h}:{conversion}{WORKING_FORMAT}")
+
+    return (f"{label_in}split=2[split_top{suffix}][split_bottom{suffix}];"
+            f"{band('top')},pad={width}:{geometry['line'] + 1}:0:0:black[split_a{suffix}];"
+            f"{band('bottom')}[split_b{suffix}];"
+            f"[split_a{suffix}][split_b{suffix}]vstack=inputs=2,setsar=1{label_out}")
+
+
 __all__ = [
     "CROP_MODES",
     "KEYFRAME_MOVES",
@@ -356,12 +521,20 @@ __all__ = [
     "blur_sigma",
     "centre_x",
     "check_keyframes",
+    "check_split",
     "color_matrix",
     "crop_expression",
     "crop_positions",
+    "default_split",
     "keyframe_positions",
     "layout_chain",
     "no_face_frames",
     "pan_limit",
     "scaled_size",
+    "split_bands",
+    "split_chain",
+    "split_crop",
+    "split_from_lane",
+    "split_geometry",
+    "split_lane",
 ]

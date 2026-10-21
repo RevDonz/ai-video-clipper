@@ -343,6 +343,18 @@
    "warnings": []
   },
   {
+   "file": "valid/layout_split__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/layout_split_swapped__c25.json",
+   "context": "c25",
+   "check": "put",
+   "warnings": []
+  },
+  {
    "file": "valid/hook_removed__c30.json",
    "context": "c30",
    "check": "put",
@@ -627,6 +639,13 @@
    "path": "/layout/keyframes/0/zoom_pm"
   },
   {
+   "file": "invalid/unknown_key__split_crop.json",
+   "context": "c30",
+   "check": "put",
+   "code": "unknown_key",
+   "path": "/layout/split/top/w_e5"
+  },
+  {
    "file": "invalid/unknown_key__layout_ranges.json",
    "context": "c30",
    "check": "put",
@@ -779,6 +798,34 @@
    "check": "put",
    "code": "outside_window",
    "path": "/layout/keyframes/1/sf"
+  },
+  {
+   "file": "invalid/range_invalid__split_missing.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/layout/split"
+  },
+  {
+   "file": "invalid/range_invalid__split_top_pm.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/layout/split/top_pm"
+  },
+  {
+   "file": "invalid/range_invalid__split_zoom.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/layout/split/bottom/zoom_pm"
+  },
+  {
+   "file": "invalid/range_invalid__keyframes_split.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/layout/keyframes"
   },
   {
    "file": "invalid/range_invalid__keyframes_fit_blur.json",
@@ -1481,7 +1528,7 @@
    "path": "/tracks/1/items/0/payload/duck/detector"
   },
   {
-   "file": "invalid/op_disabled__layout_split.json",
+   "file": "invalid/op_disabled__layout_smart_speaker.json",
    "context": "c30",
    "check": "put",
    "code": "op_disabled",

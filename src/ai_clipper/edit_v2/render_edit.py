@@ -132,7 +132,7 @@ PROGRESS_FULL = 1000
 # 4 CPUs) rounded up for a loaded machine; FFmpeg must also report progress every 20 s.
 MIN_TIMEOUT_S = 120.0
 TIMEOUT_FACTOR = 3
-PREDICTED_X = {"fit_blur": 0.5, "camera": 0.5, "fill_center": 0.4}
+PREDICTED_X = {"fit_blur": 0.5, "camera": 0.5, "fill_center": 0.4, "split": 0.5}
 PIPELINE_MIN_TIMEOUT_S = float(_legacy.FFMPEG_TIMEOUT_SECONDS)  # never stricter than legacy
 # PF-PIPELINE (T4.3): the auto render runs several clips at once. A "heavy slot" is one final
 # encode or one camera plan, each about FFMPEG_THREADS CPUs busy (x264 and the filters at
