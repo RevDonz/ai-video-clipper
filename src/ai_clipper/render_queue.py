@@ -441,7 +441,7 @@ TIMEOUT_MAX_MS = 24 * 3600 * 1000
 # PF-RENDER budget (p95 ≤ 0.6× at 720×1280 on 4 CPUs; face-track adds its crop track, the
 # larger size has 2.25× the pixels). T4.3 recalibrates it from measured renders. The split
 # (two crops scaled to their bands, CONTRACTS §5.45) takes fit-blur's budget until measured.
-# A 1:1 render (CONTRACTS §5.53) took 0.6-0.85× the time of the 9:16 render of its width in
+# A 1:1 render (CONTRACTS §5.53) took 0.6-0.95× the time of the 9:16 render of its width in
 # PF-SIZE, so it takes that budget.
 _RENDER_COST_9_16 = {
     ("fit_blur", (720, 1280)): 600,
