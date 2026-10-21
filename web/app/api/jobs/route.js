@@ -7,7 +7,7 @@ import Busboy from "busboy";
 import { requireAuth } from "../../../lib/auth.mjs";
 import { snapshotDefaultLogo } from "../../../lib/default-logo.mjs";
 import { snapshotDefaultWatermark } from "../../../lib/default-watermark.mjs";
-import { readEditorFlags } from "../../../lib/editor/flags.mjs";
+import { jobListFlags } from "../../../lib/editor/flags.mjs";
 import { sameOriginMutation } from "../../../lib/request-security.mjs";
 import {
   RetiredSelectionModeError,
@@ -220,8 +220,9 @@ export async function GET(request) {
     try { jobs.push(publicJob(JSON.parse(await readFile(path.join(jobsRoot(), entry.name, "job.json"), "utf8")))); }
     catch { /* Ignore incomplete directories; queue validation is authoritative. */ }
   }
-  // `editor`: the history offers "Edit klip" only while the editor is on (POTONGIN_EDITOR_V3).
-  return Response.json({ jobs: sortJobsNewest(jobs), total: jobs.length, editor: readEditorFlags(process.env).editorV3 });
+  // `editor`: the history offers "Edit klip" only while the editor is on (POTONGIN_EDITOR_V3);
+  // `renderEngine`: the dashboard offers only the caption looks the automatic render draws.
+  return Response.json({ jobs: sortJobsNewest(jobs), total: jobs.length, ...jobListFlags(process.env) });
 }
 
 export async function POST(request) {

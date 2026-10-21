@@ -2041,3 +2041,33 @@ branch `adopsi/gizmo-caption` with targeted local tests only.
 | Snap, range, grid, keys | presets within 8 screen px, else the 500 grid; never outside 20000–92000; arrows 500, Shift/Page 5000, Home/End | pass | `web/tests/editor-caption-gizmo.test.mjs` | **pass** (local) |
 | Undo | one step per drag however long; keys merge with the slider (`cap:y_e5`); a drag never merges into them | pass on the real edit session | `web/tests/editor-caption-gizmo.test.mjs` | **pass** (local) |
 | Stage (browser, harness) | drag and snap, Alt, range with the pointer off the stage, Escape, click, slider and card in step, keys and focus ring, read-only, captions off, reduced motion, axe clean | `e2e/editor-caption-gizmo.spec.mjs` (10 tests) | | pending: `editor-gates suite=e2e` |
+
+## Automatic clips on edit-v2, caption look at job creation (2026-10-21)
+
+CONTRACTS §5.48. `POTONGIN_RENDER_ENGINE` defaults to `edit-v2` (compose, Python, web); `legacy`
+is the rollback switch and the per-clip fallback. A new job takes any caption pack, Atas/Tengah/
+Bawah and Kecil/Sedang/Besar; the seed carries them, so the automatic file is what the editor
+opens. No threshold changed; `RENDER_SEMANTICS` and `SCHEMA_MINOR` are untouched by this change
+(a seed only takes other values of keys it always had, and a job without the new options seeds
+byte-identically). Built on branch `adopsi/mesin-otomatis` with targeted local tests only.
+
+### Owner decisions recorded (by delegation, 2026-10-21)
+
+- **Open 30 / 36, CPU quota:** the slower automatic render under `cpus: 6` (centre crop 1.99×,
+  face-track 1.82× the legacy engine, T4.3 `cpu_quota_6`) is **accepted**; the quota is not raised
+  (the server is shared). The engine default flips to `edit-v2`.
+- **Open 23 / 35, P-LOGO:** **accepted as measured** (17 of 18 frames within max ≤ 8; one frame max
+  9 from the captions seen through the logo's transparent pixels, `T3.2-P-LOGO.json`). The
+  threshold stays max ≤ 8 in the logo region; the frame is recorded as an accepted exception, not
+  a pass.
+
+| Gate | Threshold | Result | Where | Verdict |
+|---|---|---|---|---|
+| Engine default | edit-v2 unless the flag says `legacy`; Python and web read it the same way | unset, empty, `edit-v2`, `EDIT-V2`, `v2`, `on` → edit-v2; `legacy`, ` Legacy `, `LEGACY` → legacy | `tests/test_edit_v2_render_edit.py`, `tests/test_pipeline_v3.py`, `web/tests/editor-store.test.mjs`, `web/tests/editor-w3-wiring.test.mjs` | **pass** (local) |
+| Per-clip timeout under the quota | no clip may time out at the measured cost | T4.3 CPU seconds over 3 CPUs per slot: ± 0.45 s per output second; 190 s clip ± 85 s of 300 s | `T4.3-PF-PIPELINE.json`, CONTRACTS §5.48 | **pass** (estimate; no budget raised) |
+| Job options | every pack, spot and size accepted and stored; unknown values refused; old jobs unchanged; V3 only | form, persisted and argv cases | `web/tests/caption-look.test.mjs`, `web/tests/selection-v3.test.mjs`, `tests/test_cli.py` | **pass** (local) |
+| Seed from the options | the pack and overrides `y_e5`/`size_pm`; bottom + medium = a job without them, byte for byte; every pack × spot validates on every fixture context | 5 packs × 3 spots × 3 sizes | `tests/test_edit_v2_seed.py`, `tests/test_pipeline_v3.py` | **pass** (local) |
+| Legacy rollback honesty | legacy draws a pack as Klasik/Karaoke at the bottom; its auto file stands for a seed only at that look; the dashboard offers only that look | per pack | `tests/test_captions_ass.py`, `tests/test_edit_v2_doc.py`, `web/tests/editor-shell-model.test.mjs`, `web/tests/caption-look.test.mjs` | **pass** (local) |
+| Dashboard preview | the thumbnail at the spot and size the job renders; the TikTok zone note only at Bawah; the backdrop keyed out | geometry and key vectors | `web/tests/caption-look.test.mjs`, `web/tests/look-preview.test.mjs` | **pass** (local) |
+| Dashboard in a browser | pack, Atas, Besar reach the POST and the preview; the legacy engine offers two styles and sends no spot or size; 44 px targets at 360 px | `e2e/dashboard.spec.mjs` (two new tests, the existing ones updated) | | pending: `editor-gates suite=e2e command=e2e/dashboard.spec.mjs` |
+| PF-PIPELINE / seed gates on the production image | unchanged thresholds | | | pending: `editor-gates suite=image` and `suite=full` |

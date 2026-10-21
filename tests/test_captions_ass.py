@@ -11,6 +11,7 @@ import pytest
 
 from ai_clipper import captions_ass
 from ai_clipper.captions_ass import (
+    CAPTION_STYLES,
     HOOK_TEXT_MAX_CHARS,
     CaptionPack,
     HookSpec,
@@ -27,6 +28,7 @@ from ai_clipper.captions_ass import (
     shorten_hook_text,
 )
 from ai_clipper.edit_v2 import DOC_FPS, PACK_DEFAULT_OVERRIDES, PACK_IDS, WATERMARK_POSITIONS
+from ai_clipper.edit_v2 import doc as docmod
 from ai_clipper.edit_v2.glyphs import advance_px, advance_units, font_path
 from ai_clipper.edit_v2.timemap import Fps, safe_cs
 from ai_clipper.models import TranscriptSegment, TranscriptWord
@@ -555,6 +557,24 @@ def test_every_pack_loads_with_the_seed_defaults_and_its_font():
         assert pack.sha256 == hashlib.sha256(raw).hexdigest()
         assert load_pack(pack_id, 1) is pack
     assert [load_pack(p, 1).words_per_cue for p in PACK_IDS] == [4, 4, 3, 3, 3]
+
+
+@pytest.mark.parametrize("pack_id", PACK_IDS)
+def test_the_legacy_renderer_draws_every_pack_as_classic_or_karaoke(pack_id):
+    """A clip the legacy engine renders (rollback or engine fallback) keeps the pack's reveal: a
+    pack that lights no spoken word is Klasik, any other Karaoke (CONTRACTS §5.48)."""
+    style = captions_ass.legacy_caption_style(pack_id)
+    assert style in CAPTION_STYLES
+    assert style == ("classic" if load_pack(pack_id, 1).reveal == "static" else "karaoke")
+    if pack_id in CAPTION_STYLES:
+        assert style == pack_id
+    assert docmod.LEGACY_CAPTION_PACKS == CAPTION_STYLES
+
+
+@pytest.mark.parametrize("pack_id", ["neon", "", None, "../classic"])
+def test_the_legacy_style_of_an_unknown_pack_is_refused(pack_id):
+    with pytest.raises(ValueError):
+        captions_ass.legacy_caption_style(pack_id)
 
 
 @pytest.mark.parametrize(("pack_id", "version"),

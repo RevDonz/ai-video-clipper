@@ -320,6 +320,25 @@ test("an unchanged legacy clip seeded with the default logo exports a render, no
   assert.equal(exportMatchesSeed({ plan, doc: structuredClone(legacy), seed: legacy }), true);
 });
 
+test("an unchanged legacy clip whose job picked a look legacy never drew exports a render (CONTRACTS §5.48)", () => {
+  const legacy = fakeDoc();
+  legacy.base.engine.compiler = "legacy";
+  for (const id of ["karaoke", "classic"]) {
+    legacy.captions.pack = { id, v: 1 };
+    assert.equal(autoFileIsSeed(legacy), true, id);
+  }
+  for (const change of [{ pack: "bold" }, { pack: "box" }, { pack: "sorot" }, { y_e5: 38000 }, { size_pm: 1200 }]) {
+    const seed = structuredClone(legacy);
+    if (change.pack) seed.captions.pack = { id: change.pack, v: 1 };
+    else Object.assign(seed.captions.overrides, change);
+    assert.equal(autoFileIsSeed(seed), false, JSON.stringify(change));
+    const plan = fakePlan(seed);
+    assert.equal(exportMatchesSeed({ plan, doc: structuredClone(seed), seed }), false, JSON.stringify(change));
+    seed.base.engine.compiler = "edit-v2/1";
+    assert.equal(autoFileIsSeed(seed), true, "every edit-v2 seed is its auto file");
+  }
+});
+
 // Mode Cepat spec §5.3: the legacy notice leaves the screen (the "?" help says it), and the
 // other-tab notice moves into the top bar as the chip "Terbuka di tab lain".
 test("notices above the stage: never the legacy engine, the other tab is a top-bar chip", () => {

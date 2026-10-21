@@ -96,6 +96,9 @@ export function buildClipperInvocation(job, sourcePath, outputRoot, env = proces
       options.hookOverlay ? "--hook-overlay" : "--no-hook-overlay",
       "--caption-style", options.captionStyle,
     );
+    // "Posisi" and "Ukuran" (CONTRACTS §5.48): only a job created with them names them.
+    if (options.captionPosition) args.push("--caption-position", options.captionPosition);
+    if (options.captionSize) args.push("--caption-size", options.captionSize);
     if (typeof captionsDir === "string" && path.isAbsolute(captionsDir)) args.push("--captions-dir", captionsDir);
     // Only a snapshot path the worker wrote; the trend text itself never enters argv.
     if (typeof trendContext === "string" && path.isAbsolute(trendContext)) args.push("--trend-context", trendContext);

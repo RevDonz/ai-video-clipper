@@ -218,7 +218,7 @@ test("an upload is normalised by the editor's ingest in a scratch job and become
   const where = await roots(t);
   const ingest = fakeIngest();
   const route = createDefaultLogoRoute(deps(where, { runCli: ingest.runCli, now: () => 1_790_000_000_000 }));
-  assert.deepEqual((await read(await route.GET(request("GET")))).body, { logo: null, enabled: true, autoClips: false });
+  assert.deepEqual((await read(await route.GET(request("GET")))).body, { logo: null, enabled: true, autoClips: true });
 
   const result = await read(await route.POST(post(pngBytes(), { name: encodeURIComponent("Logo Toko.png") })));
   assert.equal(result.status, 201, result.text);
@@ -243,7 +243,7 @@ test("an upload is normalised by the editor's ingest in a scratch job and become
     assert.equal((await stat(path.join(dir, name))).mode & 0o777, 0o600, name);
   }
   const state = await read(await route.GET(request("GET")));
-  assert.deepEqual(state.body, { logo: result.body, enabled: true, autoClips: false });
+  assert.deepEqual(state.body, { logo: result.body, enabled: true, autoClips: true });
   assert.equal(state.headers.get("cache-control"), "no-store");
 
   const files = createDefaultLogoFileRoute(deps(where));
@@ -275,7 +275,7 @@ test("a new logo replaces the old one, and removing it leaves nothing behind", a
 
   const removed = await read(await route.DELETE(request("DELETE")));
   assert.equal(removed.status, 200);
-  assert.deepEqual(removed.body, { logo: null, enabled: true, autoClips: false });
+  assert.deepEqual(removed.body, { logo: null, enabled: true, autoClips: true });
   assert.deepEqual((await readdir(logoDir(where))).sort(), [".work"]);
   assert.equal(await readDefaultLogo(env(where)), null);
   const gone = await files.GET(request("GET", `http://local/api/settings/logo/${second.sha}`), { params: Promise.resolve({ sha: second.sha }) });
@@ -345,9 +345,11 @@ test("only the current logo is served, never a symlink or another file", async (
 test("GET says whether uploads are on and whether automatic clips carry the logo", async (t) => {
   const where = await roots(t);
   const read0 = async (extra) => (await read(await createDefaultLogoRoute(deps(where, { env: env(where, extra) })).GET(request("GET")))).body;
-  assert.deepEqual(await read0({}), { logo: null, enabled: true, autoClips: false });
-  assert.deepEqual(await read0({ POTONGIN_EDITOR_UPLOADS: "off" }), { logo: null, enabled: false, autoClips: false });
+  // edit-v2 is the release default (CONTRACTS §5.48); legacy is the rollback switch.
+  assert.deepEqual(await read0({}), { logo: null, enabled: true, autoClips: true });
+  assert.deepEqual(await read0({ POTONGIN_EDITOR_UPLOADS: "off" }), { logo: null, enabled: false, autoClips: true });
   assert.deepEqual(await read0({ POTONGIN_RENDER_ENGINE: "edit-v2" }), { logo: null, enabled: true, autoClips: true });
+  assert.deepEqual(await read0({ POTONGIN_RENDER_ENGINE: "legacy" }), { logo: null, enabled: true, autoClips: false });
 });
 
 // The copy a new job gets.

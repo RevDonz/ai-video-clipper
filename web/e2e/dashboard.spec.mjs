@@ -39,8 +39,11 @@ async function recordJobForms(page) {
   return async () => Object.fromEntries((await page.evaluate(() => window.__jobForms)).at(-1) || []);
 }
 
-/** Fakes /api/jobs (listing `jobs`), /api/llm/status and /api/storage/status; `editor` is the jobs list's editor flag. Returns the job POSTs. */
-async function fakeDashboardApi(page, { jobs = [], editor = false } = {}) {
+/**
+ * Fakes /api/jobs (listing `jobs`), /api/llm/status and /api/storage/status; `editor` and
+ * `renderEngine` are the jobs list's flags. Returns the job POSTs.
+ */
+async function fakeDashboardApi(page, { jobs = [], editor = false, renderEngine = "edit-v2" } = {}) {
   const posts = [];
   const job = (id) => ({ id, status: "queued", progress: 0, createdAt: NOW, updatedAt: NOW, source: { type: "youtube", url: LINK }, options: { selectionMode: "v3" }, clips: [] });
   await page.route(/\/api\/(?:jobs|llm\/status|storage\/status)(?:[/?]|$)/, (route) => {
@@ -53,7 +56,7 @@ async function fakeDashboardApi(page, { jobs = [], editor = false } = {}) {
       posts.push(multipartFields(request));
       return json(202, { job: job(`00000000-0000-4000-8000-${String(posts.length).padStart(12, "0")}`) });
     }
-    if (pathname === "/api/jobs") return json(200, { jobs, total: jobs.length, editor });
+    if (pathname === "/api/jobs") return json(200, { jobs, total: jobs.length, editor, renderEngine });
     const id = pathname.split("/")[3];
     return json(200, { job: jobs.find((item) => item.id === id) || job(id) });
   });
@@ -254,8 +257,8 @@ test.describe("Dashboard form (faked job API)", () => {
     await expect(page.getByText("Area tombol TikTok", { exact: true })).toBeVisible();
     // Without the editor the note names no Edit klip.
     await expect(page.getByText("Subtitle ada di bawah, dekat area tombol TikTok.", { exact: true })).toBeVisible();
-    // Both style thumbnails are real images.
-    expect(await page.evaluate(() => [...document.querySelectorAll("#job-options img")].map((img) => img.complete && img.naturalWidth === 320))).toEqual([true, true]);
+    // Every pack's thumbnail is a real image.
+    expect(await page.evaluate(() => [...document.querySelectorAll("#job-options img")].map((img) => img.complete && img.naturalWidth === 320))).toEqual([true, true, true, true, true]);
 
     await choose(page, "Klasik");
     await expect(preview).toHaveAttribute("data-pack", "classic");
@@ -268,12 +271,58 @@ test.describe("Dashboard form (faked job API)", () => {
     expect(await submitJob(page, posts)).toMatchObject({ captionStyle: "classic", renderMode: "center-crop", hookOverlay: "false" });
   });
 
-  test("with the editor on, the note says where to move the subtitle", async ({ page }) => {
+  test("with the editor on, the note says Edit klip changes the subtitle per clip", async ({ page }) => {
     await fakeDashboardApi(page, { editor: true });
     await openDashboard(page);
     await optionsButton(page).click();
-    await expect(page.getByText("Subtitle ada di bawah, dekat area tombol TikTok. Geser atau ubah ukurannya per klip lewat Edit klip.", { exact: true })).toBeVisible();
+    await expect(page.getByText("Subtitle ada di bawah, dekat area tombol TikTok. Per klip bisa diubah lagi lewat Edit klip.", { exact: true })).toBeVisible();
     await expect(page.getByRole("group", { name: "Gaya subtitle" })).toHaveAccessibleDescription(/Edit klip/);
+  });
+
+  test("every pack, Atas/Tengah/Bawah and the size reach the job and the preview (CONTRACTS 5.48)", async ({ page }) => {
+    const posts = await fakeDashboardApi(page);
+    await openDashboard(page);
+    await optionsButton(page).click();
+    const preview = page.getByRole("img", { name: /^Pratinjau klip 9:16/ });
+    const spot = page.getByRole("group", { name: "Posisi subtitle" });
+    const size = page.getByRole("group", { name: "Ukuran subtitle" });
+    await expect(spot.getByRole("radio", { name: "Bawah" })).toBeChecked();
+    await expect(size.getByRole("radio", { name: "Sedang" })).toBeChecked();
+    await choose(page, "Sorot");
+    await spot.getByText("Atas", { exact: true }).click();
+    await size.getByText("Besar", { exact: true }).click();
+    await expect(preview).toHaveAttribute("data-pack", "sorot");
+    await expect(preview).toHaveAttribute("data-position", "top");
+    await expect(preview).toHaveAttribute("data-size", "large");
+    await expect(preview).toHaveAccessibleName("Pratinjau klip 9:16: Utuh + latar blur, subtitle Sorot besar di atas, teks hook di atas.");
+    // Away from the bottom the subtitle is clear of the TikTok buttons, so that note goes.
+    await expect(page.getByText("Subtitle ada di bawah, dekat area tombol TikTok.", { exact: true })).toHaveCount(0);
+    await expect(optionsButton(page)).toContainText("Sorot · subtitle atas · subtitle besar");
+    await page.getByLabel("Link video").fill(LINK);
+    expect(await submitJob(page, posts)).toMatchObject({ captionStyle: "sorot", captionPosition: "top", captionSize: "large" });
+
+    // The choice comes back on the next visit.
+    await page.reload();
+    await expect(page.getByText("AI aktif: uji", { exact: true })).toBeVisible();
+    await expect(optionsButton(page)).toContainText("Sorot · subtitle atas · subtitle besar");
+  });
+
+  test("with the legacy engine (rollback) only Karaoke and Klasik at the bottom are offered and sent", async ({ page }) => {
+    const posts = await fakeDashboardApi(page, { renderEngine: "legacy" });
+    await openDashboard(page);
+    await optionsButton(page).click();
+    const styles = page.getByRole("group", { name: "Gaya subtitle" }).getByRole("radio");
+    await expect(styles).toHaveCount(2);
+    await expect(page.getByRole("group", { name: "Posisi subtitle" })).toHaveCount(0);
+    await expect(page.getByRole("group", { name: "Ukuran subtitle" })).toHaveCount(0);
+    const preview = page.getByRole("img", { name: /^Pratinjau klip 9:16/ });
+    await expect(preview).toHaveAttribute("data-position", "bottom");
+    await choose(page, "Klasik");
+    await page.getByLabel("Link video").fill(LINK);
+    const sent = await submitJob(page, posts);
+    expect(sent).toMatchObject({ captionStyle: "classic" });
+    expect(sent).not.toHaveProperty("captionPosition");
+    expect(sent).not.toHaveProperty("captionSize");
   });
 
   test("at 360 px nothing scrolls sideways and every control is a 44 px target", async ({ page }) => {

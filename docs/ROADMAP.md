@@ -250,9 +250,10 @@ Keputusan: esensial dulu, lalu bertahap. Desain final ada di scratchpad sesi
   aksesibilitas (QG-A11Y), performa di PC acuan; CI menjalankan smoke paritas di setiap PR,
   penjaga toolchain, dan suite lengkap tiap malam.
 - ✅ Bawaan rilis di `compose.yaml`: editor, unggahan logo/musik dan saran AI menyala; klip
-  otomatis masih dirender dengan cara lama (`POTONGIN_RENDER_ENGINE=legacy`) sampai pemilik
-  memutuskan soal kuota CPU (`edit-v2` siap dan masuk anggaran di PC acuan). Tiap flag bisa
-  dimatikan di `.env` tanpa build ulang (`docs/editor/OPERASIONAL.md` §2).
+  otomatis dirender `edit-v2` (keputusan 2026-10-21: render ± 2× lebih lambat di kuota `cpus: 6`
+  diterima), `POTONGIN_RENDER_ENGINE=legacy` untuk rollback. Gaya, posisi dan ukuran subtitle
+  dipilih saat membuat job. Tiap flag bisa dimatikan di `.env` tanpa build ulang
+  (`docs/editor/OPERASIONAL.md` §2).
 - ⬜ **Sisa untuk pemilik (titik cek 3, ± 60 menit):** uji U1–U7 dengan stopwatch di dua ukuran
   jendela (`docs/editor/UJI-PENERIMAAN.md`); penilaian 30 saran hook AI (lulus ≥ 21/30; flag LLM
   sudah menyala karena gerbang otomatisnya lolos); konfirmasi 490 label kata pengisi (lalu

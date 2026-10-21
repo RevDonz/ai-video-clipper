@@ -7,8 +7,8 @@ loudness/peak measurement when the document needs one → ``compile_ffmpeg.compi
 (G1–G3, G3b block; G5 warns) → no-clobber publication of the MP4 and its ``.srt`` (the frame
 cues, ``RenderPlan.srt``). Nothing is published unless the blocking gates pass.
 
-**The pipeline (auto render, plan §5.8).** With ``POTONGIN_RENDER_ENGINE=edit-v2``
-(:func:`engine_from_env`; anything else, including unset, is ``legacy``) the V3 pipeline builds
+**The pipeline (auto render, plan §5.8).** With the edit-v2 engine (:func:`engine_from_env`:
+the release default; only ``POTONGIN_RENDER_ENGINE=legacy`` rolls back) the V3 pipeline builds
 one :class:`AutoRenderer` per job, schedules every clip (:meth:`AutoRenderer.schedule`: several
 clips at once, T4.3) and takes each clip's result with :meth:`AutoRenderer.render`. It reads back
 what the pipeline wrote (``output/transcript.json``, ``analysis/selection.v3.json``,
@@ -169,11 +169,13 @@ _FILE_FLAGS = os.O_RDONLY | os.O_CLOEXEC | getattr(os, "O_NOFOLLOW", 0)
 
 
 def engine_from_env(env: Mapping[str, str] | None = None) -> str:
-    """``"edit-v2"`` only when ``POTONGIN_RENDER_ENGINE`` is exactly that; else ``"legacy"``.
-
-    The flag is fail-safe: unset, empty or an unknown value keeps today's engine (K1)."""
+    """``"legacy"`` only when ``POTONGIN_RENDER_ENGINE`` says so (any case, outer spaces
+    ignored: the rollback switch); unset, empty or any other value is ``"edit-v2"``, the release
+    default since the owner accepted the slower auto render (CONTRACTS §5.48)."""
     value = (os.environ if env is None else env).get(ENGINE_ENV)
-    return ENGINE_EDIT_V2 if value == ENGINE_EDIT_V2 else ENGINE_LEGACY
+    if isinstance(value, str) and value.strip().lower() == ENGINE_LEGACY:
+        return ENGINE_LEGACY
+    return ENGINE_EDIT_V2
 
 
 # --- results ---------------------------------------------------------------------------------------
@@ -920,7 +922,7 @@ class AutoOptions:
     """The pipeline options a seed depends on (plan §3.5)."""
 
     render_mode: str  # face-track | fit-blur | center-crop
-    caption_style: str  # karaoke | classic
+    caption_style: str  # a caption pack (PACK_IDS)
     cold_open: bool
     hook_overlay: bool
     hook_duration: float  # seconds
@@ -929,11 +931,15 @@ class AutoOptions:
     # The cold-open transition of the auto render (spec 2026-10-02 §6.2); the default keeps a
     # construction without it on today's cut.
     cold_open_join: ColdOpenJoin = CUT_JOIN
+    caption_position: str = "bottom"  # CAPTION_POSITIONS (CONTRACTS §5.48)
+    caption_size: str = "medium"  # CAPTION_SIZES
 
     def job(self, job_id: str, seed_at_ms: int) -> dict[str, Any]:
         """The ``job`` mapping of ``seed.build_seed``."""
         return {"id": job_id,
                 "options": {"renderMode": self.render_mode, "captionStyle": self.caption_style,
+                            "captionPosition": self.caption_position,
+                            "captionSize": self.caption_size,
                             "coldOpen": self.cold_open, "hookOverlay": self.hook_overlay},
                 "renderSize": [self.width, self.height], "hookDuration": self.hook_duration,
                 "seedAtMs": seed_at_ms, "seedBy": "pipeline",

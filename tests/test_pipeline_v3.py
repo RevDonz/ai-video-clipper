@@ -216,7 +216,9 @@ def env(monkeypatch, tmp_path: Path):
     for name in list(os.environ):
         if name.startswith("POTONGIN_LLM") or name.endswith("_API_KEY"):
             monkeypatch.delenv(name, raising=False)
-    monkeypatch.delenv("POTONGIN_RENDER_ENGINE", raising=False)  # the default: legacy
+    # These fakes stand in for render_vertical: the legacy engine, the rollback switch. The
+    # default (edit-v2) has its own tests below.
+    monkeypatch.setenv("POTONGIN_RENDER_ENGINE", "legacy")
     state = SimpleNamespace(
         tmp=tmp_path,
         source=tmp_path / "input" / "source.mp4",
@@ -1462,6 +1464,8 @@ def test_v3_renders_real_clips_with_ffmpeg(tmp_path: Path, monkeypatch):
     for name in list(os.environ):
         if name.startswith("POTONGIN_LLM") or name.endswith("_API_KEY"):
             monkeypatch.delenv(name, raising=False)
+    # The legacy renderer (the rollback switch), at a size no editor document has.
+    monkeypatch.setenv("POTONGIN_RENDER_ENGINE", "legacy")
     source = tmp_path / "source.mp4"
     subprocess.run(
         ["ffmpeg", "-y", "-f", "lavfi", "-i", f"color=c=blue:size=320x180:rate=12:duration={DURATION}",
@@ -2137,12 +2141,11 @@ def legacy_render_kwargs(clip, teaser, *, width=1080, height=1920):
     }
 
 
-@pytest.mark.parametrize("flag", [None, "legacy", "EDIT-V2", "yes"])
+@pytest.mark.parametrize("flag", ["legacy", " Legacy ", "LEGACY"])
 def test_the_legacy_engine_keeps_todays_render_call_and_manifest(
     env, monkeypatch, fake_engine, flag
 ):
-    if flag is not None:
-        monkeypatch.setenv("POTONGIN_RENDER_ENGINE", flag)
+    monkeypatch.setenv("POTONGIN_RENDER_ENGINE", flag)  # the rollback switch
     monkeypatch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: result(*TWO_CLIPS))
 
     manifest = manifest_of(run(env, max_duration=60.0))
@@ -2161,16 +2164,19 @@ def test_the_legacy_engine_keeps_todays_render_call_and_manifest(
     assert not (env.job / "analysis" / "clips").exists()
 
 
-@pytest.mark.parametrize("how", ["env", "argument"])
+@pytest.mark.parametrize("how", ["env", "argument", "default", "empty", "unknown"])
 def test_the_edit_v2_engine_renders_every_clip_through_the_compiler(
     env, monkeypatch, fake_engine, how
 ):
     monkeypatch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: result(*TWO_CLIPS))
     options = {}
-    if how == "env":
-        monkeypatch.setenv("POTONGIN_RENDER_ENGINE", "edit-v2")
-    else:
+    if how == "argument":
         options["render_engine"] = "edit-v2"
+    elif how == "default":  # the release default: edit-v2 unless the env says legacy
+        monkeypatch.delenv("POTONGIN_RENDER_ENGINE", raising=False)
+    else:
+        monkeypatch.setenv("POTONGIN_RENDER_ENGINE",
+                           {"env": "edit-v2", "empty": "", "unknown": "v2"}[how])
 
     manifest = manifest_of(
         run(env, max_duration=60.0, width=720, height=1280, hook_duration=2.5, **options)
@@ -2207,6 +2213,69 @@ def test_the_edit_v2_engine_renders_every_clip_through_the_compiler(
     assert manifest["clips"][0]["cold_open"] == {"start": 118.0, "end": 121.0}
     assert [duration for _clip, duration in env.thumbnails] == [pytest.approx(33.0), 30.0]
     assert_web_summary(manifest["selection_v3"])
+
+
+@pytest.mark.parametrize(("pack", "position", "size"), [
+    ("bold", "top", "large"), ("sorot", "middle", "small"), ("karaoke", "bottom", "medium"),
+])
+def test_the_caption_look_reaches_the_seed_options(env, monkeypatch, fake_engine, pack, position,
+                                                   size):
+    """CONTRACTS §5.48: the job's pack, spot and size become the seed's pack and overrides, so the
+    auto file is what the editor opens."""
+    monkeypatch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: result(*TWO_CLIPS))
+
+    run(env, max_duration=60.0, render_engine="edit-v2", caption_style=pack,
+        caption_position=position, caption_size=size)
+
+    (renderer,) = fake_engine.instances
+    options = renderer.options["options"]
+    assert (options.caption_style, options.caption_position, options.caption_size) == (
+        pack, position, size)
+    job = options.job("8f0c2a1e-5b7d-4c3a-9e21-6d4f0b8a7c55", 0)["options"]
+    assert {key: job[key] for key in ("captionStyle", "captionPosition", "captionSize")} == {
+        "captionStyle": pack, "captionPosition": position, "captionSize": size}
+    assert env.renders == []
+
+
+@pytest.mark.parametrize(("pack", "legacy_style"), [
+    ("bold", "karaoke"), ("box", "classic"), ("sorot", "karaoke"), ("classic", "classic"),
+])
+def test_the_legacy_engine_draws_a_pack_as_classic_or_karaoke(env, monkeypatch, fake_engine,
+                                                              pack, legacy_style):
+    """The rollback switch and a clip the new engine could not render: legacy draws only Klasik
+    and Karaoke at the bottom, so a pack is drawn with its reveal and the job never fails."""
+    monkeypatch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: result(*TWO_CLIPS))
+    manifest = manifest_of(run(env, max_duration=60.0, caption_style=pack,
+                               caption_position="top", caption_size="large"))
+    assert manifest["status"] == "completed"
+    assert [render["caption_style"] for render in env.renders] == [legacy_style] * 2
+
+    env.renders.clear()
+    fake_engine.fail_ranks = {2}
+    run(env, max_duration=60.0, render_engine="edit-v2", caption_style=pack)
+    (legacy,) = env.renders
+    assert legacy["caption_style"] == legacy_style
+
+
+@pytest.mark.parametrize("options", [
+    {"caption_style": "neon"}, {"caption_position": "atas"}, {"caption_position": 38000},
+    {"caption_size": "besar"}, {"caption_size": 1200},
+])
+def test_an_unknown_caption_look_is_refused_before_any_work(env, options):
+    model = FakeWhisper()
+    with pytest.raises((TypeError, ValueError)):
+        run(env, model=model, **options)
+    assert model.calls == [] and env.renders == []
+
+
+@pytest.mark.parametrize("options", [
+    {"caption_style": "bold"}, {"caption_position": "top"}, {"caption_size": "large"},
+])
+def test_only_selection_v3_takes_a_pack_spot_or_size(env, options):
+    model = FakeWhisper()
+    with pytest.raises(ValueError):
+        run(env, model=model, selection_mode="v1", **options)
+    assert model.calls == []
 
 
 def test_a_cold_open_the_seed_leaves_out_is_not_in_the_manifest(env, monkeypatch, fake_engine):
