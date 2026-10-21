@@ -162,6 +162,13 @@ AI yang tersimpan di Pengaturan (penyedia gratis, "Hanya model gratis" ikut berl
 Pengaturan mematikannya juga. Batasnya 30 permintaan per proyek per jam dan 3 sekaligus per
 container `app`; satu permintaan berhenti setelah 20 detik.
 
+**Hook di video.** Sakelar ini ada di kotak Caption halaman proyek hanya kalau editor menyala
+(`POTONGIN_EDITOR_V3=on`) dan klip punya teks hook. Setiap perubahan menyimpan revisi baru dokumen
+edit klip (`analysis/clips/<klip>/edit/doc.json`, `last_command: "SetHookEnabled"`) lalu membuat
+ekspor biasa lewat antrean render, jadi memakai kuota penyimpanan ekspor yang sama. File otomatis
+`output/clip-NN.mp4` tidak berubah; hasilnya ada di "Ekspor terakhir". Klip dari proyek lama yang
+belum disiapkan untuk editor tidak menampilkan sakelar sampai dibuka sekali di editor.
+
 ## 3. Toolchain render yang dikunci
 
 Cara teks dan video dirender bergantung pada versi persis FFmpeg, libass, FreeType, HarfBuzz,
