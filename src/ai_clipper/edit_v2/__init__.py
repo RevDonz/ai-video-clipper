@@ -50,6 +50,12 @@ UI_ZONE_720 = (93, 280, 93)
 KEYFRAME_MOVES = ("cut", "slide")
 MAX_KEYFRAMES = 100
 PAN_E5_MAX = 100_000
+# Layar terbagi (``layout.default.mode: "split"`` with ``layout.split``, CONTRACTS §5.45): the top
+# band's share of the rows beside the 1 px line, per mille (30/70, 50/50, 30/70 swapped), the
+# bands, and each band's zoom from the largest band-shaped box of the source (1000) to 5×.
+SPLIT_TOP_PM = (300, 500, 700)
+SPLIT_BANDS = ("top", "bottom")
+SPLIT_ZOOM_RANGE = (1000, 5000)
 
 # Plan §3.5 ("overrides at the pack defaults") and §5.4: every pack's default overrides. The
 # seed builder (T1.5) writes these; the pack files resources/caption-packs/<id>/v1.json (T1.2a)
@@ -85,6 +91,9 @@ __all__ = [
     "RENDER_SEMANTICS",
     "SCHEMA",
     "SCHEMA_MINOR",
+    "SPLIT_BANDS",
+    "SPLIT_TOP_PM",
+    "SPLIT_ZOOM_RANGE",
     "SWATCHES",
     "UI_ZONE_720",
     "WATERMARK_OPACITY_RANGE",

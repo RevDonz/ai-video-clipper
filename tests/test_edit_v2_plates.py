@@ -21,7 +21,7 @@ import pytest
 from support import edit_v2_fixtures as fixtures
 from test_edit_v2_store import make_clip
 
-from ai_clipper.edit_v2 import compile_ffmpeg, errors, plates, store
+from ai_clipper.edit_v2 import compile_ffmpeg, errors, layouts, plates, store
 from ai_clipper.edit_v2 import timemap as tm
 from ai_clipper.edit_v2.camera import camera_file_name, encode_camera_plan
 from ai_clipper.edit_v2.compile_ffmpeg import FfmpegJob, InputSpec
@@ -164,6 +164,27 @@ def test_plate_key_names_the_keyframes_of_manual_framing(contexts):
     blurred["layout"]["default"]["no_face"] = "fit_blur"
     assert plates.plate_key(camera, camera_sha256="1" * 64) == plates.plate_key(
         blurred, camera_sha256="1" * 64)
+
+
+def test_plate_key_names_the_split_bands(contexts):
+    """Layar terbagi (CONTRACTS §5.45): the bands and crops set the plate's pixels, so they are
+    part of its key; every other key is the pinned one above."""
+    seed = contexts["c30"].seed
+    split = with_layout(seed, "split")
+    split["layout"]["split"] = layouts.default_split()
+    key = plates.plate_key(split)
+    assert key != plates.plate_key(with_layout(seed, "fill_center"))
+    for band, field, value in (("top", "x_e5", 1), ("top", "y_e5", 0), ("bottom", "zoom_pm", 1001)):
+        other = copy.deepcopy(split)
+        other["layout"]["split"][band][field] = value
+        assert plates.plate_key(other) != key, (band, field)
+    swapped = copy.deepcopy(split)
+    swapped["layout"]["split"]["top_pm"] = 700
+    assert plates.plate_key(swapped) != key
+    # the face-track fallback is not the split's: it does not change the key
+    blurred = copy.deepcopy(split)
+    blurred["layout"]["default"]["no_face"] = "fit_blur"
+    assert plates.plate_key(blurred) == key
 
 
 def test_cell_names_are_flat_content_keyed_names():

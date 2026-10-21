@@ -389,6 +389,12 @@ def test_the_render_timeout_scales_with_the_clip_and_its_layout():
     assert render_edit.render_timeout_s(seed_doc) == 120.0  # a short clip keeps the floor
 
 
+def test_every_layout_has_a_predicted_render_speed():
+    from ai_clipper.edit_v2 import layouts
+
+    assert set(render_edit.PREDICTED_X) == set(layouts.LAYOUT_MODES)  # split: CONTRACTS §5.45
+
+
 # --- the pipeline path (revision 0) ---------------------------------------------------------------
 
 

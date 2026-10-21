@@ -1076,6 +1076,69 @@ def test_a_document_without_keyframes_keeps_its_graph(harness, probe_stub):
     # the only difference is the crop's x expression and y
     assert re.sub(r":x='[^']*':y=\(ih-oh\)/2", "", framed_job.filter_script) == (
         plain_job.filter_script)
+
+
+# --- layar terbagi: two bands of the source (CONTRACTS §5.45) -------------------------------------
+
+
+@pytest.mark.parametrize("name", ["layout_split__c30", "layout_split_swapped__c25"])
+def test_split_crops_each_band_and_stacks_them_in_every_mode(harness, probe_stub, name):
+    """Every mode with a layout uses the split chain, the same crops on every frame; the split
+    needs no camera plan."""
+    plan = fixture_plan(name)
+    doc = plan.doc
+    assert plan.layout == "split" and plan.split == doc["layout"]["split"]
+    assert plan.camera is None and plan.camera_sha256 is None
+    probe_stub["streams"] = fake_probe(doc)
+    source = (doc["base"]["source"]["w"], doc["base"]["source"]["h"])
+    size = tm.cell_frames(plan.fps)
+    first = plan.pieces[-1].in_sf // size
+    jobs = {
+        "final": compile_job(plan, mode="final", source=SOURCE, assets_root=ASSETS_ROOT),
+        "reference": compile_job(plan, mode="reference", source=SOURCE,
+                                 assets_root=ASSETS_ROOT),
+        "frame": compile_job(plan, mode="frame", frame=12, source=SOURCE,
+                             assets_root=ASSETS_ROOT),
+        "plate_cells": compile_job(plan, mode="plate_cells", cells=[first, first + 1],
+                                   source=SOURCE, assets_root=ASSETS_ROOT),
+    }
+    for mode, job in jobs.items():
+        labels = re.findall(r"\[split_a(_\d+)\]\[split_b\1\]vstack", job.filter_script)
+        assert labels, mode
+        for suffix in labels:
+            chain = layouts.split_chain(plan.split, label_in="", label_out="", suffix=suffix,
+                                        output=plan.output, source=source, matrix="bt709",
+                                        in_range="tv")
+            assert chain in job.filter_script, mode
+        if mode != "plate_cells":
+            assert f"[vcat]{chain}[vlay]" in job.filter_script, mode
+        assert "gblur" not in job.filter_script and "crop=720:1280" not in job.filter_script
+    geometry = layouts.split_geometry(plan.split, source=source, output=plan.output)
+    x, y, w, h = geometry["top"]["crop"]
+    top_h = geometry["top"]["size"][1]
+    assert f"crop={w}:{h}:{x}:{y},scale=720:{top_h}:" in jobs["final"].filter_script
+    assert f"pad=720:{geometry['line'] + 1}:0:0:black" in jobs["final"].filter_script
+
+
+def test_a_split_document_changes_only_the_layout_chain(harness, probe_stub):
+    """Swapping the layout for Potong tengah gives that layout's graph back, so the split adds
+    nothing outside its chain."""
+    split_doc = load_doc("layout_split__c30")
+    plain = copy.deepcopy(split_doc)
+    plain["layout"] = {"default": {**plain["layout"]["default"], "mode": "fill_center"}}
+    probe_stub["streams"] = fake_probe(plain)
+    split_job = compile_job(fixture_plan("layout_split__c30"), mode="final", source=SOURCE,
+                            assets_root=ASSETS_ROOT)
+    plain_job = compile_job(fixture_plan("layout_split__c30", doc=plain), mode="final",
+                            source=SOURCE, assets_root=ASSETS_ROOT)
+    source = (split_doc["base"]["source"]["w"], split_doc["base"]["source"]["h"])
+    chain = layouts.split_chain(split_doc["layout"]["split"], label_in="[vcat]",
+                                label_out="[vlay]", suffix="_0", output=(720, 1280),
+                                source=source, matrix="bt709", in_range="tv")
+    centre = layouts.layout_chain("fill_center", label_in="[vcat]", label_out="[vlay]",
+                                  suffix="_0", output=(720, 1280), source=source,
+                                  matrix="bt709", in_range="tv")
+    assert split_job.filter_script.replace(chain, centre) == plain_job.filter_script
 # --- modes ------------------------------------------------------------------------------------------
 
 
@@ -1494,6 +1557,57 @@ def test_manual_crop_decoded_from_the_ruler_matches_the_keyframes(harness, tmp_p
     assert {0, layouts.pan_limit((640, 360), (720, 1280))} <= shown and len(shown) > 20
 
 
+def test_split_bands_decoded_from_the_ruler_match_their_crops(harness, tmp_path,
+                                                             edit_v2_ffmpeg):
+    """Layar terbagi (CONTRACTS §5.45) with real FFmpeg: in every reference frame (the final's
+    graph, lossless) and plate frame, each band shows its crop of the source (the column ruler
+    read through the band's geometry; the frame index through the top band, whose crop starts at
+    the source's first row) and the line row is black."""
+    clip = synthetic_clip(tmp_path, frames=330, layout="split", cold_open=(240, 270),
+                          body=(40, 200), removals=((90, 96), (130, 131)))
+    clip.doc["layout"]["split"] = {"top_pm": 300,
+                                   "top": {"x_e5": 30_000, "y_e5": 0, "zoom_pm": 1500},
+                                   "bottom": {"x_e5": 75_000, "y_e5": 30_000, "zoom_pm": 1200}}
+    plan = build_plan(clip.doc, words=clip.words, camera=None, assets={},
+                      resources=Resources(RESOURCES_DIR))
+    geometry = layouts.split_geometry(plan.split, source=(640, 360), output=(720, 1280))
+    assert geometry["top"]["crop"] == (64, 0, 426, 228)
+    assert geometry["bottom"]["crop"] == (298, 18, 242, 300)
+    reference = compile_job(plan, mode="reference", source=clip.source, assets_root=tmp_path)
+    run_to_file(reference, tmp_path / "reference.mkv")
+    cells = sorted({sf // 60 for p in plan.pieces for sf in range(p.in_sf, p.out_sf)})
+    plate = compile_job(plan, mode="plate_cells", cells=cells, source=clip.source,
+                        assets_root=tmp_path)
+    run_cells(plate, tmp_path / "cells")
+    pattern = media.Pattern.for_size(640, 360)
+
+    def band_view(plane, band):
+        x, y, w, h = geometry[band]["crop"]
+        band_h = geometry[band]["size"][1]
+        scale = band_h / h
+        top = geometry[band]["y"] - y * scale
+        index = media.decode_index(plane, 720, 1280, pattern, scale=scale, top=top)
+        columns = media.decode_ruler(plane, 720, 1280, pattern, scale=scale, top=top)
+        expected = [x + (j + 0.5) * w / 720 - 0.5 for j in range(720)]
+        close = sum(abs(got - want) <= 1.5 for got, want in zip(columns, expected))
+        return index, close
+
+    ref_planes = list(HARNESS.iter_gray_frames(tmp_path / "reference.mkv", (720, 1280)))
+    assert len(ref_planes) == plan.total_frames
+    cell_planes = {k: list(HARNESS.iter_gray_frames(tmp_path / "cells" / f"c{k:07d}.mp4",
+                                                    (720, 1280))) for k in cells}
+    line = geometry["line"]
+    for n in range(plan.total_frames):
+        sf = tm.out_to_src(n, plan.pieces)[1]
+        for plane in (ref_planes[n], cell_planes[sf // 60][sf % 60]):
+            for band in ("top", "bottom"):
+                index, close = band_view(plane, band)
+                assert band == "bottom" or index == sf, (n, band)
+                assert close >= 700, (n, band, close)  # ≥ 97 % of the columns
+        row = ref_planes[n][line * 720:(line + 1) * 720]
+        assert max(row) <= 18, n  # the 1 px line is black (Y 16)
+
+
 def test_no_implicit_video_conversions(harness, tmp_path, monkeypatch, edit_v2_libass):
     """R3: every conversion is explicit, so FFmpeg never auto-inserts a scale filter."""
     clip = synthetic_clip(tmp_path, frames=200, cold_open=(150, 170), body=(20, 140),
@@ -1505,8 +1619,11 @@ def test_no_implicit_video_conversions(harness, tmp_path, monkeypatch, edit_v2_l
     asset = f"sha256:{digest}"
     meta = {asset: {"kind": "image", "mime": "image/png", "w": 64, "h": 32}}
     for layout, composite in (("fit_blur", "yuv444p"), ("fill_center", "gbrp"),
-                              ("fit_blur", "yuv420p")):
+                              ("fit_blur", "yuv420p"), ("split", "yuv444p")):
         clip.doc["layout"]["default"]["mode"] = layout
+        clip.doc["layout"].pop("split", None)
+        if layout == "split":
+            clip.doc["layout"]["split"] = layouts.default_split()
         clip.doc["tracks"] = [t for t in clip.doc["tracks"] if t["kind"] != "visual"]
         clip.doc["tracks"].append({"id": "tr_ovr", "kind": "visual", "band": "over_text",
                                    "role": "overlay", "items": [{
