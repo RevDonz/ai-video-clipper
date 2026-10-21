@@ -48,9 +48,10 @@ TEXTS = (
 _TAGS = re.compile(r"\{([^}]*)\}")
 _POS = re.compile(r"\\pos\((\d+(?:\.\d+)?),(\d+)\)")
 _DRAWING = re.compile(r"\\p1\}(m [0-9 mlb]+)\{\\p0\}$")
-# Tags a design may write: fade, position, no wrap, size, colour, no border, drawing mode.
+# Tags a design may write: fade, position, no wrap, size, colour, no border, a box's soft edge,
+# drawing mode.
 _ALLOWED = re.compile(r"(\\(fad\(150,250\)|an2|pos\(\d+(\.\d{1,2})?,\d+\)|q2|fs\d+"
-                      r"|bord\d+(\.\d{1,2})?|shad0|p[01]|1c&H[0-9A-F]{6}&))+")
+                      r"|bord\d+(\.\d{1,2})?|shad0|blur\d+(\.\d{1,2})?|p[01]|1c&H[0-9A-F]{6}&))+")
 
 
 def _rhu(numerator: int, denominator: int) -> int:
@@ -302,7 +303,7 @@ def test_blok_puts_every_line_on_its_own_rounded_accent_box():
     for index, line in enumerate(layout.lines):
         box, words = parts[2 * index], parts[2 * index + 1]
         assert words["body"] == line and "\\bord" not in words["tags"]
-        assert ACCENT in box["tags"] and "\\bord0\\shad0" in box["tags"]
+        assert ACCENT in box["tags"] and "\\bord0\\shad0\\blur1\\" in box["tags"]
         assert (box["x"], box["y"]) == (words["x"], words["y"]) == (360, words["y"])
         units, height = advance_units(line, font_path(MONTSERRAT))
         assert _extent(box["body"]) == (_rhu(size * units, height) + 2 * pad, size - inset)
@@ -311,6 +312,21 @@ def test_blok_puts_every_line_on_its_own_rounded_accent_box():
     tops = [part["y"] - (size - inset) for part in parts[0::2]]
     bottoms = [part["y"] for part in parts[0::2]]
     assert all(top > bottom for bottom, top in zip(bottoms, tops[1:], strict=False))
+
+
+def test_blok_boxes_have_a_soft_edge_of_one_1280th_of_the_height():
+    # Under 4:2:0 a hard yellow box edge over the video rings in chroma: P-ENC measured Blok at
+    # SSIM 0.9888 whole frame and 0.9734 on the hook (thresholds 0.990 and 0.980). A blur of
+    # H/1280 on the boxes (1 px at 1280, 1.5 at 1920) brings it to 0.9903 and 0.9864; Kotak's
+    # single box and the text stay sharp (CONTRACTS §5.33).
+    text = "Dia ditahan security di film-nya sendiri"
+    for size, blur in (((720, 1280), "\\blur1\\"), ((1080, 1920), "\\blur1.5\\")):
+        parts = [_parts(fields[9]) for fields in _dialogues(_document(text, "blok", size=size))]
+        assert all(blur in part["tags"] for part in parts if part["kind"] == "box")
+        assert all("\\blur" not in part["tags"] for part in parts if part["kind"] == "text")
+    kotak = [_parts(fields[9]) for fields in _dialogues(_document(
+        "Dia ditahan SECURITY di film-nya sendiri", "kotak"))]
+    assert all("\\blur" not in part["tags"] for part in kotak)
 
 
 # --- Kotak kata ---------------------------------------------------------------------------------

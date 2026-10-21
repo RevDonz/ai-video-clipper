@@ -58,7 +58,7 @@ Dialogue: 0,0:01:05.76,0:01:07.06,Karaoke,,0,0,0,,{\kf27}waktu {\kf30}ternyata {
 Dialogue: 0,0:01:07.43,0:01:08.90,Karaoke,,0,0,0,,{\kf46}abis {\kf34}bukan {\kf50}kok {\kf17}eh
 Dialogue: 0,0:01:09.03,0:01:10.23,Karaoke,,0,0,0,,{\kf37}masuk {\kf46}hati {\kf37}sih.
 Dialogue: 0,0:01:11.66,0:01:12.03,Karaoke,,0,0,0,,{\kf37}aja
-Dialogue: 1,0:00:00.00,0:00:04.00,Hook,,0,0,0,,{\fad(150,250)\an2\pos(360,229)\bord0\shad0\1c&H4DE1FF&\p1}m 8 0 l 612 0 b 616 0 620 4 620 8 l 620 55 b 620 59 616 63 612 63 l 8 63 b 4 63 0 59 0 55 l 0 8 b 0 4 4 0 8 0{\p0}
+Dialogue: 1,0:00:00.00,0:00:04.00,Hook,,0,0,0,,{\fad(150,250)\an2\pos(360,229)\bord0\shad0\blur1\1c&H4DE1FF&\p1}m 8 0 l 612 0 b 616 0 620 4 620 8 l 620 55 b 620 59 616 63 612 63 l 8 63 b 4 63 0 59 0 55 l 0 8 b 0 4 4 0 8 0{\p0}
 Dialogue: 1,0:00:00.00,0:00:04.00,Hook,,0,0,0,,{\fad(150,250)\an2\pos(360,229)\q2}Dia ditahan security di
-Dialogue: 1,0:00:00.00,0:00:04.00,Hook,,0,0,0,,{\fad(150,250)\an2\pos(360,303)\bord0\shad0\1c&H4DE1FF&\p1}m 8 0 l 432 0 b 436 0 440 4 440 8 l 440 55 b 440 59 436 63 432 63 l 8 63 b 4 63 0 59 0 55 l 0 8 b 0 4 4 0 8 0{\p0}
+Dialogue: 1,0:00:00.00,0:00:04.00,Hook,,0,0,0,,{\fad(150,250)\an2\pos(360,303)\bord0\shad0\blur1\1c&H4DE1FF&\p1}m 8 0 l 432 0 b 436 0 440 4 440 8 l 440 55 b 440 59 436 63 432 63 l 8 63 b 4 63 0 59 0 55 l 0 8 b 0 4 4 0 8 0{\p0}
 Dialogue: 1,0:00:00.00,0:00:04.00,Hook,,0,0,0,,{\fad(150,250)\an2\pos(360,303)\q2}film-nya sendiri

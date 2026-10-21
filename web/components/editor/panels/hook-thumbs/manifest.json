@@ -8,10 +8,10 @@
   ],
   "designs": {
     "blok": {
-      "bytes": 9785,
+      "bytes": 9796,
       "design_sha256": "b6a56b4ec4e5f9cebaa9ef2d96bf7ce562ad24cf9651a23aed9f61cf0120533e",
       "file": "blok.png",
-      "png_sha256": "a46c37797a38904aff4fe82019eb219f16f574982bf0a62dda407412c2fa38b6"
+      "png_sha256": "12f042332c755100881cc37bd659ed8c3e9e5a8ced02878e564ef21c4aa6c477"
     },
     "kicker": {
       "bytes": 9577,
