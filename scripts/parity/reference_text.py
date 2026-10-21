@@ -118,6 +118,10 @@ MONTSERRAT_PACKS = ("bold", "box", "sorot", "sinar")
 # the line is still opening (frames 1-3 of the first line, 1-2 of the second).
 ENTRANCES = ("fade", "pop", "blur")
 ENTRANCE_PROBES = ((0, 1), (0, 2), (0, 3), (1, 1), (1, 2))  # (line, frames after its start)
+# Keywords (CONTRACTS §5.50): the packs with an emphasis block at 40 characters, "WAJIB" and
+# "Ayahku" marked, so the keyword size and the accent fonts are gated in both renderers.
+EMPHASIS_PACKS = ("karaoke", "bold", "sinar")
+KEYWORD_WORDS = frozenset({3, 6})  # word indexes in SAMPLE_TEXTS[40]
 # The text watermark (CONTRACTS §5.43) alone over the plate: the editor's default, the longest
 # text shrunk to its column at the lowest opacity, and the smallest size.
 WATERMARK_CLIPS = {
@@ -391,13 +395,16 @@ def hook_ass(text: str, *, fps: Fps, total_frames: int) -> str:
 HOOK_Y_E5 = 13000  # the seed's hook position (plan §3.5)
 
 
-def frame_cues(cues: Sequence[Cue]) -> tuple[FrameCue, ...]:
-    """The harness cues as ``subtitles.FrameCue`` (word ids in order, no emphasis)."""
+def frame_cues(cues: Sequence[Cue],
+               keywords: frozenset[int] = frozenset()) -> tuple[FrameCue, ...]:
+    """The harness cues as ``subtitles.FrameCue`` (word ids in order; the words whose index is
+    in ``keywords`` are keywords)."""
     result, index = [], 0
     for cue in cues:
         words = []
         for word in cue.words:
-            words.append(FrameWord(f"w{index:06d}", word.f0, word.f1, word.text, False))
+            words.append(FrameWord(f"w{index:06d}", word.f0, word.f1, word.text,
+                                   index in keywords))
             index += 1
         result.append(FrameCue(cue.f0, cue.f1, "seg_b1", tuple(words)))
     return tuple(result)
@@ -408,17 +415,18 @@ def shipped_ass(cues: Sequence[Cue], *, pack: str, fps: Fps, total_frames: int,
                 hook_design: tuple[str, int] = captions_ass.LEGACY_HOOK_DESIGN,
                 entrance: str | None = None,
                 watermark: captions_ass.WatermarkSpec | None = None,
+                keywords: frozenset[int] = frozenset(),
                 ) -> tuple[str, tuple[FrameCue, ...]]:
     """The production ASS of ``cues`` in ``pack`` (``fit_cues`` + ``build_ass_v2``, the pack's
     default overrides plus ``entrance`` when given) and the cues as the pack shows them;
     ``hook_text`` adds the hook over the whole clip in ``hook_design`` (the bar by default),
-    ``watermark`` the text watermark."""
+    ``watermark`` the text watermark, ``keywords`` the indexes of the keyword words."""
     pack_file = captions_ass.load_pack(pack, 1)
     overrides = dict(PACK_DEFAULT_OVERRIDES[pack])
     if entrance is not None:
         overrides["entrance"] = entrance
-    fitted = captions_ass.fit_cues(frame_cues(cues), pack=pack_file, play_res=(WIDTH, HEIGHT),
-                                   overrides=overrides)
+    fitted = captions_ass.fit_cues(frame_cues(cues, keywords), pack=pack_file,
+                                   play_res=(WIDTH, HEIGHT), overrides=overrides)
     hook = (None if hook_text is None
             else captions_ass.HookSpec(hook_text, 0, total_frames, HOOK_Y_E5, hook_design))
     ass = captions_ass.build_ass_v2(fitted, play_res=(WIDTH, HEIGHT), fps=fps,
@@ -642,6 +650,7 @@ class Clip:
     lanes: dict | None = None
     transitions: list[dict] | None = field(default=None)
     entrance: str | None = None  # the caption entrance of an entrance clip (§5.39)
+    keywords: bool = False  # KEYWORD_WORDS are keywords (§5.50)
 
     def to_json(self) -> dict:
         entry = {"id": self.id, "kind": self.kind, "pack": self.pack, "chars": self.chars,
@@ -650,6 +659,8 @@ class Clip:
                  "family": self.family}
         if self.entrance is not None:
             entry["entrance"] = self.entrance
+        if self.keywords:
+            entry["keywords"] = sorted(KEYWORD_WORDS)
         if self.kind == "ptime":
             entry["lanes"] = self.lanes
             entry["transitions"] = self.transitions
@@ -721,10 +732,26 @@ def _entrance_clip(pack: str, entrance: str, *, family: str, length: int = 40) -
                 entrance=entrance)
 
 
+def _keyword_clip(pack: str, *, family: str, length: int = 40) -> Clip:
+    """The shipped bytes of ``pack`` with ``KEYWORD_WORDS`` marked as keywords."""
+    fps = PTXT_FPS
+    words = sample_words(SAMPLE_TEXTS[length], fps=fps, start_f=6)
+    cues = group_cues(words, pack=pack)
+    total = cues[-1].f1 + 12
+    ass, fitted = shipped_ass(cues, pack=pack, fps=fps, total_frames=total,
+                              keywords=KEYWORD_WORDS)
+    edges = _cue_edges(fitted, words=pack in WORD_REVEAL_PACKS) | {0, total}
+    probes = choose_probes(edges, (fitted[0].f0, fitted[-1].f1))
+    return Clip(id=f"{pack}-kunci-{length}", kind="ptxt", pack=pack, chars=length,
+                variant=None, fps=(fps.num, fps.den), total_frames=total, probe_frames=probes,
+                edges=tuple(sorted(edges)), ass=ass, plate="fitblur", family=family,
+                keywords=True)
+
+
 def build_clips(*, fallback_char: str,
                 measures: dict[str, Callable[[str], float]] | None = None) -> list[Clip]:
-    """The P-TXT matrix (6 packs × 3 lengths × 5 probes, 3 entrances × 6 packs, every hook
-    design, 3 text watermarks, fallback glyph), the pack variants of the spike, the P-COLOR
+    """The P-TXT matrix (6 packs × 3 lengths × 5 probes, 3 entrances × 6 packs, keywords in
+    the 3 packs with an emphasis block, every hook design, 3 text watermarks, fallback glyph), the pack variants of the spike, the P-COLOR
     sheet and one P-TIME fixture per frame rate.
 
     ``measures`` maps a family to its advance-width function at the Box size (from the font's
@@ -742,6 +769,9 @@ def build_clips(*, fallback_char: str,
         for pack in PACKS:
             family = MONTSERRAT if pack in MONTSERRAT_PACKS else DEJAVU
             clips.append(_entrance_clip(pack, entrance, family=family))
+    for pack in EMPHASIS_PACKS:
+        clips.append(_keyword_clip(pack, family=MONTSERRAT if pack in MONTSERRAT_PACKS
+                                   else DEJAVU))
     for pack, variant, family in (("bold", "dejavu", DEJAVU), ("box", "dejavu", DEJAVU),
                                   ("box", "pbox", MONTSERRAT)):
         for length in LENGTHS:

@@ -739,6 +739,11 @@ def _valid(contexts: Mapping[str, Context]) -> list[_Fixture]:
         ids[3]: {"text": "SECURITY", "hidden": False, "emphasis": True},
     }
     add("word_edits", d)
+    # Keywords in a pack whose emphasis block has an accent font (CONTRACTS §5.50).
+    d = _Doc(c30, "SetWordEmphasis")
+    d.doc["captions"]["pack"]["id"] = "sinar"
+    d.doc["captions"]["word_edits"] = {ids[2]: {"emphasis": True}, ids[3]: {"emphasis": True}}
+    add("keywords_sinar", d)
     d = _Doc(c30, "EditWordText")
     d.doc["captions"]["word_edits"] = {d.body_words()[25]["id"]: {"text": "Kafé"}}
     add("word_edit_unicode", d)

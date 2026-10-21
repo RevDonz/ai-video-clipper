@@ -313,6 +313,12 @@
    "warnings": []
   },
   {
+   "file": "valid/keywords_sinar__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
    "file": "valid/word_edit_unicode__c30.json",
    "context": "c30",
    "check": "put",
