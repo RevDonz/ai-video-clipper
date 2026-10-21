@@ -4,7 +4,7 @@
 // its frame; blocking plan errors on top; notes (severity "info": the caption at the auto clip's
 // spot, K5) last, under "Catatan", informative only. A non-modal popover under the top bar; Escape
 // closes it and focus returns to the button that opened it (EditorApp). A caption over the
-// speaker's face (CONTRACTS §5.50) and a logo or watermark over the caption (§5.51) carry their
+// speaker's face (CONTRACTS §5.50) and a logo or watermark over the caption (§5.56) carry their
 // one-click fix; `onFix` is null when read-only.
 import { useEffect, useRef } from "react";
 

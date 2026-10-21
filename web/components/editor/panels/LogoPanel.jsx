@@ -4,7 +4,7 @@
 // the corner presets (or drag it on the stage, LogoGizmo), size, opacity, replace and remove, all
 // through Appendix B's commands. The G5 note comes from the plan's `unsafe_zone` warning for the
 // logo item (the server's check) and offers to move the logo just out of the TikTok zone; a logo
-// over the caption gets the plan's warning and the corner that clears it (CONTRACTS §5.51).
+// over the caption gets the plan's warning and the corner that clears it (CONTRACTS §5.56).
 // Props: { state, dispatch, player } (panels/index.mjs), plus optional `uploadAsset` (Appendix
 // A.2) and `uploadsEnabled` (POTONGIN_EDITOR_UPLOADS) when the shell passes them. The text
 // watermark (WatermarkSection) follows the logo in both states.
@@ -147,7 +147,7 @@ export default function LogoPanel({ state, dispatch, uploadAsset: uploadProp = n
     const steps = target ? transformSteps(transform, meta, output, target) : null;
     if (steps?.length) run(steps, "logo:size");
   };
-  // The logo over the caption (CONTRACTS §5.51): the plan's line and its one-click move.
+  // The logo over the caption (CONTRACTS §5.56): the plan's line and its one-click move.
   const overCaption = logoCaptionNote(state?.plan, "logo");
   const moveToSafe = () => {
     if (logo.safeTarget) run([{ type: "MoveLogo", args: positionFor(logo.safeTarget.x, logo.safeTarget.y, box, output) }]);

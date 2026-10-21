@@ -67,7 +67,7 @@ function LogoSection({ state, dispatch, uploadAsset, uploadsEnabled, showLengkap
       onUploaded: (dto) => logoUploadMessage(runLogoSteps(dispatch, [logoUploadCommand(dto)])),
     });
   };
-  // The logo over the caption (CONTRACTS §5.51): the plan's line and its one-click move.
+  // The logo over the caption (CONTRACTS §5.56): the plan's line and its one-click move.
   const overCaption = logo ? logoCaptionNote(state.plan, "logo") : null;
   const moveOff = (command) => setRefusal(runLogoSteps(dispatch, [command])?.message ?? null);
   const remove = () => {

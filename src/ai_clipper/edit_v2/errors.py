@@ -74,7 +74,7 @@ WARNING_CODES = frozenset(
         "no_face_blur",  # a note in the editor (§5.40): the run is shown with latar blur
         "unsafe_zone",
         "caption_over_face",  # the caption covers the speaker's face (§5.50)
-        "logo_over_caption",  # the logo or the text watermark covers the caption (§5.51)
+        "logo_over_caption",  # the logo or the text watermark covers the caption (§5.56)
         "loudness_clamped",
         "peak_reduced",
         "music_shorter_than_clip",

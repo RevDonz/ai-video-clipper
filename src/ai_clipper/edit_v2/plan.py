@@ -149,7 +149,7 @@ class RenderPlan:
     speech_envelope: tuple[tuple[int, int], ...] = ()  # envelope.speech_envelope (T1.4)
     music_envelope: tuple[tuple[int, int], ...] | None = None  # envelope.music_envelope
     # caption, camera (no_face[_blur]), logo (unsafe_zone), caption over face (§5.50), logo or
-    # watermark over the caption (§5.51)
+    # watermark over the caption (§5.56)
     warnings: tuple[Issue, ...] = ()
     fonts_sha256: str | None = None  # resources/fonts/fonts.json; None when missing
     packs_sha256: str | None = None  # the pack and hook design the document uses

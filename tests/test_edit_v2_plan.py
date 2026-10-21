@@ -826,7 +826,7 @@ def test_another_layout_reads_the_faces_of_a_camera_plan(harness, resources, mon
 
 def test_a_logo_over_the_caption_is_warned_and_the_plan_sha_stays(harness, resources,
                                                                    monkeypatch):
-    """``logo_over_caption`` (CONTRACTS §5.51): a warning beside the plan, never in its sha."""
+    """``logo_over_caption`` (CONTRACTS §5.56): a warning beside the plan, never in its sha."""
     from ai_clipper.edit_v2 import overlay_zone
 
     _with_cues(monkeypatch)

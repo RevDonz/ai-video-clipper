@@ -1380,7 +1380,7 @@ test("a caption over the face is a check whose fix moves the caption", async ({ 
   await expect.poll(y).toBe(60000);
 });
 
-// CONTRACTS §5.51: a text watermark over the caption is a check whose fix moves the line to the
+// CONTRACTS §5.56: a text watermark over the caption is a check whose fix moves the line to the
 // place the plan names, in Perlu dicek and in the Logo panel's watermark section.
 test("a watermark over the caption is a check whose fix moves the watermark", async ({ page }) => {
   const over = { code: "logo_over_caption", path: "/watermark/pos", ref: "middle_right", f: 3 };

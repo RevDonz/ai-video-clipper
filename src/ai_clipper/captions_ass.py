@@ -1305,7 +1305,7 @@ def watermark_box(spec: WatermarkSpec, *,
                   play_res: tuple[int, int]) -> tuple[float, float, float, float]:
     """``(x0, y0, x1, y1)`` of the watermark line at ``play_res`` with its outline: the text's
     ``hmtx`` advance at its laid-out size, one DejaVu line (1.164 em) above its bottom. The
-    logo-over-caption check compares it with the caption block (CONTRACTS §5.51)."""
+    logo-over-caption check compares it with the caption block (CONTRACTS §5.56)."""
     layout = layout_watermark(spec, play_res=play_res)
     units, height_units = advance_units(_drawn_text(spec.text), font_path(WATERMARK_FONT_FILE))
     width = units * layout.font_size / height_units

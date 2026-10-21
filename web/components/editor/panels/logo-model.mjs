@@ -25,7 +25,7 @@ function captionPart(warning) {
 }
 
 /**
- * The fix of the plan's `logo_over_caption` warning (CONTRACTS §5.51): `ref` names the SnapLogo
+ * The fix of the plan's `logo_over_caption` warning (CONTRACTS §5.56): `ref` names the SnapLogo
  * corner (logo) or the watermark place that clears the caption. `{ id, part, label, command }`,
  * one undo step, or null (another warning, or nothing clears).
  */

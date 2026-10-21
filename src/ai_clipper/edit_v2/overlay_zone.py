@@ -1,4 +1,4 @@
-"""The logo or the text watermark over the caption: ``logo_over_caption`` (CONTRACTS §5.51).
+"""The logo or the text watermark over the caption: ``logo_over_caption`` (CONTRACTS §5.56).
 
 The logo is drawn above the caption and the watermark line beside it, both for the whole clip, so
 a box on the caption block hides words for as long as captions show. Each is compared with the

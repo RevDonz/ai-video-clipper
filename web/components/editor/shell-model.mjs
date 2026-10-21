@@ -113,7 +113,7 @@ const ZONE_TEXT = Object.freeze([
   [/^\/tracks\/\d+\/items\/\d+\/transform$/, "Logo masuk ke area tombol TikTok"],
 ]);
 
-// logo_over_caption names the part over the caption, from its path (CONTRACTS §5.51).
+// logo_over_caption names the part over the caption, from its path (CONTRACTS §5.56).
 const OVER_CAPTION_TEXT = Object.freeze([
   [/^\/watermark\//, "Teks watermark menutupi caption"],
   [/^\/tracks\/\d+\/items\/\d+\/transform$/, "Logo menutupi caption"],

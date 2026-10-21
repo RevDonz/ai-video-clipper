@@ -1,4 +1,4 @@
-// The logo or the text watermark over the caption (CONTRACTS §5.51): the plan's
+// The logo or the text watermark over the caption (CONTRACTS §5.56): the plan's
 // `logo_over_caption` warning, its messages, and the one-click fix that moves the logo to the
 // SnapLogo corner or the watermark to the place the warning names.
 import assert from "node:assert/strict";

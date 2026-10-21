@@ -1,4 +1,4 @@
-"""The logo or the text watermark over the caption (``overlay_zone``, CONTRACTS §5.51).
+"""The logo or the text watermark over the caption (``overlay_zone``, CONTRACTS §5.56).
 
 The logo is drawn above the caption and the watermark line next to it, both for the whole clip,
 so a box that sits on the caption block hides words. The plan warns ``logo_over_caption`` and

@@ -188,7 +188,7 @@ test("the v3 validator accepts every state and rejects what the Python validator
     completed({ warnings: ["no_face"] }), completed({ warnings: ["no_face_blur"] }),
     // the caption over the speaker's face (CONTRACTS §5.50)
     completed({ warnings: ["caption_over_face"] }),
-    // the logo or the text watermark over the caption (CONTRACTS §5.51)
+    // the logo or the text watermark over the caption (CONTRACTS §5.56)
     completed({ warnings: ["logo_over_caption"] })]) {
     assert.deepEqual(validateRenderRequestV3(value), value);
   }
