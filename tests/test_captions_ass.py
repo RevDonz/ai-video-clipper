@@ -1492,9 +1492,7 @@ def _entrance(entrance, window_ms, height=1280, pack=None, extra=None):
     ``extra``)."""
     duration = min(120, window_ms)
     if entrance == "pop":
-        turn = _rhu(2 * duration, 3)
-        return (f"{{\\fscx70\\fscy70\\t(0,{turn},\\fscx108\\fscy108)"
-                f"\\t({turn},{duration},\\fscx100\\fscy100)}}")
+        return _pop(duration)
     tags = f"\\fad({duration},0)"
     if entrance == "blur":
         radius = _rhu(100 * height, 128)
@@ -1503,6 +1501,51 @@ def _entrance(entrance, window_ms, height=1280, pack=None, extra=None):
     if pack in OUTLINED_PACKS:
         tags += FADING_OUTLINE if extra is None else extra
     return f"{{{tags}}}"
+
+
+def _pop_32nds(t, duration):
+    """Pop's scale at ``t`` ms in 32nds, half up: 70 % to 108 % over the first two thirds of
+    ``duration``, then back to 100 % (CONTRACTS §5.39)."""
+    turn = _rhu(2 * duration, 3)
+    if t < turn:
+        return _rhu(32 * (70 * turn + 38 * t), 100 * turn)
+    return _rhu(32 * (108 * (duration - turn) - 8 * (t - turn)), 100 * (duration - turn))
+
+
+def _percent_of_32nds(n):
+    """``100·n/32`` written out exactly (it has at most three decimals)."""
+    whole, rest = divmod(25 * n, 8)
+    return str(whole) if rest == 0 else f"{whole}.{rest * 125:03d}".rstrip("0")
+
+
+def _pop(duration):
+    """Pop from the contract's numbers: the starting scale, then one instant step per change,
+    every 10 ms and at the end, each scale a whole number of 32nds."""
+    scale = _pop_32nds(0, duration)
+    tags = f"\\fscx{_percent_of_32nds(scale)}\\fscy{_percent_of_32nds(scale)}"
+    for t in [*range(10, duration, 10), duration]:
+        step = _pop_32nds(t, duration)
+        if step != scale:
+            scale = step
+            value = _percent_of_32nds(scale)
+            tags += f"\\t({t},{t},\\fscx{value}\\fscy{value})"
+    return f"{{{tags}}}"
+
+
+def test_pop_scales_are_whole_32nds_in_10_ms_steps():
+    # Under a continuous \t scale JASSUB and FFmpeg placed glyphs apart now and then: 82 % or
+    # 89.5 % moved an outline edge by up to 0.15 px between the two (P-TXT 18-39 levels), while
+    # every 32nd from 68.75 % to 109.375 % agreed on every Pop clip. So Pop steps through 32nds
+    # (68.75 % first, 109.375 % at the peak, 100 % at the end).
+    [line] = _events(_v2(ENTRANCE_CUES[1:2], "classic", entrance="pop"))
+    block = line["Text"][:line["Text"].index("}") + 1]
+    assert block == _pop(120)
+    assert block.startswith("{\\fscx68.75\\fscy68.75\\t(10,10,\\fscx")
+    assert "\\t(80,80,\\fscx109.375\\fscy109.375)" in block
+    assert block.endswith("\\t(120,120,\\fscx100\\fscy100)}")
+    for value in re.findall(r"\\fscx([\d.]+)", block):
+        assert (float(value) * 32 / 100).is_integer(), value
+    assert _pop(10) == "{\\fscx68.75\\fscy68.75\\t(10,10,\\fscx100\\fscy100)}"
 
 
 def test_overrides_accept_the_four_entrances_only():
@@ -1579,8 +1622,7 @@ def test_an_entrance_never_outlasts_the_first_window_of_its_line():
     assert events[0]["Text"].startswith(f"{{\\fad({first},0){FADING_OUTLINE}}}")
     assert "\\fad" not in events[1]["Text"]
     [line] = _events(_v2(ENTRANCE_CUES[1:2], "classic", entrance="pop"))
-    assert line["Text"].startswith("{\\fscx70\\fscy70\\t(0,80,\\fscx108\\fscy108)"
-                                   "\\t(80,120,\\fscx100\\fscy100)}")
+    assert line["Text"].startswith(_pop(120))
 
 
 def test_blur_starts_at_one_128th_of_the_output_height():
