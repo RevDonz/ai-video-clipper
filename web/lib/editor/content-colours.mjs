@@ -21,7 +21,7 @@ export const DEFAULT_EMPHASIS = "#FF5C8A";
 /**
  * The dashboard's 9:16 preview (app/dashboard/LookPreview.jsx) in place of a video: the backdrop
  * the subtitle thumbnails were rendered on (pack-thumbs/manifest.json), so they sit on it without
- * an edge, and the darker landscape picture of "Utuh + latar blur".
+ * an edge, and the darker landscape picture of "Latar blur".
  */
 export const PREVIEW_BACKDROP = "#4B5563";
 export const PREVIEW_PICTURE = "#1F2937";

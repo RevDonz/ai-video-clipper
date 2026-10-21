@@ -268,6 +268,8 @@ legend.sectionTitle + *, legend.groupTitle + * { clear: both; }
 .jobState > div { display: grid; gap: 3px; min-width: 0; }
 .jobState small { overflow: hidden; color: var(--text-muted); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 .jobState strong { font: 700 15px/1.3 var(--font); }
+/* "Tahap 4 dari 8" beside the stage: quieter than it, numbers that do not jump. */
+.jobStep { margin-left: 8px; color: var(--text-muted); font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .jobState > b { flex: none; font: 700 22px/1 var(--font); font-variant-numeric: tabular-nums; }
 .jobState.completed { border-color: var(--success-border); background: var(--success-bg); }
 .jobState.completed > b { color: var(--success); }

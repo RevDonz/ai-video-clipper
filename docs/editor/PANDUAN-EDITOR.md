@@ -296,6 +296,12 @@ cepat di empat sudut (semuanya di luar area itu), **Ukuran** dan **Opasitas**; d
 logo bisa digeser dan diubah ukurannya (panah 1 px, Shift+panah 10 px). Kalau logo digeser masuk
 area tombol TikTok/Reels, muncul peringatan dengan tombol **"Geser ke area aman"**.
 
+Logo digambar di atas caption, jadi logo yang menimpa caption menutupi kata-katanya. Panel Logo
+lalu menulis "Logo menutupi caption." dengan tombol **Pindah ke …**: sudut terdekat yang bebas dari
+caption. Sekali klik memindahkan logo (bisa diurungkan). Peringatan yang sama ada di "Perlu dicek"
+dan di kartu Logo & Musik Mode Cepat. Teks watermark yang menimpa caption mendapat peringatan yang
+sama di bagian Teks watermark, dengan posisi kisi terdekat yang bebas.
+
 **Logo bawaan.** Logo yang diisi di **Pengaturan → Logo bawaan** sudah terpasang di klip dari
 proyek yang dibuat sesudahnya, di kanan atas dengan ukuran logo baru, dan panel Logo menamainya
 "Logo bawaan". Ganti atau hapus per klip seperti logo lain; "Kembali ke versi AI" mengembalikannya.
@@ -526,6 +532,7 @@ Tombol yang bekerja saat fokus di satu tempat:
 | "Menyiapkan klip untuk diedit" lama sekali | Proyek panjang dengan face-track. Tunggu; setelah 12 menit editor menyerah dan meminta muat ulang. |
 | "Video sumber tidak bisa dibaca; proses ulang videonya" | FFmpeg gagal membaca video sumber proyek ini (filenya masih ada). Proses ulang videonya dari dashboard. |
 | Catatan biru "Caption di posisi bawaan, dekat tombol TikTok" | Hanya pemberitahuan, bukan kesalahan, dan tidak perlu dicentang saat ekspor: caption bawaan memang di posisi yang sama dengan klip otomatis, supaya klip yang tidak diubah tetap diekspor sebagai file klip otomatis. Kalau di aplikasi caption tertutup tombol, geser caption ke atas (kartu Caption: Posisi, atau panel Teks di Mode Lengkap). Caption yang Anda geser sendiri ke area itu tetap muncul di "Perlu dicek" dan perlu dicentang. |
+| "Logo menutupi caption" / "Teks watermark menutupi caption" | Logo atau teks watermark menimpa caption. Klik "Pindah ke …" di "Perlu dicek", panel Logo atau kartu Logo & Musik. Tanpa tombol, tidak ada sudut atau posisi yang bebas: kecilkan logo atau teksnya, atau geser caption. |
 | "Caption menutupi wajah pembicara" | Caption menutupi wajah di seperempat bagian klip yang bercaption atau lebih. Klik tombol "Pindah ke …" di "Perlu dicek", kartu Caption atau panel Teks. Tanpa tombol, tidak ada posisi Atas/Tengah/Bawah yang bebas dari wajah: geser caption sendiri atau kecilkan ukurannya. |
 | "Transkrip berubah sejak klip diedit" (baca saja) | Proyek dijalankan ulang dan transkripnya berubah. Klik "Mulai dari versi AI". |
 | "Terbuka di tab lain" (bar atas) | Klip ini juga terbuka di tab lain. Perubahan di bagian yang berbeda digabung otomatis. |

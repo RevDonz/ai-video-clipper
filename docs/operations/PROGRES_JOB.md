@@ -59,6 +59,28 @@ Jadi setiap baris tetap satu event progres utuh, dan pembaca lama mengabaikan `s
 Job lama tanpa `stageSummary` tidak menampilkan baris apa pun selain "Klip" untuk job yang
 selesai.
 
+### Tahap n dari m
+
+Di samping nama tahap (dashboard) dan di depan persen (halaman proyek), job yang sedang berjalan
+menulis **Tahap 4 dari 8** (`jobStepText`, `web/lib/dashboard-view.mjs`). Tahap yang dihitung:
+
+| No. | Tahap | `stage` |
+|---|---|---|
+| 1 | Unduh dari YouTube, termasuk subtitle YouTube (hanya job YouTube) | status `downloading` |
+| 2 | Memeriksa video | `analyzing` |
+| 3 | Transkrip | `captions`, `transcribing` |
+| 4 | Audio | `audio` |
+| 5 | Memilih momen | `llm`, `selecting` |
+| 6 | Judul dan hook | `packaging` |
+| 7 | Render | `rendering` |
+| 8 | Menyimpan hasil | `finalizing` |
+
+- Job dari file unggahan tidak punya tahap unduh, jadi hitungannya "dari 7".
+- Tidak tampil selama menunggu atau menyiapkan, setelah job selesai, gagal atau dibatalkan, dan
+  untuk tahap mode lama yang tidak dikenal.
+- Urutannya dicek terhadap urutan persen yang dilaporkan `src/ai_clipper/pipeline.py`
+  (`web/tests/dashboard-view.test.mjs`); tahap baru di engine harus masuk tabel ini.
+
 ## Di header
 
 Header bersama (`components/AppHeader.jsx`) punya badge job di samping logo

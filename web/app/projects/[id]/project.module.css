@@ -97,6 +97,19 @@
   font: 700 20px/1 var(--font);
   font-variant-numeric: tabular-nums;
 }
+/* "Tahap 4 dari 8" before the percentage, quieter than it. */
+.progressNumbers {
+  display: flex;
+  flex: none;
+  align-items: baseline;
+  gap: 10px;
+}
+.progressNumbers small {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 .progressPanel p {
   margin: 0;
   color: var(--text-muted);
