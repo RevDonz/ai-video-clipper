@@ -70,19 +70,19 @@ test("every duration preset maps onto min/max fields the form and the job API ac
 });
 
 test("the summary names the current choices in one short line", () => {
-  assert.equal(choicesSummary(DEFAULT_CHOICES), "3 klip · Otomatis 20–60 detik · Utuh + latar blur · Karaoke · Bahasa Indonesia");
+  assert.equal(choicesSummary(DEFAULT_CHOICES), "3 klip · Otomatis 20–60 detik · Latar blur · Karaoke · Bahasa Indonesia");
   const changed = {
     ...withDuration(DEFAULT_CHOICES, "long"), limit: "5", renderMode: "face-track", captionStyle: "classic", videoLanguage: "auto",
     coldOpen: false, hookOverlay: false,
   };
   assert.equal(
     choicesSummary(changed, { focusTerms: 2 }),
-    "5 klip · Panjang 60–90 detik · Ikuti pembicara · Klasik · Deteksi bahasa · tanpa kalimat pembuka · tanpa teks hook · fokus 2 kata kunci",
+    "5 klip · Panjang 60–90 detik · Ikuti wajah · Klasik · Deteksi bahasa · tanpa kalimat pembuka · tanpa teks hook · fokus 2 kata kunci",
   );
   const custom = { ...withDuration(DEFAULT_CHOICES, "custom"), minDuration: "25", maxDuration: "45", videoLanguage: "en" };
-  assert.equal(choicesSummary(custom, { focusTerms: 1 }), "3 klip · 25–45 detik · Utuh + latar blur · Karaoke · Bahasa Inggris · fokus 1 kata kunci");
+  assert.equal(choicesSummary(custom, { focusTerms: 1 }), "3 klip · 25–45 detik · Latar blur · Karaoke · Bahasa Inggris · fokus 1 kata kunci");
   // A value still being typed is left out instead of shown as something it is not.
-  assert.equal(choicesSummary({ ...custom, limit: "", minDuration: "2" }), "Utuh + latar blur · Karaoke · Bahasa Inggris");
+  assert.equal(choicesSummary({ ...custom, limit: "", minDuration: "2" }), "Latar blur · Karaoke · Bahasa Inggris");
   assert.doesNotMatch(choicesSummary(changed), /—|viral|Hot/);
 });
 

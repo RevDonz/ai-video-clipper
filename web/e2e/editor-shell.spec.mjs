@@ -1379,3 +1379,29 @@ test("a caption over the face is a check whose fix moves the caption", async ({ 
   await note.getByRole("button", { name: "Pindah ke Tengah" }).click();
   await expect.poll(y).toBe(60000);
 });
+
+// CONTRACTS §5.56: a text watermark over the caption is a check whose fix moves the line to the
+// place the plan names, in Perlu dicek and in the Logo panel's watermark section.
+test("a watermark over the caption is a check whose fix moves the watermark", async ({ page }) => {
+  const over = { code: "logo_over_caption", path: "/watermark/pos", ref: "middle_right", f: 3 };
+  await openEditor(page, { planWarnings: [over] });
+  await page.evaluate(() => {
+    const { store } = window.__potonginEditor;
+    store.dispatch("SetWatermarkText", { text: "@akun" });
+    store.dispatch("SetWatermarkPosition", { pos: "bottom_right" });
+  });
+  const pos = () => page.evaluate(() => window.__potonginEditor.store.getState().doc.watermark.pos);
+  expect(await pos()).toBe("bottom_right");
+  await openChecks(page, 1);
+  const panel = page.getByRole("dialog", { name: "Perlu dicek" });
+  await expect(panel.getByRole("listitem")).toContainText("Teks watermark menutupi caption");
+  await panel.getByRole("button", { name: "Pindah ke Kanan tengah" }).click();
+  await expect.poll(pos).toBe("middle_right");
+  await page.keyboard.press("Escape");
+  await page.getByRole("tab", { name: "Logo" }).click();
+  const note = page.locator('[data-logo-caption="middle_right"]');
+  await expect(note).toContainText("Teks watermark menutupi caption.");
+  await page.evaluate(() => window.__potonginEditor.store.dispatch("SetWatermarkPosition", { pos: "bottom_right" }));
+  await note.getByRole("button", { name: "Pindah ke Kanan tengah" }).click();
+  await expect.poll(pos).toBe("middle_right");
+});

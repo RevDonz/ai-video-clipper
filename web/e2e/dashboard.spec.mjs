@@ -91,7 +91,7 @@ test.describe("Dashboard form (faked job API)", () => {
     const submit = await submitButton(page).boundingBox();
     expect(Math.abs((link.y + link.height / 2) - (submit.y + submit.height / 2))).toBeLessThan(4);
     await expect(optionsButton(page)).toHaveAttribute("aria-expanded", "false");
-    await expect(optionsButton(page)).toContainText("3 klip · Otomatis 20–60 detik · Utuh + latar blur · Karaoke · Bahasa Indonesia");
+    await expect(optionsButton(page)).toContainText("3 klip · Otomatis 20–60 detik · Latar blur · Karaoke · Bahasa Indonesia");
     await expect(page.getByLabel("Jumlah klip")).toBeHidden();
 
     await optionsButton(page).click();
@@ -115,7 +115,7 @@ test.describe("Dashboard form (faked job API)", () => {
 
     await page.reload();
     await expect(page.getByText("AI aktif: uji", { exact: true })).toBeVisible();
-    await expect(optionsButton(page)).toContainText("5 klip · Pendek 15–30 detik · Utuh + latar blur · Karaoke · Bahasa Inggris");
+    await expect(optionsButton(page)).toContainText("5 klip · Pendek 15–30 detik · Latar blur · Karaoke · Bahasa Inggris");
     await expect(optionsButton(page)).toHaveAttribute("aria-expanded", "true");
     await expect(page.getByLabel("Link video")).toHaveValue("");
     const stored = await page.evaluate((key) => window.localStorage.getItem(key), CHOICES_KEY);
@@ -144,7 +144,7 @@ test.describe("Dashboard form (faked job API)", () => {
     await page.getByLabel("Jumlah klip").fill("2");
     const ranges = page.getByLabel("Rentang waktu (opsional)");
     await ranges.fill("10.30-12.05, 1:00-1:30, 2:00-2:30");
-    await expect(optionsButton(page)).toContainText("2 klip · Otomatis 20–60 detik · Utuh + latar blur · Karaoke · Bahasa Indonesia · 3 rentang waktu");
+    await expect(optionsButton(page)).toContainText("2 klip · Otomatis 20–60 detik · Latar blur · Karaoke · Bahasa Indonesia · 3 rentang waktu");
     await optionsButton(page).click();
     await page.getByLabel("Link video").fill(LINK);
     await submitButton(page).click();
@@ -252,7 +252,7 @@ test.describe("Dashboard form (faked job API)", () => {
     await openDashboard(page);
     await optionsButton(page).click();
     const preview = page.getByRole("img", { name: /^Pratinjau klip 9:16/ });
-    await expect(preview).toHaveAccessibleName("Pratinjau klip 9:16: Utuh + latar blur, subtitle Karaoke di bawah, teks hook di atas.");
+    await expect(preview).toHaveAccessibleName("Pratinjau klip 9:16: Latar blur, subtitle Karaoke di bawah, teks hook di atas.");
     await expect(preview).toHaveAttribute("data-layout", "fit");
     await expect(page.getByText("Area tombol TikTok", { exact: true })).toBeVisible();
     // Without the editor the note names no Edit klip.
@@ -262,11 +262,11 @@ test.describe("Dashboard form (faked job API)", () => {
 
     await choose(page, "Klasik");
     await expect(preview).toHaveAttribute("data-pack", "classic");
-    await choose(page, "Crop tengah");
+    await choose(page, "Potong tengah");
     await expect(preview).toHaveAttribute("data-layout", "fill");
     await choose(page, "Teks hook di 4 detik pertama");
     await expect(preview).toHaveAttribute("data-hook", "off");
-    await expect(preview).toHaveAccessibleName("Pratinjau klip 9:16: Crop tengah, subtitle Klasik di bawah, tanpa teks hook.");
+    await expect(preview).toHaveAccessibleName("Pratinjau klip 9:16: Potong tengah, subtitle Klasik di bawah, tanpa teks hook.");
     await page.getByLabel("Link video").fill(LINK);
     expect(await submitJob(page, posts)).toMatchObject({ captionStyle: "classic", renderMode: "center-crop", hookOverlay: "false" });
   });
@@ -314,7 +314,7 @@ test.describe("Dashboard form (faked job API)", () => {
     await expect(preview).toHaveAttribute("data-pack", "sorot");
     await expect(preview).toHaveAttribute("data-position", "top");
     await expect(preview).toHaveAttribute("data-size", "large");
-    await expect(preview).toHaveAccessibleName("Pratinjau klip 9:16: Utuh + latar blur, subtitle Sorot besar di atas, teks hook di atas.");
+    await expect(preview).toHaveAccessibleName("Pratinjau klip 9:16: Latar blur, subtitle Sorot besar di atas, teks hook di atas.");
     // Away from the bottom the subtitle is clear of the TikTok buttons, so that note goes.
     await expect(page.getByText("Subtitle ada di bawah, dekat area tombol TikTok.", { exact: true })).toHaveCount(0);
     await expect(optionsButton(page)).toContainText("Sorot · subtitle atas · subtitle besar");

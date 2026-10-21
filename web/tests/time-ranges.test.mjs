@@ -264,7 +264,7 @@ test("the dashboard checks the field before anything is sent, against the clip c
 
 test("the folded options' summary counts the typed ranges", async () => {
   const { DEFAULT_CHOICES, choicesSummary } = await import("../lib/dashboard-choices.mjs");
-  assert.equal(choicesSummary(DEFAULT_CHOICES, { ranges: 2, focusTerms: 1 }), "3 klip · Otomatis 20–60 detik · Utuh + latar blur · Karaoke · Bahasa Indonesia · 2 rentang waktu · fokus 1 kata kunci");
+  assert.equal(choicesSummary(DEFAULT_CHOICES, { ranges: 2, focusTerms: 1 }), "3 klip · Otomatis 20–60 detik · Latar blur · Karaoke · Bahasa Indonesia · 2 rentang waktu · fokus 1 kata kunci");
   assert.equal(choicesSummary(DEFAULT_CHOICES, { ranges: 0 }), choicesSummary(DEFAULT_CHOICES));
 });
 

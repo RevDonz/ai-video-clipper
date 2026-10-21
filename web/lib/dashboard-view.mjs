@@ -68,6 +68,29 @@ export function jobStageText(job) {
   return JOB_STAGE_LABELS[job?.stage] || JOB_STATUS_LABELS[job?.status] || "Memproses";
 }
 
+// The steps "Tahap n dari m" counts, in the order the engine reports them (pipeline.py; the test
+// checks the order against it). A YouTube job starts with its download, subtitles included; the
+// transcript step is YouTube's subtitles or the audio, the moments step the AI or the heuristic.
+export const JOB_STEPS = Object.freeze([
+  Object.freeze({ id: "download", stages: Object.freeze([]), youtube: true }),
+  Object.freeze({ id: "video", stages: Object.freeze(["analyzing"]) }),
+  Object.freeze({ id: "transcript", stages: Object.freeze(["captions", "transcribing"]) }),
+  Object.freeze({ id: "audio", stages: Object.freeze(["audio"]) }),
+  Object.freeze({ id: "moments", stages: Object.freeze(["llm", "selecting"]) }),
+  Object.freeze({ id: "packaging", stages: Object.freeze(["packaging"]) }),
+  Object.freeze({ id: "rendering", stages: Object.freeze(["rendering"]) }),
+  Object.freeze({ id: "finalizing", stages: Object.freeze(["finalizing"]) }),
+]);
+
+/** "Tahap 4 dari 8" while a job downloads or is processed at a known stage; null otherwise. */
+export function jobStepText(job) {
+  const steps = JOB_STEPS.filter((step) => !step.youtube || job?.source?.type === "youtube");
+  let index = -1;
+  if (job?.status === "downloading") index = steps.findIndex((step) => step.id === "download");
+  else if (job?.status === "processing") index = steps.findIndex((step) => step.stages.includes(job.stage));
+  return index < 0 ? null : `Tahap ${index + 1} dari ${steps.length}`;
+}
+
 /** The live line under the progress bar: the worker's own detail, else what the job waits for. */
 export function jobActivityText(job) {
   const detail = shownStageDetail(job);

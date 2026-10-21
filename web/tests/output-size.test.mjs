@@ -161,7 +161,7 @@ test("the choices are kept per browser and the summary names only what differs f
   assert.equal(stored.ratio, "1:1");
   assert.equal(stored.resolution, "1080p");
   assert.doesNotMatch(choicesSummary(DEFAULT_CHOICES), /9:16|720p/);
-  assert.match(choicesSummary(stored), /^3 klip · Otomatis 20–60 detik · 1:1 · 1080p · Utuh \+ latar blur/);
+  assert.match(choicesSummary(stored), /^3 klip · Otomatis 20–60 detik · 1:1 · 1080p · Latar blur/);
 });
 
 test("the preview of a 1:1 job is square, without the TikTok zone, with the 9:16 text sizes", () => {
@@ -172,7 +172,7 @@ test("the preview of a 1:1 job is square, without the TikTok zone, with the 9:16
   assert.equal(square.tiktok, false);
   assert.deepEqual(square.zone, { top: 0, bottom: 0, right: 0 });
   assert.equal(square.captionInZone, false);
-  assert.equal(square.label, "Pratinjau klip 1:1: Utuh + latar blur, subtitle Karaoke di bawah, teks hook di atas.");
+  assert.equal(square.label, "Pratinjau klip 1:1: Latar blur, subtitle Karaoke di bawah, teks hook di atas.");
   assert.equal(square.hook.fontSize, tall.hook.fontSize);
   assert.equal(square.hook.box.h, tall.hook.box.h);
   assert.equal(square.hook.box.y, 93.6); // 13 % of 720

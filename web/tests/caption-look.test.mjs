@@ -229,8 +229,8 @@ test("only a subtitle at the bottom sits in the TikTok zone, and the note says s
 
 test("the preview's accessible name reads the spot and size", () => {
   assert.equal(look({ captionStyle: "bold", captionPosition: "top", captionSize: "large" }).label,
-    "Pratinjau klip 9:16: Utuh + latar blur, subtitle Bold besar di atas, teks hook di atas.");
-  assert.equal(look({ captionPosition: "middle" }).label, "Pratinjau klip 9:16: Utuh + latar blur, subtitle Karaoke di tengah, teks hook di atas.");
+    "Pratinjau klip 9:16: Latar blur, subtitle Bold besar di atas, teks hook di atas.");
+  assert.equal(look({ captionPosition: "middle" }).label, "Pratinjau klip 9:16: Latar blur, subtitle Karaoke di tengah, teks hook di atas.");
 });
 
 test("with the legacy engine the preview shows the one spot and size that engine draws", () => {

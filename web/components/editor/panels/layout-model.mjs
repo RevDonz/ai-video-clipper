@@ -17,16 +17,17 @@
 //   (`SetZoom`; the split zooms each band in "Atur layar terbagi"). A source with black bars is
 //   laid out without them; the section says so.
 import { NO_FACE_MODES, ZOOM_RANGE, ZOOM_STEP_PM, layoutAfterSwitch, zoomOf } from "../../../lib/editor/doc-model.mjs";
+import { LAYOUT_NAMES } from "../../../lib/layout-names.mjs";
 import { isPortrait, ratioName } from "../../../lib/output-frame.mjs";
 import { formatClock, frameToMs, messageFor } from "../shell-model.mjs";
 
 const option = (fields) => Object.freeze(fields);
 
 export const LAYOUT_OPTIONS = Object.freeze([
-  option({ id: "fit_blur", name: "Latar blur", note: "Seluruh gambar terlihat. Bagian atas dan bawah diisi versi blur dari gambar yang sama." }),
-  option({ id: "camera", name: "Ikuti wajah", note: "Potongan 9:16 bergeser mengikuti wajah. Butuh analisis wajah sekali per klip; bagian tanpa wajah tampil dengan latar blur." }),
-  option({ id: "fill_center", name: "Potong tengah", note: "Potongan 9:16 tetap di tengah gambar. Sisi kiri dan kanan terpotong." }),
-  option({ id: "split", name: "Layar terbagi", note: "Dua potongan dari video yang sama, bertumpuk atas dan bawah dengan garis tipis di antaranya." }),
+  option({ id: "fit_blur", name: LAYOUT_NAMES.fit_blur, note: "Seluruh gambar terlihat. Bagian atas dan bawah diisi versi blur dari gambar yang sama." }),
+  option({ id: "camera", name: LAYOUT_NAMES.camera, note: "Potongan 9:16 bergeser mengikuti wajah. Butuh analisis wajah sekali per klip; bagian tanpa wajah tampil dengan latar blur." }),
+  option({ id: "fill_center", name: LAYOUT_NAMES.fill_center, note: "Potongan 9:16 tetap di tengah gambar. Sisi kiri dan kanan terpotong." }),
+  option({ id: "split", name: LAYOUT_NAMES.split, note: "Dua potongan dari video yang sama, bertumpuk atas dan bawah dengan garis tipis di antaranya." }),
 ]);
 const IDS = LAYOUT_OPTIONS.map((entry) => entry.id);
 

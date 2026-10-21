@@ -187,7 +187,9 @@ test("the v3 validator accepts every state and rejects what the Python validator
     // face-track's runs without a face, centred or with the latar blur fallback (CONTRACTS §5.40)
     completed({ warnings: ["no_face"] }), completed({ warnings: ["no_face_blur"] }),
     // the caption over the speaker's face (CONTRACTS §5.50)
-    completed({ warnings: ["caption_over_face"] })]) {
+    completed({ warnings: ["caption_over_face"] }),
+    // the logo or the text watermark over the caption (CONTRACTS §5.56)
+    completed({ warnings: ["logo_over_caption"] })]) {
     assert.deepEqual(validateRenderRequestV3(value), value);
   }
   const bad = [

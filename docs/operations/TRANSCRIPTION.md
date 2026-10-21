@@ -329,6 +329,21 @@ Setelah diukur, langkah ini tidak diperlukan:
 Kalau suatu saat `WHISPER_CONDITION_ON_PREVIOUS_TEXT=true` dipakai lagi dan peringatan itu
 muncul, solusinya kembali ke default, bukan menambah pass ulang.
 
+## Tag suara di caption
+
+Whisper kadang menulis bunyi yang bukan ucapan sebagai tag: `[Musik]`, `[tepuk tangan]`,
+`(tertawa)`, atau not musik `♪`. Kata-kata itu tetap ada di transkrip, tetapi tidak pernah tampil
+sebagai kata caption (`subtitles.caption_texts`, dipakai `build_frame_cues` dan caption mesin
+lama), sama seperti subtitle YouTube yang mengubah tag yang sama menjadi sound event
+(`youtube_captions.py`):
+
+- Tag dalam kurung siku sampai 4 kata yang isinya label (huruf, spasi, tanda hubung, garis bawah,
+  misalnya `[BLANK_AUDIO]`) dibuang.
+- Tag dalam kurung biasa hanya dibuang kalau isinya bunyi yang dikenal tag YouTube (`tertawa`,
+  `tepuk tangan`, `musik`, `applause`, `laughter` dan lainnya di `sound_events.py`). Ucapan dalam
+  kurung seperti "(50 ribu)" tetap tampil.
+- Not musik dibuang dari kata; lirik yang dinyanyikan di antara not tetap tampil.
+
 ## Batasan yang diketahui
 
 - **Kata bahasa Inggris kadang diterjemahkan.** Tanpa konteks jendela sebelumnya, Whisper

@@ -27,6 +27,7 @@ export const MESSAGES = Object.freeze({
   no_face_blur: "Tidak ada wajah terdeteksi di bagian ini; tampil dengan latar blur",
   unsafe_zone: "Caption, hook, atau logo masuk ke area tombol TikTok",
   caption_over_face: "Caption menutupi wajah pembicara",
+  logo_over_caption: "Logo atau teks watermark menutupi caption",
   loudness_clamped: "Target kenyaringan tidak tercapai tanpa pecah; volume dibatasi",
   peak_reduced: "Volume diturunkan agar audio tidak pecah",
   music_shorter_than_clip: "Musik lebih pendek dari klip dan tidak diulang",
@@ -112,9 +113,16 @@ const ZONE_TEXT = Object.freeze([
   [/^\/tracks\/\d+\/items\/\d+\/transform$/, "Logo masuk ke area tombol TikTok"],
 ]);
 
+// logo_over_caption names the part over the caption, from its path (CONTRACTS §5.56).
+const OVER_CAPTION_TEXT = Object.freeze([
+  [/^\/watermark\//, "Teks watermark menutupi caption"],
+  [/^\/tracks\/\d+\/items\/\d+\/transform$/, "Logo menutupi caption"],
+]);
+
 function checkMessage(issue) {
-  if (issue.code === "unsafe_zone" && typeof issue.path === "string") {
-    const found = ZONE_TEXT.find(([pattern]) => pattern.test(issue.path));
+  const parts = { unsafe_zone: ZONE_TEXT, logo_over_caption: OVER_CAPTION_TEXT }[issue.code];
+  if (parts && typeof issue.path === "string") {
+    const found = parts.find(([pattern]) => pattern.test(issue.path));
     if (found) return found[1];
   }
   return messageFor(issue.code);
@@ -373,10 +381,13 @@ export function checksView({ warnings = [], plan = null, doc = null, seed = null
     const note = given === "warning" && captionNote && isCaptionZone(issue);
     const severity = note || (given === "warning" && NOTE_CODES.includes(issue.code)) ? "info" : given;
     const f = Number.isInteger(issue.f) ? issue.f : null;
-    const key = `${severity}|${issue.code}|${issue.ref ?? ""}|${f ?? ""}|${f === null ? issue.path ?? "" : ""}`;
+    // The logo and the watermark may name the same place in `ref`: their paths keep them apart.
+    const byPath = f === null || issue.code === "logo_over_caption";
+    const key = `${severity}|${issue.code}|${issue.ref ?? ""}|${f ?? ""}|${byPath ? issue.path ?? "" : ""}`;
     if (seen.has(key)) return;
     seen.add(key);
-    items.push({ key, severity, code: issue.code, ref: issue.ref ?? null, f, message: note ? CAPTION_SPOT_NOTE : checkMessage(issue),
+    items.push({ key, severity, code: issue.code, ref: issue.ref ?? null, path: issue.path ?? null, f,
+      message: note ? CAPTION_SPOT_NOTE : checkMessage(issue),
       timeText: f === null ? null : formatClock(frameToMs(f, fps)) });
   };
   for (const issue of Array.isArray(plan?.errors) ? plan.errors : []) add(issue, "error");

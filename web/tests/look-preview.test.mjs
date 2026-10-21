@@ -98,10 +98,10 @@ test("the note says where the subtitle sits, and that Edit klip changes it per c
 });
 
 test("the preview's accessible name reads what it shows", () => {
-  assert.equal(lookPreview(choices()).label, "Pratinjau klip 9:16: Utuh + latar blur, subtitle Karaoke di bawah, teks hook di atas.");
+  assert.equal(lookPreview(choices()).label, "Pratinjau klip 9:16: Latar blur, subtitle Karaoke di bawah, teks hook di atas.");
   assert.equal(
     lookPreview(choices({ renderMode: "center-crop", captionStyle: "classic", hookOverlay: false })).label,
-    "Pratinjau klip 9:16: Crop tengah, subtitle Klasik di bawah, tanpa teks hook.",
+    "Pratinjau klip 9:16: Potong tengah, subtitle Klasik di bawah, tanpa teks hook.",
   );
 });
 
