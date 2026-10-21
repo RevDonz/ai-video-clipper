@@ -11,7 +11,9 @@ import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react"
 
 import ApplyAll from "../apply-all/ApplyAll.jsx";
 import { LOGO_ACCEPT, logoUploader, logoUploads } from "../gizmos/logo-upload.mjs";
-import { logoPanelView, logoUploadCommand, logoUploadMessage, runLogoSteps } from "../panels/logo-model.mjs";
+import {
+  logoCaptionNote, logoPanelView, logoUploadCommand, logoUploadMessage, runLogoSteps,
+} from "../panels/logo-model.mjs";
 import { DUCK_PRESET_LIST, MUSIC_ACCEPT, musicCommands, musicView } from "../panels/music-model.mjs";
 import { markMusicNoticeRead, musicNoticeRead, musicUploadFor } from "../panels/music-upload.mjs";
 import Icon from "../ui/icons.jsx";
@@ -65,6 +67,9 @@ function LogoSection({ state, dispatch, uploadAsset, uploadsEnabled, showLengkap
       onUploaded: (dto) => logoUploadMessage(runLogoSteps(dispatch, [logoUploadCommand(dto)])),
     });
   };
+  // The logo over the caption (CONTRACTS §5.51): the plan's line and its one-click move.
+  const overCaption = logo ? logoCaptionNote(state.plan, "logo") : null;
+  const moveOff = (command) => setRefusal(runLogoSteps(dispatch, [command])?.message ?? null);
   const remove = () => {
     const refused = runLogoSteps(dispatch, [{ type: "RemoveLogo", args: {} }]);
     setRefusal(refused?.message ?? null);
@@ -95,6 +100,16 @@ function LogoSection({ state, dispatch, uploadAsset, uploadsEnabled, showLengkap
           Tambah logo
         </button>
       )}
+      {overCaption ? (
+        <div className={styles.faceNote} data-logo-caption={overCaption.fix?.id ?? ""}>
+          <p className={styles.warning}>{overCaption.text}</p>
+          {overCaption.fix ? (
+            <button type="button" className={styles.fixButton} disabled={locked} onClick={() => moveOff(overCaption.fix.command)}>
+              {overCaption.fix.label}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       <input ref={inputRef} type="file" accept={LOGO_ACCEPT} hidden tabIndex={-1} aria-hidden="true" onChange={onFile} />
       {!canUpload && !view.readOnly ? <p id={`${uid}-off`} className={styles.note}>Unggah logo belum tersedia di server ini.</p> : null}
       {progress ? (

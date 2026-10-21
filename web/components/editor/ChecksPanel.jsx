@@ -4,15 +4,17 @@
 // its frame; blocking plan errors on top; notes (severity "info": the caption at the auto clip's
 // spot, K5) last, under "Catatan", informative only. A non-modal popover under the top bar; Escape
 // closes it and focus returns to the button that opened it (EditorApp). A caption over the
-// speaker's face carries its one-click fix (CONTRACTS §5.50); `onFix` is null when read-only.
+// speaker's face (CONTRACTS §5.50) and a logo or watermark over the caption (§5.51) carry their
+// one-click fix; `onFix` is null when read-only.
 import { useEffect, useRef } from "react";
 
 import { captionFaceFix } from "./panels/caption-model.mjs";
+import { logoCaptionFix } from "./panels/logo-model.mjs";
 import styles from "./shell.module.css";
 
 function CheckItem({ check, onJump, onFix }) {
   const tone = check.severity === "error" ? styles.checkItem_error : check.severity === "info" ? styles.checkItem_info : "";
-  const fix = onFix ? captionFaceFix(check) : null;
+  const fix = onFix ? captionFaceFix(check) ?? logoCaptionFix(check) : null;
   return (
     <li className={`${styles.checkItem} ${tone}`} data-check-severity={check.severity}>
       <span style={{ flex: "1 1 auto" }}>

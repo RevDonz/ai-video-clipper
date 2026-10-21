@@ -1,7 +1,57 @@
 // The Logo panel's view of the store state (plan §11.3 T3.2): the logo item, its pixel box at
 // the output size, the corner preset it sits on, and the server's G5 warning for it. Pure.
+import { WATERMARK_POSITIONS, WATERMARK_POSITION_NAMES } from "../../../lib/editor/doc-model.mjs";
 import { assetThumbUrl } from "../gizmos/logo-upload.mjs";
 import { boxOf, cornerOf, logoOf, safePlacement } from "../gizmos/logo-geometry.mjs";
+
+/** SnapLogo's corners as the Posisi cepat pills name them. */
+export const LOGO_CORNERS = Object.freeze([
+  Object.freeze({ id: "top_left", label: "Kiri atas" }), Object.freeze({ id: "top_right", label: "Kanan atas" }),
+  Object.freeze({ id: "bottom_left", label: "Kiri bawah" }), Object.freeze({ id: "bottom_right", label: "Kanan bawah" }),
+]);
+
+export const LOGO_CAPTION_TEXT = Object.freeze({
+  logo: "Logo menutupi caption.",
+  logoNoFix: "Logo menutupi caption. Kecilkan logo atau geser caption.",
+  watermark: "Teks watermark menutupi caption.",
+  watermarkNoFix: "Teks watermark menutupi caption. Kecilkan teksnya atau geser caption.",
+});
+
+const WATERMARK_PATH = "/watermark/pos";
+
+function captionPart(warning) {
+  if (warning?.code !== "logo_over_caption" || typeof warning.path !== "string") return null;
+  return warning.path === WATERMARK_PATH ? "watermark" : "logo";
+}
+
+/**
+ * The fix of the plan's `logo_over_caption` warning (CONTRACTS §5.51): `ref` names the SnapLogo
+ * corner (logo) or the watermark place that clears the caption. `{ id, part, label, command }`,
+ * one undo step, or null (another warning, or nothing clears).
+ */
+export function logoCaptionFix(warning) {
+  const part = captionPart(warning);
+  if (part === "logo") {
+    const corner = LOGO_CORNERS.find((entry) => entry.id === warning.ref);
+    return corner
+      ? { id: corner.id, part, label: `Pindah ke ${corner.label}`, command: { type: "SnapLogo", args: { corner: corner.id }, mergeKey: null } }
+      : null;
+  }
+  if (part === "watermark" && WATERMARK_POSITIONS.includes(warning.ref)) {
+    const pos = warning.ref;
+    return { id: pos, part, label: `Pindah ke ${WATERMARK_POSITION_NAMES[pos]}`, command: { type: "SetWatermarkPosition", args: { pos }, mergeKey: null } };
+  }
+  return null;
+}
+
+/** The line a part ("logo" or "watermark") shows for the plan's warning: `{ text, fix }`, or null. */
+export function logoCaptionNote(plan, part) {
+  const warnings = Array.isArray(plan?.warnings) ? plan.warnings : [];
+  const warning = warnings.find((item) => captionPart(item) === part);
+  if (!warning) return null;
+  const fix = logoCaptionFix(warning);
+  return { text: LOGO_CAPTION_TEXT[fix ? part : `${part}NoFix`], fix };
+}
 
 function tenths(value) {
   const whole = Math.trunc(value / 10);

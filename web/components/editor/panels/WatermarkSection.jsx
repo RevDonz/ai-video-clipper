@@ -2,13 +2,14 @@
 
 // The text watermark in the Logo panel (CONTRACTS §5.43): one line typed once, a place on the 3×3
 // grid, its size and its opacity. Every place keeps the line out of the TikTok/Reels buttons, so
-// it never needs the zone warning the logo has. Props: { state, dispatch, locked }.
+// it never needs the zone warning the logo has; a line over the caption gets the plan's warning
+// and the place that clears it (CONTRACTS §5.51). Props: { state, dispatch, locked }.
 import { useEffect, useId, useRef, useState } from "react";
 
 import { WATERMARK_OPACITY_RANGE, WATERMARK_SIZE_RANGE } from "../../../lib/editor/doc-model.mjs";
 import PillGroup from "../ui/PillGroup.jsx";
 import styles from "./logo.module.css";
-import { runLogoSteps } from "./logo-model.mjs";
+import { logoCaptionNote, runLogoSteps } from "./logo-model.mjs";
 import {
   WATERMARK_MAX, WATERMARK_PLACES, cleanWatermarkText, watermarkDraftOnBlur, watermarkOpacityCommand,
   watermarkPlaceCommand, watermarkPoints, watermarkRemoveCommand, watermarkSizeCommand, watermarkTextCommand,
@@ -38,6 +39,8 @@ export default function WatermarkSection({ state, dispatch, locked }) {
     setMessage(refused?.message ?? null);
   };
   const points = watermarkPoints(cleanWatermarkText(draft));
+  // The line over the caption (CONTRACTS §5.51): the plan's warning and its one-click move.
+  const overCaption = mark ? logoCaptionNote(state.plan, "watermark") : null;
 
   return (
     <section className={styles.section} aria-labelledby={ids.title} data-watermark="">
@@ -65,6 +68,16 @@ export default function WatermarkSection({ state, dispatch, locked }) {
           {view.missingGlyphs.length ? (
             <div className={styles.warning} data-watermark-glyphs="">
               <p>Font watermark tidak punya {view.missingGlyphs.join(", ")}; karakter ini tidak akan tampil di video.</p>
+            </div>
+          ) : null}
+          {overCaption ? (
+            <div className={styles.warning} data-logo-caption={overCaption.fix?.id ?? ""} role="status">
+              <p>{overCaption.text}</p>
+              {overCaption.fix && !locked ? (
+                <button type="button" className={styles.button} onClick={() => send(overCaption.fix.command)}>
+                  {overCaption.fix.label}
+                </button>
+              ) : null}
             </div>
           ) : null}
           <div className={styles.field}>

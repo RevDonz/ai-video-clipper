@@ -3,7 +3,8 @@
 // The Logo panel (plan §11.3 T3.2, §3.3, §5.5, §9.2): upload a PNG, JPEG or WebP, place it with
 // the corner presets (or drag it on the stage, LogoGizmo), size, opacity, replace and remove, all
 // through Appendix B's commands. The G5 note comes from the plan's `unsafe_zone` warning for the
-// logo item (the server's check) and offers to move the logo just out of the TikTok zone.
+// logo item (the server's check) and offers to move the logo just out of the TikTok zone; a logo
+// over the caption gets the plan's warning and the corner that clears it (CONTRACTS §5.51).
 // Props: { state, dispatch, player } (panels/index.mjs), plus optional `uploadAsset` (Appendix
 // A.2) and `uploadsEnabled` (POTONGIN_EDITOR_UPLOADS) when the shell passes them. The text
 // watermark (WatermarkSection) follows the logo in both states.
@@ -18,13 +19,9 @@ import PillGroup from "../ui/PillGroup.jsx";
 import styles from "./logo.module.css";
 import WatermarkSection from "./WatermarkSection.jsx";
 import {
-  logoPanelView, logoUploadCommand, logoUploadMessage, opacityLabel, runLogoSteps as apply, sizeLabel,
+  LOGO_CORNERS, logoCaptionNote, logoPanelView, logoUploadCommand, logoUploadMessage, opacityLabel,
+  runLogoSteps as apply, sizeLabel,
 } from "./logo-model.mjs";
-
-const CORNERS = [
-  { id: "top_left", label: "Kiri atas" }, { id: "top_right", label: "Kanan atas" },
-  { id: "bottom_left", label: "Kiri bawah" }, { id: "bottom_right", label: "Kanan bawah" },
-];
 
 export default function LogoPanel({ state, dispatch, uploadAsset: uploadProp = null, uploadsEnabled = true, applyAll = null }) {
   const view = logoPanelView(state);
@@ -150,6 +147,8 @@ export default function LogoPanel({ state, dispatch, uploadAsset: uploadProp = n
     const steps = target ? transformSteps(transform, meta, output, target) : null;
     if (steps?.length) run(steps, "logo:size");
   };
+  // The logo over the caption (CONTRACTS §5.51): the plan's line and its one-click move.
+  const overCaption = logoCaptionNote(state?.plan, "logo");
   const moveToSafe = () => {
     if (logo.safeTarget) run([{ type: "MoveLogo", args: positionFor(logo.safeTarget.x, logo.safeTarget.y, box, output) }]);
   };
@@ -195,10 +194,21 @@ export default function LogoPanel({ state, dispatch, uploadAsset: uploadProp = n
         </div>
       )}
 
+      {overCaption && (
+        <div className={styles.warning} data-logo-caption={overCaption.fix?.id ?? ""} role="status">
+          <p>{overCaption.text}</p>
+          {overCaption.fix && !locked && (
+            <button type="button" className={styles.button} onClick={() => run([overCaption.fix.command])}>
+              {overCaption.fix.label}
+            </button>
+          )}
+        </div>
+      )}
+
       <div className={styles.section}>
         <PillGroup legend="Posisi cepat" name={ids.corners} columns={2} disabled={locked} describedBy={ids.help}
           value={logo.corner} onChange={(corner) => run([{ type: "SnapLogo", args: { corner } }])}
-          options={CORNERS.map((corner) => ({
+          options={LOGO_CORNERS.map((corner) => ({
             id: corner.id,
             label: (
               <span className={styles.cornerLabel}>
