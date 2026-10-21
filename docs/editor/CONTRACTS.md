@@ -2153,8 +2153,15 @@ change.
 - `scorePill(clip)` → `{text, high}` from the current selection's 0–10 total rounded to tenths
   (`high` from 8,0); null for older clips. The pill is neutral; a lime dot marks `high`. No score
   is called "Hot" or "viral" (README "Important limitations").
-- `clipFilterView(clips, filter)`: chips "Semua" and "Skor 8+" with counts, shown only when a clip
-  has a score; `keepSelection`, `stepSelection` (no wrap), `clipPosition`.
+- `clipFilterView(clips, filter, edited)`: chips "Semua", "Skor 8+" and "Diedit" with counts and
+  the active one. "Skor 8+" is offered only when a clip has a score; "Diedit" only when `edited`
+  is a set: `editedIndexes(clips, entryFor)` collects the clips whose editor entry carries the
+  "Diedit" badge (`editBadge.tone === "edited"`, `lib/clip-entry-view.mjs`) and is null while the
+  clips listing is off, loading or failed, or when no clip can open in the editor. The chip row
+  shows with two chips or more; a filter that is not offered reads as "Semua". An empty filter
+  shows `filterEmptyText` ("Belum ada klip dengan skor 8 atau lebih." / "Belum ada klip yang
+  diedit.") with "Tampilkan semua klip". The choice lives in component state only.
+  `keepSelection`, `stepSelection` (no wrap), `clipPosition`.
 - `arrowDelta(event)`: ←/→ without a modifier, except in fields, a video or audio element, a
   slider, spin button, list box, menu, tab list, radio group, text box or grid. A keydown on the
   document steps the shown clips; from a poster, the focus follows. Only the current poster is a
@@ -2355,7 +2362,15 @@ Plan `docs/plans/2026-10-20-lanjutan-sesi.md` A7. Web only; no engine, data or f
 - Klip view: a search box (`maxLength` 200, 250 ms after typing), toggle chips "Skor 8+" and
   "Minggu ini" (`since` = Monday 00:00 in the viewer's time zone, `startOfWeek`), a grid of
   `<article>` posters (`components/ClipPoster.jsx`, the project page's), "n dari m klip" and "Muat
-  lagi" (the next page appended once per clip; the focus moves to its first new card). States:
+  lagi" (the next page appended once per clip; the focus moves to its first new card). The grid
+  is grouped by `groupClipsByDay(clips, loadedAt)`: `clipDayGroup` puts a clip's `createdAt` (the
+  job's creation time) under "Hari ini" from 00:00 of the viewer's day (a moment ahead of the
+  clock too), "Minggu ini" from Monday 00:00 (`startOfWeek`), else "Lebih lama" (also a missing
+  date); only groups that hold a clip, in that order. `loadedAt` is the moment the first page
+  arrived, so "Muat lagi" (older clips, newest first) only appends below and never regroups what
+  shows. With nothing from this week the headings are left out (one plain grid). Markup: `<ul
+  aria-label="Klip">` of groups, each an `<li>` with an `<h2>` and its own poster `<ul>`
+  labelled by it. States:
   "Memuat klip…", an error with "Coba lagi", "Belum ada klip", "Tidak ada klip yang cocok" with
   "Tampilkan semua klip", and an info line with "Muat ulang" while `partial`.
 - A card is a link to `/projects/<id>?klip=N`; its accessible name is the title, its description
