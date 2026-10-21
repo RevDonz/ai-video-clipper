@@ -136,6 +136,19 @@ def choose(
     """The framed face's normalised x centre per sample (``None`` without a face) and the
     samples where the crop switches to another speaker far enough to cut (see the module
     docstring). ``width`` is the source width in pixels."""
+    faces, switches = choose_faces(samples, width=width, rules=rules)
+    return [None if face is None else min(max(face.centre / width, 0.0), 1.0)
+            for face in faces], switches
+
+
+def choose_faces(
+    samples: Sequence[Sample],
+    *,
+    width: int,
+    rules: Rules = RULES,
+) -> tuple[list[Face | None], list[bool]]:
+    """:func:`choose` with the framed face itself per sample (``None`` without a face): its box
+    is what the caption check compares with the caption (CONTRACTS §5.48)."""
     if width <= 0:
         raise ValueError("the frame width must be positive")
     tracks = link_tracks(samples, link_iou=rules.link_iou)
@@ -151,6 +164,7 @@ def choose(
         return sum(values) / len(values) if values else None
 
     centres: list[float | None] = []
+    chosen_faces: list[Face | None] = []
     switches: list[bool] = []
     framed: int | None = None  # the track framed at the previous sample
     for position, sample in enumerate(samples):
@@ -161,6 +175,7 @@ def choose(
                  if face.h >= rules.min_relative * tallest]
         if not faces:
             centres.append(None)
+            chosen_faces.append(None)
             switches.append(False)
             framed = None
             continue
@@ -184,9 +199,10 @@ def choose(
         switched = bool(framed is not None and owners[chosen] != framed and previous is not None
                         and abs(centre - previous) >= rules.jump)
         centres.append(centre)
+        chosen_faces.append(face)
         switches.append(switched)
         framed = owners[chosen]
-    return centres, switches
+    return chosen_faces, switches
 
 
-__all__ = ["RULES", "Face", "Rules", "Sample", "choose", "link_tracks"]
+__all__ = ["RULES", "Face", "Rules", "Sample", "choose", "choose_faces", "link_tracks"]

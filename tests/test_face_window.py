@@ -195,3 +195,15 @@ def test_a_source_opencv_cannot_open_is_refused(tmp_path):
     bad.write_bytes(b"nothing here")
     with pytest.raises(RuntimeError):
         face_window.scan_window(bad, start=0.0, end=2.0)
+
+
+def test_the_window_can_return_the_framed_face_box(tmp_path, two_faces):
+    """``boxes=True`` adds the framed face per sample as ``(x, y, w, h)`` shares of the frame
+    (``None`` without a face); the first five values are the ones without it."""
+    video = write_video(tmp_path / "left-boxes.avi", lambda _t: LEFT)
+    plain = face_window.detect_window(video, start=0.0, end=3.0)
+    times, centres, cuts, width, height, boxes = face_window.detect_window(
+        video, start=0.0, end=3.0, boxes=True)
+    assert (times, centres, cuts, width, height) == plain
+    x, y, w, h = LEFT
+    assert boxes == [pytest.approx((x / WIDTH, y / HEIGHT, w / WIDTH, h / HEIGHT))] * len(times)

@@ -139,3 +139,16 @@ def test_link_tracks_gives_each_previous_face_to_one_face_only():
 def test_choose_rejects_a_frame_without_width():
     with pytest.raises(ValueError):
         choose(samples([face(LEFT)]), width=0)
+
+
+def test_choose_faces_returns_the_framed_face_itself():
+    """The caption check (CONTRACTS §5.48) needs the framed face's box, not just its centre:
+    ``choose_faces`` returns that face per sample, and ``choose`` is its centres."""
+    from ai_clipper.speaker_track import choose_faces
+
+    track = samples([face(LEFT, 0.30), face(RIGHT, 0.05)], [], [face(RIGHT, 0.0)])
+    faces, switches = choose_faces(track, width=WIDTH)
+    assert faces == [track[0].faces[0], None, track[2].faces[0]]
+    centres, same_switches = choose(track, width=WIDTH)
+    assert centres == [None if found is None else found.centre / WIDTH for found in faces]
+    assert same_switches == switches

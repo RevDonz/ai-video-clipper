@@ -34,7 +34,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .speaker_track import RULES, Face, Rules, Sample, choose
+from .speaker_track import RULES, Face, Rules, Sample, choose_faces
 
 THUMBNAIL = (64, 36)
 CUT_CHANGE = 0.18  # mean thumbnail difference (share of 255) that counts as a scene cut
@@ -276,14 +276,26 @@ def detect_window(
     sample_interval: float = 0.75,
     progress: Callable[[int, int], None] | None = None,
     rules: Rules = RULES,
-) -> tuple[list[float], list[float | None], list[bool], int, int]:
+    boxes: bool = False,
+) -> tuple:
     """The speaking face over ``[start, end)`` (seconds): ``(times, raw centres, cuts,
-    source_w, source_h)`` with ``None`` where no face was found. See the module docstring."""
+    source_w, source_h)`` with ``None`` where no face was found. See the module docstring.
+
+    With ``boxes=True`` a sixth value follows: the framed face per sample as ``(x, y, w, h)``
+    shares of the source frame (``None`` without a face), for the caption check
+    (CONTRACTS §5.48)."""
     scan = scan_window(source, start=start, end=end, sample_interval=sample_interval,
                        progress=progress)
-    centres, switches = choose(scan.samples, width=scan.width, rules=rules)
+    faces, switches = choose_faces(scan.samples, width=scan.width, rules=rules)
+    centres = [None if face is None else min(max(face.centre / scan.width, 0.0), 1.0)
+               for face in faces]
     cuts = [sample.cut or switch for sample, switch in zip(scan.samples, switches, strict=True)]
-    return scan.times, centres, cuts, scan.width, scan.height
+    if not boxes:
+        return scan.times, centres, cuts, scan.width, scan.height
+    shares = [None if face is None else (face.x / scan.width, face.y / scan.height,
+                                         face.w / scan.width, face.h / scan.height)
+              for face in faces]
+    return scan.times, centres, cuts, scan.width, scan.height, shares
 
 
 __all__ = ["MOTION_RATE", "Scan", "cpu_budget", "detect_window", "one_opencv_thread",
