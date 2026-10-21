@@ -408,7 +408,7 @@ def test_cue_beyond_clip_duration_is_rejected():
 
 # sha256 over build_caption_cues/cues_to_srt and 108 build_ass documents, recorded on the wave
 # base (a2bd7b2) before any T1.2a change. The V1 and v2-shadow paths keep calling these. The
-# karaoke sweep (\kf, CONTRACTS §5.47) is the one change since: with its tags read back as \k
+# karaoke sweep (\kf, CONTRACTS §5.49) is the one change since: with its tags read back as \k
 # the bytes are the pinned ones, so every duration is the old one.
 LEGACY_PIN = "d2b08717ca80884e4976bf23aa5284530f95249e9e7d1a054bbe7abe1148e835"
 
@@ -1179,7 +1179,7 @@ def test_sorot_follows_position_size_and_case_overrides():
     assert [entry[3] for entry in parsed if entry[0] == "word"][:2] == ["Bukan", "gue"]
 
 
-# --- Sinar: the karaoke sweep with a soft glow (CONTRACTS §5.47) ---------------------------------
+# --- Sinar: the karaoke sweep with a soft glow (CONTRACTS §5.49) ---------------------------------
 
 SINAR_CUE = _fcue((0, 10, "gue"), (10, 25, "bukan"), (25, 40, "jambret."))
 GLOW_720 = "\\bord14\\blur9\\3c&H4DE1FF&\\3a&H30&\\1a&HFF&\\2a&HFF&\\shad0"

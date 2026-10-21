@@ -1,6 +1,6 @@
 {
  "schema": "potongin.edit-v2-plan-shas/1",
- "note": "plan_sha256 of every valid fixture before the cold-open transition (real caption track and envelopes, the repository's resources), recomputed for the karaoke sweep and RENDER_SEMANTICS 2 (CONTRACTS §5.47)",
+ "note": "plan_sha256 of every valid fixture before the cold-open transition (real caption track and envelopes, the repository's resources), recomputed for the karaoke sweep and RENDER_SEMANTICS 2 (CONTRACTS §5.49)",
  "plans": {
   "body_max_300s__c25": "fb922f89c25c8e101b35d230b79806aa32fe0b8b3b145a7e8beb525ba3a8088e",
   "body_min_3s__c30": "dad2259a8243a46b8cfa555da10e17591ecc3586ec030b80181c247606a16b6f",

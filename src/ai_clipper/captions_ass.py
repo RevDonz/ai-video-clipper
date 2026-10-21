@@ -1450,7 +1450,7 @@ def _caption_events(cues: Sequence[FrameCue], *, pack: CaptionPack, fps: Fps,
                 emphasis=emphasis)
             if pack.glow is not None:
                 # The glow and the line are placed by hand at the style's spot, so libass never
-                # stacks the two copies apart (CONTRACTS §5.47).
+                # stacks the two copies apart (CONTRACTS §5.49).
                 _display_text, tags, _font, _size = one_line(cue)
                 place = (f"\\an2\\pos({_centi_text(50 * width)},"
                          f"{height - _margin_v(height, overrides['y_e5'])}){tags}")
@@ -1634,7 +1634,7 @@ def build_ass_v2(
     ``ass_escape``. A ``box_style: vector`` pack draws each box as a ``\\p`` rectangle event
     right before its line (plan §5.4, the fallback if BorderStyle 3 fails P-TXT); a
     ``word_box`` pack draws a rounded ``\\p`` box behind the spoken word (CONTRACTS §5.30); a
-    ``glow`` pack draws a blurred copy of each karaoke line right before it (§5.47). A
+    ``glow`` pack draws a blurred copy of each karaoke line right before it (§5.49). A
     hook in a design other than the bar writes that design's style and events (§5.33). The
     override ``entrance`` opens the first window of every caption line with a fade, pop or blur
     of at most ``ENTRANCE_MS``; no event moves (§5.39). A ``watermark`` adds its style and one

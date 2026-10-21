@@ -290,7 +290,7 @@ def _module(name: str):
 def test_package_constants():
     assert edit_v2.COMPILER_VERSION == "edit-v2/1.0.0"
     assert edit_v2.COMPILER_ID == "edit-v2/1"
-    assert edit_v2.RENDER_SEMANTICS == 2  # the karaoke sweep (CONTRACTS §5.47)
+    assert edit_v2.RENDER_SEMANTICS == 2  # the karaoke sweep (CONTRACTS §5.49)
 
 
 @pytest.mark.parametrize("name", STUB_MODULES + ("timemap", "clip_id", "errors"))

@@ -380,7 +380,7 @@ def test_the_audio_key_follows_the_sound_and_the_plate_key_the_pixels(c30):
 
 # preview_cli.audio_key before transitions existed (toolchain None, then "ab"·32), at
 # RENDER_SEMANTICS 1: a document without a sound keeps its preview mix. RENDER_SEMANTICS 2 (the
-# karaoke sweep, CONTRACTS §5.47) moves every key once: MIX_IDENTITY_SEMANTICS_2.
+# karaoke sweep, CONTRACTS §5.49) moves every key once: MIX_IDENTITY_SEMANTICS_2.
 MIX_IDENTITY_BEFORE = {
     "seed__c30": (
         "a771288df0f4fd28d612bba039b932879a5a7c63fc280766d462458c0108e9c3",

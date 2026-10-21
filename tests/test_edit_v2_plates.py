@@ -123,7 +123,7 @@ def test_plate_key_names_the_camera_plan_and_the_toolchain(contexts):
 
 # plate_key of the c30 seed, its camera layout, and that layout with a toolchain, per
 # RENDER_SEMANTICS: 1 was pinned before the no-face fallback existed; 2 (the karaoke sweep,
-# CONTRACTS §5.47) moves every key once and nothing else does.
+# CONTRACTS §5.49) moves every key once and nothing else does.
 PLATE_KEYS = {
     1: ("d7652b0314bba8191537175eb59413c9edef18e3b99492e20e7b36cd6786b115",
         "97adf1de49c9aecc6e7ce09e63e2e15e0bf9c1a238b01a88bddc32f660b3c666",

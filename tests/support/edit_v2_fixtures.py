@@ -347,7 +347,7 @@ def _hook_track(text: str, dur_f: int, *, y_e5: int = 13000, origin: str = "seed
 
 
 # The fixture documents were seeded before the karaoke sweep (RENDER_SEMANTICS 2, CONTRACTS
-# §5.47): a document keeps the engine stamp it was seeded with, and every one of them still
+# §5.49): a document keeps the engine stamp it was seeded with, and every one of them still
 # compiles with today's engine.
 FIXTURE_RENDER_SEMANTICS = 1
 

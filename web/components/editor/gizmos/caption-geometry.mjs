@@ -29,6 +29,7 @@ export const CAPTION_TEXT = Object.freeze({
     bold: metrics(1350, [1, 90], 1219, 2),
     box: metrics(1200, [1, 100], 1219, 1),
     sorot: metrics(1200, [1, 150], 1219, 1),
+    sinar: metrics(1100, [1, 320], 1219, 1),
   }),
 });
 

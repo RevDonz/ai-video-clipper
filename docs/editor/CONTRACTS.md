@@ -371,7 +371,7 @@ never happens below 10 h at 30 fps). Rational comparisons use cross-multiplicati
 | Samples | `smp(n) = ⌊n·48000·den / num⌋` (1601/1602 at 29.97 with zero drift [PF D12]); piece sample count `smp(out_f0+frames) − smp(out_f0)`; the first source sample of a piece is `⌊in_sf·48000·den / num⌋` |
 | Word visibility (captions) | A word is shown when it is not `hidden` and its midpoint `(s+e)/2` lies inside a piece's source span (the V3 midpoint rule) |
 | Word output frames | `n_on = out_f0(p) + round_half_up((s_ms − t0_ms(p))·num / (1000·den))`, clamped to the piece; `n_off` the same from `e_ms`. A word never spans a cut |
-| ASS time (frame-safe) | `now_ms(n) = trunc(n · (den/num) · 1000)` in IEEE double, **the exact expression order of FFmpeg's `vf_subtitles`** with time base `den/num` (the graph sets `settb=den/num` before `ass`). `safe_cs(n) = (now_ms(n) − 2) // 10`. An event visible on `[a, b)` is written `Start = safe_cs(a)`, `End = safe_cs(b)`; `\kf` durations (`\k` before §5.47) are differences of `safe_cs`. The browser calls libass with `now_ms(n)/1000`, and JASSUB's rounding returns exactly `now_ms(n)` [PF `ass_time_rule.py`: 0 failures, 24–60 fps, 3 h] |
+| ASS time (frame-safe) | `now_ms(n) = trunc(n · (den/num) · 1000)` in IEEE double, **the exact expression order of FFmpeg's `vf_subtitles`** with time base `den/num` (the graph sets `settb=den/num` before `ass`). `safe_cs(n) = (now_ms(n) − 2) // 10`. An event visible on `[a, b)` is written `Start = safe_cs(a)`, `End = safe_cs(b)`; `\kf` durations (`\k` before §5.49) are differences of `safe_cs`. The browser calls libass with `now_ms(n)/1000`, and JASSUB's rounding returns exactly `now_ms(n)` [PF `ass_time_rule.py`: 0 failures, 24–60 fps, 3 h] |
 | Cold open | At most one, first, `⌈0.5·F⌉ ≤ frames ≤ ⌊8·F⌋`, `abs(co.in_sf − body.in_sf) ≥ 1`. Blocking `cold_open_invalid` when more than 80% of it lies inside `[body.in_sf, body.in_sf + frames + 2·F)`, because it would only repeat the opening (FINAL §4.8) |
 | Plate cells | `cell_frames = 2·⌈num/den⌉` (60 at 29.97 and 30, 50 at 25, 48 at 24 and 23.976). Cell k covers source-grid frames `[k·cell_frames, (k+1)·cell_frames)` |
 | Logo box | `w_px = round_half_up(w_e5·W / 100000)`, `h_px = round_half_up(w_px·asset_h / asset_w)`, `x0 = round_half_up(x_e5·W/100000 − w_px/2)`, `y0` likewise, computed as integers from the doc's output size (export at another size recomputes from the same `_e5` values) |
@@ -614,7 +614,7 @@ annotations may be spelled differently).
 | `edit_v2.store` | `get`, `seed`, `put`, `archive_for_render`, `prune_receipts`, the §4.1 path constants | T1.1 |
 | `edit_v2.api` | `OPS`, `main` (CLI) | T1.1 |
 | `ai_clipper.subtitles` (additions) | `SourceWord`, `FrameWord`, `FrameCue`, `build_frame_cues` | T1.2a |
-| `ai_clipper.captions_ass` (additions) | `CaptionPack`, `load_pack`, `HookSpec`, `build_ass_v2`; `WordBox`, `words_per_cue`, `lightness`, `word_box_text` (§5.30); `LEGACY_HOOK_DESIGN`, `HOOK_LAYOUTS`, `HookDesign`, `HookBox`, `HookKicker`, `hook_design`, `hook_font_file`, `boxed_word_index` (§5.33); `ENTRANCE_MS` (§5.39); `WATERMARK_FONT_FILE`, `WatermarkSpec`, `WatermarkLayout`, `layout_watermark` (§5.43); `Glow` (§5.47) | T1.2a |
+| `ai_clipper.captions_ass` (additions) | `CaptionPack`, `load_pack`, `HookSpec`, `build_ass_v2`; `WordBox`, `words_per_cue`, `lightness`, `word_box_text` (§5.30); `LEGACY_HOOK_DESIGN`, `HOOK_LAYOUTS`, `HookDesign`, `HookBox`, `HookKicker`, `hook_design`, `hook_font_file`, `boxed_word_index` (§5.33); `ENTRANCE_MS` (§5.39); `WATERMARK_FONT_FILE`, `WatermarkSpec`, `WatermarkLayout`, `layout_watermark` (§5.43); `Glow` (§5.49) | T1.2a |
 | `edit_v2.captions` | `CaptionResult`, `caption_track` | T1.2a |
 | `edit_v2.glyphs` | `missing_glyphs`, `advance_px` | T1.2a |
 | `edit_v2.envelope` | `Envelope`, `speech_envelope`, `music_envelope`, `expand_f32` | T1.4 |
@@ -3608,7 +3608,9 @@ delegation). `schema_minor`, `COMPILER_ID`, `COMPILER_VERSION` and the plan sche
   (3), `CAPTION_PACKS` ("Sinar", "Karaoke dengan cahaya lembut"), `HIGHLIGHT_PACKS`,
   `CAPTION_NOTES.highlightGlow` ("Kata yang sedang diucapkan dan cahayanya."; the note for the
   packs without a highlight reads "Dipakai oleh Karaoke, Bold, Sorot dan Sinar; tidak tampak di
-  gaya ini."), `PACK_IMAGES`, the fakes' one-line packs, the transcript harness store.
+  gaya ini."), `PACK_IMAGES`, the dashboard's `CAPTION_STYLE_CHOICES` ("Sinar", "Karaoke dengan cahaya
+  lembut."; a job takes it with the edit-v2 engine, §5.48), the fakes' one-line packs, the
+  transcript harness store.
 - Fixtures and gates: document `valid/pack_sinar__c30.json`, ASS golden `sinar__c30`, P-TIME
   expects the glow event (no sweep) before each line, P-TXT `sinar-10/40/90` (smoke
   `sinar-40`), the player variant `sinar`, thumbnail `pack-thumbs/sinar.png`.
