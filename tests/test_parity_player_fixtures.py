@@ -31,7 +31,8 @@ from ai_clipper.edit_v2.plan import Resources, build_plan
 
 def _plan(*, hook: bool = True, cuts: int = 20, layout: str = "fit_blur", pack: str | None = None,
           logo: bool = False, hook_variant: str | None = None, entrance_variant: str | None = None,
-          watermark: bool = False, keyframes: tuple = (), split: tuple | None = None):
+          watermark: bool = False, keyframes: tuple = (), split: tuple | None = None,
+          no_face: str | None = None):
     case = fi.Case("unit", (30000, 1001), 900, layout, hook=hook, cuts=cuts)
     info = fi.SourceInfo(640, 360, (30000, 1001), False, 30030, True)
     edges = fi.case_edges(case)
@@ -57,6 +58,8 @@ def _plan(*, hook: bool = True, cuts: int = 20, layout: str = "fit_blur", pack: 
                                       for sf, pan, move in keyframes]
     if split is not None:
         doc["layout"]["split"] = fi.split_of(dataclasses.replace(case, split=split))
+    if no_face is not None:
+        doc["layout"]["default"]["no_face"] = no_face
     words = fi.make_words(30030)
     camera = fi.make_camera(30030, case.fps, (640, 360), (720, 1280)) if layout == "camera" else None
     return build_plan(doc, words=words, camera=camera, assets=assets,
@@ -157,6 +160,30 @@ def test_expected_crop_x_follows_the_manual_framing_and_skips_the_split():
     assert band["crop"][1] == 0  # the top band starts at the source's first row: the index
     assert pf.Generator.decode_info(None, case) == {
         "source": [640, 360], "scale": band["scale"], "top": band["top"]}
+
+
+def test_the_no_face_fallback_frames_are_read_with_the_latar_blur_geometry():
+    """Ikuti wajah with latar blur where there is no face (CONTRACTS §5.40): the browser reads
+    those frames' index with fit_blur's geometry and has no crop x to check there, as the
+    server P-FRAME does (``frame_identity.fallback_frames``)."""
+    plan = _plan(layout="camera", no_face="fit_blur")
+    fallback = pf.fallback_output_frames(plan)
+    flags = layouts.no_face_frames(plan.camera, plan.fps, first_sf=0,
+                                   count=max(p.out_sf for p in plan.pieces))
+    assert fallback == [n for n in range(plan.total_frames)
+                        if flags[tm.out_to_src(n, plan.pieces)[1]]]
+    assert fallback  # the synthetic camera plan has a run without a face
+    crop = pf.expected_crop_x(plan, (640, 360))
+    assert all(crop[n] is None for n in fallback)
+    assert all(crop[n] is not None for n in range(plan.total_frames) if n not in set(fallback))
+    assert pf.fallback_output_frames(_plan(layout="camera")) == []
+    assert pf.fallback_output_frames(_plan(layout="camera", no_face="center")) == []
+    case = next(case for case in fi.P_FRAME_CASES if case.no_face == "fit_blur")
+    blur = fi.geometry("fit_blur", case.picture, case.output, case.zoom_pm)
+    assert pf.Generator.decode_info(None, case)["fallback"] == {"scale": blur["scale"],
+                                                                "top": blur["top"]}
+    plain = next(case for case in fi.P_FRAME_CASES if case.layout == "camera" and case.no_face != "fit_blur")
+    assert "fallback" not in pf.Generator.decode_info(None, plain)
 
 
 def test_probe_frames_include_hook_fades_cue_edges_and_cuts():
