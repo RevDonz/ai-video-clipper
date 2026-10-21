@@ -70,7 +70,7 @@ def measure(eval_root: Path, *, transcript: str, peaks: bool, media: Path | None
                    else bytes(2 * bin_count(window)))
             words = build_words_artifact(words_in, clip_id=CLIP_ID, window_ms=window, fps=FPS,
                                          audio=audio, events=tags, peaks=raw)
-            body = {"id": "seg_b1", "in_sf": tm.sf_floor(start, FPS),
+            body = {"id": "seg_b1", "role": "body", "in_sf": tm.sf_floor(start, FPS),
                     "out_sf": tm.sf_ceil(end, FPS)}
             removals = cleanup.auto_pause_removals(
                 words, body=body, peaks=raw if source is not None else None)

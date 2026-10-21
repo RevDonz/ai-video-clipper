@@ -601,7 +601,7 @@ def auto_pause_removals(words: Mapping[str, Any], *, body: Mapping[str, Any],
                         lexicon: Lexicon | None = None) -> list[dict[str, Any]]:
     """The pause trims of an automatic clip's seed (CONTRACTS §5.57): the removals
     ``ApplyCleanup`` writes for every ``gap_silent`` item of :func:`build_cleanup` that lies
-    between two words of ``body`` (a ``{id, in_sf, out_sf}`` segment) and has no laughter,
+    between two words of ``body`` (the seed's body segment) and has no laughter,
     applause, cheer or music tag within ``AUTO_PAUSE_LOCK_MS``. The editor's Rapikan then lists
     them as applied (their origin names the item). None when the trimmed body would be shorter
     than the document's 3 s."""
@@ -623,7 +623,7 @@ def auto_pause_removals(words: Mapping[str, Any], *, body: Mapping[str, Any],
         removals.append({"id": f"rm_{len(removals) + 1}", "seg": body["id"],
                          "in_sf": item["inSf"], "out_sf": item["outSf"], "words": [],
                          "reason": "gap_silent", "origin": f"suggestion:{item['id']}"})
-    kept = out_sf - in_sf - sum(r["out_sf"] - r["in_sf"] for r in removals)
+    kept = tm.total_frames(tm.pieces({"main": {"segments": [body], "removals": removals}}))
     return removals if kept >= tm.sf_ceil(AUTO_PAUSE_MIN_BODY_MS, fps) else []
 
 
