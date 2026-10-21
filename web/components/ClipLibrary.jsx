@@ -1,13 +1,15 @@
 "use client";
 
 // The "Klip" view of Riwayat: every clip of every finished project as the project page's poster,
-// newest project first. Search, "Skor 8+" and "Minggu ini" ask the server again; "Muat lagi"
-// appends the next page. Each card opens its clip in its project.
+// newest project first, under "Hari ini", "Minggu ini" and "Lebih lama". Search, "Skor 8+" and
+// "Minggu ini" ask the server again; "Muat lagi" appends the next page. Each card opens its clip in
+// its project.
 import { useEffect, useRef, useState } from "react";
 
 import {
   clipCardView,
   clipHref,
+  groupClipsByDay,
   librarySummary,
   loadClipLibrary,
   mergeClipPages,
@@ -73,7 +75,8 @@ export default function ClipLibrary({ onSummary }) {
         return;
       }
       const { type: _loaded, ...data } = result;
-      setPage({ state: "ready", error: "", ...data });
+      // The day groups are drawn against this moment, so "Muat lagi" past midnight regroups nothing.
+      setPage({ state: "ready", error: "", loadedAt: new Date(), ...data });
       summary.current?.(librarySummary(data));
     }).catch((error) => {
       if (error?.name === "AbortError") return;
@@ -124,6 +127,7 @@ export default function ClipLibrary({ onSummary }) {
   const ready = page.state === "ready" || page.state === "refreshing";
   // Nothing at all yet, or nothing for this search and these chips.
   const noClips = page.total === 0 && !filtered;
+  const days = groupClipsByDay(page.clips, page.loadedAt);
   const status = page.state === "ready"
     ? (page.matched ? shownSummary({ shown: page.clips.length, matched: page.matched }) : noClips ? "Belum ada klip" : "Tidak ada klip yang cocok")
     : "";
@@ -177,12 +181,19 @@ export default function ClipLibrary({ onSummary }) {
 
       {page.clips.length > 0 && (
         <>
-          <ul className={styles.grid} aria-label="Klip" aria-busy={page.state === "refreshing" || undefined}>
-            {page.clips.map((item) => (
-              <ClipCard key={itemKey(item)} item={item} linkRef={(node) => {
-                linkRefs.current.set(itemKey(item), node);
-                return () => linkRefs.current.delete(itemKey(item));
-              }} />
+          <ul className={styles.days} aria-label="Klip" aria-busy={page.state === "refreshing" || undefined}>
+            {days.groups.map((group) => (
+              <li key={group.key}>
+                {days.headings && <h2 id={`riwayat-${group.key}`} className={styles.day}>{group.label}</h2>}
+                <ul className={styles.grid} aria-labelledby={days.headings ? `riwayat-${group.key}` : undefined}>
+                  {group.items.map((item) => (
+                    <ClipCard key={itemKey(item)} item={item} linkRef={(node) => {
+                      linkRefs.current.set(itemKey(item), node);
+                      return () => linkRefs.current.delete(itemKey(item));
+                    }} />
+                  ))}
+                </ul>
+              </li>
             ))}
           </ul>
           <div className={styles.more}>

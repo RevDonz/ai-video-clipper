@@ -11,6 +11,8 @@ import {
   clipCardView,
   clipHref,
   clipLibraryHref,
+  clipDayGroup,
+  groupClipsByDay,
   librarySummary,
   loadClipLibrary,
   mergeClipPages,
@@ -53,6 +55,55 @@ test("'Minggu ini' starts on Monday at midnight, local time", () => {
   assert.equal(startOfWeek(new Date(2026, 9, 19, 0, 0)).getTime(), monday(2026, 9, 19), "Monday at midnight");
   assert.equal(startOfWeek(new Date(2026, 9, 25, 23, 59)).getTime(), monday(2026, 9, 19), "Sunday night");
   assert.equal(startOfWeek(new Date(2026, 10, 1, 8, 0)).getTime(), monday(2026, 9, 26), "across a month");
+});
+
+test("a clip's day group follows the viewer's clock: 'Hari ini' from midnight, 'Minggu ini' from Monday", () => {
+  const at = (...parts) => new Date(...parts).toISOString();
+  const wednesday = new Date(2026, 9, 21, 15, 30);
+  assert.equal(clipDayGroup(at(2026, 9, 21, 0, 0, 0, 0), wednesday), "today", "midnight starts today");
+  assert.equal(clipDayGroup(at(2026, 9, 21, 15, 29), wednesday), "today");
+  assert.equal(clipDayGroup(at(2026, 9, 20, 23, 59, 59, 999), wednesday), "week", "one millisecond before midnight is yesterday");
+  assert.equal(clipDayGroup(at(2026, 9, 19, 0, 0), wednesday), "week", "Monday 00:00");
+  assert.equal(clipDayGroup(at(2026, 9, 18, 23, 59, 59, 999), wednesday), "earlier", "Sunday night before");
+  // A clock a little ahead of the viewer's still reads as today.
+  assert.equal(clipDayGroup(at(2026, 9, 21, 16, 0), wednesday), "today");
+  for (const value of [null, undefined, "", "kemarin", 5]) assert.equal(clipDayGroup(value, wednesday), "earlier", String(value));
+  // Just after midnight, the evening before is no longer today.
+  const justAfter = new Date(2026, 9, 22, 0, 0, 1);
+  assert.equal(clipDayGroup(at(2026, 9, 21, 23, 59), justAfter), "week");
+  assert.equal(clipDayGroup(at(2026, 9, 22, 0, 0), justAfter), "today");
+  // On Monday there is no "rest of the week" yet: Sunday is last week.
+  const monday = new Date(2026, 9, 26, 9, 0);
+  assert.equal(clipDayGroup(at(2026, 9, 25, 23, 0), monday), "earlier");
+  assert.equal(clipDayGroup(at(2026, 9, 26, 0, 5), monday), "today");
+});
+
+test("the grid groups clips under 'Hari ini', 'Minggu ini' and 'Lebih lama', in the listing's order", () => {
+  const now = new Date(2026, 9, 21, 15, 30);
+  const clip = (jobId, index, ...parts) => ({ jobId, index, createdAt: parts.length ? new Date(...parts).toISOString() : null });
+  const items = [
+    clip("a", 1, 2026, 9, 21, 9, 0), clip("a", 2, 2026, 9, 21, 9, 0),
+    clip("b", 1, 2026, 9, 20, 22, 0), clip("c", 1, 2026, 9, 1, 8, 0), clip("d", 1),
+  ];
+  const keys = (group) => group.items.map((item) => `${item.jobId}#${item.index}`);
+  const grouped = groupClipsByDay(items, now);
+  assert.equal(grouped.headings, true);
+  assert.deepEqual(grouped.groups.map((group) => [group.key, group.label]), [["today", "Hari ini"], ["week", "Minggu ini"], ["earlier", "Lebih lama"]]);
+  assert.deepEqual(grouped.groups.map(keys), [["a#1", "a#2"], ["b#1"], ["c#1", "d#1"]]);
+  // Only groups that hold a clip; one group of today still says "Hari ini".
+  const today = groupClipsByDay(items.slice(0, 2), now);
+  assert.deepEqual(today.groups.map((group) => group.key), ["today"]);
+  assert.equal(today.headings, true);
+  // Nothing from this week: one plain grid, no heading that only says "older".
+  const old = groupClipsByDay(items.slice(3), now);
+  assert.equal(old.headings, false);
+  assert.deepEqual(old.groups.map(keys), [["c#1", "d#1"]]);
+  assert.deepEqual(groupClipsByDay([], now), { headings: false, groups: [] });
+  assert.deepEqual(groupClipsByDay(null, now), { headings: false, groups: [] });
+  // "Muat lagi" appends older clips: the groups above keep their clips and their place.
+  const first = groupClipsByDay(items.slice(0, 3), now);
+  const after = groupClipsByDay(mergeClipPages(items.slice(0, 3), items.slice(3)), now);
+  assert.deepEqual(after.groups.slice(0, first.groups.length).map(keys), first.groups.map(keys));
 });
 
 test("the request carries the search, the chips and the cursor, and nothing when they are off", () => {
@@ -160,6 +211,8 @@ test("Riwayat switches between 'Proyek' and 'Klip' and remembers the choice", as
   assert.match(library, /Muat lagi/);
   assert.match(library, /Skor 8\+/);
   assert.match(library, /Minggu ini/);
+  // Grouped by day with the moment the first page loaded, so "Muat lagi" never regroups what shows.
+  assert.match(library, /groupClipsByDay\(page\.clips, page\.loadedAt\)/);
   assert.match(library, /<PosterThumb\b/);
   assert.doesNotMatch(library, /\bhot\b|viral/i);
   // The project page and the clip grid draw the same poster.
