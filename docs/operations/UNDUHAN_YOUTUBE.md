@@ -120,3 +120,15 @@ akses ke akun tersebut.
   mengganti cookie login.
 - **Mematikan:** tekan Hapus di Pengaturan (atau hapus `youtube-cookies.json`). Unduhan
   berikutnya berjalan tanpa cookies.
+
+## Bahasa video dari metadata
+
+- Unduhan video memakai `--print-to-file video:%(language)s <input>/video-language.txt`: yt-dlp
+  menulis bahasa dari metadata yang sudah ia ambil, tanpa permintaan tambahan.
+- Worker hanya menyimpan kode bahasa yang polos (`en`, `en-US` jadi `en`) sebagai
+  `sourceLanguage` di job. `NA` (YouTube tidak tahu), file kosong, atau isi lain diabaikan.
+- Kalau bahasanya diketahui dan bukan Indonesia, dan "Bahasa video" job ini Deteksi otomatis
+  atau Indonesia, halaman proyek dan panel job di Buat klip menampilkan catatan, misalnya
+  "Bahasa video terdeteksi: Inggris. Hasil caption mengikuti bahasa ini." Untuk job berbahasa
+  Indonesia catatannya kuning dan menyarankan Deteksi otomatis. Job tidak pernah dihentikan.
+- Metadata ini isian pengunggah video, jadi bisa kosong atau salah. Karena itu hanya catatan.
