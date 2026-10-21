@@ -114,6 +114,20 @@ export function expectFailures(page, { api = [], console = [] } = {}) {
   page[EXPECTED].console.push(...console);
 }
 
+const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * One faked failed request: its API line (`<status> <METHOD> …<path>`) and the browser's
+ * "Failed to load resource" line for it. `path` is the URL's path, e.g. "/api/settings/logo".
+ */
+export function expectFailedRequest(page, status, method, path) {
+  const tail = escapeRegExp(path);
+  expectFailures(page, {
+    api: [new RegExp(`^${status} ${method} \\S*${tail}$`)],
+    console: [new RegExp(`status of ${status} \\([^)]*\\) \\(\\S*${tail}\\)$`)],
+  });
+}
+
 export const test = base.extend({
   launchOptions: [chrome ? { executablePath: chrome } : {}, { scope: "worker", option: true }],
   // A test that fakes a failure on purpose names what it expects, per test:
