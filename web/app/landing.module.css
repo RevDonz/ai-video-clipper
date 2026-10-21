@@ -1,7 +1,10 @@
 /* Halaman depan. Keeps the page's character: a very tight, heavy headline with its last line
-   in lime, a tilted picture of the real Hasil panel, a ruled four-step track and one joined
-   strip of three features. Lime marks the headline, the primary links and the brand mark
-   only; everything else is text on the dark surfaces. Motion is hover feedback only. */
+   in lime, a tilted screenshot of the real Hasil panel, a ruled four-step track and one joined
+   strip of the automatic features. The proof is real: the screenshots and the Sebelum/Sesudah
+   pair come from one project made from an open film (docs/design/LANDING.md). Lime marks the
+   headline, the primary links and the brand mark only; everything else is text on the dark
+   surfaces. Motion is hover feedback and the one clip, which lib/landing-preview.mjs plays only
+   on screen. */
 
 .landing { min-height: 100vh; overflow-x: clip; background: var(--bg); color: var(--text); }
 .shell { width: min(1180px, calc(100% - 48px)); margin-inline: auto; }
@@ -34,6 +37,16 @@
   transition: background-color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out);
 }
 .navCta:hover { border-color: var(--text); background: var(--surface-2); }
+
+/* Links inside running text: the text colour, underlined like "Lihat cara kerja". */
+.stage figcaption a, .exampleNote a, .credits a {
+  color: var(--text);
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 4px;
+  transition: text-decoration-color var(--dur-1) var(--ease-out);
+}
+.stage figcaption a:hover, .exampleNote a:hover, .credits a:hover { text-decoration-color: var(--text); }
 
 /* Hero */
 .hero { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.2fr); gap: 64px; align-items: center; padding: 88px 0 96px; }
@@ -69,69 +82,92 @@
 }
 .secondary:hover { text-decoration-color: var(--text); }
 
-/* A picture of the Hasil panel (aria-hidden): tilted like a screen on a desk. */
+/* The real Hasil panel, tilted like a screen on a desk; it straightens on hover. */
 .stage { min-width: 0; margin: 0; }
 .window {
   overflow: hidden;
-  padding: 18px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-xl);
-  background: var(--surface);
+  background: var(--bg);
   transform: perspective(1400px) rotateY(-4deg) rotateX(2deg);
   transition: transform calc(var(--dur-3) * 2) var(--ease-out);
 }
 .stage:hover .window { transform: none; }
-.windowHead { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.windowHead strong { font: 600 15px var(--font); }
-.windowHead span { color: var(--success); font: 600 13px var(--font); }
-.windowProgress { height: 5px; margin: 12px 0 16px; overflow: hidden; border-radius: var(--radius-pill); background: var(--surface-3); }
-.windowProgress i { display: block; width: 100%; height: 100%; background: var(--accent); }
-.sampleGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-.sample { display: grid; gap: 4px; min-width: 0; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius-l); background: var(--surface-2); }
-.sampleFrame { position: relative; aspect-ratio: 9 / 14; overflow: hidden; border-radius: var(--radius-m); background: linear-gradient(180deg, var(--surface-3), var(--bg)); }
-.sampleFrame b { position: absolute; top: 10px; left: 8px; right: 8px; padding: 4px 6px; border-radius: 6px; background: var(--bg); color: var(--text); font: 700 12px/1.2 var(--font); }
-.sampleFrame i { position: absolute; left: 50%; top: 42%; width: 34%; aspect-ratio: 1; border-radius: 50%; background: var(--border-strong); transform: translate(-50%, -50%); box-shadow: 0 48px 0 16px var(--border-strong); }
-.sampleFrame span { position: absolute; left: 8px; right: 8px; bottom: 10px; padding: 3px 6px; border-radius: 6px; background: var(--bg); color: var(--text); font: 700 11px/1.3 var(--font); text-align: center; }
-.sampleFrame mark { background: transparent; color: var(--warning); }
-.sample small { margin-top: 4px; color: var(--text-muted); font-size: 11px; }
-.sample strong { overflow: hidden; font: 600 12px/1.3 var(--font); text-overflow: ellipsis; white-space: nowrap; }
-.sampleActions { display: flex; flex-wrap: wrap; gap: 2px 8px; color: var(--info); font: 600 11px var(--font); }
-.sampleActions span { white-space: nowrap; }
+.window img, .beforeFrame img, .afterFrame video, .editorShot img { display: block; width: 100%; height: auto; }
 .stage figcaption { margin-top: 14px; color: var(--text-muted); font-size: 13px; text-align: right; }
 
-/* Cara kerja */
-.process { padding: 96px 0; border-top: 1px solid var(--border); }
+/* Shared section heading */
 .sectionHead { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr); gap: 24px 64px; align-items: end; }
 .sectionHead h2, .privacy h2, .featuresTitle { margin: 0; font: 700 clamp(34px, 4.2vw, 56px)/1.02 var(--font); letter-spacing: -.045em; text-wrap: balance; }
 .sectionHead p { margin: 0; color: var(--text-muted); font-size: 16px; line-height: 1.6; }
+
+/* Contoh: the 16:9 frame and the 9:16 clip made from it, at the same height on wide screens
+   (columns 256:81 are 16/9 against 9/16), so the reframing reads at a glance. */
+.example { padding: 96px 0; border-top: 1px solid var(--border); }
+.compare { display: grid; grid-template-columns: minmax(0, 256fr) minmax(220px, 81fr); gap: 24px; align-items: start; margin-top: 48px; }
+.before, .after { min-width: 0; margin: 0; }
+.beforeFrame, .afterFrame { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-l); background: var(--surface); }
+.compareBar { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 12px; margin-top: 12px; }
+.compareBar strong { grid-column: 1; font: 600 15px/1.3 var(--font); }
+.compareBar span { grid-column: 1; color: var(--text-muted); font-size: 14px; line-height: 1.4; }
+.pause {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  min-width: 76px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text);
+  font: 600 14px var(--font);
+  cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out);
+}
+.pause:hover { border-color: var(--text); background: var(--surface-2); }
+.exampleNote { max-width: 760px; margin: 28px 0 0; color: var(--text-muted); font-size: 14px; line-height: 1.6; }
+
+/* Cara kerja */
+.process { padding: 96px 0; border-top: 1px solid var(--border); }
 .steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px 24px; margin: 64px 0 0; padding: 0; border-top: 1px solid var(--border-strong); list-style: none; }
 .steps li { display: grid; align-content: start; gap: 8px; padding-top: 22px; }
 .steps b { color: var(--text-muted); font: 600 14px var(--font); font-variant-numeric: tabular-nums; }
 .steps strong { font: 600 19px/1.3 var(--font); }
 .steps p { margin: 0; color: var(--text-muted); font-size: 15px; line-height: 1.55; }
 
-/* Fitur: one strip of three equal parts, because none of the three outranks the others. */
+/* Fitur: one strip of four equal parts (none of the automatic features outranks the others),
+   then the editor in its own row, the one feature with a screen of its own. */
 .features { padding: 0 0 112px; }
 .featuresTitle { margin-bottom: 40px; }
-.featureRow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--border); }
+.featureRow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--border); }
 .featureRow article { display: grid; align-content: start; gap: 12px; padding: 28px; background: var(--surface); }
-.featureRow h3 { margin: 0; font: 700 21px/1.25 var(--font); letter-spacing: -.02em; }
-.featureRow p { margin: 0; color: var(--text-muted); font-size: 15px; line-height: 1.6; }
+.featureRow h3, .editorCopy h3 { margin: 0; font: 700 21px/1.25 var(--font); letter-spacing: -.02em; }
+.featureRow p, .editorCopy p { margin: 0; color: var(--text-muted); font-size: 15px; line-height: 1.6; }
 
-/* Small drawings of each feature: a hook card over a frame, keyword chips, caption lines. */
+/* Small drawings of each feature: a hook card over a frame, keyword chips, caption lines and a
+   9:16 window over a 16:9 frame. */
 .glyph { position: relative; height: 112px; margin-bottom: 12px; overflow: hidden; border-radius: var(--radius-l); background: var(--bg); }
 .glyph i { position: absolute; display: block; }
 .hook i:nth-child(1) { left: 50%; top: 14px; width: 54px; height: 86px; border: 2px solid var(--border-strong); border-radius: 10px; transform: translateX(-50%); }
 .hook i:nth-child(2) { left: calc(50% - 44px); top: 26px; width: 88px; height: 16px; border-radius: 5px; background: var(--text); }
 .hook i:nth-child(3) { left: calc(50% - 20px); top: 76px; width: 40px; height: 8px; border-radius: 4px; background: var(--warning); }
 .focus i { top: 44px; height: 26px; border: 1px solid var(--info-border); border-radius: var(--radius-pill); background: var(--info-bg); }
-.focus i:nth-child(1) { left: 24px; width: 64px; }
-.focus i:nth-child(2) { left: 96px; width: 84px; }
-.focus i:nth-child(3) { left: 188px; width: 52px; border-color: var(--border); background: var(--surface-2); }
+.focus i:nth-child(1) { left: 10%; width: 28%; }
+.focus i:nth-child(2) { left: 42%; width: 34%; }
+.focus i:nth-child(3) { left: 80%; width: 12%; border-color: var(--border); background: var(--surface-2); }
 .caption i { left: 24px; height: 8px; border-radius: 4px; background: var(--border-strong); }
 .caption i:nth-child(1) { top: 30px; right: 24px; background: var(--text); }
 .caption i:nth-child(2) { top: 52px; right: 64px; }
 .caption i:nth-child(3) { top: 74px; right: 120px; background: var(--info); }
+.layout i:nth-child(1) { left: 50%; top: 22px; width: 120px; height: 68px; border: 2px solid var(--border-strong); border-radius: 8px; transform: translateX(-50%); }
+.layout i:nth-child(2) { left: calc(50% - 30px); top: 22px; width: 40px; height: 68px; border: 2px solid var(--text); border-radius: 6px; }
+.layout i:nth-child(3) { left: calc(50% - 18px); top: 36px; width: 16px; height: 16px; border-radius: 50%; background: var(--text-muted); }
+
+.editorRow { display: grid; grid-template-columns: minmax(0, .75fr) minmax(0, 1.75fr); gap: 40px; align-items: center; margin-top: 24px; padding: 28px; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--surface); }
+.editorCopy { display: grid; align-content: start; gap: 12px; }
+.editorCopy h3 { font-size: 28px; }
+.editorCopy .editorNote { margin-top: 8px; padding-top: 16px; border-top: 1px solid var(--border); color: var(--text); font: 600 14px/1.5 var(--font); }
+.editorShot { min-width: 0; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-l); background: var(--bg); }
 
 /* Privasi */
 .privacy { padding: 96px 0; border-block: 1px solid var(--border); background: var(--surface); }
@@ -151,12 +187,16 @@
 .footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; padding: 28px 0 36px; border-top: 1px solid var(--border); }
 .footer p { margin: 0; color: var(--text-muted); font-size: 14px; }
 .footer nav { display: flex; gap: 4px; }
+.footer .credits { flex: 1 1 100%; max-width: 860px; font-size: 13px; line-height: 1.6; }
+.credits a { white-space: nowrap; }
 
 @media (max-width: 1000px) {
   .hero { grid-template-columns: minmax(0, 1fr); gap: 56px; padding: 64px 0 80px; }
   .stage { max-width: 720px; }
   .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .featureRow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .featureRow article { padding: 22px; }
+  .editorRow { grid-template-columns: minmax(0, 1fr); gap: 24px; padding: 22px; }
   .privacyInner { gap: 32px 48px; }
 }
 @media (max-width: 760px) {
@@ -165,10 +205,11 @@
   .hero { gap: 44px; padding: 48px 0 64px; }
   .heroCopy h1 { font-size: clamp(44px, 13vw, 56px); }
   .heroCopy > p { font-size: 16px; }
-  .window { padding: 12px; transform: none; }
-  .sampleGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-  .sample:nth-child(3) { display: none; }
+  .window { transform: none; }
   .stage figcaption { text-align: left; }
+  .example { padding: 64px 0; }
+  .compare { grid-template-columns: minmax(0, 1fr); gap: 32px; margin-top: 32px; }
+  .after { width: min(100%, 300px); }
   .process { padding: 64px 0; }
   .sectionHead { grid-template-columns: minmax(0, 1fr); }
   .steps { grid-template-columns: minmax(0, 1fr); margin-top: 40px; gap: 0; }
@@ -176,9 +217,11 @@
   .features { padding-bottom: 72px; }
   .featuresTitle { margin-bottom: 28px; }
   .featureRow { grid-template-columns: minmax(0, 1fr); }
+  .editorCopy h3 { font-size: 24px; }
   .privacy { padding: 64px 0; }
   .privacyInner { grid-template-columns: minmax(0, 1fr); }
   .final { padding: 80px 0; }
   .footer { align-items: flex-start; flex-direction: column; }
   .footer nav { margin-inline: -12px; }
+  .footer .credits { flex: none; }
 }

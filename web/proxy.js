@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server.js";
 
 import { isAuthorized } from "./lib/auth.mjs";
+import { isLandingMediaPath } from "./lib/landing-media.mjs";
 
 export function proxy(request) {
   if (request.nextUrl.pathname === "/") return NextResponse.next();
+  // The public landing's own pictures and clip (public/landing), by exact path only.
+  if (isLandingMediaPath(request.nextUrl.pathname)) return NextResponse.next();
   if (isAuthorized(request)) return NextResponse.next();
   if (request.nextUrl.pathname.startsWith("/api/")) {
     return NextResponse.json(

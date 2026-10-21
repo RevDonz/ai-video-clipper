@@ -27,7 +27,9 @@ editor's exports). Put an HTTPS reverse proxy in front of the app: `deploy/VM_NG
 `JOBS_STORAGE_*` bound the disk the jobs may use (size them to the disk); no job is ever deleted
 automatically (`docs/operations/STORAGE_RETENTION.md`).
 
-Every page and API route except the landing page, `/login` and `/api/health` needs a session.
+Every page and API route except the landing page (with its own pictures and clip in
+`web/public/landing`, listed by exact path in `web/lib/landing-media.mjs`), `/login` and
+`/api/health` needs a session.
 Sign in with `APP_USERNAME` and `APP_PASSWORD`; failed logins are rate limited
 (`AUTH_RATE_LIMIT_*`). `APP_SESSION_SECRET` (random, at least 32 characters) signs the session
 and, unless `POTONGIN_SETTINGS_SECRET` is set, also seals the LLM keys saved on Pengaturan, so
@@ -81,6 +83,10 @@ when a page, component, view library or worker script puts version wording on sc
 (V1/V2/V3, "Selection V", "Mode lama", "mesin lama/baru"), when a stylesheet or component
 uses a colour outside those tokens, or when a text/background pair the stylesheets use drops
 below WCAG AA (4.5:1).
+
+The landing page shows the real app: two screenshots and one Sebelum/Sesudah clip, all made
+with Potongin from the open film Elephants Dream (CC BY 2.5, credited on the page). How they
+were made, the 4 MB media budget and the clip's play rules: `docs/design/LANDING.md`.
 
 ## The retired candidate editor
 
