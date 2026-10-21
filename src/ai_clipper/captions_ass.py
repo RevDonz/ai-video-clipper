@@ -454,6 +454,12 @@ _EMPHASIS_REVEALS = ("static", "word", "karaoke")
 # 70% and overshoots to 108% before it settles; Blur starts at a radius of H/128.
 ENTRANCE_MS = 120
 _POP_SCALES = (70, 108)
+# Pop steps through scales that are whole 32nds, every _POP_STEP_MS and at its end. JASSUB and
+# FFmpeg place glyphs under a continuous \\t scale apart now and then (82 % or 89.5 % moved an
+# outline edge by up to 0.15 px between the two, P-TXT 18-39 levels); every 32nd from 68.75 % to
+# 109.375 % agreed on every Pop clip of the P-TXT matrix.
+_POP_GRID = 32
+_POP_STEP_MS = 10
 _BLUR_START = (1, 128)
 # Under a translucent or fading fill libass cuts the glyphs out of the border (ass_fix_outline:
 # o > g ? o − g/2 : 0). That step turns a one-level difference in glyph coverage between two
@@ -1081,14 +1087,47 @@ def _entrance_tags(entrance: str, window_ms: int, height: int, extra: str = "") 
     if entrance == "fade":
         return f"{{\\fad({duration},0){extra}}}"
     if entrance == "pop":
-        start, peak = _POP_SCALES
-        turn = div_round_half_up(2 * duration, 3)
-        return (f"{{\\fscx{start}\\fscy{start}\\t(0,{turn},\\fscx{peak}\\fscy{peak})"
-                f"\\t({turn},{duration},\\fscx100\\fscy100)}}")
+        return _pop_tags(duration)
     # libass blurs only the outline of outlined text, so the line also fades in.
     num, den = _BLUR_START
     radius = _centi_text(div_round_half_up(100 * height * num, den))
     return f"{{\\fad({duration},0)\\blur{radius}\\t(0,{duration},\\blur0){extra}}}"
+
+
+def _pop_steps(t: int, duration: int) -> int:
+    """Pop's scale at ``t`` ms in ``_POP_GRID``-ths, half up: ``_POP_SCALES[0]`` % to
+    ``_POP_SCALES[1]`` % over the first two thirds of ``duration``, then back to 100 %."""
+    start, peak = _POP_SCALES
+    turn = div_round_half_up(2 * duration, 3)
+    if t < turn:
+        return div_round_half_up(_POP_GRID * (start * turn + (peak - start) * t), 100 * turn)
+    rest = duration - turn
+    return div_round_half_up(_POP_GRID * (peak * rest - (peak - 100) * (t - turn)), 100 * rest)
+
+
+def _pop_percent(n: int) -> str:
+    """``100·n/_POP_GRID`` written out exactly (``_POP_GRID`` divides a power of ten)."""
+    whole, rest = divmod(100 * n, _POP_GRID)
+    if rest == 0:
+        return str(whole)
+    digits = 1
+    while (10 ** digits) % _POP_GRID:
+        digits += 1
+    return f"{whole}.{rest * 10 ** digits // _POP_GRID:0{digits}d}".rstrip("0")
+
+
+def _pop_tags(duration: int) -> str:
+    """Pop: the starting scale, then an instant ``\\t(t,t,…)`` wherever the stepped scale
+    changes, at every ``_POP_STEP_MS`` and at ``duration`` (100 %)."""
+    scale = _pop_steps(0, duration)
+    value = _pop_percent(scale)
+    tags = f"\\fscx{value}\\fscy{value}"
+    for t in [*range(_POP_STEP_MS, duration, _POP_STEP_MS), duration]:
+        step = _pop_steps(t, duration)
+        if step != scale:
+            scale, value = step, _pop_percent(step)
+            tags += f"\\t({t},{t},\\fscx{value}\\fscy{value})"
+    return f"{{{tags}}}"
 
 
 def _shadow_outline_tags(colour: str, alpha: int) -> str:
