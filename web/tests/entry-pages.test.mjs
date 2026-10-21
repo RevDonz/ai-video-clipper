@@ -41,9 +41,31 @@ test("every landing anchor points at a section that exists, and the CTAs reach t
   assert.ok(anchors.length >= 3);
   for (const id of anchors) assert.match(source, new RegExp(`id="${id}"`), `#${id}`);
   assert.ok((source.match(/href="\/dashboard"/g) || []).length >= 2);
-  // The product picture is decoration for screen readers and holds no fake status or URL.
+  assert.ok(anchors.includes("contoh"), "the nav reaches the Sebelum/Sesudah example");
+  // The feature drawings are decoration for screen readers; nothing holds a fake status or URL.
   assert.match(source, /aria-hidden="true"/);
   assert.doesNotMatch(source, /potongin\.ai|ONLINE|Export semua/);
+});
+
+test("the landing covers Tata letak and the editor, with the editor's screen limit said plainly", async () => {
+  const source = await read("app/page.jsx");
+  const text = visibleText(source);
+  assert.match(text, /"Tata letak"/);
+  assert.match(text, /Ikuti wajah/);
+  assert.match(text, /Layar terbagi|layar terbagi/);
+  assert.match(text, /"Editor"|>Editor</);
+  assert.match(text, /Editor butuh layar minimal 1024 px\./);
+  // The example says what it is: an open film, English speech, picked without AI.
+  const example = /id="contoh"[\s\S]*?<\/section>/.exec(source)[0];
+  assert.match(example, /Sebelum/);
+  assert.match(example, /Sesudah/);
+  assert.match(example, /bahasa Inggris/);
+  assert.match(example, /tanpa AI/);
+});
+
+test("the landing makes no claim it cannot back: no badges, ranks, countdowns or round numbers", async () => {
+  const text = visibleText(await read("app/page.jsx"));
+  assert.doesNotMatch(text, /\bBARU\b|\bNew\b|\bNo\.?\s?1\b|nomor satu|terbaik|tercepat|termudah|\d+\s?\+|ribuan|jutaan|Sisa waktu|hitung mundur|countdown|promo|diskon|viral|\bHot\b/i);
 });
 
 test("the privacy section says what leaves the server instead of claiming nothing does", async () => {
@@ -54,6 +76,9 @@ test("the privacy section says what leaves the server instead of claiming nothin
   // The AI also reads the focus terms and note and the trend items (llm_selection.py): say so.
   assert.match(privacy, /kata kunci fokus/i);
   assert.match(privacy, /\btren\b/i);
+  // Transkripsi lewat Groq (Pengaturan, off by default) sends the audio out: say so.
+  assert.match(privacy, /Groq/);
+  assert.match(privacy, /audio/i);
   assert.doesNotMatch(source, /tidak perlu dikirim ke API AI berbayar|Tidak ada biaya API/);
 });
 
