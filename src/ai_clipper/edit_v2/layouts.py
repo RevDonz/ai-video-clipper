@@ -32,6 +32,16 @@ between them (:func:`split_bands`). Each band shows its own crop of the source
 place from edge to edge; every side and offset even, so the crop is exact on 4:2:0 sources. The
 chain crops first and scales each crop to its band (:func:`split_chain`); the crops are the same
 on every frame.
+
+**Zoom and the content rect** (CONTRACTS §5.52). ``layout.zoom_pm`` (1000–1500) enlarges the picture
+of every layout but the split: the scales cover (crop layouts) or fit (latar blur's picture) the
+output enlarged by the zoom (:func:`zoomed_output`), and the crops stay output-sized, so the crop
+x travels over the zoomed scaled source and the crop row is its centre (:func:`crop_y`); latar
+blur's picture is cropped to the frame where it outgrows it (:func:`foreground_size`). At zoom 1000
+every chain is today's. ``base.source.content_rect`` is the source without its black bars,
+measured once at prepare (``source_info``): every chain starts with an exact ``crop`` to it and
+lays out that picture (:func:`picture_size`); the camera plan's centres, which are fractions of the
+whole source, are moved into it (:func:`crop_positions`). Without a content rect nothing changes.
 """
 
 from __future__ import annotations
@@ -50,6 +60,7 @@ from . import (
     SPLIT_BANDS,
     SPLIT_TOP_PM,
     SPLIT_ZOOM_RANGE,
+    ZOOM_RANGE,
 )
 from .timemap import Fps, div_round_half_up
 
@@ -110,10 +121,66 @@ def scaled_size(source: tuple[int, int], output: tuple[int, int]) -> tuple[int, 
     return max(width, out_w), max(height, out_h)
 
 
-def centre_x(source: tuple[int, int], output: tuple[int, int]) -> int:
+def _check_zoom(zoom_pm: object) -> int:
+    if type(zoom_pm) is not int or not ZOOM_RANGE[0] <= zoom_pm <= ZOOM_RANGE[1]:
+        raise ValueError("zoom_pm must be an integer in 1000..1500")
+    return zoom_pm
+
+
+def zoomed_output(output: tuple[int, int], zoom_pm: int = ZOOM_RANGE[0]) -> tuple[int, int]:
+    """The size the scales cover (or fit) at ``zoom_pm``: each side of the output times
+    ``zoom_pm / 1000``, rounded half up; the output itself at 1000 (CONTRACTS §5.52)."""
+    if _check_zoom(zoom_pm) == ZOOM_RANGE[0]:
+        return (output[0], output[1])
+    return (div_round_half_up(output[0] * zoom_pm, 1000),
+            div_round_half_up(output[1] * zoom_pm, 1000))
+
+
+def _zoomed_scale(source: tuple[int, int], output: tuple[int, int],
+                  zoom_pm: int) -> tuple[int, int]:
+    return scaled_size(source, zoomed_output(output, zoom_pm))
+
+
+def centre_x(source: tuple[int, int], output: tuple[int, int],
+             zoom_pm: int = ZOOM_RANGE[0]) -> int:
     """The x of a centred crop of the scaled source: ``crop``'s default ``(in_w-out_w)/2``,
     which FFmpeg stores in an int (truncated); fit-blur's background and center-crop use it."""
-    return (scaled_size(source, output)[0] - output[0]) // 2
+    return (_zoomed_scale(source, output, zoom_pm)[0] - output[0]) // 2
+
+
+def crop_y(source: tuple[int, int], output: tuple[int, int],
+           zoom_pm: int = ZOOM_RANGE[0]) -> int:
+    """The row of every crop of the scaled source, ``(in_h-out_h)/2`` truncated: 0 for a source
+    wider than 9:16 at zoom 1000, half the zoomed margin above it."""
+    return (_zoomed_scale(source, output, zoom_pm)[1] - output[1]) // 2
+
+
+def foreground_size(source: tuple[int, int], output: tuple[int, int],
+                    zoom_pm: int = ZOOM_RANGE[0]) -> tuple[int, int]:
+    """Latar blur's picture before it is cropped to the frame: FFmpeg's
+    ``scale=W:H:force_original_aspect_ratio=decrease`` into the zoomed output (``w = min(
+    av_rescale(H, in_w, in_h), W)`` and likewise for ``h``)."""
+    (src_w, src_h), (out_w, out_h) = source, zoomed_output(output, zoom_pm)
+    return (min((out_h * src_w + src_h // 2) // src_h, out_w),
+            min((out_w * src_h + src_w // 2) // src_w, out_h))
+
+
+def check_content_rect(rect: Sequence[int], source: tuple[int, int]) -> None:
+    """Raises ``ValueError`` unless ``rect`` is ``(x, y, w, h)`` of even integers inside
+    ``source``, at least 16 px on each side and not the whole source (that is no rect)."""
+    if (not isinstance(rect, Sequence) or len(rect) != 4
+            or not all(type(value) is int and value >= 0 and value % 2 == 0 for value in rect)):
+        raise ValueError("a content rect is four even integers x, y, w, h")
+    x, y, w, h = rect
+    if w < 16 or h < 16 or x + w > source[0] or y + h > source[1]:
+        raise ValueError("the content rect must lie inside the source")
+    if (x, y, w, h) == (0, 0, source[0], source[1]):
+        raise ValueError("the whole source is no content rect")
+
+
+def picture_size(source: tuple[int, int], content: Sequence[int] | None) -> tuple[int, int]:
+    """What the layouts lay out: the content rect's size, else the whole source."""
+    return (source[0], source[1]) if content is None else (content[2], content[3])
 
 
 def no_face_frames(camera: Mapping, fps: Fps, *, first_sf: int,
@@ -140,6 +207,8 @@ def crop_positions(
     output: tuple[int, int],
     first_sf: int,
     count: int,
+    zoom_pm: int = ZOOM_RANGE[0],
+    content: Sequence[int] | None = None,
 ) -> tuple[int, ...]:
     """Even crop x (in the scaled source) for source-grid frames ``first_sf … first_sf+count−1``.
 
@@ -151,17 +220,27 @@ def crop_positions(
     extrapolate) and after the last it holds the last. The time of frame ``k`` is its start,
     ``k·den/num`` s, evaluated as an exact rational, and the result is rounded once to the
     nearest even integer.
+
+    ``source`` is the whole source (the plan's centres are fractions of its width). With a
+    content rect (§5.52) the crop is of that picture: a centre ``c`` sits at ``(c·W_src − x)/w``
+    of it. With ``zoom_pm`` the scaled picture is the one covering the zoomed output.
     """
     samples = camera["samples"]
     cuts = camera["cuts"]
     if not samples or len(cuts) != len(samples):
         raise ValueError("camera plan needs samples with one cut flag each")
-    scaled_w = scaled_size(source, output)[0]
+    picture = picture_size(source, content)
+    offset = 0 if content is None else content[0]
+    scaled_w = _zoomed_scale(picture, output, zoom_pm)[0]
     out_w = output[0]
     limit = max(scaled_w - out_w, 0)
     limit -= limit % 2
+    # x = (c·W_src/1000 − offset)/w · scaled_w − W/2 as one fraction, rounded half up (with the
+    # whole source as the picture it is today's c·scaled_w/1000 − W/2)
+    denominator = 2000 * picture[0]
     positions = [
-        min(max(div_round_half_up(2 * center * scaled_w - 1000 * out_w, 2000), 0), limit)
+        min(max(div_round_half_up(2 * (center * source[0] - 1000 * offset) * scaled_w
+                                  - 1000 * out_w * picture[0], denominator), 0), limit)
         for _t_ms, center in samples
     ]
     times = [t_ms for t_ms, _center in samples]
@@ -191,10 +270,12 @@ def crop_positions(
     return tuple(values)
 
 
-def pan_limit(source: tuple[int, int], output: tuple[int, int]) -> int:
+def pan_limit(source: tuple[int, int], output: tuple[int, int],
+              zoom_pm: int = ZOOM_RANGE[0]) -> int:
     """The crop's travel in the scaled source, ``scaled_w − W`` floored to even (the camera
-    crop's limit); 0 when the source is 9:16 or taller, so there is nothing to pan."""
-    limit = max(scaled_size(source, output)[0] - output[0], 0)
+    crop's limit); 0 when the source is 9:16 or taller at zoom 1000, so there is nothing to
+    pan. ``source`` is the picture the layouts see (the content rect's size, §5.52)."""
+    limit = max(_zoomed_scale(source, output, zoom_pm)[0] - output[0], 0)
     return limit - limit % 2
 
 
@@ -226,9 +307,11 @@ def keyframe_positions(
     output: tuple[int, int],
     first_sf: int,
     count: int,
+    zoom_pm: int = ZOOM_RANGE[0],
 ) -> tuple[int, ...]:
     """Even crop x (in the scaled source) for source-grid frames ``first_sf … first_sf+count−1``
-    from the manual framing keyframes (CONTRACTS §5.44).
+    from the manual framing keyframes (CONTRACTS §5.44); ``source`` is the picture the layouts
+    see and ``zoom_pm`` widens the travel (§5.52).
 
     Keyframe ``i`` puts the crop at ``pan_e5·limit/100000`` (``limit``: :func:`pan_limit`) on its
     frame ``sf``. Before the first keyframe the first holds and after the last the last holds.
@@ -237,7 +320,7 @@ def keyframe_positions(
     nearest even integer, as the camera crop; the first keyframe's ``move`` is never read.
     """
     check_keyframes(keyframes)
-    limit = pan_limit(source, output)
+    limit = pan_limit(source, output, zoom_pm)
     frames = [keyframe["sf"] for keyframe in keyframes]
     pans = [keyframe["pan_e5"] for keyframe in keyframes]
     last = len(frames) - 1
@@ -298,10 +381,14 @@ def layout_chain(
     in_range: str,
     crop: Sequence[int] | None = None,
     fallback: Sequence[bool] | None = None,
+    zoom_pm: int = ZOOM_RANGE[0],
+    content: Sequence[int] | None = None,
 ) -> str:
     """The layout chain of one branch, from ``label_in`` to ``label_out`` (yuv444p, BT.709, tv,
     SAR 1). ``crop`` holds the camera crop x per frame of the branch (``camera`` only), and
     ``fallback`` per frame whether it shows the no-face fallback (``camera`` only, §5.40).
+    ``zoom_pm`` enlarges the picture and ``content`` is the rect of ``source`` (the decoded
+    size) the layout shows, cropped first (§5.52).
 
     ``suffix`` keeps the internal labels of fit-blur unique (``[background<suffix>]`` …).
     """
@@ -309,27 +396,64 @@ def layout_chain(
         raise ValueError(f"unknown layout mode: {mode}")
     if in_range not in ("tv", "pc"):
         raise ValueError("in_range must be tv or pc")
+    _check_zoom(zoom_pm)
+    if content is not None:
+        check_content_rect(content, source)
+    chain = {"label_in": label_in, "label_out": label_out, "suffix": suffix, "output": output,
+             "picture": picture_size(source, content), "matrix": matrix,
+             "in_range": in_range, "zoom_pm": zoom_pm}
     if fallback is not None:
         if mode != "camera" or crop is None or len(fallback) != len(crop):
             raise ValueError("the fallback needs the camera layout and one flag per crop x")
         if any(fallback):
-            return _fallback_chain(crop, fallback, label_in=label_in, label_out=label_out,
-                                   suffix=suffix, output=output, source=source, matrix=matrix,
-                                   in_range=in_range)
+            return _with_content(_fallback_chain(crop, fallback, **chain), label_in, content)
     if mode == "split":
         raise ValueError("the split layout has its own chain (split_chain)")
+    return _with_content(_picture_chain(mode, crop=crop, **chain), label_in, content)
+
+
+def _with_content(chain: str, label_in: str, content: Sequence[int] | None) -> str:
+    """``chain`` with the exact crop to the content rect right after its input label."""
+    if content is None:
+        return chain
+    if not chain.startswith(label_in):
+        raise RuntimeError("a layout chain starts at its input label")
+    x, y, w, h = content
+    return f"{label_in}crop={w}:{h}:{x}:{y}," + chain[len(label_in):]
+
+
+def _foreground_crop(picture: tuple[int, int], output: tuple[int, int], zoom_pm: int) -> str:
+    """Latar blur's picture cropped to the frame where the zoom made it outgrow it (centred:
+    ``crop``'s default), else nothing."""
+    width, height = foreground_size(picture, output, zoom_pm)
+    if width <= output[0] and height <= output[1]:
+        return ""
+    return f",crop={min(width, output[0])}:{min(height, output[1])}"
+
+
+def _picture_chain(mode: str, *, label_in: str, label_out: str, suffix: str,
+                   output: tuple[int, int], picture: tuple[int, int], matrix: str,
+                   in_range: str, zoom_pm: int, crop: Sequence[int] | None = None) -> str:
+    """The chain of ``mode`` over a ``picture``-sized input (no content crop, no fallback)."""
     width, height = output
     legacy = _layout_filter(Path(), input_label=label_in, start=0.0, end=0.0, width=width,
                             height=height, render_mode=_LEGACY_MODE[mode], label_suffix=suffix)
     conversion = _conversion(matrix, in_range)
     chain = _replace_once(legacy, "force_original_aspect_ratio=increase,",
                           f"force_original_aspect_ratio=increase:{conversion}{WORKING_FORMAT},")
+    if zoom_pm != ZOOM_RANGE[0]:
+        # the scales cover (or fit) the zoomed output; every crop stays output-sized (§5.52)
+        zoom_w, zoom_h = zoomed_output(output, zoom_pm)
+        scale = f"scale={width}:{height}:"
+        if chain.count(scale) != (2 if mode == "fit_blur" else 1):
+            raise RuntimeError("render.py layout string changed: unexpected scale count")
+        chain = chain.replace(scale, f"scale={zoom_w}:{zoom_h}:")
     if mode == "fit_blur":
         # overlay=format=yuv444 takes its second input only as yuva444p: the foreground gets an
         # (opaque) alpha plane here, explicitly, instead of an auto-inserted scale (R3).
         chain = _replace_once(chain, "force_original_aspect_ratio=decrease[",
                               f"force_original_aspect_ratio=decrease:{conversion}"
-                              f"{OVERLAY_FORMAT}[")
+                              f"{OVERLAY_FORMAT}{_foreground_crop(picture, output, zoom_pm)}[")
         chain = _replace_once(chain, "gblur=sigma=35[", f"gblur=sigma={blur_sigma(height)}[")
         chain = _replace_once(chain, "overlay=(W-w)/2:(H-h)/2,",
                               "overlay=(W-w)/2:(H-h)/2:format=yuv444,")
@@ -352,22 +476,23 @@ def _conversion(matrix: str, in_range: str) -> str:
 def _fallback_chain(crop: Sequence[int], fallback: Sequence[bool], **chain: Any) -> str:
     """The camera chain with the no-face fallback (module notes): fit-blur's chain whose
     background crop follows the camera, blurred only on fallback frames, and whose foreground
-    is transparent on the others. Every fallback frame: the fit-blur chain."""
-    output, source = chain["output"], chain["source"]
-    fit_blur = layout_chain("fit_blur", **chain)
+    is transparent on the others. Every fallback frame: the fit-blur chain (at the same zoom)."""
+    output, picture, zoom_pm = chain["output"], chain["picture"], chain["zoom_pm"]
+    fit_blur = _picture_chain("fit_blur", **chain)
     if all(fallback):
         return fit_blur
     width, height = output
     sigma = blur_sigma(height)
-    centre = centre_x(source, output)
+    centre = centre_x(picture, output, zoom_pm)
     x = crop_expression([centre if shown else value for value, shown in zip(crop, fallback)])
     blurred = crop_expression([int(shown) for shown in fallback])
     hidden = crop_expression([int(not shown) for shown in fallback])
     fit_blur = _replace_once(fit_blur, f"crop={width}:{height},gblur=sigma={sigma}[",
                              f"crop={width}:{height}:x='{x}':y=(ih-oh)/2,"
                              f"gblur=sigma={sigma}:enable='{blurred}'[")
-    return _replace_once(fit_blur, f"{OVERLAY_FORMAT}[",
-                         f"{OVERLAY_FORMAT},lutyuv=a=0:enable='{hidden}'[")
+    foreground = f"{OVERLAY_FORMAT}{_foreground_crop(picture, output, zoom_pm)}"
+    return _replace_once(fit_blur, f"{foreground}[",
+                         f"{foreground},lutyuv=a=0:enable='{hidden}'[")
 
 
 # --- layar terbagi (§5.45) ------------------------------------------------------------------
@@ -491,13 +616,17 @@ def split_chain(
     source: tuple[int, int],
     matrix: str,
     in_range: str,
+    content: Sequence[int] | None = None,
 ) -> str:
     """The split layout from ``label_in`` to ``label_out`` (yuv444p, BT.709, tv, SAR 1): each
     band's crop of the source scaled to the band (R3's explicit conversion), the top band padded
-    with the black line below it, then stacked. ``suffix`` keeps the internal labels unique."""
+    with the black line below it, then stacked. ``suffix`` keeps the internal labels unique.
+    With a content rect of ``source`` (§5.52) the bands crop that picture, cropped first."""
     if in_range not in ("tv", "pc"):
         raise ValueError("in_range must be tv or pc")
-    geometry = split_geometry(split, source=source, output=output)
+    if content is not None:
+        check_content_rect(content, source)
+    geometry = split_geometry(split, source=picture_size(source, content), output=output)
     conversion = _conversion(matrix, in_range)
     width = output[0]
 
@@ -507,10 +636,11 @@ def split_chain(
         return (f"[split_{name}{suffix}]crop={w}:{h}:{x}:{y},"
                 f"scale={band_w}:{band_h}:{conversion}{WORKING_FORMAT}")
 
-    return (f"{label_in}split=2[split_top{suffix}][split_bottom{suffix}];"
-            f"{band('top')},pad={width}:{geometry['line'] + 1}:0:0:black[split_a{suffix}];"
-            f"{band('bottom')}[split_b{suffix}];"
-            f"[split_a{suffix}][split_b{suffix}]vstack=inputs=2,setsar=1{label_out}")
+    return _with_content(
+        f"{label_in}split=2[split_top{suffix}][split_bottom{suffix}];"
+        f"{band('top')},pad={width}:{geometry['line'] + 1}:0:0:black[split_a{suffix}];"
+        f"{band('bottom')}[split_b{suffix}];"
+        f"[split_a{suffix}][split_b{suffix}]vstack=inputs=2,setsar=1{label_out}", label_in, content)
 
 
 __all__ = [
@@ -518,18 +648,23 @@ __all__ = [
     "KEYFRAME_MOVES",
     "LAYOUT_MODES",
     "NO_FACE_MODES",
+    "ZOOM_RANGE",
     "blur_sigma",
     "centre_x",
+    "check_content_rect",
     "check_keyframes",
     "check_split",
     "color_matrix",
     "crop_expression",
     "crop_positions",
+    "crop_y",
     "default_split",
+    "foreground_size",
     "keyframe_positions",
     "layout_chain",
     "no_face_frames",
     "pan_limit",
+    "picture_size",
     "scaled_size",
     "split_bands",
     "split_chain",
@@ -537,4 +672,5 @@ __all__ = [
     "split_from_lane",
     "split_geometry",
     "split_lane",
+    "zoomed_output",
 ]

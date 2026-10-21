@@ -138,6 +138,23 @@ def _no_floats(value):
 # --- rules ---------------------------------------------------------------------------------------
 
 
+def test_the_seed_keeps_the_sources_content_rect():
+    """CONTRACTS §5.52: the probe's content rect (the picture inside black bars) is the seed's
+    ``base.source.content_rect``; null or a probe measured before it adds no key."""
+    rect = {"x": 0, "y": 90, "w": 1280, "h": 540}
+    info = _source_info()
+    assert "content_rect" not in _seed(source_info=info)["base"]["source"]
+    info["probe"]["content_rect"] = None
+    assert "content_rect" not in _seed(source_info=info)["base"]["source"]
+    info["probe"]["content_rect"] = dict(rect)
+    seed = _seed(source_info=info)
+    assert seed["base"]["source"]["content_rect"] == rect
+    info["probe"]["content_rect"] = {"x": 1, "y": 90, "w": 1278, "h": 540}
+    with pytest.raises(SeedError):
+        _seed(source_info=info)
+
+
+
 @pytest.mark.parametrize(
     ("native", "vfr", "expected"),
     [

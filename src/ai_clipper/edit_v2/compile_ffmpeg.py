@@ -441,28 +441,33 @@ class _Compiler:
         frames of the camera plan's runs without a face are chosen the same way, per source
         frame. Manual framing (§5.44) gives either crop layout the camera chain with the crop x
         of the keyframes, per source frame, and no fallback. Layar terbagi (§5.45) has its own
-        chain, the same crops on every frame.
+        chain, the same crops on every frame. The zoom and the source's content rect (§5.52)
+        reach every chain: the keyframes pan over the content picture, the camera plan's
+        centres (fractions of the whole source) are moved into it.
         """
         source = (self.streams.width, self.streams.height)
+        content = self.plan.content_rect
+        zoom = self.plan.zoom_pm
         if self.plan.layout == "split":
             if self.plan.split is None:
                 raise errors.DocSemanticInvalid("range_invalid", path="/layout/split")
             return layouts.split_chain(
                 self.plan.split, label_in=label_in, label_out=label_out, suffix=suffix,
                 output=self.plan.output, source=source, matrix=self.matrix,
-                in_range=self.in_range)
+                in_range=self.in_range, content=content)
         if self.plan.keyframes:
             if self.plan.layout not in layouts.CROP_MODES:
                 raise errors.DocSemanticInvalid("range_invalid", path="/layout/keyframes")
+            picture = layouts.picture_size(source, content)
             crop = []
             for in_sf, out_sf in ranges:
                 crop.extend(layouts.keyframe_positions(
-                    self.plan.keyframes, source=source, output=self.plan.output,
-                    first_sf=in_sf, count=out_sf - in_sf))
+                    self.plan.keyframes, source=picture, output=self.plan.output,
+                    first_sf=in_sf, count=out_sf - in_sf, zoom_pm=zoom))
             return layouts.layout_chain(
                 "camera", label_in=label_in, label_out=label_out, suffix=suffix,
                 output=self.plan.output, source=source, matrix=self.matrix,
-                in_range=self.in_range, crop=crop)
+                in_range=self.in_range, crop=crop, zoom_pm=zoom, content=content)
         crop = None
         fallback = None
         if self.plan.layout == "camera":
@@ -471,8 +476,8 @@ class _Compiler:
             crop = []
             for in_sf, out_sf in ranges:
                 crop.extend(layouts.crop_positions(
-                    self.plan.camera, self.fps, source=(self.streams.width, self.streams.height),
-                    output=self.plan.output, first_sf=in_sf, count=out_sf - in_sf))
+                    self.plan.camera, self.fps, source=source, output=self.plan.output,
+                    first_sf=in_sf, count=out_sf - in_sf, zoom_pm=zoom, content=content))
             if self.plan.no_face == "fit_blur":
                 fallback = []
                 for in_sf, out_sf in ranges:
@@ -480,8 +485,8 @@ class _Compiler:
                         self.plan.camera, self.fps, first_sf=in_sf, count=out_sf - in_sf))
         return layouts.layout_chain(
             self.plan.layout, label_in=label_in, label_out=label_out, suffix=suffix,
-            output=self.plan.output, source=(self.streams.width, self.streams.height),
-            matrix=self.matrix, in_range=self.in_range, crop=crop, fallback=fallback)
+            output=self.plan.output, source=source, matrix=self.matrix,
+            in_range=self.in_range, crop=crop, fallback=fallback, zoom_pm=zoom, content=content)
 
     def decoded(self, branches: Sequence[tuple[int, int, int]],
                 runs: Sequence[Sequence[int]], *, video: bool, audio: bool) -> None:

@@ -70,6 +70,12 @@ function plateSplit(layout, value) {
     && inRange(band[1], 0, 100000) && inRange(band[2], 1000, 5000))) return undefined;
   return [value[0], ...bands.map((band) => [...band])];
 }
+// A plate's `zoom` from preview_cli (CONTRACTS §5.52): `layout.zoom_pm` (1001–1500) for any layout
+// but the split, null without a zoom; undefined when malformed (not trusted).
+function plateZoom(layout, value) {
+  if (value === undefined || value === null) return null;
+  return layout !== "split" && inRange(value, 1001, 1500) ? value : undefined;
+}
 export const DEFAULT_CACHE_CAP_BYTES = 1024 * 1024 * 1024; // K11
 export const HEAVY_SLOTS = 2;
 export const PLAN_SLOTS = 4;
@@ -434,7 +440,7 @@ export function createPreviewLane({
       for (const k of cells) clip.queued.delete(k);
       const plate = { layout: clip.plate.layout, ...(clip.plate.noFace ? { noFace: clip.plate.noFace } : {}),
         ...(clip.plate.keyframes ? { keyframes: clip.plate.keyframes } : {}),
-        ...(clip.plate.split ? { split: clip.plate.split } : {}) };
+        ...(clip.plate.split ? { split: clip.plate.split } : {}), ...(clip.plate.zoom ? { zoom: clip.plate.zoom } : {}) };
       const task = makeTask("cells", clip, { ...plate, cells }, { plateKey: clip.plate.key, cells });
       for (const k of cells) clip.runningCells.set(k, task);
       return task;
@@ -516,12 +522,12 @@ export function createPreviewLane({
 
   // --- what a plan asks for ----------------------------------------------------------------------
 
-  function switchPlate(clip, key, layout, noFace = null, keyframes = null, split = null) {
+  function switchPlate(clip, key, layout, noFace = null, keyframes = null, split = null, zoom = null) {
     for (const task of running) {
       if (task.kind === "cells" && task.clip === clip && task.plateKey !== key) cancel(task);
     }
     clip.plate = { key, layout, noFace: plateNoFace(noFace) ?? null, keyframes: plateKeyframes(keyframes) ?? null,
-      split: plateSplit(layout, split) ?? null };
+      split: plateSplit(layout, split) ?? null, zoom: plateZoom(layout, zoom) ?? null };
     clip.order = [];
     clip.queued = new Set();
     clip.doneCells = new Map();
@@ -530,7 +536,7 @@ export function createPreviewLane({
 
   function ensure(clip, lane, pieces, missingCells, audioReady, logoReady, body) {
     if (!clip.plate || clip.plate.key !== lane.plateKey) {
-      switchPlate(clip, lane.plateKey, lane.layout, lane.noFace, lane.keyframes, lane.split);
+      switchPlate(clip, lane.plateKey, lane.layout, lane.noFace, lane.keyframes, lane.split, lane.zoom);
     }
     const missing = new Set(missingCells);
     const order = cellOrder(lane.cells, pieces, lane.cellFrames, lane.playhead).filter((k) => missing.has(k));
@@ -592,6 +598,7 @@ export function createPreviewLane({
     return isObject(json?.dto) && isObject(lane) && typeof lane.plateKey === "string" && HEX64.test(lane.plateKey)
       && typeof lane.layout === "string" && LAYOUTS.includes(lane.layout) && plateNoFace(lane.noFace) !== undefined
       && plateKeyframes(lane.keyframes) !== undefined && plateSplit(lane.layout, lane.split) !== undefined
+      && plateZoom(lane.layout, lane.zoom) !== undefined
       && Array.isArray(lane.cells) && lane.cells.every(Number.isSafeInteger)
       && Array.isArray(lane.missing) && Number.isSafeInteger(lane.cellFrames) && Number.isSafeInteger(lane.playhead)
       && isObject(json.dto.plate) && Array.isArray(json.dto.plate.cells);
@@ -719,11 +726,11 @@ export function createPreviewLane({
     const json = result.json;
     if (!(typeof json?.plateKey === "string" && HEX64.test(json.plateKey) && LAYOUTS.includes(json.layout)
       && plateNoFace(json.noFace) !== undefined && plateKeyframes(json.keyframes) !== undefined
-      && plateSplit(json.layout, json.split) !== undefined
+      && plateSplit(json.layout, json.split) !== undefined && plateZoom(json.layout, json.zoom) !== undefined
       && Array.isArray(json.cells) && Array.isArray(json.ready) && Number.isSafeInteger(json.cellFrames))) return unavailable();
     const ready = new Set(json.ready);
     const missing = json.cells.filter((k) => !ready.has(k));
-    ensure(clip, { plateKey: json.plateKey, layout: json.layout, noFace: json.noFace, keyframes: json.keyframes, split: json.split, cells: json.cells,
+    ensure(clip, { plateKey: json.plateKey, layout: json.layout, noFace: json.noFace, keyframes: json.keyframes, split: json.split, zoom: json.zoom, cells: json.cells,
       cellFrames: json.cellFrames, playhead: 0 },
       null, missing, true, true, null);
     return {

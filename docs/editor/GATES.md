@@ -2130,3 +2130,24 @@ branch is pushed.
 
 Golden evidence, the glyph probe and the thumbnail check in the image:
 `gh workflow run editor-gates.yml -f ref=adopsi/emphasis-font -f suite=command -f command='PYTHONPATH=src:tests uv run python tests/support/edit_v2_text.py golden-evidence /out/golden-evidence.json && PYTHONPATH=src:tests uv run python tests/support/edit_v2_text.py glyph-probe /out/glyph-probe.json && PYTHONPATH=src uv run python scripts/editor/make_pack_thumbs.py --check'`.
+
+## Zoom and black bars (2026-10-21)
+
+`layout.zoom_pm` and `base.source.content_rect` (CONTRACTS §5.52). Documents without either key
+keep their graph, plan sha and plate key, and a source without bars gets no content rect, so
+`RENDER_SEMANTICS` stays 2 and the goldens are unchanged. Built on branch `adopsi/zoom-cropdetect`
+with targeted local tests only; the gates that need the production image or a browser run on
+GitHub Actions when the branch is pushed.
+
+| Gate | Threshold | Result | Where | Verdict |
+|---|---|---|---|---|
+| Box = crop (shared vectors) | Python and JS give the same picture, zoomed output, travel, centre, row, foreground and crop x for every vector | 29 vectors (letterbox, pillarbox, 9:16 in 16:9, 7 source/output sizes, zooms 1000 to 1500): equal; the gizmo's box at the zoomed row | `tests/test_edit_v2_zoom.py`, `web/tests/editor-zoom.test.mjs`, `web/tests/editor-frame-gizmo.test.mjs` | **pass** (local) |
+| Crop x and index with real FFmpeg | the decoded crop x of every plate-cell and lossless-reference frame equals `keyframe_positions` at the zoom over the content picture, 0 px; latar blur at the same zoom shows every frame's index | local FFmpeg 6.1.1, a synthetic clip with cuts, a cold open, a 4:3 content rect and zoom 125 % | `tests/test_edit_v2_compile.py::test_zoomed_crop_inside_the_content_rect_decoded_from_the_ruler` | **pass** (local); pinned toolchain: `editor-gates suite=image` |
+| Bars measured | a letterboxed source gives its rect; a plain one none; cropdetect parsing, sampling, timeouts | `testsrc2` padded 320×136 in 320×180: `{0, 22, 320, 136}`; the barcode sources: null; fake FFmpeg output for letterbox, pillarbox, 9:16 in 16:9, one-sided and thin bars, black and failed samples | `tests/test_edit_v2_source_info.py` | **pass** (local) |
+| Graph | no key, no change; the zoom changes only the scales (and latar blur's foreground crop); the rect adds one exact crop in front of every chain | string checks over every layout, keyframes, the fallback and the split, in final, reference, frame and plate cells | `tests/test_edit_v2_zoom.py`, `tests/test_edit_v2_compile.py` | **pass** (local) |
+| Document rules | the validator's rules (zoom range, 1000 no key, not with the split; the rect's fields, evenness, bounds) and `checkDoc` agree; `SetZoom` against the Python validator in the 1,000-sequence crosscheck | 0 rejected documents | `tests/test_edit_v2_doc.py`, `tests/test_edit_v2_crosscheck.py`, `web/tests/editor-commands.test.mjs` | **pass** (local) |
+| P-FRAME with the zoom | 0 mismatches | cases `cfr_30_zoom`, `cfr_30_zoom_content` added | `scripts/parity/frame_identity.py` | pending: `editor-gates suite=command` (`frame_identity.py p-frame`) |
+| P-PLATE with the zoom and the rect | SSIM margin ≥ 0; crop x 0 px; bands 0 frames off | cases `plate_fill_center_zoom_keyframes`, `plate_camera_zoom_content`, `plate_split_content` added | `scripts/parity/frame_identity.py` | pending: `editor-gates suite=command` (`frame_identity.py p-plate`) |
+| Player P-FRAME | 0 mismatches | the two zoom cases read through latar blur's zoomed geometry | `scripts/parity/player_fixtures.py`, `e2e/editor-player.spec.mjs` | pending: `editor-gates suite=e2e` |
+| Lane and keys | the plate key names the zoom and the rect; the cells op builds that plate; the lane passes the zoom with every batch | pass | `tests/test_edit_v2_plates.py`, `tests/test_edit_v2_preview_cli.py`, `web/tests/preview-lane.test.mjs` | **pass** (local) |
+| Panel, card and dialog (browser, fakes) | keys and drag store once, Kembali ke 100%, undo, the split drops it, Atur bingkai's box, the bars note, Mode Cepat's summary, phone width, axe clean | `e2e/editor-zoom.spec.mjs` (7 tests) | | pending: `editor-gates suite=e2e` |

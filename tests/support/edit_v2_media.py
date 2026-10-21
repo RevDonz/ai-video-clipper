@@ -269,12 +269,16 @@ def decode_ruler(plane: bytes, width: int, height: int, pattern: Pattern, *,
 
 
 def decode_crop_x(plane: bytes, width: int, height: int, pattern: Pattern, *,
-                  scale: float, top: float = 0.0) -> int | None:
+                  scale: float, top: float = 0.0, offset: int = 0,
+                  picture_w: int | None = None) -> int | None:
     """The crop x (in the scaled source) of a crop layout: scale by ``scale`` (the horizontal
     factor, e.g. ``scaled_width / source_width``), then ``crop=width:…:x``. Each output column
-    votes for the x values consistent with its decoded source column; the most voted x wins."""
-    columns = decode_ruler(plane, width, height, pattern, scale=scale, top=top)
-    limit = math.ceil(pattern.width * scale) - width
+    votes for the x values consistent with its decoded source column; the most voted x wins.
+    With a content rect (CONTRACTS §5.52) the picture is ``picture_w`` source columns from
+    column ``offset``, and x is in the scaled picture."""
+    columns = [column - offset
+               for column in decode_ruler(plane, width, height, pattern, scale=scale, top=top)]
+    limit = math.ceil((pattern.width if picture_w is None else picture_w) * scale) - width
     if limit < 0:
         return None
     votes = [0] * (limit + 2)

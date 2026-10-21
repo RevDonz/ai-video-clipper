@@ -23,7 +23,14 @@ stream that is not cover art, else the first) and audio stream (default, else th
   inside this range (:func:`grid_range`; ``seed.py``);
 * ``has_audio``, ``video_stream``, ``audio_stream``, ``video_codec``, ``pix_fmt``, the four
   ``color_*`` tags (or null), ``audio_sample_rate``, ``audio_channels``, ``size_bytes``,
-  ``frame_steps`` and ``irregular_frame_steps``.
+  ``frame_steps`` and ``irregular_frame_steps``;
+* ``content_rect``: ``{x, y, w, h}``, the picture inside constant black bars (a letterbox, a
+  pillarbox or both), or null for a source without bars (CONTRACTS §5.52). FFmpeg's
+  ``cropdetect`` runs on a few frames at five points of the video (:func:`measure_content_rect`,
+  bounded by ``CROPDETECT_*``) and :func:`content_rect_from_cropdetect` keeps only bars that are
+  on both sides of an axis, alike, at least 1 % of the side each, with a picture of at least a
+  quarter of that side between them. A file written before this key existed has no key: its
+  clips keep the whole picture.
 
 A version-1 file (no ``grid_sf``) is refused, not trusted: none was written outside W1
 development, and its seeds could reach past the frames that exist.
@@ -44,6 +51,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import secrets
 import shutil
 import stat
@@ -67,6 +75,12 @@ GRID_TAIL_MS = 3000  # the end of the grid is measured over the last 3 s of the 
 GRID_THREADS = 4
 VFR_IRREGULAR_RATIO = Fraction(1, 200)  # more than 0.5 % irregular frame steps
 PROTOCOL_WHITELIST = ("-protocol_whitelist", "file,pipe")
+CROPDETECT_SAMPLES = 5  # points of the video, at the middle of each fifth
+CROPDETECT_FRAMES = 8  # frames decoded per point (cropdetect skips the first two)
+CROPDETECT_TIMEOUT_S = 30.0  # per point; a point that fails or times out is left out
+CROPDETECT_FILTER = "cropdetect=limit=0.094:round=2:reset=0"  # luma ≤ 24/255 is black
+_CROPDETECT_LINE = re.compile(
+    r"\[Parsed_cropdetect[^\]]*\] x1:(-?\d+) x2:(-?\d+) y1:(-?\d+) y2:(-?\d+) ")
 _HASH_CHUNK = 1 << 20
 _PROBE_KEYS = frozenset(
     {
@@ -561,10 +575,97 @@ def probe_source(source: Path) -> dict[str, Any]:
         "irregular_frame_steps": irregular,
         "grid_sf": measure_grid(source, video_stream=int(video["index"]),
                                 duration_ms=duration_ms),
+        "content_rect": measure_content_rect(source, video_stream=int(video["index"]),
+                                             duration_ms=duration_ms, size=(width, height)),
     }
 
 
+# --- black bars (CONTRACTS §5.52) --------------------------------------------------------------
+
+
+def _bounds(stderr: str, size: tuple[int, int]) -> tuple[int, int, int, int] | None:
+    """The last cropdetect bounds ``(x1, x2, y1, y2)`` (inclusive) of one run, or ``None`` for
+    a run without them, a black picture (``x2 < x1``) or bounds outside ``size``."""
+    found = _CROPDETECT_LINE.findall(stderr or "")
+    if not found:
+        return None
+    x1, x2, y1, y2 = (int(value) for value in found[-1])
+    if not (0 <= x1 <= x2 < size[0] and 0 <= y1 <= y2 < size[1]):
+        return None
+    return x1, x2, y1, y2
+
+
+def _axis(first: int, end: int, side: int) -> tuple[int, int]:
+    """``(offset, length)`` of the picture on one axis: inside the bars when both bars are at
+    least 1 % of the side (and 4 px), alike (within 2 % and 8 px) and leave at least a quarter
+    of the side; else the whole side. Rounded inwards to even."""
+    before, after = first, side - end
+    least = max(4, side // 100)
+    alike = abs(before - after) <= max(8, side // 50)
+    if before < least or after < least or not alike or (end - first) * 4 < side:
+        return 0, side
+    start = first + first % 2
+    stop = end - end % 2
+    return start, stop - start
+
+
+def content_rect_from_cropdetect(samples: Sequence[str],
+                                 size: tuple[int, int]) -> dict[str, int] | None:
+    """The content rect of a source of ``size`` from the stderr of each sampled cropdetect run
+    (see the module docstring), or ``None``: no bars, or fewer than two (or than half the)
+    samples with a picture. The rect is the bounds of every sample together, so a frame whose
+    picture reaches further than the others widens it."""
+    found = [bounds for bounds in (_bounds(text, size) for text in samples) if bounds]
+    if len(found) < 2 or 2 * len(found) < len(samples):
+        return None
+    x, w = _axis(min(b[0] for b in found), max(b[1] for b in found) + 1, size[0])
+    y, h = _axis(min(b[2] for b in found), max(b[3] for b in found) + 1, size[1])
+    if (x, y, w, h) == (0, 0, size[0], size[1]) or w < 16 or h < 16:
+        return None
+    return {"x": x, "y": y, "w": w, "h": h}
+
+
+def measure_content_rect(source: Path, *, video_stream: int, duration_ms: int,
+                         size: tuple[int, int]) -> dict[str, int] | None:
+    """Run cropdetect on ``CROPDETECT_FRAMES`` frames at ``CROPDETECT_SAMPLES`` points of the
+    video and return :func:`content_rect_from_cropdetect` of them. A point FFmpeg cannot
+    decode in ``CROPDETECT_TIMEOUT_S`` counts as a sample without a picture."""
+    ffmpeg = _tool("ffmpeg")
+    samples = []
+    for index in range(CROPDETECT_SAMPLES):
+        seek_ms = duration_ms * (2 * index + 1) // (2 * CROPDETECT_SAMPLES)
+        argv = [ffmpeg, "-nostdin", "-hide_banner", "-loglevel", "info", "-threads", "2",
+                *PROTOCOL_WHITELIST, "-ss", f"{seek_ms // 1000}.{seek_ms % 1000:03d}",
+                "-i", str(source), "-map", f"0:{video_stream}", "-an", "-sn", "-dn",
+                "-frames:v", str(CROPDETECT_FRAMES), "-vf", CROPDETECT_FILTER, "-f", "null",
+                "-"]
+        try:
+            result = subprocess.run(argv, capture_output=True, text=True, errors="replace",
+                                    check=False, timeout=CROPDETECT_TIMEOUT_S,
+                                    stdin=subprocess.DEVNULL, env=child_env())
+        except subprocess.TimeoutExpired:
+            samples.append("")
+            continue
+        samples.append(result.stderr if result.returncode == 0 else "")
+    return content_rect_from_cropdetect(samples, size)
+
+
 # --- source.json -----------------------------------------------------------------------------
+
+
+def _valid_rect(value: object, size: tuple[object, object]) -> bool:
+    """``probe["content_rect"]``: null, or ``{x, y, w, h}`` as ``layouts.check_content_rect``."""
+    from .layouts import check_content_rect
+
+    if value is None:
+        return True
+    if type(value) is not dict or set(value) != {"x", "y", "w", "h"}:
+        return False
+    try:
+        check_content_rect([value["x"], value["y"], value["w"], value["h"]], size)
+    except (TypeError, ValueError):
+        return False
+    return True
 
 
 def _valid_info(value: object) -> bool:
@@ -585,6 +686,8 @@ def _valid_info(value: object) -> bool:
         and type(probe["has_audio"]) is bool
         and type(fps) is list and len(fps) == 2
         and all(type(item) is int and item > 0 for item in fps)
+        and ("content_rect" not in probe
+             or _valid_rect(probe["content_rect"], (probe["w"], probe["h"])))
     )
 
 
@@ -628,11 +731,13 @@ __all__ = [
     "SourceInfoError",
     "canonical_json",
     "child_env",
+    "content_rect_from_cropdetect",
     "ensure_private_dir",
     "ensure_source_info",
     "file_sha256",
     "frame_step_irregularity",
     "grid_range",
+    "measure_content_rect",
     "measure_grid",
     "probe_source",
     "read_regular",

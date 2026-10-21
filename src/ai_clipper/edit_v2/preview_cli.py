@@ -21,7 +21,8 @@ the stored revision when the job re-ran and the document is read-only (plan §3.
 Ops (arguments → result):
 
 ``prepare`` ``{jobId, clipId, layout|null}`` → ``{words: "ready", camera: "ready" |
-"not_needed", layout, noFace, keyframes, split, plateKey, cellFrames, cells: [k], ready: [k]}``.
+"not_needed", layout, noFace, keyframes, split, zoom, plateKey, cellFrames, cells: [k],
+ready: [k]}``.
 Restores a missing words artifact (``seed.prepare_legacy_job``), builds the camera plan when the
 layout (the requested one, else the current document's) is face-track and none exists
 (``camera.build_camera_plan``, written immutably as ``camera.<sha16>.json``), and reports the
@@ -30,11 +31,11 @@ plate cells of the current document in that layout. Idempotent.
 ``plan`` ``{jobId, clipId, requestRaw}`` → ``{dto, lane}``: ``dto`` is the plan DTO of plan §4.3
 (``text.ass`` omitted when ``known.assSha256`` is the new sha; cell, audio and logo states
 ``ready`` (with ``url``) or ``queued``), and ``lane`` what Node schedules: ``{playhead, layout,
-noFace, keyframes, split, plateKey, cellFrames, cells, missing, audio: {key, ready}, logo: {asset,
+noFace, keyframes, split, zoom, plateKey, cellFrames, cells, missing, audio: {key, ready}, logo: {asset,
 w, h, opacityPm, name, ready} | null, frameKey}``. Publishes the ASS as ``preview/ass/<sha16>.ass``.
 Nothing heavy runs.
 
-``cells`` ``{jobId, clipId, layout, noFace?, keyframes?, split?, cells: [k] (1–64),
+``cells`` ``{jobId, clipId, layout, noFace?, keyframes?, split?, zoom?, cells: [k] (1–64),
 cancelToken|null}``
 → ``{plateKey, built, present}``: encodes the missing cells of the seed's plate in ``layout`` in
 one FFmpeg run (the lane's two threads) and publishes ``preview/plates/<key16>-c<k:07d>.mp4``.
@@ -42,11 +43,13 @@ one FFmpeg run (the lane's two threads) and publishes ``preview/plates/<key16>-c
 the runs without a face are centred, as before. ``keyframes: [[sf, pan_e5, move], …]`` asks for
 manual framing (§5.44): a crop layout and frames inside the clip window, else exit 6. ``split:
 [top_pm, [x_e5, y_e5, zoom_pm], [x_e5, y_e5, zoom_pm]]`` is layar terbagi's bands (§5.45): needed
-by ``layout: "split"`` and only by it, else exit 6. ``plan`` and ``prepare`` name the plate's
-``noFace`` (``"fit_blur"`` or ``null``), ``keyframes`` (triples or ``null``) and ``split`` (its
-lane form or ``null``) next to its ``layout``, and ``prepare`` with a switch reports the document
-``SetLayout`` makes (face-track: the fallback on; keyframes only for the crop layouts; the
-split's bands kept, or the default ones on a switch into it).
+by ``layout: "split"`` and only by it, else exit 6. ``zoom`` (1001–1500) is ``layout.zoom_pm``
+(§5.52): not with the split, else exit 6; the source's content rect comes with the seed. ``plan``
+and ``prepare`` name the plate's ``noFace`` (``"fit_blur"`` or ``null``), ``keyframes`` (triples
+or ``null``), ``split`` (its lane form or ``null``) and ``zoom`` (per mille or ``null``) next to
+its ``layout``, and ``prepare`` with a switch reports the document ``SetLayout`` makes
+(face-track: the fallback on; keyframes only for the crop layouts; the split's bands kept, or the
+default ones on a switch into it; no zoom in the split).
 
 ``audio`` ``{jobId, clipId, requestRaw, cancelToken|null}`` → ``{audioKey, name, built, samples,
 gainCdb, warnings}``: the ``audio_preview`` FLAC of the document (``preview/audio/<key16>.flac``
@@ -90,7 +93,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from . import COMPILER_ID, COMPILER_VERSION, RENDER_SEMANTICS
+from . import COMPILER_ID, COMPILER_VERSION, RENDER_SEMANTICS, ZOOM_RANGE
 from . import timemap as tm
 from .clip_id import CLIP_ID_PATTERN
 from .errors import (
@@ -185,6 +188,11 @@ def _split_lane(doc: Mapping[str, Any]) -> list | None:
     return layouts.split_lane(doc["layout"]["split"])
 
 
+def _zoom_lane(doc: Mapping[str, Any]) -> int | None:
+    """The lane's ``zoom``: ``layout.zoom_pm`` (§5.52), or null without a zoom."""
+    return doc["layout"].get("zoom_pm")
+
+
 def _keyframe_objects(triples: Sequence[Sequence]) -> list[dict[str, Any]]:
     return [{"sf": sf, "pan_e5": pan, "move": move} for sf, pan, move in triples]
 
@@ -203,6 +211,7 @@ _CHECKS: dict[str, Callable[[object], bool]] = {
     "noFace": lambda v: v == "fit_blur",
     "keyframes": _keyframes_field,
     "split": _split_field,
+    "zoom": lambda v: _is_int(v, ZOOM_RANGE[0] + 1, ZOOM_RANGE[1]),
     "requestRaw": lambda v: (isinstance(v, str) and len(v) <= (MAX_REQUEST_BYTES * 4) // 3 + 4
                              and _B64.fullmatch(v) is not None),
     "cells": _cells_field,
@@ -227,7 +236,7 @@ _FIELDS: dict[str, dict[str, str]] = {
 }
 # Fields an op may leave out (absent = the earlier behaviour).
 _OPTIONAL: dict[str, dict[str, str]] = {"cells": {"noFace": "noFace", "keyframes": "keyframes",
-                                                   "split": "split"}}
+                                                   "split": "split", "zoom": "zoom"}}
 
 
 def _pairs(items: list[tuple[str, Any]]) -> dict:
@@ -568,8 +577,8 @@ def _switched(doc: Mapping[str, Any], layout: str) -> dict:
     """``doc`` after ``SetLayout {mode: layout}`` (web/lib/editor/doc-model.mjs
     ``layoutAfterSwitch``): a switch to face-track from another layout turns the latar blur
     fallback on (CONTRACTS §5.40), the manual framing keyframes stay with the crop layouts only
-    (§5.44), and the split's bands with the split only, the default ones on a switch into it
-    (§5.45)."""
+    (§5.44), the split's bands with the split only, the default ones on a switch into it
+    (§5.45), and the zoom with every layout but the split (§5.52)."""
     from . import layouts
 
     if layout == "camera" and doc["layout"]["default"]["mode"] != "camera":
@@ -578,7 +587,8 @@ def _switched(doc: Mapping[str, Any], layout: str) -> dict:
         changed = _with_layout(doc, layout)
     kept = {key: value for key, value in changed["layout"].items()
             if not (key == "keyframes" and layout not in layouts.CROP_MODES)
-            and not (key == "split" and layout != "split")}
+            and not (key == "split" and layout != "split")
+            and not (key == "zoom_pm" and layout == "split")}
     if layout == "split" and "split" not in kept:
         kept["split"] = layouts.default_split()
     changed["layout"] = kept
@@ -941,6 +951,7 @@ def _plan(ctx: _Context, envelope: Mapping[str, Any]) -> dict[str, Any]:
         "noFace": _plate_no_face(doc),
         "keyframes": _keyframe_triples(doc),
         "split": _split_lane(doc),
+        "zoom": _zoom_lane(doc),
         "plateKey": key,
         "cellFrames": tm.cell_frames(fps),
         "cells": list(cells),
@@ -988,7 +999,7 @@ def _prepare(ctx: _Context, envelope: Mapping[str, Any]) -> dict[str, Any]:
     ready = [k for k in cells if _is_file(ctx.preview / "plates" / plates.cell_name(key, k))]
     return {"words": "ready", "camera": camera_state, "layout": layout,
             "noFace": _plate_no_face(doc), "keyframes": _keyframe_triples(doc),
-            "split": _split_lane(doc), "plateKey": key,
+            "split": _split_lane(doc), "zoom": _zoom_lane(doc), "plateKey": key,
             "cellFrames": tm.cell_frames(fps), "cells": list(cells), "ready": ready}
 
 
@@ -1000,7 +1011,7 @@ def _cells(ctx: _Context, envelope: Mapping[str, Any]) -> dict[str, Any]:
     fps = tm.Fps.from_json(doc["output"]["fps"])
     window = doc["base"]["window_ms"]
     layout = {key: value for key, value in doc["layout"].items()
-              if key not in ("keyframes", "split")}
+              if key not in ("keyframes", "split", "zoom_pm")}
     if "keyframes" in envelope:
         # manual framing (§5.44): a crop layout, every frame inside the clip window
         if envelope["layout"] in ("fit_blur", "split"):
@@ -1016,6 +1027,11 @@ def _cells(ctx: _Context, envelope: Mapping[str, Any]) -> dict[str, Any]:
         from . import layouts
 
         layout["split"] = layouts.split_from_lane(envelope["split"])
+    if "zoom" in envelope:
+        # the zoom (§5.52) of every layout but the split
+        if envelope["layout"] == "split":
+            raise DocSemanticInvalid("range_invalid", path="/zoom")
+        layout["zoom_pm"] = envelope["zoom"]
     doc["layout"] = layout
     camera, camera_sha = plates.camera_for(ctx.clip, doc)
     key = plates.plate_key(doc, camera_sha256=camera_sha, toolchain_sha256=_toolchain())

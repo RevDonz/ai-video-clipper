@@ -1078,6 +1078,107 @@ def test_a_document_without_keyframes_keeps_its_graph(harness, probe_stub):
         plain_job.filter_script)
 
 
+# --- zoom and the source's content rect (CONTRACTS §5.52) ------------------------------------------
+
+
+def with_content(doc: dict, rect: tuple[int, int, int, int]) -> dict:
+    doc["base"]["source"]["content_rect"] = dict(zip(("x", "y", "w", "h"), rect, strict=True))
+    return doc
+
+
+@pytest.mark.parametrize(("name", "zoom", "scale"), [
+    ("layout_zoom__c30", 1250, "scale=900:1600:force_original_aspect_ratio=increase"),
+    ("layout_zoom_fit_blur__c24", 1500, "scale=1620:2880:force_original_aspect_ratio=decrease"),
+])
+def test_zoom_scales_the_layout_to_the_zoomed_output_in_every_mode(harness, probe_stub, name,
+                                                                  zoom, scale):
+    plan = fixture_plan(name)
+    assert plan.zoom_pm == zoom and plan.content_rect is None
+    probe_stub["streams"] = fake_probe(plan.doc)
+    plain = copy.deepcopy(plan.doc)
+    del plain["layout"]["zoom_pm"]
+    plain_plan = fixture_plan(name, doc=plain)
+    assert plain_plan.zoom_pm == 1000
+    size = tm.cell_frames(plan.fps)
+    first = plan.pieces[-1].in_sf // size
+    for kwargs in ({"mode": "final"}, {"mode": "reference"}, {"mode": "frame", "frame": 12},
+                   {"mode": "plate_cells", "cells": (first, first + 1)}):
+        zoomed = compile_job(plan, source=SOURCE, assets_root=ASSETS_ROOT, **kwargs)
+        today = compile_job(plain_plan, source=SOURCE, assets_root=ASSETS_ROOT, **kwargs)
+        assert scale in zoomed.filter_script, kwargs
+        assert scale not in today.filter_script, kwargs
+        # the crops stay output-sized
+        assert f"crop={plan.output[0]}:{plan.output[1]}" in zoomed.filter_script
+
+
+def test_zoomed_keyframes_pan_over_the_zoomed_content_picture(harness, probe_stub):
+    """Manual framing with the zoom and a content rect: every output frame's crop x is the
+    keyframe x over the content picture at that zoom, after the exact crop to the rect."""
+    name = "layout_zoom_keyframes__c25"
+    rect = (240, 0, 1440, 1080)
+    doc = with_removals(with_content(load_doc(name), rect), (40, 7), (95, 30))
+    plan = fixture_plan(name, doc=doc)
+    assert plan.content_rect == rect and plan.zoom_pm == 1100
+    probe_stub["streams"] = fake_probe(plan.doc)
+    final = compile_job(plan, mode="final", source=SOURCE, assets_root=ASSETS_ROOT)
+    assert "crop=1440:1080:240:0,scale=792:1408:force_original_aspect_ratio=increase" in (
+        final.filter_script)
+    table = layouts.keyframe_positions(doc["layout"]["keyframes"], source=(1440, 1080),
+                                       output=(720, 1280), first_sf=0,
+                                       count=max(p.out_sf for p in plan.pieces), zoom_pm=1100)
+    expr = crop_expr(final)
+    for n in range(plan.total_frames):
+        assert evaluate(expr, n) == table[tm.out_to_src(n, plan.pieces)[1]], n
+    assert len(set(table)) > 10
+
+
+def test_the_camera_crop_follows_the_plan_inside_the_zoomed_content_rect(harness, probe_stub):
+    name = "layout_camera__c30"
+    rect = (0, 90, 1280, 540)
+    doc = with_content(load_doc(name), rect)
+    doc["layout"]["zoom_pm"] = 1200
+    plan = fixture_plan(name, doc=doc)
+    probe_stub["streams"] = fake_probe(plan.doc)
+    final = compile_job(plan, mode="final", source=SOURCE, assets_root=ASSETS_ROOT)
+    assert "]crop=1280:540:0:90,scale=864:1536:force_original_aspect_ratio=increase" in (
+        final.filter_script)
+    table = layouts.crop_positions(plan.camera, plan.fps, source=(1280, 720),
+                                   output=(720, 1280), first_sf=0,
+                                   count=max(p.out_sf for p in plan.pieces), zoom_pm=1200,
+                                   content=rect)
+    expr = crop_expr(final)
+    for n in range(0, plan.total_frames, 7):
+        assert evaluate(expr, n) == table[tm.out_to_src(n, plan.pieces)[1]], n
+
+
+def test_the_split_crops_its_bands_inside_the_content_rect(harness, probe_stub):
+    name = "layout_split__c30"
+    rect = (160, 0, 960, 720)
+    plan = fixture_plan(name, doc=with_content(load_doc(name), rect))
+    probe_stub["streams"] = fake_probe(plan.doc)
+    final = compile_job(plan, mode="final", source=SOURCE, assets_root=ASSETS_ROOT)
+    geometry = layouts.split_geometry(plan.split, source=(960, 720), output=(720, 1280))
+    x, y, w, h = geometry["top"]["crop"]
+    assert "crop=960:720:160:0,split=2" in final.filter_script
+    assert f"crop={w}:{h}:{x}:{y}," in final.filter_script
+
+
+def test_without_zoom_or_content_rect_every_graph_is_unchanged(harness, probe_stub):
+    """No ``zoom_pm`` and no ``content_rect``: the graph of every layout is today's (the goldens
+    pin the seeds; this pins the other layouts)."""
+    for name in ("layout_camera__c30", "layout_fill_center__c30", "layout_keyframes__c30",
+                 "layout_split__c30", "layout_camera_no_face_blur__c30"):
+        plan = fixture_plan(name)
+        assert plan.zoom_pm == 1000 and plan.content_rect is None
+        probe_stub["streams"] = fake_probe(plan.doc)
+        script = compile_job(plan, mode="final", source=SOURCE,
+                             assets_root=ASSETS_ROOT).filter_script
+        if name != "layout_split__c30":
+            assert "scale=720:1280:force_original_aspect_ratio" in script
+        # no crop to a content rect in front of a layout
+        assert not re.search(r"\]crop=\d+:\d+:\d+:\d+,(split=2|scale=\d+:\d+:force)", script)
+
+
 # --- layar terbagi: two bands of the source (CONTRACTS §5.45) -------------------------------------
 
 
@@ -1555,6 +1656,63 @@ def test_manual_crop_decoded_from_the_ruler_matches_the_keyframes(harness, tmp_p
         assert crop_x(cell_planes[sf // 60][sf % 60]) == table[sf], n
         shown.add(table[sf])
     assert {0, layouts.pan_limit((640, 360), (720, 1280))} <= shown and len(shown) > 20
+
+
+def test_zoomed_crop_inside_the_content_rect_decoded_from_the_ruler(harness, tmp_path,
+                                                                    edit_v2_ffmpeg):
+    """Zoom and content rect (CONTRACTS §5.52) with real FFmpeg: every reference frame (the
+    final's graph, lossless) and plate frame shows the keyframe crop of the zoomed content
+    picture, read from the source's column ruler (P-PLATE's decoder); latar blur's zoomed
+    picture still shows every frame's index."""
+    clip = synthetic_clip(tmp_path, frames=330, layout="fill_center", cold_open=(240, 270),
+                          body=(40, 200), removals=((90, 96),))
+    rect = (80, 0, 480, 360)
+    clip.doc["base"]["source"]["content_rect"] = dict(zip("xywh", rect, strict=True))
+    clip.doc["layout"]["zoom_pm"] = 1250
+    clip.doc["layout"]["keyframes"] = [
+        {"sf": 60, "pan_e5": 0, "move": "cut"},
+        {"sf": 180, "pan_e5": 100_000, "move": "slide"}]
+    plan = build_plan(clip.doc, words=clip.words, camera=None, assets={},
+                      resources=Resources(RESOURCES_DIR))
+    reference = compile_job(plan, mode="reference", source=clip.source, assets_root=tmp_path)
+    run_to_file(reference, tmp_path / "reference.mkv")
+    cells = sorted({sf // 60 for p in plan.pieces for sf in range(p.in_sf, p.out_sf)})
+    plate = compile_job(plan, mode="plate_cells", cells=cells, source=clip.source,
+                        assets_root=tmp_path)
+    run_cells(plate, tmp_path / "cells")
+    pattern = media.Pattern.for_size(640, 360)
+    scaled = layouts.scaled_size((480, 360), layouts.zoomed_output((720, 1280), 1250))
+    top = -layouts.crop_y((480, 360), (720, 1280), 1250)
+
+    def crop_x(plane):
+        return media.decode_crop_x(plane, 720, 1280, pattern, scale=scaled[0] / 480, top=top,
+                                   offset=rect[0], picture_w=480)
+
+    table = layouts.keyframe_positions(clip.doc["layout"]["keyframes"], source=(480, 360),
+                                       output=(720, 1280), first_sf=0, count=330, zoom_pm=1250)
+    ref_planes = list(HARNESS.iter_gray_frames(tmp_path / "reference.mkv", (720, 1280)))
+    assert len(ref_planes) == plan.total_frames
+    cell_planes = {k: list(HARNESS.iter_gray_frames(tmp_path / "cells" / f"c{k:07d}.mp4",
+                                                    (720, 1280))) for k in cells}
+    shown = set()
+    for n in range(plan.total_frames):
+        sf = tm.out_to_src(n, plan.pieces)[1]
+        assert crop_x(ref_planes[n]) == table[sf], n
+        assert crop_x(cell_planes[sf // 60][sf % 60]) == table[sf], n
+        shown.add(table[sf])
+    assert {0, layouts.pan_limit((480, 360), (720, 1280), 1250)} <= shown
+    # latar blur at the same zoom: the enlarged picture keeps the index rows
+    blur = copy.deepcopy(clip.doc)
+    blur["layout"] = {"default": {**blur["layout"]["default"], "mode": "fit_blur"},
+                      "zoom_pm": 1250}
+    plan = build_plan(blur, words=clip.words, camera=None, assets={},
+                      resources=Resources(RESOURCES_DIR))
+    run_to_file(compile_job(plan, mode="reference", source=clip.source, assets_root=tmp_path),
+                tmp_path / "blur.mkv")
+    where = HARNESS.geometry("fit_blur", (480, 360), (720, 1280), 1250)
+    for n, plane in enumerate(HARNESS.iter_gray_frames(tmp_path / "blur.mkv", (720, 1280))):
+        sf = tm.out_to_src(n, plan.pieces)[1]
+        assert media.decode_index(plane, 720, 1280, pattern, **where) == clip.grid[sf], n
 
 
 def test_split_bands_decoded_from_the_ruler_match_their_crops(harness, tmp_path,

@@ -685,3 +685,42 @@ test("randomTwoTabs gives two independent tabs from one base", () => {
   assert.equal(contentJson(replaySteps(base, mine.pending, C30.ctx).doc), contentJson(mine.doc));
   assert.equal(contentJson(replaySteps(base, theirs.pending, C30.ctx).doc), contentJson(theirs.doc));
 });
+
+test("the zoom is its own layout part: one tab zooms, the other edits, both survive (§5.52)", () => {
+  assert.ok(PARTS.includes("layout.zoom"));
+  assert.equal(partGroup("layout.zoom"), "layout");
+  const base = tab(C30).doc;
+  const mine = tab(C30, base);
+  mine.dispatch("SetZoom", { zoom_pm: 1250 });
+  assert.deepEqual(mine.pending[0].parts, ["layout.zoom"]);
+  const theirs = tab(C30, base);
+  theirs.dispatch("SetLayout", { mode: "fill_center" });
+  const merged = rebase({ base, mine: mine.doc, theirs: theirs.doc, steps: mine.pending, ctx: C30.ctx });
+  assert.equal(merged.status, "merged");
+  assert.equal(merged.doc.layout.zoom_pm, 1250);
+  assert.equal(merged.doc.layout.default.mode, "fill_center");
+  // both tabs zoom differently: one conflict in "Tata letak", named with the zoom
+  const other = tab(C30, base);
+  other.dispatch("SetZoom", { zoom_pm: 1500 });
+  const result = rebase({ base, mine: mine.doc, theirs: other.doc, steps: mine.pending, ctx: C30.ctx });
+  assert.equal(result.status, "conflict");
+  const mode = base.layout.default.mode;
+  assert.deepEqual(result.conflicts.map((group) => [group.id, group.mine, group.theirs]), [
+    ["layout", `${mode}, zoom 125%`, `${mode}, zoom 150%`]]);
+  assert.equal(result.resolve({}).doc.layout.zoom_pm, 1250);
+  assert.equal(result.resolve({ layout: "theirs" }).doc.layout.zoom_pm, 1500);
+  // the other tab went to the split: "Pakai punyaku" brings mine's layout with the zoom
+  const split = tab(C30, base);
+  split.dispatch("SetLayout", { mode: "split" });
+  const refused = rebase({ base, mine: mine.doc, theirs: split.doc, steps: mine.pending, ctx: C30.ctx });
+  assert.equal(refused.status, "conflict");
+  assert.deepEqual(refused.conflicts.map((group) => group.id), ["layout"]);
+  const kept = refused.resolve({}).doc;
+  assert.deepEqual(checkDoc(kept, C30.ctx), []);
+  assert.equal(kept.layout.default.mode, mode);
+  assert.equal(kept.layout.zoom_pm, 1250);
+  const left = refused.resolve({ layout: "theirs" }).doc;
+  assert.deepEqual(checkDoc(left, C30.ctx), []);
+  assert.equal(left.layout.default.mode, "split");
+  assert.ok(!Object.hasOwn(left.layout, "zoom_pm"));
+});
