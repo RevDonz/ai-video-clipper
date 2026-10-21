@@ -10,7 +10,9 @@ from types import MappingProxyType
 
 COMPILER_VERSION = "edit-v2/1.0.0"  # semver of the compiler; part of every render key (R9)
 COMPILER_ID = "edit-v2/1"  # the plan DTO field "compiler" and base.engine.compiler
-RENDER_SEMANTICS = 1  # bump on any golden-pixel change (owner look approval)
+# Bump on any golden-pixel change (owner look approval). 2: the karaoke \kf sweep and the
+# Sinar pack (CONTRACTS §5.47).
+RENDER_SEMANTICS = 2
 
 SCHEMA = "clip-edit-v2"
 SCHEMA_MINOR = 0

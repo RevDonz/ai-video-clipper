@@ -31,7 +31,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from ai_clipper.edit_v2 import COMPILER_ID, PACK_DEFAULT_OVERRIDES, RENDER_SEMANTICS
+from ai_clipper.edit_v2 import COMPILER_ID, PACK_DEFAULT_OVERRIDES
 from ai_clipper.edit_v2 import timemap as tm
 from ai_clipper.edit_v2.clip_id import clip_id
 from ai_clipper.edit_v2.plan import RenderPlan
@@ -346,6 +346,12 @@ def _hook_track(text: str, dur_f: int, *, y_e5: int = 13000, origin: str = "seed
     }
 
 
+# The fixture documents were seeded before the karaoke sweep (RENDER_SEMANTICS 2, CONTRACTS
+# §5.47): a document keeps the engine stamp it was seeded with, and every one of them still
+# compiles with today's engine.
+FIXTURE_RENDER_SEMANTICS = 1
+
+
 def build_seed(spec: ContextSpec, words: Mapping[str, Any]) -> dict[str, Any]:
     """Revision 0 of the context clip, following the plan §3.5 table."""
     fps = Fps(*spec.fps)
@@ -398,7 +404,7 @@ def build_seed(spec: ContextSpec, words: Mapping[str, Any]) -> dict[str, Any]:
             "camera": {"sha256": _tag(f"fixture-camera-{spec.id}")
                        if spec.layout == "camera" else None},
             "seed_sha256": None,
-            "engine": {"compiler": COMPILER_ID, "render_semantics": RENDER_SEMANTICS},
+            "engine": {"compiler": COMPILER_ID, "render_semantics": FIXTURE_RENDER_SEMANTICS},
         },
         "output": {"w": spec.output[0], "h": spec.output[1], "fps": list(spec.fps),
                    "sample_rate": 48000, "channels": 2},

@@ -121,17 +121,32 @@ def test_plate_key_names_the_camera_plan_and_the_toolchain(contexts):
         plates.plate_key(seed, toolchain_sha256="nope")
 
 
-def test_plate_key_names_the_no_face_fallback_of_face_track_only(contexts):
+# plate_key of the c30 seed, its camera layout, and that layout with a toolchain, per
+# RENDER_SEMANTICS: 1 was pinned before the no-face fallback existed; 2 (the karaoke sweep,
+# CONTRACTS §5.47) moves every key once and nothing else does.
+PLATE_KEYS = {
+    1: ("d7652b0314bba8191537175eb59413c9edef18e3b99492e20e7b36cd6786b115",
+        "97adf1de49c9aecc6e7ce09e63e2e15e0bf9c1a238b01a88bddc32f660b3c666",
+        "ceb895cc4bdc7bc79181e3abd802f2f03276d97479bbc3daf3230bce924e4b34"),
+    2: ("d8483512e8ae07c4775c07154d1a881a1e65d600b55288950cebfa8b994b0ebe",
+        "3435f882e735263f189d05a2bdf8119fd44a7a940848eb539488190630dc275e",
+        "4d3ccea00b673d6d5f0db4ac32d17471db1d2fe4a47f16fb40ce5c5d68c081a3"),
+}
+
+
+def test_plate_key_names_the_no_face_fallback_of_face_track_only(contexts, monkeypatch):
     """The latar blur fallback changes face-track pixels, so it is part of that key; every key
     without it is the one computed before the fallback existed (pinned), so cached cells stay."""
     seed = contexts["c30"].seed
     camera = with_layout(seed, "camera")
-    assert plates.plate_key(seed) == (
-        "d7652b0314bba8191537175eb59413c9edef18e3b99492e20e7b36cd6786b115")
-    assert plates.plate_key(camera, camera_sha256="1" * 64) == (
-        "97adf1de49c9aecc6e7ce09e63e2e15e0bf9c1a238b01a88bddc32f660b3c666")
-    assert plates.plate_key(camera, camera_sha256="1" * 64, toolchain_sha256="3" * 64) == (
-        "ceb895cc4bdc7bc79181e3abd802f2f03276d97479bbc3daf3230bce924e4b34")
+    assert plates.RENDER_SEMANTICS == max(PLATE_KEYS)
+    for semantics, (plain_key, camera_key, toolchain_key) in PLATE_KEYS.items():
+        monkeypatch.setattr(plates, "RENDER_SEMANTICS", semantics)
+        assert plates.plate_key(seed) == plain_key
+        assert plates.plate_key(camera, camera_sha256="1" * 64) == camera_key
+        assert plates.plate_key(camera, camera_sha256="1" * 64,
+                                toolchain_sha256="3" * 64) == toolchain_key
+    monkeypatch.undo()
     blurred = copy.deepcopy(camera)
     blurred["layout"]["default"]["no_face"] = "fit_blur"
     assert plates.plate_key(blurred, camera_sha256="1" * 64) != plates.plate_key(

@@ -378,8 +378,9 @@ def test_the_audio_key_follows_the_sound_and_the_plate_key_the_pixels(c30):
 
 # --- the cold-open transition (spec 2026-10-02 §1.5, §1.6) -----------------------------------------
 
-# preview_cli.audio_key before transitions existed (toolchain None, then "ab"·32): a document
-# without a sound keeps its preview mix.
+# preview_cli.audio_key before transitions existed (toolchain None, then "ab"·32), at
+# RENDER_SEMANTICS 1: a document without a sound keeps its preview mix. RENDER_SEMANTICS 2 (the
+# karaoke sweep, CONTRACTS §5.47) moves every key once: MIX_IDENTITY_SEMANTICS_2.
 MIX_IDENTITY_BEFORE = {
     "seed__c30": (
         "a771288df0f4fd28d612bba039b932879a5a7c63fc280766d462458c0108e9c3",
@@ -392,6 +393,20 @@ MIX_IDENTITY_BEFORE = {
     "join_fade_250__c30": (
         "38c3998d2415efb82249f0ae45aed4d9ad23a88910c4fcf92a8cdc3f79a56737",
         "e09121de8b891333e9df59b9b520d819119db81657deb8d6f258b9aa5b730589",
+    ),
+}
+MIX_IDENTITY_SEMANTICS_2 = {
+    "seed__c30": (
+        "2f20e0eccac97feb6a302e8f1338011d684d479e87fab4ded976dcf878efcba8",
+        "934caa87b670aee2b8fd3fb1fa9c7135f0a8a06c7a933b4c9a008793cab36cb4",
+    ),
+    "music__c30": (
+        "71e06df32abb4cc191da314a3a833c33b0ace79b8bb779dd746ef561f20045dc",
+        "71576c7c95e79bfc102322e791109db2371646fa27a391d021a539b308f277e1",
+    ),
+    "join_fade_250__c30": (
+        "df7f4e9b568d2fc9524ed49dbef723fca128951ec5875a4d18786b66bb757cd5",
+        "f3d480204b90ad2442750c8be22b64bc6abb1040d12ab502a4c356c5a95522d2",
     ),
 }
 
@@ -407,8 +422,12 @@ def with_join(doc: dict, style: str, whoosh: bool) -> dict:
     return doc
 
 
-def test_the_audio_key_of_a_document_without_a_sound_is_unchanged(c30):
-    for name, (plain, pinned) in MIX_IDENTITY_BEFORE.items():
+@pytest.mark.parametrize("semantics", [1, 2])
+def test_the_audio_key_of_a_document_without_a_sound_is_unchanged(c30, semantics, monkeypatch):
+    assert preview_cli.RENDER_SEMANTICS == 2
+    monkeypatch.setattr(preview_cli, "RENDER_SEMANTICS", semantics)
+    pins = MIX_IDENTITY_BEFORE if semantics == 1 else MIX_IDENTITY_SEMANTICS_2
+    for name, (plain, pinned) in pins.items():
         doc = c30["seed"] if name == "seed__c30" else valid(name)
         built = expected_plan(c30, doc)
         assert preview_cli.audio_key(built, None) == plain, name
@@ -424,7 +443,7 @@ def test_the_audio_key_follows_the_whoosh_not_the_style(c30):
     keys = {style: preview_cli.audio_key(expected_plan(c30, with_join(doc, style, True)), None)
             for style in ("cut", "flash_white", "dip_black")}
     assert len(set(keys.values())) == 1
-    assert keys["cut"] != MIX_IDENTITY_BEFORE["seed__c30"][0]
+    assert keys["cut"] != MIX_IDENTITY_SEMANTICS_2["seed__c30"][0]
     dto = ok(plan(c30, valid("join_dip_black_whoosh__c30")))["dto"]
     assert dto["audio"]["mixSha256"] == keys["cut"]
     flash = ok(plan(c30, valid("join_flash_white__c30")))["dto"]
