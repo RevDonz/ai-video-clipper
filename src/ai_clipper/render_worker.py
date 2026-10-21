@@ -433,6 +433,10 @@ def _run_v3(
         _verify_snapshot(job, request)
         monitor.arm()
         result = renderer(job, dict(request), heartbeat=monitor.beat, cancel=monitor.cancel)
+        # Stop the monitor before completing: once complete_v3 clears the lease, a poll would read
+        # that as a lost lease and set ``cancel`` on a request that already finished.
+        stop.set()
+        thread.join()
         if monitor.lost.is_set():
             raise QueueError()
         if reservation is not None and not storage_client("heartbeat", *reservation):
