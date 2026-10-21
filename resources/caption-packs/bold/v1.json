@@ -14,5 +14,6 @@
   "reveal": "word",
   "words_per_cue": 3,
   "max_width_pm": null,
+  "emphasis": {"scale_pm": 1400, "font": {"family": "Anton", "file": "Anton-Regular.ttf", "bold": false}},
   "defaults": {"y_e5": 83000, "size_pm": 1000, "case": "upper", "highlight": "#FFE14D", "emphasis": "#FF5C8A"}
 }

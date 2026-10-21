@@ -98,6 +98,10 @@ wajahnya pernah dianalisis.
 - **Karaoke** dan **Sinar**: warna sorot menyapu tiap kata dari kiri ke kanan selama kata itu
   diucapkan, lalu tetap menyala. **Sinar** menambah cahaya lembut di sekeliling baris dengan warna
   yang sama dan garis tipis gelap di tepi huruf, jadi tetap terbaca di video terang maupun gelap.
+- **Kata kunci** (tandai di Transkrip dengan Ctrl+E) tampil dengan warna kata kunci. Di Karaoke,
+  Bold dan Sinar kata itu juga 1,4 kali lebih besar; Bold memakai huruf Anton yang tegas dan
+  ramping, Sinar huruf miring berkait DM Serif Display. Ukuran dan hurufnya ditentukan gaya, tidak
+  diatur per kata. Di Box dan Sorot hanya warnanya yang berubah.
 - **Animasi masuk**: cara tiap baris caption muncul, paling lama 0,12 detik. Fade muncul
   perlahan, Pop membesar sebentar lalu pas, Blur dari buram ke tajam. Bawaannya Tanpa, jadi klip
   otomatis tidak berubah. Animasinya sama di pratinjau dan di hasil ekspor; memilih Tanpa lagi

@@ -71,6 +71,22 @@ export const FONTS = Object.freeze([
     texts: ["/licenses/fonts/Montserrat-OFL.txt"],
   },
   {
+    name: "Anton",
+    use: "Kata kunci di caption gaya Bold.",
+    license: "SIL Open Font License 1.1",
+    copyright: "Copyright 2020 The Anton Project Authors",
+    source: at("https://github.com/google/fonts", "47d54ca1ebb14fd864695f1d39dc734f39017c33") + "/ofl/anton",
+    texts: ["/licenses/fonts/Anton-OFL.txt"],
+  },
+  {
+    name: "DM Serif Display Italic",
+    use: "Kata kunci di caption gaya Sinar.",
+    license: "SIL Open Font License 1.1",
+    copyright: "Copyright 2014-2018 Adobe, with Reserved Font Name 'Source'; Copyright 2019 Google LLC",
+    source: at("https://github.com/google/fonts", "47d54ca1ebb14fd864695f1d39dc734f39017c33") + "/ofl/dmserifdisplay",
+    texts: ["/licenses/fonts/DMSerifDisplay-OFL.txt"],
+  },
+  {
     name: "DejaVu Sans dan DejaVu Sans Bold",
     use: "Caption gaya Karaoke dan Classic, dan huruf cadangan untuk karakter yang tidak ada di font lain.",
     license: "Lisensi Bitstream Vera dan Arev; perubahan DejaVu domain publik",

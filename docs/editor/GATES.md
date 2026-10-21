@@ -2110,3 +2110,23 @@ only.
 | Editor | message, check before export, fix command, one undo step, render records accept the code | pass | `web/tests/editor-caption-face.test.mjs`, `web/tests/clip-renders.test.mjs` | **pass** (local) |
 | Browser (fakes) | Perlu dicek and the Teks panel show the fix; a click moves the caption | `e2e/editor-shell.spec.mjs` "a caption over the face…" | | pending: `editor-gates suite=e2e` |
 
+## Keywords: emphasis block and accent fonts (2026-10-21)
+
+A pack's `emphasis` block gives keywords a size and an accent font (CONTRACTS §5.51): Karaoke
+140 %, Bold 140 % in Anton, Sinar 140 % in DM Serif Display Italic. `RENDER_SEMANTICS` stays 2
+(the batch's one bump, §5.49). Built on branch `adopsi/emphasis-font` with targeted local tests
+only; the gates that need the production image or a browser run on GitHub Actions when the
+branch is pushed.
+
+| Gate | What | Threshold | Result |
+|---|---|---|---|
+| Pack rules | the block's fields, the accent font pinned and named as in `fonts.json`, refused on Box and Sorot (`load_pack`, `build_ass_v2`) | pass | **pass** (`tests/test_captions_ass.py`) |
+| Events | keyword tags per pack and output size, reset after the word, `\b` switching, Sinar's glow equal to its line, one-line splits and a shrunk single keyword, every entrance | pass | **pass** (local pytest) |
+| Fonts | `fonts.json` lists both files with sha256, size, OFL text and the pinned Google Fonts commit; Indonesian text covered; the browser gets the accent font with the pack; glyph check per keyword | pass | **pass** (`tests/test_edit_v2_glyphs.py`, `test_edit_v2_preview_cli.py`, `test_edit_v2_captions.py`) |
+| ASS goldens | `word_edits__c30` and `full_example__c30` rewritten, `keywords_sinar__c30` added, the others byte-identical; plan shas of the two changed documents recomputed | bytes equal a fresh render | **pass** (local); golden evidence in the image: `suite=command` below |
+| Glyph probe | libass selects only pinned faces (`PINNED_FACES` adds Anton and DM Serif Display Italic); DejaVu Sans stays the only fallback | 0 failures | **pass** on the local FFmpeg 6.1.1 + libass 0.17.1; image: `suite=image` |
+| Thumbnails | pack hashes of Karaoke, Bold and Sinar updated; the thumbnail ASS bytes are identical before and after (no keyword in the sample), so the PNGs stay | bytes equal on the pinned toolchain | **pending**: `suite=image` (`make_pack_thumbs.py --check`) |
+| P-TXT | JASSUB against FFmpeg on `karaoke-kunci-40`, `bold-kunci-40`, `sinar-kunci-40` (all in the smoke subset) | SSIM ≥ 0.999, PSNR ≥ 45 dB, max ≤ 16, 0 px > 16 | **pending**: `Parity (smoke)` of the PR and `editor-gates suite=image` |
+
+Golden evidence, the glyph probe and the thumbnail check in the image:
+`gh workflow run editor-gates.yml -f ref=adopsi/emphasis-font -f suite=command -f command='PYTHONPATH=src:tests uv run python tests/support/edit_v2_text.py golden-evidence /out/golden-evidence.json && PYTHONPATH=src:tests uv run python tests/support/edit_v2_text.py glyph-probe /out/glyph-probe.json && PYTHONPATH=src uv run python scripts/editor/make_pack_thumbs.py --check'`.

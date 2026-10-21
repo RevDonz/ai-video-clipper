@@ -122,7 +122,8 @@ def test_hidden_words_are_excluded_and_edits_are_applied():
         assert placed[word_id].emphasis == bool(edit.get("emphasis"))
     seed_ids = _cue_ids(_track(_doc("seed__c30"), "c30"))
     assert set(seed_ids) - set(placed) == set(hidden)
-    assert "\\1c&H8A5CFF&\\2c&H8A5CFF&}" in result.ass  # karaoke emphasis (defect #6)
+    # karaoke emphasis (defect #6), 140 % of the 53 px line (§5.51)
+    assert "\\1c&H8A5CFF&\\2c&H8A5CFF&\\fs74}" in result.ass
     assert "Ijal" in result.ass
 
 
@@ -264,6 +265,20 @@ def test_glyph_unsupported_is_raised_for_characters_the_pack_font_lacks():
         doc, word = _with_word_text(seed, "c30", "ketawa😂", pack=pack)
         codes = [i.code for i in _track(doc, "c30").warnings if i.ref == word.id]
         assert codes == ["glyph_unsupported:U+1F602"], pack
+
+
+def test_glyph_unsupported_checks_a_keyword_in_its_accent_font():
+    # ₿ is in Montserrat ExtraBold but not in Anton, the Bold pack's keyword font (§5.51).
+    doc, word = _with_word_text(_doc("seed__c30"), "c30", "harga₿", pack="bold")
+    assert not [i for i in _track(doc, "c30").warnings if i.ref == word.id]
+    doc["captions"]["word_edits"][word.id]["emphasis"] = True
+    codes = [(i.code, i.path) for i in _track(doc, "c30").warnings if i.ref == word.id]
+    assert codes == [("glyph_unsupported:U+20BF", f"/captions/word_edits/{word.id}/text")]
+    # Karaoke's keyword keeps the pack font: only its size changes.
+    doc["captions"]["pack"]["id"] = "karaoke"
+    doc["captions"]["overrides"]["case"] = "asis"
+    codes = [i.code for i in _track(doc, "c30").warnings if i.ref == word.id]
+    assert codes == ["glyph_unsupported:U+20BF"]  # DejaVu Sans Bold lacks it too
 
 
 def test_glyph_unsupported_is_raised_for_the_hook_text():

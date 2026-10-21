@@ -14,5 +14,6 @@
   "reveal": "karaoke",
   "words_per_cue": 4,
   "max_width_pm": null,
+  "emphasis": {"scale_pm": 1400},
   "defaults": {"y_e5": 83000, "size_pm": 1000, "case": "asis", "highlight": "#FFE14D", "emphasis": "#FF5C8A"}
 }

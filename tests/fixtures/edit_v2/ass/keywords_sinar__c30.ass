@@ -1,0 +1,131 @@
+[Script Info]
+ScriptType: v4.00+
+WrapStyle: 0
+ScaledBorderAndShadow: yes
+YCbCr Matrix: None
+PlayResX: 720
+PlayResY: 1280
+
+[V4+ Styles]
+Format: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding
+Style: Sinar,Montserrat ExtraBold,59,&H004DE1FF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,4,0,2,43,43,218,1
+Style: Hook,DejaVu Sans,59,&H00FFFFFF,&H00FFFFFF,&H59000000,&H59000000,-1,0,0,0,100,100,0,0,3,14,0,8,43,43,166,1
+
+[Events]
+Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text
+Dialogue: 0,0:00:00.26,0:00:01.33,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}kopi katanya sumpah
+Dialogue: 0,0:00:00.26,0:00:01.33,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf40}kopi {\kf30}katanya {\kf37}sumpah
+Dialogue: 0,0:00:01.46,0:00:02.53,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}lagi dong dong
+Dialogue: 0,0:00:01.46,0:00:02.53,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf37}lagi {\kf43}dong {\kf27}dong
+Dialogue: 0,0:00:02.60,0:00:02.90,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}mah.
+Dialogue: 0,0:00:02.60,0:00:02.90,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf30}mah.
+Dialogue: 0,0:00:03.43,0:00:04.53,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}nahan langsung ketawa
+Dialogue: 0,0:00:03.43,0:00:04.53,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf43}nahan {\kf40}langsung {\kf27}ketawa
+Dialogue: 0,0:00:06.13,0:00:07.47,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}anu anu sumpah
+Dialogue: 0,0:00:06.13,0:00:07.47,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf40}anu {\kf57}anu {\kf37}sumpah
+Dialogue: 0,0:00:07.53,0:00:08.67,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}sumpah katanya film.
+Dialogue: 0,0:00:07.53,0:00:08.67,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf44}sumpah {\kf33}katanya {\kf37}film.
+Dialogue: 0,0:00:09.14,0:00:10.27,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}orang kenapa pelan
+Dialogue: 0,0:00:09.14,0:00:10.27,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf50}orang {\kf40}kenapa {\kf23}pelan
+Dialogue: 0,0:00:10.37,0:00:11.37,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}pokoknya kru waktu
+Dialogue: 0,0:00:10.37,0:00:11.37,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf40}pokoknya {\kf40}kru {\kf20}waktu
+Dialogue: 0,0:00:11.50,0:00:12.64,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}eh sih orang.
+Dialogue: 0,0:00:11.50,0:00:12.64,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf47}eh {\kf37}sih {\kf30}orang.
+Dialogue: 0,0:00:13.07,0:00:14.14,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}anu mau waktu
+Dialogue: 0,0:00:13.07,0:00:14.14,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf27}anu {\kf47}mau {\kf33}waktu
+Dialogue: 0,0:00:14.14,0:00:14.84,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}eh dong?
+Dialogue: 0,0:00:14.14,0:00:14.84,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf47}eh {\kf23}dong?
+Dialogue: 0,0:00:16.28,0:00:17.38,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}dong eh {\fs83\fnDM Serif Display Italic}pulang{\fs59\fnMontserrat ExtraBold}
+Dialogue: 0,0:00:16.28,0:00:17.38,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf43}dong {\kf37}eh {\kf30\1c&H8A5CFF&\2c&H8A5CFF&\fs83\fnDM Serif Display Italic}pulang{\1c&H4DE1FF&\2c&HFFFFFF&\fs59\fnMontserrat ExtraBold}
+Dialogue: 0,0:00:17.51,0:00:18.68,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}{\fs83\fnDM Serif Display Italic}syuting{\fs59\fnMontserrat ExtraBold} anu nggak
+Dialogue: 0,0:00:17.51,0:00:18.68,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf27\1c&H8A5CFF&\2c&H8A5CFF&\fs83\fnDM Serif Display Italic}syuting{\1c&H4DE1FF&\2c&HFFFFFF&\fs59\fnMontserrat ExtraBold} {\kf33}anu {\kf57}nggak
+Dialogue: 0,0:00:18.71,0:00:19.01,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}sendiri.
+Dialogue: 0,0:00:18.71,0:00:19.01,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf30}sendiri.
+Dialogue: 0,0:00:19.91,0:00:21.18,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}jadi sendiri nggak
+Dialogue: 0,0:00:19.91,0:00:21.18,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf50}jadi {\kf54}sendiri {\kf23}nggak
+Dialogue: 0,0:00:21.25,0:00:22.12,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}nahan wkwk mah
+Dialogue: 0,0:00:21.25,0:00:22.12,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf33}nahan {\kf27}wkwk {\kf27}mah
+Dialogue: 0,0:00:22.22,0:00:22.95,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}sih masuk.
+Dialogue: 0,0:00:22.22,0:00:22.95,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf36}sih {\kf37}masuk.
+Dialogue: 0,0:00:23.72,0:00:24.92,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}juga dong anu
+Dialogue: 0,0:00:23.72,0:00:24.92,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf50}juga {\kf46}dong {\kf24}anu
+Dialogue: 0,0:00:25.02,0:00:25.32,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}gue.
+Dialogue: 0,0:00:25.02,0:00:25.32,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf30}gue.
+Dialogue: 0,0:00:25.75,0:00:26.82,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}semua waktu kita
+Dialogue: 0,0:00:25.75,0:00:26.82,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf40}semua {\kf40}waktu {\kf27}kita
+Dialogue: 0,0:00:26.92,0:00:27.59,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}orang ketawa?
+Dialogue: 0,0:00:26.92,0:00:27.59,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf33}orang {\kf34}ketawa?
+Dialogue: 0,0:00:27.99,0:00:29.29,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}padahal hati mah
+Dialogue: 0,0:00:27.99,0:00:29.29,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf53}padahal {\kf50}hati {\kf27}mah
+Dialogue: 0,0:00:29.39,0:00:29.76,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}mau.
+Dialogue: 0,0:00:29.39,0:00:29.76,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf37}mau.
+Dialogue: 0,0:00:29.99,0:00:31.26,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}hati masuk sih
+Dialogue: 0,0:00:29.99,0:00:31.26,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf57}hati {\kf50}masuk {\kf20}sih
+Dialogue: 0,0:00:31.42,0:00:31.72,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}sendiri.
+Dialogue: 0,0:00:31.42,0:00:31.72,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf30}sendiri.
+Dialogue: 0,0:00:33.09,0:00:34.39,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}pulang juga ternyata
+Dialogue: 0,0:00:33.09,0:00:34.39,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf50}pulang {\kf54}juga {\kf26}ternyata
+Dialogue: 0,0:00:34.53,0:00:35.43,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}pas hati pelan
+Dialogue: 0,0:00:34.53,0:00:35.43,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf23}pas {\kf43}hati {\kf24}pelan
+Dialogue: 0,0:00:35.53,0:00:36.90,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}katanya pas security.
+Dialogue: 0,0:00:35.53,0:00:36.90,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf47}katanya {\kf50}pas {\kf40}security.
+Dialogue: 0,0:00:37.20,0:00:38.43,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}sih nggak kopi
+Dialogue: 0,0:00:37.20,0:00:38.43,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf30}sih {\kf56}nggak {\kf37}kopi
+Dialogue: 0,0:00:38.46,0:00:39.60,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}katanya sumpah lagi
+Dialogue: 0,0:00:38.46,0:00:39.60,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf31}katanya {\kf50}sumpah {\kf33}lagi
+Dialogue: 0,0:00:39.63,0:00:40.57,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}dong dong mah.
+Dialogue: 0,0:00:39.63,0:00:40.57,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf44}dong {\kf33}dong {\kf17}mah.
+Dialogue: 0,0:00:41.23,0:00:42.44,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}nahan langsung ketawa
+Dialogue: 0,0:00:41.23,0:00:42.44,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf44}nahan {\kf40}langsung {\kf37}ketawa
+Dialogue: 0,0:00:42.57,0:00:43.37,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}kok ternyata.
+Dialogue: 0,0:00:42.57,0:00:43.37,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf47}kok {\kf33}ternyata.
+Dialogue: 0,0:00:43.70,0:00:44.84,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}semua katanya masuk
+Dialogue: 0,0:00:43.70,0:00:44.84,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf37}semua {\kf43}katanya {\kf34}masuk
+Dialogue: 0,0:00:44.90,0:00:45.87,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}aja masuk eh
+Dialogue: 0,0:00:44.90,0:00:45.87,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf37}aja {\kf34}masuk {\kf26}eh
+Dialogue: 0,0:00:46.04,0:00:46.34,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}sumpah.
+Dialogue: 0,0:00:46.04,0:00:46.34,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf30}sumpah.
+Dialogue: 0,0:00:46.61,0:00:47.64,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}dong semua sih
+Dialogue: 0,0:00:46.61,0:00:47.64,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf36}dong {\kf34}semua {\kf33}sih
+Dialogue: 0,0:00:47.81,0:00:48.51,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}sendiri waktu.
+Dialogue: 0,0:00:47.81,0:00:48.51,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf33}sendiri {\kf37}waktu.
+Dialogue: 0,0:00:49.74,0:00:50.91,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}langsung sih security
+Dialogue: 0,0:00:49.74,0:00:50.91,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf50}langsung {\kf40}sih {\kf27}security
+Dialogue: 0,0:00:50.98,0:00:52.18,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}terus itu semua
+Dialogue: 0,0:00:50.98,0:00:52.18,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf30}terus {\kf53}itu {\kf37}semua
+Dialogue: 0,0:00:52.28,0:00:52.68,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}orang.
+Dialogue: 0,0:00:52.28,0:00:52.68,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf40}orang.
+Dialogue: 0,0:00:52.98,0:00:53.98,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}langsung kenapa padahal
+Dialogue: 0,0:00:52.98,0:00:53.98,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf30}langsung {\kf37}kenapa {\kf33}padahal
+Dialogue: 0,0:00:54.15,0:00:55.15,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}aja syuting dia
+Dialogue: 0,0:00:54.15,0:00:55.15,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf26}aja {\kf40}syuting {\kf34}dia
+Dialogue: 0,0:00:55.21,0:00:55.62,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}ambil.
+Dialogue: 0,0:00:55.21,0:00:55.62,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf41}ambil.
+Dialogue: 0,0:00:56.28,0:00:57.45,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}katanya jadi abis
+Dialogue: 0,0:00:56.28,0:00:57.45,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf47}katanya {\kf40}jadi {\kf30}abis
+Dialogue: 0,0:00:57.55,0:00:58.35,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}security katanya.
+Dialogue: 0,0:00:57.55,0:00:58.35,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf50}security {\kf30}katanya.
+Dialogue: 0,0:00:58.68,0:00:59.75,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}itu ternyata film
+Dialogue: 0,0:00:58.68,0:00:59.75,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf34}itu {\kf50}ternyata {\kf23}film
+Dialogue: 0,0:00:59.89,0:01:00.75,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}dong dong?
+Dialogue: 0,0:00:59.89,0:01:00.75,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf50}dong {\kf36}dong?
+Dialogue: 0,0:01:01.25,0:01:02.52,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}dia nggak kru
+Dialogue: 0,0:01:01.25,0:01:02.52,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf50}dia {\kf47}nggak {\kf30}kru
+Dialogue: 0,0:01:02.59,0:01:02.96,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}pelan.
+Dialogue: 0,0:01:02.59,0:01:02.96,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf37}pelan.
+Dialogue: 0,0:01:04.32,0:01:05.29,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}pokoknya semua ternyata
+Dialogue: 0,0:01:04.32,0:01:05.29,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf30}pokoknya {\kf30}semua {\kf37}ternyata
+Dialogue: 0,0:01:05.39,0:01:06.26,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}dong waktu ternyata
+Dialogue: 0,0:01:05.39,0:01:06.26,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf37}dong {\kf27}waktu {\kf23}ternyata
+Dialogue: 0,0:01:06.33,0:01:07.06,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}nggak film.
+Dialogue: 0,0:01:06.33,0:01:07.06,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf53}nggak {\kf20}film.
+Dialogue: 0,0:01:07.43,0:01:08.63,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}abis bukan kok
+Dialogue: 0,0:01:07.43,0:01:08.63,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf46}abis {\kf34}bukan {\kf40}kok
+Dialogue: 0,0:01:08.73,0:01:09.80,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}eh masuk hati
+Dialogue: 0,0:01:08.73,0:01:09.80,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf30}eh {\kf37}masuk {\kf40}hati
+Dialogue: 0,0:01:09.86,0:01:10.23,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}sih.
+Dialogue: 0,0:01:09.86,0:01:10.23,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf37}sih.
+Dialogue: 0,0:01:11.66,0:01:12.03,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2\bord14\blur9\3c&H4DE1FF&\3a&H30&\1a&HFF&\2a&HFF&\shad0}aja
+Dialogue: 0,0:01:11.66,0:01:12.03,Sinar,,0,0,0,,{\an2\pos(360,1062)\q2}{\kf37}aja
+Dialogue: 1,0:00:00.00,0:00:04.00,Hook,,0,0,0,,{\fad(150,250)\an8\q2\pos(360,180)}Dia ditahan security
+Dialogue: 1,0:00:00.00,0:00:04.00,Hook,,0,0,0,,{\fad(150,250)\an8\q2\pos(360,267)}di film-nya sendiri

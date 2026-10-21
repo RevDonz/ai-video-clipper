@@ -3694,3 +3694,76 @@ faces, the caption box and presets against the JS sources), `tests/test_edit_v2_
 `tests/test_face_window.py`, `tests/test_speaker_track.py`, `tests/test_edit_v2_plan.py`,
 `tests/test_edit_v2_plates.py`; `web/tests/editor-caption-face.test.mjs`; browser spec
 `web/e2e/editor-shell.spec.mjs` ("a caption over the face…") on the editor fakes.
+
+## 5.51 Keywords: the emphasis block and two accent fonts (2026-10-21)
+
+A keyword ("Kata kunci", `word_edits[id].emphasis`) changed colour only. A pack may now also give
+it a size and an accent font through an optional `emphasis` block in its file. There is no free
+per-word font, size or colour: the look of a keyword belongs to the pack. Golden pixels change
+for keywords in Karaoke, Bold and Sinar; this falls under the batch's one `RENDER_SEMANTICS` bump
+(§5.49), so the value stays 2. `schema_minor`, the document and the commands are unchanged.
+
+### Pack field `emphasis` (`captions_ass.Emphasis`, `load_pack`)
+
+- `{"scale_pm": int, "font"?: {"family", "file", "bold"}}`, nothing else. `scale_pm` is
+  `EMPHASIS_SCALE_RANGE` (1000–2000) per mille of the line's font size. `font.file` must be a
+  pinned font of `fonts.json`, and `font.family` one of the names libass selects that file by
+  (its `family`, or `family` + " " + `style`): a misspelt family would silently fall back to
+  DejaVu Sans, so `load_pack` refuses it.
+- Only on an outlined pack (`border_style` 1) with the `static`, `word` or `karaoke` reveal.
+  Box (BorderStyle 3 boxes each run separately) and Sorot (each word placed by hand) are refused
+  by `load_pack` and by `build_ass_v2`.
+- The colour stays where it was: `defaults.emphasis`, changed by "Warna kata kunci"
+  (`overrides.emphasis`).
+- Pack files: Karaoke `{"scale_pm": 1400}` (size only, DejaVu Sans Bold stays); Bold
+  `{"scale_pm": 1400, "font": Anton}`; Sinar `{"scale_pm": 1400, "font": DM Serif Display
+  Italic}`. Klasik, Box and Sorot have no block. The pack files change in place (v1), as
+  Sorot's did (§5.30); `pack-thumbs/manifest.json` takes the new pack hashes and the PNGs are
+  unchanged, because the thumbnail words hold no keyword (the thumbnail ASS bytes are identical).
+
+### Events
+
+- Line size `S` (the pack size, or a single too-wide word's `\fsS`), keyword size
+  `E = round_half_up(S · scale_pm / 1000)`. A keyword opens with its colour tags followed by
+  `\fsE`, then `\fn<accent family>` when the block has a font, then `\b0`/`\b1` when the accent
+  font's `bold` differs from the pack's; the closing block restores the colours, `\fsS`,
+  `\fn<pack family>` and the pack's `\b` in the same order. Without a block nothing but the
+  colour is written (byte-identical to before).
+  - Static and Bold: `{\1c<emphasis>\fsE\fn…}WORD{\1c<text>\fsS\fn…}`.
+  - Karaoke: `{\kfN\1c<emphasis>\2c<emphasis>\fsE…}word{\1c<highlight>\2c<text>\fsS…}`.
+  - Sinar: the glow copy carries the same `{\fsE\fn…}word{\fsS\fn…}` around the keyword, so the
+    glow and the line keep the same glyphs.
+- The entrances (§5.39) are unchanged: Pop scales with `\fscx`/`\fscy`, which multiply `\fs`.
+- One-line packs (`max_width_pm`) measure a keyword in its own size and font
+  (`_line_fits`: `hmtx` advances of plain words and spaces at `S` in the pack font plus the
+  keywords at `E` in the accent font): `fit_cues` splits a line the keyword makes too wide. A
+  single keyword wider than the limit shrinks the line to the largest `S` whose `E` fits in the
+  accent font (`_single_word_size`).
+
+### Fonts
+
+- `resources/fonts/Anton-Regular.ttf` (family "Anton") and `DMSerifDisplay-Italic.ttf` (family
+  "DM Serif Display", style "Italic"; packs name it "DM Serif Display Italic", its full name),
+  both OFL-1.1 from `github.com/google/fonts` at commit `47d54ca1`, with `OFL-Anton.txt` and
+  `OFL-DMSerifDisplay.txt`. `fonts.json` lists sha256, size, licence and source (`kind`
+  `google-fonts`, the raw URL at that commit, the upstream repository and commit).
+- The render loads them like Montserrat: FFmpeg's `ass` filter with `fontsdir=fonts` (libass'
+  embedded-font provider); fontconfig still accepts DejaVu Sans only, which stays the only
+  fallback. The image copies `resources/` as before.
+- The preview: `preview_cli._font_entries` lists the pack's accent font after the pack font,
+  whether or not a word is a keyword yet, so JASSUB has it before the first frame.
+- `glyph_unsupported:U+XXXX` checks a keyword against the accent font (₿ is in Montserrat, not in
+  Anton). The licences page lists both fonts with their OFL text.
+
+### Gates
+
+- Tests: `tests/test_captions_ass.py` (the block's rules, the tags per pack, size per output,
+  `\b` switching, Sinar's glow, one-line splits and a shrunk keyword, entrances),
+  `tests/test_edit_v2_glyphs.py` (`fonts.json`), `tests/test_edit_v2_captions.py` (the glyph
+  check), `tests/test_edit_v2_preview_cli.py` (the browser's font list).
+- ASS goldens: `word_edits__c30` (Karaoke) and `full_example__c30` (Bold) rewritten; new
+  document `valid/keywords_sinar__c30.json` and golden `keywords_sinar__c30`;
+  `plan-shas.json` recomputed for the two documents whose ASS changed.
+- P-TXT: `karaoke-kunci-40`, `bold-kunci-40`, `sinar-kunci-40` (`reference_text.EMPHASIS_PACKS`,
+  "WAJIB" and "Ayahku" as keywords), all three in the smoke subset; the glyph probe's
+  `PINNED_FACES` add `Anton-Regular` and `DMSerifDisplay-Italic`.
