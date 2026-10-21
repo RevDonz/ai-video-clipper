@@ -40,7 +40,7 @@ test.describe("Teks watermark bawaan", () => {
     await expect(text).toHaveValue("");
     await expect(section.getByRole("combobox", { name: "Posisi" })).toHaveValue("top_center");
     // An empty text is refused on the page, before anything is sent.
-    await section.getByRole("button", { name: "Simpan" }).click();
+    await section.getByRole("button", { name: "Simpan watermark" }).click();
     await expect(section.getByRole("alert")).toHaveText("Tulis teks watermark dulu.");
     expect(seen.puts).toHaveLength(0);
     await text.fill("  @potongin.klip ");
@@ -54,10 +54,10 @@ test.describe("Teks watermark bawaan", () => {
     await opacity.focus();
     for (let step = 0; step < 15; step += 1) await page.keyboard.press("ArrowLeft");
     await expect(section).toContainText("Opasitas 70%");
-    await section.getByRole("button", { name: "Simpan" }).click();
+    await section.getByRole("button", { name: "Simpan watermark" }).click();
     await expect(section.getByRole("status")).toHaveText("Teks watermark bawaan tersimpan.");
     expect(seen.puts).toEqual([{ text: "@potongin.klip", pos: "bottom_right", size_pm: 1200, opacity_pm: 700 }]);
-    await expect(section.getByRole("button", { name: "Simpan" })).toBeDisabled();
+    await expect(section.getByRole("button", { name: "Simpan watermark" })).toBeDisabled();
     const remove = section.getByRole("button", { name: "Hapus" });
     await remove.focus();
     await page.keyboard.press("Enter");

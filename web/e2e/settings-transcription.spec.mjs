@@ -101,7 +101,7 @@ base.describe("Transkripsi refusals", () => {
     await login(page, "/settings");
     const section = card(page);
     await section.getByLabel("API key Groq").fill("dua kata");
-    await section.getByRole("button", { name: "Simpan key" }).click();
+    await section.getByRole("button", { name: "Simpan key Groq" }).click();
     await expect(section.getByRole("alert")).toHaveText("API key harus berupa teks ASCII tanpa spasi (maks. 4096 karakter).");
     await expect(section.getByRole("checkbox", { name: "Transkrip lewat Groq" })).not.toBeChecked();
   });

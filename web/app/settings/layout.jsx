@@ -1,6 +1,6 @@
 export const metadata = {
-  title: "Pengaturan AI",
-  description: "Atur penyedia LLM, API key, URL, dan model tanpa mengedit .env server.",
+  title: "Pengaturan",
+  description: "Atur AI, transkripsi, logo, watermark, dan cookies YouTube tanpa mengedit .env server.",
 };
 
 export default function SettingsLayout({ children }) {
