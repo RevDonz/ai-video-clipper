@@ -354,7 +354,7 @@ def test_seed_options_from_the_job():
         _seed(clip, _job(), camera_sha="d" * 64)
 
 
-# --- the job's caption look (dashboard "Tampilan klip", CONTRACTS §5.47) -------------------------
+# --- the job's caption look (dashboard "Tampilan klip", CONTRACTS §5.48) -------------------------
 
 
 @pytest.mark.parametrize("pack", PACK_IDS)

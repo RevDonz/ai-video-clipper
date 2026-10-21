@@ -152,7 +152,7 @@ def auto_file_is_seed(seed: Mapping) -> bool:
     """Whether R10 may hand out the clip's auto file for this seed: the legacy renderer never
     draws a logo or a text watermark, and draws only Klasik or Karaoke at the pack's spot and
     size, so a legacy seed with the Pengaturan defaults or another look from the job's options
-    (CONTRACTS §5.47) is not that file."""
+    (CONTRACTS §5.48) is not that file."""
     if seed["base"]["engine"]["compiler"] != "legacy":
         return True
     captions = seed["captions"]

@@ -665,7 +665,7 @@ def _ratio(value: object, name: str) -> tuple[int, int]:
 
 def legacy_caption_style(pack_id: str) -> str:
     """The ``CAPTION_STYLES`` entry the legacy renderer draws for a caption pack (a rollback or
-    an engine fallback, CONTRACTS §5.47): a pack that lights no spoken word is ``classic``, any
+    an engine fallback, CONTRACTS §5.48): a pack that lights no spoken word is ``classic``, any
     other ``karaoke``. Raises ``ValueError`` for an unknown pack."""
     if pack_id in CAPTION_STYLES:
         return pack_id

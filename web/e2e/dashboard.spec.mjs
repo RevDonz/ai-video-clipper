@@ -279,7 +279,7 @@ test.describe("Dashboard form (faked job API)", () => {
     await expect(page.getByRole("group", { name: "Gaya subtitle" })).toHaveAccessibleDescription(/Edit klip/);
   });
 
-  test("every pack, Atas/Tengah/Bawah and the size reach the job and the preview (CONTRACTS 5.47)", async ({ page }) => {
+  test("every pack, Atas/Tengah/Bawah and the size reach the job and the preview (CONTRACTS 5.48)", async ({ page }) => {
     const posts = await fakeDashboardApi(page);
     await openDashboard(page);
     await optionsButton(page).click();

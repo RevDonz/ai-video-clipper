@@ -171,7 +171,7 @@ _FILE_FLAGS = os.O_RDONLY | os.O_CLOEXEC | getattr(os, "O_NOFOLLOW", 0)
 def engine_from_env(env: Mapping[str, str] | None = None) -> str:
     """``"legacy"`` only when ``POTONGIN_RENDER_ENGINE`` says so (any case, outer spaces
     ignored: the rollback switch); unset, empty or any other value is ``"edit-v2"``, the release
-    default since the owner accepted the slower auto render (CONTRACTS §5.47)."""
+    default since the owner accepted the slower auto render (CONTRACTS §5.48)."""
     value = (os.environ if env is None else env).get(ENGINE_ENV)
     if isinstance(value, str) and value.strip().lower() == ENGINE_LEGACY:
         return ENGINE_LEGACY
@@ -931,7 +931,7 @@ class AutoOptions:
     # The cold-open transition of the auto render (spec 2026-10-02 §6.2); the default keeps a
     # construction without it on today's cut.
     cold_open_join: ColdOpenJoin = CUT_JOIN
-    caption_position: str = "bottom"  # CAPTION_POSITIONS (CONTRACTS §5.47)
+    caption_position: str = "bottom"  # CAPTION_POSITIONS (CONTRACTS §5.48)
     caption_size: str = "medium"  # CAPTION_SIZES
 
     def job(self, job_id: str, seed_at_ms: int) -> dict[str, Any]:

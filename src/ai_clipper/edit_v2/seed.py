@@ -10,7 +10,7 @@ same plan and render keys whenever it was seeded (plan §5.2 R9).
 ``options``: ``renderMode``, ``captionStyle`` (any caption pack), ``captionPosition``
 (``top``/``middle``/``bottom``), ``captionSize`` (``small``/``medium``/``large``), ``coldOpen``,
 ``hookOverlay``; missing options take the dashboard's V3 defaults, and the position and size the
-pack defaults, CONTRACTS §5.47) plus optional seed-context keys that never occur in ``job.json``:
+pack defaults, CONTRACTS §5.48) plus optional seed-context keys that never occur in ``job.json``:
 
 * ``renderSize`` ``[w, h]``: the job's render size, default ``[720, 1280]`` (the dashboard's);
 * ``hookDuration``: seconds, default 4.0 (the pipeline's ``DEFAULT_HOOK_DURATION``);

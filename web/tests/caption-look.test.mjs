@@ -1,4 +1,4 @@
-// "Tampilan klip" at job creation (CONTRACTS §5.47): the caption pack, its spot (Atas, Tengah,
+// "Tampilan klip" at job creation (CONTRACTS §5.48): the caption pack, its spot (Atas, Tengah,
 // Bawah) and its size are job options the automatic render honours. The ids and numbers are the
 // engine's (edit_v2/__init__.py) and the editor's presets, so the automatic file equals what the
 // editor opens. With the legacy engine (the rollback switch) the dashboard offers only Klasik and

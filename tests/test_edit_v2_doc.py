@@ -452,7 +452,7 @@ def test_a_legacy_auto_file_stands_for_its_seed_only_without_a_watermark(context
     {"overrides": {"size_pm": 1200}},
 ])
 def test_a_legacy_auto_file_stands_for_its_seed_only_with_a_look_legacy_draws(contexts, change):
-    """The legacy renderer draws Klasik or Karaoke at the bottom in one size (CONTRACTS §5.47): a
+    """The legacy renderer draws Klasik or Karaoke at the bottom in one size (CONTRACTS §5.48): a
     legacy seed with another pack, spot or size from the job's options is not its auto file."""
     seed = copy.deepcopy(contexts["c30"].seed)
     compiler = seed["base"]["engine"]["compiler"]

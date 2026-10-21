@@ -216,7 +216,7 @@ def test_cli_v3_defaults():
     assert args.cold_open is True
     assert args.hook_overlay is True
     assert args.caption_style is None  # karaoke for v3, classic otherwise (run_pipeline)
-    # None: the pack's own spot and size (bottom, medium; CONTRACTS §5.47)
+    # None: the pack's own spot and size (bottom, medium; CONTRACTS §5.48)
     assert args.caption_position is None and args.caption_size is None
     assert args.captions_dir is None
     assert args.trend_context is None
@@ -280,7 +280,7 @@ def test_cli_rejects_invalid_v3_options(arguments: list[str]):
 
 
 def test_cli_forwards_the_caption_look_of_a_web_job(monkeypatch, tmp_path: Path):
-    """CONTRACTS §5.47: the dashboard's pack, spot and size reach run_pipeline unchanged."""
+    """CONTRACTS §5.48: the dashboard's pack, spot and size reach run_pipeline unchanged."""
     monkeypatch.setattr(cli, "load_whisper_model", lambda *a, **k: "M")
     received = _capture_pipeline(monkeypatch, tmp_path)
     arguments = [*WEB_V3_ARGS[:-4], "--caption-style", "bold", "--caption-position", "top",

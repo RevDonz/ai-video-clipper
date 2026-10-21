@@ -2,7 +2,7 @@
 // "on" (any case) switches one on. `POTONGIN_LLM=off` (global) also switches the editor's LLM part
 // off. The automatic clips' render engine is "edit-v2" unless POTONGIN_RENDER_ENGINE says
 // "legacy" (any case, outer spaces ignored: the rollback switch), the same reading as
-// edit_v2.render_edit.engine_from_env (CONTRACTS §5.47).
+// edit_v2.render_edit.engine_from_env (CONTRACTS §5.48).
 //
 // Server components read these from `process.env` and pass the booleans to the client; the
 // variable names are the ones `compose.yaml` passes through and `web/lib/python-cli.mjs` allows.

@@ -30,7 +30,7 @@ shadow keep their historical behaviour. Selection V3 (``selection_mode="v3"``) r
    ``fallbacks``, below); it draws the job's caption pack as Klasik or Karaoke
    (``captions_ass.legacy_caption_style``) at its one spot and size. ``edit-v2`` (Editor V3, plan
    §5.8) seeds every clip with the job's pack, ``caption_position`` and ``caption_size``
-   (CONTRACTS §5.47) and renders revision 0 through the
+   (CONTRACTS §5.48) and renders revision 0 through the
    edit-v2 compiler (``edit_v2.render_edit.AutoRenderer``: ``analysis/source.json``, the clip's
    peaks, words, camera plan for face-track and ``seed.json`` under
    ``analysis/clips/<clip_id>/``); each clip entry then also carries ``clip_id``,
@@ -504,7 +504,7 @@ def _choice(value: object, name: str, choices: tuple[str, ...]) -> str:
 
 def _caption_look(value: object, name: str, values: Mapping[str, int], default: str,
                   v3: bool) -> str:
-    """A caption position or size (CONTRACTS §5.47): ``None`` is ``default``; another value
+    """A caption position or size (CONTRACTS §5.48): ``None`` is ``default``; another value
     needs Selection V3, whose seed carries it."""
     if value is None:
         return default

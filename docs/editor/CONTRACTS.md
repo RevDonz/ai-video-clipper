@@ -391,7 +391,7 @@ AI" target of an existing clip.
 | `clip_id` | `"clip_" + sha256("potongin-clip-v1\0" ‖ source_content_sha256 ‖ "\0" ‖ start_ms ‖ "\0" ‖ end_ms ‖ "\0" ‖ (co_start_ms "-" co_end_ms, or "-"))[:24]` (FINAL §4.9; rank and selection version excluded, so a re-run that finds the same moment re-attaches the edits) |
 | `main.segments` | Cold open (when the job ran with cold open and the clip has one) + body, edges per §3.4 |
 | `main.joins` | With a kept cold open: `{"after": "seg_co", "style", "audio_fade_ms": 30}` (+ `sfx`) from the seed context `coldOpenJoin`: the pipeline's `flash_white` + whoosh; prepare: the clip's manifest `cold_open_join`, else `cut` without sound (§5.26, amended 2026-10-02). `audio_fade_ms` is today's `AUDIO_JOIN_FADE_SECONDS` |
-| `captions.pack` | The job's `captionStyle` (any pack id); overrides at the pack defaults, with `y_e5`/`size_pm` from the job's `captionPosition`/`captionSize` when it has them (§5.47) |
+| `captions.pack` | The job's `captionStyle` (any pack id); overrides at the pack defaults, with `y_e5`/`size_pm` from the job's `captionPosition`/`captionSize` when it has them (§5.48) |
 | hook item | When `hookOverlay` and `hook_text` exist: `[0, round_half_up(hook_duration·F))`, `legacy-bar`, `y_e5 13000` |
 | `layout.default.mode` | `face-track` → `camera`, `fit-blur` → `fit_blur`, `center-crop` → `fill_center` |
 | `output` | The job's render size (the dashboard passes 720×1280 [REPO run-job.mjs]); fps: native standard rates kept; 50 → 25, 60 → 30, 60000/1001 → 30000/1001; VFR or other → 30/1 |
@@ -1215,7 +1215,7 @@ signatures stay; everything below is additive unless marked **changed**.
   `plan_sha256`; the summary warning `engine_fallback:<index>` marks a per-clip fallback, and the
   clip itself gets `fallbacks` (§5.31). `POTONGIN_RENDER_ENGINE` is `edit-v2` by default since
   2026-10-21; only `legacy` (any case, outer spaces ignored) selects the legacy engine, the
-  rollback switch (§5.47).
+  rollback switch (§5.48).
 
 ### render-request-v3 and its routes (T2.2)
 
@@ -2600,7 +2600,7 @@ with (plan 2026-10-20 A6). Each clip keeps it replaceable and removable in the L
   upload's (`sha256, kind "logo", mime, w, h, durationMs null, lufsC null, name, peaksUrl null`)
   plus `url` `/api/settings/logo/<sha>` and `updatedAtMs`. `enabled`: `POTONGIN_EDITOR_V3` and
   `POTONGIN_EDITOR_UPLOADS` both `on`. `autoClips`: the automatic clips render with `edit-v2`
-  (`POTONGIN_RENDER_ENGINE` is not `legacy`, §5.47).
+  (`POTONGIN_RENDER_ENGINE` is not `legacy`, §5.48).
 - **`POST /api/settings/logo`**: the transport of `POST /api/jobs/:id/assets` with
   `X-Asset-Kind: logo` (types, 10 MiB cap, `Content-Length`, `Idempotency-Key`, `X-Asset-Name`,
   the 64-byte sniff, the upload rate bucket, drain before a refusal). Order: session (401),

@@ -297,7 +297,7 @@ def test_render_functions_keep_the_appendix_a_signatures():
     ("on", "edit-v2"), ("v2", "edit-v2"), ("legacy", "legacy"), (" Legacy ", "legacy"),
     ("LEGACY", "legacy"), ("legacy-v1", "edit-v2")])
 def test_the_engine_is_edit_v2_unless_the_flag_rolls_back_to_legacy(value, engine):
-    """The release default is edit-v2 (CONTRACTS §5.47); ``legacy`` is the rollback switch."""
+    """The release default is edit-v2 (CONTRACTS §5.48); ``legacy`` is the rollback switch."""
     env = {} if value is None else {"POTONGIN_RENDER_ENGINE": value}
     assert render_edit.engine_from_env(env) == engine
 

@@ -29,7 +29,7 @@ export const LLM_MODES = ["auto", "off"];
 export const CAPTION_STYLES = Object.freeze([...PACK_IDS]);
 export const LEGACY_CAPTION_STYLES = Object.freeze(["karaoke", "classic"]);
 /**
- * "Posisi" and "Ukuran" of the captions (CONTRACTS §5.47): optional V3 options, the seed's y_e5
+ * "Posisi" and "Ukuran" of the captions (CONTRACTS §5.48): optional V3 options, the seed's y_e5
  * and size_pm (edit_v2 CAPTION_POSITIONS / CAPTION_SIZES). A job without them has the pack's
  * own spot and size, bottom and medium.
  */

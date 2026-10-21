@@ -1,6 +1,6 @@
 // The 9:16 preview under "Tampilan klip" on the dashboard (app/dashboard/LookPreview.jsx). It draws
 // only what a job option changes in the automatic render: the layout, the subtitle's pack, spot and
-// size (CONTRACTS §5.47) and the hook text. With the legacy engine (the rollback switch) the
+// size (CONTRACTS §5.48) and the hook text. With the legacy engine (the rollback switch) the
 // subtitle keeps the one spot and size that engine draws. Geometry is in output pixels of the
 // dashboard's 720×1280 render; web/tests/look-preview.test.mjs and caption-look.test.mjs keep every
 // number equal to the engine's. Pure and DOM-free.

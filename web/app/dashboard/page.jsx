@@ -240,7 +240,7 @@ export default function DashboardPage() {
   // The jobs list says whether the editor is on: the preview names Edit klip only then.
   const [editorOn, setEditorOn] = useState(false);
   // ...and which engine renders the automatic clips: with the legacy one (the rollback switch)
-  // only the caption looks it draws are offered (CONTRACTS §5.47).
+  // only the caption looks it draws are offered (CONTRACTS §5.48).
   const [renderEngine, setRenderEngine] = useState("edit-v2");
   const offered = lookChoices(renderEngine);
   const { captionStyle, captionPosition, captionSize } = normalizeChoices(choices, { engine: renderEngine });

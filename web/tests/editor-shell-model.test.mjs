@@ -320,7 +320,7 @@ test("an unchanged legacy clip seeded with the default logo exports a render, no
   assert.equal(exportMatchesSeed({ plan, doc: structuredClone(legacy), seed: legacy }), true);
 });
 
-test("an unchanged legacy clip whose job picked a look legacy never drew exports a render (CONTRACTS §5.47)", () => {
+test("an unchanged legacy clip whose job picked a look legacy never drew exports a render (CONTRACTS §5.48)", () => {
   const legacy = fakeDoc();
   legacy.base.engine.compiler = "legacy";
   for (const id of ["karaoke", "classic"]) {

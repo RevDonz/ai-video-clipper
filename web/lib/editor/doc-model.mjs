@@ -161,7 +161,7 @@ const LEGACY_CAPTION_SPOT = Object.freeze({ y_e5: 83000, size_pm: 1000 });
  * Whether R10 may hand out the auto file for this seed (edit_v2.doc.auto_file_is_seed): the
  * legacy renderer never draws a logo or a text watermark, nor another pack, spot or size than the
  * above, so a legacy seed with the Pengaturan defaults or another look the job picked
- * (CONTRACTS §5.47) is not it.
+ * (CONTRACTS §5.48) is not it.
  */
 export function autoFileIsSeed(seed) {
   if (seed?.base?.engine?.compiler !== "legacy") return true;

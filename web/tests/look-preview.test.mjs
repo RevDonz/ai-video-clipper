@@ -145,7 +145,7 @@ test("the dashboard offers every caption pack the automatic render draws, each w
   assert.deepEqual(offered, engine);
   assert.deepEqual(offered, CAPTION_STYLES);
 
-  // The seed takes a job's caption style as its pack id (CONTRACTS §5.47).
+  // The seed takes a job's caption style as its pack id (CONTRACTS §5.48).
   assert.equal(pythonConstant(read("src", "ai_clipper", "edit_v2", "seed.py"), "PACK_BY_CAPTION_STYLE").split("#")[0].trim(), "{pack: pack for pack in PACK_IDS}");
   const thumbs = json("web", "components", "editor", "panels", "pack-thumbs", "manifest.json");
   for (const style of offered) assert.ok(thumbs.packs[style], `${style} has a rendered thumbnail`);

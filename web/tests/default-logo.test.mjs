@@ -345,7 +345,7 @@ test("only the current logo is served, never a symlink or another file", async (
 test("GET says whether uploads are on and whether automatic clips carry the logo", async (t) => {
   const where = await roots(t);
   const read0 = async (extra) => (await read(await createDefaultLogoRoute(deps(where, { env: env(where, extra) })).GET(request("GET")))).body;
-  // edit-v2 is the release default (CONTRACTS §5.47); legacy is the rollback switch.
+  // edit-v2 is the release default (CONTRACTS §5.48); legacy is the rollback switch.
   assert.deepEqual(await read0({}), { logo: null, enabled: true, autoClips: true });
   assert.deepEqual(await read0({ POTONGIN_EDITOR_UPLOADS: "off" }), { logo: null, enabled: false, autoClips: true });
   assert.deepEqual(await read0({ POTONGIN_RENDER_ENGINE: "edit-v2" }), { logo: null, enabled: true, autoClips: true });

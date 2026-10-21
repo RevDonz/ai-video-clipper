@@ -562,7 +562,7 @@ def test_every_pack_loads_with_the_seed_defaults_and_its_font():
 @pytest.mark.parametrize("pack_id", PACK_IDS)
 def test_the_legacy_renderer_draws_every_pack_as_classic_or_karaoke(pack_id):
     """A clip the legacy engine renders (rollback or engine fallback) keeps the pack's reveal: a
-    pack that lights no spoken word is Klasik, any other Karaoke (CONTRACTS §5.47)."""
+    pack that lights no spoken word is Klasik, any other Karaoke (CONTRACTS §5.48)."""
     style = captions_ass.legacy_caption_style(pack_id)
     assert style in CAPTION_STYLES
     assert style == ("classic" if load_pack(pack_id, 1).reveal == "static" else "karaoke")

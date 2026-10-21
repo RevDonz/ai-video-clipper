@@ -14,7 +14,7 @@ export const LAYOUT_CHOICES = Object.freeze([
 
 // Every caption pack, named as the editor names it (components/editor/panels/caption-model.mjs);
 // the ids are lib/jobs.mjs CAPTION_STYLES. The legacy engine (the rollback switch) draws only
-// Karaoke and Klasik, at the bottom in one size (CONTRACTS §5.47).
+// Karaoke and Klasik, at the bottom in one size (CONTRACTS §5.48).
 export const CAPTION_STYLE_CHOICES = Object.freeze([
   { id: "classic", name: "Klasik", description: "Putih bergaris hitam, tanpa sorotan." },
   { id: "karaoke", name: "Karaoke", description: "Kata yang sedang diucapkan menyala." },

@@ -2220,7 +2220,7 @@ def test_the_edit_v2_engine_renders_every_clip_through_the_compiler(
 ])
 def test_the_caption_look_reaches_the_seed_options(env, monkeypatch, fake_engine, pack, position,
                                                    size):
-    """CONTRACTS §5.47: the job's pack, spot and size become the seed's pack and overrides, so the
+    """CONTRACTS §5.48: the job's pack, spot and size become the seed's pack and overrides, so the
     auto file is what the editor opens."""
     monkeypatch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: result(*TWO_CLIPS))
 
