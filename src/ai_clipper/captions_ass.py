@@ -469,8 +469,9 @@ _BLUR_START = (1, 128)
 # comes from a copy of the line whose fill (alpha FE, not FF: a fill that is not fully
 # transparent keeps the shadow uncut) and border are transparent (CONTRACTS §5.39, §5.43, §5.49).
 _SHADOW_OUTLINE_OFFSET = "0.02"
-# Blok's boxes blur by H/_BLOCK_BOX_BLUR (H: the text height), CONTRACTS §5.33.
-_BLOCK_BOX_BLUR = 1280
+# Blok's boxes and the watermark's outline blur by H/_SOFT_EDGE_HEIGHTS px (H: the text height),
+# CONTRACTS §5.33, §5.43.
+_SOFT_EDGE_HEIGHTS = 1280
 _FADING_ENTRANCES = ("fade", "blur")
 _E5 = 100_000
 # Hook designs (CONTRACTS §5.33): the seeds' bar, whose geometry is the code below, and the
@@ -1518,7 +1519,7 @@ def _design_layout(spec: HookDesign, hook: str, *, play_res: tuple[int, int], to
         first = top + box_h  # the first line's bottom: its box's top is the hook's top
         # Blok's boxes get a soft edge: under 4:2:0 a hard accent edge over the video rings in
         # chroma (P-ENC SSIM 0.9888 whole frame, 0.9734 on the hook; 0.9903 and 0.9864 with it).
-        soft = (f"\\blur{_centi_text(div_round_half_up(100 * text_height(play_res), _BLOCK_BOX_BLUR))}"
+        soft = (f"\\blur{_centi_text(div_round_half_up(100 * text_height(play_res), _SOFT_EDGE_HEIGHTS))}"
                 if spec.layout == "block" else "")
 
         def box_event(x: str, bottom: int, units: int, height_units: int) -> str:
@@ -1945,9 +1946,14 @@ def build_ass_v2(
                                       width=width, top=layout.top))
     if watermark is not None:
         mark = layout_watermark(watermark, play_res=(width, height))
+        # A soft outline (the border's shadow; libass blurs the border, not the fill): under
+        # 4:2:0 a hard outline around small white text rings in chroma (P-ENC SSIM 0.9678 on the
+        # 16 px watermark, 0.9866 with it).
+        soft = _centi_text(div_round_half_up(100 * text_height((width, height)),
+                                             _SOFT_EDGE_HEIGHTS))
         styles.append(_watermark_style(mark))
         events.insert(0, f"Dialogue: 0,{_ass_time_cs(0)},"
                          f"{_ass_time_cs(safe_cs(total_frames, fps))},Watermark,,0,0,0,,"
-                         f"{{\\an{mark.alignment}\\pos({mark.x},{mark.y})\\q2}}"
+                         f"{{\\an{mark.alignment}\\pos({mark.x},{mark.y})\\q2\\blur{soft}}}"
                          f"{ass_escape(watermark.text)}")
     return _script_header(width, height, styles) + "\n".join(events) + ("\n" if events else "")

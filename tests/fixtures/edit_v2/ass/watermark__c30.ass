@@ -14,7 +14,7 @@ Style: Watermark,DejaVu Sans,32,&H26FFFFFF,&H26FFFFFF,&HFF000000,&H26000000,-1,0
 
 [Events]
 Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text
-Dialogue: 0,0:00:00.00,0:01:12.03,Watermark,,0,0,0,,{\an2\pos(360,127)\q2}@potongin.klip
+Dialogue: 0,0:00:00.00,0:01:12.03,Watermark,,0,0,0,,{\an2\pos(360,127)\q2\blur1}@potongin.klip
 Dialogue: 0,0:00:00.26,0:00:01.79,Karaoke,,0,0,0,,{\kf40}kopi {\kf30}katanya {\kf50}sumpah {\kf33}lagi
 Dialogue: 0,0:00:01.83,0:00:02.76,Karaoke,,0,0,0,,{\kf43}dong {\kf34}dong {\kf16}mah.
 Dialogue: 0,0:00:03.43,0:00:04.53,Karaoke,,0,0,0,,{\kf43}nahan {\kf40}langsung {\kf27}ketawa
