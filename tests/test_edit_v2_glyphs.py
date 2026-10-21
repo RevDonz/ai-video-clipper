@@ -21,10 +21,13 @@ FONTCONFIG = ROOT / "resources" / "fontconfig" / "fonts.conf"
 DEJAVU = FONTS / "DejaVuSans.ttf"
 DEJAVU_BOLD = FONTS / "DejaVuSans-Bold.ttf"
 MONTSERRAT = FONTS / "Montserrat-ExtraBold.ttf"
+ANTON = FONTS / "Anton-Regular.ttf"
+DM_SERIF_ITALIC = FONTS / "DMSerifDisplay-Italic.ttf"
 
 # Debian bookworm fonts-dejavu-core 2.37-6 (the package of the reference image).
 DEJAVU_DEB_SHA256 = "8892669e51aab4dc56682c8e39d8ddb7d70fad83c369344e1e240bf3ca22bb76"
 MONTSERRAT_COMMIT = "5dae7a4ef9c0bf9fe48dc54fd1076eefaa0a8c7e"  # tag v7.222
+GOOGLE_FONTS_COMMIT = "47d54ca1ebb14fd864695f1d39dc734f39017c33"  # the emphasis accent fonts
 
 
 def _sha256(path: Path) -> str:
@@ -44,7 +47,8 @@ def test_fonts_json_lists_every_font_file_with_its_exact_sha256_and_size():
     listed = {entry["file"] for entry in manifest["fonts"]}
     on_disk = {path.name for path in FONTS.glob("*.ttf")}
     assert listed == on_disk == {"DejaVuSans.ttf", "DejaVuSans-Bold.ttf",
-                                 "Montserrat-ExtraBold.ttf"}
+                                 "Montserrat-ExtraBold.ttf", "Anton-Regular.ttf",
+                                 "DMSerifDisplay-Italic.ttf"}
     for entry in manifest["fonts"]:
         path = FONTS / entry["file"]
         assert entry["sha256"] == _sha256(path), entry["file"]
@@ -52,8 +56,8 @@ def test_fonts_json_lists_every_font_file_with_its_exact_sha256_and_size():
         assert (FONTS / entry["license_file"]).is_file()
     for entry in manifest["licenses"]:
         assert entry["sha256"] == _sha256(FONTS / entry["file"]), entry["file"]
-    assert {entry["file"] for entry in manifest["licenses"]} == {"OFL.txt",
-                                                                 "LICENSE-DejaVu.txt"}
+    assert {entry["file"] for entry in manifest["licenses"]} == {
+        "OFL.txt", "LICENSE-DejaVu.txt", "OFL-Anton.txt", "OFL-DMSerifDisplay.txt"}
     assert manifest["fallback"] == "DejaVuSans.ttf"
 
 
@@ -78,6 +82,27 @@ def test_dejavu_is_the_debian_bookworm_package_and_montserrat_a_pinned_upstream_
     )
     assert montserrat["sha256"] == (
         "1b364c3400bf7b1cc2c47a25dd0d3edd8331da451412aa5539080f78f8f70b63")
+
+
+@pytest.mark.parametrize(("name", "family", "style", "licence", "path", "sha256"), [
+    ("Anton-Regular.ttf", "Anton", "Regular", "OFL-Anton.txt", "anton/Anton-Regular.ttf",
+     "a4ba3a92350ebb031da0cb47630ac49eb265082ca1bc0450442f4a83ab947cab"),
+    ("DMSerifDisplay-Italic.ttf", "DM Serif Display", "Italic", "OFL-DMSerifDisplay.txt",
+     "dmserifdisplay/DMSerifDisplay-Italic.ttf",
+     "df74c0ac387baeaeb0fe4f2324e1668e6a3ed8c09cd9796fe162c71753e19e45"),
+])
+def test_the_accent_fonts_are_ofl_files_of_a_pinned_google_fonts_commit(name, family, style,
+                                                                         licence, path, sha256):
+    entry = {font["file"]: font for font in _manifest()["fonts"]}[name]
+    assert (entry["family"], entry["style"], entry["weight"]) == (family, style, 400)
+    assert (entry["license"], entry["license_file"], entry["sha256"]) == (
+        "OFL-1.1", licence, sha256)
+    source = entry["source"]
+    assert (source["kind"], source["commit"]) == ("google-fonts", GOOGLE_FONTS_COMMIT)
+    assert source["url"] == (
+        f"https://raw.githubusercontent.com/google/fonts/{GOOGLE_FONTS_COMMIT}/ofl/{path}")
+    text = (FONTS / licence).read_text(encoding="utf-8")
+    assert "SIL Open Font License, Version 1.1" in text
 
 
 def test_module_manifest_helpers_resolve_the_pinned_files():
@@ -106,7 +131,7 @@ def test_licence_texts_are_the_upstream_texts():
 
 def test_ascii_and_indonesian_text_is_covered_by_every_pack_font():
     text = "Kenapa semua orang ketawa? Gue BUKAN jambret, bro! 0123456789 …–—“”‘’é"
-    for font in (DEJAVU, DEJAVU_BOLD, MONTSERRAT):
+    for font in (DEJAVU, DEJAVU_BOLD, MONTSERRAT, ANTON, DM_SERIF_ITALIC):
         assert glyphs.missing_glyphs(text, font) == (), font.name
 
 

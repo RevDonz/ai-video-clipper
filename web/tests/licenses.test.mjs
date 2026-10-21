@@ -77,13 +77,15 @@ test("the licence copies are the shipped packages' and fonts' own files", async 
     ["/licenses/web/react-LICENSE.txt", path.join(WEB_ROOT, "node_modules", "react", "LICENSE")],
     ["/licenses/fonts/Montserrat-OFL.txt", path.join(REPO, "resources", "fonts", "OFL.txt")],
     ["/licenses/fonts/DejaVu-LICENSE.txt", path.join(REPO, "resources", "fonts", "LICENSE-DejaVu.txt")],
+    ["/licenses/fonts/Anton-OFL.txt", path.join(REPO, "resources", "fonts", "OFL-Anton.txt")],
+    ["/licenses/fonts/DMSerifDisplay-OFL.txt", path.join(REPO, "resources", "fonts", "OFL-DMSerifDisplay.txt")],
   ];
   for (const [href, original] of pairs) {
     assert.ok((await read(publicFile(href))).equals(await read(original)), href);
   }
   const fonts = await json(REPO, "resources", "fonts", "fonts.json");
-  assert.deepEqual(new Set(fonts.licenses.map((entry) => entry.file)), new Set(["OFL.txt", "LICENSE-DejaVu.txt"]));
-  assert.equal(FONTS.length, 3);
+  assert.deepEqual(new Set(fonts.licenses.map((entry) => entry.file)), new Set(["OFL.txt", "LICENSE-DejaVu.txt", "OFL-Anton.txt", "OFL-DMSerifDisplay.txt"]));
+  assert.equal(FONTS.length, 5);
   assert.match((await read(publicFile("/licenses/fonts/DMSans-OFL.txt"))).toString(), /^Copyright 2014 The DM Sans Project Authors/);
   assert.match((await read(publicFile("/licenses/jassub/fribidi-COPYING.txt"))).toString(), /GNU LESSER GENERAL PUBLIC LICENSE\s+Version 2\.1/);
   assert.match((await read(publicFile("/licenses/jassub/freetype-FTL.txt"))).toString(), /The FreeType Project LICENSE/);

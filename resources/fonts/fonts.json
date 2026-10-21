@@ -1,6 +1,6 @@
 {
   "schema": "potongin.fonts/1",
-  "note": "Pinned caption fonts (plan §5.2 R6, §5.4). FFmpeg (fontconfig lockdown + fontsdir) and JASSUB load these exact bytes; DejaVu Sans is the only fallback.",
+  "note": "Pinned caption fonts (plan §5.2 R6, §5.4). FFmpeg (fontconfig lockdown + fontsdir) and JASSUB load these exact bytes; Anton and DM Serif Display Italic are accent fonts of the packs' emphasis blocks. DejaVu Sans is the only fallback.",
   "fallback": "DejaVuSans.ttf",
   "fonts": [
     {
@@ -55,6 +55,42 @@
         "commit": "5dae7a4ef9c0bf9fe48dc54fd1076eefaa0a8c7e",
         "url": "https://raw.githubusercontent.com/JulietaUla/Montserrat/5dae7a4ef9c0bf9fe48dc54fd1076eefaa0a8c7e/fonts/ttf/Montserrat-ExtraBold.ttf"
       }
+    },
+    {
+      "file": "Anton-Regular.ttf",
+      "family": "Anton",
+      "style": "Regular",
+      "weight": 400,
+      "sha256": "a4ba3a92350ebb031da0cb47630ac49eb265082ca1bc0450442f4a83ab947cab",
+      "bytes": 170812,
+      "license": "OFL-1.1",
+      "license_file": "OFL-Anton.txt",
+      "source": {
+        "kind": "google-fonts",
+        "repository": "https://github.com/google/fonts",
+        "commit": "47d54ca1ebb14fd864695f1d39dc734f39017c33",
+        "url": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/anton/Anton-Regular.ttf",
+        "upstream": "https://github.com/googlefonts/AntonFont",
+        "upstream_commit": "beb92fcad87808357123bb66881b4032dc96efe7"
+      }
+    },
+    {
+      "file": "DMSerifDisplay-Italic.ttf",
+      "family": "DM Serif Display",
+      "style": "Italic",
+      "weight": 400,
+      "sha256": "df74c0ac387baeaeb0fe4f2324e1668e6a3ed8c09cd9796fe162c71753e19e45",
+      "bytes": 71208,
+      "license": "OFL-1.1",
+      "license_file": "OFL-DMSerifDisplay.txt",
+      "source": {
+        "kind": "google-fonts",
+        "repository": "https://github.com/google/fonts",
+        "commit": "47d54ca1ebb14fd864695f1d39dc734f39017c33",
+        "url": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/dmserifdisplay/DMSerifDisplay-Italic.ttf",
+        "upstream": "https://github.com/googlefonts/dm-fonts",
+        "upstream_commit": "027cea4e4f45827128860a4dec7b9a0852a295d7"
+      }
     }
   ],
   "licenses": [
@@ -67,6 +103,16 @@
       "file": "OFL.txt",
       "sha256": "41f82bb4d24b304f30f7136bc47abdd083782e4265c984160f5649d1e78ea49c",
       "source": "https://raw.githubusercontent.com/JulietaUla/Montserrat/5dae7a4ef9c0bf9fe48dc54fd1076eefaa0a8c7e/OFL.txt"
+    },
+    {
+      "file": "OFL-Anton.txt",
+      "sha256": "ee67e6ee22790b7929f1a3769ca2801d565c64b5a9096942c1adf5596de9c9e4",
+      "source": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/anton/OFL.txt"
+    },
+    {
+      "file": "OFL-DMSerifDisplay.txt",
+      "sha256": "a3e5cdd67d4571dd0a24fcc968de0efde7ae97ef752daf0906e4767619dd7231",
+      "source": "https://raw.githubusercontent.com/google/fonts/47d54ca1ebb14fd864695f1d39dc734f39017c33/ofl/dmserifdisplay/OFL.txt"
     }
   ]
 }
