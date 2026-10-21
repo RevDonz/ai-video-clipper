@@ -19,6 +19,7 @@ import {
   jobPercentText,
   jobSourceLabel,
   jobStageText,
+  jobStepText,
   jobWaitingText,
   JOB_STATUS_LABELS,
   storageMessage,
@@ -830,7 +831,10 @@ export default function DashboardPage() {
               <div className={`${styles.jobState} ${styles[activeJob.status] || ""}`}>
                 <div>
                   <small title={jobSourceLabel(activeJob)}>{jobSourceLabel(activeJob)}</small>
-                  <strong id="job-state" tabIndex={-1}>{jobStageText(activeJob)}</strong>
+                  <strong id="job-state" tabIndex={-1}>
+                    {jobStageText(activeJob)}
+                    {jobStepText(activeJob) && <span className={styles.jobStep}>{jobStepText(activeJob)}</span>}
+                  </strong>
                 </div>
                 {jobPercentText(activeJob) && <b>{jobPercentText(activeJob)}</b>}
               </div>

@@ -20,6 +20,8 @@ import {
   jobPercentText,
   jobSourceLabel,
   jobStageText,
+  JOB_STEPS,
+  jobStepText,
   submitErrorMessage,
 } from "../lib/dashboard-view.mjs";
 import { DOWNLOAD_ERROR_CODES, downloadErrorMessage } from "../lib/download-errors.mjs";
@@ -276,4 +278,53 @@ test("dashboard, login and landing styles use design tokens, not literal colours
       assert.match(withoutComments, /:focus-within\s*\{[^}]*outline:\s*2px solid var\(--focus\)/, `${file} removes an outline without a replacement ring`);
     }
   }
+});
+
+test("the stage counter counts the steps a job really goes through", () => {
+  const youtube = { source: { type: "youtube", url: "https://www.youtube.com/watch?v=abc" } };
+  const upload = { source: { type: "upload", name: "video.mp4" } };
+  assert.equal(jobStepText({ ...youtube, status: "downloading" }), "Tahap 1 dari 8");
+  // the worker fetches YouTube subtitles while the job is still downloading
+  assert.equal(jobStepText({ ...youtube, status: "downloading", stage: "captions" }), "Tahap 1 dari 8");
+  assert.equal(jobStepText({ ...youtube, status: "processing", stage: "analyzing" }), "Tahap 2 dari 8");
+  assert.equal(jobStepText({ ...youtube, status: "processing", stage: "captions" }), "Tahap 3 dari 8");
+  assert.equal(jobStepText({ ...youtube, status: "processing", stage: "transcribing" }), "Tahap 3 dari 8");
+  assert.equal(jobStepText({ ...youtube, status: "processing", stage: "audio" }), "Tahap 4 dari 8");
+  assert.equal(jobStepText({ ...youtube, status: "processing", stage: "llm" }), "Tahap 5 dari 8");
+  assert.equal(jobStepText({ ...youtube, status: "processing", stage: "selecting" }), "Tahap 5 dari 8");
+  assert.equal(jobStepText({ ...youtube, status: "processing", stage: "finalizing" }), "Tahap 8 dari 8");
+  // an upload has no download step
+  assert.equal(jobStepText({ ...upload, status: "processing", stage: "analyzing" }), "Tahap 1 dari 7");
+  assert.equal(jobStepText({ ...upload, status: "processing", stage: "rendering" }), "Tahap 6 dari 7");
+  // nothing to count while waiting, once finished, or for a stage of a retired mode
+  for (const job of [
+    { ...youtube, status: "queued" }, { ...youtube, status: "preparing" },
+    { ...youtube, status: "completed", stage: "completed" }, { ...upload, status: "failed", stage: "rendering" },
+    { ...upload, status: "cancelled", stage: "audio" }, { ...upload, status: "processing", stage: "candidates_ready" },
+    { ...upload, status: "processing" }, {}, null,
+  ]) assert.equal(jobStepText(job), null, JSON.stringify(job));
+});
+
+test("the counted steps follow the order the engine reports its stages", async () => {
+  const source = await readFile(path.join(WEB, "..", "src", "ai_clipper", "pipeline.py"), "utf8");
+  const first = new Map();
+  for (const match of source.matchAll(/report\(\s*"(\w+)",\s*(\d+)/g)) {
+    const [, stage, percent] = match;
+    if (!first.has(stage) || Number(percent) < first.get(stage)) first.set(stage, Number(percent));
+  }
+  const counted = JOB_STEPS.flatMap((step) => step.stages);
+  for (const stage of Object.keys(JOB_STAGE_LABELS)) {
+    if (["completed", "failed", "cancelled"].includes(stage)) continue;
+    assert.ok(counted.includes(stage), `${stage} is counted`);
+  }
+  const starts = JOB_STEPS.filter((step) => step.stages.length).map((step) => Math.min(...step.stages.map((stage) => first.get(stage))));
+  assert.ok(starts.every(Number.isFinite), JSON.stringify(starts));
+  assert.deepEqual(starts, [...starts].sort((a, b) => a - b), "steps in the engine's order");
+});
+
+test("the dashboard and the project page show the counter beside the stage", async () => {
+  const page = await readFile(path.join(WEB, "app", "dashboard", "page.jsx"), "utf8");
+  assert.match(page, /jobStepText\(activeJob\)/);
+  const project = await readFile(path.join(WEB, "app", "projects", "[id]", "page.jsx"), "utf8");
+  assert.match(project, /jobStepText\(job\)/);
 });

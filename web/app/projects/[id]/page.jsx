@@ -13,6 +13,7 @@ import { clipEntryFor, loadClipEntries } from "../../../lib/clip-entry-view.mjs"
 import { replaceClip } from "../../../lib/clip-text.mjs";
 import { clipCountText, failedClipView, isFailedClip, readyClips } from "../../../lib/clip-status.mjs";
 import { jobHelpHref } from "../../../lib/help-catalog.mjs";
+import { jobStepText } from "../../../lib/dashboard-view.mjs";
 import { jobCancellable } from "../../../lib/job-cancel.mjs";
 import {
   clipLabel,
@@ -551,7 +552,10 @@ function ProjectView({ job, copyState, onCopy, entries, initialClip, cancelNote,
         <section className={styles.progressPanel} aria-labelledby="progress-title">
           <div>
             <h2 id="progress-title">{projectStageText(job)}</h2>
-            <b>{progress}%</b>
+            <span className={styles.progressNumbers}>
+              {jobStepText(job) && <small>{jobStepText(job)}</small>}
+              <b>{progress}%</b>
+            </span>
           </div>
           <div className="progress" role="progressbar" aria-labelledby="progress-title" aria-valuemin="0" aria-valuemax="100" aria-valuenow={progress}><i style={{ width: `${progress}%` }} /></div>
           <StageSummary job={job} className={styles.stageSummary} />
