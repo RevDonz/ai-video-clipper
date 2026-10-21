@@ -2294,14 +2294,36 @@ threshold was changed.
 | `ci-cd` Parity (smoke) (PR) | 39644650783 | **P-TXT** open: `bold-pop-40`, `sinar-kunci-40` |
 | yt-dlp smoke in the image | 39626542726 | inconclusive three times: YouTube's bot check on the runner IP |
 
-### Open: owner decisions (no threshold changed)
+### Diputuskan atas delegasi pemilik (2026-10-22): the four open reds, closed in the product
 
-- **P-TXT, Pop:** `bold-pop-40`, `sinar-pop-40`: one pixel at 18 (limit 16) on an outline edge
-  at a fractional pop scale; the ~0.07 px glyph-shape difference between JASSUB's and Debian's
-  FreeType/HarfBuzz that keeps every clip at max 13–14.
-- **P-TXT, Sinar:** `sinar-90`, `sinar-kunci-40`, `sinar-pop-40`: SSIM 0.9989 (≥ 0.999). FFmpeg's
-  8-bit blend truncates where the browser rounds; across the glow halo that is ±1 noise. Options:
-  a 16-bit server composite, a smaller glow, or accepting ~0.9989 for Sinar.
-- **P-ENC:** `hook-blok` (ssim_all 0.9888 < 0.99: sharp chroma edges of dark text on yellow under
-  4:2:0) and `watermark-middle_left` (ssim_text 0.968 < 0.98: the 16 px watermark at crf 18).
-  Options: the encoder or chroma format, the Blok design, or a larger minimum watermark size.
+No threshold changed and no red gate was accepted. Measured locally before the CI rerun: the
+FFmpeg references from `reference_text.py` (FFmpeg 6.1.1 / libass 0.17.1, which reproduced the CI
+numbers to the last digit), the browser side from JASSUB 2.5.16's own wasm run in Node with the
+harness's compositing, P-ENC with `ci_gates.py p-enc`. After all four fixes every gated P-TXT clip
+of the full matrix passes (47 of 47, lowest SSIM 0.99924 on `sinar-90`).
+
+| Gate, clip | Before | After | Fix |
+|---|---|---|---|
+| P-TXT `bold-pop-40` | max 18, 1 px > 16 | max 15, 0 | Pop steps through 32nds every 10 ms (CONTRACTS §5.39) |
+| P-TXT `sinar-pop-40` | max 18, SSIM 0.99894 | max 13, SSIM 0.99932 | Pop steps; Sinar glow blur |
+| P-TXT `sinar-90` / `sinar-kunci-40` | SSIM 0.99888 / 0.99895 | 0.99924 / 0.99929 | glow blur H·9/1280 → H·7/1280 (§5.49) |
+| P-TXT `sinar-fade-40` / `sinar-blur-40` | SSIM 0.99901 / 0.99900 | 0.99933 / 0.99932 | glow blur |
+| P-ENC `hook-blok` | all 0.98879, text 0.97343 | 0.99027, 0.98641 | Blok's boxes blur H/1280 (§5.33) |
+| P-ENC `watermark-middle_left` | text 0.96780 | 0.98656 | the watermark blurs H/1280 (§5.43) |
+
+- **Pop.** A continuous `\t` scale placed glyphs apart in JASSUB and FFmpeg now and then (static
+  scans: 82 %, 89.5 %, 101.5 % and 102 % failed, up to 39 levels); 168 static scales on the 32nd
+  grid, both probe lines of all six Pop clips, all passed. The six Pop clips score max 10–15.
+- **Sinar.** Blur 7 is the smallest single change that clears every Sinar clip (blur 8: 0.99913;
+  glow alpha 0x40 at blur 9: 0.99919 on `sinar-blur-40`). The pack thumbnail is regenerated on the
+  FFmpeg 5.1.9 image; the other five came out byte-identical. The player variant `sinar` was not
+  measured locally.
+- **Blok.** Darker text (0.98880), a paler box (0.98908), a white box (0.98994) and a text outline
+  (0.98934) all stayed under 0.990 whole frame: the hard box edge over the video rings in chroma
+  (luma alone was 0.9977). `\blur1` on the boxes clears it; Kotak and every text stay sharp. The
+  Blok thumbnail is regenerated on the same image.
+- **Watermark.** A larger minimum size does not help (600–1000 ‰ measured 0.956–0.965 on the
+  text), so the 500–2000 range stays and no saved value changes. Blurring the outline (libass
+  blurs the border, which the watermark draws as its shadow; the fill stays sharp) clears it;
+  `watermark-top_center` and `-bottom_right` rise to 0.9958 and 0.9948.
+- All four change pixels inside the batch's single `RENDER_SEMANTICS` 2 bump (unreleased).

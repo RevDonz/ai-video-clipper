@@ -229,14 +229,13 @@ komentar PR, dan di `docs/editor/CONTRACTS.md` / `GATES.md`.
 6. Merge PR gabungan (rebase, setelah semua check hijau), lalu pantau deploy.
 7. Kalau ingin meninjau ulang: tampilan gaya caption baru (Sinar, Sorot, font aksen), yang disetujui
    lewat delegasi.
-8. Gerbang yang masih merah di PR #27 dan butuh keputusan (rincian: `docs/editor/GATES.md`
-   "Combined adoption PR"; ambang tidak diubah):
-   - P-TXT Pop (`bold-pop-40`, `sinar-pop-40`): satu piksel di 18 (batas 16), beda bentuk glyph
-     JASSUB vs FFmpeg;
-   - P-TXT Sinar: SSIM 0,9989 (batas 0,999), pembulatan blend 8-bit FFmpeg di cahaya; pilihan:
-     composite 16-bit di server, cahaya lebih kecil, atau terima;
-   - P-ENC `hook-blok` dan watermark 16 px: pilihan encoder/chroma, desain Blok, atau ukuran
-     watermark minimal lebih besar.
+8. ~~Gerbang merah di PR #27 yang butuh keputusan.~~ Diputuskan atas delegasi pemilik
+   (2026-10-22), diperbaiki di produk tanpa mengubah ambang (`docs/editor/GATES.md`
+   "Combined adoption PR"):
+   - Pop naik dalam langkah 1/32 setiap 10 ms (68,75 % → 109,375 % → 100 %);
+   - cahaya Sinar diperkecil: blur H·9/1280 → H·7/1280;
+   - kotak hook Blok dan garis watermark diberi tepi lembut H/1280 (1 px di 1280);
+   - ukuran watermark minimal tetap 500 ‰: ukuran lebih besar tidak menolong P-ENC.
    PF-SEEK (pemutar) dan P-AUD (nightly) juga merah di `main`; smoke yt-dlp tidak meyakinkan
    karena cek bot YouTube di IP runner.
 9. Perbaikan parity mengubah tampilan sedikit: 2–3 frame awal Fade lebih gelap (isi di atas
