@@ -46,6 +46,37 @@ export function startOfWeek(now = new Date()) {
   return start;
 }
 
+const DAY_GROUPS = Object.freeze([
+  Object.freeze({ key: "today", label: "Hari ini" }),
+  Object.freeze({ key: "week", label: "Minggu ini" }),
+  Object.freeze({ key: "earlier", label: "Lebih lama" }),
+]);
+
+/**
+ * "today" from 00:00 of `now`'s day, "week" from Monday 00:00 (startOfWeek), else "earlier", in
+ * the viewer's time zone. A moment ahead of `now` is today; a missing or unreadable one is earlier.
+ */
+export function clipDayGroup(createdAt, now = new Date()) {
+  const ms = typeof createdAt === "string" && createdAt ? Date.parse(createdAt) : Number.NaN;
+  if (!Number.isFinite(ms)) return "earlier";
+  if (ms >= new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()) return "today";
+  return ms >= startOfWeek(now).getTime() ? "week" : "earlier";
+}
+
+/**
+ * The grid's groups `{key, label, items}` in a fixed order, only those holding a clip, each in the
+ * listing's order (newest first, so the groups follow that order too). `headings` is false when
+ * nothing is from this week: one plain grid then, no lone "Lebih lama".
+ */
+export function groupClipsByDay(items, now = new Date()) {
+  const list = Array.isArray(items) ? items : [];
+  const byKey = new Map(DAY_GROUPS.map((group) => [group.key, []]));
+  for (const item of list) byKey.get(clipDayGroup(item?.createdAt, now)).push(item);
+  const groups = DAY_GROUPS.filter((group) => byKey.get(group.key).length)
+    .map((group) => ({ key: group.key, label: group.label, items: byKey.get(group.key) }));
+  return { headings: groups.some((group) => group.key !== "earlier"), groups };
+}
+
 /** The listing request of one page: the search, "Skor 8+", "Minggu ini" and the cursor of "Muat lagi". */
 export function clipLibraryHref({ query = "", high = false, week = false, cursor = null, now = new Date() } = {}) {
   const params = new URLSearchParams();

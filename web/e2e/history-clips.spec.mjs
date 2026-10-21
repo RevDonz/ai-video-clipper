@@ -3,10 +3,11 @@ import { expect } from "@playwright/test";
 import { login, skipWithoutCredentials, test } from "./support/harness.mjs";
 
 // Riwayat's "Klip" view (plan A7): the "Proyek | Klip" switch, remembered across reloads; a grid of
-// the project page's posters across projects; search, "Skor 8+" and "Minggu ini" asked of the
-// server; "Muat lagi"; each card opening its clip in its project (?klip=N). The clip listing and
-// the job API are faked inside the browser (page.route), so nothing on the server changes; only
-// the login is real. Run against a production build, like e2e/project-workspace.spec.mjs.
+// the project page's posters across projects, grouped under "Hari ini" and "Lebih lama"; search,
+// "Skor 8+" and "Minggu ini" asked of the server; "Muat lagi"; each card opening its clip in its
+// project (?klip=N). The clip listing and the job API are faked inside the browser (page.route),
+// so nothing on the server changes; only the login is real. Run against a production build, like
+// e2e/project-workspace.spec.mjs.
 
 const JOB_A = "8c2e4f60-7a1b-4c3d-9e5f-0a1b2c3d4e5f";
 const JOB_B = "1d3f5a70-8b2c-4d4e-af60-1b2c3d4e5f60";
@@ -95,10 +96,14 @@ test.describe("Riwayat: Klip view (faked clip listing)", () => {
     for (const [position, high] of [[0, 1], [1, 0], [2, 1]]) await expect(cards(page).nth(position).locator("[data-high]")).toHaveCount(high);
     await expect(page.getByText(/\bhot\b|viral/i)).toHaveCount(0);
     await expect(cards(page).nth(0)).toContainText("Podcast 12.mp4");
+    // Grouped by day: today's clips under "Hari ini"; the older page lands under "Lebih lama".
+    await expect(page.getByRole("heading", { level: 2, name: "Hari ini" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 2, name: "Lebih lama" })).toHaveCount(0);
 
     await page.getByRole("button", { name: "Muat lagi" }).click();
     await expect(cards(page)).toHaveCount(5);
     await expect(cards(page).nth(3).getByRole("link")).toBeFocused();
+    await expect(page.getByRole("heading", { level: 2, name: "Lebih lama" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Muat lagi" })).toHaveCount(0);
     expect(requests.at(-1).searchParams.get("cursor")).toBe("3");
 

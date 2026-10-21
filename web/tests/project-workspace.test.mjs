@@ -11,6 +11,8 @@ import {
   clipFallbackNotes,
   clipFilterView,
   clipPosition,
+  editedIndexes,
+  filterEmptyText,
   isHighScore,
   keepSelection,
   pickAll,
@@ -60,6 +62,56 @@ test("'Semua' shows every clip; 'Skor 8+' only the clips whose pill is marked", 
   assert.deepEqual(clipFilterView(null, "all").visible, []);
   // No word on screen calls a score hot or viral.
   for (const item of all.filters) assert.doesNotMatch(item.label, /hot|viral/i);
+});
+
+test("'Diedit' shows the clips the editor changed, beside 'Semua' and 'Skor 8+'", () => {
+  const edited = new Set([2, 4]);
+  const all = clipFilterView(CLIPS, "all", edited);
+  assert.deepEqual(all.filters, [
+    { value: "all", label: "Semua", count: 5, active: true },
+    { value: "high", label: "Skor 8+", count: 3, active: false },
+    { value: "edited", label: "Diedit", count: 2, active: false },
+  ]);
+  const view = clipFilterView(CLIPS, "edited", edited);
+  assert.deepEqual(indexes(view.visible), [2, 4]);
+  assert.deepEqual(view.filters.map((item) => item.active), [false, false, true]);
+  assert.equal(view.active, "edited");
+  // No edited clip yet: the chip stays with 0, and the grid is empty (the page says why).
+  const none = clipFilterView(CLIPS, "edited", new Set());
+  assert.deepEqual(none.filters.at(-1), { value: "edited", label: "Diedit", count: 0, active: true });
+  assert.deepEqual(none.visible, []);
+  // Without the editor listing (off, loading, failed) there is no chip, and "Diedit" reads as "Semua".
+  const unknown = clipFilterView(CLIPS, "edited", null);
+  assert.deepEqual(unknown.filters.map((item) => item.value), ["all", "high"]);
+  assert.equal(unknown.active, "all");
+  assert.deepEqual(indexes(unknown.visible), [1, 2, 3, 4, 5]);
+  // Clips without a score (an older selection) still get "Semua" and "Diedit", without "Skor 8+".
+  const unscored = [{ index: 1 }, { index: 2 }];
+  const old = clipFilterView(unscored, "high", new Set([2]));
+  assert.equal(old.showFilters, true);
+  assert.deepEqual(old.filters.map((item) => item.value), ["all", "edited"]);
+  assert.deepEqual(indexes(old.visible), [1, 2]);
+  assert.deepEqual(indexes(clipFilterView(unscored, "edited", new Set([2])).visible), [2]);
+  assert.deepEqual(clipFilterView([], "edited", new Set()).visible, []);
+});
+
+test("the edited clips come from the same entry that shows the 'Diedit' badge", () => {
+  const entry = (tone, editHref = "/edit") => ({ editHref, editBadge: tone ? { text: "x", tone } : null });
+  const entries = new Map([[1, entry("edited")], [2, entry("muted")], [3, null], [4, entry("edited")]]);
+  assert.deepEqual([...editedIndexes(CLIPS, (clip) => entries.get(clip.index) ?? null)], [1, 4]);
+  // Some clip can open in the editor, none changed yet: an empty set, so the chip shows 0.
+  assert.deepEqual([...editedIndexes(CLIPS, (clip) => (clip.index === 2 ? entry("muted") : null))], []);
+  // No editor entry at all (listing off or still loading), or none that can open: no chip.
+  assert.equal(editedIndexes(CLIPS, () => null), null);
+  assert.equal(editedIndexes(CLIPS, () => entry(null, null)), null);
+  assert.equal(editedIndexes([], () => entry("edited")), null);
+  assert.equal(editedIndexes(null, () => entry("edited")), null);
+});
+
+test("an empty filter says which clips are missing", () => {
+  assert.equal(filterEmptyText("high"), "Belum ada klip dengan skor 8 atau lebih.");
+  assert.equal(filterEmptyText("edited"), "Belum ada klip yang diedit.");
+  assert.equal(filterEmptyText("all"), "Belum ada klip.");
 });
 
 test("the selected clip stays while it is shown, else the first shown clip takes its place", () => {
@@ -194,6 +246,11 @@ test("the page: filters as pressed buttons, the arrows step the shown clips, Esc
   const source = await page();
   assert.match(source, /role="group" aria-label="Saring klip"/);
   assert.match(source, /aria-pressed=\{item\.active\} onClick=\{\(\) => changeFilter\(item\.value\)\}/);
+  // "Diedit" counts the clips whose entry shows the badge; an empty filter says which clips are missing.
+  assert.match(source, /const edited = editedIndexes\(clips, entryFor\);/);
+  assert.match(source, /const view = clipFilterView\(clips, filter, edited\);/);
+  assert.match(source, /prunePicks\(previous, clipFilterView\(clips, value, edited\)\.visible\)/);
+  assert.match(source, /<p>\{filterEmptyText\(view\.active\)\}<\/p>/);
   assert.match(source, /const delta = arrowDelta\(event\);/);
   assert.match(source, /const next = stepSelection\(visible, currentIndex, delta\);/);
   assert.match(source, /event\.key === "Escape" && picking/);

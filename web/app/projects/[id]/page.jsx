@@ -35,6 +35,8 @@ import {
   clipFromParam,
   clipPosition,
   clipsHeading,
+  editedIndexes,
+  filterEmptyText,
   keepSelection,
   pickAll,
   pickSummary,
@@ -332,15 +334,16 @@ function ClipsSection({ job, copyState, onCopy, entries, initialClip = null, onC
   // Unsaved title/description drafts and open suggestions, by clip number, while another clip shows.
   const textDrafts = useRef(new Map());
 
-  const view = clipFilterView(clips, filter);
+  // A failed clip has no file: no editor entry, nothing to pick.
+  const entryFor = (clip) => (isFailedClip(clip) ? null : clipEntryFor(entries, job, clip.index));
+  const edited = editedIndexes(clips, entryFor);
+  const view = clipFilterView(clips, filter, edited);
   const visible = view.visible;
   const currentIndex = keepSelection(visible, selected);
   const current = visible.find((clip) => clip.index === currentIndex) || null;
   const position = clipPosition(visible, currentIndex);
   const downloadable = job.status === "completed" && readyClips(clips).length > 0;
   const busy = zip.state === "checking";
-  // A failed clip has no file: no editor entry, nothing to pick.
-  const entryFor = (clip) => (isFailedClip(clip) ? null : clipEntryFor(entries, job, clip.index));
 
   const move = (delta, { focusPoster = false } = {}) => {
     const next = stepSelection(visible, currentIndex, delta);
@@ -363,7 +366,7 @@ function ClipsSection({ job, copyState, onCopy, entries, initialClip = null, onC
 
   const changeFilter = (value) => {
     setFilter(value);
-    setPicks((previous) => prunePicks(previous, clipFilterView(clips, value).visible));
+    setPicks((previous) => prunePicks(previous, clipFilterView(clips, value, edited).visible));
   };
 
   const activate = (index) => {
@@ -514,7 +517,7 @@ function ClipsSection({ job, copyState, onCopy, entries, initialClip = null, onC
         </div>
       ) : (
         <div className={styles.filterEmpty}>
-          <p>Belum ada klip dengan skor 8 atau lebih.</p>
+          <p>{filterEmptyText(view.active)}</p>
           <button type="button" className="btn" onClick={() => changeFilter("all")}>Tampilkan semua klip</button>
         </div>
       )}

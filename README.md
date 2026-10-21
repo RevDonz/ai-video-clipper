@@ -355,8 +355,9 @@ output is unchanged. Contract: `docs/editor/CONTRACTS.md` §5.37.
 
 **Bahasa Indonesia.** Halaman proyek (`/projects/<id>`) adalah ruang kerja: grid poster klip
 (nomor, judul, skor, durasi, tanda "Diedit") dan satu panel detail untuk klip yang dipilih
-(video, salin judul dan caption, **Edit klip**, unduhan). ←/→ pindah antar klip. Chip **Semua**
-dan **Skor 8+** menyaring grid; skor tampil netral dengan titik lime untuk 8 ke atas. Mode
+(video, salin judul dan caption, **Edit klip**, unduhan). ←/→ pindah antar klip. Chip **Semua**,
+**Skor 8+** dan **Diedit** (klip yang sudah diubah di editor) menyaring grid; skor tampil netral
+dengan titik lime untuk 8 ke atas. Mode
 **Pilih** ("n dipilih · Pilih semua · Batal · Unduh (n)") dan **Unduh semua** mengunduh satu ZIP
 lewat `GET /api/jobs/<id>/zip` (`?clips=1,3` untuk klip terpilih, `?check=1` hanya ukurannya).
 Setiap klip tersimpan sebagai `NN-judul-klip.mp4`, di ZIP maupun lewat "Unduh MP4" dan "Subtitle
@@ -395,7 +396,8 @@ terakhir diingat browser. **Klip** menampilkan klip dari semua proyek yang seles
 yang sama seperti di halaman proyek, proyek terbaru di atas. Kolom cari menerima judul klip, nama
 proyek, atau URL sumber (tautan YouTube dalam bentuk lain tetap ketemu). Chip **Skor 8+** dan
 **Minggu ini** (sejak Senin 00.00) menyaring grid, dan **Muat lagi** menambah 24 klip berikutnya.
-Setiap poster membuka klipnya di halaman proyek (`/projects/<id>?klip=N`).
+Grid dikelompokkan menurut waktu proyek dibuat, dengan jam perangkat: **Hari ini**, **Minggu ini**
+dan **Lebih lama**. Setiap poster membuka klipnya di halaman proyek (`/projects/<id>?klip=N`).
 
 **English.** `GET /api/clips?q=&high=1&since=<ISO>&cursor=&limit=` (`web/lib/clip-library.mjs`)
 reads `job.json` through `serializePublicJob` and returns only what a poster needs. Job files are
