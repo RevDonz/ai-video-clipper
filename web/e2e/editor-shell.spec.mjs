@@ -1343,6 +1343,8 @@ test("history: 'Edit klip' on a finished project opens its clip list, only while
   const finished = { ...projectJob(), id: PROJECT_JOB };
   const running = { ...projectJob(), id: "3e4d5c6b-7a89-4b2c-9d3e-4f5a6b7c8d9e", status: "processing", progress: 40, clips: [] };
   await page.route("**/api/jobs", (route) => route.fulfill({ json: { jobs: [finished, running], total: 2, editor } }));
+  // The header badge reads a running job on its own.
+  await page.route(`**/api/jobs/${running.id}`, (route) => route.fulfill({ json: { job: running } }));
   await page.route(`**/api/jobs/${PROJECT_JOB}/files/**`, (route) => route.fulfill({ status: 200, contentType: "video/mp4", body: tinyMp4 }));
   await page.goto("/projects");
   const rows = page.getByRole("list", { name: "Proyek" }).getByRole("listitem");

@@ -6,6 +6,7 @@ import AppHeader from "../../components/AppHeader.jsx";
 import ClipLibrary from "../../components/ClipLibrary.jsx";
 import { historyOffersEdit } from "../../lib/clip-entry-view.mjs";
 import { browserStorage, readHistoryView, writeHistoryView } from "../../lib/clip-library-view.mjs";
+import { notifyJobsChanged } from "../../lib/job-badge.mjs";
 import {
   PROJECT_FILTERS,
   formatProjectDate,
@@ -166,6 +167,7 @@ export default function ProjectsPage() {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "Proyek tidak bisa dihapus. Coba lagi.");
       setConfirmingId(null);
+      notifyJobsChanged();
       setJobs((current) => (payload.removed
         ? current.filter((item) => item.id !== job.id)
         : current.map((item) => (item.id === job.id ? { ...item, status: "deleting", progress: 0 } : item))));
