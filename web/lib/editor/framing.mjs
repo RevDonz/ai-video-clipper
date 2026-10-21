@@ -7,8 +7,13 @@
 // `force_original_aspect_ratio=increase`) and take an output-sized window at an even x in
 // [0, limit], `limit` = scaled width − output width floored to even. A keyframe's `pan_e5` puts
 // that window at `pan_e5 · limit / 100000`. Integers only: BigInt for the products.
-import { CROP_MODES, KEYFRAME_MOVES, MAX_KEYFRAMES, PAN_E5_MAX } from "./doc-model.mjs";
-import { floorDiv, outToSrc, srcToOut } from "./timemap.mjs";
+//
+// "Zoom" and the content rect (CONTRACTS §5.47, tests/fixtures/edit_v2/zoom-vectors.json): the
+// scales cover the output enlarged by `layout.zoom_pm` (`zoomedOutput`) while the window stays
+// output-sized, so the travel widens and the window's row is `cropY`; every layout sees only the
+// picture inside the source's black bars (`base.source.content_rect`, `pictureSize`).
+import { CROP_MODES, KEYFRAME_MOVES, MAX_KEYFRAMES, PAN_E5_MAX, ZOOM_RANGE, zoomOf } from "./doc-model.mjs";
+import { divRoundHalfUp, floorDiv, outToSrc, srcToOut } from "./timemap.mjs";
 
 const pair = (value, name) => {
   const [w, h] = Array.isArray(value) ? value : [value?.w, value?.h];
@@ -25,10 +30,45 @@ export function scaledSize(source, output) {
   return [Math.max(width, outW), Math.max(height, outH)];
 }
 
-/** The crop's travel in the scaled source; 0 when the source is 9:16 or taller (nothing to pan). */
-export function panLimit(source, output) {
-  const limit = Math.max(scaledSize(source, output)[0] - pair(output, "output")[0], 0);
+/** The size the scales cover at `zoomPm`: each output side times zoom/1000, halves up (layouts.zoomed_output). */
+export function zoomedOutput(output, zoomPm = ZOOM_RANGE[0]) {
+  const [w, h] = pair(output, "output");
+  if (!Number.isSafeInteger(zoomPm) || zoomPm < ZOOM_RANGE[0] || zoomPm > ZOOM_RANGE[1]) throw new RangeError("zoom must be an integer in 1000..1500");
+  if (zoomPm === ZOOM_RANGE[0]) return [w, h];
+  return [divRoundHalfUp(w * zoomPm, 1000), divRoundHalfUp(h * zoomPm, 1000)];
+}
+
+const zoomedScale = (source, output, zoomPm) => scaledSize(source, zoomedOutput(output, zoomPm));
+
+/** The crop's travel in the scaled source; 0 when the source is 9:16 or taller at 100 % (nothing to pan). */
+export function panLimit(source, output, zoomPm = ZOOM_RANGE[0]) {
+  const limit = Math.max(zoomedScale(source, output, zoomPm)[0] - pair(output, "output")[0], 0);
   return limit - (limit % 2);
+}
+
+/** The centred crop's x, `(in_w − out_w)/2` truncated (layouts.centre_x): Potong tengah's crop. */
+export function centreX(source, output, zoomPm = ZOOM_RANGE[0]) {
+  return floorDiv(zoomedScale(source, output, zoomPm)[0] - pair(output, "output")[0], 2);
+}
+
+/** The row of every crop, `(in_h − out_h)/2` truncated (layouts.crop_y): 0 for a wide source at 100 %. */
+export function cropY(source, output, zoomPm = ZOOM_RANGE[0]) {
+  return floorDiv(zoomedScale(source, output, zoomPm)[1] - pair(output, "output")[1], 2);
+}
+
+/** Latar blur's picture before it is cropped to the frame: fit into the zoomed output (layouts.foreground_size). */
+export function foregroundSize(source, output, zoomPm = ZOOM_RANGE[0]) {
+  const [srcW, srcH] = pair(source, "source");
+  const [outW, outH] = zoomedOutput(output, zoomPm);
+  return [Math.min(floorDiv(outH * srcW + floorDiv(srcH, 2), srcH), outW),
+    Math.min(floorDiv(outW * srcH + floorDiv(srcW, 2), srcW), outH)];
+}
+
+/** What the layouts lay out: the content rect's size (`[x, y, w, h]` or `{x, y, w, h}`), else the whole source. */
+export function pictureSize(source, content = null) {
+  const [w, h] = pair(source, "source");
+  if (content === null || content === undefined) return [w, h];
+  return Array.isArray(content) ? [content[2], content[3]] : [content.w, content.h];
 }
 
 /** Throws unless `keyframes` is a valid `layout.keyframes` list (the window rule aside). */
@@ -66,10 +106,10 @@ const LIMIT_BIG = BigInt(PAN_E5_MAX);
  * the crop holds until that frame (`cut`) or moves linearly in the frame index (`slide`); exact
  * rationals rounded once to the nearest even integer.
  */
-export function keyframePositions(keyframes, { source, output, firstSf, count }) {
+export function keyframePositions(keyframes, { source, output, firstSf, count, zoomPm = ZOOM_RANGE[0] }) {
   checkKeyframes(keyframes);
   if (!Number.isSafeInteger(firstSf) || !Number.isSafeInteger(count) || count < 0) throw new TypeError("firstSf and count must be integers");
-  const limit = panLimit(source, output);
+  const limit = panLimit(source, output, zoomPm);
   const big = BigInt(limit);
   const last = keyframes.length - 1;
   const values = [];
@@ -96,8 +136,8 @@ export function keyframePositions(keyframes, { source, output, firstSf, count })
 }
 
 /** The crop x of one source frame. */
-export function cropAt(keyframes, sf, source, output) {
-  return keyframePositions(keyframes, { source, output, firstSf: sf, count: 1 })[0];
+export function cropAt(keyframes, sf, source, output, zoomPm = ZOOM_RANGE[0]) {
+  return keyframePositions(keyframes, { source, output, firstSf: sf, count: 1, zoomPm })[0];
 }
 
 /** The `pan_e5` that puts the crop at x (the nearest; the travel's ends at 0 and 100000). */
@@ -107,9 +147,13 @@ export function panForCrop(x, limit) {
   return Math.min(Math.max(pan, 0), PAN_E5_MAX);
 }
 
-/** The document's source and output as `[w, h]` pairs. */
+/**
+ * The document's picture (the source inside its black bars, CONTRACTS §5.47) and output as
+ * `[w, h]` pairs, and its zoom per mille: what every crop of the layouts is taken from.
+ */
 export function framingSizes(doc) {
-  return { source: [doc.base.source.w, doc.base.source.h], output: [doc.output.w, doc.output.h] };
+  const source = pictureSize([doc.base.source.w, doc.base.source.h], doc.base.source.content_rect ?? null);
+  return { source, output: [doc.output.w, doc.output.h], zoom: zoomOf(doc) };
 }
 
 /** The keyframes of the document (an empty list for the layout's own framing). */
@@ -124,8 +168,8 @@ export function keyframesOf(doc) {
  */
 export function framingAvailability(doc) {
   if (!doc?.layout?.default || !CROP_MODES.includes(doc.layout.default.mode)) return { ok: false, reason: "layout" };
-  const { source, output } = framingSizes(doc);
-  if (panLimit(source, output) <= 0) return { ok: false, reason: "portrait" };
+  const { source, output, zoom } = framingSizes(doc);
+  if (panLimit(source, output, zoom) <= 0) return { ok: false, reason: "portrait" };
   return { ok: true, reason: null };
 }
 

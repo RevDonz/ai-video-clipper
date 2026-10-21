@@ -132,9 +132,9 @@ function FramingBody({ state, dispatch, player, frameBus, client, readOnly, onCl
   const [draft, setDraft] = useState(null);
   const [message, setMessage] = useState(null);
   const locked = readOnly || state.status !== "ready";
-  const { source, output } = framingSizes(doc);
-  const sizeKey = `${source.join("x")}:${output.join("x")}`;
-  const geometry = useMemo(() => frameGeometry(source, output), [sizeKey]); // the sizes, not the arrays
+  const { source, output, zoom } = framingSizes(doc);
+  const sizeKey = `${source.join("x")}:${output.join("x")}:${zoom}`;
+  const geometry = useMemo(() => frameGeometry(source, output, zoom), [sizeKey]); // the sizes, not the arrays
   const summary = framingSummary(doc);
   const view = framingView({ doc, plan, frame, draft });
   const { still, retry } = useStill({ client, doc, frame });

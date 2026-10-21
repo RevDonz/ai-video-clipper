@@ -23,6 +23,10 @@ import {
   thumbnailFrame,
   thumbnailOrder,
   withLayout,
+  ZOOM_OPTIONS_PM,
+  zoomCommand,
+  zoomPercent,
+  zoomView,
 } from "../components/editor/panels/layout-model.mjs";
 import { COMMANDS, CommandRejected, applyCommand } from "../lib/editor/commands.mjs";
 import { LAYOUT_MODES, NO_FACE_MODES, checkDoc, createContext, switchedLayout } from "../lib/editor/doc-model.mjs";
@@ -277,4 +281,38 @@ test("the face-track note says what this clip does where no face is found", () =
   assert.match(layoutNote(camera, centred), /dipusatkan\.$/);
   const fit = LAYOUT_OPTIONS.find((option) => option.id === "fit_blur");
   assert.equal(layoutNote(fit, centred), fit.note);
+});
+
+// --- zoom (CONTRACTS §5.47) ----------------------------------------------------------------------
+
+test("the zoom section: 100 to 150 % in 5 % steps for every layout but the split, with the bars note", () => {
+  const doc = fakeDoc();
+  const plain = zoomView(doc);
+  assert.deepEqual({ ...plain, text: undefined }, { available: true, zoom: 1000, percent: 100, min: 1000, max: 1500, step: 50,
+    zoomed: false, bars: false, text: undefined });
+  assert.match(plain.text, /150%/);
+  assert.doesNotMatch(plain.text, /[–—]/);
+  const zoomed = zoomView({ ...doc, layout: { ...doc.layout, zoom_pm: 1250 } });
+  assert.equal(zoomed.percent, 125);
+  assert.equal(zoomed.zoomed, true);
+  const split = zoomView(withLayout(doc, "split"));
+  assert.equal(split.available, false);
+  const barred = structuredClone(doc);
+  barred.base.source.content_rect = { x: 0, y: 90, w: doc.base.source.w, h: doc.base.source.h - 180 };
+  assert.equal(zoomView(barred).bars, true);
+  assert.equal(zoomPercent(1333), 133);
+  assert.deepEqual(zoomCommand(1250), { type: "SetZoom", args: { zoom_pm: 1250 }, mergeKey: "layout:zoom" });
+  assert.throws(() => zoomCommand(1600), TypeError);
+  assert.throws(() => zoomCommand(1200.5), TypeError);
+  assert.deepEqual(ZOOM_OPTIONS_PM, [1000, 1050, 1100, 1150, 1200, 1250, 1300, 1350, 1400, 1450, 1500]);
+  assert.ok(COMMANDS.includes("SetZoom"));
+});
+
+test("the zoom refreshes the thumbnails and stays with a layout switch", () => {
+  const doc = fakeDoc();
+  const zoomed = { ...doc, layout: { ...doc.layout, zoom_pm: 1200 } };
+  assert.notEqual(contentKey(zoomed), contentKey(doc));
+  assert.equal(contentKey(withLayout(zoomed, "fill_center")), contentKey(zoomed));
+  assert.equal(withLayout(zoomed, "camera").layout.zoom_pm, 1200);
+  assert.ok(!Object.hasOwn(withLayout(zoomed, "split").layout, "zoom_pm"));
 });

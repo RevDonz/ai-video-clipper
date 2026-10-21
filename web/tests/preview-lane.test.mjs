@@ -54,7 +54,7 @@ function planBody(extra = {}, doc = DOC) {
 
 // A plan-op result as preview_cli returns it.
 function planResult({ cells = [10, 11, 12, 13, 14, 15, 16, 17], missing = cells, plateKey = KEY, audio = { key: AUDIO, ready: false },
-  logo = null, playhead = 0, pieces = null, layout = "fit_blur", noFace = null, keyframes = null, split = null } = {}) {
+  logo = null, playhead = 0, pieces = null, layout = "fit_blur", noFace = null, keyframes = null, split = null, zoom = null } = {}) {
   const prefix = `/api/jobs/${JOB}/clips/${CLIP}/media`;
   return {
     dto: {
@@ -71,7 +71,7 @@ function planResult({ cells = [10, 11, 12, 13, 14, 15, 16, 17], missing = cells,
       rev0: { planSha256: "1".repeat(64), autoRenderUrl: null, exact: false },
       warnings: [], errors: [],
     },
-    lane: { playhead, layout, noFace, keyframes, split, plateKey, cellFrames: 60, cells, missing, audio, logo, frameKey: "4".repeat(16) },
+    lane: { playhead, layout, noFace, keyframes, split, zoom, plateKey, cellFrames: 60, cells, missing, audio, logo, frameKey: "4".repeat(16) },
   };
 }
 
@@ -980,4 +980,63 @@ test("preview ops go to the persistent worker; other modules and the kill switch
   assert.deepEqual(await run(PREVIEW_MODULE, "plan", {}), { exitCode: 0, json: { via: "spawn" } });
   assert.deepEqual(spawned.map((call) => [call.module, call.op]), [["ai_clipper.edit_v2.api", "get"], [PREVIEW_MODULE, "plan"]]);
   assert.equal(created.length, 1);
+});
+
+// CONTRACTS §5.47: a zoomed plate is its own plate; every cells batch carries the zoom.
+test("the cells of a zoomed plate carry its zoom; a plate without one does not name it", async () => {
+  const { dir, clip, cleanup } = root();
+  readyAudio(clip);
+  const cli = fakeCli();
+  const lane = createPreviewLane({ jobsRoot: dir, runCli: cli.run, heavySlots: 1 });
+  try {
+    const pending = lane.plan({ jobId: JOB, clipId: CLIP, body: planBody() });
+    await settle();
+    cli.pending("plan")[0].resolve({ exitCode: 0, json: planResult({ cells: [10], layout: "fill_center", zoom: 1250,
+      audio: { key: AUDIO, ready: true } }) });
+    assert.equal((await pending).status, 200);
+    await settle();
+    const [cells] = cli.pending("cells");
+    assert.deepEqual({ layout: cells.payload.layout, zoom: cells.payload.zoom, cells: cells.payload.cells },
+      { layout: "fill_center", zoom: 1250, cells: [10] });
+    cells.resolve(cellsResult(cells.payload));
+    await settle();
+    const again = lane.plan({ jobId: JOB, clipId: CLIP, body: planBody({}, DOC2) });
+    await settle();
+    cli.pending("plan")[0].resolve({ exitCode: 0, json: planResult({ cells: [11], layout: "fill_center", plateKey: KEY2,
+      audio: { key: AUDIO, ready: true } }) });
+    assert.equal((await again).status, 200);
+    await settle();
+    const [plain] = cli.pending("cells");
+    assert.ok(!("zoom" in plain.payload));
+    plain.resolve({ exitCode: 0, json: { plateKey: KEY2, built: [11], present: [] } });
+    await lane.idle();
+  } finally {
+    lane.close();
+    cleanup();
+  }
+});
+
+test("a plan or prepare result with a malformed zoom, or a zoom on the split, is not trusted", async () => {
+  for (const [layout, zoom, split] of [["fill_center", 1000, null], ["fill_center", 1501, null], ["fit_blur", "1200", null],
+    ["camera", 1200.5, null], ["split", 1200, [300, [0, 0, 1000], [0, 0, 1000]]]]) {
+    const { dir, cleanup } = root();
+    const cli = fakeCli();
+    const lane = createPreviewLane({ jobsRoot: dir, runCli: cli.run, heavySlots: 0 });
+    const heavy = createPreviewLane({ jobsRoot: dir, runCli: cli.run, heavySlots: 1 });
+    try {
+      const pending = lane.plan({ jobId: JOB, clipId: CLIP, body: planBody() });
+      await settle();
+      cli.pending("plan")[0].resolve({ exitCode: 0, json: planResult({ layout, zoom, split }) });
+      assert.equal((await pending).status, 503, JSON.stringify([layout, zoom]));
+      const prepared = heavy.prepare({ jobId: JOB, clipId: CLIP, layout: null });
+      await settle();
+      cli.pending("prepare")[0].resolve({ exitCode: 0, json: { words: "ready", camera: "not_needed", layout,
+        noFace: null, keyframes: null, split, zoom, plateKey: KEY, cellFrames: 60, cells: [4], ready: [] } });
+      assert.equal((await prepared).status, 503, JSON.stringify([layout, zoom]));
+    } finally {
+      lane.close();
+      heavy.close();
+      cleanup();
+    }
+  }
 });

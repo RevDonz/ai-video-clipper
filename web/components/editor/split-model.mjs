@@ -7,6 +7,7 @@
 // web/lib/editor/split.mjs, the render's own crops. A drag or a zoom is drawn from a draft and
 // stored once, on release.
 import { SPLIT_BANDS } from "../../lib/editor/doc-model.mjs";
+import { framingSizes } from "../../lib/editor/framing.mjs";
 import { splitGeometry, splitOf, splitRatio } from "../../lib/editor/split.mjs";
 
 const option = (fields) => Object.freeze(fields);
@@ -60,7 +61,7 @@ export function splitView({ doc, draft = null }) {
   const current = splitOf(doc);
   if (!current) return null;
   const split = draft ? { ...current, [draft.band]: draft.crop } : current;
-  const source = [doc.base.source.w, doc.base.source.h];
-  const output = [doc.output.w, doc.output.h];
+  // the bands crop the picture inside the source's black bars (CONTRACTS §5.47)
+  const { source, output } = framingSizes(doc);
   return { split, geometry: splitGeometry(split, { source, output }), source, output };
 }

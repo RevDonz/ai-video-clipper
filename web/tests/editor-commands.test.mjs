@@ -109,14 +109,14 @@ function bodyFrames(doc) {
 
 // --- model ---------------------------------------------------------------------------------
 
-test("the command list is Appendix B with the transition, SetHookDesign, no-face, framing, split and watermark commands, the same 51 names the fakes know", () => {
+test("the command list is Appendix B with the transition, SetHookDesign, no-face, framing, split, zoom and watermark commands, the same 52 names the fakes know", () => {
   assert.deepEqual([...COMMANDS], [...FAKE_COMMANDS]);
-  assert.equal(COMMANDS.length, 51);
-  assert.deepEqual(COMMANDS.slice(35, 41), ["SnapLogo", "SetWatermarkText", "SetWatermarkPosition", "SetWatermarkSize",
+  assert.equal(COMMANDS.length, 52);
+  assert.deepEqual(COMMANDS.slice(36, 42), ["SnapLogo", "SetWatermarkText", "SetWatermarkPosition", "SetWatermarkSize",
     "SetWatermarkOpacity", "RemoveWatermark"]);
   assert.deepEqual(COMMANDS.slice(16, 21), ["SetHookEnabled", "SetHookText", "SetHookDuration", "SetHookY", "SetHookDesign"]);
-  assert.deepEqual(COMMANDS.slice(21, 30), ["SetLayout", "SetNoFace", "SetKeyframe", "RemoveKeyframe", "SetKeyframeMove", "ClearKeyframes",
-    "SetSplitRatio", "SwapSplit", "SetSplitCrop"]);
+  assert.deepEqual(COMMANDS.slice(21, 31), ["SetLayout", "SetNoFace", "SetKeyframe", "RemoveKeyframe", "SetKeyframeMove", "ClearKeyframes",
+    "SetSplitRatio", "SwapSplit", "SetSplitCrop", "SetZoom"]);
   assert.deepEqual(COMMANDS.slice(6, 10), ["SetColdOpen", "NudgeColdOpen", "SetJoinStyle", "SetJoinSfx"]);
   for (const [code, message] of Object.entries(COMMAND_MESSAGES)) {
     assert.match(code, /^[a-z_]+$/);
@@ -207,6 +207,8 @@ test("defaultMergeKey follows Appendix B", () => {
   // a drag or a zoom of one split band is one undo step (CONTRACTS §5.45)
   assert.equal(defaultMergeKey("SetSplitCrop", { band: "top", x_e5: 1, y_e5: 2, zoom_pm: 1000 }), "split:top");
   assert.equal(defaultMergeKey("SetSplitCrop", { band: "middle" }), null);
+  // a drag of the zoom slider is one undo step (CONTRACTS §5.47)
+  assert.equal(defaultMergeKey("SetZoom", { zoom_pm: 1250 }), "layout:zoom");
   for (const type of ["TrimStart", "TrimEnd", "RemoveWords", "RemoveGap", "RestoreRemoval", "ApplyCleanup",
     "SetColdOpen", "SetJoinStyle", "SetJoinSfx", "SetWordHidden", "SetWordEmphasis", "SetCaptionPack", "SetHookDesign", "SetLayout",
     "RemoveKeyframe", "SetKeyframeMove", "ClearKeyframes", "SetSplitRatio", "SwapSplit", "SetLogo", "RemoveLogo", "SnapLogo", "SetWatermarkPosition", "RemoveWatermark",
@@ -1251,4 +1253,49 @@ test("ResetToSeed restores the AI version and keeps revision, parent and created
   assert.equal(reset.revision, 5);
   assert.equal(reset.parent_sha256, "c".repeat(64));
   assert.equal(reset.audit.created_at_ms, C24.seed.audit.created_at_ms);
+});
+
+// --- zoom (CONTRACTS §5.47) ----------------------------------------------------------------------
+
+test("SetZoom enlarges every layout but the split; 1000 is no key (R10)", () => {
+  for (const mode of ["fit_blur", "camera", "fill_center"]) {
+    const doc = mode === C30.seed.layout.default.mode ? C30.seed : run(C30, C30.seed, "SetLayout", { mode });
+    const zoomed = run(C30, doc, "SetZoom", { zoom_pm: 1250 });
+    assert.equal(zoomed.layout.zoom_pm, 1250, mode);
+    assert.equal(zoomed.layout.default, doc.layout.default, "the layout itself is shared");
+    const back = run(C30, zoomed, "SetZoom", { zoom_pm: 1000 });
+    assert.ok(!Object.hasOwn(back.layout, "zoom_pm"), mode);
+    assert.ok(contentEquals(back, doc), "back to 100 % is the document before");
+  }
+  const zoomed = run(C30, C30.seed, "SetZoom", { zoom_pm: 1500 });
+  assert.ok(contentEquals(applyCommand(zoomed, "SetZoom", { zoom_pm: 1500 }, C30.ctx).doc, zoomed), "the same zoom is no change");
+  assert.deepEqual(applyCommand(C30.seed, "SetZoom", { zoom_pm: 1100 }, C30.ctx).args, { zoom_pm: 1100 });
+  for (const [args, code] of [
+    [{ zoom_pm: 999 }, "value_out_of_range"], [{ zoom_pm: 1501 }, "value_out_of_range"],
+    [{ zoom_pm: "1200" }, "invalid_args"], [{ zoom_pm: 1200.5 }, "invalid_args"], [{}, "invalid_args"],
+  ]) rejects(C30, C30.seed, "SetZoom", args, code);
+  rejects(C30, splitDoc(C30), "SetZoom", { zoom_pm: 1200 }, "zoom_unavailable");
+});
+
+test("the zoom stays across layouts, keyframes included, and the split drops it", () => {
+  const zoomed = run(C30, run(C30, C30.seed, "SetLayout", { mode: "fill_center" }), "SetZoom", { zoom_pm: 1200 });
+  const framed = run(C30, zoomed, "SetKeyframe", { sf: body(C30.seed).in_sf, pan_e5: 0 });
+  for (const mode of ["fit_blur", "camera", "fill_center"]) {
+    assert.equal(run(C30, framed, "SetLayout", { mode }).layout.zoom_pm, 1200, mode);
+  }
+  const split = run(C30, framed, "SetLayout", { mode: "split" });
+  assert.ok(!Object.hasOwn(split.layout, "zoom_pm") && !Object.hasOwn(split.layout, "keyframes"));
+  assert.ok(contentEquals(run(C30, run(C30, zoomed, "SetZoom", { zoom_pm: 1000 }), "SetLayout", { mode: "fit_blur" }), C30.seed));
+});
+
+test("checkDoc mirrors the zoom rules of the validator", () => {
+  const issues = (layout) => checkDoc({ ...C30.seed, layout }, C30.ctx).map((issue) => `${issue.code} ${issue.path}`);
+  const base = C30.seed.layout;
+  assert.deepEqual(issues({ ...base, zoom_pm: 1001 }), []);
+  assert.deepEqual(issues({ ...base, zoom_pm: 1500 }), []);
+  for (const value of [1000, 999, 1501, "1200", 1200.5, null, true]) {
+    assert.deepEqual(issues({ ...base, zoom_pm: value }), ["range_invalid /layout/zoom_pm"], String(value));
+  }
+  const split = splitDoc(C30).layout;
+  assert.deepEqual(issues({ ...split, zoom_pm: 1200 }), ["range_invalid /layout/zoom_pm"]);
 });

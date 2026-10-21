@@ -4,24 +4,26 @@
 //
 // The crop layouts scale the source to `scaledW × scaledH` (cover) and take an output-sized window
 // at x; the picture the gizmo draws on is the whole source, so the box is `x / scaledW` from its
-// left and `W / scaledW` wide (full height for a source wider than 9:16).
-import { PAN_E5_MAX } from "../../../lib/editor/doc-model.mjs";
-import { panForCrop, panLimit, scaledSize } from "../../../lib/editor/framing.mjs";
+// left and `W / scaledW` wide (full height for a source wider than 9:16). With "Zoom" (CONTRACTS
+// §5.47) the scale covers the zoomed output, so the box is smaller and centred at the crop's row;
+// the picture is the source inside its black bars.
+import { PAN_E5_MAX, ZOOM_RANGE } from "../../../lib/editor/doc-model.mjs";
+import { cropY, panForCrop, panLimit, scaledSize, zoomedOutput } from "../../../lib/editor/framing.mjs";
 
 export const NUDGE_E5 = 1000; // an arrow key: 1 % of the travel
 export const BIG_NUDGE_E5 = 10000; // Shift + arrow, PageUp, PageDown: 10 %
 export const SNAP_SCREEN_PX = 8; // the centre's magnet on screen, whatever the picture's size
 const CENTRE_E5 = PAN_E5_MAX / 2;
 
-export function frameGeometry(source, output) {
-  const [scaledW, scaledH] = scaledSize(source, output);
+export function frameGeometry(source, output, zoom = ZOOM_RANGE[0]) {
+  const [scaledW, scaledH] = scaledSize(source, zoomedOutput(output, zoom));
   const [outW, outH] = output;
   return Object.freeze({
-    source, output, scaledW, scaledH,
-    limit: panLimit(source, output),
+    source, output, zoom, scaledW, scaledH,
+    limit: panLimit(source, output, zoom),
     travel: Math.max(scaledW - outW, 0),
     boxWidth: Math.min(outW / scaledW, 1),
-    boxTop: (scaledH - outH) / 2 / scaledH,
+    boxTop: cropY(source, output, zoom) / scaledH,
     boxHeight: outH / scaledH,
   });
 }

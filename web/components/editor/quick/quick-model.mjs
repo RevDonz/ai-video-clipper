@@ -7,7 +7,7 @@ import { logoOf } from "../gizmos/logo-geometry.mjs";
 import { CAPTION_PACKS, CAPTION_POSITIONS, CAPTION_SIZES, presetId } from "../panels/caption-model.mjs";
 import { hookItemOf } from "../panels/hook-model.mjs";
 import { analysisBusy } from "../panels/layout-analysis.mjs";
-import { LAYOUT_OPTIONS } from "../panels/layout-model.mjs";
+import { LAYOUT_OPTIONS, zoomView } from "../panels/layout-model.mjs";
 import { splitSummary } from "../split-model.mjs";
 
 const OFF = "Mati";
@@ -46,7 +46,7 @@ export function coldOpenSummary(doc) {
 
 /**
  * The layout's name, plus " · menganalisis…" while the face analysis runs, " · bingkai manual", or
- * the split's shares top first (" · 30/70").
+ * the split's shares top first (" · 30/70"); then the zoom when it is not 100 % (" · zoom 125%").
  */
 export function layoutSummary(doc, analysis = null) {
   const mode = doc?.layout?.default?.mode;
@@ -55,7 +55,9 @@ export function layoutSummary(doc, analysis = null) {
   if (analysisBusy(analysis)) return `${name} · menganalisis…`;
   const split = splitSummary(doc);
   if (split) return `${name} · ${split.top}/${split.bottom}`;
-  return doc.layout.keyframes?.length ? `${name} · bingkai manual` : name;
+  const zoom = zoomView(doc);
+  const tail = zoom.zoomed ? ` · zoom ${zoom.percent}%` : "";
+  return `${doc.layout.keyframes?.length ? `${name} · bingkai manual` : name}${tail}`;
 }
 
 /** "Belum ada", "Logo", "Musik" or "Logo dan musik". */

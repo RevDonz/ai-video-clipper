@@ -22,6 +22,9 @@
 //   the no-face choice gives way (the keyframes frame those runs too).
 // - Under layar terbagi (CONTRACTS §5.45) "Layar terbagi" takes Bingkai's place: the share
 //   ("30/70", "50/50"), "Tukar atas dan bawah" and "Atur potongan" (../SplitDialog.jsx).
+// - "Zoom" (CONTRACTS §5.47) enlarges every other layout, 100 % to 150 %: the slider is drawn from
+//   a draft and stored once, when it is let go (pointer or key), so the stage renders one plate.
+//   A source whose black bars were found says that they are left out.
 //
 // Props: { state, dispatch, player, openFraming, openSplit } (panels/index.mjs), plus the optional
 // seams `api` (prepare and `cameraProgress()`) and `previewClient` (thumbnails). Without them the
@@ -53,6 +56,9 @@ import {
   thumbnailFrame,
   thumbnailOrder,
   withLayout,
+  zoomCommand,
+  zoomPercent,
+  zoomView,
 } from "./layout-model.mjs";
 
 const THUMB_REST_MS = 400; // the playhead rests this long before the thumbnails follow it
@@ -222,6 +228,43 @@ function CardProgress({ view }) {
   );
 }
 
+/** "Zoom": the slider, its value and "Kembali ke 100%". */
+function ZoomSection({ doc, readOnly, send }) {
+  const view = zoomView(doc);
+  const [draft, setDraftState] = useState(null);
+  const draftRef = useRef(null); // the latest draft, for the release that stores it
+  const uid = useId();
+  const setDraft = (next) => {
+    draftRef.current = next;
+    setDraftState(next);
+  };
+  const settle = () => {
+    const pending = draftRef.current;
+    setDraft(null);
+    if (pending !== null && pending !== view.zoom) send(zoomCommand(pending));
+  };
+  const value = draft ?? view.zoom;
+  return (
+    <div className={styles.section} data-layout-zoom="" data-zoom-pm={view.zoom}>
+      <h3 className={styles.subtitle} id={`${uid}-title`}>Zoom</h3>
+      <p className={styles.note} id={`${uid}-note`}>{view.text}</p>
+      <div className={styles.zoom}>
+        <input type="range" className={styles.range} min={view.min} max={view.max} step={view.step} value={value}
+          disabled={readOnly} aria-labelledby={`${uid}-title`} aria-describedby={`${uid}-note`}
+          aria-valuetext={`${zoomPercent(value)}%`} data-layout-zoom-range=""
+          onChange={(event) => setDraft(Number(event.target.value))} onPointerUp={settle} onKeyUp={settle} onBlur={settle} />
+        <output className={styles.zoomValue} aria-hidden="true">{`${zoomPercent(value)}%`}</output>
+      </div>
+      {view.zoomed ? (
+        <div className={styles.actions}>
+          <button type="button" className={`${styles.button} ${styles.quietButton}`} disabled={readOnly}
+            onClick={() => send(zoomCommand(view.min))}>Kembali ke 100%</button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function LayoutPanelBody({
   state, getState = null, dispatch, player, api: apiProp, previewClient, analysisStore, openFraming = null, openSplit = null,
 }) {
@@ -301,6 +344,7 @@ function LayoutPanelBody({
   const framingNote = `${uid}-framing-note`;
   const split = splitSummary(doc);
   const splitNote = `${uid}-split-note`;
+  const zoom = zoomView(doc);
 
   return (
     <section data-panel="layout" className={styles.panel} aria-busy={running}>
@@ -352,7 +396,9 @@ function LayoutPanelBody({
           </div>
         ) : null}
         <p className={styles.note}>{`Contoh diambil dari frame akhir di posisi ${formatClock(frameToMs(at ?? 0, fps))}.`}</p>
+        {zoom.bars ? <p className={styles.note} data-layout-bars="">Garis hitam di tepi video sumber sudah dibuang.</p> : null}
       </div>
+      {zoom.available ? <ZoomSection doc={doc} readOnly={readOnly} send={send} /> : null}
       {split ? (
         <div className={styles.section} data-layout-split="" data-top-pm={doc.layout.split.top_pm}>
           <h3 className={styles.subtitle}>Layar terbagi</h3>
