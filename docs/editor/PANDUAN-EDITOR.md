@@ -11,7 +11,9 @@ musik (`POTONGIN_EDITOR_UPLOADS=on`, tinjauan keamanan lolos) dan saran hook yan
 Klip otomatis dirender dengan kompiler yang sama dengan ekspor editor (`POTONGIN_RENDER_ENGINE`
 bawaan `edit-v2`): gaya, posisi dan ukuran subtitle yang dipilih di dashboard, Logo bawaan dan
 Teks watermark bawaan sudah ada di file klip otomatis, dan klip yang dibuka di editor tampil
-persis sama. `legacy` hanya untuk rollback (`docs/editor/OPERASIONAL.md` §2). Pra-centang kata pengisi di Rapikan masih mati sampai pemilik
+persis sama. Jeda hening lebih dari 0,6 detik di klip otomatis sudah dipendekkan jadi 0,2 detik
+(`POTONGIN_AUTO_PAUSE_TRIM`); di editor potongan itu terlihat dan bisa dipulihkan.
+`legacy` hanya untuk rollback (`docs/editor/OPERASIONAL.md` §2). Pra-centang kata pengisi di Rapikan masih mati sampai pemilik
 mengonfirmasi labelnya. Daftar flag, syaratnya dan cara mematikannya: `docs/editor/OPERASIONAL.md`
 §2.
 
@@ -195,7 +197,9 @@ Shift+klik kata di bawahnya, atau tekan Esc dulu untuk mengeklik kata itu.
   tercentang, kata pengisi dan pengulangan belum (kata pengisi ikut tercentang setelah pemilik
   mengonfirmasi daftar labelnya). **Putar** memperdengarkan tiap item, **Lihat**
   menandainya di transkrip. **"Terapkan (n)"** memotong semua yang dicentang dalam satu langkah, dan
-  satu Urungkan mengembalikan semuanya. Partikel ("kan", "sih", "mah", "toh", …) dan kata ulang
+  satu Urungkan mengembalikan semuanya. Di klip otomatis jeda hening sudah terpotong saat klip dibuat,
+  jadi Rapikan menghitungnya sebagai sudah diterapkan; klik chip jedanya di transkrip untuk
+  memulihkan satu jeda. Partikel ("kan", "sih", "mah", "toh", …) dan kata ulang
   ("anak-anak") tidak pernah didaftar. Jeda yang masih ada suaranya hanya bisa didengarkan.
 - **Cek ejaan** (tombol di sebelah Rapikan, hanya dengan `POTONGIN_EDITOR_LLM=on`): AI gratis di
   Pengaturan memeriksa tulisan kata di caption, yaitu salah ketik ("flim" jadi "film"), spasi

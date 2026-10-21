@@ -915,7 +915,8 @@ in W1. Canonical bytes, hashes and the document size limit are as in §3.1.
 - Segment ids `seg_co` (cold open) and `seg_b1` (body), edges `sf_floor(start_ms)` and
   `sf_ceil(end_ms)` with `start_ms = ms_from_seconds(start)`, **clamped to the source grid**
   `[first_sf, end_sf)` of `source.json` (§5.16); join
-  `{"after": "seg_co", "style": "cut", "audio_fade_ms": 30}`; `cut_fade_ms` 8; `removals` [].
+  `{"after": "seg_co", "style": "cut", "audio_fade_ms": 30}`; `cut_fade_ms` 8; `removals` [] (an
+  automatic clip's seed: its pause trims, §5.58).
 - `base.window_ms` = §3.5's window, then narrowed to the grid:
   `[max(a, ⌈first_sf·1000·den/num⌉), min(b, ⌊end_sf·1000·den/num⌋)]`
   (`seed.grid_window_ms`), so `window_sf` is exactly the frames that exist at the source edges.
@@ -4246,3 +4247,70 @@ text, stale etag, replay and key reuse, no seed hook, read-only, unprepared clip
 flag, CSRF, ids, body, exit-code mapping, sanitizing, a real switch through the route and the
 listing), `web/tests/clip-hook.test.mjs` (copy, view, the save and export requests, failures, the
 listing poll, the page wiring); browser spec `web/e2e/clip-hook.spec.mjs` on faked routes.
+
+## 5.58 Automatic clips trim their silent pauses (2026-10-21)
+
+Owner decision (2026-10-21, by delegation, after the measurement below): the seed of an automatic
+clip already carries the cuts Rapikan proposes, checked, for silent pauses, so the automatic file
+has no dead air over 0.6 s and the editor opens exactly those cuts (each one restorable). No
+schema change: the seed only fills `main.removals`, which a seed always had. The clip id does not
+change (the moment is the same); the seed sha and the plan do.
+
+### Measurement (`scripts/eval/pause_trim.py`, `docs/evaluation/PAUSE_TRIM.md`)
+
+The 84 labelled moments of the selection benchmark (7 episodes), word timings, the audio timeline,
+caption tags and the clips' peaks, no render. Whisper transcripts (4 episodes, 48 clips, 3,167 s):
+59.0 s removed (1.9 %), 37 of 48 clips trimmed, 81 trims of 729 ms on average; per clip p50
+1.3 %, p90 5.3 %, max 7.8 %. YouTube captions (7 episodes, 84 clips, 5,582 s): 143.4 s (2.6 %),
+69 of 84 clips, 215 trims of 667 ms; p50 1.7 %, p90 6.1 %, max 13.6 %. Laughter gaps (52 and 73)
+and voiced gaps (265 and 349) are never cut.
+
+### The trims (`cleanup.auto_pause_removals`, stdlib)
+
+- The candidates are the `gap_silent` items of `build_cleanup(words, peaks=…)` (§5.17: a gap over
+  600 ms between two words, at least 80 % audio-timeline silence, cut 100 ms inside each side so
+  200 ms of pause is kept, each edge moved to a quiet frame with the clip's peaks; a laughter gap
+  and anything within 500 ms of laughter is locked).
+- Kept only when both words of the gap lie in the body (`sf_floor(left.s) ≥ body.in_sf`,
+  `sf_ceil(right.e) ≤ body.out_sf`) and no caption tag or transcript event of kind `laughter`,
+  `applause`, `cheer` or `music` lies within 500 ms of the gap (`AUTO_PAUSE_LOCK_KINDS`,
+  `AUTO_PAUSE_LOCK_MS`). The cold open is never trimmed.
+- Each one becomes the removal `ApplyCleanup` writes for that item:
+  `{id: "rm_<n>" (1, 2, … in order), seg: <body id>, in_sf: inSf, out_sf: outSf, words: [],
+  reason: "gap_silent", origin: "suggestion:<item id>"}`. Rapikan therefore counts them as applied
+  (`cleanup-model.mjs` `appliedIds`), the transcript shows each as a removed gap, and
+  RestoreRemoval brings one back.
+- None at all when the body's kept frames would be fewer than `sf_ceil(3000)`
+  (`duration_out_of_bounds`).
+
+### Seed (`seed.build_seed`) and pipeline
+
+- Seed-context key `pauseRemovals` (never in `job.json`): missing, null or `[]` seeds exactly as
+  before. Otherwise only with `seedBy` `pipeline` (a `prepare` seed describes a legacy file,
+  rendered without trims); each entry has exactly the removal keys, an id `rm_[0-9a-z]{1,16}`
+  (unique), the body's id, `in_sf < out_sf` inside the body and at or after the previous removal's
+  `out_sf`, `words` `[]`, `reason` `gap_silent` and origin `suggestion:<id>`; the body's pieces
+  must keep at least `sf_ceil(3000)` frames. Anything else is a `SeedError`.
+- `render_edit.AutoRenderer._seed` builds the words artifact, then (when
+  `AutoOptions.trim_pauses`) `auto_pause_removals(words, body=<the provisional seed's body>,
+  peaks=<the clip's peaks>)`, and seeds with them; the file renders from that seed.
+- `render_edit.pause_trim_from_env(env)`: off only when `POTONGIN_AUTO_PAUSE_TRIM`, stripped and
+  lower-cased, is `off`, `0`, `false` or `no`; unset or anything else is on. The pipeline passes it
+  as `AutoOptions(trim_pauses=…)`. `compose.yaml` gives it to `primary-worker` only
+  (`${POTONGIN_AUTO_PAUSE_TRIM:-on}`); `.env.example` shows `# POTONGIN_AUTO_PAUSE_TRIM=on` and
+  the off line.
+- `AutoClip.seconds` (`render_edit.output_seconds`: the document's pieces) is the rendered length.
+  The manifest's `duration`, the poster time and the `no_face` share use it for an edit-v2 clip;
+  the legacy engine (rollback or fallback) keeps the selection's length. `_no_face_ms` counts the
+  pieces, so a trimmed pause is not counted as time without a face.
+- A legacy-engine clip (rollback or fallback) is never trimmed: its seed comes from `prepare`.
+
+### Gates
+
+`tests/test_edit_v2_auto_pauses.py` (body rule, laughter/music/applause/cheer lock, quiet cut,
+3 s floor, the fixture seeds validate with their trims, the seed's refusals, the committed
+`tests/fixtures/edit_v2/auto-pauses-c30.json`), `tests/test_edit_v2_render_edit.py` (the switch,
+the seed on disk carries the trims, `output_seconds`, `_no_face_ms`), `tests/test_pipeline_v3.py`
+(the switch reaches `AutoOptions`, the manifest length), `web/tests/editor-cleanup.test.mjs`
+(`ApplyCleanup` of the same items gives exactly the committed removals; Rapikan counts them
+applied; RestoreRemoval), `web/tests/editor-w3-wiring.test.mjs` (compose and `.env.example`).
