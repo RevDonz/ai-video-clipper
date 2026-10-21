@@ -7,7 +7,7 @@ import test from "node:test";
 
 import { loadContext, mulberry32, randomCommand, randomTwoTabs, runConflictProperty } from "../../scripts/edit_v2/crosscheck_commands.mjs";
 import { CommandRejected } from "../lib/editor/commands.mjs";
-import { body, checkDoc, coldOpen, contentJson, hookItem } from "../lib/editor/doc-model.mjs";
+import { body, captionWordsPerLine, checkDoc, coldOpen, contentJson, hookItem } from "../lib/editor/doc-model.mjs";
 import { createEditSession } from "../lib/editor/history.mjs";
 import { GROUP_LABELS, PARTS, applyParts, diffParts, partGroup, partValue, partValues, rebase, replaySteps } from "../lib/editor/rebase.mjs";
 
@@ -666,6 +666,35 @@ test("choosing 'mine' for a field of an item the other tab removed brings the it
   assert.equal(coldOpen(keep.doc).id, co.id);
   assert.equal(keep.doc.main.removals.length, 2);
   assert.equal(contentJson(replaySteps(remover.doc, keep.steps, C30.ctx).doc), contentJson(keep.doc));
+});
+
+test("a nudged trim edge rebases onto the other tab's edits; both tabs nudging the same edge is a trim conflict", () => {
+  const mine = tab(C30);
+  const theirs = tab(C30);
+  mine.dispatch("NudgeEdge", { seg: "body", edge: "out", ms: -100 });
+  theirs.dispatch("SetCaptionPack", { id: "bold" });
+  const merged = rebaseTabs(C30, mine, theirs);
+  assert.equal(merged.status, "merged");
+  assert.equal(body(merged.doc).out_sf, body(C30.seed).out_sf - 3);
+  assert.equal(merged.doc.captions.pack.id, "bold");
+  const other = tab(C30);
+  other.dispatch("NudgeEdge", { seg: "body", edge: "out", ms: 100 });
+  const clash = rebaseTabs(C30, mine, other);
+  assert.equal(clash.status, "conflict");
+  assert.deepEqual(clash.conflicts.map((group) => group.id), ["trim"]);
+});
+
+// "Kata per baris" set in one tab and a pack switch in the other: the key may drop (it equals the
+// new pack's own count, CONTRACTS §5.30), and the words per line the user chose stay.
+test("words per line chosen in one tab survive a pack switch in the other", () => {
+  const mine = tab(C30);
+  const theirs = tab(C30);
+  mine.dispatch("SetCaptionOverride", { key: "words_max", value: 3 });
+  theirs.dispatch("SetCaptionPack", { id: "sinar" });
+  const merged = rebaseTabs(C30, mine, theirs);
+  assert.equal(merged.status, "merged");
+  assert.equal(merged.doc.captions.pack.id, "sinar");
+  assert.equal(captionWordsPerLine(merged.doc), 3);
 });
 
 test("QG-CONFLICT (unit): 2,000 random two-tab scenarios lose no edit and always resolve", () => {

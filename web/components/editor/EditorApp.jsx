@@ -130,7 +130,7 @@ function StatePage({ title, children, jobId, busy = false }) {
   );
 }
 
-const SCOPE_NOTE = Object.freeze({ transcript: " (di transkrip)", scrubber: " (di bilah posisi)" });
+const SCOPE_NOTE = Object.freeze({ transcript: " (di transkrip)", scrubber: " (di bilah posisi)", trim: " (di gagang timeline)" });
 
 function ShortcutHelp({ open, onClose }) {
   const dialogRef = useRef(null);
@@ -651,6 +651,7 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
             fps={fps}
             totalFrames={plan?.totalFrames ?? 0}
             frameBus={frameBus}
+            plan={plan}
             playing={Boolean(playerState?.playing)}
             onPlayPause={playPause}
             onStep={(delta) => player.step(delta)}

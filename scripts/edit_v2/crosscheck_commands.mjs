@@ -34,6 +34,7 @@ import {
   SWATCHES,
   body,
   canonicalJson,
+  captionWordsPerLine,
   checkDoc,
   coldOpen,
   contentJson,
@@ -167,6 +168,11 @@ const GENERATORS = {
     const inside = indexesIn(context, body(doc));
     const last = inside.length ? inside.at(-1) : context.ctx.wordList.length - 1;
     return { gapWord: context.ctx.wordList[clampIndex(context, last + int(rng, -25, 25))].id };
+  },
+  NudgeEdge(rng) {
+    // Mostly the editor's ±0.1 s, sometimes a larger step, rarely out of range on purpose.
+    const ms = chance(rng, 0.05) ? pick(rng, [0, 1001, -2000]) : pick(rng, [-100, -100, 100, 100, -300, 500, -1000, 1000]);
+    return { seg: chance(rng, 0.7) ? "body" : "cold_open", edge: chance(rng, 0.5) ? "in" : "out", ms };
   },
   RemoveWords: removalArgs,
   RemoveGap(rng, doc, context) {
@@ -382,7 +388,7 @@ const GENERATORS = {
 };
 
 const WEIGHTS = {
-  RemoveWords: 16, RestoreRemoval: 5, TrimStart: 5, TrimEnd: 5, RemoveGap: 4, ApplyCleanup: 3, SetColdOpen: 4,
+  RemoveWords: 16, RestoreRemoval: 5, TrimStart: 5, TrimEnd: 5, NudgeEdge: 4, RemoveGap: 4, ApplyCleanup: 3, SetColdOpen: 4,
   NudgeColdOpen: 4, SetJoinStyle: 3, SetJoinSfx: 2, EditWordText: 7, SetWordHidden: 3, SetWordEmphasis: 3, SetCaptionsEnabled: 1, SetCaptionPack: 2,
   SetCaptionOverride: 4, SetHookEnabled: 2, SetHookText: 4, SetHookDuration: 2, SetHookY: 2, SetHookDesign: 2, SetLayout: 2, SetNoFace: 1,
   SetKeyframe: 4, RemoveKeyframe: 2, SetKeyframeMove: 2, ClearKeyframes: 1, SetSplitRatio: 2, SwapSplit: 1, SetSplitCrop: 3,
@@ -436,7 +442,7 @@ export function randomCommand(rng, doc, context) {
 
 // Commands whose Appendix B mergeKey lets a quick series become one undo step (drags, sliders,
 // typing): a "burst" repeats one of them with new values 20–300 ms later.
-const MERGEABLE = new Set(["NudgeColdOpen", "EditWordText", "SetCaptionOverride", "SetHookText", "SetHookDuration",
+const MERGEABLE = new Set(["NudgeColdOpen", "NudgeEdge", "EditWordText", "SetCaptionOverride", "SetHookText", "SetHookDuration",
   "SetHookY", "SetSplitCrop", "SetZoom", "MoveLogo", "ResizeLogo", "SetLogoOpacity", "SetMusicGain", "SetMusicOffset", "SetMusicFades", "SetDuck",
   "SetSourceGain", "SetLoudness"]);
 
@@ -446,6 +452,7 @@ function burstCommand(rng, previous, doc, context) {
     : GENERATORS[previous.type](rng, doc, context);
   if (previous.type === "EditWordText") args.wordId = previous.args.wordId;
   if (previous.type === "NudgeColdOpen") args.edge = previous.args.edge;
+  if (previous.type === "NudgeEdge") Object.assign(args, { seg: previous.args.seg, edge: previous.args.edge });
   if (previous.type === "SetSplitCrop") args.band = previous.args.band; // a drag of one band
   return { type: previous.type, args, options: previous.options };
 }
@@ -575,6 +582,14 @@ export function randomTwoTabs(rng, context, { base = context.seed, mineSteps = 6
   return { base, mine, theirs };
 }
 
+// A part's value as the render sees it. `words_max` is stored only while it differs from the
+// pack's own count (CONTRACTS §5.30), so a pack switch in the other tab can drop the key while
+// the words per line the user chose stay the same.
+function samePart(part, a, b) {
+  if (part === "captions.override.words_max") return captionWordsPerLine(a) === captionWordsPerLine(b);
+  return deepEqual(partValue(a, part), partValue(b, part));
+}
+
 /**
  * QG-CONFLICT property for one scenario: merged → every part changed by only one tab keeps
  * that tab's value; conflict → the dialog lists only parts both tabs changed or whose replay
@@ -592,11 +607,11 @@ export function checkConflictScenario({ base, mine, theirs, context, rng }) {
   if (result.status === "merged") {
     docs.push(["rebase", result.doc]);
     for (const part of theirsParts) {
-      if (!mineParts.has(part) && !deepEqual(partValue(result.doc, part), partValue(theirs.doc, part))
+      if (!mineParts.has(part) && !samePart(part, result.doc, theirs.doc)
         && !part.startsWith("removals:")) problems.push(`theirs lost ${part}`);
     }
     for (const part of mineParts) {
-      if (!theirsParts.has(part) && !deepEqual(partValue(result.doc, part), partValue(mine.doc, part))
+      if (!theirsParts.has(part) && !samePart(part, result.doc, mine.doc)
         && !part.startsWith("removals:")) {
         problems.push(`mine lost ${part}`);
       }

@@ -31,7 +31,7 @@ import { createContext } from "../../../lib/editor/doc-model.mjs";
 import { COPY as SPELLING_COPY } from "../spelling/model.mjs";
 import SpellingReview from "../spelling/SpellingReview.jsx";
 import { useSpellCheck } from "../spelling/use-spell-check.js";
-import { commandsFor, keyAction, runCommands, selectionActions } from "./actions.mjs";
+import { commandsFor, keyAction, keywordClick, keywordCommand, runCommands, selectionActions } from "./actions.mjs";
 import { followActiveWord } from "./active-word.mjs";
 import { auditionRange, badgeMarks, cleanupView, planApply } from "./cleanup-model.mjs";
 import CleanupReview from "./CleanupReview.jsx";
@@ -54,11 +54,18 @@ import styles from "./transcript.module.css";
 import WordEditor from "./WordEditor.jsx";
 import WordSpan from "./WordSpan.jsx";
 
+// Cmd+click toggles Kata kunci on macOS, Ctrl+click elsewhere (actions.mjs keywordClick).
+function isMacPlatform() {
+  if (typeof navigator === "undefined") return false;
+  const platform = navigator.userAgentData?.platform || navigator.platform || "";
+  return /mac|iphone|ipad|ipod/i.test(platform);
+}
+
 const SECONDS = new Intl.NumberFormat("id-ID", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const HELP_ID = "transcript-help";
 const GAP_TITLES = Object.freeze({ gap_silent: "Rapikan: jeda hening", gap_voiced: "Rapikan: jeda bersuara (dengarkan dulu)" });
 
-const Paragraph = memo(function Paragraph({ para, selFirst, selLast, editing, onEditDone, onRestore, readOnly, marks }) {
+const Paragraph = memo(function Paragraph({ para, selFirst, selLast, editing, onEditDone, onRestore, readOnly, marks, mac }) {
   const items = [];
   let chip = 0;
   const chipsBefore = (index) => {
@@ -81,7 +88,8 @@ const Paragraph = memo(function Paragraph({ para, selFirst, selLast, editing, on
       <Fragment key={state.id}>
         {index === editing
           ? <WordEditor state={state} onDone={onEditDone} />
-          : <WordSpan state={state} selected={selFirst <= index && index <= selLast} cleanup={marks?.words.get(index) ?? null} />}{" "}
+          : <WordSpan state={state} selected={selFirst <= index && index <= selLast} cleanup={marks?.words.get(index) ?? null}
+            keywordHint={readOnly ? null : mac ? "mac" : "ctrl"} />}{" "}
         {gap ? <><span className={styles.gapMark} data-cleanup-gap={gap} title={GAP_TITLES[gap]} aria-hidden="true">jeda</span>{" "}</> : null}
       </Fragment>,
     );
@@ -192,6 +200,9 @@ function Transcript({ state, dispatch, player, api, llmEnabled }) {
 
   const [editing, setEditing] = useState(-1);
   const [message, setMessage] = useState(null);
+  // Read after mount, so the server render and the first client render agree.
+  const [mac, setMac] = useState(false);
+  useEffect(() => setMac(isMacPlatform()), []);
   const [expanded, setExpanded] = useState({ before: false, after: false });
   const dragging = useRef(false);
   const revealFocus = useRef(false);
@@ -396,6 +407,12 @@ function Transcript({ state, dispatch, player, api, llmEnabled }) {
     if (index < 0) return;
     event.preventDefault();
     focusList();
+    if (keywordClick(event, { mac })) {
+      // Ctrl/Cmd+click marks or unmarks the word as Kata kunci and leaves the selection alone.
+      if (readOnly) setMessage("Mode baca-saja");
+      else run([keywordCommand(modelRef.current, index)].filter(Boolean));
+      return;
+    }
     selectionStore.set(event.shiftKey ? extendTo(selectionStore.get(), index) : selectOne(index));
     dragging.current = !event.shiftKey;
     if (dragging.current && boxRef.current) boxRef.current.dataset.dragging = "";
@@ -407,7 +424,7 @@ function Transcript({ state, dispatch, player, api, llmEnabled }) {
   };
   const onClick = (event) => {
     const index = wordIndexOf(event.target);
-    if (index < 0 || !player?.seek) return;
+    if (index < 0 || !player?.seek || keywordClick(event, { mac })) return;
     const frame = seekFrameOf(modelRef.current, index);
     if (frame !== null) player.seek(frame);
   };
@@ -464,7 +481,7 @@ function Transcript({ state, dispatch, player, api, llmEnabled }) {
   const list = words.words;
   const status = range
     ? `${selLast - selFirst + 1} kata dipilih · ${SECONDS.format(spanMs(list, selFirst, selLast) / 1000)} dtk`
-    : "Klik kata untuk memilih; Shift+klik untuk rentang.";
+    : `Klik kata untuk memilih; Shift+klik untuk rentang; ${mac ? "⌘" : "Ctrl"}+klik untuk kata kunci.`;
   const coldOpen = coldOpenInfo(model);
   const hiddenBefore = model.paragraphs.slice(0, showFrom);
   const hiddenAfter = model.paragraphs.slice(showTo);
@@ -556,6 +573,7 @@ function Transcript({ state, dispatch, player, api, llmEnabled }) {
                 onRestore={onRestore}
                 readOnly={readOnly}
                 marks={marks}
+                mac={mac}
               />
             );
           })}

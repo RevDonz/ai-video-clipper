@@ -1,15 +1,15 @@
 "use client";
 
 // The playback controls and the stage toggles (plan Appendix C.1; Mode Cepat spec §5.2, §6.3).
-// - The default export is Mode Lengkap's transport row above the timeline: play, frame step and
-//   the time "00:12,3 / 00:48,0".
+// - The default export is Mode Lengkap's transport row above the timeline: play, frame step,
+//   the time "00:12,3 / 00:48,0" and where that is in the source video, "di sumber 12:34".
 // - PlayButton and TimeReadout also make Mode Cepat's bottom bar.
 // - StageToggles are "Frame akhir" and "Zona aman", at the top right beside the stage in both views.
 // The time follows the frame bus outside React, so playback never re-renders the shell (plan §6.2).
 import { useEffect, useRef } from "react";
 
 import styles from "./shell.module.css";
-import { formatClock, frameToMs } from "./shell-model.mjs";
+import { formatClock, frameToMs, sourceClockAt } from "./shell-model.mjs";
 import Icon from "./ui/icons.jsx";
 import PillToggle from "./ui/PillToggle.jsx";
 
@@ -55,6 +55,30 @@ export function TimeReadout({ frameBus, fps, totalFrames }) {
   );
 }
 
+/** "di sumber 12:34": the playhead's time in the source video (the plan's pieces), from the frame bus. */
+export function SourceTimeReadout({ frameBus, plan }) {
+  const textRef = useRef(null);
+  const shown = sourceClockAt(0, plan) !== null;
+
+  // The text is written only here (never by React), so a new plan after an edit repaints at once.
+  useEffect(() => {
+    if (!shown) return undefined;
+    const paint = (frame) => {
+      const text = sourceClockAt(frame, plan);
+      if (textRef.current && text) textRef.current.textContent = text;
+    };
+    paint(frameBus?.get?.() ?? 0);
+    return frameBus ? frameBus.subscribe(paint) : undefined;
+  }, [frameBus, plan, shown]);
+
+  if (!shown) return null;
+  return (
+    <span className={styles.sourceTime} data-testid="stage-source-time" title="Posisi ini di video sumber">
+      di sumber <span ref={textRef} />
+    </span>
+  );
+}
+
 /** "Frame akhir" (Ctrl+Shift+R) and "Zona aman" ('), each a pressed-state pill; a 1:1 clip has
  * no TikTok zone, so `zone` false leaves Zona aman out (CONTRACTS §5.54). */
 export function StageToggles({ truth, onTruth, safeZone, onToggleSafeZone, zone = true, disabled = false }) {
@@ -74,7 +98,7 @@ export function StageToggles({ truth, onTruth, safeZone, onToggleSafeZone, zone 
   );
 }
 
-export default function StageControls({ fps, totalFrames, frameBus, playing, onPlayPause, onStep, disabled = false }) {
+export default function StageControls({ fps, totalFrames, frameBus, plan = null, playing, onPlayPause, onStep, disabled = false }) {
   return (
     <div className={styles.controls} role="group" aria-label="Kontrol pratinjau" data-slot="transport">
       <PlayButton playing={playing} onPlayPause={onPlayPause} disabled={disabled} />
@@ -87,6 +111,7 @@ export default function StageControls({ fps, totalFrames, frameBus, playing, onP
         <StepIcon name="forward" />
       </button>
       <TimeReadout frameBus={frameBus} fps={fps} totalFrames={totalFrames} />
+      <SourceTimeReadout frameBus={frameBus} plan={plan} />
     </div>
   );
 }

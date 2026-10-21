@@ -176,3 +176,24 @@ export function keyAction(event) {
       return null;
   }
 }
+
+/**
+ * True for a click that toggles Kata kunci instead of selecting: Ctrl+click, or Cmd+click on
+ * macOS (where Ctrl+click opens the context menu). Shift or Alt with it is not one.
+ */
+export function keywordClick(event, { mac = false } = {}) {
+  if (!event || event.shiftKey || event.altKey) return false;
+  return mac ? Boolean(event.metaKey) && !event.ctrlKey : Boolean(event.ctrlKey) && !event.metaKey;
+}
+
+/** The SetWordEmphasis command that toggles word `index` as Kata kunci, or null. */
+export function keywordCommand(model, index, { readOnly = false } = {}) {
+  const state = Number.isInteger(index) && index >= 0 ? model?.states?.[index] : null;
+  if (!state || readOnly) return null;
+  return { type: "SetWordEmphasis", args: { wordId: state.id, on: !state.emphasis }, mergeKey: null };
+}
+
+/** The word's tooltip line for that click. */
+export function keywordHint({ mac = false, on = false } = {}) {
+  return `${mac ? "⌘" : "Ctrl"}+klik: ${on ? "batalkan" : "jadikan"} kata kunci`;
+}

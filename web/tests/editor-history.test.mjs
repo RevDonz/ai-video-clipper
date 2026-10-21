@@ -100,6 +100,26 @@ test("typing in one word is one undo step", () => {
   assert.equal(session.pending.length, 4);
 });
 
+test("quick 0.1 s nudges of one edge are one undo step; another edge is a new one", () => {
+  let t = 0;
+  const session = createEditSession({ doc: C30.seed, ctx: C30.ctx, now: () => t });
+  const start = body(C30.seed).in_sf;
+  for (let i = 0; i < 3; i += 1) {
+    t += 200;
+    session.dispatch("NudgeEdge", { seg: "body", edge: "in", ms: 100 });
+  }
+  assert.equal(body(session.doc).in_sf, start + 9);
+  assert.equal(session.history.size, 1);
+  t += 200;
+  session.dispatch("NudgeEdge", { seg: "body", edge: "out", ms: -100 });
+  assert.equal(session.history.size, 2);
+  session.undo();
+  session.undo();
+  assert.equal(contentJson(session.doc), contentJson(C30.seed));
+  assert.deepEqual(replaySteps(C30.seed, [{ type: "NudgeEdge", args: { seg: "body", edge: "in", ms: 100 }, parts: ["trim"] }], C30.ctx).doc.main.segments
+    .find((segment) => segment.role === "body").in_sf, start + 3);
+});
+
 test("the pending log always replays the base into the current document", () => {
   let t = 0;
   const session = createEditSession({ doc: C30.seed, ctx: C30.ctx, now: () => t });

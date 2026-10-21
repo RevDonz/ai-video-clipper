@@ -14,6 +14,7 @@ import {
   rulerTicks,
   snapTrim,
   stepTrim,
+  trimHandleKey,
   wordForTrimAt,
   zoomAround,
 } from "../components/editor/timeline/timeline-model.mjs";
@@ -148,4 +149,18 @@ test("the hook duration handle stays inside the §3.3 range", () => {
   assert.equal(hookDurationFromPx({ px: 240, pxPerFrame: 2, fps: [30000, 1001] }), 120);
   assert.equal(hookDurationFromPx({ px: 3, pxPerFrame: 2, fps: [30000, 1001] }), 15);
   assert.equal(hookDurationFromPx({ px: 99_999, pxPerFrame: 2, fps: [30000, 1001] }), 899);
+});
+
+test("a trim handle's keys: arrows step to the next word gap, Shift+arrows nudge 0.1 s", () => {
+  const key = (name, mods = {}) => trimHandleKey({ key: name, ctrlKey: false, metaKey: false, shiftKey: false, altKey: false, ...mods });
+  assert.deepEqual(key("ArrowLeft"), { kind: "gap", direction: -1 });
+  assert.deepEqual(key("ArrowRight"), { kind: "gap", direction: 1 });
+  assert.deepEqual(key("ArrowLeft", { shiftKey: true }), { kind: "nudge", ms: -100 });
+  assert.deepEqual(key("ArrowRight", { shiftKey: true }), { kind: "nudge", ms: 100 });
+  assert.equal(key("ArrowRight", { ctrlKey: true }), null);
+  assert.equal(key("ArrowRight", { metaKey: true, shiftKey: true }), null);
+  assert.equal(key("ArrowLeft", { altKey: true }), null);
+  assert.equal(key("ArrowUp"), null);
+  assert.equal(key("Enter"), null);
+  assert.equal(trimHandleKey(null), null);
 });
