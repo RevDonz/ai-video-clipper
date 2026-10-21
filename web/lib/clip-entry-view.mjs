@@ -5,6 +5,8 @@
 // job on open and shows the progress (W3, owner feedback; lib/editor/open-clip.mjs). The history's
 // "Edit klip" rule lives here too. Client-safe: no Node built-ins.
 
+import { readyClips } from "./clip-status.mjs";
+
 export const CLIP_REASON_TEXT = Object.freeze({
   needs_prepare: "Klip perlu disiapkan dulu",
   source_missing: "Video sumber sudah tidak ada",
@@ -108,10 +110,11 @@ export function clipEntryFor(listing, job, index) {
 
 /**
  * Whether the history links a project to its clips for editing: the editor is on, the project
- * finished with clips, and it ran the current selection (older jobs have no clip to edit).
+ * finished with a rendered clip (a failed one has nothing to edit), and it ran the current
+ * selection (older jobs have no clip to edit).
  */
 export function historyOffersEdit(job, editor) {
-  return editor === true && job?.status === "completed" && Array.isArray(job?.clips) && job.clips.length > 0
+  return editor === true && job?.status === "completed" && readyClips(job?.clips).length > 0
     && job?.options?.selectionMode === "v3";
 }
 

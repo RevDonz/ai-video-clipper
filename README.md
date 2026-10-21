@@ -267,6 +267,10 @@ suite) run on GitHub Actions: `ci-cd.yml` on every pull request and `editor-gate
   for that clip. The top level gains `selection_v3`. The web worker sanitizes every string
   (length caps, control and bidi characters stripped) and allowlists the summary before it
   persists anything.
+- **One clip failing.** A clip that cannot be rendered keeps its entry with no file,
+  `"status": "failed"` and `"error_code"` (`render_failed` or `render_timeout`); the other clips
+  still render and the job completes. The project page shows that clip as "Gagal", with nothing
+  to play, download or edit. Only when every clip fails does the job fail.
 - **Benchmark.** Gold-label evaluation is described in
   `docs/evaluation/SELECTION_BENCHMARK.md`. No V3 numbers are claimed yet.
 - The contracts are in `docs/plans/2026-09-24-selection-v3-llm-hooks.md`.
@@ -348,7 +352,10 @@ Setiap klip tersimpan sebagai `NN-judul-klip.mp4`, di ZIP maupun lewat "Unduh MP
 SRT". Klip yang dibuat lewat jalur cadangan diberi catatan netral: kalau mode "Ikuti
 pembicara" tidak menemukan wajah di separuh klip atau lebih, posternya bertuliskan "Potong
 tengah" dan panel detailnya "Wajah tidak terdeteksi · potong tengah"; klip dari render cadangan
-bertuliskan "Dirender dengan cara cadangan" di panel detail.
+bertuliskan "Dirender dengan cara cadangan" di panel detail. Klip yang gagal dirender
+bertanda **Gagal** (alasannya ada di panel detail); klip itu tidak bisa diputar, dipilih,
+diunduh, atau diedit, judul dan deskripsinya tidak bisa diubah, dan judul daftar klip menjadi
+"n dari m klip siap diunggah".
 
 **Judul dan deskripsi.** Setelah proyek selesai, kotak Caption di panel detail punya **Ubah** dan
 **Tulis ulang**. **Ubah** membuka Judul dan Deskripsi di tempatnya (penghitung karakter, batas 100
@@ -431,7 +438,8 @@ evidence (`gh workflow run ci-cd.yml --ref <branch> -f suite=toolchain`).
 - Face tracking with OpenCV's YuNet detector that frames the person whose mouth moves, and
   cuts (instead of panning) when the speaker changes sides
 - H.264/AAC MP4 rendering with downloadable SRT that matches the burned captions
-- Machine-readable, fail-closed manifest (`processing`, `completed`, or `failed`)
+- Machine-readable manifest (`processing`, `completed`, or `failed`); a clip that fails to
+  render is marked failed and the others are kept, and a job fails when no clip renders
 - Authenticated Next.js dashboard, durable job queue with fenced leases, persistent
   project history with every clip ready to post, project deletion, and "Batalkan" for a queued
   or running job, which stops all of its processes and keeps the project as "Dibatalkan"

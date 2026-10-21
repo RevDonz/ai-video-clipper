@@ -11,6 +11,7 @@ import TrendChips from "../../../components/trends/TrendChips.jsx";
 import { clipDownloads, formatSize } from "../../../lib/clip-download.mjs";
 import { clipEntryFor, loadClipEntries } from "../../../lib/clip-entry-view.mjs";
 import { replaceClip } from "../../../lib/clip-text.mjs";
+import { clipCountText, failedClipView, isFailedClip, readyClips } from "../../../lib/clip-status.mjs";
 import { jobHelpHref } from "../../../lib/help-catalog.mjs";
 import { jobCancellable } from "../../../lib/job-cancel.mjs";
 import {
@@ -32,6 +33,7 @@ import {
   clipFilterView,
   clipFromParam,
   clipPosition,
+  clipsHeading,
   keepSelection,
   pickAll,
   pickSummary,
@@ -149,21 +151,24 @@ function CopyButton({ state, label, done, onClick, ghost = false }) {
 }
 
 // One poster of the grid. Outside "Pilih" it shows its clip in the detail panel (the current one
-// is marked); in "Pilih" it toggles the clip for the ZIP. Only the current poster is a tab stop:
-// the arrows move between posters.
+// is marked); in "Pilih" it toggles the clip for the ZIP. A clip that failed to render says
+// "Gagal" in its frame and cannot be picked (it has no file). Only the current poster is a tab
+// stop: the arrows move between posters.
 function PosterCard({ clip, entry, selected, picking, picked, onActivate, buttonRef }) {
   const titleId = `poster-${clip.index}-title`;
   const metaId = `poster-${clip.index}-meta`;
+  const failed = failedClipView(clip);
+  const pickable = picking && !failed;
   const pill = scorePill(clip);
   const length = formatTimestamp(clip.duration);
   const number = String(clip.index).padStart(2, "0");
   const edited = entry?.editBadge?.tone === "edited";
   const cardNotes = clipFallbackNotes(clip).filter((note) => note.card);
-  const meta = [`Klip ${number}`, length, pill && `skor ${pill.text}`, edited && "diedit",
+  const meta = [`Klip ${number}`, failed && "gagal dirender", length, pill && `skor ${pill.text}`, edited && "diedit",
     ...cardNotes.map((note) => note.card.toLowerCase())].filter(Boolean).join(", ");
   return (
     <li>
-      <article className={styles.poster} aria-labelledby={titleId} data-selected={(!picking && selected) || undefined} data-picked={(picking && picked) || undefined}>
+      <article className={styles.poster} aria-labelledby={titleId} data-selected={(!picking && selected) || undefined} data-picked={(pickable && picked) || undefined} data-failed={failed ? "true" : undefined}>
         <button
           type="button"
           ref={buttonRef}
@@ -173,12 +178,14 @@ function PosterCard({ clip, entry, selected, picking, picked, onActivate, button
           aria-labelledby={titleId}
           aria-describedby={metaId}
           aria-current={!picking && selected ? "true" : undefined}
-          aria-pressed={picking ? picked : undefined}
+          aria-pressed={pickable ? picked : undefined}
+          aria-disabled={picking && failed ? "true" : undefined}
           aria-controls={picking ? undefined : DETAIL_ID}
           onClick={() => onActivate(clip.index)}
         >
-          <PosterThumb poster={clipPosterUrl(clip)} number={number} length={length}>
-            {picking && <span className={styles.check} aria-hidden="true" />}
+          <PosterThumb poster={clipPosterUrl(clip)} number={number} length={length}
+            badge={failed && <span className="chip error">{failed.label}</span>}>
+            {pickable && <span className={styles.check} aria-hidden="true" />}
           </PosterThumb>
           <PosterText titleId={titleId} title={clip.title || clipLabel(clip)} pill={pill} edited={edited}
             flags={cardNotes.map((note) => <span key={note.code} className={styles.posterNote}>{note.card}</span>)}>
@@ -191,9 +198,12 @@ function PosterCard({ clip, entry, selected, picking, picked, onActivate, button
 }
 
 // The selected clip: the video beside everything needed to post it. Its title and description
-// can be changed in the caption box ("Ubah", "Tulis ulang") once the project is finished.
+// can be changed in the caption box ("Ubah", "Tulis ulang") once the project is finished. A clip
+// that failed to render has a frame saying so where the video would be, and nothing to
+// download or edit.
 function ClipDetail({ clip, job, entry = null, copied, onCopy, position, onStep, panelRef, textDrafts, onClipSaved }) {
   const label = clipLabel(clip);
+  const failed = failedClipView(clip);
   const titleId = `clip-${clip.index}-title`;
   const score = clipScoreView(clip);
   const archetype = archetypeLabel(clip.archetype);
@@ -213,7 +223,15 @@ function ClipDetail({ clip, job, entry = null, copied, onCopy, position, onStep,
 
   return (
     <section ref={panelRef} id={DETAIL_ID} className={styles.detail} aria-labelledby={titleId} data-clip-detail={clip.index}>
-      <video key={clip.index} className={styles.video} controls preload="metadata" src={clip.videoUrl} poster={clipPosterUrl(clip)} aria-label={`Video ${label}`} />
+      {failed ? (
+        <div key={clip.index} className={`${styles.video} ${styles.failedFrame}`}>
+          <span className="chip error">{failed.label}</span>
+          <p><strong>{failed.text}</strong></p>
+          <p>{failed.hint}</p>
+        </div>
+      ) : (
+        <video key={clip.index} className={styles.video} controls preload="metadata" src={clip.videoUrl} poster={clipPosterUrl(clip)} aria-label={`Video ${label}`} />
+      )}
       <div className={styles.clipBody}>
         <div className={styles.detailBar}>
           <span className={styles.clipNumber}>{label}</span>
@@ -261,7 +279,7 @@ function ClipDetail({ clip, job, entry = null, copied, onCopy, position, onStep,
 
         <section className={styles.caption} aria-labelledby={`${titleId}-caption`}>
           <h4 id={`${titleId}-caption`}>Caption</h4>
-          <ClipText key={clip.index} jobId={job.id} clip={clip} editable={job.status === "completed"} drafts={textDrafts}
+          <ClipText key={clip.index} jobId={job.id} clip={clip} editable={job.status === "completed" && !failed} drafts={textDrafts}
             onSaved={onClipSaved}
             view={(caption.body || caption.hashtags.length > 0) && (
               <>
@@ -318,8 +336,10 @@ function ClipsSection({ job, copyState, onCopy, entries, initialClip = null, onC
   const currentIndex = keepSelection(visible, selected);
   const current = visible.find((clip) => clip.index === currentIndex) || null;
   const position = clipPosition(visible, currentIndex);
-  const downloadable = job.status === "completed" && clips.length > 0;
+  const downloadable = job.status === "completed" && readyClips(clips).length > 0;
   const busy = zip.state === "checking";
+  // A failed clip has no file: no editor entry, nothing to pick.
+  const entryFor = (clip) => (isFailedClip(clip) ? null : clipEntryFor(entries, job, clip.index));
 
   const move = (delta, { focusPoster = false } = {}) => {
     const next = stepSelection(visible, currentIndex, delta);
@@ -347,7 +367,7 @@ function ClipsSection({ job, copyState, onCopy, entries, initialClip = null, onC
 
   const activate = (index) => {
     if (picking) {
-      setPicks((previous) => togglePick(previous, index));
+      if (!isFailedClip(clips.find((clip) => clip.index === index))) setPicks((previous) => togglePick(previous, index));
       setSelected(index);
       return;
     }
@@ -442,7 +462,7 @@ function ClipsSection({ job, copyState, onCopy, entries, initialClip = null, onC
   return (
     <section id="klip" className={styles.clips} aria-labelledby="clips-title">
       <div className={styles.clipsHead}>
-        <h2 id="clips-title">{job.status === "completed" ? `${clips.length} klip siap diunggah` : `${clips.length} klip`}</h2>
+        <h2 id="clips-title">{clipsHeading(clips, job.status)}</h2>
         {downloadable && (picking ? (
           <div className={styles.pickBar} role="group" aria-label="Pilih klip untuk diunduh">
             <span className={styles.pickCount} aria-live="polite">{pickSummary(picks.size)}</span>
@@ -477,7 +497,7 @@ function ClipsSection({ job, copyState, onCopy, entries, initialClip = null, onC
         <div className={styles.workspace}>
           <ul className={styles.posterGrid} aria-label="Daftar klip">
             {visible.map((clip) => (
-              <PosterCard key={clip.index} clip={clip} entry={clipEntryFor(entries, job, clip.index)} selected={clip.index === currentIndex}
+              <PosterCard key={clip.index} clip={clip} entry={entryFor(clip)} selected={clip.index === currentIndex}
                 picking={picking} picked={picks.has(clip.index)} onActivate={activate}
                 buttonRef={(node) => {
                   posterRefs.current.set(clip.index, node);
@@ -486,7 +506,7 @@ function ClipsSection({ job, copyState, onCopy, entries, initialClip = null, onC
             ))}
           </ul>
           {current && (
-            <ClipDetail clip={current} job={job} entry={clipEntryFor(entries, job, current.index)}
+            <ClipDetail clip={current} job={job} entry={entryFor(current)}
               copied={copyState.index === current.index ? copyState : null} onCopy={onCopy} position={position}
               onStep={(delta) => move(delta)} panelRef={detailRef} textDrafts={textDrafts.current} onClipSaved={onClipSaved} />
           )}
@@ -510,6 +530,7 @@ function ProjectView({ job, copyState, onCopy, entries, initialClip, cancelNote,
   const hint = failureHint(job);
   const help = jobHelpHref(job);
   const clipCount = Array.isArray(job.clips) ? job.clips.length : 0;
+  const clipCountLabel = clipCountText(job.clips);
 
   return (
     <div className={`shell ${styles.page}`}>
@@ -519,7 +540,7 @@ function ProjectView({ job, copyState, onCopy, entries, initialClip, cancelNote,
         <p className={styles.meta}>
           <span className={styles.status} data-status={job.status}>{statusLabel(job.status)}</span>
           <span>{formatProjectDate(job.createdAt)}</span>
-          {clipCount > 0 && <span>{clipCount} klip</span>}
+          {clipCount > 0 && <span>{clipCountLabel}</span>}
           {job.source?.type === "youtube" && job.source.url && (
             <a href={job.source.url} target="_blank" rel="noopener noreferrer">Buka di YouTube<span className="visuallyHidden"> (tab baru)</span></a>
           )}

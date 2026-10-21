@@ -286,3 +286,19 @@ test("two clips that would share a name get distinct ones", async (t) => {
   const read = await saved(root, await call(root));
   assert.deepEqual(read.entries.map((entry) => entry.name), ["01-rahasia-hook-di-3-detik.mp4", "01-rahasia-hook-di-3-detik-2.mp4"]);
 });
+
+test("a clip that failed to render is left out of 'Unduh semua', and picking it says why", async (t) => {
+  // Even a failed clip whose record still names a file (and the file exists) is never zipped.
+  const failed = clip(2, { status: "failed", errorCode: "render_failed" });
+  const { root } = await fixture(t, { job: { clips: [clip(1), failed, clip(3)] } });
+  const read = await saved(root, await call(root));
+  assert.deepEqual(read.entries.map((entry) => entry.name), ["01-rahasia-hook-di-3-detik.mp4", "03-ngopi-di-cafe.mp4"]);
+  const check = await call(root, { query: "?check=1" });
+  assert.equal((await check.json()).count, 2);
+  const picked = await errorOf(await call(root, { query: "?clips=1,2" }), 409, "clip_failed");
+  assert.equal(picked.error, "Klip 02 gagal dirender, jadi tidak bisa diunduh.");
+  await errorOf(await call(root, { query: "?clips=7" }), 404, "unknown_clip");
+
+  const { root: none } = await fixture(t, { job: { clips: [clip(1, { status: "failed" })] } });
+  await errorOf(await call(none), 404, "no_clips");
+});

@@ -171,10 +171,15 @@ test("the page: one poster button per clip, the current one marked, a toggle in 
   assert.match(source, /<article className=\{styles\.poster\} aria-labelledby=\{titleId\}/);
   assert.match(source, /tabIndex=\{selected \? 0 : -1\}/);
   assert.match(source, /aria-current=\{!picking && selected \? "true" : undefined\}/);
-  assert.match(source, /aria-pressed=\{picking \? picked : undefined\}/);
+  // A clip that failed to render is no toggle in 'Pilih': it has no file to zip.
+  assert.match(source, /const pickable = picking && !failed;/);
+  assert.match(source, /aria-pressed=\{pickable \? picked : undefined\}/);
+  assert.match(source, /aria-disabled=\{picking && failed \? "true" : undefined\}/);
+  assert.match(source, /if \(!isFailedClip\(clips\.find\(\(clip\) => clip\.index === index\)\)\) setPicks/);
   assert.match(source, /const pill = scorePill\(clip\);/);
   // The poster itself is the shared one the Riwayat clip grid draws too.
-  assert.match(source, /<PosterThumb poster=\{clipPosterUrl\(clip\)\} number=\{number\} length=\{length\}>/);
+  assert.match(source, /<PosterThumb poster=\{clipPosterUrl\(clip\)\} number=\{number\} length=\{length\}\n\s*badge=\{failed && /);
+  assert.match(source, /\{pickable && <span className=\{styles\.check\} aria-hidden="true" \/>\}/);
   assert.match(source, /<PosterText titleId=\{titleId\} title=\{clip\.title \|\| clipLabel\(clip\)\} pill=\{pill\} edited=\{edited\}\n\s*flags=\{cardNotes\.map\(/);
   const poster = await readFile(new URL("../components/ClipPoster.jsx", import.meta.url), "utf8");
   // The page's fallback notes sit on the shared poster's meta row, beside the score pill.
@@ -212,8 +217,8 @@ test("the page: 'Pilih' reads 'n dipilih · Pilih semua · Batal · Unduh (n)', 
   assert.match(source, /const download = async \(indexes\) => \{\n\s*if \(busy\) return;/);
   assert.match(source, /result = await checkZip\(job\.id, indexes, \{ signal: controller\.signal \}\);/);
   assert.match(source, /role="alert">\{zip\.message\}/);
-  // The ZIP buttons only on a finished project.
-  assert.match(source, /const downloadable = job\.status === "completed" && clips\.length > 0;/);
+  // The ZIP buttons only on a finished project with a clip that rendered.
+  assert.match(source, /const downloadable = job\.status === "completed" && readyClips\(clips\)\.length > 0;/);
 });
 
 test("the page: the framing note on its poster (and in its label), every note in the detail panel", async () => {
