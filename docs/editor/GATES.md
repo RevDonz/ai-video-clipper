@@ -2092,3 +2092,21 @@ image or a browser run on GitHub Actions when the branch is pushed.
 
 Full P-TIME matrix and golden evidence in the image:
 `gh workflow run editor-gates.yml -f ref=adopsi/karaoke-kf -f suite=command -f command='PYTHONPATH=src:tests uv run python tests/support/edit_v2_text.py ptime /out/P-TIME-ffmpeg.json && PYTHONPATH=src:tests uv run python tests/support/edit_v2_text.py golden-evidence /out/golden-evidence.json && PYTHONPATH=src uv run python scripts/editor/make_pack_thumbs.py --check'`.
+
+## Caption over the face (2026-10-21)
+
+The plan warns `caption_over_face` when the caption block covers the speaker's face for a share of
+the clip, with the face mapped through the clip's layout (CONTRACTS §5.50); the editor offers the
+preset that clears it. The warning is not part of the plan sha, so nothing that renders changes
+and `RENDER_SEMANTICS` stays. Built on branch `adopsi/caption-wajah` with targeted local tests
+only.
+
+| Gate | Threshold | Result | Where | Verdict |
+|---|---|---|---|---|
+| Face boxes | the camera plan's `faces` is the framed face per sample, per mille, clamped; plans and detectors without boxes keep today's bytes | pass | `tests/test_edit_v2_camera.py`, `tests/test_face_window.py`, `tests/test_speaker_track.py` | **pass** (local) |
+| Mapping | the face lands where the layout puts it: centre crop, face-track crop, manual framing keyframes, fit-blur, both split bands | pass on fake boxes | `tests/test_edit_v2_face_zone.py` | **pass** (local) |
+| Warning | 15 % overlap (of the face, or of the block when the face is larger), on ≥ 25 % and ≥ 2 captioned kept samples; one warning at the earliest frame; the nearest clearing preset, or none | pass | `tests/test_edit_v2_face_zone.py`, `tests/test_edit_v2_plan.py` | **pass** (local) |
+| Caption box | the same integers as the caption gizmo; the presets are the editor's | pass, read from the JS sources | `tests/test_edit_v2_face_zone.py` | **pass** (local) |
+| Editor | message, check before export, fix command, one undo step, render records accept the code | pass | `web/tests/editor-caption-face.test.mjs`, `web/tests/clip-renders.test.mjs` | **pass** (local) |
+| Browser (fakes) | Perlu dicek and the Teks panel show the fix; a click moves the caption | `e2e/editor-shell.spec.mjs` "a caption over the face…" | | pending: `editor-gates suite=e2e` |
+
