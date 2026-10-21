@@ -107,10 +107,13 @@ test("P-FRAME: the source frame and crop read back from the canvas equal the gri
         mismatches += 1;
         if (details.length < 10) details.push({ n, want, got: frame.index });
       }
-      if (item.expected.crop_x !== null && frame.cropX !== item.expected.crop_x[n]) cropMismatches += 1;
+      // null: a latar blur frame of Ikuti wajah (CONTRACTS §5.40), which has no crop x
+      if (item.expected.crop_x !== null && item.expected.crop_x[n] !== null
+        && frame.cropX !== item.expected.crop_x[n]) cropMismatches += 1;
     });
     results.push({ case: item.id, fps: item.fps, layout: item.layout, vfr: item.vfr, pieces: item.pieces,
-      frames: outcome.frames.length, mismatches, crop_x_checked: item.expected.crop_x !== null ? outcome.frames.length : 0,
+      frames: outcome.frames.length, mismatches, crop_x_checked: item.expected.crop_x !== null
+        ? item.expected.crop_x.filter((x) => x !== null).length : 0,
       crop_x_mismatches: cropMismatches, unpresented, details, seek_ms: outcome.seekMs });
   }
   const totals = { frames: results.reduce((sum, r) => sum + r.frames, 0),

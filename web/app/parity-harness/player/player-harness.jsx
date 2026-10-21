@@ -174,13 +174,17 @@ function createHarness(manifest, stage) {
       const out = [];
       const ms = [];
       const p = sourcePattern();
+      // Ikuti wajah's latar blur frames (CONTRACTS §5.40): fit_blur's geometry, no crop x.
+      const fallback = new Set(item.decode.blur_frames || []);
       for (const n of frames) {
         ms.push(await seekShown(n));
         const plane = planeFromRgba(readCanvas(), WIDTH, HEIGHT);
+        const blur = fallback.has(n) && item.decode.fallback;
+        const where = blur || item.decode;
         out.push({
           presented: player.state().presentedFrame === n,
-          index: decodeIndex(plane, WIDTH, HEIGHT, p, { scale: item.decode.scale, top: item.decode.top }),
-          cropX: crop ? decodeCropX(plane, WIDTH, HEIGHT, p, { scale: item.decode.crop_scale, top: 0 }) : null,
+          index: decodeIndex(plane, WIDTH, HEIGHT, p, { scale: where.scale, top: where.top }),
+          cropX: crop && !blur ? decodeCropX(plane, WIDTH, HEIGHT, p, { scale: item.decode.crop_scale, top: 0 }) : null,
         });
       }
       return { frames: out, seekMs: { p50: percentile(ms, 50), p95: percentile(ms, 95), max: Math.max(...ms) } };

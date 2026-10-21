@@ -256,11 +256,11 @@ def expected_index(plan: Any, grid: Sequence[int | None], *, first: int) -> list
     return out
 
 
-def expected_crop_x(plan: Any, source: tuple[int, int]) -> list[int] | None:
+def expected_crop_x(plan: Any, source: tuple[int, int]) -> list[int | None] | None:
     """The crop x of every output frame for the crop layouts: the centre, the camera table or
     the manual framing keyframes' (CONTRACTS §5.44), at the document's zoom over its content
     picture (§5.52). None for fit_blur and for the split, whose two crops P-PLATE reads band by
-    band (§5.45)."""
+    band (§5.45); a None entry for a latar blur frame of Ikuti wajah (§5.40)."""
     from ai_clipper.edit_v2 import layouts
 
     if plan.layout in ("fit_blur", "split"):
@@ -277,7 +277,23 @@ def expected_crop_x(plan: Any, source: tuple[int, int]) -> list[int] | None:
     table = layouts.crop_positions(plan.camera, plan.fps, source=source, output=plan.output,
                                    first_sf=0, count=count, zoom_pm=plan.zoom_pm,
                                    content=plan.content_rect)
-    return [table[tm.out_to_src(n, plan.pieces)[1]] for n in range(plan.total_frames)]
+    fallback = set(fallback_output_frames(plan))
+    return [None if n in fallback else table[tm.out_to_src(n, plan.pieces)[1]]
+            for n in range(plan.total_frames)]
+
+
+def fallback_output_frames(plan: Any) -> list[int]:
+    """The output frames Ikuti wajah shows with the latar blur fallback (CONTRACTS §5.40): read
+    with fit_blur's geometry and without a crop x, as ``frame_identity.fallback_frames`` does
+    on the server."""
+    from ai_clipper.edit_v2 import layouts
+
+    if (plan.layout != "camera" or plan.keyframes
+            or plan.doc["layout"]["default"].get("no_face") != "fit_blur"):
+        return []
+    count = max(piece.out_sf for piece in plan.pieces)
+    flags = layouts.no_face_frames(plan.camera, plan.fps, first_sf=0, count=count)
+    return [n for n in range(plan.total_frames) if flags[tm.out_to_src(n, plan.pieces)[1]]]
 
 
 def probe_frames(plan: Any, *, count: int = 8) -> list[int]:
@@ -873,6 +889,9 @@ class Generator:
         if case.layout != "fit_blur":
             zoomed = layouts.zoomed_output(case.output, case.zoom_pm)
             info["crop_scale"] = layouts.scaled_size(case.picture, zoomed)[0] / case.picture[0]
+        if case.layout == "camera" and case.no_face == "fit_blur" and not case.keyframes:
+            blur = fi.geometry("fit_blur", case.picture, case.output, case.zoom_pm)
+            info["fallback"] = {"scale": blur["scale"], "top": blur["top"]}
         return info
 
     # the P-FRAME cases -----------------------------------------------------------------------
@@ -894,7 +913,8 @@ class Generator:
         entry: dict[str, Any] = {
             "id": case.name, "kind": "pframe", "fps": list(case.fps), "layout": case.layout,
             "vfr": case.vfr, "total_frames": plan.total_frames, "pieces": len(plan.pieces),
-            "removals": len(plan.doc["main"]["removals"]), "decode": self.decode_info(case),
+            "removals": len(plan.doc["main"]["removals"]),
+            "decode": {**self.decode_info(case), "blur_frames": fallback_output_frames(plan)},
             "expected": {"index": expected_index(plan, grid, first=first),
                          "crop_x": expected_crop_x(plan, case.source_size)},
             "plans": plans, "default_variant": "default", "variants": variants,
