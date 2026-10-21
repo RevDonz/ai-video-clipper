@@ -240,10 +240,13 @@ def _earlier_values(directory: Path, group: str) -> dict[str, list]:
             continue
         if type(record) is not dict or record.get("state") != "done" or record.get("group") != group:
             continue
-        restored = {entry.get("clipId") for entry in record.get("undo", {}).get("restored", ())}
-        for entry in record.get("applied", ()):
-            if entry.get("clipId") not in restored:
-                values.setdefault(entry.get("clipId"), []).append(record.get("value"))
+        try:
+            restored = {entry["clipId"] for entry in record.get("undo", {}).get("restored", ())}
+            for entry in record["applied"]:
+                if entry["clipId"] not in restored:
+                    values.setdefault(entry["clipId"], []).append(record["value"])
+        except (AttributeError, KeyError, TypeError):
+            continue  # a record this module did not write gives no pass
     return values
 
 
