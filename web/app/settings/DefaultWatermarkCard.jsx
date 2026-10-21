@@ -170,7 +170,7 @@ export default function DefaultWatermarkCard() {
             </div>
           </div>
           <div className="watermarkActions">
-            <button type="submit" className="btn" disabled={Boolean(busy) || unchanged}>{busy === "save" ? "Menyimpan…" : "Simpan"}</button>
+            <button type="submit" className="btn" disabled={Boolean(busy) || unchanged}>{busy === "save" ? "Menyimpan…" : "Simpan watermark"}</button>
             {saved && (
               <button type="button" className="btn danger" onClick={remove} disabled={Boolean(busy)}>
                 {busy === "remove" ? "Menghapus…" : "Hapus"}

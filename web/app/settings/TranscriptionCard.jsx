@@ -171,7 +171,7 @@ export default function TranscriptionCard() {
                     onChange={(event) => setKeyValue(event.target.value)}
                   />
                   <button type="submit" className="btn" disabled={!keyValue.trim() || busy !== null}>
-                    {busy === "key" ? "Menyimpan…" : "Simpan key"}
+                    {busy === "key" ? "Menyimpan…" : "Simpan key Groq"}
                   </button>
                   {state.ownKey && (
                     <button type="button" className="btn" onClick={() => { setReplacing(false); setKeyValue(""); }} disabled={busy !== null}>Batal</button>

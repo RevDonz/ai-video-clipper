@@ -241,6 +241,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 10px;
+  min-width: 44px;
   min-height: 44px;
   border-radius: var(--radius-s);
   color: var(--text);
@@ -286,6 +287,7 @@ body {
   font: 500 14px/1.2 var(--font);
   text-align: center;
   text-decoration: none;
+  white-space: nowrap;
   transition: background-color var(--dur-2) var(--ease-out), color var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out);
 }
 .appNav a:hover { background: var(--surface-2); color: var(--text); }
@@ -352,8 +354,11 @@ footer {
 @media (max-width: 359px) {
   .appHeaderLead .brandName { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 }
-/* Below 384 px the badge shows its short form ("42%", "8 klip"); the full text stays its name. */
+/* Below 384 px the badge shows its short form ("42%", "8 klip"); the full text stays its name.
+   The four menu labels keep one line each by giving up side padding (at 360 px "Buat Klip" and
+   "Konteks Tren" broke onto two lines). */
 @media (max-width: 383px) {
+  .appNav a { padding: 6px 4px; }
   .jobBadgeText { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
   .jobBadge::after { content: attr(data-short); content: attr(data-short) / ""; }
 }
