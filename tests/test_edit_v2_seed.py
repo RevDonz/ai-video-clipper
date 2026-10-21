@@ -24,7 +24,16 @@ import pytest
 from support import edit_v2_fixtures as fixtures
 
 from ai_clipper.audio_timeline import read_audio_timeline
-from ai_clipper.edit_v2 import COMPILER_ID, DOC_FPS, PACK_DEFAULT_OVERRIDES, camera, store
+from ai_clipper.edit_v2 import (
+    CAPTION_POSITIONS,
+    CAPTION_SIZES,
+    COMPILER_ID,
+    DOC_FPS,
+    PACK_DEFAULT_OVERRIDES,
+    PACK_IDS,
+    camera,
+    store,
+)
 from ai_clipper.edit_v2 import timemap as tm
 from ai_clipper.edit_v2 import transitions as tr
 from ai_clipper.edit_v2.clip_id import clip_id, ms_from_seconds
@@ -167,6 +176,14 @@ def test_hook_default_matches_the_pipeline():
 # --- build_seed ----------------------------------------------------------------------------------
 
 
+def _fixture_options(context_id):
+    """The job options the T1.0 fixture seed of ``context_id`` was built from."""
+    spec = fixtures.SPECS[context_id]
+    return {"renderMode": LAYOUT_OF[spec.layout], "captionStyle": spec.pack,
+            "coldOpen": spec.cold_open_ms is not None, "hookOverlay": spec.hook_text is not None,
+            "selectionMode": "v3"}
+
+
 def _fixture_seed(context_id, contexts, **extra):
     """``build_seed`` with the inputs the T1.0 fixture seed of ``context_id`` was built from,
     plus ``extra`` seed-context keys."""
@@ -181,9 +198,7 @@ def _fixture_seed(context_id, contexts, **extra):
     )
     job = {
         "id": spec.job_id,
-        "options": {"renderMode": LAYOUT_OF[spec.layout], "captionStyle": spec.pack,
-                    "coldOpen": cold is not None, "hookOverlay": spec.hook_text is not None,
-                    "selectionMode": "v3"},
+        "options": _fixture_options(context_id),
         "hookDuration": spec.hook_duration_s,
         "renderSize": list(spec.output),
         "seedAtMs": fixtures.CREATED_AT_MS,
@@ -337,6 +352,58 @@ def test_seed_options_from_the_job():
         _seed(clip, _job(renderMode="face-track"))
     with pytest.raises(SeedError):
         _seed(clip, _job(), camera_sha="d" * 64)
+
+
+# --- the job's caption look (dashboard "Tampilan klip", CONTRACTS §5.47) -------------------------
+
+
+@pytest.mark.parametrize("pack", PACK_IDS)
+def test_the_seed_takes_any_caption_pack_the_job_names(pack):
+    seed = _seed(job=_job(captionStyle=pack))
+    assert seed["captions"]["pack"] == {"id": pack, "v": 1}
+    assert seed["captions"]["overrides"] == dict(PACK_DEFAULT_OVERRIDES[pack])
+
+
+@pytest.mark.parametrize(("position", "y_e5"), [("top", 38000), ("middle", 60000),
+                                                ("bottom", 83000)])
+@pytest.mark.parametrize(("size", "size_pm"), [("small", 850), ("medium", 1000),
+                                               ("large", 1200)])
+def test_the_caption_position_and_size_become_the_seed_overrides(position, y_e5, size, size_pm):
+    seed = _seed(job=_job(captionStyle="bold", captionPosition=position, captionSize=size))
+    assert seed["captions"]["overrides"] == {**PACK_DEFAULT_OVERRIDES["bold"], "y_e5": y_e5,
+                                             "size_pm": size_pm}
+    assert CAPTION_POSITIONS[position] == y_e5 and CAPTION_SIZES[size] == size_pm
+
+
+def test_a_job_at_the_bottom_and_medium_seeds_exactly_like_a_job_without_them():
+    plain = _seed()
+    assert _seed(job=_job(captionPosition="bottom", captionSize="medium")) == plain
+    moved = _seed(job=_job(captionPosition="top", captionSize="large"))
+    assert moved["clip_id"] == plain["clip_id"]  # the look is not part of the clip id
+    assert moved["base"]["seed_sha256"] != plain["base"]["seed_sha256"]
+
+
+@pytest.mark.parametrize("options", [
+    {"captionStyle": "glow-x"}, {"captionStyle": None}, {"captionPosition": "atas"},
+    {"captionPosition": 38000}, {"captionPosition": None}, {"captionSize": "besar"},
+    {"captionSize": 1200},
+])
+def test_an_unknown_caption_look_is_refused(options):
+    with pytest.raises(SeedError):
+        _seed(job=_job(**options))
+
+
+@pytest.mark.parametrize("context_id", fixtures.CONTEXT_IDS)
+def test_every_caption_look_seeds_a_valid_document(context_id, edit_v2_doc_contexts):
+    context = edit_v2_doc_contexts[context_id]
+    for pack in PACK_IDS:
+        for position in CAPTION_POSITIONS:
+            seed = _fixture_seed(context_id, edit_v2_doc_contexts, options={
+                **_fixture_options(context_id), "captionStyle": pack,
+                "captionPosition": position, "captionSize": "large"})
+            validation = validate_doc(seed, words=context.words, assets=context.assets,
+                                      seed=None)
+            assert validation.errors == (), (pack, position, validation.errors)
 
 
 def test_the_seed_join_comes_from_the_cold_open_join_key():
@@ -780,6 +847,21 @@ def test_prepare_is_idempotent_and_never_overwrites(synthetic, tmp_path):
     seed_path.write_bytes(marker)
     assert prepare_legacy_job(job_dir) == first
     assert seed_path.read_bytes() == marker
+
+
+def test_prepare_seeds_the_caption_look_the_job_was_created_with(synthetic, tmp_path):
+    job_dir = _copy_job(synthetic, "main", tmp_path)
+    job_path = job_dir / "job.json"
+    job = json.loads(job_path.read_text())
+    job["options"].update(captionStyle="sorot", captionPosition="middle", captionSize="small")
+    job_path.write_text(json.dumps(job))
+    results = prepare_legacy_job(job_dir)
+    assert results and all(entry["openable"] for entry in results)
+    for entry in results:
+        captions = seed_of(job_dir, entry)["captions"]
+        assert captions["pack"] == {"id": "sorot", "v": 1}
+        assert captions["overrides"] == {**PACK_DEFAULT_OVERRIDES["sorot"], "y_e5": 60000,
+                                         "size_pm": 850}
 
 
 def test_inspect_writes_nothing(synthetic, tmp_path):

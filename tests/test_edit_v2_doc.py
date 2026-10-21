@@ -446,6 +446,27 @@ def test_a_legacy_auto_file_stands_for_its_seed_only_without_a_watermark(context
     assert auto_file_is_seed(seed)
 
 
+@pytest.mark.parametrize("change", [
+    {"pack": {"id": "bold", "v": 1}}, {"pack": {"id": "box", "v": 1}},
+    {"pack": {"id": "sorot", "v": 1}}, {"overrides": {"y_e5": 38000}},
+    {"overrides": {"size_pm": 1200}},
+])
+def test_a_legacy_auto_file_stands_for_its_seed_only_with_a_look_legacy_draws(contexts, change):
+    """The legacy renderer draws Klasik or Karaoke at the bottom in one size (CONTRACTS §5.47): a
+    legacy seed with another pack, spot or size from the job's options is not its auto file."""
+    seed = copy.deepcopy(contexts["c30"].seed)
+    compiler = seed["base"]["engine"]["compiler"]
+    seed["base"]["engine"]["compiler"] = "legacy"
+    for pack in ("karaoke", "classic"):
+        seed["captions"]["pack"] = {"id": pack, "v": 1}
+        assert auto_file_is_seed(seed), pack
+    seed["captions"]["pack"] = change.get("pack", seed["captions"]["pack"])
+    seed["captions"]["overrides"].update(change.get("overrides", {}))
+    assert not auto_file_is_seed(seed)
+    seed["base"]["engine"]["compiler"] = compiler
+    assert compiler != "legacy" and auto_file_is_seed(seed)
+
+
 def test_rev1_unchanged_fixtures_equal_their_seed_content(contexts):
     for context_id in fixtures.CONTEXT_IDS:
         raw = (fixtures.DOC_FIXTURES_DIR / "valid" / f"rev1_unchanged__{context_id}.json").read_bytes()

@@ -216,6 +216,8 @@ def test_cli_v3_defaults():
     assert args.cold_open is True
     assert args.hook_overlay is True
     assert args.caption_style is None  # karaoke for v3, classic otherwise (run_pipeline)
+    # None: the pack's own spot and size (bottom, medium; CONTRACTS §5.47)
+    assert args.caption_position is None and args.caption_size is None
     assert args.captions_dir is None
     assert args.trend_context is None
     assert args.word_timestamps is True
@@ -233,6 +235,11 @@ def test_cli_v3_defaults():
         (["--no-hook-overlay"], {"hook_overlay": False}),
         (["--caption-style", "karaoke"], {"caption_style": "karaoke"}),
         (["--caption-style", "classic"], {"caption_style": "classic"}),
+        (["--caption-style", "box"], {"caption_style": "box"}),
+        (["--caption-style", "sorot"], {"caption_style": "sorot"}),
+        (["--caption-position", "top"], {"caption_position": "top"}),
+        (["--caption-position", "middle"], {"caption_position": "middle"}),
+        (["--caption-size", "large"], {"caption_size": "large"}),
         (["--captions-dir", "caps"], {"captions_dir": Path("caps")}),
         (["--trend-context", "tc.json"], {"trend_context": Path("tc.json")}),
         (["--no-word-timestamps"], {"word_timestamps": False}),
@@ -252,6 +259,10 @@ def test_cli_parses_v3_options(arguments: list[str], expected: dict):
         ["--llm", "on"],
         ["--llm", "AUTO"],
         ["--caption-style", "neon"],
+        ["--caption-position", "atas"],
+        ["--caption-position", "38000"],
+        ["--caption-size", "besar"],
+        ["--caption-size"],
         ["--hook-duration", "0"],
         ["--hook-duration", "-1"],
         ["--hook-duration", "30.5"],
@@ -266,6 +277,19 @@ def test_cli_parses_v3_options(arguments: list[str], expected: dict):
 def test_cli_rejects_invalid_v3_options(arguments: list[str]):
     with pytest.raises(SystemExit, match="2"):
         parse_args(["video.mp4", *arguments])
+
+
+def test_cli_forwards_the_caption_look_of_a_web_job(monkeypatch, tmp_path: Path):
+    """CONTRACTS §5.47: the dashboard's pack, spot and size reach run_pipeline unchanged."""
+    monkeypatch.setattr(cli, "load_whisper_model", lambda *a, **k: "M")
+    received = _capture_pipeline(monkeypatch, tmp_path)
+    arguments = [*WEB_V3_ARGS[:-4], "--caption-style", "bold", "--caption-position", "top",
+                 "--caption-size", "small", *WEB_V3_ARGS[-2:]]
+
+    assert cli.main(arguments) == 0
+
+    assert (received["caption_style"], received["caption_position"], received["caption_size"]) == (
+        "bold", "top", "small")
 
 
 def test_cli_legacy_web_v1_command_keeps_v1_defaults(monkeypatch, tmp_path: Path):
@@ -305,6 +329,7 @@ def test_cli_forwards_web_v3_command_and_loads_whisper_lazily(monkeypatch, tmp_p
     assert received["cold_open"] is False
     assert received["hook_overlay"] is True
     assert received["caption_style"] == "classic"
+    assert received["caption_position"] is None and received["caption_size"] is None
     assert received["captions_dir"] == Path("/data/jobs/j/input/captions")
     assert received["hook_duration"] == 4.0
     assert received["min_duration"] == 20.0 and received["max_duration"] == 60.0

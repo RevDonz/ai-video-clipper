@@ -7,9 +7,10 @@ sha256 of the seed's canonical bytes with that field set to null and without ``a
 same plan and render keys whenever it was seeded (plan §5.2 R9).
 
 **The ``job`` mapping of** :func:`build_seed` is the web's ``job.json`` object (``id`` and
-``options``: ``renderMode``, ``captionStyle``, ``coldOpen``, ``hookOverlay``; missing options
-take the dashboard's V3 defaults) plus optional seed-context keys that never occur in
-``job.json``:
+``options``: ``renderMode``, ``captionStyle`` (any caption pack), ``captionPosition``
+(``top``/``middle``/``bottom``), ``captionSize`` (``small``/``medium``/``large``), ``coldOpen``,
+``hookOverlay``; missing options take the dashboard's V3 defaults, and the position and size the
+pack defaults, CONTRACTS §5.47) plus optional seed-context keys that never occur in ``job.json``:
 
 * ``renderSize`` ``[w, h]``: the job's render size, default ``[720, 1280]`` (the dashboard's);
 * ``hookDuration``: seconds, default 4.0 (the pipeline's ``DEFAULT_HOOK_DURATION``);
@@ -93,10 +94,13 @@ from ..selection_v3 import SELECTION_ARTIFACT_RELATIVE_PATH, selection_from_dict
 from ..subtitles import clean_caption_text
 from ..transcript_io import MAX_TRANSCRIPT_BYTES, transcription_from_json_bytes
 from . import (
+    CAPTION_POSITIONS,
+    CAPTION_SIZES,
     COMPILER_ID,
     DOC_FPS,
     OUTPUT_SIZES,
     PACK_DEFAULT_OVERRIDES,
+    PACK_IDS,
     RENDER_SEMANTICS,
     SCHEMA,
     SCHEMA_MINOR,
@@ -137,7 +141,7 @@ WINDOW_MARGIN_MS = 60_000
 HOOK_TEXT_MAX = 90
 LAYOUT_BY_RENDER_MODE = {"face-track": "camera", "fit-blur": "fit_blur",
                          "center-crop": "fill_center"}
-PACK_BY_CAPTION_STYLE = {"karaoke": "karaoke", "classic": "classic"}
+PACK_BY_CAPTION_STYLE = {pack: pack for pack in PACK_IDS}  # a job's captionStyle is a pack id
 HALVED_FPS = {(50, 1): (25, 1), (60, 1): (30, 1), (60000, 1001): (30000, 1001)}
 FALLBACK_FPS = (30, 1)
 EDITORS = {"pipeline": "pipeline/edit-v2/1", "prepare": "prepare/edit-v2/1"}
@@ -251,6 +255,8 @@ class _Context:
     seed_at_ms: int
     by: str
     join: ColdOpenJoin = CUT_JOIN
+    caption_y_e5: int = CAPTION_POSITIONS["bottom"]
+    caption_size_pm: int = CAPTION_SIZES["medium"]
 
 
 def _flag(options: Mapping, name: str) -> bool:
@@ -273,6 +279,8 @@ def _context(job: Mapping) -> _Context:
     pack = PACK_BY_CAPTION_STYLE.get(options.get("captionStyle", "karaoke"))
     if layout is None or pack is None:
         raise SeedError("unsupported render mode or caption style")
+    caption_y = _look(options, "captionPosition", CAPTION_POSITIONS, "bottom")
+    caption_size = _look(options, "captionSize", CAPTION_SIZES, "medium")
     hook_duration = job.get("hookDuration", HOOK_DURATION_DEFAULT_S)
     if (isinstance(hook_duration, bool) or not isinstance(hook_duration, (int, float))
             or not math.isfinite(hook_duration) or not 0 < hook_duration <= 30):
@@ -295,7 +303,15 @@ def _context(job: Mapping) -> _Context:
             raise SeedError("coldOpenJoin must be {style, sfx} with a known style and sound")
     return _Context(job_id, layout, pack, _flag(options, "coldOpen"), _flag(options, "hookOverlay"),
                     ms_from_seconds(float(hook_duration)), (int(size[0]), int(size[1])), seed_at,
-                    by, join)
+                    by, join, caption_y, caption_size)
+
+
+def _look(options: Mapping, name: str, values: Mapping[str, int], default: str) -> int:
+    """The ``y_e5`` or ``size_pm`` of a job's caption position or size (absent: the pack's)."""
+    value = options.get(name, default)
+    if not isinstance(value, str) or value not in values:
+        raise SeedError(f"unsupported {name}")
+    return values[value]
 
 
 def _source(source_info: Mapping) -> dict[str, Any]:
@@ -637,7 +653,10 @@ def build_seed(
         "main": {"segments": [dict(segment) for segment in plan.segments], "removals": [],
                  "joins": joins, "cut_fade_ms": 8},
         "captions": {"enabled": True, "pack": {"id": context.pack, "v": 1},
-                     "overrides": dict(PACK_DEFAULT_OVERRIDES[context.pack]), "word_edits": {}},
+                     "overrides": {**PACK_DEFAULT_OVERRIDES[context.pack],
+                                   "y_e5": context.caption_y_e5,
+                                   "size_pm": context.caption_size_pm},
+                     "word_edits": {}},
         "layout": {"default": {"mode": context.layout, "no_face": "center"}},
         "tracks": tracks,
         "audio": {"source": {"gain_cdb": 0},

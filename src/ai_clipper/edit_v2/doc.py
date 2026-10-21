@@ -38,6 +38,7 @@ from . import (
     KEYFRAME_MOVES,
     MAX_KEYFRAMES,
     OUTPUT_SIZES,
+    PACK_DEFAULT_OVERRIDES,
     PACK_IDS,
     PAN_E5_MAX,
     SCHEMA,
@@ -144,12 +145,23 @@ def content_equals_seed(doc: Mapping, seed: Mapping) -> bool:
     return content_sha256(doc) == content_sha256(seed)
 
 
+LEGACY_CAPTION_PACKS = ("classic", "karaoke")  # what the legacy renderer draws (captions_ass)
+
+
 def auto_file_is_seed(seed: Mapping) -> bool:
     """Whether R10 may hand out the clip's auto file for this seed: the legacy renderer never
-    draws a logo or a text watermark, so a legacy seed with one (the Pengaturan defaults) is not
-    that file."""
+    draws a logo or a text watermark, and draws only Klasik or Karaoke at the pack's spot and
+    size, so a legacy seed with the Pengaturan defaults or another look from the job's options
+    (CONTRACTS §5.47) is not that file."""
     if seed["base"]["engine"]["compiler"] != "legacy":
         return True
+    captions = seed["captions"]
+    pack = captions["pack"]["id"]
+    overrides = captions["overrides"]
+    defaults = PACK_DEFAULT_OVERRIDES.get(pack, {})
+    if pack not in LEGACY_CAPTION_PACKS or any(
+            overrides.get(key) != defaults.get(key) for key in ("y_e5", "size_pm")):
+        return False
     return seed.get("watermark") is None and not any(
         track.get("kind") == "visual" and track.get("items") for track in seed["tracks"])
 

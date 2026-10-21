@@ -24,9 +24,13 @@ shadow keep their historical behaviour. Selection V3 (``selection_mode="v3"``) r
    inside the probed video, then ``analysis/selection.v3.json`` is written.
 4. **Packaging and rendering** (stages ``packaging``, ``rendering``): cold open, hook overlay,
    and caption style per clip; the manifest gets every packaging field. The render engine is
-   ``render_engine`` (default: ``POTONGIN_RENDER_ENGINE``; anything but ``edit-v2`` is
-   ``legacy``). ``legacy`` calls ``render_vertical`` as before (plus ``no_face_report``) and the
-   manifest keeps its shape (a clip that fell back adds ``fallbacks``, below). ``edit-v2`` (Editor V3, plan §5.8) seeds every clip and renders revision 0 through the
+   ``render_engine`` (default: ``POTONGIN_RENDER_ENGINE``, ``edit-v2`` unless it says
+   ``legacy``, the rollback switch). ``legacy`` calls ``render_vertical`` as before (plus
+   ``no_face_report``) and the manifest keeps its shape (a clip that fell back adds
+   ``fallbacks``, below); it draws the job's caption pack as Klasik or Karaoke
+   (``captions_ass.legacy_caption_style``) at its one spot and size. ``edit-v2`` (Editor V3, plan
+   §5.8) seeds every clip with the job's pack, ``caption_position`` and ``caption_size``
+   (CONTRACTS §5.47) and renders revision 0 through the
    edit-v2 compiler (``edit_v2.render_edit.AutoRenderer``: ``analysis/source.json``, the clip's
    peaks, words, camera plan for face-track and ``seed.json`` under
    ``analysis/clips/<clip_id>/``); each clip entry then also carries ``clip_id``,
@@ -137,7 +141,7 @@ import sys
 import threading
 import time
 import uuid
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from numbers import Real
 from pathlib import Path
@@ -151,8 +155,8 @@ from .audio_timeline import (
     write_audio_timeline,
 )
 from .candidates import generate_candidates
-from .captions_ass import CAPTION_STYLES
-from .edit_v2 import render_edit
+from .captions_ass import CAPTION_STYLES, legacy_caption_style
+from .edit_v2 import CAPTION_POSITIONS, CAPTION_SIZES, PACK_IDS, render_edit
 from .edit_v2.transitions import AUTO_COLD_OPEN_JOIN, CUT_JOIN, ColdOpenJoin
 from .features import extract_features
 from .focus import FocusSpec
@@ -495,6 +499,18 @@ def _choice(value: object, name: str, choices: tuple[str, ...]) -> str:
         raise TypeError(f"{name} must be a string")
     if value not in choices:
         raise ValueError(f"{name} must be one of {', '.join(choices)}")
+    return value
+
+
+def _caption_look(value: object, name: str, values: Mapping[str, int], default: str,
+                  v3: bool) -> str:
+    """A caption position or size (CONTRACTS §5.47): ``None`` is ``default``; another value
+    needs Selection V3, whose seed carries it."""
+    if value is None:
+        return default
+    value = _choice(value, name, tuple(values))
+    if value != default and not v3:
+        raise ValueError(f"{name} needs selection_mode v3")
     return value
 
 
@@ -1249,6 +1265,8 @@ def _run_v3(
     caption_style: str,
     captions_dir: Path | None,
     word_timestamps: bool,
+    caption_position: str = "bottom",
+    caption_size: str = "medium",
     trend_context: Path | None = None,
     focus: FocusSpec | None = None,
     ranges: tuple[TimeRange, ...] = (),
@@ -1389,6 +1407,8 @@ def _run_v3(
         hook_overlay=hook_overlay,
         hook_duration=hook_duration,
         caption_style=caption_style,
+        caption_position=caption_position,
+        caption_size=caption_size,
         render_engine=render_engine,
         report=report,
         warnings=state.warnings,
@@ -1420,6 +1440,8 @@ def _render_v3_clips(
     ranks: Iterable[int] | None = None,
     timings: dict[int, float] | None = None,
     isolate: bool = False,
+    caption_position: str = "bottom",
+    caption_size: str = "medium",
 ) -> list[dict[str, object]]:
     """The V3 rendering stage: every clip (or the given ``ranks``) with ``render_engine``,
     the manifest entry of each, its poster and, per clip, the wall time in ``timings``.
@@ -1448,6 +1470,8 @@ def _render_v3_clips(
                 width=width,
                 height=height,
                 cold_open_join=CUT_JOIN if cold_open_join is None else cold_open_join,
+                caption_position=caption_position,
+                caption_size=caption_size,
             ),
         )
     join_options: dict[str, object] = (
@@ -1515,7 +1539,7 @@ def _render_v3_clips(
                         cold_open=teaser,
                         hook_text=clip.hook_text if hook_overlay else None,
                         hook_duration=hook_duration,
-                        caption_style=caption_style,
+                        caption_style=legacy_caption_style(caption_style),
                         no_face_report=no_face.append,
                         **join_options,
                     )
@@ -1643,7 +1667,11 @@ def render_v3_job(
     options = options if isinstance(options, dict) else {}
     render_mode = options.get("renderMode", "fit-blur")
     validate_render_mode(render_mode)
-    caption_style = _choice(options.get("captionStyle", "karaoke"), "caption_style", CAPTION_STYLES)
+    caption_style = _choice(options.get("captionStyle", "karaoke"), "caption_style", PACK_IDS)
+    caption_position = _choice(options.get("captionPosition", "bottom"), "caption_position",
+                               tuple(CAPTION_POSITIONS))
+    caption_size = _choice(options.get("captionSize", "medium"), "caption_size",
+                           tuple(CAPTION_SIZES))
     cold_open = _boolean(options.get("coldOpen", True), "cold_open")
     hook_overlay = _boolean(options.get("hookOverlay", True), "hook_overlay")
     render_engine = _choice(render_engine, "render_engine", render_edit.ENGINES)
@@ -1672,6 +1700,8 @@ def render_v3_job(
         cold_open_join=cold_open_join,
         ranks=ranks,
         timings=timings,
+        caption_position=caption_position,
+        caption_size=caption_size,
     )
     return V3RenderRun(clips, warnings, timings, time.monotonic() - started)
 
@@ -1698,6 +1728,8 @@ def run_pipeline(
     cold_open: bool = True,
     hook_overlay: bool = True,
     caption_style: str | None = None,
+    caption_position: str | None = None,
+    caption_size: str | None = None,
     captions_dir: Path | str | None = None,
     word_timestamps: bool = True,
     hook_duration: float = DEFAULT_HOOK_DURATION,
@@ -1717,10 +1749,12 @@ def run_pipeline(
     transcription, from :func:`ai_clipper.transcribe_groq.groq_from_env`),
     ``render_engine`` and ``stage_summary`` (module docstring, "Stage summaries") only apply to
     ``selection_mode="v3"``. ``caption_style`` defaults to
-    ``"karaoke"`` for V3 and ``"classic"`` otherwise; ``word_timestamps`` applies to every
-    Whisper run. ``render_engine`` is ``"legacy"`` or ``"edit-v2"``; ``None`` reads
-    ``POTONGIN_RENDER_ENGINE`` (``render_edit.engine_from_env``: legacy unless exactly
-    ``edit-v2``).
+    ``"karaoke"`` for V3 (any caption pack) and ``"classic"`` otherwise (``classic`` or
+    ``karaoke``); ``caption_position`` (``top``/``middle``/``bottom``) and ``caption_size``
+    (``small``/``medium``/``large``) are V3 only, ``None`` being the pack's bottom and medium.
+    ``word_timestamps`` applies to every Whisper run. ``render_engine`` is ``"legacy"`` or
+    ``"edit-v2"``; ``None`` reads ``POTONGIN_RENDER_ENGINE`` (``render_edit.engine_from_env``:
+    edit-v2 unless it says legacy).
     """
     source = Path(source).resolve()
     output_dir = Path(output_dir).resolve()
@@ -1760,9 +1794,13 @@ def run_pipeline(
         if render_engine is None:
             render_engine = render_edit.engine_from_env()
         render_engine = _choice(render_engine, "render_engine", render_edit.ENGINES)
+        v3 = selection_mode is SelectionMode.V3
         if caption_style is None:
-            caption_style = "karaoke" if selection_mode is SelectionMode.V3 else "classic"
-        caption_style = _choice(caption_style, "caption_style", CAPTION_STYLES)
+            caption_style = "karaoke" if v3 else "classic"
+        caption_style = _choice(caption_style, "caption_style", PACK_IDS if v3 else CAPTION_STYLES)
+        caption_position = _caption_look(caption_position, "caption_position",
+                                         CAPTION_POSITIONS, "bottom", v3)
+        caption_size = _caption_look(caption_size, "caption_size", CAPTION_SIZES, "medium", v3)
         captions_dir = _optional_path(captions_dir, "captions_dir")
         trend_context = _optional_path(trend_context, "trend_context")
         if focus is not None and not isinstance(focus, FocusSpec):
@@ -1799,6 +1837,8 @@ def run_pipeline(
                 hook_overlay=hook_overlay,
                 hook_duration=hook_duration,
                 caption_style=caption_style,
+                caption_position=caption_position,
+                caption_size=caption_size,
                 captions_dir=captions_dir,
                 word_timestamps=word_timestamps,
                 trend_context=trend_context,

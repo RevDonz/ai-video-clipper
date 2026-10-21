@@ -74,10 +74,17 @@ PACK_DEFAULT_OVERRIDES = MappingProxyType(
         for pack in PACK_IDS
     }
 )
+# The caption spot and size a new job picks on the dashboard (CONTRACTS §5.47): the seed's
+# ``y_e5`` and ``size_pm``, equal to the editor's "Posisi" and "Ukuran" presets. Bottom and
+# medium are the pack defaults above.
+CAPTION_POSITIONS = MappingProxyType({"top": 38000, "middle": 60000, "bottom": 83000})
+CAPTION_SIZES = MappingProxyType({"small": 850, "medium": 1000, "large": 1200})
 
 __all__ = [
     "CAMERA_SCHEMA",
     "CAPTION_ENTRANCES",
+    "CAPTION_POSITIONS",
+    "CAPTION_SIZES",
     "COMPILER_ID",
     "COMPILER_VERSION",
     "DOC_FPS",
