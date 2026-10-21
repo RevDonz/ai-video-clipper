@@ -41,7 +41,7 @@ test("the choices and their words", () => {
   assert.deepEqual(BAND_OPTIONS.map((option) => [option.id, option.label]), [["top", "Atas"], ["bottom", "Bawah"]]);
   for (const option of [...SPLIT_RATIOS, ...BAND_OPTIONS]) {
     assert.ok(Object.isFrozen(option));
-    assert.doesNotMatch(`${option.label} ${option.title ?? ""}`, /[–—]/);
+    assert.doesNotMatch(`${option.label} ${option.title ?? ""}`, /[\u2013\u2014]/);
   }
   assert.equal(zoomPercent(1000), 100);
   assert.equal(zoomPercent(3550), 355);
