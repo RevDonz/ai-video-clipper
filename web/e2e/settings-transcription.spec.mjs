@@ -1,9 +1,9 @@
 // Pengaturan "Transkripsi" (docs/operations/TRANSCRIPTION.md, "Transkripsi lewat Groq").
 // /api/settings/transcription is faked in the browser (page.route), so nothing on the server
 // changes. Every key here is a made-up value.
-import { expect, test as base } from "@playwright/test";
+import { expect } from "@playwright/test";
 
-import { login, skipWithoutCredentials, test } from "./support/harness.mjs";
+import { expectFailedRequest, login, skipWithoutCredentials, test } from "./support/harness.mjs";
 
 const ENDPOINT = "**/api/settings/transcription";
 const SAVED_AT = "2026-10-21T09:00:00.000Z";
@@ -89,12 +89,11 @@ test.describe("Transkripsi", () => {
   });
 });
 
-// A refused save and a failed load answer 4xx/5xx on purpose, so these run without the
-// harness's API-error check.
-base.describe("Transkripsi refusals", () => {
-  base.beforeEach(() => skipWithoutCredentials(base));
+test.describe("Transkripsi refusals", () => {
+  test.beforeEach(() => skipWithoutCredentials(test));
 
-  base("a refused key says why and the switch stays as it was", async ({ page }) => {
+  test("a refused key says why and the switch stays as it was", async ({ page }) => {
+    expectFailedRequest(page, 422, "PUT", "/api/settings/transcription"); // the key is refused on purpose
     await fakeTranscription(page, { ...OFF }, {
       put: { status: 422, body: { error: "API key harus berupa teks ASCII tanpa spasi (maks. 4096 karakter).", code: "invalid" } },
     });
@@ -106,7 +105,8 @@ base.describe("Transkripsi refusals", () => {
     await expect(section.getByRole("checkbox", { name: "Transkrip lewat Groq" })).not.toBeChecked();
   });
 
-  base("a failed load says so, and Coba lagi loads the card", async ({ page }) => {
+  test("a failed load says so, and Coba lagi loads the card", async ({ page }) => {
+    expectFailedRequest(page, 503, "GET", "/api/settings/transcription"); // the first load fails on purpose
     let calls = 0;
     await page.route(ENDPOINT, (route) => {
       calls += 1;
