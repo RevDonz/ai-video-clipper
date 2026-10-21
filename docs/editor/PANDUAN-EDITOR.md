@@ -349,7 +349,8 @@ Back browser kembali ke klip sebelumnya.
 **Pakai di semua klip.** Di bawah Caption (kartu Caption, panel Teks), Logo (kartu Logo & Musik,
 panel Logo; ikut teks watermark) dan Tata letak (kartu dan panel) ada tombol **Pakai caption /
 logo / tata letak di semua klip**. Klip ini disimpan dulu, lalu pengaturan itu dipasang ke semua
-klip lain di proyek dalam satu langkah. Klip yang bagian itu sudah diubah manual tidak ditimpa,
+klip lain di proyek dalam satu langkah. Klip yang bagian itu sudah diubah manual tidak ditimpa (pengaturan dari
+**Pakai di semua klip** sebelumnya tidak dihitung manual, jadi bisa diganti lagi),
 begitu juga klip yang belum disiapkan, yang transkripnya berubah, atau yang sedang disimpan di
 tab lain; hasilnya tertulis "Dipakai di 5 klip · 2 dilewati" dengan daftar klip yang dilewati di
 **Lihat yang dilewati**. **Urungkan** mengembalikan semua klip yang diubah dalam satu langkah,

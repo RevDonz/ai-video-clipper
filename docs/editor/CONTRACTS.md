@@ -3915,12 +3915,13 @@ Tracks keep the order hook, visual, audio; `assets` is exactly what the tracks r
 
 ### The skip rule
 
-A target is written only while that group is still its seed's (`part(doc) == part(seed)`).
-Otherwise it is listed, never overwritten: `edited` (changed by hand), `not_ready` (no seed or
+A target that already matches is `unchanged` and not written. Otherwise it is written only while
+that group is still its seed's (`part(doc) == part(seed)`) or exactly what an earlier batch of the
+group wrote to it and no undo took back (the job's batch records), so a second batch updates the
+first one's clips. Otherwise it is listed, never overwritten: `edited` (changed by hand), `not_ready` (no seed or
 words yet, or a clip without an id), `read_only` (the job re-ran with other words), `conflict`
 (saved elsewhere while the batch ran: the store's If-Match refused it), `invalid` (the result does
-not validate for that clip). A target that already matches is `unchanged` and not written. The
-source clip is never written.
+not validate for that clip). The source clip is never written.
 
 ### Batch record and idempotency
 

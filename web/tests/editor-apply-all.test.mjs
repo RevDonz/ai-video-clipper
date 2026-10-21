@@ -57,7 +57,7 @@ test("the result reads 'Dipakai di n klip · k dilewati' and names each skipped 
 
 test("errors become short Indonesian messages", () => {
   assert.equal(applyErrorText({ code: "conflict_unresolved" }), "Selesaikan bentrok perubahan dulu");
-  assert.equal(applyErrorText({ code: "revision_conflict", status: 409 }), "Klip ini baru berubah; coba lagi");
+  assert.equal(applyErrorText({ code: "revision_conflict", status: 409 }), "Klip ini diubah di tab lain; muat ulang dulu");
   assert.equal(applyErrorText({ code: "not_found", status: 404 }, "undo"), "Sudah tidak bisa diurungkan");
   assert.equal(applyErrorText({ code: "network_error", status: 0 }), "Gagal menerapkan; coba lagi");
   assert.equal(applyErrorText({ code: "network_error", status: 0 }, "undo"), "Gagal mengurungkan; coba lagi");

@@ -47,7 +47,8 @@ export function skippedLines(list) {
 
 export function applyErrorText(error, action = "apply") {
   if (error?.code === "conflict_unresolved") return "Selesaikan bentrok perubahan dulu";
-  if (error?.code === "revision_conflict") return "Klip ini baru berubah; coba lagi";
+  // The source was saved in another tab; this tab's store learns it only on its next save.
+  if (error?.code === "revision_conflict") return "Klip ini diubah di tab lain; muat ulang dulu";
   if (error?.status === 429) return "Terlalu banyak permintaan; tunggu sebentar";
   if (action === "undo" && error?.status === 404) return "Sudah tidak bisa diurungkan";
   return action === "undo" ? "Gagal mengurungkan; coba lagi" : "Gagal menerapkan; coba lagi";

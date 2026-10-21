@@ -465,3 +465,38 @@ def test_parts_and_with_part(contexts):
     assert seed_doc["tracks"] == contexts["c30"].seed["tracks"]  # never mutated
     with pytest.raises(ValueError):
         apply_all.part(seed_doc, "music")
+
+
+def test_a_second_batch_updates_the_clips_of_the_first(tmp_path, contexts):
+    job_id, job = make_job(tmp_path, contexts)
+    source = clip_dir(job, 1)
+    save(source, change=bold_captions)
+    assert run(tmp_path, job_id, source, "captions")[0] == 0
+    # Applying the same again: every clip already has it.
+    status, payload = run(tmp_path, job_id, source, "captions")
+    assert status == 0 and payload["applied"] == [] and payload["skipped"] == []
+    assert entries(payload, "unchanged") == [(2, None), (3, None)]
+    # Clip 3 is changed by hand after the first batch; the source then changes its pack.
+    save(clip_dir(job, 3), change=lambda doc: doc["captions"]["overrides"].update({"size_pm": 1200}))
+    save(source, change=lambda doc: doc["captions"].update(pack={"id": "box", "v": 1}))
+    status, payload = run(tmp_path, job_id, source, "captions")
+    assert status == 0, payload
+    assert entries(payload, "applied") == [(2, None)]
+    assert entries(payload, "skipped") == [(3, "edited")]
+    assert store.get(clip_dir(job, 2))[0]["captions"]["pack"] == {"id": "box", "v": 1}
+
+
+def test_an_undone_batch_gives_no_pass_to_its_values(tmp_path, contexts):
+    job_id, job = make_job(tmp_path, contexts)
+    source = clip_dir(job, 1)
+    save(source, change=bold_captions)
+    batch = str(uuid.uuid4())
+    assert run(tmp_path, job_id, source, "captions", batch=batch)[0] == 0
+    assert undo(tmp_path, job_id, batch)[0] == 0
+    # Clip 2 is then set by hand to what the undone batch had written.
+    save(clip_dir(job, 2), change=bold_captions)
+    save(source, change=lambda doc: doc["captions"].update(pack={"id": "box", "v": 1}))
+    status, payload = run(tmp_path, job_id, source, "captions")
+    assert status == 0, payload
+    assert entries(payload, "skipped") == [(2, "edited")]
+    assert entries(payload, "applied") == [(3, None)]

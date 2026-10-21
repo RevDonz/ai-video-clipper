@@ -8,8 +8,8 @@ keeps its own revision chain, If-Match and receipts.
   to the clip's words and stay), ``logo`` (the overlay track with its asset metadata, and the text
   watermark) and ``layout`` (``layout`` without ``keyframes``: they are frames of the source
   clip's own window).
-* A target is written only while that group is still its seed's (``part(doc) == part(seed)``);
-  otherwise it is skipped as ``edited``. Other reasons: ``not_ready`` (no seed or words yet),
+* A target is written only while that group is still its seed's (``part(doc) == part(seed)``)
+  or what an earlier batch wrote there (not undone); otherwise it is skipped as ``edited``. Other reasons: ``not_ready`` (no seed or words yet),
   ``read_only`` (the job re-ran with other words), ``conflict`` (saved elsewhere while the batch
   ran), ``invalid`` (the result does not validate for that clip). A target that already matches
   is ``unchanged`` and not written.
@@ -230,8 +230,29 @@ def _save(directory: Path, doc: Mapping, *, expected: str, key: str, now_ms: int
 # --- apply -----------------------------------------------------------------------------------------
 
 
-def _classify(directory: Path, group: str, value: Mapping) -> tuple[str, dict | None]:
-    """("plan", {before}) for a clip to write, else ("skipped", reason) or ("unchanged", None)."""
+def _earlier_values(directory: Path, group: str) -> dict[str, list]:
+    """Per clip, the values earlier batches of ``group`` wrote to it and no undo took back."""
+    values: dict[str, list] = {}
+    for path in sorted(directory.glob("*.json")):
+        try:
+            record = json.loads(job_files.read_regular(path, MAX_RECORD_BYTES))
+        except (OSError, ValueError, job_files.JobFileError):
+            continue
+        if type(record) is not dict or record.get("state") != "done" or record.get("group") != group:
+            continue
+        restored = {entry.get("clipId") for entry in record.get("undo", {}).get("restored", ())}
+        for entry in record.get("applied", ()):
+            if entry.get("clipId") not in restored:
+                values.setdefault(entry.get("clipId"), []).append(record.get("value"))
+    return values
+
+
+def _classify(directory: Path, group: str, value: Mapping,
+              earlier: Sequence[object] = ()) -> tuple[str, dict | None]:
+    """("plan", {before}) for a clip to write, ("unchanged", None), or (reason, None).
+
+    The group counts as changed by hand when it is neither the seed's nor a value an earlier
+    batch wrote to this clip (``earlier``), so a second batch updates the first one's clips."""
     try:
         seed_doc, _seed_etag = store.seed(directory)
         doc, etag, _is_seed = store.get(directory)
@@ -242,20 +263,21 @@ def _classify(directory: Path, group: str, value: Mapping) -> tuple[str, dict | 
     if not store.words_exist(directory, doc["base"]["words"]["sha256"]):
         return "not_ready", None
     before = part(doc, group)
-    if before != part(seed_doc, group):
-        return "edited", None
     if part(with_part(doc, group, value), group) == before:
         return "unchanged", None
+    if before != part(seed_doc, group) and before not in earlier:
+        return "edited", None
     return "plan", {"etag": etag, "part": before}
 
 
-def _start(job: Path, clips: Sequence[tuple[int, str | None]], *, source: str, source_etag: str,
-           group: str, batch_id: str, now_ms: int) -> dict:
+def _start(job: Path, directory: Path, clips: Sequence[tuple[int, str | None]], *, source: str,
+           source_etag: str, group: str, batch_id: str, now_ms: int) -> dict:
     source_dir = job / "analysis" / "clips" / source
     doc, etag, _is_seed = store.get(source_dir)
     if etag != source_etag:
         raise RevisionConflict(current=doc, etag=etag)
     value = copied_part(doc, group)
+    earlier = _earlier_values(directory, group)
     planned, skipped, unchanged = [], [], []
     for index, clip in clips:
         if clip == source:
@@ -263,7 +285,8 @@ def _start(job: Path, clips: Sequence[tuple[int, str | None]], *, source: str, s
         if clip is None:
             skipped.append(_entry(index, None, "not_ready"))
             continue
-        verdict, before = _classify(job / "analysis" / "clips" / clip, group, value)
+        verdict, before = _classify(job / "analysis" / "clips" / clip, group, value,
+                                    earlier.get(clip, ()))
         if verdict == "plan":
             planned.append({**_entry(index, clip), "before": before})
         elif verdict == "unchanged":
@@ -318,8 +341,8 @@ def apply(job: Path, clips: Sequence[tuple[int, str | None]], *, source: str, so
             if record["state"] == "done":
                 return _result(record)
         else:
-            record = _start(job, clips, source=source, source_etag=source_etag, group=group,
-                            batch_id=batch_id, now_ms=now_ms)
+            record = _start(job, directory, clips, source=source, source_etag=source_etag,
+                            group=group, batch_id=batch_id, now_ms=now_ms)
             _write_record(directory, record)
         applied, skipped = [], list(record["skipped"])
         for target in record["planned"]:
