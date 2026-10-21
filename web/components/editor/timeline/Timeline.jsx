@@ -4,13 +4,15 @@
 // (timeline/lanes.mjs, never edited here), hatched bands where plate cells are still building,
 // and the playhead (moved outside React through the frame bus). Ctrl+scroll zooms around the
 // pointer; the header buttons do the same from the keyboard. Until the user zooms, the clip fits
-// the width.
+// the width. The header's "Awal / Akhir" pair picks the selected trim edge (also set by focusing
+// or dragging a handle) and −0,1 / +0,1 move it by 0.1 s (NudgeEdge, CONTRACTS §5.52).
 import { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import styles from "../shell.module.css";
+import { rejectionText } from "../shell-model.mjs";
 import { LANES } from "./lanes.mjs";
 import Ruler from "./Ruler.jsx";
-import { clampZoom, fitZoom, pendingBands, zoomAround } from "./timeline-model.mjs";
+import { NUDGE_MS, bodySegment, clampZoom, fitZoom, pendingBands, zoomAround } from "./timeline-model.mjs";
 
 const TRACK_PADDING = 12;
 const components = new Map();
@@ -22,12 +24,46 @@ function laneComponent(entry) {
 
 const useIsoLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
+const EDGE_NAMES = Object.freeze({ start: "awal klip", end: "akhir klip" });
+
+/** Pick the body's start or end and move it by 0.1 s; the handles' Shift+←/→ do the same. */
+function EdgeNudge({ state, dispatch, notify, readOnly, edge, onEdge }) {
+  const disabled = readOnly || state?.status !== "ready" || !bodySegment(state?.doc);
+  const name = EDGE_NAMES[edge];
+  const nudge = (ms) => {
+    try {
+      dispatch("NudgeEdge", { seg: "body", edge: edge === "start" ? "in" : "out", ms });
+    } catch (error) {
+      notify?.(rejectionText(error));
+    }
+  };
+  return (
+    <div className={styles.edgeNudge} role="group" aria-label="Geser tepi klip 0,1 detik" data-edge-nudge="">
+      {[["start", "Awal"], ["end", "Akhir"]].map(([value, label]) => (
+        <button key={value} type="button" className={styles.edgePick} aria-pressed={edge === value}
+          aria-label={`Pilih ${EDGE_NAMES[value]}`} onClick={() => onEdge(value)}>
+          {label}
+        </button>
+      ))}
+      <button type="button" className={styles.button} disabled={disabled} onClick={() => nudge(-NUDGE_MS)}
+        aria-label={`−0,1 dtk ${name}`} title={`Geser ${name} 0,1 detik lebih awal (Shift+← di gagang)`}>
+        −0,1 dtk
+      </button>
+      <button type="button" className={styles.button} disabled={disabled} onClick={() => nudge(NUDGE_MS)}
+        aria-label={`+0,1 dtk ${name}`} title={`Geser ${name} 0,1 detik lebih akhir (Shift+→ di gagang)`}>
+        +0,1 dtk
+      </button>
+    </div>
+  );
+}
+
 export default function Timeline({ plan, state, dispatch, player, frameBus, notify, readOnly, lanes = LANES }) {
   const scrollerRef = useRef(null);
   const playheadRef = useRef(null);
   const [zoom, setZoom] = useState({ px: 1, fitted: true });
   const [width, setWidth] = useState(0);
   const [notes, setNotes] = useState({});
+  const [trimEdge, setTrimEdge] = useState("start");
   const noteSetters = useMemo(() => Object.fromEntries(lanes.map((entry) => [entry.id, (text) => {
     const next = typeof text === "string" && text ? text : null;
     setNotes((current) => ((current[entry.id] ?? null) === next ? current : { ...current, [entry.id]: next }));
@@ -86,7 +122,8 @@ export default function Timeline({ plan, state, dispatch, player, frameBus, noti
         <button type="button" className={styles.button} aria-label="Perkecil timeline" onClick={() => zoomBy(1 / 1.5)}>−</button>
         <button type="button" className={styles.button} aria-label="Perbesar timeline" onClick={() => zoomBy(1.5)}>+</button>
         <button type="button" className={styles.button} onClick={() => setZoom({ px, fitted: true })} disabled={zoom.fitted}>Paskan</button>
-        <span>Ctrl + scroll untuk zoom · klik penggaris untuk memindah playhead</span>
+        <EdgeNudge state={state} dispatch={dispatch} notify={notify} readOnly={readOnly} edge={trimEdge} onEdge={setTrimEdge} />
+        <span className={styles.timelineHint}>Ctrl + scroll untuk zoom · klik penggaris untuk memindah playhead</span>
         {lanes.filter((entry) => notes[entry.id]).map((entry) => (
           <span key={entry.id} className={styles.timelineNote} data-lane-note={entry.id} title={notes[entry.id]}>
             <span className={styles.timelineNoteLane}>{entry.label}</span>
@@ -109,7 +146,7 @@ export default function Timeline({ plan, state, dispatch, player, frameBus, noti
                   <div key={entry.id} className={styles.laneRow} data-lane-row={entry.id}>
                     <Suspense fallback={null}>
                       <Lane plan={plan} state={state} dispatch={dispatch} player={player} pxPerFrame={px} notify={notify} readOnly={readOnly}
-                        onNote={noteSetters[entry.id]} />
+                        onNote={noteSetters[entry.id]} trimEdge={trimEdge} onTrimEdge={setTrimEdge} />
                     </Suspense>
                   </div>
                 );

@@ -33,7 +33,7 @@ test("the map covers every row of Appendix C.4 with a visible label", () => {
   for (const entry of SHORTCUTS) {
     assert.ok(entry.keys.length > 0, entry.id);
     assert.ok(entry.description.length > 3, entry.id);
-    assert.ok(["global", "transcript", "scrubber"].includes(entry.scope), entry.id);
+    assert.ok(["global", "transcript", "scrubber", "trim"].includes(entry.scope), entry.id);
   }
   assert.ok(Object.isFrozen(SHORTCUTS));
 });
@@ -219,4 +219,15 @@ test("the clip keys leave text fields, sliders, tabs, radios and handled events 
     assert.equal(globalShortcut(key("ArrowLeft", { ctrl: true, shift: true, on })), null, on.tagName);
   }
   assert.equal(globalShortcut(key("ArrowRight", { ctrl: true, shift: true, prevented: true })), null);
+});
+
+// A focused trim handle (role "slider") keeps its own arrows: ←/→ to the next word gap and
+// Shift+←/→ by 0.1 s (CONTRACTS §5.52); the help lists both, and the shell takes neither there.
+test("the help lists the trim handle's own keys, which no global shortcut takes on the handle", () => {
+  const trim = SHORTCUTS.filter((entry) => entry.scope === "trim");
+  assert.deepEqual(trim.map((entry) => entry.keys), [["←", "→"], ["Shift+←", "Shift+→"]]);
+  const handle = target("DIV", { role: "slider" });
+  for (const shift of [false, true]) {
+    for (const name of ["ArrowLeft", "ArrowRight"]) assert.equal(globalShortcut(key(name, { shift, on: handle })), null, `${shift} ${name}`);
+  }
 });

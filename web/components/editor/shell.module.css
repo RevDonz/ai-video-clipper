@@ -569,6 +569,16 @@
   color: var(--text-muted);
 }
 
+/* "di sumber 12:34": where the playhead is in the source video, quieter than the clip time. */
+.sourceTime {
+  /* on: --bg */
+  flex: none;
+  color: var(--text-muted);
+  font-size: var(--ed-font-size-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 /* ---------- Stage ---------- */
 
 .stageRegion {
@@ -821,6 +831,54 @@
   padding: 0 8px;
 }
 
+.timelineHint {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The selected trim edge and its 0.1 s nudge: a pressed pair (the PillToggle fill) and two steps. */
+.edgeNudge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  margin: 0 6px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+}
+
+.edgePick {
+  min-height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--ed-radius-md);
+  background: transparent;
+  color: var(--text);
+  font: 600 var(--ed-font-size-xs) / 1 var(--ed-font-ui);
+  cursor: pointer;
+  transition: background var(--dur-1), color var(--dur-1), border-color var(--dur-1);
+}
+
+.edgePick:hover {
+  background: var(--surface-2);
+}
+
+.edgePick[aria-pressed="true"] {
+  border-color: var(--text);
+  background: var(--text);
+  color: var(--bg);
+}
+
+@media (forced-colors: active) {
+  .edgePick[aria-pressed="true"] {
+    text-decoration: underline 2px;
+    text-underline-offset: 3px;
+  }
+}
+
 /* A lane's note (e.g. the markers a job lacks), at the header's end: one line, the lane named. */
 .timelineNote {
   display: inline-flex;
@@ -1046,6 +1104,11 @@
   border-radius: 3px;
   background: var(--info);
   content: "";
+}
+
+/* The selected edge (the header's −0,1 / +0,1 move it) is the text colour, the other one blue. */
+.handle[data-selected]::before {
+  background: var(--text);
 }
 
 .handle[aria-disabled="true"] {

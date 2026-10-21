@@ -29,6 +29,9 @@ export const SHORTCUTS = Object.freeze([
   entry({ id: "truthFrame", keys: ["Ctrl+Shift+R"], description: "Frame akhir (piksel persis)", scope: "global" }),
   entry({ id: "export", keys: ["Ctrl+Shift+E"], description: "Ekspor", scope: "global" }),
   entry({ id: "help", keys: ["?"], description: "Bantuan pintasan", scope: "global" }),
+  // A focused trim handle in the timeline handles these itself (CONTRACTS §5.52); listed for help.
+  entry({ id: "trimGap", keys: ["←", "→"], description: "Geser awal/akhir klip ke celah kata", scope: "trim" }),
+  entry({ id: "trimNudge", keys: ["Shift+←", "Shift+→"], description: "Geser awal/akhir klip 0,1 detik", scope: "trim" }),
   // Mode Cepat's position bar handles these itself while it has focus (spec §7); listed for help.
   entry({ id: "scrubEnds", keys: ["Home", "End"], description: "Ke awal / akhir klip", scope: "scrubber" }),
   entry({ id: "scrubMarks", keys: ["PageUp", "PageDown"], description: "Ke tanda sebelumnya / berikutnya", scope: "scrubber" }),

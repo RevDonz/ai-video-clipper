@@ -1,6 +1,7 @@
 // Timeline geometry and word-snapped trimming (plan Appendix C.3; §3.6 `bounds`; Appendix B
-// TrimStart/TrimEnd). Positions are output frames (the plan DTO's `pieces`, §4.3); trims are
-// source-grid frames and are always a `bounds` frame: the client never invents a cut point.
+// TrimStart/TrimEnd). Positions are output frames (the plan DTO's `pieces`, §4.3); a dragged or
+// stepped trim is a source-grid `bounds` frame. The one exception is the 0.1 s nudge (NudgeEdge,
+// CONTRACTS §5.52), where the command, not this file, computes the frame.
 // Pure functions, unit-tested in web/tests/editor-timeline-model.test.mjs.
 import { formatClock } from "../shell-model.mjs";
 
@@ -80,6 +81,20 @@ export function stepTrim({ edge, direction, words, doc }) {
     if (direction > 0 && bound.sf > current && (!best || bound.sf < best.sf)) best = bound;
   }
   return result(edge, best);
+}
+
+/** Step of one 0.1 s nudge (NudgeEdge `ms`). */
+export const NUDGE_MS = 100;
+
+/**
+ * A focused trim handle's own keys: ←/→ to the adjacent word gap (`gap`), Shift+←/→ by 0.1 s
+ * (`nudge`), or null for any other key or modifier.
+ */
+export function trimHandleKey(event) {
+  if (!event || event.altKey || event.ctrlKey || event.metaKey) return null;
+  const direction = event.key === "ArrowLeft" ? -1 : event.key === "ArrowRight" ? 1 : 0;
+  if (!direction) return null;
+  return event.shiftKey ? { kind: "nudge", ms: direction * NUDGE_MS } : { kind: "gap", direction };
 }
 
 /** Output frame → [piece, source frame], or null outside the clip. */

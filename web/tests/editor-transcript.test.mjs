@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { fakeDoc, fakeWords } from "../components/editor/__dev__/fakes.mjs";
-import { keyAction, selectionActions } from "../components/editor/transcript/actions.mjs";
+import { keyAction, keywordClick, keywordCommand, keywordHint, selectionActions } from "../components/editor/transcript/actions.mjs";
 import {
   activeWordAt,
   boundsIndex,
@@ -422,4 +422,29 @@ test("keys map to transcript actions only without stray modifiers", () => {
   assert.equal(key("Delete", { altKey: true }), null);
   assert.equal(key(" "), null);
   assert.equal(key("z", { ctrlKey: true }), null);
+});
+
+test("Ctrl+click (Cmd+click on macOS) on a word toggles it as Kata kunci; a plain or Shift click does not", () => {
+  const click = (mods = {}) => ({ ctrlKey: false, metaKey: false, shiftKey: false, altKey: false, ...mods });
+  assert.equal(keywordClick(click({ ctrlKey: true }), { mac: false }), true);
+  assert.equal(keywordClick(click({ metaKey: true }), { mac: true }), true);
+  assert.equal(keywordClick(click({ ctrlKey: true }), { mac: true }), false, "Ctrl+click on a Mac opens the context menu");
+  assert.equal(keywordClick(click({ metaKey: true }), { mac: false }), false);
+  assert.equal(keywordClick(click(), { mac: false }), false);
+  assert.equal(keywordClick(click({ ctrlKey: true, shiftKey: true }), { mac: false }), false);
+  assert.equal(keywordClick(click({ ctrlKey: true, altKey: true }), { mac: false }), false);
+  assert.equal(keywordClick(null, { mac: false }), false);
+
+  const doc = fakeDoc();
+  const plain = buildTranscriptModel(fakeWords(), doc);
+  assert.deepEqual(keywordCommand(plain, 2), { type: "SetWordEmphasis", args: { wordId: "w048123", on: true }, mergeKey: null });
+  doc.captions.word_edits = { w048123: { emphasis: true } };
+  const marked = buildTranscriptModel(fakeWords(), doc);
+  assert.deepEqual(keywordCommand(marked, 2), { type: "SetWordEmphasis", args: { wordId: "w048123", on: false }, mergeKey: null });
+  assert.equal(keywordCommand(marked, 2, { readOnly: true }), null);
+  assert.equal(keywordCommand(marked, -1), null);
+  assert.equal(keywordCommand(marked, 999), null);
+
+  assert.equal(keywordHint({ mac: false, on: false }), "Ctrl+klik: jadikan kata kunci");
+  assert.equal(keywordHint({ mac: true, on: true }), "⌘+klik: batalkan kata kunci");
 });
