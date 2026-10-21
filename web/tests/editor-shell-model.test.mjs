@@ -462,5 +462,5 @@ test("W3 has landed: every registered panel, lane and gizmo shows in the app", a
   ]);
   assert.deepEqual(liveEntries(PANELS, "real").map((entry) => entry.id), ["transcript", "text", "coldopen", "layout", "logo", "music"]);
   assert.deepEqual(liveEntries(LANES, "real").map((entry) => entry.id), ["video", "captions", "hook", "audio", "markers", "music"]);
-  assert.deepEqual(liveEntries(GIZMOS, "real").map((entry) => entry.id), ["logo"]);
+  assert.deepEqual(liveEntries(GIZMOS, "real").map((entry) => entry.id), ["caption", "logo"]);
 });

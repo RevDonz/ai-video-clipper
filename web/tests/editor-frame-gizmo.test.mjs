@@ -190,5 +190,5 @@ test("the dialog's commands", () => {
 });
 
 test("the framing gizmo lives in the dialog, not over the 9:16 stage", () => {
-  assert.deepEqual(GIZMOS.map((gizmo) => gizmo.id), ["logo"]);
+  assert.deepEqual(GIZMOS.map((gizmo) => gizmo.id), ["caption", "logo"]);
 });
