@@ -2452,9 +2452,12 @@ nothing else about the hook changes (start 0, `dur_f`, `y_e5`, at most 90 code p
   `{\fad(150,250)\an2\pos(x,bottom)…}`, all on the hook's frame window.
 - Kicker: the kicker line `…\q2\fsK\bordO\1c<accent>}`, then one event per punchline line
   `…\q2}` centred on `W/2`.
-- Blok: per line a box `…\bord0\shad0\1c<accent>\p1}` +
+- Blok: per line a box `…\bord0\shad0\blurE\1c<accent>\p1}` +
   `_box_path(rhu(S·units, height_units) + 2·pad, S − inset, radius)` + `{\p0}`, then the line
-  `…\q2}`.
+  `…\q2}`. `E = H/1280` px to two decimals (H the text height: 1 at 1280, 1.5 at 1920;
+  amended 2026-10-22): under 4:2:0 a hard accent edge over the video rings in chroma, and
+  P-ENC measured Blok at SSIM 0.9888 whole frame and 0.9734 on the hook; with the soft edge
+  0.9903 and 0.9864. Kotak's box and every text stay sharp.
 - Kotak kata: a line without the boxed word is one event; the line with it is one `\pos` event
   per word at its place in the line centred on `W/2` (as Sorot, §5.30), the box right before the
   boxed word, which is drawn `…\q2\bord0\shad0\1c<on_accent>}`.

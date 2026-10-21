@@ -469,6 +469,8 @@ _BLUR_START = (1, 128)
 # comes from a copy of the line whose fill (alpha FE, not FF: a fill that is not fully
 # transparent keeps the shadow uncut) and border are transparent (CONTRACTS §5.39, §5.43, §5.49).
 _SHADOW_OUTLINE_OFFSET = "0.02"
+# Blok's boxes blur by H/_BLOCK_BOX_BLUR (H: the text height), CONTRACTS §5.33.
+_BLOCK_BOX_BLUR = 1280
 _FADING_ENTRANCES = ("fade", "blur")
 _E5 = 100_000
 # Hook designs (CONTRACTS §5.33): the seeds' bar, whose geometry is the code below, and the
@@ -1514,10 +1516,14 @@ def _design_layout(spec: HookDesign, hook: str, *, play_res: tuple[int, int], to
         radius = div_round_half_up(size * box.radius_pm, 1000)
         accent = _inline_colour(spec.accent)
         first = top + box_h  # the first line's bottom: its box's top is the hook's top
+        # Blok's boxes get a soft edge: under 4:2:0 a hard accent edge over the video rings in
+        # chroma (P-ENC SSIM 0.9888 whole frame, 0.9734 on the hook; 0.9903 and 0.9864 with it).
+        soft = (f"\\blur{_centi_text(div_round_half_up(100 * text_height(play_res), _BLOCK_BOX_BLUR))}"
+                if spec.layout == "block" else "")
 
         def box_event(x: str, bottom: int, units: int, height_units: int) -> str:
             box_w = div_round_half_up(size * units, height_units) + 2 * pad
-            return (f"{{{fade}\\an2\\pos({x},{bottom})\\bord0\\shad0\\1c{accent}\\p1}}"
+            return (f"{{{fade}\\an2\\pos({x},{bottom})\\bord0\\shad0{soft}\\1c{accent}\\p1}}"
                     f"{_box_path(box_w, box_h, radius)}{{\\p0}}")
 
         tokens = [token for line in lines for token in line.split(" ")]
