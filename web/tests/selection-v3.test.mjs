@@ -676,7 +676,7 @@ test("project page: focus line and per-clip focus labels come from the view help
 
 test("project page: the detail panel shows the focus chip, the trend chips and the editor entry together", async () => {
   const source = await readFile(new URL("../app/projects/[id]/page.jsx", import.meta.url), "utf8");
-  const card = /function ClipDetail\(\{ clip, job, entry = null, copied, onCopy, position, onStep, panelRef, textDrafts, onClipSaved \}\) \{([\s\S]*?)\n\}\n/.exec(source);
+  const card = /function ClipDetail\(\{ clip, job, entry = null, copied, onCopy, position, onStep, panelRef, textDrafts, onClipSaved, onEntriesChanged \}\) \{([\s\S]*?)\n\}\n/.exec(source);
   assert.ok(card, "ClipDetail takes the job (focus) and the editor entry");
   const body = card[1];
   const focusChip = body.indexOf("{focusChip && <span");
