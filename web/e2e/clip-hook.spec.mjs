@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 
 import { expect } from "@playwright/test";
 
-import { login, skipWithoutCredentials, test } from "./support/harness.mjs";
+import { expectFailedRequest, login, skipWithoutCredentials, test } from "./support/harness.mjs";
 
 // "Hook di video" on the project page (CONTRACTS §5.57): the switch in the caption box saves the
 // clip's document (POST …/hook) and exports the new revision (POST …/renders); the page reads the
@@ -126,9 +126,11 @@ test.describe("Hook di video (faked routes)", () => {
     await toggle.focus();
     await page.keyboard.press("Space");
     await expect(toggle).not.toBeChecked();
+    // The switch is busy while a save runs; the next key waits for its answer.
+    await expect(caption(page).getByRole("status").filter({ hasText: "Hook disembunyikan" })).toBeVisible();
     await page.keyboard.press("Enter");
     await expect(toggle).toBeChecked();
-    expect(seen.hooks.map((hook) => hook.body.on)).toEqual([false, true]);
+    await expect.poll(() => seen.hooks.map((hook) => hook.body.on)).toEqual([false, true]);
   });
 
   test("a clip without a hook has no switch", async ({ page }) => {
@@ -140,6 +142,7 @@ test.describe("Hook di video (faked routes)", () => {
 
   test("a save that lost to the editor says so and keeps the switch as it was", async ({ page }) => {
     const seen = await openProject(page, { hook: { status: 409, code: "revision_conflict" } });
+    expectFailedRequest(page, 409, "POST", `/api/jobs/${JOB_ID}/clips/${CLIP_IDS[0]}/hook`); // the conflict is the point
     const toggle = hookSwitch(page);
     await toggle.click();
     await expect(caption(page).getByRole("status").filter({ hasText: "Klip ini sudah diubah di editor" })).toBeVisible();
