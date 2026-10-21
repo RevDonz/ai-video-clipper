@@ -1160,7 +1160,7 @@ class _Validator:
             self.keyframes(layout["keyframes"], mode)
 
     def keyframes(self, keyframes: object, mode: str | None) -> None:
-        """Manual framing (CONTRACTS §5.41): 1–100 keyframes, strictly increasing source-grid
+        """Manual framing (CONTRACTS §5.44): 1–100 keyframes, strictly increasing source-grid
         frames inside the window, for a layout that crops (not ``fit_blur``)."""
         path = "/layout/keyframes"
         if not isinstance(keyframes, list) or not 1 <= len(keyframes) <= MAX_KEYFRAMES:

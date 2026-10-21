@@ -1,4 +1,4 @@
-// The "Atur bingkai" gizmo's geometry (CONTRACTS §5.41): the 9:16 box over the source picture, in
+// The "Atur bingkai" gizmo's geometry (CONTRACTS §5.44): the 9:16 box over the source picture, in
 // fractions of that picture, from the crop x of web/lib/editor/framing.mjs (the render's own x).
 // Pure functions, no DOM; FrameGizmo.jsx and its node tests use them.
 //

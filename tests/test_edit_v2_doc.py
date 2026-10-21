@@ -494,7 +494,7 @@ def _window_sf(doc: dict) -> tuple[int, int]:
 
 
 def _framed(doc: dict, *offsets: tuple, mode: str = "fill_center") -> None:
-    """Manual framing (CONTRACTS §5.41): ``mode`` plus keyframes at window-relative frames;
+    """Manual framing (CONTRACTS §5.44): ``mode`` plus keyframes at window-relative frames;
     an offset ``< 0`` counts from the window's end (−1 = its last frame)."""
     low, high = _window_sf(doc)
     doc["layout"]["default"]["mode"] = mode

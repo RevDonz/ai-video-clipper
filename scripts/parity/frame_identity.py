@@ -10,7 +10,7 @@ Two cases put the body on the source edges with the production rule (``source_in
 video that starts 41 ms late (no grid frame 0). The ``no_face_blur`` cases run face-track with
 the latar blur fallback (CONTRACTS §5.40): a frame of a run without a face is read with the
 fit-blur geometry, and P-PLATE checks the crop x of the other frames only. The ``keyframes``
-cases frame the clip by hand (§5.41): P-PLATE checks every frame's crop x against
+cases frame the clip by hand (§5.44): P-PLATE checks every frame's crop x against
 ``layouts.keyframe_positions``, the crop the editor's gizmo draws. Plate-cell frames below the
 document's window (the cloned head of a late-starting source's cell 0) are counted, never
 compared: no document can show them.
@@ -472,7 +472,7 @@ class Case:
     # layout.default.no_face (CONTRACTS §5.40): "fit_blur" shows face-track's runs without a
     # face (make_camera has one at 3.0-5.25 s) with the fit-blur layout.
     no_face: str = "center"
-    # layout.keyframes (CONTRACTS §5.41): (sf, pan_e5, move) of the manual framing, none = the
+    # layout.keyframes (CONTRACTS §5.44): (sf, pan_e5, move) of the manual framing, none = the
     # layout's own framing. They turn the no-face fallback off.
     keyframes: tuple[tuple[int, int, str], ...] = ()
 

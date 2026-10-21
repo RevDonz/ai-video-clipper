@@ -1009,7 +1009,7 @@
   content: "";
 }
 
-/* A manual framing keyframe (CONTRACTS §5.41): a small lime diamond at the lane's foot. */
+/* A manual framing keyframe (CONTRACTS §5.44): a small lime diamond at the lane's foot. */
 .keyframeMark {
   position: absolute;
   z-index: 2;

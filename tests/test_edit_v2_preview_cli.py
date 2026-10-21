@@ -141,7 +141,7 @@ CLIP = "clip_" + "a" * 24
     + b'", "layout": "camera", "noFace": "center", "cells": [1], "cancelToken": null}',
     b'{"op": "prepare", "jobId": "' + JOB.encode() + b'", "clipId": "' + CLIP.encode()
     + b'", "layout": "camera", "noFace": "fit_blur"}',
-    # manual framing (CONTRACTS §5.41): [sf, pan_e5, move] triples, strictly increasing frames
+    # manual framing (CONTRACTS §5.44): [sf, pan_e5, move] triples, strictly increasing frames
     *[b'{"op": "cells", "jobId": "' + JOB.encode() + b'", "clipId": "' + CLIP.encode()
       + b'", "layout": "fill_center", "keyframes": ' + keyframes
       + b', "cells": [1], "cancelToken": null}'
@@ -689,7 +689,7 @@ def test_the_blur_fallback_has_its_own_plate_and_notes(c30):
 
 
 def test_manual_framing_tells_the_lane_its_keyframes(c30):
-    """CONTRACTS §5.41: the lane gets the keyframes as ``[sf, pan_e5, move]`` triples for the
+    """CONTRACTS §5.44: the lane gets the keyframes as ``[sf, pan_e5, move]`` triples for the
     cells op, and the plate key names them. Keyframes turn face-track's fallback off, so the
     lane's ``noFace`` is null and no run is listed."""
     doc = valid("layout_keyframes__c30")
@@ -813,7 +813,7 @@ def test_prepare_and_cells_build_the_plate_of_the_blur_fallback(job):
 
 
 def test_prepare_and_cells_build_the_plate_of_manual_framing(job):
-    """CONTRACTS §5.41: the cells op builds the plate of the keyframes the lane passes, under the
+    """CONTRACTS §5.44: the cells op builds the plate of the keyframes the lane passes, under the
     plan's key; ``prepare`` reports the saved document's keyframes, and a switch to latar blur
     drops them (SetLayout)."""
     case = job_case(job, 2)

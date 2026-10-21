@@ -304,7 +304,7 @@ test("the shell hands every panel its clients and the uploads flag, and mounts t
   const entries = bundle.split(",").map((part) => part.trim()).filter(Boolean);
   // `getState` reads the store as it is now: work that outlives its panel or card (a music upload,
   // a face analysis) applies to the document as it is when it finishes (§4.1), never a stale copy.
-  // `openFraming` opens the shell's "Atur bingkai" dialog from the Tata letak panel and card (CONTRACTS §5.41).
+  // `openFraming` opens the shell's "Atur bingkai" dialog from the Tata letak panel and card (CONTRACTS §5.44).
   assert.deepEqual(entries, ["state", "getState: snapshot", "dispatch", "player", "api", "previewClient: runtime.previewClient",
     "uploadAsset: runtime.uploadAsset ?? null", "uploadsEnabled", "llmEnabled", "notify", "readOnly", "openFraming"]);
   assert.match(source, /const snapshot = useCallback\(\(\) => store\.getState\(\), \[store\]\);/);

@@ -14,7 +14,7 @@ those inputs, and an edit of the cuts reuses every cell it still shows.
   bits depend on it), the source content, the window's first grid frame, fps, output size,
   layout, the camera plan's sha (camera layout only), the no-face blur fallback (camera layout
   with ``no_face: "fit_blur"`` only, CONTRACTS §5.40), the manual framing keyframes (only when
-  there are some, §5.41; they turn the fallback off) and ``toolchain.json``'s sha.
+  there are some, §5.44; they turn the fallback off) and ``toolchain.json``'s sha.
 * ``cell_name`` is the flat file name ``<key16>-c<k:07d>.mp4`` under ``preview/plates``.
 * ``camera_for`` finds the camera plan of a document: the one ``base.camera.sha256`` names, else
   (a clip seeded with another layout and switched to face-track in the editor) the valid plan of
@@ -92,7 +92,7 @@ def plate_key(doc: Mapping[str, Any], *, camera_sha256: str | None = None,
         "toolchain": toolchain_sha256,
     }
     # Only the blur fallback of face-track and manual framing add a key, so every other plate
-    # keeps its key. Keyframes set every frame's crop and turn the fallback off (§5.41).
+    # keeps its key. Keyframes set every frame's crop and turn the fallback off (§5.44).
     keyframes = doc["layout"].get("keyframes")
     if keyframes:
         identity["keyframes"] = [[k["sf"], k["pan_e5"], k["move"]] for k in keyframes]

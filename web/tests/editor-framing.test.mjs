@@ -1,4 +1,4 @@
-// Manual framing, "Atur bingkai" (CONTRACTS §5.41): web/lib/editor/framing.mjs against the vectors
+// Manual framing, "Atur bingkai" (CONTRACTS §5.44): web/lib/editor/framing.mjs against the vectors
 // edit_v2/layouts.py writes (tests/fixtures/edit_v2/framing-vectors.json), so the box the gizmo
 // draws is the crop the render takes; and the helpers the dialog and the timeline read.
 import assert from "node:assert/strict";

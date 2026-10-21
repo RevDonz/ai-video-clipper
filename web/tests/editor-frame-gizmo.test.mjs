@@ -1,7 +1,7 @@
 // The "Atur bingkai" gizmo's model (web/components/editor/gizmos/frame-geometry.mjs) and the
 // dialog's (web/components/editor/framing-model.mjs): where the 9:16 box sits over the
 // source picture, what a drag or a key makes of it, the result's crop, the still's document, and
-// the view of the playhead's keyframe (CONTRACTS §5.41).
+// the view of the playhead's keyframe (CONTRACTS §5.44).
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";

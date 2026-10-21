@@ -1,6 +1,6 @@
 {
  "schema": "potongin.framing-vectors/1",
- "description": "Manual framing (CONTRACTS §5.41): the crop x of source-grid frames first_sf … first_sf+count−1 for layout.keyframes (edit_v2.layouts.keyframe_positions). Written by tests/test_edit_v2_framing.py; web/tests/editor-framing.test.mjs checks web/lib/editor/framing.mjs against it.",
+ "description": "Manual framing (CONTRACTS §5.44): the crop x of source-grid frames first_sf … first_sf+count−1 for layout.keyframes (edit_v2.layouts.keyframe_positions). Written by tests/test_edit_v2_framing.py; web/tests/editor-framing.test.mjs checks web/lib/editor/framing.mjs against it.",
  "vectors": [
   {
    "name": "centre_720",

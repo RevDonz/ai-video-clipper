@@ -1,4 +1,4 @@
-// "Atur bingkai", the manual framing of the crop layouts (CONTRACTS §5.41), on the editor fakes:
+// "Atur bingkai", the manual framing of the crop layouts (CONTRACTS §5.44), on the editor fakes:
 // opened from the Tata letak panel (Mode Lengkap) and card (Mode Cepat); the source picture is a
 // truth frame of the document with latar blur and nothing over it; a drag of the 9:16 box stores
 // one keyframe at the playhead on release; keys nudge it; a second keyframe "Geser"; "Hapus

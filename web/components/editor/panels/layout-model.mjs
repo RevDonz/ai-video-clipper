@@ -44,7 +44,7 @@ export function layoutCommand(mode) {
 /**
  * The document in layout `mode` as `SetLayout` makes it (the same object when unchanged): only
  * `layout` changes; a switch into face-track turns the latar blur fallback on, and latar blur
- * drops the manual framing keyframes (CONTRACTS §5.41).
+ * drops the manual framing keyframes (CONTRACTS §5.44).
  */
 export function withLayout(doc, mode) {
   knownLayout(mode);

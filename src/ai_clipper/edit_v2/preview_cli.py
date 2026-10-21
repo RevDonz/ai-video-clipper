@@ -39,7 +39,7 @@ Nothing heavy runs.
 one FFmpeg run (the lane's two threads) and publishes ``preview/plates/<key16>-c<k:07d>.mp4``.
 ``noFace: "fit_blur"`` asks for face-track's latar blur fallback (CONTRACTS §5.40); without it
 the runs without a face are centred, as before. ``keyframes: [[sf, pan_e5, move], …]`` asks for
-manual framing (§5.41): a crop layout and frames inside the clip window, else exit 6. ``plan``
+manual framing (§5.44): a crop layout and frames inside the clip window, else exit 6. ``plan``
 and ``prepare`` name the plate's ``noFace`` (``"fit_blur"`` or ``null``) and ``keyframes``
 (triples or ``null``) next to its ``layout``, and ``prepare`` with a switch reports the document
 ``SetLayout`` makes (face-track: the fallback on; latar blur: no keyframes).
@@ -148,7 +148,7 @@ def _cells_field(value: object) -> bool:
 
 
 def _keyframes_field(value: object) -> bool:
-    """``[[sf, pan_e5, move], …]``: the lane's form of ``layout.keyframes`` (CONTRACTS §5.41)."""
+    """``[[sf, pan_e5, move], …]``: the lane's form of ``layout.keyframes`` (CONTRACTS §5.44)."""
     from . import layouts
 
     if type(value) is not list or not all(type(item) is list and len(item) == 3
@@ -538,7 +538,7 @@ def _with_layout(doc: Mapping[str, Any], layout: str, no_face: str | None = None
 def _switched(doc: Mapping[str, Any], layout: str) -> dict:
     """``doc`` after ``SetLayout {mode: layout}`` (web/lib/editor/commands.mjs): a switch to
     face-track from another layout turns the latar blur fallback on (CONTRACTS §5.40), and a
-    switch to latar blur drops the manual framing keyframes (§5.41)."""
+    switch to latar blur drops the manual framing keyframes (§5.44)."""
     if layout == "camera" and doc["layout"]["default"]["mode"] != "camera":
         changed = _with_layout(doc, layout, "fit_blur")
     else:
@@ -963,7 +963,7 @@ def _cells(ctx: _Context, envelope: Mapping[str, Any]) -> dict[str, Any]:
     window = doc["base"]["window_ms"]
     layout = {key: value for key, value in doc["layout"].items() if key != "keyframes"}
     if "keyframes" in envelope:
-        # manual framing (§5.41): a crop layout, every frame inside the clip window
+        # manual framing (§5.44): a crop layout, every frame inside the clip window
         if envelope["layout"] == "fit_blur":
             raise DocSemanticInvalid("range_invalid", path="/keyframes")
         if not all(tm.sf_floor(window[0], fps) <= sf < tm.sf_ceil(window[1], fps)

@@ -1,7 +1,7 @@
 "use client";
 
 // The video lane (plan Appendix C.3): the pieces of the plan, ⋯ markers at jump cuts, the cold-open
-// block in its own colour, the manual framing keyframes as lime diamonds (CONTRACTS §5.41) and
+// block in its own colour, the manual framing keyframes as lime diamonds (CONTRACTS §5.44) and
 // the trim handles on the body's edges. A dragged edge is magnet-
 // snapped to the words artifact's `bounds` table; holding Alt frees the ghost for the view only,
 // because the stored value is always a `bounds` frame (TrimStart/TrimEnd take the word next to the

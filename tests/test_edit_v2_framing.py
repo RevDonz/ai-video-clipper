@@ -1,4 +1,4 @@
-"""Manual framing, "Atur bingkai" (CONTRACTS §5.41): the crop x of every source-grid frame from
+"""Manual framing, "Atur bingkai" (CONTRACTS §5.44): the crop x of every source-grid frame from
 the document's ``layout.keyframes``.
 
 ``tests/fixtures/edit_v2/framing-vectors.json`` holds inputs and the expected crop x; this file
@@ -149,7 +149,7 @@ def test_the_shared_vectors_are_the_python_values():
     if os.environ.get("EDIT_V2_UPDATE_VECTORS") == "1":
         VECTORS.write_text(json.dumps({
             "schema": VECTORS_SCHEMA,
-            "description": ("Manual framing (CONTRACTS §5.41): the crop x of source-grid frames "
+            "description": ("Manual framing (CONTRACTS §5.44): the crop x of source-grid frames "
                             "first_sf … first_sf+count−1 for layout.keyframes "
                             "(edit_v2.layouts.keyframe_positions). Written by "
                             "tests/test_edit_v2_framing.py; web/tests/editor-framing.test.mjs "

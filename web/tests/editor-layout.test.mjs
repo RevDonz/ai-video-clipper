@@ -108,7 +108,7 @@ test("a thumbnail asks for the document with only the layout changed", () => {
   assert.deepEqual({ ...camera, layout: doc.layout }, doc);
   assert.equal(withLayout(doc, "fit_blur"), doc);
   assert.throws(() => withLayout(doc, "split"), TypeError);
-  // manual framing (CONTRACTS §5.41): the crop layouts keep the keyframes, latar blur drops them
+  // manual framing (CONTRACTS §5.44): the crop layouts keep the keyframes, latar blur drops them
   const framed = { ...doc, layout: { default: { mode: "fill_center", no_face: "center" },
     keyframes: [{ sf: 37300, pan_e5: 20000, move: "cut" }] } };
   assert.equal(withLayout(framed, "camera").layout.keyframes, framed.layout.keyframes);

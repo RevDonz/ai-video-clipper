@@ -444,7 +444,7 @@ def test_with_the_blur_fallback_a_run_without_a_face_is_a_note(harness, resource
 
 
 def test_manual_framing_lists_no_run_without_a_face(harness, resources):
-    """``layout.keyframes`` (CONTRACTS §5.41) set the crop of every frame, so face-track's runs
+    """``layout.keyframes`` (CONTRACTS §5.44) set the crop of every frame, so face-track's runs
     without a face are neither centred nor blurred: no ``no_face`` and no ``no_face_blur``. The
     keyframes are content, so the plan sha changes with them."""
     name = "layout_camera_no_face_blur__c30"

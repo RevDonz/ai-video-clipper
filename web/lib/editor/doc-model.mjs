@@ -54,7 +54,7 @@ export function switchedLayout(current, mode) {
 
 /** The layouts that crop the source: manual framing ("Atur bingkai", `layout.keyframes`) is theirs. */
 export const CROP_MODES = Object.freeze(["camera", "fill_center"]);
-/** How the crop reaches a keyframe from the one before: "Potong" holds, "Geser" moves (CONTRACTS §5.41). */
+/** How the crop reaches a keyframe from the one before: "Potong" holds, "Geser" moves (CONTRACTS §5.44). */
 export const KEYFRAME_MOVES = Object.freeze(["cut", "slide"]);
 export const MAX_KEYFRAMES = 100;
 /** `pan_e5`: the crop from the left edge (0) to the right edge of its travel. */
@@ -595,7 +595,7 @@ function joinOk(join, after) {
 
 const KEYFRAME_KEYS = Object.freeze(["sf", "pan_e5", "move"]);
 
-// Manual framing (CONTRACTS §5.41): edit_v2/doc.py `keyframes`; an unknown key, which Python
+// Manual framing (CONTRACTS §5.44): edit_v2/doc.py `keyframes`; an unknown key, which Python
 // rejects at parse level, is range_invalid here.
 function checkKeyframes(layout, ctx, add) {
   const path = "/layout/keyframes";

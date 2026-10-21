@@ -6,7 +6,7 @@
 // (layout-analysis.mjs), and switches after; the run keeps going when the card closes or the view
 // switches, and LayoutPanel shows the same progress. Another choice during the analysis wins.
 // The thumbnails and the runs without a face stay in Mode Lengkap. Under the crop layouts the
-// card says where the crop comes from and opens "Atur bingkai" (CONTRACTS §5.41), the same dialog
+// card says where the crop comes from and opens "Atur bingkai" (CONTRACTS §5.44), the same dialog
 // as Mode Lengkap's panel. Props: the card bundle (`openFraming` among them).
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 

@@ -345,7 +345,7 @@ Duplicate keys, NaN and unknown keys are rejected at every level.
 | `captions.overrides.entrance` | optional; `none`, `fade`, `pop`, `blur` (amended 2026-10-21, §5.39) | "Animasi masuk": how each caption line appears, at most 120 ms; absent = `none`. Seeds never write it |
 | `captions.word_edits` | ≤ 6,000 keys (word ids); values `{text?, hidden?, emphasis?}` with ≥ 1 key | `text` 1–40 chars. `emphasis` fixes defect #6 (§8) |
 | `layout.default.mode` | `fit_blur`, `camera` (face-track), `fill_center` (center-crop) | `no_face` is `"center"` (today's behaviour) or `"fit_blur"` (face-track shows its runs without a face as `fit_blur`, §5.40); no-face spans are *reported*, never silent |
-| `layout.keyframes` | optional; 1–100 `{sf, pan_e5 0–100000, move "cut"\|"slide"}`, `sf` strictly increasing inside the window (amended 2026-10-21, §5.41) | "Atur bingkai": the crop of the two crop layouts set by hand; with `fit_blur` `range_invalid`; absent = the layout's own framing. Seeds never write it |
+| `layout.keyframes` | optional; 1–100 `{sf, pan_e5 0–100000, move "cut"\|"slide"}`, `sf` strictly increasing inside the window (amended 2026-10-21, §5.44) | "Atur bingkai": the crop of the two crop layouts set by hand; with `fit_blur` `range_invalid`; absent = the layout's own framing. Seeds never write it |
 | `tracks` | ≤ 3 tracks: ≤ 1 `hook`, ≤ 1 `visual/over_text/overlay`, ≤ 1 `audio/music`; ≤ 1 item each | Stage 2 lifts the counts; the shapes stay |
 | hook item | `start {"at":"out","f":0}`; `dur_f` 15 to `floor(30·F)`; `transform.x_e5` 50000; `y_e5` 6000–40000 (top of the hook stack; seed 13000); `payload.text` 1–90; `design {"id": "legacy-bar"|"kicker"|"blok"|"kotak", "v": 1}` (the three new designs amended 2026-10-20, §5.33; seeds write `legacy-bar`) | Fixed start at 0 as today |
 | logo item | `start clip_start`, `end clip_end`; `x_e5, y_e5` 0–100000 (box centre); `w_e5` 4000–40000; `opacity_pm` 200–1000; `payload.mode` `"free"` | The resolved box must lie inside the frame (`item_out_of_frame`) |
@@ -478,7 +478,7 @@ every later reader sees.
 - *Amended 2026-10-21 (§5.43):* the optional root key `watermark` (the text watermark) is valid
   under `schema_minor: 0`. A document without it is unchanged in meaning (no watermark); an older
   server refuses the key with `unknown_key`.
-- *Amended 2026-10-21 (§5.41):* manual framing landed as the optional `layout.keyframes` under
+- *Amended 2026-10-21 (§5.44):* manual framing landed as the optional `layout.keyframes` under
   `schema_minor: 0`, in place of Stage 2's `camera.manual_keys`. A document without it is
   unchanged in meaning; an older server refuses the key with `unknown_key`.
 - The pack ids `classic` and `karaoke` are the FINAL `legacy-classic@1` and `legacy-karaoke@1`
@@ -798,7 +798,7 @@ yields `range_invalid` only, with no duration or window issue).
 - **`outside_window`**: with `window_sf = [sf_floor(window_ms[0]), sf_ceil(window_ms[1])]`, every
   segment needs `window_sf[0] ≤ in_sf` and `out_sf ≤ window_sf[1]` (frame-covering, so a seed
   that ends at the end of the source is inside), and every framing keyframe `window_sf[0] ≤ sf
-  < window_sf[1]` (§5.41). The seed narrows `window_ms` to the source-grid
+  < window_sf[1]` (§5.44). The seed narrows `window_ms` to the source-grid
   frames that exist (§5.6, §5.16), so `window_sf` never reaches a frame the compiler cannot
   decode.
 - **Segments**: 1–2 items, exactly one `body` (zero or two bodies → `range_invalid`),
@@ -868,7 +868,7 @@ captions  enabled bool · pack {id, v} · overrides {y_e5, size_pm, case, highli
           words_max (optional, §5.30), entrance (optional, §5.39)}
           · word_edits {<word id>: {text?, hidden?, emphasis?}} (values: 1–3 keys)
 layout    default {mode, no_face "center"|"fit_blur"}
-          · keyframes [{sf, pan_e5, move "cut"|"slide"}] (optional, 1–100, §5.41)
+          · keyframes [{sf, pan_e5, move "cut"|"slide"}] (optional, 1–100, §5.44)
 tracks    hook   {id, kind "hook", items}
           visual {id, kind "visual", band "over_text", role "overlay", items}
           audio  {id, kind "audio", role "music", items}
@@ -3122,7 +3122,7 @@ auto render is unchanged: without the key `build_ass_v2` writes the bytes it wro
   (`middle_right`, 140 %).
 - The 1,000-sequence crosscheck draws the five commands, valid and not.
 
-## 5.41 Manual framing: "Atur bingkai" (2026-10-21)
+## 5.44 Manual framing: "Atur bingkai" (2026-10-21)
 
 Plan `docs/plans/2026-10-20-lanjutan-sesi.md` P2 ("Reframe manual"). The two crop layouts
 (`camera`, `fill_center`) can be framed by hand with keyframes: the 9:16 crop is placed on the

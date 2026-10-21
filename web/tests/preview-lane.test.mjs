@@ -225,7 +225,7 @@ test("the cells of face-track's blur fallback ask for it; other plates do not na
   }
 });
 
-// CONTRACTS §5.41: manual framing has its own plate; every cells batch carries the keyframes.
+// CONTRACTS §5.44: manual framing has its own plate; every cells batch carries the keyframes.
 test("the cells of a framed plate carry its keyframes; other plates do not name them", async () => {
   const { dir, clip, cleanup } = root();
   readyAudio(clip);

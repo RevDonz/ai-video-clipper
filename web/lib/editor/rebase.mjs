@@ -548,7 +548,7 @@ function describe(doc, group, ctx) {
     case "layout": {
       const { mode, no_face: noFace } = doc.layout.default;
       const count = doc.layout.keyframes?.length ?? 0;
-      // manual framing turns face-track's fallback off (CONTRACTS §5.41), so it is named instead
+      // manual framing turns face-track's fallback off (CONTRACTS §5.44), so it is named instead
       if (count) return `${mode} + bingkai manual (${count} keyframe)`;
       return mode === "camera" && noFace === "fit_blur" ? `${mode} + latar blur` : mode;
     }
@@ -642,7 +642,7 @@ export function rebase({ base, mine, theirs, steps, ctx }) {
   if (groups.has("coldopen") && (partValue(doc, "coldopen") === null) !== (partValue(mine, "coldopen") === null)) {
     for (const part of JOIN_PARTS) if (differs(part)) add("coldopen", part);
   }
-  // Mine's framing keyframes need a crop layout (CONTRACTS §5.41): over latar blur, "Pakai punyaku"
+  // Mine's framing keyframes need a crop layout (CONTRACTS §5.44): over latar blur, "Pakai punyaku"
   // brings mine's layout with them.
   if (groups.get("layout")?.has("layout.keyframes") && partValue(mine, "layout.keyframes") !== null
     && !CROP_MODES.includes(doc.layout.default.mode) && differs("layout")) add("layout", "layout");

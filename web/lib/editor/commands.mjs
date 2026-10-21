@@ -31,7 +31,7 @@
 //   join's style and whoosh, else the seed's, else Kilat putih + whoosh (the auto clips' default).
 // - SetLayout into face-track turns the latar blur fallback on (`no_face: "fit_blur"`,
 //   `switchedLayout`); SetNoFace switches it back to centred, or on again (CONTRACTS §5.40).
-// - Manual framing, "Atur bingkai" (CONTRACTS §5.41): SetKeyframe adds a keyframe at a source frame
+// - Manual framing, "Atur bingkai" (CONTRACTS §5.44): SetKeyframe adds a keyframe at a source frame
 //   or moves the one there (keeping its `move`; a new one cuts), RemoveKeyframe, SetKeyframeMove and
 //   ClearKeyframes ("Kembali ke otomatis"). The last keyframe gone is no `keyframes` key at all
 //   (R10), and SetLayout to latar blur drops them (`layoutAfterSwitch`).
@@ -83,7 +83,7 @@ import { divRoundHalfUp, logoBox, pieces, sfCeil, sfFloor } from "./timemap.mjs"
  * Appendix B, in the order of the table (the same list as `__dev__/fakes.mjs`), with the
  * cold-open transition commands after NudgeColdOpen (docs/plans/2026-10-02-transisi-cold-open.md §7.2),
  * SetHookDesign after SetHookY (CONTRACTS §5.33), SetNoFace after SetLayout (CONTRACTS §5.40), the
- * framing commands after SetNoFace (CONTRACTS §5.41) and the text watermark's after SnapLogo (§5.43).
+ * framing commands after SetNoFace (CONTRACTS §5.44) and the text watermark's after SnapLogo (§5.43).
  */
 export const COMMANDS = Object.freeze([
   "TrimStart", "TrimEnd", "RemoveWords", "RemoveGap", "RestoreRemoval", "ApplyCleanup",

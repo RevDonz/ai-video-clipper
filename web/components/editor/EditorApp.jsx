@@ -335,7 +335,7 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
     setHelpOpen(true);
   }, []);
 
-  // "Atur bingkai" (CONTRACTS §5.41): opened from the Tata letak panel or card; focus goes back there.
+  // "Atur bingkai" (CONTRACTS §5.44): opened from the Tata letak panel or card; focus goes back there.
   const openFraming = useCallback(() => {
     framingReturnRef.current = document.activeElement;
     setChecksOpen(false);

@@ -42,7 +42,7 @@ export const LAYOUTS = Object.freeze(["fit_blur", "camera", "fill_center"]);
 // A plate's `noFace` from preview_cli: "fit_blur" for face-track's latar blur fallback (CONTRACTS
 // §5.40), null otherwise; the cells op is told only about the fallback.
 const plateNoFace = (value) => (value === undefined || value === null ? null : value === "fit_blur" ? value : undefined);
-// A plate's `keyframes` from preview_cli (CONTRACTS §5.41): `[[sf, pan_e5, move], …]` for manual
+// A plate's `keyframes` from preview_cli (CONTRACTS §5.44): `[[sf, pan_e5, move], …]` for manual
 // framing, null otherwise; undefined when malformed (the result is then not trusted).
 const KEYFRAME_MOVES = Object.freeze(["cut", "slide"]);
 function plateKeyframes(value) {

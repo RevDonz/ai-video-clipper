@@ -143,7 +143,7 @@ def test_plate_key_names_the_no_face_fallback_of_face_track_only(contexts):
 
 
 def test_plate_key_names_the_keyframes_of_manual_framing(contexts):
-    """Manual framing (CONTRACTS §5.41) sets the plate's crop, so its keyframes are part of the
+    """Manual framing (CONTRACTS §5.44) sets the plate's crop, so its keyframes are part of the
     key; the face-track fallback is not (keyframes turn it off). Keys without keyframes are the
     pinned ones above."""
     seed = contexts["c30"].seed

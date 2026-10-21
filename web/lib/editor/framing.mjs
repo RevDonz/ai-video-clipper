@@ -1,4 +1,4 @@
-// Manual framing, "Atur bingkai" (CONTRACTS §5.41): the browser mirror of
+// Manual framing, "Atur bingkai" (CONTRACTS §5.44): the browser mirror of
 // src/ai_clipper/edit_v2/layouts.py `pan_limit` and `keyframe_positions`. Both are checked against
 // tests/fixtures/edit_v2/framing-vectors.json, so the box the gizmo draws is the crop the render
 // takes, to the pixel. Pure functions, no DOM.

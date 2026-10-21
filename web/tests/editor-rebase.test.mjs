@@ -550,7 +550,7 @@ test("face-track's no-face choice is part of the layout and named in the dialog 
   assert.deepEqual(result.resolve({ layout: "theirs" }).doc.layout.default, { mode: "camera", no_face: "center" });
 });
 
-test("the framing keyframes are their own layout part: one tab frames, the other edits, both survive (§5.41)", () => {
+test("the framing keyframes are their own layout part: one tab frames, the other edits, both survive (§5.44)", () => {
   const start = body(C30.seed).in_sf;
   const framed = (session) => {
     session.dispatch("SetLayout", { mode: "fill_center" });

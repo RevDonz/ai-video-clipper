@@ -201,7 +201,7 @@ test("defaultMergeKey follows Appendix B", () => {
   assert.equal(defaultMergeKey("SetWatermarkText", { text: "@akun" }), "wm:text");
   assert.equal(defaultMergeKey("SetWatermarkSize", { size_pm: 1200 }), "wm:size");
   assert.equal(defaultMergeKey("SetWatermarkOpacity", { opacity_pm: 600 }), "wm:opacity");
-  // a drag of the framing box at one frame is one undo step (CONTRACTS §5.41)
+  // a drag of the framing box at one frame is one undo step (CONTRACTS §5.44)
   assert.equal(defaultMergeKey("SetKeyframe", { sf: 37300, pan_e5: 10 }), "frame:37300");
   for (const type of ["TrimStart", "TrimEnd", "RemoveWords", "RemoveGap", "RestoreRemoval", "ApplyCleanup",
     "SetColdOpen", "SetJoinStyle", "SetJoinSfx", "SetWordHidden", "SetWordEmphasis", "SetCaptionPack", "SetHookDesign", "SetLayout",
@@ -853,7 +853,7 @@ test("SetNoFace sets what face-track shows where no face was found", () => {
   rejects(C25, C25.seed, "SetNoFace", {}, "value_out_of_range");
 });
 
-// --- manual framing, "Atur bingkai" (CONTRACTS §5.41) ------------------------------------------
+// --- manual framing, "Atur bingkai" (CONTRACTS §5.44) ------------------------------------------
 
 const centred = (context) => run(context, context.seed, "SetLayout", { mode: "fill_center" });
 

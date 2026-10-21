@@ -168,7 +168,7 @@ class RenderPlan:
 
     @property
     def keyframes(self) -> tuple[Mapping[str, Any], ...]:
-        """The manual framing keyframes (§5.41), empty for the layout's own framing. They set
+        """The manual framing keyframes (§5.44), empty for the layout's own framing. They set
         the crop of every frame, face-track's included, and turn its no-face fallback off."""
         return tuple(self.doc["layout"].get("keyframes", ()))
 
@@ -384,7 +384,7 @@ def build_plan(
         music_envelope = tuple(tuple(point) for point in _envelope.music_envelope(
             spans, music_item, total_samples, fps))
     warnings = [*caption.warnings]
-    # manual framing (§5.41) sets every frame's crop, so no run is centred or blurred for lack
+    # manual framing (§5.44) sets every frame's crop, so no run is centred or blurred for lack
     # of a face
     if used_camera is not None and not doc["layout"].get("keyframes"):
         warnings.extend(_no_face(used_camera, pieces, fps,

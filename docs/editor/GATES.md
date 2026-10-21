@@ -1993,7 +1993,7 @@ production image or a browser run on GitHub Actions when the branch is pushed.
 
 ## Atur bingkai: manual framing (2026-10-21)
 
-`layout.keyframes` (CONTRACTS §5.41): the crop of the two crop layouts set by hand. Documents
+`layout.keyframes` (CONTRACTS §5.44): the crop of the two crop layouts set by hand. Documents
 without keyframes keep their graph, plan sha and plate key, so `RENDER_SEMANTICS` stays 1 and the
 goldens are unchanged. Built on branch `adopsi/atur-bingkai` with targeted local tests only; the
 gates that need the production image or a browser run on GitHub Actions when the branch is pushed.

@@ -1,6 +1,6 @@
 "use client";
 
-// "Atur bingkai" (CONTRACTS §5.41): the manual framing of a crop layout in one dialog. The source
+// "Atur bingkai" (CONTRACTS §5.44): the manual framing of a crop layout in one dialog. The source
 // picture at the playhead with the 9:16 box (gizmos/FrameGizmo.jsx), the result beside it, a
 // scrubber with the keyframes as lime diamonds, and the keyframe at the playhead: add, remove,
 // "Potong" or "Geser" towards it. "Kembali ke otomatis" clears them all; "Selesai" closes.

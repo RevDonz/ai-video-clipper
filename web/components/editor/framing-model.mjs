@@ -1,4 +1,4 @@
-// "Atur bingkai", the manual framing of the crop layouts (CONTRACTS §5.41): the words the editor
+// "Atur bingkai", the manual framing of the crop layouts (CONTRACTS §5.44): the words the editor
 // shows, the view of the playhead in the dialog, the still's document and the dialog's commands.
 // Pure functions, no DOM; FramingDialog.jsx, panels/LayoutPanel.jsx, quick/LayoutCard.jsx and the
 // node tests use them.

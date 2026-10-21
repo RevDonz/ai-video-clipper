@@ -1004,7 +1004,7 @@ def test_a_fallback_without_a_run_in_the_clip_is_todays_camera_graph(harness, pr
         assert one.filter_script == other.filter_script, kwargs
 
 
-# --- manual framing, "Atur bingkai": keyframes (CONTRACTS §5.41) -------------------------------------
+# --- manual framing, "Atur bingkai": keyframes (CONTRACTS §5.44) -------------------------------------
 
 
 def with_removals(doc: dict, *spans: tuple[int, int]) -> dict:
@@ -1456,7 +1456,7 @@ def test_camera_crop_decoded_from_the_ruler_matches_the_plan(harness, tmp_path, 
 
 def test_manual_crop_decoded_from_the_ruler_matches_the_keyframes(harness, tmp_path,
                                                                   edit_v2_ffmpeg):
-    """Manual framing (CONTRACTS §5.41): the crop x the gizmo shows is the x of every plate and
+    """Manual framing (CONTRACTS §5.44): the crop x the gizmo shows is the x of every plate and
     reference frame (the final's graph, lossless; P-PLATE's crop part, on PR)."""
     clip = synthetic_clip(tmp_path, frames=330, layout="fill_center", cold_open=(240, 270),
                           body=(40, 200), removals=((90, 96), (130, 131)))

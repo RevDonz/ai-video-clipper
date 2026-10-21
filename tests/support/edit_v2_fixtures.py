@@ -744,7 +744,7 @@ def _valid(contexts: Mapping[str, Context]) -> list[_Fixture]:
     d = _Doc(c30, "SetLayout")
     d.doc["layout"]["default"].update(mode="camera", no_face="fit_blur")
     add("layout_camera_no_face_blur", d)
-    # manual framing, "Atur bingkai" (§5.41): keyframes on source-grid frames of the window
+    # manual framing, "Atur bingkai" (§5.44): keyframes on source-grid frames of the window
     d = _Doc(c30, "SetKeyframe")
     start = d.body["in_sf"]
     d.doc["layout"]["default"]["mode"] = "fill_center"

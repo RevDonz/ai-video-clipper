@@ -17,7 +17,7 @@
 //   CONTRACTS §5.40). The runs (the plan's `no_face` or `no_face_blur`) are listed with a jump-to
 //   button each; with latar blur they are notes, not checks.
 // - "Bingkai" says where the crop comes from and opens "Atur bingkai" (../FramingDialog.jsx,
-//   CONTRACTS §5.41) for the crop layouts; with keyframes, "Kembali ke otomatis" clears them, and
+//   CONTRACTS §5.44) for the crop layouts; with keyframes, "Kembali ke otomatis" clears them, and
 //   the no-face choice gives way (the keyframes frame those runs too).
 //
 // Props: { state, dispatch, player, openFraming } (panels/index.mjs), plus the optional seams `api`

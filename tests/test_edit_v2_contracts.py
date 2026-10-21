@@ -382,7 +382,7 @@ def test_compile_modes_and_api_ops_are_frozen():
     assert api.OPS == ("clips", "prepare_job", "get", "put", "seed", "archive")
     assert layouts.LAYOUT_MODES == ("fit_blur", "camera", "fill_center")
     assert layouts.NO_FACE_MODES == ("center", "fit_blur")
-    assert layouts.CROP_MODES == ("camera", "fill_center")  # manual framing, CONTRACTS §5.41
+    assert layouts.CROP_MODES == ("camera", "fill_center")  # manual framing, CONTRACTS §5.44
     assert layouts.KEYFRAME_MOVES == ("cut", "slide")
 
 

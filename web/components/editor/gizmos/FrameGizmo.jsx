@@ -1,6 +1,6 @@
 "use client";
 
-// The "Atur bingkai" gizmo (CONTRACTS §5.41): the 9:16 box over the source picture, with a grid of
+// The "Atur bingkai" gizmo (CONTRACTS §5.44): the 9:16 box over the source picture, with a grid of
 // thirds, in the framing dialog (FramingDialog.jsx). Follows LogoGizmo's patterns: drag to
 // move with a magnet on the centre (Alt drags freely), arrow keys to nudge (1 %, Shift 10 %,
 // Home/End to the edges), a press outside the box brings its middle there.

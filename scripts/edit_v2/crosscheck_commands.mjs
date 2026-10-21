@@ -259,7 +259,7 @@ const GENERATORS = {
   SetNoFace(rng) {
     return { mode: pick(rng, ["center", "fit_blur", "fit_blur", "fail"]) };
   },
-  // Manual framing (CONTRACTS §5.41): frames of the window and a few just outside it, an existing
+  // Manual framing (CONTRACTS §5.44): frames of the window and a few just outside it, an existing
   // keyframe now and then, pans and moves mostly in range.
   SetKeyframe(rng, doc, context) {
     const [low, high] = context.ctx.windowSf;

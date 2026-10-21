@@ -213,7 +213,7 @@ def keyframe_positions(
     count: int,
 ) -> tuple[int, ...]:
     """Even crop x (in the scaled source) for source-grid frames ``first_sf … first_sf+count−1``
-    from the manual framing keyframes (CONTRACTS §5.41).
+    from the manual framing keyframes (CONTRACTS §5.44).
 
     Keyframe ``i`` puts the crop at ``pan_e5·limit/100000`` (``limit``: :func:`pan_limit`) on its
     frame ``sf``. Before the first keyframe the first holds and after the last the last holds.
