@@ -130,6 +130,11 @@ export function zoomCommand(zoomPm) {
   return { type: "SetZoom", args: { zoom_pm: zoomPm }, mergeKey: "layout:zoom" };
 }
 
+/** "Kembali ke 100%": its own undo step, so one Ctrl+Z after it brings the zoom back. */
+export function zoomResetCommand() {
+  return { type: "SetZoom", args: { zoom_pm: ZOOM_RANGE[0] }, mergeKey: null };
+}
+
 /**
  * The Zoom section: `{available, zoom, percent, min, max, step, zoomed, bars, text}`. Not available
  * under the split; `bars` when the source's black bars were found and are left out of every layout.
