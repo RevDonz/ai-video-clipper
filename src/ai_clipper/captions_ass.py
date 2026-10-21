@@ -455,6 +455,15 @@ _EMPHASIS_REVEALS = ("static", "word", "karaoke")
 ENTRANCE_MS = 120
 _POP_SCALES = (70, 108)
 _BLUR_START = (1, 128)
+# Under a translucent or fading fill libass cuts the glyphs out of the border (ass_fix_outline:
+# o > g ? o − g/2 : 0). That step turns a one-level difference in glyph coverage between two
+# libass builds (JASSUB's and FFmpeg's) into half the outline, so where the fill is not opaque
+# the outline is drawn as a shadow of the border's shape instead, which libass never cuts: the
+# smallest nonzero shadow offset (1/64 px), the border itself transparent. A drop shadow then
+# comes from a copy of the line whose fill (alpha FE, not FF: a fill that is not fully
+# transparent keeps the shadow uncut) and border are transparent (CONTRACTS §5.39, §5.43, §5.49).
+_SHADOW_OUTLINE_OFFSET = "0.02"
+_FADING_ENTRANCES = ("fade", "blur")
 _E5 = 100_000
 # Hook designs (CONTRACTS §5.33): the seeds' bar, whose geometry is the code below, and the
 # layouts of the designs whose geometry is their file.
@@ -1062,14 +1071,15 @@ def words_per_cue(pack: CaptionPack, overrides: Mapping[str, Any]) -> int:
     return overrides.get("words_max", pack.words_per_cue)
 
 
-def _entrance_tags(entrance: str, window_ms: int, height: int) -> str:
+def _entrance_tags(entrance: str, window_ms: int, height: int, extra: str = "") -> str:
     """The block that opens a caption line: empty for ``none``, otherwise an entrance of at most
-    ``ENTRANCE_MS`` that never outlasts the line's first window (CONTRACTS §5.39)."""
+    ``ENTRANCE_MS`` that never outlasts the line's first window (CONTRACTS §5.39). ``extra``
+    ends the block of a fading entrance (Fade, Blur)."""
     duration = min(ENTRANCE_MS, window_ms)
     if entrance == "none" or duration <= 0:
         return ""
     if entrance == "fade":
-        return f"{{\\fad({duration},0)}}"
+        return f"{{\\fad({duration},0){extra}}}"
     if entrance == "pop":
         start, peak = _POP_SCALES
         turn = div_round_half_up(2 * duration, 3)
@@ -1078,7 +1088,18 @@ def _entrance_tags(entrance: str, window_ms: int, height: int) -> str:
     # libass blurs only the outline of outlined text, so the line also fades in.
     num, den = _BLUR_START
     radius = _centi_text(div_round_half_up(100 * height * num, den))
-    return f"{{\\fad({duration},0)\\blur{radius}\\t(0,{duration},\\blur0)}}"
+    return f"{{\\fad({duration},0)\\blur{radius}\\t(0,{duration},\\blur0){extra}}}"
+
+
+def _shadow_outline_tags(colour: str, alpha: int) -> str:
+    """Override tags that draw an outline as a shadow of the border's shape (see
+    ``_SHADOW_OUTLINE_OFFSET``): the border transparent, the shadow ``colour`` at ASS ``alpha``."""
+    return f"\\3a&HFF&\\4c{colour}\\4a&H{alpha:02X}&\\shad{_SHADOW_OUTLINE_OFFSET}"
+
+
+# The copy of a fading line that draws its drop shadow: fill all but transparent, border
+# transparent, the style's shadow.
+_DROP_SHADOW_COPY = "\\3a&HFF&\\1a&HFE&\\2a&HFE&"
 
 
 def _srgb_linear(channel: int) -> float:
@@ -1317,19 +1338,21 @@ def watermark_box(spec: WatermarkSpec, *,
 
 
 def _watermark_style(layout: WatermarkLayout) -> str:
+    """The watermark's style: white at its opacity with a black outline at the same opacity,
+    drawn as a shadow of the border's shape (see ``_SHADOW_OUTLINE_OFFSET``) because the fill
+    is translucent; the border itself is transparent."""
     white = _ass_color(CAPTION_TEXT_COLOR, alpha=layout.alpha)
-    black = _ass_color("#000000", alpha=layout.alpha)
     return _style_line(
         "Watermark",
         font_size=layout.font_size,
         primary=white,
         secondary=white,
-        outline_color=black,
-        back_color=black,
+        outline_color=_ass_color("#000000", alpha=0xFF),
+        back_color=_ass_color("#000000", alpha=layout.alpha),
         bold=True,
         border_style=1,
         outline=_centi_text(layout.outline_cp),
-        shadow="0",
+        shadow=_SHADOW_OUTLINE_OFFSET,
         alignment=layout.alignment,
         margin_side=0,
         margin_vertical=0,
@@ -1560,12 +1583,29 @@ def _caption_events(cues: Sequence[FrameCue], *, pack: CaptionPack, fps: Fps,
     width, height = play_res
     sizes = text_height(play_res)
 
+    # A fading entrance of a pack with a plain outline draws that outline as a shadow, and a
+    # pack with a drop shadow draws it from a copy of the line just before the line.
+    outlined = (entrance in _FADING_ENTRANCES and pack.border_style == 1
+                and pack.box_style != "vector" and pack.outline_ratio[0] > 0)
+    shadow_copy = outlined and pack.shadow_ratio[0] > 0
+    outline_tags = (_shadow_outline_tags(_inline_colour(pack.outline_colour), pack.outline_alpha)
+                    if outlined else "")
+
     def dialogue(first: int, last: int, text: str, *, opening: int) -> str:
+        """One Dialogue line; the first window of a line with a drop-shadow copy is two lines,
+        the copy on layer 0 and the line on layer 1: libass stacks events of one layer that
+        overlap apart, never events of two layers."""
         start, end = max(0, safe_cs(first, fps)), safe_cs(last, fps)
-        if first == opening:  # every event of the line's first window carries its entrance
-            text = _entrance_tags(entrance, 10 * (end - start), sizes) + text
-        return (f"Dialogue: 0,{_ass_time_cs(start)},{_ass_time_cs(end)},{pack.style_name},,0,0,0,,"
-                f"{text}")
+        times = f"{_ass_time_cs(start)},{_ass_time_cs(end)},{pack.style_name},,0,0,0,,"
+        if first != opening:
+            return f"Dialogue: 0,{times}{text}"
+        # Every event of the line's first window carries its entrance.
+        window = 10 * (end - start)
+        line = _entrance_tags(entrance, window, sizes, outline_tags) + text
+        if not shadow_copy:
+            return f"Dialogue: 0,{times}{line}"
+        copy = _entrance_tags(entrance, window, sizes, _DROP_SHADOW_COPY) + text
+        return f"Dialogue: 0,{times}{copy}\nDialogue: 1,{times}{line}"
 
     size = _pack_font_size(pack, sizes, overrides["size_pm"])
 
@@ -1643,12 +1683,14 @@ def _caption_events(cues: Sequence[FrameCue], *, pack: CaptionPack, fps: Fps,
 
 
 def _glow_tags(glow: Glow, height: int, colour: str) -> str:
-    """The override tags of a line's glow copy: transparent glyphs inside a blurred border of
-    ``colour`` (an override colour) at the glow's alpha, no shadow."""
+    """The override tags of a line's glow copy: a blurred border of ``colour`` (an override
+    colour) at the glow's alpha, drawn as a shadow of the border's shape (never cut by the
+    glyphs, see ``_SHADOW_OUTLINE_OFFSET``) under an all but transparent fill; the line drawn
+    over it hides the glyphs' area."""
     outline = _centi_text(div_round_half_up(100 * height * glow.outline[0], glow.outline[1]))
     blur = _centi_text(div_round_half_up(100 * height * glow.blur[0], glow.blur[1]))
-    return (f"\\bord{outline}\\blur{blur}\\3c{colour}\\3a&H{glow.alpha:02X}&"
-            f"\\1a&HFF&\\2a&HFF&\\shad0")
+    return (f"\\bord{outline}\\blur{blur}{_shadow_outline_tags(colour, glow.alpha)}"
+            f"\\1a&HFE&\\2a&HFE&")
 
 
 def _vector_box(text: str, font: Path, font_size: int, *, pack: CaptionPack,

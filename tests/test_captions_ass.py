@@ -467,7 +467,8 @@ _SOROT_TAG = re.compile(r"(\\(an2|pos\(\d+(\.\d{1,2})?,\d+\)|q2|fs\d+|bord0|shad
 # Sinar places its line and its glow copy itself; the glow is a blurred border in the highlight
 # colour around transparent glyphs (plus the karaoke tags).
 _SINAR_TAG = re.compile(r"(\\(an2|pos\(\d+(\.\d{1,2})?,\d+\)|q2|fs\d+|kf\d+|bord\d+(\.\d{1,2})?"
-                        r"|blur\d+(\.\d{1,2})?|shad0|[123]c&H[0-9A-F]{6}&|[123]a&H[0-9A-F]{2}&"
+                        r"|blur\d+(\.\d{1,2})?|shad0(\.02)?|[1234]c&H[0-9A-F]{6}&"
+                        r"|[1234]a&H[0-9A-F]{2}&"
                         r"|fn(Montserrat ExtraBold|DM Serif Display Italic)))+")
 WHITE = "&HFFFFFF&"
 YELLOW = "&H4DE1FF&"  # #FFE14D, the default highlight
@@ -1186,7 +1187,9 @@ def test_sorot_follows_position_size_and_case_overrides():
 # --- Sinar: the karaoke sweep with a soft glow (CONTRACTS §5.49) ---------------------------------
 
 SINAR_CUE = _fcue((0, 10, "gue"), (10, 25, "bukan"), (25, 40, "jambret."))
-GLOW_720 = "\\bord14\\blur9\\3c&H4DE1FF&\\3a&H30&\\1a&HFF&\\2a&HFF&\\shad0"
+# The glow is the border's shape drawn as a 1/64 px shadow under an all but transparent fill: a
+# shadow is never cut by the glyphs (CONTRACTS §5.49).
+GLOW_720 = "\\bord14\\blur9\\3a&HFF&\\4c&H4DE1FF&\\4a&H30&\\shad0.02\\1a&HFE&\\2a&HFE&"
 
 
 def test_sinar_pack_file_loads_a_one_line_karaoke_pack_with_its_glow():
@@ -1231,7 +1234,8 @@ def test_sinar_glow_follows_the_highlight_colour_and_the_output_size():
     glow, line = _events(document)
     bottom = 1920 - _rhu(30000 * 1920, 100000)
     assert glow["Text"].startswith(
-        "{\\an2\\pos(540," + str(bottom) + ")\\q2\\bord21\\blur13.5\\3c&HA6F53D&\\3a&H30&")
+        "{\\an2\\pos(540," + str(bottom) + ")\\q2\\bord21\\blur13.5\\3a&HFF&\\4c&HA6F53D&"
+        "\\4a&H30&")
     assert line["Text"].startswith("{\\an2\\pos(540," + str(bottom) + ")\\q2}{\\kf")
 
 
@@ -1254,7 +1258,7 @@ def test_sinar_keyword_keeps_its_colour_in_the_line_and_the_glow_stays_one_colou
 
     glow, line = _events(_v2((cue,), "sinar"))
 
-    assert "\\1c" not in glow["Text"] and "\\3c&H4DE1FF&" in glow["Text"]
+    assert "\\1c" not in glow["Text"] and "\\4c&H4DE1FF&" in glow["Text"]
     assert _strip(glow["Text"]) == "gue bukan jambret."
     assert re.search(r"\{\\kf\d+\\1c" + PINK + r"\\2c" + PINK + r"\\fs83", line["Text"])
 
@@ -1450,8 +1454,8 @@ def test_the_entrance_opens_a_line_with_a_keyword_as_any_other(pack, entrance):
     with_keyword = _events(_v2((KEYWORD_CUE,), pack, entrance=entrance))
     without = _events(_v2((plain,), pack, entrance=entrance))
     opening = _entrance(entrance, 10 * (safe_cs(10 if pack == "bold" else 40, NTSC)
-                                        - safe_cs(0, NTSC)))
-    assert with_keyword[0]["Text"].startswith(opening)
+                                        - safe_cs(0, NTSC)), pack=pack)
+    assert any(e["Text"].startswith(opening) for e in with_keyword)
     assert [e["Text"].startswith(opening) for e in with_keyword] == [
         e["Text"].startswith(opening) for e in without]
 
@@ -1473,18 +1477,32 @@ ENTRANCE_CUES = (
 )
 
 
-def _entrance(entrance, window_ms, height=1280):
-    """The opening block of a line, from the contract's numbers (not from the module)."""
+# A fading line of an outlined pack draws its outline as a 1/64 px shadow (the border's shape,
+# which libass never cuts), with the border itself transparent; a pack with a drop shadow draws
+# it from a copy of the line whose fill and outline are transparent (CONTRACTS §5.39).
+FADING_OUTLINE = "\\3a&HFF&\\4c&H000000&\\4a&H00&\\shad0.02"
+DROP_SHADOW_COPY = "\\3a&HFF&\\1a&HFE&\\2a&HFE&"
+OUTLINED_PACKS = ("classic", "karaoke", "bold", "sorot", "sinar")
+DROP_SHADOW_PACKS = ("classic", "karaoke")
+
+
+def _entrance(entrance, window_ms, height=1280, pack=None, extra=None):
+    """The opening block of a line, from the contract's numbers (not from the module): with
+    ``pack``, a fading entrance of an outlined pack also carries ``FADING_OUTLINE`` (or
+    ``extra``)."""
     duration = min(120, window_ms)
-    if entrance == "fade":
-        return f"{{\\fad({duration},0)}}"
     if entrance == "pop":
         turn = _rhu(2 * duration, 3)
         return (f"{{\\fscx70\\fscy70\\t(0,{turn},\\fscx108\\fscy108)"
                 f"\\t({turn},{duration},\\fscx100\\fscy100)}}")
-    radius = _rhu(100 * height, 128)
-    radius = str(radius // 100) if radius % 100 == 0 else f"{radius / 100:g}"
-    return f"{{\\fad({duration},0)\\blur{radius}\\t(0,{duration},\\blur0)}}"
+    tags = f"\\fad({duration},0)"
+    if entrance == "blur":
+        radius = _rhu(100 * height, 128)
+        radius = str(radius // 100) if radius % 100 == 0 else f"{radius / 100:g}"
+        tags += f"\\blur{radius}\\t(0,{duration},\\blur0)"
+    if pack in OUTLINED_PACKS:
+        tags += FADING_OUTLINE if extra is None else extra
+    return f"{{{tags}}}"
 
 
 def test_overrides_accept_the_four_entrances_only():
@@ -1511,24 +1529,37 @@ def test_the_entrance_opens_only_the_first_window_of_each_line(pack, entrance):
     animated = _v2(ENTRANCE_CUES, pack, hook=hook, entrance=entrance)
 
     # Every event keeps its frames, layer and style: only the text of a line's first window
-    # gains the opening block, and the hook and the header do not change at all.
+    # gains the opening block (with a drop shadow's copy, see FADING_OUTLINE), and the hook and
+    # the header do not change at all.
     assert animated.split("[Events]")[0] == plain.split("[Events]")[0]
     lines = fit_cues(ENTRANCE_CUES, pack=load_pack(pack, 1), play_res=(720, 1280),
                      overrides=OVERRIDES[pack])
     openings = {max(0, safe_cs(cue.f0, NTSC)) for cue in lines}
-    before, after = _events(plain), _events(animated)
-    assert len(before) == len(after)
+    before, after = _events(plain), iter(_events(animated))
+    copies = entrance != "pop" and pack in DROP_SHADOW_PACKS
     opened = 0
-    for old, new in zip(before, after, strict=True):
-        assert {k: v for k, v in new.items() if k != "Text"} == {
-            k: v for k, v in old.items() if k != "Text"}
+    for old in before:
+        new = next(after)
         start = _centiseconds(old["Start"])
         if old["Style"] != "Hook" and start in openings:
             window = 10 * (_centiseconds(old["End"]) - start)
-            assert new["Text"] == _entrance(entrance, window) + old["Text"]
+            layer = old["Layer"]
+            if copies:
+                # The drop shadow's copy comes first with the line's frames, layer and style;
+                # the line itself moves to layer 1 so that libass never stacks the two apart.
+                assert {k: v for k, v in new.items() if k != "Text"} == {
+                    k: v for k, v in old.items() if k != "Text"}
+                assert new["Text"] == _entrance(entrance, window, pack=pack,
+                                                extra=DROP_SHADOW_COPY) + old["Text"]
+                new, layer = next(after), "1"
+            assert new["Text"] == _entrance(entrance, window, pack=pack) + old["Text"]
+            assert new["Layer"] == layer
             opened += 1
         else:
-            assert new["Text"] == old["Text"]
+            assert new["Text"] == old["Text"] and new["Layer"] == old["Layer"]
+        assert {k: v for k, v in new.items() if k not in ("Text", "Layer")} == {
+            k: v for k, v in old.items() if k not in ("Text", "Layer")}
+    assert next(after, None) is None
     # Sorot's first window is every word of the line plus the box, Sinar's the glow and the line;
     # the other packs draw a line as one event.
     if pack == "sorot":
@@ -1545,7 +1576,7 @@ def test_an_entrance_never_outlasts_the_first_window_of_its_line():
     events = _events(_v2(ENTRANCE_CUES[:1], "bold", entrance="fade"))
     first = 10 * (_centiseconds(events[0]["End"]) - _centiseconds(events[0]["Start"]))
     assert first < 120
-    assert events[0]["Text"].startswith(f"{{\\fad({first},0)}}")
+    assert events[0]["Text"].startswith(f"{{\\fad({first},0){FADING_OUTLINE}}}")
     assert "\\fad" not in events[1]["Text"]
     [line] = _events(_v2(ENTRANCE_CUES[1:2], "classic", entrance="pop"))
     assert line["Text"].startswith("{\\fscx70\\fscy70\\t(0,80,\\fscx108\\fscy108)"
@@ -1556,8 +1587,8 @@ def test_blur_starts_at_one_128th_of_the_output_height():
     small = _events(_v2(ENTRANCE_CUES[1:2], "classic", entrance="blur"))[0]["Text"]
     large = _events(_v2(ENTRANCE_CUES[1:2], "classic", size=(1080, 1920),
                         entrance="blur"))[0]["Text"]
-    assert small.startswith("{\\fad(120,0)\\blur10\\t(0,120,\\blur0)}")
-    assert large.startswith("{\\fad(120,0)\\blur15\\t(0,120,\\blur0)}")
+    assert small.startswith("{\\fad(120,0)\\blur10\\t(0,120,\\blur0)")
+    assert large.startswith("{\\fad(120,0)\\blur15\\t(0,120,\\blur0)")
 
 
 # --- The text watermark: one line over the whole clip (CONTRACTS §5.43) ------------------------
@@ -1633,8 +1664,11 @@ def test_the_watermark_style_is_white_dejavu_bold_with_an_outline_at_its_opacity
         assert style["Fontname"] == "DejaVu Sans" and style["Bold"] == "-1"
         assert style["Fontsize"] == str(font_size)
         assert style["PrimaryColour"] == style["SecondaryColour"] == f"&H{alpha:02X}FFFFFF"
-        assert style["OutlineColour"] == style["BackColour"] == f"&H{alpha:02X}000000"
-        assert (style["BorderStyle"], style["Shadow"]) == ("1", "0")
+        # The outline is drawn as a 1/64 px shadow of the border's shape, which libass never
+        # cuts under a translucent fill; the border itself is transparent (CONTRACTS §5.43).
+        assert style["OutlineColour"] == "&HFF000000"
+        assert style["BackColour"] == f"&H{alpha:02X}000000"
+        assert (style["BorderStyle"], style["Shadow"]) == ("1", "0.02")
         assert style["Outline"] == (str(outline // 100) if outline % 100 == 0
                                     else f"{outline / 100:g}")
     assert _styles(_with_mark(_mark()))["Watermark"]["PrimaryColour"] == "&H26FFFFFF"  # 85%
