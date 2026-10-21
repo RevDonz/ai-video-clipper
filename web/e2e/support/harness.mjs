@@ -1,4 +1,7 @@
 import { expect, test as base } from "@playwright/test";
+import { existsSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 export const settings = Object.freeze({
   baseURL: (process.env.E2E_BASE_URL || "http://127.0.0.1:3000").replace(/\/$/, ""),
@@ -88,7 +91,20 @@ function failureCount(failures) {
   return Object.values(failures).reduce((total, values) => total + values.length, 0);
 }
 
+// The Chrome for Testing build the parity specs pin (editor-gates and ci-cd install only that
+// one): EDITOR_CHROME or PARITY_CHROME, else Playwright's chromium-1217 folder when present,
+// else Playwright's own browser.
+export function pinnedChrome() {
+  const explicit = process.env.EDITOR_CHROME || process.env.PARITY_CHROME;
+  if (explicit) return explicit;
+  const candidate = path.join(os.homedir(), ".cache", "ms-playwright", "chromium-1217", "chrome-linux64", "chrome");
+  return existsSync(candidate) ? candidate : undefined;
+}
+
+const chrome = pinnedChrome();
+
 export const test = base.extend({
+  launchOptions: [chrome ? { executablePath: chrome } : {}, { scope: "worker", option: true }],
   page: async ({ page }, use, testInfo) => {
     const failures = captureFailures(page);
     await use(page);
