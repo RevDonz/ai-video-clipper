@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { notifyJobsChanged } from "../lib/job-badge.mjs";
 import { cancelJob } from "../lib/job-cancel.mjs";
 import styles from "./CancelJob.module.css";
 
@@ -46,6 +47,7 @@ export default function CancelJob({ job, next, onSettled }) {
       return;
     }
     setConfirming(false);
+    notifyJobsChanged();
     onSettled(result.job, result.type === "finished" ? result.message : null);
   }
 

@@ -4,7 +4,7 @@ Terakhir diperbarui: 2026-10-21.
 
 Worker (`web/scripts/run-job.mjs`) menjalankan engine (`ai-clipper`) dan membaca progresnya dari
 stdout. Dokumen ini menjelaskan baris progres itu, ringkasan hasil per tahap yang ikut di
-dalamnya, dan apa yang tampil di layar.
+dalamnya, apa yang tampil di layar, dan badge job di header.
 
 ## Baris progres
 
@@ -58,6 +58,42 @@ Jadi setiap baris tetap satu event progres utuh, dan pembaca lama mengabaikan `s
 
 Job lama tanpa `stageSummary` tidak menampilkan baris apa pun selain "Klip" untuk job yang
 selesai.
+
+## Di header
+
+Header bersama (`components/AppHeader.jsx`) punya badge job di samping logo
+(`components/JobBadge.jsx`, logikanya di `web/lib/job-badge.mjs`). Badge itu tautan ke proyeknya:
+
+| Keadaan | Badge | Bentuk pendek (< 384 px) |
+|---|---|---|
+| Ada job yang belum selesai (termasuk yang masih menunggu) | **1 berjalan · 42%** dengan titik lime | 42% |
+| Tidak ada yang berjalan, job terbaru selesai | **Terakhir: 8 klip** | 8 klip |
+| Job terbaru gagal / dibatalkan | **Terakhir: gagal** (merah) / **Terakhir: dibatalkan** | Gagal / Batal |
+| Belum ada job | tidak ada badge | |
+
+- Jumlah dan persen ditulis cara Indonesia ("1.234 klip"). Persennya dari job yang sedang dikerjakan
+  worker: yang sudah lewat "Menunggu", yang tertua dulu (urutan antrean). "Terakhir" adalah job
+  selesai yang paling baru dibuat, urutan yang sama dengan Riwayat; jumlahnya hanya klip yang
+  jadi (klip yang gagal dirender tidak punya file). Proyek yang sedang dihapus tidak dihitung.
+- **Membaca server:** pembacaan pertama menunggu browser senggang setelah halaman dimuat, supaya
+  permintaan halaman itu sendiri jalan dulu. Selama ada job berjalan, badge membaca job itu saja
+  (`GET /api/jobs/<id>`) setiap 5 detik dan daftar lengkap (`GET /api/jobs`) sekali semenit. Tanpa job
+  berjalan, daftar dibaca sekali semenit. Tab yang tersembunyi tidak membaca apa pun; begitu tab
+  terlihat lagi, daftar langsung dibaca. Membuat job (dashboard), **Batalkan** dan menghapus proyek
+  (Riwayat) memberi tahu badge supaya langsung membaca ulang.
+- **Gagal membaca:** jeda dilipatgandakan sampai paling lama 5 menit. Dua kegagalan berturut-turut
+  masih menampilkan keadaan terakhir; mulai yang ketiga badge disembunyikan sampai server menjawab
+  lagi. Sesi yang habis (401) menyembunyikan badge dan menghentikan pembacaan.
+- **Pembaca layar:** nama tautannya teks lengkap badge. Satu wilayah `aria-live="polite"` yang
+  terpisah hanya mengumumkan job yang tadinya berjalan lalu berhenti ("Proyek selesai: 8 klip",
+  "Proyek gagal", "Proyek dibatalkan"); persen yang bergerak dan job yang baru mulai tidak
+  diumumkan.
+- **Tata letak:** badge mengisi ruang kosong di kiri, jadi kemunculannya tidak menggeser apa pun.
+  Mulai 850 px ke bawah menu pindah ke baris sendiri (sebelumnya 720 px; di 721–800 px label menu
+  sampai terlipat dua baris). Di tempat nama "Potongin AI" dan badge tidak muat berdua (≤ 481 px dan
+  851–939 px), nama disembunyikan secara visual dan tetap dibaca pembaca layar; di bawah 360 px nama
+  itu selalu disembunyikan supaya Bantuan dan Keluar muat di baris pertama. Di layar sentuh
+  (≤ 850 px) badge setinggi 44 px.
 
 ## Membatalkan job
 
