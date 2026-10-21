@@ -288,7 +288,7 @@ function ClipDetail({ clip, job, entry = null, copied, onCopy, position, onStep,
 
         <section className={styles.caption} aria-labelledby={`${titleId}-caption`}>
           <h4 id={`${titleId}-caption`}>Caption</h4>
-          <ClipText key={clip.index} jobId={job.id} clip={clip} editable={job.status === "completed" && !failed} drafts={textDrafts}
+          <ClipText key={`text-${clip.index}`} jobId={job.id} clip={clip} editable={job.status === "completed" && !failed} drafts={textDrafts}
             onSaved={onClipSaved}
             view={(caption.body || caption.hashtags.length > 0) && (
               <>
@@ -297,7 +297,7 @@ function ClipDetail({ clip, job, entry = null, copied, onCopy, position, onStep,
               </>
             )}
             copy={<CopyButton state={captionState} label="Salin caption" done="Tersalin" onClick={() => onCopy(clip, "caption")} />} />
-          <HookSwitch key={clip.index} jobId={job.id} entry={entry} editable={job.status === "completed" && !failed}
+          <HookSwitch key={`hook-${clip.index}`} jobId={job.id} entry={entry} editable={job.status === "completed" && !failed}
             onChanged={onEntriesChanged} />
         </section>
         <span className="visuallyHidden" role="status" aria-live="polite">
