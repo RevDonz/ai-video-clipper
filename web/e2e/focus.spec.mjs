@@ -25,7 +25,10 @@ function multipartFields(request) {
 }
 
 // The job form names no selection mode: the job API always uses the current one.
-const JOB_FIELDS = ["renderMode", "limit", "minDuration", "maxDuration", "coldOpen", "hookOverlay", "captionStyle", "videoLanguage"];
+// With the editor engine for automatic clips the form also sends the output size and the
+// subtitle position and size (CONTRACTS §5.48, §5.54).
+const JOB_FIELDS = ["renderMode", "outputSize", "limit", "minDuration", "maxDuration", "coldOpen", "hookOverlay", "captionStyle",
+  "captionPosition", "captionSize", "videoLanguage"];
 const ACTIVE_AI = { state: "active", order: ["uji"], providers: [{ name: "uji", displayName: null }], label: "LLM aktif: uji" };
 
 /** Fakes /api/jobs, /api/llm/status and /api/storage/status for the dashboard. Returns the job POSTs. */
@@ -123,8 +126,9 @@ test.describe("Fokus klip on the dashboard (faked job API)", () => {
     await page.getByLabel("Link video").fill("https://youtu.be/rBg0ZcwjVKQ");
     const fields = await submitJob(page, posts);
     expect(fields).toEqual([
-      ["renderMode", "fit-blur"], ["limit", "3"], ["minDuration", "20"], ["maxDuration", "60"],
-      ["coldOpen", "true"], ["hookOverlay", "true"], ["captionStyle", "karaoke"], ["videoLanguage", "id"],
+      ["renderMode", "fit-blur"], ["outputSize", "720x1280"], ["limit", "3"], ["minDuration", "20"], ["maxDuration", "60"],
+      ["coldOpen", "true"], ["hookOverlay", "true"], ["captionStyle", "karaoke"], ["captionPosition", "bottom"],
+      ["captionSize", "medium"], ["videoLanguage", "id"],
       ["focusTerms", "jomok,jomokers,reza auditore"], ["focusNote", "momen jomok yang lucu"],
       ["youtubeUrl", "https://youtu.be/rBg0ZcwjVKQ"],
     ]);
