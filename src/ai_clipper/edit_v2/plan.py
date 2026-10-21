@@ -33,7 +33,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from . import COMPILER_ID, COMPILER_VERSION, OUTPUT_SIZES, RENDER_SEMANTICS, UI_ZONE_720, errors
+from . import (
+    COMPILER_ID,
+    COMPILER_VERSION,
+    OUTPUT_SIZES,
+    RENDER_SEMANTICS,
+    UI_ZONE_720,
+    ZOOM_RANGE,
+    errors,
+)
 from . import captions as _captions
 from . import envelope as _envelope
 from . import face_zone as _face_zone
@@ -178,6 +186,18 @@ class RenderPlan:
     def split(self) -> Mapping[str, Any] | None:
         """Layar terbagi's bands and crops (§5.45), ``None`` for the other layouts."""
         return self.doc["layout"].get("split") if self.layout == "split" else None
+
+    @property
+    def zoom_pm(self) -> int:
+        """The zoom of every layout but the split, per mille (§5.47): 1000 without the key."""
+        return self.doc["layout"].get("zoom_pm", ZOOM_RANGE[0])
+
+    @property
+    def content_rect(self) -> tuple[int, int, int, int] | None:
+        """The source without its black bars, ``(x, y, w, h)`` (§5.47); ``None`` for a source
+        without bars (or one measured before the bars were)."""
+        rect = self.doc["base"]["source"].get("content_rect")
+        return None if rect is None else (rect["x"], rect["y"], rect["w"], rect["h"])
 
     @property
     def ass(self) -> str | None:

@@ -294,6 +294,10 @@ const GENERATORS = {
     return { band: chance(rng, 0.04) ? "middle" : pick(rng, ["top", "bottom"]), x_e5: place(), y_e5: place(),
       zoom_pm: chance(rng, 0.04) ? pick(rng, [999, 5001]) : pick(rng, [1000, 5000, int(rng, 1000, 5000)]) };
   },
+  // Zoom (CONTRACTS §5.47): 1000 (no key) and the ends often, a few out of range.
+  SetZoom(rng) {
+    return { zoom_pm: chance(rng, 0.04) ? pick(rng, [999, 1501, 1200.5]) : pick(rng, [1000, 1500, int(rng, 1000, 1500)]) };
+  },
   SetLogo(rng, _doc, context) {
     const asset = pick(rng, assetsOf(context, "image"));
     return { asset: asset.id, meta: asset.meta };
@@ -382,7 +386,7 @@ const WEIGHTS = {
   NudgeColdOpen: 4, SetJoinStyle: 3, SetJoinSfx: 2, EditWordText: 7, SetWordHidden: 3, SetWordEmphasis: 3, SetCaptionsEnabled: 1, SetCaptionPack: 2,
   SetCaptionOverride: 4, SetHookEnabled: 2, SetHookText: 4, SetHookDuration: 2, SetHookY: 2, SetHookDesign: 2, SetLayout: 2, SetNoFace: 1,
   SetKeyframe: 4, RemoveKeyframe: 2, SetKeyframeMove: 2, ClearKeyframes: 1, SetSplitRatio: 2, SwapSplit: 1, SetSplitCrop: 3,
-  SetLogo: 3,
+  SetZoom: 2, SetLogo: 3,
   RemoveLogo: 1, MoveLogo: 3, ResizeLogo: 2, SetLogoOpacity: 2, SnapLogo: 2, SetWatermarkText: 3, SetWatermarkPosition: 2,
   SetWatermarkSize: 2, SetWatermarkOpacity: 2, RemoveWatermark: 1, SetMusic: 3, RemoveMusic: 1,
   SetMusicGain: 2, SetMusicOffset: 2, SetMusicLoop: 1, SetMusicFades: 2, SetDuck: 2, SetSourceGain: 2, SetLoudness: 2,
@@ -433,7 +437,7 @@ export function randomCommand(rng, doc, context) {
 // Commands whose Appendix B mergeKey lets a quick series become one undo step (drags, sliders,
 // typing): a "burst" repeats one of them with new values 20–300 ms later.
 const MERGEABLE = new Set(["NudgeColdOpen", "EditWordText", "SetCaptionOverride", "SetHookText", "SetHookDuration",
-  "SetHookY", "SetSplitCrop", "MoveLogo", "ResizeLogo", "SetLogoOpacity", "SetMusicGain", "SetMusicOffset", "SetMusicFades", "SetDuck",
+  "SetHookY", "SetSplitCrop", "SetZoom", "MoveLogo", "ResizeLogo", "SetLogoOpacity", "SetMusicGain", "SetMusicOffset", "SetMusicFades", "SetDuck",
   "SetSourceGain", "SetLoudness"]);
 
 function burstCommand(rng, previous, doc, context) {

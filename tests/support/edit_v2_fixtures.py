@@ -783,6 +783,22 @@ def _valid(contexts: Mapping[str, Context]) -> list[_Fixture]:
                                 "top": {"x_e5": 50000, "y_e5": 50000, "zoom_pm": 1000},
                                 "bottom": {"x_e5": 0, "y_e5": 100000, "zoom_pm": 5000}}
     add("layout_split_swapped", d)
+    # zoom (§5.47): every layout but the split, alone and with the manual framing
+    d = _Doc(c30, "SetZoom")
+    d.doc["layout"]["default"]["mode"] = "fill_center"
+    d.doc["layout"]["zoom_pm"] = 1250
+    add("layout_zoom", d)
+    d = _Doc(c24, "SetZoom")
+    d.doc["layout"]["default"]["mode"] = "fit_blur"
+    d.doc["layout"]["zoom_pm"] = 1500
+    add("layout_zoom_fit_blur", d)
+    d = _Doc(c25, "SetZoom")
+    d.doc["layout"]["default"]["mode"] = "camera"
+    d.doc["layout"]["zoom_pm"] = 1100
+    d.doc["layout"]["keyframes"] = [
+        {"sf": d.body["in_sf"] + 10, "pan_e5": 0, "move": "cut"},
+        {"sf": d.body["in_sf"] + 120, "pan_e5": 100000, "move": "slide"}]
+    add("layout_zoom_keyframes", d)
     d = _Doc(c30, "SetHookEnabled")
     d.doc["tracks"] = []
     add("hook_removed", d)
@@ -1020,6 +1036,12 @@ def _invalid(contexts: Mapping[str, Context]) -> list[_Fixture]:
         mutated(lambda b: split(b, bottom={"x_e5": 0, "y_e5": 0, "zoom_pm": 6000})))
     add("range_invalid", "keyframes_split", "/layout/keyframes",
         mutated(lambda b: (split(b), keyframes(b.body["in_sf"], mode="split")(b))))
+    add("range_invalid", "zoom_one", "/layout/zoom_pm",
+        mutated(lambda b: b.doc["layout"].update(zoom_pm=1000)))
+    add("range_invalid", "zoom_high", "/layout/zoom_pm",
+        mutated(lambda b: b.doc["layout"].update(zoom_pm=1600)))
+    add("range_invalid", "zoom_split", "/layout/zoom_pm",
+        mutated(lambda b: (split(b), b.doc["layout"].update(zoom_pm=1200))))
     add("range_invalid", "keyframes_fit_blur", "/layout/keyframes",
         mutated(lambda b: keyframes(b.body["in_sf"], mode="fit_blur")(b)))
     add("range_invalid", "keyframes_order", "/layout/keyframes/1/sf",

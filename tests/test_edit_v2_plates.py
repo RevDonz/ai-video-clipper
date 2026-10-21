@@ -181,6 +181,26 @@ def test_plate_key_names_the_keyframes_of_manual_framing(contexts):
         blurred, camera_sha256="1" * 64)
 
 
+def test_plate_key_names_the_zoom_and_the_content_rect(contexts):
+    """CONTRACTS §5.47: the zoom and the content rect set the plate's pixels, so each is part of
+    the key when present; without them every key is the pinned one above."""
+    seed = contexts["c30"].seed
+    for layout in ("fit_blur", "fill_center", "camera"):
+        plain = with_layout(seed, layout)
+        sha = "1" * 64 if layout == "camera" else None
+        key = plates.plate_key(plain, camera_sha256=sha)
+        zoomed = copy.deepcopy(plain)
+        zoomed["layout"]["zoom_pm"] = 1250
+        other = copy.deepcopy(zoomed)
+        other["layout"]["zoom_pm"] = 1260
+        framed = copy.deepcopy(plain)
+        framed["base"]["source"]["content_rect"] = {"x": 0, "y": 90, "w": 1280, "h": 540}
+        keys = {key, plates.plate_key(zoomed, camera_sha256=sha),
+                plates.plate_key(other, camera_sha256=sha),
+                plates.plate_key(framed, camera_sha256=sha)}
+        assert len(keys) == 4, layout
+
+
 def test_plate_key_names_the_split_bands(contexts):
     """Layar terbagi (CONTRACTS §5.45): the bands and crops set the plate's pixels, so they are
     part of its key; every other key is the pinned one above."""

@@ -480,6 +480,16 @@ class Case:
     # layout.split (CONTRACTS §5.45): (top_pm, top band, bottom band), a band (x_e5, y_e5,
     # zoom_pm); the top band's crop starts at the source's first row (y_e5 0).
     split: tuple[int, tuple[int, int, int], tuple[int, int, int]] | None = None
+    # layout.zoom_pm and base.source.content_rect (CONTRACTS §5.47): the zoom of every layout
+    # but the split, and the picture inside the source's (here imagined) black bars. A content
+    # rect keeps the source's first row (y 0), where the frame index is.
+    zoom_pm: int = 1000
+    content: tuple[int, int, int, int] | None = None
+
+    @property
+    def picture(self) -> tuple[int, int]:
+        """The size the layouts lay out: the content rect's, else the source's."""
+        return self.source_size if self.content is None else self.content[2:]
 
 
 # Manual framing over a 900-frame source: a hold, two cuts across the cold open's frames and two
@@ -490,6 +500,8 @@ KEYFRAMES_900 = ((40, 0, "cut"), (150, 100_000, "cut"), (330, 30_000, "slide"),
 # wide band at the bottom zoomed 2.5×.
 SPLIT_30_70 = (300, (20_000, 0, 1600), (75_000, 30_000, 1200))
 SPLIT_SWAPPED = (700, (60_000, 0, 1000), (10_000, 40_000, 2500))
+# A 4:3 picture inside the 640×360 barcode source, as if pillarboxed (§5.47).
+PILLARBOX_43 = (80, 0, 480, 360)
 
 
 P_FRAME_CASES = (
@@ -499,6 +511,9 @@ P_FRAME_CASES = (
     Case("cfr_30_no_face_blur", (30, 1), 900, "camera", no_face="fit_blur"),
     Case("cfr_30_keyframes", (30, 1), 900, "fill_center", keyframes=KEYFRAMES_900),
     Case("cfr_30_split", (30, 1), 900, "split", split=SPLIT_30_70),
+    # zoom (§5.47): latar blur's picture enlarged and cropped to the frame; with a content rect
+    Case("cfr_30_zoom", (30, 1), 900, "fit_blur", zoom_pm=1500),
+    Case("cfr_30_zoom_content", (30, 1), 900, "fit_blur", zoom_pm=1250, content=PILLARBOX_43),
     Case("vfr_30", (30, 1), 900, "fit_blur", vfr=True, drop_every=11),
     # the source edges: 902 frames at 29.97 end at 30,096.73 ms (duration_ms 30,097 rounds up),
     # and a 23.976 video that starts 41 ms after the audio has no grid frame 0
@@ -531,7 +546,13 @@ P_PLATE_CASES = (*(
     Case("plate_split", (30000, 1001), 900, "split", cuts=10, captions=False,
          split=SPLIT_30_70),
     Case("plate_split_swapped", (30000, 1001), 900, "split", cuts=10, captions=False,
-         split=SPLIT_SWAPPED))
+         split=SPLIT_SWAPPED),
+    Case("plate_fill_center_zoom_keyframes", (30000, 1001), 900, "fill_center", cuts=10,
+         captions=False, keyframes=KEYFRAMES_900, zoom_pm=1250),
+    Case("plate_camera_zoom_content", (30000, 1001), 900, "camera", cuts=10, captions=False,
+         zoom_pm=1200, content=PILLARBOX_43),
+    Case("plate_split_content", (30000, 1001), 900, "split", cuts=10, captions=False,
+         split=SPLIT_30_70, content=PILLARBOX_43))
 PF_RENDER_CASES = tuple(
     Case(f"pf_60s_{layout}", (30000, 1001), 2_000, layout, source_size=(1280, 720), cuts=5,
          hook=True)
@@ -647,6 +668,10 @@ class Workspace:
                                           for sf, pan, move in case.keyframes]
         if case.split:
             doc["layout"]["split"] = split_of(case)
+        if case.zoom_pm != 1000:
+            doc["layout"]["zoom_pm"] = case.zoom_pm
+        if case.content is not None:
+            doc["base"]["source"]["content_rect"] = dict(zip("xywh", case.content, strict=True))
         camera = (make_camera(duration_ms, case.fps, case.source_size, case.output)
                   if case.layout == "camera" else None)
         self.clips[case.name] = {"case": case, "source": source, "doc": doc,
@@ -721,15 +746,21 @@ class Workspace:
         return self.renders[key]
 
 
-def geometry(layout: str, source: tuple[int, int], output: tuple[int, int]) -> dict[str, float]:
-    """Where the source rows land in the output (for ``decode_index``)."""
+def geometry(layout: str, source: tuple[int, int], output: tuple[int, int],
+             zoom_pm: int = 1000) -> dict[str, float]:
+    """Where the rows of ``source`` (the picture the layout lays out) land in the output (for
+    ``decode_index``). With a zoom (§5.47) the picture is scaled to the zoomed output and its
+    rows cropped around the middle."""
     from ai_clipper.edit_v2 import layouts
 
-    (src_w, src_h), (out_w, out_h) = source, output
+    src_h, out_h = source[1], output[1]
     if layout == "fit_blur":
-        fg_h = min(out_h, (out_w * src_h + src_w // 2) // src_w)
-        return {"scale": fg_h / src_h, "top": (out_h - fg_h) / 2}
-    scaled_h = layouts.scaled_size(source, output)[1]
+        fg_h = layouts.foreground_size(source, output, zoom_pm)[1]
+        top = (out_h - fg_h) / 2 if fg_h <= out_h else -((fg_h - out_h) // 2)
+        return {"scale": fg_h / src_h, "top": top}
+    scaled_h = layouts.scaled_size(source, layouts.zoomed_output(output, zoom_pm))[1]
+    if zoom_pm != 1000:
+        return {"scale": scaled_h / src_h, "top": -layouts.crop_y(source, output, zoom_pm)}
     return {"scale": scaled_h / src_h, "top": (out_h - scaled_h) / 2}
 
 
@@ -745,7 +776,7 @@ def split_band(case: Case, band: str) -> dict[str, Any]:
     """Where the source rows of a split band land (``scale``, ``top``) and its crop."""
     from ai_clipper.edit_v2 import layouts
 
-    geometry = layouts.split_geometry(split_of(case), source=case.source_size, output=case.output)
+    geometry = layouts.split_geometry(split_of(case), source=case.picture, output=case.output)
     x, y, w, h = geometry[band]["crop"]
     scale = geometry[band]["size"][1] / h
     return {"scale": scale, "top": geometry[band]["y"] - y * scale, "crop": (x, y, w, h),
@@ -760,6 +791,7 @@ def split_columns_off(plane: bytes, case: Case, band: str) -> int:
     pattern = media.Pattern.for_size(*case.source_size)
     where = split_band(case, band)
     x, _y, w, _h = where["crop"]
+    x += 0 if case.content is None else case.content[0]  # a crop of the content picture
     width, height = case.output
     columns = media.decode_ruler(plane, width, height, pattern, scale=where["scale"],
                                  top=where["top"])
@@ -787,7 +819,7 @@ def index_decoder(case: Case, layout: str | None = None) -> Callable[[bytes], in
         band = split_band(case, "top")
         where = {"scale": band["scale"], "top": band["top"]}
     else:
-        where = geometry(layout or case.layout, case.source_size, case.output)
+        where = geometry(layout or case.layout, case.picture, case.output, case.zoom_pm)
     width, height = case.output
 
     def decode(plane: bytes) -> int | None:
@@ -802,11 +834,16 @@ def crop_decoder(case: Case) -> Callable[[bytes], int | None]:
 
     media = _media()
     pattern = media.Pattern.for_size(*case.source_size)
-    scale = layouts.scaled_size(case.source_size, case.output)[0] / case.source_size[0]
+    picture = case.picture
+    zoomed = layouts.zoomed_output(case.output, case.zoom_pm)
+    scale = layouts.scaled_size(picture, zoomed)[0] / picture[0]
+    top = geometry(case.layout, picture, case.output, case.zoom_pm)["top"]
+    offset = 0 if case.content is None else case.content[0]
     width, height = case.output
 
     def decode(plane: bytes) -> int | None:
-        return media.decode_crop_x(plane, width, height, pattern, scale=scale)
+        return media.decode_crop_x(plane, width, height, pattern, scale=scale, top=top,
+                                   offset=offset, picture_w=picture[0])
 
     return decode
 
@@ -1001,6 +1038,7 @@ def p_plate(ws: Workspace, cases: Sequence[Case] = P_PLATE_CASES) -> dict[str, A
                                  ws.root)
         entry: dict[str, Any] = {
             "case": case.name, "layout": case.layout, "keyframes": len(case.keyframes),
+            "zoom_pm": case.zoom_pm, "content_rect": list(case.content or ()) or None,
             "output_frames": plan.total_frames,
             "removals": len(plan.doc["main"]["removals"]), "joins": len(plan.pieces) - 1,
             "plate_cells": len(ws.cells(case)["cells"]),
@@ -1009,18 +1047,18 @@ def p_plate(ws: Workspace, cases: Sequence[Case] = P_PLATE_CASES) -> dict[str, A
         }
         ok = ssim_plate["All"] >= ssim_final["All"] - P_PLATE_SSIM_MARGIN
         if case.layout in ("camera", "fill_center"):
-            scaled = layouts.scaled_size(case.source_size, case.output)
             if case.keyframes:
                 table = layouts.keyframe_positions(
-                    plan.keyframes, source=case.source_size, output=case.output, first_sf=0,
-                    count=max(p.out_sf for p in plan.pieces))
+                    plan.keyframes, source=case.picture, output=case.output, first_sf=0,
+                    count=max(p.out_sf for p in plan.pieces), zoom_pm=case.zoom_pm)
             elif case.layout == "camera":
                 table = layouts.crop_positions(plan.camera, plan.fps, source=case.source_size,
                                                output=case.output, first_sf=0,
-                                               count=max(p.out_sf for p in plan.pieces))
+                                               count=max(p.out_sf for p in plan.pieces),
+                                               zoom_pm=case.zoom_pm, content=case.content)
             else:
                 table = None
-            center = (scaled[0] - case.output[0]) // 2
+            center = layouts.centre_x(case.picture, case.output, case.zoom_pm)
             crop_x = crop_decoder(case)
             fallback = fallback_frames(case, plan)  # fit-blur frames: no crop x to read
             cell_frames = tm.cell_frames(plan.fps)

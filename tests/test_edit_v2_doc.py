@@ -467,6 +467,17 @@ def test_a_legacy_auto_file_stands_for_its_seed_only_with_a_look_legacy_draws(co
     assert compiler != "legacy" and auto_file_is_seed(seed)
 
 
+def test_a_legacy_auto_file_stands_for_its_seed_only_without_a_content_rect(contexts):
+    """The legacy renderer never crops a source's black bars (CONTRACTS §5.47)."""
+    seed = copy.deepcopy(contexts["c30"].seed)
+    seed["base"]["source"]["content_rect"] = {"x": 0, "y": 90, "w": 1280, "h": 540}
+    assert auto_file_is_seed(seed)
+    seed["base"]["engine"]["compiler"] = "legacy"
+    assert not auto_file_is_seed(seed)
+    del seed["base"]["source"]["content_rect"]
+    assert auto_file_is_seed(seed)
+
+
 def test_rev1_unchanged_fixtures_equal_their_seed_content(contexts):
     for context_id in fixtures.CONTEXT_IDS:
         raw = (fixtures.DOC_FIXTURES_DIR / "valid" / f"rev1_unchanged__{context_id}.json").read_bytes()
@@ -640,10 +651,50 @@ SPLIT_RULES = [
 ]
 
 
+def _rect(doc: dict, x: object = 0, y: object = 90, w: object = None, h: object = 540) -> None:
+    """``base.source.content_rect`` (CONTRACTS §5.47): a letterbox of the context's source."""
+    source = doc["base"]["source"]
+    source["content_rect"] = {"x": x, "y": y, "w": source["w"] if w is None else w, "h": h}
+
+
+ZOOM_RULES = [
+    *[("c30", lambda d, value=value: d["layout"].update(zoom_pm=value), None, None)
+      for value in (1001, 1250, 1500)],
+    *[("c30", lambda d, value=value: d["layout"].update(zoom_pm=value), "range_invalid",
+       "/layout/zoom_pm") for value in (1000, 999, 1501, 0, "1200", True, None, 1200.0)],
+    *[("c30", lambda d, mode=mode: (d["layout"]["default"].update(mode=mode),
+                                    d["layout"].update(zoom_pm=1200)), None, None)
+      for mode in ("fit_blur", "camera", "fill_center")],
+    ("c30", lambda d: (_framed(d, (10, 20_000, "cut")), d["layout"].update(zoom_pm=1500)), None,
+     None),
+    # the split's bands have their own zoom
+    ("c30", lambda d: (_split(d), d["layout"].update(zoom_pm=1200)), "range_invalid",
+     "/layout/zoom_pm"),
+    # the content rect: even, inside the source, at least 16 px a side, not the whole source
+    ("c30", _rect, None, None),
+    ("c30", lambda d: _rect(d, x=160, y=0, w=960, h=d["base"]["source"]["h"]), None, None),
+    ("c30", lambda d: _rect(d, x=2, y=2, w=16, h=16), None, None),
+    *[("c30", lambda d, key=key: _rect(d, **{key: 91}), "range_invalid",
+       f"/base/source/content_rect/{key}") for key in ("x", "y", "w", "h")],
+    *[("c30", lambda d, key=key, value=value: _rect(d, **{key: value}), "range_invalid",
+       f"/base/source/content_rect/{key}")
+      for key, value in (("x", -2), ("y", "0"), ("w", 14), ("h", 0), ("h", 540.0), ("w", "960"))],
+    ("c30", lambda d: _rect(d, y=200), "range_invalid", "/base/source/content_rect"),
+    ("c30", lambda d: _rect(d, x=2), "range_invalid", "/base/source/content_rect"),
+    ("c30", lambda d: _rect(d, y=0, h=d["base"]["source"]["h"]), "range_invalid",
+     "/base/source/content_rect"),
+    ("c30", lambda d: d["base"]["source"].update(content_rect=[0, 90, 1280, 540]),
+     "range_invalid", "/base/source/content_rect"),
+    ("c30", lambda d: _rect(d) or d["base"]["source"]["content_rect"].pop("h"), "range_invalid",
+     "/base/source/content_rect/h"),
+]
+
+
 # (context, mutate, code, path): one targeted violation (or a positive boundary with code None).
 RULES = [
     *KEYFRAME_RULES,
     *SPLIT_RULES,
+    *ZOOM_RULES,
     # root
     ("c30", lambda d: d.update(clip_id="clip_XYZ"), "range_invalid", "/clip_id"),
     ("c30", lambda d: d.update(revision=-1), "range_invalid", "/revision"),

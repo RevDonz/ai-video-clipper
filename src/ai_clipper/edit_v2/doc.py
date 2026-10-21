@@ -51,6 +51,7 @@ from . import (
     WATERMARK_SIZE_RANGE,
     WATERMARK_TEXT_MAX,
     WORDS_MAX_RANGE,
+    ZOOM_RANGE,
     transitions,
 )
 from . import timemap as tm
@@ -150,9 +151,10 @@ LEGACY_CAPTION_PACKS = ("classic", "karaoke")  # what the legacy renderer draws 
 
 def auto_file_is_seed(seed: Mapping) -> bool:
     """Whether R10 may hand out the clip's auto file for this seed: the legacy renderer never
-    draws a logo or a text watermark, and draws only Klasik or Karaoke at the pack's spot and
-    size, so a legacy seed with the Pengaturan defaults or another look from the job's options
-    (CONTRACTS §5.48) is not that file."""
+    draws a logo or a text watermark, never crops a source's black bars, and draws only Klasik
+    or Karaoke at the pack's spot and size, so a legacy seed with the Pengaturan defaults,
+    another look from the job's options (CONTRACTS §5.48) or ``base.source.content_rect``
+    (CONTRACTS §5.47) is not that file."""
     if seed["base"]["engine"]["compiler"] != "legacy":
         return True
     captions = seed["captions"]
@@ -162,8 +164,9 @@ def auto_file_is_seed(seed: Mapping) -> bool:
     if pack not in LEGACY_CAPTION_PACKS or any(
             overrides.get(key) != defaults.get(key) for key in ("y_e5", "size_pm")):
         return False
-    return seed.get("watermark") is None and not any(
-        track.get("kind") == "visual" and track.get("items") for track in seed["tracks"])
+    return (seed.get("watermark") is None and "content_rect" not in seed["base"]["source"]
+            and not any(track.get("kind") == "visual" and track.get("items")
+                        for track in seed["tracks"]))
 
 
 # --- parse level ----------------------------------------------------------------------------------
@@ -386,7 +389,8 @@ _ROOT = _compile(_keys(
     "schema", "schema_minor", "clip_id", "revision", "parent_sha256",
     base=_keys("job_id", "window_ms", "seed_sha256",
                source=_keys("content_sha256", "w", "h", "fps_native", "vfr", "duration_ms",
-                            "has_audio"),
+                            "has_audio",
+                            content_rect=_keys("x", "y", "w", "h")),  # optional (§5.47)
                origin=_keys("kind", "selection_artifact_sha256", "selection_version",
                             "rank_at_seed", "hook_unit_id", "selection_source"),
                words=_keys("sha256", "count"),
@@ -402,7 +406,8 @@ _ROOT = _compile(_keys(
                    overrides=_keys("y_e5", "size_pm", "case", "highlight", "emphasis",
                                    "words_max", "entrance"),
                    word_edits=_Map(_keys("text", "hidden", "emphasis"))),
-    layout=_keys(default=_keys("mode", "no_face"),
+    layout=_keys("zoom_pm",  # optional (CONTRACTS §5.47)
+                 default=_keys("mode", "no_face"),
                  keyframes=_List(_keys("sf", "pan_e5", "move")),
                  split=_keys("top_pm", **dict.fromkeys(SPLIT_BANDS,
                                                        _keys("x_e5", "y_e5", "zoom_pm")))),
@@ -800,6 +805,8 @@ class _Validator:
             self.boolean(source, "vfr", sp)
             duration = self.integer(source, "duration_ms", sp, 1)
             self.boolean(source, "has_audio", sp)
+            if "content_rect" in source:  # optional; absent = the whole picture (§5.47)
+                self.content_rect(source)
         origin = self.field(base, "origin", path)
         if origin is not _MISSING and self.obj(origin, "/base/origin") is not None:
             op = "/base/origin"
@@ -834,6 +841,25 @@ class _Validator:
         self.window_ms, self.duration_ms = window_ok, duration
         if self.seed is not None:
             self._seed_base()
+
+    def content_rect(self, source: Mapping) -> None:
+        """The source without its black bars (CONTRACTS §5.47): even ``x``, ``y``, ``w`` and
+        ``h`` with ``w``/``h`` ≥ 16, inside the source and smaller than it."""
+        path = "/base/source/content_rect"
+        rect = self.obj(source["content_rect"], path)
+        if rect is None:
+            return
+        values = [self.integer(rect, key, path, *((16, 8192) if key in ("w", "h") else (0, 8192)))
+                  for key in ("x", "y", "w", "h")]
+        for key, value in zip(("x", "y", "w", "h"), values, strict=True):
+            if value is not None and value % 2:
+                self.error("range_invalid", _join(path, key))
+        width, height = source.get("w"), source.get("h")
+        if None in values or type(width) is not int or type(height) is not int:
+            return
+        x, y, w, h = values
+        if x + w > width or y + h > height or (x, y, w, h) == (0, 0, width, height):
+            self.error("range_invalid", path)
 
     def _seed_base(self) -> None:
         try:
@@ -1175,6 +1201,11 @@ class _Validator:
             self.enum(default, "no_face", "/layout/default", _NO_FACE)
         if "keyframes" in layout:
             self.keyframes(layout["keyframes"], mode)
+        if "zoom_pm" in layout:  # optional; absent = 1000, so 1000 is no key (§5.47, R10)
+            zoom = self.integer(layout, "zoom_pm", "/layout", *ZOOM_RANGE)
+            # the split's bands carry their own zoom
+            if zoom == ZOOM_RANGE[0] or (zoom is not None and mode == "split"):
+                self.error("range_invalid", "/layout/zoom_pm")
         if "split" in layout:
             self.split(layout["split"], mode)
         elif mode == "split":

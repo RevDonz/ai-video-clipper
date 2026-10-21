@@ -258,23 +258,25 @@ def expected_index(plan: Any, grid: Sequence[int | None], *, first: int) -> list
 
 def expected_crop_x(plan: Any, source: tuple[int, int]) -> list[int] | None:
     """The crop x of every output frame for the crop layouts: the centre, the camera table or
-    the manual framing keyframes' (CONTRACTS §5.44). None for fit_blur and for the split, whose
-    two crops P-PLATE reads band by band (§5.45)."""
+    the manual framing keyframes' (CONTRACTS §5.44), at the document's zoom over its content
+    picture (§5.47). None for fit_blur and for the split, whose two crops P-PLATE reads band by
+    band (§5.45)."""
     from ai_clipper.edit_v2 import layouts
 
     if plan.layout in ("fit_blur", "split"):
         return None
+    picture = layouts.picture_size(source, plan.content_rect)
     if plan.keyframes:
         count = max(piece.out_sf for piece in plan.pieces)
-        table = layouts.keyframe_positions(plan.keyframes, source=source, output=plan.output,
-                                           first_sf=0, count=count)
+        table = layouts.keyframe_positions(plan.keyframes, source=picture, output=plan.output,
+                                           first_sf=0, count=count, zoom_pm=plan.zoom_pm)
         return [table[tm.out_to_src(n, plan.pieces)[1]] for n in range(plan.total_frames)]
     if plan.layout == "fill_center":
-        scaled = layouts.scaled_size(source, plan.output)
-        return [(scaled[0] - plan.output[0]) // 2] * plan.total_frames
+        return [layouts.centre_x(picture, plan.output, plan.zoom_pm)] * plan.total_frames
     count = max(piece.out_sf for piece in plan.pieces)
     table = layouts.crop_positions(plan.camera, plan.fps, source=source, output=plan.output,
-                                   first_sf=0, count=count)
+                                   first_sf=0, count=count, zoom_pm=plan.zoom_pm,
+                                   content=plan.content_rect)
     return [table[tm.out_to_src(n, plan.pieces)[1]] for n in range(plan.total_frames)]
 
 
@@ -865,11 +867,12 @@ class Generator:
         if case.layout == "split":  # the index through the top band (§5.45)
             band = fi.split_band(case, "top")
             return {"source": list(case.source_size), "scale": band["scale"], "top": band["top"]}
-        geometry = fi.geometry(case.layout, case.source_size, case.output)
+        geometry = fi.geometry(case.layout, case.picture, case.output, case.zoom_pm)
         info = {"source": list(case.source_size), "scale": geometry["scale"],
                 "top": geometry["top"]}
         if case.layout != "fit_blur":
-            info["crop_scale"] = layouts.scaled_size(case.source_size, case.output)[0] / case.source_size[0]
+            zoomed = layouts.zoomed_output(case.output, case.zoom_pm)
+            info["crop_scale"] = layouts.scaled_size(case.picture, zoomed)[0] / case.picture[0]
         return info
 
     # the P-FRAME cases -----------------------------------------------------------------------
