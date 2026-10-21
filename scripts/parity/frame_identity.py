@@ -11,9 +11,11 @@ video that starts 41 ms late (no grid frame 0). The ``no_face_blur`` cases run f
 the latar blur fallback (CONTRACTS §5.40): a frame of a run without a face is read with the
 fit-blur geometry, and P-PLATE checks the crop x of the other frames only. The ``keyframes``
 cases frame the clip by hand (§5.44): P-PLATE checks every frame's crop x against
-``layouts.keyframe_positions``, the crop the editor's gizmo draws. Plate-cell frames below the
-document's window (the cloned head of a late-starting source's cell 0) are counted, never
-compared: no document can show them.
+``layouts.keyframe_positions``, the crop the editor's gizmo draws. The ``split`` cases stack two
+crops (§5.45): the frame index is read through the top band, whose crop starts at the source's
+first row, and P-PLATE reads each band's column ruler against ``layouts.split_geometry`` and
+checks that the line row is black. Plate-cell frames below the document's window (the cloned
+head of a late-starting source's cell 0) are counted, never compared: no document can show them.
 
 **Modules.** The gates run the real chain: ``captions.caption_track`` (T1.2a), the envelopes
 and ``audio_graph.audio_fragment`` (T1.4) and the pinned resources (fonts, packs, fontconfig
@@ -475,12 +477,19 @@ class Case:
     # layout.keyframes (CONTRACTS §5.44): (sf, pan_e5, move) of the manual framing, none = the
     # layout's own framing. They turn the no-face fallback off.
     keyframes: tuple[tuple[int, int, str], ...] = ()
+    # layout.split (CONTRACTS §5.45): (top_pm, top band, bottom band), a band (x_e5, y_e5,
+    # zoom_pm); the top band's crop starts at the source's first row (y_e5 0).
+    split: tuple[int, tuple[int, int, int], tuple[int, int, int]] | None = None
 
 
 # Manual framing over a 900-frame source: a hold, two cuts across the cold open's frames and two
 # slides that cross several cuts of the body.
 KEYFRAMES_900 = ((40, 0, "cut"), (150, 100_000, "cut"), (330, 30_000, "slide"),
                  (600, 85_000, "slide"), (640, 15_000, "cut"), (820, 60_000, "slide"))
+# Layar terbagi: 30/70 with both bands zoomed in and the lower one moved down; and swapped, the
+# wide band at the bottom zoomed 2.5×.
+SPLIT_30_70 = (300, (20_000, 0, 1600), (75_000, 30_000, 1200))
+SPLIT_SWAPPED = (700, (60_000, 0, 1000), (10_000, 40_000, 2500))
 
 
 P_FRAME_CASES = (
@@ -489,6 +498,7 @@ P_FRAME_CASES = (
     Case("cfr_30", (30, 1), 900, "camera"),
     Case("cfr_30_no_face_blur", (30, 1), 900, "camera", no_face="fit_blur"),
     Case("cfr_30_keyframes", (30, 1), 900, "fill_center", keyframes=KEYFRAMES_900),
+    Case("cfr_30_split", (30, 1), 900, "split", split=SPLIT_30_70),
     Case("vfr_30", (30, 1), 900, "fit_blur", vfr=True, drop_every=11),
     # the source edges: 902 frames at 29.97 end at 30,096.73 ms (duration_ms 30,097 rounds up),
     # and a 23.976 video that starts 41 ms after the audio has no grid frame 0
@@ -517,7 +527,11 @@ P_PLATE_CASES = (*(
     Case("plate_fill_center_keyframes", (30000, 1001), 900, "fill_center", cuts=10,
          captions=False, keyframes=KEYFRAMES_900),
     Case("plate_camera_keyframes", (30000, 1001), 900, "camera", cuts=10, captions=False,
-         no_face="fit_blur", keyframes=KEYFRAMES_900))
+         no_face="fit_blur", keyframes=KEYFRAMES_900),
+    Case("plate_split", (30000, 1001), 900, "split", cuts=10, captions=False,
+         split=SPLIT_30_70),
+    Case("plate_split_swapped", (30000, 1001), 900, "split", cuts=10, captions=False,
+         split=SPLIT_SWAPPED))
 PF_RENDER_CASES = tuple(
     Case(f"pf_60s_{layout}", (30000, 1001), 2_000, layout, source_size=(1280, 720), cuts=5,
          hook=True)
@@ -631,6 +645,8 @@ class Workspace:
         if case.keyframes:
             doc["layout"]["keyframes"] = [{"sf": sf, "pan_e5": pan, "move": move}
                                           for sf, pan, move in case.keyframes]
+        if case.split:
+            doc["layout"]["split"] = split_of(case)
         camera = (make_camera(duration_ms, case.fps, case.source_size, case.output)
                   if case.layout == "camera" else None)
         self.clips[case.name] = {"case": case, "source": source, "doc": doc,
@@ -717,6 +733,40 @@ def geometry(layout: str, source: tuple[int, int], output: tuple[int, int]) -> d
     return {"scale": scaled_h / src_h, "top": (out_h - scaled_h) / 2}
 
 
+def split_of(case: Case) -> dict[str, Any]:
+    """The case's ``layout.split``."""
+    from ai_clipper.edit_v2 import layouts
+
+    top_pm, top, bottom = case.split
+    return layouts.split_from_lane([top_pm, list(top), list(bottom)])
+
+
+def split_band(case: Case, band: str) -> dict[str, Any]:
+    """Where the source rows of a split band land (``scale``, ``top``) and its crop."""
+    from ai_clipper.edit_v2 import layouts
+
+    geometry = layouts.split_geometry(split_of(case), source=case.source_size, output=case.output)
+    x, y, w, h = geometry[band]["crop"]
+    scale = geometry[band]["size"][1] / h
+    return {"scale": scale, "top": geometry[band]["y"] - y * scale, "crop": (x, y, w, h),
+            "line": geometry["line"]}
+
+
+def split_columns_off(plane: bytes, case: Case, band: str) -> int:
+    """How many output columns of ``band`` show a source column more than 1.5 px away from the
+    crop's (the ruler read through the band's rows; crop then scale: column j shows
+    ``x + (j + ½)·w/W − ½``)."""
+    media = _media()
+    pattern = media.Pattern.for_size(*case.source_size)
+    where = split_band(case, band)
+    x, _y, w, _h = where["crop"]
+    width, height = case.output
+    columns = media.decode_ruler(plane, width, height, pattern, scale=where["scale"],
+                                 top=where["top"])
+    return sum(abs(got - (x + (j + 0.5) * w / width - 0.5)) > 1.5
+               for j, got in enumerate(columns))
+
+
 def fallback_frames(case: Case, plan: Any) -> frozenset[int]:
     """The source-grid frames ``case`` shows with the no-face fallback (fit-blur geometry)."""
     from ai_clipper.edit_v2 import layouts
@@ -733,7 +783,11 @@ def index_decoder(case: Case, layout: str | None = None) -> Callable[[bytes], in
     the geometry of ``layout`` (default: the case's)."""
     media = _media()
     pattern = media.Pattern.for_size(*case.source_size)
-    where = geometry(layout or case.layout, case.source_size, case.output)
+    if (layout or case.layout) == "split":
+        band = split_band(case, "top")
+        where = {"scale": band["scale"], "top": band["top"]}
+    else:
+        where = geometry(layout or case.layout, case.source_size, case.output)
     width, height = case.output
 
     def decode(plane: bytes) -> int | None:
@@ -995,6 +1049,29 @@ def p_plate(ws: Workspace, cases: Sequence[Case] = P_PLATE_CASES) -> dict[str, A
                                              for n in range(plan.total_frames)})
                                         if table is not None else 1)
             ok = ok and not any(counts.values())
+        if case.layout == "split":
+            # each band's ruler against its crop (≤ 3 % of the columns off by more than 1.5 px:
+            # a scaled ruler blurs its bit edges), and the line row black in the lossless
+            # reference
+            limit = case.output[0] * 3 // 100
+            line = split_band(case, "top")["line"]
+            width = case.output[0]
+            split_counts = {"plate": 0, "reference": 0, "final": 0}
+            line_not_black = 0
+            sources = {"plate": (gray_of_yuv420(f, case.output)
+                                 for f in plate_sequence(ws, case)),
+                       "reference": iter_gray_frames(reference, case.output),
+                       "final": iter_gray_frames(final, case.output)}
+            for planes in zip(sources["plate"], sources["reference"], sources["final"]):
+                for name, plane in zip(("plate", "reference", "final"), planes):
+                    split_counts[name] += any(split_columns_off(plane, case, band) > limit
+                                              for band in ("top", "bottom"))
+                line_not_black += max(planes[1][line * width:(line + 1) * width]) > 18
+            entry["split_band_mismatches"] = split_counts
+            entry["split_line_not_black"] = line_not_black
+            entry["split"] = {band: list(split_band(case, band)["crop"])
+                              for band in ("top", "bottom")}
+            ok = ok and not any(split_counts.values()) and not line_not_black
         entry["pass"] = ok
         results.append(entry)
     return {"threshold": {"ssim_margin": P_PLATE_SSIM_MARGIN, "crop_x_px": 0},

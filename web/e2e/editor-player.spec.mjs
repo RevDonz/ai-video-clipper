@@ -117,7 +117,8 @@ test("P-FRAME: the source frame and crop read back from the canvas equal the gri
     mismatches: results.reduce((sum, r) => sum + r.mismatches + r.crop_x_mismatches + r.unpresented, 0) };
   writeJson("p_frame.json", { browser: info.browserVersion, executable: info.executable, cases: results, totals });
   expect(totals.frames).toBeGreaterThanOrEqual(P_FRAME_MIN_FRAMES);
-  expect(results.filter((r) => r.layout !== "fit_blur").every((r) => r.crop_x_checked > 0)).toBe(true);
+  // the split's two crops are read band by band in P-PLATE (CONTRACTS §5.45), not as one crop x
+  expect(results.filter((r) => !["fit_blur", "split"].includes(r.layout)).every((r) => r.crop_x_checked > 0)).toBe(true);
   expect(totals.mismatches).toBe(0);
 });
 

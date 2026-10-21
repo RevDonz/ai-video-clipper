@@ -9,6 +9,7 @@ media steps run FFmpeg in the toolchain image; everything tested here is pure.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import sys
 from pathlib import Path
@@ -22,6 +23,7 @@ import compare
 import frame_identity as fi
 import player_fixtures as pf
 
+from ai_clipper.edit_v2 import layouts
 from ai_clipper.edit_v2 import timemap as tm
 from ai_clipper.edit_v2.glyphs import RESOURCES_DIR
 from ai_clipper.edit_v2.plan import Resources, build_plan
@@ -29,7 +31,7 @@ from ai_clipper.edit_v2.plan import Resources, build_plan
 
 def _plan(*, hook: bool = True, cuts: int = 20, layout: str = "fit_blur", pack: str | None = None,
           logo: bool = False, hook_variant: str | None = None, entrance_variant: str | None = None,
-          watermark: bool = False):
+          watermark: bool = False, keyframes: tuple = (), split: tuple | None = None):
     case = fi.Case("unit", (30000, 1001), 900, layout, hook=hook, cuts=cuts)
     info = fi.SourceInfo(640, 360, (30000, 1001), False, 30030, True)
     edges = fi.case_edges(case)
@@ -50,6 +52,11 @@ def _plan(*, hook: bool = True, cuts: int = 20, layout: str = "fit_blur", pack: 
         pf.set_entrance(doc, *pf.ENTRANCE_VARIANTS[entrance_variant])
     if watermark:
         pf.set_watermark(doc)
+    if keyframes:
+        doc["layout"]["keyframes"] = [{"sf": sf, "pan_e5": pan, "move": move}
+                                      for sf, pan, move in keyframes]
+    if split is not None:
+        doc["layout"]["split"] = fi.split_of(dataclasses.replace(case, split=split))
     words = fi.make_words(30030)
     camera = fi.make_camera(30030, case.fps, (640, 360), (720, 1280)) if layout == "camera" else None
     return build_plan(doc, words=words, camera=camera, assets=assets,
@@ -133,6 +140,22 @@ def test_expected_crop_x_is_the_centre_or_the_camera_table():
     table = pf.expected_crop_x(plan, (640, 360))
     assert len(table) == plan.total_frames
     assert len(set(table)) > 10
+
+
+def test_expected_crop_x_follows_the_manual_framing_and_skips_the_split():
+    """Manual framing (CONTRACTS §5.44) crops at its keyframes' x; the split (§5.45) has no
+    single crop x (P-PLATE reads its bands), and its index is read through the top band."""
+    plan = _plan(layout="fill_center", keyframes=fi.KEYFRAMES_900)
+    table = layouts.keyframe_positions(plan.keyframes, source=(640, 360), output=(720, 1280),
+                                       first_sf=0, count=max(p.out_sf for p in plan.pieces))
+    assert pf.expected_crop_x(plan, (640, 360)) == [
+        table[tm.out_to_src(n, plan.pieces)[1]] for n in range(plan.total_frames)]
+    assert pf.expected_crop_x(_plan(layout="split", split=fi.SPLIT_30_70), (640, 360)) is None
+    case = next(case for case in fi.P_FRAME_CASES if case.layout == "split")
+    band = fi.split_band(case, "top")
+    assert band["crop"][1] == 0  # the top band starts at the source's first row: the index
+    assert pf.Generator.decode_info(None, case) == {
+        "source": [640, 360], "scale": band["scale"], "top": band["top"]}
 
 
 def test_probe_frames_include_hook_fades_cue_edges_and_cuts():
