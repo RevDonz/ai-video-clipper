@@ -1,16 +1,19 @@
 "use client";
 
 // Mode Cepat's Tata letak card (docs/plans/2026-10-02-editor-mode-cepat.md §1.4 Tata letak, §4.1):
-// three pills for the whole clip, Latar blur, Potong tengah and Ikuti wajah. Face-track without
+// four pills for the whole clip, Latar blur, Potong tengah, Ikuti wajah and Layar terbagi. Face-track without
 // the clip's camera plan runs the face analysis first, through the clip's own analysis store
 // (layout-analysis.mjs), and switches after; the run keeps going when the card closes or the view
 // switches, and LayoutPanel shows the same progress. Another choice during the analysis wins.
 // The thumbnails and the runs without a face stay in Mode Lengkap. Under the crop layouts the
 // card says where the crop comes from and opens "Atur bingkai" (CONTRACTS §5.44), the same dialog
-// as Mode Lengkap's panel. Props: the card bundle (`openFraming` among them).
+// as Mode Lengkap's panel. Under layar terbagi (CONTRACTS §5.45) it shows the share, "Tukar" and
+// "Atur potongan" (the same dialog as the panel's). Props: the card bundle (`openFraming` and
+// `openSplit` among them).
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 
 import { framingSummary } from "../framing-model.mjs";
+import { SPLIT_RATIOS, splitRatioCommand, splitSummary, swapSplitCommand } from "../split-model.mjs";
 import { analysisApi, analysisBusy, analysisForView, layoutAnalysisFor } from "../panels/layout-analysis.mjs";
 import { analysisView, cameraReadyFromState, layoutCommand, switchSteps } from "../panels/layout-model.mjs";
 import { rejectionText } from "../shell-model.mjs";
@@ -21,7 +24,7 @@ import styles from "./quick.module.css";
 
 const OPTIONS = CARD_LAYOUTS.map((option) => ({ id: option.id, label: option.name, title: option.note }));
 
-function LayoutBody({ state, getState, dispatch, api, analysis, openFraming }) {
+function LayoutBody({ state, getState, dispatch, api, analysis, openFraming, openSplit }) {
   const doc = state.doc;
   const locked = state.status !== "ready";
   const layout = doc.layout.default.mode;
@@ -56,6 +59,15 @@ function LayoutBody({ state, getState, dispatch, api, analysis, openFraming }) {
     if (missing) startRef.current(false, true);
   }, [missing]);
 
+  const send = ({ type, args, mergeKey }) => {
+    try {
+      dispatch(type, args, { mergeKey });
+      setMessage(null);
+    } catch (error) {
+      setMessage(rejectionText(error));
+    }
+  };
+
   const choose = (mode) => {
     if (locked) return;
     const steps = switchSteps({ target: mode, current: layout, cameraReady });
@@ -65,25 +77,19 @@ function LayoutBody({ state, getState, dispatch, api, analysis, openFraming }) {
       return;
     }
     analysis.cancelSwitch();
-    if (steps !== "dispatch") return;
-    const { type, args, mergeKey } = layoutCommand(mode);
-    try {
-      dispatch(type, args, { mergeKey });
-      setMessage(null);
-    } catch (error) {
-      setMessage(rejectionText(error));
-    }
+    if (steps === "dispatch") send(layoutCommand(mode));
   };
 
   const view = analysisView(analysisForView(run), now);
   const refused = message ?? (run.phase !== "failed" ? run.message : null);
   const framing = framingSummary(doc);
+  const split = splitSummary(doc);
 
   return (
     <div className={styles.body} data-quick-body="layout">
       {refused ? <p className={styles.message} role="alert">{refused}</p> : null}
       <PillGroup legend="Pilih tata letak" legendHidden name={`${uid}-layout`} options={OPTIONS} value={choice ?? layout}
-        disabled={locked} describedBy={`${uid}-about`} onChange={choose} />
+        disabled={locked} describedBy={`${uid}-about`} onChange={choose} columns={2} />
       <p id={`${uid}-about`} className={styles.note}>Berlaku untuk seluruh klip.</p>
       {framing.available ? (
         <div className={styles.framing} data-quick-framing="" data-keyframes={framing.count}>
@@ -91,6 +97,17 @@ function LayoutBody({ state, getState, dispatch, api, analysis, openFraming }) {
           <PillButton aria-describedby={`${uid}-framing`} disabled={locked || !openFraming} onClick={() => openFraming?.()}>
             Atur bingkai
           </PillButton>
+        </div>
+      ) : null}
+      {split ? (
+        <div className={styles.split} data-quick-split="" data-top-pm={doc.layout.split.top_pm}>
+          <PillGroup legend="Pembagian" name={`${uid}-split`} options={SPLIT_RATIOS} value={split.ratio} disabled={locked}
+            describedBy={`${uid}-split`} onChange={(ratio) => send(splitRatioCommand(ratio, doc.layout.split))} />
+          <p id={`${uid}-split`} className={styles.note}>{split.text}</p>
+          <div className={styles.splitActions}>
+            <PillButton disabled={locked || !openSplit} onClick={() => openSplit?.()}>Atur potongan</PillButton>
+            <PillButton variant="quiet" disabled={locked} onClick={() => send(swapSplitCommand())}>Tukar atas dan bawah</PillButton>
+          </div>
         </div>
       ) : null}
       {view && run.phase === "running" ? (
@@ -113,8 +130,11 @@ function LayoutBody({ state, getState, dispatch, api, analysis, openFraming }) {
   );
 }
 
-export default function LayoutCard({ state, getState = null, dispatch, api = null, openFraming = null }) {
+export default function LayoutCard({ state, getState = null, dispatch, api = null, openFraming = null, openSplit = null }) {
   const analysis = layoutAnalysisFor(state?.clipId ?? state?.doc?.clip_id ?? null);
   if (!state?.doc || !analysis) return <p className={styles.note} role="status">Membuka tata letak…</p>;
-  return <LayoutBody state={state} getState={getState} dispatch={dispatch} api={api} analysis={analysis} openFraming={openFraming} />;
+  return (
+    <LayoutBody state={state} getState={getState} dispatch={dispatch} api={api} analysis={analysis} openFraming={openFraming}
+      openSplit={openSplit} />
+  );
 }

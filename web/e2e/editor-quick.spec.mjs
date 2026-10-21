@@ -611,7 +611,7 @@ test.describe("Mode Cepat cards (harness: real store and commands)", () => {
     const errors = await openQuick(page);
     const card = await openCard(page, "layout");
     const group = card.getByRole("group", { name: "Pilih tata letak" });
-    await expect(group.locator("label")).toHaveText(["Latar blur", "Potong tengah", "Ikuti wajah"]);
+    await expect(group.locator("label")).toHaveText(["Latar blur", "Potong tengah", "Ikuti wajah", "Layar terbagi"]);
     await expect(group.getByRole("radio", { name: "Latar blur" })).toBeChecked();
     await group.getByRole("radio", { name: "Potong tengah" }).check();
     expect(await lastSent(page)).toEqual({ type: "SetLayout", args: { mode: "fill_center" }, mergeKey: null });
