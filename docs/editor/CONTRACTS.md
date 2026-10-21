@@ -3767,3 +3767,127 @@ for keywords in Karaoke, Bold and Sinar; this falls under the batch's one `RENDE
 - P-TXT: `karaoke-kunci-40`, `bold-kunci-40`, `sinar-kunci-40` (`reference_text.EMPHASIS_PACKS`,
   "WAJIB" and "Ayahku" as keywords), all three in the smoke subset; the glyph probe's
   `PINNED_FACES` add `Anton-Regular` and `DMSerifDisplay-Italic`.
+
+## 5.47 Zoom and the source's black bars (2026-10-21)
+
+A P2 item of the 2026-10-21 adoption batch, next to `docs/plans/2026-10-20-lanjutan-sesi.md`
+P2. Two inputs reach every layout chain: a per-clip static zoom from 100 % to 150 %
+(`layout.zoom_pm`) and the picture inside constant black bars of the source
+(`base.source.content_rect`), measured once when the source is probed. Nothing that renders today changes: a document without either key keeps its
+graph, plan sha and plate key, so `RENDER_SEMANTICS` stays 1 and no golden moves; a source without
+bars has no content rect, so its clips are exactly today's.
+
+### The document (§3.3, §5.5)
+
+- Optional `layout.zoom_pm` (`ZOOM_RANGE` 1000–1500): the zoom of every layout but the split. 1000
+  is no key (R10: back to 100 % equals the seed), so the key is 1001–1500; 1000 or out of range is
+  `range_invalid` at `/layout/zoom_pm`, and so is any zoom under the split (its bands carry their
+  own, §5.45). It composes with the keyframes (§5.44) and the latar blur fallback (§5.40).
+- Optional `base.source.content_rect` `{x, y, w, h}` (exactly those keys; another is
+  `unknown_key` at parse level): even integers, `w`/`h` ≥ 16, inside the source and not the whole
+  source (each field `range_invalid` at its pointer, the rect at `/base/source/content_rect`). It
+  is part of the base: the seed writes it from `analysis/source.json` and every revision keeps it
+  (`base_changed` otherwise). `schema_minor` stays 0 (§3.8 amendment).
+- `doc.auto_file_is_seed`: a legacy seed with a content rect is not its auto file (the legacy
+  renderer never crops the bars), as with a logo or a text watermark (§5.43).
+- Constants in `edit_v2/__init__.py`; the client's in `web/lib/editor/doc-model.mjs`
+  (`ZOOM_RANGE`, `ZOOM_STEP_PM` 50, `zoomOf`).
+
+### Black bars (`source_info.py`)
+
+- `probe.content_rect` (probe `version` stays 2; an older file has no key and stays valid, its
+  clips keep the whole picture): `measure_content_rect(source, video_stream, duration_ms, size)`
+  runs FFmpeg's `cropdetect=limit=0.094:round=2:reset=0` (luma ≤ 24/255 is black) on 8 frames
+  (`CROPDETECT_FRAMES`) at the middle of each fifth of the video (`CROPDETECT_SAMPLES` 5), each run
+  bounded by `CROPDETECT_TIMEOUT_S` (30 s, two threads, the allowlisted environment and
+  `-protocol_whitelist file,pipe`). A run that fails or times out is a sample without a picture.
+- `content_rect_from_cropdetect(samples, size)`: the last `x1 x2 y1 y2` bounds of each run; a
+  black picture (`x2 < x1`) or bounds outside the size are left out; fewer than two samples, or
+  fewer than half, is no rect. The rect is the bounds of every sample together (a frame whose
+  picture reaches further widens it). Per axis the bars count only when both are at least 1 % of
+  the side (and 4 px), alike (within 2 % and 8 px), with at least a quarter of the side between
+  them; else the axis is whole. Rounded inwards to even. No bars on either axis is null.
+- `ensure_source_info` refuses a stored rect that is not null or a valid rect of the probe's size.
+  `seed._source` copies a non-null rect into `base.source.content_rect`.
+
+### Geometry (`layouts.py`)
+
+- `zoomed_output(output, zoom_pm)`: each side times `zoom_pm/1000`, rounded half up (the output
+  itself at 1000). The crop layouts scale to cover it (`force_original_aspect_ratio=increase`) and
+  keep an output-sized crop: `pan_limit`, `centre_x` and `crop_y` (the crop's row, `(in_h −
+  out_h)/2` truncated, `crop`'s default) take `zoom_pm`, so the travel widens and a 9:16 source
+  gains some. Latar blur scales its picture to fit the zoomed output
+  (`force_original_aspect_ratio=decrease`, `foreground_size`) and crops it, centred, to the frame
+  where it outgrows it; the blurred background is the zoomed cover crop.
+- The content rect: every chain starts with the exact `crop=w:h:x:y` to it, after its input
+  label (`layout_chain(..., content=)`, `split_chain(..., content=)`), and lays out that picture
+  (`picture_size`). `keyframe_positions` and `pan_limit` take the picture's size;
+  `crop_positions(..., zoom_pm, content)` moves the camera plan's centres (fractions of the whole
+  source) into it: a centre `c` is at `(c·W_src − x)/w` of the picture, one fraction rounded half
+  up to even, clamped to the travel. `check_content_rect` is the validator's rule (`ValueError`).
+- `tests/fixtures/edit_v2/zoom-vectors.json` (`potongin.zoom-vectors/1`): 29 inputs (hand-picked
+  letterbox, pillarbox and 9:16-in-16:9 cases and seeded random ones over 7 source/output sizes and
+  zooms 1000–1500) with the picture, zoomed output, scaled size, travel, centre, row, latar blur's
+  foreground and the crop x of their keyframes, written by `tests/test_edit_v2_zoom.py`
+  (`EDIT_V2_UPDATE_VECTORS=1`); `web/tests/editor-zoom.test.mjs` checks
+  `web/lib/editor/framing.mjs` against the same file.
+
+### Compiler, plan and keys
+
+- `RenderPlan.zoom_pm` (1000 without the key) and `RenderPlan.content_rect` (`(x, y, w, h)` or
+  `None`); `compile_ffmpeg` (`layout`) passes both to every chain in every mode with a layout
+  (final, reference, plate cells, frame), so plate cells, truth frames and the final agree per
+  frame. `RenderPlan.to_json` is unchanged; the content sha carries both.
+- `plates.plate_key` adds `"zoom_pm"` and `"content_rect": [x, y, w, h]`, each only when present;
+  every other key is the one before (pinned in `tests/test_edit_v2_plates.py`).
+- `preview_cli`: `plan`'s `lane` and `prepare` name `zoom` (`zoom_pm` or `null`) next to `split`;
+  `cells` takes an optional `zoom` (1001–1500; anything else a usage error; with the split
+  `range_invalid`, exit 6). The content rect comes with the seed. `prepare` with a switch into the
+  split reports no zoom (`_switched`, as `SetLayout`). `web/lib/preview-lane.mjs` keeps the
+  plate's zoom and sends it with every cells batch of that plate; a plan or prepare result with a
+  malformed zoom, or a zoom on the split, is not trusted (503).
+
+### Commands and the two-tab merge (`web/lib/editor/commands.mjs`, `rebase.mjs`)
+
+- `SetZoom {zoom_pm}` (1000–1500; 1000 drops the key; `invalid_args`, `value_out_of_range`; the
+  same value is no change). Not under the split (`zoom_unavailable`, "Layar terbagi mengatur zoom
+  di Atur potongan."). Merge key `layout:zoom`: a slider drag is one undo step. `SetLayout` keeps
+  the zoom except into the split (`layoutAfterSwitch`, the layout thumbnails and `preview_cli`
+  `_switched` do the same). `checkDoc` mirrors the validator's zoom rule; the cross-check
+  generator sends `SetZoom`.
+- Two tabs: part `layout.zoom` (value: `zoom_pm` or `null`) in the "Tata letak" group; the dialog
+  names `<mode>, zoom 125%`. Mine's zoom over the other tab's split brings mine's layout (and so
+  the split's bands, or their absence) along, and mine's layout brings mine's zoom.
+
+### Editor
+
+- `web/lib/editor/framing.mjs`: `zoomedOutput`, `centreX`, `cropY`, `foregroundSize`,
+  `pictureSize`; `panLimit`, `keyframePositions` (`zoomPm`) and `cropAt` take the zoom;
+  `framingSizes(doc)` → `{source: the picture, output, zoom}`, so `framingAvailability`, "Atur
+  bingkai" and "Atur layar terbagi" (`split-model.mjs` `splitView`) work on the picture inside the
+  bars. `gizmos/frame-geometry.mjs` `frameGeometry(source, output, zoom)`: the box is
+  `W/scaled_w` by `H/scaled_h` of the picture, its top at `crop_y/scaled_h`. The still
+  (`sourceFrameDoc`) has no zoom, so it shows the whole picture.
+- Tata letak panel: a section **Zoom** under every layout but the split ("Perbesar gambar sampai
+  150%. Tepi gambar ikut terpotong."): a range input 100–150 % in 5 % steps (`ZOOM_OPTIONS_PM`)
+  with its value beside it, drawn from a draft and stored once on release (pointer or key), and
+  **Kembali ke 100%** while zoomed (`layout-model.mjs` `zoomView`, `zoomCommand`). A source with a
+  content rect adds "Garis hitam di tepi video sumber sudah dibuang." under the layouts. The
+  layout thumbnails' `contentKey` includes the zoom. Mode Cepat's Tata letak summary adds
+  " · zoom 125%" while zoomed.
+
+### Gates
+
+P-FRAME gains `cfr_30_zoom` (latar blur at 150 %) and `cfr_30_zoom_content` (latar blur at 125 % on
+a 4:3 content rect of the 640×360 barcode source; the rect keeps the first row, where the index
+is). P-PLATE gains `plate_fill_center_zoom_keyframes` (125 %, the keyframes of
+`plate_fill_center_keyframes`), `plate_camera_zoom_content` (face-track at 120 % inside the 4:3
+rect) and `plate_split_content` (the split's bands inside it): the crop x of every plate, reference
+and final frame against `keyframe_positions` / `crop_positions` / `centre_x` at the zoom over the
+picture, read with `edit_v2_media.decode_crop_x(..., offset, picture_w)`
+(`scripts/parity/frame_identity.py`). The player fixtures expect the zoomed crop x over the
+picture (`scripts/parity/player_fixtures.py`). `tests/test_edit_v2_compile.py` decodes the crop x
+of the plate cells and the lossless reference of a zoomed, framed synthetic clip with a content
+rect, and the frame index of latar blur at the same zoom, with real FFmpeg; and
+`tests/test_edit_v2_source_info.py` measures the bars of a letterboxed source and none on a plain
+one. Browser spec: `web/e2e/editor-zoom.spec.mjs` on the editor fakes.
