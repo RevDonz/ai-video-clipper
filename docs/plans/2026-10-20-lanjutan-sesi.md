@@ -1,7 +1,33 @@
 # Rencana lanjutan sesi 2026-10-20
 
-Status: **belum ada kode yang diubah.** Dokumen ini adalah antrean kerja yang disusun di sesi
-2026-10-20 dan dilanjutkan di device lain. Aturan proyek tetap `AGENTS.md`, arah desain
+Status (2026-10-21): **dikerjakan.** Semua item masuk ke satu PR gabungan dari branch
+`adopsi/gabungan-2026-10-21` (menunggu merge pemilik), kecuali yang ditandai di bawah. Rincian dan
+keputusan atas delegasi: `docs/HANDOFF.md` §8. Dokumen ini adalah antrean kerja yang disusun di
+sesi 2026-10-20.
+
+Hasil per item:
+
+| Item | Hasil |
+|---|---|
+| P1 #1–3 error unduhan, unduhan macet, link YouTube | selesai |
+| P1 #4 isolasi kegagalan per klip | selesai (dipakai atas delegasi) |
+| P1 #5 pembaruan yt-dlp terjadwal | selesai; PR otomatis butuh izin Actions dari pemilik |
+| P1 #6 dashboard | selesai |
+| P1 #7 halaman proyek, ZIP | selesai |
+| P1 #8 navigasi antar klip | selesai |
+| P1 #9 Kata per baris, gaya Sorot | selesai |
+| P1 #10 desain hook baru | selesai (Kicker, Blok, Kotak kata) |
+| A1–A8 | selesai |
+| A9 gaya caption saat buat job | selesai, termasuk posisi/ukuran/pack setelah klip otomatis pindah ke `edit-v2` |
+| P2 Atur bingkai, Layar terbagi, latar blur, YuNet, cookies, Groq Whisper | selesai |
+| P2 Rentang waktu, watermark teks, animasi masuk, Cek ejaan, judul/deskripsi | selesai |
+| P2 Most Replayed | **tidak dikirim**: A/B tidak menunjukkan manfaat (HANDOFF §8); branch hanya lokal |
+| P3 dokumen basi | selesai |
+
+Tambahan yang ikut dikirim: mesin `edit-v2` untuk klip otomatis, potong jeda otomatis, karaoke
+`\kf` dan gaya Sinar, output 1:1 dan 1080p, font aksen, gizmo caption, peringatan caption menutupi
+wajah, "Pakai di semua klip", Zoom dan buang garis hitam, badge header, landing. Tidak dibuat:
+watchdog `-progress` untuk mesin lama, karena mesin itu kini hanya fallback dan saklar rollback. Aturan proyek tetap `AGENTS.md`, arah desain
 `DESIGN.md`, status umum `docs/HANDOFF.md`.
 
 Ide-ide di bawah berasal dari riset produk clipper lain dan dari pembacaan kode Potongin. Ambil
@@ -158,4 +184,5 @@ Perbarui `docs/HANDOFF.md` di branch `potongin-adopsi-scl`. Isinya:
 - keputusan yang menunggu pemilik;
 - langkah berikutnya.
 
-Push branch itu, buka PR, lalu merge dengan rebase setelah CI hijau.
+Push branch itu, buka PR, lalu merge dengan rebase setelah CI hijau. (2026-10-21: batch ini masuk
+sebagai satu PR gabungan yang di-merge pemilik sendiri, bukan oleh agen.)
