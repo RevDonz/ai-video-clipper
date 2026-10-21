@@ -18,13 +18,14 @@ Owner: T1.1. Protocol (frozen, see ``docs/editor/CONTRACTS.md`` §5.9):
 Ops (arguments → result):
 
 ``clips`` ``{jobId}`` → ``{clips: [{clipId, index, title, hookText, description, hashtags,
-durationMs, engine, edit, latestRender, openable, reason}]}``. Read-only. V3 clips come from
+durationMs, engine, edit, hook, latestRender, openable, reason}]}``. Read-only. V3 clips come from
 ``analysis/selection.v3.json`` in rank order (``index`` = rank = the ``clip-NN`` number); when
 the selection is unavailable, or the job is not V3, the manifest's clips are listed instead.
 ``clipId`` needs ``analysis/source.json`` (``content_sha256``) and follows plan §3.5 (the cold
 open counts only when the job ran with ``coldOpen``); ``engine`` is the seed's
 ``base.engine.compiler`` (``"edit-v2/1"`` or ``"legacy"``); ``edit`` is ``{state: "seed" |
-"edited", revision, etag, updatedAtMs}`` when ``seed.json`` exists, else null;
+"edited", revision, etag, updatedAtMs}`` when ``seed.json`` exists, else null; ``hook`` is
+``hook_toggle.state`` of the current document (``{on, available}``) under the same condition;
 ``durationMs`` is the current document's length (else the selection's);
 ``latestRender`` is null until T2.2 adds render-request-v3; ``openable`` is true exactly when
 the seed exists and the source file exists. ``reason`` (``errors.CLIP_REASONS``), first
@@ -64,6 +65,12 @@ request's Idempotency-Key; the targets are the other clips of ``clips`` in its o
 
 ``undo_apply_all`` ``{jobId, batchId}`` → ``{batchId, group, restored: [{clipId, index}],
 skipped: [{clipId, index, reason}]}`` (``apply_all.undo``); exit 4 for an unknown batch.
+
+``set_hook`` ``{jobId, clipId, etag, hook, idempotencyKey}`` → ``{etag, revision, changed, hook:
+{on, available}}``: "Hook di video" on the project page (CONTRACTS §5.57,
+``hook_toggle.set_hook``). ``hook`` is ``"on"`` or ``"off"``; exit 5 when ``etag`` is not the
+current revision, 6 for a read-only clip (``op_disabled``) or "on" without a seed hook
+(``range_invalid``), 9 for a reused key with other arguments.
 """
 
 from __future__ import annotations
@@ -81,7 +88,7 @@ from pathlib import Path
 from typing import Any
 
 from .. import job_files
-from . import apply_all, store
+from . import apply_all, hook_toggle, store
 from . import timemap as tm
 from .clip_id import CLIP_ID_PATTERN, clip_id, ms_from_seconds
 from .errors import (
@@ -97,7 +104,8 @@ from .errors import (
     message_id,
 )
 
-OPS = ("clips", "prepare_job", "get", "put", "seed", "archive", "apply_all", "undo_apply_all")
+OPS = ("clips", "prepare_job", "get", "put", "seed", "archive", "apply_all", "undo_apply_all",
+       "set_hook")
 NICE = 5  # prepare_job, as the preview lane's heavy ops (plan §2.6; W2 verifier)
 
 MAX_ENVELOPE_BYTES = 2 << 20
@@ -117,6 +125,7 @@ _FIELDS = {
     "archive": ("jobId", "clipId", "etag"),
     "apply_all": ("jobId", "clipId", "etag", "group", "batchId"),
     "undo_apply_all": ("jobId", "batchId"),
+    "set_hook": ("jobId", "clipId", "etag", "hook", "idempotencyKey"),
 }
 _PATTERNS = {
     "jobId": _UUID,
@@ -127,6 +136,7 @@ _PATTERNS = {
     "docRaw": _B64,
     "group": re.compile("|".join(apply_all.GROUPS)),
     "batchId": _UUID,
+    "hook": re.compile("on|off"),
 }
 
 
@@ -341,8 +351,8 @@ def _entry(*, index: int, title: str | None, hook_text: str | None,
            description: str | None, hashtags: list[str], duration_ms: int | None) -> dict:
     return {"clipId": None, "index": index, "title": title, "hookText": hook_text,
             "description": description, "hashtags": hashtags, "durationMs": duration_ms,
-            "engine": None, "edit": None, "latestRender": None, "openable": False,
-            "reason": None}
+            "engine": None, "edit": None, "hook": None, "latestRender": None,
+            "openable": False, "reason": None}
 
 
 def _with_reason(entries: list[dict], reason: str) -> dict:
@@ -431,6 +441,7 @@ def _attach_edit(entry: dict, clip: Path) -> None:
     except NotFound:
         return
     entry["engine"] = seed_doc["base"]["engine"]["compiler"]
+    entry["hook"] = hook_toggle.state(doc, seed_doc)
     entry["edit"] = {"state": "seed" if is_seed else "edited", "revision": doc["revision"],
                      "etag": etag, "updatedAtMs": doc["audit"]["updated_at_ms"]}
     entry["durationMs"] = _duration_ms(doc)
@@ -475,6 +486,9 @@ def _dispatch(envelope: Mapping[str, str], jobs_root: str | os.PathLike | None,
         "seed": lambda: _document(envelope["jobId"], clip, seed_only=True),
         "put": lambda: _put(clip, envelope, now),
         "archive": lambda: _archive(clip, envelope["etag"]),
+        "set_hook": lambda: hook_toggle.set_hook(
+            clip, etag=envelope["etag"], on=envelope["hook"] == "on",
+            idempotency_key=envelope["idempotencyKey"].lower(), now_ms=now),
     }
     return handlers[op]()
 
