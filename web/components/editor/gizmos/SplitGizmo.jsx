@@ -86,8 +86,6 @@ export default function SplitGizmo({
     if (!locked && (next.x_e5 !== current.x_e5 || next.y_e5 !== current.y_e5 || next.zoom_pm !== current.zoom_pm)) onCommit?.(band, next);
   };
 
-  // the active box last, so it is drawn and picked on top
-  const order = [...SPLIT_BANDS].sort((a, b) => (a === active) - (b === active));
   const [w, h] = source;
   return (
     <div ref={rootRef} className={frame.picture} data-gizmo="split" data-dragging={dragging ? "true" : "false"} data-still={stillState}
@@ -101,7 +99,8 @@ export default function SplitGizmo({
           <button type="button" className={frame.retry} onPointerDown={(event) => event.stopPropagation()} onClick={onRetry}>Coba lagi</button>
         </span>
       ) : null}
-      {order.map((band) => {
+      {/* One DOM order (moving a focused box would blur it); the active box is on top by z-index. */}
+      {SPLIT_BANDS.map((band) => {
         const rect = bandBox(geometry, band, source);
         return (
           <div
