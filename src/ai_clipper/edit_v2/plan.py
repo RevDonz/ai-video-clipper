@@ -33,15 +33,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from . import (
-    COMPILER_ID,
-    COMPILER_VERSION,
-    OUTPUT_SIZES,
-    RENDER_SEMANTICS,
-    UI_ZONE_720,
-    ZOOM_RANGE,
-    errors,
-)
+from . import COMPILER_ID, COMPILER_VERSION, OUTPUT_SIZES, RENDER_SEMANTICS, UI_ZONE_720, errors
 from . import captions as _captions
 from . import envelope as _envelope
 from . import face_zone as _face_zone
@@ -49,7 +41,7 @@ from . import timemap as tm
 from . import transitions as _transitions
 from .captions import CaptionResult
 from .doc import Issue
-from .layouts import LAYOUT_MODES
+from .layouts import LAYOUT_MODES, ZOOM_RANGE
 from .timemap import Fps, Piece
 from .transitions import JoinPlan
 
