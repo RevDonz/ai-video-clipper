@@ -319,7 +319,7 @@ def test_every_entrance_is_gated_on_every_pack_inside_its_120_ms() -> None:
     smoke = next(line for line in RUN_ALL.read_text(encoding="utf-8").splitlines()
                  if line.startswith("SMOKE_TEXT=")).removeprefix("SMOKE_TEXT=").split(",")
     assert {"karaoke-fade-40", "bold-pop-40", "sorot-blur-40"} <= set(smoke)
-    opening = {"fade": "\\fad(120,0)", "pop": "\\fscx70\\fscy70",
+    opening = {"fade": "\\fad(120,0)", "pop": "\\fscx68.75\\fscy68.75",
                "blur": "\\blur10\\t(0,120,\\blur0)"}
     for clip_id, clip in entrance.items():
         assert clip.gate and clip.variant is None and len(clip.probe_frames) == 5, clip_id

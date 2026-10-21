@@ -430,7 +430,7 @@ def test_no_entrance_and_an_explicit_none_compile_to_the_same_track(pack):
 
 @pytest.mark.parametrize(("name", "opening"), [
     ("entrance_fade__c30", "{\\fad("),
-    ("entrance_pop__c30", "{\\fscx70\\fscy70\\t(0,"),
+    ("entrance_pop__c30", "{\\fscx68.75\\fscy68.75\\t(10,10,"),
     ("entrance_blur__c30", "{\\fad("),
 ])
 def test_an_entrance_opens_every_line_and_moves_no_cue(name, opening):

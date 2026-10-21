@@ -2847,9 +2847,16 @@ a document with `entrance` `none` compiles to the same cues and ASS bytes as one
   the drop shadow's copy and moves the line to layer 1 ("Outline drawn as a shadow" below).
 - `d = min(ENTRANCE_MS, 10·(end_cs − start_cs))` of that window, `ENTRANCE_MS` = 120:
   - Fade: `{\fad(d,0)<X>}`.
-  - Pop: `{\fscx70\fscy70\t(0,t,\fscx108\fscy108)\t(t,d,\fscx100\fscy100)}` with
-    `t = rhu(2·d, 3)`. libass scales each event around its anchor: the bottom centre of a line,
-    Sorot's words and box around their own `\pos`.
+  - Pop (amended 2026-10-22, P-TXT): 70 % to 108 % over `t = rhu(2·d, 3)` ms, then back to
+    100 % at `d`, in steps. The scale at `u` ms in 32nds is `n(u) = rhu(32·(70·t + 38·u), 100·t)`
+    before `t` and `rhu(32·(108·(d − t) − 8·(u − t)), 100·(d − t))` from `t` on; the block is
+    `{\fscxS\fscyS` with `S = 100·n(0)/32` (68.75), then `\t(u,u,\fscxS\fscyS)` at every
+    `u` = 10, 20, … below `d` and at `d` where `n` changes (109.375 at the peak of a 120 ms
+    entrance, 100 at `d`), and `}`; `S` is written exactly (at most three decimals). A
+    continuous `\t` scale placed glyphs apart in JASSUB and FFmpeg now and then (82 % or 89.5 %
+    moved an outline edge by up to 0.15 px, P-TXT 18 levels on Bold and Sinar); every 32nd from
+    68.75 % to 109.375 % agreed on every Pop clip. libass scales each event around its anchor:
+    the bottom centre of a line, Sorot's words and box around their own `\pos`.
   - Blur: `{\fad(d,0)\blurB\t(0,d,\blur0)<X>}` with `B` = H/128 pixels to two decimals (10 at
     1280, 15 at 1920). libass blurs only the outline of outlined text, so the line also fades in;
     boxes (`BorderStyle 3`, `\p`) and text without a border blur whole.
@@ -2869,7 +2876,7 @@ a document with `entrance` `none` compiles to the same cues and ASS bytes as one
   to layer 1, because libass stacks overlapping events of one layer apart. Once the fade ends
   the picture is the same as before, byte for byte in the CI references; while the line fades,
   its fill shows over its outline instead of over a hole cut in it (up to 64 levels darker in
-  the first frames). Pop is unchanged.
+  the first frames). Pop has no fade and keeps its outline.
 - The hook (its own `\fad(150,250)`) and the legacy `build_ass` are untouched.
 
 ### Editor
