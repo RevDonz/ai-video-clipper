@@ -13,7 +13,10 @@
 //   frame where it starts); each is a jump-to target. Face-track chosen here shows them with latar
 //   blur (`no_face: "fit_blur"`, the plan says `no_face_blur`); one click centres them instead, and
 //   back (`SetNoFace`, CONTRACTS §5.40).
-import { NO_FACE_MODES, layoutAfterSwitch } from "../../../lib/editor/doc-model.mjs";
+// - "Zoom" (CONTRACTS §5.52) enlarges every layout but the split from 100 % to 150 %, in 5 % steps
+//   (`SetZoom`; the split zooms each band in "Atur layar terbagi"). A source with black bars is
+//   laid out without them; the section says so.
+import { NO_FACE_MODES, ZOOM_RANGE, ZOOM_STEP_PM, layoutAfterSwitch, zoomOf } from "../../../lib/editor/doc-model.mjs";
 import { formatClock, frameToMs, messageFor } from "../shell-model.mjs";
 
 const option = (fields) => Object.freeze(fields);
@@ -93,13 +96,48 @@ function canonical(value) {
 
 /**
  * What a thumbnail depends on besides its layout and frame: the document without its layout
- * choice, revision, parent and audit (canonical text), so an edit elsewhere (the framing keyframes
- * and the split's bands included) refreshes the thumbnails and a switch or a save does not.
+ * choice, revision, parent and audit (canonical text), so an edit elsewhere (the framing keyframes,
+ * the split's bands and the zoom included) refreshes the thumbnails and a switch or a save does not.
  */
 export function contentKey(doc) {
   if (!doc || typeof doc !== "object") return null;
   const { layout, revision: _revision, parent_sha256: _parent, audit: _audit, ...rest } = doc;
-  return canonical({ ...rest, keyframes: layout?.keyframes ?? null, split: layout?.split ?? null });
+  return canonical({ ...rest, keyframes: layout?.keyframes ?? null, split: layout?.split ?? null, zoom: layout?.zoom_pm ?? null });
+}
+
+/** The zoom's stops: 100 % to 150 % in 5 % steps. */
+export const ZOOM_OPTIONS_PM = Object.freeze(
+  Array.from({ length: (ZOOM_RANGE[1] - ZOOM_RANGE[0]) / ZOOM_STEP_PM + 1 }, (_, index) => ZOOM_RANGE[0] + index * ZOOM_STEP_PM),
+);
+
+/** 1250 → 125 (per mille to a whole percent). */
+export function zoomPercent(zoomPm) {
+  return Math.round(zoomPm / 10);
+}
+
+/** `SetZoom` for the whole clip; a slider drag is one undo step (merge key `layout:zoom`). */
+export function zoomCommand(zoomPm) {
+  if (!Number.isSafeInteger(zoomPm) || zoomPm < ZOOM_RANGE[0] || zoomPm > ZOOM_RANGE[1]) throw new TypeError(`zoom out of range: ${zoomPm}`);
+  return { type: "SetZoom", args: { zoom_pm: zoomPm }, mergeKey: "layout:zoom" };
+}
+
+/**
+ * The Zoom section: `{available, zoom, percent, min, max, step, zoomed, bars, text}`. Not available
+ * under the split; `bars` when the source's black bars were found and are left out of every layout.
+ */
+export function zoomView(doc) {
+  const zoom = zoomOf(doc);
+  return {
+    available: doc?.layout?.default?.mode !== "split",
+    zoom,
+    percent: zoomPercent(zoom),
+    min: ZOOM_RANGE[0],
+    max: ZOOM_RANGE[1],
+    step: ZOOM_STEP_PM,
+    zoomed: zoom !== ZOOM_RANGE[0],
+    bars: Boolean(doc?.base?.source?.content_rect),
+    text: `Perbesar gambar sampai ${zoomPercent(ZOOM_RANGE[1])}%. Tepi gambar ikut terpotong.`,
+  };
 }
 
 /** The layouts in the order their thumbnails are asked for: the current one first. */

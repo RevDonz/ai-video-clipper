@@ -38,6 +38,8 @@
 // - Layar terbagi (CONTRACTS §5.45): SetLayout into the split starts from `defaultSplit()` and any
 //   other layout drops `layout.split`; SetSplitRatio, SwapSplit ("Tukar": the crops change places,
 //   so the small band moves with its picture) and SetSplitCrop (one band, merged per band).
+// - "Zoom" (CONTRACTS §5.52): SetZoom {zoom_pm} in 1000–1500 for every layout but the split; 1000
+//   drops the key (R10), and SetLayout into the split drops it (`layoutAfterSwitch`).
 // - The text watermark (CONTRACTS §5.43): SetWatermarkText adds it at DEFAULT_WATERMARK or changes
 //   only its text; RemoveWatermark drops the key, so a clip without one equals its seed (R10).
 import {
@@ -65,6 +67,7 @@ import {
   SPLIT_ZOOM_RANGE,
   TRACKS,
   WATERMARK_OPACITY_RANGE,
+  ZOOM_RANGE,
   WATERMARK_POSITIONS,
   WATERMARK_SIZE_RANGE,
   body,
@@ -90,8 +93,8 @@ import { divRoundHalfUp, logoBox, pieces, sfCeil, sfFloor } from "./timemap.mjs"
  * Appendix B, in the order of the table (the same list as `__dev__/fakes.mjs`), with the
  * cold-open transition commands after NudgeColdOpen (docs/plans/2026-10-02-transisi-cold-open.md §7.2),
  * SetHookDesign after SetHookY (CONTRACTS §5.33), SetNoFace after SetLayout (CONTRACTS §5.40), the
- * framing commands after SetNoFace (CONTRACTS §5.44), the split's after them (§5.45) and the text
- * watermark's after SnapLogo (§5.43).
+ * framing commands after SetNoFace (CONTRACTS §5.44), the split's after them (§5.45), SetZoom after
+ * the split's (§5.52) and the text watermark's after SnapLogo (§5.43).
  */
 export const COMMANDS = Object.freeze([
   "TrimStart", "TrimEnd", "RemoveWords", "RemoveGap", "RestoreRemoval", "ApplyCleanup",
@@ -99,7 +102,7 @@ export const COMMANDS = Object.freeze([
   "SetCaptionsEnabled", "SetCaptionPack", "SetCaptionOverride", "SetHookEnabled", "SetHookText",
   "SetHookDuration", "SetHookY", "SetHookDesign", "SetLayout", "SetNoFace",
   "SetKeyframe", "RemoveKeyframe", "SetKeyframeMove", "ClearKeyframes", "SetSplitRatio", "SwapSplit", "SetSplitCrop",
-  "SetLogo", "RemoveLogo", "MoveLogo", "ResizeLogo",
+  "SetZoom", "SetLogo", "RemoveLogo", "MoveLogo", "ResizeLogo",
   "SetLogoOpacity", "SnapLogo", "SetWatermarkText", "SetWatermarkPosition", "SetWatermarkSize", "SetWatermarkOpacity",
   "RemoveWatermark", "SetMusic", "RemoveMusic", "SetMusicGain", "SetMusicOffset",
   "SetMusicLoop", "SetMusicFades", "SetDuck", "SetSourceGain", "SetLoudness", "ResetToSeed",
@@ -148,6 +151,7 @@ export const COMMAND_MESSAGES = Object.freeze({
   too_many_keyframes: "Terlalu banyak keyframe (maksimal 100).",
   keyframe_missing: "Keyframe ini sudah tidak ada.",
   split_unavailable: "Hanya untuk tata letak Layar terbagi.",
+  zoom_unavailable: "Layar terbagi mengatur zoom di Atur potongan.",
 });
 
 export function commandMessage(code) {
@@ -908,6 +912,14 @@ const HANDLERS = {
     return { doc: withSplit(doc, { ...doc.layout.split, [args.band]: crop }), args: { band: args.band, ...crop } };
   },
 
+  SetZoom(doc, args) {
+    need(doc.layout.default.mode !== "split", "zoom_unavailable");
+    const zoom = intArg(args, "zoom_pm", ...ZOOM_RANGE);
+    const { zoom_pm: _zoom, ...rest } = doc.layout;
+    const layout = zoom === ZOOM_RANGE[0] ? rest : { ...doc.layout, zoom_pm: zoom };
+    return { doc: { ...doc, layout }, args: { zoom_pm: zoom } };
+  },
+
   SetLogo(doc, args, ctx) {
     const { id, meta } = assetArg(args.asset, args.meta, "image");
     const origin = originArg(args.origin, ITEM_ORIGIN_PATTERN, "user");
@@ -1124,6 +1136,7 @@ export function defaultMergeKey(type, args = {}) {
     case "SetHookY": return "hook:y";
     case "SetKeyframe": return Number.isSafeInteger(args?.sf) ? `frame:${args.sf}` : null;
     case "SetSplitCrop": return SPLIT_BANDS.includes(args?.band) ? `split:${args.band}` : null;
+    case "SetZoom": return "layout:zoom";
     case "MoveLogo": return "logo:move";
     case "ResizeLogo": return "logo:size";
     case "SetLogoOpacity": return "logo:opacity";

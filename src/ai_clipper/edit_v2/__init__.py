@@ -63,6 +63,9 @@ PAN_E5_MAX = 100_000
 SPLIT_TOP_PM = (300, 500, 700)
 SPLIT_BANDS = ("top", "bottom")
 SPLIT_ZOOM_RANGE = (1000, 5000)
+# Zoom (optional ``layout.zoom_pm``, CONTRACTS §5.52): the picture of every layout but the split
+# enlarged from 1000 (absent: today's picture) to 1.5×, per mille.
+ZOOM_RANGE = (1000, 1500)
 
 # Plan §3.5 ("overrides at the pack defaults") and §5.4: every pack's default overrides. The
 # seed builder (T1.5) writes these; the pack files resources/caption-packs/<id>/v1.json (T1.2a)
@@ -117,4 +120,5 @@ __all__ = [
     "WATERMARK_TEXT_MAX",
     "WORDS_MAX_RANGE",
     "WORDS_SCHEMA",
+    "ZOOM_RANGE",
 ]

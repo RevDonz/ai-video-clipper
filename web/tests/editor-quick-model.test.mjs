@@ -197,6 +197,10 @@ test("Tata letak sums up the layout, and says so while the face analysis runs", 
   assert.equal(layoutSummary(split), "Layar terbagi · 30/70");
   assert.equal(layoutSummary(run(split, "SwapSplit", {})), "Layar terbagi · 70/30");
   assert.equal(layoutSummary(run(split, "SetSplitRatio", { top_pm: 500 })), "Layar terbagi · 50/50");
+  // the zoom (CONTRACTS §5.52) when it is not 100 %
+  assert.equal(layoutSummary(run(fakeDoc(), "SetZoom", { zoom_pm: 1250 })), "Latar blur · zoom 125%");
+  assert.equal(layoutSummary(run(framed, "SetZoom", { zoom_pm: 1500 })), "Potong tengah · bingkai manual · zoom 150%");
+  assert.equal(layoutSummary(run(run(fakeDoc(), "SetZoom", { zoom_pm: 1250 }), "SetZoom", { zoom_pm: 1000 })), "Latar blur");
 });
 
 test("Logo & Musik sums up what the clip has", async () => {

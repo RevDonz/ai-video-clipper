@@ -367,6 +367,24 @@
    "warnings": []
   },
   {
+   "file": "valid/layout_zoom__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/layout_zoom_fit_blur__c24.json",
+   "context": "c24",
+   "check": "put",
+   "warnings": []
+  },
+  {
+   "file": "valid/layout_zoom_keyframes__c25.json",
+   "context": "c25",
+   "check": "put",
+   "warnings": []
+  },
+  {
    "file": "valid/hook_removed__c30.json",
    "context": "c30",
    "check": "put",
@@ -838,6 +856,27 @@
    "check": "put",
    "code": "range_invalid",
    "path": "/layout/keyframes"
+  },
+  {
+   "file": "invalid/range_invalid__zoom_one.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/layout/zoom_pm"
+  },
+  {
+   "file": "invalid/range_invalid__zoom_high.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/layout/zoom_pm"
+  },
+  {
+   "file": "invalid/range_invalid__zoom_split.json",
+   "context": "c30",
+   "check": "put",
+   "code": "range_invalid",
+   "path": "/layout/zoom_pm"
   },
   {
    "file": "invalid/range_invalid__keyframes_fit_blur.json",

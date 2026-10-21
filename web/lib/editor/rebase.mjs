@@ -5,7 +5,7 @@
 //
 // A document is seen as a set of *parts* (the conflict units): the body trim, the cold open, the
 // removals of each segment, each word edit field, each caption setting, the hook fields, layout,
-// its framing keyframes and the split's bands, logo, the text watermark's fields, music and audio fields. A step
+// its framing keyframes, the split's bands and the zoom, logo, the text watermark's fields, music and audio fields. A step
 // conflicts when it changes a part the other tab changed too (removal lists excepted: removals
 // merge semantically, and a replayed removal re-checks that it still fits), or when its
 // preconditions fail on the new document. A conflict is shown only when the two final values
@@ -46,7 +46,7 @@ const WORD_FIELDS = ["text", "hidden", "emphasis"];
 export const PARTS = Object.freeze([
   "base", "coldopen", "join.style", "join.sfx", "trim", "removals:cold_open", "removals:body", "cut_fade",
   "captions.enabled", "captions.pack", ...OVERRIDE_KEYS.map((key) => `captions.override.${key}`),
-  "hook.on", "hook.text", "hook.dur", "hook.y", "hook.design", "layout", "layout.keyframes", "layout.split",
+  "hook.on", "hook.text", "hook.dur", "hook.y", "hook.design", "layout", "layout.keyframes", "layout.split", "layout.zoom",
   "logo.asset", "logo.transform", "logo.opacity",
   "watermark.on", "watermark.text", "watermark.pos", "watermark.size", "watermark.opacity",
   "music.asset", "music.gain", "music.offset", "music.loop", "music.fades", "music.duck",
@@ -177,6 +177,7 @@ export function partValue(doc, part) {
     case "layout": return doc.layout.default;
     case "layout.keyframes": return doc.layout.keyframes ?? null;
     case "layout.split": return doc.layout.split ?? null;
+    case "layout.zoom": return doc.layout.zoom_pm ?? null;
     case "logo.asset":
     case "music.asset": {
       const track = trackOf(doc, part === "logo.asset" ? "visual" : "audio");
@@ -330,6 +331,10 @@ function setPart(doc, part, value, assets, ctx) {
     case "layout.split": {
       const { split: _split, ...rest } = doc.layout;
       return { ...doc, layout: value ? { ...doc.layout, split: value } : rest };
+    }
+    case "layout.zoom": {
+      const { zoom_pm: _zoom, ...rest } = doc.layout;
+      return { ...doc, layout: value ? { ...doc.layout, zoom_pm: value } : rest };
     }
     case "logo.asset":
     case "music.asset": {
@@ -554,10 +559,11 @@ function describe(doc, group, ctx) {
       const { mode, no_face: noFace } = doc.layout.default;
       const count = doc.layout.keyframes?.length ?? 0;
       // manual framing turns face-track's fallback off (CONTRACTS §5.44), so it is named instead
-      if (count) return `${mode} + bingkai manual (${count} keyframe)`;
+      const zoom = doc.layout.zoom_pm ? `, zoom ${doc.layout.zoom_pm / 10}%` : "";
+      if (count) return `${mode} + bingkai manual (${count} keyframe)${zoom}`;
       const split = doc.layout.split;
       if (mode === "split" && split) return `split ${split.top_pm / 10}/${100 - split.top_pm / 10}`;
-      return mode === "camera" && noFace === "fit_blur" ? `${mode} + latar blur` : mode;
+      return `${mode === "camera" && noFace === "fit_blur" ? `${mode} + latar blur` : mode}${zoom}`;
     }
     case "logo": return item(doc, "visual") ? "Dengan logo" : "Tanpa logo";
     case "watermark": {
@@ -657,7 +663,13 @@ export function rebase({ base, mine, theirs, steps, ctx }) {
   // layout along, and mine's layout brings mine's bands (or their absence).
   if (groups.get("layout")?.has("layout.split") && partValue(mine, "layout.split") !== null
     && doc.layout.default.mode !== "split" && differs("layout")) add("layout", "layout");
+  // The zoom belongs to every layout but the split (CONTRACTS §5.52): mine's zoom over the other
+  // tab's split brings mine's layout along (and so mine's bands, below), and mine's layout brings
+  // mine's zoom (or its absence).
+  if (groups.get("layout")?.has("layout.zoom") && partValue(mine, "layout.zoom") !== null
+    && doc.layout.default.mode === "split" && differs("layout")) add("layout", "layout");
   if (groups.get("layout")?.has("layout") && differs("layout.split")) add("layout", "layout.split");
+  if (groups.get("layout")?.has("layout") && differs("layout.zoom")) add("layout", "layout.zoom");
   for (const [group, parts] of groups) groups.set(group, [...parts].sort((a, b) => orderOf(a) - orderOf(b)));
   const conflicts = [...groups.entries()].map(([id, parts]) => ({
     id, label: groupLabel(id, mine, theirs, ctx), parts,

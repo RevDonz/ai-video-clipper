@@ -192,3 +192,20 @@ test("the dialog's commands", () => {
 test("the framing gizmo lives in the dialog, not over the 9:16 stage", () => {
   assert.deepEqual(GIZMOS.map((gizmo) => gizmo.id), ["caption", "logo"]);
 });
+
+test("with the zoom the box is smaller, centred at the crop's row, and travels further (CONTRACTS §5.52)", () => {
+  const plain = frameGeometry([1280, 720], [720, 1280]);
+  assert.equal(plain.boxTop, 0);
+  assert.equal(plain.boxHeight, 1);
+  const zoomed = frameGeometry([1280, 720], [720, 1280], 1500);
+  assert.deepEqual([zoomed.scaledW, zoomed.scaledH, zoomed.limit, zoomed.zoom], [3413, 1920, 2692, 1500]);
+  assert.equal(zoomed.boxWidth, 720 / 3413);
+  assert.equal(zoomed.boxTop, 320 / 1920);
+  assert.equal(zoomed.boxHeight, 1280 / 1920);
+  const rect = boxRect(1346, zoomed);
+  assert.ok(Math.abs(rect.left + rect.width / 2 - 0.5) < 0.001, "the centre pan is the middle of the picture");
+  assert.ok(Math.abs(rect.top + rect.height / 2 - 0.5) < 0.001);
+  // a 9:16 picture has travel once zoomed
+  assert.equal(frameGeometry([720, 1280], [720, 1280]).limit, 0);
+  assert.equal(frameGeometry([720, 1280], [720, 1280], 1500).limit, 360);
+});

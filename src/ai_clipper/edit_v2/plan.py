@@ -41,7 +41,7 @@ from . import timemap as tm
 from . import transitions as _transitions
 from .captions import CaptionResult
 from .doc import Issue
-from .layouts import LAYOUT_MODES
+from .layouts import LAYOUT_MODES, ZOOM_RANGE
 from .timemap import Fps, Piece
 from .transitions import JoinPlan
 
@@ -178,6 +178,18 @@ class RenderPlan:
     def split(self) -> Mapping[str, Any] | None:
         """Layar terbagi's bands and crops (§5.45), ``None`` for the other layouts."""
         return self.doc["layout"].get("split") if self.layout == "split" else None
+
+    @property
+    def zoom_pm(self) -> int:
+        """The zoom of every layout but the split, per mille (§5.52): 1000 without the key."""
+        return self.doc["layout"].get("zoom_pm", ZOOM_RANGE[0])
+
+    @property
+    def content_rect(self) -> tuple[int, int, int, int] | None:
+        """The source without its black bars, ``(x, y, w, h)`` (§5.52); ``None`` for a source
+        without bars (or one measured before the bars were)."""
+        rect = self.doc["base"]["source"].get("content_rect")
+        return None if rect is None else (rect["x"], rect["y"], rect["w"], rect["h"])
 
     @property
     def ass(self) -> str | None:

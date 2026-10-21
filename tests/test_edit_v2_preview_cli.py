@@ -153,6 +153,12 @@ CLIP = "clip_" + "a" * 24
                         json.dumps([[k, 0, "cut"] for k in range(101)]).encode())],
     b'{"op": "prepare", "jobId": "' + JOB.encode() + b'", "clipId": "' + CLIP.encode()
     + b'", "layout": "fill_center", "keyframes": [[1, 0, "cut"]]}',
+    # zoom (CONTRACTS §5.52): 1001–1500 per mille
+    *[b'{"op": "cells", "jobId": "' + JOB.encode() + b'", "clipId": "' + CLIP.encode()
+      + b'", "layout": "fill_center", "zoom": ' + zoom + b', "cells": [1], "cancelToken": null}'
+      for zoom in (b"1000", b"1501", b"null", b"1200.0", b'"1200"', b"true", b"[1200]")],
+    b'{"op": "prepare", "jobId": "' + JOB.encode() + b'", "clipId": "' + CLIP.encode()
+    + b'", "layout": "fill_center", "zoom": 1200}',
     # layar terbagi (CONTRACTS §5.45): [top_pm, [x_e5, y_e5, zoom_pm] per band]
     *[b'{"op": "cells", "jobId": "' + JOB.encode() + b'", "clipId": "' + CLIP.encode()
       + b'", "layout": "split", "split": ' + split
@@ -336,10 +342,10 @@ def test_the_ass_is_omitted_when_the_client_already_has_it(c30):
 def test_the_lane_section_tells_node_what_to_build(c30):
     result = ok(plan(c30, playhead=150))
     dto, lane = result["dto"], result["lane"]
-    assert set(lane) == {"playhead", "layout", "noFace", "keyframes", "split", "plateKey",
+    assert set(lane) == {"playhead", "layout", "noFace", "keyframes", "split", "zoom", "plateKey",
                          "cellFrames", "cells", "missing", "audio", "logo", "frameKey"}
     assert lane["playhead"] == 150 and lane["noFace"] is None and lane["keyframes"] is None
-    assert lane["split"] is None
+    assert lane["split"] is None and lane["zoom"] is None
     assert lane["layout"] == "fit_blur" and lane["plateKey"] == dto["plate"]["plateKey"]
     assert lane["cells"] == [cell["k"] for cell in dto["plate"]["cells"]] == lane["missing"]
     assert lane["audio"] == {"key": dto["audio"]["mixSha256"], "ready": False}
@@ -957,6 +963,37 @@ def test_prepare_and_cells_build_the_plate_of_the_split(job):
     assert ok(op(case, "prepare", layout="split"))["split"] == lane["split"]  # kept, not reset
     blurred = ok(op(case, "prepare", layout="fit_blur"))
     assert blurred["split"] is None and blurred["plateKey"] == plates.plate_key(seed)
+
+
+def test_prepare_and_cells_build_the_plate_of_the_zoom(job):
+    """CONTRACTS §5.52: the lane names the document's zoom, the cells op builds the plate of the
+    zoom it passes under the plan's key, and a switch into the split drops the zoom."""
+    case = job_case(job, 2)  # shared with the split's test: saves on its head
+    seed = case["seed"]
+    doc = with_layout(seed, "fill_center")
+    doc["layout"]["zoom_pm"] = 1250
+    lane = ok(plan(case, doc))["lane"]
+    assert lane["zoom"] == 1250 and lane["plateKey"] == plates.plate_key(doc)
+    wanted = lane["cells"][:1]
+    built = ok(op(case, "cells", layout="fill_center", zoom=1250, cells=wanted,
+                  cancelToken=None))
+    assert built == {"plateKey": lane["plateKey"], "built": wanted, "present": []}
+    plain = ok(op(case, "cells", layout="fill_center", cells=wanted, cancelToken=None))
+    assert plain["plateKey"] == plates.plate_key(with_layout(seed, "fill_center"))
+    split = layouts.split_lane(layouts.default_split())
+    assert_error(op(case, "cells", layout="split", split=split, zoom=1250, cells=wanted,
+                    cancelToken=None), 6, "range_invalid")
+    head, etag, _is_seed = store.get(case["clip"])
+    saved = copy.deepcopy(doc)
+    saved.update(revision=head["revision"] + 1, parent_sha256=etag)
+    store.put(case["clip"], expected_etag=etag,
+              idempotency_key="00000000-0000-4000-8000-0000000000f3",
+              raw=json.dumps(saved).encode(), now_ms=head["audit"]["updated_at_ms"] + 1)
+    prepared = ok(op(case, "prepare", layout=None))
+    assert prepared["zoom"] == 1250 and prepared["plateKey"] == lane["plateKey"]
+    assert ok(op(case, "prepare", layout="fit_blur"))["zoom"] == 1250
+    switched = ok(op(case, "prepare", layout="split"))
+    assert switched["zoom"] is None and switched["split"] == split
 
 
 def test_cells_are_published_once_under_their_plate_key(job):

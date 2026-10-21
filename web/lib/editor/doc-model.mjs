@@ -67,6 +67,12 @@ export const SPLIT_BANDS = Object.freeze(["top", "bottom"]);
 /** A band's zoom: 1000 is the largest box of the band's shape inside the source. */
 export const SPLIT_ZOOM_RANGE = Object.freeze([1000, 5000]);
 const SPLIT_CROP_KEYS = Object.freeze(["x_e5", "y_e5", "zoom_pm"]);
+/**
+ * "Zoom" (`layout.zoom_pm`, CONTRACTS §5.52): every layout but the split enlarged from 1000 (no
+ * key) to 1.5×, per mille; the editor offers 5 % steps.
+ */
+export const ZOOM_RANGE = Object.freeze([1000, 1500]);
+export const ZOOM_STEP_PM = 50;
 
 /** The split a switch into layar terbagi starts from (edit_v2.layouts.default_split): 30/70, both crops centred at zoom 1. */
 export function defaultSplit() {
@@ -76,15 +82,23 @@ export function defaultSplit() {
 
 /**
  * The whole `layout` after SetLayout to `mode` (`switchedLayout` for `default`): the manual framing
- * keyframes stay only with the crop layouts, the split's bands only with the split, and a switch
- * into the split starts from `defaultSplit()` (preview_cli `_switched` mirrors this for `prepare`).
+ * keyframes stay only with the crop layouts, the split's bands only with the split, a switch
+ * into the split starts from `defaultSplit()`, and the zoom stays with every layout but the split
+ * (preview_cli `_switched` mirrors this for `prepare`).
  */
 export function layoutAfterSwitch(layout, mode) {
-  const { keyframes, split, ...rest } = layout;
+  const { keyframes, split, zoom_pm: zoom, ...rest } = layout;
   const next = { ...rest, default: switchedLayout(layout.default, mode) };
   if (keyframes !== undefined && CROP_MODES.includes(mode)) next.keyframes = keyframes;
   if (mode === "split") next.split = split ?? defaultSplit();
+  else if (zoom !== undefined) next.zoom_pm = zoom;
   return next;
+}
+
+/** The document's zoom per mille: 1000 without `layout.zoom_pm` (CONTRACTS §5.52). */
+export function zoomOf(doc) {
+  const zoom = doc?.layout?.zoom_pm;
+  return Number.isSafeInteger(zoom) ? zoom : ZOOM_RANGE[0];
 }
 /** Cold-open join styles (docs/plans/2026-10-02-transisi-cold-open.md §1.1); `xfade` stays op_disabled. */
 export const JOIN_STYLES = Object.freeze(["cut", "flash_white", "dip_black"]);
@@ -558,6 +572,11 @@ export function checkDoc(doc, ctx) {
   if (doc.layout && Object.hasOwn(doc.layout, "keyframes")) checkKeyframes(doc.layout, ctx, add);
   if (doc.layout && Object.hasOwn(doc.layout, "split")) checkSplitLayout(doc.layout, add);
   else if (doc.layout?.default?.mode === "split") add("range_invalid", "/layout/split");
+  // the zoom (CONTRACTS §5.52): 1000 is no key (R10), and the split's bands carry their own
+  if (doc.layout && Object.hasOwn(doc.layout, "zoom_pm")
+    && (!isInt(doc.layout.zoom_pm, ZOOM_RANGE[0] + 1, ZOOM_RANGE[1]) || doc.layout.default?.mode === "split")) {
+    add("range_invalid", "/layout/zoom_pm");
+  }
 
   // tracks
   const referenced = new Map();

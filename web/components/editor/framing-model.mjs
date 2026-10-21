@@ -59,16 +59,16 @@ export function framingView({ doc, plan, frame, draft = null }) {
   const marks = keyframeMarks(doc, plan);
   const count = keyframes.length;
   const index = sf === null ? -1 : keyframes.findIndex((keyframe) => keyframe.sf === sf);
-  const { source, output } = doc ? framingSizes(doc) : { source: null, output: null };
+  const { source, output, zoom } = doc ? framingSizes(doc) : { source: null, output: null, zoom: undefined };
   let pan = CENTRE_E5;
   if (draft !== null) pan = draft;
   else if (index >= 0) pan = keyframes[index].pan_e5;
   let crop = null;
   if (source && output) {
     if (draft === null && index < 0 && count && sf !== null) {
-      crop = cropAt(keyframes, sf, source, output); // between keyframes: the render's crop
-      pan = panForCrop(crop, panLimit(source, output));
-    } else crop = cropAt([{ sf: 0, pan_e5: pan, move: "cut" }], 0, source, output);
+      crop = cropAt(keyframes, sf, source, output, zoom); // between keyframes: the render's crop
+      pan = panForCrop(crop, panLimit(source, output, zoom));
+    } else crop = cropAt([{ sf: 0, pan_e5: pan, move: "cut" }], 0, source, output, zoom);
   }
   const before = marks.filter((mark) => mark.f < frame).at(-1) ?? null;
   const after = marks.find((mark) => mark.f > frame) ?? null;
@@ -84,9 +84,10 @@ export function framingView({ doc, plan, frame, draft = null }) {
 }
 
 /**
- * The still's document: `doc` with the latar blur layout (no keyframes, so it validates), no
- * captions, tracks or assets, and its cold-open join as a plain cut without the whoosh, so the
- * truth frame is the source picture and nothing over it.
+ * The still's document: `doc` with the latar blur layout (no keyframes and no zoom, so it validates
+ * and shows the whole picture), no captions, tracks or assets, and its cold-open join as a plain
+ * cut without the whoosh, so the truth frame is the source picture (inside its black bars,
+ * CONTRACTS §5.52) and nothing over it.
  */
 export function sourceFrameDoc(doc) {
   const joins = doc.main.joins.map(({ sfx: _sfx, ...join }) => ({ ...join, style: "cut" }));

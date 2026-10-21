@@ -26,13 +26,13 @@ const SHA = (seed) => fakeSha256(`fake:${seed}`);
 // Appendix B: every command name the real store knows (T2.5 implements them all), with the
 // cold-open transition commands (docs/plans/2026-10-02-transisi-cold-open.md §7.2),
 // SetHookDesign (CONTRACTS §5.33), SetNoFace (§5.40), the framing commands (§5.44), the split's
-// (§5.45) and the text watermark's (§5.43).
+// (§5.45), SetZoom (§5.52) and the text watermark's (§5.43).
 export const COMMANDS = Object.freeze([
   "TrimStart", "TrimEnd", "RemoveWords", "RemoveGap", "RestoreRemoval", "ApplyCleanup",
   "SetColdOpen", "NudgeColdOpen", "SetJoinStyle", "SetJoinSfx", "EditWordText", "SetWordHidden", "SetWordEmphasis",
   "SetCaptionsEnabled", "SetCaptionPack", "SetCaptionOverride", "SetHookEnabled", "SetHookText",
   "SetHookDuration", "SetHookY", "SetHookDesign", "SetLayout", "SetNoFace",
-  "SetKeyframe", "RemoveKeyframe", "SetKeyframeMove", "ClearKeyframes", "SetSplitRatio", "SwapSplit", "SetSplitCrop",
+  "SetKeyframe", "RemoveKeyframe", "SetKeyframeMove", "ClearKeyframes", "SetSplitRatio", "SwapSplit", "SetSplitCrop", "SetZoom",
   "SetLogo", "RemoveLogo", "MoveLogo", "ResizeLogo",
   "SetLogoOpacity", "SnapLogo", "SetWatermarkText", "SetWatermarkPosition", "SetWatermarkSize", "SetWatermarkOpacity",
   "RemoveWatermark", "SetMusic", "RemoveMusic", "SetMusicGain", "SetMusicOffset",
@@ -442,6 +442,10 @@ const FAKE_REDUCERS = {
   SetSplitRatio: (doc, { top_pm: topPm }) => { doc.layout.split.top_pm = topPm; },
   SwapSplit: (doc) => { doc.layout.split = swappedSplit(doc.layout.split); },
   SetSplitCrop: (doc, { band, x_e5: x, y_e5: y, zoom_pm: zoom }) => { doc.layout.split[band] = { x_e5: x, y_e5: y, zoom_pm: zoom }; },
+  SetZoom: (doc, { zoom_pm: zoom }) => {
+    if (zoom === 1000) delete doc.layout.zoom_pm;
+    else doc.layout.zoom_pm = zoom;
+  },
   SetHookText: (doc, { text }) => { doc.tracks.find((track) => track.kind === "hook").items[0].payload.text = text; },
   SetHookDesign: (doc, { id }) => { doc.tracks.find((track) => track.kind === "hook").items[0].payload.design = { id, v: 1 }; },
   SetSourceGain: (doc, { gain_cdb: gain }) => { doc.audio.source.gain_cdb = gain; },

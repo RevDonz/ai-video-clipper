@@ -390,3 +390,36 @@
     transform: translateX(300%);
   }
 }
+
+/* "Zoom": the native range input in the text colour (the accent stays on the analysis bar), with
+   its value beside it; the track's row is a full tap target. */
+.zoom {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--ed-space-2);
+  align-items: center;
+}
+
+.range {
+  width: 100%;
+  min-height: var(--ed-target);
+  margin: 0;
+  accent-color: var(--text);
+  cursor: pointer;
+}
+
+.range:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 4px;
+}
+
+.range:disabled {
+  cursor: not-allowed;
+}
+
+.zoomValue {
+  min-width: 5ch;
+  font-size: var(--ed-font-size-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}

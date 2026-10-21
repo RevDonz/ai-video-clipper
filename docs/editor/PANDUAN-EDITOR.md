@@ -150,7 +150,8 @@ yang dipilih di sini menampilkan bagian tanpa wajah dengan latar blur; daftar ba
 bingkai** membuka jendela yang sama dengan Mode Lengkap (lihat di bawah); ringkasan kartu menulis
 "· bingkai manual" selama ada keyframe. Pada Layar terbagi kartu menampilkan **Pembagian** (30/70,
 50/50), **Atur potongan** dan **Tukar atas dan bawah**; ringkasannya "Layar terbagi · 30/70" (bagian
-atas lebih dulu).
+atas lebih dulu). Selama zoom bukan 100%, ringkasan menambah "· zoom 125%"; penggesernya ada di
+panel Tata letak Mode Lengkap.
 
 **Logo & Musik.** **Tambah logo** (lalu geser logo langsung di pratinjau), **Tambah musik** (catatan
 hak cipta muncul sekali, sama dengan di Mode Lengkap), kekuatan **Saat ada suara** (Halus, Sedang,
@@ -273,6 +274,20 @@ penggeser dilepas. **Hasil** di sebelahnya menampilkan kedua bagian seperti di e
 posisi membantu memilih frame yang memperlihatkan facecam; potongan berlaku untuk seluruh klip.
 **Selesai** atau Esc menutup jendela, Ctrl+Z membatalkan di dalamnya. Pindah ke tata letak lain
 menghapus potongan ini (Urungkan mengembalikannya); Atur bingkai tidak berlaku di Layar terbagi.
+
+**Zoom.** Bagian **Zoom** di panel Tata letak memperbesar gambar dari 100% sampai 150% (langkah
+5%) untuk Latar blur, Ikuti wajah dan Potong tengah; tepi gambar ikut terpotong. Geser
+penggesernya (atau pakai panah, Home dan End); zoom tersimpan saat penggeser dilepas, dan
+**Kembali ke 100%** mengembalikannya. Zoom berlaku untuk seluruh klip dan ikut saat tata letak
+diganti, kecuali ke Layar terbagi (di sana tiap bagian punya **Perbesar** sendiri di Atur
+potongan). Dengan zoom, kotak di Atur bingkai lebih kecil dan bisa digeser lebih jauh; video
+sumber yang sudah tegak pun bisa dibingkai. Pratinjau dan ekspor memakai zoom yang sama.
+
+**Garis hitam di video sumber.** Saat video diproses, Potongin memeriksa lima titik video
+sekali. Kalau ada garis hitam tetap di atas dan bawah (letterbox) atau kiri dan kanan
+(pillarbox), semua tata letak memakai gambar di dalamnya saja, dan panel Tata letak menulis
+"Garis hitam di tepi video sumber sudah dibuang." Video tanpa garis hitam tidak berubah sama
+sekali. Proyek yang diproses sebelum fitur ini ada tidak diperiksa ulang.
 
 **Logo.** **"Unggah logo"** (PNG, JPEG atau WebP, maks. 10 MB; PNG transparan paling rapi)
 atau seret file ke panel. Logo baru muncul di kanan atas, di luar area tombol TikTok/Reels. Posisi
