@@ -33,6 +33,7 @@ import {
   captionPositionText,
   captionWordsCommand,
   captionWordsId,
+  captionFaceNote,
   captionZoneNote,
   captionsEnabledCommand,
   highlightNote,
@@ -99,6 +100,7 @@ function TextPanelBody({ state, dispatch, api }) {
   // warning carries the hook item id.
   const zone = captionZoneNote(doc, state.seed, plan);
   const nearHook = hookNearNote(doc);
+  const face = captionFaceNote(plan); // the caption over the speaker's face (§5.48)
   const unsafeHook = hook !== null && (plan?.warnings ?? []).some((warning) => warning.code === "unsafe_zone"
     && (warning.path ? warning.path.startsWith("/tracks") : warning.ref === hook.id));
   const enableText = hookEnableText(draftText, state.seed);
@@ -145,6 +147,16 @@ function TextPanelBody({ state, dispatch, api }) {
           <p className={zone.tone === "warning" ? styles.warning : styles.note} data-caption-zone={zone.tone}>{zone.text}</p>
         ) : null}
         {nearHook ? <p className={styles.note} data-hook-near="">{nearHook}</p> : null}
+        {face ? (
+          <div className={styles.row} data-caption-face={face.fix?.id ?? ""}>
+            <p className={styles.warning}>{face.text}</p>
+            {face.fix ? (
+              <button type="button" className={styles.button} disabled={readOnly} onClick={() => send(face.fix.command)}>
+                {face.fix.label}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         <label className={styles.field}>
           <span>Ukuran caption</span>
           <span className={styles.value}>{Math.round(overrides.size_pm / 10)}%</span>

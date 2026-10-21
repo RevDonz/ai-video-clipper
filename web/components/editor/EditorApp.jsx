@@ -55,6 +55,7 @@ import { LANES } from "./timeline/lanes.mjs";
 import Timeline from "./timeline/Timeline.jsx";
 import { wordForTrimAt } from "./timeline/timeline-model.mjs";
 import TopBar from "./TopBar.jsx";
+import { runCommands } from "./transcript/actions.mjs";
 import { selectionStoreFor } from "./transcript/selection.mjs";
 import PillButton from "./ui/PillButton.jsx";
 
@@ -655,6 +656,10 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
         checks={checks}
         onClose={closeChecks}
         onJump={(check) => { player.seek(check.f); }}
+        onFix={readOnly ? null : (command) => {
+          const result = runCommands(dispatch, [command]);
+          if (!result.ok) notify(result.message);
+        }}
       />
       <ExportDialog
         open={exportOpen}

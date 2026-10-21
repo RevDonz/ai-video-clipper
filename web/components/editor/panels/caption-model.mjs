@@ -70,6 +70,8 @@ export const CAPTION_NOTES = Object.freeze({
   zoneAtSeed: "Posisi bawaan, dekat tombol TikTok. Kalau tertutup, geser caption ke atas.",
   zoneMoved: "Caption masuk area tombol TikTok/Reels; geser ke atas bila tertutup.",
   hookNear: "Caption dekat teks hook. Kalau bertumpuk di pratinjau, turunkan caption.",
+  overFace: "Caption menutupi wajah pembicara.",
+  overFaceNoFix: "Caption menutupi wajah pembicara. Geser caption atau kecilkan ukurannya.",
 });
 
 /** The id of the preset whose value is `value`; null when the value is off the presets. */
@@ -136,6 +138,26 @@ export function captionZoneNote(doc, seed, plan) {
   return captionAtSeedSpot(doc, seed)
     ? { tone: "note", text: CAPTION_NOTES.zoneAtSeed }
     : { tone: "warning", text: CAPTION_NOTES.zoneMoved };
+}
+
+/**
+ * The fix of the plan's `caption_over_face` warning (CONTRACTS §5.48): the engine names in `ref`
+ * the nearest of Atas, Tengah and Bawah that clears the face, and the fix sends that preset as
+ * the Posisi pills do. `{ id, label, command }`, or null (another warning, or no preset clears).
+ */
+export function captionFaceFix(warning) {
+  if (warning?.code !== "caption_over_face") return null;
+  const preset = CAPTION_POSITIONS.find((option) => option.id === warning.ref);
+  return preset ? { id: preset.id, label: `Pindah ke ${preset.label}`, command: captionCommand("y_e5", preset.value) } : null;
+}
+
+/** The caption views' line for the plan's `caption_over_face` warning: `{ text, fix }`, or null. */
+export function captionFaceNote(plan) {
+  const warnings = Array.isArray(plan?.warnings) ? plan.warnings : [];
+  const warning = warnings.find((item) => item?.code === "caption_over_face");
+  if (!warning) return null;
+  const fix = captionFaceFix(warning);
+  return { text: fix ? CAPTION_NOTES.overFace : CAPTION_NOTES.overFaceNoFix, fix };
 }
 
 function hookItemOf(doc) {

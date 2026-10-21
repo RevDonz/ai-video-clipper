@@ -3,7 +3,8 @@
 // Mode Cepat's Caption card (docs/plans/2026-10-02-editor-mode-cepat.md §1.4 Caption, §3): the
 // "Tampilkan caption" switch, the packs (the FFmpeg thumbnails), the highlight colour, three
 // sizes, words per line (CONTRACTS §5.30), the entrance (§5.39) and three positions. A size or
-// position set off the presets in Mode Lengkap presses no pill. The commands, the notes and the
+// position set off the presets in Mode Lengkap presses no pill. Under the positions, a caption over
+// the speaker's face shows its one-click fix (§5.48). The commands, the notes and the
 // hook hint are caption-model.mjs, shared with the Teks panel, so both views send the same command
 // and show the same text. Props: the card bundle of cards.mjs.
 import { useId, useState } from "react";
@@ -18,6 +19,7 @@ import {
   captionCommand,
   captionEntranceCommand,
   captionEntranceId,
+  captionFaceNote,
   captionPackCommand,
   captionWordsCommand,
   captionWordsId,
@@ -46,7 +48,9 @@ function CaptionBody({ state, dispatch }) {
   const uid = useId();
   const zone = captionZoneNote(doc, state.seed, state.plan);
   const nearHook = hookNearNote(doc);
-  const notes = [zone ? `${uid}-zone` : null, nearHook ? `${uid}-near` : null].filter(Boolean).join(" ") || undefined;
+  const face = captionFaceNote(state.plan);
+  const notes = [zone ? `${uid}-zone` : null, nearHook ? `${uid}-near` : null, face ? `${uid}-face` : null]
+    .filter(Boolean).join(" ") || undefined;
 
   const send = (command) => {
     const result = runCommands(dispatch, [command]);
@@ -87,6 +91,16 @@ function CaptionBody({ state, dispatch }) {
           <p id={`${uid}-zone`} className={zone.tone === "warning" ? styles.warning : styles.note} data-caption-zone={zone.tone}>{zone.text}</p>
         ) : null}
         {nearHook ? <p id={`${uid}-near`} className={styles.note} data-hook-near="">{nearHook}</p> : null}
+        {face ? (
+          <div className={styles.faceNote} data-caption-face={face.fix?.id ?? ""}>
+            <p id={`${uid}-face`} className={styles.warning}>{face.text}</p>
+            {face.fix ? (
+              <button type="button" className={styles.fixButton} disabled={locked} onClick={() => send(face.fix.command)}>
+                {face.fix.label}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </div>
   );

@@ -1358,3 +1358,24 @@ test("history: 'Edit klip' on a finished project opens its clip list, only while
   await page.getByRole("button", { name: "Muat ulang" }).click();
   await expect(page.getByRole("link", { name: /^Edit klip/ })).toHaveCount(0);
 });
+
+// CONTRACTS §5.48: a caption over the speaker's face is a check with its one-click fix, in Perlu
+// dicek and under the caption controls; the fix moves the caption to the preset the plan names.
+test("a caption over the face is a check whose fix moves the caption", async ({ page }) => {
+  const face = { code: "caption_over_face", path: "/captions/overrides/y_e5", ref: "tengah", f: 3 };
+  await openEditor(page, { planWarnings: [face] });
+  const y = () => page.evaluate(() => window.__potonginEditor.store.getState().doc.captions.overrides.y_e5);
+  expect(await y()).toBe(83000);
+  await openChecks(page, 1);
+  const panel = page.getByRole("dialog", { name: "Perlu dicek" });
+  await expect(panel.getByRole("listitem")).toContainText("Caption menutupi wajah pembicara");
+  await panel.getByRole("button", { name: "Pindah ke Tengah" }).click();
+  await expect.poll(y).toBe(60000);
+  await page.keyboard.press("Escape");
+  await page.getByRole("tab", { name: "Teks" }).click();
+  const note = page.locator('[data-caption-face="tengah"]');
+  await expect(note).toContainText("Caption menutupi wajah pembicara.");
+  await page.evaluate(() => window.__potonginEditor.store.dispatch("SetCaptionOverride", { key: "y_e5", value: 83000 }));
+  await note.getByRole("button", { name: "Pindah ke Tengah" }).click();
+  await expect.poll(y).toBe(60000);
+});
