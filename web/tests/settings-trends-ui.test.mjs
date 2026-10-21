@@ -178,6 +178,20 @@ test("both pages hang their buttons on the shared .btn and lime only on the main
   assert.equal(settings.match(/btn primary/g).length, 3, "Simpan, the retry after a failed load, and the .env import");
 });
 
+test("Pengaturan is the whole page's name and every save button says what it saves", async () => {
+  const page = withoutComments(await read("app/settings/page.jsx"));
+  const layout = withoutComments(await read("app/settings/layout.jsx"));
+  assert.match(page, /<h1>Pengaturan<\/h1>/);
+  assert.match(layout, /title: "Pengaturan"/);
+  const cards = await Promise.all((await filesUnder("app/settings", /\.jsx$/)).map(async (file) => withoutComments(await read(file))));
+  // A save button reads "Menyimpan…" while it works and its label otherwise.
+  const labels = [...cards.join("\n").matchAll(/"Menyimpan…" : ("[^"]*")/g)].map((match) => match[1]);
+  assert.ok(labels.length >= 3, labels.join(", "));
+  // No bare "Simpan" (or "Simpan key"): with several cards on one page, each names its form.
+  for (const label of labels) assert.match(label, /^"Simpan (pengaturan AI|watermark|key Groq)"$/, label);
+  assert.equal(new Set(labels).size, labels.length, labels.join(", "));
+});
+
 // --- Small pages ----------------------------------------------------------------------------
 
 const JOB = "0f8fad5b-d9cb-469f-a165-70867728950e";

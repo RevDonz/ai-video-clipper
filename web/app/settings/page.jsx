@@ -752,8 +752,8 @@ export default function SettingsPage() {
       <AppHeader current="/settings" />
 
       <section className="settingsHero shell">
-        <h1>Pengaturan AI</h1>
-        <p>AI yang memilih klip dan menulis judul, hook, dan caption. Job berikutnya langsung memakai pengaturan yang tersimpan di sini.</p>
+        <h1>Pengaturan</h1>
+        <p>AI, transkripsi, logo, watermark, dan cookies YouTube. Job berikutnya langsung memakai yang tersimpan di sini.</p>
       </section>
 
       {loadState === "loading" && <div className="shell"><div className="panel settingsState" role="status">Memuat pengaturan AI…</div></div>}
@@ -882,7 +882,7 @@ export default function SettingsPage() {
             ) : (
               <button type="button" className="btn" onClick={discard} disabled={!dirty || saving}>Batalkan</button>
             )}
-            <button type="button" className="btn primary" onClick={save} disabled={!dirty || saving}>{saving ? "Menyimpan…" : "Simpan"}</button>
+            <button type="button" className="btn primary" onClick={save} disabled={!dirty || saving}>{saving ? "Menyimpan…" : "Simpan pengaturan AI"}</button>
           </div>
         </div>
       )}

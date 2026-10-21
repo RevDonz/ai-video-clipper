@@ -1523,6 +1523,12 @@
   color: var(--text-muted);
 }
 
+.state a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
 .state .prepareSeconds {
   color: var(--text);
   font-size: var(--ed-font-size-lg);
