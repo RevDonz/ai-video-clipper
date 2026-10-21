@@ -175,6 +175,25 @@ def camera_for(clip_dir: Path, doc: Mapping[str, Any]) -> tuple[dict | None, str
     has no usable plan yet (``prepare`` with ``layout: "camera"`` builds it)."""
     if doc["layout"]["default"]["mode"] != "camera":
         return None, None
+    found = _find_plan(clip_dir, doc)
+    if found is None:
+        raise errors.AnalysisMissing("analysis_missing", path="/layout/default/mode",
+                                     ref="camera")
+    return found
+
+
+def faces_for(clip_dir: Path, doc: Mapping[str, Any]) -> dict | None:
+    """A camera plan of ``doc``'s window for its ``faces`` only (``build_plan(faces=…)``, the
+    caption check of CONTRACTS §5.50) under a layout that does not crop with it: the one
+    face-track would use, when one was built; ``None`` otherwise. Never builds one."""
+    if doc["layout"]["default"]["mode"] == "camera":
+        return None
+    found = _find_plan(clip_dir, doc)
+    return None if found is None else found[0]
+
+
+def _find_plan(clip_dir: Path, doc: Mapping[str, Any]) -> tuple[dict, str] | None:
+    """The document's own camera plan (``base.camera.sha256``), else the first matching one."""
     clip_dir = Path(clip_dir)
     named = doc["base"]["camera"]["sha256"]
     if isinstance(named, str) and _HEX64.fullmatch(named):
@@ -190,7 +209,7 @@ def camera_for(clip_dir: Path, doc: Mapping[str, Any]) -> tuple[dict | None, str
         found = _read_plan(clip_dir / name)
         if found is not None and _matches(found[0], doc):
             return found
-    raise errors.AnalysisMissing("analysis_missing", path="/layout/default/mode", ref="camera")
+    return None
 
 
 # --- plans, jobs and builds --------------------------------------------------------------------------

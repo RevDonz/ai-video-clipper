@@ -344,6 +344,42 @@
   font-weight: 400;
 }
 
+/* The caption over the face (CONTRACTS §5.50): the warning line and its one-click fix. */
+.faceNote {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.fixButton {
+  min-height: var(--ed-target, 44px);
+  padding: 0 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text);
+  font: 600 var(--ed-font-size-md, 14px) / 1.2 var(--ed-font-ui, var(--font));
+  cursor: pointer;
+  transition: background var(--dur-1), border-color var(--dur-1);
+}
+
+.fixButton:hover:not(:disabled) {
+  border-color: var(--text-muted);
+  background: var(--surface-2);
+}
+
+.fixButton:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  box-shadow: var(--ed-focus-ring);
+}
+
+.fixButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .addButton {
   display: flex;
   align-items: center;

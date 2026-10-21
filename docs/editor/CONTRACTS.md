@@ -126,7 +126,8 @@ def master_gain(measured: Loudness, target_clufs: int, tp_cdb: int) -> tuple[int
 
 # plan.py / compile_ffmpeg.py / layouts.py / execute.py / verify.py / derive.py
 def build_plan(doc: Mapping, *, words: Mapping, camera: Mapping | None,
-               assets: Mapping[str, Mapping], resources: Resources) -> RenderPlan   # .to_json(), .plan_sha256
+               assets: Mapping[str, Mapping], resources: Resources,
+               faces: Mapping | None = None) -> RenderPlan   # .to_json(), .plan_sha256; faces: §5.50
 def compile_job(plan: RenderPlan, *, mode: str, source: Path, assets_root: Path,
                 size: tuple[int, int] | None = None, quality: str = "standar",
                 cells: Sequence[int] = (), frame: int | None = None,
@@ -957,7 +958,7 @@ sample_ms: 750, samples [[t_ms, center_pm], …], cuts [bool, …], no_face [[s_
 1000)`; `cuts` is parallel to `samples`; `no_face` lists runs without a detection longer than
 1,500 ms. T1.3 interpolates like `face_tracking.build_crop_expression` (linear between
 samples, held across a cut) and turns the result into an integer, even crop x per source-grid
-frame.
+frame. Optional `faces` (§5.50): the framed face per sample, `[x_pm, y_pm, w_pm, h_pm] | null`.
 
 ## 5.8 RenderPlan and the T1.3/T1.4 audio seam
 
@@ -3625,3 +3626,71 @@ delegation). `schema_minor`, `COMPILER_ID`, `COMPILER_VERSION` and the plan sche
   next open or export. `tests/fixtures/edit_v2/plan-shas.json` is recomputed; the plate and mix
   keys of semantics 1 stay pinned next to those of 2 (`PLATE_KEYS`,
   `MIX_IDENTITY_SEMANTICS_2`), so nothing but the bump moved them.
+## 5.50 Caption over the speaker's face (2026-10-21)
+
+A caption that sits on the speaker's face is a check: the plan warns `caption_over_face` and the
+editor moves the caption to the nearest of Atas, Tengah and Bawah that clears the face, in one
+click. The document, the schema and the render do not change; warnings are not part of the plan
+sha, so `RENDER_SEMANTICS` stays.
+
+### The face boxes (camera plan, §5.7)
+
+- `speaker_track.choose_faces` returns the framed face per sample (`choose` is its centres, so the
+  crop is unchanged). `face_window.detect_window(..., boxes=True)` adds a sixth value, the framed
+  face as `(x, y, w, h)` shares of the source frame or `None`.
+- `camera.build_camera_plan` asks the window detector for boxes when it takes `boxes`, and takes a
+  sixth value from any other detector, and writes `faces`: one entry per sample,
+  `[x_pm, y_pm, w_pm, h_pm]` (`ms_from_seconds` rounding, clamped inside the frame) or `null`.
+  The boxes are raw, not smoothed. A detector without boxes, and every plan built before, has no
+  `faces` key: the schema stays `potongin.camera-plan/1` and those plans keep their bytes.
+- Under face-track a new plan's sha changes (it carries `faces`), so its plate key and plan sha
+  change with it; plans already on disk are read as they are.
+
+### The check (`edit_v2/face_zone.py`, stdlib)
+
+- `build_plan(..., faces=None)`: a camera plan read only for its `faces`. Without it the `camera`
+  plan given is used. `plates.faces_for(clip, doc)` finds the plan face-track would use for the
+  same window, rate, size and source (never builds one; `None` under face-track, whose own plan is
+  passed as `camera`). `preview_cli`, `render_edit.load_render_inputs` and `render_queue` pass it,
+  so the check also runs under Latar blur, Potong tengah and Layar terbagi once the clip's faces
+  were analysed.
+- The caption block is `caption_box`: the same integers as `captionBox` in
+  `gizmos/caption-geometry.mjs` (§5.47), its metrics read from the pack file (font size ratio and
+  scale, outline, the font's line height: DejaVu Sans 1.164 em, Montserrat 1.219 em, one line for
+  packs with `max_width_pm`, else two).
+- Each sample whose source frame (`sf_floor(t_ms)`) is kept by a piece and whose output frame shows
+  a caption cue is counted. Its face is mapped into the output (`face_rects`): the scaled source
+  minus the crop x for Potong tengah (`centre_x`), Ikuti wajah (`crop_positions`, or the fit-blur
+  picture where the latar blur fallback shows the frame) and manual framing (`keyframe_positions`);
+  the fitted picture for Latar blur; each band's crop for Layar terbagi (two rectangles when both
+  bands show it). Rectangles are clipped to the picture or band.
+- A sample is over the face when the overlap is at least 15 % (`OVERLAP_PM`) of the smaller of the
+  face and the block. The clip is warned when at least 25 % (`SHARE_PM`) and at least 2
+  (`MIN_SAMPLES`) of the counted samples are over the face.
+- One issue: `{code: "caption_over_face", path: "/captions/overrides/y_e5", ref, f}`. `f` is the
+  earliest output frame of those samples; `ref` is the fix, the id of the preset
+  (`edit_v2.CAPTION_PRESETS`: `atas` 38000, `tengah` 60000, `bawah` 83000) nearest to the
+  caption's `y_e5`, other than that value, under which the clip would not be warned (ties go up),
+  or absent when none clears.
+- `errors.WARNING_CODES`, `render_queue.V3_WARNING_CODES` (through it) and
+  `web/lib/clip-renders.mjs` accept the code. Message: "Caption menutupi wajah pembicara".
+
+### Client
+
+- `caption-model.captionFaceFix(warning)` → `{id, label: "Pindah ke Tengah", command}` (the
+  Posisi pills' `SetCaptionOverride {key: "y_e5"}`, merge key `null`: one undo step), or null for
+  another code or an unknown or absent `ref`. `captionFaceNote(plan)` → `{text, fix}`: "Caption
+  menutupi wajah pembicara." with the fix, or "… Geser caption atau kecilkan ukurannya." without.
+- It is a check (severity `warning`, a tick before export), also at the auto clip's spot: unlike
+  the TikTok-zone note (K5), a face under the caption is a problem in the clip itself.
+- "Perlu dicek" shows the fix beside the jump (`onFix`, null when read-only); the Caption card
+  (Mode Cepat, 44 px button, named in the Posisi pills' `aria-describedby`) and the Teks panel
+  (Mode Lengkap) show the line and the button under the position controls.
+
+### Gates
+
+`tests/test_edit_v2_face_zone.py` (mapping per layout, thresholds, fix, cut samples, malformed
+faces, the caption box and presets against the JS sources), `tests/test_edit_v2_camera.py`,
+`tests/test_face_window.py`, `tests/test_speaker_track.py`, `tests/test_edit_v2_plan.py`,
+`tests/test_edit_v2_plates.py`; `web/tests/editor-caption-face.test.mjs`; browser spec
+`web/e2e/editor-shell.spec.mjs` ("a caption over the face…") on the editor fakes.

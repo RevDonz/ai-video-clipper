@@ -1202,6 +1202,12 @@
   background: var(--danger-bg);
 }
 
+/* The one-click fix of a check (the caption over the face, CONTRACTS §5.50): a 44 px target. */
+.checkFix {
+  flex: none;
+  min-height: var(--ed-target);
+}
+
 /* A note informs (the caption at the auto clip's spot, K5): the calm info tone, not the warning one. */
 .checkItem_info {
   border-color: var(--info-border);

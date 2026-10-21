@@ -26,6 +26,7 @@ export const MESSAGES = Object.freeze({
   no_face: "Tidak ada wajah terdeteksi di bagian ini; video dipusatkan",
   no_face_blur: "Tidak ada wajah terdeteksi di bagian ini; tampil dengan latar blur",
   unsafe_zone: "Caption, hook, atau logo masuk ke area tombol TikTok",
+  caption_over_face: "Caption menutupi wajah pembicara",
   loudness_clamped: "Target kenyaringan tidak tercapai tanpa pecah; volume dibatasi",
   peak_reduced: "Volume diturunkan agar audio tidak pecah",
   music_shorter_than_clip: "Musik lebih pendek dari klip dan tidak diulang",
