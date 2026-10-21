@@ -61,12 +61,15 @@ test("the lane registry lists the W3 lanes under the W2 ones (Appendix C.3)", ()
   }
 });
 
-test("the Stage gizmo slot has a registry with the logo gizmo (T3.2)", () => {
-  assert.deepEqual(GIZMOS.map((gizmo) => [gizmo.id, gizmo.wave, gizmo.owner, gizmo.component]), [["logo", "W3", "T3.2", "LogoGizmo"]]);
+test("the Stage gizmo slot has a registry with the caption gizmo and the logo gizmo (T3.2) on top", () => {
+  assert.deepEqual(GIZMOS.map((gizmo) => [gizmo.id, gizmo.wave, gizmo.owner, gizmo.component]),
+    [["caption", "W3", "gizmo-caption", "CaptionGizmo"], ["logo", "W3", "T3.2", "LogoGizmo"]]);
   assert.ok(Object.isFrozen(GIZMOS));
   assert.equal(gizmoById("logo").file, "gizmos/LogoGizmo.jsx");
+  assert.equal(gizmoById("caption").file, "gizmos/CaptionGizmo.jsx");
   assert.equal(gizmoById("nope"), null);
   placeholder(gizmoById("logo"));
+  placeholder(gizmoById("caption"));
   const app = readFileSync(path.join(editorDir, "EditorApp.jsx"), "utf8");
   assert.match(app, /GIZMOS/, "EditorApp mounts the gizmo registry into the Stage slot");
 });
