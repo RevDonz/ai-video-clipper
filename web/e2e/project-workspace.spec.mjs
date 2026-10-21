@@ -6,7 +6,7 @@ import { expect } from "@playwright/test";
 import { login, skipWithoutCredentials, test } from "./support/harness.mjs";
 
 // The project page as a workspace (plan P1 #7 + A5): a poster grid and one detail panel, the
-// "Semua" / "Skor 8+" filters, left/right between clips, "Pilih" mode with "Unduh (n)" and
+// "Semua" / "Skor 8+" / "Diedit" filters, left/right between clips, "Pilih" mode with "Unduh (n)" and
 // "Unduh semua" through the ZIP route, "NN-judul" download names, and the notes of clips that
 // fell back (A2). The job API, the clips listing and the ZIP route are faked inside the browser
 // (page.route), so nothing on the server changes; only the login is real. Run against a
@@ -178,10 +178,16 @@ test.describe("project workspace (faked job API)", () => {
     await expect(page.locator("[data-poster][tabindex='0']")).toHaveCount(1);
 
     const filters = page.getByRole("group", { name: "Saring klip" });
-    await expect(filters.getByRole("button")).toHaveText([/^Semua\s+4$/, /^Skor 8\+\s+3$/]);
+    await expect(filters.getByRole("button")).toHaveText([/^Semua\s+4$/, /^Skor 8\+\s+3$/, /^Diedit\s+1$/]);
     await filters.getByRole("button", { name: /^Skor 8\+/ }).click();
     await expect(posters(page)).toHaveCount(3);
     await expect(filters.getByRole("button", { name: /^Skor 8\+/ })).toHaveAttribute("aria-pressed", "true");
+    await filters.getByRole("button", { name: /^Semua/ }).click();
+    await expect(posters(page)).toHaveCount(4);
+    // "Diedit": the clips whose poster says "Diedit" (the listing names clip 1 as edited).
+    await filters.getByRole("button", { name: /^Diedit/ }).click();
+    await expect(posters(page)).toHaveCount(1);
+    await expect(posters(page).nth(0)).toContainText("Diedit");
     await filters.getByRole("button", { name: /^Semua/ }).click();
     await expect(posters(page)).toHaveCount(4);
 

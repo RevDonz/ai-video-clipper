@@ -1,5 +1,5 @@
 // The project page as a workspace (/projects/[id]): the poster grid and its one detail panel,
-// the "Semua" and "Skor 8+" filters, left/right between clips, "Pilih" mode for the ZIP, and the
+// the "Semua", "Skor 8+" and "Diedit" filters, left/right between clips, "Pilih" mode for the ZIP, and the
 // notes of clips that fell back.
 // Client-safe: no Node built-ins.
 
@@ -18,8 +18,9 @@ export function clipsHeading(clips, status) {
 }
 
 const FILTERS = Object.freeze([
-  Object.freeze({ value: "all", label: "Semua" }),
-  Object.freeze({ value: "high", label: "Skor 8+" }),
+  Object.freeze({ value: "all", label: "Semua", empty: "Belum ada klip." }),
+  Object.freeze({ value: "high", label: "Skor 8+", empty: "Belum ada klip dengan skor 8 atau lebih." }),
+  Object.freeze({ value: "edited", label: "Diedit", empty: "Belum ada klip yang diedit." }),
 ]);
 
 /** The total as the pill shows it (one decimal), so the mark and the number always agree; else null. */
@@ -58,24 +59,49 @@ export function clipFallbackNotes(clip) {
 }
 
 /**
- * The filter chips with their counts and the clips the grid shows. Without any scored clip (a
- * project made before the current selection) the chips are hidden and every clip shows.
+ * The clip numbers the editor changed (their entry carries the "Diedit" badge), or null when no
+ * clip has an editor entry that opens (the listing is off, loading or failed, or the project
+ * predates the editor): "Diedit" then has nothing to go on and stays hidden.
  */
-export function clipFilterView(clips, filter) {
+export function editedIndexes(clips, entryFor) {
   const list = Array.isArray(clips) ? clips : [];
-  const showFilters = list.some((clip) => scorePill(clip) !== null);
-  const active = showFilters && filter === "high" ? "high" : "all";
-  const high = list.filter(isHighScore);
+  const entries = list.map((clip) => [clip.index, entryFor(clip)]);
+  const edited = (entry) => entry?.editBadge?.tone === "edited";
+  if (!entries.some(([, entry]) => entry?.editHref || edited(entry))) return null;
+  return new Set(entries.filter(([, entry]) => edited(entry)).map(([index]) => index));
+}
+
+/**
+ * The filter chips with their counts, the active one and the clips the grid shows. "Skor 8+"
+ * needs a scored clip (a project made before the current selection has none), "Diedit" the
+ * `edited` set from editedIndexes; with neither the chips are hidden and every clip shows. A
+ * chip that is not offered reads as "Semua".
+ */
+export function clipFilterView(clips, filter, edited = null) {
+  const list = Array.isArray(clips) ? clips : [];
+  const shown = {
+    all: list,
+    high: list.some((clip) => scorePill(clip) !== null) ? list.filter(isHighScore) : null,
+    edited: edited instanceof Set ? list.filter((clip) => edited.has(clip.index)) : null,
+  };
+  const offered = FILTERS.filter((item) => shown[item.value] !== null);
+  const active = offered.some((item) => item.value === filter) ? filter : "all";
   return {
-    showFilters,
-    filters: FILTERS.map((item) => ({
+    showFilters: offered.length > 1,
+    active,
+    filters: offered.map((item) => ({
       value: item.value,
       label: item.label,
-      count: item.value === "high" ? high.length : list.length,
+      count: shown[item.value].length,
       active: item.value === active,
     })),
-    visible: active === "high" ? high : list,
+    visible: shown[active],
   };
+}
+
+/** The line an empty filter shows. */
+export function filterEmptyText(filter) {
+  return (FILTERS.find((item) => item.value === filter) ?? FILTERS[0]).empty;
 }
 
 const CLIP_PARAM = /^[1-9]\d{0,3}$/;
