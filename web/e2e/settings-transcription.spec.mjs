@@ -30,6 +30,9 @@ async function fakeTranscription(page, state, { put = null } = {}) {
 }
 
 const card = (page) => page.getByRole("region", { name: "Transkripsi" });
+// The key field itself: with a key saved, the "API key Groq" label names the group of its
+// Ganti and Hapus buttons instead.
+const keyField = (section) => section.getByLabel("API key Groq").and(section.locator("input"));
 
 test.describe("Transkripsi", () => {
   test.beforeEach(() => skipWithoutCredentials(test));
@@ -53,7 +56,7 @@ test.describe("Transkripsi", () => {
     await expect(section.getByRole("status")).toHaveText("API key tersimpan.");
     await expect(section.getByText("API key tersimpan", { exact: true })).toBeVisible();
     expect(seen.puts[1]).toEqual({ enabled: true, apiKey: { action: "replace", value: KEY } });
-    await expect(section.getByLabel("API key Groq")).toHaveCount(0);
+    await expect(keyField(section)).toHaveCount(0);
 
     await section.getByRole("button", { name: "Hapus" }).click();
     await expect(section.getByRole("status")).toHaveText("API key dihapus.");
@@ -65,7 +68,7 @@ test.describe("Transkripsi", () => {
     await login(page, "/settings");
     const section = card(page);
     await expect(section).toContainText("Memakai API key Groq dari Pengaturan AI.");
-    await expect(section.getByLabel("API key Groq")).toHaveCount(0);
+    await expect(keyField(section)).toHaveCount(0);
     await expect(section.getByRole("checkbox", { name: "Transkrip lewat Groq" })).toBeChecked();
   });
 
@@ -77,7 +80,7 @@ test.describe("Transkripsi", () => {
     await section.getByRole("button", { name: "Isi ulang" }).click();
     await expect(section.getByLabel("API key Groq")).toBeVisible();
     await section.getByRole("button", { name: "Batal" }).click();
-    await expect(section.getByLabel("API key Groq")).toHaveCount(0);
+    await expect(keyField(section)).toHaveCount(0);
   });
 
   test("without the sealing secret the key field stays off", async ({ page }) => {
