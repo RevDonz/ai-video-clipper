@@ -500,6 +500,9 @@ KEYFRAMES_900 = ((40, 0, "cut"), (150, 100_000, "cut"), (330, 30_000, "slide"),
 # wide band at the bottom zoomed 2.5×.
 SPLIT_30_70 = (300, (20_000, 0, 1600), (75_000, 30_000, 1200))
 SPLIT_SWAPPED = (700, (60_000, 0, 1000), (10_000, 40_000, 2500))
+# 1:1 (CONTRACTS §5.54): the 30 % band is far wider than tall, so SPLIT_30_70's 1.6× top crop
+# would be only 120 source rows and leave out the ruler (rows 108–148); 1.2× keeps it.
+SPLIT_SQUARE = (300, (20_000, 0, 1200), (75_000, 30_000, 1200))
 # A 4:3 picture inside the 640×360 barcode source, as if pillarboxed (§5.52).
 PILLARBOX_43 = (80, 0, 480, 360)
 
@@ -566,7 +569,7 @@ P_PLATE_CASES = (*(
     Case("plate_camera_square", (30000, 1001), 900, "camera", cuts=10, captions=False,
          output=(720, 720)),
     Case("plate_split_square", (30000, 1001), 900, "split", cuts=10, captions=False,
-         split=SPLIT_30_70, output=(1080, 1080)))
+         split=SPLIT_SQUARE, output=(1080, 1080)))
 PF_RENDER_CASES = tuple(
     Case(f"pf_60s_{layout}", (30000, 1001), 2_000, layout, source_size=(1280, 720), cuts=5,
          hook=True)
