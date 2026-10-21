@@ -503,7 +503,7 @@ test.describe("text panel", () => {
     await openHarness(page, { panel: "text" });
     const packs = page.getByRole("group", { name: "Gaya caption" });
     await expect(packs.getByRole("radio")).toHaveCount(6);
-    await expect(packs.getByRole("radio", { name: "Karaoke" })).toBeChecked();
+    await expect(packs.getByRole("radio", { name: /^Karaoke/ })).toBeChecked();
     await packs.getByRole("radio", { name: "Bold" }).check();
     expect(await lastCommand(page)).toEqual({ type: "SetCaptionPack", args: { id: "bold" }, mergeKey: null });
     await expect(packs.getByRole("radio", { name: "Bold" })).toBeChecked();
