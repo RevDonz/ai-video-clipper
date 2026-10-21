@@ -81,7 +81,8 @@ def test_the_dto_has_the_plan_shape_and_fixture_urls():
     assert dto["text"]["ass"] == plan.ass
     assert dto["text"]["url"] == f"{pf.BASE}/cfr_29.97/karaoke/captions.ass"
     assert {font["family"] for font in dto["text"]["fonts"]} == {
-        "DejaVu Sans", "DejaVu Sans Bold", "Montserrat ExtraBold"}
+        "DejaVu Sans", "DejaVu Sans Bold", "Montserrat ExtraBold", "Anton",
+        "DM Serif Display Italic"}
     assert all(font["url"].startswith(f"{pf.BASE}/fonts/") for font in dto["text"]["fonts"])
     assert dto["plate"]["cellFrames"] == 60
     assert dto["plate"]["plateKey"] == "k" * 64

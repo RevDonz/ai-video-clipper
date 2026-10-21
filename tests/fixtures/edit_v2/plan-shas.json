@@ -1,6 +1,6 @@
 {
  "schema": "potongin.edit-v2-plan-shas/1",
- "note": "plan_sha256 of every valid fixture before the cold-open transition (real caption track and envelopes, the repository's resources), recomputed for the karaoke sweep and RENDER_SEMANTICS 2 (CONTRACTS §5.49)",
+ "note": "plan_sha256 of every valid fixture before the cold-open transition (real caption track and envelopes, the repository's resources), recomputed for the karaoke sweep and RENDER_SEMANTICS 2 (CONTRACTS §5.49) and the packs' emphasis blocks (§5.51)",
  "plans": {
   "body_max_300s__c25": "fb922f89c25c8e101b35d230b79806aa32fe0b8b3b145a7e8beb525ba3a8088e",
   "body_min_3s__c30": "dad2259a8243a46b8cfa555da10e17591ecc3586ec030b80181c247606a16b6f",
@@ -12,7 +12,7 @@
   "cold_open_removed__c30": "18d71593742087bd4285dc46e23314ab30a1cb7c12bf4f6038f30c8bec89a4d1",
   "cut_fade_0__c30": "467c8372219ef984a50a9a1be6d27de4039911e1c98e29c13d2d44f970b85f0b",
   "cut_fade_50__c30": "403d78d6dc978b7a157c30fad5e446d150653dcd7f984ad511048a8114ba33dc",
-  "full_example__c30": "b676759161cf6baa8d36b794033578dd2a09f0bbfbd6e1fbe36d6b83e6028909",
+  "full_example__c30": "e69f029b7e2ee90237e0727e3a8a49461ddbe5e912aa1b4ca9214ea37a9a594a",
   "hook_added__c25": "a2e3fd03dfcd06745a6684efbe1dcdca565949b2c02475649bc983eeb1859d2b",
   "hook_max_dur__c30": "3bc346728840a7bb414091d78358690b2976a66762caeb45b46d5358913211e7",
   "hook_min_dur__c30": "11e0f612e402ee8176c9105bcf95f359935b1db4d6b014f748f4d8d6ddc7f970",
@@ -64,6 +64,6 @@
   "trim_end_earlier__c30": "6fa1ccce7ba6c5f188cfc1f39d60dd347835ead55dd947d79b9af5eba91a73e6",
   "trim_start_later__c30": "ce90686750b9b74af6b25b251d7f7f821016012240ae84434bdcc1a783694f0f",
   "word_edit_unicode__c30": "d2ac61f397715e3bea6224b6c8d6350e4f8258232b0345e20bbd6a0cb8ee07b4",
-  "word_edits__c30": "d847f71b67e2bf5cafeca1994e70cf1c4056234dba79519518afdc7a932f7ff2"
+  "word_edits__c30": "57f077a79a55f0a069397aa25e25fd956d67d41f71441f47d55b14096dadfd4f"
  }
 }

@@ -32,7 +32,7 @@ from .edit_v2 import (
     WATERMARK_TEXT_MAX,
     WORDS_MAX_RANGE,
 )
-from .edit_v2.glyphs import RESOURCES_DIR, advance_units, font_path
+from .edit_v2.glyphs import RESOURCES_DIR, advance_units, font_path, fonts_manifest
 from .edit_v2.timemap import Fps, div_round_half_up, safe_cs
 from .subtitles import CaptionCue, FrameCue, FrameWord, clean_caption_text
 
@@ -444,6 +444,9 @@ _RESOURCE_ID = re.compile(r"[a-z][a-z0-9-]{0,31}")
 _OVERRIDE_KEYS = ("y_e5", "size_pm", "case", "highlight", "emphasis")
 _WORD_BOX_KEYS = frozenset({"pad_x_pm", "top_pm", "radius_pm", "dark_text", "light_text",
                             "dark_from_lstar"})
+# The keyword's size (CONTRACTS §5.51): 100-200 % of the line's font size.
+EMPHASIS_SCALE_RANGE = (1000, 2000)
+_EMPHASIS_REVEALS = ("static", "word", "karaoke")
 # "Animasi masuk" (CONTRACTS §5.39): every line opens within this many milliseconds. Pop starts at
 # 70% and overshoots to 108% before it settles; Blur starts at a radius of H/128.
 ENTRANCE_MS = 120
@@ -502,6 +505,21 @@ class Glow:
 
 
 @dataclass(frozen=True)
+class Emphasis:
+    """How a pack draws a keyword (pack field ``emphasis``), besides the emphasis colour.
+
+    The keyword is ``scale_pm`` per mille of the line's font size (rounded half up) and, when
+    ``font_file`` is set, in that accent font (``font_family`` is the name libass selects it
+    by; ``bold`` its weight flag). Keywords of a pack without the block change colour only.
+    """
+
+    scale_pm: int
+    font_family: str | None = None
+    font_file: str | None = None
+    bold: bool | None = None
+
+
+@dataclass(frozen=True)
 class CaptionPack:
     """An immutable caption preset (``resources/caption-packs/<id>/v<v>.json``, plan §5.4).
 
@@ -512,7 +530,8 @@ class CaptionPack:
     ``box_style`` is how a boxed pack draws its box (``BOX_STYLES``); only boxed pack files
     carry the field, and ``"vector"`` needs a one-line static boxed pack. ``word_box`` is the
     spoken word's box of a ``word_box`` reveal (one-line packs without a border box only).
-    ``glow`` is the light around a one-line karaoke pack's line (``Glow``).
+    ``glow`` is the light around a one-line karaoke pack's line (``Glow``). ``emphasis`` is
+    the keyword's size and accent font (``Emphasis``; outlined static, word and karaoke packs).
     """
 
     id: str
@@ -541,6 +560,7 @@ class CaptionPack:
     box_style: str = "border"
     word_box: WordBox | None = None
     glow: Glow | None = None
+    emphasis: Emphasis | None = None
 
 
 @dataclass(frozen=True)
@@ -704,7 +724,8 @@ def _load_pack(pack_id: str, version: int) -> CaptionPack:
     expected = {"schema", "id", "v", "name", "style_name", "font", "size", "outline", "shadow",
                 "border_style", "colours", "margin_side_pm", "reveal", "words_per_cue",
                 "max_width_pm", "defaults"}
-    if set(data) - {"box_style", "word_box", "glow"} != expected or data["schema"] != PACK_SCHEMA:
+    optional = {"box_style", "word_box", "glow", "emphasis"}
+    if set(data) - optional != expected or data["schema"] != PACK_SCHEMA:
         raise ValueError("caption pack file does not follow potongin.caption-pack/1")
     if "box_style" in data and data["border_style"] != 3:
         raise ValueError("pack box_style is only for boxed packs (border_style 3)")
@@ -743,6 +764,8 @@ def _load_pack(pack_id: str, version: int) -> CaptionPack:
     glow = _glow(data.get("glow"))
     _check_glow(glow, border_style=data["border_style"], reveal=data["reveal"],
                 max_width_pm=max_width)
+    emphasis = _emphasis(data.get("emphasis"))
+    _check_emphasis(emphasis, border_style=data["border_style"], reveal=data["reveal"])
     defaults = data["defaults"]
     _check_overrides(defaults)
     return CaptionPack(
@@ -772,6 +795,7 @@ def _load_pack(pack_id: str, version: int) -> CaptionPack:
         box_style=box_style,
         word_box=word_box,
         glow=glow,
+        emphasis=emphasis,
     )
 
 
@@ -829,6 +853,47 @@ def _check_glow(glow: Glow | None, *, border_style: int, reveal: str,
                 max_width_pm: int | None) -> None:
     if glow is not None and (reveal != "karaoke" or border_style != 1 or max_width_pm is None):
         raise ValueError("pack glow needs a one-line karaoke pack (border_style 1, max_width_pm)")
+
+
+def _font_names(file_name: str) -> frozenset[str]:
+    """The names an accent font may be given by, from ``fonts.json``: its family and "family
+    style", its full name (libass matches both)."""
+    for entry in fonts_manifest()["fonts"]:
+        if entry["file"] == file_name:
+            family, style = entry["family"], entry["style"]
+            return frozenset({family, f"{family} {style}"})
+    return frozenset()
+
+
+def _emphasis(value: object) -> Emphasis | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict) or not {"scale_pm"} <= set(value) <= {"scale_pm", "font"}:
+        raise ValueError("pack emphasis must be {scale_pm[, font]}")
+    low, high = EMPHASIS_SCALE_RANGE
+    if not _is_int(value["scale_pm"]) or not low <= value["scale_pm"] <= high:
+        raise ValueError(f"pack emphasis.scale_pm must be an integer {low}-{high}")
+    if "font" not in value:
+        return Emphasis(scale_pm=value["scale_pm"])
+    font = value["font"]
+    if (not isinstance(font, dict) or set(font) != {"family", "file", "bold"}
+            or not isinstance(font["bold"], bool) or not isinstance(font["family"], str)
+            or not isinstance(font["file"], str)):
+        raise ValueError("pack emphasis.font must be {family, file, bold}")
+    try:
+        font_path(font["file"])
+    except ValueError:
+        raise ValueError("pack emphasis.font must be a pinned font of fonts.json") from None
+    if font["family"] not in _font_names(font["file"]):
+        raise ValueError("pack emphasis.font.family must be a name of its file in fonts.json")
+    return Emphasis(scale_pm=value["scale_pm"], font_family=font["family"],
+                    font_file=font["file"], bold=font["bold"])
+
+
+def _check_emphasis(emphasis: Emphasis | None, *, border_style: int, reveal: str) -> None:
+    if emphasis is not None and (border_style != 1 or reveal not in _EMPHASIS_REVEALS):
+        raise ValueError("pack emphasis needs an outlined static, word or karaoke pack "
+                         "(border_style 1)")
 
 
 def _check_design_ref(design_id: object, version: object) -> None:
@@ -1058,6 +1123,67 @@ def _fits(text: str, font: Path, font_size: int, max_width_pm: int, width: int) 
     return 1000 * font_size * units <= max_width_pm * width * height_units
 
 
+def _emphasis_size(pack: CaptionPack, font_size: int) -> int:
+    """The keyword's font size on a line of ``font_size`` (``font_size`` without a block)."""
+    if pack.emphasis is None:
+        return font_size
+    return max(1, div_round_half_up(font_size * pack.emphasis.scale_pm, 1000))
+
+
+def _emphasis_font(pack: CaptionPack) -> Path:
+    accent = pack.emphasis.font_file if pack.emphasis is not None else None
+    return font_path(accent or pack.font_file)
+
+
+def _line_fits(words: Sequence[tuple[str, bool]], pack: CaptionPack, font_size: int,
+               width: int) -> bool:
+    """Whether a line of ``(displayed text, keyword)`` words is at most ``max_width_pm`` of
+    ``width``: plain words and spaces at ``font_size`` in the pack font, keywords in the
+    emphasis size and font (``hmtx`` advances, kerning ignored)."""
+    font = font_path(pack.font_file)
+    if pack.emphasis is None or not any(keyword for _text, keyword in words):
+        return _fits(" ".join(text for text, _keyword in words), font, font_size,
+                     pack.max_width_pm, width)
+    plain_units, height_units = advance_units(
+        " ".join(text if not keyword else "" for text, keyword in words), font)
+    accent = _emphasis_font(pack)
+    accent_units, accent_height = advance_units(
+        "".join(text for text, keyword in words if keyword), accent)
+    accent_size = _emphasis_size(pack, font_size)
+    # 1000 · (S·p/h + E·a/h') ≤ max_width_pm · W, multiplied out by h·h'.
+    drawn = 1000 * (font_size * plain_units * accent_height
+                    + accent_size * accent_units * height_units)
+    return drawn <= pack.max_width_pm * width * height_units * accent_height
+
+
+def _single_word_size(text: str, keyword: bool, pack: CaptionPack, width: int) -> int:
+    """The line's font size that makes a single word as wide as the line limit: the keyword's
+    size then follows from it (``_emphasis_size``) and still fits."""
+    if not keyword or pack.emphasis is None:
+        units, height_units = advance_units(text, font_path(pack.font_file))
+        return max(1, pack.max_width_pm * width * height_units // (1000 * units))
+    units, height_units = advance_units(text, _emphasis_font(pack))
+    accent_size = max(1, pack.max_width_pm * width * height_units // (1000 * units))
+    # The largest S whose keyword size, S·scale/1000 rounded half up, is at most accent_size.
+    return max(1, (1000 * accent_size + 499) // pack.emphasis.scale_pm)
+
+
+def _emphasis_tags(pack: CaptionPack, font_size: int) -> tuple[str, str]:
+    """The tags that open a keyword and those that return to the line after it (no braces);
+    empty for a pack without an emphasis block."""
+    accent = pack.emphasis
+    if accent is None:
+        return "", ""
+    opening, closing = f"\\fs{_emphasis_size(pack, font_size)}", f"\\fs{font_size}"
+    if accent.font_file is not None:
+        opening += f"\\fn{accent.font_family}"
+        closing += f"\\fn{pack.font_family}"
+        if accent.bold != pack.bold:
+            opening += f"\\b{int(accent.bold)}"
+            closing += f"\\b{int(pack.bold)}"
+    return opening, closing
+
+
 def fit_cues(
     cues: Sequence[FrameCue], *, pack: CaptionPack, play_res: tuple[int, int],
     overrides: Mapping[str, Any],
@@ -1065,7 +1191,8 @@ def fit_cues(
     """Cues as the pack shows them: one-line packs (``box``) split wider cues (plan §5.4).
 
     A cue whose displayed text is wider than ``max_width_pm`` of the output width (measured from
-    the pack font's ``hmtx``) is split greedily at word boundaries; each part runs from its first
+    the pack font's ``hmtx``; a keyword in its emphasis size and font) is split greedily at word
+    boundaries; each part runs from its first
     word's frame to the next part's. A single word that is still too wide stays one cue (its
     font is reduced when the ASS is written). Other packs return the cues unchanged; the
     function is idempotent.
@@ -1074,15 +1201,14 @@ def fit_cues(
         return tuple(cues)
     width, height = play_res
     size = _pack_font_size(pack, height, overrides["size_pm"])
-    font = font_path(pack.font_file)
     case = overrides["case"]
     fitted: list[FrameCue] = []
     for cue in cues:
         chunks: list[list[FrameWord]] = []
         for word in cue.words:
             candidate = [*chunks[-1], word] if chunks else [word]
-            text = " ".join(_display(item.text, case) for item in candidate)
-            if chunks and _fits(text, font, size, pack.max_width_pm, width):
+            shown = [(_display(item.text, case), item.emphasis) for item in candidate]
+            if chunks and _line_fits(shown, pack, size, width):
                 chunks[-1].append(word)
             else:
                 chunks.append([word])
@@ -1380,12 +1506,15 @@ def _ass_time_cs(centiseconds: int) -> str:
     return f"{hours}:{minutes:02d}:{seconds:02d}.{fraction:02d}"
 
 
-def _wrap(text: str, colour: str | None, reset: str) -> str:
-    return text if colour is None else f"{{\\1c{colour}}}{text}{{\\1c{reset}}}"
+def _wrap(text: str, colour: str | None, reset: str, accent: tuple[str, str] = ("", "")) -> str:
+    if colour is None:
+        return text
+    return f"{{\\1c{colour}{accent[0]}}}{text}{{\\1c{reset}{accent[1]}}}"
 
 
 def _karaoke_line(cue: FrameCue, *, start_cs: int, end_cs: int, fps: Fps, case: str,
-                  primary: str, secondary: str, emphasis: str) -> str:
+                  primary: str, secondary: str, emphasis: str,
+                  accent: tuple[str, str] = ("", "")) -> str:
     boundaries = [start_cs]
     for word in cue.words[1:]:
         boundaries.append(min(max(safe_cs(word.f0, fps), boundaries[-1]), end_cs))
@@ -1395,8 +1524,8 @@ def _karaoke_line(cue: FrameCue, *, start_cs: int, end_cs: int, fps: Fps, case: 
         tags = f"\\kf{boundaries[index + 1] - boundaries[index]}"
         text = ass_escape(_display(word.text, case))
         if word.emphasis:  # defect #6: the emphasis colour before and after the highlight
-            parts.append(f"{{{tags}\\1c{emphasis}\\2c{emphasis}}}{text}"
-                         f"{{\\1c{primary}\\2c{secondary}}}")
+            parts.append(f"{{{tags}\\1c{emphasis}\\2c{emphasis}{accent[0]}}}{text}"
+                         f"{{\\1c{primary}\\2c{secondary}{accent[1]}}}")
         else:
             parts.append(f"{{{tags}}}{text}")
     return " ".join(parts)
@@ -1418,43 +1547,54 @@ def _caption_events(cues: Sequence[FrameCue], *, pack: CaptionPack, fps: Fps,
         return (f"Dialogue: 0,{_ass_time_cs(start)},{_ass_time_cs(end)},{pack.style_name},,0,0,0,,"
                 f"{text}")
 
-    def static(words: Sequence[FrameWord], active: int | None = None) -> str:
+    size = _pack_font_size(pack, height, overrides["size_pm"])
+
+    def static(words: Sequence[FrameWord], active: int | None = None,
+               line_size: int = size) -> str:
+        accent = _emphasis_tags(pack, line_size)
         return " ".join(
             _wrap(ass_escape(_display(word.text, case)),
                   emphasis if word.emphasis else highlight if index == active else None,
-                  text_colour)
+                  text_colour, accent if word.emphasis else ("", ""))
             for index, word in enumerate(words)
         )
 
     def one_line(cue: FrameCue) -> tuple[str, str, Path, int]:
-        """The line's text and its block: no wrapping, and a single word wider than the pack's
-        line limit shrunk with ``\\fs`` until it fits."""
+        """The line's text, its block and its font size: no wrapping, and a single word wider
+        than the pack's line limit shrunk with ``\\fs`` until it fits (a keyword in its
+        emphasis size and font)."""
         tags = "\\q2"
-        display = " ".join(_display(word.text, case) for word in cue.words)
+        shown = [(_display(word.text, case), word.emphasis) for word in cue.words]
+        display = " ".join(text for text, _keyword in shown)
         font = font_path(pack.font_file)
-        size = _pack_font_size(pack, height, overrides["size_pm"])
-        if len(cue.words) == 1 and not _fits(display, font, size, pack.max_width_pm, width):
-            units, height_units = advance_units(display, font)
-            size = max(1, pack.max_width_pm * width * height_units // (1000 * units))
-            tags += f"\\fs{size}"
-        return display, tags, font, size
+        line_size = size
+        if len(cue.words) == 1 and not _line_fits(shown, pack, size, width):
+            line_size = _single_word_size(*shown[0], pack, width)
+            tags += f"\\fs{line_size}"
+        return display, tags, font, line_size
 
     events = []
     for cue in fit_cues(cues, pack=pack, play_res=play_res, overrides=overrides):
         event = functools.partial(dialogue, opening=cue.f0)
         if pack.reveal == "karaoke":
             start_cs = max(0, safe_cs(cue.f0, fps))
+            line_size = one_line(cue)[3] if pack.max_width_pm is not None else size
+            accent = _emphasis_tags(pack, line_size)
             line = _karaoke_line(
                 cue, start_cs=start_cs, end_cs=safe_cs(cue.f1, fps), fps=fps, case=case,
                 primary=_inline_colour(overrides["highlight"]), secondary=text_colour,
-                emphasis=emphasis)
+                emphasis=emphasis, accent=accent)
             if pack.glow is not None:
                 # The glow and the line are placed by hand at the style's spot, so libass never
-                # stacks the two copies apart (CONTRACTS §5.49).
+                # stacks the two copies apart (CONTRACTS §5.49); a keyword has the same size and
+                # font in both.
                 _display_text, tags, _font, _size = one_line(cue)
                 place = (f"\\an2\\pos({_centi_text(50 * width)},"
                          f"{height - _margin_v(height, overrides['y_e5'])}){tags}")
-                glyphs = " ".join(ass_escape(_display(word.text, case)) for word in cue.words)
+                glyphs = " ".join(
+                    f"{{{accent[0]}}}{ass_escape(_display(word.text, case))}{{{accent[1]}}}"
+                    if word.emphasis and accent[0] else ass_escape(_display(word.text, case))
+                    for word in cue.words)
                 glow = _glow_tags(pack.glow, height, highlight)
                 events.append(event(cue.f0, cue.f1, f"{{{place}{glow}}}{glyphs}"))
                 line = f"{{{place}}}{line}"
@@ -1471,11 +1611,12 @@ def _caption_events(cues: Sequence[FrameCue], *, pack: CaptionPack, fps: Fps,
                        for index, (first, last) in enumerate(zip(starts, ends, strict=True))
                        if first < last]
         elif pack.max_width_pm is not None:
-            display, tags, font, size = one_line(cue)
+            display, tags, font, line_size = one_line(cue)
             if pack.box_style == "vector":
                 events.append(event(cue.f0, cue.f1, _vector_box(
-                    display, font, size, pack=pack, play_res=play_res, overrides=overrides)))
-            events.append(event(cue.f0, cue.f1, f"{{{tags}}}{static(cue.words)}"))
+                    display, font, line_size, pack=pack, play_res=play_res,
+                    overrides=overrides)))
+            events.append(event(cue.f0, cue.f1, f"{{{tags}}}{static(cue.words, None, line_size)}"))
         else:
             events.append(event(cue.f0, cue.f1, static(cue.words)))
     return events
@@ -1630,7 +1771,8 @@ def build_ass_v2(
     FFmpeg and in JASSUB start each word's sweep on its planned frame (the graph sets
     ``settb=den/num``). The header, the ``classic``/``karaoke`` style lines and the
     ``legacy-bar`` hook equal ``build_ass`` for the same size, so revision 0 looks the same.
-    Emphasised words get the ``emphasis`` colour (defect #6); all text goes through
+    Emphasised words get the ``emphasis`` colour (defect #6) and, in a pack with an ``emphasis``
+    block, its size and accent font, reset after the word (§5.51); all text goes through
     ``ass_escape``. A ``box_style: vector`` pack draws each box as a ``\\p`` rectangle event
     right before its line (plan §5.4, the fallback if BorderStyle 3 fails P-TXT); a
     ``word_box`` pack draws a rounded ``\\p`` box behind the spoken word (CONTRACTS §5.30); a
@@ -1657,6 +1799,7 @@ def build_ass_v2(
                     max_width_pm=pack.max_width_pm)
     _check_glow(pack.glow, border_style=pack.border_style, reveal=pack.reveal,
                 max_width_pm=pack.max_width_pm)
+    _check_emphasis(pack.emphasis, border_style=pack.border_style, reveal=pack.reveal)
     _check_overrides(overrides)
     for cue in cues:
         if not isinstance(cue, FrameCue):

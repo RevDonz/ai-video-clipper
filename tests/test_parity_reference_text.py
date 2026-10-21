@@ -25,6 +25,7 @@ sys.path.insert(0, str(ROOT / "scripts" / "parity"))
 import compare
 import reference_text as rt
 
+from ai_clipper import captions_ass
 from ai_clipper.edit_v2 import compile_ffmpeg
 from ai_clipper.edit_v2.timemap import Fps, now_ms, safe_cs
 
@@ -279,7 +280,7 @@ def test_clip_matrix_covers_every_pack_length_hook_fallback_and_variant() -> Non
     for pack in rt.PACKS:
         for length in (10, 40, 90):
             matching = [c for c in ptxt if c.pack == pack and c.chars == length
-                        and c.variant is None and c.entrance is None]
+                        and c.variant is None and c.entrance is None and not c.keywords]
             assert len(matching) == 1, (pack, length)
             assert len(matching[0].probe_frames) == 5
     assert any(c.pack == "hook" for c in ptxt)
@@ -330,6 +331,30 @@ def test_every_entrance_is_gated_on_every_pack_inside_its_120_ms() -> None:
             # The line's first frame is in the past and its 120 ms are not over yet.
             start = max(e for e in starts if e < frame)
             assert 0 < now_ms(frame, fps) - safe_cs(start, fps) * 10 < 120, (clip_id, frame)
+
+
+def test_keywords_are_gated_in_every_pack_with_an_emphasis_block() -> None:
+    # CONTRACTS §5.51: the keyword's size and accent font must look the same in JASSUB and FFmpeg.
+    clips = {c.id: c for c in rt.build_clips(fallback_char="\u2665") if "-kunci-" in c.id}
+    assert set(clips) == {"karaoke-kunci-40", "bold-kunci-40", "sinar-kunci-40"}
+    assert set(rt.EMPHASIS_PACKS) == {pack for pack in rt.PACKS
+                                      if captions_ass.load_pack(pack, 1).emphasis is not None}
+    smoke = next(line for line in RUN_ALL.read_text(encoding="utf-8").splitlines()
+                 if line.startswith("SMOKE_TEXT=")).removeprefix("SMOKE_TEXT=").split(",")
+    assert set(clips) <= set(smoke)
+    words = rt.SAMPLE_TEXTS[40].split()
+    assert [words[index] for index in sorted(rt.KEYWORD_WORDS)] == ["WAJIB", "Ayahku"]
+    accent = {"karaoke": "\\fs74}", "bold": "\\fnAnton}", "sinar": "\\fnDM Serif Display Italic}"}
+    for clip_id, clip in clips.items():
+        assert clip.gate and clip.kind == "ptxt" and clip.variant is None, clip_id
+        assert clip.keywords and clip.to_json()["keywords"] == sorted(rt.KEYWORD_WORDS)
+        assert len(clip.probe_frames) == 5 and clip.chars == 40, clip_id
+        assert clip.ass.count(accent[clip.pack]) >= 2, clip_id
+        plain = next(c for c in rt.build_clips(fallback_char="\u2665")
+                     if c.id == f"{clip.pack}-40")
+        assert clip.ass != plain.ass
+        for frame in clip.probe_frames:
+            assert all(abs(frame - edge) >= 3 for edge in clip.edges), (clip_id, frame)
 
 
 def test_the_text_watermark_is_gated_at_three_places_and_sizes() -> None:

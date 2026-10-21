@@ -83,7 +83,8 @@ PTIME_RATES = ((24, 1), (25, 1), (30, 1), (24000, 1001), (30000, 1001))
 QUICK_RATES = ((25, 1), (30000, 1001))
 THREE_HOURS_MS = 3 * 3600 * 1000
 HOOK_TEXT = "Kode rahasia copet di keramaian"
-PINNED_FACES = ("DejaVuSans", "DejaVuSans-Bold", "Montserrat-ExtraBold")
+PINNED_FACES = ("DejaVuSans", "DejaVuSans-Bold", "Montserrat-ExtraBold", "Anton-Regular",
+                "DMSerifDisplay-Italic")
 DEJAVU_FACES = ("DejaVuSans", "DejaVuSans-Bold")
 MONTSERRAT_FAMILY = "Montserrat ExtraBold"
 
@@ -741,6 +742,7 @@ GOLDEN_CASES = (
     ("box__c30", "valid/pack_box__c30.json", "c30"),
     ("sorot__c30", "valid/pack_sorot__c30.json", "c30"),
     ("sinar__c30", "valid/pack_sinar__c30.json", "c30"),
+    ("keywords_sinar__c30", "valid/keywords_sinar__c30.json", "c30"),
     ("words_max_1__c30", "valid/words_max_1__c30.json", "c30"),
     ("entrance_fade__c30", "valid/entrance_fade__c30.json", "c30"),
     ("entrance_pop__c30", "valid/entrance_pop__c30.json", "c30"),

@@ -488,15 +488,18 @@ def _fonts_manifest() -> dict[str, Any]:
 
 
 def _font_entries(doc: Mapping[str, Any]) -> list[dict[str, str]]:
-    """The font files the ASS can use: the pack's, the hook design's, the text watermark's and
-    the fallback (R6)."""
+    """The font files the ASS can use: the pack's and its keyword font (§5.51), the hook
+    design's, the text watermark's and the fallback (R6)."""
     from ..captions_ass import WATERMARK_FONT_FILE, load_pack
 
     manifest = _fonts_manifest()
     by_file = {font.get("file"): font for font in manifest.get("fonts", [])
                if isinstance(font, dict)}
     pack = doc["captions"]["pack"]
-    files = [load_pack(pack["id"], pack["v"]).font_file]
+    loaded = load_pack(pack["id"], pack["v"])
+    files = [loaded.font_file]
+    if loaded.emphasis is not None and loaded.emphasis.font_file is not None:
+        files.append(loaded.emphasis.font_file)
     hook = _hook_item(doc)
     if hook is not None:
         design = hook["payload"]["design"]

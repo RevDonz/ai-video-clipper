@@ -122,7 +122,7 @@ sidecar audio-music.f32 -f f32le -ar 48000 -ac 1
 ## sidecars
 audio-music.f32 4af7a571abdbc0b58018465622fa61948c8dfdbc710804de7cc6d33451456b0c
 audio-speech.f32 507963d35ed227c78791627b884005f6f5956a47c5f627dfeb0c794fdf5ca619
-captions.ass 34f90449bd536f2476d0d2e716f8ec3e9ba302b439d2f645c6dd4a7fb9d6ad61
+captions.ass fab0aaea495fdd2ca0aeccf95f2b873ea2db599ecadcb10e8266ee86c3c96459
 ## expected
 {
  "assets_root": "/jobs/job-1/analysis/assets",

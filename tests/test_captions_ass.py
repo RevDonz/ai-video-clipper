@@ -458,7 +458,8 @@ OVERRIDES = {pack: dict(PACK_DEFAULT_OVERRIDES[pack]) for pack in PACK_IDS}
 STYLE_NAMES = {"classic": "Caption", "karaoke": "Karaoke", "bold": "Bold", "box": "Box",
                "sorot": "Sorot", "sinar": "Sinar"}
 _OWN_TAG = re.compile(r"(?<!\\)\{([^}]*)\}")
-_CAPTION_TAG = re.compile(r"(\\(kf\d+|1c&H[0-9A-F]{6}&|2c&H[0-9A-F]{6}&|q2|fs\d+))+")
+_CAPTION_TAG = re.compile(r"(\\(kf\d+|1c&H[0-9A-F]{6}&|2c&H[0-9A-F]{6}&|q2|fs\d+|b[01]"
+                          r"|fn(Anton|Montserrat ExtraBold|DM Serif Display Italic)))+")
 # The Sorot pack places each word and its box itself: position, no border on the spoken word,
 # and the box drawing (plus the tags of the other packs).
 _SOROT_TAG = re.compile(r"(\\(an2|pos\(\d+(\.\d{1,2})?,\d+\)|q2|fs\d+|bord0|shad0|p[01]"
@@ -466,7 +467,8 @@ _SOROT_TAG = re.compile(r"(\\(an2|pos\(\d+(\.\d{1,2})?,\d+\)|q2|fs\d+|bord0|shad
 # Sinar places its line and its glow copy itself; the glow is a blurred border in the highlight
 # colour around transparent glyphs (plus the karaoke tags).
 _SINAR_TAG = re.compile(r"(\\(an2|pos\(\d+(\.\d{1,2})?,\d+\)|q2|fs\d+|kf\d+|bord\d+(\.\d{1,2})?"
-                        r"|blur\d+(\.\d{1,2})?|shad0|[123]c&H[0-9A-F]{6}&|[123]a&H[0-9A-F]{2}&))+")
+                        r"|blur\d+(\.\d{1,2})?|shad0|[123]c&H[0-9A-F]{6}&|[123]a&H[0-9A-F]{2}&"
+                        r"|fn(Montserrat ExtraBold|DM Serif Display Italic)))+")
 WHITE = "&HFFFFFF&"
 YELLOW = "&H4DE1FF&"  # #FFE14D, the default highlight
 PINK = "&H8A5CFF&"  # #FF5C8A, the default emphasis
@@ -850,11 +852,13 @@ def test_emphasis_colour_wraps_the_word_and_is_reset_after_it():
     assert classic["Text"] == f"gue {wrapped} jambret."
     [box] = _events(_v2((cue,), "box"))
     assert box["Text"] == "{\\q2}gue " + wrapped + " jambret."
+    # Bold and Karaoke also enlarge the keyword (their emphasis block, CONTRACTS §5.51).
     for event in _events(_v2((cue,), "bold")):
-        assert "{\\1c" + PINK + "}BUKAN{\\1c" + WHITE + "}" in event["Text"]
+        assert ("{\\1c" + PINK + "\\fs101\\fnAnton}BUKAN"
+                "{\\1c" + WHITE + "\\fs72\\fnMontserrat ExtraBold}") in event["Text"]
     [karaoke] = _events(_v2((cue,), "karaoke"))
-    assert re.search(r"\{\\kf\d+\\1c" + PINK + r"\\2c" + PINK + r"\}bukan\{\\1c" + YELLOW
-                     + r"\\2c" + WHITE + r"\}", karaoke["Text"])
+    assert re.search(r"\{\\kf\d+\\1c" + PINK + r"\\2c" + PINK + r"\\fs74\}bukan\{\\1c"
+                     + YELLOW + r"\\2c" + WHITE + r"\\fs53\}", karaoke["Text"])
 
 
 def test_highlight_override_recolours_karaoke_and_the_bold_active_word():
@@ -1250,8 +1254,9 @@ def test_sinar_keyword_keeps_its_colour_in_the_line_and_the_glow_stays_one_colou
 
     glow, line = _events(_v2((cue,), "sinar"))
 
-    assert glow["Text"] == "{\\an2\\pos(360,1062)\\q2" + GLOW_720 + "}gue bukan jambret."
-    assert re.search(r"\{\\kf\d+\\1c" + PINK + r"\\2c" + PINK + r"\}bukan", line["Text"])
+    assert "\\1c" not in glow["Text"] and "\\3c&H4DE1FF&" in glow["Text"]
+    assert _strip(glow["Text"]) == "gue bukan jambret."
+    assert re.search(r"\{\\kf\d+\\1c" + PINK + r"\\2c" + PINK + r"\\fs83", line["Text"])
 
 
 def test_glow_is_a_pack_file_field_of_one_line_karaoke_packs_only(tmp_path, monkeypatch):
@@ -1283,6 +1288,172 @@ def test_glow_is_a_pack_file_field_of_one_line_karaoke_packs_only(tmp_path, monk
     with pytest.raises(ValueError, match="glow"):
         build_ass_v2((), play_res=(720, 1280), fps=NTSC, total_frames=30, pack=pack,
                      overrides=OVERRIDES["karaoke"], hook=None)
+
+
+# --- The emphasis block: the keyword's size and accent font (CONTRACTS §5.51) --------------------
+
+KEYWORD_CUE = _fcue((0, 10, "gue"), (10, 25, "bukan", True), (25, 40, "jambret."))
+
+
+def _pack_files(tmp_path, monkeypatch, files):
+    for (pack_id, version), data in files.items():
+        (tmp_path / pack_id).mkdir(exist_ok=True)
+        (tmp_path / pack_id / f"v{version}.json").write_text(json.dumps(data), encoding="utf-8")
+    monkeypatch.setattr(captions_ass, "PACKS_DIR", tmp_path)
+    captions_ass._load_pack.cache_clear()
+
+
+def test_the_emphasis_block_of_each_pack():
+    Emphasis = captions_ass.Emphasis
+    assert load_pack("karaoke", 1).emphasis == Emphasis(scale_pm=1400)
+    assert load_pack("bold", 1).emphasis == Emphasis(
+        scale_pm=1400, font_family="Anton", font_file="Anton-Regular.ttf", bold=False)
+    assert load_pack("sinar", 1).emphasis == Emphasis(
+        scale_pm=1400, font_family="DM Serif Display Italic",
+        font_file="DMSerifDisplay-Italic.ttf", bold=False)
+    for other in ("classic", "box", "sorot"):
+        assert load_pack(other, 1).emphasis is None, other
+
+
+def test_the_emphasis_block_is_checked_when_the_pack_loads(tmp_path, monkeypatch):
+    bold = json.loads((PACKS_DIR / "bold" / "v1.json").read_bytes())
+    sorot = json.loads((PACKS_DIR / "sorot" / "v1.json").read_bytes())
+    box = json.loads((PACKS_DIR / "box" / "v1.json").read_bytes())
+    block = bold["emphasis"]
+    font = block["font"]
+    bad = [
+        {**block, "scale_pm": 999}, {**block, "scale_pm": 2001}, {**block, "scale_pm": "1400"},
+        {**block, "scale_pm": True}, {"font": font}, {**block, "colour": "#FFFFFF"},
+        {**block, "font": {**font, "file": "Arial.ttf"}},
+        {**block, "font": {**font, "family": "Anton Bold"}},  # not a name of the file
+        {**block, "font": {**font, "family": "Anton}{\\b1"}},
+        {**block, "font": {**font, "bold": 0}},
+        {**block, "font": {key: value for key, value in font.items() if key != "bold"}},
+        [1400],
+    ]
+    files = {("bold", 10 + index): {**bold, "v": 10 + index, "emphasis": value}
+             for index, value in enumerate(bad)}
+    files[("bold", 2)] = {**bold, "v": 2, "emphasis": {"scale_pm": 1000}}
+    files[("bold", 3)] = {**bold, "v": 3, "emphasis": {**block, "scale_pm": 2000}}
+    files[("sorot", 4)] = {**sorot, "v": 4, "emphasis": block}  # draws each word itself
+    files[("box", 5)] = {**box, "v": 5, "emphasis": block}  # BorderStyle 3 boxes each run
+    _pack_files(tmp_path, monkeypatch, files)
+    try:
+        assert load_pack("bold", 2).emphasis == captions_ass.Emphasis(scale_pm=1000)
+        assert load_pack("bold", 3).emphasis.scale_pm == 2000
+        refused = [("bold", 10 + index) for index in range(len(bad))]
+        for pack_id, version in [*refused, ("sorot", 4), ("box", 5)]:
+            with pytest.raises(ValueError, match="emphasis"):
+                load_pack(pack_id, version)
+    finally:
+        monkeypatch.undo()
+        captions_ass._load_pack.cache_clear()
+    for pack_id in ("sorot", "box"):
+        pack = dataclasses.replace(load_pack(pack_id, 1), emphasis=load_pack("bold", 1).emphasis)
+        with pytest.raises(ValueError, match="emphasis"):
+            build_ass_v2((), play_res=(720, 1280), fps=NTSC, total_frames=30, pack=pack,
+                         overrides=OVERRIDES[pack_id], hook=None)
+
+
+def test_a_keyword_takes_the_pack_size_and_accent_font_and_both_are_reset_after_it():
+    # Bold: Montserrat at 72 px, the keyword in Anton at 140 % (round half up of 100.8).
+    events = _events(_v2((KEYWORD_CUE,), "bold"))
+    assert [_strip(event["Text"]) for event in events] == ["GUE BUKAN JAMBRET."] * 3
+    assert events[1]["Text"] == (
+        "GUE {\\1c" + PINK + "\\fs101\\fnAnton}BUKAN{\\1c" + WHITE
+        + "\\fs72\\fnMontserrat ExtraBold} JAMBRET.")
+    assert events[0]["Text"].startswith("{\\1c" + YELLOW + "}GUE{\\1c" + WHITE + "} {\\1c")
+    # Karaoke: a size only, no accent font; the bold DejaVu face stays.
+    [karaoke] = _events(_v2((KEYWORD_CUE,), "karaoke"))
+    assert "\\fn" not in karaoke["Text"] and "\\b" not in karaoke["Text"]
+    # A pack without the block keeps the colour alone.
+    [classic] = _events(_v2((KEYWORD_CUE,), "classic"))
+    assert "\\fs" not in classic["Text"]
+
+
+def test_the_keyword_size_follows_the_caption_size_and_the_output():
+    events = _events(_v2((KEYWORD_CUE,), "bold", size=(1080, 1920), size_pm=1200))
+    base = _rhu(1920 * 12 * 1350 * 1200, 288 * 1_000_000)  # 130
+    assert f"\\fs{_rhu(base * 1400, 1000)}\\fnAnton}}BUKAN" in events[1]["Text"]
+    assert f"\\fs{base}\\fnMontserrat ExtraBold}}" in events[1]["Text"]
+
+
+def test_an_accent_font_of_another_weight_switches_bold_and_back():
+    pack = dataclasses.replace(load_pack("karaoke", 1), emphasis=load_pack("bold", 1).emphasis)
+    [karaoke] = _events(build_ass_v2((KEYWORD_CUE,), play_res=(720, 1280), fps=NTSC,
+                                     total_frames=60, pack=pack,
+                                     overrides=OVERRIDES["karaoke"], hook=None))
+    assert "\\fs74\\fnAnton\\b0}bukan{" in karaoke["Text"]
+    assert "\\fs53\\fnDejaVu Sans\\b1}" in karaoke["Text"]
+
+
+def test_sinar_keyword_is_drawn_the_same_in_the_glow_and_the_line():
+    glow, line = _events(_v2((KEYWORD_CUE,), "sinar"))
+    accent = "\\fs83\\fnDM Serif Display Italic"
+    reset = "\\fs59\\fnMontserrat ExtraBold"
+    assert glow["Text"] == ("{\\an2\\pos(360,1062)\\q2" + GLOW_720 + "}gue {" + accent
+                            + "}bukan{" + reset + "} jambret.")
+    assert re.search(r"\{\\kf\d+\\1c" + PINK + r"\\2c" + PINK + re.escape(accent)
+                     + r"\}bukan\{\\1c" + YELLOW + r"\\2c" + WHITE + re.escape(reset) + r"\}",
+                     line["Text"])
+
+
+def _line_px(words, pack_id, size):
+    """The drawn width of a line in pixels: each word in its font and size, spaces at ``size``."""
+    pack = load_pack(pack_id, 1)
+    accent = pack.emphasis
+    total = 0.0
+    for text, keyword in words:
+        if keyword:
+            font = font_path(accent.font_file or pack.font_file)
+            total += advance_px(text, font, _rhu(size * accent.scale_pm, 1000))
+        else:
+            total += advance_px(text, font_path(pack.font_file), size)
+    return total + (len(words) - 1) * advance_px(" ", font_path(pack.font_file), size)
+
+
+def test_one_line_packs_measure_the_keyword_in_its_own_size_and_font():
+    pack = load_pack("sinar", 1)
+    words = ("copet", "ketidakadilan", "semua")
+    plain = _fcue(*((10 * i, 10 * i + 10, word) for i, word in enumerate(words)))
+    keyword = _fcue(*((10 * i, 10 * i + 10, word, i == 1) for i, word in enumerate(words)))
+    limit = 880 * 720 / 1000
+    assert _line_px([(w, False) for w in words], "sinar", 59) <= limit
+    assert _line_px([(w, i == 1) for i, w in enumerate(words)], "sinar", 59) > limit
+
+    assert len(fit_cues((plain,), pack=pack, play_res=(720, 1280),
+                        overrides=OVERRIDES["sinar"])) == 1
+    fitted = fit_cues((keyword,), pack=pack, play_res=(720, 1280), overrides=OVERRIDES["sinar"])
+    assert len(fitted) == 2
+    for cue in fitted:
+        shown = [(word.text, word.emphasis) for word in cue.words]
+        assert len(shown) == 1 or _line_px(shown, "sinar", 59) <= limit
+
+
+def test_a_single_wide_keyword_shrinks_until_its_accent_size_fits():
+    word = "Supercalifragilisticexpialidocious"
+    glow, line = _events(_v2((_fcue((0, 20, word, True)),), "sinar"))
+    base = int(re.search(r"\\q2\\fs(\d+)", glow["Text"]).group(1))
+    accent = int(re.search(r"\{\\fs(\d+)\\fnDM", glow["Text"]).group(1))
+    assert base < 59 and accent == _rhu(base * 1400, 1000)
+    font = font_path("DMSerifDisplay-Italic.ttf")
+    limit = 880 * 720 / 1000
+    assert advance_px(word, font, accent) <= limit
+    assert advance_px(word, font, _rhu((base + 1) * 1400, 1000)) > limit
+    assert f"\\q2\\fs{base}}}" in line["Text"] and f"\\fs{accent}\\fnDM" in line["Text"]
+
+
+@pytest.mark.parametrize("entrance", ["fade", "pop", "blur"])
+@pytest.mark.parametrize("pack", ["karaoke", "bold", "sinar"])
+def test_the_entrance_opens_a_line_with_a_keyword_as_any_other(pack, entrance):
+    plain = _fcue((0, 10, "gue"), (10, 25, "bukan"), (25, 40, "jambret."))
+    with_keyword = _events(_v2((KEYWORD_CUE,), pack, entrance=entrance))
+    without = _events(_v2((plain,), pack, entrance=entrance))
+    opening = _entrance(entrance, 10 * (safe_cs(10 if pack == "bold" else 40, NTSC)
+                                        - safe_cs(0, NTSC)))
+    assert with_keyword[0]["Text"].startswith(opening)
+    assert [e["Text"].startswith(opening) for e in with_keyword] == [
+        e["Text"].startswith(opening) for e in without]
 
 
 def test_overrides_accept_words_max_from_one_to_four_only():
