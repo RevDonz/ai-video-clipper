@@ -70,7 +70,9 @@ export async function resolveTarget(page) {
 export function captureFailures(page) {
   const failures = { console: [], page: [], requests: [], api: [] };
   page.on("console", (message) => {
-    if (message.type() === "error") failures.console.push(message.text());
+    // The URL names the resource of a "Failed to load resource" line.
+    const url = message.location()?.url;
+    if (message.type() === "error") failures.console.push(url ? `${message.text()} (${url})` : message.text());
   });
   page.on("pageerror", (error) => failures.page.push(error.stack || error.message));
   page.on("requestfailed", (request) => {
@@ -103,11 +105,28 @@ export function pinnedChrome() {
 
 const chrome = pinnedChrome();
 
+const EXPECTED = Symbol("expected browser failures");
+
+/** Marks API responses (`"<status> <METHOD> <url>"`) and console errors this test causes on purpose. */
+export function expectFailures(page, { api = [], console = [] } = {}) {
+  if (!page[EXPECTED]) throw new Error("expectFailures needs the harness's page fixture");
+  page[EXPECTED].api.push(...api);
+  page[EXPECTED].console.push(...console);
+}
+
 export const test = base.extend({
   launchOptions: [chrome ? { executablePath: chrome } : {}, { scope: "worker", option: true }],
+  // A test that fakes a failure on purpose names what it expects, per test:
+  // expectFailures(page, { api: [/^409 POST .*\/hook$/], console: [/status of 409 .*\/hook\)$/] }).
+  // Anything else still fails the test.
   page: async ({ page }, use, testInfo) => {
     const failures = captureFailures(page);
+    page[EXPECTED] = { api: [], console: [] };
     await use(page);
+    const expected = page[EXPECTED];
+    for (const kind of ["api", "console"]) {
+      failures[kind] = failures[kind].filter((line) => !expected[kind].some((pattern) => pattern.test(line)));
+    }
     const diagnostics = JSON.stringify(failures, null, 2);
     if (testInfo.status !== testInfo.expectedStatus) {
       process.stderr.write(`Browser diagnostics for ${testInfo.title}:\n${diagnostics}\n`);
