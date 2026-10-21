@@ -88,6 +88,7 @@ from . import COMPILER_ID, OUTPUT_SIZES, compile_ffmpeg, errors, execute, store,
 from . import assets as _assets
 from . import camera as _camera
 from . import loudness as _loudness
+from . import plates as _plates
 from . import seed as _seed
 from . import timemap as tm
 from .clip_id import CLIP_ID_PATTERN, manifest_clip_id
@@ -284,7 +285,9 @@ def load_render_inputs(job_dir: Path, doc: Mapping[str, Any], *,
             first = validation.errors[0]
             raise errors.DocSemanticInvalid(first.code, path=first.path, ref=first.ref,
                                             issues=validation.errors)
-    plan = build_plan(doc, words=words, camera=camera, assets=assets, resources=resources)
+    faces = None if camera is not None else _plates.faces_for(clip_dir, doc)
+    plan = build_plan(doc, words=words, camera=camera, assets=assets, resources=resources,
+                      faces=faces)
     return RenderInputs(doc, clip_dir, seed_doc, words, camera, assets, plan, resources)
 
 

@@ -163,6 +163,7 @@ SIGNATURES = {
         ("camera", KW, NO_DEFAULT),
         ("assets", KW, NO_DEFAULT),
         ("resources", KW, NO_DEFAULT),
+        ("faces", KW, None),  # CONTRACTS §5.50
     ],
     ("plan", "render_key"): [
         ("plan", POS, NO_DEFAULT),
@@ -487,6 +488,7 @@ def test_every_documented_code_has_an_indonesian_message():
         "no_face",
         "no_face_blur",
         "unsafe_zone",
+        "caption_over_face",
         "loudness_clamped",
         "peak_reduced",
         "music_shorter_than_clip",

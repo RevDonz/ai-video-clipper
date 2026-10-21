@@ -605,7 +605,7 @@ def _build(clip: Path, validated: _Validated, doc: Mapping[str, Any] | None = No
     doc = validated.doc if doc is None else doc
     camera, camera_sha = plates.camera_for(clip, doc)
     plan = build_plan(doc, words=validated.words, camera=camera, assets=validated.assets,
-                      resources=_resources())
+                      resources=_resources(), faces=plates.faces_for(clip, doc))
     return plan, camera_sha
 
 

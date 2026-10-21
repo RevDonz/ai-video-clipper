@@ -81,6 +81,14 @@ di ringkasan, dan tidak ada tombol yang tertekan. Kalau caption terlalu dekat de
 kartu menulis "Caption dekat teks hook. Kalau bertumpuk di pratinjau, turunkan caption." Catatan
 ini hanya petunjuk: pratinjau yang menentukan.
 
+Kalau caption menutupi wajah pembicara cukup lama (seperempat bagian klip yang bercaption atau
+lebih), kartu menulis "Caption menutupi wajah pembicara." dengan tombol **Pindah ke Atas**,
+**Pindah ke Tengah** atau **Pindah ke Bawah**: posisi terdekat yang tidak menutupi wajah. Sekali
+klik memindahkan caption (bisa diurungkan). Peringatan yang sama ada di "Perlu dicek" dengan
+tombol yang sama, dan di panel Teks Mode Lengkap. Wajahnya diambil dari analisis wajah (Ikuti
+wajah), lalu dipetakan lewat tata letak klip, jadi peringatan ini hanya muncul pada klip yang
+wajahnya pernah dianalisis.
+
 - **Kata per baris** awalnya mengikuti gaya: 4 untuk Klasik dan Karaoke, 3 untuk Bold, Box,
   Sorot dan Sinar. Pilihan lain langsung menyusun ulang baris caption di pratinjau. Memilih lagi angka
   bawaan gaya mengembalikannya ke bawaan.
@@ -470,6 +478,7 @@ Tombol yang bekerja saat fokus di satu tempat:
 | "Menyiapkan klip untuk diedit" lama sekali | Proyek panjang dengan face-track. Tunggu; setelah 12 menit editor menyerah dan meminta muat ulang. |
 | "Video sumber tidak bisa dibaca; proses ulang videonya" | FFmpeg gagal membaca video sumber proyek ini (filenya masih ada). Proses ulang videonya dari dashboard. |
 | Catatan biru "Caption di posisi bawaan, dekat tombol TikTok" | Hanya pemberitahuan, bukan kesalahan, dan tidak perlu dicentang saat ekspor: caption bawaan memang di posisi yang sama dengan klip otomatis, supaya klip yang tidak diubah tetap diekspor sebagai file klip otomatis. Kalau di aplikasi caption tertutup tombol, geser caption ke atas (kartu Caption: Posisi, atau panel Teks di Mode Lengkap). Caption yang Anda geser sendiri ke area itu tetap muncul di "Perlu dicek" dan perlu dicentang. |
+| "Caption menutupi wajah pembicara" | Caption menutupi wajah di seperempat bagian klip yang bercaption atau lebih. Klik tombol "Pindah ke …" di "Perlu dicek", kartu Caption atau panel Teks. Tanpa tombol, tidak ada posisi Atas/Tengah/Bawah yang bebas dari wajah: geser caption sendiri atau kecilkan ukurannya. |
 | "Transkrip berubah sejak klip diedit" (baca saja) | Proyek dijalankan ulang dan transkripnya berubah. Klik "Mulai dari versi AI". |
 | "Terbuka di tab lain" (bar atas) | Klip ini juga terbuka di tab lain. Perubahan di bagian yang berbeda digabung otomatis. |
 | "Klip ini diubah di tab lain" | Dua tab mengubah bagian yang sama. Pilih versi per bagian; draf Anda tidak hilang. |

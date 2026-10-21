@@ -300,6 +300,22 @@ def test_a_symlinked_or_misnamed_camera_plan_is_ignored(tmp_path, contexts):
         plates.camera_for(clip, named)  # the named plan is the symlink: refused too
 
 
+def test_the_other_layouts_read_a_camera_plan_for_its_faces_only(tmp_path, contexts):
+    """``faces_for`` (CONTRACTS §5.50): the camera plan face-track would use, for the caption
+    check under another layout; ``None`` without one (it is never built for this) and under
+    face-track itself, whose own plan carries the faces."""
+    seed = contexts["c30"].seed
+    assert seed["layout"]["default"]["mode"] != "camera"
+    clip = make_clip(tmp_path, contexts["c30"])
+    assert plates.faces_for(clip, seed) is None
+    write_camera(clip, camera_plan(seed, fps=[25, 1]))  # another rate: not this window's plan
+    assert plates.faces_for(clip, seed) is None
+    _sha, _path = write_camera(clip, camera_plan(seed))
+    found = plates.faces_for(clip, seed)
+    assert found is not None and found["window_ms"] == list(seed["base"]["window_ms"])
+    assert plates.faces_for(clip, with_layout(seed, "camera")) is None
+
+
 # --- lane threads --------------------------------------------------------------------------------
 
 

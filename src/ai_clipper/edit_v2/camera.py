@@ -34,6 +34,11 @@ reads it back (``None`` when missing, malformed or a symlink).
 ``samples`` are ``[t_ms, centre_pm]`` with ``t_ms = a + ms_from_seconds(time)`` and
 ``centre_pm = round_half_up(centre · 1000)``; ``source_content_sha256`` is the sha256 of the
 source file.
+
+``faces`` (CONTRACTS §5.50) is the framed face per sample, ``[x_pm, y_pm, w_pm, h_pm]`` of the
+source frame or ``None``, unsmoothed: the caption check maps it through the clip's layout. The
+window detector gives it when asked with ``boxes=True``; another detector may return it as a
+sixth value. A plan without it (older plans, detectors without boxes) has no ``faces`` key.
 """
 
 from __future__ import annotations
@@ -196,10 +201,34 @@ def _accepts(detector: Callable, keyword: str) -> bool:
     return keyword in parameters
 
 
-def _checked(result: object) -> tuple[list[float], list[float | None], list[bool], int, int]:
-    if not isinstance(result, (tuple, list)) or len(result) != 5:
-        raise ValueError("detector must return (times, centres, cuts, width, height)")
-    times, centres, cuts, width, height = result
+def _checked_boxes(boxes: object, count: int) -> list[list[int] | None]:
+    """The framed face per sample, ``(x, y, w, h)`` shares of the frame, as the plan's ``faces``:
+    per-mille integers rounded half up, the box clamped inside the frame."""
+    if not isinstance(boxes, (tuple, list)) or len(boxes) != count:
+        raise ValueError("detector boxes must be parallel to its times")
+    faces: list[list[int] | None] = []
+    for box in boxes:
+        if box is None:
+            faces.append(None)
+            continue
+        if not isinstance(box, (tuple, list)) or len(box) != 4:
+            raise ValueError("a detector box is (x, y, w, h)")
+        for value in box:
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise TypeError("detector boxes must be numbers")
+            if not math.isfinite(value):
+                raise ValueError("detector boxes must be finite")
+        x, y, w, h = (min(max(ms_from_seconds(max(float(value), 0.0)), 0), 1000)
+                      for value in box)
+        faces.append([x, y, min(w, 1000 - x), min(h, 1000 - y)])
+    return faces
+
+
+def _checked(result: object) -> tuple[list[float], list[float | None], list[bool], int, int,
+                                      list[list[int] | None] | None]:
+    if not isinstance(result, (tuple, list)) or len(result) not in (5, 6):
+        raise ValueError("detector must return (times, centres, cuts, width, height[, boxes])")
+    times, centres, cuts, width, height = result[:5]
     times, centres, cuts = list(times), list(centres), list(cuts)
     if not times or not len(times) == len(centres) == len(cuts):
         raise ValueError("detector times, centres and cuts must be non-empty and equally long")
@@ -222,7 +251,8 @@ def _checked(result: object) -> tuple[list[float], list[float | None], list[bool
         raise ValueError("detector cut flags must be booleans")
     if type(width) is not int or type(height) is not int or width <= 0 or height <= 0:
         raise ValueError("detector must report a positive source size")
-    return times, centres, [bool(flag) for flag in cuts], width, height
+    faces = _checked_boxes(result[5], len(times)) if len(result) == 6 else None
+    return times, centres, [bool(flag) for flag in cuts], width, height, faces
 
 
 def _no_face(times_ms: list[int], centres: list[float | None], end_ms: int) -> list[list[int]]:
@@ -267,21 +297,22 @@ def build_camera_plan(
     report = _reporter(_PROGRESS.get())
     start, end, interval = a / 1000, b / 1000, SAMPLE_MS / 1000
     if detector is _TODAYS_TRACKER:
+        boxes = {"boxes": True} if _accepts(detect_window, "boxes") else {}
         result = detect_window(source, start=start, end=end, sample_interval=interval,
-                               progress=report)
+                               progress=report, **boxes)
     else:
         options: dict[str, Any] = {"smooth": False} if _accepts(detector, "smooth") else {}
         if _accepts(detector, "sequential"):
             options["sequential"] = True
         report(0, len(sample_times(start, end, interval)))
         result = detector(source, start=start, end=end, sample_interval=interval, **options)
-    times, centres, cuts, width, height = _checked(result)
+    times, centres, cuts, width, height, faces = _checked(result)
     if detector is not _TODAYS_TRACKER:
         report(len(times), len(times))
     times_ms = [a + ms_from_seconds(float(t)) for t in times]
     smoothed = smooth_face_track(list(centres), cuts=list(cuts))
     no_face = _no_face(times_ms, centres, b)
-    return {
+    plan = {
         "schema": CAMERA_SCHEMA,
         "source_content_sha256": content_sha,
         "window_ms": [a, b],
@@ -294,6 +325,9 @@ def build_camera_plan(
         "cuts": [bool(flag) for flag in cuts],
         "no_face": no_face,
     }
+    if faces is not None:
+        plan["faces"] = faces
+    return plan
 
 
 __all__ = [

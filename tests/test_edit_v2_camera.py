@@ -446,3 +446,49 @@ def test_a_symlinked_progress_file_is_not_followed(tmp_path):
     link = tmp_path / "camera.progress.json"
     link.symlink_to(target)
     assert camera.read_progress(link) is None
+
+
+# --- the framed face's box (CONTRACTS §5.50) ------------------------------------------------------
+
+
+def test_a_detector_with_boxes_adds_the_framed_face_per_sample(source):
+    """A sixth value, the framed face per sample as ``(x, y, w, h)`` shares of the frame, becomes
+    ``faces``: per-mille integers rounded half up, clamped inside the frame, ``None`` kept."""
+
+    def detector(path, *, start, end, sample_interval=0.75):
+        boxes = [(0.25, 0.1, 0.2, 0.3), None, (0.9, 0.85, 0.2, 0.2), (0.0005, 0.0, 0.1, 0.1)]
+        return [0.0, 0.75, 1.5, 2.25], [0.35, None, 1.0, 0.05], [False] * 4, 1280, 720, boxes
+
+    plan = build_camera_plan(source, (1000, 4000), Fps(25, 1), out_w=720, out_h=1280,
+                             detector=detector)
+    assert set(plan) == KEYS | {"faces"}
+    assert plan["faces"] == [[250, 100, 200, 300], None, [900, 850, 100, 150], [1, 0, 100, 100]]
+
+
+def test_a_detector_without_boxes_keeps_todays_plan(source):
+    plan = build_camera_plan(source, (1000, 4000), Fps(25, 1), out_w=720, out_h=1280,
+                             detector=StubDetector())
+    assert set(plan) == KEYS
+
+
+def test_boxes_must_be_parallel_to_the_samples(source):
+    def detector(path, *, start, end, sample_interval=0.75):
+        return [0.0, 0.75], [0.5, 0.5], [False, False], 1280, 720, [(0.1, 0.1, 0.1, 0.1)]
+
+    with pytest.raises(ValueError):
+        build_camera_plan(source, (1000, 3000), Fps(25, 1), out_w=720, out_h=1280,
+                          detector=detector)
+
+
+def test_the_window_detector_is_asked_for_boxes_when_it_takes_them(source, monkeypatch):
+    calls = []
+
+    def spy(path, *, start, end, sample_interval, progress=None, boxes=False):
+        calls.append(boxes)
+        result = [0.0, 0.75, 1.5], [0.5, None, 0.6], [False, False, True], 640, 360
+        return (*result, [(0.4, 0.2, 0.2, 0.3), None, (0.5, 0.2, 0.2, 0.3)]) if boxes else result
+
+    monkeypatch.setattr(camera, "detect_window", spy)
+    plan = build_camera_plan(source, (1000, 3000), Fps(25, 1), out_w=720, out_h=1280)
+    assert calls == [True]
+    assert plan["faces"] == [[400, 200, 200, 300], None, [500, 200, 200, 300]]

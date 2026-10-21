@@ -3,19 +3,28 @@
 // "Perlu dicek" (plan Appendix C.1, §3.7): every warning with its Indonesian message and a jump to
 // its frame; blocking plan errors on top; notes (severity "info": the caption at the auto clip's
 // spot, K5) last, under "Catatan", informative only. A non-modal popover under the top bar; Escape
-// closes it and focus returns to the button that opened it (EditorApp).
+// closes it and focus returns to the button that opened it (EditorApp). A caption over the
+// speaker's face carries its one-click fix (CONTRACTS §5.50); `onFix` is null when read-only.
 import { useEffect, useRef } from "react";
 
+import { captionFaceFix } from "./panels/caption-model.mjs";
 import styles from "./shell.module.css";
 
-function CheckItem({ check, onJump }) {
+function CheckItem({ check, onJump, onFix }) {
   const tone = check.severity === "error" ? styles.checkItem_error : check.severity === "info" ? styles.checkItem_info : "";
+  const fix = onFix ? captionFaceFix(check) : null;
   return (
     <li className={`${styles.checkItem} ${tone}`} data-check-severity={check.severity}>
       <span style={{ flex: "1 1 auto" }}>
         {check.severity === "error" && <strong>Harus diperbaiki: </strong>}
         {check.message}
       </span>
+      {fix && (
+        <button type="button" className={`${styles.button} ${styles.checkFix}`} data-check-fix={fix.id}
+          onClick={() => onFix(fix.command)}>
+          {fix.label}
+        </button>
+      )}
       {check.timeText !== null && (
         <button type="button" className={styles.linkButton} onClick={() => onJump(check)}>
           {`Lihat di ${check.timeText}`}
@@ -25,7 +34,7 @@ function CheckItem({ check, onJump }) {
   );
 }
 
-export default function ChecksPanel({ open, checks, onJump, onClose }) {
+export default function ChecksPanel({ open, checks, onJump, onFix = null, onClose }) {
   const panelRef = useRef(null);
 
   useEffect(() => {
@@ -55,7 +64,7 @@ export default function ChecksPanel({ open, checks, onJump, onClose }) {
           <p className={styles.muted}>Tidak ada yang perlu dicek.</p>
         ) : (
           <ul className={styles.checkList} aria-label="Perlu dicek">
-            {items.map((check) => <CheckItem key={check.key} check={check} onJump={onJump} />)}
+            {items.map((check) => <CheckItem key={check.key} check={check} onJump={onJump} onFix={onFix} />)}
           </ul>
         )}
         {notes.length > 0 && (
