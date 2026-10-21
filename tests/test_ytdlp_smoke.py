@@ -371,7 +371,16 @@ def test_the_smoke_downloads_with_the_flags_of_the_job_worker():
     source = (ROOT / "web" / "scripts" / "run-job.mjs").read_text(encoding="utf-8")
     pairs = dict(zip(smoke.DOWNLOAD_FLAGS[1::2], smoke.DOWNLOAD_FLAGS[2::2]))
     assert smoke.DOWNLOAD_FLAGS[0] == "--no-playlist"
+    # The job worker picks the source height per job (720, or 1080 for a 1080-wide render,
+    # CONTRACTS §5.54); the smoke downloads the way a default job does: up to 720p.
+    assert "maxHeight = 720" in source
     for flag, value in pairs.items():
+        if flag == "--format":
+            template = value.replace("720", "${height}")
+            assert template != value and f'"{flag}", `{template}`' in source, (
+                f"run-job.mjs no longer passes {flag} {template}: update DOWNLOAD_FLAGS in "
+                "scripts/ytdlp/ytdlp_smoke.py to what production runs")
+            continue
         assert f'"{flag}", "{value}"' in source, (
             f"run-job.mjs no longer passes {flag} {value}: update DOWNLOAD_FLAGS in "
             "scripts/ytdlp/ytdlp_smoke.py to what production runs")
