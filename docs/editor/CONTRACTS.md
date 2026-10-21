@@ -4056,3 +4056,63 @@ frame. `scripts/parity/frame_identity.py`: P-FRAME and G1/G2 gain `SQUARE_CASES`
 gains `plate_camera_square` and `plate_split_square`; the browser player fixtures keep their
 720×1280 cases. `scripts/parity/logo_gates.py` adds 720×720 to the G5 logo vectors. PF-SIZE:
 `scripts/perf/output_sizes.py` (GATES "Output sizes (PF-SIZE)").
+
+## 5.55 Small edits: the 0.1 s nudge, "di sumber mm:ss" and Ctrl+klik for Kata kunci (2026-10-21)
+
+Three small editor additions. The document, the schema (`schema_minor`), the validators, the
+engine and the render do not change: a nudged edge is an ordinary segment edge, and a keyword
+set by Ctrl+klik is the `SetWordEmphasis` that Ctrl+E already sends.
+
+### NudgeEdge (`web/lib/editor/commands.mjs`)
+
+- `NudgeEdge {seg: "body" | "cold_open", edge: "in" | "out", ms}` moves one edge of that segment
+  by `ms` (a safe integer, not 0, |ms| ≤ 1000), in whole frames:
+  `sign(ms) · max(1, divRoundHalfUp(|ms|·num, 1000·den))` (0.1 s is 3 frames at 30000/1001 and
+  at 25 fps). It sits after TrimEnd in the command list (53 names, `__dev__/fakes.mjs` too).
+- The moved edge may leave the `bounds` table (§3.6): it is the one cut point placed by hand.
+  TrimStart/TrimEnd, the drag and the handle's plain arrows still snap to a word gap. `tight_cut`
+  fires only when the edge lands on a `tight` bounds frame, as for any edge.
+- The body: the same path as the trims (`trimBody`: `range_invalid`, `outside_window`, the
+  removals it crosses clamped or dropped, then `checkDoc`, so `duration_out_of_bounds` and
+  `cold_open_invalid` hold). The cold open: the same path as NudgeColdOpen (removals clamped, the
+  join and its transition kept; `cold_open_missing` without one, `cold_open_invalid` outside
+  0.5–8 s or when it would only repeat the opening).
+- Args are normalised to `{seg, edge, ms}`; merge key `edge:<seg>:<edge>`, so quick nudges of one
+  edge within 500 ms are one undo step. The rebase replays the step relative to the other tab's
+  edge (parts `trim` or `coldopen`, found by `diffParts`); both tabs moving the same edge is a
+  `trim` conflict.
+- `scripts/edit_v2/crosscheck_commands.mjs` generates it (weight 4, ±100…1000 ms, rarely out of
+  range), so the 1,000-sequence Python cross-check, QG-UNDO and QG-CONFLICT cover off-gap edges.
+  QG-CONFLICT compares `captions.override.words_max` by its effect (`captionWordsPerLine`): a
+  pack switch in the other tab may drop the key while the chosen count stays (§5.30).
+
+### Editor
+
+- Timeline (Mode Lengkap): the header has "Awal | Akhir" (pressed pair: the selected trim edge)
+  and "−0,1 dtk" / "+0,1 dtk". Focusing, clicking or dragging a trim handle selects its edge, which
+  the handle shows in the text colour (the other stays blue). On a focused handle ←/→ go to the
+  next word gap as before and Shift+←/→ send `NudgeEdge` ±100 (`timeline-model.trimHandleKey`);
+  the shell leaves both to the handle (`role="slider"`). The help lists them with the scope
+  "di gagang timeline".
+- Cold open panel: four buttons under the one-word nudges, "Awal −0,1 dtk", "Awal +0,1 dtk",
+  "Akhir −0,1 dtk", "Akhir +0,1 dtk" (merge key `edge:cold_open:<edge>`).
+- Transport row (`StageControls.jsx`): after the clip time, "di sumber 12:34" (`h:mm:ss` from one
+  hour): the source-video time of the playhead's frame through the plan's pieces
+  (`shell-model.sourceClockAt`), painted from the frame bus outside React. Mode Cepat's bottom
+  bar does not show it.
+- Transcript: Ctrl+klik (Cmd+klik on macOS, where Ctrl+click opens the context menu) on a word
+  sends `SetWordEmphasis {wordId, on: !emphasis}` and leaves the selection and the playhead alone;
+  a plain or Shift click keeps today's behaviour (`transcript/actions.mjs` `keywordClick`,
+  `keywordCommand`). Every word's tooltip ends with "Ctrl+klik: jadikan kata kunci" (or
+  "batalkan …", "⌘+klik" on macOS), and the transcript's hint line names it. Read-only: no hint,
+  and the click only says "Mode baca-saja".
+
+### Gates
+
+Tests: `web/tests/editor-commands.test.mjs` (frames per fps, both segments, window, removals,
+cold-open rules, bad args, merge key), `editor-history.test.mjs` (one undo step, replay),
+`editor-rebase.test.mjs` (merge and the `trim` conflict; words per line across a pack switch),
+`editor-shell-model.test.mjs` (`sourceClockAt`), `editor-timeline-model.test.mjs`
+(`trimHandleKey`), `editor-transcript.test.mjs` (Ctrl/Cmd+klik), `editor-shortcuts.test.mjs`;
+`tests/test_edit_v2_crosscheck.py`. Browser spec `web/e2e/editor-nudge.spec.mjs` on the editor
+fakes.

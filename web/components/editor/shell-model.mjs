@@ -180,6 +180,29 @@ export function formatClock(ms) {
   return hours ? `${hours}:${clock}` : clock;
 }
 
+/** "12:34" (mm:ss; "h:mm:ss" from one hour), truncating to the second: a time in the source video. */
+export function formatSourceClock(ms) {
+  const seconds = Math.floor(Math.max(0, ms) / 1000);
+  const hours = Math.floor(seconds / 3600);
+  const pad = (value) => String(value).padStart(2, "0");
+  const clock = `${pad(Math.floor((seconds % 3600) / 60))}:${pad(seconds % 60)}`;
+  return hours ? `${hours}:${clock}` : clock;
+}
+
+/**
+ * The source-video time of output frame n (the plan DTO's pieces, §4.3) for "di sumber 12:34",
+ * or null without pieces. Frames past either end show the clip's first or last frame.
+ */
+export function sourceClockAt(frame, plan) {
+  const pieces = Array.isArray(plan?.pieces) ? plan.pieces : [];
+  if (!pieces.length) return null;
+  const last = pieces.at(-1);
+  const n = Math.min(Math.max(0, Math.trunc(Number(frame) || 0)), last.outF0 + last.frames - 1);
+  const piece = pieces.find((item) => n >= item.outF0 && n < item.outF0 + item.frames) ?? last;
+  const sf = piece.inSf + Math.min(Math.max(0, n - piece.outF0), piece.frames - 1);
+  return formatSourceClock(sfToMs(sf, plan.fps));
+}
+
 /** "1,4 dtk" (tenths, truncated). */
 export function formatSeconds(ms) {
   const tenths = Math.floor(Math.max(0, ms) / 100);

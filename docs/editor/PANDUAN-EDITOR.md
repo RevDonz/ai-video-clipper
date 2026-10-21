@@ -169,7 +169,8 @@ bilah.
 **Rel panel (kiri).** Enam ikon bernama: Transkrip, Teks, Cold open, Tata letak, Logo, Musik. Dengan
 keyboard: ↑/↓ pindah panel, Home/End ke ujung.
 
-**Transkrip.** Klik kata untuk memilih, Shift+klik untuk rentang. Begitu ada pilihan, **bilah aksi**
+**Transkrip.** Klik kata untuk memilih, Shift+klik untuk rentang. **Ctrl+klik** (⌘+klik di Mac)
+menandai kata sebagai kata kunci, atau membatalkannya, tanpa mengubah pilihan. Begitu ada pilihan, **bilah aksi**
 muncul tepat di atasnya (di bawahnya kalau tidak ada tempat) dan tidak pernah menutupi kata yang
 dipilih:
 - tombol utama: **Hapus**, atau **Pulihkan** / **Perpanjang ke sini** kalau itu yang cocok untuk
@@ -324,10 +325,15 @@ catatan hak cipta). Volume musik, mulai dari, ulangi sampai klip selesai, muncul
 **Samakan kenyaringan** (−14 LUFS) dengan hasil yang tercapai; kalau volume diturunkan supaya
 tidak pecah, panel menuliskannya.
 
-**Timeline (bawah).** Di atasnya: Putar, mundur/maju satu frame dan waktu. Lajur video, teks, hook, **Audio** (waveform suara klip), **Penanda** (😂
+**Timeline (bawah).** Di atasnya: Putar, mundur/maju satu frame, waktu klip dan **di sumber 12:34**
+(posisi yang sama di video sumber). Lajur video, teks, hook, **Audio** (waveform suara klip), **Penanda** (😂
 tawa, jeda ≥ 0,6 detik, potongan kamera; klik untuk lompat; arahkan kursor untuk asal tandanya) dan
 **Musik** (waveform musik dengan garis volume yang turun saat ada suara). Klik untuk pindah posisi,
-seret gagang awal/akhir (menempel ke batas kata), Ctrl+scroll untuk zoom; scroll timeline ke bawah
+seret gagang awal/akhir (menempel ke batas kata), Ctrl+scroll untuk zoom. Untuk menggeser awal atau
+akhir klip sedikit saja, pilih **Awal** atau **Akhir** di baris atas timeline (atau klik gagangnya),
+lalu **−0,1 dtk** / **+0,1 dtk**; di gagang yang sedang fokus, ←/→ pindah ke celah kata dan
+Shift+←/→ menggeser 0,1 detik. Geseran 0,1 detik tidak menempel ke batas kata, jadi bisa memotong di
+tengah kata. Hal yang sama untuk cold open ada di panel Cold open (**Awal −0,1 dtk** dan seterusnya); scroll timeline ke bawah
 untuk lajur Musik di layar pendek. Kalau job lama tidak punya data tawa/jeda, ada catatan "tidak
 tersedia untuk job ini" (di lajurnya, atau di baris atas timeline bila lajurnya berisi penanda).
 
@@ -480,6 +486,7 @@ untuk saran hook; kosong berarti rantai di Pengaturan.
 | I / O | Awal / akhir klip di pilihan atau di posisi putar |
 | Ctrl+Shift+H | Pilihan → cold open |
 | Ctrl+E / Ctrl+Shift+X | Kata kunci / sembunyikan dari caption |
+| Ctrl+klik kata (⌘+klik di Mac) | Kata kunci untuk kata itu |
 | ' | Zona aman TikTok |
 | Ctrl+Shift+R | Frame akhir |
 | Ctrl+Shift+E | Ekspor |
@@ -495,6 +502,8 @@ Tombol yang bekerja saat fokus di satu tempat:
 | Di mana | Tombol | Aksi |
 |---|---|---|
 | Sakelar Cepat \| Lengkap | ← / → | Pindah tampilan (fokus tetap di sakelar) |
+| Gagang awal/akhir klip (timeline) | ← / → | Ke celah kata sebelumnya / berikutnya |
+| Gagang awal/akhir klip | Shift+← / Shift+→ | Geser 0,1 detik |
 | Bilah posisi (Mode Cepat) | ← / →, Shift+← / → | Satu frame, satu detik |
 | Bilah posisi | Home / End | Ke awal / akhir klip |
 | Bilah posisi | PageUp / PageDown | Ke tanda sebelumnya / berikutnya (termasuk ujung cold open) |

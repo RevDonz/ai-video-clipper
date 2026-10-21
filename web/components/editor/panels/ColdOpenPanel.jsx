@@ -1,7 +1,8 @@
 "use client";
 
 // The cold-open panel (plan §11.2 T2.7, §11.3 T3.7, §3.4, §7.2): on/off, the current line and
-// its length, one word more or less on each edge (NudgeColdOpen), "Jadikan cold open" from the
+// its length, one word more or less on each edge (NudgeColdOpen) or 0.1 s (NudgeEdge, CONTRACTS
+// §5.55), "Jadikan cold open" from the
 // transcript selection (shared through transcript/selection.mjs), disabled with its reason
 // outside 0.5–8 s or when it would only repeat the opening, and the suggestions
 // (ColdOpenSuggestions.jsx). The Transisi section (TransitionSection.jsx) sets the effect at the
@@ -25,6 +26,13 @@ const NUDGES = [
   { key: "inLater", label: "Buang kata pertama", edge: "in", words: 1 },
   { key: "outEarlier", label: "Buang kata terakhir", edge: "out", words: -1 },
   { key: "outLater", label: "Tambah kata sesudah", edge: "out", words: 1 },
+];
+
+const FINE_NUDGES = [
+  { key: "inEarlier", label: "Awal −0,1 dtk", name: "Mulai cold open 0,1 detik lebih awal", edge: "in", ms: -100 },
+  { key: "inLater", label: "Awal +0,1 dtk", name: "Mulai cold open 0,1 detik lebih akhir", edge: "in", ms: 100 },
+  { key: "outEarlier", label: "Akhir −0,1 dtk", name: "Akhiri cold open 0,1 detik lebih awal", edge: "out", ms: -100 },
+  { key: "outLater", label: "Akhir +0,1 dtk", name: "Akhiri cold open 0,1 detik lebih akhir", edge: "out", ms: 100 },
 ];
 
 // The seed's cold open as words, to turn a removed cold open back on.
@@ -108,6 +116,15 @@ function ColdOpenBody({ state, dispatch, player, api }) {
                   </button>
                 );
               })}
+            </div>
+            <div className={styles.nudges} role="group" aria-label="Geser tepi cold open 0,1 detik" data-coldopen-fine="">
+              {FINE_NUDGES.map((nudge) => (
+                <button key={nudge.key} type="button" className={styles.button} disabled={readOnly} title={nudge.name}
+                  onClick={() => run([{ type: "NudgeEdge", args: { seg: "cold_open", edge: nudge.edge, ms: nudge.ms },
+                    mergeKey: `edge:cold_open:${nudge.edge}` }])}>
+                  {nudge.label}
+                </button>
+              ))}
             </div>
             <div className={styles.row}>
               <button type="button" className={styles.button} disabled={!player?.seek} onClick={play}>Putar cold open</button>

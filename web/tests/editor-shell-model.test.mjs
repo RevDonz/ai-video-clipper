@@ -24,6 +24,7 @@ import {
   exportRevision,
   formatClock,
   formatSeconds,
+  formatSourceClock,
   frameToMs,
   liveEntries,
   messageFor,
@@ -33,6 +34,7 @@ import {
   safeApiHref,
   saveStatusView,
   selectionTrimWord,
+  sourceClockAt,
   validEditorIds,
 } from "../components/editor/shell-model.mjs";
 
@@ -100,6 +102,28 @@ test("frames become source-accurate clock text with a decimal comma", () => {
   assert.equal(formatClock(3_723_400), "1:02:03,4");
   assert.equal(formatSeconds(1_400), "1,4 dtk");
   assert.equal(formatSeconds(4_004), "4,0 dtk");
+});
+
+test("the playhead's time in the source video is mm:ss (h:mm:ss from one hour), through cuts and the cold open", () => {
+  assert.equal(formatSourceClock(0), "00:00");
+  assert.equal(formatSourceClock(59_999), "00:59");
+  assert.equal(formatSourceClock(754_900), "12:34");
+  assert.equal(formatSourceClock(3_723_400), "1:02:03");
+  const plan = {
+    fps: [30, 1], totalFrames: 90,
+    pieces: [
+      { seg: "seg_co", role: "cold_open", i: 0, outF0: 0, frames: 30, inSf: 36_000, outSf: 36_030 },
+      { seg: "seg_b1", role: "body", i: 0, outF0: 30, frames: 30, inSf: 1_800, outSf: 1_830 },
+      { seg: "seg_b1", role: "body", i: 1, outF0: 60, frames: 30, inSf: 111_690, outSf: 111_720 },
+    ],
+  };
+  assert.equal(sourceClockAt(0, plan), "20:00");
+  assert.equal(sourceClockAt(35, plan), "01:00");
+  assert.equal(sourceClockAt(60, plan), "1:02:03");
+  assert.equal(sourceClockAt(90, plan), "1:02:03", "the end of the clip shows its last frame");
+  assert.equal(sourceClockAt(-1, plan), "20:00");
+  assert.equal(sourceClockAt(0, null), null);
+  assert.equal(sourceClockAt(0, { fps: [30, 1], pieces: [] }), null);
 });
 
 test("the save state follows Appendix C.1 and C.6", () => {

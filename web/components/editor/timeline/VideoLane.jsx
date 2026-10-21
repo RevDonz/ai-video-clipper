@@ -5,15 +5,17 @@
 // the trim handles on the body's edges. A dragged edge is magnet-
 // snapped to the words artifact's `bounds` table; holding Alt frees the ghost for the view only,
 // because the stored value is always a `bounds` frame (TrimStart/TrimEnd take the word next to the
-// gap, Appendix B). Arrow keys on a handle move the edge to the adjacent word gap.
+// gap, Appendix B). Arrow keys on a handle move the edge to the adjacent word gap; Shift+arrows
+// move it by 0.1 s (NudgeEdge, CONTRACTS §5.55). The handle last focused or dragged is the
+// timeline's selected edge (`trimEdge`), which the header's −0,1 / +0,1 buttons move.
 // Props (timeline/lanes.mjs): { plan, state, dispatch, player, pxPerFrame } plus the shell's
-// `notify` and `readOnly`.
+// `notify` and `readOnly`, and the timeline's `trimEdge` and `onTrimEdge`.
 import { useRef, useState } from "react";
 
 import { keyframeMarks } from "../../../lib/editor/framing.mjs";
 import styles from "../shell.module.css";
 import { formatClock, rejectionText, sfToMs } from "../shell-model.mjs";
-import { bodySegment, cutMarkers, edgeFrames, pieceBlocks, snapTrim, stepTrim } from "./timeline-model.mjs";
+import { bodySegment, cutMarkers, edgeFrames, pieceBlocks, snapTrim, stepTrim, trimHandleKey } from "./timeline-model.mjs";
 
 function windowFrames(doc) {
   const [num, den] = doc?.output?.fps ?? [30, 1];
@@ -21,7 +23,8 @@ function windowFrames(doc) {
   return [Math.floor((window[0] * num) / (1000 * den)), Math.ceil((window[1] * num) / (1000 * den))];
 }
 
-export default function VideoLane({ plan, state, dispatch, pxPerFrame = 1, notify = () => {}, readOnly = false }) {
+export default function VideoLane({ plan, state, dispatch, pxPerFrame = 1, notify = () => {}, readOnly = false,
+  trimEdge = null, onTrimEdge = () => {} }) {
   const [drag, setDragState] = useState(null);
   // The drag lives in a ref too: pointerup must see the last pointermove even before React renders.
   const dragRef = useRef(null);
@@ -46,6 +49,14 @@ export default function VideoLane({ plan, state, dispatch, pxPerFrame = 1, notif
     }
   };
 
+  const nudge = (edge, ms) => {
+    try {
+      dispatch("NudgeEdge", { seg: "body", edge: edge === "start" ? "in" : "out", ms });
+    } catch (error) {
+      notify(rejectionText(error));
+    }
+  };
+
   const handle = (edge) => {
     if (!edges || !body) return null;
     const sf = edge === "start" ? body.in_sf : body.out_sf;
@@ -65,16 +76,26 @@ export default function VideoLane({ plan, state, dispatch, pxPerFrame = 1, notif
         aria-valuenow={sf}
         aria-valuetext={`${label} di ${formatClock(sfToMs(sf, fps))} video sumber`}
         aria-disabled={disabled}
+        aria-keyshortcuts="ArrowLeft ArrowRight Shift+ArrowLeft Shift+ArrowRight"
+        title={`${label}: ← → ke celah kata, Shift+← → 0,1 detik`}
         data-trim-edge={edge}
+        data-selected={trimEdge === edge ? "" : undefined}
+        onFocus={() => onTrimEdge(edge)}
         onKeyDown={(event) => {
-          if (disabled || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) return;
+          const action = disabled ? null : trimHandleKey(event);
+          if (!action) return;
           event.preventDefault();
-          const step = stepTrim({ edge, direction: event.key === "ArrowLeft" ? -1 : 1, words, doc });
+          if (action.kind === "nudge") {
+            nudge(edge, action.ms);
+            return;
+          }
+          const step = stepTrim({ edge, direction: action.direction, words, doc });
           if (step) commit(edge, step);
           else notify("Tidak ada celah kata lagi ke arah ini");
         }}
         onPointerDown={(event) => {
           if (disabled || event.button !== 0) return;
+          onTrimEdge(edge);
           event.preventDefault();
           event.currentTarget.setPointerCapture?.(event.pointerId);
           setDrag({ edge, startX: event.clientX, base: sf, baseF: f, delta: 0, candidate: sf, snapped: null, alt: event.altKey });

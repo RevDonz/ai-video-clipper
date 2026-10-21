@@ -5,11 +5,12 @@
 // (playing) word is marked outside React by `active-word.mjs` (`data-active`).
 import { memo } from "react";
 
+import { keywordHint as hintText } from "./actions.mjs";
 import styles from "./transcript.module.css";
 
 const CLEANUP_TITLES = Object.freeze({ filler: "Rapikan: kata pengisi", repeat: "Rapikan: pengulangan" });
 
-function titleOf(state, cleanup) {
+function titleOf(state, cleanup, keywordHint) {
   const parts = [];
   if (cleanup) parts.push(CLEANUP_TITLES[cleanup] ?? "Rapikan");
   if (state.edited) parts.push(`Asli: ${state.asr}`);
@@ -19,13 +20,15 @@ function titleOf(state, cleanup) {
   if (state.hidden) parts.push("Disembunyikan dari caption");
   if (state.emphasis) parts.push("Kata kunci");
   if (state.lowConf) parts.push("Mungkin salah dengar");
+  if (keywordHint) parts.push(hintText({ mac: keywordHint === "mac", on: state.emphasis }));
   return parts.length ? parts.join(" · ") : undefined;
 }
 
 const flag = (on) => (on ? "" : undefined);
 
 // `cleanup`: the Rapikan class proposing this word ("filler" | "repeat") while the review is open.
-function WordSpan({ state, selected, cleanup = null }) {
+// `keywordHint` ("ctrl" | "mac") adds the Ctrl/Cmd+click line to the tooltip; null when read-only.
+function WordSpan({ state, selected, cleanup = null, keywordHint = null }) {
   return (
     <span
       className={styles.word}
@@ -41,7 +44,7 @@ function WordSpan({ state, selected, cleanup = null }) {
       data-lowconf={flag(state.lowConf)}
       data-selected={flag(selected)}
       data-cleanup={cleanup ?? undefined}
-      title={titleOf(state, cleanup)}
+      title={titleOf(state, cleanup, keywordHint)}
     >
       {state.text}
     </span>
