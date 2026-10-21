@@ -2843,15 +2843,33 @@ a document with `entrance` `none` compiles to the same cues and ASS bytes as one
   every event of its first window (the events whose first frame is the line's `f0`: the line,
   the vector box, Bold's first active-word event, Sorot's words and box) starts with one more
   override block. Later windows are unchanged, so the line has settled by the time the next word
-  lights. No event's layer, style, start or end moves.
+  lights. No event's style, start or end moves; a fading entrance of Classic or Karaoke adds
+  the drop shadow's copy and moves the line to layer 1 ("Outline drawn as a shadow" below).
 - `d = min(ENTRANCE_MS, 10·(end_cs − start_cs))` of that window, `ENTRANCE_MS` = 120:
-  - Fade: `{\fad(d,0)}`.
+  - Fade: `{\fad(d,0)<X>}`.
   - Pop: `{\fscx70\fscy70\t(0,t,\fscx108\fscy108)\t(t,d,\fscx100\fscy100)}` with
     `t = rhu(2·d, 3)`. libass scales each event around its anchor: the bottom centre of a line,
     Sorot's words and box around their own `\pos`.
-  - Blur: `{\fad(d,0)\blurB\t(0,d,\blur0)}` with `B` = H/128 pixels to two decimals (10 at
+  - Blur: `{\fad(d,0)\blurB\t(0,d,\blur0)<X>}` with `B` = H/128 pixels to two decimals (10 at
     1280, 15 at 1920). libass blurs only the outline of outlined text, so the line also fades in;
     boxes (`BorderStyle 3`, `\p`) and text without a border blur whole.
+  - `<X>` is empty for Box and the tags of "Outline drawn as a shadow" below for the other
+    packs.
+- *Outline drawn as a shadow (amended 2026-10-21, P-TXT).* Under a translucent or fading fill
+  libass cuts the glyphs out of the border (`ass_fix_outline`: `o > g ? o − g/2 : 0`). The
+  step turns a one-level difference in glyph coverage between JASSUB's libass and FFmpeg's
+  (their FreeType and HarfBuzz differ) into half the outline: up to 43 levels in the CI P-TXT
+  of the fading entrances. A shadow of the border's shape is never cut, so a Fade or Blur
+  entrance of a pack with a plain outline (BorderStyle 1, outline > 0, not a vector box: every
+  pack but Box) ends its block with `\3a&HFF&\4c<outline>\4a&H<outline alpha>&\shad0.02`
+  (the border transparent, the outline as the smallest nonzero shadow offset, 1/64 px). A pack
+  with a drop shadow (Classic, Karaoke) draws that shadow from a copy of the event placed just
+  before it, whose block ends with `\3a&HFF&\1a&HFE&\2a&HFE&` (fill all but transparent, so
+  libass keeps the shadow uncut; border transparent), on layer 0; the event itself then moves
+  to layer 1, because libass stacks overlapping events of one layer apart. Once the fade ends
+  the picture is the same as before, byte for byte in the CI references; while the line fades,
+  its fill shows over its outline instead of over a hole cut in it (up to 64 levels darker in
+  the first frames). Pop is unchanged.
 - The hook (its own `\fad(150,250)`) and the legacy `build_ass` are untouched.
 
 ### Editor
@@ -3061,7 +3079,9 @@ auto render is unchanged: without the key `build_ass_v2` writes the bytes it wro
 ### Layout (`captions_ass.layout_watermark(spec, *, play_res)`)
 
 - DejaVu Sans Bold (`WATERMARK_FONT_FILE`; family "DejaVu Sans", Bold), white with a black
-  outline, BorderStyle 1, no shadow.
+  outline, BorderStyle 1. The outline is drawn as a shadow of the border's shape (see "Outline
+  drawn as a shadow" in §5.39): under a translucent fill libass cuts the glyphs out of a border
+  and the two renderers then disagree; a shadow is never cut.
 - The zones of `UI_ZONE_720` scaled like `plan.ui_zone`: `top = rhu(93·H, 1280)`,
   `bottom = rhu(280·H, 1280)`, `right = rhu(93·W, 720)`; the left margin `L = rhu(40·W, 1000)`
   (the logo presets' 4 %).
@@ -3075,11 +3095,12 @@ auto render is unchanged: without the key `build_ass_v2` writes the bytes it wro
   `x = W − right − E`; `y = top + E + S` (top row), `rhu(H + S, 2)` (middle row) or
   `H − bottom − E` (bottom row). The line never reaches the TikTok zone, so no `unsafe_zone` is
   computed for it.
-- Alpha `A = 255 − rhu(255·opacity_pm, 1000)` on all four colours of the style.
+- Alpha `A = 255 − rhu(255·opacity_pm, 1000)` on the fill, the karaoke colour and the shadow;
+  the border is transparent (`FF`).
 
 ### Events (`build_ass_v2(…, watermark=None)`)
 
-- Style `Watermark,DejaVu Sans,S,&H<A>FFFFFF,&H<A>FFFFFF,&H<A>000000,&H<A>000000,-1,0,0,0,100,100,0,0,1,<O>,0,<an>,0,0,0,1`,
+- Style `Watermark,DejaVu Sans,S,&H<A>FFFFFF,&H<A>FFFFFF,&HFF000000,&H<A>000000,-1,0,0,0,100,100,0,0,1,<O>,0.02,<an>,0,0,0,1`,
   after the other styles.
 - One event, the first of `[Events]`:
   `Dialogue: 0,0:00:00.00,<safe_cs(total)>,Watermark,,0,0,0,,{\an<n>\pos(x,y)\q2}<ass_escape(text)>`.
@@ -3618,8 +3639,11 @@ delegation). `schema_minor`, `COMPILER_ID`, `COMPILER_VERSION` and the plan sche
 - Events: per cue, two events on layer 0 with the cue's start and end, both placed with
   `\an2\pos(W/2, H − MarginV)\q2[\fsN]` (a single word wider than the line limit shrinks with
   `\fsN`, as Box and Sorot do), so libass never stacks them apart:
-  1. the glow: `{<place>\bord<g>\blur<b>\3c<highlight>\3a&H30&\1a&HFF&\2a&HFF&\shad0}` and the
-     line's words (escaped, case applied, no karaoke tags);
+  1. the glow: `{<place>\bord<g>\blur<b>\3a&HFF&\4c<highlight>\4a&H30&\shad0.02\1a&HFE&\2a&HFE&}`
+     and the line's words (escaped, case applied, no karaoke tags): the blurred border's shape
+     drawn as a shadow (§5.39 "Outline drawn as a shadow"), never cut by the glyphs, under an
+     all but transparent fill; the line drawn over it hides the glyphs' area, so the picture
+     equals a border glow with transparent glyphs (amended 2026-10-21, P-TXT);
   2. the line: `{<place>}` and the Karaoke pack's `\kf` text for the same cue.
   An entrance (§5.39) opens both; the glow's own `\blur` comes after the entrance block, so the
   glow stays soft while a Blur entrance sharpens the line.
