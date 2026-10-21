@@ -119,7 +119,8 @@ test("error bodies lose any string that names a server path or carries a traceba
 });
 
 test("the route parameters each have one exact shape", () => {
-  assert.deepEqual(Object.keys(ROUTE_PARAMS).sort(), ["clipId", "id", "idempotencyKey", "renderId", "sha", "taskId"]);
+  assert.deepEqual(Object.keys(ROUTE_PARAMS).sort(), ["batchId", "clipId", "id", "idempotencyKey", "renderId", "sha", "taskId"]);
+  assert.ok(ROUTE_PARAMS.batchId.test(JOB) && !ROUTE_PARAMS.batchId.test(`${JOB}/..`) && !ROUTE_PARAMS.batchId.test(JOB.toUpperCase()));
   assert.ok(ROUTE_PARAMS.id.test(JOB) && !ROUTE_PARAMS.id.test(JOB.toUpperCase()) && !ROUTE_PARAMS.id.test(`${JOB}\n`));
   assert.ok(ROUTE_PARAMS.clipId.test(CLIP) && !ROUTE_PARAMS.clipId.test(`${CLIP}/..`));
   assert.ok(ROUTE_PARAMS.sha.test("a".repeat(64)) && !ROUTE_PARAMS.sha.test("a".repeat(63)));

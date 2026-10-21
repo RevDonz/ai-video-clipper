@@ -55,6 +55,15 @@ versi AI").
 ``archive`` ``{jobId, clipId, etag}`` → ``{relative, revision}``: the job-relative path of that
 revision for a render request (``seed.json`` for revision 0), archiving the current revision
 when needed.
+
+``apply_all`` ``{jobId, clipId, etag, group, batchId}`` → ``{batchId, group, applied: [{clipId,
+index}], skipped: [{clipId, index, reason}], unchanged: [{clipId, index}]}``: "Pakai di semua
+klip" (CONTRACTS §5.53, ``apply_all.apply``). ``clipId`` at ``etag`` is the source (exit 5 when
+it is not current), ``group`` one of ``captions``, ``logo``, ``layout``, ``batchId`` the
+request's Idempotency-Key; the targets are the other clips of ``clips`` in its order.
+
+``undo_apply_all`` ``{jobId, batchId}`` → ``{batchId, group, restored: [{clipId, index}],
+skipped: [{clipId, index, reason}]}`` (``apply_all.undo``); exit 4 for an unknown batch.
 """
 
 from __future__ import annotations
@@ -72,7 +81,7 @@ from pathlib import Path
 from typing import Any
 
 from .. import job_files
-from . import store
+from . import apply_all, store
 from . import timemap as tm
 from .clip_id import CLIP_ID_PATTERN, clip_id, ms_from_seconds
 from .errors import (
@@ -88,7 +97,7 @@ from .errors import (
     message_id,
 )
 
-OPS = ("clips", "prepare_job", "get", "put", "seed", "archive")
+OPS = ("clips", "prepare_job", "get", "put", "seed", "archive", "apply_all", "undo_apply_all")
 NICE = 5  # prepare_job, as the preview lane's heavy ops (plan §2.6; W2 verifier)
 
 MAX_ENVELOPE_BYTES = 2 << 20
@@ -106,6 +115,8 @@ _FIELDS = {
     "seed": ("jobId", "clipId"),
     "put": ("jobId", "clipId", "expectedEtag", "idempotencyKey", "docRaw"),
     "archive": ("jobId", "clipId", "etag"),
+    "apply_all": ("jobId", "clipId", "etag", "group", "batchId"),
+    "undo_apply_all": ("jobId", "batchId"),
 }
 _PATTERNS = {
     "jobId": _UUID,
@@ -114,6 +125,8 @@ _PATTERNS = {
     "etag": _SHA,
     "idempotencyKey": _UUID,
     "docRaw": _B64,
+    "group": re.compile("|".join(apply_all.GROUPS)),
+    "batchId": _UUID,
 }
 
 
@@ -259,6 +272,13 @@ def _put(clip: Path, envelope: Mapping[str, str], now_ms: int) -> dict:
 def _archive(clip: Path, etag: str) -> dict:
     relative, revision = store.archive_for_render(clip, etag)
     return {"relative": relative, "revision": revision}
+
+
+def _apply_all(job: Path, clip: Path, envelope: Mapping[str, str], now_ms: int) -> dict:
+    clips = [(entry["index"], entry["clipId"]) for entry in _clips(job)["clips"]]
+    return apply_all.apply(job, clips, source=clip.name, source_etag=envelope["etag"],
+                           group=envelope["group"], batch_id=envelope["batchId"].lower(),
+                           now_ms=now_ms)
 
 
 def _prepare_job(job: Path) -> dict:
@@ -444,11 +464,16 @@ def _dispatch(envelope: Mapping[str, str], jobs_root: str | os.PathLike | None,
             except OSError:
                 pass
         return _prepare_job(job)
+    now = _now_ms() if now_ms is None else now_ms
+    if op == "undo_apply_all":
+        return apply_all.undo(job, batch_id=envelope["batchId"].lower(), now_ms=now)
     clip = _clip_dir(job, envelope["clipId"])
+    if op == "apply_all":
+        return _apply_all(job, clip, envelope, now)
     handlers: dict[str, Callable[[], dict]] = {
         "get": lambda: _document(envelope["jobId"], clip, seed_only=False),
         "seed": lambda: _document(envelope["jobId"], clip, seed_only=True),
-        "put": lambda: _put(clip, envelope, _now_ms() if now_ms is None else now_ms),
+        "put": lambda: _put(clip, envelope, now),
         "archive": lambda: _archive(clip, envelope["etag"]),
     }
     return handlers[op]()

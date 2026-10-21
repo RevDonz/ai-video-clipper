@@ -9,6 +9,7 @@
 // Mode Lengkap" opens the full panel. Props: the card bundle of cards.mjs.
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 
+import ApplyAll from "../apply-all/ApplyAll.jsx";
 import { LOGO_ACCEPT, logoUploader, logoUploads } from "../gizmos/logo-upload.mjs";
 import { logoPanelView, logoUploadCommand, logoUploadMessage, runLogoSteps } from "../panels/logo-model.mjs";
 import { DUCK_PRESET_LIST, MUSIC_ACCEPT, musicCommands, musicView } from "../panels/music-model.mjs";
@@ -37,7 +38,7 @@ function Progress({ label, text, fraction, onCancel, cancelLabel }) {
   );
 }
 
-function LogoSection({ state, dispatch, uploadAsset, uploadsEnabled, showLengkap }) {
+function LogoSection({ state, dispatch, uploadAsset, uploadsEnabled, showLengkap, applyAll = null }) {
   const view = logoPanelView(state);
   const logo = view.logo;
   const locked = !view.ready || view.readOnly;
@@ -104,6 +105,7 @@ function LogoSection({ state, dispatch, uploadAsset, uploadsEnabled, showLengkap
       <PillButton variant="quiet" className={styles.start} aria-describedby={`${uid}-title`} onClick={() => showLengkap?.("logo")}>
         Atur detail di Mode Lengkap
       </PillButton>
+      <ApplyAll applyAll={applyAll} group="logo" disabled={locked || Boolean(progress)} />
     </section>
   );
 }

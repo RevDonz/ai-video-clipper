@@ -380,7 +380,9 @@ def test_compile_modes_and_api_ops_are_frozen():
         "audio_measure",
         "derive_image",
     )
-    assert api.OPS == ("clips", "prepare_job", "get", "put", "seed", "archive")
+    # "Pakai di semua klip" (CONTRACTS §5.53) added apply_all and undo_apply_all
+    assert api.OPS == ("clips", "prepare_job", "get", "put", "seed", "archive", "apply_all",
+                       "undo_apply_all")
     # layar terbagi (CONTRACTS §5.45) enabled the reserved "split"
     assert layouts.LAYOUT_MODES == ("fit_blur", "camera", "fill_center", "split")
     assert layouts.NO_FACE_MODES == ("center", "fit_blur")

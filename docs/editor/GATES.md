@@ -2151,3 +2151,19 @@ GitHub Actions when the branch is pushed.
 | Player P-FRAME | 0 mismatches | the two zoom cases read through latar blur's zoomed geometry | `scripts/parity/player_fixtures.py`, `e2e/editor-player.spec.mjs` | pending: `editor-gates suite=e2e` |
 | Lane and keys | the plate key names the zoom and the rect; the cells op builds that plate; the lane passes the zoom with every batch | pass | `tests/test_edit_v2_plates.py`, `tests/test_edit_v2_preview_cli.py`, `web/tests/preview-lane.test.mjs` | **pass** (local) |
 | Panel, card and dialog (browser, fakes) | keys and drag store once, Kembali ke 100%, undo, the split drops it, Atur bingkai's box, the bars note, Mode Cepat's summary, phone width, axe clean | `e2e/editor-zoom.spec.mjs` (7 tests) | | pending: `editor-gates suite=e2e` |
+
+## Pakai di semua klip (2026-10-21)
+
+One clip's caption, logo (with the text watermark) or layout on every other clip of the job in one
+batch, and its undo (CONTRACTS §5.53). Every target is an ordinary store save, so the document,
+the engine, the render and `RENDER_SEMANTICS` do not change. Built on branch `adopsi/pakai-semua`
+with targeted local tests only.
+
+| Gate | Threshold | Result | Where | Verdict |
+|---|---|---|---|---|
+| Batch model and skip rule | a target is written only while the group is its seed's; every other case is listed with its reason; the source is never written | groups, `edited`, `not_ready`, `read_only`, `conflict`, `invalid`, `unchanged`; word edits, music and hook kept | `tests/test_edit_v2_apply_all.py` | **pass** (local) |
+| Revisions and idempotency | each target `revision + 1` with `parent_sha256`; a stale source etag writes nothing (409); the same batch id replays; a batch or undo cut short finishes on retry without skipping its own writes | pass | `tests/test_edit_v2_apply_all.py` | **pass** (local) |
+| Undo | restores every changed clip once; a clip saved after the batch is skipped as `changed` | pass | `tests/test_edit_v2_apply_all.py` | **pass** (local) |
+| Routes | session, flag, CSRF and ids before any spawn; exact body; exit codes to fixed answers; no source document in a 409; a real batch and undo through the CLI | pass | `web/tests/apply-all-api.test.mjs`, `web/tests/security-headers.test.mjs`, `web/tests/security-python.test.mjs` | **pass** (local) |
+| Editor model | texts, save first, one batch per click, the same key after a lost answer, undo once | pass | `web/tests/editor-apply-all.test.mjs`, `web/tests/editor-w2-seams.test.mjs` | **pass** (local) |
+| Editor (browser, fakes) | the button in the six places, save then batch, result and skipped list, Urungkan, the result across a view switch, a lost answer and the keyboard retry with the same id, 44 px, no button with one clip | `e2e/editor-apply-all.spec.mjs` (5 tests) | | pending: `editor-gates suite=e2e` |

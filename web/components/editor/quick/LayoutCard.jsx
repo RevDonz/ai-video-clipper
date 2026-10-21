@@ -17,6 +17,7 @@ import { SPLIT_RATIOS, splitRatioCommand, splitSummary, swapSplitCommand } from 
 import { analysisApi, analysisBusy, analysisForView, layoutAnalysisFor } from "../panels/layout-analysis.mjs";
 import { analysisView, cameraReadyFromState, layoutCommand, switchSteps } from "../panels/layout-model.mjs";
 import { rejectionText } from "../shell-model.mjs";
+import ApplyAll from "../apply-all/ApplyAll.jsx";
 import PillButton from "../ui/PillButton.jsx";
 import PillGroup from "../ui/PillGroup.jsx";
 import { CARD_LAYOUTS } from "./quick-model.mjs";
@@ -24,7 +25,7 @@ import styles from "./quick.module.css";
 
 const OPTIONS = CARD_LAYOUTS.map((option) => ({ id: option.id, label: option.name, title: option.note }));
 
-function LayoutBody({ state, getState, dispatch, api, analysis, openFraming, openSplit }) {
+function LayoutBody({ state, getState, dispatch, api, analysis, openFraming, openSplit, applyAll }) {
   const doc = state.doc;
   const locked = state.status !== "ready";
   const layout = doc.layout.default.mode;
@@ -126,15 +127,18 @@ function LayoutBody({ state, getState, dispatch, api, analysis, openFraming, ope
           <PillButton disabled={locked && layout !== "camera"} onClick={() => start(layout !== "camera")}>Coba lagi</PillButton>
         </div>
       ) : null}
+      <ApplyAll applyAll={applyAll} group="layout" disabled={locked || analysisBusy(run)} />
     </div>
   );
 }
 
-export default function LayoutCard({ state, getState = null, dispatch, api = null, openFraming = null, openSplit = null }) {
+export default function LayoutCard({
+  state, getState = null, dispatch, api = null, openFraming = null, openSplit = null, applyAll = null,
+}) {
   const analysis = layoutAnalysisFor(state?.clipId ?? state?.doc?.clip_id ?? null);
   if (!state?.doc || !analysis) return <p className={styles.note} role="status">Membuka tata letak…</p>;
   return (
     <LayoutBody state={state} getState={getState} dispatch={dispatch} api={api} analysis={analysis} openFraming={openFraming}
-      openSplit={openSplit} />
+      openSplit={openSplit} applyAll={applyAll} />
   );
 }
