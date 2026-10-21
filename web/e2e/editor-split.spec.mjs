@@ -200,8 +200,9 @@ test("Atur layar terbagi opens on the source picture with a box per band and the
   await expect(top).toHaveAttribute("data-active", "true");
   await expect(bottom).toHaveAttribute("data-active", "false");
   await expect(dialog.locator("[data-gizmo='split']")).toHaveAttribute("data-still", "ready");
-  const [first] = await page.evaluate(() => window.__splitFrames);
-  expect(first).toEqual({ layout: "fit_blur", split: false, captions: false, tracks: 0, f: await playerFrame(page) });
+  // the panel's thumbnails share this client: the still is the request with nothing over the picture
+  expect(await page.evaluate(() => window.__splitFrames))
+    .toContainEqual({ layout: "fit_blur", split: false, captions: false, tracks: 0, f: await playerFrame(page) });
   const result = dialog.locator("[data-split-result]");
   await expect(result).toHaveAttribute("role", "img");
   await expect(result.locator("[data-split-band]")).toHaveCount(2);
