@@ -4,12 +4,15 @@
 // storage only means today's defaults. The video link, the file, the time ranges and the focus
 // are never stored.
 
+import { renderModeName } from "./layout-names.mjs";
+
 export const CHOICES_KEY = "potongin-dashboard-choices";
 
+// Named as the editor names them (layout-names.mjs).
 export const LAYOUT_CHOICES = Object.freeze([
-  { id: "fit-blur", name: "Utuh + latar blur", description: "Video landscape tetap utuh, sisa layar diisi versi blur." },
-  { id: "face-track", name: "Ikuti pembicara", description: "Layar penuh, crop mengikuti wajah terbesar." },
-  { id: "center-crop", name: "Crop tengah", description: "Untuk video yang subjeknya selalu di tengah." },
+  { id: "fit-blur", name: renderModeName("fit-blur"), description: "Video landscape tetap utuh, sisa layar diisi versi blur." },
+  { id: "face-track", name: renderModeName("face-track"), description: "Layar penuh, potongan mengikuti wajah pembicara." },
+  { id: "center-crop", name: renderModeName("center-crop"), description: "Untuk video yang subjeknya selalu di tengah." },
 ]);
 
 // Every caption pack, named as the editor names it (components/editor/panels/caption-model.mjs);
@@ -159,8 +162,8 @@ export function normalizeChoices(raw, { engine } = {}) {
 }
 
 /**
- * "3 klip · Otomatis 20–60 detik · Utuh + latar blur · Karaoke · Bahasa Indonesia"; values being
- * typed are left out, and so are 9:16 and 720p (what every clip had before they could be chosen).
+ * "3 klip · Otomatis 20–60 detik · Latar blur · Karaoke · Bahasa Indonesia"; values being typed
+ * are left out, and so are 9:16 and 720p (what every clip had before they could be chosen).
  */
 export function choicesSummary(choices, { focusTerms = 0, ranges = 0 } = {}) {
   const parts = [];
