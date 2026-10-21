@@ -52,6 +52,7 @@ import { jobHelpHref, storageHelpHref } from "../../lib/help-catalog.mjs";
 import { notifyJobsChanged } from "../../lib/job-badge.mjs";
 import { jobCancellable } from "../../lib/job-cancel.mjs";
 import { lookPreview } from "../../lib/look-preview.mjs";
+import { videoLanguageNotice } from "../../lib/source-language.mjs";
 import { typedRangeCount } from "../../lib/time-ranges.mjs";
 import {
   FOCUS_LIMITS,
@@ -272,6 +273,7 @@ export default function DashboardPage() {
   const ai = aiStatusView(aiStatus);
   const aiMode = focusAiMode(aiStatus);
   const failure = jobFailureView(activeJob);
+  const languageNotice = videoLanguageNotice(activeJob);
   const failureHelp = jobHelpHref(activeJob);
 
   async function refreshJobs(selectedId = null, signal = undefined) {
@@ -898,6 +900,7 @@ export default function DashboardPage() {
               )}
               {cancelNote?.id === activeJob.id && <p className={styles.waiting} role="status">{cancelNote.text}</p>}
               <StageSummary job={activeJob} />
+              {languageNotice && <p className={`notice ${languageNotice.tone} ${styles.languageNotice}`}>{languageNotice.text}</p>}
               {failure && (
                 <div className={styles.failure} role="alert">
                   <strong>{failure.text}</strong>

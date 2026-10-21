@@ -284,8 +284,30 @@ export function buildVideoDownload(url, downloadRoot, { cookiesFile = null, maxH
   return [
     "--no-playlist", "--js-runtimes", "node", "--newline", "--progress-template", PROGRESS_TEMPLATE,
     "--format", `bv*[height<=${height}]+ba/b[height<=${height}]`,
+    // The language from the video's metadata, for the "Bahasa video terdeteksi" note; no extra request.
+    "--print-to-file", "video:%(language)s", path.join(downloadRoot, VIDEO_LANGUAGE_FILE),
     "--merge-output-format", "mp4", "--output", path.join(downloadRoot, "source.%(ext)s"), ...cookiesArgs(cookiesFile), url,
   ];
+}
+
+export const VIDEO_LANGUAGE_FILE = "video-language.txt";
+const MAX_VIDEO_LANGUAGE_BYTES = 64;
+
+/**
+ * The primary language code yt-dlp wrote ("en" for "en-US"), or null when it is missing, "NA"
+ * (unknown to YouTube) or not a plain code. Never fails the job.
+ */
+export async function readVideoLanguage(downloadRoot) {
+  try {
+    const file = path.join(downloadRoot, VIDEO_LANGUAGE_FILE);
+    const info = await lstat(file);
+    if (!info.isFile() || info.size > MAX_VIDEO_LANGUAGE_BYTES) return null;
+    const value = (await readFile(file, "utf8")).split("\n")[0].trim();
+    const match = /^([A-Za-z]{2,3})(?:[-_][A-Za-z0-9]{1,8})*$/.exec(value);
+    return match && value !== "NA" ? match[1].toLowerCase() : null;
+  } catch {
+    return null;
+  }
 }
 
 // --- Manifest -> job clips ---------------------------------------------------
@@ -598,6 +620,7 @@ export async function main(argv = process.argv, env = process.env) {
     const subtitleFile = job.source.type === "upload" && job.subtitle && job.options?.selectionMode === "v3"
       ? path.join(jobRoot, "input", "subtitle.srt")
       : null;
+    let languagePatch = {};
     if (job.source.type === "youtube") {
       await update({ status: "downloading", progress: 10 });
       const downloadRoot = queueManaged ? path.join(attemptRoot, "input") : path.join(jobRoot, "input");
@@ -612,8 +635,10 @@ export async function main(argv = process.argv, env = process.env) {
         const sourceFile = files.find((name) => name.startsWith("source.") && !name.endsWith(".part"));
         if (!sourceFile) throw new Error("Video YouTube selesai diunduh tetapi file sumber tidak ditemukan");
         sourcePath = path.join(downloadRoot, sourceFile);
+        const sourceLanguage = await readVideoLanguage(downloadRoot);
+        if (sourceLanguage) languagePatch = { sourceLanguage };
         if (job.options?.selectionMode === "v3") {
-          await update({ sourcePath, progress: 20, stage: "captions", stageDetail: "Mengambil subtitle YouTube (opsional)" });
+          await update({ sourcePath, ...languagePatch, progress: 20, stage: "captions", stageDetail: "Mengambil subtitle YouTube (opsional)" });
           captionsDir = await fetchYouTubeCaptions({
             url: job.source.url,
             inputRoot: downloadRoot,
@@ -626,7 +651,7 @@ export async function main(argv = process.argv, env = process.env) {
       } finally {
         await cookies?.dispose();
       }
-      job = await update({ sourcePath, status: "processing", progress: 25, stage: "analyzing", stageDetail: "Menyiapkan engine AI" });
+      job = await update({ sourcePath, ...languagePatch, status: "processing", progress: 25, stage: "analyzing", stageDetail: "Menyiapkan engine AI" });
     } else {
       const stageDetail = subtitleFile ? "Memakai subtitle .srt yang diunggah" : "Menyiapkan engine AI";
       job = await update({ status: "processing", progress: 20, stage: "analyzing", stageDetail });

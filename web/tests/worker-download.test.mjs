@@ -19,6 +19,7 @@ test("the video download reads progress line by line and keeps its format and ou
   assert.deepEqual(buildVideoDownload("https://youtu.be/abc", "/j/input"), [
     "--no-playlist", "--js-runtimes", "node", "--newline", "--progress-template", PROGRESS_TEMPLATE,
     "--format", "bv*[height<=720]+ba/b[height<=720]",
+    "--print-to-file", "video:%(language)s", "/j/input/video-language.txt",
     "--merge-output-format", "mp4", "--output", "/j/input/source.%(ext)s", "https://youtu.be/abc",
   ]);
 });

@@ -89,6 +89,7 @@ legend.sectionTitle + *, legend.groupTitle + * { clear: both; }
 /* The optional .srt sits under the video it belongs to, in the same file-box shape. */
 .subtitleRow { display: flex; flex-wrap: wrap; gap: 8px; animation: fade-in var(--dur-2) var(--ease-out); }
 .subtitleRow .pick:not(.pickInvalid) { border-color: var(--border); }
+.languageNotice { margin: 12px 0 0; font-size: 13px; }
 
 /* The folded options: one button carries the summary of what the next job will use. */
 .optionsToggle {
