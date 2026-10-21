@@ -444,7 +444,7 @@ _RESOURCE_ID = re.compile(r"[a-z][a-z0-9-]{0,31}")
 _OVERRIDE_KEYS = ("y_e5", "size_pm", "case", "highlight", "emphasis")
 _WORD_BOX_KEYS = frozenset({"pad_x_pm", "top_pm", "radius_pm", "dark_text", "light_text",
                             "dark_from_lstar"})
-# The keyword's size (CONTRACTS §5.50): 100-200 % of the line's font size.
+# The keyword's size (CONTRACTS §5.51): 100-200 % of the line's font size.
 EMPHASIS_SCALE_RANGE = (1000, 2000)
 _EMPHASIS_REVEALS = ("static", "word", "karaoke")
 # "Animasi masuk" (CONTRACTS §5.39): every line opens within this many milliseconds. Pop starts at
@@ -1772,7 +1772,7 @@ def build_ass_v2(
     ``settb=den/num``). The header, the ``classic``/``karaoke`` style lines and the
     ``legacy-bar`` hook equal ``build_ass`` for the same size, so revision 0 looks the same.
     Emphasised words get the ``emphasis`` colour (defect #6) and, in a pack with an ``emphasis``
-    block, its size and accent font, reset after the word (§5.50); all text goes through
+    block, its size and accent font, reset after the word (§5.51); all text goes through
     ``ass_escape``. A ``box_style: vector`` pack draws each box as a ``\\p`` rectangle event
     right before its line (plan §5.4, the fallback if BorderStyle 3 fails P-TXT); a
     ``word_box`` pack draws a rounded ``\\p`` box behind the spoken word (CONTRACTS §5.30); a

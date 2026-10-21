@@ -122,7 +122,7 @@ def test_hidden_words_are_excluded_and_edits_are_applied():
         assert placed[word_id].emphasis == bool(edit.get("emphasis"))
     seed_ids = _cue_ids(_track(_doc("seed__c30"), "c30"))
     assert set(seed_ids) - set(placed) == set(hidden)
-    # karaoke emphasis (defect #6), 140 % of the 53 px line (§5.50)
+    # karaoke emphasis (defect #6), 140 % of the 53 px line (§5.51)
     assert "\\1c&H8A5CFF&\\2c&H8A5CFF&\\fs74}" in result.ass
     assert "Ijal" in result.ass
 
@@ -268,7 +268,7 @@ def test_glyph_unsupported_is_raised_for_characters_the_pack_font_lacks():
 
 
 def test_glyph_unsupported_checks_a_keyword_in_its_accent_font():
-    # ₿ is in Montserrat ExtraBold but not in Anton, the Bold pack's keyword font (§5.50).
+    # ₿ is in Montserrat ExtraBold but not in Anton, the Bold pack's keyword font (§5.51).
     doc, word = _with_word_text(_doc("seed__c30"), "c30", "harga₿", pack="bold")
     assert not [i for i in _track(doc, "c30").warnings if i.ref == word.id]
     doc["captions"]["word_edits"][word.id]["emphasis"] = True

@@ -277,7 +277,7 @@ def test_a_watermark_brings_its_font_to_the_browser(c30):
     doc["captions"]["pack"]["id"] = "bold"
     names = [entry["url"].split("/")[-1].split("?")[0]
              for entry in ok(plan(c30, doc))["dto"]["text"]["fonts"]]
-    # Bold's keyword font, Anton, comes with the pack (§5.50).
+    # Bold's keyword font, Anton, comes with the pack (§5.51).
     assert names == ["Montserrat-ExtraBold.ttf", "Anton-Regular.ttf", "DejaVuSans.ttf"]
     doc["watermark"] = {"text": "@potongin.klip", "pos": "top_center", "size_pm": 1000,
                         "opacity_pm": 850}
@@ -290,7 +290,7 @@ def test_a_watermark_brings_its_font_to_the_browser(c30):
 
 def test_a_packs_keyword_font_reaches_the_browser_before_any_keyword(c30):
     # JASSUB loads every font of the plan before the first frame: the accent font of the pack's
-    # emphasis block is listed whether or not a word is a keyword yet (CONTRACTS §5.50).
+    # emphasis block is listed whether or not a word is a keyword yet (CONTRACTS §5.51).
     doc = valid("seed__c30")
     doc["captions"]["pack"]["id"] = "sinar"
     fonts = ok(plan(c30, doc))["dto"]["text"]["fonts"]

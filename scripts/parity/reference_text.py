@@ -118,7 +118,7 @@ MONTSERRAT_PACKS = ("bold", "box", "sorot", "sinar")
 # the line is still opening (frames 1-3 of the first line, 1-2 of the second).
 ENTRANCES = ("fade", "pop", "blur")
 ENTRANCE_PROBES = ((0, 1), (0, 2), (0, 3), (1, 1), (1, 2))  # (line, frames after its start)
-# Keywords (CONTRACTS §5.50): the packs with an emphasis block at 40 characters, "WAJIB" and
+# Keywords (CONTRACTS §5.51): the packs with an emphasis block at 40 characters, "WAJIB" and
 # "Ayahku" marked, so the keyword size and the accent fonts are gated in both renderers.
 EMPHASIS_PACKS = ("karaoke", "bold", "sinar")
 KEYWORD_WORDS = frozenset({3, 6})  # word indexes in SAMPLE_TEXTS[40]
@@ -650,7 +650,7 @@ class Clip:
     lanes: dict | None = None
     transitions: list[dict] | None = field(default=None)
     entrance: str | None = None  # the caption entrance of an entrance clip (§5.39)
-    keywords: bool = False  # KEYWORD_WORDS are keywords (§5.50)
+    keywords: bool = False  # KEYWORD_WORDS are keywords (§5.51)
 
     def to_json(self) -> dict:
         entry = {"id": self.id, "kind": self.kind, "pack": self.pack, "chars": self.chars,

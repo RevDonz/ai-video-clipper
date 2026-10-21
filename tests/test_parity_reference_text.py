@@ -334,7 +334,7 @@ def test_every_entrance_is_gated_on_every_pack_inside_its_120_ms() -> None:
 
 
 def test_keywords_are_gated_in_every_pack_with_an_emphasis_block() -> None:
-    # CONTRACTS §5.50: the keyword's size and accent font must look the same in JASSUB and FFmpeg.
+    # CONTRACTS §5.51: the keyword's size and accent font must look the same in JASSUB and FFmpeg.
     clips = {c.id: c for c in rt.build_clips(fallback_char="\u2665") if "-kunci-" in c.id}
     assert set(clips) == {"karaoke-kunci-40", "bold-kunci-40", "sinar-kunci-40"}
     assert set(rt.EMPHASIS_PACKS) == {pack for pack in rt.PACKS

@@ -488,7 +488,7 @@ def _fonts_manifest() -> dict[str, Any]:
 
 
 def _font_entries(doc: Mapping[str, Any]) -> list[dict[str, str]]:
-    """The font files the ASS can use: the pack's and its keyword font (§5.50), the hook
+    """The font files the ASS can use: the pack's and its keyword font (§5.51), the hook
     design's, the text watermark's and the fallback (R6)."""
     from ..captions_ass import WATERMARK_FONT_FILE, load_pack
 

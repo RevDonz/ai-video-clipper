@@ -852,7 +852,7 @@ def test_emphasis_colour_wraps_the_word_and_is_reset_after_it():
     assert classic["Text"] == f"gue {wrapped} jambret."
     [box] = _events(_v2((cue,), "box"))
     assert box["Text"] == "{\\q2}gue " + wrapped + " jambret."
-    # Bold and Karaoke also enlarge the keyword (their emphasis block, CONTRACTS §5.50).
+    # Bold and Karaoke also enlarge the keyword (their emphasis block, CONTRACTS §5.51).
     for event in _events(_v2((cue,), "bold")):
         assert ("{\\1c" + PINK + "\\fs101\\fnAnton}BUKAN"
                 "{\\1c" + WHITE + "\\fs72\\fnMontserrat ExtraBold}") in event["Text"]
@@ -1290,7 +1290,7 @@ def test_glow_is_a_pack_file_field_of_one_line_karaoke_packs_only(tmp_path, monk
                      overrides=OVERRIDES["karaoke"], hook=None)
 
 
-# --- The emphasis block: the keyword's size and accent font (CONTRACTS §5.50) --------------------
+# --- The emphasis block: the keyword's size and accent font (CONTRACTS §5.51) --------------------
 
 KEYWORD_CUE = _fcue((0, 10, "gue"), (10, 25, "bukan", True), (25, 40, "jambret."))
 
