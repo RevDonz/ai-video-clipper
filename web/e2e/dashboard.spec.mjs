@@ -298,7 +298,7 @@ test.describe("Dashboard form (faked job API)", () => {
     // Without the editor the note names no Edit klip.
     await expect(page.getByText("Subtitle ada di bawah, dekat area tombol TikTok.", { exact: true })).toBeVisible();
     // Every pack's thumbnail is a real image.
-    expect(await page.evaluate(() => [...document.querySelectorAll("#job-options img")].map((img) => img.complete && img.naturalWidth === 320))).toEqual([true, true, true, true, true]);
+    expect(await page.evaluate(() => [...document.querySelectorAll("#job-options img")].map((img) => img.complete && img.naturalWidth === 320))).toEqual([true, true, true, true, true, true]);
 
     await choose(page, "Klasik");
     await expect(preview).toHaveAttribute("data-pack", "classic");
