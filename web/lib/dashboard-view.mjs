@@ -2,6 +2,7 @@
 // Client-safe. The owner's rule: only the current method on screen, no version labels and no
 // technical provenance (selection source, prompt or engine versions); old jobs stay viewable.
 
+import { CLIP_LIMITS } from "./clip-limits.mjs";
 import { downloadErrorMessage } from "./download-errors.mjs";
 import { MAX_SUBTITLE_BYTES } from "./srt.mjs";
 import { shownStageDetail, shownWorkerText } from "./stage-detail.mjs";
@@ -253,9 +254,11 @@ export function jobFormProblems({ sourceType, youtubeUrl, video, subtitle = null
     const problem = youtubeUrlProblem(youtubeUrl);
     if (problem) problems.youtubeUrl = problem;
   }
-  if (!inRange(limit, 1, 10, true)) problems.limit = "Isi 1 sampai 10 klip.";
-  if (!inRange(minDuration, 5, 180)) problems.minDuration = "Isi 5 sampai 180 detik.";
-  if (!inRange(maxDuration, 5, 180)) problems.maxDuration = "Isi 5 sampai 180 detik.";
+  const { count, seconds } = CLIP_LIMITS;
+  const secondsText = `Isi ${seconds.min} sampai ${seconds.max} detik.`;
+  if (!inRange(limit, count.min, count.max, true)) problems.limit = `Isi ${count.min} sampai ${count.max} klip.`;
+  if (!inRange(minDuration, seconds.min, seconds.max)) problems.minDuration = secondsText;
+  if (!inRange(maxDuration, seconds.min, seconds.max)) problems.maxDuration = secondsText;
   if (!problems.minDuration && !problems.maxDuration) {
     const order = durationProblem(minDuration, maxDuration);
     if (order) problems.maxDuration = order;

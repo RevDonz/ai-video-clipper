@@ -1,6 +1,7 @@
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+import { CLIP_LIMITS } from "./clip-limits.mjs";
 import { clipErrorCode, isFailedClip } from "./clip-status.mjs";
 import { PACK_IDS } from "./editor/doc-model.mjs";
 import { DEFAULT_OUTPUT_SIZE, OUTPUT_SIZES } from "./output-frame.mjs";
@@ -357,8 +358,8 @@ export function validatePersistedJobOptions(input) {
   const limit = persistedNumber(input.limit, "limit", true);
   const minDuration = persistedNumber(input.minDuration, "minimum duration");
   const maxDuration = persistedNumber(input.maxDuration, "maximum duration");
-  if (limit < 1 || limit > 10) throw new Error("Invalid persisted job options: limit out of range");
-  if (minDuration < 5 || maxDuration > 180 || maxDuration < minDuration) {
+  if (limit < CLIP_LIMITS.count.min || limit > CLIP_LIMITS.count.max) throw new Error("Invalid persisted job options: limit out of range");
+  if (minDuration < CLIP_LIMITS.seconds.min || maxDuration > CLIP_LIMITS.seconds.max || maxDuration < minDuration) {
     throw new Error("Invalid persisted job options: duration range out of range");
   }
   const options = { renderMode, limit, minDuration, maxDuration };
@@ -448,11 +449,12 @@ export function parseJobOptions(input = {}) {
   const limit = formNumber(input.limit, 5, "limit");
   const minDuration = formNumber(input.minDuration, 20, "minimum duration");
   const maxDuration = formNumber(input.maxDuration, 60, "maximum duration");
-  if (!Number.isInteger(limit) || limit < 1 || limit > 10) {
-    throw new Error("limit must be an integer between 1 and 10");
+  const { count, seconds } = CLIP_LIMITS;
+  if (!Number.isInteger(limit) || limit < count.min || limit > count.max) {
+    throw new Error(`limit must be an integer between ${count.min} and ${count.max}`);
   }
-  if (minDuration < 5 || maxDuration > 180 || maxDuration < minDuration) {
-    throw new Error("duration range must satisfy 5 <= min <= max <= 180");
+  if (minDuration < seconds.min || maxDuration > seconds.max || maxDuration < minDuration) {
+    throw new Error(`duration range must satisfy ${seconds.min} <= min <= max <= ${seconds.max}`);
   }
   const provided = (key) => input[key] !== undefined && input[key] !== null && input[key] !== "";
   // New jobs always use the current selection; a missing field means exactly that.

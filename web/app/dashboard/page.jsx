@@ -51,6 +51,7 @@ import {
 import { jobHelpHref, storageHelpHref } from "../../lib/help-catalog.mjs";
 import { notifyJobsChanged } from "../../lib/job-badge.mjs";
 import { jobCancellable } from "../../lib/job-cancel.mjs";
+import { CLIP_LIMITS } from "../../lib/clip-limits.mjs";
 import { lookPreview } from "../../lib/look-preview.mjs";
 import { videoLanguageNotice } from "../../lib/source-language.mjs";
 import { typedRangeCount } from "../../lib/time-ranges.mjs";
@@ -667,7 +668,7 @@ export default function DashboardPage() {
               <h2 id="clips-title" className={styles.sectionTitle}>Klip</h2>
               <div className={`${styles.field} ${styles.limitField}`}>
                 <label htmlFor="clip-limit">Jumlah klip</label>
-                <input id="clip-limit" className={styles.input} type="number" inputMode="numeric" min="1" max="10" step="1" value={limit} aria-invalid={problems.limit ? "true" : undefined} aria-describedby={describedBy("limit")} onChange={(event) => { updateChoices({ limit: event.target.value }); clearProblem("limit"); clearProblem("timeRanges"); }} />
+                <input id="clip-limit" className={styles.input} type="number" inputMode="numeric" min={CLIP_LIMITS.count.min} max={CLIP_LIMITS.count.max} step="1" value={limit} aria-invalid={problems.limit ? "true" : undefined} aria-describedby={describedBy("limit")} onChange={(event) => { updateChoices({ limit: event.target.value }); clearProblem("limit"); clearProblem("timeRanges"); }} />
                 <FieldError id="clip-limit-error" message={problems.limit} />
               </div>
               <fieldset className={styles.group}>
@@ -686,7 +687,7 @@ export default function DashboardPage() {
                     <div className={styles.field}>
                       <label htmlFor="min-duration">Durasi minimum</label>
                       <div className={styles.unit}>
-                        <input id="min-duration" className={styles.input} type="number" inputMode="decimal" min="5" max="180" value={minDuration} aria-invalid={problems.minDuration ? "true" : undefined} aria-describedby={describedBy("minDuration", "duration-unit")} onChange={(event) => { updateChoices({ minDuration: event.target.value }); clearProblem("minDuration"); clearProblem("maxDuration"); }} />
+                        <input id="min-duration" className={styles.input} type="number" inputMode="decimal" min={CLIP_LIMITS.seconds.min} max={CLIP_LIMITS.seconds.max} value={minDuration} aria-invalid={problems.minDuration ? "true" : undefined} aria-describedby={describedBy("minDuration", "duration-unit")} onChange={(event) => { updateChoices({ minDuration: event.target.value }); clearProblem("minDuration"); clearProblem("maxDuration"); }} />
                         <span aria-hidden="true">detik</span>
                       </div>
                       <FieldError id="min-duration-error" message={problems.minDuration} />
@@ -694,12 +695,12 @@ export default function DashboardPage() {
                     <div className={styles.field}>
                       <label htmlFor="max-duration">Durasi maksimum</label>
                       <div className={styles.unit}>
-                        <input id="max-duration" className={styles.input} type="number" inputMode="decimal" min="5" max="180" value={maxDuration} aria-invalid={problems.maxDuration ? "true" : undefined} aria-describedby={describedBy("maxDuration", "duration-unit")} onChange={(event) => { updateChoices({ maxDuration: event.target.value }); clearProblem("maxDuration"); }} />
+                        <input id="max-duration" className={styles.input} type="number" inputMode="decimal" min={CLIP_LIMITS.seconds.min} max={CLIP_LIMITS.seconds.max} value={maxDuration} aria-invalid={problems.maxDuration ? "true" : undefined} aria-describedby={describedBy("maxDuration", "duration-unit")} onChange={(event) => { updateChoices({ maxDuration: event.target.value }); clearProblem("maxDuration"); }} />
                         <span aria-hidden="true">detik</span>
                       </div>
                       <FieldError id="max-duration-error" message={problems.maxDuration} />
                     </div>
-                    <p id="duration-unit" className="visuallyHidden">Dalam detik, 5 sampai 180.</p>
+                    <p id="duration-unit" className="visuallyHidden">Dalam detik, {CLIP_LIMITS.seconds.min} sampai {CLIP_LIMITS.seconds.max}.</p>
                   </div>
                 )}
               </fieldset>
@@ -838,7 +839,7 @@ export default function DashboardPage() {
                   aria-describedby={describedBy("timeRanges", "time-ranges-help")}
                   onChange={(event) => { setTimeRanges(event.target.value); clearProblem("timeRanges"); }}
                 />
-                <p id="time-ranges-help" className={styles.help}>Tiap rentang jadi satu klip apa adanya; sisa slot diisi momen terbaik lain. Pisahkan dengan koma atau baris baru, 5–180 detik per rentang.</p>
+                <p id="time-ranges-help" className={styles.help}>Tiap rentang jadi satu klip apa adanya; sisa slot diisi momen terbaik lain. Pisahkan dengan koma atau baris baru, {CLIP_LIMITS.seconds.min}–{CLIP_LIMITS.seconds.max} detik per rentang.</p>
                 <FieldError id="time-ranges-error" message={problems.timeRanges} />
               </div>
               <FocusField
