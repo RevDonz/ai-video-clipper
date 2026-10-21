@@ -40,7 +40,7 @@ import { prepareYoutubeCookies } from "../lib/youtube-cookies.mjs";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export function buildClipperInvocation(job, sourcePath, outputRoot, env = process.env, { captionsDir = null, trendContext = null } = {}) {
+export function buildClipperInvocation(job, sourcePath, outputRoot, env = process.env, { captionsDir = null, trendContext = null, subtitleFile = null } = {}) {
   if (!job || typeof job !== "object" || !job.options || typeof job.options !== "object" || Array.isArray(job.options)) {
     throw new Error("Invalid persisted job options");
   }
@@ -103,6 +103,8 @@ export function buildClipperInvocation(job, sourcePath, outputRoot, env = proces
     if (options.captionPosition) args.push("--caption-position", options.captionPosition);
     if (options.captionSize) args.push("--caption-size", options.captionSize);
     if (typeof captionsDir === "string" && path.isAbsolute(captionsDir)) args.push("--captions-dir", captionsDir);
+    // An uploaded video's .srt (app/api/jobs/route.js): the engine's transcript instead of Whisper.
+    if (typeof subtitleFile === "string" && path.isAbsolute(subtitleFile)) args.push("--subtitle-file", subtitleFile);
     // Only a snapshot path the worker wrote; the trend text itself never enters argv.
     if (typeof trendContext === "string" && path.isAbsolute(trendContext)) args.push("--trend-context", trendContext);
     // Fokus klip: the owner's validated terms and note go to our own CLI as single argv entries
@@ -593,6 +595,9 @@ export async function main(argv = process.argv, env = process.env) {
     let job = await update({ status: "preparing", progress: 5, error: null, stageSummary: null });
     let sourcePath = job.sourcePath;
     let captionsDir = null;
+    const subtitleFile = job.source.type === "upload" && job.subtitle && job.options?.selectionMode === "v3"
+      ? path.join(jobRoot, "input", "subtitle.srt")
+      : null;
     if (job.source.type === "youtube") {
       await update({ status: "downloading", progress: 10 });
       const downloadRoot = queueManaged ? path.join(attemptRoot, "input") : path.join(jobRoot, "input");
@@ -623,11 +628,12 @@ export async function main(argv = process.argv, env = process.env) {
       }
       job = await update({ sourcePath, status: "processing", progress: 25, stage: "analyzing", stageDetail: "Menyiapkan engine AI" });
     } else {
-      job = await update({ status: "processing", progress: 20, stage: "analyzing", stageDetail: "Menyiapkan engine AI" });
+      const stageDetail = subtitleFile ? "Memakai subtitle .srt yang diunggah" : "Menyiapkan engine AI";
+      job = await update({ status: "processing", progress: 20, stage: "analyzing", stageDetail });
     }
 
     const trendContext = job.options?.selectionMode === "v3" ? await prepareTrendContext(attemptRoot, env) : null;
-    const invocation = buildClipperInvocation(job, sourcePath, outputRoot, env, { captionsDir, trendContext });
+    const invocation = buildClipperInvocation(job, sourcePath, outputRoot, env, { captionsDir, trendContext, subtitleFile });
     await runWithProgress(invocation.command, invocation.args, job.progress, await engineEnvironment(env));
 
     const manifest = JSON.parse(await readFile(path.join(outputRoot, "manifest.json"), "utf8"));

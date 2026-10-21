@@ -3,6 +3,7 @@
 // technical provenance (selection source, prompt or engine versions); old jobs stay viewable.
 
 import { downloadErrorMessage } from "./download-errors.mjs";
+import { MAX_SUBTITLE_BYTES } from "./srt.mjs";
 import { shownStageDetail, shownWorkerText } from "./stage-detail.mjs";
 import { timeRangesProblem } from "./time-ranges.mjs";
 
@@ -65,6 +66,8 @@ export function jobSourceLabel(job) {
 }
 
 export function jobStageText(job) {
+  // The transcript step of a job with an uploaded .srt reads that file, not YouTube's subtitles.
+  if (job?.stage === "captions" && job.subtitle) return "Membaca subtitle .srt";
   return JOB_STAGE_LABELS[job?.stage] || JOB_STATUS_LABELS[job?.status] || "Memproses";
 }
 
@@ -217,6 +220,17 @@ export function videoFileProblem(file) {
   return typeof file.name === "string" && VIDEO_FILE.test(file.name) ? null : "Format tidak didukung. Pakai MP4, MOV, MKV atau WEBM.";
 }
 
+/**
+ * Why `file` cannot go with the video as its subtitle, or null (also for no file). The job API
+ * checks the content (lib/srt.mjs); this only catches what the browser already knows.
+ */
+export function subtitleFileProblem(file) {
+  if (!file) return null;
+  if (typeof file.name !== "string" || !/\.srt$/i.test(file.name)) return "Subtitle harus file .srt.";
+  if (!(file.size > 0)) return "File .srt kosong.";
+  return file.size > MAX_SUBTITLE_BYTES ? "Subtitle .srt maksimal 2 MB." : null;
+}
+
 function inRange(value, minimum, maximum, integer = false) {
   const text = typeof value === "number" ? String(value) : typeof value === "string" ? value.trim() : "";
   if (!/^\d+(?:\.\d+)?$/.test(text)) return false;
@@ -228,11 +242,13 @@ function inRange(value, minimum, maximum, integer = false) {
  * Problems of the job form as { field: message }, empty when it can be sent. Mirrors the job
  * API's checks, so the owner sees Indonesian messages instead of the browser's.
  */
-export function jobFormProblems({ sourceType, youtubeUrl, video, limit, minDuration, maxDuration, timeRanges = "" } = {}) {
+export function jobFormProblems({ sourceType, youtubeUrl, video, subtitle = null, limit, minDuration, maxDuration, timeRanges = "" } = {}) {
   const problems = {};
   if (sourceType === "upload") {
     const problem = videoFileProblem(video);
     if (problem) problems.video = problem;
+    const subtitleProblem = subtitleFileProblem(subtitle);
+    if (subtitleProblem) problems.subtitle = subtitleProblem;
   } else {
     const problem = youtubeUrlProblem(youtubeUrl);
     if (problem) problems.youtubeUrl = problem;

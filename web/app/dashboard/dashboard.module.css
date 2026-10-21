@@ -86,6 +86,9 @@ legend.sectionTitle + *, legend.groupTitle + * { clear: both; }
 .pick:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
 .pick.pickInvalid { border-color: var(--danger); }
 .help { margin: 0; color: var(--text-muted); font-size: 13px; line-height: 1.45; }
+/* The optional .srt sits under the video it belongs to, in the same file-box shape. */
+.subtitleRow { display: flex; flex-wrap: wrap; gap: 8px; animation: fade-in var(--dur-2) var(--ease-out); }
+.subtitleRow .pick:not(.pickInvalid) { border-color: var(--border); }
 
 /* The folded options: one button carries the summary of what the next job will use. */
 .optionsToggle {
@@ -366,6 +369,7 @@ legend.sectionTitle + *, legend.groupTitle + * { clear: both; }
   .form { padding: 16px 16px 20px; }
   /* The link takes the whole width; "Pilih file" and Buat klip share the line under it. */
   .sourceRow > .url, .fileBox { flex-basis: 100%; }
+  .subtitleRow .pick { flex: 1 1 100%; }
   .pick, .submit { flex: 1 1 0; padding-inline: 12px; }
   .optionsToggle { padding: 10px 12px; }
   .results { padding: 16px; }

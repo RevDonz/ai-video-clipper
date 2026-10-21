@@ -24,6 +24,7 @@ import {
   JOB_STATUS_LABELS,
   storageMessage,
   submitErrorMessage,
+  subtitleFileProblem,
   videoFileProblem,
 } from "../../lib/dashboard-view.mjs";
 import {
@@ -69,9 +70,9 @@ import lookStyles from "./look.module.css";
 import LookPreview from "./LookPreview.jsx";
 
 // Fields in the order the page checks them; the first invalid one gets focus.
-const FIELD_IDS = { youtubeUrl: "youtube-url", video: "video-file", limit: "clip-limit", minDuration: "min-duration", maxDuration: "max-duration", timeRanges: "time-ranges" };
-// These two sit in the source row; the others are inside the folded options.
-const SOURCE_FIELDS = new Set(["youtubeUrl", "video"]);
+const FIELD_IDS = { youtubeUrl: "youtube-url", video: "video-file", subtitle: "subtitle-file", limit: "clip-limit", minDuration: "min-duration", maxDuration: "max-duration", timeRanges: "time-ranges" };
+// These sit in the source rows; the others are inside the folded options.
+const SOURCE_FIELDS = new Set(["youtubeUrl", "video", "subtitle"]);
 
 const draggingFiles = (event) => Array.from(event.dataTransfer?.types || []).includes("Files");
 
@@ -228,6 +229,7 @@ function ClipCard({ clip, copied, onCopy }) {
 export default function DashboardPage() {
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [video, setVideo] = useState(null);
+  const [subtitle, setSubtitle] = useState(null);
   const [dragging, setDragging] = useState(false);
   // The last choices come back after hydration (the page is prerendered with the defaults).
   const [choices, setChoices] = useState(DEFAULT_CHOICES);
@@ -261,6 +263,8 @@ export default function DashboardPage() {
   const jobsRefreshGeneration = useRef(0);
   const pendingFocus = useRef(null);
   const sourceType = video ? "upload" : "youtube";
+  const videoChosen = useRef(false);
+  videoChosen.current = Boolean(video);
 
   const activeJob = useMemo(() => jobs.find((job) => job.id === activeId), [jobs, activeId]);
   const storage = storageView || storageStatusView(null);
@@ -327,8 +331,26 @@ export default function DashboardPage() {
 
   function clearVideo() {
     setVideo(null);
-    clearProblem("video");
+    setSubtitle(null);
+    setProblems(({ video: _video, subtitle: _subtitle, ...rest }) => rest);
     pendingFocus.current = "youtube-url";
+  }
+
+  const chooseSubtitle = useCallback((file) => {
+    if (!file) return;
+    const problem = subtitleFileProblem(file);
+    if (problem) {
+      setProblems((current) => ({ ...current, subtitle: problem }));
+      return;
+    }
+    setSubtitle(file);
+    setProblems(({ subtitle: _subtitle, ...rest }) => rest);
+  }, []);
+
+  function clearSubtitle() {
+    setSubtitle(null);
+    clearProblem("subtitle");
+    pendingFocus.current = "subtitle-file";
   }
 
   useEffect(() => {
@@ -351,12 +373,15 @@ export default function DashboardPage() {
       event.preventDefault();
       depth = 0;
       setDragging(false);
-      chooseVideo(event.dataTransfer.files?.[0] || null);
+      const file = event.dataTransfer.files?.[0] || null;
+      // A .srt dropped after the video is its subtitle.
+      if (videoChosen.current && /\.srt$/i.test(file?.name || "")) chooseSubtitle(file);
+      else chooseVideo(file);
     };
     const listeners = [["dragenter", enter], ["dragleave", leave], ["dragover", over], ["drop", drop]];
     for (const [name, listener] of listeners) window.addEventListener(name, listener);
     return () => { for (const [name, listener] of listeners) window.removeEventListener(name, listener); };
-  }, [chooseVideo]);
+  }, [chooseVideo, chooseSubtitle]);
 
   useEffect(() => {
     if (!pendingFocus.current) return;
@@ -430,7 +455,7 @@ export default function DashboardPage() {
   async function submit(event) {
     event.preventDefault();
     setMessage(null);
-    const found = jobFormProblems({ sourceType, youtubeUrl, video, limit, minDuration, maxDuration, timeRanges });
+    const found = jobFormProblems({ sourceType, youtubeUrl, video, subtitle, limit, minDuration, maxDuration, timeRanges });
     setProblems(found);
     const firstInvalid = Object.keys(FIELD_IDS).find((name) => found[name]);
     if (firstInvalid) {
@@ -462,7 +487,10 @@ export default function DashboardPage() {
       for (const [name, value] of Object.entries(focus.fields)) data.set(name, value);
       if (timeRanges.trim()) data.set("timeRanges", timeRanges.trim());
       if (sourceType === "youtube") data.set("youtubeUrl", youtubeUrl.trim());
-      else data.set("video", video);
+      else {
+        data.set("video", video);
+        if (subtitle) data.set("subtitle", subtitle);
+      }
       const response = await fetch("/api/jobs", { method: "POST", body: data });
       const payload = (await response.json().catch(() => null)) || {};
       if (!response.ok) {
@@ -590,8 +618,31 @@ export default function DashboardPage() {
             <FieldError id="youtube-url-error" message={problems.youtubeUrl} />
             <FieldError id="video-file-error" message={problems.video} />
             <p id="source-help" className={styles.help}>
-              {dragging ? "Lepaskan untuk memakai file ini." : video ? "Batas ukuran file mengikuti server." : "Atau pilih file MP4, MOV, MKV, WEBM, atau tarik ke halaman ini."}
+              {dragging ? (video ? "Lepaskan: video jadi sumber, file .srt jadi subtitle." : "Lepaskan untuk memakai file ini.") : video ? "Batas ukuran file mengikuti server." : "Atau pilih file MP4, MOV, MKV, WEBM, atau tarik ke halaman ini."}
             </p>
+            {video && (
+              <div className={styles.subtitleRow}>
+                {subtitle && (
+                  <div className={styles.fileBox}>
+                    <span title={subtitle.name}>{subtitle.name}</span>
+                    <button type="button" aria-label={`Hapus subtitle ${subtitle.name}`} onClick={clearSubtitle}>×</button>
+                  </div>
+                )}
+                <label className={`btn ghost ${styles.pick} ${problems.subtitle ? styles.pickInvalid : ""}`}>
+                  <input
+                    id="subtitle-file"
+                    type="file"
+                    accept=".srt,application/x-subrip"
+                    aria-invalid={problems.subtitle ? "true" : undefined}
+                    aria-describedby={describedBy("subtitle", "subtitle-help")}
+                    onChange={(event) => { chooseSubtitle(event.target.files?.[0] || null); event.target.value = ""; }}
+                  />
+                  {subtitle ? "Ganti .srt" : "Tambah subtitle .srt"}
+                </label>
+              </div>
+            )}
+            {video && <FieldError id="subtitle-file-error" message={problems.subtitle} />}
+            {video && <p id="subtitle-help" className={styles.help}>Opsional. Kalau ada, transkrip diambil dari file .srt ini, bukan dari audio. Maksimal 2 MB, UTF-8.</p>}
             {message && <p className={`${styles.message} ${message.tone === "error" ? styles.messageError : ""}`} role={message.tone === "error" ? "alert" : "status"}>{message.text}{message.help && " "}{message.help && <a className={styles.messageLink} href={message.help}>Cara memperbaiki</a>}</p>}
           </div>
 

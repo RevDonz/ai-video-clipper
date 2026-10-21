@@ -5,7 +5,12 @@
 
 import { formatTimestamp } from "./selection-v3-view.mjs";
 
-const TRANSCRIPT_SOURCES = Object.freeze({ "youtube-captions": "dari subtitle YouTube", whisper: "dari audio", groq: "dari audio lewat Groq" });
+const TRANSCRIPT_SOURCES = Object.freeze({
+  "srt-upload": "dari subtitle .srt",
+  "youtube-captions": "dari subtitle YouTube",
+  whisper: "dari audio",
+  groq: "dari audio lewat Groq",
+});
 const MOMENT_SOURCES = Object.freeze(["llm", "heuristic"]);
 const LANGUAGE_CODE = /^[a-z]{2,3}$/;
 const MAX_DURATION_SECONDS = 7 * 24 * 3600;

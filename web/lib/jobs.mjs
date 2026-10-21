@@ -872,7 +872,7 @@ export function sanitizeStoredClip(clip, jobId) {
 
 const SELECTION_V3_STATUSES = ["completed", "fallback", "failed"];
 const SELECTION_V3_SOURCES = ["llm", "heuristic"];
-const SELECTION_V3_TRANSCRIPT_SOURCES = ["youtube-captions", "whisper", "groq"];
+const SELECTION_V3_TRANSCRIPT_SOURCES = ["srt-upload", "youtube-captions", "whisper", "groq"];
 const SELECTION_V3_ARTIFACT = "analysis/selection.v3.json";
 const SELECTION_V3_PROVIDER = /^[a-z0-9][a-z0-9_-]{0,39}$/;
 const SELECTION_V3_MODEL = /^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,119}$/;
