@@ -2240,3 +2240,17 @@ measurement in the production image (FFmpeg 5.1.9, synthetic source) is a heavy 
 | P-PLATE at 1:1 | SSIM margin ≥ 0; crop x 0 px; bands 0 frames off | `plate_camera_square`, `plate_split_square` | `scripts/parity/frame_identity.py` | pending: `editor-gates suite=command` (`frame_identity.py p-plate`) |
 | PF-SIZE in the production image | report | | `scripts/perf/output_sizes.py` | pending: `editor-gates suite=command` |
 | Dashboard in a browser | Rasio and Resolusi reach the POST as `outputSize`; the 1:1 preview is square without the TikTok key; no sideways scroll | `e2e/dashboard.spec.mjs` (one new test) | | pending: `editor-gates suite=e2e command=e2e/dashboard.spec.mjs` |
+
+## Small edits: 0,1 dtk nudge, "di sumber", Ctrl+klik Kata kunci (2026-10-21)
+
+CONTRACTS §5.55. One new command (`NudgeEdge`); no schema, validator, engine or render change,
+`RENDER_SEMANTICS` and `SCHEMA_MINOR` untouched, no threshold changed. Built on branch
+`adopsi/editor-kecil` with targeted local tests only.
+
+| Gate | Threshold | Result | Where | Verdict |
+|---|---|---|---|---|
+| Command | 0.1 s in whole frames per fps; both segments; window, removals, cold-open rules; bad args rejected | pass | `web/tests/editor-commands.test.mjs` | **pass** (local) |
+| Python cross-check | every document of 1,000 random sequences (now with off-gap edges) passes `validate_doc` | pass | `tests/test_edit_v2_crosscheck.py` | **pass** (local) |
+| QG-UNDO / QG-CONFLICT (unit) | 10,000 sequences undo/redo exact; 2,000 two-tab scenarios lose no edit | pass; `words_max` compared by its effect across a pack switch (§5.30) | `web/tests/editor-history.test.mjs`, `editor-rebase.test.mjs` | **pass** (local) |
+| Models | source clock through cuts and the cold open; handle keys; Ctrl/Cmd+klik; help scopes | pass | `editor-shell-model`, `editor-timeline-model`, `editor-transcript`, `editor-shortcuts` tests | **pass** (local) |
+| Editor (browser, fakes) | readout, handle Shift+arrows and header buttons, cold-open buttons, Ctrl+klik without selecting | `e2e/editor-nudge.spec.mjs` (4 tests) | | pending: `editor-gates suite=e2e command=e2e/editor-nudge.spec.mjs` |
