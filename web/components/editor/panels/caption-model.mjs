@@ -4,10 +4,10 @@
 // Teks panel both call these, so the two views build the same command and show the same text for
 // the same document. Pure; no DOM.
 import { CAPTION_SWATCHES } from "../../../lib/editor/content-colours.mjs";
-import { CAPTION_ENTRANCES, captionEntrance, captionWordsPerLine } from "../../../lib/editor/doc-model.mjs";
+import { CAPTION_ENTRANCES, CAPTION_Y_RANGE, captionEntrance, captionWordsPerLine } from "../../../lib/editor/doc-model.mjs";
 import { captionAtSeedSpot } from "../shell-model.mjs";
 
-export { CAPTION_SWATCHES };
+export { CAPTION_SWATCHES, CAPTION_Y_RANGE };
 
 const freeze = (list) => Object.freeze(list.map((entry) => Object.freeze(entry)));
 
@@ -47,6 +47,14 @@ export const CAPTION_POSITIONS = freeze([
   { id: "tengah", label: "Tengah", value: 60000 },
   { id: "bawah", label: "Bawah", value: 83000 },
 ]);
+
+/** The grid of "Posisi caption": the Teks slider's step, the gizmo's drag and arrow keys (0.5 %). */
+export const CAPTION_Y_STEP = 500;
+
+/** "83% dari atas": the position as the Teks slider and the stage gizmo show it. */
+export function captionPositionText(yE5) {
+  return `${Math.round(yE5 / 1000)}% dari atas`;
+}
 
 /** The hook hint shows when the caption's bottom is less than this above the hook's top (§3). */
 export const HOOK_NEAR_BAND_E5 = 35000;

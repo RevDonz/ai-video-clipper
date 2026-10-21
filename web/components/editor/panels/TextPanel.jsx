@@ -1,15 +1,15 @@
 "use client";
 
 // The text panel (plan §11.2 T2.7, §3.3, §5.4; T3.4 §7.1): captions on/off, the packs
-// (thumbnails rendered by FFmpeg from the pack files, pack-thumbs/), position, size, words per line
-// (CONTRACTS §5.30), the entrance (§5.39), uppercase, and the highlight and keyword swatches; the
-// hook on/off, its text with a counter and the fit badge from the server's layout ("Muat" / "Akan
-// terpotong"), the hook suggestions under the text field, the design (thumbnails from
-// hook-thumbs/, CONTRACTS §5.33), duration and position. Every change is one Appendix B command;
-// sliders and typing merge into one undo step through their merge keys. The caption and hook
-// rules (commands, notes, the hint that the caption sits near the hook) are caption-model.mjs and
-// hook-model.mjs, shared with Mode Cepat's Caption and Hook cards
-// (docs/plans/2026-10-02-editor-mode-cepat.md §1.4, §3).
+// (thumbnails rendered by FFmpeg from the pack files, pack-thumbs/), position (also dragged on the
+// stage, gizmos/CaptionGizmo.jsx), size, words per line (CONTRACTS §5.30), the entrance (§5.39),
+// uppercase, and the highlight and keyword swatches; the hook on/off, its text with a counter and
+// the fit badge from the server's layout ("Muat" / "Akan terpotong"), the hook suggestions under
+// the text field, the design (thumbnails from hook-thumbs/, CONTRACTS §5.33), duration and
+// position. Every change is one Appendix B command; sliders and typing merge into one undo step
+// through their merge keys. The caption and hook rules (commands, notes, the hint that the
+// caption sits near the hook) are caption-model.mjs and hook-model.mjs, shared with Mode Cepat's
+// Caption and Hook cards (docs/plans/2026-10-02-editor-mode-cepat.md §1.4, §3).
 // Props: { state, dispatch, player, api? } (panels/index.mjs). Without an `api` prop the panel
 // uses the fake runtime's client (dev and CI) or its own client for the store's job and clip.
 import { useEffect, useRef, useState } from "react";
@@ -24,10 +24,13 @@ import {
   CAPTION_PACKS,
   CAPTION_SWATCHES,
   CAPTION_WORDS,
+  CAPTION_Y_RANGE,
+  CAPTION_Y_STEP,
   captionCommand,
   captionEntranceCommand,
   captionEntranceId,
   captionPackCommand,
+  captionPositionText,
   captionWordsCommand,
   captionWordsId,
   captionZoneNote,
@@ -134,8 +137,8 @@ function TextPanelBody({ state, dispatch, api }) {
         </fieldset>
         <label className={styles.field}>
           <span>Posisi caption</span>
-          <span className={styles.value}>{Math.round(overrides.y_e5 / 1000)}% dari atas</span>
-          <input type="range" className={styles.range} min={20000} max={92000} step={500} value={overrides.y_e5}
+          <span className={styles.value}>{captionPositionText(overrides.y_e5)}</span>
+          <input type="range" className={styles.range} min={CAPTION_Y_RANGE[0]} max={CAPTION_Y_RANGE[1]} step={CAPTION_Y_STEP} value={overrides.y_e5}
             disabled={readOnly} onChange={(event) => send(captionCommand("y_e5", Number(event.target.value), { drag: true }))} />
         </label>
         {zone ? (

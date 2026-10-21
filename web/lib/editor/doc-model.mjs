@@ -14,6 +14,8 @@ export const SWATCHES = Object.freeze(["#FFE14D", "#FFFFFF", "#3DF5A6", "#52C7FF
 export const PACK_DEFAULT_CASE = Object.freeze({ classic: "asis", karaoke: "asis", bold: "upper", box: "asis", sorot: "upper" });
 /** Each pack file's `words_per_cue`: the line length while `overrides.words_max` is absent. */
 export const PACK_WORDS_PER_LINE = Object.freeze({ classic: 4, karaoke: 4, bold: 3, box: 3, sorot: 3 });
+/** `overrides.y_e5`, the bottom of the caption block (CONTRACTS §3.3): the slider's and the gizmo's range. */
+export const CAPTION_Y_RANGE = Object.freeze([20000, 92000]);
 /** "Kata per baris" (`overrides.words_max`, optional; CONTRACTS §5.30). */
 export const WORDS_MAX_RANGE = Object.freeze([1, 4]);
 /** "Animasi masuk" (`overrides.entrance`, optional; absent = "none"; CONTRACTS §5.39). */
@@ -386,7 +388,7 @@ function textOk(value, max) {
 // --- checkDoc: the command postcondition --------------------------------------------------------
 
 const OVERRIDE_RULES = Object.freeze({
-  y_e5: (value) => Number.isSafeInteger(value) && value >= 20000 && value <= 92000,
+  y_e5: (value) => Number.isSafeInteger(value) && value >= CAPTION_Y_RANGE[0] && value <= CAPTION_Y_RANGE[1],
   size_pm: (value) => Number.isSafeInteger(value) && value >= 700 && value <= 1400,
   case: (value) => value === "asis" || value === "upper",
   highlight: (value) => SWATCHES.includes(value),
