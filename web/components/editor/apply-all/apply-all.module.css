@@ -1,0 +1,77 @@
+/* "Pakai di semua klip" (CONTRACTS §5.48): one button under a settings group, its note, and the
+   batch's result with Urungkan. Colours are the :root tokens (ui-guards checks the pairs). */
+
+.applyAll {
+  display: grid;
+  gap: var(--ed-space-2, 8px);
+  justify-items: start;
+  padding-top: var(--ed-space-3, 12px);
+  border-top: 1px solid var(--border);
+}
+
+.applyNote {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--ed-font-size-note, 13px);
+  line-height: var(--ed-line-height, 1.45);
+}
+
+.applyResult {
+  display: grid;
+  gap: var(--ed-space-2, 8px);
+  justify-self: stretch;
+  padding: var(--ed-space-2, 8px) var(--ed-space-3, 12px);
+  border-radius: var(--radius-s);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: var(--ed-font-size-note, 13px);
+  line-height: var(--ed-line-height, 1.45);
+  animation: applyIn var(--dur-2, 200ms) var(--ease-out, ease-out);
+}
+
+.applyRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ed-space-2, 8px);
+}
+
+.applySummary {
+  margin: 0;
+  font-weight: 600;
+}
+
+.applySkipped {
+  color: var(--text-muted);
+}
+
+.applySkipped summary {
+  min-height: var(--ed-target, 44px);
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.applySkipped ul {
+  margin: 0;
+  padding-left: var(--ed-space-4, 16px);
+}
+
+.applyError {
+  margin: 0;
+  padding: var(--ed-space-2, 8px);
+  border-radius: var(--radius-s);
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: var(--ed-font-size-note, 13px);
+}
+
+@keyframes applyIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .applyResult { animation: none; }
+}

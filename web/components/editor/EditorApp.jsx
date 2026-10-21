@@ -11,7 +11,7 @@
 // server's `features` (uploads and the editor's LLM on or off); tests may inject a runtime. Every
 // panel and every Mode Cepat card receives one props bundle, { state, getState, dispatch, player,
 // api, previewClient, uploadAsset, uploadsEnabled, llmEnabled, notify, readOnly, openFraming,
-// openSplit }
+// openSplit, applyAll }
 // (cards also `frameBus` and `showLengkap`); every lane
 // { plan, state, dispatch, player, pxPerFrame }. `player` is the facade of runtime.mjs, which adds
 // `subscribeFrame(fn)` and `frame()` so that DOM can follow playback outside React (§6.2).
@@ -23,6 +23,7 @@
 // the canvas, the player, the store or the export flow.
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
+import { createApplyAll } from "../../lib/editor/apply-all.mjs";
 import { LEAVE_TEXT, clipNavHref, clipNavigation, saveBeforeLeaving } from "../../lib/editor/clip-nav.mjs";
 import { editorHref, prepareForEditor } from "../../lib/editor/open-clip.mjs";
 import { SHORTCUTS, globalShortcut } from "../../lib/editor/shortcuts.mjs";
@@ -202,6 +203,8 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
   const [clipList, setClipList] = useState(null);
   const [exportState, setExportState] = useState(null);
   const flowRef = useRef(null);
+  // "Pakai di semua klip" (CONTRACTS §5.48): one controller per clip, shared by both views.
+  const applyAll = useMemo(() => createApplyAll({ api, flush: () => store.flush(), newKey: runtime.newKey }), [api, store, runtime]);
   const exportButtonRef = useRef(null);
   const checksButtonRef = useRef(null);
   const helpReturnRef = useRef(null);
@@ -313,9 +316,10 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
       const clips = Array.isArray(result?.clips) ? result.clips : [];
       setClipInfo(clips.find((clip) => clip.clipId === clipId) ?? (clips.length === 1 ? clips[0] : null));
       setClipList(clips);
+      applyAll.setClips(clips, clipId);
     }).catch(() => {});
     return () => { alive = false; };
-  }, [api, clipId]);
+  }, [api, clipId, applyAll]);
   const clipNav = useMemo(() => clipNavigation({ jobId, clipId, clips: clipList }), [jobId, clipId, clipList]);
 
   const openExport = useCallback(() => {
@@ -480,8 +484,8 @@ function EditorShell({ runtime, jobId, clipId, initialPanel, features = {}, onNe
   // the store as it is now, for work that outlives the panel or card that started it (§4.1).
   const panelProps = useMemo(() => ({
     state, getState: snapshot, dispatch, player, api, previewClient: runtime.previewClient, uploadAsset: runtime.uploadAsset ?? null, uploadsEnabled, llmEnabled, notify, readOnly,
-    openFraming, openSplit,
-  }), [state, snapshot, dispatch, player, api, runtime, uploadsEnabled, llmEnabled, notify, readOnly, openFraming, openSplit]);
+    openFraming, openSplit, applyAll,
+  }), [state, snapshot, dispatch, player, api, runtime, uploadsEnabled, llmEnabled, notify, readOnly, openFraming, openSplit, applyAll]);
 
   const errorCode = status === "error" ? (state.error?.code ?? state.errorCode ?? "internal_error") : null;
   const preparesNow = typeof onNeedsPrepare === "function" && PREPARE_CODES.has(errorCode);

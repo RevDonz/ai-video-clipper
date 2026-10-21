@@ -14,6 +14,7 @@
 // uses the fake runtime's client (dev and CI) or its own client for the store's job and clip.
 import { useEffect, useRef, useState } from "react";
 
+import ApplyAll from "../apply-all/ApplyAll.jsx";
 import HookSuggestions from "../suggestions/index.jsx";
 import { runCommands } from "../transcript/actions.mjs";
 import PillGroup from "../ui/PillGroup.jsx";
@@ -61,7 +62,7 @@ import styles from "./panels.module.css";
 
 const SECONDS = new Intl.NumberFormat("id-ID", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
-function TextPanelBody({ state, dispatch, api }) {
+function TextPanelBody({ state, dispatch, api, applyAll }) {
   const { doc, plan } = state;
   const readOnly = state.status !== "ready";
   const fps = doc.output.fps;
@@ -177,6 +178,7 @@ function TextPanelBody({ state, dispatch, api }) {
         <Swatches legend="Warna kata kunci" name="caption-emphasis" value={overrides.emphasis} options={CAPTION_SWATCHES}
           disabled={readOnly} onChange={(value) => send(captionCommand("emphasis", value))}
           note="Tandai kata kunci di Transkrip (pilih kata, Ctrl+E)." />
+        <ApplyAll applyAll={applyAll} group="captions" disabled={readOnly} />
       </div>
 
       <div className={styles.section}>
@@ -238,7 +240,7 @@ function TextPanelBody({ state, dispatch, api }) {
   );
 }
 
-export default function TextPanel({ state, dispatch, api = null }) {
+export default function TextPanel({ state, dispatch, api = null, applyAll = null }) {
   if (!state?.doc) {
     return (
       <section data-panel="text" className={styles.panel} aria-busy="true">
@@ -246,5 +248,5 @@ export default function TextPanel({ state, dispatch, api = null }) {
       </section>
     );
   }
-  return <TextPanelBody state={state} dispatch={dispatch} api={api} />;
+  return <TextPanelBody state={state} dispatch={dispatch} api={api} applyAll={applyAll} />;
 }
