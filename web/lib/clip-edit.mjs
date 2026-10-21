@@ -208,6 +208,12 @@ function textOrNull(value) {
   return typeof value === "string" ? value : null;
 }
 
+/** The clip's hook overlay ("Hook di video", §5.57): `{on, available}` with booleans, else null. */
+export function sanitizeHookState(value) {
+  if (!value || typeof value !== "object" || typeof value.on !== "boolean" || typeof value.available !== "boolean") return null;
+  return { on: value.on, available: value.available };
+}
+
 /** A clips-listing entry reduced to the §4.2 contract fields (no path ever leaves the server). */
 export function sanitizeClip(entry, latestRender = null) {
   const edit = entry?.edit && typeof entry.edit === "object"
@@ -225,6 +231,7 @@ export function sanitizeClip(entry, latestRender = null) {
     durationMs: Number.isInteger(entry?.durationMs) && entry.durationMs >= 0 ? entry.durationMs : null,
     engine: ENGINES.has(entry?.engine) ? entry.engine : null,
     edit,
+    hook: sanitizeHookState(entry?.hook),
     latestRender,
     openable: entry?.openable === true,
     reason: CLIP_REASONS.has(entry?.reason) ? entry.reason : null,

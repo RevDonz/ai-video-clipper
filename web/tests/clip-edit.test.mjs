@@ -185,9 +185,10 @@ test("GET clips passes the listing through a whitelist and adds the latest expor
   const entry = {
     clipId: CLIP_ID, index: 3, title: "Judul", hookText: "Hook", description: "Desc", hashtags: ["#a"],
     durationMs: 72000, engine: "edit-v2/1", edit: { state: "edited", revision: 2, etag: ETAG, updatedAtMs: 5 },
+    hook: { on: false, available: true },
     latestRender: null, openable: true, reason: null, sourcePath: "/data/jobs/secret.mp4",
   };
-  const pending = { ...entry, clipId: null, index: 1, engine: null, edit: null, openable: false, reason: "needs_prepare" };
+  const pending = { ...entry, clipId: null, index: 1, engine: null, edit: null, hook: null, openable: false, reason: "needs_prepare" };
   const { calls, runCli } = recorder({ clips: { exitCode: 0, json: { clips: [entry, pending] } } });
   const latest = new Map([[CLIP_ID, { renderId: "r1", state: "completed", url: "/u.mp4", srtUrl: "/u.srt", revision: 2 }]]);
   const route = createClipsRoute({ authorize, env: env(), runCli, latestRenders: async (jobId) => {
@@ -213,7 +214,7 @@ test("sanitizeClip keeps only the contract fields with their types", () => {
     openable: "yes", reason: "not_a_reason", extra: "/path" });
   assert.deepEqual(clean, { clipId: CLIP_ID, index: 1, title: null, hookText: null, description: "d",
     hashtags: ["#a"], durationMs: null, engine: "legacy", edit: { state: "seed", revision: 0, etag: ETAG, updatedAtMs: 1 },
-    latestRender: null, openable: false, reason: null });
+    hook: null, latestRender: null, openable: false, reason: null });
 });
 
 test("GET clips maps backend failures to fixed codes", async () => {

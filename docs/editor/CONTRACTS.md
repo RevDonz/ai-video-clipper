@@ -553,6 +553,7 @@ timeout + SIGKILL, fixed exit-code map as in `edit-document.mjs`, and an **allow
 | `GET /clips/:clipId/cleanup` | Rapikan review list (§7.3) | Immutable per `(words sha, lexicon version)` |
 | `GET /clips/:clipId/coldopen-suggestions` | Cold-open candidates (§7.2) | Immutable per words sha |
 | `POST /clips/:clipId/apply-all` (amended 2026-10-21, §5.53) | "Pakai di semua klip": this clip's caption, logo or layout on the job's other clips | Same-origin; body exactly `{group, etag}`; `Idempotency-Key` = batch id; `200 {batchId, group, applied, skipped, unchanged}` |
+| `POST /clips/:clipId/hook` (amended 2026-10-21, §5.57) | "Hook di video" on the project page: the hook overlay on or off | Same-origin; body exactly `{on, etag}`; `Idempotency-Key`; `200 {etag, revision, changed, hook}` |
 | `POST /apply-all/:batchId/undo` (amended 2026-10-21, §5.53) | Undo that batch on the clips nobody saved since | Same-origin; empty body or `{}`; `200 {batchId, group, restored, skipped}` |
 | `POST /assets` | Upload a logo or music file (§9.2) | Raw body; `Content-Type` allowlist; `Content-Length` required; `X-Asset-Kind: logo\|music`; `Idempotency-Key`; `201 {sha256, kind, mime, w, h, durationMs, lufsC, peaksUrl}` |
 | `GET /assets/:sha` | Normalised asset bytes | §9.2 headers |
@@ -2818,8 +2819,8 @@ the editor document are untouched.
   `llm_disabled`, `llm_settings` and `llm_unavailable`.
 - An open draft or suggestion waits in a per-page map while another clip is shown; a running
   rewrite is aborted then.
-- No "Hook di video" switch: the hook text is part of the rendered clip and changes only through
-  the editor's Hook card and an export.
+- The hook text is part of the rendered clip; it is shown or hidden by the "Hook di video" switch
+  in the same box (§5.57) and edited through the editor's Hook card, each followed by an export.
 
 ## 5.39 Caption entrance: "Animasi masuk" (2026-10-21)
 
@@ -4179,3 +4180,69 @@ fix, unreadable documents), `tests/test_edit_v2_plan.py` (the plan carries it; t
 `web/tests/editor-logo-caption.test.mjs` (messages, fixes, the same corner boxes as the Python
 test, one undo step, the views), `web/tests/clip-renders.test.mjs`; browser spec
 `web/e2e/editor-shell.spec.mjs` ("a watermark over the caption…") on the editor fakes.
+
+## 5.57 "Hook di video": the hook on or off from the project page (2026-10-21)
+
+One switch per clip in the project page's caption box, beside **Ubah** and **Tulis ulang**,
+shows or hides the hook text in the video. It changes the clip's editor document, as the editor's
+`SetHookEnabled` does, and then exports that revision, so the editor, the export and (when the
+clip is back at its seed) the automatic file agree. No schema, validator, engine or flag change:
+`SCHEMA_MINOR` and `RENDER_SEMANTICS` stay. The default stays the seed's (hook on when the clip has
+one).
+
+### Document (`src/ai_clipper/edit_v2/hook_toggle.py`, stdlib)
+
+- `with_hook(doc, seed, on)`: off drops the `hook` track; on keeps a hook the document has, or
+  puts back the seed's hook track (its text, design, length and place) in the hook, visual, audio
+  order; on without a seed hook is `range_invalid` at `/tracks`. Off and on again equals the seed,
+  so its export completes at once with the automatic file (R10).
+- `set_hook(clip_dir, *, etag, on, idempotency_key, now_ms)` builds the new revision from the one
+  at `etag` (`revision + 1`, `parent_sha256 = etag`, `audit.last_command = "SetHookEnabled"`, the
+  rest of `audit` kept; the store stamps `updated_at_ms`) and saves it with `store.put` (If-Match,
+  receipts), so a retry with the same key replays the save. A switch to the state the document
+  already has writes nothing (`changed: false`). `etag` not current: `RevisionConflict`. A
+  read-only document (§3.6, the job re-ran): `op_disabled` at `/base/words`.
+- `state(doc, seed)` → `{on, available}`: `on` when the document has a hook item; `available`
+  when the document or the seed has one and the document is not read-only.
+
+### API (`edit_v2.api`, `web/lib/clip-hook-api.mjs`)
+
+| Op / route | Arguments | Answer |
+|---|---|---|
+| `set_hook` · `POST /api/jobs/:id/clips/:clipId/hook` | `{jobId, clipId, etag, hook: "on"\|"off", idempotencyKey}`; HTTP: body exactly `{on: boolean, etag}` ≤ 1 KiB, `Content-Type: application/json`, `Idempotency-Key` UUID | `200 {etag, revision, changed, hook: {on, available}}`; `409 revision_conflict` (no document in the answer); `409 idempotency_conflict`; `422` (`op_disabled`, `range_invalid`); `404 not_found` |
+| `clips` · `GET /api/jobs/:id/clips` (amended) | | each clip also carries `hook: {on, available}` from its current document, or null without a seed |
+
+The route: session, `POTONGIN_EDITOR_V3`, same-origin (`sameOriginMutation`), ids by regex, the
+`api` rate-limit bucket, the CLI's default timeout. `web/tests/security-support.mjs` lists it.
+
+### Project page (`web/components/HookSwitch.jsx`, `web/lib/clip-hook.mjs`)
+
+- `clipEntryView` adds `hook` and `editEtag` (the current revision's etag). `hookSwitchView(entry,
+  {editable})` → `{on, clipId, etag}` for a completed project's clip that is openable and whose
+  `hook.available` is true; otherwise the switch is not shown (no listing, a clip still needing
+  prepare, a failed clip, no hook, read-only).
+- A checkbox with `role="switch"`, its visible label "Hook di video", a hint ("Mengubahnya
+  mengekspor ulang klip. Hasilnya di Ekspor terakhir."), a status line (`role="status"`). Space
+  and Enter switch it; 44 px tall; `aria-busy` while saving; the track draws the focus ring.
+- `switchHook({jobId, clipId, etag, on})`: `POST …/hook`, then, when it changed, `POST …/renders
+  {editEtag}` with its own Idempotency-Key. Status texts: "Hook disembunyikan. Klip sedang diekspor
+  ulang." / "Hook tampil. Klip sedang diekspor ulang.", "Hook tampil di video." when the export
+  completed at once, "Tersimpan, tapi ekspor belum jalan. Ekspor dari editor." when the export was
+  refused (storage), "Klip ini sudah diubah di editor. Coba lagi." on a conflict (the listing is
+  read again so the next try saves from the new revision), "Hook belum tersimpan. Coba lagi."
+  otherwise; 401 goes to login.
+- After a switch the page reads the clips listing again; while any listed export is queued,
+  claimed or rendering (`entriesExporting`), it reads it again every 8 s (at most 75 times after
+  the page or a switch asked), so "Ekspor sedang diproses" becomes "Ekspor terakhir · revisi n". A
+  reload that fails keeps the entries shown.
+- "Unduh MP4", the ZIP and the video in the panel stay the automatic file, as for any editor
+  edit; the switched file is the latest export.
+
+### Gates
+
+`tests/test_edit_v2_hook_toggle.py` (off, on from the seed, track order, no-op, an edited hook
+text, stale etag, replay and key reuse, no seed hook, read-only, unprepared clip, envelope),
+`tests/test_edit_v2_api.py` (the listing's `hook`), `web/tests/clip-hook-api.test.mjs` (auth,
+flag, CSRF, ids, body, exit-code mapping, sanitizing, a real switch through the route and the
+listing), `web/tests/clip-hook.test.mjs` (copy, view, the save and export requests, failures, the
+listing poll, the page wiring); browser spec `web/e2e/clip-hook.spec.mjs` on faked routes.

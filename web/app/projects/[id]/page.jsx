@@ -6,10 +6,11 @@ import AppHeader from "../../../components/AppHeader.jsx";
 import CancelJob from "../../../components/CancelJob.jsx";
 import { PosterText, PosterThumb, posterFrame } from "../../../components/ClipPoster.jsx";
 import ClipText from "../../../components/ClipText.jsx";
+import HookSwitch from "../../../components/HookSwitch.jsx";
 import StageSummary from "../../../components/StageSummary.jsx";
 import TrendChips from "../../../components/trends/TrendChips.jsx";
 import { clipDownloads, formatSize } from "../../../lib/clip-download.mjs";
-import { clipEntryFor, loadClipEntries } from "../../../lib/clip-entry-view.mjs";
+import { clipEntryFor, entriesExporting, loadClipEntries } from "../../../lib/clip-entry-view.mjs";
 import { replaceClip } from "../../../lib/clip-text.mjs";
 import { clipCountText, failedClipView, isFailedClip, readyClips } from "../../../lib/clip-status.mjs";
 import { jobStepText } from "../../../lib/dashboard-view.mjs";
@@ -69,6 +70,10 @@ import styles from "./project.module.css";
 
 // A running job is re-read on this interval until it finishes.
 const POLL_MS = 5000;
+// While an export runs the clips listing is read again (one Python call each), for 10 minutes
+// at most after the page or a switch asked for it.
+const EXPORT_POLL_MS = 8000;
+const EXPORT_POLLS = 75;
 const COPY_RESET_MS = 2200;
 // At this width the detail panel sits under the grid, so picking a poster scrolls to it.
 const STACKED = "(max-width: 720px)";
@@ -205,7 +210,7 @@ function PosterCard({ clip, entry, selected, picking, picked, onActivate, button
 // can be changed in the caption box ("Ubah", "Tulis ulang") once the project is finished. A clip
 // that failed to render has a frame saying so where the video would be, and nothing to
 // download or edit.
-function ClipDetail({ clip, job, entry = null, copied, onCopy, position, onStep, panelRef, textDrafts, onClipSaved }) {
+function ClipDetail({ clip, job, entry = null, copied, onCopy, position, onStep, panelRef, textDrafts, onClipSaved, onEntriesChanged }) {
   const label = clipLabel(clip);
   const failed = failedClipView(clip);
   const titleId = `clip-${clip.index}-title`;
@@ -292,6 +297,8 @@ function ClipDetail({ clip, job, entry = null, copied, onCopy, position, onStep,
               </>
             )}
             copy={<CopyButton state={captionState} label="Salin caption" done="Tersalin" onClick={() => onCopy(clip, "caption")} />} />
+          <HookSwitch key={clip.index} jobId={job.id} entry={entry} editable={job.status === "completed" && !failed}
+            onChanged={onEntriesChanged} />
         </section>
         <span className="visuallyHidden" role="status" aria-live="polite">
           {copied?.status === "copied" ? `${copied.what === "title" ? "Judul" : "Caption"} tersalin.`
@@ -319,7 +326,7 @@ function saveFile(href, filename) {
   link.remove();
 }
 
-function ClipsSection({ job, copyState, onCopy, entries, initialClip = null, onClipSaved }) {
+function ClipsSection({ job, copyState, onCopy, entries, initialClip = null, onClipSaved, onEntriesChanged }) {
   const clips = Array.isArray(job.clips) ? job.clips : [];
   const [filter, setFilter] = useState("all");
   const [selected, setSelected] = useState(initialClip);
@@ -513,7 +520,8 @@ function ClipsSection({ job, copyState, onCopy, entries, initialClip = null, onC
           {current && (
             <ClipDetail clip={current} job={job} entry={entryFor(current)}
               copied={copyState.index === current.index ? copyState : null} onCopy={onCopy} position={position}
-              onStep={(delta) => move(delta)} panelRef={detailRef} textDrafts={textDrafts.current} onClipSaved={onClipSaved} />
+              onStep={(delta) => move(delta)} panelRef={detailRef} textDrafts={textDrafts.current} onClipSaved={onClipSaved}
+              onEntriesChanged={onEntriesChanged} />
           )}
         </div>
       ) : (
@@ -526,7 +534,7 @@ function ClipsSection({ job, copyState, onCopy, entries, initialClip = null, onC
   );
 }
 
-function ProjectView({ job, copyState, onCopy, entries, initialClip, cancelNote, onCancelSettled, onClipSaved }) {
+function ProjectView({ job, copyState, onCopy, entries, initialClip, cancelNote, onCancelSettled, onClipSaved, onEntriesChanged }) {
   const active = isActiveStatus(job.status);
   const progress = projectProgress(job);
   const languageNotice = videoLanguageNotice(job);
@@ -603,7 +611,8 @@ function ProjectView({ job, copyState, onCopy, entries, initialClip, cancelNote,
         </details>
       )}
       <FocusSummary job={job} />
-      <ClipsSection job={job} copyState={copyState} onCopy={onCopy} entries={entries} initialClip={initialClip} onClipSaved={onClipSaved} />
+      <ClipsSection job={job} copyState={copyState} onCopy={onCopy} entries={entries} initialClip={initialClip} onClipSaved={onClipSaved}
+        onEntriesChanged={onEntriesChanged} />
     </div>
   );
 }
@@ -617,6 +626,8 @@ export default function ProjectPage({ params, searchParams }) {
   const [generation, setGeneration] = useState(0);
   const [copyState, setCopyState] = useState({ index: null, what: null, status: "" });
   const [entries, setEntries] = useState(() => ({ state: "idle", byIndex: new Map() }));
+  const [entriesVersion, setEntriesVersion] = useState(0);
+  const exportPolls = useRef(0);
   const [cancelNote, setCancelNote] = useState(null);
   const copyTimer = useRef(null);
   const pendingFocus = useRef(null);
@@ -688,7 +699,8 @@ export default function ProjectPage({ params, searchParams }) {
   };
 
   // The editor entries come from the clips listing, which answers only when the editor is on (a
-  // 404 leaves the cards as they are).
+  // 404 leaves the cards as they are). A reload (after "Hook di video", or while an export runs)
+  // keeps the entries it has when the listing does not answer.
   useEffect(() => {
     if (!editable) return undefined;
     const controller = new AbortController();
@@ -696,13 +708,28 @@ export default function ProjectPage({ params, searchParams }) {
     loadClipEntries(id, { signal: controller.signal }).then((result) => {
       if (!active) return;
       if (result.state === "redirect") window.location.assign(result.location);
-      else setEntries(result);
+      else if (entriesVersion === 0 || result.state === "available") setEntries(result);
     }).catch(() => {});
     return () => {
       active = false;
       controller.abort();
     };
-  }, [id, editable, generation]);
+  }, [id, editable, generation, entriesVersion]);
+
+  const reloadEntries = () => {
+    exportPolls.current = 0;
+    setEntriesVersion((value) => value + 1);
+  };
+
+  // An export still running: read the listing again until it has finished or failed.
+  useEffect(() => {
+    if (!entriesExporting(entries) || exportPolls.current >= EXPORT_POLLS) return undefined;
+    const timer = setTimeout(() => {
+      exportPolls.current += 1;
+      setEntriesVersion((value) => value + 1);
+    }, EXPORT_POLL_MS);
+    return () => clearTimeout(timer);
+  }, [entries]);
 
   // `what`: "title" copies the title alone, "caption" the whole post text.
   const copyText = async (clip, what) => {
@@ -749,6 +776,7 @@ export default function ProjectPage({ params, searchParams }) {
           cancelNote={cancelNote}
           onCancelSettled={settleCancel}
           onClipSaved={onClipSaved}
+          onEntriesChanged={reloadEntries}
         />
       )}
     </main>
