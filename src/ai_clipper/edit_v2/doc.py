@@ -35,8 +35,11 @@ from . import (
     COMPILER_ID,
     DOC_FPS,
     HOOK_DESIGN_IDS,
+    KEYFRAME_MOVES,
+    MAX_KEYFRAMES,
     OUTPUT_SIZES,
     PACK_IDS,
+    PAN_E5_MAX,
     SCHEMA,
     SWATCHES,
     WATERMARK_OPACITY_RANGE,
@@ -384,7 +387,8 @@ _ROOT = _compile(_keys(
                    overrides=_keys("y_e5", "size_pm", "case", "highlight", "emphasis",
                                    "words_max", "entrance"),
                    word_edits=_Map(_keys("text", "hidden", "emphasis"))),
-    layout=_keys(default=_keys("mode", "no_face")),
+    layout=_keys(default=_keys("mode", "no_face"),
+                 keyframes=_List(_keys("sf", "pan_e5", "move"))),
     tracks=_List(_Kind(_TRACKS, _TRACK_ANY)),
     audio=_keys(source=_keys("gain_cdb"), master=_keys("mode", "target_clufs", "tp_cdb")),
     assets=_Map(_Kind(_ASSETS, _ASSET_ANY)),
@@ -1148,9 +1152,41 @@ class _Validator:
 
     def layout(self, layout: Mapping) -> None:
         default = self.field(layout, "default", "/layout")
+        mode = None
         if default is not _MISSING and self.obj(default, "/layout/default") is not None:
-            self.enum(default, "mode", "/layout/default", _LAYOUT_MODES)
+            mode = self.enum(default, "mode", "/layout/default", _LAYOUT_MODES)
             self.enum(default, "no_face", "/layout/default", _NO_FACE)
+        if "keyframes" in layout:
+            self.keyframes(layout["keyframes"], mode)
+
+    def keyframes(self, keyframes: object, mode: str | None) -> None:
+        """Manual framing (CONTRACTS §5.44): 1–100 keyframes, strictly increasing source-grid
+        frames inside the window, for a layout that crops (not ``fit_blur``)."""
+        path = "/layout/keyframes"
+        if not isinstance(keyframes, list) or not 1 <= len(keyframes) <= MAX_KEYFRAMES:
+            self.error("range_invalid", path)
+            return
+        if mode == "fit_blur":
+            self.error("range_invalid", path)
+        window = None
+        if self.window_ms is not None and self.fps is not None:
+            window = (tm.sf_floor(self.window_ms[0], self.fps),
+                      tm.sf_ceil(self.window_ms[1], self.fps))
+        previous = None
+        for index, keyframe in enumerate(keyframes):
+            item = f"{path}/{index}"
+            if self.obj(keyframe, item) is None:
+                continue
+            sf = self.integer(keyframe, "sf", item)
+            self.integer(keyframe, "pan_e5", item, 0, PAN_E5_MAX)
+            self.string(keyframe, "move", item, choices=KEYFRAME_MOVES)
+            if sf is None:
+                continue
+            if previous is not None and sf <= previous:
+                self.error("range_invalid", _join(item, "sf"))
+            elif window is not None and not window[0] <= sf < window[1]:
+                self.error("outside_window", _join(item, "sf"))
+            previous = sf if previous is None else max(previous, sf)
 
     def audio(self, audio: Mapping) -> None:
         source = self.field(audio, "source", "/audio")

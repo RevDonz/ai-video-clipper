@@ -108,6 +108,11 @@ test("a thumbnail asks for the document with only the layout changed", () => {
   assert.deepEqual({ ...camera, layout: doc.layout }, doc);
   assert.equal(withLayout(doc, "fit_blur"), doc);
   assert.throws(() => withLayout(doc, "split"), TypeError);
+  // manual framing (CONTRACTS §5.44): the crop layouts keep the keyframes, latar blur drops them
+  const framed = { ...doc, layout: { default: { mode: "fill_center", no_face: "center" },
+    keyframes: [{ sf: 37300, pan_e5: 20000, move: "cut" }] } };
+  assert.equal(withLayout(framed, "camera").layout.keyframes, framed.layout.keyframes);
+  assert.deepEqual(withLayout(framed, "fit_blur").layout, { default: { mode: "fit_blur", no_face: "center" } });
 });
 
 test("the thumbnail key ignores the layout, revision and audit and follows everything else", () => {
@@ -115,6 +120,10 @@ test("the thumbnail key ignores the layout, revision and audit and follows every
   const key = contentKey(doc);
   assert.equal(contentKey(withLayout(doc, "camera")), key);
   assert.equal(contentKey({ ...doc, revision: 7, parent_sha256: "a".repeat(64), audit: { ...doc.audit, last_command: "X" } }), key);
+  // the framing keyframes change the crop layouts' pixels, so they refresh the thumbnails
+  const framed = { ...doc, layout: { ...doc.layout, keyframes: [{ sf: 37300, pan_e5: 20000, move: "cut" }] } };
+  assert.notEqual(contentKey(framed), key);
+  assert.equal(contentKey(withLayout(framed, "camera")), contentKey(framed));
   const edited = structuredClone(doc);
   edited.captions.overrides.y_e5 = 70000;
   assert.notEqual(contentKey(edited), key);

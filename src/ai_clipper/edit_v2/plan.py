@@ -167,6 +167,12 @@ class RenderPlan:
         return self.doc["layout"]["default"]["no_face"]
 
     @property
+    def keyframes(self) -> tuple[Mapping[str, Any], ...]:
+        """The manual framing keyframes (§5.44), empty for the layout's own framing. They set
+        the crop of every frame, face-track's included, and turn its no-face fallback off."""
+        return tuple(self.doc["layout"].get("keyframes", ()))
+
+    @property
     def ass(self) -> str | None:
         return None if self.captions is None else self.captions.ass
 
@@ -378,7 +384,9 @@ def build_plan(
         music_envelope = tuple(tuple(point) for point in _envelope.music_envelope(
             spans, music_item, total_samples, fps))
     warnings = [*caption.warnings]
-    if used_camera is not None:
+    # manual framing (§5.44) sets every frame's crop, so no run is centred or blurred for lack
+    # of a face
+    if used_camera is not None and not doc["layout"].get("keyframes"):
         warnings.extend(_no_face(used_camera, pieces, fps,
                                  doc["layout"]["default"]["no_face"]))
     warnings.extend(unsafe_zone_issues(doc, assets, output, parts=("logo",)))

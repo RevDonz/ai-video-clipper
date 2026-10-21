@@ -550,6 +550,45 @@ test("face-track's no-face choice is part of the layout and named in the dialog 
   assert.deepEqual(result.resolve({ layout: "theirs" }).doc.layout.default, { mode: "camera", no_face: "center" });
 });
 
+test("the framing keyframes are their own layout part: one tab frames, the other edits, both survive (§5.44)", () => {
+  const start = body(C30.seed).in_sf;
+  const framed = (session) => {
+    session.dispatch("SetLayout", { mode: "fill_center" });
+    session.dispatch("SetKeyframe", { sf: start + 20, pan_e5: 10000 });
+    return session;
+  };
+  assert.ok(PARTS.includes("layout.keyframes"));
+  assert.equal(partGroup("layout.keyframes"), "layout");
+  const base = framed(tab(C30)).doc;
+  const mine = tab(C30, base);
+  mine.dispatch("SetKeyframe", { sf: start + 80, pan_e5: 90000 });
+  assert.equal(mine.pending.length, 1);
+  assert.deepEqual(mine.pending[0].parts, ["layout.keyframes"]);
+  const theirs = tab(C30, base);
+  theirs.dispatch("SetHookText", { text: "Sementara" });
+  const merged = rebase({ base, mine: mine.doc, theirs: theirs.doc, steps: mine.pending, ctx: C30.ctx });
+  assert.equal(merged.status, "merged");
+  assert.deepEqual(merged.doc.layout.keyframes.map((k) => k.sf), [start + 20, start + 80]);
+  assert.equal(hookItem(merged.doc).payload.text, "Sementara");
+  // both tabs frame differently: one conflict in "Tata letak", named with the keyframe count
+  const other = tab(C30, base);
+  other.dispatch("ClearKeyframes", {});
+  const result = rebase({ base, mine: mine.doc, theirs: other.doc, steps: mine.pending, ctx: C30.ctx });
+  assert.equal(result.status, "conflict");
+  assert.deepEqual(result.conflicts.map((group) => [group.id, group.mine, group.theirs]), [
+    ["layout", "fill_center + bingkai manual (2 keyframe)", "fill_center"]]);
+  assert.deepEqual(result.resolve({}).doc.layout.keyframes.length, 2);
+  assert.ok(!Object.hasOwn(result.resolve({ layout: "theirs" }).doc.layout, "keyframes"));
+  // the other tab switched to latar blur: the replayed keyframe no longer has a crop layout
+  const blur = tab(C30, base);
+  blur.dispatch("SetLayout", { mode: "fit_blur" });
+  const refused = rebase({ base, mine: mine.doc, theirs: blur.doc, steps: mine.pending, ctx: C30.ctx });
+  assert.equal(refused.status, "conflict");
+  assert.deepEqual(refused.conflicts.map((group) => group.id), ["layout"]);
+  assert.deepEqual(checkDoc(refused.resolve({}).doc, C30.ctx), []);
+  assert.deepEqual(checkDoc(refused.resolve({ layout: "theirs" }).doc, C30.ctx), []);
+});
+
 test("choosing 'mine' for a field of an item the other tab removed brings the item back", () => {
   const mine = tab(C30);
   mine.dispatch("SetHookDuration", { dur_f: 200 });

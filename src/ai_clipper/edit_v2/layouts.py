@@ -36,10 +36,13 @@ from pathlib import Path
 from typing import Any
 
 from ..render import _layout_filter
+from . import KEYFRAME_MOVES, MAX_KEYFRAMES, PAN_E5_MAX
 from .timemap import Fps, div_round_half_up
 
 # layout.default.mode values (plan §3.3): fit-blur, face-track, center-crop.
 LAYOUT_MODES = ("fit_blur", "camera", "fill_center")
+# The layouts that crop the source, the only ones manual framing (layout.keyframes) applies to.
+CROP_MODES = ("camera", "fill_center")
 # layout.default.no_face values: what face-track shows where no face was found (§5.40).
 NO_FACE_MODES = ("center", "fit_blur")
 
@@ -173,6 +176,72 @@ def crop_positions(
     return tuple(values)
 
 
+def pan_limit(source: tuple[int, int], output: tuple[int, int]) -> int:
+    """The crop's travel in the scaled source, ``scaled_w − W`` floored to even (the camera
+    crop's limit); 0 when the source is 9:16 or taller, so there is nothing to pan."""
+    limit = max(scaled_size(source, output)[0] - output[0], 0)
+    return limit - limit % 2
+
+
+def check_keyframes(keyframes: Sequence[Mapping]) -> None:
+    """Raises ``ValueError`` unless ``keyframes`` is a valid ``layout.keyframes`` list without
+    its window rule: 1–``MAX_KEYFRAMES`` objects with an integer ``sf`` ≥ 0, strictly
+    increasing, ``pan_e5`` in 0–``PAN_E5_MAX`` and ``move`` in ``KEYFRAME_MOVES``
+    (``TypeError`` for an item that is not an object)."""
+    if not isinstance(keyframes, Sequence) or not 1 <= len(keyframes) <= MAX_KEYFRAMES:
+        raise ValueError("manual framing needs 1 to 100 keyframes")
+    previous = -1
+    for keyframe in keyframes:
+        if not isinstance(keyframe, Mapping):
+            raise TypeError("a keyframe is an object")
+        sf, pan, move = keyframe.get("sf"), keyframe.get("pan_e5"), keyframe.get("move")
+        if type(sf) is not int or sf <= previous:
+            raise ValueError("keyframe frames must be integers, strictly increasing")
+        if type(pan) is not int or not 0 <= pan <= PAN_E5_MAX:
+            raise ValueError("pan_e5 must be an integer in 0..100000")
+        if move not in KEYFRAME_MOVES:
+            raise ValueError("move must be cut or slide")
+        previous = sf
+
+
+def keyframe_positions(
+    keyframes: Sequence[Mapping],
+    *,
+    source: tuple[int, int],
+    output: tuple[int, int],
+    first_sf: int,
+    count: int,
+) -> tuple[int, ...]:
+    """Even crop x (in the scaled source) for source-grid frames ``first_sf … first_sf+count−1``
+    from the manual framing keyframes (CONTRACTS §5.44).
+
+    Keyframe ``i`` puts the crop at ``pan_e5·limit/100000`` (``limit``: :func:`pan_limit`) on its
+    frame ``sf``. Before the first keyframe the first holds and after the last the last holds.
+    Towards the next keyframe the crop holds until that frame when its ``move`` is ``cut``, and
+    moves linearly in the frame index when it is ``slide``. Exact rationals, rounded once to the
+    nearest even integer, as the camera crop; the first keyframe's ``move`` is never read.
+    """
+    check_keyframes(keyframes)
+    limit = pan_limit(source, output)
+    frames = [keyframe["sf"] for keyframe in keyframes]
+    pans = [keyframe["pan_e5"] for keyframe in keyframes]
+    last = len(frames) - 1
+    values = []
+    for sf in range(first_sf, first_sf + count):
+        index = max(bisect_right(frames, sf) - 1, 0)
+        if (sf < frames[0] or index == last or keyframes[index + 1]["move"] == "cut"
+                or pans[index] == pans[index + 1]):
+            numerator, denominator = pans[index] * limit, PAN_E5_MAX
+        else:
+            span = frames[index + 1] - frames[index]
+            offset = sf - frames[index]
+            numerator = (pans[index] * span + (pans[index + 1] - pans[index]) * offset) * limit
+            denominator = PAN_E5_MAX * span
+        value = 2 * div_round_half_up(numerator, 2 * denominator)  # the one rounding: to even
+        values.append(min(max(value, 0), limit))
+    return tuple(values)
+
+
 def crop_expression(values: Sequence[int]) -> str:
     """A crop ``x`` expression of the frame counter ``n`` returning ``values[n]``.
 
@@ -280,14 +349,19 @@ def _fallback_chain(crop: Sequence[int], fallback: Sequence[bool], **chain: Any)
 
 
 __all__ = [
+    "CROP_MODES",
+    "KEYFRAME_MOVES",
     "LAYOUT_MODES",
     "NO_FACE_MODES",
     "blur_sigma",
     "centre_x",
+    "check_keyframes",
     "color_matrix",
     "crop_expression",
     "crop_positions",
+    "keyframe_positions",
     "layout_chain",
     "no_face_frames",
+    "pan_limit",
     "scaled_size",
 ]

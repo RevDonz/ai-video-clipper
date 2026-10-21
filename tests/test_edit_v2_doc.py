@@ -487,8 +487,77 @@ def _removal(doc: dict, *, seg: str = "seg_b1", offset: int = 60, length: int = 
     return removal
 
 
+def _window_sf(doc: dict) -> tuple[int, int]:
+    fps = tm.Fps.from_json(doc["output"]["fps"])
+    window = doc["base"]["window_ms"]
+    return tm.sf_floor(window[0], fps), tm.sf_ceil(window[1], fps)
+
+
+def _framed(doc: dict, *offsets: tuple, mode: str = "fill_center") -> None:
+    """Manual framing (CONTRACTS §5.44): ``mode`` plus keyframes at window-relative frames;
+    an offset ``< 0`` counts from the window's end (−1 = its last frame)."""
+    low, high = _window_sf(doc)
+    doc["layout"]["default"]["mode"] = mode
+    doc["layout"]["keyframes"] = [
+        {"sf": (high + at if at < 0 else low + at), "pan_e5": pan, "move": move}
+        for at, pan, move in offsets]
+
+
+def _keyframe(index: int, **fields) -> object:
+    def apply(doc: dict) -> None:
+        _framed(doc, (10, 20_000, "cut"), (40, 80_000, "slide"))
+        doc["layout"]["keyframes"][index].update(fields)
+    return apply
+
+
+def _keyframe_without(key: str) -> object:
+    def apply(doc: dict) -> None:
+        _framed(doc, (10, 20_000, "cut"))
+        del doc["layout"]["keyframes"][0][key]
+    return apply
+
+
+KEYFRAME_RULES = [
+    ("c30", lambda d: _framed(d, (10, 20_000, "cut"), (40, 80_000, "slide")), None, None),
+    ("c25", lambda d: _framed(d, (0, 0, "slide"), (-1, 100_000, "cut"), mode="camera"), None,
+     None),
+    ("c24", lambda d: _framed(d, *[(k, k * 1000, "slide") for k in range(100)]), None, None),
+    ("c30", lambda d: _framed(d, (10, 20_000, "cut"), mode="fit_blur"), "range_invalid",
+     "/layout/keyframes"),
+    ("c30", lambda d: d["layout"].update(keyframes=[]), "range_invalid", "/layout/keyframes"),
+    ("c30", lambda d: d["layout"].update(keyframes={"sf": 1}), "range_invalid",
+     "/layout/keyframes"),
+    ("c30", lambda d: _framed(d, *[(k, 0, "cut") for k in range(101)]), "range_invalid",
+     "/layout/keyframes"),
+    ("c30", lambda d: (_framed(d, (10, 0, "cut")), d["layout"]["keyframes"].append(5)),
+     "range_invalid", "/layout/keyframes/1"),
+    ("c30", _keyframe(1, sf=None), "range_invalid", "/layout/keyframes/1/sf"),
+    ("c30", _keyframe(1, sf=True), "range_invalid", "/layout/keyframes/1/sf"),
+    ("c30", lambda d: _framed(d, (10, 0, "cut"), (10, 5, "cut")), "range_invalid",
+     "/layout/keyframes/1/sf"),
+    ("c30", lambda d: _framed(d, (40, 0, "cut"), (10, 5, "cut")), "range_invalid",
+     "/layout/keyframes/1/sf"),
+    ("c30", lambda d: _framed(d, (-1, 0, "cut"), (0, 5, "cut")), "range_invalid",
+     "/layout/keyframes/1/sf"),
+    ("c30", lambda d: _framed(d, (-1, 0, "cut")), None, None),
+    ("c30", lambda d: _framed(d, (-1, 0, "cut")) or d["layout"]["keyframes"][0].update(
+        sf=_window_sf(d)[1]), "outside_window", "/layout/keyframes/0/sf"),
+    ("c30", lambda d: _framed(d, (0, 0, "cut")) or d["layout"]["keyframes"][0].update(
+        sf=_window_sf(d)[0] - 1), "outside_window", "/layout/keyframes/0/sf"),
+    *[("c30", _keyframe(0, pan_e5=value), "range_invalid", "/layout/keyframes/0/pan_e5")
+      for value in (-1, 100_001, "5", True, None)],
+    ("c30", _keyframe(0, pan_e5=0), None, None),
+    ("c30", _keyframe(1, pan_e5=100_000), None, None),
+    *[("c30", _keyframe(1, move=value), "range_invalid", "/layout/keyframes/1/move")
+      for value in ("fade", "Cut", "", None, 1)],
+    *[("c30", _keyframe_without(key), "range_invalid", f"/layout/keyframes/0/{key}")
+      for key in ("sf", "pan_e5", "move")],
+]
+
+
 # (context, mutate, code, path): one targeted violation (or a positive boundary with code None).
 RULES = [
+    *KEYFRAME_RULES,
     # root
     ("c30", lambda d: d.update(clip_id="clip_XYZ"), "range_invalid", "/clip_id"),
     ("c30", lambda d: d.update(revision=-1), "range_invalid", "/revision"),

@@ -1,0 +1,153 @@
+// Manual framing, "Atur bingkai" (CONTRACTS §5.44): the browser mirror of
+// src/ai_clipper/edit_v2/layouts.py `pan_limit` and `keyframe_positions`. Both are checked against
+// tests/fixtures/edit_v2/framing-vectors.json, so the box the gizmo draws is the crop the render
+// takes, to the pixel. Pure functions, no DOM.
+//
+// Geometry: the crop layouts scale the source to cover the output height (`scaledSize`, FFmpeg's
+// `force_original_aspect_ratio=increase`) and take an output-sized window at an even x in
+// [0, limit], `limit` = scaled width − output width floored to even. A keyframe's `pan_e5` puts
+// that window at `pan_e5 · limit / 100000`. Integers only: BigInt for the products.
+import { CROP_MODES, KEYFRAME_MOVES, MAX_KEYFRAMES, PAN_E5_MAX } from "./doc-model.mjs";
+import { floorDiv, outToSrc, srcToOut } from "./timemap.mjs";
+
+const pair = (value, name) => {
+  const [w, h] = Array.isArray(value) ? value : [value?.w, value?.h];
+  if (!Number.isSafeInteger(w) || !Number.isSafeInteger(h) || w <= 0 || h <= 0) throw new TypeError(`${name} must be [w, h]`);
+  return [w, h];
+};
+
+/** `scale=W:H:force_original_aspect_ratio=increase`: each side rounded to nearest, halves up. */
+export function scaledSize(source, output) {
+  const [srcW, srcH] = pair(source, "source");
+  const [outW, outH] = pair(output, "output");
+  const width = floorDiv(outH * srcW + floorDiv(srcH, 2), srcH);
+  const height = floorDiv(outW * srcH + floorDiv(srcW, 2), srcW);
+  return [Math.max(width, outW), Math.max(height, outH)];
+}
+
+/** The crop's travel in the scaled source; 0 when the source is 9:16 or taller (nothing to pan). */
+export function panLimit(source, output) {
+  const limit = Math.max(scaledSize(source, output)[0] - pair(output, "output")[0], 0);
+  return limit - (limit % 2);
+}
+
+/** Throws unless `keyframes` is a valid `layout.keyframes` list (the window rule aside). */
+export function checkKeyframes(keyframes) {
+  if (!Array.isArray(keyframes) || keyframes.length < 1 || keyframes.length > MAX_KEYFRAMES) {
+    throw new RangeError("manual framing needs 1 to 100 keyframes");
+  }
+  let previous = -1;
+  for (const keyframe of keyframes) {
+    if (!keyframe || typeof keyframe !== "object") throw new TypeError("a keyframe is an object");
+    if (!Number.isSafeInteger(keyframe.sf) || keyframe.sf <= previous) throw new RangeError("keyframe frames must be integers, strictly increasing");
+    if (!Number.isSafeInteger(keyframe.pan_e5) || keyframe.pan_e5 < 0 || keyframe.pan_e5 > PAN_E5_MAX) throw new RangeError("pan_e5 must be in 0..100000");
+    if (!KEYFRAME_MOVES.includes(keyframe.move)) throw new RangeError("move must be cut or slide");
+    previous = keyframe.sf;
+  }
+}
+
+/** The index of the last keyframe at or before `sf` (−1 before the first). */
+export function keyframeBefore(keyframes, sf) {
+  let lo = 0;
+  let hi = keyframes.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (keyframes[mid].sf <= sf) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo - 1;
+}
+
+const LIMIT_BIG = BigInt(PAN_E5_MAX);
+
+/**
+ * Even crop x for source-grid frames `firstSf … firstSf+count−1` (layouts.keyframe_positions):
+ * before the first keyframe the first holds, after the last the last; towards the next keyframe
+ * the crop holds until that frame (`cut`) or moves linearly in the frame index (`slide`); exact
+ * rationals rounded once to the nearest even integer.
+ */
+export function keyframePositions(keyframes, { source, output, firstSf, count }) {
+  checkKeyframes(keyframes);
+  if (!Number.isSafeInteger(firstSf) || !Number.isSafeInteger(count) || count < 0) throw new TypeError("firstSf and count must be integers");
+  const limit = panLimit(source, output);
+  const big = BigInt(limit);
+  const last = keyframes.length - 1;
+  const values = [];
+  for (let sf = firstSf; sf < firstSf + count; sf += 1) {
+    const index = Math.max(keyframeBefore(keyframes, sf), 0);
+    const here = keyframes[index];
+    const next = index < last ? keyframes[index + 1] : null;
+    let numerator;
+    let denominator;
+    if (sf < keyframes[0].sf || !next || next.move === "cut" || here.pan_e5 === next.pan_e5) {
+      numerator = BigInt(here.pan_e5) * big;
+      denominator = LIMIT_BIG;
+    } else {
+      const span = BigInt(next.sf - here.sf);
+      const offset = BigInt(sf - here.sf);
+      numerator = (BigInt(here.pan_e5) * span + BigInt(next.pan_e5 - here.pan_e5) * offset) * big;
+      denominator = LIMIT_BIG * span;
+    }
+    // round_half_up(numerator / (2·denominator)), times 2: the one rounding, to even
+    const value = 2 * Number((2n * numerator + 2n * denominator) / (4n * denominator));
+    values.push(Math.min(Math.max(value, 0), limit));
+  }
+  return values;
+}
+
+/** The crop x of one source frame. */
+export function cropAt(keyframes, sf, source, output) {
+  return keyframePositions(keyframes, { source, output, firstSf: sf, count: 1 })[0];
+}
+
+/** The `pan_e5` that puts the crop at x (the nearest; the travel's ends at 0 and 100000). */
+export function panForCrop(x, limit) {
+  if (!(limit > 0)) return PAN_E5_MAX / 2;
+  const pan = Math.round((x * PAN_E5_MAX) / limit);
+  return Math.min(Math.max(pan, 0), PAN_E5_MAX);
+}
+
+/** The document's source and output as `[w, h]` pairs. */
+export function framingSizes(doc) {
+  return { source: [doc.base.source.w, doc.base.source.h], output: [doc.output.w, doc.output.h] };
+}
+
+/** The keyframes of the document (an empty list for the layout's own framing). */
+export function keyframesOf(doc) {
+  const list = doc?.layout?.keyframes;
+  return Array.isArray(list) ? list : [];
+}
+
+/**
+ * Whether "Atur bingkai" can frame this clip: `{ok: true}`, or `{ok: false, reason}` with reason
+ * "layout" (latar blur shows the whole picture) or "portrait" (the source is 9:16 or taller).
+ */
+export function framingAvailability(doc) {
+  if (!doc?.layout?.default || !CROP_MODES.includes(doc.layout.default.mode)) return { ok: false, reason: "layout" };
+  const { source, output } = framingSizes(doc);
+  if (panLimit(source, output) <= 0) return { ok: false, reason: "portrait" };
+  return { ok: true, reason: null };
+}
+
+/** The source frame output frame `f` shows (null outside the clip or without a plan). */
+export function sourceFrameAt(plan, f) {
+  const list = plan?.pieces;
+  const total = plan?.totalFrames;
+  if (!Array.isArray(list) || !list.length || !Number.isSafeInteger(f) || !Number.isSafeInteger(total) || f < 0 || f >= total) return null;
+  return outToSrc(f, list)[1];
+}
+
+/**
+ * The keyframes on the output timeline: `[{f, sf, index}]` for each keyframe whose frame the clip
+ * shows (a keyframe inside a cut is still part of the framing, but has no place on the timeline).
+ */
+export function keyframeMarks(doc, plan) {
+  const list = plan?.pieces;
+  if (!Array.isArray(list) || !list.length) return [];
+  const marks = [];
+  keyframesOf(doc).forEach((keyframe, index) => {
+    const f = srcToOut(keyframe.sf, list);
+    if (f !== null) marks.push({ f, sf: keyframe.sf, index });
+  });
+  return marks.sort((a, b) => a.f - b.f || a.index - b.index);
+}
