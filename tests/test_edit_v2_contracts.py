@@ -491,6 +491,7 @@ def test_every_documented_code_has_an_indonesian_message():
         "no_face_blur",
         "unsafe_zone",
         "caption_over_face",
+        "logo_over_caption",
         "loudness_clamped",
         "peak_reduced",
         "music_shorter_than_clip",

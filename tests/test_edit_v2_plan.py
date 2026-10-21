@@ -822,3 +822,26 @@ def test_another_layout_reads_the_faces_of_a_camera_plan(harness, resources, mon
                       resources=resources, faces=camera)
     assert [(issue.code, issue.ref) for issue in plan.warnings
             if issue.code == "caption_over_face"] == [("caption_over_face", "atas")]
+
+
+def test_a_logo_over_the_caption_is_warned_and_the_plan_sha_stays(harness, resources,
+                                                                   monkeypatch):
+    """``logo_over_caption`` (CONTRACTS §5.51): a warning beside the plan, never in its sha."""
+    from ai_clipper.edit_v2 import overlay_zone
+
+    _with_cues(monkeypatch)
+    name = "logo__c30"
+    doc = load_doc(name)
+    top = plan_for(name, resources, doc=doc)
+    assert not [issue for issue in top.warnings if issue.code == "logo_over_caption"]
+    low = copy.deepcopy(doc)
+    item = low["tracks"][next(index for index, track in enumerate(low["tracks"])
+                              if track["kind"] == "visual")]["items"][0]
+    x, y, w, h = overlay_zone.corner_box((115, 115), "bottom_right", (720, 1280))
+    item["transform"]["x_e5"] = tm.div_round_half_up((2 * x + w) * 100_000, 2 * 720)
+    item["transform"]["y_e5"] = tm.div_round_half_up((2 * y + h) * 100_000, 2 * 1280)
+    plan = plan_for(name, resources, doc=low)
+    over = [issue for issue in plan.warnings if issue.code == "logo_over_caption"]
+    assert [(issue.ref, issue.f) for issue in over] == [("top_right", 0)]
+    assert over[0].path.endswith("/items/0/transform")
+    assert plan.to_json() == dataclasses.replace(plan, warnings=()).to_json()

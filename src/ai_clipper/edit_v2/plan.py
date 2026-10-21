@@ -37,6 +37,7 @@ from . import COMPILER_ID, COMPILER_VERSION, OUTPUT_SIZES, RENDER_SEMANTICS, err
 from . import captions as _captions
 from . import envelope as _envelope
 from . import face_zone as _face_zone
+from . import overlay_zone as _overlay_zone
 from . import timemap as tm
 from . import transitions as _transitions
 from .captions import CaptionResult
@@ -147,7 +148,8 @@ class RenderPlan:
     music: Mapping[str, Any] | None = None  # the music item of the document, if any
     speech_envelope: tuple[tuple[int, int], ...] = ()  # envelope.speech_envelope (T1.4)
     music_envelope: tuple[tuple[int, int], ...] | None = None  # envelope.music_envelope
-    # caption, camera (no_face[_blur]), logo (unsafe_zone), caption over face (§5.50)
+    # caption, camera (no_face[_blur]), logo (unsafe_zone), caption over face (§5.50), logo or
+    # watermark over the caption (§5.51)
     warnings: tuple[Issue, ...] = ()
     fonts_sha256: str | None = None  # resources/fonts/fonts.json; None when missing
     packs_sha256: str | None = None  # the pack and hook design the document uses
@@ -408,6 +410,7 @@ def build_plan(
     warnings.extend(unsafe_zone_issues(doc, assets, output, parts=("logo",)))
     warnings.extend(_face_zone.caption_over_face_issues(
         doc, camera if faces is None else faces, pieces, caption.cues, output))
+    warnings.extend(_overlay_zone.logo_over_caption_issues(doc, assets, caption.cues, output))
     plan = RenderPlan(
         doc=doc,
         fps=fps,

@@ -1301,6 +1301,21 @@ def layout_watermark(spec: WatermarkSpec, *, play_res: tuple[int, int]) -> Water
     return WatermarkLayout(size, outline, x, y, _WATERMARK_ALIGNMENT[column], alpha)
 
 
+def watermark_box(spec: WatermarkSpec, *,
+                  play_res: tuple[int, int]) -> tuple[float, float, float, float]:
+    """``(x0, y0, x1, y1)`` of the watermark line at ``play_res`` with its outline: the text's
+    ``hmtx`` advance at its laid-out size, one DejaVu line (1.164 em) above its bottom. The
+    logo-over-caption check compares it with the caption block (CONTRACTS §5.51)."""
+    layout = layout_watermark(spec, play_res=play_res)
+    units, height_units = advance_units(_drawn_text(spec.text), font_path(WATERMARK_FONT_FILE))
+    width = units * layout.font_size / height_units
+    edge = -(-layout.outline_cp // 100)
+    anchor = float(layout.x)
+    left = {1: anchor, 2: anchor - width / 2, 3: anchor - width}[layout.alignment]
+    pitch = div_round_half_up(layout.font_size * 1164, 1000)
+    return left - edge, layout.y - pitch - edge, left + width + edge, layout.y + edge
+
+
 def _watermark_style(layout: WatermarkLayout) -> str:
     white = _ass_color(CAPTION_TEXT_COLOR, alpha=layout.alpha)
     black = _ass_color("#000000", alpha=layout.alpha)

@@ -74,6 +74,7 @@ WARNING_CODES = frozenset(
         "no_face_blur",  # a note in the editor (§5.40): the run is shown with latar blur
         "unsafe_zone",
         "caption_over_face",  # the caption covers the speaker's face (§5.50)
+        "logo_over_caption",  # the logo or the text watermark covers the caption (§5.51)
         "loudness_clamped",
         "peak_reduced",
         "music_shorter_than_clip",
@@ -175,6 +176,7 @@ _MESSAGES = {
     "no_face_blur": "Tidak ada wajah terdeteksi di bagian ini; tampil dengan latar blur",
     "unsafe_zone": "Caption, hook, atau logo masuk ke area tombol TikTok",
     "caption_over_face": "Caption menutupi wajah pembicara",
+    "logo_over_caption": "Logo atau teks watermark menutupi caption",
     "loudness_clamped": "Target kenyaringan tidak tercapai tanpa pecah; volume dibatasi",
     "peak_reduced": "Volume diturunkan agar audio tidak pecah",
     "music_shorter_than_clip": "Musik lebih pendek dari klip dan tidak diulang",
