@@ -344,8 +344,9 @@ Duplicate keys, NaN and unknown keys are rejected at every level.
 | `captions.overrides.words_max` | optional; 1–4 (amended 2026-10-20, §5.30) | "Kata per baris": at most this many words per caption line; absent = the pack's `words_per_cue`. Seeds never write it |
 | `captions.overrides.entrance` | optional; `none`, `fade`, `pop`, `blur` (amended 2026-10-21, §5.39) | "Animasi masuk": how each caption line appears, at most 120 ms; absent = `none`. Seeds never write it |
 | `captions.word_edits` | ≤ 6,000 keys (word ids); values `{text?, hidden?, emphasis?}` with ≥ 1 key | `text` 1–40 chars. `emphasis` fixes defect #6 (§8) |
-| `layout.default.mode` | `fit_blur`, `camera` (face-track), `fill_center` (center-crop) | `no_face` is `"center"` (today's behaviour) or `"fit_blur"` (face-track shows its runs without a face as `fit_blur`, §5.40); no-face spans are *reported*, never silent |
-| `layout.keyframes` | optional; 1–100 `{sf, pan_e5 0–100000, move "cut"\|"slide"}`, `sf` strictly increasing inside the window (amended 2026-10-21, §5.44) | "Atur bingkai": the crop of the two crop layouts set by hand; with `fit_blur` `range_invalid`; absent = the layout's own framing. Seeds never write it |
+| `layout.default.mode` | `fit_blur`, `camera` (face-track), `fill_center` (center-crop), `split` (layar terbagi, amended 2026-10-21, §5.45) | `no_face` is `"center"` (today's behaviour) or `"fit_blur"` (face-track shows its runs without a face as `fit_blur`, §5.40); no-face spans are *reported*, never silent |
+| `layout.keyframes` | optional; 1–100 `{sf, pan_e5 0–100000, move "cut"\|"slide"}`, `sf` strictly increasing inside the window (amended 2026-10-21, §5.44) | "Atur bingkai": the crop of the two crop layouts set by hand; with `fit_blur` or `split` `range_invalid`; absent = the layout's own framing. Seeds never write it |
+| `layout.split` | with `split` only, and then required: `{top_pm 300\|500\|700, top {x_e5 0–100000, y_e5 0–100000, zoom_pm 1000–5000}, bottom {…}}` (amended 2026-10-21, §5.45) | "Layar terbagi": two stacked crops of the source and a 1 px black line. Seeds never write it |
 | `tracks` | ≤ 3 tracks: ≤ 1 `hook`, ≤ 1 `visual/over_text/overlay`, ≤ 1 `audio/music`; ≤ 1 item each | Stage 2 lifts the counts; the shapes stay |
 | hook item | `start {"at":"out","f":0}`; `dur_f` 15 to `floor(30·F)`; `transform.x_e5` 50000; `y_e5` 6000–40000 (top of the hook stack; seed 13000); `payload.text` 1–90; `design {"id": "legacy-bar"|"kicker"|"blok"|"kotak", "v": 1}` (the three new designs amended 2026-10-20, §5.33; seeds write `legacy-bar`) | Fixed start at 0 as today |
 | logo item | `start clip_start`, `end clip_end`; `x_e5, y_e5` 0–100000 (box centre); `w_e5` 4000–40000; `opacity_pm` 200–1000; `payload.mode` `"free"` | The resolved box must lie inside the frame (`item_out_of_frame`) |
@@ -481,6 +482,9 @@ every later reader sees.
 - *Amended 2026-10-21 (§5.44):* manual framing landed as the optional `layout.keyframes` under
   `schema_minor: 0`, in place of Stage 2's `camera.manual_keys`. A document without it is
   unchanged in meaning; an older server refuses the key with `unknown_key`.
+- *Amended 2026-10-21 (§5.45):* the reserved layout mode `split` is valid under `schema_minor: 0`
+  with its `layout.split`. Every other document is unchanged in meaning; an older server refuses
+  the mode with `op_disabled` and the key with `unknown_key`.
 - The pack ids `classic` and `karaoke` are the FINAL `legacy-classic@1` and `legacy-karaoke@1`
   (an alias table is added in Stage 2).
 - FINAL puts the resolver in JS. If Stage 2 adopts that, the Python resolver becomes the
@@ -707,8 +711,8 @@ def derive_image(asset: Path, *, w: int, h: int, opacity_pm: int,
 OPS = ("clips", "prepare_job", "get", "put", "seed", "archive")
 def main(argv: Sequence[str] | None = None) -> int
 
-# layouts.py (T1.3)
-LAYOUT_MODES = ("fit_blur", "camera", "fill_center")
+# layouts.py (T1.3; "split" since §5.45)
+LAYOUT_MODES = ("fit_blur", "camera", "fill_center", "split")
 ```
 
 `ExecResult` and `VerifyReport` are placeholders whose fields T1.3 defines (no other W1 task reads
@@ -787,7 +791,8 @@ yields `range_invalid` only, with no duration or window issue).
   `effect`; an anchor `{"at": "word", …}` or a hook start with `f` ≠ 0; hook design other than
   `{"id": <one of HOOK_DESIGN_IDS>, "v": 1}` (§5.33); logo `payload.mode` `pip`, `cutaway`, `split_top`,
   `split_bottom`; `captions.overrides.case` `lower`, `sentence`; layout mode `smart_speaker`,
-  `fit_black`, `split`, `branded`; `no_face` `fail` (`fit_blur` is valid since §5.40); duck
+  `fit_black`, `branded` (`split` is valid since §5.45); `no_face` `fail` (`fit_blur` is valid
+  since §5.40); duck
   detector `rms`.
 - **`pack_unknown`**: `captions.pack.id` (a string) not in `PACK_IDS`, or `v` (an int) ≠ 1.
 - **`base_changed`** (only when `seed` is given): any difference from the seed in `base`,
@@ -869,6 +874,7 @@ captions  enabled bool · pack {id, v} · overrides {y_e5, size_pm, case, highli
           · word_edits {<word id>: {text?, hidden?, emphasis?}} (values: 1–3 keys)
 layout    default {mode, no_face "center"|"fit_blur"}
           · keyframes [{sf, pan_e5, move "cut"|"slide"}] (optional, 1–100, §5.44)
+          · split {top_pm 300|500|700, top {x_e5, y_e5, zoom_pm}, bottom {…}} (split only, §5.45)
 tracks    hook   {id, kind "hook", items}
           visual {id, kind "visual", band "over_text", role "overlay", items}
           audio  {id, kind "audio", role "music", items}
@@ -3240,3 +3246,118 @@ of every plate, reference and final frame against `keyframe_positions`
 (`scripts/parity/frame_identity.py`). `tests/test_edit_v2_compile.py` decodes the crop x of the
 plate cells and the lossless reference of a framed synthetic clip with real FFmpeg (0 px).
 Browser spec: `web/e2e/editor-framing.spec.mjs` on the editor fakes.
+
+## 5.45 Layar terbagi: two stacked crops (2026-10-21)
+
+Plan `docs/plans/2026-10-20-lanjutan-sesi.md` P2 ("Layout split 30/70 dan 50/50"). The reserved
+layout mode `split` stacks two crops of the source in the 9:16 output with a 1 px black line
+between them, for a facecam over gameplay or two speakers. Nothing that renders today changes:
+every other document keeps its graph, plan sha and plate key, so `RENDER_SEMANTICS` stays 1 and no
+golden moves.
+
+### The document (§3.3, §5.5)
+
+- `layout.default.mode: "split"` with `layout.split`, exactly `{top_pm, top, bottom}`:
+  - `top_pm` (`SPLIT_TOP_PM`): 300, 500 or 700, the top band's share per mille of the `H − 1`
+    rows beside the line (30/70, 50/50, and 30/70 swapped). Another value is `range_invalid` at
+    `/layout/split/top_pm`.
+  - `top`, `bottom` (`SPLIT_BANDS`): each band's crop, exactly `{x_e5, y_e5, zoom_pm}`. `x_e5` and
+    `y_e5` (0–100000, `PAN_E5_MAX`) place the crop from the left or top edge (0) to the right or
+    bottom edge (100000) of its travel; `zoom_pm` (1000–5000, `SPLIT_ZOOM_RANGE`) divides the
+    largest box of the band's shape inside the source. Out of range is `range_invalid` at the
+    field, a missing band at `/layout/split/<band>`, another key `unknown_key` at parse level.
+- The split needs `layout.split` (`range_invalid` at `/layout/split` without it) and only the split
+  has it (`range_invalid` at `/layout/split` under another mode). `layout.keyframes` with the
+  split is `range_invalid` (manual framing belongs to the crop layouts). `no_face` is kept and
+  unused. `schema_minor` stays 0 (§3.8 amendment). Seeds never write the split.
+- Constants in `edit_v2/__init__.py`; the client's in `web/lib/editor/doc-model.mjs`
+  (`SPLIT_TOP_PM`, `SPLIT_BANDS`, `SPLIT_ZOOM_RANGE`, `defaultSplit`).
+
+### Geometry (`layouts.py`)
+
+- `split_bands(output, top_pm)`: the top band has `round_half_up((H − 1)·top_pm/1000)` rows, the
+  line is the next row, the bottom band the rest: 576 / line 576 / 1343 at 1080×1920 for 30/70,
+  384 / 384 / 895 at 720×1280; 300 and 700 are mirror images, 500 gives 960 / 959.
+- `split_crop(source, band, crop)` → `(x, y, w, h)` in source pixels: the largest box of the
+  band's shape (the whole height of a source wider than the band, else the whole width) divided
+  by `zoom_pm/1000`, each side rounded to even (half up); then `x = even(x_e5·travel_x/100000)`
+  and the same for `y`, with the travel `source − side` floored to even. Every value is even, so
+  the crop is exact on 4:2:0 sources; the crop's shape is the band's to within one pixel per side.
+- `split_geometry(split, *, source, output)` → `{line, top: {y, size, crop}, bottom: {…}}`;
+  `check_split`, `default_split()` (30/70, both crops `{50000, 50000, 1000}`), the lane form
+  `split_lane` / `split_from_lane` (`[top_pm, [x_e5, y_e5, zoom_pm], [x_e5, y_e5, zoom_pm]]`).
+- `tests/fixtures/edit_v2/split-vectors.json` (`potongin.split-vectors/1`): 32 inputs with their
+  line, bands and crops (hand-picked and seeded random cases over 8 source/output sizes), written
+  by `tests/test_edit_v2_split.py` (`EDIT_V2_UPDATE_VECTORS=1`); `web/tests/editor-split.test.mjs`
+  checks `web/lib/editor/split.mjs` against the same file.
+
+### Compiler, plan and keys
+
+- `layouts.split_chain`: `split=2`, then per band `crop=w:h:x:y,scale=W:band_h:` with R3's
+  explicit conversion to `yuv444p`; the top band is padded with one black row
+  (`pad=W:band_h+1:0:0:black`), then `vstack=inputs=2,setsar=1`. No implicit conversion (pinned by
+  `test_no_implicit_video_conversions`). The crops are the same on every frame, so plate cells,
+  truth frames and the final agree per frame. The split needs no camera plan.
+- `RenderPlan.split` (the document's bands, `None` under another layout). `RenderPlan.to_json`
+  is unchanged; the content sha carries the bands.
+- `plates.plate_key` adds `"split": split_lane(...)` for the split only; every other key is the
+  one before (pinned in `tests/test_edit_v2_plates.py`).
+- `preview_cli`: `plan`'s `lane` and `prepare` name `split` (the lane form, or `null`) next to
+  `keyframes`; `cells` takes an optional `split` (a malformed one is a usage error; the split
+  without it, or a split with another layout, `range_invalid`, exit 6). `prepare` with a switch
+  into the split reports the default bands, or the document's own when it is a split already
+  (`_switched`, as `SetLayout`). `web/lib/preview-lane.mjs` keeps the plate's split and sends it
+  with every cells batch of that plate; a plan or prepare result with a malformed split, or a
+  split without its layout, is not trusted (503).
+- Render budget: `render_queue.RENDER_COST_PERMILLE` and `render_edit.PREDICTED_X` give the split
+  fit-blur's cost until it is measured.
+
+### Commands and the two-tab merge (`web/lib/editor/commands.mjs`, `rebase.mjs`)
+
+- `SetLayout` into the split starts from `defaultSplit()` (or keeps the bands when already a
+  split); any other layout drops `layout.split` (R10: a clip switched back equals its seed), and
+  the keyframes stay with the crop layouts only (`layoutAfterSwitch`; the layout thumbnails and
+  `preview_cli` `_switched` do the same).
+- `SetSplitRatio {top_pm}` (300, 500, 700; `value_out_of_range`), `SwapSplit {}` ("Tukar": the
+  crops change places and `top_pm` becomes `1000 − top_pm`, so the small band moves with its
+  picture) and `SetSplitCrop {band, x_e5, y_e5, zoom_pm}` (merge key `split:<band>`: a drag, a
+  zoom or the keys on one band are one undo step). All three need the split
+  (`split_unavailable`, "Hanya untuk tata letak Layar terbagi."); the same values are no change.
+  `checkDoc` mirrors the validator; the cross-check generator sends the three commands and
+  switches to the split before them.
+- Two tabs: part `layout.split` (value: the bands or `null`) in the "Tata letak" group; the dialog
+  names `split 30/70`. Mine's bands over another layout bring mine's split layout along, and
+  mine's layout brings mine's bands (or their absence).
+
+### Editor
+
+- `web/lib/editor/split.mjs`: the JS mirror plus `splitOf`, `splitRatio` and `swappedSplit`.
+- Tata letak panel: a fourth card "Layar terbagi" (its thumbnail is the truth frame with the
+  default bands, or the document's own). Under the split, the section **Layar terbagi** takes
+  Bingkai's place: "Atas 30%, bawah 70%.", **Pembagian** (30/70, 50/50; 30/70 keeps a swapped
+  order), **Atur potongan** and **Tukar atas dan bawah**. Mode Cepat's Tata letak card shows the
+  same (its four pills in two columns); its summary is "Layar terbagi · 30/70" (top share first).
+- "Atur layar terbagi" (`SplitDialog.jsx`, model `split-model.mjs`, a shell dialog like Atur
+  bingkai, `openSplit` in the panel props bundle): the source picture of FramingDialog's
+  `useStill` (the latar blur truth frame, nothing over it) with one box per band
+  (`gizmos/SplitGizmo.jsx`, `gizmos/split-geometry.mjs`), drawn from the render's crops. A drag
+  moves a box, a corner resizes it around the opposite one (the box keeps its band's shape; the
+  zoom lands on 10 per mille steps), arrows move it 1 % of its travel (Shift 10 %), + and −
+  zoom it 10 %; **Potongan** (Atas, Bawah) picks the band being edited, drawn in lime and on top;
+  **Perbesar** zooms it. A drag and the slider are drawn from a draft and stored once, on release;
+  a key stores at once. **Hasil** draws both bands and the line as CSS crops of the still
+  (`bandBackground`). A scrubber picks the frame (the player's playhead); **Tukar atas dan
+  bawah** and **Pembagian** are there too; Ctrl+Z / Ctrl+Shift+Z work inside; **Selesai** and
+  Escape close and give focus back.
+
+### Gates
+
+P-FRAME gains `cfr_30_split` (the frame index read through the top band, whose crop starts at the
+source's first row) and P-PLATE gains `plate_split` and `plate_split_swapped` (each band's column
+ruler against `split_geometry` in the plate, the reference and the final, ≤ 3 % of the columns off
+by more than 1.5 px; the line row of the lossless reference black): `scripts/parity/frame_identity.py`.
+The player fixtures read the split's index through the same band and expect no single crop x
+(`scripts/parity/player_fixtures.py`; they now also expect the manual framing keyframes' crop x).
+`tests/test_edit_v2_compile.py` reads both bands' rulers, the top band's frame index and the line
+row from the plate cells and the lossless reference of a split synthetic clip with real FFmpeg.
+Browser spec: `web/e2e/editor-split.spec.mjs` on the editor fakes.
