@@ -1,4 +1,4 @@
-// The caption gizmo's geometry (CONTRACTS §5.47): the caption block on the 9:16 stage and what a
+// The caption gizmo's geometry (CONTRACTS §5.47): the caption block on the stage and what a
 // drag or a key makes of `captions.overrides.y_e5`, the block's bottom. Pure, in output pixels;
 // CaptionGizmo.jsx and its node tests use it.
 //
@@ -8,6 +8,7 @@ import { divRoundHalfUp } from "../../../lib/editor/timemap.mjs";
 import {
   CAPTION_POSITIONS, CAPTION_Y_RANGE, CAPTION_Y_STEP, captionCommand, captionPositionText,
 } from "../panels/caption-model.mjs";
+import { textHeight } from "../../../lib/output-frame.mjs";
 import { uiZone } from "./logo-geometry.mjs";
 
 export const NUDGE_E5 = CAPTION_Y_STEP; // an arrow key: 0.5 %
@@ -45,9 +46,11 @@ export function captionBottom(yE5, output) {
 export function captionBox(captions, output) {
   const pack = CAPTION_TEXT.packs[captions?.pack?.id] ?? CAPTION_TEXT.packs.classic;
   const [num, den] = CAPTION_TEXT.size;
-  const font = Math.max(1, divRoundHalfUp(output.h * num * pack.scalePm * captions.overrides.size_pm, den * 1_000_000));
+  // Sizes from the text height (the 9:16 frame of the width at 1:1), the bottom from the frame's.
+  const sizes = textHeight(output);
+  const font = Math.max(1, divRoundHalfUp(sizes * num * pack.scalePm * captions.overrides.size_pm, den * 1_000_000));
   const pitch = divRoundHalfUp(font * pack.lineEmPm, 1000);
-  const outline = divRoundHalfUp(output.h * pack.outline[0], pack.outline[1]);
+  const outline = divRoundHalfUp(sizes * pack.outline[0], pack.outline[1]);
   const x = divRoundHalfUp(output.w * CAPTION_TEXT.marginSidePm, 1000);
   const bottom = captionBottom(captions.overrides.y_e5, output);
   const y = Math.max(0, bottom - pack.lines * pitch - outline);

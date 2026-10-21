@@ -18,6 +18,7 @@
 // onRedo }, as FramingDialog's.
 import { useEffect, useId, useRef, useState } from "react";
 
+import { ratioName } from "../../lib/output-frame.mjs";
 import { useStill, useStillClient } from "./FramingDialog.jsx";
 import SplitGizmo from "./gizmos/SplitGizmo.jsx";
 import { bandBackground, resultRows } from "./gizmos/split-geometry.mjs";
@@ -93,6 +94,7 @@ function SplitBody({ state, dispatch, player, frameBus, client, readOnly, active
 
   const time = (f) => formatClock(frameToMs(f, fps));
   const rows = resultRows(view.geometry, view.output);
+  const aspectRatio = `${doc.output.w} / ${doc.output.h}`;
   const layer = (band) => {
     const { size, position } = bandBackground(view.geometry, band, view.source, view.output);
     return { backgroundImage: `url("${still.url}")`, backgroundSize: size, backgroundPosition: position };
@@ -114,14 +116,14 @@ function SplitBody({ state, dispatch, player, frameBus, client, readOnly, active
           <figure className={styles.result}>
             <figcaption className={styles.resultLabel}>Hasil</figcaption>
             {still.url ? (
-              <div className={styles.resultFrame} role="img" data-split-result=""
-                aria-label={`Hasil 9:16 di ${time(frame)}: atas ${summary.top}%, bawah ${summary.bottom}%`}>
+              <div className={styles.resultFrame} role="img" data-split-result="" style={{ aspectRatio }}
+                aria-label={`Hasil ${ratioName(doc.output)} di ${time(frame)}: atas ${summary.top}%, bawah ${summary.bottom}%`}>
                 <div className={styles.resultBand} data-split-band="top" style={{ height: `${rows.top}%`, ...layer("top") }} />
                 <div className={styles.resultLine} />
                 <div className={styles.resultBand} data-split-band="bottom" style={{ height: `${rows.bottom}%`, ...layer("bottom") }} />
               </div>
             ) : (
-              <div className={styles.resultFrame} data-split-result="" data-empty="">
+              <div className={styles.resultFrame} data-split-result="" data-empty="" style={{ aspectRatio }}>
                 <span>Memuat gambar…</span>
               </div>
             )}

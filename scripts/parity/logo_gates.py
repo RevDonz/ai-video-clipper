@@ -78,7 +78,7 @@ CONTEXTS = REPO / "tests" / "fixtures" / "edit_v2" / "docs" / "contexts"
 VECTOR_SCHEMA = "potongin.logo-zone-vectors/1"
 P_LOGO = {"mean_abs": 2.0, "max": 8, "box_px": 0}
 LOGO_CHANGE_LEVEL = 16  # the level player_fixtures.score_logo uses to find where a logo was drawn
-OUTPUTS = ((720, 1280), (1080, 1920))
+OUTPUTS = ((720, 1280), (1080, 1920), (720, 720))  # 1:1 has no zone (CONTRACTS §5.54)
 ASSETS = ((512, 512), (1000, 250), (200, 800), (1024, 7), (24, 1024), (640, 360))
 WIDTHS_E5 = (4000, 16000, 27500, 40000)
 UI_ZONE_720 = (93, 280, 93)  # plan §5.9 G5 (top, bottom, right at 720×1280)
@@ -89,8 +89,11 @@ def _round_half_up(numerator: int, denominator: int) -> int:
 
 
 def independent_zone(output: tuple[int, int]) -> tuple[int, int, int]:
-    """The zone of plan §5.9 written from the plan's text, not from plan.py."""
+    """The zone of plan §5.9 written from the plan's text, not from plan.py: none for an output
+    that is not taller than wide (1:1, CONTRACTS §5.54)."""
     width, height = output
+    if height <= width:
+        return (0, 0, 0)
     top, bottom, right = UI_ZONE_720
     return (_round_half_up(top * height, 1280), _round_half_up(bottom * height, 1280),
             _round_half_up(right * width, 720))

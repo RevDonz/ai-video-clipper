@@ -92,6 +92,23 @@ def test_cli_rejects_invalid_v2_options(arguments: list[str]):
         parse_args(["video.mp4", *arguments])
 
 
+@pytest.mark.parametrize("size", [("720", "1280"), ("1080", "1920"), ("720", "720"),
+                                  ("1080", "1080")])
+def test_cli_takes_every_output_size_for_v3(size: tuple[str, str]):
+    args = parse_args(["video.mp4", "--width", size[0], "--height", size[1]])
+    assert (args.width, args.height) == (int(size[0]), int(size[1]))
+
+
+@pytest.mark.parametrize("size", [("1920", "1080"), ("2160", "3840"), ("1080", "1350"),
+                                  ("640", "640")])
+def test_cli_refuses_other_v3_sizes_but_keeps_them_for_old_jobs(size: tuple[str, str]):
+    with pytest.raises(SystemExit, match="2"):
+        parse_args(["video.mp4", "--width", size[0], "--height", size[1]])
+    args = parse_args(["video.mp4", "--width", size[0], "--height", size[1],
+                       "--selection-mode", "v1"])
+    assert (args.width, args.height) == (int(size[0]), int(size[1]))
+
+
 def test_cli_parses_v2_shadow_options():
     args = parse_args(
         [

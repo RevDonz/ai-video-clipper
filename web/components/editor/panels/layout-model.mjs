@@ -17,6 +17,7 @@
 //   (`SetZoom`; the split zooms each band in "Atur layar terbagi"). A source with black bars is
 //   laid out without them; the section says so.
 import { NO_FACE_MODES, ZOOM_RANGE, ZOOM_STEP_PM, layoutAfterSwitch, zoomOf } from "../../../lib/editor/doc-model.mjs";
+import { isPortrait, ratioName } from "../../../lib/output-frame.mjs";
 import { formatClock, frameToMs, messageFor } from "../shell-model.mjs";
 
 const option = (fields) => Object.freeze(fields);
@@ -61,11 +62,18 @@ export function withLayout(doc, mode) {
 // The face-track note of a clip whose runs without a face are centred (a face-track auto clip).
 const CENTRED_NOTE = "Potongan 9:16 bergeser mengikuti wajah. Butuh analisis wajah sekali per klip; bagian tanpa wajah dipusatkan.";
 
-/** What a layout does for this clip: the option's note, or for centred face-track that variant. */
+/**
+ * What a layout does for this clip: the option's note, or for centred face-track that variant,
+ * naming the clip's ratio (a 1:1 clip's crop is 1:1, CONTRACTS §5.54).
+ */
 export function layoutNote(entry, doc) {
   const current = doc?.layout?.default;
-  if (entry.id === "camera" && current?.mode === "camera" && current.no_face === "center") return CENTRED_NOTE;
-  return entry.note;
+  return noteForRatio(entry.id === "camera" && current?.mode === "camera" && current.no_face === "center" ? CENTRED_NOTE : entry.note, doc);
+}
+
+/** `note` with the clip's ratio in place of "9:16". */
+export function noteForRatio(note, doc) {
+  return doc?.output && !isPortrait(doc.output) ? note.replace("9:16", ratioName(doc.output)) : note;
 }
 
 /** What face-track shows where no face was found: a choice of two, and what the runs then show. */

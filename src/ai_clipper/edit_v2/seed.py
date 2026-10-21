@@ -108,6 +108,7 @@ from . import (
     WATERMARK_POSITIONS,
     WATERMARK_SIZE_RANGE,
     WATERMARK_TEXT_MAX,
+    frame_margins,
 )
 from . import assets as _assets
 from . import camera as _camera
@@ -116,7 +117,6 @@ from .clip_id import clip_id as _clip_id
 from .clip_id import manifest_clip_id, ms_from_seconds
 from .errors import NotFound
 from .peaks import build_peaks, peaks_file_name
-from .plan import ui_zone
 from .source_info import (
     SOURCE_INFO_RELATIVE_PATH,
     SourceInfoError,
@@ -437,8 +437,9 @@ def _last_true(ok: Callable[[int], bool]) -> int | None:
 def default_logo_transform(output: tuple[int, int], asset_w: int, asset_h: int
                            ) -> dict[str, int] | None:
     """Where the editor's SetLogo puts a new logo (``commands.mjs`` ``defaultLogo``): the default
-    size, shrunk until it fits the frame, at the top-right preset just outside the TikTok zone.
-    None when no size from 4 % up fits (the editor refuses such a logo too)."""
+    size, shrunk until it fits the frame, at the top-right preset just outside the TikTok zone
+    (at 1:1, 4 % from the top and right edges: ``frame_margins``). None when no size from 4 % up
+    fits (the editor refuses such a logo too)."""
     width, height = output
 
     def box(x: int, y: int, w: int) -> tuple[int, int, int, int]:
@@ -473,7 +474,7 @@ def default_logo_transform(output: tuple[int, int], asset_w: int, asset_h: int
     if clamp(DEFAULT_LOGO["x_e5"], DEFAULT_LOGO["y_e5"], w_e5) is None:
         return None
     _x0, _y0, w_px, h_px = box(50_000, 50_000, w_e5)
-    top, _bottom, right = ui_zone((width, height))
+    top, _bottom, right = frame_margins((width, height))
     x0 = min(max(width - right - w_px, 0), max(0, width - w_px))
     y0 = min(max(top, 0), max(0, height - h_px))
     position = clamp(tm.div_round_half_up((2 * x0 + w_px) * 100_000, 2 * width),

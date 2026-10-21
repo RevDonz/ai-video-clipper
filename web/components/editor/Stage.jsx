@@ -1,6 +1,6 @@
 "use client";
 
-// The 9:16 stage (plan Appendix C.1, §6.2): one canvas at the output size, CSS-scaled, that the
+// The stage (plan Appendix C.1, §6.2): one canvas at the output size (9:16 or 1:1), CSS-scaled, that the
 // player composites into; the revision-0 `<video>` of the auto render, shown while the player
 // reports mode "auto_render" (§6.1 "Revision 0 before plate cells exist"); the TikTok safe-zone
 // overlay (§5.9 G5 zone); and the gizmo slot W3 mounts into (T3.2's LogoGizmo), so this file needs
@@ -9,18 +9,14 @@
 // right). Both sides share the free width equally, so the stage stays centred.
 import { useEffect, useRef } from "react";
 
+import { uiZone } from "../../lib/output-frame.mjs";
 import styles from "./shell.module.css";
 import { safeApiHref } from "./shell-model.mjs";
 
-// The TikTok UI zone at 720×1280 (plan §5.9 G5): top 93 px, bottom 280 px, right 93 px; scaled
-// with the output width.
-const ZONE = { top: 93, bottom: 280, right: 93, width: 720 };
-
+// The TikTok UI zone (plan §5.9 G5): top 93 px, bottom 280 px, right 93 px at 720×1280, scaled
+// like plan.ui_zone; a 1:1 clip has none (CONTRACTS §5.54).
 function SafeZone({ w, h }) {
-  const scale = w / ZONE.width;
-  const top = Math.round(ZONE.top * scale);
-  const bottom = Math.round(ZONE.bottom * scale);
-  const right = Math.round(ZONE.right * scale);
+  const { top, bottom, right } = uiZone({ w, h });
   return (
     <div className={styles.overlay} data-safe-zone="">
       <svg viewBox={`0 0 ${w} ${h}`} width="100%" height="100%" preserveAspectRatio="none" aria-hidden="true" focusable="false">
@@ -72,7 +68,7 @@ export default function Stage({ output, plan, playerMode, safeZone = false, onMe
           aria-label="Klip otomatis (identik dengan hasil akhir)"
           data-stage="auto-render"
         />
-        {safeZone && <SafeZone w={w} h={h} />}
+        {safeZone && h > w && <SafeZone w={w} h={h} />}
         <div className={styles.gizmoLayer} data-slot="gizmos">{gizmos}</div>
       </div>
       <div className={`${styles.stageSide} ${styles.stageSideEnd}`} data-stage-overlay="end">{overlayEnd}</div>

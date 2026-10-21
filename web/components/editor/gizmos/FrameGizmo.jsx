@@ -12,6 +12,7 @@
 // boxRef }.
 import { useCallback, useId, useRef, useState } from "react";
 
+import { ratioName } from "../../../lib/output-frame.mjs";
 import { SNAP_SCREEN_PX, boxRect, grabOffset, nudgedPan, panAtPointer } from "./frame-geometry.mjs";
 import styles from "./frame.module.css";
 
@@ -115,7 +116,7 @@ export default function FrameGizmo({
           style={{ left: pct(rect.left), width: pct(rect.width), top: pct(rect.top), height: pct(rect.height) }}
           role="slider"
           tabIndex={0}
-          aria-label="Bingkai 9:16"
+          aria-label={`Bingkai ${ratioName({ w: geometry.output[0], h: geometry.output[1] })}`}
           aria-orientation="horizontal"
           aria-valuemin={0}
           aria-valuemax={100}

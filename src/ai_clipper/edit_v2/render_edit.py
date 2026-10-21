@@ -324,12 +324,14 @@ def render_slots(budget: int | None = None) -> int:
 
 
 def render_timeout_s(doc: Mapping[str, Any]) -> float:
-    """``max(120 s, 3 × predicted)`` with ``predicted = output seconds × k(layout)``."""
+    """``max(120 s, 3 × predicted)`` with ``predicted = output seconds × k(layout)``, × the
+    output's pixels over 720×1280's when it has more (1080×1080, 1080×1920: PF-SIZE)."""
     fps = Fps.from_json(doc["output"]["fps"])
     frames = tm.total_frames(tm.pieces(doc))
     seconds = frames * fps.den / fps.num
     factor = PREDICTED_X.get(doc["layout"]["default"]["mode"], max(PREDICTED_X.values()))
-    return max(MIN_TIMEOUT_S, TIMEOUT_FACTOR * seconds * factor)
+    pixels = max(1.0, doc["output"]["w"] * doc["output"]["h"] / (720 * 1280))
+    return max(MIN_TIMEOUT_S, TIMEOUT_FACTOR * seconds * factor * pixels)
 
 
 def _measure(inputs: RenderInputs, source: Path, assets_root: Path,

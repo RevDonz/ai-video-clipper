@@ -1,4 +1,4 @@
-// The 9:16 preview under "Tampilan klip" (lib/look-preview.mjs). One SVG in output pixels, so
+// The 9:16 or 1:1 preview under "Tampilan klip" (lib/look-preview.mjs). One SVG in output pixels, so
 // every spot scales with the frame. The subtitle is its pack's FFmpeg thumbnail at the job's spot
 // and size; the filter keys out the backdrop it was rendered on (CAPTION_KEY), so over the picture
 // it shows only the pack's own ink. The note on where the subtitle sits is the page's, under the
@@ -17,6 +17,7 @@ export default function LookPreview({ look }) {
       <div className={styles.frame}>
         <svg
           className={styles.canvas}
+          style={{ aspectRatio: `${w} / ${h}` }}
           viewBox={`0 0 ${look.frame.w} ${look.frame.h}`}
           role="img"
           aria-label={look.label}
@@ -27,6 +28,7 @@ export default function LookPreview({ look }) {
           data-position={caption.position}
           data-size={caption.size}
           data-hook={hook ? "on" : "off"}
+          data-ratio={look.tiktok ? "9:16" : "1:1"}
         >
           <defs>
             <filter id="look-caption-key" x="0" y="0" width="1" height="1" colorInterpolationFilters="sRGB">
@@ -55,13 +57,17 @@ export default function LookPreview({ look }) {
             height={caption.image.h}
             preserveAspectRatio="none"
           />
-          <rect className={styles.veil} x="0" y="0" width={w} height={zone.top} />
-          <rect className={styles.veil} x="0" y={h - zone.bottom} width={w} height={zone.bottom} />
-          <rect className={styles.veil} x={w - zone.right} y={zone.top} width={zone.right} height={middle} />
-          <rect className={styles.edge} x="4" y={zone.top} width={w - zone.right - 4} height={middle} />
+          {look.tiktok && (
+            <g key="zone">
+              <rect className={styles.veil} x="0" y="0" width={w} height={zone.top} />
+              <rect className={styles.veil} x="0" y={h - zone.bottom} width={w} height={zone.bottom} />
+              <rect className={styles.veil} x={w - zone.right} y={zone.top} width={zone.right} height={middle} />
+              <rect className={styles.edge} x="4" y={zone.top} width={w - zone.right - 4} height={middle} />
+            </g>
+          )}
         </svg>
       </div>
-      <figcaption className={styles.key}><i aria-hidden="true" />Area tombol TikTok</figcaption>
+      {look.tiktok && <figcaption className={styles.key}><i aria-hidden="true" />Area tombol TikTok</figcaption>}
     </figure>
   );
 }

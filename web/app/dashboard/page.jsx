@@ -29,11 +29,14 @@ import {
   DEFAULT_CHOICES,
   DURATION_PRESETS,
   LAYOUT_CHOICES,
+  RATIO_CHOICES,
+  RESOLUTION_CHOICES,
   VIDEO_LANGUAGE_CHOICES,
   browserStorage,
   choicesSummary,
   lookChoices,
   normalizeChoices,
+  outputSizeOf,
   readStoredChoices,
   withDuration,
   writeStoredChoices,
@@ -227,7 +230,7 @@ export default function DashboardPage() {
   const [dragging, setDragging] = useState(false);
   // The last choices come back after hydration (the page is prerendered with the defaults).
   const [choices, setChoices] = useState(DEFAULT_CHOICES);
-  const { limit, duration, minDuration, maxDuration, renderMode, coldOpen, hookOverlay, videoLanguage, optionsOpen } = choices;
+  const { limit, duration, minDuration, maxDuration, renderMode, ratio, resolution, coldOpen, hookOverlay, videoLanguage, optionsOpen } = choices;
   const [focusTerms, setFocusTerms] = useState([]);
   const [focusDraft, setFocusDraft] = useState("");
   const [focusNote, setFocusNote] = useState("");
@@ -445,6 +448,7 @@ export default function DashboardPage() {
     try {
       const data = new FormData();
       data.set("renderMode", renderMode);
+      data.set("outputSize", outputSizeOf(choices));
       data.set("limit", String(limit).trim());
       data.set("minDuration", String(minDuration).trim());
       data.set("maxDuration", String(maxDuration).trim());
@@ -527,7 +531,7 @@ export default function DashboardPage() {
 
       <div className={`shell ${styles.head}`}>
         <h1>Buat klip</h1>
-        <p>Satu video panjang jadi klip 9:16 dengan subtitle, teks hook, dan caption.</p>
+        <p>Satu video panjang jadi klip 9:16 atau 1:1 dengan subtitle, teks hook, dan caption.</p>
       </div>
 
       {storageView && storage.warning && (
@@ -660,9 +664,38 @@ export default function DashboardPage() {
               <p id="language-help" className={styles.help}>Bahasa yang diucapkan di video, untuk transkrip dan subtitle.</p>
             </fieldset>
 
+            <fieldset className={styles.section} aria-describedby="format-help">
+              <legend className={styles.sectionTitle}>Format video</legend>
+              <div className={styles.formats}>
+                <fieldset className={styles.group}>
+                  <legend className={styles.groupTitle}>Rasio</legend>
+                  <div className={styles.pills}>
+                    {RATIO_CHOICES.map((entry) => (
+                      <label key={entry.id} className={`${styles.pill} ${ratio === entry.id ? styles.selected : ""}`}>
+                        <input type="radio" name="ratio" value={entry.id} checked={ratio === entry.id} onChange={() => updateChoices({ ratio: entry.id })} />
+                        <strong>{entry.name}</strong>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+                <fieldset className={styles.group}>
+                  <legend className={styles.groupTitle}>Resolusi</legend>
+                  <div className={styles.pills}>
+                    {RESOLUTION_CHOICES.map((entry) => (
+                      <label key={entry.id} className={`${styles.pill} ${resolution === entry.id ? styles.selected : ""}`}>
+                        <input type="radio" name="resolution" value={entry.id} checked={resolution === entry.id} onChange={() => updateChoices({ resolution: entry.id })} />
+                        <strong>{entry.name}</strong>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              </div>
+              <p id="format-help" className={styles.help}>9:16 untuk TikTok, Reels dan Shorts, 1:1 untuk feed. 1080p lebih tajam, tapi render lebih lama dan file lebih besar.</p>
+            </fieldset>
+
             <fieldset className={styles.section}>
               <legend className={styles.sectionTitle}>Layout</legend>
-              <div className={styles.choices}>
+              <div className={`${styles.choices} ${ratio === "1:1" ? styles.squareFrames : ""}`}>
                 {LAYOUT_CHOICES.map((layout) => (
                   <label key={layout.id} className={`${styles.choice} ${renderMode === layout.id ? styles.selected : ""}`}>
                     <input type="radio" name="renderMode" value={layout.id} checked={renderMode === layout.id} onChange={() => updateChoices({ renderMode: layout.id })} />

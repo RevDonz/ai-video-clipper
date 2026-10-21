@@ -2167,3 +2167,76 @@ with targeted local tests only.
 | Routes | session, flag, CSRF and ids before any spawn; exact body; exit codes to fixed answers; no source document in a 409; a real batch and undo through the CLI | pass | `web/tests/apply-all-api.test.mjs`, `web/tests/security-headers.test.mjs`, `web/tests/security-python.test.mjs` | **pass** (local) |
 | Editor model | texts, save first, one batch per click, the same key after a lost answer, undo once | pass | `web/tests/editor-apply-all.test.mjs`, `web/tests/editor-w2-seams.test.mjs` | **pass** (local) |
 | Editor (browser, fakes) | the button in the six places, save then batch, result and skipped list, Urungkan, the result across a view switch, a lost answer and the keyboard retry with the same id, 44 px, no button with one clip | `e2e/editor-apply-all.spec.mjs` (5 tests) | | pending: `editor-gates suite=e2e` |
+
+## Output sizes (PF-SIZE) (2026-10-21)
+
+CONTRACTS §5.54: 1:1 (720×720, 1080×1080) next to 9:16 (720×1280, 1080×1920), chosen per job on
+the dashboard. 9:16 outputs keep every number (`text_height`, `ui_zone` and `frame_margins` give
+the earlier values), so `RENDER_SEMANTICS` stays 2 and no golden moves. Built on branch
+`adopsi/output-format` with targeted local tests only.
+
+**PF-SIZE (report, measured before shipping).** `scripts/perf/output_sizes.py`: clip 2 of the
+synthetic job (36.37 s, hook, karaoke captions, no cold open) through `pipeline.render_v3_job`
+with the edit-v2 compiler, once per size and layout in a fresh job copy, two interleaved rounds,
+medians; the time is the whole rendering stage of the clip (seed, plan, FFmpeg, verify, poster;
+face-track includes its camera plan). Local FFmpeg 6.1.1 at `nice -n 10` on the 16-thread
+reference PC, shared with other agents. Sources: a real 1280×720 talk video (the production
+download cap so far) looped to 186 s, and its lanczos upscale to 1920×1080 (the decode cost of a
+1080p source; not real 1080p detail). The video shows no face the detector keeps, so face-track
+centres (same bytes as center-crop). Evidence: `docs/editor/evidence/OS/PF-SIZE.json`.
+
+Source 1280×720:
+
+| Layout | Size | Render (median) | × clip length | Time vs 720×1280 | File | File vs 720×1280 |
+|---|---|---|---|---|---|---|
+| fit-blur | 720×1280 | 14.9 s | 0.41× | 1.00× | 7.8 MB | 1.00× |
+| fit-blur | 1080×1920 | 27.1 s | 0.75× | 1.82× | 14.8 MB | 1.89× |
+| fit-blur | 720×720 | 9.1 s | 0.25× | 0.61× | 6.9 MB | 0.88× |
+| fit-blur | 1080×1080 | 17.4 s | 0.48× | 1.17× | 12.6 MB | 1.61× |
+| center-crop | 720×1280 | 8.8 s | 0.24× | 1.00× | 7.6 MB | 1.00× |
+| center-crop | 1080×1920 | 14.7 s | 0.41× | 1.67× | 12.0 MB | 1.58× |
+| center-crop | 720×720 | 5.9 s | 0.16× | 0.67× | 7.3 MB | 0.96× |
+| center-crop | 1080×1080 | 10.6 s | 0.29× | 1.20× | 11.9 MB | 1.57× |
+| face-track | 720×1280 | 15.1 s | 0.41× | 1.00× | 7.6 MB | 1.00× |
+| face-track | 1080×1920 | 21.6 s | 0.59× | 1.43× | 12.0 MB | 1.58× |
+| face-track | 720×720 | 11.7 s | 0.32× | 0.77× | 7.3 MB | 0.96× |
+| face-track | 1080×1080 | 15.9 s | 0.44× | 1.05× | 11.9 MB | 1.57× |
+
+Source 1920×1080:
+
+| Layout | Size | Render (median) | × clip length | Time vs 720×1280 | File | File vs 720×1280 |
+|---|---|---|---|---|---|---|
+| fit-blur | 720×1280 | 14.0 s | 0.39× | 1.00× | 7.8 MB | 1.00× |
+| fit-blur | 1080×1920 | 31.3 s | 0.86× | 2.24× | 14.4 MB | 1.85× |
+| fit-blur | 720×720 | 10.5 s | 0.29× | 0.75× | 6.9 MB | 0.88× |
+| fit-blur | 1080×1080 | 17.1 s | 0.47× | 1.22× | 12.2 MB | 1.57× |
+| center-crop | 720×1280 | 8.6 s | 0.24× | 1.00× | 7.8 MB | 1.00× |
+| center-crop | 1080×1920 | 13.9 s | 0.38× | 1.62× | 12.7 MB | 1.62× |
+| center-crop | 720×720 | 6.1 s | 0.17× | 0.71× | 6.3 MB | 0.81× |
+| center-crop | 1080×1080 | 9.8 s | 0.27× | 1.14× | 11.7 MB | 1.49× |
+| face-track | 720×1280 | 16.6 s | 0.46× | 1.00× | 7.8 MB | 1.00× |
+| face-track | 1080×1920 | 21.8 s | 0.60× | 1.31× | 12.8 MB | 1.64× |
+| face-track | 720×720 | 15.4 s | 0.42× | 0.93× | 6.3 MB | 0.81× |
+| face-track | 1080×1080 | 17.5 s | 0.48× | 1.05× | 11.7 MB | 1.49× |
+
+Read: a 1:1 render takes 0.6-0.95× the time of the 9:16 render of its width and 0.8-1.0× its
+720p file size (1080×1080 1.05-1.22× of 720×1280); 1080×1920 takes 1.3-2.2× the time and
+1.6-1.9× the file of 720×1280, latar blur the most (two scaled pictures). On the production
+quota (`cpus: 6`, T4.3: the edit-v2 automatic render about 2× the reference PC for the crop
+layouts) a 1080×1920 latar blur clip is estimated at about 1.7× its length, inside the scaled
+timeout (`render_timeout_s` × 2.25 for 1080×1920: 3.4× its length for latar blur). The same
+measurement in the production image (FFmpeg 5.1.9, synthetic source) is a heavy gate, below.
+
+| Gate | Threshold | Result | Where | Verdict |
+|---|---|---|---|---|
+| Frame rules | 9:16 keeps zone, margins and text sizes; 1:1 has no zone, 4 % margins, 9:16 text height of its width | Python and JS from the same constants | `tests/test_edit_v2_output_sizes.py`, `web/tests/output-size.test.mjs` | **pass** (local) |
+| Document, seed, logo | 1:1 validates; 16:9 and other sizes `range_invalid`; the seed's logo 4 % from the corner; 48 shared SetLogo vectors equal in both languages | pass | `tests/test_edit_v2_output_sizes.py`, `tests/test_edit_v2_seed.py`, `web/tests/default-logo.test.mjs` | **pass** (local) |
+| No `unsafe_zone` at 1:1 | caption on the bottom edge, hook at the top, logo in the corner: no warning (all three at 9:16) | pass; G5 logo vectors +720×720 (3,900) | `tests/test_edit_v2_output_sizes.py`, `tests/test_parity_logo_gates.py`, `web/tests/editor-logo.test.mjs` | **pass** (local) |
+| Text sizes | every pack's style and every hook design at 1:1 equal the 9:16 ones of the width; the watermark 4 % inside the edges | 6 packs × 2 widths, 4 designs | `tests/test_edit_v2_output_sizes.py` | **pass** (local) |
+| 1:1 render with real FFmpeg | `verify_output` ok, no warning, every frame the planned source frame | latar blur and potong tengah at 720×720, local FFmpeg 6.1.1 | `tests/test_edit_v2_output_sizes.py::test_a_1_1_render_shows_the_planned_frames_at_720x720` | **pass** (local); pinned toolchain: `editor-gates suite=image` |
+| Job option, runner, CLI | four sizes accepted, others refused; argv `--width/--height`; 1080p downloads ≤ 1080p; V3 CLI refuses other sizes | pass | `web/tests/output-size.test.mjs`, `tests/test_cli.py` | **pass** (local) |
+| Time budgets | 1:1 export = the 9:16 budget of its width; automatic timeout × pixels over 720×1280 | pass | `tests/test_render_queue.py`, `tests/test_edit_v2_render_edit.py` | **pass** (local) |
+| P-FRAME, G1/G2 at 1:1 | 0 mismatches | `SQUARE_CASES`: `square_720_29.97`, `square_720_camera`, `square_1080_keyframes` | `scripts/parity/frame_identity.py` | pending: `editor-gates suite=command` (`frame_identity.py p-frame`, `g1g2`) |
+| P-PLATE at 1:1 | SSIM margin ≥ 0; crop x 0 px; bands 0 frames off | `plate_camera_square`, `plate_split_square` | `scripts/parity/frame_identity.py` | pending: `editor-gates suite=command` (`frame_identity.py p-plate`) |
+| PF-SIZE in the production image | report | | `scripts/perf/output_sizes.py` | pending: `editor-gates suite=command` |
+| Dashboard in a browser | Rasio and Resolusi reach the POST as `outputSize`; the 1:1 preview is square without the TikTok key; no sideways scroll | `e2e/dashboard.spec.mjs` (one new test) | | pending: `editor-gates suite=e2e command=e2e/dashboard.spec.mjs` |
