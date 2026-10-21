@@ -277,13 +277,35 @@ def test_a_watermark_brings_its_font_to_the_browser(c30):
     doc["captions"]["pack"]["id"] = "bold"
     names = [entry["url"].split("/")[-1].split("?")[0]
              for entry in ok(plan(c30, doc))["dto"]["text"]["fonts"]]
-    assert names == ["Montserrat-ExtraBold.ttf", "DejaVuSans.ttf"]
+    # Bold's keyword font, Anton, comes with the pack (§5.50).
+    assert names == ["Montserrat-ExtraBold.ttf", "Anton-Regular.ttf", "DejaVuSans.ttf"]
     doc["watermark"] = {"text": "@potongin.klip", "pos": "top_center", "size_pm": 1000,
                         "opacity_pm": 850}
     dto = ok(plan(c30, doc))["dto"]
     names = [entry["url"].split("/")[-1].split("?")[0] for entry in dto["text"]["fonts"]]
-    assert names == ["Montserrat-ExtraBold.ttf", "DejaVuSans-Bold.ttf", "DejaVuSans.ttf"]
+    assert names == ["Montserrat-ExtraBold.ttf", "Anton-Regular.ttf", "DejaVuSans-Bold.ttf",
+                     "DejaVuSans.ttf"]
     assert "Style: Watermark,DejaVu Sans," in dto["text"]["ass"]
+
+
+def test_a_packs_keyword_font_reaches_the_browser_before_any_keyword(c30):
+    # JASSUB loads every font of the plan before the first frame: the accent font of the pack's
+    # emphasis block is listed whether or not a word is a keyword yet (CONTRACTS §5.50).
+    doc = valid("seed__c30")
+    doc["captions"]["pack"]["id"] = "sinar"
+    fonts = ok(plan(c30, doc))["dto"]["text"]["fonts"]
+    assert [entry["url"].split("/")[-1].split("?")[0] for entry in fonts] == [
+        "Montserrat-ExtraBold.ttf", "DMSerifDisplay-Italic.ttf", "DejaVuSans-Bold.ttf",
+        "DejaVuSans.ttf"]  # the seed's hook bar is DejaVu Sans Bold
+    accent = fonts[1]
+    assert accent == {"family": "DM Serif Display",
+                      "url": "/api/resources/fonts/DMSerifDisplay-Italic.ttf"
+                             f"?v={FONT_SHA['DMSerifDisplay-Italic.ttf'][:16]}",
+                      "sha256": FONT_SHA["DMSerifDisplay-Italic.ttf"]}
+    doc["captions"]["pack"]["id"] = "karaoke"  # a size only: no font of its own
+    names = [entry["url"].split("/")[-1].split("?")[0]
+             for entry in ok(plan(c30, doc))["dto"]["text"]["fonts"]]
+    assert "DMSerifDisplay-Italic.ttf" not in names and "Anton-Regular.ttf" not in names
 
 
 def test_plan_publishes_the_ass_bytes_it_names(c30):

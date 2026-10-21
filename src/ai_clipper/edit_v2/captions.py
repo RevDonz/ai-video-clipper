@@ -8,9 +8,9 @@ Owner: T1.2a. The cue builder (``subtitles.build_frame_cues``) and the ASS emitt
 Warnings (plan §3.7), each an ``Issue`` with a JSON pointer, the item or word id and the output
 frame to jump to:
 
-* ``glyph_unsupported:U+XXXX``: the pack font (or, for the hook, its design's font: DejaVu
-  Sans Bold for the bar, Montserrat ExtraBold for the others) lacks a character of the displayed
-  text. libass then draws it with DejaVu Sans, the only fallback, or not at all. One issue per
+* ``glyph_unsupported:U+XXXX``: the pack font (for a keyword, the accent font of the pack's
+  emphasis block when it has one; for the hook, its design's font: DejaVu Sans Bold for the
+  bar, Montserrat ExtraBold for the others) lacks a character of the displayed text. libass then draws it with DejaVu Sans, the only fallback, or not at all. One issue per
   word and character.
 * ``hook_overflow``: the hook does not fit three lines at the smallest size; its tail is cut
   with "…".
@@ -135,7 +135,8 @@ def caption_track(doc: Mapping, words: Mapping, pieces: Sequence[Piece]) -> Capt
                 text = word.text.upper() if overrides["case"] == "upper" else word.text
                 path = (f"/captions/word_edits/{word.id}/text"
                         if "text" in edits.get(word.id, {}) else "/captions")
-                issues += _glyph_issues(text, pack.font_file, path=path, ref=word.id,
+                accent = pack.emphasis.font_file if word.emphasis and pack.emphasis else None
+                issues += _glyph_issues(text, accent or pack.font_file, path=path, ref=word.id,
                                         frame=word.f0)
         margin_v = div_round_half_up((_E5 - overrides["y_e5"]) * height, _E5)
         bottom_zone = div_round_half_up(_ZONE_BOTTOM * height, _ZONE_HEIGHT)

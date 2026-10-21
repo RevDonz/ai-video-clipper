@@ -15,5 +15,6 @@
   "words_per_cue": 3,
   "max_width_pm": 880,
   "glow": {"outline": {"num": 7, "den": 640}, "blur": {"num": 9, "den": 1280}, "alpha": 48},
+  "emphasis": {"scale_pm": 1400, "font": {"family": "DM Serif Display Italic", "file": "DMSerifDisplay-Italic.ttf", "bold": false}},
   "defaults": {"y_e5": 83000, "size_pm": 1000, "case": "asis", "highlight": "#FFE14D", "emphasis": "#FF5C8A"}
 }
