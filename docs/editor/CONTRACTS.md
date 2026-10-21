@@ -3423,3 +3423,55 @@ no data migration; jobs made before it are unchanged.
 - Dashboard: a failed clip's card shows "Gagal" and the reason in a short frame in place of the
   video, then its title and the suggestion; no download or copy. History rows and the summary
   count ready clips; "Edit klip" in the history needs a ready clip.
+
+## 5.47 Caption on the stage: drag to move (2026-10-21)
+
+The caption block can be dragged up or down on the 9:16 stage, as well as set by the Teks slider
+and the Caption card's Posisi pills. It writes the one field those already write,
+`captions.overrides.y_e5` (§3.3, the block's bottom, 20000–92000), through the same command, so
+the document, the schema, the engine and the render do not change. There is no X axis. The drag
+stays inside that range, the frame's safe range for the caption; the TikTok bottom band is drawn
+as a warning while dragging, not a wall, because Bawah (83000, the automatic clips' spot) lies in
+it.
+
+### Geometry (`web/components/editor/gizmos/caption-geometry.mjs`)
+
+- The bottom is the ASS one: `H − rhu((100000 − y_e5)·H, 100000)` (`captions_ass._margin_v`).
+- The box above it is where to grab the caption, not a measure of its text: the pack's font size
+  (`rhu(H·12·scale_pm·size_pm, 288·10⁶)`), its font's line height (DejaVu Sans 1.164 em,
+  Montserrat 1.219 em) times the lines of a cue (one for the packs with `max_width_pm`, Box and
+  Sorot; two for the others), plus the pack's outline; sides at `margin_side_pm` (60). The node
+  test reads every pack file, so a pack change that the table misses fails there. An unknown pack
+  is drawn like Klasik.
+- The TikTok zone check is the server's caption rule (`plan.unsafe_zone_issues`):
+  `y_e5·H > (H − zone bottom)·100000`.
+- `CAPTION_Y_RANGE` (`web/lib/editor/doc-model.mjs`, used by `checkDoc`) and `CAPTION_Y_STEP` (500,
+  `panels/caption-model.mjs`) are the Teks slider's `min`, `max` and `step`, and the gizmo's.
+
+### Drag and keys (`gizmos/CaptionGizmo.jsx`, registered before the logo in `gizmos/index.mjs`)
+
+- A press on the box captures the pointer; under 3 screen px of movement it is a click (focus
+  only). A drag moves the bottom by the pointer's vertical travel; within 8 screen px of Atas
+  38000, Tengah 60000 or Bawah 83000 it rests on that preset (Alt drags without the magnet), else
+  on the 500 grid, always inside the range.
+- The drag is drawn by the gizmo (box, preset guides, the zone's bottom band, a read-out such as
+  "60% dari atas · Tengah") and stored once, on release: one `SetCaptionOverride {key: "y_e5"}`
+  with merge key `null`, so a drag is one undo step however long it lasts and never merges into a
+  slider or key step. A drag that ends where it began stores nothing; Escape during a drag puts
+  the box back and stores nothing; `pointercancel` drops it.
+- Keys on the focused box: ↑/↓ 500, Shift+↑/↓ and PageUp/PageDown 5000, Home 20000, End 92000;
+  an off-grid value steps onto the grid. Each key stores at once with `cap:y_e5`, the slider's
+  merge key. ←/→ do nothing (the box is a `role="slider"`, so the shell leaves the arrows to it).
+  Escape leaves the box.
+- `role="slider"`, `aria-orientation="vertical"`, name "Caption di video", `aria-valuemin` 20,
+  `aria-valuemax` 92, `aria-valuenow` the percent, `aria-valuetext` "83% dari atas, Bawah". The
+  hit area is at least 44 px tall. At rest nothing is drawn over the video; the outline shows on
+  hover, focus and while dragging. Read-only: shown with `aria-disabled`, nothing moves. With
+  captions off the gizmo is not drawn.
+- The logo gizmo comes after it in the registry, so a logo over the caption stays on top.
+
+### Gates
+
+`web/tests/editor-caption-gizmo.test.mjs` (geometry against the pack files and the ASS bottom,
+snap, range, grid, keys, commands, undo steps through the real edit session); browser spec
+`web/e2e/editor-caption-gizmo.spec.mjs` on the editor fakes.
