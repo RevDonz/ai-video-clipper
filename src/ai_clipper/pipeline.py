@@ -3,7 +3,11 @@
 ``run_pipeline`` transcribes, selects, renders, and publishes ``manifest.json``. V1 and the V2
 shadow keep their historical behaviour. Selection V3 (``selection_mode="v3"``) runs:
 
-1. **Transcript** (stages ``captions``, ``transcribing``). With ``captions_dir`` the best json3
+1. **Transcript** (stages ``captions``, ``transcribing``). An uploaded ``.srt``
+   (``subtitle_file``, :mod:`ai_clipper.srt_captions`) comes first: it replaces Whisper
+   (``transcript_source="srt-upload"``) unless it cannot be read, has no words or runs past the
+   video (``subtitle_rejected:<invalid|empty|duration_mismatch>``); the other caption quality
+   codes do not apply to it. Otherwise, with ``captions_dir`` the best json3
    track in ``<captions_dir>/manual`` and ``<captions_dir>/auto`` is chosen
    (:func:`choose_caption_file`; with a detected language, ``language=None``, only an auto
    ``<lang>-orig`` track, :func:`choose_original_caption_file`) and judged against the probed
@@ -107,8 +111,8 @@ Always written by V3: ``<output>/transcript.json``, ``analysis/transcript-qualit
 only values the web sanitizers accept (see :func:`_selection_v3_summary`).
 
 V3 summary warning codes added here, before the selector's own codes: ``media_probe_failed``,
-``captions_missing``, ``captions_rejected:<reason>`` (``invalid`` or a caption quality
-code), ``groq_fallback:<code>`` (a ``transcribe_groq.FALLBACK_REASONS`` code, or ``error``),
+``subtitle_rejected:<reason>``, ``captions_missing``, ``captions_rejected:<reason>``
+(``invalid`` or a caption quality code), ``groq_fallback:<code>`` (a ``transcribe_groq.FALLBACK_REASONS`` code, or ``error``),
 the transcript-quality file codes (``no_word_timestamps``,
 ``quantized_timestamps``, ``punctuation_collapse:<a>-<b>``) and ``suspect_segments:<n>``,
 ``audio_unavailable`` (``:timeout``/``:error``), ``trend_context_invalid``,
@@ -123,7 +127,7 @@ engines answered; the summary names the first), then ``engine_fallback:<index>``
 **Stage summaries** (V3, ``stage_summary``): once a stage has a result the run already knows,
 ``stage_summary(kind, values)`` reports it for the job progress. ``video`` after the probe
 (``duration`` in seconds), ``transcript`` after the transcript (``words``, ``source``:
-``youtube-captions``, ``groq`` or ``whisper``, and ``language`` when it is a two- or
+``srt-upload``, ``youtube-captions``, ``groq`` or ``whisper``, and ``language`` when it is a two- or
 three-letter code),
 ``moments`` after selection (``count``, ``source``: ``llm`` or ``heuristic``). A value the run
 did not learn is not reported. The CLI prints each one on the current progress line.
@@ -192,6 +196,8 @@ from .selection_v3 import (
     write_selection_artifact,
 )
 from .sound_events import SoundEvent, write_sound_events
+from .srt_captions import SOURCE_NAME as SRT_SOURCE_NAME
+from .srt_captions import load_srt_track
 from .time_ranges import TimeRange, TimeRangeError, check_ranges, check_within_video
 from .transcribe import transcribe_video
 from .transcribe_groq import GroqTranscription, GroqTranscriptionError, transcribe_with_groq
@@ -205,6 +211,7 @@ from .trend_context import TrendContextError, TrendItem, load_trend_context
 from .youtube_captions import (
     SOUND_EVENTS_RELATIVE_PATH,
     CaptionFormatError,
+    assess_captions,
     choose_caption_file,
     choose_original_caption_file,
     load_youtube_captions,
@@ -819,6 +826,34 @@ def _load_captions(
     return transcription, events
 
 
+# An uploaded subtitle is the person's own transcript: only an empty one or one that runs past
+# the video (another video's file) is refused; coverage, rate and punctuation are not judged.
+_SUBTITLE_REJECT_REASONS = frozenset({"empty", "duration_mismatch"})
+
+
+def _load_subtitle(
+    subtitle_file: Path,
+    *,
+    language: str | None,
+    media_duration: float | None,
+    warnings: list[str],
+) -> tuple[Transcription, tuple[SoundEvent, ...]] | None:
+    """The uploaded ``.srt`` as transcript and sound events, or ``None`` with a warning code."""
+    try:
+        track = load_srt_track(subtitle_file, language=language)
+        quality = assess_captions(
+            track.transcription, media_duration=media_duration, events=track.events
+        )
+    except (CaptionFormatError, OSError, TypeError, ValueError):
+        warnings.append("subtitle_rejected:invalid")
+        return None
+    refused = [reason for reason in quality.reasons if reason in _SUBTITLE_REJECT_REASONS]
+    if refused:
+        warnings.extend(f"subtitle_rejected:{reason}" for reason in refused)
+        return None
+    return track.transcription, track.events
+
+
 def _groq_transcript(
     source: Path,
     *,
@@ -868,7 +903,20 @@ def _v3_transcript(
     report: Callable[[str, int, str], None],
     state: _V3State,
     groq: GroqTranscription | None = None,
+    subtitle_file: Path | None = None,
 ) -> tuple[Transcription, tuple[SoundEvent, ...]]:
+    if subtitle_file is not None:
+        state.stage = "captions"
+        report("captions", 28, "Membaca subtitle .srt yang diunggah")
+        uploaded = _load_subtitle(
+            subtitle_file,
+            language=language,
+            media_duration=media_duration,
+            warnings=state.warnings,
+        )
+        if uploaded is not None:
+            state.transcript_source = "srt-upload"
+            return uploaded
     if captions_dir is not None:
         state.stage = "captions"
         report("captions", 28, "Memeriksa subtitle YouTube")
@@ -1273,6 +1321,7 @@ def _run_v3(
     render_engine: str = render_edit.ENGINE_LEGACY,
     summarize: StageSummary = _no_stage_summary,
     groq: GroqTranscription | None = None,
+    subtitle_file: Path | None = None,
 ) -> tuple[Transcription, Path, list[dict[str, object]]]:
     """Transcript, audio, selection, and rendering for Selection V3 (see the module docstring)."""
     media_duration = _probe_video_duration(source)
@@ -1295,6 +1344,7 @@ def _run_v3(
         report=report,
         state=state,
         groq=groq,
+        subtitle_file=subtitle_file,
     )
     if not transcription.segments:
         raise ValueError("Transcription produced no usable segments")
@@ -1305,9 +1355,10 @@ def _run_v3(
     write_transcript_quality_json(artifact_root / TRANSCRIPT_QUALITY_RELATIVE_PATH, quality)
     state.warnings.extend(_quality_codes(quality))
     if events:
-        write_sound_events(
-            artifact_root / SOUND_EVENTS_RELATIVE_PATH, events, source=CAPTIONS_SOURCE_NAME
+        events_source = (
+            SRT_SOURCE_NAME if state.transcript_source == "srt-upload" else CAPTIONS_SOURCE_NAME
         )
+        write_sound_events(artifact_root / SOUND_EVENTS_RELATIVE_PATH, events, source=events_source)
 
     state.stage = "audio"
     report("audio", 58, "Menganalisis jeda dan energi audio")
@@ -1740,13 +1791,15 @@ def run_pipeline(
     stage_summary: StageSummary | None = None,
     ranges: Sequence[TimeRange] = (),
     groq: GroqTranscription | None = None,
+    subtitle_file: Path | str | None = None,
 ) -> Path:
     """Transcribe, select highlights, render clips, and publish a status manifest.
 
     ``llm_mode``, ``cold_open``, ``hook_overlay``, ``hook_duration``, ``captions_dir``,
     ``trend_context`` (a Konteks Tren snapshot), ``focus`` (the Fokus klip option), ``ranges``
     (the Rentang waktu option; refused for other modes), ``groq`` (the opt-in Groq
-    transcription, from :func:`ai_clipper.transcribe_groq.groq_from_env`),
+    transcription, from :func:`ai_clipper.transcribe_groq.groq_from_env`), ``subtitle_file``
+    (an uploaded ``.srt``, :mod:`ai_clipper.srt_captions`; refused for other modes),
     ``render_engine`` and ``stage_summary`` (module docstring, "Stage summaries") only apply to
     ``selection_mode="v3"``. ``caption_style`` defaults to
     ``"karaoke"`` for V3 (any caption pack) and ``"classic"`` otherwise (``classic`` or
@@ -1802,6 +1855,9 @@ def run_pipeline(
                                          CAPTION_POSITIONS, "bottom", v3)
         caption_size = _caption_look(caption_size, "caption_size", CAPTION_SIZES, "medium", v3)
         captions_dir = _optional_path(captions_dir, "captions_dir")
+        subtitle_file = _optional_path(subtitle_file, "subtitle_file")
+        if subtitle_file is not None and selection_mode is not SelectionMode.V3:
+            raise ValueError("subtitle_file needs selection_mode v3")
         trend_context = _optional_path(trend_context, "trend_context")
         if focus is not None and not isinstance(focus, FocusSpec):
             raise TypeError("focus must be a FocusSpec or None")
@@ -1847,6 +1903,7 @@ def run_pipeline(
                 render_engine=render_engine,
                 summarize=stage_summary or _no_stage_summary,
                 groq=groq,
+                subtitle_file=subtitle_file,
             )
             report("finalizing", 96, "Menyimpan hasil, subtitle, dan metadata")
             _publish_manifest(

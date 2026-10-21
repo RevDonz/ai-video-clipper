@@ -178,6 +178,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="read-only YouTube json3 captions in manual/ and auto/; usable ones skip Whisper",
     )
     v3.add_argument(
+        "--subtitle-file",
+        type=Path,
+        help="read-only uploaded .srt used as the transcript instead of captions or Whisper",
+    )
+    v3.add_argument(
         "--trend-context",
         type=Path,
         help=(
@@ -292,6 +297,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         parser.error(f"--range: {error}")
     if args.ranges and args.selection_mode != SelectionMode.V3.value:
         parser.error("--range needs --selection-mode v3")
+    if args.subtitle_file is not None and args.selection_mode != SelectionMode.V3.value:
+        parser.error("--subtitle-file needs --selection-mode v3")
     # A V3 clip is a clip-edit-v2 document: 9:16 or 1:1 at 720 or 1080 wide (CONTRACTS §5.54).
     if args.selection_mode == SelectionMode.V3.value and (args.width, args.height) not in OUTPUT_SIZES:
         sizes = ", ".join(f"{w}x{h}" for w, h in OUTPUT_SIZES)
@@ -362,6 +369,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             caption_position=args.caption_position,
             caption_size=args.caption_size,
             captions_dir=args.captions_dir,
+            subtitle_file=args.subtitle_file,
             word_timestamps=args.word_timestamps,
             hook_duration=args.hook_duration,
             progress=emit_progress,
