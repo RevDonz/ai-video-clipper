@@ -99,6 +99,19 @@
   color: var(--text-muted);
 }
 
+.statusRow {
+  display: grid;
+}
+
+.statusRow > * {
+  grid-area: 1 / 1;
+}
+
+.statusSizer {
+  visibility: hidden;
+  font-size: var(--ed-font-size-xs, 11px);
+}
+
 .message {
   margin: 0;
   font-size: var(--ed-font-size-sm, 12px);
