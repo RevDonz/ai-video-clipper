@@ -441,7 +441,9 @@ TIMEOUT_MAX_MS = 24 * 3600 * 1000
 # PF-RENDER budget (p95 ≤ 0.6× at 720×1280 on 4 CPUs; face-track adds its crop track, the
 # larger size has 2.25× the pixels). T4.3 recalibrates it from measured renders. The split
 # (two crops scaled to their bands, CONTRACTS §5.45) takes fit-blur's budget until measured.
-RENDER_COST_PERMILLE = {
+# A 1:1 render (CONTRACTS §5.53) took 0.6-0.85× the time of the 9:16 render of its width in
+# PF-SIZE, so it takes that budget.
+_RENDER_COST_9_16 = {
     ("fit_blur", (720, 1280)): 600,
     ("fill_center", (720, 1280)): 500,
     ("camera", (720, 1280)): 800,
@@ -450,6 +452,11 @@ RENDER_COST_PERMILLE = {
     ("fill_center", (1080, 1920)): 1125,
     ("camera", (1080, 1920)): 1800,
     ("split", (1080, 1920)): 1350,
+}
+RENDER_COST_PERMILLE = {
+    **_RENDER_COST_9_16,
+    **{(layout, (width, width)): cost for (layout, (width, _height)), cost
+       in _RENDER_COST_9_16.items()},
 }
 OUTPUT_BYTES_PER_SECOND = 1_000_000  # storage estimate of an export: 8 Mbit/s of output
 SRT_ALLOWANCE_BYTES = 65_536

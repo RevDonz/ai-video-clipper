@@ -19,8 +19,9 @@ frame to jump to:
   zone: ``captions_ass.layout_watermark`` keeps it out (CONTRACTS §5.43).
 * ``unsafe_zone``: the bottom of the caption block lies in the TikTok UI zone (the lowest
   280 px of 1280, scaled to the output height), or the top of the hook in its top zone (93 px).
-  Seeds keep today's 17% bottom margin (K5), so every seed carries the caption warning. The
-  right-hand zone and multi-line caption tops are not estimated here (G5 in ``verify.py``).
+  Seeds keep today's 17% bottom margin (K5), so every 9:16 seed carries the caption warning; a
+  1:1 clip has no zone and never this warning (CONTRACTS §5.53). The right-hand zone and
+  multi-line caption tops are not estimated here (G5 in ``verify.py``).
 """
 
 from __future__ import annotations
@@ -43,15 +44,12 @@ from ..captions_ass import (
     words_per_cue,
 )
 from ..subtitles import FrameCue, SourceWord, build_frame_cues
+from . import ui_zone
 from .doc import Issue
 from .glyphs import font_path, missing_glyphs
 from .timemap import Fps, Piece, div_round_half_up, total_frames
 
 HOOK_FONT_FILE = "DejaVuSans-Bold.ttf"  # legacy-bar@1; other designs: captions_ass.hook_font_file
-# TikTok UI zone at 720×1280 (plan §5.9 G5), scaled with the output height.
-_ZONE_HEIGHT = 1280
-_ZONE_TOP = 93
-_ZONE_BOTTOM = 280
 _E5 = 100_000
 
 
@@ -120,6 +118,7 @@ def caption_track(doc: Mapping, words: Mapping, pieces: Sequence[Piece]) -> Capt
     pack = load_pack(captions["pack"]["id"], captions["pack"]["v"])
     overrides = captions["overrides"]
     height = play_res[1]
+    zone_top, zone_bottom, _zone_right = ui_zone(play_res)
     issues: list[Issue] = []
 
     cues: tuple[FrameCue, ...] = ()
@@ -139,8 +138,7 @@ def caption_track(doc: Mapping, words: Mapping, pieces: Sequence[Piece]) -> Capt
                 issues += _glyph_issues(text, accent or pack.font_file, path=path, ref=word.id,
                                         frame=word.f0)
         margin_v = div_round_half_up((_E5 - overrides["y_e5"]) * height, _E5)
-        bottom_zone = div_round_half_up(_ZONE_BOTTOM * height, _ZONE_HEIGHT)
-        if cues and height - margin_v > height - bottom_zone:
+        if cues and height - margin_v > height - zone_bottom:
             issues.append(Issue("unsafe_zone", "/captions/overrides/y_e5", None, cues[0].f0))
 
     hook_lines: tuple[str, ...] = ()
@@ -155,7 +153,7 @@ def caption_track(doc: Mapping, words: Mapping, pieces: Sequence[Piece]) -> Capt
             if layout.overflow:
                 issues.append(Issue("hook_overflow", f"{pointer}/payload/text", item_id,
                                     hook.f0))
-            if layout.top < div_round_half_up(_ZONE_TOP * height, _ZONE_HEIGHT):
+            if layout.top < zone_top:
                 issues.append(Issue("unsafe_zone", f"{pointer}/transform/y_e5", item_id,
                                     hook.f0))
         hook_spec: HookSpec | None = hook

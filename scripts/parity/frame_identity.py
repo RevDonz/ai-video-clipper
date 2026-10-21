@@ -522,6 +522,15 @@ P_FRAME_CASES = (
     Case("edge_start_23.976", (24000, 1001), 480, "fit_blur", cuts=5, video_delay_ms=41,
          edges="source"),
 )
+# 1:1 (CONTRACTS §5.53): latar blur and face-track at 720×720, potong tengah with manual framing
+# at 1080×1080. Kept out of P_FRAME_CASES, whose cases the browser player fixtures also draw at
+# 720×1280.
+SQUARE_CASES = (
+    Case("square_720_29.97", (30000, 1001), 900, "fit_blur", output=(720, 720), hook=True),
+    Case("square_720_camera", (30, 1), 900, "camera", output=(720, 720)),
+    Case("square_1080_keyframes", (30, 1), 900, "fill_center", output=(1080, 1080),
+         keyframes=KEYFRAMES_900),
+)
 EXTRA_RENDER_CASES = (
     Case("fhd_23.976_logo", (24000, 1001), 700, "fit_blur", output=(1080, 1920), cuts=5,
          hook=True, logo=True),
@@ -552,7 +561,12 @@ P_PLATE_CASES = (*(
     Case("plate_camera_zoom_content", (30000, 1001), 900, "camera", cuts=10, captions=False,
          zoom_pm=1200, content=PILLARBOX_43),
     Case("plate_split_content", (30000, 1001), 900, "split", cuts=10, captions=False,
-         split=SPLIT_30_70, content=PILLARBOX_43))
+         split=SPLIT_30_70, content=PILLARBOX_43),
+    # 1:1 (CONTRACTS §5.53)
+    Case("plate_camera_square", (30000, 1001), 900, "camera", cuts=10, captions=False,
+         output=(720, 720)),
+    Case("plate_split_square", (30000, 1001), 900, "split", cuts=10, captions=False,
+         split=SPLIT_30_70, output=(1080, 1080)))
 PF_RENDER_CASES = tuple(
     Case(f"pf_60s_{layout}", (30000, 1001), 2_000, layout, source_size=(1280, 720), cuts=5,
          hook=True)
@@ -871,7 +885,8 @@ def run_id() -> str:
 # --- P-FRAME ---------------------------------------------------------------------------------------
 
 
-def p_frame(ws: Workspace, cases: Sequence[Case] = P_FRAME_CASES) -> dict[str, Any]:
+def p_frame(ws: Workspace, cases: Sequence[Case] = P_FRAME_CASES + SQUARE_CASES
+            ) -> dict[str, Any]:
     results = []
     for case in cases:
         plan = ws.plan(case)
@@ -1119,7 +1134,8 @@ def p_plate(ws: Workspace, cases: Sequence[Case] = P_PLATE_CASES) -> dict[str, A
 # --- G1/G2 ---------------------------------------------------------------------------------------
 
 
-def g1_g2(ws: Workspace, cases: Sequence[Case] = P_FRAME_CASES + EXTRA_RENDER_CASES
+def g1_g2(ws: Workspace, cases: Sequence[Case] = P_FRAME_CASES + SQUARE_CASES
+          + EXTRA_RENDER_CASES
           ) -> dict[str, Any]:
     from ai_clipper.edit_v2 import errors, verify
 

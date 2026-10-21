@@ -33,7 +33,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from . import COMPILER_ID, COMPILER_VERSION, OUTPUT_SIZES, RENDER_SEMANTICS, UI_ZONE_720, errors
+from . import COMPILER_ID, COMPILER_VERSION, OUTPUT_SIZES, RENDER_SEMANTICS, errors, ui_zone
 from . import captions as _captions
 from . import envelope as _envelope
 from . import face_zone as _face_zone
@@ -287,14 +287,6 @@ def _logo(doc: Mapping, store: Mapping[str, Mapping],
         x_e5=transform["x_e5"], y_e5=transform["y_e5"], w_e5=transform["w_e5"],
         asset_w=meta["w"], asset_h=meta["h"], out_w=output[0], out_h=output[1])
     return LogoPlacement(asset, x0, y0, width, height, transform["opacity_pm"])
-
-
-def ui_zone(output: tuple[int, int]) -> tuple[int, int, int]:
-    """(top, bottom, right) of the TikTok UI zone in output pixels (plan §5.9 G5)."""
-    width, height = output
-    top, bottom, right = UI_ZONE_720
-    return (tm.div_round_half_up(top * height, 1280), tm.div_round_half_up(bottom * height, 1280),
-            tm.div_round_half_up(right * width, 720))
 
 
 def unsafe_zone_issues(doc: Mapping, assets: Mapping[str, Mapping], output: tuple[int, int], *,

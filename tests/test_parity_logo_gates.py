@@ -32,6 +32,7 @@ def test_the_zone_written_from_the_plan_text_is_plan_ui_zone():
     for output in ((720, 1280), (1080, 1920), (720, 720), (1920, 1080)):
         assert lg.independent_zone(output) == ui_zone(output)
     assert lg.independent_zone((720, 1280)) == (93, 280, 93)
+    assert lg.independent_zone((720, 720)) == lg.independent_zone((1080, 1080)) == (0, 0, 0)
 
 
 def test_a_box_start_gives_back_exactly_that_box():
