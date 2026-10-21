@@ -53,6 +53,7 @@ PROBE_KEYS = {
     "frame_steps",
     "irregular_frame_steps",
     "grid_sf",
+    "content_rect",
 }
 
 
@@ -149,6 +150,7 @@ def test_probe_reports_the_native_rate(edit_v2_media_factory, fps, frames, conta
     path = edit_v2_media_factory(_small(fps, frames, container=container))
     probe = probe_source(path)
     assert set(probe) == PROBE_KEYS
+    assert probe["content_rect"] is None  # the test pattern has no black bars
     assert probe["fps_native"] == list(fps)
     assert probe["vfr"] is False
     assert (probe["w"], probe["h"]) == (160, 144)
@@ -352,3 +354,157 @@ def test_ensure_source_info_refuses_a_symlinked_source(tmp_path, edit_v2_media_f
         ensure_source_info(job_dir, link)
     assert not (job_dir / SOURCE_INFO_RELATIVE_PATH).exists()
     assert not os.path.exists(job_dir / "analysis" / "source.json")
+
+
+# --- black bars: the content rect (CONTRACTS §5.47) ---------------------------------------------
+
+
+def _detect(x1: int, x2: int, y1: int, y2: int) -> str:
+    """One sample's stderr as FFmpeg's cropdetect prints it (``reset=0``: the last line holds
+    the bounds of every frame of the run)."""
+    w, h = x2 - x1 + 1, y2 - y1 + 1
+    lines = ["Input #0, mov,mp4,m4a,3gp,3g2,mj2, from 'source.mp4':",
+             "  Stream #0:0[0x1](und): Video: h264 (High), yuv420p(tv, bt709), 1920x1080"]
+    for pts in (512, 1024):
+        lines.append(f"[Parsed_cropdetect_0 @ 0x55d0c0] x1:{x1} x2:{x2} y1:{y1} y2:{y2} "
+                     f"w:{w} h:{h} x:{x1} y:{y1} pts:{pts} t:0.04 limit:0.094000 "
+                     f"crop={w}:{h}:{x1}:{y1}")
+    return "\n".join(lines) + "\n"
+
+
+BLACK = ("[Parsed_cropdetect_0 @ 0x55d0c0] x1:1919 x2:0 y1:1079 y2:0 w:-1918 h:-1078 "
+         "x:1920 y:1080 pts:512 t:0.04 limit:0.094000 crop=-1918:-1078:1920:1080\n")
+
+
+def test_the_content_rect_of_a_letterbox_and_a_pillarbox():
+    rect = source_info.content_rect_from_cropdetect
+    # 2.39:1 in 1920×1080, one sample a row darker at the edge
+    samples = [_detect(0, 1919, 138, 941)] * 4 + [_detect(0, 1919, 139, 940)]
+    assert rect(samples, (1920, 1080)) == {"x": 0, "y": 138, "w": 1920, "h": 804}
+    # 4:3 pillarbox; odd bounds are rounded inwards to even
+    assert rect([_detect(241, 1678, 0, 1079)] * 5, (1920, 1080)) == {
+        "x": 242, "y": 0, "w": 1436, "h": 1080}
+    # 9:16 inside 16:9
+    assert rect([_detect(656, 1263, 0, 1079)] * 3, (1920, 1080)) == {
+        "x": 656, "y": 0, "w": 608, "h": 1080}
+    # the bounds of all samples together: a frame whose content reaches further widens the rect
+    wider = [_detect(240, 1679, 0, 1079)] * 4 + [_detect(200, 1719, 0, 1079)]
+    assert rect(wider, (1920, 1080)) == {"x": 200, "y": 0, "w": 1520, "h": 1080}
+
+
+def test_a_source_without_bars_has_no_content_rect():
+    rect = source_info.content_rect_from_cropdetect
+    assert rect([_detect(0, 1919, 0, 1079)] * 5, (1920, 1080)) is None
+    # a few dark rows or columns at one edge are no bars
+    assert rect([_detect(0, 1919, 4, 1079)] * 5, (1920, 1080)) is None
+    assert rect([_detect(6, 1915, 0, 1079)] * 5, (1920, 1080)) is None  # 6 px < 1 %
+    # bars on one side only (a dark stage, a lower third) are not a letterbox
+    assert rect([_detect(0, 1919, 0, 900)] * 5, (1920, 1080)) is None
+    assert rect([_detect(300, 1919, 0, 1079)] * 5, (1920, 1080)) is None
+    # a picture under a quarter of the source is more likely a dark scene than bars
+    assert rect([_detect(800, 1119, 0, 1079)] * 5, (1920, 1080)) is None
+
+
+def test_black_and_missing_samples_do_not_count():
+    rect = source_info.content_rect_from_cropdetect
+    letterbox = _detect(0, 1919, 138, 941)
+    # black frames (a fade) and a failed run are left out; the rest still agree
+    assert rect([letterbox, BLACK, letterbox, "", letterbox], (1920, 1080)) == {
+        "x": 0, "y": 138, "w": 1920, "h": 804}
+    # fewer than half the samples (or fewer than two) is not enough to tell
+    assert rect([letterbox, BLACK, BLACK, "", letterbox], (1920, 1080)) is None
+    assert rect([letterbox], (1920, 1080)) is None
+    assert rect([], (1920, 1080)) is None
+    assert rect(["garbage x1:a", BLACK], (1920, 1080)) is None
+    # bounds outside the source (a different stream) are not trusted
+    assert rect([_detect(0, 1919, 138, 1200)] * 5, (1920, 1080)) is None
+
+
+def test_cropdetect_runs_a_few_bounded_samples(tmp_path, monkeypatch):
+    calls = []
+
+    class Done:
+        returncode = 0
+        stderr = _detect(0, 1279, 90, 629)
+
+    def run(argv, **kwargs):
+        calls.append((argv, kwargs))
+        return Done()
+
+    monkeypatch.setattr(source_info.subprocess, "run", run)
+    monkeypatch.setattr(source_info, "_tool", lambda name: "/usr/bin/" + name)
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"")
+    assert source_info.measure_content_rect(source, video_stream=0, duration_ms=600_000,
+                                            size=(1280, 720)) == {
+        "x": 0, "y": 90, "w": 1280, "h": 540}
+    assert len(calls) == source_info.CROPDETECT_SAMPLES == 5
+    seeks = []
+    for argv, kwargs in calls:
+        assert argv[:3] == ["/usr/bin/ffmpeg", "-nostdin", "-hide_banner"]
+        assert "-protocol_whitelist" in argv and "file,pipe" in argv
+        assert argv[argv.index("-frames:v") + 1] == str(source_info.CROPDETECT_FRAMES)
+        assert "cropdetect=limit=0.094:round=2:reset=0" in argv[argv.index("-vf") + 1]
+        assert argv[argv.index("-map") + 1] == "0:0"
+        assert kwargs["timeout"] == source_info.CROPDETECT_TIMEOUT_S
+        assert kwargs["env"] == source_info.child_env()
+        seeks.append(argv[argv.index("-ss") + 1])
+    assert seeks == ["60.000", "180.000", "300.000", "420.000", "540.000"]
+
+
+def test_a_failing_or_slow_cropdetect_is_no_content_rect(tmp_path, monkeypatch):
+    def slow(argv, **kwargs):
+        raise source_info.subprocess.TimeoutExpired(argv, kwargs["timeout"])
+
+    class Failed:
+        returncode = 1
+        stderr = _detect(0, 1279, 90, 629)
+
+    monkeypatch.setattr(source_info, "_tool", lambda name: "/usr/bin/" + name)
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"")
+    for run in (slow, lambda argv, **kwargs: Failed()):
+        monkeypatch.setattr(source_info.subprocess, "run", run)
+        assert source_info.measure_content_rect(source, video_stream=0, duration_ms=60_000,
+                                                size=(1280, 720)) is None
+
+
+def _boxed(path, edit_v2_ffmpeg, pad: str) -> object:
+    import subprocess
+
+    subprocess.run([edit_v2_ffmpeg, "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
+                    "-f", "lavfi", "-i", "testsrc2=size=320x136:rate=30:duration=3",
+                    "-vf", pad, "-pix_fmt", "yuv420p", "-c:v", "libx264", "-preset",
+                    "ultrafast", str(path)], check=True, timeout=60)
+    return path
+
+
+def test_the_probe_measures_the_bars_of_a_letterboxed_source(tmp_path, edit_v2_ffmpeg):
+    boxed = _boxed(tmp_path / "boxed.mp4", edit_v2_ffmpeg, "pad=320:180:0:22:black")
+    assert probe_source(boxed)["content_rect"] == {"x": 0, "y": 22, "w": 320, "h": 136}
+    plain = _boxed(tmp_path / "plain.mp4", edit_v2_ffmpeg, "scale=320:180")
+    assert probe_source(plain)["content_rect"] is None
+
+
+def test_source_info_keeps_a_valid_content_rect_and_refuses_a_bad_one(tmp_path,
+                                                                       edit_v2_media_factory):
+    source = edit_v2_media_factory(_small())
+    value = ensure_source_info(tmp_path / "job", source)
+    assert "content_rect" in value["probe"]
+    path = tmp_path / "job" / SOURCE_INFO_RELATIVE_PATH
+    for rect, ok in (({"x": 0, "y": 8, "w": 160, "h": 128}, True), (None, True),
+                     ({"x": 1, "y": 8, "w": 158, "h": 128}, False),
+                     ({"x": 0, "y": 0, "w": 160, "h": 144}, False), ([0, 8, 160, 128], False)):
+        stored = json.loads(path.read_text())
+        stored["probe"]["content_rect"] = rect
+        os.chmod(path, 0o600)
+        path.write_bytes(canonical_json(stored))
+        if ok:
+            assert ensure_source_info(tmp_path / "job", source)["probe"]["content_rect"] == rect
+        else:
+            with pytest.raises(SourceInfoError):
+                ensure_source_info(tmp_path / "job", source)
+    # a file written before the bars were measured has no key, and stays valid
+    stored["probe"].pop("content_rect")
+    path.write_bytes(canonical_json(stored))
+    assert "content_rect" not in ensure_source_info(tmp_path / "job", source)["probe"]

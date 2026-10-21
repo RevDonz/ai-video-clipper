@@ -330,7 +330,18 @@ def _source(source_info: Mapping) -> dict[str, Any]:
             or not isinstance(fps, (list, tuple)) or len(fps) != 2
             or not all(type(item) is int and item > 0 for item in fps)):
         raise SeedError("source probe fields are invalid")
-    return {"content_sha256": sha, **fields, "fps_native": [fps[0], fps[1]]}
+    source = {"content_sha256": sha, **fields, "fps_native": [fps[0], fps[1]]}
+    rect = probe.get("content_rect")
+    if rect is not None:  # the picture inside the source's black bars (CONTRACTS §5.47)
+        from .layouts import check_content_rect
+
+        try:
+            check_content_rect([rect["x"], rect["y"], rect["w"], rect["h"]],
+                               (fields["w"], fields["h"]))
+        except (KeyError, TypeError, ValueError):
+            raise SeedError("source content rect is invalid") from None
+        source["content_rect"] = {key: rect[key] for key in ("x", "y", "w", "h")}
+    return source
 
 
 def _grid(source_info: Mapping, fps: Fps) -> tuple[int, int]:
