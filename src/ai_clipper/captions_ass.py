@@ -488,6 +488,20 @@ class WordBox:
 
 
 @dataclass(frozen=True)
+class Glow:
+    """The soft light a karaoke pack draws around its line (pack field ``glow``).
+
+    ``outline`` and ``blur`` are ratios of the output height (centipixel precision): a copy of
+    the line under it with transparent glyphs and a border that wide, blurred that much, in the
+    highlight colour at ASS alpha ``alpha`` (0 opaque, 255 transparent).
+    """
+
+    outline: tuple[int, int]
+    blur: tuple[int, int]
+    alpha: int
+
+
+@dataclass(frozen=True)
 class CaptionPack:
     """An immutable caption preset (``resources/caption-packs/<id>/v<v>.json``, plan §5.4).
 
@@ -498,6 +512,7 @@ class CaptionPack:
     ``box_style`` is how a boxed pack draws its box (``BOX_STYLES``); only boxed pack files
     carry the field, and ``"vector"`` needs a one-line static boxed pack. ``word_box`` is the
     spoken word's box of a ``word_box`` reveal (one-line packs without a border box only).
+    ``glow`` is the light around a one-line karaoke pack's line (``Glow``).
     """
 
     id: str
@@ -525,6 +540,7 @@ class CaptionPack:
     sha256: str
     box_style: str = "border"
     word_box: WordBox | None = None
+    glow: Glow | None = None
 
 
 @dataclass(frozen=True)
@@ -688,7 +704,7 @@ def _load_pack(pack_id: str, version: int) -> CaptionPack:
     expected = {"schema", "id", "v", "name", "style_name", "font", "size", "outline", "shadow",
                 "border_style", "colours", "margin_side_pm", "reveal", "words_per_cue",
                 "max_width_pm", "defaults"}
-    if set(data) - {"box_style", "word_box"} != expected or data["schema"] != PACK_SCHEMA:
+    if set(data) - {"box_style", "word_box", "glow"} != expected or data["schema"] != PACK_SCHEMA:
         raise ValueError("caption pack file does not follow potongin.caption-pack/1")
     if "box_style" in data and data["border_style"] != 3:
         raise ValueError("pack box_style is only for boxed packs (border_style 3)")
@@ -724,6 +740,9 @@ def _load_pack(pack_id: str, version: int) -> CaptionPack:
     word_box = _word_box(data.get("word_box"))
     _check_word_box(word_box, border_style=data["border_style"], reveal=data["reveal"],
                     max_width_pm=max_width)
+    glow = _glow(data.get("glow"))
+    _check_glow(glow, border_style=data["border_style"], reveal=data["reveal"],
+                max_width_pm=max_width)
     defaults = data["defaults"]
     _check_overrides(defaults)
     return CaptionPack(
@@ -752,6 +771,7 @@ def _load_pack(pack_id: str, version: int) -> CaptionPack:
         sha256=sha,
         box_style=box_style,
         word_box=word_box,
+        glow=glow,
     )
 
 
@@ -789,6 +809,26 @@ def _check_word_box(word_box: WordBox | None, *, border_style: int, reveal: str,
     if word_box is not None and (border_style != 1 or max_width_pm is None):
         raise ValueError("pack word_box needs a one-line pack without a border box "
                          "(border_style 1, max_width_pm)")
+
+
+def _glow(value: object) -> Glow | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict) or set(value) != {"outline", "blur", "alpha"}:
+        raise ValueError("pack glow must be {outline, blur, alpha}")
+    try:
+        outline, blur = _ratio(value["outline"], "glow.outline"), _ratio(value["blur"], "glow.blur")
+    except ValueError as error:
+        raise ValueError(f"pack glow: {error}") from None
+    if not _is_int(value["alpha"]) or not 0 <= value["alpha"] <= 255:
+        raise ValueError("pack glow.alpha must be an integer 0-255")
+    return Glow(outline=outline, blur=blur, alpha=value["alpha"])
+
+
+def _check_glow(glow: Glow | None, *, border_style: int, reveal: str,
+                max_width_pm: int | None) -> None:
+    if glow is not None and (reveal != "karaoke" or border_style != 1 or max_width_pm is None):
+        raise ValueError("pack glow needs a one-line karaoke pack (border_style 1, max_width_pm)")
 
 
 def _check_design_ref(design_id: object, version: object) -> None:
@@ -1386,15 +1426,39 @@ def _caption_events(cues: Sequence[FrameCue], *, pack: CaptionPack, fps: Fps,
             for index, word in enumerate(words)
         )
 
+    def one_line(cue: FrameCue) -> tuple[str, str, Path, int]:
+        """The line's text and its block: no wrapping, and a single word wider than the pack's
+        line limit shrunk with ``\\fs`` until it fits."""
+        tags = "\\q2"
+        display = " ".join(_display(word.text, case) for word in cue.words)
+        font = font_path(pack.font_file)
+        size = _pack_font_size(pack, height, overrides["size_pm"])
+        if len(cue.words) == 1 and not _fits(display, font, size, pack.max_width_pm, width):
+            units, height_units = advance_units(display, font)
+            size = max(1, pack.max_width_pm * width * height_units // (1000 * units))
+            tags += f"\\fs{size}"
+        return display, tags, font, size
+
     events = []
     for cue in fit_cues(cues, pack=pack, play_res=play_res, overrides=overrides):
         event = functools.partial(dialogue, opening=cue.f0)
         if pack.reveal == "karaoke":
             start_cs = max(0, safe_cs(cue.f0, fps))
-            events.append(event(cue.f0, cue.f1, _karaoke_line(
+            line = _karaoke_line(
                 cue, start_cs=start_cs, end_cs=safe_cs(cue.f1, fps), fps=fps, case=case,
                 primary=_inline_colour(overrides["highlight"]), secondary=text_colour,
-                emphasis=emphasis)))
+                emphasis=emphasis)
+            if pack.glow is not None:
+                # The glow and the line are placed by hand at the style's spot, so libass never
+                # stacks the two copies apart (CONTRACTS §5.47).
+                _display_text, tags, _font, _size = one_line(cue)
+                place = (f"\\an2\\pos({_centi_text(50 * width)},"
+                         f"{height - _margin_v(height, overrides['y_e5'])}){tags}")
+                glyphs = " ".join(ass_escape(_display(word.text, case)) for word in cue.words)
+                glow = _glow_tags(pack.glow, height, highlight)
+                events.append(event(cue.f0, cue.f1, f"{{{place}{glow}}}{glyphs}"))
+                line = f"{{{place}}}{line}"
+            events.append(event(cue.f0, cue.f1, line))
         elif pack.reveal == "word_box":
             events += _word_box_events(cue, pack=pack, play_res=play_res, overrides=overrides,
                                        event=event)
@@ -1407,14 +1471,7 @@ def _caption_events(cues: Sequence[FrameCue], *, pack: CaptionPack, fps: Fps,
                        for index, (first, last) in enumerate(zip(starts, ends, strict=True))
                        if first < last]
         elif pack.max_width_pm is not None:
-            tags = "\\q2"
-            display = " ".join(_display(word.text, case) for word in cue.words)
-            font = font_path(pack.font_file)
-            size = _pack_font_size(pack, height, overrides["size_pm"])
-            if len(cue.words) == 1 and not _fits(display, font, size, pack.max_width_pm, width):
-                units, height_units = advance_units(display, font)
-                size = max(1, pack.max_width_pm * width * height_units // (1000 * units))
-                tags += f"\\fs{size}"
+            display, tags, font, size = one_line(cue)
             if pack.box_style == "vector":
                 events.append(event(cue.f0, cue.f1, _vector_box(
                     display, font, size, pack=pack, play_res=play_res, overrides=overrides)))
@@ -1422,6 +1479,15 @@ def _caption_events(cues: Sequence[FrameCue], *, pack: CaptionPack, fps: Fps,
         else:
             events.append(event(cue.f0, cue.f1, static(cue.words)))
     return events
+
+
+def _glow_tags(glow: Glow, height: int, colour: str) -> str:
+    """The override tags of a line's glow copy: transparent glyphs inside a blurred border of
+    ``colour`` (an override colour) at the glow's alpha, no shadow."""
+    outline = _centi_text(div_round_half_up(100 * height * glow.outline[0], glow.outline[1]))
+    blur = _centi_text(div_round_half_up(100 * height * glow.blur[0], glow.blur[1]))
+    return (f"\\bord{outline}\\blur{blur}\\3c{colour}\\3a&H{glow.alpha:02X}&"
+            f"\\1a&HFF&\\2a&HFF&\\shad0")
 
 
 def _vector_box(text: str, font: Path, font_size: int, *, pack: CaptionPack,
@@ -1567,7 +1633,8 @@ def build_ass_v2(
     Emphasised words get the ``emphasis`` colour (defect #6); all text goes through
     ``ass_escape``. A ``box_style: vector`` pack draws each box as a ``\\p`` rectangle event
     right before its line (plan §5.4, the fallback if BorderStyle 3 fails P-TXT); a
-    ``word_box`` pack draws a rounded ``\\p`` box behind the spoken word (CONTRACTS §5.30). A
+    ``word_box`` pack draws a rounded ``\\p`` box behind the spoken word (CONTRACTS §5.30); a
+    ``glow`` pack draws a blurred copy of each karaoke line right before it (§5.47). A
     hook in a design other than the bar writes that design's style and events (§5.33). The
     override ``entrance`` opens the first window of every caption line with a fade, pop or blur
     of at most ``ENTRANCE_MS``; no event moves (§5.39). A ``watermark`` adds its style and one
@@ -1588,6 +1655,8 @@ def build_ass_v2(
                      max_width_pm=pack.max_width_pm)
     _check_word_box(pack.word_box, border_style=pack.border_style, reveal=pack.reveal,
                     max_width_pm=pack.max_width_pm)
+    _check_glow(pack.glow, border_style=pack.border_style, reveal=pack.reveal,
+                max_width_pm=pack.max_width_pm)
     _check_overrides(overrides)
     for cue in cues:
         if not isinstance(cue, FrameCue):

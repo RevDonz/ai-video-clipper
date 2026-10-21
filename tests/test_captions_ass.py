@@ -456,13 +456,17 @@ PACKS_DIR = ROOT / "resources" / "caption-packs"
 HOOK_DESIGN = ROOT / "resources" / "hook-designs" / "legacy-bar" / "v1.json"
 OVERRIDES = {pack: dict(PACK_DEFAULT_OVERRIDES[pack]) for pack in PACK_IDS}
 STYLE_NAMES = {"classic": "Caption", "karaoke": "Karaoke", "bold": "Bold", "box": "Box",
-               "sorot": "Sorot"}
+               "sorot": "Sorot", "sinar": "Sinar"}
 _OWN_TAG = re.compile(r"(?<!\\)\{([^}]*)\}")
 _CAPTION_TAG = re.compile(r"(\\(kf\d+|1c&H[0-9A-F]{6}&|2c&H[0-9A-F]{6}&|q2|fs\d+))+")
 # The Sorot pack places each word and its box itself: position, no border on the spoken word,
 # and the box drawing (plus the tags of the other packs).
 _SOROT_TAG = re.compile(r"(\\(an2|pos\(\d+(\.\d{1,2})?,\d+\)|q2|fs\d+|bord0|shad0|p[01]"
                         r"|1c&H[0-9A-F]{6}&))+")
+# Sinar places its line and its glow copy itself; the glow is a blurred border in the highlight
+# colour around transparent glyphs (plus the karaoke tags).
+_SINAR_TAG = re.compile(r"(\\(an2|pos\(\d+(\.\d{1,2})?,\d+\)|q2|fs\d+|kf\d+|bord\d+(\.\d{1,2})?"
+                        r"|blur\d+(\.\d{1,2})?|shad0|[123]c&H[0-9A-F]{6}&|[123]a&H[0-9A-F]{2}&))+")
 WHITE = "&HFFFFFF&"
 YELLOW = "&H4DE1FF&"  # #FFE14D, the default highlight
 PINK = "&H8A5CFF&"  # #FF5C8A, the default emphasis
@@ -504,11 +508,11 @@ def _strip(text: str) -> str:
 
 def _windows(cues, pack):
     """The frame window of every caption event, in emission order (bold: one per word; sorot:
-    per word, one event per word of the cue plus the box)."""
+    per word, one event per word of the cue plus the box; sinar: the glow, then the line)."""
     windows = []
     for cue in cues:
         if pack not in ("bold", "sorot"):
-            windows.append((cue.f0, cue.f1))
+            windows.extend([(cue.f0, cue.f1)] * (2 if pack == "sinar" else 1))
             continue
         starts = [cue.f0] + [word.f0 for word in cue.words[1:]]
         ends = starts[1:] + [cue.f1]
@@ -552,8 +556,8 @@ def test_legacy_bar_hook_equals_the_legacy_hook(size, text):
 def test_every_pack_loads_with_the_seed_defaults_and_its_font():
     fonts = {"classic": "DejaVuSans.ttf", "karaoke": "DejaVuSans-Bold.ttf",
              "bold": "Montserrat-ExtraBold.ttf", "box": "Montserrat-ExtraBold.ttf",
-             "sorot": "Montserrat-ExtraBold.ttf"}
-    assert PACK_IDS == ("classic", "karaoke", "bold", "box", "sorot")
+             "sorot": "Montserrat-ExtraBold.ttf", "sinar": "Montserrat-ExtraBold.ttf"}
+    assert PACK_IDS == ("classic", "karaoke", "bold", "box", "sorot", "sinar")
     for pack_id in PACK_IDS:
         pack = load_pack(pack_id, 1)
         assert isinstance(pack, CaptionPack)
@@ -564,7 +568,7 @@ def test_every_pack_loads_with_the_seed_defaults_and_its_font():
         raw = (PACKS_DIR / pack_id / "v1.json").read_bytes()
         assert pack.sha256 == hashlib.sha256(raw).hexdigest()
         assert load_pack(pack_id, 1) is pack
-    assert [load_pack(p, 1).words_per_cue for p in PACK_IDS] == [4, 4, 3, 3, 3]
+    assert [load_pack(p, 1).words_per_cue for p in PACK_IDS] == [4, 4, 3, 3, 3, 3]
 
 
 @pytest.mark.parametrize("pack_id", PACK_IDS)
@@ -941,16 +945,17 @@ def test_escape_fuzz_keeps_every_event_on_one_line_without_foreign_tags(pack):
         body = document.split("[Events]\n", 1)[1]
         dialogues = [line for line in body.split("\n")[1:] if line]
         assert all(line.startswith("Dialogue: ") for line in dialogues)
-        if pack in ("box", "sorot"):
+        if pack in ("box", "sorot", "sinar"):
             expected = fit_cues((cue,), pack=loaded, play_res=(720, 1280),
                                 overrides=OVERRIDES[pack])
-            # Sorot: per spoken word, one event per word of the line plus its box.
-            per_cue = [len(part.words) * (len(part.words) + 1) if pack == "sorot" else 1
-                       for part in expected]
+            # Sorot: per spoken word, one event per word of the line plus its box. Sinar: the
+            # glow, then the line.
+            per_cue = [len(part.words) * (len(part.words) + 1) if pack == "sorot"
+                       else 2 if pack == "sinar" else 1 for part in expected]
             assert len(dialogues) == sum(per_cue)
         else:
             assert len(dialogues) == (len(words) if pack == "bold" else 1)
-        allowed = _SOROT_TAG if pack == "sorot" else _CAPTION_TAG
+        allowed = {"sorot": _SOROT_TAG, "sinar": _SINAR_TAG}.get(pack, _CAPTION_TAG)
         for line in dialogues:
             text = line.split(",", 9)[9]
             assert not any(unicodedata.category(c) in ("Cc", "Cs", "Zl", "Zp") for c in text)
@@ -1174,6 +1179,112 @@ def test_sorot_follows_position_size_and_case_overrides():
     assert [entry[3] for entry in parsed if entry[0] == "word"][:2] == ["Bukan", "gue"]
 
 
+# --- Sinar: the karaoke sweep with a soft glow (CONTRACTS §5.47) ---------------------------------
+
+SINAR_CUE = _fcue((0, 10, "gue"), (10, 25, "bukan"), (25, 40, "jambret."))
+GLOW_720 = "\\bord14\\blur9\\3c&H4DE1FF&\\3a&H30&\\1a&HFF&\\2a&HFF&\\shad0"
+
+
+def test_sinar_pack_file_loads_a_one_line_karaoke_pack_with_its_glow():
+    pack = load_pack("sinar", 1)
+
+    assert (pack.name, pack.style_name, pack.reveal) == ("Sinar", "Sinar", "karaoke")
+    assert (pack.border_style, pack.box_style, pack.max_width_pm) == (1, "border", 880)
+    assert pack.glow == captions_ass.Glow(outline=(7, 640), blur=(9, 1280), alpha=48)
+    assert pack.word_box is None
+    assert dict(pack.defaults) == dict(PACK_DEFAULT_OVERRIDES["sinar"])
+    assert PACK_DEFAULT_OVERRIDES["sinar"]["case"] == "asis"
+    for other in ("classic", "karaoke", "bold", "box", "sorot"):
+        assert load_pack(other, 1).glow is None
+
+
+def test_sinar_draws_a_blurred_glow_under_the_karaoke_line():
+    document = _v2((SINAR_CUE,), "sinar")
+
+    style = _styles(document)["Sinar"]
+    assert (style["Fontname"], style["Fontsize"]) == ("Montserrat ExtraBold", "59")
+    assert (style["PrimaryColour"], style["SecondaryColour"]) == ("&H004DE1FF", "&H00FFFFFF")
+    assert (style["Outline"], style["Shadow"], style["BorderStyle"]) == ("4", "0", "1")
+    glow, line = _events(document)
+    assert {k: v for k, v in glow.items() if k != "Text"} == {
+        k: v for k, v in line.items() if k != "Text"}
+    assert glow["Layer"] == "0"
+    place = "\\an2\\pos(360,1062)\\q2"
+    assert glow["Text"] == "{" + place + GLOW_720 + "}gue bukan jambret."
+    # The line sweeps exactly like the Karaoke pack's: the same \kf durations and colours.
+    [karaoke] = _events(_v2((SINAR_CUE,), "karaoke"))
+    assert line["Text"] == "{" + place + "}" + karaoke["Text"]
+    assert (_centiseconds(line["Start"]), _centiseconds(line["End"])) == (
+        _centiseconds(karaoke["Start"]), _centiseconds(karaoke["End"]))
+
+
+def test_sinar_glow_follows_the_highlight_colour_and_the_output_size():
+    green = "#3DF5A6"
+
+    document = _v2((SINAR_CUE,), "sinar", size=(1080, 1920), highlight=green, y_e5=70000)
+
+    assert _styles(document)["Sinar"]["PrimaryColour"] == "&H00A6F53D"
+    glow, line = _events(document)
+    bottom = 1920 - _rhu(30000 * 1920, 100000)
+    assert glow["Text"].startswith(
+        "{\\an2\\pos(540," + str(bottom) + ")\\q2\\bord21\\blur13.5\\3c&HA6F53D&\\3a&H30&")
+    assert line["Text"].startswith("{\\an2\\pos(540," + str(bottom) + ")\\q2}{\\kf")
+
+
+def test_sinar_keeps_one_line_and_shrinks_a_single_wide_word_in_both_events():
+    pack = load_pack("sinar", 1)
+    wide = _fcue((0, 10, "Kode"), (10, 20, "rahasia"), (20, 30, "komplotan"), (30, 40, "copet"))
+    fitted = fit_cues((wide,), pack=pack, play_res=(720, 1280), overrides=OVERRIDES["sinar"])
+    assert len(fitted) > 1 and all(len(cue.words) <= 3 for cue in fitted)
+
+    word = "Supercalifragilisticexpialidocious"
+    glow, line = _events(_v2((_fcue((0, 20, word)),), "sinar"))
+
+    size = re.search(r"\\fs(\d+)", glow["Text"]).group(1)
+    assert int(size) < 59 and f"\\q2\\fs{size}" in line["Text"]
+    assert _strip(glow["Text"]) == _strip(line["Text"]) == word
+
+
+def test_sinar_keyword_keeps_its_colour_in_the_line_and_the_glow_stays_one_colour():
+    cue = _fcue((0, 10, "gue"), (10, 20, "bukan", True), (20, 30, "jambret."))
+
+    glow, line = _events(_v2((cue,), "sinar"))
+
+    assert glow["Text"] == "{\\an2\\pos(360,1062)\\q2" + GLOW_720 + "}gue bukan jambret."
+    assert re.search(r"\{\\kf\d+\\1c" + PINK + r"\\2c" + PINK + r"\}bukan", line["Text"])
+
+
+def test_glow_is_a_pack_file_field_of_one_line_karaoke_packs_only(tmp_path, monkeypatch):
+    sinar = json.loads((PACKS_DIR / "sinar" / "v1.json").read_bytes())
+    karaoke = json.loads((PACKS_DIR / "karaoke" / "v1.json").read_bytes())
+    sorot = json.loads((PACKS_DIR / "sorot" / "v1.json").read_bytes())
+    files = {("sinar", 2): {**sinar, "v": 2},
+             ("sinar", 3): {**sinar, "v": 3, "glow": {**sinar["glow"], "alpha": 256}},
+             ("sinar", 4): {**sinar, "v": 4, "glow": {**sinar["glow"], "colour": "#FFFFFF"}},
+             ("sinar", 5): {**sinar, "v": 5, "glow": {**sinar["glow"],
+                                                      "blur": {"num": 1, "den": 0}}},
+             ("karaoke", 6): {**karaoke, "v": 6, "glow": sinar["glow"]},  # wraps: no max width
+             ("sorot", 7): {**sorot, "v": 7, "glow": sinar["glow"]}}  # not a karaoke pack
+    for (pack_id, version), data in files.items():
+        (tmp_path / pack_id).mkdir(exist_ok=True)
+        (tmp_path / pack_id / f"v{version}.json").write_text(json.dumps(data), encoding="utf-8")
+    monkeypatch.setattr(captions_ass, "PACKS_DIR", tmp_path)
+    captions_ass._load_pack.cache_clear()
+    try:
+        assert load_pack("sinar", 2).glow == captions_ass.Glow((7, 640), (9, 1280), 48)
+        for pack_id, version in (("sinar", 3), ("sinar", 4), ("sinar", 5), ("karaoke", 6),
+                                 ("sorot", 7)):
+            with pytest.raises(ValueError, match="glow"):
+                load_pack(pack_id, version)
+    finally:
+        monkeypatch.undo()
+        captions_ass._load_pack.cache_clear()
+    pack = dataclasses.replace(load_pack("karaoke", 1), glow=load_pack("sinar", 1).glow)
+    with pytest.raises(ValueError, match="glow"):
+        build_ass_v2((), play_res=(720, 1280), fps=NTSC, total_frames=30, pack=pack,
+                     overrides=OVERRIDES["karaoke"], hook=None)
+
+
 def test_overrides_accept_words_max_from_one_to_four_only():
     for value in (1, 2, 3, 4):
         _v2((_fcue((0, 30, "halo")),), "classic", words_max=value)
@@ -1247,10 +1358,12 @@ def test_the_entrance_opens_only_the_first_window_of_each_line(pack, entrance):
             opened += 1
         else:
             assert new["Text"] == old["Text"]
-    # Sorot's first window is every word of the line plus the box; the other packs draw a line
-    # as one event.
+    # Sorot's first window is every word of the line plus the box, Sinar's the glow and the line;
+    # the other packs draw a line as one event.
     if pack == "sorot":
         assert opened == sum(len(cue.words) + 1 for cue in lines)
+    elif pack == "sinar":  # the glow opens with its line
+        assert opened == 2 * len(lines)
     else:
         assert opened == len(lines)
 

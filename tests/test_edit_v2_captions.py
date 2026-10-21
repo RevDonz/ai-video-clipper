@@ -378,10 +378,29 @@ def test_sorot_seed_document_compiles_one_box_per_spoken_word():
     assert {fields[3] for fields in events} == {"Sorot", "Hook"}
 
 
+def test_sinar_document_compiles_a_glow_under_every_karaoke_line():
+    doc = _doc("pack_sinar__c30")
+    karaoke = _doc("seed__c30")
+
+    result, reference = _track(doc, "c30"), _track(karaoke, "c30")
+
+    events = [fields for fields in _dialogues(result.ass) if fields[3] != "Hook"]
+    assert {fields[3] for fields in events} == {"Sinar"}
+    assert len(events) == 2 * len(result.cues)
+    for glow, line in zip(events[0::2], events[1::2], strict=True):
+        assert glow[:9] == line[:9]
+        assert "\\blur" in glow[9] and "\\1a&HFF&" in glow[9] and "\\kf" not in glow[9]
+        assert "\\kf" in line[9] and "\\blur" not in line[9]
+    # One-line cues of at most three words; every word is still on screen once.
+    assert all(len(cue.words) <= 3 for cue in result.cues)
+    assert [w.text for cue in result.cues for w in cue.words] == [
+        w.text for cue in reference.cues for w in cue.words]
+
+
 # --- "Animasi masuk" (entrance) on a document (CONTRACTS §5.39) -------------------------------
 
 
-@pytest.mark.parametrize("pack", ["classic", "karaoke", "bold", "box", "sorot"])
+@pytest.mark.parametrize("pack", ["classic", "karaoke", "bold", "box", "sorot", "sinar"])
 def test_no_entrance_and_an_explicit_none_compile_to_the_same_track(pack):
     # Automatic clips stay as they were: their seeds carry no entrance, and "none" written out
     # compiles to the same cues, ASS and warnings.
@@ -456,7 +475,8 @@ def test_glyph_unsupported_is_raised_for_the_watermark_text():
 
 def test_ass_goldens_cover_every_pack_and_the_hook():
     names = {name for name, _file, _context in edit_v2_text.GOLDEN_CASES}
-    assert {"classic__c30", "karaoke__c30", "bold__c30", "box__c30", "sorot__c30", "hook__c30",
+    assert {"classic__c30", "karaoke__c30", "bold__c30", "box__c30", "sorot__c30", "sinar__c30",
+            "hook__c30",
             "words_max_1__c30", "hook_kicker__c30", "hook_blok__c30", "hook_kotak__c30",
             "entrance_fade__c30", "entrance_pop__c30", "entrance_blur__c30",
             "watermark__c30", "watermark_max__c30", "watermark_min__c24"} <= names
@@ -464,7 +484,8 @@ def test_ass_goldens_cover_every_pack_and_the_hook():
     for name in names:
         text = (edit_v2_text.GOLDEN_DIR / f"{name}.ass").read_text(encoding="utf-8")
         styles |= {fields[3] for fields in _dialogues(text)}
-    assert styles == {"Caption", "Karaoke", "Bold", "Box", "Sorot", "Hook", "Watermark"}
+    assert styles == {"Caption", "Karaoke", "Bold", "Box", "Sorot", "Sinar", "Hook",
+                      "Watermark"}
 
 
 def test_ass_goldens_on_disk_equal_a_fresh_render():
@@ -494,13 +515,19 @@ def test_ptime_expected_events_match_the_emitted_events():
 
 def test_ptime_checks_every_karaoke_sweep_that_starts_inside_its_line():
     # \kf: each plain word with an onset inside the line sweeps from that onset to the next one
-    # (or the line's end); a keyword keeps its colour, so its sweep is not seen.
+    # (or the line's end); a keyword keeps its colour, so its sweep is not seen. Sinar's glow
+    # (the event before each line) has no sweep.
     for case in edit_v2_text.ptime_cases(quick=False):
-        if case.pack != "karaoke":
+        if case.pack not in ("karaoke", "sinar"):
             continue
-        cues = fit_cues(case.cues, pack=load_pack("karaoke", 1), play_res=case.play_res,
-                        overrides=edit_v2_text.PACK_DEFAULT_OVERRIDES["karaoke"])
-        for cue, event in zip(cues, edit_v2_text.expected_events(case), strict=False):
+        cues = fit_cues(case.cues, pack=load_pack(case.pack, 1), play_res=case.play_res,
+                        overrides=edit_v2_text.PACK_DEFAULT_OVERRIDES[case.pack])
+        events = [event for event in edit_v2_text.expected_events(case)
+                  if event.kind == "caption"]
+        if case.pack == "sinar":
+            assert len(events) == 2 * len(cues) and not any(e.sweeps for e in events[0::2])
+            events = events[1::2]
+        for cue, event in zip(cues, events, strict=True):
             ends = [word.f0 for word in cue.words[1:]] + [cue.f1]
             assert event.sweeps == tuple(
                 edit_v2_text.Sweep(index, word.f0, ends[index])
@@ -567,7 +594,8 @@ def test_quick_ptime_is_a_subset_with_hazard_frames():
     cases = edit_v2_text.ptime_cases(quick=True)
     assert all(case.cues or case.hook for case in cases)
     assert {f"{c.fps.num}/{c.fps.den}" for c in cases} == {"25/1", "30000/1001"}
-    assert {case.pack for case in cases} == {"classic", "karaoke", "bold", "box", "sorot"}
+    assert {case.pack for case in cases} == {"classic", "karaoke", "bold", "box", "sorot",
+                                             "sinar"}
     counts = edit_v2_text.ptime_counts(cases)
     assert counts["hazard_boundaries"] > 0
     assert counts["events"] < edit_v2_text.ptime_counts(edit_v2_text.ptime_cases())["events"]

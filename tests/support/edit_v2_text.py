@@ -259,7 +259,10 @@ def expected_events(case: PtimeCase) -> list[ExpectedEvent]:
             events += [ExpectedEvent(a, b, (), False, "caption")
                        for a, b in zip(starts, ends, strict=True) if a < b
                        for _copy in range(copies)]
-        elif case.pack == "karaoke":
+        elif pack.reveal == "karaoke":
+            # Sinar's glow is its own event (no sweep: transparent glyphs) right before the line.
+            if pack.glow is not None:
+                events.append(ExpectedEvent(cue.f0, cue.f1, (), False, "caption"))
             # An emphasised word keeps the emphasis colour before and after its sweep, so only
             # the other words change the picture.
             ends = [word.f0 for word in cue.words[1:]] + [cue.f1]
@@ -737,6 +740,7 @@ GOLDEN_CASES = (
     ("bold__c30", "valid/pack_bold__c30.json", "c30"),
     ("box__c30", "valid/pack_box__c30.json", "c30"),
     ("sorot__c30", "valid/pack_sorot__c30.json", "c30"),
+    ("sinar__c30", "valid/pack_sinar__c30.json", "c30"),
     ("words_max_1__c30", "valid/words_max_1__c30.json", "c30"),
     ("entrance_fade__c30", "valid/entrance_fade__c30.json", "c30"),
     ("entrance_pop__c30", "valid/entrance_pop__c30.json", "c30"),

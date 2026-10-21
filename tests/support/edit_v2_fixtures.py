@@ -696,7 +696,7 @@ def _valid(contexts: Mapping[str, Context]) -> list[_Fixture]:
     d = _Doc(c30, "SetCaptionsEnabled")
     d.doc["captions"]["enabled"] = False
     add("captions_disabled", d)
-    for pack in ("classic", "bold", "box", "sorot"):
+    for pack in ("classic", "bold", "box", "sorot", "sinar"):
         d = _Doc(c30, "SetCaptionPack")
         d.doc["captions"]["pack"]["id"] = pack
         if pack == "sorot":

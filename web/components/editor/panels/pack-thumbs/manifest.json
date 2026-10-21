@@ -27,10 +27,16 @@
       "png_sha256": "7e27eec77e0e0fe120e9bdc70f18ff4434e08f5f44121c79c102151e19e3c122"
     },
     "karaoke": {
-      "bytes": 7747,
+      "bytes": 7412,
       "file": "karaoke.png",
       "pack_sha256": "10db9308ced1f900fd0b59e2c6c03d32ebb83f6cf34bb036e2aa243ffa756ee5",
-      "png_sha256": "c2681fa0987217e522f76cea445e0c7a4c35ec18421c69b3242c6eae70e5d27c"
+      "png_sha256": "7d9e2d57d8eb4775e9ffe8998cb5673b266f427364fd56f1b4340524033ccd62"
+    },
+    "sinar": {
+      "bytes": 10838,
+      "file": "sinar.png",
+      "pack_sha256": "0ff82be067826fd50d02cecd53cbc34b0ad3d8b7a7476513a2d682d5564a1223",
+      "png_sha256": "38281d1b3fd3e32c996ad431e0098a8d1e7069fbd5b9eadc0d454920bb65f266"
     },
     "sorot": {
       "bytes": 8347,
@@ -47,6 +53,6 @@
   ],
   "toolchain": {
     "ffmpeg": "5.1.9-0+deb12u1",
-    "libass9": "1:0.17.1-1+deb12u1"
+    "libass9": "1:0.17.1-1"
   }
 }
