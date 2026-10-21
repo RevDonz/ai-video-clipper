@@ -43,6 +43,7 @@ import {
   storageStatusView,
 } from "../../lib/dashboard-storage-status.mjs";
 import { jobHelpHref, storageHelpHref } from "../../lib/help-catalog.mjs";
+import { notifyJobsChanged } from "../../lib/job-badge.mjs";
 import { jobCancellable } from "../../lib/job-cancel.mjs";
 import { lookPreview } from "../../lib/look-preview.mjs";
 import { typedRangeCount } from "../../lib/time-ranges.mjs";
@@ -452,6 +453,7 @@ export default function DashboardPage() {
       const payload = (await response.json().catch(() => null)) || {};
       if (!response.ok) {
         if (payload.jobId) {
+          notifyJobsChanged();
           await recoverFailedJobSelection(payload.jobId, {
             select: setActiveId,
             refreshJobs,
@@ -464,6 +466,7 @@ export default function DashboardPage() {
       setJobs((current) => [payload.job, ...current]);
       setJobsState("ready");
       setActiveId(payload.job.id);
+      notifyJobsChanged();
       setMessage({ tone: "ok", text: "Job dibuat. Progresnya tampil di panel Hasil." });
       // On one column the Hasil panel sits below the form: bring the new job into view.
       if (window.matchMedia("(max-width: 900px)").matches) {

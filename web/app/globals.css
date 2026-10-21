@@ -248,7 +248,7 @@ body {
   letter-spacing: -.01em;
   text-decoration: none;
 }
-.brand > span {
+.brand > span[aria-hidden="true"] {
   display: grid;
   place-items: center;
   width: 30px;
@@ -259,11 +259,14 @@ body {
   font: 700 15px/1 var(--font);
   transition: transform var(--dur-2) var(--ease-out);
 }
-.brand:hover > span { transform: rotate(-7deg); }
+.brand:hover > span[aria-hidden="true"] { transform: rotate(-7deg); }
 
 .appHeader { border-bottom: 1px solid var(--border); background: var(--bg); }
 .appHeaderInner { display: flex; align-items: center; gap: 20px; min-height: 64px; }
-.appHeaderInner > .brand { margin-right: auto; }
+/* The brand and the job badge share the left. The badge fills room the menu leaves free, so it
+   appears and changes without moving anything else; when room runs out it gives way first. */
+.appHeaderLead { display: flex; flex: 1 1 0; align-items: center; gap: 12px; min-width: 0; }
+.appHeaderLead > .brand, .appNav, .appHelp, .appLogout { flex-shrink: 0; }
 .appNav {
   display: flex;
   gap: 2px;
@@ -293,6 +296,31 @@ body {
 .appHelp { min-height: 36px; padding: 6px 12px; }
 .appHelp[aria-current="page"] { color: var(--text); }
 
+/* Job badge (components/JobBadge.jsx): lime marks a running job, as on the progress bars. */
+.jobBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  color: var(--text-muted);
+  font: 500 13px/1.2 var(--font);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-decoration: none;
+  animation: fade-in var(--dur-2) var(--ease-out);
+  transition: background-color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+}
+.jobBadge:hover { background: var(--surface-2); border-color: var(--border-strong); color: var(--text); }
+.jobBadge[data-kind="running"] { color: var(--text); }
+.jobBadge[data-tone="danger"] { color: var(--danger); }
+.jobBadgeDot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+.jobBadgeText { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
 footer {
   display: flex;
   flex-wrap: wrap;
@@ -306,11 +334,28 @@ footer {
 @media (max-width: 850px) {
   .shell { width: min(100% - 32px, 760px); }
 }
-@media (max-width: 720px) {
+/* From 850 px down the menu takes its own row: beside the brand it squeezed its labels onto two
+   lines below 800 px, and the badge would not fit. */
+@media (max-width: 850px) {
   .appHeaderInner { flex-wrap: wrap; gap: 8px 12px; padding: 8px 0 12px; }
+  .appHeaderLead { gap: 8px; }
   .appNav { order: 3; width: 100%; }
   .appNav a { flex: 1 1 auto; min-height: 44px; padding: 6px 8px; font-size: 13px; }
-  .appLogout .btn, .appHelp { min-height: 44px; }
+  .appLogout .btn, .appHelp, .jobBadge { min-height: 44px; }
+  .jobBadge { min-width: 44px; justify-content: center; }
+}
+/* Where the brand name and the badge do not both fit, the badge keeps the room and the name stays
+   for screen readers. Under 360 px the name never fits beside Bantuan and Keluar. */
+@media (max-width: 481px), (min-width: 851px) and (max-width: 939px) {
+  .appHeaderLead:has(.jobBadge) .brandName { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+}
+@media (max-width: 359px) {
+  .appHeaderLead .brandName { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+}
+/* Below 384 px the badge shows its short form ("42%", "8 klip"); the full text stays its name. */
+@media (max-width: 383px) {
+  .jobBadgeText { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  .jobBadge::after { content: attr(data-short); content: attr(data-short) / ""; }
 }
 
 /* Shared by signed-in pages (the dashboard's own styles are in app/dashboard/dashboard.module.css) */
