@@ -312,7 +312,8 @@ def _hook_events(
 
 
 def _karaoke_text(cue: CaptionCue, *, uppercase: bool) -> str:
-    """Words with {\\k} durations that start each highlight on the word and sum to the cue."""
+    """Words with {\\kf} durations: each word's highlight sweeps from its start to the next word's
+    start, and the durations sum to the cue."""
     cue_start = round(cue.start * 100)
     cue_end = round(cue.end * 100)
     boundaries = [cue_start]
@@ -322,7 +323,7 @@ def _karaoke_text(cue: CaptionCue, *, uppercase: bool) -> str:
     parts = []
     for index, word in enumerate(cue.words):
         text = word.text.upper() if uppercase else word.text
-        parts.append(f"{{\\k{boundaries[index + 1] - boundaries[index]}}}{ass_escape(text)}")
+        parts.append(f"{{\\kf{boundaries[index + 1] - boundaries[index]}}}{ass_escape(text)}")
     return " ".join(parts)
 
 
@@ -1351,7 +1352,7 @@ def _karaoke_line(cue: FrameCue, *, start_cs: int, end_cs: int, fps: Fps, case: 
     boundaries.append(end_cs)
     parts = []
     for index, word in enumerate(cue.words):
-        tags = f"\\k{boundaries[index + 1] - boundaries[index]}"
+        tags = f"\\kf{boundaries[index + 1] - boundaries[index]}"
         text = ass_escape(_display(word.text, case))
         if word.emphasis:  # defect #6: the emphasis colour before and after the highlight
             parts.append(f"{{{tags}\\1c{emphasis}\\2c{emphasis}}}{text}"
@@ -1559,8 +1560,8 @@ def build_ass_v2(
 
     ``cues`` are output-frame cues (``subtitles.build_frame_cues``). Every event visible on
     output frames ``[a, b)`` is written ``Start = safe_cs(a)`` (clamped to 0) and
-    ``End = safe_cs(b)``; karaoke ``\\k`` durations are differences of ``safe_cs``, so libass in
-    FFmpeg and in JASSUB switch exactly on the planned frame (the graph sets
+    ``End = safe_cs(b)``; karaoke ``\\kf`` durations are differences of ``safe_cs``, so libass in
+    FFmpeg and in JASSUB start each word's sweep on its planned frame (the graph sets
     ``settb=den/num``). The header, the ``classic``/``karaoke`` style lines and the
     ``legacy-bar`` hook equal ``build_ass`` for the same size, so revision 0 looks the same.
     Emphasised words get the ``emphasis`` colour (defect #6); all text goes through

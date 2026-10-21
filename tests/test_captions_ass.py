@@ -166,14 +166,17 @@ def test_karaoke_words_turn_highlight_colour_as_they_are_spoken():
     events = _events(document)
     assert [event["Style"] for event in events] == ["Karaoke", "Karaoke"]
     first = events[0]
-    durations = [int(value) for value in re.findall(r"\{\\k(\d+)\}", first["Text"])]
+    # \kf sweeps each word from left to right over the durations \k switched it on.
+    assert first["Text"] == "{\\kf35}Kode {\\kf55}rahasia {\\kf80}copet"
+    durations = [int(value) for value in re.findall(r"\{\\kf(\d+)\}", first["Text"])]
     assert durations == [35, 55, 80]
     assert sum(durations) == _centiseconds(first["End"]) - _centiseconds(first["Start"])
     assert _TAG.sub("", first["Text"]) == "Kode rahasia copet"
     second = events[1]
     assert second["Start"] == "0:01:03.21"
-    second_durations = [int(value) for value in re.findall(r"\{\\k(\d+)\}", second["Text"])]
+    second_durations = [int(value) for value in re.findall(r"\{\\kf(\d+)\}", second["Text"])]
     assert sum(second_durations) == _centiseconds(second["End"]) - _centiseconds(second["Start"])
+    assert not re.search(r"\\k\d", document)  # no switch-on \k left
 
 
 def test_karaoke_can_uppercase_words():
@@ -404,7 +407,9 @@ def test_cue_beyond_clip_duration_is_rejected():
 # --- legacy bytes stay identical (T1.2a adds build_ass_v2 next to build_ass) --------------------
 
 # sha256 over build_caption_cues/cues_to_srt and 108 build_ass documents, recorded on the wave
-# base (a2bd7b2) before any T1.2a change. The V1 and v2-shadow paths keep calling these.
+# base (a2bd7b2) before any T1.2a change. The V1 and v2-shadow paths keep calling these. The
+# karaoke sweep (\kf, CONTRACTS §5.47) is the one change since: with its tags read back as \k
+# the bytes are the pinned ones, so every duration is the old one.
 LEGACY_PIN = "d2b08717ca80884e4976bf23aa5284530f95249e9e7d1a054bbe7abe1148e835"
 
 
@@ -434,10 +439,13 @@ def test_legacy_build_ass_and_caption_cue_bytes_are_unchanged():
         for style in ("classic", "karaoke"):
             for upper in (False, True):
                 for hook in hooks:
-                    digest.update(build_ass(cues, width=width, height=height,
-                                            duration=sum(b - a for a, b in ranges),
-                                            caption_style=style, hook_text=hook,
-                                            hook_duration=3.5, uppercase=upper).encode())
+                    document = build_ass(cues, width=width, height=height,
+                                         duration=sum(b - a for a, b in ranges),
+                                         caption_style=style, hook_text=hook,
+                                         hook_duration=3.5, uppercase=upper)
+                    assert ("{\\kf" in document) == (style == "karaoke")
+                    assert not re.search(r"\\k\d", document)
+                    digest.update(document.replace("{\\kf", "{\\k").encode())
     assert digest.hexdigest() == LEGACY_PIN
 
 
@@ -450,7 +458,7 @@ OVERRIDES = {pack: dict(PACK_DEFAULT_OVERRIDES[pack]) for pack in PACK_IDS}
 STYLE_NAMES = {"classic": "Caption", "karaoke": "Karaoke", "bold": "Bold", "box": "Box",
                "sorot": "Sorot"}
 _OWN_TAG = re.compile(r"(?<!\\)\{([^}]*)\}")
-_CAPTION_TAG = re.compile(r"(\\(k\d+|1c&H[0-9A-F]{6}&|2c&H[0-9A-F]{6}&|q2|fs\d+))+")
+_CAPTION_TAG = re.compile(r"(\\(kf\d+|1c&H[0-9A-F]{6}&|2c&H[0-9A-F]{6}&|q2|fs\d+))+")
 # The Sorot pack places each word and its box itself: position, no border on the spoken word,
 # and the box drawing (plus the tags of the other packs).
 _SOROT_TAG = re.compile(r"(\\(an2|pos\(\d+(\.\d{1,2})?,\d+\)|q2|fs\d+|bord0|shad0|p[01]"
@@ -636,7 +644,7 @@ def test_event_times_are_frame_safe(rate, pack):
     assert {e["Layer"] for e in events} == {"0"}
 
 
-def test_karaoke_k_switches_each_word_at_its_frame_and_sums_to_the_cue():
+def test_karaoke_kf_sweeps_each_word_from_its_frame_and_sums_to_the_cue():
     fps = Fps(25, 1)
     cues = (_fcue((0, 7, "Kode"), (7, 21, "rahasia"), (21, 40, "copet"), f1=45),
             _fcue((803, 810, "mutus"), (812, 830, "mutus!")))
@@ -645,9 +653,13 @@ def test_karaoke_k_switches_each_word_at_its_frame_and_sums_to_the_cue():
 
     style = _styles(document)["Karaoke"]
     assert (style["PrimaryColour"], style["SecondaryColour"]) == ("&H004DE1FF", "&H00FFFFFF")
+    # The durations \k had (differences of frame-safe centiseconds), now as sweeps.
+    assert [event["Text"] for event in _events(document)] == [
+        "{\\kf27}Kode {\\kf56}rahasia {\\kf96}copet", "{\\kf36}mutus {\\kf72}mutus!"]
+    assert not re.search(r"\\k\d", document)
     for event, cue in zip(_events(document), cues, strict=True):
         start, end = _centiseconds(event["Start"]), _centiseconds(event["End"])
-        durations = [int(v) for v in re.findall(r"\\k(\d+)", event["Text"])]
+        durations = [int(v) for v in re.findall(r"\\kf(\d+)", event["Text"])]
         assert sum(durations) == end - start
         onsets = [start + sum(durations[:i]) for i in range(1, len(durations))]
         assert onsets == [safe_cs(word.f0, fps) for word in cue.words[1:]]
@@ -837,7 +849,7 @@ def test_emphasis_colour_wraps_the_word_and_is_reset_after_it():
     for event in _events(_v2((cue,), "bold")):
         assert "{\\1c" + PINK + "}BUKAN{\\1c" + WHITE + "}" in event["Text"]
     [karaoke] = _events(_v2((cue,), "karaoke"))
-    assert re.search(r"\{\\k\d+\\1c" + PINK + r"\\2c" + PINK + r"\}bukan\{\\1c" + YELLOW
+    assert re.search(r"\{\\kf\d+\\1c" + PINK + r"\\2c" + PINK + r"\}bukan\{\\1c" + YELLOW
                      + r"\\2c" + WHITE + r"\}", karaoke["Text"])
 
 

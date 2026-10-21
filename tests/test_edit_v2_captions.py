@@ -492,6 +492,60 @@ def test_ptime_expected_events_match_the_emitted_events():
     assert set(counts["rates"]) == {"24/1", "25/1", "30/1", "24000/1001", "30000/1001"}
 
 
+def test_ptime_checks_every_karaoke_sweep_that_starts_inside_its_line():
+    # \kf: each plain word with an onset inside the line sweeps from that onset to the next one
+    # (or the line's end); a keyword keeps its colour, so its sweep is not seen.
+    for case in edit_v2_text.ptime_cases(quick=False):
+        if case.pack != "karaoke":
+            continue
+        cues = fit_cues(case.cues, pack=load_pack("karaoke", 1), play_res=case.play_res,
+                        overrides=edit_v2_text.PACK_DEFAULT_OVERRIDES["karaoke"])
+        for cue, event in zip(cues, edit_v2_text.expected_events(case), strict=False):
+            ends = [word.f0 for word in cue.words[1:]] + [cue.f1]
+            assert event.sweeps == tuple(
+                edit_v2_text.Sweep(index, word.f0, ends[index])
+                for index, word in enumerate(cue.words)
+                if index and cue.f0 < word.f0 < cue.f1 and not word.emphasis), case.name
+            assert event.onsets == tuple(sweep.f0 for sweep in event.sweeps)
+
+
+def test_an_isolated_sweep_keeps_the_timing_and_lights_only_its_word():
+    case = next(case for case in edit_v2_text.ptime_cases(quick=True) if case.pack == "karaoke")
+    _header, lines = edit_v2_text.split_events(edit_v2_text.case_ass(case))
+    line = lines[0]
+    lit, unlit = "&H4DE1FF&", "&HFFFFFF&"
+
+    alone = edit_v2_text.isolate_sweep(line, 1, lit=lit, unlit=unlit)
+
+    blocks = edit_v2_text.KF_BLOCK.findall(alone)
+    assert [(tag, duration) for tag, duration, _rest in blocks] == [
+        (tag, duration) for tag, duration, _rest in edit_v2_text.KF_BLOCK.findall(line)]
+    assert {tag for tag, _duration, _rest in blocks} == {"kf"}
+    assert [rest.endswith(f"\\1c{lit}\\2c{unlit}") for _tag, _duration, rest in blocks] == [
+        index == 1 for index in range(len(blocks))]
+    assert all(rest.endswith(f"\\1c{unlit}\\2c{unlit}") for index, (_t, _d, rest)
+               in enumerate(blocks) if index != 1)
+    assert edit_v2_text.KF_BLOCK.sub("", alone) == edit_v2_text.KF_BLOCK.sub("", line)
+    with pytest.raises(edit_v2_text.GateError):
+        edit_v2_text.isolate_sweep(line, len(blocks), lit=lit, unlit=unlit)
+
+
+def test_ptime_tells_a_sweep_from_a_switch_on_k(edit_v2_libass):
+    # The same line with \k instead of \kf lights each word at once: the gate must see that.
+    case = next(case for case in edit_v2_text.ptime_cases(quick=True) if case.pack == "karaoke")
+    header, lines = edit_v2_text.split_events(edit_v2_text.case_ass(case))
+    line, event = next((line, event) for line, event in zip(
+        lines, edit_v2_text.expected_events(case), strict=True) if event.sweeps)
+    blank = edit_v2_text.render_frames(header, case.fps, case.play_res, [0])[0][0]
+
+    swept = edit_v2_text.check_event(case, header, line, event, blank)
+    switched = edit_v2_text.check_event(case, header, line.replace("{\\kf", "{\\k"), event,
+                                        blank)
+
+    assert swept["problems"] == []
+    assert {problem["check"] for problem in switched["problems"]} == {"sweep_moves"}
+
+
 def test_ptime_ffmpeg_subset_has_no_mismatch(edit_v2_libass):
     report = edit_v2_text.run_ptime(quick=True, jobs=2)
 

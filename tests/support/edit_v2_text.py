@@ -16,8 +16,11 @@ the production output of ``captions_ass.build_ass_v2``. Every Dialogue line is r
 own** (the same header and styles plus that one line, byte for byte) by FFmpeg's ``ass`` filter
 with ``settb=den/num`` and the frame index as pts (the graph rule of plan §3.4), at the frames
 around its plan window ``[a, b)``. Expected: invisible at ``a − 1``, visible from ``a`` to
-``b − 1``, invisible at ``b``; each karaoke onset ``k`` changes the picture between ``k − 1`` and
-``k`` and not next to it. The one designed exception is a ``\\fad`` fade-in at ``now == Start``
+``b − 1``, invisible at ``b``. A karaoke word sweeps (``\\kf``) from its onset ``k`` to the next
+onset (or the line's end) ``e``; each sweep is checked on a copy of the line in which only that
+word changes colour (``isolate_sweep``): the same picture at ``k − 2`` and ``k − 1``, a new one at
+``k + 1``, still moving between ``k + 1`` and ``e − 1``, and the same picture at ``e`` and
+``e + 1``. The one designed exception is a ``\\fad`` fade-in at ``now == Start``
 (frame 0 of a hook that starts at frame 0), which is fully transparent in libass and JASSUB alike.
 The ``box`` pack is measured twice: as shipped (BorderStyle 3) and as its ``\\p`` vector variant
 (plan §5.4), whose box events are rendered on grey (a translucent black box on black is not
@@ -176,12 +179,23 @@ class PtimeCase:
 
 
 @dataclass(frozen=True)
+class Sweep:
+    word: int  # index of the word's \kf block in its line
+    f0: int  # onset: the sweep starts on this frame
+    f1: int  # the next onset or the line's end: the sweep is complete on this frame
+
+
+@dataclass(frozen=True)
 class ExpectedEvent:
     a: int  # first frame of the plan window
     b: int  # frame after the window
-    onsets: tuple[int, ...]  # karaoke switches strictly inside (a, b)
+    sweeps: tuple[Sweep, ...]  # karaoke words whose sweep starts strictly inside (a, b)
     fade: bool  # \fad(…) event: fully transparent when now == Start
     kind: str  # "caption" | "hook"
+
+    @property
+    def onsets(self) -> tuple[int, ...]:
+        return tuple(sweep.f0 for sweep in self.sweeps)
 
 
 def _cue(boundary: int, role: int, index: int) -> FrameCue:
@@ -246,11 +260,13 @@ def expected_events(case: PtimeCase) -> list[ExpectedEvent]:
                        for a, b in zip(starts, ends, strict=True) if a < b
                        for _copy in range(copies)]
         elif case.pack == "karaoke":
-            # An emphasised word keeps the emphasis colour before and after its switch, so only
-            # the other words change the picture at their onset.
-            onsets = sorted({w.f0 for w in cue.words[1:]
-                             if cue.f0 < w.f0 < cue.f1 and not w.emphasis})
-            events.append(ExpectedEvent(cue.f0, cue.f1, tuple(onsets), False, "caption"))
+            # An emphasised word keeps the emphasis colour before and after its sweep, so only
+            # the other words change the picture.
+            ends = [word.f0 for word in cue.words[1:]] + [cue.f1]
+            sweeps = tuple(Sweep(index, word.f0, ends[index])
+                           for index, word in enumerate(cue.words)
+                           if index and cue.f0 < word.f0 < cue.f1 and not word.emphasis)
+            events.append(ExpectedEvent(cue.f0, cue.f1, sweeps, False, "caption"))
         else:
             # The vector box is its own event (the rectangle) right before the line.
             copies = 2 if pack.box_style == "vector" else 1
@@ -400,13 +416,64 @@ def _probe_frames(event: ExpectedEvent, fps: Fps, start_cs: int) -> list[int]:
         frames.add(event.a - 1)
     if not expected_visible(event, event.a, fps, start_cs=start_cs):
         frames.add(event.a + 1)  # the first visible frame after a transparent fade start
-    for onset in event.onsets:
-        frames.update({onset - 2, onset - 1, onset, onset + 1})
     return sorted(frame for frame in frames if frame >= 0)
 
 
-def _check_event(case: PtimeCase, header: str, line: str, event: ExpectedEvent,
-                 blank: str) -> dict[str, Any]:
+KF_BLOCK = re.compile(r"\{\\(kf?)(\d+)([^}]*)\}")
+
+
+def isolate_sweep(line: str, word: int, *, lit: str, unlit: str) -> str:
+    """``line`` with only word ``word`` changing colour: every other karaoke block ends in
+    ``\\1c<unlit>\\2c<unlit>``, the word's in ``\\1c<lit>\\2c<unlit>``. Tags, durations and text
+    stay, so the word sweeps on the frames of the shipped line and nothing else moves."""
+    seen = 0
+
+    def recolour(match: re.Match[str]) -> str:
+        nonlocal seen
+        first = lit if seen == word else unlit
+        seen += 1
+        return f"{{\\{match[1]}{match[2]}{match[3]}\\1c{first}\\2c{unlit}}}"
+
+    alone = KF_BLOCK.sub(recolour, line)
+    if not 0 <= word < seen:
+        raise GateError(f"no karaoke word {word} in the line")
+    return alone
+
+
+def _ass_colour(colour: str) -> str:
+    return f"&H{colour[5:7]}{colour[3:5]}{colour[1:3]}&"
+
+
+def _check_sweep(case: PtimeCase, header: str, line: str, event: ExpectedEvent,
+                 sweep: Sweep) -> tuple[int, list[dict[str, Any]]]:
+    pack = case_pack(case)
+    alone = isolate_sweep(line, sweep.word, unlit=_ass_colour(pack.text_colour),
+                          lit=_ass_colour(PACK_DEFAULT_OVERRIDES[case.pack]["highlight"]))
+    before, start, end = sweep.f0 - 1, sweep.f0 + 1, sweep.f1
+    frames = sorted({frame for frame in (before - 1, before, start, end - 1, end, end + 1)
+                     if event.a <= frame < event.b})
+    digests, _stderr = render_frames(header + alone + "\n", case.fps, case.play_res, frames,
+                                     background=case.background)
+    seen = dict(zip(frames, digests, strict=True))
+    hazard = is_hazard(sweep.f0, case.fps)
+    problems = []
+
+    def expect(check: str, first: int, second: int, *, same: bool) -> None:
+        if first in seen and second in seen and first < second and (
+                (seen[first] == seen[second]) != same):
+            problems.append({"frame": second, "check": check, "expected": same,
+                             "seen": not same, "hazard": hazard})
+
+    expect("sweep_early", before - 1, before, same=True)  # not lit before its onset
+    expect("sweep_start", before, start, same=False)
+    expect("sweep_moves", start, end - 1, same=False)  # a sweep, not a switch
+    expect("sweep_late", end, end + 1, same=True)  # complete at the next onset
+    return len(frames), problems
+
+
+def check_event(case: PtimeCase, header: str, line: str, event: ExpectedEvent,
+                blank: str) -> dict[str, Any]:
+    """Render ``line`` (and each of its sweeps on its own) and compare with the plan frames."""
     start_cs = event_start_cs(line)
     frames = _probe_frames(event, case.fps, start_cs)
     digests, _stderr = render_frames(header + line + "\n", case.fps, case.play_res, frames,
@@ -419,20 +486,12 @@ def _check_event(case: PtimeCase, header: str, line: str, event: ExpectedEvent,
         if seen != wanted:
             problems.append({"frame": frame, "check": "visible", "expected": wanted,
                              "seen": seen, "hazard": is_hazard(frame, case.fps)})
-    onset_set = set(event.onsets)
-    for onset in event.onsets:
-        if by_frame[onset - 1] == by_frame[onset]:
-            problems.append({"frame": onset, "check": "onset_switch", "expected": True,
-                             "seen": False, "hazard": is_hazard(onset, case.fps)})
-        if onset - 2 >= event.a and onset - 1 not in onset_set and \
-                by_frame[onset - 2] != by_frame[onset - 1]:
-            problems.append({"frame": onset - 1, "check": "onset_early", "expected": False,
-                             "seen": True, "hazard": is_hazard(onset, case.fps)})
-        if onset + 1 < event.b and onset + 1 not in onset_set and \
-                by_frame[onset] != by_frame[onset + 1]:
-            problems.append({"frame": onset + 1, "check": "onset_late", "expected": False,
-                             "seen": True, "hazard": is_hazard(onset, case.fps)})
-    return {"frames": len(frames), "problems": problems}
+    rendered = len(frames)
+    for sweep in event.sweeps:
+        count, found = _check_sweep(case, header, line, event, sweep)
+        rendered += count
+        problems += found
+    return {"frames": rendered, "problems": problems}
 
 
 def run_ptime(*, quick: bool = False, jobs: int = 2) -> dict[str, Any]:
@@ -453,7 +512,7 @@ def run_ptime(*, quick: bool = False, jobs: int = 2) -> dict[str, Any]:
         tasks += [(case, header, line, event, blanks[key])
                   for line, event in zip(lines, events, strict=True)]
     with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, jobs)) as pool:
-        results = list(pool.map(lambda task: _check_event(*task), tasks))
+        results = list(pool.map(lambda task: check_event(*task), tasks))
 
     report: dict[str, Any] = {"task": "T1.2a", "gate": "P-TIME (FFmpeg side)", "quick": quick,
                               "rates": {}, "events": 0, "boundaries": 0,
