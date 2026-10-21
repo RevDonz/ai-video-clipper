@@ -193,7 +193,16 @@ def caption_over_face_issues(doc: Mapping[str, Any], plan: Mapping[str, Any] | N
                              output: tuple[int, int]) -> tuple[Issue, ...]:
     """The ``caption_over_face`` warning of ``doc`` (at most one), from the camera plan's
     ``faces``; ``cues`` are the caption cues (``f0``/``f1`` output frames). See the module
-    docstring."""
+    docstring. A camera plan this cannot read (a face-only plan whose samples the crop
+    rejects) gives no warning: a warning never stops the plan."""
+    try:
+        return _issues(doc, plan, pieces, cues, output)
+    except (ValueError, TypeError, KeyError, IndexError):
+        return ()
+
+
+def _issues(doc: Mapping[str, Any], plan: Mapping[str, Any] | None, pieces: Sequence[tm.Piece],
+            cues: Sequence[Any], output: tuple[int, int]) -> tuple[Issue, ...]:
     captions = doc["captions"]
     if plan is None or not captions["enabled"] or not cues:
         return ()

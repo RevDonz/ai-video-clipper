@@ -244,3 +244,9 @@ def test_malformed_faces_are_ignored(faces):
     plan = face_plan([LOW] * 8)
     plan["faces"] = faces
     assert issues(doc_with(), plan) == ()
+
+
+def test_a_plan_the_crop_rejects_gives_no_warning():
+    plan = face_plan([LOW] * 8)
+    plan["samples"][3][0] = plan["samples"][2][0]  # not increasing: crop_positions refuses it
+    assert issues(doc_with(mode="camera"), plan) == ()
