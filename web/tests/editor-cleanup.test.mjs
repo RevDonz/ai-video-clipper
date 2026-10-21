@@ -311,7 +311,7 @@ test("Terapkan (n) is one ApplyCleanup that cuts at Python's edges, and one undo
 });
 
 test("the automatic clip's pause trims are what ApplyCleanup cuts, and Rapikan counts them applied", () => {
-  // CONTRACTS §5.57: the seed of an automatic clip carries the removals Python's
+  // CONTRACTS §5.58: the seed of an automatic clip carries the removals Python's
   // cleanup.auto_pause_removals makes (pytest keeps auto-pauses-c30.json current).
   const items = AUTO_PAUSES.items.map(({ id, kind, afterWord, inSf, outSf }) => ({ id, kind, afterWord, inSf, outSf }));
   const applied = applyCommand(c30.seed, "ApplyCleanup", { items }, ctx).doc;

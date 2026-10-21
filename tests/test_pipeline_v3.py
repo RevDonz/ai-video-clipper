@@ -2369,7 +2369,7 @@ def test_the_caption_look_reaches_the_seed_options(env, monkeypatch, fake_engine
 @pytest.mark.parametrize(("value", "trim"), [(None, True), ("on", True), ("off", False)])
 def test_the_pause_trim_switch_reaches_the_seed_options(env, monkeypatch, fake_engine, value,
                                                         trim):
-    """CONTRACTS §5.57: POTONGIN_AUTO_PAUSE_TRIM=off is the rollback switch."""
+    """CONTRACTS §5.58: POTONGIN_AUTO_PAUSE_TRIM=off is the rollback switch."""
     monkeypatch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: result(*TWO_CLIPS))
     if value is None:
         monkeypatch.delenv("POTONGIN_AUTO_PAUSE_TRIM", raising=False)

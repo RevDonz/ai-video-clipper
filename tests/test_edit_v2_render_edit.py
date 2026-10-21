@@ -1148,7 +1148,7 @@ def test_the_no_face_length_and_the_output_length_skip_the_removed_frames():
     assert render_edit.output_seconds(document) == pytest.approx(8.0)
 
 
-# --- automatic pause trims (CONTRACTS §5.57) -----------------------------------------------------
+# --- automatic pause trims (CONTRACTS §5.58) -----------------------------------------------------
 
 
 @pytest.mark.parametrize(("value", "on"), [

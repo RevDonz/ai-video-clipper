@@ -4,7 +4,7 @@ Evaluasi ini mengukur berapa banyak jeda hening (dead air) yang dibuang dari kli
 potong jeda otomatis, sebelum fitur itu dinyalakan. Ulangi setiap kali aturan jeda di
 `src/ai_clipper/edit_v2/cleanup.py` berubah.
 
-Kode: `cleanup.auto_pause_removals` (kontrak: `docs/editor/CONTRACTS.md` §5.57). Harness:
+Kode: `cleanup.auto_pause_removals` (kontrak: `docs/editor/CONTRACTS.md` §5.58). Harness:
 `scripts/eval/pause_trim.py`. Hasil terakhir: `docs/evaluation/pause-trim/result-whisper-2026-10-21.json`
 dan `docs/evaluation/pause-trim/result-yt-2026-10-21.json`.
 

@@ -51,7 +51,7 @@ test(".env.example names every flag with its release default and how to switch i
   }
 });
 
-test("the primary worker trims the automatic clips' silent pauses unless .env turns it off (CONTRACTS §5.57)", async () => {
+test("the primary worker trims the automatic clips' silent pauses unless .env turns it off (CONTRACTS §5.58)", async () => {
   const source = await compose();
   assert.match(service(source, "primary-worker"), /^ {6}POTONGIN_AUTO_PAUSE_TRIM: \$\{POTONGIN_AUTO_PAUSE_TRIM:-on\}$/m);
   for (const name of ["app", "render-worker"]) assert.doesNotMatch(service(source, name), /POTONGIN_AUTO_PAUSE_TRIM/, name);

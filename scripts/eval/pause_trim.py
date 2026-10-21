@@ -4,7 +4,7 @@
 For every labelled moment of ``docs/evaluation/gold/*.gold.json`` (the selection benchmark's
 clip-sized spans) this builds the words artifact the pipeline would build (the transcript, the
 audio timeline, the caption tags and, with ``--peaks``, the clip's audio peaks) and runs
-``cleanup.auto_pause_removals`` over the span as the body (CONTRACTS §5.57). Nothing is
+``cleanup.auto_pause_removals`` over the span as the body (CONTRACTS §5.58). Nothing is
 rendered; ``--peaks`` decodes the audio of each window once (FFmpeg, mono 16 kHz).
 
 The episode files are not committed: ``--eval-root`` is a folder with one directory per

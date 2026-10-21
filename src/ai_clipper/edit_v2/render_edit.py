@@ -21,7 +21,7 @@ the seed ``prepare`` would build for the same job use the same inputs. Per clip 
 in its asset store and in every seed, so the auto clip carries it; a default text watermark
 (``<job>/watermark.json``) likewise. Unless ``POTONGIN_AUTO_PAUSE_TRIM`` is off
 (:func:`pause_trim_from_env`, ``AutoOptions.trim_pauses``) the seed also trims the body's silent
-pauses to 0.2 s (``cleanup.auto_pause_removals``, CONTRACTS §5.57), so the file and the editor's
+pauses to 0.2 s (``cleanup.auto_pause_removals``, CONTRACTS §5.58), so the file and the editor's
 revision 0 have the same cuts; ``AutoClip.seconds`` is the trimmed length. When the new engine fails
 for a clip the pipeline renders that clip
 with the legacy engine (``engine_fallback:<rank>``); :meth:`AutoRenderer.fallback` first removes
@@ -186,7 +186,7 @@ def engine_from_env(env: Mapping[str, str] | None = None) -> str:
 
 
 def pause_trim_from_env(env: Mapping[str, str] | None = None) -> bool:
-    """Whether the automatic clips trim their silent pauses (CONTRACTS §5.57): on unless
+    """Whether the automatic clips trim their silent pauses (CONTRACTS §5.58): on unless
     ``POTONGIN_AUTO_PAUSE_TRIM`` is ``off``, ``0``, ``false`` or ``no`` (any case, outer spaces
     ignored: the rollback switch)."""
     value = (os.environ if env is None else env).get(PAUSE_TRIM_ENV)
@@ -952,7 +952,7 @@ class AutoOptions:
     cold_open_join: ColdOpenJoin = CUT_JOIN
     caption_position: str = "bottom"  # CAPTION_POSITIONS (CONTRACTS §5.48)
     caption_size: str = "medium"  # CAPTION_SIZES
-    # Silent pauses in the body shrink to 0.2 s (CONTRACTS §5.57; pause_trim_from_env).
+    # Silent pauses in the body shrink to 0.2 s (CONTRACTS §5.58; pause_trim_from_env).
     trim_pauses: bool = True
 
     def job(self, job_id: str, seed_at_ms: int) -> dict[str, Any]:

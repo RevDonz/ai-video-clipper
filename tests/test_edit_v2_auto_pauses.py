@@ -1,4 +1,4 @@
-"""Automatic pause trimming in the seed of an automatic clip (CONTRACTS §5.57).
+"""Automatic pause trimming in the seed of an automatic clip (CONTRACTS §5.58).
 
 ``cleanup.auto_pause_removals`` turns the Rapikan ``gap_silent`` items that lie inside the body
 into the removals ``ApplyCleanup`` would write, so the automatic file and the editor's revision 0

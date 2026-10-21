@@ -30,7 +30,7 @@ pack defaults, CONTRACTS §5.48) plus optional seed-context keys that never occu
   (Pengaturan, CONTRACTS §5.43) as :func:`job_watermark` reads it. The seed carries it as its
   ``watermark``; anything outside the document's ranges is refused. Missing or null: none.
 * ``pauseRemovals``: the pause trims of an automatic clip (``cleanup.auto_pause_removals``,
-  CONTRACTS §5.57), the seed's ``main.removals``. Only a pipeline seed takes them (a ``prepare``
+  CONTRACTS §5.58), the seed's ``main.removals``. Only a pipeline seed takes them (a ``prepare``
   seed describes a file the legacy engine rendered without trims); each must be a ``gap_silent``
   removal from a Rapikan suggestion inside the body, sorted and apart, and the body must keep at
   least 3 s. Missing, null or empty: none (``removals`` stays ``[]``).
@@ -574,7 +574,7 @@ def _hook_text(text: str) -> str:
 
 
 def _pause_removals(job: Mapping, plan: _ClipPlan, by: str) -> list[dict[str, Any]]:
-    """The seed's ``main.removals``: the job's ``pauseRemovals`` (CONTRACTS §5.57), checked to
+    """The seed's ``main.removals``: the job's ``pauseRemovals`` (CONTRACTS §5.58), checked to
     be pause trims (``gap_silent`` from a Rapikan suggestion) inside the body, sorted and apart,
     that leave the body at least 3 s long. Missing, null or empty: none."""
     removals = job.get("pauseRemovals")

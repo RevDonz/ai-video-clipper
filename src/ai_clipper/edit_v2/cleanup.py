@@ -64,7 +64,7 @@ peaks (tests, the labelled set) no level is checked, and tight cuts are still re
 ``wordIds``, ``afterWord``, ``inSf`` and ``outSf`` are exactly the ``ApplyCleanup`` item shape
 (CONTRACTS §5.17).
 
-**Automatic clips** (:func:`auto_pause_removals`, CONTRACTS §5.57): the seed of an automatic
+**Automatic clips** (:func:`auto_pause_removals`, CONTRACTS §5.58): the seed of an automatic
 clip carries the removals ``ApplyCleanup`` would write for the ``gap_silent`` items between two
 words of its body, except those within 500 ms of a laughter, applause, cheer or music tag, and
 none when the body would keep less than 3 s.
@@ -599,7 +599,7 @@ def build_cleanup(words: Mapping[str, Any], *, lexicon: Lexicon | None = None,
 def auto_pause_removals(words: Mapping[str, Any], *, body: Mapping[str, Any],
                         peaks: bytes | None = None,
                         lexicon: Lexicon | None = None) -> list[dict[str, Any]]:
-    """The pause trims of an automatic clip's seed (CONTRACTS §5.57): the removals
+    """The pause trims of an automatic clip's seed (CONTRACTS §5.58): the removals
     ``ApplyCleanup`` writes for every ``gap_silent`` item of :func:`build_cleanup` that lies
     between two words of ``body`` (the seed's body segment) and has no laughter,
     applause, cheer or music tag within ``AUTO_PAUSE_LOCK_MS``. The editor's Rapikan then lists
