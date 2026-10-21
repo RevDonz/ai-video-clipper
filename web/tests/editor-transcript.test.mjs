@@ -448,3 +448,17 @@ test("Ctrl+click (Cmd+click on macOS) on a word toggles it as Kata kunci; a plai
   assert.equal(keywordHint({ mac: false, on: false }), "Ctrl+klik: jadikan kata kunci");
   assert.equal(keywordHint({ mac: true, on: true }), "⌘+klik: batalkan kata kunci");
 });
+
+// The status line above the words changes from the click hint to "n kata dipilih" on mousedown.
+// The hint wraps at the panel width, so the line keeps the hint's height at all times: otherwise
+// the words move up under the pointer between mousedown and mouseup, and the click, double click
+// and drag land on another word.
+test("the transcript status line keeps the hint's height when a selection replaces it", () => {
+  const source = readFileSync(new URL("../components/editor/transcript/TranscriptPanel.jsx", import.meta.url), "utf8");
+  const css = readFileSync(new URL("../components/editor/transcript/transcript.module.css", import.meta.url), "utf8");
+  assert.match(source, /<span className=\{styles\.statusSizer\} aria-hidden="true">\{hint\}<\/span>/);
+  assert.match(source, /const status = range\s*\?[^:]+:\s*hint;/);
+  assert.match(css, /\.statusRow\s*\{[^}]*display:\s*grid;/);
+  assert.match(css, /\.statusRow > \*\s*\{[^}]*grid-area:\s*1 \/ 1;/);
+  assert.match(css, /\.statusSizer\s*\{[^}]*visibility:\s*hidden;/);
+});

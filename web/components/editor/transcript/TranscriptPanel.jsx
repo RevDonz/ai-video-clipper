@@ -479,9 +479,10 @@ function Transcript({ state, dispatch, player, api, llmEnabled }) {
   const selFirst = range ? range[0] : -1;
   const selLast = range ? range[1] : -1;
   const list = words.words;
+  const hint = `Klik kata untuk memilih; Shift+klik untuk rentang; ${mac ? "⌘" : "Ctrl"}+klik untuk kata kunci.`;
   const status = range
     ? `${selLast - selFirst + 1} kata dipilih · ${SECONDS.format(spanMs(list, selFirst, selLast) / 1000)} dtk`
-    : `Klik kata untuk memilih; Shift+klik untuk rentang; ${mac ? "⌘" : "Ctrl"}+klik untuk kata kunci.`;
+    : hint;
   const coldOpen = coldOpenInfo(model);
   const hiddenBefore = model.paragraphs.slice(0, showFrom);
   const hiddenAfter = model.paragraphs.slice(showTo);
@@ -512,7 +513,11 @@ function Transcript({ state, dispatch, player, api, llmEnabled }) {
             ) : null}
           </span>
         </div>
-        <p className={styles.status} role="status" data-transcript-status="">{status}</p>
+        {/* The line keeps the hint's height (it wraps), so the words never move under the pointer. */}
+        <div className={styles.statusRow}>
+          <span className={styles.statusSizer} aria-hidden="true">{hint}</span>
+          <p className={styles.status} role="status" data-transcript-status="">{status}</p>
+        </div>
         {message ? <p className={styles.message} role="alert" data-transcript-message="">{message}</p> : null}
         {coldOpen ? (
           <p className={styles.coldNote}>
