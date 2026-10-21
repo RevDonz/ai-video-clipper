@@ -914,7 +914,8 @@ def test_hook_text_and_karaoke_are_burned_while_srt_stays_plain(tmp_path: Path, 
     ass = captured["ass"][0]
     dialogues = _dialogues(ass)
     assert dialogues[0] == (
-        "Dialogue: 0,0:00:00.10,0:00:01.30,Karaoke,,0,0,0,,{\\k30}Gue {\\k40}bukan {\\k50}jambret."
+        "Dialogue: 0,0:00:00.10,0:00:01.30,Karaoke,,0,0,0,,"
+        "{\\kf30}Gue {\\kf40}bukan {\\kf50}jambret."
     )
     hook_lines = [line for line in dialogues if ",Hook," in line]
     assert hook_lines

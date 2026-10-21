@@ -2066,8 +2066,29 @@ byte-identically). Built on branch `adopsi/mesin-otomatis` with targeted local t
 | Engine default | edit-v2 unless the flag says `legacy`; Python and web read it the same way | unset, empty, `edit-v2`, `EDIT-V2`, `v2`, `on` → edit-v2; `legacy`, ` Legacy `, `LEGACY` → legacy | `tests/test_edit_v2_render_edit.py`, `tests/test_pipeline_v3.py`, `web/tests/editor-store.test.mjs`, `web/tests/editor-w3-wiring.test.mjs` | **pass** (local) |
 | Per-clip timeout under the quota | no clip may time out at the measured cost | T4.3 CPU seconds over 3 CPUs per slot: ± 0.45 s per output second; 190 s clip ± 85 s of 300 s | `T4.3-PF-PIPELINE.json`, CONTRACTS §5.48 | **pass** (estimate; no budget raised) |
 | Job options | every pack, spot and size accepted and stored; unknown values refused; old jobs unchanged; V3 only | form, persisted and argv cases | `web/tests/caption-look.test.mjs`, `web/tests/selection-v3.test.mjs`, `tests/test_cli.py` | **pass** (local) |
-| Seed from the options | the pack and overrides `y_e5`/`size_pm`; bottom + medium = a job without them, byte for byte; every pack × spot validates on every fixture context | 5 packs × 3 spots × 3 sizes | `tests/test_edit_v2_seed.py`, `tests/test_pipeline_v3.py` | **pass** (local) |
+| Seed from the options | the pack and overrides `y_e5`/`size_pm`; bottom + medium = a job without them, byte for byte; every pack × spot validates on every fixture context | 6 packs × 3 spots × 3 sizes (Sinar included since §5.49) | `tests/test_edit_v2_seed.py`, `tests/test_pipeline_v3.py` | **pass** (local) |
 | Legacy rollback honesty | legacy draws a pack as Klasik/Karaoke at the bottom; its auto file stands for a seed only at that look; the dashboard offers only that look | per pack | `tests/test_captions_ass.py`, `tests/test_edit_v2_doc.py`, `web/tests/editor-shell-model.test.mjs`, `web/tests/caption-look.test.mjs` | **pass** (local) |
 | Dashboard preview | the thumbnail at the spot and size the job renders; the TikTok zone note only at Bawah; the backdrop keyed out | geometry and key vectors | `web/tests/caption-look.test.mjs`, `web/tests/look-preview.test.mjs` | **pass** (local) |
 | Dashboard in a browser | pack, Atas, Besar reach the POST and the preview; the legacy engine offers two styles and sends no spot or size; 44 px targets at 360 px | `e2e/dashboard.spec.mjs` (two new tests, the existing ones updated) | | pending: `editor-gates suite=e2e command=e2e/dashboard.spec.mjs` |
 | PF-PIPELINE / seed gates on the production image | unchanged thresholds | | | pending: `editor-gates suite=image` and `suite=full` |
+
+## Karaoke sweep and Sinar (2026-10-21)
+
+`\kf` replaces `\k` and the Sinar pack ships (CONTRACTS §5.49); `RENDER_SEMANTICS` is 2. Built
+on branch `adopsi/karaoke-kf` with targeted local tests only; the gates that need the production
+image or a browser run on GitHub Actions when the branch is pushed.
+
+| Gate | What | Threshold | Result |
+|---|---|---|---|
+| Same timing | every `\kf` duration equals the old `\k` one (legacy bytes pinned with `\kf` read as `\k`; `build_ass_v2` onsets = `safe_cs` of each word's frame) | identical | **pass** (local pytest) |
+| P-TIME, FFmpeg side (quick subset) | every event on its frames; each sweep still before its onset, moving until the next, complete after; Sinar's glow and line on their frames | 0 mismatches; the `\k` control fails `sweep_moves` | **pass** on the local FFmpeg 6.1.1 + libass 0.17.1; the full matrix: `editor-gates suite=command` (below) |
+| ASS goldens | every karaoke golden rewritten with `\kf`; `sinar__c30` added; the others byte-identical | bytes equal a fresh render | **pass** (local); golden evidence in the image: `suite=command` |
+| Sinar rules | the pack file, the glow tags at both output sizes, one line and a shrunk wide word in both events, keywords, the glow refused outside a one-line karaoke pack, every entrance | pass | **pass** (`tests/test_captions_ass.py`, `tests/test_edit_v2_captions.py`) |
+| Thumbnails | `karaoke.png` (now mid-sweep) and `sinar.png` from `make_pack_thumbs.py` in a local image with FFmpeg 5.1.9 + libass 0.17.1 that re-rendered the four unchanged thumbnails byte for byte | bytes equal on the pinned toolchain | **pending**: `suite=image` (`test_the_committed_thumbnails_reproduce_on_the_pinned_toolchain`) |
+| P-TXT | JASSUB against FFmpeg on `karaoke-*` (now sweeping) and `sinar-10/40/90` (smoke `sinar-40`), player variant `sinar` | SSIM ≥ 0.999, PSNR ≥ 45 dB, max ≤ 16, 0 px > 16 | **pending**: `Parity (smoke)` of the PR, `editor-gates suite=image` and `suite=player` |
+| Keys after the bump | plan shas of every fixture recomputed; plate and mix keys of semantics 1 still equal their pins, those of 2 pinned | identical per semantics | **pass** (local pytest) |
+| Editor model | six pack tiles, Sinar's note and words per line, commands and `checkDoc` | pass | **pass** (`node --test`, the 1,000-sequence crosscheck) |
+| Browser specs | the sixth tile and the acceptance tour's six distinct ASS | pass | **pending**: `editor-gates suite=e2e` (`editor-quick.spec.mjs`); `editor-acceptance` with the real stack when the owner runs it |
+
+Full P-TIME matrix and golden evidence in the image:
+`gh workflow run editor-gates.yml -f ref=adopsi/karaoke-kf -f suite=command -f command='PYTHONPATH=src:tests uv run python tests/support/edit_v2_text.py ptime /out/P-TIME-ffmpeg.json && PYTHONPATH=src:tests uv run python tests/support/edit_v2_text.py golden-evidence /out/golden-evidence.json && PYTHONPATH=src uv run python scripts/editor/make_pack_thumbs.py --check'`.

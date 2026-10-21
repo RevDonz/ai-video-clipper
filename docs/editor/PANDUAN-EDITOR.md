@@ -74,19 +74,22 @@ Semua desain menyesuaikan ukuran huruf supaya muat 3 baris, jadi tanda "Muat" / 
 berlaku untuk desain mana pun. Ganti desain bisa diurungkan. Durasi dan posisi hook diatur di Mode
 Lengkap.
 
-**Caption.** Sakelar **Tampilkan caption**, lima gaya, **Warna sorot**, **Ukuran** (Kecil, Sedang,
+**Caption.** Sakelar **Tampilkan caption**, enam gaya, **Warna sorot**, **Ukuran** (Kecil, Sedang,
 Besar), **Kata per baris** (1 sampai 4), **Animasi masuk** (Tanpa, Fade, Pop, Blur) dan **Posisi**
 (Atas, Tengah, Bawah; Bawah adalah posisi bawaan klip otomatis). Ukuran atau posisi yang diatur halus di Mode Lengkap tampil sebagai persen
 di ringkasan, dan tidak ada tombol yang tertekan. Kalau caption terlalu dekat dengan teks hook,
 kartu menulis "Caption dekat teks hook. Kalau bertumpuk di pratinjau, turunkan caption." Catatan
 ini hanya petunjuk: pratinjau yang menentukan.
 
-- **Kata per baris** awalnya mengikuti gaya: 4 untuk Klasik dan Karaoke, 3 untuk Bold, Box dan
-  Sorot. Pilihan lain langsung menyusun ulang baris caption di pratinjau. Memilih lagi angka
+- **Kata per baris** awalnya mengikuti gaya: 4 untuk Klasik dan Karaoke, 3 untuk Bold, Box,
+  Sorot dan Sinar. Pilihan lain langsung menyusun ulang baris caption di pratinjau. Memilih lagi angka
   bawaan gaya mengembalikannya ke bawaan.
 - **Sorot**: kotak berwarna di belakang kata yang sedang diucapkan; kata-kata lain tetap di
   tempatnya. Warna kotak dari **Warna sorot**, dan kata kunci mendapat kotak berwarna kata kunci.
   Tulisan di atas kotak otomatis gelap kalau kotaknya terang (keenam warna pilihan terang).
+- **Karaoke** dan **Sinar**: warna sorot menyapu tiap kata dari kiri ke kanan selama kata itu
+  diucapkan, lalu tetap menyala. **Sinar** menambah cahaya lembut di sekeliling baris dengan warna
+  yang sama dan garis tipis gelap di tepi huruf, jadi tetap terbaca di video terang maupun gelap.
 - **Animasi masuk**: cara tiap baris caption muncul, paling lama 0,12 detik. Fade muncul
   perlahan, Pop membesar sebentar lalu pas, Blur dari buram ke tajam. Bawaannya Tanpa, jadi klip
   otomatis tidak berubah. Animasinya sama di pratinjau dan di hasil ekspor; memilih Tanpa lagi
@@ -193,7 +196,7 @@ Shift+klik kata di bawahnya, atau tekan Esc dulu untuk mengeklik kata itu.
   Anda ubah sendiri tidak ditampilkan lagi. **Periksa lagi** meminta pemeriksaan baru setelah
   Anda mengedit. Pemeriksaan ikut batas saran AI proyek (30 per jam, bersama saran hook).
 
-**Teks.** Caption: nyala/mati, gaya (Klasik, Karaoke, Bold, Box, Sorot), posisi, ukuran, kata
+**Teks.** Caption: nyala/mati, gaya (Klasik, Karaoke, Bold, Box, Sorot, Sinar), posisi, ukuran, kata
 per baris, animasi masuk, huruf besar, warna sorot dan warna kata kunci, dengan catatan yang sama seperti kartu Caption (posisi
 bawaan, area tombol TikTok, dekat teks hook). Hook: teks (maks. 90 karakter, tanda "Muat" / "Akan
 terpotong"), **Desain hook** (Bar, Kicker, Blok, Kotak kata, sama seperti kartu Hook), durasi dan

@@ -21,6 +21,7 @@ export const CAPTION_STYLE_CHOICES = Object.freeze([
   { id: "bold", name: "Bold", description: "Huruf besar tebal, kata aktif berwarna." },
   { id: "box", name: "Box", description: "Teks di kotak gelap." },
   { id: "sorot", name: "Sorot", description: "Kotak warna di kata yang diucapkan." },
+  { id: "sinar", name: "Sinar", description: "Karaoke dengan cahaya lembut." },
 ]);
 const LEGACY_STYLES = Object.freeze(["karaoke", "classic"]);
 

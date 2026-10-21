@@ -175,10 +175,10 @@ function planShaOf(doc) {
 const CUE_MAX_WORDS = 4;
 const SENTENCE_END = ".?!…";
 const TRAILING_CLOSERS = "\"')]}»”’";
-// Dev-only stand-in for the one-line packs' (Box, Sorot) font measure: the engine splits a cue
+// Dev-only stand-in for the one-line packs' (Box, Sorot, Sinar) font measure: the engine splits a cue
 // wider than the pack's max width; the fakes split one whose shown text is over 24 characters.
 const BOX_MAX_CHARS = 24;
-const ONE_LINE_PACKS = ["box", "sorot"];
+const ONE_LINE_PACKS = ["box", "sorot", "sinar"];
 
 function endsSentence(text) {
   let end = text.length;

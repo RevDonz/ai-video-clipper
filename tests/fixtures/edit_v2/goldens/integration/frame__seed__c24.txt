@@ -63,7 +63,7 @@ frame.h264
 ## inputs
 source source -threads 4 -ss 63.064000
 ## sidecars
-captions.ass d7b683aafb3b52af93dea860c124fc998405fe484beba7252a35a0e19ff6ed1d
+captions.ass 276b1600a038cd4726430ca6d336d2c02cb62d567ef645a89eb8627a7fed2c49
 ## expected
 {
  "assets_root": "/jobs/job-1/analysis/assets",

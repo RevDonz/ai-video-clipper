@@ -685,12 +685,20 @@ test("the client's pack constants are the pack files' (ids, default case, words 
 });
 
 test("Sorot is a pack like the others: upper-case by default, three words per line", () => {
-  assert.deepEqual(PACK_IDS, ["classic", "karaoke", "bold", "box", "sorot"]);
-  assert.deepEqual(PACK_WORDS_PER_LINE, { classic: 4, karaoke: 4, bold: 3, box: 3, sorot: 3 });
+  assert.deepEqual(PACK_IDS, ["classic", "karaoke", "bold", "box", "sorot", "sinar"]);
+  assert.deepEqual(PACK_WORDS_PER_LINE, { classic: 4, karaoke: 4, bold: 3, box: 3, sorot: 3, sinar: 3 });
   const doc = run(C30, C30.seed, "SetCaptionPack", { id: "sorot" });
   assert.deepEqual(doc.captions.pack, { id: "sorot", v: 1 });
   assert.equal(doc.captions.overrides.case, "upper");
   assert.equal(run(C30, doc, "SetCaptionPack", { id: "karaoke" }).captions.overrides.case, "asis");
+});
+
+test("Sinar is a pack like the others: as-is case, three words per line", () => {
+  const doc = run(C30, C30.seed, "SetCaptionPack", { id: "sinar" });
+  assert.deepEqual(doc.captions.pack, { id: "sinar", v: 1 });
+  assert.equal(doc.captions.overrides.case, "asis");
+  assert.equal(captionWordsPerLine(doc), 3);
+  assert.equal(run(C30, doc, "SetCaptionPack", { id: "sorot" }).captions.overrides.case, "upper");
 });
 
 test("Kata per baris: words_max 1–4, absent while it is the pack's own count", () => {

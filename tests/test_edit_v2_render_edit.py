@@ -35,6 +35,7 @@ import ai_clipper.pipeline as pipeline_module
 from ai_clipper.audio_timeline import build_audio_timeline
 from ai_clipper.edit_v2 import (
     COMPILER_ID,
+    RENDER_SEMANTICS,
     api,
     errors,
     execute,
@@ -416,7 +417,8 @@ def test_the_edit_v2_pipeline_writes_every_artifact_and_manifest_field(auto_job)
         seed_doc, _etag = store.seed(directory)
         assert seed_doc["clip_id"] == entry["clip_id"]
         assert seed_doc["base"]["job_id"] == auto_job.job_id
-        assert seed_doc["base"]["engine"] == {"compiler": COMPILER_ID, "render_semantics": 1}
+        assert seed_doc["base"]["engine"] == {"compiler": COMPILER_ID,
+                                              "render_semantics": RENDER_SEMANTICS}
         assert seed_doc["audit"]["editor"] == "pipeline/edit-v2/1"
         assert seed_doc["base"]["origin"]["rank_at_seed"] == index
         assert seed_doc["base"]["camera"]["sha256"] is None  # fit-blur

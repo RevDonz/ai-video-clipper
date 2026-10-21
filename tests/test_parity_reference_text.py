@@ -137,7 +137,8 @@ def test_hook_and_classic_samples_come_from_todays_build_ass() -> None:
     for style in ("classic", "karaoke"):
         ass = rt.legacy_ass(cues, fps=fps, style=style, total_frames=240)
         assert "PlayResX: 720" in ass and "PlayResY: 1280" in ass
-        assert ("{\\k" in ass) == (style == "karaoke")
+        assert ("{\\kf" in ass) == (style == "karaoke")
+        assert not re.search(r"\\k\d", ass)
     hook = rt.hook_ass(rt.HOOK_TEXT, fps=fps, total_frames=240)
     assert sum(1 for e in _events(hook) if e["style"] == "Hook") >= 2
     assert "\\fad(150,250)" in hook

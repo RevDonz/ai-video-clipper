@@ -107,13 +107,14 @@ test("a preset value presses its pill; a value off the presets presses none", ()
   assert.equal(presetId(CAPTION_SIZES, "1000"), null, "a string is not the stored integer");
 });
 
-test("the five packs keep the Teks panel's names and notes", () => {
+test("the six packs keep the Teks panel's names and notes", () => {
   assert.deepEqual(CAPTION_PACKS.map((pack) => [pack.id, pack.name, pack.note]), [
     ["classic", "Klasik", "Putih bergaris hitam"],
     ["karaoke", "Karaoke", "Kata terucap menyala"],
     ["bold", "Bold", "Tebal, kata aktif berwarna"],
     ["box", "Box", "Teks di kotak gelap"],
     ["sorot", "Sorot", "Kotak warna di kata terucap"],
+    ["sinar", "Sinar", "Karaoke dengan cahaya lembut"],
   ]);
 });
 
@@ -359,12 +360,13 @@ test("both views call the same model function for every shared control", () => {
 
 // --- notes and the hook hint (§1.4, §3) --------------------------------------------------------------
 
-test("highlightNote: Karaoke, Bold and Sorot light the spoken word; the other packs say the colour is unused", () => {
+test("highlightNote: Karaoke, Bold, Sorot and Sinar light the spoken word; the other packs say the colour is unused", () => {
   assert.equal(highlightNote("karaoke"), "Kata yang sedang diucapkan.");
   assert.equal(highlightNote("bold"), "Kata yang sedang diucapkan.");
   assert.equal(highlightNote("sorot"), "Kata yang sedang diucapkan.");
-  assert.equal(highlightNote("classic"), "Dipakai oleh Karaoke, Bold dan Sorot; tidak tampak di gaya ini.");
-  assert.equal(highlightNote("box"), "Dipakai oleh Karaoke, Bold dan Sorot; tidak tampak di gaya ini.");
+  assert.equal(highlightNote("sinar"), "Kata yang sedang diucapkan dan cahayanya.");
+  assert.equal(highlightNote("classic"), "Dipakai oleh Karaoke, Bold, Sorot dan Sinar; tidak tampak di gaya ini.");
+  assert.equal(highlightNote("box"), "Dipakai oleh Karaoke, Bold, Sorot dan Sinar; tidak tampak di gaya ini.");
   assert.equal(CAPTION_NOTES.highlightOn, highlightNote("karaoke"));
 });
 
