@@ -350,7 +350,7 @@ test.describe("Mode Cepat cards (harness: real store and commands)", () => {
     expect(plan.cues.map((cue) => cue.text)).toEqual(["KENAPA SUTRADARA DITAHAN DI", "FILM SENDIRI?", "JADI WAKTU ITU KITA", "DATANG SUBUH"]);
     // Box does not light the spoken word: the note says the colour is unused there.
     await packs.getByRole("radio", { name: "Box" }).check();
-    await expect(card.getByText("Dipakai oleh Karaoke, Bold dan Sorot; tidak tampak di gaya ini.")).toBeVisible();
+    await expect(card.getByText("Dipakai oleh Karaoke, Bold, Sorot dan Sinar; tidak tampak di gaya ini.")).toBeVisible();
 
     await card.getByRole("switch", { name: "Tampilkan caption" }).click();
     expect(await lastSent(page)).toEqual({ type: "SetCaptionsEnabled", args: { on: false }, mergeKey: null });

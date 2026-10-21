@@ -4,7 +4,7 @@
 Writes everything the browser harness (``web/app/parity-harness``) and the scoring scripts
 (``compare.py``, ``enc_check.py``, ``s_color.py``) need, into one directory:
 
-* ``ass/<clip>.ass``: the ASS samples. Every gated clip (the 5 packs × 3 lengths, each caption
+* ``ass/<clip>.ass``: the ASS samples. Every gated clip (the 6 packs × 3 lengths, each caption
   entrance on every pack, the hook in each of its four designs, the text watermark at three
   places and the fallback glyph) is the shipped bytes: ``captions_ass.fit_cues`` + ``build_ass_v2`` with the pack files and their
   default overrides
@@ -64,7 +64,7 @@ SCHEMA = "potongin.parity-text/1"
 WIDTH, HEIGHT = 720, 1280
 PTXT_FPS = Fps(30000, 1001)
 TIMING_FPS = (Fps(24, 1), Fps(25, 1), Fps(30, 1), Fps(24000, 1001), Fps(30000, 1001))
-PACKS = ("classic", "karaoke", "bold", "box", "sorot")
+PACKS = ("classic", "karaoke", "bold", "box", "sorot", "sinar")
 LENGTHS = (10, 40, 90)
 CANDIDATES = ("yuv420p", "yuv444p", "gbrp")
 PROBES_PER_CLIP = 5
@@ -108,9 +108,12 @@ MARGIN_SIDE = round(WIDTH * 0.06)  # 43
 MARGIN_V = HEIGHT - round(HEIGHT * 83000 / 100000)  # 218: bottom of the block at y_e5 = 83%
 BOX_ALPHA = 0x40  # black at 75% opacity (defect #1 fix: alpha on OutlineColour)
 BOX_MAX_WIDTH = WIDTH * 88 // 100
-WORDS_PER_CUE = {"classic": 4, "karaoke": 4, "bold": 3, "box": 3, "sorot": 3}
-# Packs whose picture changes at every word onset (P-TXT probes stay clear of them).
-WORD_REVEAL_PACKS = ("karaoke", "bold", "sorot")
+WORDS_PER_CUE = {"classic": 4, "karaoke": 4, "bold": 3, "box": 3, "sorot": 3, "sinar": 3}
+# Packs whose picture changes at every word onset (P-TXT probes stay clear of them; the karaoke
+# sweep of Karaoke and Sinar then runs until the next onset, the same in both renderers).
+WORD_REVEAL_PACKS = ("karaoke", "bold", "sorot", "sinar")
+# Packs drawn in Montserrat ExtraBold; the others use DejaVu Sans.
+MONTSERRAT_PACKS = ("bold", "box", "sorot", "sinar")
 # "Animasi masuk" (CONTRACTS §5.39): every entrance on every pack at 40 characters, probed while
 # the line is still opening (frames 1-3 of the first line, 1-2 of the second).
 ENTRANCES = ("fade", "pop", "blur")
@@ -720,7 +723,7 @@ def _entrance_clip(pack: str, entrance: str, *, family: str, length: int = 40) -
 
 def build_clips(*, fallback_char: str,
                 measures: dict[str, Callable[[str], float]] | None = None) -> list[Clip]:
-    """The P-TXT matrix (5 packs × 3 lengths × 5 probes, 3 entrances × 5 packs, every hook
+    """The P-TXT matrix (6 packs × 3 lengths × 5 probes, 3 entrances × 6 packs, every hook
     design, 3 text watermarks, fallback glyph), the pack variants of the spike, the P-COLOR
     sheet and one P-TIME fixture per frame rate.
 
@@ -731,13 +734,13 @@ def build_clips(*, fallback_char: str,
     fps = PTXT_FPS
     clips: list[Clip] = []
     for pack in PACKS:
-        family = MONTSERRAT if pack in ("bold", "box", "sorot") else DEJAVU
+        family = MONTSERRAT if pack in MONTSERRAT_PACKS else DEJAVU
         for length in LENGTHS:
             clips.append(_caption_clip(pack, length, variant=None, family=family,
                                        measure=measures.get(family)))
     for entrance in ENTRANCES:
         for pack in PACKS:
-            family = MONTSERRAT if pack in ("bold", "box", "sorot") else DEJAVU
+            family = MONTSERRAT if pack in MONTSERRAT_PACKS else DEJAVU
             clips.append(_entrance_clip(pack, entrance, family=family))
     for pack, variant, family in (("bold", "dejavu", DEJAVU), ("box", "dejavu", DEJAVU),
                                   ("box", "pbox", MONTSERRAT)):

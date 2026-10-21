@@ -31,9 +31,11 @@ from ai_clipper.edit_v2 import (
     DOC_FPS,
     PACK_DEFAULT_OVERRIDES,
     PACK_IDS,
+    RENDER_SEMANTICS,
     camera,
     store,
 )
+from ai_clipper.edit_v2 import seed as seed_module
 from ai_clipper.edit_v2 import timemap as tm
 from ai_clipper.edit_v2 import transitions as tr
 from ai_clipper.edit_v2.clip_id import clip_id, ms_from_seconds
@@ -215,7 +217,11 @@ def _fixture_seed(context_id, contexts, **extra):
 
 
 @pytest.mark.parametrize("context_id", fixtures.CONTEXT_IDS)
-def test_build_seed_reproduces_the_t1_0_fixture_seeds(context_id, edit_v2_doc_contexts):
+def test_build_seed_reproduces_the_t1_0_fixture_seeds(context_id, edit_v2_doc_contexts,
+                                                      monkeypatch):
+    # The fixture seeds were built at RENDER_SEMANTICS 1 (before the karaoke sweep, CONTRACTS
+    # §5.49); everything else the builder writes is unchanged.
+    monkeypatch.setattr(seed_module, "RENDER_SEMANTICS", fixtures.FIXTURE_RENDER_SEMANTICS)
     expected = edit_v2_doc_contexts[context_id].seed
     built = _fixture_seed(context_id, edit_v2_doc_contexts)
     assert built == expected
@@ -268,7 +274,8 @@ def test_seed_rows_of_the_plan_table():
     assert base["window_ms"] == [0, 110_000]
     assert base["words"] == {"sha256": "b" * 64, "count": 321}
     assert base["camera"] == {"sha256": None}
-    assert base["engine"] == {"compiler": COMPILER_ID, "render_semantics": 1}
+    assert base["engine"] == {"compiler": COMPILER_ID, "render_semantics": RENDER_SEMANTICS}
+    assert RENDER_SEMANTICS == 2  # the karaoke sweep (CONTRACTS §5.49)
     assert seed["audit"] == {"created_at_ms": 1_790_000_000_000,
                              "updated_at_ms": 1_790_000_000_000,
                              "editor": "pipeline/edit-v2/1", "last_command": "Seed"}

@@ -1,0 +1,19 @@
+{
+  "schema": "potongin.caption-pack/1",
+  "id": "sinar",
+  "v": 1,
+  "name": "Sinar",
+  "style_name": "Sinar",
+  "font": {"family": "Montserrat ExtraBold", "file": "Montserrat-ExtraBold.ttf", "bold": false},
+  "size": {"num": 12, "den": 288, "scale_pm": 1100},
+  "outline": {"num": 1, "den": 320},
+  "shadow": {"num": 0, "den": 1},
+  "border_style": 1,
+  "colours": {"text": "#FFFFFF", "outline": "#000000", "outline_alpha": 0, "back": "#000000", "back_alpha": 0},
+  "margin_side_pm": 60,
+  "reveal": "karaoke",
+  "words_per_cue": 3,
+  "max_width_pm": 880,
+  "glow": {"outline": {"num": 7, "den": 640}, "blur": {"num": 9, "den": 1280}, "alpha": 48},
+  "defaults": {"y_e5": 83000, "size_pm": 1000, "case": "asis", "highlight": "#FFE14D", "emphasis": "#FF5C8A"}
+}

@@ -371,7 +371,7 @@ never happens below 10 h at 30 fps). Rational comparisons use cross-multiplicati
 | Samples | `smp(n) = ⌊n·48000·den / num⌋` (1601/1602 at 29.97 with zero drift [PF D12]); piece sample count `smp(out_f0+frames) − smp(out_f0)`; the first source sample of a piece is `⌊in_sf·48000·den / num⌋` |
 | Word visibility (captions) | A word is shown when it is not `hidden` and its midpoint `(s+e)/2` lies inside a piece's source span (the V3 midpoint rule) |
 | Word output frames | `n_on = out_f0(p) + round_half_up((s_ms − t0_ms(p))·num / (1000·den))`, clamped to the piece; `n_off` the same from `e_ms`. A word never spans a cut |
-| ASS time (frame-safe) | `now_ms(n) = trunc(n · (den/num) · 1000)` in IEEE double, **the exact expression order of FFmpeg's `vf_subtitles`** with time base `den/num` (the graph sets `settb=den/num` before `ass`). `safe_cs(n) = (now_ms(n) − 2) // 10`. An event visible on `[a, b)` is written `Start = safe_cs(a)`, `End = safe_cs(b)`; `\k` durations are differences of `safe_cs`. The browser calls libass with `now_ms(n)/1000`, and JASSUB's rounding returns exactly `now_ms(n)` [PF `ass_time_rule.py`: 0 failures, 24–60 fps, 3 h] |
+| ASS time (frame-safe) | `now_ms(n) = trunc(n · (den/num) · 1000)` in IEEE double, **the exact expression order of FFmpeg's `vf_subtitles`** with time base `den/num` (the graph sets `settb=den/num` before `ass`). `safe_cs(n) = (now_ms(n) − 2) // 10`. An event visible on `[a, b)` is written `Start = safe_cs(a)`, `End = safe_cs(b)`; `\kf` durations (`\k` before §5.49) are differences of `safe_cs`. The browser calls libass with `now_ms(n)/1000`, and JASSUB's rounding returns exactly `now_ms(n)` [PF `ass_time_rule.py`: 0 failures, 24–60 fps, 3 h] |
 | Cold open | At most one, first, `⌈0.5·F⌉ ≤ frames ≤ ⌊8·F⌋`, `abs(co.in_sf − body.in_sf) ≥ 1`. Blocking `cold_open_invalid` when more than 80% of it lies inside `[body.in_sf, body.in_sf + frames + 2·F)`, because it would only repeat the opening (FINAL §4.8) |
 | Plate cells | `cell_frames = 2·⌈num/den⌉` (60 at 29.97 and 30, 50 at 25, 48 at 24 and 23.976). Cell k covers source-grid frames `[k·cell_frames, (k+1)·cell_frames)` |
 | Logo box | `w_px = round_half_up(w_e5·W / 100000)`, `h_px = round_half_up(w_px·asset_h / asset_w)`, `x0 = round_half_up(x_e5·W/100000 − w_px/2)`, `y0` likewise, computed as integers from the doc's output size (export at another size recomputes from the same `_e5` values) |
@@ -614,7 +614,7 @@ annotations may be spelled differently).
 | `edit_v2.store` | `get`, `seed`, `put`, `archive_for_render`, `prune_receipts`, the §4.1 path constants | T1.1 |
 | `edit_v2.api` | `OPS`, `main` (CLI) | T1.1 |
 | `ai_clipper.subtitles` (additions) | `SourceWord`, `FrameWord`, `FrameCue`, `build_frame_cues` | T1.2a |
-| `ai_clipper.captions_ass` (additions) | `CaptionPack`, `load_pack`, `HookSpec`, `build_ass_v2`; `WordBox`, `words_per_cue`, `lightness`, `word_box_text` (§5.30); `LEGACY_HOOK_DESIGN`, `HOOK_LAYOUTS`, `HookDesign`, `HookBox`, `HookKicker`, `hook_design`, `hook_font_file`, `boxed_word_index` (§5.33); `ENTRANCE_MS` (§5.39); `WATERMARK_FONT_FILE`, `WatermarkSpec`, `WatermarkLayout`, `layout_watermark` (§5.43) | T1.2a |
+| `ai_clipper.captions_ass` (additions) | `CaptionPack`, `load_pack`, `HookSpec`, `build_ass_v2`; `WordBox`, `words_per_cue`, `lightness`, `word_box_text` (§5.30); `LEGACY_HOOK_DESIGN`, `HOOK_LAYOUTS`, `HookDesign`, `HookBox`, `HookKicker`, `hook_design`, `hook_font_file`, `boxed_word_index` (§5.33); `ENTRANCE_MS` (§5.39); `WATERMARK_FONT_FILE`, `WatermarkSpec`, `WatermarkLayout`, `layout_watermark` (§5.43); `Glow` (§5.49) | T1.2a |
 | `edit_v2.captions` | `CaptionResult`, `caption_track` | T1.2a |
 | `edit_v2.glyphs` | `missing_glyphs`, `advance_px` | T1.2a |
 | `edit_v2.envelope` | `Envelope`, `speech_envelope`, `music_envelope`, `expand_f32` | T1.4 |
@@ -3560,3 +3560,68 @@ No schema change: a seed only takes other values of keys it always had.
   `data-size` name the choice. The zone note shows only for Bawah.
 - Pengaturan's Logo bawaan and Teks watermark bawaan cards already say from `autoClips` whether
   they reach the automatic clip files; with the new default they say they do.
+
+## 5.49 Karaoke sweep, the Sinar pack and RENDER_SEMANTICS 2 (2026-10-21)
+
+The karaoke highlight sweeps each word from left to right instead of switching it on, and a sixth
+pack, Sinar, draws that sweep with a soft glow. This changes golden pixels, so
+`RENDER_SEMANTICS` is 2 (the one bump of this batch; the owner's look approval was given by
+delegation). `schema_minor`, `COMPILER_ID`, `COMPILER_VERSION` and the plan schema are unchanged.
+
+### The sweep (`captions_ass._karaoke_text`, `_karaoke_line`)
+
+- Both karaoke writers (the legacy `build_ass` and `build_ass_v2`) write `{\kfN}` where they
+  wrote `{\kN}`, with the same `N`: in `build_ass_v2` the differences of `safe_cs` (§3.4 time
+  rule), so each word's sweep **starts** on its planned frame and is complete on the next word's
+  onset (or the line's end). A keyword keeps `\1c`/`\2c` in the emphasis colour, so its sweep is
+  not seen. There is no option to keep `\k` (latest only).
+- `LEGACY_PIN` in `tests/test_captions_ass.py` still pins the legacy bytes with `\kf` read back
+  as `\k`, so every duration is the old one.
+- P-TIME (`support.edit_v2_text`): each sweep is checked on a copy of its line in which only that
+  word changes colour (`isolate_sweep`): the same picture at `k − 2` and `k − 1`, a new one at
+  `k + 1`, still moving between `k + 1` and `e − 1`, the same picture at `e` and `e + 1`
+  (`sweep_early`, `sweep_start`, `sweep_moves`, `sweep_late`). The same line with `\k` fails
+  `sweep_moves`.
+- P-TXT probes stay clear of word onsets (`WORD_REVEAL_PACKS`); between them the sweep is at
+  the same place in both renderers, which call libass with the same time.
+
+### The Sinar pack (`resources/caption-packs/sinar/v1.json`)
+
+- Montserrat ExtraBold at 1.1× (59 px at 720×1280), white, a thin black outline (H/320, 4 px),
+  no shadow, `case` `asis`, 3 words per cue, one line (`max_width_pm` 880), reveal `karaoke`
+  (style primary = `highlight`, secondary = text colour, as the Karaoke pack).
+- Pack field `glow` `{outline {num 7, den 640}, blur {num 9, den 1280}, alpha 48}` (`Glow`):
+  ratios of H in centipixels (14 px border and blur 9 at 720×1280; 21 and 13.5 at 1080×1920)
+  and an ASS alpha 0–255. Only on a one-line karaoke pack (`reveal` `karaoke`, `border_style`
+  1, `max_width_pm` set); anything else is refused by `load_pack` and `build_ass_v2`.
+- Events: per cue, two events on layer 0 with the cue's start and end, both placed with
+  `\an2\pos(W/2, H − MarginV)\q2[\fsN]` (a single word wider than the line limit shrinks with
+  `\fsN`, as Box and Sorot do), so libass never stacks them apart:
+  1. the glow: `{<place>\bord<g>\blur<b>\3c<highlight>\3a&H30&\1a&HFF&\2a&HFF&\shad0}` and the
+     line's words (escaped, case applied, no karaoke tags);
+  2. the line: `{<place>}` and the Karaoke pack's `\kf` text for the same cue.
+  An entrance (§5.39) opens both; the glow's own `\blur` comes after the entrance block, so the
+  glow stays soft while a Blur entrance sharpens the line.
+- The glow takes the `highlight` colour ("Warna sorot"); a keyword's sweep keeps the emphasis
+  colour in the line, the glow stays one colour.
+- Pack lists: `PACK_IDS` (Python and JS), `PACK_DEFAULT_CASE` (`asis`), `PACK_WORDS_PER_LINE`
+  (3), `CAPTION_PACKS` ("Sinar", "Karaoke dengan cahaya lembut"), `HIGHLIGHT_PACKS`,
+  `CAPTION_NOTES.highlightGlow` ("Kata yang sedang diucapkan dan cahayanya."; the note for the
+  packs without a highlight reads "Dipakai oleh Karaoke, Bold, Sorot dan Sinar; tidak tampak di
+  gaya ini."), `PACK_IMAGES`, the dashboard's `CAPTION_STYLE_CHOICES` ("Sinar", "Karaoke dengan cahaya
+  lembut."; a job takes it with the edit-v2 engine, §5.48), the fakes' one-line packs, the
+  transcript harness store.
+- Fixtures and gates: document `valid/pack_sinar__c30.json`, ASS golden `sinar__c30`, P-TIME
+  expects the glow event (no sweep) before each line, P-TXT `sinar-10/40/90` (smoke
+  `sinar-40`), the player variant `sinar`, thumbnail `pack-thumbs/sinar.png`.
+
+### RENDER_SEMANTICS 2
+
+- New seeds write `base.engine.render_semantics` 2. A document keeps the stamp it was seeded
+  with (the validator accepts any integer ≥ 1); the committed fixtures stay at 1
+  (`edit_v2_fixtures.FIXTURE_RENDER_SEMANTICS`) and compile with today's engine.
+- The plan body, `render_key`, `plate_key` and `preview_cli.audio_key` include the value, so
+  every plan sha, render key, plate key and preview mix key moves once; caches rebuild on the
+  next open or export. `tests/fixtures/edit_v2/plan-shas.json` is recomputed; the plate and mix
+  keys of semantics 1 stay pinned next to those of 2 (`PLATE_KEYS`,
+  `MIX_IDENTITY_SEMANTICS_2`), so nothing but the bump moved them.

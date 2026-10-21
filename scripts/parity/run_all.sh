@@ -45,11 +45,11 @@ export PYTHONPATH="$PWD/src:$PWD/tests"
 PY="uv run python"
 fail() { echo "$1" >> "$OUT/fail.txt"; echo "FAIL $1"; }
 
-# The P-TXT subset of a pull request: the five packs at 40 characters, each caption entrance on
+# The P-TXT subset of a pull request: the six packs at 40 characters, each caption entrance on
 # one pack, the hook in each of its four designs, the text watermark at its default and at its
 # largest size, and the fallback glyph, plus the five P-TIME timing fixtures (24, 25, 30,
 # 24000/1001, 30000/1001).
-SMOKE_TEXT=classic-40,karaoke-40,bold-40,box-40,sorot-40,karaoke-fade-40,bold-pop-40,sorot-blur-40,hook,hook-kicker,hook-blok,hook-kotak,watermark-top_center,watermark-bottom_right,fallback
+SMOKE_TEXT=classic-40,karaoke-40,bold-40,box-40,sorot-40,sinar-40,karaoke-fade-40,bold-pop-40,sorot-blur-40,hook,hook-kicker,hook-blok,hook-kotak,watermark-top_center,watermark-bottom_right,fallback
 TIMING=timing-24-1,timing-25-1,timing-30-1,timing-24000-1001,timing-30000-1001
 
 section_toolchain() {

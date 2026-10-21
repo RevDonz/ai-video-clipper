@@ -11,7 +11,7 @@ through ``/api/parity-fixtures/player/…`` and ``web/e2e/editor-player.spec.mjs
   preview mix (``audio_preview`` → ``mix.flac``), the final graph's pre-encode PCM
   (``reference`` → ``reference.pcm``, s16le stereo), the plan DTO (plan §4.3) and, per output
   frame, the barcode index of the whole-file ``fps`` grid and the crop x;
-* on the 29.97 case, document variants over the same plate cells (the 5 packs, a logo, a
+* on the 29.97 case, document variants over the same plate cells (the 6 packs, a logo, a
   fallback glyph, the hook in each design other than the bar, each caption entrance, the text
   watermark): the server composite of each probe frame computed from the **decoded plate cell
   frame** with the compiler's own strings
@@ -74,7 +74,7 @@ from ai_clipper.edit_v2.timemap import Fps
 
 SCHEMA = "potongin.parity-player/1"
 BASE = "/api/parity-fixtures/player"
-PACKS = ("classic", "karaoke", "bold", "box", "sorot")
+PACKS = ("classic", "karaoke", "bold", "box", "sorot", "sinar")
 # The hook designs next to the bar (CONTRACTS §5.33) over the same cells, each with a text that
 # shows its rule (a kicker closed by a colon, a word in capitals in the box).
 HOOK_VARIANTS = {"hook-kicker": ("kicker", "Ternyata: hook sintetis"),

@@ -241,6 +241,12 @@
    "warnings": []
   },
   {
+   "file": "valid/pack_sinar__c30.json",
+   "context": "c30",
+   "check": "put",
+   "warnings": []
+  },
+  {
    "file": "valid/words_max_1__c30.json",
    "context": "c30",
    "check": "put",

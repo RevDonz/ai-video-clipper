@@ -18,10 +18,14 @@ export const CAPTION_PACKS = freeze([
   { id: "bold", name: "Bold", note: "Tebal, kata aktif berwarna" },
   { id: "box", name: "Box", note: "Teks di kotak gelap" },
   { id: "sorot", name: "Sorot", note: "Kotak warna di kata terucap" },
+  { id: "sinar", name: "Sinar", note: "Karaoke dengan cahaya lembut" },
 ]);
 
-/** The packs that light the spoken word in the highlight colour (Sorot: the box behind it). */
-export const HIGHLIGHT_PACKS = Object.freeze(["karaoke", "bold", "sorot"]);
+/**
+ * The packs that light the spoken word in the highlight colour (Sorot: the box behind it; Sinar
+ * also glows in it).
+ */
+export const HIGHLIGHT_PACKS = Object.freeze(["karaoke", "bold", "sorot", "sinar"]);
 
 /** "Kata per baris" (`words_max`, CONTRACTS §5.30): at most this many words on a caption line. */
 export const CAPTION_WORDS = freeze([1, 2, 3, 4].map((value) => ({ id: String(value), label: String(value), value })));
@@ -61,7 +65,8 @@ export const HOOK_NEAR_BAND_E5 = 35000;
 
 export const CAPTION_NOTES = Object.freeze({
   highlightOn: "Kata yang sedang diucapkan.",
-  highlightOff: "Dipakai oleh Karaoke, Bold dan Sorot; tidak tampak di gaya ini.",
+  highlightGlow: "Kata yang sedang diucapkan dan cahayanya.",
+  highlightOff: "Dipakai oleh Karaoke, Bold, Sorot dan Sinar; tidak tampak di gaya ini.",
   zoneAtSeed: "Posisi bawaan, dekat tombol TikTok. Kalau tertutup, geser caption ke atas.",
   zoneMoved: "Caption masuk area tombol TikTok/Reels; geser ke atas bila tertutup.",
   hookNear: "Caption dekat teks hook. Kalau bertumpuk di pratinjau, turunkan caption.",
@@ -114,6 +119,7 @@ export function captionsEnabledCommand(on) {
 
 /** The note under "Warna sorot" for the pack in use. */
 export function highlightNote(packId) {
+  if (packId === "sinar") return CAPTION_NOTES.highlightGlow;
   return HIGHLIGHT_PACKS.includes(packId) ? CAPTION_NOTES.highlightOn : CAPTION_NOTES.highlightOff;
 }
 
