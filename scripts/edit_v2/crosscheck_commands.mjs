@@ -282,6 +282,18 @@ const GENERATORS = {
   ClearKeyframes() {
     return {};
   },
+  // Layar terbagi (CONTRACTS §5.45): ratios and crops mostly in range, the edges often, a few out.
+  SetSplitRatio(rng) {
+    return { top_pm: pick(rng, [300, 500, 700, 700, 400]) };
+  },
+  SwapSplit() {
+    return {};
+  },
+  SetSplitCrop(rng) {
+    const place = () => (chance(rng, 0.04) ? pick(rng, [-1, 100001]) : chance(rng, 0.3) ? pick(rng, [0, 100000]) : int(rng, 0, 100000));
+    return { band: chance(rng, 0.04) ? "middle" : pick(rng, ["top", "bottom"]), x_e5: place(), y_e5: place(),
+      zoom_pm: chance(rng, 0.04) ? pick(rng, [999, 5001]) : pick(rng, [1000, 5000, int(rng, 1000, 5000)]) };
+  },
   SetLogo(rng, _doc, context) {
     const asset = pick(rng, assetsOf(context, "image"));
     return { asset: asset.id, meta: asset.meta };
@@ -369,7 +381,8 @@ const WEIGHTS = {
   RemoveWords: 16, RestoreRemoval: 5, TrimStart: 5, TrimEnd: 5, RemoveGap: 4, ApplyCleanup: 3, SetColdOpen: 4,
   NudgeColdOpen: 4, SetJoinStyle: 3, SetJoinSfx: 2, EditWordText: 7, SetWordHidden: 3, SetWordEmphasis: 3, SetCaptionsEnabled: 1, SetCaptionPack: 2,
   SetCaptionOverride: 4, SetHookEnabled: 2, SetHookText: 4, SetHookDuration: 2, SetHookY: 2, SetHookDesign: 2, SetLayout: 2, SetNoFace: 1,
-  SetKeyframe: 4, RemoveKeyframe: 2, SetKeyframeMove: 2, ClearKeyframes: 1, SetLogo: 3,
+  SetKeyframe: 4, RemoveKeyframe: 2, SetKeyframeMove: 2, ClearKeyframes: 1, SetSplitRatio: 2, SwapSplit: 1, SetSplitCrop: 3,
+  SetLogo: 3,
   RemoveLogo: 1, MoveLogo: 3, ResizeLogo: 2, SetLogoOpacity: 2, SnapLogo: 2, SetWatermarkText: 3, SetWatermarkPosition: 2,
   SetWatermarkSize: 2, SetWatermarkOpacity: 2, RemoveWatermark: 1, SetMusic: 3, RemoveMusic: 1,
   SetMusicGain: 2, SetMusicOffset: 2, SetMusicLoop: 1, SetMusicFades: 2, SetDuck: 2, SetSourceGain: 2, SetLoudness: 2,
@@ -388,6 +401,8 @@ const NEEDS = [
   [["SetJoinStyle", "SetJoinSfx"], coldOpen, "SetColdOpen"],
   [["SetKeyframe"], (doc) => CROP_MODES.includes(doc.layout.default.mode) || null, "SetLayout"],
   [["RemoveKeyframe", "SetKeyframeMove", "ClearKeyframes"], (doc) => doc.layout.keyframes ?? null, "SetKeyframe"],
+  // the split's commands mostly switch to the split first (a random SetLayout rarely picks it)
+  [["SetSplitRatio", "SwapSplit", "SetSplitCrop"], (doc) => doc.layout.split ?? null, "SetLayout", { mode: "split" }],
 ];
 
 /** One random command for `doc`: mostly valid arguments, some out of range on purpose. */
@@ -402,10 +417,14 @@ export function randomCommand(rng, doc, context) {
     }
   }
   // A field command without its item mostly adds the item first (the rest test the rejection).
-  for (const [types, get, add] of NEEDS) {
-    if (types.includes(type) && !get(doc) && chance(rng, 0.6)) type = add;
+  let fixed = null;
+  for (const [types, get, add, addArgs = null] of NEEDS) {
+    if (types.includes(type) && !get(doc) && chance(rng, 0.6)) {
+      type = add;
+      fixed = addArgs;
+    }
   }
-  const args = GENERATORS[type](rng, doc, context);
+  const args = fixed ? { ...fixed } : GENERATORS[type](rng, doc, context);
   const merge = rng();
   const options = merge < 0.85 ? {} : merge < 0.93 ? { mergeKey: null } : { mergeKey: "test:burst" };
   return { type, args, options };
@@ -414,7 +433,7 @@ export function randomCommand(rng, doc, context) {
 // Commands whose Appendix B mergeKey lets a quick series become one undo step (drags, sliders,
 // typing): a "burst" repeats one of them with new values 20–300 ms later.
 const MERGEABLE = new Set(["NudgeColdOpen", "EditWordText", "SetCaptionOverride", "SetHookText", "SetHookDuration",
-  "SetHookY", "MoveLogo", "ResizeLogo", "SetLogoOpacity", "SetMusicGain", "SetMusicOffset", "SetMusicFades", "SetDuck",
+  "SetHookY", "SetSplitCrop", "MoveLogo", "ResizeLogo", "SetLogoOpacity", "SetMusicGain", "SetMusicOffset", "SetMusicFades", "SetDuck",
   "SetSourceGain", "SetLoudness"]);
 
 function burstCommand(rng, previous, doc, context) {
@@ -423,6 +442,7 @@ function burstCommand(rng, previous, doc, context) {
     : GENERATORS[previous.type](rng, doc, context);
   if (previous.type === "EditWordText") args.wordId = previous.args.wordId;
   if (previous.type === "NudgeColdOpen") args.edge = previous.args.edge;
+  if (previous.type === "SetSplitCrop") args.band = previous.args.band; // a drag of one band
   return { type: previous.type, args, options: previous.options };
 }
 

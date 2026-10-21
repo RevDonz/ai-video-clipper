@@ -589,6 +589,56 @@ test("the framing keyframes are their own layout part: one tab frames, the other
   assert.deepEqual(checkDoc(refused.resolve({ layout: "theirs" }).doc, C30.ctx), []);
 });
 
+test("the split's bands are their own layout part: one tab crops, the other edits, both survive (§5.45)", () => {
+  assert.ok(PARTS.includes("layout.split"));
+  assert.equal(partGroup("layout.split"), "layout");
+  const start = tab(C30);
+  start.dispatch("SetLayout", { mode: "split" });
+  const base = start.doc;
+  const mine = tab(C30, base);
+  mine.dispatch("SetSplitCrop", { band: "top", x_e5: 100000, y_e5: 0, zoom_pm: 3000 });
+  assert.deepEqual(mine.pending[0].parts, ["layout.split"]);
+  const theirs = tab(C30, base);
+  theirs.dispatch("SetHookText", { text: "Sementara" });
+  const merged = rebase({ base, mine: mine.doc, theirs: theirs.doc, steps: mine.pending, ctx: C30.ctx });
+  assert.equal(merged.status, "merged");
+  assert.deepEqual(merged.doc.layout.split.top, { x_e5: 100000, y_e5: 0, zoom_pm: 3000 });
+  assert.equal(hookItem(merged.doc).payload.text, "Sementara");
+  // both tabs change the bands: one conflict in "Tata letak", named with the ratio
+  const other = tab(C30, base);
+  other.dispatch("SwapSplit", {});
+  const result = rebase({ base, mine: mine.doc, theirs: other.doc, steps: mine.pending, ctx: C30.ctx });
+  assert.equal(result.status, "conflict");
+  assert.deepEqual(result.conflicts.map((group) => [group.id, group.mine, group.theirs]), [
+    ["layout", "split 30/70", "split 70/30"]]);
+  assert.deepEqual(result.resolve({}).doc.layout.split, mine.doc.layout.split);
+  assert.deepEqual(result.resolve({ layout: "theirs" }).doc.layout.split, other.doc.layout.split);
+  // the other tab left the split: "Pakai punyaku" brings mine's split layout with its bands
+  const away = tab(C30, base);
+  away.dispatch("SetLayout", { mode: "fill_center" });
+  const refused = rebase({ base, mine: mine.doc, theirs: away.doc, steps: mine.pending, ctx: C30.ctx });
+  assert.equal(refused.status, "conflict");
+  assert.deepEqual(refused.conflicts.map((group) => group.id), ["layout"]);
+  const kept = refused.resolve({}).doc;
+  assert.deepEqual(checkDoc(kept, C30.ctx), []);
+  assert.equal(kept.layout.default.mode, "split");
+  assert.deepEqual(kept.layout.split, mine.doc.layout.split);
+  const left = refused.resolve({ layout: "theirs" }).doc;
+  assert.deepEqual(checkDoc(left, C30.ctx), []);
+  assert.ok(!Object.hasOwn(left.layout, "split"));
+  // mine left the split while the other tab cropped: "Pakai punyaku" drops the bands too
+  const leaving = tab(C30, base);
+  leaving.dispatch("SetLayout", { mode: "fit_blur" });
+  const cropped = tab(C30, base);
+  cropped.dispatch("SetSplitRatio", { top_pm: 500 });
+  const dropped = rebase({ base, mine: leaving.doc, theirs: cropped.doc, steps: leaving.pending, ctx: C30.ctx });
+  assert.equal(dropped.status, "conflict");
+  const mineLayout = dropped.resolve({}).doc;
+  assert.deepEqual(checkDoc(mineLayout, C30.ctx), []);
+  assert.equal(mineLayout.layout.default.mode, "fit_blur");
+  assert.ok(!Object.hasOwn(mineLayout.layout, "split"));
+});
+
 test("choosing 'mine' for a field of an item the other tab removed brings the item back", () => {
   const mine = tab(C30);
   mine.dispatch("SetHookDuration", { dur_f: 200 });

@@ -38,7 +38,7 @@ export const WATERMARK_OPACITY_RANGE = Object.freeze([200, 1000]);
 /** A new watermark's place, size and opacity (the editor's SetWatermarkText). */
 export const DEFAULT_WATERMARK = Object.freeze({ pos: "top_center", size_pm: 1000, opacity_pm: 850 });
 const WATERMARK_KEYS = Object.freeze(["text", "pos", "size_pm", "opacity_pm"]);
-export const LAYOUT_MODES = Object.freeze(["fit_blur", "camera", "fill_center"]);
+export const LAYOUT_MODES = Object.freeze(["fit_blur", "camera", "fill_center", "split"]);
 /** What face-track shows where no face was found (CONTRACTS §5.40): centred, or latar blur. */
 export const NO_FACE_MODES = Object.freeze(["center", "fit_blur"]);
 
@@ -59,15 +59,30 @@ export const KEYFRAME_MOVES = Object.freeze(["cut", "slide"]);
 export const MAX_KEYFRAMES = 100;
 /** `pan_e5`: the crop from the left edge (0) to the right edge of its travel. */
 export const PAN_E5_MAX = 100000;
+/** Layar terbagi (`layout.split`, CONTRACTS §5.45): the top band's share per mille (30/70, 50/50, swapped 30/70). */
+export const SPLIT_TOP_PM = Object.freeze([300, 500, 700]);
+export const SPLIT_BANDS = Object.freeze(["top", "bottom"]);
+/** A band's zoom: 1000 is the largest box of the band's shape inside the source. */
+export const SPLIT_ZOOM_RANGE = Object.freeze([1000, 5000]);
+const SPLIT_CROP_KEYS = Object.freeze(["x_e5", "y_e5", "zoom_pm"]);
+
+/** The split a switch into layar terbagi starts from (edit_v2.layouts.default_split): 30/70, both crops centred at zoom 1. */
+export function defaultSplit() {
+  const centre = () => ({ x_e5: PAN_E5_MAX / 2, y_e5: PAN_E5_MAX / 2, zoom_pm: SPLIT_ZOOM_RANGE[0] });
+  return { top_pm: SPLIT_TOP_PM[0], top: centre(), bottom: centre() };
+}
 
 /**
- * The whole `layout` after SetLayout to `mode` (`switchedLayout` for `default`): a switch to latar
- * blur drops the manual framing keyframes, which only the crop layouts carry (preview_cli
- * `_switched` mirrors this for `prepare`).
+ * The whole `layout` after SetLayout to `mode` (`switchedLayout` for `default`): the manual framing
+ * keyframes stay only with the crop layouts, the split's bands only with the split, and a switch
+ * into the split starts from `defaultSplit()` (preview_cli `_switched` mirrors this for `prepare`).
  */
 export function layoutAfterSwitch(layout, mode) {
-  const { keyframes: _keyframes, ...rest } = layout;
-  return { ...(mode === "fit_blur" ? rest : layout), default: switchedLayout(layout.default, mode) };
+  const { keyframes, split, ...rest } = layout;
+  const next = { ...rest, default: switchedLayout(layout.default, mode) };
+  if (keyframes !== undefined && CROP_MODES.includes(mode)) next.keyframes = keyframes;
+  if (mode === "split") next.split = split ?? defaultSplit();
+  return next;
 }
 /** Cold-open join styles (docs/plans/2026-10-02-transisi-cold-open.md §1.1); `xfade` stays op_disabled. */
 export const JOIN_STYLES = Object.freeze(["cut", "flash_white", "dip_black"]);
@@ -531,6 +546,8 @@ export function checkDoc(doc, ctx) {
     add("range_invalid", "/layout/default");
   }
   if (doc.layout && Object.hasOwn(doc.layout, "keyframes")) checkKeyframes(doc.layout, ctx, add);
+  if (doc.layout && Object.hasOwn(doc.layout, "split")) checkSplitLayout(doc.layout, add);
+  else if (doc.layout?.default?.mode === "split") add("range_invalid", "/layout/split");
 
   // tracks
   const referenced = new Map();
@@ -604,7 +621,7 @@ function checkKeyframes(layout, ctx, add) {
     add("range_invalid", path);
     return;
   }
-  if (layout.default?.mode === "fit_blur") add("range_invalid", path);
+  if (["fit_blur", "split"].includes(layout.default?.mode)) add("range_invalid", path);
   let previous = null;
   list.forEach((keyframe, index) => {
     const item = `${path}/${index}`;
@@ -623,6 +640,31 @@ function checkKeyframes(layout, ctx, add) {
     else if (keyframe.sf < ctx.windowSf[0] || keyframe.sf >= ctx.windowSf[1]) add("outside_window", `${item}/sf`);
     previous = previous === null ? keyframe.sf : Math.max(previous, keyframe.sf);
   });
+}
+
+// Layar terbagi (CONTRACTS §5.45): edit_v2/doc.py `split`; an unknown key, which Python rejects at
+// parse level, is range_invalid here.
+function checkSplitLayout(layout, add) {
+  const path = "/layout/split";
+  const split = layout.split;
+  if (!split || typeof split !== "object" || Array.isArray(split)
+    || Object.keys(split).some((key) => key !== "top_pm" && !SPLIT_BANDS.includes(key))) {
+    add("range_invalid", path);
+    return;
+  }
+  if (layout.default?.mode !== "split") add("range_invalid", path);
+  if (!SPLIT_TOP_PM.includes(split.top_pm) || !Number.isSafeInteger(split.top_pm)) add("range_invalid", `${path}/top_pm`);
+  for (const band of SPLIT_BANDS) {
+    const crop = split[band];
+    const item = `${path}/${band}`;
+    if (!crop || typeof crop !== "object" || Array.isArray(crop) || Object.keys(crop).some((key) => !SPLIT_CROP_KEYS.includes(key))) {
+      add("range_invalid", item);
+      continue;
+    }
+    if (!isInt(crop.x_e5, 0, PAN_E5_MAX)) add("range_invalid", `${item}/x_e5`);
+    if (!isInt(crop.y_e5, 0, PAN_E5_MAX)) add("range_invalid", `${item}/y_e5`);
+    if (!isInt(crop.zoom_pm, ...SPLIT_ZOOM_RANGE)) add("range_invalid", `${item}/zoom_pm`);
+  }
 }
 
 function checkHook(item, path, fps, add) {
