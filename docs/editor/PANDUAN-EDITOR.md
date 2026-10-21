@@ -90,6 +90,13 @@ ini hanya petunjuk: pratinjau yang menentukan.
   perlahan, Pop membesar sebentar lalu pas, Blur dari buram ke tajam. Bawaannya Tanpa, jadi klip
   otomatis tidak berubah. Animasinya sama di pratinjau dan di hasil ekspor; memilih Tanpa lagi
   mengembalikan caption ke bawaan.
+- **Geser di video**: caption juga bisa diseret naik atau turun langsung di layar pratinjau (di
+  kedua mode). Caption menempel di garis Atas, Tengah dan Bawah; tahan Alt untuk menggeser tanpa
+  magnet. Batasnya 20 sampai 92 persen dari atas, sama dengan slider Posisi caption di panel Teks,
+  dan slider, tombol Posisi dan caption di video selalu menunjukkan posisi yang sama. Selama
+  diseret tampil garis posisi, area tombol TikTok dan angka posisinya. Satu seretan = satu langkah
+  Ctrl+Z; Esc saat menyeret membatalkannya. Dengan keyboard: Tab ke caption, panah atas/bawah
+  0,5 %, Shift+panah atau PageUp/PageDown 5 %, Home dan End ke batas.
 
 **Teks caption.** Satu kolom per baris caption, diberi label waktunya. Ketik untuk membetulkan
 kata, lalu Enter, Tab atau klik di luar untuk menyimpan; Esc membatalkan. Saat diam, mengeklik
@@ -448,6 +455,8 @@ Tombol yang bekerja saat fokus di satu tempat:
 | Bilah aksi, tombol Lainnya | ↓, Enter, Spasi | Buka menu (↑/↓ pilih, Enter jalankan, Esc tutup) |
 | Teks caption (Mode Cepat) | Enter, Tab | Simpan baris (Tab lalu ke baris berikutnya) |
 | Teks caption | Esc | Batalkan ketikan di baris itu |
+| Caption di video | ↑ / ↓, Shift+↑ / ↓, PageUp / PageDown | Geser 0,5 % / 5 % |
+| Caption di video | Home / End, Esc | Ke batas atas / bawah; keluar (saat menyeret: batal) |
 
 ## 6. Kalau ada masalah
 

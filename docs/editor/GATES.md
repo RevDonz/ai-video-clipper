@@ -2027,3 +2027,17 @@ production image or a browser run on GitHub Actions when the branch is pushed.
 | Player P-FRAME | 0 mismatches | the split's index read through its top band; the keyframes case now expects its own crop x | `scripts/parity/player_fixtures.py`, `e2e/editor-player.spec.mjs` | pending: `editor-gates suite=e2e` |
 | Lane and keys | the plate key names the bands; the cells op builds that plate; the lane passes the bands with every batch | pass | `tests/test_edit_v2_plates.py`, `tests/test_edit_v2_preview_cli.py`, `web/tests/preview-lane.test.mjs` | **pass** (local) |
 | Panel, card and dialog (browser, fakes) | the fourth layout, Pembagian, Tukar, drag, keys, corner, zoom slider, result, focus return, Escape, undo, leaving the split, Mode Cepat, axe clean | `e2e/editor-split.spec.mjs` (9 tests); `e2e/editor-layout.spec.mjs` and `e2e/editor-quick.spec.mjs` list four layouts | | pending: `editor-gates suite=e2e` |
+
+## Caption di video: drag to move (2026-10-21)
+
+The caption block is dragged up or down on the stage (CONTRACTS §5.47). It writes the one field
+the Teks slider and the Caption card already write (`captions.overrides.y_e5`), through the same
+command, so the document, the engine, the render and `RENDER_SEMANTICS` do not change. Built on
+branch `adopsi/gizmo-caption` with targeted local tests only.
+
+| Gate | Threshold | Result | Where | Verdict |
+|---|---|---|---|---|
+| Geometry | the box's bottom is the ASS bottom; its metrics are the pack files'; the zone check is the server's caption rule | equal at 720×1280 and 1080×1920 for every pack | `web/tests/editor-caption-gizmo.test.mjs` | **pass** (local) |
+| Snap, range, grid, keys | presets within 8 screen px, else the 500 grid; never outside 20000–92000; arrows 500, Shift/Page 5000, Home/End | pass | `web/tests/editor-caption-gizmo.test.mjs` | **pass** (local) |
+| Undo | one step per drag however long; keys merge with the slider (`cap:y_e5`); a drag never merges into them | pass on the real edit session | `web/tests/editor-caption-gizmo.test.mjs` | **pass** (local) |
+| Stage (browser, harness) | drag and snap, Alt, range with the pointer off the stage, Escape, click, slider and card in step, keys and focus ring, read-only, captions off, reduced motion, axe clean | `e2e/editor-caption-gizmo.spec.mjs` (10 tests) | | pending: `editor-gates suite=e2e` |
