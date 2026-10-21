@@ -311,8 +311,8 @@ test.describe("Mode Cepat cards (harness: real store and commands)", () => {
     await expect(card.getByRole("group", { name: "Posisi" }).getByRole("radio", { name: "Bawah" })).toBeChecked();
     // The packs are the FFmpeg thumbnails, one radio each.
     const packs = card.getByRole("group", { name: "Gaya caption" });
-    await expect(packs.getByRole("radio")).toHaveCount(5);
-    await expect.poll(() => packs.locator("img").evaluateAll((images) => images.map((image) => image.naturalWidth))).toEqual([320, 320, 320, 320, 320]);
+    await expect(packs.getByRole("radio")).toHaveCount(6);
+    await expect.poll(() => packs.locator("img").evaluateAll((images) => images.map((image) => image.naturalWidth))).toEqual([320, 320, 320, 320, 320, 320]);
 
     await packs.getByRole("radio", { name: "Bold" }).check();
     expect(await lastSent(page)).toEqual({ type: "SetCaptionPack", args: { id: "bold" }, mergeKey: null });
