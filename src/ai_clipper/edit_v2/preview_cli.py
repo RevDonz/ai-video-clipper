@@ -21,9 +21,9 @@ the stored revision when the job re-ran and the document is read-only (plan §3.
 Ops (arguments → result):
 
 ``prepare`` ``{jobId, clipId, layout|null}`` → ``{words: "ready", camera: "ready" |
-"not_needed", layout, noFace, keyframes, plateKey, cellFrames, cells: [k], ready: [k]}``. Restores a missing words
-artifact (``seed.prepare_legacy_job``), builds the camera plan when the layout (the requested
-one, else the current document's) is face-track and none exists
+"not_needed", layout, noFace, keyframes, plateKey, cellFrames, cells: [k], ready: [k]}``.
+Restores a missing words artifact (``seed.prepare_legacy_job``), builds the camera plan when the
+layout (the requested one, else the current document's) is face-track and none exists
 (``camera.build_camera_plan``, written immutably as ``camera.<sha16>.json``), and reports the
 plate cells of the current document in that layout. Idempotent.
 
@@ -31,7 +31,8 @@ plate cells of the current document in that layout. Idempotent.
 (``text.ass`` omitted when ``known.assSha256`` is the new sha; cell, audio and logo states
 ``ready`` (with ``url``) or ``queued``), and ``lane`` what Node schedules: ``{playhead, layout,
 noFace, keyframes, plateKey, cellFrames, cells, missing, audio: {key, ready}, logo: {asset, w, h,
-opacityPm, name, ready} | null, frameKey}``. Publishes the ASS as ``preview/ass/<sha16>.ass``. Nothing heavy runs.
+opacityPm, name, ready} | null, frameKey}``. Publishes the ASS as ``preview/ass/<sha16>.ass``.
+Nothing heavy runs.
 
 ``cells`` ``{jobId, clipId, layout, noFace?, keyframes?, cells: [k] (1–64), cancelToken|null}``
 → ``{plateKey, built, present}``: encodes the missing cells of the seed's plate in ``layout`` in

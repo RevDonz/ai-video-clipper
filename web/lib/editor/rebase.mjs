@@ -5,10 +5,11 @@
 //
 // A document is seen as a set of *parts* (the conflict units): the body trim, the cold open, the
 // removals of each segment, each word edit field, each caption setting, the hook fields, layout
-// and its framing keyframes, logo, the text watermark's fields, music and audio fields. A step conflicts when it changes a part the other tab changed
-// too (removal lists excepted: removals merge semantically, and a replayed removal re-checks
-// that it still fits), or when its preconditions fail on the new document. A conflict is shown
-// only when the two final values really differ. Parts are grouped for the dialog (`partGroup`).
+// and its framing keyframes, logo, the text watermark's fields, music and audio fields. A step
+// conflicts when it changes a part the other tab changed too (removal lists excepted: removals
+// merge semantically, and a replayed removal re-checks that it still fits), or when its
+// preconditions fail on the new document. A conflict is shown only when the two final values
+// really differ. Parts are grouped for the dialog (`partGroup`).
 //
 // Steps are `{ type, args, parts, entryId }` (a command) or `{ type: "__parts", values, parts }`
 // (part values set as a whole: an undo past the last save, or a conflict resolution).
