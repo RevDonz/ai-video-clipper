@@ -1189,7 +1189,7 @@ def test_sorot_follows_position_size_and_case_overrides():
 SINAR_CUE = _fcue((0, 10, "gue"), (10, 25, "bukan"), (25, 40, "jambret."))
 # The glow is the border's shape drawn as a 1/64 px shadow under an all but transparent fill: a
 # shadow is never cut by the glyphs (CONTRACTS §5.49).
-GLOW_720 = "\\bord14\\blur9\\3a&HFF&\\4c&H4DE1FF&\\4a&H30&\\shad0.02\\1a&HFE&\\2a&HFE&"
+GLOW_720 = "\\bord14\\blur7\\3a&HFF&\\4c&H4DE1FF&\\4a&H30&\\shad0.02\\1a&HFE&\\2a&HFE&"
 
 
 def test_sinar_pack_file_loads_a_one_line_karaoke_pack_with_its_glow():
@@ -1197,7 +1197,7 @@ def test_sinar_pack_file_loads_a_one_line_karaoke_pack_with_its_glow():
 
     assert (pack.name, pack.style_name, pack.reveal) == ("Sinar", "Sinar", "karaoke")
     assert (pack.border_style, pack.box_style, pack.max_width_pm) == (1, "border", 880)
-    assert pack.glow == captions_ass.Glow(outline=(7, 640), blur=(9, 1280), alpha=48)
+    assert pack.glow == captions_ass.Glow(outline=(7, 640), blur=(7, 1280), alpha=48)
     assert pack.word_box is None
     assert dict(pack.defaults) == dict(PACK_DEFAULT_OVERRIDES["sinar"])
     assert PACK_DEFAULT_OVERRIDES["sinar"]["case"] == "asis"
@@ -1234,7 +1234,7 @@ def test_sinar_glow_follows_the_highlight_colour_and_the_output_size():
     glow, line = _events(document)
     bottom = 1920 - _rhu(30000 * 1920, 100000)
     assert glow["Text"].startswith(
-        "{\\an2\\pos(540," + str(bottom) + ")\\q2\\bord21\\blur13.5\\3a&HFF&\\4c&HA6F53D&"
+        "{\\an2\\pos(540," + str(bottom) + ")\\q2\\bord21\\blur10.5\\3a&HFF&\\4c&HA6F53D&"
         "\\4a&H30&")
     assert line["Text"].startswith("{\\an2\\pos(540," + str(bottom) + ")\\q2}{\\kf")
 
@@ -1280,7 +1280,7 @@ def test_glow_is_a_pack_file_field_of_one_line_karaoke_packs_only(tmp_path, monk
     monkeypatch.setattr(captions_ass, "PACKS_DIR", tmp_path)
     captions_ass._load_pack.cache_clear()
     try:
-        assert load_pack("sinar", 2).glow == captions_ass.Glow((7, 640), (9, 1280), 48)
+        assert load_pack("sinar", 2).glow == captions_ass.Glow((7, 640), (7, 1280), 48)
         for pack_id, version in (("sinar", 3), ("sinar", 4), ("sinar", 5), ("karaoke", 6),
                                  ("sorot", 7)):
             with pytest.raises(ValueError, match="glow"):

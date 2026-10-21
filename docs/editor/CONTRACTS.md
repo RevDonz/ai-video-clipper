@@ -3639,9 +3639,12 @@ delegation). `schema_minor`, `COMPILER_ID`, `COMPILER_VERSION` and the plan sche
 - Montserrat ExtraBold at 1.1× (59 px at 720×1280), white, a thin black outline (H/320, 4 px),
   no shadow, `case` `asis`, 3 words per cue, one line (`max_width_pm` 880), reveal `karaoke`
   (style primary = `highlight`, secondary = text colour, as the Karaoke pack).
-- Pack field `glow` `{outline {num 7, den 640}, blur {num 9, den 1280}, alpha 48}` (`Glow`):
-  ratios of H in centipixels (14 px border and blur 9 at 720×1280; 21 and 13.5 at 1080×1920)
-  and an ASS alpha 0–255. Only on a one-line karaoke pack (`reveal` `karaoke`, `border_style`
+- Pack field `glow` `{outline {num 7, den 640}, blur {num 7, den 1280}, alpha 48}` (`Glow`):
+  ratios of H in centipixels (14 px border and blur 7 at 720×1280; 21 and 10.5 at 1080×1920)
+  and an ASS alpha 0–255. The blur was H·9/1280 until 2026-10-22: FFmpeg's 8-bit blend
+  truncates where the browser rounds, and across the wider halo that ±1 noise held P-TXT SSIM
+  at 0.9989 (sinar-90); H·7/1280 is the smallest change that brings every Sinar clip to
+  ≥ 0.9992. Only on a one-line karaoke pack (`reveal` `karaoke`, `border_style`
   1, `max_width_pm` set); anything else is refused by `load_pack` and `build_ass_v2`.
 - Events: per cue, two events on layer 0 with the cue's start and end, both placed with
   `\an2\pos(W/2, H − MarginV)\q2[\fsN]` (a single word wider than the line limit shrinks with
