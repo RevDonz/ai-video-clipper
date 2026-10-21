@@ -404,7 +404,7 @@ def test_sinar_document_compiles_a_glow_under_every_karaoke_line():
     assert len(events) == 2 * len(result.cues)
     for glow, line in zip(events[0::2], events[1::2], strict=True):
         assert glow[:9] == line[:9]
-        assert "\\blur" in glow[9] and "\\1a&HFF&" in glow[9] and "\\kf" not in glow[9]
+        assert "\\blur" in glow[9] and "\\shad0.02\\1a&HFE&" in glow[9] and "\\kf" not in glow[9]
         assert "\\kf" in line[9] and "\\blur" not in line[9]
     # One-line cues of at most three words; every word is still on screen once.
     assert all(len(cue.words) <= 3 for cue in result.cues)
@@ -441,13 +441,25 @@ def test_an_entrance_opens_every_line_and_moves_no_cue(name, opening):
     result, reference = _track(doc, "c30"), _track(plain, "c30")
 
     assert result.cues == reference.cues and result.warnings == reference.warnings
-    events, before = _dialogues(result.ass), _dialogues(reference.ass)
-    assert [fields[:9] for fields in events] == [fields[:9] for fields in before]
+    # A fading entrance of a pack with a drop shadow (Karaoke here) draws the shadow from a copy
+    # of each opened line, and the line moves to layer 1 (CONTRACTS §5.39, "Outline drawn as a
+    # shadow"); otherwise no event moves.
+    copy_tags = "\\3a&HFF&\\1a&HFE&\\2a&HFE&}"
+    all_events, before = _dialogues(result.ass), _dialogues(reference.ass)
+    events = [fields for fields in all_events if copy_tags not in fields[9]]
+    copies = [fields for fields in all_events if copy_tags in fields[9]]
+    assert [fields[1:9] for fields in events] == [fields[1:9] for fields in before]
     starts = {max(0, safe_cs(cue.f0, Fps(30000, 1001))) for cue in result.cues}
     captions = [fields for fields in events if fields[3] != "Hook"]
     opened = [fields for fields in captions if _cs(fields[1]) in starts]
     assert opened and all(fields[9].startswith(opening) for fields in opened)
     assert all(not fields[9].startswith(opening) for fields in captions if fields not in opened)
+    if name == "entrance_fade__c30":
+        assert [fields[:9] for fields in copies] == [["0", *fields[1:9]] for fields in opened]
+        assert {fields[0] for fields in opened} == {"1"}
+    else:
+        assert not copies
+        assert [fields[:9] for fields in events] == [fields[:9] for fields in before]
 
 
 # --- The text watermark on a document (CONTRACTS §5.43) ---------------------------------------
