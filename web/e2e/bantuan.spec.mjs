@@ -48,7 +48,10 @@ test.describe("Bantuan", () => {
   });
 
   test("anchors and the search work without JavaScript", async ({ browser }) => {
-    const context = await browser.newContext({ baseURL: settings.baseURL, javaScriptEnabled: false });
+    // Reduced motion: after the anchor jump the search button is far above the view, and the page's
+    // smooth scrolling (html { scroll-behavior: smooth }) animates every scroll Playwright makes
+    // to reach it, so the button never holds still for the click.
+    const context = await browser.newContext({ baseURL: settings.baseURL, javaScriptEnabled: false, reducedMotion: "reduce" });
     const page = await context.newPage();
     try {
       await login(page, "/bantuan");
