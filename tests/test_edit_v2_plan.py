@@ -757,3 +757,68 @@ def test_the_whoosh_and_the_style_give_different_plans(harness, resources):
     shas = {name: plan_for(name, resources).plan_sha256
             for name in ("rev1_unchanged__c30", *TRANSITION_FIXTURES[:4])}
     assert len(set(shas.values())) == len(shas)
+
+
+def _with_cues(monkeypatch):
+    """The harness caption track has no cues: give it one over every output frame."""
+    stand_in = captions.caption_track
+
+    def caption_track(doc, words, pieces):
+        result = stand_in(doc, words, pieces)
+        cues = (SimpleNamespace(f0=0, f1=tm.total_frames(pieces)),) if doc["captions"][
+            "enabled"] else ()
+        return dataclasses.replace(result, cues=cues)
+
+    monkeypatch.setattr(captions, "caption_track", caption_track)
+
+
+def test_a_caption_over_the_face_is_a_warning_with_its_fix(harness, resources, monkeypatch):
+    """CONTRACTS §5.48: the camera plan's faces, mapped through the layout, under the caption
+    block for a share of the clip. The warning names the preset that clears the face; like every
+    warning it is not part of the plan sha."""
+    _with_cues(monkeypatch)
+    name = "layout_camera__c30"
+    doc = load_doc(name)
+    camera = camera_for(doc)
+    low = [0, 600, 1000, 300]  # across the frame, rows 0.6–0.9: under Bawah wherever the crop is
+    camera["faces"] = [low] * len(camera["samples"])
+    plan = plan_for(name, resources, doc=doc, camera=camera)
+    over = [issue for issue in plan.warnings if issue.code == "caption_over_face"]
+    fps = tm.Fps.from_json(doc["output"]["fps"])
+    shown = [piece.out_f0 + sf - piece.in_sf
+             for sf in (tm.sf_floor(t_ms, fps) for t_ms, _centre in camera["samples"])
+             for piece in plan.pieces if piece.in_sf <= sf < piece.out_sf]
+    assert [(issue.path, issue.ref, issue.f) for issue in over] == [
+        ("/captions/overrides/y_e5", "tengah", min(shown))]
+    clear = copy.deepcopy(camera)
+    clear["faces"] = [[0, 100, 1000, 250]] * len(camera["samples"])
+    clean = plan_for(name, resources, doc=doc, camera=clear)
+    assert not [issue for issue in clean.warnings if issue.code == "caption_over_face"]
+    del clear["faces"]
+    # an older camera plan without faces: no warning
+    assert not [issue for issue in plan_for(name, resources, doc=doc, camera=clear).warnings
+                if issue.code == "caption_over_face"]
+
+
+def test_another_layout_reads_the_faces_of_a_camera_plan(harness, resources, monkeypatch):
+    """``faces``: a camera plan given for its faces only. The layout stays what it is (no crop
+    from it, no camera sha); the faces are mapped through that layout, here fit-blur."""
+    _with_cues(monkeypatch)
+    name = "seed__c30"
+    doc = load_doc(name)
+    context = context_for(name)
+    camera = camera_for(doc)
+    camera["faces"] = [[0, 600, 1000, 300]] * len(camera["samples"])
+    base = build_plan(doc, words=context.words, camera=None, assets=context.assets,
+                      resources=resources)
+    plan = build_plan(doc, words=context.words, camera=None, assets=context.assets,
+                      resources=resources, faces=camera)
+    assert plan.camera is None and plan.plan_sha256 == base.plan_sha256
+    # fit-blur shows the picture in the middle rows (437–842): the face is clear of Bawah
+    assert not [issue for issue in plan.warnings if issue.code == "caption_over_face"]
+    tengah = copy.deepcopy(doc)
+    tengah["captions"]["overrides"]["y_e5"] = 60000
+    plan = build_plan(tengah, words=context.words, camera=None, assets=context.assets,
+                      resources=resources, faces=camera)
+    assert [(issue.code, issue.ref) for issue in plan.warnings
+            if issue.code == "caption_over_face"] == [("caption_over_face", "atas")]

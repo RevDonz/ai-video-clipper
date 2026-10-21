@@ -36,6 +36,7 @@ from typing import Any
 from . import COMPILER_ID, COMPILER_VERSION, OUTPUT_SIZES, RENDER_SEMANTICS, UI_ZONE_720, errors
 from . import captions as _captions
 from . import envelope as _envelope
+from . import face_zone as _face_zone
 from . import timemap as tm
 from . import transitions as _transitions
 from .captions import CaptionResult
@@ -146,7 +147,8 @@ class RenderPlan:
     music: Mapping[str, Any] | None = None  # the music item of the document, if any
     speech_envelope: tuple[tuple[int, int], ...] = ()  # envelope.speech_envelope (T1.4)
     music_envelope: tuple[tuple[int, int], ...] | None = None  # envelope.music_envelope
-    warnings: tuple[Issue, ...] = ()  # caption, camera (no_face[_blur]), logo (unsafe_zone)
+    # caption, camera (no_face[_blur]), logo (unsafe_zone), caption over face (§5.48)
+    warnings: tuple[Issue, ...] = ()
     fonts_sha256: str | None = None  # resources/fonts/fonts.json; None when missing
     packs_sha256: str | None = None  # the pack and hook design the document uses
     resources: Resources | None = None
@@ -356,8 +358,13 @@ def build_plan(
     camera: Mapping | None,
     assets: Mapping[str, Mapping],
     resources: Resources,
+    faces: Mapping | None = None,
 ) -> RenderPlan:
     """Resolve a validated document into a render plan (pieces, captions, audio, logo, camera).
+
+    ``faces`` is a camera plan read only for its ``faces`` (the ``caption_over_face`` warning,
+    CONTRACTS §5.48) under a layout that does not crop with it; without it the ``camera`` plan
+    given is used. It never changes the plan or its sha.
 
     Raises ``AnalysisMissing`` (``ref="camera"``) for the camera layout without a camera plan
     and ``DocSemanticInvalid`` (``asset_missing``) when the asset store lacks a referenced asset.
@@ -395,6 +402,8 @@ def build_plan(
         warnings.extend(_no_face(used_camera, pieces, fps,
                                  doc["layout"]["default"]["no_face"]))
     warnings.extend(unsafe_zone_issues(doc, assets, output, parts=("logo",)))
+    warnings.extend(_face_zone.caption_over_face_issues(
+        doc, camera if faces is None else faces, pieces, caption.cues, output))
     plan = RenderPlan(
         doc=doc,
         fps=fps,

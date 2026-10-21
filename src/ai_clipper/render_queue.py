@@ -42,6 +42,7 @@ from typing import Any, BinaryIO, TextIO
 
 from . import job_files
 from .edit_v2 import errors as edit_errors
+from .edit_v2 import plates as edit_plates
 from .edit_v2 import store as edit_store
 from .edit_v2 import timemap as _timemap
 from .edit_v2.clip_id import CLIP_ID_PATTERN
@@ -853,7 +854,10 @@ def _plan(clip: Path, doc: Mapping[str, Any], resources: Resources) -> RenderPla
         words = edit_store.load_words(clip, doc["base"]["words"]["sha256"])
         camera = _camera_for(clip, doc)
         assets = edit_store.load_assets(clip, doc["assets"].keys())
-        return build_plan(doc, words=words, camera=camera, assets=assets, resources=resources)
+        # the caption check reads the faces of a camera plan under the other layouts (§5.48)
+        faces = None if camera is not None else edit_plates.faces_for(clip, doc)
+        return build_plan(doc, words=words, camera=camera, assets=assets, resources=resources,
+                          faces=faces)
     except edit_errors.AnalysisMissing:
         raise QueueAnalysisMissing() from None
 
