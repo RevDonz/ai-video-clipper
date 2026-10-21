@@ -26,6 +26,7 @@ import {
   ZOOM_OPTIONS_PM,
   zoomCommand,
   zoomPercent,
+  zoomResetCommand,
   zoomView,
 } from "../components/editor/panels/layout-model.mjs";
 import { COMMANDS, CommandRejected, applyCommand } from "../lib/editor/commands.mjs";
@@ -304,6 +305,8 @@ test("the zoom section: 100 to 150 % in 5 % steps for every layout but the split
   assert.deepEqual(zoomCommand(1250), { type: "SetZoom", args: { zoom_pm: 1250 }, mergeKey: "layout:zoom" });
   assert.throws(() => zoomCommand(1600), TypeError);
   assert.throws(() => zoomCommand(1200.5), TypeError);
+  // "Kembali ke 100%" is its own undo step: it never merges into the slider's steps before it.
+  assert.deepEqual(zoomResetCommand(), { type: "SetZoom", args: { zoom_pm: 1000 }, mergeKey: null });
   assert.deepEqual(ZOOM_OPTIONS_PM, [1000, 1050, 1100, 1150, 1200, 1250, 1300, 1350, 1400, 1450, 1500]);
   assert.ok(COMMANDS.includes("SetZoom"));
 });

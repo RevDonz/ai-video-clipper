@@ -58,6 +58,7 @@ import {
   thumbnailOrder,
   withLayout,
   zoomCommand,
+  zoomResetCommand,
   zoomPercent,
   zoomView,
 } from "./layout-model.mjs";
@@ -259,7 +260,7 @@ function ZoomSection({ doc, readOnly, send }) {
       {view.zoomed ? (
         <div className={styles.actions}>
           <button type="button" className={`${styles.button} ${styles.quietButton}`} disabled={readOnly}
-            onClick={() => send(zoomCommand(view.min))}>Kembali ke 100%</button>
+            onClick={() => send(zoomResetCommand())}>Kembali ke 100%</button>
         </div>
       ) : null}
     </div>
