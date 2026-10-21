@@ -64,6 +64,11 @@ peaks (tests, the labelled set) no level is checked, and tight cuts are still re
 ``wordIds``, ``afterWord``, ``inSf`` and ``outSf`` are exactly the ``ApplyCleanup`` item shape
 (CONTRACTS §5.17).
 
+**Automatic clips** (:func:`auto_pause_removals`, CONTRACTS §5.58): the seed of an automatic
+clip carries the removals ``ApplyCleanup`` would write for the ``gap_silent`` items between two
+words of its body, except those within 500 ms of a laughter, applause, cheer or music tag, and
+none when the body would keep less than 3 s.
+
 **CLI** (the edit_v2 protocol, CONTRACTS §5.9): stdin ``{"op": "list", "jobId", "clipId"}`` →
 stdout ``{clipId, wordsSha256, …result}`` for the current document's words artifact (the seed's
 when a read-only document's own words are gone, like ``api get``). Exit codes: 0; 1 internal
@@ -115,6 +120,9 @@ PHRASE_WINDOW_MS = 1500  # second occurrence of a phrase starts within this of t
 PHRASE_LENGTHS = (3, 2)
 FILLER_RUN_MAX_GAP_MS = 600  # adjacent fillers further apart than this are separate items
 LAUGHTER_LOCK_MS = 500
+AUTO_PAUSE_LOCK_KINDS = frozenset({"laughter", "applause", "cheer", "music"})
+AUTO_PAUSE_LOCK_MS = 500  # an automatic pause trim keeps this far from those tags
+AUTO_PAUSE_MIN_BODY_MS = 3000  # the document's shortest body (duration_out_of_bounds)
 LAUGHTER_TOKEN = re.compile(r"(ha){2,}h?|(he){2,}|(hi){2,}|wk(wk)+\w*")
 QUIET_LEVEL = 1  # peaks bin level (s16 // 256): a peak below −36 dBFS
 QUIET_HALF_MS = 10  # the ±10 ms around a cut of the QG-CLEAN check
@@ -586,6 +594,37 @@ def build_cleanup(words: Mapping[str, Any], *, lexicon: Lexicon | None = None,
         "items": items,
         "locked": [entry for _s, entry in locked],
     }
+
+
+def auto_pause_removals(words: Mapping[str, Any], *, body: Mapping[str, Any],
+                        peaks: bytes | None = None,
+                        lexicon: Lexicon | None = None) -> list[dict[str, Any]]:
+    """The pause trims of an automatic clip's seed (CONTRACTS §5.58): the removals
+    ``ApplyCleanup`` writes for every ``gap_silent`` item of :func:`build_cleanup` that lies
+    between two words of ``body`` (the seed's body segment) and has no laughter,
+    applause, cheer or music tag within ``AUTO_PAUSE_LOCK_MS``. The editor's Rapikan then lists
+    them as applied (their origin names the item). None when the trimmed body would be shorter
+    than the document's 3 s."""
+    fps = tm.Fps.from_json(words["fps"])
+    in_sf, out_sf = body["in_sf"], body["out_sf"]
+    tagged = [(event["s"], event["e"]) for event in words.get("events") or ()
+              if event.get("kind") in AUTO_PAUSE_LOCK_KINDS]
+    spans = {entry["id"]: (entry["s"], entry["e"]) for entry in words["words"]}
+    removals: list[dict[str, Any]] = []
+    for item in build_cleanup(words, lexicon=lexicon, peaks=peaks)["items"]:
+        if item["kind"] != "gap_silent":
+            continue
+        left, right = spans[item["afterWord"]], spans[item["beforeWord"]]
+        if tm.sf_floor(left[0], fps) < in_sf or tm.sf_ceil(right[1], fps) > out_sf:
+            continue
+        if any(s <= item["e"] + AUTO_PAUSE_LOCK_MS and e >= item["s"] - AUTO_PAUSE_LOCK_MS
+               for s, e in tagged):
+            continue
+        removals.append({"id": f"rm_{len(removals) + 1}", "seg": body["id"],
+                         "in_sf": item["inSf"], "out_sf": item["outSf"], "words": [],
+                         "reason": "gap_silent", "origin": f"suggestion:{item['id']}"})
+    kept = tm.total_frames(tm.pieces({"main": {"segments": [body], "removals": removals}}))
+    return removals if kept >= tm.sf_ceil(AUTO_PAUSE_MIN_BODY_MS, fps) else []
 
 
 def removal_edges(item: Mapping[str, Any], words: Mapping[str, Any]) -> list[dict[str, Any]]:

@@ -41,6 +41,7 @@ const c30 = {
 };
 const FIXTURE = JSON.parse(await readFile(path.join(REPO, "tests", "fixtures", "edit_v2", "cleanup-c30.json"), "utf8"));
 const LISTING = FIXTURE.listing;
+const AUTO_PAUSES = JSON.parse(await readFile(path.join(REPO, "tests", "fixtures", "edit_v2", "auto-pauses-c30.json"), "utf8"));
 const JOB_ID = c30.seed.base.job_id;
 const CLIP_ID = c30.seed.clip_id;
 const URL_PATH = `/api/jobs/${JOB_ID}/clips/${CLIP_ID}/cleanup`;
@@ -307,6 +308,22 @@ test("Terapkan (n) is one ApplyCleanup that cuts at Python's edges, and one undo
   const after = cleanupView({ listing: LISTING, doc: applied, words: c30.words, ctx });
   assert.equal(after.entries.filter((entry) => entry.status === "open").length, 0);
   assert.equal(after.hidden.applied, plan.args.items.length);
+});
+
+test("the automatic clip's pause trims are what ApplyCleanup cuts, and Rapikan counts them applied", () => {
+  // CONTRACTS §5.58: the seed of an automatic clip carries the removals Python's
+  // cleanup.auto_pause_removals makes (pytest keeps auto-pauses-c30.json current).
+  const items = AUTO_PAUSES.items.map(({ id, kind, afterWord, inSf, outSf }) => ({ id, kind, afterWord, inSf, outSf }));
+  const applied = applyCommand(c30.seed, "ApplyCleanup", { items }, ctx).doc;
+  assert.deepEqual(applied.main.removals, AUTO_PAUSES.removals);
+  const trimmed = { ...c30.seed, main: { ...c30.seed.main, removals: AUTO_PAUSES.removals } };
+  const view = cleanupView({ listing: LISTING, doc: trimmed, words: c30.words, ctx });
+  assert.equal(view.hidden.applied, AUTO_PAUSES.items.length);
+  const shown = new Set(view.entries.map((entry) => entry.id));
+  for (const item of AUTO_PAUSES.items) assert.equal(shown.has(item.id), false, item.id);
+  // each trim is undone on its own, back to the seed's pause
+  const restored = applyCommand(trimmed, "RestoreRemoval", { removalId: "rm_1" }, ctx).doc;
+  assert.deepEqual(restored.main.removals, AUTO_PAUSES.removals.slice(1));
 });
 
 test("planApply skips an item another checked item already covers, and names a blocked one", () => {

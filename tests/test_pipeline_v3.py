@@ -2195,6 +2195,7 @@ class FakeAutoRenderer:
     fail_ranks: ClassVar[set] = set()
     drop_cold_open: ClassVar[set] = set()
     no_face_ms: ClassVar[dict] = {}
+    seconds: ClassVar[dict] = {}
 
     def __init__(self, **options):
         if FakeAutoRenderer.fail_init:
@@ -2229,6 +2230,8 @@ class FakeAutoRenderer:
         )
         if rank in FakeAutoRenderer.no_face_ms:
             auto.no_face_ms = FakeAutoRenderer.no_face_ms[rank]
+        if rank in FakeAutoRenderer.seconds:
+            auto.seconds = FakeAutoRenderer.seconds[rank]
         return auto
 
     def fallback(self, rank):
@@ -2245,6 +2248,7 @@ def fake_engine(monkeypatch):
     FakeAutoRenderer.fail_ranks = set()
     FakeAutoRenderer.drop_cold_open = set()
     FakeAutoRenderer.no_face_ms = {}
+    FakeAutoRenderer.seconds = {}
     monkeypatch.setattr(render_edit, "AutoRenderer", FakeAutoRenderer)
     return FakeAutoRenderer
 
@@ -2360,6 +2364,38 @@ def test_the_caption_look_reaches_the_seed_options(env, monkeypatch, fake_engine
     assert {key: job[key] for key in ("captionStyle", "captionPosition", "captionSize")} == {
         "captionStyle": pack, "captionPosition": position, "captionSize": size}
     assert env.renders == []
+
+
+@pytest.mark.parametrize(("value", "trim"), [(None, True), ("on", True), ("off", False)])
+def test_the_pause_trim_switch_reaches_the_seed_options(env, monkeypatch, fake_engine, value,
+                                                        trim):
+    """CONTRACTS §5.58: POTONGIN_AUTO_PAUSE_TRIM=off is the rollback switch."""
+    monkeypatch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: result(*TWO_CLIPS))
+    if value is None:
+        monkeypatch.delenv("POTONGIN_AUTO_PAUSE_TRIM", raising=False)
+    else:
+        monkeypatch.setenv("POTONGIN_AUTO_PAUSE_TRIM", value)
+
+    run(env, max_duration=60.0, render_engine="edit-v2")
+
+    (renderer,) = fake_engine.instances
+    assert renderer.options["options"].trim_pauses is trim
+
+
+def test_the_manifest_duration_is_the_trimmed_length_the_new_engine_rendered(env, monkeypatch,
+                                                                            fake_engine):
+    monkeypatch.setattr(pipeline_module, "select_clips_v3", lambda *a, **k: result(*TWO_CLIPS))
+    fake_engine.seconds = {1: 31.25}  # 33 s with its cold open, 1.75 s of pauses trimmed
+    fake_engine.no_face_ms = {1: 15_700}  # just over half of the trimmed length
+
+    manifest = manifest_of(run(env, max_duration=60.0, render_mode="face-track",
+                               render_engine="edit-v2"))
+
+    first, second = manifest["clips"]
+    assert first["duration"] == 31.25
+    assert second["duration"] == 30.0  # a renderer without the length keeps the selection's
+    assert [duration for _clip, duration in env.thumbnails] == [31.25, 30.0]
+    assert first["fallbacks"] == ["no_face"]
 
 
 @pytest.mark.parametrize(("pack", "legacy_style"), [

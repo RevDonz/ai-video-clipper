@@ -1,0 +1,68 @@
+{
+ "context": "c30",
+ "items": [
+  {
+   "afterWord": "w048250",
+   "beforeWord": "w048251",
+   "defaultOn": true,
+   "e": 1257275,
+   "id": "cl_23",
+   "inSf": 37655,
+   "kind": "gap_silent",
+   "outSf": 37677,
+   "s": 1256299
+  },
+  {
+   "afterWord": "w048310",
+   "beforeWord": "w048311",
+   "defaultOn": true,
+   "e": 1287106,
+   "id": "cl_28",
+   "inSf": 38542,
+   "kind": "gap_silent",
+   "outSf": 38571,
+   "s": 1285890
+  },
+  {
+   "afterWord": "w048338",
+   "beforeWord": "w048339",
+   "defaultOn": true,
+   "e": 1301699,
+   "id": "cl_30",
+   "inSf": 38975,
+   "kind": "gap_silent",
+   "outSf": 39008,
+   "s": 1300336
+  }
+ ],
+ "removals": [
+  {
+   "id": "rm_1",
+   "in_sf": 37655,
+   "origin": "suggestion:cl_23",
+   "out_sf": 37677,
+   "reason": "gap_silent",
+   "seg": "seg_b1",
+   "words": []
+  },
+  {
+   "id": "rm_2",
+   "in_sf": 38542,
+   "origin": "suggestion:cl_28",
+   "out_sf": 38571,
+   "reason": "gap_silent",
+   "seg": "seg_b1",
+   "words": []
+  },
+  {
+   "id": "rm_3",
+   "in_sf": 38975,
+   "origin": "suggestion:cl_30",
+   "out_sf": 39008,
+   "reason": "gap_silent",
+   "seg": "seg_b1",
+   "words": []
+  }
+ ],
+ "schema": "potongin.auto-pauses-fixture/1"
+}
