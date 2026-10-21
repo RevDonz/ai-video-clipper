@@ -686,7 +686,7 @@ test("randomTwoTabs gives two independent tabs from one base", () => {
   assert.equal(contentJson(replaySteps(base, theirs.pending, C30.ctx).doc), contentJson(theirs.doc));
 });
 
-test("the zoom is its own layout part: one tab zooms, the other edits, both survive (§5.47)", () => {
+test("the zoom is its own layout part: one tab zooms, the other edits, both survive (§5.52)", () => {
   assert.ok(PARTS.includes("layout.zoom"));
   assert.equal(partGroup("layout.zoom"), "layout");
   const base = tab(C30).doc;

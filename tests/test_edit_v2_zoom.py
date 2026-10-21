@@ -1,4 +1,4 @@
-"""Zoom and the source's content rect (CONTRACTS §5.47): the crop layouts cover the output
+"""Zoom and the source's content rect (CONTRACTS §5.52): the crop layouts cover the output
 enlarged by ``layout.zoom_pm`` and take an output-sized crop of it; latar blur enlarges its
 picture the same way; every layout sees only the source's content rect (the picture without
 its black bars, ``base.source.content_rect``).
@@ -288,7 +288,7 @@ def test_the_shared_vectors_are_the_python_values():
     if os.environ.get("EDIT_V2_UPDATE_VECTORS") == "1":
         VECTORS.write_text(json.dumps({
             "schema": VECTORS_SCHEMA,
-            "description": ("Zoom and the content rect (CONTRACTS §5.47): the picture the "
+            "description": ("Zoom and the content rect (CONTRACTS §5.52): the picture the "
                             "layouts see, the zoomed output, its scaled size, the crop's travel, "
                             "centre and row, latar blur's foreground, and the crop x of "
                             "layout.keyframes over source-grid frames first_sf … "

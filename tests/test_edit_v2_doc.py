@@ -468,7 +468,7 @@ def test_a_legacy_auto_file_stands_for_its_seed_only_with_a_look_legacy_draws(co
 
 
 def test_a_legacy_auto_file_stands_for_its_seed_only_without_a_content_rect(contexts):
-    """The legacy renderer never crops a source's black bars (CONTRACTS §5.47)."""
+    """The legacy renderer never crops a source's black bars (CONTRACTS §5.52)."""
     seed = copy.deepcopy(contexts["c30"].seed)
     seed["base"]["source"]["content_rect"] = {"x": 0, "y": 90, "w": 1280, "h": 540}
     assert auto_file_is_seed(seed)
@@ -652,7 +652,7 @@ SPLIT_RULES = [
 
 
 def _rect(doc: dict, x: object = 0, y: object = 90, w: object = None, h: object = 540) -> None:
-    """``base.source.content_rect`` (CONTRACTS §5.47): a letterbox of the context's source."""
+    """``base.source.content_rect`` (CONTRACTS §5.52): a letterbox of the context's source."""
     source = doc["base"]["source"]
     source["content_rect"] = {"x": x, "y": y, "w": source["w"] if w is None else w, "h": h}
 

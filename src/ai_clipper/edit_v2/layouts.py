@@ -33,7 +33,7 @@ place from edge to edge; every side and offset even, so the crop is exact on 4:2
 chain crops first and scales each crop to its band (:func:`split_chain`); the crops are the same
 on every frame.
 
-**Zoom and the content rect** (CONTRACTS §5.47). ``layout.zoom_pm`` (1000–1500) enlarges the picture
+**Zoom and the content rect** (CONTRACTS §5.52). ``layout.zoom_pm`` (1000–1500) enlarges the picture
 of every layout but the split: the scales cover (crop layouts) or fit (latar blur's picture) the
 output enlarged by the zoom (:func:`zoomed_output`), and the crops stay output-sized, so the crop
 x travels over the zoomed scaled source and the crop row is its centre (:func:`crop_y`); latar
@@ -129,7 +129,7 @@ def _check_zoom(zoom_pm: object) -> int:
 
 def zoomed_output(output: tuple[int, int], zoom_pm: int = ZOOM_RANGE[0]) -> tuple[int, int]:
     """The size the scales cover (or fit) at ``zoom_pm``: each side of the output times
-    ``zoom_pm / 1000``, rounded half up; the output itself at 1000 (CONTRACTS §5.47)."""
+    ``zoom_pm / 1000``, rounded half up; the output itself at 1000 (CONTRACTS §5.52)."""
     if _check_zoom(zoom_pm) == ZOOM_RANGE[0]:
         return (output[0], output[1])
     return (div_round_half_up(output[0] * zoom_pm, 1000),
@@ -222,7 +222,7 @@ def crop_positions(
     nearest even integer.
 
     ``source`` is the whole source (the plan's centres are fractions of its width). With a
-    content rect (§5.47) the crop is of that picture: a centre ``c`` sits at ``(c·W_src − x)/w``
+    content rect (§5.52) the crop is of that picture: a centre ``c`` sits at ``(c·W_src − x)/w``
     of it. With ``zoom_pm`` the scaled picture is the one covering the zoomed output.
     """
     samples = camera["samples"]
@@ -274,7 +274,7 @@ def pan_limit(source: tuple[int, int], output: tuple[int, int],
               zoom_pm: int = ZOOM_RANGE[0]) -> int:
     """The crop's travel in the scaled source, ``scaled_w − W`` floored to even (the camera
     crop's limit); 0 when the source is 9:16 or taller at zoom 1000, so there is nothing to
-    pan. ``source`` is the picture the layouts see (the content rect's size, §5.47)."""
+    pan. ``source`` is the picture the layouts see (the content rect's size, §5.52)."""
     limit = max(_zoomed_scale(source, output, zoom_pm)[0] - output[0], 0)
     return limit - limit % 2
 
@@ -311,7 +311,7 @@ def keyframe_positions(
 ) -> tuple[int, ...]:
     """Even crop x (in the scaled source) for source-grid frames ``first_sf … first_sf+count−1``
     from the manual framing keyframes (CONTRACTS §5.44); ``source`` is the picture the layouts
-    see and ``zoom_pm`` widens the travel (§5.47).
+    see and ``zoom_pm`` widens the travel (§5.52).
 
     Keyframe ``i`` puts the crop at ``pan_e5·limit/100000`` (``limit``: :func:`pan_limit`) on its
     frame ``sf``. Before the first keyframe the first holds and after the last the last holds.
@@ -388,7 +388,7 @@ def layout_chain(
     SAR 1). ``crop`` holds the camera crop x per frame of the branch (``camera`` only), and
     ``fallback`` per frame whether it shows the no-face fallback (``camera`` only, §5.40).
     ``zoom_pm`` enlarges the picture and ``content`` is the rect of ``source`` (the decoded
-    size) the layout shows, cropped first (§5.47).
+    size) the layout shows, cropped first (§5.52).
 
     ``suffix`` keeps the internal labels of fit-blur unique (``[background<suffix>]`` …).
     """
@@ -442,7 +442,7 @@ def _picture_chain(mode: str, *, label_in: str, label_out: str, suffix: str,
     chain = _replace_once(legacy, "force_original_aspect_ratio=increase,",
                           f"force_original_aspect_ratio=increase:{conversion}{WORKING_FORMAT},")
     if zoom_pm != ZOOM_RANGE[0]:
-        # the scales cover (or fit) the zoomed output; every crop stays output-sized (§5.47)
+        # the scales cover (or fit) the zoomed output; every crop stays output-sized (§5.52)
         zoom_w, zoom_h = zoomed_output(output, zoom_pm)
         scale = f"scale={width}:{height}:"
         if chain.count(scale) != (2 if mode == "fit_blur" else 1):
@@ -621,7 +621,7 @@ def split_chain(
     """The split layout from ``label_in`` to ``label_out`` (yuv444p, BT.709, tv, SAR 1): each
     band's crop of the source scaled to the band (R3's explicit conversion), the top band padded
     with the black line below it, then stacked. ``suffix`` keeps the internal labels unique.
-    With a content rect of ``source`` (§5.47) the bands crop that picture, cropped first."""
+    With a content rect of ``source`` (§5.52) the bands crop that picture, cropped first."""
     if in_range not in ("tv", "pc"):
         raise ValueError("in_range must be tv or pc")
     if content is not None:

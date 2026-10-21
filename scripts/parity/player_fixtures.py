@@ -259,7 +259,7 @@ def expected_index(plan: Any, grid: Sequence[int | None], *, first: int) -> list
 def expected_crop_x(plan: Any, source: tuple[int, int]) -> list[int] | None:
     """The crop x of every output frame for the crop layouts: the centre, the camera table or
     the manual framing keyframes' (CONTRACTS §5.44), at the document's zoom over its content
-    picture (§5.47). None for fit_blur and for the split, whose two crops P-PLATE reads band by
+    picture (§5.52). None for fit_blur and for the split, whose two crops P-PLATE reads band by
     band (§5.45)."""
     from ai_clipper.edit_v2 import layouts
 

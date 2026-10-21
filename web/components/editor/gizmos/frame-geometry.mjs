@@ -5,7 +5,7 @@
 // The crop layouts scale the source to `scaledW × scaledH` (cover) and take an output-sized window
 // at x; the picture the gizmo draws on is the whole source, so the box is `x / scaledW` from its
 // left and `W / scaledW` wide (full height for a source wider than 9:16). With "Zoom" (CONTRACTS
-// §5.47) the scale covers the zoomed output, so the box is smaller and centred at the crop's row;
+// §5.52) the scale covers the zoomed output, so the box is smaller and centred at the crop's row;
 // the picture is the source inside its black bars.
 import { PAN_E5_MAX, ZOOM_RANGE } from "../../../lib/editor/doc-model.mjs";
 import { cropY, panForCrop, panLimit, scaledSize, zoomedOutput } from "../../../lib/editor/framing.mjs";

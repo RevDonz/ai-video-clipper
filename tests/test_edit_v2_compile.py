@@ -1078,7 +1078,7 @@ def test_a_document_without_keyframes_keeps_its_graph(harness, probe_stub):
         plain_job.filter_script)
 
 
-# --- zoom and the source's content rect (CONTRACTS §5.47) ------------------------------------------
+# --- zoom and the source's content rect (CONTRACTS §5.52) ------------------------------------------
 
 
 def with_content(doc: dict, rect: tuple[int, int, int, int]) -> dict:
@@ -1660,7 +1660,7 @@ def test_manual_crop_decoded_from_the_ruler_matches_the_keyframes(harness, tmp_p
 
 def test_zoomed_crop_inside_the_content_rect_decoded_from_the_ruler(harness, tmp_path,
                                                                     edit_v2_ffmpeg):
-    """Zoom and content rect (CONTRACTS §5.47) with real FFmpeg: every reference frame (the
+    """Zoom and content rect (CONTRACTS §5.52) with real FFmpeg: every reference frame (the
     final's graph, lossless) and plate frame shows the keyframe crop of the zoomed content
     picture, read from the source's column ruler (P-PLATE's decoder); latar blur's zoomed
     picture still shows every frame's index."""

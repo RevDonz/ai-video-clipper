@@ -63,7 +63,7 @@ PAN_E5_MAX = 100_000
 SPLIT_TOP_PM = (300, 500, 700)
 SPLIT_BANDS = ("top", "bottom")
 SPLIT_ZOOM_RANGE = (1000, 5000)
-# Zoom (optional ``layout.zoom_pm``, CONTRACTS §5.47): the picture of every layout but the split
+# Zoom (optional ``layout.zoom_pm``, CONTRACTS §5.52): the picture of every layout but the split
 # enlarged from 1000 (absent: today's picture) to 1.5×, per mille.
 ZOOM_RANGE = (1000, 1500)
 

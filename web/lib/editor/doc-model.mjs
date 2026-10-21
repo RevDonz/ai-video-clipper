@@ -68,7 +68,7 @@ export const SPLIT_BANDS = Object.freeze(["top", "bottom"]);
 export const SPLIT_ZOOM_RANGE = Object.freeze([1000, 5000]);
 const SPLIT_CROP_KEYS = Object.freeze(["x_e5", "y_e5", "zoom_pm"]);
 /**
- * "Zoom" (`layout.zoom_pm`, CONTRACTS §5.47): every layout but the split enlarged from 1000 (no
+ * "Zoom" (`layout.zoom_pm`, CONTRACTS §5.52): every layout but the split enlarged from 1000 (no
  * key) to 1.5×, per mille; the editor offers 5 % steps.
  */
 export const ZOOM_RANGE = Object.freeze([1000, 1500]);
@@ -95,7 +95,7 @@ export function layoutAfterSwitch(layout, mode) {
   return next;
 }
 
-/** The document's zoom per mille: 1000 without `layout.zoom_pm` (CONTRACTS §5.47). */
+/** The document's zoom per mille: 1000 without `layout.zoom_pm` (CONTRACTS §5.52). */
 export function zoomOf(doc) {
   const zoom = doc?.layout?.zoom_pm;
   return Number.isSafeInteger(zoom) ? zoom : ZOOM_RANGE[0];
@@ -572,7 +572,7 @@ export function checkDoc(doc, ctx) {
   if (doc.layout && Object.hasOwn(doc.layout, "keyframes")) checkKeyframes(doc.layout, ctx, add);
   if (doc.layout && Object.hasOwn(doc.layout, "split")) checkSplitLayout(doc.layout, add);
   else if (doc.layout?.default?.mode === "split") add("range_invalid", "/layout/split");
-  // the zoom (CONTRACTS §5.47): 1000 is no key (R10), and the split's bands carry their own
+  // the zoom (CONTRACTS §5.52): 1000 is no key (R10), and the split's bands carry their own
   if (doc.layout && Object.hasOwn(doc.layout, "zoom_pm")
     && (!isInt(doc.layout.zoom_pm, ZOOM_RANGE[0] + 1, ZOOM_RANGE[1]) || doc.layout.default?.mode === "split")) {
     add("range_invalid", "/layout/zoom_pm");

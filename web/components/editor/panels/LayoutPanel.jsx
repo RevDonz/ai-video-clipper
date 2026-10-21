@@ -22,7 +22,7 @@
 //   the no-face choice gives way (the keyframes frame those runs too).
 // - Under layar terbagi (CONTRACTS §5.45) "Layar terbagi" takes Bingkai's place: the share
 //   ("30/70", "50/50"), "Tukar atas dan bawah" and "Atur potongan" (../SplitDialog.jsx).
-// - "Zoom" (CONTRACTS §5.47) enlarges every other layout, 100 % to 150 %: the slider is drawn from
+// - "Zoom" (CONTRACTS §5.52) enlarges every other layout, 100 % to 150 %: the slider is drawn from
 //   a draft and stored once, when it is let go (pointer or key), so the stage renders one plate.
 //   A source whose black bars were found says that they are left out.
 //

@@ -332,7 +332,7 @@ def _source(source_info: Mapping) -> dict[str, Any]:
         raise SeedError("source probe fields are invalid")
     source = {"content_sha256": sha, **fields, "fps_native": [fps[0], fps[1]]}
     rect = probe.get("content_rect")
-    if rect is not None:  # the picture inside the source's black bars (CONTRACTS §5.47)
+    if rect is not None:  # the picture inside the source's black bars (CONTRACTS §5.52)
         from .layouts import check_content_rect
 
         try:

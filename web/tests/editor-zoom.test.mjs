@@ -1,4 +1,4 @@
-// "Zoom" and the source's content rect (CONTRACTS §5.47): web/lib/editor/framing.mjs against the
+// "Zoom" and the source's content rect (CONTRACTS §5.52): web/lib/editor/framing.mjs against the
 // vectors edit_v2/layouts.py writes (tests/fixtures/edit_v2/zoom-vectors.json), so the box the
 // gizmo draws is the crop the render takes at any zoom, inside the picture without black bars;
 // and the editor's helpers that read the zoom and the content rect.

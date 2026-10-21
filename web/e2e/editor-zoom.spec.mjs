@@ -1,4 +1,4 @@
-// "Zoom" and the source's black bars (CONTRACTS §5.47) on the editor fakes: the Zoom slider in the
+// "Zoom" and the source's black bars (CONTRACTS §5.52) on the editor fakes: the Zoom slider in the
 // Tata letak panel stores one SetZoom when it is let go (key or pointer), "Kembali ke 100%" drops
 // it, one undo brings it back, the split has no Zoom and drops it, the Mode Cepat card names it;
 // "Atur bingkai" draws a smaller box at the zoomed crop's row; a source with black bars says that

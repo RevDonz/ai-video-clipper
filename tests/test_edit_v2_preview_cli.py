@@ -153,7 +153,7 @@ CLIP = "clip_" + "a" * 24
                         json.dumps([[k, 0, "cut"] for k in range(101)]).encode())],
     b'{"op": "prepare", "jobId": "' + JOB.encode() + b'", "clipId": "' + CLIP.encode()
     + b'", "layout": "fill_center", "keyframes": [[1, 0, "cut"]]}',
-    # zoom (CONTRACTS §5.47): 1001–1500 per mille
+    # zoom (CONTRACTS §5.52): 1001–1500 per mille
     *[b'{"op": "cells", "jobId": "' + JOB.encode() + b'", "clipId": "' + CLIP.encode()
       + b'", "layout": "fill_center", "zoom": ' + zoom + b', "cells": [1], "cancelToken": null}'
       for zoom in (b"1000", b"1501", b"null", b"1200.0", b'"1200"', b"true", b"[1200]")],
@@ -966,7 +966,7 @@ def test_prepare_and_cells_build_the_plate_of_the_split(job):
 
 
 def test_prepare_and_cells_build_the_plate_of_the_zoom(job):
-    """CONTRACTS §5.47: the lane names the document's zoom, the cells op builds the plate of the
+    """CONTRACTS §5.52: the lane names the document's zoom, the cells op builds the plate of the
     zoom it passes under the plan's key, and a switch into the split drops the zoom."""
     case = job_case(job, 2)  # shared with the split's test: saves on its head
     seed = case["seed"]

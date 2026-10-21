@@ -139,7 +139,7 @@ def _no_floats(value):
 
 
 def test_the_seed_keeps_the_sources_content_rect():
-    """CONTRACTS §5.47: the probe's content rect (the picture inside black bars) is the seed's
+    """CONTRACTS §5.52: the probe's content rect (the picture inside black bars) is the seed's
     ``base.source.content_rect``; null or a probe measured before it adds no key."""
     rect = {"x": 0, "y": 90, "w": 1280, "h": 540}
     info = _source_info()

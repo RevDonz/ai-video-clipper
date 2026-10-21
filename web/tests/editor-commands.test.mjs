@@ -207,7 +207,7 @@ test("defaultMergeKey follows Appendix B", () => {
   // a drag or a zoom of one split band is one undo step (CONTRACTS §5.45)
   assert.equal(defaultMergeKey("SetSplitCrop", { band: "top", x_e5: 1, y_e5: 2, zoom_pm: 1000 }), "split:top");
   assert.equal(defaultMergeKey("SetSplitCrop", { band: "middle" }), null);
-  // a drag of the zoom slider is one undo step (CONTRACTS §5.47)
+  // a drag of the zoom slider is one undo step (CONTRACTS §5.52)
   assert.equal(defaultMergeKey("SetZoom", { zoom_pm: 1250 }), "layout:zoom");
   for (const type of ["TrimStart", "TrimEnd", "RemoveWords", "RemoveGap", "RestoreRemoval", "ApplyCleanup",
     "SetColdOpen", "SetJoinStyle", "SetJoinSfx", "SetWordHidden", "SetWordEmphasis", "SetCaptionPack", "SetHookDesign", "SetLayout",
@@ -1255,7 +1255,7 @@ test("ResetToSeed restores the AI version and keeps revision, parent and created
   assert.equal(reset.audit.created_at_ms, C24.seed.audit.created_at_ms);
 });
 
-// --- zoom (CONTRACTS §5.47) ----------------------------------------------------------------------
+// --- zoom (CONTRACTS §5.52) ----------------------------------------------------------------------
 
 test("SetZoom enlarges every layout but the split; 1000 is no key (R10)", () => {
   for (const mode of ["fit_blur", "camera", "fill_center"]) {

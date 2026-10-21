@@ -356,7 +356,7 @@ def test_ensure_source_info_refuses_a_symlinked_source(tmp_path, edit_v2_media_f
     assert not os.path.exists(job_dir / "analysis" / "source.json")
 
 
-# --- black bars: the content rect (CONTRACTS §5.47) ---------------------------------------------
+# --- black bars: the content rect (CONTRACTS §5.52) ---------------------------------------------
 
 
 def _detect(x1: int, x2: int, y1: int, y2: int) -> str:

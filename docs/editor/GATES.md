@@ -2133,9 +2133,9 @@ Golden evidence, the glyph probe and the thumbnail check in the image:
 
 ## Zoom and black bars (2026-10-21)
 
-`layout.zoom_pm` and `base.source.content_rect` (CONTRACTS §5.47). Documents without either key
+`layout.zoom_pm` and `base.source.content_rect` (CONTRACTS §5.52). Documents without either key
 keep their graph, plan sha and plate key, and a source without bars gets no content rect, so
-`RENDER_SEMANTICS` stays 1 and the goldens are unchanged. Built on branch `adopsi/zoom-cropdetect`
+`RENDER_SEMANTICS` stays 2 and the goldens are unchanged. Built on branch `adopsi/zoom-cropdetect`
 with targeted local tests only; the gates that need the production image or a browser run on
 GitHub Actions when the branch is pushed.
 

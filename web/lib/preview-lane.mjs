@@ -70,7 +70,7 @@ function plateSplit(layout, value) {
     && inRange(band[1], 0, 100000) && inRange(band[2], 1000, 5000))) return undefined;
   return [value[0], ...bands.map((band) => [...band])];
 }
-// A plate's `zoom` from preview_cli (CONTRACTS §5.47): `layout.zoom_pm` (1001–1500) for any layout
+// A plate's `zoom` from preview_cli (CONTRACTS §5.52): `layout.zoom_pm` (1001–1500) for any layout
 // but the split, null without a zoom; undefined when malformed (not trusted).
 function plateZoom(layout, value) {
   if (value === undefined || value === null) return null;

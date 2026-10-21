@@ -87,7 +87,7 @@ export function framingView({ doc, plan, frame, draft = null }) {
  * The still's document: `doc` with the latar blur layout (no keyframes and no zoom, so it validates
  * and shows the whole picture), no captions, tracks or assets, and its cold-open join as a plain
  * cut without the whoosh, so the truth frame is the source picture (inside its black bars,
- * CONTRACTS §5.47) and nothing over it.
+ * CONTRACTS §5.52) and nothing over it.
  */
 export function sourceFrameDoc(doc) {
   const joins = doc.main.joins.map(({ sfx: _sfx, ...join }) => ({ ...join, style: "cut" }));

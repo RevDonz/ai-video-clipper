@@ -783,7 +783,7 @@ def _valid(contexts: Mapping[str, Context]) -> list[_Fixture]:
                                 "top": {"x_e5": 50000, "y_e5": 50000, "zoom_pm": 1000},
                                 "bottom": {"x_e5": 0, "y_e5": 100000, "zoom_pm": 5000}}
     add("layout_split_swapped", d)
-    # zoom (§5.47): every layout but the split, alone and with the manual framing
+    # zoom (§5.52): every layout but the split, alone and with the manual framing
     d = _Doc(c30, "SetZoom")
     d.doc["layout"]["default"]["mode"] = "fill_center"
     d.doc["layout"]["zoom_pm"] = 1250

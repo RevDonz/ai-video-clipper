@@ -441,7 +441,7 @@ class _Compiler:
         frames of the camera plan's runs without a face are chosen the same way, per source
         frame. Manual framing (§5.44) gives either crop layout the camera chain with the crop x
         of the keyframes, per source frame, and no fallback. Layar terbagi (§5.45) has its own
-        chain, the same crops on every frame. The zoom and the source's content rect (§5.47)
+        chain, the same crops on every frame. The zoom and the source's content rect (§5.52)
         reach every chain: the keyframes pan over the content picture, the camera plan's
         centres (fractions of the whole source) are moved into it.
         """

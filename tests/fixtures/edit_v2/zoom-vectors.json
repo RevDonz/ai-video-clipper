@@ -1,6 +1,6 @@
 {
  "schema": "potongin.zoom-vectors/1",
- "description": "Zoom and the content rect (CONTRACTS §5.47): the picture the layouts see, the zoomed output, its scaled size, the crop's travel, centre and row, latar blur's foreground, and the crop x of layout.keyframes over source-grid frames first_sf … first_sf+count−1 (edit_v2.layouts). Written by tests/test_edit_v2_zoom.py; web/tests/editor-zoom.test.mjs checks web/lib/editor/framing.mjs against it.",
+ "description": "Zoom and the content rect (CONTRACTS §5.52): the picture the layouts see, the zoomed output, its scaled size, the crop's travel, centre and row, latar blur's foreground, and the crop x of layout.keyframes over source-grid frames first_sf … first_sf+count−1 (edit_v2.layouts). Written by tests/test_edit_v2_zoom.py; web/tests/editor-zoom.test.mjs checks web/lib/editor/framing.mjs against it.",
  "vectors": [
   {
    "name": "zoom_150_720",

@@ -38,7 +38,7 @@
 // - Layar terbagi (CONTRACTS §5.45): SetLayout into the split starts from `defaultSplit()` and any
 //   other layout drops `layout.split`; SetSplitRatio, SwapSplit ("Tukar": the crops change places,
 //   so the small band moves with its picture) and SetSplitCrop (one band, merged per band).
-// - "Zoom" (CONTRACTS §5.47): SetZoom {zoom_pm} in 1000–1500 for every layout but the split; 1000
+// - "Zoom" (CONTRACTS §5.52): SetZoom {zoom_pm} in 1000–1500 for every layout but the split; 1000
 //   drops the key (R10), and SetLayout into the split drops it (`layoutAfterSwitch`).
 // - The text watermark (CONTRACTS §5.43): SetWatermarkText adds it at DEFAULT_WATERMARK or changes
 //   only its text; RemoveWatermark drops the key, so a clip without one equals its seed (R10).
@@ -94,7 +94,7 @@ import { divRoundHalfUp, logoBox, pieces, sfCeil, sfFloor } from "./timemap.mjs"
  * cold-open transition commands after NudgeColdOpen (docs/plans/2026-10-02-transisi-cold-open.md §7.2),
  * SetHookDesign after SetHookY (CONTRACTS §5.33), SetNoFace after SetLayout (CONTRACTS §5.40), the
  * framing commands after SetNoFace (CONTRACTS §5.44), the split's after them (§5.45), SetZoom after
- * the split's (§5.47) and the text watermark's after SnapLogo (§5.43).
+ * the split's (§5.52) and the text watermark's after SnapLogo (§5.43).
  */
 export const COMMANDS = Object.freeze([
   "TrimStart", "TrimEnd", "RemoveWords", "RemoveGap", "RestoreRemoval", "ApplyCleanup",

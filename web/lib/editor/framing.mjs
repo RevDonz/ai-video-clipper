@@ -8,7 +8,7 @@
 // [0, limit], `limit` = scaled width − output width floored to even. A keyframe's `pan_e5` puts
 // that window at `pan_e5 · limit / 100000`. Integers only: BigInt for the products.
 //
-// "Zoom" and the content rect (CONTRACTS §5.47, tests/fixtures/edit_v2/zoom-vectors.json): the
+// "Zoom" and the content rect (CONTRACTS §5.52, tests/fixtures/edit_v2/zoom-vectors.json): the
 // scales cover the output enlarged by `layout.zoom_pm` (`zoomedOutput`) while the window stays
 // output-sized, so the travel widens and the window's row is `cropY`; every layout sees only the
 // picture inside the source's black bars (`base.source.content_rect`, `pictureSize`).
@@ -148,7 +148,7 @@ export function panForCrop(x, limit) {
 }
 
 /**
- * The document's picture (the source inside its black bars, CONTRACTS §5.47) and output as
+ * The document's picture (the source inside its black bars, CONTRACTS §5.52) and output as
  * `[w, h]` pairs, and its zoom per mille: what every crop of the layouts is taken from.
  */
 export function framingSizes(doc) {

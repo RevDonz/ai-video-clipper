@@ -982,7 +982,7 @@ test("preview ops go to the persistent worker; other modules and the kill switch
   assert.equal(created.length, 1);
 });
 
-// CONTRACTS §5.47: a zoomed plate is its own plate; every cells batch carries the zoom.
+// CONTRACTS §5.52: a zoomed plate is its own plate; every cells batch carries the zoom.
 test("the cells of a zoomed plate carry its zoom; a plate without one does not name it", async () => {
   const { dir, clip, cleanup } = root();
   readyAudio(clip);

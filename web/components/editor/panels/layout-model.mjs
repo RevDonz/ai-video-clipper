@@ -13,7 +13,7 @@
 //   frame where it starts); each is a jump-to target. Face-track chosen here shows them with latar
 //   blur (`no_face: "fit_blur"`, the plan says `no_face_blur`); one click centres them instead, and
 //   back (`SetNoFace`, CONTRACTS §5.40).
-// - "Zoom" (CONTRACTS §5.47) enlarges every layout but the split from 100 % to 150 %, in 5 % steps
+// - "Zoom" (CONTRACTS §5.52) enlarges every layout but the split from 100 % to 150 %, in 5 % steps
 //   (`SetZoom`; the split zooms each band in "Atur layar terbagi"). A source with black bars is
 //   laid out without them; the section says so.
 import { NO_FACE_MODES, ZOOM_RANGE, ZOOM_STEP_PM, layoutAfterSwitch, zoomOf } from "../../../lib/editor/doc-model.mjs";

@@ -294,7 +294,7 @@ const GENERATORS = {
     return { band: chance(rng, 0.04) ? "middle" : pick(rng, ["top", "bottom"]), x_e5: place(), y_e5: place(),
       zoom_pm: chance(rng, 0.04) ? pick(rng, [999, 5001]) : pick(rng, [1000, 5000, int(rng, 1000, 5000)]) };
   },
-  // Zoom (CONTRACTS §5.47): 1000 (no key) and the ends often, a few out of range.
+  // Zoom (CONTRACTS §5.52): 1000 (no key) and the ends often, a few out of range.
   SetZoom(rng) {
     return { zoom_pm: chance(rng, 0.04) ? pick(rng, [999, 1501, 1200.5]) : pick(rng, [1000, 1500, int(rng, 1000, 1500)]) };
   },

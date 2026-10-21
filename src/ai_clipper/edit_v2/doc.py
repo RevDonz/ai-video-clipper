@@ -154,7 +154,7 @@ def auto_file_is_seed(seed: Mapping) -> bool:
     draws a logo or a text watermark, never crops a source's black bars, and draws only Klasik
     or Karaoke at the pack's spot and size, so a legacy seed with the Pengaturan defaults,
     another look from the job's options (CONTRACTS §5.48) or ``base.source.content_rect``
-    (CONTRACTS §5.47) is not that file."""
+    (CONTRACTS §5.52) is not that file."""
     if seed["base"]["engine"]["compiler"] != "legacy":
         return True
     captions = seed["captions"]
@@ -390,7 +390,7 @@ _ROOT = _compile(_keys(
     base=_keys("job_id", "window_ms", "seed_sha256",
                source=_keys("content_sha256", "w", "h", "fps_native", "vfr", "duration_ms",
                             "has_audio",
-                            content_rect=_keys("x", "y", "w", "h")),  # optional (§5.47)
+                            content_rect=_keys("x", "y", "w", "h")),  # optional (§5.52)
                origin=_keys("kind", "selection_artifact_sha256", "selection_version",
                             "rank_at_seed", "hook_unit_id", "selection_source"),
                words=_keys("sha256", "count"),
@@ -406,7 +406,7 @@ _ROOT = _compile(_keys(
                    overrides=_keys("y_e5", "size_pm", "case", "highlight", "emphasis",
                                    "words_max", "entrance"),
                    word_edits=_Map(_keys("text", "hidden", "emphasis"))),
-    layout=_keys("zoom_pm",  # optional (CONTRACTS §5.47)
+    layout=_keys("zoom_pm",  # optional (CONTRACTS §5.52)
                  default=_keys("mode", "no_face"),
                  keyframes=_List(_keys("sf", "pan_e5", "move")),
                  split=_keys("top_pm", **dict.fromkeys(SPLIT_BANDS,
@@ -805,7 +805,7 @@ class _Validator:
             self.boolean(source, "vfr", sp)
             duration = self.integer(source, "duration_ms", sp, 1)
             self.boolean(source, "has_audio", sp)
-            if "content_rect" in source:  # optional; absent = the whole picture (§5.47)
+            if "content_rect" in source:  # optional; absent = the whole picture (§5.52)
                 self.content_rect(source)
         origin = self.field(base, "origin", path)
         if origin is not _MISSING and self.obj(origin, "/base/origin") is not None:
@@ -843,7 +843,7 @@ class _Validator:
             self._seed_base()
 
     def content_rect(self, source: Mapping) -> None:
-        """The source without its black bars (CONTRACTS §5.47): even ``x``, ``y``, ``w`` and
+        """The source without its black bars (CONTRACTS §5.52): even ``x``, ``y``, ``w`` and
         ``h`` with ``w``/``h`` ≥ 16, inside the source and smaller than it."""
         path = "/base/source/content_rect"
         rect = self.obj(source["content_rect"], path)
@@ -1201,7 +1201,7 @@ class _Validator:
             self.enum(default, "no_face", "/layout/default", _NO_FACE)
         if "keyframes" in layout:
             self.keyframes(layout["keyframes"], mode)
-        if "zoom_pm" in layout:  # optional; absent = 1000, so 1000 is no key (§5.47, R10)
+        if "zoom_pm" in layout:  # optional; absent = 1000, so 1000 is no key (§5.52, R10)
             zoom = self.integer(layout, "zoom_pm", "/layout", *ZOOM_RANGE)
             # the split's bands carry their own zoom
             if zoom == ZOOM_RANGE[0] or (zoom is not None and mode == "split"):

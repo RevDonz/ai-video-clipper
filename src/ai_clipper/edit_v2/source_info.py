@@ -25,7 +25,7 @@ stream that is not cover art, else the first) and audio stream (default, else th
   ``color_*`` tags (or null), ``audio_sample_rate``, ``audio_channels``, ``size_bytes``,
   ``frame_steps`` and ``irregular_frame_steps``;
 * ``content_rect``: ``{x, y, w, h}``, the picture inside constant black bars (a letterbox, a
-  pillarbox or both), or null for a source without bars (CONTRACTS §5.47). FFmpeg's
+  pillarbox or both), or null for a source without bars (CONTRACTS §5.52). FFmpeg's
   ``cropdetect`` runs on a few frames at five points of the video (:func:`measure_content_rect`,
   bounded by ``CROPDETECT_*``) and :func:`content_rect_from_cropdetect` keeps only bars that are
   on both sides of an axis, alike, at least 1 % of the side each, with a picture of at least a
@@ -580,7 +580,7 @@ def probe_source(source: Path) -> dict[str, Any]:
     }
 
 
-# --- black bars (CONTRACTS §5.47) --------------------------------------------------------------
+# --- black bars (CONTRACTS §5.52) --------------------------------------------------------------
 
 
 def _bounds(stderr: str, size: tuple[int, int]) -> tuple[int, int, int, int] | None:

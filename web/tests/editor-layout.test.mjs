@@ -283,7 +283,7 @@ test("the face-track note says what this clip does where no face is found", () =
   assert.equal(layoutNote(fit, centred), fit.note);
 });
 
-// --- zoom (CONTRACTS §5.47) ----------------------------------------------------------------------
+// --- zoom (CONTRACTS §5.52) ----------------------------------------------------------------------
 
 test("the zoom section: 100 to 150 % in 5 % steps for every layout but the split, with the bars note", () => {
   const doc = fakeDoc();

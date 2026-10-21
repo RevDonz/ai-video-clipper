@@ -193,7 +193,7 @@ test("the framing gizmo lives in the dialog, not over the 9:16 stage", () => {
   assert.deepEqual(GIZMOS.map((gizmo) => gizmo.id), ["caption", "logo"]);
 });
 
-test("with the zoom the box is smaller, centred at the crop's row, and travels further (CONTRACTS §5.47)", () => {
+test("with the zoom the box is smaller, centred at the crop's row, and travels further (CONTRACTS §5.52)", () => {
   const plain = frameGeometry([1280, 720], [720, 1280]);
   assert.equal(plain.boxTop, 0);
   assert.equal(plain.boxHeight, 1);

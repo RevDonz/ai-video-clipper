@@ -182,7 +182,7 @@ def test_plate_key_names_the_keyframes_of_manual_framing(contexts):
 
 
 def test_plate_key_names_the_zoom_and_the_content_rect(contexts):
-    """CONTRACTS §5.47: the zoom and the content rect set the plate's pixels, so each is part of
+    """CONTRACTS §5.52: the zoom and the content rect set the plate's pixels, so each is part of
     the key when present; without them every key is the pinned one above."""
     seed = contexts["c30"].seed
     for layout in ("fit_blur", "fill_center", "camera"):

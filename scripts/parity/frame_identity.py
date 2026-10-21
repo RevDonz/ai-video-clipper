@@ -480,7 +480,7 @@ class Case:
     # layout.split (CONTRACTS §5.45): (top_pm, top band, bottom band), a band (x_e5, y_e5,
     # zoom_pm); the top band's crop starts at the source's first row (y_e5 0).
     split: tuple[int, tuple[int, int, int], tuple[int, int, int]] | None = None
-    # layout.zoom_pm and base.source.content_rect (CONTRACTS §5.47): the zoom of every layout
+    # layout.zoom_pm and base.source.content_rect (CONTRACTS §5.52): the zoom of every layout
     # but the split, and the picture inside the source's (here imagined) black bars. A content
     # rect keeps the source's first row (y 0), where the frame index is.
     zoom_pm: int = 1000
@@ -500,7 +500,7 @@ KEYFRAMES_900 = ((40, 0, "cut"), (150, 100_000, "cut"), (330, 30_000, "slide"),
 # wide band at the bottom zoomed 2.5×.
 SPLIT_30_70 = (300, (20_000, 0, 1600), (75_000, 30_000, 1200))
 SPLIT_SWAPPED = (700, (60_000, 0, 1000), (10_000, 40_000, 2500))
-# A 4:3 picture inside the 640×360 barcode source, as if pillarboxed (§5.47).
+# A 4:3 picture inside the 640×360 barcode source, as if pillarboxed (§5.52).
 PILLARBOX_43 = (80, 0, 480, 360)
 
 
@@ -511,7 +511,7 @@ P_FRAME_CASES = (
     Case("cfr_30_no_face_blur", (30, 1), 900, "camera", no_face="fit_blur"),
     Case("cfr_30_keyframes", (30, 1), 900, "fill_center", keyframes=KEYFRAMES_900),
     Case("cfr_30_split", (30, 1), 900, "split", split=SPLIT_30_70),
-    # zoom (§5.47): latar blur's picture enlarged and cropped to the frame; with a content rect
+    # zoom (§5.52): latar blur's picture enlarged and cropped to the frame; with a content rect
     Case("cfr_30_zoom", (30, 1), 900, "fit_blur", zoom_pm=1500),
     Case("cfr_30_zoom_content", (30, 1), 900, "fit_blur", zoom_pm=1250, content=PILLARBOX_43),
     Case("vfr_30", (30, 1), 900, "fit_blur", vfr=True, drop_every=11),
@@ -749,7 +749,7 @@ class Workspace:
 def geometry(layout: str, source: tuple[int, int], output: tuple[int, int],
              zoom_pm: int = 1000) -> dict[str, float]:
     """Where the rows of ``source`` (the picture the layout lays out) land in the output (for
-    ``decode_index``). With a zoom (§5.47) the picture is scaled to the zoomed output and its
+    ``decode_index``). With a zoom (§5.52) the picture is scaled to the zoomed output and its
     rows cropped around the middle."""
     from ai_clipper.edit_v2 import layouts
 

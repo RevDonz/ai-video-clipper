@@ -274,7 +274,7 @@ def decode_crop_x(plane: bytes, width: int, height: int, pattern: Pattern, *,
     """The crop x (in the scaled source) of a crop layout: scale by ``scale`` (the horizontal
     factor, e.g. ``scaled_width / source_width``), then ``crop=width:…:x``. Each output column
     votes for the x values consistent with its decoded source column; the most voted x wins.
-    With a content rect (CONTRACTS §5.47) the picture is ``picture_w`` source columns from
+    With a content rect (CONTRACTS §5.52) the picture is ``picture_w`` source columns from
     column ``offset``, and x is in the scaled picture."""
     columns = [column - offset
                for column in decode_ruler(plane, width, height, pattern, scale=scale, top=top)]

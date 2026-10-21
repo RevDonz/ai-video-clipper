@@ -61,7 +61,7 @@ export function splitView({ doc, draft = null }) {
   const current = splitOf(doc);
   if (!current) return null;
   const split = draft ? { ...current, [draft.band]: draft.crop } : current;
-  // the bands crop the picture inside the source's black bars (CONTRACTS §5.47)
+  // the bands crop the picture inside the source's black bars (CONTRACTS §5.52)
   const { source, output } = framingSizes(doc);
   return { split, geometry: splitGeometry(split, { source, output }), source, output };
 }

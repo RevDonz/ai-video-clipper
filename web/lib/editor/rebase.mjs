@@ -663,7 +663,7 @@ export function rebase({ base, mine, theirs, steps, ctx }) {
   // layout along, and mine's layout brings mine's bands (or their absence).
   if (groups.get("layout")?.has("layout.split") && partValue(mine, "layout.split") !== null
     && doc.layout.default.mode !== "split" && differs("layout")) add("layout", "layout");
-  // The zoom belongs to every layout but the split (CONTRACTS §5.47): mine's zoom over the other
+  // The zoom belongs to every layout but the split (CONTRACTS §5.52): mine's zoom over the other
   // tab's split brings mine's layout along (and so mine's bands, below), and mine's layout brings
   // mine's zoom (or its absence).
   if (groups.get("layout")?.has("layout.zoom") && partValue(mine, "layout.zoom") !== null

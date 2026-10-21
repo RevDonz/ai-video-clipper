@@ -44,7 +44,7 @@ the runs without a face are centred, as before. ``keyframes: [[sf, pan_e5, move]
 manual framing (§5.44): a crop layout and frames inside the clip window, else exit 6. ``split:
 [top_pm, [x_e5, y_e5, zoom_pm], [x_e5, y_e5, zoom_pm]]`` is layar terbagi's bands (§5.45): needed
 by ``layout: "split"`` and only by it, else exit 6. ``zoom`` (1001–1500) is ``layout.zoom_pm``
-(§5.47): not with the split, else exit 6; the source's content rect comes with the seed. ``plan``
+(§5.52): not with the split, else exit 6; the source's content rect comes with the seed. ``plan``
 and ``prepare`` name the plate's ``noFace`` (``"fit_blur"`` or ``null``), ``keyframes`` (triples
 or ``null``), ``split`` (its lane form or ``null``) and ``zoom`` (per mille or ``null``) next to
 its ``layout``, and ``prepare`` with a switch reports the document ``SetLayout`` makes
@@ -189,7 +189,7 @@ def _split_lane(doc: Mapping[str, Any]) -> list | None:
 
 
 def _zoom_lane(doc: Mapping[str, Any]) -> int | None:
-    """The lane's ``zoom``: ``layout.zoom_pm`` (§5.47), or null without a zoom."""
+    """The lane's ``zoom``: ``layout.zoom_pm`` (§5.52), or null without a zoom."""
     return doc["layout"].get("zoom_pm")
 
 
@@ -578,7 +578,7 @@ def _switched(doc: Mapping[str, Any], layout: str) -> dict:
     ``layoutAfterSwitch``): a switch to face-track from another layout turns the latar blur
     fallback on (CONTRACTS §5.40), the manual framing keyframes stay with the crop layouts only
     (§5.44), the split's bands with the split only, the default ones on a switch into it
-    (§5.45), and the zoom with every layout but the split (§5.47)."""
+    (§5.45), and the zoom with every layout but the split (§5.52)."""
     from . import layouts
 
     if layout == "camera" and doc["layout"]["default"]["mode"] != "camera":
@@ -1028,7 +1028,7 @@ def _cells(ctx: _Context, envelope: Mapping[str, Any]) -> dict[str, Any]:
 
         layout["split"] = layouts.split_from_lane(envelope["split"])
     if "zoom" in envelope:
-        # the zoom (§5.47) of every layout but the split
+        # the zoom (§5.52) of every layout but the split
         if envelope["layout"] == "split":
             raise DocSemanticInvalid("range_invalid", path="/zoom")
         layout["zoom_pm"] = envelope["zoom"]

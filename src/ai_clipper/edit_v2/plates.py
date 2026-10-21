@@ -15,7 +15,7 @@ those inputs, and an edit of the cuts reuses every cell it still shows.
   layout, the camera plan's sha (camera layout only), the no-face blur fallback (camera layout
   with ``no_face: "fit_blur"`` only, CONTRACTS §5.40), the split's bands and crops (split only,
   §5.45), the manual framing keyframes (only when there are some, §5.44; they turn the fallback
-  off), the zoom and the source's content rect (each only when present, §5.47) and
+  off), the zoom and the source's content rect (each only when present, §5.52) and
   ``toolchain.json``'s sha.
 * ``cell_name`` is the flat file name ``<key16>-c<k:07d>.mp4`` under ``preview/plates``.
 * ``camera_for`` finds the camera plan of a document: the one ``base.camera.sha256`` names, else
@@ -105,7 +105,7 @@ def plate_key(doc: Mapping[str, Any], *, camera_sha256: str | None = None,
         identity["keyframes"] = [[k["sf"], k["pan_e5"], k["move"]] for k in keyframes]
     elif layout == "camera" and doc["layout"]["default"]["no_face"] == "fit_blur":
         identity["no_face"] = "fit_blur"
-    # the zoom and the source's content rect (§5.47) add a key only when present
+    # the zoom and the source's content rect (§5.52) add a key only when present
     if "zoom_pm" in doc["layout"]:
         identity["zoom_pm"] = doc["layout"]["zoom_pm"]
     rect = doc["base"]["source"].get("content_rect")

@@ -3768,13 +3768,13 @@ for keywords in Karaoke, Bold and Sinar; this falls under the batch's one `RENDE
   "WAJIB" and "Ayahku" as keywords), all three in the smoke subset; the glyph probe's
   `PINNED_FACES` add `Anton-Regular` and `DMSerifDisplay-Italic`.
 
-## 5.47 Zoom and the source's black bars (2026-10-21)
+## 5.52 Zoom and the source's black bars (2026-10-21)
 
 A P2 item of the 2026-10-21 adoption batch, next to `docs/plans/2026-10-20-lanjutan-sesi.md`
 P2. Two inputs reach every layout chain: a per-clip static zoom from 100 % to 150 %
 (`layout.zoom_pm`) and the picture inside constant black bars of the source
 (`base.source.content_rect`), measured once when the source is probed. Nothing that renders today changes: a document without either key keeps its
-graph, plan sha and plate key, so `RENDER_SEMANTICS` stays 1 and no golden moves; a source without
+graph, plan sha and plate key, so `RENDER_SEMANTICS` stays 2 (§5.49) and no golden moves; a source without
 bars has no content rect, so its clips are exactly today's.
 
 ### The document (§3.3, §5.5)
