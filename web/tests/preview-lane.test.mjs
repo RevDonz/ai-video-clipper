@@ -54,7 +54,7 @@ function planBody(extra = {}, doc = DOC) {
 
 // A plan-op result as preview_cli returns it.
 function planResult({ cells = [10, 11, 12, 13, 14, 15, 16, 17], missing = cells, plateKey = KEY, audio = { key: AUDIO, ready: false },
-  logo = null, playhead = 0, pieces = null, layout = "fit_blur", noFace = null, keyframes = null } = {}) {
+  logo = null, playhead = 0, pieces = null, layout = "fit_blur", noFace = null, keyframes = null, split = null } = {}) {
   const prefix = `/api/jobs/${JOB}/clips/${CLIP}/media`;
   return {
     dto: {
@@ -71,7 +71,7 @@ function planResult({ cells = [10, 11, 12, 13, 14, 15, 16, 17], missing = cells,
       rev0: { planSha256: "1".repeat(64), autoRenderUrl: null, exact: false },
       warnings: [], errors: [],
     },
-    lane: { playhead, layout, noFace, keyframes, plateKey, cellFrames: 60, cells, missing, audio, logo, frameKey: "4".repeat(16) },
+    lane: { playhead, layout, noFace, keyframes, split, plateKey, cellFrames: 60, cells, missing, audio, logo, frameKey: "4".repeat(16) },
   };
 }
 
@@ -128,7 +128,7 @@ test("request bodies are checked before anything is spawned", () => {
   assert.deepEqual(parsePrepareBody(Buffer.alloc(0)), { layout: null });
   assert.deepEqual(parsePrepareBody(Buffer.from("{}")), { layout: null });
   assert.deepEqual(parsePrepareBody(Buffer.from('{"layout":"camera"}')), { layout: "camera" });
-  for (const bad of ['{"layout":"split"}', '{"layout":null,"x":1}', "[]", "nope"]) {
+  for (const bad of ['{"layout":"smart_speaker"}', '{"layout":null,"x":1}', "[]", "nope"]) {
     assert.throws(() => parsePrepareBody(Buffer.from(bad)), LaneRequestError);
   }
 });
@@ -298,6 +298,92 @@ test("a plan whose lane names malformed keyframes is not trusted", async () => {
       await settle();
       cli.pending("plan")[0].resolve({ exitCode: 0, json: planResult({ layout: "fill_center", keyframes }) });
       assert.equal((await pending).status, 503, JSON.stringify(keyframes));
+    } finally {
+      lane.close();
+      cleanup();
+    }
+  }
+});
+
+// CONTRACTS §5.45: the split has its own plate; every cells batch carries its bands.
+test("the cells of a split plate carry its bands; other plates do not name them", async () => {
+  const { dir, clip, cleanup } = root();
+  readyAudio(clip);
+  const cli = fakeCli();
+  const lane = createPreviewLane({ jobsRoot: dir, runCli: cli.run, heavySlots: 1 });
+  const split = [700, [0, 0, 2000], [100000, 50000, 1000]];
+  try {
+    const pending = lane.plan({ jobId: JOB, clipId: CLIP, body: planBody() });
+    await settle();
+    cli.pending("plan")[0].resolve({ exitCode: 0, json: planResult({ cells: [10], layout: "split", split,
+      audio: { key: AUDIO, ready: true } }) });
+    assert.equal((await pending).status, 200);
+    await settle();
+    const [cells] = cli.pending("cells");
+    assert.deepEqual({ layout: cells.payload.layout, split: cells.payload.split, cells: cells.payload.cells },
+      { layout: "split", split, cells: [10] });
+    assert.ok(!("noFace" in cells.payload) && !("keyframes" in cells.payload));
+    cells.resolve(cellsResult(cells.payload));
+    await settle();
+    const again = lane.plan({ jobId: JOB, clipId: CLIP, body: planBody({}, DOC2) });
+    await settle();
+    cli.pending("plan")[0].resolve({ exitCode: 0, json: planResult({ cells: [11], layout: "fill_center", plateKey: KEY2,
+      audio: { key: AUDIO, ready: true } }) });
+    assert.equal((await again).status, 200);
+    await settle();
+    const [plain] = cli.pending("cells");
+    assert.ok(!("split" in plain.payload));
+    plain.resolve({ exitCode: 0, json: { plateKey: KEY2, built: [11], present: [] } });
+    await lane.idle();
+  } finally {
+    lane.close();
+    cleanup();
+  }
+});
+
+test("prepare queues the cells of the split plate with its bands, and a split layout is a prepare layout", async () => {
+  assert.deepEqual(parsePrepareBody(Buffer.from('{"layout":"split"}')), { layout: "split" });
+  const { dir, cleanup } = root();
+  const cli = fakeCli();
+  const lane = createPreviewLane({ jobsRoot: dir, runCli: cli.run, heavySlots: 1 });
+  const split = [300, [50000, 50000, 1000], [50000, 50000, 1000]];
+  try {
+    const pending = lane.prepare({ jobId: JOB, clipId: CLIP, layout: "split" });
+    await settle();
+    const [request] = cli.pending("prepare");
+    assert.equal(request.payload.layout, "split");
+    request.resolve({ exitCode: 0, json: { words: "ready", camera: "not_needed", layout: "split",
+      noFace: null, keyframes: null, split, plateKey: KEY, cellFrames: 60, cells: [4], ready: [] } });
+    assert.equal((await pending).status, 202);
+    await settle();
+    const [cells] = cli.pending("cells");
+    assert.deepEqual([cells.payload.layout, cells.payload.split, cells.payload.cells], ["split", split, [4]]);
+    cells.resolve(cellsResult(cells.payload));
+    await lane.idle();
+    const broken = lane.prepare({ jobId: JOB, clipId: CLIP, layout: null });
+    await settle();
+    cli.pending("prepare")[0].resolve({ exitCode: 0, json: { words: "ready", camera: "not_needed", layout: "split",
+      noFace: null, keyframes: null, split: [300, [0, 0, 999], [0, 0, 1000]], plateKey: KEY, cellFrames: 60, cells: [4], ready: [] } });
+    assert.equal((await broken).status, 503);
+  } finally {
+    lane.close();
+    cleanup();
+  }
+});
+
+test("a plan whose lane names a malformed split, or a split without its layout, is not trusted", async () => {
+  const good = [300, [0, 0, 1000], [0, 0, 1000]];
+  for (const [layout, split] of [["split", null], ["split", []], ["split", [300]], ["split", [400, [0, 0, 1000], [0, 0, 1000]]],
+    ["split", [300, [0, 0, 5001], [0, 0, 1000]]], ["split", [300, [-1, 0, 1000], [0, 0, 1000]]], ["split", [300, [0, 0, 1000], [0, 0]]],
+    ["split", [300, [0.5, 0, 1000], [0, 0, 1000]]], ["split", { top_pm: 300 }], ["fill_center", good]]) {
+    const { dir, cleanup } = root();
+    const cli = fakeCli();
+    const lane = createPreviewLane({ jobsRoot: dir, runCli: cli.run, heavySlots: 0 });
+    try {
+      const pending = lane.plan({ jobId: JOB, clipId: CLIP, body: planBody() });
+      await settle();
+      cli.pending("plan")[0].resolve({ exitCode: 0, json: planResult({ layout, split }) });
+      assert.equal((await pending).status, 503, JSON.stringify([layout, split]));
     } finally {
       lane.close();
       cleanup();

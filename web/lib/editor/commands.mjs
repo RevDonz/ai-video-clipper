@@ -35,6 +35,9 @@
 //   or moves the one there (keeping its `move`; a new one cuts), RemoveKeyframe, SetKeyframeMove and
 //   ClearKeyframes ("Kembali ke otomatis"). The last keyframe gone is no `keyframes` key at all
 //   (R10), and SetLayout to latar blur drops them (`layoutAfterSwitch`).
+// - Layar terbagi (CONTRACTS §5.45): SetLayout into the split starts from `defaultSplit()` and any
+//   other layout drops `layout.split`; SetSplitRatio, SwapSplit ("Tukar": the crops change places,
+//   so the small band moves with its picture) and SetSplitCrop (one band, merged per band).
 // - The text watermark (CONTRACTS §5.43): SetWatermarkText adds it at DEFAULT_WATERMARK or changes
 //   only its text; RemoveWatermark drops the key, so a clip without one equals its seed (R10).
 import {
@@ -57,6 +60,9 @@ import {
   PAN_E5_MAX,
   REMOVAL_ORIGIN_PATTERN,
   SFX_WHOOSH,
+  SPLIT_BANDS,
+  SPLIT_TOP_PM,
+  SPLIT_ZOOM_RANGE,
   TRACKS,
   WATERMARK_OPACITY_RANGE,
   WATERMARK_POSITIONS,
@@ -77,20 +83,23 @@ import {
   trackOf,
   watermarkOf,
 } from "./doc-model.mjs";
+import { swappedSplit } from "./split.mjs";
 import { divRoundHalfUp, logoBox, pieces, sfCeil, sfFloor } from "./timemap.mjs";
 
 /**
  * Appendix B, in the order of the table (the same list as `__dev__/fakes.mjs`), with the
  * cold-open transition commands after NudgeColdOpen (docs/plans/2026-10-02-transisi-cold-open.md §7.2),
  * SetHookDesign after SetHookY (CONTRACTS §5.33), SetNoFace after SetLayout (CONTRACTS §5.40), the
- * framing commands after SetNoFace (CONTRACTS §5.44) and the text watermark's after SnapLogo (§5.43).
+ * framing commands after SetNoFace (CONTRACTS §5.44), the split's after them (§5.45) and the text
+ * watermark's after SnapLogo (§5.43).
  */
 export const COMMANDS = Object.freeze([
   "TrimStart", "TrimEnd", "RemoveWords", "RemoveGap", "RestoreRemoval", "ApplyCleanup",
   "SetColdOpen", "NudgeColdOpen", "SetJoinStyle", "SetJoinSfx", "EditWordText", "SetWordHidden", "SetWordEmphasis",
   "SetCaptionsEnabled", "SetCaptionPack", "SetCaptionOverride", "SetHookEnabled", "SetHookText",
   "SetHookDuration", "SetHookY", "SetHookDesign", "SetLayout", "SetNoFace",
-  "SetKeyframe", "RemoveKeyframe", "SetKeyframeMove", "ClearKeyframes", "SetLogo", "RemoveLogo", "MoveLogo", "ResizeLogo",
+  "SetKeyframe", "RemoveKeyframe", "SetKeyframeMove", "ClearKeyframes", "SetSplitRatio", "SwapSplit", "SetSplitCrop",
+  "SetLogo", "RemoveLogo", "MoveLogo", "ResizeLogo",
   "SetLogoOpacity", "SnapLogo", "SetWatermarkText", "SetWatermarkPosition", "SetWatermarkSize", "SetWatermarkOpacity",
   "RemoveWatermark", "SetMusic", "RemoveMusic", "SetMusicGain", "SetMusicOffset",
   "SetMusicLoop", "SetMusicFades", "SetDuck", "SetSourceGain", "SetLoudness", "ResetToSeed",
@@ -138,6 +147,7 @@ export const COMMAND_MESSAGES = Object.freeze({
   framing_unavailable: "Atur bingkai hanya untuk Ikuti wajah dan Potong tengah.",
   too_many_keyframes: "Terlalu banyak keyframe (maksimal 100).",
   keyframe_missing: "Keyframe ini sudah tidak ada.",
+  split_unavailable: "Hanya untuk tata letak Layar terbagi.",
 });
 
 export function commandMessage(code) {
@@ -222,6 +232,15 @@ function insideWindow(ctx, inSf, outSf) {
 function withMain(doc, patch) {
   return { ...doc, main: { ...doc.main, ...patch } };
 }
+
+/** `layout.split` set to `split`; the same values keep the document (no history step). */
+function withSplit(doc, split) {
+  const current = doc.layout.split;
+  if (current.top_pm === split.top_pm && SPLIT_BANDS.every((band) => SPLIT_BANDS_EQUAL(current[band], split[band]))) return doc;
+  return { ...doc, layout: { ...doc.layout, split } };
+}
+
+const SPLIT_BANDS_EQUAL = (a, b) => a.x_e5 === b.x_e5 && a.y_e5 === b.y_e5 && a.zoom_pm === b.zoom_pm;
 
 /** `layout.keyframes` set to `list`; an empty list is no key at all (R10). */
 function withKeyframes(doc, list) {
@@ -866,6 +885,29 @@ const HANDLERS = {
     return { doc: withKeyframes(doc, []), args: {} };
   },
 
+  SetSplitRatio(doc, args) {
+    need(doc.layout.default.mode === "split", "split_unavailable");
+    need(Number.isSafeInteger(args.top_pm), "invalid_args", { arg: "top_pm" });
+    need(SPLIT_TOP_PM.includes(args.top_pm), "value_out_of_range", { arg: "top_pm" });
+    return { doc: withSplit(doc, { ...doc.layout.split, top_pm: args.top_pm }), args: { top_pm: args.top_pm } };
+  },
+
+  SwapSplit(doc) {
+    need(doc.layout.default.mode === "split", "split_unavailable");
+    return { doc: withSplit(doc, swappedSplit(doc.layout.split)), args: {} };
+  },
+
+  SetSplitCrop(doc, args) {
+    need(doc.layout.default.mode === "split", "split_unavailable");
+    need(SPLIT_BANDS.includes(args.band), "invalid_args", { arg: "band" });
+    const crop = {
+      x_e5: intArg(args, "x_e5", 0, PAN_E5_MAX),
+      y_e5: intArg(args, "y_e5", 0, PAN_E5_MAX),
+      zoom_pm: intArg(args, "zoom_pm", ...SPLIT_ZOOM_RANGE),
+    };
+    return { doc: withSplit(doc, { ...doc.layout.split, [args.band]: crop }), args: { band: args.band, ...crop } };
+  },
+
   SetLogo(doc, args, ctx) {
     const { id, meta } = assetArg(args.asset, args.meta, "image");
     const origin = originArg(args.origin, ITEM_ORIGIN_PATTERN, "user");
@@ -1081,6 +1123,7 @@ export function defaultMergeKey(type, args = {}) {
     case "SetHookDuration": return "hook:dur";
     case "SetHookY": return "hook:y";
     case "SetKeyframe": return Number.isSafeInteger(args?.sf) ? `frame:${args.sf}` : null;
+    case "SetSplitCrop": return SPLIT_BANDS.includes(args?.band) ? `split:${args.band}` : null;
     case "MoveLogo": return "logo:move";
     case "ResizeLogo": return "logo:size";
     case "SetLogoOpacity": return "logo:opacity";

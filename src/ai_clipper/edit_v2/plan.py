@@ -173,6 +173,11 @@ class RenderPlan:
         return tuple(self.doc["layout"].get("keyframes", ()))
 
     @property
+    def split(self) -> Mapping[str, Any] | None:
+        """Layar terbagi's bands and crops (§5.45), ``None`` for the other layouts."""
+        return self.doc["layout"].get("split") if self.layout == "split" else None
+
+    @property
     def ass(self) -> str | None:
         return None if self.captions is None else self.captions.ass
 

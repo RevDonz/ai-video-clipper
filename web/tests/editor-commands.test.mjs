@@ -109,13 +109,14 @@ function bodyFrames(doc) {
 
 // --- model ---------------------------------------------------------------------------------
 
-test("the command list is Appendix B with the transition, SetHookDesign, no-face, framing and watermark commands, the same 48 names the fakes know", () => {
+test("the command list is Appendix B with the transition, SetHookDesign, no-face, framing, split and watermark commands, the same 51 names the fakes know", () => {
   assert.deepEqual([...COMMANDS], [...FAKE_COMMANDS]);
-  assert.equal(COMMANDS.length, 48);
-  assert.deepEqual(COMMANDS.slice(32, 38), ["SnapLogo", "SetWatermarkText", "SetWatermarkPosition", "SetWatermarkSize",
+  assert.equal(COMMANDS.length, 51);
+  assert.deepEqual(COMMANDS.slice(35, 41), ["SnapLogo", "SetWatermarkText", "SetWatermarkPosition", "SetWatermarkSize",
     "SetWatermarkOpacity", "RemoveWatermark"]);
   assert.deepEqual(COMMANDS.slice(16, 21), ["SetHookEnabled", "SetHookText", "SetHookDuration", "SetHookY", "SetHookDesign"]);
-  assert.deepEqual(COMMANDS.slice(21, 27), ["SetLayout", "SetNoFace", "SetKeyframe", "RemoveKeyframe", "SetKeyframeMove", "ClearKeyframes"]);
+  assert.deepEqual(COMMANDS.slice(21, 30), ["SetLayout", "SetNoFace", "SetKeyframe", "RemoveKeyframe", "SetKeyframeMove", "ClearKeyframes",
+    "SetSplitRatio", "SwapSplit", "SetSplitCrop"]);
   assert.deepEqual(COMMANDS.slice(6, 10), ["SetColdOpen", "NudgeColdOpen", "SetJoinStyle", "SetJoinSfx"]);
   for (const [code, message] of Object.entries(COMMAND_MESSAGES)) {
     assert.match(code, /^[a-z_]+$/);
@@ -203,9 +204,12 @@ test("defaultMergeKey follows Appendix B", () => {
   assert.equal(defaultMergeKey("SetWatermarkOpacity", { opacity_pm: 600 }), "wm:opacity");
   // a drag of the framing box at one frame is one undo step (CONTRACTS §5.44)
   assert.equal(defaultMergeKey("SetKeyframe", { sf: 37300, pan_e5: 10 }), "frame:37300");
+  // a drag or a zoom of one split band is one undo step (CONTRACTS §5.45)
+  assert.equal(defaultMergeKey("SetSplitCrop", { band: "top", x_e5: 1, y_e5: 2, zoom_pm: 1000 }), "split:top");
+  assert.equal(defaultMergeKey("SetSplitCrop", { band: "middle" }), null);
   for (const type of ["TrimStart", "TrimEnd", "RemoveWords", "RemoveGap", "RestoreRemoval", "ApplyCleanup",
     "SetColdOpen", "SetJoinStyle", "SetJoinSfx", "SetWordHidden", "SetWordEmphasis", "SetCaptionPack", "SetHookDesign", "SetLayout",
-    "RemoveKeyframe", "SetKeyframeMove", "ClearKeyframes", "SetLogo", "RemoveLogo", "SnapLogo", "SetWatermarkPosition", "RemoveWatermark",
+    "RemoveKeyframe", "SetKeyframeMove", "ClearKeyframes", "SetSplitRatio", "SwapSplit", "SetLogo", "RemoveLogo", "SnapLogo", "SetWatermarkPosition", "RemoveWatermark",
     "SetMusic", "RemoveMusic", "ResetToSeed"]) {
     assert.equal(defaultMergeKey(type, {}), null, type);
   }
@@ -842,7 +846,8 @@ test("SetLayout switches between the three layouts; into face-track with the lat
   assert.deepEqual(run(C25, C25.seed, "SetLayout", { mode: "camera" }).layout.default.no_face, "center");
   const away = run(C25, C25.seed, "SetLayout", { mode: "fit_blur" });
   assert.deepEqual(run(C25, away, "SetLayout", { mode: "camera" }).layout.default.no_face, "fit_blur");
-  rejects(C30, C30.seed, "SetLayout", { mode: "split" }, "value_out_of_range");
+  // layar terbagi is a layout since CONTRACTS §5.45; the other reserved modes are not
+  rejects(C30, C30.seed, "SetLayout", { mode: "smart_speaker" }, "value_out_of_range");
 });
 
 test("SetNoFace sets what face-track shows where no face was found", () => {
@@ -1024,6 +1029,92 @@ test("replacing and removing the logo keeps assets exactly the referenced ones",
   assert.equal(logoItem(replaced).transform.x_e5, 50000);
   const removed = run(C30, replaced, "RemoveLogo", {});
   assert.equal(contentJson(removed), contentJson(C30.seed));
+});
+
+// --- layar terbagi (CONTRACTS §5.45) -------------------------------------------------------------
+
+const crop = (x = 50000, y = 50000, zoom = 1000) => ({ x_e5: x, y_e5: y, zoom_pm: zoom });
+const splitDoc = (context) => run(context, context.seed, "SetLayout", { mode: "split" });
+
+test("SetLayout into layar terbagi starts from the default bands and leaving it drops them", () => {
+  const doc = splitDoc(C30);
+  assert.deepEqual(doc.layout, { default: { ...C30.seed.layout.default, mode: "split" }, split: { top_pm: 300, top: crop(), bottom: crop() } });
+  // the bands stay while the split stays; any other layout drops them (R10: no key)
+  const moved = run(C30, doc, "SetSplitCrop", { band: "top", x_e5: 0, y_e5: 0, zoom_pm: 3000 });
+  assert.equal(run(C30, moved, "SetLayout", { mode: "split" }).layout.split, moved.layout.split);
+  for (const mode of ["fit_blur", "fill_center", "camera"]) {
+    const other = run(C30, moved, "SetLayout", { mode });
+    assert.ok(!Object.hasOwn(other.layout, "split"), mode);
+  }
+  assert.ok(contentEquals(run(C30, moved, "SetLayout", { mode: "fit_blur" }), C30.seed), "back to the seed's layout is the seed (R10)");
+  // manual framing keyframes are the crop layouts': the split drops them
+  const framed = run(C30, run(C30, C30.seed, "SetLayout", { mode: "fill_center" }), "SetKeyframe", { sf: body(C30.seed).in_sf, pan_e5: 0 });
+  assert.ok(!Object.hasOwn(run(C30, framed, "SetLayout", { mode: "split" }).layout, "keyframes"));
+});
+
+test("SetSplitRatio picks 30/70, 50/50 or the swapped 30/70", () => {
+  const doc = splitDoc(C30);
+  assert.equal(run(C30, doc, "SetSplitRatio", { top_pm: 500 }).layout.split.top_pm, 500);
+  assert.equal(run(C30, doc, "SetSplitRatio", { top_pm: 700 }).layout.split.top_pm, 700);
+  const same = applyCommand(doc, "SetSplitRatio", { top_pm: 300 }, C30.ctx);
+  assert.ok(contentEquals(same.doc, doc), "the same ratio is no change");
+  assert.equal(run(C30, doc, "SetSplitRatio", { top_pm: 500 }).layout.split.top, doc.layout.split.top, "the crops are shared");
+  rejects(C30, doc, "SetSplitRatio", { top_pm: 400 }, "value_out_of_range");
+  rejects(C30, doc, "SetSplitRatio", { top_pm: "500" }, "invalid_args");
+  rejects(C30, C30.seed, "SetSplitRatio", { top_pm: 500 }, "split_unavailable");
+});
+
+test("SwapSplit changes the places of the crops; the small band moves with its picture", () => {
+  const doc = run(C30, splitDoc(C30), "SetSplitCrop", { band: "top", x_e5: 100000, y_e5: 0, zoom_pm: 3500 });
+  const swapped = run(C30, doc, "SwapSplit", {});
+  assert.deepEqual(swapped.layout.split, { top_pm: 700, top: crop(), bottom: crop(100000, 0, 3500) });
+  assert.ok(contentEquals(run(C30, swapped, "SwapSplit", {}), doc), "twice is the start again");
+  const half = run(C30, run(C30, doc, "SetSplitRatio", { top_pm: 500 }), "SwapSplit", {});
+  assert.equal(half.layout.split.top_pm, 500);
+  assert.deepEqual(half.layout.split.bottom, crop(100000, 0, 3500));
+  rejects(C30, C30.seed, "SwapSplit", {}, "split_unavailable");
+});
+
+test("SetSplitCrop places and zooms one band's crop", () => {
+  const doc = splitDoc(C30);
+  const moved = run(C30, doc, "SetSplitCrop", { band: "bottom", x_e5: 0, y_e5: 100000, zoom_pm: 5000 });
+  assert.deepEqual(moved.layout.split.bottom, crop(0, 100000, 5000));
+  assert.equal(moved.layout.split.top, doc.layout.split.top);
+  assert.deepEqual(applyCommand(doc, "SetSplitCrop", { band: "top", x_e5: 1, y_e5: 2, zoom_pm: 1000 }, C30.ctx).args,
+    { band: "top", x_e5: 1, y_e5: 2, zoom_pm: 1000 });
+  assert.ok(contentEquals(applyCommand(doc, "SetSplitCrop", { band: "top", ...crop() }, C30.ctx).doc, doc), "the same crop is no change");
+  for (const [args, code] of [
+    [{ band: "middle", ...crop() }, "invalid_args"],
+    [{ band: "top", ...crop(), zoom_pm: 999 }, "value_out_of_range"],
+    [{ band: "top", ...crop(), zoom_pm: 5001 }, "value_out_of_range"],
+    [{ band: "top", ...crop(), x_e5: -1 }, "value_out_of_range"],
+    [{ band: "top", ...crop(), y_e5: 100001 }, "value_out_of_range"],
+    [{ band: "top", ...crop(), x_e5: 0.5 }, "invalid_args"],
+    [{ band: "top", x_e5: 0, y_e5: 0 }, "invalid_args"],
+  ]) rejects(C30, doc, "SetSplitCrop", args, code);
+  rejects(C30, C30.seed, "SetSplitCrop", { band: "top", ...crop() }, "split_unavailable");
+  assert.deepEqual(partValue(moved, "layout.split"), moved.layout.split);
+  assert.equal(partValue(C30.seed, "layout.split"), null);
+});
+
+test("checkDoc mirrors the validator's split rules", () => {
+  const doc = splitDoc(C30);
+  const withLayout = (layout) => ({ ...doc, layout });
+  const split = doc.layout.split;
+  const def = doc.layout.default;
+  for (const [layout, issues] of [
+    [{ default: def, split }, []],
+    [{ default: def }, [["range_invalid", "/layout/split"]]],
+    [{ default: { ...def, mode: "fill_center" }, split }, [["range_invalid", "/layout/split"]]],
+    [{ default: def, split: { ...split, top_pm: 400 } }, [["range_invalid", "/layout/split/top_pm"]]],
+    [{ default: def, split: { ...split, top: crop(0, 0, 999) } }, [["range_invalid", "/layout/split/top/zoom_pm"]]],
+    [{ default: def, split: { ...split, bottom: crop(-1) } }, [["range_invalid", "/layout/split/bottom/x_e5"]]],
+    [{ default: def, split: { ...split, bottom: { ...crop(), w_e5: 1 } } }, [["range_invalid", "/layout/split/bottom"]]],
+    [{ default: def, split: { top_pm: 300, top: crop() } }, [["range_invalid", "/layout/split/bottom"]]],
+    [{ default: def, split, keyframes: [{ sf: body(C30.seed).in_sf, pan_e5: 0, move: "cut" }] }, [["range_invalid", "/layout/keyframes"]]],
+  ]) {
+    assert.deepEqual(checkDoc(withLayout(layout), C30.ctx).map((issue) => [issue.code, issue.path]), issues, JSON.stringify(layout));
+  }
 });
 
 // --- the text watermark (CONTRACTS §5.43) ----------------------------------------------------

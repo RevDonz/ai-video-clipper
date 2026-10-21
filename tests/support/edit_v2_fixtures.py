@@ -759,6 +759,19 @@ def _valid(contexts: Mapping[str, Context]) -> list[_Fixture]:
         {"sf": d.body["in_sf"] + 10, "pan_e5": 100000, "move": "cut"},
         {"sf": d.body["in_sf"] + 200, "pan_e5": 0, "move": "slide"}]
     add("layout_camera_keyframes", d)
+    # layar terbagi (§5.45): two bands, each its own crop of the source
+    d = _Doc(c30, "SetSplitCrop")
+    d.doc["layout"]["default"]["mode"] = "split"
+    d.doc["layout"]["split"] = {"top_pm": 300,
+                                "top": {"x_e5": 100000, "y_e5": 0, "zoom_pm": 3500},
+                                "bottom": {"x_e5": 42000, "y_e5": 50000, "zoom_pm": 1000}}
+    add("layout_split", d)
+    d = _Doc(c25, "SwapSplit")
+    d.doc["layout"]["default"]["mode"] = "split"
+    d.doc["layout"]["split"] = {"top_pm": 700,
+                                "top": {"x_e5": 50000, "y_e5": 50000, "zoom_pm": 1000},
+                                "bottom": {"x_e5": 0, "y_e5": 100000, "zoom_pm": 5000}}
+    add("layout_split_swapped", d)
     d = _Doc(c30, "SetHookEnabled")
     d.doc["tracks"] = []
     add("hook_removed", d)
@@ -896,6 +909,13 @@ def _invalid(contexts: Mapping[str, Context]) -> list[_Fixture]:
     def word_edit(value: dict[str, Any]) -> Callable[[_Doc], None]:
         return lambda b: b.doc["captions"].update(word_edits={edit_id: value})
 
+    def split(b: _Doc, top_pm: int = 300, top: dict | None = None,
+              bottom: dict | None = None) -> None:
+        centre = {"x_e5": 50000, "y_e5": 50000, "zoom_pm": 1000}
+        b.doc["layout"]["default"]["mode"] = "split"
+        b.doc["layout"]["split"] = {"top_pm": top_pm, "top": top or dict(centre),
+                                    "bottom": bottom or dict(centre)}
+
     # Parse level.
     add("invalid_json", "truncated", "", raw=base[: len(base) * 3 // 5])
     add("invalid_json", "not_utf8", "",
@@ -922,6 +942,8 @@ def _invalid(contexts: Mapping[str, Context]) -> list[_Fixture]:
     add("unknown_key", "keyframe", "/layout/keyframes/0/zoom_pm",
         mutated(lambda b: b.doc["layout"].update(keyframes=[
             {"sf": b.body["in_sf"], "pan_e5": 50000, "move": "cut", "zoom_pm": 1000}])))
+    add("unknown_key", "split_crop", "/layout/split/top/w_e5",
+        mutated(lambda b: split(b, top={"x_e5": 0, "y_e5": 0, "zoom_pm": 1000, "w_e5": 1})))
     add("unknown_key", "layout_ranges", "/layout/ranges",
         mutated(lambda b: b.doc["layout"].update(ranges=[])))
     add("unknown_key", "overrides", "/captions/overrides/words_per_chunk",
@@ -979,6 +1001,14 @@ def _invalid(contexts: Mapping[str, Context]) -> list[_Fixture]:
         mutated(lambda b: keyframes(b.body["in_sf"], b.window_sf()[1])(b)))
 
     # range_invalid.
+    add("range_invalid", "split_missing", "/layout/split",
+        mutated(lambda b: b.doc["layout"]["default"].update(mode="split")))
+    add("range_invalid", "split_top_pm", "/layout/split/top_pm",
+        mutated(lambda b: split(b, top_pm=400)))
+    add("range_invalid", "split_zoom", "/layout/split/bottom/zoom_pm",
+        mutated(lambda b: split(b, bottom={"x_e5": 0, "y_e5": 0, "zoom_pm": 6000})))
+    add("range_invalid", "keyframes_split", "/layout/keyframes",
+        mutated(lambda b: (split(b), keyframes(b.body["in_sf"], mode="split")(b))))
     add("range_invalid", "keyframes_fit_blur", "/layout/keyframes",
         mutated(lambda b: keyframes(b.body["in_sf"], mode="fit_blur")(b)))
     add("range_invalid", "keyframes_order", "/layout/keyframes/1/sf",
@@ -1273,8 +1303,8 @@ def _invalid(contexts: Mapping[str, Context]) -> list[_Fixture]:
         mutated(lambda b: b.hook()["payload"].update(design={"id": "sticker-label", "v": 1})))
     add("op_disabled", "duck_detector", "/tracks/1/items/0/payload/duck/detector",
         mutated(music(duck={"detector": "rms"})))
-    add("op_disabled", "layout_split", "/layout/default/mode",
-        mutated(lambda b: b.doc["layout"]["default"].update(mode="split")))
+    add("op_disabled", "layout_smart_speaker", "/layout/default/mode",
+        mutated(lambda b: b.doc["layout"]["default"].update(mode="smart_speaker")))
     add("op_disabled", "no_face_fail", "/layout/default/no_face",
         mutated(lambda b: b.doc["layout"]["default"].update(no_face="fail")))
     add("op_disabled", "removal_reason_gap_voiced", "/main/removals/0/reason",

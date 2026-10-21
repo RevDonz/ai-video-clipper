@@ -438,14 +438,17 @@ TIMEOUT_FACTOR = 3
 TIMEOUT_MAX_MS = 24 * 3600 * 1000
 # Predicted render time per second of output, in per-mille, by (layout, output size): the
 # PF-RENDER budget (p95 ≤ 0.6× at 720×1280 on 4 CPUs; face-track adds its crop track, the
-# larger size has 2.25× the pixels). T4.3 recalibrates it from measured renders.
+# larger size has 2.25× the pixels). T4.3 recalibrates it from measured renders. The split
+# (two crops scaled to their bands, CONTRACTS §5.45) takes fit-blur's budget until measured.
 RENDER_COST_PERMILLE = {
     ("fit_blur", (720, 1280)): 600,
     ("fill_center", (720, 1280)): 500,
     ("camera", (720, 1280)): 800,
+    ("split", (720, 1280)): 600,
     ("fit_blur", (1080, 1920)): 1350,
     ("fill_center", (1080, 1920)): 1125,
     ("camera", (1080, 1920)): 1800,
+    ("split", (1080, 1920)): 1350,
 }
 OUTPUT_BYTES_PER_SECOND = 1_000_000  # storage estimate of an export: 8 Mbit/s of output
 SRT_ALLOWANCE_BYTES = 65_536

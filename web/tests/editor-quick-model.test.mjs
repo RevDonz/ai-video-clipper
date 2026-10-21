@@ -191,6 +191,11 @@ test("Tata letak sums up the layout, and says so while the face analysis runs", 
   const centred = run(fakeDoc(), "SetLayout", { mode: "fill_center" });
   const framed = run(centred, "SetKeyframe", { sf: centred.main.segments[0].in_sf, pan_e5: 20000 });
   assert.equal(layoutSummary(framed), "Potong tengah · bingkai manual");
+  // layar terbagi (CONTRACTS §5.45) names its bands' shares, top first
+  const split = run(fakeDoc(), "SetLayout", { mode: "split" });
+  assert.equal(layoutSummary(split), "Layar terbagi · 30/70");
+  assert.equal(layoutSummary(run(split, "SwapSplit", {})), "Layar terbagi · 70/30");
+  assert.equal(layoutSummary(run(split, "SetSplitRatio", { top_pm: 500 })), "Layar terbagi · 50/50");
 });
 
 test("Logo & Musik sums up what the clip has", async () => {
@@ -214,9 +219,9 @@ test("cardSummary answers for every card id, Teks caption through linesSummary",
   assert.equal(cardSummary("caption", { state: null }), "");
 });
 
-test("the Tata letak card lists the mockup's order: Latar blur, Potong tengah, Ikuti wajah", () => {
+test("the Tata letak card lists the mockup's order: Latar blur, Potong tengah, Ikuti wajah, then Layar terbagi", () => {
   assert.deepEqual(CARD_LAYOUTS.map((option) => [option.id, option.name]),
-    [["fit_blur", "Latar blur"], ["fill_center", "Potong tengah"], ["camera", "Ikuti wajah"]]);
+    [["fit_blur", "Latar blur"], ["fill_center", "Potong tengah"], ["camera", "Ikuti wajah"], ["split", "Layar terbagi"]]);
   for (const option of CARD_LAYOUTS) assert.ok(LAYOUT_OPTIONS.includes(option), "the panel's own option objects");
 });
 

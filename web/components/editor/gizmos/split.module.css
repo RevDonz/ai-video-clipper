@@ -1,0 +1,112 @@
+/* The "Atur layar terbagi" gizmo (SplitGizmo.jsx): one box per band over the source picture (the
+   picture itself is frame.module.css's). Colours are tokens only. Lime marks the box being edited,
+   the dialog's one accent on the picture; the other box stays neutral, so the two read apart.
+   MOTION 2: a box glides when a key moves it (off while dragging and with reduced motion, through
+   the duration tokens). */
+
+.box {
+  position: absolute;
+  z-index: 1;
+  box-sizing: border-box;
+  border: 2px solid var(--text-muted);
+  box-shadow: 0 0 0 1px var(--shadow);
+  cursor: grab;
+  touch-action: none;
+  transition: left var(--dur-2) var(--ease-out), top var(--dur-2) var(--ease-out),
+    width var(--dur-2) var(--ease-out), height var(--dur-2) var(--ease-out), border-color var(--ed-duration-fast);
+}
+
+.box[data-active="true"] {
+  z-index: 2;
+  border-color: var(--accent);
+}
+
+[data-dragging="true"] .box {
+  cursor: grabbing;
+  transition: none;
+}
+
+.box:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.box[aria-disabled="true"] {
+  cursor: default;
+}
+
+.tag {
+  position: absolute;
+  top: var(--ed-space-1);
+  left: var(--ed-space-1);
+  padding: 2px 6px;
+  border-radius: var(--ed-radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--ed-font-size-xs);
+  font-weight: 600;
+  pointer-events: none;
+}
+
+/* A corner: a 12 px square on the edge, with a 32 px reach for a finger. */
+.handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  box-sizing: border-box;
+  border: 2px solid var(--bg);
+  border-radius: 2px;
+  background: var(--text-muted);
+}
+
+.box[data-active="true"] .handle {
+  background: var(--accent);
+}
+
+.handle::after {
+  content: "";
+  position: absolute;
+  inset: -10px;
+}
+
+.handle[data-corner="nw"] {
+  top: -7px;
+  left: -7px;
+  cursor: nwse-resize;
+}
+
+.handle[data-corner="ne"] {
+  top: -7px;
+  right: -7px;
+  cursor: nesw-resize;
+}
+
+.handle[data-corner="sw"] {
+  bottom: -7px;
+  left: -7px;
+  cursor: nesw-resize;
+}
+
+.handle[data-corner="se"] {
+  bottom: -7px;
+  right: -7px;
+  cursor: nwse-resize;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .box {
+    transition: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .box,
+  .box[data-active="true"] {
+    border-color: CanvasText;
+  }
+
+  .box[data-active="true"] {
+    border-style: double;
+    border-width: 4px;
+  }
+}

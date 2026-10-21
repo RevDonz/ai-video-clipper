@@ -1,0 +1,181 @@
+/* The "Atur layar terbagi" dialog (SplitDialog.jsx). Header, body padding and footer come from
+   shell.module.css; this file lays out the picture and its 9:16 result, the scrubber and the band
+   controls. Lime: the box being edited (gizmos/split.module.css) and "Selesai", the dialog's one
+   primary. The result's 1 px line takes the near-black background token (the render's is black). */
+
+.dialog {
+  width: min(1040px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  padding: 0;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--ed-radius-lg);
+  background: var(--surface);
+  box-shadow: var(--ed-shadow-popover);
+  color: var(--text);
+}
+
+.dialog::backdrop {
+  background: var(--shadow);
+}
+
+.body {
+  gap: var(--ed-space-3);
+}
+
+.status {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--ed-font-size-sm);
+}
+
+.message {
+  margin: 0;
+  padding: var(--ed-space-1) var(--ed-space-2);
+  border-radius: var(--ed-radius-sm);
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: var(--ed-font-size-sm);
+}
+
+/* The picture takes the room; the result keeps a fixed 9:16 column beside it. */
+.stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 160px;
+  gap: var(--ed-space-4);
+  align-items: start;
+}
+
+.pictureSlot {
+  width: 100%;
+  justify-self: center;
+}
+
+.result {
+  display: grid;
+  gap: var(--ed-space-1);
+  margin: 0;
+}
+
+.resultLabel {
+  color: var(--text-muted);
+  font-size: var(--ed-font-size-xs);
+  font-weight: 600;
+}
+
+.resultFrame {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  aspect-ratio: 9 / 16;
+  overflow: hidden;
+  border-radius: var(--ed-radius-md);
+  background-color: var(--bg);
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+.resultFrame[data-empty] span {
+  padding: var(--ed-space-2);
+  color: var(--text-muted);
+  font-size: var(--ed-font-size-xs);
+  text-align: center;
+}
+
+.resultBand {
+  flex: none;
+  width: 100%;
+  background-color: var(--bg);
+  background-repeat: no-repeat;
+}
+
+.resultLine {
+  flex: none;
+  height: 1px;
+  background: var(--bg);
+}
+
+.transport {
+  display: grid;
+  grid-template-columns: auto auto auto minmax(0, 1fr);
+  gap: var(--ed-space-2);
+  align-items: center;
+}
+
+.time {
+  min-width: 15ch;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--ed-font-size-sm);
+  text-align: center;
+}
+
+.range {
+  width: 100%;
+  min-height: var(--ed-target);
+  margin: 0;
+  accent-color: var(--text);
+  cursor: pointer;
+}
+
+.range:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 4px;
+}
+
+.range:disabled {
+  cursor: not-allowed;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ed-space-3);
+  align-items: flex-end;
+}
+
+.zoom {
+  display: grid;
+  grid-template-columns: minmax(140px, 220px) auto;
+  gap: 0 var(--ed-space-2);
+  align-items: center;
+}
+
+.zoomLabel {
+  grid-column: 1 / -1;
+  color: var(--text-muted);
+  font-size: var(--ed-font-size-xs);
+  font-weight: 600;
+}
+
+.zoomValue {
+  min-width: 5ch;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--ed-font-size-sm);
+}
+
+.footer {
+  justify-content: flex-end;
+}
+
+@media (max-width: 760px) {
+  .stage {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .result {
+    width: 120px;
+    justify-self: center;
+  }
+
+  .transport {
+    grid-template-columns: auto auto auto;
+  }
+
+  .transport .range {
+    grid-column: 1 / -1;
+  }
+
+  .zoom {
+    grid-template-columns: minmax(0, 1fr) auto;
+    width: 100%;
+  }
+}

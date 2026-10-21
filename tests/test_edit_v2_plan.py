@@ -466,6 +466,23 @@ def test_manual_framing_lists_no_run_without_a_face(harness, resources):
         assert framed.plan_sha256 != plain.plan_sha256
 
 
+def test_the_split_plans_without_a_camera_and_its_crops_are_content(harness, resources):
+    """Layar terbagi (CONTRACTS §5.45): no camera plan, no face notes; the bands are content,
+    so the plan sha changes with them, and only the split layout carries them."""
+    name = "layout_split__c30"
+    doc = load_doc(name)
+    plan = plan_for(name, resources)
+    assert plan.layout == "split" and plan.split == doc["layout"]["split"]
+    assert plan.camera is None and plan.camera_sha256 is None
+    assert not {"no_face", "no_face_blur"} & {issue.code for issue in plan.warnings}
+    assert plan.to_json()["layout"] == "split"
+    moved = copy.deepcopy(doc)
+    moved["layout"]["split"]["bottom"]["x_e5"] = 0
+    assert plan_for(name, resources, doc=moved).plan_sha256 != plan.plan_sha256
+    plain = plan_for("layout_fill_center__c30", resources)
+    assert plain.split is None
+
+
 def test_caption_warnings_are_carried(harness, resources, monkeypatch):
     real = harness.harness_caption_track
     issue = doc_module.Issue("hook_overflow", "/tracks/0/items/0/payload/text", ref="it_hook")

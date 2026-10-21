@@ -75,10 +75,10 @@
   border: 0;
 }
 
-/* Three 9:16 cards side by side: 380 px panel, 320 px at 1366×768. */
+/* Four 9:16 cards side by side: 380 px panel, 320 px at 1366×768. */
 .options {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--ed-space-2);
 }
 

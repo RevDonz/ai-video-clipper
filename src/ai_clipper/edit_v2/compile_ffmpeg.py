@@ -440,9 +440,17 @@ class _Compiler:
         when a job holds several chains (plate runs). With the no-face fallback (§5.40) the
         frames of the camera plan's runs without a face are chosen the same way, per source
         frame. Manual framing (§5.44) gives either crop layout the camera chain with the crop x
-        of the keyframes, per source frame, and no fallback.
+        of the keyframes, per source frame, and no fallback. Layar terbagi (§5.45) has its own
+        chain, the same crops on every frame.
         """
         source = (self.streams.width, self.streams.height)
+        if self.plan.layout == "split":
+            if self.plan.split is None:
+                raise errors.DocSemanticInvalid("range_invalid", path="/layout/split")
+            return layouts.split_chain(
+                self.plan.split, label_in=label_in, label_out=label_out, suffix=suffix,
+                output=self.plan.output, source=source, matrix=self.matrix,
+                in_range=self.in_range)
         if self.plan.keyframes:
             if self.plan.layout not in layouts.CROP_MODES:
                 raise errors.DocSemanticInvalid("range_invalid", path="/layout/keyframes")

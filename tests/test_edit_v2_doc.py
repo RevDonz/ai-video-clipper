@@ -555,9 +555,74 @@ KEYFRAME_RULES = [
 ]
 
 
+def _crop(x: int = 50_000, y: int = 50_000, zoom: int = 1000) -> dict:
+    return {"x_e5": x, "y_e5": y, "zoom_pm": zoom}
+
+
+def _split(doc: dict, top_pm: object = 300, top: object = None, bottom: object = None) -> None:
+    """Layar terbagi (CONTRACTS §5.45): ``mode: "split"`` with its ``layout.split``."""
+    doc["layout"]["default"]["mode"] = "split"
+    doc["layout"]["split"] = {"top_pm": top_pm, "top": _crop() if top is None else top,
+                              "bottom": _crop() if bottom is None else bottom}
+
+
+def _split_crop(band: str, **fields) -> object:
+    def apply(doc: dict) -> None:
+        _split(doc)
+        doc["layout"]["split"][band].update(fields)
+    return apply
+
+
+def _split_without(band: str, key: str) -> object:
+    def apply(doc: dict) -> None:
+        _split(doc)
+        del doc["layout"]["split"][band][key]
+    return apply
+
+
+SPLIT_RULES = [
+    ("c30", _split, None, None),
+    ("c25", lambda d: _split(d, 700, _crop(0, 0, 5000), _crop(100_000, 100_000, 1000)), None,
+     None),
+    ("c24", lambda d: _split(d, 500), None, None),
+    ("c30", lambda d: _split(d) or d["layout"]["default"].update(no_face="fit_blur"), None,
+     None),
+    # the split needs its bands, and only the split has them
+    ("c30", lambda d: d["layout"]["default"].update(mode="split"), "range_invalid",
+     "/layout/split"),
+    ("c30", lambda d: _split(d) or d["layout"]["default"].update(mode="fill_center"),
+     "range_invalid", "/layout/split"),
+    ("c30", lambda d: _split(d) or d["layout"]["default"].update(mode="fit_blur"),
+     "range_invalid", "/layout/split"),
+    ("c30", lambda d: _split(d) or d["layout"].update(split=[300]), "range_invalid",
+     "/layout/split"),
+    *[("c30", lambda d, value=value: _split(d, value), "range_invalid", "/layout/split/top_pm")
+      for value in (400, 0, 1000, "300", None, True)],
+    ("c30", lambda d: _split(d) or d["layout"]["split"].pop("top_pm"), "range_invalid",
+     "/layout/split/top_pm"),
+    ("c30", lambda d: _split(d) or d["layout"]["split"].pop("bottom"), "range_invalid",
+     "/layout/split/bottom"),
+    ("c30", lambda d: _split(d, top=[0, 0, 1000]), "range_invalid", "/layout/split/top"),
+    *[("c30", _split_crop(band, zoom_pm=value), "range_invalid",
+       f"/layout/split/{band}/zoom_pm")
+      for band in ("top", "bottom") for value in (999, 5001, 0, "1000", None, 1000.0)],
+    ("c30", _split_crop("top", zoom_pm=5000), None, None),
+    *[("c30", _split_crop("bottom", **{key: value}), "range_invalid",
+       f"/layout/split/bottom/{key}")
+      for key in ("x_e5", "y_e5") for value in (-1, 100_001, "5", True, None)],
+    ("c30", _split_crop("bottom", x_e5=0, y_e5=100_000), None, None),
+    *[("c30", _split_without("top", key), "range_invalid", f"/layout/split/top/{key}")
+      for key in ("x_e5", "y_e5", "zoom_pm")],
+    # manual framing keyframes belong to the crop layouts (§5.44), not to the split
+    ("c30", lambda d: _split(d) or _framed(d, (10, 20_000, "cut"), mode="split"),
+     "range_invalid", "/layout/keyframes"),
+]
+
+
 # (context, mutate, code, path): one targeted violation (or a positive boundary with code None).
 RULES = [
     *KEYFRAME_RULES,
+    *SPLIT_RULES,
     # root
     ("c30", lambda d: d.update(clip_id="clip_XYZ"), "range_invalid", "/clip_id"),
     ("c30", lambda d: d.update(revision=-1), "range_invalid", "/revision"),

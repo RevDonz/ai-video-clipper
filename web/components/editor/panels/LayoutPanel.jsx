@@ -1,7 +1,8 @@
 "use client";
 
 // The layout panel "Tata letak" (plan §11.3 T3.6, §5.7, §3.3 `layout.default.mode`, Appendix B
-// `SetLayout`, Appendix C.1/C.6): fit-blur, face-track or center-crop for the whole clip.
+// `SetLayout`, Appendix C.1/C.6): fit-blur, face-track, center-crop or layar terbagi for the whole
+// clip.
 //
 // - Each card shows the truth frame (plan §4.2 `preview/frame`, the export's own graph) of the
 //   current document in that layout at the resting playhead. The panel keeps its own preview
@@ -19,10 +20,12 @@
 // - "Bingkai" says where the crop comes from and opens "Atur bingkai" (../FramingDialog.jsx,
 //   CONTRACTS §5.44) for the crop layouts; with keyframes, "Kembali ke otomatis" clears them, and
 //   the no-face choice gives way (the keyframes frame those runs too).
+// - Under layar terbagi (CONTRACTS §5.45) "Layar terbagi" takes Bingkai's place: the share
+//   ("30/70", "50/50"), "Tukar atas dan bawah" and "Atur potongan" (../SplitDialog.jsx).
 //
-// Props: { state, dispatch, player, openFraming } (panels/index.mjs), plus the optional seams `api`
-// (prepare and `cameraProgress()`) and `previewClient` (thumbnails). Without them the fake
-// runtime's objects (window.__potonginEditor) are used, and in the app the panel's own clients.
+// Props: { state, dispatch, player, openFraming, openSplit } (panels/index.mjs), plus the optional
+// seams `api` (prepare and `cameraProgress()`) and `previewClient` (thumbnails). Without them the
+// fake runtime's objects (window.__potonginEditor) are used, and in the app the panel's own clients.
 import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { createApiClient } from "../../../lib/editor/api-client.mjs";
@@ -30,6 +33,7 @@ import { createPreviewClient } from "../../../lib/editor/preview-client.mjs";
 import { formatClock, frameToMs, rejectionText } from "../shell-model.mjs";
 import PillGroup from "../ui/PillGroup.jsx";
 import { clearKeyframesCommand, framingSummary } from "../framing-model.mjs";
+import { SPLIT_RATIOS, splitRatioCommand, splitSummary, swapSplitCommand } from "../split-model.mjs";
 import { analysisBusy, analysisForView, layoutAnalysisFor } from "./layout-analysis.mjs";
 import styles from "./layout.module.css";
 import {
@@ -218,7 +222,9 @@ function CardProgress({ view }) {
   );
 }
 
-function LayoutPanelBody({ state, getState = null, dispatch, player, api: apiProp, previewClient, analysisStore, openFraming = null }) {
+function LayoutPanelBody({
+  state, getState = null, dispatch, player, api: apiProp, previewClient, analysisStore, openFraming = null, openSplit = null,
+}) {
   const doc = state.doc;
   const readOnly = state.status !== "ready";
   const layout = doc.layout.default.mode;
@@ -293,6 +299,8 @@ function LayoutPanelBody({ state, getState = null, dispatch, player, api: apiPro
   const noFaceNote = `${uid}-noface-note`;
   const framing = framingSummary(doc);
   const framingNote = `${uid}-framing-note`;
+  const split = splitSummary(doc);
+  const splitNote = `${uid}-split-note`;
 
   return (
     <section data-panel="layout" className={styles.panel} aria-busy={running}>
@@ -345,20 +353,35 @@ function LayoutPanelBody({ state, getState = null, dispatch, player, api: apiPro
         ) : null}
         <p className={styles.note}>{`Contoh diambil dari frame akhir di posisi ${formatClock(frameToMs(at ?? 0, fps))}.`}</p>
       </div>
-      <div className={styles.section} data-layout-framing="" data-keyframes={framing.count}>
-        <h3 className={styles.subtitle}>Bingkai</h3>
-        <p className={styles.note} id={framingNote}>{framing.text}</p>
-        {framing.available ? (
+      {split ? (
+        <div className={styles.section} data-layout-split="" data-top-pm={doc.layout.split.top_pm}>
+          <h3 className={styles.subtitle}>Layar terbagi</h3>
+          <p className={styles.note} id={splitNote}>{split.text}</p>
+          <PillGroup legend="Pembagian" name={`${uid}-split`} options={SPLIT_RATIOS} value={split.ratio} disabled={readOnly}
+            onChange={(ratio) => send(splitRatioCommand(ratio, doc.layout.split))} />
           <div className={styles.actions}>
-            <button type="button" className={styles.button} aria-describedby={framingNote} disabled={readOnly || !openFraming}
-              onClick={() => openFraming?.()}>Atur bingkai</button>
-            {framing.count ? (
-              <button type="button" className={`${styles.button} ${styles.quietButton}`} disabled={readOnly}
-                onClick={() => send(clearKeyframesCommand())}>Kembali ke otomatis</button>
-            ) : null}
+            <button type="button" className={styles.button} aria-describedby={splitNote} disabled={readOnly || !openSplit}
+              onClick={() => openSplit?.()}>Atur potongan</button>
+            <button type="button" className={`${styles.button} ${styles.quietButton}`} disabled={readOnly}
+              onClick={() => send(swapSplitCommand())}>Tukar atas dan bawah</button>
           </div>
-        ) : null}
-      </div>
+        </div>
+      ) : (
+        <div className={styles.section} data-layout-framing="" data-keyframes={framing.count}>
+          <h3 className={styles.subtitle}>Bingkai</h3>
+          <p className={styles.note} id={framingNote}>{framing.text}</p>
+          {framing.available ? (
+            <div className={styles.actions}>
+              <button type="button" className={styles.button} aria-describedby={framingNote} disabled={readOnly || !openFraming}
+                onClick={() => openFraming?.()}>Atur bingkai</button>
+              {framing.count ? (
+                <button type="button" className={`${styles.button} ${styles.quietButton}`} disabled={readOnly}
+                  onClick={() => send(clearKeyframesCommand())}>Kembali ke otomatis</button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      )}
       {layout === "camera" && !framing.count ? (
         <div className={styles.section} data-layout-noface="" data-no-face={noFace.mode}>
           {/* Always shown under face-track, above the list that a re-plan replaces: the choice keeps

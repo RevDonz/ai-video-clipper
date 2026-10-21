@@ -38,7 +38,7 @@ import { sameOriginMutation } from "./request-security.mjs";
 
 export const PREVIEW_MODULE = "ai_clipper.edit_v2.preview_cli";
 export const PREVIEW_SERVER_MODULE = "ai_clipper.edit_v2.preview_server";
-export const LAYOUTS = Object.freeze(["fit_blur", "camera", "fill_center"]);
+export const LAYOUTS = Object.freeze(["fit_blur", "camera", "fill_center", "split"]);
 // A plate's `noFace` from preview_cli: "fit_blur" for face-track's latar blur fallback (CONTRACTS
 // §5.40), null otherwise; the cells op is told only about the fallback.
 const plateNoFace = (value) => (value === undefined || value === null ? null : value === "fit_blur" ? value : undefined);
@@ -57,6 +57,18 @@ function plateKeyframes(value) {
     previous = sf;
   }
   return value.map((item) => [...item]);
+}
+// A plate's `split` from preview_cli (CONTRACTS §5.45): `[top_pm, [x_e5, y_e5, zoom_pm] × 2]` for
+// the split layout and only for it, null otherwise; undefined when malformed (not trusted).
+const SPLIT_TOP_PM = Object.freeze([300, 500, 700]);
+const inRange = (value, lo, hi) => Number.isSafeInteger(value) && value >= lo && value <= hi;
+function plateSplit(layout, value) {
+  if (value === undefined || value === null) return layout === "split" ? undefined : null;
+  if (layout !== "split" || !Array.isArray(value) || value.length !== 3 || !SPLIT_TOP_PM.includes(value[0])) return undefined;
+  const bands = value.slice(1);
+  if (!bands.every((band) => Array.isArray(band) && band.length === 3 && inRange(band[0], 0, 100000)
+    && inRange(band[1], 0, 100000) && inRange(band[2], 1000, 5000))) return undefined;
+  return [value[0], ...bands.map((band) => [...band])];
 }
 export const DEFAULT_CACHE_CAP_BYTES = 1024 * 1024 * 1024; // K11
 export const HEAVY_SLOTS = 2;
@@ -421,7 +433,8 @@ export function createPreviewLane({
       clip.head = false;
       for (const k of cells) clip.queued.delete(k);
       const plate = { layout: clip.plate.layout, ...(clip.plate.noFace ? { noFace: clip.plate.noFace } : {}),
-        ...(clip.plate.keyframes ? { keyframes: clip.plate.keyframes } : {}) };
+        ...(clip.plate.keyframes ? { keyframes: clip.plate.keyframes } : {}),
+        ...(clip.plate.split ? { split: clip.plate.split } : {}) };
       const task = makeTask("cells", clip, { ...plate, cells }, { plateKey: clip.plate.key, cells });
       for (const k of cells) clip.runningCells.set(k, task);
       return task;
@@ -503,11 +516,12 @@ export function createPreviewLane({
 
   // --- what a plan asks for ----------------------------------------------------------------------
 
-  function switchPlate(clip, key, layout, noFace = null, keyframes = null) {
+  function switchPlate(clip, key, layout, noFace = null, keyframes = null, split = null) {
     for (const task of running) {
       if (task.kind === "cells" && task.clip === clip && task.plateKey !== key) cancel(task);
     }
-    clip.plate = { key, layout, noFace: plateNoFace(noFace) ?? null, keyframes: plateKeyframes(keyframes) ?? null };
+    clip.plate = { key, layout, noFace: plateNoFace(noFace) ?? null, keyframes: plateKeyframes(keyframes) ?? null,
+      split: plateSplit(layout, split) ?? null };
     clip.order = [];
     clip.queued = new Set();
     clip.doneCells = new Map();
@@ -515,7 +529,9 @@ export function createPreviewLane({
   }
 
   function ensure(clip, lane, pieces, missingCells, audioReady, logoReady, body) {
-    if (!clip.plate || clip.plate.key !== lane.plateKey) switchPlate(clip, lane.plateKey, lane.layout, lane.noFace, lane.keyframes);
+    if (!clip.plate || clip.plate.key !== lane.plateKey) {
+      switchPlate(clip, lane.plateKey, lane.layout, lane.noFace, lane.keyframes, lane.split);
+    }
     const missing = new Set(missingCells);
     const order = cellOrder(lane.cells, pieces, lane.cellFrames, lane.playhead).filter((k) => missing.has(k));
     const wanted = order.filter((k) => !clip.runningCells.has(k)
@@ -575,7 +591,7 @@ export function createPreviewLane({
     const lane = json?.lane;
     return isObject(json?.dto) && isObject(lane) && typeof lane.plateKey === "string" && HEX64.test(lane.plateKey)
       && typeof lane.layout === "string" && LAYOUTS.includes(lane.layout) && plateNoFace(lane.noFace) !== undefined
-      && plateKeyframes(lane.keyframes) !== undefined
+      && plateKeyframes(lane.keyframes) !== undefined && plateSplit(lane.layout, lane.split) !== undefined
       && Array.isArray(lane.cells) && lane.cells.every(Number.isSafeInteger)
       && Array.isArray(lane.missing) && Number.isSafeInteger(lane.cellFrames) && Number.isSafeInteger(lane.playhead)
       && isObject(json.dto.plate) && Array.isArray(json.dto.plate.cells);
@@ -703,10 +719,11 @@ export function createPreviewLane({
     const json = result.json;
     if (!(typeof json?.plateKey === "string" && HEX64.test(json.plateKey) && LAYOUTS.includes(json.layout)
       && plateNoFace(json.noFace) !== undefined && plateKeyframes(json.keyframes) !== undefined
+      && plateSplit(json.layout, json.split) !== undefined
       && Array.isArray(json.cells) && Array.isArray(json.ready) && Number.isSafeInteger(json.cellFrames))) return unavailable();
     const ready = new Set(json.ready);
     const missing = json.cells.filter((k) => !ready.has(k));
-    ensure(clip, { plateKey: json.plateKey, layout: json.layout, noFace: json.noFace, keyframes: json.keyframes, cells: json.cells,
+    ensure(clip, { plateKey: json.plateKey, layout: json.layout, noFace: json.noFace, keyframes: json.keyframes, split: json.split, cells: json.cells,
       cellFrames: json.cellFrames, playhead: 0 },
       null, missing, true, true, null);
     return {

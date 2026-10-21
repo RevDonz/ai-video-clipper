@@ -120,12 +120,14 @@ saran dengan Putar dan Pakai), lalu bagian **Transisi** yang sama persis dengan 
 **Hapus cold open**. Tanpa cold open kartu menulis "Belum ada cold open." dengan tombol **Pilih
 kalimat**. Menambah atau membuang kata di ujung kalimat ada di Mode Lengkap.
 
-**Tata letak.** **Latar blur**, **Potong tengah** dan **Ikuti wajah**. Analisis wajah tetap berjalan
+**Tata letak.** **Latar blur**, **Potong tengah**, **Ikuti wajah** dan **Layar terbagi**. Analisis wajah tetap berjalan
 walau kartu ditutup atau tampilan dipindah; progresnya juga tampil di panel Tata letak. Ikuti wajah
 yang dipilih di sini menampilkan bagian tanpa wajah dengan latar blur; daftar bagian itu dan pilihan
 "Dipusatkan" ada di panel Tata letak Mode Lengkap. Pada Potong tengah dan Ikuti wajah, tombol **Atur
 bingkai** membuka jendela yang sama dengan Mode Lengkap (lihat di bawah); ringkasan kartu menulis
-"· bingkai manual" selama ada keyframe.
+"· bingkai manual" selama ada keyframe. Pada Layar terbagi kartu menampilkan **Pembagian** (30/70,
+50/50), **Atur potongan** dan **Tukar atas dan bawah**; ringkasannya "Layar terbagi · 30/70" (bagian
+atas lebih dulu).
 
 **Logo & Musik.** **Tambah logo** (lalu geser logo langsung di pratinjau), **Tambah musik** (catatan
 hak cipta muncul sekali, sama dengan di Mode Lengkap), kekuatan **Saat ada suara** (Halus, Sedang,
@@ -205,8 +207,8 @@ mengembalikan transisi yang dipakai file otomatisnya. Efeknya hanya menutup gamb
 hook dan logo tetap di atasnya); durasi klip dan waktu caption tidak bergeser. Tanpa cold open,
 bagian ini mati dengan keterangan "Aktifkan cold open dulu."
 
-**Tata letak.** **Latar blur**, **Ikuti wajah** dan **Potong tengah**, masing-masing dengan
-contoh gambar di posisi putar. Berlaku untuk seluruh klip. "Ikuti wajah" pada proyek yang belum
+**Tata letak.** **Latar blur**, **Ikuti wajah**, **Potong tengah** dan **Layar terbagi**,
+masing-masing dengan contoh gambar di posisi putar. Berlaku untuk seluruh klip. "Ikuti wajah" pada proyek yang belum
 punya analisis wajah menganalisis dulu (hitungan persen); bagian tanpa wajah didaftar dengan
 tombol lompat. Kalau ada beberapa orang, gambar mengikuti yang sedang bicara (dari gerak
 mulutnya); saat pembicara berganti, gambar pindah dengan potongan, bukan geser. Di bawah pilihan
@@ -233,6 +235,21 @@ berlaku untuk seluruh klip, termasuk bagian tanpa wajah (pilihan "Bagian tanpa w
 selama ada keyframe). Pindah ke Latar blur menghapus keyframe (Urungkan mengembalikannya); pindah
 antara Potong tengah dan Ikuti wajah menyimpannya. Ikuti wajah tanpa keyframe menulis "Mengikuti
 wajah" di Hasil karena potongan wajah otomatis hanya tampil di pratinjau utama.
+
+**Layar terbagi.** Dua potongan dari video yang sama ditumpuk atas dan bawah, dengan garis hitam
+1 px di antaranya, misalnya facecam di atas dan gameplay di bawah. Saat dipilih, bagian atas
+mengambil 30% tinggi dan menampilkan hampir seluruh gambar, bagian bawah 70% dengan potongan di
+tengah. Bagian **Layar terbagi** menggantikan Bingkai di panel: **Pembagian** **30/70** atau
+**50/50**, **Tukar atas dan bawah** (kedua potongan bertukar tempat, jadi bagian kecil ikut
+pindah ke bawah: 70/30), dan **Atur potongan**. Di jendela **Atur layar terbagi** ada gambar
+sumber utuh di posisi putar dengan satu kotak per bagian (Atas, Bawah); kotak yang sedang diatur
+bergaris lime. Seret kotak untuk memindahkan, tarik sudutnya untuk mengubah ukuran (bentuk kotak
+tetap mengikuti bagiannya), atau pakai panah (1%, Shift 10%) dan + / − (10%). **Potongan** memilih
+kotak, **Perbesar** mengatur ukurannya dari 100% sampai 500%. Perubahan tersimpan saat kotak atau
+penggeser dilepas. **Hasil** di sebelahnya menampilkan kedua bagian seperti di ekspor. Penggeser
+posisi membantu memilih frame yang memperlihatkan facecam; potongan berlaku untuk seluruh klip.
+**Selesai** atau Esc menutup jendela, Ctrl+Z membatalkan di dalamnya. Pindah ke tata letak lain
+menghapus potongan ini (Urungkan mengembalikannya); Atur bingkai tidak berlaku di Layar terbagi.
 
 **Logo.** **"Unggah logo"** (PNG, JPEG atau WebP, maks. 10 MB; PNG transparan paling rapi)
 atau seret file ke panel. Logo baru muncul di kanan atas, di luar area tombol TikTok/Reels. Posisi
