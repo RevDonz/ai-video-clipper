@@ -1,9 +1,9 @@
 // Pengaturan "Teks watermark bawaan" (docs/editor/CONTRACTS.md §5.43). /api/settings/watermark is
 // faked in the browser (page.route), so nothing on the server changes; the AI form keeps talking
 // to the server.
-import { expect, test as base } from "@playwright/test";
+import { expect } from "@playwright/test";
 
-import { login, skipWithoutCredentials, test } from "./support/harness.mjs";
+import { expectFailedRequest, login, skipWithoutCredentials, test } from "./support/harness.mjs";
 
 const MARK = { text: "@potongin.klip", pos: "bottom_right", size_pm: 1200, opacity_pm: 700, updatedAtMs: 1_790_000_000_000 };
 
@@ -79,11 +79,11 @@ test.describe("Teks watermark bawaan", () => {
   });
 });
 
-// A faked 500 is the point of this test, so it runs without the harness's API-error check.
-base.describe("Teks watermark bawaan after a failed load", () => {
-  base.beforeEach(() => skipWithoutCredentials(base));
+test.describe("Teks watermark bawaan after a failed load", () => {
+  test.beforeEach(() => skipWithoutCredentials(test));
 
-  base("says so, and Coba lagi loads the card", async ({ page }) => {
+  test("says so, and Coba lagi loads the card", async ({ page }) => {
+    expectFailedRequest(page, 503, "GET", "/api/settings/watermark"); // the first load fails on purpose
     let calls = 0;
     await page.route("**/api/settings/watermark", (route) => {
       calls += 1;

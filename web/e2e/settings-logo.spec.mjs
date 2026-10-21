@@ -1,10 +1,10 @@
 // Pengaturan "Logo bawaan" (docs/editor/CONTRACTS.md §5.36). /api/settings/logo and the image are
 // faked in the browser (page.route), so nothing on the server changes; the AI form keeps talking
 // to the server.
-import { expect, test as base } from "@playwright/test";
+import { expect } from "@playwright/test";
 import zlib from "node:zlib";
 
-import { login, skipWithoutCredentials, test } from "./support/harness.mjs";
+import { expectFailedRequest, login, skipWithoutCredentials, test } from "./support/harness.mjs";
 
 const SHA = "5c".repeat(32);
 const LOGO = {
@@ -107,11 +107,11 @@ test.describe("Logo bawaan", () => {
   });
 });
 
-// A faked 500 is the point of this test, so it runs without the harness's API-error check.
-base.describe("Logo bawaan after a failed load", () => {
-  base.beforeEach(() => skipWithoutCredentials(base));
+test.describe("Logo bawaan after a failed load", () => {
+  test.beforeEach(() => skipWithoutCredentials(test));
 
-  base("says so, and Coba lagi loads the card", async ({ page }) => {
+  test("says so, and Coba lagi loads the card", async ({ page }) => {
+    expectFailedRequest(page, 503, "GET", "/api/settings/logo"); // the first load fails on purpose
     let calls = 0;
     await page.route("**/api/settings/logo", (route) => {
       calls += 1;

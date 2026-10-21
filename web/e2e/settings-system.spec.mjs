@@ -1,10 +1,10 @@
 // Pengaturan "Tentang sistem" (docs/editor/CONTRACTS.md §5.34). GET /api/settings/system is faked
 // in the browser (page.route), so the values are fixed; the AI form keeps talking to the server.
 // Optional: AXE_CORE_PATH=<axe.min.js> runs axe on the section (skipped without it).
-import { expect, test as base } from "@playwright/test";
+import { expect } from "@playwright/test";
 import { existsSync, readFileSync } from "node:fs";
 
-import { login, skipWithoutCredentials, test } from "./support/harness.mjs";
+import { expectFailedRequest, login, skipWithoutCredentials, test } from "./support/harness.mjs";
 
 const INFO = { ytDlp: "2026.8.19", ffmpeg: null, libass: null, whisperModel: "small", whisperModelCustom: false, commit: "becb712" };
 const AXE = process.env.AXE_CORE_PATH && existsSync(process.env.AXE_CORE_PATH) ? readFileSync(process.env.AXE_CORE_PATH, "utf8") : null;
@@ -50,11 +50,11 @@ test.describe("Tentang sistem", () => {
   });
 });
 
-// A faked 500 is the point of this test, so it runs without the harness's API-error check.
-base.describe("Tentang sistem after a failed load", () => {
-  base.beforeEach(() => skipWithoutCredentials(base));
+test.describe("Tentang sistem after a failed load", () => {
+  test.beforeEach(() => skipWithoutCredentials(test));
 
-  base("says so, and Coba lagi loads the values", async ({ page }) => {
+  test("says so, and Coba lagi loads the values", async ({ page }) => {
+    expectFailedRequest(page, 500, "GET", "/api/settings/system"); // the first load fails on purpose
     const calls = await fakeSystem(page, [
       { status: 500, body: { error: "Info sistem tidak bisa dibaca", code: "system_info_failed" } },
       { status: 200, body: INFO },

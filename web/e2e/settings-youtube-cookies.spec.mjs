@@ -1,9 +1,9 @@
 // Pengaturan "Cookies YouTube" (docs/operations/UNDUHAN_YOUTUBE.md). /api/settings/youtube-cookies
 // is faked in the browser (page.route), so nothing on the server changes; the AI form keeps
 // talking to the server. Every cookie value here is a plain made-up word.
-import { expect, test as base } from "@playwright/test";
+import { expect } from "@playwright/test";
 
-import { login, skipWithoutCredentials, test } from "./support/harness.mjs";
+import { expectFailedRequest, login, skipWithoutCredentials, test } from "./support/harness.mjs";
 
 const ENDPOINT = "**/api/settings/youtube-cookies";
 const UPLOADED_AT = "2026-10-21T08:00:00.000Z";
@@ -94,12 +94,11 @@ test.describe("Cookies YouTube", () => {
   });
 });
 
-// A refused upload and a failed load answer 4xx/5xx on purpose, so these run without the
-// harness's API-error check.
-base.describe("Cookies YouTube refusals", () => {
-  base.beforeEach(() => skipWithoutCredentials(base));
+test.describe("Cookies YouTube refusals", () => {
+  test.beforeEach(() => skipWithoutCredentials(test));
 
-  base("a JSON export is refused with its reason and the stored cookies stay", async ({ page }) => {
+  test("a JSON export is refused with its reason and the stored cookies stay", async ({ page }) => {
+    expectFailedRequest(page, 422, "POST", "/api/settings/youtube-cookies"); // the upload is refused on purpose
     await fakeCookies(page, { cookies: STORED, problem: null, secretConfigured: true }, {
       post: { status: 422, body: { error: "File ini berformat JSON, bukan cookies.txt.", code: "cookies_json" } },
     });
@@ -110,7 +109,8 @@ base.describe("Cookies YouTube refusals", () => {
     await expect(section.getByText("42 cookie tersimpan")).toBeVisible();
   });
 
-  base("a failed load says so, and Coba lagi loads the card", async ({ page }) => {
+  test("a failed load says so, and Coba lagi loads the card", async ({ page }) => {
+    expectFailedRequest(page, 503, "GET", "/api/settings/youtube-cookies"); // the first load fails on purpose
     let calls = 0;
     await page.route(ENDPOINT, (route) => {
       calls += 1;
