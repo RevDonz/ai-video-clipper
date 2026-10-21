@@ -117,6 +117,18 @@ job aktif (`JOBS_STORAGE_ACTIVE_RESERVE_BYTES`) dan sisa disk minimal tetap menj
 ukur ulang cadangannya (`docs/operations/STORAGE_RETENTION.md`) kalau job panjang mulai mendekati
 batas.
 
+**Format video (1:1 dan 1080p).** Dashboard menawarkan Rasio 9:16 (bawaan) atau 1:1 dan
+Resolusi 720p (bawaan) atau 1080p; pilihannya disimpan di job (`outputSize`, CONTRACTS §5.54).
+Job 1080p mengunduh video YouTube sampai 1080p (unduhan dan file sumber lebih besar), rendernya
+lebih lama dan file kliknya ± 1,6–1,9× lebih besar; 1:1 lebih ringan dari 9:16 dengan lebar yang
+sama. Angka PF-SIZE ada di `docs/editor/GATES.md` "Output sizes (PF-SIZE)". Batas waktu render
+otomatis ikut naik dengan jumlah piksel (1080×1920 ×2,25), dan ekspor 1:1 memakai anggaran 9:16
+dengan lebar yang sama, jadi tidak ada flag atau kuota yang perlu diubah. Tidak ada flag untuk
+fitur ini: menyembunyikannya berarti revert PR-nya. Setelah revert, server lama menolak dokumen
+klip 1:1 (`range_invalid` di `/output/w`), jadi klip 1:1 tidak bisa dibuka di editor (file klip
+otomatisnya tetap bisa diunduh); job 1080p 9:16 tetap bisa dibuka karena 1080×1920 sudah ukuran
+dokumen yang sah sebelumnya.
+
 **Rollback ke mesin lama.** Kalau klip otomatis `edit-v2` bermasalah di produksi:
 
 1. Di folder deploy, tambahkan `POTONGIN_RENDER_ENGINE=legacy` ke `.env`.
