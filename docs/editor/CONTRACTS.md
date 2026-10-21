@@ -332,7 +332,7 @@ Duplicate keys, NaN and unknown keys are rejected at every level.
 | `revision`, `parent_sha256` | int ≥ 0; sha or null | Revision 0 only for the seed (parent null). PUT requires `revision == current + 1` and `parent_sha256 == current etag` |
 | `base.*` | set at seed, **immutable** | PUT with any change to `base` → 422 `base_changed` |
 | `base.window_ms` | `[a, b]`, clip range ±60 s clamped to the source | Every segment must lie inside it (`outside_window`) |
-| `output` | `w×h` ∈ {720×1280, 1080×1920}; `fps` as §3.1; `sample_rate` 48000; `channels` 2 | Fixed at seed (the job's render size; the dashboard uses 720×1280). Exports render at this size (§4.6) |
+| `output` | `w×h` ∈ {720×1280, 1080×1920, 720×720, 1080×1080} (1:1 since §5.54); `fps` as §3.1; `sample_rate` 48000; `channels` 2 | Fixed at seed (the job's render size: the dashboard's Rasio and Resolusi, 720×1280 without them). Exports render at this size (§4.6) |
 | `main.segments` | 1–2 items: optional `cold_open` first, then exactly one `body` | Cold-open rules in §3.4 |
 | `main.removals` | ≤ 2,000; `reason` ∈ {`user`, `filler`, `repeat`, `gap_silent`}; `origin` `user` or `suggestion:<id>` | Sorted by `in_sf` within a segment; no overlap; `words` must exist in the words artifact |
 | `main.joins` | 0–1 item: `after` = cold-open id; `style` `"cut"`, `"flash_white"` or `"dip_black"`; `audio_fade_ms` 0–250 (seed 30); optional `sfx` `{"id": "whoosh", "v": 1}` (absent = no sound) | The cold-open transition (§5.26, amended 2026-10-02). `xfade` stays `op_disabled`; another `{id, v}` is `sfx_unknown` |
@@ -395,7 +395,7 @@ AI" target of an existing clip.
 | `captions.pack` | The job's `captionStyle` (any pack id); overrides at the pack defaults, with `y_e5`/`size_pm` from the job's `captionPosition`/`captionSize` when it has them (§5.48) |
 | hook item | When `hookOverlay` and `hook_text` exist: `[0, round_half_up(hook_duration·F))`, `legacy-bar`, `y_e5 13000` |
 | `layout.default.mode` | `face-track` → `camera`, `fit-blur` → `fit_blur`, `center-crop` → `fill_center` |
-| `output` | The job's render size (the dashboard passes 720×1280 [REPO run-job.mjs]); fps: native standard rates kept; 50 → 25, 60 → 30, 60000/1001 → 30000/1001; VFR or other → 30/1 |
+| `output` | The job's render size (the job option `outputSize`, 720×1280 without it [REPO run-job.mjs], §5.54); fps: native standard rates kept; 50 → 25, 60 → 30, 60000/1001 → 30000/1001; VFR or other → 30/1 |
 | `audio` | Source gain 0; master `off` |
 | `base.window_ms` | `[min(start, co_start) − 60 000, max(end, co_end) + 60 000]` clamped to `[0, duration_ms]` |
 
@@ -597,7 +597,7 @@ timeout + SIGKILL, fixed exit-code map as in `edit-document.mjs`, and an **allow
   draw the envelope on the music lane. The audible gain comes from the server mix.
 - `rev0.exact` is true only when `planSha256 == rev0.planSha256` and the auto render was produced
   by `edit-v2`. The player may then play `autoRenderUrl` while plate cells build.
-- In Essentials `plate.w/h` always equals `output` (every job is 720×1280), so the preview
+- In Essentials `plate.w/h` always equals `output` (the job's size, §5.54), so the preview
   resolution is the export resolution.
 
 # Part 5. T1.0 resolutions
@@ -610,7 +610,7 @@ annotations may be spelled differently).
 
 | Module | Names | Owner |
 |---|---|---|
-| `ai_clipper.edit_v2` (`__init__`) | `COMPILER_VERSION`, `COMPILER_ID` (`"edit-v2/1"`), `RENDER_SEMANTICS`, `SCHEMA`, `SCHEMA_MINOR`, `WORDS_SCHEMA`, `CAMERA_SCHEMA`, `DOC_FPS`, `OUTPUT_SIZES`, `PACK_IDS`, `SWATCHES`, `PACK_DEFAULT_OVERRIDES`, `WORDS_MAX_RANGE` (§5.30), `HOOK_DESIGN_IDS` (§5.33), `CAPTION_ENTRANCES` (§5.39), `WATERMARK_TEXT_MAX`, `WATERMARK_POSITIONS`, `WATERMARK_SIZE_RANGE`, `WATERMARK_OPACITY_RANGE`, `UI_ZONE_720` (§5.43) | T1.0 |
+| `ai_clipper.edit_v2` (`__init__`) | `COMPILER_VERSION`, `COMPILER_ID` (`"edit-v2/1"`), `RENDER_SEMANTICS`, `SCHEMA`, `SCHEMA_MINOR`, `WORDS_SCHEMA`, `CAMERA_SCHEMA`, `DOC_FPS`, `OUTPUT_SIZES`, `PACK_IDS`, `SWATCHES`, `PACK_DEFAULT_OVERRIDES`, `WORDS_MAX_RANGE` (§5.30), `HOOK_DESIGN_IDS` (§5.33), `CAPTION_ENTRANCES` (§5.39), `WATERMARK_TEXT_MAX`, `WATERMARK_POSITIONS`, `WATERMARK_SIZE_RANGE`, `WATERMARK_OPACITY_RANGE`, `UI_ZONE_720` (§5.43), `EDGE_MARGIN_PM`, `ui_zone`, `frame_margins`, `text_height` (§5.54) | T1.0 |
 | `edit_v2.errors` | exceptions, code sets, `MESSAGES`, `message`, `message_id`, `base_code`, `exit_code_for`, `EXIT_*` | T1.0 |
 | `edit_v2.timemap` | Appendix A names plus `SAMPLE_RATE`, `MIN_PIECE_FRAMES`, `div_round_half_up`, `speech_spans`, `logo_box`, `Fps.from_json`, `Fps.to_json`, `Piece.to_dto` | T1.0 |
 | `edit_v2.clip_id` | `clip_id`, `is_clip_id`, `ms_from_seconds`, `CLIP_ID_PATTERN` | T1.0 |
@@ -3977,3 +3977,82 @@ resume after a crash, pruning, undo, undo after a later save, undo resume, the e
 a real batch and undo through the routes); `web/tests/editor-apply-all.test.mjs` (texts,
 controller, API client, fakes, the six places); browser spec `web/e2e/editor-apply-all.spec.mjs`
 on the editor fakes.
+
+## 5.54 Output sizes: 1:1 and 1080p (2026-10-21)
+
+A P3 item of the 2026-10-21 adoption batch. A job renders its clips at one of four sizes: 9:16 at
+720×1280 (the default, every clip before this) or 1080×1920, or 1:1 at 720×720 or 1080×1080. No
+2K, 4K or 16:9. The render cost of each size is measured in `docs/editor/GATES.md` "Output sizes
+(PF-SIZE)". Nothing that renders today changes: every rule below gives a 9:16 output exactly
+its earlier numbers, so `RENDER_SEMANTICS` stays 2 and no golden moves.
+
+### The document and the seed
+
+- `OUTPUT_SIZES` (`edit_v2/__init__.py`) = `((720, 1280), (1080, 1920), (720, 720), (1080, 1080))`;
+  the validator's `/output` rule, `seed.renderSize`, `AutoOptions`, `compile_job(size=)`,
+  `verify_output` and `render_edit` take exactly these. `schema_minor` stays 0: the document's
+  shape is unchanged, only the allowed values grow (§3.8 amendment). The output is fixed at seed
+  (`base_changed` in the editor): the editor has no format setting, a clip keeps its job's size.
+- Three frame rules in the package, mirrored in `web/lib/output-frame.mjs` (`uiZone`,
+  `frameMargins`, `textHeight`, checked against the Python constants by
+  `web/tests/output-size.test.mjs`):
+  - `ui_zone(output)`: the TikTok zone of plan §5.9 G5 (93/280/93 at 720×1280, scaled) for 9:16;
+    `(0, 0, 0)` for 1:1, so a 1:1 clip never gets `unsafe_zone` (captions, hook or logo).
+    `plan.ui_zone` is this function.
+  - `frame_margins(output)`: where the logo presets and the text watermark stop: the zone at 9:16;
+    at 1:1 `EDGE_MARGIN_PM` (40 ‰ of the width, the presets' left margin: 29 px at 720, 43 at
+    1080) on the top, bottom and right. `seed.default_logo_transform` and the editor's `SetLogo`
+    / `SnapLogo` (`commands.mjs` `snapTarget`, `logo-geometry.mjs` `cornerStart`) use it;
+    `tests/fixtures/edit_v2/default-logo-vectors.json` has 48 vectors (12 logos × the four sizes).
+  - `text_height(output)` = `max(H, rhu(16·W, 9))`: the height every text size is computed from
+    (caption font, outline, shadow, glow, box padding, entrance blur, hook sizes of every design,
+    the watermark's size). At 9:16 it is H; at 1:1 it is the 9:16 frame of the same width, so a
+    1:1 caption, hook or watermark is exactly the size it has in the 9:16 clip of that width and
+    wraps the same. Positions stay fractions of the output's own height: the caption's `y_e5`
+    (Bawah is 83 % of 720 at 720×720), the hook's `y_e5`, the watermark rows.
+- `captions_ass.layout_watermark` uses `frame_margins` and `text_height`;
+  `edit_v2/captions.py` reads the zone from `ui_zone` (no warning at 1:1).
+
+### Job option, runner and CLI
+
+- `outputSize` (`web/lib/jobs.mjs` `OUTPUT_SIZE_IDS`: `720x1280`, `1080x1920`, `720x720`,
+  `1080x1080`): an optional V3 option of the job form and of a stored job, like Posisi/Ukuran
+  (§5.48); anything else is refused ("Unsupported output size"). A job without it is 720×1280.
+- `web/scripts/run-job.mjs` passes `--width`/`--height` from it. A YouTube source is downloaded up
+  to 1080p for a 1080-wide size and up to 720p otherwise (`sourceHeightFor`, `buildVideoDownload
+  {maxHeight}`): a 1080p clip from a 720p source would only be an upscale. An upload is used as it
+  is.
+- `ai-clipper` (CLI) refuses a V3 run whose `--width`/`--height` is not in `OUTPUT_SIZES`
+  (exit 2). V1 and V2 jobs keep any size (the legacy engine renders any).
+- The legacy engine (the rollback switch and the per-clip fallback) renders 1:1 with the same
+  chains (`render.py` is size-generic) and the same text sizes (`build_ass` uses `text_height`).
+- Time budgets: `render_queue.RENDER_COST_PERMILLE` gives a 1:1 export the budget of the 9:16
+  size of its width (PF-SIZE measured 1:1 at 0.6-0.95× of it); `render_edit.render_timeout_s`
+  (the automatic clips) multiplies its prediction by the output's pixels over 720×1280's when
+  larger (1080×1080 ×1.27, 1080×1920 ×2.25), so a 1080p clip is not cut off by the 720p budget.
+
+### Dashboard and editor
+
+- Dashboard: a section **Format video** before Layout with **Rasio** (9:16, 1:1) and
+  **Resolusi** (720p, 1080p) pills (`dashboard-choices.mjs` `RATIO_CHOICES`, `RESOLUTION_CHOICES`,
+  `outputSizeOf`), kept per browser with the other choices; the folded summary names 1:1 and
+  1080p (9:16 and 720p go unsaid). The preview under Tampilan klip is 720×720 at 1:1 without the
+  TikTok zone and its key (`look-preview.mjs` `tiktok: false`), the text at the 9:16 sizes; the
+  layout icons turn square.
+- Editor: the stage, the gizmos and the dialogs follow `doc.output`. At 1:1 there is no
+  **Zona aman** toggle and no zone overlay (`StageToggles zone={false}`, `Stage`), the logo and
+  caption gizmos draw no zone bands, the caption gizmo's box uses `textHeight`, "Atur bingkai" and
+  "Atur layar terbagi" show a 1:1 result ("Bingkai 1:1", "Hasil 1:1 di …"), and the layout notes
+  say "Potongan 1:1" (`layout-model.mjs` `noteForRatio`). The project page plays a 1:1 clip inside
+  its usual frame (`object-fit: contain`).
+
+### Gates
+
+`tests/test_edit_v2_output_sizes.py`: the frame rules, the document, the seed and its logo, no
+`unsafe_zone` at 1:1, captions/hook/watermark sizes per pack and design, and a real 720×720 render
+(latar blur and potong tengah) that passes `verify_output` with every frame the planned source
+frame. `scripts/parity/frame_identity.py`: P-FRAME and G1/G2 gain `SQUARE_CASES`
+(`square_720_29.97` latar blur with hook, `square_720_camera`, `square_1080_keyframes`), P-PLATE
+gains `plate_camera_square` and `plate_split_square`; the browser player fixtures keep their
+720×1280 cases. `scripts/parity/logo_gates.py` adds 720×720 to the G5 logo vectors. PF-SIZE:
+`scripts/perf/output_sizes.py` (GATES "Output sizes (PF-SIZE)").

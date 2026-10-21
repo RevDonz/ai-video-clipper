@@ -15,7 +15,7 @@ import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react"
 import { framingSummary } from "../framing-model.mjs";
 import { SPLIT_RATIOS, splitRatioCommand, splitSummary, swapSplitCommand } from "../split-model.mjs";
 import { analysisApi, analysisBusy, analysisForView, layoutAnalysisFor } from "../panels/layout-analysis.mjs";
-import { analysisView, cameraReadyFromState, layoutCommand, switchSteps } from "../panels/layout-model.mjs";
+import { analysisView, cameraReadyFromState, layoutCommand, noteForRatio, switchSteps } from "../panels/layout-model.mjs";
 import { rejectionText } from "../shell-model.mjs";
 import ApplyAll from "../apply-all/ApplyAll.jsx";
 import PillButton from "../ui/PillButton.jsx";
@@ -23,7 +23,7 @@ import PillGroup from "../ui/PillGroup.jsx";
 import { CARD_LAYOUTS } from "./quick-model.mjs";
 import styles from "./quick.module.css";
 
-const OPTIONS = CARD_LAYOUTS.map((option) => ({ id: option.id, label: option.name, title: option.note }));
+const optionsFor = (doc) => CARD_LAYOUTS.map((option) => ({ id: option.id, label: option.name, title: noteForRatio(option.note, doc) }));
 
 function LayoutBody({ state, getState, dispatch, api, analysis, openFraming, openSplit, applyAll }) {
   const doc = state.doc;
@@ -89,7 +89,7 @@ function LayoutBody({ state, getState, dispatch, api, analysis, openFraming, ope
   return (
     <div className={styles.body} data-quick-body="layout">
       {refused ? <p className={styles.message} role="alert">{refused}</p> : null}
-      <PillGroup legend="Pilih tata letak" legendHidden name={`${uid}-layout`} options={OPTIONS} value={choice ?? layout}
+      <PillGroup legend="Pilih tata letak" legendHidden name={`${uid}-layout`} options={optionsFor(doc)} value={choice ?? layout}
         disabled={locked} describedBy={`${uid}-about`} onChange={choose} columns={2} />
       <p id={`${uid}-about`} className={styles.note}>Berlaku untuk seluruh klip.</p>
       {framing.available ? (

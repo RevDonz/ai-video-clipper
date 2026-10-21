@@ -25,12 +25,13 @@ from typing import Any
 
 from .edit_v2 import (
     CAPTION_ENTRANCES,
-    UI_ZONE_720,
     WATERMARK_OPACITY_RANGE,
     WATERMARK_POSITIONS,
     WATERMARK_SIZE_RANGE,
     WATERMARK_TEXT_MAX,
     WORDS_MAX_RANGE,
+    frame_margins,
+    text_height,
 )
 from .edit_v2.glyphs import RESOURCES_DIR, advance_units, font_path, fonts_manifest
 from .edit_v2.timemap import Fps, div_round_half_up, safe_cs
@@ -45,8 +46,9 @@ FONT_NAME = "DejaVu Sans"
 KARAOKE_HIGHLIGHT_COLOR = "#FFE14D"
 CAPTION_TEXT_COLOR = "#FFFFFF"
 
-# Sizes are fractions of the output height so every resolution keeps one look. The caption
-# font matches the historical SRT force_style (FontSize=12 on libass' 288-line SRT canvas).
+# Sizes are fractions of the output height so every resolution keeps one look (at 1:1, of the
+# 9:16 frame of its width: edit_v2.text_height); positions stay fractions of the output's own
+# height. The caption font matches the historical SRT force_style (FontSize=12 on libass' 288-line SRT canvas).
 _CAPTION_FONT_RATIO = 12 / 288
 _CAPTION_OUTLINE_RATIO = 1 / 150
 _CAPTION_SHADOW_RATIO = 1 / 288
@@ -356,9 +358,10 @@ def build_ass(
     if any(round(cue.end * 100) > round(duration * 100) for cue in cues):
         raise ValueError("caption cue ends after the clip duration")
 
-    caption_font = max(1, round(height * _CAPTION_FONT_RATIO))
-    caption_outline = height * _CAPTION_OUTLINE_RATIO
-    caption_shadow = height * _CAPTION_SHADOW_RATIO
+    sizes = text_height((width, height))  # positions use the height, sizes this (1:1 clips)
+    caption_font = max(1, round(sizes * _CAPTION_FONT_RATIO))
+    caption_outline = sizes * _CAPTION_OUTLINE_RATIO
+    caption_shadow = sizes * _CAPTION_SHADOW_RATIO
     caption_side = round(width * _CAPTION_SIDE_MARGIN_RATIO)
     caption_bottom = round(height * _CAPTION_MARGIN_BOTTOM_RATIO)
     white = _ass_color(CAPTION_TEXT_COLOR)
@@ -409,10 +412,10 @@ def build_ass(
 
     hook = shorten_hook_text(hook_text) if hook_text is not None else ""
     hook_font = caption_font
-    hook_padding = max(1, round(height * _HOOK_BOX_PADDING_RATIO))
+    hook_padding = max(1, round(sizes * _HOOK_BOX_PADDING_RATIO))
     hook_top = round(height * _HOOK_MARGIN_TOP_RATIO)
     if hook:
-        hook_font, hook_padding, lines = _hook_layout(hook, width=width, height=height)
+        hook_font, hook_padding, lines = _hook_layout(hook, width=width, height=sizes)
         hook_end = min(hook_duration, duration)
         events += _hook_events(lines, start=_ass_time(0.0), end=_ass_time(hook_end),
                                width=width, top=hook_top, font_size=hook_font,
@@ -1199,8 +1202,8 @@ def fit_cues(
     """
     if pack.max_width_pm is None:
         return tuple(cues)
-    width, height = play_res
-    size = _pack_font_size(pack, height, overrides["size_pm"])
+    width, _height = play_res
+    size = _pack_font_size(pack, text_height(play_res), overrides["size_pm"])
     case = overrides["case"]
     fitted: list[FrameCue] = []
     for cue in cues:
@@ -1242,10 +1245,11 @@ def layout_hook(text: str, *, play_res: tuple[int, int], y_e5: int,
             return HookLayout(1, 0, top, (), False, layer=spec.layer)
         return _design_layout(spec, hook, play_res=(width, height), top=top,
                               cut=hook != cleaned)
+    sizes = text_height(play_res)
     if not hook:
-        return HookLayout(1, max(1, round(height * _HOOK_BOX_PADDING_RATIO)), top, (), False)
+        return HookLayout(1, max(1, round(sizes * _HOOK_BOX_PADDING_RATIO)), top, (), False)
     font_size, padding, lines, overflow = _hook_layout_checked(hook, width=width,
-                                                               height=height)
+                                                               height=sizes)
     return HookLayout(font_size, padding, top, lines, overflow or hook != cleaned)
 
 
@@ -1270,18 +1274,17 @@ def _watermark_outline(font_size: int) -> int:
 
 
 def layout_watermark(spec: WatermarkSpec, *, play_res: tuple[int, int]) -> WatermarkLayout:
-    """The watermark line at ``play_res``: the size ``max(1, rhu(H·size_pm, 40000))``, shrunk
-    until its ``hmtx`` advance fits its column, anchored by its bottom edge just inside the safe
-    area (top, middle or bottom; the 4 % margin, the centre or the right zone's edge)."""
+    """The watermark line at ``play_res``: the size ``max(1, rhu(H·size_pm, 40000))`` (H: the
+    text height, ``edit_v2.text_height``), shrunk until its ``hmtx`` advance fits its column,
+    anchored by its bottom edge just inside the safe area (top, middle or bottom; the 4 % margin,
+    the centre or the right zone's edge; at 1:1 the 4 % margin on every side)."""
     _check_watermark(spec)
     width, height = play_res
-    zone_top, zone_bottom, zone_right = UI_ZONE_720
-    top = div_round_half_up(zone_top * height, 1280)
-    bottom = div_round_half_up(zone_bottom * height, 1280)
-    right = div_round_half_up(zone_right * width, 720)
+    top, bottom, right = frame_margins(play_res)
     left = div_round_half_up(width * _WATERMARK_LEFT_PM, 1000)
     row, column = spec.pos.split("_")
-    size = max(1, div_round_half_up(height * spec.size_pm, _WATERMARK_SIZE_DIVISOR))
+    size = max(1, div_round_half_up(text_height(play_res) * spec.size_pm,
+                                    _WATERMARK_SIZE_DIVISOR))
     edge = -(-_watermark_outline(size) // 100)
     span = width - 2 * right if column == "center" else width - right - left
     usable = max(1, span - 2 * edge)
@@ -1378,7 +1381,8 @@ def _wrap_units(words: Sequence[str], font: Path, font_size: int, usable: int) -
 def _design_layout(spec: HookDesign, hook: str, *, play_res: tuple[int, int], top: int,
                    cut: bool) -> HookLayout:
     """Lines, style and events of ``hook`` in a design other than the bar (CONTRACTS §5.33)."""
-    width, height = play_res
+    width, _height = play_res
+    height = text_height(play_res)  # every size below; the top is the caller's
     font = font_path(spec.font_file)
     side = div_round_half_up(width * spec.side_margin_pm, 1000)
     num, den = spec.outline_ratio
@@ -1539,15 +1543,16 @@ def _caption_events(cues: Sequence[FrameCue], *, pack: CaptionPack, fps: Fps,
     emphasis = _inline_colour(overrides["emphasis"])
     highlight = _inline_colour(overrides["highlight"])
     width, height = play_res
+    sizes = text_height(play_res)
 
     def dialogue(first: int, last: int, text: str, *, opening: int) -> str:
         start, end = max(0, safe_cs(first, fps)), safe_cs(last, fps)
         if first == opening:  # every event of the line's first window carries its entrance
-            text = _entrance_tags(entrance, 10 * (end - start), height) + text
+            text = _entrance_tags(entrance, 10 * (end - start), sizes) + text
         return (f"Dialogue: 0,{_ass_time_cs(start)},{_ass_time_cs(end)},{pack.style_name},,0,0,0,,"
                 f"{text}")
 
-    size = _pack_font_size(pack, height, overrides["size_pm"])
+    size = _pack_font_size(pack, sizes, overrides["size_pm"])
 
     def static(words: Sequence[FrameWord], active: int | None = None,
                line_size: int = size) -> str:
@@ -1595,7 +1600,7 @@ def _caption_events(cues: Sequence[FrameCue], *, pack: CaptionPack, fps: Fps,
                     f"{{{accent[0]}}}{ass_escape(_display(word.text, case))}{{{accent[1]}}}"
                     if word.emphasis and accent[0] else ass_escape(_display(word.text, case))
                     for word in cue.words)
-                glow = _glow_tags(pack.glow, height, highlight)
+                glow = _glow_tags(pack.glow, sizes, highlight)
                 events.append(event(cue.f0, cue.f1, f"{{{place}{glow}}}{glyphs}"))
                 line = f"{{{place}}}{line}"
             events.append(event(cue.f0, cue.f1, line))
@@ -1641,7 +1646,7 @@ def _vector_box(text: str, font: Path, font_size: int, *, pack: CaptionPack,
     """
     width, height = play_res
     num, den = pack.outline_ratio
-    pad = div_round_half_up(height * num, den)
+    pad = div_round_half_up(text_height(play_res) * num, den)
     units, height_units = advance_units(_drawn_text(text), font)
     box_w = div_round_half_up(font_size * units, height_units) + 2 * pad
     box_h = font_size + 2 * pad
@@ -1677,7 +1682,7 @@ def _word_box_events(cue: FrameCue, *, pack: CaptionPack, play_res: tuple[int, i
     width, height = play_res
     case = overrides["case"]
     font = font_path(pack.font_file)
-    size = _pack_font_size(pack, height, overrides["size_pm"])
+    size = _pack_font_size(pack, text_height(play_res), overrides["size_pm"])
     shown = [_display(word.text, case) for word in cue.words]
     size_tag = ""
     line = " ".join(shown)
@@ -1726,18 +1731,19 @@ def _word_box_events(cue: FrameCue, *, pack: CaptionPack, play_res: tuple[int, i
 def _pack_style(pack: CaptionPack, *, play_res: tuple[int, int],
                 overrides: Mapping[str, Any]) -> str:
     width, height = play_res
+    sizes = text_height(play_res)
     primary = overrides["highlight"] if pack.reveal == "karaoke" else pack.text_colour
     outline_num, outline_den = pack.outline_ratio
     shadow_num, shadow_den = pack.shadow_ratio
-    outline = _centi_text(div_round_half_up(100 * height * outline_num, outline_den))
-    shadow = _centi_text(div_round_half_up(100 * height * shadow_num, shadow_den))
+    outline = _centi_text(div_round_half_up(100 * sizes * outline_num, outline_den))
+    shadow = _centi_text(div_round_half_up(100 * sizes * shadow_num, shadow_den))
     border_style = pack.border_style
     if pack.box_style == "vector":  # the box is its own event; the text has no border
         border_style, outline, shadow = 1, "0", "0"
     return _style_line(
         pack.style_name,
         font_name=pack.font_family,
-        font_size=_pack_font_size(pack, height, overrides["size_pm"]),
+        font_size=_pack_font_size(pack, sizes, overrides["size_pm"]),
         primary=_ass_color(primary),
         secondary=_ass_color(pack.text_colour),
         outline_color=_ass_color(pack.outline_colour, alpha=pack.outline_alpha),

@@ -1,4 +1,4 @@
-/* "Tampilan klip": the subtitle styles and hook switches beside a 9:16 preview of the next clips
+/* "Tampilan klip": the subtitle styles and hook switches beside a 9:16 or 1:1 preview of the next clips
    (LookPreview.jsx). The preview pictures the output and is not a control, so it carries no accent;
    its stand-in video colours come from lib/editor/content-colours.mjs, the TikTok zone uses the
    editor's Zona aman colours. Below 560px the preview leads, with its key beside it. */
@@ -14,6 +14,7 @@
 
 .preview { grid-area: preview; display: grid; gap: 8px; min-width: 0; margin: 0; }
 .frame { overflow: hidden; border: 1px solid var(--border-strong); border-radius: var(--radius-m); }
+/* The ratio comes inline from the frame (9:16 or 1:1). */
 .canvas { display: block; width: 100%; height: auto; aspect-ratio: 9 / 16; }
 /* A choice that changes the picture fades its part in, so the eye finds what moved. */
 .appear { animation: fade-in var(--dur-2) var(--ease-out); }

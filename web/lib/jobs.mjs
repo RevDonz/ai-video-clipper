@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { clipErrorCode, isFailedClip } from "./clip-status.mjs";
 import { PACK_IDS } from "./editor/doc-model.mjs";
+import { DEFAULT_OUTPUT_SIZE, OUTPUT_SIZES } from "./output-frame.mjs";
 import {
   CLIP_THUMBNAIL_URL,
   FOCUS_LIMITS,
@@ -35,6 +36,12 @@ export const LEGACY_CAPTION_STYLES = Object.freeze(["karaoke", "classic"]);
  */
 export const CAPTION_POSITIONS = Object.freeze(["top", "middle", "bottom"]);
 export const CAPTION_SIZES = Object.freeze(["small", "medium", "large"]);
+/**
+ * "Rasio" and "Resolusi" (CONTRACTS §5.54): the optional V3 option `outputSize`, the render size
+ * of the clips (edit_v2 OUTPUT_SIZES). A job without it renders at 720×1280.
+ */
+export const OUTPUT_SIZE_IDS = Object.freeze(Object.keys(OUTPUT_SIZES));
+export { DEFAULT_OUTPUT_SIZE };
 /** "Bahasa video": the spoken language; "auto" lets the engine detect it. Mirrored in dashboard-choices.mjs. */
 export const VIDEO_LANGUAGES = ["id", "en", "auto"];
 export const DEFAULT_V3_OPTIONS = Object.freeze({
@@ -44,7 +51,7 @@ export const DEFAULT_V3_OPTIONS = Object.freeze({
   captionStyle: "karaoke",
 });
 const V2_OPTION_KEYS = ["clipProfile", "maxCandidates", "maxMediaCandidates", "mediaTimeout"];
-const V3_OPTION_KEYS = ["llmMode", "coldOpen", "hookOverlay", "captionStyle", "captionPosition", "captionSize"];
+const V3_OPTION_KEYS = ["llmMode", "coldOpen", "hookOverlay", "captionStyle", "captionPosition", "captionSize", "outputSize"];
 // Fokus klip (docs/plans/2026-09-25-fokus-klip.md §1): V3 only, persisted as options.focus.
 const FOCUS_FORM_KEYS = ["focusTerms", "focusNote"];
 // Optional: a job without it keeps the worker's WHISPER_LANGUAGE (else id) and Indonesian captions.
@@ -392,6 +399,9 @@ export function validatePersistedJobOptions(input) {
     if (input.captionSize !== undefined && !CAPTION_SIZES.includes(input.captionSize)) {
       throw new Error("Invalid persisted job options: unsupported caption size");
     }
+    if (input.outputSize !== undefined && !OUTPUT_SIZE_IDS.includes(input.outputSize)) {
+      throw new Error("Invalid persisted job options: unsupported output size");
+    }
     if (input.videoLanguage !== undefined && !VIDEO_LANGUAGES.includes(input.videoLanguage)) {
       throw new Error("Invalid persisted job options: unsupported video language");
     }
@@ -407,6 +417,7 @@ export function validatePersistedJobOptions(input) {
       captionStyle: input.captionStyle,
       ...(input.captionPosition !== undefined ? { captionPosition: input.captionPosition } : {}),
       ...(input.captionSize !== undefined ? { captionSize: input.captionSize } : {}),
+      ...(input.outputSize !== undefined ? { outputSize: input.outputSize } : {}),
       ...(input.videoLanguage !== undefined ? { videoLanguage: input.videoLanguage } : {}),
       ...(focus ? { focus } : {}),
       ...(input.ranges !== undefined ? { ranges: input.ranges.map(({ start, end }) => ({ start, end })) } : {}),
@@ -458,6 +469,8 @@ export function parseJobOptions(input = {}) {
   if (captionPosition !== null && !CAPTION_POSITIONS.includes(captionPosition)) throw new Error("Unsupported caption position");
   const captionSize = provided("captionSize") ? input.captionSize : null;
   if (captionSize !== null && !CAPTION_SIZES.includes(captionSize)) throw new Error("Unsupported caption size");
+  const outputSize = provided("outputSize") ? input.outputSize : null;
+  if (outputSize !== null && !OUTPUT_SIZE_IDS.includes(outputSize)) throw new Error("Unsupported output size");
   const videoLanguage = provided(LANGUAGE_KEY) ? input.videoLanguage : null;
   if (videoLanguage !== null && !VIDEO_LANGUAGES.includes(videoLanguage)) throw new Error("Unsupported video language");
   const focus = parseFocusOption(input.focusTerms, input.focusNote);
@@ -476,6 +489,7 @@ export function parseJobOptions(input = {}) {
     captionStyle,
     ...(captionPosition ? { captionPosition } : {}),
     ...(captionSize ? { captionSize } : {}),
+    ...(outputSize ? { outputSize } : {}),
     ...(videoLanguage ? { videoLanguage } : {}),
     ...(focus ? { focus } : {}),
     ...(ranges.length ? { ranges } : {}),

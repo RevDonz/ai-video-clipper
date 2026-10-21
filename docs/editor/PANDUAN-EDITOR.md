@@ -333,6 +333,13 @@ tersedia untuk job ini" (di lajurnya, atau di baris atas timeline bila lajurnya 
 
 ### Di kedua tampilan
 
+**Ukuran klip.** Rasio (9:16 atau 1:1) dan resolusi (720p atau 1080p) dipilih per proyek di
+dashboard, di **Format video**, sebelum klik **Buat klip**. Semua klip proyek itu memakai ukuran
+yang sama; editor mengikutinya dan tidak mengubahnya. Di klip 1:1: subtitle, hook dan teks
+watermark seukuran klip 9:16 dengan lebar yang sama, posisinya (Atas/Tengah/Bawah) dihitung dari
+tinggi kotak; logo baru dan sudut logo berjarak 4 % dari tepi; tidak ada peringatan area tombol
+TikTok. Biaya render tiap ukuran: `docs/editor/GATES.md` "Output sizes (PF-SIZE)".
+
 **Bar atas.** Dari kiri: "← Proyek", **Klip 3/8 ‹ ›** (kalau proyek punya lebih dari satu klip),
 judul klip dengan status simpan (dan "Terbuka di tab lain" kalau klip ini juga terbuka di tab
 lain), sakelar **Cepat | Lengkap**, Urungkan / Ulangi (ikon), **Perlu dicek (n)**, menu
@@ -375,7 +382,7 @@ Status ada di kiri atas, di samping pratinjau (tidak menutupi video), dan tiap p
 dibacakan pembaca layar. Tombol **?** di sebelahnya menampilkan penjelasan status itu; Esc
 menutupnya. Di kanan atas ada dua tombol: **Frame akhir** (Ctrl+Shift+R, piksel persis hasil
 render) dan **Zona aman** (', area tombol TikTok/Reels di atas pratinjau). Tampilannya sama di
-kedua mode.
+kedua mode. Klip 1:1 tidak punya area tombol, jadi **Zona aman** tidak muncul di sana.
 
 | Status | Artinya |
 |---|---|

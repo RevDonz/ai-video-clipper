@@ -1,22 +1,26 @@
-// The 9:16 preview under "Tampilan klip" on the dashboard (app/dashboard/LookPreview.jsx). It draws
-// only what a job option changes in the automatic render: the layout, the subtitle's pack, spot and
-// size (CONTRACTS §5.48) and the hook text. With the legacy engine (the rollback switch) the
-// subtitle keeps the one spot and size that engine draws. Geometry is in output pixels of the
-// dashboard's 720×1280 render; web/tests/look-preview.test.mjs and caption-look.test.mjs keep every
-// number equal to the engine's. Pure and DOM-free.
-import { CAPTION_POSITION_CHOICES, CAPTION_SIZE_CHOICES, CAPTION_STYLE_CHOICES, LAYOUT_CHOICES, normalizeChoices } from "./dashboard-choices.mjs";
+// The preview under "Tampilan klip" on the dashboard (app/dashboard/LookPreview.jsx). It draws
+// only what a job option changes in the automatic render: the ratio (CONTRACTS §5.54), the layout,
+// the subtitle's pack, spot and size (CONTRACTS §5.48) and the hook text. With the legacy engine
+// (the rollback switch) the subtitle keeps the one spot and size that engine draws. Geometry is in
+// output pixels of a 720-wide render (720×1280, or 720×720 at 1:1: the resolution scales it all);
+// web/tests/look-preview.test.mjs and caption-look.test.mjs keep every number equal to the
+// engine's. Pure and DOM-free.
+import { CAPTION_POSITION_CHOICES, CAPTION_SIZE_CHOICES, CAPTION_STYLE_CHOICES, LAYOUT_CHOICES, RATIO_CHOICES, normalizeChoices } from "./dashboard-choices.mjs";
 import { PREVIEW_BACKDROP } from "./editor/content-colours.mjs";
+import { textHeight, uiZone } from "./output-frame.mjs";
 
 /** The dashboard's render size (web/scripts/run-job.mjs, edit_v2/seed.py DEFAULT_RENDER_SIZE). */
 export const PREVIEW_FRAME = Object.freeze({ w: 720, h: 1280 });
+/** The preview of a 1:1 clip. */
+export const SQUARE_FRAME = Object.freeze({ w: 720, h: 720 });
 
 /** The TikTok button zone at 720×1280 (edit_v2/__init__.py UI_ZONE_720, the editor's Zona aman). */
-export const TIKTOK_ZONE = Object.freeze({ top: 93, bottom: 280, right: 93 });
+export const TIKTOK_ZONE = Object.freeze(uiZone(PREVIEW_FRAME));
 
 /**
  * Where the automatic render puts text (captions_ass.py), as fractions of the output: the
  * subtitle's bottom margin, the hook's top margin, the side margin of both, and the hook's largest
- * font size and box padding.
+ * font size and box padding (sizes of the text height: the 9:16 frame of the width, also at 1:1).
  */
 export const AUTO_TEXT = Object.freeze({ captionBottom: 0.17, hookTop: 0.13, side: 0.06, hookFont: 0.046, hookPadding: 0.011 });
 
@@ -58,12 +62,15 @@ const round2 = (value) => Math.round(value * 100) / 100;
  * `engine` does not draw, is the default, like stored choices). `editor` true adds that Edit klip
  * changes it per clip (it exists only while the editor is on). Returns the frame, the picture
  * (`fit`: the whole landscape video in `band` over its blurred copy; `fill`: cropped to the
- * frame), the subtitle thumbnail with its spot and size, the hook bar or null, the TikTok zone,
- * whether each text sits in it, the note and the accessible name.
+ * frame), the subtitle thumbnail with its spot and size, the hook bar or null, the TikTok zone
+ * (`tiktok` false and an empty zone at 1:1), whether each text sits in it, the note and the
+ * accessible name.
  */
 export function lookPreview(raw, { editor = false, engine } = {}) {
   const choices = normalizeChoices(raw, { engine });
-  const { w, h } = PREVIEW_FRAME;
+  const ratio = RATIO_CHOICES.find((entry) => entry.id === choices.ratio);
+  const { w, h } = ratio.tall ? PREVIEW_FRAME : SQUARE_FRAME;
+  const sizes = textHeight({ w, h });
   const layout = LAYOUT_CHOICES.find((entry) => entry.id === choices.renderMode);
   const style = CAPTION_STYLE_CHOICES.find((entry) => entry.id === choices.captionStyle);
   const position = CAPTION_POSITION_CHOICES.find((entry) => entry.id === choices.captionPosition);
@@ -76,7 +83,7 @@ export function lookPreview(raw, { editor = false, engine } = {}) {
 
   // The thumbnail was cut around the subtitle at the pack's own spot; the engine anchors the
   // subtitle block at the middle of its bottom edge (y_e5) and scales it about there (size_pm).
-  const seedBottom = (1 - AUTO_TEXT.captionBottom) * h;
+  const seedBottom = (1 - AUTO_TEXT.captionBottom) * PREVIEW_FRAME.h; // where the thumbnail was cut
   const bottom = round2((position.y_e5 / 100_000) * h);
   const scale = size.size_pm / 1000;
   const image = {
@@ -89,8 +96,8 @@ export function lookPreview(raw, { editor = false, engine } = {}) {
 
   let hook = null;
   if (choices.hookOverlay) {
-    const fontSize = round2(AUTO_TEXT.hookFont * h);
-    const padding = round2(AUTO_TEXT.hookPadding * h);
+    const fontSize = round2(AUTO_TEXT.hookFont * sizes);
+    const padding = round2(AUTO_TEXT.hookPadding * sizes);
     const width = Math.min(w - 2 * AUTO_TEXT.side * w, round2(HOOK_SAMPLE.length * SAMPLE_ADVANCE * fontSize + 2 * padding));
     hook = {
       text: HOOK_SAMPLE,
@@ -99,13 +106,13 @@ export function lookPreview(raw, { editor = false, engine } = {}) {
     };
   }
 
-  const zone = { ...TIKTOK_ZONE };
+  const zone = uiZone({ w, h });
   const captionInZone = caption.bottom > h - zone.bottom;
   const hookInZone = hook !== null && hook.box.y < zone.top;
   const editorNote = engine === "legacy" ? LOOK_NOTES.legacyEditor : LOOK_NOTES.editor;
   const note = [captionInZone ? LOOK_NOTES.zone : null, editor === true ? editorNote : null].filter(Boolean).join(" ") || null;
   const sized = size.id === "medium" ? "" : ` ${size.name.toLowerCase()}`;
-  const label = `Pratinjau klip 9:16: ${layout.name}, subtitle ${style.name}${sized} di ${position.name.toLowerCase()}, ${hook ? "teks hook di atas" : "tanpa teks hook"}.`;
+  const label = `Pratinjau klip ${ratio.name}: ${layout.name}, subtitle ${style.name}${sized} di ${position.name.toLowerCase()}, ${hook ? "teks hook di atas" : "tanpa teks hook"}.`;
 
-  return { frame: { w, h }, picture, caption, hook, zone, captionInZone, hookInZone, note, label };
+  return { frame: { w, h }, picture, caption, hook, zone, tiktok: ratio.tall, captionInZone, hookInZone, note, label };
 }

@@ -201,6 +201,10 @@ suite) run on GitHub Actions: `ci-cd.yml` on every pull request and `editor-gate
   terakhir diingat di browser itu (`localStorage`); link, file, rentang waktu, dan fokus tidak
   disimpan. File
   video bisa ditarik ke halaman.
+- **Format video.** Rasio 9:16 (bawaan) atau 1:1, resolusi 720p (bawaan) atau 1080p, per job.
+  Job 1080p mengunduh video YouTube sampai 1080p; render dan file lebih berat (angkanya di
+  `docs/editor/GATES.md` "Output sizes (PF-SIZE)"). Klip 1:1 tidak punya area tombol TikTok; teks
+  seukuran klip 9:16 dengan lebar yang sama. Tanpa 2K, 4K atau 16:9.
 - **Cold open.** Kalimat terkuat bisa diputar lebih dulu, lalu klip berjalan dari awal.
 - **Teks hook.** Kalimat pemancing singkat tampil di atas layar selama 4 detik pertama.
 - **Subtitle per kata.** Subtitle mengikuti waktu per kata. Di **Pengaturan klip** ada lima gaya

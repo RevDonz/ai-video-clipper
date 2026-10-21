@@ -532,7 +532,9 @@ def test_the_default_logo_sits_where_the_editor_places_a_new_logo():
     """The vectors come from the editor's SetLogo (web/tests/default-logo.test.mjs checks them
     against it): the default size, fitted to the frame, at the top-right preset."""
     vectors = json.loads(LOGO_VECTORS.read_text())["vectors"]
-    assert len(vectors) == 24 and any(vector["transform"] is None for vector in vectors)
+    assert len(vectors) == 48 and any(vector["transform"] is None for vector in vectors)
+    assert {tuple(vector["output"]) for vector in vectors} == {(720, 1280), (1080, 1920), (720, 720),
+                                                               (1080, 1080)}
     for vector in vectors:
         found = default_logo_transform(tuple(vector["output"]), *vector["asset"])
         assert found == vector["transform"], vector

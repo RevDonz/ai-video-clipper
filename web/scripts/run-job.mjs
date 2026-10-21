@@ -23,6 +23,7 @@ import { clipCounts, clipErrorCode } from "../lib/clip-status.mjs";
 import { DownloadError, downloadErrorMessage } from "../lib/download-errors.mjs";
 import { PROGRESS_TEMPLATE, createDownloadMonitor, downloadStallMs } from "../lib/download-monitor.mjs";
 import { engineProcessEnv, loadLlmEnv } from "../lib/llm-settings.mjs";
+import { DEFAULT_OUTPUT_SIZE, OUTPUT_SIZES } from "../lib/output-frame.mjs";
 import {
   CANCELLED_STATUS,
   LeaseLostError,
@@ -44,6 +45,7 @@ export function buildClipperInvocation(job, sourcePath, outputRoot, env = proces
     throw new Error("Invalid persisted job options");
   }
   const options = validatePersistedJobOptions(job.options);
+  const size = OUTPUT_SIZES[options.outputSize ?? DEFAULT_OUTPUT_SIZE];
   const args = [
     sourcePath,
     "--output-dir",
@@ -61,10 +63,11 @@ export function buildClipperInvocation(job, sourcePath, outputRoot, env = proces
     String(options.maxDuration),
     "--limit",
     String(options.limit),
+    // "Rasio" and "Resolusi" (CONTRACTS §5.54); a job without them renders at 720×1280.
     "--width",
-    "720",
+    String(size.w),
     "--height",
-    "1280",
+    String(size.h),
     "--render-mode",
     options.renderMode,
     // Every selection mode writes analysis/ beside output/, so a queue attempt
@@ -258,12 +261,27 @@ export function downloaderEnv(env) {
   return Object.fromEntries(Object.entries(env).filter(([name]) => !DOWNLOADER_SECRET.test(name)));
 }
 
+/**
+ * The tallest source a job downloads: 1080 for a 1080-wide render ("Resolusi" 1080p, CONTRACTS
+ * §5.54), else 720 (also for options that do not validate: the engine refuses those later).
+ */
+export function sourceHeightFor(options) {
+  try {
+    const { outputSize } = validatePersistedJobOptions(options);
+    return OUTPUT_SIZES[outputSize ?? DEFAULT_OUTPUT_SIZE].w === 1080 ? 1080 : 720;
+  } catch {
+    return 720;
+  }
+}
+
 // The source video. --newline and the progress template give one progress line per update,
-// which the download monitor reads to stop a download that no longer moves.
-export function buildVideoDownload(url, downloadRoot, { cookiesFile = null } = {}) {
+// which the download monitor reads to stop a download that no longer moves. A 1080-wide render
+// gets a source up to 1080p, every other one up to 720p (sourceHeightFor).
+export function buildVideoDownload(url, downloadRoot, { cookiesFile = null, maxHeight = 720 } = {}) {
+  const height = maxHeight === 1080 ? 1080 : 720;
   return [
     "--no-playlist", "--js-runtimes", "node", "--newline", "--progress-template", PROGRESS_TEMPLATE,
-    "--format", "bv*[height<=720]+ba/b[height<=720]",
+    "--format", `bv*[height<=${height}]+ba/b[height<=${height}]`,
     "--merge-output-format", "mp4", "--output", path.join(downloadRoot, "source.%(ext)s"), ...cookiesArgs(cookiesFile), url,
   ];
 }
@@ -582,7 +600,9 @@ export async function main(argv = process.argv, env = process.env) {
       // The cookies copy lives only while yt-dlp runs: deleted before the engine starts, and on failure.
       const cookies = await prepareYoutubeCookies(env);
       try {
-        await runVideoDownload(buildVideoDownload(job.source.url, downloadRoot, { cookiesFile: cookies?.file }));
+        await runVideoDownload(buildVideoDownload(job.source.url, downloadRoot, {
+          cookiesFile: cookies?.file, maxHeight: sourceHeightFor(job.options),
+        }));
         const files = await readdir(downloadRoot);
         const sourceFile = files.find((name) => name.startsWith("source.") && !name.endsWith(".part"));
         if (!sourceFile) throw new Error("Video YouTube selesai diunduh tetapi file sumber tidak ditemukan");

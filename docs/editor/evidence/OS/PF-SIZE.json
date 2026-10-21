@@ -1,0 +1,784 @@
+{
+  "gate": "PF-SIZE",
+  "note": "local FFmpeg 6.1.1 at nice 10 on the 16-thread reference PC shared with other agents; clip 2 of the synthetic job (36.37 s, hook, karaoke) over a real 1280x720 talk video looped to 186 s and its lanczos upscale to 1920x1080; 2 interleaved rounds, medians. The source shows no face the detector keeps, so face-track centres (its bytes equal center-crop's); its time includes the camera plan.",
+  "runs": {
+    "local-ffmpeg-6.1.1-src1280x720": {
+      "gate": "PF-SIZE",
+      "machine": {
+        "cpus": 16,
+        "ffmpeg": "ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023 the FFmpeg developers",
+        "nice": 10,
+        "platform": "Linux x86_64",
+        "python": "3.11.15"
+      },
+      "runs": [
+        {
+          "bytes": 7841191,
+          "clip_s": 14.58,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "fit-blur",
+          "round": 0,
+          "size": "720x1280",
+          "stage_s": 15.96,
+          "warnings": []
+        },
+        {
+          "bytes": 14801650,
+          "clip_s": 23.91,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "fit-blur",
+          "round": 0,
+          "size": "1080x1920",
+          "stage_s": 25.09,
+          "warnings": []
+        },
+        {
+          "bytes": 6881279,
+          "clip_s": 8.37,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "fit-blur",
+          "round": 0,
+          "size": "720x720",
+          "stage_s": 9.63,
+          "warnings": []
+        },
+        {
+          "bytes": 12589295,
+          "clip_s": 17.79,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "fit-blur",
+          "round": 0,
+          "size": "1080x1080",
+          "stage_s": 18.92,
+          "warnings": []
+        },
+        {
+          "bytes": 7589698,
+          "clip_s": 8.5,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "center-crop",
+          "round": 0,
+          "size": "720x1280",
+          "stage_s": 10.0,
+          "warnings": []
+        },
+        {
+          "bytes": 11956568,
+          "clip_s": 14.19,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "center-crop",
+          "round": 0,
+          "size": "1080x1920",
+          "stage_s": 15.44,
+          "warnings": []
+        },
+        {
+          "bytes": 7321068,
+          "clip_s": 5.59,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "center-crop",
+          "round": 0,
+          "size": "720x720",
+          "stage_s": 6.78,
+          "warnings": []
+        },
+        {
+          "bytes": 11899948,
+          "clip_s": 9.86,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "center-crop",
+          "round": 0,
+          "size": "1080x1080",
+          "stage_s": 11.05,
+          "warnings": []
+        },
+        {
+          "bytes": 7589698,
+          "clip_s": 15.06,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "face-track",
+          "round": 0,
+          "size": "720x1280",
+          "stage_s": 16.31,
+          "warnings": []
+        },
+        {
+          "bytes": 11989310,
+          "clip_s": 20.92,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "face-track",
+          "round": 0,
+          "size": "1080x1920",
+          "stage_s": 22.32,
+          "warnings": []
+        },
+        {
+          "bytes": 7321068,
+          "clip_s": 12.69,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "face-track",
+          "round": 0,
+          "size": "720x720",
+          "stage_s": 14.13,
+          "warnings": []
+        },
+        {
+          "bytes": 11899948,
+          "clip_s": 17.03,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "face-track",
+          "round": 0,
+          "size": "1080x1080",
+          "stage_s": 18.38,
+          "warnings": []
+        },
+        {
+          "bytes": 7841191,
+          "clip_s": 15.16,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "fit-blur",
+          "round": 1,
+          "size": "720x1280",
+          "stage_s": 16.53,
+          "warnings": []
+        },
+        {
+          "bytes": 14801650,
+          "clip_s": 30.34,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "fit-blur",
+          "round": 1,
+          "size": "1080x1920",
+          "stage_s": 31.82,
+          "warnings": []
+        },
+        {
+          "bytes": 6881279,
+          "clip_s": 9.76,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "fit-blur",
+          "round": 1,
+          "size": "720x720",
+          "stage_s": 11.12,
+          "warnings": []
+        },
+        {
+          "bytes": 12589295,
+          "clip_s": 16.95,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "fit-blur",
+          "round": 1,
+          "size": "1080x1080",
+          "stage_s": 18.4,
+          "warnings": []
+        },
+        {
+          "bytes": 7589698,
+          "clip_s": 9.18,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "center-crop",
+          "round": 1,
+          "size": "720x1280",
+          "stage_s": 10.99,
+          "warnings": []
+        },
+        {
+          "bytes": 11956568,
+          "clip_s": 15.27,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "center-crop",
+          "round": 1,
+          "size": "1080x1920",
+          "stage_s": 16.61,
+          "warnings": []
+        },
+        {
+          "bytes": 7321068,
+          "clip_s": 6.19,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "center-crop",
+          "round": 1,
+          "size": "720x720",
+          "stage_s": 7.5,
+          "warnings": []
+        },
+        {
+          "bytes": 11899948,
+          "clip_s": 11.42,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "center-crop",
+          "round": 1,
+          "size": "1080x1080",
+          "stage_s": 12.79,
+          "warnings": []
+        },
+        {
+          "bytes": 7589698,
+          "clip_s": 15.15,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "face-track",
+          "round": 1,
+          "size": "720x1280",
+          "stage_s": 16.62,
+          "warnings": []
+        },
+        {
+          "bytes": 11989310,
+          "clip_s": 22.24,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "face-track",
+          "round": 1,
+          "size": "1080x1920",
+          "stage_s": 23.63,
+          "warnings": []
+        },
+        {
+          "bytes": 7321068,
+          "clip_s": 10.71,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "face-track",
+          "round": 1,
+          "size": "720x720",
+          "stage_s": 12.04,
+          "warnings": []
+        },
+        {
+          "bytes": 11899948,
+          "clip_s": 14.75,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "face-track",
+          "round": 1,
+          "size": "1080x1080",
+          "stage_s": 15.99,
+          "warnings": []
+        }
+      ],
+      "schema": "potongin.pf-size/1",
+      "source": {
+        "kind": "file",
+        "size": [
+          1280,
+          720
+        ]
+      },
+      "summary": {
+        "center-crop": {
+          "1080x1080": {
+            "bytes": 11899948,
+            "bytes_vs_720x1280": 1.57,
+            "clip_s": 10.64,
+            "duration_s": 36.367,
+            "realtime_x": 0.293,
+            "time_vs_720x1280": 1.2
+          },
+          "1080x1920": {
+            "bytes": 11956568,
+            "bytes_vs_720x1280": 1.58,
+            "clip_s": 14.73,
+            "duration_s": 36.367,
+            "realtime_x": 0.405,
+            "time_vs_720x1280": 1.67
+          },
+          "720x1280": {
+            "bytes": 7589698,
+            "bytes_vs_720x1280": 1.0,
+            "clip_s": 8.84,
+            "duration_s": 36.367,
+            "realtime_x": 0.243,
+            "time_vs_720x1280": 1.0
+          },
+          "720x720": {
+            "bytes": 7321068,
+            "bytes_vs_720x1280": 0.96,
+            "clip_s": 5.89,
+            "duration_s": 36.367,
+            "realtime_x": 0.162,
+            "time_vs_720x1280": 0.67
+          }
+        },
+        "face-track": {
+          "1080x1080": {
+            "bytes": 11899948,
+            "bytes_vs_720x1280": 1.57,
+            "clip_s": 15.89,
+            "duration_s": 36.367,
+            "realtime_x": 0.437,
+            "time_vs_720x1280": 1.05
+          },
+          "1080x1920": {
+            "bytes": 11989310,
+            "bytes_vs_720x1280": 1.58,
+            "clip_s": 21.58,
+            "duration_s": 36.367,
+            "realtime_x": 0.593,
+            "time_vs_720x1280": 1.43
+          },
+          "720x1280": {
+            "bytes": 7589698,
+            "bytes_vs_720x1280": 1.0,
+            "clip_s": 15.11,
+            "duration_s": 36.367,
+            "realtime_x": 0.415,
+            "time_vs_720x1280": 1.0
+          },
+          "720x720": {
+            "bytes": 7321068,
+            "bytes_vs_720x1280": 0.96,
+            "clip_s": 11.7,
+            "duration_s": 36.367,
+            "realtime_x": 0.322,
+            "time_vs_720x1280": 0.77
+          }
+        },
+        "fit-blur": {
+          "1080x1080": {
+            "bytes": 12589295,
+            "bytes_vs_720x1280": 1.61,
+            "clip_s": 17.37,
+            "duration_s": 36.367,
+            "realtime_x": 0.478,
+            "time_vs_720x1280": 1.17
+          },
+          "1080x1920": {
+            "bytes": 14801650,
+            "bytes_vs_720x1280": 1.89,
+            "clip_s": 27.12,
+            "duration_s": 36.367,
+            "realtime_x": 0.746,
+            "time_vs_720x1280": 1.82
+          },
+          "720x1280": {
+            "bytes": 7841191,
+            "bytes_vs_720x1280": 1.0,
+            "clip_s": 14.87,
+            "duration_s": 36.367,
+            "realtime_x": 0.409,
+            "time_vs_720x1280": 1.0
+          },
+          "720x720": {
+            "bytes": 6881279,
+            "bytes_vs_720x1280": 0.88,
+            "clip_s": 9.06,
+            "duration_s": 36.367,
+            "realtime_x": 0.249,
+            "time_vs_720x1280": 0.61
+          }
+        }
+      }
+    },
+    "local-ffmpeg-6.1.1-src1920x1080": {
+      "gate": "PF-SIZE",
+      "machine": {
+        "cpus": 16,
+        "ffmpeg": "ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023 the FFmpeg developers",
+        "nice": 10,
+        "platform": "Linux x86_64",
+        "python": "3.11.15"
+      },
+      "runs": [
+        {
+          "bytes": 7812123,
+          "clip_s": 14.11,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "fit-blur",
+          "round": 0,
+          "size": "720x1280",
+          "stage_s": 16.06,
+          "warnings": []
+        },
+        {
+          "bytes": 14435031,
+          "clip_s": 29.95,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "fit-blur",
+          "round": 0,
+          "size": "1080x1920",
+          "stage_s": 31.83,
+          "warnings": []
+        },
+        {
+          "bytes": 6856548,
+          "clip_s": 11.01,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "fit-blur",
+          "round": 0,
+          "size": "720x720",
+          "stage_s": 13.28,
+          "warnings": []
+        },
+        {
+          "bytes": 12236131,
+          "clip_s": 18.74,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "fit-blur",
+          "round": 0,
+          "size": "1080x1080",
+          "stage_s": 21.04,
+          "warnings": []
+        },
+        {
+          "bytes": 7822069,
+          "clip_s": 9.16,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "center-crop",
+          "round": 0,
+          "size": "720x1280",
+          "stage_s": 11.35,
+          "warnings": []
+        },
+        {
+          "bytes": 12651503,
+          "clip_s": 14.7,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "center-crop",
+          "round": 0,
+          "size": "1080x1920",
+          "stage_s": 16.56,
+          "warnings": []
+        },
+        {
+          "bytes": 6303662,
+          "clip_s": 6.49,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "center-crop",
+          "round": 0,
+          "size": "720x720",
+          "stage_s": 8.51,
+          "warnings": []
+        },
+        {
+          "bytes": 11683137,
+          "clip_s": 9.94,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "center-crop",
+          "round": 0,
+          "size": "1080x1080",
+          "stage_s": 12.05,
+          "warnings": []
+        },
+        {
+          "bytes": 7822069,
+          "clip_s": 17.0,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "face-track",
+          "round": 0,
+          "size": "720x1280",
+          "stage_s": 19.01,
+          "warnings": []
+        },
+        {
+          "bytes": 12845151,
+          "clip_s": 22.4,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "face-track",
+          "round": 0,
+          "size": "1080x1920",
+          "stage_s": 24.27,
+          "warnings": []
+        },
+        {
+          "bytes": 6303662,
+          "clip_s": 16.15,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "face-track",
+          "round": 0,
+          "size": "720x720",
+          "stage_s": 18.41,
+          "warnings": []
+        },
+        {
+          "bytes": 11683137,
+          "clip_s": 16.97,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "face-track",
+          "round": 0,
+          "size": "1080x1080",
+          "stage_s": 19.15,
+          "warnings": []
+        },
+        {
+          "bytes": 7812123,
+          "clip_s": 13.88,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "fit-blur",
+          "round": 1,
+          "size": "720x1280",
+          "stage_s": 15.7,
+          "warnings": []
+        },
+        {
+          "bytes": 14435031,
+          "clip_s": 32.67,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "fit-blur",
+          "round": 1,
+          "size": "1080x1920",
+          "stage_s": 34.61,
+          "warnings": []
+        },
+        {
+          "bytes": 6856548,
+          "clip_s": 9.91,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "fit-blur",
+          "round": 1,
+          "size": "720x720",
+          "stage_s": 11.79,
+          "warnings": []
+        },
+        {
+          "bytes": 12236131,
+          "clip_s": 15.43,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "fit-blur",
+          "round": 1,
+          "size": "1080x1080",
+          "stage_s": 17.29,
+          "warnings": []
+        },
+        {
+          "bytes": 7822069,
+          "clip_s": 8.0,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "center-crop",
+          "round": 1,
+          "size": "720x1280",
+          "stage_s": 9.87,
+          "warnings": []
+        },
+        {
+          "bytes": 12651503,
+          "clip_s": 13.15,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "center-crop",
+          "round": 1,
+          "size": "1080x1920",
+          "stage_s": 15.0,
+          "warnings": []
+        },
+        {
+          "bytes": 6303662,
+          "clip_s": 5.72,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "center-crop",
+          "round": 1,
+          "size": "720x720",
+          "stage_s": 7.53,
+          "warnings": []
+        },
+        {
+          "bytes": 11683137,
+          "clip_s": 9.63,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "center-crop",
+          "round": 1,
+          "size": "1080x1080",
+          "stage_s": 11.5,
+          "warnings": []
+        },
+        {
+          "bytes": 7822069,
+          "clip_s": 16.17,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "face-track",
+          "round": 1,
+          "size": "720x1280",
+          "stage_s": 18.14,
+          "warnings": []
+        },
+        {
+          "bytes": 12845151,
+          "clip_s": 21.19,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "face-track",
+          "round": 1,
+          "size": "1080x1920",
+          "stage_s": 23.09,
+          "warnings": []
+        },
+        {
+          "bytes": 6303662,
+          "clip_s": 14.7,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "face-track",
+          "round": 1,
+          "size": "720x720",
+          "stage_s": 16.52,
+          "warnings": []
+        },
+        {
+          "bytes": 11683137,
+          "clip_s": 18.03,
+          "duration_s": 36.367,
+          "engine": "edit-v2/1",
+          "layout": "face-track",
+          "round": 1,
+          "size": "1080x1080",
+          "stage_s": 19.96,
+          "warnings": []
+        }
+      ],
+      "schema": "potongin.pf-size/1",
+      "source": {
+        "kind": "file",
+        "size": [
+          1920,
+          1080
+        ]
+      },
+      "summary": {
+        "center-crop": {
+          "1080x1080": {
+            "bytes": 11683137,
+            "bytes_vs_720x1280": 1.49,
+            "clip_s": 9.79,
+            "duration_s": 36.367,
+            "realtime_x": 0.269,
+            "time_vs_720x1280": 1.14
+          },
+          "1080x1920": {
+            "bytes": 12651503,
+            "bytes_vs_720x1280": 1.62,
+            "clip_s": 13.93,
+            "duration_s": 36.367,
+            "realtime_x": 0.383,
+            "time_vs_720x1280": 1.62
+          },
+          "720x1280": {
+            "bytes": 7822069,
+            "bytes_vs_720x1280": 1.0,
+            "clip_s": 8.58,
+            "duration_s": 36.367,
+            "realtime_x": 0.236,
+            "time_vs_720x1280": 1.0
+          },
+          "720x720": {
+            "bytes": 6303662,
+            "bytes_vs_720x1280": 0.81,
+            "clip_s": 6.11,
+            "duration_s": 36.367,
+            "realtime_x": 0.168,
+            "time_vs_720x1280": 0.71
+          }
+        },
+        "face-track": {
+          "1080x1080": {
+            "bytes": 11683137,
+            "bytes_vs_720x1280": 1.49,
+            "clip_s": 17.5,
+            "duration_s": 36.367,
+            "realtime_x": 0.481,
+            "time_vs_720x1280": 1.05
+          },
+          "1080x1920": {
+            "bytes": 12845151,
+            "bytes_vs_720x1280": 1.64,
+            "clip_s": 21.8,
+            "duration_s": 36.367,
+            "realtime_x": 0.599,
+            "time_vs_720x1280": 1.31
+          },
+          "720x1280": {
+            "bytes": 7822069,
+            "bytes_vs_720x1280": 1.0,
+            "clip_s": 16.59,
+            "duration_s": 36.367,
+            "realtime_x": 0.456,
+            "time_vs_720x1280": 1.0
+          },
+          "720x720": {
+            "bytes": 6303662,
+            "bytes_vs_720x1280": 0.81,
+            "clip_s": 15.42,
+            "duration_s": 36.367,
+            "realtime_x": 0.424,
+            "time_vs_720x1280": 0.93
+          }
+        },
+        "fit-blur": {
+          "1080x1080": {
+            "bytes": 12236131,
+            "bytes_vs_720x1280": 1.57,
+            "clip_s": 17.09,
+            "duration_s": 36.367,
+            "realtime_x": 0.47,
+            "time_vs_720x1280": 1.22
+          },
+          "1080x1920": {
+            "bytes": 14435031,
+            "bytes_vs_720x1280": 1.85,
+            "clip_s": 31.31,
+            "duration_s": 36.367,
+            "realtime_x": 0.861,
+            "time_vs_720x1280": 2.24
+          },
+          "720x1280": {
+            "bytes": 7812123,
+            "bytes_vs_720x1280": 1.0,
+            "clip_s": 14.0,
+            "duration_s": 36.367,
+            "realtime_x": 0.385,
+            "time_vs_720x1280": 1.0
+          },
+          "720x720": {
+            "bytes": 6856548,
+            "bytes_vs_720x1280": 0.88,
+            "clip_s": 10.46,
+            "duration_s": 36.367,
+            "realtime_x": 0.288,
+            "time_vs_720x1280": 0.75
+          }
+        }
+      }
+    }
+  },
+  "schema": "potongin.pf-size/1",
+  "task": "output-format"
+}

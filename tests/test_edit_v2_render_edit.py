@@ -388,6 +388,13 @@ def test_the_render_timeout_scales_with_the_clip_and_its_layout():
     frames = sum(segment["out_sf"] - segment["in_sf"] for segment in seed_doc["main"]["segments"])
     assert render_edit.render_timeout_s(seed_doc) == pytest.approx(
         max(120.0, 3 * frames / 25 * render_edit.PREDICTED_X["camera"]))
+    long_timeout = render_edit.render_timeout_s(seed_doc)
+    # a larger output has more pixels to render (PF-SIZE, CONTRACTS §5.54): never less than at
+    # 720×1280, × its pixels over 720×1280's above that
+    for size, scale in (((720, 720), 1.0), ((1080, 1080), 1.265625), ((1080, 1920), 2.25)):
+        sized = copy.deepcopy(seed_doc)
+        sized["output"].update(w=size[0], h=size[1])
+        assert render_edit.render_timeout_s(sized) == pytest.approx(long_timeout * scale), size
     seed_doc["main"]["segments"][-1]["out_sf"] = seed_doc["main"]["segments"][-1]["in_sf"] + 100
     assert render_edit.render_timeout_s(seed_doc) == 120.0  # a short clip keeps the floor
 

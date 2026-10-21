@@ -17,7 +17,7 @@ from support import edit_v2_fixtures as fixtures
 from test_edit_v2_store import make_clip, next_doc
 
 from ai_clipper import render_queue
-from ai_clipper.edit_v2 import PACK_IDS
+from ai_clipper.edit_v2 import OUTPUT_SIZES, PACK_IDS
 from ai_clipper.edit_v2 import errors as edit_errors
 from ai_clipper.edit_v2 import store as edit_store
 from ai_clipper.edit_v2 import verify as edit_verify
@@ -236,7 +236,7 @@ def test_v3_create_binds_the_archived_revision_render_key_and_hard_linked_source
 def test_v3_timeout_formula_is_the_scaled_prediction_with_a_floor():
     assert (TIMEOUT_FLOOR_MS, TIMEOUT_FACTOR) == (120_000, 3)
     for layout in ("fit_blur", "fill_center", "camera", "split"):
-        for size in ((720, 1280), (1080, 1920)):
+        for size in OUTPUT_SIZES:  # 9:16 and 1:1 (CONTRACTS §5.54)
             cost = RENDER_COST_PERMILLE[(layout, size)]
             assert predicted_render_ms(60_000, layout, size) == -(-60_000 * cost // 1000)
             for duration in (3_000, 60_000, 300_000):
@@ -247,6 +247,12 @@ def test_v3_timeout_formula_is_the_scaled_prediction_with_a_floor():
     small, large = (720, 1280), (1080, 1920)
     assert RENDER_COST_PERMILLE[("camera", small)] >= RENDER_COST_PERMILLE[("fit_blur", small)]
     assert RENDER_COST_PERMILLE[("fit_blur", large)] > RENDER_COST_PERMILLE[("fit_blur", small)]
+    # PF-SIZE: a 1:1 render never took longer than the 9:16 one of its width, so its budget is that
+    # one's (a timeout is never shorter than measured).
+    for layout in ("fit_blur", "fill_center", "camera", "split"):
+        for width in (720, 1080):
+            assert (RENDER_COST_PERMILLE[(layout, (width, width))]
+                    == RENDER_COST_PERMILLE[(layout, (width, width * 16 // 9))])
 
 
 def test_v3_create_is_idempotent_and_a_reused_key_with_other_content_conflicts(tmp_path):
